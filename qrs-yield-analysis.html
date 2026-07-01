@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  qrs-yield-analysis.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QRS / pulse beat-yield under apnea — ECGDex × PpgDex (FULL lane)</title>
+<!-- ════════════════════════════════════════════════════════════════════════
+  qrs-yield-analysis.html — figure engine for the candidate paper
+  "QRS / pulse beat-yield under apnea: the perfusion gap consumer pulse detectors
+   miss while signal-quality stays green."
+
+  The REAL ECGDex (Pan–Tompkins) and PpgDex (optical pulse) detectors run on one
+  ~9-min apnea-cluster window per patient through the FULL lane, and every detected
+  beat is matched (PAT-corrected, ±120 ms) against the master-timeline ground-truth
+  beats. Recall is split by apnea vs clean state; the detector's own per-beat SQI is
+  read in those same segments; and detected rMSSD is compared to truth.
+
+  HONEST FRAMING (in-page + export): synthetic ground truth. The apnea beats are the
+  generator's perfusion model (PPG pulse amplitude ×0.30 in apnea). This certifies
+  the ECG arm is yield-robust and isolates the modest PPG apnea yield dip + over-
+  detection and the resulting HRV bias — it is NOT a real-patient miss rate. 100% local; reuses synth-gen.js +
+  cohort-gen.js + cohort-full.js + the real ecgdex/ppgdex pipelines via a worker pool.
+═════════════════════════════════════════════════════════════════════════ -->
+<style>
+  :root{
+    --bg:#0c0f14; --surface:#141922; --surface2:#1b212c; --line:rgba(255,255,255,.08);
+    --text:#e6edf6; --text2:#aab8cc; --text3:#6f8096; --teal:#3DE0D0; --blue:#58A6FF;
+    --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A; --purple:#B98AFF;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;padding:0 0 90px;}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px;}
+  header{padding:26px 0 16px;border-bottom:1px solid var(--line);margin-bottom:22px;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--blue);}
+  h1{margin:6px 0 3px;font-size:25px;font-weight:650;letter-spacing:-.01em;}
+  h1 .g{color:var(--amber);}
+  .sub{color:var(--text3);font-size:13px;max-width:860px;line-height:1.5;}
+  .controls{display:flex;gap:10px;align-items:center;margin-top:18px;flex-wrap:wrap;}
+  button{font-family:var(--sans);font-size:13px;font-weight:600;padding:9px 16px;border-radius:8px;border:1px solid var(--line);background:var(--surface2);color:var(--text);cursor:pointer;}
+  button:hover{border-color:rgba(255,255,255,.2);}
+  button.primary{background:var(--blue);color:#04203f;border-color:transparent;}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  .pill{font-family:var(--mono);font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid var(--line);}
+  .pill.idle{color:var(--text3);} .pill.run{color:var(--blue);border-color:rgba(88,166,255,.35);} .pill.done{color:var(--green);border-color:rgba(57,217,138,.35);}
+  .field{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text2);}
+  .field input{width:64px;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:5px 7px;font-family:var(--mono);font-size:12px;}
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:18px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;}
+  .card h2{margin:0 0 14px;font-size:13px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;gap:8px;}
+  .card h2 .tag{font-family:var(--mono);font-size:10px;color:var(--text3);font-weight:500;border:1px solid var(--line);border-radius:5px;padding:2px 6px;margin-left:auto;}
+  .col-12{grid-column:span 12;} .col-7{grid-column:span 7;} .col-6{grid-column:span 6;} .col-5{grid-column:span 5;}
+  @media(max-width:900px){ .col-7,.col-6,.col-5{grid-column:span 12;} }
+  canvas{max-width:100%;display:block;background:#0f141b;border-radius:8px;}
+  .legend{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:9px;line-height:1.7;}
+  .chip{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle;}
+  .headline{display:flex;flex-direction:column;gap:12px;}
+  .hcard{background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:13px 15px;}
+  .hl{font-family:var(--mono);font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:1;}
+  .hl .hu{font-size:13px;color:var(--text3);font-weight:500;}
+  .hk{font-size:12px;color:var(--text2);margin-top:6px;}
+  .hs{font-size:10.5px;color:var(--text3);font-family:var(--mono);margin-top:2px;}
+  .muted{color:var(--text3);}
+  .note{background:rgba(255,184,77,.07);border:1px solid rgba(255,184,77,.22);border-radius:10px;padding:12px 15px;font-size:12px;color:var(--text2);line-height:1.55;margin-top:8px;}
+  code{font-family:var(--mono);color:var(--blue);background:var(--surface2);padding:1px 5px;border-radius:4px;font-size:11px;}
+  #prog{height:4px;background:var(--surface2);border-radius:3px;overflow:hidden;flex:1;min-width:120px;max-width:280px;}
+  #progBar{height:100%;width:0;background:var(--blue);transition:width .2s;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.05);}
+  th{color:var(--text3);font-weight:500;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;}
+  td.num,th.num{text-align:right;font-family:var(--mono);}
+  td .muted{font-size:10.5px;}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="eyebrow">ECGDex · PpgDex · FULL-lane beat-yield (apnea-cluster windows)</div>
+    <h1>QRS / pulse <span class="g">beat-yield under apnea</span> — the perfusion gap quality misses</h1>
+    <div class="sub">The production <b>ECGDex</b> (Pan–Tompkins QRS) and <b>PpgDex</b> (optical pulse) detectors run on one ~9-min apnea-cluster window per patient. Every detected beat is matched against the master-timeline <b>ground-truth</b> beats (PAT-corrected, ±120 ms) and recall is split by <b>apnea vs clean</b> state, alongside the detector's own <b>per-beat SQI</b> in those segments and the detected-vs-true <b>rMSSD</b>. The question: when apnea suppresses pulse perfusion, which beats get missed, and does signal-quality see it?</div>
+    <div class="controls">
+      <span class="field">patients <input id="nSubj" type="number" value="60" min="10" max="20000" step="10"></span>
+      <span style="font-size:11px;color:var(--text3);align-self:center">↑ large N runs slower (real detectors per night)</span>
+      <button class="primary" id="run">Run cohort</button>
+      <button id="cancel" style="display:none">Cancel</button>
+      <div id="prog"><div id="progBar"></div></div>
+      <span class="pill idle" id="status">idle</span>
+      <span style="flex:1"></span>
+      <button id="dlCsv" disabled>results.csv</button>
+      <button id="dlStats" disabled>stats.json</button>
+      <button id="dlFig" disabled>figures.png</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="grid">
+    <div class="card col-7">
+      <h2>Beat recall — clean vs apnea segments, by detector <span class="tag">detected / true beats</span></h2>
+      <canvas id="recall" width="640" height="340"></canvas>
+      <div class="legend">Solid = clean-segment recall · outlined = apnea-segment recall. ECG QRS is electrical (robust); PPG pulse depends on perfusion, which apnea suppresses.</div>
+    </div>
+    <div class="card col-5">
+      <h2>Headline <span class="tag">apnea-segment beats</span></h2>
+      <div class="headline" id="headline"><div class="muted" style="font-size:12px">Run the cohort to compute apnea-segment recall, the SQI that the detector reports there, and the downstream rMSSD bias.</div></div>
+    </div>
+
+    <div class="card col-6">
+      <h2>Quality blind to the gap <span class="tag">SQI vs recall, apnea segments</span></h2>
+      <canvas id="dissoc" width="560" height="320"></canvas>
+      <div class="legend" id="dissocLeg">Run to populate.</div>
+    </div>
+    <div class="card col-6">
+      <h2>Downstream HRV bias <span class="tag">PpgDex · detected vs true rMSSD</span></h2>
+      <canvas id="bias" width="560" height="320"></canvas>
+      <div class="legend" id="biasLeg">Run to populate.</div>
+    </div>
+
+    <div class="card col-12">
+      <h2>Per-detector beat-yield, signal-quality &amp; HRV bias <span class="tag">pooled over windows</span></h2>
+      <table>
+        <thead><tr><th>Detector</th><th class="num">windows</th><th class="num">true beats</th><th class="num">recall all</th><th class="num">recall clean</th><th class="num">recall apnea</th><th class="num">precision</th><th class="num">SQI clean</th><th class="num">SQI apnea</th><th class="num">rMSSD bias</th></tr></thead>
+        <tbody id="tblBody"><tr><td colspan="10" class="muted">run to populate…</td></tr></tbody>
+      </table>
+      <div class="note"><b>Synthetic ground truth — read before citing.</b> One ~9-min apnea-cluster window per patient per arm. ECG: <code>CohortFull.renderECGInt16</code> → real <code>ECGDSP.analyze</code> (Pan–Tompkins); truth = <code>deviceRR</code>. PPG: <code>SYNTH.renderPPG</code> → real <code>PPGDSP.analyze</code> (optical pulse); truth = <code>SYNTH.buildRR</code> in-window. Apnea beats are the generator's perfusion model (PPG pulse amplitude ×0.30 inside apnea/hypopnea windows). Recall is the PAT-corrected match rate of true beats; precision is the detected-beat match rate (PPG &lt;1 = the known mild over-detection); SQI is the detector's own per-beat signal-quality. This certifies the <b>ECG arm is yield-robust</b> and isolates the <b>PPG perfusion-yield gap and its rMSSD consequence</b>; it is <b>not</b> a real-patient miss rate, which needs labelled simultaneous ECG+PPG under scored apnea. <b>* ECG rMSSD bias</b> is reconstructed from the synthetic ECG waveform, whose renderer fixes the R-peak at a constant intra-beat phase and so attenuates beat-to-beat rMSSD independently of yield — ECG is certified here for <b>yield</b>, not rMSSD fidelity (PPG truth + pulse-foot detection are both genuine, so the PPG bias is real).</div>
+    </div>
+  </div>
+</div>
+
+<script src="qrs-yield-analysis.js"></script>
+</body></html>

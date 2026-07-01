@@ -1,0 +1,26 @@
+name: tests
+
+# Runs the headless GanglioR assertion suite on every push / PR, then the provenance
+# GATE-A manifestHash check (EXPORT-IDENTITY-FOLLOWUPS-IV §1: bundle manifestHash ↔
+# BUILD-MANIFEST.json, the pure-Node sibling of verify-provenance.html). Both are pure
+# Node (built-in vm + fs) — no npm install, no browser, no network. They are SEPARATE
+# assertions (behavior suite vs provenance) that share this one CI entry.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run GanglioR test suite
+        run: node tests/run-tests.mjs
+      - name: Verify bundle manifestHash ↔ BUILD-MANIFEST (provenance GATE A, headless)
+        run: node tests/verify-manifest.mjs

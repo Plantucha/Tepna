@@ -1,0 +1,830 @@
+{
+  "kernel": {
+    "version": "1.0.0",
+    "hash": "118ebed5"
+  },
+  "schema": {
+    "name": "ganglior.node-export",
+    "version": "2.0",
+    "node": "CPAPDex",
+    "nodeVersion": "1.0",
+    "generated": "2026-06-18T00:36:39.602Z",
+    "provenance": {
+      "buildHash": "c22f274d8cea",
+      "generated": "2026-06-18T00:36:39.602Z",
+      "inputs": [
+        {
+          "name": "20260612_222819_EVE.edf",
+          "bytes": 2112,
+          "lastModifiedMs": 1781342574000,
+          "sha256": "b40bee7ef66bb0a1"
+        },
+        {
+          "name": "20260612_222819_CSL.edf",
+          "bytes": 832,
+          "lastModifiedMs": 1781321298000,
+          "sha256": "749014875647ec18"
+        },
+        {
+          "name": "20260612_222830_PLD.edf",
+          "bytes": 210402,
+          "lastModifiedMs": 1781344288000,
+          "sha256": "16772c27f050b2e0"
+        },
+        {
+          "name": "20260612_222830_SA2.edf",
+          "bytes": 93710,
+          "lastModifiedMs": 1781344288000,
+          "sha256": "cc9ab00986b670ad"
+        },
+        {
+          "name": "20260613_045457_EVE.edf",
+          "bytes": 832,
+          "lastModifiedMs": 1781344496000,
+          "sha256": "8d5540530b6f0cc0"
+        },
+        {
+          "name": "20260613_045457_CSL.edf",
+          "bytes": 832,
+          "lastModifiedMs": 1781344496000,
+          "sha256": "8d5540530b6f0cc0"
+        },
+        {
+          "name": "20260613_045505_BRP.edf",
+          "bytes": 247106,
+          "lastModifiedMs": 1781346964000,
+          "sha256": "1fed433d6ca058a3"
+        },
+        {
+          "name": "20260613_045505_SA2.edf",
+          "bytes": 10946,
+          "lastModifiedMs": 1781346964000,
+          "sha256": "f5715251ffec7be7"
+        },
+        {
+          "name": "20260613_045505_PLD.edf",
+          "bytes": 25038,
+          "lastModifiedMs": 1781346964000,
+          "sha256": "084b8820dfb4a6d5"
+        },
+        {
+          "name": "20260612_222830_BRP.edf",
+          "bytes": 2299790,
+          "lastModifiedMs": 1781344290000,
+          "sha256": "3c8dff222f7a10c9"
+        },
+        {
+          "name": "20260515_212953_CSL.edf",
+          "bytes": 832,
+          "lastModifiedMs": 1778898594000,
+          "sha256": "0de97f3f71308c54"
+        },
+        {
+          "name": "20260515_212953_EVE.edf",
+          "bytes": 1984,
+          "lastModifiedMs": 1778923272000,
+          "sha256": "ed309a11345c99d5"
+        },
+        {
+          "name": "20260515_213002_PLD.edf",
+          "bytes": 248342,
+          "lastModifiedMs": 1778925780000,
+          "sha256": "fcf54e9dfd4f5835"
+        },
+        {
+          "name": "20260515_213002_SA2.edf",
+          "bytes": 110650,
+          "lastModifiedMs": 1778925780000,
+          "sha256": "d3e6303daac68f54"
+        },
+        {
+          "name": "20260515_213002_BRP.edf",
+          "bytes": 2719930,
+          "lastModifiedMs": 1778925782000,
+          "sha256": "38c89b23075341fe"
+        },
+        {
+          "name": "20260426_203548_EVE.edf",
+          "bytes": 832,
+          "lastModifiedMs": 1777253748000,
+          "sha256": "404401a8363c9689"
+        },
+        {
+          "name": "20260426_203555_BRP.edf",
+          "bytes": 1024,
+          "lastModifiedMs": 1777253754000,
+          "sha256": "a7161ef2c6a40e2e"
+        },
+        {
+          "name": "20260426_203548_CSL.edf",
+          "bytes": 832,
+          "lastModifiedMs": 1777253748000,
+          "sha256": "404401a8363c9689"
+        },
+        {
+          "name": "20260426_203555_PLD.edf",
+          "bytes": 2816,
+          "lastModifiedMs": 1777253754000,
+          "sha256": "e855978c05abe05b"
+        },
+        {
+          "name": "20260426_203555_SA2.edf",
+          "bytes": 1024,
+          "lastModifiedMs": 1777253754000,
+          "sha256": "0b900fb3b95e55ea"
+        },
+        {
+          "name": "20260426_203630_CSL.edf",
+          "bytes": 832,
+          "lastModifiedMs": 1777253790000,
+          "sha256": "7398b5a5dcfe5853"
+        },
+        {
+          "name": "20260426_203630_EVE.edf",
+          "bytes": 832,
+          "lastModifiedMs": 1777253790000,
+          "sha256": "7398b5a5dcfe5853"
+        },
+        {
+          "name": "20260426_203634_BRP.edf",
+          "bytes": 1024,
+          "lastModifiedMs": 1777253794000,
+          "sha256": "3807b4bc60e00d36"
+        },
+        {
+          "name": "20260426_203634_PLD.edf",
+          "bytes": 2816,
+          "lastModifiedMs": 1777253794000,
+          "sha256": "06e78219d8af0cd1"
+        },
+        {
+          "name": "20260426_203634_SA2.edf",
+          "bytes": 1024,
+          "lastModifiedMs": 1777253794000,
+          "sha256": "ef4b0aee4531caaf"
+        },
+        {
+          "name": "20260426_203820_CSL.edf",
+          "bytes": 832,
+          "lastModifiedMs": 1777253900000,
+          "sha256": "d77af07e82c77a8f"
+        },
+        {
+          "name": "20260426_203820_EVE.edf",
+          "bytes": 1472,
+          "lastModifiedMs": 1777276500000,
+          "sha256": "736a6dc23db0d145"
+        },
+        {
+          "name": "20260426_203826_PLD.edf",
+          "bytes": 210944,
+          "lastModifiedMs": 1777276944000,
+          "sha256": "bb2ec7deba77486d"
+        },
+        {
+          "name": "20260426_203826_SA2.edf",
+          "bytes": 93952,
+          "lastModifiedMs": 1777276944000,
+          "sha256": "5b22468aa947222d"
+        },
+        {
+          "name": "20260426_203826_BRP.edf",
+          "bytes": 2305792,
+          "lastModifiedMs": 1777276946000,
+          "sha256": "9538e85e83e80bf8"
+        },
+        {
+          "name": "20260111_220404_CSL.edf",
+          "bytes": 832,
+          "lastModifiedMs": 1768183444000,
+          "sha256": "9b45e382b1943ab5"
+        },
+        {
+          "name": "20260111_220404_EVE.edf",
+          "bytes": 1408,
+          "lastModifiedMs": 1768206134000,
+          "sha256": "5407a17574292286"
+        },
+        {
+          "name": "20260111_220413_SA2.edf",
+          "bytes": 96130,
+          "lastModifiedMs": 1768207032000,
+          "sha256": "3fa9a3b65f937f97"
+        },
+        {
+          "name": "20260111_220413_PLD.edf",
+          "bytes": 215822,
+          "lastModifiedMs": 1768207030000,
+          "sha256": "6c50fcb330c813ed"
+        },
+        {
+          "name": "20260111_220413_BRP.edf",
+          "bytes": 2359810,
+          "lastModifiedMs": 1768207032000,
+          "sha256": "c48079acdee896d8"
+        },
+        {
+          "name": "20260616_213611_CSL.edf",
+          "bytes": 832,
+          "lastModifiedMs": 1781663770000,
+          "sha256": "a281087590647b12"
+        },
+        {
+          "name": "20260616_213611_EVE.edf",
+          "bytes": 2048,
+          "lastModifiedMs": 1781683372000,
+          "sha256": "f99f5e628700b8f5"
+        },
+        {
+          "name": "20260616_213618_PLD.edf",
+          "bytes": 204440,
+          "lastModifiedMs": 1781686096000,
+          "sha256": "14bd06c4ec8fabaa"
+        },
+        {
+          "name": "20260616_213618_SA2.edf",
+          "bytes": 91048,
+          "lastModifiedMs": 1781686096000,
+          "sha256": "a701ea7141acfce5"
+        },
+        {
+          "name": "20260616_213618_BRP.edf",
+          "bytes": 2233768,
+          "lastModifiedMs": 1781686098000,
+          "sha256": "a84625b0ecf4cdf8"
+        },
+        {
+          "name": "20260615_211750_CSL.edf",
+          "bytes": 832,
+          "lastModifiedMs": 1781576270000,
+          "sha256": "a1df4ddb71f23d28"
+        },
+        {
+          "name": "20260615_211757_PLD.edf",
+          "bytes": 205524,
+          "lastModifiedMs": 1781598716000,
+          "sha256": "74214be87fb4998b"
+        },
+        {
+          "name": "20260615_211750_EVE.edf",
+          "bytes": 3200,
+          "lastModifiedMs": 1781598430000,
+          "sha256": "2ddf40e84245be0d"
+        },
+        {
+          "name": "20260615_211757_SA2.edf",
+          "bytes": 91532,
+          "lastModifiedMs": 1781598716000,
+          "sha256": "27d317ec6f0d59ee"
+        },
+        {
+          "name": "20260615_211757_BRP.edf",
+          "bytes": 2245772,
+          "lastModifiedMs": 1781598716000,
+          "sha256": "a7557196c0c7131a"
+        },
+        {
+          "name": "20260614_204226_EVE.edf",
+          "bytes": 1408,
+          "lastModifiedMs": 1781505096000,
+          "sha256": "74a2e9bcd04a5dba"
+        },
+        {
+          "name": "20260614_204226_CSL.edf",
+          "bytes": 832,
+          "lastModifiedMs": 1781487746000,
+          "sha256": "4b3fc6bd4704a3af"
+        },
+        {
+          "name": "20260614_204232_SA2.edf",
+          "bytes": 106052,
+          "lastModifiedMs": 1781513790000,
+          "sha256": "26e8b24c05f5cd86"
+        },
+        {
+          "name": "20260614_204232_PLD.edf",
+          "bytes": 238044,
+          "lastModifiedMs": 1781513790000,
+          "sha256": "5b83846073524dec"
+        },
+        {
+          "name": "20260614_204232_BRP.edf",
+          "bytes": 2605892,
+          "lastModifiedMs": 1781513792000,
+          "sha256": "759019c7f04a4472"
+        },
+        {
+          "name": "20260613_201029_CSL.edf",
+          "bytes": 832,
+          "lastModifiedMs": 1781399430000,
+          "sha256": "d33137319efa9f04"
+        },
+        {
+          "name": "20260613_201029_EVE.edf",
+          "bytes": 1984,
+          "lastModifiedMs": 1781421286000,
+          "sha256": "840b169ecfd0de7a"
+        },
+        {
+          "name": "20260613_201036_PLD.edf",
+          "bytes": 239128,
+          "lastModifiedMs": 1781425594000,
+          "sha256": "5b8d55b9f249c83f"
+        },
+        {
+          "name": "20260613_201036_SA2.edf",
+          "bytes": 106536,
+          "lastModifiedMs": 1781425594000,
+          "sha256": "aa7959de156af2b4"
+        },
+        {
+          "name": "20260613_201036_BRP.edf",
+          "bytes": 2617896,
+          "lastModifiedMs": 1781425596000,
+          "sha256": "2e0e5caaca9e1663"
+        },
+        {
+          "name": "20260611_203539_CSL.edf",
+          "bytes": 960,
+          "lastModifiedMs": 1781245008000,
+          "sha256": "c85f67756088ae11"
+        },
+        {
+          "name": "20260611_203539_EVE.edf",
+          "bytes": 2368,
+          "lastModifiedMs": 1781253386000,
+          "sha256": "0961820707781537"
+        },
+        {
+          "name": "20260611_203545_PLD.edf",
+          "bytes": 239128,
+          "lastModifiedMs": 1781254302000,
+          "sha256": "d63cd4868d95560e"
+        },
+        {
+          "name": "20260611_203545_SA2.edf",
+          "bytes": 106536,
+          "lastModifiedMs": 1781254304000,
+          "sha256": "c51e9d71843528d2"
+        },
+        {
+          "name": "20260612_035449_CSL.edf",
+          "bytes": 832,
+          "lastModifiedMs": 1781254488000,
+          "sha256": "43668ae8f8439cc0"
+        },
+        {
+          "name": "20260612_035449_EVE.edf",
+          "bytes": 832,
+          "lastModifiedMs": 1781254488000,
+          "sha256": "43668ae8f8439cc0"
+        },
+        {
+          "name": "20260612_035457_BRP.edf",
+          "bytes": 13028,
+          "lastModifiedMs": 1781254616000,
+          "sha256": "489f810f5db859b8"
+        },
+        {
+          "name": "20260612_035457_PLD.edf",
+          "bytes": 3900,
+          "lastModifiedMs": 1781254614000,
+          "sha256": "b906727ae1025778"
+        },
+        {
+          "name": "20260612_035457_SA2.edf",
+          "bytes": 1508,
+          "lastModifiedMs": 1781254616000,
+          "sha256": "d3a8de7e64faef06"
+        },
+        {
+          "name": "20260611_203545_BRP.edf",
+          "bytes": 2617896,
+          "lastModifiedMs": 1781254304000,
+          "sha256": "4381180b6b19f958"
+        },
+        {
+          "name": "20260610_204834_CSL.edf",
+          "bytes": 832,
+          "lastModifiedMs": 1781142514000,
+          "sha256": "062066d26436ab24"
+        },
+        {
+          "name": "20260610_204834_EVE.edf",
+          "bytes": 2048,
+          "lastModifiedMs": 1781159606000,
+          "sha256": "c2ad02045246f6ae"
+        },
+        {
+          "name": "20260610_204840_SA2.edf",
+          "bytes": 102422,
+          "lastModifiedMs": 1781167658000,
+          "sha256": "2ae0d4300642c7b6"
+        },
+        {
+          "name": "20260610_204840_PLD.edf",
+          "bytes": 229914,
+          "lastModifiedMs": 1781167658000,
+          "sha256": "0a2cfb790c804389"
+        },
+        {
+          "name": "20260610_204840_BRP.edf",
+          "bytes": 2515862,
+          "lastModifiedMs": 1781167660000,
+          "sha256": "c4ddaa82da2f02e9"
+        },
+        {
+          "name": "20260609_205452_CSL.edf",
+          "bytes": 832,
+          "lastModifiedMs": 1781056492000,
+          "sha256": "10833c96811f79f0"
+        },
+        {
+          "name": "20260609_205452_EVE.edf",
+          "bytes": 1280,
+          "lastModifiedMs": 1781068406000,
+          "sha256": "2973b29f4b773ad9"
+        },
+        {
+          "name": "20260609_205458_PLD.edf",
+          "bytes": 171920,
+          "lastModifiedMs": 1781075216000,
+          "sha256": "afdd6f5f00e0e680"
+        },
+        {
+          "name": "20260609_205458_SA2.edf",
+          "bytes": 76528,
+          "lastModifiedMs": 1781075218000,
+          "sha256": "21ae8c96f96e1705"
+        },
+        {
+          "name": "20260610_020957_CSL.edf",
+          "bytes": 832,
+          "lastModifiedMs": 1781075396000,
+          "sha256": "5678a8d30da72cbd"
+        },
+        {
+          "name": "20260610_020957_EVE.edf",
+          "bytes": 1152,
+          "lastModifiedMs": 1781080908000,
+          "sha256": "91321e8e2a53f164"
+        },
+        {
+          "name": "20260610_021008_SA2.edf",
+          "bytes": 24014,
+          "lastModifiedMs": 1781081106000,
+          "sha256": "eed633eff8025fd4"
+        },
+        {
+          "name": "20260610_021008_PLD.edf",
+          "bytes": 54306,
+          "lastModifiedMs": 1781081106000,
+          "sha256": "ec46f5f7e1863074"
+        },
+        {
+          "name": "20260610_021008_BRP.edf",
+          "bytes": 571214,
+          "lastModifiedMs": 1781081108000,
+          "sha256": "3c479115bc7a0f05"
+        },
+        {
+          "name": "20260609_205458_BRP.edf",
+          "bytes": 1873648,
+          "lastModifiedMs": 1781075218000,
+          "sha256": "ea27cbb309954f94"
+        }
+      ]
+    },
+    "doc": "Single-signal PAP-therapy analyzer export. All metrics computed in-browser from the AirSense EDF set only (nothing leaves the device). Device-scored EVE/CSL events are the top apnea tier. SA2 oximetry is a self-gated QC lane — artifact desats are excluded and never emitted. null = not present/computed at this quality. Event `t` is wall-clock HH:MM:SS (no date); `tMs` is absolute floating ms.",
+    "units": {
+      "pressure": "cmH2O",
+      "leak": "L/min",
+      "ahi": "/hr",
+      "odi": "/hr",
+      "respRate": "/min",
+      "tidVol": "L",
+      "minVent": "L/min",
+      "spo2": "%",
+      "pulse": "bpm",
+      "time": "min",
+      "conf": "0..1",
+      "sqi": "0..1"
+    }
+  },
+  "recording": {
+    "source": "ResMed AirSense 11 (EDF set)",
+    "contentId": "aa93a4748331",
+    "startEpochMs": 1781645778000,
+    "dateAnchorMs": 1781568000000,
+    "offsetMin": null,
+    "therapyHours": 6.2,
+    "sessionCount": 1,
+    "sessions": [
+      {
+        "idx": 0,
+        "startEpochMs": 1781645778000,
+        "durMin": 372,
+        "usageHours": 6.2,
+        "mode": "APAP",
+        "truncated": false,
+        "recordsRead": 372,
+        "numRecords": 372,
+        "oximeter": "oximeter-not-connected"
+      }
+    ],
+    "offMaskGaps": []
+  },
+  "metrics": {
+    "usageHours": 6.2,
+    "residualAHI": 2.9,
+    "obstructiveIndex": 0.65,
+    "centralIndex": 1.29,
+    "hypopneaIndex": 0.97,
+    "reraIndex": 0,
+    "periodicBreathingPct": 0,
+    "medianPressure": 8.68,
+    "p95Pressure": 12.52,
+    "pressureRange": 2.12,
+    "epap95": 9.52,
+    "medianLeak": 0,
+    "p95Leak": 0,
+    "largeLeakPct": 0,
+    "leakCV": null
+  },
+  "crossMetrics": {
+    "ahi": 2.9,
+    "odi": null,
+    "t90": null,
+    "oximetryAvailable": false,
+    "concordance": null,
+    "concordanceNote": "no oximeter this night — AHI stands on the airflow scoring alone",
+    "leakImpact": "leak-ok",
+    "leakNote": "leak within validity threshold — AHI is trustworthy",
+    "largeLeakPct": 0
+  },
+  "oximetry": [
+    {
+      "session": 0,
+      "available": false,
+      "reason": "oximeter-not-connected",
+      "coverage": 0,
+      "odi": null,
+      "t90Pct": null,
+      "spo2Nadir": null,
+      "spo2Mean": null,
+      "desatCount": null,
+      "artifactCount": null,
+      "selfGate": "active"
+    }
+  ],
+  "quality": {
+    "sqi": 1,
+    "sqiBasis": "leak-quality (1 − largeLeakFraction) — R7 separate from conf",
+    "lowUsage": false,
+    "truncatedSessions": 0
+  },
+  "ganglior_events": [
+    {
+      "t": "21:43:41",
+      "tMs": 1781646221000,
+      "impulse": "apnea",
+      "node": "CPAPDex",
+      "conf": 0.89,
+      "sqi": 1,
+      "meta": {
+        "class": "obstructive",
+        "durSec": 11,
+        "source": "device-scored"
+      }
+    },
+    {
+      "t": "21:44:04",
+      "tMs": 1781646244000,
+      "impulse": "apnea",
+      "node": "CPAPDex",
+      "conf": 0.95,
+      "sqi": 1,
+      "meta": {
+        "class": "central",
+        "durSec": 16,
+        "source": "device-scored"
+      }
+    },
+    {
+      "t": "21:45:46",
+      "tMs": 1781646346000,
+      "impulse": "apnea",
+      "node": "CPAPDex",
+      "conf": 0.95,
+      "sqi": 1,
+      "meta": {
+        "class": "obstructive",
+        "durSec": 45,
+        "source": "device-scored"
+      }
+    },
+    {
+      "t": "21:46:23",
+      "tMs": 1781646383000,
+      "impulse": "apnea",
+      "node": "CPAPDex",
+      "conf": 0.96,
+      "sqi": 1,
+      "meta": {
+        "class": "central",
+        "durSec": 18,
+        "source": "device-scored"
+      }
+    },
+    {
+      "t": "22:23:28",
+      "tMs": 1781648608000,
+      "impulse": "apnea",
+      "node": "CPAPDex",
+      "conf": 0.93,
+      "sqi": 1,
+      "meta": {
+        "class": "central",
+        "durSec": 10,
+        "source": "device-scored"
+      }
+    },
+    {
+      "t": "22:24:11",
+      "tMs": 1781648651000,
+      "impulse": "apnea",
+      "node": "CPAPDex",
+      "conf": 0.95,
+      "sqi": 1,
+      "meta": {
+        "class": "central",
+        "durSec": 16,
+        "source": "device-scored"
+      }
+    },
+    {
+      "t": "22:25:00",
+      "tMs": 1781648700000,
+      "impulse": "apnea",
+      "node": "CPAPDex",
+      "conf": 0.93,
+      "sqi": 1,
+      "meta": {
+        "class": "obstructive",
+        "durSec": 25,
+        "source": "device-scored"
+      }
+    },
+    {
+      "t": "22:25:40",
+      "tMs": 1781648740000,
+      "impulse": "apnea",
+      "node": "CPAPDex",
+      "conf": 0.94,
+      "sqi": 1,
+      "meta": {
+        "class": "central",
+        "durSec": 13,
+        "source": "device-scored"
+      }
+    },
+    {
+      "t": "23:08:30",
+      "tMs": 1781651310000,
+      "impulse": "hypopnea",
+      "node": "CPAPDex",
+      "conf": 0.7,
+      "sqi": 1,
+      "meta": {
+        "class": "hypopnea",
+        "durSec": 0,
+        "source": "device-scored"
+      }
+    },
+    {
+      "t": "00:05:33",
+      "tMs": 1781654733000,
+      "impulse": "apnea",
+      "node": "CPAPDex",
+      "conf": 0.94,
+      "sqi": 1,
+      "meta": {
+        "class": "central",
+        "durSec": 13,
+        "source": "device-scored"
+      }
+    },
+    {
+      "t": "00:06:11",
+      "tMs": 1781654771000,
+      "impulse": "hypopnea",
+      "node": "CPAPDex",
+      "conf": 0.7,
+      "sqi": 1,
+      "meta": {
+        "class": "hypopnea",
+        "durSec": 0,
+        "source": "device-scored"
+      }
+    },
+    {
+      "t": "00:13:54",
+      "tMs": 1781655234000,
+      "impulse": "hypopnea",
+      "node": "CPAPDex",
+      "conf": 0.7,
+      "sqi": 1,
+      "meta": {
+        "class": "hypopnea",
+        "durSec": 0,
+        "source": "device-scored"
+      }
+    },
+    {
+      "t": "00:46:52",
+      "tMs": 1781657212000,
+      "impulse": "apnea",
+      "node": "CPAPDex",
+      "conf": 0.94,
+      "sqi": 1,
+      "meta": {
+        "class": "central",
+        "durSec": 11,
+        "source": "device-scored"
+      }
+    },
+    {
+      "t": "02:34:53",
+      "tMs": 1781663693000,
+      "impulse": "apnea",
+      "node": "CPAPDex",
+      "conf": 0.93,
+      "sqi": 1,
+      "meta": {
+        "class": "obstructive",
+        "durSec": 25,
+        "source": "device-scored"
+      }
+    },
+    {
+      "t": "02:35:36",
+      "tMs": 1781663736000,
+      "impulse": "hypopnea",
+      "node": "CPAPDex",
+      "conf": 0.7,
+      "sqi": 1,
+      "meta": {
+        "class": "hypopnea",
+        "durSec": 0,
+        "source": "device-scored"
+      }
+    },
+    {
+      "t": "02:51:05",
+      "tMs": 1781664665000,
+      "impulse": "hypopnea",
+      "node": "CPAPDex",
+      "conf": 0.7,
+      "sqi": 1,
+      "meta": {
+        "class": "hypopnea",
+        "durSec": 0,
+        "source": "device-scored"
+      }
+    },
+    {
+      "t": "02:52:51",
+      "tMs": 1781664771000,
+      "impulse": "apnea",
+      "node": "CPAPDex",
+      "conf": 0.94,
+      "sqi": 1,
+      "meta": {
+        "class": "central",
+        "durSec": 11,
+        "source": "device-scored"
+      }
+    },
+    {
+      "t": "03:02:52",
+      "tMs": 1781665372000,
+      "impulse": "hypopnea",
+      "node": "CPAPDex",
+      "conf": 0.7,
+      "sqi": 1,
+      "meta": {
+        "class": "hypopnea",
+        "durSec": 0,
+        "source": "device-scored"
+      }
+    }
+  ],
+  "crossNode": null,
+  "reserved": {
+    "doc": "Slots awaiting Integrator fusion; null until paired.",
+    "ahiOdiConcordance": null,
+    "oximetrySource": "CPAPDex-SA2 (peer of O2Ring)",
+    "apneaAuthority": "device-scored (top tier)"
+  },
+  "fmtVersion": "CpapDsp"
+}

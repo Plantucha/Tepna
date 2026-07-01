@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EEGDex — Reference Guide</title>
+<!-- Canonical evidence-badge visuals (single source; mirrors MetricRegistry.BADGE_CSS).
+     Linked, not inlined, so the guide's discs equal the engine by construction
+     (DEX-EVENT-UNIFY C3 / cohesion-badges gate). -->
+<link rel="stylesheet" href="dex-badges.css">
+<style>
+/*
+ * Tepna Design System v1.2.0 — shared base
+ * Link or paste your design-system.css here.
+ * For single-file deployment, inline the full design system.
+ */
+/* [PASTE DESIGN SYSTEM CSS HERE — §0 through §27] */
+
+
+/* EEGDex — page-specific overrides (built by dex-gen.js) */
+:root {
+  --node-accent: var(--purple);
+  --node-accent-hex: #B98AFF;
+}
+
+/* Sidebar logo badge gradient uses node accent */
+.logo-badge {
+  background: linear-gradient(135deg, var(--node-accent-hex), var(--blue));
+}
+
+/* Section icons use node accent */
+.si { background: rgba(185,138,255, .12) !important; }
+
+/* Quick Jump dot uses node accent */
+.qj-dot { background: var(--node-accent-hex) !important; }
+
+</style>
+</head>
+<body>
+
+<!-- ═══ MOBILE BAR + DRAWER ═══ -->
+<div class="mob-bar" id="mobBar">
+  <div class="mob-bar-logo">
+    <div class="mob-bar-badge" style="background:linear-gradient(135deg,#B98AFF,#58A6FF)">
+      🧠
+    </div>
+    <span class="mob-bar-name">EEGDex</span>
+  </div>
+  <button class="mob-bar-btn" id="mobMenuBtn" aria-label="Open navigation menu"
+          onclick="openDrawer()">&#9776;</button>
+</div>
+
+<div class="mob-drawer-bg" id="mobDrawerBg" onclick="handleBgClick(event)">
+  <div class="mob-drawer-panel" id="mobDrawerPanel">
+    <div class="mob-drawer-top">
+      <div style="display:flex;align-items:center;gap:9px">
+        <div style="width:28px;height:28px;border-radius:7px;
+             background:linear-gradient(135deg,#B98AFF,#58A6FF);
+             display:flex;align-items:center;justify-content:center;font-size:12px">
+          🧠
+        </div>
+        <span style="font-weight:700;font-size:13px;color:#F4F7FB">Sections</span>
+      </div>
+      <button class="mob-drawer-close" aria-label="Close navigation"
+              onclick="closeDrawer()">&#x2715;</button>
+    </div>
+    <div style="margin-bottom:14px;padding:0 4px">
+      <a href="#quick-jump" onclick="closeDrawer()" style="display:flex;align-items:center;
+         gap:8px;background:rgba(61,224,208,.07);border:1px solid rgba(61,224,208,.18);
+         border-radius:8px;padding:9px 12px;text-decoration:none;color:var(--teal);
+         font-size:13px;font-weight:500;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2"><circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        Quick Jump &amp; Search
+      </a>
+    </div>
+    
+    <div class="nav-lbl">Signal &amp; Contact</div>
+    <div class="nav">
+          <a href="#signal" onclick="closeDrawer()">
+    </div>
+
+    <div class="nav-lbl">Band Powers</div>
+    <div class="nav">
+          <a href="#bands" onclick="closeDrawer()">
+    </div>
+
+    <div class="nav-lbl">Sleep Architecture</div>
+    <div class="nav">
+          <a href="#sleep" onclick="closeDrawer()">
+    </div>
+  </div>
+</div>
+
+<!-- ═══ APP SHELL ═══ -->
+<div class="app">
+
+<!-- ── Sidebar ── -->
+<nav class="sidebar">
+  <div class="logo">
+    <div class="logo-badge" style="background:linear-gradient(135deg,#B98AFF,#58A6FF)">
+      🧠
+    </div>
+    <div>
+      <div class="logo-title">EEGDex</div>
+      <div class="logo-sub">Reference Guide</div>
+    </div>
+  </div>
+  
+    <div class="nav-lbl">Signal &amp; Contact</div>
+    <div class="nav">
+      <a href="#signal"><span class="nav-dot"></span>Signal &amp; Contact</a>
+    </div>
+
+    <div class="nav-lbl">Band Powers</div>
+    <div class="nav">
+      <a href="#bands"><span class="nav-dot"></span>Band Powers</a>
+    </div>
+
+    <div class="nav-lbl">Sleep Architecture</div>
+    <div class="nav">
+      <a href="#sleep"><span class="nav-dot"></span>Sleep Architecture</a>
+    </div>
+
+  <div class="nav-lbl">Reference</div>
+  <div class="nav">
+    <a href="#abbr"><span class="nav-dot"></span>Abbreviation Index</a>
+  </div>
+
+  <div class="sidebar-bottom">
+    <div class="sidebar-data-card">
+      <div class="data-pill"><span class="data-dot"></span> Reference Guide</div>
+      <div class="sidebar-data-info">
+        EEGDex v0.1.0 · planned<br>
+        10 metrics · 3 sections
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Main content ── -->
+<main class="main">
+  <div class="ph">
+    <div class="ph-eyebrow">EEGDex — Technical Reference</div>
+    <h1 class="ph-title">Metrics, Formulas &amp;<br><span>Normal Values</span></h1>
+    <p class="ph-desc">Band-power and sleep-architecture analysis from consumer EEG (Muse). Direct spectral readouts, EEG-staged hypnogram, and derived micro-architecture markers.</p>
+    <p class="ph-desc" style="margin-top:8px;font-size:12px;color:var(--text3)">
+      10 metrics total: 5 Core · 3 Advanced · 2 Research
+    </p>
+  </div>
+
+  
+  <div class="co co-w">
+    <span class="co-ic">&#x26A0;&#xFE0F;</span>
+    <div><strong>Important:</strong> Consumer dry-electrode EEG (4-channel Muse) has higher artifact rates and lower spatial resolution than clinical PSG. Contact quality gates every downstream metric.</div>
+  </div>
+
+  
+<div class="qj-wrap" id="quick-jump">
+  <button class="qj-toggle" id="qjToggle" aria-expanded="false" aria-controls="qjPanel">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+      <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>
+      <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+    </svg>
+    Quick Jump Index
+    <span class="qj-count">10 metrics · 3 sections</span>
+    <svg class="qj-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="6 9 12 15 18 9"/>
+    </svg>
+  </button>
+  <div class="qj-panel" id="qjPanel" hidden>
+    <div class="qj-search-wrap">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" class="qj-search" id="qjSearch" placeholder="Filter metrics…"
+             autocomplete="off" spellcheck="false" inputmode="search">
+      <button class="qj-clear" id="qjClear" aria-label="Clear search" hidden>✕</button>
+    </div>
+    <div class="qj-grid" id="qjGrid">
+      
+      <div class="qj-group">
+        <div class="qj-group-header">
+          <span class="qj-dot" style="background:var(--purple)"></span>
+          Signal &amp; Contact
+        </div>
+        <div class="qj-links"><a href="#signal" class="qj-sec">Signal &amp; Contact</a></div>
+        <div class="qj-metrics"><a href="#signal" class="qm">% Contact</a><a href="#signal" class="qm">% Analyzable</a><a href="#signal" class="qm">Total Power</a></div>
+      </div>
+
+      <div class="qj-group">
+        <div class="qj-group-header">
+          <span class="qj-dot" style="background:var(--purple)"></span>
+          Band Powers
+        </div>
+        <div class="qj-links"><a href="#bands" class="qj-sec">Band Powers</a></div>
+        <div class="qj-metrics"><a href="#bands" class="qm">α rel</a><a href="#bands" class="qm">θ rel</a><a href="#bands" class="qm">α/θ</a></div>
+      </div>
+
+      <div class="qj-group">
+        <div class="qj-group-header">
+          <span class="qj-dot" style="background:var(--purple)"></span>
+          Sleep Architecture
+        </div>
+        <div class="qj-links"><a href="#sleep" class="qj-sec">Sleep Architecture</a></div>
+        <div class="qj-metrics"><a href="#sleep" class="qm">REM %</a><a href="#sleep" class="qm">Spindles</a><a href="#sleep" class="qm">FAA</a><a href="#sleep" class="qm">Calm</a></div>
+      </div>
+    </div>
+    <div class="qj-no-results" id="qjNoResults" hidden>No metrics match your search.</div>
+  </div>
+</div>
+
+  
+  <div class="ev-legend-strip">
+    <span class="lg-title">Evidence</span>
+    <span class="lg-item"><span class="ev-measured"></span><b>Measured</b></span><span class="sep"></span>
+    <span class="lg-item"><span class="ev-validated"></span><b>Validated</b></span><span class="sep"></span>
+    <span class="lg-item"><span class="ev-emerging"></span><b>Emerging</b></span><span class="sep"></span>
+    <span class="lg-item"><span class="ev-experimental"></span><b>Experimental</b></span><span class="sep"></span>
+    <span class="lg-item"><span class="ev-heuristic"></span><b>Heuristic</b></span>
+    <span class="lg-note">fill = trust</span>
+  </div>
+
+  
+<div class="rs" id="signal">
+  <div class="sh">
+    <div class="si" style="background:var(--purple)">
+      📶
+    </div>
+    <div>
+      <div class="st">Signal &amp; Contact</div>
+      <div class="sd">Direct signal-quality readouts that gate everything downstream</div>
+    </div>
+  </div>
+  <div class="mg">
+  
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">% Contact</span>
+        <span class="mf">Fraction of the recording with all electrodes in good contact</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">mean(all-channel contact ≥ threshold)</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-measured" title="% Contact — Per-channel contact quality — direct sensor readout"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">% Analyzable</span>
+        <span class="mf">Fraction of the recording usable after artifact rejection</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">1 − artifactRejectedFraction</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-measured" title="% Analyzable — Analyzable coverage after artifact rejection — direct"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">Total Power</span>
+        <span class="mf">Broadband EEG power 1–50 Hz</span>
+      </div>
+      <span class="mt ta">Advanced</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">∫ PSD(1..50 Hz)</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-measured" title="Total Power — Broadband spectral power — direct from the PSD"></span>
+  </div>
+  </div>
+</div>
+
+
+<div class="rs" id="bands">
+  <div class="sh">
+    <div class="si" style="background:var(--purple)">
+      🌊
+    </div>
+    <div>
+      <div class="st">Band Powers</div>
+      <div class="sd">Relative power in the canonical EEG bands</div>
+    </div>
+  </div>
+  <div class="mg">
+  
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">α rel</span>
+        <span class="mf">Alpha-band (8–13 Hz) relative power</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">P(8–13 Hz) / P(1–50 Hz)</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-validated" title="α rel — Relative alpha power — established EEG band readout"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">θ rel</span>
+        <span class="mf">Theta-band (4–8 Hz) relative power</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">P(4–8 Hz) / P(1–50 Hz)</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-validated" title="θ rel — Relative theta power — established EEG band readout"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">α/θ</span>
+        <span class="mf">Ratio of alpha to theta band power</span>
+      </div>
+      <span class="mt ta">Advanced</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">P(α) / P(θ)</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="α/θ — Alpha/theta ratio — published drowsiness/relaxation index, device-dependent"></span>
+  </div>
+  </div>
+</div>
+
+
+<div class="rs" id="sleep">
+  <div class="sh">
+    <div class="si" style="background:var(--purple)">
+      🌙
+    </div>
+    <div>
+      <div class="st">Sleep Architecture</div>
+      <div class="sd">EEG-staged hypnogram and micro-architecture markers</div>
+    </div>
+  </div>
+  <div class="mg">
+  
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">REM %</span>
+        <span class="mf">Fraction of total sleep time scored REM from EEG</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">remEpochs / totalSleepEpochs</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-validated" title="REM % — EEG-staged REM fraction — EEG is the sleep-staging reference standard"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">Spindles</span>
+        <span class="mf">Sleep-spindle count per minute of N2</span>
+      </div>
+      <span class="mt tr">Research</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">spindleCount / N2Minutes</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="Spindles — Sleep-spindle density (11–16 Hz bursts) — published memory-consolidation marker, device-dependent"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">FAA</span>
+        <span class="mf">ln(α right) − ln(α left) over frontal channels (AF7/AF8)</span>
+      </div>
+      <span class="mt tr">Research</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">ln(αAF8) − ln(αAF7)</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-experimental" title="FAA — Frontal alpha asymmetry — affective-state composite, EEGDex-derived, weak consumer-grade support"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">Calm</span>
+        <span class="mf">Composite relaxation index blended from band ratios</span>
+      </div>
+      <span class="mt ta">Advanced</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">weighted blend of α/θ, β suppression, and stability</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-heuristic" title="Calm — Calm score — heuristic wellness composite, not a validated EEG metric"></span>
+  </div>
+  </div>
+</div>
+
+  
+<div class="rs" id="abbr">
+  <div class="sh">
+    <div class="si" style="background:rgba(110,133,168,.12)">📖</div>
+    <div>
+      <div class="st">Abbreviation Index</div>
+      <div class="sd">All abbreviations used in EEGDex reference</div>
+    </div>
+  </div>
+  <div class="nt-wrap">
+    <table class="nt">
+      <tr><th>Abbr</th><th>Meaning</th></tr>
+      <tr><td class="nr" style="color:var(--teal)">EEG</td><td>Electroencephalography</td></tr>
+<tr><td class="nr" style="color:var(--teal)">FAA</td><td>Frontal Alpha Asymmetry</td></tr>
+<tr><td class="nr" style="color:var(--teal)">N2</td><td>Non-REM sleep stage 2</td></tr>
+<tr><td class="nr" style="color:var(--teal)">PSD</td><td>Power Spectral Density</td></tr>
+<tr><td class="nr" style="color:var(--teal)">REM</td><td>Rapid Eye Movement sleep</td></tr>
+    </table>
+  </div>
+</div>
+
+</main>
+</div>
+
+<!-- ═══ Script: drawer + quick-jump search ═══ -->
+<script>
+/* ── Mobile drawer ── */
+function openDrawer() {
+  document.getElementById('mobDrawerBg').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeDrawer() {
+  document.getElementById('mobDrawerBg').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function handleBgClick(e) {
+  if (e.target === e.currentTarget) closeDrawer();
+}
+
+/* ── Quick Jump toggle + search ── */
+(function() {
+  const toggle = document.getElementById('qjToggle');
+  const panel = document.getElementById('qjPanel');
+  const search = document.getElementById('qjSearch');
+  const clear = document.getElementById('qjClear');
+  const noResults = document.getElementById('qjNoResults');
+
+  if (!toggle) return;
+
+  toggle.addEventListener('click', () => {
+    const open = panel.hidden;
+    panel.hidden = !open;
+    toggle.setAttribute('aria-expanded', open);
+    if (open && search) search.focus();
+  });
+
+  if (!search) return;
+
+  search.addEventListener('input', () => {
+    const q = search.value.toLowerCase().trim();
+    clear.hidden = !q;
+    const items = document.querySelectorAll('.qm');
+    let visible = 0;
+    items.forEach(el => {
+      const match = !q || el.textContent.toLowerCase().includes(q);
+      el.classList.toggle('qm-hide', !match);
+      el.classList.toggle('qm-match', q && match);
+      if (match) visible++;
+    });
+    noResults.hidden = visible > 0;
+  });
+
+  if (clear) {
+    clear.addEventListener('click', () => {
+      search.value = '';
+      search.dispatchEvent(new Event('input'));
+      search.focus();
+    });
+  }
+})();
+</script>
+
+</body>
+</html>

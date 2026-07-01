@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  treatment-response-analysis.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Treatment-response detection — change-point recovery of the CPAP-start night</title>
+<!-- ════════════════════════════════════════════════════════════════════════
+  treatment-response-analysis.html — figure engine for the candidate paper
+  "Treatment-response detection: change-point recovery of the planted CPAP-start
+   night from the ODI-4 / rMSSD trajectory."
+
+  Intervention-arc patients plant a CPAP-start night (ODI-4 steps down, rMSSD steps
+  up). Each night is scored by the REAL detector (ODI-4 OxyDex / rMSSD PulseDex).
+  A single change-point detector (minimum within-segment SSE) localizes the planted
+  night per metric and FUSED; step-R² gives a detection AUC vs flat-arc controls.
+
+  HONEST FRAMING (in-page + export): synthetic ground truth — certifies pipeline +
+  change-point recovery, NOT real-world CPAP-response detection. 100% local; reuses
+  cohort-gen.js + the two real-DSP harness realms (cohort-harness.html?node=…).
+═════════════════════════════════════════════════════════════════════════ -->
+<style>
+  :root{
+    --bg:#0c0f14; --surface:#141922; --surface2:#1b212c; --line:rgba(255,255,255,.08);
+    --text:#e6edf6; --text2:#aab8cc; --text3:#6f8096; --teal:#3DE0D0; --blue:#58A6FF;
+    --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A; --purple:#B98AFF;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;padding:0 0 90px;}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px;}
+  header{padding:26px 0 16px;border-bottom:1px solid var(--line);margin-bottom:22px;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);}
+  h1{margin:6px 0 3px;font-size:25px;font-weight:650;letter-spacing:-.01em;}
+  h1 .g{color:var(--teal);}
+  .sub{color:var(--text3);font-size:13px;max-width:840px;line-height:1.5;}
+  .controls{display:flex;gap:10px;align-items:center;margin-top:18px;flex-wrap:wrap;}
+  button{font-family:var(--sans);font-size:13px;font-weight:600;padding:9px 16px;border-radius:8px;border:1px solid var(--line);background:var(--surface2);color:var(--text);cursor:pointer;}
+  button:hover{border-color:rgba(255,255,255,.2);}
+  button.primary{background:var(--teal);color:#06251f;border-color:transparent;}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  .pill{font-family:var(--mono);font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid var(--line);}
+  .pill.idle{color:var(--text3);} .pill.run{color:var(--teal);border-color:rgba(61,224,208,.35);} .pill.done{color:var(--green);border-color:rgba(57,217,138,.35);}
+  .field{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text2);}
+  .field input{width:60px;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:5px 7px;font-family:var(--mono);font-size:12px;}
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:18px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;}
+  .card h2{margin:0 0 14px;font-size:13px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;gap:8px;}
+  .card h2 .tag{font-family:var(--mono);font-size:10px;color:var(--text3);font-weight:500;border:1px solid var(--line);border-radius:5px;padding:2px 6px;margin-left:auto;}
+  .col-12{grid-column:span 12;} .col-8{grid-column:span 8;} .col-7{grid-column:span 7;} .col-6{grid-column:span 6;} .col-5{grid-column:span 5;} .col-4{grid-column:span 4;}
+  @media(max-width:900px){ .col-8,.col-7,.col-6,.col-5,.col-4{grid-column:span 12;} }
+  canvas{max-width:100%;display:block;background:#0f141b;border-radius:8px;}
+  .legend{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:9px;line-height:1.7;}
+  .chip{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle;}
+  .headline{display:flex;flex-direction:column;gap:12px;}
+  .hcard{background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:13px 15px;}
+  .hl{font-family:var(--mono);font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:1;}
+  .hk{font-size:12px;color:var(--text2);margin-top:6px;}
+  .hs{font-size:10.5px;color:var(--text3);font-family:var(--mono);margin-top:2px;}
+  .muted{color:var(--text3);}
+  .note{background:rgba(255,184,77,.07);border:1px solid rgba(255,184,77,.22);border-radius:10px;padding:12px 15px;font-size:12px;color:var(--text2);line-height:1.55;margin-top:8px;}
+  code{font-family:var(--mono);color:var(--blue);background:var(--surface2);padding:1px 5px;border-radius:4px;font-size:11px;}
+  #prog{height:4px;background:var(--surface2);border-radius:3px;overflow:hidden;flex:1;min-width:120px;max-width:280px;}
+  #progBar{height:100%;width:0;background:var(--teal);transition:width .2s;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.05);}
+  th{color:var(--text3);font-weight:500;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;}
+  td.num,th.num{text-align:right;font-family:var(--mono);}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="eyebrow">OxyDex · PulseDex · change-point recovery (intervention arc)</div>
+    <h1><span class="g">Treatment-response detection</span> &nbsp;Recovering the CPAP-start night from the trajectory</h1>
+    <div class="sub">The longitudinal lane plants a <b>CPAP-start night</b> in every intervention patient — ODI-4 steps down, rMSSD steps up. We measure both metrics per night with the <b>real</b> detectors and run a single <b>change-point</b> detector (minimum within-segment SSE) to <b>localize</b> the planted night, per metric and fused, and to <b>detect</b> that a response happened at all (step-R² vs flat-arc controls).</div>
+    <div class="controls">
+      <span class="field">patients/arm <input id="nSubj" type="number" value="45" min="15" max="100000" step="5"></span>
+      <span id="totEcho" style="font-size:11px;color:var(--text2);align-self:center">= 90 total (45 tx + 45 flat)</span>
+      <span style="font-size:11px;color:var(--text3);align-self:center">· large N runs slower</span>
+      <span id="eta" style="font-size:11px;color:var(--text3);align-self:center">↑ first run calibrates a time estimate</span>
+      <span class="field">min nights <input id="minN" type="number" value="6" min="5" max="12" step="1"></span>
+      <button class="primary" id="run">Run cohort</button>
+      <button id="cancel" style="display:none">Cancel</button>
+      <div id="prog"><div id="progBar"></div></div>
+      <span class="pill idle" id="status">idle</span>
+      <span style="flex:1"></span>
+      <button id="dlCsv" disabled>results.csv</button>
+      <button id="dlStats" disabled>stats.json</button>
+      <button id="dlFig" disabled>figures.png</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="grid">
+    <div class="card col-8">
+      <h2>Example intervention trajectory <span class="tag">planted vs detected CPAP start</span></h2>
+      <canvas id="example" width="700" height="340"></canvas>
+      <div class="legend" id="exampleLeg">Run to populate. ODI-4 (blue) drops and rMSSD (amber) rises at the planted CPAP-start night (green band); the fused detector's estimate is the teal dashed line.</div>
+    </div>
+    <div class="card col-4">
+      <h2>Headline <span class="tag">fused detector</span></h2>
+      <div class="headline" id="headline"><div class="muted" style="font-size:12px">Run the cohort to localize and detect the planted CPAP-start night.</div></div>
+    </div>
+
+    <div class="card col-6">
+      <h2>Localization accuracy <span class="tag">exact · within ±1 night</span></h2>
+      <canvas id="acc" width="540" height="250"></canvas>
+    </div>
+    <div class="card col-6">
+      <h2>Detection ROC — intervention vs flat <span class="tag">step-R² threshold</span></h2>
+      <canvas id="roc" width="540" height="230"></canvas>
+      <div class="legend" id="rocLeg">Run to populate.</div>
+    </div>
+
+    <div class="card col-12">
+      <h2>Localization &amp; detection by metric <span class="tag">single change-point, min within-segment SSE</span></h2>
+      <table>
+        <thead><tr><th>Detector</th><th class="num">patients</th><th class="num">exact</th><th class="num">within ±1</th><th class="num">median |err| (nights)</th><th class="num">detection AUC</th><th class="num">tx median R²</th><th class="num">flat median R²</th></tr></thead>
+        <tbody id="tblBody"><tr><td colspan="8" class="muted">run to populate…</td></tr></tbody>
+      </table>
+      <div class="note"><b>Synthetic ground truth — read before citing.</b> Patients are <b>intervention-arc</b> subjects with a planted CPAP-start night (restricted to ≥2 pre- and ≥2 post-treatment nights so a single change-point is recoverable); flat-arc patients are the detection null. Each night is scored by the <b>real</b> detector — ODI-4 (<code>oxydex-dsp</code>) and rMSSD (<code>pulsedex-dsp</code>). The planted step is known and fairly clean, so this certifies that the <i>pipeline plus a vanilla change-point detector recover and localize a treatment response</i>; it does <b>not</b> establish real-world CPAP-response detection, which is noisier, confounded, and adherence-dependent.</div>
+    </div>
+  </div>
+</div>
+
+<script src="synth-gen.js"></script>
+<script src="cohort-gen.js"></script>
+<script src="treatment-response-analysis.js"></script>
+</body></html>

@@ -1,0 +1,42 @@
+Tepna — Physiological-Signal Analysis Suite
+Copyright 2026 Michal Planicka
+
+This product is licensed under the Apache License, Version 2.0 (the "License").
+You may obtain a copy of the License in the LICENSE file at the project root,
+or at http://www.apache.org/licenses/LICENSE-2.0
+
+----------------------------------------------------------------------
+Authorship
+----------------------------------------------------------------------
+Michal Planicka — Concept · Architecture · Algorithms ·
+                   Implementation · Validation · UI/UX
+Made in Asheville, NC.
+
+----------------------------------------------------------------------
+Trademarks (Section 6 of the License)
+----------------------------------------------------------------------
+"Tepna" and the Tepna marks — including the node names OxyDex, HRVDex,
+PulseDex, GlucoDex, ECGDex, PpgDex, and CPAPDex — are trademarks of
+Michal Planicka. The Apache-2.0 grant covers the SOURCE CODE only and does
+NOT grant rights to use these names or marks, except for the reasonable and
+customary use required to describe the origin of the Work.
+
+----------------------------------------------------------------------
+Intended use & safety (not legal advice — confirm for your jurisdiction)
+----------------------------------------------------------------------
+Tepna computes biometric patterns from your wearable and sensor data to support
+personal self-quantification. It is NOT a medical device, does not diagnose,
+treat, cure, screen for, or prevent any disease or condition, and is not a
+substitute for professional clinical evaluation. It has not been reviewed or
+cleared by the FDA, CE, or any regulatory body. Always consult a qualified
+healthcare provider about your health. Use at your own risk. For research and
+personal use only. 100% local: no data leaves your device.
+
+----------------------------------------------------------------------
+Third-party material
+----------------------------------------------------------------------
+The suite bundles no third-party code. Fonts are resolved from the
+operating-system stack only (no bundled font files, no web/CDN fonts).
+See THIRD-PARTY.md for details and for the clinical-literature citations
+that underpin the metrics (these are scholarly references, not code
+dependencies).

@@ -1,0 +1,57 @@
+# ── Personal health data & large raw recordings ─────────────────────────────
+# uploads/ holds REAL biosignal recordings (overnight SpO2/ECG/PPG, CGM glucose,
+# HRV exports, CPAP EDFs). Raw recordings are personal medical data AND large
+# (hundreds of MB per night) — never publish them.
+#
+# EXCEPTION (fixes the fresh-clone gate hole): verify-provenance.html GATE B
+# audits committed DERIVED node-export JSONs (summary metrics only — NO raw
+# signal samples). These MUST be tracked or GATE B has nothing to read on a
+# clone. They are re-included BY EXACT NAME below — never a blanket *.json,
+# which would sweep in the dozens of OTHER real-recording summary exports in
+# uploads/ that are NOT gate fixtures and are not chosen for publication.
+# NOTE: device serials (Polar H10/Verity) were scrubbed from ALL tracked files
+#   2026-06-29 (→ placeholders); committed fixtures are provenance-null/clean.
+#   Recording DATES remain (own data, low-identifiability, needed for fixtures).
+#   Future exports should scrub filenames at the ingest boundary — EXPORT-IDENTITY-BRIEF.md.
+uploads/*
+
+# verify-provenance GATE B fixtures (== FIXTURE-PROVENANCE.json "fixtures" keys):
+!uploads/OxyDex_2026-06-13_1056_summary.json
+!uploads/OxyDex_2026-06-25_0439_summary.json
+!uploads/PulseDex_2026-06-25_equiv.node-export.json
+!uploads/PulseDex_2026-06-25_events.node-export.json
+!uploads/HRVDex_2026-06-25_equiv.node-export.json
+!uploads/HRVDex_2026-06-25_events.node-export.json
+!uploads/GlucoDex_2026-06-27_equiv.node-export.json
+!uploads/PpgDex_2026-06-27_equiv.node-export.json
+!uploads/ECGDex_2026-06-27_equiv.node-export.json
+!uploads/cpapdex-2026-06-12.node-export.json
+!uploads/cpapdex-2026-06-16.json
+!uploads/cpapdex_synthetic_golden.node-export.json
+!uploads/cpapdex_synthetic_multinight_golden.node-export.json
+
+# Locally-attached raw capture folder (Polar Sensor Logger exports)
+Ecg nightly/
+
+# If you want to ship the synthetic (non-personal) corpus only, un-ignore it:
+# !uploads/synthetic/
+
+# ── Throwaway / generated ───────────────────────────────────────────────────
+screenshots/
+screens/
+derive-bundle/
+*.thumbnail
+.thumbnail
+
+# ── OS / editor cruft ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.vscode/
+.idea/
+
+# ── Node (none committed today, but guard against it) ───────────────────────
+node_modules/
+npm-debug.log*

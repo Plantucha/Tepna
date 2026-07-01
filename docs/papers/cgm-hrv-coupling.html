@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  cgm-hrv-coupling.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CGM variability ↔ nocturnal autonomic coupling — Tepna preprint</title>
+<link rel="stylesheet" href="../licensing/dex-license.css">
+<link rel="stylesheet" href="paper.css">
+</head>
+<body>
+<div class="sheet">
+  <a class="toplink" href="papers.html">← Tepna preprints</a>
+  <div class="banner">Tepna Working Preprint · not peer-reviewed</div>
+  <h1 class="title">Two independent detectors, one nocturnal physiology: a shared-driver coupling between CGM glucose and heart-rate variability</h1>
+  <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
+  <p class="affil">GlucoDex × PulseDex nodes, Tepna physiological-signal suite</p>
+  <p class="meta">Draft v1 · June 2026 · Analysis tool: <code>cgm-hrv-coupling-analysis.html</code> · Detectors: real <code>pulsedex-dsp.js</code> + <code>glucodex-dsp.js</code> (lean <code>cgmcouple</code> Web-Worker pool) · generator <code>cohort-gen 1.6</code> · 100% local</p>
+
+  <div class="abstract">
+    <h2>Abstract</h2>
+    <p style="text-align:left;margin-bottom:0"><b>Background.</b> A multi-signal suite is only coherent if its nodes agree about the same night. We test whether two <em>independent</em> Tepna detectors — GlucoDex (continuous glucose) and PulseDex (RR→HRV), each parsing its own vendor file format — recover a single coupled nocturnal physiology when the cohort generator co-generates glycemia and autonomic tone. <b>Methods.</b> For every patient-night in the suite's co-generated FAST cohort we measured rMSSD with the real PulseDex detector and nocturnal glucose (mean over the sleep window <code>[t0, t0+duration]</code>) with the real GlucoDex detector. We decomposed the rMSSD↔glucose correlation into pooled, within-patient, and between-patient components, then tested whether the coupling is direct or mediated by a shared driver by partialling out the planted apnea burden (AHI). <b>Results.</b> The two detectors recovered a coherent <b>negative</b> coupling: heavier-glucose nights ran lower rMSSD (within-patient r = <b>−0.18</b>, 95% CI −0.19 to −0.16, 18,741 nights; pooled −0.17, between-patient −0.24). The coupling is a <b>shared-driver</b> effect, not a direct link: partialling out apnea burden collapsed it to <b>−0.01</b>, while the two driver legs were strong and opposite-signed — apnea burden raised nocturnal glucose (r = <b>+0.54</b>) and suppressed rMSSD (r = <b>−0.32</b>). <b>Conclusion.</b> Two independent real detectors recover the harness's planted cross-node coherence, and the analysis correctly attributes it to the shared autonomic driver rather than a spurious glucose→HRV path. <b>This is synthetic ground truth: it certifies cross-node temporal coherence and confound-aware recovery in the pipeline — it does not establish a real-world CGM↔HRV effect size, which requires paired clinical CGM + RR recordings.</b></p>
+  </div>
+  <p class="kw"><b>Keywords:</b> cross-node coherence · sensor fusion · continuous glucose monitoring · heart-rate variability · sleep apnea · confounding · partial correlation · within- vs between-subject</p>
+
+  <div class="callout" style="border:1px dashed #b8860b;background:#fffdf5">
+    <h2 class="sec" style="margin-top:0">0. Layman overview <span style="font-weight:400;color:#b8860b;font-size:13px">(delete before submission)</span></h2>
+    <p>This app reads several body signals with separate detectors. Here we check whether two of them — a <b>glucose</b> monitor and a <b>heart-rhythm</b> (HRV) monitor — tell a consistent story about the same night, even though they share no code and read completely different files. If a night looks bad on glucose, does it independently look bad on heart rhythm?</p>
+    <p>It does: nights with higher overnight glucose had lower heart-rhythm variability. But the interesting part is <b>why</b>. When we account for that night's <b>sleep apnea</b>, the glucose–heart link essentially vanishes — because apnea is secretly driving <i>both</i> (it pushes glucose up and heart variability down). So the two signals aren't directly affecting each other; they're both reacting to the same hidden cause, and our analysis correctly figures that out. For the product this is a green light: independent detectors agree about a night for the right reason. (Simulation with known causes — it proves the software's cross-sensor logic, not a real glucose–heart effect size.)</p>
+  </div>
+
+  <h2 class="sec">1. Introduction</h2>
+  <p>The value of a multi-signal physiological suite is not in any one channel but in whether the channels tell a consistent story about the same person on the same night. If GlucoDex says a night was glycemically turbulent and PulseDex independently says the same night's autonomic tone was suppressed, the two readings reinforce each other — provided the agreement is real coherence and not an artifact of a shared input or a shared bug. Establishing that the pipeline produces, and faithfully recovers, <em>cross-node temporal coherence</em> is a prerequisite for any downstream fusion (the Integrator), and it is one of the open frontier items the suite's synthetic harness is built to exercise.</p>
+  <p>We use the co-generated cohort to ask a specific version of the question: nocturnal sleep apnea is known to perturb both autonomic tone (vagal withdrawal, sympathetic surges at arousal) and overnight metabolism (sympathetic glucose elevation). The generator plants exactly this — apnea burden lowers a night's rMSSD and raises its nocturnal glucose — so a heavier night should read as <em>high glucose + low rMSSD</em> across two unrelated detectors. The scientifically interesting part is not merely that the correlation exists, but whether the analysis can tell a <em>shared-driver</em> coupling (apnea moves both) apart from a spurious direct one (glucose moves HRV). We test both the coupling and its mechanism.</p>
+
+  <h2 class="sec">2. Methods</h2>
+  <h3 class="sub">2.1 Cohort and the two detectors</h3>
+  <p>Subjects are FAST-cohort patients that carry both a continuous CGM stream (GlucoDex) and a cardiac source (PulseDex/ECGDex RR), with at least the configured minimum number of nights (default 5). The run reported here covers <b>2,318 patients contributing 18,741 patient-nights</b> (generator v1.6, in which CGM is modeled as continuous OTC wear so coverage is realistic). Each night is scored by two unmodified production detectors run off the main thread in a lean <code>cgmcouple</code> Web-Worker pool (PulseDex and GlucoDex coexist in one realm; they do not collide): rMSSD from <code>pulsedex-dsp.js</code> (whole-night time-domain HRV) and the glucose summary from <code>glucodex-dsp.js → analyze</code>.</p>
+  <h3 class="sub">2.2 Nocturnal glucose — sleep-window slice</h3>
+  <p>The CGM stream is continuous across a patient's nights, so to align glucose to a night we slice the readings whose timestamp falls in the sleep window <code>[t0Ms, t0Ms + durationSec]</code> and run GlucoDex on that slice. Timestamps are parsed under the Clock Contract — the zoned-ISO stamp is regexed into UTC-normalized floating wall-clock milliseconds (never <code>new Date(str)</code>), which is the same floating frame as the night's <code>t0Ms</code>, so the slice is viewer-timezone-independent. The primary glucose readout is the nocturnal <em>mean</em>; nocturnal CV is available as an alternate.</p>
+  <h3 class="sub">2.3 Coupling decomposition and the shared-driver test</h3>
+  <p>We correlate per-night rMSSD against nocturnal glucose three ways: <b>pooled</b> over all nights; <b>within-patient</b>, after subtracting each patient's own means from both variables (removes between-person level differences such as diabetes class); and <b>between-patient</b>, over patient means. To distinguish a shared-driver coupling from a direct one we compute the <b>partial correlation</b> of rMSSD and glucose controlling for the planted apnea burden (AHI):</p>
+  <div class="eqn">r<sub>rMSSD,gluc | AHI</sub> = ( r<sub>rMSSD,gluc</sub> − r<sub>rMSSD,AHI</sub>·r<sub>gluc,AHI</sub> ) / √( (1 − r<sub>rMSSD,AHI</sub>²)(1 − r<sub>gluc,AHI</sub>²) )</div>
+  <p>If apnea burden is the shared cause, partialling it out should collapse the coupling toward zero while the two driver legs (AHI↔glucose, AHI↔rMSSD) remain strong. Apnea burden here is the generator's planted latent (AHI); OxyDex's recovery of it from oximetry is characterized separately in the ODI-4↔AHI paper. Correlation CIs are Fisher-z 95% intervals.</p>
+
+  <h2 class="sec">3. Results</h2>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 1.</b> Cross-node coupling between nocturnal mean glucose (GlucoDex) and rMSSD (PulseDex), real detectors, 2,318 patients / 18,741 nights.</caption>
+    <thead><tr><th>Relationship</th><th>Level</th><th class="num">r</th><th class="num">n</th><th class="num">95% CI</th></tr></thead>
+    <tbody>
+      <tr><td>rMSSD ↔ nocturnal glucose</td><td>pooled (all nights)</td><td class="num">−0.17</td><td class="num">18741</td><td class="num">−0.19, −0.16</td></tr>
+      <tr class="hi"><td>rMSSD ↔ nocturnal glucose</td><td>within-patient</td><td class="num">−0.18</td><td class="num">18741</td><td class="num">−0.19, −0.16</td></tr>
+      <tr><td>rMSSD ↔ nocturnal glucose</td><td>between-patient</td><td class="num">−0.24</td><td class="num">2318</td><td class="num">−0.28, −0.21</td></tr>
+      <tr class="hi"><td>rMSSD ↔ nocturnal glucose</td><td>within · partial | AHI</td><td class="num">−0.01</td><td class="num">18741</td><td class="num">—</td></tr>
+      <tr><td>nocturnal glucose ↔ apnea burden (AHI)</td><td>pooled</td><td class="num">+0.54</td><td class="num">18741</td><td class="num">+0.53, +0.55</td></tr>
+      <tr><td>rMSSD ↔ apnea burden (AHI)</td><td>pooled</td><td class="num">−0.32</td><td class="num">18741</td><td class="num">−0.33, −0.31</td></tr>
+    </tbody>
+  </table>
+  <p>The two independent detectors recovered a <b>coherent negative coupling</b>: nights with higher nocturnal glucose ran lower rMSSD. The effect is tight and unambiguous within patients (r = −0.18, 95% CI −0.19 to −0.16 over 18,741 nights), and similar pooled (−0.17) and between patients (−0.24). That a glucose detector and an HRV detector — sharing no code, no parser, and no input file — agree night-to-night across nearly nineteen thousand nights is the cross-node coherence the harness is meant to produce.</p>
+
+  <figure>
+    <img src="figures/cgm-hrv-coupling.png" alt="Within-patient rMSSD–glucose scatter, shared-driver bar chart, and the two AHI driver-leg scatters">
+    <figcaption><b>Figure 1.</b> Cross-node coupling and its shared driver (live output of <code>cgm-hrv-coupling-analysis.html</code>). <b>Top-left:</b> within-patient scatter — each point is one night with its patient mean removed; the negative slope (r = −0.18) is the coupling, not a between-person class effect. <b>Top-right:</b> the coupling (top bar) collapses once apnea burden is partialled out (second bar, −0.01), while the two driver legs stay large. <b>Bottom:</b> the driver legs as real-detector scatters over all 18,741 nights — apnea burden raises nocturnal glucose (left, GlucoDex, r = +0.54) and suppresses rMSSD (right, PulseDex, r = −0.32); opposite signs produce the negative glucose↔rMSSD coupling with no direct path between them. Color = glycemic class (normal/pre-DM/T2D), which shifts glucose level but not the AHI slope. Dark theme is the tool's native rendering.</figcaption>
+  </figure>
+
+  <h3 class="sub">3.1 The coupling is a shared driver, not a direct link</h3>
+  <p>Partialling out the planted apnea burden <b>collapsed the within-patient coupling from −0.18 to −0.01</b> — effectively zero. Meanwhile the two driver legs were strong and opposite-signed: apnea burden raised nocturnal glucose (r = +0.54) and suppressed rMSSD (r = −0.32). The reading is unambiguous and matches the generator's construction: glucose and rMSSD are coupled <em>because both are driven by the night's apnea burden</em>, not because glucose acts on the heart or vice versa. The analysis recovers the correct causal shape, not merely the correlation — exactly the confound-aware behavior the suite's other findings (age-confounded HRV, AHI-biased ODI) also demand.</p>
+  <h3 class="sub">3.2 Within vs between: where the coupling lives</h3>
+  <p>The coupling is carried by within-patient, night-to-night covariation. Between patients it is noisier because a person's glucose <em>level</em> is set mostly by glycemic class (normal/pre-DM/T2D), which the generator draws independently of the autonomic axis — visible in Figure 1 as the color bands shifting glucose up or down without changing the apnea-driven slope. The practical implication for fusion is that cross-node agreement should be sought within a person's own baseline (does <em>this</em> patient's worse night show both signatures?) rather than across a heterogeneous cohort.</p>
+  <h3 class="sub">3.3 Discrete nocturnal-hypoglycemia coupling (characterized)</h3>
+  <p>The generator also plants a discrete coupling: a nocturnal hypoglycemia excursion (nadir ≈ 56 mg/dL, ~50 min below 70, with a Somogyi rebound) paired with a within-night rMSSD-suppression/tachycardia signature. A hypo-enriched run — profiles rejection-sampled toward hypo-carriers, generator untouched — yielded <b>479 planted hypo-nights</b>, each with a same-patient flat-night comparator: hypo nights showed higher nocturnal glucose variability (median ΔCV ≈ +4 percentage points) and a small whole-night rMSSD reduction (median ≈ −1.0 ms) — the planted direction.</p>
+  <p>Detection was the revealing part. GlucoDex's full-context <code>nocturnalHypo</code> flag, read off the cleaned series, recovered almost none of the planted dips (recall <b>0.008</b>, ≈4/479). The cause is not slice-truncation, as first suspected, but the detector's <b>compression-artifact rejection</b>: a sharp drop-and-recover excursion (insulin hypo + Somogyi rebound) carries the same bracketing signature as a positional sensor-pressure artifact, so those cells are flagged and held out of the hypo events — and the genuine dip is discarded. Reading the raw slice instead, a flag-independent <b>window-local time-below-70</b> (any ≥15-min run &lt; 70 mg/dL) recovered <b>every</b> planted hypo (recall <b>1.00</b>, 479/479). The two measures bracketed a real detector tradeoff: GlucoDex <em>used to</em> trade hypo recall for artifact robustness — usually the right call on real CGM, but on a sharp nocturnal hypo it cost a true positive. This is now disambiguated in-detector (June 2026): <code>glucodex-dsp.js</code> guards its compression-rejection pass with a <code>_looksLikeGenuineHypo()</code> discriminator, so a sustained sub-70 dip with a gradual descent/rebound (the Somogyi signature) survives into <code>nocturnalHypo</code> while a near-vertical positional artifact is still rejected — a permanent two-directional test locks both. The Integrator fusion layer still scores the event-level arm with the flag-independent window-local time-below-70 (<code>glucoseMetricsInWindow</code>) for windowed sub-night recomputation, and the cleaned-series flag now agrees with it on sharp hypos.</p>
+
+  <h2 class="sec">4. Discussion</h2>
+  <p>Two detectors that share nothing but the patient agree about the patient. The agreement is real coherence — not a leaked common input — and the analysis correctly resolves it into a shared autonomic driver rather than a spurious direct effect. For the suite this is a green light on a foundational assumption: the harness's co-generation is temporally coherent across nodes, and independent real detectors recover that coherence with the correct mechanism. It also sets the bar for the Integrator, whose fusion logic should reproduce the within-patient framing and the shared-driver attribution rather than treating glucose and HRV as independent evidence.</p>
+  <div class="callout"><b>Limitations.</b> This is synthetic ground truth. The coupling exists because the generator planted it; the effect sizes (within r ≈ −0.18, driver legs +0.54 / −0.32) are properties of the generator's variance ratios, not estimates of a real CGM↔HRV relationship, which is confounded, individually variable, and almost certainly different in magnitude. Apnea burden is the planted latent AHI rather than a measured index, so the partial-correlation collapse is a clean test of the <em>analysis</em>, not of OxyDex. Nocturnal glucose was summarized over the sleep window only; daytime glycemia and other HRV bands are out of scope. At 18,741 nights sampling error is negligible (CIs ≈±0.015); the dominant uncertainty is the realism of the planted variance ratios, not statistical precision. These results certify <b>cross-node temporal coherence and confound-aware recovery in the pipeline</b>; a real coupling estimate requires paired clinical CGM + RR recordings with measured apnea.</p></div>
+
+  <h2 class="sec">5. Sample size &amp; statistical power</h2>
+  <p>The coupling is a night-level correlation, so its precision is governed by the number of <b>nights</b> (within/pooled legs) and <b>patients</b> (between leg); the Fisher-z confidence interval narrows as ~1/√n. Because patients are independent, the cohort can be grown to any size; the qualitative result — a real negative coupling that collapses under AHI — is visible at a few hundred nights, and large N only tightens the intervals.</p>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 2.</b> Sample-size guidance for this pilot (patients × ~8 nights each carrying both CGM and RR).</caption>
+    <thead><tr><th>Tier</th><th class="num">Patients</th><th>What it buys</th></tr></thead>
+    <tbody>
+      <tr><td>Minimum (acceptable)</td><td class="num">~500</td><td>~4,000 nights; within/pooled coupling CIs ≈±0.03, the AHI-partial collapse and both driver legs clear. The between-patient leg is still loose. Below ~150 patients the between-leg CI spans zero.</td></tr>
+      <tr class="hi"><td>Recommended</td><td class="num">~5,000</td><td>~40,000 nights; all three legs (and the partial) pinned to ≈±0.01, smooth scatters. The publication sweet spot.</td></tr>
+      <tr><td>This run</td><td class="num">2,318</td><td>18,741 nights — 20% above the pilot's stated max for a definitive but economical run; coupling CIs ≈±0.015.</td></tr>
+      <tr><td>Diminishing returns</td><td class="num">&gt; ~5,000</td><td>Past here the coupling CIs are already &lt;±0.015; more patients can't sharpen the real limiter (the plausibility of the planted variance ratios). The one arm that benefits from more N is the discrete nocturnal-hypo coupling (§3.3), which is event-rate-limited.</td></tr>
+    </tbody>
+  </table>
+  <p>Practical reading: <b>~500</b> patients for a trustworthy coupling, <b>~5,000</b> for tight published intervals on all three legs; beyond <b>~5,000</b> the marginal value is cosmetic except for the rare-event hypo arm. This run used 2,318 patients (≈20% above the stated maximum), which already gives ±0.015 precision.</p>
+
+  <h2 class="sec">6. Reproducibility</h2>
+  <ul>
+    <li><b>Run it:</b> open <code>cgm-hrv-coupling-analysis.html</code> → set patients / min nights / glucose metric → "Run cohort". Table 1, the headline cards, and Figure 1 populate live; the glucose-metric selector re-derives the coupling for nocturnal mean vs CV without re-measuring. Export <code>cgm-hrv-coupling-results.csv</code>, <code>cgm-hrv-coupling-stats.json</code>, <code>cgm-hrv-coupling-figures.png</code>.</li>
+    <li><b>Detectors:</b> real <code>pulsedex-dsp.js</code> (rMSSD) and <code>glucodex-dsp.js</code> (<code>analyze</code> → mean/CV/nHypo) run together in a lean <code>cgmcouple</code> Web-Worker pool (<code>cohort-worker.js</code>); nocturnal glucose is the sleep-window slice <code>[t0, t0+dur]</code> computed in-worker.</li>
+    <li><b>Cohort:</b> co-generated FAST patients from <code>cohort-gen.js</code> + <code>synth-gen.js</code> carrying both CGM and RR.</li>
+    <li><b>Statistics:</b> Pearson r (Fisher-z 95% CI) pooled / within-patient / between-patient; partial correlation controlling for planted AHI as the shared-driver test.</li>
+    <li><b>Next:</b> a hypo-enriched cohort to power the event-level arm; repeat on paired clinical CGM + RR with measured apnea to convert this pipeline-coherence result into a clinical coupling estimate.</li>
+  </ul>
+
+  <h2 class="sec">References</h2>
+  <ol class="refs">
+    <li>Project documentation: <code>CLAUDE.md</code> (Clock Contract, cross-node export schema), <code>COHORT-VALIDATION-BRIEF.md</code>, <code>SYNTHETIC-CORPUS-README.md</code>, <code>INTEGRATOR-BUILD-BRIEF.md</code>, Tepna suite.</li>
+    <li>Companion preprints: "Age confounds apnea-driven HRV suppression" and "Rolling-baseline ODI-4 under-estimates AHI" (Tepna working series) — the AHI↔HRV and AHI↔oximetry legs of the shared driver.</li>
+    <li>Tasali E, Mokhlesi B, Van Cauter E. Obstructive sleep apnea and type 2 diabetes: interacting epidemics. <i>Chest.</i> 2008;133(2):496–506.</li>
+    <li>Aurora RN, Punjabi NM. Obstructive sleep apnoea and type 2 diabetes mellitus: a bidirectional association. <i>Lancet Respir Med.</i> 2013;1(4):329–338.</li>
+    <li>Bland JM, Altman DG. Calculating correlation coefficients with repeated observations: within-subject correlation. <i>BMJ.</i> 1995;310(6977):446 (within- vs between-subject decomposition).</li>
+  </ol>
+
+  <div class="footer">Tepna working preprint · generated from live analysis output · figures and statistics regenerate deterministically from the cited tool. Not peer-reviewed; not for clinical use.</div>
+</div>
+
+<div class="dxl dxl-oneline" style="max-width:820px;margin:30px auto 8px;justify-content:center">
+  <span class="dxl-mark">T</span>
+  <span>© 2026 <b style="font-weight:600;color:var(--text,#F4F7FB)">Michal Planicka</b></span>
+  <span class="dxl-sep">·</span><span>Tepna v1.0.0</span>
+  <span class="dxl-sep">·</span><span class="dxl-lic">Apache-2.0</span>
+  <span class="dxl-sep">·</span><span style="color:var(--text4,#6E7F94)">◈ Asheville, NC</span>
+  <span class="dxl-sep">·</span><span style="color:var(--text4,#6E7F94)">not a medical device</span>
+</div>
+</body></html>

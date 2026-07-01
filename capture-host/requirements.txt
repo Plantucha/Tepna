@@ -1,0 +1,9 @@
+# tepna-capture — requirements
+# Core BLE + config. Install into a venv:  python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
+bleak>=0.22         # cross-platform BLE central; clean on Linux/BlueZ
+PyYAML>=6.0         # config.yaml
+
+# Muse EEG is captured by a SEPARATE tool driven as a child process (see README):
+#   - Muse 2 / Muse S (gen 1-2):  pipx install muselsl
+#   - Muse S Athena (2024/25):    pipx install OpenMuse     (muse-lsl/BlueMuse do NOT work on Athena)
+# These pull pylsl / mne-lsl themselves; keep them out of this venv to avoid liblsl ABI clashes.

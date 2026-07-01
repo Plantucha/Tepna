@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  hrv-confound-analysis.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HRV Screening Confound — Age × Apnea (PulseDex)</title>
+<!-- ════════════════════════════════════════════════════════════════════════
+  hrv-confound-analysis.html — figure engine for the candidate paper
+  "Age confounds apnea-driven HRV suppression: why single-metric consumer HRV
+   screening misattributes risk, and an age-adjustment that recovers it."
+
+  rMSSD here is MEASURED by the real PulseDex DSP from each synthetic night's
+  rendered RR (not the latent target) — so the confound must survive the actual
+  detector. Each night contributes { measured rMSSD, known age, known AHI }.
+
+  HONEST FRAMING (shown in-page + in export): this is a SIMULATION study. The
+  age→HRV and apnea→HRV couplings are generator inputs anchored to literature
+  effect sizes (editable below) — the contribution is quantifying the screening
+  error those plausible magnitudes imply, and the adjustment that fixes it. It is
+  NOT a clinical validation. 100% local; reuses cohort-gen.js + the real PulseDex
+  harness (cohort-harness.html?node=pulsedex).
+═════════════════════════════════════════════════════════════════════════ -->
+<style>
+  :root{
+    --bg:#0c0f14; --surface:#141922; --surface2:#1b212c; --line:rgba(255,255,255,.08);
+    --text:#e6edf6; --text2:#aab8cc; --text3:#6f8096; --teal:#3DE0D0; --blue:#58A6FF;
+    --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A; --purple:#B98AFF;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;padding:0 0 90px;}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px;}
+  header{padding:26px 0 16px;border-bottom:1px solid var(--line);margin-bottom:22px;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);}
+  h1{margin:6px 0 3px;font-size:25px;font-weight:650;letter-spacing:-.01em;}
+  h1 .g{color:var(--teal);}
+  .sub{color:var(--text3);font-size:13px;max-width:780px;line-height:1.5;}
+  .controls{display:flex;gap:10px;align-items:center;margin-top:18px;flex-wrap:wrap;}
+  button{font-family:var(--sans);font-size:13px;font-weight:600;padding:9px 16px;border-radius:8px;border:1px solid var(--line);background:var(--surface2);color:var(--text);cursor:pointer;}
+  button:hover{border-color:rgba(255,255,255,.2);}
+  button.primary{background:var(--teal);color:#06251f;border-color:transparent;}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  .pill{font-family:var(--mono);font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid var(--line);}
+  .pill.idle{color:var(--text3);} .pill.run{color:var(--teal);border-color:rgba(61,224,208,.35);} .pill.done{color:var(--green);border-color:rgba(57,217,138,.35);}
+  .field{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text2);}
+  .field input{width:64px;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:5px 7px;font-family:var(--mono);font-size:12px;}
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:18px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;}
+  .card h2{margin:0 0 14px;font-size:13px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;gap:8px;}
+  .card h2 .tag{font-family:var(--mono);font-size:10px;color:var(--text3);font-weight:500;border:1px solid var(--line);border-radius:5px;padding:2px 6px;margin-left:auto;}
+  .col-12{grid-column:span 12;} .col-8{grid-column:span 8;} .col-6{grid-column:span 6;} .col-4{grid-column:span 4;}
+  @media(max-width:900px){ .col-8,.col-6,.col-4{grid-column:span 12;} }
+  canvas{max-width:100%;display:block;background:#0f141b;border-radius:8px;}
+  .legend{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:9px;line-height:1.6;}
+  .stat-row{display:flex;flex-direction:column;gap:15px;}
+  .stat .v{font-family:var(--mono);font-size:23px;font-weight:600;letter-spacing:-.02em;}
+  .stat .l{font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;}
+  .chip{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle;}
+  .muted{color:var(--text3);}
+  .note{background:rgba(255,184,77,.07);border:1px solid rgba(255,184,77,.22);border-radius:10px;padding:12px 15px;font-size:12px;color:var(--text2);line-height:1.55;margin-top:8px;}
+  code{font-family:var(--mono);color:var(--blue);background:var(--surface2);padding:1px 5px;border-radius:4px;font-size:11px;}
+  #prog{height:4px;background:var(--surface2);border-radius:3px;overflow:hidden;flex:1;min-width:120px;max-width:280px;}
+  #progBar{height:100%;width:0;background:var(--teal);transition:width .2s;}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th,td{text-align:left;padding:6px 9px;border-bottom:1px solid rgba(255,255,255,.05);}
+  th{color:var(--text3);font-weight:500;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;}
+  td.num,th.num{text-align:right;font-family:var(--mono);}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="eyebrow">PulseDex · rMSSD · age×apnea interaction model (full cohort)</div>
+    <h1><span class="g">Age confounds apnea-driven HRV suppression</span></h1>
+    <div class="sub">A low nocturnal rMSSD is ambiguous — age and apnea both suppress it. Rather than slice into fragile age-stratified subgroups, we fit the <b>whole cohort</b> with an age×AHI interaction model: one coefficient tests on the full N whether apnea’s HRV cost changes with age, and a single age-adjustment recovers the screen.</div>
+    <div class="controls">
+      <span class="field">patients <input id="nIn" type="number" value="250" min="50" max="100000" step="50"></span>
+      <span id="eta" style="font-size:11px;color:var(--text3);align-self:center">↑ large N runs slower (real detectors per night)</span>
+      <button class="primary" id="run">Run simulation</button>
+      <button id="cancel" style="display:none">Cancel</button>
+      <div id="prog"><div id="progBar"></div></div>
+      <span class="pill idle" id="status">idle</span>
+      <span style="flex:1"></span>
+      <button id="dlCsv" disabled>results.csv</button>
+      <button id="dlStats" disabled>stats.json</button>
+      <button id="dlFig" disabled>figures.png</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="grid">
+    <div class="card col-6">
+      <h2>The ambiguity — rMSSD vs age <span class="tag">colour = AHI</span></h2>
+      <canvas id="vsAge" width="560" height="340"></canvas>
+      <div class="legend" id="ageLegend">Measured rMSSD declines with age in healthy patients; apneic patients sit lower at any age. A horizontal cut (a fixed rMSSD threshold) mixes both.</div>
+    </div>
+    <div class="card col-6">
+      <h2>The ambiguity — rMSSD vs AHI <span class="tag">colour = age</span></h2>
+      <canvas id="vsAhi" width="560" height="340"></canvas>
+      <div class="legend" id="ahiLegend">rMSSD falls with apnea burden, but the age spread at every AHI is wide — younger apneics can out-score older healthy controls.</div>
+    </div>
+
+    <div class="card col-8">
+      <h2>Single-metric screen vs age-adjusted screen <span class="tag" id="rocTag">ROC —</span></h2>
+      <canvas id="roc" width="720" height="340"></canvas>
+      <div class="legend" id="rocLegend">ROC for detecting moderate+ OSA (true AHI ≥ 15) from rMSSD. Amber = raw rMSSD threshold; teal = age-adjusted residual (measured − expected-for-age). Up-and-left = better.</div>
+    </div>
+    <div class="card col-4">
+      <h2>Headline <span class="tag">misattribution</span></h2>
+      <div class="stat-row">
+        <div class="stat"><span class="v" id="hN">0</span><span class="l">night-records (real PulseDex)</span></div>
+        <div class="stat"><span class="v" id="hAge" style="color:var(--blue)">—</span><span class="l">rMSSD lost per decade of age</span></div>
+        <div class="stat"><span class="v" id="hAhi" style="color:var(--red)">—</span><span class="l">rMSSD lost per 10 AHI</span></div>
+        <div class="stat"><span class="v" id="hAuc">—</span><span class="l">AUC raw → age-adjusted</span></div>
+        <div class="stat"><span class="v" id="hInter" style="color:var(--green)">—</span><span class="l">age × apnea interaction — same confound at every age?</span></div>
+      </div>
+    </div>
+
+    <div class="card col-12">
+      <h2>Full-cohort interaction model — rMSSD ~ age × AHI <span class="tag">measured rMSSD · full N</span></h2>
+      <div id="regOut" class="muted mono" style="font-size:12px">run to fit…</div>
+      <div class="note" id="frame"><b>Simulation — read before citing.</b> The coupling magnitudes below are generator inputs (literature defaults: HRV declines ≈ age, apnea suppresses vagal tone) and are planted <b>additively</b> — interaction = 0. So the fitted age×AHI term should return ≈ null: the interaction test’s job is to <i>detect departure from additivity</i> on the full cohort — the de-confounding question an age-stratified subgroup analysis would otherwise need (and be underpowered) to answer. The contribution is the <i>screening error these magnitudes imply</i> and the single age-adjustment that recovers it — not a clinical validation. Measured rMSSD comes from the real PulseDex DSP.
+        <div style="margin-top:10px;display:flex;gap:18px;flex-wrap:wrap">
+          <span class="field">age slope (ms/yr) <input id="ageSlope" type="number" value="-0.42" step="0.05"></span>
+          <span class="field">apnea slope (ms per AHI) <input id="ahiSlope" type="number" value="-0.22" step="0.02"></span>
+          <span class="field">interaction (ms per yr·AHI) <input id="interSlope" type="number" value="0" step="0.005"></span>
+          <span class="muted" style="font-size:11px">(these mirror the current cohort-gen latent; changing them here is documentation-only unless wired into cohort-gen.js)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- hidden PulseDex harness iframe injected by the script -->
+<script src="synth-gen.js"></script>
+<script src="cohort-gen.js"></script>
+<script src="hrv-confound-analysis.js"></script>
+</body></html>

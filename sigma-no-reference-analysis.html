@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  sigma-no-reference-analysis.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Per-device σ without a canonical reference — three-cornered hat (HR)</title>
+<!-- ════════════════════════════════════════════════════════════════════════
+  Recovers each device's individual HR measurement uncertainty (σ) from THREE
+  co-recorded devices — O2Ring (pulse), Polar H10 (ECG), Polar Verity Sense
+  (PPG) — without assuming any one is canonical (three-cornered-hat / Gray–Allan
+  estimator). Also reports Bland–Altman bias / 95% LoA / Arms treating the H10
+  ECG strap as a transfer standard, and a short-term repeatability proxy.
+  100% local; reads the committed co-recorded uploads. SpO₂ trueness is NOT
+  obtainable here (H10/Verity have no SpO₂ channel — see the paper).
+═════════════════════════════════════════════════════════════════════════ -->
+<style>
+  :root{
+    --bg:#0c0f14; --surface:#141922; --surface2:#1b212c; --line:rgba(255,255,255,.08);
+    --text:#e6edf6; --text2:#aab8cc; --text3:#6f8096; --teal:#3DE0D0; --blue:#58A6FF;
+    --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A; --purple:#B98AFF;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;padding:0 0 90px;}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px;}
+  header{padding:26px 0 16px;border-bottom:1px solid var(--line);margin-bottom:22px;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);}
+  h1{margin:6px 0 3px;font-size:25px;font-weight:650;letter-spacing:-.01em;}
+  h1 .g{color:var(--teal);}
+  .sub{color:var(--text3);font-size:13px;max-width:820px;line-height:1.5;}
+  .controls{display:flex;gap:10px;align-items:center;margin-top:18px;flex-wrap:wrap;}
+  button{font-family:var(--sans);font-size:13px;font-weight:600;padding:9px 16px;border-radius:8px;border:1px solid var(--line);background:var(--surface2);color:var(--text);cursor:pointer;}
+  button:hover{border-color:rgba(255,255,255,.2);}
+  button.primary{background:var(--teal);color:#06251f;border-color:transparent;}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  .pill{font-family:var(--mono);font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid var(--line);}
+  .pill.idle{color:var(--text3);} .pill.run{color:var(--teal);border-color:rgba(61,224,208,.35);} .pill.done{color:var(--green);border-color:rgba(57,217,138,.35);}
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:18px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;}
+  .card h2{margin:0 0 14px;font-size:13px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;gap:8px;}
+  .card h2 .tag{font-family:var(--mono);font-size:10px;color:var(--text3);font-weight:500;border:1px solid var(--line);border-radius:5px;padding:2px 6px;margin-left:auto;}
+  .col-12{grid-column:span 12;} .col-8{grid-column:span 8;} .col-6{grid-column:span 6;} .col-4{grid-column:span 4;}
+  @media(max-width:900px){ .col-8,.col-6,.col-4{grid-column:span 12;} }
+  canvas{max-width:100%;display:block;background:#0f141b;border-radius:8px;}
+  .legend{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:9px;line-height:1.6;}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th,td{text-align:left;padding:6px 9px;border-bottom:1px solid rgba(255,255,255,.05);}
+  th{color:var(--text3);font-weight:500;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;}
+  td.num,th.num{text-align:right;font-family:var(--mono);}
+  .stat-row{display:flex;flex-direction:column;gap:16px;}
+  .stat{display:flex;flex-direction:column;gap:2px;}
+  .stat .v{font-family:var(--mono);font-size:23px;font-weight:600;letter-spacing:-.02em;}
+  .stat .l{font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;}
+  .src-chip{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle;}
+  .muted{color:var(--text3);} .mono{font-family:var(--mono);}
+  .note{background:rgba(88,166,255,.07);border:1px solid rgba(88,166,255,.2);border-radius:10px;padding:12px 15px;font-size:12px;color:var(--text2);line-height:1.55;margin-top:8px;}
+  code{font-family:var(--mono);color:var(--blue);background:var(--surface2);padding:1px 5px;border-radius:4px;font-size:11px;}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="eyebrow">HR channel · O2Ring · Polar H10 · Verity Sense · reference-free σ</div>
+    <h1><span class="g">Per-device σ</span> without a canonical reference</h1>
+    <div class="sub">Co-recorded devices share the same wall-clock minute, so by the Clock Contract they share a floating <code>tMs</code> — alignment needs no shared timezone. The method has three rungs: (1) <b>repeatability</b> σ with no reference; (2) <b>transfer-standard</b> Bland–Altman / Arms treating the H10 as ≈truth, with reference-free σ via variance subtraction; (3) the <b>three-cornered hat</b>, which recovers each of three devices' own variance with none assumed canonical. H10 + O2Ring co-record 6 nights deeply; for the third leg, the Verity Sense's dead onboard HR is <b>recovered from raw PPG</b> and the H10 reference from <b>raw ECG</b> (the suite's own PPGDSP/ECGDSP detectors). The hat now runs as <b>multi-window machinery</b>: each committed three-device window is solved by the same kernel and the tool reports a per-device σ <b>distribution — median + CI + N_windows + total simultaneous seconds</b> — with the H10↔O2Ring leg as a built-in control and every negative-variance window surfaced. Channel: HR only — O2Ring's SpO₂ trueness is not testable here (no arterial reference).</div>
+    <div class="controls">
+      <button class="primary" id="runLocal">Run corpus — 6 pair-nights + the multi-window σ hat</button>
+      <span class="pill idle" id="status">idle</span>
+      <span style="flex:1"></span>
+      <button id="dlCsv" disabled>results.csv</button>
+      <button id="dlStats" disabled>stats.json</button>
+      <button id="dlFig" disabled>figures.png</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="grid">
+    <div class="card col-8">
+      <h2>Co-recorded HR — three devices, one physiology <span class="tag">1-Hz overlay</span></h2>
+      <canvas id="tsCanvas" width="720" height="300"></canvas>
+      <div class="legend">First ~600 aligned seconds of a three-device window. <span style="color:#3DE0D0">H10 (ECG, RR→1 Hz)</span> · <span style="color:#FFB84D">O2Ring (pulse)</span> · <span style="color:#B98AFF">Verity (raw PPG)</span>. All three track the same true HR; the spread between them is device error.</div>
+    </div>
+    <div class="card col-4">
+      <h2>Recovered uncertainty <span class="tag">O2Ring pulse</span></h2>
+      <div class="stat-row">
+        <div class="stat"><span class="v" id="hNights">0</span><span class="l">co-recorded nights</span></div>
+        <div class="stat"><span class="v" id="hN">0</span><span class="l">aligned seconds (pooled)</span></div>
+        <div class="stat"><span class="v" id="hSigma" style="color:#FFB84D">—</span><span class="l">σ O2Ring, bpm (clean / all)</span></div>
+        <div class="stat"><span class="v" id="hArms">—</span><span class="l">Arms vs H10 (clean / all)</span></div>
+        <div class="stat"><span class="v" id="hBias" style="color:#39D98A">—</span><span class="l">mean bias, bpm</span></div>
+        <div class="stat"><span class="v" id="hRepH" style="color:#3DE0D0">—</span><span class="l">H10 repeatability σ, bpm</span></div>
+      </div>
+    </div>
+
+    <div class="card col-6">
+      <h2>Bland–Altman — O2Ring &amp; Verity vs H10 <span class="tag">vs ECG reference</span></h2>
+      <canvas id="baO2" width="560" height="300"></canvas>
+      <div class="legend">Difference vs the H10 reference, <span style="color:#FFB84D">O2Ring−H10</span> and <span style="color:#B98AFF">Verity−H10</span>, both over the same three-device overlap so the Arms are directly comparable. Solid = bias, dashed = 95% LoA. Verity's cloud is visibly wider — that <em>is</em> its larger σ.</div>
+    </div>
+    <div class="card col-6">
+      <h2>Per-night scatter SD <span class="tag">precision</span></h2>
+      <canvas id="nightCanvas" width="560" height="300"></canvas>
+      <div class="legend">SD of (O2Ring−H10) per night = the O2Ring's second-by-second precision (H10 is ~truth). Red = motion-flagged night (SD &gt; 1.8× median); the dashed line is that threshold.</div>
+    </div>
+
+    <div class="card col-12">
+      <h2>Per-night agreement <span class="tag" id="nightTag">0 nights</span></h2>
+      <div style="overflow:auto"><table id="nightTbl"><thead><tr>
+        <th>night</th><th class="num">n (s)</th><th class="num">bias</th><th class="num">SD</th><th class="num">95% LoA</th><th class="num">Arms</th><th class="num">Pearson r</th><th class="num">σ ref-free</th>
+      </tr></thead><tbody></tbody></table></div>
+      <div class="note"><b>Method.</b> Devices co-record the same minute → identical floating <code>tMs</code> (Clock Contract); no shared timezone needed. H10 RR → instantaneous HR → 1-Hz buckets; O2Ring pulse is native 1 Hz. We keep only seconds present in both (O2Ring <code>--</code> dropout removed). Reference-free σ = √(SD<sub>diff</sub>² − σ<sub>H10,repeat</sub>²) — H10's own jitter (≈0.7 bpm) subtracted out. The O2Ring's reported pulse is internally smoothed (a 1-Hz self-residual proxy is degenerate), so its scatter <em>against H10</em> is the meaningful precision figure.</div>
+    </div>
+
+    <div class="card col-7">
+      <h2>Three-cornered hat — per-device σ with CI, none canonical <span class="tag">H10 · Verity · O2Ring</span></h2>
+      <canvas id="tchCanvas" width="640" height="300"></canvas>
+      <div class="legend">Aggregate reference-free σ over <b id="tchN">0</b> three-device window(s), <b id="tchSecs">0</b> simultaneous s. <span style="color:#FFB84D">O2Ring native pulse</span> · <span style="color:#3DE0D0">H10 — HR from raw ECG (Pan-Tompkins QRS)</span> · <span style="color:#B98AFF">Verity — HR from raw PPG (PPGDSP)</span>. Bar = aggregate σ; white whisker = 95% CI (<b id="tchCiKind">—</b>); faint dots = per-window σ. No device assumed canonical.</div>
+    </div>
+    <div class="card col-5">
+      <h2>Aggregate σ [95% CI] &amp; pooled pairs <span class="tag">bpm</span></h2>
+      <div class="stat-row" style="gap:12px;margin-bottom:12px">
+        <div class="stat"><span class="v" id="tchO" style="color:#FFB84D;font-size:18px">—</span><span class="l">σ O2Ring (pulse)</span></div>
+        <div class="stat"><span class="v" id="tchH" style="color:#3DE0D0;font-size:18px">—</span><span class="l">σ H10 (ECG)</span></div>
+        <div class="stat"><span class="v" id="tchV" style="color:#B98AFF;font-size:18px">—</span><span class="l">σ Verity (PPG)</span></div>
+      </div>
+      <div style="overflow:auto"><table id="pairTbl"><thead><tr>
+        <th>pair (pooled)</th><th class="num">bias</th><th class="num">SD</th><th class="num">95% LoA</th><th class="num">Arms</th>
+      </tr></thead><tbody></tbody></table></div>
+      <div class="note" id="concordNote" style="margin-top:10px">—</div>
+    </div>
+
+    <div class="card col-12">
+      <h2>Reference-free σ — lowest first <span class="tag">smoothness, not fidelity</span></h2>
+      <div style="overflow:auto"><table id="rankTbl"><thead><tr>
+        <th class="num">#</th><th>device</th><th class="num">σ (bpm)</th><th class="num">95% CI</th><th class="num">relative to #1</th>
+      </tr></thead><tbody></tbody></table></div>
+      <div class="note" id="rankNote">—</div>
+    </div>
+
+    <div class="card col-12">
+      <h2>Per-window σ distribution &amp; control leg <span class="tag" id="winTag">0 windows</span></h2>
+      <div style="overflow:auto"><table id="winTbl"><thead><tr>
+        <th>window</th><th class="num">n (s)</th><th class="num">Verity SQI</th><th class="num">σ O2Ring</th><th class="num">σ H10</th><th class="num">σ Verity</th><th class="num">H10−O2 ctrl (bias / SD)</th>
+      </tr></thead><tbody></tbody></table></div>
+      <div class="note"><b>This is the distribution behind the aggregate.</b> Each row is one simultaneous three-device window solved by the same TCH kernel. The <b>H10−O2Ring control leg</b> must stay tight (bias≈0, SD≈2.7) every window — green is on-spec, red flags a window whose alignment is suspect (a built-in test of the method, not a result). A <span style="color:#FF6B7A">⚠</span> marks a window where a TCH variance went negative — the uncorrelated-error assumption is broken there and that σ is dropped, never hidden. With ≥3 windows the aggregate CI is an across-window bootstrap; with 1–2 it falls back to a within-window block bootstrap (the status pill and the σ card both state which). Add windows via <code>SIGMA-WINDOW-DERIVATION.md</code>.</div>
+    </div>
+
+    <div class="card col-12">
+      <h2>Verity Sense capture — onboard streams vs raw-signal recovery <span class="tag">data quality</span></h2>
+      <div style="overflow:auto"><table id="verityTbl"><thead><tr>
+        <th>onboard file</th><th class="num">HR usable</th><th class="num">PPI usable</th>
+      </tr></thead><tbody></tbody></table></div>
+      <div class="note" id="verityNote">Run the corpus to probe Verity Sense capture quality.</div>
+    </div>
+  </div>
+</div>
+
+<script src="sigma-no-reference-analysis.js"></script>
+</body></html>

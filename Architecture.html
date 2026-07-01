@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  Architecture.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Styled presentation of ARCHITECTURE-PRINCIPLES.md — the system's constitution.
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tepna — Architecture principles</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="stylesheet" href="licensing/dex-license.css">
+<style>
+:root{
+  --bg:#070A0E; --bg2:#0B0F14; --surface:#101722; --surface2:#16202D;
+  --border:#1c2a3b; --border2:#27384f;
+  --text:#F4F7FB; --text2:#A3B4C6; --text3:#7d90a5; --text4:#5a6b7e;
+  --teal:#3DE0D0; --blue:#58A6FF; --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A; --purple:#A78BFA;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.66;-webkit-font-smoothing:antialiased;overflow-x:hidden;}
+.wrap{max-width:1080px;margin:0 auto;padding:0 44px;position:relative;z-index:2;}
+.prose{max-width:760px;}
+.eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--teal);}
+a{color:inherit;text-decoration:none;}
+code{font-family:var(--mono);font-size:.88em;color:var(--teal);background:var(--bg2);border:1px solid var(--border);padding:1px 6px;border-radius:5px;}
+
+header.nav{position:sticky;top:0;z-index:30;backdrop-filter:blur(14px);background:rgba(7,10,14,.66);border-bottom:1px solid var(--border);}
+.nav-in{max-width:1080px;margin:0 auto;padding:15px 44px;display:flex;align-items:center;justify-content:space-between;}
+.brand{display:flex;align-items:center;gap:13px;font-weight:800;font-size:22px;letter-spacing:-.025em;color:var(--text);}
+.brand .mark{position:relative;width:15px;height:15px;border-radius:50%;background:radial-gradient(circle at 35% 30%,var(--teal),var(--blue));box-shadow:0 0 16px rgba(61,224,208,.85);animation:pulse 2.4s ease-in-out infinite;}
+.brand .mark::after{content:"";position:absolute;inset:-7px;border-radius:50%;border:1.5px solid var(--teal);animation:ring 2.6s ease-out infinite;}
+.brand .wm{line-height:1;}
+@keyframes ring{0%{transform:scale(.55);opacity:.6;}100%{transform:scale(1.5);opacity:0;}}
+@keyframes pulse{0%,100%{box-shadow:0 0 10px rgba(61,224,208,.5);}50%{box-shadow:0 0 20px rgba(61,224,208,.95);}}
+.nav-links{display:flex;gap:26px;font-size:13.5px;color:var(--text3);}
+.nav-links a:hover{color:var(--text);}
+.nav-cta{font-size:13px;font-weight:700;color:var(--bg);background:var(--teal);padding:9px 17px;border-radius:999px;box-shadow:0 0 18px rgba(61,224,208,.4);}
+
+/* hero */
+.hero{position:relative;padding:84px 0 40px;overflow:hidden;}
+#wave-hero{position:absolute;inset:0;width:100%;height:100%;z-index:0;opacity:.6;}
+.hero::after{content:"";position:absolute;inset:0;z-index:1;background:radial-gradient(120% 100% at 50% 8%,transparent 24%,rgba(7,10,14,.7) 64%,var(--bg) 100%);}
+.hero h1{font-size:52px;line-height:1.05;letter-spacing:-.035em;font-weight:800;margin:16px 0 0;max-width:16ch;}
+.hero h1 .g{background:linear-gradient(115deg,var(--teal),var(--blue) 60%,var(--purple));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.hero .lede{font-size:18px;color:var(--text2);max-width:62ch;margin:20px 0 0;text-wrap:pretty;}
+.hero .constitution{margin-top:24px;display:inline-flex;align-items:center;gap:12px;font-family:var(--mono);font-size:12px;color:var(--text3);border:1px solid var(--border2);border-radius:12px;padding:11px 16px;background:rgba(16,23,34,.5);}
+.hero .constitution b{color:var(--teal);font-weight:600;}
+
+.divider{height:54px;position:relative;}
+.divider canvas{position:absolute;inset:0;width:100%;height:100%;}
+
+section{padding:42px 0;}
+.sx{font-family:var(--mono);font-size:12px;letter-spacing:.16em;color:var(--teal);}
+h2{font-size:30px;font-weight:800;letter-spacing:-.025em;line-height:1.12;margin:10px 0 0;}
+.sub{color:var(--text2);font-size:16px;margin-top:12px;max-width:64ch;text-wrap:pretty;}
+p.body{color:var(--text2);font-size:15.5px;margin-top:16px;max-width:68ch;text-wrap:pretty;}
+p.body b{color:var(--text);}
+
+/* advantage cards */
+.adv{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px;}
+.adv .a{background:linear-gradient(180deg,var(--surface),var(--bg2));border:1px solid var(--border);border-radius:16px;padding:24px;position:relative;overflow:hidden;}
+.adv .a .num{font-family:var(--mono);font-size:11px;color:var(--text4);letter-spacing:.1em;}
+.adv .a h3{font-size:18px;font-weight:800;letter-spacing:-.02em;margin:10px 0 8px;}
+.adv .a p{font-size:13.5px;color:var(--text3);}
+.adv .a::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--teal);opacity:.6;}
+
+/* layers */
+.layers{display:flex;flex-direction:column;gap:14px;margin-top:28px;}
+.layer{border:1px solid var(--border);border-radius:16px;padding:24px 26px;background:linear-gradient(180deg,var(--surface),var(--bg2));position:relative;}
+.layer .lhead{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;}
+.layer .tag{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.12em;padding:4px 11px;border-radius:7px;}
+.layer.core .tag{color:var(--teal);background:rgba(61,224,208,.1);border:1px solid rgba(61,224,208,.3);}
+.layer.dsp .tag{color:var(--blue);background:rgba(88,166,255,.1);border:1px solid rgba(88,166,255,.3);}
+.layer.ui .tag{color:var(--green);background:rgba(57,217,138,.1);border:1px solid rgba(57,217,138,.3);}
+.layer .lhead h3{font-size:18px;font-weight:700;letter-spacing:-.01em;}
+.layer p{font-size:14px;color:var(--text2);margin-top:12px;max-width:74ch;}
+.layer .rule{margin-top:14px;border-left:2px solid var(--border2);padding:8px 0 8px 16px;font-size:13.5px;color:var(--text3);}
+.layer .rule b{color:var(--text2);}
+.layer .files{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px;}
+.layer .files code{font-size:11px;}
+.layer .test{margin-top:14px;font-family:var(--mono);font-size:12px;color:var(--text4);}
+.layer .test b{color:var(--teal);font-weight:600;}
+
+/* dependency diagram */
+.dep{margin-top:28px;border:1px solid var(--border);border-radius:18px;padding:34px 28px;background:var(--bg2);text-align:center;}
+.dep .box{display:inline-block;border-radius:12px;padding:16px 22px;font-family:var(--mono);font-size:13px;line-height:1.5;}
+.dep .core{border:1px solid rgba(61,224,208,.4);background:rgba(61,224,208,.07);color:var(--teal);max-width:560px;}
+.dep .core b{color:var(--text);font-family:var(--sans);font-weight:800;font-size:15px;}
+.dep .core .nd{color:var(--text4);font-size:11px;display:block;margin-top:4px;}
+.dep .mid{display:flex;gap:40px;justify-content:center;flex-wrap:wrap;margin:0 auto;}
+.dep .dsp{border:1px solid rgba(88,166,255,.4);background:rgba(88,166,255,.07);color:var(--blue);}
+.dep .intg{border:1px solid rgba(167,139,250,.4);background:rgba(167,139,250,.07);color:var(--purple);}
+.dep .ui{border:1px solid rgba(57,217,138,.4);background:rgba(57,217,138,.07);color:var(--green);}
+.dep .box b{display:block;font-family:var(--sans);font-weight:700;font-size:14px;color:var(--text);}
+.dep .box span{font-size:11px;color:var(--text4);}
+.dep .arr{font-family:var(--mono);font-size:11px;color:var(--text3);letter-spacing:.08em;padding:12px 0;}
+.dep .arr .a{color:var(--teal);}
+.deprule{margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--text3);max-width:70ch;margin-left:auto;margin-right:auto;text-align:center;line-height:1.7;}
+.deprule b{color:var(--text2);}
+
+/* contracts / principle cards */
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px 24px;}
+.card .k{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);}
+.card h3{font-size:16.5px;font-weight:700;margin:9px 0 8px;letter-spacing:-.01em;}
+.card p{font-size:13.5px;color:var(--text3);text-wrap:pretty;}
+
+.golden{margin-top:22px;border:1px solid var(--border2);border-left:3px solid var(--teal);border-radius:0 14px 14px 0;padding:20px 24px;background:rgba(61,224,208,.04);}
+.golden .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--teal);}
+.golden p{margin-top:8px;font-size:15px;color:var(--text2);}
+.golden p b{color:var(--text);}
+
+/* evidence ladder */
+.ladder{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:24px;}
+.lvl{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;text-align:center;}
+.lvl .disc{width:18px;height:18px;border-radius:50%;margin:0 auto 14px;}
+.lvl h4{font-size:13.5px;font-weight:700;text-transform:capitalize;}
+.lvl p{font-size:11.5px;color:var(--text3);margin-top:6px;line-height:1.5;}
+
+/* honesty principles list */
+.plist{margin-top:22px;display:flex;flex-direction:column;gap:12px;}
+.pl{display:flex;gap:16px;align-items:flex-start;background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px 20px;}
+.pl .pi{font-family:var(--mono);font-size:12px;color:var(--teal);white-space:nowrap;font-weight:600;padding-top:1px;}
+.pl p{font-size:14px;color:var(--text2);}
+.pl p b{color:var(--text);}
+
+/* gates */
+.gates{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px;}
+.gate{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px 24px;}
+.gate .g{font-family:var(--mono);font-size:12px;color:var(--green);}
+.gate code{font-size:12px;}
+.gate h3{font-size:16px;font-weight:700;margin:8px 0 7px;}
+.gate p{font-size:13.5px;color:var(--text3);}
+
+/* tldr */
+.tldr{border:1px solid var(--border2);border-radius:20px;padding:34px 36px;background:linear-gradient(180deg,var(--surface),var(--bg2));margin-top:6px;}
+.tldr h2{font-size:24px;}
+.tldr ol{list-style:none;counter-reset:t;margin-top:20px;display:flex;flex-direction:column;gap:12px;}
+.tldr li{counter-increment:t;display:flex;gap:15px;align-items:flex-start;font-size:14.5px;color:var(--text2);}
+.tldr li::before{content:counter(t);font-family:var(--mono);font-size:12px;font-weight:700;color:var(--teal);background:rgba(61,224,208,.1);border:1px solid rgba(61,224,208,.3);width:26px;height:26px;border-radius:8px;display:grid;place-items:center;flex:none;}
+.tldr li b{color:var(--text);}
+
+footer{border-top:1px solid var(--border);padding:32px 0 50px;margin-top:30px;}
+.foot-in{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+.foot-note{font-family:var(--mono);font-size:11.5px;color:var(--text4);line-height:1.9;}
+.foot-links{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;}
+.foot-links a{color:var(--text3);}.foot-links a:hover{color:var(--teal);}
+
+@media(max-width:900px){
+  .wrap,.nav-in{padding-left:22px;padding-right:22px;}
+  .hero h1{font-size:38px;}
+  .adv,.cards,.ladder,.gates{grid-template-columns:1fr;}
+  .ladder{grid-template-columns:1fr 1fr;}
+  .nav-links{display:none;}
+  .dep .mid{gap:18px;}
+}
+</style></head>
+<body>
+
+<header class="nav"><div class="nav-in">
+  <a class="brand" href="index.html"><svg class="brandmark" viewBox="0 0 100 100" aria-hidden="true" style="width:24px;height:24px;flex:none;filter:drop-shadow(0 0 7px rgba(61,224,208,.4))"><defs><linearGradient id="tgrad" x1="14" y1="10" x2="86" y2="88" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3DE0D0"/><stop offset=".58" stop-color="#58A6FF"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs><g fill="none" stroke="url(#tgrad)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></g></svg><span class="wm">Tepna</span></a>
+  <nav class="nav-links"><a href="index.html#devices">Devices</a><a href="Science.html">Science</a><a href="Why This Exists.html">About</a><a href="#layers">Layers</a><a href="#tldr">TL;DR</a></nav>
+  <a href="Why This Exists.html" class="nav-cta">Why this exists</a>
+</div></header>
+
+<section class="hero">
+  <canvas id="wave-hero"></canvas>
+  <div class="wrap">
+    <div class="eyebrow">Architecture principles</div>
+    <h1>A <span class="g">constitution</span>, not a task list.</h1>
+    <p class="lede">Tepna is a browser-native, 100%-local physiological analysis instrument — a fleet of single-signal analyzers over a shared kernel. These are the rules that keep it scalable: adopt them <b>forward</b>, migrate old code <b>opportunistically</b>, never in one risky sweep.</p>
+    <div class="constitution"><b>Read order:</b> <code>CLAUDE.md</code> wins on any conflict — especially the Clock Contract and the two gates.</div>
+  </div>
+</section>
+
+<div class="divider"><canvas id="div1" width="2400" height="108"></canvas></div>
+
+<!-- WHAT TEPNA IS -->
+<section><div class="wrap prose">
+  <div class="sx">00 / FRAME THE DECISIONS</div>
+  <h2>Three advantages every decision must protect.</h2>
+  <p class="body">A change that improves "code cleanliness" but weakens any of these is the wrong change. This is why the answer to <i>"the system is getting serious — move to a backend, microservices, Python?"</i> is <b>no</b>: that trades away advantages #1 and #2 to solve a problem we don't have. The real scaling limit is <b>drift</b>, and the fix for drift is tighter contracts inside the architecture we already have — not more infrastructure.</p>
+</div>
+<div class="wrap">
+  <div class="adv">
+    <div class="a"><div class="num">ADVANTAGE 01</div><h3>Instant reproducibility</h3><p>A bundled <code>Foo.html</code> is a frozen, hash-verifiable instrument. Open it in 2026 or 2036, online or on a plane — it computes the same numbers.</p></div>
+    <div class="a"><div class="num">ADVANTAGE 02</div><h3>Portability</h3><p>One file. No install, no server, no network. Runs straight from <code>file://</code>.</p></div>
+    <div class="a"><div class="num">ADVANTAGE 03</div><h3>Auditability</h3><p>Provenance stamps + the test suite mean every number traces to a reproducible build and a known contract.</p></div>
+  </div>
+</div></section>
+
+<div class="divider"><canvas id="div2" width="2400" height="108"></canvas></div>
+
+<!-- LAYERS -->
+<section id="layers"><div class="wrap prose">
+  <div class="sx">01 / THE THREE LAYERS</div>
+  <h2>One job each.</h2>
+  <p class="body">The single most important rule. Every file belongs to exactly one layer, and each layer has exactly one responsibility. The <b>boundaries</b> — not the folder names — are what matter.</p>
+</div>
+<div class="wrap">
+  <div class="layers">
+
+    <div class="layer core">
+      <div class="lhead"><span class="tag">CORE</span><h3>Shared, stable, frozen-ish truth</h3></div>
+      <p>The constitution every node obeys. Nothing device-specific ever lives here — no "oxygen" knowledge, no "glucose" knowledge. CORE is stable by default; new capability is added as <b>new</b> surface (new field, new method), never by mutating what exists.</p>
+      <div class="files"><code>metric-registry.js</code><code>DexKernel · kernel-constants</code><code>crossnight-envelope.js</code><code>Clock Contract</code><code>Ganglior export schema</code></div>
+      <div class="test">TEST · <b>"Identical regardless of which signal the node measures?"</b> → CORE</div>
+    </div>
+
+    <div class="layer dsp">
+      <div class="lhead"><span class="tag">DSP</span><h3>One node's signal logic, and nothing else</h3></div>
+      <p>Pure domain math: signal transforms, feature extraction, metric computation. Allowed to be complex — but <i>only</i> about its one signal. Runs headless in Node; the test suite essentially does.</p>
+      <div class="rule"><b>Rule:</b> no UI, no rendering, no DOM, no state, no <code>localStorage</code>. Takes parsed input, returns metrics. <code>parseTimestamp</code> is duplicated into each DSP by design (Clock Contract) — the one sanctioned duplication.</div>
+      <div class="files"><code>oxydex-dsp.js</code><code>hrvdex-dsp.js</code><code>ecgdex-dsp.js</code><code>cpapdex-dsp.js</code></div>
+      <div class="test">TEST · <b>"Computes a number from a signal?"</b> → DSP &nbsp;·&nbsp; "Decides how it looks?" → not DSP</div>
+    </div>
+
+    <div class="layer ui">
+      <div class="lhead"><span class="tag">UI</span><h3>Rendering and input only</h3></div>
+      <p>Visualization, file input, calling DSP, wiring controls. A render file must <b>never</b> recompute a metric, re-threshold a value, or re-derive physiology — it asks DSP for the number and the registry for how to label and badge it.</p>
+      <div class="files"><code>*-render.js</code><code>*-app.js</code><code>Foo.src.html</code></div>
+      <div class="test">TEST · <b>"Delete this line — does a NUMBER change, or only its APPEARANCE?"</b> Appearance → UI · Number → misplaced</div>
+    </div>
+
+  </div>
+  <p class="body" style="margin-top:22px;max-width:74ch"><b>Why this matters concretely.</b> Without the boundary, a desaturation rule could live in OxyDex's render code and get subtly re-implemented in CPAPDex's — two truths. With it, that rule can only live in DSP (or as a shared CORE definition), so there's exactly one place it can drift from — and the test suite watches that one place.</p>
+</div></section>
+
+<div class="divider"><canvas id="div3" width="2400" height="108"></canvas></div>
+
+<!-- DEPENDENCY DIRECTION -->
+<section><div class="wrap prose">
+  <div class="sx">02 / DEPENDENCY DIRECTION</div>
+  <h2>Acyclic, downhill.</h2>
+  <p class="body">Dependencies point downhill only: UI → DSP → CORE. CORE never imports a node. DSP never imports UI. No cycles, ever. And <b>nodes never import each other</b> — a -Dex is standalone by design (a user may own only one device). Cross-node interaction happens exclusively through the Ganglior export contract, consumed by the Integrator.</p>
+</div>
+<div class="wrap">
+  <div class="dep">
+    <div class="box core"><b>CORE</b> — depends on nothing<span class="nd">kernel · metric-registry · envelope · clock contract · ganglior export schema</span></div>
+    <div class="arr"><span class="a">▲</span> uses &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; uses <span class="a">▲</span></div>
+    <div class="mid">
+      <div class="box dsp"><b>DSP — per node</b><span>pure signal math</span></div>
+      <div class="box intg"><b>Integrator fusion</b><span>consumes node exports, never internals</span></div>
+    </div>
+    <div class="arr"><span class="a">▲</span> calls</div>
+    <div class="box ui"><b>UI — per node</b><span>depends on its DSP + CORE · never on another node</span></div>
+    <div class="deprule"><b>Nodes never import each other.</b> The Integrator depends on the <i>export schema</i> (a CORE-level contract), not on any node's DSP.</div>
+  </div>
+</div></section>
+
+<div class="divider"><canvas id="div4" width="2400" height="108"></canvas></div>
+
+<!-- CONTRACTS -->
+<section><div class="wrap prose">
+  <div class="sx">03 / CONTRACTS ARE THE PRODUCT</div>
+  <h2>Durability comes from enforced contracts, not tidy code.</h2>
+  <p class="body">The system's real product is three contracts. The test suite is the mechanism that makes them real — the shared assertions in <code>tests/dex-tests.js</code> <b>are</b> the public contract. When behavior and assertion disagree, the assertion is right until a human deliberately changes it.</p>
+</div>
+<div class="wrap">
+  <div class="cards">
+    <div class="card"><div class="k">Contract 01</div><h3>The metric contract</h3><p>Every metric has one definition — id, label, unit, <code>goodDirection</code>, <code>depth</code>, <code>evidence</code>, <code>cite</code> — in its node's registry. Render and export read it; never redefine it.</p></div>
+    <div class="card"><div class="k">Contract 02</div><h3>The export contract</h3><p><code>ganglior.node-export</code>: <code>schema.name</code>, <code>recording.startEpochMs</code> = floating <code>t0Ms</code>, <code>ganglior_events[]</code> with wall-clock <code>t</code> + absolute <code>tMs</code>. Consumers tolerate legacy <code>t</code>-only exports.</p></div>
+    <div class="card"><div class="k">Contract 03</div><h3>The CORE API contract</h3><p>Kernel scoring, envelope definitions, registry methods. These do not silently evolve — they are versioned, deliberate surface.</p></div>
+  </div>
+  <div class="golden">
+    <div class="k">The golden rule of changing a contract</div>
+    <p>Keep back-compat. Add new params <b>last and optional</b>; expose new data via a <b>new</b> field or method. Do not edit a shared assertion to match changed behavior — either preserve the old shape, or update <code>tests/dex-tests.js</code> <i>deliberately</i>, knowing Node CI uses the same file.</p>
+  </div>
+</div></section>
+
+<div class="divider"><canvas id="div5" width="2400" height="108"></canvas></div>
+
+<!-- EPISTEMIC PRINCIPLE -->
+<section><div class="wrap prose">
+  <div class="sx">04 / HONESTY IS ARCHITECTURAL</div>
+  <h2>Never present a guess as a measurement.</h2>
+  <p class="body">Tepna's credibility rests on this, and it is <b>encoded, not just cultural</b>. The evidence ladder is attached to every metric — a raw sensor reading and a population projection must never look alike. Trust is encoded in disc <i>shape</i>, never hue.</p>
+</div>
+<div class="wrap">
+  <div class="ladder">
+    <div class="lvl"><div class="disc" style="background:var(--teal);box-shadow:0 0 12px rgba(61,224,208,.6)"></div><h4>measured</h4><p>Read straight off the device.</p></div>
+    <div class="lvl"><div class="disc" style="background:var(--teal);opacity:.78"></div><h4>validated</h4><p>Checked against a standard.</p></div>
+    <div class="lvl"><div class="disc" style="background:linear-gradient(90deg,var(--teal) 50%,transparent 50%);border:1.5px solid var(--teal)"></div><h4>emerging</h4><p>Published, device-dependent.</p></div>
+    <div class="lvl"><div class="disc" style="border:2px solid var(--teal)"></div><h4>experimental</h4><p>Plausible, not confirmed.</p></div>
+    <div class="lvl"><div class="disc" style="border:2px dashed var(--text4)"></div><h4>heuristic</h4><p>Rule-of-thumb direction.</p></div>
+  </div>
+  <div class="plist">
+    <div class="pl"><span class="pi">null ≠ now()</span><p>A missing value is <b>null</b>, never fabricated. A missing timestamp is null, never <code>now()</code> — absence must stay visible.</p></div>
+    <div class="pl"><span class="pi">conf ≠ quality</span><p>An event's <code>conf</code> (severity/likelihood) and <code>sqi</code> (signal quality) are separate axes. Fusion attenuates via <code>effConf = conf × (sqi ?? 1)</code> — never collapse them.</p></div>
+    <div class="pl"><span class="pi">capability&nbsp;before&nbsp;consensus</span><p>When sources disagree, you don't count devices. Filter to sensors that <b>can</b> observe the signal, check internal plausibility, then look for the obligate physiological consequence.</p></div>
+  </div>
+</div></section>
+
+<div class="divider"><canvas id="div6" width="2400" height="108"></canvas></div>
+
+<!-- FUSION + REPRODUCIBILITY -->
+<section><div class="wrap prose">
+  <div class="sx">05 / PER-SIGNAL AUTHORITY</div>
+  <h2>There is no single "best device."</h2>
+  <p class="body">Authority is assigned <b>per signal</b>, and a gold-standard source <b>yields to a clean backup when its own quality gate trips</b>. Chest ECG owns HRV — but is useless when its battery dies; the wrist PPG is the fallback for heart rate, but never for HRV magnitude under motion. New nodes declare what they are authoritative <i>for</i>, not that they are authoritative.</p>
+</div>
+<div class="wrap prose">
+  <div class="sx" style="margin-top:30px">06 / STAY LOCAL &amp; REPRODUCIBLE</div>
+  <h2>Don't break the thing that makes us special.</h2>
+  <p class="body"><b>100% local. No network, no CDN, ever.</b> Fonts are system stacks; assets are inlined at bundle time, not fetched. Edit the inputs (<code>*-dsp.js</code> / <code>*-render.js</code> / <code>*.src.html</code>) and re-bundle to <code>Foo.html</code> — never edit the bundle. The bundle's <code>manifestHash</code> — a deterministic projection of its inlined JS/CSS — is the instrument's executed-code fingerprint, and the sole code identity the gates check. (<code>buildHash</code> is retired as a provenance signal — stamped into exports as inert legacy metadata, but no gate reads it.)</p>
+</div>
+<div class="wrap">
+  <div class="gates">
+    <div class="gate"><div class="g">GATE · behavior</div><h3>Dex-Test-Suite.html</h3><p>All-green after any DSP / app / bundle change. The guardian of physiological truth — the assertions are the contract.</p></div>
+    <div class="gate"><div class="g">GATE · provenance</div><h3>verify-provenance.html</h3><p>No red mismatch after any re-bundle. A JS/CSS-only change doesn't shift <code>buildHash</code>; a <code>.src.html</code> change does — both fine as long as no fixture flips unexpectedly.</p></div>
+  </div>
+</div></section>
+
+<div class="divider"><canvas id="div7" width="2400" height="108"></canvas></div>
+
+<!-- LAYER SEPARATION PASS -->
+<section><div class="wrap prose">
+  <div class="sx">07 / THE LAYER-SEPARATION PASS</div>
+  <h2>Forward-first, one node at a time.</h2>
+  <p class="body">The one larger refactor implied by the three layers — done safely. <b>Not</b> during a rollout or a node build (moving code while other work edits it guarantees conflicts). <b>Adopt forward first:</b> new nodes are born layer-clean. <b>Migrate old nodes opportunistically</b>, one per pass, gating after each — never six at once.</p>
+  <p class="body"><b>Success test for a migrated node:</b> you can run its DSP headless in Node with no DOM, and its render file contains no number that isn't sourced from DSP or the registry.</p>
+</div></section>
+
+<div class="divider"><canvas id="div8" width="2400" height="108"></canvas></div>
+
+<!-- TLDR -->
+<section id="tldr"><div class="wrap">
+  <div class="tldr">
+    <div class="sx">TL;DR FOR A CODER IN A HURRY</div>
+    <h2 style="margin-top:8px">Seven rules.</h2>
+    <ol>
+      <li><span><b>Three layers, one job each.</b> CORE (shared truth, no device logic) · DSP (one signal's math, no UI) · UI (rendering, no signal logic).</span></li>
+      <li><span><b>Dependencies point downhill</b> (UI→DSP→CORE); nodes never import each other — only via the export contract.</span></li>
+      <li><span><b>Contracts are the product.</b> Back-compat always; the test suite is the guardian; never edit an assertion to hide a break.</span></li>
+      <li><span><b>Be honest.</b> Evidence ladder on every metric; <code>null</code> not fabricated; conf ≠ quality; capability before consensus.</span></li>
+      <li><span><b>Per-signal authority, quality-gated.</b> No global "best device."</span></li>
+      <li><span><b>Stay local &amp; reproducible.</b> Edit inputs, re-bundle, pass both gates.</span></li>
+      <li><span><b>The layer-separation refactor is forward-first</b>, one node at a time, never mid-rollout.</span></li>
+    </ol>
+  </div>
+</div></section>
+
+<footer><div class="wrap foot-in">
+  <div class="foot-note"><b style="color:var(--text2)">Tepna</b> — the Dex Suite · © 2026 Michal Planicka · Apache-2.0
+    <div class="foot-links"><a href="index.html">Home</a><a href="Why This Exists.html">About</a><a href="Science.html">Science</a><a href="How to Collect Data.html">Collect data</a><a href="papers/papers.html">Preprints</a></div>
+  </div>
+  <div class="foot-note" style="text-align:right">Mirrors ARCHITECTURE-PRINCIPLES.md<br>a constitution, not a task list</div>
+</div></footer>
+
+<div class="dxl dxl-oneline" style="max-width:900px;margin:24px auto 30px;justify-content:center;padding:0 44px">
+  <span class="dxl-mark">T</span>
+  <span>© 2026 <b style="font-weight:600;color:var(--text)">Michal Planicka</b></span>
+  <span class="dxl-sep">·</span><span>Tepna v1.0.0</span>
+  <span class="dxl-sep">·</span><span class="dxl-lic">Apache-2.0</span>
+  <span class="dxl-sep">·</span><span style="color:var(--text4)">◈ Asheville, NC</span>
+  <span class="dxl-sep">·</span><span style="color:var(--text4)">not a medical device</span>
+</div>
+
+<script>
+const rndF=(seed)=>{let s=seed>>>0;return()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296;};};
+(function(){
+  const c=document.getElementById('wave-hero');if(!c)return;const x=c.getContext('2d');
+  function size(){c.width=c.clientWidth*devicePixelRatio;c.height=c.clientHeight*devicePixelRatio;}
+  size();addEventListener('resize',size);
+  let t=0;
+  function ecgY(p){const ph=((p%1)+1)%1;if(ph<.10)return Math.sin(ph/.10*Math.PI)*.06;if(ph<.16)return -.10;if(ph<.20)return .92;if(ph<.25)return -.30;if(ph<.40)return Math.sin((ph-.25)/.15*Math.PI)*.18;return 0;}
+  function frame(){
+    const W=c.width,H=c.height;x.clearRect(0,0,W,H);t+=0.012;
+    const layers=[{col:'rgba(61,224,208,A)',amp:.18,sp:0.9,yb:.46,kind:'ecg',a:.8,w:2.2},
+                  {col:'rgba(88,166,255,A)',amp:.09,sp:1.7,yb:.64,kind:'ppg',a:.45,w:1.7},
+                  {col:'rgba(167,139,250,A)',amp:.05,sp:0.5,yb:.32,kind:'spo2',a:.28,w:1.4}];
+    for(const L of layers){
+      x.beginPath();
+      for(let px=0;px<=W;px+=4){
+        const u=px/W;let y;
+        if(L.kind==='ecg')y=ecgY(u*6 - t*L.sp);
+        else if(L.kind==='ppg')y=Math.sin((u*16 - t*L.sp*3))*.5+Math.sin((u*7 - t*L.sp*1.4))*.2;
+        else y=Math.sin((u*4 - t*L.sp))*.6+Math.sin(u*23)*.08;
+        const Y=H*L.yb - y*H*L.amp;
+        px?x.lineTo(px,Y):x.moveTo(px,Y);
+      }
+      x.strokeStyle=L.col.replace('A',L.a);x.lineWidth=L.w*devicePixelRatio;x.lineJoin='round';
+      x.shadowColor=L.col.replace('A',.5);x.shadowBlur=12*devicePixelRatio;x.stroke();x.shadowBlur=0;
+    }
+    requestAnimationFrame(frame);
+  }
+  frame();
+})();
+function dividerWave(id,seed,col){
+  const c=document.getElementById(id);if(!c)return;const x=c.getContext('2d');const rnd=rndF(seed);
+  const N=160,base=[];for(let i=0;i<N;i++)base.push(rnd());let t=0;
+  function frame(){
+    const W=c.width=c.clientWidth,H=c.height=54;x.clearRect(0,0,W,H);t+=0.02;
+    x.beginPath();
+    for(let i=0;i<=N;i++){const u=i/N;const y=H/2 + Math.sin(u*22 - t*2)*7 + Math.sin(u*7 - t)*5 + (base[i%N]-.5)*4;u?x.lineTo(u*W,y):x.moveTo(0,y);}
+    x.strokeStyle=col;x.lineWidth=1.5;x.globalAlpha=.5;x.lineJoin='round';x.shadowColor=col;x.shadowBlur=8;x.stroke();x.shadowBlur=0;x.globalAlpha=1;
+    requestAnimationFrame(frame);
+  }
+  frame();
+}
+['div1','div2','div3','div4','div5','div6','div7','div8'].forEach((id,i)=>dividerWave(id,7+i*11,['#3DE0D0','#58A6FF','#39D98A','#A78BFA'][i%4]));
+</script>
+</body></html>

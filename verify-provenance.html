@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en"><head>
+<!--
+  verify-provenance.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+--><meta charset="utf-8">
+<title>Tepna · Provenance / Build Manifest (R1 CI)</title>
+<style>
+  :root{ --bg:#0d1117; --panel:#161b22; --bd:#30363d; --tx:#e6edf3; --mut:#8b949e;
+         --ok:#3fb950; --bad:#f85149; --warn:#d29922; --accent:#58a6ff; }
+  *{box-sizing:border-box}
+  body{ margin:0; background:var(--bg); color:var(--tx);
+        font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; padding:28px; }
+  h1{ font:600 20px/1.3 system-ui,sans-serif; margin:0 0 4px; }
+  .sub{ color:var(--mut); font:13px/1.5 system-ui,sans-serif; margin:0 0 22px; max-width:78ch; }
+  table{ border-collapse:collapse; width:100%; margin:10px 0 26px; background:var(--panel);
+         border:1px solid var(--bd); border-radius:8px; overflow:hidden; }
+  th,td{ text-align:left; padding:9px 12px; border-bottom:1px solid var(--bd); vertical-align:top; }
+  th{ color:var(--mut); font:600 12px/1 system-ui,sans-serif; text-transform:uppercase; letter-spacing:.04em; }
+  tr:last-child td{ border-bottom:0; }
+  .hash{ color:var(--accent); }
+  .ok{ color:var(--ok); } .bad{ color:var(--bad); } .warn{ color:var(--warn); } .mut{ color:var(--mut); }
+  .pill{ display:inline-block; padding:1px 8px; border-radius:999px; font:600 11px/1.6 system-ui,sans-serif; }
+  .pill.ok{ background:rgba(63,185,80,.15); } .pill.bad{ background:rgba(248,81,73,.15); }
+  .pill.warn{ background:rgba(210,153,34,.15); }
+  h2{ font:600 14px/1.3 system-ui,sans-serif; margin:24px 0 2px; }
+  code{ background:#21262d; padding:1px 5px; border-radius:4px; }
+  pre{ background:var(--panel); border:1px solid var(--bd); border-radius:8px; padding:14px; overflow:auto; font-size:12.5px; }
+  .det{ color:var(--mut); font:12px/1.5 system-ui,sans-serif; }
+</style></head>
+<body>
+<h1>Tepna · Provenance Build Manifest <span class="mut" style="font:500 13px/1 system-ui">— content-addressed (Phase 7)</span></h1>
+<p class="sub">A <b>pure-static</b>, content-addressed gate (SIGNAL-ADAPTER-AND-FRONTIER Phase 7). It
+fetches each bundle FILE + the two ledgers and hashes them — it does <b>not</b> boot any bundle in an
+iframe and reads <b>no <code>buildHash</code></b>, so there is no runtime race and no same-origin
+reach-in dependency. Two gates:
+<b>GATE A</b> — every shipped bundle's current <b><code>manifestHash</code></b> (a UUID-independent
+projection of its <code>__bundler/manifest</code>: drop the inliner's random per-build UUID keys,
+gunzip each asset, hash the DECOMPRESSED bytes, sort, SHA-256[0:12] the join — a pure function of the
+inlined executed JS/CSS, stable across re-bundles of identical source, moving only on a real code
+change) must equal the value committed in <code>BUILD-MANIFEST.json</code>.
+<b>GATE B</b> — every fixture in <code>FIXTURE-PROVENANCE.json</code> is a <b>content-addressed
+known-answer triple</b>: <code>hash(input) + executed-code manifestHash &rarr; hash(output)</code>. A
+code-gated fixture is <span class="ok">reproducible</span> only while (1) its producing bundle's
+current <code>manifestHash</code> still equals the recorded one, (2) every committed INPUT file still
+hashes to the recorded <code>inputHash</code>, and (3) the committed OUTPUT file still hashes to the
+recorded <code>outputHash</code> — so it reds the moment the code, an input, or the output changes.
+<code>buildHash</code> is <b>retired</b> as a provenance signal (it is still stamped into exports by
+<code>ganglior-provenance.js</code> as inert legacy metadata, but no gate reads it). Behavior is gated
+separately by <code>Dex-Test-Suite.html</code>. The gate is host-independent; <code>window.__provenanceOK</code>
+(and <code>window.__gateA_ok</code> / <code>window.__gateB_ok</code>) report the verdict programmatically.</p>
+
+<h2>1 · Build manifest — <span class="mut">GATE A: manifestHash must match <code>BUILD-MANIFEST.json</code></span></h2>
+<p id="gateA" class="sub" style="margin:0 0 8px"></p>
+<table id="manifest"><thead><tr><th>App (bundle)</th><th>manifestHash <span class="mut">(executed code)</span></th><th>GATE A <span class="mut">(vs committed)</span></th></tr></thead><tbody></tbody></table>
+
+<h2>2 · Fixture audit — <span class="mut">GATE B: content-addressed known-answer triples</span></h2>
+<p class="sub" style="margin-top:0">Each fixture in <code>FIXTURE-PROVENANCE.json</code> is audited as
+<code>hash(input) + manifestHash &rarr; hash(output)</code>. A <b>code-gated</b> row is
+<span class="ok">reproducible ✓</span> only while its producing bundle's manifestHash + every committed
+input + the committed output all still hash to the recorded values. A <b>historical</b> row (immutable
+fusion snapshot, not current-code-reproducible) is byte-PINNED by its <code>outputHash</code> only. The
+sidecar's <code>fixtures</code> keys ARE the audited set — there is no separate legacy list and no
+<code>buildHash</code> fallback. Rows whose committed files aren't served (gitignored <code>uploads/</code>)
+are <span class="warn">skipped</span>, not failed.</p>
+<p id="gateB" class="sub" style="margin:0 0 8px"></p>
+<table id="fixtures"><thead><tr><th>Fixture</th><th>bundle</th><th>kind</th><th>verdict</th></tr></thead><tbody></tbody></table>
+
+<h2>3 · CI recipe</h2>
+<pre id="ci"></pre>
+
+<script src="provenance-banner.js"></script>
+<script src="manifest-gate.js"></script>
+<script>
+// The whole gate is single-sourced in manifest-gate.js (GATE A: manifestHashFromText + gateACompare;
+// GATE B: gateBFiles + sha16 + gateBEvaluate) so this PAGE and the headless Node sibling
+// (tests/verify-manifest.mjs) decide BOTH gates by the SAME code and cannot drift. The IO (fetch)
+// stays here; all hashing + compare logic is the shared module.
+const BUNDLES_ALL = ManifestGate.MANIFEST_BUNDLES;
+// SECTION-SCOPED-RUNS 2026-07-01: `?bundle=oxydex` (aliases ?only= / ?group= / ?b=, query OR hash)
+// scopes BOTH gates to the matching bundle(s) — hash + check only that dex, skipping the ~10 s of
+// hashing every other input/output and not reding on a parallel coder's in-flight ledger write to
+// another bundle. Same comma=OR, regex-or-substring grammar as the test-suite --group filter. A
+// filtered run is NEVER the full provenance gate: a FILTERED banner shows + window.__filtered carries
+// the pattern; run unfiltered for the canonical GATE A/B pass.
+function bundleFilterStr(){ try{ var s=(location.search||'')+'&'+(location.hash||''); var m=s.match(/[?&#](?:bundle|bundles|only|group|b)=([^&#]+)/i); return m?decodeURIComponent(m[1].replace(/\+/g,' ')).trim():''; }catch(_){ return ''; } }
+function bundleMatch(){ var f=bundleFilterStr(); if(!f) return function(){return true;}; var tests=f.split(',').map(function(s){return s.trim();}).filter(Boolean).map(function(t){ var rx=null; try{rx=new RegExp(t,'i');}catch(_){rx=null;} var lc=t.toLowerCase(); return function(s){ s=String(s==null?'':s); return rx?rx.test(s):s.toLowerCase().indexOf(lc)>=0; }; }); return function(name){ for(var i=0;i<tests.length;i++){ if(tests[i](name)) return true; } return false; }; }
+const _bfilter = bundleFilterStr();
+const _bmatch = bundleMatch();
+const BUNDLES = _bfilter ? BUNDLES_ALL.filter(_bmatch) : BUNDLES_ALL;
+window.__filtered = _bfilter || null;
+let MANIFEST = null, FIXPROV = null, MANIFEST_ERR = null, FIXPROV_ERR = null;
+
+// Static executed-code fingerprint: fetch the bundle FILE, hand its text to the shared GATE-A core.
+async function manifestHashOf(file){
+  try{ const txt = await (await fetch(file + '?_=' + Date.now(), { cache:'no-store' })).text();
+       return await ManifestGate.manifestHashFromText(txt); }
+  catch(e){ return null; }
+}
+// Content hash of a committed file (RAW bytes → sha256[0:16]) — the SAME value the ledger builder
+// records and the Node sibling recomputes. null when the file isn't served (gitignored uploads/).
+async function fileHash16(relPath){
+  try{ const ab = await (await fetch(relPath + '?_=' + Date.now(), { cache:'no-store' })).arrayBuffer();
+       return await ManifestGate.sha16(new Uint8Array(ab)); }
+  catch(e){ return null; }
+}
+
+(async function(){
+  // Load both ledgers as TEXT then JSON.parse so an INVALID-JSON ledger becomes a CAPTURED error
+  // (a distinct red banner), never a silent null.
+  try{ const r = await fetch('BUILD-MANIFEST.json?_=' + Date.now(), { cache:'no-store' }); if(!r.ok) throw new Error('HTTP '+r.status); MANIFEST = JSON.parse(await r.text()); }catch(e){ MANIFEST = null; MANIFEST_ERR = e.message; }
+  try{ const r = await fetch('FIXTURE-PROVENANCE.json?_=' + Date.now(), { cache:'no-store' }); if(!r.ok) throw new Error('HTTP '+r.status); FIXPROV = JSON.parse(await r.text()); }catch(e){ FIXPROV = null; FIXPROV_ERR = e.message; }
+  const committed = (MANIFEST && MANIFEST.bundles) || null;
+
+  // ── GATE A — recompute each bundle's static manifestHash, compare via the shared core ──
+  const MH = {};
+  await Promise.all(BUNDLES.map(async f => { MH[f] = await manifestHashOf(f); }));   // independent → parallel
+  const gateA = ManifestGate.gateACompare(MH, committed, BUNDLES);
+  const statusOf = {}; gateA.results.forEach(x => { statusOf[x.file] = x; });
+  const tbA = document.querySelector('#manifest tbody');
+  for (const b of BUNDLES){
+    const st = statusOf[b] || {};
+    const gate = st.status==='match' ? '<span class="pill ok">match ✓</span>'
+               : st.status==='missing-committed' ? '<span class="pill bad">no committed hash</span>'
+               : st.status==='missing-current' ? '<span class="pill bad">bundle missing / no __bundler/manifest (committed '+(st.committed||'—')+')</span>'
+               : '<span class="pill bad">DRIFT — committed '+(st.committed||'—')+'</span>';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${b}</td><td class="hash">${MH[b]||'<span class="bad">—</span>'}</td><td>${gate}</td>`;
+    tbA.appendChild(tr);
+  }
+
+  // ── GATE B — content-addressed known-answer audit (input + code + output hashes) ──
+  const fixturesAll = (FIXPROV && FIXPROV.fixtures) || {};
+  // scope to fixtures produced by the filtered bundle(s) when a ?bundle= filter is active
+  const fixtures = _bfilter
+    ? Object.keys(fixturesAll).reduce(function(o,k){ var v=fixturesAll[k]; if(v && v.bundle && _bmatch(v.bundle)) o[k]=v; return o; }, {})
+    : fixturesAll;
+  const files = ManifestGate.gateBFiles(fixtures);     // every fixture OUTPUT name + every code-gated INPUT
+  const fileHashes = {};
+  await Promise.all(files.map(async f => { fileHashes[f] = await fileHash16('uploads/' + f); }));   // independent → parallel
+  const gateB = ManifestGate.gateBEvaluate(fixtures, MH, fileHashes);
+  const tbB = document.querySelector('#fixtures tbody');
+  const PILL = {
+    'reproducible':  '<span class="pill ok">reproducible ✓ <span class="mut">(input + code + output pinned)</span></span>',
+    'historical-ok': '<span class="pill ok">historical ✓ <span class="mut">(byte-pinned, not code-gated)</span></span>',
+    'code-drift':    '<span class="pill bad">CODE DRIFT</span>',
+    'input-drift':   '<span class="pill bad">INPUT DRIFT</span>',
+    'output-drift':  '<span class="pill bad">OUTPUT DRIFT</span>',
+    'output-absent': '<span class="pill warn">skipped — committed fixture not served</span>',
+    'input-absent':  '<span class="pill warn">skipped — input not served</span>',
+    'bundle-unloaded':'<span class="pill warn">skipped — bundle not loaded (see GATE A)</span>'
+  };
+  for (const r of gateB.results){
+    const pill = PILL[r.status] || ('<span class="pill bad">'+r.status+'</span>');
+    const det = r.detail ? ' <span class="det">'+r.detail+'</span>' : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${r.name}</td><td>${r.bundle||'—'}</td><td class="mut">${r.kind}</td><td>${pill}${det}</td>`;
+    tbB.appendChild(tr);
+  }
+
+  // ── Banners (shared pickProvenanceBanner — one source for page + suite) ──
+  const _pb = (typeof pickProvenanceBanner === 'function')
+    ? pickProvenanceBanner({ MANIFEST, MANIFEST_ERR, gateAFail: gateA.fail, gateAMissing: gateA.missing, gateAChecked: gateA.checked, gateAComplete: gateA.complete, bundlesLength: BUNDLES.length,
+                             FIXPROV_ERR, gateBFail: gateB.fail, gateBChecked: gateB.checked, gateBAbsent: gateB.absent })
+    : { gateA: '<span class="pill bad">provenance-banner.js failed to load</span>', gateB: '' };
+  document.getElementById('gateA').innerHTML = (_bfilter ? '<span class="pill warn">⦷ FILTERED: '+_bfilter.replace(/[<>&]/g,'')+' — '+BUNDLES.length+' of '+BUNDLES_ALL.length+' bundles · NOT the full gate</span> ' : '') + _pb.gateA;
+  document.getElementById('gateB').innerHTML = _pb.gateB;
+
+  // ── Programmatic verdict (prose-immune; read these, never scan body text) ──
+  // Honesty guard: a ?bundle= filter that matched ZERO bundles is NOT a pass (nothing was checked).
+  const _zeroMatch = !!_bfilter && BUNDLES.length === 0;
+  window.__gateA_ok = gateA.ok && !MANIFEST_ERR && !_zeroMatch;
+  window.__gateB_ok = gateB.ok && !FIXPROV_ERR;
+  window.__provenanceOK = !!(window.__gateA_ok && window.__gateB_ok);
+  // Back-compat: the gate is now PURE-STATIC (fetch + hash) and host-independent — there is no iframe
+  // reach-in, so "same-origin" is no longer a constraint. Keep the signal defined (CONTRIBUTING.md /
+  // Dex-Test-Suite.html / verifier read it) and TRUE whenever the gate actually ran (both ledgers loaded).
+  window.__sameOriginBlocked = false;
+  window.__sameOriginOK = !!(MANIFEST && FIXPROV);
+  window.sameOriginStatus = function(){ return { ok: window.__sameOriginOK, blocked: false, gateA: window.__gateA_ok, gateB: window.__gateB_ok, gateBAbsent: gateB.absent, note: 'verify-provenance is a PURE-STATIC content-addressed gate (Phase 7) — no iframe reach-in, host-independent; ok = both ledgers loaded' }; };
+
+  document.getElementById('ci').textContent =
+`# CI: "same input + same code → same output" — content-addressed (R1, Phase 7)
+# Pure-static. Run headless (Playwright) on every PR, OR headless in Node via
+# tests/verify-manifest.mjs (GATE A + best-effort GATE B). No bundle is booted; no buildHash is read.
+
+# GATE A — build manifest is current.
+#   For each *.html bundle, recompute manifestHash with ManifestGate.manifestHashFromText (a
+#   UUID-INDEPENDENT projection of __bundler/manifest: drop the random UUID keys, gunzip each asset,
+#   hash the DECOMPRESSED bytes, sort, SHA-256[0:12] the join) and assert it equals BUILD-MANIFEST.json.
+#   Stable across re-bundles of identical source; moves only on a real JS/CSS change.
+
+# GATE B — committed fixtures are content-addressed known-answers.
+#   Each FIXTURE-PROVENANCE.json record is { bundle, manifestHash, inputHashes:{file:16hex},
+#   outputHash:16hex } (or { bundle, historical:true, outputHash }). Recompute sha256[0:16] of every
+#   committed input + the committed output (ManifestGate.sha16) and run ManifestGate.gateBEvaluate:
+#   a code-gated fixture passes iff its bundle's current manifestHash == the recorded one AND every
+#   input file + the output file still hash to the recorded values. Reds on a code, input, OR output
+#   change. No buildHash. Historical rows are byte-pinned (outputHash) only.
+
+# Optional GATE C — full regenerate-and-diff (strongest, dynamic):
+#   Drive each app headlessly on its committed input, capture the export, strip volatile keys, and diff
+#   against the committed fixture. Any non-volatile diff fails the build.
+#   Strip list (volatile / NOT input-coupled):
+#     ["schema.generated","provenance","generated","kernel",
+#      "newMetrics.vo2est","newMetrics.karv"]
+#   WHY vo2est + karv — they are USER-PROFILE-coupled (HRmax/HRrest from age/sex), and the profile is
+#   NOT part of the signal input, so a re-export under a different default profile moves them with no
+#   code/signal change (FIXTURE-PROVENANCE.json _profileCoupledStripList). They are signal-inert.`;
+})();
+</script>
+</body></html>

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  nights-icc.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How many nights? Minimum reliable recording length for ODI-4, rMSSD, and CGM-CV — Tepna preprint</title>
+<link rel="stylesheet" href="../licensing/dex-license.css">
+<link rel="stylesheet" href="paper.css">
+</head>
+<body>
+<div class="sheet">
+  <a class="toplink" href="papers.html">← Tepna preprints</a>
+  <div class="banner">Tepna Working Preprint · not peer-reviewed</div>
+  <h1 class="title">How many nights? Test–retest reliability and the minimum reliable recording length for ODI-4, rMSSD, and CGM-CV</h1>
+  <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
+  <p class="affil">OxyDex · PulseDex · GlucoDex nodes, Tepna physiological-signal suite</p>
+  <p class="meta">Draft v1 · June 2026 · Analysis tool: <code>nights-icc-analysis.html</code> · Detectors: real <code>oxydex-dsp.js</code> · <code>pulsedex-dsp.js</code> · <code>glucodex-dsp.js</code> (two-pool Web Workers) · generator <code>cohort-gen 1.6</code> · 100% local</p>
+
+  <div class="abstract">
+    <h2>Abstract</h2>
+    <p style="text-align:left;margin-bottom:0"><b>Background.</b> A single night (or day) of a wearable physiological signal is one noisy draw of a person's true physiology. Before any single-occasion metric can be read as a stable individual trait — for screening, for tracking, for cohort comparison — we need to know how reliably it separates people, and therefore how many occasions a recording must span. <b>Methods.</b> For each <em>stable</em> (flat-arc) synthetic patient in the suite's 1–12-night longitudinal lane we measured three single-signal metrics per occasion with the production detectors: ODI-4 (OxyDex, per night), rMSSD (PulseDex, per night), and CGM coefficient-of-variation (GlucoDex, per day). One-way random-effects ICC(1,1) decomposes the variance into between-subject vs occasion-to-occasion; the Spearman–Brown prophecy converts the single-occasion ICC into the minimum number of occasions needed to reach a reliability target. <b>Results.</b> ODI-4 and rMSSD were already reliable from a <b>single night</b> (ICC₁ 0.89 and 0.93; both reach ICC≥0.80 at one occasion, rMSSD reaches ICC≥0.90 at one night and ODI-4 at two). Daily CGM-CV, by contrast, showed <b>negligible between-subject variance</b> in the stable cohort (ICC₁≈0): day-to-day fluctuation swamped person-to-person differences, so no number of days made it a reliable individual trait. <b>Conclusion.</b> Reliable individual estimates of ODI-4 and rMSSD need only 1–2 nights; daily glycemic variability is an occasion-level state, not a one-number trait, and must be summarized differently. <b>This is synthetic ground truth: it certifies the reliability structure of the pipeline and recovers the planted variance ratio — it does not establish real-world clinical reliability, which requires a labelled repeated-measures cohort.</b></p>
+  </div>
+  <p class="kw"><b>Keywords:</b> test–retest reliability · intraclass correlation · Spearman–Brown · oximetry · heart-rate variability · continuous glucose monitoring · wearables · minimum recording length</p>
+
+  <div class="callout" style="border:1px dashed #b8860b;background:#fffdf5">
+    <h2 class="sec" style="margin-top:0">0. Layman overview <span style="font-weight:400;color:#b8860b;font-size:13px">(delete before submission)</span></h2>
+    <p>A wearable reports one number per night (or per day), and people treat it as a fixed fact about themselves. But any single night is one noisy sample — partly the real you, partly just how that particular night went. The practical question: <b>how many nights do you need before the number really describes the person, not the night?</b></p>
+    <p>Using <b>simulated</b> stable people (whose true physiology doesn't change) and the real app's detectors, we measured how much of each number's variation separates <i>people</i> versus separates <i>nights</i>. Two metrics — the apnea index (ODI-4) and the heart-rhythm number (rMSSD) — are mostly about the person, so <b>one night is already enough</b> (two at most). The glucose-variability number is the opposite: it changes so much day to day that it mostly describes the day, not the person — so no amount of extra days turns it into a reliable personal trait; it should be summarized differently. (Simulation: this proves the method and the software's variance structure, not a clinical reliability claim.)</p>
+  </div>
+
+  <h2 class="sec">1. Introduction</h2>
+  <p>Consumer and clinical wearables increasingly report a single headline number per recording — an overnight desaturation index, a heart-rate-variability summary, a glycemic-variability coefficient — and users and clinicians treat that number as a property of the person. But every recording is a sample: it mixes the person's stable physiology with the night-to-night (or day-to-day) variation of biology, behavior, and the detector itself. If the occasion-to-occasion swing is large relative to the spread between people, a one-night number tells you more about that night than about that person, and a screening cut-point applied to it will mostly sort noise.</p>
+  <p>The standard instrument for this question is test–retest reliability. The intraclass correlation ICC(1,1) is the fraction of total variance that is between-subject (the "reliable" share); the Spearman–Brown prophecy then says how that reliability grows when several occasions are averaged, and inverts to the fewest occasions needed to clear a target. We ask the practical version of the question directly: <em>how many nights (or days) does each Tepna metric need to be a reliable individual trait?</em> We answer it for three single-signal metrics measured by their production detectors, on stable synthetic patients where the between/within variance ratio is known by construction.</p>
+
+  <h2 class="sec">2. Methods</h2>
+  <h3 class="sub">2.1 Cohort — stable patients only</h3>
+  <p>Subjects are the <b>flat-arc</b> patients of the suite's 1–12-night longitudinal lane: each has a single stable latent physiology (no planted trend, treatment response, or drift), so within-subject spread across occasions is genuine occasion-to-occasion biology plus detector noise rather than a designed trajectory. We scan profiles for flat-arc subjects with at least the configured minimum number of occasions (default 5) and measure every occasion. The run reported here covers <b>5,556 sampled subjects</b>; per-metric subject counts differ by device coverage (CGM is modeled as continuous OTC wear, so its coverage is now close to oximetry/RR rather than a small minority) and by how many subjects contribute enough valid occasions of each signal (Table 1).</p>
+  <h3 class="sub">2.2 Per-occasion measurement — real detectors</h3>
+  <p>Each occasion is scored by the unmodified production detector, run in its own Web-Worker realm (OxyDex must be isolated because it collides with PulseDex on bare globals; the lean worker pairs PulseDex+GlucoDex, which coexist): ODI-4 from <code>oxydex-dsp.js → processNight</code> (per night), time-domain rMSSD from <code>pulsedex-dsp.js</code> (per night), and the glucose coefficient of variation from <code>glucodex-dsp.js → analyze</code> (per day, after splitting the continuous CGM stream into calendar days on the floating wall-clock). No detector parameters were altered. Timestamps follow the suite Clock Contract so day-splitting and ordering are viewer-timezone-independent.</p>
+  <h3 class="sub">2.3 Reliability statistics</h3>
+  <p>For each metric we form the ragged set of per-subject occasion vectors (subjects with ≥2 occasions) and estimate the one-way random-effects intraclass correlation by ANOVA:</p>
+  <div class="eqn">ICC(1,1) = (MS_between − MS_within) / (MS_between + (n₀ − 1)·MS_within)</div>
+  <p>where n₀ is the average occasions-per-subject. The single-occasion ICC₁ is the reliability of one night/day; the Spearman–Brown prophecy gives the reliability of an average of <i>m</i> occasions and the minimum <i>m</i> for a target:</p>
+  <div class="eqn">ICC(m) = m·ICC₁ / (1 + (m−1)·ICC₁)   ·   m_min = ⌈ target·(1−ICC₁) / ((1−target)·ICC₁) ⌉</div>
+  <p>As a non-circular check that the detector preserves (rather than manufactures) the reliability structure, the same ANOVA is run on the planted latent targets (planted AHI for ODI, planted rMSSD) and compared against the measured ICC.</p>
+
+  <h2 class="sec">3. Results</h2>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 1.</b> Per-metric single-occasion reliability and minimum recording length (5,556-subject stable cohort; real detectors).</caption>
+    <thead><tr><th>Metric</th><th>Node</th><th>Occasion</th><th class="num">Subjects</th><th class="num">Occasions</th><th class="num">ICC₁</th><th class="num">Within-CV</th><th class="num">n for ICC≥.80</th><th class="num">n for ICC≥.90</th></tr></thead>
+    <tbody>
+      <tr><td>ODI-4</td><td>OxyDex</td><td>night</td><td class="num">5018</td><td class="num">40983</td><td class="num">0.885</td><td class="num">40%</td><td class="num">1</td><td class="num">2</td></tr>
+      <tr><td>rMSSD</td><td>PulseDex</td><td>night</td><td class="num">4873</td><td class="num">39855</td><td class="num">0.929</td><td class="num">7%</td><td class="num">1</td><td class="num">1</td></tr>
+      <tr class="hi"><td>CGM-CV</td><td>GlucoDex</td><td>day</td><td class="num">4059</td><td class="num">32406</td><td class="num">0.00</td><td class="num">16%</td><td class="num">∞</td><td class="num">∞</td></tr>
+    </tbody>
+  </table>
+  <p>ODI-4 and rMSSD are <b>reliable individual traits from a single occasion</b>: ICC₁ 0.89 and 0.93 mean ~89–93% of the variance separates people rather than nights, so one night already clears the ICC≥0.80 bar — rMSSD is already at ICC≥0.90 from a single night, and ODI-4 reaches it with two. Their occasion-to-occasion noise is modest (ODI within-subject SD ≈0.9 events/h; rMSSD ≈3.0 ms, a 7% within-subject coefficient of variation).</p>
+
+  <figure>
+    <img src="figures/nights-icc-curves.png" alt="Spearman–Brown reliability curves for ODI-4, rMSSD, and CGM-CV">
+    <figcaption><b>Figure 1.</b> Spearman–Brown reliability curves (live output of <code>nights-icc-analysis.html</code>): reliability of an <i>m</i>-occasion average versus the number of occasions. ODI-4 (blue) and rMSSD (amber) start near 0.89/0.93 at a single occasion and clear the 0.80 target immediately; daily CGM-CV (teal) sits flat on the axis (ICC₁≈0), so averaging more days never lifts it. Dark theme is the tool's native rendering.</figcaption>
+  </figure>
+
+  <figure>
+    <img src="figures/nights-icc-bars.png" alt="single-occasion ICC bars with minimum occasions per metric">
+    <figcaption><b>Figure 2.</b> Single-occasion ICC₁ by metric (filled bar = the reliable, between-subject share of variance), with the minimum occasions to reach ICC≥0.80 at right. ODI-4 0.89 and rMSSD 0.93 are reliable from one night; CGM-CV 0.00 has no reliable share, so no recording length suffices.</figcaption>
+  </figure>
+
+  <figure>
+    <img src="figures/nights-icc-repro.png" alt="per-subject rMSSD: night-to-night range vs subject mean">
+    <figcaption><b>Figure 3.</b> Per-subject rMSSD — each column is one subject sorted by mean (vertical bar = night-to-night range, dot = subject mean). The wide between-subject spread against the tight within-subject bars is the high ICC made visible: most of the variance separates people, little of it separates that person's nights.</figcaption>
+  </figure>
+
+  <h3 class="sub">3.1 Daily glycemic variability is a state, not a one-number trait</h3>
+  <p>Daily CGM-CV behaved qualitatively differently. In the stable cohort its <b>between-subject variance was negligible</b> (ICC₁≈0): stable patients' days look alike in CV, while each person's CV swings day to day (within-subject CV ≈16%). When occasion-to-occasion variation dominates and person-to-person variation does not, Spearman–Brown returns no finite recording length — averaging more days cannot manufacture between-subject signal that is not there. The practical reading is not "CGM-CV is useless" but "daily CGM-CV is an <em>occasion-level state</em>, not a stable one-number individual trait": it should be summarized over a window or paired with its driver (meals, activity, the autonomic context) rather than reported as a single reliable number.</p>
+
+  <h3 class="sub">3.2 The detector preserves the reliability structure</h3>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 2.</b> Non-circular check — measured (real-detector) vs latent (planted) single-occasion ICC.</caption>
+    <thead><tr><th>Metric</th><th class="num">Measured ICC₁</th><th class="num">Latent ICC₁</th></tr></thead>
+    <tbody>
+      <tr><td>ODI-4 (OxyDex)</td><td class="num">0.89</td><td class="num">0.94</td></tr>
+      <tr><td>rMSSD (PulseDex)</td><td class="num">0.93</td><td class="num">0.93</td></tr>
+    </tbody>
+  </table>
+  <p>Running the same ANOVA on the planted latent targets recovers a comparable reliability structure: rMSSD is reproduced almost exactly (0.93 vs 0.93), and ODI-4's measured ICC (0.89) tracks but sits slightly below the latent ceiling (0.94) — the detector adds a little occasion-level noise but does not invent the between-subject separation. The reliability ordering is therefore a property of the physiology and the detector, not an artifact of the estimator.</p>
+
+  <h2 class="sec">4. Discussion</h2>
+  <p>The metrics split cleanly into two regimes. ODI-4 and rMSSD are <em>trait-like</em>: most of their variance is between people, so a single night is already an informative individual estimate and a second night mainly buys precision (ICC≥0.90). Daily CGM-CV is <em>state-like</em>: its variance lives within the person across days, so it indexes the day, not the person, and needs a window-level summary or a coupling model to become a stable descriptor. This distinction matters for any downstream use — a screening cut-point, a "your number changed" alert, a cohort covariate — because applying a trait framing to a state-like metric sorts mostly noise.</p>
+  <div class="callout"><b>Limitations.</b> This is synthetic ground truth. The cohort is flat-arc (stable) by construction, so the within-subject variance is the generator's night-to-night model plus real detector noise — realistic in structure, but not a substitute for measured human test–retest data. The exact ICC values (and especially the CGM-CV≈0 result) depend on the synthetic generator's between-/within-subject variance ratios; a real repeated-measures cohort could shift them, particularly for CGM where real individuals differ more in habitual variability than stable synthetic days do. Per-metric subject counts are large (1,818–2,739), so sampling uncertainty on these ICCs is small. These results <b>certify the reliability structure of the pipeline and the minimum-recording-length method</b>; they motivate, but do not replace, a labelled repeated-measures validation.</p></div>
+
+  <h2 class="sec">5. Reproducibility</h2>
+  <ul>
+    <li><b>Run it:</b> open <code>nights-icc-analysis.html</code> → set subjects / min occasions / target ICC → "Run cohort". Tables 1–2 and Figure 1 populate live; the target-ICC slider re-derives the minimum recording length without re-measuring. Export <code>nights-icc-results.csv</code>, <code>nights-icc-stats.json</code>, <code>nights-icc-figures.png</code>.</li>
+    <li><b>Detectors:</b> real <code>oxydex-dsp.js</code> (ODI-4 = <code>processNight().odi4.rate</code>), <code>pulsedex-dsp.js</code> (rMSSD), <code>glucodex-dsp.js</code> (CGM-CV, day-split), each run in its own <code>cohort-worker.js</code> Web-Worker realm (two pools: OxyDex, and lean PulseDex+GlucoDex).</li>
+    <li><b>Cohort:</b> flat-arc subjects from <code>cohort-gen.js</code> + <code>synth-gen.js</code> (1–12-night longitudinal lane).</li>
+    <li><b>Statistics:</b> ICC(1,1) one-way random effects by ANOVA; Spearman–Brown prophecy for minimum occasions; latent-target ANOVA as the non-circular detector check.</li>
+    <li><b>Next:</b> repeat on a real repeated-measures cohort (paired multi-night oximetry / RR / CGM) to convert the pipeline-reliability result into a clinical one.</li>
+  </ul>
+
+  <h2 class="sec">6. Sample size &amp; statistical power</h2>
+  <p>The ICC's precision is governed by the number of <b>subjects</b> (and, secondarily, occasions per subject); its confidence interval narrows as ~1/√N_subjects. A handful of subjects gives a point ICC but a wide interval; thousands pin it to the second decimal. The qualitative split — ODI-4/rMSSD trait-like, CGM-CV state-like — is unmistakable even at small N, because the ICCs sit near opposite ends (≈0.9 vs ≈0).</p>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 3.</b> Sample-size guidance for this pilot (flat-arc subjects, ≥5 occasions each).</caption>
+    <thead><tr><th>Tier</th><th class="num">Subjects</th><th>What it buys</th></tr></thead>
+    <tbody>
+      <tr><td>Minimum (acceptable)</td><td class="num">~200</td><td>ICC point estimates to ≈±0.03 and the minimum-occasions answer (1–2 nights) are stable; the trait-vs-state split is obvious. Below ~50 the ICC CI is too wide to quote.</td></tr>
+      <tr class="hi"><td>Recommended</td><td class="num">~3,000</td><td>ICCs to ≈±0.01, smooth Spearman–Brown curves and per-subject spread plots. Comfortable publication precision.</td></tr>
+      <tr><td>This run</td><td class="num">5,556</td><td>Per-metric n = 1,818–5,018 subjects (CGM coverage raised in generator v1.6); ICCs pinned to ≈±0.005.</td></tr>
+      <tr><td>Diminishing returns</td><td class="num">&gt; ~5,000</td><td>Beyond here the ICC CIs are already &lt;±0.01; more subjects don't change which regime a metric is in. Adding more <em>occasions</em> per subject (not subjects) is what would refine the minimum-recording-length estimate further.</td></tr>
+    </tbody>
+  </table>
+  <p>Practical reading: <b>~200</b> subjects to answer “how many nights?” reliably, <b>~3,000</b> for tight published ICCs; past <b>~5,000</b> the marginal subject adds little. Note this pilot's lever is subjects × occasions — to sharpen the recording-length recommendation specifically, raise the minimum-occasions setting rather than the subject count.</p>
+
+  <h2 class="sec">References</h2>
+  <ol class="refs">
+    <li>Project documentation: <code>CLAUDE.md</code> (Clock Contract, evidence-grade system), <code>COHORT-VALIDATION-BRIEF.md</code>, <code>SYNTHETIC-CORPUS-README.md</code>, Tepna suite.</li>
+    <li>Shrout PE, Fleiss JL. Intraclass correlations: uses in assessing rater reliability. <i>Psychol Bull.</i> 1979;86(2):420–428.</li>
+    <li>Brown W. Some experimental results in the correlation of mental abilities. <i>Br J Psychol.</i> 1910;3(3):296–322 (Spearman–Brown prophecy).</li>
+    <li>Stöberl AS, Schwarz EI, Haile SR, et al. Night-to-night variability of obstructive sleep apnea. <i>J Sleep Res.</i> 2017;26(6):782–788.</li>
+    <li>Bertsch K, Hagemann D, Naumann E, et al. Stability of heart rate variability indices reflecting parasympathetic activity. <i>Psychophysiology.</i> 2012;49(5):672–682.</li>
+    <li>Rodbard D. Glucose variability: a review of clinical applications and research developments. <i>Diabetes Technol Ther.</i> 2018;20(S2):S2-5–S2-15.</li>
+  </ol>
+
+  <div class="footer">Tepna working preprint · generated from live analysis output · figures and statistics regenerate deterministically from the cited tool. Not peer-reviewed; not for clinical use.</div>
+</div>
+
+<div class="dxl dxl-oneline" style="max-width:820px;margin:30px auto 8px;justify-content:center">
+  <span class="dxl-mark">T</span>
+  <span>© 2026 <b style="font-weight:600;color:var(--text,#F4F7FB)">Michal Planicka</b></span>
+  <span class="dxl-sep">·</span><span>Tepna v1.0.0</span>
+  <span class="dxl-sep">·</span><span class="dxl-lic">Apache-2.0</span>
+  <span class="dxl-sep">·</span><span style="color:var(--text4,#6E7F94)">◈ Asheville, NC</span>
+  <span class="dxl-sep">·</span><span style="color:var(--text4,#6E7F94)">not a medical device</span>
+</div>
+</body></html>

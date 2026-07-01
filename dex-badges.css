@@ -1,0 +1,136 @@
+/* ════════════════════════════════════════════════════════════════════════
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+   Ganglior · CANONICAL EVIDENCE BADGE SYSTEM  ·  dex-badges.css
+   ────────────────────────────────────────────────────────────────────────
+   SINGLE SOURCE OF TRUTH for the evidence-badge VISUAL layer shared by every
+   Dex node (OxyDex / HRVDex / PulseDex / GlucoDex / ECGDex / EEGDex), the
+   Integrator, and the static reference docs in a cohesion2 run.
+
+   These rules are byte-faithful to the CSS that `metric-registry.js` injects
+   at runtime (<style id="metric-registry-css">). Two ways to consume:
+     • Apps that load metric-registry.js ALREADY get these rules from the
+       engine — they don't need to link this file (identical; linking is
+       harmless but redundant).
+     • Consumers WITHOUT the engine (e.g. "OxyDex Reference.html", any hand-
+       authored doc) link THIS file so their badges stay pixel-identical to
+       the live apps. This file is what eliminates the hardcode drift.
+
+   100% local. No @font-face, no CDN. The 'IBM Plex Mono' name in the legend
+   falls through to ui-monospace / monospace by design (CLAUDE.md / AUDIT.md).
+   Requires the host to define --bg (page background) and, for the legend, the
+   --surface2/--border/--border2/--text2/--text3/--text4 tokens. --ev-ink is
+   defined here with a fallback but may be overridden by the host theme.
+
+   ── THE LADDER (rank 0 → 4, most → least trusted; ORDER IS FROZEN) ─────────
+   measured · validated · emerging · experimental · heuristic
+   The disc SHAPE encodes rank, so the evidence channel never collides with a
+   status color.
+
+     ◉ measured     rank 0  bullseye  Direct sensor reading or raw statistic of
+                                      the recorded signal (mean/min/max/nadir/
+                                      duration). Ground truth — NOT computed.
+     ● validated    rank 1  solid     Established, externally validated,
+                                      clinically meaningful DERIVED metric.
+     ◐ emerging     rank 2  half      Published & promising, but less
+                                      standardized or device-dependent.
+     ○ experimental rank 3  hollow    Plausible node-computed composite, not
+                                      externally validated. Directional only.
+     ◌ heuristic    rank 4  dashed    Convenience estimate / population proxy.
+                                      A trend, not a measurement.
+
+   ── MARKUP CONTRACT ────────────────────────────────────────────────────────
+   The badge <span> carries TWO classes: a WRAPPER + a TIER disc.
+     • Inline (tables, section labels, legends) — what the engine's
+       badge(ev, cite) emits:
+           <span class="ev ev-validated" title="Validated — <cite>"></span>
+     • Card-corner (pinned bottom-right of a card; card must be
+       position:relative — see .mc / .metric rules below):
+           <span class="ev-corner ev-validated" title="Validated — <cite>"></span>
+
+   Canonical title string:  "<Label> — <cite>"   (em-dash U+2014).
+   Tier class ∈ { ev-measured ev-validated ev-emerging ev-experimental
+   ev-heuristic }. NEVER invent tiers or reuse retired vocabulary
+   (proxy → heuristic, composite → experimental, "provisionally validated"
+   → emerging).
+
+   ── 🔴 COVERAGE MANDATE (read before creating or changing ANY measurement) ──
+   EVERY surfaced measurement wears a badge — NO exception: every KPI, every
+   metric / finding card, every hero / headline number, every chart-or-graph
+   series, every table row & chip. An unbadged number that reaches the user is
+   a BUG (same severity as a wrong unit). Only two placements exist:
+     • bottom-right CORNER of a card → .ev-corner (card must be
+       position:relative) — use for cards, KPIs, hero/headline numbers, charts.
+     • INLINE, immediately BEFORE the label → .ev — dense/crowded text:
+       tables, chips, legends, multi-metric rows.
+   New surfaces inherit NOTHING automatically — wire badge() / .ev-corner in
+   when you add them. (Authoritative copy lives in CLAUDE.md › Evidence badges.)
+   ════════════════════════════════════════════════════════════════════════ */
+
+:root { --ev-ink: #aab8cc; }
+
+/* ── Tier discs — byte-faithful to metric-registry.js + OxyDex Reference ──── */
+.ev-measured    { display:inline-block; width:11px; height:11px; border-radius:50%; flex:none; vertical-align:baseline;
+                  background:var(--ev-ink); border:2px solid var(--bg); box-shadow:0 0 0 1px var(--ev-ink); }
+.ev-validated   { display:inline-block; width:11px; height:11px; border-radius:50%; flex:none; vertical-align:baseline;
+                  background:var(--ev-ink); box-shadow:0 0 0 1px var(--ev-ink) inset; }
+.ev-emerging    { display:inline-block; width:11px; height:11px; border-radius:50%; flex:none; vertical-align:baseline;
+                  background:linear-gradient(90deg,var(--ev-ink) 0 50%,transparent 50% 100%); box-shadow:0 0 0 1.5px var(--ev-ink) inset; }
+.ev-experimental{ display:inline-block; width:11px; height:11px; border-radius:50%; flex:none; vertical-align:baseline;
+                  background:transparent; box-shadow:0 0 0 1.5px var(--ev-ink) inset; }
+.ev-heuristic   { display:inline-block; width:12px; height:12px; border-radius:50%; flex:none; vertical-align:baseline;
+                  background:transparent; border:1.5px dashed var(--ev-ink); }
+
+/* discs carrying a tooltip read as interactive */
+.ev[title], .ev-corner[title] { cursor: help; }
+
+/* ── WRAPPER: inline ─────────────────────────────────────────────────────────
+   Default badge — sits inline beside a label/value. Slightly recessed so the
+   evidence channel stays quieter than the metric itself. */
+.ev { position: relative; opacity: .85; }
+
+/* ── WRAPPER: card corner ────────────────────────────────────────────────────
+   A quiet meta-marker pinned to the bottom-right of a card. The card MUST be a
+   positioning context (see the position:relative rule below). Verbatim from
+   the OxyDex reference guide so docs and apps render identically. */
+.ev-corner {
+  position: absolute;
+  bottom: 12px;
+  right: 14px;
+  z-index: 2;
+  cursor: help;
+  opacity: .55;
+  transition: opacity .15s;
+}
+.ev-corner:hover { opacity: .7; }
+
+/* Cards that host a corner badge become its positioning context. Add your
+   node's own card class here if it differs. .mc = doc metric card;
+   .metric/.ss-kpi/.nr-kpi/.kpi/.readiness-subscore = app tiles. */
+.mc, .metric, .ss-kpi, .nr-kpi, .kpi, .readiness-subscore { position: relative; }
+.mc { overflow: visible; }  /* never clip the corner badge */
+
+/* full-metrics-table convention: badge LEADS the metric name (left gutter) */
+.fmt-m .ev { position: static; margin: 0 7px 0 0; opacity: .7; vertical-align: baseline; }
+
+/* chips: small inline meta-dot after a value */
+.nr-chip .ev { position: static; margin-left: 5px; opacity: .6; vertical-align: baseline; width: 9px; height: 9px; }
+
+/* ── LEGEND STRIP — one per view (System-Cohesion §3) ────────────────────────
+   Pair with markup:
+     <div class="ev-legend-strip">
+       <span class="lg-title">Evidence</span>
+       <span class="lg-item"><span class="ev ev-measured"></span><b>Measured</b></span>
+       <span class="sep"></span> … (validated · emerging · experimental · heuristic)
+       <span class="lg-note">fill = trust</span>
+     </div>
+   metric-registry.js `legend()` emits exactly this. */
+.ev-legend-strip { display:flex; align-items:center; gap:7px; flex-wrap:wrap; font-size:11.5px;
+                   color:var(--text3); background:var(--surface2); border:1px solid var(--border);
+                   border-radius:10px; padding:9px 14px; margin-bottom:var(--sp-4,16px); }
+.ev-legend-strip .lg-title { font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.08em;
+                             text-transform:uppercase; color:var(--text4); margin-right:4px; }
+.ev-legend-strip .lg-item  { display:inline-flex; align-items:center; gap:6px; }
+.ev-legend-strip .lg-item b { color:var(--text2); font-weight:600; }
+.ev-legend-strip .sep      { width:1px; height:13px; background:var(--border2); margin:0 4px; }
+.ev-legend-strip .lg-note  { margin-left:auto; color:var(--text4); font-size:10.5px; }

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  cohort-regression.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tepna — Real-Corpus Regression Check</title>
+<!-- ════════════════════════════════════════════════════════════════════════
+  cohort-regression.html — RUNS THE 5 REAL SubjectA NIGHTS through the SAME
+  node harness the cohort runner uses (cohort-harness.html iframes: real OxyDex
+  + PulseDex DSP), and diffs the output against the committed ground-truth JSON
+  (uploads/synthetic/ground_truth_nightN.json). This is the regression gate for
+  the cohort harness itself: if the synthetic corpus or a DSP changes such that
+  OxyDex/PulseDex no longer track the planted truth on the canonical 5 nights,
+  this page goes red. Separate from Dex-Test-Suite.html (unit/contract) — this
+  checks end-to-end metric fidelity on real committed files. 100% local.
+═════════════════════════════════════════════════════════════════════════ -->
+<style>
+  :root{
+    --bg:#0c0f14; --surface:#141922; --surface2:#1b212c; --line:rgba(255,255,255,.08);
+    --text:#e6edf6; --text2:#aab8cc; --text3:#6f8096; --teal:#3DE0D0; --blue:#58A6FF;
+    --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A; --purple:#B98AFF;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;padding:0 0 80px;}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 24px;}
+  header{padding:26px 0 16px;border-bottom:1px solid var(--line);margin-bottom:22px;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);}
+  h1{margin:6px 0 2px;font-size:24px;font-weight:650;letter-spacing:-.01em;}
+  h1 .g{color:var(--teal);}
+  .sub{color:var(--text3);font-size:13px;}
+  .controls{display:flex;gap:10px;align-items:center;margin-top:16px;flex-wrap:wrap;}
+  button{font-family:var(--sans);font-size:13px;font-weight:600;padding:9px 18px;border-radius:8px;border:1px solid var(--line);background:var(--surface2);color:var(--text);cursor:pointer;}
+  button:hover{border-color:rgba(255,255,255,.2);}
+  button.primary{background:var(--teal);color:#06251f;border-color:transparent;}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  #summary{font-family:var(--mono);font-size:14px;font-weight:600;padding:9px 18px;border-radius:999px;border:1px solid var(--line);}
+  #summary.pass{color:var(--green);border-color:rgba(57,217,138,.4);background:rgba(57,217,138,.08);}
+  #summary.fail{color:var(--red);border-color:rgba(255,107,122,.4);background:rgba(255,107,122,.08);}
+  #summary.run{color:var(--teal);}
+  #summary.idle{color:var(--text3);}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:18px;}
+  .card h2{margin:0 0 14px;font-size:13px;font-weight:600;letter-spacing:.02em;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th,td{text-align:left;padding:7px 9px;border-bottom:1px solid rgba(255,255,255,.05);}
+  th{color:var(--text3);font-weight:500;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;}
+  td.mono,th.mono{font-family:var(--mono);}
+  td.num{text-align:right;font-family:var(--mono);}
+  .ok{color:var(--green);} .warn{color:var(--amber);} .bad{color:var(--red);}
+  .chip{font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:5px;border:1px solid var(--line);}
+  .pass-chip{color:var(--green);border-color:rgba(57,217,138,.35);}
+  .fail-chip{color:var(--red);border-color:rgba(255,107,122,.35);}
+  .muted{color:var(--text3);}
+  .legend{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:10px;line-height:1.5;}
+  iframe.harness{position:absolute;width:10px;height:10px;left:-3000px;top:0;border:0;}
+  code{font-family:var(--mono);color:var(--blue);background:var(--surface2);padding:1px 5px;border-radius:4px;font-size:11.5px;}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="eyebrow">Cohort harness · real-corpus regression gate</div>
+    <h1><span class="g">Tepna</span> — Real-Corpus Regression Check</h1>
+    <div class="sub">The 5 canonical SubjectA nights → the same real OxyDex + PulseDex harness → diff vs committed ground truth.</div>
+    <div class="controls">
+      <button class="primary" id="runBtn">Run regression</button>
+      <span id="summary" class="idle">idle</span>
+    </div>
+  </div>
+</header>
+<div class="wrap" id="content">
+  <div class="card"><h2>Per-night results</h2><div id="nights"><div class="muted mono" style="font-size:12px">press Run…</div></div></div>
+</div>
+
+<script>
+/* ══ thresholds: the regression passes if every real night stays inside these ══
+   Bands target the MEASURED behavior of the current build. OxyDex ODI-4 genuinely
+   UNDER-scores dense desats (documented) — so the per-night signal is a WIDE ODI/AHI
+   band, and the real OxyDex regression is the CROSS-NIGHT calibration: ODI must stay
+   tightly rank/linear-correlated with truth AHI across the 5 nights (catches a detector
+   that stops tracking severity). Per-night desat recall is reported but INFORMATIONAL —
+   it co-varies with the undercount and isn't a drift signal on its own. */
+const TOL = {
+  odiRatioLo: 0.02, odiRatioHi: 0.60,    // OxyDex ODI / truth-AHI per-night band (loose by design)
+  calibR2Min: 0.85,                       // ODI-vs-AHI R² across the 5 nights (the real OxyDex gate)
+  minSpo2AbsMax: 8,                       // |min SpO₂ detected − truth nadir floor (100−maxDesat)|
+  rmssdMin: 8, rmssdMax: 120,             // PulseDex rMSSD physiological band on these nights
+  t0DriftMsMax: 1000,                     // parsed t0Ms must match ground-truth t0Ms (Clock Contract)
+};
+const NIGHTS = [
+  { n:1, oxy:'O2Ring S 2100_20260511231000.csv', rr:'2026-05-11 23-10-00.txt', gt:'ground_truth_night1.json' },
+  { n:2, oxy:'O2Ring S 2100_20260512235500.csv', rr:'2026-05-12 23-55-00.txt', gt:'ground_truth_night2.json' },
+  { n:3, oxy:'O2Ring S 2100_20260513225000.csv', rr:'2026-05-13 22-50-00.txt', gt:'ground_truth_night3.json' },
+  { n:4, oxy:'O2Ring S 2100_20260514230500.csv', rr:'2026-05-14 23-05-00.txt', gt:'ground_truth_night4.json' },
+  { n:5, oxy:'O2Ring S 2100_20260515232000.csv', rr:'2026-05-15 23-20-00.txt', gt:'ground_truth_night5.json' },
+];
+const DIR = 'uploads/synthetic/';
+</script>
+<script src="cohort-regression.js"></script>
+</body></html>

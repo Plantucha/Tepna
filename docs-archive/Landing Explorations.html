@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  Landing Explorations.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Side-by-side landing directions on a pan/zoom canvas. Each artboard is a live
+  iframe of a standalone variation in landing-explore/.
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tepna — Landing Explorations</title>
+<style>
+  html,body{margin:0;height:100%;background:#0d1117;}
+  .ab-frame{width:100%;height:100%;border:0;display:block;background:#0B0F14;border-radius:10px;}
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="../design-canvas.jsx"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { DesignCanvas, DCSection, DCArtboard } = window;
+const W = 1440, H = 3500;
+function Frame({src}){ return <iframe className="ab-frame" src={src} loading="lazy" />; }
+function App(){
+  return (
+    <DesignCanvas>
+      <DCSection id="landing" title="Landing directions" subtitle="Same content · three treatments · sterile → flashy">
+        <DCArtboard id="v2" label="2 · Editorial calm — restrained, static, line-art trace" width={W} height={H}>
+          <Frame src="landing-explore/v2-editorial.html" />
+        </DCArtboard>
+        <DCArtboard id="v3" label="3 · Product-modern — animated readiness card + sparklines" width={W} height={H}>
+          <Frame src="landing-explore/v3-product.html" />
+        </DCArtboard>
+        <DCArtboard id="v4" label="4 · Signal-driven — live waveforms + traveling nerve pulse" width={W} height={H}>
+          <Frame src="landing-explore/v4-signal.html" />
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body></html>

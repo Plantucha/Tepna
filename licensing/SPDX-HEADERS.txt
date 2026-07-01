@@ -1,0 +1,69 @@
+Tepna — canonical license headers
+==================================
+Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+
+Drop the matching block at the TOP of every source file (after the DOCTYPE for
+HTML). Do NOT paste the full license text into files — the short SPDX header
+plus the root LICENSE/NOTICE is the convention. Keep the year as the file's
+creation year (do not bump existing years on edit).
+
+────────────────────────────────────────────────────────────────────────
+JavaScript / CSS  (.js, .css)        — /* */ or // both fine; use /* */ for CSS
+────────────────────────────────────────────────────────────────────────
+/*
+ * <FileName> — <one-line purpose>
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. See the LICENSE and
+ * NOTICE files at the project root, or http://www.apache.org/licenses/LICENSE-2.0
+ */
+
+   Minimal variant (when a file already has a descriptive banner — just add
+   these two lines into the existing banner):
+
+       Copyright 2026 Michal Planicka
+       SPDX-License-Identifier: Apache-2.0
+
+────────────────────────────────────────────────────────────────────────
+HTML  (source .html and .src.html)  — first lines INSIDE <head>, as a comment
+────────────────────────────────────────────────────────────────────────
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  <Title> — <one-line purpose>
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+
+   NOTE on BUNDLED *.html (the inlined apps): do NOT hand-edit a bundle. The
+   header must be added to the corresponding *.src.html / *-app.js SOURCE and
+   the file re-bundled. See LICENSING-BRIEF.md for the re-bundle policy (license
+   comments are inert — do not re-bundle 7 apps just to carry a comment; let the
+   header ride along on the next behavioral re-bundle).
+
+────────────────────────────────────────────────────────────────────────
+Markdown  (.md)  — HTML comment at the very top (renders invisibly)
+────────────────────────────────────────────────────────────────────────
+<!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
+
+   (Briefs/READMEs may instead carry a visible footer line — see the stamp
+   samples. CLAUDE.md itself is project instructions; a top comment is fine.)
+
+────────────────────────────────────────────────────────────────────────
+SPDX-only one-liner  (any file type, when space is tight)
+────────────────────────────────────────────────────────────────────────
+   // SPDX-License-Identifier: Apache-2.0
+   /* SPDX-License-Identifier: Apache-2.0 */
+   <!-- SPDX-License-Identifier: Apache-2.0 -->
+
+────────────────────────────────────────────────────────────────────────
+Do NOT add headers to:
+────────────────────────────────────────────────────────────────────────
+ • uploads/*.json and any captured data fixtures (data, not authored source)
+ • generated/exported artifacts
+ • the bundled *.html directly (edit source + re-bundle instead)

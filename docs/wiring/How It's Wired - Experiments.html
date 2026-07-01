@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  How It's Wired — Experiments · GanglioR / the -Dex suite
+  Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+  A reference doc. Loads no app code; ships no buildHash.
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How It's Wired — Experiments</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<meta name="description" content="The GanglioR validation experiments: how the real-DSP iframe-realm harness and the analysis tools are wired — cohort runner, ODI bias, HRV confound, nights-ICC, the regression gate.">
+<link rel="stylesheet" href="../dex-wired.css">
+</head>
+<body>
+
+<header class="rail">
+  <div class="rail-in">
+    <a class="brand" href="How It's Wired - the Dex Suite.html"><svg class="brandmark" viewBox="0 0 100 100" aria-hidden="true" style="width:17px;height:17px;flex:none;filter:drop-shadow(0 0 5px rgba(61,224,208,.4))"><defs><linearGradient id="tgrad" x1="14" y1="10" x2="86" y2="88" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3DE0D0"/><stop offset=".58" stop-color="#58A6FF"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs><g fill="none" stroke="url(#tgrad)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></g></svg>How it's wired <small>GanglioR</small></a>
+    <nav class="rail-nodes"><a href="How It's Wired - the Dex Suite.html">◈ Nodes</a><a href="How It's Wired - Science Papers.html">Science Papers</a><a href="How It's Wired - SynthGen.html">SynthGen</a><a href="How It's Wired - Experiments.html" class="cur">Experiments</a></nav>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <header class="dochead">
+    <div class="eyebrow"><a class="back" href="How It's Wired - the Dex Suite.html">← the -Dex suite</a> · validation &amp; analysis</div>
+    <h1><span class="glyph">🔬</span><span class="g">Experiments</span></h1>
+    <p class="lede">The experiments run the <b>real Dex detectors headless, at scale</b>, on synthetic (and optional real) data — to validate them and produce the papers’ figures. The trick that makes it possible: each node’s plain-global DSP collides on shared names, so each runs in its <b>own iframe realm</b> and answers over <code>postMessage</code>.</p>
+    <div class="specsheet">
+      <div class="cell"><div class="k">Kind</div><div class="v">validation harness + analyses<small>real DSP, headless</small></div></div>
+      <div class="cell"><div class="k">Realm trick</div><div class="v">per-node iframe<small>cohort-harness.html?node=</small></div></div>
+      <div class="cell"><div class="k">Parallelism</div><div class="v">Web Workers<small>by node-kind</small></div></div>
+      <div class="cell"><div class="k">Output</div><div class="v">figures + sample-size<small>+ pass/fail gate</small></div></div>
+    </div>
+  </header>
+
+  <section class="sec">
+    <div class="sec-num">01 — WHAT IT’S FOR</div>
+    <h2 class="sec-h">Validate the real detectors at scale</h2>
+    <p class="sec-d">A spot-check on one file proves little. The experiments push thousands of synthetic patients through the <b>actual shipped DSP</b> — not a reimplementation — to measure how the detectors behave across severity, age, artifact and missingness, and to fit the corrections the papers report.</p>
+    <div class="callout"><span class="ci">🧩</span><div><b>The iframe-realm trick.</b> The node DSP files are plain globals that collide on <code>parseCSV</code> / <code>parseTimestamp</code> / <code>mean</code> / <code>std</code>. So each node loads in its own <code>cohort-harness.html?node=…</code> iframe (one realm, one node), exposing <code>runNode(payload)</code> over <code>postMessage</code> — real DSP, zero global clash.</div></div>
+  </section>
+  <section class="sec">
+    <div class="sec-num">02 — THE WIRING</div>
+    <h2 class="sec-h">The file stack</h2>
+    <p class="sec-d">One realm per node, fanned across CPU cores by workers, scored on the main thread. The analysis tools sit on top of the same harness.</p>
+    <div class="flow">
+      <div class="flow-row" style="--lc:var(--L-dsp)">
+        <div class="flow-rail"><span class="lz">Engine</span><span class="spine"></span><span class="node-dot"></span><span class="spine"></span></div>
+        <div class="flow-cards">
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">cohort-harness.html</span><span class="ftag">Node realm</span></div>
+              <div class="fdesc">A single-node real-DSP iframe, parameterized by ?node=oxydex|pulsedex|glucodex. Loads only that node’s real modules, then exposes runNode(payload) → minimal ganglior.node-export over postMessage.</div>
+            </div>
+        </div>
+      </div>
+      <div class="flow-row" style="--lc:var(--L-core)">
+        <div class="flow-rail"><span class="lz">Core</span><span class="spine"></span><span class="node-dot"></span><span class="spine"></span></div>
+        <div class="flow-cards">
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">cohort-gen.js</span><span class="ftag">Patient source</span></div>
+              <div class="fdesc">The seeded synthetic-patient sampler (see SynthGen) — pure, runs fine off-DOM inside a worker.</div>
+            </div>
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">nsrr-adapter.js</span><span class="ftag">Real-PSG bridge</span></div>
+              <div class="fdesc">Bridges user-supplied NSRR/PhysioNet PSG (EDF SpO₂ + annotation XML) into the real OxyDex pipeline for the ODI-4-vs-AHI bias study. Reuses CpapEdf.readEDF; honors the Clock Contract.</div>
+            </div>
+        </div>
+      </div>
+      <div class="flow-row" style="--lc:var(--L-render)">
+        <div class="flow-rail"><span class="lz">Render · UI</span><span class="spine"></span><span class="node-dot"></span><span class="spine"></span></div>
+        <div class="flow-cards">
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">cohort-runner.html</span><span class="ftag">Pilot UI</span></div>
+              <div class="fdesc">The pilot harness: generate N patients, run them through the real per-node iframe pipelines, normalize every envelope through the Integrator, and score.</div>
+            </div>
+        </div>
+      </div>
+      <div class="flow-row" style="--lc:var(--L-app)">
+        <div class="flow-rail"><span class="lz">App · glue</span><span class="spine"></span><span class="node-dot"></span><span class="spine"></span></div>
+        <div class="flow-cards">
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">cohort-worker.js</span><span class="ftag">Parallel lane</span></div>
+              <div class="fdesc">One Web Worker per node-KIND realm (oxy · rr+gluco) so the colliding globals never share scope and the heavy CSV/RR strings aren’t double-rendered. Returns minimal envelopes.</div>
+            </div>
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">cohort-full.js</span><span class="ftag">FULL lane</span></div>
+              <div class="fdesc">The ≤500 lane: renders the 176 Hz PPG + int16 µV ECG window so PpgDex and ECGDex morphology pipelines actually execute.</div>
+            </div>
+        </div>
+      </div>
+      <div class="flow-row" style="--lc:var(--L-fusion)">
+        <div class="flow-rail"><span class="lz">Harness · gate</span><span class="spine"></span><span class="node-dot"></span><span class="spine"></span></div>
+        <div class="flow-cards">
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">cohort-regression.html</span><span class="ftag">Regression gate</span></div>
+              <div class="fdesc">Runs the 5 canonical SubjectA nights through the same harness and diffs against committed ground truth — the regression gate for the corpus + harness, mirroring Dex-Test-Suite’s summary pill.</div>
+            </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="sec">
+    <div class="sec-num">03 — HOW IT’S ACHIEVED</div>
+    <h2 class="sec-h">From patients to figures</h2>
+    <p class="sec-d">The same path every experiment takes: generate, fan out to real DSP, normalize to the bus envelope, fuse, then score or fit.</p>
+    <div class="pipe">
+        <div class="pstep"><div><h4>Generate the patients</h4><p>cohort-gen draws N seeded patients over the parameter space and renders each into the device formats — deterministic, reproducible.</p><div class="pf"><b>cohort-gen.js (reuses SYNTH)</b></div></div></div>
+        <div class="pstep"><div><h4>Fan out to real DSP</h4><p>Patients are dispatched to per-kind workers, each driving the node’s real DSP in its own iframe realm. No reimplementation — the shipped detectors run.</p><div class="pf"><b>cohort-worker.js → cohort-harness.html</b></div></div></div>
+        <div class="pstep"><div><h4>Normalize to the bus</h4><p>Each node returns a minimal ganglior.node-export envelope; the Integrator fuses both kinds’ envelopes per patient on the main thread.</p><div class="pf"><b>→ ganglior.node-export → Integrator</b></div></div></div>
+        <div class="pstep"><div><h4>Score or fit</h4><p>Outputs are diffed against ground truth (regression gate) or fed to a calibration / confound / reliability model, then rendered as figures and exported (CSV/JSON/PNG).</p><div class="pf"><b>per-experiment scoring</b></div></div></div>
+    </div>
+  </section>
+  <section class="sec">
+    <div class="sec-num">04 — THE EXPERIMENTS</div>
+    <h2 class="sec-h">What’s on the harness</h2>
+    <p class="sec-d">Each tool is a self-contained browser page over the shared harness. The first three feed published drafts; the last is a gate.</p>
+    <div class="catlist">
+      <div class="cat real"><div class="ct"><b>ODI-4 vs AHI bias</b><span class="tool"><span class="tool-off">odi-bias-analysis.html</span></span></div><p>Collects {ODI-4, scored AHI} from synthetic, SubjectA and optional real NSRR nights; fits calibration + a corrected surrogate; renders four figures and a closed-form power analysis. Reuses real OxyDex + CpapEdf + the NSRR adapter.</p><div class="pills"><span class="cpill real">real detector</span><span class="cpill ">+ NSRR bridge</span><span class="cpill ">→ paper</span></div></div>
+      <div class="cat sim"><div class="ct"><b>HRV age-confound</b><span class="tool"><span class="tool-off">hrv-confound-analysis.html</span></span></div><p>Generates N synthetic patients, measures rMSSD per night via the real PulseDex harness, then quantifies the age confound in a single-metric HRV screen and the AUC recovery from an age-adjustment.</p><div class="pills"><span class="cpill sim">simulation</span><span class="cpill real">real detector</span><span class="cpill ">→ paper</span></div></div>
+      <div class="cat sim"><div class="ct"><b>How many nights? (test-retest ICC)</b><span class="tool"><span class="tool-off">nights-icc-analysis.html</span></span></div><p>Over the 1–12-night longitudinal lane, measures ODI-4 / rMSSD / CGM-CV per occasion with the real detectors, estimates ICC(1,1) by ANOVA, and applies Spearman–Brown for the minimum reliable recording length per metric.</p><div class="pills"><span class="cpill sim">simulation</span><span class="cpill real">real detector</span><span class="cpill ">backlog → paper</span></div></div>
+      <div class="cat gate"><div class="ct"><b>Real-corpus regression</b><span class="tool"><span class="tool-off">cohort-regression.html</span></span></div><p>The harness’s own gate: runs the 5 SubjectA nights through the real OxyDex + PulseDex harness and diffs against committed ground truth, with a headline pass/fail pill. Catches corpus or DSP drift.</p><div class="pills"><span class="cpill gate">regression gate</span></div></div>
+      <div class="cat real"><div class="ct"><b>Cohort validation harness (pilot)</b><span class="tool"><span class="tool-off">cohort-runner.html</span></span></div><p>The pilot lane itself: generate a cohort, run every patient through the real headless pipeline, fuse in the Integrator, and aggregate — the substrate the analyses build on.</p><div class="pills"><span class="cpill real">real DSP</span><span class="cpill ">FAST + FULL lanes</span></div></div>
+    </div>
+  </section>
+  <section class="sec">
+    <div class="sec-num">05 — LIMITATIONS &amp; CONSIDERATIONS</div>
+    <h2 class="sec-h">What the harness can and can’t claim</h2>
+    <p class="sec-d">The experiments are powerful because they run the real code — and bounded because most of their data is synthetic. The constraints are deliberate.</p>
+    <div class="notes">
+        <div class="note warn"><h4>Synthetic-driven by default<span class="tagi">caution</span></h4><p>Most runs use the synthetic corpus. Real-data validation needs user-supplied NSRR/PhysioNet PSG under a signed DUA — not bundled, not fetchable. The synthetic lane is the scalable pre-check, not the proof.</p></div>
+        <div class="note info"><h4>Realms exist for a reason<span class="tagi">note</span></h4><p>The per-node iframe realm is not architecture astronautics — it is the only clean way to run colliding plain-global DSP files side by side without editing shipped code (which would trip the gates).</p></div>
+        <div class="note lim"><h4>FULL lane is bounded<span class="tagi">limitation</span></h4><p>Waveform pipelines (PPG/ECG) are expensive, so the FULL lane runs one representative window per patient and is capped at ≤500 — enough to exercise morphology, not a population study.</p></div>
+        <div class="note good"><h4>Never edit DSP to fit the harness<span class="tagi">by design</span></h4><p>When the harness needs something the shipped DSP doesn’t expose, it adapts in the harness layer (e.g. rendering ECG µV from RR) — the regression + provenance gates stay the arbiter of truth.</p></div>
+    </div>
+  </section>
+
+
+  <section class="sec" style="border-top:none;padding-top:8px;">
+      <div class="pager">
+        <a href="How It's Wired - Science Papers.html"><div class="pl">← Papers</div><div class="pt">Science Papers</div></a>
+        <a class="nx" href="How It's Wired - SynthGen.html"><div class="pl">Generator →</div><div class="pt">SynthGen</div></a>
+      </div>
+  </section>
+
+  <footer class="docfoot">
+    <div class="fl">
+      <a href="How It's Wired - the Dex Suite.html">◈ Wiring index</a>
+      <span class="tool-off">Cohort runner</span>
+      <span class="tool-off">ODI bias</span>
+      <span class="tool-off">HRV confound</span>
+      <span class="tool-off">Nights ICC</span>
+      <span class="tool-off">Regression gate</span>
+    </div>
+    <div class="fn"><b>Experiments</b> — real-DSP validation harness + analysis tools · iframe realms, Web Workers, ground-truth scoring. 100% local · no network.</div>
+    <div class="disc">Not a medical device. Drafts and synthetic experiments — for research and curiosity, not diagnosis. Label simulation vs real-detector vs real-data honestly.</div>
+  </footer>
+
+</div>
+</body>
+</html>

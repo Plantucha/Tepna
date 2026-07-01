@@ -1,0 +1,28 @@
+# Normalize line endings across OSes — repo stays LF, checkouts adapt.
+# Prevents noisy CRLF/LF diffs when authoring on Windows.
+* text=auto eol=lf
+
+# Explicit text types (authored source)
+*.html  text eol=lf
+*.js    text eol=lf
+*.mjs   text eol=lf
+*.jsx   text eol=lf
+*.css   text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.cff   text eol=lf
+*.txt   text eol=lf
+*.csv   text eol=lf
+
+# Binary — never touch line endings
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.woff  binary
+*.woff2 binary
+*.edf   binary
+*.dat   binary
+*.pdf   binary

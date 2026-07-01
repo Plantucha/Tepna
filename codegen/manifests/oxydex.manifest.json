@@ -1,0 +1,1589 @@
+{
+  "node": "OxyDex",
+  "modality": "Pulse Oximetry (SpO2)",
+  "icon": "🫁",
+  "accentColor": "var(--teal)",
+  "accentHex": "#3DE0D0",
+  "version": "1.0.0",
+  "status": "alpha",
+  "description": "Integrated analysis of nocturnal pulse oximetry — oxygen saturation dynamics, heart rate variability proxies, desaturation profiling, sleep architecture proxies, and cross-signal intelligence from 1 Hz reflectance oximetry.",
+  "warning": "All values are derived from consumer-grade 1 Hz reflectance oximetry. They are not equivalent to clinical polysomnography and do not constitute a medical diagnosis. HR-derived metrics labelled 'proxy' cannot be compared against published HRV clinical norms based on beat-to-beat RR intervals.",
+
+  "dataModel": {
+    "description": "Expected raw input from O2Ring or equivalent 1 Hz reflectance oximeter",
+    "fields": {
+      "spo2":       "Uint8Array — SpO2 %, 1 Hz",
+      "hr":         "Uint8Array — heart rate bpm, 1 Hz",
+      "motion":     "Uint8Array — motion flag (0/1), 1 Hz",
+      "timestamps": "Float64Array — Unix seconds, 1 Hz",
+      "duration":   "number — recording duration in seconds"
+    }
+  },
+
+  "sections": [
+    {
+      "id": "spo2-basics",
+      "title": "SpO2 Basics & ODI",
+      "icon": "🫀",
+      "description": "Oxygen saturation fundamentals and desaturation event counting",
+      "metrics": [
+        {
+          "id": "spo2Mean",
+          "abbr": "SpO2",
+          "name": "Mean SpO2",
+          "fullName": "Mean peripheral oxygen saturation",
+          "tier": "core",
+          "unit": "%",
+          "formula": "mean(SpO2[t])",
+          "compute": { "fn": "mean", "source": "spo2" },
+          "ranges": [
+            { "max": 92, "label": "Severe hypoxemia", "class": "bad" },
+            { "max": 94, "label": "Moderate hypoxemia", "class": "warn" },
+            { "max": 95, "label": "Mild hypoxemia", "class": "warn" },
+            { "max": null, "label": "Normal", "class": "ok" }
+          ]
+        },
+        {
+          "id": "odi4",
+          "abbr": "ODI-4",
+          "name": "Oxygen Desaturation Index (4%)",
+          "fullName": "Events per hour where SpO2 drops ≥4% from 5-min rolling baseline",
+          "tier": "core",
+          "unit": "events/hr",
+          "formula": "events(SpO2 drop ≥4% from 5-min rolling baseline) / recording_hours",
+          "formulaNote": "Rolling baseline = mean SpO2 over preceding 5 min. Event ends when SpO2 returns within 1% of baseline or 120s elapses. Min event 10s. Refractory 10s after recovery.",
+          "compute": { "fn": "odi", "source": "spo2", "args": [4, 300, 10, 120, 10] },
+          "ranges": [
+            { "max": 5,   "label": "Normal",          "class": "ok" },
+            { "max": 15,  "label": "Mild",             "class": "warn" },
+            { "max": 30,  "label": "Moderate",          "class": "bad" },
+            { "max": null, "label": "Severe",           "class": "bad" }
+          ]
+        },
+        {
+          "id": "odi3",
+          "abbr": "ODI-3",
+          "name": "Oxygen Desaturation Index (3%)",
+          "fullName": "Events per hour where SpO2 drops ≥3% from rolling baseline",
+          "tier": "core",
+          "unit": "events/hr",
+          "formula": "events(SpO2 drop ≥3%) / recording_hours",
+          "compute": { "fn": "odi", "source": "spo2", "args": [3, 300, 10, 120, 10] },
+          "ranges": [
+            { "max": 10,  "label": "Normal",          "class": "ok" },
+            { "max": 20,  "label": "Mildly elevated",  "class": "warn" },
+            { "max": null, "label": "Significant",     "class": "bad" }
+          ]
+        },
+        {
+          "id": "odi2",
+          "abbr": "ODI-2",
+          "name": "Oxygen Desaturation Index (2%)",
+          "fullName": "Events per hour where SpO2 drops ≥2% from rolling baseline",
+          "tier": "secondary",
+          "unit": "events/hr",
+          "formula": "events(SpO2 drop ≥2%) / recording_hours",
+          "compute": { "fn": "odi", "source": "spo2", "args": [2, 300, 10, 120, 10] },
+          "ranges": [
+            { "max": 15,  "label": "Normal",          "class": "ok" },
+            { "max": 30,  "label": "Elevated",         "class": "warn" },
+            { "max": null, "label": "High",            "class": "bad" }
+          ]
+        },
+        {
+          "id": "odi1",
+          "abbr": "ODI-1",
+          "name": "Oxygen Desaturation Index (1%)",
+          "fullName": "Events per hour where SpO2 drops ≥1% from rolling baseline",
+          "tier": "secondary",
+          "unit": "events/hr",
+          "formula": "events(SpO2 drop ≥1%) / recording_hours",
+          "compute": { "fn": "odi", "source": "spo2", "args": [1, 300, 10, 120, 10] },
+          "ranges": [
+            { "max": 30,  "label": "Normal",          "class": "ok" },
+            { "max": 60,  "label": "Elevated",         "class": "warn" },
+            { "max": null, "label": "High",            "class": "bad" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "spo2-thresh",
+      "title": "Thresholds & T-Index",
+      "icon": "📊",
+      "description": "Cumulative time below SpO2 thresholds — the most clinically actionable saturation metrics",
+      "metrics": [
+        {
+          "id": "t95",
+          "abbr": "T95",
+          "name": "Time Below 95%",
+          "fullName": "Percentage of recording where SpO2 < 95%",
+          "tier": "core",
+          "unit": "%",
+          "formula": "seconds(SpO2 < 95) / total_seconds × 100",
+          "compute": { "fn": "pct_below", "source": "spo2", "args": [95] },
+          "ranges": [
+            { "max": 5,   "label": "Normal",           "class": "ok" },
+            { "max": 15,  "label": "Elevated",          "class": "warn" },
+            { "max": 30,  "label": "Significant",       "class": "bad" },
+            { "max": null, "label": "Severe",           "class": "bad" }
+          ]
+        },
+        {
+          "id": "t90",
+          "abbr": "T90",
+          "name": "Time Below 90%",
+          "fullName": "Percentage of recording where SpO2 < 90%",
+          "tier": "core",
+          "unit": "%",
+          "formula": "seconds(SpO2 < 90) / total_seconds × 100",
+          "compute": { "fn": "pct_below", "source": "spo2", "args": [90] },
+          "ranges": [
+            { "max": 1,   "label": "Normal",           "class": "ok" },
+            { "max": 5,   "label": "Mild concern",      "class": "warn" },
+            { "max": 15,  "label": "Significant",       "class": "bad" },
+            { "max": null, "label": "Severe",           "class": "bad" }
+          ]
+        },
+        {
+          "id": "ct90",
+          "abbr": "CT<90",
+          "name": "Cumulative Time Below 90%",
+          "fullName": "Total seconds where SpO2 < 90%",
+          "tier": "core",
+          "unit": "min",
+          "formula": "count(SpO2 < 90) / 60",
+          "compute": { "fn": "count_below_div", "source": "spo2", "args": [90, 60] },
+          "ranges": [
+            { "max": 1,   "label": "Normal",           "class": "ok" },
+            { "max": 10,  "label": "Mild concern",      "class": "warn" },
+            { "max": 30,  "label": "Significant",       "class": "bad" },
+            { "max": null, "label": "Severe",           "class": "bad" }
+          ]
+        },
+        {
+          "id": "auc90",
+          "abbr": "AUC-90",
+          "name": "Hypoxic Burden (Area Under Curve)",
+          "fullName": "Integral of SpO2 deficit below 90%, normalized per hour",
+          "tier": "secondary",
+          "unit": "%-min/hr",
+          "formula": "Σ max(0, 90 − SpO2[t]) / 60 / recording_hours",
+          "compute": { "fn": "auc_below", "source": "spo2", "args": [90, 3600] },
+          "ranges": [
+            { "max": 0.5,  "label": "Normal",            "class": "ok" },
+            { "max": 3,    "label": "Mild hypoxic burden", "class": "warn" },
+            { "max": 10,   "label": "Moderate",           "class": "bad" },
+            { "max": null,  "label": "Severe",            "class": "bad" }
+          ]
+        },
+        {
+          "id": "t88",
+          "abbr": "T88",
+          "name": "Time Below 88%",
+          "fullName": "Percentage of recording where SpO2 < 88%",
+          "tier": "secondary",
+          "unit": "%",
+          "formula": "seconds(SpO2 < 88) / total_seconds × 100",
+          "compute": { "fn": "pct_below", "source": "spo2", "args": [88] },
+          "ranges": [
+            { "max": 1,   "label": "Normal",           "class": "ok" },
+            { "max": 5,   "label": "Elevated",          "class": "warn" },
+            { "max": null, "label": "Significant",      "class": "bad" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "spo2-profile",
+      "title": "Desaturation Profile",
+      "icon": "🔬",
+      "description": "Per-event characterization and severity indices",
+      "metrics": [
+        {
+          "id": "cdi",
+          "abbr": "CDI",
+          "name": "Cyclic Desaturation Index",
+          "fullName": "Downward SpO2 crossings of recording mean per hour",
+          "tier": "secondary",
+          "unit": "crossings/hr",
+          "formula": "baseline_crossings↓ / recording_hours",
+          "formulaNote": "Sensitive to rhythmic desaturation (Cheyne–Stokes, PB) even when individual dips are shallow.",
+          "compute": { "fn": "crossing_rate", "source": "spo2", "args": ["down"] },
+          "ranges": [
+            { "max": 5,   "label": "Normal",                      "class": "ok" },
+            { "max": 15,  "label": "Mildly elevated",             "class": "warn" },
+            { "max": null, "label": "Significant PB/CS pattern",  "class": "bad" }
+          ]
+        },
+        {
+          "id": "wtdsi",
+          "abbr": "WtDSI",
+          "name": "Weighted Desaturation Severity Index",
+          "fullName": "Quadratically weighted depth×duration severity",
+          "tier": "secondary",
+          "unit": "a.u.",
+          "formula": "Σ(depth² × duration_s) / recording_hours",
+          "formulaNote": "Penalizes deeper and longer events quadratically, reflecting non-linear physiological stress.",
+          "compute": { "fn": "weighted_desat_severity", "source": "spo2" },
+          "ranges": [
+            { "max": 10,  "label": "Low severity",       "class": "ok" },
+            { "max": 50,  "label": "Moderate",            "class": "warn" },
+            { "max": null, "label": "High severity",      "class": "bad" }
+          ]
+        },
+        {
+          "id": "odri",
+          "abbr": "ODRI",
+          "name": "ODI Ratio Index",
+          "fullName": "ODI-3 / ODI-1 ratio — pattern discriminator",
+          "tier": "research",
+          "unit": "ratio",
+          "formula": "ODI-3 / ODI-1",
+          "formulaNote": "Low ratio → shallow frequent events (CS/PB). High ratio → deep events (obstructive).",
+          "compute": { "fn": "ratio", "args": ["odi3", "odi1"] },
+          "ranges": [
+            { "max": 0.3,  "label": "CS/PB dominant (shallow)",      "class": "warn" },
+            { "max": 0.8,  "label": "Mixed / indeterminate",         "class": "ok" },
+            { "max": null,  "label": "Obstructive dominant (deep)",   "class": "bad" }
+          ]
+        },
+        {
+          "id": "deltaIndex",
+          "abbr": "Δ-Index",
+          "name": "Delta SpO2 Instability Index",
+          "fullName": "Mean absolute SpO2 difference 3s apart",
+          "tier": "secondary",
+          "unit": "% pts",
+          "formula": "mean |SpO2[t+3] − SpO2[t]|",
+          "compute": { "fn": "mean_abs_diff", "source": "spo2", "args": [3] },
+          "ranges": [
+            { "max": 0.5,  "label": "Stable baseline",   "class": "ok" },
+            { "max": 1.5,  "label": "Mildly unstable",   "class": "warn" },
+            { "max": null,  "label": "Highly unstable",   "class": "bad" }
+          ]
+        },
+        {
+          "id": "desSev",
+          "abbr": "DesSev",
+          "name": "Desaturation Severity",
+          "fullName": "AHI surrogate (Kulkas 2013) — ODI-3 × mean depth × mean duration",
+          "tier": "secondary",
+          "unit": "a.u.",
+          "formula": "ODI-3 × mean_depth_% × mean_duration_s / k",
+          "compute": { "fn": "stub", "note": "Requires per-event extraction" },
+          "ranges": [
+            { "max": 5,   "label": "Low",       "class": "ok" },
+            { "max": 20,  "label": "Moderate",   "class": "warn" },
+            { "max": null, "label": "High",      "class": "bad" }
+          ]
+        },
+        {
+          "id": "pred3p",
+          "abbr": "pRED-3p",
+          "name": "% Recording with Desaturation Events",
+          "fullName": "Fraction of recording inside ODI-3 events (Kulkas 2013)",
+          "tier": "secondary",
+          "unit": "%",
+          "formula": "Σ event_duration_s / total_recording_s × 100",
+          "compute": { "fn": "stub", "note": "Requires per-event extraction" },
+          "ranges": [
+            { "max": 2.78,  "label": "Q1 — Lowest CVD risk",     "class": "ok" },
+            { "max": 6.19,  "label": "Q2 — Below median",        "class": "ok" },
+            { "max": 10.84, "label": "Q3 — Median",              "class": "ok" },
+            { "max": 19.04, "label": "Q4 — Elevated",            "class": "warn" },
+            { "max": null,   "label": "Q5 — Highest CVD risk",   "class": "bad" }
+          ]
+        },
+        {
+          "id": "modl",
+          "abbr": "MODL",
+          "name": "Mean Oxygen Desaturation Level",
+          "fullName": "Mean SpO2 of all samples inside desaturation events",
+          "tier": "secondary",
+          "unit": "%",
+          "formula": "mean(SpO2[t] for t inside any event)",
+          "compute": { "fn": "stub", "note": "Requires event mask" },
+          "ranges": [
+            { "max": 91,  "label": "Mild — marginal dips only",   "class": "ok" },
+            { "max": 88,  "label": "Moderate depth",              "class": "warn" },
+            { "max": null, "label": "Severe mean depth",          "class": "bad" }
+          ]
+        },
+        {
+          "id": "dipSlope",
+          "abbr": "DipSlope",
+          "name": "Mean Desaturation Rate",
+          "fullName": "Mean rate of fall from baseline to nadir (%/s)",
+          "tier": "secondary",
+          "unit": "%/s",
+          "formula": "mean((nadir − baseline) / (nadir_time − event_start))",
+          "formulaNote": "Steeper (more negative) = abrupt/obstructive. Gradual = central/hypoventilation.",
+          "compute": { "fn": "stub", "note": "Requires per-event extraction" },
+          "ranges": [
+            { "max": -0.5, "label": "Gradual descent",           "class": "ok" },
+            { "max": -1.5, "label": "Moderate",                  "class": "warn" },
+            { "max": null,  "label": "Abrupt — obstructive?",    "class": "bad" }
+          ]
+        },
+        {
+          "id": "recSlope",
+          "abbr": "RecSlope",
+          "name": "Mean Resaturation Rate",
+          "fullName": "Mean rate of recovery from nadir toward baseline (%/s)",
+          "tier": "secondary",
+          "unit": "%/s",
+          "formula": "mean((SpO2[event_close] − nadir) / (event_close − nadir_time))",
+          "compute": { "fn": "stub", "note": "Requires per-event extraction" },
+          "ranges": [
+            { "max": 0.1,  "label": "Slow recovery",    "class": "warn" },
+            { "max": 0.5,  "label": "Normal",            "class": "ok" },
+            { "max": null,  "label": "Rapid recovery",   "class": "ok" }
+          ]
+        },
+        {
+          "id": "clusteringIdx",
+          "abbr": "ClustIdx",
+          "name": "Clustering Index",
+          "fullName": "Fraction of nadirs in second half of recording",
+          "tier": "secondary",
+          "unit": "ratio",
+          "formula": "nadirs_last_half / (nadirs_first_half + nadirs_last_half)",
+          "formulaNote": ">0.6 suggests REM-concentrated or late-night clustering. <0.4 suggests early/onset.",
+          "compute": { "fn": "stub", "note": "Requires nadir timestamps" },
+          "ranges": [
+            { "max": 0.4,  "label": "Early/onset clustering",     "class": "warn" },
+            { "max": 0.6,  "label": "Even distribution",          "class": "ok" },
+            { "max": null,  "label": "REM-concentrated / late",   "class": "warn" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "spo2-adv",
+      "title": "Advanced SpO2 Metrics",
+      "icon": "⚡",
+      "description": "Signal dynamics, periodicity, and nonlinear analysis",
+      "metrics": [
+        {
+          "id": "dfaAlpha1",
+          "abbr": "DFA α1",
+          "name": "Detrended Fluctuation Analysis α1",
+          "fullName": "Self-similarity of SpO2 fluctuations on short timescales (4–16s)",
+          "tier": "research",
+          "unit": "exponent",
+          "formula": "slope of log F(n) vs log n (n=4–16s windows)",
+          "formulaNote": "α1 ≈ 0.5 = random; ≈ 1.0 = long-range correlated (OSA/PB); >1.0 = non-stationary.",
+          "compute": { "fn": "dfa_alpha1", "source": "spo2", "args": [4, 16] },
+          "ranges": [
+            { "max": 0.75, "label": "Normal (mild correlations)",    "class": "ok" },
+            { "max": 1.0,  "label": "PB/OSA pattern",               "class": "warn" },
+            { "max": null,  "label": "Non-stationary — severe cyclic", "class": "bad" }
+          ]
+        },
+        {
+          "id": "sampEn",
+          "abbr": "SampEn",
+          "name": "Sample Entropy",
+          "fullName": "SpO2 signal regularity (m=2, r=0.2×SD)",
+          "tier": "research",
+          "unit": "entropy",
+          "formula": "−ln(A/B); m=2, r=0.2×SD",
+          "formulaNote": "Low SampEn = repetitive cyclic pattern. High SampEn = irregular (normal).",
+          "compute": { "fn": "sample_entropy", "source": "spo2", "args": [2, 0.2] },
+          "ranges": [
+            { "max": 0.4,  "label": "Highly regular — cyclic pattern",  "class": "bad" },
+            { "max": 0.8,  "label": "Moderate regularity",              "class": "warn" },
+            { "max": null,  "label": "High variability — normal",       "class": "ok" }
+          ]
+        },
+        {
+          "id": "spo2FFT",
+          "abbr": "FFT-f",
+          "name": "Dominant Frequency (DFT)",
+          "fullName": "Strongest periodic component in SpO2 signal",
+          "tier": "research",
+          "unit": "Hz",
+          "formula": "argmax |X(f)|² in 0.003–0.1 Hz",
+          "formulaNote": "0.02–0.04 Hz = CS/PB range (25–50s). 0.011–0.017 Hz = OSA cycling (60–90s).",
+          "compute": { "fn": "dominant_freq", "source": "spo2", "args": [0.003, 0.1] },
+          "ranges": [
+            { "max": 0.003, "label": "No significant periodicity",  "class": "ok" },
+            { "max": 0.04,  "label": "Cheyne-Stokes / PB range",   "class": "warn" },
+            { "max": null,   "label": "OSA cycling range",          "class": "bad" }
+          ]
+        },
+        {
+          "id": "spo2Drift",
+          "abbr": "Drift",
+          "name": "Baseline Slope Across Night",
+          "fullName": "OLS slope of 5-min rolling SpO2 baseline",
+          "tier": "secondary",
+          "unit": "%/hr",
+          "formula": "OLS slope(rolling_baseline vs. time)",
+          "compute": { "fn": "ols_slope", "source": "spo2RollingBaseline" },
+          "ranges": [
+            { "max": -0.5, "label": "Progressive hypoventilation",   "class": "bad" },
+            { "max": -0.2, "label": "Mild downtrend",                "class": "warn" },
+            { "max": 0.2,  "label": "Stable — normal",               "class": "ok" },
+            { "max": null,  "label": "Stable — normal",              "class": "ok" }
+          ]
+        },
+        {
+          "id": "tAucWeighted",
+          "abbr": "WtAUC",
+          "name": "Weighted Time-Area Hypoxic Load",
+          "fullName": "Severity-weighted sum of time below SpO2 thresholds",
+          "tier": "secondary",
+          "unit": "a.u.",
+          "formula": "Σ w(x) × CT(x) / recHrs; w(x) = (100−x)² / 100",
+          "formulaNote": "Thresholds: 95, 94, 93, 92, 91, 90, 89, 88, 85, 80.",
+          "compute": { "fn": "weighted_auc", "source": "spo2", "args": [[95,94,93,92,91,90,89,88,85,80]] },
+          "ranges": [
+            { "max": 5,   "label": "Normal",    "class": "ok" },
+            { "max": 20,  "label": "Mild",       "class": "warn" },
+            { "max": 60,  "label": "Moderate",   "class": "bad" },
+            { "max": null, "label": "Severe",    "class": "bad" }
+          ]
+        },
+        {
+          "id": "spo2CoV",
+          "abbr": "SpO2 CoV",
+          "name": "Coefficient of Variation of SpO2",
+          "fullName": "SD / mean × 100 for whole-night SpO2",
+          "tier": "secondary",
+          "unit": "%",
+          "formula": "SD(SpO2) / mean(SpO2) × 100",
+          "compute": { "fn": "cov", "source": "spo2" },
+          "ranges": [
+            { "max": 1.0,  "label": "Stable signal",              "class": "ok" },
+            { "max": 3.0,  "label": "Mild fluctuation",           "class": "warn" },
+            { "max": 6.0,  "label": "Moderate cycling",           "class": "bad" },
+            { "max": null,  "label": "High variability — cyclic", "class": "bad" }
+          ]
+        },
+        {
+          "id": "acLag1",
+          "abbr": "AC lag-1",
+          "name": "Lag-1 Autocorrelation",
+          "fullName": "Pearson correlation between consecutive SpO2 values",
+          "tier": "research",
+          "unit": "r",
+          "formula": "corr(SpO2[t], SpO2[t+1])",
+          "compute": { "fn": "autocorr_lag", "source": "spo2", "args": [1] },
+          "ranges": [
+            { "max": 0.70, "label": "Rapid noise or severe cycling",  "class": "bad" },
+            { "max": 0.90, "label": "Moderate fluctuation",           "class": "warn" },
+            { "max": null,  "label": "Normal slow-moving signal",     "class": "ok" }
+          ]
+        },
+        {
+          "id": "spo2Kurtosis",
+          "abbr": "Kurt",
+          "name": "SpO2 Kurtosis",
+          "fullName": "Tail weight of SpO2 distribution",
+          "tier": "research",
+          "unit": "a.u.",
+          "formula": "E[(X−μ)⁴] / σ⁴",
+          "compute": { "fn": "kurtosis", "source": "spo2" },
+          "ranges": [
+            { "max": 4,   "label": "Normal range",       "class": "ok" },
+            { "max": 6,   "label": "Moderate tail weight", "class": "warn" },
+            { "max": null, "label": "Frequent deep dips — obstructive", "class": "bad" }
+          ]
+        },
+        {
+          "id": "spo2Skewness",
+          "abbr": "Skew",
+          "name": "SpO2 Skewness",
+          "fullName": "Asymmetry of SpO2 distribution",
+          "tier": "research",
+          "unit": "a.u.",
+          "formula": "E[(X−μ)³] / σ³",
+          "compute": { "fn": "skewness", "source": "spo2" },
+          "ranges": [
+            { "max": -1,   "label": "Heavy low-SpO2 tail",  "class": "bad" },
+            { "max": 0,    "label": "Normal range",          "class": "ok" },
+            { "max": null,  "label": "Normal range",         "class": "ok" }
+          ]
+        },
+        {
+          "id": "condMean94",
+          "abbr": "Cond.<94",
+          "name": "Conditional Mean Below 94%",
+          "fullName": "Average SpO2 during hypoxemic samples only",
+          "tier": "secondary",
+          "unit": "%",
+          "formula": "mean(SpO2[t] | SpO2[t] < 94)",
+          "compute": { "fn": "conditional_mean", "source": "spo2", "args": ["lt", 94] },
+          "ranges": [
+            { "max": 88,   "label": "Severe mean depth",         "class": "bad" },
+            { "max": 91,   "label": "Moderate hypoxemic depth",  "class": "warn" },
+            { "max": null,  "label": "Mild — marginal dips",    "class": "ok" }
+          ]
+        },
+        {
+          "id": "spo2IQR",
+          "abbr": "SpO2 IQR",
+          "name": "Interquartile Range of SpO2",
+          "fullName": "p75 − p25 of whole-night SpO2",
+          "tier": "secondary",
+          "unit": "% pts",
+          "formula": "p75(SpO2) − p25(SpO2)",
+          "compute": { "fn": "iqr", "source": "spo2" },
+          "ranges": [
+            { "max": 3,   "label": "Normal spread",         "class": "ok" },
+            { "max": 6,   "label": "Moderate oscillation",  "class": "warn" },
+            { "max": null, "label": "High cyclic variability", "class": "bad" }
+          ]
+        },
+        {
+          "id": "iei",
+          "abbr": "IEI",
+          "name": "Inter-Event Interval",
+          "fullName": "Mean and SD of time between consecutive nadirs",
+          "tier": "research",
+          "unit": "s",
+          "formula": "mean/SD of (nadirTime[i] − nadirTime[i−1])",
+          "compute": { "fn": "stub", "note": "Requires nadir timestamps" },
+          "ranges": [
+            { "max": 15,  "label": "Regular — PB/CS pattern",    "class": "ok" },
+            { "max": 40,  "label": "Semi-regular",               "class": "warn" },
+            { "max": null, "label": "Irregular — obstructive",   "class": "bad" }
+          ]
+        },
+        {
+          "id": "recoveryCV",
+          "abbr": "biCV",
+          "name": "CV of Inter-Nadir Intervals",
+          "fullName": "SD / mean × 100 of inter-nadir interval series",
+          "tier": "research",
+          "unit": "%",
+          "formula": "SD(IEI) / mean(IEI) × 100",
+          "compute": { "fn": "stub", "note": "Requires nadir timestamps" },
+          "ranges": [
+            { "max": 30,  "label": "Regular — cyclic PB/CS",    "class": "ok" },
+            { "max": 60,  "label": "Variable",                  "class": "warn" },
+            { "max": null, "label": "Irregular — obstructive",  "class": "bad" }
+          ]
+        },
+        {
+          "id": "desatAsym",
+          "abbr": "Des.Asym",
+          "name": "Desaturation Asymmetry",
+          "fullName": "Dip–Recovery slope ratio",
+          "tier": "secondary",
+          "unit": "ratio",
+          "formula": "|meanDipSlope| / |meanRecSlope|",
+          "formulaNote": ">1.5 = abrupt obstructive. <0.7 = gradual central/hypoventilation.",
+          "compute": { "fn": "ratio", "args": ["dipSlope", "recSlope"] },
+          "ranges": [
+            { "max": 0.7,  "label": "Gradual central — slow drop, fast rise",   "class": "warn" },
+            { "max": 1.5,  "label": "Symmetric — normal",                       "class": "ok" },
+            { "max": null,  "label": "Abrupt obstructive — fast drop, slow rise", "class": "bad" }
+          ]
+        },
+        {
+          "id": "spo2Ceiling",
+          "abbr": "Ceiling",
+          "name": "SpO2 Ceiling Runs",
+          "fullName": "Count of ≥30s runs at exactly 100%",
+          "tier": "research",
+          "unit": "count",
+          "formula": "count(runs where SpO2 == 100 for ≥30 consecutive seconds)",
+          "formulaNote": "Signal quality flag — long runs at exactly 100% indicate firmware clamping or sensor issue.",
+          "compute": { "fn": "stub", "note": "Requires run-length encoding" },
+          "ranges": [
+            { "max": 0,   "label": "Clean signal",          "class": "ok" },
+            { "max": 3,   "label": "Minor artifact",        "class": "warn" },
+            { "max": null, "label": "Significant quality concern", "class": "bad" }
+          ]
+        },
+        {
+          "id": "o2hrEfficiency",
+          "abbr": "O2-HR Eff",
+          "name": "O2-HR Efficiency",
+          "fullName": "SpO2 recovery magnitude per unit cardiac work",
+          "tier": "research",
+          "unit": "%/bpm",
+          "formula": "ΔSpO2_recovery / meanHR_recovery",
+          "compute": { "fn": "stub", "note": "Requires per-event HR and SpO2 pairing" },
+          "ranges": [
+            { "max": 0.05, "label": "Impaired efficiency",  "class": "bad" },
+            { "max": 0.10, "label": "Moderate",             "class": "warn" },
+            { "max": null,  "label": "Efficient resaturation", "class": "ok" }
+          ]
+        },
+        {
+          "id": "postDipHR",
+          "abbr": "PostDip-HR",
+          "name": "Post-Dip HR Response",
+          "fullName": "Mean HR change 60s after nadir, averaged across events",
+          "tier": "secondary",
+          "unit": "bpm",
+          "formula": "mean[HR(nadir+60) − HR(nadir)] across events",
+          "formulaNote": "Positive = preserved arousal coupling. Flat/negative = blunted autonomic arousal.",
+          "compute": { "fn": "stub", "note": "Requires per-event nadir timestamps" },
+          "ranges": [
+            { "max": 0,   "label": "Paradoxical — HR deceleration",  "class": "bad" },
+            { "max": 2,   "label": "Blunted — impaired arousal",     "class": "bad" },
+            { "max": 5,   "label": "Moderate",                       "class": "warn" },
+            { "max": null, "label": "Strong arousal response",        "class": "ok" }
+          ]
+        },
+        {
+          "id": "oxyCrashRate",
+          "abbr": "OxyCrash",
+          "name": "OxyCrash Rate",
+          "fullName": "Acute SpO2 drops ≥5% in 30s, per hour",
+          "tier": "secondary",
+          "unit": "events/hr",
+          "formula": "count(SpO2[t−30] − SpO2[t] ≥ 5) / recHrs",
+          "formulaNote": "30s refractory cooldown. Captures fast-onset desaturations outside ODI criteria.",
+          "compute": { "fn": "stub", "note": "Requires sliding-window peak detection" },
+          "ranges": [
+            { "max": 2,   "label": "Normal",              "class": "ok" },
+            { "max": 8,   "label": "Mildly elevated",     "class": "warn" },
+            { "max": 20,  "label": "Significant",         "class": "bad" },
+            { "max": null, "label": "Severe — evaluate",  "class": "bad" }
+          ]
+        },
+        {
+          "id": "ahiEstimate",
+          "abbr": "AHI Est.",
+          "name": "AHI Estimate",
+          "fullName": "Proxy AHI from ODI-4 (internal calibration; ODI-4 is a standard oximetry AHI surrogate)",
+          "tier": "secondary",
+          "unit": "events/hr",
+          "formula": "ODI-4 × 1.1",
+          "formulaNote": "Population-level proxy. ±5 events/hr uncertainty at individual level. Overestimates in CS/central patterns.",
+          "compute": { "fn": "expr", "expr": "results.odi4.value * 1.1" },
+          "ranges": [
+            { "max": 5,   "label": "No OSA",    "class": "ok" },
+            { "max": 15,  "label": "Mild",       "class": "warn" },
+            { "max": 30,  "label": "Moderate",   "class": "bad" },
+            { "max": null, "label": "Severe",    "class": "bad" }
+          ]
+        },
+        {
+          "id": "worst10min",
+          "abbr": "W10",
+          "name": "Worst 10-min Mean SpO2",
+          "fullName": "Lowest mean SpO2 in any 10-minute sliding window",
+          "tier": "secondary",
+          "unit": "%",
+          "formula": "min(rolling_mean(SpO2, 600s))",
+          "compute": { "fn": "rolling_min_mean", "source": "spo2", "args": [600] },
+          "ranges": [
+            { "max": 85,  "label": "Severe — urgent evaluation",        "class": "bad" },
+            { "max": 90,  "label": "Significant hypoxemia window",      "class": "bad" },
+            { "max": 93,  "label": "Mild concern",                      "class": "warn" },
+            { "max": null, "label": "Normal",                           "class": "ok" }
+          ]
+        },
+        {
+          "id": "worst30minT95",
+          "abbr": "W30-T95",
+          "name": "Worst 30-min T95",
+          "fullName": "Highest T95 found in any 30-minute rolling window",
+          "tier": "secondary",
+          "unit": "%",
+          "formula": "max(rolling_T95(1800s))",
+          "compute": { "fn": "stub", "note": "Requires rolling-window T95" },
+          "ranges": [
+            { "max": 10,  "label": "Normal",                    "class": "ok" },
+            { "max": 30,  "label": "Mild concern",              "class": "warn" },
+            { "max": 60,  "label": "Significant",               "class": "bad" },
+            { "max": null, "label": "Severe sustained hypoxemia", "class": "bad" }
+          ]
+        },
+        {
+          "id": "stableWindows",
+          "abbr": "Stable5",
+          "name": "Stable SpO2 Windows",
+          "fullName": "Count of 5-min windows with SpO2 SD <1% and mean >94%",
+          "tier": "secondary",
+          "unit": "count",
+          "formula": "count(windows where SD < 1 AND mean > 94)",
+          "compute": { "fn": "stub", "note": "Requires windowed stats" },
+          "ranges": [
+            { "max": 5,   "label": "Pervasive instability",     "class": "bad" },
+            { "max": 15,  "label": "Fragmented oxygenation",   "class": "bad" },
+            { "max": 30,  "label": "Moderately stable",         "class": "warn" },
+            { "max": null, "label": "Predominantly stable",     "class": "ok" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clin-valid",
+      "title": "Literature-Inspired Clinical Indices",
+      "icon": "🏥",
+      "description": "Indices derived from published methods — verify exact citations before clinical use",
+      "metrics": [
+        {
+          "id": "sbii",
+          "abbr": "SBII",
+          "name": "Sleep-disordered Breathing Intensity Index",
+          "fullName": "Composite depth×duration index (Hui 2024, SHHS n=4485)",
+          "tier": "secondary",
+          "unit": "%²·min/hr",
+          "formula": "Σ(Dᵢ² × Tᵢ_min) / TRT_hr",
+          "formulaNote": "Depth squared reflects super-linear dose–response to CVD mortality. Q5 ~2.5× mortality vs Q1.",
+          "compute": { "fn": "stub", "note": "Requires per-event extraction with squared depth" },
+          "ranges": [
+            { "max": 2.58,  "label": "Q1 — Lowest risk",     "class": "ok" },
+            { "max": 6.49,  "label": "Q2 — Low",             "class": "ok" },
+            { "max": 12.8,  "label": "Q3 — Median",          "class": "ok" },
+            { "max": 25.54, "label": "Q4 — Elevated",        "class": "warn" },
+            { "max": null,   "label": "Q5 — Highest (~2.5×)", "class": "bad" }
+          ]
+        },
+        {
+          "id": "mos",
+          "abbr": "MOS",
+          "name": "McGill-style Oximetry Grade",
+          "fullName": "Custom adult oximetry severity grade (1–4)",
+          "tier": "secondary",
+          "unit": "grade",
+          "formula": "Scored from ODI-4 rate and CT<90",
+          "formulaNote": "Not the published pediatric McGill Oximetry Score. Custom adult proxy.",
+          "compute": { "fn": "stub", "note": "Cross-metric grading logic" },
+          "ranges": [
+            { "max": 1, "label": "Normal",                       "class": "ok" },
+            { "max": 2, "label": "Borderline — repeat/monitor",  "class": "warn" },
+            { "max": 3, "label": "Abnormal — evaluation needed", "class": "bad" },
+            { "max": 4, "label": "Severely abnormal — urgent",   "class": "bad" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clin-hypoxic",
+      "title": "Hypoxic Burden Metrics",
+      "icon": "💧",
+      "description": "Indices linking hypoxic exposure depth and duration to cardiovascular outcomes",
+      "metrics": [
+        {
+          "id": "cha94",
+          "abbr": "CHA-94",
+          "name": "Cumulative Hypoxemia Area Below 94%",
+          "fullName": "Total area under SpO2 curve below fixed 94% line, per hour",
+          "tier": "secondary",
+          "unit": "%-min/hr",
+          "formula": "Σ max(0, 94 − SpO2[t]) / 60 / rec_hrs",
+          "formulaNote": "Fixed-threshold integral — not the validated event-based Azarbarzin 2019 hypoxic burden.",
+          "compute": { "fn": "auc_below", "source": "spo2", "args": [94, 3600] },
+          "ranges": [
+            { "max": 2,   "label": "Normal",        "class": "ok" },
+            { "max": 10,  "label": "Mild burden",   "class": "warn" },
+            { "max": 25,  "label": "Moderate",       "class": "bad" },
+            { "max": null, "label": "High — SBP correlation", "class": "bad" }
+          ]
+        },
+        {
+          "id": "hd94",
+          "abbr": "HD94",
+          "name": "Hypoxic Dose (94%)",
+          "fullName": "Per-hour depth–duration product relative to 94% threshold (hypoxic-dose framework; Azarbarzin 2019/2020)",
+          "tier": "secondary",
+          "unit": "%-min/hr",
+          "formula": "Σ event(94 − nadir_SpO2) × duration_s / 60 / rec_hrs",
+          "compute": { "fn": "stub", "note": "Requires per-event extraction" },
+          "ranges": [
+            { "max": 2,   "label": "Low dose",        "class": "ok" },
+            { "max": 10,  "label": "Moderate",         "class": "warn" },
+            { "max": null, "label": "High dose",       "class": "bad" }
+          ]
+        },
+        {
+          "id": "hypoxicLoad",
+          "abbr": "HL",
+          "name": "Hypoxic Load",
+          "fullName": "Event-based approximation of Azarbarzin 2019 hypoxic burden",
+          "tier": "secondary",
+          "unit": "a.u.",
+          "formula": "ODI-3_rate × mean_depth_% × mean_duration_min / k",
+          "formulaNote": "Approximation using triangular-area estimate, not literal per-event baseline method.",
+          "compute": { "fn": "stub", "note": "Requires per-event extraction" },
+          "ranges": [
+            { "max": 5,   "label": "Minimal",      "class": "ok" },
+            { "max": 15,  "label": "Low",           "class": "ok" },
+            { "max": 30,  "label": "Moderate",      "class": "warn" },
+            { "max": 60,  "label": "High",          "class": "bad" },
+            { "max": null, "label": "Very high",    "class": "bad" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hr-basics",
+      "title": "Heart Rate Basics",
+      "icon": "❤️",
+      "description": "Nocturnal HR statistics from 1 Hz oximeter photoplethysmography",
+      "metrics": [
+        {
+          "id": "hrFloor",
+          "abbr": "HR Floor",
+          "name": "5th-Percentile Still Heart Rate",
+          "fullName": "5th-percentile HR from motion-free samples",
+          "tier": "core",
+          "unit": "bpm",
+          "formula": "p5(HR where motion = 0)",
+          "compute": { "fn": "percentile_filtered", "source": "hr", "where": "motion", "args": [5, 0] },
+          "ranges": [
+            { "max": 60,  "label": "Athletic / well-trained",  "class": "ok" },
+            { "max": 70,  "label": "Normal",                   "class": "ok" },
+            { "max": 80,  "label": "Mildly elevated",          "class": "warn" },
+            { "max": null, "label": "Elevated resting HR",     "class": "bad" }
+          ]
+        },
+        {
+          "id": "hrSlope",
+          "abbr": "HR Slope",
+          "name": "Linear HR Trend Across Night",
+          "fullName": "OLS slope of HR vs time (bpm/hr)",
+          "tier": "secondary",
+          "unit": "bpm/hr",
+          "formula": "OLS(all motion-free HR samples vs. elapsed time)",
+          "compute": { "fn": "ols_slope_filtered", "source": "hr", "where": "motion", "args": [0] },
+          "ranges": [
+            { "max": -0.5, "label": "Normal nocturnal HR dip",  "class": "ok" },
+            { "max": 0.5,  "label": "Flat — possible fragmentation", "class": "warn" },
+            { "max": null,  "label": "Rising HR — arousal/stress", "class": "bad" }
+          ]
+        },
+        {
+          "id": "hrMean",
+          "abbr": "HR Mean",
+          "name": "Mean Still Heart Rate",
+          "fullName": "Mean HR from motion-free samples",
+          "tier": "core",
+          "unit": "bpm",
+          "formula": "mean(HR where motion = 0)",
+          "compute": { "fn": "mean_filtered", "source": "hr", "where": "motion", "args": [0] },
+          "ranges": [
+            { "max": 60,  "label": "Low / athletic",     "class": "ok" },
+            { "max": 75,  "label": "Normal",              "class": "ok" },
+            { "max": 85,  "label": "Mildly elevated",    "class": "warn" },
+            { "max": null, "label": "Elevated",           "class": "bad" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hrv-proxy",
+      "title": "HRV Proxy Metrics",
+      "icon": "💓",
+      "description": "Variability estimates from 1 Hz HR — directional autonomic indicators only",
+      "metrics": [
+        {
+          "id": "sdnnProxy",
+          "abbr": "SDNN*",
+          "name": "SDNN Proxy",
+          "fullName": "SD of motion-free HR values (1 Hz)",
+          "tier": "secondary",
+          "unit": "bpm",
+          "formula": "SD(HR where motion = 0)",
+          "formulaNote": "Analogous to clinical SDNN but numerically different. Higher = greater autonomic variability.",
+          "compute": { "fn": "sd_filtered", "source": "hr", "where": "motion", "args": [0] },
+          "ranges": [
+            { "max": 3,   "label": "Low — possible autonomic suppression",  "class": "bad" },
+            { "max": 6,   "label": "Moderate",                             "class": "warn" },
+            { "max": null, "label": "Good variability",                     "class": "ok" }
+          ]
+        },
+        {
+          "id": "rmssdProxy",
+          "abbr": "RMSSD*",
+          "name": "RMSSD Proxy",
+          "fullName": "Root mean square of successive HR differences (1 Hz)",
+          "tier": "secondary",
+          "unit": "bpm",
+          "formula": "√(mean((HR[t+1] − HR[t])²)) for motion=0",
+          "formulaNote": "Sensitive to parasympathetic (vagal) tone. Higher = stronger nocturnal vagal activity.",
+          "compute": { "fn": "rmssd_filtered", "source": "hr", "where": "motion", "args": [0] },
+          "ranges": [
+            { "max": 2,   "label": "Reduced vagal tone",  "class": "bad" },
+            { "max": 4,   "label": "Moderate",             "class": "warn" },
+            { "max": null, "label": "Good vagal activity", "class": "ok" }
+          ]
+        },
+        {
+          "id": "pnn3",
+          "abbr": "pNN3",
+          "name": "pNN3 Equivalent",
+          "fullName": "% of consecutive HR pairs differing by ≥3 bpm",
+          "tier": "secondary",
+          "unit": "%",
+          "formula": "pairs(|HR[t+1]−HR[t]| ≥ 3) / total_pairs × 100",
+          "formulaNote": "Analogous to clinical pNN50, scaled for 1 Hz integer HR data.",
+          "compute": { "fn": "pnn_equiv", "source": "hr", "where": "motion", "args": [0, 3] },
+          "ranges": [
+            { "max": 10,  "label": "Low vagal drive",  "class": "warn" },
+            { "max": 40,  "label": "Moderate",          "class": "ok" },
+            { "max": null, "label": "Good vagal drive", "class": "ok" }
+          ]
+        },
+        {
+          "id": "rmssdArc",
+          "abbr": "RMSSD Arc",
+          "name": "RMSSD Trajectory Across Night",
+          "fullName": "OLS slope of 30-min windowed RMSSD values",
+          "tier": "research",
+          "unit": "bpm/hr",
+          "formula": "OLS slope of RMSSD[window] vs. window_index",
+          "formulaNote": "Rising arc = increasing vagal tone (good recovery). Flat/declining = impaired.",
+          "compute": { "fn": "stub", "note": "Requires windowed RMSSD computation" },
+          "ranges": [
+            { "max": -0.1, "label": "Declining — impaired recovery",  "class": "warn" },
+            { "max": 0.1,  "label": "Flat",                           "class": "ok" },
+            { "max": null,  "label": "Rising — good recovery",        "class": "ok" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hr-adv",
+      "title": "Spectral & Nonlinear HR Metrics",
+      "icon": "🔊",
+      "description": "Frequency-domain and complexity analysis",
+      "metrics": [
+        {
+          "id": "lfHf",
+          "abbr": "LF/HF",
+          "name": "LF/HF Ratio",
+          "fullName": "Low/High frequency HR band power ratio",
+          "tier": "research",
+          "unit": "ratio",
+          "formula": "LF(0.04–0.15 Hz) / HF(0.15–0.40 Hz) band power",
+          "formulaNote": "DFT-based on capped subsample ≤1800s. Proxy only — not suitable for clinical autonomic diagnosis.",
+          "compute": { "fn": "lf_hf_ratio", "source": "hr", "args": [0.04, 0.15, 0.15, 0.40, 1800] },
+          "ranges": [
+            { "max": 0.5,  "label": "HF dominant — unusual",      "class": "warn" },
+            { "max": 2.0,  "label": "Vagal dominant (normal sleep)", "class": "ok" },
+            { "max": 4.0,  "label": "Mild sympathetic activation", "class": "warn" },
+            { "max": null,  "label": "Sympathetic dominant",       "class": "bad" }
+          ]
+        },
+        {
+          "id": "apEn",
+          "abbr": "ApEn",
+          "name": "Approximate Entropy",
+          "fullName": "Nonlinear HR regularity measure (Pincus 1991)",
+          "tier": "research",
+          "unit": "entropy",
+          "formula": "φ(m) − φ(m+1); m=2, r=0.2×SD",
+          "formulaNote": "Low = repetitive (autonomic suppression). High = complex (healthy variability). Corrected in v22.15.",
+          "compute": { "fn": "approx_entropy", "source": "hr", "args": [2, 0.2, 300] },
+          "ranges": [
+            { "max": 0.4,  "label": "Low complexity — suppressed autonomic variability", "class": "bad" },
+            { "max": 0.8,  "label": "Moderate",                          "class": "warn" },
+            { "max": null,  "label": "High complexity — healthy",        "class": "ok" }
+          ]
+        },
+        {
+          "id": "sd1sd2",
+          "abbr": "SD1/SD2",
+          "name": "Poincaré Short/Long-Term HRV",
+          "fullName": "Geometric HRV from Poincaré plot (HR[t] vs HR[t+1])",
+          "tier": "research",
+          "unit": "bpm",
+          "formula": "d1=(HR[t+1]−HR[t])/√2; d2=(HR[t+1]+HR[t])/√2; SD1=SD(d1), SD2=SD(d2)",
+          "formulaNote": "SD1 = beat-to-beat variability (vagal). SD2 = long-term variability (total autonomic).",
+          "compute": { "fn": "poincare", "source": "hr", "where": "motion", "args": [0] },
+          "ranges": [
+            { "max": 1,   "label": "SD1 low — reduced vagal",  "class": "warn" },
+            { "max": 3,   "label": "SD1 moderate",              "class": "ok" },
+            { "max": null, "label": "SD1 good",                 "class": "ok" }
+          ]
+        },
+        {
+          "id": "rsaProxy",
+          "abbr": "RSA*",
+          "name": "Respiratory Sinus Arrhythmia Proxy",
+          "fullName": "SD of SpO2 within 30s motion-free windows, averaged",
+          "tier": "research",
+          "unit": "a.u.",
+          "formula": "mean[SD(SpO2, 30s window)] for motion=0",
+          "compute": { "fn": "stub", "note": "Requires windowed SD with motion filter" },
+          "ranges": [
+            { "max": 0.3,  "label": "Weak coupling — autonomic suppression",  "class": "bad" },
+            { "max": 0.8,  "label": "Moderate",                               "class": "warn" },
+            { "max": null,  "label": "Good respiratory coupling",              "class": "ok" }
+          ]
+        },
+        {
+          "id": "hrIQR",
+          "abbr": "HR IQR",
+          "name": "Interquartile Range of HR",
+          "fullName": "p75 − p25 of motion-free HR values",
+          "tier": "secondary",
+          "unit": "bpm",
+          "formula": "p75(HR[motion=0]) − p25(HR[motion=0])",
+          "compute": { "fn": "iqr_filtered", "source": "hr", "where": "motion", "args": [0] },
+          "ranges": [
+            { "max": 5,   "label": "Narrow — possible sustained sympathetic", "class": "warn" },
+            { "max": 15,  "label": "Normal spread",                             "class": "ok" },
+            { "max": null, "label": "Wide — strong HR variability",           "class": "ok" }
+          ]
+        },
+        {
+          "id": "hrCV",
+          "abbr": "HR CV",
+          "name": "Heart Rate Coefficient of Variation",
+          "fullName": "SD(HR) / mean(HR) × 100 for motion-free samples",
+          "tier": "secondary",
+          "unit": "%",
+          "formula": "SD(HR[motion=0]) / mean(HR[motion=0]) × 100",
+          "compute": { "fn": "cov_filtered", "source": "hr", "where": "motion", "args": [0] },
+          "ranges": [
+            { "max": 3,   "label": "Low variability",     "class": "warn" },
+            { "max": 10,  "label": "Normal",               "class": "ok" },
+            { "max": null, "label": "High variability",    "class": "ok" }
+          ]
+        },
+        {
+          "id": "vagalIndex",
+          "abbr": "VI",
+          "name": "Vagal Index",
+          "fullName": "Composite vagal tone proxy from HR variability",
+          "tier": "research",
+          "unit": "a.u.",
+          "formula": "composite(RMSSD*, pNN3, RSA*)",
+          "compute": { "fn": "stub", "note": "Composite of other metrics" },
+          "ranges": [
+            { "max": 30,  "label": "Low vagal tone",       "class": "bad" },
+            { "max": 60,  "label": "Moderate",              "class": "warn" },
+            { "max": null, "label": "Good vagal tone",      "class": "ok" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "spikes",
+      "title": "Spike Analysis",
+      "icon": "📈",
+      "description": "Heart rate spike detection and autonomic arousal indexing",
+      "metrics": [
+        {
+          "id": "hrSpikes",
+          "abbr": "Spikes",
+          "name": "HR Spike Count",
+          "fullName": "Count of HR elevations ≥10 bpm above 5-min rolling median",
+          "tier": "secondary",
+          "unit": "count",
+          "formula": "count(HR[t] > rolling_median + 10)",
+          "compute": { "fn": "stub", "note": "Requires rolling median spike detection" },
+          "ranges": [
+            { "max": 10,  "label": "Low — good stability",  "class": "ok" },
+            { "max": 30,  "label": "Moderate",               "class": "warn" },
+            { "max": null, "label": "High — fragmented",     "class": "bad" }
+          ]
+        },
+        {
+          "id": "aai",
+          "abbr": "AAI",
+          "name": "Autonomic Arousal Index",
+          "fullName": "HR spikes per hour (arousal proxy)",
+          "tier": "secondary",
+          "unit": "events/hr",
+          "formula": "hr_spike_count / recording_hours",
+          "compute": { "fn": "stub", "note": "Requires spike detection" },
+          "ranges": [
+            { "max": 5,   "label": "Low arousal burden",   "class": "ok" },
+            { "max": 15,  "label": "Moderate",              "class": "warn" },
+            { "max": null, "label": "High — investigate",   "class": "bad" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sleep-timing",
+      "title": "Sleep Timing Metrics",
+      "icon": "🌙",
+      "description": "Sleep onset, wake, and ultradian cycle detection",
+      "metrics": [
+        {
+          "id": "sol",
+          "abbr": "SOL",
+          "name": "Sleep Onset Latency",
+          "fullName": "Time from recording start to first sustained low-motion period",
+          "tier": "core",
+          "unit": "min",
+          "formula": "first(motion=0 for ≥5 min) − recording_start",
+          "compute": { "fn": "stub", "note": "Requires motion run-length analysis" },
+          "ranges": [
+            { "max": 15,  "label": "Normal",              "class": "ok" },
+            { "max": 30,  "label": "Mildly prolonged",    "class": "warn" },
+            { "max": null, "label": "Prolonged onset",    "class": "bad" }
+          ]
+        },
+        {
+          "id": "waso",
+          "abbr": "WASO",
+          "name": "Wake After Sleep Onset",
+          "fullName": "Total awake minutes after initial sleep onset",
+          "tier": "core",
+          "unit": "min",
+          "formula": "sum(motion=1 episodes after SOL)",
+          "compute": { "fn": "stub", "note": "Requires sleep/wake epoch classification" },
+          "ranges": [
+            { "max": 30,  "label": "Normal",        "class": "ok" },
+            { "max": 60,  "label": "Mildly elevated", "class": "warn" },
+            { "max": null, "label": "Fragmented",    "class": "bad" }
+          ]
+        },
+        {
+          "id": "ultradianCycles",
+          "abbr": "UC",
+          "name": "Ultradian Cycles",
+          "fullName": "Estimated number of ~90-min sleep cycles",
+          "tier": "secondary",
+          "unit": "count",
+          "formula": "count(HR trough clusters spaced 70–120 min apart)",
+          "compute": { "fn": "stub", "note": "Requires HR trough periodicity detection" },
+          "ranges": [
+            { "max": 3,   "label": "Short sleep / few cycles",  "class": "warn" },
+            { "max": 6,   "label": "Normal (4–5 typical)",      "class": "ok" },
+            { "max": null, "label": "Extended sleep",            "class": "ok" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sleep-stage",
+      "title": "Sleep Stage Proxies",
+      "icon": "💤",
+      "description": "REM and deep sleep estimates from HR and motion patterns",
+      "metrics": [
+        {
+          "id": "remProxy",
+          "abbr": "REM*",
+          "name": "REM Proxy",
+          "fullName": "Estimated REM minutes from HR elevation + low motion episodes",
+          "tier": "secondary",
+          "unit": "min",
+          "formula": "count(motion=0 AND HR > rolling_p75 for ≥5 min blocks)",
+          "compute": { "fn": "stub", "note": "Requires combined HR/motion windowing" },
+          "ranges": [
+            { "max": 60,  "label": "Low REM estimate",     "class": "warn" },
+            { "max": 120, "label": "Normal range",          "class": "ok" },
+            { "max": null, "label": "High estimate",        "class": "ok" }
+          ]
+        },
+        {
+          "id": "nremDeep",
+          "abbr": "NREM-Deep",
+          "name": "NREM Deep Proxy",
+          "fullName": "Estimated deep sleep from low HR + low motion + stable SpO2",
+          "tier": "secondary",
+          "unit": "min",
+          "formula": "count(motion=0 AND HR < p25 AND SpO2 SD < 1% for ≥5 min)",
+          "compute": { "fn": "stub", "note": "Requires triple-condition windowing" },
+          "ranges": [
+            { "max": 30,  "label": "Low deep sleep",   "class": "warn" },
+            { "max": 90,  "label": "Normal range",      "class": "ok" },
+            { "max": null, "label": "High estimate",    "class": "ok" }
+          ]
+        },
+        {
+          "id": "sleepStability",
+          "abbr": "SS",
+          "name": "Sleep Stability Index",
+          "fullName": "Fraction of night in continuous ≥15-min low-motion blocks",
+          "tier": "secondary",
+          "unit": "%",
+          "formula": "time_in_≥15min_motion0_blocks / total_sleep_time × 100",
+          "compute": { "fn": "stub", "note": "Requires run-length analysis" },
+          "ranges": [
+            { "max": 50,  "label": "Highly fragmented",   "class": "bad" },
+            { "max": 75,  "label": "Moderately stable",   "class": "warn" },
+            { "max": null, "label": "Stable sleep",        "class": "ok" }
+          ]
+        },
+        {
+          "id": "wasoPct",
+          "abbr": "WASO%",
+          "name": "WASO Percentage",
+          "fullName": "Wake time as percentage of total sleep period",
+          "tier": "secondary",
+          "unit": "%",
+          "formula": "WASO_min / (recording_duration_min − SOL_min) × 100",
+          "compute": { "fn": "stub", "note": "Requires SOL and WASO" },
+          "ranges": [
+            { "max": 10,  "label": "Normal",               "class": "ok" },
+            { "max": 20,  "label": "Mildly fragmented",    "class": "warn" },
+            { "max": null, "label": "Highly fragmented",   "class": "bad" }
+          ]
+        },
+        {
+          "id": "spi",
+          "abbr": "SPI",
+          "name": "Sleep Periodicity Index",
+          "fullName": "Regularity of sleep–wake cycling across the night",
+          "tier": "research",
+          "unit": "a.u.",
+          "formula": "autocorr(motion_binary, lag=90min) — periodicity measure",
+          "compute": { "fn": "stub", "note": "Requires motion autocorrelation" },
+          "ranges": [
+            { "max": 0.3,  "label": "Low periodicity",     "class": "ok" },
+            { "max": 0.6,  "label": "Moderate cycling",    "class": "warn" },
+            { "max": null,  "label": "High — regular awakenings", "class": "bad" }
+          ]
+        },
+        {
+          "id": "motionPct",
+          "abbr": "Motion%",
+          "name": "Motion Percentage",
+          "fullName": "Percentage of recording with motion detected",
+          "tier": "core",
+          "unit": "%",
+          "formula": "count(motion=1) / total_samples × 100",
+          "compute": { "fn": "pct_above", "source": "motion", "args": [0] },
+          "ranges": [
+            { "max": 10,  "label": "Low — restful night",  "class": "ok" },
+            { "max": 20,  "label": "Moderate",              "class": "warn" },
+            { "max": null, "label": "High — restless",      "class": "bad" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "composite",
+      "title": "Composite Scores",
+      "icon": "🎯",
+      "description": "Multi-metric integration scores",
+      "metrics": [
+        {
+          "id": "nsi",
+          "abbr": "NSI",
+          "name": "Nocturnal Stability Index",
+          "fullName": "Composite 0–100 score integrating SpO2, HRV, motion, and event burden",
+          "tier": "core",
+          "unit": "score",
+          "formula": "w1×SpO2_score + w2×HRV_score + w3×motion_score + w4×ODI_score",
+          "formulaNote": "100 = perfectly stable night. Each sub-score normalized 0–100.",
+          "compute": { "fn": "stub", "note": "Composite — requires all sub-scores" },
+          "ranges": [
+            { "max": 40,  "label": "Poor — significant instability",  "class": "bad" },
+            { "max": 60,  "label": "Fair — room for improvement",     "class": "warn" },
+            { "max": 80,  "label": "Good",                            "class": "ok" },
+            { "max": null, "label": "Excellent",                      "class": "ok" }
+          ]
+        },
+        {
+          "id": "csScore",
+          "abbr": "CS",
+          "name": "Cheyne-Stokes Score",
+          "fullName": "Likelihood of periodic breathing pattern",
+          "tier": "secondary",
+          "unit": "score",
+          "formula": "composite(CDI, FFT_period, DFA_α1, IEI_regularity)",
+          "compute": { "fn": "stub", "note": "Composite — requires sub-metrics" },
+          "ranges": [
+            { "max": 20,  "label": "Unlikely PB",         "class": "ok" },
+            { "max": 50,  "label": "Possible PB pattern", "class": "warn" },
+            { "max": null, "label": "Probable PB/CS",     "class": "bad" }
+          ]
+        },
+        {
+          "id": "sfi",
+          "abbr": "SFI",
+          "name": "Sleep Fragmentation Index",
+          "fullName": "Composite of motion%, awakenings, and HR spike burden",
+          "tier": "secondary",
+          "unit": "score",
+          "formula": "composite(motion%, WASO%, AAI)",
+          "compute": { "fn": "stub", "note": "Composite" },
+          "ranges": [
+            { "max": 20,  "label": "Stable sleep",         "class": "ok" },
+            { "max": 40,  "label": "Mildly fragmented",    "class": "warn" },
+            { "max": null, "label": "Highly fragmented",   "class": "bad" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cross",
+      "title": "Cross-Signal Metrics",
+      "icon": "🔗",
+      "description": "SpO2–HR coupling and cross-modal dynamics",
+      "metrics": [
+        {
+          "id": "crcIndex",
+          "abbr": "CRC",
+          "name": "Cardiorespiratory Coupling Index",
+          "fullName": "Correlation between SpO2 oscillations and HR oscillations",
+          "tier": "research",
+          "unit": "r",
+          "formula": "corr(filtered_SpO2, filtered_HR) in 30s windows",
+          "compute": { "fn": "stub", "note": "Requires windowed cross-correlation" },
+          "ranges": [
+            { "max": -0.3, "label": "Strong inverse coupling",  "class": "ok" },
+            { "max": 0.3,  "label": "Weak coupling",            "class": "ok" },
+            { "max": null,  "label": "Positive coupling — abnormal?", "class": "warn" }
+          ]
+        },
+        {
+          "id": "spo2hrLag",
+          "abbr": "SpO2-HR Lag",
+          "name": "SpO2–HR Lag",
+          "fullName": "Temporal lag (s) of peak cross-correlation between SpO2 and HR",
+          "tier": "research",
+          "unit": "s",
+          "formula": "argmax(cross_corr(SpO2, HR, lags=[−30..+30s]))",
+          "compute": { "fn": "stub", "note": "Requires cross-correlation" },
+          "ranges": [
+            { "max": -10, "label": "HR leads SpO2 (normal arousal)",  "class": "ok" },
+            { "max": 10,  "label": "Simultaneous",                    "class": "ok" },
+            { "max": null, "label": "SpO2 leads HR (unusual)",        "class": "warn" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vo2max",
+      "title": "VO2max Estimate",
+      "icon": "🏃",
+      "description": "Estimated maximal oxygen consumption from nocturnal HR data",
+      "metrics": [
+        {
+          "id": "vo2max",
+          "abbr": "VO2max",
+          "name": "Estimated VO2max",
+          "fullName": "Estimated maximal oxygen consumption (Uth–Sørensen HR-ratio)",
+          "tier": "secondary",
+          "unit": "mL/kg/min",
+          "formula": "15.3 × (HRmax / HRfloor)",
+          "formulaNote": "Uth–Sørensen HR-ratio formula. HRmax assumed 208 − 0.7×age (Tanaka 2001) if not directly measured. Proxy only.",
+          "compute": { "fn": "stub", "note": "Requires age or HRmax input + HR_floor" },
+          "ranges": [
+            { "max": 30,  "label": "Poor",                "class": "bad" },
+            { "max": 40,  "label": "Below average",       "class": "warn" },
+            { "max": 50,  "label": "Average",              "class": "ok" },
+            { "max": 60,  "label": "Good",                 "class": "ok" },
+            { "max": null, "label": "Excellent",           "class": "ok" }
+          ]
+        }
+      ]
+    },
+    
+    {
+      "id": "karvonen",
+      "title": "Karvonen Zones",
+      "icon": "🎯",
+      "description": "Heart rate training zones from nocturnal resting HR",
+      "metrics": [
+        {
+          "id": "zones",
+          "abbr": "Z1–Z5",
+          "name": "Karvonen HR Zones",
+          "fullName": "Five training zones from HR_floor and estimated HRmax",
+          "tier": "secondary",
+          "unit": "bpm range",
+          "formula": "Zone N = HRfloor + N% × (HRmax − HRfloor)",
+          "formulaNote": "Z1: 50–60%, Z2: 60–70%, Z3: 70–80%, Z4: 80–90%, Z5: 90–100%",
+          "compute": { "fn": "stub", "note": "Requires age/HRmax + HR_floor" },
+          "ranges": [
+            { "max": null, "label": "Reference zones — no pass/fail", "class": "ok" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "longitudinal",
+      "title": "Multi-Night Trends",
+      "icon": "📅",
+      "description": "Longitudinal patterns across multiple recording nights",
+      "metrics": [
+        {
+          "id": "nsiMean",
+          "abbr": "NSI μ±σ",
+          "name": "Multi-Night NSI Mean ± SD",
+          "fullName": "Mean and standard deviation of NSI across recording nights",
+          "tier": "secondary",
+          "unit": "score",
+          "formula": "mean(NSI[nights]) ± SD(NSI[nights])",
+          "compute": { "fn": "stub", "note": "Requires longitudinal NSI array" },
+          "ranges": [
+            { "max": 50,  "label": "Consistently poor",   "class": "bad" },
+            { "max": 70,  "label": "Variable",             "class": "warn" },
+            { "max": null, "label": "Consistently good",   "class": "ok" }
+          ]
+        },
+        {
+          "id": "spo2NightCV",
+          "abbr": "SpO2 Night CV",
+          "name": "Inter-Night SpO2 Variation",
+          "fullName": "CV of mean SpO2 across nights",
+          "tier": "secondary",
+          "unit": "%",
+          "formula": "SD(mean_SpO2_per_night) / grand_mean × 100",
+          "compute": { "fn": "stub", "note": "Requires longitudinal SpO2 means" },
+          "ranges": [
+            { "max": 1,   "label": "Consistent",     "class": "ok" },
+            { "max": 3,   "label": "Mild variation",  "class": "warn" },
+            { "max": null, "label": "High variation", "class": "bad" }
+          ]
+        },
+        {
+          "id": "deltaOdi4",
+          "abbr": "ΔODI-4",
+          "name": "ODI-4 Trend (first half vs second)",
+          "fullName": "Change in ODI-4 between first and second half of recording period",
+          "tier": "secondary",
+          "unit": "events/hr",
+          "formula": "mean(ODI4[nights_second_half]) − mean(ODI4[nights_first_half])",
+          "compute": { "fn": "stub", "note": "Requires longitudinal ODI array" },
+          "ranges": [
+            { "max": -3,  "label": "Improving trend",  "class": "ok" },
+            { "max": 3,   "label": "Stable",            "class": "ok" },
+            { "max": null, "label": "Worsening trend",  "class": "bad" }
+          ]
+        },
+        {
+          "id": "poorNightsPct",
+          "abbr": "Poor%",
+          "name": "Poor Nights Percentage",
+          "fullName": "Percentage of nights with NSI < 50",
+          "tier": "secondary",
+          "unit": "%",
+          "formula": "count(NSI < 50) / total_nights × 100",
+          "compute": { "fn": "stub", "note": "Requires longitudinal NSI array" },
+          "ranges": [
+            { "max": 10,  "label": "Consistently good",     "class": "ok" },
+            { "max": 30,  "label": "Occasional poor nights", "class": "warn" },
+            { "max": null, "label": "Frequently poor",       "class": "bad" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sig-qual",
+      "title": "Signal Quality",
+      "icon": "📡",
+      "description": "Data quality assessment and artifact detection",
+      "metrics": [
+        {
+          "id": "hrArtifactPct",
+          "abbr": "HR Art%",
+          "name": "HR Artifact Percentage",
+          "fullName": "Percentage of HR samples flagged as artifact",
+          "tier": "core",
+          "unit": "%",
+          "formula": "count(HR artifact flagged) / total_samples × 100",
+          "formulaNote": "Artifact = HR outside 30–220 bpm or sudden >30 bpm jump in 1s.",
+          "compute": { "fn": "stub", "note": "Requires artifact detection logic" },
+          "ranges": [
+            { "max": 2,   "label": "Clean signal",     "class": "ok" },
+            { "max": 5,   "label": "Minor artifacts",  "class": "warn" },
+            { "max": null, "label": "Significant artifacts — results may be unreliable", "class": "bad" }
+          ]
+        },
+        {
+          "id": "hrFlatlines",
+          "abbr": "HR Flat",
+          "name": "HR Flatline Count",
+          "fullName": "Count of runs where HR is identical for ≥10 consecutive seconds",
+          "tier": "secondary",
+          "unit": "count",
+          "formula": "count(runs where HR[t] == HR[t+1] == ... for ≥10s)",
+          "compute": { "fn": "stub", "note": "Requires run-length encoding" },
+          "ranges": [
+            { "max": 2,   "label": "Normal",           "class": "ok" },
+            { "max": 10,  "label": "Minor concern",    "class": "warn" },
+            { "max": null, "label": "Significant — device issue?", "class": "bad" }
+          ]
+        },
+        {
+          "id": "dataGaps",
+          "abbr": "Gaps",
+          "name": "Data Gap Count",
+          "fullName": "Count of missing-data intervals ≥5 seconds",
+          "tier": "core",
+          "unit": "count",
+          "formula": "count(gaps ≥ 5s in timestamp series)",
+          "compute": { "fn": "stub", "note": "Requires timestamp diff analysis" },
+          "ranges": [
+            { "max": 3,   "label": "Minimal gaps",  "class": "ok" },
+            { "max": 10,  "label": "Some gaps",     "class": "warn" },
+            { "max": null, "label": "Significant data loss", "class": "bad" }
+          ]
+        },
+        {
+          "id": "lcsp",
+          "abbr": "LCSP",
+          "name": "Longest Clean SpO2 Period",
+          "fullName": "Longest continuous run with SpO2 SD < 1% and mean > 94%",
+          "tier": "secondary",
+          "unit": "min",
+          "formula": "max(continuous_windows where SD < 1 AND mean > 94)",
+          "compute": { "fn": "stub", "note": "Requires run-length analysis on windowed stats" },
+          "ranges": [
+            { "max": 30,  "label": "Short — fragmented",   "class": "warn" },
+            { "max": 120, "label": "Moderate",              "class": "ok" },
+            { "max": null, "label": "Long — stable night",  "class": "ok" }
+          ]
+        }
+      ]
+    }
+  ],
+
+  "abbreviations": {
+    "AHI": "Apnea–Hypopnea Index",
+    "AAI": "Autonomic Arousal Index",
+    "ANS": "Autonomic Nervous System",
+    "ApEn": "Approximate Entropy",
+    "AUC-90": "Area Under SpO2 Curve below 90%",
+    "biCV": "Coefficient of Variation of Inter-Nadir Intervals",
+    "BP": "Blood Pressure",
+    "CHA-94": "Cumulative Hypoxemia Area below 94%",
+    "CMV": "Cardiac Mechanical Variability",
+    "CPAP": "Continuous Positive Airway Pressure",
+    "CRC": "Cardiorespiratory Coupling",
+    "CS": "Cheyne-Stokes",
+    "CT<90": "Cumulative Time below 90% SpO2",
+    "CV": "Coefficient of Variation",
+    "DFA": "Detrended Fluctuation Analysis",
+    "DFT": "Discrete Fourier Transform",
+    "ECG": "Electrocardiogram",
+    "FFT": "Fast Fourier Transform",
+    "HF": "High Frequency (0.15–0.40 Hz)",
+    "HR": "Heart Rate",
+    "HRV": "Heart Rate Variability",
+    "IQR": "Interquartile Range",
+    "LF": "Low Frequency (0.04–0.15 Hz)",
+    "MODL": "Mean Oxygen Desaturation Level",
+    "MOS": "McGill-style Oximetry Score",
+    "NREM": "Non-Rapid Eye Movement",
+    "NSI": "Nocturnal Stability Index",
+    "ODI": "Oxygen Desaturation Index",
+    "ODRI": "ODI Ratio Index (ODI-3/ODI-1)",
+    "OLS": "Ordinary Least Squares",
+    "OSA": "Obstructive Sleep Apnea",
+    "PB": "Periodic Breathing",
+    "pNN3": "Percentage of successive HR differences ≥ 3 bpm",
+    "pNN50": "Percentage of successive RR differences ≥ 50 ms",
+    "PPG": "Photoplethysmography",
+    "PSG": "Polysomnography",
+    "REM": "Rapid Eye Movement",
+    "RMSSD": "Root Mean Square of Successive Differences",
+    "RSA": "Respiratory Sinus Arrhythmia",
+    "SampEn": "Sample Entropy",
+    "SBII": "Sleep-disordered Breathing Intensity Index",
+    "SBP": "Systolic Blood Pressure",
+    "SD": "Standard Deviation",
+    "SDNN": "Standard Deviation of NN intervals",
+    "SHHS": "Sleep Heart Health Study",
+    "SOL": "Sleep Onset Latency",
+    "SpO2": "Peripheral Oxygen Saturation",
+    "SPI": "Sleep Periodicity Index",
+    "T80–T95": "Time below SpO2 threshold (80–95%)",
+    "TECA": "Treatment-Emergent Central Apnea",
+    "UARS": "Upper Airway Resistance Syndrome",
+    "VI": "Vagal Index",
+    "VO2max": "Maximal Oxygen Consumption",
+    "WASO": "Wake After Sleep Onset"
+  }
+}

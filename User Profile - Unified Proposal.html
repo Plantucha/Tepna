@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  User Profile — Unified Proposal — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unified User Profile — Proposal</title>
+<style>
+  /* tokens mirrored from ans-design.css §1 */
+  :root{
+    --bg:#0B0F14;--surface:#121821;--surface2:#18212C;--surface3:#1E2835;
+    --border:#1e2d42;--border2:#253550;
+    --text:#F4F7FB;--text2:#9FB0C3;--text3:#8C9DB3;--text4:#6E7F94;
+    --teal:#3DE0D0;--blue:#58A6FF;--green:#39D98A;--amber:#FFB84D;--red:#FF6B7A;--purple:#a78bfa;
+    --r-sm:8px;--r-md:12px;
+    --sans:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;padding:40px 32px 90px;line-height:1.5;max-width:1120px;margin:0 auto}
+  h1{font-size:23px;font-weight:700;margin:0 0 4px;letter-spacing:-.01em}
+  .sub{color:var(--text3);font-size:13px;margin:0 0 4px;max-width:760px}
+  .sub b{color:var(--text2)}
+  h2{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--text4);margin:44px 0 14px;display:flex;align-items:center;gap:10px}
+  h2::after{content:'';flex:1;height:1px;background:var(--border)}
+  h2 .n{display:inline-flex;width:19px;height:19px;border-radius:50%;background:var(--surface3);
+    color:var(--teal);align-items:center;justify-content:center;font-size:10.5px;font-family:var(--mono)}
+  .note{font-size:12.5px;color:var(--text2);max-width:820px;margin:0 0 16px}
+  .note b{color:var(--text)}
+  code{font-family:var(--mono);font-size:11.5px;background:var(--surface2);
+    padding:1px 6px;border-radius:5px;color:var(--teal)}
+  .lead{color:var(--text2);font-size:13.5px;max-width:820px;margin:14px 0 0;line-height:1.6}
+  .lead b{color:var(--text)}
+
+  /* ── tables ───────────────────────────────────────────────────────── */
+  .matrix{border-collapse:collapse;font-size:12px;margin-top:6px;width:100%}
+  .matrix th,.matrix td{border:1px solid var(--border);padding:8px 11px;text-align:left;vertical-align:top}
+  .matrix th{background:var(--surface2);color:var(--text3);font-weight:600;font-size:10.5px;
+    text-transform:uppercase;letter-spacing:.04em;position:sticky;top:0}
+  .matrix td{color:var(--text2)}
+  .matrix tr td:first-child{color:var(--text);font-weight:600;white-space:nowrap}
+  .matrix .y{color:var(--green)}.matrix .n{color:var(--text4)}.matrix .x{color:var(--purple)}
+  .matrix .bad{color:var(--red)}.matrix .warn{color:var(--amber)}
+  .matrix code{font-size:10.5px;padding:0 4px}
+  .scroll{overflow-x:auto;border-radius:var(--r-sm)}
+  .mono-sm{font-family:var(--mono);font-size:10.5px;color:var(--text3)}
+
+  /* ── stage (mock surface) ─────────────────────────────────────────── */
+  .stage{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+    padding:24px;margin-bottom:8px;position:relative;overflow:hidden}
+  .stage .cap{position:absolute;top:10px;right:14px;font-family:var(--mono);font-size:10px;color:var(--text4)}
+  .stage.light{background:#F4F7FB;border-color:rgba(0,0,0,.08);color:#0B0F14}
+
+  /* ── tags / pills ─────────────────────────────────────────────────── */
+  .tag{display:inline-block;font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:4px;
+    background:var(--surface3);color:var(--text3);border:1px solid var(--border);vertical-align:middle}
+  .tag.add{color:var(--purple);border-color:rgba(167,139,250,.32)}
+  .tag.rm{color:var(--red);border-color:rgba(255,107,122,.3)}
+  .tag.core{color:var(--teal);border-color:rgba(61,224,208,.3)}
+
+  /* ── THE UNIFIED PROFILE PANEL (faithful to .prof-* in ans-design.css) ── */
+  .panel{max-width:640px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden}
+  .p-head{display:flex;align-items:center;justify-content:space-between;
+    padding:12px 18px;background:var(--surface2);border-bottom:1px solid var(--border)}
+  .p-head h3{margin:0;font-size:13.5px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .p-head .toggle{font-family:var(--mono);font-size:11px;color:var(--text4);cursor:default}
+  .p-auto{padding:9px 18px;background:var(--surface3);border-bottom:1px solid var(--border);
+    font-size:11px;color:var(--text3);line-height:1.5}
+  .p-auto b{color:var(--teal)}
+  .p-body{padding:14px 18px 18px}
+  .grp-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
+    color:var(--text4);margin:14px 0 9px;display:flex;align-items:center;gap:8px}
+  .grp-label:first-child{margin-top:2px}
+  .grp-label .src{margin-left:auto;font-family:var(--mono);font-size:9px;font-weight:400;letter-spacing:0;text-transform:none}
+  .grp-label .src.shared{color:var(--teal)}
+  .prof-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px 18px}
+  .prof-field{display:flex;flex-direction:column;gap:4px}
+  .prof-field.wide{grid-column:1/-1}
+  .prof-label{font-size:12px;font-weight:600;color:var(--text2)}
+  .prof-sub{font-size:9.5px;color:var(--text4);line-height:1.45;min-height:13px}
+  .prof-sub.est{color:var(--amber)}
+  .prof-sub.ok{color:var(--green)}
+  .prof-input{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);
+    padding:8px 11px;font-size:13px;color:var(--text);font-family:var(--sans);width:100%}
+  select.prof-input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236F8096'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 11px center}
+  /* derived readout */
+  .pd-group{margin-top:14px;padding-top:13px;border-top:1px solid var(--border)}
+  .pd-group-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text4);margin-bottom:9px;display:block}
+  .pd-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px}
+  .pdi{font-size:11px;color:var(--text2);line-height:1.5}
+  .pdi b{color:var(--text)}
+  .pdi .f{display:block;font-size:9px;color:var(--text4);font-family:var(--mono)}
+
+  /* field-origin coloured left edge */
+  .prof-field{border-left:2px solid transparent;padding-left:9px;margin-left:-11px}
+  .prof-field.fcore{border-left-color:var(--teal)}
+  .prof-field.fnode{border-left-color:var(--purple)}
+
+  /* phone */
+  .phone{width:330px;border:1px solid var(--border);border-radius:22px;background:var(--bg);
+    overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+  .phone .scr{height:440px;overflow:hidden;position:relative}
+  .phone .panel{max-width:none;border:0;border-radius:0;height:100%}
+  .phone .prof-grid{grid-template-columns:1fr}
+
+  .row{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:11px;color:var(--text3);margin:10px 0 2px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .swatch{width:11px;height:11px;border-radius:3px;display:inline-block}
+
+  /* engine diagram */
+  .arch{display:grid;grid-template-columns:1fr;gap:0;max-width:760px;font-size:12px}
+  .arch .layer{border:1px solid var(--border);border-radius:var(--r-sm);padding:13px 16px;background:var(--surface)}
+  .arch .layer + .layer{margin-top:0}
+  .arch .conn{height:18px;width:2px;background:var(--border2);margin:0 auto}
+  .arch .layer h4{margin:0 0 4px;font-size:12.5px;display:flex;align-items:center;gap:8px}
+  .arch .layer p{margin:0;font-size:11.5px;color:var(--text3);line-height:1.5}
+  .arch .layer .files{margin-top:7px;display:flex;gap:6px;flex-wrap:wrap}
+  .arch .nodes{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:2px}
+  .arch .nodechip{border:1px solid var(--border);border-radius:6px;padding:7px 4px;text-align:center;
+    font-size:10px;color:var(--text2);background:var(--surface2)}
+  .arch .nodechip b{display:block;color:var(--text);font-size:10.5px}
+
+  .callout{border:1px solid var(--border);border-left:3px solid var(--teal);border-radius:var(--r-sm);
+    background:var(--surface);padding:13px 16px;margin:8px 0;font-size:12.5px;color:var(--text2);line-height:1.55;max-width:840px}
+  .callout b{color:var(--text)}
+  .callout.amber{border-left-color:var(--amber)}
+  .callout.purple{border-left-color:var(--purple)}
+
+  ol.q{max-width:840px;font-size:12.5px;color:var(--text2);line-height:1.6;padding-left:20px}
+  ol.q li{margin-bottom:9px}
+  ol.q b{color:var(--text)}
+  hr.sp{border:0;height:1px;background:var(--border);margin:40px 0 0}
+</style>
+</head>
+<body>
+  <h1>Unified User Profile</h1>
+  <p class="sub">One engine, one identity, one panel — across all seven nodes. Just like the export bar, the profile is the same idea reinvented six different ways. This folds it into a single shared module (<code>dex-profile.js</code>), a single saved identity (<code>tepna_profile</code>), and one panel whose only per-node difference is which <b>field groups</b> a node opts into.</p>
+  <p class="sub mono-sm" style="margin-top:8px">scope: OxyDex · HRVDex · PulseDex · ECGDex · PpgDex · GlucoDex · Integrator &nbsp;·&nbsp; pattern parallel to <code>metric-registry.js</code> + the unified export bar</p>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <h2><span class="n">1</span> The problem — six profiles, three architectures</h2>
+  <p class="note">Every node grew its own profile. Three unrelated code shapes, six localStorage schemas, six DOM-id conventions, and the <b>same formulas copy-pasted</b> (with drift) into each. A person who enters their age in OxyDex re-enters it in every other app — there is no shared identity.</p>
+  <div class="scroll">
+  <table class="matrix">
+    <thead><tr><th>Node</th><th>Code shape</th><th>localStorage</th><th>DOM ids</th><th>Fields collected</th></tr></thead>
+    <tbody>
+      <tr><td>OxyDex</td><td class="warn">global <code>UP</code> object</td><td><code>oxydex_profile</code> (JSON)</td><td><code>profAge</code>…</td><td>age·sex·wt·ht·SBP·DBP·VO₂·HRmax·HRrest·elev·CPAP</td></tr>
+      <tr><td>HRVDex</td><td class="bad">bare globals + per-key</td><td>10× keys <code>prof_age</code>…</td><td><code>prof_age</code>…</td><td>age·sex·wt·ht·SBP·DBP·VO₂·HRmax·HRrest·elev</td></tr>
+      <tr><td>PulseDex</td><td class="warn">overview-module globals</td><td><code>pulsedex_profile</code></td><td>mixed</td><td>age·sex·wt·ht·HRmax·HRrest·VO₂·elev·CPAP</td></tr>
+      <tr><td>ECGDex</td><td class="y">IIFE <code>window.ECGProfile</code></td><td><code>ecgdex_profile</code> (JSON)</td><td><code>ecgAge</code>…</td><td>age·sex·wt·ht·HRmax·RHR·VO₂·elev·CPAP</td></tr>
+      <tr><td>PpgDex</td><td class="y">IIFE <code>window.PPGProfile</code></td><td><code>ppgdex_profile</code> (JSON)</td><td><code>ppgAge</code>…</td><td>age·sex·wt·ht·HRmax·RHR·VO₂·elev·CPAP</td></tr>
+      <tr><td>GlucoDex</td><td class="y">IIFE <code>window.GLUProfile</code></td><td><code>glucodex_profile</code> (JSON)</td><td><code>gluAge</code>…</td><td>age·sex·<span class="x">diabetes·therapy·target·labA1c·calib</span></td></tr>
+      <tr><td>Integrator</td><td class="n">— none —</td><td>—</td><td>—</td><td>reads each node's export; no profile of its own</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="callout amber" style="margin-top:14px"><b>What's actually duplicated:</b> <code>Tanaka HRmax</code>, <code>Uth–Sørensen VO₂</code>, <code>BMI / BSA / IBW / BMR</code>, <code>Karvonen zones</code>, expected-rMSSD/RHR norms, population norms and the altitude factor are re-implemented in 4–6 files. They have <b>already drifted</b> — the clearest case was the ANS-age composite, where HRVDex's RMSSD→age curve and OxyDex's 1 Hz-proxy curve produced different "ages" for the same person; it was <b>removed</b> for lacking a citation, but the rest still need one home. The CSS is the <i>only</i> layer already shared (<code>.prof-*</code>, <code>.pd-group*</code> in <code>ans-design.css</code>).</p></div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <h2><span class="n">2</span> Proposed architecture — one engine, opt-in field groups</h2>
+  <p class="note">Mirror <code>metric-registry.js</code>: a single shared module owns the schema, the storage, and <b>every</b> derivation formula. Each node loads it and declares a <b>field-group manifest</b> — the groups it can actually use. The panel, the persistence, and the math come for free; the node only says <i>which fields apply to my signal</i>.</p>
+  <div class="arch">
+    <div class="layer">
+      <h4>👤 <span>Shared identity</span> <span class="tag core">tepna_profile</span></h4>
+      <p>One localStorage record for the person — not per-app. Age/sex/body/fitness entered in any Dex is read by all. Versioned schema; superset of every field. Back-compat shim migrates the six legacy keys on first load.</p>
+    </div>
+    <div class="conn"></div>
+    <div class="layer">
+      <h4>⚙️ <span>Profile engine</span> <span class="tag">dex-profile.js</span> <span class="tag">window.DexProfile</span></h4>
+      <p>The single home for <code>get/save/load</code>, <code>migrate()</code>, and <b>all</b> formulas — Tanaka, expected-rMSSD/RHR norms, Uth–Sørensen VO₂, BMI·BSA·IBW·BMR/RMR·MAP·PP, Karvonen, population norms, altitude &amp; SpO₂ adjustments, A1c↔eAG — with metric as the single stored/computed unit. Renders the panel from a manifest and exposes <code>derive(profile, signalCtx)</code> so every node calls the same math.</p>
+      <div class="files"><span class="tag">renderPanel(manifest)</span><span class="tag">derive(p, ctx)</span><span class="tag">prefillFrom(detected)</span></div>
+    </div>
+    <div class="conn"></div>
+    <div class="layer">
+      <h4>🧩 <span>Per-node manifest</span> — the only thing that varies</h4>
+      <p>Each node declares its groups, e.g. <code class="mono-sm">ECGProfile.groups = ['identity','body','cardio','fitness','env','therapy']</code>. GlucoDex swaps in <code>['identity','metabolic']</code>. No node owns formulas or storage anymore.</p>
+      <div class="nodes">
+        <div class="nodechip"><b>OxyDex</b>id·body·cardio·BP·fit·env·cpap</div>
+        <div class="nodechip"><b>HRVDex</b>id·body·cardio·BP·fit·env·cpap</div>
+        <div class="nodechip"><b>PulseDex</b>id·body·cardio·fit·env·cpap</div>
+        <div class="nodechip"><b>ECGDex</b>id·body·cardio·fit·env·cpap</div>
+        <div class="nodechip"><b>PpgDex</b>id·body·cardio·fit·env·cpap</div>
+        <div class="nodechip"><b>GlucoDex</b>id·body·metabolic</div>
+        <div class="nodechip"><b>Integrator</b>reads identity</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <h2><span class="n">3</span> The unified panel</h2>
+  <p class="note">Identical layout, labels and behaviour everywhere. Fields are organised into <b>groups</b> instead of one flat 2-column grid, so a node showing fewer groups still looks intentional. <span class="tag core">core</span> fields seed the shared identity; <span class="tag add">node</span> fields are signal-specific. Every input keeps the existing <b>~ projection sublabel</b> — now sourced from the one engine, so the number is identical across apps.</p>
+  <div class="legend">
+    <span><i class="swatch" style="background:var(--teal)"></i> core — shared identity (entered once)</span>
+    <span><i class="swatch" style="background:var(--purple)"></i> node — signal-specific</span>
+    <span><i class="swatch" style="background:var(--amber)"></i> ~ engine projection / auto-estimate</span>
+  </div>
+
+  <p class="note" style="margin-top:18px"><b>Base panel — an HRV-bearing node (ECGDex shown), desktop · dark</b></p>
+  <div class="stage">
+    <span class="cap">desktop · dark</span>
+    <div class="panel">
+      <div class="p-head"><h3>👤 Profile &amp; personalisation</h3><span class="toggle">▲ collapse</span></div>
+      <div class="p-auto">🔍 <b>Auto-detected from your data</b> · 14 nights · resting HR from nocturnal floor (sleeping HR + 8) · override any field with your real value.</div>
+      <div class="p-body">
+
+        <div class="grp-label">Identity <span class="src shared">↔ shared across all Dexes</span></div>
+        <div class="prof-grid">
+          <div class="prof-field fcore"><div class="prof-label">Age (years)</div><div class="prof-sub">— drives every age norm below</div><input class="prof-input" value="42"></div>
+          <div class="prof-field fcore"><div class="prof-label">Sex</div><div class="prof-sub">— drives BMR · IBW · VO₂ norms</div><select class="prof-input"><option>Male</option></select></div>
+        </div>
+
+        <div class="grp-label">Body <span class="src shared">↔ shared</span></div>
+        <div class="prof-grid">
+          <div class="prof-field fcore"><div class="prof-label">Weight (kg)</div><div class="prof-sub est">~ pop. avg 86 · ideal 76</div><input class="prof-input" value="80"></div>
+          <div class="prof-field fcore"><div class="prof-label">Height (cm)</div><div class="prof-sub est">~ pop. avg 177</div><input class="prof-input" value="178"></div>
+          <div class="prof-field fcore"><div class="prof-label">Body fat % · optional</div><div class="prof-sub">enables Katch-McArdle RMR</div><input class="prof-input" value=""></div>
+          <div class="prof-field fcore"><div class="prof-label">Waist (cm) · optional</div><div class="prof-sub">waist÷height ratio (visceral / OSA)</div><input class="prof-input" value=""></div>
+        </div>
+
+        <div class="grp-label">Cardio / autonomic <span class="src shared">↔ shared</span></div>
+        <div class="prof-grid">
+          <div class="prof-field fcore"><div class="prof-label">Resting HR (awake)</div><div class="prof-sub est">~ nocturnal floor 52 + 8 = 60</div><input class="prof-input" value="0 = auto"></div>
+          <div class="prof-field fcore"><div class="prof-label">HRmax (0 = auto)</div><div class="prof-sub est">~ Tanaka 208 − 0.7×42 = 179</div><input class="prof-input" value="0 = auto"></div>
+          <div class="prof-field fcore"><div class="prof-label">Beta-blocker / HR meds</div><div class="prof-sub">gates HRmax · zones · VO₂ if active</div><select class="prof-input"><option>No</option></select></div>
+          <div class="prof-field fcore"><div class="prof-label">Irregular rhythm / AF</div><div class="prof-sub">gates HRV (rMSSD / SDNN) if active</div><select class="prof-input"><option>No</option></select></div>
+        </div>
+
+        <div class="grp-label">Fitness &amp; environment <span class="src shared">↔ shared</span></div>
+        <div class="prof-grid">
+          <div class="prof-field fcore"><div class="prof-label">VO₂max ground truth</div><div class="prof-sub est">~ Uth–Sørensen → 45.6 (HRmax/rest)</div><input class="prof-input" value="0 = auto"></div>
+          <div class="prof-field fcore"><div class="prof-label">Activity level</div><div class="prof-sub">activity multiplier → TDEE</div><select class="prof-input"><option>Light</option></select></div>
+          <div class="prof-field fcore wide"><div class="prof-label">Elevation (m)</div><div class="prof-sub">~ sea level · adjusts VO₂ &gt;1500 m</div><input class="prof-input" value="0"></div>
+        </div>
+
+        <div class="grp-label">Therapy <span class="src">node-specific</span></div>
+        <div class="prof-grid">
+          <div class="prof-field fnode wide"><div class="prof-label">CPAP / BiPAP therapy</div><div class="prof-sub">reframes apnea read as <i>residual</i> on therapy</div><select class="prof-input"><option>No</option></select></div>
+        </div>
+
+        <div class="pd-group">
+          <span class="pd-group-label">Derived — computed once, identical in every node · each carries an evidence badge</span>
+          <div class="pd-grid">
+            <div class="pdi"><b>BMI</b> 25.3 (Normal)<span class="f">kg ÷ m²</span></div>
+            <div class="pdi"><b>RMR</b> 1 815 kcal<span class="f">Mifflin / Katch-McArdle</span></div>
+            <div class="pdi"><b>TDEE</b> 2 495 kcal<span class="f">RMR × activity</span></div>
+            <div class="pdi"><b>HRmax</b> 179 bpm<span class="f">Tanaka 208−0.7·age</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <p class="note" style="margin-top:22px"><b>GlucoDex — same panel, the metabolic manifest.</b> No cardio/BP groups (a CGM can't estimate them), but it keeps Identity + a light Body group — BMI &amp; waist÷height feed the metabolic / OSA-risk read — and swaps in the metabolic group. Identical chrome, identical behaviour — just a different opt-in.</p>
+  <div class="row">
+    <div class="stage" style="flex:1;min-width:340px">
+      <span class="cap">desktop · dark · metabolic</span>
+      <div class="panel">
+        <div class="p-head"><h3>👤 Profile &amp; personalisation</h3><span class="toggle">▲ collapse</span></div>
+        <div class="p-auto">🔍 <b>From your CGM</b> · 28 days · GMI 6.1% · validate against a lab A1c below.</div>
+        <div class="p-body">
+          <div class="grp-label">Identity <span class="src shared">↔ shared</span></div>
+          <div class="prof-grid">
+            <div class="prof-field fcore"><div class="prof-label">Age (years)</div><div class="prof-sub">— tunes communication &amp; norms</div><input class="prof-input" value="45"></div>
+            <div class="prof-field fcore"><div class="prof-label">Sex</div><div class="prof-sub">— manual</div><select class="prof-input"><option>Male</option></select></div>
+          </div>
+          <div class="grp-label">Body <span class="src shared">↔ shared</span></div>
+          <div class="prof-grid">
+            <div class="prof-field fcore"><div class="prof-label">Weight (kg)</div><div class="prof-sub est">~ pop. avg 86</div><input class="prof-input" value="82"></div>
+            <div class="prof-field fcore"><div class="prof-label">Waist (cm) · optional</div><div class="prof-sub">BMI · WHtR → metabolic risk</div><input class="prof-input" value=""></div>
+          </div>
+          <div class="grp-label">Metabolic <span class="src">node-specific</span></div>
+          <div class="prof-grid">
+            <div class="prof-field fnode"><div class="prof-label">Diabetes status</div><div class="prof-sub">shifts which thresholds matter</div><select class="prof-input"><option>None</option></select></div>
+            <div class="prof-field fnode"><div class="prof-label">Therapy</div><div class="prof-sub est">⚠ insulin → TBR goal tightens &lt;4%</div><select class="prof-input"><option>None</option></select></div>
+            <div class="prof-field fnode"><div class="prof-label">Target range</div><div class="prof-sub">consensus default 70–180</div><input class="prof-input" value="70–180"></div>
+            <div class="prof-field fnode"><div class="prof-label">Lab A1c (ground truth)</div><div class="prof-sub ok">✓ GMI 6.1% ≈ lab 6.0% (Δ0.1)</div><input class="prof-input" value="6.0"></div>
+          </div>
+          <div class="pd-group">
+            <span class="pd-group-label">Derived</span>
+            <div class="pd-grid">
+              <div class="pdi"><b>GMI</b> 6.1%<span class="f">3.31 + 0.02392·mean</span></div>
+              <div class="pdi"><b>eAG (lab)</b> 126 mg/dL<span class="f">ADAG 28.7·A1c−46.7</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <p class="note" style="max-width:300px"><b>Mobile.</b> Groups stack; the panel collapses to a single column at ≤768 px (already in <code>ans-design.css</code>). Inputs are 16 px to block iOS zoom. Group headers keep the form legible when scrolling a long list of fields on a phone.</p>
+      <div class="phone">
+        <div class="scr">
+          <div class="panel">
+            <div class="p-head"><h3>👤 Profile</h3><span class="toggle">▲</span></div>
+            <div class="p-auto">🔍 14 nights · resting HR detected</div>
+            <div class="p-body">
+              <div class="grp-label">Identity <span class="src shared">↔</span></div>
+              <div class="prof-grid">
+                <div class="prof-field fcore"><div class="prof-label">Age</div><div class="prof-sub">— age norms</div><input class="prof-input" value="42"></div>
+                <div class="prof-field fcore"><div class="prof-label">Sex</div><div class="prof-sub">manual</div><select class="prof-input"><option>Male</option></select></div>
+              </div>
+              <div class="grp-label">Body <span class="src shared">↔</span></div>
+              <div class="prof-grid">
+                <div class="prof-field fcore"><div class="prof-label">Weight (kg)</div><div class="prof-sub est">~ 86</div><input class="prof-input" value="80"></div>
+                <div class="prof-field fcore"><div class="prof-label">Height (cm)</div><div class="prof-sub est">~ 177</div><input class="prof-input" value="178"></div>
+              </div>
+              <div class="grp-label">Cardio <span class="src shared">↔</span></div>
+              <div class="prof-grid">
+                <div class="prof-field fcore"><div class="prof-label">Resting HR</div><div class="prof-sub est">~ 60</div><input class="prof-input" value="auto"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <h2><span class="n">4</span> Field taxonomy — who opts into what</h2>
+  <p class="note">The schema is a superset; each node shows only the groups it can act on. Field-group membership is principled — ECG/PPG omit BP because a single-site signal has no pulse wave (per build brief §6); GlucoDex omits cardio but keeps a light Body group (BMI/waist feed the metabolic &amp; OSA-risk read). <b>All values are stored &amp; computed in metric</b>; an imperial display switch is permissible but metric is the default (per CLAUDE.md).</p>
+  <div class="scroll">
+  <table class="matrix">
+    <thead><tr><th>Group / field</th><th>Oxy</th><th>HRV</th><th>Pulse</th><th>ECG</th><th>Ppg</th><th>Gluco</th><th>Why it's collected</th></tr></thead>
+    <tbody>
+      <tr><td><span class="tag core">Identity</span> age · sex</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td>every age/sex norm: HRmax, expected rMSSD/RHR, VO₂ &amp; metabolic norms, BMR</td></tr>
+      <tr><td><span class="tag core">Body</span> weight · height · body-fat* · waist*</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="x">＋new</td><td>BMI · BSA · IBW · RMR (Katch-McArdle) · WHtR — and <b>OSA/metabolic prior</b> (§5). *optional</td></tr>
+      <tr><td><span class="tag core">Cardio</span> resting HR · HRmax · β-blocker · AF</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td>Karvonen zones · Uth–Sørensen VO₂ anchor · β-blocker/AF gate the HR &amp; HRV math (§5-A)</td></tr>
+      <tr><td><span class="tag core">Hemodynamic</span> SBP · DBP</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td>MAP · pulse pressure · autonomic-BP projection (only signals with a pulse-wave/autonomic-BP model)</td></tr>
+      <tr><td><span class="tag core">Fitness</span> VO₂max GT · activity</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td>validates VO₂ &amp; anchors percentile · activity level → TDEE (§5-G)</td></tr>
+      <tr><td><span class="tag core">Environment</span> elevation</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td>OxyDex: SpO₂ norm shift · HRV nodes: VO₂ altitude factor (+ HRV-norm caveat, §5)</td></tr>
+      <tr><td><span class="tag add">Therapy</span> CPAP / BiPAP</td><td class="y">✓</td><td class="x">＋new</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td>reframes apnea read as <i>residual on therapy</i></td></tr>
+      <tr><td><span class="tag add">Metabolic</span> diabetes · therapy · target · A1c</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="x">✓</td><td>thresholds, hypo-goal, GMI-vs-lab validation, sensor calibration</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note mono-sm" style="margin-top:8px">＋new = field already collected but newly surfaced/used per §5. The Integrator reads the shared identity; it stores nothing of its own.</p>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <h2><span class="n">5</span> Connecting profile → calculations, and getting more from it</h2>
+  <p class="lead">Today most profile fields drive only one node's math, and several collected fields do nothing. With a shared identity the data can <b>cross signals</b>. Each item below is a concrete new use — ordered roughly by value.</p>
+
+  <div class="callout"><b>A · Correctness gates protect the HR &amp; HRV math.</b> A <b>β-blocker</b> blunts HRmax and resting HR; <b>irregular rhythm / AF</b> breaks RR-interval HRV. Both are single yes/no flags that let the consuming calcs caveat or suppress themselves — Tanaka HRmax, Karvonen zones and VO₂ when a β-blocker is active; rMSSD/SDNN when the rhythm is irregular — instead of reporting confidently-wrong numbers. Correctness, not just precision. <span class="mono-sm">touches: derive() validity flags · evidence badge drops to experimental</span></div>
+
+  <div class="callout purple"><b>B · Cross-node resting-HR handoff.</b> OxyDex already derives a robust resting HR from the <b>nocturnal p5 floor</b>. ECG/PPG/Pulse/HRV currently re-derive (worse, from shorter records) or fall back to an age estimate. Persist the best detected resting HR on the shared identity so every node's Karvonen + VO₂ seed from the strongest available source. Same handoff for detected HRmax. <span class="mono-sm">touches: prefillFrom(detected) · shared identity</span></div>
+
+  <div class="callout amber"><b>C · BMI as an OSA / metabolic risk prior.</b> Weight + height are collected by every signal node but feed only BMI/BMR display. Obesity is a top-tier OSA risk factor — fold BMI into OxyDex's and ECGDex's apnea-risk band as a <b>documented prior</b> (raises pre-test probability, never fabricates events). Surfaces a number we already have. <span class="mono-sm">touches: apneaRisk() context · evidence badge: heuristic</span></div>
+
+  <div class="callout purple"><b>D · Diabetes status crosses into the autonomic nodes.</b> GlucoDex collects diabetes status &amp; therapy; diabetes elevates both OSA and cardiac-autonomic-neuropathy risk. When the Integrator fuses a CGM with ECG/HRV, surface a context flag (e.g. "low HRV in the presence of diabetes — consider CAN") rather than leaving the fact siloed. <span class="mono-sm">touches: Integrator fusion notes · shared identity carries metabolic group</span></div>
+
+  <div class="callout"><b>E · Elevation honesty for HRV norms.</b> OxyDex adjusts SpO₂ thresholds for altitude; the HRV nodes only scale VO₂ — yet their rMSSD/resting-HR norms are sea-level. Since elevation is already on the identity, add a one-line caveat to the HRV read above ~2500 m (acute altitude raises resting HR / lowers HRV). <span class="mono-sm">touches: renderHero note · no new field</span></div>
+
+  <div class="callout amber"><b>F · Generalise the ground-truth check.</b> GlucoDex's "lab A1c validates GMI" is the same pattern as "measured VO₂max validates the estimate." Make <b>ground-truth validation</b> a first-class engine concept: any node with a measured truth (A1c, VO₂, a cuff BP) shows the device-vs-truth delta in one consistent chip. <span class="mono-sm">touches: derive() returns groundTruthChecks[]</span></div>
+
+  <div class="callout purple"><b>G · Body composition → a real energy budget.</b> Body-fat % switches RMR to <b>Katch-McArdle</b> (lean-mass based, beats Mifflin for lean/obese); activity level turns RMR into <b>TDEE</b> (daily burn); waist gives <b>waist-to-height ratio</b> (visceral / OSA prior). All three reuse fields the body group already holds. <span class="mono-sm">touches: derive() → rmr / tdee / whtr · badges: validated / heuristic</span></div>
+
+  <div class="scroll" style="margin-top:18px">
+  <table class="matrix">
+    <thead><tr><th>Profile field</th><th>Drives today</th><th>Proposed added use</th></tr></thead>
+    <tbody>
+      <tr><td>age · sex</td><td>HRmax, expected rMSSD/RHR, VO₂ &amp; metabolic norms, BMR/RMR</td><td>one engine — same number everywhere, no drift</td></tr>
+      <tr><td>weight · height</td><td>BMI · BSA · IBW · RMR (display)</td><td class="x">OSA/metabolic prior (C)</td></tr>
+      <tr><td>body-fat % · waist <span class="mono-sm">(new)</span></td><td>—</td><td class="x">Katch-McArdle RMR · WHtR · visceral prior (G)</td></tr>
+      <tr><td>activity level <span class="mono-sm">(new)</span></td><td>—</td><td class="x">TDEE = RMR × activity (G)</td></tr>
+      <tr><td>β-blocker · AF <span class="mono-sm">(new)</span></td><td>—</td><td class="x">gate HRmax / zones / VO₂ / HRV validity (A)</td></tr>
+      <tr><td>resting HR</td><td>Karvonen, VO₂ — re-derived per node</td><td class="x">cross-node detected-value handoff (B)</td></tr>
+      <tr><td>SBP · DBP</td><td>MAP, PP, BAP, autonomic-BP projection</td><td>shared so Oxy &amp; HRV agree on one MAP</td></tr>
+      <tr><td>VO₂max ground truth</td><td>validates VO₂ estimate (Oxy/HRV/ECG/PPG/Pulse)</td><td class="x">unified ground-truth check (F)</td></tr>
+      <tr><td>elevation</td><td>SpO₂ shift (Oxy) · VO₂ altitude factor (HRV nodes)</td><td class="x">HRV-norm altitude caveat (E)</td></tr>
+      <tr><td>CPAP / BiPAP</td><td>apnea-read reframing (Oxy/ECG/PPG)</td><td>shared so all apnea screens reframe consistently</td></tr>
+      <tr><td>diabetes · therapy · A1c</td><td>thresholds, hypo-goal, GMI validation (Gluco)</td><td class="x">cross-signal CAN/OSA context flag (D)</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <h2><span class="n">6</span> What changes per node</h2>
+  <div class="scroll">
+  <table class="matrix">
+    <thead><tr><th>Node</th><th>Profile code</th><th>Storage</th><th>Net change for the user</th></tr></thead>
+    <tbody>
+      <tr><td>OxyDex</td><td class="rm">delete <code>UP</code> + formulas</td><td class="x">→ shared identity (migrate <code>oxydex_profile</code>)</td><td>same fields, same look; resting HR now shared out</td></tr>
+      <tr><td>HRVDex</td><td class="rm">delete bare globals + per-key store</td><td class="x">→ shared (migrate 10 <code>prof_*</code> keys)</td><td class="x">＋CPAP group; identity prefilled from other Dexes</td></tr>
+      <tr><td>PulseDex</td><td class="rm">delete overview-module profile</td><td class="x">→ shared</td><td>identity prefilled from other Dexes</td></tr>
+      <tr><td>ECGDex</td><td>thin wrapper → <code>DexProfile</code></td><td class="x">→ shared (migrate <code>ecgdex_profile</code>)</td><td>resting HR seeded from OxyDex floor</td></tr>
+      <tr><td>PpgDex</td><td>thin wrapper → <code>DexProfile</code></td><td class="x">→ shared</td><td>identity prefilled</td></tr>
+      <tr><td>GlucoDex</td><td>thin wrapper → <code>DexProfile</code></td><td class="x">→ shared (identity group only)</td><td>age/sex prefilled; metabolic group unchanged</td></tr>
+      <tr><td>Integrator</td><td class="x">＋reads identity</td><td>—</td><td>cross-signal context flags (BMI→OSA, diabetes→CAN)</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="callout amber" style="margin-top:14px"><b>Gates (per CLAUDE.md).</b> <code>dex-profile.js</code> is a new shared module loaded by every <code>*.src.html</code>, so this is a deliberate <b>re-bundle-all-8</b> pass: edit the <code>.js</code> + each <code>.src.html</code>, re-bundle, then <b>hand-update every <code>manifestHash</code> in <code>BUILD-MANIFEST.json</code></b> (GATE A) and confirm <code>verify-provenance.html</code> shows no red. Add the engine's formula contracts to <code>tests/dex-tests.js</code> so Node CI and <code>Dex-Test-Suite.html</code> guard against re-drift. Identity migration must be idempotent and never fabricate (Clock-Contract spirit: a missing field stays empty, never invented).</div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <h2><span class="n">7</span> Open questions for you</h2>
+  <ol class="q">
+    <li><b>Shared identity scope.</b> Confirmed: <b>one</b> record across all Dexes, and it works for a single-Dex user too — no value assumes a particular Dex entered it. Any field a user never touches stays on its cited population default.</li>
+    <li><b>Group membership — confirmed.</b> CPAP added to HRVDex; a light Body group (BMI/waist) added to GlucoDex for the metabolic/OSA prior; β-blocker &amp; AF correctness flags join Cardio on every HRV-bearing node.</li>
+    <li><b>Cross-signal scope.</b> Ship the safe wins first — <b>B</b> (resting-HR handoff) and <b>A</b> (correctness gates) — then the clinical-context priors <b>C</b> (BMI→OSA) and <b>D</b> (diabetes→CAN) as a reviewed second pass.</li>
+    <li><b>Units — settled.</b> Metric is canonical and the default everywhere; an imperial display switch is permissible (display layer only — stored/computed values stay metric). Now in CLAUDE.md.</li>
+    <li><b>Rollout.</b> One re-bundle-all pass (cleanest, heaviest), or land the engine first on the three IIFE nodes (ECG/PPG/Gluco — least risk), then migrate OxyDex/HRVDex/PulseDex in a second pass?</li>
+  </ol>
+
+  <hr class="sp">
+  <p class="sub mono-sm" style="margin-top:18px">Proposal only — no node code changed. Companion to <code>Export Bar - Unified Proposal.html</code>.</p>
+
+<template id="__bundler_thumbnail">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#0B0F14"/><circle cx="50" cy="38" r="13" fill="none" stroke="#3DE0D0" stroke-width="3"/><path d="M28 74c0-13 10-20 22-20s22 7 22 20" fill="none" stroke="#3DE0D0" stroke-width="3" stroke-linecap="round"/></svg>
+</template>
+</body>
+</html>

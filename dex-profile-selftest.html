@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  dex-profile-selftest — Tepna · smoke test for the shared profile engine
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DexProfile — self-test</title>
+<link rel="stylesheet" href="ans-design.css">
+<style>
+  body{background:#0B0F14;color:#F4F7FB;font-family:'Inter',system-ui,sans-serif;padding:24px;max-width:1100px;margin:0 auto}
+  .row{display:grid;grid-template-columns:minmax(0,540px) 1fr;gap:28px;align-items:start}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  .p-head{padding:12px 18px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:13.5px;font-weight:700}
+  #pbody{padding:6px 18px 18px}
+  pre{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.5;white-space:pre-wrap;color:var(--text2)}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--text4);margin:18px 0 8px}
+  .ok{color:#39D98A}.bad{color:#FF6B7A}
+</style>
+</head>
+<body>
+<h1 style="font-size:20px">DexProfile — self-test</h1>
+<div class="row">
+  <div>
+    <div class="panel"><div class="p-head">👤 Profile &amp; personalisation</div><div id="pbody"></div></div>
+  </div>
+  <div>
+    <h2>Assertions</h2><pre id="asserts"></pre>
+    <h2>resolve() cascade</h2><pre id="cascade"></pre>
+    <h2>derive() output</h2><pre id="derived"></pre>
+  </div>
+</div>
+
+<script src="metric-registry.js"></script>
+<script src="dex-profile.js"></script>
+<script>
+// Inject an in-memory store so the test is fully deterministic and NEVER
+// touches the user's real localStorage (which holds their live profile).
+function memStore(){ var m={}; return { _m:m,
+  getItem:function(k){return (k in m)?m[k]:null;}, setItem:function(k,v){m[k]=String(v);}, removeItem:function(k){delete m[k];} }; }
+DexProfile._setStore(memStore());
+DexProfile.setManual('age', 58);
+DexProfile.setManual('sex', 'M');
+
+var out = [];
+function chk(name, cond){ out.push((cond?'✓':'✗')+' '+name); if(!cond) out._fail=true; }
+
+// 1) population floor — no data, age 58 male
+var w = DexProfile.resolve('weight');
+chk('weight resolves to pop norm', w.origin==='pop' && w.v>80 && w.v<95);
+chk('hrMax pop = Tanaka 208-0.7*58 = 167', DexProfile.resolve('hrMax').v===Math.round(208-0.7*58));
+chk('hrRest pop flat 70', DexProfile.resolve('hrRest').v===70);
+chk('sbp/dbp flat 120/80', DexProfile.resolve('sbp').v===120 && DexProfile.resolve('dbp').v===80);
+
+// 2) detected tier overrides pop
+DexProfile.setDetected({ hrRest:57, _floor:49, vo2:44.0, _note:'OxyDex night' });
+var rh = DexProfile.resolve('hrRest');
+chk('detected overrides pop (hrRest 57)', rh.origin==='detected' && rh.v===57);
+
+// 3) manual wins over detected
+DexProfile.setManual('hrRest', 52);
+var rh2 = DexProfile.resolve('hrRest');
+chk('manual wins (hrRest 52, origin you)', rh2.origin==='you' && rh2.v===52);
+DexProfile.setManual('hrRest', null); // revert
+chk('revert drops back to detected', DexProfile.resolve('hrRest').origin==='detected');
+
+// 4) derive — canonical formulas
+DexProfile.setManual('weight', 90); DexProfile.setManual('height', 175);
+var d = DexProfile.derive(DexProfile.get());
+var bsaExpected = +(0.007184*Math.pow(90,0.425)*Math.pow(175,0.725)).toFixed(2);
+chk('BSA = DuBois ('+bsaExpected+')', d.bsa===bsaExpected);
+chk('BMI = 90/1.75^2 ≈ 29.4', Math.abs(d.bmi-29.4)<0.1);
+chk('MAP measured present', typeof d.map==='number' && d.map>0);
+chk('groundTruthChecks is array', Array.isArray(d.groundTruthChecks));
+
+// 5) β-blocker + AF gates
+DexProfile.setManual('betablk','yes'); DexProfile.setManual('afib','yes');
+var d2 = DexProfile.derive(DexProfile.get());
+chk('β-blocker → hrMaxValid false', d2.flags.hrMaxValid===false && d2.flags.hrBasedVo2Valid===false);
+chk('AF → hrvValid false', d2.flags.hrvValid===false);
+DexProfile.setManual('betablk',null); DexProfile.setManual('afib',null);
+
+// 6) units — metric canonical, imperial display only
+DexProfile.setManual('units','imperial');
+var lbDisp = DexProfile.toDisp('weight', 90);
+chk('imperial display 90kg ≈ 198.4 lb', Math.abs(lbDisp-198.4)<0.2);
+chk('toMetric round-trips', Math.abs(DexProfile.toMetric('weight', lbDisp)-90)<0.5);
+DexProfile.setManual('units','metric');
+
+// 7) migrate from legacy (simulate a clean ECGDex user) — isolated store
+(function(){
+  var st = memStore();
+  st.setItem('ecgdex_profile', JSON.stringify({ecgAge:'63',ecgSex:'F',ecgWeight:'68',ecgHeight:'164',ecgRHR:'61',ecgCPAP:'yes'}));
+  DexProfile._setStore(st);
+  var ok = DexProfile.migrate();
+  var rec = JSON.parse(st.getItem('tepna_profile')||'null');
+  chk('migrate ECGDex → age 63', rec && rec.age===63);
+  chk('migrate sex F', rec && rec.sex==='F');
+  chk('migrate hrRest 61 into manual', rec && rec.manual.hrRest===61);
+  chk('migrate cpap yes', rec && rec.manual.cpap==='yes');
+  chk('migrate is idempotent (2nd run no-op)', DexProfile.migrate()===false);
+})();
+// restore a clean in-memory store for the live panel demo below
+DexProfile._setStore(memStore());
+
+document.getElementById('asserts').innerHTML = out.map(function(l){ return l.charAt(0)==='✓'?'<span class="ok">'+l+'</span>':'<span class="bad">'+l+'</span>'; }).join('\n')
+  + '\n\n' + (out._fail?'<span class="bad">SOME ASSERTIONS FAILED</span>':'<span class="ok">ALL '+out.length+' PASSED</span>');
+
+// render live panel + dumps
+DexProfile.setManual('age',49); DexProfile.setManual('sex','male');
+DexProfile.setDetected({ hrRest:57, _floor:49, vo2:44.0, _note:'OxyDex night · 7.6 h' });
+DexProfile.renderPanel({ node:'oxydex', mount:'pbody', onChange:function(p){ dumpCascade(); dumpDerived(); } });
+
+function dumpCascade(){
+  var fields=['age','sex','weight','height','hrRest','hrMax','sbp','dbp','vo2','elevation'];
+  document.getElementById('cascade').textContent = fields.map(function(f){ var r=DexProfile.resolve(f); return f.padEnd(11)+String(r.v).padEnd(9)+'['+r.origin+']'; }).join('\n');
+}
+function dumpDerived(){
+  var d=DexProfile.derive(DexProfile.get());
+  document.getElementById('derived').textContent = JSON.stringify({bmi:d.bmi,bmiCat:d.bmiCat,bsa:d.bsa,map:d.map,pp:d.pp,rmr:d.rmr,vo2Cat:d.vo2Cat,vo2Pct:d.vo2Pct,hrMax:d.hrMax,flags:d.flags,groundTruthChecks:d.groundTruthChecks}, null, 1);
+}
+dumpCascade(); dumpDerived();
+</script>
+</body>
+</html>

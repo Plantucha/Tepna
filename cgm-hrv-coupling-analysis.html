@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  cgm-hrv-coupling-analysis.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CGM variability ↔ nocturnal autonomic coupling — GlucoDex × PulseDex</title>
+<!-- ════════════════════════════════════════════════════════════════════════
+  cgm-hrv-coupling-analysis.html — figure engine for the candidate paper
+  "CGM variability ↔ nocturnal autonomic coupling: two independent detectors
+   recover the harness's co-generated glycemia–HRV relationship (FAST cohort)."
+
+  Per patient-night: rMSSD (REAL pulsedex-dsp) + nocturnal glucose (REAL
+  glucodex-dsp on the [t0,t0+dur] sleep-window slice). Coupling decomposed
+  pooled / within-patient / between-patient; partial correlation controls for the
+  planted apnea burden (AHI, shared latent driver). Discrete nocturnal-hypo
+  coupling scored as a paired within-patient hypo-vs-flat contrast + hypo recall.
+
+  HONEST FRAMING (in-page + export): synthetic ground truth. Certifies that the
+  harness produces cross-node temporal coherence and that two independent real
+  detectors recover it — NOT a real-world CGM↔HRV effect size. 100% local; reuses
+  cohort-gen.js + two real-DSP harness realms (cohort-harness.html?node=…).
+═════════════════════════════════════════════════════════════════════════ -->
+<style>
+  :root{
+    --bg:#0c0f14; --surface:#141922; --surface2:#1b212c; --line:rgba(255,255,255,.08);
+    --text:#e6edf6; --text2:#aab8cc; --text3:#6f8096; --teal:#3DE0D0; --blue:#58A6FF;
+    --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A; --purple:#B98AFF;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;padding:0 0 90px;}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px;}
+  header{padding:26px 0 16px;border-bottom:1px solid var(--line);margin-bottom:22px;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);}
+  h1{margin:6px 0 3px;font-size:25px;font-weight:650;letter-spacing:-.01em;}
+  h1 .g{color:var(--teal);}
+  .sub{color:var(--text3);font-size:13px;max-width:840px;line-height:1.5;}
+  .controls{display:flex;gap:10px;align-items:center;margin-top:18px;flex-wrap:wrap;}
+  button{font-family:var(--sans);font-size:13px;font-weight:600;padding:9px 16px;border-radius:8px;border:1px solid var(--line);background:var(--surface2);color:var(--text);cursor:pointer;}
+  button:hover{border-color:rgba(255,255,255,.2);}
+  button.primary{background:var(--teal);color:#06251f;border-color:transparent;}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  .pill{font-family:var(--mono);font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid var(--line);}
+  .pill.idle{color:var(--text3);} .pill.run{color:var(--teal);border-color:rgba(61,224,208,.35);} .pill.done{color:var(--green);border-color:rgba(57,217,138,.35);}
+  .field{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text2);}
+  .field input{width:60px;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:5px 7px;font-family:var(--mono);font-size:12px;}
+  .field select{background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:5px 7px;font-family:var(--mono);font-size:12px;}
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:18px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;}
+  .card h2{margin:0 0 14px;font-size:13px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;gap:8px;}
+  .card h2 .tag{font-family:var(--mono);font-size:10px;color:var(--text3);font-weight:500;border:1px solid var(--line);border-radius:5px;padding:2px 6px;margin-left:auto;}
+  .col-12{grid-column:span 12;} .col-8{grid-column:span 8;} .col-7{grid-column:span 7;} .col-6{grid-column:span 6;} .col-5{grid-column:span 5;} .col-4{grid-column:span 4;}
+  @media(max-width:900px){ .col-8,.col-7,.col-6,.col-5,.col-4{grid-column:span 12;} }
+  canvas{max-width:100%;display:block;background:#0f141b;border-radius:8px;}
+  .legend{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:9px;line-height:1.7;}
+  .chip{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle;}
+  .headline{display:flex;flex-direction:column;gap:12px;}
+  .hcard{background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:13px 15px;}
+  .hl{font-family:var(--mono);font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:1;}
+  .hk{font-size:12px;color:var(--text2);margin-top:6px;}
+  .hs{font-size:10.5px;color:var(--text3);font-family:var(--mono);margin-top:2px;}
+  .muted{color:var(--text3);}
+  .note{background:rgba(255,184,77,.07);border:1px solid rgba(255,184,77,.22);border-radius:10px;padding:12px 15px;font-size:12px;color:var(--text2);line-height:1.55;margin-top:8px;}
+  code{font-family:var(--mono);color:var(--blue);background:var(--surface2);padding:1px 5px;border-radius:4px;font-size:11px;}
+  #prog{height:4px;background:var(--surface2);border-radius:3px;overflow:hidden;flex:1;min-width:120px;max-width:280px;}
+  #progBar{height:100%;width:0;background:var(--teal);transition:width .2s;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.05);}
+  th{color:var(--text3);font-weight:500;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;}
+  td.num,th.num{text-align:right;font-family:var(--mono);}
+  td.dim{color:var(--text3);}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="eyebrow">GlucoDex × PulseDex · cross-node temporal coherence (co-generated cohort)</div>
+    <h1><span class="g">CGM variability ↔ nocturnal autonomic coupling</span></h1>
+    <div class="sub">The harness co-generates glycemia and heart-rate variability from a shared nocturnal physiology. We measure <b>rMSSD</b> (real PulseDex) and <b>nocturnal glucose</b> (real GlucoDex on the sleep-window slice) for every patient-night with two <b>independent</b> detectors, then decompose the coupling into <b>within-</b> vs <b>between-patient</b> and test the shared-driver hypothesis by partialling out the planted <b>apnea burden</b>.</div>
+    <div class="controls">
+      <span class="field">patients <input id="nSubj" type="number" value="40" min="10" max="100000" step="5"></span>
+      <span style="font-size:11px;color:var(--text3);align-self:center">↑ large N runs slower (real detectors per night)</span>
+      <span id="eta" style="font-size:11px;color:var(--text3);align-self:center">↑ first run calibrates a time estimate</span>
+      <span class="field">min nights <input id="minN" type="number" value="5" min="3" max="12" step="1"></span>
+      <span class="field" title="Rejection-sample profiles toward hypo-carriers (generator untouched) so the discrete-hypo recall arm is adequately powered. Leave OFF for the headline coupling numbers."><label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input id="hypoEnrich" type="checkbox"> enrich hypo nights</label></span>
+      <span class="field">glucose metric
+        <select id="gvar"><option value="gMean">nocturnal mean</option><option value="gCV">nocturnal CV</option></select>
+      </span>
+      <button class="primary" id="run">Run cohort</button>
+      <button id="cancel" style="display:none">Cancel</button>
+      <div id="prog"><div id="progBar"></div></div>
+      <span class="pill idle" id="status">idle</span>
+      <span style="flex:1"></span>
+      <button id="dlCsv" disabled>results.csv</button>
+      <button id="dlStats" disabled>stats.json</button>
+      <button id="dlFig" disabled>figures.png</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="grid">
+    <div class="card col-7">
+      <h2>Within-patient night-to-night coupling <span class="tag">centered per patient</span></h2>
+      <canvas id="scatter" width="640" height="360"></canvas>
+      <div class="legend" id="scatterLeg">Run to populate. Each point is one patient-night with its own patient mean removed, so the slope is the within-person coupling — not a between-person glycemic-class effect.</div>
+    </div>
+    <div class="card col-5">
+      <h2>Shared-driver test <span class="tag">partial | AHI</span></h2>
+      <canvas id="driver" width="520" height="270"></canvas>
+      <div class="headline" id="headline" style="margin-top:14px"><div class="muted" style="font-size:12px">Run the cohort to compute the within-patient coupling, its partial correlation given apnea burden, and the nocturnal-hypo recovery.</div></div>
+    </div>
+
+    <div class="card col-12">
+      <h2>The shared driver — apnea burden drives both nodes <span class="tag">real-detector readouts, all nights</span></h2>
+      <canvas id="hypo" width="1100" height="280"></canvas>
+      <div class="legend" id="hypoLeg">Run to populate.</div>
+    </div>
+
+    <div class="card col-12">
+      <h2>Cross-node coupling coefficients <span class="tag">Pearson r · Fisher-z 95% CI</span></h2>
+      <table>
+        <thead><tr><th>Relationship</th><th>level</th><th class="num">r</th><th class="num">n</th><th class="num">95% CI</th></tr></thead>
+        <tbody id="tblBody"><tr><td colspan="5" class="muted">run to populate…</td></tr></tbody>
+      </table>
+      <div class="note"><b>Synthetic ground truth — read before citing.</b> Glycemia and HRV are <b>co-generated</b> from a shared nocturnal physiology; rMSSD is measured by the <b>real</b> <code>pulsedex-dsp</code> and nocturnal glucose by the <b>real</b> <code>glucodex-dsp</code> on the <code>[t0,t0+dur]</code> sleep-window slice (Clock-Contract floating ms). Apnea burden (planted <b>AHI</b>) is the shared latent driver; OxyDex's recovery of it is characterized separately in the ODI-4↔AHI paper. The within-patient coupling collapsing under <code>partial | AHI</code> is the signature of a <b>shared driver</b>, not a direct glucose→HRV effect. This certifies the harness's <i>cross-node temporal coherence</i> and that two independent detectors recover it; it does <b>not</b> establish a real-world CGM↔HRV effect size, which needs paired clinical CGM + RR recordings.</div>
+    </div>
+  </div>
+</div>
+
+<script src="synth-gen.js"></script>
+<script src="cohort-gen.js"></script>
+<script src="cgm-hrv-coupling-analysis.js"></script>
+</body></html>

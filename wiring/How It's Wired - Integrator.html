@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  How It's Wired — Integrator · Tepna / the -Dex suite
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE.
+  A reference doc — explains how the Integrator (fusion layer) is wired.
+  Loads no app code and ships no buildHash (not a bundled instrument).
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How It's Wired — Integrator</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<meta name="description" content="The Integrator: the -Dex suite's fusion layer. How it's wired — inputs, file stack, fusion flow, evidence handling, limitations and how to use it.">
+<link rel="stylesheet" href="../dex-wired.css">
+</head>
+<body>
+
+<header class="rail">
+  <div class="rail-in">
+    <a class="brand" href="How It's Wired - the Dex Suite.html"><svg class="brandmark" viewBox="0 0 100 100" aria-hidden="true" style="width:17px;height:17px;flex:none;filter:drop-shadow(0 0 5px rgba(61,224,208,.4))"><defs><linearGradient id="tgrad" x1="14" y1="10" x2="86" y2="88" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3DE0D0"/><stop offset=".58" stop-color="#58A6FF"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs><g fill="none" stroke="url(#tgrad)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></g></svg>How it's wired <small>Tepna</small></a>
+    <nav class="rail-nodes"><a href="How It's Wired - OxyDex.html">OxyDex</a><a href="How It's Wired - ECGDex.html">ECGDex</a><a href="How It's Wired - PulseDex.html">PulseDex</a><a href="How It's Wired - PpgDex.html">PpgDex</a><a href="How It's Wired - HRVDex.html">HRVDex</a><a href="How It's Wired - GlucoDex.html">GlucoDex</a><a href="How It's Wired - CPAPDex.html">CPAPDex</a><a href="How It's Wired - Integrator.html" class="cur" style="color:var(--purple);background:rgba(167,139,250,.1)">Integrator</a></nav>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <header class="dochead">
+    <div class="eyebrow"><a class="back" href="How It's Wired - the Dex Suite.html">← the -Dex suite</a> · fusion layer</div>
+    <h1><span class="glyph" style="background:linear-gradient(150deg,rgba(167,139,250,.18),rgba(88,166,255,.10));border-color:rgba(167,139,250,.28)">🧠</span><span class="g" style="background-image:linear-gradient(120deg,var(--purple),var(--blue))">Integrator</span></h1>
+    <p class="lede">The Integrator is the suite’s <b>integration centre</b> — not a receptor. Afferent node exports converge here and become one coherent percept: the longitudinal, cross-signal picture no single receptor can produce. It senses nothing itself; it <b>fuses</b>.</p>
+    <div class="specsheet">
+      <div class="cell"><div class="k">Role in the arc</div><div class="v">Integration centre<small>fuses afferent nodes</small></div></div>
+      <div class="cell"><div class="k">Consumes</div><div class="v">Every node’s export<small>ganglior.node-export · .crossnight</small></div></div>
+      <div class="cell"><div class="k">Input format</div><div class="v">Ganglior JSON<small>1–N exports · + fascia alias</small></div></div>
+      <div class="cell"><div class="k">Produces</div><div class="v">Fused percept<small>same-night + longitudinal</small></div></div>
+    </div>
+  </header>
+
+  <!-- 01 WHAT IT'S FOR -->
+  <section class="sec">
+    <div class="sec-num">01 — WHAT IT'S FOR</div>
+    <h2 class="sec-h">The integration centre</h2>
+    <p class="sec-d">Read the suite as a reflex arc: <b>receptors → relay → integration → insight</b>. The Integrator is the <b>integration</b> stage — afferent signals converge and become a single percept. It depends only on the CORE <b>export contract</b>, never on any node’s internals, so nodes stay independent and standalone.</p>
+    <div class="callout frozen"><span class="ci">🧠</span><div><b>It fuses; it never senses.</b> The Integrator computes no number from a raw signal. It consumes what receptors emit onto the Ganglior bus and weaves them together — cross-signal work that is the Integrator’s job, never a node’s.</div></div>
+  </section>
+
+  <!-- 02 THE WIRING -->
+  <section class="sec">
+    <div class="sec-num">02 — THE WIRING</div>
+    <h2 class="sec-h">The file stack</h2>
+    <p class="sec-d">The Integrator is built from external <code>*.js</code> files referenced by <code>Integrator.src.html</code> and bundled to a standalone <code>Integrator.html</code>. It has no registry of its own — it <b>preserves each node’s evidence badge and provenance</b>, reading the shared CORE export schema rather than redefining metrics. Dependencies point downhill: UI → fusion DSP → CORE contract.</p>
+    <div class="flow">
+      <div class="flow-row" style="--lc:var(--L-dsp)">
+        <div class="flow-rail"><span class="lz">DSP</span><span class="spine"></span><span class="node-dot"></span><span class="spine"></span></div>
+        <div class="flow-cards">
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">integrator-dsp.js</span><span class="ftag">DSP</span></div>
+              <div class="fdesc">The fusion core: parse + normalize every node’s ganglior.node-export, time-align events on the shared floating clock, and run per-signal authority fusion (effConf = conf × sqi). Accepts the bus name and its <code>fascia</code> alias. No DOM — pure data.</div>
+            </div>
+        </div>
+      </div>
+      <div class="flow-row" style="--lc:var(--L-core)">
+        <div class="flow-rail"><span class="lz">Core</span><span class="spine"></span><span class="node-dot"></span><span class="spine"></span></div>
+        <div class="flow-cards">
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">kernel-constants.js</span><span class="ftag">Core · shared</span></div>
+              <div class="fdesc">The frozen physiology kernel — one source of truth for every cross-fleet threshold, plus a content-derived hash stamped into each export so two bundles built on different rulebooks can’t silently “agree” when fused.</div>
+            </div>
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">ganglior-provenance.js</span><span class="ftag">Core · shared</span></div>
+              <div class="fdesc">Loaded first — installs the read-hook that makes every export attributable to the exact code + inputs that produced it (the <code>buildHash</code> provenance stamp). 100% local.</div>
+            </div>
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">metric-registry.js</span><span class="ftag">Core · shared</span></div>
+              <div class="fdesc">The shared half of the evidence system: the badge SHAPE, depth tiering and the injected badge CSS. The per-node registry below supplies the DATA, so a Validated dot looks identical in every node.</div>
+            </div>
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">crossnight-envelope.js</span><span class="ftag">Core · shared</span></div>
+              <div class="fdesc">The shared, versioned <i>shape</i> (ganglior.crossnight v1.0) every node emits and the Integrator reads — the container, not the math (the local <code>crossNight()</code> stats stay per-node).</div>
+            </div>
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">(no node registry)</span><span class="ftag">Core</span></div>
+              <div class="fdesc">The Integrator declares no metric registry of its own — it preserves each node’s evidence badge and provenance, reading the shared CORE schema rather than redefining metrics.</div>
+            </div>
+        </div>
+      </div>
+      <div class="flow-row" style="--lc:var(--L-render)">
+        <div class="flow-rail"><span class="lz">Render · UI</span><span class="spine"></span><span class="node-dot"></span><span class="spine"></span></div>
+        <div class="flow-cards">
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">integrator-render.js</span><span class="ftag">Render · UI</span></div>
+              <div class="fdesc">DOM + hand-rolled inline-SVG rendering: node chips, the same-night fusion view, cross-signal coupling plots and the longitudinal trends. Reads helpers off IntegratorDSP; does no parsing or fusion math.</div>
+            </div>
+        </div>
+      </div>
+      <div class="flow-row" style="--lc:var(--L-app)">
+        <div class="flow-rail"><span class="lz">App · glue</span><span class="spine"></span><span class="node-dot"></span><span class="spine"></span></div>
+        <div class="flow-cards">
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">integrator-app.js</span><span class="ftag">App · glue</span></div>
+              <div class="fdesc">Glue: drag-drop + picker ingest, dedupe, run fusion, render, and export / write-back of producer-side correlations to a peer node’s reserved slot. Wiring only — no DOM construction.</div>
+            </div>
+        </div>
+      </div>
+      <div class="flow-row" style="--lc:var(--L-fusion)">
+        <div class="flow-rail"><span class="lz">Fusion · cross-night</span><span class="spine"></span><span class="node-dot"></span><span class="spine"></span></div>
+        <div class="flow-cards">
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">integrator-longitudinal.js</span><span class="ftag">Fusion · cross-night</span></div>
+              <div class="fdesc">Orthogonal cross-night read: consumes ganglior.crossnight envelopes, persists each node’s daily summaries to IndexedDB, and date-joins them across nodes to surface couplings no single node sees — durable across reloads, no network.</div>
+            </div>
+        </div>
+      </div>
+    </div>
+    <div class="callout clock"><span class="ci">🕒</span><div><b>The Clock Contract, verbatim.</b> The Integrator mirrors <code>parseTimestamp</code> / <code>fmtClock</code> locally and aligns every node on floating wall-clock <code>tMs</code> read back with <code>getUTC*</code> — the one thing that makes cross-node simultaneity hold without any node sharing a timezone.</div></div>
+  </section>
+
+  <!-- 03 HOW IT'S ACHIEVED -->
+  <section class="sec">
+    <div class="sec-num">03 — HOW IT'S ACHIEVED</div>
+    <h2 class="sec-h">From many exports to one percept</h2>
+    <p class="sec-d">Fusion runs in two orthogonal planes: <b>same-night</b> (align and reconcile events recorded the same night) and <b>longitudinal</b> (date-join daily summaries across weeks). Both obey the same honesty rules — authority is per-signal and quality-gated, and confidence is never conflated with signal quality.</p>
+    <div class="pipe">
+        <div class="pstep"><div><h4>Drop the node exports</h4><p>Drag one or more ganglior.node-export JSON files (from OxyDex, ECGDex, PulseDex, …) onto the picker. Two or more from the same night is where fusion earns its keep.</p><div class="pf"><b>integrator-app.js → ingest + dedupe</b></div></div></div>
+        <div class="pstep"><div><h4>Normalize + stamp the clock</h4><p>Each export is parsed to a common NodeRec on floating wall-clock tMs, read back with getUTC* — so two devices that recorded the same minute align without sharing a timezone.</p><div class="pf"><b>integrator-dsp.js → parseTimestamp (mirrored)</b></div></div></div>
+        <div class="pstep"><div><h4>Time-align the events</h4><p>Events from different nodes are matched within a tolerance window (~120 s, configurable) so a desaturation and an autonomic surge that belong together are paired, not double-counted.</p><div class="pf"><b>runFusion({ toleranceSec })</b></div></div></div>
+        <div class="pstep"><div><h4>Fuse by per-signal authority</h4><p>Authority is assigned per signal and quality-gated: the gold source yields to a clean backup when its own SQI trips. Confidence is attenuated by quality — effConf = conf × sqi — never collapsed into one number.</p><div class="pf"><b>integrator-dsp.js → per-signal authority</b></div></div></div>
+        <div class="pstep"><div><h4>Render + write back</h4><p>Same-night fusion, cross-signal couplings and the durable longitudinal trends are drawn; producer-side correlations are written back to a peer node’s reserved slot.</p><div class="pf"><b>integrator-render.js + integrator-longitudinal.js</b></div></div></div>
+    </div>
+  </section>
+
+  <!-- 04 EVIDENCE -->
+  <section class="sec">
+    <div class="sec-num">04 — HOW MUCH TO TRUST IT</div>
+    <h2 class="sec-h">Evidence is inherited, then composed</h2>
+    <p class="sec-d">The Integrator does not invent a grade — it <b>carries each node’s evidence badge through</b> so a validated dot looks identical post-fusion. Its own contributions (couplings, fused readiness, projections) sit lower on the ladder, honestly marked as composed rather than measured.</p>
+    <div class="evladder">
+        <div class="evrow empty">
+          <span class="evname"><span class="ev ev-measured big"></span><b>Measured</b></span>
+          <span class="exs">(none) — the Integrator computes nothing from raw signal; it fuses node outputs</span>
+        </div>
+        <div class="evrow">
+          <span class="evname"><span class="ev ev-validated big"></span><b>Validated</b></span>
+          <span class="exs">Pass-through of each node’s validated metrics — provenance + evidence badge preserved</span>
+        </div>
+        <div class="evrow">
+          <span class="evname"><span class="ev ev-emerging big"></span><b>Emerging</b></span>
+          <span class="exs">Cross-signal couplings · AHI↔ODI concordance · autonomic-recovery ↔ ODI-4 trend</span>
+        </div>
+        <div class="evrow">
+          <span class="evname"><span class="ev ev-experimental big"></span><b>Experimental</b></span>
+          <span class="exs">Same-night fused readiness · multi-node confidence weighting</span>
+        </div>
+        <div class="evrow">
+          <span class="evname"><span class="ev ev-heuristic big"></span><b>Heuristic</b></span>
+          <span class="exs">Multi-week longitudinal projections across nodes</span>
+        </div>
+    </div>
+  </section>
+
+  <!-- 05 LIMITATIONS -->
+  <section class="sec">
+    <div class="sec-num">05 — LIMITATIONS &amp; CONSIDERATIONS</div>
+    <h2 class="sec-h">What it can and can't say</h2>
+    <p class="sec-d">Honesty is architectural: a guess is never dressed as a measurement, a missing value stays <code>null</code> rather than fabricated, and confidence is kept separate from signal quality. The fusion-specific caveats:</p>
+    <div class="notes">
+        <div class="note good"><h4>Capability before consensus<span class="tagi">by design</span></h4><p>When sources disagree the Integrator does not count devices — it filters to the sensors that <b>can</b> observe the signal, checks plausibility, and looks for the obligate physiological consequence.</p></div>
+        <div class="note info"><h4>No single “best device”<span class="tagi">note</span></h4><p>Authority is per-signal. Chest ECG owns HRV magnitude but yields to wrist PPG for HR when its battery dies; a node declares what it is authoritative <b>for</b>, not that it is best.</p></div>
+        <div class="note warn"><h4>Confidence ≠ quality<span class="tagi">caution</span></h4><p>An event’s severity (conf) and its signal quality (sqi) are separate axes. Fusion attenuates via effConf = conf × sqi — never merged, so a strong reading from a noisy sensor is discounted, not trusted.</p></div>
+        <div class="note lim"><h4>Needs at least one export<span class="tagi">limitation</span></h4><p>The Integrator has no signal of its own — it is the integration centre, not a receptor. With one node it summarizes; the cross-signal value appears only when nights overlap.</p></div>
+    </div>
+  </section>
+
+  <!-- 06 HOW TO USE -->
+  <section class="sec">
+    <div class="sec-num">06 — HOW TO USE IT</div>
+    <h2 class="sec-h">For the curious, and for the next coder</h2>
+    <div class="use">
+      <div class="usecard"><div class="ui">📂</div><div><h4>Open the instrument</h4><p>The Integrator is one self-contained file. Open <code>Integrator.html</code> in any browser — online, offline, or from <code>file://</code>. Nothing installs, nothing phones home.</p><a class="open" href="../Integrator.html">Open the Integrator →</a></div></div>
+      <div class="usecard"><div class="ui">📥</div><div><h4>Drop your node exports</h4><p>Export a <code>ganglior.node-export</code> JSON from each -Dex node, then drop them all here. Overlapping nights unlock the cross-signal view; a single export still summarizes.</p></div></div>
+      <div class="usecard"><div class="ui">🔀</div><div><h4>Read the fusion</h4><p>The same-night view reconciles events across sensors by per-signal authority; the longitudinal view date-joins daily summaries to surface couplings — e.g. declining autonomic recovery tracking rising ODI-4 over weeks.</p></div></div>
+      <div class="usecard"><div class="ui">🗃️</div><div><h4>It remembers</h4><p>Longitudinal history persists to IndexedDB on your device, so trends accumulate across sessions. It survives reload; it never leaves the browser. Clear it any time.</p></div></div>
+      <div class="usecard"><div class="ui">🛠️</div><div><h4>If you’re changing it</h4><p>Edit <code>integrator-*.js</code> or <code>Integrator.src.html</code> — <b>never the bundled <code>Integrator.html</code></b> — then re-bundle. Run <code>Dex-Test-Suite.html</code> until all-green, and <code>verify-provenance.html</code> after re-bundling.</p></div></div>
+    </div>
+  </section>
+
+  <!-- PAGER -->
+  <section class="sec" style="border-top:none;padding-top:8px;">
+      <div class="pager">
+        <a href="How It's Wired - CPAPDex.html"><div class="pl">← Previous node</div><div class="pt">CPAPDex</div></a>
+        <a class="nx" href="How It's Wired - the Dex Suite.html"><div class="pl">Index →</div><div class="pt">All nodes</div></a>
+      </div>
+  </section>
+
+  <footer class="docfoot">
+    <div class="fl">
+      <a href="How It's Wired - the Dex Suite.html">◈ Wiring index</a>
+      <a href="../Integrator.html">Integrator app</a>
+      <a href="../templates/Visual-Language-Spec.html">Visual language</a>
+      <a href="../index.html">Tepna</a>
+    </div>
+    <div class="fn"><b>Integrator</b> — the Ganglior fusion layer · part of Tepna / the -Dex suite. 100% local · no network · system fonts only.</div>
+    <div class="disc">Not a medical device. Read-outs are for personal wellness and curiosity, not diagnosis. If something feels wrong, talk to a clinician.</div>
+  </footer>
+
+</div>
+</body>
+</html>

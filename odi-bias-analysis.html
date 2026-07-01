@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  odi-bias-analysis.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ODI-4 vs AHI — Bias Analysis (OxyDex)</title>
+<!-- ════════════════════════════════════════════════════════════════════════
+  odi-bias-analysis.html — the figure-generating apparatus for the paper
+  "Rolling-baseline ODI-4 under-estimates AHI in severe OSA".
+  Runs the REAL OxyDex detector and plots ODI-4 vs a REFERENCE AHI from three
+  sources, in increasing order of publishability:
+    1. SubjectA corpus  — the 5 committed real O2Ring nights vs planted/known AHI
+                          (proves the apparatus; runs today, no downloads).
+    2. Synthetic cohort — points pulled from the cohort runner's IndexedDB if present
+                          (large-N, but synthetic ground truth).
+    3. NSRR PSG (SHHS/MESA/MrOS/CHAT) — user drops EDF + NSRR XML pairs (real PSG-
+                          scored AHI). THIS is the publishable lane. Files are NOT
+                          bundled — NSRR/PhysioNet require the user's own signed DUA.
+  Outputs: calibration scatter (+OLS), Bland–Altman (bias + 95% LoA), bias-by-
+  severity, a fitted correction curve with leave-one-out RMSE, and CSV/PNG/JSON export.
+  100% local. Reuses the real oxydex-dsp.js + cpapdex-edf.js + nsrr-adapter.js.
+═════════════════════════════════════════════════════════════════════════ -->
+<style>
+  :root{
+    --bg:#0c0f14; --surface:#141922; --surface2:#1b212c; --line:rgba(255,255,255,.08);
+    --text:#e6edf6; --text2:#aab8cc; --text3:#6f8096; --teal:#3DE0D0; --blue:#58A6FF;
+    --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A; --purple:#B98AFF;
+    --none:#39D98A; --mild:#3DE0D0; --mod:#FFB84D; --severe:#FF6B7A;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;padding:0 0 90px;}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px;}
+  header{padding:26px 0 16px;border-bottom:1px solid var(--line);margin-bottom:22px;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);}
+  h1{margin:6px 0 3px;font-size:25px;font-weight:650;letter-spacing:-.01em;}
+  h1 .g{color:var(--teal);}
+  .sub{color:var(--text3);font-size:13px;max-width:760px;line-height:1.5;}
+  .controls{display:flex;gap:10px;align-items:center;margin-top:18px;flex-wrap:wrap;}
+  button{font-family:var(--sans);font-size:13px;font-weight:600;padding:9px 16px;border-radius:8px;border:1px solid var(--line);background:var(--surface2);color:var(--text);cursor:pointer;}
+  button:hover{border-color:rgba(255,255,255,.2);}
+  button.primary{background:var(--teal);color:#06251f;border-color:transparent;}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  label.file{font-family:var(--sans);font-size:13px;font-weight:600;padding:9px 16px;border-radius:8px;border:1px dashed rgba(255,255,255,.25);background:var(--surface2);color:var(--text2);cursor:pointer;}
+  label.file input{display:none;}
+  .pill{font-family:var(--mono);font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid var(--line);}
+  .pill.idle{color:var(--text3);} .pill.run{color:var(--teal);border-color:rgba(61,224,208,.35);} .pill.done{color:var(--green);border-color:rgba(57,217,138,.35);}
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:18px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;}
+  .card h2{margin:0 0 14px;font-size:13px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;gap:8px;}
+  .card h2 .tag{font-family:var(--mono);font-size:10px;color:var(--text3);font-weight:500;border:1px solid var(--line);border-radius:5px;padding:2px 6px;margin-left:auto;}
+  .col-12{grid-column:span 12;} .col-8{grid-column:span 8;} .col-6{grid-column:span 6;} .col-4{grid-column:span 4;}
+  @media(max-width:900px){ .col-8,.col-6,.col-4{grid-column:span 12;} }
+  canvas{max-width:100%;display:block;background:#0f141b;border-radius:8px;}
+  .legend{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:9px;line-height:1.6;}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th,td{text-align:left;padding:6px 9px;border-bottom:1px solid rgba(255,255,255,.05);}
+  th{color:var(--text3);font-weight:500;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;}
+  td.num,th.num{text-align:right;font-family:var(--mono);}
+  .stat-row{display:flex;gap:26px;flex-wrap:wrap;}
+  .stat{display:flex;flex-direction:column;gap:2px;}
+  .stat .v{font-family:var(--mono);font-size:23px;font-weight:600;letter-spacing:-.02em;}
+  .stat .l{font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;}
+  .src-chip{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle;}
+  .muted{color:var(--text3);}
+  .note{background:rgba(88,166,255,.07);border:1px solid rgba(88,166,255,.2);border-radius:10px;padding:12px 15px;font-size:12px;color:var(--text2);line-height:1.55;margin-top:8px;}
+  code{font-family:var(--mono);color:var(--blue);background:var(--surface2);padding:1px 5px;border-radius:4px;font-size:11px;}
+</style>
+</head>
+<body>
+<!-- DOM stubs OxyDex binds at top-level load (file-drop UI it never actually uses here) -->
+<div id="uploadArea" style="display:none"></div>
+<input id="fileInput" type="file" style="display:none">
+
+<header>
+  <div class="wrap">
+    <div class="eyebrow">OxyDex · oximetry → AHI surrogate · bias study</div>
+    <h1><span class="g">ODI-4 vs AHI</span> — Calibration & Bias Analysis</h1>
+    <div class="sub">Runs the real OxyDex ODI-4 detector against a reference AHI and quantifies the bias. OxyDex's shipped surrogate is <code>AHI ≈ ODI-4 × 1.1</code> — this page tests whether that holds, and fits a correction.</div>
+    <div class="controls">
+      <button class="primary" id="runLocal">Run SubjectA corpus (5 real nights)</button>
+      <button id="loadSynth">Load synthetic cohort (IndexedDB)</button>
+      <label class="file">Add NSRR EDF + XML…<input type="file" id="nsrrFiles" multiple accept=".edf,.xml,.EDF,.XML"></label>
+      <label class="file">Scored-AHI CSV…<input type="file" id="ahiCsv" accept=".csv,.tsv,.txt"></label>
+      <span class="pill idle" id="status">idle</span>
+      <span style="flex:1"></span>
+      <button id="dlCsv" disabled>results.csv</button>
+      <button id="dlStats" disabled>stats.json</button>
+      <button id="dlFig" disabled>figures.png</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="grid">
+    <div class="card col-8">
+      <h2>Calibration — OxyDex ODI-4 vs reference AHI <span class="tag" id="fitTag">fit —</span></h2>
+      <canvas id="scatter" width="720" height="420"></canvas>
+      <div class="legend" id="scatterLegend">Run a source to populate. Dot colour = OSA severity (by reference AHI). Dashed = identity (perfect). Solid teal = OLS fit. Dotted amber = OxyDex's shipped ×1.1 surrogate.</div>
+    </div>
+    <div class="card col-4">
+      <h2>Headline <span class="tag">all sources</span></h2>
+      <div class="stat-row" style="flex-direction:column;gap:16px">
+        <div class="stat"><span class="v" id="hN">0</span><span class="l">records (nights)</span></div>
+        <div class="stat"><span class="v" id="hSlope">—</span><span class="l">ODI-4 per unit AHI (slope; 1.0=perfect)</span></div>
+        <div class="stat"><span class="v" id="hR2">—</span><span class="l">R²</span></div>
+        <div class="stat"><span class="v" id="hBias" style="color:var(--amber)">—</span><span class="l">mean ODI−AHI bias (events/h)</span></div>
+        <div class="stat"><span class="v" id="hSevere">—</span><span class="l">severe-stratum mean under-count</span></div>
+      </div>
+    </div>
+
+    <div class="card col-6">
+      <h2>Bland–Altman <span class="tag">ODI-4 − AHI</span></h2>
+      <canvas id="bland" width="560" height="320"></canvas>
+      <div class="legend" id="blandLegend">Agreement vs the reference. Solid = mean bias; dashed = 95% limits of agreement (bias ± 1.96·SD). A downward slope with mean AHI = proportional (severity-dependent) bias.</div>
+    </div>
+    <div class="card col-6">
+      <h2>Under-count by severity <span class="tag">ODI/AHI ratio</span></h2>
+      <canvas id="bysev" width="560" height="320"></canvas>
+      <div class="legend">Per-stratum median ODI-4 / reference-AHI. If the ratio falls as severity rises, ODI-4 increasingly under-scores the sickest patients — the headline claim.</div>
+    </div>
+
+    <div class="card col-8">
+      <h2>Correction curve <span class="tag" id="corrTag">model —</span></h2>
+      <canvas id="corr" width="720" height="320"></canvas>
+      <div class="legend" id="corrLegend">Fitted reference-AHI ≈ f(ODI-4) (power + linear candidates). Leave-one-out RMSE compares the correction to the shipped ×1.1. Use this curve to recalibrate the OxyDex AHI surrogate.</div>
+    </div>
+    <div class="card col-4">
+      <h2>Sources loaded <span class="tag">provenance</span></h2>
+      <div id="sources"><div class="muted mono" style="font-size:11px">none yet</div></div>
+      <div class="note" id="nsrrNote"><b>NSRR lane (publishable):</b> drop matching <code>*.edf</code> + <code>*-nsrr.xml</code> pairs (SHHS/MESA/MrOS/CHAT). The XML's scored apneas+hypopneas ÷ staged sleep hours = reference AHI. Don't have files? NSRR access is free but requires a DUA at sleepdata.org. You can also load a <code>CSV(id,ahi)</code> using a harmonized variable (e.g. SHHS <code>ahi_a0h4</code>) and pair it with EDFs.</div>
+    </div>
+
+    <div class="card col-12">
+      <h2>How many nights? — calibration-slope sample-size curve <span class="tag" id="powTag">analytic</span></h2>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+        <span style="font-size:12px;color:var(--text2)">assumed real-PSG R² <input id="r2In" type="range" min="0.5" max="0.93" step="0.01" value="0.7" style="vertical-align:middle"> <b id="r2Val" class="mono" style="color:var(--teal)">0.70</b></span>
+        <span style="font-size:12px;color:var(--text2)">severe prevalence <input id="sevIn" type="range" min="0.08" max="0.35" step="0.01" value="0.22" style="vertical-align:middle"> <b id="sevVal" class="mono" style="color:var(--teal)">22%</b></span>
+        <button id="runPow">Corroborate with bootstrap</button>
+        <div style="flex:1;min-width:90px;max-width:200px;height:4px;background:var(--surface2);border-radius:3px;overflow:hidden"><div id="powBar" style="height:100%;width:0;background:var(--teal);transition:width .2s"></div></div>
+        <span class="mono" id="powStat" style="font-size:11px;color:var(--text3)"></span>
+      </div>
+      <div style="display:flex;gap:18px;flex-wrap:wrap">
+        <canvas id="powCanvas" width="680" height="320" style="flex:1;min-width:320px"></canvas>
+        <div style="flex:0 0 300px">
+          <div id="powReport" class="muted mono" style="font-size:12px;line-height:1.7">—</div>
+        </div>
+      </div>
+      <div class="legend" id="powLegend">For OLS the slope's relative 95%-CI half-width is <code>1.96·√((1−R²)/(n−2))/√R²</code> — it depends only on the correlation and n (the SD ratio cancels). Curve = that function at the assumed R²; knee (amber) = smallest n with CI within ±10% of the slope. The synthetic detector gives R²≈0.93 (a clean floor); real PSG is noisier, so set the slider to a literature-plausible value. “Bootstrap” resamples real-OxyDex synthetic points as a sanity check on the floor.</div>
+    </div>
+
+    <div class="card col-12">
+      <h2>Per-record table <span class="tag" id="rowsTag">0 rows</span></h2>
+      <div style="max-height:340px;overflow:auto"><table id="tbl"><thead><tr>
+        <th>source</th><th>record</th><th class="num">ODI-4</th><th class="num">AHI (ref)</th><th class="num">ODI−AHI</th><th class="num">ODI/AHI</th><th>severity</th><th class="num">min SpO₂</th><th class="num">dur (min)</th><th class="num">AHI src</th>
+      </tr></thead><tbody></tbody></table></div>
+    </div>
+  </div>
+</div>
+
+<!-- real modules: OxyDex stack (plain globals, alone in this realm → no collision), EDF reader, adapter -->
+<script src="kernel-constants.js"></script>
+<script src="metric-registry.js"></script>
+<script src="oxydex-util.js"></script>
+<script src="oxydex-profile.js"></script>
+<script src="oxydex-dsp.js"></script>
+<script src="cpapdex-edf.js"></script>
+<script src="synth-gen.js"></script>
+<script src="cohort-gen.js"></script>
+<script src="nsrr-adapter.js"></script>
+<script src="odi-bias-analysis.js"></script>
+</body></html>

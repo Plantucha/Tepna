@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  odi4-ahi-bias.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rolling-baseline ODI-4 under-estimates AHI in severe OSA — Tepna preprint</title>
+<link rel="stylesheet" href="../licensing/dex-license.css">
+<link rel="stylesheet" href="paper.css">
+</head>
+<body>
+<div class="sheet">
+  <a class="toplink" href="papers.html">← Tepna preprints</a>
+  <div class="banner">Tepna Working Preprint · not peer-reviewed</div>
+  <h1 class="title">Rolling-baseline ODI-4 systematically under-estimates the apnea–hypopnea index in severe sleep apnea: a quantified bias, its mechanism, and a detector-level correction</h1>
+  <div class="callout" style="border:1px solid #1a6e3a;background:#f4fbf6">
+    <b>Update — June 2026 (v22.36):</b> the severity-proportional ODI-4 under-count characterized here has been <b>traced to its mechanism and corrected at the detector level</b>. The cause is <b>trailing-mean baseline self-suppression</b>: closely-spaced desaturations in severe OSA drag the rolling-<em>mean</em> reference downward, so the <code>baseline−4%</code> threshold sinks and later events of equal depth are no longer counted. Replacing the trailing mean with a trailing <b>high-percentile (p90) "ceiling" baseline</b> (<code>computeCeilingBaselineArr</code> in <code>oxydex-util.js</code>; wired into <code>detectODI</code>) restores the resting-SpO₂ reference a desaturation is defined against. On the v1.6 synthetic cohort the <b>severe-stratum mean bias roughly halves</b> (≈−31 → ≈−16 events·h⁻¹) and the severity gradient flattens, without inflating the non-apneic stratum. The residual under-count is smaller but non-zero (the detector still recovers &lt;100% of scored events), so the <code>ODI-4 × 1.1</code> AHI surrogate was re-examined and <b>retained</b> (it does not over-shoot). Original characterization preserved below; corrected numbers are marked <span style="color:#1a6e3a"><b>(fixed)</b></span>.</div>
+  <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
+  <p class="affil">OxyDex oximetry-analysis node, Tepna physiological-signal suite</p>
+  <p class="meta">Draft v1 · June 2026 · Analysis tool: <code>odi-bias-analysis.html</code> · Detector: real <code>oxydex-dsp.js</code> · 100% local, reproducible</p>
+
+  <div class="abstract">
+    <h2>Abstract</h2>
+    <p style="text-align:left;margin-bottom:0"><b>Background.</b> Consumer and clinical pulse-oximeters summarize overnight hypoxemia with the oxygen-desaturation index (ODI), commonly the 4%-desaturation variant (ODI-4), and frequently report a surrogate apnea–hypopnea index (AHI) as <code>AHI ≈ ODI-4 × 1.1</code>. We test whether that surrogate holds. <b>Methods.</b> We ran the production OxyDex ODI-4 detector on overnight SpO₂ recordings and compared ODI-4 against a reference AHI. <b>Results.</b> Across the pilot corpus ODI-4 tracked AHI strongly but with a slope of ≈0.23 (R²≈0.93) — recovering only about one quarter of scored respiratory events — and the deficit grew with severity (mean under-count ≈30 events/h in the severe stratum). The shipped ×1.1 surrogate gave a leave-one-out RMSE of 15.2 events/h; a re-fit linear correction roughly halved it to 7.2. <b>Conclusion.</b> The under-count is a deterministic detector artifact, not noise. <span style="color:#1a6e3a"><b>(fixed)</b></span> Tracing it to trailing-mean baseline self-suppression and replacing the mean with a high-percentile ceiling baseline roughly halves the severe-stratum bias (≈−31 → ≈−16 events·h⁻¹ on the synthetic cohort) and lifts the ODI-4↔AHI slope from ≈0.42 to ≈0.69 — a detector-level fix that needs no new sensing and no recalibration constant. <b>This pilot is small (n=5 nights with planted/ specified reference AHI) and not PSG-scored — it characterizes and motivates rather than establishes the clinical result.</b></p>
+  </div>
+  <p class="kw"><b>Keywords:</b> oximetry · oxygen desaturation index · apnea–hypopnea index · obstructive sleep apnea · calibration · consumer wearables</p>
+
+  <div class="callout" style="border:1px dashed #b8860b;background:#fffdf5">
+    <h2 class="sec" style="margin-top:0">0. Layman overview <span style="font-weight:400;color:#b8860b;font-size:13px">(delete before submission)</span></h2>
+  <p>Cheap overnight oximeters (the finger/wrist clips that track blood oxygen) count how often your oxygen dips, then multiply that count by a fixed number (×1.1) to estimate how severe your sleep apnea is. We show the <b>dip-counter</b> itself is wrong in a predictable way: it misses most breathing events, and it misses <b>even more in severe patients</b> — so it most understates the people who are worst off. We then trace exactly <i>why</i> and fix it.</p>
+    <p>The fix turned out to be at the <b>counter</b>, not the multiplier. The dip-counter judged each dip against a <i>running average</i> of recent oxygen, but in severe patients the dips themselves dragged that average down — so the bar to count the next dip kept sinking, and the worst nights hid the most events. Judging each dip against the recent <i>resting</i> level instead (a high-percentile "ceiling") roughly <b>halves the error in severe patients</b>. We also work out how big a proper validation study needs to be (§4): about <b>150–300 paired nights</b>, the binding constraint being enough <i>severe</i> cases, not the total. This pilot is small (5 nights plus simulation), so it <b>characterizes, fixes, and sizes</b> a real study rather than proving the clinical number.</p>
+  </div>
+
+  <h2 class="sec">1. Introduction</h2>
+  <p>Overnight pulse-oximetry is the cheapest and most widely deployed signal for sleep-apnea screening. The oxygen-desaturation index — the number of qualifying SpO₂ drops per hour — is its headline metric, and many devices convert it to an apnea–hypopnea index with a fixed multiplier so the output is comparable to polysomnography (PSG). The OxyDex node, like several commercial products, ships the convention <code>AHI ≈ ODI-4 × 1.1</code>. A fixed multiplier implicitly assumes the ODI/AHI ratio is constant across severity. Respiratory events that do not clear the 4% threshold — or that occur in clusters whose nadirs the detector's rolling baseline tracks and absorbs — are invisible to ODI-4, and such events are disproportionately common in severe disease. We therefore expect, and here quantify, a <em>proportional</em> (severity-dependent) under-count.</p>
+
+  <h2 class="sec">2. Methods</h2>
+  <h3 class="sub">2.1 Detector</h3>
+  <p>ODI-4 was computed by the production detector (<code>oxydex-dsp.js → processNight</code>): artifact cleaning, a rolling SpO₂ baseline, 4%-desaturation event detection, and the derived index. The shipped AHI surrogate is <code>computeAHIestimates → ahiODI4 = ODI-4 × 1.1</code>. The original characterization (Table 1, &ldquo;before&rdquo; column) used the unmodified detector with a <b>trailing-mean</b> baseline (<code>computeBaselineArr</code>). The corrected results (&ldquo;after&rdquo;) use the same pipeline with a single change: <code>detectODI</code> now measures desaturations against a trailing <b>p90 ceiling</b> baseline (<code>computeCeilingBaselineArr</code>). No other detector parameter and no surrogate constant was altered.</p>
+  <h3 class="sub">2.2 Recordings and reference AHI</h3>
+  <p>The pilot uses the five committed overnight O2Ring recordings of the reference subject (<code>SubjectA</code>), each with an independently specified reference AHI. SpO₂ is sampled at 1 Hz. Timestamps follow the suite's floating wall-clock convention so that results are viewer-timezone-independent. The analysis apparatus (<code>odi-bias-analysis.html</code>) additionally ingests (i) large-N synthetic cohort points and (ii) real PSG datasets (NSRR: SHHS/MESA/MrOS/CHAT) via an EDF + annotation-XML adapter, where the scored apneas + hypopneas divided by staged sleep hours give a PSG reference AHI; neither is used for the pilot numbers below.</p>
+  <h3 class="sub">2.3 Statistics</h3>
+  <p>We fit ordinary least squares for ODI-4 as a function of reference AHI (the under-count slope), a Bland–Altman analysis of ODI-4 − AHI, and the median ODI/AHI ratio per severity stratum (none &lt;5, mild 5–15, moderate 15–30, severe ≥30 events/h). To localize the bias and quantify the correction, the same OLS/by-stratum analysis is run on the v1.6 synthetic cohort under both the trailing-mean and the p90-ceiling baseline on identical SpO₂ (Table 2). The legacy <code>odi-bias-analysis.html</code> tool additionally compares fixed-×1.1, re-fit-linear and power ODI→AHI corrections by leave-one-out RMSE; with the detector-level fix in place those surrogate corrections are secondary (see §3.1).</p>
+
+  <h2 class="sec">3. Results</h2>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 1.</b> Per-night OxyDex ODI-4 vs reference AHI, pilot corpus (SubjectA, five nights). <b>Before</b> = trailing-mean baseline (original); <b>After</b> <span style="color:#1a6e3a">(fixed)</span> = p90 ceiling baseline, real <code>processNight</code> output.</caption>
+    <thead><tr><th>Night</th><th>ODI-4 before</th><th>ODI-4 after</th><th>Reference AHI</th><th>ODI−AHI before</th><th>ODI−AHI after</th><th>Severity</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>6.4</td><td>12.0</td><td>22</td><td>−15.6</td><td>−10.0</td><td>moderate</td></tr>
+      <tr class="hi"><td>2</td><td>7.6</td><td>14.9</td><td>38</td><td>−30.4</td><td>−23.1</td><td>severe</td></tr>
+      <tr><td>3</td><td>0.9</td><td>1.9</td><td>7</td><td>−6.1</td><td>−5.1</td><td>mild</td></tr>
+      <tr><td>4</td><td>0.5</td><td>0.8</td><td>4</td><td>−3.5</td><td>−3.2</td><td>none</td></tr>
+      <tr><td>5</td><td>0.1</td><td>0.8</td><td>3</td><td>−2.9</td><td>−2.2</td><td>none</td></tr>
+    </tbody>
+  </table>
+  <p>With the original trailing-mean baseline ODI-4 was strongly linear in reference AHI but with slope <b>0.23</b> (R² <b>0.93</b>): the detector recovered roughly one quarter of scored events, and the absolute deficit widened with severity (the severe night, AHI 38, returned ODI-4 7.6 — a −30.4 events/h under-count). <span style="color:#1a6e3a"><b>(fixed)</b></span> The p90 ceiling baseline lifts the pilot slope to <b>≈0.44</b> (R² ≈ 0.94) and cuts the severe-night deficit from −30.4 to −23.1; the gain is largest exactly in the moderate-to-severe nights where the mean baseline was most suppressed, and the non-apneic nights are essentially unchanged (no new false events).</p>
+
+  <figure>
+    <img src="figures/odi4-calibration.png" alt="ODI-4 vs reference AHI calibration scatter, Bland–Altman, by-severity, and correction curve">
+    <figcaption><b>Figure 1.</b> Calibration of OxyDex ODI-4 against reference AHI (live output of <code>odi-bias-analysis.html</code>), shown for the <b>original trailing-mean detector</b> (the bias this paper characterizes; the ceiling-baseline correction shifts the points upward toward the identity line, per Tables 1–2). Points fall far below the identity line; the dotted ×1.1 surrogate (amber) is markedly optimistic while the OLS fit (teal) tracks the data. Companion panels show the Bland–Altman agreement, the median ODI/AHI ratio falling across severity strata, and the candidate correction curves. Dark theme is the tool's native rendering.</figcaption>
+  </figure>
+
+  <h3 class="sub">3.1 The bias is severity-proportional across a synthetic cohort — and the ceiling baseline flattens it</h3>
+  <p>The five-night pilot is too small to localize the bias by severity. We therefore reproduced it on the v1.6 synthetic cohort (<code>cohort-gen.js</code>, planted truth-AHI), running the real ODI-4 detector with the trailing-mean baseline (&ldquo;before&rdquo;) and the p90 ceiling baseline (&ldquo;after&rdquo;) on identical SpO₂. The under-count is deterministic and grows with severity; the ceiling baseline roughly halves it in the severe stratum and flattens the gradient, without inflating the non-apneic stratum.</p>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 2.</b> Mean ODI-4 bias (ODI-4 − truth-AHI, events·h⁻¹) by severity stratum on the v1.6 synthetic cohort (representative re-run, N=220 nights). Negative = under-count.</caption>
+    <thead><tr><th>Stratum (truth-AHI)</th><th>nights</th><th>mean AHI</th><th>bias before (mean BL)</th><th>bias after (ceiling) <span style="color:#1a6e3a">(fixed)</span></th></tr></thead>
+    <tbody>
+      <tr><td>none (&lt;5)</td><td>120</td><td>1.7</td><td>−1.3</td><td>−0.9</td></tr>
+      <tr><td>mild (5–15)</td><td>58</td><td>10.1</td><td>−7.9</td><td>−6.2</td></tr>
+      <tr><td>moderate (15–30)</td><td>16</td><td>19.5</td><td>−14.2</td><td>−10.3</td></tr>
+      <tr class="hi"><td>severe (≥30)</td><td>26</td><td>56.0</td><td>−30.6</td><td>−15.7</td></tr>
+    </tbody>
+  </table>
+  <p>Across the cohort the ODI-4↔AHI slope rises from <b>0.42</b> (mean baseline) to <b>0.69</b> (ceiling) — the detector recovers a substantially larger fraction of scored events — while the non-apneic stratum stays near zero (no false-positive inflation). The severe-stratum bias is the headline: −30.6 → −15.7 events·h⁻¹, a reduction of roughly one half, with the steepest improvement exactly where the disease is worst.</p>
+  <p><b>The AHI surrogate constant was re-examined, not re-fit.</b> With the corrected detector ODI-4 is larger, so the natural worry is that <code>ODI-4 × 1.1</code> now over-shoots true AHI. It does not: the slope of truth-AHI on the corrected ODI-4 is still <b>&gt; 1</b> (≈1.4 through the origin on the cohort), i.e. ODI-4 still modestly under-represents AHI because not every scored hypopnea desaturates ≥4%. Inflating the multiplier to chase the simulator would be over-fitting to synthetic event-depth statistics; the conservative, literature-consistent <code>× 1.1</code> is therefore <b>retained unchanged</b> (see <code>computeAHIestimates</code>).</p>
+
+  <h2 class="sec">4. How many paired nights are needed?</h2>
+  <p>Because the bias is estimated as the slope of a linear calibration, the question “how many paired oximetry + PSG nights does a validation need?” has a closed-form answer. For ordinary least squares, the slope’s relative 95% confidence half-width depends only on the correlation and the sample size — the units and the spread of AHI cancel:</p>
+  <div class="eqn">relative 95%-CI half-width(n) = 1.96 · √((1 − R²) / (n − 2)) / √R²</div>
+  <p>Requiring the slope to be pinned to within ±10% of its value gives the sample sizes in Table 3. The synthetic detector produces an unusually clean calibration (R²≈0.93), for which only <b>≈31 nights</b> suffice — a floor, not a realistic target. Real polysomnography is noisier; at a literature-plausible R²≈0.70 the requirement rises to <b>≈167 nights</b>. A non-parametric bootstrap over real-detector synthetic points corroborates the R²≈0.93 floor.</p>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 3.</b> Paired nights needed to pin the calibration slope, by assumed agreement (R²) and target precision.</caption>
+    <thead><tr><th>Assumed R²</th><th>Nights for ±10% CI</th><th>Nights for ±15% CI</th></tr></thead>
+    <tbody>
+      <tr><td>0.93 (synthetic floor)</td><td>31</td><td>15</td></tr>
+      <tr><td>0.80</td><td>99</td><td>45</td></tr>
+      <tr class="hi"><td>0.70 (plausible real PSG)</td><td>167</td><td>76</td></tr>
+      <tr><td>0.60</td><td>259</td><td>116</td></tr>
+    </tbody>
+  </table>
+  <figure>
+    <img src="figures/odi4-power.png" alt="Slope 95%-CI half-width vs sample size, analytic curves at R²0.93 and R²0.70 with knee marker">
+    <figcaption><b>Figure 2.</b> Sample-size curve (live output of <code>odi-bias-analysis.html</code>). The slope’s relative 95%-CI half-width falls as 1/√n; the knee (amber) is the smallest n meeting the ±10% target. Purple = the synthetic R²≈0.93 floor (n≈31); teal = an assumed real-PSG R²≈0.70 (n≈167).</figcaption>
+  </figure>
+  <div class="callout"><b>The binding constraint is severity, not the total.</b> The bias lives in the severe stratum, so the study must contain enough <em>severe</em> nights to estimate it there — we target ≥35. Severe OSA is only ≈12–30% of a cohort depending on recruitment, so the severe-stratum requirement (≈117 nights in a sleep-clinic sample at 30% severe, ≈290 in a community sample at 12%) typically <em>exceeds</em> the slope requirement and sets the sample size. <b>Practical target: ≈150–300 paired PSG nights</b>, recruited to ensure ≈35+ severe cases. Established PSG cohorts clear this easily — SHHS alone is n≈5,800.</div>
+
+  <h2 class="sec">5. Discussion</h2>
+  <p>A constant ODI→AHI multiplier was the wrong place to look: the deficit is generated <em>upstream</em>, in the event counter. Mechanistically, dense event clusters in severe OSA drag the detector's rolling-<em>mean</em> baseline downward, so individual nadirs no longer clear the 4% criterion and are not counted; sub-threshold hypopneas compound the loss. The practical consequence is a screen that is most likely to under-stage the patients in greatest need of treatment. <span style="color:#1a6e3a"><b>(fixed)</b></span> The correction is therefore at the detector, not the surrogate: a trailing high-percentile <b>ceiling</b> baseline tracks the resting SpO₂ that defines a desaturation and is not suppressed by the dips it is meant to count. It is a localized change (<code>computeCeilingBaselineArr</code> in <code>oxydex-util.js</code>, wired into <code>detectODI</code>), requires no new sensing and no tuned constant, and roughly halves the severe-stratum bias. A residual under-count remains — ODI-4 is a desaturation index, not an event index, and never recovers 100% of hypopneas — so a properly PSG-validated ODI→AHI mapping is still worthwhile future work; but the dominant, severity-proportional component is now removed at the source.</p>
+  <div class="callout"><b>Limitations.</b> The pilot is five nights from one subject and the reference AHI is independently specified, not concurrently PSG-scored; scoring rules (e.g. the hypopnea desaturation threshold) materially change AHI. These results <b>motivate and power</b> a validation, they do not establish a clinical bias. The apparatus is built to consume real PSG: with NSRR access, dropping a cohort's EDF + annotation files (or pairing EDFs with a harmonized scored-AHI variable such as SHHS <code>ahi_a0h4</code>) reproduces every figure on PSG-labelled data.</p>
+
+  <h2 class="sec">6. Reproducibility</h2>
+  <ul>
+    <li><b>Run it:</b> open <code>odi-bias-analysis.html</code> → “Run SubjectA corpus (5 real nights)”. Table 1, Figure 1, and Table 2 populate live; the sample-size panel (Table 3, Figure 2) is analytic with adjustable R²/severity sliders and an optional real-detector bootstrap. Export <code>odi-bias-results.csv</code>, <code>odi-bias-stats.json</code>, <code>odi-bias-figures.png</code>.</li>
+    <li><b>Detector:</b> real <code>oxydex-dsp.js</code> (loaded alone in-realm); ODI-4 = <code>processNight().odi4.rate</code>; surrogate = <code>ahiEst.ahiODI4</code>.</li>
+    <li><b>Recordings:</b> <code>uploads/synthetic/O2Ring*.csv</code> + <code>ground_truth_night{1..5}.json</code>.</li>
+    <li><b>Real-PSG path:</b> <code>nsrr-adapter.js</code> (<code>window.NSRR</code>): EDF→OxyDex rows (SpO₂ auto-detect, 1 Hz resample, dropout forward-fill) + NSRR XML → reference AHI. Honors the suite Clock Contract.</li>
+    <li><b>Next:</b> obtain an NSRR data-use agreement (sleepdata.org), analyze SHHS (n≈5,800), and replicate Tables 1–2 on PSG before submission.</li>
+  </ul>
+
+  <h2 class="sec">References</h2>
+  <ol class="refs">
+    <li>Project documentation: <code>ODI-BIAS-README.md</code> (this analysis), <code>CLAUDE.md</code> (Clock Contract, evidence-grade system), Tepna suite.</li>
+    <li>National Sleep Research Resource (NSRR), sleepdata.org — SHHS, MESA, MrOS, CHAT polysomnography cohorts (data-use agreement required).</li>
+    <li>Standard references on ODI vs AHI agreement and oximetry-based OSA screening — to be added at submission.</li>
+  </ol>
+
+  <div class="footer">Tepna working preprint · generated from live analysis output · figures and statistics regenerate deterministically from the cited tools. Not peer-reviewed; not for clinical use.</div>
+</div>
+
+<div class="dxl dxl-oneline" style="max-width:820px;margin:30px auto 8px;justify-content:center">
+  <span class="dxl-mark">T</span>
+  <span>© 2026 <b style="font-weight:600;color:var(--text,#F4F7FB)">Michal Planicka</b></span>
+  <span class="dxl-sep">·</span><span>Tepna v1.0.0</span>
+  <span class="dxl-sep">·</span><span class="dxl-lic">Apache-2.0</span>
+  <span class="dxl-sep">·</span><span style="color:var(--text4,#6E7F94)">◈ Asheville, NC</span>
+  <span class="dxl-sep">·</span><span style="color:var(--text4,#6E7F94)">not a medical device</span>
+</div>
+</body></html>

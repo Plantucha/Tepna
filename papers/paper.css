@@ -1,0 +1,55 @@
+/* paper.css — standardized Tepna preprint stylesheet.
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+   Single-column academic preprint, screen + print. Serif body, tight measure,
+   numbered sections, boxed abstract, figure/table captions. Used by every
+   paper in /papers so the format never has to be re-decided. */
+:root{
+  --ink:#1a1a1a; --muted:#555; --faint:#888; --rule:#d8d8d8; --bg:#fff;
+  --accent:#7a1f1f; --box:#f6f4ef; --boxline:#e2ddd2; --link:#1a4d7a;
+  --fig:#0c0f14;
+  --serif:'Charter','Georgia','Times New Roman',serif;
+  --sans:'Helvetica Neue',Arial,system-ui,sans-serif;
+  --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+}
+*{box-sizing:border-box;}
+html{font-size:17px;}
+body{margin:0;background:#e9e9ea;color:var(--ink);font-family:var(--serif);line-height:1.5;-webkit-font-smoothing:antialiased;}
+.sheet{max-width:820px;margin:28px auto;background:var(--bg);padding:64px 76px 80px;box-shadow:0 1px 4px rgba(0,0,0,.18);}
+.banner{font-family:var(--sans);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:3px;display:inline-block;padding:2px 8px;margin-bottom:18px;}
+h1.title{font-size:27px;line-height:1.22;margin:0 0 12px;font-weight:700;letter-spacing:-.01em;}
+.byline{font-family:var(--sans);font-size:13px;color:var(--muted);margin:0 0 2px;}
+.affil{font-family:var(--sans);font-size:12px;color:var(--faint);margin:0 0 4px;}
+.meta{font-family:var(--sans);font-size:11.5px;color:var(--faint);margin:0 0 26px;}
+.meta code,code{font-family:var(--mono);font-size:.85em;background:#f3f1ec;padding:1px 4px;border-radius:3px;color:#333;}
+.abstract{background:var(--box);border:1px solid var(--boxline);border-radius:5px;padding:18px 22px;margin:0 0 14px;font-size:15px;}
+.abstract h2{font-family:var(--sans);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin:0 0 8px;}
+.kw{font-family:var(--sans);font-size:12px;color:var(--muted);margin:0 0 30px;}
+.kw b{color:var(--ink);}
+h2.sec{font-size:17px;margin:30px 0 8px;font-weight:700;padding-bottom:3px;border-bottom:1.5px solid var(--ink);}
+h3.sub{font-size:14.5px;font-family:var(--sans);margin:20px 0 6px;font-weight:700;}
+p{margin:0 0 11px;text-align:justify;hyphens:auto;}
+ul,ol{margin:0 0 12px;padding-left:22px;} li{margin:0 0 5px;}
+figure{margin:22px 0;}
+figure img{width:100%;display:block;border:1px solid var(--rule);border-radius:4px;background:var(--fig);}
+figcaption,.tbl-cap{font-family:var(--sans);font-size:12px;color:var(--muted);margin-top:7px;line-height:1.45;}
+figcaption b,.tbl-cap b{color:var(--ink);}
+table.data{width:100%;border-collapse:collapse;font-family:var(--sans);font-size:12.5px;margin:8px 0 4px;}
+table.data caption{caption-side:top;text-align:left;}
+table.data th,table.data td{padding:6px 10px;border-bottom:1px solid var(--rule);text-align:right;}
+table.data th:first-child,table.data td:first-child{text-align:left;}
+table.data thead th{border-bottom:1.5px solid var(--ink);color:var(--ink);font-weight:700;}
+table.data tr.hi td{background:#faf3f3;}
+.callout{border-left:3px solid var(--accent);background:#faf6f2;padding:12px 16px;margin:16px 0;font-size:14px;}
+.eqn{font-family:var(--mono);font-size:13px;background:var(--box);border:1px solid var(--boxline);border-radius:4px;padding:10px 14px;margin:12px 0;overflow-x:auto;}
+.refs{font-family:var(--sans);font-size:12px;color:var(--muted);counter-reset:ref;}
+.refs li{margin:0 0 6px;}
+a{color:var(--link);text-decoration:none;} a:hover{text-decoration:underline;}
+.footer{margin-top:36px;padding-top:14px;border-top:1px solid var(--rule);font-family:var(--sans);font-size:11px;color:var(--faint);}
+.toplink{font-family:var(--sans);font-size:12px;margin-bottom:10px;display:inline-block;}
+@media print{
+  body{background:#fff;} .sheet{box-shadow:none;margin:0;max-width:none;padding:0 8mm;}
+  figure img{break-inside:avoid;} h2.sec,h3.sub{break-after:avoid;} table.data,figure,.callout{break-inside:avoid;}
+  .toplink,.noprint{display:none;}
+}
+@media(max-width:680px){ .sheet{padding:32px 22px 48px;margin:0;} html{font-size:16px;} }

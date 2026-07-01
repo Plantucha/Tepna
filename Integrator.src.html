@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  Integrator.src.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Integrator · Fusion Layer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="stylesheet" href="licensing/dex-license.css">
+<link rel="stylesheet" href="ans-design.css">
+<style>
+/* ── Integrator-specific surface styling (built on ans-design.css tokens) ── */
+.view { display:none; }
+.mono { font-family:'IBM Plex Mono', ui-monospace, monospace; }
+
+/* Load zone */
+.drop-zone { border:1.5px dashed rgba(61,224,208,.28); border-radius:14px; background:rgba(61,224,208,.03);
+  padding:38px 28px; text-align:center; cursor:pointer; transition:border-color .15s, background .15s; }
+.drop-zone:hover, .drop-zone.drag { border-color:var(--teal); background:rgba(61,224,208,.07); }
+.drop-zone .dz-icon { font-size:30px; opacity:.7; }
+.drop-zone .dz-title { font-weight:700; font-size:15px; margin-top:8px; color:var(--text); }
+.drop-zone .dz-sub { font-size:12px; color:var(--text3); margin-top:5px; }
+.dz-actions { display:flex; gap:10px; justify-content:center; margin-top:16px; flex-wrap:wrap; }
+
+#chips { display:flex; flex-direction:column; gap:8px; margin-top:18px; }
+.chips-empty { color:var(--text4); font-size:12px; padding:6px 2px; }
+.node-chip { display:flex; align-items:center; gap:12px; background:var(--surface); border:var(--b);
+  border-radius:11px; padding:11px 13px; }
+.chip-dot { width:10px; height:10px; border-radius:50%; flex:0 0 auto; box-shadow:0 0 8px currentColor; }
+.chip-main { flex:1; min-width:0; }
+.chip-node { font-weight:700; font-size:13px; color:var(--text); }
+.chip-warn { color:var(--amber); font-weight:500; font-size:11px; }
+.chip-meta { font-size:11px; color:var(--text3); font-family:'IBM Plex Mono',monospace; margin-top:2px; }
+.chip-x { background:none; border:none; color:var(--text4); cursor:pointer; font-size:13px; padding:4px 7px; border-radius:6px; }
+.chip-x:hover { background:rgba(248,113,113,.1); color:var(--red); }
+.chip-clear { margin-top:4px; align-self:flex-start; }
+
+#warnBox { margin-top:14px; display:none; }
+.warn-row { font-size:12px; color:var(--amber); background:rgba(255,184,77,.06); border:1px solid rgba(255,184,77,.18);
+  border-radius:8px; padding:8px 12px; margin-bottom:6px; }
+
+/* Hero / honesty header */
+#hero { margin-bottom:22px; }
+.hero-empty { color:var(--text3); font-size:14px; line-height:1.6; padding:20px; background:var(--surface);
+  border:var(--b); border-radius:14px; }
+.hero-card { border-radius:14px; padding:22px 24px; border:var(--b); }
+.hero-ok { background:linear-gradient(135deg, var(--surface), rgba(61,224,208,.06)); border-color:rgba(61,224,208,.22); }
+.hero-amber { background:linear-gradient(135deg, var(--surface), rgba(255,184,77,.07)); border-color:rgba(255,184,77,.3); }
+.hero-eyebrow { font-size:11px; text-transform:uppercase; letter-spacing:.09em; font-weight:700; color:var(--text3); }
+.hero-amber .hero-eyebrow { color:var(--amber); }
+.hero-h1 { font-size:26px; font-weight:800; letter-spacing:-.02em; margin-top:8px; color:var(--text); }
+.hero-sub { font-size:13px; color:var(--text2); line-height:1.6; margin-top:8px; max-width:760px; }
+
+/* Timeline */
+.tl-legend { display:flex; gap:18px; flex-wrap:wrap; margin-bottom:12px; font-size:11px; color:var(--text3); }
+.tl-leg { display:flex; align-items:center; gap:6px; }
+.tl-leg-dot { width:9px; height:9px; border-radius:50%; }
+.tl-leg-bar { width:14px; height:0; border-top:2px solid #FF6B7A; }
+.tl-leg-ov { width:14px; height:11px; background:rgba(61,224,208,.18); border-radius:2px; }
+.tl-scroll { width:100%; overflow-x:auto; }
+.tl-svg { width:100%; min-width:680px; display:block; }
+.tl-axis-lbl { fill:var(--text4); font-size:10px; font-family:'IBM Plex Mono',monospace; }
+.tl-lane-node { font-size:12px; font-weight:700; font-family:'IBM Plex Mono',monospace; }
+.tl-lane-date { fill:var(--text4); font-size:9.5px; font-family:'IBM Plex Mono',monospace; }
+.tl-tick { cursor:crosshair; }
+.tl-tick:hover { fill-opacity:1 !important; }
+.tl-band { cursor:pointer; }
+.tl-undated { margin-top:10px; font-size:11px; color:var(--amber); }
+.tl-empty, .tl-tip + .tl-empty { color:var(--text4); padding:24px; font-size:13px; }
+.tl-tip { position:fixed; z-index:9999; display:none; background:#0B0F14; border:1px solid rgba(255,255,255,.14);
+  color:var(--text); font-size:11px; font-family:'IBM Plex Mono',monospace; padding:6px 9px; border-radius:7px; pointer-events:none;
+  box-shadow:0 6px 20px rgba(0,0,0,.5); }
+
+/* Findings */
+#findings { display:grid; grid-template-columns:repeat(auto-fill, minmax(290px,1fr)); gap:16px; }
+.finding-card { padding:18px 20px; }
+.fc-head { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+.fc-tags { display:flex; gap:5px; flex-wrap:wrap; }
+.fc-tag { font-size:9.5px; font-weight:700; padding:2px 7px; border-radius:20px; color:var(--c);
+  background:color-mix(in srgb, var(--c) 13%, transparent); border:1px solid color-mix(in srgb, var(--c) 28%, transparent); }
+.fc-big { font-size:34px; font-weight:800; letter-spacing:-.02em; color:var(--text); margin:10px 0 4px; }
+.fc-unit { font-size:13px; font-weight:600; color:var(--text3); letter-spacing:0; }
+.fc-na { color:var(--text4); font-size:24px; }
+.fc-note { font-size:11.5px; color:var(--text3); line-height:1.6; margin-top:4px; }
+.card-note { color:var(--text3); font-size:13px; line-height:1.6; padding:18px; background:var(--surface);
+  border:var(--b); border-radius:12px; }
+
+/* Table */
+.tbl-type { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--c); }
+.tbl-note { font-size:11px; color:var(--text3); max-width:420px; }
+.data-table td.mono, .data-table th { white-space:nowrap; }
+
+/* Pairs */
+#pairs { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px,1fr)); gap:16px; }
+.pair-card { padding:16px 18px; }
+.pair-head { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700; color:var(--text); flex-wrap:wrap; }
+.pair-dot { width:9px; height:9px; border-radius:50%; }
+.pair-vs { color:var(--text4); font-weight:500; font-size:11px; }
+.pair-rows { margin-top:12px; display:flex; flex-direction:column; gap:6px; }
+.pair-rows > div { display:flex; justify-content:space-between; font-size:11.5px; color:var(--text3); }
+.pair-rows b { color:var(--text2); }
+.pair-ov.ok b { color:var(--teal); } .pair-ov.no b { color:var(--amber); }
+
+.tol-row { display:flex; align-items:center; gap:12px; margin-top:20px; font-size:12px; color:var(--text3); }
+.tol-row input[type=range] { accent-color:var(--teal); }
+#tolVal { font-family:'IBM Plex Mono',monospace; color:var(--teal); font-weight:700; }
+
+.section-block { margin-bottom:30px; }
+.section-block > h3 { font-size:13px; text-transform:uppercase; letter-spacing:.07em; color:var(--text3);
+  font-weight:700; margin:0 0 14px; }
+
+/* Mobile nav (sidebar collapses ≤1080px in ans-design.css) */
+.mobile-nav { display:none; position:fixed; bottom:0; left:0; right:0; z-index:500;
+  background:rgba(11,15,20,.97); border-top:1px solid rgba(255,255,255,.08);
+  backdrop-filter:blur(10px); padding:4px 0 max(4px, env(safe-area-inset-bottom)); }
+.mobile-nav-items { display:flex; justify-content:flex-start; gap:2px; padding:4px 10px; overflow-x:auto; }
+.mobile-nav-items::-webkit-scrollbar { display:none; }
+.mnav-item { flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:3px;
+  padding:6px 14px; border-radius:10px; cursor:pointer; color:var(--text4); font-size:11px; font-weight:600;
+  background:none; border:none; }
+.mnav-item.active { color:var(--teal); background:rgba(61,224,208,.08); }
+.mnav-icon { font-size:16px; line-height:1; }
+body.light .mobile-nav { background:rgba(255,255,255,.97); border-top-color:rgba(0,0,0,.07); }
+@media (max-width: 1080px){ .mobile-nav { display:block; } .main-content { padding-bottom:84px !important; } #exportBar { left:0 !important; } }
+@media (max-width:1080px){ .mobile-nav{ left:0 !important; } }
+
+/* ── Longitudinal view (cross-node, IndexedDB-backed) ── */
+.long-store-bar{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12px; color:var(--text3);
+  background:rgba(61,224,208,.05); border:1px solid rgba(61,224,208,.14); border-radius:10px; padding:9px 13px; margin-bottom:16px; }
+.long-store-bar:empty{ display:none; }
+.long-store-bar b{ color:var(--text); font-weight:700; }
+.long-store-ico{ font-size:14px; }
+.long-warn{ color:var(--amber); }
+.long-clear{ margin-left:auto; }
+.long-empty{ color:var(--text3); font-size:13px; line-height:1.7; padding:22px; text-align:center; border:1px dashed rgba(255,255,255,.1); border-radius:12px; }
+.long-sub{ color:var(--text3); font-size:12.5px; line-height:1.6; margin:0 0 14px; max-width:760px; }
+.long-count{ font-size:12px; font-weight:700; color:var(--teal); background:rgba(61,224,208,.1); padding:1px 9px; border-radius:999px; margin-left:6px; vertical-align:middle; }
+/* coverage grid */
+.cg-scroll{ overflow-x:auto; border:1px solid rgba(255,255,255,.06); border-radius:12px; }
+.cov-grid{ border-collapse:collapse; font-size:11px; }
+.cov-grid th.cg-date-h{ padding:4px 0; width:18px; }
+.cov-grid th.cg-date-h span{ writing-mode:vertical-rl; transform:rotate(180deg); color:var(--text4); font-weight:600; font-family:'IBM Plex Mono',monospace; font-size:10px; white-space:nowrap; }
+.cov-grid td.cg-node, .cov-grid td.cg-node-h{ position:sticky; left:0; background:var(--bg,#0B0F14); padding:5px 14px 5px 12px; font-weight:700; font-size:12px; white-space:nowrap; z-index:1; }
+.cov-grid td.cg-cell{ width:18px; height:22px; border:1px solid rgba(255,255,255,.03); }
+.cov-grid td.cg-on{ background:var(--c); opacity:.85; border-radius:3px; }
+.cov-grid td.cg-on.cg-lq{ opacity:.3; }
+body.light .cov-grid td.cg-node{ background:#fff; }
+/* correlation cards */
+.cor-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:12px; }
+.cor-card{ background:var(--surface,#121821); border:1px solid rgba(255,255,255,.07); border-left:3px solid var(--c); border-radius:12px; padding:14px 16px; }
+.cor-pair{ font-size:13px; color:var(--text2); line-height:1.5; }
+.cor-pair b{ color:var(--text); font-weight:700; }
+.cor-node{ font-weight:700; font-size:11px; }
+.cor-link{ margin:0 7px; color:var(--c); font-weight:700; }
+.cor-r{ display:flex; align-items:baseline; gap:10px; margin:9px 0 6px; }
+.cor-rval{ font-size:22px; font-weight:800; font-family:'IBM Plex Mono',monospace; color:var(--c); letter-spacing:-.02em; }
+.cor-n{ font-size:11px; color:var(--text4); font-family:'IBM Plex Mono',monospace; }
+.cor-note{ font-size:11.5px; color:var(--text3); line-height:1.5; }
+/* per-node trend cells */
+.long-trend-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; }
+.long-trend-cell{ background:var(--surface,#121821); border:1px solid rgba(255,255,255,.07); border-radius:12px; padding:12px 14px; }
+.ltc-head{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:6px; }
+.ltc-node{ font-size:11px; font-weight:700; }
+.ltc-metric{ font-size:12px; color:var(--text2); font-weight:600; }
+.ltc-foot{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-top:5px; font-size:11px; }
+.ltc-foot .ltc-dir{ color:var(--text4); }
+.hdr-note{ font-size:11px; font-weight:500; color:var(--text4); letter-spacing:0; text-transform:none; margin-left:8px; }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <!-- ───────── Sidebar ───────── -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-badge" style="background:linear-gradient(135deg,#3DE0D0,#58A6FF);display:flex;align-items:center;justify-content:center;font-weight:800;color:#041014;"><svg viewBox="0 0 100 100" aria-hidden="true" style="width:23px;height:23px" fill="none" stroke="#06121A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></svg></div>
+      <div><div class="logo-title">Integrator</div><div class="logo-sub">Fusion Layer · Ganglior</div></div>
+    </div>
+    <hr class="sidebar-logo-rule">
+    <nav>
+      <div class="sec-label">Workspace</div>
+      <a href="#" class="nav-item" data-view="load">Load</a>
+      <a href="#" class="nav-item" data-view="timeline">Timeline</a>
+      <a href="#" class="nav-item" data-view="findings">Findings</a>
+      <a href="#" class="nav-item" data-view="longitudinal">Longitudinal</a>
+      <a href="#" class="nav-item" data-view="pairs">Per-pair</a>
+      <a href="#" class="nav-item" data-view="export">Export</a>
+    </nav>
+    <div class="side-foot">
+      <div class="sidebar-data-card">
+        <div class="sidebar-data-info">100% local · no network. Drag node JSON exports in; nothing leaves this device.</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ───────── Main ───────── -->
+  <main class="main-content">
+    <div class="topbar">
+      <div><div class="page-title">Fusion Layer</div><div class="page-sub">Co-register the -Dex nodes on one floating wall-clock · surface cross-signal findings</div></div>
+      <div class="topbar-actions"><button class="btn" id="themeToggle">◐ Theme</button></div>
+    </div>
+
+    <!-- HERO / honesty header (always visible) -->
+    <div id="hero"></div>
+    <div id="kpiStrip" class="kpi-strip"></div>
+
+    <!-- LOAD VIEW -->
+    <section class="view" data-view="load">
+      <div class="drop-zone" id="dropZone">
+        <div class="dz-icon">⤓</div>
+        <div class="dz-title">Drop 2 or more -Dex JSON exports</div>
+        <div class="dz-sub">ECGDex · OxyDex · GlucoDex · PulseDex · HRVDex — full node-export or slim event-stream</div>
+        <div class="dz-actions">
+          <button class="btn btn-blue" type="button">Choose files…</button>
+          <button class="btn" id="loadSamples" type="button">Load bundled samples</button>
+        </div>
+        <div class="synth-line" onclick="event.stopPropagation()">
+          <span>No exports?</span>
+          <button class="synth-link" type="button" id="genBtn">Generate synthetic</button>
+          <select id="genScenario" title="synthetic patient profile">
+            <option value="baseline" selected>Untreated OSA</option>
+            <option value="severe">Severe OSA</option>
+            <option value="cpap">On CPAP</option>
+            <option value="healthy">Healthy</option>
+          </select>
+          <select id="genDays" title="days to generate">
+            <option value="7">7 days</option>
+            <option value="30">30 days</option>
+            <option value="90" selected>90 days</option>
+            <option value="180">180 days</option>
+          </select>
+        </div>
+        <input type="file" id="fileInput" accept="application/json,.json" multiple style="display:none">
+      </div>
+      <div id="warnBox"></div>
+      <div id="chips"></div>
+      <div class="tol-row">
+        <label>Match tolerance Δt</label>
+        <input type="range" id="tolInput" min="30" max="300" step="10" value="120">
+        <span id="tolVal">120s</span>
+        <span style="color:var(--text4)">— window for pairing events across nodes</span>
+      </div>
+    </section>
+
+    <!-- TIMELINE VIEW -->
+    <section class="view" data-view="timeline">
+      <div class="section-block">
+        <h3>Unified timeline · one swimlane per node</h3>
+        <div class="chart-card" style="padding:18px 16px;"><div id="timeline"></div></div>
+      </div>
+    </section>
+
+    <!-- FINDINGS VIEW -->
+    <section class="view" data-view="findings">
+      <div class="section-block">
+        <h3>Fused findings</h3>
+        <div id="findings"></div>
+      </div>
+      <div class="section-block">
+        <h3>Full findings table</h3>
+        <div id="findTable"></div>
+      </div>
+    </section>
+
+    <!-- LONGITUDINAL VIEW (cross-node, date-joined, IndexedDB-backed) -->
+    <section class="view" data-view="longitudinal">
+      <div class="section-block">
+        <h3>Cross-node longitudinal <span class="hdr-note">night-to-night, across signals · reads the <span class="mono">ganglior.crossnight</span> envelopes · persists locally</span></h3>
+        <div id="longStoreBar" class="long-store-bar"></div>
+        <div id="longBody"></div>
+      </div>
+    </section>
+
+    <!-- PER-PAIR VIEW -->
+    <section class="view" data-view="pairs">
+      <div class="section-block">
+        <h3>Pairwise overlap report</h3>
+        <div id="pairs"></div>
+      </div>
+    </section>
+
+    <!-- EXPORT VIEW -->
+    <section class="view" data-view="export">
+      <div class="section-block">
+        <h3>Export &amp; write-back</h3>
+        <div class="card-note">
+          The fusion export uses the <span class="mono">ganglior.fusion-export</span> schema family. It carries every finding with
+          absolute floating <span class="mono">tMs</span>, the overlap window, and the <b>closed handshakes</b> — a
+          GlucoDex-ready <span class="mono">glucose_autonomic_correlation</span> and an ECGDex-ready <span class="mono">glucoseCorrelation</span> —
+          so the originating nodes can ingest the result. All string timestamps render via UTC getters (viewer-timezone-independent).
+        </div>
+        <div style="display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;">
+          <button class="btn-export" id="exportBtnMain" onclick="document.getElementById('exportBtn').click()">Download fusion JSON</button>
+          <button class="btn" id="copyBtnMain" onclick="document.getElementById('copyBtn').click()">Copy to clipboard</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Mobile bottom nav (shown <1080px; sidebar is hidden there) -->
+<nav class="mobile-nav">
+  <div class="mobile-nav-items">
+    <div class="mobile-nav-item" data-view="load"><span class="mobile-nav-icon">⤓</span>Load</div>
+    <div class="mobile-nav-item" data-view="timeline"><span class="mobile-nav-icon">▤</span>Timeline</div>
+    <div class="mobile-nav-item" data-view="findings"><span class="mobile-nav-icon">◈</span>Findings</div>
+    <div class="mobile-nav-item" data-view="pairs"><span class="mobile-nav-icon">⇄</span>Per-pair</div>
+    <div class="mobile-nav-item" data-view="export"><span class="mobile-nav-icon">⇪</span>Export</div>
+  </div>
+</nav>
+
+<!-- Mobile bottom nav (shown ≤1080px when the sidebar is hidden) -->
+<nav class="mobile-nav" id="mobileNav">
+  <div class="mobile-nav-items">
+    <div class="mobile-nav-item" data-view="load"><span class="mobile-nav-icon">⤓</span>Load</div>
+    <div class="mobile-nav-item" data-view="timeline"><span class="mobile-nav-icon">≣</span>Timeline</div>
+    <div class="mobile-nav-item" data-view="findings"><span class="mobile-nav-icon">◎</span>Findings</div>
+    <div class="mobile-nav-item" data-view="pairs"><span class="mobile-nav-icon">⇄</span>Per-pair</div>
+    <div class="mobile-nav-item" data-view="export"><span class="mobile-nav-icon">↧</span>Export</div>
+  </div>
+</nav>
+
+<!-- Mobile nav (shown ≤1080px when the sidebar collapses) -->
+<nav class="mobile-nav">
+  <div class="mobile-nav-items">
+    <button class="mnav-item nav-item" data-view="load"><span class="mnav-icon">⤓</span>Load</button>
+    <button class="mnav-item nav-item" data-view="timeline"><span class="mnav-icon">⏓</span>Timeline</button>
+    <button class="mnav-item nav-item" data-view="findings"><span class="mnav-icon">◈</span>Findings</button>
+    <button class="mnav-item nav-item" data-view="longitudinal"><span class="mnav-icon">☷</span>Long</button>
+    <button class="mnav-item nav-item" data-view="pairs"><span class="mnav-icon">⇄</span>Per-pair</button>
+    <button class="mnav-item nav-item" data-view="export"><span class="mnav-icon">↑</span>Export</button>
+  </div>
+</nav>
+
+<!-- Sticky export bar -->
+<div id="exportBar">
+  <span class="eb-label">Export</span>
+  <span class="mono" id="exportBarHint" style="display:none">cross-signal findings</span>
+  <div class="eb-grp">
+    <button class="eb-btn eb-json" type="button" id="exportBtn">⬇ JSON</button>
+    <button class="eb-btn eb-pdf" type="button" onclick="window.print()">⬇ PDF</button>
+  </div>
+  <span class="eb-spacer"></span>
+  <div class="eb-grp">
+    <button class="eb-btn eb-ghost" type="button" id="copyBtn">⧉ Copy JSON</button>
+  </div>
+</div>
+
+<template id="__bundler_thumbnail">
+  <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100" height="100" fill="#0B0F14"/>
+    <g transform="translate(50,50)">
+      <circle r="30" fill="none" stroke="#3DE0D0" stroke-width="2.5" opacity="0.5"/>
+      <path d="M-30 0 A30 30 0 0 1 30 0" fill="none" stroke="#58A6FF" stroke-width="6" stroke-linecap="round"/>
+      <path d="M30 0 A30 30 0 0 1 -30 0" fill="none" stroke="#FF6B7A" stroke-width="6" stroke-linecap="round"/>
+      <text x="0" y="9" text-anchor="middle" font-size="34" font-weight="800" fill="#3DE0D0" font-family="monospace">∮</text>
+    </g>
+  </svg>
+</template>
+
+
+<div class="dxl dxl-ribbon" style="max-width:1100px;margin:0 auto 30px">
+  <div class="dxl-seg">
+    <span class="dxl-mark">T</span>
+    <span style="display:flex;flex-direction:column">
+      <b style="font-size:13px">Tepna</b>
+      <span class="dxl-colophon">physiological-signal suite</span>
+    </span>
+  </div>
+  <div class="dxl-seg dxl-grow">
+    <span style="font-size:11.5px;color:var(--text2,#9FB0C3)">© 2026 <b>Michal Planicka</b> — Concept · Architecture · Algorithms</span>
+    <span class="dxl-disclaimer">Not a medical device · does not diagnose or treat · not FDA/CE cleared · research &amp; personal use only · ◈ Made in Asheville, NC</span>
+  </div>
+  <div class="dxl-seg"><span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span></div>
+</div>
+<script src="kernel-constants.js"></script>
+<script src="ganglior-provenance.js"></script>
+<script src="dex-export.js"></script>
+<script src="metric-registry.js"></script>
+<script src="integrator-dsp.js"></script>
+<script src="crossnight-envelope.js"></script>
+<script src="synth-gen.js"></script>
+<script src="dex-patient-gen.js"></script>
+<script src="integrator-longitudinal.js"></script>
+<script src="integrator-render.js"></script>
+<script src="integrator-app.js"></script>
+</body></html>

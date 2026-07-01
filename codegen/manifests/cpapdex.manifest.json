@@ -1,0 +1,326 @@
+{
+  "node": "CPAPDex",
+  "modality": "CPAP / PAP Therapy",
+  "icon": "🫁",
+  "accentColor": "var(--cyan)",
+  "accentHex": "#3DE0D0",
+  "version": "1.0.0",
+  "status": "alpha",
+  "description": "Analysis of CPAP/APAP therapy data including pressure profiles, leak dynamics, residual events, and adherence patterns.",
+  "warning": "CPAP machine-reported events are scored by proprietary firmware algorithms and may differ from manual scoring.",
+
+  "dataModel": {
+    "description": "Expected raw input structure",
+    "fields": {
+      "timestamps": "Float64Array — Unix seconds, 1 Hz",
+      "pressure":   "Float32Array — cmH₂O, 1 Hz",
+      "leak":       "Float32Array — L/min, 1 Hz",
+      "flow":       "Float32Array — L/min, 25 Hz (optional)",
+      "events":     "Array<{type:string, time:number, duration:number}>",
+      "mode":       "string — CPAP | APAP | BiPAP"
+    }
+  },
+
+  "eventTypes": {
+    "OA":  "Obstructive Apnea",
+    "CA":  "Central Apnea",
+    "H":   "Hypopnea",
+    "FL":  "Flow Limitation",
+    "SN":  "Snore",
+    "RE":  "RERA"
+  },
+
+  "sections": [
+    {
+      "id": "usage",
+      "title": "Usage & Adherence",
+      "icon": "⏰",
+      "description": "Nightly usage duration and long-term compliance tracking",
+      "metrics": [
+        {
+          "id": "usageHours",
+          "abbr": "UH",
+          "name": "Usage Hours",
+          "fullName": "Total mask-on hours per night",
+          "tier": "core",
+          "unit": "hr",
+          "formula": "count(maskOn) / 3600",
+          "formulaNote": "Mask-on = pressure > 0. Excludes brief gaps < 5 min.",
+          "compute": {
+            "fn": "count_where_div",
+            "source": "pressure",
+            "args": ["gt", 0, 3600]
+          },
+          "ranges": [
+            { "max": 4,   "label": "Below compliance",   "class": "bad" },
+            { "max": 6,   "label": "Minimum compliance",  "class": "warn" },
+            { "max": 7,   "label": "Good",                "class": "ok" },
+            { "max": null, "label": "Excellent",          "class": "ok" }
+          ]
+        },
+        {
+          "id": "compliancePct",
+          "abbr": "CMP",
+          "name": "30-Day Compliance %",
+          "fullName": "Nights meeting ≥ 4 hr usage in trailing 30 days",
+          "tier": "core",
+          "unit": "%",
+          "formula": "nights_≥4hr / total_nights_30d × 100",
+          "compute": { "fn": "stub", "note": "Requires longitudinal data array" },
+          "ranges": [
+            { "max": 50,  "label": "Poor",                  "class": "bad" },
+            { "max": 70,  "label": "Below CMS threshold",   "class": "warn" },
+            { "max": 85,  "label": "Adequate",              "class": "ok" },
+            { "max": null, "label": "Excellent",            "class": "ok" }
+          ]
+        },
+        {
+          "id": "maskOnLatency",
+          "abbr": "ML",
+          "name": "Mask-On Latency",
+          "fullName": "Time from recording start to first stable CPAP flow",
+          "tier": "secondary",
+          "unit": "min",
+          "formula": "first_maskOn_index / 60",
+          "compute": { "fn": "first_where_div", "source": "pressure", "args": ["gt", 0, 60] },
+          "ranges": [
+            { "max": 15,  "label": "Quick",     "class": "ok" },
+            { "max": 30,  "label": "Normal",    "class": "ok" },
+            { "max": 60,  "label": "Delayed",   "class": "warn" },
+            { "max": null, "label": "Prolonged", "class": "bad" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pressure",
+      "title": "Pressure Profile",
+      "icon": "📊",
+      "description": "Therapy pressure statistics and P95 analysis",
+      "metrics": [
+        {
+          "id": "medianPressure",
+          "abbr": "P50",
+          "name": "Median Pressure",
+          "fullName": "Median therapy pressure across the night",
+          "tier": "core",
+          "unit": "cmH₂O",
+          "formula": "percentile50(pressure[maskOn])",
+          "compute": { "fn": "percentile", "source": "pressure", "where": "maskOn", "args": [50] },
+          "ranges": [
+            { "max": 8,   "label": "Low (typical mild OSA)",  "class": "ok" },
+            { "max": 12,  "label": "Moderate",                 "class": "ok" },
+            { "max": 16,  "label": "High",                     "class": "warn" },
+            { "max": null, "label": "Very high",               "class": "bad" }
+          ]
+        },
+        {
+          "id": "p95Pressure",
+          "abbr": "P95",
+          "name": "95th-Percentile Pressure",
+          "fullName": "Pressure exceeded for only 5% of the night",
+          "tier": "core",
+          "unit": "cmH₂O",
+          "formula": "percentile95(pressure[maskOn])",
+          "compute": { "fn": "percentile", "source": "pressure", "where": "maskOn", "args": [95] },
+          "ranges": [
+            { "max": 10,  "label": "Low demand",                "class": "ok" },
+            { "max": 14,  "label": "Moderate demand",           "class": "ok" },
+            { "max": 18,  "label": "High demand",               "class": "warn" },
+            { "max": null, "label": "Near machine maximum",     "class": "bad" }
+          ]
+        },
+        {
+          "id": "pressureRange",
+          "abbr": "PR",
+          "name": "Pressure Range (IQR)",
+          "fullName": "Interquartile range of therapy pressure",
+          "tier": "secondary",
+          "unit": "cmH₂O",
+          "formula": "P75 − P25 (pressure[maskOn])",
+          "compute": { "fn": "iqr", "source": "pressure", "where": "maskOn" },
+          "ranges": [
+            { "max": 2,   "label": "Very stable",              "class": "ok" },
+            { "max": 4,   "label": "Normal APAP variability",  "class": "ok" },
+            { "max": 7,   "label": "Wide — positional?",       "class": "warn" },
+            { "max": null, "label": "Excessive",                "class": "bad" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "events",
+      "title": "Residual Events",
+      "icon": "⚡",
+      "description": "Machine-scored respiratory events during therapy",
+      "metrics": [
+        {
+          "id": "residualAHI",
+          "abbr": "AHI",
+          "name": "Residual AHI",
+          "fullName": "Apnea–Hypopnea Index during CPAP use",
+          "tier": "core",
+          "unit": "events/hr",
+          "formula": "(OA + CA + H) / usageHours",
+          "compute": { "fn": "event_rate", "eventTypes": ["OA", "CA", "H"], "denominator": "usageHours" },
+          "ranges": [
+            { "max": 5,   "label": "Controlled",                  "class": "ok" },
+            { "max": 10,  "label": "Mild residual",               "class": "warn" },
+            { "max": 20,  "label": "Moderate — investigate",       "class": "bad" },
+            { "max": null, "label": "Severe — therapy failure",    "class": "bad" }
+          ]
+        },
+        {
+          "id": "centralIndex",
+          "abbr": "CAI",
+          "name": "Central Apnea Index",
+          "fullName": "Central apneas per hour during therapy",
+          "tier": "core",
+          "unit": "events/hr",
+          "formula": "CA_count / usageHours",
+          "compute": { "fn": "event_rate", "eventTypes": ["CA"], "denominator": "usageHours" },
+          "ranges": [
+            { "max": 1,   "label": "Normal",                        "class": "ok" },
+            { "max": 5,   "label": "Borderline",                    "class": "warn" },
+            { "max": 10,  "label": "Elevated — possible TECA",      "class": "bad" },
+            { "max": null, "label": "High — ASV evaluation",        "class": "bad" }
+          ]
+        },
+        {
+          "id": "obstructiveIndex",
+          "abbr": "OAI",
+          "name": "Obstructive Apnea Index",
+          "fullName": "Obstructive apneas per hour during therapy",
+          "tier": "secondary",
+          "unit": "events/hr",
+          "formula": "OA_count / usageHours",
+          "compute": { "fn": "event_rate", "eventTypes": ["OA"], "denominator": "usageHours" },
+          "ranges": [
+            { "max": 1,   "label": "Well controlled",               "class": "ok" },
+            { "max": 5,   "label": "Mild residual",                 "class": "warn" },
+            { "max": null, "label": "Pressure inadequate?",         "class": "bad" }
+          ]
+        },
+        {
+          "id": "hypopneaIndex",
+          "abbr": "HI",
+          "name": "Hypopnea Index",
+          "fullName": "Hypopneas per hour during therapy",
+          "tier": "secondary",
+          "unit": "events/hr",
+          "formula": "H_count / usageHours",
+          "compute": { "fn": "event_rate", "eventTypes": ["H"], "denominator": "usageHours" },
+          "ranges": [
+            { "max": 5,   "label": "Controlled",                    "class": "ok" },
+            { "max": 10,  "label": "Mild residual",                 "class": "warn" },
+            { "max": null, "label": "Significant residual",         "class": "bad" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "leak",
+      "title": "Leak Dynamics",
+      "icon": "💨",
+      "description": "Mask leak analysis and seal quality assessment",
+      "metrics": [
+        {
+          "id": "medianLeak",
+          "abbr": "LK50",
+          "name": "Median Leak Rate",
+          "fullName": "Median mask leak during therapy",
+          "tier": "core",
+          "unit": "L/min",
+          "formula": "percentile50(leak[maskOn])",
+          "compute": { "fn": "percentile", "source": "leak", "where": "maskOn", "args": [50] },
+          "ranges": [
+            { "max": 5,   "label": "Minimal excess leak",       "class": "ok" },
+            { "max": 15,  "label": "Mild — monitor",            "class": "ok" },
+            { "max": 30,  "label": "Moderate — may affect therapy", "class": "warn" },
+            { "max": null, "label": "Severe — mask refit needed", "class": "bad" }
+          ]
+        },
+        {
+          "id": "p95Leak",
+          "abbr": "LK95",
+          "name": "95th-Percentile Leak",
+          "fullName": "Peak leak exceeded for only 5% of the night",
+          "tier": "secondary",
+          "unit": "L/min",
+          "formula": "percentile95(leak[maskOn])",
+          "compute": { "fn": "percentile", "source": "leak", "where": "maskOn", "args": [95] },
+          "ranges": [
+            { "max": 15,  "label": "Good seal",                  "class": "ok" },
+            { "max": 30,  "label": "Occasional breaks",          "class": "warn" },
+            { "max": null, "label": "Frequent large leaks",      "class": "bad" }
+          ]
+        },
+        {
+          "id": "largeLeakPct",
+          "abbr": "LL%",
+          "name": "Large Leak %",
+          "fullName": "Percentage of night above large-leak threshold",
+          "tier": "core",
+          "unit": "%",
+          "formula": "count(leak > 24) / total_maskOn × 100",
+          "compute": { "fn": "pct_above", "source": "leak", "where": "maskOn", "args": [24] },
+          "ranges": [
+            { "max": 1,   "label": "Negligible",                 "class": "ok" },
+            { "max": 5,   "label": "Minor",                      "class": "warn" },
+            { "max": 15,  "label": "Significant — unreliable AHI", "class": "bad" },
+            { "max": null, "label": "Severe — data invalid",     "class": "bad" }
+          ]
+        },
+        {
+          "id": "leakCV",
+          "abbr": "LKCV",
+          "name": "Leak Coefficient of Variation",
+          "fullName": "Variability of leak rate across the night",
+          "tier": "research",
+          "unit": "%",
+          "formula": "SD(leak[maskOn]) / mean(leak[maskOn]) × 100",
+          "compute": { "fn": "cov", "source": "leak", "where": "maskOn" },
+          "ranges": [
+            { "max": 30,  "label": "Stable seal",               "class": "ok" },
+            { "max": 60,  "label": "Variable",                  "class": "warn" },
+            { "max": null, "label": "Highly variable",          "class": "bad" }
+          ]
+        }
+      ]
+    }
+  ],
+
+  "abbreviations": {
+    "AHI":  "Apnea–Hypopnea Index",
+    "APAP": "Automatic Positive Airway Pressure",
+    "ASV":  "Adaptive Servo-Ventilation",
+    "BiPAP":"Bilevel Positive Airway Pressure",
+    "CA":   "Central Apnea",
+    "CAI":  "Central Apnea Index",
+    "CMP":  "Compliance Percentage",
+    "CMS":  "Centers for Medicare & Medicaid Services",
+    "CPAP": "Continuous Positive Airway Pressure",
+    "CV":   "Coefficient of Variation",
+    "FL":   "Flow Limitation",
+    "H":    "Hypopnea",
+    "HI":   "Hypopnea Index",
+    "IQR":  "Interquartile Range",
+    "LK50": "Median Leak Rate",
+    "LK95": "95th-Percentile Leak",
+    "LKCV": "Leak Coefficient of Variation",
+    "LL%":  "Large Leak Percentage",
+    "ML":   "Mask-On Latency",
+    "OA":   "Obstructive Apnea",
+    "OAI":  "Obstructive Apnea Index",
+    "P50":  "Median Pressure",
+    "P95":  "95th-Percentile Pressure",
+    "PAP":  "Positive Airway Pressure",
+    "PR":   "Pressure Range",
+    "RE":   "RERA",
+    "RERA": "Respiratory Effort–Related Arousal",
+    "SD":   "Standard Deviation",
+    "SN":   "Snore",
+    "TECA": "Treatment-Emergent Central Apnea",
+    "UH":   "Usage Hours"
+  }
+}

@@ -1,0 +1,26 @@
+# Tepna web server — serve the bundled apps at ONE pinned origin.
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# PIN ONE ORIGIN. localStorage/IndexedDB are per-origin, so http://tepna.local, http://localhost and
+# http://<lan-ip> are THREE different profiles/histories. Always reach the box as tepna.local
+# (published over mDNS by avahi-daemon; install it + set the Pi hostname to `tepna`).
+#
+# Plain HTTP is fine: no Tepna feature needs a secure context, and the apps make ZERO external
+# requests (100% local — "no network egress" forbids the APP phoning out, not serving it on the LAN).
+
+http://tepna.local {
+	root * /srv/tepna/app
+	file_server browse
+
+	# Same-origin serving is what makes the gates runnable and the suite share profile + longitudinal
+	# store across nodes (GATE-LIVE-RUNNABILITY-2026-06-28-BRIEF). Nothing else needed.
+
+	encode gzip
+	log {
+		output file /var/log/tepna/web.log
+	}
+}
+
+# Health data: keep this to the LAN / bedside box. Do NOT port-forward it to the internet.
+# For remote access use Tailscale/VPN (then also add the tailnet name as a second site block if you
+# want it reachable there — but remember it's a SEPARATE origin = separate browser storage).

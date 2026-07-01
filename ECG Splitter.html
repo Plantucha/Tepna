@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  ECG Splitter.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ECG Splitter · Dex</title>
+<style>
+  :root{
+    --bg:#0a0d0f; --surface:#14181b; --surface2:#1b2024; --b:1px solid rgba(255,255,255,.08);
+    --text:#e6edf0; --text2:#aeb9c2; --text3:#8c9db3; --text4:#5f6c78;
+    --teal:#3DE0D0; --amber:#FFB84D; --red:#f87171; --green:#39D98A;
+    --mono:ui-monospace,'SF Mono','IBM Plex Mono',Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);}
+  body{max-width:860px;margin:0 auto;padding:32px 22px 80px;line-height:1.5;}
+  h1{font-size:23px;font-weight:800;letter-spacing:-.02em;margin:0 0 4px;}
+  .sub{color:var(--text3);font-size:13px;max-width:640px;}
+  .mono{font-family:var(--mono);}
+  .card{background:var(--surface);border:var(--b);border-radius:13px;padding:18px 20px;margin-top:18px;}
+  .drop{border:1.5px dashed rgba(61,224,208,.30);border-radius:14px;background:rgba(61,224,208,.03);
+    padding:40px 24px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;margin-top:22px;}
+  .drop:hover,.drop.drag{border-color:var(--teal);background:rgba(61,224,208,.08);}
+  .drop .ic{font-size:30px;}
+  .drop .t{font-weight:700;font-size:15px;margin-top:10px;}
+  .drop .s{font-size:12px;color:var(--text3);margin-top:6px;}
+  .meta{display:grid;grid-template-columns:auto 1fr;gap:4px 18px;font-size:13px;font-family:var(--mono);}
+  .meta dt{color:var(--text3);}
+  .meta dd{margin:0;color:var(--text);}
+  .hdr{font-family:var(--mono);font-size:11.5px;color:var(--text2);background:var(--surface2);
+    border:var(--b);border-radius:8px;padding:8px 11px;margin-top:10px;overflow-x:auto;white-space:nowrap;}
+  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+  label.fld{font-size:12px;color:var(--text3);display:flex;flex-direction:column;gap:5px;}
+  input[type=number]{background:var(--surface2);border:var(--b);border-radius:8px;color:var(--text);
+    font-family:var(--mono);font-size:14px;padding:8px 10px;width:96px;}
+  button.act{background:var(--teal);color:#06201d;border:none;border-radius:9px;font-weight:700;
+    font-size:13px;padding:10px 16px;cursor:pointer;font-family:var(--sans);}
+  button.act:hover{filter:brightness(1.08);}
+  button.act.ghost{background:transparent;color:var(--teal);border:1px solid rgba(61,224,208,.4);}
+  button.dl{background:var(--surface2);color:var(--teal);border:1px solid rgba(61,224,208,.35);
+    border-radius:8px;font-size:12px;font-weight:700;padding:7px 13px;cursor:pointer;font-family:var(--mono);}
+  button.dl:hover{background:rgba(61,224,208,.10);}
+  button.dl.done{color:var(--text4);border-color:rgba(255,255,255,.1);}
+  .sec-label{font-size:11px;text-transform:uppercase;letter-spacing:.09em;font-weight:700;color:var(--text3);margin:0 0 2px;}
+  .part{display:flex;align-items:center;gap:14px;padding:11px 13px;border:var(--b);border-radius:10px;
+    background:var(--surface2);margin-top:8px;}
+  .part .n{font-family:var(--mono);font-weight:700;color:var(--teal);font-size:13px;min-width:54px;}
+  .part .rng{font-family:var(--mono);font-size:12px;color:var(--text2);flex:1;min-width:0;}
+  .part .sz{font-family:var(--mono);font-size:12px;color:var(--text3);}
+  .hint{font-size:12px;color:var(--text4);margin-top:7px;}
+  .divider{height:1px;background:rgba(255,255,255,.07);margin:22px 0 4px;}
+  .warn{color:var(--amber);}
+  .ok{color:var(--green);}
+  a.hidden{display:none;}
+</style>
+</head>
+<body>
+  <h1>Polar Signal Splitter <span style="color:var(--text4);font-weight:600;font-size:14px">ECG · PPG</span></h1>
+  <div class="sub">Slice a large Polar Sensor Logger file (<span class="mono">*_ECG.txt</span> or <span class="mono">*_PPG.txt</span>) into line-aligned parts under an upload cap — every part keeps the header, so each is a valid standalone file. Or extract one minute-range window for targeted inspection. 100% local; nothing leaves this page.</div>
+
+  <div class="drop" id="drop">
+    <div class="ic">🫀</div>
+    <div class="t">Drop a Polar ECG or PPG .txt here, or click to choose</div>
+    <div class="s mono">Phone timestamp;sensor timestamp [ns];… (any Polar Sensor Logger export)</div>
+    <input type="file" id="file" accept=".txt,.csv,text/plain" style="display:none">
+  </div>
+
+  <div id="info" style="display:none">
+    <div class="card">
+      <dl class="meta" id="metaGrid"></dl>
+      <div class="hdr mono" id="hdrEcho"></div>
+    </div>
+
+    <div class="card">
+      <p class="sec-label">Split into parts</p>
+      <div class="row" style="margin-top:10px">
+        <label class="fld">Max part size (MB)
+          <input type="number" id="mb" value="19" min="1" max="49" step="1">
+        </label>
+        <div style="font-size:13px;color:var(--text2)" id="planNote"></div>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <button class="act" id="btnSplit">Build parts</button>
+        <button class="act ghost" id="btnAll" style="display:none">Download all</button>
+      </div>
+      <div id="parts"></div>
+      <div class="hint" id="partsHint"></div>
+    </div>
+
+    <div class="card">
+      <p class="sec-label">Targeted extract — minute window</p>
+      <div class="hint" style="margin-top:2px">Pull a single small file covering a time range (minutes from recording start). Prefilled to the ECG QTc-cliff region (120–150 min).</div>
+      <div class="row" style="margin-top:12px">
+        <label class="fld">From (min)<input type="number" id="mFrom" value="120" min="0" step="1"></label>
+        <label class="fld">To (min)<input type="number" id="mTo" value="150" min="1" step="1"></label>
+        <button class="act" id="btnWin" style="align-self:flex-end">Extract window</button>
+      </div>
+      <div id="winOut" class="hint"></div>
+    </div>
+  </div>
+
+  <a class="hidden" id="dlAnchor"></a>
+
+<script>
+const $=id=>document.getElementById(id);
+const NL=0x0A;
+const MB=1024*1024;
+let FILE=null, HEADER='', HEADER_END=0, T0MS=null, TOTAL_MS=null, FS=null, MS_COL=-1, PARTS=[];
+
+const drop=$('drop'), fileInput=$('file');
+drop.addEventListener('click',()=>fileInput.click());
+['dragenter','dragover'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.add('drag');}));
+['dragleave','drop'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.remove('drag');}));
+drop.addEventListener('drop',ev=>{const f=ev.dataTransfer.files;if(f&&f[0])loadFile(f[0]);});
+fileInput.addEventListener('change',ev=>{if(ev.target.files[0])loadFile(ev.target.files[0]);});
+
+// ── Clock Contract: ISO no-zone → floating UTC ms ──
+function parseISO(s){
+  const m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?/);
+  return m?Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6],m[7]?+((m[7]+'00').slice(0,3)):0):null;
+}
+function fmtClock(ms){const d=new Date(ms);const p=n=>(n<10?'0':'')+n;return p(d.getUTCHours())+':'+p(d.getUTCMinutes())+':'+p(d.getUTCSeconds());}
+function fmtSize(b){return b>=MB?(b/MB).toFixed(2)+' MB':(b/1024).toFixed(0)+' KB';}
+
+async function sliceText(a,b){return await FILE.slice(a,b).text();}
+async function sliceBytes(a,b){return new Uint8Array(await FILE.slice(a,b).arrayBuffer());}
+
+// byte index just AFTER the last newline in [lo,hi); -1 if none
+async function lastNL(lo,hi){
+  const buf=await sliceBytes(lo,hi);
+  for(let k=buf.length-1;k>=0;k--) if(buf[k]===NL) return lo+k+1;
+  return -1;
+}
+
+async function loadFile(f){
+  FILE=f;
+  // header = first line incl newline
+  const head=await sliceBytes(0,16384);
+  let i=0; while(i<head.length && head[i]!==NL) i++;
+  HEADER_END=i+1;
+  HEADER=await sliceText(0,HEADER_END);
+  // detect an explicit ms column by header name (ECG has "timestamp [ms]"; PPG does not)
+  MS_COL=HEADER.trim().split(';').findIndex(c=>/timestamp\s*\[ms\]/i.test(c));
+  // sample first data rows for t0, fs, line length
+  const sampleTxt=new TextDecoder().decode(head.slice(HEADER_END));
+  const rows=sampleTxt.split('\n').filter(l=>l.trim());
+  const stamps=rows.slice(0,200).map(l=>parseISO(l.split(';')[0])).filter(v=>v!=null);
+  T0MS=stamps.length?stamps[0]:null;
+  // fs from median dt of phone stamps
+  const dts=[]; for(let k=1;k<stamps.length;k++){const d=stamps[k]-stamps[k-1];if(d>0&&d<100)dts.push(d);}
+  dts.sort((a,b)=>a-b);
+  FS=dts.length?Math.round(1000/dts[dts.length>>1]):null;
+  // total ms from last data line's ms column (col index 2), fallback last phone stamp
+  const tailN=Math.min(f.size, 4096);
+  const tail=await sliceText(f.size-tailN, f.size);
+  const tailRows=tail.split('\n').map(l=>l.trim()).filter(Boolean);
+  const lastRow=tailRows[tailRows.length-1].split(';');
+  const lastStamp=parseISO(lastRow[0]);
+  let total=null;
+  if(MS_COL>=0){                                   // explicit ms column (ECG)
+    const firstMs=parseFloat((rows[0]||'').split(';')[MS_COL]);
+    const lastMs=parseFloat(lastRow[MS_COL]);
+    if(isFinite(firstMs)&&isFinite(lastMs)) total=lastMs-firstMs;
+  }
+  if(total==null && lastStamp!=null && T0MS!=null) total=lastStamp-T0MS;   // fall back to Phone-timestamp span (PPG)
+  TOTAL_MS=total;
+
+  renderMeta();
+  $('info').style.display='block';
+  $('parts').innerHTML=''; $('btnAll').style.display='none'; $('partsHint').textContent='';
+  updatePlan();
+}
+
+function renderMeta(){
+  const durMin=TOTAL_MS!=null?(TOTAL_MS/60000):null;
+  const g=$('metaGrid');
+  g.innerHTML='';
+  const add=(k,v)=>{g.insertAdjacentHTML('beforeend',`<dt>${k}</dt><dd>${v}</dd>`);};
+  add('File', FILE.name);
+  add('Size', fmtSize(FILE.size)+`  <span style="color:var(--text4)">(${FILE.size.toLocaleString()} bytes)</span>`);
+  add('Start (t0)', T0MS!=null?(new Date(T0MS).toISOString().slice(0,10)+' '+fmtClock(T0MS)):'<span class="warn">unparsed</span>');
+  add('Duration', durMin!=null?(durMin.toFixed(1)+' min  ('+(durMin/60).toFixed(2)+' h)'):'—');
+  add('Sample rate', FS?(FS+' Hz'):'—');
+  add('End', (T0MS!=null&&TOTAL_MS!=null)?fmtClock(T0MS+TOTAL_MS):'—');
+  $('hdrEcho').textContent=HEADER.trim();
+}
+
+function partName(idx,total){
+  const base=FILE.name.replace(/\.[^.]+$/,'');
+  const p2=n=>(n<10?'0':'')+n;
+  return `${base}_part${p2(idx)}of${p2(total)}.txt`;
+}
+
+async function planParts(targetBytes){
+  const budget=targetBytes-HEADER_END-64;
+  if(budget<=0) return [];
+  const size=FILE.size, parts=[];
+  let start=HEADER_END;
+  while(start<size){
+    let end=Math.min(start+budget,size);
+    if(end<size){
+      const back=await lastNL(Math.max(start,end-16384),end);
+      if(back>start) end=back;
+    }
+    parts.push({start,end});
+    start=end;
+  }
+  return parts;
+}
+
+function updatePlan(){
+  const mb=Math.max(1,+$('mb').value||19);
+  const dataBytes=FILE? FILE.size-HEADER_END : 0;
+  const approx=Math.max(1,Math.ceil(dataBytes/(mb*MB-HEADER_END-64)));
+  $('planNote').innerHTML=`≈ <b>${approx}</b> part${approx>1?'s':''} of ≤ ${mb} MB each`;
+}
+$('mb').addEventListener('input',updatePlan);
+
+async function boundsClock(start,end){
+  const a=(await sliceText(start,Math.min(end,start+260))).split('\n')[0].split(';')[0];
+  const lo=Math.max(start,end-520);
+  const tl=(await sliceText(lo,end)).trimEnd().split('\n');
+  const b=tl[tl.length-1].split(';')[0];
+  const am=parseISO(a), bm=parseISO(b);
+  const rel=ms=>(T0MS!=null&&ms!=null)?((ms-T0MS)/60000).toFixed(1)+'m':'?';
+  return {aClock:am!=null?fmtClock(am):'?', bClock:bm!=null?fmtClock(bm):'?', aRel:rel(am), bRel:rel(bm)};
+}
+
+$('btnSplit').addEventListener('click',async()=>{
+  const mb=Math.max(1,+$('mb').value||19);
+  $('btnSplit').textContent='Building…'; $('btnSplit').disabled=true;
+  PARTS=await planParts(mb*MB);
+  const box=$('parts'); box.innerHTML='';
+  for(let i=0;i<PARTS.length;i++){
+    const p=PARTS[i]; const sz=(p.end-p.start)+HEADER_END;
+    const bc=await boundsClock(p.start,p.end);
+    const name=partName(i+1,PARTS.length);
+    p.name=name;
+    const el=document.createElement('div');
+    el.className='part';
+    el.innerHTML=`<span class="n">${i+1}/${PARTS.length}</span>
+      <span class="rng">${bc.aClock} → ${bc.bClock} <span style="color:var(--text4)">(${bc.aRel}–${bc.bRel})</span></span>
+      <span class="sz">${fmtSize(sz)}</span>
+      <button class="dl" data-i="${i}">Download</button>`;
+    box.appendChild(el);
+  }
+  $('btnSplit').textContent='Build parts'; $('btnSplit').disabled=false;
+  $('btnAll').style.display=PARTS.length>1?'inline-block':'none';
+  $('partsHint').innerHTML=`Each part carries the header and is a valid standalone file. Use the clock / minute ranges above to pick the part covering the region you want (e.g. ~135 min for the ECG QTc cliff).`;
+  box.querySelectorAll('button.dl').forEach(b=>b.addEventListener('click',()=>downloadPart(+b.dataset.i,b)));
+});
+
+function blobForPart(p){ return new Blob([HEADER, FILE.slice(p.start,p.end)],{type:'text/plain'}); }
+function triggerDownload(blob,name){
+  const a=$('dlAnchor'); const url=URL.createObjectURL(blob);
+  a.href=url; a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+function downloadPart(i,btn){
+  const p=PARTS[i];
+  triggerDownload(blobForPart(p),p.name);
+  if(btn){btn.textContent='Downloaded ✓';btn.classList.add('done');}
+}
+$('btnAll').addEventListener('click',async()=>{
+  for(let i=0;i<PARTS.length;i++){ downloadPart(i,document.querySelector(`button.dl[data-i="${i}"]`)); await new Promise(r=>setTimeout(r,500)); }
+});
+
+// ── Targeted minute-window extract (proportional seek + line-align) ──
+$('btnWin').addEventListener('click',async()=>{
+  if(T0MS==null||TOTAL_MS==null){ $('winOut').innerHTML='<span class="warn">Cannot map time — timestamps unparsed.</span>'; return; }
+  const mFrom=Math.max(0,+$('mFrom').value||0), mTo=+$('mTo').value||0;
+  if(mTo<=mFrom){ $('winOut').innerHTML='<span class="warn">“To” must be greater than “From”.</span>'; return; }
+  const dataBytes=FILE.size-HEADER_END, durMin=TOTAL_MS/60000;
+  const byteFor=min=>HEADER_END+Math.min(1,Math.max(0,min/durMin))*dataBytes;
+  let start=Math.floor(byteFor(mFrom)), end=Math.ceil(byteFor(mTo));
+  // align to line boundaries (start → next line, end → next line)
+  const s2=await lastNL(Math.max(HEADER_END,start-16384),Math.min(FILE.size,start+16384));
+  if(s2>0) start=s2;
+  const e2=await lastNL(Math.max(start,end-16384),Math.min(FILE.size,end+16384));
+  if(e2>start) end=e2; else end=Math.min(FILE.size,end);
+  const sz=(end-start)+HEADER_END;
+  if(sz>49*MB){ $('winOut').innerHTML=`<span class="warn">Window ≈ ${fmtSize(sz)} — narrow the range (keep under ~19 MB to upload).</span>`; return; }
+  const bc=await boundsClock(start,end);
+  const base=FILE.name.replace(/\.[^.]+$/,'');
+  const name=`${base}_win_${Math.round(mFrom)}-${Math.round(mTo)}min.txt`;
+  triggerDownload(new Blob([HEADER,FILE.slice(start,end)],{type:'text/plain'}),name);
+  $('winOut').innerHTML=`Extracted <b class="mono">${name}</b> — actual range <span class="mono ok">${bc.aClock} → ${bc.bClock}</span> (${bc.aRel}–${bc.bRel}), ${fmtSize(sz)}. <span style="color:var(--text4)">Seek is proportional (±~1–2 s if the stream has gaps).</span>`;
+});
+</script>
+</body></html>

@@ -1,0 +1,885 @@
+{
+  "bus": "ganglior",
+  "node": "ECGDex",
+  "events": [
+    {
+      "t": "00:02:09",
+      "impulse": "stage_rem",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "meta": {}
+    },
+    {
+      "t": "00:32:09",
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "meta": {}
+    },
+    {
+      "t": "00:46:40",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.57,
+      "meta": {
+        "ampBpm": 18.8,
+        "periodSec": 19
+      }
+    },
+    {
+      "t": "00:47:13",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.56,
+      "meta": {
+        "ampBpm": 8.5,
+        "periodSec": 36
+      }
+    },
+    {
+      "t": "01:04:41",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.55,
+      "meta": {
+        "ampBpm": 15.1,
+        "periodSec": 19
+      }
+    },
+    {
+      "t": "01:05:19",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.6,
+      "meta": {
+        "ampBpm": 5.6,
+        "periodSec": 40
+      }
+    },
+    {
+      "t": "01:19:57",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.57,
+      "meta": {
+        "ampBpm": 11.3,
+        "periodSec": 21
+      }
+    },
+    {
+      "t": "01:20:32",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.57,
+      "meta": {
+        "ampBpm": 11.1,
+        "periodSec": 34
+      }
+    },
+    {
+      "t": "01:21:24",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.56,
+      "meta": {
+        "ampBpm": 7.7,
+        "periodSec": 24
+      }
+    },
+    {
+      "t": "01:30:07",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.56,
+      "meta": {
+        "ampBpm": 12.7,
+        "periodSec": 19
+      }
+    },
+    {
+      "t": "01:30:47",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.59,
+      "meta": {
+        "ampBpm": 6.5,
+        "periodSec": 30
+      }
+    },
+    {
+      "t": "01:41:24",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.57,
+      "meta": {
+        "ampBpm": 16,
+        "periodSec": 19
+      }
+    },
+    {
+      "t": "01:42:00",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.55,
+      "meta": {
+        "ampBpm": 7.7,
+        "periodSec": 40
+      }
+    },
+    {
+      "t": "01:50:33",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.55,
+      "meta": {
+        "ampBpm": 15.8,
+        "periodSec": 25
+      }
+    },
+    {
+      "t": "01:51:14",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.57,
+      "meta": {
+        "ampBpm": 8,
+        "periodSec": 44
+      }
+    },
+    {
+      "t": "02:17:43",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.55,
+      "meta": {
+        "ampBpm": 17.4,
+        "periodSec": 21
+      }
+    },
+    {
+      "t": "02:18:18",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.58,
+      "meta": {
+        "ampBpm": 6.6,
+        "periodSec": 39
+      }
+    },
+    {
+      "t": "02:37:09",
+      "impulse": "stage_deep",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "meta": {}
+    },
+    {
+      "t": "02:37:39",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.57,
+      "meta": {
+        "ampBpm": 20.2,
+        "periodSec": 15
+      }
+    },
+    {
+      "t": "02:38:11",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.58,
+      "meta": {
+        "ampBpm": 7.3,
+        "periodSec": 20
+      }
+    },
+    {
+      "t": "02:45:08",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.57,
+      "meta": {
+        "ampBpm": 21.3,
+        "periodSec": 16
+      }
+    },
+    {
+      "t": "02:45:48",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.55,
+      "meta": {
+        "ampBpm": 10.2,
+        "periodSec": 23
+      }
+    },
+    {
+      "t": "02:47:09",
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "meta": {}
+    },
+    {
+      "t": "02:57:03",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.54,
+      "meta": {
+        "ampBpm": 18.6,
+        "periodSec": 18
+      }
+    },
+    {
+      "t": "02:57:38",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.58,
+      "meta": {
+        "ampBpm": 10.4,
+        "periodSec": 25
+      }
+    },
+    {
+      "t": "03:02:09",
+      "impulse": "stage_deep",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "meta": {}
+    },
+    {
+      "t": "03:07:09",
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "meta": {}
+    },
+    {
+      "t": "03:12:09",
+      "impulse": "stage_deep",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "meta": {}
+    },
+    {
+      "t": "03:15:58",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.55,
+      "meta": {
+        "ampBpm": 18,
+        "periodSec": 34
+      }
+    },
+    {
+      "t": "03:16:47",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.56,
+      "meta": {
+        "ampBpm": 9.5,
+        "periodSec": 18
+      }
+    },
+    {
+      "t": "03:17:09",
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "meta": {}
+    },
+    {
+      "t": "03:38:10",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.57,
+      "meta": {
+        "ampBpm": 20.4,
+        "periodSec": 16
+      }
+    },
+    {
+      "t": "03:38:48",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.55,
+      "meta": {
+        "ampBpm": 11.9,
+        "periodSec": 26
+      }
+    },
+    {
+      "t": "03:47:15",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.55,
+      "meta": {
+        "ampBpm": 17.2,
+        "periodSec": 17
+      }
+    },
+    {
+      "t": "03:55:31",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.58,
+      "meta": {
+        "ampBpm": 19,
+        "periodSec": 23
+      }
+    },
+    {
+      "t": "04:05:03",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.57,
+      "meta": {
+        "ampBpm": 13.8,
+        "periodSec": 16
+      }
+    },
+    {
+      "t": "04:11:59",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.58,
+      "meta": {
+        "ampBpm": 16.6,
+        "periodSec": 15
+      }
+    },
+    {
+      "t": "04:12:09",
+      "impulse": "stage_wake",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "meta": {}
+    },
+    {
+      "t": "04:12:38",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.57,
+      "meta": {
+        "ampBpm": 8,
+        "periodSec": 14
+      }
+    },
+    {
+      "t": "04:21:48",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.58,
+      "meta": {
+        "ampBpm": 7.5,
+        "periodSec": 31
+      }
+    },
+    {
+      "t": "04:28:05",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.57,
+      "meta": {
+        "ampBpm": 16.8,
+        "periodSec": 19
+      }
+    },
+    {
+      "t": "04:28:41",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.57,
+      "meta": {
+        "ampBpm": 7.4,
+        "periodSec": 44
+      }
+    },
+    {
+      "t": "04:30:03",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.57,
+      "meta": {
+        "ampBpm": 11.9,
+        "periodSec": 14
+      }
+    },
+    {
+      "t": "04:31:04",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.58,
+      "meta": {
+        "ampBpm": 15.4,
+        "periodSec": 17
+      }
+    },
+    {
+      "t": "04:31:36",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.58,
+      "meta": {
+        "ampBpm": 7.8,
+        "periodSec": 31
+      }
+    },
+    {
+      "t": "04:32:09",
+      "impulse": "stage_rem",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "meta": {}
+    },
+    {
+      "t": "04:37:09",
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "meta": {}
+    },
+    {
+      "t": "04:42:09",
+      "impulse": "stage_wake",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "meta": {}
+    },
+    {
+      "t": "04:42:53",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.58,
+      "meta": {
+        "ampBpm": 14.5,
+        "periodSec": 15
+      }
+    },
+    {
+      "t": "04:43:20",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.58,
+      "meta": {
+        "ampBpm": 12.4,
+        "periodSec": 46
+      }
+    },
+    {
+      "t": "04:44:54",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.57,
+      "meta": {
+        "ampBpm": 6.7,
+        "periodSec": 26
+      }
+    },
+    {
+      "t": "04:50:36",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.56,
+      "meta": {
+        "ampBpm": 11.6,
+        "periodSec": 15
+      }
+    },
+    {
+      "t": "04:57:09",
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "meta": {}
+    },
+    {
+      "t": "05:06:50",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.55,
+      "meta": {
+        "ampBpm": 5.2,
+        "periodSec": 31
+      }
+    },
+    {
+      "t": "05:12:09",
+      "impulse": "stage_wake",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "meta": {}
+    },
+    {
+      "t": "05:13:28",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.58,
+      "meta": {
+        "ampBpm": 14.3,
+        "periodSec": 15
+      }
+    },
+    {
+      "t": "05:13:57",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.57,
+      "meta": {
+        "ampBpm": 8.5,
+        "periodSec": 42
+      }
+    },
+    {
+      "t": "05:14:23",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.56,
+      "meta": {
+        "ampBpm": 10.3,
+        "periodSec": 16
+      }
+    },
+    {
+      "t": "05:15:21",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.58,
+      "meta": {
+        "ampBpm": 18.2,
+        "periodSec": 16
+      }
+    },
+    {
+      "t": "05:18:32",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.56,
+      "meta": {
+        "ampBpm": 9.2,
+        "periodSec": 32
+      }
+    },
+    {
+      "t": "05:20:29",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.55,
+      "meta": {
+        "ampBpm": 16.2,
+        "periodSec": 43
+      }
+    },
+    {
+      "t": "05:23:05",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.55,
+      "meta": {
+        "ampBpm": 10.2,
+        "periodSec": 16
+      }
+    },
+    {
+      "t": "05:24:14",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.55,
+      "meta": {
+        "ampBpm": 6.5,
+        "periodSec": 32
+      }
+    },
+    {
+      "t": "05:26:30",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.56,
+      "meta": {
+        "ampBpm": 10.7,
+        "periodSec": 20
+      }
+    },
+    {
+      "t": "05:31:42",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.56,
+      "meta": {
+        "ampBpm": 11.2,
+        "periodSec": 24
+      }
+    },
+    {
+      "t": "05:32:53",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.55,
+      "meta": {
+        "ampBpm": 11.3,
+        "periodSec": 19
+      }
+    },
+    {
+      "t": "05:33:32",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.57,
+      "meta": {
+        "ampBpm": 12.4,
+        "periodSec": 19
+      }
+    },
+    {
+      "t": "05:34:11",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.56,
+      "meta": {
+        "ampBpm": 13.3,
+        "periodSec": 22
+      }
+    },
+    {
+      "t": "05:34:45",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.58,
+      "meta": {
+        "ampBpm": 7.8,
+        "periodSec": 18
+      }
+    },
+    {
+      "t": "05:36:02",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.6,
+      "meta": {
+        "ampBpm": 15.7,
+        "periodSec": 41
+      }
+    },
+    {
+      "t": "05:36:26",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.58,
+      "meta": {
+        "ampBpm": 14,
+        "periodSec": 17
+      }
+    },
+    {
+      "t": "05:42:30",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.58,
+      "meta": {
+        "ampBpm": 12.8,
+        "periodSec": 28
+      }
+    },
+    {
+      "t": "05:43:14",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.57,
+      "meta": {
+        "ampBpm": 8.9,
+        "periodSec": 37
+      }
+    },
+    {
+      "t": "05:44:04",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.56,
+      "meta": {
+        "ampBpm": 5.2,
+        "periodSec": 31
+      }
+    },
+    {
+      "t": "05:45:27",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.6,
+      "meta": {
+        "ampBpm": 10.1,
+        "periodSec": 18
+      }
+    },
+    {
+      "t": "05:46:36",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.55,
+      "meta": {
+        "ampBpm": 10.5,
+        "periodSec": 22
+      }
+    },
+    {
+      "t": "05:55:55",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.57,
+      "meta": {
+        "ampBpm": 14.3,
+        "periodSec": 23
+      }
+    },
+    {
+      "t": "05:59:18",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.53,
+      "meta": {
+        "ampBpm": 10.4,
+        "periodSec": 18
+      }
+    },
+    {
+      "t": "21:17:09",
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "meta": {}
+    },
+    {
+      "t": "21:18:56",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.58,
+      "meta": {
+        "ampBpm": 9.8,
+        "periodSec": 42
+      }
+    },
+    {
+      "t": "21:27:56",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.57,
+      "meta": {
+        "ampBpm": 6.9,
+        "periodSec": 19
+      }
+    },
+    {
+      "t": "21:53:43",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.56,
+      "meta": {
+        "ampBpm": 16.2,
+        "periodSec": 17
+      }
+    },
+    {
+      "t": "21:54:21",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.56,
+      "meta": {
+        "ampBpm": 6.9,
+        "periodSec": 44
+      }
+    },
+    {
+      "t": "22:38:35",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.57,
+      "meta": {
+        "ampBpm": 11.3,
+        "periodSec": 19
+      }
+    },
+    {
+      "t": "23:19:47",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.53,
+      "meta": {
+        "ampBpm": 13,
+        "periodSec": 21
+      }
+    },
+    {
+      "t": "23:20:22",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.59,
+      "meta": {
+        "ampBpm": 10.8,
+        "periodSec": 44
+      }
+    },
+    {
+      "t": "23:21:18",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.61,
+      "meta": {
+        "ampBpm": 6.5,
+        "periodSec": 28
+      }
+    },
+    {
+      "t": "23:23:20",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.6,
+      "meta": {
+        "ampBpm": 13.5,
+        "periodSec": 16
+      }
+    },
+    {
+      "t": "23:28:16",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.57,
+      "meta": {
+        "ampBpm": 14.1,
+        "periodSec": 14
+      }
+    },
+    {
+      "t": "23:32:09",
+      "impulse": "stage_rem",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "meta": {}
+    },
+    {
+      "t": "23:37:03",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.54,
+      "meta": {
+        "ampBpm": 9.8,
+        "periodSec": 14
+      }
+    },
+    {
+      "t": "23:42:09",
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "meta": {}
+    },
+    {
+      "t": "23:49:47",
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.58,
+      "meta": {
+        "ampBpm": 7.7,
+        "periodSec": 29
+      }
+    }
+  ]
+}

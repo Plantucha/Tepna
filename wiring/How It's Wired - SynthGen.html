@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  How It's Wired — SynthGen · GanglioR / the -Dex suite
+  Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+  A reference doc. Loads no app code; ships no buildHash.
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How It's Wired — SynthGen</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<meta name="description" content="SynthGen, the suite's synthetic overnight corpus generator: one master event timeline rendered into every device's native format on the same floating clock. How it's wired.">
+<link rel="stylesheet" href="../dex-wired.css">
+</head>
+<body>
+
+<header class="rail">
+  <div class="rail-in">
+    <a class="brand" href="How It's Wired - the Dex Suite.html"><svg class="brandmark" viewBox="0 0 100 100" aria-hidden="true" style="width:17px;height:17px;flex:none;filter:drop-shadow(0 0 5px rgba(61,224,208,.4))"><defs><linearGradient id="tgrad" x1="14" y1="10" x2="86" y2="88" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3DE0D0"/><stop offset=".58" stop-color="#58A6FF"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs><g fill="none" stroke="url(#tgrad)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></g></svg>How it's wired <small>GanglioR</small></a>
+    <nav class="rail-nodes"><a href="How It's Wired - the Dex Suite.html">◈ Nodes</a><a href="How It's Wired - Science Papers.html">Science Papers</a><a href="How It's Wired - SynthGen.html" class="cur">SynthGen</a><a href="How It's Wired - Experiments.html">Experiments</a></nav>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <header class="dochead">
+    <div class="eyebrow"><a class="back" href="How It's Wired - the Dex Suite.html">← the -Dex suite</a> · synthetic corpus generator</div>
+    <h1><span class="glyph">🧬</span><span class="g">SynthGen</span></h1>
+    <p class="lede">SynthGen builds a <b>synthetic overnight corpus with known ground truth</b>. One virtual subject, five nights, every device recording the <b>same nights on the same floating wall-clock</b> — a single master event timeline rendered into each node’s native file format, so every app loads it unchanged and the Integrator can fuse across them.</p>
+    <div class="specsheet">
+      <div class="cell"><div class="k">Subject</div><div class="v">Subject A<small>45M · BMI 31 · moderate OSA</small></div></div>
+      <div class="cell"><div class="k">Span</div><div class="v">5 consecutive nights<small>one shared timeline each</small></div></div>
+      <div class="cell"><div class="k">Determinism</div><div class="v">seeded mulberry32<small>seed → byte-reproducible</small></div></div>
+      <div class="cell"><div class="k">Emits</div><div class="v">every device format<small>+ ground-truth JSON</small></div></div>
+    </div>
+  </header>
+
+  <section class="sec">
+    <div class="sec-num">01 — WHAT IT’S FOR</div>
+    <h2 class="sec-h">Known ground truth for every node</h2>
+    <p class="sec-d">You cannot validate a detector against data whose truth you don’t know. SynthGen plants the events — apneas, desaturations, arousals, ectopic beats — then renders them into real file formats, so a node’s output can be scored against exactly what was planted.</p>
+    <div class="callout clock"><span class="ci">🕒</span><div><b>One floating timeline, every device.</b> Because all nodes are rendered from the same master timeline on the same floating <code>tMs</code>, two synthetic devices that “recorded” the same minute land on the same timestamp — so cross-node fusion in the Integrator is exercised on data engineered to align.</div></div>
+  </section>
+  <section class="sec">
+    <div class="sec-num">02 — THE WIRING</div>
+    <h2 class="sec-h">The file stack</h2>
+    <p class="sec-d">SynthGen is pure, deterministic JS plus a thin UI. The single source of truth (<code>SYNTH</code>) is reused unchanged by the cohort sampler that generalizes one subject into thousands.</p>
+    <div class="flow">
+      <div class="flow-row" style="--lc:var(--L-dsp)">
+        <div class="flow-rail"><span class="lz">Engine</span><span class="spine"></span><span class="node-dot"></span><span class="spine"></span></div>
+        <div class="flow-cards">
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">synth-gen.js</span><span class="ftag">SYNTH engine</span></div>
+              <div class="fdesc">The deterministic generator: builds a night’s master event timeline and renders it into each device’s native format (OxyDex 1 Hz CSV, RR text, CGM CSV, Welltory HRV rows). Seeded mulberry32, no deps. Exposes window.SYNTH.</div>
+            </div>
+        </div>
+      </div>
+      <div class="flow-row" style="--lc:var(--L-render)">
+        <div class="flow-rail"><span class="lz">Render · UI</span><span class="spine"></span><span class="node-dot"></span><span class="spine"></span></div>
+        <div class="flow-cards">
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">synth-gen.html</span><span class="ftag">The tool</span></div>
+              <div class="fdesc">The browser UI over SYNTH — pick parameters, preview, generate and download the file-set. Inherits the dark suite chrome from ans-design.css.</div>
+            </div>
+        </div>
+      </div>
+      <div class="flow-row" style="--lc:var(--L-app)">
+        <div class="flow-rail"><span class="lz">App · glue</span><span class="spine"></span><span class="node-dot"></span><span class="spine"></span></div>
+        <div class="flow-cards">
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">cohort-gen.js</span><span class="ftag">Cohort sampler</span></div>
+              <div class="fdesc">Generalizes the single subject into N physiologically-coherent patients — a seeded draw over age×sex×BMI×severity×event-mix×CPAP×glycemia×artifact×arc — by REUSING the SYNTH renderers unchanged.</div>
+            </div>
+        </div>
+      </div>
+      <div class="flow-row" style="--lc:var(--L-fusion)">
+        <div class="flow-rail"><span class="lz">Harness · gate</span><span class="spine"></span><span class="node-dot"></span><span class="spine"></span></div>
+        <div class="flow-cards">
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">cohort-full.js</span><span class="ftag">FULL lane</span></div>
+              <div class="fdesc">Adds the heavy waveform renderers (176 Hz PPG, int16 µV ECG) on one representative window per patient — the ≤500 certification lane where the real morphology pipelines actually run.</div>
+            </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="sec">
+    <div class="sec-num">03 — HOW IT’S ACHIEVED</div>
+    <h2 class="sec-h">From config to a loadable corpus</h2>
+    <p class="sec-d">Every output of a night descends from one event timeline, so the files are internally consistent by construction — a desaturation in the oximeter CSV is the same event as the autonomic surge in the RR text.</p>
+    <div class="pipe">
+        <div class="pstep"><div><h4>Define the night</h4><p>A seeded config fixes the subject and the night’s severity, event mix, artifact and missingness. The same seed always produces the same night.</p><div class="pf"><b>mulberry32(seed) → night cfg</b></div></div></div>
+        <div class="pstep"><div><h4>Build the master timeline</h4><p>One timeline of physiological events — apneas, desats, arousals, beat-to-beat RR — is generated on floating tMs. This is the single source of truth for every device.</p><div class="pf"><b>SYNTH.buildRR / event timeline</b></div></div></div>
+        <div class="pstep"><div><h4>Render per device</h4><p>The timeline is rendered into each node’s native format: OxyDex 1 Hz CSV, PulseDex RR text, GlucoDex CGM CSV, HRVDex Welltory rows — and in the FULL lane, PPG + ECG waveforms.</p><div class="pf"><b>SYNTH.render* (reused everywhere)</b></div></div></div>
+        <div class="pstep"><div><h4>Emit ground truth</h4><p>Alongside the device files, a ground_truth_nightN.json records what was actually planted — the answer key the test, cohort and regression gates score against.</p><div class="pf"><b>→ uploads/synthetic/ground_truth_nightN.json</b></div></div></div>
+    </div>
+  </section>
+  <section class="sec">
+    <div class="sec-num">04 — ONE NIGHT, EVERY FORMAT</div>
+    <h2 class="sec-h">What a single timeline becomes</h2>
+    <p class="sec-d">The same planted night, eight ways — each in the exact format the corresponding node ingests in production.</p>
+    <div class="catlist">
+      <div class="cat real"><div class="ct"><b>OxyDex — 1 Hz SpO₂/HR/motion CSV</b></div><p>The O2Ring-format overnight trace. Drives the real oxydex-dsp ODI-4 / T90 / hypoxic-burden detectors.</p></div>
+      <div class="cat real"><div class="ct"><b>PulseDex — RR text</b></div><p>Beat-to-beat RR intervals from the master timeline — the genuine HRV input, identical beats the other nodes share.</p></div>
+      <div class="cat real"><div class="ct"><b>GlucoDex — CGM CSV</b></div><p>A continuous glucose stream spanning all the subject’s nights, co-generated so glycemia and autonomic state are coherent.</p></div>
+      <div class="cat real"><div class="ct"><b>HRVDex — Welltory summary rows</b></div><p>Pre-computed daily HRV summary rows, the format HRVDex ingests.</p></div>
+      <div class="cat sim"><div class="ct"><b>PpgDex — 176 Hz PPG (FULL lane)</b></div><p>An optical waveform on one representative window, so the real PPG beat detection + morphology run, not just intervals.</p></div>
+      <div class="cat sim"><div class="ct"><b>ECGDex — int16 µV ECG (FULL lane)</b></div><p>A raw µV ECG rendered from the same RR beats, so Pan–Tompkins and morphology execute on real samples.</p></div>
+      <div class="cat gate"><div class="ct"><b>ground_truth_nightN.json</b></div><p>The planted-event answer key — what every gate diffs the detectors against.</p></div>
+    </div>
+  </section>
+  <section class="sec">
+    <div class="sec-num">05 — LIMITATIONS &amp; CONSIDERATIONS</div>
+    <h2 class="sec-h">Where synthetic stops</h2>
+    <p class="sec-d">SynthGen is engineered to be useful, not to be reality. Its own perspective paper names exactly where the synthetic frontier lies.</p>
+    <div class="notes">
+        <div class="note warn"><h4>Synthetic ≠ real physiology<span class="tagi">caution</span></h4><p>The corpus is coherent and deterministic, not drawn from real patients. Real-data validation needs user-supplied PSG (NSRR/PhysioNet under DUA) — the synthetic lane is the scalable pre-check.</p></div>
+        <div class="note info"><h4>FAST omits waveforms<span class="tagi">note</span></h4><p>The default 10k lane emits CSV + RR + CGM + HRV rows only. The 176 Hz PPG and int16 ECG live in the ≤500 FULL lane because the waveform pipelines are the runtime cost.</p></div>
+        <div class="note lim"><h4>ECG µV is rendered in the harness<span class="tagi">limitation</span></h4><p>The shipped ECGDSP couples its RR→PQRST renderer inside genSynthetic; rather than edit shipped DSP (which would trip the gates), cohort-full renders the µV waveform from the same master RR beats.</p></div>
+        <div class="note good"><h4>Deterministic by seed<span class="tagi">by design</span></h4><p>seed = patient index → byte-reproducible. The same corpus regenerates identically on any machine, which is what makes it a stable answer key for the gates.</p></div>
+    </div>
+  </section>
+
+
+  <section class="sec" style="border-top:none;padding-top:8px;">
+      <div class="pager">
+        <a href="How It's Wired - Experiments.html"><div class="pl">← Validation</div><div class="pt">Experiments</div></a>
+        <a class="nx" href="How It's Wired - Science Papers.html"><div class="pl">Papers →</div><div class="pt">Science Papers</div></a>
+      </div>
+  </section>
+
+  <footer class="docfoot">
+    <div class="fl">
+      <a href="How It's Wired - the Dex Suite.html">◈ Wiring index</a>
+      <a href="../synth-gen.html">SynthGen tool</a>
+      <a href="../cohort-runner.html">Cohort harness</a>
+      <a href="../SYNTHETIC-CORPUS-README.md">Synthetic corpus readme</a>
+      <a href="../papers/papers.html">Papers</a>
+    </div>
+    <div class="fn"><b>SynthGen</b> — synthetic overnight corpus generator · one master timeline, every device format, one floating clock. Deterministic · 100% local.</div>
+    <div class="disc">Not a medical device. Drafts and synthetic experiments — for research and curiosity, not diagnosis. Label simulation vs real-detector vs real-data honestly.</div>
+  </footer>
+
+</div>
+</body>
+</html>

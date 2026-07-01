@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  CPAPDex Reference.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPAPDex — Reference Guide</title>
+<link rel="stylesheet" href="licensing/dex-license.css">
+<link rel="stylesheet" href="dex-badges.css">
+<style>
+/* Fonts: system stacks only — no @font-face, no CDN. 'Inter'/'IBM Plex Mono'
+   names fall through to system-ui / ui-monospace by design (CLAUDE.md / AUDIT.md). */
+/* ═══════════════════════════════════════════════════════
+   CPAPDex — Reference Guide · Tepna
+   Cohesion-native: evidence badges driven by CPAP_REGISTRY,
+   disc CSS byte-faithful to dex-badges.css / metric-registry.js.
+═══════════════════════════════════════════════════════ */
+:root {
+  --bg:#0B0F14; --surface:#121821; --surface2:#18212C; --surface3:#1E2835;
+  --border:#1e2d42; --border2:#253550;
+  --text:#F4F7FB; --text2:#9FB0C3; --text3:#6F8096; --text4:#4E5A6B;
+  --teal:#3DE0D0; --blue:#58A6FF; --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A;
+  --purple:#a78bfa; --orange:#fb923c;
+  --r-md:18px;
+  --b:1px solid rgba(255,255,255,.05);
+  --fs-body:14px; --fs-card-sub:13px; --fs-label:11px; --fs-sm:11.5px;
+  --fw-regular:400; --fw-semibold:600; --fw-bold:700;
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px; --sp-7:48px; --sp-8:64px;
+  color-scheme: dark;
+  --sidebar-w:260px;
+  --ev-ink:#aab8cc;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;font-size:var(--fs-body);line-height:1.55;overflow-x:hidden;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+a{color:inherit}
+.app{display:block;min-height:100vh}
+.sidebar{background:rgba(18,24,33,.97);border-right:var(--b);padding:var(--sp-5) var(--sp-3);position:fixed;top:0;left:0;width:var(--sidebar-w);height:100vh;-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);display:flex;flex-direction:column;overflow-y:auto;z-index:10}
+.logo{display:flex;gap:var(--sp-3);align-items:center;margin-bottom:var(--sp-6);padding:0 var(--sp-2)}
+.logo-badge{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--teal),var(--blue));display:flex;align-items:center;justify-content:center;color:#041014;font-weight:var(--fw-bold);font-size:13px;letter-spacing:-.02em;box-shadow:0 0 20px rgba(61,224,208,0.22);flex-shrink:0}
+.logo-title{font-weight:var(--fw-semibold);font-size:15px;letter-spacing:-.015em}
+.logo-sub{font-size:11px;color:var(--text3);margin-top:2px}
+.nav-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--text4);padding:0 var(--sp-2);margin:var(--sp-5) 0 var(--sp-2);font-weight:var(--fw-semibold)}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:var(--sp-3);padding:9px var(--sp-3);border-radius:10px;color:var(--text2);font-size:13px;text-decoration:none;transition:all .15s}
+.nav a:hover{background:rgba(255,255,255,.04);color:var(--text)}
+.nav-dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0;opacity:.55}
+.sidebar-bottom{margin-top:auto;padding-top:var(--sp-5)}
+.sidebar-data-card{background:rgba(61,224,208,.04);border:1px solid rgba(61,224,208,.09);border-radius:12px;padding:12px 14px}
+.data-pill{display:inline-flex;align-items:center;gap:6px;background:rgba(61,224,208,.1);border:1px solid rgba(61,224,208,.18);color:var(--green);padding:4px 10px;border-radius:999px;font-size:11px;font-weight:var(--fw-semibold)}
+.data-dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+.sidebar-data-info{margin-top:8px;font-size:11px;color:var(--text3);line-height:1.55}
+.main{position:relative;z-index:1;margin-left:var(--sidebar-w);padding:var(--sp-6) max(44px,20px) var(--sp-8);max-width:1260px;margin-right:auto;overflow-x:hidden}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.main{animation:fadeIn .3s ease}
+.ph{margin-bottom:var(--sp-6);padding-bottom:var(--sp-5);border-bottom:1px solid rgba(255,255,255,.045)}
+.ph-eyebrow{font-size:var(--fs-label);letter-spacing:.12em;text-transform:uppercase;color:var(--teal);font-weight:var(--fw-semibold);margin-bottom:10px;display:flex;align-items:center;gap:var(--sp-2)}
+.ph-eyebrow::before{content:'';display:block;width:20px;height:2px;background:var(--teal)}
+.ph-title{font-size:28px;font-weight:var(--fw-bold);letter-spacing:-.025em;line-height:1.15;margin-bottom:var(--sp-3)}
+.ph-title>span{color:var(--teal)}
+.ph-desc{font-size:var(--fs-body);color:var(--text2);max-width:660px;line-height:1.65}
+.rs{margin-bottom:var(--sp-7);width:100%}
+.sh{display:flex;align-items:center;gap:var(--sp-4);margin-bottom:var(--sp-5);padding-bottom:var(--sp-4);border-bottom:1px solid rgba(255,255,255,.05)}
+.si{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.si.sig{background:rgba(255,184,77,.12)}.si.hr{background:rgba(255,107,122,.12)}.si.sleep{background:rgba(167,139,250,.12)}
+.si.clin{background:rgba(88,166,255,.12)}.si.comp{background:rgba(251,146,60,.12)}.si.proj{background:rgba(57,217,138,.12)}.si.spo2{background:rgba(61,224,208,.12)}
+.st{font-size:19px;font-weight:var(--fw-bold);letter-spacing:-.02em}
+.sd{font-size:var(--fs-card-sub);color:var(--text3);margin-top:2px}
+.mc{position:relative;background:var(--surface);border:1px solid rgba(255,255,255,.055);border-radius:var(--r-md);padding:20px var(--sp-5);margin-bottom:var(--sp-3);transition:border-color .2s;min-width:0}
+.mc:hover{border-color:rgba(61,224,208,.18)}
+.mh{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-3);margin-bottom:var(--sp-3);flex-wrap:wrap}
+.mi{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.ma{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:17px;font-weight:var(--fw-semibold);color:var(--teal);letter-spacing:-.01em}
+.mf{font-size:var(--fs-card-sub);font-weight:var(--fw-semibold);color:var(--text)}
+.mt{font-size:10px;font-weight:var(--fw-bold);letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:999px;flex-shrink:0;margin-top:2px}
+.tc{background:rgba(61,224,208,.1);color:var(--teal);border:1px solid rgba(61,224,208,.2)}
+.ta{background:rgba(88,166,255,.1);color:var(--blue);border:1px solid rgba(88,166,255,.2)}
+.tr{background:rgba(167,139,250,.1);color:var(--purple);border:1px solid rgba(167,139,250,.2)}
+.md{font-size:13px;color:var(--text2);line-height:1.65;margin-bottom:var(--sp-4)}
+.fb{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-left:3px solid var(--blue);border-radius:0 10px 10px 0;padding:11px var(--sp-4);margin-bottom:var(--sp-3)}
+.fl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;font-weight:var(--fw-semibold);margin-bottom:5px}
+.ft{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;color:var(--blue);line-height:1.75;white-space:pre-wrap;overflow-wrap:break-word}
+.fn{font-size:11.5px;color:var(--text3);margin-top:6px;line-height:1.55}
+.nt-wrap{max-width:100%;overflow-x:auto;margin:4px 0}
+.nt{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px}
+.nt th{font-size:10px;font-weight:var(--fw-bold);letter-spacing:.07em;text-transform:uppercase;color:var(--text4);padding:6px 10px;text-align:left;border-bottom:1px solid rgba(255,255,255,.06)}
+.nt td{padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.03)}
+.nt tr:last-child td{border-bottom:none}
+.nt tr:hover td{background:rgba(255,255,255,.02)}
+.nr{font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:var(--fw-regular)}
+tr.ok td{color:var(--green)}tr.wn td{color:var(--amber)}tr.bd td{color:var(--orange)}tr.cr td{color:var(--red)}tr.nm td{color:var(--text2)}
+tr.ok .nr,tr.wn .nr,tr.bd .nr,tr.cr .nr,tr.nm .nr{color:inherit}
+tr.ok td:first-child,tr.wn td:first-child,tr.bd td:first-child,tr.cr td:first-child{color:var(--text2)}
+.co{display:flex;gap:var(--sp-3);padding:13px 15px;border-radius:11px;margin-bottom:var(--sp-3);font-size:12.5px;line-height:1.6}
+.co-i{background:rgba(88,166,255,.07);border:1px solid rgba(88,166,255,.18);color:var(--text2)}
+.co-w{background:rgba(255,184,77,.07);border:1px solid rgba(255,184,77,.2);color:var(--text2)}
+.co-ic{font-size:15px;flex-shrink:0;margin-top:1px}
+.co strong{color:var(--text);font-weight:var(--fw-semibold)}
+.mg{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:var(--sp-3);width:100%;min-width:0}
+.no-norm-note{font-size:11.5px;color:var(--text4);font-style:italic;margin-top:8px;line-height:1.55}
+.sec-back{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text4);text-decoration:none;margin-top:var(--sp-3);transition:color .14s}
+.sec-back:hover{color:var(--teal)}
+td.fmt-m{display:flex;align-items:center;gap:5px;min-width:0}
+
+/* ── Quick Jump ── */
+.qj-wrap{margin-bottom:var(--sp-6);border-radius:var(--r-md);border:1px solid var(--border2);overflow:hidden}
+.qj-toggle{width:100%;background:var(--surface2);border:none;padding:13px var(--sp-4);display:flex;align-items:center;gap:10px;cursor:pointer;color:var(--text2);font-size:var(--fs-sm);font-family:'Inter',system-ui,sans-serif;text-align:left;transition:background .18s,color .18s}
+.qj-toggle:hover{background:var(--surface3);color:var(--text)}
+.qj-toggle svg:first-child{color:var(--teal);flex-shrink:0}
+.qj-count{margin-left:auto;font-size:11px;color:var(--text3);background:rgba(255,255,255,.04);padding:2px 8px;border-radius:20px;border:1px solid var(--border)}
+.qj-arrow{margin-left:6px;flex-shrink:0;transition:transform .25s cubic-bezier(.16,1,.3,1)}
+.qj-toggle[aria-expanded="true"] .qj-arrow{transform:rotate(180deg)}
+.qj-panel{border-top:1px solid var(--border);background:var(--surface)}
+.qj-panel[hidden]{display:none}
+.qj-search-wrap{display:flex;align-items:center;gap:8px;padding:10px var(--sp-4);border-bottom:1px solid var(--border)}
+.qj-search-wrap svg{color:var(--text3);flex-shrink:0}
+.qj-search{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:var(--fs-sm);font-family:'Inter',system-ui,sans-serif;min-width:0}
+.qj-search::placeholder{color:var(--text4)}
+.qj-clear{background:none;border:none;cursor:pointer;color:var(--text3);padding:0 4px;font-size:13px;line-height:1}
+.qj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:0;border-bottom:1px solid var(--border)}
+.qj-group{padding:var(--sp-3) var(--sp-4);border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
+.qj-group[data-hidden]{display:none}
+.qj-group-header{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px}
+.qj-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.qj-links{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.qj-sec{font-size:12px;font-weight:500;color:var(--text2);text-decoration:none;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:4px;padding:2px 8px;transition:all .14s;white-space:nowrap}
+.qj-sec:hover{background:rgba(61,224,208,.1);border-color:var(--teal);color:var(--teal)}
+.qj-metrics{display:flex;flex-wrap:wrap;gap:3px}
+.qm{font-size:11px;font-family:'IBM Plex Mono',ui-monospace,monospace;color:var(--text3);text-decoration:none;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.06);border-radius:3px;padding:1px 6px;transition:all .14s;white-space:nowrap}
+.qm:hover,.qm.qm-match{background:rgba(61,224,208,.08);color:var(--teal);border-color:rgba(61,224,208,.25)}
+.qm.qm-hide{display:none}
+.qj-no-results{padding:var(--sp-4);text-align:center;color:var(--text3);font-size:var(--fs-sm)}
+
+/* ── Top abbr strip ── */
+.top-abbr-strip{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:8px 14px;margin-bottom:var(--sp-4);flex-wrap:wrap}
+.tas-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);white-space:nowrap}
+.tas-pills{display:flex;flex-wrap:wrap;gap:4px;flex:1;min-width:0}
+.tas-pill{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:10px;color:var(--teal);text-decoration:none;background:rgba(255,255,255,.025);border:1px solid rgba(61,224,208,.15);border-radius:4px;padding:2px 7px;white-space:nowrap}
+.tas-pill:hover{background:rgba(61,224,208,.08)}
+.tas-all{font-size:11px;color:var(--text3);text-decoration:none;white-space:nowrap}
+.tas-all:hover{color:var(--teal)}
+
+/* ── Abbr index ── */
+.abbr-search-wrap{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:10px}
+.abbr-search-wrap svg{color:var(--text3);flex-shrink:0}
+.abbr-search-inp{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:13px;font-family:'Inter',system-ui,sans-serif}
+.abbr-count-label{font-size:11px;color:var(--text3);white-space:nowrap;background:rgba(255,255,255,.04);padding:2px 8px;border-radius:20px;border:1px solid var(--border)}
+.abbr-alpha-wrap{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:10px}
+.abbr-tab{background:transparent;border:1px solid var(--border);border-radius:5px;color:var(--text3);font-size:10px;font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:600;padding:3px 7px;cursor:pointer;transition:all .12s}
+.abbr-tab:hover{background:rgba(255,255,255,.05);color:var(--text2)}
+.abbr-tab.abbr-tab-active{background:rgba(61,224,208,.12);color:var(--teal);border-color:rgba(61,224,208,.3)}
+#abbrGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:6px}
+.abbr-link:hover{opacity:.85}
+
+/* ── Active nav ── */
+.sidebar .nav a.nav-active{color:var(--teal);background:rgba(61,224,208,.08)}
+.sidebar .nav a.nav-active .nav-dot{background:var(--teal);box-shadow:0 0 6px rgba(61,224,208,.5)}
+
+/* ── Back to top ── */
+#btt{position:fixed;bottom:22px;right:18px;z-index:95;width:42px;height:42px;border-radius:12px;background:rgba(61,224,208,.1);border:1px solid rgba(61,224,208,.25);color:var(--teal);display:none;align-items:center;justify-content:center;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+#btt.btt-show{display:flex}
+
+/* ── Theme toggle button ── */
+#themeToggleBtn{position:fixed;bottom:72px;right:18px;z-index:99;background:rgba(61,224,208,.08);border:1px solid rgba(61,224,208,.22);color:var(--teal);border-radius:999px;padding:8px 16px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:.03em;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.theme-icon{font-size:14px;margin-right:3px}
+
+/* ── Mobile bar + drawer ── */
+.mob-bar{display:none;position:fixed;top:0;left:0;right:0;z-index:999;height:54px;background:rgba(11,15,20,.92);border-bottom:1px solid rgba(255,255,255,.08);padding:0 14px;align-items:center;justify-content:space-between;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.mob-bar-logo{display:flex;align-items:center;gap:10px}
+.mob-bar-badge{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#3DE0D0,#58A6FF);display:flex;align-items:center;justify-content:center;color:#041014;font-weight:800;font-size:11px}
+.mob-bar-name{font-weight:700;font-size:13.5px;letter-spacing:-.02em}
+.mob-bar-btn{width:44px;height:44px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:#9FB0C3;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.mob-drawer-bg{display:block;opacity:0;visibility:hidden;transition:opacity .22s,visibility .22s;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.65);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.mob-drawer-bg.open{opacity:1;visibility:visible}
+.mob-drawer-panel{position:absolute;top:0;left:0;bottom:0;width:min(290px,82vw);background:var(--bg);border-right:1px solid rgba(255,255,255,.08);overflow-y:auto;padding:16px 12px 40px;transform:translateX(-100%);transition:transform .22s cubic-bezier(.16,1,.3,1)}
+.mob-drawer-bg.open .mob-drawer-panel{transform:translateX(0)}
+.mob-drawer-top{display:flex;align-items:center;justify-content:space-between;padding:0 8px;margin-bottom:20px}
+.mob-drawer-close{width:36px;height:36px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:#9FB0C3;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+
+@media(max-width:900px){
+  .mob-bar{display:flex}
+  .app{display:block;padding-top:54px}
+  .sidebar{display:none}
+  .main{padding:20px 15px 100px;max-width:100%;margin-left:0}
+  .ph-title{font-size:clamp(20px,5vw,28px)}
+  .mh{flex-direction:column;align-items:flex-start;gap:8px}
+  .mg{grid-template-columns:1fr}
+  .qj-grid{grid-template-columns:1fr}
+  .qj-group{border-right:none}
+  #abbrGrid{grid-template-columns:1fr}
+  .top-abbr-strip{display:none}
+  .st{font-size:17px}
+  .rs{margin-bottom:40px}
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   CANONICAL EVIDENCE BADGE SYSTEM — verbatim mirror of dex-badges.css
+   (byte-faithful to MetricRegistry.BADGE_CSS; the test suite proves it).
+   DO NOT edit the disc rules — they are gated for equivalence to the engine.
+   ════════════════════════════════════════════════════════════════════════ */
+/* Evidence tier discs (.ev-measured / .ev-validated / .ev-emerging / .ev-experimental /
+   .ev-heuristic) are sourced from the linked dex-badges.css — the canonical visual mirror of
+   MetricRegistry.BADGE_CSS — and are no longer inlined here (one visual source, not a third
+   copy). DEX-EVENT-UNIFY-AND-CSV-BRIEF Task C3. */
+.ev[title], .ev-corner[title] { cursor: help; }
+.ev { position: relative; opacity: .85; }
+.ev-corner { position: absolute; bottom: 12px; right: 14px; z-index: 2; cursor: help; opacity: .55; transition: opacity .15s; }
+.ev-corner:hover { opacity: .7; }
+.mc, .metric, .ss-kpi, .nr-kpi, .kpi, .readiness-subscore { position: relative; }
+.mc { overflow: visible; }
+.fmt-m .ev { position: static; margin: 0 7px 0 0; opacity: .7; vertical-align: baseline; }
+.nr-chip .ev { position: static; margin-left: 5px; opacity: .6; vertical-align: baseline; width: 9px; height: 9px; }
+.ev-legend-strip { display:flex; align-items:center; gap:7px; flex-wrap:wrap; font-size:11.5px;
+                   color:var(--text3); background:var(--surface2); border:1px solid var(--border);
+                   border-radius:10px; padding:9px 14px; margin-bottom:var(--sp-4,16px); }
+.ev-legend-strip .lg-title { font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.08em;
+                             text-transform:uppercase; color:var(--text4); margin-right:4px; }
+.ev-legend-strip .lg-item  { display:inline-flex; align-items:center; gap:6px; }
+.ev-legend-strip .lg-item b { color:var(--text2); font-weight:600; }
+.ev-legend-strip .sep      { width:1px; height:13px; background:var(--border2); margin:0 4px; }
+.ev-legend-strip .lg-note  { margin-left:auto; color:var(--text4); font-size:10.5px; }
+
+/* ── Light theme ── */
+body.light {
+  --bg:#F2F5F9;--surface:#FFFFFF;--surface2:#EBF0F7;--surface3:#DDE4EF;
+  --border:#C8D4E4;--border2:#B0C0D8;
+  --text:#0F1923;--text2:#3A4E65;--text3:#6A7F96;--text4:#8FA0B4;
+  --b:1px solid rgba(0,0,0,.07);
+}
+body.light .sidebar{background:linear-gradient(180deg,#FFFFFF,#F8FAFC);box-shadow:inset -1px 0 0 rgba(0,0,0,.07),2px 0 20px rgba(0,0,0,.06)}
+body.light .mc{background:var(--surface);border-color:rgba(0,0,0,.08)}
+body.light .fb{background:rgba(88,166,255,.06);border-color:rgba(88,166,255,.15)}
+body.light .co-i{background:rgba(88,166,255,.08)}
+body.light .co-w{background:rgba(255,184,77,.08)}
+body.light .ev-legend-strip{background:rgba(0,0,0,.02);border-color:rgba(0,0,0,.08)}
+body.light .ev-measured,body.light .ev-validated,body.light .ev-emerging,body.light .ev-experimental,body.light .ev-heuristic{border-color:var(--surface)}
+body.light .mob-bar{background:rgba(242,245,249,.92);border-bottom-color:rgba(0,0,0,.1)}
+body.light .mob-drawer-panel{background:#FFFFFF}
+</style>
+</head>
+<body>
+
+<button id="themeToggleBtn" aria-label="Toggle light and dark theme"><span class="theme-icon">🌙</span> <span id="themeLabel">Dark</span></button>
+<div class="mob-bar" id="mobBar">
+  <div class="mob-bar-logo"><div class="mob-bar-badge">PAP</div><span class="mob-bar-name">CPAPDex</span></div>
+  <button class="mob-bar-btn" id="mobMenuBtn" aria-label="Open navigation menu" onclick="openDrawer()">&#9776;</button>
+</div>
+<div class="mob-drawer-bg" id="mobDrawerBg" onclick="handleBgClick(event)">
+  <div class="mob-drawer-panel" id="mobDrawerPanel">
+    <div class="mob-drawer-top"><div style="display:flex;align-items:center;gap:9px"><div style="width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,#3DE0D0,#58A6FF);display:flex;align-items:center;justify-content:center;color:#041014;font-weight:800;font-size:10px">PAP</div><span style="font-weight:700;font-size:13px;color:#F4F7FB">Sections</span></div>
+      <button class="mob-drawer-close" aria-label="Close navigation" onclick="closeDrawer()">&#x2715;</button></div>
+    
+  <div class="nav-lbl">Therapy</div>
+  <div class="nav"><a href="#usage"><span class="nav-dot"></span>Usage &amp; Adherence</a><a href="#pressure"><span class="nav-dot"></span>Pressure Profile</a></div>
+  <div class="nav-lbl">Respiratory Events</div>
+  <div class="nav"><a href="#events"><span class="nav-dot"></span>Residual Events</a><a href="#flow"><span class="nav-dot"></span>Flow Limitation &amp; Snore</a></div>
+  <div class="nav-lbl">Leak &amp; Ventilation</div>
+  <div class="nav"><a href="#leak"><span class="nav-dot"></span>Leak Dynamics</a><a href="#ventilation"><span class="nav-dot"></span>Ventilation</a><a href="#breath"><span class="nav-dot"></span>Flow-Derived Breathing</a></div>
+  <div class="nav-lbl">Oximetry</div>
+  <div class="nav"><a href="#oximetry"><span class="nav-dot"></span>SA2 Oximetry Lane</a></div>
+  <div class="nav-lbl">Provenance</div>
+  <div class="nav"><a href="#pipeline"><span class="nav-dot"></span>Pipeline &amp; Data</a><a href="#validation-matrix"><span class="nav-dot"></span>Validation Matrix</a><a href="#refs-map"><span class="nav-dot"></span>Citation Map</a><a href="#formula-provenance"><span class="nav-dot"></span>Formula Provenance</a><a href="#limitations"><span class="nav-dot"></span>Known Limitations</a></div>
+  <div class="nav-lbl">Reference</div>
+  <div class="nav"><a href="#acad-refs"><span class="nav-dot"></span>Academic References</a><a href="#abbr"><span class="nav-dot"></span>Abbreviation Index</a><a href="#credits"><span class="nav-dot"></span>Credits</a></div>
+  </div>
+</div>
+
+<div class="app">
+<nav class="sidebar">
+  <div class="logo"><div class="logo-badge">PAP</div><div><div class="logo-title">CPAPDex</div><div class="logo-sub">Reference Guide</div></div></div>
+  
+  <div class="nav-lbl">Therapy</div>
+  <div class="nav"><a href="#usage"><span class="nav-dot"></span>Usage &amp; Adherence</a><a href="#pressure"><span class="nav-dot"></span>Pressure Profile</a></div>
+  <div class="nav-lbl">Respiratory Events</div>
+  <div class="nav"><a href="#events"><span class="nav-dot"></span>Residual Events</a><a href="#flow"><span class="nav-dot"></span>Flow Limitation &amp; Snore</a></div>
+  <div class="nav-lbl">Leak &amp; Ventilation</div>
+  <div class="nav"><a href="#leak"><span class="nav-dot"></span>Leak Dynamics</a><a href="#ventilation"><span class="nav-dot"></span>Ventilation</a><a href="#breath"><span class="nav-dot"></span>Flow-Derived Breathing</a></div>
+  <div class="nav-lbl">Oximetry</div>
+  <div class="nav"><a href="#oximetry"><span class="nav-dot"></span>SA2 Oximetry Lane</a></div>
+  <div class="nav-lbl">Provenance</div>
+  <div class="nav"><a href="#pipeline"><span class="nav-dot"></span>Pipeline &amp; Data</a><a href="#validation-matrix"><span class="nav-dot"></span>Validation Matrix</a><a href="#refs-map"><span class="nav-dot"></span>Citation Map</a><a href="#formula-provenance"><span class="nav-dot"></span>Formula Provenance</a><a href="#limitations"><span class="nav-dot"></span>Known Limitations</a></div>
+  <div class="nav-lbl">Reference</div>
+  <div class="nav"><a href="#acad-refs"><span class="nav-dot"></span>Academic References</a><a href="#abbr"><span class="nav-dot"></span>Abbreviation Index</a><a href="#credits"><span class="nav-dot"></span>Credits</a></div>
+  <div class="sidebar-bottom"><div class="sidebar-data-card"><div class="data-pill"><span class="data-dot"></span> Reference Guide</div><div class="sidebar-data-info">ResMed AirSense &#xB7; EDF therapy log<br>Apache-2.0 License</div></div></div>
+</nav>
+
+<main class="main">
+<div class="ph">
+  <div class="ph-eyebrow">CPAPDex &#x2014; Technical Reference</div>
+  <h1 class="ph-title">Therapy Pressure, Leak<br><span>&amp; Residual Events</span></h1>
+  <p class="ph-desc">Reference for every metric CPAPDex reads from a PAP machine&#x2019;s nightly therapy log &#x2014; definitions, formulas, expected ranges, and the evidence base behind each. Most headline numbers are <strong>device-scored</strong> events the machine&#x2019;s firmware produced (ingested as ground truth, not recomputed), augmented by direct channel statistics and a few flow-derived and oximetry-lane metrics CPAPDex computes itself. Companion to the analyzer output; not a substitute for your prescribing clinician&#x2019;s review.</p>
+  <div style="margin:16px 0 18px;display:flex;flex-direction:column;gap:10px">
+    <div class="co co-w"><span class="co-ic">&#x26A0;&#xFE0F;</span><div><strong>Important:</strong> CPAP machine-reported events are scored by proprietary firmware and may differ from manual scoring. <strong>AHI values from CPAP logs are not equivalent to attended polysomnography</strong> and are not a diagnosis. Residual indices also become unreliable when mask leak is high (see Large Leak %). Use these readings to track your own therapy and inform a clinician conversation &#x2014; not to change therapy on your own.</div></div>
+    <div class="ev-legend-strip">
+      <span class="lg-title">Evidence</span>
+      <span class="lg-item"><span class="ev-measured"></span><b>Measured</b></span><span class="sep"></span>
+      <span class="lg-item"><span class="ev-validated"></span><b>Validated</b></span><span class="sep"></span>
+      <span class="lg-item"><span class="ev-emerging"></span><b>Emerging</b></span><span class="sep"></span>
+      <span class="lg-item"><span class="ev-experimental"></span><b>Experimental</b></span><span class="sep"></span>
+      <span class="lg-item"><span class="ev-heuristic"></span><b>Heuristic</b></span>
+      <span class="lg-note">fill = trust &#xB7; hover a badge for source</span>
+    </div>
+    <div class="co co-i"><span class="co-ic">&#x2139;&#xFE0F;</span><div><strong>Why &#x201C;measured&#x201D; for device events?</strong> The machine&#x2019;s firmware-scored EVE/CSL events <em>are</em> the recorded signal &#x2014; CPAPDex ingests them rather than re-deriving apneas, so they sit on the &#x201C;measured&#x201D; rung (the strongest evidence this node offers), while still carrying the firmware caveat above. The few values CPAPDex computes from raw flow or oximetry carry their own grade.</div></div>
+  </div>
+</div>
+
+<div class="qj-wrap" id="quick-jump">
+  <button class="qj-toggle" id="qjToggle" aria-expanded="false" aria-controls="qjPanel">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+    Quick Jump Index
+    <span class="qj-count">16 sections</span>
+    <svg class="qj-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
+  <div class="qj-panel" id="qjPanel" hidden>
+    <div class="qj-search-wrap"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" class="qj-search" id="qjSearch" placeholder="Filter metrics&#x2026;" autocomplete="off" spellcheck="false" inputmode="search">
+      <button class="qj-clear" id="qjClear" aria-label="Clear search" hidden>&#x2715;</button></div>
+    <div class="qj-grid" id="qjGrid">
+      <div class="qj-group" data-group="therapy"><div class="qj-group-header"><span class="qj-dot" style="background:var(--teal)"></span>Therapy</div>
+        <div class="qj-links"><a href="#usage" class="qj-sec">Usage</a><a href="#pressure" class="qj-sec">Pressure</a></div>
+        <div class="qj-metrics"><a href="#usage" class="qm">Usage Hours</a><a href="#usage" class="qm">Compliance</a><a href="#usage" class="qm">Mask-On Latency</a><a href="#pressure" class="qm">Median P</a><a href="#pressure" class="qm">P95</a><a href="#pressure" class="qm">Pressure Range</a><a href="#pressure" class="qm">EPR Delta</a><a href="#pressure" class="qm">EPAP95</a></div></div>
+      <div class="qj-group" data-group="events"><div class="qj-group-header"><span class="qj-dot" style="background:var(--red)"></span>Respiratory Events</div>
+        <div class="qj-links"><a href="#events" class="qj-sec">Residual Events</a><a href="#flow" class="qj-sec">Flow &amp; Snore</a></div>
+        <div class="qj-metrics"><a href="#events" class="qm">Residual AHI</a><a href="#events" class="qm">CAI</a><a href="#events" class="qm">OAI</a><a href="#events" class="qm">HI</a><a href="#events" class="qm">RERA</a><a href="#events" class="qm">Periodic Breathing</a><a href="#flow" class="qm">Flow Limitation</a><a href="#flow" class="qm">Snore %</a><a href="#flow" class="qm">Snore&#x2194;Pressure</a></div></div>
+      <div class="qj-group" data-group="leak"><div class="qj-group-header"><span class="qj-dot" style="background:var(--blue)"></span>Leak &amp; Ventilation</div>
+        <div class="qj-links"><a href="#leak" class="qj-sec">Leak</a><a href="#ventilation" class="qj-sec">Ventilation</a><a href="#breath" class="qj-sec">Flow-Derived</a></div>
+        <div class="qj-metrics"><a href="#leak" class="qm">Median Leak</a><a href="#leak" class="qm">P95 Leak</a><a href="#leak" class="qm">Large Leak %</a><a href="#leak" class="qm">Leak CV</a><a href="#ventilation" class="qm">Resp Rate</a><a href="#ventilation" class="qm">Tidal Volume</a><a href="#ventilation" class="qm">Minute Vent</a><a href="#breath" class="qm">Breath Rate</a><a href="#breath" class="qm">I:E Ratio</a></div></div>
+      <div class="qj-group" data-group="ox"><div class="qj-group-header"><span class="qj-dot" style="background:var(--green)"></span>Oximetry</div>
+        <div class="qj-links"><a href="#oximetry" class="qj-sec">SA2 Lane</a></div>
+        <div class="qj-metrics"><a href="#oximetry" class="qm">ODI</a><a href="#oximetry" class="qm">T90</a><a href="#oximetry" class="qm">SpO&#x2082; Nadir</a><a href="#oximetry" class="qm">Mean SpO&#x2082;</a><a href="#oximetry" class="qm">Pulse</a></div></div>
+      <div class="qj-group" data-group="prov"><div class="qj-group-header"><span class="qj-dot" style="background:var(--blue)"></span>Provenance</div>
+        <div class="qj-links"><a href="#pipeline" class="qj-sec">Pipeline</a><a href="#validation-matrix" class="qj-sec">Validation Matrix</a><a href="#refs-map" class="qj-sec">Citation Map</a><a href="#limitations" class="qj-sec">Limitations</a></div>
+        <div class="qj-metrics"><a href="#pipeline" class="qm">EDF / EVE / CSL</a><a href="#pipeline" class="qm">Self-Gate</a><a href="#formula-provenance" class="qm">Formula sources</a></div></div>
+      <div class="qj-group" data-group="ref"><div class="qj-group-header"><span class="qj-dot" style="background:var(--text3)"></span>Reference</div>
+        <div class="qj-links"><a href="#acad-refs" class="qj-sec">References</a><a href="#abbr" class="qj-sec">Abbreviations</a><a href="#credits" class="qj-sec">Credits</a></div>
+        <div class="qj-metrics"><a href="#acad-refs" class="qm">AASM</a><a href="#acad-refs" class="qm">CMS NCD 240.4</a><a href="#acad-refs" class="qm">Kemp 2003</a></div></div>
+    </div>
+    <div class="qj-no-results" id="qjNoResults" hidden>No metrics match your search.</div>
+  </div>
+</div>
+
+<div class="top-abbr-strip" id="topAbbrStrip"><div class="tas-label">Abbr:</div><div class="tas-pills" id="tasPills"></div><a href="#abbr" class="tas-all">full index &#x2192;</a></div>
+
+<div class="rs" id="usage">
+<div class="sh"><div class="si proj">&#x23F0;</div><div><div class="st">Usage &amp; Adherence</div><div class="sd">Nightly mask-on duration and long-term compliance</div></div></div>
+<div class="mg">
+<div class="mc">
+  <div class="mh"><div class="mi"><span class="ma">Usage Hours</span><span class="mf">Total Mask-On Hours</span></div><span class="mt tc">Core</span></div>
+  <p class="md">Hours of delivered therapy for the night &#x2014; the denominator behind every per-hour event index. Mask-on is delivered pressure &gt; 0; brief gaps under ~5 min are not counted as off.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Usage Hours = count(pressure &gt; 0) / 3600</div></div><div class="nt-wrap"><table class="nt"><tr><th>Usage (hr)</th><th>Read</th></tr><tr class="bd"><td>&lt;&#x202F;4</td><td class="nr">Below compliance</td></tr><tr class="wn"><td>4&#x2013;6</td><td class="nr">Minimum compliance</td></tr><tr class="ok"><td>6&#x2013;7</td><td class="nr">Good</td></tr><tr class="ok"><td>&gt;&#x202F;7</td><td class="nr">Excellent</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Total mask-on hours (pressure &gt; 0), direct recording stat"></span></div>
+<div class="mc">
+  <div class="mh"><div class="mi"><span class="ma">30-Day Compliance</span><span class="mf">Nights Meeting &#x2265; 4 h Usage</span></div><span class="mt tc">Core</span></div>
+  <p class="md">Percentage of nights in the trailing 30 days with at least 4 hours of use &#x2014; the adherence figure insurers and clinicians track.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Compliance = nights(&#x2265;4 h) / nights_30d &#xD7; 100</div></div><div class="nt-wrap"><table class="nt"><tr><th>Compliance</th><th>Read</th></tr><tr class="bd"><td>&lt;&#x202F;50%</td><td class="nr">Poor</td></tr><tr class="wn"><td>50&#x2013;70%</td><td class="nr">Below CMS threshold</td></tr><tr class="ok"><td>70&#x2013;85%</td><td class="nr">Adequate</td></tr><tr class="ok"><td>&gt;&#x202F;85%</td><td class="nr">Excellent</td></tr></table></div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; Nights &#x2265;4 h / 30 d. CMS PAP adherence: &#x2265;4 h on &#x2265;70% of nights across any 90-day window"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Mask-On Latency</span><span class="mf">Time to First Delivered Pressure</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Minutes from recording start to the first stable delivered pressure &#x2014; how long the mask sat unused before therapy began.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Mask-On Latency = first_index(pressure &gt; 0) / 60</div></div><div class="nt-wrap"><table class="nt"><tr><th>Latency (min)</th><th>Read</th></tr><tr class="ok"><td>&lt;&#x202F;30</td><td class="nr">Normal</td></tr><tr class="wn"><td>30&#x2013;60</td><td class="nr">Delayed</td></tr><tr class="cr"><td>&gt;&#x202F;60</td><td class="nr">Prolonged</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Time to first delivered pressure, direct"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="pressure">
+<div class="sh"><div class="si clin">&#x1F4CA;</div><div><div class="st">Pressure Profile</div><div class="sd">Delivered therapy pressure statistics from the PLD channel</div></div></div>
+<div class="mg">
+<div class="mc">
+  <div class="mh"><div class="mi"><span class="ma">Median Pressure</span><span class="mf">P50 of Delivered Pressure</span></div><span class="mt tc">Core</span></div>
+  <p class="md">The median delivered pressure across mask-on time &#x2014; the typical pressure the airway needed.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Median Pressure = percentile&#x2085;&#x2080;( pressure[maskOn] )</div></div><div class="nt-wrap"><table class="nt"><tr><th>Median (cmH&#x2082;O)</th><th>Read</th></tr><tr class="ok"><td>&lt;&#x202F;8</td><td class="nr">Low (typical mild OSA)</td></tr><tr class="ok"><td>8&#x2013;12</td><td class="nr">Moderate</td></tr><tr class="wn"><td>12&#x2013;16</td><td class="nr">High</td></tr><tr class="bd"><td>&gt;&#x202F;16</td><td class="nr">Very high</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; P50 of delivered pressure (mask-on), direct PLD channel"></span></div>
+<div class="mc">
+  <div class="mh"><div class="mi"><span class="ma">95th-%ile Pressure</span><span class="mf">P95 &#x2014; Pressure Demand</span></div><span class="mt tc">Core</span></div>
+  <p class="md">The pressure exceeded only 5% of the night &#x2014; the standard summary of an APAP machine&#x2019;s pressure demand.</p><div class="fb"><div class="fl">Formula</div><div class="ft">P95 = percentile&#x2089;&#x2085;( pressure[maskOn] )</div></div><div class="nt-wrap"><table class="nt"><tr><th>P95 (cmH&#x2082;O)</th><th>Read</th></tr><tr class="ok"><td>&lt;&#x202F;10</td><td class="nr">Low demand</td></tr><tr class="ok"><td>10&#x2013;14</td><td class="nr">Moderate</td></tr><tr class="wn"><td>14&#x2013;18</td><td class="nr">High demand</td></tr><tr class="bd"><td>&gt;&#x202F;18</td><td class="nr">Near machine max</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; P95 delivered pressure, direct PLD channel"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Pressure Range</span><span class="mf">IQR of Delivered Pressure</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Interquartile spread of delivered pressure &#x2014; how much an auto-titrating machine moved through the night.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Pressure Range = P75 &#x2212; P25 ( pressure[maskOn] )</div></div><div class="nt-wrap"><table class="nt"><tr><th>IQR (cmH&#x2082;O)</th><th>Read</th></tr><tr class="ok"><td>&lt;&#x202F;2</td><td class="nr">Very stable</td></tr><tr class="ok"><td>2&#x2013;4</td><td class="nr">Normal APAP variability</td></tr><tr class="wn"><td>4&#x2013;7</td><td class="nr">Wide &#x2014; positional?</td></tr><tr class="bd"><td>&gt;&#x202F;7</td><td class="nr">Excessive</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; IQR (P75&#x2212;P25) of delivered pressure, auto-titration spread"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">EPR Delta</span><span class="mf">Expiratory Pressure Relief Depth</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Median drop from inspiratory to expiratory pressure &#x2014; how much the machine eases pressure on exhale for comfort.</p><div class="fb"><div class="fl">Formula</div><div class="ft">EPR Delta = median( Pressure &#x2212; EprPress )</div></div><div class="no-norm-note">0 means EPR is off; higher = more relief (typically 1&#x2013;3 cmH&#x2082;O).</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Median (Press &#x2212; EprPress), expiratory pressure relief depth"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">95th-%ile EPAP</span><span class="mf">Expiratory Pressure (P95)</span></div><span class="mt tr">Research</span></div>
+  <p class="md">P95 of the expiratory pressure &#x2014; from a dedicated EPAP lane on bilevel machines, or derived from EPR-relieved expiratory pressure on CPAP/APAP.</p><div class="fb"><div class="fl">Formula</div><div class="ft">EPAP95 = percentile&#x2089;&#x2085;( expiratory pressure )</div></div><div class="no-norm-note">For machines that titrate inspiratory and expiratory pressure separately.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; P95 expiratory pressure; dedicated EPAP lane on bilevel/BiPAP, else the EPR-relieved expiratory pressure"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="events">
+<div class="sh"><div class="si hr">&#x26A1;</div><div><div class="st">Residual Events</div><div class="sd">Machine-scored respiratory events during therapy &#x2014; the device firmware is ground truth here</div></div></div>
+<div class="co co-w"><span class="co-ic">&#x26A0;&#xFE0F;</span><div><strong>Firmware-scored.</strong> The indices below are counted by the machine&#x2019;s own EVE/CSL event scoring; they may differ from manual PSG scoring and tend to <em>undercount</em>. They also become untrustworthy when leak is high &#x2014; always read Residual AHI alongside Large Leak %. Target on therapy is generally an AHI &lt;&#x202F;5.</div></div>
+<div class="mg">
+<div class="mc">
+  <div class="mh"><div class="mi"><span class="ma">Residual AHI</span><span class="mf">Apnea&#x2013;Hypopnea Index on Therapy</span></div><span class="mt tc">Core</span></div>
+  <p class="md">Obstructive + central apneas + hypopneas per hour of use &#x2014; the headline of how well therapy is controlling sleep-disordered breathing tonight.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Residual AHI = (OA + CA + H) / Usage Hours</div></div><div class="nt-wrap"><table class="nt"><tr><th>AHI (/hr)</th><th>Read</th></tr><tr class="ok"><td>&lt;&#x202F;5</td><td class="nr">Controlled</td></tr><tr class="wn"><td>5&#x2013;10</td><td class="nr">Mild residual</td></tr><tr class="bd"><td>10&#x2013;20</td><td class="nr">Moderate &#x2014; investigate</td></tr><tr class="cr"><td>&gt;&#x202F;20</td><td class="nr">Severe &#x2014; possible therapy failure</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; (OA+CA+H)/usage h, AirSense firmware-scored EVE; machine-scored, may undercount vs manual PSG; target &lt;5 on therapy"></span></div>
+<div class="mc">
+  <div class="mh"><div class="mi"><span class="ma">Central Apnea Index</span><span class="mf">Central Apneas per Hour</span></div><span class="mt tc">Core</span></div>
+  <p class="md">Central apneas per hour of use. Elevated central events on CPAP can signal treatment-emergent central apnea (TECA) &#x2014; which may call for a different therapy mode (e.g. ASV) rather than more pressure.</p><div class="fb"><div class="fl">Formula</div><div class="ft">CAI = CA_count / Usage Hours</div></div><div class="nt-wrap"><table class="nt"><tr><th>CAI (/hr)</th><th>Read</th></tr><tr class="ok"><td>&lt;&#x202F;1</td><td class="nr">Normal</td></tr><tr class="wn"><td>1&#x2013;5</td><td class="nr">Borderline</td></tr><tr class="bd"><td>5&#x2013;10</td><td class="nr">Elevated &#x2014; possible TECA</td></tr><tr class="cr"><td>&gt;&#x202F;10</td><td class="nr">High &#x2014; clinician / ASV eval</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; CA/usage h, device-scored. Elevated on CPAP may signal treatment-emergent central apnea (TECA); &gt;5 warrants review / ASV eval"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Obstructive Index</span><span class="mf">Obstructive Apneas per Hour</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Obstructive apneas per hour. Persisting obstructive events suggest the delivered pressure may be inadequate.</p><div class="fb"><div class="fl">Formula</div><div class="ft">OAI = OA_count / Usage Hours</div></div><div class="nt-wrap"><table class="nt"><tr><th>OAI (/hr)</th><th>Read</th></tr><tr class="ok"><td>&lt;&#x202F;1</td><td class="nr">Well controlled</td></tr><tr class="wn"><td>1&#x2013;5</td><td class="nr">Mild residual</td></tr><tr class="bd"><td>&gt;&#x202F;5</td><td class="nr">Pressure inadequate?</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; OA/usage h, device-scored EVE"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Hypopnea Index</span><span class="mf">Hypopneas per Hour</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Partial-airflow reductions per hour. Hypopneas dominate most residual AHI.</p><div class="fb"><div class="fl">Formula</div><div class="ft">HI = H_count / Usage Hours</div></div><div class="nt-wrap"><table class="nt"><tr><th>HI (/hr)</th><th>Read</th></tr><tr class="ok"><td>&lt;&#x202F;5</td><td class="nr">Controlled</td></tr><tr class="wn"><td>5&#x2013;10</td><td class="nr">Mild residual</td></tr><tr class="bd"><td>&gt;&#x202F;10</td><td class="nr">Significant residual</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; H/usage h, device-scored EVE"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">RERA Index</span><span class="mf">Respiratory Effort&#x2013;Related Arousals per Hour</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Arousals from increased respiratory effort that fall short of an apnea/hypopnea, per hour. Estimated from flow-limitation shape; not all machines report it.</p><div class="fb"><div class="fl">Formula</div><div class="ft">RERA Index = RERA_count / Usage Hours</div></div><div class="no-norm-note">Softer scoring; read directionally alongside flow limitation.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; RERA/usage h, device-scored EVE (softer scoring); estimated from flow-limitation shape, not all machines report it"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Periodic Breathing</span><span class="mf">% Therapy in Cheyne&#x2013;Stokes / PB</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Share of therapy time scored as Cheyne&#x2013;Stokes respiration or periodic breathing (waxing&#x2013;waning crescendo&#x2013;decrescendo airflow), from the CSL annotation stream.</p><div class="fb"><div class="fl">Formula</div><div class="ft">PB % = CSL CS/PB span time / therapy time &#xD7; 100</div></div><div class="nt-wrap"><table class="nt"><tr><th>PB %</th><th>Read</th></tr><tr class="ok"><td>&lt;&#x202F;2%</td><td class="nr">Negligible</td></tr><tr class="wn"><td>2&#x2013;10%</td><td class="nr">Present</td></tr><tr class="cr"><td>&gt;&#x202F;10%</td><td class="nr">Marked &#x2014; review (cardiac?)</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; % therapy in CSL Cheyne-Stokes/PB spans, device-scored"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="flow">
+<div class="sh"><div class="si comp">&#x1F32C;&#xFE0F;</div><div><div class="st">Flow Limitation &amp; Snore</div><div class="sd">Sub-event airway narrowing and vibration the machine tracks continuously</div></div></div>
+<div class="mg">
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Flow Limitation</span><span class="mf">Mean Flow-Limitation Index</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Mean of the machine&#x2019;s flow-limitation index &#x2014; a continuous 0&#x2013;1 measure of inspiratory-flow flattening (a precursor to obstruction). Device-derived and less standardized across manufacturers.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Flow Limitation = mean( device FL index )</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own therapy nights; no single universal cut-point.</div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; Mean device flow-limitation index, device-derived, less standardized"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Flow-Limited %</span><span class="mf">% Therapy with FL &gt; 0.3</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Fraction of therapy time the flow-limitation index exceeded 0.3 &#x2014; how much of the night the airway was meaningfully narrowed without yet triggering a scored event.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Flow-Limited % = time(FL &gt; 0.3) / therapy time &#xD7; 100</div></div><div class="no-norm-note">Lower is better; device-derived, relative.</div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; % therapy with flow-limitation &gt; 0.3, device-derived"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Snore %</span><span class="mf">% Therapy with Snore &gt; 0.2</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Share of therapy time the device&#x2019;s snore index exceeded 0.2 &#x2014; airway vibration on the pressure/flow signal. Persistent snore can indicate sub-optimal pressure.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Snore % = time(snore index &gt; 0.2) / therapy time &#xD7; 100</div></div><div class="no-norm-note">Lower is better; persistent snore &#x2192; consider pressure review.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; % therapy with device snore index &gt; 0.2, direct PLD channel"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Snore&#x2194;Pressure</span><span class="mf">Snore&#x2013;Pressure Correlation</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Pearson correlation between snore index and delivered pressure &#x2014; a CPAPDex composite probing whether more pressure is suppressing snore (negative) or failing to (flat/positive). Directional, internal.</p><div class="fb"><div class="fl">Formula</div><div class="ft">r = Pearson( snore index , pressure )</div></div><div class="no-norm-note">Internal composite &#x2014; no external source. Directional only.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; Pearson(snore, pressure), internal pressure-adequacy composite"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="leak">
+<div class="sh"><div class="si clin">&#x1F4A8;</div><div><div class="st">Leak Dynamics</div><div class="sd">Mask seal quality &#x2014; the gatekeeper for whether the residual indices can be trusted</div></div></div>
+<div class="co co-i"><span class="co-ic">&#x2139;&#xFE0F;</span><div><strong>Unintentional leak only.</strong> The intentional vent leak every mask exhales through (~20&#x2013;40&#x202F;L/min) is removed by ResMed before reporting, so these figures reflect <em>excess</em> leak. Above the 24&#x202F;L/min threshold the machine cannot reliably score events &#x2014; which is why Large Leak % is graded <em>validated</em> and gates the AHI read.</div></div>
+<div class="mg">
+<div class="mc">
+  <div class="mh"><div class="mi"><span class="ma">Median Leak</span><span class="mf">P50 Mask Leak</span></div><span class="mt tc">Core</span></div>
+  <p class="md">Typical excess mask leak across the night. Low and steady is the goal.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Median Leak = percentile&#x2085;&#x2080;( leak[maskOn] )</div></div><div class="nt-wrap"><table class="nt"><tr><th>Median (L/min)</th><th>Read</th></tr><tr class="ok"><td>&lt;&#x202F;5</td><td class="nr">Minimal excess leak</td></tr><tr class="ok"><td>5&#x2013;15</td><td class="nr">Mild &#x2014; monitor</td></tr><tr class="wn"><td>15&#x2013;30</td><td class="nr">Moderate</td></tr><tr class="bd"><td>&gt;&#x202F;30</td><td class="nr">Severe &#x2014; mask refit</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; P50 mask leak (mask-on), L/s&#x2192;L/min. Intentional vent leak is excluded by ResMed before reporting"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">95th-%ile Leak</span><span class="mf">P95 Mask Leak</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Peak leak exceeded only 5% of the night &#x2014; captures intermittent seal breaks a median can hide.</p><div class="fb"><div class="fl">Formula</div><div class="ft">P95 Leak = percentile&#x2089;&#x2085;( leak[maskOn] )</div></div><div class="nt-wrap"><table class="nt"><tr><th>P95 (L/min)</th><th>Read</th></tr><tr class="ok"><td>&lt;&#x202F;15</td><td class="nr">Good seal</td></tr><tr class="wn"><td>15&#x2013;30</td><td class="nr">Occasional breaks</td></tr><tr class="bd"><td>&gt;&#x202F;30</td><td class="nr">Frequent large leaks</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; P95 mask leak, direct PLD channel"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Max Leak</span><span class="mf">Peak Mask Leak</span></div><span class="mt tr">Research</span></div>
+  <p class="md">The single highest leak value of the night &#x2014; worst-case seal break, useful context for brief data-quality dropouts.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Max Leak = max( leak[maskOn] )</div></div><div class="no-norm-note">Context for dropouts; read with P95 Leak.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Peak mask leak, direct PLD channel"></span></div>
+<div class="mc">
+  <div class="mh"><div class="mi"><span class="ma">Large Leak %</span><span class="mf">% Therapy Above 24 L/min</span></div><span class="mt tc">Core</span></div>
+  <p class="md">Fraction of the night above ResMed&#x2019;s 24&#x202F;L/min large-leak threshold &#x2014; the trust gauge for everything else. A high value means the residual AHI should be read with heavy skepticism.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Large Leak % = count(leak &gt; 24) / total_maskOn &#xD7; 100</div></div><div class="nt-wrap"><table class="nt"><tr><th>Large Leak %</th><th>Read</th></tr><tr class="ok"><td>&lt;&#x202F;1%</td><td class="nr">Negligible</td></tr><tr class="wn"><td>1&#x2013;5%</td><td class="nr">Minor</td></tr><tr class="bd"><td>5&#x2013;15%</td><td class="nr">Significant &#x2014; AHI unreliable</td></tr><tr class="cr"><td>&gt;&#x202F;15%</td><td class="nr">Severe &#x2014; data invalid</td></tr></table></div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; % therapy &gt; 24 L/min (ResMed large-leak threshold). Above this, events are not reliably scored, residual AHI becomes untrustworthy"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Leak CV</span><span class="mf">Leak Coefficient of Variation</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Standard deviation of leak divided by its mean &#x2014; a CPAPDex composite for seal <em>stability</em> rather than level. A steady moderate leak scores better than an erratic one.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Leak CV = SD(leak) / mean(leak) &#xD7; 100</div></div><div class="no-norm-note">Internal seal-stability composite &#x2014; no external source.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; SD/mean of leak, internal seal-stability composite"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="ventilation">
+<div class="sh"><div class="si proj">&#x1FAC1;</div><div><div class="st">Ventilation</div><div class="sd">Breathing volumes and rate reported by the machine&#x2019;s PLD channel</div></div></div>
+<div class="mg">
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Resp Rate</span><span class="mf">Device Respiratory Rate (P50)</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Median breaths per minute reported by the machine. Normal adult sleeping rate is ~12&#x2013;18.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Resp Rate = percentile&#x2085;&#x2080;( device respiratory rate )</div></div><div class="nt-wrap"><table class="nt"><tr><th>Resp (/min)</th><th>Read</th></tr><tr class="ok"><td>12&#x2013;18</td><td class="nr">Typical resting</td></tr><tr class="wn"><td>&gt;&#x202F;20</td><td class="nr">Elevated &#x2014; arousal / central instability</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; P50 device respiratory rate, direct PLD channel"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Resp Rate Range</span><span class="mf">IQR of Respiratory Rate</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Interquartile spread of breathing rate &#x2014; a steadiness measure. A wide range can reflect periodic breathing or fragmented sleep.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Resp Rate Range = P75 &#x2212; P25 ( respiratory rate )</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own therapy nights; no single universal cut-point.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; IQR of device respiratory rate"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Tidal Volume</span><span class="mf">Device Tidal Volume (P50)</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Median estimated volume per breath. The machine estimates this from flow &#x2014; a relative trend indicator, not calibrated spirometry.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Tidal Volume = percentile&#x2085;&#x2080;( device tidal volume )</div></div><div class="no-norm-note">Relative trend; not a calibrated spirometry value.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; P50 device tidal volume, direct PLD channel"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Minute Ventilation</span><span class="mf">Device Minute Ventilation (P50)</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Median air moved per minute (tidal volume &#xD7; respiratory rate) &#x2014; useful for spotting hypoventilation trends across nights.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Minute Ventilation = percentile&#x2085;&#x2080;( device minute ventilation )</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own therapy nights; no single universal cut-point.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; P50 device minute ventilation, direct PLD channel"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">MinVent Stability</span><span class="mf">Minute-Ventilation Variability</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Coefficient of variation of minute ventilation &#x2014; a CPAPDex composite flagging unstable breathing (e.g. periodic-breathing crescendos) even when the median looks normal.</p><div class="fb"><div class="fl">Formula</div><div class="ft">MinVent Stability = CV( minute ventilation )</div></div><div class="no-norm-note">Internal ventilation-stability composite &#x2014; no external source.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; CV of minute ventilation, internal ventilation-stability composite"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="breath">
+<div class="sh"><div class="si sig">&#x1F30A;</div><div><div class="st">Flow-Derived Breathing</div><div class="sd">What CPAPDex computes itself from the 25 Hz raw-flow (BRP) channel</div></div></div>
+<div class="co co-i"><span class="co-ic">&#x2139;&#xFE0F;</span><div><strong>CPAPDex&#x2019;s own detector.</strong> Beyond the device&#x2019;s summary channels, CPAPDex re-derives breaths directly from the 25&#x202F;Hz raw flow (BRP) by zero-crossing detection on a detrended signal &#x2014; an independent cross-check the firmware summary alone can&#x2019;t give.</div></div>
+<div class="mg">
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Breath Count</span><span class="mf">Zero-Crossing Breaths on 25 Hz Flow</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Total breaths CPAPDex detected from the raw flow waveform &#x2014; the basis for the flow-derived rate and a data-completeness check.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Breath Count = positive zero-crossings of detrended 25 Hz flow</div></div><div class="no-norm-note">Basis for Breath Rate; read together.</div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; Zero-crossing breaths on detrended 25 Hz flow"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Breath Rate</span><span class="mf">Flow-Derived Respiratory Rate</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Breaths per minute from CPAPDex&#x2019;s own flow detection &#x2014; an independent cross-check against the machine&#x2019;s reported respiratory rate. Close agreement validates both.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Breath Rate = Breath Count / therapy minutes</div></div><div class="nt-wrap"><table class="nt"><tr><th>vs device RR</th><th>Read</th></tr><tr class="ok"><td>within &#xB1;1</td><td class="nr">Detectors agree</td></tr><tr class="wn"><td>&gt;&#x202F;&#xB1;2</td><td class="nr">Inspect flow quality</td></tr></table></div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; Flow-derived breath rate, cross-checks device resp rate"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">I:E Ratio</span><span class="mf">Inspiratory:Expiratory Time Ratio</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Ratio of inspiratory to expiratory flow time per breath. Shifts can reflect airway resistance or expiratory effort; method-dependent.</p><div class="fb"><div class="fl">Formula</div><div class="ft">I:E = inspiratory flow time / expiratory flow time</div></div><div class="no-norm-note">Typical ~1:2 at rest; relative, method-dependent.</div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; Inspiratory/expiratory flow-time ratio, method-dependent"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="oximetry">
+<div class="sh"><div class="si spo2">&#x1FA78;</div><div><div class="st">SA2 Oximetry Lane</div><div class="sd">Available only when a pulse oximeter is connected &#x2014; self-gated before scoring</div></div></div>
+<div class="co co-i"><span class="co-ic">&#x2139;&#xFE0F;</span><div><strong>Oximeter self-gate.</strong> When the SA2 channel is present, CPAPDex runs the same perfusion/plausibility self-gate as OxyDex <em>before</em> counting desaturations, so a squeeze- or motion-artifact dip is rejected. These metrics only appear when an oximeter was attached.</div></div>
+<div class="mg">
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">ODI</span><span class="mf">Oxygen Desaturation Index (3%)</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Self-gated AASM 3% desaturation events per hour &#x2014; an independent corroboration of residual events from the oxygen side.</p><div class="fb"><div class="fl">Formula</div><div class="ft">ODI = desats &#x2265; 3% (self-gated) / valid hours</div></div><div class="nt-wrap"><table class="nt"><tr><th>ODI (/hr)</th><th>Read</th></tr><tr class="ok"><td>&lt;&#x202F;5</td><td class="nr">Normal on therapy</td></tr><tr class="wn"><td>5&#x2013;15</td><td class="nr">Mild residual desaturation</td></tr><tr class="bd"><td>&gt;&#x202F;15</td><td class="nr">Significant &#x2014; corroborate AHI</td></tr></table></div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; AASM 3% oxygen-desaturation index (self-gated), SA2 lane"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">T90</span><span class="mf">% Time SpO&#x2082; Below 90%</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Share of valid oximetry samples below 90% saturation &#x2014; the standard cumulative-hypoxemia burden. Near zero on effective therapy.</p><div class="fb"><div class="fl">Formula</div><div class="ft">T90 = valid samples(SpO&#x2082; &lt; 90%) / valid samples &#xD7; 100</div></div><div class="nt-wrap"><table class="nt"><tr><th>T90</th><th>Read</th></tr><tr class="ok"><td>&lt;&#x202F;1%</td><td class="nr">Negligible</td></tr><tr class="wn"><td>1&#x2013;5%</td><td class="nr">Mild burden</td></tr><tr class="bd"><td>&gt;&#x202F;5%</td><td class="nr">Significant hypoxemia</td></tr></table></div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; % valid SpO&#x2082; samples below 90%, SA2 lane"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">SpO&#x2082; Nadir</span><span class="mf">Lowest Valid Saturation</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">The lowest valid SpO&#x2082; reading after self-gating &#x2014; the worst oxygen point that survived artifact rejection.</p><div class="fb"><div class="fl">Formula</div><div class="ft">min( valid SpO&#x2082; )</div></div><div class="nt-wrap"><table class="nt"><tr><th>Nadir</th><th>Read</th></tr><tr class="ok"><td>&#x2265;&#x202F;90%</td><td class="nr">Reassuring</td></tr><tr class="wn"><td>85&#x2013;89%</td><td class="nr">Mild dips</td></tr><tr class="bd"><td>&lt;&#x202F;85%</td><td class="nr">Significant desaturation</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Lowest valid SpO&#x2082;, direct SA2 reading"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Mean SpO&#x2082;</span><span class="mf">Mean Valid Saturation</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Average valid oxygen saturation across the night &#x2014; the baseline oxygenation therapy is sustaining.</p><div class="fb"><div class="fl">Formula</div><div class="ft">mean( valid SpO&#x2082; )</div></div><div class="nt-wrap"><table class="nt"><tr><th>Mean SpO&#x2082;</th><th>Read</th></tr><tr class="ok"><td>&#x2265;&#x202F;94%</td><td class="nr">Normal</td></tr><tr class="wn"><td>90&#x2013;93%</td><td class="nr">Mildly low</td></tr><tr class="bd"><td>&lt;&#x202F;90%</td><td class="nr">Low &#x2014; review</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Mean valid SpO&#x2082;, direct SA2 reading"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Pulse</span><span class="mf">Median In-Band Pulse Rate</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Median heart rate from the oximeter (physiologically plausible in-band values) &#x2014; context for the oxygen trace, not a substitute for the cardiac nodes.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Pulse = median( in-band pulse )</div></div><div class="no-norm-note">Context only; see ECGDex/PulseDex for cardiac analysis.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Median in-band pulse, direct SA2 reading"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Pulse Range</span><span class="mf">P95&#x2212;P5 of In-Band Pulse</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Spread of the in-band pulse rate &#x2014; a coarse variability indicator; wide swings can accompany arousals or residual events.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Pulse Range = P95 &#x2212; P5 ( in-band pulse )</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own therapy nights; no single universal cut-point.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; P95&#x2212;P5 of in-band pulse, direct SA2 reading"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="pipeline">
+<div class="sh"><div class="si sig">&#x1F50C;</div><div><div class="st">Pipeline &amp; Data Provenance</div><div class="sd">How a ResMed therapy log becomes the numbers above</div></div></div>
+<div class="co co-i"><span class="co-ic">&#x2139;&#xFE0F;</span><div><strong>Input format.</strong> CPAPDex reads the machine&#x2019;s on-card <strong>EDF / EDF+</strong> files &#x2014; <code>BRP</code> (25&#x202F;Hz raw flow), <code>PLD</code> (~0.5&#x202F;Hz pressure / leak / RR / TV / MV / snore / flow-limitation), <code>SA2</code> (1&#x202F;Hz SpO&#x2082; / pulse when an oximeter is attached), and the <code>EVE</code> / <code>CSL</code> annotation streams that carry firmware-scored events. Nothing else in the suite reads EDF.</div></div>
+<div class="mg">
+<div class="mc">
+  <div class="mh"><div class="mi"><span class="ma">EDF / EVE / CSL</span><span class="mf">Binary Decode &amp; Event Annotations</span></div><span class="mt tc">Core</span></div>
+  <p class="md">CPAPDex decodes the EDF header (labels, sample rates, physical scaling) and each signal&#x2019;s records, then parses the EVE/CSL annotation TALs into classed events with absolute timestamps. Physical units are validated on decode.</p><div class="fb"><div class="fl">Method</div><div class="ft">header &#x2192; signals &#x2192; EVE/CSL TAL parse &#x2192; classed events</div></div><div class="no-norm-note">Decode integrity check; pressure in cmH&#x2082;O, leak in L/min validated.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; EDF/EDF+ binary decode and EVE/CSL annotation parse"></span></div>
+<div class="mc">
+  <div class="mh"><div class="mi"><span class="ma">Clock &amp; Sessions</span><span class="mf">One Night, Multiple Sessions</span></div><span class="mt tc">Core</span></div>
+  <p class="md">The EDF start date/time maps to a floating wall-clock anchor per the Clock Contract (read back with UTC getters so displayed time is viewer-timezone-independent). A night can contain multiple sessions separated by an off-mask gap &#x2014; CPAPDex stitches them while preserving the gap.</p><div class="fb"><div class="fl">Method</div><div class="ft">t0Ms = Date.UTC(startdate, starttime); sessions stitched on off-mask gap</div></div><div class="no-norm-note">One night = N sessions; gaps preserved, not merged away.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; EDF startdate/starttime &#x2192; floating t0Ms; sessions stitched with off-mask gaps"></span></div>
+<div class="mc">
+  <div class="mh"><div class="mi"><span class="ma">Oximeter Self-Gate</span><span class="mf">Perfusion / Plausibility Pre-Filter</span></div><span class="mt tc">Core</span></div>
+  <p class="md">On the SA2 lane, CPAPDex applies the same self-gate as OxyDex before counting desaturations &#x2014; rejecting perfusion-collapse and edge artifacts so a squeeze-artifact dip never inflates the ODI. Missing samples surface as gaps, never fabricated.</p><div class="fb"><div class="fl">Method</div><div class="ft">gate desats on perfusion + edge-collapse plausibility before ODI</div></div><div class="no-norm-note">Mirrors the OxyDex self-gate; absence stays visible.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; oximeter perfusion/plausibility self-gate before ODI scoring"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="validation-matrix">
+<div class="sh"><div class="si sig">&#x2714;&#xFE0F;</div><div><div class="st">Validation Status Matrix</div><div class="sd">What is device-scored / literature-validated versus experimentally derived</div></div></div>
+<p style="font-size:12px;color:var(--text4);margin:0 0 12px;line-height:1.6;"><em>Validation refers to the scoring convention or threshold&#x2019;s standing in guidelines/literature, and does not imply validation of the CPAPDex implementation against attended polysomnography.</em></p>
+<div class="nt-wrap"><table class="nt">
+  <thead><tr><th>Metric Category</th><th>Status</th><th>Basis</th></tr></thead>
+  <tbody>
+    <tr><td class="fmt-m">Residual AHI / CAI / OAI / HI / RERA / PB</td><td><span style="color:var(--teal)">&#x25CF; Device-scored (ingested)</span></td><td>Machine firmware EVE/CSL scoring &#x2014; AASM scoring conventions</td></tr>
+    <tr><td class="fmt-m">Pressure, leak, EPR, RR, TV, MV, snore, SpO&#x2082;/pulse</td><td><span style="color:var(--teal)">&#x25CF; Direct measurement</span></td><td>Direct PLD / SA2 channel statistics</td></tr>
+    <tr><td class="fmt-m">30-day compliance; Large Leak %; ODI / T90; flow-derived breath rate</td><td><span style="color:var(--teal)">&#x25CF; Literature / standard</span></td><td>CMS NCD 240.4; ResMed 24 L/min spec; AASM oximetry</td></tr>
+    <tr><td class="fmt-m">Flow limitation, Flow-Limited %, I:E ratio</td><td><span style="color:var(--amber,#F5A623)">&#x25D0; Emerging</span></td><td>Device-derived / method-dependent</td></tr>
+    <tr><td class="fmt-m">Leak CV; MinVent stability; Snore&#x2194;Pressure</td><td><span style="color:var(--orange,#E8714A)">&#x25CB; Experimental composite</span></td><td>CPAPDex internal composites; no independent validation</td></tr>
+  </tbody>
+</table></div>
+<div style="margin-top:16px">
+  <div style="font-size:11px;font-family:'IBM Plex Mono',ui-monospace,monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--text4);margin-bottom:8px">Metric Tier Definitions</div>
+  <table class="nt" style="max-width:640px">
+    <thead><tr><th>Tier</th><th>Meaning</th><th>Examples</th></tr></thead>
+    <tbody>
+      <tr><td><strong style="color:var(--teal)">Core</strong></td><td>Headline therapy outcomes</td><td>Usage, Compliance, Residual AHI, Median P, Median/Large Leak</td></tr>
+      <tr><td><strong style="color:var(--blue)">Advanced</strong></td><td>Fuller therapy analysis</td><td>OAI/HI, EPR, P95/median leak, ventilation, ODI/T90</td></tr>
+      <tr><td><strong style="color:var(--purple)">Research</strong></td><td>Exploratory / emerging / composites</td><td>RERA, EPAP95, Leak CV, MinVent stability, I:E</td></tr>
+    </tbody>
+  </table>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="refs-map">
+<div class="sh"><div class="si comp">&#x1F5FA;&#xFE0F;</div><div><div class="st">Formula &#x2192; Citation Map</div><div class="sd">Every computed metric mapped to its primary source</div></div></div>
+<div class="nt-wrap"><table class="nt">
+  <thead><tr><th>Metric / Rule</th><th>Primary Citation</th><th>Category</th></tr></thead>
+  <tbody>
+    <tr><td class="fmt-m">AHI / OAI / CAI / HI / RERA / CS-PB scoring</td><td class="nr">AASM Scoring Manual (Berry et al.)</td><td>AASM</td></tr>
+    <tr><td class="fmt-m">OSA severity grades</td><td class="nr">ICSD-3 (AASM 2014)</td><td>AASM</td></tr>
+    <tr><td class="fmt-m">30-day compliance (&#x2265;4 h / &#x2265;70%)</td><td class="nr">CMS NCD 240.4</td><td>Adherence</td></tr>
+    <tr><td class="fmt-m">ODI (3%) / T90</td><td class="nr">AASM oximetry scoring</td><td>Oximetry</td></tr>
+    <tr><td class="fmt-m">Treatment-emergent central apnea</td><td class="nr">Morgenthaler 2006</td><td>Central apnea</td></tr>
+    <tr><td class="fmt-m">EDF+ (BRP/PLD/SA2/EVE/CSL)</td><td class="nr">Kemp &amp; Olivan 2003</td><td>Format</td></tr>
+    <tr><td class="fmt-m">24 L/min large-leak threshold; EPR</td><td class="nr">ResMed AirSense spec (manufacturer)</td><td>Device spec</td></tr>
+    <tr><td class="fmt-m">Flow limitation; I:E; flow-derived breath rate</td><td class="nr">Standard flow signal processing &#x2014; CPAPDex impl.</td><td>Method</td></tr>
+    <tr><td class="fmt-m">Leak CV; MinVent stability; Snore&#x2194;Pressure</td><td class="nr">CPAPDex internal &#x2014; no external source</td><td>Internal</td></tr>
+  </tbody>
+</table></div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="formula-provenance">
+<div class="sh"><div class="si sig">&#x1D453;</div><div><div class="st">Formula Provenance Index</div><div class="sd">Compact audit index &#x2014; every external rule mapped to its source</div></div></div>
+<div class="nt-wrap"><table class="nt">
+  <thead><tr><th>Rule / Formula</th><th>Source / Author</th><th>Year</th><th>Reference</th></tr></thead>
+  <tbody>
+    <tr><td class="fmt-m">Event scoring (apnea/hypopnea/RERA/CS)</td><td>AASM (Berry et al.)</td><td>v2.x</td><td><em>AASM Manual for the Scoring of Sleep</em></td></tr>
+    <tr><td class="fmt-m">OSA severity classification</td><td>AASM</td><td>2014</td><td><em>ICSD-3</em></td></tr>
+    <tr><td class="fmt-m">PAP adherence (&#x2265;4 h / &#x2265;70% / 90 d)</td><td>CMS</td><td>&#x2014;</td><td><em>NCD 240.4</em></td></tr>
+    <tr><td class="fmt-m">Treatment-emergent / complex central apnea</td><td>Morgenthaler et al.</td><td>2006</td><td><em>Sleep.</em> 29(9):1203&#x2013;9</td></tr>
+    <tr><td class="fmt-m">EDF+ file format</td><td>Kemp &amp; Olivan</td><td>2003</td><td><em>Clin Neurophysiol.</em> 114(9):1755&#x2013;61</td></tr>
+    <tr><td class="fmt-m">Large-leak threshold (24 L/min); EPR</td><td>ResMed (manufacturer)</td><td>&#x2014;</td><td><em>AirSense / AirView clinical documentation</em></td></tr>
+  </tbody>
+</table></div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="limitations">
+<div class="sh"><div class="si sig">&#x26A0;&#xFE0F;</div><div><div class="st">Known Limitations</div><div class="sd">The interpretation context for CPAP therapy-log analysis</div></div></div>
+<div class="co co-i" style="margin-bottom:var(--sp-4)"><span class="co-ic">&#x2139;&#xFE0F;</span><div>These limitations are inherent to machine therapy-log analysis. They do not invalidate CPAPDex outputs but define the appropriate interpretation context.</div></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px"><div style="font-weight:700;color:var(--text2);margin-bottom:6px;font-size:13px">&#x1F9F0; Source &amp; Scoring</div><ul style="margin:0;padding-left:18px;color:var(--text3);font-size:12.5px;line-height:1.7"><li>Events are scored by proprietary firmware, not a technologist</li><li>Machine AHI tends to undercount vs attended PSG</li><li>Hypopnea/RERA scoring varies by manufacturer and model</li><li>Tidal volume / minute ventilation are flow estimates, not spirometry</li></ul></div>
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px"><div style="font-weight:700;color:var(--text2);margin-bottom:6px;font-size:13px">&#x1F4A8; Leak &amp; Validity</div><ul style="margin:0;padding-left:18px;color:var(--text3);font-size:12.5px;line-height:1.7"><li>Above 24 L/min large leak, event scoring is unreliable</li><li>Intentional vent leak is mask-dependent and removed before reporting</li><li>SA2 oximetry metrics exist only when an oximeter is connected</li></ul></div>
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px"><div style="font-weight:700;color:var(--text2);margin-bottom:6px;font-size:13px">&#x1F4CA; Algorithmic</div><ul style="margin:0;padding-left:18px;color:var(--text3);font-size:12.5px;line-height:1.7"><li>Leak CV, MinVent stability and Snore&#x2194;Pressure are internal composites</li><li>Flow limitation / I:E are method-dependent</li><li>Normative bands are general guidance, not device-calibrated</li></ul></div>
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px"><div style="font-weight:700;color:var(--text2);margin-bottom:6px;font-size:13px">&#x2696;&#xFE0F; Regulatory</div><ul style="margin:0;padding-left:18px;color:var(--text3);font-size:12.5px;line-height:1.7"><li>Not FDA cleared or CE marked as a medical device</li><li>Not for clinical diagnosis or self-directed therapy changes</li><li>Pressure / mode changes are a prescribing clinician&#x2019;s decision</li><li>Personal, research, and wellness use only</li></ul></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="acad-refs">
+<div class="sh"><div class="si clin">&#x1F4DA;</div><div><div class="st">Academic References</div><div class="sd">Primary sources for the scoring conventions, thresholds, and formats CPAPDex relies on</div></div></div>
+<div class="co co-w"><span class="co-ic">&#x26A0;&#xFE0F;</span><div><strong>Provenance note.</strong> Device thresholds (24&#x202F;L/min large-leak limit, EPR behaviour) are manufacturer specifications, labelled as such. Internal composites (Leak CV, MinVent stability, Snore&#x2194;Pressure) carry no external source.</div></div>
+<div class="nt-wrap"><table class="nt">
+  <thead><tr><th>Method / Threshold</th><th>Primary Citation</th><th>Category</th></tr></thead>
+  <tbody>
+    <tr><td class="fmt-m">AHI / OAI / CAI / HI / RERA / Cheyne&#x2013;Stokes scoring</td><td class="nr">Berry RB, Brooks R, Gamaldo CE, et al. <em>The AASM Manual for the Scoring of Sleep and Associated Events.</em> American Academy of Sleep Medicine; v2.x. <a href="https://aasm.org/clinical-resources/scoring-manual/" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">aasm.org</a></td><td>AASM</td></tr>
+    <tr><td class="fmt-m">OSA severity grades (AHI &#x2265;30 severe)</td><td class="nr">American Academy of Sleep Medicine. <em>International Classification of Sleep Disorders (ICSD-3).</em> AASM; 2014.</td><td>AASM</td></tr>
+    <tr><td class="fmt-m">PAP adherence (&#x2265;4 h on &#x2265;70% nights / 90 d)</td><td class="nr">Centers for Medicare &amp; Medicaid Services. <em>National Coverage Determination 240.4 &#x2014; CPAP Therapy for Obstructive Sleep Apnea.</em> <a href="https://www.cms.gov/medicare-coverage-database/view/ncd.aspx?ncdid=226" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">cms.gov</a></td><td>Adherence</td></tr>
+    <tr><td class="fmt-m">Oxygen desaturation index (3%) &amp; T90</td><td class="nr">Berry RB et al. <em>AASM Manual for the Scoring of Sleep and Associated Events</em> (oximetry scoring rules). AASM.</td><td>Oximetry</td></tr>
+    <tr><td class="fmt-m">Treatment-emergent / complex central apnea</td><td class="nr">Morgenthaler TI, Kagramanov V, Hanak V, Decker PA. <em>Complex sleep apnea syndrome: is it a unique clinical syndrome?</em> Sleep. 2006;29(9):1203&#x2013;9. doi: <a href="https://doi.org/10.1093/sleep/29.9.1203" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1093/sleep/29.9.1203</a></td><td>Central apnea</td></tr>
+    <tr><td class="fmt-m">EDF+ file format (BRP / PLD / SA2 / EVE / CSL)</td><td class="nr">Kemp B, Olivan J. <em>European data format &#x2018;plus&#x2019; (EDF+)&#x2026;</em> Clin Neurophysiol. 2003;114(9):1755&#x2013;61. doi: <a href="https://doi.org/10.1016/S1388-2457(03)00123-8" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1016/S1388-2457(03)00123-8</a></td><td>Format</td></tr>
+    <tr><td class="fmt-m">Large-leak threshold (24 L/min); EPR behaviour</td><td class="nr">ResMed. <em>AirSense / AirView clinical documentation</em> &#x2014; manufacturer specification (not a peer-reviewed threshold).</td><td>Device spec</td></tr>
+    <tr><td class="fmt-m">Flow-limitation index; I:E ratio; flow-derived breath rate</td><td class="nr">Standard respiratory-flow signal processing &#x2014; method-dependent; CPAPDex implementation.</td><td>Method</td></tr>
+    <tr><td class="fmt-m">Leak CV; MinVent stability; Snore&#x2194;Pressure</td><td class="nr">CPAPDex internal composites &#x2014; no external source. Directional only.</td><td>Internal</td></tr>
+  </tbody>
+</table></div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="abbr">
+<div class="sh"><div class="si comp">&#x1F520;</div><div><div class="st">Abbreviation Index</div><div class="sd">Every acronym used in this guide &#x2014; searchable, jump to its section</div></div></div>
+<div class="abbr-search-wrap"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+  <input type="text" class="abbr-search-inp" id="abbrSearch" placeholder="Search abbreviations&#x2026;" autocomplete="off" spellcheck="false">
+  <span class="abbr-count-label" id="abbrCountLabel">terms</span></div>
+<div class="abbr-alpha-wrap" id="abbrAlphaTabs"></div>
+<div id="abbrGrid"></div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="credits">
+<div class="sh"><div class="si sig">&#x1F4CB;</div><div><div class="st">Project Credits</div><div class="sd">Authorship, contributions, and open-source provenance</div></div></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px">
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:18px 20px"><div style="font-size:12px;font-family:'IBM Plex Mono',ui-monospace,monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--text4);margin-bottom:8px">Author</div><div style="font-size:17px;font-weight:700;color:var(--text);margin-bottom:4px">Michal Planicka</div><div style="font-size:12.5px;color:var(--text3);line-height:1.7">Concept &#xB7; Architecture &#xB7; Algorithms<br>Implementation &#xB7; Validation &#xB7; UI/UX</div></div>
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:18px 20px"><div style="font-size:12px;font-family:'IBM Plex Mono',ui-monospace,monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--text4);margin-bottom:8px">Assisted Development</div><div style="font-size:13.5px;font-weight:600;color:var(--text2);margin-bottom:4px">AI-Assisted</div><div style="font-size:12.5px;color:var(--text3);line-height:1.7">Code review &#xB7; Documentation<br>Literature synthesis &#xB7; Reference formatting</div></div>
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:18px 20px"><div style="font-size:12px;font-family:'IBM Plex Mono',ui-monospace,monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--text4);margin-bottom:8px">Licence &amp; Suggested Citation</div><div style="font-size:13px;color:var(--text3);line-height:1.8"><strong style="color:var(--text2)">Apache-2.0</strong> Open-source<br><span style="font-size:12px;font-style:italic;color:var(--text4)">Planicka M. <em>CPAPDex: CPAP/PAP Therapy-Log Analysis Node.</em> Version 1.0.0. 2026.</span></div></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+</main>
+</div>
+
+<button id="btt" aria-label="Back to top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg></button>
+
+<script>
+var abbrs=[
+  ["AHI","Apnea–Hypopnea Index"],["APAP","Automatic Positive Airway Pressure"],["ASV","Adaptive Servo-Ventilation"],
+  ["BiPAP","Bilevel Positive Airway Pressure"],["BRP","Breath / raw-flow EDF signal (25 Hz)"],["CA","Central Apnea"],["CAI","Central Apnea Index"],
+  ["CMS","Centers for Medicare & Medicaid Services"],["CPAP","Continuous Positive Airway Pressure"],["CSL","Cheyne-Stokes / periodic-breathing annotation stream"],
+  ["CV","Coefficient of Variation"],["EDF","European Data Format (EDF / EDF+)"],["EPAP","Expiratory Positive Airway Pressure"],["EPR","Expiratory Pressure Relief"],
+  ["EVE","Event annotation stream (scored apneas/hypopneas)"],["FL","Flow Limitation"],["H","Hypopnea"],["HI","Hypopnea Index"],
+  ["IQR","Interquartile Range (P75−P25)"],["I:E","Inspiratory : Expiratory time ratio"],["OA","Obstructive Apnea"],["OAI","Obstructive Apnea Index"],
+  ["ODI","Oxygen Desaturation Index (3%)"],["PAP","Positive Airway Pressure"],["PB","Periodic Breathing"],["PLD","Per-breath summary EDF signal"],
+  ["P50","Median (50th percentile)"],["P95","95th percentile"],["RERA","Respiratory Effort–Related Arousal"],["SA2","Oximetry EDF signal (SpO₂ / pulse, 1 Hz)"],
+  ["SD","Standard Deviation"],["SN","Snore"],["SpO₂","Peripheral Oxygen Saturation"],["T90","% time with SpO₂ below 90%"],["TECA","Treatment-Emergent Central Apnea"],
+  ["TV","Tidal Volume"],["MV","Minute Ventilation"],["UARS","Upper Airway Resistance Syndrome"]
+];
+var abbrSectionMap={
+  "AHI":"events","APAP":"pressure","ASV":"events","BiPAP":"pressure","BRP":"breath","CA":"events","CAI":"events","CMS":"usage","CPAP":"pressure","CSL":"events","CV":"leak",
+  "EDF":"pipeline","EPAP":"pressure","EPR":"pressure","EVE":"events","FL":"flow","H":"events","HI":"events","IQR":"pressure","I:E":"breath","OA":"events","OAI":"events",
+  "ODI":"oximetry","PAP":"pressure","PB":"events","PLD":"pipeline","P50":"pressure","P95":"pressure","RERA":"events","SA2":"oximetry","SD":"leak","SN":"flow","SpO₂":"oximetry","T90":"oximetry",
+  "TECA":"events","TV":"ventilation","MV":"ventilation","UARS":"events"
+};
+
+/* ── alpha tabs ── */
+(function(){
+  var tabsEl=document.getElementById('abbrAlphaTabs');
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('').forEach(function(l){
+    var btn=document.createElement('button');
+    btn.textContent=l; btn.className='abbr-tab'; btn.setAttribute('data-letter',l);
+    btn.addEventListener('click',function(){
+      document.querySelectorAll('.abbr-tab').forEach(function(b){b.classList.remove('abbr-tab-active');});
+      btn.classList.add('abbr-tab-active');
+      filterAbbr(l==='#'?'':l);
+    });
+    tabsEl.appendChild(btn);
+  });
+})();
+function filterAbbr(letter){
+  document.querySelectorAll('#abbrGrid .abbr-card').forEach(function(card){
+    var abbr=card.getAttribute('data-abbr')||'';
+    var first=abbr[0]?abbr[0].toUpperCase():'';
+    card.style.display=(!letter||first===letter.toUpperCase())?'':'none';
+  });
+}
+
+/* ── render abbr cards ── */
+var g=document.getElementById('abbrGrid');
+abbrs.sort(function(a,b){return a[0].localeCompare(b[0],undefined,{sensitivity:'base'});});
+abbrs.forEach(function(a){
+  var abbr=a[0], defn=a[1], target=abbrSectionMap[abbr];
+  var d=document.createElement('div');
+  d.className='abbr-card'; d.setAttribute('data-abbr',abbr);
+  d.style.cssText='display:flex;align-items:center;gap:10px;padding:7px 10px;background:rgba(255,255,255,.02);border-radius:8px;border:1px solid rgba(255,255,255,.04);transition:border-color .15s,background .15s';
+  var abbrHtml;
+  if(target){
+    abbrHtml='<a href="#'+target+'" class="abbr-link" title="Go to '+defn+'" style="font-family:\'IBM Plex Mono\',ui-monospace,monospace;font-size:11px;font-weight:600;color:var(--teal);white-space:nowrap;min-width:64px;text-decoration:none">'+abbr+'</a>';
+  } else {
+    abbrHtml='<span style="font-family:\'IBM Plex Mono\',ui-monospace,monospace;font-size:11px;font-weight:600;color:var(--teal);white-space:nowrap;min-width:64px">'+abbr+'</span>';
+  }
+  d.innerHTML=abbrHtml+'<span style="font-size:12px;color:var(--text2)">'+defn+'</span>';
+  if(target){ d.addEventListener('mouseenter',function(){d.style.borderColor='rgba(61,224,208,.25)';d.style.background='rgba(61,224,208,.04)';}); d.addEventListener('mouseleave',function(){d.style.borderColor='rgba(255,255,255,.04)';d.style.background='rgba(255,255,255,.02)';}); }
+  g.appendChild(d);
+});
+
+/* ── abbr search ── */
+(function(){
+  var inp=document.getElementById('abbrSearch'), lbl=document.getElementById('abbrCountLabel');
+  if(!inp) return;
+  function updateCount(){
+    var vis=[].slice.call(document.querySelectorAll('#abbrGrid .abbr-card')).filter(function(c){return c.style.display!=='none';}).length;
+    var tot=document.querySelectorAll('#abbrGrid .abbr-card').length;
+    lbl.textContent=vis<tot?vis+' shown':tot+' terms';
+  }
+  setTimeout(updateCount,100);
+  inp.addEventListener('input',function(){
+    var q=inp.value.trim().toLowerCase();
+    document.querySelectorAll('.abbr-tab').forEach(function(b){b.classList.remove('abbr-tab-active');});
+    document.querySelectorAll('#abbrGrid .abbr-card').forEach(function(card){
+      var abbr=(card.getAttribute('data-abbr')||'').toLowerCase();
+      var defn=card.textContent.toLowerCase();
+      card.style.display=(!q||abbr.indexOf(q)>=0||defn.indexOf(q)>=0)?'':'none';
+    });
+    updateCount();
+  });
+})();
+
+/* ── quick-jump toggle ── */
+(function(){
+  var btn=document.getElementById('qjToggle'), panel=document.getElementById('qjPanel');
+  if(!btn||!panel) return;
+  btn.addEventListener('click',function(){
+    var ex=btn.getAttribute('aria-expanded')==='true';
+    btn.setAttribute('aria-expanded',String(!ex));
+    if(ex) panel.setAttribute('hidden',''); else panel.removeAttribute('hidden');
+  });
+})();
+
+/* ── quick-jump filter ── */
+(function(){
+  var inp=document.getElementById('qjSearch'), clear=document.getElementById('qjClear'), noRes=document.getElementById('qjNoResults');
+  if(!inp) return;
+  function run(){
+    var q=inp.value.trim().toLowerCase(); clear.hidden=!q; var any=false;
+    document.querySelectorAll('.qm').forEach(function(el){
+      var match=!q||el.textContent.toLowerCase().indexOf(q)>=0;
+      el.classList.toggle('qm-match',!!(q&&match));
+      el.classList.toggle('qm-hide',!!(q&&!match));
+      if(match) any=true;
+    });
+    document.querySelectorAll('.qj-group').forEach(function(grp){
+      grp.toggleAttribute('data-hidden', grp.querySelectorAll('.qm:not(.qm-hide)').length===0);
+    });
+    if(noRes) noRes.hidden=any||!q;
+  }
+  inp.addEventListener('input',run);
+  if(clear) clear.addEventListener('click',function(){inp.value='';run();inp.focus();});
+})();
+
+/* ── theme toggle ── */
+(function(){
+  var btn=document.getElementById('themeToggleBtn');
+  var icon=btn?btn.querySelector('.theme-icon'):null, label=document.getElementById('themeLabel');
+  function apply(t){
+    document.body.classList.toggle('light',t==='light');
+    document.documentElement.style.colorScheme=t==='light'?'light':'dark';
+    if(icon) icon.textContent=t==='light'?'\u2600\uFE0F':'\uD83C\uDF19';
+    if(label) label.textContent=t==='light'?'Light':'Dark';
+  }
+  var saved=null; try{saved=localStorage.getItem('ansTheme');}catch(e){}
+  if(saved) apply(saved);
+  if(btn) btn.addEventListener('click',function(){
+    var t=document.body.classList.contains('light')?'dark':'light';
+    apply(t); try{localStorage.setItem('ansTheme',t);}catch(e){}
+  });
+})();
+
+/* ── nav highlight ── */
+(function(){
+  var navLinks=document.querySelectorAll('.sidebar .nav a, .mob-drawer-panel .nav a');
+  function setActive(id){ navLinks.forEach(function(a){ a.classList.toggle('nav-active',a.getAttribute('href')==='#'+id); }); }
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting) setActive(e.target.id); }); },{rootMargin:'-20% 0px -70% 0px',threshold:0});
+    document.querySelectorAll('.rs[id]').forEach(function(s){ io.observe(s); });
+  }
+})();
+
+/* ── top abbr pills ── */
+(function(){
+  var c=document.getElementById('tasPills'); if(!c) return;
+  var links=document.querySelectorAll('#abbrGrid .abbr-link'); var n=0;
+  links.forEach(function(a){ if(n>=8) return; var p=document.createElement('a'); p.href=a.getAttribute('href'); p.className='tas-pill'; p.textContent=a.textContent.trim(); c.appendChild(p); n++; });
+})();
+
+/* ── back to top ── */
+(function(){
+  var btt=document.getElementById('btt'); if(!btt) return;
+  window.addEventListener('scroll',function(){ btt.classList.toggle('btt-show',window.scrollY>400); },{passive:true});
+  btt.addEventListener('click',function(){ window.scrollTo({top:0,behavior:'smooth'}); });
+})();
+
+/* ── mobile drawer ── */
+function openDrawer(){ document.getElementById('mobDrawerBg').classList.add('open'); document.body.style.overflow='hidden'; }
+function closeDrawer(){ document.getElementById('mobDrawerBg').classList.remove('open'); document.body.style.overflow=''; }
+function handleBgClick(e){ if(e.target===document.getElementById('mobDrawerBg')) closeDrawer(); }
+document.querySelectorAll('.mob-drawer-panel .nav a').forEach(function(a){ a.addEventListener('click',function(){ setTimeout(closeDrawer,100); }); });
+</script>
+
+<div style="text-align:center;padding:20px 24px 28px;font-size:11px;color:var(--text4);font-family:'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.05em;border-top:1px solid var(--border);margin-top:32px">
+  Reference Guide Version: <strong style="color:var(--text3)">1.0.0</strong>
+  &nbsp;&#xB7;&nbsp; Node: <strong style="color:var(--text3)">CPAPDex &#x2014; ResMed AirSense EDF</strong>
+  &nbsp;&#xB7;&nbsp; Last Literature Review: <strong style="color:var(--text3)">June 2026</strong>
+  &nbsp;&#xB7;&nbsp; Apache-2.0 Licence
+</div>
+
+<div class="dxl" style="max-width:900px;margin:40px auto 14px;padding:0 24px">
+  <div class="dxl-notice">
+    <div class="dxl-k">Intended use &amp; safety</div>
+    <p><b>Tepna</b> computes biometric patterns from your wearable and sensor data to support personal self-quantification. It is <b>not a medical device</b>, does not <b>diagnose, treat, cure, screen for, or prevent</b> any disease or condition, and is <b>not a substitute for professional clinical evaluation</b>. It has not been reviewed or cleared by the FDA, CE, or any regulatory body. Always consult a qualified healthcare provider about your health. Use at your own risk. For research and personal use only. 100% local — no data leaves your device.</p>
+  </div>
+</div>
+<div class="dxl dxl-ribbon" style="max-width:900px;margin:0 auto 30px">
+  <div class="dxl-seg">
+    <span class="dxl-mark">T</span>
+    <span style="display:flex;flex-direction:column">
+      <b style="font-size:13px">Tepna</b>
+      <span class="dxl-colophon">physiological-signal suite</span>
+    </span>
+  </div>
+  <div class="dxl-seg dxl-grow">
+    <span style="font-size:11.5px;color:var(--text2,#9FB0C3)">© 2026 <b>Michal Planicka</b> — Concept · Architecture · Algorithms</span>
+    <span class="dxl-disclaimer">Not a medical device · does not diagnose or treat · not FDA/CE cleared · research &amp; personal use only · ◈ Made in Asheville, NC</span>
+  </div>
+  <div class="dxl-seg"><span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span></div>
+</div>
+</body>
+</html>

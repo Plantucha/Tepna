@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  How to Collect Data.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Capture walkthrough: recording raw ECG / PPG with the Polar Sensor Logger Android app.
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tepna — How to collect data</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="stylesheet" href="licensing/dex-license.css">
+<style>
+:root{
+  --bg:#070A0E; --bg2:#0B0F14; --surface:#101722; --surface2:#16202D;
+  --border:#1c2a3b; --border2:#27384f;
+  --text:#F4F7FB; --text2:#A3B4C6; --text3:#7d90a5; --text4:#5a6b7e;
+  --teal:#3DE0D0; --blue:#58A6FF; --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A; --purple:#A78BFA;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden;}
+.wrap{max-width:1160px;margin:0 auto;padding:0 44px;position:relative;z-index:2;}
+.eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--teal);}
+a{color:inherit;text-decoration:none;}
+
+header.nav{position:sticky;top:0;z-index:30;backdrop-filter:blur(14px);background:rgba(7,10,14,.66);border-bottom:1px solid var(--border);}
+.nav-in{max-width:1160px;margin:0 auto;padding:15px 44px;display:flex;align-items:center;justify-content:space-between;}
+.brand{display:flex;align-items:center;gap:13px;font-weight:800;font-size:22px;letter-spacing:-.025em;color:var(--text);}
+.brand .mark{position:relative;width:15px;height:15px;border-radius:50%;background:radial-gradient(circle at 35% 30%,var(--teal),var(--blue));box-shadow:0 0 16px rgba(61,224,208,.85);animation:pulse 2.4s ease-in-out infinite;}
+.brand .mark::after{content:"";position:absolute;inset:-7px;border-radius:50%;border:1.5px solid var(--teal);animation:ring 2.6s ease-out infinite;}
+.brand .wm{line-height:1;}
+@keyframes ring{0%{transform:scale(.55);opacity:.6;}100%{transform:scale(1.5);opacity:0;}}
+@keyframes pulse{0%,100%{box-shadow:0 0 10px rgba(61,224,208,.5);}50%{box-shadow:0 0 20px rgba(61,224,208,.95);}}
+.nav-links{display:flex;gap:28px;font-size:13.5px;color:var(--text3);}
+.nav-links a:hover{color:var(--text);}
+.nav-cta{font-size:13px;font-weight:700;color:var(--bg);background:var(--teal);padding:9px 17px;border-radius:999px;box-shadow:0 0 18px rgba(61,224,208,.4);}
+
+/* hero */
+.hero{position:relative;padding:88px 0 70px;overflow:hidden;}
+#wave-hero{position:absolute;inset:0;width:100%;height:100%;z-index:0;opacity:.85;}
+.hero::after{content:"";position:absolute;inset:0;z-index:1;background:radial-gradient(120% 95% at 50% 12%,transparent 28%,rgba(7,10,14,.6) 70%,var(--bg) 100%);}
+.hero .wrap{text-align:center;}
+.hero h1{font-size:58px;line-height:1.05;letter-spacing:-.035em;font-weight:800;margin:18px auto 0;max-width:18ch;}
+.hero h1 .g{background:linear-gradient(115deg,var(--teal),var(--blue) 60%,var(--purple));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.hero .lede{font-size:18.5px;color:var(--text2);max-width:62ch;margin:22px auto 0;text-wrap:pretty;}
+.hero-actions{display:flex;gap:14px;justify-content:center;margin-top:32px;flex-wrap:wrap;}
+.btn{font-size:14.5px;font-weight:700;padding:14px 26px;border-radius:999px;cursor:pointer;border:1px solid transparent;transition:.16s;display:inline-flex;align-items:center;gap:9px;}
+.btn-primary{background:var(--teal);color:var(--bg);box-shadow:0 0 30px rgba(61,224,208,.4);}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 0 44px rgba(61,224,208,.6);}
+.btn-ghost{border-color:var(--border2);color:var(--text2);background:rgba(16,23,34,.5);}
+.btn-ghost:hover{border-color:var(--teal);color:var(--text);}
+.hero-meta{display:flex;gap:26px;justify-content:center;flex-wrap:wrap;margin-top:30px;font-family:var(--mono);font-size:12px;color:var(--text3);}
+.hero-meta span .tk{color:var(--teal);margin-right:6px;}
+
+.divider{height:60px;position:relative;}
+.divider canvas{position:absolute;inset:0;width:100%;height:100%;}
+
+section{padding:64px 0;position:relative;}
+.sec-head{max-width:680px;margin:0 auto 40px;text-align:center;}
+.sec-head h2{font-size:34px;font-weight:800;letter-spacing:-.025em;margin-top:12px;line-height:1.12;}
+.sec-head p{color:var(--text2);margin-top:12px;font-size:16.5px;text-wrap:pretty;}
+
+/* gear / what you'll need */
+.gear{display:grid;grid-template-columns:1.15fr 1fr;gap:22px;align-items:stretch;}
+.app-card{background:linear-gradient(180deg,var(--surface),var(--bg2));border:1px solid var(--border);border-radius:20px;padding:30px;display:flex;flex-direction:column;}
+.app-card .badge{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--teal);}
+.app-card h3{font-size:23px;font-weight:800;letter-spacing:-.02em;margin:10px 0 4px;}
+.app-card .pkg{font-family:var(--mono);font-size:12px;color:var(--text4);}
+.app-card p{color:var(--text2);font-size:14.5px;margin-top:14px;}
+.app-card .who{font-family:var(--mono);font-size:11.5px;color:var(--text3);margin-top:10px;}
+.app-card .get{margin-top:auto;padding-top:20px;}
+.sensors{display:flex;flex-direction:column;gap:14px;}
+.sensor{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px 20px;display:flex;gap:16px;align-items:center;}
+.sensor .ico{width:46px;height:46px;border-radius:12px;flex:none;display:grid;place-items:center;background:rgba(61,224,208,.07);border:1px solid var(--border2);}
+.sensor .ico canvas{width:30px;height:30px;}
+.sensor h4{font-size:15px;font-weight:700;}
+.sensor .dn{font-family:var(--mono);font-size:11px;color:var(--text4);margin-top:2px;}
+.sensor p{font-size:12.5px;color:var(--text3);margin-top:5px;line-height:1.5;}
+
+/* steps */
+.steps{display:flex;flex-direction:column;gap:30px;max-width:1000px;margin:0 auto;}
+.step{display:grid;grid-template-columns:300px 1fr;gap:40px;align-items:center;background:linear-gradient(180deg,var(--surface),var(--bg2));border:1px solid var(--border);border-radius:22px;padding:30px;}
+.step:nth-child(even){grid-template-columns:1fr 300px;}
+.step:nth-child(even) .phone-col{order:2;}
+.phone-col{display:flex;justify-content:center;}
+.phone{width:248px;border-radius:30px;padding:8px;background:linear-gradient(160deg,#1a2533,#0c1119);border:1px solid var(--border2);box-shadow:0 26px 60px -20px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.03) inset;}
+.phone img{width:100%;display:block;border-radius:23px;}
+.step-body .n{font-family:var(--mono);font-size:12px;letter-spacing:.16em;color:var(--teal);}
+.step-body h3{font-size:24px;font-weight:800;letter-spacing:-.02em;margin:8px 0 12px;line-height:1.15;}
+.step-body p{color:var(--text2);font-size:15.5px;text-wrap:pretty;}
+.step-body p + p{margin-top:12px;}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;}
+.tag{font-family:var(--mono);font-size:11px;color:var(--text3);background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:5px 11px;}
+.tag b{color:var(--teal);font-weight:600;}
+.callout{margin-top:18px;border-left:2px solid var(--teal);background:rgba(61,224,208,.05);border-radius:0 10px 10px 0;padding:12px 16px;font-size:13.5px;color:var(--text2);}
+.callout b{color:var(--text);}
+
+/* mapping table */
+.map{max-width:920px;margin:0 auto;border:1px solid var(--border);border-radius:18px;overflow:hidden;background:var(--surface);}
+.map-row{display:grid;grid-template-columns:1.1fr 1fr 1.2fr;gap:0;border-bottom:1px solid var(--border);}
+.map-row:last-child{border-bottom:0;}
+.map-row.head{background:var(--bg2);}
+.map-row.head .c{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text4);}
+.map-row .c{padding:15px 20px;font-size:14px;display:flex;align-items:center;gap:9px;}
+.map-row .c.stream{font-family:var(--mono);color:var(--text);font-size:13px;}
+.map-row .c.dev{color:var(--text3);font-size:13px;}
+.map-row a.app{color:var(--teal);font-weight:600;}
+.map-row a.app:hover{text-decoration:underline;}
+.map-row .c.app{flex-wrap:wrap;}
+
+/* transfer */
+.transfer{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:1000px;margin:0 auto;}
+.tcard{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;}
+.tcard .tn{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:14px;color:var(--bg);background:var(--teal);box-shadow:0 0 16px rgba(61,224,208,.4);}
+.tcard h4{font-size:16px;font-weight:700;margin:14px 0 8px;}
+.tcard p{font-size:13.5px;color:var(--text3);text-wrap:pretty;}
+.tcard code{font-family:var(--mono);font-size:11.5px;color:var(--teal);background:var(--bg);padding:2px 6px;border-radius:5px;display:inline-block;margin-top:8px;word-break:break-all;}
+
+.privacy{position:relative;border:1px solid var(--border2);border-radius:22px;padding:46px 44px;text-align:center;overflow:hidden;background:var(--bg2);}
+#wave-priv{position:absolute;inset:0;width:100%;height:100%;opacity:.5;}
+.privacy .inner{position:relative;z-index:2;}
+.privacy .lock{font-size:28px;}
+.privacy h2{font-size:30px;font-weight:800;letter-spacing:-.025em;margin-top:10px;}
+.privacy p{color:var(--text2);max-width:62ch;margin:14px auto 0;}
+.privacy .row{display:flex;justify-content:center;gap:24px;flex-wrap:wrap;margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--text3);}
+.privacy .row .tk{color:var(--green);margin-right:7px;}
+
+footer{border-top:1px solid var(--border);padding:32px 0 50px;margin-top:20px;}
+.foot-in{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+.foot-note{font-family:var(--mono);font-size:11.5px;color:var(--text4);line-height:1.9;}
+.foot-links{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;}
+.foot-links a{color:var(--text3);}.foot-links a:hover{color:var(--teal);}
+
+/* supported hardware */
+.hw-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+.hw{background:linear-gradient(180deg,var(--surface),var(--bg2));border:1px solid var(--border);border-radius:20px;padding:18px 18px 22px;display:flex;flex-direction:column;transition:.18s;}
+.hw:hover{transform:translateY(-4px);border-color:var(--border2);}
+.hw-shot{display:block;width:100%;height:220px;margin-bottom:18px;background:repeating-linear-gradient(135deg,#0d141d,#0d141d 11px,#101924 11px,#101924 22px);border:1px solid var(--border);}
+.hw-shot-product{display:flex;align-items:center;justify-content:center;padding:16px;background:#fff;border-radius:16px;overflow:hidden;}
+.hw-shot-product img{max-width:100%;max-height:100%;object-fit:contain;display:block;}
+.hw-tag{align-self:flex-start;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--teal);background:rgba(61,224,208,.1);border:1px solid rgba(61,224,208,.25);padding:4px 10px;border-radius:999px;}
+.hw h3{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:12px 0 3px;}
+.hw-dn{font-family:var(--mono);font-size:11.5px;color:var(--text4);}
+.hw p{font-size:13.5px;color:var(--text3);margin-top:12px;text-wrap:pretty;}
+.hw-specs{display:flex;flex-wrap:wrap;gap:7px;margin-top:16px;}
+.hw-specs span{font-family:var(--mono);font-size:11px;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:4px 9px;}
+.hw-foot{margin-top:auto;padding-top:18px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;border-top:1px solid var(--border);margin-top:18px;}
+.hw-feeds{font-size:12px;color:var(--text4);}
+.hw-feeds a{color:var(--teal);font-weight:600;}
+.hw-feeds a:hover{text-decoration:underline;}
+.hw-link{font-family:var(--mono);font-size:11.5px;color:var(--text2);white-space:nowrap;}
+.hw-link:hover{color:var(--teal);}
+
+/* oxygen track */
+.oxysteps{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:1000px;margin:0 auto;}
+.ostep{background:linear-gradient(180deg,var(--surface),var(--bg2));border:1px solid var(--border);border-radius:18px;padding:24px 26px;}
+.ostep .on{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:14px;color:var(--bg);background:var(--green);box-shadow:0 0 16px rgba(57,217,138,.4);}
+.ostep h4{font-size:18px;font-weight:700;margin:14px 0 8px;letter-spacing:-.01em;}
+.ostep p{font-size:14px;color:var(--text2);text-wrap:pretty;}
+.ostep .olink{display:inline-block;margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--green);}
+.ostep .olink:hover{text-decoration:underline;}
+.ostep code{font-family:var(--mono);font-size:11.5px;color:var(--green);background:var(--bg);padding:1px 6px;border-radius:5px;}
+.pathband{max-width:1000px;margin:18px auto 0;background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:22px 26px;}
+.pathband .pb-k{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--text4);}
+.pathband .pb-rows{display:flex;flex-direction:column;gap:8px;margin-top:14px;}
+.pathband > .pb-rows code{font-family:var(--mono);font-size:12.5px;color:var(--green);background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:8px 12px;word-break:break-all;display:block;}
+.pathband .pb-rows code span{color:var(--text4);}
+.pathband .pb-note{font-size:12.5px;color:var(--text3);margin-top:12px;}
+.pathband .pb-note code{font-family:var(--mono);color:var(--green);background:var(--surface);padding:1px 5px;border-radius:5px;}
+.oxy-cta{max-width:1000px;margin:18px auto 0;display:flex;align-items:center;gap:18px;flex-wrap:wrap;justify-content:space-between;background:linear-gradient(120deg,rgba(57,217,138,.08),rgba(88,166,255,.05));border:1px solid var(--border2);border-radius:16px;padding:20px 26px;}
+.oxy-cta p{font-size:14.5px;color:var(--text2);max-width:60ch;}
+.oxy-cta .btn-green{background:var(--green);color:var(--bg);box-shadow:0 0 22px rgba(57,217,138,.4);}
+.oxy-cta .btn-green:hover{transform:translateY(-2px);}
+.oxy-step .step-body .n{color:var(--green);}
+.oxy-track-label{max-width:1000px;margin:34px auto 18px;font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--text4);display:flex;align-items:center;gap:12px;}
+.oxy-track-label::after{content:"";flex:1;height:1px;background:var(--border);}
+
+/* track accent variants */
+.btn-purple{background:var(--purple);color:var(--bg);box-shadow:0 0 22px rgba(167,139,250,.4);}
+.btn-purple:hover{transform:translateY(-2px);}
+.btn-amber{background:var(--amber);color:var(--bg);box-shadow:0 0 22px rgba(255,184,77,.4);}
+.btn-amber:hover{transform:translateY(-2px);}
+.cpap-step .on{background:var(--purple);box-shadow:0 0 16px rgba(167,139,250,.4);}
+.cpap-step .olink{color:var(--purple);}
+.glu-step .step-body .n{color:var(--amber);}
+.cpap-cta{border-color:var(--border2);background:linear-gradient(120deg,rgba(167,139,250,.08),rgba(88,166,255,.05));}
+.glu-cta{border-color:var(--border2);background:linear-gradient(120deg,rgba(255,184,77,.08),rgba(57,217,138,.05));}
+
+/* file-listing figure (CPAP SD card) */
+.filefig{max-width:1000px;margin:24px auto 0;border:1px solid var(--border2);border-radius:14px;overflow:hidden;background:#0d1117;box-shadow:0 24px 50px -22px rgba(0,0,0,.8);}
+.filefig .bar{display:flex;align-items:center;gap:8px;padding:11px 16px;background:var(--surface);border-bottom:1px solid var(--border);}
+.filefig .bar .dot{width:11px;height:11px;border-radius:50%;}
+.filefig .bar .path{margin-left:10px;font-family:var(--mono);font-size:12px;color:var(--text3);}
+.filefig img{width:100%;display:block;}
+.filefig .cap{font-family:var(--mono);font-size:11.5px;color:var(--text4);padding:11px 16px;border-top:1px solid var(--border);}
+.filefig .cap b{color:var(--purple);}
+
+/* EDF stream legend */
+.edf-legend{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;max-width:1000px;margin:22px auto 0;}
+.edf-legend .ef{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 16px 18px;}
+.edf-legend .ef .ext{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--purple);}
+.edf-legend .ef h5{font-size:13.5px;font-weight:700;margin:9px 0 5px;letter-spacing:-.01em;}
+.edf-legend .ef p{font-size:12px;color:var(--text3);line-height:1.5;text-wrap:pretty;}
+@media(max-width:760px){.edf-legend{grid-template-columns:1fr 1fr;}}
+@media(max-width:900px){
+  .wrap,.nav-in{padding-left:24px;padding-right:24px;}
+  .hero h1{font-size:42px;}
+  .gear,.transfer,.oxysteps,.hw-grid{grid-template-columns:1fr;}
+  .step,.step:nth-child(even){grid-template-columns:1fr;gap:24px;}
+  .step:nth-child(even) .phone-col{order:0;}
+  .nav-links{display:none;}
+  .map-row,.map-row.head{grid-template-columns:1fr;}
+  .map-row .c{border-bottom:1px solid var(--border);}
+}
+</style></head>
+<body>
+
+<header class="nav"><div class="nav-in">
+  <a class="brand" href="index.html"><svg class="brandmark" viewBox="0 0 100 100" aria-hidden="true" style="width:24px;height:24px;flex:none;filter:drop-shadow(0 0 7px rgba(61,224,208,.4))"><defs><linearGradient id="tgrad" x1="14" y1="10" x2="86" y2="88" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3DE0D0"/><stop offset=".58" stop-color="#58A6FF"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs><g fill="none" stroke="url(#tgrad)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></g></svg><span class="wm">Tepna</span></a>
+  <nav class="nav-links"><a href="#flow">Heart</a><a href="#oxy">Oxygen</a><a href="#cpap">CPAP</a><a href="#glucose">Glucose</a><a href="Science.html">Science</a></nav>
+  <a href="#flow" class="nav-cta">Start recording</a>
+</div></header>
+
+<section class="hero">
+  <canvas id="wave-hero"></canvas>
+  <div class="wrap">
+    <div class="eyebrow">Capture guide · Polar · Wellue · ResMed · Abbott Lingo</div>
+    <h1>Record the raw signal <span class="g">straight off your body.</span></h1>
+    <p class="lede">Tepna reads files, not live sensors. Each device writes a plain file per night — <b>Polar Sensor Logger</b> for the heart straps, <b>ViHealth</b> for the oxygen ring, the <b>SD card</b> for your CPAP, the <b>Lingo</b> app for glucose. Set it once, wear it overnight, drop the files into the analyzer. Here are all four loops.</p>
+    <div class="hero-actions">
+      <a href="#flow" class="btn btn-primary">Walk me through it</a>
+      <a href="https://play.google.com/store/apps/details?id=com.j_ware.polarsensorlogger&hl=en_US" target="_blank" rel="noopener" class="btn btn-ghost">Get the app on Google Play →</a>
+    </div>
+    <div class="hero-meta">
+      <span><span class="tk">✓</span>Heart · Oxygen · CPAP · Glucose</span>
+      <span><span class="tk">✓</span>No account, no cloud</span>
+      <span><span class="tk">✓</span>Files stay on your device</span>
+      <span><span class="tk">✓</span>Drop in &amp; read</span>
+    </div>
+  </div>
+</section>
+
+<div class="divider"><canvas id="div1" width="2400" height="120"></canvas></div>
+
+<!-- WHAT YOU'LL NEED -->
+<section id="gear"><div class="wrap">
+  <div class="sec-head"><div class="eyebrow">What you'll need</div><h2>One app, one or two straps.</h2><p>The app is the recorder. The Polar sensors are what it talks to over Bluetooth.</p></div>
+  <div class="gear">
+    <div class="app-card">
+      <div class="badge">The recorder</div>
+      <h3>Polar Sensor Logger</h3>
+      <div class="pkg">com.j_ware.polarsensorlogger</div>
+      <p>A community app that connects to any Polar Bluetooth sensor and logs the raw streams — ECG, PPG, heartbeats, motion — to text files on your phone. No Polar account, no Polar cloud. It just records.</p>
+      <div class="who">by j-ware (Jukka Happonen) · Polar SDK 5.6.0 · free</div>
+      <div class="get"><a href="https://play.google.com/store/apps/details?id=com.j_ware.polarsensorlogger&hl=en_US" target="_blank" rel="noopener" class="btn btn-primary">Install from Google Play →</a></div>
+    </div>
+    <div class="sensors">
+      <div class="sensor">
+        <div class="ico"><canvas data-k="ecg" width="60" height="60"></canvas></div>
+        <div><h4>Polar H10</h4><div class="dn">chest strap · ECG</div><p>The most precise read — the heart's electrical beat, sample by sample. Feeds ECGDex.</p></div>
+      </div>
+      <div class="sensor">
+        <div class="ico"><canvas data-k="ppg" width="60" height="60"></canvas></div>
+        <div><h4>Polar Verity Sense</h4><div class="dn">armband · PPG / pulse</div><p>Optical pulse from the forearm — comfortable for sleep. Feeds PulseDex.</p></div>
+      </div>
+      <div class="sensor">
+        <div class="ico"><canvas data-k="hrv" width="60" height="60"></canvas></div>
+        <div><h4>Any Android phone</h4><div class="dn">runs the logger</div><p>Bluetooth on, phone near you through the night. That's the whole rig.</p></div>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<div class="divider"><canvas id="divH" width="2400" height="120"></canvas></div>
+
+<!-- SUPPORTED HARDWARE -->
+<section id="hardware"><div class="wrap">
+  <div class="sec-head"><div class="eyebrow">Supported hardware</div><h2>The five devices Tepna reads today.</h2><p>Consumer wearables and home devices you can buy off the shelf. Each records one signal cleanly to a file the analyzers understand.</p></div>
+  <div class="hw-grid">
+
+    <div class="hw">
+      <image-slot id="hw-o2ring" class="hw-shot" shape="rounded" radius="16" src="how-to-collect/img/hw-o2ring.png" placeholder="Drop the O2Ring S photo"></image-slot>
+      <div class="hw-tag" style="color:var(--green);background:rgba(57,217,138,.1);border-color:rgba(57,217,138,.28)">Blood oxygen</div>
+      <h3>Wellue O2Ring S</h3>
+      <div class="hw-dn">finger ring · overnight SpO₂ + pulse</div>
+      <p>A silicone ring that logs blood-oxygen, pulse and motion all night on its own memory — no phone needed while you sleep.</p>
+      <div class="hw-specs"><span>SpO₂ + pulse</span><span>on-device memory</span><span>CSV / Binary export</span></div>
+      <div class="hw-foot"><span class="hw-feeds">Feeds <a href="OxyDex.html">OxyDex</a></span><a class="hw-link" href="https://getwellue.com/products/o2ring-s-pulse-oximeter" target="_blank" rel="noopener">View product ↗</a></div>
+    </div>
+
+    <div class="hw">
+      <image-slot id="hw-h10" class="hw-shot" shape="rounded" radius="16" src="how-to-collect/img/hw-h10.jpg" placeholder="Drop the Polar H10 photo"></image-slot>
+      <div class="hw-tag">Heart rhythm</div>
+      <h3>Polar H10</h3>
+      <div class="hw-dn">chest strap · raw ECG</div>
+      <p>The reference-grade chest strap. Streams the heart's electrical beat sample by sample — the most precise signal in the suite.</p>
+      <div class="hw-specs"><span>ECG ~130 Hz</span><span>RR intervals</span><span>Bluetooth LE</span></div>
+      <div class="hw-foot"><span class="hw-feeds">Feeds <a href="ECGDex.html">ECGDex</a> · <a href="HRVDex.html">HRVDex</a></span><a class="hw-link" href="https://www.polar.com/us-en/sensors/h10-heart-rate-sensor" target="_blank" rel="noopener">View product ↗</a></div>
+    </div>
+
+    <div class="hw">
+      <image-slot id="hw-verity" class="hw-shot" shape="rounded" radius="16" src="how-to-collect/img/hw-verity.jpg" placeholder="Drop the Verity Sense photo"></image-slot>
+      <div class="hw-tag">Optical pulse</div>
+      <h3>Polar Verity Sense</h3>
+      <div class="hw-dn">arm / temple band · PPG</div>
+      <p>An optical sensor worn on the forearm or temple. Comfortable enough to sleep in, it reads pulse from the skin (PPG / PPI).</p>
+      <div class="hw-specs"><span>PPG optical</span><span>PPI intervals</span><span>comfortable for sleep</span></div>
+      <div class="hw-foot"><span class="hw-feeds">Feeds <a href="PulseDex.html">PulseDex</a> · <a href="PpgDex.html">PpgDex</a></span><a class="hw-link" href="https://www.polar.com/us-en/products/accessories/polar-verity-sense" target="_blank" rel="noopener">View product ↗</a></div>
+    </div>
+
+    <div class="hw">
+      <div class="hw-shot hw-shot-product"><img src="how-to-collect/img/hw-airsense.jpg" alt="ResMed AirSense 11 CPAP machine, three-quarter view"></div>
+      <div class="hw-tag" style="color:var(--purple);background:rgba(167,139,250,.1);border-color:rgba(167,139,250,.28)">Breathing &amp; sleep</div>
+      <h3>ResMed AirSense 11</h3>
+      <div class="hw-dn">CPAP machine · SD card EDF</div>
+      <p>A home CPAP that records the whole therapy night to its microSD card — flow, pressure, leak, scored events and optional oximetry — as a set of EDF files. No app needed.</p>
+      <div class="hw-specs"><span>flow + pressure</span><span>events + leak</span><span>SD card EDF</span></div>
+      <div class="hw-foot"><span class="hw-feeds">Feeds <a href="CPAPDex.html">CPAPDex</a></span><a class="hw-link" href="https://www.resmed.com/en-us/sleep-apnea/cpap-products/cpap-machines/airsense-11-autoset/" target="_blank" rel="noopener">View product ↗</a></div>
+    </div>
+
+    <div class="hw">
+      <div class="hw-shot hw-shot-product"><img src="how-to-collect/img/hw-lingo.png" alt="Abbott Lingo glucose biosensor box and sensor"></div>
+      <div class="hw-tag" style="color:var(--amber);background:rgba(255,184,77,.1);border-color:rgba(255,184,77,.28)">Glucose</div>
+      <h3>Abbott Lingo</h3>
+      <div class="hw-dn">arm biosensor · continuous glucose</div>
+      <p>An over-the-counter CGM worn on the upper arm. Logs glucose continuously to the Lingo app, which exports a plain CSV of every reading on demand.</p>
+      <div class="hw-specs"><span>continuous glucose</span><span>14-day wear</span><span>CSV export</span></div>
+      <div class="hw-foot"><span class="hw-feeds">Feeds <a href="GlucoDex.html">GlucoDex</a></span><a class="hw-link" href="https://www.hellolingo.com/" target="_blank" rel="noopener">View product ↗</a></div>
+    </div>
+
+  </div>
+</div></section>
+
+<div class="divider"><canvas id="div2" width="2400" height="120"></canvas></div>
+
+<!-- THE FLOW -->
+<section id="flow"><div class="wrap">
+  <div class="sec-head"><div class="eyebrow">Track 1 · Heart signals — Polar</div><h2>From cold app to recording, step by step.</h2><p>Real screens from the logger. Defaults are sane — you mostly tap through.</p></div>
+  <div class="steps">
+
+    <div class="step">
+      <div class="phone-col"><div class="phone"><img src="how-to-collect/img/01-configure.png" alt="Polar Sensor Logger main screen with data streams and settings selected"></div></div>
+      <div class="step-body">
+        <div class="n">STEP 01</div>
+        <h3>Pick the signals to log</h3>
+        <p>Open the app on the <b>MAIN</b> tab. Under <b>Data select</b>, tick the streams you want. For a full night, leave them all on — the analyzers ignore what they don't need.</p>
+        <p>Under <b>Settings</b>, switch on <b>SDK mode</b> and <b>Save data</b>. Leave <b>MQTT</b> off — that's for live network streaming, which Tepna doesn't use.</p>
+        <div class="tags"><span class="tag"><b>SDK mode</b> on</span><span class="tag"><b>Save data</b> on</span><span class="tag">MQTT off</span></div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="phone-col"><div class="phone"><img src="how-to-collect/img/02-seek.png" alt="Seek sensor dialog listing nearby Polar devices with signal strength"></div></div>
+      <div class="step-body">
+        <div class="n">STEP 02</div>
+        <h3>Seek your sensors</h3>
+        <p>Tap <b>SEEK SENSOR</b>. The app scans Bluetooth and lists every nearby Polar device with its signal strength — here a <b>Polar Sense</b> at −49 dBm and a <b>Polar H10</b> at −51 dBm.</p>
+        <p>Closer to zero is stronger. If a strap doesn't appear, wet the H10 electrodes, make sure it's worn, and seek again.</p>
+        <div class="callout"><b>Tip:</b> You can record two sensors at once — e.g. H10 for ECG and Verity Sense for PPG — and line them up later by timestamp.</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="phone-col"><div class="phone"><img src="how-to-collect/img/03-select.png" alt="Both sensors highlighted yellow, ready to confirm with OK"></div></div>
+      <div class="step-body">
+        <div class="n">STEP 03</div>
+        <h3>Select and confirm</h3>
+        <p>Tap each device you want so it highlights <b>yellow</b>, then hit <b>OK</b>. Selected sensors begin pairing.</p>
+        <p>Only tap the sensors you're actually wearing — an unselected strap is left alone and saves nothing.</p>
+        <div class="tags"><span class="tag">tap → highlights <b>yellow</b></span><span class="tag">then <b>OK</b></span></div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="phone-col"><div class="phone"><img src="how-to-collect/img/04-settings.png" alt="Per-stream settings dialog for the magnetometer with sampling rate and range"></div></div>
+      <div class="step-body">
+        <div class="n">STEP 04</div>
+        <h3>Accept the stream settings</h3>
+        <p>For each motion stream you enabled — <b>Gyro</b>, <b>Magnetometer</b>, <b>ACC</b> — the app pops a settings dialog with sampling rate, resolution and range. <b>The defaults are fine.</b> Just tap <b>OK</b> to each.</p>
+        <p>You'll see one dialog per stream in turn. Keep tapping OK until they're done and the strap connects.</p>
+        <div class="callout"><b>Don't sweat the numbers.</b> Higher rates mean bigger files, not better Tepna scores. The defaults shown are what the analyzers expect.</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="phone-col"><div class="phone"><img src="how-to-collect/img/05-record.png" alt="Recording in progress, timer counting, live values streaming from both sensors"></div></div>
+      <div class="step-body">
+        <div class="n">STEP 05</div>
+        <h3>It's recording</h3>
+        <p>The button flips to <b>STOP</b> and the <b>Timer</b> starts counting. Each connected device shows live numbers — HR, ECG µV, RR, accelerometer, battery — so you can confirm both straps are streaming.</p>
+        <p>Now just go to sleep, or sit for your session. The phone keeps logging in the background as long as it's near you with Bluetooth on.</p>
+        <div class="tags"><span class="tag">Status <b>Connected</b></span><span class="tag">watch <b>Batt. level</b></span><span class="tag">live HR &amp; ECG</span></div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="phone-col"><div class="phone"><img src="how-to-collect/img/06-recording.png" alt="Recording still running with both sensors connected and streaming"></div></div>
+      <div class="step-body">
+        <div class="n">STEP 06</div>
+        <h3>Stop &amp; the files are saved</h3>
+        <p>In the morning, tap <b>STOP</b>. The logger closes the recording and writes one text file per stream into its folder on your phone — named by sensor, date and stream.</p>
+        <p>Long signals like ECG and PPG are split into numbered parts (<span class="tag" style="display:inline">part01of05</span>). Keep every part — the analyzer stitches them back together.</p>
+        <div class="callout"><b>One session = many files.</b> That's normal. An H10 night gives you ECG parts, an RR file, an ACC file and an HR file — all from the same recording.</div>
+      </div>
+    </div>
+
+  </div>
+</div></section>
+
+<div class="divider"><canvas id="divO" width="2400" height="120"></canvas></div>
+
+<!-- OXYGEN TRACK -->
+<section id="oxy"><div class="wrap">
+  <div class="sec-head"><div class="eyebrow">Track 2 · Blood oxygen — Wellue O2Ring</div><h2>The oximeter records itself. You just sync it.</h2><p>A different device with a different app. The O2Ring logs all night on its own memory — no phone, no Bluetooth babysitting. ViHealth pulls the night off it and hands you a CSV.</p></div>
+  <div class="oxysteps">
+    <div class="ostep"><div class="on">1</div><h4>Install ViHealth</h4><p>Get Viatom / Wellue's free <b>ViHealth</b> app from the Play Store. It's the bridge between the ring and your files — no account needed to export locally.</p><a class="olink" href="https://play.google.com/store/apps/details?id=com.viatom.vihealth&hl=en_US" target="_blank" rel="noopener">ViHealth on Google Play →</a></div>
+    <div class="ostep"><div class="on">2</div><h4>Wear it overnight</h4><p>The ring records to its own memory all night — <b>the phone can be anywhere</b>. Charge it through the day, slip it on before bed.</p></div>
+    <div class="ostep"><div class="on">3</div><h4>Sync in the morning</h4><p>Open ViHealth with the ring <b>powered on</b> — it auto-detects and downloads the night. If the ring has gone to sleep, replug the USB cable (or sensor) to wake it, then sync.</p></div>
+  </div>
+
+  <div class="oxy-track-label">Then export the night — three taps in ViHealth</div>
+  <div class="steps">
+
+    <div class="step oxy-step">
+      <div class="phone-col"><div class="phone"><img src="how-to-collect/img/o2-session.png" alt="ViHealth session detail showing Oxygen Level, Pulse Rate and Motion graphs across the night"></div></div>
+      <div class="step-body">
+        <div class="n">STEP 04</div>
+        <h3>Find the night in History</h3>
+        <p>On the <b>History</b> tab, each synced night is listed with its <b>O2 Score</b>, <b>Lowest O₂</b> and number of <b>Drops</b>. Tap the session you want to open it.</p>
+        <div class="tags"><span class="tag">tab: <b>History</b></span><span class="tag">tap a night</span></div>
+      </div>
+    </div>
+
+    <div class="step oxy-step">
+      <div class="phone-col"><div class="phone"><img src="how-to-collect/img/o1-history.png" alt="ViHealth History tab listing recorded nights with O2 score, lowest O2 and drop count"></div></div>
+      <div class="step-body">
+        <div class="n">STEP 05</div>
+        <h3>Open it — that's what makes the file</h3>
+        <p>The session view draws <b>Oxygen Level</b>, <b>Pulse Rate</b> and <b>Motion</b> across the whole night, with the duration and averages up top. <b>Opening this view is what generates the exportable data</b> — so always view the night before sharing.</p>
+        <div class="tags"><span class="tag">SpO₂ · Pulse · Motion</span><span class="tag">then tap <b>↗ share</b></span></div>
+      </div>
+    </div>
+
+    <div class="step oxy-step">
+      <div class="phone-col"><div class="phone"><img src="how-to-collect/img/o3-share.png" alt="ViHealth Share Blood Oxygen records dialog with PDF, CSV and Binary format options, CSV selected"></div></div>
+      <div class="step-body">
+        <div class="n">STEP 06</div>
+        <h3>Share as <span style="color:var(--green)">CSV</span> or Binary</h3>
+        <p>The share sheet offers three formats — <b>PDF</b>, <b>CSV</b> and <b>Binary</b>. Pick <b>CSV</b> or <b>Binary</b> and tap <b>Share</b>, then send it to yourself (Drive, email, USB — wherever's easy to reach from your computer).</p>
+        <div class="callout"><b>CSV or Binary both work.</b> PDF is just a printed report — skip it. OxyDex reads the plain per-second CSV and the Binary export equally well.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="pathband">
+    <div class="pb-k">Where ViHealth keeps the files on your phone</div>
+    <div class="pb-rows">
+      <code>/sdcard/PulsebitO2/</code>
+      <code>/sdcard/Android/data/com.viatom.vihealth/files/ViHealth/</code>
+      <code>/Android/data/com.viatom.vihealth/files/&lt;model#&gt;/Host/ <span>← newer ViHealth</span></code>
+    </div>
+    <p class="pb-note">The <b>&lt;model#&gt;</b> folder — e.g. <code>11</code> — is your ring's model number, so yours may read differently.</p>
+  </div>
+  <div class="oxy-track-label">No phone? Pull it straight onto a Windows PC</div>
+  <div class="oxysteps">
+    <div class="ostep"><div class="on">A</div><h4>Install O2 Insight Pro</h4><p>Download Viatom's free <b>O2 Insight Pro</b> desktop software and install it on your PC.</p><a class="olink" href="https://getwellue.com/pages/pc-software" target="_blank" rel="noopener">getwellue.com · PC software →</a></div>
+    <div class="ostep"><div class="on">B</div><h4>Connect by USB cable</h4><p>Plug the ring into the PC with the <b>cable that came with it</b> — the software can't connect over Bluetooth. The window reads <b>"Device connected"</b> in the bottom-right.</p></div>
+    <div class="ostep"><div class="on">C</div><h4>Click Download</h4><p>Hit <b>Download</b> and O2 Insight Pro copies every night off the ring into a per-serial folder, ready to drop into OxyDex.</p></div>
+  </div>
+  <div class="pathband">
+    <div class="pb-k">Where O2 Insight Pro saves the files on Windows</div>
+    <div class="pb-rows">
+      <code>C:\Users\&lt;you&gt;\AppData\Local\O2 Insight Pro\DATA\&lt;SerialNumber&gt;\</code>
+    </div>
+    <p class="pb-note">Each ring gets its own <b>&lt;SerialNumber&gt;</b> folder — handy when you track more than one device.</p>
+  </div>
+
+  <div class="oxy-cta">
+    <p>Either way, copy the CSVs to your computer (tip: name the folder with the ring's <b>serial number</b> to keep devices apart), then drop them into OxyDex — one night or many at once. Nothing uploads.</p>
+    <a href="OxyDex.html" class="btn btn-green">Open OxyDex →</a>
+  </div>
+</div></section>
+
+<div class="divider"><canvas id="divC" width="2400" height="120"></canvas></div>
+
+<!-- CPAP TRACK -->
+<section id="cpap"><div class="wrap">
+  <div class="sec-head"><div class="eyebrow">Track 3 · Breathing &amp; sleep — CPAP</div><h2>Your CPAP already recorded the night. Pop the SD card.</h2><p>No app, no Bluetooth. A ResMed AirSense / AirCurve writes the whole therapy night to the SD card in its side slot as a set of <b>EDF</b> files. Eject the card, read it on your computer, and drop the files into CPAPDex.</p></div>
+  <div class="oxysteps">
+    <div class="ostep cpap-step"><div class="on">1</div><h4>Power down &amp; eject the card</h4><p>Unplug the machine (or wait for the display to sleep), then press the <b>microSD card</b> in the side slot until it clicks and pops out. Ejecting while powered down keeps the night's files intact.</p></div>
+    <div class="ostep cpap-step"><div class="on">2</div><h4>Read it on a computer</h4><p>Slot the card into a microSD adapter and into your computer's card reader. It mounts like any USB drive — open it and find the <code>DATALOG</code> folder, with one subfolder per date.</p></div>
+    <div class="ostep cpap-step"><div class="on">3</div><h4>Grab the night's EDF files</h4><p>Each night is a small set of <code>.edf</code> files sharing one <code>YYYYMMDD_HHMMSS_</code> prefix. Copy <b>all of them together</b> — CPAPDex lines them up by that shared timestamp.</p></div>
+  </div>
+
+  <div class="filefig">
+    <div class="bar"><span class="dot" style="background:#FF6B5E"></span><span class="dot" style="background:#FFBD44"></span><span class="dot" style="background:#3DCB5E"></span><span class="path">…\DATALOG\20260616\</span></div>
+    <img src="how-to-collect/img/cpap-files.png" alt="Windows folder listing five EDF files from one CPAP night: CSL, EVE, BRP, PLD and SA2, all sharing the 20260616 prefix">
+    <div class="cap">One night = up to five files, all sharing the <b>20260616_213&hellip;</b> prefix. Sizes vary — the BRP waveform is the big one (~2 MB), the rest are small.</div>
+  </div>
+
+  <div class="oxy-track-label">What each EDF file carries</div>
+  <div class="edf-legend">
+    <div class="ef"><div class="ext">_BRP</div><h5>Breathing waveform</h5><p>High-rate flow &amp; pressure (~25 Hz). The biggest file — the raw breath-by-breath trace.</p></div>
+    <div class="ef"><div class="ext">_PLD</div><h5>Detail channels</h5><p>Per-half-second pressure, leak, respiratory rate, tidal volume, minute ventilation, snore.</p></div>
+    <div class="ef"><div class="ext">_EVE</div><h5>Events</h5><p>Scored apneas &amp; hypopneas — the annotations behind your residual AHI.</p></div>
+    <div class="ef"><div class="ext">_CSL</div><h5>Periodic breathing</h5><p>Cheyne–Stokes / periodic-breathing spans flagged across the night.</p></div>
+    <div class="ef"><div class="ext">_SA2</div><h5>Oximetry</h5><p>SpO₂ + pulse, 1 Hz — only present if a ResMed oximeter was attached. Optional.</p></div>
+  </div>
+
+  <div class="oxy-cta cpap-cta">
+    <p>Copy the night's <code style="font-family:var(--mono);color:var(--purple);background:var(--bg);padding:1px 6px;border-radius:5px">.edf</code> set to your computer, then drop the whole set into CPAPDex at once — events, leak, pressure and oximetry land on one timeline. Loading is <b>additive</b>: drop more nights later and they stack into one history. You can also drop an <b>OxyDex</b> or <b>ECGDex</b> <code style="font-family:var(--mono);color:var(--purple);background:var(--bg);padding:1px 6px;border-radius:5px">.json</code> export alongside to corroborate the read. Nothing uploads.</p>
+    <a href="CPAPDex.html" class="btn btn-purple">Open CPAPDex →</a>
+  </div>
+</div></section>
+
+<div class="divider"><canvas id="divG" width="2400" height="120"></canvas></div>
+
+<!-- GLUCOSE TRACK -->
+<section id="glucose"><div class="wrap">
+  <div class="sec-head"><div class="eyebrow">Track 4 · Glucose — Abbott Lingo</div><h2>Export your glucose CSV from the Lingo app.</h2><p>Abbott's <b>Lingo</b> biosensor logs glucose to its app. Three taps inside the app generate a plain CSV of every reading — send it to yourself and drop it into GlucoDex.</p></div>
+  <div class="steps">
+
+    <div class="step glu-step">
+      <div class="phone-col"><div class="phone"><img src="how-to-collect/img/lingo-1-profile.png" alt="Lingo Profile tab showing the Actions list with Export your glucose data"></div></div>
+      <div class="step-body">
+        <div class="n">STEP 01</div>
+        <h3>Open <b>You → Export your glucose data</b></h3>
+        <p>Tap <b>You</b> in the bottom bar to reach your <b>Profile</b>. Scroll to <b>Actions</b> and tap <b>Export your glucose data</b>.</p>
+        <div class="tags"><span class="tag">tab: <b>You</b></span><span class="tag">Actions → <b>Export your glucose data</b></span></div>
+      </div>
+    </div>
+
+    <div class="step glu-step">
+      <div class="phone-col"><div class="phone"><img src="how-to-collect/img/lingo-2-export.png" alt="Lingo Export glucose data screen with Download file and Export new file buttons"></div></div>
+      <div class="step-body">
+        <div class="n">STEP 02</div>
+        <h3>Export a fresh file, then download it</h3>
+        <p>Tap <b>Export new file</b> to build a current report, wait for it to generate, then tap <b>Download file</b>. Lingo exports every value in its graph range — <b>55–200 mg/dL</b>.</p>
+        <p>Send the CSV to yourself however's easy — share to Drive, email, or save to Files.</p>
+        <div class="callout"><b>Generated files expire.</b> The screen shows a generated-on / expires-on date — if it's stale, just <b>Export new file</b> again before downloading.</div>
+        <div class="callout"><b>The 55–200 mg/dL range is a hard clip.</b> Lingo only exports values inside that band — readings below 55 or above 200 aren't in the file, so deep lows and high spikes read as flat at the limit. <b>Time-below-range and severe-low metrics from a Lingo export under-count.</b> Libre &amp; Dexcom CSVs aren't clipped.</div>
+      </div>
+    </div>
+
+    <div class="step glu-step">
+      <div class="phone-col"><div class="phone"><img src="how-to-collect/img/lingo-3-graph.png" alt="Lingo daily glucose graph across 24 hours with the in-range band"></div></div>
+      <div class="step-body">
+        <div class="n">STEP 03</div>
+        <h3>Drop the CSV into GlucoDex</h3>
+        <p>The downloaded CSV holds a timestamp and a glucose value per reading — exactly what GlucoDex parses. Each import is <b>additive</b>: drop one export today and another next week and they stack into one multi-day history.</p>
+        <div class="callout"><b>Not just Lingo.</b> GlucoDex also reads <b>FreeStyle Libre</b> and <b>Dexcom</b> CSV exports — any CGM file with a time column and a mg/dL (or mmol/L) column.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="oxy-cta glu-cta">
+    <p>Copy the CSV to your computer and drop it into GlucoDex — one export or many. It computes mean glucose, time-in-range, variability and AGP bands locally. Nothing uploads.</p>
+    <a href="GlucoDex.html" class="btn btn-amber">Open GlucoDex →</a>
+  </div>
+</div></section>
+
+<div class="divider"><canvas id="div3" width="2400" height="120"></canvas></div>
+
+<!-- MAPPING -->
+<section id="mapping"><div class="wrap">
+  <div class="sec-head"><div class="eyebrow">Which app reads what</div><h2>Each file goes to one analyzer.</h2><p>The stream you logged tells you which Tepna app to open. You don't need every stream — record what you have.</p></div>
+  <div class="map">
+    <div class="map-row head"><div class="c">Logger stream</div><div class="c">Recorded by</div><div class="c">Open in Tepna</div></div>
+    <div class="map-row"><div class="c stream">…_ECG_partNNofMM.txt</div><div class="c dev">Polar H10 chest strap</div><div class="c app"><a class="app" href="ECGDex.html">ECGDex →</a></div></div>
+    <div class="map-row"><div class="c stream">…_PPG_partNNofMM.txt</div><div class="c dev">Verity Sense / Polar Sense</div><div class="c app"><a class="app" href="PpgDex.html">PpgDex →</a> &nbsp;<a class="app" href="PulseDex.html">PulseDex →</a></div></div>
+    <div class="map-row"><div class="c stream">…_RR.txt</div><div class="c dev">H10 / Sense — beat intervals</div><div class="c app"><a class="app" href="PulseDex.html">PulseDex →</a> &nbsp;<a class="app" href="HRVDex.html">HRVDex →</a></div></div>
+    <div class="map-row"><div class="c stream">…_PPI.txt</div><div class="c dev">Verity Sense — pulse intervals</div><div class="c app"><a class="app" href="PulseDex.html">PulseDex →</a></div></div>
+    <div class="map-row"><div class="c stream">…_ACC.txt · _GYRO · _MAGN</div><div class="c dev">on-board motion sensors</div><div class="c app"><span style="color:var(--text4);font-size:12.5px">movement context · read alongside the signal above</span></div></div>
+    <div class="map-row"><div class="c stream">…_HR.txt</div><div class="c dev">any Polar sensor</div><div class="c app"><span style="color:var(--text4);font-size:12.5px">quick heart-rate trace · supported everywhere</span></div></div>
+    <div class="map-row"><div class="c stream">…_BRP · _PLD · _EVE · _CSL · _SA2 .edf</div><div class="c dev">ResMed AirSense — SD card</div><div class="c app"><a class="app" href="CPAPDex.html">CPAPDex →</a></div></div>
+    <div class="map-row"><div class="c stream">glucose export .csv</div><div class="c dev">Abbott Lingo / Libre / Dexcom</div><div class="c app"><a class="app" href="GlucoDex.html">GlucoDex →</a></div></div>
+  </div>
+  <p style="text-align:center;color:var(--text4);font-family:var(--mono);font-size:12px;margin-top:22px">Welltory morning checks → <a href="HRVDex.html" style="color:var(--teal)">HRVDex</a> · O2Ring nights → <a href="OxyDex.html" style="color:var(--teal)">OxyDex</a> · CPAP SD card → <a href="CPAPDex.html" style="color:var(--teal)">CPAPDex</a> · Lingo / CGM → <a href="GlucoDex.html" style="color:var(--teal)">GlucoDex</a></p>
+  <p style="text-align:center;color:var(--text4);font-size:12.5px;max-width:680px;margin:14px auto 0;line-height:1.7"><b style="color:var(--teal)">HRVDex builds up over time.</b> Every import is <b>additive</b> — drop a Welltory CSV today and another next week, or many nights at once, and they stack into one multi-day table (exact duplicates are skipped, and your history is saved in the browser between visits). <a href="ECGDex.html" style="color:var(--teal)">ECGDex</a> also hands its HRV straight over: its <b>⬇ HRVDex</b> export writes a Welltory-style CSV (all loaded nights in one file), and HRVDex reads ECGDex JSON exports too — so a whole H10 history lands in HRVDex in a single drop.</p>
+</div></section>
+
+<div class="divider"><canvas id="div4" width="2400" height="120"></canvas></div>
+
+<!-- TRANSFER -->
+<section id="transfer"><div class="wrap">
+  <div class="sec-head"><div class="eyebrow">Getting files to Tepna</div><h2>Move them over, drop them in.</h2><p>Tepna runs in your browser and reads files locally — nothing uploads anywhere.</p></div>
+  <div class="transfer">
+    <div class="tcard"><div class="tn">1</div><h4>Copy off the device</h4><p>However the signal was saved — the logger's <b>phone folder</b>, the ring's app, the CPAP's <b>SD card</b>, or the Lingo CSV download — move the files to your computer.</p><code>Polar_H10_AAAAAAAA_…_ECG_part01of05.txt</code></div>
+    <div class="tcard"><div class="tn">2</div><h4>Open the matching analyzer</h4><p>Open the Tepna app for that stream — <a href="ECGDex.html" style="color:var(--teal)">ECGDex</a> for ECG, <a href="PulseDex.html" style="color:var(--teal)">PulseDex</a> for pulse — right here in your browser.</p></div>
+    <div class="tcard"><div class="tn">3</div><h4>Drop the files in</h4><p>Drag the text files onto the analyzer — <b>all parts together</b>. It parses the night and gives you the read-out. Files never leave your device.</p></div>
+  </div>
+</div></section>
+
+<div class="divider"><canvas id="div5" width="2400" height="120"></canvas></div>
+
+<!-- PRIVACY -->
+<section id="privacy"><div class="wrap">
+  <div class="privacy"><canvas id="wave-priv"></canvas><div class="inner"><div class="lock">🔒</div><h2>Recorded by you, read by you.</h2>
+    <p>The logger writes to your phone. Tepna reads those files in your own browser and computes everything on-device. No account, no cloud, no server ever holds your signal.</p>
+    <div class="row"><span><span class="tk">✓</span>100% on-device</span><span><span class="tk">✓</span>Works offline</span><span><span class="tk">✓</span>No sign-up</span><span><span class="tk">✓</span>Open &amp; inspectable</span></div></div>
+  </div>
+</div></section>
+
+<footer><div class="wrap foot-in">
+  <div class="foot-note"><b style="color:var(--text2)">Tepna</b> — the Dex Suite · © 2026 Michal Planicka · Apache-2.0
+    <div class="foot-links"><a href="index.html">Home</a><a href="OxyDex.html">OxyDex</a><a href="ECGDex.html">ECGDex</a><a href="PulseDex.html">PulseDex</a><a href="HRVDex.html">HRVDex</a><a href="GlucoDex.html">GlucoDex</a><a href="Integrator.html">Integrator</a></div>
+  </div>
+  <div class="foot-note" style="text-align:right">Polar Sensor Logger is a third-party app by j-ware.<br>Tepna is not affiliated with Polar or j-ware.</div>
+</div></footer>
+
+<div class="dxl" style="max-width:900px;margin:30px auto 14px;padding:0 44px">
+  <div class="dxl-notice">
+    <div class="dxl-k">Intended use &amp; safety</div>
+    <p><b>Tepna</b> computes biometric patterns from your wearable and sensor data to support personal self-quantification. It is <b>not a medical device</b>, does not <b>diagnose, treat, cure, screen for, or prevent</b> any disease or condition, and is <b>not a substitute for professional clinical evaluation</b>. It has not been reviewed or cleared by the FDA, CE, or any regulatory body. Always consult a qualified healthcare provider about your health. Use at your own risk. For research and personal use only. 100% local — no data leaves your device.</p>
+  </div>
+</div>
+<div class="dxl dxl-ribbon" style="max-width:1000px;margin:0 auto 30px">
+  <div class="dxl-seg">
+    <span class="dxl-mark">T</span>
+    <span style="display:flex;flex-direction:column">
+      <b style="font-size:13px">Tepna</b>
+      <span class="dxl-colophon">physiological-signal suite</span>
+    </span>
+  </div>
+  <div class="dxl-seg dxl-grow">
+    <span style="font-size:11.5px;color:var(--text2,#9FB0C3)">© 2026 <b>Michal Planicka</b> — Concept · Architecture · Algorithms</span>
+    <span class="dxl-disclaimer">Not a medical device · does not diagnose or treat · not FDA/CE cleared · research &amp; personal use only · ◈ Made in Asheville, NC</span>
+  </div>
+  <div class="dxl-seg"><span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span></div>
+</div>
+
+<script src="how-to-collect/image-slot.js"></script>
+<script>
+const rndF=(seed)=>{let s=seed>>>0;return()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296;};};
+// hero scrolling waveform
+(function(){
+  const c=document.getElementById('wave-hero');if(!c)return;const x=c.getContext('2d');
+  function size(){c.width=c.clientWidth*devicePixelRatio;c.height=c.clientHeight*devicePixelRatio;}
+  size();addEventListener('resize',size);
+  let t=0;
+  function ecgY(p){const ph=((p%1)+1)%1;if(ph<.10)return Math.sin(ph/.10*Math.PI)*.06;if(ph<.16)return -.10;if(ph<.20)return .92;if(ph<.25)return -.30;if(ph<.40)return Math.sin((ph-.25)/.15*Math.PI)*.18;return 0;}
+  function frame(){
+    const W=c.width,H=c.height;x.clearRect(0,0,W,H);t+=0.012;
+    const layers=[{col:'rgba(61,224,208,A)',amp:.20,sp:0.9,yb:.42,kind:'ecg',a:.9,w:2.4},
+                  {col:'rgba(88,166,255,A)',amp:.10,sp:1.7,yb:.62,kind:'ppg',a:.5,w:1.8},
+                  {col:'rgba(167,139,250,A)',amp:.05,sp:0.5,yb:.30,kind:'spo2',a:.32,w:1.5}];
+    for(const L of layers){
+      x.beginPath();
+      for(let px=0;px<=W;px+=4){
+        const u=px/W;let y;
+        if(L.kind==='ecg')y=ecgY(u*6 - t*L.sp);
+        else if(L.kind==='ppg')y=Math.sin((u*16 - t*L.sp*3))*.5+Math.sin((u*7 - t*L.sp*1.4))*.2;
+        else y=Math.sin((u*4 - t*L.sp))*.6+Math.sin(u*23)*.08;
+        const Y=H*L.yb - y*H*L.amp;
+        px?x.lineTo(px,Y):x.moveTo(px,Y);
+      }
+      x.strokeStyle=L.col.replace('A',L.a);x.lineWidth=L.w*devicePixelRatio;x.lineJoin='round';
+      x.shadowColor=L.col.replace('A',.5);x.shadowBlur=12*devicePixelRatio;x.stroke();x.shadowBlur=0;
+    }
+    requestAnimationFrame(frame);
+  }
+  frame();
+})();
+// divider waves
+function dividerWave(id,seed,col){
+  const c=document.getElementById(id);if(!c)return;const x=c.getContext('2d');const rnd=rndF(seed);
+  const N=160,base=[];for(let i=0;i<N;i++)base.push(rnd());let t=0;
+  function frame(){
+    const W=c.width=c.clientWidth,H=c.height=60;x.clearRect(0,0,W,H);t+=0.02;
+    x.beginPath();
+    for(let i=0;i<=N;i++){const u=i/N;const y=H/2 + Math.sin(u*22 - t*2)*9 + Math.sin(u*7 - t)*5 + (base[i%N]-.5)*4;u?x.lineTo(u*W,y):x.moveTo(0,y);}
+    x.strokeStyle=col;x.lineWidth=1.6;x.globalAlpha=.55;x.lineJoin='round';x.shadowColor=col;x.shadowBlur=8;x.stroke();x.shadowBlur=0;x.globalAlpha=1;
+    requestAnimationFrame(frame);
+  }
+  frame();
+}
+dividerWave('div1',7,'#3DE0D0');dividerWave('divH',19,'#3DE0D0');dividerWave('div2',31,'#58A6FF');dividerWave('divO',42,'#39D98A');dividerWave('divC',61,'#A78BFA');dividerWave('divG',73,'#FFB84D');dividerWave('div3',13,'#3DE0D0');dividerWave('div4',54,'#A78BFA');dividerWave('div5',88,'#58A6FF');
+// privacy ambient
+(function(){const c=document.getElementById('wave-priv');if(!c)return;const x=c.getContext('2d');
+  function size(){c.width=c.clientWidth;c.height=c.clientHeight;}size();addEventListener('resize',size);let t=0;
+  function frame(){const W=c.width,H=c.height;x.clearRect(0,0,W,H);t+=0.01;
+    for(let L=0;L<3;L++){x.beginPath();for(let px=0;px<=W;px+=5){const u=px/W;const y=H*.5+Math.sin(u*10 - t*(1+L*.4))*(18-L*4)+Math.sin(u*4-t)*8;px?x.lineTo(px,y):x.moveTo(px,y);}x.strokeStyle=['rgba(61,224,208,.25)','rgba(88,166,255,.18)','rgba(167,139,250,.12)'][L];x.lineWidth=1.4;x.stroke();}
+    requestAnimationFrame(frame);}
+  frame();})();
+// sensor mini sparklines
+(function(){
+  const defs={
+    ecg:{f:(u,t)=>{const p=((u*5 - t)%1+1)%1;return p<.16?0:p<.20?-.18:p<.24?.95:p<.30?-.4:p<.45?Math.sin((p-.30)/.15*Math.PI)*.22:0;}},
+    ppg:{f:(u,t)=>Math.sin(u*9-t*2)*.55+Math.sin(u*4-t)*.2},
+    hrv:{f:(u,t)=>Math.sin(u*6-t)*.4+Math.sin(u*2.4-t*.5)*.3},
+  };
+  const cvs=[...document.querySelectorAll('.sensor .ico canvas')].map(cv=>({cv,x:cv.getContext('2d'),d:defs[cv.dataset.k]}));
+  let t=0;
+  function frame(){t+=0.04;for(const {cv,x,d} of cvs){const W=cv.width,H=cv.height;x.clearRect(0,0,W,H);x.beginPath();
+    for(let px=0;px<=W;px+=2){const u=px/W;const y=H/2 - d.f(u,t)*H*.34;px?x.lineTo(px,y):x.moveTo(px,y);}
+    x.strokeStyle='#3DE0D0';x.lineWidth=1.6;x.lineJoin='round';x.shadowColor='#3DE0D0';x.shadowBlur=5;x.stroke();x.shadowBlur=0;}
+    requestAnimationFrame(frame);}
+  frame();
+})();
+</script>
+</body></html>

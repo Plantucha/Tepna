@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  ECGDex Reference.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OxyDex — Reference Guide</title>
+<link rel="stylesheet" href="licensing/dex-license.css">
+<link rel="stylesheet" href="dex-badges.css">
+<style>
+/* Fonts: system stacks only — no @font-face, no CDN. */
+/* ═══════════════════════════════════════════════════════
+   OxyDex — Reference Guide · Tepna v1.0.0
+   Unified with OxyDex v1.0.0 (Inter, self-hosted, same tokens)
+═══════════════════════════════════════════════════════ */
+:root {
+  --bg:#0B0F14; --surface:#121821; --surface2:#18212C; --surface3:#1E2835;
+  --border:#1e2d42; --border2:#253550;
+  --text:#F4F7FB; --text2:#9FB0C3; --text3:#6F8096; --text4:#4E5A6B;
+  --teal:#3DE0D0; --blue:#58A6FF; --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A;
+ --purple:#a78bfa; --orange:#fb923c;
+
+ --r-md:18px;
+
+  --b:1px solid rgba(255,255,255,.05);
+
+
+
+  /* Type scale (matches parser) */
+  --fs-page:        30px;
+  --fs-section:     22px;
+  --fs-card-title:  16px;
+  --fs-card-sub:    13px;
+  --fs-body:        14px;
+  --fs-label:       11px;
+  --fs-help:        12px;
+
+  /* Font weights */
+  --fw-regular:     400;
+  --fw-semibold:    600;
+  --fw-bold:        700;
+
+  /* Spacing scale (8pt-based) */
+
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-5:  24px;
+  --sp-6:  32px;
+  --sp-7:  48px;
+  --sp-8:  64px;
+
+  color-scheme: dark;
+  --sidebar-w: 260px;
+  --ev-ink: #aab8cc;
+  --fs-sm: 11.5px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;font-size:var(--fs-body);line-height:1.55;overflow-x:hidden;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.app{display:block;min-height:100vh}
+.sidebar{background:rgba(18,24,33,.97);border-right:var(--b);padding:var(--sp-5) var(--sp-3);position:fixed;top:0;left:0;width:var(--sidebar-w);height:100vh;-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);display:flex;flex-direction:column;overflow-y:auto;z-index:10}
+.logo{display:flex;gap:var(--sp-3);align-items:center;margin-bottom:var(--sp-6);padding:0 var(--sp-2)}
+.logo-badge{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--teal),var(--blue));display:flex;align-items:center;justify-content:center;color:#041014;font-weight:var(--fw-bold);font-size:18px;box-shadow:0 0 20px rgba(61,224,208,0.22);flex-shrink:0}
+.logo-title{font-weight:var(--fw-semibold);font-size:15px;letter-spacing:-.015em}
+.logo-sub{font-size:11px;color:var(--text3);margin-top:2px}
+.nav-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--text4);padding:0 var(--sp-2);margin:var(--sp-5) 0 var(--sp-2);font-weight:var(--fw-semibold)}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:var(--sp-3);padding:9px var(--sp-3);border-radius:10px;color:var(--text2);font-size:13px;font-weight:var(--fw-regular);text-decoration:none;transition:all .15s}
+.nav a:hover{background:rgba(255,255,255,.04);color:var(--text)}
+
+.nav-dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0;opacity:.55}
+/* ── Sidebar bottom card (parser-aligned: pushed down via margin-top:auto) ── */
+.sidebar-bottom{margin-top:auto;padding-top:var(--sp-5)}
+.sidebar-data-card{background:rgba(61,224,208,.04);border:1px solid rgba(61,224,208,.09);border-radius:12px;padding:12px 14px}
+.data-pill{display:inline-flex;align-items:center;gap:6px;background:rgba(61,224,208,.1);border:1px solid rgba(61,224,208,.18);color:var(--green);padding:4px 10px;border-radius:999px;font-size:11px;font-weight:var(--fw-semibold)}
+.data-dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+.sidebar-data-info{margin-top:8px;font-size:11px;color:var(--text3);line-height:1.55}
+.sidebar-data-info a{color:var(--text2);text-decoration:none}
+.sidebar-data-info a:hover{color:var(--teal)}
+.main{position:relative;z-index:1;margin-left:var(--sidebar-w);padding:var(--sp-6) max(44px,20px) var(--sp-8) max(44px,20px);max-width:1260px;margin-right:auto;overflow-x:hidden}
+@media(max-width:900px){.main{margin-left:0;padding:var(--sp-5) var(--sp-4) var(--sp-7)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.main{animation:fadeIn .3s ease}
+.ph{margin-bottom:var(--sp-6);padding-bottom:var(--sp-5);border-bottom:1px solid rgba(255,255,255,.045)}
+.ph-eyebrow{font-size:var(--fs-label);letter-spacing:.12em;text-transform:uppercase;color:var(--teal);font-weight:var(--fw-semibold);margin-bottom:10px;display:flex;align-items:center;gap:var(--sp-2)}
+.ph-eyebrow::before{content:'';display:block;width:20px;height:2px;background:var(--teal)}
+.ph-title{font-size:28px;font-weight:var(--fw-bold);letter-spacing:-.025em;line-height:1.15;margin-bottom:var(--sp-3)}
+.ph-title > span{color:var(--teal)}
+.ph-desc{font-size:var(--fs-body);color:var(--text2);max-width:640px;line-height:1.65}
+.rs{margin-bottom:var(--sp-7)}
+.sh{display:flex;align-items:center;gap:var(--sp-4);margin-bottom:var(--sp-5);padding-bottom:var(--sp-4);border-bottom:1px solid rgba(255,255,255,.05)}
+.si{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.si.spo2{background:rgba(61,224,208,.12)}.si.hr{background:rgba(255,107,122,.12)}.si.sleep{background:rgba(167,139,250,.12)}
+.si.clin{background:rgba(88,166,255,.12)}.si.comp{background:rgba(251,146,60,.12)}.si.proj{background:rgba(57,217,138,.12)}.si.sig{background:rgba(255,184,77,.12)}
+.st{font-size:19px;font-weight:var(--fw-bold);letter-spacing:-.02em}
+.sd{font-size:var(--fs-card-sub);color:var(--text3);margin-top:2px}
+.mc{position:relative;background:var(--surface);border:1px solid rgba(255,255,255,.055);border-radius:var(--r-md);padding:20px var(--sp-5);margin-bottom:var(--sp-3);transition:border-color .2s;min-width:0}
+.mc:hover{border-color:rgba(61,224,208,.18)}
+.mh{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-3);margin-bottom:var(--sp-3);flex-wrap:wrap}
+.mi{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.ma{font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:var(--fw-semibold);color:var(--teal);letter-spacing:-.01em}
+.mf{font-size:var(--fs-card-sub);font-weight:var(--fw-semibold);color:var(--text)}
+.mt{font-size:10px;font-weight:var(--fw-bold);letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:999px;flex-shrink:0;margin-top:2px}
+.tc{background:rgba(61,224,208,.1);color:var(--teal);border:1px solid rgba(61,224,208,.2)}
+.ta{background:rgba(88,166,255,.1);color:var(--blue);border:1px solid rgba(88,166,255,.2)}
+.tr{background:rgba(167,139,250,.1);color:var(--purple);border:1px solid rgba(167,139,250,.2)}
+.md{font-size:13px;color:var(--text2);line-height:1.65;margin-bottom:var(--sp-4)}
+.fb{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-left:3px solid var(--blue);border-radius:0 10px 10px 0;padding:11px var(--sp-4);margin-bottom:var(--sp-3)}
+.fl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;font-weight:var(--fw-semibold);margin-bottom:5px}
+.ft{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--blue);line-height:1.75}
+.fn{font-size:11.5px;color:var(--text3);margin-top:6px;line-height:1.55}
+.nt{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px}
+.nt th{font-size:10px;font-weight:var(--fw-bold);letter-spacing:.07em;text-transform:uppercase;color:var(--text4);padding:6px 10px;text-align:left;border-bottom:1px solid rgba(255,255,255,.06)}
+.nt td{padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.03)}
+.nt tr:last-child td{border-bottom:none}
+.nt tr:hover td{background:rgba(255,255,255,.02)}
+.nr{font-family:'IBM Plex Mono',monospace;font-weight:var(--fw-regular)}
+.ok td{color:var(--green)}.wn td{color:var(--amber)}.bd td{color:var(--orange)}
+tr.bd td{color:var(--orange);font-weight:600}
+tr.bd .nr{color:var(--orange);font-weight:600}
+.cr td{color:var(--red)}
+.ok .nr,.wn .nr,.bd .nr,.cr .nr{color:inherit}
+.ok td:first-child,.wn td:first-child,.bd td:first-child,.cr td:first-child{color:var(--text2)}
+.co{display:flex;gap:var(--sp-3);padding:13px 15px;border-radius:11px;margin-bottom:var(--sp-3);font-size:12.5px;line-height:1.6}
+.co-i{background:rgba(88,166,255,.07);border:1px solid rgba(88,166,255,.18);color:var(--text2)}
+.co-w{background:rgba(255,184,77,.07);border:1px solid rgba(255,184,77,.2);color:var(--text2)}
+.co-ic{font-size:15px;flex-shrink:0;margin-top:1px}
+.co strong{color:var(--text);font-weight:var(--fw-semibold)}
+.mg{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:var(--sp-3);width:100%;box-sizing:border-box;min-width:0}
+.sm-card{padding:12px var(--sp-4);background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:12px}
+.sm-lbl{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--teal);margin-bottom:4px}
+.sm-txt{font-size:12px;color:var(--text2)}
+.divider{height:1px;background:rgba(255,255,255,.04);margin:40px 0}
+
+
+
+/* ════════════════════════════════════════════
+   MOBILE OVERHAUL — injected patch
+   ════════════════════════════════════════════ */
+
+/* Fixed mobile top bar */
+.mob-bar{
+  display:none;
+  position:fixed;top:0;left:0;right:0;z-index:999;
+  height:54px;
+  background:rgba(11,15,20,.92);
+  border-bottom:1px solid rgba(255,255,255,.08);
+  padding:0 14px;
+  align-items:center;justify-content:space-between;
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+}
+.mob-bar-logo{display:flex;align-items:center;gap:10px}
+.mob-bar-badge{
+  width:32px;height:32px;border-radius:8px;
+  background:linear-gradient(135deg,#3DE0D0,#58A6FF);
+  display:flex;align-items:center;justify-content:center;
+  color:#041014;font-weight:800;font-size:14px;flex-shrink:0;
+}
+.mob-bar-name{font-weight:700;font-size:13.5px;letter-spacing:-.02em}
+.mob-bar-btn{
+  width:44px;height:44px;border-radius:10px;
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.1);
+  color:#9FB0C3;
+  font-size:20px;line-height:1;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;
+  
+  touch-action:manipulation;
+}
+.mob-bar-btn:active{background:rgba(61,224,208,.15);color:#3DE0D0;}
+
+/* Slide-in drawer */
+.mob-drawer-bg{
+  display:block;opacity:0;visibility:hidden;transition:opacity .22s ease,visibility .22s ease;
+  position:fixed;inset:0;z-index:1000;
+  background:rgba(0,0,0,.65);
+  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);
+}
+.mob-drawer-bg.open{opacity:1;visibility:visible;}
+.mob-drawer-panel{
+  position:absolute;top:0;left:0;bottom:0;
+  width:min(290px,82vw);
+  background:var(--bg);
+  border-right:1px solid rgba(255,255,255,.08);
+  overflow-y:auto;
+  padding:16px 12px 40px;
+  transform:translateX(-100%);
+  transition:transform .22s cubic-bezier(.16,1,.3,1);
+}
+.mob-drawer-bg.open .mob-drawer-panel{transform:translateX(0);}
+.mob-drawer-top{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 8px;margin-bottom:20px;
+}
+.mob-drawer-close{
+  width:36px;height:36px;border-radius:8px;
+  background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.1);
+  color:#9FB0C3;font-size:18px;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;-webkit-tap-highlight-color:transparent;
+}
+.mob-drawer-close:active{background:rgba(255,255,255,.14);}
+
+/* ─── Responsive breakpoint ─── */
+@media(max-width:900px){
+  .mob-bar{display:flex;}
+  .app{
+    display:block;          /* kill the 2-col grid */
+    padding-top:54px;       /* clear the fixed bar */
+  }
+  .sidebar{display:none;}   /* hide desktop sidebar */
+  .main{
+    padding:20px 15px 100px;
+    max-width:100%;
+  }
+  /* Hero title scales down */
+  .ph-title{font-size:clamp(20px,5vw,28px);}
+  .ph-desc{font-size:13px;}
+  /* Metric cards */
+  .mh{flex-direction:column;align-items:flex-start;gap:8px;}
+  .ma{font-size:clamp(13px,4vw,17px);}
+  /* Card grid: single column */
+  .mg{grid-template-columns:1fr;}
+  /* Tables: horizontal scroll */
+  .nt-wrap{overflow-x:auto;margin:4px 0;width:100%;box-sizing:border-box;max-width:100%;}
+  .nt{min-width:300px;font-size:12px;}
+  .nt th,.nt td{padding:5px 8px;}
+  /* Formula code wrap */
+  .ft{overflow-wrap:break-word;word-break:normal;white-space:pre-wrap;font-size:11px;}
+  /* Callout boxes */
+  .co{flex-direction:column;gap:6px;}
+  /* Abbr grid */
+  #abbrGrid{grid-template-columns:1fr!important;}
+  /* Back to top */
+  
+  /* Section headings */
+  .st{font-size:17px;}
+  .rs{margin-bottom:40px;}
+}
+@media(max-width:480px){
+  .mc{position:relative;padding:14px 13px;border-radius:14px;}
+  .si{width:30px;height:30px;font-size:14px;}
+  .st{font-size:15px;}
+  .mf{font-size:12.5px;}
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   QUICK JUMP INDEX
+═══════════════════════════════════════════════════════════ */
+.qj-wrap{margin-bottom:var(--sp-6);border-radius:var(--r-md);border:1px solid var(--border2);overflow:hidden}
+.qj-toggle{width:100%;background:var(--surface2);border:none;padding:13px var(--sp-4);display:flex;align-items:center;gap:10px;cursor:pointer;color:var(--text2);font-size:var(--fs-sm);font-family:'Inter',system-ui,sans-serif;text-align:left;transition:background .18s,color .18s}
+.qj-toggle:hover{background:var(--surface3);color:var(--text)}
+.qj-toggle svg:first-child{color:var(--teal);flex-shrink:0}
+.qj-count{margin-left:auto;font-size:11px;color:var(--text3);background:rgba(255,255,255,.04);padding:2px 8px;border-radius:20px;border:1px solid var(--border)}
+.qj-arrow{margin-left:6px;flex-shrink:0;transition:transform .25s cubic-bezier(.16,1,.3,1)}
+.qj-toggle[aria-expanded="true"] .qj-arrow{transform:rotate(180deg)}
+
+.qj-panel{border-top:1px solid var(--border);background:var(--surface)}
+.qj-panel[hidden]{display:none}
+
+.qj-search-wrap{display:flex;align-items:center;gap:8px;padding:10px var(--sp-4);border-bottom:1px solid var(--border)}
+.qj-search-wrap svg{color:var(--text3);flex-shrink:0}
+.qj-search{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:var(--fs-sm);font-family:'Inter',system-ui,sans-serif;min-width:0}
+.qj-search::placeholder{color:var(--text4)}
+.qj-clear{background:none;border:none;cursor:pointer;color:var(--text3);padding:0 4px;font-size:13px;line-height:1}
+.qj-clear:hover{color:var(--text)}
+
+.qj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:0;border-bottom:1px solid var(--border)}
+.qj-group{padding:var(--sp-3) var(--sp-4);border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
+.qj-group:last-child{border-right:none}
+.qj-group[data-hidden]{display:none}
+.qj-group-header{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px}
+.qj-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+
+.qj-links{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.qj-sec{font-size:12px;font-weight:500;color:var(--text2);text-decoration:none;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:4px;padding:2px 8px;transition:background .14s,color .14s,border-color .14s;white-space:nowrap}
+.qj-sec:hover{background:rgba(61,224,208,.1);border-color:var(--teal);color:var(--teal)}
+
+.qj-metrics{display:flex;flex-wrap:wrap;gap:3px}
+.qm{font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--text3);text-decoration:none;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.06);border-radius:3px;padding:1px 6px;transition:background .14s,color .14s;white-space:nowrap}
+.qm:hover,.qm.qm-match{background:rgba(61,224,208,.08);color:var(--teal);border-color:rgba(61,224,208,.25)}
+.qm.qm-hide{display:none}
+
+.qj-no-results{padding:var(--sp-4);text-align:center;color:var(--text3);font-size:var(--fs-sm)}
+
+/* ═══════════════════════════════════════════════════════════
+   BACK TO TOP BUTTON
+═══════════════════════════════════════════════════════════ */
+
+
+
+
+
+/* ═══════════════════════════════════════════════════════════
+   ACTIVE NAV HIGHLIGHT (via IntersectionObserver)
+═══════════════════════════════════════════════════════════ */
+.sidebar .nav a.nav-active{color:var(--teal);background:rgba(61,224,208,.08);border-radius:4px}
+.sidebar .nav a.nav-active .nav-dot{background:var(--teal);box-shadow:0 0 6px rgba(61,224,208,.5)}
+
+/* ═══════════════════════════════════════════════════════════
+   MOBILE QUICK JUMP tweaks
+═══════════════════════════════════════════════════════════ */
+@media(max-width:900px){
+  .qj-grid{grid-template-columns:1fr}
+  .qj-group{border-right:none}
+  #btt{bottom:20px;right:16px}
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SECTION BREADCRUMB "↑ Back to index" link
+═══════════════════════════════════════════════════════════ */
+.sec-back{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text4);text-decoration:none;margin-top:var(--sp-3);transition:color .14s}
+.sec-back:hover{color:var(--teal)}
+
+
+/* Mobile QJ toggle tap fix */
+.qj-toggle{touch-action:manipulation;}
+.qm{touch-action:manipulation;}
+.qj-sec{touch-action:manipulation;}
+/* QJ panel scrollable on mobile */
+@media(max-width:900px){
+  .qj-panel{max-height:70vh;overflow-y:auto;}
+  .qj-toggle{font-size:13px;padding:11px 14px;}
+  .qj-count{display:none;}
+  #btt{bottom:22px;right:16px;z-index:95;}
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   ABBREVIATION INDEX ENHANCEMENTS
+═══════════════════════════════════════════════════════════ */
+.abbr-search-wrap{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:10px}
+.abbr-search-wrap svg{color:var(--text3);flex-shrink:0}
+.abbr-search-inp{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:13px;font-family:'Inter',system-ui,sans-serif}
+.abbr-search-inp::placeholder{color:var(--text4)}
+.abbr-count-label{font-size:11px;color:var(--text3);white-space:nowrap;background:rgba(255,255,255,.04);padding:2px 8px;border-radius:20px;border:1px solid var(--border)}
+
+.abbr-alpha-wrap{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px}
+.abbr-tab{background:transparent;border:1px solid var(--border);border-radius:5px;color:var(--text3);font-size:10px;font-family:'IBM Plex Mono',monospace;font-weight:600;padding:3px 7px;cursor:pointer;transition:background .12s,color .12s,border-color .12s;touch-action:manipulation}
+.abbr-tab:hover{background:rgba(255,255,255,.05);color:var(--text2)}
+.abbr-tab.abbr-tab-active{background:rgba(61,224,208,.12);color:var(--teal);border-color:rgba(61,224,208,.3)}
+
+.abbr-link:hover{opacity:.8}
+.abbr-legend{font-size:11px;color:var(--text4);margin-top:10px;line-height:1.6}
+
+/* ── Top Abbr Strip ── */
+.top-abbr-strip{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:8px 14px;margin-bottom:var(--sp-4);flex-wrap:wrap}
+.tas-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);white-space:nowrap;flex-shrink:0}
+.tas-pills{display:flex;flex-wrap:wrap;gap:4px;flex:1;min-width:0}
+.tas-pill{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);text-decoration:none;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.055);border-radius:4px;padding:2px 7px;transition:background .12s,color .12s;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.tas-pill:hover{background:rgba(61,224,208,.08);color:var(--teal);border-color:rgba(61,224,208,.2)}
+.tas-pill.tas-link{color:var(--teal);border-color:rgba(61,224,208,.15)}
+.tas-all{font-size:11px;color:var(--text3);text-decoration:none;white-space:nowrap;flex-shrink:0;transition:color .14s}
+.tas-all:hover{color:var(--teal)}
+
+@media(max-width:900px){
+  .abbr-alpha-wrap{gap:2px}
+  .abbr-tab{font-size:9px;padding:3px 5px}
+  .top-abbr-strip{display:none} /* on mobile the abbr strip clutters; use drawer instead */
+}
+
+
+/* ── Evidence Badge System v2 (metric-registry.js evidence taxonomy: measured · validated · emerging · experimental · heuristic) ── */
+.ev{display:inline-flex;align-items:center;margin-left:5px;vertical-align:middle;flex-shrink:0;line-height:1;}
+.mc{position:relative;position:relative;}
+/* Corner badge: sits bottom-right of card, never overlaps the metric value */
+
+/* Dense table: badge leads the name (left gutter) — handled inline by HTML order */
+.nt td .ev{margin:0 5px 0 0;}
+/* Chip badge: after value */
+.nr-chip .ev{margin-left:3px;}
+/* Tooltip via title attr — no extra JS needed */
+.ev svg{cursor:help;}
+
+/* #09 fix: neutral/median table rows */
+.nm td { color: var(--text2); }
+.nm .nr { color: var(--text2); }
+/* #06 fix: no-normative-table note */
+.no-norm-note {
+  font-size: 11.5px;
+  color: var(--text4);
+  font-style: italic;
+  margin-top: 8px;
+  line-height: 1.55;
+}
+
+/* Dense table metric-name column: badge in left gutter, label full-width */
+td.fmt-m{display:flex;align-items:center;gap:5px;min-width:0;}
+td.fmt-m .ev{flex-shrink:0;}
+
+/* ── Light Theme (body.light) — ANS Design System v1.1 compliant ── */
+body.light {
+  --bg:       #F2F5F9;
+  --surface:  #FFFFFF;
+  --surface2: #EBF0F7;
+  --surface3: #DDE4EF;
+  --border:   #C8D4E4;
+  --border2:  #B0C0D8;
+  --text:     #0F1923;
+  --text2:    #3A4E65;
+  --text3:    #6A7F96;
+  --text4:    #8FA0B4;
+  --b:  1px solid rgba(0,0,0,.07);
+
+
+}
+body.light .sidebar {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
+  box-shadow: inset -1px 0 0 rgba(0,0,0,.07), 2px 0 20px rgba(0,0,0,.06);
+}
+
+
+/* ── Table row status classes (referenced throughout but missing from inline CSS) ── */
+tr.ok td  { color: var(--status-ok,      #39D98A); }
+tr.wn td  { color: var(--status-caution,  #FFB84D); }
+tr.cr td  { color: var(--status-concern,  #FF6B7A); }
+
+tr.nm td  { color: var(--text2); }
+tr.ok .nr { color: var(--status-ok,      #39D98A); }
+tr.wn .nr { color: var(--status-caution,  #FFB84D); }
+tr.cr .nr { color: var(--status-concern,  #FF6B7A); }
+
+tr.nm .nr { color: var(--text2); }
+
+/* ── --fs-sm undefined token — define to match design system scale ── */
+
+
+/* ── Tablet breakpoint aligned to ans-design-3 standard (768px) ── */
+@media(max-width:768px){
+  .mg { grid-template-columns: 1fr; }
+  .nt-wrap { overflow-x: auto; }
+  .nt { min-width: 480px; }
+}
+
+/* .abbr-link — clickable abbreviation in the abbreviation index */
+.abbr-link {
+  color: var(--teal);
+  text-decoration: none;
+  border-bottom: 1px dotted rgba(61,224,208,.4);
+  cursor: pointer;
+  transition: color .15s;
+}
+.abbr-link:hover { color: var(--blue); border-bottom-color: var(--blue); }
+
+/* .theme-icon — emoji inside theme toggle button */
+.theme-icon { font-size: 14px; margin-right: 3px; }
+
+/* BUG 1 FIX: scope content widths to content column */
+.rs { width: 100%; box-sizing: border-box; }
+.mg { max-width: 100%; }
+.nt-wrap { max-width: 100%; }
+
+/* ── FIX 4: Light theme component overrides ── */
+body.light .fb { background:rgba(88,166,255,.06); border-color:rgba(88,166,255,.15); border-left-color:var(--blue); }
+body.light .co-i { background:rgba(88,166,255,.08); border-color:rgba(88,166,255,.2); }
+body.light .co-w { background:rgba(255,184,77,.08); border-color:rgba(255,184,77,.22); }
+body.light .mc { background:var(--surface); border-color:rgba(0,0,0,.08); }
+body.light .mc:hover { border-color:rgba(61,224,208,.25); }
+body.light .sm-card { background:rgba(0,0,0,.03); border-color:rgba(0,0,0,.08); }
+body.light .nt tr:hover td { background:rgba(0,0,0,.03); }
+body.light .nt th { border-bottom-color:rgba(0,0,0,.08); }
+body.light .nt td { border-bottom-color:rgba(0,0,0,.04); }
+body.light .qj-sec { background:rgba(0,0,0,.04); border-color:rgba(0,0,0,.1); }
+body.light .qm { background:rgba(0,0,0,.025); border-color:rgba(0,0,0,.08); }
+body.light .ph { border-bottom-color:rgba(0,0,0,.07); }
+body.light .sh { border-bottom-color:rgba(0,0,0,.07); }
+body.light .divider { background:rgba(0,0,0,.06); }
+body.light .si.spo2  { background:rgba(61,224,208,.15); }
+body.light .si.hr    { background:rgba(255,107,122,.15); }
+body.light .si.sleep { background:rgba(167,139,250,.15); }
+body.light .si.clin  { background:rgba(88,166,255,.15); }
+
+/* ── FIX 5: Light theme mobile components ── */
+body.light .mob-bar { background:rgba(242,245,249,.92); border-bottom-color:rgba(0,0,0,.1); color:var(--text); }
+body.light .mob-bar-name { color:var(--text); }
+body.light .mob-bar-btn { background:rgba(0,0,0,.05); border-color:rgba(0,0,0,.1); color:var(--text3); }
+body.light .mob-drawer-panel { background:#FFFFFF; border-right-color:rgba(0,0,0,.1); }
+body.light .mob-drawer-close { background:rgba(0,0,0,.05); border-color:rgba(0,0,0,.1); }
+body.light .mob-drawer-bg { background:rgba(0,0,0,.3); }
+
+/* Ensure intro footer and all direct <main> children are properly offset */
+.main > div, .main > section, .main > p { max-width: 100%; box-sizing: border-box; }
+
+.ev-legend{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:10px 14px;margin-top:var(--sp-3);font-size:11.5px;color:var(--text3);line-height:1.7;}
+body.light .ev-legend{background:rgba(0,0,0,.03);border-color:rgba(0,0,0,.08);}
+
+/* ── Evidence badge disc system (spec-compliant CSS-only badges) ── */
+/* Evidence tier discs (.ev-measured / .ev-validated / .ev-emerging / .ev-experimental /
+   .ev-heuristic) are sourced from the linked dex-badges.css — the canonical visual mirror of
+   MetricRegistry.BADGE_CSS — and are no longer inlined here (one visual source, not a third
+   copy). DEX-EVENT-UNIFY-AND-CSV-BRIEF Task C3. */
+
+/* Evidence legend strip */
+.ev-legend-strip { display:flex; align-items:center; gap:7px; flex-wrap:wrap; font-size:11.5px;
+                   color:var(--text3); background:var(--surface2); border:1px solid var(--border);
+                   border-radius:10px; padding:9px 14px; margin-bottom:var(--sp-4); }
+.ev-legend-strip .lg-title { font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.08em;
+                              text-transform:uppercase; color:var(--text4); margin-right:4px; }
+.ev-legend-strip .lg-item  { display:inline-flex; align-items:center; gap:6px; }
+.ev-legend-strip .lg-item b { color:var(--text2); font-weight:600; }
+.ev-legend-strip .sep      { width:1px; height:13px; background:var(--border2); margin:0 4px; }
+.ev-legend-strip .lg-note  { margin-left:auto; color:var(--text4); font-size:10.5px; }
+
+
+
+
+
+/* body.light overrides */
+body.light .ev-legend-strip { background:rgba(0,0,0,.02); border-color:rgba(0,0,0,.08); }
+body.light .ev-measured, body.light .ev-validated, body.light .ev-emerging,
+body.light .ev-experimental, body.light .ev-heuristic { border-color:var(--surface); }
+
+/* ── Evidence corner badge (spec placement: bottom-right of card) ── */
+.ev-corner {
+  position: absolute;
+  bottom: 12px;
+  right: 14px;
+  z-index: 2;
+  cursor: help;
+  transition: opacity .15s;
+}
+.ev-corner:hover { opacity: .7; }
+/* Ensure .mc clips the badge correctly */
+.mc { overflow: visible; }
+</style>
+</head>
+<body>
+<button id="themeToggleBtn" aria-label="Toggle light and dark theme" style="position:fixed;bottom:72px;right:20px;z-index:999;background:rgba(61,224,208,.08);border:1px solid rgba(61,224,208,.22);color:var(--teal);border-radius:999px;padding:8px 16px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:.03em;transition:background .15s;backdrop-filter:blur(8px);" onmouseenter="this.style.background='rgba(61,224,208,.16)'" onmouseleave="this.style.background='rgba(61,224,208,.08)'"><span class="theme-icon">🌙</span> <span id="themeLabel">Dark</span></button>
+
+<div class="mob-bar" id="mobBar">
+  <div class="mob-bar-logo"><div class="mob-bar-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#041014" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 13 6 13 8 7 11 17 13 11 16 13 22 13"/></svg></div><span class="mob-bar-name">ECGDex</span></div>
+  <button class="mob-bar-btn" id="mobMenuBtn" aria-label="Open navigation menu" onclick="openDrawer()">☰</button>
+</div>
+
+<div class="mob-drawer-bg" id="mobDrawerBg" onclick="handleBgClick(event)">
+  <div class="mob-drawer-panel" id="mobDrawerPanel">
+    <div class="mob-drawer-top">
+      <div style="display:flex;align-items:center;gap:9px">
+        <div style="width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,#3DE0D0,#58A6FF);display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#041014" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 13 6 13 8 7 11 17 13 11 16 13 22 13"/></svg></div>
+        <span style="font-weight:700;font-size:13px;color:#F4F7FB">Sections</span>
+      </div>
+      <button class="mob-drawer-close" aria-label="Close navigation" onclick="closeDrawer()">✕</button>
+    </div>
+    <div style="margin-bottom:14px;padding:0 4px">
+      <a href="#quick-jump" onclick="closeDrawer()" style="display:flex;align-items:center;gap:8px;background:rgba(61,224,208,.07);border:1px solid rgba(61,224,208,.18);border-radius:8px;padding:9px 12px;text-decoration:none;color:var(--teal);font-size:13px;font-weight:500;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Quick Jump &amp; Search
+      </a>
+    </div>
+    
+  <div class="nav-lbl">Signal &amp; Beats</div>
+  <div class="nav"><a href="#signal"><span class="nav-dot"></span>Beat Detection &amp; Quality</a></div>
+  <div class="nav-lbl">Heart Rate &amp; HRV</div>
+  <div class="nav">
+    <a href="#hr"><span class="nav-dot"></span>Heart Rate</a>
+    <a href="#hrv-time"><span class="nav-dot"></span>HRV — Time Domain</a>
+    <a href="#hrv-poincare"><span class="nav-dot"></span>HRV — Poincaré</a>
+    <a href="#hrv-freq"><span class="nav-dot"></span>HRV — Frequency</a>
+    <a href="#hrv-nonlinear"><span class="nav-dot"></span>Nonlinear &amp; Complexity</a>
+  </div>
+  <div class="nav-lbl">Repolarisation &amp; Rhythm</div>
+  <div class="nav">
+    <a href="#qtc"><span class="nav-dot"></span>QTc</a>
+    <a href="#rhythm"><span class="nav-dot"></span>Rhythm &amp; AF Screen</a>
+    <a href="#cvhr"><span class="nav-dot"></span>CVHR Apnea Signature</a>
+  </div>
+  <div class="nav-lbl">Coupling &amp; Motion</div>
+  <div class="nav">
+    <a href="#crc"><span class="nav-dot"></span>Cardiorespiratory Coupling</a>
+    <a href="#accel"><span class="nav-dot"></span>Accelerometer</a>
+    <a href="#sleep-stage"><span class="nav-dot"></span>Sleep-Stage Estimate</a>
+  </div>
+  <div class="nav-lbl">Cross-check &amp; Reference</div>
+  <div class="nav">
+    <a href="#xcheck"><span class="nav-dot"></span>Device Cross-Check</a>
+    <a href="#sig-qual"><span class="nav-dot"></span>Signal Quality</a>
+    <a href="#acad-refs"><span class="nav-dot"></span>Academic References</a>
+    <a href="#abbr"><span class="nav-dot"></span>Abbreviation Index</a>
+  </div>
+  </div>
+</div>
+
+<div class="app">
+<nav class="sidebar">
+  <div class="logo"><div class="logo-badge"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#041014" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 13 6 13 8 7 11 17 13 11 16 13 22 13"/></svg></div><div><div class="logo-title">ECGDex</div><div class="logo-sub">Reference Guide</div></div></div>
+  
+  <div class="nav-lbl">Signal &amp; Beats</div>
+  <div class="nav"><a href="#signal"><span class="nav-dot"></span>Beat Detection &amp; Quality</a></div>
+  <div class="nav-lbl">Heart Rate &amp; HRV</div>
+  <div class="nav">
+    <a href="#hr"><span class="nav-dot"></span>Heart Rate</a>
+    <a href="#hrv-time"><span class="nav-dot"></span>HRV — Time Domain</a>
+    <a href="#hrv-poincare"><span class="nav-dot"></span>HRV — Poincaré</a>
+    <a href="#hrv-freq"><span class="nav-dot"></span>HRV — Frequency</a>
+    <a href="#hrv-nonlinear"><span class="nav-dot"></span>Nonlinear &amp; Complexity</a>
+  </div>
+  <div class="nav-lbl">Repolarisation &amp; Rhythm</div>
+  <div class="nav">
+    <a href="#qtc"><span class="nav-dot"></span>QTc</a>
+    <a href="#rhythm"><span class="nav-dot"></span>Rhythm &amp; AF Screen</a>
+    <a href="#cvhr"><span class="nav-dot"></span>CVHR Apnea Signature</a>
+  </div>
+  <div class="nav-lbl">Coupling &amp; Motion</div>
+  <div class="nav">
+    <a href="#crc"><span class="nav-dot"></span>Cardiorespiratory Coupling</a>
+    <a href="#accel"><span class="nav-dot"></span>Accelerometer</a>
+    <a href="#sleep-stage"><span class="nav-dot"></span>Sleep-Stage Estimate</a>
+  </div>
+  <div class="nav-lbl">Cross-check &amp; Reference</div>
+  <div class="nav">
+    <a href="#xcheck"><span class="nav-dot"></span>Device Cross-Check</a>
+    <a href="#sig-qual"><span class="nav-dot"></span>Signal Quality</a>
+    <a href="#acad-refs"><span class="nav-dot"></span>Academic References</a>
+    <a href="#abbr"><span class="nav-dot"></span>Abbreviation Index</a>
+  </div>
+  <div class="sidebar-bottom">
+    <div class="sidebar-data-card">
+      <div class="data-pill"><span class="data-dot"></span> Reference Guide</div>
+      <div class="sidebar-data-info">Apache-2.0 License</div>
+    </div>
+  </div>
+</nav>
+
+<main class="main">
+<div class="ph">
+  <div class="ph-eyebrow">ECGDex — Technical Reference</div>
+  <h1 class="ph-title">Metrics, Formulas &amp;<br><span>Normal Values</span></h1>
+  <p class="ph-desc">Reference for every metric, formula and threshold ECGDex derives from a single-lead wearable ECG — beat detection and quality, the full HRV panel (time, Poincaré, frequency, nonlinear), QTc, rhythm and the AF screen, CVHR, cardiorespiratory coupling and motion. Companion to the analyzer output; not a substitute for a clinical ECG or sleep study.</p>
+
+<div style="margin:16px 0 20px;display:flex;flex-direction:column;gap:10px;">
+  <div style="display:flex;gap:10px;align-items:flex-start;background:rgba(255,180,0,.06);border:1px solid rgba(255,180,0,.18);border-radius:12px;padding:12px 16px;font-size:12.5px;color:var(--text2,#9FB0C3);line-height:1.6;">
+    <span style="font-size:16px;line-height:1;flex:none">⚠️</span>
+    <div><strong style="color:var(--text,#F4F7FB)">Important:</strong> All values come from a single-lead wearable ECG (µV @ 130 Hz). They are <strong>not equivalent to a diagnostic 12-lead ECG or polysomnography</strong> and do not constitute a medical diagnosis. The <strong>AF Screen is a directional irregularity flag, not a diagnosis</strong>, and sleep stages are heuristic estimates — there is no EEG.</div>
+  </div>
+
+  <div class="ev-legend-strip">
+    <span class="lg-title">Evidence</span>
+    <span class="lg-item"><span class="ev-measured"></span><b>Measured</b></span><span class="sep"></span>
+    <span class="lg-item"><span class="ev-validated"></span><b>Validated</b></span><span class="sep"></span>
+    <span class="lg-item"><span class="ev-emerging"></span><b>Emerging</b></span><span class="sep"></span>
+    <span class="lg-item"><span class="ev-experimental"></span><b>Experimental</b></span><span class="sep"></span>
+    <span class="lg-item"><span class="ev-heuristic"></span><b>Heuristic</b></span>
+    <span class="lg-note">disc shape encodes trust · hover any badge for detail</span>
+  </div>
+</div>
+</div><!-- /.ph -->
+
+<div class="qj-wrap" id="quick-jump">
+  <button class="qj-toggle" id="qjToggle" aria-expanded="false" aria-controls="qjPanel">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+    Quick Jump Index
+    <span class="qj-count">31 metrics · 14 sections</span>
+    <svg class="qj-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
+  <div class="qj-panel" id="qjPanel" hidden>
+    <div class="qj-search-wrap">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" class="qj-search" id="qjSearch" placeholder="Filter metrics…" autocomplete="off" spellcheck="false" inputmode="search">
+      <button class="qj-clear" id="qjClear" aria-label="Clear search" hidden>✕</button>
+    </div>
+    
+    <div class="qj-grid" id="qjGrid">
+      <div class="qj-group" data-group="signal">
+        <div class="qj-group-header"><span class="qj-dot" style="background:var(--red)"></span>Signal &amp; Heart Rate</div>
+        <div class="qj-links"><a href="#signal" class="qj-sec">Beat Detection</a><a href="#hr" class="qj-sec">Heart Rate</a></div>
+        <div class="qj-metrics"><a href="#signal" class="qm">% Analyzable</a><a href="#signal" class="qm">Coverage</a><a href="#signal" class="qm">Correction</a><a href="#signal" class="qm">Mean SQI</a><a href="#signal" class="qm">Ectopy</a><a href="#hr" class="qm">Mean HR</a></div>
+      </div>
+      <div class="qj-group" data-group="hrv">
+        <div class="qj-group-header"><span class="qj-dot" style="background:var(--teal)"></span>HRV</div>
+        <div class="qj-links"><a href="#hrv-time" class="qj-sec">Time Domain</a><a href="#hrv-poincare" class="qj-sec">Poincaré</a><a href="#hrv-freq" class="qj-sec">Frequency</a><a href="#hrv-nonlinear" class="qj-sec">Nonlinear</a></div>
+        <div class="qj-metrics"><a href="#hrv-time" class="qm">rMSSD</a><a href="#hrv-time" class="qm">SDNN</a><a href="#hrv-time" class="qm">pNN50</a><a href="#hrv-time" class="qm">ln rMSSD</a><a href="#hrv-poincare" class="qm">SD1</a><a href="#hrv-poincare" class="qm">SD2</a><a href="#hrv-poincare" class="qm">SD1/SD2</a><a href="#hrv-freq" class="qm">LF/HF</a><a href="#hrv-freq" class="qm">Resp Rate</a><a href="#hrv-freq" class="qm">VLF/LF/HF</a><a href="#hrv-nonlinear" class="qm">DFA α1</a><a href="#hrv-nonlinear" class="qm">SampEn</a><a href="#hrv-nonlinear" class="qm">Triangular Index</a><a href="#hrv-nonlinear" class="qm">Decel. capacity</a><a href="#hrv-nonlinear" class="qm">Accel. capacity</a><a href="#hrv-nonlinear" class="qm">Fragmentation</a></div>
+      </div>
+      <div class="qj-group" data-group="rhythm">
+        <div class="qj-group-header"><span class="qj-dot" style="background:var(--orange)"></span>Repolarisation &amp; Rhythm</div>
+        <div class="qj-links"><a href="#qtc" class="qj-sec">QTc</a><a href="#rhythm" class="qj-sec">Rhythm &amp; AF</a><a href="#cvhr" class="qj-sec">CVHR</a></div>
+        <div class="qj-metrics"><a href="#qtc" class="qm">QTc</a><a href="#qtc" class="qm">QTc (Fridericia)</a><a href="#rhythm" class="qm">AF Screen</a><a href="#rhythm" class="qm">PVC/PAC</a><a href="#cvhr" class="qm">CVHR index</a></div>
+      </div>
+      <div class="qj-group" data-group="coupling">
+        <div class="qj-group-header"><span class="qj-dot" style="background:var(--blue)"></span>Coupling, Motion &amp; Cross-check</div>
+        <div class="qj-links"><a href="#crc" class="qj-sec">Coupling</a><a href="#accel" class="qj-sec">Accelerometer</a><a href="#sleep-stage" class="qj-sec">Sleep Stage</a><a href="#xcheck" class="qj-sec">Cross-Check</a></div>
+        <div class="qj-metrics"><a href="#crc" class="qm">CR Coupling</a><a href="#crc" class="qm">RSA Efficiency</a><a href="#accel" class="qm">Total steps</a><a href="#accel" class="qm">Posture</a><a href="#sleep-stage" class="qm">Sleep Stage</a><a href="#xcheck" class="qm">HRV Stability</a></div>
+      </div>
+      <div class="qj-group" data-group="ref">
+        <div class="qj-group-header"><span class="qj-dot" style="background:var(--text3)"></span>Reference</div>
+        <div class="qj-links"><a href="#sig-qual" class="qj-sec">Signal Quality</a><a href="#acad-refs" class="qj-sec">Academic References</a><a href="#abbr" class="qj-sec">Abbreviation Index</a></div>
+        <div class="qj-metrics"><a href="#sig-qual" class="qm">Data Gaps</a><a href="#sig-qual" class="qm">Off-Body Spans</a><a href="#acad-refs" class="qm">Task Force 1996</a><a href="#acad-refs" class="qm">Bauer 2006</a><a href="#acad-refs" class="qm">Hayano 2011</a><a href="#refs-detect" class="qm">Pan-Tompkins 1985</a><a href="#refs-detect" class="qm">Malik 1989</a></div>
+      </div>
+    </div><!-- /qj-grid -->
+    <div class="qj-no-results" id="qjNoResults" hidden>No metrics match your search.</div>
+  </div>
+</div>
+
+<div class="top-abbr-strip" id="topAbbrStrip">
+  <div class="tas-label">Abbr:</div>
+  <div class="tas-pills" id="tasPills"></div>
+  <a href="#abbr" class="tas-all">full index →</a>
+</div>
+
+
+<div class="rs" id="signal">
+<div class="sh"><div class="si hr">❤️</div><div><div class="st">Signal &amp; Beat Detection</div><div class="sd">Raw ECG → clean NN series: detection, dual-detector agreement, per-beat quality gate</div></div></div>
+<div class="co co-i"><span class="co-ic">ℹ️</span><div>ECGDex ingests <strong>raw single-lead ECG in µV at 130 Hz</strong>. The pipeline band-passes the trace (≈0.5–40 Hz), runs <strong>two independent R-peak detectors</strong> — a <strong>Pan–Tompkins</strong> adaptive double-threshold detector (Pan &amp; Tompkins 1985) as primary, plus a slope+amplitude detector for cross-check — and keeps beats where they <strong>agree</strong>, then gates every beat through a signal-quality check before any RR interval reaches the HRV stage. Rejected beats are interpolated; the surviving series is the <strong>NN (normal-to-normal)</strong> series all downstream metrics use.</div></div><div class="mc"><div class="mh"><div class="mi"><span class="ma">% Analyzable</span></div><span class="mt tc">Core</span></div><p class="md">Fraction of the recording that survives the quality gate and yields usable beats. The headline coverage figure — a direct count, not a model output.</p><div class="fb"><div class="fl">Method</div><div class="ft">%Analyzable = analyzable_samples / total_samples × 100</div><div class="fn">Below ≈50% the night is flagged low-confidence; HRV summaries are withheld or annotated.</div></div><div class="nt-wrap"><table class="nt"><tr><th>% Analyzable</th><th>Interpretation</th></tr><tr class="ok"><td class="nr">≥85%</td><td>Full-confidence analysis</td></tr><tr class="wn"><td class="nr">50–85%</td><td>Usable, gaps annotated</td></tr><tr class="cr"><td class="nr">&lt;50%</td><td>Low confidence — HRV withheld</td></tr></table></div><span class="ev-corner ev-measured" title="% Analyzable — fraction of recording usable for analysis"></span></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">Coverage</span></div><span class="mt ta">Advanced</span></div><p class="md">Share of the intended recording window during which the electrode was on-body and producing signal (distinct from analyzable: a lead can be on-body but noisy).</p><div class="fb"><div class="fl">Method</div><div class="ft">Coverage = on_body_duration / intended_window × 100</div></div><span class="ev-corner ev-measured" title="Coverage — on-body recording coverage"></span></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">Correction</span></div><span class="mt ta">Advanced</span></div><p class="md">Percentage of detected beats that were corrected (interpolated/ replaced) during cleaning. A direct artifact statistic — high correction means HRV rests on more inference than measurement.</p><div class="fb"><div class="fl">Method</div><div class="ft">Correction = corrected_beats / detected_beats × 100</div><div class="fn">Task Force 1996 cautions that &gt;5% editing materially biases time-domain HRV.</div></div><span class="ev-corner ev-measured" title="Correction — beats corrected during cleaning"></span></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">Mean SQI</span></div><span class="mt ta">Advanced</span></div><p class="md">Mean of the per-beat <strong>Signal-Quality Index</strong>. Each beat is scored on three direct checks before acceptance:</p><div class="fb"><div class="fl">Per-beat gate</div><div class="ft">flatline test  ·  kurtosis test  ·  RR-plausibility test</div><div class="fn">Flatline rejects dead segments; kurtosis rejects spike/motion artifact; RR-plausibility rejects physiologically impossible intervals.</div></div><span class="ev-corner ev-measured" title="Mean SQI — mean per-beat signal-quality index"></span></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">Ectopy</span></div><span class="mt ta">Advanced</span></div><p class="md">Count of detected ectopic beats — PVC (premature ventricular contractions) + PAC (premature atrial contractions) — via the <strong>Malik 20% local-median rule</strong>: a beat whose RR deviates &gt;20% from the local median is flagged ectopic and excluded from NN.</p><div class="fb"><div class="fl">Malik rule (Task Force 1996)</div><div class="ft">|RRᵢ − median(local)| / median(local) > 0.20  ⇒  ectopic</div><div class="fn">Ectopic beats are counted here and excluded upstream so they cannot inflate rMSSD/SDNN.</div></div><span class="ev-corner ev-measured" title="Ectopy — detected ectopic-beat count (PVC + PAC)"></span></div>
+<a href="#quick-jump" class="sec-back">↑ back to index</a>
+</div><!-- signal -->
+
+<div class="rs" id="hr">
+<div class="sh"><div class="si hr">❤️</div><div><div class="st">Heart Rate</div><div class="sd">Mean, minimum and maximum HR from accepted R-peaks</div></div></div>
+<div class="mc"><div class="mh"><div class="mi"><span class="ma">Mean HR</span></div><span class="mt tc">Core</span></div><p class="md">Mean instantaneous heart rate over accepted beats, with min/max as the night’s envelope. Computed directly from NN intervals — no model.</p><div class="fb"><div class="fl">Formula</div><div class="ft">HR = 60000 / mean(NN_ms)   ·   HRᵢ = 60000 / NNᵢ</div><div class="fn">Min/max HR are the 1st/99th percentiles of HRᵢ to reject residual artifact.</div></div><div class="nt-wrap"><table class="nt"><tr><th>Resting HR (sleep)</th><th>Band</th></tr><tr class="ok"><td class="nr">45–60 bpm</td><td>Typical nocturnal</td></tr><tr class="nm"><td class="nr">60–75 bpm</td><td>Elevated nocturnal</td></tr><tr class="wn"><td class="nr">&gt;80 bpm</td><td>High — arousal / load</td></tr></table></div><span class="ev-corner ev-measured" title="Mean HR — mean heart rate from detected R-peaks"></span></div>
+<a href="#quick-jump" class="sec-back">↑ back to index</a>
+</div><!-- hr -->
+
+<div class="rs" id="hrv-time">
+<div class="sh"><div class="si hr">❤️</div><div><div class="st">HRV — Time Domain</div><div class="sd">rMSSD, SDNN, pNN50, ln rMSSD — and the duration tiers that gate validity</div></div></div>
+<div class="co co-i"><span class="co-ic">ℹ️</span><div><strong>Duration tiers gate which metrics are reported.</strong> Time-domain HRV is only valid over a window long enough to capture the underlying rhythm:
+   <br>• <strong>ultra-short</strong> (&lt;5 min): HR, rMSSD, pNN50, SD1, HF are reported; <strong>SDNN and LF are withheld</strong> (the window is too short for the slow components to express).
+   <br>• <strong>short</strong> (5 min, the Task Force standard): full short-term panel.
+   <br>• <strong>overnight</strong>: adds VLF, DFA α1 (detrended fluctuation analysis), CVHR (cyclic variation of heart rate) and staging — components that need hours to resolve.</div></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">rMSSD</span></div><span class="mt ta">Advanced</span></div><p class="md">Root mean square of successive RR differences — the standard short-term, beat-to-beat (parasympathetic) HRV index. Valid even in ultra-short windows.</p><div class="fb"><div class="fl">Formula</div><div class="ft">rMSSD = √( (1/(N−1)) · Σ (NNᵢ₊₁ − NNᵢ)² )</div></div><div class="nt-wrap"><table class="nt"><tr><th>rMSSD (overnight)</th><th>Band</th></tr><tr class="cr"><td class="nr">&lt;20 ms</td><td>Low vagal tone</td></tr><tr class="nm"><td class="nr">20–50 ms</td><td>Typical</td></tr><tr class="ok"><td class="nr">&gt;50 ms</td><td>High vagal tone</td></tr></table></div><span class="ev-corner ev-validated" title="rMSSD — Task Force 1996 short-term parasympathetic HRV"></span></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">SDNN</span></div><span class="mt ta">Advanced</span></div><p class="md">Standard deviation of all NN intervals — total variability over the window (sympathetic + parasympathetic). <strong>Withheld in ultra-short windows</strong> where it cannot capture slow rhythms.</p><div class="fb"><div class="fl">Formula</div><div class="ft">SDNN = √( (1/(N−1)) · Σ (NNᵢ − NN̄)² )</div></div><span class="ev-corner ev-validated" title="SDNN — Task Force 1996 overall HRV over the window"></span></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">pNN50</span></div><span class="mt ta">Advanced</span></div><p class="md">Proportion of successive NN pairs differing by more than 50 ms. A robust parasympathetic index that tracks rMSSD but saturates at low HRV.</p><div class="fb"><div class="fl">Formula</div><div class="ft">pNN50 = count(|NNᵢ₊₁ − NNᵢ| > 50 ms) / (N−1) × 100</div></div><span class="ev-corner ev-validated" title="pNN50 — Task Force 1996 successive-difference index"></span></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">ln rMSSD</span></div><span class="mt ta">Advanced</span></div><p class="md">Natural log of rMSSD. rMSSD is right-skewed; the log transform makes night-to-night change roughly linear and is the scale most readiness trackers report.</p><div class="fb"><div class="fl">Formula</div><div class="ft">ln rMSSD = ln( rMSSD_ms )</div></div><span class="ev-corner ev-validated" title="ln rMSSD — log-RMSSD readiness-friendly scale"></span></div>
+<a href="#quick-jump" class="sec-back">↑ back to index</a>
+</div><!-- hrv-time -->
+
+<div class="rs" id="hrv-poincare">
+<div class="sh"><div class="si hr">❤️</div><div><div class="st">HRV — Poincaré Geometry</div><div class="sd">SD1, SD2 and their ratio — nonlinear geometry of the RR scatter</div></div></div>
+<div class="mc" data-tier="research"><div class="mh"><div class="mi"><span class="ma">SD1</span></div><span class="mt tr">Research</span></div><p class="md">Short-axis dispersion of the Poincaré plot (NNᵢ vs NNᵢ₊₁) — instantaneous beat-to-beat variability, algebraically ≈ rMSSD/√2.</p><div class="fb"><div class="fl">Formula</div><div class="ft">SD1 = √( ½ · Var(NNᵢ₊₁ − NNᵢ) )</div></div><span class="ev-corner ev-validated" title="SD1 — Poincaré short-axis (≈ rMSSD/√2)"></span></div><div class="mc" data-tier="research"><div class="mh"><div class="mi"><span class="ma">SD2</span></div><span class="mt tr">Research</span></div><p class="md">Long-axis dispersion — longer-term variability, related to SDNN. Together SD1×SD2 spans the parasympathetic/total decomposition (Brennan 2001).</p><div class="fb"><div class="fl">Formula</div><div class="ft">SD2 = √( 2·SDNN² − SD1² )</div><div class="fn">SD2 scales with total variability — read it <strong>against the SDNN bands</strong> (it is algebraically tied to SDNN), not a separate cutoff. Higher SD2 = more long-term variability; a collapsing SD1/SD2 ellipse (low SD2 with preserved SD1) flags loss of slow-rhythm structure.</div></div><span class="ev-corner ev-validated" title="SD2 — Poincaré long-axis dispersion"></span></div><div class="mc" data-tier="research"><div class="mh"><div class="mi"><span class="ma">SD1/SD2</span></div><span class="mt tr">Research</span></div><p class="md">Ratio of short- to long-axis dispersion — a unitless index of the balance between instantaneous and longer-term variability. Published but device-dependent.</p><div class="fb"><div class="fl">Formula</div><div class="ft">ratio = SD1 / SD2</div></div><span class="ev-corner ev-emerging" title="SD1/SD2 — Poincaré short/long nonlinear balance"></span></div>
+<a href="#quick-jump" class="sec-back">↑ back to index</a>
+</div><!-- hrv-poincare -->
+
+<div class="rs" id="hrv-freq">
+<div class="sh"><div class="si comp">📈</div><div><div class="st">HRV — Frequency Domain</div><div class="sd">Lomb–Scargle spectrum on uneven RR: VLF/LF/HF, LF/HF, and EDR respiration</div></div></div>
+<div class="co co-i"><span class="co-ic">ℹ️</span><div>RR intervals are <strong>unevenly sampled</strong> by nature, so ECGDex estimates power with the <strong>Lomb–Scargle periodogram</strong> (Lomb 1976 / Scargle 1982) rather than an FFT — no resampling, no interpolation artifact.</div></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">Lomb–Scargle Spectrum</span></div><span class="mt ta">Advanced</span></div><p class="md">Band powers from the Lomb–Scargle periodogram. Normalized units (LFnu/HFnu) are reported alongside absolute power to reduce inter-recording scale effects.</p><div class="fb"><div class="fl">Bands</div><div class="ft">VLF 0.003–0.04 Hz  ·  LF 0.04–0.15 Hz  ·  HF 0.15–0.40 Hz</div><div class="fn">HFnu = HF / (LF + HF) × 100. VLF requires an overnight window to resolve.</div></div><span class="ev-corner ev-emerging" title="Lomb–Scargle Spectrum — least-squares spectral bands on uneven RR"></span></div><div class="mc" data-tier="research"><div class="mh"><div class="mi"><span class="ma">LF/HF</span></div><span class="mt tr">Research</span></div><p class="md">Ratio of low- to high-frequency power. Read as a coarse autonomic-balance index, <em>not</em> a literal sympathetic:parasympathetic measurement — the interpretation is contested in the literature (Billman 2013 shows LF/HF does <em>not</em> reliably index sympatho-vagal balance).</p><div class="fb"><div class="fl">Formula</div><div class="ft">LF/HF = power(LF band) / power(HF band)</div></div><span class="ev-corner ev-emerging" title="LF/HF — LF:HF power ratio sympatho-vagal balance"></span></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">Resp Rate</span></div><span class="mt ta">Advanced</span></div><p class="md">Respiration estimated from the ECG itself (EDR), reported as a <strong>per-epoch median</strong> of the dominant respiratory frequency — deliberately <em>not</em> the HF-spectral peak, which is unstable epoch-to-epoch. A surrogate, not a flow sensor (EDR method: Moody et al. 1985).</p><div class="fb"><div class="fl">Method</div><div class="ft">RespRate = median_over_epochs( dominant EDR frequency × 60 )  br/min</div><div class="fn">Robust to transient artifact; trades temporal resolution for stability.</div></div><span class="ev-corner ev-emerging" title="Resp Rate — ECG-derived respiration (EDR) surrogate"></span></div>
+<a href="#quick-jump" class="sec-back">↑ back to index</a>
+</div><!-- hrv-freq -->
+
+<div class="rs" id="hrv-nonlinear">
+<div class="sh"><div class="si comp">📈</div><div><div class="st">Nonlinear &amp; Complexity</div><div class="sd">DFA α1, SampEn, triangular index, fragmentation, deceleration / acceleration capacity</div></div></div>
+<div class="mc" data-tier="research"><div class="mh"><div class="mi"><span class="ma">DFA α1</span></div><span class="mt tr">Research</span></div><p class="md">Detrended-fluctuation short-term scaling exponent over 4–16-beat windows. α≈ 0.5 random; ≈1.0 long-range correlated (healthy); &lt; 0.75 or &gt; 1.2 mark loss of the normal fractal structure. Device-dependent thresholds.</p><div class="fb"><div class="fl">Method</div><div class="ft">integrate → detrend in windows n → α1 = slope of log F(n) vs log n,  n∈[4,16]</div></div><span class="ev-corner ev-emerging" title="DFA α1 — Peng 1995 short-term scaling exponent"></span></div><div class="mc" data-tier="research"><div class="mh"><div class="mi"><span class="ma">SampEn</span></div><span class="mt tr">Research</span></div><p class="md">Sample entropy of the NN series — regularity/complexity. Lower SampEn = more regular (often pathological). An ECGDex-tuned application, not externally validated at these settings.</p><div class="fb"><div class="fl">Parameters</div><div class="ft">SampEn(m=2, r=0.2·SD)  —  −ln( A / B )</div><div class="fn">Read <strong>directionally</strong>: higher SampEn = more irregular/complex (generally healthier autonomic variability), lower = more regular/predictable (often aged or pathological). Absolute values depend on window length, <em>m</em> and <em>r</em>, so no fixed normal band is published at these settings — hence the experimental grade; compare a subject to their own baseline, not a universal cutoff.</div></div><span class="ev-corner ev-experimental" title="SampEn — Richman 2000 sample entropy"></span></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">Triangular Index</span></div><span class="mt ta">Advanced</span></div><p class="md">Geometric HRV: total NN count divided by the height of the NN histogram. Robust to outliers and a standard Task Force measure, but needs &gt; 20 min of beats.</p><div class="fb"><div class="fl">Formula</div><div class="ft">TriIndex = N(all NN) / max(NN histogram bin)</div></div><span class="ev-corner ev-validated" title="Triangular Index — Task Force 1996 HRV triangular index"></span></div><div class="mc" data-tier="research"><div class="mh"><div class="mi"><span class="ma">Decel. capacity</span></div><span class="mt tr">Research</span></div><p class="md">Phase-rectified signal averaging (PRSA) isolates heart-rate <strong>decelerations</strong> (vagal) from accelerations. Low DC is a validated post-infarction mortality marker (Bauer 2006); here it is an overnight vagal-tone index.</p><div class="fb"><div class="fl">Method</div><div class="ft">PRSA: anchor on NNᵢ > NNᵢ₋₁, average aligned windows, DC = ¼(X₀ + X₁ − X₋₁ − X₋₂)</div><div class="fn">Bauer 2006: DC ≤ 2.5 ms high-risk, 2.6–4.5 intermediate, &gt; 4.5 ms low-risk (24-h Holter).</div></div><span class="ev-corner ev-emerging" title="Decel. capacity — Bauer 2006 heart-rate deceleration capacity"></span></div><div class="mc" data-tier="research"><div class="mh"><div class="mi"><span class="ma">Accel. capacity</span></div><span class="mt tr">Research</span></div><p class="md">The acceleration counterpart of DC from the same PRSA pass — anchors on shortening RR. Reported as the sympathetic-side companion; published but device-dependent.</p><div class="fb"><div class="fl">Method</div><div class="ft">PRSA anchored on NNᵢ < NNᵢ₋₁ (mirror of DC)</div></div><span class="ev-corner ev-emerging" title="Accel. capacity — PRSA heart-rate acceleration capacity"></span></div><div class="mc" data-tier="research"><div class="mh"><div class="mi"><span class="ma">Fragmentation</span></div><span class="mt tr">Research</span></div><p class="md">Heart-rate fragmentation triplet — <strong>PIP</strong> (% inflection points), <strong>IALS</strong> (inverse mean segment length), <strong>PSS</strong> (% short segments). Captures erratic short-range RR alternation that time-domain HRV misses. The <strong>PIP/IALS/PSS triplet is published</strong> (Costa, Davis &amp; Goldberger 2017) and associated with age and worse prognosis in MESA; what is <em>not</em> externally validated is ECGDex’s <strong>overnight, single-lead wearable application</strong> of it — hence the experimental grade here.</p><div class="fb"><div class="fl">Components</div><div class="ft">PIP = inflection_points / N  ·  IALS = 1/mean(segment_len)  ·  PSS = %segments ≤ 3 beats</div></div><span class="ev-corner ev-experimental" title="Fragmentation — PIP / IALS / PSS heart-rate fragmentation"></span></div>
+<a href="#quick-jump" class="sec-back">↑ back to index</a>
+</div><!-- hrv-nonlinear -->
+
+<div class="rs" id="qtc">
+<div class="sh"><div class="si hr">❤️</div><div><div class="st">Repolarisation — QTc</div><div class="sd">Rate-corrected QT: Bazett primary, Fridericia alternative</div></div></div>
+<div class="co co-i"><span class="co-ic">ℹ️</span><div>The raw QT interval shortens as heart rate rises, so it must be <strong>rate-corrected</strong> before comparison. ECGDex reports <strong>Bazett</strong> as primary (most widely tabulated) and <strong>Fridericia</strong> as the alternative, which is more accurate at the tachycardic and bradycardic extremes.</div></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">QTc</span></div><span class="mt ta">Advanced</span></div><p class="md">QT corrected by the Bazett square-root rule. Prolongation is a repolarisation-risk marker; values are population-referenced below.</p><div class="fb"><div class="fl">Bazett</div><div class="ft">QTc = QT_ms / √( RR_s )</div></div><div class="nt-wrap"><table class="nt"><tr><th>QTc (Bazett)</th><th>Band</th></tr><tr class="ok"><td class="nr">&lt;430 ms (M) / &lt;450 (F)</td><td>Normal</td></tr><tr class="wn"><td class="nr">450–470 ms</td><td>Borderline</td></tr><tr class="cr"><td class="nr">&gt;470 ms (M) / &gt;480 (F)</td><td>Prolonged</td></tr></table></div><span class="ev-corner ev-validated" title="QTc — Bazett rate-corrected QT"></span></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">QTc (Fridericia)</span></div><span class="mt ta">Advanced</span></div><p class="md">Cube-root correction — less rate-dependent than Bazett, preferred when HR is far from 60 bpm. Reported alongside Bazett so over-/under-correction is visible.</p><div class="fb"><div class="fl">Fridericia</div><div class="ft">QTc = QT_ms / ∛( RR_s )</div></div><span class="ev-corner ev-validated" title="QTc (Fridericia) — Fridericia cube-root rate-corrected QT"></span></div>
+<a href="#quick-jump" class="sec-back">↑ back to index</a>
+</div><!-- qtc -->
+
+<div class="rs" id="rhythm">
+<div class="sh"><div class="si hr">❤️</div><div><div class="st">Rhythm &amp; Morphology</div><div class="sd">Ectopy classification and the directional AF irregularity screen</div></div></div>
+<div class="co co-w"><span class="co-ic">⚠️</span><div><strong>The AF Screen is not a diagnosis.</strong> It is a directional irregularity flag from a single wearable lead — it cannot distinguish atrial fibrillation from frequent ectopy, sensor artifact, or other arrhythmias. A positive screen means “review with a clinician / 12-lead ECG,” never “you have AF.”</div></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">AF Screen</span></div><span class="mt ta">Advanced</span></div><p class="md">Combines RR irregularity (RMSSD of non-ectopic RR, normalized), Shannon entropy of ΔRR (ΔRR = successive RR difference), and absence of a stable dominant rate into a single directional score. An ECGDex composite — sensitive to <em>irregularity</em>, not specific to AF.</p><div class="fb"><div class="fl">Inputs</div><div class="ft">irregularity = f( RMSSD/mean RR ,  H(ΔRR bins) ,  1 − rate-stability )</div><div class="fn"><strong>Exploratory &amp; unvalidated:</strong> no published sensitivity/specificity exists for this screen on a labelled test cohort. Reported as a 0–1 directional flag, never a probability of AF.</div></div><span class="ev-corner ev-experimental" title="AF Screen — AF irregularity screen, directional only"></span></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">Ectopy classification</span></div><span class="mt ta">Advanced</span></div><p class="md">Beats flagged ectopic by the Malik rule are split into <strong>PVC</strong> (wide, no preceding P, full compensatory pause) and <strong>PAC</strong> (early, narrow, non-compensatory) by timing and the surrounding RR pattern. A direct per-beat classification.</p><div class="nt-wrap"><table class="nt"><tr><th>Type</th><th>Signature</th></tr><tr class="nm"><td>PVC</td><td class="nr">wide QRS · full compensatory pause</td></tr><tr class="nm"><td>PAC</td><td class="nr">early beat · incomplete pause</td></tr></table></div><span class="ev-corner ev-measured" title="Ectopy classification — PVC vs PAC morphology + timing split"></span></div>
+<a href="#quick-jump" class="sec-back">↑ back to index</a>
+</div><!-- rhythm -->
+
+<div class="rs" id="cvhr">
+<div class="sh"><div class="si comp">📈</div><div><div class="st">CVHR — Apnea Autonomic Signature</div><div class="sd">Cyclic variation of heart rate as an ECG-based apnea surrogate</div></div></div>
+<div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">CVHR index</span></div><span class="mt ta">Advanced</span></div><p class="md">Counts the bradycardia-then-tachycardia cycles that accompany apnea/hypopnea events (Hayano 2011; ACAT = autocorrelated-wave detection with adaptive threshold). Reported as events per hour — an ECG-based apnea screen, not a substitute for PSG.</p><div class="fb"><div class="fl">Method</div><div class="ft">ACAT autocorrelated dip detection → Fcv = CVHR cycles / sleep hour</div><div class="fn">Hayano 2011: CVHR index ≥ 15/h identified AHI≥ 15 with 83% sensitivity / 88% specificity (r = 0.84 vs AHI).</div></div><div class="nt-wrap"><table class="nt"><tr><th>CVHR index</th><th>Apnea likelihood</th></tr><tr class="ok"><td class="nr">&lt;5/h</td><td>Low</td></tr><tr class="wn"><td class="nr">5–15/h</td><td>Intermediate</td></tr><tr class="cr"><td class="nr">≥15/h</td><td>Moderate–severe likely</td></tr></table></div><span class="ev-corner ev-emerging" title="CVHR index — Hayano cyclical-variation-of-HR index"></span></div>
+<a href="#quick-jump" class="sec-back">↑ back to index</a>
+</div><!-- cvhr -->
+
+<div class="rs" id="crc">
+<div class="sh"><div class="si comp">📈</div><div><div class="st">Cardiorespiratory Coupling</div><div class="sd">Phase-locking of heart and respiration, and RSA efficiency</div></div></div>
+<div class="mc" data-tier="research"><div class="mh"><div class="mi"><span class="ma">CR Coupling</span></div><span class="mt tr">Research</span></div><p class="md">Phase-locking value between the cardiac and ECG-derived respiratory cycles — how tightly the two oscillators are coupled (0 = none, 1 = perfect). Published method, device-dependent magnitude.</p><div class="fb"><div class="fl">Formula</div><div class="ft">PLV = | (1/N) · Σ e^{ i(φ_card − φ_resp) } |</div></div><span class="ev-corner ev-emerging" title="CR Coupling — cardiorespiratory phase-locking value (PLV)"></span></div><div class="mc" data-tier="research"><div class="mh"><div class="mi"><span class="ma">RSA Efficiency</span></div><span class="mt tr">Research</span></div><p class="md">Respiratory sinus arrhythmia efficiency from the inspiratory:expiratory heart-rate excursion — how strongly HR rises on inhale and falls on exhale. An ECGDex composite, not externally validated.</p><div class="fb"><div class="fl">Method</div><div class="ft">RSA eff = mean(HR_inspiration) / mean(HR_expiration), windowed</div></div><span class="ev-corner ev-experimental" title="RSA Efficiency — inspiratory:expiratory HR ratio"></span></div>
+<a href="#quick-jump" class="sec-back">↑ back to index</a>
+</div><!-- crc -->
+
+<div class="rs" id="accel">
+<div class="sh"><div class="si proj">🏃</div><div><div class="st">Accelerometer</div><div class="sd">Steps, posture and motion from the 3-axis sensor</div></div></div>
+<div class="mc"><div class="mh"><div class="mi"><span class="ma">Total steps</span></div><span class="mt tc">Core</span></div><p class="md">Direct step count from the on-board 3-axis accelerometer — used as a wake/activity context channel, not a fitness metric.</p><div class="fb"><div class="fl">Method</div><div class="ft">peak-count on band-passed |accel| magnitude</div></div><span class="ev-corner ev-measured" title="Total steps — accelerometer step count"></span></div><div class="mc"><div class="mh"><div class="mi"><span class="ma">Posture</span></div><span class="mt tc">Core</span></div><p class="md">Body position from the gravity vector (supine / left / right / prone / upright) and posture-change count — a direct reading of the accelerometer’s static tilt.</p><div class="fb"><div class="fl">Method</div><div class="ft">tilt = atan2(component) of low-pass gravity vector; transitions counted</div></div><span class="ev-corner ev-measured" title="Posture — gravity-vector tilt / body position"></span></div>
+<a href="#quick-jump" class="sec-back">↑ back to index</a>
+</div><!-- accel -->
+
+<div class="rs" id="sleep-stage">
+<div class="sh"><div class="si sleep">🌙</div><div><div class="st">Sleep-Stage Estimation</div><div class="sd">HR-pattern REM/NREM estimates — heuristic, not EEG staging</div></div></div>
+<div class="co co-w"><span class="co-ic">⚠️</span><div><strong>This is not validated sleep staging.</strong> ECGDex has no EEG. REM/NREM here are <em>heuristic estimates</em> from heart-rate pattern and motion only — useful as overnight context, never equivalent to PSG hypnogram scoring. The framework being loosely approximated is the AASM Manual for the Scoring of Sleep v3 (Berry et al., 2023); ECGDex does <strong>not</strong> implement AASM scoring.</div></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">Sleep Stage</span></div><span class="mt ta">Advanced</span></div><p class="md">Segments the night into wake / light / deep / REM-like blocks from HR level, HRV pattern and motion. A convenience overlay for reading the other metrics in context — explicitly heuristic.</p><div class="fb"><div class="fl">Inputs</div><div class="ft">HR level + ln rMSSD trend + motion density → rule-based block labels</div></div><span class="ev-corner ev-heuristic" title="Sleep Stage — HR-pattern REM/NREM estimate, not EEG"></span></div>
+<a href="#quick-jump" class="sec-back">↑ back to index</a>
+</div><!-- sleep-stage -->
+
+<div class="rs" id="xcheck">
+<div class="sh"><div class="si clin">🔍</div><div><div class="st">Device Cross-Check</div><div class="sd">Self-computed RR vs device RR, and overnight HRV stability</div></div></div>
+<div class="co co-i"><span class="co-ic">ℹ️</span><div>When the recorder also reports its own RR series, ECGDex cross-checks its <strong>self-detected RR</strong> against the <strong>device RR</strong> — both Malik-corrected — and reports the deltas. Large Δ means detection disagreement, a quality flag rather than a physiological finding.</div></div><div class="mc" data-tier="research"><div class="mh"><div class="mi"><span class="ma">HRV Stability</span></div><span class="mt tr">Research</span></div><p class="md">Slope of ln rMSSD across overnight epochs — whether parasympathetic tone holds, climbs or decays through the night. A <strong>novel ECGDex-derived metric with no external validation study</strong> — read it as an internal trend signal, not a benchmarked index.</p><div class="fb"><div class="fl">Method</div><div class="ft">OLS slope of ln rMSSD(epoch) vs epoch time; flat ≈ stable</div></div><div class="nt-wrap"><table class="nt"><tr><th>Cross-check Δ</th><th>Reading</th></tr><tr class="ok"><td>ΔrMSSD &lt; 5 ms</td><td class="nr">Detectors agree</td></tr><tr class="wn"><td>ΔSDNN 5–15 ms</td><td class="nr">Minor disagreement</td></tr><tr class="cr"><td>Δ &gt; 15 ms</td><td class="nr">Review detection</td></tr></table></div><span class="ev-corner ev-experimental" title="HRV Stability — overnight ln-RMSSD stability slope"></span></div>
+<a href="#quick-jump" class="sec-back">↑ back to index</a>
+</div><!-- xcheck -->
+
+<div class="rs" id="sig-qual">
+<div class="sh"><div class="si sig">📡</div><div><div class="st">Signal Quality &amp; Artifact Flags</div><div class="sd">Gaps, off-body spans, and low-coverage messaging</div></div></div>
+<div class="co co-i"><span class="co-ic">ℹ️</span><div>Quality flags are surfaced directly so a low number is never silently treated as a healthy one. Every flag below is a <strong>direct count or span</strong>, not an inference.</div></div><div class="mc"><div class="mh"><div class="mi"><span class="ma">Data Gaps</span></div><span class="mt tc">Core</span></div><p class="md">Number and total duration of dropouts where no decodable ECG was present. Gaps split the night into analyzable segments; HRV is computed per-segment, never across a gap.</p><div class="fb"><div class="fl">Method</div><div class="ft">gap = contiguous span with no accepted beats > 5 s</div></div><span class="ev-corner ev-measured" title="Data Gaps — count and total duration of signal dropouts"></span></div><div class="mc"><div class="mh"><div class="mi"><span class="ma">Off-Body Spans</span></div><span class="mt tc">Core</span></div><p class="md">Spans the quality gate marks as electrode-off (flatline or out-of-range). Subtracted from coverage and excluded before any metric is computed.</p><div class="fb"><div class="fl">Method</div><div class="ft">flatline + out-of-range detector → merged spans</div></div><span class="ev-corner ev-measured" title="Off-Body Spans — electrode-off / flatline spans"></span></div>
+<a href="#quick-jump" class="sec-back">↑ back to index</a>
+</div><!-- sig-qual -->
+
+
+<!-- ABBREVIATION INDEX -->
+<div class="rs" id="abbr">
+<div class="sh"><div class="si sig">📋</div><div><div class="st">Full Abbreviation Index</div><div class="sd">Every abbreviation used by the analyzer — click any highlighted term to jump to its section</div></div></div>
+
+<div class="abbr-search-wrap">
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+  <input type="text" id="abbrSearch" class="abbr-search-inp" placeholder="Search abbreviations…" autocomplete="off" inputmode="search">
+  <span class="abbr-count-label" id="abbrCountLabel"></span>
+</div>
+
+<div class="abbr-alpha-wrap" id="abbrAlphaTabs"></div>
+
+<div id="abbrGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:4px;margin-top:10px"></div>
+<p class="abbr-legend">🔗 = links to metric definition &nbsp;&nbsp;|&nbsp;&nbsp; highlighted abbreviations are clickable</p>
+<a href="#quick-jump" class="sec-back">↑ back to index</a>
+</div><!-- abbr -->
+
+<!-- ACADEMIC REFERENCES -->
+<div class="rs" id="acad-refs">
+  <div class="sh"><div class="si sig">📚</div><div><div class="st">Academic References</div><div class="sd">Peer-reviewed sources behind ECGDex’s metrics — grouped by domain</div></div></div>
+
+  <div class="co co-w"><span class="co-ic">⚠️</span><div><strong>Citation provenance.</strong> Post-2000 DOIs below were verified to resolve (Task Force 1996, Peng 1995, Richman 2000, Brennan 2001, Bauer 2006, Hayano 2011). The two foundational method papers — <strong>Pan &amp; Tompkins 1985</strong> (R-peak detection, doi 10.1109/TBME.1985.325532) and <strong>Malik 1989</strong> (RR editing / processing, doi 10.1093/oxfordjournals.eurheartj.a059428) — were likewise verified. The pre-1985 classics — <strong>Bazett 1920, Fridericia 1920, Lomb 1976, Scargle 1982</strong> — are cited with full bibliographic detail but <strong>without a DOI link</strong>, since stable DOIs for the original articles were not independently confirmed here. No DOI is printed that was not checked.</div></div>
+
+  
+  <div class="rs" id="refs-detect" style="margin-bottom:0;margin-top:24px">
+    <div class="sh" style="border-bottom:1px solid rgba(255,255,255,.04);padding-bottom:12px;margin-bottom:16px">
+      <div class="si sig">📡</div>
+      <div><div class="st" style="font-size:16px">Beat Detection &amp; RR Editing</div><div class="sd">The algorithms behind R-peak detection and the NN-cleaning rule</div></div>
+    </div>
+    <div class="mg"><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">Pan &amp; Tompkins 1985</span><span class="mf">QRS detection</span></div><span class="mt ta">Advanced</span></div><p class="md"><strong>Pan J, Tompkins WJ.</strong> A real-time QRS detection algorithm. <em>IEEE Trans Biomed Eng.</em> 1985;BME-32(3):230–236. doi: <a href="https://doi.org/10.1109/TBME.1985.325532" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1109/TBME.1985.325532</a></p><div class="fb"><div class="fl">Covered in ECGDex</div><div class="ft">The 5–15 Hz band-pass → derivative → square → moving-window integrator front end and adaptive double-threshold used as ECGDex’s primary R-peak detector.</div></div><span class="ev-corner ev-validated" title="Pan &amp; Tompkins 1985 — peer-reviewed source underpinning an ECGDex method"></span></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">Malik 1989</span><span class="mf">RR editing / processing</span></div><span class="mt ta">Advanced</span></div><p class="md"><strong>Malik M, Farrell T, Cripps T, Camm AJ.</strong> Heart rate variability in relation to prognosis after myocardial infarction: selection of optimal processing techniques. <em>Eur Heart J.</em> 1989;10(12):1060–1074. doi: <a href="https://doi.org/10.1093/oxfordjournals.eurheartj.a059428" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1093/oxfordjournals.eurheartj.a059428</a></p><div class="fb"><div class="fl">Covered in ECGDex</div><div class="ft">The local-median RR-editing approach behind the 20% ectopy-exclusion rule applied in beat cleaning and the self-vs-device cross-check (both series Malik-corrected).</div></div><span class="ev-corner ev-validated" title="Malik 1989 — peer-reviewed source underpinning an ECGDex method"></span></div></div>
+  </div>
+
+  <div class="rs" id="refs-hrv" style="margin-bottom:0;margin-top:24px">
+    <div class="sh" style="border-bottom:1px solid rgba(255,255,255,.04);padding-bottom:12px;margin-bottom:16px">
+      <div class="si hr">❤️</div>
+      <div><div class="st" style="font-size:16px">HRV Standards &amp; Geometry</div><div class="sd">Time-domain, geometric and Poincaré foundations</div></div>
+    </div>
+    <div class="mg"><div class="mc"><div class="mh"><div class="mi"><span class="ma">Task Force 1996</span><span class="mf">HRV Standards</span></div><span class="mt tc">Core</span></div><p class="md"><strong>Task Force of the European Society of Cardiology and the North American Society of Pacing and Electrophysiology.</strong> Heart rate variability: standards of measurement, physiological interpretation, and clinical use. <em>Circulation.</em> 1996;93(5):1043–1065. doi: <a href="https://doi.org/10.1161/01.CIR.93.5.1043" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1161/01.CIR.93.5.1043</a></p><div class="fb"><div class="fl">Covered in ECGDex</div><div class="ft">rMSSD, SDNN, pNN50, triangular index definitions and norms; the Malik 20% ectopy-exclusion rule used in beat cleaning.</div></div><span class="ev-corner ev-validated" title="Task Force 1996 — peer-reviewed source underpinning an ECGDex metric"></span></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">Brennan 2001</span><span class="mf">SD1 / SD2 Poincaré</span></div><span class="mt ta">Advanced</span></div><p class="md"><strong>Brennan M, Palaniswami M, Kamen P.</strong> Do existing measures of Poincaré plot geometry reflect nonlinear features of heart rate variability? <em>IEEE Trans Biomed Eng.</em> 2001;48(11):1342–1347. doi: <a href="https://doi.org/10.1109/10.959330" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1109/10.959330</a></p><div class="fb"><div class="fl">Covered in ECGDex</div><div class="ft">SD1 (short-axis) and SD2 (long-axis) decomposition; SD1 ≈ rMSSD/√2 identity used in the Poincaré section.</div></div><span class="ev-corner ev-validated" title="Brennan 2001 — peer-reviewed source underpinning an ECGDex metric"></span></div></div>
+  </div>
+
+  
+  <div class="rs" id="refs-nonlinear" style="margin-bottom:0;margin-top:24px">
+    <div class="sh" style="border-bottom:1px solid rgba(255,255,255,.04);padding-bottom:12px;margin-bottom:16px">
+      <div class="si comp">📈</div>
+      <div><div class="st" style="font-size:16px">Nonlinear Dynamics &amp; Autonomic Markers</div><div class="sd">Complexity, fractal scaling and PRSA</div></div>
+    </div>
+    <div class="mg"><div class="mc" data-tier="research"><div class="mh"><div class="mi"><span class="ma">Peng 1995</span><span class="mf">DFA α1</span></div><span class="mt tr">Research</span></div><p class="md"><strong>Peng CK, Havlin S, Stanley HE, Goldberger AL.</strong> Quantification of scaling exponents and crossover phenomena in nonstationary heartbeat time series. <em>Chaos.</em> 1995;5(1):82–87. doi: <a href="https://doi.org/10.1063/1.166141" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1063/1.166141</a></p><div class="fb"><div class="fl">Covered in ECGDex</div><div class="ft">DFA short-term scaling exponent α1 (integrate → detrend → log-log slope) on 4–16-beat windows.</div></div><span class="ev-corner ev-validated" title="Peng 1995 — peer-reviewed source underpinning an ECGDex metric"></span></div><div class="mc" data-tier="research"><div class="mh"><div class="mi"><span class="ma">Richman 2000</span><span class="mf">Sample Entropy</span></div><span class="mt tr">Research</span></div><p class="md"><strong>Richman JS, Moorman JR.</strong> Physiological time-series analysis using approximate entropy and sample entropy. <em>Am J Physiol Heart Circ Physiol.</em> 2000;278(6):H2039–H2049. doi: <a href="https://doi.org/10.1152/ajpheart.2000.278.6.H2039" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1152/ajpheart.2000.278.6.H2039</a></p><div class="fb"><div class="fl">Covered in ECGDex</div><div class="ft">SampEn(m=2, r=0.2·SD) regularity measure applied to the NN series.</div></div><span class="ev-corner ev-validated" title="Richman 2000 — peer-reviewed source underpinning an ECGDex metric"></span></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">Bauer 2006</span><span class="mf">Deceleration Capacity</span></div><span class="mt ta">Advanced</span></div><p class="md"><strong>Bauer A, Kantelhardt JW, Barthel P, et al.</strong> Deceleration capacity of heart rate as a predictor of mortality after myocardial infarction: cohort study. <em>Lancet.</em> 2006;367(9523):1674–1681. doi: <a href="https://doi.org/10.1016/S0140-6736(06)68735-7" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1016/S0140-6736(06)68735-7</a></p><div class="fb"><div class="fl">Covered in ECGDex</div><div class="ft">Phase-rectified signal averaging for deceleration / acceleration capacity; the DC risk bands quoted in the Nonlinear section.</div></div><div class="nt-wrap"><table class="nt"><tr><th>DC (24-h)</th><th>Risk tier</th></tr><tr class="cr"><td class="nr">≤ 2.5 ms</td><td>High</td></tr><tr class="wn"><td class="nr">2.6–4.5 ms</td><td>Intermediate</td></tr><tr class="ok"><td class="nr">&gt; 4.5 ms</td><td>Low</td></tr></table></div><span class="ev-corner ev-validated" title="Bauer 2006 — peer-reviewed source underpinning an ECGDex metric"></span></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">Costa et al. 2017</span><span class="mf">Heart-rate fragmentation</span></div><span class="mt ta">Advanced</span></div><p class="md"><strong>Costa MD, Davis RB, Goldberger AL.</strong> Heart rate fragmentation: a new approach to the analysis of cardiac interbeat interval dynamics. <em>Front Physiol.</em> 2017;8:255. doi: <a href="https://doi.org/10.3389/fphys.2017.00255" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.3389/fphys.2017.00255</a></p><div class="fb"><div class="fl">Covered in ECGDex</div><div class="ft">Defines the PIP / IALS / PSS fragmentation triplet. ECGDex computes these verbatim; the overnight wearable application is what carries the experimental grade, not the metrics themselves.</div></div><span class="ev-corner ev-validated" title="Costa et al. 2017 — peer-reviewed source underpinning an ECGDex method"></span></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">Billman 2013</span><span class="mf">LF/HF caveat</span></div><span class="mt ta">Advanced</span></div><p class="md"><strong>Billman GE.</strong> The LF/HF ratio does not accurately measure cardiac sympatho-vagal balance. <em>Front Physiol.</em> 2013;4:26. doi: <a href="https://doi.org/10.3389/fphys.2013.00026" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.3389/fphys.2013.00026</a></p><div class="fb"><div class="fl">Covered in ECGDex</div><div class="ft">The source for the LF/HF “contested interpretation” caveat — LF/HF is reported as a coarse balance index, not a literal sympathetic:parasympathetic measurement.</div></div><span class="ev-corner ev-validated" title="Billman 2013 — peer-reviewed source underpinning an ECGDex method"></span></div></div>
+  </div>
+
+  
+  <div class="rs" id="refs-rhythm" style="margin-bottom:0;margin-top:24px">
+    <div class="sh" style="border-bottom:1px solid rgba(255,255,255,.04);padding-bottom:12px;margin-bottom:16px">
+      <div class="si hr">❤️</div>
+      <div><div class="st" style="font-size:16px">Repolarisation, Spectral Methods &amp; Apnea</div><div class="sd">QT correction, periodogram and CVHR</div></div>
+    </div>
+    <div class="mg"><div class="mc"><div class="mh"><div class="mi"><span class="ma">Bazett 1920</span><span class="mf">QTc correction</span></div><span class="mt tc">Core</span></div><p class="md"><strong>Bazett HC.</strong> An analysis of the time-relations of electrocardiograms. <em>Heart.</em> 1920;7:353–370. <span style="color:var(--text4)">(classic primary source — no DOI)</span></p><div class="fb"><div class="fl">Covered in ECGDex</div><div class="ft">QTc = QT/√RR — the primary rate correction reported for repolarisation.</div></div><span class="ev-corner ev-validated" title="Bazett 1920 — peer-reviewed source underpinning an ECGDex metric"></span></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">Fridericia 1920</span><span class="mf">QTc (cube-root)</span></div><span class="mt ta">Advanced</span></div><p class="md"><strong>Fridericia LS.</strong> Die Systolendauer im Elektrokardiogramm bei normalen Menschen und bei Herzkranken. <em>Acta Med Scand.</em> 1920;53:469–486. <span style="color:var(--text4)">(classic primary source — no DOI)</span></p><div class="fb"><div class="fl">Covered in ECGDex</div><div class="ft">QTc = QT/∛̅R̅R̅ — the alternative correction, preferred away from 60 bpm.</div></div><span class="ev-corner ev-validated" title="Fridericia 1920 — peer-reviewed source underpinning an ECGDex metric"></span></div><div class="mc" data-tier="research"><div class="mh"><div class="mi"><span class="ma">Lomb 1976 / Scargle 1982</span><span class="mf">Least-squares spectrum</span></div><span class="mt tr">Research</span></div><p class="md"><strong>Lomb NR.</strong> Least-squares frequency analysis of unequally spaced data. <em>Astrophys Space Sci.</em> 1976;39:447–462. · <strong>Scargle JD.</strong> Studies in astronomical time series analysis. II. <em>Astrophys J.</em> 1982;263:835–853. <span style="color:var(--text4)">(classic primary sources — no DOI link)</span></p><div class="fb"><div class="fl">Covered in ECGDex</div><div class="ft">The Lomb–Scargle periodogram used for VLF/LF/HF power on unevenly sampled RR — no resampling.</div></div><span class="ev-corner ev-validated" title="Lomb 1976 / Scargle 1982 — peer-reviewed source underpinning an ECGDex metric"></span></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">Hayano 2011</span><span class="mf">CVHR / sleep apnea</span></div><span class="mt ta">Advanced</span></div><p class="md"><strong>Hayano J, Watanabe E, Saito Y, et al.</strong> Screening for obstructive sleep apnea by cyclic variation of heart rate. <em>Circ Arrhythm Electrophysiol.</em> 2011;4(1):64–72. doi: <a href="https://doi.org/10.1161/CIRCEP.110.958009" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1161/CIRCEP.110.958009</a></p><div class="fb"><div class="fl">Covered in ECGDex</div><div class="ft">ACAT autocorrelated CVHR detection; CVHR index ≥ 15/h → AHI ≥ 15 at 83% sens / 88% spec (r = 0.84).</div></div><span class="ev-corner ev-validated" title="Hayano 2011 — peer-reviewed source underpinning an ECGDex method"></span></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">Moody et al. 1985</span><span class="mf">ECG-derived respiration</span></div><span class="mt ta">Advanced</span></div><p class="md"><strong>Moody GB, Mark RG, Zoccola A, Mantero S.</strong> Derivation of respiratory signals from multi-lead ECGs. <em>Comput Cardiol.</em> 1985;12:113–116. <span style="color:var(--text4)">(conference proceedings — no DOI)</span></p><div class="fb"><div class="fl">Covered in ECGDex</div><div class="ft">The EDR principle behind Resp Rate and cardiorespiratory coupling — respiration recovered from R-peak amplitude modulation, no airflow sensor.</div></div><span class="ev-corner ev-validated" title="Moody et al. 1985 — peer-reviewed source underpinning an ECGDex method"></span></div><div class="mc" data-tier="secondary"><div class="mh"><div class="mi"><span class="ma">AASM v3 (Berry 2023)</span><span class="mf">Sleep-scoring framework</span></div><span class="mt ta">Advanced</span></div><p class="md"><strong>Berry RB, et al.</strong> The AASM Manual for the Scoring of Sleep and Associated Events, v3. American Academy of Sleep Medicine; 2023. <span style="color:var(--text4)">(manual — no DOI)</span></p><div class="fb"><div class="fl">Covered in ECGDex</div><div class="ft">The reference framework the heuristic sleep-stage overlay loosely approximates. ECGDex has no EEG and does not implement AASM scoring — cited for context only.</div></div><span class="ev-corner ev-validated" title="AASM v3 (Berry 2023) — peer-reviewed source underpinning an ECGDex method"></span></div></div>
+  </div>
+
+  <a href="#quick-jump" class="sec-back">↑ back to index</a>
+</div><!-- acad-refs -->
+
+</main>
+</div><!-- /.app -->
+
+
+<a class="back-top" href="#" title="Back to top">&#x2191;</a>
+
+<button id="btt" aria-label="Back to top">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+</button>
+<script>
+var abbrs=[
+  ["AC","Acceleration Capacity (Bauer PRSA)"],["ACAT","Autocorrelated wave detection w/ Adaptive Threshold (Hayano)"],
+  ["ACC","Accelerometer (3-axis motion sensor)"],["AF","Atrial Fibrillation"],["AHI","Apnea\u2013Hypopnea Index (estimate)"],
+  ["ApEn","Approximate Entropy"],["AUC","Area Under the Curve"],["Bazett","QTc = QT/\u221aRR rate correction"],
+  ["bpm","Beats per minute (heart rate)"],["br/min","Breaths per minute (respiration)"],
+  ["CRC","Cardiorespiratory Coupling"],["CVHR","Cyclic Variation of Heart Rate (Hayano)"],
+  ["DC","Deceleration Capacity (Bauer 2006)"],["DFA","Detrended Fluctuation Analysis"],
+  ["ECG","Electrocardiogram"],["ectopy","Ectopic beats (PVC + PAC)"],["EDR","ECG-Derived Respiration"],
+  ["Fcv","Frequency of CVHR per hour"],["Fridericia","QTc = QT/\u221b\u0305RR rate correction (cube-root)"],
+  ["HF","High Frequency (0.15\u20130.40\u202fHz)"],["HR","Heart Rate"],["HRV","Heart Rate Variability"],
+  ["IALS","Inverse Average Length of Segments (fragmentation)"],["I:E","Inspiratory:Expiratory ratio (RSA)"],
+  ["LF","Low Frequency (0.04\u20130.15\u202fHz)"],["LF/HF","Low-to-High Frequency power ratio"],
+  ["ln rMSSD","Natural log of rMSSD"],["Malik rule","20% local-median ectopy criterion (Task Force 1996)"],
+  ["NN","Normal-to-Normal RR interval (after cleaning)"],["NREM","Non-Rapid Eye Movement sleep"],
+  ["PAC","Premature Atrial Contraction"],["PIP","Percentage of Inflection Points (fragmentation)"],
+  ["PLV","Phase-Locking Value (coupling strength)"],["pNN50","% successive NN pairs differing >\u202f50\u202fms"],
+  ["PSS","Percentage of Short Segments (fragmentation)"],["PVC","Premature Ventricular Contraction"],
+  ["QT","QT interval (Q onset \u2192 T end)"],["QTc","Rate-corrected QT interval"],
+  ["REM","Rapid Eye Movement sleep"],["rMSSD","Root Mean Square of Successive RR Differences"],
+  ["RR","R-to-R peak interval"],["RSA","Respiratory Sinus Arrhythmia"],
+  ["SampEn","Sample Entropy (Richman 2000)"],["SD1","Poincar\u00e9 short-axis SD (\u2248 rMSSD/\u221a2)"],
+  ["SD2","Poincar\u00e9 long-axis SD"],["SDNN","Standard Deviation of NN intervals"],
+  ["SQI","Signal-Quality Index (per-beat)"],["TINN/TriIndex","HRV triangular index"],
+  ["VLF","Very Low Frequency (0.003\u20130.04\u202fHz)"]
+];
+/* ── Abbr section map ── */
+var abbrSectionMap={
+  "ECG":"signal","ectopy":"signal","SQI":"signal","Malik rule":"signal","NN":"signal","PVC":"rhythm","PAC":"rhythm",
+  "HR":"hr","bpm":"hr","RR":"hr",
+  "rMSSD":"hrv-time","SDNN":"hrv-time","pNN50":"hrv-time","ln rMSSD":"hrv-time","HRV":"hrv-time",
+  "SD1":"hrv-poincare","SD2":"hrv-poincare",
+  "LF":"hrv-freq","HF":"hrv-freq","LF/HF":"hrv-freq","VLF":"hrv-freq","EDR":"hrv-freq","br/min":"hrv-freq",
+  "DFA":"hrv-nonlinear","SampEn":"hrv-nonlinear","ApEn":"hrv-nonlinear","DC":"hrv-nonlinear","AC":"hrv-nonlinear",
+  "PIP":"hrv-nonlinear","IALS":"hrv-nonlinear","PSS":"hrv-nonlinear","TINN/TriIndex":"hrv-nonlinear",
+  "QT":"qtc","QTc":"qtc","Bazett":"qtc","Fridericia":"qtc",
+  "AF":"rhythm","CVHR":"cvhr","Fcv":"cvhr","ACAT":"cvhr",
+  "CRC":"crc","PLV":"crc","RSA":"crc","I:E":"crc",
+  "ACC":"accel","REM":"sleep-stage","NREM":"sleep-stage"
+};
+
+/* ── Build alpha-tab filter ── */
+(function(){
+  var tabsEl = document.getElementById('abbrAlphaTabs');
+  var letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('');
+  letters.forEach(function(l){
+    var btn = document.createElement('button');
+    btn.textContent = l;
+    btn.className = 'abbr-tab';
+    btn.setAttribute('data-letter', l);
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('.abbr-tab').forEach(function(b){ b.classList.remove('abbr-tab-active'); });
+      btn.classList.add('abbr-tab-active');
+      filterAbbr(l === '#' ? '' : l);
+    });
+    tabsEl.appendChild(btn);
+  });
+})();
+
+var currentAbbrFilter = '';
+function filterAbbr(letter){
+  currentAbbrFilter = letter;
+  document.querySelectorAll('#abbrGrid .abbr-card').forEach(function(card){
+    var abbr = card.getAttribute('data-abbr') || '';
+    var first = abbr[0] ? abbr[0].toUpperCase() : '';
+    if(!letter || first === letter.toUpperCase()){ card.style.display=''; }
+    else { card.style.display='none'; }
+  });
+}
+
+/* ── Render abbr cards ── */
+var g=document.getElementById('abbrGrid');
+abbrs.sort(function(a,b){ return a[0].localeCompare(b[0], undefined, {sensitivity:'base'}); });
+abbrs.forEach(function(a){
+  var abbr=a[0], defn=a[1];
+  var target = abbrSectionMap[abbr];
+  var d=document.createElement('div');
+  d.className='abbr-card';
+  d.setAttribute('data-abbr', abbr);
+  d.style.cssText='display:flex;align-items:center;gap:10px;padding:7px 10px;background:rgba(255,255,255,.02);border-radius:8px;border:1px solid rgba(255,255,255,.04);transition:border-color .15s,background .15s';
+  var abbrHtml;
+  if(target){
+    abbrHtml='<a href="#'+target+'" title="Go to '+defn+' → '+target+'" style="font-family:\'IBM Plex Mono\',monospace;font-size:11px;font-weight:600;color:var(--teal);white-space:nowrap;min-width:80px;text-decoration:none;display:block" class="abbr-link">'+abbr+'<svg style=\'margin-left:4px;vertical-align:middle;opacity:.55\' width=\'9\' height=\'9\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2.5\'><line x1=\'5\' y1=\'12\' x2=\'19\' y2=\'12\'/><polyline points=\'12 5 19 12 12 19\'/></svg></a>';
+  } else {
+    abbrHtml='<span style="font-family:\'IBM Plex Mono\',monospace;font-size:11px;font-weight:600;color:var(--teal);white-space:nowrap;min-width:80px">'+abbr+'</span>';
+  }
+  d.innerHTML = abbrHtml + '<span style="font-size:12px;color:var(--text2)">'+defn+'</span>';
+  if(target){ d.style.cursor='pointer'; d.addEventListener('mouseenter',function(){ d.style.borderColor='rgba(61,224,208,.25)'; d.style.background='rgba(61,224,208,.04)'; }); d.addEventListener('mouseleave',function(){ d.style.borderColor='rgba(255,255,255,.04)'; d.style.background='rgba(255,255,255,.02)'; }); }
+  g.appendChild(d);
+});
+
+
+
+
+/* ── Abbr live search ── */
+(function(){
+  var inp = document.getElementById('abbrSearch');
+  var lbl = document.getElementById('abbrCountLabel');
+  if(!inp) return;
+  function updateCount(){
+    var vis = [].slice.call(document.querySelectorAll('#abbrGrid .abbr-card')).filter(function(c){ return c.style.display !== 'none'; }).length;
+    var tot = document.querySelectorAll('#abbrGrid .abbr-card').length;
+    lbl.textContent = vis < tot ? vis + ' shown' : tot + ' terms';
+  }
+  setTimeout(updateCount, 100);
+  inp.addEventListener('input', function(){
+    var q = inp.value.trim().toLowerCase();
+    // Reset alpha tabs
+    document.querySelectorAll('.abbr-tab').forEach(function(b){ b.classList.remove('abbr-tab-active'); });
+    document.querySelectorAll('#abbrGrid .abbr-card').forEach(function(card){
+      var abbr = (card.getAttribute('data-abbr')||'').toLowerCase();
+      var defn = card.textContent.toLowerCase();
+      card.style.display = (!q || abbr.includes(q) || defn.includes(q)) ? '' : 'none';
+    });
+    updateCount();
+  });
+})();
+
+
+/* ── Quick Jump toggle ── */
+(function(){
+  var btn   = document.getElementById('qjToggle');
+  var panel = document.getElementById('qjPanel');
+  if(!btn || !panel) return;
+  btn.addEventListener('click', function(){
+    var expanded = btn.getAttribute('aria-expanded') === 'true';
+    btn.setAttribute('aria-expanded', String(!expanded));
+    if(expanded){ panel.setAttribute('hidden',''); }
+    else { panel.removeAttribute('hidden'); }
+  });
+})();
+
+/* ── Quick Jump search / filter ── */
+(function(){
+  var inp    = document.getElementById('qjSearch');
+  var clear  = document.getElementById('qjClear');
+  var noRes  = document.getElementById('qjNoResults');
+  if(!inp) return;
+  function runFilter(){
+    var q = inp.value.trim().toLowerCase();
+    clear.hidden = !q;
+    var anyVisible = false;
+    document.querySelectorAll('.qm').forEach(function(el){
+      var match = !q || el.textContent.toLowerCase().includes(q);
+      el.classList.toggle('qm-match', !!(q && match));
+      el.classList.toggle('qm-hide', !!(q && !match));
+      if(match) anyVisible = true;
+    });
+    document.querySelectorAll('.qj-group').forEach(function(grp){
+      var vis = grp.querySelectorAll('.qm:not(.qm-hide)').length;
+      grp.toggleAttribute('data-hidden', vis === 0);
+    });
+    if(noRes) noRes.hidden = anyVisible || !q;
+  }
+  inp.addEventListener('input', runFilter);
+  if(clear) clear.addEventListener('click', function(){
+    inp.value = '';
+    runFilter();
+    inp.focus();
+  });
+})();
+
+/* ── Theme toggle ── */
+(function(){
+  var btn   = document.getElementById('themeToggleBtn');
+  var icon  = btn ? btn.querySelector('.theme-icon') : null;
+  var label = document.getElementById('themeLabel');
+  function applyTheme(t){
+    document.body.classList.toggle('light', t === 'light');
+    document.documentElement.style.colorScheme = t === 'light' ? 'light' : 'dark';
+    if(icon)  icon.textContent  = t === 'light' ? '☀️' : '🌙';
+    if(label) label.textContent = t === 'light' ? 'Light' : 'Dark';
+  }
+  // Restore saved preference
+  var saved = null;
+  try { saved = localStorage.getItem('ansTheme'); } catch(e){}
+  if(saved) applyTheme(saved);
+  if(btn) btn.addEventListener('click', function(){
+    var t = document.body.classList.contains('light') ? 'dark' : 'light';
+    applyTheme(t);
+    try { localStorage.setItem('ansTheme', t); } catch(e){}
+  });
+})();
+
+/* ── IntersectionObserver nav highlight ── */
+(function(){
+  var navLinks = document.querySelectorAll('.sidebar .nav a, .mob-drawer-panel .nav a');
+  function setActive(id){
+    navLinks.forEach(function(a){
+      a.classList.toggle('nav-active', a.getAttribute('href') === '#' + id);
+    });
+  }
+  if('IntersectionObserver' in window){
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting) setActive(e.target.id);
+      });
+    }, {rootMargin:'-20% 0px -70% 0px', threshold:0});
+    document.querySelectorAll('.rs[id]').forEach(function(s){ io.observe(s); });
+  } else {
+    // Fallback: scroll-based
+    var secs = Array.from(document.querySelectorAll('.rs[id]'));
+    window.addEventListener('scroll', function(){
+      var y = window.scrollY + 130, cur = '';
+      secs.forEach(function(s){ if(s.offsetTop <= y) cur = s.id; });
+      setActive(cur);
+    }, {passive:true});
+  }
+})();
+
+/* ── Populate #tasPills with first 8 abbr links ── */
+(function(){
+  var container = document.getElementById('tasPills');
+  if(!container) return;
+  var links = document.querySelectorAll('#abbrGrid .abbr-link');
+  var count = 0;
+  links.forEach(function(a){
+    if(count >= 8) return;
+    var pill = document.createElement('a');
+    pill.href      = a.href;
+    pill.className = 'tas-pill tas-link';
+    pill.textContent = a.textContent.replace(/[→]/g,'').trim();
+    container.appendChild(pill);
+    count++;
+  });
+})();
+
+/* ── Back-to-top button ── */
+(function(){
+  var btt = document.getElementById('btt');
+  if(!btt) return;
+  window.addEventListener('scroll', function(){
+    btt.classList.toggle('btt-show', window.scrollY > 400);
+  }, {passive:true});
+  btt.addEventListener('click', function(){
+    window.scrollTo({top:0, behavior:'smooth'});
+  });
+})();
+
+/* ── Mobile drawer ── */
+function openDrawer(){
+  var bg=document.getElementById('mobDrawerBg');
+  bg.classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeDrawer(){
+  var bg=document.getElementById('mobDrawerBg');
+  bg.classList.remove('open');
+  document.body.style.overflow='';
+}
+function handleBgClick(e){
+  if(e.target===document.getElementById('mobDrawerBg')) closeDrawer();
+}
+document.querySelectorAll('.mob-drawer-panel .nav a').forEach(function(a){
+  a.addEventListener('click', function(){ setTimeout(closeDrawer,100); });
+});
+
+
+</script>
+
+<!-- Version footer -->
+<div style="text-align:center;padding:20px 24px 10px;font-size:11px;color:var(--text4,#6E7F94);font-family:'IBM Plex Mono',monospace;letter-spacing:.05em;border-top:1px solid var(--border,#1e2d42);margin-top:32px">
+  Reference Guide Version: <strong style="color:var(--text3)">1.0.0</strong>
+  &nbsp;&#xB7;&nbsp;
+  Last Literature Review: <strong style="color:var(--text3)">June 2026</strong>
+  &nbsp;&#xB7;&nbsp;
+  Apache-2.0 Licence
+</div>
+
+
+<div class="dxl" style="max-width:900px;margin:40px auto 14px;padding:0 24px">
+  <div class="dxl-notice">
+    <div class="dxl-k">Intended use &amp; safety</div>
+    <p><b>Tepna</b> computes biometric patterns from your wearable and sensor data to support personal self-quantification. It is <b>not a medical device</b>, does not <b>diagnose, treat, cure, screen for, or prevent</b> any disease or condition, and is <b>not a substitute for professional clinical evaluation</b>. It has not been reviewed or cleared by the FDA, CE, or any regulatory body. Always consult a qualified healthcare provider about your health. Use at your own risk. For research and personal use only. 100% local — no data leaves your device.</p>
+  </div>
+</div>
+<div class="dxl dxl-ribbon" style="max-width:900px;margin:0 auto 30px">
+  <div class="dxl-seg">
+    <span class="dxl-mark">T</span>
+    <span style="display:flex;flex-direction:column">
+      <b style="font-size:13px">Tepna</b>
+      <span class="dxl-colophon">physiological-signal suite</span>
+    </span>
+  </div>
+  <div class="dxl-seg dxl-grow">
+    <span style="font-size:11.5px;color:var(--text2,#9FB0C3)">© 2026 <b>Michal Planicka</b> — Concept · Architecture · Algorithms</span>
+    <span class="dxl-disclaimer">Not a medical device · does not diagnose or treat · not FDA/CE cleared · research &amp; personal use only · ◈ Made in Asheville, NC</span>
+  </div>
+  <div class="dxl-seg"><span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span></div>
+</div>
+</body>
+</html>

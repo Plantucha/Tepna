@@ -1,0 +1,35 @@
+{
+  "//": "Tepna — Phase 4a machine-checked contracts (SIGNAL-ADAPTER-AND-FRONTIER brief). CI-ONLY: tsc --noEmit --checkJs. NO emit, NO shipped build, NO runtime dep — the 100%-local/offline invariant (CLAUDE.md §5.3) is untouched; TypeScript is a dev-time gate only. Scope is forward-first: only the clean CORE adapter layer is checked, NOT the legacy node *-dsp.js (those carry their own known DOM/localStorage debts, gated separately by the DSP-purity assertion, Phase 4b).",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": true,
+    "target": "ES2017",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "lib": ["ES2017", "DOM"],
+    "types": [],
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": [
+    "dex-contracts.js",
+    "signal-frame.js",
+    "dex-export.js",
+    "manifest-gate.js",
+    "signal-spec.js",
+    "signal-adapters.js",
+    "dex-ingest.js",
+    "adapters/polar-rr.js",
+    "adapters/coospo-rr.js",
+    "adapters/wahoo-rr.js",
+    "adapters/oxydex-spo2.js",
+    "adapters/welltory-summary.js",
+    "adapters/libre-cgm.js",
+    "adapters/polar-sense-ppg.js",
+    "adapters/polar-h10-ecg.js"
+  ]
+}

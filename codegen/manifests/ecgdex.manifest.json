@@ -1,0 +1,212 @@
+{
+  "node": "ECGDex",
+  "modality": "Electrocardiography (ECG)",
+  "icon": "❤️",
+  "accentColor": "var(--red)",
+  "accentHex": "#FF6B7A",
+  "version": "1.0.0",
+  "status": "planned",
+  "description": "Beat-to-beat HRV analysis from ECG-derived RR intervals — time-domain, frequency-domain, nonlinear, and clinical risk stratification metrics with true inter-beat resolution.",
+  "warning": "Requires clean R-peak detection. Ectopic beats and arrhythmias must be filtered before HRV computation. Consumer-grade ECG (single-lead) may have higher artifact rates than clinical 12-lead.",
+
+  "dataModel": {
+    "fields": {
+      "ecg":       "Float32Array — mV, 250–500 Hz",
+      "rr":        "Float32Array — ms, beat-to-beat (derived)",
+      "rpeaks":    "Uint32Array — sample indices of R peaks",
+      "timestamps": "Float64Array — Unix seconds per beat",
+      "sampleRate": "number — Hz"
+    }
+  },
+
+  "sections": [
+    {
+      "id": "rr-basics",
+      "title": "RR Interval Basics",
+      "icon": "💓",
+      "description": "Fundamental RR interval statistics",
+      "metrics": [
+        { "id": "rrMean",    "abbr": "RRμ",    "name": "Mean RR Interval",  "fullName": "Mean of all NN (normal-to-normal) RR intervals",  "tier": "core", "unit": "ms",
+          "formula": "mean(RR[NN])", "compute": { "fn": "mean", "source": "rr" },
+          "ranges": [ { "max": 800, "label": "High HR / short RR", "class": "warn" }, { "max": 1200, "label": "Normal", "class": "ok" }, { "max": null, "label": "Low HR / long RR", "class": "ok" } ] },
+        { "id": "rrSDNN",    "abbr": "SDNN",   "name": "SDNN",              "fullName": "Standard deviation of all NN intervals",  "tier": "core", "unit": "ms",
+          "formula": "SD(RR[NN])", "compute": { "fn": "sd", "source": "rr" },
+          "ranges": [ { "max": 50, "label": "Low — suppressed variability", "class": "bad" }, { "max": 100, "label": "Moderate", "class": "warn" }, { "max": null, "label": "Good variability", "class": "ok" } ] },
+        { "id": "rrRMSSD",   "abbr": "RMSSD",  "name": "RMSSD",             "fullName": "Root mean square of successive NN differences",  "tier": "core", "unit": "ms",
+          "formula": "√(mean((RR[i+1]−RR[i])²))", "compute": { "fn": "rmssd", "source": "rr" },
+          "ranges": [ { "max": 20, "label": "Low vagal tone", "class": "bad" }, { "max": 50, "label": "Moderate", "class": "warn" }, { "max": null, "label": "Good vagal tone", "class": "ok" } ] },
+        { "id": "rrpNN50",   "abbr": "pNN50",  "name": "pNN50",             "fullName": "Percentage of successive NN diffs > 50 ms",  "tier": "core", "unit": "%",
+          "formula": "count(|RR[i+1]−RR[i]| > 50) / total × 100", "compute": { "fn": "pnn_equiv", "source": "rr", "args": [50] },
+          "ranges": [ { "max": 5, "label": "Low", "class": "warn" }, { "max": 25, "label": "Moderate", "class": "ok" }, { "max": null, "label": "High — good vagal", "class": "ok" } ] },
+        { "id": "rrpNN20",   "abbr": "pNN20",  "name": "pNN20",             "fullName": "Percentage of successive NN diffs > 20 ms",  "tier": "secondary", "unit": "%",
+          "formula": "count(|RR[i+1]−RR[i]| > 20) / total × 100", "compute": { "fn": "pnn_equiv", "source": "rr", "args": [20] },
+          "ranges": [ { "max": 20, "label": "Low", "class": "warn" }, { "max": 60, "label": "Moderate", "class": "ok" }, { "max": null, "label": "High", "class": "ok" } ] },
+        { "id": "rrHR",      "abbr": "HR",     "name": "Mean Heart Rate",   "fullName": "Mean HR derived from NN intervals",  "tier": "core", "unit": "bpm",
+          "formula": "60000 / mean(RR[NN])", "compute": { "fn": "expr", "expr": "60000 / _mean(d.rr)" },
+          "ranges": [ { "max": 50, "label": "Bradycardia", "class": "warn" }, { "max": 100, "label": "Normal", "class": "ok" }, { "max": null, "label": "Tachycardia", "class": "warn" } ] }
+      ]
+    },
+    {
+      "id": "td-advanced",
+      "title": "Advanced Time-Domain",
+      "icon": "📊",
+      "description": "Additional time-domain HRV measures",
+      "metrics": [
+        { "id": "sdsd",      "abbr": "SDSD",   "name": "SDSD",              "fullName": "SD of successive NN differences",  "tier": "secondary", "unit": "ms",
+          "formula": "SD(RR[i+1]−RR[i])", "compute": { "fn": "sd_diff", "source": "rr" },
+          "ranges": [ { "max": 20, "label": "Low", "class": "warn" }, { "max": null, "label": "Normal", "class": "ok" } ] },
+        { "id": "nn50",      "abbr": "NN50",   "name": "NN50",              "fullName": "Count of successive NN diffs > 50 ms",  "tier": "secondary", "unit": "count",
+          "formula": "count(|RR[i+1]−RR[i]| > 50)", "compute": { "fn": "count_diff_above", "source": "rr", "args": [50] },
+          "ranges": [ { "max": null, "label": "Reference value — no threshold", "class": "ok" } ] },
+        { "id": "rrMAD",     "abbr": "MAD",    "name": "Median Absolute Deviation",  "fullName": "Median |RR[i] − median(RR)|",  "tier": "secondary", "unit": "ms",
+          "formula": "median(|RR − median(RR)|)", "compute": { "fn": "mad", "source": "rr" },
+          "ranges": [ { "max": 30, "label": "Low variability", "class": "warn" }, { "max": null, "label": "Normal", "class": "ok" } ] },
+        { "id": "rrRange",   "abbr": "RR range","name": "RR Range",          "fullName": "max(RR) − min(RR)",  "tier": "secondary", "unit": "ms",
+          "formula": "max(RR) − min(RR)", "compute": { "fn": "expr", "expr": "_max(d.rr) - _min(d.rr)" },
+          "ranges": [ { "max": 300, "label": "Narrow range", "class": "warn" }, { "max": null, "label": "Normal", "class": "ok" } ] }
+      ]
+    },
+    {
+      "id": "freq-domain",
+      "title": "Frequency Domain",
+      "icon": "🔊",
+      "description": "Spectral analysis of RR interval series",
+      "metrics": [
+        { "id": "lfPower",   "abbr": "LF",     "name": "LF Power",          "fullName": "Low-frequency power (0.04–0.15 Hz)",  "tier": "core", "unit": "ms²",
+          "formula": "∫|X(f)|² for f ∈ [0.04, 0.15]", "compute": { "fn": "band_power", "source": "rr", "args": [0.04, 0.15] },
+          "ranges": [ { "max": null, "label": "Reference — compare to HF ratio", "class": "ok" } ] },
+        { "id": "hfPower",   "abbr": "HF",     "name": "HF Power",          "fullName": "High-frequency power (0.15–0.40 Hz) — vagal proxy",  "tier": "core", "unit": "ms²",
+          "formula": "∫|X(f)|² for f ∈ [0.15, 0.40]", "compute": { "fn": "band_power", "source": "rr", "args": [0.15, 0.40] },
+          "ranges": [ { "max": null, "label": "Reference — higher = more vagal", "class": "ok" } ] },
+        { "id": "lfhfRatio", "abbr": "LF/HF",  "name": "LF/HF Ratio",       "fullName": "Sympathovagal balance proxy",  "tier": "core", "unit": "ratio",
+          "formula": "LF_ms² / HF_ms²", "compute": { "fn": "lf_hf_ratio", "source": "rr", "args": [0.04, 0.15, 0.15, 0.40] },
+          "ranges": [ { "max": 0.5, "label": "HF dominant", "class": "ok" }, { "max": 2.0, "label": "Balanced", "class": "ok" }, { "max": 4.0, "label": "Sympathetic shift", "class": "warn" }, { "max": null, "label": "Sympathetic dominant", "class": "bad" } ] },
+        { "id": "totalPower","abbr": "TP",     "name": "Total Power",       "fullName": "Total spectral power (0.003–0.40 Hz)",  "tier": "secondary", "unit": "ms²",
+          "formula": "∫|X(f)|² for f ∈ [0.003, 0.40]", "compute": { "fn": "band_power", "source": "rr", "args": [0.003, 0.40] },
+          "ranges": [ { "max": 500, "label": "Low — suppressed", "class": "warn" }, { "max": null, "label": "Normal", "class": "ok" } ] },
+        { "id": "vlfPower",  "abbr": "VLF",    "name": "VLF Power",         "fullName": "Very low frequency power (0.003–0.04 Hz)",  "tier": "secondary", "unit": "ms²",
+          "formula": "∫|X(f)|² for f ∈ [0.003, 0.04]", "compute": { "fn": "band_power", "source": "rr", "args": [0.003, 0.04] },
+          "ranges": [ { "max": null, "label": "Reference value", "class": "ok" } ] },
+        { "id": "lfNorm",    "abbr": "nLF",    "name": "Normalized LF",     "fullName": "LF / (LF + HF) × 100",  "tier": "secondary", "unit": "n.u.",
+          "formula": "LF / (LF + HF) × 100", "compute": { "fn": "expr", "expr": "results.lfPower.value / (results.lfPower.value + results.hfPower.value) * 100" },
+          "ranges": [ { "max": 40, "label": "Vagal dominant", "class": "ok" }, { "max": 60, "label": "Balanced", "class": "ok" }, { "max": null, "label": "Sympathetic dominant", "class": "warn" } ] },
+        { "id": "hfNorm",    "abbr": "nHF",    "name": "Normalized HF",     "fullName": "HF / (LF + HF) × 100",  "tier": "secondary", "unit": "n.u.",
+          "formula": "HF / (LF + HF) × 100", "compute": { "fn": "expr", "expr": "results.hfPower.value / (results.lfPower.value + results.hfPower.value) * 100" },
+          "ranges": [ { "max": 40, "label": "Low vagal", "class": "warn" }, { "max": null, "label": "Normal", "class": "ok" } ] },
+        { "id": "lfPeak",    "abbr": "LF-f₀",  "name": "LF Peak Frequency", "fullName": "Dominant frequency in LF band",  "tier": "research", "unit": "Hz",
+          "formula": "argmax|X(f)|² in 0.04–0.15 Hz", "compute": { "fn": "peak_freq", "source": "rr", "args": [0.04, 0.15] },
+          "ranges": [ { "max": null, "label": "Reference — ~0.1 Hz typical", "class": "ok" } ] }
+      ]
+    },
+    {
+      "id": "geometric",
+      "title": "Geometric Methods",
+      "icon": "📐",
+      "description": "RR interval distribution geometry and Poincaré analysis",
+      "metrics": [
+        { "id": "sd1",       "abbr": "SD1",    "name": "SD1",               "fullName": "Poincaré short-term variability (⊥ to identity line)",  "tier": "core", "unit": "ms",
+          "formula": "SD((RR[i+1]−RR[i])/√2)", "compute": { "fn": "poincare_sd1", "source": "rr" },
+          "ranges": [ { "max": 15, "label": "Low vagal", "class": "warn" }, { "max": 50, "label": "Moderate", "class": "ok" }, { "max": null, "label": "Good", "class": "ok" } ] },
+        { "id": "sd2",       "abbr": "SD2",    "name": "SD2",               "fullName": "Poincaré long-term variability (∥ to identity line)",  "tier": "core", "unit": "ms",
+          "formula": "SD((RR[i+1]+RR[i])/√2)", "compute": { "fn": "poincare_sd2", "source": "rr" },
+          "ranges": [ { "max": 50, "label": "Low total variability", "class": "warn" }, { "max": null, "label": "Normal", "class": "ok" } ] },
+        { "id": "sd1sd2",    "abbr": "SD1/SD2","name": "SD1/SD2 Ratio",     "fullName": "Short vs long-term autonomic balance",  "tier": "secondary", "unit": "ratio",
+          "formula": "SD1 / SD2", "compute": { "fn": "expr", "expr": "results.sd1.value / results.sd2.value" },
+          "ranges": [ { "max": 0.3, "label": "Long-term dominant", "class": "ok" }, { "max": 0.7, "label": "Balanced", "class": "ok" }, { "max": null, "label": "Short-term dominant — possible arrhythmia", "class": "warn" } ] },
+        { "id": "rrTriIndex","abbr": "TRI",    "name": "RR Triangular Index",  "fullName": "Total number of RR intervals / height of histogram peak",  "tier": "core", "unit": "a.u.",
+          "formula": "N / peak_height(RR histogram, bin=7.8125ms)", "compute": { "fn": "tri_index", "source": "rr", "args": [7.8125] },
+          "ranges": [ { "max": 15, "label": "Low — reduced variability", "class": "bad" }, { "max": 30, "label": "Moderate", "class": "warn" }, { "max": null, "label": "Normal", "class": "ok" } ] },
+        { "id": "tinn",      "abbr": "TINN",   "name": "TINN",              "fullName": "Baseline width of triangular interpolation of RR histogram",  "tier": "secondary", "unit": "ms",
+          "formula": "baseline_width of best-fit triangle to RR histogram", "compute": { "fn": "stub", "note": "Requires triangular interpolation" },
+          "ranges": [ { "max": 200, "label": "Narrow — low variability", "class": "warn" }, { "max": null, "label": "Normal", "class": "ok" } ] }
+      ]
+    },
+    {
+      "id": "nonlinear",
+      "title": "Nonlinear & Complexity",
+      "icon": "🌀",
+      "description": "Nonlinear dynamics and complexity measures",
+      "metrics": [
+        { "id": "dfaAlpha1", "abbr": "DFA α1", "name": "DFA α1",             "fullName": "Short-term scaling exponent (4–16 beats)",  "tier": "core", "unit": "exponent",
+          "formula": "slope log F(n) vs log n, n=4–16", "compute": { "fn": "dfa_alpha1", "source": "rr", "args": [4, 16] },
+          "ranges": [ { "max": 0.5, "label": "Anti-correlated", "class": "warn" }, { "max": 1.0, "label": "Normal correlated", "class": "ok" }, { "max": 1.5, "label": "Non-stationary / strongly correlated", "class": "warn" }, { "max": null, "label": "Pathological", "class": "bad" } ] },
+        { "id": "dfaAlpha2", "abbr": "DFA α2", "name": "DFA α2",             "fullName": "Long-term scaling exponent (16–64 beats)",  "tier": "secondary", "unit": "exponent",
+          "formula": "slope log F(n) vs log n, n=16–64", "compute": { "fn": "dfa_alpha2", "source": "rr", "args": [16, 64] },
+          "ranges": [ { "max": 0.5, "label": "Anti-correlated", "class": "warn" }, { "max": 1.0, "label": "Normal", "class": "ok" }, { "max": null, "label": "Correlated", "class": "warn" } ] },
+        { "id": "sampEn",    "abbr": "SampEn",  "name": "Sample Entropy",     "fullName": "RR interval regularity (m=2, r=0.2×SD)",  "tier": "research", "unit": "entropy",
+          "formula": "−ln(A/B); m=2, r=0.2×SD", "compute": { "fn": "sample_entropy", "source": "rr", "args": [2, 0.2] },
+          "ranges": [ { "max": 0.5, "label": "Highly regular — low complexity", "class": "warn" }, { "max": 1.5, "label": "Moderate", "class": "ok" }, { "max": null, "label": "High complexity — healthy", "class": "ok" } ] },
+        { "id": "apEn",      "abbr": "ApEn",   "name": "Approximate Entropy", "fullName": "HR regularity measure (Pincus 1991)",  "tier": "secondary", "unit": "entropy",
+          "formula": "φ(m) − φ(m+1); m=2, r=0.2×SD", "compute": { "fn": "approx_entropy", "source": "rr", "args": [2, 0.2] },
+          "ranges": [ { "max": 0.5, "label": "Low complexity", "class": "warn" }, { "max": null, "label": "Normal", "class": "ok" } ] },
+        { "id": "shannonEn", "abbr": "ShEn",   "name": "Shannon Entropy",    "fullName": "Information entropy of RR distribution",  "tier": "research", "unit": "bits",
+          "formula": "−Σ p(x)·log₂(p(x))", "compute": { "fn": "stub", "note": "Requires histogram binning" },
+          "ranges": [ { "max": 3, "label": "Low — narrow distribution", "class": "warn" }, { "max": null, "label": "Normal", "class": "ok" } ] },
+        { "id": "dfaAlpha1_24h", "abbr": "DFA α1*", "name": "DFA α1 Risk Stratifier",  "fullName": "DFA α1 < 0.5 for >5% of time = elevated risk (Huikuri 2000)",  "tier": "research", "unit": "%",
+          "formula": "pct_time(DFA_α1 < 0.5)", "compute": { "fn": "stub", "note": "Requires windowed DFA" },
+          "ranges": [ { "max": 5, "label": "Normal", "class": "ok" }, { "max": null, "label": "Elevated — low α1 episodes", "class": "bad" } ] }
+      ]
+    },
+    {
+      "id": "clinical",
+      "title": "Clinical Risk Indices",
+      "icon": "🏥",
+      "description": "Validated clinical risk stratification measures",
+      "metrics": [
+        { "id": "sdnn5min",  "abbr": "SDNN-5",  "name": "Mean 5-min SDNN",   "fullName": "Mean SDNN across 5-min segments",  "tier": "secondary", "unit": "ms",
+          "formula": "mean(SDNN per 5-min window)", "compute": { "fn": "stub", "note": "Requires windowed SDNN" },
+          "ranges": [ { "max": 30, "label": "Low — post-MI risk marker", "class": "bad" }, { "max": 50, "label": "Reduced", "class": "warn" }, { "max": null, "label": "Normal", "class": "ok" } ] },
+        { "id": "hrvTriIndex","abbr": "HTI",    "name": "HRV Triangular Index",  "fullName": "Clinical triangular index (24h standard)",  "tier": "secondary", "unit": "a.u.",
+          "formula": "Total NN / modal_bin_height", "compute": { "fn": "tri_index", "source": "rr", "args": [7.8125] },
+          "ranges": [ { "max": 15, "label": "High risk (< 20 for 24h)", "class": "bad" }, { "max": 25, "label": "Moderate risk", "class": "warn" }, { "max": null, "label": "Low risk", "class": "ok" } ] },
+        { "id": "ectopyRate","abbr": "ECT",     "name": "Ectopic Beat Rate",  "fullName": "Detected ectopic beats per hour",  "tier": "secondary", "unit": "events/hr",
+          "formula": "ectopic_count / recording_hours", "compute": { "fn": "stub", "note": "Requires QRS morphology classification" },
+          "ranges": [ { "max": 5, "label": "Low — acceptable for HRV", "class": "ok" }, { "max": 10, "label": "Moderate — filter before HRV", "class": "warn" }, { "max": null, "label": "High — HRV may be unreliable", "class": "bad" } ] }
+      ]
+    },
+    {
+      "id": "qrs",
+      "title": "QRS Morphology",
+      "icon": "⚡",
+      "description": "ECG waveform shape metrics from single-lead ECG",
+      "metrics": [
+        { "id": "qrsWidth",  "abbr": "QRS",    "name": "Mean QRS Duration",  "fullName": "Mean QRS complex width",  "tier": "secondary", "unit": "ms",
+          "formula": "mean(QRS_end − QRS_start) per beat", "compute": { "fn": "stub", "note": "Requires QRS onset/offset detection" },
+          "ranges": [ { "max": 100, "label": "Normal (< 120 ms)", "class": "ok" }, { "max": 120, "label": "Borderline", "class": "warn" }, { "max": null, "label": "Wide — conduction delay?", "class": "bad" } ] },
+        { "id": "qrsAmp",    "abbr": "R-amp",  "name": "Mean R-Peak Amplitude",  "fullName": "Mean R-peak mV",  "tier": "secondary", "unit": "mV",
+          "formula": "mean(ECG[rpeak_index])", "compute": { "fn": "stub", "note": "Requires R-peak aligned amplitude extraction" },
+          "ranges": [ { "max": null, "label": "Reference — lead-dependent", "class": "ok" } ] },
+        { "id": "qtcEst",    "abbr": "QTc*",   "name": "QTc Estimate",      "fullName": "Corrected QT interval estimate (Bazett)",  "tier": "research", "unit": "ms",
+          "formula": "QT / √(RR_s); Bazett correction", "compute": { "fn": "stub", "note": "Requires QT detection — single-lead accuracy limited" },
+          "ranges": [ { "max": 420, "label": "Normal", "class": "ok" }, { "max": 460, "label": "Borderline prolonged", "class": "warn" }, { "max": null, "label": "Prolonged — clinical review", "class": "bad" } ] }
+      ]
+    }
+  ],
+
+  "abbreviations": {
+    "ApEn": "Approximate Entropy",
+    "DFA": "Detrended Fluctuation Analysis",
+    "ECG": "Electrocardiogram",
+    "FFT": "Fast Fourier Transform",
+    "HF": "High Frequency (0.15–0.40 Hz)",
+    "HR": "Heart Rate",
+    "HRV": "Heart Rate Variability",
+    "LF": "Low Frequency (0.04–0.15 Hz)",
+    "MAD": "Median Absolute Deviation",
+    "NN": "Normal-to-Normal (RR intervals)",
+    "pNN20/50": "Percentage of successive NN diffs > 20/50 ms",
+    "QTc": "Corrected QT Interval",
+    "QRS": "QRS Complex (ventricular depolarization)",
+    "RMSSD": "Root Mean Square of Successive Differences",
+    "RR": "R-R Interval",
+    "SampEn": "Sample Entropy",
+    "SD1/SD2": "Poincaré short/long-term SD",
+    "SDNN": "Standard Deviation of NN intervals",
+    "SDSD": "Standard Deviation of Successive Differences",
+    "ShEn": "Shannon Entropy",
+    "TINN": "Triangular Interpolation of NN Interval Histogram",
+    "TP": "Total Power",
+    "TRI": "Triangular Index",
+    "VLF": "Very Low Frequency (0.003–0.04 Hz)"
+  }
+}

@@ -1,0 +1,3128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  HRVDex.src.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HRVDex — Heart Rate Variability Analyzer · v1.0</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="stylesheet" href="licensing/dex-license.css">
+<!-- fonts: system stacks only, no CDN (see AUDIT.md) -->
+<style>
+/* ▼▼▼ ANS-DESIGN-START ▼▼▼ */
+/* ⚠ SYNCED from ans-design.css · sha 63d47ad1e085
+   ⚠ No build script ships here — if you edit ans-design.css, hand-mirror the change
+   ⚠ into every app's block and bump the sha. Unmirrored edits drift silently. */
+/* ════════════════════════════════════════════════════════════════════════
+   Tepna Design System v1.0 · canonical base
+   Sources: o2ring_v29 (structure) + welltory_hrv_parser_v31 (polish)
+   ════════════════════════════════════════════════════════════════════════
+   Scope: tokens, shell, common components, animations, light theme.
+   App-specific compositions (readiness hero, night rows, Karvonen zones,
+   Poincaré plots, profile panels) stay in each app's own style block
+   below the marker block.
+   ════════════════════════════════════════════════════════════════════════
+   Aliases: rules supporting both apps' class names use comma-separated
+   selectors (.nav-item, .sb-item) rather than renaming markup. Keeps
+   either HTML drop-in compatible.
+   ════════════════════════════════════════════════════════════════════════ */
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §0  WEB FONTS — self-hosted, no CDN (privacy + offline + single-file)
+   Colocate the .woff2 files beside each HTML. If absent, the stacks below
+   fall back to system-ui / monospace with no network call.
+   ════════════════════════════════════════════════════════════════════════ */
+/* Fonts: system stacks only — no @font-face, no CDN, no network.
+   The 'Inter' / 'IBM Plex Mono' names in the stacks below fall through
+   to system-ui / ui-monospace. Local-woff2 support was removed because
+   those files were never shipped (caused phantom bundler warnings). See AUDIT.md. */
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §1  DESIGN TOKENS
+   ════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* ── Surface ── */
+  --bg:        #0B0F14;
+  --surface:   #121821;
+  --surface2:  #18212C;
+  --surface3:  #1E2835;
+  --border:    #1e2d42;
+  --border2:   #253550;
+
+  /* ── Text ── */
+  --text:   #F4F7FB;
+  --text2:  #9FB0C3;
+  --text3:  #6F8096;
+  --text4:  #4E5A6B;
+  --dim:    #5D7690;
+
+  /* ── Brand / status ── */
+  --teal:   #3DE0D0;
+  --blue:   #58A6FF;
+  --green:  #39D98A;
+  --amber:  #FFB84D;
+  --red:    #FF6B7A;
+  --cyan:   #3DE0D0;
+  --purple: #a78bfa;
+  --orange: #fb923c;
+  --yellow: #FFB84D;
+
+  --accent:    var(--teal);
+  --accent2:   var(--blue);
+  --status-ok:      var(--green);
+  --status-caution: var(--amber);
+  --status-concern: var(--red);
+  --success:   var(--green);
+  --warning:   var(--amber);
+  --danger:    var(--red);
+
+  /* ── Borders ── */
+  --b:  1px solid rgba(255,255,255,.05);
+  --b2: 1px solid rgba(61,224,208,.12);
+
+  /* ── Glow tints ── */
+  --glow-teal: rgba(61,224,208,.10);
+  --glow-blue: rgba(88,166,255,.08);
+
+  /* ── Radii ── */
+  --r-sm: 12px;
+  --r-md: 18px;
+  --r-lg: 24px;
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-xl: 30px;
+
+  /* ── Shadows ── */
+  --s: 0 8px 24px rgba(0,0,0,.24);
+
+  /* ── Type scale ── */
+  --fs-page:        30px;
+  --fs-section:     22px;
+  --fs-card-title:  16px;
+  --fs-card-sub:    13px;
+  --fs-body:        14px;
+  --fs-label:       11px;
+  --fs-help:        12px;
+
+  --fs-metric-hero: 56px;
+  --fs-metric-xl:   36px;
+  --fs-metric-lg:   22px;
+  --fs-metric-md:   18px;
+
+  --fw-regular:  400;
+  --fw-semibold: 600;
+  --fw-bold:     700;
+
+  /* ── Spacing (8pt) ── */
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-5:  24px;
+  --sp-6:  32px;
+  --sp-7:  48px;
+  --sp-8:  64px;
+
+  /* ── Layout ── */
+  --content-max: 1300px;
+  --grid-max:    1500px;
+
+  /* ── Spec aliases ── */
+  --bg-main:          var(--bg);
+  --bg-surface:       var(--surface);
+  --bg-surface-2:     var(--surface2);
+  --text-primary:     var(--text);
+  --text-secondary:   var(--text2);
+  --text-muted:       var(--text3);
+  --accent-primary:   var(--accent);
+  --accent-secondary: var(--accent2);
+
+  color-scheme: dark;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §2  LIGHT THEME (body.light)
+   ════════════════════════════════════════════════════════════════════════ */
+body.light {
+  --bg:       #F2F5F9;
+  --surface:  #FFFFFF;
+  --surface2: #EBF0F7;
+  --surface3: #DDE4EF;
+  --border:   #C8D4E4;
+  --border2:  #B0C0D8;
+  --text:     #0F1923;
+  --text2:    #3A4E65;
+  --text3:    #5A7090;
+  --text4:    #5D7A96;
+  --b:  1px solid rgba(0,0,0,.07);
+  --b2: 1px solid rgba(61,224,208,.18);
+  --s:  0 4px 18px rgba(0,0,0,.10);
+  /* dark-tuned tokens retuned for light surface (contrast + readable glow) */
+  --dim:       #44586E;
+  --glow-teal: rgba(61,224,208,.18);
+  --glow-blue: rgba(88,166,255,.14);
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §3  RESET + BODY + AMBIENT BACKGROUND
+   ════════════════════════════════════════════════════════════════════════ */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Body-level ambient gradient — depth without weight (welltory polish) */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 0%, rgba(61,224,208,.04), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 80% 100%, rgba(88,166,255,.03), transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+body.light::before {
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 0%, rgba(61,224,208,.06), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 80% 100%, rgba(88,166,255,.04), transparent 60%);
+}
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: rgba(61,224,208,.18); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(61,224,208,.28); }
+body.light ::-webkit-scrollbar-thumb { background: rgba(61,224,208,.35); }
+
+:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+button:focus:not(:focus-visible) { outline: none; }
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §4  KEYFRAMES
+   ════════════════════════════════════════════════════════════════════════ */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes cardEntrance {
+  from { opacity: 0; transform: translateY(12px) scale(.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(57,217,138,.4); }
+  50%      { box-shadow: 0 0 0 5px rgba(57,217,138,0); }
+}
+@keyframes ringPulse {
+  0%, 100% { box-shadow: 0 0 0  0   rgba(61,224,208,.2), 0 0 20px rgba(61,224,208,.10); }
+  50%      { box-shadow: 0 0 0 16px rgba(61,224,208,0),  0 0 40px rgba(61,224,208,.15); }
+}
+@keyframes shimmerBar {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+@keyframes subtleGlow {
+  0%, 100% { box-shadow: 0 0 8px  rgba(61,224,208,.08); }
+  50%      { box-shadow: 0 0 16px rgba(61,224,208,.18); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §5  APP SHELL (.app ≡ .app-shell)
+   ════════════════════════════════════════════════════════════════════════ */
+.app,
+.app-shell {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 100vh;
+  position: relative;
+  z-index: 1;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §6  SIDEBAR — with ambient gradient + halo (welltory polish)
+   ════════════════════════════════════════════════════════════════════════ */
+.sidebar {
+  background: linear-gradient(180deg,
+    rgba(18,24,33,.99) 0%,
+    rgba(15,20,29,.99) 60%,
+    rgba(11,15,20,.99) 100%);
+  border-right: var(--b);
+  padding: var(--sp-5) var(--sp-3);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  box-shadow:
+    inset -1px 0 0 rgba(255,255,255,.04),
+    2px 0 20px rgba(0,0,0,.3);
+}
+.sidebar::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 180px;
+  background: radial-gradient(ellipse at 50% 0%, rgba(61,224,208,.07), transparent 70%);
+  pointer-events: none;
+}
+body.light .sidebar {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
+  box-shadow:
+    inset -1px 0 0 rgba(0,0,0,.07),
+    2px 0 20px rgba(0,0,0,.06);
+}
+body.light .sidebar::before {
+  background: radial-gradient(ellipse at 50% 0%, rgba(61,224,208,.08), transparent 70%);
+}
+
+/* ── Logo ── */
+.logo {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  margin-bottom: var(--sp-6);
+  padding: 0 var(--sp-2);
+}
+.logo-badge {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, var(--teal), var(--blue));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #041014;
+  font-weight: var(--fw-bold);
+  font-size: 18px;
+  box-shadow: 0 0 20px rgba(61,224,208,.22);
+  flex-shrink: 0;
+  transition: box-shadow .2s, transform .2s;
+}
+.logo:hover .logo-badge {
+  box-shadow: 0 0 28px rgba(61,224,208,.35);
+  transform: scale(1.05);
+}
+.logo-title { font-weight: var(--fw-semibold); font-size: 15px; letter-spacing: -.015em; }
+.logo-sub   { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+/* Optional rule between logo and nav (o2ring) */
+.sidebar-logo-rule {
+  border: none;
+  border-top: 1px solid rgba(255,255,255,.06);
+  margin: 0 var(--sp-2) var(--sp-3);
+}
+body.light .sidebar-logo-rule { border-top-color: rgba(0,0,0,.08); }
+
+/* ── Nav section labels ── */
+.nav-section-label,
+.sec-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: var(--text4);
+  padding: 0 var(--sp-2);
+  margin: var(--sp-5) 0 var(--sp-2);
+  font-weight: var(--fw-semibold);
+}
+/* When .sec-label appears in main content as a divider it also has a trailing rule.
+   Sidebar usage stays plain — see §9 for the content-side variant. */
+
+/* Nav items — alias .nav-item ≡ .sb-item */
+.sb-nav,
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nav-item,
+.sb-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 9px var(--sp-3);
+  border-radius: 10px;
+  color: var(--text2);
+  font-size: 13px;
+  font-weight: var(--fw-regular);
+  cursor: default;
+  transition: background .12s, color .12s, box-shadow .12s;
+  letter-spacing: -.01em;
+}
+.nav-item:hover,
+.sb-item:hover {
+  background: rgba(61,224,208,.05);
+  color: var(--text);
+  box-shadow: inset 3px 0 0 rgba(61,224,208,.3);
+}
+.nav-item.active,
+.sb-item.active,
+.nav-item.nav-active {
+  background: rgba(61,224,208,.12);
+  color: var(--teal);
+  font-weight: var(--fw-semibold);
+  box-shadow: inset 3px 0 0 var(--teal);
+}
+.nav-badge {
+  margin-left: auto;
+  background: rgba(61,224,208,.12);
+  color: var(--teal);
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+}
+body.light .nav-item,
+body.light .sb-item { color: var(--text3); }
+body.light .nav-item:hover,
+body.light .sb-item:hover { background: rgba(0,0,0,.04); color: var(--text); }
+body.light .nav-item.active,
+body.light .sb-item.active { background: rgba(61,224,208,.12); color: #0B7A6E; }
+
+/* ── Sidebar bottom zones (data + readiness cards) ── */
+.sidebar-bottom,
+.side-foot {
+  margin-top: auto;
+  padding-top: 22px;
+}
+.sidebar-data-card,
+.loaded-card {
+  background: rgba(45,212,191,.06);
+  border: 1px solid rgba(45,212,191,.15);
+  border-radius: 14px;
+  padding: 12px 14px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 0 24px rgba(57,217,138,.08);
+}
+.loaded-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, var(--green), transparent);
+  border-radius: 14px 14px 0 0;
+}
+.sidebar-data-info { margin-top: 8px; font-size: 11px; color: var(--text3); line-height: 1.55; }
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §7  TOPBAR
+   ════════════════════════════════════════════════════════════════════════ */
+.main-wrap,
+.main-content {
+  padding: var(--sp-6) var(--sp-6) var(--sp-7);
+  max-width: var(--content-max);
+  margin: 0 auto;
+  width: 100%;
+  min-width: 0;
+  animation: fadeIn .3s ease;
+  padding-bottom: 150px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--sp-4);
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  padding-bottom: var(--sp-5);
+  position: relative;
+}
+.topbar::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(61,224,208,.35), rgba(88,166,255,.2), transparent 70%);
+}
+.topbar-title,
+.page-title {
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+  letter-spacing: -.02em;
+}
+.topbar-sub,
+.page-sub {
+  font-size: var(--fs-help);
+  color: var(--text3);
+  margin-top: var(--sp-1);
+  opacity: .85;
+}
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Version pill in the title */
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(61,224,208,.08);
+  border: 1px solid rgba(61,224,208,.2);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--teal);
+  letter-spacing: .03em;
+  margin-left: 10px;
+  vertical-align: middle;
+}
+
+/* Topbar badges (hover lift) */
+.badge,
+.top-badge {
+  background: rgba(61,224,208,.06);
+  border: 1px solid rgba(61,224,208,.18);
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 10px;
+  color: var(--teal);
+  white-space: nowrap;
+  font-weight: 700;
+  letter-spacing: .02em;
+  transition: background .15s, border-color .15s;
+}
+.top-badge:hover {
+  background: rgba(61,224,208,.14);
+  border-color: rgba(61,224,208,.3);
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §8  SECTION TITLES (in-content)
+   ════════════════════════════════════════════════════════════════════════ */
+/* When .sec-label appears in main content (not sidebar) it has the trailing
+   rule and an optional teal dot. Sidebar usage of .sec-label keeps the
+   plainer styling from §6. */
+.section-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text2);
+  margin: var(--sp-6) 0 var(--sp-3);
+  font-weight: var(--fw-bold);
+}
+.section-title::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--teal);
+  flex-shrink: 0;
+  margin-right: 2px;
+  opacity: .9;
+}
+.section-title::after {
+  content: '';
+  height: 1px;
+  flex: 1;
+  background: rgba(255,255,255,.05);
+}
+body.light .section-title::after { background: rgba(0,0,0,.06); }
+
+/* Large variant — real H2 weight */
+.section-title-lg,
+.section-title.section-title-lg,
+.sec-label.sec-label-lg {
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+  color: var(--text);
+  letter-spacing: -.015em;
+  margin: var(--sp-7) 0 var(--sp-4);
+}
+.section-title-lg::before,
+.section-title-lg::after,
+.sec-label.sec-label-lg::after { display: none; }
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §9  MODE BAR — Core / Advanced / Research (o2ring tiered system)
+   ════════════════════════════════════════════════════════════════════════ */
+.mode-bar {
+  display: flex;
+  background: var(--surface);
+  border: var(--b);
+  padding: 3px;
+  border-radius: 11px;
+  gap: 2px;
+  margin-left: auto;
+}
+.mode-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: var(--fw-semibold);
+  color: var(--text3);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+  letter-spacing: .02em;
+}
+.mode-btn.active { background: rgba(61,224,208,.13); color: var(--teal); }
+.mode-btn:hover:not(.active) { background: rgba(255,255,255,.03); color: var(--text); }
+.mode-hint { font-size: 11px; color: var(--text3); font-weight: var(--fw-regular); }
+
+/* Data-tier visibility — drives Core/Advanced/Research disclosure */
+[data-tier="secondary"],
+[data-tier="research"] { display: none !important; }
+
+body[data-mode="advanced"] [data-tier="secondary"] { display: flex !important; }
+body[data-mode="research"]  [data-tier="secondary"],
+body[data-mode="research"]  [data-tier="research"]  { display: flex !important; }
+
+/* Block-level overrides for non-flex elements */
+body[data-mode="advanced"] section[data-tier="secondary"],
+body[data-mode="advanced"] div.sec-section[data-tier="secondary"],
+body[data-mode="research"]  section[data-tier="secondary"],
+body[data-mode="research"]  div.sec-section[data-tier="secondary"],
+body[data-mode="research"]  section[data-tier="research"],
+body[data-mode="research"]  div.sec-section[data-tier="research"] { display: block !important; }
+
+body[data-mode="advanced"] .metric[data-tier="secondary"],
+body[data-mode="research"]  .metric[data-tier="secondary"],
+body[data-mode="research"]  .metric[data-tier="research"]  { display: block !important; }
+
+/* Chart-card tier reveal (Core/Advanced/Research graph disclosure on Overview) */
+.chart-card[data-tier="secondary"],
+.chart-card[data-tier="research"] { display: none !important; }
+body[data-mode="advanced"] .chart-card[data-tier="secondary"],
+body[data-mode="research"]  .chart-card[data-tier="secondary"],
+body[data-mode="research"]  .chart-card[data-tier="research"] { display: block !important; }
+
+/* Tier badge in a chart card corner */
+.tier-pill {
+  position: absolute; top: 12px; right: 12px; z-index: 2;
+  font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 999px; line-height: 1;
+  background: rgba(120,160,255,.12); color: var(--blue); border: 1px solid rgba(120,160,255,.25);
+}
+.tier-pill.research { background: rgba(255,184,77,.12); color: var(--amber); border-color: rgba(255,184,77,.28); }
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §10  BUTTONS
+   ════════════════════════════════════════════════════════════════════════ */
+.btn {
+  background: var(--surface2);
+  border: var(--b);
+  color: var(--text2);
+  border-radius: 10px;
+  padding: 7px 14px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: var(--fw-semibold);
+  transition: all .15s;
+}
+.btn:hover {
+  background: rgba(255,255,255,.04);
+  color: var(--text);
+  border-color: rgba(255,255,255,.08);
+}
+.btn.active,
+.btn-active {
+  background: rgba(88,166,255,.13);
+  border-color: rgba(88,166,255,.25);
+  color: var(--blue);
+}
+.btn:active { transform: scale(.97); }
+
+.btn-blue    { background: rgba(88,166,255,.13); border: 1px solid rgba(88,166,255,.25); color: var(--blue); }
+.btn-blue:hover    { background: rgba(88,166,255,.22); }
+.btn-green   { background: rgba(45,212,191,.10); border: 1px solid rgba(45,212,191,.22); color: var(--status-ok); }
+.btn-green:hover   { background: rgba(45,212,191,.18); }
+.btn-outline { background: transparent; border: var(--b); color: var(--text3); }
+.btn-outline:hover { background: rgba(255,255,255,.03); color: var(--text2); }
+.btn-export  { background: var(--teal); border: 1px solid rgba(61,224,208,.4); color: #041014; padding: 7px 16px; border-radius: 10px; cursor: pointer; font-size: 12px; font-weight: var(--fw-bold); }
+.btn-dl      { background: var(--blue); border: 1px solid rgba(88,166,255,.4); color: #fff; padding: 7px 16px; border-radius: 10px; cursor: pointer; font-size: 12px; font-weight: var(--fw-bold); }
+.btn-destructive {
+  background: transparent;
+  border: 1px solid rgba(248,113,113,.22);
+  color: rgba(248,113,113,.70);
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 6px 11px;
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.btn-destructive:hover { background: rgba(248,113,113,.08); color: var(--red); }
+
+/* Primary CTA — gradient pill, glow on hover */
+.upload-btn,
+.btn-export-main,
+#exportBtn {
+  display: inline-block;
+  background: linear-gradient(135deg, var(--teal), var(--blue));
+  color: #041014;
+  border: none;
+  padding: 9px 22px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  transition: opacity .15s, box-shadow .2s, transform .1s;
+}
+.upload-btn:hover,
+.btn-export-main:hover,
+#exportBtn:hover {
+  opacity: .9;
+  box-shadow: 0 0 20px rgba(61,224,208,.25);
+}
+.upload-btn:active,
+.btn-export-main:active,
+#exportBtn:active { transform: scale(.97); }
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §11  PILLS, FLAGS, BADGES, DATA-PILL
+   ════════════════════════════════════════════════════════════════════════ */
+.pill {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .03em;
+}
+.pill-green  { background: rgba(45,212,191,.12); color: var(--status-ok);      border: 1px solid rgba(45,212,191,.2); }
+.pill-yellow { background: rgba(245,158,11,.12); color: var(--status-caution); border: 1px solid rgba(245,158,11,.2); }
+.pill-red    { background: rgba(248,113,113,.12); color: var(--status-concern); border: 1px solid rgba(248,113,113,.2); }
+.pill-blue   { background: rgba(88,166,255,.15); color: var(--blue); border: 1px solid rgba(88,166,255,.2); }
+.pill-gray   { background: rgba(110,133,168,.12); color: var(--text2); border: 1px solid rgba(110,133,168,.15); }
+
+.flag { font-size: 10px; font-weight: 600; padding: 3px 9px; border-radius: 20px; }
+.flag-good   { background: rgba(45,212,191,.12); color: var(--status-ok); }
+.flag-warn   { background: rgba(245,158,11,.12); color: var(--status-caution); }
+.flag-bad    { background: rgba(248,113,113,.12); color: var(--status-concern); }
+.flag-blue   { background: rgba(88,166,255,.15); color: var(--blue); border: 1px solid rgba(88,166,255,.25); }
+.flags-wrap  { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+
+.fpill { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 10px; font-weight: 700; border: 1px solid transparent; }
+.fpill.ok   { background: rgba(45,212,191,.10);  color: var(--status-ok);      border-color: rgba(45,212,191,.22); }
+.fpill.warn { background: rgba(245,158,11,.10);  color: var(--status-caution); border-color: rgba(245,158,11,.22); }
+.fpill.bad  { background: rgba(248,113,113,.10); color: var(--status-concern); border-color: rgba(248,113,113,.22); }
+.fpill.info { background: rgba(88,166,255,.10);  color: var(--blue);           border-color: rgba(88,166,255,.2); }
+
+/* Data-loaded pill (status indicator with pulsing dot) */
+.data-pill,
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(45,212,191,.1);
+  border: 1px solid rgba(45,212,191,.18);
+  color: var(--green);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.data-dot,
+.sdot,
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  flex-shrink: 0;
+  animation: pulse 2.5s ease-in-out infinite;
+}
+.status-dot { width: 8px; height: 8px; box-shadow: 0 0 6px var(--green); }
+
+/* File chip — selected upload indicator */
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px;
+  background: rgba(88,166,255,.08);
+  border: 1px solid rgba(88,166,255,.2);
+  color: var(--blue);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §12  ALERTS — 4-tier severity (o2ring system)
+   info → advisory → significant → critical
+   Legacy alert-red/yellow/green/blue kept as aliases for welltory markup
+   ════════════════════════════════════════════════════════════════════════ */
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  margin-bottom: 10px;
+  border: 1px solid transparent;
+}
+.alert-icon  { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.alert-body  { flex: 1; }
+.alert-title { font-weight: 700; margin-bottom: 2px; }
+.alert-msg   { font-size: 12px; }
+.alert strong { color: var(--text); }
+
+.alert-info,
+.alert-blue {
+  background: rgba(88,166,255,.06);
+  border-color: rgba(88,166,255,.18);
+  color: var(--text2);
+}
+.alert-info  .alert-title { color: var(--blue); }
+
+.alert-advisory,
+.alert-yellow {
+  background: rgba(245,158,11,.07);
+  border-color: rgba(245,158,11,.22);
+  color: var(--text2);
+}
+.alert-advisory .alert-title { color: var(--status-caution); }
+
+.alert-significant,
+.alert-red {
+  background: rgba(248,113,113,.08);
+  border-color: rgba(248,113,113,.25);
+  color: var(--text);
+}
+.alert-significant .alert-title { color: var(--status-concern); }
+
+.alert-critical {
+  background: rgba(248,113,113,.14);
+  border-color: rgba(248,113,113,.45);
+  color: var(--text);
+  box-shadow: 0 0 0 1px rgba(248,113,113,.15);
+}
+.alert-critical .alert-title {
+  color: var(--status-concern);
+  font-size: 14px;
+}
+
+.alert-green {
+  background: rgba(57,217,138,.08);
+  border-color: rgba(57,217,138,.25);
+  color: var(--text2);
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §13  CHART CARDS + CHART GRID
+   ════════════════════════════════════════════════════════════════════════ */
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-5);
+}
+
+.chart-wrap,
+.chart-card {
+  background: var(--surface);
+  border: var(--b);
+  border-radius: var(--r-md);
+  padding: var(--sp-5);
+  margin-bottom: var(--sp-4);
+  overflow: hidden;
+  position: relative;
+  transition: border-color .2s, transform .15s, box-shadow .15s;
+  will-change: transform;
+}
+.chart-card { margin-bottom: 0; animation: cardEntrance .4s ease both; }
+.chart-card:hover,
+.chart-wrap:hover {
+  border-color: rgba(61,224,208,.18);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,.28);
+}
+/* Top-edge teal/blue gradient revealed on hover */
+.chart-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--card-accent, var(--teal)), var(--blue));
+  border-radius: var(--r-md) var(--r-md) 0 0;
+  opacity: 0;
+  transition: opacity .25s;
+}
+.chart-card:hover::before { opacity: 1; }
+
+/* Category-coded chart card accents */
+.chart-card[data-cat="stress"]  { --card-accent: var(--red); }
+.chart-card[data-cat="hrv"]     { --card-accent: var(--teal); }
+.chart-card[data-cat="freq"]    { --card-accent: var(--blue); }
+.chart-card[data-cat="fitness"] { --card-accent: var(--green); }
+.chart-card[data-cat="risk"]    { --card-accent: var(--amber); }
+.chart-card[data-cat="spo2"]    { --card-accent: var(--blue); }
+.chart-card[data-cat="oximetry"]{ --card-accent: var(--teal); }
+
+.chart-card h4 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+  letter-spacing: -.01em;
+  line-height: 1.3;
+}
+.chart-card p {
+  font-size: 11px;
+  color: var(--text3);
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+.chart-sub  { font-size: var(--fs-card-sub); color: var(--text3); margin-bottom: var(--sp-3); }
+.chart-note { font-size: 11px; color: var(--text3); margin-top: var(--sp-2); line-height: 1.5; font-style: italic; }
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  font-size: var(--fs-help);
+  color: var(--text3);
+}
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-line { width: 14px; height: 2px; border-radius: 1px; }
+.legend-dot  { width: 8px; height: 8px; border-radius: 50%; }
+.chart-svg   { animation: fadeIn .4s ease .05s both; width: 100%; height: auto; display: block; }
+canvas       { border-radius: 8px; display: block; max-width: 100%; }
+
+/* Distributions & Patterns tab — picker controls, inline stats, correlation heatmap */
+.pattern-controls {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin-bottom: 12px;
+}
+.pattern-controls label {
+  font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--text3);
+}
+.pattern-controls select {
+  background: var(--surface2); color: var(--text);
+  border: 1px solid rgba(110,133,168,.28); border-radius: 7px;
+  padding: 5px 26px 5px 9px; font-size: 12px; font-family: inherit; cursor: pointer;
+  appearance: none; -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text3) 50%), linear-gradient(135deg, var(--text3) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
+  background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+  transition: border-color .15s;
+}
+.pattern-controls select:hover  { border-color: rgba(61,224,208,.4); }
+.pattern-controls select:focus  { outline: none; border-color: var(--teal); }
+.pattern-stat {
+  font-family: 'JetBrains Mono', monospace; color: var(--text2);
+  white-space: nowrap;
+}
+
+.heatmap-wrap { overflow-x: auto; }
+table.heatmap { border-collapse: collapse; font-family: 'JetBrains Mono', monospace; margin: 2px auto; }
+table.heatmap th, table.heatmap td {
+  width: 46px; height: 34px; text-align: center; font-size: 10px;
+  border: 1px solid var(--bg); box-sizing: border-box;
+}
+table.heatmap thead th { color: var(--text3); font-weight: 600; height: auto; padding: 4px 2px; vertical-align: bottom; }
+table.heatmap thead th span { display: inline-block; line-height: 1.1; max-width: 52px; }
+table.heatmap tbody th { color: var(--text2); font-weight: 600; text-align: right; padding-right: 8px; width: auto; white-space: nowrap; }
+table.heatmap td { font-weight: 600; letter-spacing: -.02em; }
+body.light table.heatmap th, body.light table.heatmap td { border-color: #fff; }
+
+/* Section-card wrapper — vertical accent bar before title */
+.section-card {
+  background: var(--surface);
+  border: var(--b);
+  border-radius: var(--r-md);
+  padding: 20px 22px;
+  margin-bottom: 14px;
+  position: relative;
+  overflow: hidden;
+}
+.section-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, var(--teal), var(--blue), transparent 70%);
+  opacity: .5;
+}
+.section-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.section-card-title::before {
+  content: '';
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--teal), var(--blue));
+  flex-shrink: 0;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §14  METRIC HIERARCHY — 4-tier (o2ring system)
+   ════════════════════════════════════════════════════════════════════════ */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+
+.metric {
+  background: rgba(255,255,255,.02);
+  border: 1px solid rgba(255,255,255,.04);
+  border-radius: 13px;
+  padding: 12px 14px;
+  transition: border-color .15s;
+}
+.metric:hover { border-color: rgba(255,255,255,.08); }
+.m-label {
+  font-size: 10px;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: 5px;
+  font-weight: var(--fw-semibold);
+}
+.m-val {
+  font-size: var(--fs-metric-md);
+  font-weight: var(--fw-bold);
+  line-height: 1.1;
+  color: var(--text);
+  letter-spacing: -.02em;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+.m-val.lbl { font-size: 13px; line-height: 1.35; font-weight: var(--fw-semibold); }
+.m-sub   { font-size: 10px; color: var(--text3); margin-top: 3px; }
+.m-unit  { font-size: 10px; color: var(--text3); margin-top: 2px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Tier sizing */
+.metric-hero {
+  background: linear-gradient(180deg, rgba(61,224,208,.08), rgba(18,24,33,.6));
+  border: 1px solid rgba(61,224,208,.2);
+  border-radius: 22px;
+  padding: 28px 24px;
+  text-align: center;
+}
+.metric-hero .m-label { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; }
+.metric-hero .m-val   { font-size: 48px; font-weight: 700; line-height: 1; }
+.metric-hero .m-unit  { font-size: 14px; color: var(--text3); margin-top: 4px; }
+
+.metric-primary               { border-radius: 16px; padding: 16px 14px; }
+.metric-primary .m-val        { font-size: 24px; }
+
+.metric-secondary             { border-radius: 12px; padding: 10px 12px; opacity: .9; }
+.metric-secondary .m-val      { font-size: 18px; }
+
+.metric-research              { border-radius: 12px; padding: 10px 12px; }
+.metric-research .m-val       { font-size: 18px; color: var(--blue); }
+.metric-research .m-val.zero  { color: var(--text3); }
+
+/* Status colors — shared across .m-val, .metric-val, .kpi-val, .rs-val */
+.m-val.ok,   .metric-val.ok,   .rs-val.ok,   .nr-stat .g,   .karv-val-good,   .fpill.ok   .m-val,
+.cv-good { color: var(--status-ok); }
+.m-val.warn, .metric-val.warn, .rs-val.warn, .nr-stat .w,   .karv-val-warn,
+.cv-warn { color: var(--status-caution); }
+.m-val.bad,  .metric-val.bad,  .rs-val.bad,  .nr-stat .r,   .karv-val-bad,
+.cv-bad  { color: var(--status-concern); }
+.m-val.neutral, .metric-val.neutral, .cv-neutral { color: var(--text2); }
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §15  KPI STRIP — status glow + staggered entrance (welltory)
+   ════════════════════════════════════════════════════════════════════════ */
+#kpiStrip {
+  display: none;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  margin-bottom: 18px;
+}
+#kpiStrip.show { display: grid; animation: fadeIn .4s ease; }
+
+.kpi {
+  background: var(--surface);
+  border: var(--b);
+  border-radius: 13px;
+  padding: 12px 14px;
+  border-left: 3px solid transparent;
+  transition: transform .15s, box-shadow .15s, border-color .15s;
+  animation: cardEntrance .35s ease both;
+}
+.kpi:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,.28);
+}
+.kpi-label {
+  font-size: 9px;
+  color: var(--text4);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+.kpi-val {
+  font-size: var(--fs-metric-lg);
+  font-weight: var(--fw-bold);
+  line-height: 1;
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: -.02em;
+}
+.kpi-sub   { font-size: 10px; color: var(--text3); margin-top: 3px; }
+.kpi-delta { font-size: 10px; font-weight: 600; margin-top: 3px; font-family: 'IBM Plex Mono', monospace; }
+.up { color: var(--green); } .down { color: var(--red); } .neutral { color: var(--text2); }
+
+/* Triple-layered status: border + gradient bg + inset glow */
+.kpi.good {
+  border-left-color: var(--green);
+  background: linear-gradient(135deg, var(--surface), rgba(57,217,138,.05));
+  box-shadow: inset 3px 0 12px rgba(57,217,138,.04);
+}
+.kpi.warn {
+  border-left-color: var(--amber);
+  background: linear-gradient(135deg, var(--surface), rgba(255,184,77,.05));
+  box-shadow: inset 3px 0 12px rgba(255,184,77,.04);
+}
+.kpi.bad {
+  border-left-color: var(--red);
+  background: linear-gradient(135deg, var(--surface), rgba(255,107,122,.05));
+  box-shadow: inset 3px 0 12px rgba(255,107,122,.04);
+}
+
+/* Stagger first 6 cards */
+#kpiStrip.show .kpi:nth-child(1) { animation-delay: .05s; }
+#kpiStrip.show .kpi:nth-child(2) { animation-delay: .10s; }
+#kpiStrip.show .kpi:nth-child(3) { animation-delay: .15s; }
+#kpiStrip.show .kpi:nth-child(4) { animation-delay: .20s; }
+#kpiStrip.show .kpi:nth-child(5) { animation-delay: .25s; }
+#kpiStrip.show .kpi:nth-child(6) { animation-delay: .30s; }
+#kpiStrip.show .kpi:nth-child(n+7) { animation-delay: .35s; }
+
+.chart-grid .chart-card:nth-child(1) { animation-delay: .08s; }
+.chart-grid .chart-card:nth-child(2) { animation-delay: .16s; }
+.chart-grid .chart-card:nth-child(3) { animation-delay: .24s; }
+.chart-grid .chart-card:nth-child(4) { animation-delay: .32s; }
+.chart-grid .chart-card:nth-child(n+5) { animation-delay: .38s; }
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §16  TABLES — sticky header + zebra + teal hover
+   ════════════════════════════════════════════════════════════════════════ */
+.table-wrap {
+  overflow-x: auto;
+  margin-bottom: 16px;
+  border: var(--b);
+  border-radius: 16px;
+  background: var(--surface);
+  position: relative;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+thead tr {
+  background: var(--surface3);
+  box-shadow: 0 1px 0 rgba(61,224,208,.1);
+}
+th {
+  padding: 11px 14px;
+  text-align: left;
+  font-weight: 700;
+  color: var(--text3);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  border-bottom: 1px solid rgba(61,224,208,.12);
+  white-space: nowrap;
+}
+td {
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(30,45,66,.6);
+  color: var(--text);
+  vertical-align: middle;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: -.01em;
+}
+tr:last-child td { border-bottom: none; }
+tr:nth-child(even) td { background: rgba(255,255,255,.01); }
+tr:hover td {
+  background: rgba(61,224,208,.05);
+  color: var(--text);
+}
+body.light thead tr { background: var(--surface3); }
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §17  TABS — rounded pill hover + edge mask
+   ════════════════════════════════════════════════════════════════════════ */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: var(--b);
+  margin-bottom: 18px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, black 20px, black calc(100% - 20px), transparent 100%);
+          mask-image: linear-gradient(to right, transparent 0, black 20px, black calc(100% - 20px), transparent 100%);
+}
+.tab-bar::-webkit-scrollbar { display: none; }
+.tab {
+  padding: 10px 18px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text3);
+  border-bottom: 2px solid transparent;
+  border-radius: 8px 8px 0 0;
+  white-space: nowrap;
+  transition: all .15s;
+  user-select: none;
+}
+.tab:hover {
+  color: var(--text2);
+  background: rgba(255,255,255,.03);
+}
+.tab.active {
+  color: var(--blue);
+  border-bottom-color: var(--blue);
+}
+.tab:active { transform: scale(.98); }
+.tab-content { display: none; }
+.tab-content.active {
+  display: block;
+  animation: cardEntrance .3s ease both;
+}
+body.light .tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §18  PROGRESS — gradient fill + travelling shimmer
+   ════════════════════════════════════════════════════════════════════════ */
+.progress {
+  height: 6px;
+  background: var(--surface2);
+  border-radius: 4px;
+  display: none;
+  margin: 0 0 12px;
+  overflow: hidden;
+}
+.progress.show { display: block; }
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--blue), var(--teal));
+  border-radius: 4px;
+  transition: width .3s;
+  width: 0;
+  box-shadow: 0 0 16px rgba(61,224,208,.4);
+  position: relative;
+  overflow: hidden;
+}
+.progress-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.15), transparent);
+  animation: shimmerBar 1.5s ease-in-out infinite;
+  width: 25%;
+}
+
+.proc-status {
+  font-size: 12px;
+  color: var(--teal);
+  min-height: 0;
+  margin-bottom: 8px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+.error {
+  font-size: 12px;
+  color: var(--red);
+  min-height: 0;
+  margin-bottom: 8px;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §19  CONTROLS TOOLBAR — global-controls / .controls
+   ════════════════════════════════════════════════════════════════════════ */
+.global-controls,
+.controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-5);
+  padding: 10px var(--sp-4);
+  background: var(--surface);
+  border: var(--b);
+  border-radius: 14px;
+}
+.gc-left,
+.gc-right {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+.gc-label,
+.controls label {
+  font-size: var(--fs-help);
+  color: var(--text3);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  margin-right: 0;
+  letter-spacing: 0;
+}
+
+.gc-btn-group,
+.controls .btn-group {
+  display: flex;
+  gap: 2px;
+  background: var(--surface2);
+  padding: 3px;
+  border-radius: 9px;
+}
+.gc-btn,
+.controls .btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text3);
+  padding: 5px 11px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: var(--fw-semibold);
+  transition: all .15s;
+}
+.gc-btn:hover,
+.controls .btn:hover {
+  background: rgba(255,255,255,.04);
+  color: var(--text);
+}
+.gc-btn.active,
+.controls .btn.active {
+  background: rgba(61,224,208,.13);
+  color: var(--teal);
+}
+.gc-btn:active { transform: scale(.97); }
+
+.gc-range {
+  width: 100px;
+  accent-color: var(--blue);
+  vertical-align: middle;
+}
+.gc-range-val,
+.range-val {
+  font-size: 12px;
+  color: var(--teal);
+  font-weight: var(--fw-bold);
+  min-width: 16px;
+  display: inline-block;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §20  CUSTOM FORM CONTROLS — range, checkbox, select arrow
+   ════════════════════════════════════════════════════════════════════════ */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] { -moz-appearance: textfield; }
+
+input[type=range] {
+  -webkit-appearance: none;
+          appearance: none;
+  height: 4px;
+  background: var(--surface2);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--blue);
+  box-shadow: 0 0 0 2px rgba(88,166,255,.25), 0 2px 6px rgba(0,0,0,.3);
+  cursor: pointer;
+  transition: transform .1s, box-shadow .1s;
+}
+input[type=range]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 4px rgba(88,166,255,.2), 0 2px 8px rgba(0,0,0,.4);
+}
+input[type=range]::-moz-range-thumb {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--blue);
+  border: none;
+  cursor: pointer;
+}
+input[type=range]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface2);
+}
+
+input[type=checkbox] {
+  -webkit-appearance: none;
+          appearance: none;
+  width: 16px; height: 16px;
+  border: 1.5px solid rgba(255,255,255,.2);
+  border-radius: 4px;
+  background: var(--surface2);
+  cursor: pointer;
+  position: relative;
+  transition: background .15s, border-color .15s;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+input[type=checkbox]:checked {
+  background: var(--blue);
+  border-color: var(--blue);
+}
+input[type=checkbox]:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px; top: 1px;
+  width: 5px; height: 8px;
+  border: 2px solid #041014;
+  border-top: none;
+  border-left: none;
+  transform: rotate(40deg);
+}
+input[type=checkbox]:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+body.light input[type=checkbox] {
+  border-color: rgba(0,0,0,.2);
+  background: var(--surface2);
+}
+
+select,
+.controls select {
+  background: var(--surface2);
+  border: var(--b);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 5px 10px 5px 10px;
+  font-size: 12px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%236F8096' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 30px;
+  cursor: pointer;
+  -webkit-appearance: none;
+          appearance: none;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §21  THEME TOGGLE + BACK-TO-TOP
+   ════════════════════════════════════════════════════════════════════════ */
+#themeToggleBtn {
+  position: fixed;
+  top: 14px;
+  right: 18px;
+  z-index: 600;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 999px;
+  padding: 5px 12px 5px 9px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text2);
+  transition: background .2s, border-color .2s, color .2s;
+  user-select: none;
+  letter-spacing: .03em;
+}
+#themeToggleBtn:hover {
+  background: rgba(255,255,255,.10);
+  border-color: rgba(255,255,255,.18);
+  color: var(--text);
+}
+.theme-icon { font-size: 14px; line-height: 1; }
+
+#backToTop {
+  position: fixed;
+  bottom: 68px;
+  right: 20px;
+  z-index: 450;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--teal);
+  color: #041014;
+  border: none;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(61,224,208,.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .25s ease, transform .2s ease;
+}
+#backToTop.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+#backToTop:hover { transform: translateY(-2px); }
+#backToTop:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §22  EXPORT BAR (sticky bottom)
+   ════════════════════════════════════════════════════════════════════════ */
+#exportBar {
+  position: fixed !important;
+  bottom: 66px !important;
+  left: 260px !important;
+  right: 0 !important;
+  z-index: 400 !important;
+  background: var(--surface) !important;
+  border-top: 1px solid rgba(255,255,255,.08) !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+  padding: 10px 24px !important;
+  box-shadow: 0 -4px 20px rgba(0,0,0,.25) !important;
+  display: none;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+#exportBar.show { display: flex !important; }
+body.light #exportBar {
+  background: #FFFFFF !important;
+  border-top-color: rgba(0,0,0,.08) !important;
+  box-shadow: 0 -4px 20px rgba(0,0,0,.08) !important;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §23  TOOLTIPS, EMPTY STATE, UTILITY
+   ════════════════════════════════════════════════════════════════════════ */
+.tooltip { position: relative; cursor: help; }
+.tooltip:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface3);
+  border: var(--b);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  z-index: 999;
+  margin-bottom: 4px;
+  pointer-events: none;
+  max-width: 280px;
+  white-space: normal;
+  text-align: center;
+}
+.spark { display: inline-block; vertical-align: middle; margin-left: 6px; }
+
+#emptyState {
+  text-align: center;
+  padding: 80px 24px;
+  color: var(--text2);
+}
+#emptyState .big-icon {
+  font-size: 64px;
+  margin-bottom: 18px;
+  filter: drop-shadow(0 0 14px rgba(61,224,208,.3));
+  display: inline-block;
+  border-radius: 50%;
+  animation: ringPulse 3s ease-in-out infinite;
+}
+#emptyState h3 {
+  color: var(--text);
+  margin-bottom: 8px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+#emptyState p {
+  font-size: 13px;
+  color: var(--text3);
+  max-width: 340px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+/* Generic utility */
+.hidden        { display: none; }
+.visible       { display: flex; }
+.text-muted-sm { font-size: 10px; opacity: .6; }
+.inline-warn   { font-weight: 400; color: var(--text2); }
+.bar-fill      { height: 100%; border-radius: 3px; transition: width .3s; }
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §24  MOBILE RESPONSIVE
+   ════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 1080px) {
+  .app,
+  .app-shell { grid-template-columns: 1fr; }
+  .sidebar   { display: none; }
+  .main-wrap,
+  .main-content { padding: 18px; padding-bottom: 80px; }
+  #exportBar { left: 0 !important; }
+  .mobile-nav { left: 0; }
+  .mobile-nav-modes { display: flex; }
+}
+
+@media (max-width: 768px) {
+  .chart-grid       { grid-template-columns: 1fr !important; }
+  .tab              { padding: 8px 11px; font-size: 10px; }
+  .kpi-val          { font-size: 18px; }
+  canvas            { touch-action: pan-y; }
+  th, td            { padding: 7px 10px; font-size: 11px; }
+  .controls         { gap: 8px; }
+  input[type=range] { width: 80px; }
+  #kpiStrip         { grid-template-columns: repeat(2, 1fr) !important; }
+  .topbar-actions .mode-bar,
+  .topbar-actions .mode-hint { display: none; }
+}
+
+@media (max-width: 480px) {
+  #kpiStrip { grid-template-columns: repeat(2, 1fr) !important; }
+  .tab-bar  { -webkit-overflow-scrolling: touch; }
+  .mode-btn { padding: 5px 11px; font-size: 11px; }
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §25  MOBILE PILL OVERFLOW FIX (prevents text truncation on narrow viewports)
+   ════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .auto-pill,
+  .info-chip,
+  .data-pill,
+  .top-badge {
+    white-space: normal;
+    line-height: 1.4;
+    font-size: 10.5px;
+    padding: 4px 10px;
+    text-align: left;
+  }
+  .pill {
+    white-space: normal;
+    line-height: 1.4;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   §28  UNIFIED EXPORT BAR (canonical — mirrored from ans-design.css §28)
+   eb- namespace; #exportBar keeps its own per-app fixed-position rule.
+   ════════════════════════════════════════════════════════════════════════ */
+.eb-label{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text4);margin-right:2px}
+.eb-grp{display:flex;align-items:center;gap:8px}
+.eb-spacer{flex:1}
+.eb-div{width:1px;align-self:stretch;background:var(--border);margin:2px}
+.eb-btn{font-family:var(--sans,inherit);font-size:11.5px;font-weight:600;padding:8px 14px;border-radius:var(--r-sm,8px);cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text2);transition:filter .15s,border-color .15s;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;line-height:1}
+.eb-btn:hover{filter:brightness(1.18);border-color:var(--border2)}
+.eb-json {border-color:rgba(88,166,255,.38);background:rgba(88,166,255,.10);color:var(--blue)}
+.eb-csv  {border-color:rgba(57,217,138,.34);background:rgba(57,217,138,.10);color:var(--green)}
+.eb-pdf  {border-color:rgba(255,184,77,.34);background:rgba(255,184,77,.10);color:var(--amber)}
+.eb-extra{border-color:rgba(167,139,250,.36);background:rgba(167,139,250,.10);color:var(--purple)}
+.eb-ghost {background:transparent;color:var(--text3)}
+.eb-danger{background:transparent;border-color:rgba(255,107,122,.30);color:var(--red)}
+body.light .eb-label{color:#64748b}
+body.light .eb-btn{background:#eef2f7;border-color:rgba(0,0,0,.10);color:#475569}
+body.light .eb-json {background:rgba(88,166,255,.12);color:#2563eb;border-color:rgba(88,166,255,.30)}
+body.light .eb-csv  {background:rgba(57,217,138,.14);color:#16a34a;border-color:rgba(57,217,138,.30)}
+body.light .eb-pdf  {background:rgba(255,184,77,.16);color:#b45309;border-color:rgba(255,184,77,.34)}
+body.light .eb-extra{background:rgba(167,139,250,.14);color:#7c3aed;border-color:rgba(167,139,250,.32)}
+body.light .eb-ghost{background:transparent;color:#64748b}
+body.light .eb-div{background:rgba(0,0,0,.10)}
+@media (max-width:1080px){
+  #exportBar .eb-spacer{display:none}
+  #exportBar .eb-grp{flex:1 1 100%;flex-wrap:wrap;gap:8px}
+  #exportBar .eb-btn{flex:1 1 calc(33% - 8px);justify-content:center;padding:9px 6px}
+  #exportBar .eb-extra{flex-basis:100%}
+  #exportBar .eb-ghost,#exportBar .eb-danger{flex:0 0 auto;padding:9px 12px}
+  #exportBar .eb-div{display:none}
+}
+@media print{ #exportBar{display:none !important} }
+
+/* ════════════════════════════════════════════════════════════════════════
+   END · ANS Design System v1.3.0  (export bar §28 mirrored in)
+   Total components: 25 sections · tokens + shell + primitives + unified export bar
+   Drift detection: this file's sha is injected into each HTML on sync.
+   ════════════════════════════════════════════════════════════════════════ */
+/* ▲▲▲ ANS-DESIGN-END ▲▲▲ */
+
+/* ──────────────────────────────────────────────────────────────────
+   WELLTORY HRV PARSER — APP-SPECIFIC STYLES
+   Everything outside the marker block above is unique to this app.
+   ────────────────────────────────────────────────────────────────── */
+
+/* ===== ANS unification (app-specific overrides — NOT in synced block) ===== */
+/* Profile auto-pills — flex layout matching OxyDex */
+#profileAutoText { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; vertical-align: middle; max-width: 100%; }
+#profileAutoText .auto-pill { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+
+/* Profile field sublabels — gray to match OxyDex (base is amber) */
+.prof-sublabel { font-size: 11px !important; font-weight: 400 !important; color: #888 !important; opacity: 1 !important; }
+body.light .prof-sublabel { color: rgba(0,0,0,0.38) !important; }
+
+/* Export toolbar groups + outline button (matches OxyDex export bar) */
+.export-primary, .export-secondary { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.export-secondary { margin-left: auto; gap: 8px; }
+/* OxyDex look: primary actions = solid teal pills, dark text */
+.export-primary .btn-export-main {
+  background: var(--teal); color: #041014; border: 1px solid rgba(61,224,208,.45);
+  border-radius: 9px; padding: 9px 18px; font-size: 13px; font-weight: 600;
+}
+.export-primary .btn-export-main.btn-blue { background: var(--teal); }
+.export-primary .btn-export-main:hover { opacity: .85; box-shadow: none; }
+.btn-export-outline { background: transparent; color: var(--teal); border: 1px solid rgba(61,224,208,.4); border-radius: 10px; padding: 8px 16px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s, color .15s; }
+.btn-export-outline:hover { background: rgba(61,224,208,.08); }
+
+/* Mobile-nav density strip (Core / Advanced / Research) — matches OxyDex */
+/* Mobile bottom nav — fixed bar, shown at all widths. On desktop it sits in the
+   content column (clears the 260px sidebar) and stacks above the export bar. */
+.mobile-nav {
+  display: block;
+  position: fixed; bottom: 0; left: 260px; right: 0; z-index: 500;
+  background: rgba(12,15,21,.97);
+  border-top: 1px solid rgba(255,255,255,.06);
+  box-shadow: 0 -4px 24px rgba(0,0,0,.3);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  padding: 4px 0 max(4px, env(safe-area-inset-bottom));
+}
+.mobile-nav-items { display: flex; justify-content: center; align-items: center; gap: 2px; padding: 4px 10px; flex-wrap: wrap; }
+.mobile-nav-item {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 6px 12px; border-radius: 10px; cursor: pointer;
+  border: none; background: transparent;
+  color: var(--text3); font-size: 10px; font-weight: 500;
+  transition: color .15s, background .15s;
+}
+.mobile-nav-item:hover, .mobile-nav-item.active { color: var(--teal); }
+.mobile-nav-item.active { background: rgba(61,224,208,.08); }
+.mobile-nav-icon { font-size: 17px; line-height: 1; }
+.mobile-nav-item:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+body.light .mobile-nav { background: rgba(255,255,255,.97); border-top-color: rgba(0,0,0,.07); box-shadow: 0 -4px 24px rgba(0,0,0,.08); }
+body.light .mobile-nav-item { color: var(--text4); }
+body.light .mobile-nav-item:hover, body.light .mobile-nav-item.active { color: #0B7A6E; }
+body.light .mobile-nav-item.active { background: rgba(61,224,208,.10); }
+
+/* Modes strip (Core/Advanced/Research) is redundant on desktop (topbar + sidebar
+   already expose it) — only show it inside the bottom nav on mobile. */
+.mobile-nav-modes { display: none; gap: 5px; justify-content: center; padding: 7px 10px 2px; }
+.mnav-mode-btn { flex: 1 1 0; max-width: 130px; padding: 5px 6px; font-size: 11px; font-weight: 600; letter-spacing: .02em; color: var(--text3); background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all .18s cubic-bezier(.4,0,.2,1); }
+.mnav-mode-btn.active { background: rgba(61,224,208,.13); color: var(--teal); border-color: rgba(61,224,208,.3); }
+.mnav-mode-btn:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+/* Taller two-row bottom nav needs more clearance + export bar sits above it */
+@media (max-width: 1080px) {
+  .main-wrap, .main-content { padding-bottom: 176px !important; }
+  #exportBar { bottom: 100px !important; }
+  #profileAutoText { display: flex; }
+  /* Show the sticky bottom nav (the show-rule lives in OxyDex app CSS, not the
+     shared base, so it must be declared here too) and hide the in-content tab bar. */
+  .mobile-nav { display: block !important; }
+  .tab-bar { display: none !important; }
+  /* Many HRV sections → horizontal scroll instead of cramming */
+  .mobile-nav-items {
+    justify-content: flex-start;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+            mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+  }
+  .mobile-nav-items::-webkit-scrollbar { display: none; }
+  .mobile-nav-item { flex: 0 0 auto; }
+}
+
+/* Export bar extra button variants (match OxyDex) */
+.btn-export-main.btn-blue { background: linear-gradient(135deg, var(--blue), var(--teal)); }
+.btn-export-danger {
+  background: transparent; color: var(--red);
+  border: 1px solid rgba(248,113,113,.4); border-radius: 10px;
+  padding: 8px 16px; font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background .15s;
+}
+.btn-export-danger:hover { background: rgba(248,113,113,.08); }
+
+/* — Upload zone (welltory: .upload-zone, distinct from o2ring's #uploadArea) — */
+.upload-zone {
+  border: 2px dashed rgba(61,224,208,.25);
+  border-radius: 24px;
+  padding: 48px 32px;
+  text-align: center;
+  cursor: pointer;
+  background: var(--surface);
+  transition: all .25s;
+  margin-bottom: 18px;
+  position: relative;
+  overflow: hidden;
+}
+.upload-zone::before {
+  content: '';
+  position: absolute;
+  inset: -40% auto auto -18%;
+  width: 40%;
+  height: 140%;
+  background: radial-gradient(circle, rgba(61,224,208,.06), transparent 62%);
+  pointer-events: none;
+}
+.upload-zone:hover,
+.upload-zone.drag {
+  border-color: var(--blue);
+  background: rgba(88,166,255,.04);
+}
+.upload-zone.drag {
+  border-color: var(--teal);
+  background: linear-gradient(135deg, var(--surface2), rgba(61,224,208,.08));
+  box-shadow: 0 0 40px rgba(61,224,208,.12), inset 0 0 40px rgba(61,224,208,.03);
+}
+.upload-zone .icon {
+  font-size: 38px;
+  margin-bottom: 10px;
+  filter: drop-shadow(0 0 14px rgba(61,224,208,.3));
+}
+.upload-zone h3 {
+  color: var(--text);
+  font-size: 18px;
+  margin-bottom: 5px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+.upload-zone p {
+  color: var(--text2);
+  font-size: 13px;
+  line-height: 1.6;
+}
+#fileInput { display: none; }
+body.light .upload-zone { background: #FFFFFF; border-color: rgba(61,224,208,.30); }
+body.light .upload-zone:hover { background: rgba(88,166,255,.04); border-color: var(--blue); }
+
+/* — Disclosure card (companion-analytics notice — matches OxyDex) — */
+.disclosure-card {
+  margin: 22px auto 0; text-align: left;
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 14px; padding: 14px 16px;
+  max-width: 520px; width: 100%;
+  cursor: default;
+}
+body.light .disclosure-card { background: rgba(0,0,0,.02); border-color: rgba(0,0,0,.07); }
+.disclosure-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.disclosure-icon { font-size: 15px; flex-shrink: 0; }
+.disclosure-title {
+  font-size: 12px; font-weight: 700; color: var(--text2);
+  letter-spacing: .04em; text-transform: uppercase;
+}
+.disclosure-body { font-size: 11px; color: var(--text3); line-height: 1.65; margin-bottom: 10px; }
+.disclosure-body strong { color: var(--text2); font-weight: 600; }
+.disclosure-footer { display: flex; flex-wrap: wrap; gap: 6px; }
+.disclosure-pill {
+  font-size: 10px; font-weight: 600; color: var(--text4);
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 20px; padding: 3px 9px;
+  white-space: nowrap;
+}
+body.light .disclosure-pill { background: rgba(0,0,0,.03); border-color: rgba(0,0,0,.06); }
+
+/* — Projection cards (ANS-age projection — matches OxyDex) — */
+.proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--sp-4); margin-bottom: var(--sp-4); }
+.proj-card {
+  background: var(--surface); border: var(--b); border-radius: var(--r-md);
+  padding: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-3);
+}
+.proj-card.proj-good { border-color: rgba(45,212,191,.35); }
+.proj-card.proj-warn { border-color: rgba(245,158,11,.35); }
+.proj-card.proj-bad  { border-color: rgba(248,113,113,.35); }
+.proj-header { display: flex; align-items: center; gap: var(--sp-3); }
+.proj-icon { font-size: 18px; }
+.proj-title { font-size: var(--fs-card-title); font-weight: var(--fw-semibold); color: var(--text); flex: 1; letter-spacing: -.005em; }
+.proj-badge { font-size: 10px; font-weight: var(--fw-bold); padding: 3px 9px; border-radius: 20px; letter-spacing: .02em; background: rgba(88,166,255,.12); color: var(--blue); }
+.proj-badge.proj-good { background: rgba(45,212,191,.12); color: var(--status-ok); }
+.proj-badge.proj-warn { background: rgba(245,158,11,.12); color: var(--status-caution); }
+.proj-badge.proj-bad  { background: rgba(248,113,113,.12); color: var(--status-concern); }
+.proj-main { display: flex; align-items: baseline; gap: var(--sp-2); }
+.proj-value { font-size: var(--fs-metric-xl); font-weight: var(--fw-bold); line-height: 1; letter-spacing: -.02em; font-family: 'IBM Plex Mono', monospace; }
+.proj-val-good { color: var(--status-ok); }
+.proj-val-warn { color: var(--status-caution); }
+.proj-val-bad  { color: var(--status-concern); }
+.proj-unit { font-size: var(--fs-help); color: var(--text3); }
+.proj-subline { font-size: 12px; color: var(--text2); font-weight: 600; }
+.proj-subline .pf-mono { font-family: 'IBM Plex Mono', monospace; color: var(--text); }
+.proj-waterfall { background: var(--surface2); border-radius: 12px; padding: var(--sp-3) var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-1); }
+.proj-factor { display: flex; justify-content: space-between; align-items: center; font-size: var(--fs-help); color: var(--text2); gap: var(--sp-2); padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,.04); position: relative; overflow: hidden; }
+.proj-factor:last-child { border-bottom: none; }
+.proj-factor > span, .proj-factor > .pf-val { position: relative; z-index: 1; }
+.proj-factor .pf-bg { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; z-index: 0; opacity: .16; pointer-events: none; }
+.pf-bg.ok { background: var(--status-ok); } .pf-bg.warn { background: var(--status-caution); } .pf-bg.bad { background: var(--status-concern); }
+.pf-val { font-weight: var(--fw-semibold); font-size: var(--fs-help); white-space: nowrap; font-family: 'IBM Plex Mono', monospace; }
+.proj-cite { font-size: 11px; color: var(--text3); line-height: 1.55; }
+
+/* Projected VO₂max + BP tiles inside the ANS Age card */
+.proj-extra { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
+.proj-extra:empty { display: none; }
+.proj-stat {
+  background: rgba(255,255,255,.025); border: 1px solid rgba(255,255,255,.06);
+  border-radius: 12px; padding: 10px 14px; display: flex; flex-direction: column; gap: 3px;
+}
+.proj-stat .ps-label { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--text3); }
+.proj-stat .ps-val { font-size: var(--fs-metric-md); font-weight: var(--fw-bold); line-height: 1.05; font-family: 'IBM Plex Mono', monospace; color: var(--text); }
+.proj-stat .ps-val .ps-unit { font-size: 11px; font-weight: 600; color: var(--text3); font-family: inherit; margin-left: 4px; }
+.proj-stat .ps-sub { font-size: 10.5px; color: var(--text2); }
+.proj-stat.ps-good .ps-val { color: var(--status-ok); }
+.proj-stat.ps-warn .ps-val { color: var(--status-caution); }
+.proj-stat.ps-bad  .ps-val { color: var(--status-concern); }
+
+/* — Welltory status bar — */
+#statusBar {
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, rgba(61,224,208,.06), rgba(88,166,255,.04));
+  border: 1px solid rgba(61,224,208,.25);
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-size: 12px;
+  color: var(--text2);
+  display: none;
+  animation: fadeIn .3s ease;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 0 20px rgba(61,224,208,.06);
+}
+#statusBar::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, var(--teal), transparent);
+}
+#statusBar.show { display: flex; align-items: center; gap: 10px; }
+
+/* — Alert container + welltory's inset left-edge accent — */
+#alertPanel { display: none; margin-bottom: 16px; }
+#alertPanel.show { display: block; animation: fadeIn .35s ease; }
+.alert-red    { box-shadow: inset 3px 0 0 var(--red); }
+.alert-yellow { box-shadow: inset 3px 0 0 var(--amber); }
+.alert-green  { box-shadow: inset 3px 0 0 var(--green); }
+.alert-blue   { box-shadow: inset 3px 0 0 var(--blue); }
+
+/* — Profile panel (welltory variant) — */
+#profilePanel {
+  background: var(--surface);
+  border: var(--b);
+  border-radius: 18px;
+  margin-bottom: 16px;
+  overflow: hidden;
+  font-size: 13px;
+  transition: border-color .2s;
+}
+#profilePanel:hover { border-color: rgba(61,224,208,.15); }
+#profileHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: var(--surface2);
+  cursor: pointer;
+  user-select: none;
+  border-bottom: var(--b);
+}
+#profileHeader h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -.02em;
+}
+#profileToggleBtn {
+  font-size: 11px;
+  color: var(--text2);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+#profileAutoDetect {
+  font-size: 11px;
+  color: var(--text2);
+  padding: 8px 18px 6px;
+  line-height: 1.6;
+  border-bottom: var(--b);
+  background: var(--surface3);
+}
+#profileBody { padding: 14px 18px 16px; }
+.prof-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; }
+.prof-field { display: flex; flex-direction: column; gap: 4px; }
+.prof-label {
+  font-size: 12px;
+  color: var(--text2);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.prof-sublabel {
+  font-size: 11px;
+  color: var(--amber);
+  font-weight: var(--fw-regular);
+  line-height: 1.5;
+  opacity: .85;
+}
+.prof-input {
+  background: var(--surface2);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 10px;
+  padding: 7px 10px;
+  font-size: 13px;
+  color: var(--text);
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color .15s;
+  -webkit-appearance: none;
+          appearance: none;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+.prof-input:focus {
+  outline: none;
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(61,224,208,.15), 0 1px 4px rgba(0,0,0,.2);
+  background: var(--surface3);
+}
+select.prof-input {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236F8096'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+}
+#profileWtHtHint {
+  font-size: 10px;
+  color: var(--text2);
+  margin: 6px 0 10px;
+  padding: 6px 10px;
+  background: var(--surface3);
+  border-radius: 10px;
+  line-height: 1.6;
+}
+#profileDerived {
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: var(--surface2);
+  border-radius: 12px;
+  border: var(--b);
+  font-size: 11px;
+  color: var(--text2);
+  line-height: 1.5;
+}
+.prof-derived-item { font-size: 11px; color: var(--text2); line-height: 1.5; }
+.prof-derived-item b { color: var(--text); }
+#profileZones {
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: var(--surface2);
+  border-radius: 12px;
+  border: var(--b);
+}
+.prof-zone-label-sm { font-size: 11px; color: var(--text2); font-weight: 600; margin-bottom: 5px; }
+.prof-zone-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  padding: 3px 0;
+  border-bottom: var(--b);
+}
+.prof-zone-row:last-child { border-bottom: none; }
+.prof-zone-label { color: var(--text2); }
+.prof-zone-val { font-weight: 600; color: var(--text); font-family: 'IBM Plex Mono', monospace; }
+/* Karvonen zones — colored row + colored value */
+.zone-1 { border-left: 2px solid #6BE0D5; padding-left: 8px; }
+.zone-2 { border-left: 2px solid #39D98A; padding-left: 8px; }
+.zone-3 { border-left: 2px solid #FFB84D; padding-left: 8px; }
+.zone-4 { border-left: 2px solid #FF7A3D; padding-left: 8px; }
+.zone-5 { border-left: 2px solid #FF6B7A; padding-left: 8px; }
+.zone-1 .prof-zone-val { color: #6BE0D5; }
+.zone-2 .prof-zone-val { color: #39D98A; }
+.zone-3 .prof-zone-val { color: #FFB84D; }
+.zone-4 .prof-zone-val { color: #FF7A3D; }
+.zone-5 .prof-zone-val { color: #FF6B7A; }
+#profileSaveNote { font-size: 10px; color: var(--text3); margin-top: 8px; text-align: center; font-style: italic; }
+.pd-group { margin-top: 10px; }
+.pd-group + .pd-group { margin-top: 8px; padding-top: 8px; border-top: var(--b); }
+.pd-group-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text4);
+  font-weight: 600;
+  margin-bottom: 5px;
+  display: block;
+}
+.pd-group-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 12px; }
+#inferBanner {
+  font-size: 11px;
+  color: var(--text2);
+  line-height: 1.7;
+  padding: 8px 18px;
+  background: var(--surface3);
+  border-bottom: var(--b);
+  display: none;
+}
+body.light #profilePanel:hover { border-color: rgba(61,224,208,.18); }
+body.light .prof-input:focus { background: var(--surface); }
+
+/* — Auto-pill (welltory ANS estimation indicator) — */
+.auto-pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(61,224,208,.30);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  background: rgba(61,224,208,.05);
+  color: var(--text2);
+  white-space: nowrap;
+}
+
+/* — Sidebar data-card info (welltory's data-loaded payload) — */
+#sidebarDataInfo { font-size: 11px; color: var(--text3); margin-top: 8px; line-height: 1.7; }
+.loaded-card .status-pill { font-size: 12px; padding: 5px 12px; }
+
+/* — Welltory empty state extras — */
+#emptyState .big-icon { font-size: 64px; margin-bottom: 18px; }
+
+/* — Welltory paste-fallback textarea — */
+#pasteArea {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 11px;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   READINESS HERO — ported from OxyDex so both apps open on the same
+   "headline score + subscores" composition. HRVDex variant = ANS Readiness.
+   ════════════════════════════════════════════════════════════════════════ */
+#heroWrap { display: none; }
+#heroWrap.show { display: block; }
+
+/* Hero + Projected ANS Age side-by-side; profile sits underneath */
+#heroTop { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; align-items: stretch; margin-bottom: 16px; }
+#heroTop:empty { display: none; }
+#heroTop > #heroWrap.show { margin-bottom: 0; height: 100%; }
+#heroTop .readiness-hero { height: 100%; margin-bottom: 0; }
+#heroTop .proj-grid { margin-bottom: 0; height: 100%; grid-template-columns: 1fr; }
+#heroTop .proj-card {
+  height: 100%;
+  padding: var(--sp-7) var(--sp-6);
+  border-radius: 24px;
+  border: 1px solid rgba(61,224,208,.16);
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(61,224,208,.10) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 80%, rgba(88,166,255,.05) 0%, transparent 55%),
+    linear-gradient(180deg, var(--surface) 0%, var(--surface2) 100%);
+  box-shadow: 0 8px 30px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,.04);
+  position: relative; overflow: hidden;
+}
+#heroTop .proj-card::before {
+  content: ''; position: absolute; inset: -30% auto auto -10%;
+  width: 35%; height: 120%;
+  background: radial-gradient(circle, rgba(45,212,191,.06), transparent 60%);
+  pointer-events: none;
+}
+#heroTop .proj-card > * { position: relative; z-index: 1; }
+/* Severity tints only nudge the border hue — keep the unified hero frame */
+#heroTop .proj-card.proj-good { border-color: rgba(45,212,191,.22); }
+#heroTop .proj-card.proj-warn { border-color: rgba(245,158,11,.22); }
+#heroTop .proj-card.proj-bad  { border-color: rgba(248,113,113,.22); }
+/* Unify inner panels with the hero: the breakdown block defaults to a solid
+   --surface2 fill, which makes the ANS-age card read lighter/boxier than the
+   hero. Swap it for the same translucent-wash inset tiles the hero subscores
+   and the VO₂/BP .proj-stat tiles already use, so both cards match. Scoped to
+   #heroTop so projection cards elsewhere keep their solid waterfall. */
+#heroTop .proj-card .proj-waterfall {
+  background: rgba(255,255,255,.025);
+  border: 1px solid rgba(255,255,255,.05);
+}
+body.light #heroTop .proj-card .proj-waterfall {
+  background: rgba(0,0,0,.02);
+  border-color: rgba(0,0,0,.06);
+}
+@media (max-width: 960px) { #heroTop { grid-template-columns: 1fr; } }
+.readiness-hero {
+  display: grid; place-items: center;
+  min-height: 340px; padding: var(--sp-7) var(--sp-6);
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(61,224,208,.10) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 80%, rgba(88,166,255,.05) 0%, transparent 55%),
+    linear-gradient(180deg, var(--surface) 0%, var(--surface2) 100%);
+  border: 1px solid rgba(61,224,208,.16); border-radius: 24px;
+  margin-bottom: var(--sp-6); position: relative; overflow: hidden;
+  box-shadow: 0 8px 30px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,.04);
+}
+.readiness-hero::before {
+  content: ''; position: absolute; inset: -30% auto auto -10%;
+  width: 35%; height: 120%;
+  background: radial-gradient(circle, rgba(45,212,191,.06), transparent 60%);
+}
+.readiness-hero-label {
+  font-size: 13px; font-weight: var(--fw-semibold); letter-spacing: .05em;
+  color: var(--text2); margin-bottom: var(--sp-2); text-align: center;
+  text-transform: uppercase;
+}
+.readiness-date-badge {
+  display: inline-block; font-size: 12px; font-weight: var(--fw-semibold);
+  color: var(--text2); background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.07); border-radius: 8px;
+  padding: 4px 11px; margin-bottom: var(--sp-3);
+}
+.readiness-score {
+  font-size: calc(var(--fs-metric-hero) * 1.12); font-weight: var(--fw-bold);
+  line-height: 1; letter-spacing: -.04em;
+  color: var(--readiness-color, var(--status-ok));
+  font-family: 'IBM Plex Mono', monospace;
+}
+.readiness-tier {
+  font-size: 16px; letter-spacing: .02em; color: var(--text);
+  margin-top: var(--sp-3); font-weight: var(--fw-semibold); text-align: center;
+}
+.readiness-note {
+  font-size: var(--fs-body); color: var(--text2); margin-top: var(--sp-4);
+  max-width: 440px; text-align: center; line-height: 1.55; text-wrap: pretty;
+}
+.readiness-scores-grid {
+  display: flex; gap: var(--sp-3); flex-wrap: wrap;
+  justify-content: center; margin-top: var(--sp-5);
+}
+.readiness-subscore {
+  background: rgba(255,255,255,.025); border: var(--b);
+  border-radius: 12px; padding: 10px 18px; text-align: center; min-width: 78px;
+}
+.readiness-subscore .rs-val { font-size: calc(var(--fs-metric-md) * 1.15); font-weight: var(--fw-bold); font-family: 'IBM Plex Mono', monospace; }
+.readiness-subscore .rs-label { font-size: 11px; color: var(--text3); margin-top: var(--sp-1); text-transform: uppercase; letter-spacing: .05em; }
+/* Defect-C (BADGE-PLACEMENT-SWEEP): inline evidence disc gets a small trailing
+   gap so it never touches the label text. Corner-anchored tiles (.kpi/.rs-label
+   via metric-registry.js) are unaffected — that rule sets their margin:0. */
+.proj-factor .ev, .ps-label .ev, .proj-unit .ev, .proj-title .ev, #tableHead th .ev { margin-right: 5px; }
+.readiness-zones { margin-top: var(--sp-4); display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; justify-content: center; }
+.readiness-zone-chip { padding: 5px 14px; border-radius: 999px; font-size: 12px; font-weight: var(--fw-semibold); }
+.readiness-zone-chip.ok   { background: rgba(45,212,191,.10);  color: var(--status-ok);      border: 1px solid rgba(45,212,191,.2); }
+.readiness-zone-chip.warn { background: rgba(245,158,11,.08);  color: var(--status-caution); border: 1px solid rgba(245,158,11,.2); }
+.readiness-zone-chip.bad  { background: rgba(248,113,113,.08); color: var(--status-concern); border: 1px solid rgba(248,113,113,.2); }
+
+/* Sidebar readiness badge — mirrors the hero score in the rail (OxyDex parity) */
+.sidebar-readiness-badge {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 12px; margin-bottom: 12px; font-size: 12px;
+  background: rgba(61,224,208,.05); border: 1px solid rgba(61,224,208,.10);
+  transition: opacity .3s;
+}
+.srb-score { font-size: 24px; font-weight: 700; line-height: 1; font-family: 'IBM Plex Mono', monospace; color: var(--srb-color, var(--teal)); }
+.srb-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; margin-top: 3px; }
+.srb-note { font-size: 11px; color: var(--text2); line-height: 1.4; }
+body.light .sidebar-readiness-badge { background: rgba(61,224,208,.06); border-color: rgba(0,0,0,.06); }
+body.light .srb-note { color: var(--text3); }
+
+@keyframes heroEntrance {
+  from { opacity: 0; transform: translateY(16px) scale(.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes scoreCount {
+  from { opacity: 0; transform: scale(.8); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.readiness-hero  { animation: heroEntrance .5s cubic-bezier(.16,1,.3,1) both; }
+.readiness-score { animation: scoreCount .4s cubic-bezier(.16,1,.3,1) .1s both; }
+.readiness-subscore { animation: fadeIn .3s ease both; }
+.readiness-subscore:nth-child(1) { animation-delay: .15s; }
+.readiness-subscore:nth-child(2) { animation-delay: .22s; }
+.readiness-subscore:nth-child(3) { animation-delay: .29s; }
+.readiness-subscore:nth-child(4) { animation-delay: .36s; }
+@media (prefers-reduced-motion: reduce) {
+  .readiness-hero, .readiness-score, .readiness-subscore { animation: none !important; }
+}
+body.light .readiness-hero {
+  background:
+    radial-gradient(ellipse at 25% 15%, rgba(61,224,208,.08) 0%, transparent 55%),
+    linear-gradient(180deg, #FFFFFF 0%, #F4F7FB 100%);
+  border-color: rgba(0,0,0,.07);
+  box-shadow: 0 4px 20px rgba(15,23,42,.06);
+}
+body.light .readiness-date-badge { background: rgba(0,0,0,.03); border-color: rgba(0,0,0,.08); }
+body.light .readiness-subscore { background: rgba(0,0,0,.02); border-color: rgba(0,0,0,.06); }
+
+/* — Responsive welltory-specific overrides — */
+@media (max-width: 768px) {
+  .prof-grid { grid-template-columns: 1fr !important; }
+  .prof-input,
+  select.prof-input { font-size: 16px; touch-action: manipulation; }
+  .upload-zone { padding: 28px 20px; }
+  .readiness-hero { min-height: 220px; padding: var(--sp-6) var(--sp-5); }
+  .readiness-score { font-size: 52px; }
+  .readiness-scores-grid { gap: var(--sp-2); }
+  .readiness-subscore { min-width: 0; flex: 1 1 calc(50% - var(--sp-2)); padding: 10px 8px; }
+}
+
+</style>
+<style id="qa-fixes">
+/* QA fixes — fluid body type on small high-DPI screens + softer light-mode topbar accent. */
+:root{ --fs-body: clamp(13px, 0.4vw + 11.5px, 14px); }
+body.light .topbar::after{ opacity:.25; }
+</style>
+</head>
+<body>
+
+<template id="__bundler_thumbnail">
+  <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100" height="100" rx="20" fill="#0E1217"/>
+    <path d="M50 72 C30 58 22 46 22 38 C22 30 28 26 34 26 C40 26 46 30 50 38 C54 30 60 26 66 26 C72 26 78 30 78 38 C78 46 70 58 50 72 Z" fill="none" stroke="#3DE0D0" stroke-width="4.5" stroke-linejoin="round"/>
+    <path d="M30 46 L42 46 L46 38 L52 56 L56 46 L70 46" fill="none" stroke="#3DE0D0" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+</template>
+
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-badge"><svg viewBox="0 0 100 100" aria-hidden="true" style="width:23px;height:23px" fill="none" stroke="#06121A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></svg></div>
+      <div>
+        <div class="logo-title">HRVDex</div>
+        <div class="logo-sub">v1.0 · Tepna</div>
+      </div>
+    </div>
+    <hr class="sidebar-logo-rule">
+
+    <div class="sec-label">Core</div>
+    <div class="sb-nav">
+      <div class="sb-item active" onclick="switchTab('overview',this)">📈 Overview</div>
+      <div class="sb-item" onclick="switchTab('timeDomain',this)">⏱ Time-Domain HRV</div>
+      <div class="sb-item" onclick="switchTab('freqDomain',this)">🌊 Frequency-Domain</div>
+      <div class="sb-item" onclick="switchTab('composite',this)">🧮 Composite &amp; ANS</div>
+    </div>
+
+    <div class="sec-label">Analysis</div>
+    <div class="sb-nav">
+      <div class="sb-item" onclick="switchTab('rolling',this)">🔄 Rolling / Trend</div>
+      <div class="sb-item" onclick="switchTab('clinical',this)">🏥 Clinical Risk</div>
+      <div class="sb-item" onclick="switchTab('poincare',this)">🔵 Poincaré &amp; Toichi</div>
+      <div class="sb-item" onclick="switchTab('cognitive',this)">🧠 Cognitive &amp; Resilience</div>
+      <div class="sb-item" onclick="switchTab('patterns',this)">📊 Distributions &amp; Patterns</div>
+    </div>
+
+    <div class="sec-label">Fitness</div>
+    <div class="sb-nav">
+      <div class="sb-item" onclick="switchTab('fitness',this)">🏃 VO₂max &amp; BP</div>
+      <div class="sb-item" onclick="switchTab('raw',this)">📋 Raw + Derived Table</div>
+    </div>
+
+    <div class="sec-label">Detail Tier</div>
+    <div class="mode-bar" role="group" aria-label="Detail level">
+      <button class="mode-btn" data-mode="core"     onclick="setMode('core',this)">Core</button>
+      <button class="mode-btn" data-mode="advanced" onclick="setMode('advanced',this)">Advanced</button>
+      <button class="mode-btn" data-mode="research" onclick="setMode('research',this)">Research</button>
+    </div>
+
+    <div class="side-foot">
+      <div class="sidebar-readiness-badge" id="sidebarReadinessBadge" style="display:none">
+        <div><div class="srb-score" id="srbScore">—</div><div class="srb-label">Readiness</div></div>
+        <div id="srbNote" class="srb-note"></div>
+      </div>
+      <div class="loaded-card" id="sidebarDataCard" style="display:none">
+        <div class="status-pill"><span class="sdot"></span>&nbsp;Data Loaded</div>
+        <div style="margin-top:8px;font-size:11px;color:var(--text3);line-height:1.6" id="sidebarDataInfo">—</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- STICKY EXPORT BAR -->
+  <div id="exportBar"></div>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title">HRVDex <span class="version-badge">v1.0</span></div>
+        <div class="page-sub">ANS Analysis Engine &middot; 85+ Derived Metrics &middot; All processing local &middot; No data leaves your device</div>
+      </div>
+      <div class="topbar-actions">
+        <div class="mode-bar" id="modeBar">
+          <button class="mode-btn active" data-mode="core"     onclick="setMode('core',this)">Core</button>
+          <button class="mode-btn"        data-mode="advanced" onclick="setMode('advanced',this)">Advanced</button>
+          <button class="mode-btn"        data-mode="research" onclick="setMode('research',this)">Research</button>
+        </div>
+        <div class="mode-hint" id="modeHint">Top 3 graphs per tab — the essentials only</div>
+        <span class="top-badge hidden">⚙️ 85+ Metrics</span>
+        <span class="top-badge hidden">🔗 O2Ring Ready</span>
+      </div>
+    </div>
+
+
+<!-- UPLOAD -->
+<div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+  <div class="icon">📂</div>
+  <h3>Drop your HRV exports here</h3>
+  <p>Welltory CSV <b>or</b> an ECGDex export (CSV / JSON) · imports are <b>additive</b> — drop many files or nights at once and they stack into one multi-day table (exact duplicates are skipped). Your history is <b>saved in this browser</b> between visits; use <b>Clear saved history</b> to wipe it. All processing is local — no data leaves your device<br><small style="color:var(--yellow)">📱 Android: if a file is grayed out, tap the ⋮ menu → "Show all files"</small></p>
+  <button class="upload-btn" onclick="event.stopPropagation(); document.getElementById('fileInput').click()">Browse Files</button>
+  <input type="file" id="fileInput" accept=".csv,.json,text/csv,application/json,text/plain,application/octet-stream,*/*" onchange="loadFile(event)">
+  <div class="synth-line" onclick="event.stopPropagation()">
+    <span>No device?</span>
+    <button class="synth-link" type="button" id="genBtn">Generate synthetic</button>
+    <select id="genScenario" title="synthetic patient profile">
+      <option value="baseline" selected>Untreated OSA</option>
+      <option value="severe">Severe OSA</option>
+      <option value="cpap">On CPAP</option>
+      <option value="healthy">Healthy</option>
+    </select>
+    <select id="genDays" title="days to generate">
+      <option value="1">1 day</option>
+      <option value="3" selected>3 days</option>
+      <option value="7">7 days</option>
+      <option value="14">14 days</option>
+    </select>
+  </div>
+  <div id="pasteToggle" style="margin-top:14px">
+    <button class="upload-btn" style="background:#2d333b;border:1px solid var(--border)" onclick="event.stopPropagation();document.getElementById('pasteFallback').style.display=document.getElementById('pasteFallback').style.display==='none'?'block':'none'">📋 Or paste CSV text</button>
+    <div id="pasteFallback" style="display:none;margin-top:10px" onclick="event.stopPropagation()">
+      <textarea id="pasteArea" rows="6" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px;font-size:11px;font-family:monospace" placeholder="Paste a Welltory CSV or an ECGDex JSON export here..."></textarea>
+      <button class="upload-btn" style="margin-top:6px" onclick="event.stopPropagation();loadPasted()">Load Pasted CSV</button>
+    </div>
+  </div>
+
+  <div class="disclosure-card" onclick="event.stopPropagation()">
+    <div class="disclosure-header">
+      <span class="disclosure-icon">🔬</span>
+      <span class="disclosure-title">Power-user companion analytics</span>
+    </div>
+    <div class="disclosure-body">
+      This tool computes biometric patterns from your wearable data to support
+      <strong>personal self-quantification</strong>. It is not a medical device,
+      does not diagnose, treat, or screen for any condition, and is not a
+      substitute for clinical evaluation. Derived metrics (VO₂max, HRV proxies,
+      AHI estimates, blood pressure projections) are experimental approximations
+      — not validated diagnostic outputs. Consult a qualified clinician for any
+      health concern.
+    </div>
+    <div class="disclosure-footer">
+      <span class="disclosure-pill">🔒 Local-first</span>
+      <span class="disclosure-pill">📵 No telemetry</span>
+      <span class="disclosure-pill">🚫 Not FDA-cleared</span>
+      <span class="disclosure-pill">⚕ Not medical advice</span>
+    </div>
+  </div>
+</div>
+
+<!-- STATUS -->
+<div id="progressWrap" class="progress"><div id="progressBar" class="progress-bar" style="width:0"></div></div>
+<div id="statusBar"></div>
+
+<!-- HERO + PROJECTED ANS AGE (side by side) -->
+<div id="heroTop">
+<div id="heroWrap"></div>
+</div>
+
+<!-- USER PROFILE (under hero) -->
+  <!-- USER PROFILE PANEL — O2Ring structure -->
+  <div id="profilePanel" style="display:none">
+    <div id="profileHeader" onclick="toggleProfilePanel()">
+      <h3>👤 User Profile &nbsp;<span style="font-size:11px;font-weight:400;color:var(--text2)">— personalizes all formulas &amp; norms</span></h3>
+      <button id="profileToggleBtn" onclick="event.stopPropagation();toggleProfilePanel()">▲ collapse</button>
+    </div>
+    <div id="profileAutoDetect"><span id="profileAutoText">Upload data to auto-detect stats</span> &nbsp;·&nbsp; Auto-estimated fields shown with ~ prefix · Override with real values</div>
+    <div id="profileBody">
+      <div id="dexProfilePanel"></div>
+
+      <div id="profileWtHtHint" style="display:none"></div>
+
+      <div id="profileDerived" style="display:none"><!-- filled by updateProfile() --></div>
+
+      <div id="profileSaveNote">💾 Values auto-saved to browser</div>
+    </div>
+  </div>
+
+<!-- KPI STRIP -->
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="font-size:11px;color:var(--text2)">📊 Key Metrics</span><span style="font-size:10px;background:rgba(88,166,255,0.15);border:1px solid rgba(88,166,255,0.3);border-radius:4px;padding:2px 7px;color:var(--blue)">🌅 Morning measurements only</span></div>
+<div id="kpiStrip"></div>
+
+<!-- ALERTS -->
+<div id="alertPanel"></div>
+
+<!-- EMPTY STATE -->
+<div id="emptyState"><p style="font-size:13px;color:var(--text3);max-width:340px;margin:8px auto 0;line-height:1.6">Import a Welltory CSV or an ECGDex export to analyze 85+ HRV metrics from your ANS data.</p>
+  <div class="big-icon">🫀</div>
+  <h3>Import your HRV data to begin</h3>
+  <p>Reads the Welltory CSV format (SDNN, rMSSD, HF/LF/VLF, Stress, Energy, and all ANS fields) and ECGDex exports (CSV / JSON). Imports are additive — add more nights anytime and they accumulate.</p>
+</div>
+
+<!-- CONTROLS + TABS -->
+<div id="mainUI" style="display:none">
+  <div class="controls">
+    <div>
+      <label>View Window:</label>
+      <div class="btn-group">
+        <button class="btn active" onclick="setWindow(7,this)">7d</button>
+        <button class="btn" onclick="setWindow(14,this)">14d</button>
+        <button class="btn" onclick="setWindow(30,this)">30d</button>
+        <button class="btn" onclick="setWindow(999,this)">All</button>
+      </div>
+    </div>
+    <div>
+      <label>Morning only (before 10am):</label>
+      <input type="checkbox" id="morningOnly" onchange="rerender()">
+    </div>
+    <div>
+      <label>Smoothing: </label>
+      <input type="range" id="smoothRange" min="0" max="5" value="0" oninput="document.getElementById('smoothVal').textContent=this.value; rerender()">
+      <span class="range-val" id="smoothVal">0</span>
+    </div>
+  </div>
+
+  <div class="tab-bar">
+    <div class="tab active" onclick="switchTab('overview',this)">📈 Overview</div>
+    <div class="tab" onclick="switchTab('timeDomain',this)">⏱ Time-Domain HRV</div>
+    <div class="tab" onclick="switchTab('freqDomain',this)">🌊 Frequency-Domain</div>
+    <div class="tab" onclick="switchTab('composite',this)">🧮 Composite & ANS</div>
+    <div class="tab" onclick="switchTab('rolling',this)">🔄 Rolling / Trend</div>
+    <div class="tab" onclick="switchTab('clinical',this)">🏥 Clinical Risk</div>
+    <div class="tab" onclick="switchTab('poincare',this)">🔵 Poincaré & Toichi</div>
+    <div class="tab" onclick="switchTab('cognitive',this)">🧠 Cognitive & Resilience</div>
+    <div class="tab" onclick="switchTab('patterns',this)">📊 Distributions & Patterns</div>
+    <div class="tab" onclick="switchTab('fitness',this)">🏃 VO₂max &amp; BP</div>
+    <div class="tab" onclick="switchTab('raw',this)">📋 Raw + Derived Table</div>
+  </div>
+
+  <!-- OVERVIEW TAB -->
+  <div class="tab-content active" id="tab-overview">
+    <div class="chart-grid">
+      <div class="chart-card" data-cat="hrv">
+        <h4>rMSSD (Parasympathetic Tone)</h4>
+        <p>ln(rMSSD) — gold standard for daily readiness</p>
+        <canvas id="ch_rmssd"></canvas>
+      </div>
+      <div class="chart-card" data-cat="hrv">
+        <h4>HRV Score & SDNN</h4>
+        <p>Primary readiness indicators</p>
+        <canvas id="ch_hrv_sdnn"></canvas>
+      </div>
+      <div class="chart-card" data-cat="stress">
+        <h4>SNS vs PSNS Balance</h4>
+        <p>Sympatho-vagal autonomic load</p>
+        <canvas id="ch_sns_psns"></canvas>
+      </div>
+
+      <!-- ADVANCED tier (+3, shown in Advanced & Research) -->
+      <div class="chart-card" data-cat="freq" data-tier="secondary">
+        <span class="tier-pill">Advanced</span>
+        <h4>LF/HF Ratio</h4>
+        <p>Sympathovagal balance. Optimal 0.5–2.0 (morning rest)</p>
+        <canvas id="ch_ov_lfhf"></canvas>
+      </div>
+      <div class="chart-card" data-cat="stress" data-tier="secondary">
+        <span class="tier-pill">Advanced</span>
+        <h4>Baevsky Stress Index</h4>
+        <p>AMo50² / (2 × Mode × MxDMn) — classic autonomic load. Normal &lt;150</p>
+        <canvas id="ch_ov_si"></canvas>
+      </div>
+      <div class="chart-card" data-cat="hrv" data-tier="secondary">
+        <span class="tier-pill">Advanced</span>
+        <h4>Vagal Efficiency (rMSSD/HR)</h4>
+        <p>HR-corrected parasympathetic output. Optimal &gt;0.45</p>
+        <canvas id="ch_ov_vei"></canvas>
+      </div>
+
+      <!-- RESEARCH tier (+3, shown in Research only) -->
+      <div class="chart-card" data-cat="hrv" data-tier="research">
+        <span class="tier-pill research">Research</span>
+        <h4>DFA α1 Proxy</h4>
+        <p>⚠ No validated formula — derived from SD1/SD2. Directional trend only, not absolute DFA α1.</p>
+        <canvas id="ch_ov_dfa"></canvas>
+      </div>
+      <div class="chart-card" data-cat="fitness" data-tier="research">
+        <span class="tier-pill research">Research</span>
+        <h4>DFA α1 Proxy (overview)</h4>
+        <p>⚠ No validated formula — derived from SD1/SD2. Directional trend only, not absolute DFA α1.</p>
+        <canvas id="ch_ov_dfa2"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- TIME-DOMAIN TAB -->
+  <div class="tab-content" id="tab-timeDomain">
+    <div class="chart-grid">
+      <div class="chart-card" data-cat="stress">
+        <h4>Stress vs Energy (HRV)</h4>
+        <p>Divergence gap = autonomic dysregulation signal</p>
+        <canvas id="ch_stressEnergy"></canvas>
+      </div>
+      <div class="chart-card" data-cat="stress">
+        <h4>Baevsky Stress Index (SI)</h4>
+        <p>AMo50² / (2 × Mode × MxDMn) — classic autonomic load. Normal &lt;150, stress &gt;200</p>
+        <canvas id="ch_si"></canvas>
+      </div>
+      <div class="chart-card" data-cat="hrv">
+        <h4>CV (Coefficient of Variation)</h4>
+        <p>SDNN / MeanRR × 100 — HR-normalized HRV</p>
+        <canvas id="ch_cv"></canvas>
+      </div>
+      <div class="chart-card" data-cat="hrv">
+        <h4>RMSSD/SDNN Ratio</h4>
+        <p>Parasympathetic fraction of total HRV. Optimal 0.5–0.9</p>
+        <canvas id="ch_rmssd_sdnn"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>MxDMn / MeanRR Ratio</h4>
+        <p>Normalized heart period variability range</p>
+        <canvas id="ch_mxdmn_meanrr"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Stress–Energy Divergence</h4>
+        <p>|Stress − Energy| gap. Large gap = dysregulation flag</p>
+        <canvas id="ch_se_div"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>ln(rMSSD) — HRV4Training Readiness</h4>
+        <p>Log-transformed parasympathetic readiness score</p>
+        <canvas id="ch_lnrmssd"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- FREQUENCY DOMAIN TAB -->
+  <div class="tab-content" id="tab-freqDomain">
+    <div class="chart-grid">
+      <div class="chart-card" data-cat="freq">
+        <h4>LF/HF Ratio</h4>
+        <p>SNS/PSNS balance. Optimal 0.5–2.0 (morning rest)</p>
+        <canvas id="ch_lfhf"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>HF & LF Normalized Units (nu)</h4>
+        <p>HFnu = HF/(Total−VLF)×100 | LFnu = LF/(Total−VLF)×100</p>
+        <canvas id="ch_lfhf_nu"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>VLF % of Total Power</h4>
+        <p>&gt;50% = slow regulatory load or poor signal quality</p>
+        <canvas id="ch_vlf_pct"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Sympathovagal Index = ln(LF) − ln(HF)</h4>
+        <p>Log-scale ANS balance. Negative = vagal dominant</p>
+        <canvas id="ch_svi"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Spectral Entropy (LF/HF/VLF distribution)</h4>
+        <p>High (→1) = power evenly spread across all bands (balanced ANS). Low (→0) = one band dominates (e.g. VLF-dominant = slow regulatory load). Neither extreme is unconditionally good.</p>
+        <canvas id="ch_spectral_ent"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>LF+HF / Total Power</h4>
+        <p>Fraction of power in autonomically meaningful bands</p>
+        <canvas id="ch_lfhf_total"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMPOSITE TAB -->
+  <div class="tab-content" id="tab-composite">
+    <div class="chart-grid">
+      <div class="chart-card">
+        <h4>ANS Load Score</h4>
+        <p>(SNS × Stress) / (PSNS × Energy + 1) — composite burden</p>
+        <canvas id="ch_ans_load"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Coherence × Energy Product</h4>
+        <p>Weighted readiness score — both must be high simultaneously</p>
+        <canvas id="ch_coh_energy"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Parasympathetic Tone Index</h4>
+        <p>PSNS × rMSSD / 100 — combined PSNS estimate</p>
+        <canvas id="ch_pti"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Stress × (1/Coherence) — Incoherent Stress</h4>
+        <p>High = stressed AND dysregulated simultaneously</p>
+        <canvas id="ch_incoherent_stress"></canvas>
+      </div>
+      <div class="chart-card" data-cat="hrv">
+        <h4>Vagal Efficiency Index = rMSSD / HR</h4>
+        <p>HR-corrected parasympathetic output. Optimal &gt;0.5</p>
+        <canvas id="ch_vei"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Sympathetic Dominance Index</h4>
+        <p>(LF + SNS×10) / (HF + PSNS×10)</p>
+        <canvas id="ch_sdi"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROLLING TAB -->
+  <div class="tab-content" id="tab-rolling">
+    <div class="chart-grid">
+      <div class="chart-card">
+        <h4>Autonomic Recovery Index (rMSSD ratio)</h4>
+        <p>Today ÷ 7-day mean. &gt;1.05 = better than baseline</p>
+        <canvas id="ch_ari"></canvas>
+      </div>
+      <div class="chart-card" data-cat="hrv">
+        <h4>7-day SDNN Z-Score</h4>
+        <p>Deviation from personal rolling baseline (±1SD flags)</p>
+        <canvas id="ch_sdnn_z"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>7-day rMSSD Rolling Mean (ln)</h4>
+        <p>HRV4Training gold-standard readiness baseline</p>
+        <canvas id="ch_rmssd_rolling"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Rolling Stress Area Under Curve (7d)</h4>
+        <p>Cumulative autonomic stress load</p>
+        <canvas id="ch_stress_auc"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>7-day rMSSD CV (Instability)</h4>
+        <p>Day-to-day HRV variability — high = unstable recovery</p>
+        <canvas id="ch_rmssd_cv"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Stress Autocorrelation (lag-1)</h4>
+        <p>High persistence = chronic stress; low = acute event</p>
+        <canvas id="ch_stress_ac"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>HRV Momentum (14d ln(rMSSD) Slope)</h4>
+        <p>Positive = improving HRV trend; negative = declining. Key long-term training signal.</p>
+        <canvas id="ch_hrv_momentum"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Restoration Index (Energy × Coherence / Stress+1)</h4>
+        <p>High = physiologically resourced day. Both numerators must be elevated simultaneously.</p>
+        <canvas id="ch_welfare"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Recovery Debt (ARI &lt;0.9 days in 14d window)</h4>
+        <p>Accumulating days below baseline recovery signal chronic fatigue burden.</p>
+        <canvas id="ch_recovery_debt"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>rMSSD Day-to-Day Reactivity (%)</h4>
+        <p>Daily % change in rMSSD vs previous consecutive measurement. Gap &gt;1 calendar day = shown as blank (not meaningful across missed days).</p>
+        <canvas id="ch_rmssd_reactivity"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- CLINICAL TAB -->
+  <div class="tab-content" id="tab-clinical">
+    <div class="chart-grid">
+      <div class="chart-card" data-cat="fitness">
+        <h4>Baevsky Adaptation Potential</h4>
+        <p>0.011×HR + 0.014×age <strong>(HR+Age component only)</strong> — full formula needs SBP/DBP. Trend direction valid; absolute threshold not applicable without BP input.</p>
+        <canvas id="ch_bap"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Orthostatic Load Proxy</h4>
+        <p>HR × (1/SDNN) — combined cardiac load index</p>
+        <canvas id="ch_ortho"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>pNN50 Decline Rate (Rolling Slope)</h4>
+        <p>Negative slope = overtraining / autonomic suppression signal</p>
+        <canvas id="ch_pnn50_slope"></canvas>
+      </div>
+      <div class="chart-card" data-cat="risk">
+        <h4>High-Stress / Low-Energy Days</h4>
+        <p>Binary flag: Stress &gt;60 AND Energy &lt;40 — monthly load count</p>
+        <canvas id="ch_hile"></canvas>
+      </div>
+    </div>
+  
+    <!-- ═══ Cardiovascular Research Pattern (research-grade, with caveats) ═══ -->
+    <section data-tier="research" style="margin-top:24px;">
+      <h3 class="section-title section-title-lg">Cardiovascular Research Pattern</h3>
+      <div class="alert alert-info">
+        <span class="alert-icon">ℹ️</span>
+        <div class="alert-body">
+          <div class="alert-title">Research-grade indicators</div>
+          <div class="alert-msg">These scores are derived from HRV pattern analysis. They are NOT blood pressure measurements and do NOT replace cuff-based monitoring. Individual variation, medications (especially beta-blockers), and confounders (sleep quality, recent exercise, illness) significantly affect them. References at bottom.</div>
+        </div>
+      </div>
+
+      <div class="chart-grid">
+        <!-- HRV–Hypertension Pattern Score card REMOVED 2026-06-23 (DEX-METRIC-REMOVAL-AUDIT 🔴 — cuffless BP-risk from HRV). -->
+        <div class="chart-card" data-cat="hrv">
+          <h4>Cardiac Autonomic Modulation Quality (CAMQ)</h4>
+          <p>Composite autonomic balance: parasympathetic dominance minus sympathetic dominance. Higher = healthier autonomic state.</p>
+          <canvas id="ch_camq"></canvas>
+          <div class="chart-legend">
+            <span class="legend-item"><span class="legend-dot" style="background:var(--green)"></span>&gt;60 healthy</span>
+            <span class="legend-item"><span class="legend-dot" style="background:var(--amber)"></span>30–60 borderline</span>
+            <span class="legend-item"><span class="legend-dot" style="background:var(--red)"></span>&lt;30 sympathetic-dominant</span>
+          </div>
+          <div class="chart-note">Weighted score: parasympathetic indicators (RMSSD, HF power, pNN50) minus sympathetic indicators (LF/HF, AMo50). Lower scores correlate with elevated BP risk in population studies.</div>
+        </div>
+      </div>
+
+      <!-- Estimated MAP (HRV→MAP regression) chart-card REMOVED 2026-06-23 (DEX-METRIC-REMOVAL-AUDIT 🔴). -->
+
+      <div class="alert alert-advisory" style="margin-top:16px;">
+        <span class="alert-icon">📚</span>
+        <div class="alert-body">
+          <div class="alert-title">References</div>
+          <div class="alert-msg" style="font-size:11px; line-height:1.6;">
+            • Yu et al. 2018, Int J Hypertens — HRV &amp; heart-rate turbulence in hypertensive patients<br>
+            • ARIC Study (Schroeder et al. 2003), Hypertension — decreased HRV in hypertension (SDNN, RMSSD)<br>
+            • Toon Health Study (Saito et al. 2018), Am J Hypertens 31(10):1120–6 — home BP × HRV quartiles<br>
+            • HELIUS Study (2024) — xBRS predicts incident hypertension over 6.6yr
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- POINCARÉ & TOICHI TAB -->
+  <div class="tab-content" id="tab-poincare">
+    <div class="chart-grid">
+      <div class="chart-card">
+        <h4>SD1 vs SD2 (Poincaré Geometry)</h4>
+        <p>SD1 = instantaneous beat variability (pure vagal) · SD2 = long-term regulation</p>
+        <canvas id="ch_sd1_sd2"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>SD1/SD2 Ratio</h4>
+        <p>0.25–0.35 = typical resting; &lt;0.25 = LF/sympathetic dominance; &gt;0.5 = vagal dominant</p>
+        <canvas id="ch_sd1sd2_ratio"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Toichi CVI (Cardiac Vagal Index)</h4>
+        <p>log₁₀(rMSSD<sub>ms</sub> × MeanRR<sub>ms</sub>) — orthogonal to CSI; higher = more vagal tone. Thresholds: &gt;4.4 good · 4.1–4.4 moderate · &lt;4.1 suppressed</p>
+        <canvas id="ch_cvi"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Toichi CSI (Cardiac Sympathetic Index)</h4>
+        <p>MxDMn / MeanRR_s — independent sympathetic index; higher = more sympathetic drive</p>
+        <canvas id="ch_csi"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>CVI vs CSI (Autonomic Quadrant)</h4>
+        <p>Scatter: upper-left = vagal dominant; lower-right = sympathetic dominant</p>
+        <canvas id="ch_cvi_csi_scatter"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>DFA α1 Proxy & HRV Power Law Slope</h4>
+        <p>⚠ DFA proxy is derived from SD1/SD2 — no published formula exists; use as a directional trend only, not absolute DFA α1. Power law slope: less negative = HF-dominant</p>
+        <canvas id="ch_dfa_plaw"></canvas>
+      </div>
+      <!-- Autonomic Age Estimate chart-card REMOVED 2026-06-23 (DEX-METRIC-REMOVAL-AUDIT 🔴). -->
+      <div class="chart-card">
+        <h4>VLF/HF Ratio & Spectral Asymmetry</h4>
+        <p>VLF/HF &gt;3 = slow regulatory dominance · SAI: −1=vagal, +1=sympathetic</p>
+        <canvas id="ch_vlf_hf_sai"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Cardiac Autonomic Index (CAI) — √(SD1×SD2)</h4>
+        <p>Geometric mean of Poincaré axes √(SD1×SD2). Higher = better autonomic control. Thresholds: &gt;45 good · 30–45 moderate · &lt;30 suppressed</p>
+        <canvas id="ch_cai"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- COGNITIVE & RESILIENCE TAB -->
+  <div class="tab-content" id="tab-cognitive">
+    <div class="chart-grid">
+      <div class="chart-card">
+        <h4>EFC Readiness Index</h4>
+        <p>Energy×0.4 + Focus×0.3 + Coherence×0.3 — combined cognitive + physiological readiness</p>
+        <canvas id="ch_efc"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Cardiac Resilience Score</h4>
+        <p>(Coherence × rMSSD × pNN50) / (Stress×1000) — HRV quality buffered against stress load</p>
+        <canvas id="ch_crs"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Autonomic Balance Score (ABS)</h4>
+        <p>(PSNS−SNS)/(PSNS+SNS) · −1=full SNS · 0=balanced · +1=full PSNS</p>
+        <canvas id="ch_abs"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Stress-Focus Dissociation</h4>
+        <p>Stress − Focus. Positive = stress outpacing cognitive focus ("masked stress")</p>
+        <canvas id="ch_sfd"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Focus Efficiency</h4>
+        <p>Focus / (SNS+1) — cognitive output per unit sympathetic cost</p>
+        <canvas id="ch_focus_eff"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>PNS Efficiency Index</h4>
+        <p>rMSSD / (SDNN × pNN50) — parasympathetic contribution vs total HRV. Shown as blank (—) when pNN50 &lt;1% to avoid paradoxical inflation on high-stress days.</p>
+        <canvas id="ch_pns_eff"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Overtraining Risk Index</h4>
+        <p>(SNS/PSNS) × (100/pNN50) — composite overreaching flag; not standalone diagnostic</p>
+        <canvas id="ch_otr"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>rMSSD Circadian-Adjusted vs Raw</h4>
+        <p>Removes morning (+8%) and evening (−5%) bias for fair cross-measurement comparison</p>
+        <canvas id="ch_rmssd_circ"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>RSA Power Proxy & NN50 Estimate</h4>
+        <p>RSA = HF/(MeanRR²) · NN50 = estimated count from pNN50 × beat count</p>
+        <canvas id="ch_rsa_nn50"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- VO2MAX & BP TAB -->
+  <div class="tab-content" id="tab-fitness">
+
+    <!-- VO2MAX SECTION -->
+    <div class="section-title">🏃 VO₂max Daily Estimates</div>
+    <div style="background:var(--surface2);border:1px solid rgba(88,166,255,0.3);border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:12px;line-height:1.8;color:var(--text2)">
+      <strong style="color:var(--blue)">Method:</strong> Uth-Sørensen (2004) — 15.3 × (HRmax/HRrest), HRmax = Tanaka formula (208 − 0.7×age), altitude-corrected above 1500 m.
+      <strong style="color:var(--cyan)">HRV-adjusted</strong> = base × rMSSD ln-modifier (±8% band). Enter your VO₂max ground truth in the User Profile to anchor the delta chart.
+      <strong style="color:var(--yellow)">Accuracy: ±4–5 ml/kg/min SEE</strong> — use for trend direction, not exact value.
+      Categories follow ACSM age- and sex-adjusted norms.
+    </div>
+    <div class="chart-grid">
+      <div class="chart-card">
+        <h4>VO₂max Daily Estimate vs 7-Day Rolling Mean</h4>
+        <p>Base (Uth-Sørensen HR ratio) vs HRV-adjusted vs rolling 7d mean. Enter a real VO₂max test result in the profile to anchor the ground truth reference line.</p>
+        <canvas id="ch_vo2_trend"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>VO₂max Delta from Ground Truth</h4>
+        <p>Daily deviation from profile VO₂max. ⚠ If GT was auto-inferred (not from a real test), this chart shows daily HR+rMSSD variation vs your median — not deviation from a true VO₂max measurement.</p>
+        <canvas id="ch_vo2_delta"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Resting HR vs VO₂max Estimate</h4>
+        <p>Scatter: lower resting HR → higher VO₂max. Color = stress level.</p>
+        <canvas id="ch_vo2_hr_scatter"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>rMSSD HRV Modifier (% adjustment to base VO₂max)</h4>
+        <p>How much rMSSD adds or subtracts from the HR-only estimate each day.</p>
+        <canvas id="ch_vo2_rmssd_mod"></canvas>
+      </div>
+    </div>
+
+</div>
+
+  <!-- DISTRIBUTIONS & PATTERNS TAB -->
+  <div class="tab-content" id="tab-patterns" data-screen-label="Patterns">
+    <div class="section-title">📊 Distributions & Patterns</div>
+    <div style="background:var(--surface2);border:1px solid rgba(0,201,177,0.3);border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:12px;line-height:1.8;color:var(--text2)">
+      <strong style="color:var(--teal)">New analytical views</strong> over your full history — value distributions, day-of-week rhythms and cross-metric correlations.
+      These read raw daily values across the selected date range and are independent of the time-series smoothing slider.
+    </div>
+    <div class="chart-grid">
+      <div class="chart-card" data-cat="hrv">
+        <h4>Metric Distribution</h4>
+        <p>Histogram of any metric across the selected range. <span id="histStats" class="pattern-stat">—</span></p>
+        <div class="pattern-controls">
+          <label for="histMetric">Metric</label>
+          <select id="histMetric" onchange="renderHistogram()"></select>
+        </div>
+        <canvas id="ch_hist"></canvas>
+      </div>
+      <div class="chart-card" data-cat="freq">
+        <h4>Correlation Explorer</h4>
+        <p>Pick any two metrics to see how they move together. <span id="corrStats" class="pattern-stat">—</span></p>
+        <div class="pattern-controls">
+          <label for="corrX">X</label>
+          <select id="corrX" onchange="renderScatterExplorer()"></select>
+          <label for="corrY">Y</label>
+          <select id="corrY" onchange="renderScatterExplorer()"></select>
+        </div>
+        <canvas id="ch_corr"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Day-of-Week Pattern</h4>
+        <p>Average by weekday — surfaces weekly rhythms (weekend recovery, mid-week strain). <span id="wdStats" class="pattern-stat">—</span></p>
+        <div class="pattern-controls">
+          <label for="wdMetric">Metric</label>
+          <select id="wdMetric" onchange="renderWeekday()"></select>
+        </div>
+        <canvas id="ch_weekday"></canvas>
+      </div>
+    </div>
+
+    <div class="section-title">🔗 Correlation Matrix</div>
+    <div style="background:var(--surface2);border:1px solid rgba(34,211,238,0.3);border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:12px;line-height:1.8;color:var(--text2)">
+      Pearson <em>r</em> across core metrics over the selected range.
+      <strong style="color:var(--teal)">Teal</strong> = move together · <strong style="color:var(--red)">red</strong> = inverse relationship · deeper colour = stronger. Hover any cell for the exact value.
+    </div>
+    <div class="chart-card">
+      <div id="corrHeatmap" class="heatmap-wrap"></div>
+    </div>
+  </div>
+
+  <!-- RAW TABLE TAB -->
+  <div class="tab-content" id="tab-raw">
+    <div class="section-title">📋 Full Derived Metrics Table</div>
+    <div class="table-wrap">
+      <table id="derivedTable">
+        <thead><tr id="tableHead"></tr></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+
+<div class="dxl dxl-ribbon" style="max-width:1100px;margin:0 auto 30px">
+  <div class="dxl-seg">
+    <span class="dxl-mark">T</span>
+    <span style="display:flex;flex-direction:column">
+      <b style="font-size:13px">Tepna</b>
+      <span class="dxl-colophon">physiological-signal suite</span>
+    </span>
+  </div>
+  <div class="dxl-seg dxl-grow">
+    <span style="font-size:11.5px;color:var(--text2,#9FB0C3)">© 2026 <b>Michal Planicka</b> — Concept · Architecture · Algorithms</span>
+    <span class="dxl-disclaimer">Not a medical device · does not diagnose or treat · not FDA/CE cleared · research &amp; personal use only · ◈ Made in Asheville, NC</span>
+  </div>
+  <div class="dxl-seg"><span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span></div>
+</div>
+<script src="hrvdex-chart.js"></script>
+<script src="kernel-constants.js"></script>
+<script src="ganglior-provenance.js"></script>
+<script src="signal-frame.js"></script>
+<script src="dex-export.js"></script>
+<script src="metric-registry.js"></script>
+<script src="entrance-guard.js"></script>
+<script src="dex-profile.js"></script>
+<script src="hrvdex-registry.js"></script>
+<script src="quantity.js"></script>
+<script src="hrvdex-dsp.js"></script>
+<script src="hrvdex-render.js"></script>
+<script src="hrvdex-profile.js"></script>
+<script src="synth-gen.js"></script>
+<script src="dex-patient-gen.js"></script>
+<script src="hrvdex-app.js"></script>
+<script src="hrvdex-chartbadges.js"></script>
+  </main>
+</div>
+<button id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top" title="Back to top">↑</button>
+<button id="themeToggleBtn" onclick="toggleTheme()" title="Toggle light / dark mode" aria-label="Toggle light/dark theme">
+  <span class="theme-icon" id="themeIcon">☀️</span>
+  <span id="themeLabel">Light</span>
+</button>
+
+<!-- ── Mobile bottom navigation (mirrors OxyDex) ─────────────── -->
+<nav class="mobile-nav" id="mobileNav" role="navigation" aria-label="Main navigation">
+  <div class="mobile-nav-modes" role="group" aria-label="Detail level">
+    <button class="mnav-mode-btn" data-mode="core"     onclick="setMode('core',this)">Core</button>
+    <button class="mnav-mode-btn" data-mode="advanced" onclick="setMode('advanced',this)">Advanced</button>
+    <button class="mnav-mode-btn" data-mode="research" onclick="setMode('research',this)">Research</button>
+  </div>
+  <div class="mobile-nav-items">
+    <button class="mobile-nav-item active" onclick="hrvNavTo('overview',this)"><span class="mobile-nav-icon">📈</span>Overview</button>
+    <button class="mobile-nav-item" onclick="hrvNavTo('timeDomain',this)"><span class="mobile-nav-icon">⏱</span>Time</button>
+    <button class="mobile-nav-item" onclick="hrvNavTo('freqDomain',this)"><span class="mobile-nav-icon">🌊</span>Freq</button>
+    <button class="mobile-nav-item" onclick="hrvNavTo('composite',this)"><span class="mobile-nav-icon">🧮</span>Composite</button>
+    <button class="mobile-nav-item" onclick="hrvNavTo('rolling',this)"><span class="mobile-nav-icon">🔄</span>Rolling</button>
+    <button class="mobile-nav-item" onclick="hrvNavTo('clinical',this)"><span class="mobile-nav-icon">🏥</span>Clinical</button>
+    <button class="mobile-nav-item" onclick="hrvNavTo('poincare',this)"><span class="mobile-nav-icon">🔵</span>Poincaré</button>
+    <button class="mobile-nav-item" onclick="hrvNavTo('cognitive',this)"><span class="mobile-nav-icon">🧠</span>Cognitive</button>
+    <button class="mobile-nav-item" onclick="hrvNavTo('patterns',this)"><span class="mobile-nav-icon">📊</span>Patterns</button>
+    <button class="mobile-nav-item" onclick="hrvNavTo('fitness',this)"><span class="mobile-nav-icon">🏃</span>Fitness</button>
+    <button class="mobile-nav-item" onclick="hrvNavTo('raw',this)"><span class="mobile-nav-icon">📋</span>Raw</button>
+    <button class="mobile-nav-item" onclick="document.getElementById('profilePanel').scrollIntoView({behavior:'smooth'})"><span class="mobile-nav-icon">⚙</span>Profile</button>
+  </div>
+</nav>
+</body>
+</html>

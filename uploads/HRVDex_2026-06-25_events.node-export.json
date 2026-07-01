@@ -1,0 +1,88 @@
+{
+  "kernel": {
+    "version": "1.0.0",
+    "hash": "118ebed5"
+  },
+  "schema": {
+    "name": "ganglior.node-export",
+    "version": "2.0",
+    "node": "HRVDex",
+    "nodeVersion": "1.0",
+    "bus": "ganglior",
+    "generated": "2026-06-25T15:37:14.951Z",
+    "doc": "HRVDex per-measurement HRV (Welltory-style) → Ganglior events. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated. stress_high derives from a vendor black-box composite (meta.derived:true, heuristic tier)."
+  },
+  "recording": {
+    "source": "welltory",
+    "contentId": "dc0f3f9f4d12",
+    "startEpochMs": 1780297200000,
+    "offsetMin": null,
+    "measurements": 4,
+    "firstTMs": 1780297200000,
+    "lastTMs": 1780556400000,
+    "spanDays": 4
+  },
+  "ganglior_events": [
+    {
+      "tMs": 1780297200000,
+      "t": "07:00:00",
+      "impulse": "hrv_low",
+      "node": "HRVDex",
+      "conf": 0.4,
+      "meta": {
+        "rmssd": 15,
+        "sdnn": 28,
+        "hr": 75,
+        "evidence": "measured"
+      }
+    },
+    {
+      "tMs": 1780297200000,
+      "t": "07:00:00",
+      "impulse": "stress_high",
+      "node": "HRVDex",
+      "conf": 0.5,
+      "meta": {
+        "stress": 75,
+        "rmssd": 15,
+        "energy": 40,
+        "evidence": "heuristic",
+        "derived": true,
+        "source": "welltory-composite"
+      }
+    },
+    {
+      "tMs": 1780383600000,
+      "t": "07:00:00",
+      "impulse": "hrv_low",
+      "node": "HRVDex",
+      "conf": 0.4,
+      "meta": {
+        "rmssd": 14,
+        "sdnn": 30,
+        "hr": 65,
+        "evidence": "measured"
+      }
+    },
+    {
+      "tMs": 1780470000000,
+      "t": "07:00:00",
+      "impulse": "stress_high",
+      "node": "HRVDex",
+      "conf": 0.64,
+      "meta": {
+        "stress": 82,
+        "rmssd": 40,
+        "energy": 45,
+        "evidence": "heuristic",
+        "derived": true,
+        "source": "welltory-composite"
+      }
+    }
+  ],
+  "reserved": {
+    "doc": "Awaiting other fleet nodes; null until available.",
+    "glucoseCorrelation": null,
+    "glucoseSource": "GlucoDex"
+  }
+}

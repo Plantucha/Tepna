@@ -1,0 +1,499 @@
+{
+  "kernel": null,
+  "schema": {
+    "name": "ganglior.node-export",
+    "version": "2.0",
+    "node": "GlucoDex",
+    "nodeVersion": "1.0",
+    "bus": "ganglior",
+    "generated": "2026-06-28T03:52:55.052Z",
+    "provenance": null,
+    "doc": "GlucoDex glycemic events → Ganglior bus. t/tMs = floating wall-clock (UTC getters). null = unknown, never fabricated."
+  },
+  "recording": {
+    "source": "file",
+    "contentId": "728ee70b430e",
+    "startEpochMs": 1775391720000,
+    "events": 42,
+    "clamp": {
+      "detected": false
+    }
+  },
+  "ganglior_events": [
+    {
+      "t": "00:02:00",
+      "tMs": 1775433720000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 60,
+        "durMin": 30
+      }
+    },
+    {
+      "t": "01:47:00",
+      "tMs": 1775440020000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 64,
+        "durMin": 20
+      }
+    },
+    {
+      "t": "04:02:00",
+      "tMs": 1775534520000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 68,
+        "durMin": 25
+      }
+    },
+    {
+      "t": "00:12:00",
+      "tMs": 1775607120000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 60,
+        "durMin": 40
+      }
+    },
+    {
+      "t": "01:52:00",
+      "tMs": 1775699520000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 59,
+        "durMin": 50
+      }
+    },
+    {
+      "t": "00:37:00",
+      "tMs": 1775781420000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 62,
+        "durMin": 75
+      }
+    },
+    {
+      "t": "02:02:00",
+      "tMs": 1775786520000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 65,
+        "durMin": 35
+      }
+    },
+    {
+      "t": "01:27:00",
+      "tMs": 1775870820000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 66,
+        "durMin": 55
+      }
+    },
+    {
+      "t": "05:02:00",
+      "tMs": 1775883720000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 69,
+        "durMin": 20
+      }
+    },
+    {
+      "t": "00:07:00",
+      "tMs": 1775952420000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 66,
+        "durMin": 275
+      }
+    },
+    {
+      "t": "00:52:00",
+      "tMs": 1776214320000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 68,
+        "durMin": 30
+      }
+    },
+    {
+      "t": "02:47:00",
+      "tMs": 1776221220000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 69,
+        "durMin": 20
+      }
+    },
+    {
+      "t": "12:27:00",
+      "tMs": 1776342420000,
+      "impulse": "glucose_excursion",
+      "node": "GlucoDex",
+      "conf": 0.95,
+      "meta": {
+        "riseMgdl": 76,
+        "rateMgMin": 1.01,
+        "peak": 153,
+        "meal": "unannotated"
+      }
+    },
+    {
+      "t": "01:47:00",
+      "tMs": 1776390420000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 68,
+        "durMin": 25
+      }
+    },
+    {
+      "t": "00:02:00",
+      "tMs": 1776643320000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 54,
+        "durMin": 95
+      }
+    },
+    {
+      "t": "02:22:00",
+      "tMs": 1776651720000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 63,
+        "durMin": 65
+      }
+    },
+    {
+      "t": "03:52:00",
+      "tMs": 1776657120000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 55,
+        "durMin": 60
+      }
+    },
+    {
+      "t": "00:02:00",
+      "tMs": 1776729720000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 54,
+        "durMin": 330
+      }
+    },
+    {
+      "t": "00:02:00",
+      "tMs": 1776816120000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 54,
+        "durMin": 290
+      }
+    },
+    {
+      "t": "00:02:00",
+      "tMs": 1776902520000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 54,
+        "durMin": 320
+      }
+    },
+    {
+      "t": "05:27:00",
+      "tMs": 1776922020000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 67,
+        "durMin": 35
+      }
+    },
+    {
+      "t": "13:42:00",
+      "tMs": 1776951720000,
+      "impulse": "glucose_excursion",
+      "node": "GlucoDex",
+      "conf": 0.95,
+      "meta": {
+        "riseMgdl": 56,
+        "rateMgMin": 1.02,
+        "peak": 121,
+        "meal": "unannotated"
+      }
+    },
+    {
+      "t": "00:02:00",
+      "tMs": 1776988920000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 64,
+        "durMin": 295
+      }
+    },
+    {
+      "t": "00:02:00",
+      "tMs": 1777075320000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 61,
+        "durMin": 360
+      }
+    },
+    {
+      "t": "00:02:00",
+      "tMs": 1777161720000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 68,
+        "durMin": 35
+      }
+    },
+    {
+      "t": "00:42:00",
+      "tMs": 1777164120000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 64,
+        "durMin": 205
+      }
+    },
+    {
+      "t": "04:12:00",
+      "tMs": 1777176720000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 67,
+        "durMin": 40
+      }
+    },
+    {
+      "t": "19:27:00",
+      "tMs": 1777231620000,
+      "impulse": "glucose_excursion",
+      "node": "GlucoDex",
+      "conf": 0.95,
+      "meta": {
+        "riseMgdl": 57,
+        "rateMgMin": 1.04,
+        "peak": 137,
+        "meal": "unannotated"
+      }
+    },
+    {
+      "t": "03:02:00",
+      "tMs": 1777258920000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 69,
+        "durMin": 15
+      }
+    },
+    {
+      "t": "00:02:00",
+      "tMs": 1777334520000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 68,
+        "durMin": 25
+      }
+    },
+    {
+      "t": "02:07:00",
+      "tMs": 1777342020000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 66,
+        "durMin": 85
+      }
+    },
+    {
+      "t": "03:37:00",
+      "tMs": 1777347420000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 69,
+        "durMin": 15
+      }
+    },
+    {
+      "t": "00:02:00",
+      "tMs": 1777420920000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 69,
+        "durMin": 20
+      }
+    },
+    {
+      "t": "00:32:00",
+      "tMs": 1777422720000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 68,
+        "durMin": 60
+      }
+    },
+    {
+      "t": "02:07:00",
+      "tMs": 1777428420000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 68,
+        "durMin": 90
+      }
+    },
+    {
+      "t": "00:37:00",
+      "tMs": 1777509420000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 66,
+        "durMin": 215
+      }
+    },
+    {
+      "t": "04:17:00",
+      "tMs": 1777522620000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 69,
+        "durMin": 25
+      }
+    },
+    {
+      "t": "00:02:00",
+      "tMs": 1777593720000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 64,
+        "durMin": 280
+      }
+    },
+    {
+      "t": "00:37:00",
+      "tMs": 1777682220000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 62,
+        "durMin": 325
+      }
+    },
+    {
+      "t": "02:52:00",
+      "tMs": 1777776720000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": 69,
+        "durMin": 15
+      }
+    },
+    {
+      "t": "16:32:00",
+      "tMs": 1777825920000,
+      "impulse": "glucose_excursion",
+      "node": "GlucoDex",
+      "conf": 0.95,
+      "meta": {
+        "riseMgdl": 46,
+        "rateMgMin": 2.3,
+        "peak": 153,
+        "meal": "unannotated"
+      }
+    },
+    {
+      "t": "17:32:00",
+      "tMs": 1777829520000,
+      "impulse": "glucose_excursion",
+      "node": "GlucoDex",
+      "conf": 0.95,
+      "meta": {
+        "riseMgdl": 81,
+        "rateMgMin": 8.1,
+        "peak": 169,
+        "meal": "unannotated"
+      }
+    }
+  ],
+  "reserved": {
+    "doc": "Awaiting other fleet nodes; null until available."
+  }
+}

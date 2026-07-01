@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  Dex-Test-Suite.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tepna — Regression Test Suite</title>
+<!-- Browser runner: loads the REAL modules + the shared assertions (tests/dex-tests.js),
+     fetches fixtures + source text, runs the same suite the Node CI runner does, then
+     adds a browser-only RENDER-COVERAGE group that drives a real app bundle in an iframe
+     and confirms computed values reach the DOM. 100% local. -->
+<style>
+  :root{
+    --bg:#0c0f14; --surface:#141922; --surface2:#1b212c; --line:rgba(255,255,255,.08);
+    --text:#e6edf6; --text2:#aab8cc; --text3:#6f8096; --teal:#3DE0D0; --blue:#58A6FF;
+    --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;padding:0 0 80px;}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px;}
+  header{position:sticky;top:0;z-index:5;background:linear-gradient(180deg,var(--bg) 70%,transparent);
+    padding:28px 0 16px;border-bottom:1px solid var(--line);margin-bottom:22px;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);}
+  h1{margin:6px 0 2px;font-size:26px;font-weight:650;letter-spacing:-.01em;}
+  h1 .g{color:var(--teal);}
+  .sub{color:var(--text3);font-size:13px;}
+  .summary{display:flex;gap:10px;align-items:center;margin-top:16px;flex-wrap:wrap;}
+  .pill{font-family:var(--mono);font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;
+    border:1px solid var(--line);background:var(--surface);}
+  .pill.pass{color:var(--green);border-color:rgba(57,217,138,.35);background:rgba(57,217,138,.08);}
+  .pill.fail{color:var(--red);border-color:rgba(255,107,122,.4);background:rgba(255,107,122,.1);}
+  .pill.muted{color:var(--text3);}
+  .pill.warn{color:var(--amber);border-color:rgba(255,184,77,.4);background:rgba(255,184,77,.1);}
+  #rcControls{margin-top:12px;display:none;align-items:center;flex-wrap:wrap;}
+  .rcbtn{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--text);cursor:pointer;
+    background:var(--surface2);border:1px solid var(--line);border-radius:999px;padding:7px 15px;transition:background .15s,border-color .15s;}
+  .rcbtn:hover:not(:disabled){background:var(--surface);border-color:rgba(57,217,138,.5);}
+  .rcbtn:disabled{opacity:.55;cursor:default;}
+  .rc-hint{color:var(--text3);font-size:12px;margin-left:12px;max-width:640px;}
+  .group{background:var(--surface);border:1px solid var(--line);border-radius:14px;margin-bottom:16px;overflow:hidden;}
+  .group > h2{margin:0;padding:15px 18px;font-size:14px;font-weight:600;letter-spacing:.01em;
+    display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);background:var(--surface2);}
+  .group > h2 .tag{font-family:var(--mono);font-size:10.5px;color:var(--text3);font-weight:500;
+    border:1px solid var(--line);border-radius:5px;padding:2px 7px;}
+  .group > h2 .gstat{margin-left:auto;font-family:var(--mono);font-size:12px;}
+  .group > h2 .gstat.pass{color:var(--green);} .group > h2 .gstat.fail{color:var(--red);}
+  .test{display:flex;gap:12px;padding:10px 18px;border-bottom:1px solid rgba(255,255,255,.04);align-items:baseline;font-size:13px;}
+  .test:last-child{border-bottom:none;}
+  .test .mk{font-family:var(--mono);font-size:13px;flex:none;width:18px;}
+  .test.ok  .mk{color:var(--green);} .test.no .mk{color:var(--red);} .test.sk .mk{color:var(--text3);}
+  .test .name{flex:1;color:var(--text2);} .test.no .name{color:var(--text);} .test.sk .name{color:var(--text3);}
+  .group > h2 .gstat .sk{color:var(--text3);font-weight:500;}
+  .test .detail{font-family:var(--mono);font-size:11.5px;color:var(--text3);text-align:right;max-width:46%;word-break:break-word;}
+  .test.no .detail{color:var(--amber);}
+  .legend-note{color:var(--text3);font-size:12px;margin:2px 0 18px;line-height:1.6;}
+  code{font-family:var(--mono);background:var(--surface2);padding:1px 5px;border-radius:4px;font-size:.9em;}
+  #rig{position:absolute;width:1280px;height:900px;left:-3000px;top:0;border:0;}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="eyebrow">Regression Harness · headless on load · render-coverage on demand</div>
+    <h1><span class="g">Tepna</span> — Test Suite</h1>
+    <div class="sub">Same assertions as <code>node tests/run-tests.mjs</code> (shared <code>tests/dex-tests.js</code>). Browser-only render-coverage runs <b>on demand</b> (below).</div>
+    <div class="summary" id="summary"><span class="pill muted">running…</span></div>
+    <div id="rcControls">
+      <button id="rcBtn" class="rcbtn" type="button">▶ Run render-coverage</button>
+      <input id="grpFilter" type="text" placeholder="section filter e.g. oxydex" style="font-family:var(--mono);font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--text3);min-width:180px;" />
+      <span class="rc-hint">Boots each real app bundle in a hidden iframe (~30–50 s) to confirm computed values reach the DOM. Auto-runs when the page is opened with <code>?full</code>. Type a <b>section filter</b> (or add <code>?group=oxydex</code>) to run just one dex — headless + its render-coverage rig only.</span>
+    </div>
+  </div>
+</header>
+<div class="wrap">
+  <div class="legend-note">
+    Logic + export-completeness + static checks run against the <b>real</b> source on load — the CI floor.
+    <b>Render-coverage</b> is the slow tail: it boots each real app bundle in a hidden iframe and confirms the
+    <b>computed values actually render</b>, the one thing the headless runner can't see. It is now <b>on-demand</b> —
+    click <b>▶ Run render-coverage</b> above (or open with <code>?full</code>) to complete the gate.
+  </div>
+  <div id="results"></div>
+</div>
+<iframe id="rig" title="render-coverage rig"></iframe>
+
+<!-- real suite modules (order: kernel → shared → node → integrator) -->
+<script src="kernel-constants.js"></script>
+<script src="metric-registry.js"></script>
+<script src="dex-profile.js"></script>
+<script src="oxydex-registry.js"></script>
+<script src="ecgdex-registry.js"></script>
+<script src="ppgdex-registry.js"></script>
+<script src="pulsedex-registry.js"></script>
+<script src="hrvdex-registry.js"></script>
+<script src="glucodex-registry.js"></script>
+<script src="codegen/generated/eegdex-registry.js"></script>
+<script src="crossnight-envelope.js"></script>
+<script src="ecgdex-cross.js"></script>
+<!-- CROSS-MODULE-RUNTIME-COVERAGE §1: runtime-co-load EVERY *-cross.js (not just ECGCross) so each
+     node's NON-identical surface (_DEFS / crossNightBlock wiring / per-node helpers like nightOdi)
+     is RUNTIME-exercised, not merely source-byte-checked by the P12 drift gate. (cpapdex-cross.js
+     loads in the CPAPDex block below; -III added it.) -->
+<script src="oxydex-cross.js"></script>
+<script src="pulsedex-cross.js"></script>
+<script src="ppgdex-cross.js"></script>
+<script src="ecgdex-dsp.js"></script>
+<script src="ppgdex-dsp.js"></script>
+<script src="ecgdex-morph.js"></script>
+<script src="ppgdex-morph.js"></script>
+<script src="integrator-dsp.js"></script>
+<script src="integrator-longitudinal.js"></script>
+<!-- FULL-lane harness generators (for the waveform-fidelity gate) -->
+<script src="synth-gen.js"></script>
+<script src="cohort-gen.js"></script>
+<script src="cohort-full.js"></script>
+<!-- GlucoDex coherence gate: real DSP + shared patient engine, executed at top level -->
+<script src="glucodex-dsp.js"></script>
+<script src="dex-patient-gen.js"></script>
+<!-- CPAPDex modules (order: registry → edf → dsp → cross → render → fusion) -->
+<script src="cpapdex-registry.js"></script>
+<script src="cpapdex-edf.js"></script>
+<script src="cpapdex-dsp.js"></script>
+<script src="cpapdex-cross.js"></script>
+<script src="cpapdex-render.js"></script>
+<script src="cpapdex-fusion.js"></script>
+<script src="cpapdex-coimport.js"></script>
+<!-- shared assertions (also used by tests/run-tests.mjs) -->
+<!-- CORE adapter spine (DOM-free; adapters self-register at load) -->
+<script src="signal-spec.js"></script>
+<script src="signal-frame.js"></script>
+<script src="dex-export.js"></script>
+<script src="signal-adapters.js"></script>
+<script src="adapters/polar-rr.js"></script>
+<script src="adapters/coospo-rr.js"></script>
+<script src="adapters/wahoo-rr.js"></script>
+<script src="adapters/oxydex-spo2.js"></script>
+<script src="adapters/welltory-summary.js"></script>
+<script src="adapters/libre-cgm.js"></script>
+<script src="adapters/polar-sense-ppg.js"></script>
+<script src="adapters/polar-h10-ecg.js"></script>
+<script src="quantity.js"></script>
+<!-- §3 namespaced co-load (SIGNAL-ADAPTER-FOLLOWUPS): set the flag, then load the migrated
+     DSPs in ONE realm (no bare-global spray) so the Phase-9 compute() FUNCTIONAL floor (-II §3)
+     runs here too, exposing env.PulseDex/OxyDex/HRVDex — same co-load the Unifier/OverDex use. -->
+<script src="provenance-banner.js"></script>
+<script>window.__DEX_NAMESPACED__ = true;</script>
+<script src="oxydex-util.js"></script>
+<script src="pulsedex-dsp.js"></script>
+<script src="oxydex-dsp.js"></script>
+<script src="hrvdex-dsp.js"></script>
+<script src="glucodex-dsp.js"></script>
+<!-- shared file-ingest classifiers — load BEFORE signal-orchestrate (§1 ECG-INGEST-FOLLOWUPS-II: pairCompanions consults DexIngest.deviceKey/foreignVendor) -->
+<script src="dex-ingest.js"></script>
+<!-- shared node orchestration (live object for the generic emit gate) + the co-load manifest (§10/§5) -->
+<script src="signal-orchestrate.js"></script>
+<script src="dex-coload.js"></script>
+<script src="tests/dex-tests.js"></script>
+
+<script>
+const FIXTURE_FILES = {
+  'ecgdex.node-export':  'tests/fixtures/ecgdex.node-export.json',
+  'oxydex.summary':      'tests/fixtures/oxydex.summary.json',
+  'ecgdex.slim-events':  'tests/fixtures/ecgdex.slim-events.json',
+  'ppgdex.node-export':  'tests/fixtures/ppgdex.node-export.json'
+};
+const SOURCE_FILES = ['pulsedex-dsp.js','oxydex-dsp.js','hrvdex-dsp.js','integrator-dsp.js','integrator-app.js','ppgdex-dsp.js','glucodex-dsp.js','ecgdex-dsp.js',
+  'ecgdex-cross.js','oxydex-cross.js','pulsedex-cross.js','ppgdex-cross.js',
+  'crossnight-envelope.js','ecgdex-app.js','ppgdex-app.js','pulsedex-app.js','oxydex-render.js','signal-orchestrate.js','dex-ingest.js',
+  'cpapdex-dsp.js','cpapdex-cross.js','cpapdex-edf.js','cpapdex-app.js','ecgdex-morph.js','ppgdex-morph.js','dex-export.js',
+  'ganglior-provenance.js','signal-frame.js','glucodex-render.js','glucodex-app.js'];
+
+let ALL_GROUPS = [];
+
+async function fetchText(p){ try{ const r=await fetch(p); return r.ok? await r.text(): null; }catch(e){ return null; } }
+async function fetchJSON(p){ try{ const r=await fetch(p); return r.ok? await r.json(): null; }catch(e){ return null; } }
+
+async function main(){
+  // gather fixtures + sources (browser I/O; runner does the equivalent in Node)
+  const fixtures = {}, sources = {};
+  await Promise.all(Object.keys(FIXTURE_FILES).map(async k => { fixtures[k] = await fetchJSON(FIXTURE_FILES[k]); }));
+  await Promise.all(SOURCE_FILES.map(async f => { const t = await fetchText(f); if(t!=null) sources[f]=t; }));
+  // -II §1 / -IV §3 equivalence gate: a committed raw INPUT + its committed ganglior-export
+  // fixture per node, so the suite can assert Node.compute(input) ≡ the shipped export.
+  // VI §1 extended this from OxyDex-only to PulseDex + HRVDex (the gate does the per-node
+  // input prep — PulseDex parses RR text first; OxyDex/HRVDex take {text}).
+  const equiv = {};
+  try {
+    const oxyCsv = await fetchText('uploads/' + encodeURIComponent('O2Ring S 2100_20260612230016.csv'));
+    const oxyFix = await fetchJSON('uploads/' + encodeURIComponent('OxyDex_2026-06-13_1056_summary.json'));
+    if (oxyCsv != null && oxyFix != null) equiv.oxydex = { input: oxyCsv, fixture: oxyFix };
+    const pdRr  = await fetchText('uploads/' + encodeURIComponent('Polar_H10_AAAAAAAA_20260613_204448_RR.txt'));
+    const pdFix = await fetchJSON('uploads/' + encodeURIComponent('PulseDex_2026-06-25_equiv.node-export.json'));
+    if (pdRr != null && pdFix != null) equiv.pulsedex = { input: pdRr, fixture: pdFix };
+    const hrCsv = await fetchText('uploads/' + encodeURIComponent('WELLTORY_HRV_DATA_EXPORT_20_May_2026_12_00_AM-17_Jun_2026_11_59_PM.csv'));
+    const hrFix = await fetchJSON('uploads/' + encodeURIComponent('HRVDex_2026-06-25_equiv.node-export.json'));
+    if (hrCsv != null && hrFix != null) equiv.hrvdex = { input: hrCsv, fixture: hrFix };
+    // VII §2: event-byte-coverage cases — purpose-built inputs that emit ≥1 event of EACH impulse
+    // (the equiv cases above carry empty ganglior_events, so the event t-string/meta/ordering went
+    // untested). HRVDex events CSV → hrv_low (measured) + stress_high (heuristic, derived); PulseDex
+    // synthetic overnight RR → hrv_drop + stress_peak (windowed branch).
+    const hrEvCsv = await fetchText('uploads/' + encodeURIComponent('HRVDex_2026-06-25_events.csv'));
+    const hrEvFix = await fetchJSON('uploads/' + encodeURIComponent('HRVDex_2026-06-25_events.node-export.json'));
+    if (hrEvCsv != null && hrEvFix != null) equiv.hrvdex_events = { input: hrEvCsv, fixture: hrEvFix };
+    const pdEvRr  = await fetchText('uploads/' + encodeURIComponent('PulseDex_2026-06-25_events_RR.txt'));
+    const pdEvFix = await fetchJSON('uploads/' + encodeURIComponent('PulseDex_2026-06-25_events.node-export.json'));
+    if (pdEvRr != null && pdEvFix != null) equiv.pulsedex_events = { input: pdEvRr, fixture: pdEvFix };
+    // GlucoDex Phase-9 CGM leg: a real Abbott Lingo vendor CSV (clipped 55-200, tz-offset, newest-first)
+    // → GlucoDex.compute({text}) ≡ the committed ganglior-export. Exercises clamp-saturation + the
+    // zone-offset + ascending-sort clock paths in one fixture.
+    const gluCsv = await fetchText('uploads/' + encodeURIComponent('lingo-glucose-data-2026-MAY-23.csv'));
+    const gluFix = await fetchJSON('uploads/' + encodeURIComponent('GlucoDex_2026-06-27_equiv.node-export.json'));
+    if (gluCsv != null && gluFix != null) equiv.glucodex = { input: gluCsv, fixture: gluFix };
+    // PpgDex Phase-9 raw-PPG leg: a real Polar Verity Sense *_PPG.txt (~6.5 min, 176 Hz) →
+    // PpgDex.compute({text}) ≡ the committed light node-export. Exercises optical beat detection
+    // → self-PPI → multi-epoch HRV headlessly (the same path the Unifier/OverDex route through).
+    const ppgTxt = await fetchText('uploads/' + encodeURIComponent('Polar_Sense_BBBBBBBB_20260621_060523_PPG.txt'));
+    const ppgFix = await fetchJSON('uploads/' + encodeURIComponent('PpgDex_2026-06-27_equiv.node-export.json'));
+    if (ppgTxt != null && ppgFix != null) equiv.ppgdex = { input: ppgTxt, fixture: ppgFix };
+    // ECGDex Phase-9 raw-ECG leg (node 3/4): a real Polar H10 *_ECG.txt clip (~6 min, 130 Hz) →
+    // ECGDex.compute({text}) ≡ the committed light node-export. Exercises the pure parseECG +
+    // band-pass → Pan-Tompkins R-peak (NO Worker) → SQI → HRV → CVHR path headlessly.
+    const ecgTxt = await fetchText('uploads/' + encodeURIComponent('Polar_H10_AAAAAAAA_20260617_010615_ECG_clip.txt'));
+    const ecgFix = await fetchJSON('uploads/' + encodeURIComponent('ECGDex_2026-06-27_equiv.node-export.json'));
+    if (ecgTxt != null && ecgFix != null) equiv.ecgdex = { input: ecgTxt, fixture: ecgFix };
+    // CPAPDex GOLDEN reference (CPAPDEX-PHASE9-FOLLOWUPS-II §1): fixture-only — the gate rebuilds the
+    // deterministic synthetic night from CpapDsp._synthEdfSet in-code (no {text} input; CPAPDex's real
+    // input is a binary multi-file EDF set, so it can't join the input-driven equiv CASES).
+    const cpapGoldFix = await fetchJSON('uploads/' + encodeURIComponent('cpapdex_synthetic_golden.node-export.json'));
+    if (cpapGoldFix != null) equiv.cpapdex_golden = { fixture: cpapGoldFix };
+    // CPAPDex MULTI-NIGHT golden (CPAPDEX-PHASE9-FOLLOWUPS-III §1): pins exportNight's >=3-night
+    // crossnight-wrapper envelope — the only fixture that exercised it (cpapdex-multi17) was retired
+    // in -I. Fixture-only; the gate rebuilds >=3 day-shifted deterministic synthetic nights in-code
+    // (needs window.CPAPCross — cpapdex-cross.js is now loaded above + CPAPCross is in env).
+    const cpapMultiFix = await fetchJSON('uploads/' + encodeURIComponent('cpapdex_synthetic_multinight_golden.node-export.json'));
+    if (cpapMultiFix != null) equiv.cpapdex_multinight_golden = { fixture: cpapMultiFix };
+  } catch(e){ /* browser-only fetch; gate self-skips if absent */ }
+  // doc artifacts for the cohesion-badge single-source group (engine ≡ mirror ≡ reference)
+  const docs = {};
+  await Promise.all([['dex-badges.css','dex-badges.css'],['OxyDex Reference.html','OxyDex Reference.html'],['ECGDex Reference.html','ECGDex Reference.html'],['PpgDex Reference.html','PpgDex Reference.html'],['CPAPDex Reference.html','CPAPDex Reference.html'],['PulseDex Reference.html','PulseDex Reference.html'],['HRVDex Reference.html','HRVDex Reference.html'],['GlucoDex Reference.html','GlucoDex Reference.html'],['EEGDex Reference.html','codegen/generated/eegdex-reference.html'],['ORIENTATION.md','ORIENTATION.md']]
+    .map(async ([k,p]) => { const t = await fetchText(encodeURI(p)); if(t!=null) docs[k]=t; }));
+
+  // host realms for the co-load-manifest gate (PPGDEX-FOLLOWUPS §5) — each must co-load every dex-coload module.
+  const hosts = {};
+  await Promise.all(['Data Unifier.html','OverDex.html','Dex-Test-Suite.html','tests/run-tests.mjs']
+    .map(async h => { const t = await fetchText(encodeURI(h)); if(t!=null) hosts[h]=t; }));
+
+  // app bundle SOURCES for the Co-load §1 exhaustiveness gate (CROSS-MODULE-RUNTIME-COVERAGE-FOLLOWUPS
+  // §1) — each *.src.html's <script src> list is the fleet's record of which cross/coimport aux
+  // modules it bundles; the gate asserts dex-coload.js's nodeModules: leg equals that set.
+  const srcHtml = {};
+  await Promise.all(['CPAPDex.src.html','ECGDex.src.html','GlucoDex.src.html','HRVDex.src.html','Integrator.src.html','OxyDex.src.html','PpgDex.src.html','PulseDex.src.html']
+    .map(async f => { const t = await fetchText(encodeURI(f)); if(t!=null) srcHtml[f]=t; }));
+
+  // manifests (raw text) for the §6 well-formed assertion (Node CI reads them off disk)
+  const manifests = {};
+  await Promise.all(['BUILD-MANIFEST.json','FIXTURE-PROVENANCE.json']
+    .map(async f => { const t = await fetchText(f); if(t!=null) manifests[f]=t; }));
+
+  const env = {
+    DexKernel: window.DexKernel,
+    MetricRegistry: window.MetricRegistry,
+    DexProfile: window.DexProfile,
+    CrossNightEnvelope: window.CrossNightEnvelope,
+    ECGCross: window.ECGCross,
+    OXYCross: window.OXYCross, PulseCross: window.PulseCross, PPGCross: window.PPGCross,
+    ECGDSP: window.ECGDSP,
+    ECGDex: window.ECGDex,
+    PPGDSP: window.PPGDSP,
+    PpgDex: window.PpgDex,
+    parseTimestamp: window.parseTimestamp,
+    PulseDex: window.PulseDex,
+    OxyDex: window.OxyDex,
+    HRVDex: window.HRVDex,
+    SignalFrame: window.SignalFrame,
+    DexExport: window.DexExport, exportName: window.exportName, EXPORT_KINDS: window.EXPORT_KINDS,
+    SignalSpec: window.SignalSpec,
+    SignalAdapters: window.SignalAdapters,
+    Quantity: window.Quantity,
+    DexUnits: window.DexUnits,
+    adaptEnvelopeNode: window.adaptEnvelopeNode,
+    recWindow: window.recWindow,
+    overlapInterval: window.overlapInterval,
+    fuseHRVConsensus: window.fuseHRVConsensus,
+    fusePeriodicBreathing: window.fusePeriodicBreathing,
+    dedupeRecs: window.dedupeRecs,
+    runFusion: window.runFusion,
+    buildFusionExport: window.buildFusionExport,
+    reconstructEventTMs: window.reconstructEventTMs,
+    labelPositionalApnea: window.labelPositionalApnea,
+    _ecgPostureSeries: window._ecgPostureSeries,
+    corroborateDesat: window.corroborateDesat,
+    pickHRAuthority: window.pickHRAuthority,
+    normalizeFile: window.normalizeFile,
+    OXY_REGISTRY: window.OXY_REGISTRY, OxyRegistry: window.OxyRegistry,
+    ECG_REGISTRY: window.ECG_REGISTRY, EcgRegistry: window.EcgRegistry,
+    PPG_REGISTRY: window.PPG_REGISTRY, PpgRegistry: window.PpgRegistry,
+    CPAP_REGISTRY: window.CPAP_REGISTRY, CpapRegistry: window.CpapRegistry,
+    PULSE_REGISTRY: window.PULSE_REGISTRY, PulseRegistry: window.PulseRegistry,
+    HRV_REGISTRY: window.HRV_REGISTRY, HrvRegistry: window.HrvRegistry,
+    GLU_REGISTRY: window.GLU_REGISTRY, GlucoRegistry: window.GlucoRegistry,
+    EEG_REGISTRY: window.EEG_REGISTRY, EegRegistry: window.EegRegistry,
+    CpapDsp: window.CpapDsp, CpapEdf: window.CpapEdf,
+    CPAPDex: window.CPAPDex, CpapFusion: window.CpapFusion,
+    CPAPCross: window.CPAPCross, CpapCoimport: window.CpapCoimport,
+    ECGMorph: window.ECGMorph, PPGMorph: window.PPGMorph,
+    SYNTH: window.SYNTH, CohortGen: window.CohortGen, CohortFull: window.CohortFull,
+    GLUDSP: window.GLUDSP, GlucoDex: window.GlucoDex, DexPatientGen: window.DexPatientGen,
+    IntegratorDSP: window.IntegratorDSP,
+    IntegratorLong: window.IntegratorLong,
+    SignalOrchestrate: window.SignalOrchestrate,
+    DexCoload: window.DexCoload,
+    DexIngest: window.DexIngest,
+    pickProvenanceBanner: window.pickProvenanceBanner,
+    docs, hosts, manifests,
+    srcHtml,
+    fixtures, sources, equiv,
+    groupFilter: groupFilterStr() || null
+  };
+
+  const { groups } = window.runDexTests(env);
+  ALL_GROUPS = groups;
+  // ── CPAPDex node self-tests (fold in the standalone cpapdex-edf-selftest.html harness) ──
+  ALL_GROUPS.push(...cpapSelfTestGroups());
+  ALL_GROUPS.push(cpapCoimportGroup());
+  render();
+
+  // ── browser-only: render coverage (computed values must reach the DOM) ──
+  // ENV NOTE (SIGNAL-ADAPTER-FOLLOWUPS-VI §5; revised GATE-LIVE-RUNNABILITY 2026-06-28): the
+  // render-coverage groups below + the verify-provenance runtime buildHash read need a SAME-ORIGIN
+  // static host — they boot each app bundle in a hidden <iframe> and reach into
+  // contentWindow.{addEventListener,…}. Whether that reach-in is blocked is a property of the HOST,
+  // NOT a law of the preview: some hosts serve per-document OPAQUE origins (cross-origin → the
+  // reach-in throws "Blocked a frame with origin …" and these groups go persistently red); others —
+  // incl. this preview, observed 2026-06-28 — serve SAME-ORIGIN and every leg runs green
+  // in-environment. So ALWAYS attempt the live gate first and judge by what you actually observe:
+  // run the suite, wait for the group count to STABILISE (it climbs as the rigs boot sequentially —
+  // see waitForRender), then read the pill. If it is ✓ all-green WITH these render-coverage groups
+  // PRESENT, you are on a same-origin host and the gate is satisfied here — no external host needed.
+  // Only fall back to an external static host (`node tests/run-tests.mjs` / `python3 -m http.server`)
+  // if you ACTUALLY see "Blocked a frame with origin" reds. The shared tests/dex-tests.js assertions
+  // (everything above, incl. the Phase-9 compute() ≡ committed export equivalence gate) are
+  // origin-independent and are the CI floor regardless.
+  // To CHECK same-origin programmatically, read window.__sameOriginOK / window.sameOriginStatus() (set
+  // by render() from the test ROWS, prose-immune) — do NOT scan document.body.innerText for
+  // "Blocked a frame"/"opaque", which now matches this very note (GATE-LIVE-RUNNABILITY-FOLLOWUPS §1).
+  // LAZY (2026-06-30): render-coverage is the slow tail (~30–50 s booting real bundles). It no longer
+  // runs on load — paint the headless CI floor INSTANTLY, then run the rigs ON DEMAND (▶ button) or
+  // automatically when the page is opened with ?full / ?rc / ?all (CI / an agent completing the gate).
+  window.__rcState = 'pending';
+  window.__headlessCount = ALL_GROUPS.length;   // baseline for a clean re-run truncation
+  render();
+  setupRenderCoverageControls();
+  if (shouldAutoRunRC()) await runRenderCoverage();
+}
+
+/* Auto-run the slow render-coverage tail only when explicitly requested via the URL, so
+   `Dex-Test-Suite.html?full` (or ?rc / ?all, query or hash) reproduces the old run-everything
+   behaviour for CI / an agent completing the gate; a bare open stays fast + on-demand. */
+function shouldAutoRunRC(){
+  try{ return /(?:[?&#])(full|rc|all)(?:[=&]|$)/i.test((location.search||'')+(location.hash||'')); }
+  catch(_){ return false; }
+}
+
+/* SECTION-SCOPED-RUNS 2026-07-01: read `?group=` / `?only=` / `?g=` (query OR hash) — the SAME
+   filter grammar the Node CLI --group takes + the SAME dexGroupMatcher semantics. A filtered run
+   scopes BOTH the headless groups (via env.groupFilter, applied inside runDexTests) AND which
+   render-coverage rigs boot (rcWanted below) — so you skip the ~30–50 s of booting unrelated app
+   iframes and don't red on a parallel coder's in-flight edit to another dex. It is NEVER the
+   canonical gate: the pill shows a FILTERED badge and window.__filtered carries the pattern. */
+function groupFilterStr(){
+  try{
+    var s=(location.search||'')+'&'+(location.hash||'');
+    var m=s.match(/[?&#](?:group|groups|only|g)=([^&#]+)/i);
+    return m ? decodeURIComponent(m[1].replace(/\+/g,' ')).trim() : '';
+  }catch(_){ return ''; }
+}
+/* (title,tag)=>bool for render-coverage rig selection; no filter → everything. */
+function rcWanted(){
+  var f=groupFilterStr();
+  if(!f || typeof window.dexGroupMatcher!=='function') return function(){ return true; };
+  return window.dexGroupMatcher(f);
+}
+
+let __rcRunning=false;
+/* The render-coverage tail, extracted verbatim from the old on-load path (same order, same rigs,
+   same assertions). Idempotent: it flips __rcState and the ▶ button label; the re-run path in
+   setupRenderCoverageControls truncates ALL_GROUPS back to the headless baseline first. */
+async function runRenderCoverage(){
+  if(__rcRunning) return;
+  __rcRunning=true; window.__rcState='running'; window.__rcBootSkips=[];
+  const btn=document.getElementById('rcBtn'); if(btn){ btn.disabled=true; btn.textContent='⏳ Running render-coverage…'; }
+  render();
+  const want=rcWanted();
+  if(want('Render coverage — ECGDex computed → DOM','browser-only · ECGDex.html')){ ALL_GROUPS.push(await renderCoverageECGDex()); render(); }
+  if(want('Render coverage — CPAPDex computed → DOM','browser-only · CPAPDex.html')){ ALL_GROUPS.push(await renderCoverageCPAPDex()); render(); }
+  if(want('Render coverage — Integrator periodic breathing → DOM','browser-only · Integrator.html · §2')){ ALL_GROUPS.push(await renderCoverageIntegratorPB()); render(); }
+  // app-bundle render coverage for the remaining six apps (synthetic data injected via SYNTH)
+  for(const cfg of APP_COVERAGE){
+    if(!want('Render coverage — '+cfg.name+' computed → DOM','browser-only · '+cfg.file)) continue;
+    const ga = await renderCoverageApp(cfg);
+    ALL_GROUPS.push(ga);
+    render();
+  }
+  // bounded hang guard (worker-isolated) for the OxyDex heavy-dropout pipeline
+  if(want('OxyDex heavy-dropout hang guard (bounded)','browser-only · worker · oxydex-dsp')){ ALL_GROUPS.push(await oxyHangGate()); render(); }
+  window.__rcState='done'; window.__renderCoverageRan=true; __rcRunning=false;
+  if(btn){ btn.disabled=false; btn.textContent='✓ Re-run render-coverage'; }
+  render();
+}
+
+/* Reveal + wire the ▶ button once. Re-run resets to the headless baseline so the group count
+   stays stable (no duplicate render-coverage groups). */
+function setupRenderCoverageControls(){
+  const box=document.getElementById('rcControls'); if(box) box.style.display='flex';
+  // section-filter input: seed from the URL, and on Enter/change reload with ?group= applied.
+  const gf=document.getElementById('grpFilter');
+  if(gf && !gf.__wired){
+    gf.__wired=true; gf.value=groupFilterStr();
+    const apply=()=>{ const v=gf.value.trim(); const u=new URL(location.href);
+      u.hash=''; if(v){ u.searchParams.set('group', v); } else { u.searchParams.delete('group'); }
+      location.href=u.toString(); };
+    gf.addEventListener('keydown', e=>{ if(e.key==='Enter') apply(); });
+    gf.addEventListener('change', apply);
+  }
+  const btn=document.getElementById('rcBtn');
+  if(btn && !btn.__wired){
+    btn.__wired=true;
+    btn.addEventListener('click', ()=>{
+      if(__rcRunning) return;
+      if(window.__rcState==='done'){ ALL_GROUPS.length = window.__headlessCount|0; window.__rcState='pending'; }
+      runRenderCoverage();
+    });
+  }
+}
+
+function mkGroup(title, tag){ return { title, tag, tests:[] }; }
+function add(g, name, pass, detail){ g.tests.push({ name, pass:!!pass, detail: detail==null?'':String(detail) }); }
+/* A render-coverage leg whose bundle never fired onload within the retry budget records an
+   environmental SKIP — a row counted as NEITHER pass nor fail (⊘), so a slow COLD boot no longer
+   reds the all-green pill (DEX-TEST-DETERMINISM 2026-07-01), while the visible row + the prose-immune
+   window.__rcBootSkips make plain the leg did NOT actually run. A genuine boot FAILURE (bundle throws
+   / missing file) still reds: onload fires, then the error handler + empty-DOM content assertions trip. */
+function addSkip(g, name, detail){ g.tests.push({ name, skip:true, pass:false, detail: detail==null?'':String(detail) }); }
+function bootSkip(g, file, attempts){
+  addSkip(g, 'bundle boots in iframe', file+' did not fire onload in '+attempts+' attempt(s) — SKIPPED (environmental cold boot; inconclusive, not a regression)');
+  try{ (window.__rcBootSkips = window.__rcBootSkips || []).push(file); }catch(_){}
+}
+
+/* Readiness gate for the render rigs: poll for a concrete post-render marker instead of
+   trusting a fixed delay. A slow iframe boot was intermittently asserting before the app
+   finished computing (transient false-reds); now we resolve the instant ready(doc) is true
+   (plus a short settle), or after a generous timeout (in which case a real failure stands). */
+async function waitForRender(doc, ready, timeout=14000, poll=80, settle=200){
+  const t0=Date.now();
+  while(Date.now()-t0 < timeout){
+    let ok=false; try{ ok=!!ready(doc); }catch(_){}
+    if(ok){ await new Promise(r=>setTimeout(r, settle)); return true; }
+    await new Promise(r=>setTimeout(r, poll));
+  }
+  return false;
+}
+
+/* Marker-based wait for a profile-edit recompute: resolve as soon as the app's DOM actually
+   mutates after the edit (the debounced onChange → reRender paints) + a short settle, instead of
+   a blind fixed sleep. Hard-capped so a no-op edit (no mutation) still returns. Saves the gap
+   between the cap and the real debounce on every render-coverage leg. */
+function waitForRecompute(win, doc, cap=800, settle=150){
+  return new Promise(resolve=>{
+    let done=false, obs=null;
+    const finish=()=>{ if(done) return; done=true; try{ obs&&obs.disconnect(); }catch(_){} resolve(); };
+    try{
+      obs=new win.MutationObserver(()=>{ setTimeout(finish, settle); });
+      obs.observe(doc.body||doc.documentElement, {subtree:true, childList:true, characterData:true});
+    }catch(_){ /* MutationObserver unavailable → the cap covers it */ }
+    setTimeout(finish, cap);
+  });
+}
+const _numTokens = d => (((d&&d.body&&d.body.innerText)||'').match(/-?\d[\d,]*\.?\d*/g)||[]).length;
+
+/* ── PROFILE-EDIT PROBE (PROFILE-DOM-READ-AUDIT-BRIEF §3) ───────────────────────────
+   Load-only coverage never simulates a user editing a profile field, so the live edit
+   paths (reRenderFn / computeHints / onChange) — where the legacy `getElementById('profX')
+   .value` crash class lives — go unexercised. This drives a real edit through the unified
+   panel's public surface (dispatch `input` on a `#dexProfilePanel [data-k]` field, which
+   fires the node's debounced onChange → reRenderFn) and, belt-and-braces, nudges
+   DexProfile.setManual + any exposed reRender hook. It asserts NO exception is thrown and
+   the dashboard stays populated — turning every latent §2 instance into a hard red the
+   moment a guard is dropped. */
+async function profileEditProbe(g, win, doc){
+  let probeErr='';
+  const onerr = e=>{ probeErr = e.message || e.error && e.error.message || 'error'; };
+  try{ win.addEventListener('error', onerr); }catch(_){}
+  const before = _numTokens(doc);
+  let drove=false;
+  try{
+    const panel = doc.getElementById('dexProfilePanel');
+    add(g, 'unified profile panel mounted (#dexProfilePanel)', !!panel && panel.querySelector('[data-k]'));
+    // Prefer a numeric field so a value bump is unambiguous; fall back to any data-k field.
+    let field = doc.querySelector('#dexProfilePanel input[data-k="hrRest"], #dexProfilePanel input[data-k="age"], #dexProfilePanel input[data-k]')
+             || doc.querySelector('#dexProfilePanel [data-k]');
+    if(field){
+      const tag=(field.tagName||'').toLowerCase();
+      if(tag==='select'){ field.selectedIndex = Math.min(field.options.length-1, field.selectedIndex+1); }
+      else { field.value = String((parseFloat(field.value)||50) + 1); }
+      field.dispatchEvent(new win.Event('input',{bubbles:true}));
+      field.dispatchEvent(new win.Event('change',{bubbles:true}));
+      drove=true;
+    }
+    // Public-surface path: drive the cascade + the node's reRender hook directly.
+    if(win.DexProfile && typeof win.DexProfile.setManual==='function'){
+      win.DexProfile.setManual('hrRest', 56);
+      ['reRender','rerender','updateProfile'].forEach(fn=>{ if(typeof win[fn]==='function'){ win[fn](); drove=true; } });
+    }
+  }catch(e){ probeErr = probeErr || e.message; }
+  // onChange is debounced ~400 ms inside renderPanel — wait for the recompute to actually PAINT
+  // (a real DOM mutation), not a blind sleep; hard-capped so a no-op edit still returns.
+  await waitForRecompute(win, doc, 800, 150);
+  try{ win.removeEventListener('error', onerr); }catch(_){}
+  add(g, 'profile edit drives a live recompute path', drove, drove?'':'no panel field or public hook found');
+  add(g, 'live profile edit throws no exception', !probeErr, probeErr);
+  add(g, 'dashboard still populated after profile edit', _numTokens(doc) >= Math.max(6, Math.floor(before*0.5)), _numTokens(doc)+' numeric tokens (was '+before+')');
+}
+
+/* ── XI §1/§2: render-coverage localStorage hygiene — ONE mechanism ───────────
+   Every render-coverage leg boots a REAL app bundle in the shared-origin rig and
+   drives its load/ingest/profile path, which writes the operator's localStorage
+   (OxyDex oxydex_last_csv/_name, HRVDex hrvdex_rows_v1, the unified tepna_profile
+   that every profileEditProbe bumps, …). Snapshot the WHOLE origin store right after
+   boot / BEFORE prep, and restore it WHOLESALE in the leg's OUTER finally so the
+   restore is decoupled from how prep / extraProbe / profileProbe exit — XI §1: the
+   old HRVDex restore lived in extraProbe's inner finally and LEAKED whenever
+   extraProbe early-returned (e.g. its HD.compute guard) before reaching it.
+   Whole-store (not a per-key list) so it covers cross-cutting writes — notably the
+   profile probe's tepna_profile on EVERY leg — without each leg enumerating keys. */
+function _snapStore(win){
+  try{ var ls=win.localStorage, o=Object.create(null); for(var i=0;i<ls.length;i++){ var k=ls.key(i); o[k]=ls.getItem(k); } return o; }
+  catch(e){ return null; }
+}
+function _restoreStore(win, snap){
+  if(!win || !snap) return;   // snapshot failed (cross-realm/SecurityError) → never wipe blindly
+  try{ var ls=win.localStorage; ls.clear(); for(var k in snap) ls.setItem(k, snap[k]); }catch(e){}
+}
+
+/* XII §1: IndexedDB record-count snapshot for a rig leg whose ingest CAN reach a durable
+   IndexedDB store (today only the Integrator's `ganglior_integrator` summaries/metricDefs).
+   The XI whole-store snapshot covers localStorage ONLY; this is the parallel guard for the
+   IndexedDB leg. Opted in per-leg via cfg.idbGuard={db,stores}. We open READ-ONLY and just
+   COUNT each object store (we never clear/restore the operator's longitudinal history) so the
+   guard asserts the stores are UNCHANGED across the leg — the moment a future envelope-ingesting
+   prep persists day-summary rows it trips a red instead of silently clobbering the operator DB.
+   onupgradeneeded mirrors the bundle's keyPath:'id' schema so winning the open race never leaves
+   a store-less DB that would break the bundle's own IntegratorLong.open(). Returns a {store:count}
+   map, or null if IndexedDB is unreachable (no durable store → nothing to clobber). */
+function _idbCounts(win, dbName, stores){
+  return new Promise(function(res){
+    try{
+      var idb = win && win.indexedDB; if(!idb){ res(null); return; }
+      var req = idb.open(dbName);
+      req.onupgradeneeded = function(e){ var db=e.target.result;
+        stores.forEach(function(s){ if(!db.objectStoreNames.contains(s)) db.createObjectStore(s,{keyPath:'id'}); }); };
+      req.onerror = function(){ res(null); };
+      req.onblocked = function(){ res(null); };
+      req.onsuccess = function(){
+        var db=req.result, out=Object.create(null);
+        var present = stores.filter(function(s){ return db.objectStoreNames.contains(s); });
+        stores.forEach(function(s){ out[s]=0; });
+        if(!present.length){ try{ db.close(); }catch(_){} res(out); return; }
+        var tx, pending=present.length;
+        try{ tx = db.transaction(present,'readonly'); }catch(e){ try{ db.close(); }catch(_){} res(null); return; }
+        present.forEach(function(s){
+          var cr = tx.objectStore(s).count();
+          cr.onsuccess = function(){ out[s]=cr.result; if(--pending===0){ try{ db.close(); }catch(_){} res(out); } };
+          cr.onerror   = function(){ out[s]=-1;        if(--pending===0){ try{ db.close(); }catch(_){} res(out); } };
+        });
+      };
+    }catch(e){ res(null); }
+  });
+}
+function _idbUnchanged(before, after, stores){
+  if(!before || !after) return true;   // unreachable on either side → no durable store to clobber
+  return stores.every(function(s){ return after[s]===before[s]; });
+}
+function _idbDetail(before, after, stores){
+  if(!before || !after) return 'IndexedDB unreachable — no durable store to clobber';
+  return stores.map(function(s){ return s+': '+before[s]+'→'+after[s]; }).join(' · ');
+}
+
+/* Boot ECGDex.html in a hidden iframe, run its synthetic demo, and verify the
+   computed dashboard actually renders populated values (not just labels). */
+async function renderCoverageECGDex(){
+  const g = mkGroup('Render coverage — ECGDex computed → DOM', 'browser-only · ECGDex.html');
+  const rig = document.getElementById('rig');
+  let booted=false, errored='', _lsSnap=null, _rigWin=null;
+  try{
+    const _boot = await bootRigOrSkip(rig, 'ECGDex.html');
+    booted = _boot.booted;
+    if(!booted){ bootSkip(g, 'ECGDex.html', _boot.attempts); return g; }
+    add(g, 'bundle loads in iframe', true, _boot.attempts>1?('booted on retry '+_boot.attempts):'');
+    const win = rig.contentWindow, doc = rig.contentDocument;
+    win.addEventListener('error', e=>{ errored = e.message || 'error'; });
+    _rigWin=win; _lsSnap=_snapStore(win);   // XI §1/§2: snapshot operator localStorage before profileEditProbe writes tepna_profile
+
+    // pick the fastest synthetic scenario + run the demo
+    const scen = doc.getElementById('genScenario'); const btn = doc.getElementById('genBtn');
+    add(g, 'demo controls present (#genScenario,#genBtn)', !!scen && !!btn);
+    if(scen){ try{ scen.value='spot'; }catch(_){} }
+    if(btn) btn.click();
+
+    // wait for the pipeline to compute + render (readiness-gated, not a fixed delay)
+    await waitForRender(doc, d=>{ const els=[...d.querySelectorAll('.m-val,.kpi-val,.q-val,.kpi-num')]; return els.filter(el=>/\d/.test(el.textContent||'')).length>=6 && /\bbpm\b/i.test((d.body&&d.body.innerText)||''); });
+
+    const txt = (doc.body && doc.body.innerText) || '';
+    add(g, 'no uncaught error during demo', !errored, errored);
+    add(g, 'dashboard rendered substantial content', txt.length > 2000, txt.length+' chars');
+    // labels that only appear once metrics are computed + laid out
+    ['rMSSD','SDNN','Analyzable'].forEach(lbl =>
+      add(g, 'renders "'+lbl+'"', new RegExp(lbl,'i').test(txt)));
+    // the crux: computed numeric VALUES are in the DOM, not blank/"—"
+    const valEls = [...doc.querySelectorAll('.m-val,.kpi-val,.q-val,.kpi-num')];
+    const numeric = valEls.filter(el => /\d/.test(el.textContent||''));
+    add(g, 'computed value cells render numbers (not blank/—)', numeric.length >= 6,
+      numeric.length+' numeric of '+valEls.length+' value cells');
+    // a headline KPI shows a plausible heart-rate number
+    add(g, 'a bpm value is rendered', /\b\d{2,3}\s*(bpm|BPM)/.test(txt) || /\bbpm\b/i.test(txt));
+    // live profile-edit probe (PROFILE-DOM-READ-AUDIT §3): edit must not crash the live path
+    await profileEditProbe(g, win, doc);
+  }catch(e){
+    add(g, 'render-coverage rig ran without throwing', false, e.message);
+  }finally{
+    _restoreStore(_rigWin, _lsSnap);   // XI §1/§2: restore before navigating away
+    try{ rig.src='about:blank'; }catch(_){}
+  }
+  return g;
+}
+
+/* CPAPDex cross-node co-import: OxyDex/ECGDex node-export ingest + temporal-overlap
+   pairing + borrowed-oximetry / autonomic-corroboration math. */
+function cpapCoimportGroup(){
+  const g = mkGroup('CPAPDex cross-node co-import', 'node · cpapdex-coimport.js');
+  const CN = window.CpapCoimport;
+  if (!CN){ add(g, 'cpapdex-coimport.js loaded', false, 'CpapCoimport missing'); return g; }
+  CN.reset();
+  const t0 = Date.UTC(2026, 5, 12, 22, 30, 0), end = t0 + 6 * 3600000;
+  const night = { t0Ms: t0, therapyHours: 6, metrics: { residualAHI: 3.0 },
+    sessions: [{ t0Ms: t0, endMs: end, oximetry: { available: false },
+      events: [ { type:'OA', tMs: t0 + 100000, durSec: 15 }, { type:'CA', tMs: t0 + 300000, durSec: 12 },
+                { type:'H', tMs: t0 + 500000, durSec: 20 }, { type:'RE', tMs: t0 + 600000, durSec: 8 } ] }] };
+  // detect
+  add(g, 'detects OxyDex array export', CN.detectNodeExport([{ stats:{}, t0Ms:t0 }], 'x.json') === 'OxyDex');
+  add(g, 'detects ECGDex by schema.node', CN.detectNodeExport({ schema:{ node:'ECGDex' } }, 'x.json') === 'ECGDex');
+  // ingest OxyDex aligned to the night
+  const ro = CN.ingest([{ date:'2026-06-12', t0Ms:t0, stats:{ startTs:t0, durationMin:360, meanSpo2:93, minSpo2:88, t90pct:2.0 }, odi4:{ rate:6.0 } }], 'oxy.json');
+  add(g, 'ingests OxyDex night', ro && ro.node === 'OxyDex' && ro.count === 1, JSON.stringify(ro));
+  // ingest ECGDex with a surge 8 s after the OA apnea
+  const re = CN.ingest({ schema:{ node:'ECGDex' }, recording:{ startEpochMs:t0, durationMin:360 },
+    hrv:{ time:{ rmssd:34, sdnn:50 }, frequency:{ respRateEpochStats:{ median:14, sd:2.5 } } },
+    apnea:{ cvhrIndex:7.0, estimatedAHI:{ value:8, band:'moderate' } },
+    cardiorespiratory:{ plvBaseline:0.6, plvDuringSurges:0.4 },
+    ganglior_events:[ { impulse:'autonomic_surge', tMs:t0 + 108000 } ] }, 'ecg.json');
+  add(g, 'ingests ECGDex export', re && re.node === 'ECGDex' && re.count === 1, JSON.stringify(re));
+  // pairing by overlap
+  const oxy = CN.oxyForNight(night), ecg = CN.ecgForNight(night);
+  add(g, 'pairs OxyDex by temporal overlap', !!oxy && oxy.odi === 6.0);
+  add(g, 'pairs ECGDex by temporal overlap', !!ecg && ecg.surges.length === 1);
+  // borrowed oximetry
+  const bo = CN.borrowedOximetry(night);
+  add(g, 'borrowed oximetry: native absent flagged', bo && bo.nativeAvailable === false);
+  add(g, 'borrowed oximetry: ODI/T90/nadir surfaced', bo && bo.odi === 6.0 && bo.t90 === 2.0 && bo.nadir === 88);
+  add(g, 'borrowed oximetry: overlap 100%', bo && bo.overlapPct === 100, bo && bo.overlapPct);
+  // autonomic corroboration (1 surge within LEAD/TRAIL of the OA at +100s)
+  const ac = CN.autonomicCorroboration(night);
+  add(g, 'autonomic: 3 AHI apneas in window (RERA excluded)', ac && ac.apneasInWindow === 3, ac && ac.apneasInWindow);
+  add(g, 'autonomic: surge matched to apnea within ±gate', ac && ac.matched === 1, ac && ac.matched);
+  add(g, 'autonomic: coupling drop computed', ac && Math.abs(ac.plvDrop - 0.2) < 1e-6, ac && ac.plvDrop);
+  add(g, 'autonomic: resp-rate SD surfaced (ECGDex emits for CPAPDex)', ac && ac.respRateSd === 2.5);
+  // combined crossNode + concordance (AHI 3.0 vs ODI 6.0 → odi-led)
+  const cn = CN.crossNode(night);
+  add(g, 'crossNode AHI↔ODI concordance = odi-led', cn && cn.concordance === 'odi-led', cn && cn.concordance);
+  // non-overlapping peer is NOT paired (different night, >4h gap)
+  CN.reset();
+  CN.ingest([{ date:'2026-07-01', t0Ms: t0 + 20 * 86400000, stats:{ startTs:t0 + 20*86400000, durationMin:300, meanSpo2:95 }, odi4:{ rate:1 } }], 'far.json');
+  add(g, 'non-overlapping peer is not paired', CN.oxyForNight(night) === null);
+  CN.reset();
+  return g;
+}
+
+/* Fold the standalone cpapdex self-test harness (CpapEdf.selfTest + CpapDsp.selfTest)
+   into the canonical gate: each assertion line becomes a test row. */
+function cpapSelfTestGroups(){
+  const out = [];
+  function fromSelfTest(title, tag, fn){
+    const g = mkGroup(title, tag);
+    if (typeof fn !== 'function'){ add(g, 'module loaded', false, 'selfTest() not found'); return g; }
+    let r; try { r = fn(); } catch(e){ add(g, 'selfTest runs without throwing', false, e.message); return g; }
+    (r.log || []).forEach(line => {
+      const pass = line.charAt(0) === '✓';
+      const rest = line.slice(2);
+      const dash = rest.indexOf(' — ');
+      const name = dash >= 0 ? rest.slice(0, dash) : rest;
+      const detail = dash >= 0 ? rest.slice(dash + 3) : '';
+      add(g, name, pass, detail);
+    });
+    if (!(r.log || []).length) add(g, 'self-test produced assertions', false, '0 log lines');
+    return g;
+  }
+  out.push(fromSelfTest('CPAPDex EDF reader — self-test', 'node · cpapdex-edf.js', window.CpapEdf && window.CpapEdf.selfTest));
+  out.push(fromSelfTest('CPAPDex DSP / metrics — self-test', 'node · cpapdex-dsp.js', window.CpapDsp && window.CpapDsp.selfTest));
+  return out;
+}
+
+/* Boot CPAPDex.html in the hidden iframe, run its synthetic demo night, and verify
+   the computed therapy dashboard actually renders populated values. */
+async function renderCoverageCPAPDex(){
+  const g = mkGroup('Render coverage — CPAPDex computed → DOM', 'browser-only · CPAPDex.html');
+  const rig = document.getElementById('rig');
+  let booted=false, errored='', _lsSnap=null, _rigWin=null;
+  try{
+    const _boot = await bootRigOrSkip(rig, 'CPAPDex.html');
+    booted = _boot.booted;
+    if(!booted){ bootSkip(g, 'CPAPDex.html', _boot.attempts); return g; }
+    add(g, 'bundle loads in iframe', true, _boot.attempts>1?('booted on retry '+_boot.attempts):'');
+    const win = rig.contentWindow, doc = rig.contentDocument;
+    win.addEventListener('error', e=>{ errored = e.message || 'error'; });
+    _rigWin=win; _lsSnap=_snapStore(win);   // XI §1/§2: snapshot operator localStorage before the demo / profile path writes
+
+    const demo = doc.getElementById('demoBtn');
+    add(g, 'demo control present (#demoBtn)', !!demo);
+    if(demo) demo.click();
+    await waitForRender(doc, d=>{ const rv=d.getElementById('resultsView'); return rv && getComputedStyle(rv).display!=='none' && d.querySelectorAll('canvas[data-chart]').length>=2; });
+
+    const txt = (doc.body && doc.body.innerText) || '';
+    add(g, 'no uncaught error during demo', !errored, errored);
+    add(g, 'results view revealed', getComputedStyle(doc.getElementById('resultsView')).display !== 'none');
+    add(g, 'dashboard rendered substantial content', txt.length > 2000, txt.length+' chars');
+    ['Residual AHI','Pressure','Leak','Oximetry'].forEach(lbl =>
+      add(g, 'renders "'+lbl+'"', new RegExp(lbl,'i').test(txt)));
+    // computed numeric values reach the DOM (not blank/—)
+    const valEls = [...doc.querySelectorAll('.kpi-val,.m-val')];
+    const numeric = valEls.filter(el => /\d/.test(el.textContent||''));
+    add(g, 'computed value cells render numbers (not blank/—)', numeric.length >= 6,
+      numeric.length+' numeric of '+valEls.length+' value cells');
+    // the demo now ships a SIMULATED SpO₂ sensor on the SA2 lane (2026-06: generator
+    // oxygen-sensor sim) → the self-gated oximetry lane must POPULATE (real ODI, no
+    // "oximeter not connected"). The graceful-absent path still exists for real files
+    // with no oximeter; it's just no longer the demo's path.
+    add(g, 'simulated oximeter populates SA2 oximetry lane', /ODI/i.test(txt) && !/oximeter[ -]?not[ -]?connected|no oximeter/i.test(txt));
+    // KPI evidence dots + event stream prove the cohesion layer wired up
+    add(g, 'Ganglior event stream rendered', doc.querySelectorAll('.evt-row').length > 0,
+      doc.querySelectorAll('.evt-row').length+' events');
+    add(g, 'charts painted (canvas present)', doc.querySelectorAll('canvas[data-chart]').length >= 2);
+  }catch(e){
+    add(g, 'render-coverage rig ran without throwing', false, e.message);
+  }finally{
+    _restoreStore(_rigWin, _lsSnap);   // XI §1/§2: restore before navigating away
+    try{ rig.src='about:blank'; }catch(_){}
+  }
+  return g;
+}
+
+/* Boot an iframe RIG to `url`, resolving true when it loads within `watchdogMs`, false on timeout.
+   Re-points through about:blank first (with NO onload handler) so a repeat boot of the SAME url
+   reliably re-fires onload, and so the target-url load is the only thing that resolves true.
+   DEEP-AUDIT-FIXES §2: a cold Integrator.html boot at rig-position 3 can exceed a single fixed
+   watchdog; callers retry once (cache warmed by the first attempt) before treating a timeout —
+   which is INCONCLUSIVE, not a proven defect — as a failure, so the all-green pill stays deterministic. */
+function bootRig(rig, url, watchdogMs){
+  return new Promise((resolve)=>{
+    let done=false;
+    const finish=(ok)=>{ if(done) return; done=true; try{ rig.onload=null; }catch(_){} resolve(ok); };
+    try{ rig.onload=null; rig.src='about:blank'; }catch(_){}
+    setTimeout(()=>{ if(done) return; rig.onload=()=>finish(true); try{ rig.src=url; }catch(_){ finish(false); } }, 50);
+    setTimeout(()=>finish(false), watchdogMs);
+  });
+}
+
+/* Retry-once boot wrapper shared by EVERY render-coverage leg. A cold bundle boot (250–540 KB
+   gzipped, unpacked + eval'd on first load) can exceed a single watchdog at a deep rig position and
+   fire onload late — historically a transient FALSE-RED on the 'bundle loads in iframe' assertion
+   that flickered the all-green pill on cold loads. Attempt once at `timeout`; the attempt warms the
+   cache, so on a miss retry ONCE at `retryTimeout`. A double-timeout is INCONCLUSIVE (environmental),
+   so the caller SKIPs (see bootSkip) instead of redding. Generalises the DEEP-AUDIT-FIXES §2
+   Integrator-only retry to all four rigs. Returns { booted, attempts }. */
+async function bootRigOrSkip(rig, url, timeout, retryTimeout){
+  timeout = timeout||9000; retryTimeout = retryTimeout||18000;
+  if(await bootRig(rig, url, timeout)) return { booted:true, attempts:1 };
+  return { booted: await bootRig(rig, url, retryTimeout), attempts:2 };
+}
+
+/* Boot Integrator.html, drive the REAL normalize → runFusion → renderAll path in the bundle's
+   OWN realm with two overlapping node-exports that both observe periodic breathing, and confirm
+   the §2 cross-node PB finding actually reaches the DOM (card + findings table + evidence badge).
+   Same-realm (no flaky cross-realm file injection) so the assertion is deterministic. */
+async function renderCoverageIntegratorPB(){
+  const g = mkGroup('Render coverage — Integrator periodic breathing → DOM', 'browser-only · Integrator.html · §2');
+  const rig = document.getElementById('rig');
+  let booted=false, _lsSnap=null, _rigWin=null;
+  try{
+    // Warm + retry-once: a cold boot at rig-position 3 can exceed a single 9 s watchdog even though
+    // the sibling Integrator-computed rig boots the SAME bundle fine once warm. The first attempt warms
+    // the HTTP cache; retry once with a longer watchdog before a timeout is allowed to stand. (DEEP-AUDIT-FIXES §2)
+    const _boot = await bootRigOrSkip(rig, 'Integrator.html');
+    booted = _boot.booted;
+    if(!booted){ bootSkip(g, 'Integrator.html', _boot.attempts); return g; }
+    add(g, 'bundle loads in iframe', true, _boot.attempts>1?('booted on retry '+_boot.attempts):'');
+    const win=rig.contentWindow, doc=rig.contentDocument;
+    _rigWin=win; _lsSnap=_snapStore(win);   // XI §1/§2: snapshot operator localStorage before any write
+    const D=win.IntegratorDSP, R=win.IntegratorRender;
+    add(g, 'IntegratorDSP + IntegratorRender present in bundle', !!(D && R && D.runFusion && R.renderAll));
+    if(!(D && R && D.runFusion && R.renderAll)) return g;
+    // two OVERLAPPING node-exports that BOTH observe periodic breathing (envelope-free → nothing persisted)
+    const t0=Date.now()-7200000;
+    const oxy={ schema:{name:'ganglior.node-export',node:'OxyDex'}, bus:'ganglior',
+      recording:{startEpochMs:t0,durationMin:420,offsetMin:null},
+      ganglior_events:[ {t:'00:30:00',tMs:t0+1800000,impulse:'periodic_breathing',node:'OxyDex',conf:0.62,meta:{cycleLen:52}},
+                        {t:'01:10:00',tMs:t0+4200000,impulse:'periodic_breathing',node:'OxyDex',conf:0.58,meta:{cycleLen:49}},
+                        {t:'00:35:00',tMs:t0+2100000,impulse:'desat_event',node:'OxyDex',conf:0.7,meta:{depth:6}} ] };
+    const cpap={ schema:{name:'ganglior.node-export',node:'CPAPDex'}, bus:'ganglior',
+      recording:{startEpochMs:t0,durationMin:420,offsetMin:null,sessions:[{mode:'CPAP'}],therapyHours:7},
+      metrics:{residualAHI:6,periodicBreathingPct:18,centralIndex:2,obstructiveIndex:2.4,hypopneaIndex:1.5},
+      ganglior_events:[ {t:'00:36:00',tMs:t0+2160000,impulse:'periodic_breathing',node:'CPAPDex',conf:0.8,meta:{}} ] };
+    let recs=[];
+    [oxy,cpap].forEach((j,i)=>{ const nf=D.normalizeFile(j, (i?'cpap':'oxy')+'.json'); recs=recs.concat(nf.recs); });
+    add(g, 'both node-exports normalized to recs', recs.length===2, recs.length+' recs');
+    const fusion=D.runFusion(recs, { toleranceSec:120 });
+    add(g, 'runFusion yields a corroborated PB block', !!(fusion.periodicBreathing && fusion.periodicBreathing.blocks && fusion.periodicBreathing.blocks.length>=1));
+    R.renderAll(recs, fusion, []);
+    try{ R.showView && R.showView('findings'); }catch(_){}
+    await waitForRender(doc, d=>{ const fc=d.getElementById('findings'); return fc && /periodic breathing/i.test(fc.textContent||''); }, 8000);
+    const fTxt=(doc.getElementById('findings')||{}).textContent||'';
+    const tblTxt=(doc.getElementById('findTable')||{}).textContent||'';
+    add(g, 'PB finding card renders ("periodic breathing")', /periodic breathing/i.test(fTxt));
+    add(g, 'PB card shows the corroborating-signal count', /signals agree/i.test(fTxt));
+    add(g, 'PB card names both observer nodes (OxyDex + CPAPDex)', /OxyDex/.test(fTxt) && /CPAPDex/.test(fTxt));
+    add(g, 'PB card carries an evidence badge (coverage mandate)', !!doc.querySelector('#findings .fc-ev'));
+    add(g, 'PB finding reaches the findings table', /periodic_breathing/i.test(tblTxt));
+  }catch(e){
+    add(g, 'render-coverage rig ran without throwing', false, e.message);
+  }finally{
+    _restoreStore(_rigWin, _lsSnap);   // XI §1/§2: restore before navigating away
+    try{ rig.src='about:blank'; }catch(_){}
+  }
+  return g;
+}
+
+/* ── bounded hang guard: run the REAL OxyDex parseCSV→processNight pipeline over a
+   pool of heavy-dropout patients inside a WORKER, watchdog-timed so a non-terminating
+   loop can't freeze this page. Catches the "processNight hang on heavy-dropout nights"
+   class (and any pathological slowdown) as a regression gate. ── */
+async function oxyHangGate(){
+  const g = mkGroup('OxyDex heavy-dropout hang guard (bounded)', 'browser-only · worker · oxydex-dsp');
+  let w;
+  try{ w = new Worker('tests/oxy-hang.worker.js'); }
+  catch(e){ add(g, 'hang-probe worker spawns', false, e.message); return g; }
+  const BUDGET = 12000;
+  const res = await new Promise(resolve=>{
+    let done=false;
+    const to=setTimeout(()=>{ if(!done){ done=true; resolve({hang:true}); } }, BUDGET);
+    w.onmessage=(e)=>{ if(done) return; done=true; clearTimeout(to); resolve(e.data||{}); };
+    w.onerror=(ev)=>{ if(done) return; done=true; clearTimeout(to); resolve({werr:(ev&&ev.message)||'worker error'}); };
+    w.postMessage({ type:'run', nPatients:24, targetNights:15 });
+  });
+  try{ w.terminate(); }catch(_){}
+  if(res.hang){ add(g, 'processNight terminates on heavy-dropout pool (watchdog '+(BUDGET/1000)+'s)', false, 'WATCHDOG TIMEOUT — possible processNight hang'); return g; }
+  if(res.werr){ add(g, 'hang-probe worker ran without error', false, res.werr); return g; }
+  if(res.type==='error'){ add(g, 'real OxyDex stack loaded + ran in worker', false, res.error+' (after '+(res.nNights||0)+' nights)'); return g; }
+  add(g, 'real OxyDex DSP stack loaded in worker realm', res.type==='done');
+  add(g, 'processNight terminates on every heavy-dropout night (no hang)', res.type==='done' && res.nNights>0, (res.nNights||0)+' dropout nights scored');
+  add(g, 'no night exceeds 1.5s (no pathological slowdown)', res.maxMs!=null && res.maxMs<1500, 'worst '+res.maxMs+'ms (seed '+res.worstSeed+')');
+  return g;
+}
+
+/* ── generic app-bundle render coverage: boot <App>.html, inject synthetic data
+   (via SYNTH, already loaded for the FULL-lane gate), confirm computed values
+   reach the DOM. Covers the six apps the bespoke rigs above don't. ── */
+function injectFiles(win, doc, inputId, files){
+  const inp = doc.getElementById(inputId); if(!inp) return false;
+  try{
+    const dt = new win.DataTransfer();
+    files.forEach(f => dt.items.add(new win.File([f.text], f.name, { type:f.type||'text/plain' })));
+    inp.files = dt.files;
+    inp.dispatchEvent(new win.Event('change', { bubbles:true }));
+    return true;
+  }catch(e){ return false; }
+}
+/* ── VIII §1: live appExport ≡ compute() spot check ──────────────────────────
+   Closes -VI §1's literal target ("compute() ≡ the app's OWN export") that the
+   committed-FIXTURE proxy gate cannot assert — the fixtures were generated FROM
+   compute(), so compute()≡fixture stays green even when the app export diverges
+   (exactly the -VII §1 HRVDex row-sort bug, found by a human, not a red).
+   captureAppExport drives the app's real export entry with NO download side-effect:
+   it monkey-patches URL.createObjectURL to grab the export Blob and swallows the
+   <a download> click, then reads the Blob text back. _eqDiff mirrors the equivalence
+   gate's deep-diff + EXCL set (volatile metadata + profile-coupled fields) byte-for-byte. */
+async function captureAppExport(win, trigger){
+  var captured=null;
+  var U = win.URL || win.webkitURL;
+  var origCOU = U.createObjectURL;
+  var AP = win.HTMLAnchorElement && win.HTMLAnchorElement.prototype;
+  var origClick = AP && AP.click;
+  U.createObjectURL = function(b){ if(b && typeof b.text==='function') captured=b; return origCOU.call(U,b); };
+  if(AP) AP.click = function(){};   // swallow the download — the Blob is what we want
+  try{ trigger(); }
+  finally{ U.createObjectURL = origCOU; if(AP) AP.click = origClick; }
+  if(!captured) return null;
+  try{ return JSON.parse(await captured.text()); }catch(e){ return null; }
+}
+function _eqDiff(a, b, path, out){
+  // identical to the equivalence-gate diff in tests/dex-tests.js (same EXCL set).
+  var EXCL = { file:1, provenance:1, kernel:1, generated:1, vo2est:1, karv:1 };
+  if(out.length>40) return;
+  if(a===b) return;
+  var ta=typeof a, tb=typeof b;
+  if(ta==='number'&&tb==='number'){ if(!(isNaN(a)&&isNaN(b))&&Math.abs(a-b)>1e-9*(1+Math.abs(a))) out.push(path+': '+a+' != '+b); return; }
+  if(a==null||b==null||ta!=='object'||tb!=='object'){ out.push(path+': '+JSON.stringify(a)+' != '+JSON.stringify(b)); return; }
+  if(Array.isArray(a)!==Array.isArray(b)){ out.push(path+': array/object shape mismatch'); return; }
+  var keys={}; Object.keys(a).forEach(function(k){keys[k]=1;}); Object.keys(b).forEach(function(k){keys[k]=1;});
+  Object.keys(keys).forEach(function(k){ if(!EXCL[k]) _eqDiff(a[k], b[k], path?path+'.'+k:k, out); });
+}
+function _eqClone(x){ return x==null?null:JSON.parse(JSON.stringify(x)); }
+/* ── XI §2: render-coverage localStorage persist audit (restore is the rig-level whole-store
+   snapshot in renderCoverageApp / renderCoverageECGDex / renderCoverageCPAPDex; this records WHAT
+   each leg writes so the hygiene stays visible) ──
+     · OxyDex     — load path caches oxydex_last_csv / oxydex_last_name (oxydex-dsp → _cacheO2CSV). PERSISTS.
+     · HRVDex     — commitRows mirrors allRows → hrvdex_rows_v1 (prep loadPasted + extraProbe {replace}). PERSISTS.
+     · PulseDex   — RR paste/calc path is transient (no localStorage write). no persist — no snapshot needed.
+     · GlucoDex   — #demo path is transient (no localStorage write). no persist — no snapshot needed.
+     · PpgDex     — PPG file ingest is transient (no localStorage write). no persist — no snapshot needed.
+     · Integrator — the synthetic node-exports carry NO crossNight envelope → L.ingest writes nothing; the
+                    durable longitudinal store is IndexedDB (ganglior_integrator). no localStorage persist —
+                    no localStorage snapshot needed. XII §1: that IndexedDB store is now GUARDED separately
+                    by cfg.idbGuard — the leg asserts the summaries/metricDefs stores are UNCHANGED, so a
+                    future envelope-ingesting prep trips a red instead of silently clobbering operator history.
+   PLUS cross-cutting: every leg's profileEditProbe bumps the unified tepna_profile — also covered by the
+   same whole-store snapshot, so no per-leg key list is required. */
+const APP_COVERAGE = [
+  { name:'OxyDex', file:'OxyDex.html', waitMs:5000, labels:['ODI','SpO','desat','AHI'], minNums:15,
+    prep:(doc,win)=>{ const tls=window.SYNTH.buildTimelines(); return injectFiles(win,doc,'fileInput',[{name:'O2Ring_demo.csv',text:window.SYNTH.renderOxy(tls[0])}]); },
+    extraProbe:async (g,win,doc,add)=>{
+      // Phase-9 (SIGNAL-ADAPTER-FOLLOWUPS §4): the headless public surface must produce a
+      // schema-valid OxyDex node-export straight from a raw O2Ring CSV — the seam the Data
+      // Unifier + OverDex call through signal-orchestrate.js (emitSpO2NodeExport).
+      const OD=win.OxyDex;
+      add(g, 'OxyDex.compute() public surface exposed', !!(OD && typeof OD.compute==='function'));
+      if(!(OD && typeof OD.compute==='function')) return;
+      const csv=window.SYNTH.renderOxy(window.SYNTH.buildTimelines()[0]);
+      const out=OD.compute({text:csv, fileMeta:{fname:'O2Ring_demo_20260612230000.csv'}});
+      add(g, 'compute({text}) → schema-valid OxyDex node-export', !!(out && out.schema && out.schema.name==='ganglior.node-export' && out.schema.node==='OxyDex' && Array.isArray(out.nights) && out.nights[0]));
+      add(g, 'compute() ran real DSP (night stats + desatProfile present)', !!(out && out.nights && out.nights[0] && out.nights[0].stats && out.nights[0].desatProfile));
+      // VIII §1: live appExport ≡ compute() diff. The app loaded 'O2Ring_demo.csv' (no 14-digit
+      // stamp), so compute() for the diff uses the SAME fname — the only date-anchor difference
+      // vs the schema-probe compute above. exportJSON() emits a bare per-night array at <3 nights.
+      if(typeof win.exportJSON==='function'){
+        const appExp = await captureAppExport(win, ()=>win.exportJSON());
+        add(g, 'OxyDex app export captured (no download side-effect)', !!appExp);
+        if(appExp){
+          const appEl  = Array.isArray(appExp) ? appExp[0] : (appExp.nights ? appExp.nights[0] : appExp);
+          const cmp    = OD.compute({text:csv, fileMeta:{fname:'O2Ring_demo.csv'}});
+          const compEl = cmp && cmp.nights && cmp.nights[0];
+          const d=[]; _eqDiff(_eqClone(compEl), _eqClone(appEl), '', d);
+          add(g, 'app exportJSON() ≡ compute() (physiological fields; vol/profile excluded)', !!appEl && !!compEl && d.length===0, d.length?d.slice(0,8).join(' · '):(appEl&&compEl?'byte-identical':'missing element'));
+        }
+      }
+    } },
+  { name:'PulseDex', file:'PulseDex.html', waitMs:4500, labels:['rMSSD','SDNN','HRV'], minNums:15,
+    prep:(doc,win)=>{ const tls=window.SYNTH.buildTimelines(); const ta=doc.getElementById('rawPaste'); if(!ta) return false;
+      ta.value=window.SYNTH.renderRR(tls[0]); ta.dispatchEvent(new win.Event('input',{bubbles:true}));
+      const b=doc.getElementById('calcBtn'); if(b){ b.click(); return true; } return false; },
+    extraProbe:async (g,win,doc,add)=>{
+      // Phase-9 (SIGNAL-ADAPTER-FOLLOWUPS §1/§2/§9a): the headless public surface must
+      // produce a schema-valid ganglior.node-export straight from a raw RR series — the
+      // exact seam the Data Unifier + OverDex call through signal-orchestrate.js.
+      const PD = win.PulseDex;
+      add(g, 'PulseDex.compute() public surface exposed', !!(PD && typeof PD.compute==='function'));
+      if(!(PD && typeof PD.compute==='function')) return;
+      const vals=[]; for(let i=0;i<600;i++) vals.push(820+Math.round(40*Math.sin(i/8))+(i%5));
+      const out=PD.compute(vals);
+      add(g, 'compute(vals) → schema-valid ganglior.node-export', !!(out && out.schema && out.schema.name==='ganglior.node-export' && Array.isArray(out.ganglior_events)));
+      add(g, 'compute() ran real DSP (hrv.time.rmssd present, not just parse)', !!(out && out.hrv && out.hrv.time && out.hrv.time.rmssd!=null));
+      // VIII §1: live exportGanglior() ≡ compute() diff on the SAME RR series the app loaded.
+      // Both paths run pdBuildNodeExport; run compute() via the same parseRRInput→compute seam
+      // the equivalence gate + orchestrator use, then deep-diff against the app's own export.
+      if(typeof win.exportGanglior==='function' && typeof PD.parseRRInput==='function'){
+        const rrText = window.SYNTH.renderRR(window.SYNTH.buildTimelines()[0]);
+        const f = PD.parseRRInput(rrText);
+        const cmp = f ? PD.compute({intervals:f.vals, tsMs:f.tsMs, t0Ms:f.t0Ms, offsetMin:f.offsetMin}) : null;
+        const appExp = await captureAppExport(win, ()=>win.exportGanglior());
+        add(g, 'PulseDex app export captured (no download side-effect)', !!appExp);
+        if(appExp && cmp){
+          const d=[]; _eqDiff(_eqClone(cmp), _eqClone(appExp), '', d);
+          add(g, 'app exportGanglior() ≡ compute() (physiological fields; vol/profile excluded)', d.length===0, d.length?d.slice(0,8).join(' · '):'byte-identical');
+        }
+      }
+    } },
+  { name:'HRVDex', file:'HRVDex.html', waitMs:4500, labels:['rMSSD','SDNN','HRV'], minNums:12,
+    prep:(doc,win)=>{ const tls=window.SYNTH.buildTimelines(); const ta=doc.getElementById('pasteArea'); if(!ta) return false;
+      // XI §1/§2: the operator's HRV running log (hrvdex_rows_v1) — and every other key any leg's
+      // prep/profile-probe writes — is now snapshotted + restored WHOLESALE at the rig level
+      // (renderCoverageApp), decoupled from extraProbe's control flow. No per-leg snapshot here.
+      const pf=doc.getElementById('pasteFallback'); if(pf) pf.style.display='block';
+      ta.value=window.SYNTH.renderHRVAll(tls);
+      if(typeof win.loadPasted==='function'){ win.loadPasted(); return true; } return false; },
+    extraProbe:async (g,win,doc,add)=>{
+      // Phase-9 (SIGNAL-ADAPTER-FOLLOWUPS §4 — HRVDex leg): the headless public surface must
+      // produce a schema-valid ganglior.node-export straight from a Welltory summary CSV — the
+      // seam the Data Unifier + OverDex call through signal-orchestrate.js (emitSummaryNodeExport).
+      const HD=win.HRVDex;
+      add(g, 'HRVDex.compute() public surface exposed', !!(HD && typeof HD.compute==='function' && typeof HD.parseRows==='function'));
+      if(!(HD && typeof HD.compute==='function')) return;
+      const csv=window.SYNTH.renderHRVAll(window.SYNTH.buildTimelines());
+      const out=HD.compute({text:csv});
+      add(g, 'compute({text}) → schema-valid HRVDex node-export', !!(out && out.schema && out.schema.name==='ganglior.node-export' && out.schema.node==='HRVDex' && Array.isArray(out.ganglior_events)));
+      add(g, 'compute() built from real rows (recording.measurements present)', !!(out && out.recording && out.recording.source==='welltory' && out.recording.measurements>=1));
+      // VIII §1 / IX §1: live exportGanglior() ≡ compute() diff. exportGanglior now exports the
+      // FULL recording (allRows, full precision) — NOT the dashboard's filtered/windowed view — so
+      // it matches the headless path's scope. compute({text}) can still differ from the app because
+      // HRVDex's running log ACCUMULATES across sessions (a multi-file feature), so the fair "two
+      // code paths agree" test feeds compute() the SAME allRows the app exports; both run the one
+      // shared hrvBuildNodeExport → byte-identical.
+      if(typeof win.exportGanglior==='function' && win.HRVDex){
+        const appRows = ((Array.isArray(win.allRows) ? win.allRows : []) || []).filter(r=>r && isFinite(r._tMs));
+        const cmp = win.HRVDex.compute({rows: appRows}, {kernel: win.DexKernel||null});
+        const appExp = await captureAppExport(win, ()=>win.exportGanglior());
+        add(g, 'HRVDex app export captured (no download side-effect)', !!appExp);
+        if(appExp && cmp){
+          const d=[]; _eqDiff(_eqClone(cmp), _eqClone(appExp), '', d);
+          add(g, 'app exportGanglior() ≡ compute({rows}) on the FULL recording (vol/profile excluded)', d.length===0, d.length?d.slice(0,8).join(' · '):'byte-identical');
+        }
+      }
+      // X §1: make the HRVDex leg END-TO-END — exercise the {text}→_hrvParseSummaryRows path the
+      // seam-parity diff above does NOT (it feeds compute() the app's already-parsed allRows). The
+      // blocker is HRVDex's ACCUMULATING running log: allRows is a SUPERSET of any one pasted CSV, so
+      // we ISOLATE a single recording — replace allRows with EXACTLY the synthetic CSV's parsed rows
+      // (commitRows replace), then diff the app's real exportGanglior() against the headless
+      // compute({text}) on the SAME text. hrvBuildNodeExport reads only parser-provided fields and
+      // sorts internally, so both agree byte-for-byte iff the text→parse→sort path is correct — the
+      // exact leg VII §1's newest-first sort bug lived in. commitRows({replace}) clobbers the operator's
+      // hrvdex_rows_v1; that (and tepna_profile, oxydex_last_*, …) is restored WHOLESALE in the rig's
+      // OUTER finally (XI §1: decoupled from this probe — no inner try/finally restore-leak on early return).
+      if(typeof win.commitRows==='function' && win.HRVDex && typeof win.HRVDex.parseRows==='function'){
+        const oneRows = win.HRVDex.parseRows(csv);
+        if(oneRows && oneRows.length){
+          win.commitRows(oneRows, {replace:true});   // allRows := exactly this one recording
+          const cmpT = win.HRVDex.compute({text:csv}, {kernel: win.DexKernel||null});
+          const appExpT = await captureAppExport(win, ()=>win.exportGanglior());
+          add(g, 'HRVDex isolated single-recording export captured (no download side-effect)', !!appExpT);
+          if(cmpT && appExpT){
+            const d2=[]; _eqDiff(_eqClone(cmpT), _eqClone(appExpT), '', d2);
+            add(g, 'app exportGanglior() ≡ compute({text}) on an ISOLATED recording (text→parse path end-to-end)', d2.length===0, d2.length?d2.slice(0,8).join(' · '):'byte-identical');
+          }
+        }
+      }
+    } },
+  { name:'GlucoDex', file:'GlucoDex.html', hash:'#demo', waitMs:5500, labels:['CV','GMI','range','glucose'], minNums:15, prep:null },
+  { name:'PpgDex', file:'PpgDex.html', waitMs:6500, labels:['rMSSD','SDNN','pulse','HRV'], minNums:12,
+    prep:(doc,win)=>{ const tls=window.SYNTH.buildTimelines(); const tl=tls[0]; const w=window.SYNTH.pickWindow(tl);
+      return injectFiles(win,doc,'fileInput',[{name:'Polar_Sense_demo_PPG.txt',text:window.SYNTH.renderPPG(tl,w)}]); } },
+  { name:'Integrator', file:'Integrator.html', waitMs:3500, controls:['dropZone','fileInput','exportBtn','tolInput'],
+    idbGuard:{ db:'ganglior_integrator', stores:['summaries','metricDefs'] },   // XII §1: envelope-free prep must persist nothing to the durable longitudinal store
+    prep:(doc,win)=>{
+      // Drive the real ingest path with two synthetic overlapping node-exports (best-effort;
+      // structural assertions are the gate). Self-contained — does NOT use the #loadSamples
+      // button, whose hardcoded uploads/ filenames are stale (logged finding).
+      var t0=Date.now()-7200000;
+      var k=(window.DexKernel?{hash:window.DexKernel.HASH,version:window.DexKernel.VERSION}:null);
+      function env(node,rm,sd){ return JSON.stringify({ schema:{name:'ganglior.node-export',node:node}, bus:'ganglior',
+        recording:{startEpochMs:t0,durationMin:120,offsetMin:null}, hrv:{time:{rmssd:rm,sdnn:sd,meanRR:900}},
+        quality:{analyzablePct:95}, kernel:k, ganglior_events:[{t:'00:30:00',impulse:'autonomic_surge',node:node,conf:0.8}] }); }
+      return injectFiles(win,doc,'fileInput',[
+        {name:'ecgdex_demo.json',text:env('ECGDex',40,58),type:'application/json'},
+        {name:'hrvdex_demo.json',text:env('HRVDex',44,60),type:'application/json'}]); } },
+];
+async function renderCoverageApp(cfg){
+  const g = mkGroup('Render coverage — '+cfg.name+' computed → DOM', 'browser-only · '+cfg.file);
+  const rig = document.getElementById('rig');
+  let booted=false, errored='', _lsSnap=null, _rigWin=null, _idbSnap=null;
+  try{
+    const _boot = await bootRigOrSkip(rig, cfg.file+(cfg.hash||''));
+    booted = _boot.booted;
+    if(!booted){ bootSkip(g, cfg.file, _boot.attempts); return g; }
+    add(g, 'bundle loads in iframe', true, _boot.attempts>1?('booted on retry '+_boot.attempts):'');
+    const win=rig.contentWindow, doc=rig.contentDocument;
+    win.addEventListener('error', e=>{ errored=e.message||'error'; });
+    _rigWin=win; _lsSnap=_snapStore(win);   // XI §1/§2: snapshot operator localStorage BEFORE prep/extraProbe/profileProbe write
+    if(cfg.idbGuard){ _idbSnap = await _idbCounts(win, cfg.idbGuard.db, cfg.idbGuard.stores); }  // XII §1: durable-IndexedDB record-count snapshot BEFORE prep ingests
+    if(cfg.prep){
+      let ok=false; try{ ok=cfg.prep(doc,win); }catch(e){ errored=errored||e.message; }
+      add(g, 'synthetic data injected (demo path)', ok!==false, ok===false?'injection hook not found':'');
+    }
+    await waitForRender(doc, d=>_numTokens(d)>=(cfg.minNums||12) && (cfg.labels||[]).some(l=>new RegExp(l,'i').test((d.body&&d.body.innerText)||'')), Math.max(14000,(cfg.waitMs||4500)+9000));
+    const txt=(doc.body&&doc.body.innerText)||'';
+    add(g, 'no uncaught error during demo', !errored, errored);
+    if(cfg.controls){
+      // structural coverage: confirm the bundle's core UI mounted intact (catches a
+      // broken/half-loaded bundle without depending on flaky cross-realm file injection).
+      cfg.controls.forEach(id=> add(g, 'UI control #'+id+' present', !!doc.getElementById(id)));
+      const numTokensS=(txt.match(/\d[\d.,:]*/g)||[]).length;
+      add(g, 'shell renders content', txt.length>600 && numTokensS>=4, txt.length+' chars · '+numTokensS+' nums');
+      if(cfg.idbGuard){
+        // XII §1: the envelope-free prep must NOT persist longitudinal rows to the operator's
+        // durable IndexedDB. Assert the ganglior_integrator stores are UNCHANGED across the leg —
+        // a future crossNight-ingesting prep (or a #genBtn click) trips this red instead of
+        // silently clobbering history the rig has no localStorage-snapshot mechanism to restore.
+        const _idbAfter = await _idbCounts(win, cfg.idbGuard.db, cfg.idbGuard.stores);
+        add(g, 'durable IndexedDB ('+cfg.idbGuard.db+') unchanged by leg — envelope-free prep persisted nothing',
+          _idbUnchanged(_idbSnap, _idbAfter, cfg.idbGuard.stores), _idbDetail(_idbSnap, _idbAfter, cfg.idbGuard.stores));
+      }
+      return g;
+    }
+    add(g, 'dashboard rendered substantial content', txt.length>(cfg.minChars||1500), txt.length+' chars');
+    add(g, 'renders an expected metric label', (cfg.labels||[]).some(l=>new RegExp(l.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i').test(txt)),
+      'looked for '+(cfg.labels||[]).join(' / '));
+    if(cfg.evidenceRe) add(g, 'renders '+(cfg.evidenceName||'computed evidence'), cfg.evidenceRe.test(txt));
+    const numTokens=(txt.match(/\d[\d.,:]*/g)||[]).length;
+    add(g, 'computed numeric output reaches the DOM', numTokens>=(cfg.minNums||12), numTokens+' numeric tokens');
+    if(cfg.extraProbe){ try{ await cfg.extraProbe(g, win, doc, add); }catch(e){ add(g, cfg.name+' extra probe ran without throwing', false, e.message); } }
+    // live profile-edit probe (PROFILE-DOM-READ-AUDIT §3) — every unified-panel node
+    if(cfg.profileProbe!==false) await profileEditProbe(g, win, doc);
+  }catch(e){
+    add(g, 'render-coverage rig ran without throwing', false, e.message);
+  }finally{
+    _restoreStore(_rigWin, _lsSnap);   // XI §1/§2: restore wholesale, decoupled from how prep/extraProbe/profileProbe exited
+    try{ rig.src='about:blank'; }catch(_){}
+  }
+  return g;
+}
+
+function render(){
+  let totPass=0, totFail=0, totSkip=0, html='';
+  ALL_GROUPS.forEach(G=>{
+    const skp=G.tests.filter(t=>t.skip).length;
+    const p=G.tests.filter(t=>t.pass && !t.skip).length;
+    const f=G.tests.length - p - skp;
+    totPass+=p; totFail+=f; totSkip+=skp;
+    html += '<div class="group"><h2>'+G.title+' <span class="tag">'+G.tag+'</span>'
+      + '<span class="gstat '+(f?'fail':'pass')+'">'+p+'/'+(G.tests.length-skp)+(skp?(' <span class="sk">· '+skp+'⊘</span>'):'')+'</span></h2>';
+    G.tests.forEach(t=>{
+      const _mk=t.skip?'⊘':(t.pass?'✓':'✕'), _cls=t.skip?'sk':(t.pass?'ok':'no');
+      html += '<div class="test '+_cls+'"><span class="mk">'+_mk+'</span>'
+        + '<span class="name">'+t.name+'</span><span class="detail">'+(t.detail||'')+'</span></div>';
+    });
+    html += '</div>';
+  });
+  document.getElementById('results').innerHTML = html;
+  const sum = document.getElementById('summary');
+  const _st = window.__rcState || 'pending';
+  const _flt = (typeof groupFilterStr==='function') ? groupFilterStr() : '';
+  window.__filtered = _flt || null;
+  let _head;
+  if(totFail){ _head = '<span class="pill fail">✕ '+totFail+' failing</span>'; }
+  else if(_st==='running'){ _head = '<span class="pill warn">⏳ render-coverage running…</span>'; }
+  else if(_st==='done'){ _head = _flt ? '<span class="pill pass">✓ scoped green</span>' : '<span class="pill pass">✓ all green</span>'; }
+  else { _head = '<span class="pill pass">✓ headless green</span><span class="pill warn">render-coverage not run — ▶ or ?full</span>'; }
+  if(_flt){ _head += '<span class="pill warn">⦷ FILTERED: '+_flt.replace(/[<>&]/g,'')+' — not the full gate</span>'; }
+  sum.innerHTML = _head
+    + '<span class="pill muted">'+totPass+' passed</span>'
+    + (totSkip?('<span class="pill muted">'+totSkip+' skipped</span>'):'')
+    + '<span class="pill muted">'+ALL_GROUPS.length+' groups</span>';
+  window.__rcSkips = totSkip;
+  document.title = (totFail?('✕ '+totFail+' FAIL'):(_st==='done'?'✓ PASS':_st==='running'?'… running':'✓ headless · RC pending'))+' — Tepna Test Suite';
+  // GATE-LIVE-RUNNABILITY-FOLLOWUPS §1: expose a PROSE-IMMUNE same-origin signal. A cross-origin
+  // iframe-reach-in block surfaces as render-coverage test FAILURES carrying the DOMException reach-in
+  // text — read THAT (in-memory test rows), never document.body.innerText (which now contains the words
+  // "Blocked a frame"/"opaque" in this page's own ENV NOTE). Verifiers/agents: read window.__sameOriginOK
+  // / window.sameOriginStatus(), do NOT grep the body.
+  try {
+    var _reachIn = /Blocked a frame with origin|Failed to read a named property '\w+' from 'Window'/;
+    var _hits = [];
+    ALL_GROUPS.forEach(function(G){ (G.tests||[]).forEach(function(t){ if(!t.pass && (_reachIn.test(t.detail||'') || _reachIn.test(t.name||''))) _hits.push(G.title+' › '+t.name); }); });
+    var _rc = ALL_GROUPS.filter(function(G){ return /browser-only/.test(G.tag||''); }).length;
+    window.__sameOriginBlocked = _hits.length > 0;
+    window.__sameOriginOK = !window.__sameOriginBlocked && _rc > 0;
+    window.__renderCoverageGroups = _rc;
+    window.sameOriginStatus = function(){ return { ok: window.__sameOriginOK, blocked: window.__sameOriginBlocked, reachInFailures: _hits.slice(), renderCoverageGroups: _rc, bootSkips: (window.__rcBootSkips||[]).slice(), rcState: window.__rcState||'pending', renderCoverageRan: window.__rcState==='done', note: 'computed from test rows, not body text (GATE-LIVE-RUNNABILITY-FOLLOWUPS §1)' }; };
+  } catch(_e){}
+}
+
+main();
+</script>
+</body></html>

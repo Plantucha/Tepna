@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  How It's Wired - GlucoDex · Tepna / the -Dex suite
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE.
+  A reference doc — explains how the GlucoDex node is wired. Edit freely;
+  it loads no app code and ships no buildHash (not a bundled instrument).
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How It's Wired - GlucoDex</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<meta name="description" content="GlucoDex: Continuous glucose analyzer. How the node is wired — signal, file stack, data flow, evidence ladder, limitations and how to use it.">
+<link rel="stylesheet" href="../dex-wired.css">
+</head>
+<body>
+
+<header class="rail">
+  <div class="rail-in">
+    <a class="brand" href="How It's Wired - the Dex Suite.html"><svg class="brandmark" viewBox="0 0 100 100" aria-hidden="true" style="width:17px;height:17px;flex:none;filter:drop-shadow(0 0 5px rgba(61,224,208,.4))"><defs><linearGradient id="tgrad" x1="14" y1="10" x2="86" y2="88" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3DE0D0"/><stop offset=".58" stop-color="#58A6FF"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs><g fill="none" stroke="url(#tgrad)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></g></svg>How it's wired <small>Tepna</small></a>
+    <nav class="rail-nodes"><a href="How It's Wired - OxyDex.html">OxyDex</a><a href="How It's Wired - ECGDex.html">ECGDex</a><a href="How It's Wired - PulseDex.html">PulseDex</a><a href="How It's Wired - PpgDex.html">PpgDex</a><a href="How It's Wired - HRVDex.html">HRVDex</a><a href="How It's Wired - GlucoDex.html" class="cur">GlucoDex</a><a href="How It's Wired - CPAPDex.html">CPAPDex</a></nav>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <header class="dochead">
+    <div class="eyebrow"><a class="back" href="How It's Wired - the Dex Suite.html">← the -Dex suite</a> · node wiring</div>
+    <h1><span class="glyph">🍬</span><span class="g">GlucoDex</span></h1>
+    <p class="lede">GlucoDex senses one signal — <b>continuous glucose</b> — and computes the full glycemic suite. It is the suite’s metabolic receptor, and it can fuse an ECGDex export to read the autonomic↔glycemic link.</p>
+    <div class="specsheet">
+      <div class="cell"><div class="k">Signal sensed</div><div class="v">Continuous glucose (CGM)<small>~5-minute sampling, around the clock</small></div></div>
+      <div class="cell"><div class="k">Device</div><div class="v">CGM sensor<small>skin-patch continuous monitor</small></div></div>
+      <div class="cell"><div class="k">Input format</div><div class="v">CGM CSV<small>MDY date default · synthetic generator</small></div></div>
+      <div class="cell"><div class="k">Produces</div><div class="v">Glycemic suite + fusion<small>→ ganglior.node-export</small></div></div>
+    </div>
+  </header>
+
+  <!-- 01 WHAT IT SENSES -->
+  <section class="sec">
+    <div class="sec-num">01 — WHAT IT'S FOR</div>
+    <h2 class="sec-h">A single-signal receptor</h2>
+    <p class="sec-d">Read the suite as a reflex arc: <b>receptors → relay → integration → insight</b>. GlucoDex is an <b>afferent receptor</b> — it does exactly one transduction well and reports inward. It never reaches into another node; cross-signal work happens only through the Ganglior export, consumed by the Integrator.</p>
+    <div class="callout"><span class="ci">🧠</span><div><b>One signal per node.</b> GlucoDex senses continuous glucose (cgm) and nothing else. If you’re tempted to sense a second signal, that’s a second node — fusion is the Integrator’s job, never a receptor’s.</div></div>
+  </section>
+
+  <!-- 02 THE WIRING -->
+  <section class="sec">
+    <div class="sec-num">02 — THE WIRING</div>
+    <h2 class="sec-h">The file stack</h2>
+    <p class="sec-d">GlucoDex is built from external <code>*.js</code> files referenced by <code>GlucoDex.src.html</code> and bundled to a standalone <code>GlucoDex.html</code>. Dependencies point downhill only — <b>UI → DSP → Core</b> — and each file owns exactly one job. <b>Edit the <code>.js</code> + <code>.src.html</code>, never the bundle; re-bundle after changes.</b></p>
+    <div class="flow">
+      <div class="flow-row" style="--lc:var(--L-dsp)">
+        <div class="flow-rail"><span class="lz">DSP</span><span class="spine"></span><span class="node-dot"></span><span class="spine"></span></div>
+        <div class="flow-cards">
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">glucodex-dsp.js</span><span class="ftag">DSP</span></div>
+              <div class="fdesc">Robust CSV ingest + the full glycemic math: core (mean/GMI/eA1c/SD/CV/TIR), variability (MAGE/CONGA/MODD/GVP/J-index/LBGI/HBGI), pattern detection (dawn/nocturnal hypo/excursions), AGP aggregation, and a synthetic CGM generator. Exposes window.GLUDSP.</div>
+            </div>
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">glucodex-profile.js</span><span class="ftag">DSP</span></div>
+              <div class="fdesc">Family profile tuned for CGM: Glycemic Stability hero, projected metabolic age, diabetes status / therapy / target override, and lab-A1c ground truth to validate GMI. Exposes window.GLUProfile.</div>
+            </div>
+        </div>
+      </div>
+      <div class="flow-row" style="--lc:var(--L-core)">
+        <div class="flow-rail"><span class="lz">Core</span><span class="spine"></span><span class="node-dot"></span><span class="spine"></span></div>
+        <div class="flow-cards">
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">kernel-constants.js</span><span class="ftag">Core · shared</span></div>
+              <div class="fdesc">The frozen physiology kernel — one source of truth for every cross-fleet threshold, plus a content-derived hash stamped into each export so two bundles built on different rulebooks can’t silently “agree” when fused.</div>
+            </div>
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">ganglior-provenance.js</span><span class="ftag">Core · shared</span></div>
+              <div class="fdesc">Loaded first — installs the read-hook that makes every export attributable to the exact code + inputs that produced it (the <code>buildHash</code> provenance stamp). 100% local.</div>
+            </div>
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">metric-registry.js</span><span class="ftag">Core · shared</span></div>
+              <div class="fdesc">The shared half of the evidence system: the badge SHAPE, depth tiering and the injected badge CSS. The per-node registry below supplies the DATA, so a Validated dot looks identical in every node.</div>
+            </div>
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">glucodex-registry.js</span><span class="ftag">Core</span></div>
+              <div class="fdesc">Per-metric DATA map; labels mirror the KPI grid + full metrics table. GlucoDex has no cross helper.</div>
+            </div>
+        </div>
+      </div>
+      <div class="flow-row" style="--lc:var(--L-render)">
+        <div class="flow-rail"><span class="lz">Render · UI</span><span class="spine"></span><span class="node-dot"></span><span class="spine"></span></div>
+        <div class="flow-cards">
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">glucodex-render.js</span><span class="ftag">Render · UI</span></div>
+              <div class="fdesc">GlucoScope canvas trace explorer (TIR bands, greyed warm-up/gap spans, pan/zoom + minimap) and hand-rolled SVG charts: AGP envelope, TIR stacked bar, daily overlay, distribution, the autonomic↔glycemic plot. Exposes window.GLUUI.</div>
+            </div>
+        </div>
+      </div>
+      <div class="flow-row" style="--lc:var(--L-app)">
+        <div class="flow-rail"><span class="lz">App · glue</span><span class="spine"></span><span class="node-dot"></span><span class="spine"></span></div>
+        <div class="flow-cards">
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">glucodex-app.js</span><span class="ftag">App · glue</span></div>
+              <div class="fdesc">Glue + the FUSION engine: CGM ingest, pipeline, UI population, ingesting an ECGDex JSON into an autonomic-risk vector, the IR-risk band, and all exports.</div>
+            </div>
+        </div>
+      </div>
+    </div>
+    <div class="callout clock"><span class="ci">🕒</span><div><b>The Clock Contract.</b> GlucoDex stamps every record as floating wall-clock <code>tMs</code> (local civil time encoded as if UTC) and reads it back with <code>getUTC*</code> — so the recording reads identically in any viewer’s timezone, and two devices recording the same minute land on the same <code>tMs</code>. <code>parseTimestamp</code> is duplicated locally by design.</div></div>
+  </section>
+
+  <!-- 03 DATA FLOW -->
+  <section class="sec">
+    <div class="sec-num">03 — HOW IT'S ACHIEVED</div>
+    <h2 class="sec-h">From file drop to Ganglior event</h2>
+    <p class="sec-d">The pipeline is the same shape across the suite: ingest → parse on the canonical clock → compute in DSP → grade &amp; render in UI → emit onto the bus. No number is computed in the render layer; it asks DSP for the value and the registry for how to show it.</p>
+    <div class="pipe">
+        <div class="pstep"><div><h4>Load CGM data</h4><p>Drop a CGM CSV or generate a realistic synthetic trace. Ingest is robust to vendor column layouts.</p><div class="pf"><b>glucodex-app.js → ingest</b></div></div></div>
+        <div class="pstep"><div><h4>Parse on MDY clock</h4><p>Timestamps become floating tMs; GlucoDex disambiguates dates as MDY (CGM convention) per the Clock Contract, never locale parsing.</p><div class="pf"><b>parseTimestamp({preferDMY:false})</b></div></div></div>
+        <div class="pstep"><div><h4>Compute on the full series</h4><p>All glycemic math runs on the full cleaned series — decimation is render-only. Core metrics, variability suite, pattern detection and AGP percentiles.</p><div class="pf"><b>glucodex-dsp.js (GLUDSP)</b></div></div></div>
+        <div class="pstep"><div><h4>Optional fusion</h4><p>If an ECGDex export is dropped, the autonomic-risk vector is combined with glycemic variability into an insulin-resistance-risk band and the autonomic↔glycemic plot.</p><div class="pf"><b>glucodex-app.js → FUSION</b></div></div></div>
+        <div class="pstep"><div><h4>Render + emit</h4><p>GlucoScope and the AGP/TIR charts are drawn; events and metrics export onto Ganglior.</p><div class="pf"><b>GLUUI + ganglior.node-export</b></div></div></div>
+    </div>
+  </section>
+
+  <!-- 04 EVIDENCE -->
+  <section class="sec">
+    <div class="sec-num">04 — HOW MUCH TO TRUST IT</div>
+    <h2 class="sec-h">The evidence ladder</h2>
+    <p class="sec-d">Every metric GlucoDex surfaces carries an <b>evidence grade</b> — a non-hue badge whose <b>fill is the confidence ladder</b>: solid bullseye for a raw reading, down to a dashed ring for a friendly estimate. A measurement and a projection must never look alike. Grades live in <code>glucodex-registry.js</code>, the one source of truth.</p>
+    <div class="evladder">
+        <div class="evrow">
+          <span class="evname"><span class="ev ev-measured big"></span><b>Measured</b></span>
+          <span class="exs">Mean glucose · SD · MAG · % sensor active · active duration · nocturnal-hypo & excursion counts</span>
+        </div>
+        <div class="evrow">
+          <span class="evname"><span class="ev ev-validated big"></span><b>Validated</b></span>
+          <span class="exs">GMI · eA1c · CV · TIR / TITR / TBR / TAR · MAGE · MODD · CONGA · J-index · GRADE · ADRR · LBGI · HBGI</span>
+        </div>
+        <div class="evrow">
+          <span class="evname"><span class="ev ev-emerging big"></span><b>Emerging</b></span>
+          <span class="exs">Dawn-phenomenon detection · AGP percentile patterns</span>
+        </div>
+        <div class="evrow">
+          <span class="evname"><span class="ev ev-experimental big"></span><b>Experimental</b></span>
+          <span class="exs">Autonomic↔glycemic fusion · IR-risk band</span>
+        </div>
+        <div class="evrow">
+          <span class="evname"><span class="ev ev-heuristic big"></span><b>Heuristic</b></span>
+          <span class="exs">Projected metabolic age</span>
+        </div>
+    </div>
+  </section>
+
+  <!-- 05 LIMITATIONS -->
+  <section class="sec">
+    <div class="sec-num">05 — LIMITATIONS &amp; CONSIDERATIONS</div>
+    <h2 class="sec-h">What it can and can't say</h2>
+    <p class="sec-d">Honesty is architectural: a guess is never dressed as a measurement, a missing value stays <code>null</code> rather than fabricated, and confidence is kept separate from signal quality. The node-specific caveats:</p>
+    <div class="notes">
+        <div class="note info"><h4>Warm-up & gaps are greyed<span class="tagi">note</span></h4><p>Sensor warm-up and dropout spans are excluded from the math and shown greyed on GlucoScope — they are not silently interpolated.</p></div>
+        <div class="note warn"><h4>Compression lows<span class="tagi">caution</span></h4><p>Lying on the sensor can produce false nocturnal lows. Pattern detection flags them, but a confirmed hypo still needs a fingerstick.</p></div>
+        <div class="note good"><h4>GMI vs lab-A1c<span class="tagi">by design</span></h4><p>The profile takes a real lab-A1c as ground truth and checks it against the sensor-derived GMI — the family’s device-vs-self honesty check.</p></div>
+        <div class="note lim"><h4>Date format matters<span class="tagi">limitation</span></h4><p>CGM exports are MDY by convention; GlucoDex locks DMY/MDY deterministically per file so 05/13 and 13/05 both resolve to the same day.</p></div>
+    </div>
+  </section>
+
+  <!-- 06 HOW TO USE -->
+  <section class="sec">
+    <div class="sec-num">06 — HOW TO USE IT</div>
+    <h2 class="sec-h">For the curious, and for the next coder</h2>
+    <div class="use">
+      <div class="usecard"><div class="ui">📂</div><div><h4>Open the instrument</h4><p>GlucoDex is one self-contained file. Open <code>GlucoDex.html</code> in any browser — online, offline, or from <code>file://</code>. Nothing installs, nothing phones home.</p><a class="open" href="../GlucoDex.html">Open GlucoDex →</a></div></div>
+      <div class="usecard"><div class="ui">📥</div><div><h4>Drop your recording</h4><p>Drag a CGM sensor export (cgm csv) onto the upload zone. It’s read in-browser and turned into metrics on your device alone.</p></div></div>
+      <div class="usecard"><div class="ui">🎚️</div><div><h4>Read at your depth</h4><p>Start in <b>Core</b> for the headline readiness and a plain-language line. Step up to <b>Advanced</b> for full tables and charts, or <b>Research</b> for composites and the full dump. Each metric’s evidence dot tells you how far to trust it.</p></div></div>
+      <div class="usecard"><div class="ui">🔀</div><div><h4>Export onto Ganglior</h4><p>Export a <code>ganglior.node-export</code> JSON to feed the Integrator, or to upgrade a peer node’s read. Events carry a wall-clock <code>t</code>; consumers reconstruct absolute time from the recording start.</p><a class="open" href="../GlucoDex Reference.html">GlucoDex reference guide →</a></div></div>
+      <div class="usecard"><div class="ui">🛠️</div><div><h4>If you’re changing it</h4><p>Edit the <code>glucodex-*.js</code> files or <code>GlucoDex.src.html</code> — <b>never the bundled <code>GlucoDex.html</code></b> — then re-bundle. Run <code>Dex-Test-Suite.html</code> until all-green, and <code>verify-provenance.html</code> after re-bundling.</p></div></div>
+    </div>
+  </section>
+
+  <!-- PAGER -->
+  <section class="sec" style="border-top:none;padding-top:8px;">
+      <div class="pager">
+        <a href="How It's Wired - HRVDex.html"><div class="pl">← Previous node</div><div class="pt">HRVDex</div></a>
+        <a class="nx" href="How It's Wired - CPAPDex.html"><div class="pl">Next node →</div><div class="pt">CPAPDex</div></a>
+      </div>
+  </section>
+
+  <footer class="docfoot">
+    <div class="fl">
+      <a href="How It's Wired - the Dex Suite.html">◈ Wiring index</a>
+      <a href="../GlucoDex.html">GlucoDex app</a>
+      <a href="../GlucoDex Reference.html">GlucoDex reference</a>
+      <a href="../templates/Visual-Language-Spec.html">Visual language</a>
+      <a href="../Integrator.html">Integrator</a>
+      <a href="../index.html">Tepna</a>
+    </div>
+    <div class="fn"><b>GlucoDex</b> — Continuous glucose analyzer · part of Tepna / the -Dex suite. 100% local · no network · system fonts only.</div>
+    <div class="disc">Not a medical device. Read-outs are for personal wellness and curiosity, not diagnosis. If something feels wrong, talk to a clinician.</div>
+  </footer>
+
+</div>
+</body>
+</html>

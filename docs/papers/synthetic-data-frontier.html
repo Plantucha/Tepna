@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  synthetic-data-frontier.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>What Tepna's harness reveals about the synthetic-physiological-data frontier — Tepna perspective</title>
+<link rel="stylesheet" href="../licensing/dex-license.css">
+<link rel="stylesheet" href="paper.css">
+<style>
+  .agenda{counter-reset:ag;}
+  .agenda > li{list-style:none;margin:0 0 14px;padding-left:34px;position:relative;}
+  .agenda > li::before{counter-increment:ag;content:"O" counter(ag);position:absolute;left:0;top:1px;font-family:var(--mono);font-size:12px;color:var(--accent);border:1px solid var(--accent);border-radius:3px;padding:1px 5px;}
+  .agenda b{display:block;font-family:var(--sans);font-size:13.5px;margin-bottom:2px;}
+  .matur{font-family:var(--sans);font-size:11px;display:inline-block;border-radius:3px;padding:1px 6px;margin-left:6px;vertical-align:1px;}
+  .m-solved{color:#1a6e3a;border:1px solid #1a6e3a;}
+  .m-open{color:var(--accent);border:1px solid var(--accent);}
+</style>
+</head>
+<body>
+<div class="sheet">
+  <a class="toplink" href="papers.html">← Tepna preprints</a>
+  <div class="banner">Tepna Perspective · research agenda · not a results paper</div>
+  <h1 class="title">The interesting part isn't the waveform: what Tepna's deterministic harness suggests about the open frontier in synthetic physiological data</h1>
+  <p class="byline">Tepna Project &nbsp;·&nbsp; <span style="color:#888">[corresponding author — to be assigned]</span></p>
+  <p class="affil">Tepna physiological-signal suite — cross-node perspective</p>
+  <p class="meta">Perspective v1 · June 2026 · No new analysis tool · scope note: parked for later, out of current build scope</p>
+
+  <div class="abstract">
+    <h2>Abstract</h2>
+    <p style="text-align:left;margin-bottom:0">Single-signal synthetic physiological generation — plausible-looking ECG, PPG, SpO&#8322;, or CGM traces from GANs and diffusion models — is a mature research area; reproducing one channel that <em>looks</em> right is largely a solved problem. Yet the failures that actually break a multi-device analysis suite live almost entirely <em>outside</em> the waveform: in timestamp pathology, in cross-modal temporal coherence, and in the provenance metadata that lets a derived metric be trusted. Tepna's harness already models these as first-class concerns — a frozen Clock Contract, an event-bus currency that reconstructs absolute time across nodes, and a build-hash provenance gate — and does so <b>deterministically, without any learned generator</b>. This note records, while the observation is fresh, four directions where synthetic-data work is still genuinely open, why Tepna is unusually well-positioned to study them, and which would be worth a real paper once the suite's core scope is met. <b>This is a perspective, not a study; it makes no empirical claims.</b></p>
+  </div>
+  <p class="kw"><b>Keywords:</b> synthetic data · physiological time-series · multimodal fusion · timestamp normalization · data provenance · deterministic generation · benchmarking</p>
+
+  <h2 class="sec">1. Why write this down now</h2>
+  <p>The question that prompted this note was simply whether Tepna is interesting for synthetic-data work, or whether the field has moved past it. The honest answer is split, and the split is itself the contribution: the obvious target (better-looking signals) is largely done elsewhere, while the targets Tepna happens to take seriously (time, cross-modal coherence, provenance) remain under-served. That asymmetry is easy to lose once the build resumes, so it is recorded here as a parked agenda rather than pursued — explicitly out of the current scope.</p>
+
+  <h2 class="sec">2. What is already solved (and not our frontier)</h2>
+  <p>Generating a single physiological channel that passes visual and short-horizon statistical inspection is well-trodden: adversarial and diffusion models for ECG morphology, PPG synthesis, and CGM trajectory generation are established. If the goal were "produce fake vitals that look real," off-the-shelf approaches suffice and Tepna adds little. We therefore treat per-channel realism as a solved input, not a research question, and direct attention to the layers above it.</p>
+
+  <h2 class="sec">3. The open frontier, as the harness exposes it</h2>
+  <ol class="agenda">
+    <li><b>Timestamp pathology as a modeled phenomenon <span class="matur m-open">open</span></b>Synthetic corpora almost never model how clocks actually misbehave — yet multi-device fusion breaks here, not in the morphology. Tepna's Clock Contract enumerates the failure surface precisely: floating wall-clock time with no zone, DMY/MDY ambiguity resolved per-file, monotonic midnight rollover from time-only stamps, zoned-versus-naive equivalence, and stamp-less rows that must read as <em>null</em> rather than "now". A synthetic generator that <em>reproduces</em> O2Ring vs Welltory vs Polar Sensor Logger stamp quirks would be more valuable for testing real pipelines than any prettier waveform.</li>
+    <li><b>Cross-node temporal coherence <span class="matur m-open">open</span></b>The hard problem is not one stream but several that must stay mutually consistent: SpO&#8322;, HRV, raw ECG, and CGM sharing physiology, drift, and anchors so an event on one channel lands at the right instant on the others. Tepna's Ganglior event bus already defines this currency — <code>startEpochMs</code> plus wall-clock event strings reconstructed to absolute time, monotonic past midnight. Correlated multimodal synthesis with shared temporal anchors is substantially harder than single-channel generation and remains largely unaddressed.</li>
+    <li><b>Provenance as a data property <span class="matur m-open">open</span></b>Most synthetic datasets ship a tensor and nothing about its trustworthiness. Tepna carries two metadata layers that synthetic work usually omits entirely: a build-hash provenance gate that ties every export to a reproducible build <em>skeleton</em> (the hash fingerprints the bundle template, not the executed code — itself an instructive limitation), and a 5-level evidence ladder grading each <em>derived</em> metric by how well-validated it is. Synthesizing data that also carries faithful, gradeable provenance — including realistic <em>degradation</em> of that provenance — is an unexplored direction.</li>
+    <li><b>Deterministic generation as a benchmark substrate <span class="matur m-solved">tractable now</span></b>Tepna's cohort harness generates stress fixtures deterministically — patient <code>k</code> is a pure function of <code>k</code> — with no model training, so a fixture set is byte-reproducible and auditable. This is the right tool for adversarially probing parsers and fusion logic (malformed stamps, wrapped clocks, mixed locales, dropped channels). The open question is whether a deterministic, fully-specified fixture suite can serve as a shared "where do consumer multi-signal pipelines break" benchmark — complementary to, and more reproducible than, a learned generator.</li>
+  </ol>
+
+  <h2 class="sec">4. A rough map of effort vs novelty</h2>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 1.</b> Where each layer sits. "Maturity" is the field's, not Tepna's; "fit" is how directly the existing harness supports the work.</caption>
+    <thead><tr><th>Layer</th><th>Field maturity</th><th>Harness fit</th><th>Needs ML?</th></tr></thead>
+    <tbody>
+      <tr><td>Single-channel waveform realism</td><td>mature</td><td>low</td><td>yes</td></tr>
+      <tr class="hi"><td>Timestamp / clock pathology</td><td>open</td><td>high</td><td>no</td></tr>
+      <tr class="hi"><td>Cross-modal temporal coherence</td><td>open</td><td>high</td><td>partly</td></tr>
+      <tr><td>Provenance &amp; evidence metadata</td><td>open</td><td>high</td><td>no</td></tr>
+      <tr class="hi"><td>Deterministic fixture benchmark</td><td>emerging</td><td>high</td><td>no</td></tr>
+    </tbody>
+  </table>
+  <p>Three of the four open directions need no learned generator at all — they are specification, generation, and verification problems, which is exactly what the deterministic cohort harness is good at. That keeps any future work cheap to start and reproducible by construction.</p>
+
+  <h2 class="sec">5. What a real paper would look like (later)</h2>
+  <p>The most defensible first paper is the narrowest: a <b>deterministic timestamp-pathology benchmark</b>. Enumerate the Clock Contract's failure surface, generate a fixture corpus that exercises each case with known ground truth, run the production parsers against it, and report where consumer-style parsers (and, separately, naive <code>new Date(str)</code> baselines) diverge from the contract. It needs no cohort physiology, no model training, and grounds out entirely in code Tepna already ships. The multimodal-coherence and provenance-degradation directions are larger and better deferred until the cross-node Integrator scope is complete.</p>
+  <div class="callout"><b>Scope note.</b> This is a <b>perspective and parking document</b>, not a result. Nothing here is measured; the "open" labels reflect a reading of the field, not a survey. Its only job is to keep the observation — that Tepna's value to synthetic-data research is in time, coherence, and provenance rather than waveforms — from being rediscovered later. Pursue only after the suite's core build scope is fulfilled.</p>
+
+  <h2 class="sec">6. Reproducibility</h2>
+  <ul>
+    <li><b>No new tool:</b> this perspective generates nothing; it cites existing infrastructure only.</li>
+    <li><b>Clock Contract:</b> see project <code>CLAUDE.md</code> §"THE CLOCK CONTRACT" and each node's <code>*-dsp.js</code> <code>parseTimestamp</code>.</li>
+    <li><b>Event-bus currency:</b> <code>ganglior_events</code> / <code>startEpochMs</code> export contract; <code>ganglior-provenance.js</code> for build-hash.</li>
+    <li><b>Deterministic cohort:</b> <code>cohort-gen.js</code>, <code>cohort-harness.html</code>, <code>COHORT-WORKFLOW-GUIDE.md</code>.</li>
+    <li><b>Evidence ladder:</b> <code>metric-registry.js</code> (<code>BADGE_CSS</code>) and each node's <code>&lt;node&gt;-registry.js</code>.</li>
+  </ul>
+
+  <h2 class="sec">References</h2>
+  <ol class="refs">
+    <li>Project documentation: <code>CLAUDE.md</code> (Clock Contract, provenance &amp; evidence gates), <code>INTEGRATOR-BUILD-BRIEF.md</code>, <code>COHORT-WORKFLOW-GUIDE.md</code>, Tepna suite.</li>
+    <li>Survey references on GAN/diffusion synthesis of ECG, PPG, and CGM time-series — to be added if this is promoted to a study.</li>
+    <li>References on multimodal time-series alignment and on synthetic-data provenance/benchmarking — to be added at submission.</li>
+  </ol>
+
+  <div class="footer">Tepna perspective · research agenda, parked for later · no empirical claims, no generated figures or statistics. Promote to a study only after core suite scope is met. Not peer-reviewed; not for clinical use.</div>
+</div>
+
+<div class="dxl dxl-oneline" style="max-width:820px;margin:30px auto 8px;justify-content:center">
+  <span class="dxl-mark">T</span>
+  <span>© 2026 <b style="font-weight:600;color:var(--text,#F4F7FB)">Michal Planicka</b></span>
+  <span class="dxl-sep">·</span><span>Tepna v1.0.0</span>
+  <span class="dxl-sep">·</span><span class="dxl-lic">Apache-2.0</span>
+  <span class="dxl-sep">·</span><span style="color:var(--text4,#6E7F94)">◈ Asheville, NC</span>
+  <span class="dxl-sep">·</span><span style="color:var(--text4,#6E7F94)">not a medical device</span>
+</div>
+</body></html>

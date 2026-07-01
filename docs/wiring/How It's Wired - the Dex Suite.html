@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  How It's Wired — the Dex Suite · index
+  Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+  A reference hub linking each node's wiring doc. Loads no app code.
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How It's Wired — the -Dex suite</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<meta name="description" content="How every -Dex node is wired: signal, file stack, data flow, evidence ladder, limitations and how to use it. One reference per receptor.">
+<link rel="stylesheet" href="../dex-wired.css">
+<style>
+  .hub-hero{padding:60px 0 18px;}
+  .arc-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-family:var(--mono);font-size:12.5px;color:var(--text3);margin-top:26px;background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:15px 18px;}
+  .arc-line b{color:var(--text);font-weight:600;}
+  .arc-line .a{color:var(--text4);}
+  .arc-line .seg{display:inline-flex;align-items:center;gap:10px;}
+  .ngrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:6px;}
+  @media(max-width:820px){.ngrid{grid-template-columns:1fr 1fr;}}
+  @media(max-width:560px){.ngrid{grid-template-columns:1fr;}}
+  .ncard{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px 20px 18px;transition:.16s;display:block;}
+  .ncard:hover{border-color:var(--border2);transform:translateY(-2px);background:var(--surface2);}
+  .nc-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;}
+  .nc-glyph{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;font-size:24px;background:linear-gradient(150deg,rgba(61,224,208,.14),rgba(88,166,255,.09));border:1px solid rgba(61,224,208,.2);}
+  .nc-node{font-family:var(--mono);font-size:11px;color:var(--teal);background:rgba(61,224,208,.08);border:1px solid rgba(61,224,208,.2);padding:4px 11px;border-radius:999px;}
+  .ncard h3{font-size:16.5px;font-weight:700;margin:0;letter-spacing:-.01em;}
+  .nc-dev{font-family:var(--mono);font-size:11.5px;color:var(--text4);margin:4px 0 10px;}
+  .ncard p{font-size:13px;color:var(--text3);margin:0;}
+  .nc-open{display:inline-block;margin-top:14px;font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:.04em;opacity:.85;}
+  .ncard:hover .nc-open{opacity:1;}
+  .integ{background:transparent;border-style:dashed;}
+  .integ .nc-glyph{background:rgba(167,139,250,.1);border-color:rgba(167,139,250,.25);}
+  .integ .nc-node{color:var(--purple);background:rgba(167,139,250,.08);border-color:rgba(167,139,250,.2);}
+</style>
+</head>
+<body>
+
+<header class="rail">
+  <div class="rail-in">
+    <a class="brand" href="How It's Wired - the Dex Suite.html"><svg class="brandmark" viewBox="0 0 100 100" aria-hidden="true" style="width:17px;height:17px;flex:none;filter:drop-shadow(0 0 5px rgba(61,224,208,.4))"><defs><linearGradient id="tgrad" x1="14" y1="10" x2="86" y2="88" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3DE0D0"/><stop offset=".58" stop-color="#58A6FF"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs><g fill="none" stroke="url(#tgrad)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></g></svg>How it's wired <small>Tepna</small></a>
+    <nav class="rail-nodes"><a href="How It's Wired - OxyDex.html">OxyDex</a><a href="How It's Wired - ECGDex.html">ECGDex</a><a href="How It's Wired - PulseDex.html">PulseDex</a><a href="How It's Wired - PpgDex.html">PpgDex</a><a href="How It's Wired - HRVDex.html">HRVDex</a><a href="How It's Wired - GlucoDex.html">GlucoDex</a><a href="How It's Wired - CPAPDex.html">CPAPDex</a><a href="How It's Wired - Integrator.html" style="color:var(--purple)">Integrator</a><a href="How It's Wired - SynthGen.html">SynthGen</a><a href="How It's Wired - Experiments.html">Experiments</a><a href="How It's Wired - Science Papers.html">Papers</a></nav>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <header class="dochead hub-hero">
+    <div class="eyebrow">Tepna · the -Dex suite · internals</div>
+    <h1>How it's <span class="g">wired</span></h1>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;">
+      <a href="How It's Wired - Architecture.html" style="font-family:var(--mono);font-size:12px;color:var(--teal);border:1px solid rgba(61,224,208,.3);border-radius:9px;padding:8px 15px;">🗺️ Architecture — start here</a>
+      <span class="tool-off">📄 CONTRIBUTING.md</span>
+    </div>
+    <p class="lede">One reference per receptor. Each page explains <b>what the node senses</b>, <b>the file stack that powers it</b>, the data flow from file-drop to Ganglior event, how far to trust each metric, the honest limitations, and how to use it — written to be read by humans and AI alike.</p>
+    <div class="arc-line">
+      <span class="seg"><b>receptors</b> <span class="a">the -Dex nodes</span></span><span class="a">→</span>
+      <span class="seg"><b>Ganglior</b> <span class="a">the relay bus</span></span><span class="a">→</span>
+      <span class="seg"><b>Integrator</b> <span class="a">fusion</span></span><span class="a">→</span>
+      <span class="seg"><b>insight</b> <span class="a">the read-out</span></span>
+    </div>
+  </header>
+
+  <section class="sec" style="border-top:none;">
+    <div class="sec-num">THE NODES</div>
+    <h2 class="sec-h">Seven receptors, one signal each</h2>
+    <p class="sec-d">A -Dex node is an afferent receptor: it senses exactly one physiological signal and emits events onto the Ganglior bus. Nodes never import each other — they meet only through the export contract, fused by the Integrator. Pick a node to see its wiring.</p>
+    <div class="ngrid">
+      <a class="ncard" href="How It's Wired - OxyDex.html">
+        <div class="nc-top"><span class="nc-glyph">🩸</span><span class="nc-node">OxyDex</span></div>
+        <h3>Blood oxygen</h3>
+        <div class="nc-dev">O2Ring overnight oximetry</div>
+        <p>Nocturnal oximetry analyzer</p>
+        <span class="nc-open">See how it's wired →</span>
+      </a>
+      <a class="ncard" href="How It's Wired - ECGDex.html">
+        <div class="nc-top"><span class="nc-glyph">❤️</span><span class="nc-node">ECGDex</span></div>
+        <h3>Heart’s electrical rhythm</h3>
+        <div class="nc-dev">Polar H10 chest strap</div>
+        <p>Single-lead ECG analyzer</p>
+        <span class="nc-open">See how it's wired →</span>
+      </a>
+      <a class="ncard" href="How It's Wired - PulseDex.html">
+        <div class="nc-top"><span class="nc-glyph">💗</span><span class="nc-node">PulseDex</span></div>
+        <h3>Beat-to-beat RR / HRV</h3>
+        <div class="nc-dev">Polar Verity Sense armband</div>
+        <p>Raw RR-interval HRV analyzer</p>
+        <span class="nc-open">See how it's wired →</span>
+      </a>
+      <a class="ncard" href="How It's Wired - PpgDex.html">
+        <div class="nc-top"><span class="nc-glyph">🟢</span><span class="nc-node">PpgDex</span></div>
+        <h3>Raw wrist-PPG + morphology</h3>
+        <div class="nc-dev">Polar Verity Sense (raw PPG)</div>
+        <p>Raw wrist-PPG analyzer</p>
+        <span class="nc-open">See how it's wired →</span>
+      </a>
+      <a class="ncard" href="How It's Wired - HRVDex.html">
+        <div class="nc-top"><span class="nc-glyph">📈</span><span class="nc-node">HRVDex</span></div>
+        <h3>Daily HRV summary trend</h3>
+        <div class="nc-dev">Welltory morning reading</div>
+        <p>Daily HRV summary analyzer</p>
+        <span class="nc-open">See how it's wired →</span>
+      </a>
+      <a class="ncard" href="How It's Wired - GlucoDex.html">
+        <div class="nc-top"><span class="nc-glyph">🍬</span><span class="nc-node">GlucoDex</span></div>
+        <h3>Continuous glucose</h3>
+        <div class="nc-dev">CGM skin sensor</div>
+        <p>Continuous glucose analyzer</p>
+        <span class="nc-open">See how it's wired →</span>
+      </a>
+      <a class="ncard" href="How It's Wired - CPAPDex.html">
+        <div class="nc-top"><span class="nc-glyph">🌬️</span><span class="nc-node">CPAPDex</span></div>
+        <h3>CPAP therapy (EDF reader)</h3>
+        <div class="nc-dev">ResMed AirSense logs</div>
+        <p>CPAP therapy analyzer · scaffold</p>
+        <span class="nc-open">See how it's wired →</span>
+      </a>
+      <a class="ncard integ" href="How It's Wired - Integrator.html">
+        <div class="nc-top"><span class="nc-glyph">🧠</span><span class="nc-node">Integrator</span></div>
+        <h3>The fusion layer</h3>
+        <div class="nc-dev">consumes every node’s export</div>
+        <p>Not a receptor — the integration centre that fuses afferent nodes into one longitudinal percept.</p>
+        <span class="nc-open">See how it’s wired →</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-num">RESEARCH &amp; VALIDATION</div>
+    <h2 class="sec-h">The tier that proves the suite</h2>
+    <p class="sec-d">Beneath the instruments sits the research scaffolding: a synthetic-corpus generator with known ground truth, a harness that runs the real detectors at scale, and the preprint series that writes up what they find. Three more wiring guides cover it.</p>
+    <div class="ngrid">
+      <a class="ncard" href="How It's Wired - SynthGen.html">
+        <div class="nc-top"><span class="nc-glyph">🧬</span><span class="nc-node">SynthGen</span></div>
+        <h3>Synthetic corpus</h3>
+        <div class="nc-dev">one timeline · every device format</div>
+        <p>Generates a synthetic overnight corpus with known ground truth, on one shared floating clock.</p>
+        <span class="nc-open">See how it's wired →</span>
+      </a>
+      <a class="ncard" href="How It's Wired - Experiments.html">
+        <div class="nc-top"><span class="nc-glyph">🔬</span><span class="nc-node">Experiments</span></div>
+        <h3>Validation harness</h3>
+        <div class="nc-dev">real DSP · iframe realms</div>
+        <p>Runs the real detectors headless at scale — cohort harness, bias, confound, reliability, the regression gate.</p>
+        <span class="nc-open">See how it's wired →</span>
+      </a>
+      <a class="ncard" href="How It's Wired - Science Papers.html">
+        <div class="nc-top"><span class="nc-glyph">📄</span><span class="nc-node">Papers</span></div>
+        <h3>Working preprints</h3>
+        <div class="nc-dev">each cites a live tool</div>
+        <p>Findings written up so they need not be rediscovered — reproducible from a named local tool.</p>
+        <span class="nc-open">See how it's wired →</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-num">READING THESE DOCS</div>
+    <h2 class="sec-h">What every page covers</h2>
+    <div class="notes">
+      <div class="note info"><h4>What it's for<span class="tagi">§01</span></h4><p>The one signal the node senses, its device, input format, and its role as an afferent receptor in the reflex arc.</p></div>
+      <div class="note info"><h4>The wiring<span class="tagi">§02</span></h4><p>The external <code>*.js</code> file stack — DSP, Core, Render, App, Fusion — each card a file, each with its one job and the downhill dependency direction.</p></div>
+      <div class="note info"><h4>How it's achieved<span class="tagi">§03</span></h4><p>The pipeline from file-drop → clock-stamped parse → DSP compute → graded render → Ganglior emit, with the real function names.</p></div>
+      <div class="note good"><h4>Evidence + limits<span class="tagi">§04–05</span></h4><p>Each metric on the five-tier evidence ladder, then the honest, node-specific limitations — what the signal can and can’t say.</p></div>
+    </div>
+    <div class="callout frozen"><span class="ci">◆</span><div>These are <b>reference docs</b>, not bundled instruments — they load no app code and carry no <code>buildHash</code>. The apps themselves are frozen, hash-verifiable single files; edit the <code>.js</code> + <code>.src.html</code> and re-bundle to change one.</div></div>
+  </section>
+
+  <footer class="docfoot">
+    <div class="fl">
+      <a href="../OxyDex.html">OxyDex</a>
+      <a href="../ECGDex.html">ECGDex</a>
+      <a href="../PulseDex.html">PulseDex</a>
+      <a href="../PpgDex.html">PpgDex</a>
+      <a href="../HRVDex.html">HRVDex</a>
+      <a href="../GlucoDex.html">GlucoDex</a>
+      <a href="../CPAPDex.html">CPAPDex</a>
+      <a href="../Integrator.html">Integrator</a>
+      <span class="tool-off">SynthGen</span>
+      <span class="tool-off">Experiments</span>
+      <a href="../papers/papers.html">Papers</a>
+      <a href="../index.html">Tepna</a>
+    </div>
+    <div class="fn"><b>Tepna</b> — a browser-native, 100%-local physiological analysis instrument framework. Receptors → relay → integration → insight.</div>
+    <div class="disc">Not a medical device. Read-outs are for personal wellness and curiosity, not diagnosis. If something feels wrong, talk to a clinician.</div>
+  </footer>
+
+</div>
+</body>
+</html>

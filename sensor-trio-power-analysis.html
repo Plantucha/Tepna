@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  sensor-trio-power-analysis.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How many windows to pin a sensor's σ? — trio sample-size / power (HR)</title>
+<!-- ════════════════════════════════════════════════════════════════════════
+  Sample-size / power for reference-free σ across the O2Ring + Polar H10 +
+  Verity Sense trio. sigma-no-reference recovers each device's HR-error σ from
+  one simultaneous three-device window via the three-cornered hat (TCH) — this
+  tool answers HOW MANY co-recorded windows you need to pin that σ to a target
+  precision. Simulation arm: synthetic trio with KNOWN per-device σ + a
+  resting/dynamic variance regime; the SAME TCH kernel is swept over N_windows
+  by Monte-Carlo. Real arm: the committed trio window(s) overlaid on the sim's
+  predicted CI band. 100% local; analysis tool, not a bundled detector.
+═════════════════════════════════════════════════════════════════════════ -->
+<style>
+  :root{
+    --bg:#0c0f14; --surface:#141922; --surface2:#1b212c; --line:rgba(255,255,255,.08);
+    --text:#e6edf6; --text2:#aab8cc; --text3:#6f8096; --teal:#3DE0D0; --blue:#58A6FF;
+    --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A; --purple:#B98AFF;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;padding:0 0 90px;}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px;}
+  header{padding:26px 0 16px;border-bottom:1px solid var(--line);margin-bottom:22px;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--blue);}
+  h1{margin:6px 0 3px;font-size:25px;font-weight:650;letter-spacing:-.01em;}
+  h1 .g{color:var(--blue);}
+  .sub{color:var(--text3);font-size:13px;max-width:880px;line-height:1.5;}
+  .controls{display:flex;gap:10px;align-items:center;margin-top:18px;flex-wrap:wrap;}
+  button{font-family:var(--sans);font-size:13px;font-weight:600;padding:9px 16px;border-radius:8px;border:1px solid var(--line);background:var(--surface2);color:var(--text);cursor:pointer;}
+  button:hover{border-color:rgba(255,255,255,.2);}
+  button.primary{background:var(--blue);color:#04204a;border-color:transparent;}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  .pill{font-family:var(--mono);font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid var(--line);}
+  .pill.idle{color:var(--text3);} .pill.run{color:var(--blue);border-color:rgba(88,166,255,.35);} .pill.done{color:var(--green);border-color:rgba(57,217,138,.35);}
+  label.fld{font-size:11px;color:var(--text3);display:flex;flex-direction:column;gap:3px;font-family:var(--mono);}
+  label.fld input{font-family:var(--mono);font-size:13px;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:7px 9px;width:92px;}
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:18px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;}
+  .card h2{margin:0 0 14px;font-size:13px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;gap:8px;}
+  .card h2 .tag{font-family:var(--mono);font-size:10px;color:var(--text3);font-weight:500;border:1px solid var(--line);border-radius:5px;padding:2px 6px;margin-left:auto;}
+  .col-12{grid-column:span 12;} .col-8{grid-column:span 8;} .col-7{grid-column:span 7;} .col-6{grid-column:span 6;} .col-5{grid-column:span 5;} .col-4{grid-column:span 4;}
+  @media(max-width:900px){ .col-8,.col-7,.col-6,.col-5,.col-4{grid-column:span 12;} }
+  canvas{max-width:100%;display:block;background:#0f141b;border-radius:8px;}
+  .legend{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:9px;line-height:1.6;}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th,td{text-align:left;padding:6px 9px;border-bottom:1px solid rgba(255,255,255,.05);}
+  th{color:var(--text3);font-weight:500;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;}
+  td.num,th.num{text-align:right;font-family:var(--mono);}
+  .stat-row{display:flex;flex-direction:column;gap:16px;}
+  .stat{display:flex;flex-direction:column;gap:2px;}
+  .stat .v{font-family:var(--mono);font-size:23px;font-weight:600;letter-spacing:-.02em;}
+  .stat .l{font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;}
+  .muted{color:var(--text3);} .mono{font-family:var(--mono);}
+  .note{background:rgba(88,166,255,.07);border:1px solid rgba(88,166,255,.2);border-radius:10px;padding:12px 15px;font-size:12px;color:var(--text2);line-height:1.55;margin-top:10px;}
+  code{font-family:var(--mono);color:var(--blue);background:var(--surface2);padding:1px 5px;border-radius:4px;font-size:11px;}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="eyebrow">O2Ring · Polar H10 · Verity Sense · reference-free σ · sample-size</div>
+    <h1><span class="g">How many windows</span> to pin a sensor's σ?</h1>
+    <div class="sub">The three-cornered hat recovers each device's HR-error σ from <b>one</b> simultaneous O2Ring + H10 + Verity window with <b>no calibrated reference</b> — but one window gives no confidence interval. This tool answers the practitioner's question: <b>how many co-recorded windows do you need to pin each device's σ to a usable precision?</b> <span style="color:var(--text2)">Arm 1 — simulation power:</span> a synthetic trio with <b>known</b> per-device σ (planted at the real estimates 1.7 / 2.2 / 6.2 bpm) under a <b>resting</b> vs <b>dynamic</b> variance regime; the same TCH kernel is swept over N&nbsp;=&nbsp;1…20 windows by Monte-Carlo → σ̂ bias, CI half-width and RMSE vs N. <span style="color:var(--text2)">Arm 2 — anecdotal real comparison:</span> the committed trio window(s) overlaid on the sim's predicted band as N accumulates (today N&nbsp;=&nbsp;1, <em>validation accumulating</em>). A trio difference cancels the common true HR, so pure additive noise recovers with a regime-free 1/√N law — but at rest the shared beat-to-beat HRV is rendered differently by each device, injecting a signal-dependent correlated error that makes σ̂ noisier and can break the uncorrelated-error assumption. That is why the answer is <b>"how many windows of what kind."</b></div>
+    <div class="controls">
+      <button class="primary" id="runBtn">Run power simulation + real overlay</button>
+      <button id="cancel" style="display:none">cancel</button>
+      <span class="pill idle" id="status">idle</span>
+      <span class="pill idle" id="eta" style="opacity:.8"></span>
+      <label class="fld">trials / cell<input id="trials" type="number" value="500" min="100" max="50000" step="100"></label>
+      <label class="fld">window sec<input id="winSec" type="number" value="3600" min="1200" max="7200" step="600"></label>
+      <span style="flex:1"></span>
+      <button id="dlFig1" disabled>fig1.png</button>
+      <button id="dlFig2" disabled>fig2.png</button>
+      <button id="dlFig3" disabled>fig3.png</button>
+      <button id="dlStats" disabled>stats.json</button>
+      <button id="dlCsv" disabled>results.csv</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="grid">
+    <div class="card col-8">
+      <h2>Figure 1 — σ CI half-width vs N windows <span class="tag">dynamic regime · per device</span></h2>
+      <canvas id="curveCanvas" width="720" height="380"></canvas>
+      <div class="legend">95% CI half-width of the recovered σ̂ (bpm), Monte-Carlo over N co-recorded windows, clean (dynamic) regime. <span style="color:#FFB84D">O2Ring</span> · <span style="color:#3DE0D0">H10</span> · <span style="color:#B98AFF">Verity</span>. Red dashed = ±0.5 / ±0.25 / ±0.15 bpm precision targets. All shrink ≈ 1/√N; the hat couples the trio, so the curves track together rather than the noisy corner lagging far behind.</div>
+    </div>
+    <div class="card col-4">
+      <h2>Headline <span class="tag">dynamic regime</span></h2>
+      <div class="stat-row">
+        <div class="stat"><span class="v" id="hPin05" style="color:#39D98A">—</span><span class="l">windows to pin every device's σ to ±0.5 bpm</span></div>
+        <div class="stat"><span class="v" id="hPin025" style="color:#58A6FF">—</span><span class="l">windows for the tighter ±0.25 bpm</span></div>
+        <div class="stat"><span class="v" id="hRestBias" style="color:#FF6B7A">—</span><span class="l">H10 resting under-recovery vs true σ (floor-stripping)</span></div>
+        <div class="stat"><span class="v" id="hRealN" style="color:#58A6FF">—</span><span class="l">real trio windows committed</span></div>
+      </div>
+    </div>
+
+    <div class="card col-6">
+      <h2>Figure 2 — regime recovery <span class="tag">dynamic vs resting</span></h2>
+      <canvas id="regimeCanvas" width="560" height="340"></canvas>
+      <div class="legend">Recovery bias σ̂ − true σ (N=8, ±95% CI) under <b>dynamic</b> (filled) vs <b>resting</b> (hollow) truth, each against its own regime's true σ; the green line is exact recovery (0). Dynamic sits on zero; resting is biased <em>low</em> for the instantaneous devices (H10 ≈ −0.5, Verity ≈ −0.2) because the hat strips the genuine beat-to-beat HRV that ECG and PPG share — at rest you recover the device-independent floor, not the full σ. A non-resting session is what recovers the true σ.</div>
+    </div>
+    <div class="card col-6">
+      <h2>Figure 3 — real σ̂ vs sim band <span class="tag">anecdotal · N=1</span></h2>
+      <canvas id="realCanvas" width="560" height="340"></canvas>
+      <div class="legend">Real trio σ̂ ± within-window CI (points) overlaid on the simulation's predicted σ band (shaded) vs cumulative N. Success = real σ̂ stabilizes and its CI tracks the sim's 1/√N prediction as windows accumulate. Today N=1, so the band is the prediction and the point is the single real window.</div>
+    </div>
+
+    <div class="card col-7">
+      <h2>Minimum-N table — windows to reach a σ precision <span class="tag">dynamic · CI half ≤ target</span></h2>
+      <div style="overflow:auto"><table id="minTbl"><thead><tr>
+        <th>device</th><th class="num">true σ (dyn)</th><th class="num">→ ±0.5</th><th class="num">→ ±0.25</th><th class="num">→ ±0.15</th>
+      </tr></thead><tbody></tbody></table></div>
+      <div class="note"><b>Read:</b> the smallest N in {1,2,3,5,8,12,20} whose across-window 95% CI half-width falls at/below the target, in the clean (dynamic) regime where σ̂ is unbiased. <b>One</b> ~1-hour trio window already pins every device's σ to ±0.5 bpm; tightening to ±0.25 / ±0.15 costs several / many more. Because the three-cornered hat <b>couples</b> the trio, the noisy Verity corner sets a shared precision floor — so the absolute-± answer is roughly common across devices, not "the noisy device needs far more." The recommendation scales with the true σ ratio, so it generalizes beyond these planted values.</div>
+    </div>
+    <div class="card col-5">
+      <h2>Assumption panel — negative-variance rate <span class="tag">vs N &amp; ρ</span></h2>
+      <canvas id="negCanvas" width="460" height="300"></canvas>
+      <div class="legend">P(≥1 negative TCH variance in N windows) vs N, by injected H10·Verity error correlation ρ (resting). Below a few windows you cannot tell a correlated-error failure from sampling noise; the rate rises with ρ — the tell of an over-concordant pair.</div>
+    </div>
+
+    <div class="card col-12">
+      <h2>Figure 4 — how many MINUTES per window? <span class="tag">σ-CI vs window length · N=1 · dynamic</span></h2>
+      <canvas id="durCanvas" width="1180" height="360"></canvas>
+      <div class="legend">95% CI half-width of the recovered σ̂ vs window length (1–60 min) at a single window, dynamic regime. <span style="color:#FFB84D">O2Ring</span> · <span style="color:#3DE0D0">H10</span> · <span style="color:#B98AFF">Verity</span>. Red dashed = ±0.5 / ±0.25 / ±0.15 bpm targets. The 1-Hz error is AR(1)-autocorrelated (φ=0.9), so effective independent samples grow sub-linearly with duration and the curve flattens — past a point a longer single window buys little.</div>
+      <div style="overflow:auto;margin-top:12px"><table id="durTbl"><thead><tr>
+        <th>device</th><th class="num">→ ±0.5</th><th class="num">→ ±0.25</th><th class="num">→ ±0.15</th>
+      </tr></thead><tbody></tbody></table></div>
+      <div class="note"><b>Read:</b> the smallest window length (of 1 / 2 / 5 / 10 / 20 / 30 / 60 min) whose single-window σ̂ CI half-width falls at/below the target, dynamic regime. This is the "minutes per window" companion to the "how many windows" table — together they trade window <em>length</em> against window <em>count</em> (what ultimately matters is total co-recorded minutes of clean signal).</div>
+    </div>
+
+    <div class="card col-12">
+      <h2>Real trio window(s) — same TCH kernel, Clock-Contract aligned <span class="tag" id="realTag">0 windows</span></h2>
+      <div style="overflow:auto"><table id="realTbl"><thead><tr>
+        <th>window</th><th class="num">n (s)</th><th class="num">σ O2Ring</th><th class="num">σ H10</th><th class="num">σ Verity</th><th class="num">pairwise r (HV / HO / VO)</th>
+      </tr></thead><tbody></tbody></table></div>
+      <div class="note"><b>The real arm.</b> Raw PPG → PPGDSP (Verity), raw ECG → Pan-Tompkins (H10 gold leg), O2Ring native pulse — intersected on the floating-ms grid (no shared timezone needed). The low pairwise r (~0.5) at near-zero bias is the signature of the resting regime: little true HR variance, so devices correlate weakly even when each is accurate. As further co-recorded windows are derived and committed (append a <code>TRIOS</code> entry), Figure 3's running σ̂ accumulates against the sim band — never implying more real robustness than the honest N_windows captured.</div>
+    </div>
+  </div>
+</div>
+
+<script src="sensor-trio-power-analysis.js"></script>
+</body></html>

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  Evidence Badge Placement.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Evidence Badge — Placement Reference</title>
+<link rel="stylesheet" href="../ans-design.css">
+<style>
+  body { background: var(--bg); color: var(--text); padding: 40px 44px 80px; max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 700; letter-spacing: -.02em; margin: 0 0 4px; }
+  .sub { color: var(--text3); font-size: 13.5px; line-height: 1.6; margin: 0 0 6px; max-width: 78ch; }
+  .sub b { color: var(--text2); font-weight: 600; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--text4);
+       font-family: 'IBM Plex Mono', ui-monospace, monospace; margin: 34px 0 14px; font-weight: 600; }
+  .grid { display: grid; gap: 14px; }
+  .g4 { grid-template-columns: repeat(4, 1fr); }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  .g5 { grid-template-columns: repeat(5, 1fr); }
+  .note { font-size: 12px; color: var(--text3); margin-top: 10px; line-height: 1.55; }
+  .note b { color: var(--text2); font-weight: 600; }
+  /* night-row chip mirror (real styling lives in the app block) */
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; background: var(--surface);
+           border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .nr-chip { font-size: 11.5px; padding: 3px 9px; border-radius: 7px; background: rgba(255,255,255,.04);
+             border: 1px solid var(--border); display: inline-flex; align-items: center; color: var(--text2); }
+  .nr-chip .chip-label { color: var(--text3); margin-right: 3px; }
+  .nr-chip.good { color: var(--status-ok); } .nr-chip.warn { color: var(--status-caution); } .nr-chip.bad { color: var(--status-concern); }
+</style>
+</head>
+<body>
+  <h1>Evidence Badge — Placement Reference</h1>
+  <p class="sub">A metric carries two independent axes. <b>Status hue</b> (green / amber / red) answers <i>"is this number good?"</i> and lives on the value. <b>Evidence</b> answers <i>"how much should I trust this metric exists?"</i> — a quiet, non-hue fill ladder that sits in the card's <b>bottom-right corner</b>, inline in dense tables, and after the value on chips. Built on the production <b>ans-design.css</b> + <b>metric-registry.js</b> — this is exactly what ships in OxyDex (and every node after re-bundle).</p>
+
+  <h2>The fill ladder = the trust ladder (5 levels, rendered live)</h2>
+  <div id="legend"></div>
+  <p class="note">One neutral ink (#aab8cc), deliberately outside the status hues and brand hues — evidence and status never share a channel. <b>Measured</b> (bullseye) leads the ladder: a direct sensor reading or a raw statistic of the recorded signal is the strongest evidence there is — it isn't computed. Everything below it is increasingly derived.</p>
+
+  <h2>Standard metric tiles — corner badge</h2>
+  <div class="grid g4" id="tiles"></div>
+  <p class="note">Status hue stays on the value; the evidence dot sits in the corner with reserved bottom clearance so it never lands on the number. <b>Mean SpO₂ / Min O₂</b> are measured (bullseye); <b>ODI-4</b> is a validated derived metric (solid); <b>NSI</b> is an internal composite (hollow).</p>
+
+  <h2>Hero + research tiles</h2>
+  <div class="grid g3" id="tiles2"></div>
+
+  <h2>Night-row chips — metric chips badged, flag chips bare</h2>
+  <div class="chips" id="chips"></div>
+  <p class="note">Metric chips carry an evidence dot after the value. <b>Alert/flag chips</b> (T90_ELEVATED, DESAT_CLUSTER) are events, not metrics — they stay bare.</p>
+
+  <h2>Full metrics table — badge LEADS the name</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Metric</th><th>Value</th><th>Unit</th><th>Normal</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+  <p class="note">In the dense table the badge moves to the <b>start</b> of each metric name — a fixed left gutter that aligns every row into a clean column and leaves long labels (Hypoxic burden) full width, so they never wrap to a second line. Pure metadata (Date, Source) is deny-listed and stays bare.</p>
+
+  <script src="../metric-registry.js"></script>
+  <script src="../oxydex-registry.js"></script>
+  <script>
+    // Use the REAL registry so this reference can never drift from what ships.
+    function evBadge(label){ try { return (window.OxyRegistry && OxyRegistry.badgeForLabel(label, true)) || ''; } catch(e){ return ''; } }
+    function rawBadge(level, cite){ try { return MetricRegistry.badge(level, cite||''); } catch(e){ return ''; } }
+
+    document.getElementById('legend').innerHTML = MetricRegistry.legend();
+
+    // tiles — drive evidence straight from the registry by label
+    var tiles = [
+      ['ODI-4','12.3','/hr','warn'], ['Mean SpO₂','94.2','%','ok'],
+      ['Hypoxic burden','4.8','%·min/h','warn'], ['NSI','31','composite','']
+    ];
+    document.getElementById('tiles').innerHTML = tiles.map(function(t){
+      return '<div class="metric"><div class="m-label">'+t[0]+evBadge(t[0])+'</div><div class="m-val '+t[3]+'">'+t[1]+'</div><div class="m-unit">'+t[2]+'</div></div>';
+    }).join('');
+
+    var tiles2 = [
+      ['<div class="metric metric-hero"><div class="m-label">Readiness','82','/100'],
+    ];
+    document.getElementById('tiles2').innerHTML =
+      '<div class="metric metric-hero"><div class="m-label">Readiness'+evBadge('Readiness')+'</div><div class="m-val">82</div><div class="m-unit">/100</div></div>'
+      +'<div class="metric metric-research"><div class="m-label">ANS age'+rawBadge('heuristic','HRV→population-norm projection')+'</div><div class="m-val">57</div><div class="m-unit">yr · projection</div></div>'
+      +'<div class="metric metric-research"><div class="m-label">RMSSD'+evBadge('RMSSD')+'</div><div class="m-val">28.4</div><div class="m-unit">bpm* · 1Hz proxy</div></div>';
+
+    function chip(label, val, cls){
+      var b = (val!=='' && val!=null) ? evBadge(label) : '';
+      return '<span class="nr-chip '+(cls||'')+'"><span class="chip-label">'+label+'</span> '+val+b+'</span>';
+    }
+    document.getElementById('chips').innerHTML = [
+      chip('HR-Var','4.2','good'), chip('pNN3','1.8%','good'), chip('RMSSD','2.1','good'),
+      chip('SBII','1.9','good'), chip('DFA','0.91','good'), chip('WASO','8m','good'),
+      chip('AHI','6.1','warn'), chip('SleepEff','91%','good'),
+      chip('T90_ELEVATED','','bad'), chip('DESAT_CLUSTER','','bad')
+    ].join('');
+
+    var rows = [
+      ['Mean SpO₂','94.6','%','≥94'], ['Min SpO₂','61','%','≥88'],
+      ['Hypoxic burden','4.8','%·min/h','<5'], ['Mean HR','59.7','bpm','—'],
+      ['RMSSD','0.63','bpm*','—'], ['Duration','440.6','min','≥360'],
+      ['Date','2026-06-13','','—'], ['Source','O2Ring.csv','','—']
+    ];
+    document.getElementById('tbody').innerHTML = rows.map(function(r){
+      return '<tr><td class="fmt-m">'+evBadge(r[0])+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td><td>'+r[3]+'</td></tr>';
+    }).join('');
+  </script>
+</body>
+</html>

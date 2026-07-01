@@ -1,0 +1,24 @@
+{
+  "kernel": null,
+  "schema": {
+    "name": "ganglior.node-export",
+    "version": "2.0",
+    "node": "PpgDex",
+    "nodeVersion": "1.0",
+    "bus": "ganglior",
+    "generated": "2026-06-27T00:00:00.000Z",
+    "provenance": null,
+    "doc": "PpgDex PPG-derived events → Ganglior bus. t/tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated."
+  },
+  "recording": {
+    "source": "ppg",
+    "contentId": "8810d84e3c4b",
+    "startEpochMs": 1782021923891,
+    "sessions": 1,
+    "events": 0
+  },
+  "ganglior_events": [],
+  "reserved": {
+    "doc": "Awaiting other fleet nodes; null until available."
+  }
+}

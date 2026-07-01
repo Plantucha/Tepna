@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DEX-PILL-UNIFY — options 1 &amp; 2</title>
+<style>
+  :root{
+    --bg:#0B0F14; --surface:#121821; --surface2:#18212C;
+    --border:#22303f;
+    --text:#F4F7FB; --text2:#9FB0C3; --text3:#8C9DB3;
+    --teal:#3DE0D0; --blue:#58A6FF; --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A;
+    --status-ok:var(--green); --status-caution:var(--amber); --status-concern:var(--red);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:'Inter',system-ui,-apple-system,sans-serif;
+    font-size:14px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    padding:48px 40px 80px;
+  }
+  .wrap{max-width:1180px;margin:0 auto}
+  .mono{font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+
+  header{margin-bottom:40px;border-bottom:1px solid var(--border);padding-bottom:28px}
+  .kicker{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--teal);font-weight:700;margin-bottom:14px}
+  h1{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:0 0 12px}
+  .lede{color:var(--text2);max-width:760px;font-size:15px}
+  .lede b{color:var(--text)}
+
+  .legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+  .lg{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 12px}
+  .lg b{color:var(--text);font-weight:600}
+
+  section{margin-top:44px}
+  .sec-h{display:flex;align-items:baseline;gap:14px;margin-bottom:6px}
+  .sec-n{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--teal);font-weight:600}
+  h2{font-size:20px;font-weight:700;letter-spacing:-.01em;margin:0}
+  .sec-sub{color:var(--text2);font-size:13.5px;margin:6px 0 22px;max-width:820px}
+  .sec-sub code{font-family:'IBM Plex Mono',monospace;font-size:12px;background:var(--surface2);padding:1px 6px;border-radius:5px;color:var(--text)}
+
+  /* comparison grid */
+  .cmp{display:grid;grid-template-columns:160px 1fr;gap:1px;background:var(--border);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+  .cmp > div{background:var(--surface);padding:18px 20px}
+  .cmp .rowlabel{display:flex;flex-direction:column;justify-content:center;gap:4px;background:var(--surface2)}
+  .rowlabel .rl-name{font-size:13px;font-weight:600;color:var(--text)}
+  .rowlabel .rl-node{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--text3)}
+  .pillrow{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+
+  /* ── actual pill styles, lifted verbatim from source ── */
+  /* HRVDex .proj-badge */
+  .proj-badge{font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;letter-spacing:.02em;background:rgba(88,166,255,.12);color:var(--blue);display:inline-block}
+  .proj-badge.proj-good{background:rgba(45,212,191,.12);color:var(--status-ok)}
+  .proj-badge.proj-warn{background:rgba(245,158,11,.12);color:var(--status-caution)}
+  .proj-badge.proj-bad{background:rgba(248,113,113,.12);color:var(--status-concern)}
+  /* HRVDex .readiness-zone-chip */
+  .readiness-zone-chip{padding:5px 14px;border-radius:999px;font-size:12px;font-weight:600;display:inline-block}
+  .readiness-zone-chip.ok{background:rgba(45,212,191,.10);color:var(--status-ok);border:1px solid rgba(45,212,191,.2)}
+  .readiness-zone-chip.warn{background:rgba(245,158,11,.08);color:var(--status-caution);border:1px solid rgba(245,158,11,.2)}
+  .readiness-zone-chip.bad{background:rgba(248,113,113,.08);color:var(--status-concern);border:1px solid rgba(248,113,113,.2)}
+  /* GlucoDex .gang-pill */
+  .gang-pill{background:rgba(88,166,255,.08);border:1px solid rgba(88,166,255,.2);border-radius:999px;padding:5px 13px;font-size:12px;color:var(--text2);display:inline-block}
+  .gang-pill b{color:var(--blue);font-weight:700;font-family:'IBM Plex Mono',monospace}
+
+  /* ════════════════════════════════════════════
+     APPROACH 1 — single .dex-pill base + size mods + severity mods
+     base carries common props; --sm/--lg carry size; --ok/-- etc carry color
+     tuned so each call site is pixel-identical to today
+     ════════════════════════════════════════════ */
+  .dex-pill{display:inline-block;border-radius:999px;font-weight:600;border:1px solid transparent;
+    padding:5px 14px;font-size:12px;letter-spacing:0}
+  .dex-pill--badge{font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;letter-spacing:.02em}
+  .dex-pill--gang{padding:5px 13px;color:var(--text2);background:rgba(88,166,255,.08);border-color:rgba(88,166,255,.2)}
+  .dex-pill--gang b{color:var(--blue);font-weight:700;font-family:'IBM Plex Mono',monospace}
+  /* severity modifiers — the shared color axis */
+  .dex-pill--ok  {background:rgba(45,212,191,.10);color:var(--status-ok);border-color:rgba(45,212,191,.2)}
+  .dex-pill--warn{background:rgba(245,158,11,.08);color:var(--status-caution);border-color:rgba(245,158,11,.2)}
+  .dex-pill--bad {background:rgba(248,113,113,.08);color:var(--status-concern);border-color:rgba(248,113,113,.2)}
+  .dex-pill--info{background:rgba(88,166,255,.12);color:var(--blue);border-color:transparent}
+  /* badge variant uses borderless flatter fills (matches old .proj-badge) */
+  .dex-pill--badge.dex-pill--ok  {background:rgba(45,212,191,.12);border-color:transparent}
+  .dex-pill--badge.dex-pill--warn{background:rgba(245,158,11,.12);border-color:transparent}
+  .dex-pill--badge.dex-pill--bad {background:rgba(248,113,113,.12);border-color:transparent}
+
+  /* code blocks */
+  .code{background:#0a0d12;border:1px solid var(--border);border-radius:12px;padding:18px 20px;font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.65;color:var(--text2);white-space:pre;overflow-x:auto;margin-top:18px}
+  .code .c-add{color:var(--green)}
+  .code .c-del{color:var(--red);opacity:.8}
+  .code .c-cmt{color:var(--text3)}
+  .code .c-sel{color:var(--blue)}
+  .code .c-cls{color:var(--amber)}
+
+  .verdict{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px}
+  .vcard{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 24px}
+  .vcard h3{margin:0 0 14px;font-size:15px;display:flex;align-items:center;gap:10px}
+  .vtag{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.05em;padding:3px 9px;border-radius:6px}
+  .vtag.opt1{background:rgba(88,166,255,.14);color:var(--blue)}
+  .vtag.opt2{background:rgba(61,224,208,.14);color:var(--teal)}
+  .vcard ul{margin:0;padding-left:18px;color:var(--text2);font-size:13px;line-height:1.7}
+  .vcard ul li::marker{color:var(--text3)}
+  .vcard .pro{color:var(--green)}
+  .vcard .con{color:var(--amber)}
+
+  .note{margin-top:30px;background:rgba(88,166,255,.05);border:1px solid rgba(88,166,255,.18);border-left:3px solid var(--blue);border-radius:0 10px 10px 0;padding:16px 20px;color:var(--text2);font-size:13px}
+  .note b{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="kicker">DEX-PILL-UNIFY · option preview</div>
+    <h1>Two ways to consolidate the status pills</h1>
+    <p class="lede">Both keep every pill <b>pixel-identical on screen</b> — the difference is how much shared CSS you get for the re-bundle cost. Pills below are rendered with the exact source values from <span class="mono">ans-design.css</span>, <span class="mono">HRVDex.src.html</span> and <span class="mono">GlucoDex.src.html</span>.</p>
+    <div class="legend">
+      <span class="lg"><b>Today:</b> 3 class families, 3 size+radius treatments, ~14 rules</span>
+      <span class="lg">Severity axis (<b>ok / warn / bad / info</b>) is the only shared dimension</span>
+    </div>
+  </header>
+
+  <!-- ░░░░░░░░░░░░░░ CURRENT STATE ░░░░░░░░░░░░░░ -->
+  <section>
+    <div class="sec-h"><span class="sec-n">00</span><h2>Today — three separate families</h2></div>
+    <p class="sec-sub">Each pill type owns its full rule set (size, radius, border, weight, colors) in a different file. They look distinct on purpose — a <code>.proj-badge</code> is a tight 10px corner tag, a <code>.readiness-zone-chip</code> is a rounded 12px lozenge, a <code>.gang-pill</code> is a bordered data chip.</p>
+    <div class="cmp">
+      <div class="rowlabel"><span class="rl-name">.proj-badge</span><span class="rl-node">HRVDex.src.html</span></div>
+      <div><div class="pillrow">
+        <span class="proj-badge">BALANCED</span>
+        <span class="proj-badge proj-good">OPTIMAL</span>
+        <span class="proj-badge proj-warn">STRAINED</span>
+        <span class="proj-badge proj-bad">SUPPRESSED</span>
+      </div></div>
+      <div class="rowlabel"><span class="rl-name">.readiness-zone-chip</span><span class="rl-node">HRVDex.src.html</span></div>
+      <div><div class="pillrow">
+        <span class="readiness-zone-chip ok">Ready · 72–100</span>
+        <span class="readiness-zone-chip warn">Caution · 50–71</span>
+        <span class="readiness-zone-chip bad">Rest · 0–49</span>
+      </div></div>
+      <div class="rowlabel"><span class="rl-name">.gang-pill</span><span class="rl-node">GlucoDex (glucodex-app.js)</span></div>
+      <div><div class="pillrow">
+        <span class="gang-pill"><b>Dawn phenomenon</b> present · +18 mg/dL</span>
+        <span class="gang-pill"><b>2</b> nocturnal hypos</span>
+        <span class="gang-pill">node <b>GlucoDex</b></span>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ░░░░░░░░░░░░░░ APPROACH 1 ░░░░░░░░░░░░░░ -->
+  <section>
+    <div class="sec-h"><span class="sec-n">01</span><h2>Full unify — one base, size + severity modifiers</h2></div>
+    <p class="sec-sub">One <code>.dex-pill</code> base holds the shared geometry. A <code>--badge</code> / <code>--gang</code> size modifier restores each context's exact shape, and <code>--ok/--warn/--bad/--info</code> carry the shared color axis. The markup at every call site changes too.</p>
+    <div class="cmp">
+      <div class="rowlabel"><span class="rl-name">was .proj-badge</span><span class="rl-node">.dex-pill--badge</span></div>
+      <div><div class="pillrow">
+        <span class="dex-pill dex-pill--badge dex-pill--info">BALANCED</span>
+        <span class="dex-pill dex-pill--badge dex-pill--ok">OPTIMAL</span>
+        <span class="dex-pill dex-pill--badge dex-pill--warn">STRAINED</span>
+        <span class="dex-pill dex-pill--badge dex-pill--bad">SUPPRESSED</span>
+      </div></div>
+      <div class="rowlabel"><span class="rl-name">was .readiness-zone-chip</span><span class="rl-node">.dex-pill</span></div>
+      <div><div class="pillrow">
+        <span class="dex-pill dex-pill--ok">Ready · 72–100</span>
+        <span class="dex-pill dex-pill--warn">Caution · 50–71</span>
+        <span class="dex-pill dex-pill--bad">Rest · 0–49</span>
+      </div></div>
+      <div class="rowlabel"><span class="rl-name">was .gang-pill</span><span class="rl-node">.dex-pill--gang</span></div>
+      <div><div class="pillrow">
+        <span class="dex-pill dex-pill--gang"><b>Dawn phenomenon</b> present · +18 mg/dL</span>
+        <span class="dex-pill dex-pill--gang"><b>2</b> nocturnal hypos</span>
+        <span class="dex-pill dex-pill--gang">node <b>GlucoDex</b></span>
+      </div></div>
+    </div>
+    <div class="code"><span class="c-cmt">/* shared CSS surface — replaces ~14 per-card rules */</span>
+<span class="c-sel">.dex-pill</span>{display:inline-block;border-radius:999px;font-weight:600;border:1px solid transparent;padding:5px 14px;font-size:12px}
+<span class="c-sel">.dex-pill--badge</span>{font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;letter-spacing:.02em}
+<span class="c-sel">.dex-pill--gang</span>{padding:5px 13px;color:var(--text2);background:rgba(88,166,255,.08);border-color:rgba(88,166,255,.2)}
+<span class="c-sel">.dex-pill--ok</span>{background:rgba(45,212,191,.10);color:var(--status-ok);border-color:rgba(45,212,191,.2)}   <span class="c-cmt">/* + --warn / --bad / --info */</span>
+
+<span class="c-cmt">/* every call site re-tagged: */</span>
+<span class="c-del">- &lt;span class="proj-badge proj-good"&gt;</span>
+<span class="c-add">+ &lt;span class="dex-pill dex-pill--badge dex-pill--ok"&gt;</span></div>
+  </section>
+
+  <!-- ░░░░░░░░░░░░░░ APPROACH 2 ░░░░░░░░░░░░░░ -->
+  <section>
+    <div class="sec-h"><span class="sec-n">02</span><h2>Color-axis only — keep the shapes, share the severity colors</h2></div>
+    <p class="sec-sub">The three classes <b>keep their own size/radius rules</b> (no markup churn) but stop re-declaring the four severity color blocks — they point at the shared <code>.pill-*</code> tokens that already exist in <code>ans-design.css §11</code>. Smaller diff, real dedup of the bit that actually drifts.</p>
+    <div class="cmp">
+      <div class="rowlabel"><span class="rl-name">.proj-badge</span><span class="rl-node">unchanged markup</span></div>
+      <div><div class="pillrow">
+        <span class="proj-badge">BALANCED</span>
+        <span class="proj-badge proj-good">OPTIMAL</span>
+        <span class="proj-badge proj-warn">STRAINED</span>
+        <span class="proj-badge proj-bad">SUPPRESSED</span>
+      </div></div>
+      <div class="rowlabel"><span class="rl-name">.readiness-zone-chip</span><span class="rl-node">unchanged markup</span></div>
+      <div><div class="pillrow">
+        <span class="readiness-zone-chip ok">Ready · 72–100</span>
+        <span class="readiness-zone-chip warn">Caution · 50–71</span>
+        <span class="readiness-zone-chip bad">Rest · 0–49</span>
+      </div></div>
+      <div class="rowlabel"><span class="rl-name">.gang-pill</span><span class="rl-node">unchanged markup</span></div>
+      <div><div class="pillrow">
+        <span class="gang-pill"><b>Dawn phenomenon</b> present · +18 mg/dL</span>
+        <span class="gang-pill"><b>2</b> nocturnal hypos</span>
+        <span class="gang-pill">node <b>GlucoDex</b></span>
+      </div></div>
+    </div>
+    <div class="code"><span class="c-cmt">/* severity colors defined ONCE (already exist as .pill-green/-yellow/-red/-blue) */</span>
+<span class="c-cmt">/* the three families keep only their geometry, share the color via grouping: */</span>
+<span class="c-sel">.proj-badge.proj-good</span>, <span class="c-sel">.readiness-zone-chip.ok</span>  { <span class="c-add">/* → status-ok block */</span> }
+<span class="c-sel">.proj-badge.proj-warn</span>, <span class="c-sel">.readiness-zone-chip.warn</span> { <span class="c-add">/* → status-caution block */</span> }
+<span class="c-sel">.proj-badge.proj-bad</span>,  <span class="c-sel">.readiness-zone-chip.bad</span>  { <span class="c-add">/* → status-concern block */</span> }
+
+<span class="c-cmt">/* markup untouched — no call-site edits, no JS template churn */</span>
+<span class="c-del">  &lt;span class="proj-badge proj-good"&gt;   // stays exactly as-is</span></div>
+  </section>
+
+  <!-- ░░░░░░░░░░░░░░ VERDICT ░░░░░░░░░░░░░░ -->
+  <section>
+    <div class="sec-h"><span class="sec-n">—</span><h2>Trade-off</h2></div>
+    <div class="verdict">
+      <div class="vcard">
+        <h3><span class="vtag opt1">OPTION 1</span> Full unify</h3>
+        <ul>
+          <li class="pro">One canonical pill primitive; new pills inherit it for free</li>
+          <li class="pro">Severity axis lives in exactly one place</li>
+          <li class="con">Every call site re-tagged — markup edits in <span class="mono">glucodex-app.js</span> + HRVDex render</li>
+          <li class="con">Size modifiers (<span class="mono">--badge/--gang</span>) bring back most of the per-context CSS anyway</li>
+          <li class="con">Larger diff = higher visual-regression surface to spot-check</li>
+        </ul>
+      </div>
+      <div class="vcard">
+        <h3><span class="vtag opt2">OPTION 2</span> Color-axis only</h3>
+        <ul>
+          <li class="pro">Dedupes the part that actually drifts (the 4 severity color blocks)</li>
+          <li class="pro">Zero markup churn — CSS-only, lower regression risk</li>
+          <li class="pro">Reuses tokens already in <span class="mono">ans-design.css §11</span></li>
+          <li class="con">Three class names still exist — geometry stays per-card</li>
+          <li class="con">Less "one primitive" elegance than Option 1</li>
+        </ul>
+      </div>
+    </div>
+    <div class="note"><b>Same cost either way:</b> both touch the mirror-synced <span class="mono">ans-design.css</span> blocks in the <span class="mono">.src.html</span> shells, so both force a re-bundle of every touched node + a <span class="mono">BUILD-MANIFEST.json</span> manifestHash bump + both gates (<span class="mono">verify-provenance</span> GATE A 8/8, <span class="mono">Dex-Test-Suite</span> cohesion-badges). The discs are untouched in both.</div>
+  </section>
+
+</div>
+</body>
+</html>

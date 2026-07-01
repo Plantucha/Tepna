@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  PulseDex Reference.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PulseDex — Reference Guide</title>
+<link rel="stylesheet" href="licensing/dex-license.css">
+<link rel="stylesheet" href="dex-badges.css">
+<style>
+/* Fonts: system stacks only — no @font-face, no CDN. 'Inter'/'IBM Plex Mono'
+   names fall through to system-ui / ui-monospace by design (CLAUDE.md / AUDIT.md). */
+/* ═══════════════════════════════════════════════════════
+   PulseDex — Reference Guide · Tepna
+   Cohesion-native: evidence badges driven by PULSE_REGISTRY,
+   disc CSS byte-faithful to dex-badges.css / metric-registry.js.
+═══════════════════════════════════════════════════════ */
+:root {
+  --bg:#0B0F14; --surface:#121821; --surface2:#18212C; --surface3:#1E2835;
+  --border:#1e2d42; --border2:#253550;
+  --text:#F4F7FB; --text2:#9FB0C3; --text3:#6F8096; --text4:#4E5A6B;
+  --teal:#3DE0D0; --blue:#58A6FF; --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A;
+  --purple:#a78bfa; --orange:#fb923c;
+  --r-md:18px;
+  --b:1px solid rgba(255,255,255,.05);
+  --fs-body:14px; --fs-card-sub:13px; --fs-label:11px; --fs-sm:11.5px;
+  --fw-regular:400; --fw-semibold:600; --fw-bold:700;
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px; --sp-7:48px; --sp-8:64px;
+  color-scheme: dark;
+  --sidebar-w:260px;
+  --ev-ink:#aab8cc;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;font-size:var(--fs-body);line-height:1.55;overflow-x:hidden;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+a{color:inherit}
+.app{display:block;min-height:100vh}
+.sidebar{background:rgba(18,24,33,.97);border-right:var(--b);padding:var(--sp-5) var(--sp-3);position:fixed;top:0;left:0;width:var(--sidebar-w);height:100vh;-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);display:flex;flex-direction:column;overflow-y:auto;z-index:10}
+.logo{display:flex;gap:var(--sp-3);align-items:center;margin-bottom:var(--sp-6);padding:0 var(--sp-2)}
+.logo-badge{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--teal),var(--blue));display:flex;align-items:center;justify-content:center;color:#041014;font-weight:var(--fw-bold);font-size:13px;letter-spacing:-.02em;box-shadow:0 0 20px rgba(61,224,208,0.22);flex-shrink:0}
+.logo-title{font-weight:var(--fw-semibold);font-size:15px;letter-spacing:-.015em}
+.logo-sub{font-size:11px;color:var(--text3);margin-top:2px}
+.nav-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--text4);padding:0 var(--sp-2);margin:var(--sp-5) 0 var(--sp-2);font-weight:var(--fw-semibold)}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:var(--sp-3);padding:9px var(--sp-3);border-radius:10px;color:var(--text2);font-size:13px;text-decoration:none;transition:all .15s}
+.nav a:hover{background:rgba(255,255,255,.04);color:var(--text)}
+.nav-dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0;opacity:.55}
+.sidebar-bottom{margin-top:auto;padding-top:var(--sp-5)}
+.sidebar-data-card{background:rgba(61,224,208,.04);border:1px solid rgba(61,224,208,.09);border-radius:12px;padding:12px 14px}
+.data-pill{display:inline-flex;align-items:center;gap:6px;background:rgba(61,224,208,.1);border:1px solid rgba(61,224,208,.18);color:var(--green);padding:4px 10px;border-radius:999px;font-size:11px;font-weight:var(--fw-semibold)}
+.data-dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+.sidebar-data-info{margin-top:8px;font-size:11px;color:var(--text3);line-height:1.55}
+.main{position:relative;z-index:1;margin-left:var(--sidebar-w);padding:var(--sp-6) max(44px,20px) var(--sp-8);max-width:1260px;margin-right:auto;overflow-x:hidden}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.main{animation:fadeIn .3s ease}
+.ph{margin-bottom:var(--sp-6);padding-bottom:var(--sp-5);border-bottom:1px solid rgba(255,255,255,.045)}
+.ph-eyebrow{font-size:var(--fs-label);letter-spacing:.12em;text-transform:uppercase;color:var(--teal);font-weight:var(--fw-semibold);margin-bottom:10px;display:flex;align-items:center;gap:var(--sp-2)}
+.ph-eyebrow::before{content:'';display:block;width:20px;height:2px;background:var(--teal)}
+.ph-title{font-size:28px;font-weight:var(--fw-bold);letter-spacing:-.025em;line-height:1.15;margin-bottom:var(--sp-3)}
+.ph-title>span{color:var(--teal)}
+.ph-desc{font-size:var(--fs-body);color:var(--text2);max-width:660px;line-height:1.65}
+.rs{margin-bottom:var(--sp-7);width:100%}
+.sh{display:flex;align-items:center;gap:var(--sp-4);margin-bottom:var(--sp-5);padding-bottom:var(--sp-4);border-bottom:1px solid rgba(255,255,255,.05)}
+.si{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.si.sig{background:rgba(255,184,77,.12)}.si.hr{background:rgba(255,107,122,.12)}.si.sleep{background:rgba(167,139,250,.12)}
+.si.clin{background:rgba(88,166,255,.12)}.si.comp{background:rgba(251,146,60,.12)}.si.proj{background:rgba(57,217,138,.12)}.si.spo2{background:rgba(61,224,208,.12)}
+.st{font-size:19px;font-weight:var(--fw-bold);letter-spacing:-.02em}
+.sd{font-size:var(--fs-card-sub);color:var(--text3);margin-top:2px}
+.mc{position:relative;background:var(--surface);border:1px solid rgba(255,255,255,.055);border-radius:var(--r-md);padding:20px var(--sp-5);margin-bottom:var(--sp-3);transition:border-color .2s;min-width:0}
+.mc:hover{border-color:rgba(61,224,208,.18)}
+.mh{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-3);margin-bottom:var(--sp-3);flex-wrap:wrap}
+.mi{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.ma{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:17px;font-weight:var(--fw-semibold);color:var(--teal);letter-spacing:-.01em}
+.mf{font-size:var(--fs-card-sub);font-weight:var(--fw-semibold);color:var(--text)}
+.mt{font-size:10px;font-weight:var(--fw-bold);letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:999px;flex-shrink:0;margin-top:2px}
+.tc{background:rgba(61,224,208,.1);color:var(--teal);border:1px solid rgba(61,224,208,.2)}
+.ta{background:rgba(88,166,255,.1);color:var(--blue);border:1px solid rgba(88,166,255,.2)}
+.tr{background:rgba(167,139,250,.1);color:var(--purple);border:1px solid rgba(167,139,250,.2)}
+.md{font-size:13px;color:var(--text2);line-height:1.65;margin-bottom:var(--sp-4)}
+.fb{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-left:3px solid var(--blue);border-radius:0 10px 10px 0;padding:11px var(--sp-4);margin-bottom:var(--sp-3)}
+.fl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;font-weight:var(--fw-semibold);margin-bottom:5px}
+.ft{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;color:var(--blue);line-height:1.75;white-space:pre-wrap;overflow-wrap:break-word}
+.fn{font-size:11.5px;color:var(--text3);margin-top:6px;line-height:1.55}
+.nt-wrap{max-width:100%;overflow-x:auto;margin:4px 0}
+.nt{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px}
+.nt th{font-size:10px;font-weight:var(--fw-bold);letter-spacing:.07em;text-transform:uppercase;color:var(--text4);padding:6px 10px;text-align:left;border-bottom:1px solid rgba(255,255,255,.06)}
+.nt td{padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.03)}
+.nt tr:last-child td{border-bottom:none}
+.nt tr:hover td{background:rgba(255,255,255,.02)}
+.nr{font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:var(--fw-regular)}
+tr.ok td{color:var(--green)}tr.wn td{color:var(--amber)}tr.bd td{color:var(--orange)}tr.cr td{color:var(--red)}tr.nm td{color:var(--text2)}
+tr.ok .nr,tr.wn .nr,tr.bd .nr,tr.cr .nr,tr.nm .nr{color:inherit}
+tr.ok td:first-child,tr.wn td:first-child,tr.bd td:first-child,tr.cr td:first-child{color:var(--text2)}
+.co{display:flex;gap:var(--sp-3);padding:13px 15px;border-radius:11px;margin-bottom:var(--sp-3);font-size:12.5px;line-height:1.6}
+.co-i{background:rgba(88,166,255,.07);border:1px solid rgba(88,166,255,.18);color:var(--text2)}
+.co-w{background:rgba(255,184,77,.07);border:1px solid rgba(255,184,77,.2);color:var(--text2)}
+.co-ic{font-size:15px;flex-shrink:0;margin-top:1px}
+.co strong{color:var(--text);font-weight:var(--fw-semibold)}
+.mg{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:var(--sp-3);width:100%;min-width:0}
+.no-norm-note{font-size:11.5px;color:var(--text4);font-style:italic;margin-top:8px;line-height:1.55}
+.sec-back{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text4);text-decoration:none;margin-top:var(--sp-3);transition:color .14s}
+.sec-back:hover{color:var(--teal)}
+td.fmt-m{display:flex;align-items:center;gap:5px;min-width:0}
+
+/* ── Quick Jump ── */
+.qj-wrap{margin-bottom:var(--sp-6);border-radius:var(--r-md);border:1px solid var(--border2);overflow:hidden}
+.qj-toggle{width:100%;background:var(--surface2);border:none;padding:13px var(--sp-4);display:flex;align-items:center;gap:10px;cursor:pointer;color:var(--text2);font-size:var(--fs-sm);font-family:'Inter',system-ui,sans-serif;text-align:left;transition:background .18s,color .18s}
+.qj-toggle:hover{background:var(--surface3);color:var(--text)}
+.qj-toggle svg:first-child{color:var(--teal);flex-shrink:0}
+.qj-count{margin-left:auto;font-size:11px;color:var(--text3);background:rgba(255,255,255,.04);padding:2px 8px;border-radius:20px;border:1px solid var(--border)}
+.qj-arrow{margin-left:6px;flex-shrink:0;transition:transform .25s cubic-bezier(.16,1,.3,1)}
+.qj-toggle[aria-expanded="true"] .qj-arrow{transform:rotate(180deg)}
+.qj-panel{border-top:1px solid var(--border);background:var(--surface)}
+.qj-panel[hidden]{display:none}
+.qj-search-wrap{display:flex;align-items:center;gap:8px;padding:10px var(--sp-4);border-bottom:1px solid var(--border)}
+.qj-search-wrap svg{color:var(--text3);flex-shrink:0}
+.qj-search{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:var(--fs-sm);font-family:'Inter',system-ui,sans-serif;min-width:0}
+.qj-search::placeholder{color:var(--text4)}
+.qj-clear{background:none;border:none;cursor:pointer;color:var(--text3);padding:0 4px;font-size:13px;line-height:1}
+.qj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:0;border-bottom:1px solid var(--border)}
+.qj-group{padding:var(--sp-3) var(--sp-4);border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
+.qj-group[data-hidden]{display:none}
+.qj-group-header{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px}
+.qj-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.qj-links{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.qj-sec{font-size:12px;font-weight:500;color:var(--text2);text-decoration:none;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:4px;padding:2px 8px;transition:all .14s;white-space:nowrap}
+.qj-sec:hover{background:rgba(61,224,208,.1);border-color:var(--teal);color:var(--teal)}
+.qj-metrics{display:flex;flex-wrap:wrap;gap:3px}
+.qm{font-size:11px;font-family:'IBM Plex Mono',ui-monospace,monospace;color:var(--text3);text-decoration:none;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.06);border-radius:3px;padding:1px 6px;transition:all .14s;white-space:nowrap}
+.qm:hover,.qm.qm-match{background:rgba(61,224,208,.08);color:var(--teal);border-color:rgba(61,224,208,.25)}
+.qm.qm-hide{display:none}
+.qj-no-results{padding:var(--sp-4);text-align:center;color:var(--text3);font-size:var(--fs-sm)}
+
+/* ── Top abbr strip ── */
+.top-abbr-strip{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:8px 14px;margin-bottom:var(--sp-4);flex-wrap:wrap}
+.tas-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);white-space:nowrap}
+.tas-pills{display:flex;flex-wrap:wrap;gap:4px;flex:1;min-width:0}
+.tas-pill{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:10px;color:var(--teal);text-decoration:none;background:rgba(255,255,255,.025);border:1px solid rgba(61,224,208,.15);border-radius:4px;padding:2px 7px;white-space:nowrap}
+.tas-pill:hover{background:rgba(61,224,208,.08)}
+.tas-all{font-size:11px;color:var(--text3);text-decoration:none;white-space:nowrap}
+.tas-all:hover{color:var(--teal)}
+
+/* ── Abbr index ── */
+.abbr-search-wrap{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:10px}
+.abbr-search-wrap svg{color:var(--text3);flex-shrink:0}
+.abbr-search-inp{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:13px;font-family:'Inter',system-ui,sans-serif}
+.abbr-count-label{font-size:11px;color:var(--text3);white-space:nowrap;background:rgba(255,255,255,.04);padding:2px 8px;border-radius:20px;border:1px solid var(--border)}
+.abbr-alpha-wrap{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:10px}
+.abbr-tab{background:transparent;border:1px solid var(--border);border-radius:5px;color:var(--text3);font-size:10px;font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:600;padding:3px 7px;cursor:pointer;transition:all .12s}
+.abbr-tab:hover{background:rgba(255,255,255,.05);color:var(--text2)}
+.abbr-tab.abbr-tab-active{background:rgba(61,224,208,.12);color:var(--teal);border-color:rgba(61,224,208,.3)}
+#abbrGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:6px}
+.abbr-link:hover{opacity:.85}
+
+/* ── Active nav ── */
+.sidebar .nav a.nav-active{color:var(--teal);background:rgba(61,224,208,.08)}
+.sidebar .nav a.nav-active .nav-dot{background:var(--teal);box-shadow:0 0 6px rgba(61,224,208,.5)}
+
+/* ── Back to top ── */
+#btt{position:fixed;bottom:22px;right:18px;z-index:95;width:42px;height:42px;border-radius:12px;background:rgba(61,224,208,.1);border:1px solid rgba(61,224,208,.25);color:var(--teal);display:none;align-items:center;justify-content:center;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+#btt.btt-show{display:flex}
+
+/* ── Theme toggle button ── */
+#themeToggleBtn{position:fixed;bottom:72px;right:18px;z-index:99;background:rgba(61,224,208,.08);border:1px solid rgba(61,224,208,.22);color:var(--teal);border-radius:999px;padding:8px 16px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:.03em;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.theme-icon{font-size:14px;margin-right:3px}
+
+/* ── Mobile bar + drawer ── */
+.mob-bar{display:none;position:fixed;top:0;left:0;right:0;z-index:999;height:54px;background:rgba(11,15,20,.92);border-bottom:1px solid rgba(255,255,255,.08);padding:0 14px;align-items:center;justify-content:space-between;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.mob-bar-logo{display:flex;align-items:center;gap:10px}
+.mob-bar-badge{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#3DE0D0,#58A6FF);display:flex;align-items:center;justify-content:center;color:#041014;font-weight:800;font-size:11px}
+.mob-bar-name{font-weight:700;font-size:13.5px;letter-spacing:-.02em}
+.mob-bar-btn{width:44px;height:44px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:#9FB0C3;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.mob-drawer-bg{display:block;opacity:0;visibility:hidden;transition:opacity .22s,visibility .22s;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.65);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.mob-drawer-bg.open{opacity:1;visibility:visible}
+.mob-drawer-panel{position:absolute;top:0;left:0;bottom:0;width:min(290px,82vw);background:var(--bg);border-right:1px solid rgba(255,255,255,.08);overflow-y:auto;padding:16px 12px 40px;transform:translateX(-100%);transition:transform .22s cubic-bezier(.16,1,.3,1)}
+.mob-drawer-bg.open .mob-drawer-panel{transform:translateX(0)}
+.mob-drawer-top{display:flex;align-items:center;justify-content:space-between;padding:0 8px;margin-bottom:20px}
+.mob-drawer-close{width:36px;height:36px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:#9FB0C3;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+
+@media(max-width:900px){
+  .mob-bar{display:flex}
+  .app{display:block;padding-top:54px}
+  .sidebar{display:none}
+  .main{padding:20px 15px 100px;max-width:100%;margin-left:0}
+  .ph-title{font-size:clamp(20px,5vw,28px)}
+  .mh{flex-direction:column;align-items:flex-start;gap:8px}
+  .mg{grid-template-columns:1fr}
+  .qj-grid{grid-template-columns:1fr}
+  .qj-group{border-right:none}
+  #abbrGrid{grid-template-columns:1fr}
+  .top-abbr-strip{display:none}
+  .st{font-size:17px}
+  .rs{margin-bottom:40px}
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   CANONICAL EVIDENCE BADGE SYSTEM — verbatim mirror of dex-badges.css
+   (byte-faithful to MetricRegistry.BADGE_CSS; the test suite proves it).
+   DO NOT edit the disc rules — they are gated for equivalence to the engine.
+   ════════════════════════════════════════════════════════════════════════ */
+/* Evidence tier discs (.ev-measured / .ev-validated / .ev-emerging / .ev-experimental /
+   .ev-heuristic) are sourced from the linked dex-badges.css — the canonical visual mirror of
+   MetricRegistry.BADGE_CSS — and are no longer inlined here (one visual source, not a third
+   copy). DEX-EVENT-UNIFY-AND-CSV-BRIEF Task C3. */
+.ev[title], .ev-corner[title] { cursor: help; }
+.ev { position: relative; opacity: .85; }
+.ev-corner { position: absolute; bottom: 12px; right: 14px; z-index: 2; cursor: help; opacity: .55; transition: opacity .15s; }
+.ev-corner:hover { opacity: .7; }
+.mc, .metric, .ss-kpi, .nr-kpi, .kpi, .readiness-subscore { position: relative; }
+.mc { overflow: visible; }
+.fmt-m .ev { position: static; margin: 0 7px 0 0; opacity: .7; vertical-align: baseline; }
+.nr-chip .ev { position: static; margin-left: 5px; opacity: .6; vertical-align: baseline; width: 9px; height: 9px; }
+.ev-legend-strip { display:flex; align-items:center; gap:7px; flex-wrap:wrap; font-size:11.5px;
+                   color:var(--text3); background:var(--surface2); border:1px solid var(--border);
+                   border-radius:10px; padding:9px 14px; margin-bottom:var(--sp-4,16px); }
+.ev-legend-strip .lg-title { font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.08em;
+                             text-transform:uppercase; color:var(--text4); margin-right:4px; }
+.ev-legend-strip .lg-item  { display:inline-flex; align-items:center; gap:6px; }
+.ev-legend-strip .lg-item b { color:var(--text2); font-weight:600; }
+.ev-legend-strip .sep      { width:1px; height:13px; background:var(--border2); margin:0 4px; }
+.ev-legend-strip .lg-note  { margin-left:auto; color:var(--text4); font-size:10.5px; }
+
+/* ── Light theme ── */
+body.light {
+  --bg:#F2F5F9;--surface:#FFFFFF;--surface2:#EBF0F7;--surface3:#DDE4EF;
+  --border:#C8D4E4;--border2:#B0C0D8;
+  --text:#0F1923;--text2:#3A4E65;--text3:#6A7F96;--text4:#8FA0B4;
+  --b:1px solid rgba(0,0,0,.07);
+}
+body.light .sidebar{background:linear-gradient(180deg,#FFFFFF,#F8FAFC);box-shadow:inset -1px 0 0 rgba(0,0,0,.07),2px 0 20px rgba(0,0,0,.06)}
+body.light .mc{background:var(--surface);border-color:rgba(0,0,0,.08)}
+body.light .fb{background:rgba(88,166,255,.06);border-color:rgba(88,166,255,.15)}
+body.light .co-i{background:rgba(88,166,255,.08)}
+body.light .co-w{background:rgba(255,184,77,.08)}
+body.light .ev-legend-strip{background:rgba(0,0,0,.02);border-color:rgba(0,0,0,.08)}
+body.light .ev-measured,body.light .ev-validated,body.light .ev-emerging,body.light .ev-experimental,body.light .ev-heuristic{border-color:var(--surface)}
+body.light .mob-bar{background:rgba(242,245,249,.92);border-bottom-color:rgba(0,0,0,.1)}
+body.light .mob-drawer-panel{background:#FFFFFF}
+</style>
+</head>
+<body>
+
+<button id="themeToggleBtn" aria-label="Toggle light and dark theme"><span class="theme-icon">🌙</span> <span id="themeLabel">Dark</span></button>
+<div class="mob-bar" id="mobBar">
+  <div class="mob-bar-logo"><div class="mob-bar-badge">RR</div><span class="mob-bar-name">PulseDex</span></div>
+  <button class="mob-bar-btn" id="mobMenuBtn" aria-label="Open navigation menu" onclick="openDrawer()">&#9776;</button>
+</div>
+<div class="mob-drawer-bg" id="mobDrawerBg" onclick="handleBgClick(event)">
+  <div class="mob-drawer-panel" id="mobDrawerPanel">
+    <div class="mob-drawer-top"><div style="display:flex;align-items:center;gap:9px"><div style="width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,#3DE0D0,#58A6FF);display:flex;align-items:center;justify-content:center;color:#041014;font-weight:800;font-size:11px">RR</div><span style="font-weight:700;font-size:13px;color:#F4F7FB">Sections</span></div>
+      <button class="mob-drawer-close" aria-label="Close navigation" onclick="closeDrawer()">&#x2715;</button></div>
+    
+  <div class="nav-lbl">RR &amp; HRV</div>
+  <div class="nav"><a href="#signal"><span class="nav-dot"></span>RR Series &amp; Quality</a><a href="#rr-dist"><span class="nav-dot"></span>RR Distribution</a><a href="#hrv-time"><span class="nav-dot"></span>Time Domain</a><a href="#hrv-freq"><span class="nav-dot"></span>Frequency Domain</a><a href="#poincare"><span class="nav-dot"></span>Poincar&#xE9; &amp; Geometry</a><a href="#nonlinear"><span class="nav-dot"></span>Nonlinear</a></div>
+  <div class="nav-lbl">Derived</div>
+  <div class="nav"><a href="#composites"><span class="nav-dot"></span>Readiness Composites</a><a href="#projections"><span class="nav-dot"></span>Projections</a></div>
+  <div class="nav-lbl">Provenance</div>
+  <div class="nav"><a href="#validation-matrix"><span class="nav-dot"></span>Validation Matrix</a><a href="#refs-map"><span class="nav-dot"></span>Citation Map</a><a href="#formula-provenance"><span class="nav-dot"></span>Formula Provenance</a><a href="#limitations"><span class="nav-dot"></span>Known Limitations</a></div>
+  <div class="nav-lbl">Reference</div>
+  <div class="nav"><a href="#acad-refs"><span class="nav-dot"></span>Academic References</a><a href="#abbr"><span class="nav-dot"></span>Abbreviation Index</a><a href="#credits"><span class="nav-dot"></span>Credits</a></div>
+  </div>
+</div>
+
+<div class="app">
+<nav class="sidebar">
+  <div class="logo"><div class="logo-badge">RR</div><div><div class="logo-title">PulseDex</div><div class="logo-sub">Reference Guide</div></div></div>
+  
+  <div class="nav-lbl">RR &amp; HRV</div>
+  <div class="nav"><a href="#signal"><span class="nav-dot"></span>RR Series &amp; Quality</a><a href="#rr-dist"><span class="nav-dot"></span>RR Distribution</a><a href="#hrv-time"><span class="nav-dot"></span>Time Domain</a><a href="#hrv-freq"><span class="nav-dot"></span>Frequency Domain</a><a href="#poincare"><span class="nav-dot"></span>Poincar&#xE9; &amp; Geometry</a><a href="#nonlinear"><span class="nav-dot"></span>Nonlinear</a></div>
+  <div class="nav-lbl">Derived</div>
+  <div class="nav"><a href="#composites"><span class="nav-dot"></span>Readiness Composites</a><a href="#projections"><span class="nav-dot"></span>Projections</a></div>
+  <div class="nav-lbl">Provenance</div>
+  <div class="nav"><a href="#validation-matrix"><span class="nav-dot"></span>Validation Matrix</a><a href="#refs-map"><span class="nav-dot"></span>Citation Map</a><a href="#formula-provenance"><span class="nav-dot"></span>Formula Provenance</a><a href="#limitations"><span class="nav-dot"></span>Known Limitations</a></div>
+  <div class="nav-lbl">Reference</div>
+  <div class="nav"><a href="#acad-refs"><span class="nav-dot"></span>Academic References</a><a href="#abbr"><span class="nav-dot"></span>Abbreviation Index</a><a href="#credits"><span class="nav-dot"></span>Credits</a></div>
+  <div class="sidebar-bottom"><div class="sidebar-data-card"><div class="data-pill"><span class="data-dot"></span> Reference Guide</div><div class="sidebar-data-info">Beat-to-beat RR intervals<br>Apache-2.0 License</div></div></div>
+</nav>
+
+<main class="main">
+<div class="ph">
+  <div class="ph-eyebrow">PulseDex &#x2014; Technical Reference</div>
+  <h1 class="ph-title">Beat-to-Beat HRV<br><span>from RR Intervals</span></h1>
+  <p class="ph-desc">Reference for every metric PulseDex computes from a raw beat-to-beat RR-interval series &#x2014; definitions, formulas, expected ranges, and the evidence base behind each. Because PulseDex ingests genuine RR intervals (not a 1&#x202F;Hz pulse-rate proxy), its time-, frequency- and Poincar&#xE9;-domain HRV are the real, literature-validated measures; on top it layers nonlinear/fragmentation signals, readiness composites and population projections. Companion to the analyzer output; not a substitute for clinical evaluation.</p>
+  <div style="margin:16px 0 18px;display:flex;flex-direction:column;gap:10px">
+    <div class="co co-w"><span class="co-ic">&#x26A0;&#xFE0F;</span><div><strong>Important:</strong> HRV is exquisitely sensitive to recording length, posture, breathing and artifact. Compare readings taken under matched conditions, and read every value alongside <strong>Coverage</strong> and <strong>Artifacts</strong>. The composite &#x201C;readiness&#x201D; scores are internal, Welltory-style blends &#x2014; directional trends, not clinical measurements.</div></div>
+    <div class="ev-legend-strip">
+      <span class="lg-title">Evidence</span>
+      <span class="lg-item"><span class="ev-measured"></span><b>Measured</b></span><span class="sep"></span>
+      <span class="lg-item"><span class="ev-validated"></span><b>Validated</b></span><span class="sep"></span>
+      <span class="lg-item"><span class="ev-emerging"></span><b>Emerging</b></span><span class="sep"></span>
+      <span class="lg-item"><span class="ev-experimental"></span><b>Experimental</b></span><span class="sep"></span>
+      <span class="lg-item"><span class="ev-heuristic"></span><b>Heuristic</b></span>
+      <span class="lg-note">fill = trust &#xB7; hover a badge for source</span>
+    </div>
+  </div>
+</div>
+
+<div class="qj-wrap" id="quick-jump">
+  <button class="qj-toggle" id="qjToggle" aria-expanded="false" aria-controls="qjPanel">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+    Quick Jump Index
+    <span class="qj-count">15 sections</span>
+    <svg class="qj-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
+  <div class="qj-panel" id="qjPanel" hidden>
+    <div class="qj-search-wrap"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" class="qj-search" id="qjSearch" placeholder="Filter metrics&#x2026;" autocomplete="off" spellcheck="false" inputmode="search">
+      <button class="qj-clear" id="qjClear" aria-label="Clear search" hidden>&#x2715;</button></div>
+    <div class="qj-grid" id="qjGrid">
+      <div class="qj-group" data-group="rr"><div class="qj-group-header"><span class="qj-dot" style="background:var(--teal)"></span>RR &amp; Quality</div>
+        <div class="qj-links"><a href="#signal" class="qj-sec">RR Series</a><a href="#rr-dist" class="qj-sec">Distribution</a></div>
+        <div class="qj-metrics"><a href="#signal" class="qm">Pulse HR</a><a href="#signal" class="qm">Mean/Median RR</a><a href="#signal" class="qm">CV</a><a href="#signal" class="qm">Coverage</a><a href="#signal" class="qm">Artifacts</a><a href="#rr-dist" class="qm">Min/Max RR</a><a href="#rr-dist" class="qm">Q1/Q3</a><a href="#rr-dist" class="qm">Mode</a><a href="#rr-dist" class="qm">AMo50</a><a href="#rr-dist" class="qm">MxDMn</a><a href="#rr-dist" class="qm">NN50</a></div></div>
+      <div class="qj-group" data-group="hrv"><div class="qj-group-header"><span class="qj-dot" style="background:var(--green)"></span>HRV</div>
+        <div class="qj-links"><a href="#hrv-time" class="qj-sec">Time</a><a href="#hrv-freq" class="qj-sec">Frequency</a><a href="#poincare" class="qj-sec">Poincar&#xE9;</a><a href="#nonlinear" class="qj-sec">Nonlinear</a></div>
+        <div class="qj-metrics"><a href="#hrv-time" class="qm">SDNN</a><a href="#hrv-time" class="qm">rMSSD</a><a href="#hrv-time" class="qm">pNN50</a><a href="#hrv-time" class="qm">SDANN</a><a href="#hrv-time" class="qm">Tri Index</a><a href="#hrv-freq" class="qm">LF/HF</a><a href="#hrv-freq" class="qm">HF/LF/VLF</a><a href="#poincare" class="qm">SD1/SD2</a><a href="#poincare" class="qm">Baevsky SI</a><a href="#nonlinear" class="qm">DFA &#x3B1;1</a><a href="#nonlinear" class="qm">SampEn</a><a href="#nonlinear" class="qm">Decel/Accel Cap</a><a href="#nonlinear" class="qm">PIP/IALS/PSS/PAS</a></div></div>
+      <div class="qj-group" data-group="der"><div class="qj-group-header"><span class="qj-dot" style="background:var(--orange)"></span>Derived</div>
+        <div class="qj-links"><a href="#composites" class="qj-sec">Composites</a><a href="#projections" class="qj-sec">Projections</a></div>
+        <div class="qj-metrics"><a href="#composites" class="qm">HRV Score</a><a href="#composites" class="qm">Stress</a><a href="#composites" class="qm">Energy</a><a href="#composites" class="qm">Recovery</a><a href="#composites" class="qm">ANS SNS/PSNS</a><a href="#projections" class="qm">VO&#x2082;max</a><a href="#projections" class="qm">BP Est</a></div></div>
+      <div class="qj-group" data-group="prov"><div class="qj-group-header"><span class="qj-dot" style="background:var(--blue)"></span>Provenance</div>
+        <div class="qj-links"><a href="#validation-matrix" class="qj-sec">Validation Matrix</a><a href="#refs-map" class="qj-sec">Citation Map</a><a href="#formula-provenance" class="qj-sec">Formula Provenance</a><a href="#limitations" class="qj-sec">Limitations</a></div>
+        <div class="qj-metrics"><a href="#validation-matrix" class="qm">Lit. vs experimental</a><a href="#formula-provenance" class="qm">Formula sources</a><a href="#limitations" class="qm">Caveats</a></div></div>
+      <div class="qj-group" data-group="ref"><div class="qj-group-header"><span class="qj-dot" style="background:var(--text3)"></span>Reference</div>
+        <div class="qj-links"><a href="#acad-refs" class="qj-sec">References</a><a href="#abbr" class="qj-sec">Abbreviations</a><a href="#credits" class="qj-sec">Credits</a></div>
+        <div class="qj-metrics"><a href="#acad-refs" class="qm">Task Force 1996</a><a href="#acad-refs" class="qm">Bauer 2006</a><a href="#acad-refs" class="qm">Costa 2017</a></div></div>
+    </div>
+    <div class="qj-no-results" id="qjNoResults" hidden>No metrics match your search.</div>
+  </div>
+</div>
+
+<div class="top-abbr-strip" id="topAbbrStrip"><div class="tas-label">Abbr:</div><div class="tas-pills" id="tasPills"></div><a href="#abbr" class="tas-all">full index &#x2192;</a></div>
+
+<div class="rs" id="signal">
+<div class="sh"><div class="si hr">&#x1F493;</div><div><div class="st">RR Series &amp; Quality</div><div class="sd">Heart rate, average interval, and the coverage/artifact gauges that gate every HRV value</div></div></div>
+<div class="co co-i"><span class="co-ic">&#x2139;&#xFE0F;</span><div><strong>Pipeline.</strong> PulseDex reads a beat-to-beat RR-interval series, rejects physiologically impossible and local-median-outlier intervals (interpolating against a robust running median of accepted beats), then computes the full HRV suite. Timestamps follow the Clock Contract; when the RR content carries no timestamp the anchor is taken from the filename.</div></div>
+<div class="mg">
+<div class="mc">
+  <div class="mh"><div class="mi"><span class="ma">Pulse HR</span><span class="mf">Mean Heart Rate</span></div><span class="mt tc">Core</span></div>
+  <p class="md">Mean heart rate over the recording, computed directly from the RR series.</p><div class="fb"><div class="fl">Formula</div><div class="ft">HR = 60000 / mean(RR_ms)</div></div><div class="nt-wrap"><table class="nt"><tr><th>Resting HR (bpm)</th><th>Read</th></tr><tr class="ok"><td>50&#x2013;65</td><td class="nr">Low&#x2013;normal (trained/rested)</td></tr><tr class="nm"><td>66&#x2013;75</td><td class="nr">Typical</td></tr><tr class="wn"><td>76&#x2013;90</td><td class="nr">Elevated</td></tr><tr class="cr"><td>&gt;&#x202F;90</td><td class="nr">High</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Mean heart rate &#x2014; direct from RR intervals"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Mean RR</span><span class="mf">Average RR Interval</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">The mean normal-to-normal interval (ms) &#x2014; the reciprocal basis of mean HR.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Mean RR = &#x3A3; RR / N</div></div><div class="no-norm-note">Inverse of HR &#x2014; read via Pulse HR bands above.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Average RR interval &#x2014; direct"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Median RR</span><span class="mf">50th-Percentile RR</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Median interval &#x2014; more robust to occasional outliers than the mean.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Median RR = percentile&#x2085;&#x2080;(RR)</div></div><div class="no-norm-note">Read with Mean RR; a large mean&#x2013;median gap signals skew/ectopy.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; 50th-percentile RR &#x2014; direct"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">CV</span><span class="mf">Coefficient of Variation</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">SDNN as a percentage of mean RR &#x2014; HRV scaled to heart rate, useful for cross-session comparison.</p><div class="fb"><div class="fl">Formula</div><div class="ft">CV (%) = SDNN / mean RR &#xD7; 100</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; SDNN/MeanRR&#xD7;100 &#x2014; direct ratio"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">N (beats)</span><span class="mf">Sample Size</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Number of accepted intervals after artifact rejection &#x2014; whether the window is long enough to trust.</p><div class="fb"><div class="fl">Formula</div><div class="ft">N = count(accepted intervals)</div></div><div class="nt-wrap"><table class="nt"><tr><th>N / duration</th><th>Adequacy</th></tr><tr class="ok"><td>&#x2265;&#x202F;5-min window</td><td class="nr">Full short-term suite</td></tr><tr class="wn"><td>1&#x2013;5 min</td><td class="nr">Ultra-short (rMSSD/HF only)</td></tr><tr class="cr"><td>&lt;&#x202F;1 min</td><td class="nr">Too short</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Sample size after cleaning &#x2014; direct"></span></div>
+<div class="mc">
+  <div class="mh"><div class="mi"><span class="ma">Coverage</span><span class="mf">Capture Completeness</span></div><span class="mt tc">Core</span></div>
+  <p class="md">Sum of accepted intervals as a fraction of wall-clock span &#x2014; how much of the window produced beats.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Coverage (%) = &#x3A3; accepted RR / wall-clock span &#xD7; 100</div></div><div class="nt-wrap"><table class="nt"><tr><th>Coverage</th><th>Confidence</th></tr><tr class="ok"><td>&#x2265;&#x202F;90%</td><td class="nr">High</td></tr><tr class="wn"><td>70&#x2013;90%</td><td class="nr">Moderate</td></tr><tr class="cr"><td>&lt;&#x202F;70%</td><td class="nr">Low &#x2014; HRV unreliable</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; RR-sum vs wall-clock capture &#x2014; direct"></span></div>
+<div class="mc">
+  <div class="mh"><div class="mi"><span class="ma">Artifacts</span><span class="mf">% Beats Corrected</span></div><span class="mt tc">Core</span></div>
+  <p class="md">Share of intervals replaced during cleaning. High artifact attenuates HRV &#x2014; read every value against it.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Artifacts (%) = corrected / total &#xD7; 100</div></div><div class="nt-wrap"><table class="nt"><tr><th>Artifacts</th><th>Read</th></tr><tr class="ok"><td>&lt;&#x202F;5%</td><td class="nr">Excellent</td></tr><tr class="wn"><td>5&#x2013;15%</td><td class="nr">Moderate</td></tr><tr class="cr"><td>&gt;&#x202F;15%</td><td class="nr">HRV unreliable</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; % beats corrected &#x2014; direct quality stat"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="rr-dist">
+<div class="sh"><div class="si clin">&#x1F4CF;</div><div><div class="st">RR Distribution</div><div class="sd">Shape and spread of the interval histogram &#x2014; the geometric basis of HRV</div></div></div>
+<div class="mg">
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Min RR</span><span class="mf">Shortest Interval</span></div><span class="mt tr">Research</span></div>
+  <p class="md">The shortest accepted interval &#x2014; the fastest instantaneous beat after artifact rejection.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Min RR = min(accepted RR)</div></div><div class="no-norm-note">Distribution extreme &#x2014; read with Max RR and MxDMn.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Shortest interval (post-clean) &#x2014; direct"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Max RR</span><span class="mf">Longest Interval</span></div><span class="mt tr">Research</span></div>
+  <p class="md">The longest accepted interval &#x2014; the slowest instantaneous beat.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Max RR = max(accepted RR)</div></div><div class="no-norm-note">Distribution extreme &#x2014; read with Min RR and MxDMn.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Longest interval (post-clean) &#x2014; direct"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Q1 (25th)</span><span class="mf">Lower Quartile</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Lower quartile of the interval distribution.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Q1 = percentile&#x2082;&#x2085;(RR)</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; 25th-percentile RR &#x2014; direct"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Q3 (75th)</span><span class="mf">Upper Quartile</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Upper quartile of the interval distribution.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Q3 = percentile&#x2087;&#x2085;(RR)</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; 75th-percentile RR &#x2014; direct"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Mode</span><span class="mf">Most Common RR Bin</span></div><span class="mt tr">Research</span></div>
+  <p class="md">The modal interval &#x2014; the histogram peak; an input to the Baevsky stress index.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Mode = argmax(histogram bin)</div></div><div class="no-norm-note">Used geometrically (see Baevsky SI).</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Most common RR bin &#x2014; direct"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">AMo50</span><span class="mf">Mode Amplitude</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Percentage of beats within &#xB1;25&#x202F;ms of the mode &#x2014; histogram concentration; higher means more rigid rhythm.</p><div class="fb"><div class="fl">Formula</div><div class="ft">AMo50 (%) = beats in [Mode&#xB1;25 ms] / N &#xD7; 100</div></div><div class="no-norm-note">Higher concentration &#x2192; higher Baevsky SI (more sympathetic load).</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; % beats within Mode&#xB1;25 ms &#x2014; direct"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">MxDMn</span><span class="mf">RR Range</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Full spread between the longest and shortest interval (&#x394;X in Baevsky terms).</p><div class="fb"><div class="fl">Formula</div><div class="ft">MxDMn = Max RR &#x2212; Min RR</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Max&#x2212;Min RR range &#x2014; direct"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">NN50</span><span class="mf">Successive-Difference Count</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Raw count of successive interval pairs differing by more than 50&#x202F;ms &#x2014; the numerator of pNN50.</p><div class="fb"><div class="fl">Formula</div><div class="ft">NN50 = count(|RR[i+1]&#x2212;RR[i]| &gt; 50 ms)</div></div><div class="no-norm-note">Read as pNN50 (% form) for cross-recording comparison.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Pairs with |&#x394;RR|&gt;50 ms &#x2014; direct count"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="hrv-time">
+<div class="sh"><div class="si proj">&#x1F4C8;</div><div><div class="st">HRV &#x2014; Time Domain</div><div class="sd">Established beat-to-beat variability measures (Task Force 1996)</div></div></div>
+<div class="co co-w"><span class="co-ic">&#x23F1;&#xFE0F;</span><div><strong>Duration tiers gate validity.</strong> Ultra-short (&lt;5&#x202F;min): HR, rMSSD, pNN50, SD1, HF valid; SDNN/LF withheld. Short (5-min standard): full suite. Overnight (&#x2265;90&#x202F;min): adds SDANN and per-epoch medians.</div></div>
+<div class="mg">
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">SDNN</span><span class="mf">Standard Deviation of NN Intervals</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Overall HRV &#x2014; total autonomic variability over the window.</p><div class="fb"><div class="fl">Formula</div><div class="ft">SDNN = &#x221A;( &#x3A3;(NN&#x2212;mean)&#xB2; / (N&#x2212;1) )</div></div><div class="nt-wrap"><table class="nt"><tr><th>SDNN (ms)</th><th>Read</th></tr><tr class="ok"><td>&gt;&#x202F;50</td><td class="nr">Healthy</td></tr><tr class="nm"><td>30&#x2013;50</td><td class="nr">Moderate</td></tr><tr class="cr"><td>&lt;&#x202F;30</td><td class="nr">Reduced</td></tr></table></div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; SDNN &#x2014; overall HRV (Task Force 1996)"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">rMSSD</span><span class="mf">Root Mean Square of Successive Differences</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">The primary parasympathetic (vagal) marker &#x2014; dominated by fast beat-to-beat changes; valid on short windows.</p><div class="fb"><div class="fl">Formula</div><div class="ft">rMSSD = &#x221A;( mean( (NN[i+1]&#x2212;NN[i])&#xB2; ) )</div></div><div class="nt-wrap"><table class="nt"><tr><th>rMSSD (ms)</th><th>Read</th></tr><tr class="ok"><td>&gt;&#x202F;42</td><td class="nr">High vagal tone</td></tr><tr class="nm"><td>20&#x2013;42</td><td class="nr">Typical</td></tr><tr class="cr"><td>&lt;&#x202F;20</td><td class="nr">Low</td></tr></table></div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; RMSSD &#x2014; short-term parasympathetic HRV (Task Force 1996)"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">ln rMSSD</span><span class="mf">Natural-Log rMSSD</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">rMSSD on a log scale &#x2014; the right-skew correction that makes day-to-day readiness changes roughly linear.</p><div class="fb"><div class="fl">Formula</div><div class="ft">ln rMSSD = ln(rMSSD)</div></div><div class="no-norm-note">Track the trend vs your own baseline; absolute value depends on age/fitness.</div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; Log-RMSSD &#x2014; readiness HRV scale"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">pNN50</span><span class="mf">% Successive Intervals &gt; 50 ms</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Percentage of successive interval pairs differing by more than 50&#x202F;ms &#x2014; a vagally-mediated measure.</p><div class="fb"><div class="fl">Formula</div><div class="ft">pNN50 (%) = NN50 / (N&#x2212;1) &#xD7; 100</div></div><div class="nt-wrap"><table class="nt"><tr><th>pNN50</th><th>Read</th></tr><tr class="ok"><td>&gt;&#x202F;15%</td><td class="nr">High vagal activity</td></tr><tr class="nm"><td>3&#x2013;15%</td><td class="nr">Typical</td></tr><tr class="cr"><td>&lt;&#x202F;3%</td><td class="nr">Low</td></tr></table></div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; pNN50 &#x2014; % successive RR &gt; 50 ms (Task Force 1996)"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">SDANN</span><span class="mf">SD of 5-min Mean RR</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Standard deviation of 5-minute average intervals &#x2014; slower, circadian-scale variability; needs a long record.</p><div class="fb"><div class="fl">Formula</div><div class="ft">SDANN = SD( 5-min mean RR )</div></div><div class="no-norm-note">Overnight-tier only; relative across long recordings.</div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; SDANN &#x2014; SD of 5-min mean RR (Task Force 1996)"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">SDNN index</span><span class="mf">Mean of 5-min SDNNs</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Average of the SDNN computed within each 5-minute segment &#x2014; short-term variability averaged over a long record.</p><div class="fb"><div class="fl">Formula</div><div class="ft">SDNN index = mean( SDNN per 5-min segment )</div></div><div class="no-norm-note">Overnight-tier; relative.</div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; SDNN index &#x2014; mean of 5-min SDNNs (Task Force 1996)"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Tri Index</span><span class="mf">HRV Triangular Index</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Total intervals divided by the histogram peak height &#x2014; a geometric HRV measure robust to occasional artifact.</p><div class="fb"><div class="fl">Formula</div><div class="ft">TriIndex = N intervals / max(histogram bin), 7.8125 ms bins</div></div><div class="no-norm-note">Higher = more variability; relative across recordings.</div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; HRV triangular index &#x2014; geometric measure (Task Force 1996)"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="hrv-freq">
+<div class="sh"><div class="si comp">&#x1F4F6;</div><div><div class="st">HRV &#x2014; Frequency Domain</div><div class="sd">Spectral power via Lomb&#x2013;Scargle (handles the uneven RR time base)</div></div></div>
+<div class="mg">
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Total Power</span><span class="mf">Total Spectral Power</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Integral of the power spectrum &#x2014; equals the series variance; the spectral counterpart of SDNN&#xB2;.</p><div class="fb"><div class="fl">Formula</div><div class="ft">TP = &#x222B; PSD(f) df  (0.003&#x2013;0.40 Hz)</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; Lomb&#x2013;Scargle total spectral power (&#x222B;PSD = variance)"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">HF Power</span><span class="mf">High-Frequency Power</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Power in 0.15&#x2013;0.40&#x202F;Hz &#x2014; respiratory sinus arrhythmia; a parasympathetic marker.</p><div class="fb"><div class="fl">Formula</div><div class="ft">HF = &#x222B; PSD(f) df,  f &#x2208; 0.15&#x2013;0.40 Hz</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; HF power &#x2014; parasympathetic (Task Force 1996)"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">LF Power</span><span class="mf">Low-Frequency Power</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Power in 0.04&#x2013;0.15&#x202F;Hz &#x2014; mixed sympathetic/parasympathetic with baroreflex influence.</p><div class="fb"><div class="fl">Formula</div><div class="ft">LF = &#x222B; PSD(f) df,  f &#x2208; 0.04&#x2013;0.15 Hz</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; LF power (Task Force 1996)"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">VLF Power</span><span class="mf">Very-Low-Frequency Power</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Power in 0.003&#x2013;0.04&#x202F;Hz &#x2014; needs a long record to be meaningful.</p><div class="fb"><div class="fl">Formula</div><div class="ft">VLF = &#x222B; PSD(f) df,  f &#x2208; 0.003&#x2013;0.04 Hz</div></div><div class="no-norm-note">Requires &#x2265;5-min (ideally overnight) records.</div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; VLF power (Task Force 1996)"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">LF/HF</span><span class="mf">Sympatho-Vagal Balance</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Ratio of LF to HF power &#x2014; historically read as sympatho-vagal balance; interpret directionally.</p><div class="fb"><div class="fl">Formula</div><div class="ft">LF/HF = LF power / HF power</div></div><div class="nt-wrap"><table class="nt"><tr><th>LF/HF</th><th>Read</th></tr><tr class="ok"><td>1&#x2013;2</td><td class="nr">Balanced (typical resting)</td></tr><tr class="wn"><td>&gt;&#x202F;2.5</td><td class="nr">Sympathetic-leaning</td></tr><tr class="wn"><td>&lt;&#x202F;0.5</td><td class="nr">Parasympathetic-leaning</td></tr></table></div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; LF:HF &#x2014; sympatho-vagal balance (Task Force 1996)"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">HF n.u.</span><span class="mf">Normalised HF</span></div><span class="mt tr">Research</span></div>
+  <p class="md">HF as a fraction of (LF+HF) &#x2014; parasympathetic share, less sensitive to total power.</p><div class="fb"><div class="fl">Formula</div><div class="ft">HFnu = 100 &#xD7; HF / (LF + HF)</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; Normalised HF power &#x2014; parasympathetic (Task Force 1996)"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">LF nu</span><span class="mf">Normalised LF</span></div><span class="mt tr">Research</span></div>
+  <p class="md">LF as a fraction of (LF+HF).</p><div class="fb"><div class="fl">Formula</div><div class="ft">LFnu = 100 &#xD7; LF / (LF + HF)</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; Normalised LF power (Task Force 1996)"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="poincare">
+<div class="sh"><div class="si sleep">&#x1F300;</div><div><div class="st">Poincar&#xE9; &amp; Geometry</div><div class="sd">Scatter geometry of each interval against the next, plus the Baevsky load index</div></div></div>
+<div class="mg">
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">SD1</span><span class="mf">Poincar&#xE9; Short Axis</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Width perpendicular to the line of identity &#x2014; instantaneous beat-to-beat variability, tied to rMSSD.</p><div class="fb"><div class="fl">Formula</div><div class="ft">SD1 = &#x221A;(0.5) &#xD7; SD(&#x394;NN)  &#x2248;  rMSSD/&#x221A;2</div></div><div class="no-norm-note">Tracks rMSSD; read on the rMSSD bands.</div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; Poincar&#xE9; SD1 &#x2014; short-axis (&#x2248; RMSSD/&#x221A;2)"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">SD2</span><span class="mf">Poincar&#xE9; Long Axis</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Spread along the line of identity &#x2014; longer-term variability, related to SDNN.</p><div class="fb"><div class="fl">Formula</div><div class="ft">SD2 = &#x221A;( 2&#xB7;SDNN&#xB2; &#x2212; 0.5&#xB7;SD(&#x394;NN)&#xB2; )</div></div><div class="no-norm-note">Tracks SDNN; read on the SDNN bands.</div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; Poincar&#xE9; SD2 &#x2014; long-axis dispersion"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">SD1/SD2</span><span class="mf">Poincar&#xE9; Ratio</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Balance of short- to long-term variability.</p><div class="fb"><div class="fl">Formula</div><div class="ft">ratio = SD1 / SD2</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; Poincar&#xE9; SD1/SD2 ratio &#x2014; short/long balance"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Ellipse Area</span><span class="mf">Poincar&#xE9; Ellipse Area</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Area of the fitted Poincar&#xE9; ellipse &#x2014; a single geometric summary of overall dispersion.</p><div class="fb"><div class="fl">Formula</div><div class="ft">area = &#x3C0; &#xD7; SD1 &#xD7; SD2</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; &#x3C0;&#xB7;SD1&#xB7;SD2 &#x2014; Poincar&#xE9; complexity proxy"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Baevsky SI</span><span class="mf">Stress Index</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">A geometric stress index from the histogram mode, its amplitude (AMo) and range (MxDMn) &#x2014; rises with sympathetic load / autonomic rigidity.</p><div class="fb"><div class="fl">Formula</div><div class="ft">SI = AMo / (2 &#xD7; Mode &#xD7; MxDMn)</div></div><div class="nt-wrap"><table class="nt"><tr><th>Baevsky SI</th><th>Read</th></tr><tr class="ok"><td>&lt;&#x202F;150</td><td class="nr">Balanced</td></tr><tr class="wn"><td>150&#x2013;500</td><td class="nr">Elevated load</td></tr><tr class="cr"><td>&gt;&#x202F;500</td><td class="nr">High sympathetic load</td></tr></table></div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; Baevsky stress index &#x2014; established autonomic-load index"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="nonlinear">
+<div class="sh"><div class="si sig">&#x267E;&#xFE0F;</div><div><div class="st">Nonlinear &amp; Fragmentation</div><div class="sd">Fractal scaling, entropy, PRSA capacities, and beat-fragmentation indices</div></div></div>
+<div class="mg">
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">DFA &#x3B1;1</span><span class="mf">Short-Term Scaling Exponent</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Detrended fluctuation analysis over 4&#x2013;16 beats; &#x3B1;1&#x202F;&#x2248;&#x202F;1 marks healthy correlated dynamics.</p><div class="fb"><div class="fl">Formula</div><div class="ft">&#x3B1;1 = slope of log F(n) vs log n, n = 4&#x2026;16 beats</div></div><div class="nt-wrap"><table class="nt"><tr><th>DFA &#x3B1;1</th><th>Read</th></tr><tr class="ok"><td>0.85&#x2013;1.15</td><td class="nr">Healthy correlated dynamics</td></tr><tr class="wn"><td>&lt;&#x202F;0.75 / &gt;&#x202F;1.25</td><td class="nr">Drifting toward random/rigid</td></tr></table></div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; DFA short-term scaling exponent &#x2014; device/length-dependent"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">SampEn</span><span class="mf">Sample Entropy</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Regularity of the interval series &#x2014; lower means more repetitive dynamics.</p><div class="fb"><div class="fl">Formula</div><div class="ft">SampEn(m,r) = &#x2212;ln(A/B), m=2, r=0.2&#xD7;SD</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; Sample entropy &#x2014; nonlinear complexity"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Decel Cap</span><span class="mf">Deceleration Capacity</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Phase-rectified signal-averaging measure of the heart&#x2019;s capacity to decelerate &#x2014; a validated vagal and post-MI mortality marker.</p><div class="fb"><div class="fl">Formula</div><div class="ft">DC = PRSA deceleration anchor average</div></div><div class="nt-wrap"><table class="nt"><tr><th>Decel Cap (ms)</th><th>Mortality risk</th></tr><tr class="ok"><td>&gt;&#x202F;4.5</td><td class="nr">Low</td></tr><tr class="wn"><td>2.6&#x2013;4.5</td><td class="nr">Intermediate</td></tr><tr class="cr"><td>&#x2264;&#x202F;2.5</td><td class="nr">High (post-MI cohorts)</td></tr></table></div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; PRSA deceleration capacity (Bauer 2006) &#x2014; vagal/mortality marker"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Accel Cap</span><span class="mf">Acceleration Capacity</span></div><span class="mt tr">Research</span></div>
+  <p class="md">The acceleration counterpart of deceleration capacity &#x2014; a sympathetic-side PRSA measure.</p><div class="fb"><div class="fl">Formula</div><div class="ft">AC = PRSA acceleration anchor average</div></div><div class="no-norm-note">Read alongside Decel Cap; more negative = stronger acceleration.</div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; PRSA acceleration capacity &#x2014; sympathetic"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">RSA Proxy</span><span class="mf">Respiratory Sinus Arrhythmia Proxy</span></div><span class="mt tr">Research</span></div>
+  <p class="md">HF power scaled by mean RR &#x2014; a respiratory-coupling surrogate.</p><div class="fb"><div class="fl">Formula</div><div class="ft">RSA proxy = HF / mean RR&#xB2;</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; HF/MeanRR&#xB2; respiratory-sinus-arrhythmia proxy"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Resp Rate</span><span class="mf">Respiration from HF Peak</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Breathing rate estimated from the HF spectral peak &#x2014; an RSA-frequency surrogate, not direct airflow.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Resp rate = 60 &#xD7; argmax(PSD) in HF band</div></div><div class="nt-wrap"><table class="nt"><tr><th>Resp (br/min)</th><th>Read</th></tr><tr class="ok"><td>10&#x2013;20</td><td class="nr">Typical resting</td></tr><tr class="wn"><td>&gt;&#x202F;20</td><td class="nr">Elevated / shallow</td></tr></table></div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; Respiration from HF spectral peak (RSA frequency) &#x2014; surrogate"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Vagal Eff</span><span class="mf">Vagal Efficiency</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">rMSSD scaled by heart rate &#x2014; a vagal-coupling efficiency proxy.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Vagal Eff = rMSSD / HR</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; Vagal efficiency (rMSSD/HR) &#x2014; coupling proxy"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">SDNN Z</span><span class="mf">SDNN Z-Score</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">SDNN as a z-score against the wearer&#x2019;s own baseline &#x2014; how today compares to normal for you.</p><div class="fb"><div class="fl">Formula</div><div class="ft">SDNN Z = (SDNN &#x2212; baseline mean) / baseline SD</div></div><div class="nt-wrap"><table class="nt"><tr><th>SDNN Z</th><th>Read</th></tr><tr class="ok"><td>&gt;&#x202F;0</td><td class="nr">Above your baseline</td></tr><tr class="wn"><td>&#x2212;1 to 0</td><td class="nr">Slightly below</td></tr><tr class="cr"><td>&lt;&#x202F;&#x2212;1</td><td class="nr">Well below baseline</td></tr></table></div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; SDNN z-score vs personal baseline"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">PIP</span><span class="mf">% Inflection Points</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Heart-rate fragmentation: share of intervals that are local direction changes &#x2014; elevated fragmentation associates with AF risk (Costa 2017).</p><div class="fb"><div class="fl">Formula</div><div class="ft">PIP (%) = inflection points / N &#xD7; 100</div></div><div class="no-norm-note">Higher = more fragmented; read with IALS/PSS/PAS.</div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; Fragmentation &#x2014; % inflection points"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">IALS</span><span class="mf">Inverse Average Segment Length</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Inverse of the mean run length between inflection points &#x2014; a fragmentation index.</p><div class="fb"><div class="fl">Formula</div><div class="ft">IALS = 1 / mean(segment length)</div></div><div class="no-norm-note">Higher = more fragmented.</div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; Fragmentation &#x2014; inverse average segment length"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">PSS</span><span class="mf">% NN in Short Segments</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Share of intervals in short monotonic runs.</p><div class="fb"><div class="fl">Formula</div><div class="ft">PSS (%) = NN in segments &lt; 3 beats / N &#xD7; 100</div></div><div class="no-norm-note">Higher = more fragmented.</div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; Fragmentation &#x2014; % NN in short segments"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">PAS</span><span class="mf">% NN in Alternation Segments</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Share of intervals in alternating (zig-zag) segments.</p><div class="fb"><div class="fl">Formula</div><div class="ft">PAS (%) = NN in alternation runs / N &#xD7; 100</div></div><div class="no-norm-note">Higher = more fragmented.</div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; Fragmentation &#x2014; % NN in alternation segments"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="composites">
+<div class="sh"><div class="si comp">&#x1F9EE;</div><div><div class="st">Readiness Composites</div><div class="sd">Welltory-style derived scores &#x2014; internal blends, directional only</div></div></div>
+<div class="co co-w"><span class="co-ic">&#x26A0;&#xFE0F;</span><div><strong>All internal composites.</strong> The scores below blend the validated HRV measures above, in the spirit of consumer HRV apps. They have no external validation &#x2014; read them as relative trends against your own history, never as clinical values.</div></div>
+<div class="mg">
+<div class="mc">
+  <div class="mh"><div class="mi"><span class="ma">HRV Score</span><span class="mf">Autonomic-Readiness Composite</span></div><span class="mt tc">Core</span></div>
+  <p class="md">A 0&#x2013;100 readiness headline blending vagal HRV against your recent baseline.</p><div class="fb"><div class="fl">Method</div><div class="ft">blend of ln rMSSD, SDNN-Z and HR vs baseline</div></div><div class="no-norm-note">Internal composite &#x2014; directional, baseline-relative.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; PulseDex HRV composite score &#x2014; Welltory-style, internal"></span></div>
+<div class="mc">
+  <div class="mh"><div class="mi"><span class="ma">Stress</span><span class="mf">HRV-Derived Stress</span></div><span class="mt tc">Core</span></div>
+  <p class="md">An inverse-HRV stress estimate &#x2014; rises as variability falls.</p><div class="fb"><div class="fl">Method</div><div class="ft">inverse function of rMSSD / HF vs baseline</div></div><div class="no-norm-note">Internal &#x2014; directional only.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; HRV-derived stress score &#x2014; composite"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Energy</span><span class="mf">HRV-Derived Energy</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">A composite energy/activation estimate.</p><div class="fb"><div class="fl">Method</div><div class="ft">blend of HRV level, balance and recovery</div></div><div class="no-norm-note">Internal &#x2014; directional only.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; HRV-derived energy score &#x2014; composite"></span></div>
+<div class="mc">
+  <div class="mh"><div class="mi"><span class="ma">Recovery</span><span class="mf">Recovery Sub-Score</span></div><span class="mt tc">Core</span></div>
+  <p class="md">How recovered the autonomic system looks versus baseline.</p><div class="fb"><div class="fl">Method</div><div class="ft">rMSSD vs trailing baseline</div></div><div class="no-norm-note">Internal &#x2014; directional only.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; Recovery sub-score &#x2014; composite"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Recov Index</span><span class="mf">Autonomic Recovery Index</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">A recovery index relative to the personal baseline.</p><div class="fb"><div class="fl">Method</div><div class="ft">ARI = today HRV / baseline HRV</div></div><div class="no-norm-note">Internal &#x2014; directional only.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; Autonomic recovery index &#x2014; composite"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Coherence</span><span class="mf">HRV Coherence</span></div><span class="mt tr">Research</span></div>
+  <p class="md">A heart-rhythm coherence estimate (spectral peak sharpness).</p><div class="fb"><div class="fl">Method</div><div class="ft">peak-power / total-power around the LF coherence band</div></div><div class="no-norm-note">Internal &#x2014; directional only.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; PulseDex-native coherence &#x2014; internal composite"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Focus est</span><span class="mf">Focus Estimate</span></div><span class="mt tr">Research</span></div>
+  <p class="md">A composite attentional-readiness estimate.</p><div class="fb"><div class="fl">Method</div><div class="ft">blend of coherence and SNS balance</div></div><div class="no-norm-note">Internal &#x2014; directional only.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; HRV-derived focus score &#x2014; composite"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">ANS SNS</span><span class="mf">Sympathetic-Activation Score</span></div><span class="mt tr">Research</span></div>
+  <p class="md">A sympathetic-branch activation estimate.</p><div class="fb"><div class="fl">Method</div><div class="ft">from LF, Baevsky SI and HR</div></div><div class="no-norm-note">Internal &#x2014; directional only.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; Sympathetic-activation score &#x2014; composite"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">ANS PSNS</span><span class="mf">Parasympathetic-Activation Score</span></div><span class="mt tr">Research</span></div>
+  <p class="md">A parasympathetic-branch activation estimate.</p><div class="fb"><div class="fl">Method</div><div class="ft">from HF, rMSSD and pNN50</div></div><div class="no-norm-note">Internal &#x2014; directional only.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; Parasympathetic-activation score &#x2014; composite"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">SNS bal</span><span class="mf">Sympathetic Ratio</span></div><span class="mt tr">Research</span></div>
+  <p class="md">An LF/HF-derived sympathetic balance ratio.</p><div class="fb"><div class="fl">Method</div><div class="ft">LF / (LF + HF)</div></div><div class="no-norm-note">Internal &#x2014; directional only.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; LF/HF-based sympathetic ratio &#x2014; composite"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">PSNS bal</span><span class="mf">Parasympathetic Ratio</span></div><span class="mt tr">Research</span></div>
+  <p class="md">An HF/LF-derived parasympathetic balance ratio.</p><div class="fb"><div class="fl">Method</div><div class="ft">HF / (LF + HF)</div></div><div class="no-norm-note">Internal &#x2014; directional only.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; HF/LF-based parasympathetic ratio &#x2014; composite"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">ABS</span><span class="mf">Autonomic Balance Score</span></div><span class="mt tr">Research</span></div>
+  <p class="md">A combined sympathetic/parasympathetic balance index.</p><div class="fb"><div class="fl">Method</div><div class="ft">normalised PSNS &#x2212; SNS balance</div></div><div class="no-norm-note">Internal &#x2014; directional only.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; Autonomic Balance Score &#x2014; composite"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">EFC Ready</span><span class="mf">Energy-Focus-Coherence Readiness</span></div><span class="mt tr">Research</span></div>
+  <p class="md">A weighted readiness blend of energy, focus and coherence.</p><div class="fb"><div class="fl">Formula</div><div class="ft">EFC = 0.4&#xB7;Energy + 0.3&#xB7;Focus + 0.3&#xB7;Coherence</div></div><div class="no-norm-note">Internal &#x2014; directional only.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; Energy&#xD7;0.4 + Focus&#xD7;0.3 + Coherence&#xD7;0.3 &#x2014; composite readiness"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Cardiac CRS</span><span class="mf">Cardiac Resilience Score</span></div><span class="mt tr">Research</span></div>
+  <p class="md">A composite resilience score combining coherence, vagal HRV and stress.</p><div class="fb"><div class="fl">Formula</div><div class="ft">CRS = (Coh &#xB7; rMSSD &#xB7; pNN50) / Stress &#xD7; 1000</div></div><div class="no-norm-note">Internal &#x2014; directional only.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; (Coh&#xB7;rMSSD&#xB7;pNN50)/Stress&#xD7;1000 &#x2014; internal composite"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Stress-Focus</span><span class="mf">Stress&#x2013;Focus Gap</span></div><span class="mt tr">Research</span></div>
+  <p class="md">The gap between stress and focus estimates.</p><div class="fb"><div class="fl">Method</div><div class="ft">SFG = Stress &#x2212; Focus</div></div><div class="no-norm-note">Internal &#x2014; directional only.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; Stress&#x2212;Focus gap &#x2014; composite"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Focus Effic</span><span class="mf">Focus Efficiency</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Focus relative to sympathetic activation.</p><div class="fb"><div class="fl">Formula</div><div class="ft">FE = Focus / (SNS + 1)</div></div><div class="no-norm-note">Internal &#x2014; directional only.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; Focus/(SNS+1) &#x2014; composite"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">PNS Effic</span><span class="mf">Parasympathetic Efficiency</span></div><span class="mt tr">Research</span></div>
+  <p class="md">A parasympathetic-efficiency ratio.</p><div class="fb"><div class="fl">Formula</div><div class="ft">PNSE = rMSSD / (SDNN &#xB7; pNN50)</div></div><div class="no-norm-note">Internal &#x2014; directional only.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; rMSSD/(SDNN&#xB7;pNN50) &#x2014; composite"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">OTR</span><span class="mf">Overtraining-Risk Proxy</span></div><span class="mt tr">Research</span></div>
+  <p class="md">A directional overtraining-risk estimate from sustained autonomic load.</p><div class="fb"><div class="fl">Method</div><div class="ft">sustained low HRV + high SNS over days</div></div><div class="no-norm-note">Internal &#x2014; directional only.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; Overtraining-risk proxy &#x2014; composite"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">HTN Pattern</span><span class="mf">Hypertensive-Like ANS Score</span></div><span class="mt tr">Research</span></div>
+  <p class="md">A directional autonomic pattern reminiscent of hypertension risk &#x2014; not a blood-pressure reading.</p><div class="fb"><div class="fl">Method</div><div class="ft">from low HRV + high SNS balance pattern</div></div><div class="no-norm-note">Internal &#x2014; directional; not a diagnosis.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; Hypertensive-like ANS score &#x2014; composite"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Health</span><span class="mf">Data-Integrity Health</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">A recording data-quality score, not a health outcome.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Health = 100 &#x2212; 2 &#xD7; artifact%</div></div><div class="no-norm-note">Internal data-quality gauge, not a health metric.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; Data-integrity health score (100 &#x2212; 2&#xD7;artifact%) &#x2014; internal"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="projections">
+<div class="sh"><div class="si proj">&#x1F52E;</div><div><div class="st">Projections</div><div class="sd">Population-norm projections &#x2014; directional, not measurements</div></div></div>
+<div class="mg">
+<!-- ANS Age card REMOVED 2026-06-23 (DEX-METRIC-REMOVAL-AUDIT 🔴 — population HRV→age regression shown as a personal "autonomic age"). -->
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">VO&#x2082;max Est</span><span class="mf">Estimated VO&#x2082;max</span></div><span class="mt tr">Research</span></div>
+  <p class="md">A resting HRV/HR-ratio fitness estimate &#x2014; a population proxy, not a cardiopulmonary exercise test.</p><div class="fb"><div class="fl">Formula</div><div class="ft">VO&#x2082;max &#x2248; 15 &#xD7; (HRmax / HRrest)</div></div><div class="no-norm-note">Heuristic proxy &#x2014; track the trend, not the absolute.</div>
+<span class="ev-corner ev-heuristic" title="Heuristic &#x2014; HRV&#x2192;VO&#x2082;max estimate &#x2014; population proxy, not CPET"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">VO&#x2082; base</span><span class="mf">Baseline VO&#x2082; Estimate</span></div><span class="mt tr">Research</span></div>
+  <p class="md">The HR-ratio baseline VO&#x2082; estimate (Uth&#x2013;S&#xF8;rensen 2004).</p><div class="fb"><div class="fl">Formula</div><div class="ft">VO&#x2082; base = 15 &#xD7; (HRmax / HRrest)</div></div><div class="no-norm-note">Heuristic proxy.</div>
+<span class="ev-corner ev-heuristic" title="Heuristic &#x2014; Uth&#x2013;S&#xF8;rensen HR-ratio VO&#x2082; estimate &#x2014; proxy"></span></div>
+<!-- SBP Est / DBP Est cards REMOVED 2026-06-23 (DEX-METRIC-REMOVAL-AUDIT 🔴 — cuffless BP from HRV; PulseDex dsp already removed bpEst 2026-06-22). -->
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="validation-matrix">
+<div class="sh"><div class="si sig">&#x2714;&#xFE0F;</div><div><div class="st">Validation Status Matrix</div><div class="sd">What is literature-validated versus experimentally derived &#x2014; the key provenance table for research use</div></div></div>
+<p style="font-size:12px;color:var(--text4);margin:0 0 12px;line-height:1.6;"><em>Validation refers to the underlying metric&#x2019;s validation in published literature, and does not imply validation of the PulseDex implementation against a gold-standard laboratory dataset.</em></p>
+<div class="nt-wrap"><table class="nt">
+  <thead><tr><th>Metric Category</th><th>Status</th><th>Basis</th></tr></thead>
+  <tbody>
+    <tr><td class="fmt-m">RR statistics, coverage, artifacts</td><td><span style="color:var(--teal)">&#x25CF; Direct measurement</span></td><td>Raw interval statistics after artifact rejection</td></tr>
+    <tr><td class="fmt-m">SDNN, rMSSD, pNN50, SDANN, triangular index</td><td><span style="color:var(--teal)">&#x25CF; Literature-based</span></td><td>Task Force 1996 time-domain standards</td></tr>
+    <tr><td class="fmt-m">LF/HF/VLF, LF/HF, nu, total power</td><td><span style="color:var(--teal)">&#x25CF; Literature-based</span></td><td>Task Force 1996; Lomb&#x2013;Scargle for uneven RR</td></tr>
+    <tr><td class="fmt-m">SD1/SD2, ellipse area, Baevsky SI</td><td><span style="color:var(--teal)">&#x25CF; Literature-based</span></td><td>Brennan 2001; Baevsky</td></tr>
+    <tr><td class="fmt-m">DFA &#x3B1;1, SampEn, decel/accel cap, fragmentation</td><td><span style="color:var(--amber,#F5A623)">&#x25D0; Emerging</span></td><td>Peng 1995; Richman 2000; Bauer 2006; Costa 2017</td></tr>
+    <tr><td class="fmt-m">HRV/Stress/Energy/readiness composites</td><td><span style="color:var(--orange,#E8714A)">&#x25CB; Experimental composite</span></td><td>PulseDex internal blends; no independent validation</td></tr>
+    <tr><td class="fmt-m">VO&#x2082;max (population proxy)</td><td><span style="color:var(--orange,#E8714A)">&#x25CB; Population-derived</span></td><td>Population projections / regressions; not measurements</td></tr>
+  </tbody>
+</table></div>
+<div style="margin-top:16px">
+  <div style="font-size:11px;font-family:'IBM Plex Mono',ui-monospace,monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--text4);margin-bottom:8px">Metric Tier Definitions</div>
+  <table class="nt" style="max-width:640px">
+    <thead><tr><th>Tier</th><th>Meaning</th><th>Examples</th></tr></thead>
+    <tbody>
+      <tr><td><strong style="color:var(--teal)">Core</strong></td><td>Headline, universally interpretable</td><td>Pulse HR, Coverage, HRV Score, Stress</td></tr>
+      <tr><td><strong style="color:var(--blue)">Advanced</strong></td><td>Established support, fuller analysis</td><td>SDNN, rMSSD, LF/HF, Baevsky SI</td></tr>
+      <tr><td><strong style="color:var(--purple)">Research</strong></td><td>Exploratory / emerging / composites</td><td>DFA, fragmentation, ANS ratios, projections</td></tr>
+    </tbody>
+  </table>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="refs-map">
+<div class="sh"><div class="si comp">&#x1F5FA;&#xFE0F;</div><div><div class="st">Formula &#x2192; Citation Map</div><div class="sd">Every computed metric mapped to its primary source</div></div></div>
+<div class="nt-wrap"><table class="nt">
+  <thead><tr><th>Metric / Formula</th><th>Primary Citation</th><th>Category</th></tr></thead>
+  <tbody>
+    <tr><td class="fmt-m">SDNN, rMSSD, pNN50, SDANN, triangular index, LF/HF</td><td class="nr">Task Force 1996</td><td>HRV</td></tr>
+    <tr><td class="fmt-m">SD1/SD2 Poincar&#xE9; geometry</td><td class="nr">Brennan 2001</td><td>HRV</td></tr>
+    <tr><td class="fmt-m">Baevsky stress index</td><td class="nr">Baevsky &amp; Chernikova 2017</td><td>HRV</td></tr>
+    <tr><td class="fmt-m">DFA &#x3B1;1</td><td class="nr">Peng 1995</td><td>Nonlinear</td></tr>
+    <tr><td class="fmt-m">Sample entropy</td><td class="nr">Richman &amp; Moorman 2000</td><td>Nonlinear</td></tr>
+    <tr><td class="fmt-m">Deceleration / acceleration capacity</td><td class="nr">Bauer 2006</td><td>Nonlinear</td></tr>
+    <tr><td class="fmt-m">PIP / IALS / PSS / PAS fragmentation</td><td class="nr">Costa 2017</td><td>Fragmentation</td></tr>
+    <tr><td class="fmt-m">Lomb&#x2013;Scargle spectral estimation</td><td class="nr">Lomb 1976 / Scargle 1982</td><td>Spectral</td></tr>
+    <tr><td class="fmt-m">VO&#x2082;max (HR-ratio)</td><td class="nr">Uth&#x2013;S&#xF8;rensen 2004</td><td>Projection</td></tr>
+    <tr><td class="fmt-m">HRV/Stress/readiness; ANS-age &amp; BP proxies</td><td class="nr">PulseDex internal &#x2014; no external source</td><td>Internal</td></tr>
+  </tbody>
+</table></div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="formula-provenance">
+<div class="sh"><div class="si sig">&#x1D453;</div><div><div class="st">Formula Provenance Index</div><div class="sd">Compact audit index &#x2014; every external formula mapped to its source</div></div></div>
+<div class="nt-wrap"><table class="nt">
+  <thead><tr><th>Formula</th><th>Source / Author</th><th>Year</th><th>Reference</th></tr></thead>
+  <tbody>
+    <tr><td class="fmt-m">Time-domain HRV standards</td><td>Task Force ESC/NASPE</td><td>1996</td><td><em>Circulation.</em> 93(5):1043&#x2013;65</td></tr>
+    <tr><td class="fmt-m">SD1/SD2 = f(SDNN, &#x394;NN)</td><td>Brennan, Palaniswami &amp; Kamen</td><td>2001</td><td><em>IEEE TBME.</em> 48(11):1342&#x2013;7</td></tr>
+    <tr><td class="fmt-m">Baevsky SI = AMo/(2&#xB7;Mo&#xB7;MxDMn)</td><td>Baevsky &amp; Chernikova</td><td>2017</td><td><em>Cardiometry.</em> 10:66&#x2013;76</td></tr>
+    <tr><td class="fmt-m">DFA &#x3B1;1</td><td>Peng et al.</td><td>1995</td><td><em>Chaos.</em> 5(1):82&#x2013;7</td></tr>
+    <tr><td class="fmt-m">SampEn = &#x2212;ln(A/B)</td><td>Richman &amp; Moorman</td><td>2000</td><td><em>Am J Physiol.</em> 278(6):H2039&#x2013;49</td></tr>
+    <tr><td class="fmt-m">Deceleration capacity (PRSA)</td><td>Bauer et al.</td><td>2006</td><td><em>Lancet.</em> 367(9523):1674&#x2013;81</td></tr>
+    <tr><td class="fmt-m">Fragmentation (PIP/IALS/PSS/PAS)</td><td>Costa, Davis &amp; Goldberger</td><td>2017</td><td><em>Front Physiol.</em> 8:255</td></tr>
+    <tr><td class="fmt-m">VO&#x2082;max = 15&#xB7;(HRmax/HRrest)</td><td>Uth, S&#xF8;rensen et al.</td><td>2004</td><td><em>Eur J Appl Physiol.</em> 91(1):111&#x2013;5</td></tr>
+  </tbody>
+</table></div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="limitations">
+<div class="sh"><div class="si sig">&#x26A0;&#xFE0F;</div><div><div class="st">Known Limitations</div><div class="sd">The interpretation context for beat-to-beat HRV analysis</div></div></div>
+<div class="co co-i" style="margin-bottom:var(--sp-4)"><span class="co-ic">&#x2139;&#xFE0F;</span><div>These limitations are inherent to short-window, sensor-derived HRV. They do not invalidate PulseDex outputs but define the appropriate interpretation context.</div></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px">
+    <div style="font-weight:700;color:var(--text2);margin-bottom:6px;font-size:13px">&#x1F493; Signal &amp; Protocol</div>
+    <ul style="margin:0;padding-left:18px;color:var(--text3);font-size:12.5px;line-height:1.7"><li>HRV depends on posture, breathing rate and time of day</li><li>Ectopic beats and artifact must be corrected before HRV is valid</li><li>Frequency-domain &amp; SDANN need adequate window length</li><li>Compare only matched protocols (e.g. same morning routine)</li></ul>
+  </div>
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px">
+    <div style="font-weight:700;color:var(--text2);margin-bottom:6px;font-size:13px">&#x1F9E0; Interpretation</div>
+    <ul style="margin:0;padding-left:18px;color:var(--text3);font-size:12.5px;line-height:1.7"><li>Absolute HRV varies widely with age and fitness &#x2014; track trends</li><li>LF/HF as &#x201C;balance&#x201D; is contested; read directionally</li><li>Fragmentation/DFA are device- and length-dependent</li><li>No EEG &#x2014; no sleep-stage claims</li></ul>
+  </div>
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px">
+    <div style="font-weight:700;color:var(--text2);margin-bottom:6px;font-size:13px">&#x1F4CA; Algorithmic</div>
+    <ul style="margin:0;padding-left:18px;color:var(--text3);font-size:12.5px;line-height:1.7"><li>Readiness/stress/energy scores are internal composites</li><li>VO&#x2082;max is a population proxies, not measurements</li><li>Normative bands are general, not personally calibrated</li><li>Heavy correction attenuates HRV &#x2014; check Artifacts %</li></ul>
+  </div>
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px">
+    <div style="font-weight:700;color:var(--text2);margin-bottom:6px;font-size:13px">&#x2696;&#xFE0F; Regulatory</div>
+    <ul style="margin:0;padding-left:18px;color:var(--text3);font-size:12.5px;line-height:1.7"><li>Not FDA cleared or CE marked as a medical device</li><li>Not for clinical diagnosis or treatment decisions</li><li>Personal, research, and wellness use only</li><li>Discuss medical concerns with a qualified clinician</li></ul>
+  </div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="acad-refs">
+<div class="sh"><div class="si clin">&#x1F4DA;</div><div><div class="st">Academic References</div><div class="sd">Primary sources for the HRV measures PulseDex computes</div></div></div>
+<div class="co co-w"><span class="co-ic">&#x26A0;&#xFE0F;</span><div><strong>Provenance note.</strong> The composite readiness scores are internal blends with no external source, labelled as such. The time-, frequency-, Poincar&#xE9;- and nonlinear-domain measures use the shared, verified HRV canon below.</div></div>
+<div class="nt-wrap"><table class="nt">
+  <thead><tr><th>Method / Metric</th><th>Primary Citation</th><th>Category</th></tr></thead>
+  <tbody>
+    <tr><td class="fmt-m">SDNN, rMSSD, pNN50, SDANN, triangular index, LF/HF bands</td><td class="nr">Task Force of the ESC and NASPE. <em>Heart rate variability: standards of measurement, physiological interpretation, and clinical use.</em> Circulation. 1996;93(5):1043&#x2013;65. doi: <a href="https://doi.org/10.1161/01.CIR.93.5.1043" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1161/01.CIR.93.5.1043</a></td><td>HRV</td></tr>
+    <tr><td class="fmt-m">Poincar&#xE9; SD1 / SD2 geometry</td><td class="nr">Brennan M, Palaniswami M, Kamen P. <em>Do existing measures of Poincar&#xE9; plot geometry reflect nonlinear features of HRV?</em> IEEE Trans Biomed Eng. 2001;48(11):1342&#x2013;7. doi: <a href="https://doi.org/10.1109/10.959330" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1109/10.959330</a></td><td>HRV</td></tr>
+    <tr><td class="fmt-m">Baevsky stress index</td><td class="nr">Baevsky RM, Chernikova AG. <em>Heart rate variability analysis: physiological foundations and main methods.</em> Cardiometry. 2017;10:66&#x2013;76. doi: <a href="https://doi.org/10.12710/cardiometry.2017.10.6676" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.12710/cardiometry.2017.10.6676</a></td><td>HRV</td></tr>
+    <tr><td class="fmt-m">DFA &#x3B1;1</td><td class="nr">Peng C-K, Havlin S, Stanley HE, Goldberger AL. <em>Quantification of scaling exponents&#x2026; in nonstationary heartbeat time series.</em> Chaos. 1995;5(1):82&#x2013;7. doi: <a href="https://doi.org/10.1063/1.166141" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1063/1.166141</a></td><td>Nonlinear</td></tr>
+    <tr><td class="fmt-m">Sample Entropy</td><td class="nr">Richman JS, Moorman JR. <em>Physiological time-series analysis using approximate entropy and sample entropy.</em> Am J Physiol Heart Circ Physiol. 2000;278(6):H2039&#x2013;49. doi: <a href="https://doi.org/10.1152/ajpheart.2000.278.6.H2039" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1152/ajpheart.2000.278.6.H2039</a></td><td>Nonlinear</td></tr>
+    <tr><td class="fmt-m">Deceleration / acceleration capacity (PRSA)</td><td class="nr">Bauer A, Kantelhardt JW, Barthel P, et al. <em>Deceleration capacity of heart rate as a predictor of mortality after myocardial infarction.</em> Lancet. 2006;367(9523):1674&#x2013;81. doi: <a href="https://doi.org/10.1016/S0140-6736(06)68735-7" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1016/S0140-6736(06)68735-7</a></td><td>Nonlinear</td></tr>
+    <tr><td class="fmt-m">Heart-rate fragmentation (PIP / IALS / PSS / PAS)</td><td class="nr">Costa MD, Davis RB, Goldberger AL. <em>Heart rate fragmentation: a new approach to the analysis of cardiac interbeat interval dynamics.</em> Front Physiol. 2017;8:255. doi: <a href="https://doi.org/10.3389/fphys.2017.00255" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.3389/fphys.2017.00255</a></td><td>Fragmentation</td></tr>
+    <tr><td class="fmt-m">Lomb&#x2013;Scargle periodogram (uneven RR)</td><td class="nr">Lomb NR. <em>Least-squares frequency analysis of unequally spaced data.</em> Astrophys Space Sci. 1976;39(2):447&#x2013;62. doi: <a href="https://doi.org/10.1007/BF00648343" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1007/BF00648343</a></td><td>Spectral</td></tr>
+    <tr><td class="fmt-m">VO&#x2082;max (HR-ratio method)</td><td class="nr">Uth N, S&#xF8;rensen H, Overgaard K, Pedersen PK. <em>Estimation of VO&#x2082;max from the ratio between HRmax and HRrest.</em> Eur J Appl Physiol. 2004;91(1):111&#x2013;5. doi: <a href="https://doi.org/10.1007/s00421-003-0988-y" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1007/s00421-003-0988-y</a></td><td>Projection</td></tr>
+    <tr><td class="fmt-m">HRV / Stress / Energy / readiness scores; BP &amp; ANS-age proxies</td><td class="nr">PulseDex internal composites and population projections &#x2014; no external source. Directional only.</td><td>Internal</td></tr>
+  </tbody>
+</table></div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="abbr">
+<div class="sh"><div class="si comp">&#x1F520;</div><div><div class="st">Abbreviation Index</div><div class="sd">Every acronym used in this guide &#x2014; searchable, jump to its section</div></div></div>
+<div class="abbr-search-wrap"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+  <input type="text" class="abbr-search-inp" id="abbrSearch" placeholder="Search abbreviations&#x2026;" autocomplete="off" spellcheck="false">
+  <span class="abbr-count-label" id="abbrCountLabel">terms</span></div>
+<div class="abbr-alpha-wrap" id="abbrAlphaTabs"></div>
+<div id="abbrGrid"></div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="credits">
+<div class="sh"><div class="si sig">&#x1F4CB;</div><div><div class="st">Project Credits</div><div class="sd">Authorship, contributions, and open-source provenance</div></div></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px">
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:18px 20px"><div style="font-size:12px;font-family:'IBM Plex Mono',ui-monospace,monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--text4);margin-bottom:8px">Author</div><div style="font-size:17px;font-weight:700;color:var(--text);margin-bottom:4px">Michal Planicka</div><div style="font-size:12.5px;color:var(--text3);line-height:1.7">Concept &#xB7; Architecture &#xB7; Algorithms<br>Implementation &#xB7; Validation &#xB7; UI/UX</div></div>
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:18px 20px"><div style="font-size:12px;font-family:'IBM Plex Mono',ui-monospace,monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--text4);margin-bottom:8px">Assisted Development</div><div style="font-size:13.5px;font-weight:600;color:var(--text2);margin-bottom:4px">AI-Assisted</div><div style="font-size:12.5px;color:var(--text3);line-height:1.7">Code review &#xB7; Documentation<br>Literature synthesis &#xB7; Reference formatting</div></div>
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:18px 20px"><div style="font-size:12px;font-family:'IBM Plex Mono',ui-monospace,monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--text4);margin-bottom:8px">Licence &amp; Suggested Citation</div><div style="font-size:13px;color:var(--text3);line-height:1.8"><strong style="color:var(--text2)">Apache-2.0</strong> Open-source<br><span style="font-size:12px;font-style:italic;color:var(--text4)">Planicka M. <em>PulseDex: Beat-to-Beat RR HRV Node.</em> Version 1.0.0. 2026.</span></div></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+</main>
+</div>
+
+<button id="btt" aria-label="Back to top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg></button>
+
+<script>
+var abbrs=[
+  ["RR","R-R interval (beat-to-beat, ms)"],["NN","Normal-to-Normal interval (artifact-corrected RR)"],
+  ["HRV","Heart-Rate Variability"],["HR","Heart Rate"],["bpm","Beats per minute"],
+  ["SDNN","Standard Deviation of NN intervals"],["rMSSD","Root Mean Square of Successive Differences"],
+  ["pNN50","% successive intervals differing > 50 ms"],["NN50","Count of successive pairs > 50 ms apart"],
+  ["SDANN","SD of 5-min mean NN intervals"],["SDNN index","Mean of 5-min SDNNs"],
+  ["CV","Coefficient of Variation (SDNN/mean RR)"],["AMo50","Mode amplitude (% beats within mode ±25 ms)"],
+  ["MxDMn","Max minus Min RR range"],["TP","Total spectral Power"],["VLF","Very Low Frequency (0.003–0.04 Hz)"],
+  ["LF","Low Frequency (0.04–0.15 Hz)"],["HF","High Frequency (0.15–0.40 Hz)"],["LF/HF","Low-to-High power ratio"],
+  ["n.u.","Normalised units"],["SD1/SD2","Poincaré short / long-axis widths"],
+  ["SI","Baevsky Stress Index"],["DFA","Detrended Fluctuation Analysis (α1)"],["SampEn","Sample Entropy"],
+  ["PRSA","Phase-Rectified Signal Averaging (decel/accel capacity)"],["RSA","Respiratory Sinus Arrhythmia"],
+  ["PIP","% Inflection Points (fragmentation)"],["IALS","Inverse Average Segment Length"],
+  ["PSS","% NN in Short Segments"],["PAS","% NN in Alternation Segments"],
+  ["ANS","Autonomic Nervous System"],["SNS","Sympathetic Nervous System"],["PSNS","Parasympathetic Nervous System"],
+  ["ABS","Autonomic Balance Score"],["EFC","Energy-Focus-Coherence readiness"],["OTR","Overtraining Risk"],
+  ["VO₂max","Estimated Maximum Oxygen Uptake"]
+];
+var abbrSectionMap={
+  "RR":"signal","NN":"signal","HRV":"hrv-time","HR":"signal","bpm":"signal",
+  "SDNN":"hrv-time","rMSSD":"hrv-time","pNN50":"hrv-time","NN50":"rr-dist","SDANN":"hrv-time","SDNN index":"hrv-time",
+  "CV":"signal","AMo50":"rr-dist","MxDMn":"rr-dist","TP":"hrv-freq","VLF":"hrv-freq","LF":"hrv-freq","HF":"hrv-freq",
+  "LF/HF":"hrv-freq","n.u.":"hrv-freq","SD1/SD2":"poincare","SI":"poincare","DFA":"nonlinear","SampEn":"nonlinear",
+  "PRSA":"nonlinear","RSA":"nonlinear","PIP":"nonlinear","IALS":"nonlinear","PSS":"nonlinear","PAS":"nonlinear",
+  "ANS":"composites","SNS":"composites","PSNS":"composites","ABS":"composites","EFC":"composites","OTR":"composites",
+  "VO₂max":"projections"
+};
+
+/* ── alpha tabs ── */
+(function(){
+  var tabsEl=document.getElementById('abbrAlphaTabs');
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('').forEach(function(l){
+    var btn=document.createElement('button');
+    btn.textContent=l; btn.className='abbr-tab'; btn.setAttribute('data-letter',l);
+    btn.addEventListener('click',function(){
+      document.querySelectorAll('.abbr-tab').forEach(function(b){b.classList.remove('abbr-tab-active');});
+      btn.classList.add('abbr-tab-active');
+      filterAbbr(l==='#'?'':l);
+    });
+    tabsEl.appendChild(btn);
+  });
+})();
+function filterAbbr(letter){
+  document.querySelectorAll('#abbrGrid .abbr-card').forEach(function(card){
+    var abbr=card.getAttribute('data-abbr')||'';
+    var first=abbr[0]?abbr[0].toUpperCase():'';
+    card.style.display=(!letter||first===letter.toUpperCase())?'':'none';
+  });
+}
+
+/* ── render abbr cards ── */
+var g=document.getElementById('abbrGrid');
+abbrs.sort(function(a,b){return a[0].localeCompare(b[0],undefined,{sensitivity:'base'});});
+abbrs.forEach(function(a){
+  var abbr=a[0], defn=a[1], target=abbrSectionMap[abbr];
+  var d=document.createElement('div');
+  d.className='abbr-card'; d.setAttribute('data-abbr',abbr);
+  d.style.cssText='display:flex;align-items:center;gap:10px;padding:7px 10px;background:rgba(255,255,255,.02);border-radius:8px;border:1px solid rgba(255,255,255,.04);transition:border-color .15s,background .15s';
+  var abbrHtml;
+  if(target){
+    abbrHtml='<a href="#'+target+'" class="abbr-link" title="Go to '+defn+'" style="font-family:\'IBM Plex Mono\',ui-monospace,monospace;font-size:11px;font-weight:600;color:var(--teal);white-space:nowrap;min-width:64px;text-decoration:none">'+abbr+'</a>';
+  } else {
+    abbrHtml='<span style="font-family:\'IBM Plex Mono\',ui-monospace,monospace;font-size:11px;font-weight:600;color:var(--teal);white-space:nowrap;min-width:64px">'+abbr+'</span>';
+  }
+  d.innerHTML=abbrHtml+'<span style="font-size:12px;color:var(--text2)">'+defn+'</span>';
+  if(target){ d.addEventListener('mouseenter',function(){d.style.borderColor='rgba(61,224,208,.25)';d.style.background='rgba(61,224,208,.04)';}); d.addEventListener('mouseleave',function(){d.style.borderColor='rgba(255,255,255,.04)';d.style.background='rgba(255,255,255,.02)';}); }
+  g.appendChild(d);
+});
+
+/* ── abbr search ── */
+(function(){
+  var inp=document.getElementById('abbrSearch'), lbl=document.getElementById('abbrCountLabel');
+  if(!inp) return;
+  function updateCount(){
+    var vis=[].slice.call(document.querySelectorAll('#abbrGrid .abbr-card')).filter(function(c){return c.style.display!=='none';}).length;
+    var tot=document.querySelectorAll('#abbrGrid .abbr-card').length;
+    lbl.textContent=vis<tot?vis+' shown':tot+' terms';
+  }
+  setTimeout(updateCount,100);
+  inp.addEventListener('input',function(){
+    var q=inp.value.trim().toLowerCase();
+    document.querySelectorAll('.abbr-tab').forEach(function(b){b.classList.remove('abbr-tab-active');});
+    document.querySelectorAll('#abbrGrid .abbr-card').forEach(function(card){
+      var abbr=(card.getAttribute('data-abbr')||'').toLowerCase();
+      var defn=card.textContent.toLowerCase();
+      card.style.display=(!q||abbr.indexOf(q)>=0||defn.indexOf(q)>=0)?'':'none';
+    });
+    updateCount();
+  });
+})();
+
+/* ── quick-jump toggle ── */
+(function(){
+  var btn=document.getElementById('qjToggle'), panel=document.getElementById('qjPanel');
+  if(!btn||!panel) return;
+  btn.addEventListener('click',function(){
+    var ex=btn.getAttribute('aria-expanded')==='true';
+    btn.setAttribute('aria-expanded',String(!ex));
+    if(ex) panel.setAttribute('hidden',''); else panel.removeAttribute('hidden');
+  });
+})();
+
+/* ── quick-jump filter ── */
+(function(){
+  var inp=document.getElementById('qjSearch'), clear=document.getElementById('qjClear'), noRes=document.getElementById('qjNoResults');
+  if(!inp) return;
+  function run(){
+    var q=inp.value.trim().toLowerCase(); clear.hidden=!q; var any=false;
+    document.querySelectorAll('.qm').forEach(function(el){
+      var match=!q||el.textContent.toLowerCase().indexOf(q)>=0;
+      el.classList.toggle('qm-match',!!(q&&match));
+      el.classList.toggle('qm-hide',!!(q&&!match));
+      if(match) any=true;
+    });
+    document.querySelectorAll('.qj-group').forEach(function(grp){
+      grp.toggleAttribute('data-hidden', grp.querySelectorAll('.qm:not(.qm-hide)').length===0);
+    });
+    if(noRes) noRes.hidden=any||!q;
+  }
+  inp.addEventListener('input',run);
+  if(clear) clear.addEventListener('click',function(){inp.value='';run();inp.focus();});
+})();
+
+/* ── theme toggle ── */
+(function(){
+  var btn=document.getElementById('themeToggleBtn');
+  var icon=btn?btn.querySelector('.theme-icon'):null, label=document.getElementById('themeLabel');
+  function apply(t){
+    document.body.classList.toggle('light',t==='light');
+    document.documentElement.style.colorScheme=t==='light'?'light':'dark';
+    if(icon) icon.textContent=t==='light'?'\u2600\uFE0F':'\uD83C\uDF19';
+    if(label) label.textContent=t==='light'?'Light':'Dark';
+  }
+  var saved=null; try{saved=localStorage.getItem('ansTheme');}catch(e){}
+  if(saved) apply(saved);
+  if(btn) btn.addEventListener('click',function(){
+    var t=document.body.classList.contains('light')?'dark':'light';
+    apply(t); try{localStorage.setItem('ansTheme',t);}catch(e){}
+  });
+})();
+
+/* ── nav highlight ── */
+(function(){
+  var navLinks=document.querySelectorAll('.sidebar .nav a, .mob-drawer-panel .nav a');
+  function setActive(id){ navLinks.forEach(function(a){ a.classList.toggle('nav-active',a.getAttribute('href')==='#'+id); }); }
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting) setActive(e.target.id); }); },{rootMargin:'-20% 0px -70% 0px',threshold:0});
+    document.querySelectorAll('.rs[id]').forEach(function(s){ io.observe(s); });
+  }
+})();
+
+/* ── top abbr pills ── */
+(function(){
+  var c=document.getElementById('tasPills'); if(!c) return;
+  var links=document.querySelectorAll('#abbrGrid .abbr-link'); var n=0;
+  links.forEach(function(a){ if(n>=8) return; var p=document.createElement('a'); p.href=a.getAttribute('href'); p.className='tas-pill'; p.textContent=a.textContent.trim(); c.appendChild(p); n++; });
+})();
+
+/* ── back to top ── */
+(function(){
+  var btt=document.getElementById('btt'); if(!btt) return;
+  window.addEventListener('scroll',function(){ btt.classList.toggle('btt-show',window.scrollY>400); },{passive:true});
+  btt.addEventListener('click',function(){ window.scrollTo({top:0,behavior:'smooth'}); });
+})();
+
+/* ── mobile drawer ── */
+function openDrawer(){ document.getElementById('mobDrawerBg').classList.add('open'); document.body.style.overflow='hidden'; }
+function closeDrawer(){ document.getElementById('mobDrawerBg').classList.remove('open'); document.body.style.overflow=''; }
+function handleBgClick(e){ if(e.target===document.getElementById('mobDrawerBg')) closeDrawer(); }
+document.querySelectorAll('.mob-drawer-panel .nav a').forEach(function(a){ a.addEventListener('click',function(){ setTimeout(closeDrawer,100); }); });
+</script>
+
+<div style="text-align:center;padding:20px 24px 28px;font-size:11px;color:var(--text4);font-family:'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.05em;border-top:1px solid var(--border);margin-top:32px">
+  Reference Guide Version: <strong style="color:var(--text3)">1.0.0</strong>
+  &nbsp;&#xB7;&nbsp; Node: <strong style="color:var(--text3)">PulseDex &#x2014; beat-to-beat RR HRV</strong>
+  &nbsp;&#xB7;&nbsp; Last Literature Review: <strong style="color:var(--text3)">June 2026</strong>
+  &nbsp;&#xB7;&nbsp; Apache-2.0 Licence
+</div>
+
+<div class="dxl" style="max-width:900px;margin:40px auto 14px;padding:0 24px">
+  <div class="dxl-notice">
+    <div class="dxl-k">Intended use &amp; safety</div>
+    <p><b>Tepna</b> computes biometric patterns from your wearable and sensor data to support personal self-quantification. It is <b>not a medical device</b>, does not <b>diagnose, treat, cure, screen for, or prevent</b> any disease or condition, and is <b>not a substitute for professional clinical evaluation</b>. It has not been reviewed or cleared by the FDA, CE, or any regulatory body. Always consult a qualified healthcare provider about your health. Use at your own risk. For research and personal use only. 100% local — no data leaves your device.</p>
+  </div>
+</div>
+<div class="dxl dxl-ribbon" style="max-width:900px;margin:0 auto 30px">
+  <div class="dxl-seg">
+    <span class="dxl-mark">T</span>
+    <span style="display:flex;flex-direction:column">
+      <b style="font-size:13px">Tepna</b>
+      <span class="dxl-colophon">physiological-signal suite</span>
+    </span>
+  </div>
+  <div class="dxl-seg dxl-grow">
+    <span style="font-size:11.5px;color:var(--text2,#9FB0C3)">© 2026 <b>Michal Planicka</b> — Concept · Architecture · Algorithms</span>
+    <span class="dxl-disclaimer">Not a medical device · does not diagnose or treat · not FDA/CE cleared · research &amp; personal use only · ◈ Made in Asheville, NC</span>
+  </div>
+  <div class="dxl-seg"><span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span></div>
+</div>
+</body>
+</html>

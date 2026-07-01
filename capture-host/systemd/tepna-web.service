@@ -1,0 +1,23 @@
+[Unit]
+Description=Tepna web server (serves the bundled apps at http://tepna.local)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tepna
+Group=tepna
+WorkingDirectory=/srv/tepna
+# Caddy serves /srv/tepna/app (the bundled *.html). See Caddyfile.
+ExecStart=/usr/bin/caddy run --config /opt/tepna/capture-host/Caddyfile --adapter caddyfile
+Restart=always
+RestartSec=5
+# Quick alternative with zero deps (comment the ExecStart above, uncomment this):
+#   ExecStart=/usr/bin/python3 -m http.server 80 --directory /srv/tepna/app
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/srv/tepna/app
+
+[Install]
+WantedBy=multi-user.target

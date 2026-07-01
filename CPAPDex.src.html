@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  CPAPDex.src.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPAPDex — PAP Therapy Analyzer · v1.0</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="stylesheet" href="licensing/dex-license.css">
+<link rel="stylesheet" href="ans-design.css">
+<style>
+/* ════════════════════════════════════════════════════════════════════════
+   CPAPDex — APP-SPECIFIC STYLES (built on ans-design.css)
+   Only what ans-design.css doesn't already give us: page chrome, the upload
+   card, the result column/grid, and the render module's bespoke rows.
+   ════════════════════════════════════════════════════════════════════════ */
+.page{max-width:1180px;margin:0 auto;padding:30px 26px 80px}
+.app-head{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+.app-badge{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--teal),var(--blue));display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;box-shadow:0 6px 20px rgba(61,224,208,.22)}
+.app-title{font-size:21px;font-weight:800;letter-spacing:-.02em}
+.app-title small{display:block;font-size:11.5px;font-weight:600;color:var(--text3);letter-spacing:.02em;margin-top:1px;white-space:nowrap}
+.head-tools{margin-left:auto;display:flex;align-items:center;gap:12px}
+.mode-bar{display:inline-flex;gap:2px;background:var(--surface);border:var(--b);border-radius:10px;padding:3px}
+
+.subhead{color:var(--text3);font-size:12.5px;line-height:1.6;max-width:720px;margin:0 0 22px}
+.subhead code{font-family:'IBM Plex Mono',monospace;font-size:11px;background:rgba(88,166,255,.08);color:var(--blue);padding:1px 6px;border-radius:5px}
+
+/* upload card */
+#uploadCard{margin-top:4px}
+.drop-zone{border:2px dashed rgba(61,224,208,.28);border-radius:16px;padding:44px 30px;text-align:center;cursor:pointer;background:linear-gradient(160deg,var(--surface),var(--surface2));transition:all .25s;position:relative;overflow:hidden}
+.drop-zone:hover{border-color:var(--blue);background:rgba(88,166,255,.04)}
+.drop-zone.drag{border-color:var(--teal);background:linear-gradient(135deg,var(--surface2),rgba(61,224,208,.08));box-shadow:0 0 40px rgba(61,224,208,.12)}
+.drop-zone .dz-icon{font-size:38px;margin-bottom:10px;filter:drop-shadow(0 0 14px rgba(61,224,208,.3))}
+.drop-zone h3{font-size:17px;font-weight:800;letter-spacing:-.02em;margin-bottom:6px}
+.drop-zone p{color:var(--text2);font-size:12.5px;line-height:1.6;max-width:520px;margin:0 auto}
+.upload-btn{margin-top:16px;background:linear-gradient(135deg,var(--teal),var(--blue));color:#041014;border:none;border-radius:10px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+.upload-btn:hover{filter:brightness(1.07)}
+.demo-line{margin-top:14px;font-size:12px;color:var(--text3)}
+.demo-link{background:none;border:none;color:var(--blue);font:inherit;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:2px;padding:0;white-space:nowrap}
+.demo-link:hover{color:var(--teal)}
+.privacy-note{margin-top:20px;background:rgba(45,212,191,.06);border:1px solid rgba(45,212,191,.15);border-radius:10px;padding:12px 16px;font-size:11.5px;color:var(--text3);line-height:1.6}
+.privacy-note b{color:var(--green);font-weight:700}
+.fileset-key{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:16px}
+.fk{font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);color:var(--text2)}
+.fk b{color:var(--teal)}
+
+.status{min-height:18px;font-size:12px;font-weight:600;margin:14px 2px 0;color:var(--text3)}
+.status.busy{color:var(--blue)}
+.status.error{color:var(--red)}
+
+/* results */
+#resultsView{display:none}
+.results-top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+#nightHeader{display:none}
+.nh-date{font-size:24px;font-weight:800;letter-spacing:-.02em;font-family:'IBM Plex Mono',monospace}
+.nh-meta{font-size:12.5px;color:var(--text3);margin-top:3px}
+.results-actions{display:flex;gap:10px;align-items:center}
+#exportBtn{display:none;align-items:center;gap:7px;background:linear-gradient(135deg,var(--teal),var(--blue));color:#041014;border:none;border-radius:10px;padding:9px 18px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+#exportBtn:hover{filter:brightness(1.07)}
+#newSetBtn{background:transparent;border:var(--b);color:var(--text3);border-radius:10px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap}
+#newSetBtn:hover{color:var(--text);border-color:var(--blue)}
+#addNightsBtn{background:transparent;border:1px solid rgba(61,224,208,.4);color:var(--teal);border-radius:10px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+#addNightsBtn:hover{background:rgba(61,224,208,.08)}
+
+/* clinical warning banner (ported from docs draft) */
+.cpap-warning{display:flex;gap:9px;align-items:flex-start;background:rgba(255,184,77,.07);border:1px solid rgba(255,184,77,.22);border-radius:10px;padding:10px 14px;font-size:11.5px;line-height:1.55;color:var(--text3);margin:0 0 16px}
+
+/* longitudinal trend rows */
+.trend-block{margin:4px 0 14px;border-top:1px solid rgba(255,255,255,.05)}
+.trend-row{display:grid;grid-template-columns:1.6fr .9fr .9fr 120px;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.trend-name{font-weight:600;font-size:12.5px;color:var(--text2)}
+.trend-mean{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text)}
+.trend-u{color:var(--text4);font-size:10.5px}
+.trend-lbl{font-size:11.5px;font-weight:700;text-transform:capitalize}
+.trend-spark{justify-self:end}
+.sess-list{margin-top:4px}
+/* cross-node corroboration card */
+.xn-block{padding:4px 0 10px;border-top:1px solid rgba(255,255,255,.05);margin-top:10px}
+.xn-block:first-child{border-top:none;margin-top:0}
+.xn-src{font-size:12.5px;font-weight:800;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+.xn-ov{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:var(--text4);background:rgba(255,255,255,.05);border-radius:999px;padding:2px 8px}
+.xn-note{font-size:11.5px;color:var(--text3);line-height:1.55;margin-top:4px}
+.xn-tag{font-family:'IBM Plex Mono',monospace;font-size:8.5px;font-weight:700;color:var(--text4);background:rgba(255,255,255,.06);border-radius:4px;padding:1px 4px;margin-left:5px;vertical-align:middle}
+.xn-conc{font-size:11.5px;line-height:1.5;margin-top:9px;padding:8px 11px;border-radius:8px}
+.xn-conc b{text-transform:capitalize}
+.xn-ok{background:rgba(57,217,138,.08);border:1px solid rgba(57,217,138,.2);color:var(--text2)}
+.xn-warn{background:rgba(255,184,77,.07);border:1px solid rgba(255,184,77,.22);color:var(--text2)}
+@media(max-width:680px){.trend-row{grid-template-columns:1fr auto auto;gap:8px}.trend-spark{display:none}}
+
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:9px;margin-bottom:16px}
+.kpi-u{font-size:13px;color:var(--text3);font-weight:600;margin-left:3px}
+.kpi-val.ok{color:var(--green)}.kpi-val.warn{color:var(--amber)}.kpi-val.bad{color:var(--red)}.kpi-val.neutral{color:var(--blue)}
+
+.ev-legend{margin:0 0 16px;font-size:10.5px}
+.card-col{display:grid;grid-template-columns:1fr;gap:0}
+
+/* card (ans-design.css doesn't define the plain .card we use) */
+.card{background:var(--surface);border:var(--b);border-radius:14px;padding:18px 20px;margin-bottom:14px}
+.card-h{font-size:14px;font-weight:800;margin-bottom:13px;display:flex;align-items:center;gap:8px;letter-spacing:-.01em}
+.card-h::before{content:'';width:3px;height:14px;border-radius:2px;background:linear-gradient(180deg,var(--teal),var(--blue));flex-shrink:0}
+.card-sub{font-size:11px;font-weight:500;color:var(--text3)}
+.metric-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px}
+.legend-row{font-size:10.5px;color:var(--text4);margin-top:2px}
+.chart{background:linear-gradient(180deg,rgba(8,12,17,.4),rgba(11,15,20,.2));border:1px solid rgba(255,255,255,.05);border-radius:10px}
+
+/* oximetry QC */
+.qc-empty{display:flex;gap:14px;align-items:flex-start;font-size:12.5px;color:var(--text3);line-height:1.6}
+.qc-empty b{color:var(--text2)}
+.qc-shield{font-size:26px;flex-shrink:0;opacity:.8}
+.qc-note{font-size:11.5px;color:var(--text3);line-height:1.6;margin-top:10px;border-top:1px solid rgba(255,255,255,.05);padding-top:10px}
+.qc-note b{color:var(--text2)}
+
+/* cross-metric rows */
+.cross-row{display:flex;gap:13px;padding:12px 0;border-top:1px solid rgba(255,255,255,.05)}
+.cross-row:first-of-type{border-top:none}
+.cross-ic{font-size:19px;flex-shrink:0}
+.cross-t{font-weight:800;font-size:12.5px;margin-bottom:3px;letter-spacing:-.01em}
+.cross-b{font-size:12px;color:var(--text3);line-height:1.55}
+.cross-b b{color:var(--text2);font-family:'IBM Plex Mono',monospace}
+
+/* sessions */
+.sess-row{display:flex;align-items:center;gap:14px;padding:10px 0;border-top:1px solid rgba(255,255,255,.05);flex-wrap:wrap}
+.sess-row:first-of-type{border-top:none}
+.sess-tag{font-family:'IBM Plex Mono',monospace;color:var(--teal);font-weight:700;min-width:30px}
+.sess-clock{font-family:'IBM Plex Mono',monospace;color:var(--text2);font-size:12.5px}
+.sess-meta{color:var(--text3);font-size:12px}
+.sess-ev{margin-left:auto;color:var(--text3);font-size:11.5px;display:flex;align-items:center;gap:7px}
+.sess-gap{flex-basis:100%;font-size:11px;color:var(--amber);padding:2px 0 2px 44px}
+
+/* ganglior stream */
+.evt-row{display:grid;grid-template-columns:74px 120px 1fr auto;gap:10px;align-items:center;padding:6px 0;border-top:1px solid rgba(255,255,255,.04);font-size:11.5px}
+.evt-row:first-of-type{border-top:none}
+.evt-t{font-family:'IBM Plex Mono',monospace;color:var(--text3)}
+.evt-imp{font-family:'IBM Plex Mono',monospace;font-weight:700}
+.evt-meta{font-family:'IBM Plex Mono',monospace;color:var(--text4);font-size:10.5px}
+.evt-conf{font-family:'IBM Plex Mono',monospace;color:var(--blue);font-size:10px;background:rgba(88,166,255,.08);padding:2px 8px;border-radius:999px;white-space:nowrap}
+
+/* full metrics table (cpapFullMetricsTable) */
+.cpap-fulltable table{width:100%;border-collapse:collapse;font-size:12px}
+.cpap-fulltable th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text4);font-weight:700;padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.08);position:sticky;top:0;background:var(--surface)}
+.cpap-fulltable td{padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--text2);vertical-align:top}
+.cpap-fulltable tr:hover td{background:rgba(61,224,208,.03)}
+.cpap-fulltable .fmt-sec td{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--teal);font-weight:800;background:rgba(61,224,208,.04);padding-top:11px;padding-bottom:6px}
+.cpap-fulltable .fmt-m{font-weight:600;color:var(--text);white-space:nowrap}
+/* Defect-C (BADGE-PLACEMENT-SWEEP): trailing gap on the inline disc in the full-
+   metrics table so it never touches the metric name. (Tile/card badges are corner-
+   anchored via metric-registry.js; card-h badges get their gap from the flex gap.) */
+.cpap-fulltable .fmt-m .ev{margin-right:5px}
+.cpap-fulltable .fmt-v{font-family:'IBM Plex Mono',monospace;color:var(--text);font-weight:600}
+.cpap-fulltable .fmt-note{color:var(--text4);font-size:11px;line-height:1.45}
+.cpap-fulltable .table-wrap{max-height:none;border:none;margin:0}
+
+@media(max-width:980px){.evt-row{grid-template-columns:64px 100px 1fr;gap:7px}.evt-conf{display:none}}
+@media(max-width:760px){.cpap-fulltable .fmt-note{display:none}}
+
+/* unified export bar — full-width (no sidebar); inner .eb- classes from ans-design.css §28 */
+#exportBar{display:none;position:fixed;bottom:0;left:0;right:0;z-index:500;background:rgba(11,15,20,.92);backdrop-filter:blur(12px);border-top:1px solid var(--border);padding:11px 24px;align-items:center;gap:14px;flex-wrap:wrap}
+#exportBar.show{display:flex}
+body.light #exportBar{background:rgba(255,255,255,.92)}
+#resultsView{padding-bottom:96px}
+</style>
+</head>
+<body data-mode="core">
+
+<template id="__bundler_thumbnail">
+  <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100" height="100" rx="20" fill="#0E1217"/>
+    <path d="M30 26 C30 26 22 50 22 64 a8 8 0 0 0 16 0 C38 50 30 26 30 26 Z" fill="#3DE0D0"/>
+    <path d="M12 78 L26 78 L31 66 L37 86 L43 58 L49 80 L55 78 L88 78" fill="none" stroke="#58A6FF" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+</template>
+
+<div class="page">
+
+  <div class="app-head">
+    <div class="app-badge"><svg viewBox="0 0 100 100" aria-hidden="true" style="width:26px;height:26px" fill="none" stroke="#06121A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></svg></div>
+    <div class="app-title">CPAPDex<small>v1.0 · ResMed AirSense PAP Analyzer</small></div>
+    <div class="head-tools">
+      <div class="mode-bar" id="modeBar"></div>
+    </div>
+  </div>
+
+  <p class="subhead">
+    Reads a night's <code>EDF</code> set straight off an AirSense 11 SD card — <code>BRP</code> 25&nbsp;Hz flow,
+    <code>PLD</code> 0.5&nbsp;Hz pressure/leak/ventilation, <code>SA2</code> oximetry, and the device-scored
+    <code>EVE</code>/<code>CSL</code> annotations — and turns them into a per-night, per-session therapy read.
+    Device-scored apneas are the top tier; the SpO₂ lane is self-gated for squeeze artifacts.
+  </p>
+
+  <!-- UPLOAD -->
+  <div id="uploadCard">
+    <div class="drop-zone" id="dropZone">
+      <div class="dz-icon">🫁</div>
+      <h3>Drop your AirSense EDF set — or click to choose</h3>
+      <p>Select every <code>.edf</code> for the night (the recorder writes one file per signal, per session). CPAPDex clusters them into sessions automatically and keeps off-mask gaps intact. <b style="color:var(--text2)">Optional:</b> add an <b style="color:#58A6FF">OxyDex</b> or <b style="color:#FF6B7A">ECGDex</b> <code>.json</code> export for the same night to borrow real oximetry and autonomic corroboration.</p>
+      <div class="fileset-key">
+        <span class="fk"><b>BRP</b> flow</span>
+        <span class="fk"><b>PLD</b> pressure·leak</span>
+        <span class="fk"><b>SA2</b> SpO₂</span>
+        <span class="fk"><b>EVE</b> events</span>
+        <span class="fk"><b>CSL</b> periodic-breathing</span>
+      </div>
+      <button class="upload-btn" type="button" onclick="event.stopPropagation();document.getElementById('fileInput').click()">Choose EDF files</button>
+      <div class="demo-line">No device handy? <button class="demo-link" type="button" id="demoBtn">Load a demo night</button></div>
+    </div>
+    <input type="file" id="fileInput" accept=".edf,.json" multiple style="display:none">
+    <div class="status" id="status"></div>
+    <div class="privacy-note"><b>100% on-device.</b> Files are decoded in your browser and never uploaded. The exported node JSON is yours to hand to the Integrator — nothing leaves this page on its own.</div>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="resultsView">
+    <div class="results-top">
+      <div id="nightHeader"></div>
+      <div class="results-actions">
+        <button id="addNightsBtn" type="button" style="display:none">+ Add nights</button>
+        <button id="newSetBtn" type="button">← New</button>
+      </div>
+    </div>
+    <div id="results"></div>
+  </div>
+
+</div><!-- .page -->
+
+
+<div class="dxl dxl-ribbon" style="max-width:1100px;margin:0 auto 30px">
+  <div class="dxl-seg">
+    <span class="dxl-mark">T</span>
+    <span style="display:flex;flex-direction:column">
+      <b style="font-size:13px">Tepna</b>
+      <span class="dxl-colophon">physiological-signal suite</span>
+    </span>
+  </div>
+  <div class="dxl-seg dxl-grow">
+    <span style="font-size:11.5px;color:var(--text2,#9FB0C3)">© 2026 <b>Michal Planicka</b> — Concept · Architecture · Algorithms</span>
+    <span class="dxl-disclaimer">Not a medical device · does not diagnose or treat · not FDA/CE cleared · research &amp; personal use only · ◈ Made in Asheville, NC</span>
+  </div>
+  <div class="dxl-seg"><span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span></div>
+</div>
+<!-- STICKY EXPORT BAR -->
+<div id="exportBar">
+  <span class="eb-label">Export</span>
+  <div class="eb-grp">
+    <button class="eb-btn eb-json" type="button" id="btnJSON">⬇ JSON</button>
+    <button class="eb-btn eb-csv" type="button" id="btnCSV">⬇ CSV</button>
+    <button class="eb-btn eb-pdf" type="button" onclick="window.print()">⬇ PDF</button>
+  </div>
+</div>
+
+<script src="kernel-constants.js"></script>
+<script src="ganglior-provenance.js"></script>
+<script src="signal-frame.js"></script>
+<script src="dex-export.js"></script>
+<script src="metric-registry.js"></script>
+<script src="entrance-guard.js"></script>
+<script src="crossnight-envelope.js"></script>
+<script src="cpapdex-registry.js"></script>
+<script src="cpapdex-edf.js"></script>
+<script src="cpapdex-dsp.js"></script>
+<script src="cpapdex-cross.js"></script>
+<script src="cpapdex-render.js"></script>
+<script src="cpapdex-fusion.js"></script>
+<script src="cpapdex-coimport.js"></script>
+<script src="cpapdex-app.js"></script>
+</body>
+</html>

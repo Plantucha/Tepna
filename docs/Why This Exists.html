@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  Why This Exists.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+
+  Narrative / colophon — project voice, NOT spec. Mirrors WHY-THIS-EXISTS.md.
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Why This Exists — Tepna</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="stylesheet" href="licensing/dex-license.css">
+<style>
+:root{
+  --bg:#0B0F14; --surface:#121821; --surface2:#18212C; --surface3:#1E2835;
+  --border:#1e2d42; --border2:#253550;
+  --text:#F4F7FB; --text2:#9FB0C3; --text3:#8C9DB3; --text4:#6E7F94;
+  --teal:#3DE0D0; --blue:#58A6FF; --green:#39D98A; --amber:#FFB84D;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --content:720px;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+  font-size:17px;line-height:1.68;-webkit-font-smoothing:antialiased;
+  background-image:
+    radial-gradient(circle at 12% -6%,rgba(61,224,208,.06),transparent 42%),
+    radial-gradient(circle at 95% 1%,rgba(88,166,255,.05),transparent 40%);
+}
+a{color:var(--teal);text-decoration:none;}
+a:hover{text-decoration:underline;}
+/* subtle inline reference links — quiet until hover */
+article a.ref{color:inherit;text-decoration:none;border-bottom:1px solid var(--border2);transition:border-color .15s,color .15s;}
+article a.ref:hover{color:var(--teal);border-bottom-color:var(--teal);text-decoration:none;}
+.wrap{max-width:var(--content);margin:0 auto;padding:0 28px;}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--teal);}
+
+/* ── nav ── */
+header.nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(12px);
+  background:rgba(11,15,20,.72);border-bottom:1px solid var(--border);}
+.nav-in{max-width:1080px;margin:0 auto;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px;}
+.brand{display:flex;align-items:center;gap:13px;font-weight:800;letter-spacing:-.025em;font-size:22px;}
+.brand .mark{position:relative;width:15px;height:15px;border-radius:50%;background:radial-gradient(circle at 35% 30%,var(--teal),var(--blue));box-shadow:0 0 16px rgba(61,224,208,.8);animation:pulse 2.4s ease-in-out infinite;}
+.brand .mark::after{content:"";position:absolute;inset:-7px;border-radius:50%;border:1.5px solid var(--teal);animation:ring 2.6s ease-out infinite;}
+.brand .wm{line-height:1;}
+@keyframes ring{0%{transform:scale(.55);opacity:.6;}100%{transform:scale(1.5);opacity:0;}}
+@keyframes pulse{0%,100%{box-shadow:0 0 10px rgba(61,224,208,.5);}50%{box-shadow:0 0 20px rgba(61,224,208,.95);}}
+.brand small{font-family:var(--mono);font-weight:500;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--text4);}
+.nav-back{font-family:var(--mono);font-size:12.5px;color:var(--text3);}
+.nav-back:hover{color:var(--teal);text-decoration:none;}
+
+/* ── masthead ── */
+.mast{padding:74px 0 18px;}
+.mast h1{font-size:46px;line-height:1.06;letter-spacing:-.03em;font-weight:800;margin:16px 0 0;}
+.mast .kicker{font-family:var(--mono);font-size:12.5px;color:var(--text4);margin-top:20px;letter-spacing:.02em;}
+.mast .kicker b{color:var(--text3);font-weight:600;}
+
+article{padding:30px 0 10px;}
+article section{padding:34px 0;border-top:1px solid var(--border);}
+article section:first-of-type{border-top:none;}
+article h2{font-size:26px;font-weight:800;letter-spacing:-.02em;margin:10px 0 18px;line-height:1.12;}
+article p{margin:0 0 18px;color:var(--text2);text-wrap:pretty;}
+article p:last-child{margin-bottom:0;}
+article em{color:var(--text);font-style:italic;}
+article strong{color:var(--text);font-weight:700;}
+
+/* deadpan one-liners get their own air */
+p.beat{font-size:19px;color:var(--text);font-weight:600;margin:22px 0;}
+
+/* pull-quote — the "Not this way, friends" register */
+.pull{border-left:3px solid var(--teal);padding:4px 0 4px 22px;margin:26px 0;
+  font-size:21px;line-height:1.4;font-weight:700;letter-spacing:-.01em;color:var(--text);}
+.pull span{color:var(--text3);font-weight:500;font-size:14px;display:block;margin-top:8px;font-family:var(--mono);}
+
+/* the WAF ledger */
+.ledger{display:flex;flex-direction:column;gap:1px;background:var(--border);border:1px solid var(--border);border-radius:13px;overflow:hidden;margin:22px 0;}
+.ledger .row{display:grid;grid-template-columns:152px 1fr;gap:18px;background:var(--surface);padding:14px 18px;align-items:baseline;}
+.ledger .k{font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:var(--teal);text-transform:uppercase;}
+.ledger .d{font-size:15px;color:var(--text2);}
+@media(max-width:560px){.ledger .row{grid-template-columns:1fr;gap:4px;}}
+
+/* the maxim chip */
+.maxim{display:inline-block;font-family:var(--mono);font-size:13.5px;letter-spacing:.02em;
+  color:var(--text);background:var(--surface2);border:1px solid var(--border2);
+  border-radius:999px;padding:11px 20px;margin:6px 0 2px;}
+.maxim b{color:var(--teal);font-weight:700;}
+
+/* aside / wink */
+.aside{font-family:var(--mono);font-size:13.5px;color:var(--text4);background:var(--surface);
+  border:1px dashed var(--border2);border-radius:11px;padding:12px 16px;margin:20px 0 0;}
+
+.endmark{font-family:var(--mono);font-size:12px;color:var(--text4);letter-spacing:.1em;text-transform:uppercase;margin-top:6px;}
+
+/* roles — mono chips */
+.roles{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 24px;}
+.role{font-family:var(--mono);font-size:12.5px;letter-spacing:.02em;color:var(--text2);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:7px 13px;}
+.role-more{color:var(--text4);border-style:dashed;background:transparent;}
+
+/* the heartbeat trace — "satisfaction metrics" */
+.pulse-card{margin:20px 0 0;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px 14px;}
+.pulse-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:10px;}
+.pulse-label{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);}
+.pulse-n{font-family:var(--mono);font-size:11px;color:var(--text4);}
+.pulse-svg{display:block;width:100%;height:150px;overflow:visible;}
+.pulse-foot{font-family:var(--mono);font-size:12px;color:var(--text4);margin-top:12px;line-height:1.55;}
+
+/* dedication — set apart, like a book's */
+.dedication{text-align:center;}
+.dedication .eyebrow{display:block;margin-bottom:16px;color:var(--text4);}
+.dedication p{margin-left:auto;margin-right:auto;max-width:560px;}
+.ded-lead{font-size:20px;color:var(--text);font-weight:600;}
+.ded-orbit{font-family:var(--mono);font-size:12.5px;color:var(--text3);margin-top:24px;}
+.dedication .endmark{margin-top:18px;}
+.satset{font-family:var(--mono);font-size:12.5px;line-height:1.95;color:var(--text4);word-break:break-word;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:14px 16px;letter-spacing:.01em;margin-top:6px;}
+
+@media(max-width:560px){.mast h1{font-size:34px;}article h2{font-size:22px;}}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-in">
+    <a class="brand" href="index.html" style="color:var(--text)"><svg class="brandmark" viewBox="0 0 100 100" aria-hidden="true" style="width:24px;height:24px;flex:none;filter:drop-shadow(0 0 7px rgba(61,224,208,.4))"><defs><linearGradient id="tgrad" x1="14" y1="10" x2="86" y2="88" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3DE0D0"/><stop offset=".58" stop-color="#58A6FF"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs><g fill="none" stroke="url(#tgrad)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></g></svg><span class="wm">Tepna</span> <small>by the&nbsp;-Dex&nbsp;suite</small></a>
+    <span style="display:flex;gap:18px;align-items:center"><a class="nav-back" href="Science.html">science</a><a class="nav-back" href="Architecture.html">architecture</a><a class="nav-back" href="index.html">← back to the suite</a></span>
+  </div>
+</header>
+
+<div class="wrap mast">
+  <div class="eyebrow">Colophon</div>
+  <h1>Why This Exists</h1>
+  <p class="kicker"><b>Narrative, not spec.</b></p>
+</div>
+
+<article class="wrap">
+
+  <section>
+    <p>The story goes that the Swedish writer <a class="ref" href="https://en.wikipedia.org/wiki/August_Strindberg" target="_blank" rel="noopener">August Strindberg</a> once blew pipe smoke into a bucket of water to see if he could make gold.</p>
+    <p class="beat"><em>What a strange idea from a brilliant mind.</em></p>
+    <p>But maybe that's the wrong way to look at it. Maybe Strindberg wasn't the man who thought smoke could make gold. Maybe he was the man who proved that it couldn't.</p>
+    <p>Someone has to explore the dead ends of human knowledge. Someone has to walk down the wrong path, all the way to the end, and come back to tell everyone else:</p>
+    <div class="pull">"Not this way, friends."</div>
+    <p class="beat">Under suitably favorable conditions, of course.</p>
+    <p>By which I mean the arrival of a cold front, freezing temperatures, several failed experiments, three contradictory papers, and the discovery that the thing I spent many moons building measures absolutely nothing useful.</p>
+    <p>This project exists in that spirit. Some ideas will work. Most won't.</p>
+    <p class="beat">Every experiment deserves to be performed at least once. Preferably by someone else.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">The method</div>
+    <h2>We Already Have the Answer</h2>
+    <p>The answer is 42. The trouble is that nobody knows the question.</p>
+    <p>That's the actual job here. Answers are cheap — you can compute one to ten decimal places before breakfast. The hard part is working backward to the question that makes the answer mean anything.</p>
+    <p>The program advances by suddenly running down the wrong end of a maze, eating the wrong bit of cheese, or unexpectedly dropping dead of myxomatosis — and if it's finely calculated, the cumulative effect is enormous.</p>
+    <p class="beat">Every wrong turn is a data point. The cheese counts.</p>
+    <p>So I run the maze on purpose, and I write down where the walls are.</p>
+    <p>This project computes a lot of metrics.</p>
+    <p class="beat">Some of them may turn out to measure absolutely nothing useful.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">The constraint</div>
+    <h2>Why It Looks Like This</h2>
+    <p>As devoted Ham radio operator <a class="ref" href="https://www.qrz.com/db/KQ4KIJ" target="_blank" rel="noopener">KQ4KIJ</a> I'm previously intimately familiar with a concept called the Wife Acceptance Factor — WAF, the informal but merciless measure of how much domestic invasion a hobby can get away with — (occasionally implemented as Partner Acceptance Factor, with lower impact score)</p>
+    <p>It is an informal measure of how much a partner is willing to tolerate a hobby's cost, equipment, and general invasion of daily life. For biohackers and self-quantifiers, WAF is not a joke. It is a load-bearing engineering constraint.</p>
+    <p>Score is calculated Including, but not limited to: The number of wearables, pulse oximeters, chest straps, and electrode patches currently attached to your body. How much of the bedroom, bathroom, and living room has quietly become a miniature research lab. The budget vanishing into devices, supplements, and "just one more" sensor. Blinking LEDs, charging docks, and overnight lab equipment that turn a bedroom into a small datacenter. the hours spent collecting data, tuning dashboards, and reading papers at an hour no reasonable person is awake.</p>
+    <p>Anyone who can install a whole-home sensor network, maintain a 14-supplement morning routine, and run multiple sleep monitors without triggering a household rebellion has achieved a level of systems engineering that deserves academic recognition, possibly a medal.</p>
+    <p>So the whole project is built around one ironclad rule:</p>
+    <div class="maxim"><b>maximum information</b> · minimum hardware · minimum annoyance</div>
+    <p class="beat">One should never reject a hypothesis merely because it appears ridiculous. Ridiculous hypotheses have an unfortunate habit of occasionally being correct, which only encourages them.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">The philosophy</div>
+    <h2>Why Consumer Sensors?</h2>
+    <p>Because I like the idea of doing more with less.</p>
+    <p class="beat">Also, because I have them.</p>
+    <p>I think of <a class="ref" href="https://en.wikipedia.org/wiki/William_Kamkwamba" target="_blank" rel="noopener">William Kamkwamba</a>, a teenager in <strong>Malawi</strong> who built a working wind turbine out of bicycle parts, scrap metal, and a library book — and brought electricity to his family's home during a famine. He did it to keep people alive.</p>
+    <p>I am, by comparison, using bicycle parts and scrap metal to find out whether my heart rate variability dips after the second coffee.</p>
+    <p class="beat">Same principle. Slightly lower stakes. Significantly better coffee.</p>
+    <p>Still — consumer devices are cheap, widely available, and already sitting in people's homes. Instead of dreaming about a hospital-grade laboratory, I'd rather see how far I can push the gear ordinary people can actually buy.</p>
+    <p>The goal isn't to use the most expensive equipment. The goal is to get <strong>105%</strong> out of the equipment you already have.</p>
+    <div class="aside">(That said — if someone wants to send me free lab equipment, I will not say no. 😁)</div>
+  </section>
+
+  <section>
+    <div class="eyebrow">The guardrail</div>
+    <h2>Why So Much Documentation?</h2>
+    <p>I'm told I have a playful personality. The side effect is that people can't always tell when I'm joking and when I'm serious.</p>
+    <p class="beat">Sometimes I can't either.</p>
+    <p>This is less of a confession and more of a known system parameter.</p>
+    <p>That's why you'll find citations, references, and documentation scattered throughout this project. Not because I enjoy over-documenting things — okay, <em>slightly</em> because of that — but mostly because citations are a natural guardrail against confusion. When a claim matters, you should be able to trace it back to the source and decide for yourself.</p>
+    <div class="pull">Life is optional. The references are not.<span>— the whole thing, in one line</span></div>
+  </section>
+
+  <section>
+    <div class="eyebrow">The name</div>
+    <h2>Why "Tepna"</h2>
+    <p><a class="ref" href="https://en.wiktionary.org/wiki/tepna" target="_blank" rel="noopener"><strong>Tepna</strong></a> is Czech for <em>artery</em> — a small homage to where I'm from, and to the only thing this whole project really does: carry a faint physiological signal from where it's measured to where it can mean something.</p>
+    <p>The rest of the suite is named from the body too — the nodes that sense, the bus that relays, the centre that integrates. The artery just carries. That felt like the right name for the part you're looking at.</p>
+  </section>
+
+  <section>
+    <h2>Who am I</h2>
+    <p>Mailman, Ham radio operator, an amateur scientist, an amateur astronomer, master of dead ends, ballroom dancer, inventor, electronic engineer, world traveller, explorer, philosopher, businessman, photographer and sportsman, among other things.</p>
+    <p>I am also, according to several years of independently collected customer-satisfaction metrics, a remarkably nice guy. look for yourself:</p>
+    <p class="satset">985,1070,1031,914,878,953,1015,957,878,903,1008,1074,994,889,887,967,997,903,833,880,1003,1026,938,874,915,987,965,837,800,887,989,981,896,868,940,996,949,843,845,939,1029,984,907,921,1009,1042,953,865,889,991,1042,965,889,955,1059,1048,924,853,896,996,978,881,848,944,1038,1000,872,827,892,966,920,819,832,963,1047,978,884,883,966,994,913,838,893,996,1038,964,901,947,1050,1026,921,861,925,1036,1031,936,917,1003,1052,989,867,837,941,1001,957,870,907,989,1040,952,841,847,942,979,906,841,889,1012,1022,927,844,886,976,969,887,851,954,1050,1043,937,899,953,1013,969,862,855,975,1050,996,896,910,998,1013,908,821,854,957,1009,933,852,905,987,974,873,806,877,973,984,900,863,950,1021,997,875,834,920,992,973,879,891,998,1057,983,880,864,965,1019,949,873,926,1039,1070,966,890,915,997,977,888,846,932,1032,1019,911,865,916,987,938,827,827,927,1008,977,866,857,955,1007,920,827,853,951</p>
+    <div class="aside">All metrics are fully reproducible. Permission to understand it is expected within 30–60 business days.</div>
+  </section>
+
+  <section class="dedication">
+    <h2>Dedication</h2>
+    <p>This project is dedicated to <a class="ref" href="https://en.wikipedia.org/wiki/J%C3%A1ra_Cimrman" target="_blank" rel="noopener"><strong>Jára Cimrman</strong></a> — the greatest Czech who never existed. Playwright, inventor, polymath, and permanent runner-up in the Greatest Czech of All Time poll, disqualified on a technicality of not being real. He was somehow present at many defining moments of modern history and left no verifiable trace of any of them, which is either a scandal or a methodology.</p>
+    <p class="ded-orbit"><a class="ref" href="https://en.wikipedia.org/wiki/7796_J%C3%A1racimrman" target="_blank" rel="noopener">Planet 7796 Járacimrman</a> orbits the Sun in his honor.</p>
+    <p>If this project occasionally wanders down strange paths, investigates improbable ideas, and takes itself only slightly too seriously, that is entirely his fault. He would have understood this project completely.</p>
+    <p class="beat">In fact, there is every possibility that he invented it first and neglected to publish the results.</p>
+    <p class="endmark">◈ end</p>
+  </section>
+
+</article>
+
+<!-- ════ LICENSE STAMP ════ -->
+<div class="dxl" style="max-width:900px;margin:36px auto 14px;padding:0 28px">
+  <div class="dxl-notice">
+    <div class="dxl-k">Intended use &amp; safety</div>
+    <p><b>Tepna</b> computes biometric patterns from your wearable and sensor data to support personal self-quantification. It is <b>not a medical device</b>, does not <b>diagnose, treat, cure, screen for, or prevent</b> any disease or condition, and is <b>not a substitute for professional clinical evaluation</b>. Always consult a qualified healthcare provider about your health. For research and personal use only. 100% local — no data leaves your device.</p>
+  </div>
+</div>
+<div class="dxl dxl-ribbon" style="max-width:1000px;margin:0 auto 36px;">
+  <div class="dxl-seg">
+    <span class="dxl-mark">T</span>
+    <span style="display:flex;flex-direction:column">
+      <b style="font-size:13px">Tepna</b>
+      <span class="dxl-colophon">physiological-signal suite</span>
+    </span>
+  </div>
+  <div class="dxl-seg dxl-grow">
+    <span style="font-size:11.5px;color:var(--text2)">© 2026 <b>Michal Planicka</b> — Concept · Architecture · Algorithms</span>
+    <span class="dxl-disclaimer">Not a medical device · does not diagnose or treat · research &amp; personal use only · ◈ Made in Asheville, NC</span>
+  </div>
+  <div class="dxl-seg"><span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span></div>
+</div>
+
+</body>
+</html>

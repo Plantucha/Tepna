@@ -1,0 +1,90 @@
+{
+  "kernel": {
+    "version": "1.0.0",
+    "hash": "118ebed5"
+  },
+  "schema": {
+    "name": "ganglior.node-export",
+    "version": "2.0",
+    "node": "PulseDex",
+    "nodeVersion": "1.0",
+    "bus": "ganglior",
+    "generated": "2026-06-25T15:40:58.073Z",
+    "provenance": null,
+    "doc": "PulseDex windowed HRV → Ganglior events. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated."
+  },
+  "recording": {
+    "source": "rr",
+    "contentId": "e8350499a680",
+    "startEpochMs": 1781128800000,
+    "offsetMin": null,
+    "durationMin": 92,
+    "mode": "overnight",
+    "modeLabel": "🌙 Overnight",
+    "longRecording": true,
+    "windows": 19,
+    "beats": 6153,
+    "coveragePct": 100
+  },
+  "hrv": {
+    "time": {
+      "rmssd": 42.8,
+      "sdnn": 24.35,
+      "pnn50": 0,
+      "hr": 66.9,
+      "meanRR": 897.1,
+      "lnRMSSD": 3.784
+    },
+    "frequency": {
+      "lf": 77,
+      "hf": 382,
+      "vlf": 25,
+      "lfhf": 0.202
+    },
+    "poincare": {
+      "sd1": 30.27,
+      "sd2": 16.43
+    }
+  },
+  "summary": {
+    "stress": 48,
+    "hrvScore": 52,
+    "energy": 32,
+    "focus": 31,
+    "snsBal": 0.202,
+    "psnsBal": 4.961
+  },
+  "ganglior_events": [
+    {
+      "tMs": 1781130600000,
+      "t": "22:30:00",
+      "impulse": "hrv_drop",
+      "node": "PulseDex",
+      "conf": 0.68,
+      "meta": {
+        "rmssd": 10,
+        "medianRMSSD": 44,
+        "hr": 70.6,
+        "position": null
+      }
+    },
+    {
+      "tMs": 1781130600000,
+      "t": "22:30:00",
+      "impulse": "stress_peak",
+      "node": "PulseDex",
+      "conf": 0.88,
+      "meta": {
+        "stress": 94,
+        "rmssd": 10,
+        "sdnn": 5,
+        "position": null
+      }
+    }
+  ],
+  "reserved": {
+    "doc": "Awaiting other fleet nodes; null until available.",
+    "glucoseCorrelation": null,
+    "glucoseSource": "GlucoDex"
+  }
+}

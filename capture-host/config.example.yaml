@@ -1,0 +1,40 @@
+# tepna-capture — example config.  Copy to config.yaml and edit.
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+
+# Where nightly captures are written. The web server serves <root>/app; captures land under <root>/captures.
+root: /srv/tepna
+incoming_subdir: captures/incoming      # daemon writes here; a night-roller moves to captures/<YYYY-MM-DD>/
+
+# Host clock MUST be NTP-synced and set to your real local timezone — arrival stamps depend on it.
+# Stored values are floating wall-clock (Clock Contract); we write the LOCAL civil time, zone-free.
+
+devices:
+  # Polar H10 chest strap — raw ECG (MANDATORY live stream; onboard keeps only HR/RR).
+  - name: Polar H10
+    vendor: Polar
+    model: H10
+    device_id: AAAAAAAA          # short stable id used in filenames + companion pairing (one per physical sensor)
+    address: "XX:XX:XX:XX:XX:XX" # BLE MAC (find with: bluetoothctl scan on). Passing MAC > name = faster/robust connect.
+    streams: [ecg, acc, hr]      # ecg = the node input; acc/hr = sidecars (paired by device_id+stamp)
+
+  # Polar Verity Sense armband — PPG (+ motion). Live OR press the button for onboard offline.
+  - name: Polar Verity Sense
+    vendor: Polar
+    model: VeritySense
+    device_id: BBBBBBBB
+    address: "YY:YY:YY:YY:YY:YY"
+    streams: [ppg, acc]
+
+  # Muse S — raw EEG. Captured via a child tool, NOT bleak directly. Pick by firmware:
+  - name: Muse S
+    vendor: Muse
+    model: S
+    device_id: DDDDDDDD
+    address: "ZZ:ZZ:ZZ:ZZ:ZZ:ZZ"
+    streams: [eeg]
+    muse_tool: muselsl           # "muselsl" (Muse 2 / S gen 1-2) | "openmuse" (Muse S Athena)
+
+# O2Ring (SpO2), Lingo (CGM) and CPAP (EDF) are NOT live-captured here:
+#   - O2Ring: onboard recording -> morning ViHealth export -> drop into captures/<night>/   (how-to-collect/oxydex-spo2.md)
+#   - Lingo:  encrypted/locked  -> Health Connect / Apple Health export -> drop in           (how-to-collect/libre-cgm.md)
+#   - CPAP:   SD card / ezShare Wi-Fi SD pull of DATALOG/*.edf -> drop in                     (how-to-collect/cpap-edf.md)

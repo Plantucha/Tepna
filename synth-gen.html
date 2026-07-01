@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  synth-gen.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SynthGen — Synthetic Overnight Corpus · v1.0</title>
+<link rel="stylesheet" href="ans-design.css">
+<style>
+  /* ── tool-local composition (everything else inherited from ans-design.css) ── */
+  .sg-wrap { max-width: 1180px; margin: 0 auto; padding: 32px 32px 120px; }
+  .sg-hero-sub { max-width: 760px; }
+  .sg-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 880px) { .sg-grid2 { grid-template-columns: 1fr; } }
+
+  /* arc / knobs table */
+  .arc-table input[type=number] {
+    width: 64px; background: var(--surface2); border: var(--b); color: var(--text);
+    border-radius: 7px; padding: 4px 7px; font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px; text-align: right;
+  }
+  .arc-table td { font-family: 'IBM Plex Mono', monospace; }
+  .arc-table td.story { font-family: 'Inter', system-ui, sans-serif; color: var(--text2); font-size: 11px; white-space: normal; min-width: 200px; }
+  .arc-table .nidx { color: var(--teal); font-weight: 700; }
+
+  /* verify cards */
+  .vcard { background: var(--surface); border: var(--b); border-radius: var(--r-md); padding: 16px 18px; position: relative; overflow: hidden; }
+  .vcard::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background: linear-gradient(90deg, var(--teal), var(--blue), transparent 70%); opacity:.5; }
+  .vcard h4 { font-size: 13px; font-weight: 700; margin-bottom: 2px; display:flex; align-items:center; gap:8px; }
+  .vcard .vstory { font-size: 11px; color: var(--text3); margin-bottom: 12px; }
+  .vrow { display:flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+  .vrow:last-child { border-bottom: none; }
+  .vrow .k { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing:.05em; line-height:1.3; }
+  .vrow .v { font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; white-space: nowrap; text-align: right; flex-shrink: 0; }
+  .vcard h4 .nidx { white-space: nowrap; }
+  .verdict-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 14px; }
+
+  /* manifest */
+  .mani-file { font-family: 'IBM Plex Mono', monospace; }
+  .mani-bytes { text-align: right; color: var(--text2); }
+  .prev-toggle { cursor: pointer; color: var(--blue); font-size: 11px; }
+  .prev-body { display: none; }
+  .prev-body.show { display: table-row; }
+  .prev-body pre {
+    margin: 0; padding: 10px 14px; background: var(--bg); border-radius: 8px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--text2);
+    overflow-x: auto; white-space: pre; line-height: 1.5;
+  }
+  .sg-foot-actions { position: fixed; bottom: 0; left: 0; right: 0; z-index: 400; background: var(--surface);
+    border-top: 1px solid rgba(255,255,255,.08); box-shadow: 0 -4px 20px rgba(0,0,0,.25);
+    padding: 12px 24px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .sg-foot-actions .sp { flex: 1; }
+  .muted { color: var(--text3); }
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+  .stat-strip { display: flex; gap: 10px; flex-wrap: wrap; }
+  .stat-chip { background: rgba(61,224,208,.06); border: 1px solid rgba(61,224,208,.18); border-radius: 10px; padding: 8px 14px; }
+  .stat-chip .sc-l { font-size: 10px; text-transform: uppercase; letter-spacing:.08em; color: var(--text4); font-weight: 700; }
+  .stat-chip .sc-v { font-family: 'IBM Plex Mono', monospace; font-size: 18px; font-weight: 700; color: var(--text); }
+</style>
+</head>
+<body>
+<div class="sg-wrap">
+
+  <!-- ── header ── -->
+  <header class="topbar">
+    <div>
+      <div class="topbar-title">SynthGen<span class="version-badge">v1.0</span></div>
+      <div class="topbar-sub sg-hero-sub">One virtual subject · five consecutive nights · every Dex on the same floating wall-clock. A single master event timeline is rendered into each device's native format so every app loads the corpus unchanged and the Integrator can fuse across nodes.</div>
+    </div>
+    <div class="topbar-actions">
+      <span class="data-pill"><span class="data-dot"></span> 100% local · seeded · no network</span>
+    </div>
+  </header>
+
+  <!-- ── subject ── -->
+  <div class="section-title section-title-lg">Subject &amp; Arc</div>
+  <div class="stat-strip" id="subjectStrip"></div>
+
+  <!-- ── arc / knobs ── -->
+  <div class="section-title">Five-night clinical arc <span class="muted" style="font-weight:400;text-transform:none;letter-spacing:0">— tune AHI &amp; RSA gain, then regenerate</span></div>
+  <div class="table-wrap">
+    <table class="arc-table">
+      <thead><tr>
+        <th>Night</th><th>Date</th><th>Bedtime</th><th>Dur</th>
+        <th>AHI target</th><th>RSA gain</th><th>Gluc</th><th>CPAP</th><th>Story</th>
+      </tr></thead>
+      <tbody id="arcBody"></tbody>
+    </table>
+  </div>
+  <div class="controls" style="margin-top:14px">
+    <div class="gc-left">
+      <span class="gc-label">RNG seed</span>
+      <input type="number" id="seedInput" value="424242" class="mono" style="width:120px;background:var(--surface2);border:var(--b);color:var(--text);border-radius:8px;padding:6px 10px">
+      <span class="gc-label">PPG window</span>
+      <span class="mono" id="winLbl" style="color:var(--teal)"></span>
+    </div>
+    <div class="gc-right">
+      <button class="btn btn-outline" id="resetBtn">Reset defaults</button>
+    </div>
+  </div>
+
+  <!-- ── progress ── -->
+  <div class="progress" id="prog" style="margin-top:18px"><div class="progress-bar" id="progBar"></div></div>
+  <div class="proc-status" id="status"></div>
+
+  <!-- ── verification ── -->
+  <div id="resultsZone" style="display:none">
+    <div class="section-title section-title-lg">Verification</div>
+    <div class="section-title">Per-night physiology <span class="muted" style="font-weight:400;text-transform:none;letter-spacing:0">— computed off the rendered signals (truth vs render)</span></div>
+    <div class="verdict-grid" id="verifyGrid"></div>
+
+    <div class="section-title">Designed couplings <span class="muted" style="font-weight:400;text-transform:none;letter-spacing:0">— what the Integrator should surface</span></div>
+    <div class="verdict-grid" id="couplingGrid"></div>
+
+    <!-- ── manifest ── -->
+    <div class="section-title section-title-lg">Corpus manifest</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>File</th><th style="text-align:right">Bytes</th><th>Lines</th><th></th></tr></thead>
+        <tbody id="maniBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── sticky actions ── -->
+<div class="sg-foot-actions">
+  <button class="upload-btn" id="genBtn">Generate corpus</button>
+  <button class="btn btn-dl" id="zipBtn" disabled style="opacity:.45">Download .zip</button>
+  <span class="sp"></span>
+  <span class="muted mono" id="footStat">—</span>
+</div>
+
+<script src="synth-gen.js"></script>
+<script>
+(function () {
+  'use strict';
+  const S = window.SYNTH;
+  const $ = id => document.getElementById(id);
+
+  // ── keep a pristine copy of the arc so "reset" works ──
+  const DEFAULTS = S.NIGHTS.map(n => ({ ahi: n.ahi, rsaGain: n.rsaGain }));
+
+  // ── subject strip ──
+  (function renderSubject() {
+    const su = S.SUBJECT;
+    const chips = [
+      ['Subject', su.id], ['Age / Sex', su.age + ' / ' + su.sex], ['BMI', su.bmi],
+      ['Nights', S.NIGHTS.length], ['CGM zone', su.glucoZone], ['Polar id', su.polarId],
+    ];
+    $('subjectStrip').innerHTML = chips.map(([l, v]) =>
+      `<div class="stat-chip"><div class="sc-l">${l}</div><div class="sc-v">${v}</div></div>`).join('');
+  })();
+
+  // ── arc table (editable knobs) ──
+  function fmtBed(b) { const p = n => (n < 10 ? '0' : '') + n; return p(b[3]) + ':' + p(b[4]); }
+  function renderArc() {
+    $('arcBody').innerHTML = S.NIGHTS.map((n, i) => `
+      <tr>
+        <td class="nidx">${String(n.n).padStart(2, '0')}</td>
+        <td>${n.date}</td>
+        <td>${fmtBed(n.bed)}</td>
+        <td>${(n.durSec / 3600).toFixed(1)} h</td>
+        <td><input type="number" data-k="ahi" data-i="${i}" min="0" max="80" step="1" value="${n.ahi}"></td>
+        <td><input type="number" data-k="rsaGain" data-i="${i}" min="0.2" max="4" step="0.001" value="${n.rsaGain}"></td>
+        <td>${n.gluc}</td>
+        <td>${n.cpap ? '<span class="pill pill-green">yes</span>' : '<span class="pill pill-gray">no</span>'}</td>
+        <td class="story">${n.story}</td>
+      </tr>`).join('');
+    $('arcBody').querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('change', e => {
+        const i = +e.target.dataset.i, k = e.target.dataset.k;
+        S.NIGHTS[i][k] = +e.target.value;
+        markStale();
+      });
+    });
+  }
+  $('winLbl').textContent = S.WIN_MIN + ' min / night';
+  renderArc();
+
+  $('resetBtn').addEventListener('click', () => {
+    DEFAULTS.forEach((d, i) => { S.NIGHTS[i].ahi = d.ahi; S.NIGHTS[i].rsaGain = d.rsaGain; });
+    renderArc(); markStale();
+  });
+
+  function markStale() {
+    $('footStat').textContent = 'arc changed — regenerate to refresh';
+    $('zipBtn').disabled = true; $('zipBtn').style.opacity = '.45';
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  //  BUILD the corpus (mirrors synth-gen.js nightFiles* + gluco + hrv)
+  // ════════════════════════════════════════════════════════════════════
+  let CORPUS = null;
+  function buildCorpus(seedBase) {
+    const tls = S.buildTimelines(seedBase);
+    const files = [];
+    tls.forEach(tl => S.nightFilesLight(tl).forEach(f => files.push(f)));
+    // one night ships a header-only PPI (fallback test) — night 1
+    tls.forEach((tl, i) => S.nightFilesPPG(tl, i === 0).forEach(f => files.push(f)));
+    files.push({ path: 'Lingo_CGM_SubjectA_2026-05-11_to_05-16.csv', content: S.renderGlucoAll(tls) });
+    files.push({ path: 'WELLTORY_HRV_SubjectA_5night.csv', content: S.renderHRVAll(tls) });
+    // daytime ambulatory walk (AMBULATORY-MODE-BRIEF) — the corpus's only non-overnight record
+    S.ambulatoryFiles(seedBase).forEach(f => files.push(f));
+    return { tls, files };
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  //  VERIFICATION helpers — compute off the *rendered* signals
+  // ════════════════════════════════════════════════════════════════════
+  // ODI≥3% estimate from a rendered O2Ring CSV string
+  function odiFromOxy(csv, durSec) {
+    const lines = csv.split('\n'); const spo2 = [];
+    for (let i = 1; i < lines.length; i++) {
+      const p = lines[i].split(','); if (p.length < 2) continue;
+      const v = parseInt(p[1], 10); if (!isNaN(v)) spo2.push(v);
+    }
+    if (!spo2.length) return 0;
+    let peak = spo2[0], inEv = false, nadir = 100, odi = 0;
+    for (const v of spo2) {
+      peak = Math.max(v, peak - 0.02);           // slow-decay baseline
+      if (!inEv) { if (peak - v >= 3) { inEv = true; nadir = v; } }
+      else { nadir = Math.min(nadir, v); if (v >= peak - 1) { odi++; inEv = false; peak = v; } }
+    }
+    return odi / (durSec / 3600);
+  }
+  // rMSSD off the night's RR series (same cleaner the apps use)
+  function rmssdOf(tl) { return S.hrvMetrics(S.buildRR(tl)).rmssd; }
+  // CGM probes: night-2 nadir + night-5 dawn rise, parsed from the rendered CGM csv
+  function cgmProbes(csv) {
+    const rows = []; const lines = csv.split('\n');
+    for (let i = 1; i < lines.length; i++) {
+      const c = lines[i].split(','); if (c.length < 2) continue;
+      const m = c[0].match(/^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/); if (!m) continue;
+      rows.push({ date: m[1] + '-' + m[2] + '-' + m[3], hr: +m[4] + (+m[5]) / 60, mg: +c[1] });
+    }
+    const at = (date, h0, h1) => rows.filter(r => r.date === date && r.hr >= h0 && r.hr < h1).map(r => r.mg);
+    const min = a => a.length ? Math.min(...a) : NaN;
+    const mean = a => a.length ? a.reduce((s, v) => s + v, 0) / a.length : NaN;
+    const hypoNadir = min(at('2026-05-13', 2.5, 4));               // night-2 ~03:06 nadir
+    const dawnLo = mean(at('2026-05-16', 4, 5)), dawnHi = mean(at('2026-05-16', 6.5, 7.5)); // night-5 dawn
+    return { hypoNadir, dawnDelta: dawnHi - dawnLo };
+  }
+
+  function bytesOf(s) { return new Blob([s]).size; }
+  function fmtBytes(b) { return b < 1024 ? b + ' B' : b < 1048576 ? (b / 1024).toFixed(1) + ' KB' : (b / 1048576).toFixed(2) + ' MB'; }
+
+  // ════════════════════════════════════════════════════════════════════
+  //  RENDER verification + manifest
+  // ════════════════════════════════════════════════════════════════════
+  function pill(ok, txt) { return `<span class="pill ${ok ? 'pill-green' : 'pill-yellow'}">${txt}</span>`; }
+
+  function renderResults(corpus) {
+    const { tls, files } = corpus;
+    // map oxy csv + gluco by lookup
+    const byPath = {}; files.forEach(f => byPath[f.path] = f.content);
+    const cgm = cgmProbes(byPath['Lingo_CGM_SubjectA_2026-05-11_to_05-16.csv']);
+
+    // per-night cards
+    const cards = tls.map(tl => {
+      const cfg = tl.cfg, hrs = cfg.durSec / 3600;
+      const apnea = tl.events.filter(e => e.type === 'apnea').length;
+      const hypop = tl.events.filter(e => e.type === 'hypopnea').length;
+      const ahiTruth = tl.events.length / hrs;
+      const oxyName = 'O2Ring S 2100_' + S.fmt14(tl.t0Ms) + '.csv';
+      const odi = odiFromOxy(byPath[oxyName], cfg.durSec);
+      const rm = rmssdOf(tl);
+      const meanDesat = tl.events.reduce((s, e) => s + e.severity, 0) / (tl.events.length || 1);
+      const ahiOk = Math.abs(ahiTruth - cfg.ahi) / cfg.ahi <= 0.15;
+      const odiOk = Math.abs(odi - cfg.ahi) / cfg.ahi <= 0.45;     // looser — render-derived proxy
+      const rmOk = Math.abs(rm - cfg.rmssd) <= 8;
+      return `
+        <div class="vcard">
+          <h4><span class="nidx" style="color:var(--teal)">Night ${String(cfg.n).padStart(2, '0')}</span> ${cfg.cpap ? '<span class="pill pill-green">CPAP</span>' : '<span class="pill pill-gray">untreated</span>'}</h4>
+          <div class="vstory">${cfg.date} · ${cfg.story}</div>
+          <div class="vrow"><span class="k">AHI · truth</span><span class="v">${ahiTruth.toFixed(1)} ${pill(ahiOk, 'tgt ' + cfg.ahi)}</span></div>
+          <div class="vrow"><span class="k">ODI≥3% · render</span><span class="v">${odi.toFixed(1)} ${pill(odiOk, '≈AHI')}</span></div>
+          <div class="vrow"><span class="k">events (apnea/hypop)</span><span class="v">${apnea}/${hypop}</span></div>
+          <div class="vrow"><span class="k">mean desat</span><span class="v">−${meanDesat.toFixed(1)}%</span></div>
+          <div class="vrow"><span class="k">rMSSD · render</span><span class="v">${rm.toFixed(1)} ${pill(rmOk, 'tgt ' + cfg.rmssd)}</span></div>
+          <div class="vrow"><span class="k">periodic-breathing runs</span><span class="v">${tl.pb.length}</span></div>
+        </div>`;
+    }).join('');
+    $('verifyGrid').innerHTML = cards;
+
+    // coupling cards
+    const t = tls;
+    const ahiArr = t.map(x => x.events.length / (x.cfg.durSec / 3600));
+    const rmArr = t.map(x => rmssdOf(x));
+    // night-3 change point: AHI drop & rMSSD climb between N2 and N3
+    const ahiDrop = ahiArr[1] - ahiArr[2], rmClimb = rmArr[2] - rmArr[1];
+    // crude correlation ODI(=AHI truth) vs CVHR proxy — use AHI vs (1/rMSSD) monotonic check
+    const couplings = [
+      ['ODI ↔ CVHR burden', 'AHI tracks apnea burden across the arc — both fall after CPAP.',
+        ahiArr.map(a => a.toFixed(0)).join(' → '), ahiArr[0] > ahiArr[4]],
+      ['Night-3 change point', 'CPAP step: AHI drops & rMSSD climbs at the N2→N3 boundary.',
+        '−' + ahiDrop.toFixed(0) + ' AHI · +' + rmClimb.toFixed(0) + ' rMSSD', ahiDrop > 10 && rmClimb > 5],
+      ['Glucose ↔ autonomic (N2)', 'Nocturnal hypo nadir with compensatory tachycardia / HRV collapse.',
+        isNaN(cgm.hypoNadir) ? 'n/a' : cgm.hypoNadir + ' mg/dL (' + (cgm.hypoNadir / 18.018).toFixed(1) + ' mmol)', cgm.hypoNadir < 70],
+      ['Dawn phenomenon (N5)', 'Cortisol/GH morning glucose rise 04:30 → 07:00.',
+        isNaN(cgm.dawnDelta) ? 'n/a' : '+' + cgm.dawnDelta.toFixed(0) + ' mg/dL', cgm.dawnDelta > 18],
+    ];
+    $('couplingGrid').innerHTML = couplings.map(([h, d, v, ok]) => `
+      <div class="vcard">
+        <h4>${h} ${pill(ok, ok ? 'present' : 'check')}</h4>
+        <div class="vstory">${d}</div>
+        <div class="vrow"><span class="k">signal</span><span class="v">${v}</span></div>
+      </div>`).join('');
+
+    // manifest
+    let totBytes = 0;
+    $('maniBody').innerHTML = files.map((f, i) => {
+      const b = bytesOf(f.content); totBytes += b;
+      const nLines = f.content.split('\n').length;
+      const head = f.content.split('\n').slice(0, 6).join('\n')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;');
+      return `
+        <tr>
+          <td class="mani-file">${f.path}</td>
+          <td class="mani-bytes">${fmtBytes(b)}</td>
+          <td class="mono" style="color:var(--text3)">${nLines.toLocaleString()}</td>
+          <td><span class="prev-toggle" data-i="${i}">preview ▾</span></td>
+        </tr>
+        <tr class="prev-body" id="prev-${i}"><td colspan="4"><pre>${head}</pre></td></tr>`;
+    }).join('');
+    $('maniBody').querySelectorAll('.prev-toggle').forEach(t => {
+      t.addEventListener('click', e => {
+        const row = $('prev-' + e.target.dataset.i);
+        row.classList.toggle('show');
+        e.target.textContent = row.classList.contains('show') ? 'preview ▴' : 'preview ▾';
+      });
+    });
+
+    $('footStat').textContent = files.length + ' files · ' + fmtBytes(totBytes) + ' total';
+    $('resultsZone').style.display = 'block';
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  //  GENERATE (chunked so the UI can paint a progress bar)
+  // ════════════════════════════════════════════════════════════════════
+  function setProg(p, msg) {
+    $('prog').classList.add('show'); $('progBar').style.width = (p * 100).toFixed(0) + '%';
+    $('status').textContent = msg || '';
+  }
+  $('genBtn').addEventListener('click', () => {
+    const seed = parseInt($('seedInput').value, 10) || 424242;
+    $('genBtn').disabled = true; $('genBtn').style.opacity = '.5';
+    $('resultsZone').style.display = 'none';
+    setProg(0.05, 'Building master timelines…');
+    setTimeout(() => {
+      try {
+        setProg(0.25, 'Rendering OxyDex / RR / ground-truth…');
+        setTimeout(() => {
+          setProg(0.55, 'Rendering Polar Sense windows (PPG/ACC/GYRO/PPI/MARKER)…');
+          setTimeout(() => {
+            CORPUS = buildCorpus(seed);
+            setProg(0.85, 'Verifying physiology + couplings…');
+            setTimeout(() => {
+              renderResults(CORPUS);
+              setProg(1, 'Done — ' + CORPUS.files.length + ' files generated.');
+              $('genBtn').disabled = false; $('genBtn').style.opacity = '1';
+              $('zipBtn').disabled = false; $('zipBtn').style.opacity = '1';
+              setTimeout(() => $('prog').classList.remove('show'), 1200);
+            }, 30);
+          }, 30);
+        }, 30);
+      } catch (err) {
+        $('status').textContent = 'Error: ' + err.message;
+        $('genBtn').disabled = false; $('genBtn').style.opacity = '1';
+        console.error(err);
+      }
+    }, 30);
+  });
+
+  // ════════════════════════════════════════════════════════════════════
+  //  ZIP — minimal store-only (no compression) writer · 100% local
+  // ════════════════════════════════════════════════════════════════════
+  const CRC = (function () {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); t[n] = c >>> 0; }
+    return t;
+  })();
+  function crc32(buf) {
+    let c = 0xFFFFFFFF;
+    for (let i = 0; i < buf.length; i++) c = CRC[(c ^ buf[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+  function makeZip(files) {
+    const enc = new TextEncoder();
+    const parts = [], central = []; let offset = 0;
+    function u16(n) { return [n & 255, (n >>> 8) & 255]; }
+    function u32(n) { return [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255]; }
+    for (const f of files) {
+      const name = enc.encode(f.path), data = enc.encode(f.content), crc = crc32(data);
+      const local = [].concat(u32(0x04034b50), u16(20), u16(0), u16(0), u16(0), u16(0),
+        u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0));
+      const lh = new Uint8Array(local.length + name.length + data.length);
+      lh.set(local, 0); lh.set(name, local.length); lh.set(data, local.length + name.length);
+      parts.push(lh);
+      central.push({ name, crc, size: data.length, offset });
+      offset += lh.length;
+    }
+    const cdir = [];
+    for (const c of central) {
+      const h = [].concat(u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(0), u16(0),
+        u32(c.crc), u32(c.size), u32(c.size), u16(c.name.length), u16(0), u16(0), u16(0), u16(0),
+        u32(0), u32(c.offset));
+      const ch = new Uint8Array(h.length + c.name.length);
+      ch.set(h, 0); ch.set(c.name, h.length); cdir.push(ch);
+    }
+    const cdirSize = cdir.reduce((s, c) => s + c.length, 0);
+    const end = new Uint8Array([].concat(u32(0x06054b50), u16(0), u16(0),
+      u16(central.length), u16(central.length), u32(cdirSize), u32(offset), u16(0)));
+    const blobParts = parts.concat(cdir); blobParts.push(end);
+    return new Blob(blobParts, { type: 'application/zip' });
+  }
+  $('zipBtn').addEventListener('click', () => {
+    if (!CORPUS) return;
+    const files = CORPUS.files.map(f => ({ path: 'synthetic/' + f.path, content: f.content }));
+    const blob = makeZip(files);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'synthetic-corpus_SubjectA_5night.zip';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  });
+
+  $('footStat').textContent = 'ready — press Generate corpus';
+})();
+</script>
+</body></html>

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  Theme Preview.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ANS Design System — Dark / Light Preview</title>
+<link rel="stylesheet" href="../ans-design.css">
+<style>
+  /* Preview-only chrome — not part of the design system */
+  .pv-wrap { max-width: var(--content-max); margin: 0 auto; padding: 28px 28px 120px; }
+  .pv-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 8px; padding-bottom: 20px; border-bottom: var(--b); }
+  .pv-head h1 { font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+  .pv-head p { font-size: 12px; color: var(--text3); margin-top: 4px; }
+  .pv-themebtn {
+    background: rgba(61,224,208,.06); border: 1px solid rgba(61,224,208,.2);
+    color: var(--teal); border-radius: 999px; padding: 8px 16px; cursor: pointer;
+    font-size: 12px; font-weight: 700; letter-spacing: .03em; transition: background .15s;
+  }
+  .pv-themebtn:hover { background: rgba(61,224,208,.14); }
+  .pv-sec { margin-top: 38px; }
+  .pv-sec > h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .14em;
+    color: var(--text4); font-weight: 700; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .pv-sec > h2::after { content: ''; flex: 1; height: 1px; background: var(--b); background: rgba(127,141,164,.18); }
+  .pv-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+</style>
+</head>
+<body>
+<button id="themeToggleBtn"><span class="theme-icon">🌙</span><span id="themeLabel">Dark</span></button>
+
+<div class="pv-wrap">
+  <div class="pv-head">
+    <div>
+      <h1>ANS Design System · v1.1.0</h1>
+      <p>Shared OxyDex&nbsp;∩&nbsp;HRVDex compositions (§26) — toggle the theme to verify both modes.</p>
+    </div>
+    <button class="pv-themebtn" onclick="toggleTheme()">◐ Toggle Dark / Light</button>
+  </div>
+
+  <!-- READINESS HERO -->
+  <div class="pv-sec">
+    <h2>§26.1 · Readiness Hero</h2>
+    <div class="readiness-hero" data-pulse="true" style="--readiness-color:var(--green)">
+      <div class="readiness-hero-label">ANS Readiness</div>
+      <div class="readiness-date-badge">Sat · May 31</div>
+      <div class="readiness-score">86</div>
+      <div class="readiness-tier">Primed — full training green-light</div>
+      <div class="readiness-note">Parasympathetic tone is high and overnight recovery looks complete. A good day to push intensity.</div>
+      <div class="readiness-scores-grid">
+        <div class="readiness-subscore"><div class="rs-val ok">92</div><div class="rs-label">HRV</div></div>
+        <div class="readiness-subscore"><div class="rs-val ok">88</div><div class="rs-label">SpO₂</div></div>
+        <div class="readiness-subscore"><div class="rs-val warn">71</div><div class="rs-label">Sleep</div></div>
+        <div class="readiness-subscore"><div class="rs-val ok">90</div><div class="rs-label">HR Floor</div></div>
+      </div>
+      <div class="readiness-zones">
+        <span class="readiness-zone-chip ok">Recovery clear</span>
+        <span class="readiness-zone-chip warn">Sleep debt mild</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROJECTION CARDS -->
+  <div class="pv-sec">
+    <h2>§26.3 · Projection Cards</h2>
+    <div class="proj-grid">
+      <div class="proj-card proj-good">
+        <div class="proj-header">
+          <span class="proj-icon">🫀</span>
+          <span class="proj-title">Projected ANS Age</span>
+          <span class="proj-badge proj-good">Younger</span>
+        </div>
+        <div class="proj-main">
+          <span class="proj-value proj-val-good">34</span>
+          <span class="proj-unit">yrs · vs 41 actual</span>
+        </div>
+        <div class="proj-waterfall">
+          <div class="proj-factor"><span class="pf-bg ok" style="width:70%"></span><span>HRV percentile</span><span class="pf-val pf-pos">−4.2 yr</span></div>
+          <div class="proj-factor"><span class="pf-bg ok" style="width:45%"></span><span>Resting HR</span><span class="pf-val pf-pos">−2.1 yr</span></div>
+          <div class="proj-factor"><span class="pf-bg warn" style="width:30%"></span><span>Sleep efficiency</span><span class="pf-val pf-neg">+1.0 yr</span></div>
+          <div class="proj-factor proj-total"><span>Net offset</span><span class="pf-val pf-pos">−7 yr</span></div>
+        </div>
+        <div class="proj-extra">
+          <div class="proj-stat ps-good"><div class="ps-label">VO₂max</div><div class="ps-val">48<span class="ps-unit">ml/kg</span></div><div class="ps-sub">Top 15% for age</div></div>
+          <div class="proj-stat ps-warn"><div class="ps-label">Est. BP</div><div class="ps-val">128/82</div><div class="ps-sub">Elevated</div></div>
+        </div>
+        <div class="proj-cite">Model: Karvonen + HRV-age regression. Companion estimate, not diagnostic.</div>
+      </div>
+      <div class="proj-card proj-warn">
+        <div class="proj-header">
+          <span class="proj-icon">📉</span>
+          <span class="proj-title">Trend Risk</span>
+          <span class="proj-badge proj-warn">Watch</span>
+        </div>
+        <div class="proj-main">
+          <span class="proj-value proj-val-warn">2.4</span>
+          <span class="proj-unit">σ drift · 7-day</span>
+        </div>
+        <div class="proj-conf"><div class="proj-conf-bar" style="width:62%"></div></div>
+        <div class="proj-conf-label">Confidence 62% · widening band</div>
+        <div class="proj-disclaimer">Short baseline — interpret with caution until 14+ nights logged.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- UPLOAD ZONE -->
+  <div class="pv-sec">
+    <h2>§26.4 · Upload Zone</h2>
+    <div class="upload-zone">
+      <div class="icon">📂</div>
+      <h3>Drop your export file</h3>
+      <p>O2Ring CSV or Welltory HRV export — parsed entirely in your browser.</p>
+      <span class="upload-cta">Choose file</span>
+      <div class="upload-hint">Nothing leaves this device.</div>
+    </div>
+  </div>
+
+  <!-- DISCLOSURE + AUTO-PILL -->
+  <div class="pv-sec">
+    <h2>§26.5 / §26.6 · Disclosure Card &amp; Auto-pills</h2>
+    <div class="pv-row" style="align-items:flex-start">
+      <div class="disclosure-card">
+        <div class="disclosure-header">
+          <span class="disclosure-icon">🔒</span>
+          <span class="disclosure-title">Companion Analytics</span>
+        </div>
+        <div class="disclosure-body">All computation runs <strong>client-side</strong>. No upload, no account, no telemetry. Estimates are informational and not a medical device.</div>
+        <div class="disclosure-footer">
+          <span class="disclosure-pill">Client-side</span>
+          <span class="disclosure-pill">No telemetry</span>
+          <span class="disclosure-pill">Open metrics</span>
+        </div>
+      </div>
+      <div class="pv-row" style="flex-direction:column; gap:8px">
+        <span class="auto-pill">≈ Auto-estimated VO₂max</span>
+        <span class="auto-pill">≈ Inferred max HR (208−0.7×age)</span>
+        <span class="auto-pill">≈ Resting HR from night floor</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXPORT TOOLBAR -->
+  <div class="pv-sec">
+    <h2>§26.7 · Export Toolbar</h2>
+    <div class="controls" style="border-radius:var(--r-md)">
+      <div class="export-primary">
+        <button class="btn-export-main">⬇ Export Report</button>
+        <button class="btn-export-main btn-blue">🖼 Save PNG</button>
+      </div>
+      <div class="export-secondary">
+        <button class="btn-export-outline">Copy JSON</button>
+        <button class="btn-export-outline">Print</button>
+        <button class="btn-export-danger">Clear data</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BASE PRIMITIVES -->
+  <div class="pv-sec">
+    <h2>Base primitives — auto-themed via tokens</h2>
+    <div class="pv-row" style="margin-bottom:14px">
+      <button class="upload-btn">Primary CTA</button>
+      <button class="btn">Default</button>
+      <button class="btn btn-blue">Blue</button>
+      <button class="btn btn-green">Green</button>
+      <button class="btn btn-outline">Outline</button>
+      <button class="btn-destructive">Destructive</button>
+    </div>
+    <div class="pv-row" style="margin-bottom:14px">
+      <span class="pill pill-green">Optimal</span>
+      <span class="pill pill-yellow">Caution</span>
+      <span class="pill pill-red">Concern</span>
+      <span class="pill pill-blue">Info</span>
+      <span class="pill pill-gray">Neutral</span>
+      <span class="data-pill"><span class="data-dot"></span>Data loaded</span>
+      <span class="file-chip">📄 export_2026-05-31.csv</span>
+    </div>
+    <div class="alert alert-significant">
+      <span class="alert-icon">⚠️</span>
+      <div class="alert-body"><div class="alert-title">Desaturation cluster detected</div><div class="alert-msg">14 events below 88% SpO₂ between 02:10–03:40. Consider positional factors.</div></div>
+    </div>
+    <div class="grid" style="margin-top:8px">
+      <div class="metric metric-primary"><div class="m-label">RMSSD</div><div class="m-val ok">62<span style="font-size:13px"> ms</span></div><div class="m-sub">+8% vs baseline</div></div>
+      <div class="metric metric-primary"><div class="m-label">Resting HR</div><div class="m-val">51<span style="font-size:13px"> bpm</span></div><div class="m-sub">Night floor</div></div>
+      <div class="metric metric-primary"><div class="m-label">SpO₂ min</div><div class="m-val warn">86<span style="font-size:13px"> %</span></div><div class="m-sub">02:33</div></div>
+      <div class="metric metric-primary"><div class="m-label">SDNN</div><div class="m-val">74<span style="font-size:13px"> ms</span></div><div class="m-sub">Within range</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function applyTheme(t) {
+    document.body.classList.toggle('light', t === 'light');
+    var lab = document.getElementById('themeLabel');
+    var icon = document.querySelector('#themeToggleBtn .theme-icon');
+    if (lab) lab.textContent = t === 'light' ? 'Light' : 'Dark';
+    if (icon) icon.textContent = t === 'light' ? '☀️' : '🌙';
+    try { localStorage.setItem('ansThemePreview', t); } catch (e) {}
+  }
+  function toggleTheme() {
+    applyTheme(document.body.classList.contains('light') ? 'dark' : 'light');
+  }
+  document.getElementById('themeToggleBtn').addEventListener('click', toggleTheme);
+  (function () {
+    var saved = 'dark';
+    try { saved = localStorage.getItem('ansThemePreview') || 'dark'; } catch (e) {}
+    applyTheme(saved);
+  })();
+</script>
+</body>
+</html>

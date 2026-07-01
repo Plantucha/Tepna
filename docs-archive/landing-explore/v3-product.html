@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  landing-explore/v3-product.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tepna — Product</title>
+<style>
+:root{
+  --bg:#0B0F14; --surface:#121821; --surface2:#18212C; --surface3:#1E2835;
+  --border:#1e2d42; --border2:#26384f;
+  --text:#F4F7FB; --text2:#9FB0C3; --text3:#8093a8; --text4:#647688;
+  --teal:#3DE0D0; --blue:#58A6FF; --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A; --purple:#A78BFA;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;
+  background-image:radial-gradient(900px 500px at 12% -6%,rgba(61,224,208,.08),transparent 60%),radial-gradient(800px 480px at 96% 0%,rgba(88,166,255,.07),transparent 58%);}
+.wrap{max-width:1200px;margin:0 auto;padding:0 40px;}
+.eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--teal);}
+a{color:inherit;text-decoration:none;}
+
+/* nav */
+header.nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(12px);background:rgba(11,15,20,.7);border-bottom:1px solid var(--border);}
+.nav-in{max-width:1200px;margin:0 auto;padding:15px 40px;display:flex;align-items:center;justify-content:space-between;}
+.brand{display:flex;align-items:center;gap:11px;font-weight:700;font-size:16px;letter-spacing:-.01em;}
+.brand .dot{width:13px;height:13px;border-radius:50%;background:radial-gradient(circle at 35% 30%,var(--teal),var(--blue));box-shadow:0 0 14px rgba(61,224,208,.6);}
+.nav-links{display:flex;gap:28px;font-size:13.5px;color:var(--text3);}
+.nav-links a:hover{color:var(--text);}
+.nav-cta{font-size:13px;font-weight:700;color:var(--bg);background:var(--teal);padding:9px 17px;border-radius:999px;}
+
+/* hero */
+.hero{padding:72px 0 56px;}
+.hero-grid{display:grid;grid-template-columns:1.12fr .88fr;gap:52px;align-items:center;}
+.hero h1{font-size:55px;line-height:1.05;letter-spacing:-.03em;font-weight:800;margin:18px 0 0;}
+.hero h1 .g{background:linear-gradient(115deg,var(--teal),var(--blue));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.hero .lede{font-size:18.5px;color:var(--text2);max-width:520px;margin:22px 0 0;text-wrap:pretty;}
+.hero-actions{display:flex;gap:14px;margin-top:32px;}
+.btn{font-size:14.5px;font-weight:700;padding:13px 24px;border-radius:999px;cursor:pointer;border:1px solid transparent;transition:.16s;}
+.btn-primary{background:var(--teal);color:var(--bg);}
+.btn-primary:hover{box-shadow:0 0 26px rgba(61,224,208,.45);transform:translateY(-1px);}
+.btn-ghost{border-color:var(--border2);color:var(--text2);}
+.btn-ghost:hover{border-color:var(--teal);color:var(--text);}
+.hero-trust{display:flex;gap:22px;flex-wrap:wrap;margin-top:30px;font-size:12.5px;color:var(--text4);font-family:var(--mono);}
+.hero-trust span{display:inline-flex;align-items:center;gap:7px;}.hero-trust .tk{color:var(--green);}
+
+/* readiness card */
+.r-card{background:linear-gradient(180deg,var(--surface2),var(--surface));border:1px solid var(--border2);border-radius:22px;padding:24px;box-shadow:0 30px 60px -30px rgba(0,0,0,.7);}
+.r-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.r-top .lab{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text4);}
+.r-top .live{font-family:var(--mono);font-size:10.5px;color:var(--green);display:inline-flex;align-items:center;gap:6px;}
+.r-top .live::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);}
+.r-score{display:flex;align-items:flex-end;gap:12px;}
+.r-score .n{font-size:62px;font-weight:800;letter-spacing:-.04em;line-height:1;}
+.r-score .of{color:var(--text4);font-size:18px;font-family:var(--mono);padding-bottom:8px;}
+.r-score .tag{margin-left:auto;align-self:center;font-size:12px;font-weight:700;color:var(--green);background:rgba(57,217,138,.12);border:1px solid rgba(57,217,138,.3);padding:5px 12px;border-radius:999px;}
+#rtrace{display:block;width:100%;height:96px;margin:14px 0 16px;}
+.r-subs{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.r-sub{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px;}
+.r-sub .v{font-size:21px;font-weight:700;letter-spacing:-.02em;}
+.r-sub .v.ok{color:var(--green);}.r-sub .v.warn{color:var(--amber);}
+.r-sub .k{font-size:10.5px;color:var(--text4);margin-top:3px;letter-spacing:.03em;}
+
+/* section */
+section{padding:72px 0;}
+.sec-head{max-width:640px;margin-bottom:40px;}
+.sec-head h2{font-size:34px;font-weight:800;letter-spacing:-.025em;margin-top:12px;line-height:1.1;}
+.sec-head p{color:var(--text2);margin-top:12px;font-size:16.5px;}
+
+/* reveal */
+.rev{opacity:0;transform:translateY(18px);transition:opacity .6s ease,transform .6s ease;}
+.rev.in{opacity:1;transform:none;}
+
+/* arc */
+.arc{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+.arc .step{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px;position:relative;}
+.arc .step .ic{font-size:22px;}
+.arc .step h3{font-size:17px;margin:12px 0 7px;letter-spacing:-.01em;}
+.arc .step p{font-size:13.5px;color:var(--text3);}
+.arc .step .word{display:block;margin-top:13px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--teal);opacity:.8;}
+
+/* devices */
+.dev-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+.dev{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;transition:.18s;display:block;}
+a.dev:hover{transform:translateY(-4px);border-color:var(--border2);box-shadow:0 18px 36px -22px rgba(0,0,0,.8);}
+.dev .top{display:flex;align-items:center;justify-content:space-between;}
+.dev .pill{font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--teal);background:rgba(61,224,208,.1);border:1px solid rgba(61,224,208,.25);padding:4px 9px;border-radius:999px;}
+.dev .pill.soon{color:var(--text4);background:var(--bg);border-color:var(--border);}
+.dev .spark{width:100%;height:34px;display:block;margin:14px 0 12px;opacity:.85;}
+.dev h3{font-size:16.5px;font-weight:700;letter-spacing:-.01em;}
+.dev .device-name{font-size:12px;color:var(--text4);font-family:var(--mono);margin:3px 0 10px;}
+.dev p{font-size:13px;color:var(--text3);}
+.dev .open{display:inline-block;margin-top:13px;font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:.04em;opacity:.8;}
+a.dev:hover .open{opacity:1;}
+
+/* trust */
+.ladder{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
+.lvl{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;}
+.lvl .disc{width:18px;height:18px;border-radius:50%;margin-bottom:14px;}
+.lvl h4{font-size:14px;font-weight:700;text-transform:capitalize;}
+.lvl p{font-size:12px;color:var(--text3);margin-top:6px;line-height:1.5;}
+
+/* privacy */
+.privacy{background:linear-gradient(180deg,var(--surface2),var(--surface));border:1px solid var(--border2);border-radius:22px;padding:46px 48px;text-align:center;}
+.privacy .lock{font-size:30px;}
+.privacy h2{font-size:32px;font-weight:800;letter-spacing:-.025em;margin-top:12px;}
+.privacy p{color:var(--text2);max-width:60ch;margin:14px auto 0;}
+.privacy .row{display:flex;justify-content:center;gap:26px;flex-wrap:wrap;margin-top:24px;font-family:var(--mono);font-size:12.5px;color:var(--text3);}
+.privacy .row .tk{color:var(--green);margin-right:7px;}
+
+footer{border-top:1px solid var(--border);padding:34px 0 56px;margin-top:24px;}
+.foot-in{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+.foot-note{font-family:var(--mono);font-size:11.5px;color:var(--text4);line-height:1.9;}
+.disc{font-family:var(--mono);font-size:11px;color:var(--text4);max-width:70ch;margin-top:22px;line-height:1.8;}
+@media(max-width:980px){.hero-grid{grid-template-columns:1fr;}.dev-grid,.arc,.ladder{grid-template-columns:1fr 1fr;}}
+</style></head>
+<body>
+
+<header class="nav"><div class="nav-in">
+  <div class="brand"><span class="dot"></span>Tepna</div>
+  <nav class="nav-links"><a href="#how">How it works</a><a href="#devices">Devices</a><a href="#trust">How we grade it</a><a href="#privacy">Privacy</a></nav>
+  <a href="#devices" class="nav-cta">See the devices</a>
+</div></header>
+
+<section class="hero"><div class="wrap hero-grid">
+  <div>
+    <div class="eyebrow">Your body's quiet signals, made readable</div>
+    <h1>Read your <span class="g">nervous&nbsp;system</span> like a weather report.</h1>
+    <p class="lede">Small wearables you already own record your body overnight — oxygen, heartbeat, pulse, glucose. We turn it into one simple daily score you can actually act on.</p>
+    <div class="hero-actions"><a href="#devices" class="btn btn-primary">Find your device</a><a href="#how" class="btn btn-ghost">See how it works</a></div>
+    <div class="hero-trust"><span><span class="tk">●</span>Runs on your phone or laptop</span><span><span class="tk">●</span>Nothing leaves your device</span><span><span class="tk">●</span>No account</span></div>
+  </div>
+  <div class="r-card">
+    <div class="r-top"><span class="lab">Last night · readiness</span><span class="live">live</span></div>
+    <div class="r-score"><div class="n" id="score">0</div><div class="of">/ 100</div><div class="tag" id="tag">Recovered</div></div>
+    <canvas id="rtrace" width="900" height="192"></canvas>
+    <div class="r-subs">
+      <div class="r-sub"><div class="v ok" id="s1">—</div><div class="k">Mean SpO₂</div></div>
+      <div class="r-sub"><div class="v ok" id="s2">—</div><div class="k">rMSSD ms</div></div>
+      <div class="r-sub"><div class="v warn" id="s3">—</div><div class="k">ODI-4</div></div>
+    </div>
+  </div>
+</div></section>
+
+<section id="how"><div class="wrap">
+  <div class="sec-head rev"><div class="eyebrow">How it works</div><h2>Four steps, the same path a reflex takes.</h2><p>Your nervous system senses, relays, combines, and responds. The suite mirrors that.</p></div>
+  <div class="arc">
+    <div class="step rev"><span class="ic">🛰️</span><h3>Sense</h3><p>Each device records one thing it's good at — overnight, while you sleep.</p><span class="word">the receptors</span></div>
+    <div class="step rev"><span class="ic">🔀</span><h3>Relay</h3><p>Every reading flows into one shared place on your device, lined up by the clock.</p><span class="word">Ganglior · the bus</span></div>
+    <div class="step rev"><span class="ic">🧠</span><h3>Integrate</h3><p>Signals are fused across devices into one longitudinal picture.</p><span class="word">the Integrator</span></div>
+    <div class="step rev"><span class="ic">📊</span><h3>Respond</h3><p>One daily read-out — what your system was doing, in plain words.</p><span class="word">the read-out</span></div>
+  </div>
+</div></section>
+
+<section id="devices"><div class="wrap">
+  <div class="sec-head rev"><div class="eyebrow">What you'll need</div><h2>Everyday wearables. Each reads one signal well.</h2><p>You don't need all of them — start with one. The more you wear, the fuller the picture.</p></div>
+  <div class="dev-grid" id="devgrid">
+    <a class="dev rev"><div class="top"><span class="pill">OxyDex</span></div><canvas class="spark" data-k="spo2" width="520" height="68"></canvas><h3>Blood oxygen</h3><div class="device-name">O2Ring · overnight ring</div><p>Tracks blood oxygen and catches dips while you sleep.</p><span class="open">Open OxyDex →</span></a>
+    <a class="dev rev"><div class="top"><span class="pill">ECGDex</span></div><canvas class="spark" data-k="ecg" width="520" height="68"></canvas><h3>Heart's rhythm</h3><div class="device-name">Polar H10 · chest strap</div><p>Reads the heart's electrical beat directly — most precise.</p><span class="open">Open ECGDex →</span></a>
+    <a class="dev rev"><div class="top"><span class="pill">PulseDex</span></div><canvas class="spark" data-k="ppg" width="520" height="68"></canvas><h3>Pulse, beat to beat</h3><div class="device-name">Verity Sense · armband</div><p>Times each pulse — how steady and rested the heart is.</p><span class="open">Open PulseDex →</span></a>
+    <a class="dev rev"><div class="top"><span class="pill">HRVDex</span></div><canvas class="spark" data-k="hrv" width="520" height="68"></canvas><h3>Daily variability</h3><div class="device-name">Welltory · morning app</div><p>A one-minute morning check of relaxed vs stressed.</p><span class="open">Open HRVDex →</span></a>
+    <a class="dev rev"><div class="top"><span class="pill">GlucoDex</span></div><canvas class="spark" data-k="cgm" width="520" height="68"></canvas><h3>Glucose</h3><div class="device-name">CGM · skin patch</div><p>Follows blood sugar around the clock, through the night.</p><span class="open">Open GlucoDex →</span></a>
+    <a class="dev rev"><div class="top"><span class="pill soon">soon</span></div><canvas class="spark" data-k="eeg" width="520" height="68"></canvas><h3>Brain waves</h3><div class="device-name">Muse · headband</div><p>Coming soon — brain activity to deepen the sleep picture.</p><span class="open">EEGDex →</span></a>
+  </div>
+</div></section>
+
+<section id="trust"><div class="wrap">
+  <div class="sec-head rev"><div class="eyebrow">How we grade it</div><h2>We always tell you how sure we are.</h2><p>A small mark next to every number — disc shape, never colour — tells you measurement from estimate.</p></div>
+  <div class="ladder">
+    <div class="lvl rev"><div class="disc" style="background:var(--teal)"></div><h4>measured</h4><p>Read straight off the device.</p></div>
+    <div class="lvl rev"><div class="disc" style="background:var(--teal);opacity:.78"></div><h4>validated</h4><p>Checked against a standard.</p></div>
+    <div class="lvl rev"><div class="disc" style="background:var(--teal);opacity:.55"></div><h4>emerging</h4><p>Published, device-dependent.</p></div>
+    <div class="lvl rev"><div class="disc" style="border:2px solid var(--teal)"></div><h4>experimental</h4><p>Plausible, not confirmed.</p></div>
+    <div class="lvl rev"><div class="disc" style="border:2px dashed var(--text4)"></div><h4>heuristic</h4><p>Rule-of-thumb direction.</p></div>
+  </div>
+</div></section>
+
+<section id="privacy"><div class="wrap">
+  <div class="privacy rev"><div class="lock">🔒</div><h2>Your data never leaves your hands.</h2>
+    <p>Everything is read and combined on your own phone or laptop. No account, no cloud, no server holding your health. Close the tab and it's gone.</p>
+    <div class="row"><span><span class="tk">✓</span>100% on-device</span><span><span class="tk">✓</span>Works offline</span><span><span class="tk">✓</span>No sign-up</span><span><span class="tk">✓</span>Open &amp; inspectable</span></div>
+  </div>
+</div></section>
+
+<footer><div class="wrap foot-in">
+  <div class="foot-note"><b style="color:var(--text2)">Tepna</b> — the Dex Suite · © 2026 Michal Planicka · Apache-2.0</div>
+  <div class="foot-note" style="text-align:right">Not a medical device · personal &amp; research use only</div>
+</div>
+<div class="wrap"><div class="disc">Tepna computes biometric patterns to support personal self-quantification. It is not a medical device, does not diagnose, treat, cure, or screen for any condition, and is not FDA/CE cleared. If something feels wrong, talk to a clinician.</div></div>
+</footer>
+
+<script>
+// ── animated readiness ──
+(function(){
+  function ease(t){return 1-Math.pow(1-t,3);}
+  const scoreEl=document.getElementById('score');
+  const s1=document.getElementById('s1'),s2=document.getElementById('s2'),s3=document.getElementById('s3');
+  const T=1400,t0=performance.now();
+  function tick(now){
+    const p=Math.min(1,(now-t0)/T),e=ease(p);
+    scoreEl.textContent=Math.round(e*82);
+    s1.textContent=(95+e*1.7).toFixed(1)+'%';
+    s2.textContent=Math.round(e*47);
+    s3.textContent=(e*6.2).toFixed(1);
+    if(p<1)requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+  // hero mini overnight trace (draws in)
+  const c=document.getElementById('rtrace'),x=c.getContext('2d'),W=c.width,H=c.height;
+  let s=12345;const rnd=()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296;};
+  const N=240,pts=[];let b=96.5;
+  for(let i=0;i<N;i++){b+=(rnd()-.5)*.3;b=Math.max(95,Math.min(98,b));let v=b;if((i>70&&i<80)||(i>150&&i<158))v-=5+rnd()*3;pts.push(v);}
+  const lo=88,hi=99,px=i=>i/(N-1)*W,py=v=>H-(v-lo)/(hi-lo)*(H-10)-5;
+  const t1=performance.now();
+  function draw(now){
+    const p=Math.min(1,(now-t1)/1500);x.clearRect(0,0,W,H);
+    const g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,'rgba(61,224,208,.28)');g.addColorStop(1,'rgba(61,224,208,0)');
+    const upto=Math.floor(p*N);
+    x.beginPath();x.moveTo(0,H);for(let i=0;i<=upto;i++)x.lineTo(px(i),py(pts[i]));x.lineTo(px(upto),H);x.closePath();x.fillStyle=g;x.fill();
+    x.beginPath();for(let i=0;i<=upto;i++){i?x.lineTo(px(i),py(pts[i])):x.moveTo(px(i),py(pts[i]));}x.strokeStyle='#3DE0D0';x.lineWidth=2;x.lineJoin='round';x.stroke();
+    if(p<1)requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+})();
+// ── device sparklines ──
+(function(){
+  const gens={
+    spo2:(i,r)=>96+Math.sin(i/7)*1.2-((i%23<2)?5*r:0),
+    ecg:(i,r)=>{const ph=i%18;return ph===4?-1:ph===5?9:ph===6?-4:Math.sin(i/3)*.6;},
+    ppg:(i)=>Math.sin(i/5)*3+Math.sin(i/2.3)*1.1,
+    hrv:(i,r)=>Math.sin(i/9)*2+(r-.5)*1.4,
+    cgm:(i)=>Math.sin(i/13)*3+Math.sin(i/4)*.7+3,
+    eeg:(i,r)=>(r-.5)*6+Math.sin(i/2)*1.5,
+  };
+  document.querySelectorAll('.spark').forEach(cv=>{
+    const k=cv.dataset.k,x=cv.getContext('2d'),W=cv.width,H=cv.height;let s=k.length*99+7;
+    const rnd=()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296;};
+    const N=90,pts=[];let mn=1e9,mx=-1e9;for(let i=0;i<N;i++){const v=gens[k](i,rnd());pts.push(v);mn=Math.min(mn,v);mx=Math.max(mx,v);}
+    const py=v=>H-(v-mn)/((mx-mn)||1)*(H-8)-4,px=i=>i/(N-1)*W;
+    x.strokeStyle=k==='eeg'?'#647688':'#3DE0D0';x.lineWidth=1.5;x.lineJoin='round';
+    x.beginPath();pts.forEach((v,i)=>i?x.lineTo(px(i),py(v)):x.moveTo(px(i),py(v)));x.stroke();
+  });
+})();
+// ── scroll reveal ──
+(function(){
+  const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});},{threshold:.15});
+  document.querySelectorAll('.rev').forEach((el,i)=>{el.style.transitionDelay=(i%4*70)+'ms';io.observe(el);});
+})();
+</script>
+</body></html>

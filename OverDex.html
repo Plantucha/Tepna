@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  OverDex.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+
+  Phase-10 capstone (SIGNAL-ADAPTER-AND-FRONTIER brief): one-drop folder → route →
+  run → fuse. UNBUNDLED on purpose — like the *-analysis.html research tools and
+  the Data Unifier it loads external *.js and is never run through the inliner, so
+  it trips NEITHER gate. 100% local: no network, no CDN, system fonts only.
+
+  🔒 Independence invariant: OverDex is a CONSUMER on top, like the Integrator. It
+  reuses the public router (SignalAdapters), the shared RR orchestration
+  (SignalOrchestrate, isolated PulseDex), and the fusion layer (IntegratorDSP) —
+  through the ganglior.node-export contract only. No node imports OverDex; delete
+  it and every node + the Integrator work byte-identically.
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OverDex — one-drop folder → fused result</title>
+<style>
+  :root{
+    --bg:#0c0f14; --surface:#141922; --surface2:#1b212c; --line:rgba(255,255,255,.08);
+    --text:#e6edf6; --text2:#aab8cc; --text3:#6f8096; --teal:#3DE0D0; --blue:#58A6FF;
+    --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A; --purple:#B98AFF;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;padding:0 0 90px;}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 24px;}
+  header{padding:30px 0 18px;border-bottom:1px solid var(--line);margin-bottom:22px;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);}
+  h1{margin:7px 0 4px;font-size:28px;font-weight:680;letter-spacing:-.01em;}
+  h1 .g{color:var(--teal);}
+  .sub{color:var(--text3);font-size:13px;max-width:820px;line-height:1.6;}
+  .pill{font-family:var(--mono);font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid var(--line);display:inline-block;color:var(--text3);}
+  .pill.run{color:var(--teal);border-color:rgba(61,224,208,.35);}
+  .pill.done{color:var(--green);border-color:rgba(57,217,138,.35);} .pill.bad{color:var(--red);border-color:rgba(255,107,122,.4);}
+  .toprow{display:flex;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap;}
+
+  /* flow strip */
+  .flow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:18px 0 4px;font-family:var(--mono);font-size:11.5px;color:var(--text3);}
+  .flow .step{border:1px solid var(--line);border-radius:7px;padding:5px 10px;background:var(--surface);}
+  .flow .step b{color:var(--text2);font-weight:600;}
+  .flow .arr{color:var(--text3);}
+
+  .adapters{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 6px;}
+  .adp{font-family:var(--mono);font-size:11px;color:var(--text2);border:1px solid var(--line);border-radius:7px;padding:4px 9px;background:var(--surface);}
+  .adp b{color:var(--teal);font-weight:600;} .adp .muted{color:var(--text3);}
+
+  #drop{border:1.5px dashed rgba(255,255,255,.16);border-radius:14px;padding:38px 24px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;background:var(--surface);margin-top:14px;}
+  #drop:hover,#drop.over{border-color:var(--teal);background:var(--surface2);}
+  #drop .big{font-size:16px;font-weight:600;}
+  #drop .small{color:var(--text3);font-size:12px;margin-top:7px;font-family:var(--mono);}
+  .pickrow{display:flex;gap:12px;align-items:center;margin-top:12px;flex-wrap:wrap;}
+  .ghost{font-family:var(--sans);font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--text2);cursor:pointer;}
+  .ghost:hover{border-color:var(--teal);color:var(--text);}
+
+  /* manifest */
+  #manifest{margin-top:20px;display:flex;flex-direction:column;gap:14px;}
+  .grp{background:var(--surface);border:1px solid var(--line);border-radius:13px;overflow:hidden;}
+  .grphead{display:flex;align-items:center;gap:9px;padding:11px 16px;border-bottom:1px solid var(--line);background:var(--surface2);}
+  .grptag{font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.02em;}
+  .grpn{font-family:var(--mono);font-size:11px;color:var(--text3);background:rgba(255,255,255,.05);border-radius:999px;padding:1px 8px;}
+  .grpdesc{color:var(--text3);font-size:11.5px;margin-left:auto;}
+  .dot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--text3);}
+  .dot.teal{background:var(--teal);} .dot.green{background:var(--green);} .dot.amber{background:var(--amber);} .dot.red{background:var(--red);}
+  .row{display:flex;align-items:center;gap:14px;padding:9px 16px;border-bottom:1px dotted rgba(255,255,255,.05);font-size:12.5px;}
+  .row:last-child{border-bottom:0;}
+  .path{font-family:var(--mono);color:var(--text2);word-break:break-all;flex:1;min-width:0;}
+  .rt{margin-left:auto;text-align:right;color:var(--text2);font-size:12px;flex:none;max-width:55%;}
+  .rt .vendor{color:var(--text);font-weight:600;} .rt .sig{font-family:var(--mono);color:var(--blue);}
+  .rt b{color:var(--teal);} .rt .ok{color:var(--green);font-family:var(--mono);font-size:11px;} .rt .warn{color:var(--amber);font-family:var(--mono);font-size:11px;}
+  .muted{color:var(--text3);} .small{font-size:12px;}
+  select.ambsel{font-family:var(--mono);font-size:11.5px;background:var(--surface2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:4px 6px;}
+
+  /* run bar */
+  .runbar{position:sticky;bottom:0;margin-top:22px;padding:14px 0;background:linear-gradient(to top,var(--bg) 70%,transparent);display:flex;gap:12px;align-items:center;}
+  button.primary{font-family:var(--sans);font-size:13.5px;font-weight:680;padding:11px 22px;border-radius:9px;border:1px solid transparent;background:var(--teal);color:#06251f;cursor:pointer;}
+  button.primary:hover{filter:brightness(1.06);}
+
+  /* fusion result */
+  #fusion{margin-top:14px;background:var(--surface);border:1px solid rgba(61,224,208,.22);border-radius:16px;padding:24px;display:none;}
+  .fhead h2{margin:6px 0 6px;font-size:21px;font-weight:660;letter-spacing:-.01em;}
+  .fsub{color:var(--text3);font-size:12.5px;line-height:1.6;max-width:760px;}
+  .statgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:20px 0 6px;}
+  .stat{background:var(--surface2);border:1px solid var(--line);border-radius:11px;padding:14px 16px;}
+  .sv{font-family:var(--mono);font-size:24px;font-weight:600;letter-spacing:-.02em;}
+  .sv.teal{color:var(--teal);} .sv.amber{color:var(--amber);} .sv.muted{color:var(--text3);}
+  .sl{color:var(--text3);font-size:11px;margin-top:4px;text-transform:uppercase;letter-spacing:.08em;}
+  .block{margin-top:18px;}
+  .bt{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);margin-bottom:9px;}
+  .chips{display:flex;flex-wrap:wrap;gap:9px;}
+  .chip{display:flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:9px;padding:6px 11px;font-size:12.5px;font-weight:600;}
+  .chip .cdot{width:9px;height:9px;border-radius:50%;background:var(--c);} .chip .cmeta{font-family:var(--mono);font-weight:400;color:var(--text3);font-size:11px;}
+  .findings{display:flex;flex-direction:column;gap:9px;}
+  .finding{background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:11px 14px;}
+  .fr1{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .ftype{font-weight:660;font-size:13px;text-transform:capitalize;}
+  .ftime{font-family:var(--mono);font-size:11.5px;color:var(--text3);}
+  .fconf{font-family:var(--mono);font-size:11.5px;color:var(--text2);margin-left:auto;}
+  .fconf .warn{color:var(--amber);}
+  .fnote{color:var(--text3);font-size:12px;margin-top:6px;line-height:1.55;}
+  .ok{color:var(--green);} .warn{color:var(--amber);}
+  .warnbox{background:rgba(255,184,77,.07);border:1px solid rgba(255,184,77,.25);border-radius:10px;padding:11px 14px;font-size:12.5px;color:var(--text2);}
+  .ffoot{margin-top:22px;padding-top:18px;border-top:1px solid var(--line);display:flex;gap:14px;align-items:center;flex-wrap:wrap;}
+  #dlFused{font-family:var(--sans);font-size:12.5px;font-weight:600;padding:9px 15px;border-radius:8px;border:1px solid transparent;background:var(--teal);color:#06251f;cursor:pointer;}
+
+  code{font-family:var(--mono);color:var(--blue);background:var(--surface2);padding:1px 5px;border-radius:4px;font-size:11px;}
+  .note{background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.2);border-radius:11px;padding:13px 16px;font-size:12px;color:var(--text2);line-height:1.6;margin-top:22px;}
+  .note b{color:var(--text);}
+  @media(max-width:720px){ .statgrid{grid-template-columns:repeat(2,1fr);} .rt{max-width:100%;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Tepna · orchestration layer</div>
+    <h1>Over<span class="g">Dex</span></h1>
+    <div class="sub">Point it at a <b>folder</b> of mixed raw exports from any device. OverDex walks the tree, identifies each file, runs the right node(s) on the right files, and hands every result to the Integrator — <b>one drop, one fused picture out</b>. It is a consumer that sits on top, exactly like the Integrator: it reads files, invokes nodes, and reads their exports through the public <code>ganglior.node-export</code> contract. No Dex depends on any other Dex; delete OverDex and every node still opens and runs standalone, unchanged.</div>
+    <div class="flow">
+      <span class="step"><b>1</b> walk folder</span><span class="arr">→</span>
+      <span class="step"><b>2</b> route (detect)</span><span class="arr">→</span>
+      <span class="step"><b>3</b> run nodes</span><span class="arr">→</span>
+      <span class="step"><b>4</b> fuse (Integrator)</span>
+    </div>
+    <div class="toprow">
+      <span id="status" class="pill">idle</span>
+      <span class="pill">100% local · no network</span>
+    </div>
+  </header>
+
+  <div class="adapters" id="adapters"></div>
+
+  <div id="drop">
+    <div class="big">Drop a folder here, or click to choose one</div>
+    <div class="small">nested folders OK · raw RR files run live · <code>*_ganglior.json</code> node-exports pass through · unknown files set aside</div>
+  </div>
+  <div class="pickrow">
+    <button class="ghost" onclick="document.getElementById('files').click()">…or pick individual files</button>
+    <span class="muted small">Everything stays on this device — nothing is uploaded.</span>
+  </div>
+
+  <!-- webkitdirectory = folder pick; the plain input = loose files -->
+  <input type="file" id="dir" webkitdirectory directory multiple style="display:none">
+  <input type="file" id="files" multiple style="display:none">
+
+  <div id="manifest"></div>
+
+  <div class="runbar">
+    <button class="primary" id="runBtn">Run &amp; fuse →</button>
+    <span class="muted small">routes every file, runs each node through its public compute path, fuses the exports</span>
+  </div>
+
+  <div id="fusion"></div>
+
+  <div class="note">
+    <b>How nodes without an adapter yet still fuse:</b> OverDex orchestrates two paths. A <b>raw vendor file</b> an adapter recognizes (Polar / Coospo RR) is normalized to a <code>SignalFrame</code> and run through the node's real DSP live. An <b>already-exported</b> <code>*_ganglior.json</code> (from OxyDex, GlucoDex, ECGDex, …) passes straight to the Integrator. So a folder can mix live-computed and pre-exported results and still converge on one fused picture. Reliability rises with every node that completes its Phase-9 migration (a public <code>compute()</code> surface) — the migrated nodes (PulseDex RR, OxyDex SpO₂, HRVDex summary) are co-loaded in one realm and run live; everyone else fuses through the export contract. Unknown files are reported, never guessed.
+  </div>
+</div>
+
+<!-- CORE physiology kernel (drift hash) -->
+<script src="kernel-constants.js"></script>
+<!-- the FUSER (public IntegratorDSP surface; bare globals are unique on this page) -->
+<script src="integrator-dsp.js"></script>
+<!-- the adapter/ingest layer (DOM-free, headless-safe) -->
+<script src="signal-spec.js"></script>
+<script src="signal-frame.js"></script>
+<script src="signal-adapters.js"></script>
+<!-- adapters self-register at load -->
+<script src="adapters/polar-rr.js"></script>
+<script src="adapters/coospo-rr.js"></script>
+<script src="adapters/wahoo-rr.js"></script>
+<script src="adapters/oxydex-spo2.js"></script>
+<script src="adapters/welltory-summary.js"></script>
+<script src="adapters/libre-cgm.js"></script>
+<script src="adapters/polar-sense-ppg.js"></script>
+<script src="adapters/polar-h10-ecg.js"></script>
+<!-- units-as-quantities (DexUnits.guardBaevsky) — the welltory-summary adapter applies the Baevsky unit guard at ingest -->
+<script src="quantity.js"></script>
+<!-- §3 namespaced co-load (SIGNAL-ADAPTER-FOLLOWUPS): set the flag, then load the migrated
+     DSPs in ONE realm — no isolation iframe. Each hangs its surface off PulseDex/OxyDex/
+     HRVDex and (flag set) leaks NO bare globals, so they co-exist with integrator-dsp's. -->
+<script>window.__DEX_NAMESPACED__ = true;</script>
+<script src="oxydex-util.js"></script>
+<script src="pulsedex-dsp.js"></script>
+<script src="oxydex-dsp.js"></script>
+<script src="hrvdex-dsp.js"></script>
+<script src="glucodex-dsp.js"></script>
+<script src="ppgdex-dsp.js"></script>
+<script src="ecgdex-dsp.js"></script>
+<!-- shared file-ingest classifiers (deviceKey/foreignVendor/…) — load BEFORE signal-orchestrate (§1 ECG-INGEST-FOLLOWUPS-II: pairCompanions consults DexIngest) -->
+<script src="dex-ingest.js"></script>
+<!-- shared node orchestration (co-loaded compute() hosts + node-export emit), reused from the Unifier -->
+<script src="signal-orchestrate.js"></script>
+<!-- the capstone tool -->
+<script src="overdex-walk.js"></script>
+<script src="overdex-app.js"></script>
+</body>
+</html>

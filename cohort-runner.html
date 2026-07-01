@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  cohort-runner.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tepna — Cohort Validation Harness (pilot)</title>
+<!-- ════════════════════════════════════════════════════════════════════════
+  cohort-runner.html — PILOT (build-order step 1): single-thread, FAST, 1k.
+  Generates N synthetic patients (cohort-gen.js → SYNTH renderers), runs each
+  through the REAL headless Dex pipeline via per-node iframe harnesses
+  (OxyDex · PulseDex · GlucoDex are real DSP; HRVDex reads the rendered Welltory
+  metrics — its real parse is DOM-bound), normalizes every node envelope through
+  the REAL Integrator (IntegratorDSP.normalizeFile → runFusion), scores recall /
+  calibration vs ground truth, and harvests summary.json. IndexedDB append =
+  refresh/crash-safe resume. Per-node wall-time is MEASURED so the pilot sizes
+  the true cost before the worker-pool + 10k scale-up (steps 2–3). 100% local.
+═════════════════════════════════════════════════════════════════════════ -->
+<style>
+  :root{
+    --bg:#0c0f14; --surface:#141922; --surface2:#1b212c; --line:rgba(255,255,255,.08);
+    --text:#e6edf6; --text2:#aab8cc; --text3:#6f8096; --teal:#3DE0D0; --blue:#58A6FF;
+    --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A; --purple:#B98AFF; --gluco:#FFB84D;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;padding:0 0 80px;}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px;}
+  header{position:sticky;top:0;z-index:5;background:linear-gradient(180deg,var(--bg) 78%,transparent);
+    padding:24px 0 14px;border-bottom:1px solid var(--line);margin-bottom:20px;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);}
+  h1{margin:5px 0 2px;font-size:24px;font-weight:650;letter-spacing:-.01em;}
+  h1 .g{color:var(--teal);}
+  .sub{color:var(--text3);font-size:13px;}
+  .controls{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap;}
+  .controls label{font-size:12px;color:var(--text2);display:flex;align-items:center;gap:6px;}
+  input[type=number]{width:84px;background:var(--surface2);border:1px solid var(--line);color:var(--text);
+    font-family:var(--mono);font-size:13px;padding:6px 8px;border-radius:7px;}
+  select{background:var(--surface2);border:1px solid var(--line);color:var(--text);font-family:var(--mono);
+    font-size:12px;padding:6px 8px;border-radius:7px;}
+  button{font-family:var(--sans);font-size:13px;font-weight:600;padding:8px 16px;border-radius:8px;
+    border:1px solid var(--line);background:var(--surface2);color:var(--text);cursor:pointer;}
+  button:hover{border-color:rgba(255,255,255,.2);}
+  button.primary{background:var(--teal);color:#06251f;border-color:transparent;}
+  button.primary:hover{filter:brightness(1.08);}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px;}
+  .card h2{margin:0 0 12px;font-size:13px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;gap:8px;}
+  .card h2 .tag{font-family:var(--mono);font-size:10px;color:var(--text3);font-weight:500;border:1px solid var(--line);border-radius:5px;padding:2px 6px;margin-left:auto;}
+  .col-12{grid-column:span 12;} .col-8{grid-column:span 8;} .col-6{grid-column:span 6;}
+  .col-4{grid-column:span 4;} .col-3{grid-column:span 3;}
+  @media(max-width:900px){ .col-8,.col-6,.col-4,.col-3{grid-column:span 12;} }
+  .stat-row{display:flex;gap:22px;flex-wrap:wrap;}
+  .stat{display:flex;flex-direction:column;gap:2px;}
+  .stat .v{font-family:var(--mono);font-size:24px;font-weight:600;letter-spacing:-.02em;}
+  .stat .l{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;}
+  .progress{height:10px;background:var(--surface2);border-radius:6px;overflow:hidden;margin:12px 0 6px;}
+  .progress > div{height:100%;background:linear-gradient(90deg,var(--teal),var(--blue));width:0;transition:width .2s;}
+  .mono{font-family:var(--mono);}
+  .muted{color:var(--text3);}
+  .hist{display:flex;flex-direction:column;gap:9px;}
+  .hist .row{display:grid;grid-template-columns:60px 1fr 42px;gap:8px;align-items:center;font-size:11px;}
+  .hist .bar{height:14px;background:var(--surface2);border-radius:4px;overflow:hidden;}
+  .hist .bar > div{height:100%;border-radius:4px;}
+  .hist .lbl{font-family:var(--mono);color:var(--text3);text-align:right;}
+  .hist .cnt{font-family:var(--mono);color:var(--text2);}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th,td{text-align:left;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.05);}
+  th{color:var(--text3);font-weight:500;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;}
+  td.mono,th.mono{font-family:var(--mono);}
+  .fail{max-height:240px;overflow:auto;}
+  .fail .item{display:flex;gap:10px;font-size:11.5px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);font-family:var(--mono);}
+  .fail .item .seed{color:var(--amber);flex:none;width:84px;}
+  .fail .item .why{color:var(--text2);}
+  .pill{font-family:var(--mono);font-size:11px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:var(--surface2);}
+  .pill.run{color:var(--teal);border-color:rgba(61,224,208,.35);}
+  .pill.done{color:var(--green);border-color:rgba(57,217,138,.35);}
+  .pill.idle{color:var(--text3);}
+  .nodechip{font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:5px;border:1px solid var(--line);}
+  canvas{max-width:100%;display:block;}
+  .legend{font-size:10.5px;color:var(--text3);font-family:var(--mono);margin-top:6px;}
+  iframe.harness{position:absolute;width:10px;height:10px;left:-3000px;top:0;border:0;}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="eyebrow">Cohort Validation · pilot lane · single-thread · FAST</div>
+    <h1><span class="g">Tepna</span> — Cohort Validation Harness</h1>
+    <div class="sub">N synthetic patients → real headless Dex pipeline → calibration + recall + distributions + failure ledger.</div>
+    <div class="sub mono" style="font-size:11px;color:var(--text3);margin-top:4px">🔒 frozen seeds · patient k = <span style="color:var(--teal)">CohortGen.patient(k)</span>, k ∈ [0,N) · byte-reproducible from cohort-gen + kernel versions — no raw corpus stored</div>
+    <div class="controls">
+      <label>N patients <input type="number" id="nIn" value="1000" min="1" max="20000" step="1"></label>
+      <label>scenario mix
+        <select id="mixIn">
+          <option value="random">random (BMI-prior severity)</option>
+          <option value="balanced">balanced severities</option>
+        </select>
+      </label>
+      <label>engine
+        <select id="engineIn">
+          <option value="workers">worker pool (parallel)</option>
+          <option value="iframe">iframe (single-thread)</option>
+        </select>
+      </label>
+      <label>lane
+        <select id="modeIn">
+          <option value="fast">FAST (10k · no waveform)</option>
+          <option value="full">FULL (≤500 · ECG+PPG morphology)</option>
+        </select>
+      </label>
+      <button class="primary" id="startBtn">Start / Resume</button>
+      <button id="pauseBtn" disabled>Pause</button>
+      <button id="resetBtn">Reset</button>
+      <span class="pill idle" id="statusPill">idle</span>
+      <span style="flex:1"></span>
+      <button id="dlSummary" disabled>Download summary.json</button>
+      <button id="dlManifest" disabled>Download manifest.json</button>
+      <button id="dlSample" disabled>Download sample.jsonl</button>
+      <button id="dlFull" disabled>Download results.jsonl (sharded)</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="grid">
+    <!-- progress / throughput -->
+    <div class="card col-8">
+      <h2>Run progress <span class="tag" id="dexTag">dex —</span></h2>
+      <div class="progress"><div id="progBar"></div></div>
+      <div class="stat-row" style="margin-top:14px">
+        <div class="stat"><span class="v" id="sDone">0</span><span class="l">done / N</span></div>
+        <div class="stat"><span class="v" id="sRate">0</span><span class="l">patients/s</span></div>
+        <div class="stat"><span class="v" id="sEta">—</span><span class="l">eta</span></div>
+        <div class="stat"><span class="v" id="sElapsed">0s</span><span class="l">elapsed</span></div>
+        <div class="stat"><span class="v" id="sFail" style="color:var(--amber)">0</span><span class="l">flagged</span></div>
+      </div>
+    </div>
+    <!-- per-node wall time -->
+    <div class="card col-4">
+      <h2>Per-node wall-time <span class="tag">ms / patient</span></h2>
+      <div class="hist" id="timingHist"><div class="muted mono" style="font-size:11px">run to measure…</div></div>
+      <div class="legend">The pilot's whole point: size the true cost before parallel + 10k.</div>
+    </div>
+
+    <!-- calibration scatter -->
+    <div class="card col-6">
+      <h2>Calibration — OxyDex ODI vs truth-AHI <span class="tag" id="r2Tag">R² —</span></h2>
+      <canvas id="scatter" width="640" height="300"></canvas>
+      <div class="legend">Each dot = one night. Line = OLS fit. Colour = OSA severity stratum.</div>
+    </div>
+
+    <!-- distributions -->
+    <div class="card col-6">
+      <h2>Metric distributions <span class="tag">live histograms</span></h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+        <div><div class="muted mono" style="font-size:10.5px;margin-bottom:6px">OxyDex ODI (/h)</div><div class="hist" id="histODI"></div></div>
+        <div><div class="muted mono" style="font-size:10.5px;margin-bottom:6px">PulseDex rMSSD (ms)</div><div class="hist" id="histRMSSD"></div></div>
+        <div><div class="muted mono" style="font-size:10.5px;margin-bottom:6px">min SpO₂ (%)</div><div class="hist" id="histSpO2"></div></div>
+        <div><div class="muted mono" style="font-size:10.5px;margin-bottom:6px">GlucoDex CV (%)</div><div class="hist" id="histCV"></div></div>
+      </div>
+    </div>
+
+    <!-- coverage matrix -->
+    <div class="card col-6">
+      <h2>Edge-case coverage <span class="tag">severity × arc</span></h2>
+      <div id="coverage"><div class="muted mono" style="font-size:11px">—</div></div>
+    </div>
+
+    <!-- node health + couplings -->
+    <div class="card col-6">
+      <h2>Node health &amp; couplings <span class="tag">aggregate</span></h2>
+      <div id="health"><div class="muted mono" style="font-size:11px">—</div></div>
+    </div>
+
+    <!-- failure ledger -->
+    <div class="card col-12">
+      <h2>Failure ledger <span class="tag" id="failTag">0 entries · seed-reproducible</span></h2>
+      <div class="fail" id="failList"><div class="muted mono" style="font-size:11px">no failures yet</div></div>
+    </div>
+  </div>
+</div>
+
+<script src="synth-gen.js"></script>
+<script src="cohort-gen.js"></script>
+<!-- Integrator stack (IIFE / clean globals — no realm collision with the plain-global node DSPs, which live in iframes) -->
+<script src="kernel-constants.js"></script>
+<script src="metric-registry.js"></script>
+<script src="crossnight-envelope.js"></script>
+<script src="integrator-dsp.js"></script>
+
+<script>
+/* ══════════════ harness pool (one iframe realm per colliding node) ══════════════ */
+const HARNESS_NODES = ['oxydex','pulsedex','glucodex'];
+const harness = {};   // node → { iframe, ready, reqId, pending:Map }
+let reqSeq = 1;
+function bootHarness(node){
+  return new Promise((resolve)=>{
+    const f = document.createElement('iframe');
+    f.className='harness'; f.src='cohort-harness.html?node='+node;
+    const rec = { iframe:f, ready:false, pending:new Map() };
+    harness[node]=rec;
+    window.addEventListener('message',(ev)=>{
+      const m=ev.data||{};
+      if(m.node!==node) return;
+      if(m.type==='ready'){ rec.ready=true; rec.bootErr=m.error||null; resolve(rec); }
+      else if(m.type==='result'){ const p=rec.pending.get(m.reqId); if(p){ rec.pending.delete(m.reqId); p(m); } }
+    });
+    document.body.appendChild(f);
+    setTimeout(()=>resolve(rec), 9000); // don't hang forever
+  });
+}
+function callNode(node, payload){
+  const rec=harness[node];
+  return new Promise((resolve)=>{
+    const id=reqSeq++;
+    rec.pending.set(id, resolve);
+    rec.iframe.contentWindow.postMessage({type:'run', reqId:id, payload}, '*');
+    setTimeout(()=>{ if(rec.pending.has(id)){ rec.pending.delete(id); resolve({error:'timeout'}); } }, 20000);
+  });
+}
+
+/* ══════════════ Web-Worker pool (engine B — true parallelism across cores) ══════════════ */
+const CORES = Math.max(2, navigator.hardwareConcurrency||4);
+let OXY_W=[], RR_W=[], FULL_W=[], wReqSeq=1; const wPending=new Map(); let poolReady=false, poolMode=null;
+function mkWorker(kind){
+  return new Promise((resolve)=>{
+    let w; try{ w=new Worker('cohort-worker.js'); }catch(e){ resolve({_err:String(e.message||e), postMessage(){}, _busy:0}); return; }
+    w._busy=0;
+    w.onmessage=(e)=>{ const m=e.data||{};
+      if(m.type==='ready'){ w._err=m.err||null; resolve(w); }
+      else if(m.type==='done'){ const p=wPending.get(m.reqId); if(p){ wPending.delete(m.reqId); w._busy=Math.max(0,w._busy-1); p(m); } }
+    };
+    w.onerror=(ev)=>{ w._err=(ev&&ev.message)||'worker error'; resolve(w); };
+    w.postMessage({type:'init', kind});
+    setTimeout(()=>resolve(w), 12000);
+  });
+}
+async function bootPool(mode){
+  if(poolReady && poolMode===mode) return;
+  if(poolReady){ [...OXY_W,...RR_W,...FULL_W].forEach(w=>{try{w.terminate&&w.terminate();}catch(e){}}); OXY_W=[];RR_W=[];FULL_W=[]; poolReady=false; }
+  poolMode=mode;
+  if(mode==='full'){
+    // FULL lane: ECG + PPG morphology dominate → give them most cores. A small oxy/rr/gluco
+    // pool still runs the FAST nodes so every patient gets the full node set.
+    const fullN=Math.max(1, CORES-2), oxyN=1, rrN=1;
+    FULL_W=await Promise.all(Array.from({length:fullN},()=>mkWorker('full')));
+    OXY_W =await Promise.all(Array.from({length:oxyN},()=>mkWorker('oxy')));
+    RR_W  =await Promise.all(Array.from({length:rrN}, ()=>mkWorker('rrgluco')));
+  } else {
+    // rrgluco now carries 3 nodes (Pulse+Gluco+CPAP) → give it a fairer share than oxy.
+    const oxyN=Math.max(1, Math.round(CORES*0.45)), rrN=Math.max(1, CORES-oxyN);
+    OXY_W=await Promise.all(Array.from({length:oxyN},()=>mkWorker('oxy')));
+    RR_W =await Promise.all(Array.from({length:rrN}, ()=>mkWorker('rrgluco')));
+  }
+  poolReady=true;
+}
+function poolSize(){ return OXY_W.length+RR_W.length+FULL_W.length; }
+function poolErrs(){ return [...OXY_W,...RR_W,...FULL_W].filter(w=>w._err).map(w=>w._err); }
+function leastBusy(pool){ let b=pool[0]; for(const w of pool) if(w._busy<b._busy) b=w; return b; }
+function dispatchWorker(kind, seed){
+  const pool = kind==='oxy'?OXY_W : kind==='full'?FULL_W : RR_W;
+  const w=leastBusy(pool);
+  return new Promise((resolve)=>{
+    const id=wReqSeq++; wPending.set(id, resolve); w._busy++;
+    w.postMessage({type:'job', reqId:id, seed});
+    // A 1–12-night patient regenerates every timeline in-worker (× each node set) — legitimately
+    // several seconds, and jobs queue behind the pool. Generous ceiling so queueing ≠ fatal.
+    setTimeout(()=>{ if(wPending.has(id)){ wPending.delete(id); w._busy=Math.max(0,w._busy-1); resolve({error:'timeout'}); } }, 180000);
+  });
+}
+
+/* ══════════════ IndexedDB append-only result store (resume-safe) ══════════════ */
+const DB_NAME='ganglior_cohort_pilot', STORE='results';
+function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open(DB_NAME,1);
+  r.onupgradeneeded=()=>{ const db=r.result; if(!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE,{keyPath:'seed'}); };
+  r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+async function dbPut(rec){ const db=await idb(); return new Promise((res,rej)=>{ const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).put(rec); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); }); }
+async function dbAll(){ const db=await idb(); return new Promise((res,rej)=>{ const tx=db.transaction(STORE,'readonly'); const rq=tx.objectStore(STORE).getAll(); rq.onsuccess=()=>res(rq.result||[]); rq.onerror=()=>rej(rq.error); }); }
+async function dbCount(){ const db=await idb(); return new Promise((res,rej)=>{ const tx=db.transaction(STORE,'readonly'); const rq=tx.objectStore(STORE).count(); rq.onsuccess=()=>res(rq.result); rq.onerror=()=>rej(rq.error); }); }
+async function dbClear(){ const db=await idb(); return new Promise((res,rej)=>{ const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).clear(); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); }); }
+
+/* ══════════════ scoring helpers ══════════════ */
+function matchRecall(detTMs, truthTMs, loSec, hiSec){
+  const lo=loSec*1000, hi=hiSec*1000; const usedDet=new Set(); let matched=0;
+  for(const t of truthTMs){
+    let hit=-1;
+    for(let i=0;i<detTMs.length;i++){ if(usedDet.has(i)) continue; const d=detTMs[i]-t; if(d>=lo && d<=hi){ hit=i; break; } }
+    if(hit>=0){ usedDet.add(hit); matched++; }
+  }
+  return { recall: truthTMs.length? +(matched/truthTMs.length).toFixed(3):null,
+           precision: detTMs.length? +(matched/detTMs.length).toFixed(3):null,
+           matched, nTruth:truthTMs.length, nDet:detTMs.length };
+}
+function ols(xs,ys){ const n=xs.length; if(n<3) return null;
+  let sx=0,sy=0; for(let i=0;i<n;i++){ sx+=xs[i]; sy+=ys[i]; }
+  const mx=sx/n,my=sy/n; let sxx=0,sxy=0,syy=0;
+  for(let i=0;i<n;i++){ const dx=xs[i]-mx,dy=ys[i]-my; sxx+=dx*dx; sxy+=dx*dy; syy+=dy*dy; }
+  if(sxx===0||syy===0) return null;
+  const slope=sxy/sxx, intercept=my-slope*mx, r=sxy/Math.sqrt(sxx*syy);
+  return { slope:+slope.toFixed(3), intercept:+intercept.toFixed(2), r2:+(r*r).toFixed(3), bias:+(my-mx).toFixed(2), n };
+}
+function quantiles(arr){ if(!arr.length) return null; const s=arr.slice().sort((a,b)=>a-b);
+  const q=p=>{ const i=(s.length-1)*p; const lo=Math.floor(i),hi=Math.ceil(i); return +(s[lo]+(s[hi]-s[lo])*(i-lo)).toFixed(2); };
+  const m=s.reduce((a,b)=>a+b,0)/s.length;
+  return { n:s.length, min:+s[0].toFixed(2), p10:q(.1), p25:q(.25), median:q(.5), mean:+m.toFixed(2), p75:q(.75), p90:q(.9), max:+s[s.length-1].toFixed(2) }; }
+
+const SEV_COLOR={ none:'#39D98A', mild:'#3DE0D0', mod:'#FFB84D', severe:'#FF6B7A' };
+
+/* ══════════════ per-patient pipeline (engine A: iframe realms, single-thread) ══════════════ */
+async function runPatientIframe(seed){
+  const flags=[]; const errors={}; const timing={oxydex:0,pulsedex:0,glucodex:0,total:0};
+  let p; try{ p=CohortGen.patient(seed); }catch(e){ return { seed, fatal:String(e.message||e), flags:['gen_threw'] }; }
+  const prof=p.profile;
+  const envelopes=[]; // {env,name}
+
+  // —— OxyDex (one call, array of nights) ——
+  const oxyNights = p.nights.filter(nt=>nt.present.OxyDex && nt.files.oxyCSV)
+    .map(nt=>({ oxyCSV: nt.files.oxyCSV }));
+  let oxyScore=null;
+  if(oxyNights.length){
+    const res = await callNode('oxydex', { nights:oxyNights });
+    timing.oxydex += res.timingMs||0;
+    if(res.error){ errors.OxyDex=res.error; flags.push('oxy_threw'); }
+    else { envelopes.push({env:res.envelope,name:'oxydex.json'}); oxyScore=res.score; }
+  }
+
+  // —— PulseDex (per night, RR text) ——
+  const pulsePerNight=[];
+  for(const nt of p.nights){
+    if(!(nt.present.PulseDex && nt.files.rrText)) continue;
+    const res = await callNode('pulsedex', { rrText: nt.files.rrText });
+    timing.pulsedex += res.timingMs||0;
+    if(res.error){ errors.PulseDex=res.error; flags.push('pulse_threw'); continue; }
+    envelopes.push({env:res.envelope,name:'pulsedex_n'+nt.n+'.json'});
+    pulsePerNight.push(Object.assign({n:nt.n, target:nt.cfg.rmssd}, res.score));
+  }
+
+  // —— GlucoDex (one continuous call) ——
+  let glucoScore=null;
+  if(p.files.glucoCSV){
+    const res = await callNode('glucodex', { cgmCSV: p.files.glucoCSV });
+    timing.glucodex += res.timingMs||0;
+    if(res.error){ errors.GlucoDex=res.error; flags.push('gluco_threw'); }
+    else { envelopes.push({env:res.envelope,name:'glucodex.json'}); glucoScore=res.score; }
+  }
+
+  // —— HRVDex (rendered Welltory rows; minimal envelope built in-runner) ——
+  const hrvPerNight=[];
+  if(p.files.hrvCSV){
+    const rows=parseHRV(p.files.hrvCSV);
+    p.nights.forEach((nt,i)=>{
+      const row=rows[i]; if(!row) return;
+      const env={ schema:{name:'ganglior.node-export',node:'HRVDex'}, bus:'ganglior',
+        recording:{ startEpochMs: nt.groundTruth.t0Ms, durationMin: +(nt.cfg.durSec/60).toFixed(1) },
+        hrv:{ time:{ rmssd: row.rmssd, sdnn: row.sdnn } },
+        kernel: (window.DexKernel? { hash:DexKernel.HASH, version:DexKernel.VERSION }:null) };
+      envelopes.push({env,name:'hrvdex_n'+nt.n+'.json'});
+      hrvPerNight.push({ n:nt.n, rmssd:row.rmssd, sdnn:row.sdnn, target:nt.cfg.rmssd });
+    });
+  }
+
+  // —— Integrator + scoring (shared by both engines) ——
+  return finishPatient(seed, p, envelopes, oxyScore, pulsePerNight, glucoScore, hrvPerNight, timing, flags, errors);
+}
+
+/* Shared tail: normalize every node envelope → runFusion → score vs ground truth →
+   build the compact result record. `meta` = { profile, groundTruth[, pid] }. */
+function finishPatient(seed, meta, envelopes, oxyScore, pulsePerNight, glucoScore, hrvPerNight, timing, flags, errors, extra){
+  extra=extra||{};
+  const ecgScore=extra.ecgScore||null, ppgScore=extra.ppgScore||null, cpapPerNight=extra.cpapPerNight||[];
+  const prof=meta.profile, gt=meta.groundTruth;
+  const pid=meta.pid||(gt&&gt.pid)||('p'+String(seed).padStart(6,'0'));
+  flags=flags||[]; errors=errors||{};
+  timing=timing||{oxydex:0,pulsedex:0,glucodex:0};
+  pulsePerNight=pulsePerNight||[]; hrvPerNight=hrvPerNight||[];
+
+  // —— Integrator: normalize every envelope → runFusion ——
+  let fusion=null, nRecs=0, warns=0, kernelOK=true;
+  try{
+    let recs=[];
+    for(const {env,name} of envelopes){
+      const nf=IntegratorDSP.normalizeFile(env,name);
+      recs=recs.concat(nf.recs||[]); warns+=(nf.warnings||[]).length;
+    }
+    nRecs=recs.length;
+    fusion=IntegratorDSP.runFusion(recs,{toleranceSec:120});
+    kernelOK = !(fusion.kernelAudit && fusion.kernelAudit.ok===false);
+  }catch(e){ errors.Integrator=String(e.message||e); flags.push('fusion_threw'); }
+
+  // —— calibration + recall scoring vs ground truth ——
+  const truthByT0={}; gt.nights.forEach(n=>truthByT0[n.t0Ms]=n);
+  const calib=[]; // {odi,estAHI,truthAHI,sev}
+  let recallSum=0, recallN=0;
+  if(oxyScore){
+    oxyScore.nights.forEach(sn=>{
+      if(sn.empty||sn.t0Ms==null) return;
+      const tr=truthByT0[sn.t0Ms]; if(!tr) return;
+      if(sn.odi!=null) calib.push({ odi:sn.odi, estAHI:sn.estAHI, truthAHI:tr.ahiTruth, sev:prof.osaSeverity });
+      const rc=matchRecall(sn.detectedDesatTMs||[], tr.eventsTMs||[], -10, 60);
+      if(rc.nTruth>0){ recallSum+=rc.recall; recallN++; }
+      if(sn.minSpo2!=null && (sn.minSpo2<40 || sn.minSpo2>100)) flags.push('spo2_oob');
+      if(sn.odi!=null && sn.odi>120) flags.push('odi_oob');
+    });
+  }
+  const desatRecall = recallN? +(recallSum/recallN).toFixed(3):null;
+  if(desatRecall!=null && desatRecall<0.5 && prof.osaSeverity==='severe') flags.push('recall_low_severe');
+
+  // rMSSD arc error (PulseDex vs target)
+  let rmssdErr=null;
+  if(pulsePerNight.length){ let s=0,c=0; pulsePerNight.forEach(pn=>{ if(pn.rmssd!=null&&pn.target!=null){ s+=Math.abs(pn.rmssd-pn.target); c++; }}); rmssdErr=c?+(s/c).toFixed(2):null;
+    pulsePerNight.forEach(pn=>{ if(pn.rmssd!=null && (pn.rmssd<3||pn.rmssd>250)) flags.push('rmssd_oob'); }); }
+
+  // gluco hypo recall
+  let hypoRecall=null;
+  if(glucoScore){
+    const truthHypoNights=gt.nights.filter(n=>n.gluc==='hypo').length;
+    if(truthHypoNights>0) hypoRecall = glucoScore.nHypo>0 ? +(Math.min(1,glucoScore.nHypo/truthHypoNights).toFixed(3)) : 0;
+    if(glucoScore.cv!=null && (glucoScore.cv<1||glucoScore.cv>120)) flags.push('cv_oob');
+  }
+
+  timing.total=+((timing.oxydex||0)+(timing.pulsedex||0)+(timing.glucodex||0)+(timing.ecg||0)+(timing.ppg||0)).toFixed(2);
+  if(fusion && !fusion.anyOverlap && nRecs>=2) flags.push('no_overlap');
+  if(!kernelOK) flags.push('kernel_mismatch');
+
+  // —— FULL-lane waveform scoring vs ground truth ——
+  let ecgOut=null, ppgOut=null;
+  if(ecgScore){
+    // Pan-Tompkins beat-recovery: detected R-peaks vs true beats in the same window.
+    if(ecgScore.rmssd!=null && (ecgScore.rmssd<3||ecgScore.rmssd>300)) flags.push('ecg_rmssd_oob');
+    if(ecgScore.detVsTrue!=null && (ecgScore.detVsTrue<0.9||ecgScore.detVsTrue>1.1)) flags.push('ecg_beat_miscount');
+    ecgOut={ rmssd:ecgScore.rmssd, sdnn:ecgScore.sdnn, lfhf:ecgScore.lfhf, cvhrIndex:ecgScore.cvhrIndex,
+      nBeats:ecgScore.nBeats, detVsTrue:ecgScore.detVsTrue, rrMismatchPct:ecgScore.rrMismatchPct, meanSQI:ecgScore.meanSQI };
+  }
+  if(ppgScore){
+    if(ppgScore.rmssd!=null && (ppgScore.rmssd<3||ppgScore.rmssd>300)) flags.push('ppg_rmssd_oob');
+    ppgOut={ rmssd:ppgScore.rmssd, sdnn:ppgScore.sdnn, nPulses:ppgScore.nPulses,
+      analyzablePct:ppgScore.analyzablePct, meanSQI:ppgScore.meanSQI, motionRejectedPct:ppgScore.motionRejectedPct };
+  }
+  // cross-node cardiac agreement: ECG vs PPG rMSSD on the same window (both should track truth)
+  let ecgPpgRmssdDelta=null;
+  if(ecgScore&&ppgScore&&ecgScore.rmssd!=null&&ppgScore.rmssd!=null) ecgPpgRmssdDelta=+(ecgScore.rmssd-ppgScore.rmssd).toFixed(1);
+
+  // —— CPAPDex scoring: residual AHI recovery vs the planted (capped) AHI ——
+  let cpapOut=null, cpapAhiErr=null;
+  if(cpapPerNight.length){
+    let s=0,c=0; cpapPerNight.forEach(cp=>{ if(cp.residualAHI!=null&&cp.ahiTruth!=null){ s+=Math.abs(cp.residualAHI-cp.ahiTruth); c++; }
+      if(cp.residualAHI!=null && (cp.residualAHI<0||cp.residualAHI>90)) flags.push('cpap_ahi_oob'); });
+    cpapAhiErr=c?+(s/c).toFixed(2):null;
+    cpapOut={ residualAHI:cpapPerNight.map(c=>c.residualAHI), therapyHours:cpapPerNight.map(c=>c.therapyHours),
+      medianLeak:cpapPerNight.map(c=>c.medianLeak), ahiErr:cpapAhiErr, nNights:cpapPerNight.length };
+  }
+
+  return {
+    seed, pid,
+    profile:{ age:prof.age, sex:prof.sex, bmi:prof.bmi, osaSeverity:prof.osaSeverity, baseAHI:prof.baseAHI,
+      arc:prof.arc, nNights:prof.nNights, glycemic:prof.glycemic, cpapState:prof.cpapState,
+      interventionNight:prof.interventionNight, nocturnalHypo:prof.nocturnalHypo, dawnPhenomenon:prof.dawnPhenomenon },
+    nodesPresent:prof.nodes,
+    oxy: oxyScore? { calib, desatRecall,
+      odi: oxyScore.nights.map(n=>n.odi).filter(v=>v!=null),
+      minSpo2: oxyScore.nights.map(n=>n.minSpo2).filter(v=>v!=null) } : null,
+    pulse: pulsePerNight.length? { rmssd:pulsePerNight.map(p=>p.rmssd), rmssdErr,
+      sdnn:pulsePerNight.map(p=>p.sdnn) } : null,
+    hrv: hrvPerNight.length? { rmssd:hrvPerNight.map(h=>h.rmssd) } : null,
+    gluco: glucoScore? { cv:glucoScore.cv, gmi:glucoScore.gmi, nHypo:glucoScore.nHypo, dawnSurge:glucoScore.dawnSurge, hypoRecall } : null,
+    ecg: ecgOut, ppg: ppgOut, ecgPpgRmssdDelta, cpap: cpapOut,
+    fusion: fusion? { nRecs, anyOverlap:fusion.anyOverlap, overlapMin:fusion.window.overlapMin,
+      nodesExcluded:(fusion.window.nodesExcluded||[]).length, nFindings:(fusion.findings||[]).length, kernelOK } : { nRecs, threw:true },
+    timing, warnings:warns, errors, flags:[...new Set(flags)],
+  };
+}
+
+/* ══════════════ per-patient pipeline (engine B: Web-Worker pool) ══════════════ */
+async function runPatientWorkers(seed){
+  const flags=[], errors={}, timing={oxydex:0,pulsedex:0,glucodex:0,gen:0,ecg:0,ppg:0,cpap:0};
+  const jobs=[ dispatchWorker('oxy', seed), dispatchWorker('rrgluco', seed) ];
+  if(MODE==='full') jobs.push(dispatchWorker('full', seed));
+  const [oxyRes, rrRes, fullRes] = await Promise.all(jobs);
+  if(oxyRes && oxyRes.error){ errors.OxyDex=oxyRes.error; flags.push('oxy_threw'); }
+  if(rrRes && rrRes.error){ errors.RRGluco=rrRes.error; flags.push('rrgluco_threw'); }
+  if(fullRes && fullRes.error){ errors.Full=fullRes.error; flags.push('full_threw'); }
+  const oR=(oxyRes&&oxyRes.result)||null, rR=(rrRes&&rrRes.result)||null, fR=(fullRes&&fullRes.result)||null;
+  const meta = (oR&&oR.meta) || (rR&&rR.meta) || (fR&&fR.meta);
+  if(!meta) return { seed, fatal:(errors.OxyDex||errors.RRGluco||'no worker result'), flags:['gen_threw'] };
+  timing.gen = +(((oR&&oR.timing&&oR.timing.gen)||0)+((rR&&rR.timing&&rR.timing.gen)||0)).toFixed(2);
+
+  const envelopes=[];
+  let oxyScore=null;
+  if(oR && oR.oxy){ envelopes.push({env:oR.oxy.envelope,name:'oxydex.json'}); oxyScore=oR.oxy.score; timing.oxydex=(oR.timing&&oR.timing.oxy)||0; }
+  const pulsePerNight=[];
+  if(rR){
+    timing.pulsedex=(rR.timing&&rR.timing.pulse)||0; timing.glucodex=(rR.timing&&rR.timing.gluco)||0;
+    (rR.pulse||[]).forEach(x=>{ envelopes.push({env:x.envelope,name:'pulsedex_n'+x.score.n+'.json'}); pulsePerNight.push(x.score); });
+  }
+  let glucoScore=null;
+  if(rR && rR.gluco && !rR.gluco.error){ envelopes.push({env:rR.gluco.envelope,name:'glucodex.json'}); glucoScore=rR.gluco.score; }
+  else if(rR && rR.gluco && rR.gluco.error){ errors.GlucoDex=rR.gluco.error; flags.push('gluco_threw'); }
+  const hrvPerNight=[];
+  if(rR && rR.hrv){ rR.hrv.forEach(h=>{
+    const env={ schema:{name:'ganglior.node-export',node:'HRVDex'}, bus:'ganglior',
+      recording:{ startEpochMs:h.t0Ms, durationMin:h.durMin },
+      hrv:{ time:{ rmssd:h.rmssd, sdnn:h.sdnn } },
+      kernel:(window.DexKernel?{hash:DexKernel.HASH,version:DexKernel.VERSION}:null) };
+    envelopes.push({env,name:'hrvdex_n'+h.n+'.json'});
+    hrvPerNight.push({ n:h.n, rmssd:h.rmssd, sdnn:h.sdnn, target:h.target });
+  }); }
+  // CPAPDex (FAST, headless)
+  const cpapPerNight=[];
+  if(rR && rR.cpap){
+    timing.cpap=(rR.timing&&rR.timing.cpap)||0;
+    rR.cpap.forEach(x=>{
+      if(x.error){ errors.CPAPDex=x.error; flags.push('cpap_threw'); return; }
+      envelopes.push({env:x.envelope,name:'cpapdex_n'+x.score.n+'.json'});
+      cpapPerNight.push(x.score);
+    });
+  }
+
+  // FULL-lane waveform nodes
+  let ecgScore=null, ppgScore=null;
+  if(fR){
+    timing.ecg=(fR.timing&&fR.timing.ecg)||0; timing.ppg=(fR.timing&&fR.timing.ppg)||0;
+    for(const k in (fR.errors||{})){ errors[k]=fR.errors[k]; flags.push((k==='ECGDex'?'ecg':'ppg')+'_threw'); }
+    if(fR.ecg){ envelopes.push({env:fR.ecg.envelope,name:'ecgdex.json'}); ecgScore=fR.ecg.score; }
+    if(fR.ppg){ envelopes.push({env:fR.ppg.envelope,name:'ppgdex.json'}); ppgScore=fR.ppg.score; }
+  }
+
+  return finishPatient(seed, meta, envelopes, oxyScore, pulsePerNight, glucoScore, hrvPerNight, timing, flags, errors, {ecgScore,ppgScore,cpapPerNight});
+}
+
+function parseHRV(csv){
+  const lines=csv.trim().split('\n'); const hdr=lines[0].split(',');
+  const iR=hdr.indexOf('rMSSD'), iS=hdr.indexOf('SDNN');
+  const out=[];
+  for(let i=1;i<lines.length;i++){ const c=lines[i].split(','); if(c.length<5) continue;
+    out.push({ rmssd:parseFloat(c[iR]), sdnn:parseFloat(c[iS]) }); }
+  return out;
+}
+
+/* ══════════════ run loop ══════════════ */
+let RESULTS=[]; let running=false, paused=false; let N=1000; let startTime=0; let doneAtStart=0; let MODE='fast';
+function setPill(t,cls){ const e=document.getElementById('statusPill'); e.textContent=t; e.className='pill '+cls; }
+
+async function startRun(){
+  if(running) return;
+  N=Math.max(1,parseInt(document.getElementById('nIn').value,10)||1000);
+  const engine=document.getElementById('engineIn').value;
+  MODE=document.getElementById('modeIn').value;
+  if(MODE==='full'){ MODE='full'; }
+  // FULL is the cert lane — cap N so a stray 10k doesn't run waveform morphology forever.
+  if(MODE==='full' && N>500){ N=500; document.getElementById('nIn').value=500; }
+  // resume from IndexedDB
+  RESULTS=await dbAll();
+  const have=new Set(RESULTS.map(r=>r.seed));
+  running=true; paused=false; startTime=performance.now(); doneAtStart=RESULTS.length;
+  document.getElementById('startBtn').disabled=true; document.getElementById('pauseBtn').disabled=false;
+
+  if(engine==='workers'){
+    setPill('booting '+(MODE==='full'?'FULL ':'')+'worker pool ('+CORES+' cores)…','run');
+    await bootPool(MODE);
+    const errs=poolErrs();
+    document.getElementById('dexTag').textContent = (window.DexKernel?('dex '+DexKernel.VERSION):'dex —')+' · '+poolSize()+'w · '+MODE.toUpperCase();
+    if(errs.length) setPill('pool error: '+errs[0],'idle');
+    else { setPill('running · '+poolSize()+' workers · '+MODE.toUpperCase(),'run'); await runConcurrent(N, have); }
+  } else {
+    MODE='fast'; // iframe engine is FAST-only (no waveform harness)
+    setPill('booting harnesses…','run');
+    await Promise.all(HARNESS_NODES.map(n=>harness[n]?Promise.resolve():bootHarness(n)));
+    document.getElementById('dexTag').textContent = window.DexKernel? ('dex '+DexKernel.VERSION) : 'dex —';
+    setPill('running · single-thread','run');
+    for(let seed=0; seed<N; seed++){
+      if(paused) break;
+      if(have.has(seed)) continue;
+      const rec=await runPatientIframe(seed);
+      RESULTS.push(rec); await dbPut(rec);
+      if(seed%5===0 || seed===N-1){ render(); await new Promise(r=>setTimeout(r,0)); }
+    }
+  }
+  running=false; document.getElementById('startBtn').disabled=false; document.getElementById('pauseBtn').disabled=true;
+  setPill(paused?'paused':'done', paused?'idle':'done'); render();
+  document.getElementById('dlSummary').disabled=false; document.getElementById('dlSample').disabled=false; document.getElementById('dlFull').disabled=false; document.getElementById('dlManifest').disabled=false;
+}
+
+/* concurrency window across the pool: poolSize() patient-pipelines in flight, each
+   awaiting its oxy + rrgluco worker jobs (which land on the least-busy worker). */
+async function runConcurrent(N, have){
+  let cursor=0, sinceRender=0;
+  function next(){ while(cursor<N && have.has(cursor)) cursor++; return cursor<N ? cursor++ : null; }
+  async function lane(){
+    while(true){
+      if(paused) return;
+      const seed=next(); if(seed==null) return;
+      const rec=await runPatientWorkers(seed);
+      RESULTS.push(rec); await dbPut(rec);
+      if((++sinceRender)%4===0){ render(); await new Promise(r=>setTimeout(r,0)); }
+    }
+  }
+  await Promise.all(Array.from({length:Math.max(1,poolSize())}, lane));
+}
+
+/* ══════════════ aggregation → summary.json ══════════════ */
+function aggregate(){
+  const R=RESULTS.filter(r=>!r.fatal);
+  const odi=[], rmssd=[], minSpo2=[], cv=[]; const calibX=[], calibY=[], calibSev=[];
+  const sevByArc={}; const flagCounts={}; const nodeThrew={OxyDex:0,PulseDex:0,GlucoDex:0,ECGDex:0,PpgDex:0,CPAPDex:0,Integrator:0};
+  const timingArr={oxydex:[],pulsedex:[],glucodex:[],cpap:[],ecg:[],ppg:[],total:[]};
+  const ecgRmssd=[], ppgRmssd=[], ecgDetVsTrue=[], ecgPpgDelta=[]; let fullN=0;
+  const cpapResidAHI=[], cpapAhiErrArr=[], cpapLeak=[]; let cpapN=0;
+  let fusionOverlap=0, fusionRuns=0, kernelMismatch=0, anyOverlapN=0;
+  const recallArr=[], hypoRecallArr=[], rmssdErrArr=[];
+  const kernelHashes=new Set();
+  const calibBySev={none:[],mild:[],mod:[],severe:[]};
+
+  for(const r of R){
+    const sev=r.profile.osaSeverity, arc=r.profile.arc;
+    sevByArc[sev]=sevByArc[sev]||{}; sevByArc[sev][arc]=(sevByArc[sev][arc]||0)+1;
+    (r.flags||[]).forEach(f=>flagCounts[f]=(flagCounts[f]||0)+1);
+    for(const k in (r.errors||{})) if(nodeThrew[k]!=null) nodeThrew[k]++;
+    if(r.oxy){ r.oxy.odi.forEach(v=>odi.push(v)); r.oxy.minSpo2.forEach(v=>minSpo2.push(v));
+      (r.oxy.calib||[]).forEach(c=>{ calibX.push(c.truthAHI); calibY.push(c.odi); calibSev.push(c.sev); calibBySev[c.sev]&&calibBySev[c.sev].push([c.truthAHI,c.odi]); });
+      if(r.oxy.desatRecall!=null) recallArr.push(r.oxy.desatRecall); }
+    if(r.pulse){ r.pulse.rmssd.forEach(v=>v!=null&&rmssd.push(v)); if(r.pulse.rmssdErr!=null) rmssdErrArr.push(r.pulse.rmssdErr); }
+    if(r.gluco){ if(r.gluco.cv!=null) cv.push(r.gluco.cv); if(r.gluco.hypoRecall!=null) hypoRecallArr.push(r.gluco.hypoRecall); }
+    if(r.ecg){ fullN++; if(r.ecg.rmssd!=null) ecgRmssd.push(r.ecg.rmssd); if(r.ecg.detVsTrue!=null) ecgDetVsTrue.push(r.ecg.detVsTrue); }
+    if(r.ppg && r.ppg.rmssd!=null) ppgRmssd.push(r.ppg.rmssd);
+    if(r.ecgPpgRmssdDelta!=null) ecgPpgDelta.push(r.ecgPpgRmssdDelta);
+    if(r.cpap){ cpapN++; (r.cpap.residualAHI||[]).forEach(v=>v!=null&&cpapResidAHI.push(v)); (r.cpap.medianLeak||[]).forEach(v=>v!=null&&cpapLeak.push(v)); if(r.cpap.ahiErr!=null) cpapAhiErrArr.push(r.cpap.ahiErr); }
+    if(r.fusion && !r.fusion.threw){ fusionRuns++; if(r.fusion.overlapMin!=null) fusionOverlap+=r.fusion.overlapMin; if(r.fusion.anyOverlap) anyOverlapN++; if(r.fusion.kernelOK===false) kernelMismatch++; }
+    for(const k in timingArr){ if(r.timing && r.timing[k]!=null) timingArr[k].push(r.timing[k]); }
+  }
+  const fit=ols(calibX,calibY);
+  const fitBySev={}; for(const s in calibBySev){ if(calibBySev[s].length>=3) fitBySev[s]=ols(calibBySev[s].map(p=>p[0]),calibBySev[s].map(p=>p[1])); }
+  const tStat={}; for(const k in timingArr) tStat[k]=quantiles(timingArr[k]);
+  // failure ledger (seed-reproducible)
+  const ledger=R.filter(r=>(r.flags&&r.flags.length)||Object.keys(r.errors||{}).length)
+    .map(r=>({ seed:r.seed, pid:r.pid, sev:r.profile.osaSeverity, arc:r.profile.arc,
+      flags:r.flags, errors:r.errors })).slice(0,500);
+  return {
+    schema:{ name:'ganglior.cohort-summary', version:'1.0-pilot', generated:new Date().toISOString() },
+    dexVersion: window.DexKernel? DexKernel.VERSION:null, kernelHash: window.DexKernel? DexKernel.HASH:null,
+    cohortGenVersion: CohortGen.VERSION,
+    reproducibility:{
+      // FROZEN SEEDS: patient k is CohortGen.patient(k); seeds are exactly 0..N-1, contiguous,
+      // so the corpus is byte-reproducible from (cohortGenVersion + kernelHash) alone — no stored
+      // raw files needed. Re-running with the same versions reproduces every result bit-for-bit
+      // (worker pool == single-thread, verified). Pin these to reproduce:
+      seedScheme:'patient k = seed k, contiguous 0..N-1',
+      seedRange:[0, Math.max(0,N-1)],
+      frozen:true,
+      pin:{ cohortGen:CohortGen.VERSION, dex:window.DexKernel?DexKernel.VERSION:null, kernelHash:window.DexKernel?DexKernel.HASH:null },
+      synthGen:(window.SYNTH&&window.SYNTH.SUBJECT?('synth-gen/'+(window.SYNTH.SUBJECT.id||'subject')):'synth-gen'),
+      regenerate:'load synth-gen.js + cohort-gen.js (same versions); CohortGen.patient(k) for k in [0,N) — identical inputs',
+    },
+    lane:{ mode:MODE.toUpperCase(), engine:(document.getElementById('engineIn')?document.getElementById('engineIn').value:'workers'),
+      threads:(poolReady?poolSize():1), cores:CORES,
+      nodes: MODE==='full'? ['OxyDex','PulseDex','GlucoDex','HRVDex','CPAPDex','ECGDex','PpgDex','Integrator']
+                          : ['OxyDex','PulseDex','GlucoDex','HRVDex','CPAPDex','Integrator'],
+      excluded: MODE==='full'? [] : ['ECGDex(raw int16 lane)','PpgDex(176Hz Full lane)'] },
+    counts:{ patients:R.length, fullLanePatients:fullN, cpapPatients:cpapN, fusionRuns, withOverlap:anyOverlapN, kernelMismatch, fatal:RESULTS.length-R.length },
+    calibration:{ odiVsTruthAHI:fit, bySeverity:fitBySev,
+      desatRecall:quantiles(recallArr), rmssdAbsErr:quantiles(rmssdErrArr), glucoHypoRecall:quantiles(hypoRecallArr),
+      cpapResidualAhiAbsErr:quantiles(cpapAhiErrArr) },
+    distributions:{ oxyODI:quantiles(odi), pulseRMSSD:quantiles(rmssd), minSpO2:quantiles(minSpo2), glucoCV:quantiles(cv),
+      ecgRMSSD:quantiles(ecgRmssd), ppgRMSSD:quantiles(ppgRmssd), cpapResidualAHI:quantiles(cpapResidAHI), cpapLeakLpm:quantiles(cpapLeak) },
+    waveform: fullN? { ecgBeatRecovery:quantiles(ecgDetVsTrue), ecgVsPpgRmssdDelta:quantiles(ecgPpgDelta),
+      note:'ecgBeatRecovery = detected R-peaks / true beats (1.0 = perfect Pan-Tompkins recovery); ecgVsPpgRmssdDelta = ECG−PPG rMSSD on the same window' } : null,
+    coverage:{ severityByArc:sevByArc },
+    timingMsPerPatient:tStat,
+    fusion:{ meanOverlapMin: fusionRuns? +(fusionOverlap/fusionRuns).toFixed(1):null, anyOverlapRate: fusionRuns? +(anyOverlapN/fusionRuns).toFixed(3):null },
+    failureLedger:{ count: R.filter(r=>(r.flags&&r.flags.length)||Object.keys(r.errors||{}).length).length, flagCounts, nodeThrew, sample:ledger },
+  };
+}
+
+/* ══════════════ rendering ══════════════ */
+function render(){
+  const done=RESULTS.length, pct=N?Math.min(100,done/N*100):0;
+  document.getElementById('progBar').style.width=pct+'%';
+  document.getElementById('sDone').textContent=done+' / '+N;
+  const elapsed=(performance.now()-startTime)/1000;
+  const ranNow=done-doneAtStart;
+  const rate= elapsed>0 && ranNow>0 ? ranNow/elapsed : 0;
+  document.getElementById('sRate').textContent=rate?rate.toFixed(1):'0';
+  document.getElementById('sElapsed').textContent=elapsed<90?Math.round(elapsed)+'s':(elapsed/60).toFixed(1)+'m';
+  const remain=N-done; const eta= rate>0? remain/rate : 0;
+  document.getElementById('sEta').textContent= !running?'—': eta<90?Math.round(eta)+'s':(eta/60).toFixed(1)+'m';
+  const agg=aggregate();
+  document.getElementById('sFail').textContent=agg.failureLedger.count;
+
+  // timing hist
+  renderTiming(agg.timingMsPerPatient);
+  // distributions
+  hist('histODI', flatODI(), 0, 80, 'var(--blue)');
+  hist('histRMSSD', flatRMSSD(), 0, 80, 'var(--teal)');
+  hist('histSpO2', flatSpO2(), 60, 100, 'var(--green)');
+  hist('histCV', flatCV(), 0, 60, 'var(--gluco)');
+  // scatter
+  renderScatter(agg.calibration.odiVsTruthAHI);
+  document.getElementById('r2Tag').textContent = agg.calibration.odiVsTruthAHI? ('R² '+agg.calibration.odiVsTruthAHI.r2):'R² —';
+  // coverage
+  renderCoverage(agg.coverage.severityByArc);
+  // health
+  renderHealth(agg);
+  // failures
+  renderFailures();
+}
+function flatODI(){ const a=[]; RESULTS.forEach(r=>r.oxy&&r.oxy.odi&&r.oxy.odi.forEach(v=>a.push(v))); return a; }
+function flatRMSSD(){ const a=[]; RESULTS.forEach(r=>r.pulse&&r.pulse.rmssd&&r.pulse.rmssd.forEach(v=>v!=null&&a.push(v))); return a; }
+function flatSpO2(){ const a=[]; RESULTS.forEach(r=>r.oxy&&r.oxy.minSpo2&&r.oxy.minSpo2.forEach(v=>a.push(v))); return a; }
+function flatCV(){ const a=[]; RESULTS.forEach(r=>r.gluco&&r.gluco.cv!=null&&a.push(r.gluco.cv)); return a; }
+
+function hist(id, arr, lo, hi, color){
+  const el=document.getElementById(id); if(!arr.length){ el.innerHTML='<div class="muted mono" style="font-size:10px">—</div>'; return; }
+  const bins=8, w=(hi-lo)/bins, counts=new Array(bins).fill(0);
+  arr.forEach(v=>{ let b=Math.floor((v-lo)/w); b=Math.max(0,Math.min(bins-1,b)); counts[b]++; });
+  const max=Math.max(...counts)||1;
+  el.innerHTML=counts.map((c,i)=>{
+    const a=Math.round(lo+i*w), b=Math.round(lo+(i+1)*w);
+    return `<div class="row"><span class="lbl">${a}–${b}</span><div class="bar"><div style="width:${c/max*100}%;background:${color}"></div></div><span class="cnt">${c}</span></div>`;
+  }).join('');
+}
+function renderTiming(t){
+  const el=document.getElementById('timingHist');
+  const keys=['oxydex','pulsedex','glucodex','cpap','ecg','ppg','total'].filter(k=>t[k]&&t[k].n);
+  const have=keys.length>0;
+  if(!have){ el.innerHTML='<div class="muted mono" style="font-size:11px">run to measure…</div>'; return; }
+  const colors={oxydex:'var(--blue)',pulsedex:'var(--teal)',glucodex:'var(--gluco)',cpap:'var(--green)',ecg:'var(--red)',ppg:'var(--purple)',total:'var(--text2)'};
+  const max=Math.max(...keys.map(k=>t[k]?t[k].median:0))||1;
+  el.innerHTML=keys.map(k=>{ const q=t[k]; if(!q) return ''; 
+    return `<div class="row"><span class="lbl">${k}</span><div class="bar"><div style="width:${q.median/max*100}%;background:${colors[k]}"></div></div><span class="cnt">${q.median}</span></div>`;
+  }).join('');
+}
+function renderScatter(fit){
+  const cv=document.getElementById('scatter'), ctx=cv.getContext('2d'); const W=cv.width,H=cv.height;
+  ctx.clearRect(0,0,W,H); ctx.fillStyle='#0f141b'; ctx.fillRect(0,0,W,H);
+  const pad=34, xMax=80, yMax=80;
+  ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.lineWidth=1;
+  ctx.strokeRect(pad,8,W-pad-8,H-pad-8);
+  ctx.fillStyle='#6f8096'; ctx.font='10px ui-monospace,monospace';
+  ctx.fillText('truth AHI →',W/2-30,H-6); ctx.save(); ctx.translate(11,H/2+30); ctx.rotate(-Math.PI/2); ctx.fillText('OxyDex ODI →',0,0); ctx.restore();
+  const px=x=>pad+(x/xMax)*(W-pad-8); const py=y=>(H-pad)-(y/yMax)*(H-pad-8);
+  // identity line
+  ctx.strokeStyle='rgba(255,255,255,.18)'; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.moveTo(px(0),py(0)); ctx.lineTo(px(xMax),py(yMax)); ctx.stroke(); ctx.setLineDash([]);
+  let n=0;
+  RESULTS.forEach(r=>{ if(!r.oxy||!r.oxy.calib) return; r.oxy.calib.forEach(c=>{ if(n>4000) return;
+    ctx.fillStyle=(SEV_COLOR[c.sev]||'#8C9DB3'); ctx.globalAlpha=.5;
+    ctx.beginPath(); ctx.arc(px(Math.min(c.truthAHI,xMax)),py(Math.min(c.odi,yMax)),2.1,0,6.28); ctx.fill(); n++; }); });
+  ctx.globalAlpha=1;
+  if(fit){ ctx.strokeStyle='#3DE0D0'; ctx.lineWidth=1.6; ctx.beginPath();
+    ctx.moveTo(px(0),py(fit.intercept)); ctx.lineTo(px(xMax),py(fit.slope*xMax+fit.intercept)); ctx.stroke();
+    ctx.fillStyle='#3DE0D0'; ctx.fillText(`ODI = ${fit.slope}·AHI + ${fit.intercept}  ·  R²=${fit.r2}  ·  n=${fit.n}`,pad+6,20); }
+}
+function renderCoverage(m){
+  const arcs=['flat','improving','worsening','intervention']; const sevs=['none','mild','mod','severe'];
+  let html='<table><tr><th>severity \\ arc</th>'+arcs.map(a=>`<th class="mono">${a}</th>`).join('')+'</tr>';
+  sevs.forEach(s=>{ html+=`<tr><td class="mono" style="color:${SEV_COLOR[s]}">${s}</td>`+
+    arcs.map(a=>{ const c=(m[s]&&m[s][a])||0; return `<td class="mono" style="color:${c?'var(--text)':'var(--text3)'}">${c||'·'}</td>`; }).join('')+'</tr>'; });
+  html+='</table>'; document.getElementById('coverage').innerHTML=html;
+}
+function renderHealth(agg){
+  const c=agg.calibration, d=agg.distributions, f=agg.fusion;
+  const rows=[
+    ['patients scored', agg.counts.patients],
+    ['fusion runs w/ overlap', agg.counts.withOverlap+' / '+agg.counts.fusionRuns],
+    ['mean fusion overlap', (f.meanOverlapMin!=null?f.meanOverlapMin+' min':'—')],
+    ['ODI↔truthAHI R²', c.odiVsTruthAHI? c.odiVsTruthAHI.r2:'—'],
+    ['desat recall (median)', c.desatRecall? c.desatRecall.median:'—'],
+    ['rMSSD abs-err (median ms)', c.rmssdAbsErr? c.rmssdAbsErr.median:'—'],
+    ['gluco hypo recall (median)', c.glucoHypoRecall? c.glucoHypoRecall.median:'—'],
+    ['kernel mismatches', agg.counts.kernelMismatch],
+    ['node threw (Oxy/Pulse/Gluco/Int)', [agg.failureLedger.nodeThrew.OxyDex,agg.failureLedger.nodeThrew.PulseDex,agg.failureLedger.nodeThrew.GlucoDex,agg.failureLedger.nodeThrew.Integrator].join(' / ')],
+  ];
+  if(agg.counts.cpapPatients){
+    rows.push(['CPAP patients', agg.counts.cpapPatients]);
+    rows.push(['CPAP residual-AHI (median)', d.cpapResidualAHI? d.cpapResidualAHI.median:'—']);
+    rows.push(['CPAP AHI abs-err (median)', c.cpapResidualAhiAbsErr? c.cpapResidualAhiAbsErr.median:'—']);
+    rows.push(['CPAP leak L/min (median)', d.cpapLeakLpm? d.cpapLeakLpm.median:'—']);
+    rows.push(['CPAP threw', agg.failureLedger.nodeThrew.CPAPDex]);
+  }
+  if(agg.waveform){
+    rows.push(['— FULL lane —', agg.counts.fullLanePatients+' patients']);
+    rows.push(['ECG beat-recovery (median)', agg.waveform.ecgBeatRecovery? agg.waveform.ecgBeatRecovery.median:'—']);
+    rows.push(['ECG rMSSD (median ms)', d.ecgRMSSD? d.ecgRMSSD.median:'—']);
+    rows.push(['PPG rMSSD (median ms)', d.ppgRMSSD? d.ppgRMSSD.median:'—']);
+    rows.push(['ECG−PPG rMSSD Δ (median ms)', agg.waveform.ecgVsPpgRmssdDelta? agg.waveform.ecgVsPpgRmssdDelta.median:'—']);
+    rows.push(['ECG/PPG threw', [agg.failureLedger.nodeThrew.ECGDex,agg.failureLedger.nodeThrew.PpgDex].join(' / ')]);
+  }
+  document.getElementById('health').innerHTML='<table>'+rows.map(r=>`<tr><td class="muted">${r[0]}</td><td class="mono" style="text-align:right">${r[1]}</td></tr>`).join('')+'</table>';
+}
+function renderFailures(){
+  const led=RESULTS.filter(r=>(r.flags&&r.flags.length)||Object.keys(r.errors||{}).length);
+  document.getElementById('failTag').textContent=led.length+' entries · seed-reproducible';
+  const el=document.getElementById('failList');
+  if(!led.length){ el.innerHTML='<div class="muted mono" style="font-size:11px">no failures yet</div>'; return; }
+  el.innerHTML=led.slice(-120).reverse().map(r=>{
+    const why=[...(r.flags||[]), ...Object.entries(r.errors||{}).map(([k,v])=>k+':'+v)].join(', ');
+    return `<div class="item"><span class="seed">seed ${r.seed}</span><span class="why">${r.profile?r.profile.osaSeverity+'/'+r.profile.arc+' — ':''}${why}</span></div>`;
+  }).join('');
+}
+
+/* ══════════════ downloads ══════════════ */
+function download(name, text, type){ const b=new Blob([text],{type:type||'application/json'}); const u=URL.createObjectURL(b);
+  const a=document.createElement('a'); a.href=u; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(u),2000); }
+document.getElementById('dlSummary').onclick=()=>download('summary.json', JSON.stringify(aggregate(),null,2));
+document.getElementById('dlManifest').onclick=()=>{ const a=aggregate();
+  download('manifest.json', JSON.stringify({ schema:{name:'ganglior.cohort-manifest',version:'1.0'},
+    N, scenarioMix:(document.getElementById('mixIn')||{}).value, lane:a.lane, counts:a.counts,
+    reproducibility:a.reproducibility, dexVersion:a.dexVersion, kernelHash:a.kernelHash,
+    cohortGenVersion:a.cohortGenVersion, generated:new Date().toISOString() }, null, 2)); };
+document.getElementById('dlSample').onclick=()=>{
+  // a random ≤200-patient result sample for failure auditing (open decision #3)
+  const R=RESULTS.slice(); for(let i=R.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [R[i],R[j]]=[R[j],R[i]]; }
+  download('sample.jsonl', R.slice(0,200).map(r=>JSON.stringify(r)).join('\n'), 'application/x-ndjson');
+};
+// full results.jsonl, line-aligned, sharded to ≤19 MB parts (decision #3, mirrors ECG Splitter.html)
+document.getElementById('dlFull').onclick=()=>{
+  const LIMIT=19*1024*1024; let part=1, buf='', bytes=0;
+  const flush=()=>{ if(!buf) return; download('results.part'+String(part).padStart(2,'0')+'.jsonl', buf, 'application/x-ndjson'); part++; buf=''; bytes=0; };
+  for(const r of RESULTS){ const line=JSON.stringify(r)+'\n'; const sz=new Blob([line]).size;
+    if(bytes+sz>LIMIT) flush(); buf+=line; bytes+=sz; }
+  flush();
+};
+
+/* ══════════════ controls ══════════════ */
+document.getElementById('startBtn').onclick=startRun;
+document.getElementById('pauseBtn').onclick=()=>{ paused=true; };
+document.getElementById('resetBtn').onclick=async()=>{ if(running){ paused=true; await new Promise(r=>setTimeout(r,50)); }
+  await dbClear(); RESULTS=[]; running=false; paused=false; doneAtStart=0; startTime=performance.now();
+  document.getElementById('dlSummary').disabled=true; document.getElementById('dlSample').disabled=true; document.getElementById('dlFull').disabled=true; document.getElementById('dlManifest').disabled=true;
+  setPill('idle','idle'); render(); };
+
+// initial paint from any resumable state
+(async function(){ try{ RESULTS=await dbAll(); }catch(e){} N=parseInt(document.getElementById('nIn').value,10)||1000;
+  document.getElementById('dexTag').textContent = window.DexKernel? ('dex '+DexKernel.VERSION):'dex —';
+  if(RESULTS.length){ setPill('resumable ('+RESULTS.length+' on disk)','idle'); document.getElementById('dlSummary').disabled=false; document.getElementById('dlSample').disabled=false; document.getElementById('dlFull').disabled=false; document.getElementById('dlManifest').disabled=false; }
+  render(); })();
+</script>
+</body></html>

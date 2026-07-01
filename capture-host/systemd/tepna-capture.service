@@ -1,0 +1,25 @@
+[Unit]
+Description=Tepna capture daemon (BLE -> vendor-layout files)
+# Needs the Bluetooth stack and a synced clock (arrival stamps depend on the clock).
+After=bluetooth.target network-online.target time-sync.target
+Wants=bluetooth.target network-online.target
+
+[Service]
+Type=simple
+User=tepna
+Group=tepna
+WorkingDirectory=/opt/tepna/capture-host
+# Use the venv's python (see README install).
+ExecStart=/opt/tepna/capture-host/.venv/bin/python capture.py --config /opt/tepna/capture-host/config.yaml
+Restart=always
+RestartSec=5
+# Capture is unattended overnight — keep it alive across transient BLE drops.
+StartLimitIntervalSec=0
+# Let it write under /srv/tepna; otherwise lock it down.
+ReadWritePaths=/srv/tepna
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

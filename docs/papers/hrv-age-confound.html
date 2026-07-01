@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  hrv-age-confound.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Age confounds apnea-driven HRV suppression — Tepna preprint</title>
+<link rel="stylesheet" href="../licensing/dex-license.css">
+<link rel="stylesheet" href="paper.css">
+</head>
+<body>
+<div class="sheet">
+  <a class="toplink" href="papers.html">← Tepna preprints</a>
+  <div class="banner">Tepna Working Preprint · simulation study · not peer-reviewed</div>
+  <h1 class="title">Age confounds apnea-driven heart-rate-variability suppression: why single-metric consumer HRV screening misattributes sleep-apnea risk, and an age-adjustment that recovers it</h1>
+  <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
+  <p class="affil">PulseDex RR/HRV node, Tepna physiological-signal suite</p>
+  <p class="meta">Draft v1 · June 2026 · Analysis tool: <code>hrv-confound-analysis.html</code> · HRV measured by real <code>pulsedex-dsp.js</code> · generator <code>cohort-gen 1.5</code> · simulation study, 100% local</p>
+
+  <div class="abstract">
+    <h2>Abstract</h2>
+    <p style="text-align:left;margin-bottom:0"><b>Background.</b> Consumer wearables increasingly screen for cardiovascular and sleep-apnea risk from a single nocturnal heart-rate-variability (HRV) metric, typically the root-mean-square of successive RR differences (rMSSD). Because HRV declines with both <em>age</em> and <em>apnea burden</em>, a low rMSSD is structurally ambiguous. <b>Methods.</b> We generated a deterministic synthetic cohort spanning age (20–85 y) and obstructive-sleep-apnea severity, with literature-anchored age→HRV and apnea→HRV couplings, rendered each night's inter-beat-interval series, and measured rMSSD with the unmodified production PulseDex detector (558,787 nights from 100,000 patients). A full-cohort age×AHI regression quantified the confound; a one-parameter age-adjustment was evaluated against the raw screen by receiver-operating-characteristic (ROC) analysis. <b>Results.</b> Measured rMSSD declined by 4.18 ms per decade of age (95% CI 4.17–4.19) and 2.20 ms per 10 events·h⁻¹ of apnea (95% CI 2.19–2.21; model R² = 0.62). The age×AHI interaction, though significant at this sample size (p &lt; 0.001), was negligible in magnitude (+0.03 ms·decade⁻¹·[10 AHI]⁻¹), indicating an effectively additive confound. A single-metric rMSSD screen for moderate-or-worse OSA (AHI ≥ 15) achieved ROC AUC 0.69, with 25% of its high-risk flags arising from non-apneic older individuals; age-adjustment (the residual versus a healthy age reference) raised AUC to 0.78. <b>Conclusion.</b> Under literature-plausible coupling magnitudes, single-metric nocturnal HRV screening materially misattributes apnea risk to age, and a one-parameter age-adjustment recovers discrimination. As the coupling magnitudes are model inputs rather than discovered effects, the result is a quantified bound on screening error, not a clinical validation.</p>
+  </div>
+  <p class="kw"><b>Keywords:</b> heart-rate variability · rMSSD · aging · obstructive sleep apnea · screening · confounding · wearables · simulation</p>
+
+  <div class="callout" style="border:1px dashed #b8860b;background:#fffdf5">
+    <h2 class="sec" style="margin-top:0">0. Layman overview <span style="font-weight:400;color:#b8860b;font-size:13px">(delete before submission)</span></h2>
+    <p>Fitness watches and rings often score your health from a single overnight heart-rhythm number (HRV, specifically “rMSSD”). The catch: that number naturally <b>goes down as you get older</b>, and it <b>also goes down if you have sleep apnea</b>. So a low reading is ambiguous — it could just mean “older,” or it could mean “apnea.” A device that reacts to the number alone can't tell which.</p>
+    <p>To measure how often this goes wrong, we built a large <b>simulated</b> population of people for whom we know the true age and true apnea level, generated a realistic night of heartbeats for each, and ran it through the <b>same detector the real app uses</b>. Result: a one-number screen blames apnea on age in about <b>1 of every 4</b> people it flags. A simple fix — compare each person's HRV to what's normal <b>for their age</b>, rather than to a single cutoff — recovers most of the lost accuracy, using the same watch and no extra data. Because it's a simulation, this is a quantified <b>warning about the screening method</b>, not a clinical finding about real patients.</p>
+  </div>
+
+  <h2 class="sec">1. Introduction</h2>
+  <p>rMSSD — the root-mean-square of successive RR differences — is the most common short-term HRV index and the backbone of many consumer “recovery” and risk scores. Two well-documented physiological facts collide in nocturnal screening: cardiac vagal tone (and thus rMSSD) declines monotonically with age, and obstructive sleep apnea suppresses HRV through repetitive arousals and autonomic surges. A device that thresholds a single rMSSD value cannot distinguish a healthy 70-year-old from an apneic 40-year-old. We ask, quantitatively: under physiologically plausible coupling magnitudes, how badly does a single-metric HRV screen misattribute apnea risk to age, and how much does an age-adjustment recover?</p>
+
+  <h2 class="sec">2. Methods</h2>
+  <h3 class="sub">2.1 Synthetic patients and coupling inputs</h3>
+  <p>Patients were generated deterministically (<code>cohort-gen.js</code>) over age (20–85 y, continuous), body-mass index, and an OSA-severity prior. Per-patient autonomic baseline declined with age; per-night rMSSD was further suppressed by that night's apnea–hypopnea index (AHI) and partially recovered under therapy. The two coupling magnitudes are explicit, editable <em>inputs</em> — a baseline age slope (default −0.42 ms/year) and an apnea slope (default −0.22 ms per unit AHI at low–moderate AHI, saturating toward a soft floor at high AHI) — chosen to be literature-plausible; the analysis panel exposes both for sensitivity analysis.</p>
+  <h3 class="sub">2.2 Measured HRV (non-circular at the detector)</h3>
+  <p>Crucially, rMSSD is not read back from the latent target. Each night's RR series is rendered and passed through the unmodified production detector (<code>pulsedex-dsp.js</code> in a Web-Worker realm): artifact cleaning then time-domain HRV. The analyzed value therefore carries real detector and artifact effects, and recovering the planted couplings from it is a non-trivial check, not a tautology.</p>
+  <h3 class="sub">2.3 Analysis</h3>
+  <p>We fit a full-cohort interaction OLS, rMSSD ~ age × AHI (mean-centred predictors); built a healthy age reference from non-apneic nights (AHI &lt; 5); and compared two screens for moderate-or-worse OSA (AHI ≥ 15): a raw low-rMSSD rule and an age-adjusted rule using the residual (measured − expected-for-age), by ROC AUC. The age×AHI term tests on the full N whether apnea's HRV cost changes with age (effect modification) rather than slicing into fragile age-stratified subgroups. Misattribution was defined as the fraction of the lowest-rMSSD quartile (“high-risk”) that was in fact non-apneic (AHI &lt; 5).</p>
+
+  <h2 class="sec">3. Results</h2>
+  <p>The run measured rMSSD on <b>558,787 nights</b> from 100,000 patients (~49 min on a 6-core Web-Worker pool) on the v1.5 generator, in which apnea→rMSSD suppression saturates toward a soft floor and all per-night/per-patient clamp bounds are jittered (removing the AHI=15, AHI=90 and rMSSD floor/ceiling pileup artifacts of earlier versions).</p>
+  <div class="eqn">rMSSD = 65.5 − 0.418·age − 0.220·AHI &nbsp;&nbsp; (R² = 0.616, n = 558,787 nights)</div>
+  <p>The fitted model (mean-centred predictors, residual df = 558,783) gave an age slope of −0.418 ms·year⁻¹ (95% CI −0.419 to −0.417; <i>t</i> = −840, p &lt; 0.001) and an apnea slope of −0.220 ms per event·h⁻¹ (95% CI −0.221 to −0.219; <i>t</i> = −449, p &lt; 0.001), recovering the planted couplings (−0.42 ms·year⁻¹; low-AHI apnea slope −0.22 ms·AHI⁻¹) and confirming that age and apnea carry comparable, independent weight (predictor correlation r = −0.02). The age×AHI interaction reached significance (β = +2.9×10⁻⁴ ms·year⁻¹·AHI⁻¹, p &lt; 0.001) but is negligible in magnitude: at 558,787 nights the test resolves even a trivial departure from additivity, so the confound is for practical purposes additive and a single age-adjustment de-confounds the entire cohort. Expressed per clinically intuitive unit:</p>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 1.</b> Independent contributions to measured rMSSD, and screening performance for moderate+ OSA (AHI ≥ 15).</caption>
+    <thead><tr><th>Quantity</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>rMSSD lost per decade of age</td><td>−4.2 ms</td></tr>
+      <tr><td>rMSSD lost per 10 events/h AHI</td><td>−2.2 ms</td></tr>
+      <tr><td>ROC AUC — raw single-metric rMSSD</td><td>0.69</td></tr>
+      <tr class="hi"><td>ROC AUC — age-adjusted residual</td><td>0.78</td></tr>
+      <tr><td>“High-risk” flags that are non-apneic (old &amp; healthy)</td><td>25%</td></tr>
+    </tbody>
+  </table>
+  <p>An aging effect of the same order as a ≈19-point AHI swing is hidden inside one rMSSD number. The raw screen is weak <em>and</em> confounded; the age-adjustment lifts discrimination using the same sensor and no new data.</p>
+
+  <figure>
+    <img src="figures/hrv-vs-age.png" alt="measured rMSSD vs age, coloured by AHI severity, with healthy age reference">
+    <figcaption><b>Figure 1.</b> Measured rMSSD versus age (live output of <code>hrv-confound-analysis.html</code>), coloured by AHI severity, with the healthy (AHI&lt;5) age reference dashed. rMSSD declines with age along the reference, and apneic nights sit below it at every age. Age is modelled continuously (whole years plus fractional months). Dark theme is the tool's native rendering.</figcaption>
+  </figure>
+
+  <figure>
+    <img src="figures/hrv-vs-ahi.png" alt="measured rMSSD vs AHI, coloured by age">
+    <figcaption><b>Figure 2.</b> Measured rMSSD versus the apnea–hypopnea index (same run), coloured by age (blue young → red old). The age spread at any given AHI is wide, so younger apneic patients out-score older healthy controls; a fixed horizontal rMSSD threshold therefore cuts across both gradients. Dark theme is the tool's native rendering.</figcaption>
+  </figure>
+
+  <figure>
+    <img src="figures/hrv-roc.png" alt="ROC curves: raw rMSSD screen vs age-adjusted residual screen for moderate-or-worse OSA">
+    <figcaption><b>Figure 3.</b> Screening performance for moderate-or-worse OSA (AHI ≥ 15): receiver-operating-characteristic curves for the raw single-metric rMSSD rule (orange, AUC ≈0.69) and the age-adjusted residual rule (teal, AUC ≈0.78), against the chance diagonal (representative run; headline figures from the full 100k cohort). Age-adjustment lifts discrimination across the operating range using the same sensor and no new data. Dark theme is the tool's native rendering.</figcaption>
+  </figure>
+
+  <h2 class="sec">4. Discussion</h2>
+  <p>When two causes lower the same readout by comparable amounts, thresholding that readout cannot separate them, and the screen inherits whichever cause is more prevalent in the tested population — here, age. The age-adjustment is the minimal correct response: score each individual against the HRV expected for their age, not against a population constant. The recipe is a drop-in for any rMSSD-based screening rule and needs only the user's age. The residual framing also generalizes to other age-sensitive single-metric screens.</p>
+  <div class="callout"><b>Limitations.</b> This is a simulation study. The age→HRV and apnea→HRV coupling magnitudes are generator inputs anchored to the literature, not discovered effects; the contribution is therefore the screening error those plausible magnitudes imply and the adjustment that recovers it, not an estimate of the couplings themselves. Because rMSSD is measured by the unmodified production detector, the result is robust to detector behaviour, but a clinical claim requires replication on a labelled human cohort (age, PSG-scored AHI, and concurrent overnight HRV). At n = 558,787 nights, sampling error is negligible and reported confidence intervals are correspondingly narrow; the dominant uncertainty is the external validity of the planted coupling magnitudes, not statistical precision.</p>
+
+  <h2 class="sec">5. Reproducibility</h2>
+  <ul>
+    <li><b>Run it:</b> open <code>hrv-confound-analysis.html</code>, set patient count (50–100,000), “Run simulation”. Equation, Table 1, and the figures populate live; export <code>hrv-confound-results.csv</code>, <code>hrv-confound-stats.json</code>, <code>hrv-confound-figures.png</code>.</li>
+    <li><b>Determinism:</b> patient <code>k</code> = <code>CohortGen.patient(k)</code>; runs are byte-reproducible from the cohort-gen + kernel versions.</li>
+    <li><b>Detector:</b> real <code>pulsedex-dsp.js</code> run in a Web-Worker realm (lean <code>pulse</code> kind, <code>cohort-worker.js</code>); rMSSD = harness <code>score.rmssd</code>.</li>
+    <li><b>Coupling inputs:</b> age/apnea slopes in <code>cohort-gen.js</code> (<code>rmssdBaseline</code>; the per-night saturating <code>−0.22·AHI</code> suppression); the analysis panel echoes them for sensitivity sweeps.</li>
+    <li><b>Scale:</b> the tool runs a real Web-Worker pool (one patient generated + scored per worker, off the main thread → true multicore) and streams results with an IndexedDB checkpoint that auto-resumes after an accidental reload, so memory stays flat and long runs survive a refresh; this draft used 100,000 patients (558,787 nights, ~49 min on 6 cores), with a live per-machine ETA and a calibrated pre-run estimate. The cap reaches 100,000.</li>
+  </ul>
+
+  <h2 class="sec">6. Sample size &amp; statistical power</h2>
+  <p>Because patients are independent and deterministic, the cohort can be grown to any size; precision on every estimate improves as 1/√n (n = nights), so each 10× increase in N roughly <b>thirds</b> the confidence interval. The conclusions here do not depend on a large N — they stabilize early — but a large N makes the confidence intervals submission-grade and the figures dense.</p>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 2.</b> Sample-size guidance for this pilot (patients → ~5.6 nights each).</caption>
+    <thead><tr><th>Tier</th><th class="num">Patients</th><th>What it buys</th></tr></thead>
+    <tbody>
+      <tr><td>Minimum (acceptable)</td><td class="num">~1,000</td><td>Slope CIs already ±0.03 ms; AUC stable to ±0.01; every qualitative conclusion (additive confound, 0.69→0.78 recovery) is present. Below ~300 the AUC and misattribution % get noisy.</td></tr>
+      <tr class="hi"><td>Recommended</td><td class="num">~20,000</td><td>Slope CIs ≈±0.01 ms, AUC stable to the third decimal, smooth figures. The practical sweet spot.</td></tr>
+      <tr><td>This run</td><td class="num">100,000</td><td>A definitive run (558,787 nights) — CIs ≈±0.001 ms. Tightens precision ~2.3× over 20k but changes <em>no</em> conclusion.</td></tr>
+      <tr><td>Diminishing returns</td><td class="num">&gt; ~20,000</td><td>Past here, extra patients only shrink already-negligible CIs; the dominant uncertainty is the plausibility of the planted couplings (external validity), which more synthetic patients cannot reduce.</td></tr>
+    </tbody>
+  </table>
+  <p>Practical reading: run <b>≥1,000</b> patients for a trustworthy answer, <b>~20,000</b> for a publication-quality one; beyond <b>~20,000</b> the marginal value is mostly cosmetic, since no number of synthetic patients improves the realism of the coupling assumptions.</p>
+
+  <h2 class="sec">References</h2>
+  <ol class="refs">
+    <li>Project documentation: <code>HRV-CONFOUND-README.md</code> (this analysis), <code>COHORT-WORKFLOW-GUIDE.md</code>, <code>cohort-gen.js</code>, Tepna suite.</li>
+    <li>Task Force of the European Society of Cardiology and the North American Society of Pacing and Electrophysiology. Heart rate variability: standards of measurement, physiological interpretation, and clinical use. <i>Circulation.</i> 1996;93(5):1043–1065.</li>
+    <li>Umetani K, Singer DH, McCraty R, Atkinson M. Twenty-four hour time domain heart rate variability and heart rate: relations to age and gender over nine decades. <i>J Am Coll Cardiol.</i> 1998;31(3):593–601.</li>
+    <li>Almeida-Santos MA, Barreto-Filho JA, Oliveira JLM, et al. Aging, heart rate variability and patterns of autonomic regulation of the heart. <i>Arch Gerontol Geriatr.</i> 2016;63:1–8.</li>
+    <li>Narkiewicz K, Somers VK. Sympathetic nerve activity in obstructive sleep apnoea. <i>Acta Physiol Scand.</i> 2003;177(3):385–390.</li>
+    <li>Qin H, Steenbergen N, Glos M, et al. The different facets of heart rate variability in obstructive sleep apnea. <i>Front Psychiatry.</i> 2021;12:642333.</li>
+  </ol>
+
+  <div class="footer">Tepna working preprint · simulation study · figures and statistics regenerate deterministically from the cited tools. Coupling magnitudes are inputs, not findings. Not peer-reviewed; not for clinical use.</div>
+</div>
+
+<div class="dxl dxl-oneline" style="max-width:820px;margin:30px auto 8px;justify-content:center">
+  <span class="dxl-mark">T</span>
+  <span>© 2026 <b style="font-weight:600;color:var(--text,#F4F7FB)">Michal Planicka</b></span>
+  <span class="dxl-sep">·</span><span>Tepna v1.0.0</span>
+  <span class="dxl-sep">·</span><span class="dxl-lic">Apache-2.0</span>
+  <span class="dxl-sep">·</span><span style="color:var(--text4,#6E7F94)">◈ Asheville, NC</span>
+  <span class="dxl-sep">·</span><span style="color:var(--text4,#6E7F94)">not a medical device</span>
+</div>
+</body></html>

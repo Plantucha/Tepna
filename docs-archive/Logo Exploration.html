@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  Logo Exploration.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Mark + wordmark directions for the Tepna brand. Concept: "tepna" = artery,
+  "tep" = pulse/heartbeat (CZ/SK). Palette inherited from index.html.
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tepna — Logo Exploration</title>
+<style>
+:root{
+  --bg:#070A0E; --bg2:#0B0F14; --surface:#101722; --surface2:#16202D;
+  --border:#1c2a3b; --border2:#27384f;
+  --text:#F4F7FB; --text2:#A3B4C6; --text3:#7d90a5; --text4:#5a6b7e;
+  --teal:#3DE0D0; --blue:#58A6FF; --purple:#A78BFA;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:var(--sans);}
+
+/* ---- artboard shells ---- */
+.ab{width:100%;height:100%;background:radial-gradient(120% 90% at 50% 0%,#0c131c,var(--bg));
+  display:flex;flex-direction:column;color:var(--text);padding:30px 26px;gap:0;}
+.ab .kicker{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--teal);}
+.ab .desc{font-size:12.5px;color:var(--text3);line-height:1.55;margin-top:7px;text-wrap:pretty;}
+
+/* hero mark cell */
+.hero{flex:1;display:grid;place-items:center;margin:22px 0;}
+.hero svg{width:118px;height:118px;display:block;}
+
+/* horizontal lockup */
+.lockup{display:flex;align-items:center;gap:14px;padding:16px 0;border-top:1px solid var(--border);}
+.lockup svg{width:34px;height:34px;flex:none;}
+.wm{font-weight:800;font-size:30px;letter-spacing:-.045em;line-height:1;}
+.wm .accent{color:var(--teal);}
+
+/* favicon / tile strip */
+.tiles{display:flex;align-items:center;gap:14px;padding-top:16px;border-top:1px solid var(--border);}
+.tiles .cap{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--text4);margin-left:auto;}
+.tile{border-radius:9px;display:grid;place-items:center;flex:none;}
+.tile.t48{width:48px;height:48px;background:linear-gradient(150deg,#11202b,#0a1118);border:1px solid var(--border2);}
+.tile.t48 svg{width:30px;height:30px;}
+.tile.t26{width:26px;height:26px;border-radius:6px;background:var(--teal);}
+.tile.t26 svg{width:17px;height:17px;}
+.tile.mono{width:26px;height:26px;border-radius:6px;background:#0c1119;border:1px solid var(--border2);}
+.tile.mono svg{width:17px;height:17px;}
+
+/* notes */
+.note{font:600 13px/1.5 var(--sans);color:var(--text2);}
+.note small{display:block;font-weight:400;color:var(--text3);font-size:12px;margin-top:4px;}
+</style>
+</head>
+<body>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="../design-canvas.jsx"></script>
+
+<div id="root"></div>
+
+<script type="text/babel">
+const { useId } = React;
+
+/* ---------- shared gradient defs (unique per instance) ---------- */
+function Grad({ id }){
+  return (
+    <defs>
+      <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor="#3DE0D0"/>
+        <stop offset=".62" stopColor="#58A6FF"/>
+        <stop offset="1" stopColor="#A78BFA"/>
+      </linearGradient>
+      <radialGradient id={id+"-d"} cx=".35" cy=".3" r=".8">
+        <stop offset="0" stopColor="#5cf0e2"/>
+        <stop offset="1" stopColor="#58A6FF"/>
+      </radialGradient>
+    </defs>
+  );
+}
+
+/* ===================== THE FIVE MARKS ===================== */
+/* Each takes a `c` (stroke color) override for mono tiles. */
+
+// A · BEAT — a single heartbeat spike
+function MarkBeat({ c }){
+  const g = useId();
+  const stroke = c || `url(#${g})`;
+  return (
+    <svg viewBox="0 0 100 100" fill="none">
+      {!c && <Grad id={g}/>}
+      <polyline points="8,56 31,56 40,56 48,22 57,74 63,47 71,56 92,56"
+        stroke={stroke} strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="92" cy="56" r="5.5" fill={c||`url(#${g}-d)`}/>
+    </svg>
+  );
+}
+
+// B · PULSE — radiating signal rings from a core
+function MarkPulse({ c }){
+  const g = useId();
+  const st = c || `url(#${g})`;
+  return (
+    <svg viewBox="0 0 100 100" fill="none">
+      {!c && <Grad id={g}/>}
+      <circle cx="50" cy="50" r="9" fill={c||`url(#${g}-d)`}/>
+      <circle cx="50" cy="50" r="21" stroke={st} strokeWidth="6" opacity={c?".6":".62"} strokeLinecap="round"/>
+      <circle cx="50" cy="50" r="33" stroke={st} strokeWidth="6" opacity={c?".34":".34"} strokeLinecap="round"/>
+      <circle cx="50" cy="50" r="45" stroke={st} strokeWidth="6" opacity={c?".16":".16"} strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+// C · MONOGRAM — a "T" whose crossbar is a heartbeat
+function MarkMono({ c, tile }){
+  const g = useId();
+  const st = c || `url(#${g})`;
+  return (
+    <svg viewBox="0 0 100 100" fill="none">
+      {!c && <Grad id={g}/>}
+      {tile && <rect x="6" y="6" width="88" height="88" rx="22" fill="#0c1420" stroke="#27384f" strokeWidth="1.5"/>}
+      {/* crossbar = beat */}
+      <polyline points="24,34 41,34 47,19 54,51 60,34 76,34"
+        stroke={st} strokeWidth="7.5" strokeLinecap="round" strokeLinejoin="round"/>
+      {/* stem */}
+      <line x1="50" y1="38" x2="50" y2="80" stroke={st} strokeWidth="7.5" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+// D · VESSEL — an artery branching into capillaries
+function MarkVessel({ c }){
+  const g = useId();
+  const st = c || `url(#${g})`;
+  const dot = c || `url(#${g}-d)`;
+  return (
+    <svg viewBox="0 0 100 100" fill="none">
+      {!c && <Grad id={g}/>}
+      <g stroke={st} strokeWidth="6.5" strokeLinecap="round" fill="none">
+        <path d="M50,52 Q35,42 30,24"/>
+        <path d="M34,38 Q24,42 15,37"/>
+        <path d="M50,52 Q66,62 72,80"/>
+        <path d="M66,64 Q77,60 86,65"/>
+      </g>
+      <circle cx="50" cy="52" r="8.5" fill={dot}/>
+      <circle cx="30" cy="24" r="4.5" fill={st}/>
+      <circle cx="15" cy="37" r="4" fill={st}/>
+      <circle cx="72" cy="80" r="4.5" fill={st}/>
+      <circle cx="86" cy="65" r="4" fill={st}/>
+    </svg>
+  );
+}
+
+// E · LOOP — a continuous monitoring ring that breaks into a beat
+function MarkLoop({ c }){
+  const g = useId();
+  const st = c || `url(#${g})`;
+  return (
+    <svg viewBox="0 0 100 100" fill="none">
+      {!c && <Grad id={g}/>}
+      <path d="M62,18 A36,36 0 1 0 84,44"
+        stroke={st} strokeWidth="7.5" strokeLinecap="round"/>
+      {/* the beat that escapes the loop */}
+      <polyline points="62,18 70,18 75,6 81,30 86,18 94,18"
+        stroke={st} strokeWidth="7.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
+/* ===================== ARTBOARD TEMPLATE ===================== */
+function Dir({ Mark, kicker, title, blurb, monoCrossTile }){
+  return (
+    <div className="ab">
+      <div className="kicker">{kicker}</div>
+      <div className="note">{title}<small>{blurb}</small></div>
+
+      <div className="hero"><Mark/></div>
+
+      <div className="lockup">
+        <Mark/>
+        <span className="wm">tep<span className="accent">na</span></span>
+      </div>
+
+      <div className="tiles">
+        <div className="tile t48">{monoCrossTile ? <Mark tile/> : <Mark/>}</div>
+        <div className="tile t26"><Mark c="#070A0E"/></div>
+        <div className="tile mono"><Mark c="#F4F7FB"/></div>
+        <span className="cap">favicon · app · mono</span>
+      </div>
+    </div>
+  );
+}
+
+/* ===================== CANVAS ===================== */
+const W = 372, H = 484;
+function App(){
+  return (
+    <DesignCanvas>
+      <DCSection id="dirs" title="Tepna · logo directions" subtitle="Mark + wordmark + favicon — one concept, five forms. tepna = artery · tep = pulse">
+        <DCArtboard id="beat" label="A · Beat" width={W} height={H}>
+          <Dir Mark={MarkBeat} kicker="A · Beat"
+            title="The single heartbeat"
+            blurb="Literal, instantly legible. One tep. Reads as health-tech without a heart cliché; the trailing dot = the live sample."/>
+        </DCArtboard>
+
+        <DCArtboard id="pulse" label="B · Pulse" width={W} height={H}>
+          <Dir Mark={MarkPulse} kicker="B · Pulse"
+            title="Signal, radiating"
+            blurb="Evolves today's nav dot. A core sample broadcasting outward — sensing, continuous monitoring. Calmest, most abstract mark."/>
+        </DCArtboard>
+
+        <DCArtboard id="mono" label="C · Monogram" width={W} height={H}>
+          <Dir Mark={MarkMono} monoCrossTile kicker="C · Monogram"
+            title="The T that beats"
+            blurb="A 'T' whose crossbar is a pulse. Strongest as an app icon / favicon — carries the letter and the concept in one glyph."/>
+        </DCArtboard>
+
+        <DCArtboard id="vessel" label="D · Vessel" width={W} height={H}>
+          <Dir Mark={MarkVessel} kicker="D · Vessel"
+            title="Artery into capillaries"
+            blurb="Closest to the name's meaning. One source branching into many signals — mirrors the suite: many devices, one read. Most distinctive."/>
+        </DCArtboard>
+
+        <DCArtboard id="loop" label="E · Loop" width={W} height={H}>
+          <Dir Mark={MarkLoop} kicker="E · Loop"
+            title="The monitoring loop"
+            blurb="A continuous ring that breaks into a beat — overnight, all-night sensing that never quite closes. Systemic, homeostasis."/>
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body></html>

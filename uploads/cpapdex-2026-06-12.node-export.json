@@ -1,0 +1,164 @@
+{
+  "kernel": {
+    "version": "1.0.0",
+    "hash": "118ebed5"
+  },
+  "schema": {
+    "name": "ganglior.node-export",
+    "version": "2.0",
+    "node": "CPAPDex",
+    "nodeVersion": "1.0",
+    "generated": "2026-06-15T23:37:35.563Z",
+    "provenance": {
+      "buildHash": "c22f274d8cea",
+      "generated": "2026-06-15T23:37:35.563Z",
+      "inputs": []
+    },
+    "doc": "Single-signal PAP-therapy analyzer export. All metrics computed in-browser from the AirSense EDF set only (nothing leaves the device). Device-scored EVE/CSL events are the top apnea tier. SA2 oximetry is a self-gated QC lane — artifact desats are excluded and never emitted. null = not present/computed at this quality. Event `t` is wall-clock HH:MM:SS (no date); `tMs` is absolute floating ms.",
+    "units": {
+      "pressure": "cmH2O",
+      "leak": "L/min",
+      "ahi": "/hr",
+      "odi": "/hr",
+      "respRate": "/min",
+      "tidVol": "L",
+      "minVent": "L/min",
+      "spo2": "%",
+      "pulse": "bpm",
+      "time": "min",
+      "conf": "0..1",
+      "sqi": "0..1"
+    }
+  },
+  "recording": {
+    "source": "ResMed AirSense 11 (EDF set)",
+    "contentId": "f883a8667665",
+    "startEpochMs": 1781303310000,
+    "dateAnchorMs": 1781222400000,
+    "offsetMin": null,
+    "therapyHours": 7.07,
+    "sessionCount": 2,
+    "sessions": [
+      {
+        "idx": 0,
+        "startEpochMs": 1781303310000,
+        "durMin": 383,
+        "usageHours": 6.383,
+        "mode": "APAP",
+        "truncated": false,
+        "recordsRead": 383,
+        "numRecords": 383,
+        "oximeter": "oximeter-not-connected"
+      },
+      {
+        "idx": 1,
+        "startEpochMs": 1781326505000,
+        "durMin": 41,
+        "usageHours": 0.683,
+        "mode": "APAP",
+        "truncated": false,
+        "recordsRead": 41,
+        "numRecords": 41,
+        "oximeter": "oximeter-not-connected"
+      }
+    ],
+    "offMaskGaps": [
+      {
+        "afterSession": 0,
+        "gapMin": 3.6
+      }
+    ]
+  },
+  "metrics": {
+    "usageHours": 7.067,
+    "residualAHI": 2.83,
+    "obstructiveIndex": 0.57,
+    "centralIndex": 1.27,
+    "hypopneaIndex": 0.99,
+    "reraIndex": 0,
+    "periodicBreathingPct": 0,
+    "medianPressure": 6.24,
+    "p95Pressure": 8.1,
+    "pressureRange": 1.54,
+    "epap95": 5.1,
+    "medianLeak": 0,
+    "p95Leak": 0,
+    "largeLeakPct": 0,
+    "leakCV": null
+  },
+  "crossMetrics": {
+    "ahi": 2.83,
+    "odi": null,
+    "t90": null,
+    "oximetryAvailable": false,
+    "concordance": null,
+    "concordanceNote": "no oximeter this night — AHI stands on the airflow scoring alone",
+    "leakImpact": "leak-ok",
+    "leakNote": "leak within validity threshold — AHI is trustworthy",
+    "largeLeakPct": 0
+  },
+  "oximetry": [
+    {
+      "session": 0,
+      "available": false,
+      "reason": "oximeter-not-connected",
+      "coverage": 0,
+      "odi": null,
+      "t90Pct": null,
+      "spo2Nadir": null,
+      "spo2Mean": null,
+      "desatCount": null,
+      "artifactCount": null,
+      "selfGate": "active"
+    },
+    {
+      "session": 1,
+      "available": false,
+      "reason": "oximeter-not-connected",
+      "coverage": 0,
+      "odi": null,
+      "t90Pct": null,
+      "spo2Nadir": null,
+      "spo2Mean": null,
+      "desatCount": null,
+      "artifactCount": null,
+      "selfGate": "active"
+    }
+  ],
+  "quality": {
+    "sqi": 1,
+    "sqiBasis": "leak-quality (1 − largeLeakFraction) — R7 separate from conf",
+    "lowUsage": false,
+    "truncatedSessions": 0
+  },
+  "ganglior_events": [
+    { "t": "22:31:25", "tMs": 1781303485000, "impulse": "apnea", "node": "CPAPDex", "conf": 0.94, "sqi": 1, "meta": { "class": "central", "durSec": 12, "source": "device-scored" } },
+    { "t": "22:33:01", "tMs": 1781303581000, "impulse": "apnea", "node": "CPAPDex", "conf": 0.95, "sqi": 1, "meta": { "class": "obstructive", "durSec": 41, "source": "device-scored" } },
+    { "t": "22:35:00", "tMs": 1781303700000, "impulse": "apnea", "node": "CPAPDex", "conf": 0.98, "sqi": 1, "meta": { "class": "central", "durSec": 34, "source": "device-scored" } },
+    { "t": "22:35:43", "tMs": 1781303743000, "impulse": "apnea", "node": "CPAPDex", "conf": 0.96, "sqi": 1, "meta": { "class": "central", "durSec": 19, "source": "device-scored" } },
+    { "t": "22:36:25", "tMs": 1781303785000, "impulse": "hypopnea", "node": "CPAPDex", "conf": 0.7, "sqi": 1, "meta": { "class": "hypopnea", "durSec": 0, "source": "device-scored" } },
+    { "t": "22:37:43", "tMs": 1781303863000, "impulse": "hypopnea", "node": "CPAPDex", "conf": 0.7, "sqi": 1, "meta": { "class": "hypopnea", "durSec": 0, "source": "device-scored" } },
+    { "t": "22:51:12", "tMs": 1781304672000, "impulse": "apnea", "node": "CPAPDex", "conf": 0.95, "sqi": 1, "meta": { "class": "central", "durSec": 16, "source": "device-scored" } },
+    { "t": "00:01:48", "tMs": 1781308908000, "impulse": "apnea", "node": "CPAPDex", "conf": 0.94, "sqi": 1, "meta": { "class": "central", "durSec": 13, "source": "device-scored" } },
+    { "t": "00:30:00", "tMs": 1781310600000, "impulse": "apnea", "node": "CPAPDex", "conf": 0.94, "sqi": 1, "meta": { "class": "central", "durSec": 11, "source": "device-scored" } },
+    { "t": "00:40:44", "tMs": 1781311244000, "impulse": "hypopnea", "node": "CPAPDex", "conf": 0.7, "sqi": 1, "meta": { "class": "hypopnea", "durSec": 0, "source": "device-scored" } },
+    { "t": "02:04:53", "tMs": 1781316293000, "impulse": "apnea", "node": "CPAPDex", "conf": 0.9, "sqi": 1, "meta": { "class": "obstructive", "durSec": 15, "source": "device-scored" } },
+    { "t": "02:06:24", "tMs": 1781316384000, "impulse": "hypopnea", "node": "CPAPDex", "conf": 0.7, "sqi": 1, "meta": { "class": "hypopnea", "durSec": 0, "source": "device-scored" } },
+    { "t": "02:07:48", "tMs": 1781316468000, "impulse": "hypopnea", "node": "CPAPDex", "conf": 0.7, "sqi": 1, "meta": { "class": "hypopnea", "durSec": 0, "source": "device-scored" } },
+    { "t": "02:08:42", "tMs": 1781316522000, "impulse": "hypopnea", "node": "CPAPDex", "conf": 0.7, "sqi": 1, "meta": { "class": "hypopnea", "durSec": 0, "source": "device-scored" } },
+    { "t": "02:10:14", "tMs": 1781316614000, "impulse": "apnea", "node": "CPAPDex", "conf": 0.9, "sqi": 1, "meta": { "class": "obstructive", "durSec": 15, "source": "device-scored" } },
+    { "t": "02:36:08", "tMs": 1781318168000, "impulse": "hypopnea", "node": "CPAPDex", "conf": 0.7, "sqi": 1, "meta": { "class": "hypopnea", "durSec": 0, "source": "device-scored" } },
+    { "t": "02:36:40", "tMs": 1781318200000, "impulse": "apnea", "node": "CPAPDex", "conf": 0.89, "sqi": 1, "meta": { "class": "obstructive", "durSec": 11, "source": "device-scored" } },
+    { "t": "03:36:52", "tMs": 1781321812000, "impulse": "apnea", "node": "CPAPDex", "conf": 0.96, "sqi": 1, "meta": { "class": "central", "durSec": 18, "source": "device-scored" } },
+    { "t": "04:21:38", "tMs": 1781324498000, "impulse": "apnea", "node": "CPAPDex", "conf": 0.96, "sqi": 1, "meta": { "class": "central", "durSec": 17, "source": "device-scored" } },
+    { "t": "04:22:53", "tMs": 1781324573000, "impulse": "apnea", "node": "CPAPDex", "conf": 0.93, "sqi": 1, "meta": { "class": "central", "durSec": 10, "source": "device-scored" } }
+  ],
+  "crossNode": null,
+  "reserved": {
+    "doc": "Slots awaiting Integrator fusion; null until paired.",
+    "ahiOdiConcordance": null,
+    "oximetrySource": "CPAPDex-SA2 (peer of O2Ring)",
+    "apneaAuthority": "device-scored (top tier)"
+  },
+  "fmtVersion": "CpapDsp"
+}

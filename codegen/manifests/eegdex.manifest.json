@@ -1,0 +1,87 @@
+{
+  "_doc": "EEGDex manifest — NEW node (Muse EEG), per SIGNAL-ADAPTER brief Phase 3 (manifest-as-single-source). Carries the Phase-3 additions `evidence` (5-level ladder) + `goodDirection` per metric so codegen/dex-registry-gen.js projects eegdex-registry.js from ONE source. EEG is a genuinely new signal type — the adapter layer standardizes its INGEST; this manifest is the metric/grade source, not the DSP. Status: planned scaffold, not a shipped node.",
+  "node": "EEGDex",
+  "modality": "Electroencephalography (EEG)",
+  "icon": "🧠",
+  "accentColor": "var(--purple)",
+  "accentHex": "#B98AFF",
+  "version": "0.1.0",
+  "status": "planned",
+  "description": "Band-power and sleep-architecture analysis from consumer EEG (Muse). Direct spectral readouts, EEG-staged hypnogram, and derived micro-architecture markers.",
+  "warning": "Consumer dry-electrode EEG (4-channel Muse) has higher artifact rates and lower spatial resolution than clinical PSG. Contact quality gates every downstream metric.",
+
+  "dataModel": {
+    "fields": {
+      "eeg":        "Float32Array[ch] — µV, 256 Hz, 4 channels (TP9, AF7, AF8, TP10)",
+      "timestamps": "Float64Array — floating wall-clock ms per sample (Clock Contract)",
+      "sampleRate": "number — Hz",
+      "contact":    "Float32Array[ch] — per-channel contact quality 0..1"
+    }
+  },
+
+  "sections": [
+    {
+      "id": "signal",
+      "title": "Signal & Contact",
+      "icon": "📶",
+      "description": "Direct signal-quality readouts that gate everything downstream",
+      "metaDeny": ["channel", "electrode"],
+      "metrics": [
+        { "id": "contactPct", "abbr": "% Contact", "name": "Contact Quality", "fullName": "Fraction of the recording with all electrodes in good contact",
+          "tier": "core", "unit": "%", "evidence": "measured", "goodDirection": "up",
+          "formula": "mean(all-channel contact ≥ threshold)", "cite": "Per-channel contact quality — direct sensor readout" },
+        { "id": "analyzablePct", "abbr": "% Analyzable", "name": "Analyzable", "fullName": "Fraction of the recording usable after artifact rejection",
+          "tier": "core", "unit": "%", "evidence": "measured", "goodDirection": "up",
+          "formula": "1 − artifactRejectedFraction", "cite": "Analyzable coverage after artifact rejection — direct" },
+        { "id": "totalPower", "abbr": "Total Power", "name": "Total Spectral Power", "fullName": "Broadband EEG power 1–50 Hz",
+          "tier": "secondary", "unit": "µV²", "evidence": "measured", "goodDirection": "neutral",
+          "formula": "∫ PSD(1..50 Hz)", "cite": "Broadband spectral power — direct from the PSD" }
+      ]
+    },
+    {
+      "id": "bands",
+      "title": "Band Powers",
+      "icon": "🌊",
+      "description": "Relative power in the canonical EEG bands",
+      "metrics": [
+        { "id": "alphaRel", "abbr": "α rel", "name": "Relative Alpha", "fullName": "Alpha-band (8–13 Hz) relative power",
+          "tier": "core", "unit": "%", "evidence": "validated", "goodDirection": "neutral",
+          "formula": "P(8–13 Hz) / P(1–50 Hz)", "cite": "Relative alpha power — established EEG band readout" },
+        { "id": "thetaRel", "abbr": "θ rel", "name": "Relative Theta", "fullName": "Theta-band (4–8 Hz) relative power",
+          "tier": "core", "unit": "%", "evidence": "validated", "goodDirection": "neutral",
+          "formula": "P(4–8 Hz) / P(1–50 Hz)", "cite": "Relative theta power — established EEG band readout" },
+        { "id": "alphaTheta", "abbr": "α/θ", "name": "Alpha/Theta Ratio", "fullName": "Ratio of alpha to theta band power",
+          "tier": "secondary", "unit": "", "evidence": "emerging", "goodDirection": "neutral",
+          "formula": "P(α) / P(θ)", "cite": "Alpha/theta ratio — published drowsiness/relaxation index, device-dependent" }
+      ]
+    },
+    {
+      "id": "sleep",
+      "title": "Sleep Architecture",
+      "icon": "🌙",
+      "description": "EEG-staged hypnogram and micro-architecture markers",
+      "metrics": [
+        { "id": "remPct", "abbr": "REM %", "name": "REM Fraction", "fullName": "Fraction of total sleep time scored REM from EEG",
+          "tier": "core", "unit": "%", "evidence": "validated", "goodDirection": "neutral",
+          "formula": "remEpochs / totalSleepEpochs", "cite": "EEG-staged REM fraction — EEG is the sleep-staging reference standard" },
+        { "id": "spindleDensity", "abbr": "Spindles", "name": "Spindle Density", "fullName": "Sleep-spindle count per minute of N2",
+          "tier": "research", "unit": "/min", "evidence": "emerging", "goodDirection": "up",
+          "formula": "spindleCount / N2Minutes", "cite": "Sleep-spindle density (11–16 Hz bursts) — published memory-consolidation marker, device-dependent" },
+        { "id": "frontalAsym", "abbr": "FAA", "name": "Frontal Alpha Asymmetry", "fullName": "ln(α right) − ln(α left) over frontal channels (AF7/AF8)",
+          "tier": "research", "unit": "", "evidence": "experimental", "goodDirection": "neutral",
+          "formula": "ln(αAF8) − ln(αAF7)", "cite": "Frontal alpha asymmetry — affective-state composite, EEGDex-derived, weak consumer-grade support" },
+        { "id": "calmScore", "abbr": "Calm", "name": "Calm Score", "fullName": "Composite relaxation index blended from band ratios",
+          "tier": "secondary", "unit": "", "evidence": "heuristic", "goodDirection": "up",
+          "formula": "weighted blend of α/θ, β suppression, and stability", "cite": "Calm score — heuristic wellness composite, not a validated EEG metric" }
+      ]
+    }
+  ],
+
+  "abbreviations": {
+    "EEG": "Electroencephalography",
+    "PSD": "Power Spectral Density",
+    "FAA": "Frontal Alpha Asymmetry",
+    "N2": "Non-REM sleep stage 2",
+    "REM": "Rapid Eye Movement sleep"
+  }
+}

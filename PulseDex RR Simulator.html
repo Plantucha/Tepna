@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<!--
+  PulseDex RR Simulator — synthetic RR generator with two modes:
+    1. Coherence engine — pure delegation to the shared Tepna engine
+       (SYNTH / dex-patient-gen.js), the same generator PulseDex's own
+       "Generate synthetic" button uses (canonical, multi-night, coherent).
+    2. Manual spectral — a parametric single-window explorer (HF/LF/VLF + AR(1))
+       for quick what-if spectral experiments. NOT the canonical engine.
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PulseDex RR Simulator</title>
+<!-- Shared evidence-badge engine + PulseDex registry data (single source of truth) -->
+<script src="metric-registry.js"></script>
+<script src="pulsedex-registry.js"></script>
+<!-- Shared synthetic-patient coherence engine (the real PulseDex generator) -->
+<script src="synth-gen.js"></script>
+<script src="dex-patient-gen.js"></script>
+<!-- Reusable Tepna license / attribution stamp styles -->
+<link rel="stylesheet" href="licensing/dex-license.css">
+<style>
+:root,[data-theme="light"]{
+  /* Light theme — Tepna ans-design.css light tokens */
+  --color-bg:#F2F5F9;--color-surface:#FFFFFF;--color-surface-2:#EBF0F7;
+  --color-surface-offset:#E6EDF5;--color-surface-dynamic:#DDE4EF;
+  --color-divider:#C8D4E4;--color-border:#B0C0D8;
+  --color-text:#0F1923;--color-text-muted:#3A4E65;--color-text-faint:#8FA0B4;
+  --color-primary:#0E8C82;--color-primary-hover:#0B6F67;
+  --color-primary-highlight:rgba(61,224,208,0.20);
+  --color-success:#1F9D63;--color-success-highlight:rgba(31,157,99,0.15);
+  --color-warning:#B26A00;--color-warning-highlight:rgba(178,106,0,0.14);
+  --color-error:#C2344A;--color-error-highlight:rgba(194,52,74,0.13);
+  --color-gold:#B26A00;--color-orange:#C2410C;--color-blue:#1E6FB8;--color-purple:#7C5CD6;
+  --shadow-sm:0 1px 2px oklch(0.2 0.01 80/0.06);
+  --shadow-md:0 4px 12px oklch(0.2 0.01 80/0.08);
+  --shadow-lg:0 12px 32px oklch(0.2 0.01 80/0.12);
+  --radius-sm:0.375rem;--radius-md:0.5rem;--radius-lg:0.75rem;--radius-xl:1rem;--radius-full:9999px;
+  /* SYSTEM stacks only — no @font-face, no CDN (suite rule). The 'Inter' /
+     'IBM Plex Mono' names fall through to system-ui / ui-monospace by design. */
+  --font-body:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
+  --text-xs:clamp(0.75rem,0.7rem + 0.25vw,0.875rem);
+  --text-sm:clamp(0.875rem,0.8rem + 0.35vw,1rem);
+  --text-base:clamp(1rem,0.95rem + 0.25vw,1.125rem);
+  --text-lg:clamp(1.125rem,1rem + 0.75vw,1.5rem);
+  --text-xl:clamp(1.5rem,1.2rem + 1.25vw,2.25rem);
+  --transition:180ms cubic-bezier(0.16,1,0.3,1);
+  /* Suite-named aliases so the shared badge/legend CSS + dxl license stamp
+     (var(--bg)/--surface*/--text*/--border*/--teal…) resolve to the active theme */
+  --bg:var(--color-bg);--surface:var(--color-surface);--surface2:var(--color-surface-2);
+  --surface3:var(--color-surface-dynamic);--border:var(--color-border);--border2:var(--color-divider);
+  --text:var(--color-text);--text2:var(--color-text-muted);--text3:var(--color-text-muted);
+  --text4:var(--color-text-faint);
+  --teal:var(--color-primary);--blue:var(--color-blue);--green:var(--color-success);
+}
+[data-theme="dark"]{
+  /* Dark theme (brand default) — Tepna ans-design.css §1 tokens */
+  --color-bg:#0B0F14;--color-surface:#121821;--color-surface-2:#18212C;
+  --color-surface-offset:#0E141C;--color-surface-dynamic:#1E2835;
+  --color-divider:#1e2d42;--color-border:#253550;
+  --color-text:#F4F7FB;--color-text-muted:#9FB0C3;--color-text-faint:#6E7F94;
+  --color-primary:#3DE0D0;--color-primary-hover:#2CC8BA;
+  --color-primary-highlight:rgba(61,224,208,0.13);
+  --color-success:#39D98A;--color-success-highlight:rgba(57,217,138,0.13);
+  --color-warning:#FFB84D;--color-warning-highlight:rgba(255,184,77,0.13);
+  --color-error:#FF6B7A;--color-error-highlight:rgba(255,107,122,0.14);
+  --color-gold:#FFB84D;--color-orange:#fb923c;--color-blue:#58A6FF;--color-purple:#a78bfa;
+  --shadow-sm:0 1px 2px oklch(0 0 0/0.2);
+  --shadow-md:0 4px 12px oklch(0 0 0/0.3);
+  --shadow-lg:0 12px 32px oklch(0 0 0/0.4);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
+body{min-height:100dvh;font-family:var(--font-body);font-size:var(--text-sm);color:var(--color-text);background:var(--color-bg);line-height:1.6}
+button{cursor:pointer;background:none;border:none;font:inherit;color:inherit;transition:color var(--transition),background var(--transition),box-shadow var(--transition)}
+select,input{font:inherit;color:inherit;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:0.5rem 0.75rem;transition:border-color var(--transition),box-shadow var(--transition)}
+select:focus,input:focus{outline:none;border-color:var(--color-primary);box-shadow:0 0 0 3px oklch(from var(--color-primary) l c h/0.15)}
+label{font-size:var(--text-xs);font-weight:500;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.06em}
+
+/* Layout */
+.app{display:grid;grid-template-rows:56px 1fr;min-height:100dvh}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 1.5rem;border-bottom:1px solid var(--color-divider);background:var(--color-surface);position:sticky;top:0;z-index:10}
+.logo{display:flex;align-items:center;gap:0.5rem;font-weight:600;font-size:var(--text-sm);letter-spacing:-0.01em}
+.logo svg{color:var(--color-primary)}
+.main{padding:1.5rem;max-width:1100px;margin:0 auto;width:100%;display:flex;flex-direction:column;gap:1.5rem}
+
+/* Cards */
+.card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-xl);padding:1.25rem 1.5rem;box-shadow:var(--shadow-sm)}
+.card-title{font-size:var(--text-xs);font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--color-text-muted);margin-bottom:1rem}
+
+/* Mode segmented control */
+.mode-switch{display:inline-flex;gap:0.25rem;padding:0.25rem;background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:var(--radius-full);align-self:flex-start}
+.mode-switch button{padding:0.45rem 1.1rem;border-radius:var(--radius-full);font-size:var(--text-xs);font-weight:600;color:var(--color-text-muted)}
+.mode-switch button:hover{color:var(--color-text)}
+.mode-switch button.active{background:var(--color-primary);color:#06181b}
+
+/* Controls grid */
+.controls-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem}
+.field{display:flex;flex-direction:column;gap:0.4rem}
+.field select,.field input{width:100%}
+
+/* Profile / scenario selector */
+.profiles{display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem}
+.profile-btn{padding:0.375rem 0.875rem;border-radius:var(--radius-full);font-size:var(--text-xs);font-weight:500;border:1.5px solid var(--color-border);background:var(--color-surface-2);color:var(--color-text-muted);transition:all var(--transition)}
+.profile-btn:hover{border-color:var(--color-primary);color:var(--color-primary)}
+.profile-btn.active{background:var(--color-primary-highlight);border-color:var(--color-primary);color:var(--color-primary);font-weight:600}
+
+/* Provenance / mode note */
+.engine-note{font-size:var(--text-xs);color:var(--color-text-faint);line-height:1.65;margin-top:1rem;max-width:74ch}
+.engine-note code{font-family:var(--font-mono);color:var(--color-text-muted);font-size:0.92em}
+
+/* Generate button */
+.btn-primary{display:inline-flex;align-items:center;gap:0.5rem;padding:0.625rem 1.5rem;background:var(--color-primary);color:#06181b;border-radius:var(--radius-md);font-weight:600;font-size:var(--text-sm);box-shadow:var(--shadow-sm)}
+.btn-primary:hover{background:var(--color-primary-hover);box-shadow:var(--shadow-md)}
+.btn-secondary{display:inline-flex;align-items:center;gap:0.5rem;padding:0.5rem 1rem;background:var(--color-surface-2);border:1px solid var(--color-border);color:var(--color-text-muted);border-radius:var(--radius-md);font-size:var(--text-xs);font-weight:500}
+.btn-secondary:hover{background:var(--color-surface-dynamic);color:var(--color-text)}
+
+/* Night caption (generator config — not measured, so unbadged) */
+.night-caption{display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:1rem}
+.night-caption:empty{display:none}
+.nc-item{display:inline-flex;gap:0.45rem;align-items:baseline;font-size:var(--text-xs);background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:var(--radius-full);padding:0.25rem 0.75rem}
+.nc-k{color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.05em;font-size:0.7rem}
+.nc-v{font-family:var(--font-mono);color:var(--color-text)}
+
+/* Metrics grid */
+.metrics-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.75rem}
+.metric{background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:0.875rem 1rem;position:relative}
+.metric-label{font-size:var(--text-xs);color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.25rem}
+.metric-value{font-family:var(--font-mono);font-size:var(--text-lg);font-weight:600;line-height:1.1}
+.metric-sub{font-size:var(--text-xs);color:var(--color-text-muted);margin-top:0.2rem}
+.metric.good .metric-value{color:var(--color-success)}
+.metric.warn .metric-value{color:var(--color-gold)}
+.metric.bad .metric-value{color:var(--color-error)}
+.metric.neutral .metric-value{color:var(--color-primary)}
+/* Evidence badge — pinned bottom-right corner (coverage mandate placement #1).
+   Disc visuals come from metric-registry.js; this is layout only. */
+.ev-corner{position:absolute;right:10px;bottom:9px;z-index:2;opacity:.55;transition:opacity .15s}
+.metric:hover .ev-corner{opacity:.95}
+
+/* Status bar */
+.status-bar{display:flex;align-items:center;gap:0.75rem;padding:0.75rem 1rem;border-radius:var(--radius-lg);font-size:var(--text-xs);font-weight:500;margin-bottom:0.75rem}
+.status-bar.healthy{background:var(--color-success-highlight);color:var(--color-success)}
+.status-bar.moderate{background:var(--color-warning-highlight);color:var(--color-warning)}
+.status-bar.stressed{background:var(--color-error-highlight);color:var(--color-error)}
+
+/* Output area */
+.output-area{font-family:var(--font-mono);font-size:var(--text-xs);line-height:1.7;background:var(--color-surface-offset);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:1rem;white-space:pre;overflow:auto;color:var(--color-text-muted);min-height:80px;max-height:200px}
+.output-area.populated{color:var(--color-text)}
+
+/* Actions row */
+.actions-row{display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap}
+
+/* Chart */
+.waveform{width:100%;height:120px;border-radius:var(--radius-lg);overflow:hidden;background:var(--color-surface-offset)}
+
+/* Theme toggle */
+.theme-btn{width:36px;height:36px;border-radius:var(--radius-full);display:flex;align-items:center;justify-content:center;color:var(--color-text-muted)}
+.theme-btn:hover{background:var(--color-surface-dynamic);color:var(--color-text)}
+
+/* Patient / seed badge */
+.seed-badge{font-family:var(--font-mono);font-size:var(--text-xs);color:var(--color-text-faint);padding:0.2rem 0.5rem;background:var(--color-surface-2);border-radius:var(--radius-full);border:1px solid var(--color-border)}
+
+/* Toast */
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:0.75rem 1.25rem;font-size:var(--text-xs);font-weight:500;box-shadow:var(--shadow-lg);transform:translateY(120%);transition:transform 0.3s cubic-bezier(0.16,1,0.3,1);z-index:100;display:flex;align-items:center;gap:0.5rem}
+.toast.show{transform:translateY(0)}
+.toast-dot{width:8px;height:8px;border-radius:50%;background:var(--color-success);flex-shrink:0}
+
+/* Divider */
+.divider{height:1px;background:var(--color-divider);margin:0.25rem 0}
+
+@media(max-width:600px){.controls-grid{grid-template-columns:1fr 1fr}.metrics-grid{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- TOP BAR -->
+<header class="topbar">
+  <div class="logo">
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-label="PulseDex RR Simulator logo">
+      <rect x="1" y="1" width="20" height="20" rx="5" stroke="currentColor" stroke-width="1.5"/>
+      <polyline points="2,11 5,11 7,5 9,17 11,8 13,14 15,11 20,11" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>
+    PulseDex RR Simulator
+  </div>
+  <div style="display:flex;align-items:center;gap:0.5rem">
+    <span class="seed-badge" id="seedBadge">no patient yet</span>
+    <button class="theme-btn" data-theme-toggle aria-label="Toggle theme" id="themeBtn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- MODE SWITCH -->
+  <div class="mode-switch" id="modeSwitch">
+    <button id="modeEngineBtn" class="active" data-mode="engine">Coherence engine</button>
+    <button id="modeManualBtn" data-mode="manual">Manual spectral</button>
+  </div>
+
+  <!-- ENGINE MODE — scenario + nights -->
+  <div class="card" id="engineCard">
+    <div class="card-title">Synthetic Patient — Tepna coherence engine</div>
+    <div class="profiles" id="scenarioBtns">
+      <button class="profile-btn active" data-scenario="baseline">Untreated OSA</button>
+      <button class="profile-btn" data-scenario="severe">Severe OSA</button>
+      <button class="profile-btn" data-scenario="cpap">On CPAP</button>
+      <button class="profile-btn" data-scenario="healthy">Healthy</button>
+    </div>
+
+    <div class="controls-grid">
+      <div class="field">
+        <label for="genDays">Nights</label>
+        <select id="genDays">
+          <option value="1">1 night</option>
+          <option value="3" selected>3 nights</option>
+          <option value="5">5 nights</option>
+          <option value="7">7 nights</option>
+          <option value="14">14 nights</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="previewNight">Preview night</label>
+        <select id="previewNight" disabled><option>—</option></select>
+      </div>
+    </div>
+
+    <p class="engine-note">
+      Renders one fixed seeded patient (<code>SubjectA</code> · 45M · BMI 31) for N consecutive
+      nights through the shared <code>dex-patient-gen.js</code> / <code>synth-gen.js</code> engine —
+      the same generator PulseDex&rsquo;s own <em>Generate synthetic</em> button uses. Deterministic
+      (night <code>i</code> = seed <code>424242 + i&middot;1000</code>), Clock-Contract clean, with a
+      shared severity random-walk so worse nights carry both more apnea and lower HRV. Export is the
+      real Polar <code>ISO;RR</code> stream PulseDex ingests.
+    </p>
+  </div>
+
+  <!-- MANUAL MODE — life-stage profile + spectral knobs -->
+  <div class="card" id="manualCard" style="display:none">
+    <div class="card-title">Life Stage &amp; Health Profile</div>
+    <div class="profiles" id="profileBtns">
+      <button class="profile-btn active" data-profile="athlete20">Athlete 20s</button>
+      <button class="profile-btn" data-profile="healthy35">Healthy 35</button>
+      <button class="profile-btn" data-profile="stressed40">Stressed 40s</button>
+      <button class="profile-btn" data-profile="senior65">Senior 65</button>
+      <button class="profile-btn" data-profile="overtrained">Overtrained</button>
+      <button class="profile-btn" data-profile="recovery">Recovery</button>
+      <button class="profile-btn" data-profile="sleep_dep">Sleep Deprived</button>
+      <button class="profile-btn" data-profile="custom">Custom</button>
+    </div>
+
+    <div class="controls-grid">
+      <div class="field">
+        <label for="ageInput">Age</label>
+        <input type="number" id="ageInput" min="18" max="90" value="22">
+      </div>
+      <div class="field">
+        <label for="meanRR">Mean RR (ms)</label>
+        <input type="number" id="meanRR" min="500" max="1300" value="980">
+      </div>
+      <div class="field">
+        <label for="hfAmp">HF Amplitude (ms)</label>
+        <input type="number" id="hfAmp" min="10" max="160" value="110">
+      </div>
+      <div class="field">
+        <label for="lfAmp">LF Amplitude (ms)</label>
+        <input type="number" id="lfAmp" min="5" max="80" value="28">
+      </div>
+      <div class="field">
+        <label for="vlfAmp">VLF Amplitude (ms)</label>
+        <input type="number" id="vlfAmp" min="5" max="60" value="20">
+      </div>
+      <div class="field">
+        <label for="noiseLevel">AR Noise σ</label>
+        <input type="number" id="noiseLevel" min="1" max="30" value="5">
+      </div>
+      <div class="field">
+        <label for="arRho">AR Rho (ρ)</label>
+        <input type="number" id="arRho" min="0.1" max="0.98" step="0.01" value="0.75">
+      </div>
+      <div class="field">
+        <label for="durationMin">Duration (min)</label>
+        <select id="durationMin">
+          <option value="3" selected>3 min</option>
+          <option value="5">5 min</option>
+          <option value="10">10 min</option>
+        </select>
+      </div>
+    </div>
+
+    <p class="engine-note">
+      A parametric explorer: RR = mean + HF/LF/VLF sinusoids + AR(1) noise, seeded. <b>Not</b> the
+      canonical coherence engine &mdash; single window, no sleep architecture, apnea, timestamps or
+      cross-node coherence. Useful for quick spectral what-ifs; for fixtures and validation prefer the
+      Coherence-engine mode. Export is a bare RR list (one interval per line) that PulseDex ingests.
+    </p>
+  </div>
+
+  <!-- GENERATE -->
+  <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+    <button class="btn-primary" id="generateBtn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      Generate
+    </button>
+    <button class="btn-secondary" id="downloadAllBtn">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Download all nights
+    </button>
+    <button class="btn-secondary" id="newSeedBtn" style="display:none">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h.01M15 9h.01M9 15h.01M15 15h.01M12 12h.01"/></svg>
+      New seed
+    </button>
+  </div>
+
+  <!-- OUTPUT -->
+  <div class="card" id="resultCard" style="display:none">
+    <div id="statusBar" class="status-bar healthy">
+      <div style="width:8px;height:8px;border-radius:50%;background:currentColor;flex-shrink:0"></div>
+      <span id="statusText">—</span>
+    </div>
+
+    <!-- Waveform -->
+    <canvas class="waveform" id="waveCanvas"></canvas>
+
+    <!-- Night config caption (engine mode only) -->
+    <div class="night-caption" id="nightCaption"></div>
+
+    <!-- Evidence legend (one strip per view) -->
+    <div id="evLegend" style="margin-top:1rem"></div>
+
+    <!-- Metrics -->
+    <div class="metrics-grid" style="margin-top:0.75rem" id="metricsGrid"></div>
+
+    <div class="divider" style="margin:1rem 0"></div>
+
+    <!-- RR output -->
+    <div class="card-title" id="outputTitle">RR export · PulseDex-ingestible</div>
+    <div class="output-area populated" id="rrOutput"></div>
+
+    <div class="actions-row" style="margin-top:0.75rem">
+      <button class="btn-secondary" id="copyBtn">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy
+      </button>
+      <button class="btn-secondary" id="downloadBtn">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download .txt
+      </button>
+      <span style="margin-left:auto;font-size:var(--text-xs);color:var(--color-text-faint)" id="beatCount">—</span>
+    </div>
+  </div>
+
+  <!-- INTENDED-USE NOTICE (single-sourced canonical string) -->
+  <div class="dxl">
+    <div class="dxl-notice">
+      <div class="dxl-k">Intended use &amp; safety</div>
+      <p><b>Tepna</b> computes biometric patterns from your wearable and sensor data to support personal self-quantification. It is <b>not a medical device</b>, does not <b>diagnose, treat, cure, screen for, or prevent</b> any disease or condition, and is <b>not a substitute for professional clinical evaluation</b>. It has not been reviewed or cleared by the FDA, CE, or any regulatory body. Always consult a qualified healthcare provider about your health. Use at your own risk. For research and personal use only. 100% local — no data leaves your device. <b>These RR series are synthetic</b> — generated for testing, never recorded from a person.</p>
+    </div>
+  </div>
+
+  <!-- LICENSE / ATTRIBUTION RIBBON -->
+  <div class="dxl dxl-ribbon">
+    <div class="dxl-seg">
+      <span class="dxl-mark">T</span>
+      <span style="display:flex;flex-direction:column">
+        <b style="font-size:13px">Tepna</b>
+        <span class="dxl-colophon">physiological-signal suite</span>
+      </span>
+    </div>
+    <div class="dxl-seg dxl-grow">
+      <span style="font-size:11.5px;color:var(--text2)">© 2026 <b>Michal Planicka</b> — Concept · Architecture · Algorithms</span>
+      <span class="dxl-disclaimer">Not a medical device · not FDA/CE cleared · research &amp; personal use · ◈ Made in Asheville, NC</span>
+    </div>
+    <div class="dxl-seg">
+      <span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span>
+    </div>
+  </div>
+
+</main>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <div class="toast-dot"></div>
+  <span id="toastMsg">Copied!</span>
+</div>
+
+<script>
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let currentMode = "engine";          // 'engine' | 'manual'
+// engine state
+let currentScenario = "baseline";
+let tls = [];
+let currentNight = 0;
+// manual state
+let currentSeed = (Math.random() * 99999) | 0;
+let currentProfile = "athlete20";
+// shared
+let lastRRtext = "";
+
+function engineReady(){ return !!(window.SYNTH && window.DexPatientGen); }
+
+// ── EVIDENCE BADGE HELPER (coverage mandate — grades from the shared registry) ─
+function evBadge(regLabel) {
+  try { return (window.PulseRegistry) ? PulseRegistry.badgeForLabel(regLabel, true) : ""; }
+  catch (e) { return ""; }
+}
+
+// ── FORMATTERS ────────────────────────────────────────────────────────────────
+function fmtDur(sec){ const h=Math.floor(sec/3600), m=Math.round((sec%3600)/60); return h+"h "+(m<10?"0":"")+m+"m"; }
+function fmtMin(sec){ return (sec/60).toFixed(2)+" min"; }
+function bedClock(bed){ return (bed[3]<10?"0":"")+bed[3]+":"+(bed[4]<10?"0":"")+bed[4]; }
+
+// ── METRIC COLOR THRESHOLDS ───────────────────────────────────────────────────
+function rmssdClass(v){ return v >= 45 ? "good" : v >= 25 ? "warn" : "bad"; }
+function pnn50Class(v){ return v >= 20 ? "good" : v >= 8  ? "warn" : "bad"; }
+function sdnnClass(v) { return v >= 50 ? "good" : v >= 30 ? "warn" : "bad"; }
+function hrClass(v)   { return v <= 65 ? "good" : v <= 80 ? "warn" : "bad"; }
+
+// ── HRV METRICS — always via the shared engine (fallback only if it's missing) ─
+function hrvOf(rr){
+  if (window.SYNTH) return SYNTH.hrvMetrics(rr.map(v => ({ rr: v })));
+  // minimal fallback (engine should always be present)
+  const n = rr.length, mean = rr.reduce((a,b)=>a+b,0)/n;
+  const sdnn = Math.sqrt(rr.reduce((a,b)=>a+(b-mean)**2,0)/n);
+  let s=0; for(let i=1;i<n;i++) s+=(rr[i]-rr[i-1])**2;
+  const rmssd = Math.sqrt(s/(n-1));
+  let nn=0; for(let i=1;i<n;i++) if(Math.abs(rr[i]-rr[i-1])>50) nn++;
+  return { meanRR:mean, sdnn, rmssd, pnn50: nn/(n-1)*100, hr:60000/mean, sd1: rmssd/Math.SQRT2 };
+}
+
+// ── DRAW WAVEFORM ─────────────────────────────────────────────────────────────
+function drawWaveform(rr, canvas) {
+  const ctx = canvas.getContext("2d");
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+  canvas.width = W; canvas.height = H;
+  const bg = getComputedStyle(document.documentElement).getPropertyValue("--color-surface-offset").trim();
+  const lineColor = getComputedStyle(document.documentElement).getPropertyValue("--color-primary").trim();
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  if (!rr.length) return;
+  const display = rr.slice(0, 240);
+  const mn = Math.min(...display) - 20, mx = Math.max(...display) + 20;
+  const scaleY = v => H - ((v - mn) / (mx - mn)) * H * 0.85 - H * 0.075;
+  const stepX = W / (display.length - 1);
+  ctx.beginPath();
+  ctx.moveTo(0, scaleY(display[0]));
+  for (let i = 1; i < display.length; i++) ctx.lineTo(i * stepX, scaleY(display[i]));
+  ctx.strokeStyle = lineColor; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.lineTo((display.length - 1) * stepX, H);
+  ctx.lineTo(0, H); ctx.closePath();
+  ctx.fillStyle = lineColor + "18"; ctx.fill();
+}
+
+// ── SHARED PAINTERS ───────────────────────────────────────────────────────────
+function paintMetrics(m, beatCount, durSec) {
+  if (window.MetricRegistry) {
+    const lg = document.getElementById("evLegend");
+    if (lg) lg.innerHTML = MetricRegistry.legend({ only: ["measured", "validated"] });
+  }
+  document.getElementById("metricsGrid").innerHTML = [
+    { label:"Beats",   value: beatCount,                 sub: fmtDur(durSec),        cls:"neutral",            reg:"n (beats)" },
+    { label:"Mean RR", value: m.meanRR.toFixed(0) + " ms", sub: m.hr.toFixed(1) + " BPM", cls: hrClass(m.hr),  reg:"mean rr" },
+    { label:"SDNN",    value: m.sdnn.toFixed(1) + " ms", sub: "overall HRV",         cls: sdnnClass(m.sdnn),   reg:"sdnn" },
+    { label:"RMSSD",   value: m.rmssd.toFixed(1) + " ms",sub: "parasympathetic",     cls: rmssdClass(m.rmssd), reg:"rmssd" },
+    { label:"pNN50",   value: m.pnn50.toFixed(1) + "%",  sub: "successive >50 ms",   cls: pnn50Class(m.pnn50), reg:"pnn50" },
+    { label:"SD1",     value: m.sd1.toFixed(1) + " ms",  sub: "Poincaré short-axis", cls:"neutral",            reg:"sd1" },
+  ].map(({ label, value, sub, cls, reg }) =>
+    `<div class="metric ${cls}"><div class="metric-label">${label}</div><div class="metric-value">${value}</div><div class="metric-sub">${sub}</div><span class="ev-corner">${evBadge(reg)}</span></div>`
+  ).join("");
+}
+
+function paintOutput(text, footer) {
+  lastRRtext = text;
+  const lines = text.trim().split("\n");
+  const CAP = 400;
+  const out = document.getElementById("rrOutput");
+  out.textContent = lines.slice(0, CAP).join("\n") +
+    (lines.length > CAP ? `\n… +${lines.length - CAP} more lines (full series copied / downloaded)` : "");
+  document.getElementById("beatCount").textContent = footer;
+  document.getElementById("resultCard").style.display = "block";
+}
+
+function setStatus(level, text) {
+  const sb = document.getElementById("statusBar");
+  sb.className = "status-bar " + level;
+  document.getElementById("statusText").textContent = text;
+}
+function levelFor(rmssd){ return rmssd >= 45 ? "healthy" : rmssd >= 25 ? "moderate" : "stressed"; }
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  ENGINE MODE — pure delegation to the shared coherence engine
+// ══════════════════════════════════════════════════════════════════════════════
+function generateEngine() {
+  if (!engineReady()) { showToast("Engine not loaded"); return; }
+  const days = +document.getElementById("genDays").value;
+  const r = DexPatientGen.resolve(currentScenario, days);
+  if (!r) { showToast("Generation failed"); return; }
+  tls = r.tls; currentNight = 0;
+  document.getElementById("seedBadge").textContent = DexPatientGen.chip(r);
+  const sel = document.getElementById("previewNight");
+  sel.disabled = tls.length < 2;
+  sel.innerHTML = tls.map((tl, i) => `<option value="${i}">Night ${i + 1} — ${tl.cfg.date}</option>`).join("");
+  sel.value = "0";
+  renderNight();
+}
+
+function renderNight() {
+  if (!tls.length) return;
+  const tl = tls[currentNight];
+  const beats = SYNTH.buildRR(tl);
+  const rr = beats.map(b => b.rr);
+  const m = SYNTH.hrvMetrics(beats);
+
+  setStatus(levelFor(m.rmssd), tl.cfg.story);
+  requestAnimationFrame(() => drawWaveform(rr, document.getElementById("waveCanvas")));
+
+  document.getElementById("nightCaption").innerHTML = [
+    ["Date", tl.cfg.date],
+    ["Lights-out", bedClock(tl.cfg.bed)],
+    ["Duration", fmtDur(tl.durSec)],
+    ["AHI target", (+tl.cfg.ahi).toFixed(1)],
+    ["rMSSD target", Math.round(tl.cfg.rmssd) + " ms"],
+    ["CPAP", tl.cfg.cpap ? "yes" : "no"],
+  ].map(([k, v]) => `<span class="nc-item"><span class="nc-k">${k}</span><span class="nc-v">${v}</span></span>`).join("");
+
+  document.getElementById("outputTitle").innerHTML =
+    'Polar RR export — <code style="font-family:var(--font-mono);text-transform:none;letter-spacing:0">ISO;RR</code> · PulseDex-ingestible';
+  paintMetrics(m, rr.length, tl.durSec);
+  paintOutput(SYNTH.renderRR(tl),
+    rr.length + " beats · night " + (currentNight + 1) + "/" + tls.length + " · " + tl.cfg.date);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  MANUAL MODE — parametric single-window explorer (HF/LF/VLF + AR(1))
+// ══════════════════════════════════════════════════════════════════════════════
+const PROFILES = {
+  athlete20:   { age:22, meanRR:980, hfAmp:110, lfAmp:28, vlfAmp:20, noiseLevel:5,  arRho:0.75, label:"Athlete 20s",    desc:"Peak vagal tone, very high HRV, low resting HR" },
+  healthy35:   { age:35, meanRR:940, hfAmp:85,  lfAmp:22, vlfAmp:18, noiseLevel:5,  arRho:0.72, label:"Healthy 35",     desc:"Good fitness, balanced ANS, normal variability" },
+  stressed40:  { age:42, meanRR:820, hfAmp:32,  lfAmp:40, vlfAmp:25, noiseLevel:8,  arRho:0.60, label:"Stressed 40s",   desc:"SNS-dominant, elevated LF, reduced RMSSD" },
+  senior65:    { age:65, meanRR:870, hfAmp:28,  lfAmp:18, vlfAmp:15, noiseLevel:7,  arRho:0.55, label:"Senior 65",      desc:"Age-related HRV decline, reduced HF power" },
+  overtrained: { age:30, meanRR:800, hfAmp:20,  lfAmp:35, vlfAmp:22, noiseLevel:10, arRho:0.50, label:"Overtrained",    desc:"Sympathetic overdrive, parasympathetic suppression" },
+  recovery:    { age:35, meanRR:1020,hfAmp:95,  lfAmp:20, vlfAmp:22, noiseLevel:4,  arRho:0.78, label:"Recovery Day",   desc:"Deep parasympathetic, slow HR, high RSA" },
+  sleep_dep:   { age:35, meanRR:850, hfAmp:25,  lfAmp:45, vlfAmp:30, noiseLevel:12, arRho:0.58, label:"Sleep Deprived", desc:"Reduced HF, elevated LF/HF ratio, chaotic baseline" },
+  custom:      { age:35, meanRR:940, hfAmp:85,  lfAmp:22, vlfAmp:18, noiseLevel:5,  arRho:0.72, label:"Custom",         desc:"Manually configured parameters" },
+};
+
+function mulberry32(seed) {
+  return function() {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function seededNormal(rand) {
+  let u = 0, v = 0;
+  while (u === 0) u = rand();
+  while (v === 0) v = rand();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+function generateRR(params, durationMin, seed) {
+  const rand = mulberry32(seed);
+  const { meanRR, hfAmp, lfAmp, vlfAmp, noiseLevel, arRho } = params;
+  const targetMs = durationMin * 60 * 1000;
+  const approxBeats = Math.ceil(targetMs / meanRR) + 20;
+  const beatsPerSec = 1000 / meanRR;
+  const hfPeriod = beatsPerSec / 0.22, lfPeriod = beatsPerSec / 0.10, vlfPeriod = beatsPerSec / 0.025;
+  const phHF = rand() * 2 * Math.PI, phLF = rand() * 2 * Math.PI, phVLF = rand() * 2 * Math.PI;
+  let noise = seededNormal(rand) * noiseLevel;
+  const rr = []; let total = 0;
+  for (let i = 0; i < approxBeats; i++) {
+    if (total >= targetMs) break;
+    const hf  = hfAmp  * Math.sin(2 * Math.PI * i / hfPeriod  + phHF);
+    const lf  = lfAmp  * Math.sin(2 * Math.PI * i / lfPeriod  + phLF);
+    const vlf = vlfAmp * Math.sin(2 * Math.PI * i / vlfPeriod + phVLF);
+    noise = arRho * noise + seededNormal(rand) * noiseLevel * (1 - arRho * arRho) ** 0.5;
+    const white = seededNormal(rand) * 4;
+    let val = meanRR + hf + lf + vlf + noise + white;
+    val = Math.max(500, Math.min(1400, val));
+    rr.push(Math.round(val)); total += val;
+  }
+  return rr;
+}
+
+function loadProfile(key) {
+  currentProfile = key;
+  const p = PROFILES[key];
+  document.getElementById("ageInput").value   = p.age;
+  document.getElementById("meanRR").value     = p.meanRR;
+  document.getElementById("hfAmp").value      = p.hfAmp;
+  document.getElementById("lfAmp").value      = p.lfAmp;
+  document.getElementById("vlfAmp").value     = p.vlfAmp;
+  document.getElementById("noiseLevel").value = p.noiseLevel;
+  document.getElementById("arRho").value      = p.arRho;
+  document.querySelectorAll("#profileBtns .profile-btn").forEach(b => b.classList.toggle("active", b.dataset.profile === key));
+  const isCustom = key === "custom";
+  ["meanRR","hfAmp","lfAmp","vlfAmp","noiseLevel","arRho"].forEach(id => {
+    const el = document.getElementById(id);
+    el.readOnly = !isCustom; el.style.opacity = isCustom ? "1" : "0.7";
+  });
+}
+
+function generateManual() {
+  const params = {
+    meanRR:     +document.getElementById("meanRR").value,
+    hfAmp:      +document.getElementById("hfAmp").value,
+    lfAmp:      +document.getElementById("lfAmp").value,
+    vlfAmp:     +document.getElementById("vlfAmp").value,
+    noiseLevel: +document.getElementById("noiseLevel").value,
+    arRho:      +document.getElementById("arRho").value,
+  };
+  const durMin = +document.getElementById("durationMin").value;
+  const rr = generateRR(params, durMin, currentSeed);
+  const m = hrvOf(rr);
+  const durSec = rr.reduce((a, b) => a + b, 0) / 1000;
+
+  document.getElementById("seedBadge").textContent = "manual · seed " + currentSeed + " · " + PROFILES[currentProfile].label;
+  document.getElementById("nightCaption").innerHTML = "";   // config caption is engine-only
+  setStatus(levelFor(m.rmssd), PROFILES[currentProfile].label + " — " + PROFILES[currentProfile].desc);
+  requestAnimationFrame(() => drawWaveform(rr, document.getElementById("waveCanvas")));
+
+  document.getElementById("outputTitle").innerHTML = "RR intervals — one per line · PulseDex-ingestible";
+  paintMetrics(m, rr.length, durSec);
+  paintOutput(rr.join("\n") + "\n", rr.length + " beats · " + fmtMin(durSec) + " · seed " + currentSeed);
+}
+
+// ── MODE DISPATCH ─────────────────────────────────────────────────────────────
+function generate(){ return currentMode === "manual" ? generateManual() : generateEngine(); }
+
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll("#modeSwitch button").forEach(b => b.classList.toggle("active", b.dataset.mode === mode));
+  document.getElementById("engineCard").style.display = mode === "engine" ? "" : "none";
+  document.getElementById("manualCard").style.display = mode === "manual" ? "" : "none";
+  document.getElementById("downloadAllBtn").style.display = mode === "engine" ? "" : "none";
+  document.getElementById("newSeedBtn").style.display = mode === "manual" ? "" : "none";
+  generate();
+}
+
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  document.getElementById("toastMsg").textContent = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+// ── EVENTS ────────────────────────────────────────────────────────────────────
+document.getElementById("modeEngineBtn").addEventListener("click", () => setMode("engine"));
+document.getElementById("modeManualBtn").addEventListener("click", () => setMode("manual"));
+document.getElementById("generateBtn").addEventListener("click", generate);
+
+// engine controls
+document.getElementById("previewNight").addEventListener("change", (e) => { currentNight = +e.target.value || 0; renderNight(); });
+document.querySelectorAll("#scenarioBtns .profile-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    currentScenario = btn.dataset.scenario;
+    document.querySelectorAll("#scenarioBtns .profile-btn").forEach(b => b.classList.toggle("active", b === btn));
+    generateEngine();
+  });
+});
+
+// manual controls
+document.querySelectorAll("#profileBtns .profile-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    loadProfile(btn.dataset.profile);
+    if (btn.dataset.profile !== "custom") generateManual();
+  });
+});
+document.getElementById("newSeedBtn").addEventListener("click", () => {
+  currentSeed = (Math.random() * 99999) | 0;
+  generateManual();
+  showToast("New seed: " + currentSeed);
+});
+
+// shared output actions
+document.getElementById("copyBtn").addEventListener("click", () => {
+  if (!lastRRtext) return;
+  navigator.clipboard.writeText(lastRRtext).then(() => showToast("Copied!"));
+});
+document.getElementById("downloadBtn").addEventListener("click", () => {
+  if (!lastRRtext) return;
+  let name;
+  if (currentMode === "engine" && tls.length) name = SYNTH.fmtFileClock(tls[currentNight].t0Ms) + ".txt";
+  else name = "rr_manual_" + currentProfile + "_seed" + currentSeed + ".txt";
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([lastRRtext], { type: "text/plain" }));
+  a.download = name; a.click();
+  showToast("Downloaded");
+});
+document.getElementById("downloadAllBtn").addEventListener("click", () => {
+  if (!tls.length) { showToast("Generate first"); return; }
+  tls.forEach((tl, i) => setTimeout(() => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([SYNTH.renderRR(tl)], { type: "text/plain" }));
+    a.download = SYNTH.fmtFileClock(tl.t0Ms) + ".txt"; a.click();
+  }, i * 250));
+  showToast("Downloading " + tls.length + " nights…");
+});
+
+// Theme toggle
+(function(){
+  const btn = document.getElementById("themeBtn");
+  const html = document.documentElement;
+  let dark = true;
+  html.setAttribute("data-theme","dark");
+  btn.addEventListener("click", () => {
+    dark = !dark;
+    html.setAttribute("data-theme", dark ? "dark" : "light");
+    btn.innerHTML = dark
+      ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`
+      : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>`;
+    if (document.getElementById("resultCard").style.display !== "none") generate();  // re-tint
+  });
+})();
+
+// Init
+loadProfile("athlete20");
+if (engineReady()) {
+  generateEngine();
+} else {
+  setStatus("stressed", "Shared engine (synth-gen.js / dex-patient-gen.js) failed to load — Manual mode still works.");
+  document.getElementById("resultCard").style.display = "block";
+}
+</script>
+</body>
+</html>

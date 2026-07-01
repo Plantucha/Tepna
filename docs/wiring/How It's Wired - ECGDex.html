@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  How It's Wired - ECGDex · Tepna / the -Dex suite
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE.
+  A reference doc — explains how the ECGDex node is wired. Edit freely;
+  it loads no app code and ships no buildHash (not a bundled instrument).
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How It's Wired - ECGDex</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<meta name="description" content="ECGDex: Single-lead ECG analyzer. How the node is wired — signal, file stack, data flow, evidence ladder, limitations and how to use it.">
+<link rel="stylesheet" href="../dex-wired.css">
+</head>
+<body>
+
+<header class="rail">
+  <div class="rail-in">
+    <a class="brand" href="How It's Wired - the Dex Suite.html"><svg class="brandmark" viewBox="0 0 100 100" aria-hidden="true" style="width:17px;height:17px;flex:none;filter:drop-shadow(0 0 5px rgba(61,224,208,.4))"><defs><linearGradient id="tgrad" x1="14" y1="10" x2="86" y2="88" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3DE0D0"/><stop offset=".58" stop-color="#58A6FF"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs><g fill="none" stroke="url(#tgrad)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></g></svg>How it's wired <small>Tepna</small></a>
+    <nav class="rail-nodes"><a href="How It's Wired - OxyDex.html">OxyDex</a><a href="How It's Wired - ECGDex.html" class="cur">ECGDex</a><a href="How It's Wired - PulseDex.html">PulseDex</a><a href="How It's Wired - PpgDex.html">PpgDex</a><a href="How It's Wired - HRVDex.html">HRVDex</a><a href="How It's Wired - GlucoDex.html">GlucoDex</a><a href="How It's Wired - CPAPDex.html">CPAPDex</a></nav>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <header class="dochead">
+    <div class="eyebrow"><a class="back" href="How It's Wired - the Dex Suite.html">← the -Dex suite</a> · node wiring</div>
+    <h1><span class="glyph">❤️</span><span class="g">ECGDex</span></h1>
+    <p class="lede">ECGDex is the suite’s most precise cardiac receptor — it senses one signal, the heart’s electrical activity, and computes <b>everything</b> from raw µV samples. It is authoritative for HRV magnitude: chest ECG owns that signal until its own quality gate trips.</p>
+    <div class="specsheet">
+      <div class="cell"><div class="k">Signal sensed</div><div class="v">Raw ECG (µV)<small>≈130 Hz single lead</small></div></div>
+      <div class="cell"><div class="k">Device</div><div class="v">Polar H10<small>chest strap · via Polar Sensor Logger</small></div></div>
+      <div class="cell"><div class="k">Input format</div><div class="v">Polar Sensor Logger CSV/TXT<small>streamed in a Web Worker</small></div></div>
+      <div class="cell"><div class="k">Produces</div><div class="v">Full HRV + morphology<small>→ ganglior.node-export</small></div></div>
+    </div>
+  </header>
+
+  <!-- 01 WHAT IT SENSES -->
+  <section class="sec">
+    <div class="sec-num">01 — WHAT IT'S FOR</div>
+    <h2 class="sec-h">A single-signal receptor</h2>
+    <p class="sec-d">Read the suite as a reflex arc: <b>receptors → relay → integration → insight</b>. ECGDex is an <b>afferent receptor</b> — it does exactly one transduction well and reports inward. It never reaches into another node; cross-signal work happens only through the Ganglior export, consumed by the Integrator.</p>
+    <div class="callout"><span class="ci">🧠</span><div><b>One signal per node.</b> ECGDex senses raw ecg (µv) and nothing else. If you’re tempted to sense a second signal, that’s a second node — fusion is the Integrator’s job, never a receptor’s.</div></div>
+  </section>
+
+  <!-- 02 THE WIRING -->
+  <section class="sec">
+    <div class="sec-num">02 — THE WIRING</div>
+    <h2 class="sec-h">The file stack</h2>
+    <p class="sec-d">ECGDex is built from external <code>*.js</code> files referenced by <code>ECGDex.src.html</code> and bundled to a standalone <code>ECGDex.html</code>. Dependencies point downhill only — <b>UI → DSP → Core</b> — and each file owns exactly one job. <b>Edit the <code>.js</code> + <code>.src.html</code>, never the bundle; re-bundle after changes.</b></p>
+    <div class="flow">
+      <div class="flow-row" style="--lc:var(--L-dsp)">
+        <div class="flow-rail"><span class="lz">DSP</span><span class="spine"></span><span class="node-dot"></span><span class="spine"></span></div>
+        <div class="flow-cards">
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">ecgdex-dsp.js</span><span class="ftag">DSP</span></div>
+              <div class="fdesc">The signal engine: 5–15 Hz band-pass → Pan–Tompkins R-peak detection → sub-sample refinement → per-beat SQI gate → full HRV suite + CVHR + ECG-derived respiration + sleep staging.</div>
+            </div>
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">ecgdex-morph.js</span><span class="ftag">DSP</span></div>
+              <div class="fdesc">The “second half” of single-lead ECG: median-beat template, QRS/QT/QTc/PR delineation, beat classification (PVC/PAC), ectopy burden, and an AF screen from RR irregularity.</div>
+            </div>
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">ecgdex-profile.js</span><span class="ftag">DSP</span></div>
+              <div class="fdesc">ANS readiness hero, projected ANS-age, apnea risk from CVHR, HRV-adjusted VO₂max. No BP fields — ECG alone has no pulse wave.</div>
+            </div>
+        </div>
+      </div>
+      <div class="flow-row" style="--lc:var(--L-core)">
+        <div class="flow-rail"><span class="lz">Core</span><span class="spine"></span><span class="node-dot"></span><span class="spine"></span></div>
+        <div class="flow-cards">
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">kernel-constants.js</span><span class="ftag">Core · shared</span></div>
+              <div class="fdesc">The frozen physiology kernel — one source of truth for every cross-fleet threshold, plus a content-derived hash stamped into each export so two bundles built on different rulebooks can’t silently “agree” when fused.</div>
+            </div>
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">ganglior-provenance.js</span><span class="ftag">Core · shared</span></div>
+              <div class="fdesc">Loaded first — installs the read-hook that makes every export attributable to the exact code + inputs that produced it (the <code>buildHash</code> provenance stamp). 100% local.</div>
+            </div>
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">metric-registry.js</span><span class="ftag">Core · shared</span></div>
+              <div class="fdesc">The shared half of the evidence system: the badge SHAPE, depth tiering and the injected badge CSS. The per-node registry below supplies the DATA, so a Validated dot looks identical in every node.</div>
+            </div>
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">crossnight-envelope.js</span><span class="ftag">Core · shared</span></div>
+              <div class="fdesc">The shared, versioned <i>shape</i> (ganglior.crossnight v1.0) every node emits and the Integrator reads — the container, not the math (the local <code>crossNight()</code> stats stay per-node).</div>
+            </div>
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">ecgdex-registry.js</span><span class="ftag">Core</span></div>
+              <div class="fdesc">Per-metric DATA map (label/unit/goodDirection/depth/evidence) mirroring the cross-night envelope defs so registry and envelope never diverge.</div>
+            </div>
+        </div>
+      </div>
+      <div class="flow-row" style="--lc:var(--L-render)">
+        <div class="flow-rail"><span class="lz">Render · UI</span><span class="spine"></span><span class="node-dot"></span><span class="spine"></span></div>
+        <div class="flow-cards">
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">ecgdex-render.js</span><span class="ftag">Render · UI</span></div>
+              <div class="fdesc">ECGScope canvas (a min/max envelope pyramid that never subsamples R-peaks away) plus hand-rolled SVG charts: tachogram, Poincaré, hypnogram, CVHR, rMSSD trend.</div>
+            </div>
+        </div>
+      </div>
+      <div class="flow-row" style="--lc:var(--L-app)">
+        <div class="flow-rail"><span class="lz">App · glue</span><span class="spine"></span><span class="node-dot"></span><span class="spine"></span></div>
+        <div class="flow-cards">
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">ecgdex-app.js</span><span class="ftag">App · glue</span></div>
+              <div class="fdesc">Streaming ingest via a Blob-built Web Worker, the synthetic generator, multi-recording model, pipeline orchestration and all exports.</div>
+            </div>
+        </div>
+      </div>
+      <div class="flow-row" style="--lc:var(--L-fusion)">
+        <div class="flow-rail"><span class="lz">Fusion · export</span><span class="spine"></span><span class="node-dot"></span><span class="spine"></span></div>
+        <div class="flow-cards">
+            <div class="fcard">
+              <div class="fc-top"><span class="fname">ecgdex-cross.js</span><span class="ftag">Fusion · export</span></div>
+              <div class="fdesc">Multi-recording trend / z-score / significance math — the byte-identical suite cross helper.</div>
+            </div>
+        </div>
+      </div>
+    </div>
+    <div class="callout clock"><span class="ci">🕒</span><div><b>The Clock Contract.</b> ECGDex stamps every record as floating wall-clock <code>tMs</code> (local civil time encoded as if UTC) and reads it back with <code>getUTC*</code> — so the recording reads identically in any viewer’s timezone, and two devices recording the same minute land on the same <code>tMs</code>. <code>parseTimestamp</code> is duplicated locally by design.</div></div>
+  </section>
+
+  <!-- 03 DATA FLOW -->
+  <section class="sec">
+    <div class="sec-num">03 — HOW IT'S ACHIEVED</div>
+    <h2 class="sec-h">From file drop to Ganglior event</h2>
+    <p class="sec-d">The pipeline is the same shape across the suite: ingest → parse on the canonical clock → compute in DSP → grade &amp; render in UI → emit onto the bus. No number is computed in the render layer; it asks DSP for the value and the registry for how to show it.</p>
+    <div class="pipe">
+        <div class="pstep"><div><h4>Stream the recording</h4><p>Drop the Polar Sensor Logger ECG export (or generate a synthetic night). Samples are parsed off the main thread in a Web Worker so the UI stays live.</p><div class="pf"><b>ecgdex-app.js → Worker (Blob)</b></div></div></div>
+        <div class="pstep"><div><h4>Band-pass + detect beats</h4><p>A 5–15 Hz band-pass isolates the QRS energy; Pan–Tompkins finds R-peaks, then a parabolic vertex refines each to sub-sample precision.</p><div class="pf"><b>ecgdex-dsp.js → panTompkins()</b></div></div></div>
+        <div class="pstep"><div><h4>Gate by signal quality</h4><p>A per-beat SQI gate (flatline, kurtosis, two-detector agreement, RR plausibility) excludes unreliable beats; correction rate and % analyzable are reported.</p><div class="pf"><b>SQI gate → NN interpolation</b></div></div></div>
+        <div class="pstep"><div><h4>Compute HRV + morphology</h4><p>Clean RR drives the full HRV suite (time/Poincaré/Lomb–Scargle/DFA/SampEn); morph.js adds QT/QTc, ectopy and the AF screen.</p><div class="pf"><b>ecgdex-dsp.js + ecgdex-morph.js</b></div></div></div>
+        <div class="pstep"><div><h4>Emit onto Ganglior</h4><p>Export autonomic-surge and arrhythmia events with absolute tMs — the corroboration other nodes (OxyDex, CPAPDex) borrow.</p><div class="pf"><b>ganglior.node-export</b></div></div></div>
+    </div>
+  </section>
+
+  <!-- 04 EVIDENCE -->
+  <section class="sec">
+    <div class="sec-num">04 — HOW MUCH TO TRUST IT</div>
+    <h2 class="sec-h">The evidence ladder</h2>
+    <p class="sec-d">Every metric ECGDex surfaces carries an <b>evidence grade</b> — a non-hue badge whose <b>fill is the confidence ladder</b>: solid bullseye for a raw reading, down to a dashed ring for a friendly estimate. A measurement and a projection must never look alike. Grades live in <code>ecgdex-registry.js</code>, the one source of truth.</p>
+    <div class="evladder">
+        <div class="evrow">
+          <span class="evname"><span class="ev ev-measured big"></span><b>Measured</b></span>
+          <span class="exs">Mean HR · step count · coverage · % analyzable · beat-correction % · SQI · ectopy count</span>
+        </div>
+        <div class="evrow">
+          <span class="evname"><span class="ev ev-validated big"></span><b>Validated</b></span>
+          <span class="exs">rMSSD · SDNN · ln rMSSD · QTc · SD1 · SD2 (gold-standard RR HRV)</span>
+        </div>
+        <div class="evrow">
+          <span class="evname"><span class="ev ev-emerging big"></span><b>Emerging</b></span>
+          <span class="exs">CVHR apnea screen · EDR respiration · cardiorespiratory sleep staging · AF screen</span>
+        </div>
+        <div class="evrow">
+          <span class="evname"><span class="ev ev-experimental big"></span><b>Experimental</b></span>
+          <span class="exs">Composite autonomic indices — directional only</span>
+        </div>
+        <div class="evrow">
+          <span class="evname"><span class="ev ev-heuristic big"></span><b>Heuristic</b></span>
+          <span class="exs">ANS-age · VO₂max estimate</span>
+        </div>
+    </div>
+  </section>
+
+  <!-- 05 LIMITATIONS -->
+  <section class="sec">
+    <div class="sec-num">05 — LIMITATIONS &amp; CONSIDERATIONS</div>
+    <h2 class="sec-h">What it can and can't say</h2>
+    <p class="sec-d">Honesty is architectural: a guess is never dressed as a measurement, a missing value stays <code>null</code> rather than fabricated, and confidence is kept separate from signal quality. The node-specific caveats:</p>
+    <div class="notes">
+        <div class="note lim"><h4>Single lead ≠ 12-lead<span class="tagi">limitation</span></h4><p>Morphology (QT, ST, axis) is <b>directional within-subject trend</b> only. A single chest lead cannot replace a diagnostic 12-lead ECG.</p></div>
+        <div class="note warn"><h4>P-wave is weak at 130 Hz<span class="tagi">caution</span></h4><p>The AF screen reads RR irregularity (ΔRR entropy + CV), not P-wave morphology. It is a screen, not an arrhythmia diagnosis.</p></div>
+        <div class="note info"><h4>Never subsample the waveform<span class="tagi">note</span></h4><p>ECGScope draws a multi-resolution min/max envelope pyramid — plain decimation would alias R-peaks away and corrupt the read.</p></div>
+        <div class="note good"><h4>Authority is quality-gated<span class="tagi">by design</span></h4><p>ECG owns HRV magnitude — but a tripped SQI gate yields to a clean PPG/oximetry backup rather than reporting a confident wrong number.</p></div>
+    </div>
+  </section>
+
+  <!-- 06 HOW TO USE -->
+  <section class="sec">
+    <div class="sec-num">06 — HOW TO USE IT</div>
+    <h2 class="sec-h">For the curious, and for the next coder</h2>
+    <div class="use">
+      <div class="usecard"><div class="ui">📂</div><div><h4>Open the instrument</h4><p>ECGDex is one self-contained file. Open <code>ECGDex.html</code> in any browser — online, offline, or from <code>file://</code>. Nothing installs, nothing phones home.</p><a class="open" href="../ECGDex.html">Open ECGDex →</a></div></div>
+      <div class="usecard"><div class="ui">📥</div><div><h4>Drop your recording</h4><p>Drag a Polar H10 export (polar sensor logger csv/txt) onto the upload zone. It’s read in-browser and turned into metrics on your device alone.</p></div></div>
+      <div class="usecard"><div class="ui">🎚️</div><div><h4>Read at your depth</h4><p>Start in <b>Core</b> for the headline readiness and a plain-language line. Step up to <b>Advanced</b> for full tables and charts, or <b>Research</b> for composites and the full dump. Each metric’s evidence dot tells you how far to trust it.</p></div></div>
+      <div class="usecard"><div class="ui">🔀</div><div><h4>Export onto Ganglior</h4><p>Export a <code>ganglior.node-export</code> JSON to feed the Integrator, or to upgrade a peer node’s read. Events carry a wall-clock <code>t</code>; consumers reconstruct absolute time from the recording start.</p><a class="open" href="../ECGDex Reference.html">ECGDex reference guide →</a></div></div>
+      <div class="usecard"><div class="ui">🛠️</div><div><h4>If you’re changing it</h4><p>Edit the <code>ecgdex-*.js</code> files or <code>ECGDex.src.html</code> — <b>never the bundled <code>ECGDex.html</code></b> — then re-bundle. Run <code>Dex-Test-Suite.html</code> until all-green, and <code>verify-provenance.html</code> after re-bundling.</p></div></div>
+    </div>
+  </section>
+
+  <!-- PAGER -->
+  <section class="sec" style="border-top:none;padding-top:8px;">
+      <div class="pager">
+        <a href="How It's Wired - OxyDex.html"><div class="pl">← Previous node</div><div class="pt">OxyDex</div></a>
+        <a class="nx" href="How It's Wired - PulseDex.html"><div class="pl">Next node →</div><div class="pt">PulseDex</div></a>
+      </div>
+  </section>
+
+  <footer class="docfoot">
+    <div class="fl">
+      <a href="How It's Wired - the Dex Suite.html">◈ Wiring index</a>
+      <a href="../ECGDex.html">ECGDex app</a>
+      <a href="../ECGDex Reference.html">ECGDex reference</a>
+      <a href="../templates/Visual-Language-Spec.html">Visual language</a>
+      <a href="../Integrator.html">Integrator</a>
+      <a href="../index.html">Tepna</a>
+    </div>
+    <div class="fn"><b>ECGDex</b> — Single-lead ECG analyzer · part of Tepna / the -Dex suite. 100% local · no network · system fonts only.</div>
+    <div class="disc">Not a medical device. Read-outs are for personal wellness and curiosity, not diagnosis. If something feels wrong, talk to a clinician.</div>
+  </footer>
+
+</div>
+</body>
+</html>

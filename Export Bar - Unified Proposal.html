@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  Export Bar — Unified Proposal — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unified Export Bar — Proposal</title>
+<style>
+  /* tokens mirrored from ans-design.css §1 */
+  :root{
+    --bg:#0B0F14;--surface:#121821;--surface2:#18212C;--surface3:#1E2835;
+    --border:#1e2d42;--border2:#253550;
+    --text:#F4F7FB;--text2:#9FB0C3;--text3:#8C9DB3;--text4:#6E7F94;
+    --teal:#3DE0D0;--blue:#58A6FF;--green:#39D98A;--amber:#FFB84D;--red:#FF6B7A;--purple:#a78bfa;
+    --r-sm:8px;--r-md:12px;--sans:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;--mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;padding:40px 32px 80px;line-height:1.5}
+  h1{font-size:22px;font-weight:700;margin:0 0 4px;letter-spacing:-.01em}
+  .sub{color:var(--text3);font-size:13px;margin:0 0 32px;max-width:720px}
+  h2{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--text4);margin:38px 0 14px;display:flex;align-items:center;gap:10px}
+  h2::after{content:'';flex:1;height:1px;background:var(--border)}
+  .note{font-size:12.5px;color:var(--text2);max-width:760px;margin:0 0 16px}
+  .note b{color:var(--text)}
+  code{font-family:var(--mono);font-size:11.5px;background:var(--surface2);
+    padding:1px 6px;border-radius:5px;color:var(--teal)}
+
+  /* ── THE PROPOSED EXPORT BAR ─────────────────────────────────────────── */
+  .ebar{
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    background:rgba(11,15,20,.92);backdrop-filter:blur(12px);
+    border:1px solid var(--border);border-radius:var(--r-md);
+    padding:11px 18px;
+  }
+  .ebar .lbl{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text4);margin-right:2px}
+  .ebar .grp{display:flex;align-items:center;gap:8px}
+  .ebar .spacer{flex:1}
+  .ebar .divider{width:1px;align-self:stretch;background:var(--border);margin:2px 2px}
+  .btn{font-family:var(--sans);font-size:11.5px;font-weight:600;padding:8px 14px;
+    border-radius:var(--r-sm);cursor:pointer;border:1px solid var(--border);
+    background:var(--surface2);color:var(--text2);transition:all .15s;
+    display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .btn:hover{filter:brightness(1.18);border-color:var(--border2)}
+  .btn .ic{font-size:13px;line-height:1}
+  /* primary download actions — tinted by output kind */
+  .btn-json{border-color:rgba(88,166,255,.38);background:rgba(88,166,255,.10);color:var(--blue)}
+  .btn-csv{border-color:rgba(57,217,138,.34);background:rgba(57,217,138,.10);color:var(--green)}
+  .btn-pdf{border-color:rgba(255,184,77,.34);background:rgba(255,184,77,.10);color:var(--amber)}
+  .btn-extra{border-color:rgba(167,139,250,.36);background:rgba(167,139,250,.10);color:var(--purple)}
+  /* secondary */
+  .btn-ghost{background:transparent;color:var(--text3)}
+  .btn-danger{background:transparent;border-color:rgba(255,107,122,.3);color:var(--red)}
+
+  .stage{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+    padding:22px;margin-bottom:8px;position:relative;overflow:hidden}
+  .stage .cap{position:absolute;top:10px;right:14px;font-family:var(--mono);font-size:10px;color:var(--text4)}
+  .tag{display:inline-block;font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:4px;
+    background:var(--surface3);color:var(--text3);border:1px solid var(--border);margin-left:8px;vertical-align:middle}
+  .tag.add{color:var(--purple);border-color:rgba(167,139,250,.3)}
+  .tag.rm{color:var(--red);border-color:rgba(255,107,122,.3)}
+
+  /* light theme stage */
+  .stage.light{background:#F4F7FB;border-color:rgba(0,0,0,.08)}
+  .stage.light .ebar{background:rgba(255,255,255,.94);border-color:rgba(0,0,0,.08)}
+  .stage.light .ebar .lbl{color:#64748b}
+  .stage.light .btn{background:#eef2f7;border-color:rgba(0,0,0,.1);color:#475569}
+  .stage.light .btn-json{background:rgba(88,166,255,.12);color:#2563eb;border-color:rgba(88,166,255,.3)}
+  .stage.light .btn-csv{background:rgba(57,217,138,.14);color:#16a34a;border-color:rgba(57,217,138,.3)}
+  .stage.light .btn-pdf{background:rgba(255,184,77,.16);color:#b45309;border-color:rgba(255,184,77,.34)}
+  .stage.light .btn-extra{background:rgba(167,139,250,.14);color:#7c3aed;border-color:rgba(167,139,250,.32)}
+  .stage.light .divider{background:rgba(0,0,0,.1)}
+
+  /* mobile phone frame */
+  .phone{width:380px;border:1px solid var(--border);border-radius:22px;background:var(--bg);
+    overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+  .phone .scr{height:300px;background:linear-gradient(180deg,var(--surface) 0%,var(--bg) 60%);
+    display:flex;align-items:flex-end;position:relative}
+  .phone .body-fade{position:absolute;inset:0;padding:18px;color:var(--text4);font-size:11px;font-family:var(--mono)}
+  /* mobile export bar: stacks above the mobile nav, full width */
+  .m-ebar{position:absolute;left:0;right:0;bottom:60px;background:rgba(11,15,20,.97);
+    backdrop-filter:blur(12px);border-top:1px solid var(--border);padding:10px 14px;
+    display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .m-ebar .lbl{flex-basis:100%;font-size:10px;font-weight:700;letter-spacing:.04em;
+    text-transform:uppercase;color:var(--text4);margin-bottom:2px}
+  .m-ebar .btn{flex:1 1 calc(33% - 8px);justify-content:center;padding:9px 6px}
+  .m-ebar .btn.full{flex-basis:100%}
+  .m-nav{position:absolute;left:0;right:0;bottom:0;height:60px;background:rgba(11,15,20,.98);
+    border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-around;
+    font-size:9px;color:var(--text4);font-family:var(--mono)}
+  .m-nav span{display:flex;flex-direction:column;align-items:center;gap:3px}
+  .m-nav .d{width:16px;height:16px;border-radius:4px;background:var(--surface3)}
+
+  .row{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}
+  .matrix{border-collapse:collapse;font-size:12px;margin-top:6px;width:100%;max-width:760px}
+  .matrix th,.matrix td{border:1px solid var(--border);padding:8px 12px;text-align:left}
+  .matrix th{background:var(--surface2);color:var(--text3);font-weight:600;font-size:11px;
+    text-transform:uppercase;letter-spacing:.04em}
+  .matrix td{color:var(--text2)}
+  .matrix .y{color:var(--green)}.matrix .n{color:var(--text4)}.matrix .x{color:var(--purple)}
+</style>
+</head>
+<body>
+  <h1>Unified Export Bar</h1>
+  <p class="sub">One bar, every node. Identical layout and labels across all seven apps; the only thing that varies is a single optional <b>extra-output</b> button for nodes that emit a raw derived series (RR / PPI). Adds <b>Save as PDF</b>; folds the standalone <b>Ganglior</b> button into the primary JSON (which already <em>is</em> the <code>ganglior.node-export</code>).</p>
+
+  <h2>Proposed — base bar (desktop, dark)</h2>
+  <p class="note">Every node with no extra raw series uses exactly this: <b>OxyDex · GlucoDex · HRVDex · CPAPDex · Integrator</b>.</p>
+  <div class="stage">
+    <span class="cap">desktop · dark</span>
+    <div class="ebar">
+      <span class="lbl">Export</span>
+      <div class="grp">
+        <button class="btn btn-json"><span class="ic">⬇</span> JSON</button>
+        <button class="btn btn-csv"><span class="ic">⬇</span> CSV</button>
+        <button class="btn btn-pdf"><span class="ic">⬇</span> PDF</button>
+      </div>
+      <span class="spacer"></span>
+      <div class="grp">
+        <button class="btn btn-ghost"><span class="ic">＋</span> Add files</button>
+        <button class="btn btn-danger"><span class="ic">✕</span> Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <h2>Variant — node with an extra raw series</h2>
+  <p class="note">Adds <b>one</b> purple extra-output button after the primaries. <b>PulseDex / ECGDex</b> → <code>RR</code> intervals; <b>PpgDex</b> → <code>PPI</code> (pulse-to-pulse). Nothing else moves.</p>
+  <div class="stage">
+    <span class="cap">desktop · dark · +extra</span>
+    <div class="ebar">
+      <span class="lbl">Export</span>
+      <div class="grp">
+        <button class="btn btn-json"><span class="ic">⬇</span> JSON</button>
+        <button class="btn btn-csv"><span class="ic">⬇</span> CSV</button>
+        <button class="btn btn-pdf"><span class="ic">⬇</span> PDF</button>
+        <span class="divider"></span>
+        <button class="btn btn-extra"><span class="ic">⬇</span> RR intervals</button>
+      </div>
+      <span class="spacer"></span>
+      <div class="grp">
+        <button class="btn btn-ghost"><span class="ic">＋</span> Add files</button>
+        <button class="btn btn-danger"><span class="ic">✕</span> Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <h2>Light theme</h2>
+  <div class="stage light">
+    <span class="cap">desktop · light</span>
+    <div class="ebar">
+      <span class="lbl">Export</span>
+      <div class="grp">
+        <button class="btn btn-json"><span class="ic">⬇</span> JSON</button>
+        <button class="btn btn-csv"><span class="ic">⬇</span> CSV</button>
+        <button class="btn btn-pdf"><span class="ic">⬇</span> PDF</button>
+        <span class="divider"></span>
+        <button class="btn btn-extra"><span class="ic">⬇</span> PPI</button>
+      </div>
+      <span class="spacer"></span>
+      <div class="grp">
+        <button class="btn btn-ghost"><span class="ic">＋</span> Add files</button>
+        <button class="btn btn-danger"><span class="ic">✕</span> Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <h2>Mobile (≤1080px)</h2>
+  <p class="note">Bar goes full-width and sits <b>above</b> the bottom nav (<code>bottom:60px</code>). Buttons become equal-width thirds; the extra-output button (when present) drops to its own full-width row so the three primaries always stay aligned. Add/Clear collapse to icons in the same row.</p>
+  <div class="row">
+    <div class="phone">
+      <div class="scr">
+        <div class="body-fade">…analysis content…</div>
+        <div class="m-ebar">
+          <span class="lbl">Export</span>
+          <button class="btn btn-json"><span class="ic">⬇</span> JSON</button>
+          <button class="btn btn-csv"><span class="ic">⬇</span> CSV</button>
+          <button class="btn btn-pdf"><span class="ic">⬇</span> PDF</button>
+        </div>
+        <div class="m-nav"><span><i class="d"></i>Load</span><span><i class="d"></i>Charts</span><span><i class="d"></i>Metrics</span><span><i class="d"></i>Export</span></div>
+      </div>
+    </div>
+    <div class="phone">
+      <div class="scr">
+        <div class="body-fade">…analysis content…</div>
+        <div class="m-ebar">
+          <span class="lbl">Export</span>
+          <button class="btn btn-json"><span class="ic">⬇</span> JSON</button>
+          <button class="btn btn-csv"><span class="ic">⬇</span> CSV</button>
+          <button class="btn btn-pdf"><span class="ic">⬇</span> PDF</button>
+          <button class="btn btn-extra full"><span class="ic">⬇</span> RR intervals</button>
+          <button class="btn btn-ghost"><span class="ic">＋</span></button>
+          <button class="btn btn-danger" style="flex:0 0 auto"><span class="ic">✕</span></button>
+        </div>
+        <div class="m-nav"><span><i class="d"></i>Load</span><span><i class="d"></i>Charts</span><span><i class="d"></i>Metrics</span><span><i class="d"></i>Export</span></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>What changes per app</h2>
+  <table class="matrix">
+    <thead><tr><th>App</th><th>JSON</th><th>CSV</th><th>PDF</th><th>Extra</th><th>Removed</th></tr></thead>
+    <tbody>
+      <tr><td>OxyDex</td><td class="y">✓</td><td class="y">✓</td><td class="x">＋new</td><td class="n">—</td><td>“Download Parser” → moves to sidebar</td></tr>
+      <tr><td>PulseDex</td><td class="y">✓</td><td class="y">✓</td><td class="x">＋new</td><td class="x">RR</td><td>—</td></tr>
+      <tr><td>ECGDex</td><td class="y">✓</td><td class="y">✓</td><td class="x">＋new</td><td class="x">RR</td><td>—</td></tr>
+      <tr><td>PpgDex</td><td class="y">✓</td><td class="y">✓</td><td class="x">＋new</td><td class="x">PPI</td><td>“JSON (v2.0)” → just “JSON”</td></tr>
+      <tr><td>GlucoDex</td><td class="y">✓</td><td class="y">✓</td><td class="x">＋new</td><td class="n">—</td><td>—</td></tr>
+      <tr><td>HRVDex</td><td class="y">✓</td><td class="y">✓</td><td class="x">＋new</td><td class="n">—</td><td class="rm">“Ganglior bus” button</td></tr>
+      <tr><td>Integrator</td><td class="y">✓</td><td class="n">—*</td><td class="x">＋new</td><td class="n">—</td><td>—</td></tr>
+    </tbody>
+  </table>
+  <p class="note" style="margin-top:12px">*Integrator may keep CSV or not — it exports a fusion digest, not a single-signal table. <b>Open questions for you:</b> (1) confirm <b>PDF</b> = “print current analysis view” (print stylesheet already hides chrome). (2) OK to <b>remove the standalone Ganglior button</b> — the primary <b>JSON already is</b> the <code>ganglior.node-export</code> with <code>ganglior_events</code>, so the Integrator contract is unaffected; the separate button is redundant. (3) Confirm the <b>RR/PPI</b> extra-output set.</p>
+</body>
+</html>

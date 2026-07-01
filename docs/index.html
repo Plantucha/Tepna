@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  index.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  The suite's front door. Device-first — each card opens that device's analyzer.
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tepna — Read your nervous system</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="stylesheet" href="licensing/dex-license.css">
+<style>
+:root{
+  --bg:#070A0E; --bg2:#0B0F14; --surface:#101722; --surface2:#16202D;
+  --border:#1c2a3b; --border2:#27384f;
+  --text:#F4F7FB; --text2:#A3B4C6; --text3:#7d90a5; --text4:#5a6b7e;
+  --teal:#3DE0D0; --blue:#58A6FF; --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A; --purple:#A78BFA;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden;}
+.wrap{max-width:1220px;margin:0 auto;padding:0 44px;position:relative;z-index:2;}
+.eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--teal);}
+a{color:inherit;text-decoration:none;}
+
+header.nav{position:sticky;top:0;z-index:30;backdrop-filter:blur(14px);background:rgba(7,10,14,.66);border-bottom:1px solid var(--border);}
+.nav-in{max-width:1220px;margin:0 auto;padding:15px 44px;display:flex;align-items:center;justify-content:space-between;}
+.brand{display:flex;align-items:center;gap:13px;font-weight:800;font-size:22px;letter-spacing:-.025em;color:var(--text);}
+.brand .mark{position:relative;width:15px;height:15px;border-radius:50%;background:radial-gradient(circle at 35% 30%,var(--teal),var(--blue));box-shadow:0 0 16px rgba(61,224,208,.85);}
+.brand .mark::after{content:"";position:absolute;inset:-7px;border-radius:50%;border:1.5px solid var(--teal);opacity:.32;}
+.brand .wm{line-height:1;}
+@keyframes ring{0%{transform:scale(.55);opacity:.6;}100%{transform:scale(1.5);opacity:0;}}
+@keyframes pulse{0%,100%{box-shadow:0 0 10px rgba(61,224,208,.5);}50%{box-shadow:0 0 20px rgba(61,224,208,.95);}}
+.nav-links{display:flex;gap:28px;font-size:13.5px;color:var(--text3);}
+.nav-links a:hover{color:var(--text);}
+.nav-cta{font-size:13px;font-weight:700;color:var(--bg);background:var(--teal);padding:9px 17px;border-radius:999px;box-shadow:0 0 18px rgba(61,224,208,.4);}
+
+/* hero with live waveform bg */
+.hero{position:relative;padding:108px 0 96px;overflow:hidden;}
+#wave-hero{position:absolute;inset:0;width:100%;height:100%;z-index:0;opacity:.9;}
+.hero::after{content:"";position:absolute;inset:0;z-index:1;background:radial-gradient(120% 90% at 50% 18%,transparent 30%,rgba(7,10,14,.55) 72%,var(--bg) 100%);}
+.hero .wrap{text-align:center;}
+.hero h1{font-size:66px;line-height:1.04;letter-spacing:-.035em;font-weight:800;margin:20px auto 0;max-width:16ch;}
+.hero h1 .g{background:linear-gradient(115deg,var(--teal),var(--blue) 60%,var(--purple));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.hero .lede{font-size:19px;color:var(--text2);max-width:60ch;margin:24px auto 0;text-wrap:pretty;}
+.hero-actions{display:flex;gap:14px;justify-content:center;margin-top:36px;}
+.btn{font-size:14.5px;font-weight:700;padding:14px 26px;border-radius:999px;cursor:pointer;border:1px solid transparent;transition:.16s;}
+.btn-primary{background:var(--teal);color:var(--bg);box-shadow:0 0 30px rgba(61,224,208,.4);}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 0 44px rgba(61,224,208,.6);}
+.btn-ghost{border-color:var(--border2);color:var(--text2);background:rgba(16,23,34,.5);}
+.btn-ghost:hover{border-color:var(--teal);color:var(--text);}
+/* hero live score readout */
+.hero-read{display:inline-flex;align-items:center;gap:16px;margin-top:46px;padding:14px 22px;border:1px solid var(--border2);border-radius:16px;background:rgba(16,23,34,.6);backdrop-filter:blur(6px);}
+.hero-read .n{font-size:40px;font-weight:800;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums;}
+.hero-read .meta{text-align:left;}
+.hero-read .meta .k{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text4);}
+.hero-read .meta .t{font-size:13px;font-weight:700;color:var(--green);margin-top:2px;}
+.hero-read .bars{display:flex;gap:3px;align-items:flex-end;height:34px;}
+.hero-read .bars i{width:4px;background:var(--teal);border-radius:2px;opacity:.85;height:18px;}
+.hero-read .bars i:nth-child(1){height:11px;}.hero-read .bars i:nth-child(2){height:19px;}.hero-read .bars i:nth-child(3){height:27px;}.hero-read .bars i:nth-child(4){height:30px;}.hero-read .bars i:nth-child(5){height:22px;}.hero-read .bars i:nth-child(6){height:14px;}.hero-read .bars i:nth-child(7){height:9px;}
+@keyframes eq{0%,100%{height:8px;}50%{height:30px;}}
+
+/* divider waveform */
+.divider{height:64px;position:relative;}
+.divider canvas{position:absolute;inset:0;width:100%;height:100%;}
+
+section{padding:78px 0;position:relative;}
+.sec-head{max-width:660px;margin:0 auto 44px;text-align:center;}
+.sec-head h2{font-size:36px;font-weight:800;letter-spacing:-.025em;margin-top:12px;line-height:1.1;}
+.sec-head p{color:var(--text2);margin-top:12px;font-size:16.5px;}
+
+/* arc with traveling pulse */
+.arc-wrap{position:relative;}
+#nerve{position:absolute;top:42px;left:0;width:100%;height:4px;z-index:0;}
+.arc{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;position:relative;z-index:1;}
+.arc .step{background:linear-gradient(180deg,var(--surface),var(--bg2));border:1px solid var(--border);border-radius:16px;padding:24px;text-align:center;}
+.arc .node{width:54px;height:54px;border-radius:50%;margin:0 auto 14px;display:grid;place-items:center;font-size:22px;background:rgba(61,224,208,.08);border:1px solid var(--border2);box-shadow:0 0 0 0 rgba(61,224,208,.5);}
+.arc .step.fire .node{}
+@keyframes fire{0%{box-shadow:0 0 0 0 rgba(61,224,208,.6);border-color:var(--teal);}100%{box-shadow:0 0 0 18px rgba(61,224,208,0);}}
+.arc .step h3{font-size:17px;margin-bottom:7px;}
+.arc .step p{font-size:13.5px;color:var(--text3);}
+.arc .step .word{display:block;margin-top:12px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--teal);opacity:.85;}
+
+/* devices */
+.dev-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+.dev{background:linear-gradient(180deg,var(--surface),var(--bg2));border:1px solid var(--border);border-radius:16px;padding:20px;transition:.18s;display:block;position:relative;overflow:hidden;}
+.dev::before{content:"";position:absolute;inset:0;background:radial-gradient(120px 80px at 80% 0%,rgba(61,224,208,.1),transparent 70%);opacity:0;transition:.2s;}
+a.dev:hover{transform:translateY(-4px);border-color:var(--teal);}
+a.dev:hover::before{opacity:1;}
+.dev .pill{font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--teal);background:rgba(61,224,208,.1);border:1px solid rgba(61,224,208,.25);padding:4px 9px;border-radius:999px;}
+.dev .pill.soon{color:var(--text4);background:var(--bg);border-color:var(--border);}
+.dev .live-spark{width:100%;height:40px;display:block;margin:14px 0 12px;}
+.dev h3{font-size:16.5px;font-weight:700;}
+.dev .device-name{font-size:12px;color:var(--text4);font-family:var(--mono);margin:3px 0 10px;}
+.dev p{font-size:13px;color:var(--text3);}
+.dev .open{display:inline-block;margin-top:13px;font-family:var(--mono);font-size:11px;color:var(--teal);opacity:.8;}
+a.dev:hover .open{opacity:1;}
+
+.ladder{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
+.lvl{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;text-align:center;}
+.lvl .disc{width:18px;height:18px;border-radius:50%;margin:0 auto 14px;}
+.lvl h4{font-size:14px;font-weight:700;text-transform:capitalize;}
+.lvl p{font-size:12px;color:var(--text3);margin-top:6px;line-height:1.5;}
+
+.privacy{position:relative;border:1px solid var(--border2);border-radius:22px;padding:50px 48px;text-align:center;overflow:hidden;background:var(--bg2);}
+#wave-priv{position:absolute;inset:0;width:100%;height:100%;opacity:.5;}
+.privacy .inner{position:relative;z-index:2;}
+.privacy .lock{font-size:30px;}
+.privacy h2{font-size:32px;font-weight:800;letter-spacing:-.025em;margin-top:12px;}
+.privacy p{color:var(--text2);max-width:60ch;margin:14px auto 0;}
+.privacy .row{display:flex;justify-content:center;gap:26px;flex-wrap:wrap;margin-top:24px;font-family:var(--mono);font-size:12.5px;color:var(--text3);}
+.privacy .row .tk{color:var(--green);margin-right:7px;}
+
+footer{border-top:1px solid var(--border);padding:34px 0 56px;margin-top:24px;}
+.foot-in{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+.foot-note{font-family:var(--mono);font-size:11.5px;color:var(--text4);line-height:1.9;}
+.foot-links{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;}
+.foot-links a{color:var(--text3);}.foot-links a:hover{color:var(--teal);}
+.disc{font-family:var(--mono);font-size:11px;color:var(--text4);max-width:70ch;margin:22px auto 0;line-height:1.8;text-align:center;}
+@media(max-width:980px){.dev-grid,.arc,.ladder{grid-template-columns:1fr 1fr;}#nerve{display:none;}}
+</style></head>
+<body>
+
+<header class="nav"><div class="nav-in">
+  <div class="brand"><svg class="brandmark" viewBox="0 0 100 100" aria-hidden="true" style="width:24px;height:24px;flex:none;filter:drop-shadow(0 0 7px rgba(61,224,208,.4))"><defs><linearGradient id="tgrad" x1="14" y1="10" x2="86" y2="88" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3DE0D0"/><stop offset=".58" stop-color="#58A6FF"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs><g fill="none" stroke="url(#tgrad)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></g></svg><span class="wm">Tepna</span></div>
+  <nav class="nav-links"><a href="#devices">Devices</a><a href="How to Collect Data.html">Collect data</a><a href="Science.html">Science</a><a href="Architecture.html">Architecture</a><a href="Why This Exists.html">About</a></nav>
+  <a href="#devices" class="nav-cta">See the devices</a>
+</div></header>
+
+<section class="hero">
+  <canvas id="wave-hero"></canvas>
+  <div class="wrap">
+    <div class="eyebrow">Your body's quiet signals, made readable</div>
+    <h1>Read your <span class="g">nervous system</span> like a weather report.</h1>
+    <p class="lede">Small wearables you already own record your body overnight — oxygen, heartbeat, pulse, glucose. Tepna reads each signal live and turns the night into one honest daily score.</p>
+    <div class="hero-actions"><a href="#devices" class="btn btn-primary">Find your device</a><a href="How to Collect Data.html" class="btn btn-ghost">How to collect data →</a></div>
+    <div class="hero-read">
+      <div class="bars"><i style="animation-delay:0s"></i><i style="animation-delay:.15s"></i><i style="animation-delay:.3s"></i><i style="animation-delay:.45s"></i><i style="animation-delay:.6s"></i></div>
+      <div class="n" id="hscore">0</div>
+      <div class="meta"><div class="k">Last night · readiness</div><div class="t">Recovered · low strain</div></div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"><canvas id="div1" width="2400" height="128"></canvas></div>
+
+<section id="devices"><div class="wrap">
+  <div class="sec-head"><div class="eyebrow">What you'll need</div><h2>Everyday wearables. Each reads one signal well.</h2><p>Start with one — the more you wear, the fuller the picture. Each card shows its signal, live. <a href="How to Collect Data.html" style="color:var(--teal);font-weight:600;white-space:nowrap">See how to collect data →</a></p></div>
+  <div class="dev-grid">
+    <a class="dev" href="OxyDex.html"><span class="pill">OxyDex</span><canvas class="live-spark" data-k="spo2" width="520" height="80"></canvas><h3>Blood oxygen</h3><div class="device-name">O2Ring · overnight ring</div><p>Tracks blood oxygen and catches dips while you sleep.</p><span class="open">Open OxyDex →</span></a>
+    <a class="dev" href="ECGDex.html"><span class="pill">ECGDex</span><canvas class="live-spark" data-k="ecg" width="520" height="80"></canvas><h3>Heart's rhythm</h3><div class="device-name">Polar H10 · chest strap</div><p>Reads the heart's electrical beat directly — most precise.</p><span class="open">Open ECGDex →</span></a>
+    <a class="dev" href="PulseDex.html"><span class="pill">PulseDex</span><canvas class="live-spark" data-k="ppg" width="520" height="80"></canvas><h3>Pulse, beat to beat</h3><div class="device-name">Verity Sense · armband</div><p>Times each pulse — how steady and rested the heart is.</p><span class="open">Open PulseDex →</span></a>
+    <a class="dev" href="HRVDex.html"><span class="pill">HRVDex</span><canvas class="live-spark" data-k="hrv" width="520" height="80"></canvas><h3>Daily variability</h3><div class="device-name">Welltory · morning app</div><p>A one-minute morning check of relaxed vs stressed.</p><span class="open">Open HRVDex →</span></a>
+    <a class="dev" href="GlucoDex.html"><span class="pill">GlucoDex</span><canvas class="live-spark" data-k="cgm" width="520" height="80"></canvas><h3>Glucose</h3><div class="device-name">CGM · skin patch</div><p>Follows blood sugar around the clock, through the night.</p><span class="open">Open GlucoDex →</span></a>
+    <a class="dev" href="CPAPDex.html"><span class="pill">CPAPDex</span><canvas class="live-spark" data-k="cpap" width="520" height="80"></canvas><h3>Breathing support</h3><div class="device-name">CPAP · therapy log</div><p>Adds how well your breathing was supported overnight.</p><span class="open">Open CPAPDex →</span></a>
+    <a class="dev" href="Integrator.html" style="border-color:rgba(167,139,250,.3)"><span class="pill" style="color:#A78BFA;background:rgba(167,139,250,.1);border-color:rgba(167,139,250,.28)">Integrator</span><canvas class="live-spark" data-k="fuse" width="520" height="80"></canvas><h3>All of it, combined</h3><div class="device-name">the fusion layer</div><p>Reads every device at once and fuses them into one daily picture.</p><span class="open">Open Integrator →</span></a>
+    <a class="dev"><span class="pill soon">soon</span><canvas class="live-spark" data-k="eeg" width="520" height="80"></canvas><h3>Brain waves</h3><div class="device-name">Muse · headband</div><p>Coming soon — brain activity to deepen the sleep picture.</p><span class="open">EEGDex →</span></a>
+    <div class="dev" style="display:flex;flex-direction:column;justify-content:center;background:transparent;border-style:dashed;"><h3 style="color:var(--text2)">Wear one, or wear them all.</h3><p style="margin-top:8px">Every device you add gives the read-out one more honest signal to lean on. None are required to begin.</p></div>
+  </div>
+</div></section>
+
+<div class="divider"><canvas id="div2" width="2400" height="128"></canvas></div>
+
+<section id="trust"><div class="wrap">
+  <div class="sec-head"><div class="eyebrow">How we grade it</div><h2>We always tell you how sure we are.</h2><p>A small mark on every number — disc shape, never colour — tells you measurement from estimate.</p></div>
+  <div class="ladder">
+    <div class="lvl"><div class="disc" style="background:var(--teal);box-shadow:0 0 12px rgba(61,224,208,.6)"></div><h4>measured</h4><p>Read straight off the device.</p></div>
+    <div class="lvl"><div class="disc" style="background:var(--teal);opacity:.78"></div><h4>validated</h4><p>Checked against a standard.</p></div>
+    <div class="lvl"><div class="disc" style="background:var(--teal);opacity:.55"></div><h4>emerging</h4><p>Published, device-dependent.</p></div>
+    <div class="lvl"><div class="disc" style="border:2px solid var(--teal)"></div><h4>experimental</h4><p>Plausible, not confirmed.</p></div>
+    <div class="lvl"><div class="disc" style="border:2px dashed var(--text4)"></div><h4>heuristic</h4><p>Rule-of-thumb direction.</p></div>
+  </div>
+</div></section>
+
+<section id="privacy"><div class="wrap">
+  <div class="privacy"><canvas id="wave-priv"></canvas><div class="inner"><div class="lock">🔒</div><h2>Your data never leaves your hands.</h2>
+    <p>Everything is read and combined on your own phone or laptop. No account, no cloud, no server holding your health. Close the tab and it's gone.</p>
+    <div class="row"><span><span class="tk">✓</span>100% on-device</span><span><span class="tk">✓</span>Works offline</span><span><span class="tk">✓</span>No sign-up</span><span><span class="tk">✓</span>Open &amp; inspectable</span></div></div>
+  </div>
+</div></section>
+
+<footer><div class="wrap foot-in">
+  <div class="foot-note"><b style="color:var(--text2)">Tepna</b> — the Dex Suite · © 2026 Michal Planicka · Apache-2.0
+    <div class="foot-links"><a href="How to Collect Data.html">Collect data</a><a href="Science.html">Science</a><a href="Architecture.html">Architecture</a><a href="Why This Exists.html">About</a><a href="OxyDex.html">OxyDex</a><a href="ECGDex.html">ECGDex</a><a href="PulseDex.html">PulseDex</a><a href="HRVDex.html">HRVDex</a><a href="GlucoDex.html">GlucoDex</a><a href="CPAPDex.html">CPAPDex</a><a href="Integrator.html">Integrator</a></div>
+  </div>
+  <div class="foot-note" style="text-align:right">100% on-device · no cloud · Apache-2.0</div>
+</div></footer>
+
+<div class="dxl" style="max-width:900px;margin:36px auto 14px;padding:0 44px">
+  <div class="dxl-notice">
+    <div class="dxl-k">Intended use &amp; safety</div>
+    <p><b>Tepna</b> computes biometric patterns from your wearable and sensor data to support personal self-quantification. It is <b>not a medical device</b>, does not <b>diagnose, treat, cure, screen for, or prevent</b> any disease or condition, and is <b>not a substitute for professional clinical evaluation</b>. It has not been reviewed or cleared by the FDA, CE, or any regulatory body. Always consult a qualified healthcare provider about your health. Use at your own risk. For research and personal use only. 100% local — no data leaves your device.</p>
+  </div>
+</div>
+<div class="dxl dxl-ribbon" style="max-width:1000px;margin:0 auto 30px">
+  <div class="dxl-seg">
+    <span class="dxl-mark">T</span>
+    <span style="display:flex;flex-direction:column">
+      <b style="font-size:13px">Tepna</b>
+      <span class="dxl-colophon">physiological-signal suite</span>
+    </span>
+  </div>
+  <div class="dxl-seg dxl-grow">
+    <span style="font-size:11.5px;color:var(--text2,#9FB0C3)">© 2026 <b>Michal Planicka</b> — Concept · Architecture · Algorithms</span>
+    <span class="dxl-disclaimer">Not a medical device · does not diagnose or treat · not FDA/CE cleared · research &amp; personal use only · ◈ Made in Asheville, NC</span>
+  </div>
+  <div class="dxl-seg"><span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span></div>
+</div>
+
+<script>
+const rndF=(seed)=>{let s=seed>>>0;return()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296;};};
+// ── hero live waveform background (scrolling ECG + SpO2) ──
+(function(){
+  const c=document.getElementById('wave-hero');const x=c.getContext('2d');
+  function size(){c.width=c.clientWidth*devicePixelRatio;c.height=c.clientHeight*devicePixelRatio;}
+  size();addEventListener('resize',size);
+  let t=0;
+  function ecgY(p){const ph=((p%1)+1)%1;if(ph<.10)return Math.sin(ph/.10*Math.PI)*.06;if(ph<.16)return -.10;if(ph<.20)return .92;if(ph<.25)return -.30;if(ph<.40)return Math.sin((ph-.25)/.15*Math.PI)*.18;return 0;}
+  function frame(){
+    const W=c.width,H=c.height;x.clearRect(0,0,W,H);t+=0.003;
+    // three layered traces
+    const layers=[{col:'rgba(61,224,208,A)',amp:.20,sp:0.9,yb:.40,kind:'ecg',a:.9,w:2.4},
+                  {col:'rgba(88,166,255,A)',amp:.10,sp:1.7,yb:.62,kind:'ppg',a:.5,w:1.8},
+                  {col:'rgba(167,139,250,A)',amp:.05,sp:0.5,yb:.30,kind:'spo2',a:.32,w:1.5}];
+    for(const L of layers){
+      x.beginPath();
+      for(let px=0;px<=W;px+=4){
+        const u=px/W;let y;
+        if(L.kind==='ecg')y=ecgY(u*6 - t*L.sp);
+        else if(L.kind==='ppg')y=Math.sin((u*16 - t*L.sp*3))*.5+Math.sin((u*7 - t*L.sp*1.4))*.2;
+        else y=Math.sin((u*4 - t*L.sp))*.6+Math.sin(u*23)*.08;
+        const Y=H*L.yb - y*H*L.amp;
+        px?x.lineTo(px,Y):x.moveTo(px,Y);
+      }
+      x.strokeStyle=L.col.replace('A',L.a);x.lineWidth=L.w*devicePixelRatio;x.lineJoin='round';
+      x.shadowColor=L.col.replace('A',.5);x.shadowBlur=12*devicePixelRatio;x.stroke();x.shadowBlur=0;
+    }
+    /* static: single frame, no animation loop */
+  }
+  frame();
+})();
+// ── hero score count-up ──
+(function(){const el=document.getElementById('hscore');if(el)el.textContent='82';})();
+// ── section divider waves ──
+function dividerWave(id,seed,col){
+  const c=document.getElementById(id);if(!c)return;const x=c.getContext('2d');const rnd=rndF(seed);
+  const N=160,base=[];for(let i=0;i<N;i++)base.push(rnd());let t=0;
+  function frame(){
+    const W=c.width=c.clientWidth,H=c.height=64;x.clearRect(0,0,W,H);t+=0.005;
+    x.beginPath();
+    for(let i=0;i<=N;i++){const u=i/N;const y=H/2 + Math.sin(u*22 - t*2)*10 + Math.sin(u*7 - t)*6 + (base[i%N]-.5)*4;u?x.lineTo(u*W,y):x.moveTo(0,y);}
+    x.strokeStyle=col;x.lineWidth=1.6;x.globalAlpha=.6;x.lineJoin='round';x.shadowColor=col;x.shadowBlur=8;x.stroke();x.shadowBlur=0;x.globalAlpha=1;
+    /* static: single frame */
+  }
+  frame();
+}
+dividerWave('div1',7,'#3DE0D0');dividerWave('div2',31,'#58A6FF');
+// ── privacy ambient wave ──
+(function(){const c=document.getElementById('wave-priv');if(!c)return;const x=c.getContext('2d');
+  function size(){c.width=c.clientWidth;c.height=c.clientHeight;}size();addEventListener('resize',size);let t=0;
+  function frame(){const W=c.width,H=c.height;x.clearRect(0,0,W,H);t+=0.0025;
+    for(let L=0;L<3;L++){x.beginPath();for(let px=0;px<=W;px+=5){const u=px/W;const y=H*.5+Math.sin(u*10 - t*(1+L*.4))*(18-L*4)+Math.sin(u*4-t)*8;px?x.lineTo(px,y):x.moveTo(px,y);}x.strokeStyle=['rgba(61,224,208,.25)','rgba(88,166,255,.18)','rgba(167,139,250,.12)'][L];x.lineWidth=1.4;x.stroke();}
+    /* static: single frame */}
+  frame();})();
+// ── device live sparklines (scrolling) ──
+(function(){
+  const defs={
+    spo2:{col:'#3DE0D0',f:(u,t)=>Math.sin(u*5-t)*.5+Math.sin(u*19)*.06-((Math.floor((u*5-t))%7===0)?.0:0)},
+    ecg:{col:'#3DE0D0',f:(u,t)=>{const p=((u*6 - t)%1+1)%1;return p<.16?0:p<.20?-.18:p<.24?.95:p<.30?-.4:p<.45?Math.sin((p-.30)/.15*Math.PI)*.22:0;}},
+    ppg:{col:'#3DE0D0',f:(u,t)=>Math.sin(u*14-t*2)*.55+Math.sin(u*6-t)*.2},
+    hrv:{col:'#3DE0D0',f:(u,t)=>Math.sin(u*8-t)*.4+Math.sin(u*3-t*.5)*.3},
+    cgm:{col:'#3DE0D0',f:(u,t)=>Math.sin(u*5-t*.6)*.5+Math.sin(u*2-t*.3)*.2},
+    cpap:{col:'#3DE0D0',f:(u,t)=>Math.sin(u*3-t*.4)*.5+Math.sin(u*1.3-t*.2)*.18},
+    fuse:{col:'#A78BFA',f:(u,t)=>Math.sin(u*5-t)*.32+Math.sin(u*13-t*2)*.2+Math.sin(u*2-t*.4)*.22},
+    eeg:{col:'#5a6b7e',f:(u,t)=>Math.sin(u*30-t*3)*.5+Math.sin(u*11-t*1.5)*.3},
+  };
+  const cvs=[...document.querySelectorAll('.live-spark')].map(cv=>({cv,x:cv.getContext('2d'),d:defs[cv.dataset.k]}));
+  let t=0;
+  function frame(){t+=0.0075;for(const {cv,x,d} of cvs){const W=cv.width,H=cv.height;x.clearRect(0,0,W,H);x.beginPath();
+    for(let px=0;px<=W;px+=3){const u=px/W;const y=H/2 - d.f(u,t)*H*.38;px?x.lineTo(px,y):x.moveTo(px,y);}
+    x.strokeStyle=d.col;x.lineWidth=1.7;x.lineJoin='round';x.shadowColor=d.col;x.shadowBlur=6;x.stroke();x.shadowBlur=0;}
+    /* static: single frame */}
+  frame();
+})();
+</script>
+</body></html>

@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  PpgDex Reference.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PpgDex — Reference Guide</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="stylesheet" href="licensing/dex-license.css">
+<link rel="stylesheet" href="dex-badges.css">
+<style>
+/* Fonts: system stacks only — no @font-face, no CDN. 'Inter'/'IBM Plex Mono'
+   names fall through to system-ui / ui-monospace by design (CLAUDE.md / AUDIT.md). */
+/* ═══════════════════════════════════════════════════════
+   PpgDex — Reference Guide · Tepna
+   Cohesion-native: evidence badges driven by PPG_REGISTRY,
+   disc CSS byte-faithful to dex-badges.css / metric-registry.js.
+═══════════════════════════════════════════════════════ */
+:root {
+  --bg:#0B0F14; --surface:#121821; --surface2:#18212C; --surface3:#1E2835;
+  --border:#1e2d42; --border2:#253550;
+  --text:#F4F7FB; --text2:#9FB0C3; --text3:#6F8096; --text4:#4E5A6B;
+  --teal:#3DE0D0; --blue:#58A6FF; --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A;
+  --purple:#a78bfa; --orange:#fb923c;
+  --r-md:18px;
+  --b:1px solid rgba(255,255,255,.05);
+  --fs-body:14px; --fs-card-sub:13px; --fs-label:11px; --fs-sm:11.5px;
+  --fw-regular:400; --fw-semibold:600; --fw-bold:700;
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px; --sp-7:48px; --sp-8:64px;
+  color-scheme: dark;
+  --sidebar-w:260px;
+  --ev-ink:#aab8cc;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;font-size:var(--fs-body);line-height:1.55;overflow-x:hidden;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+a{color:inherit}
+.app{display:block;min-height:100vh}
+.sidebar{background:rgba(18,24,33,.97);border-right:var(--b);padding:var(--sp-5) var(--sp-3);position:fixed;top:0;left:0;width:var(--sidebar-w);height:100vh;-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);display:flex;flex-direction:column;overflow-y:auto;z-index:10}
+.logo{display:flex;gap:var(--sp-3);align-items:center;margin-bottom:var(--sp-6);padding:0 var(--sp-2)}
+.logo-badge{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--teal),var(--blue));display:flex;align-items:center;justify-content:center;color:#041014;font-weight:var(--fw-bold);font-size:13px;letter-spacing:-.02em;box-shadow:0 0 20px rgba(61,224,208,0.22);flex-shrink:0}
+.logo-title{font-weight:var(--fw-semibold);font-size:15px;letter-spacing:-.015em}
+.logo-sub{font-size:11px;color:var(--text3);margin-top:2px}
+.nav-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--text4);padding:0 var(--sp-2);margin:var(--sp-5) 0 var(--sp-2);font-weight:var(--fw-semibold)}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:var(--sp-3);padding:9px var(--sp-3);border-radius:10px;color:var(--text2);font-size:13px;text-decoration:none;transition:all .15s}
+.nav a:hover{background:rgba(255,255,255,.04);color:var(--text)}
+.nav-dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0;opacity:.55}
+.sidebar-bottom{margin-top:auto;padding-top:var(--sp-5)}
+.sidebar-data-card{background:rgba(61,224,208,.04);border:1px solid rgba(61,224,208,.09);border-radius:12px;padding:12px 14px}
+.data-pill{display:inline-flex;align-items:center;gap:6px;background:rgba(61,224,208,.1);border:1px solid rgba(61,224,208,.18);color:var(--green);padding:4px 10px;border-radius:999px;font-size:11px;font-weight:var(--fw-semibold)}
+.data-dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+.sidebar-data-info{margin-top:8px;font-size:11px;color:var(--text3);line-height:1.55}
+.main{position:relative;z-index:1;margin-left:var(--sidebar-w);padding:var(--sp-6) max(44px,20px) var(--sp-8);max-width:1260px;margin-right:auto;overflow-x:hidden}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.main{animation:fadeIn .3s ease}
+.ph{margin-bottom:var(--sp-6);padding-bottom:var(--sp-5);border-bottom:1px solid rgba(255,255,255,.045)}
+.ph-eyebrow{font-size:var(--fs-label);letter-spacing:.12em;text-transform:uppercase;color:var(--teal);font-weight:var(--fw-semibold);margin-bottom:10px;display:flex;align-items:center;gap:var(--sp-2)}
+.ph-eyebrow::before{content:'';display:block;width:20px;height:2px;background:var(--teal)}
+.ph-title{font-size:28px;font-weight:var(--fw-bold);letter-spacing:-.025em;line-height:1.15;margin-bottom:var(--sp-3)}
+.ph-title>span{color:var(--teal)}
+.ph-desc{font-size:var(--fs-body);color:var(--text2);max-width:660px;line-height:1.65}
+.rs{margin-bottom:var(--sp-7);width:100%}
+.sh{display:flex;align-items:center;gap:var(--sp-4);margin-bottom:var(--sp-5);padding-bottom:var(--sp-4);border-bottom:1px solid rgba(255,255,255,.05)}
+.si{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.si.sig{background:rgba(255,184,77,.12)}.si.hr{background:rgba(255,107,122,.12)}.si.sleep{background:rgba(167,139,250,.12)}
+.si.clin{background:rgba(88,166,255,.12)}.si.comp{background:rgba(251,146,60,.12)}.si.proj{background:rgba(57,217,138,.12)}.si.spo2{background:rgba(61,224,208,.12)}
+.st{font-size:19px;font-weight:var(--fw-bold);letter-spacing:-.02em}
+.sd{font-size:var(--fs-card-sub);color:var(--text3);margin-top:2px}
+.mc{position:relative;background:var(--surface);border:1px solid rgba(255,255,255,.055);border-radius:var(--r-md);padding:20px var(--sp-5);margin-bottom:var(--sp-3);transition:border-color .2s;min-width:0}
+.mc:hover{border-color:rgba(61,224,208,.18)}
+.mh{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-3);margin-bottom:var(--sp-3);flex-wrap:wrap}
+.mi{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.ma{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:17px;font-weight:var(--fw-semibold);color:var(--teal);letter-spacing:-.01em}
+.mf{font-size:var(--fs-card-sub);font-weight:var(--fw-semibold);color:var(--text)}
+.mt{font-size:10px;font-weight:var(--fw-bold);letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:999px;flex-shrink:0;margin-top:2px}
+.tc{background:rgba(61,224,208,.1);color:var(--teal);border:1px solid rgba(61,224,208,.2)}
+.ta{background:rgba(88,166,255,.1);color:var(--blue);border:1px solid rgba(88,166,255,.2)}
+.tr{background:rgba(167,139,250,.1);color:var(--purple);border:1px solid rgba(167,139,250,.2)}
+.md{font-size:13px;color:var(--text2);line-height:1.65;margin-bottom:var(--sp-4)}
+.fb{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-left:3px solid var(--blue);border-radius:0 10px 10px 0;padding:11px var(--sp-4);margin-bottom:var(--sp-3)}
+.fl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;font-weight:var(--fw-semibold);margin-bottom:5px}
+.ft{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;color:var(--blue);line-height:1.75;white-space:pre-wrap;overflow-wrap:break-word}
+.fn{font-size:11.5px;color:var(--text3);margin-top:6px;line-height:1.55}
+.nt-wrap{max-width:100%;overflow-x:auto;margin:4px 0}
+.nt{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px}
+.nt th{font-size:10px;font-weight:var(--fw-bold);letter-spacing:.07em;text-transform:uppercase;color:var(--text4);padding:6px 10px;text-align:left;border-bottom:1px solid rgba(255,255,255,.06)}
+.nt td{padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.03)}
+.nt tr:last-child td{border-bottom:none}
+.nt tr:hover td{background:rgba(255,255,255,.02)}
+.nr{font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:var(--fw-regular)}
+tr.ok td{color:var(--green)}tr.wn td{color:var(--amber)}tr.bd td{color:var(--orange)}tr.cr td{color:var(--red)}tr.nm td{color:var(--text2)}
+tr.ok .nr,tr.wn .nr,tr.bd .nr,tr.cr .nr,tr.nm .nr{color:inherit}
+tr.ok td:first-child,tr.wn td:first-child,tr.bd td:first-child,tr.cr td:first-child{color:var(--text2)}
+.co{display:flex;gap:var(--sp-3);padding:13px 15px;border-radius:11px;margin-bottom:var(--sp-3);font-size:12.5px;line-height:1.6}
+.co-i{background:rgba(88,166,255,.07);border:1px solid rgba(88,166,255,.18);color:var(--text2)}
+.co-w{background:rgba(255,184,77,.07);border:1px solid rgba(255,184,77,.2);color:var(--text2)}
+.co-ic{font-size:15px;flex-shrink:0;margin-top:1px}
+.co strong{color:var(--text);font-weight:var(--fw-semibold)}
+.mg{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:var(--sp-3);width:100%;min-width:0}
+.no-norm-note{font-size:11.5px;color:var(--text4);font-style:italic;margin-top:8px;line-height:1.55}
+.sec-back{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text4);text-decoration:none;margin-top:var(--sp-3);transition:color .14s}
+.sec-back:hover{color:var(--teal)}
+td.fmt-m{display:flex;align-items:center;gap:5px;min-width:0}
+
+/* ── Quick Jump ── */
+.qj-wrap{margin-bottom:var(--sp-6);border-radius:var(--r-md);border:1px solid var(--border2);overflow:hidden}
+.qj-toggle{width:100%;background:var(--surface2);border:none;padding:13px var(--sp-4);display:flex;align-items:center;gap:10px;cursor:pointer;color:var(--text2);font-size:var(--fs-sm);font-family:'Inter',system-ui,sans-serif;text-align:left;transition:background .18s,color .18s}
+.qj-toggle:hover{background:var(--surface3);color:var(--text)}
+.qj-toggle svg:first-child{color:var(--teal);flex-shrink:0}
+.qj-count{margin-left:auto;font-size:11px;color:var(--text3);background:rgba(255,255,255,.04);padding:2px 8px;border-radius:20px;border:1px solid var(--border)}
+.qj-arrow{margin-left:6px;flex-shrink:0;transition:transform .25s cubic-bezier(.16,1,.3,1)}
+.qj-toggle[aria-expanded="true"] .qj-arrow{transform:rotate(180deg)}
+.qj-panel{border-top:1px solid var(--border);background:var(--surface)}
+.qj-panel[hidden]{display:none}
+.qj-search-wrap{display:flex;align-items:center;gap:8px;padding:10px var(--sp-4);border-bottom:1px solid var(--border)}
+.qj-search-wrap svg{color:var(--text3);flex-shrink:0}
+.qj-search{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:var(--fs-sm);font-family:'Inter',system-ui,sans-serif;min-width:0}
+.qj-search::placeholder{color:var(--text4)}
+.qj-clear{background:none;border:none;cursor:pointer;color:var(--text3);padding:0 4px;font-size:13px;line-height:1}
+.qj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:0;border-bottom:1px solid var(--border)}
+.qj-group{padding:var(--sp-3) var(--sp-4);border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
+.qj-group[data-hidden]{display:none}
+.qj-group-header{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px}
+.qj-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.qj-links{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.qj-sec{font-size:12px;font-weight:500;color:var(--text2);text-decoration:none;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:4px;padding:2px 8px;transition:all .14s;white-space:nowrap}
+.qj-sec:hover{background:rgba(61,224,208,.1);border-color:var(--teal);color:var(--teal)}
+.qj-metrics{display:flex;flex-wrap:wrap;gap:3px}
+.qm{font-size:11px;font-family:'IBM Plex Mono',ui-monospace,monospace;color:var(--text3);text-decoration:none;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.06);border-radius:3px;padding:1px 6px;transition:all .14s;white-space:nowrap}
+.qm:hover,.qm.qm-match{background:rgba(61,224,208,.08);color:var(--teal);border-color:rgba(61,224,208,.25)}
+.qm.qm-hide{display:none}
+.qj-no-results{padding:var(--sp-4);text-align:center;color:var(--text3);font-size:var(--fs-sm)}
+
+/* ── Top abbr strip ── */
+.top-abbr-strip{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:8px 14px;margin-bottom:var(--sp-4);flex-wrap:wrap}
+.tas-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);white-space:nowrap}
+.tas-pills{display:flex;flex-wrap:wrap;gap:4px;flex:1;min-width:0}
+.tas-pill{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:10px;color:var(--teal);text-decoration:none;background:rgba(255,255,255,.025);border:1px solid rgba(61,224,208,.15);border-radius:4px;padding:2px 7px;white-space:nowrap}
+.tas-pill:hover{background:rgba(61,224,208,.08)}
+.tas-all{font-size:11px;color:var(--text3);text-decoration:none;white-space:nowrap}
+.tas-all:hover{color:var(--teal)}
+
+/* ── Abbr index ── */
+.abbr-search-wrap{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:10px}
+.abbr-search-wrap svg{color:var(--text3);flex-shrink:0}
+.abbr-search-inp{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:13px;font-family:'Inter',system-ui,sans-serif}
+.abbr-count-label{font-size:11px;color:var(--text3);white-space:nowrap;background:rgba(255,255,255,.04);padding:2px 8px;border-radius:20px;border:1px solid var(--border)}
+.abbr-alpha-wrap{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:10px}
+.abbr-tab{background:transparent;border:1px solid var(--border);border-radius:5px;color:var(--text3);font-size:10px;font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:600;padding:3px 7px;cursor:pointer;transition:all .12s}
+.abbr-tab:hover{background:rgba(255,255,255,.05);color:var(--text2)}
+.abbr-tab.abbr-tab-active{background:rgba(61,224,208,.12);color:var(--teal);border-color:rgba(61,224,208,.3)}
+#abbrGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:6px}
+.abbr-link:hover{opacity:.85}
+
+/* ── Active nav ── */
+.sidebar .nav a.nav-active{color:var(--teal);background:rgba(61,224,208,.08)}
+.sidebar .nav a.nav-active .nav-dot{background:var(--teal);box-shadow:0 0 6px rgba(61,224,208,.5)}
+
+/* ── Back to top ── */
+#btt{position:fixed;bottom:22px;right:18px;z-index:95;width:42px;height:42px;border-radius:12px;background:rgba(61,224,208,.1);border:1px solid rgba(61,224,208,.25);color:var(--teal);display:none;align-items:center;justify-content:center;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+#btt.btt-show{display:flex}
+
+/* ── Theme toggle button ── */
+#themeToggleBtn{position:fixed;bottom:72px;right:18px;z-index:99;background:rgba(61,224,208,.08);border:1px solid rgba(61,224,208,.22);color:var(--teal);border-radius:999px;padding:8px 16px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:.03em;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.theme-icon{font-size:14px;margin-right:3px}
+
+/* ── Mobile bar + drawer ── */
+.mob-bar{display:none;position:fixed;top:0;left:0;right:0;z-index:999;height:54px;background:rgba(11,15,20,.92);border-bottom:1px solid rgba(255,255,255,.08);padding:0 14px;align-items:center;justify-content:space-between;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.mob-bar-logo{display:flex;align-items:center;gap:10px}
+.mob-bar-badge{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#3DE0D0,#58A6FF);display:flex;align-items:center;justify-content:center;color:#041014;font-weight:800;font-size:11px}
+.mob-bar-name{font-weight:700;font-size:13.5px;letter-spacing:-.02em}
+.mob-bar-btn{width:44px;height:44px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:#9FB0C3;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.mob-drawer-bg{display:block;opacity:0;visibility:hidden;transition:opacity .22s,visibility .22s;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.65);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.mob-drawer-bg.open{opacity:1;visibility:visible}
+.mob-drawer-panel{position:absolute;top:0;left:0;bottom:0;width:min(290px,82vw);background:var(--bg);border-right:1px solid rgba(255,255,255,.08);overflow-y:auto;padding:16px 12px 40px;transform:translateX(-100%);transition:transform .22s cubic-bezier(.16,1,.3,1)}
+.mob-drawer-bg.open .mob-drawer-panel{transform:translateX(0)}
+.mob-drawer-top{display:flex;align-items:center;justify-content:space-between;padding:0 8px;margin-bottom:20px}
+.mob-drawer-close{width:36px;height:36px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:#9FB0C3;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+
+@media(max-width:900px){
+  .mob-bar{display:flex}
+  .app{display:block;padding-top:54px}
+  .sidebar{display:none}
+  .main{padding:20px 15px 100px;max-width:100%;margin-left:0}
+  .ph-title{font-size:clamp(20px,5vw,28px)}
+  .mh{flex-direction:column;align-items:flex-start;gap:8px}
+  .mg{grid-template-columns:1fr}
+  .qj-grid{grid-template-columns:1fr}
+  .qj-group{border-right:none}
+  #abbrGrid{grid-template-columns:1fr}
+  .top-abbr-strip{display:none}
+  .st{font-size:17px}
+  .rs{margin-bottom:40px}
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   CANONICAL EVIDENCE BADGE SYSTEM — verbatim mirror of dex-badges.css
+   (byte-faithful to MetricRegistry.BADGE_CSS; the test suite proves it).
+   DO NOT edit the disc rules — they are gated for equivalence to the engine.
+   ════════════════════════════════════════════════════════════════════════ */
+/* Evidence tier discs (.ev-measured / .ev-validated / .ev-emerging / .ev-experimental /
+   .ev-heuristic) are sourced from the linked dex-badges.css — the canonical visual mirror of
+   MetricRegistry.BADGE_CSS — and are no longer inlined here (one visual source, not a third
+   copy). DEX-EVENT-UNIFY-AND-CSV-BRIEF Task C3. */
+.ev[title], .ev-corner[title] { cursor: help; }
+.ev { position: relative; opacity: .85; }
+.ev-corner { position: absolute; bottom: 12px; right: 14px; z-index: 2; cursor: help; opacity: .55; transition: opacity .15s; }
+.ev-corner:hover { opacity: .7; }
+.mc, .metric, .ss-kpi, .nr-kpi, .kpi, .readiness-subscore { position: relative; }
+.mc { overflow: visible; }
+.fmt-m .ev { position: static; margin: 0 7px 0 0; opacity: .7; vertical-align: baseline; }
+.nr-chip .ev { position: static; margin-left: 5px; opacity: .6; vertical-align: baseline; width: 9px; height: 9px; }
+.ev-legend-strip { display:flex; align-items:center; gap:7px; flex-wrap:wrap; font-size:11.5px;
+                   color:var(--text3); background:var(--surface2); border:1px solid var(--border);
+                   border-radius:10px; padding:9px 14px; margin-bottom:var(--sp-4,16px); }
+.ev-legend-strip .lg-title { font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.08em;
+                             text-transform:uppercase; color:var(--text4); margin-right:4px; }
+.ev-legend-strip .lg-item  { display:inline-flex; align-items:center; gap:6px; }
+.ev-legend-strip .lg-item b { color:var(--text2); font-weight:600; }
+.ev-legend-strip .sep      { width:1px; height:13px; background:var(--border2); margin:0 4px; }
+.ev-legend-strip .lg-note  { margin-left:auto; color:var(--text4); font-size:10.5px; }
+
+/* ── Light theme ── */
+body.light {
+  --bg:#F2F5F9;--surface:#FFFFFF;--surface2:#EBF0F7;--surface3:#DDE4EF;
+  --border:#C8D4E4;--border2:#B0C0D8;
+  --text:#0F1923;--text2:#3A4E65;--text3:#6A7F96;--text4:#8FA0B4;
+  --b:1px solid rgba(0,0,0,.07);
+}
+body.light .sidebar{background:linear-gradient(180deg,#FFFFFF,#F8FAFC);box-shadow:inset -1px 0 0 rgba(0,0,0,.07),2px 0 20px rgba(0,0,0,.06)}
+body.light .mc{background:var(--surface);border-color:rgba(0,0,0,.08)}
+body.light .fb{background:rgba(88,166,255,.06);border-color:rgba(88,166,255,.15)}
+body.light .co-i{background:rgba(88,166,255,.08)}
+body.light .co-w{background:rgba(255,184,77,.08)}
+body.light .ev-legend-strip{background:rgba(0,0,0,.02);border-color:rgba(0,0,0,.08)}
+body.light .ev-measured,body.light .ev-validated,body.light .ev-emerging,body.light .ev-experimental,body.light .ev-heuristic{border-color:var(--surface)}
+body.light .mob-bar{background:rgba(242,245,249,.92);border-bottom-color:rgba(0,0,0,.1)}
+body.light .mob-drawer-panel{background:#FFFFFF}
+</style>
+</head>
+<body>
+
+<button id="themeToggleBtn" aria-label="Toggle light and dark theme"><span class="theme-icon">🌙</span> <span id="themeLabel">Dark</span></button>
+<div class="mob-bar" id="mobBar">
+  <div class="mob-bar-logo"><div class="mob-bar-badge">&#x223F;</div><span class="mob-bar-name">PpgDex</span></div>
+  <button class="mob-bar-btn" id="mobMenuBtn" aria-label="Open navigation menu" onclick="openDrawer()">&#9776;</button>
+</div>
+<div class="mob-drawer-bg" id="mobDrawerBg" onclick="handleBgClick(event)">
+  <div class="mob-drawer-panel" id="mobDrawerPanel">
+    <div class="mob-drawer-top"><div style="display:flex;align-items:center;gap:9px"><div style="width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,#3DE0D0,#58A6FF);display:flex;align-items:center;justify-content:center;color:#041014;font-weight:800;font-size:13px">&#x223F;</div><span style="font-weight:700;font-size:13px;color:#F4F7FB">Sections</span></div>
+      <button class="mob-drawer-close" aria-label="Close navigation" onclick="closeDrawer()">&#x2715;</button></div>
+    
+  <div class="nav-lbl">Signal &amp; Pulse</div>
+  <div class="nav"><a href="#signal"><span class="nav-dot"></span>Beat Detection</a><a href="#perfusion"><span class="nav-dot"></span>Perfusion &amp; Quality</a></div>
+  <div class="nav-lbl">HRV</div>
+  <div class="nav"><a href="#hrv-time"><span class="nav-dot"></span>Time Domain</a><a href="#hrv-poincare"><span class="nav-dot"></span>Poincar&#xE9;</a><a href="#hrv-freq"><span class="nav-dot"></span>Frequency</a><a href="#hrv-nonlinear"><span class="nav-dot"></span>Nonlinear</a></div>
+  <div class="nav-lbl">Pulse-Wave</div>
+  <div class="nav"><a href="#morphology"><span class="nav-dot"></span>Morphology</a><a href="#cvhr"><span class="nav-dot"></span>CVHR / Apnea</a></div>
+  <div class="nav-lbl">Context</div>
+  <div class="nav"><a href="#composite"><span class="nav-dot"></span>Composite &amp; Projections</a><a href="#posture"><span class="nav-dot"></span>Posture &amp; Magnetometer</a><a href="#validation"><span class="nav-dot"></span>Device-PPI Validation</a></div>
+  <div class="nav-lbl">Provenance</div>
+  <div class="nav"><a href="#validation-matrix"><span class="nav-dot"></span>Validation Matrix</a><a href="#refs-map"><span class="nav-dot"></span>Citation Map</a><a href="#formula-provenance"><span class="nav-dot"></span>Formula Provenance</a><a href="#limitations"><span class="nav-dot"></span>Known Limitations</a></div>
+  <div class="nav-lbl">Reference</div>
+  <div class="nav"><a href="#sig-qual"><span class="nav-dot"></span>Signal Quality</a><a href="#acad-refs"><span class="nav-dot"></span>Academic References</a><a href="#abbr"><span class="nav-dot"></span>Abbreviation Index</a><a href="#credits"><span class="nav-dot"></span>Credits</a></div>
+  </div>
+</div>
+
+<div class="app">
+<nav class="sidebar">
+  <div class="logo"><div class="logo-badge"><svg viewBox="0 0 100 100" aria-hidden="true" style="width:23px;height:23px" fill="none" stroke="#06121A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></svg></div><div><div class="logo-title">PpgDex</div><div class="logo-sub">Reference Guide</div></div></div>
+  
+  <div class="nav-lbl">Signal &amp; Pulse</div>
+  <div class="nav"><a href="#signal"><span class="nav-dot"></span>Beat Detection</a><a href="#perfusion"><span class="nav-dot"></span>Perfusion &amp; Quality</a></div>
+  <div class="nav-lbl">HRV</div>
+  <div class="nav"><a href="#hrv-time"><span class="nav-dot"></span>Time Domain</a><a href="#hrv-poincare"><span class="nav-dot"></span>Poincar&#xE9;</a><a href="#hrv-freq"><span class="nav-dot"></span>Frequency</a><a href="#hrv-nonlinear"><span class="nav-dot"></span>Nonlinear</a></div>
+  <div class="nav-lbl">Pulse-Wave</div>
+  <div class="nav"><a href="#morphology"><span class="nav-dot"></span>Morphology</a><a href="#cvhr"><span class="nav-dot"></span>CVHR / Apnea</a></div>
+  <div class="nav-lbl">Context</div>
+  <div class="nav"><a href="#composite"><span class="nav-dot"></span>Composite &amp; Projections</a><a href="#posture"><span class="nav-dot"></span>Posture &amp; Magnetometer</a><a href="#validation"><span class="nav-dot"></span>Device-PPI Validation</a></div>
+  <div class="nav-lbl">Provenance</div>
+  <div class="nav"><a href="#validation-matrix"><span class="nav-dot"></span>Validation Matrix</a><a href="#refs-map"><span class="nav-dot"></span>Citation Map</a><a href="#formula-provenance"><span class="nav-dot"></span>Formula Provenance</a><a href="#limitations"><span class="nav-dot"></span>Known Limitations</a></div>
+  <div class="nav-lbl">Reference</div>
+  <div class="nav"><a href="#sig-qual"><span class="nav-dot"></span>Signal Quality</a><a href="#acad-refs"><span class="nav-dot"></span>Academic References</a><a href="#abbr"><span class="nav-dot"></span>Abbreviation Index</a><a href="#credits"><span class="nav-dot"></span>Credits</a></div>
+  <div class="sidebar-bottom"><div class="sidebar-data-card"><div class="data-pill"><span class="data-dot"></span> Reference Guide</div><div class="sidebar-data-info">Polar Verity Sense &#xB7; wrist / arm PPG<br>Apache-2.0 License</div></div></div>
+</nav>
+
+<main class="main">
+<div class="ph">
+  <div class="ph-eyebrow">PpgDex &#x2014; Technical Reference</div>
+  <h1 class="ph-title">Pulse, Morphology &amp;<br><span>Optical HRV</span></h1>
+  <p class="ph-desc">Reference for every metric PpgDex computes from a raw wrist- or arm-worn photoplethysmogram &#x2014; definitions, formulas, expected ranges, and the evidence base behind each. PpgDex is ECGDex&#x2019;s optical twin: once the waveform becomes a pulse-interval series the downstream HRV math is shared. What is unique here is the optical front end (soft-upstroke beat detection, an ACC&#x202F;+&#x202F;GYRO motion gate) and pulse-wave morphology. Companion to the analyzer output; not a substitute for clinical evaluation.</p>
+  <div style="margin:16px 0 18px;display:flex;flex-direction:column;gap:10px">
+    <div class="co co-w"><span class="co-ic">&#x26A0;&#xFE0F;</span><div><strong>Important:</strong> values derive from a consumer optical pulse sensor worn on the wrist or upper arm &#x2014; not clinical PPG or ECG, and not a diagnosis. Optical pulse intervals (PPI) support valid time-domain HRV, but <strong>pulse-rate variability is not interchangeable with ECG RR-interval HRV</strong> &#x2014; pulse-arrival-time jitter inflates beat-to-beat variability, especially under motion (Sch&#xE4;fer &amp; Vagedes 2013). Morphology and reflection indices are reflectance-optical and device-dependent.</div></div>
+    <div class="ev-legend-strip">
+      <span class="lg-title">Evidence</span>
+      <span class="lg-item"><span class="ev-measured"></span><b>Measured</b></span><span class="sep"></span>
+      <span class="lg-item"><span class="ev-validated"></span><b>Validated</b></span><span class="sep"></span>
+      <span class="lg-item"><span class="ev-emerging"></span><b>Emerging</b></span><span class="sep"></span>
+      <span class="lg-item"><span class="ev-experimental"></span><b>Experimental</b></span><span class="sep"></span>
+      <span class="lg-item"><span class="ev-heuristic"></span><b>Heuristic</b></span>
+      <span class="lg-note">fill = trust &#xB7; hover a badge for source</span>
+    </div>
+  </div>
+</div>
+
+<div class="qj-wrap" id="quick-jump">
+  <button class="qj-toggle" id="qjToggle" aria-expanded="false" aria-controls="qjPanel">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+    Quick Jump Index
+    <span class="qj-count">19 sections</span>
+    <svg class="qj-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
+  <div class="qj-panel" id="qjPanel" hidden>
+    <div class="qj-search-wrap"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" class="qj-search" id="qjSearch" placeholder="Filter metrics&#x2026;" autocomplete="off" spellcheck="false" inputmode="search">
+      <button class="qj-clear" id="qjClear" aria-label="Clear search" hidden>&#x2715;</button></div>
+    <div class="qj-grid" id="qjGrid">
+      <div class="qj-group" data-group="sig"><div class="qj-group-header"><span class="qj-dot" style="background:var(--red)"></span>Signal &amp; Pulse</div>
+        <div class="qj-links"><a href="#signal" class="qj-sec">Beat Detection</a><a href="#perfusion" class="qj-sec">Perfusion</a></div>
+        <div class="qj-metrics"><a href="#signal" class="qm">Pulse HR</a><a href="#signal" class="qm">% Analyzable</a><a href="#signal" class="qm">Mean SQI</a><a href="#signal" class="qm">Clean pulses</a><a href="#signal" class="qm">Correction</a><a href="#signal" class="qm">Mean PPI</a><a href="#perfusion" class="qm">Perfusion Idx</a><a href="#perfusion" class="qm">Motion-rejected</a><a href="#perfusion" class="qm">Motion idx</a><a href="#perfusion" class="qm">ACC/GYRO Hz</a></div></div>
+      <div class="qj-group" data-group="hrv"><div class="qj-group-header"><span class="qj-dot" style="background:var(--green)"></span>HRV</div>
+        <div class="qj-links"><a href="#hrv-time" class="qj-sec">Time</a><a href="#hrv-poincare" class="qj-sec">Poincar&#xE9;</a><a href="#hrv-freq" class="qj-sec">Frequency</a><a href="#hrv-nonlinear" class="qj-sec">Nonlinear</a></div>
+        <div class="qj-metrics"><a href="#hrv-time" class="qm">rMSSD</a><a href="#hrv-time" class="qm">SDNN</a><a href="#hrv-time" class="qm">ln rMSSD</a><a href="#hrv-time" class="qm">pNN50</a><a href="#hrv-poincare" class="qm">SD1/SD2</a><a href="#hrv-poincare" class="qm">Ellipse area</a><a href="#hrv-freq" class="qm">LF/HF</a><a href="#hrv-nonlinear" class="qm">DFA &#x3B1;1</a><a href="#hrv-nonlinear" class="qm">SampEn</a></div></div>
+      <div class="qj-group" data-group="morph"><div class="qj-group-header"><span class="qj-dot" style="background:var(--red)"></span>Pulse-Wave</div>
+        <div class="qj-links"><a href="#morphology" class="qj-sec">Morphology</a><a href="#cvhr" class="qj-sec">CVHR</a></div>
+        <div class="qj-metrics"><a href="#morphology" class="qm">Rise time</a><a href="#morphology" class="qm">Pulse width</a><a href="#morphology" class="qm">Notch time</a><a href="#morphology" class="qm">Dicrotic notch</a><a href="#morphology" class="qm">Aug. index</a><a href="#morphology" class="qm">Reflection idx</a><a href="#morphology" class="qm">SDPPG b/a</a><a href="#morphology" class="qm">Aging index</a><a href="#cvhr" class="qm">CVHR index</a></div></div>
+      <div class="qj-group" data-group="ctx"><div class="qj-group-header"><span class="qj-dot" style="background:var(--orange)"></span>Context</div>
+        <div class="qj-links"><a href="#composite" class="qj-sec">Composite</a><a href="#posture" class="qj-sec">Posture</a><a href="#validation" class="qj-sec">Validation</a></div>
+        <div class="qj-metrics"><a href="#composite" class="qm">HRV Score</a><a href="#composite" class="qm">VO&#x2082;max Est</a><a href="#posture" class="qm">Posture</a><a href="#validation" class="qm">Agreement</a><a href="#validation" class="qm">Mean abs dev</a></div></div>
+      <div class="qj-group" data-group="prov"><div class="qj-group-header"><span class="qj-dot" style="background:var(--blue)"></span>Provenance</div>
+        <div class="qj-links"><a href="#validation-matrix" class="qj-sec">Validation Matrix</a><a href="#refs-map" class="qj-sec">Citation Map</a><a href="#formula-provenance" class="qj-sec">Formula Provenance</a><a href="#limitations" class="qj-sec">Limitations</a></div>
+        <div class="qj-metrics"><a href="#validation-matrix" class="qm">Lit. vs experimental</a><a href="#formula-provenance" class="qm">Formula sources</a><a href="#limitations" class="qm">Caveats</a></div></div>
+      <div class="qj-group" data-group="ref"><div class="qj-group-header"><span class="qj-dot" style="background:var(--text3)"></span>Reference</div>
+        <div class="qj-links"><a href="#acad-refs" class="qj-sec">References</a><a href="#abbr" class="qj-sec">Abbreviations</a><a href="#credits" class="qj-sec">Credits</a></div>
+        <div class="qj-metrics"><a href="#acad-refs" class="qm">Allen 2007</a><a href="#acad-refs" class="qm">Takazawa 1998</a><a href="#acad-refs" class="qm">Sch&#xE4;fer 2013</a></div></div>
+    </div>
+    <div class="qj-no-results" id="qjNoResults" hidden>No metrics match your search.</div>
+  </div>
+</div>
+
+<div class="top-abbr-strip" id="topAbbrStrip"><div class="tas-label">Abbr:</div><div class="tas-pills" id="tasPills"></div><a href="#abbr" class="tas-all">full index &#x2192;</a></div>
+
+<div class="rs" id="signal">
+<div class="sh"><div class="si hr">&#x1FA7B;</div><div><div class="st">Signal &amp; Beat Detection</div><div class="sd">From raw optical waveform to a corrected pulse-to-pulse interval series</div></div></div>
+<div class="co co-i"><span class="co-ic">&#x2139;&#xFE0F;</span><div><strong>Pipeline.</strong> Polar Sensor Logger streams the Verity Sense optical channels (~176&#x202F;Hz, 3 channels + ambient). PpgDex picks the best-SNR channel, band-passes 0.5&#x2013;8&#x202F;Hz, orients the waveform so systolic upstrokes point up, detects systolic peaks and intersecting-tangent feet, then builds PPI &#x2192; HRV. Timestamps follow the Clock Contract (floating wall-clock, read back via <code>getUTC*</code>).</div></div>
+<div class="mg">
+<div class="mc">
+  <div class="mh"><div class="mi"><span class="ma">Pulse HR</span><span class="mf">Mean Heart Rate</span></div><span class="mt tc">Core</span></div>
+  <p class="md">Mean heart rate over the recording, from detected pulse-peak intervals. On long recordings the displayed value is the median of per-epoch HR.</p><div class="fb"><div class="fl">Formula</div><div class="ft">HR = 60000 / mean(PPI_ms)</div></div><div class="nt-wrap"><table class="nt"><tr><th>Resting HR (bpm)</th><th>Read</th></tr><tr class="ok"><td>50&#x2013;65</td><td class="nr">Low&#x2013;normal (rested/trained)</td></tr><tr class="nm"><td>66&#x2013;75</td><td class="nr">Typical sleeping HR</td></tr><tr class="wn"><td>76&#x2013;90</td><td class="nr">Elevated</td></tr><tr class="cr"><td>&gt;&#x202F;90</td><td class="nr">High</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Mean heart rate &#x2014; direct from pulse-peak intervals"></span></div>
+<div class="mc">
+  <div class="mh"><div class="mi"><span class="ma">% Analyzable</span><span class="mf">Fraction of Recording Usable</span></div><span class="mt tc">Core</span></div>
+  <p class="md">Share of the recording that survived both the per-pulse quality gate and the motion gate &#x2014; the best at-a-glance trust indicator.</p><div class="fb"><div class="fl">Formula</div><div class="ft">% Analyzable = cleanPulse% &#xD7; (1 &#x2212; motionRejected%)</div></div><div class="nt-wrap"><table class="nt"><tr><th>% Analyzable</th><th>Confidence</th></tr><tr class="ok"><td>&#x2265;&#x202F;85%</td><td class="nr">High &#x2014; reliable</td></tr><tr class="wn"><td>60&#x2013;85%</td><td class="nr">Moderate</td></tr><tr class="cr"><td>&lt;&#x202F;60%</td><td class="nr">Low &#x2014; HRV unreliable</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Fraction of recording analyzable &#x2014; direct coverage"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Mean SQI</span><span class="mf">Signal-Quality Index</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Mean per-pulse quality, combining template correlation, amplitude and the local motion index. A separate axis from event confidence.</p><div class="fb"><div class="fl">Formula</div><div class="ft">SQI = max(0, corr(beat,template)) &#xD7; (0.4 + 0.6&#xB7;(1&#x2212;motion))</div></div><div class="nt-wrap"><table class="nt"><tr><th>Mean SQI</th><th>Read</th></tr><tr class="ok"><td>&#x2265;&#x202F;0.7</td><td class="nr">Clean trace</td></tr><tr class="wn"><td>0.5&#x2013;0.7</td><td class="nr">Usable, some artifact</td></tr><tr class="cr"><td>&lt;&#x202F;0.5</td><td class="nr">Noisy &#x2014; caveat applied</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Mean signal-quality index &#x2014; direct per-pulse quality"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Clean pulses</span><span class="mf">% Pulses with SQI &#x2265; 0.5</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Share of detected pulses passing the SQI threshold &#x2014; the quality side of the analyzability budget, before the motion gate.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Clean pulses% = count(SQI &#x2265; 0.5) / nPulses &#xD7; 100</div></div><div class="no-norm-note">Read together with Motion-rejected to get % Analyzable.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; % pulses with SQI &#x2265; 0.5 &#x2014; direct quality statistic"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Correction</span><span class="mf">% PPIs Corrected</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Fraction of raw pulse intervals replaced during cleaning, gated against a robust running median of accepted intervals.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Correction% = corrected / nIntervals &#xD7; 100</div></div><div class="nt-wrap"><table class="nt"><tr><th>Correction</th><th>Read</th></tr><tr class="ok"><td>&lt;&#x202F;5%</td><td class="nr">Excellent</td></tr><tr class="wn"><td>5&#x2013;20%</td><td class="nr">Moderate &#x2014; HRV attenuated</td></tr><tr class="cr"><td>&gt;&#x202F;20%</td><td class="nr">HRV unreliable</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; PPIs corrected during cleaning &#x2014; direct quality stat"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Mean PPI</span><span class="mf">Mean Pulse-to-Pulse Interval</span></div><span class="mt tr">Research</span></div>
+  <p class="md">The average foot-to-foot interval (ms) &#x2014; the optical analogue of the mean NN interval; the reciprocal of mean HR.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Mean PPI = mean(foot[i] &#x2212; foot[i&#x2212;1]) &#xD7; 1000</div></div><div class="no-norm-note">Inverse of Pulse HR &#x2014; read on the HR bands above.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Mean pulse-to-pulse interval &#x2014; direct from the optical waveform"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="perfusion">
+<div class="sh"><div class="si clin">&#x1F4A1;</div><div><div class="st">Perfusion &amp; Quality</div><div class="sd">Optical contact, pulsatility, and the ACC+GYRO motion gate &#x2014; PpgDex&#x2019;s signature</div></div></div>
+<div class="mg">
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Perfusion Idx</span><span class="mf">Perfusion Index (AC / DC)</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Ratio of pulsatile (AC) to steady (DC) optical signal &#x2014; how strong the pulse is at the sensor. Low PI flags weak contact or vasoconstriction and predicts noisier HRV.</p><div class="fb"><div class="fl">Formula</div><div class="ft">PI (%) = 100 &#xD7; SD(band-passed) / mean|raw|</div></div><div class="nt-wrap"><table class="nt"><tr><th>PI (%)</th><th>Read</th></tr><tr class="ok"><td>&gt;&#x202F;2</td><td class="nr">Strong perfusion</td></tr><tr class="wn"><td>0.5&#x2013;2</td><td class="nr">Weak &#x2014; loose fit / vasoconstriction</td></tr><tr class="cr"><td>&lt;&#x202F;0.5</td><td class="nr">Very weak &#x2014; unreliable</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; AC/DC perfusion index &#x2014; direct optical contact measure"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Motion-rejected</span><span class="mf">% Pulses Gated by Motion</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Share of pulses occurring during high-motion spans (motion index &gt; 0.5) and down-weighted. The inertial gate is what separates true pulse variability from movement artifact.</p><div class="fb"><div class="fl">Formula</div><div class="ft">motionIndex = max( accDynamic/120mg , gyro/40dps ), 4 Hz grid</div></div><div class="no-norm-note">Lower is better; high values shrink % Analyzable.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; ACC+GYRO motion-gated rejection &#x2014; direct quality stat"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Mean motion idx</span><span class="mf">Mean Inertial Motion Index</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Average of the 0&#x2013;1 motion index across the recording &#x2014; an overall restlessness summary.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Mean motion idx = mean(motionGrid)</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Mean ACC-variance &#x222A; GYRO motion index &#x2014; direct from inertial sensors"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">ACC Hz</span><span class="mf">Accelerometer Sample Rate</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Effective accelerometer sample rate recovered from the inertial stream &#x2014; surfaced for provenance and diagnosing thin motion data.</p><div class="fb"><div class="fl">Formula</div><div class="ft">ACC Hz = nAcc / durSec</div></div><div class="no-norm-note">Device statistic, not a target.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Accelerometer sample rate &#x2014; direct device statistic"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">GYRO Hz</span><span class="mf">Gyroscope Sample Rate</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Effective gyroscope sample rate. Gyro-only sessions still drive the motion gate but cannot resolve posture.</p><div class="fb"><div class="fl">Formula</div><div class="ft">GYRO Hz = nGyro / durSec</div></div><div class="no-norm-note">Device statistic, not a target.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Gyroscope sample rate &#x2014; direct device statistic"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="hrv-time">
+<div class="sh"><div class="si proj">&#x1F4C8;</div><div><div class="st">HRV &#x2014; Time Domain</div><div class="sd">Beat-to-beat variability from pulse intervals (valid once the PPI series is clean)</div></div></div>
+<div class="co co-w"><span class="co-ic">&#x23F1;&#xFE0F;</span><div><strong>Duration tiers gate validity.</strong> Ultra-short (&lt;5&#x202F;min): HR, rMSSD, pNN50, SD1, HF valid; SDNN/LF withheld. Short (5-min standard): full suite. Overnight (&#x2265;90&#x202F;min): adds per-epoch medians and CVHR.</div></div>
+<div class="mg">
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">rMSSD</span><span class="mf">Root Mean Square of Successive Differences</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">The primary parasympathetic (vagal) marker &#x2014; valid even on short windows. Tracks ECG rMSSD at rest but runs slightly higher under motion.</p><div class="fb"><div class="fl">Formula</div><div class="ft">rMSSD = &#x221A;( mean( (NN[i+1]&#x2212;NN[i])&#xB2; ) )</div></div><div class="nt-wrap"><table class="nt"><tr><th>rMSSD (ms)</th><th>Read</th></tr><tr class="ok"><td>&gt;&#x202F;42</td><td class="nr">High vagal tone</td></tr><tr class="nm"><td>20&#x2013;42</td><td class="nr">Typical</td></tr><tr class="cr"><td>&lt;&#x202F;20</td><td class="nr">Low &#x2014; stress/fatigue</td></tr></table></div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; RMSSD &#x2014; short-term parasympathetic HRV (Task Force 1996)"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">SDNN</span><span class="mf">Standard Deviation of NN Intervals</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Overall HRV &#x2014; total autonomic variability. Withheld on ultra-short windows where it is not interpretable.</p><div class="fb"><div class="fl">Formula</div><div class="ft">SDNN = &#x221A;( &#x3A3;(NN&#x2212;mean)&#xB2; / (N&#x2212;1) )</div></div><div class="nt-wrap"><table class="nt"><tr><th>SDNN (ms)</th><th>Read</th></tr><tr class="ok"><td>&gt;&#x202F;50</td><td class="nr">Healthy</td></tr><tr class="nm"><td>30&#x2013;50</td><td class="nr">Moderate</td></tr><tr class="cr"><td>&lt;&#x202F;30</td><td class="nr">Reduced</td></tr></table></div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; SDNN &#x2014; overall HRV (Task Force 1996)"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">ln rMSSD</span><span class="mf">Natural-Log rMSSD</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">rMSSD on a log scale &#x2014; the right-skew correction that makes day-to-day readiness changes roughly linear.</p><div class="fb"><div class="fl">Formula</div><div class="ft">ln rMSSD = ln(rMSSD)</div></div><div class="no-norm-note">Track the trend vs your own baseline.</div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; Log-RMSSD &#x2014; readiness HRV scale"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">pNN50</span><span class="mf">% Successive Intervals &gt; 50 ms</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Percentage of successive interval pairs differing by more than 50&#x202F;ms &#x2014; a vagally-mediated measure.</p><div class="fb"><div class="fl">Formula</div><div class="ft">pNN50 (%) = count(|&#x394;PPI| &gt; 50 ms) / (N&#x2212;1) &#xD7; 100</div></div><div class="nt-wrap"><table class="nt"><tr><th>pNN50</th><th>Read</th></tr><tr class="ok"><td>&gt;&#x202F;15%</td><td class="nr">High vagal activity</td></tr><tr class="nm"><td>3&#x2013;15%</td><td class="nr">Typical</td></tr><tr class="cr"><td>&lt;&#x202F;3%</td><td class="nr">Low</td></tr></table></div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; pNN50 &#x2014; % successive PPI &gt; 50 ms (Task Force 1996)"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="hrv-poincare">
+<div class="sh"><div class="si sleep">&#x1F300;</div><div><div class="st">HRV &#x2014; Poincar&#xE9; (Nonlinear Geometry)</div><div class="sd">Scatter of each interval against the next &#x2014; short- vs long-term variability</div></div></div>
+<div class="mg">
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">SD1</span><span class="mf">Poincar&#xE9; Short-Term Width</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Dispersion perpendicular to the line of identity &#x2014; instantaneous beat-to-beat variability, tied to rMSSD.</p><div class="fb"><div class="fl">Formula</div><div class="ft">SD1 = &#x221A;(0.5) &#xD7; SD(&#x394;NN)  &#x2248;  rMSSD/&#x221A;2</div></div><div class="no-norm-note">Tracks rMSSD; read on the rMSSD bands.</div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; Poincar&#xE9; SD1 &#x2014; short-term HRV (&#x2248; RMSSD/&#x221A;2)"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">SD2</span><span class="mf">Poincar&#xE9; Long-Term Width</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Dispersion along the line of identity &#x2014; longer-term variability, related to SDNN.</p><div class="fb"><div class="fl">Formula</div><div class="ft">SD2 = &#x221A;( 2&#xB7;SDNN&#xB2; &#x2212; 0.5&#xB7;SD(&#x394;NN)&#xB2; )</div></div><div class="no-norm-note">Tracks SDNN; read on the SDNN bands.</div>
+<span class="ev-corner ev-validated" title="Validated &#x2014; Poincar&#xE9; SD2 &#x2014; long-term HRV dispersion"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">SD1/SD2</span><span class="mf">Poincar&#xE9; Ratio</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Balance of short- to long-term variability.</p><div class="fb"><div class="fl">Formula</div><div class="ft">ratio = SD1 / SD2</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; Poincar&#xE9; SD1/SD2 ratio &#x2014; nonlinear short/long-term HRV balance"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Ellipse area</span><span class="mf">Poincar&#xE9; Ellipse Area</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Area of the fitted Poincar&#xE9; ellipse &#x2014; a single geometric summary of overall dispersion.</p><div class="fb"><div class="fl">Formula</div><div class="ft">area = &#x3C0; &#xD7; SD1 &#xD7; SD2</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; Poincar&#xE9; ellipse area &#x2014; overall HRV dispersion (geometric)"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="hrv-freq">
+<div class="sh"><div class="si comp">&#x1F4F6;</div><div><div class="st">HRV &#x2014; Frequency Domain</div><div class="sd">Spectral power of the pulse-interval series via Lomb&#x2013;Scargle</div></div></div>
+<div class="co co-i"><span class="co-ic">&#x2139;&#xFE0F;</span><div><strong>Why Lomb&#x2013;Scargle.</strong> Pulse intervals are unevenly spaced, so PpgDex uses the Lomb&#x2013;Scargle periodogram rather than an FFT that would need resampling. Frequency-domain HRV from optical PPI is more device-dependent than time-domain &#x2014; graded <em>emerging</em>.</div></div>
+<div class="mg">
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">LF/HF</span><span class="mf">Low/High Frequency Ratio</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Ratio of low- (0.04&#x2013;0.15&#x202F;Hz) to high-frequency (0.15&#x2013;0.40&#x202F;Hz) power. Historically read as sympatho-vagal balance, contested &#x2014; treat as directional.</p><div class="fb"><div class="fl">Formula</div><div class="ft">LF/HF = power[0.04&#x2013;0.15 Hz] / power[0.15&#x2013;0.40 Hz]</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; LF:HF power ratio, sympatho-vagal proxy; device-dependent"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">VLF / LF / HF Power</span><span class="mf">Band Powers &amp; Normalised Units</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Absolute power in the very-low, low and high bands plus normalised units (LFnu, HFnu). HF aligns with respiratory sinus arrhythmia; VLF needs an overnight-length record.</p><div class="fb"><div class="fl">Formula</div><div class="ft">HFnu = 100&#xD7;HF/(LF+HF) ; LFnu = 100&#xD7;LF/(LF+HF)</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; Lomb&#x2013;Scargle band powers from uneven PPI; device-dependent"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="hrv-nonlinear">
+<div class="sh"><div class="si sig">&#x267E;&#xFE0F;</div><div><div class="st">HRV &#x2014; Nonlinear &amp; Complexity</div><div class="sd">Fractal scaling and signal regularity of the interval series</div></div></div>
+<div class="mg">
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">DFA &#x3B1;1</span><span class="mf">Detrended Fluctuation Analysis (short-term)</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Short-term fractal scaling of the interval series (4&#x2013;16 beats). &#x3B1;1&#x202F;&#x2248;&#x202F;1 marks healthy correlated dynamics. Sensitive to record length and editing.</p><div class="fb"><div class="fl">Formula</div><div class="ft">&#x3B1;1 = slope of log F(n) vs log n, n = 4&#x2026;16 beats</div></div><div class="nt-wrap"><table class="nt"><tr><th>DFA &#x3B1;1</th><th>Read</th></tr><tr class="ok"><td>0.85&#x2013;1.15</td><td class="nr">Healthy correlated dynamics</td></tr><tr class="wn"><td>&lt;&#x202F;0.75 / &gt;&#x202F;1.25</td><td class="nr">Toward random / rigid</td></tr></table></div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; DFA short-term scaling exponent; device/length-dependent"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">SampEn</span><span class="mf">Sample Entropy</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Regularity of the interval series &#x2014; lower means more repetitive dynamics. A node-computed complexity descriptor on optical PPI.</p><div class="fb"><div class="fl">Formula</div><div class="ft">SampEn(m,r) = &#x2212;ln(A/B), m=2, r=0.2&#xD7;SD</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; Sample entropy (Richman &amp; Moorman 2000); nonlinear complexity on optical PPI, device/length-dependent"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="morphology">
+<div class="sh"><div class="si hr">&#x1FAC0;</div><div><div class="st">Pulse-Wave Morphology</div><div class="sd">The shape of the pulse itself &#x2014; something neither OxyDex nor ECGDex can produce</div></div></div>
+<div class="co co-i"><span class="co-ic">&#x2139;&#xFE0F;</span><div><strong>From a median pulse.</strong> PpgDex foot-aligns and amplitude-normalises high-SQI beats into one median pulse, then delineates fiducials (foot &#x2192; systolic peak &#x2192; dicrotic notch &#x2192; diastolic peak) and the second-derivative wave (SDPPG). Reflectance wrist optics make the late waves noisy, so reflection/aging indices emit only when their fiducials resolve &#x2014; all graded <em>emerging</em>, device-dependent.</div></div>
+<div class="mg">
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Rise time</span><span class="mf">Foot &#x2192; Systolic-Peak Time</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Time from pulse foot to systolic peak (crest time) &#x2014; a direct timing fiducial that lengthens with vascular stiffening.</p><div class="fb"><div class="fl">Formula</div><div class="ft">riseTime = (systolicPeak &#x2212; foot) / fs &#xD7; 1000 ms</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Foot&#x2192;systolic-peak rise time &#x2014; direct pulse-wave timing"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Pulse width</span><span class="mf">Width at Half Systolic Amplitude</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Full width of the pulse at 50% of its systolic amplitude &#x2014; a direct timing measure related to vascular resistance.</p><div class="fb"><div class="fl">Formula</div><div class="ft">pulseWidth at y = foot + 0.5&#xB7;amp</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Pulse width at half systolic amplitude &#x2014; direct pulse-wave timing"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Notch time</span><span class="mf">Foot &#x2192; Dicrotic-Notch Time</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Timing of the dicrotic notch relative to the foot &#x2014; marks the systolic&#x2013;diastolic transition. Emitted only when a notch is detected.</p><div class="fb"><div class="fl">Formula</div><div class="ft">notchTime = (notch &#x2212; foot) / fs &#xD7; 1000 ms</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Foot&#x2192;dicrotic-notch timing &#x2014; direct pulse-wave fiducial"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Dicrotic notch</span><span class="mf">Notch Detection</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Whether a dicrotic notch and following diastolic peak are resolvable on the downslope &#x2014; gates the reflection indices below.</p><div class="fb"><div class="fl">Formula</div><div class="ft">notch = max positive d&#xB2;/dt&#xB2; on downslope + diastolic local max</div></div><div class="no-norm-note">Presence/absence flag; device- and perfusion-dependent.</div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; Dicrotic-notch detection &#x2014; pulse-wave reflection, device-dependent"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Aug. index</span><span class="mf">Augmentation Index</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Relative height of the reflected (diastolic) wave vs the systolic peak &#x2014; an arterial-reflection / stiffness proxy. Typically negative in young arteries.</p><div class="fb"><div class="fl">Formula</div><div class="ft">AI (%) = 100 &#xD7; (P2 &#x2212; P1) / P1</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; Augmentation index &#x2014; arterial reflection, device-dependent"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Reflection index</span><span class="mf">Diastolic &#xF7; Systolic Peak</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Reflected (diastolic) peak as a fraction of the systolic peak &#x2014; rises with arterial stiffening.</p><div class="fb"><div class="fl">Formula</div><div class="ft">RI = P2 / P1</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; PPG reflection index (diastolic&#xF7;systolic peak), wave-reflection/stiffness proxy; device-dependent"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">SDPPG b/a</span><span class="mf">2nd-Derivative b/a Ratio</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Ratio of the early-systolic b wave to the a wave of the acceleration-PPG &#x2014; the most age/stiffness-correlated SDPPG index; strongly negative in young compliant arteries, rising toward 0 with stiffening.</p><div class="fb"><div class="fl">Formula</div><div class="ft">b/a = SDPPG_b / SDPPG_a</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; 2nd-derivative PPG b/a ratio (Takazawa 1998), arterial-stiffness/aging proxy; device-dependent"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Aging index</span><span class="mf">SDPPG Aging Index</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Composite of the five SDPPG waves (a&#x2013;e), a published vascular-aging proxy that rises with arterial age. Emitted only when all five fiducials resolve.</p><div class="fb"><div class="fl">Formula</div><div class="ft">AGI = (b &#x2212; c &#x2212; d &#x2212; e) / a</div></div><div class="no-norm-note">Relative measure &#x2014; compare across your own matched recordings; no single clinical cut-point.</div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; SDPPG aging index (b&#x2212;c&#x2212;d&#x2212;e)/a (Takazawa 1998), vascular-aging proxy; device-dependent"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="cvhr">
+<div class="sh"><div class="si clin">&#x1F4A4;</div><div><div class="st">CVHR &#x2014; Cyclical Variation of Heart Rate</div><div class="sd">Apnea autonomic signature read from the pulse-interval series</div></div></div>
+<div class="mg">
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">CVHR index</span><span class="mf">Cyclical-Variation-of-HR Index</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Rate of cyclic bradycardia&#x2013;tachycardia oscillations per hour &#x2014; the autonomic fingerprint of repetitive apnea/arousal, from pulse intervals alone. A screen, not a diagnosis; corroborated against oximetry in the Integrator.</p><div class="fb"><div class="fl">Formula</div><div class="ft">CVHR index = cyclic dip&#x2013;surge events / hour (overnight tier)</div></div><div class="nt-wrap"><table class="nt"><tr><th>CVHR index (/h)</th><th>Screen</th></tr><tr class="ok"><td>&lt;&#x202F;5</td><td class="nr">Low</td></tr><tr class="wn"><td>5&#x2013;15</td><td class="nr">Moderate &#x2014; consider SDB screen</td></tr><tr class="cr"><td>&gt;&#x202F;15</td><td class="nr">High &#x2014; corroborate with SpO&#x2082;</td></tr></table></div>
+<span class="ev-corner ev-emerging" title="Emerging &#x2014; Cyclical-variation-of-HR index &#x2014; PPI apnea surrogate"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="composite">
+<div class="sh"><div class="si comp">&#x1F9EE;</div><div><div class="st">Composite &amp; Projections</div><div class="sd">Derived readiness scores and population projections &#x2014; directional, not measurements</div></div></div>
+<div class="mg">
+<div class="mc">
+  <div class="mh"><div class="mi"><span class="ma">HRV Score</span><span class="mf">Autonomic-Readiness Composite</span></div><span class="mt tc">Core</span></div>
+  <p class="md">A 0&#x2013;100 readiness headline blending vagal HRV against your recent baseline. An internal composite, not externally validated.</p><div class="fb"><div class="fl">Method</div><div class="ft">blend of ln rMSSD and HRV vs baseline</div></div><div class="no-norm-note">Internal &#x2014; directional, baseline-relative.</div>
+<span class="ev-corner ev-experimental" title="Experimental &#x2014; PpgDex autonomic-readiness composite &#x2014; internal"></span></div>
+<!-- ANS Age card REMOVED 2026-06-21 (external-review WP-A) -->
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">VO&#x2082;max Est</span><span class="mf">Estimated VO&#x2082;max</span></div><span class="mt tr">Research</span></div>
+  <p class="md">A resting HR-ratio fitness estimate &#x2014; a population proxy, not a cardiopulmonary exercise test.</p><div class="fb"><div class="fl">Formula</div><div class="ft">VO&#x2082;max &#x2248; 15 &#xD7; (HRmax / HRrest)</div></div><div class="no-norm-note">Heuristic proxy &#x2014; track the trend, not the absolute.</div>
+<span class="ev-corner ev-heuristic" title="Heuristic &#x2014; HR-ratio VO&#x2082;max estimate &#x2014; population proxy, not CPET"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="posture">
+<div class="sh"><div class="si sleep">&#x1F9ED;</div><div><div class="st">Posture &amp; Magnetometer</div><div class="sd">Limb orientation and heading &#x2014; lower-reliability context, surfaced for cross-node parity</div></div></div>
+<div class="co co-w"><span class="co-ic">&#x26A0;&#xFE0F;</span><div><strong>Limb orientation, not body position.</strong> The Verity Sense is worn on the wrist or upper arm and the wear site is not auto-detected &#x2014; so posture here is the <em>limb&#x2019;s</em> orientation, an approximate proxy. A chest strap (ECGDex) is far better; the Integrator down-weights it heavily (<code>positionSource: limb-acc</code>). Magnetometer data is used only at Earth-field scale (heading, L/R disambiguation, interference flag) &#x2014; never biomagnetic HR.</div></div>
+<div class="mg">
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Posture</span><span class="mf">Limb Orientation</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Body/limb position class from the gravity vector, with left/right lateral split by magnetometer heading when available. Off-data windows resolve to unknown, never fabricated.</p><div class="fb"><div class="fl">Method</div><div class="ft">gravity = lowpass(ACC) &#x2192; supine/prone/upright/lateral</div></div><div class="no-norm-note">Low-reliability proxy; heavily down-weighted in fusion.</div>
+<span class="ev-corner ev-heuristic" title="Heuristic &#x2014; limb-acc orientation proxy for body position; wear-site not auto-detected, low reliability"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Heading</span><span class="mf">Tilt-Compensated Magnetic Heading</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Relative magnetic heading of the limb (deg), gravity-component removed. Uncalibrated for true north &#x2014; used only to separate left- from right-side lateral posture.</p><div class="fb"><div class="fl">Method</div><div class="ft">tilt-compensated heading from mag &#x2212; gravity projection</div></div><div class="no-norm-note">Relative datum; L/R labels may mirror without a calibration gesture.</div>
+<span class="ev-corner ev-heuristic" title="Heuristic &#x2014; relative tilt-compensated heading; uncalibrated, used for L/R disambiguation only"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Mag interference</span><span class="mf">Magnetic-Field Disturbance Flag</span></div><span class="mt tr">Research</span></div>
+  <p class="md">A calibration-free quality flag: set when the field magnitude wobbles in a still window or sits &gt;25% off baseline. Informational only &#x2014; it does not alter beat SQI here.</p><div class="fb"><div class="fl">Formula</div><div class="ft">flag if SD(|B|) &gt; threshold or |median&#x2212;baseline|/baseline &gt; 0.25</div></div><div class="no-norm-note">Quality flag; the Integrator decides how to weight it.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; magnetometer field-disturbance flag, direct quality channel"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="validation">
+<div class="sh"><div class="si proj">&#x2705;</div><div><div class="st">Device-PPI Validation</div><div class="sd">PpgDex&#x2019;s own beat detection checked against Polar&#x2019;s on-device PPI stream</div></div></div>
+<div class="co co-i"><span class="co-ic">&#x2139;&#xFE0F;</span><div><strong>Validation lane only.</strong> When a Polar <code>*_PPI.txt</code> file accompanies the raw PPG, PpgDex compares its own foot-derived intervals against the device&#x2019;s reported pulse intervals (excluding device-flagged blocked beats) &#x2014; a self-check on the optical detector.</div></div>
+<div class="mg">
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Agreement</span><span class="mf">Self-PPI vs Device-PPI Agreement</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Mean agreement between PpgDex&#x2019;s pulse intervals and the device&#x2019;s &#x2014; high agreement confirms the optical detector tracks the same beats as Polar&#x2019;s firmware.</p><div class="fb"><div class="fl">Formula</div><div class="ft">Agreement (%) = 100 &#xD7; (1 &#x2212; |meanSelf &#x2212; meanDevice| / meanDevice)</div></div><div class="nt-wrap"><table class="nt"><tr><th>Agreement</th><th>Read</th></tr><tr class="ok"><td>&#x2265;&#x202F;97%</td><td class="nr">Excellent concordance</td></tr><tr class="wn"><td>90&#x2013;97%</td><td class="nr">Acceptable</td></tr><tr class="cr"><td>&lt;&#x202F;90%</td><td class="nr">Divergent &#x2014; inspect motion/contact</td></tr></table></div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Self-PPI vs device-PPI mean agreement &#x2014; direct validation statistic"></span></div>
+<div class="mc" data-tier="research">
+  <div class="mh"><div class="mi"><span class="ma">Mean abs dev</span><span class="mf">Mean Absolute PPI Deviation</span></div><span class="mt tr">Research</span></div>
+  <p class="md">Average absolute difference (ms) between self- and device-derived mean pulse intervals &#x2014; the agreement metric in raw milliseconds.</p><div class="fb"><div class="fl">Formula</div><div class="ft">meanAbsDev = |mean(selfPPI) &#x2212; mean(devicePPI)|</div></div><div class="no-norm-note">Lower is better; pairs with Agreement %.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; Self-vs-device mean absolute PPI deviation &#x2014; direct"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="sig-qual">
+<div class="sh"><div class="si sig">&#x1F4E1;</div><div><div class="st">Signal Quality &amp; Artifact Flags</div><div class="sd">How PpgDex marks what it could not trust &#x2014; absence stays visible, never fabricated</div></div></div>
+<div class="mg">
+<div class="mc">
+  <div class="mh"><div class="mi"><span class="ma">Motion artifact segment</span><span class="mf">Contiguous High-Motion Span</span></div><span class="mt tc">Core</span></div>
+  <p class="md">A flagged interval where the motion index stayed above 0.5 across consecutive beats. Emitted as a low-prior quality event so consumers can exclude the span.</p><div class="fb"><div class="fl">Formula</div><div class="ft">run where motionAtSec(beat) &gt; 0.5</div></div><div class="no-norm-note">Quality flag, not a metric target.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; contiguous high-motion span, direct inertial quality flag"></span></div>
+<div class="mc" data-tier="secondary">
+  <div class="mh"><div class="mi"><span class="ma">Off-body / low perfusion</span><span class="mf">Missing-Contact Handling</span></div><span class="mt ta">Advanced</span></div>
+  <p class="md">Spans with collapsed perfusion or no resolvable pulse are excluded from HRV rather than filled. Unparseable timestamps surface as null (Clock Contract), never &#x201C;now.&#x201D;</p><div class="fb"><div class="fl">Formula</div><div class="ft">exclude spans where PI collapses / no peak detected</div></div><div class="no-norm-note">Absence stays visible; never fabricated.</div>
+<span class="ev-corner ev-measured" title="Measured &#x2014; coverage/contact quality, direct statistic"></span></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="validation-matrix">
+<div class="sh"><div class="si sig">&#x2714;&#xFE0F;</div><div><div class="st">Validation Status Matrix</div><div class="sd">What is literature-validated versus experimentally derived &#x2014; the key provenance table for research use</div></div></div>
+<p style="font-size:12px;color:var(--text4);margin:0 0 12px;line-height:1.6;"><em>Validation refers to the underlying metric&#x2019;s validation in published literature, and does not imply validation of the PpgDex implementation against a gold-standard laboratory dataset.</em></p>
+<div class="nt-wrap"><table class="nt">
+  <thead><tr><th>Metric Category</th><th>Status</th><th>Basis</th></tr></thead>
+  <tbody>
+    <tr><td class="fmt-m">Pulse HR, perfusion, SQI, coverage, motion, ACC/GYRO Hz, agreement</td><td><span style="color:var(--teal)">&#x25CF; Direct measurement</span></td><td>Raw optical / inertial / quality statistics</td></tr>
+    <tr><td class="fmt-m">rMSSD, SDNN, ln rMSSD, pNN50, SD1, SD2</td><td><span style="color:var(--teal)">&#x25CF; Literature-based</span></td><td>Task Force 1996 (on optical PPI &#x2014; see PRV caveat)</td></tr>
+    <tr><td class="fmt-m">Rise/notch time, pulse width</td><td><span style="color:var(--teal)">&#x25CF; Direct measurement</span></td><td>Pulse-wave fiducial timing</td></tr>
+    <tr><td class="fmt-m">SD1/SD2, ellipse area, LF/HF, DFA &#x3B1;1, CVHR, dicrotic/AI/RI/SDPPG/AGI</td><td><span style="color:var(--amber,#F5A623)">&#x25D0; Emerging</span></td><td>Published but device-dependent (reflectance optics)</td></tr>
+    <tr><td class="fmt-m">SampEn; HRV Score</td><td><span style="color:var(--orange,#E8714A)">&#x25CB; Experimental</span></td><td>Node-computed; not externally validated on optical PPI</td></tr>
+    <tr><td class="fmt-m">Posture / heading; VO&#x2082;max</td><td><span style="color:var(--orange,#E8714A)">&#x25CB; Proxy / population-derived</span></td><td>Limb-orientation proxy; population projections</td></tr>
+  </tbody>
+</table></div>
+<div style="margin-top:16px">
+  <div style="font-size:11px;font-family:'IBM Plex Mono',ui-monospace,monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--text4);margin-bottom:8px">Metric Tier Definitions</div>
+  <table class="nt" style="max-width:640px">
+    <thead><tr><th>Tier</th><th>Meaning</th><th>Examples</th></tr></thead>
+    <tbody>
+      <tr><td><strong style="color:var(--teal)">Core</strong></td><td>Headline, universally interpretable</td><td>Pulse HR, % Analyzable, HRV Score</td></tr>
+      <tr><td><strong style="color:var(--blue)">Advanced</strong></td><td>Established support, fuller analysis</td><td>rMSSD, SDNN, perfusion, dicrotic notch, CVHR</td></tr>
+      <tr><td><strong style="color:var(--purple)">Research</strong></td><td>Exploratory / emerging / device-dependent</td><td>SDPPG, AI/RI, DFA, posture, projections</td></tr>
+    </tbody>
+  </table>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="refs-map">
+<div class="sh"><div class="si comp">&#x1F5FA;&#xFE0F;</div><div><div class="st">Formula &#x2192; Citation Map</div><div class="sd">Every computed metric mapped to its primary source</div></div></div>
+<div class="nt-wrap"><table class="nt">
+  <thead><tr><th>Metric / Formula</th><th>Primary Citation</th><th>Category</th></tr></thead>
+  <tbody>
+    <tr><td class="fmt-m">PPG signal &amp; pulse analysis</td><td class="nr">Allen 2007; Elgendi 2012</td><td>PPG</td></tr>
+    <tr><td class="fmt-m">PRV vs HRV caveat</td><td class="nr">Sch&#xE4;fer &amp; Vagedes 2013</td><td>PRV</td></tr>
+    <tr><td class="fmt-m">rMSSD, SDNN, pNN50, LF/HF</td><td class="nr">Task Force 1996</td><td>HRV</td></tr>
+    <tr><td class="fmt-m">SD1/SD2 Poincar&#xE9;</td><td class="nr">Brennan 2001</td><td>HRV</td></tr>
+    <tr><td class="fmt-m">DFA &#x3B1;1</td><td class="nr">Peng 1995</td><td>Nonlinear</td></tr>
+    <tr><td class="fmt-m">Sample entropy</td><td class="nr">Richman &amp; Moorman 2000</td><td>Nonlinear</td></tr>
+    <tr><td class="fmt-m">SDPPG b/a, aging index, augmentation</td><td class="nr">Takazawa 1998</td><td>Morphology</td></tr>
+    <tr><td class="fmt-m">Perfusion index (AC/DC)</td><td class="nr">Lima 2002</td><td>Perfusion</td></tr>
+    <tr><td class="fmt-m">CVHR (cyclical variation of HR)</td><td class="nr">Guilleminault 1984</td><td>CVHR</td></tr>
+    <tr><td class="fmt-m">Lomb&#x2013;Scargle spectral estimation</td><td class="nr">Lomb 1976 / Scargle 1982</td><td>Spectral</td></tr>
+    <tr><td class="fmt-m">VO&#x2082;max (HR-ratio)</td><td class="nr">Uth&#x2013;S&#xF8;rensen 2004</td><td>Projection</td></tr>
+    <tr><td class="fmt-m">HRV Score</td><td class="nr">PpgDex internal &#x2014; no external source</td><td>Internal</td></tr>
+  </tbody>
+</table></div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="formula-provenance">
+<div class="sh"><div class="si sig">&#x1D453;</div><div><div class="st">Formula Provenance Index</div><div class="sd">Compact audit index &#x2014; every external formula mapped to its source</div></div></div>
+<div class="nt-wrap"><table class="nt">
+  <thead><tr><th>Formula</th><th>Source / Author</th><th>Year</th><th>Reference</th></tr></thead>
+  <tbody>
+    <tr><td class="fmt-m">PPG clinical measurement (overview)</td><td>Allen J</td><td>2007</td><td><em>Physiol Meas.</em> 28(3):R1&#x2013;39</td></tr>
+    <tr><td class="fmt-m">PRV vs HRV accuracy</td><td>Sch&#xE4;fer &amp; Vagedes</td><td>2013</td><td><em>Int J Cardiol.</em> 166(1):15&#x2013;29</td></tr>
+    <tr><td class="fmt-m">Time-domain HRV standards</td><td>Task Force ESC/NASPE</td><td>1996</td><td><em>Circulation.</em> 93(5):1043&#x2013;65</td></tr>
+    <tr><td class="fmt-m">SD1/SD2 Poincar&#xE9; geometry</td><td>Brennan et al.</td><td>2001</td><td><em>IEEE TBME.</em> 48(11):1342&#x2013;7</td></tr>
+    <tr><td class="fmt-m">DFA &#x3B1;1</td><td>Peng et al.</td><td>1995</td><td><em>Chaos.</em> 5(1):82&#x2013;7</td></tr>
+    <tr><td class="fmt-m">SDPPG b/a &amp; aging index</td><td>Takazawa et al.</td><td>1998</td><td><em>Hypertension.</em> 32(2):365&#x2013;70</td></tr>
+    <tr><td class="fmt-m">Perfusion index</td><td>Lima et al.</td><td>2002</td><td><em>Crit Care Med.</em> 30(6):1210&#x2013;3</td></tr>
+    <tr><td class="fmt-m">Cyclical variation of heart rate</td><td>Guilleminault et al.</td><td>1984</td><td><em>Lancet.</em> 1(8369):126&#x2013;31</td></tr>
+    <tr><td class="fmt-m">VO&#x2082;max = 15&#xB7;(HRmax/HRrest)</td><td>Uth, S&#xF8;rensen et al.</td><td>2004</td><td><em>Eur J Appl Physiol.</em> 91(1):111&#x2013;5</td></tr>
+  </tbody>
+</table></div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="limitations">
+<div class="sh"><div class="si sig">&#x26A0;&#xFE0F;</div><div><div class="st">Known Limitations</div><div class="sd">The interpretation context for consumer optical pulse analysis</div></div></div>
+<div class="co co-i" style="margin-bottom:var(--sp-4)"><span class="co-ic">&#x2139;&#xFE0F;</span><div>These limitations are inherent to reflectance wrist/arm photoplethysmography. They do not invalidate PpgDex outputs but define the appropriate interpretation context.</div></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px"><div style="font-weight:700;color:var(--text2);margin-bottom:6px;font-size:13px">&#x1F4F3; Device &amp; Sampling</div><ul style="margin:0;padding-left:18px;color:var(--text3);font-size:12.5px;line-height:1.7"><li>Consumer optical sensor (Polar Verity Sense), wrist or upper arm</li><li>Reflectance PPG &#x2014; motion- and contact-sensitive</li><li>Pulse intervals (PPI), not ECG R-R intervals</li><li>Wear site not auto-detected &#x2014; posture is limb orientation</li></ul></div>
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px"><div style="font-weight:700;color:var(--text2);margin-bottom:6px;font-size:13px">&#x1F9E0; Physiological Equivalence</div><ul style="margin:0;padding-left:18px;color:var(--text3);font-size:12.5px;line-height:1.7"><li>PRV approximates HRV at rest; diverges under motion</li><li>Morphology / reflection indices are device-dependent proxies</li><li>CVHR is an SDB screen, not a diagnosis</li><li>No EEG &#x2014; no sleep staging claims</li></ul></div>
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px"><div style="font-weight:700;color:var(--text2);margin-bottom:6px;font-size:13px">&#x1F4CA; Algorithmic</div><ul style="margin:0;padding-left:18px;color:var(--text3);font-size:12.5px;line-height:1.7"><li>HRV Score is an internal composite, not externally validated</li><li>ANS age / VO&#x2082;max are population projections</li><li>Late SDPPG waves (c,d,e) are noisy on reflectance optics</li><li>Heavy correction attenuates HRV &#x2014; check Correction %</li></ul></div>
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px"><div style="font-weight:700;color:var(--text2);margin-bottom:6px;font-size:13px">&#x2696;&#xFE0F; Regulatory</div><ul style="margin:0;padding-left:18px;color:var(--text3);font-size:12.5px;line-height:1.7"><li>Not FDA cleared or CE marked as a medical device</li><li>Not for clinical diagnosis or treatment decisions</li><li>Personal, research, and wellness use only</li><li>Discuss medical concerns with a qualified clinician</li></ul></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="acad-refs">
+<div class="sh"><div class="si clin">&#x1F4DA;</div><div><div class="st">Academic References</div><div class="sd">Primary sources for every method PpgDex computes</div></div></div>
+<div class="co co-w"><span class="co-ic">&#x26A0;&#xFE0F;</span><div><strong>Provenance note.</strong> Internal composites (HRV Score, ANS-age scaling) carry no external source and are labelled as such. Where PpgDex shares a method with the other cardiac nodes it uses the same verified sources.</div></div>
+<div class="nt-wrap"><table class="nt">
+  <thead><tr><th>Method / Metric</th><th>Primary Citation</th><th>Category</th></tr></thead>
+  <tbody>
+    <tr><td class="fmt-m">PPG signal &amp; clinical use (overview)</td><td class="nr">Allen J. <em>Photoplethysmography and its application in clinical physiological measurement.</em> Physiol Meas. 2007;28(3):R1&#x2013;R39. doi: <a href="https://doi.org/10.1088/0967-3334/28/3/R01" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1088/0967-3334/28/3/R01</a></td><td>PPG</td></tr>
+    <tr><td class="fmt-m">PPG fiducials / pulse analysis</td><td class="nr">Elgendi M. <em>On the analysis of fingertip photoplethysmogram signals.</em> Curr Cardiol Rev. 2012;8(1):14&#x2013;25. doi: <a href="https://doi.org/10.2174/157340312801215782" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.2174/157340312801215782</a></td><td>PPG</td></tr>
+    <tr><td class="fmt-m">Pulse-rate vs heart-rate variability</td><td class="nr">Sch&#xE4;fer A, Vagedes J. <em>How accurate is pulse rate variability as an estimate of heart rate variability?</em> Int J Cardiol. 2013;166(1):15&#x2013;29. doi: <a href="https://doi.org/10.1016/j.ijcard.2012.03.119" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1016/j.ijcard.2012.03.119</a></td><td>PRV vs HRV</td></tr>
+    <tr><td class="fmt-m">HRV standards (rMSSD, SDNN, pNN50, bands)</td><td class="nr">Task Force of the ESC and NASPE. <em>Heart rate variability: standards of measurement&#x2026;</em> Circulation. 1996;93(5):1043&#x2013;65. doi: <a href="https://doi.org/10.1161/01.CIR.93.5.1043" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1161/01.CIR.93.5.1043</a></td><td>HRV</td></tr>
+    <tr><td class="fmt-m">Poincar&#xE9; SD1 / SD2</td><td class="nr">Brennan M, Palaniswami M, Kamen P. <em>Do existing measures of Poincar&#xE9; plot geometry reflect nonlinear features of HRV?</em> IEEE Trans Biomed Eng. 2001;48(11):1342&#x2013;7. doi: <a href="https://doi.org/10.1109/10.959330" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1109/10.959330</a></td><td>HRV</td></tr>
+    <tr><td class="fmt-m">DFA &#x3B1;1</td><td class="nr">Peng C-K, et al. <em>Quantification of scaling exponents&#x2026;</em> Chaos. 1995;5(1):82&#x2013;7. doi: <a href="https://doi.org/10.1063/1.166141" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1063/1.166141</a></td><td>Nonlinear</td></tr>
+    <tr><td class="fmt-m">Sample Entropy</td><td class="nr">Richman JS, Moorman JR. <em>Physiological time-series analysis using approximate entropy and sample entropy.</em> Am J Physiol Heart Circ Physiol. 2000;278(6):H2039&#x2013;49. doi: <a href="https://doi.org/10.1152/ajpheart.2000.278.6.H2039" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1152/ajpheart.2000.278.6.H2039</a></td><td>Nonlinear</td></tr>
+    <tr><td class="fmt-m">SDPPG b/a &amp; aging index; augmentation</td><td class="nr">Takazawa K, et al. <em>Assessment of vasoactive agents and vascular aging by the second derivative of photoplethysmogram waveform.</em> Hypertension. 1998;32(2):365&#x2013;70. doi: <a href="https://doi.org/10.1161/01.HYP.32.2.365" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1161/01.HYP.32.2.365</a></td><td>Morphology</td></tr>
+    <tr><td class="fmt-m">Perfusion index (AC/DC)</td><td class="nr">Lima AP, Beelen P, Bakker J. <em>Use of a peripheral perfusion index derived from the pulse oximetry signal.</em> Crit Care Med. 2002;30(6):1210&#x2013;3. doi: <a href="https://doi.org/10.1097/00003246-200206000-00006" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1097/00003246-200206000-00006</a></td><td>Perfusion</td></tr>
+    <tr><td class="fmt-m">Cyclical variation of heart rate (CVHR)</td><td class="nr">Guilleminault C, et al. <em>Cyclical variation of the heart rate in sleep apnoea syndrome.</em> Lancet. 1984;1(8369):126&#x2013;31. doi: <a href="https://doi.org/10.1016/S0140-6736(84)90062-X" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1016/S0140-6736(84)90062-X</a></td><td>CVHR</td></tr>
+    <tr><td class="fmt-m">VO&#x2082;max (HR-ratio method)</td><td class="nr">Uth N, S&#xF8;rensen H, et al. <em>Estimation of VO&#x2082;max from the ratio between HRmax and HRrest.</em> Eur J Appl Physiol. 2004;91(1):111&#x2013;5. doi: <a href="https://doi.org/10.1007/s00421-003-0988-y" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1007/s00421-003-0988-y</a></td><td>Projection</td></tr>
+    <tr><td class="fmt-m">HRV Score; ANS-age scaling</td><td class="nr">PpgDex internal composites &#x2014; no external source. Directional only.</td><td>Internal</td></tr>
+  </tbody>
+</table></div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="abbr">
+<div class="sh"><div class="si comp">&#x1F520;</div><div><div class="st">Abbreviation Index</div><div class="sd">Every acronym used in this guide &#x2014; searchable, jump to its section</div></div></div>
+<div class="abbr-search-wrap"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+  <input type="text" class="abbr-search-inp" id="abbrSearch" placeholder="Search abbreviations&#x2026;" autocomplete="off" spellcheck="false">
+  <span class="abbr-count-label" id="abbrCountLabel">terms</span></div>
+<div class="abbr-alpha-wrap" id="abbrAlphaTabs"></div>
+<div id="abbrGrid"></div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+<div class="rs" id="credits">
+<div class="sh"><div class="si sig">&#x1F4CB;</div><div><div class="st">Project Credits</div><div class="sd">Authorship, contributions, and open-source provenance</div></div></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px">
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:18px 20px"><div style="font-size:12px;font-family:'IBM Plex Mono',ui-monospace,monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--text4);margin-bottom:8px">Author</div><div style="font-size:17px;font-weight:700;color:var(--text);margin-bottom:4px">Michal Planicka</div><div style="font-size:12.5px;color:var(--text3);line-height:1.7">Concept &#xB7; Architecture &#xB7; Algorithms<br>Implementation &#xB7; Validation &#xB7; UI/UX</div></div>
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:18px 20px"><div style="font-size:12px;font-family:'IBM Plex Mono',ui-monospace,monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--text4);margin-bottom:8px">Assisted Development</div><div style="font-size:13.5px;font-weight:600;color:var(--text2);margin-bottom:4px">AI-Assisted</div><div style="font-size:12.5px;color:var(--text3);line-height:1.7">Code review &#xB7; Documentation<br>Literature synthesis &#xB7; Reference formatting</div></div>
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:18px 20px"><div style="font-size:12px;font-family:'IBM Plex Mono',ui-monospace,monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--text4);margin-bottom:8px">Licence &amp; Suggested Citation</div><div style="font-size:13px;color:var(--text3);line-height:1.8"><strong style="color:var(--text2)">Apache-2.0</strong> Open-source<br><span style="font-size:12px;font-style:italic;color:var(--text4)">Planicka M. <em>PpgDex: Optical Pulse HRV &amp; Morphology Node.</em> Version 1.0.0. 2026.</span></div></div>
+</div>
+<a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
+</div>
+
+</main>
+</div>
+
+<button id="btt" aria-label="Back to top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg></button>
+
+<script>
+var abbrs=[
+  ["PPG","Photoplethysmography (optical pulse signal)"],["PPI","Pulse-to-Pulse Interval (foot-to-foot, ms)"],
+  ["PRV","Pulse-Rate Variability (optical analogue of HRV)"],["HRV","Heart-Rate Variability"],["NN","Normal-to-Normal interval"],
+  ["rMSSD","Root Mean Square of Successive Differences"],["SDNN","Standard Deviation of NN intervals"],["pNN50","% successive intervals > 50 ms apart"],
+  ["SD1/SD2","Poincaré short / long-axis widths"],["LF","Low Frequency (0.04–0.15 Hz)"],["HF","High Frequency (0.15–0.40 Hz)"],["LF/HF","Low-to-High power ratio"],
+  ["DFA","Detrended Fluctuation Analysis (α1)"],["SampEn","Sample Entropy"],["CVHR","Cyclical Variation of Heart Rate (apnea surrogate)"],
+  ["AI","Augmentation Index (arterial reflection)"],["RI","Reflection Index (diastolic ÷ systolic peak)"],["SDPPG","Second-Derivative PPG (acceleration plethysmogram)"],["AGI","SDPPG Aging Index"],["b/a","SDPPG b-wave to a-wave ratio"],
+  ["PI","Perfusion Index (AC ÷ DC, %)"],["AC/DC","Pulsatile / steady optical components"],["SQI","Signal-Quality Index (per-pulse, 0–1)"],["SNR","Signal-to-Noise Ratio"],
+  ["ACC","Accelerometer"],["GYRO","Gyroscope"],["MAGN","Magnetometer"],["ANS","Autonomic Nervous System"],["VO₂max","Estimated Maximum Oxygen Uptake"],["SDB","Sleep-Disordered Breathing"]
+];
+var abbrSectionMap={
+  "PPG":"signal","PPI":"signal","PRV":"hrv-time","HRV":"hrv-time","NN":"signal","rMSSD":"hrv-time","SDNN":"hrv-time","pNN50":"hrv-time",
+  "SD1/SD2":"hrv-poincare","LF":"hrv-freq","HF":"hrv-freq","LF/HF":"hrv-freq","DFA":"hrv-nonlinear","SampEn":"hrv-nonlinear","CVHR":"cvhr",
+  "AI":"morphology","RI":"morphology","SDPPG":"morphology","AGI":"morphology","b/a":"morphology","PI":"perfusion","AC/DC":"perfusion","SQI":"signal","SNR":"signal",
+  "ACC":"perfusion","GYRO":"perfusion","MAGN":"posture","ANS":"composite","VO₂max":"composite","SDB":"cvhr"
+};
+
+/* ── alpha tabs ── */
+(function(){
+  var tabsEl=document.getElementById('abbrAlphaTabs');
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('').forEach(function(l){
+    var btn=document.createElement('button');
+    btn.textContent=l; btn.className='abbr-tab'; btn.setAttribute('data-letter',l);
+    btn.addEventListener('click',function(){
+      document.querySelectorAll('.abbr-tab').forEach(function(b){b.classList.remove('abbr-tab-active');});
+      btn.classList.add('abbr-tab-active');
+      filterAbbr(l==='#'?'':l);
+    });
+    tabsEl.appendChild(btn);
+  });
+})();
+function filterAbbr(letter){
+  document.querySelectorAll('#abbrGrid .abbr-card').forEach(function(card){
+    var abbr=card.getAttribute('data-abbr')||'';
+    var first=abbr[0]?abbr[0].toUpperCase():'';
+    card.style.display=(!letter||first===letter.toUpperCase())?'':'none';
+  });
+}
+
+/* ── render abbr cards ── */
+var g=document.getElementById('abbrGrid');
+abbrs.sort(function(a,b){return a[0].localeCompare(b[0],undefined,{sensitivity:'base'});});
+abbrs.forEach(function(a){
+  var abbr=a[0], defn=a[1], target=abbrSectionMap[abbr];
+  var d=document.createElement('div');
+  d.className='abbr-card'; d.setAttribute('data-abbr',abbr);
+  d.style.cssText='display:flex;align-items:center;gap:10px;padding:7px 10px;background:rgba(255,255,255,.02);border-radius:8px;border:1px solid rgba(255,255,255,.04);transition:border-color .15s,background .15s';
+  var abbrHtml;
+  if(target){
+    abbrHtml='<a href="#'+target+'" class="abbr-link" title="Go to '+defn+'" style="font-family:\'IBM Plex Mono\',ui-monospace,monospace;font-size:11px;font-weight:600;color:var(--teal);white-space:nowrap;min-width:64px;text-decoration:none">'+abbr+'</a>';
+  } else {
+    abbrHtml='<span style="font-family:\'IBM Plex Mono\',ui-monospace,monospace;font-size:11px;font-weight:600;color:var(--teal);white-space:nowrap;min-width:64px">'+abbr+'</span>';
+  }
+  d.innerHTML=abbrHtml+'<span style="font-size:12px;color:var(--text2)">'+defn+'</span>';
+  if(target){ d.addEventListener('mouseenter',function(){d.style.borderColor='rgba(61,224,208,.25)';d.style.background='rgba(61,224,208,.04)';}); d.addEventListener('mouseleave',function(){d.style.borderColor='rgba(255,255,255,.04)';d.style.background='rgba(255,255,255,.02)';}); }
+  g.appendChild(d);
+});
+
+/* ── abbr search ── */
+(function(){
+  var inp=document.getElementById('abbrSearch'), lbl=document.getElementById('abbrCountLabel');
+  if(!inp) return;
+  function updateCount(){
+    var vis=[].slice.call(document.querySelectorAll('#abbrGrid .abbr-card')).filter(function(c){return c.style.display!=='none';}).length;
+    var tot=document.querySelectorAll('#abbrGrid .abbr-card').length;
+    lbl.textContent=vis<tot?vis+' shown':tot+' terms';
+  }
+  setTimeout(updateCount,100);
+  inp.addEventListener('input',function(){
+    var q=inp.value.trim().toLowerCase();
+    document.querySelectorAll('.abbr-tab').forEach(function(b){b.classList.remove('abbr-tab-active');});
+    document.querySelectorAll('#abbrGrid .abbr-card').forEach(function(card){
+      var abbr=(card.getAttribute('data-abbr')||'').toLowerCase();
+      var defn=card.textContent.toLowerCase();
+      card.style.display=(!q||abbr.indexOf(q)>=0||defn.indexOf(q)>=0)?'':'none';
+    });
+    updateCount();
+  });
+})();
+
+/* ── quick-jump toggle ── */
+(function(){
+  var btn=document.getElementById('qjToggle'), panel=document.getElementById('qjPanel');
+  if(!btn||!panel) return;
+  btn.addEventListener('click',function(){
+    var ex=btn.getAttribute('aria-expanded')==='true';
+    btn.setAttribute('aria-expanded',String(!ex));
+    if(ex) panel.setAttribute('hidden',''); else panel.removeAttribute('hidden');
+  });
+})();
+
+/* ── quick-jump filter ── */
+(function(){
+  var inp=document.getElementById('qjSearch'), clear=document.getElementById('qjClear'), noRes=document.getElementById('qjNoResults');
+  if(!inp) return;
+  function run(){
+    var q=inp.value.trim().toLowerCase(); clear.hidden=!q; var any=false;
+    document.querySelectorAll('.qm').forEach(function(el){
+      var match=!q||el.textContent.toLowerCase().indexOf(q)>=0;
+      el.classList.toggle('qm-match',!!(q&&match));
+      el.classList.toggle('qm-hide',!!(q&&!match));
+      if(match) any=true;
+    });
+    document.querySelectorAll('.qj-group').forEach(function(grp){
+      grp.toggleAttribute('data-hidden', grp.querySelectorAll('.qm:not(.qm-hide)').length===0);
+    });
+    if(noRes) noRes.hidden=any||!q;
+  }
+  inp.addEventListener('input',run);
+  if(clear) clear.addEventListener('click',function(){inp.value='';run();inp.focus();});
+})();
+
+/* ── theme toggle ── */
+(function(){
+  var btn=document.getElementById('themeToggleBtn');
+  var icon=btn?btn.querySelector('.theme-icon'):null, label=document.getElementById('themeLabel');
+  function apply(t){
+    document.body.classList.toggle('light',t==='light');
+    document.documentElement.style.colorScheme=t==='light'?'light':'dark';
+    if(icon) icon.textContent=t==='light'?'\u2600\uFE0F':'\uD83C\uDF19';
+    if(label) label.textContent=t==='light'?'Light':'Dark';
+  }
+  var saved=null; try{saved=localStorage.getItem('ansTheme');}catch(e){}
+  if(saved) apply(saved);
+  if(btn) btn.addEventListener('click',function(){
+    var t=document.body.classList.contains('light')?'dark':'light';
+    apply(t); try{localStorage.setItem('ansTheme',t);}catch(e){}
+  });
+})();
+
+/* ── nav highlight ── */
+(function(){
+  var navLinks=document.querySelectorAll('.sidebar .nav a, .mob-drawer-panel .nav a');
+  function setActive(id){ navLinks.forEach(function(a){ a.classList.toggle('nav-active',a.getAttribute('href')==='#'+id); }); }
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting) setActive(e.target.id); }); },{rootMargin:'-20% 0px -70% 0px',threshold:0});
+    document.querySelectorAll('.rs[id]').forEach(function(s){ io.observe(s); });
+  }
+})();
+
+/* ── top abbr pills ── */
+(function(){
+  var c=document.getElementById('tasPills'); if(!c) return;
+  var links=document.querySelectorAll('#abbrGrid .abbr-link'); var n=0;
+  links.forEach(function(a){ if(n>=8) return; var p=document.createElement('a'); p.href=a.getAttribute('href'); p.className='tas-pill'; p.textContent=a.textContent.trim(); c.appendChild(p); n++; });
+})();
+
+/* ── back to top ── */
+(function(){
+  var btt=document.getElementById('btt'); if(!btt) return;
+  window.addEventListener('scroll',function(){ btt.classList.toggle('btt-show',window.scrollY>400); },{passive:true});
+  btt.addEventListener('click',function(){ window.scrollTo({top:0,behavior:'smooth'}); });
+})();
+
+/* ── mobile drawer ── */
+function openDrawer(){ document.getElementById('mobDrawerBg').classList.add('open'); document.body.style.overflow='hidden'; }
+function closeDrawer(){ document.getElementById('mobDrawerBg').classList.remove('open'); document.body.style.overflow=''; }
+function handleBgClick(e){ if(e.target===document.getElementById('mobDrawerBg')) closeDrawer(); }
+document.querySelectorAll('.mob-drawer-panel .nav a').forEach(function(a){ a.addEventListener('click',function(){ setTimeout(closeDrawer,100); }); });
+</script>
+
+<div style="text-align:center;padding:20px 24px 28px;font-size:11px;color:var(--text4);font-family:'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.05em;border-top:1px solid var(--border);margin-top:32px">
+  Reference Guide Version: <strong style="color:var(--text3)">1.0.0</strong>
+  &nbsp;&#xB7;&nbsp; Node: <strong style="color:var(--text3)">PpgDex &#x2014; optical pulse HRV &amp; morphology</strong>
+  &nbsp;&#xB7;&nbsp; Last Literature Review: <strong style="color:var(--text3)">June 2026</strong>
+  &nbsp;&#xB7;&nbsp; Apache-2.0 Licence
+</div>
+
+<div class="dxl" style="max-width:900px;margin:40px auto 14px;padding:0 24px">
+  <div class="dxl-notice">
+    <div class="dxl-k">Intended use &amp; safety</div>
+    <p><b>Tepna</b> computes biometric patterns from your wearable and sensor data to support personal self-quantification. It is <b>not a medical device</b>, does not <b>diagnose, treat, cure, screen for, or prevent</b> any disease or condition, and is <b>not a substitute for professional clinical evaluation</b>. It has not been reviewed or cleared by the FDA, CE, or any regulatory body. Always consult a qualified healthcare provider about your health. Use at your own risk. For research and personal use only. 100% local — no data leaves your device.</p>
+  </div>
+</div>
+<div class="dxl dxl-ribbon" style="max-width:900px;margin:0 auto 30px">
+  <div class="dxl-seg">
+    <span class="dxl-mark">T</span>
+    <span style="display:flex;flex-direction:column">
+      <b style="font-size:13px">Tepna</b>
+      <span class="dxl-colophon">physiological-signal suite</span>
+    </span>
+  </div>
+  <div class="dxl-seg dxl-grow">
+    <span style="font-size:11.5px;color:var(--text2,#9FB0C3)">© 2026 <b>Michal Planicka</b> — Concept · Architecture · Algorithms</span>
+    <span class="dxl-disclaimer">Not a medical device · does not diagnose or treat · not FDA/CE cleared · research &amp; personal use only · ◈ Made in Asheville, NC</span>
+  </div>
+  <div class="dxl-seg"><span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span></div>
+</div>
+</body>
+</html>

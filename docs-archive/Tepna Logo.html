@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  Tepna Logo.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Finished brand mark: the "T-beat" monogram + Tepna wordmark.
+  Concept: a 'T' whose crossbar is one heartbeat (tep = pulse; tepna = artery).
+  Palette + type inherited from index.html / the Tepna design system.
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tepna — Brand Mark</title>
+<style>
+:root{
+  --bg:#070A0E; --bg2:#0B0F14; --surface:#101722; --surface2:#16202D;
+  --border:#1c2a3b; --border2:#27384f;
+  --text:#F4F7FB; --text2:#A3B4C6; --text3:#7d90a5; --text4:#5a6b7e;
+  --teal:#3DE0D0; --blue:#58A6FF; --purple:#A78BFA;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:radial-gradient(130% 80% at 50% -10%,#0c131c,var(--bg));color:var(--text);
+  font-family:var(--sans);-webkit-font-smoothing:antialiased;line-height:1.6;min-height:100vh;}
+.wrap{max-width:1140px;margin:0 auto;padding:64px 48px 96px;}
+
+/* ---- wordmark ---- */
+.wm{font-weight:800;letter-spacing:-.045em;line-height:1;color:var(--text);}
+.wm .t{color:var(--teal);}            /* subtle tie to the mark */
+.glyph{display:block;}
+/* stroke is an inherited property — set on the container so it crosses the <use> shadow boundary */
+.g-grad{stroke:url(#tepgrad);}
+.g-dark{stroke:#06121A;}
+.g-white{stroke:var(--text);}
+.g-teal{stroke:var(--teal);}
+
+/* ---- header ---- */
+.kicker{font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--teal);}
+.head{margin-bottom:8px;}
+.head h1{font-size:34px;font-weight:800;letter-spacing:-.03em;margin-top:14px;}
+.head p{color:var(--text2);max-width:62ch;margin-top:12px;font-size:15px;text-wrap:pretty;}
+
+/* ---- section scaffold ---- */
+.sec{margin-top:60px;}
+.sec-h{display:flex;align-items:baseline;gap:14px;margin-bottom:22px;}
+.sec-h .n{font-family:var(--mono);font-size:11px;color:var(--text4);letter-spacing:.1em;}
+.sec-h h2{font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text2);}
+.sec-h .rule{flex:1;height:1px;background:var(--border);}
+
+.card{background:linear-gradient(180deg,var(--surface),var(--bg2));border:1px solid var(--border);
+  border-radius:18px;padding:0;overflow:hidden;}
+.cap{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--text4);}
+
+/* hero lockup */
+.hero{display:grid;place-items:center;padding:72px 32px;gap:0;}
+.lockup{display:flex;align-items:center;gap:26px;}
+.lockup .glyph{width:96px;height:96px;}
+.lockup .wm{font-size:78px;}
+.hero .sub{margin-top:30px;font-size:14px;color:var(--text3);text-align:center;max-width:48ch;text-wrap:pretty;}
+.hero .sub b{color:var(--text2);font-weight:600;}
+
+/* two-up grid */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+.pad{padding:34px 30px;}
+.cell{display:flex;flex-direction:column;}
+.cell .stage{flex:1;display:grid;place-items:center;min-height:150px;padding:14px 0 22px;}
+.cell .foot{border-top:1px solid var(--border);padding:14px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px;}
+.cell .foot .lbl{font-size:13px;font-weight:600;color:var(--text2);}
+
+/* mark construction */
+.mark-big .glyph{width:150px;height:150px;}
+.rationale{padding:34px 32px;display:flex;flex-direction:column;justify-content:center;gap:16px;}
+.rationale h3{font-size:18px;font-weight:700;letter-spacing:-.01em;}
+.rationale p{font-size:14px;color:var(--text2);text-wrap:pretty;}
+.rationale ul{list-style:none;display:flex;flex-direction:column;gap:10px;margin-top:2px;}
+.rationale li{display:flex;gap:11px;font-size:13.5px;color:var(--text3);align-items:flex-start;}
+.rationale li .dot{width:7px;height:7px;border-radius:50%;background:var(--teal);margin-top:7px;flex:none;
+  box-shadow:0 0 10px rgba(61,224,208,.6);}
+.rationale li b{color:var(--text);font-weight:600;}
+
+/* app tiles */
+.tile{border-radius:22%;display:grid;place-items:center;flex:none;}
+.tile-app{width:104px;height:104px;background:linear-gradient(150deg,var(--teal),var(--blue) 62%,var(--purple));
+  box-shadow:0 14px 34px rgba(61,224,208,.18),inset 0 1px 0 rgba(255,255,255,.25);}
+.tile-app .glyph{width:62px;height:62px;}
+.tile-dark{width:104px;height:104px;background:#0c1420;border:1px solid var(--border2);}
+.tile-dark .glyph{width:60px;height:60px;}
+.fav-row{display:flex;align-items:center;gap:18px;}
+.fav{border-radius:24%;display:grid;place-items:center;flex:none;background:linear-gradient(150deg,var(--teal),var(--blue));}
+.fav.s64{width:64px;height:64px;} .fav.s64 .glyph{width:38px;height:38px;}
+.fav.s40{width:40px;height:40px;} .fav.s40 .glyph{width:24px;height:24px;}
+.fav.s24{width:24px;height:24px;border-radius:6px;} .fav.s24 .glyph{width:15px;height:15px;}
+.fav.s16{width:16px;height:16px;border-radius:5px;} .fav.s16 .glyph{width:10px;height:10px;}
+
+/* mono / knockout */
+.mono-light{background:#0c1420;}
+.mono-dark{background:var(--text);}
+.mono-teal{background:rgba(61,224,208,.06);}
+.swatch-row{display:flex;gap:14px;flex-wrap:wrap;padding:30px 32px;}
+.sw{flex:1;min-width:150px;border-radius:13px;border:1px solid var(--border);overflow:hidden;}
+.sw .chip{height:64px;}
+.sw .meta{padding:11px 14px;background:var(--surface);}
+.sw .meta .nm{font-size:13px;font-weight:600;}
+.sw .meta .hx{font-family:var(--mono);font-size:11px;color:var(--text3);margin-top:2px;letter-spacing:.02em;}
+
+/* clearspace + minsize */
+.clear-stage{padding:40px;display:grid;place-items:center;}
+.cs-box{position:relative;padding:38px;border:1px dashed var(--border2);border-radius:10px;}
+.cs-box .glyph{width:86px;height:86px;}
+.cs-tick{position:absolute;font-family:var(--mono);font-size:9px;color:var(--text4);letter-spacing:.1em;}
+.minsize{display:flex;align-items:flex-end;gap:30px;padding:40px 32px;flex-wrap:wrap;}
+.ms{display:flex;flex-direction:column;align-items:center;gap:10px;}
+.ms .glyph{display:block;}
+
+/* wordmark specimen */
+.spec{padding:38px 34px;display:flex;flex-direction:column;gap:26px;}
+.spec-row{display:flex;align-items:baseline;gap:22px;flex-wrap:wrap;}
+.spec-row .wm{font-size:46px;}
+.spec-meta{font-family:var(--mono);font-size:10.5px;color:var(--text4);letter-spacing:.06em;line-height:1.7;}
+.stacked{display:flex;flex-direction:column;align-items:center;gap:16px;padding:48px;}
+.stacked .glyph{width:78px;height:78px;}
+.stacked .wm{font-size:42px;}
+
+/* do / don't */
+.dd{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
+.dd .item{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--surface);}
+.dd .item .stage{display:grid;place-items:center;min-height:118px;padding:18px;background:var(--bg2);}
+.dd .item .stage .glyph{width:58px;height:58px;}
+.dd .item .lockup-mini{display:flex;align-items:center;gap:12px;}
+.dd .item .lockup-mini .glyph{width:34px;height:34px;}
+.dd .item .lockup-mini .wm{font-size:26px;}
+.dd .item .tag{padding:11px 14px;font-size:12px;display:flex;align-items:center;gap:8px;border-top:1px solid var(--border);}
+.dd .ok .tag{color:var(--teal);} .dd .no .tag{color:#FF6B7A;}
+.dd .tag .mk{font-weight:800;}
+
+@media(max-width:920px){
+  .grid2,.grid3,.dd{grid-template-columns:1fr;}
+  .lockup .wm{font-size:54px;} .lockup .glyph{width:70px;height:70px;}
+  .wrap{padding:48px 24px 72px;}
+}
+</style>
+</head>
+<body>
+
+<!-- shared gradient def -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="tepgrad" gradientUnits="userSpaceOnUse" x1="14" y1="10" x2="86" y2="88">
+      <stop offset="0" stop-color="#3DE0D0"/>
+      <stop offset=".58" stop-color="#58A6FF"/>
+      <stop offset="1" stop-color="#A78BFA"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<div class="wrap">
+
+  <div class="head">
+    <div class="kicker">Tepna · brand mark</div>
+    <h1>The T that beats.</h1>
+    <p>One mark, one idea: a <b style="color:var(--text2);font-weight:600">T</b> whose crossbar is a single heartbeat —
+       <i>tep</i> (pulse) in <i>tepna</i> (artery). It reads as health-tech without a heart cliché, carries the
+       brand letter, and survives down to a 16&nbsp;px favicon. Built on the existing teal→blue→purple system.</p>
+  </div>
+
+  <!-- ============ PRIMARY LOCKUP ============ -->
+  <div class="sec" style="margin-top:40px">
+    <div class="card hero">
+      <div class="lockup">
+        <svg class="glyph g-grad"><use href="#tep-glyph"/></svg>
+        <span class="wm"><span class="t">T</span>epna</span>
+      </div>
+      <div class="sub">Primary horizontal lockup · <b>gradient mark + solid wordmark</b>. The mark carries the colour so the wordmark stays legible on any surface.</div>
+    </div>
+  </div>
+
+  <!-- ============ THE MARK ============ -->
+  <div class="sec">
+    <div class="sec-h"><span class="n">01</span><h2>The mark</h2><span class="rule"></span></div>
+    <div class="grid2">
+      <div class="card cell mark-big">
+        <div class="stage" style="min-height:230px"><svg class="glyph g-grad"><use href="#tep-glyph"/></svg></div>
+        <div class="foot"><span class="lbl">T-beat monogram</span><span class="cap">primary glyph</span></div>
+      </div>
+      <div class="card rationale">
+        <h3>Why this mark</h3>
+        <p>Selected and refined from the five-direction exploration. The others were either too literal (a bare beat), too soft (radiating rings) or too intricate to hold at small sizes (the branching vessel).</p>
+        <ul>
+          <li><span class="dot"></span><span><b>Carries the letter.</b> The glyph is unmistakably a “T” — the wordmark and icon reinforce each other.</span></li>
+          <li><span class="dot"></span><span><b>Encodes the name.</b> The crossbar is a QRS heartbeat — <i>tep</i>, the pulse at the root of <i>tepna</i>.</span></li>
+          <li><span class="dot"></span><span><b>Scales.</b> Two strokes, generous caps — clean from a 150&nbsp;px hero to a 16&nbsp;px favicon.</span></li>
+          <li><span class="dot"></span><span><b>Fits the suite.</b> Same teal→blue→purple gradient already used across the Dex apps.</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ LOCKUPS ============ -->
+  <div class="sec">
+    <div class="sec-h"><span class="n">02</span><h2>Lockups</h2><span class="rule"></span></div>
+    <div class="grid3">
+      <div class="card cell">
+        <div class="stage"><div class="lockup" style="gap:16px"><svg class="glyph g-grad" style="width:48px;height:48px"><use href="#tep-glyph"/></svg><span class="wm" style="font-size:38px"><span class="t">T</span>epna</span></div></div>
+        <div class="foot"><span class="lbl">Horizontal</span><span class="cap">default</span></div>
+      </div>
+      <div class="card cell">
+        <div class="stage stacked" style="padding:32px 0"><svg class="glyph g-grad"><use href="#tep-glyph"/></svg><span class="wm"><span class="t">T</span>epna</span></div>
+        <div class="foot"><span class="lbl">Stacked</span><span class="cap">square spaces</span></div>
+      </div>
+      <div class="card cell">
+        <div class="stage"><span class="wm" style="font-size:44px"><span class="t">T</span>epna</span></div>
+        <div class="foot"><span class="lbl">Wordmark only</span><span class="cap">in-text / footer</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ APP ICON + FAVICON ============ -->
+  <div class="sec">
+    <div class="sec-h"><span class="n">03</span><h2>App icon &amp; favicon</h2><span class="rule"></span></div>
+    <div class="grid3">
+      <div class="card cell">
+        <div class="stage"><div class="tile tile-app"><svg class="glyph g-dark"><use href="#tep-glyph"/></svg></div></div>
+        <div class="foot"><span class="lbl">App icon</span><span class="cap">dark glyph · gradient</span></div>
+      </div>
+      <div class="card cell">
+        <div class="stage"><div class="tile tile-dark"><svg class="glyph g-grad"><use href="#tep-glyph"/></svg></div></div>
+        <div class="foot"><span class="lbl">Dark tile</span><span class="cap">gradient glyph</span></div>
+      </div>
+      <div class="card cell">
+        <div class="stage"><div class="fav-row">
+          <div class="fav s64"><svg class="glyph g-dark"><use href="#tep-glyph"/></svg></div>
+          <div class="fav s40"><svg class="glyph g-dark"><use href="#tep-glyph"/></svg></div>
+          <div class="fav s24"><svg class="glyph g-dark"><use href="#tep-glyph"/></svg></div>
+          <div class="fav s16"><svg class="glyph g-dark"><use href="#tep-glyph"/></svg></div>
+        </div></div>
+        <div class="foot"><span class="lbl">Favicon scale</span><span class="cap">64 · 40 · 24 · 16</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ ONE-COLOUR ============ -->
+  <div class="sec">
+    <div class="sec-h"><span class="n">04</span><h2>One-colour &amp; knockout</h2><span class="rule"></span></div>
+    <div class="grid3">
+      <div class="card cell">
+        <div class="stage mono-light"><svg class="glyph g-white" style="width:84px;height:84px"><use href="#tep-glyph"/></svg></div>
+        <div class="foot"><span class="lbl">White on dark</span><span class="cap">single colour</span></div>
+      </div>
+      <div class="card cell">
+        <div class="stage mono-dark"><svg class="glyph" style="width:84px;height:84px;stroke:#0c1420"><use href="#tep-glyph"/></svg></div>
+        <div class="foot"><span class="lbl">Dark on light</span><span class="cap">single colour</span></div>
+      </div>
+      <div class="card cell">
+        <div class="stage mono-teal"><svg class="glyph g-teal" style="width:84px;height:84px"><use href="#tep-glyph"/></svg></div>
+        <div class="foot"><span class="lbl">Teal solid</span><span class="cap">accent only</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ CLEARSPACE + MIN SIZE ============ -->
+  <div class="sec">
+    <div class="sec-h"><span class="n">05</span><h2>Clear space &amp; minimum size</h2><span class="rule"></span></div>
+    <div class="grid2">
+      <div class="card cell">
+        <div class="clear-stage">
+          <div class="cs-box">
+            <svg class="glyph g-grad"><use href="#tep-glyph"/></svg>
+            <span class="cs-tick" style="top:-7px;left:50%;transform:translateX(-50%)">½ stem</span>
+          </div>
+        </div>
+        <div class="foot"><span class="lbl">Clear space</span><span class="cap">keep ≥ half the stem on all sides</span></div>
+      </div>
+      <div class="card cell">
+        <div class="minsize">
+          <div class="ms"><svg class="glyph g-grad" style="width:48px;height:48px"><use href="#tep-glyph"/></svg><span class="cap">48 · UI</span></div>
+          <div class="ms"><svg class="glyph g-grad" style="width:24px;height:24px"><use href="#tep-glyph"/></svg><span class="cap">24 · nav</span></div>
+          <div class="ms"><svg class="glyph g-grad" style="width:16px;height:16px"><use href="#tep-glyph"/></svg><span class="cap">16 · min</span></div>
+        </div>
+        <div class="foot"><span class="lbl">Minimum size</span><span class="cap">never below 16 px</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ COLOUR ============ -->
+  <div class="sec">
+    <div class="sec-h"><span class="n">06</span><h2>Colour</h2><span class="rule"></span></div>
+    <div class="card">
+      <div class="swatch-row">
+        <div class="sw"><div class="chip" style="background:#3DE0D0"></div><div class="meta"><div class="nm">Teal</div><div class="hx">#3DE0D0 · gradient start</div></div></div>
+        <div class="sw"><div class="chip" style="background:#58A6FF"></div><div class="meta"><div class="nm">Blue</div><div class="hx">#58A6FF · gradient mid</div></div></div>
+        <div class="sw"><div class="chip" style="background:#A78BFA"></div><div class="meta"><div class="nm">Violet</div><div class="hx">#A78BFA · gradient end</div></div></div>
+        <div class="sw"><div class="chip" style="background:#F4F7FB"></div><div class="meta"><div class="nm">Ink</div><div class="hx">#F4F7FB · wordmark</div></div></div>
+        <div class="sw"><div class="chip" style="background:#070A0E;border-right:1px solid var(--border)"></div><div class="meta"><div class="nm">Base</div><div class="hx">#070A0E · ground</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ DO / DON'T ============ -->
+  <div class="sec">
+    <div class="sec-h"><span class="n">07</span><h2>Do &amp; don't</h2><span class="rule"></span></div>
+    <div class="dd">
+      <div class="item ok">
+        <div class="stage"><svg class="glyph g-grad"><use href="#tep-glyph"/></svg></div>
+        <div class="tag"><span class="mk">✓</span> Gradient on dark</div>
+      </div>
+      <div class="item ok">
+        <div class="stage" style="background:var(--text)"><svg class="glyph" style="width:58px;height:58px;stroke:#0c1420"><use href="#tep-glyph"/></svg></div>
+        <div class="tag"><span class="mk">✓</span> Solid ink on light</div>
+      </div>
+      <div class="item no">
+        <div class="stage"><svg class="glyph g-grad" style="transform:rotate(-16deg)"><use href="#tep-glyph"/></svg></div>
+        <div class="tag"><span class="mk">✕</span> Don't rotate</div>
+      </div>
+      <div class="item no">
+        <div class="stage"><svg class="glyph g-grad" style="width:84px;height:50px"><use href="#tep-glyph"/></svg></div>
+        <div class="tag"><span class="mk">✕</span> Don't stretch</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* Stamp the canonical glyph into every .glyph svg as real children so the
+   inherited stroke (incl. the gradient) paints reliably in every renderer. */
+(function(){
+  var G='<g fill="none" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">'
+       +'<polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/>'
+       +'<line x1="49" y1="33" x2="49" y2="86"/></g>';
+  document.querySelectorAll('svg.glyph').forEach(function(s){
+    s.setAttribute('viewBox','0 0 100 100');
+    s.innerHTML=G;
+  });
+})();
+</script>
+</body></html>

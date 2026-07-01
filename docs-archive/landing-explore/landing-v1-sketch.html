@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  Landing.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tepna — Read your nervous system</title>
+<link rel="stylesheet" href="licensing/dex-license.css">
+<style>
+:root{
+  --bg:#0B0F14; --surface:#121821; --surface2:#18212C; --surface3:#1E2835;
+  --border:#1e2d42; --border2:#253550;
+  --text:#F4F7FB; --text2:#9FB0C3; --text3:#8C9DB3; --text4:#6E7F94;
+  --teal:#3DE0D0; --blue:#58A6FF; --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A;
+  --ev-ink:#aab8cc;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --content:1080px;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+  font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;
+  background-image:
+    radial-gradient(circle at 15% -8%,rgba(61,224,208,.07),transparent 45%),
+    radial-gradient(circle at 92% 2%,rgba(88,166,255,.06),transparent 42%);
+}
+a{color:inherit;text-decoration:none;}
+.wrap{max-width:var(--content);margin:0 auto;padding:0 28px;}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--teal);}
+
+/* ── nav ── */
+header.nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(12px);
+  background:rgba(11,15,20,.72);border-bottom:1px solid var(--border);}
+.nav-in{max-width:var(--content);margin:0 auto;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px;}
+.brand{display:flex;align-items:center;gap:11px;font-weight:700;letter-spacing:-.01em;font-size:16px;}
+.brand .dot{width:13px;height:13px;border-radius:50%;background:radial-gradient(circle at 35% 30%,var(--teal),var(--blue));box-shadow:0 0 14px rgba(61,224,208,.55);}
+.brand small{font-family:var(--mono);font-weight:500;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--text4);}
+.nav-links{display:flex;gap:28px;font-size:13.5px;color:var(--text3);}
+.nav-links a:hover{color:var(--text);}
+.nav-cta{font-size:13px;font-weight:700;color:var(--bg);background:var(--teal);padding:9px 17px;border-radius:999px;white-space:nowrap;}
+@media(max-width:720px){.nav-links{display:none;}}
+
+/* ── hero ── */
+.hero{padding:78px 0 58px;}
+.hero-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:48px;align-items:center;}
+.hero h1{font-size:54px;line-height:1.04;letter-spacing:-.03em;font-weight:800;margin:18px 0 0;}
+.hero h1 .g{background:linear-gradient(115deg,var(--teal),var(--blue));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.hero p.lede{font-size:18.5px;color:var(--text2);max-width:520px;margin:22px 0 0;text-wrap:pretty;}
+.hero-actions{display:flex;gap:14px;flex-wrap:wrap;margin-top:32px;}
+.btn{font-size:14.5px;font-weight:700;padding:13px 24px;border-radius:999px;cursor:pointer;border:1px solid transparent;transition:.15s;}
+.btn-primary{background:var(--teal);color:var(--bg);}
+.btn-primary:hover{box-shadow:0 0 24px rgba(61,224,208,.4);transform:translateY(-1px);}
+.btn-ghost{background:transparent;border-color:var(--border2);color:var(--text2);}
+.btn-ghost:hover{border-color:var(--teal);color:var(--text);}
+.hero-trust{display:flex;gap:22px;flex-wrap:wrap;margin-top:30px;font-size:12.5px;color:var(--text4);font-family:var(--mono);}
+.hero-trust span{display:inline-flex;align-items:center;gap:7px;}
+.hero-trust .tk{color:var(--green);}
+
+/* readiness card (hero visual) */
+.r-card{background:linear-gradient(180deg,var(--surface2),var(--surface));border:1px solid var(--border2);border-radius:22px;padding:26px 26px 22px;box-shadow:0 30px 60px -30px rgba(0,0,0,.7);}
+.r-top{display:flex;align-items:center;justify-content:space-between;}
+.r-label{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--text3);}
+.r-date{font-family:var(--mono);font-size:11px;color:var(--text4);background:var(--bg);border:1px solid var(--border);padding:4px 10px;border-radius:999px;}
+.r-score{font-size:84px;font-weight:800;letter-spacing:-.04em;line-height:1;margin:14px 0 2px;color:var(--green);}
+.r-score small{font-size:22px;color:var(--text4);font-weight:600;margin-left:4px;}
+.r-tier{font-size:15px;font-weight:700;color:var(--text);}
+.r-note{font-size:13px;color:var(--text3);margin-top:6px;text-wrap:pretty;}
+.r-sub{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:20px;}
+.r-sub .cell{background:var(--bg);border:1px solid var(--border);border-radius:11px;padding:10px 8px;text-align:center;}
+.r-sub .v{font-family:var(--mono);font-size:19px;font-weight:700;}
+.r-sub .v.ok{color:var(--green);} .r-sub .v.warn{color:var(--amber);}
+.r-sub .k{font-size:10.5px;color:var(--text4);margin-top:3px;letter-spacing:.04em;}
+@media(max-width:860px){.hero-grid{grid-template-columns:1fr;gap:40px;}.hero h1{font-size:42px;}}
+
+/* ── section scaffold ── */
+section{padding:64px 0;}
+.sec-head{max-width:680px;margin-bottom:40px;}
+.sec-head h2{font-size:33px;letter-spacing:-.025em;font-weight:800;margin:12px 0 0;line-height:1.1;}
+.sec-head p{font-size:16.5px;color:var(--text3);margin:14px 0 0;text-wrap:pretty;}
+
+/* ── how it works (the arc) ── */
+.arc{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;position:relative;}
+.step{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px 22px;position:relative;}
+.step .n{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:.1em;}
+.step .ic{font-size:26px;margin:6px 0 12px;display:block;}
+.step h3{font-size:18px;font-weight:700;margin:0 0 7px;letter-spacing:-.01em;}
+.step p{font-size:13.5px;color:var(--text3);margin:0;}
+.step .word{font-family:var(--mono);font-size:10.5px;color:var(--text4);text-transform:uppercase;letter-spacing:.08em;margin-top:12px;display:block;}
+.arc .arrow{position:absolute;top:50%;right:-12px;transform:translateY(-50%);color:var(--border2);font-size:18px;z-index:2;}
+@media(max-width:860px){.arc{grid-template-columns:1fr 1fr;}.arc .arrow{display:none;}}
+@media(max-width:520px){.arc{grid-template-columns:1fr;}}
+
+/* ── devices ── */
+.dev-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+.dev{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px;transition:.18s;}
+.dev:hover{border-color:var(--border2);transform:translateY(-2px);background:var(--surface2);}
+.dev-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px;}
+.dev-shot{width:62px;height:62px;border-radius:13px;flex:none;display:grid;place-items:center;font-size:27px;
+  background:repeating-linear-gradient(45deg,var(--surface3),var(--surface3) 6px,var(--bg) 6px,var(--bg) 12px);
+  border:1px solid var(--border2);}
+.dev-node{font-family:var(--mono);font-size:11px;color:var(--teal);background:rgba(61,224,208,.08);border:1px solid rgba(61,224,208,.2);padding:4px 10px;border-radius:999px;white-space:nowrap;}
+.dev-node.soon{color:var(--text4);background:var(--bg);border-color:var(--border);}
+.dev h3{font-size:16.5px;font-weight:700;margin:0;letter-spacing:-.01em;}
+.dev .device-name{font-size:12.5px;color:var(--text4);font-family:var(--mono);margin:3px 0 11px;}
+.dev p{font-size:13.5px;color:var(--text3);margin:0;}
+a.dev{display:block;}
+.dev-open{display:inline-block;margin-top:14px;font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:.05em;opacity:.8;transition:opacity .15s;}
+a.dev:hover .dev-open{opacity:1;}
+.dev .device-name a,.foot-links a{color:var(--text3);}
+.foot-links{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-family:var(--mono);font-size:11.5px;}
+.foot-links a:hover{color:var(--teal);}
+.step .word a{color:var(--teal);}
+.step .word a:hover{text-decoration:underline;}
+@media(max-width:860px){.dev-grid{grid-template-columns:1fr 1fr;}}
+@media(max-width:520px){.dev-grid{grid-template-columns:1fr;}}
+
+/* ── trust / evidence ── */
+.trust-wrap{display:grid;grid-template-columns:.9fr 1.1fr;gap:40px;align-items:center;}
+.ev-row{display:flex;flex-direction:column;gap:12px;}
+.ev-item{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:14px 16px;}
+.ev{width:15px;height:15px;border-radius:50%;flex:none;}
+.ev-measured{background:var(--ev-ink);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--ev-ink);}
+.ev-validated{background:var(--ev-ink);box-shadow:0 0 0 1px var(--ev-ink) inset;}
+.ev-emerging{background:linear-gradient(90deg,var(--ev-ink) 0 50%,transparent 50% 100%);box-shadow:0 0 0 1.5px var(--ev-ink) inset;}
+.ev-experimental{background:transparent;box-shadow:0 0 0 1.5px var(--ev-ink) inset;}
+.ev-heuristic{background:transparent;border:1.5px dashed var(--ev-ink);width:16px;height:16px;}
+.ev-item b{font-size:14px;font-weight:700;}
+.ev-item span.d{font-size:13px;color:var(--text3);}
+@media(max-width:860px){.trust-wrap{grid-template-columns:1fr;gap:28px;}}
+
+/* ── privacy band ── */
+.privacy{background:linear-gradient(180deg,var(--surface),var(--bg));border:1px solid var(--border2);border-radius:22px;padding:46px 40px;text-align:center;}
+.privacy .lock{width:54px;height:54px;border-radius:14px;margin:0 auto 18px;display:grid;place-items:center;font-size:26px;background:rgba(57,217,138,.1);border:1px solid rgba(57,217,138,.25);}
+.privacy h2{font-size:30px;font-weight:800;letter-spacing:-.02em;margin:0 0 12px;}
+.privacy p{font-size:16px;color:var(--text2);max-width:560px;margin:0 auto;text-wrap:pretty;}
+.privacy .row{display:flex;gap:30px;justify-content:center;flex-wrap:wrap;margin-top:26px;font-family:var(--mono);font-size:12.5px;color:var(--text4);}
+.privacy .row span{display:inline-flex;align-items:center;gap:8px;}
+.privacy .row .tk{color:var(--green);}
+
+/* ── footer ── */
+footer{border-top:1px solid var(--border);padding:34px 0 60px;margin-top:30px;}
+.foot-in{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+.foot-note{font-family:var(--mono);font-size:11.5px;color:var(--text4);line-height:1.8;}
+.foot-note b{color:var(--text3);}
+.disc{font-size:12px;color:var(--text4);max-width:560px;text-wrap:pretty;}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-in">
+    <div class="brand"><span class="dot"></span>Tepna <small>by the&nbsp;-Dex&nbsp;suite</small></div>
+    <nav class="nav-links">
+      <a href="#how">How it works</a>
+      <a href="#devices">Devices</a>
+      <a href="#trust">How we grade it</a>
+      <a href="#privacy">Privacy</a>
+    </nav>
+    <a href="#devices" class="nav-cta">See the devices</a>
+  </div>
+</header>
+
+<!-- ════ HERO ════ -->
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <div class="eyebrow">Your body's quiet signals, made readable</div>
+      <h1>Read your <span class="g">nervous&nbsp;system</span> like a weather report.</h1>
+      <p class="lede">Small wearables you already own quietly record your body overnight — oxygen, heartbeat, pulse, glucose. We turn all of it into <b style="color:var(--text2)">one simple daily score</b> and tell you, in plain words, how recovered you are.</p>
+      <div class="hero-actions">
+        <a href="#how" class="btn btn-primary">See how it works</a>
+        <a href="#devices" class="btn btn-ghost">What you'll need</a>
+      </div>
+      <div class="hero-trust">
+        <span><span class="tk">●</span> Runs on your phone or laptop</span>
+        <span><span class="tk">●</span> Nothing leaves your device</span>
+        <span><span class="tk">●</span> No account, no cloud</span>
+      </div>
+    </div>
+
+    <div class="r-card" aria-label="Example daily read-out">
+      <div class="r-top">
+        <span class="r-label">Today's Read-out</span>
+        <span class="r-date">Sat · Jun 14</span>
+      </div>
+      <div class="r-score">86<small>/100</small></div>
+      <div class="r-tier">Well recovered — green light</div>
+      <div class="r-note">Your body rested deeply last night. A good day to push, train hard, or take on something demanding.</div>
+      <div class="r-sub">
+        <div class="cell"><div class="v ok">92</div><div class="k">Heart</div></div>
+        <div class="cell"><div class="v ok">88</div><div class="k">Oxygen</div></div>
+        <div class="cell"><div class="v warn">71</div><div class="k">Sleep</div></div>
+        <div class="cell"><div class="v ok">90</div><div class="k">Calm</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════ HOW IT WORKS ════ -->
+<section id="how">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">How it works</div>
+      <h2>Four steps, the same path a reflex takes.</h2>
+      <p>Your nervous system senses, relays, combines, and responds. The suite mirrors that — turning scattered numbers into a single answer you can act on.</p>
+    </div>
+    <div class="arc">
+      <div class="step">
+        <span class="n">01</span>
+        <span class="ic">🛰️</span>
+        <h3>Sense</h3>
+        <p>Each little device records one thing it's good at — overnight, while you sleep.</p>
+        <span class="word">the receptors</span>
+        <span class="arrow">→</span>
+      </div>
+      <div class="step">
+        <span class="n">02</span>
+        <span class="ic">🔀</span>
+        <h3>Relay</h3>
+        <p>Every reading flows into one shared place on your device, lined up by the clock.</p>
+        <span class="word">Ganglior · the bus</span>
+        <span class="arrow">→</span>
+      </div>
+      <div class="step">
+        <span class="n">03</span>
+        <span class="ic">🧠</span>
+        <h3>Combine</h3>
+        <p>The signals are woven together into a single, honest picture of your night.</p>
+        <span class="word"><a href="Integrator.html">the Integrator →</a></span>
+        <span class="arrow">→</span>
+      </div>
+      <div class="step">
+        <span class="n">04</span>
+        <span class="ic">📋</span>
+        <h3>Insight</h3>
+        <p>You get one daily score and a plain-language note on what to do today.</p>
+        <span class="word">your read-out</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════ DEVICES ════ -->
+<section id="devices">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">What you'll need</div>
+      <h2>Everyday wearables. Each reads one signal well.</h2>
+      <p>You don't need all of them — start with one. The more you wear, the fuller the picture. Each device pairs with a small reader that does one job and does it carefully.</p>
+    </div>
+    <div class="dev-grid">
+
+      <a class="dev" href="OxyDex.html">
+        <div class="dev-top">
+          <div class="dev-shot">🩸</div>
+          <span class="dev-node">OxyDex</span>
+        </div>
+        <h3>Blood oxygen</h3>
+        <div class="device-name">O2Ring · fingertip-free ring</div>
+        <p>A soft ring worn overnight that tracks the oxygen in your blood and catches dips while you sleep.</p>
+        <span class="dev-open">Open OxyDex →</span>
+      </a>
+
+      <a class="dev" href="ECGDex.html">
+        <div class="dev-top">
+          <div class="dev-shot">❤️</div>
+          <span class="dev-node">ECGDex</span>
+        </div>
+        <h3>Heart's rhythm</h3>
+        <div class="device-name">Polar H10 · chest strap</div>
+        <p>Reads your heart's electrical beat directly — the most precise way to see rhythm and recovery.</p>
+        <span class="dev-open">Open ECGDex →</span>
+      </a>
+
+      <a class="dev" href="PulseDex.html">
+        <div class="dev-top">
+          <div class="dev-shot">💗</div>
+          <span class="dev-node">PulseDex</span>
+        </div>
+        <h3>Pulse, beat to beat</h3>
+        <div class="device-name">Polar Verity Sense · armband</div>
+        <p>An optical armband that times each pulse, revealing how steady and rested your heart is.</p>
+        <span class="dev-open">Open PulseDex →</span>
+      </a>
+
+      <a class="dev" href="HRVDex.html">
+        <div class="dev-top">
+          <div class="dev-shot">📈</div>
+          <span class="dev-node">HRVDex</span>
+        </div>
+        <h3>Daily heart variability</h3>
+        <div class="device-name">Welltory · morning reading app</div>
+        <p>A quick one-minute morning check that summarises how relaxed or stressed your system is.</p>
+        <span class="dev-open">Open HRVDex →</span>
+      </a>
+
+      <a class="dev" href="GlucoDex.html">
+        <div class="dev-top">
+          <div class="dev-shot">🍬</div>
+          <span class="dev-node">GlucoDex</span>
+        </div>
+        <h3>Glucose</h3>
+        <div class="device-name">CGM · skin sensor patch</div>
+        <p>A small patch that follows your blood sugar around the clock, including through the night.</p>
+        <span class="dev-open">Open GlucoDex →</span>
+      </a>
+
+      <a class="dev" href="CPAPDex.html">
+        <div class="dev-top">
+          <div class="dev-shot">🌬️</div>
+          <span class="dev-node">CPAPDex</span>
+        </div>
+        <h3>Breathing support</h3>
+        <div class="device-name">CPAP machine · therapy log</div>
+        <p>If you use a CPAP, it adds how well your breathing was supported overnight.</p>
+        <span class="dev-open">Open CPAPDex →</span>
+      </a>
+
+      <div class="dev">
+        <div class="dev-top">
+          <div class="dev-shot">🧘</div>
+          <span class="dev-node soon">EEGDex · soon</span>
+        </div>
+        <h3>Brain waves</h3>
+        <div class="device-name">Muse · headband</div>
+        <p>Coming soon — a headband that reads brain activity to deepen the sleep picture.</p>
+      </div>
+
+      <div class="dev" style="display:flex;flex-direction:column;justify-content:center;background:transparent;border-style:dashed;">
+        <h3 style="color:var(--text2);">Wear one, or wear them all.</h3>
+        <p style="margin-top:8px;">Every device you add gives the read-out one more honest signal to lean on. None of them are required to begin.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ════ TRUST / EVIDENCE ════ -->
+<section id="trust">
+  <div class="wrap">
+    <div class="trust-wrap">
+      <div class="sec-head" style="margin-bottom:0;">
+        <div class="eyebrow">How we grade it</div>
+        <h2>We always tell you how sure we are.</h2>
+        <p>Some numbers are rock-solid measurements. Others are smart estimates. A small mark next to every number tells you which — so you're never misled.</p>
+      </div>
+      <div class="ev-row">
+        <div class="ev-item"><span class="ev ev-measured"></span><b>Measured</b><span class="d">— read straight from the sensor.</span></div>
+        <div class="ev-item"><span class="ev ev-validated"></span><b>Validated</b><span class="d">— backed by published science.</span></div>
+        <div class="ev-item"><span class="ev ev-emerging"></span><b>Emerging</b><span class="d">— promising, still maturing.</span></div>
+        <div class="ev-item"><span class="ev ev-experimental"></span><b>Experimental</b><span class="d">— a useful direction, not a verdict.</span></div>
+        <div class="ev-item"><span class="ev ev-heuristic"></span><b>Estimate</b><span class="d">— a friendly approximation.</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════ PRIVACY ════ -->
+<section id="privacy">
+  <div class="wrap">
+    <div class="privacy">
+      <div class="lock">🔒</div>
+      <h2>Your data never leaves your hands.</h2>
+      <p>Everything is read and combined right on your own phone or laptop. There's no account to make, no cloud to upload to, and no company holding your health on a server. Close the tab and it's gone.</p>
+      <div class="row">
+        <span><span class="tk">✓</span> 100% on-device</span>
+        <span><span class="tk">✓</span> Works offline</span>
+        <span><span class="tk">✓</span> No sign-up</span>
+        <span><span class="tk">✓</span> Open & inspectable</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════ FOOTER ════ -->
+<footer>
+  <div class="wrap foot-in">
+    <div class="foot-note">
+      <b>Tepna</b> — the -Dex suite
+      <div class="foot-links">
+        <a href="OxyDex.html">OxyDex</a><a href="ECGDex.html">ECGDex</a><a href="PulseDex.html">PulseDex</a><a href="HRVDex.html">HRVDex</a><a href="GlucoDex.html">GlucoDex</a><a href="CPAPDex.html">CPAPDex</a><a href="Integrator.html">Integrator</a><a href="papers/index.html">Working preprints</a>
+      </div>
+    </div>
+    <div class="disc">Not a medical device. The read-out is for personal wellness and curiosity, not diagnosis. If something feels wrong, talk to a clinician.</div>
+  </div>
+</footer>
+
+
+<div class="dxl" style="max-width:900px;margin:40px auto 14px;padding:0 24px">
+  <div class="dxl-notice">
+    <div class="dxl-k">Intended use &amp; safety</div>
+    <p><b>Tepna</b> computes biometric patterns from your wearable and sensor data to support personal self-quantification. It is <b>not a medical device</b>, does not <b>diagnose, treat, cure, screen for, or prevent</b> any disease or condition, and is <b>not a substitute for professional clinical evaluation</b>. It has not been reviewed or cleared by the FDA, CE, or any regulatory body. Always consult a qualified healthcare provider about your health. Use at your own risk. For research and personal use only. 100% local — no data leaves your device.</p>
+  </div>
+</div>
+<div class="dxl dxl-ribbon" style="max-width:1000px;margin:0 auto 30px">
+  <div class="dxl-seg">
+    <span class="dxl-mark">T</span>
+    <span style="display:flex;flex-direction:column">
+      <b style="font-size:13px">Tepna</b>
+      <span class="dxl-colophon">physiological-signal suite</span>
+    </span>
+  </div>
+  <div class="dxl-seg dxl-grow">
+    <span style="font-size:11.5px;color:var(--text2,#9FB0C3)">© 2026 <b>Michal Planicka</b> — Concept · Architecture · Algorithms</span>
+    <span class="dxl-disclaimer">Not a medical device · does not diagnose or treat · not FDA/CE cleared · research &amp; personal use only · ◈ Made in Asheville, NC</span>
+  </div>
+  <div class="dxl-seg"><span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span></div>
+</div>
+</body>
+</html>

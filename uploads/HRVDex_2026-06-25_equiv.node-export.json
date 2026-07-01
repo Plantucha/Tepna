@@ -1,0 +1,31 @@
+{
+  "kernel": {
+    "version": "1.0.0",
+    "hash": "118ebed5"
+  },
+  "schema": {
+    "name": "ganglior.node-export",
+    "version": "2.0",
+    "node": "HRVDex",
+    "nodeVersion": "1.0",
+    "bus": "ganglior",
+    "generated": "2026-06-25T15:35:35.032Z",
+    "doc": "HRVDex per-measurement HRV (Welltory-style) → Ganglior events. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated. stress_high derives from a vendor black-box composite (meta.derived:true, heuristic tier)."
+  },
+  "recording": {
+    "source": "welltory",
+    "contentId": "68241ac012a6",
+    "startEpochMs": 1779254174000,
+    "offsetMin": null,
+    "measurements": 30,
+    "firstTMs": 1779254174000,
+    "lastTMs": 1781674922000,
+    "spanDays": 29
+  },
+  "ganglior_events": [],
+  "reserved": {
+    "doc": "Awaiting other fleet nodes; null until available.",
+    "glucoseCorrelation": null,
+    "glucoseSource": "GlucoDex"
+  }
+}

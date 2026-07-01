@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  Visual-Language-Spec.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tepna · Disclosure & Evidence — Visual Language Spec</title>
+<style>
+:root{
+  --bg:#0B0F14; --surface:#121821; --surface2:#18212C; --surface3:#1E2835;
+  --border:#1e2d42; --border2:#253550;
+  --text:#F4F7FB; --text2:#9FB0C3; --text3:#8C9DB3; --text4:#6E7F94;
+  --teal:#3DE0D0; --blue:#58A6FF; --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:'Inter',system-ui,-apple-system,sans-serif;
+  /* evidence ink — a single META neutral, deliberately OUTSIDE the status hues */
+  --ev-ink:#aab8cc;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+  font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;
+  background-image:radial-gradient(circle at 20% -10%,rgba(61,224,208,.05),transparent 45%),radial-gradient(circle at 90% 0%,rgba(88,166,255,.05),transparent 40%);}
+.wrap{max-width:1120px;margin:0 auto;padding:44px 40px 80px;}
+
+/* ── header ── */
+.spec-head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding-bottom:22px;border-bottom:1px solid var(--border);margin-bottom:38px;}
+.sh-eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--teal);margin-bottom:10px;}
+.sh-title{font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.1;}
+.sh-title .g{background:linear-gradient(120deg,var(--teal),var(--blue));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.sh-sub{color:var(--text3);font-size:13.5px;margin-top:10px;max-width:560px;}
+.sh-meta{font-family:var(--mono);font-size:11px;color:var(--text4);text-align:right;line-height:1.8;white-space:nowrap;}
+
+/* ── section scaffold ── */
+.sec{margin-bottom:46px;}
+.sec-num{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:.1em;}
+.sec-h{font-size:19px;font-weight:700;letter-spacing:-.01em;margin:6px 0 4px;}
+.sec-d{color:var(--text3);font-size:13px;max-width:680px;margin-bottom:22px;}
+.sec-d b{color:var(--text2);font-weight:600;}
+.sec-d code,.mono{font-family:var(--mono);}
+.sec-d code{font-size:12px;color:var(--blue);background:rgba(88,166,255,.08);padding:1px 6px;border-radius:5px;}
+
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px 26px;}
+.panel + .panel{margin-top:14px;}
+.tag-exists{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--green);background:rgba(57,217,138,.1);border:1px solid rgba(57,217,138,.22);padding:3px 10px;border-radius:999px;vertical-align:middle;margin-left:10px;}
+.tag-new{color:var(--teal);background:rgba(61,224,208,.1);border-color:rgba(61,224,208,.22);}
+
+/* ════ DEPTH SELECTOR (existing .mode-bar) ════ */
+.mode-bar{display:inline-flex;background:var(--bg);border:1px solid var(--border);padding:3px;border-radius:11px;gap:2px;}
+.mode-btn{padding:7px 18px;border-radius:8px;font-size:12px;font-weight:600;color:var(--text3);border:none;background:transparent;cursor:pointer;transition:all .15s;letter-spacing:.02em;font-family:var(--sans);}
+.mode-btn.active{background:rgba(61,224,208,.13);color:var(--teal);}
+.mode-btn:hover:not(.active){background:rgba(255,255,255,.03);color:var(--text);}
+.depth-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
+.depth-leg{display:flex;gap:26px;flex-wrap:wrap;margin-top:20px;}
+.depth-card{flex:1;min-width:200px;border-left:2px solid var(--border2);padding:2px 0 2px 14px;}
+.dc-tier{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);font-weight:600;}
+.dc-attr{font-family:var(--mono);font-size:10.5px;color:var(--text4);margin:4px 0 7px;}
+.dc-desc{font-size:12px;color:var(--text3);line-height:1.5;}
+
+/* ════ EVIDENCE BADGES (NEW) ════ */
+/* the marker: a 11px disc, neutral META ink, varied ONLY by fill — no status hue */
+.ev{display:inline-block;width:11px;height:11px;border-radius:50%;flex:none;position:relative;vertical-align:baseline;}
+.ev-measured{background:var(--ev-ink);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--ev-ink);}
+.ev-validated{background:var(--ev-ink);box-shadow:0 0 0 1px var(--ev-ink) inset;}
+.ev-emerging{background:linear-gradient(90deg,var(--ev-ink) 0 50%,transparent 50% 100%);box-shadow:0 0 0 1.5px var(--ev-ink) inset;}
+.ev-experimental{background:transparent;box-shadow:0 0 0 1.5px var(--ev-ink) inset;}
+.ev-heuristic{background:transparent;border:1.5px dashed var(--ev-ink);width:12px;height:12px;}
+
+/* badge anatomy cards */
+.ev-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+.ev-card{background:var(--bg);border:1px solid var(--border);border-radius:13px;padding:18px 18px 16px;}
+.ev-card .big{width:26px;height:26px;margin-bottom:14px;}
+.ev-card .big.ev-heuristic{width:27px;height:27px;}
+.ev-name{font-size:14px;font-weight:700;letter-spacing:-.01em;}
+.ev-fill{font-family:var(--mono);font-size:10px;color:var(--text4);text-transform:uppercase;letter-spacing:.07em;margin:3px 0 9px;}
+.ev-def{font-size:12px;color:var(--text3);line-height:1.5;min-height:54px;}
+.ev-ex{font-family:var(--mono);font-size:10.5px;color:var(--text2);border-top:1px solid var(--border);padding-top:9px;margin-top:4px;}
+
+/* the legend strip component */
+.ev-legend{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:11.5px;color:var(--text3);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:9px 14px;}
+.ev-legend .lg-item{display:inline-flex;align-items:center;gap:6px;}
+.ev-legend .lg-item b{color:var(--text2);font-weight:600;}
+.ev-legend .sep{width:1px;height:13px;background:var(--border2);margin:0 4px;}
+.ev-legend .lg-title{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text4);margin-right:4px;}
+
+/* ════ APPLIED — OxyDex KPI strip + table ════ */
+.demo-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap;}
+.demo-title{font-size:13px;font-weight:600;color:var(--text2);}
+.demo-title .pageref{color:var(--text4);font-weight:400;font-family:var(--mono);font-size:11px;margin-left:8px;}
+
+.kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.kpi{background:var(--bg);border:1px solid var(--border);border-radius:13px;padding:15px 16px;position:relative;overflow:hidden;}
+.kpi::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:var(--barc,var(--border2));opacity:.8;}
+.kpi.ok{--barc:var(--green);} .kpi.warn{--barc:var(--amber);} .kpi.bad{--barc:var(--red);} .kpi.neu{--barc:var(--blue);}
+.kpi-lab{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text3);font-weight:500;margin-bottom:8px;}
+.kpi-val{font-size:25px;font-weight:800;letter-spacing:-.02em;font-family:var(--mono);line-height:1;}
+.kpi.ok .kpi-val{color:var(--green);} .kpi.warn .kpi-val{color:var(--amber);} .kpi.bad .kpi-val{color:var(--red);} .kpi.neu .kpi-val{color:var(--text);}
+.kpi-sub{font-size:11px;color:var(--text4);margin-top:6px;font-family:var(--mono);}
+.kpi-unit{font-size:13px;color:var(--text4);font-weight:600;margin-left:2px;}
+
+/* tier badge on KPI corner */
+.kpi[data-tier]::after{content:attr(data-tierlabel);position:absolute;top:9px;right:11px;font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--text4);opacity:.6;}
+
+.tbl{width:100%;border-collapse:collapse;font-size:13px;margin-top:18px;}
+.tbl th{text-align:left;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text4);font-weight:600;padding:8px 12px;border-bottom:1px solid var(--border);}
+.tbl td{padding:11px 12px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--text2);}
+.tbl .t-metric{display:flex;align-items:center;gap:8px;color:var(--text);font-weight:600;}
+.tbl .t-val{font-family:var(--mono);color:var(--text);}
+.tbl .t-cite{font-size:11px;color:var(--text4);}
+.tbl tr.dim td{opacity:.92;}
+.tier-pill{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:5px;border:1px solid var(--border2);color:var(--text4);}
+
+/* ════ INDEPENDENCE MATRIX ════ */
+.matrix{width:100%;border-collapse:collapse;font-size:12px;}
+.matrix th,.matrix td{border:1px solid var(--border);padding:12px 14px;text-align:left;vertical-align:top;}
+.matrix thead th{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--teal);background:rgba(61,224,208,.04);}
+.matrix tbody th{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);background:var(--bg);white-space:nowrap;}
+.mx-cell{display:flex;align-items:center;gap:7px;}
+.mx-cell .mxm{font-size:12px;color:var(--text2);}
+.mx-empty{color:var(--text4);font-family:var(--mono);font-size:11px;opacity:.5;}
+.callout{display:flex;gap:12px;align-items:flex-start;background:rgba(88,166,255,.05);border:1px solid rgba(88,166,255,.16);border-radius:12px;padding:14px 16px;margin-top:18px;font-size:12.5px;color:var(--text2);line-height:1.55;}
+.callout .ci{font-size:16px;line-height:1;flex:none;}
+.callout b{color:var(--text);}
+
+.foot{margin-top:48px;padding-top:22px;border-top:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--text4);line-height:1.9;}
+.foot b{color:var(--text3);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="spec-head">
+    <div>
+      <div class="sh-eyebrow">Visual Language Spec · v1</div>
+      <div class="sh-title"><span class="g">Tepna</span> — Disclosure &amp; Evidence</div>
+      <div class="sh-sub">Two independent axes that solve feature-saturation and trust: <b style="color:var(--text2)">depth</b> (how much you see) and <b style="color:var(--text2)">evidence</b> (how much to trust it). Reference for the metric-registry rollout.</div>
+    </div>
+    <div class="sh-meta">SYSTEM-COHESION-BRIEF.md<br>concern #1 · #2<br>ref impl → OxyDex</div>
+  </div>
+
+  <!-- ════ 1 · DEPTH SELECTOR ════ -->
+  <div class="sec">
+    <div class="sec-num">01 — COGNITIVE LOAD</div>
+    <div class="sec-h">Depth selector <span class="tag-exists">● already in ans-design.css</span></div>
+    <div class="sec-d">The segmented control and tiering mechanism <b>already exist</b> — <code>.mode-bar</code> / <code>.mode-btn</code> drive <code>body[data-mode]</code>, and <code>[data-tier]</code> attributes gate visibility. The registry's <code>depth</code> field simply <b>emits these existing attributes</b>. Default <b>Core</b>; the expert opts up. Nothing is invented here — it's documented so the rollout reuses it.</div>
+
+    <div class="panel">
+      <div class="depth-row">
+        <div class="mode-bar" id="modeBar">
+          <button class="mode-btn active" data-mode="core">Core</button>
+          <button class="mode-btn" data-mode="advanced">Advanced</button>
+          <button class="mode-btn" data-mode="research">Research</button>
+        </div>
+        <div style="font-size:12px;color:var(--text4);font-family:var(--mono)">click to preview tier filtering below ↓</div>
+      </div>
+      <div class="depth-leg">
+        <div class="depth-card">
+          <div class="dc-tier">Core</div>
+          <div class="dc-attr">depth:'basic' → (no data-tier)</div>
+          <div class="dc-desc">Readiness hero, 4–5 headline KPIs, one plain-language line. The default a normal user meets.</div>
+        </div>
+        <div class="depth-card">
+          <div class="dc-tier">Advanced</div>
+          <div class="dc-attr">depth:'advanced' → data-tier="secondary"</div>
+          <div class="dc-desc">Full metric tables, charts, morphology, CVHR, validation lanes. Adds onto Core.</div>
+        </div>
+        <div class="depth-card">
+          <div class="dc-tier">Research</div>
+          <div class="dc-attr">depth:'research' → data-tier="research"</div>
+          <div class="dc-desc">Experimental composites, DFA/SampEn, the full dump. The "everything" tier = today's UI.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ 2 · EVIDENCE BADGES ════ -->
+  <div class="sec">
+    <div class="sec-num">02 — CLINICAL / EPISTEMIC HIERARCHY</div>
+    <div class="sec-h">Evidence badges <span class="tag-exists tag-new">◆ net-new visual language</span></div>
+    <div class="sec-d">A metric's trustworthiness, encoded in a <b>fill ladder</b> on one neutral META ink — <b>never a hue</b>, because green/amber/red already mean status and teal/blue mean brand. Fill goes <b>solid → half → hollow → dashed</b> as confidence drops: an intuitive gradient that survives color-blindness and never collides with status color.</div>
+
+    <div class="panel">
+      <div class="ev-grid">
+        <div class="ev-card">
+          <span class="ev ev-measured big"></span>
+          <div class="ev-name">Measured</div>
+          <div class="ev-fill">bullseye</div>
+          <div class="ev-def">Direct sensor reading — the strongest evidence, not computed. A raw statistic of the recorded signal (mean / min / max / nadir / duration / coverage).</div>
+          <div class="ev-ex">Mean SpO₂ · Mean HR · duration · % recorded</div>
+        </div>
+        <div class="ev-card">
+          <span class="ev ev-validated big"></span>
+          <div class="ev-name">Validated</div>
+          <div class="ev-fill">solid fill</div>
+          <div class="ev-def">Established, externally validated, clinically meaningful <b>derived</b> metric. The gold standard of computed measures.</div>
+          <div class="ev-ex">ODI-4 · T90 · hypoxic burden · RMSSD</div>
+        </div>
+        <div class="ev-card">
+          <span class="ev ev-emerging big"></span>
+          <div class="ev-name">Emerging</div>
+          <div class="ev-fill">half fill</div>
+          <div class="ev-def">Published and promising, but less standardized or device-dependent. Use with context.</div>
+          <div class="ev-ex">DFA α1 · CVHR screen · augmentation idx</div>
+        </div>
+        <div class="ev-card">
+          <span class="ev ev-experimental big"></span>
+          <div class="ev-name">Experimental</div>
+          <div class="ev-fill">hollow ring</div>
+          <div class="ev-def">Plausible, node-computed composites without external validation. Directional only.</div>
+          <div class="ev-ex">NSI · sleep-stability · SBII</div>
+        </div>
+        <div class="ev-card">
+          <span class="ev ev-heuristic big"></span>
+          <div class="ev-name">Heuristic</div>
+          <div class="ev-fill">dashed ring</div>
+          <div class="ev-def">Convenience estimates / population proxies. Useful as a trend, not a measurement.</div>
+          <div class="ev-ex">ANS-age · VO₂max est · BP projection</div>
+        </div>
+      </div>
+
+      <div style="margin-top:18px">
+        <div class="ev-legend">
+          <span class="lg-title">Evidence</span>
+          <span class="lg-item"><span class="ev ev-measured"></span><b>Measured</b></span>
+          <span class="sep"></span>
+          <span class="lg-item"><span class="ev ev-validated"></span><b>Validated</b></span>
+          <span class="sep"></span>
+          <span class="lg-item"><span class="ev ev-emerging"></span><b>Emerging</b></span>
+          <span class="sep"></span>
+          <span class="lg-item"><span class="ev ev-experimental"></span><b>Experimental</b></span>
+          <span class="sep"></span>
+          <span class="lg-item"><span class="ev ev-heuristic"></span><b>Heuristic</b></span>
+          <span style="margin-left:auto;color:var(--text4);font-size:10.5px">one strip per view · cite on hover</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ 3 · APPLIED ════ -->
+  <div class="sec">
+    <div class="sec-num">03 — APPLIED TO OXYDEX</div>
+    <div class="sec-h">Both axes, composed</div>
+    <div class="sec-d">Status hue lives in the <b>value + top-bar</b>; evidence lives in a <b>quiet badge in the card's bottom-right corner</b> (inline + leading in dense tables; after the value on chips). They never touch. Toggle the depth selector above — KPIs gated above the current tier dim out. This is exactly how a node renders once the registry drives it.</div>
+
+    <div class="panel">
+      <div class="demo-bar">
+        <div class="demo-title">Recovery Readiness · KPI strip <span class="pageref">oxydex-render.js → renderAll</span></div>
+        <div class="mode-bar" style="transform:scale(.92)">
+          <button class="mode-btn active" data-mode="core">Core</button>
+          <button class="mode-btn" data-mode="advanced">Advanced</button>
+          <button class="mode-btn" data-mode="research">Research</button>
+        </div>
+      </div>
+
+      <div class="kpi-strip">
+        <div class="kpi ok" data-depth="basic">
+          <div class="kpi-lab">ODI-4 <span class="ev ev-validated" title="Validated — AASM 4% desaturation index"></span></div>
+          <div class="kpi-val">3.1<span class="kpi-unit">/hr</span></div>
+          <div class="kpi-sub">normal · &lt;5</div>
+        </div>
+        <div class="kpi ok" data-depth="basic">
+          <div class="kpi-lab">Mean SpO₂ <span class="ev ev-measured" title="Measured — direct oximeter reading"></span></div>
+          <div class="kpi-val">95<span class="kpi-unit">%</span></div>
+          <div class="kpi-sub">healthy</div>
+        </div>
+        <div class="kpi warn" data-depth="basic">
+          <div class="kpi-lab">Hypoxic burden <span class="ev ev-validated" title="Validated — Azarbarzin 2019"></span></div>
+          <div class="kpi-val">42<span class="kpi-unit">%min/h</span></div>
+          <div class="kpi-sub">mild elevation</div>
+        </div>
+        <div class="kpi neu" data-depth="advanced" data-tier="secondary" data-tierlabel="adv">
+          <div class="kpi-lab">CVHR index <span class="ev ev-emerging" title="Emerging — PPG-derived apnea screen, not diagnostic"></span></div>
+          <div class="kpi-val">8.4<span class="kpi-unit">/hr</span></div>
+          <div class="kpi-sub">screen, not Dx</div>
+        </div>
+        <div class="kpi warn" data-depth="research" data-tier="research" data-tierlabel="research">
+          <div class="kpi-lab">NSI <span class="ev ev-experimental" title="Experimental — OxyDex internal composite"></span></div>
+          <div class="kpi-val">46</div>
+          <div class="kpi-sub">composite</div>
+        </div>
+        <div class="kpi neu" data-depth="research" data-tier="research" data-tierlabel="research">
+          <div class="kpi-lab">Sleep-stability <span class="ev ev-experimental" title="Experimental"></span></div>
+          <div class="kpi-val">61</div>
+          <div class="kpi-sub">0–100</div>
+        </div>
+        <div class="kpi neu" data-depth="research" data-tier="research" data-tierlabel="research">
+          <div class="kpi-lab">ANS-age <span class="ev ev-heuristic" title="Heuristic — 3-marker HRV → population-norm projection"></span></div>
+          <div class="kpi-val">34<span class="kpi-unit">yr</span></div>
+          <div class="kpi-sub">proxy</div>
+        </div>
+        <div class="kpi neu" data-depth="research" data-tier="research" data-tierlabel="research">
+          <div class="kpi-lab">VO₂max est <span class="ev ev-heuristic" title="Heuristic — nocturnal HR ratio method"></span></div>
+          <div class="kpi-val">47<span class="kpi-unit">ml/kg</span></div>
+          <div class="kpi-sub">estimate</div>
+        </div>
+      </div>
+
+      <table class="tbl">
+        <thead><tr><th>Metric</th><th>Value</th><th>Evidence</th><th>Provenance (cite)</th><th>Tier</th></tr></thead>
+        <tbody>
+          <tr><td><span class="t-metric"><span class="ev ev-validated"></span>ODI-4</span></td><td class="t-val">3.1 /hr</td><td>Validated</td><td class="t-cite">AASM 4% desaturation index</td><td><span class="tier-pill">core</span></td></tr>
+          <tr><td><span class="t-metric"><span class="ev ev-validated"></span>Hypoxic burden</span></td><td class="t-val">42 %min/h</td><td>Validated</td><td class="t-cite">Azarbarzin 2019, SHHS/MrOS</td><td><span class="tier-pill">advanced</span></td></tr>
+          <tr class="dim"><td><span class="t-metric"><span class="ev ev-emerging"></span>DFA α1</span></td><td class="t-val">1.08</td><td>Emerging</td><td class="t-cite">detrended fluctuation, short-window</td><td><span class="tier-pill">advanced</span></td></tr>
+          <tr class="dim"><td><span class="t-metric"><span class="ev ev-experimental"></span>NSI</span></td><td class="t-val">46</td><td>Experimental</td><td class="t-cite">OxyDex composite — internal, unvalidated</td><td><span class="tier-pill">research</span></td></tr>
+          <tr class="dim"><td><span class="t-metric"><span class="ev ev-heuristic"></span>ANS-age</span></td><td class="t-val">34 yr</td><td>Heuristic</td><td class="t-cite">HRV→population-norm projection</td><td><span class="tier-pill">research</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ════ 4 · INDEPENDENCE ════ -->
+  <div class="sec">
+    <div class="sec-num">04 — WHY TWO AXES, NOT ONE "MODE"</div>
+    <div class="sec-h">Depth and evidence are orthogonal</div>
+    <div class="sec-d">The common trap is collapsing complexity and trust into one slider. They're independent: a <b>Core</b> metric can be <b>Validated</b> (ODI-4); a <b>Research</b> metric is usually <b>Experimental</b> — but not always. Keeping two fields is what lets an expert in Research mode still instantly see what's gold vs speculative.</div>
+
+    <div class="panel">
+      <table class="matrix">
+        <thead><tr><th style="width:120px">depth ↓ / evidence →</th><th>Measured ◉</th><th>Validated ●</th><th>Emerging ◐</th><th>Experimental ○</th><th>Heuristic ◌</th></tr></thead>
+        <tbody>
+          <tr>
+            <th>Core</th>
+            <td><span class="mx-cell"><span class="ev ev-measured"></span><span class="mxm">Mean SpO₂</span></span></td>
+            <td><span class="mx-cell"><span class="ev ev-validated"></span><span class="mxm">ODI-4</span></span></td>
+            <td><span class="mx-cell"><span class="ev ev-emerging"></span><span class="mxm">Mean-HR dip</span></span></td>
+            <td><span class="mx-empty">— rare —</span></td>
+            <td><span class="mx-cell"><span class="ev ev-heuristic"></span><span class="mxm">Readiness</span></span></td>
+          </tr>
+          <tr>
+            <th>Advanced</th>
+            <td><span class="mx-cell"><span class="ev ev-measured"></span><span class="mxm">Mean HR · min HR</span></span></td>
+            <td><span class="mx-cell"><span class="ev ev-validated"></span><span class="mxm">Hypoxic burden</span></span></td>
+            <td><span class="mx-cell"><span class="ev ev-emerging"></span><span class="mxm">CVHR · DFA α1</span></span></td>
+            <td><span class="mx-cell"><span class="ev ev-experimental"></span><span class="mxm">SBII</span></span></td>
+            <td><span class="mx-cell"><span class="ev ev-heuristic"></span><span class="mxm">VO₂max est</span></span></td>
+          </tr>
+          <tr>
+            <th>Research</th>
+            <td><span class="mx-empty">— rare —</span></td>
+            <td><span class="mx-empty">— rare —</span></td>
+            <td><span class="mx-cell"><span class="ev ev-emerging"></span><span class="mxm">SampEn</span></span></td>
+            <td><span class="mx-cell"><span class="ev ev-experimental"></span><span class="mxm">NSI · stability</span></span></td>
+            <td><span class="mx-cell"><span class="ev ev-heuristic"></span><span class="mxm">BP projection</span></span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        <span class="ci">◆</span>
+        <div>Both fields live in the registry and travel with the metric — into the screen, the <b>crossnight envelope</b>, and the <b>Integrator longitudinal view</b>. One declaration, three surfaces, zero drift. The badge renderer (<code>MetricRegistry.badge</code>) is shared so a Validated dot looks identical in every node.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <b>Encoding rules (carry into the brief verbatim):</b><br>
+    1 — Evidence uses fill/shape on ONE neutral ink (<b>--ev-ink #aab8cc</b>); never green/amber/red (status) or teal/blue (brand).<br>
+    2 — Fill ladder = confidence ladder: bullseye ◉ (measured) → solid ● → half ◐ → hollow ○ → dashed ◌.<br>
+    3 — Status hue stays on the value + KPI top-bar; evidence badge sits in the card's bottom-right corner (inline + leading in dense tables; after the value on chips). They never share a channel.<br>
+    4 — depth → existing <b>[data-tier]</b> + <b>body[data-mode]</b>; evidence → new <b>MetricRegistry.badge()</b>. Two fields, one registry entry.<br>
+    5 — Legend: one strip per view; <b>cite</b> string on hover/title of each badge.
+  </div>
+
+</div>
+
+<script>
+// live tier preview — mirror the real body[data-mode] mechanism
+document.querySelectorAll('.mode-bar').forEach(function(bar){
+  bar.addEventListener('click', function(e){
+    var btn = e.target.closest('.mode-btn'); if(!btn) return;
+    var mode = btn.getAttribute('data-mode');
+    document.querySelectorAll('.mode-btn').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-mode')===mode); });
+    // gate KPIs: dim anything whose tier is above current mode
+    var show = { core:[], advanced:['secondary'], research:['secondary','research'] }[mode];
+    document.querySelectorAll('.kpi[data-tier]').forEach(function(k){
+      var t = k.getAttribute('data-tier');
+      var on = show.indexOf(t) >= 0;
+      k.style.opacity = on ? '1' : '.2';
+      k.style.filter = on ? 'none' : 'grayscale(.6)';
+      k.style.transition = 'opacity .2s, filter .2s';
+    });
+  });
+});
+</script>
+</body>
+</html>

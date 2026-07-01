@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  sensor-trio-nights.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pinning a sensor's error without a reference: how many windows and how long — Tepna preprint</title>
+<link rel="stylesheet" href="../licensing/dex-license.css">
+<link rel="stylesheet" href="paper.css">
+</head>
+<body>
+<div class="sheet">
+  <a class="toplink" href="papers.html">← Tepna preprints</a>
+  <div class="banner">Tepna Working Preprint · not peer-reviewed</div>
+  <h1 class="title">Pinning a sensor's error without a reference: how many co-recorded windows, and how long each, for three-cornered-hat σ across an O2Ring · Polar H10 · Verity Sense trio</h1>
+  <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
+  <p class="affil">PpgDex (raw PPG) · ECGDex (raw ECG) · OxyDex nodes, Tepna physiological-signal suite</p>
+  <p class="meta">Draft v1 · June 2026 · Analysis tool: <code>sensor-trio-power-analysis.html</code> · TCH kernel reused from <code>sigma-no-reference-analysis.js</code> · fully synthetic Monte-Carlo (720 trials/cell) · single anecdotal real window via <code>ppgdex-dsp.js</code> (PPGDSP) + <code>ecgdex-dsp.js</code> (Pan–Tompkins QRS) · 100% local</p>
+
+  <div class="abstract">
+    <h2>Abstract</h2>
+    <p style="text-align:left;margin-bottom:0"><b>Background.</b> The companion paper (<code>sigma-no-reference</code>) shows that a per-device heart-rate error σ can be recovered with <em>no</em> calibrated reference via a three-cornered hat (TCH) over a simultaneous O2Ring + Polar H10 + Verity Sense window. But its noisiest corner rested on a single overlap window — a point estimate with no confidence interval. This paper answers the practitioner's question instead: <b>how many co-recorded trio-windows do you actually need to pin each device's σ to a usable precision?</b> It is the device-metrology analog of <code>nights-icc</code> — there, how many nights to pin a <em>person's</em> metric; here, how many windows to pin a <em>sensor's</em> error. <b>Methods.</b> A synthetic trio generator emits 1-Hz "true HR" per window in two variance regimes — <em>resting</em> (small true variance) and <em>dynamic</em> (exercise/recovery ramp) — plus three sensors = truth + independent noise with planted σ set to the real estimates (1.7 / 2.2 / 6.2 bpm). The <em>same</em> per-window TCH kernel and cross-window aggregation the σ-paper uses are driven over N_windows ∈ {1,2,3,5,8,12,20} with 720 Monte-Carlo trials per cell; an injected pair-wise error correlation ρ calibrates the assumption test. A single co-recorded window, scored by the production raw-signal detectors (Verity HR ← raw PPG via PPGDSP; H10 HR ← raw ECG via Pan–Tompkins), is laid beside the simulation band as an anecdotal check. <b>Results.</b> One ~1-hour trio-window pins <em>every</em> device σ to ≈±0.5 bpm in the clean (dynamic) regime (H10 and Verity just under it, O2Ring right at the line); ±0.25 needs ~5–8 windows and ±0.15 needs ~12–20. Window <em>length</em> trades against count: at a single window ~1 hour is the floor to reach ±0.5 bpm (AR(1)-autocorrelated error caps the effective samples), so finer precision comes from more windows, not longer ones. Because the hat couples the trio, the noisy Verity corner sets a shared precision floor, so absolute CI half-widths are similar across devices rather than far worse for the noisy one. The regime cost is <b>bias, not window count</b>: the dynamic regime recovers each true σ (bias ≈0); the resting regime recovers only the independent-error floor, under-stating the instantaneous devices (H10 −0.47 bpm, −21%; Verity −0.17 bpm) because the TCH strips the shared beat-to-beat HRV. A correlated-error failure is undetectable below a few windows (ρ=0.15 caught ~4% at N=1, ~53% by N=20; ρ≥0.3 nearly always). The one committed real window recovers 1.67 / 2.17 / 6.22 bpm, matching the planted totals and bracketing them within block-bootstrap CIs. <b>Conclusion.</b> Report σ only with N_windows and a CI; one clean dynamic window pins the trio to ±0.5 bpm, but resting nights buy precision while quietly biasing the answer — a non-resting session is what makes the assumption hold and recovers the full σ. <b>This is a fully synthetic power result under stated noise assumptions; the single co-recorded window is shown only as an anecdotal sanity check (not a validation cohort), and the conclusions rest entirely on the simulation.</b></p>
+  </div>
+  <p class="kw"><b>Keywords:</b> measurement uncertainty · sample size · statistical power · three-cornered hat · reference-free metrology · Monte-Carlo · heart rate · wearables · raw PPG / ECG</p>
+
+  <div class="callout" style="border:1px dashed #b8860b;background:#fffdf5">
+    <h2 class="sec" style="margin-top:0">0. Layman overview <span style="font-weight:400;color:#b8860b;font-size:13px">(delete before submission)</span></h2>
+    <p>Every sensor that reports your heart rate is a little bit wrong. A companion study showed a neat trick: wear <b>three</b> different devices at once and you can measure how wrong each one is <i>without</i> any lab "truth" machine — the three disagreements, taken together, reveal each device's own error. The catch is that one night of doing this gives you a single guess with no error bars. So the practical question here is: <b>how many nights of wearing all three do you need before you can trust each device's wrongness number?</b></p>
+    <p>Using <b>simulated</b> nights where we know the true answer, with one real recorded night shown alongside as an anecdote, we found: <b>one</b> ~hour-long session already pins each device to within about half a beat; getting twice as precise takes five to eight sessions. A surprising part: the trick works best on a <i>moving</i> night (a walk plus recovery), not a still resting night — on a perfectly still night the math quietly under-counts the chest strap's and armband's error. And below a few sessions you can't even tell whether the three devices are failing <i>together</i> (which breaks the trick) or just being noisy. The headline: never quote a device's error without saying how many nights it came from. (The recipe is proven entirely in simulation; the single real night is just an anecdote that happens to agree.)</p>
+    <p style="margin-bottom:0"><b>So how many minutes do you actually need?</b></p>
+    <ul style="margin:6px 0 0;padding-left:20px;line-height:1.65">
+      <li><b>A usable read (±0.5 bpm):</b> about <b>one hour</b> of wearing all three at once, roughly continuous — a short clip is almost useless (1 min ≈ ±2 bpm, 10 min ≈ ±1 bpm, 60 min ≈ ±0.5).</li>
+      <li><b>A tight read (±0.25 bpm):</b> a few hours total — about <b>5–8 one-hour sessions</b>, ideally on different nights, with at least one that includes movement (a walk + recovery), which is worth several resting hours.</li>
+      <li><b>Not worth it:</b> under ~30 minutes; and you can't reach ±0.25/±0.15 from any single sitting — that precision comes from <b>more sessions, not a longer one</b>.</li>
+    </ul>
+    <p style="margin:6px 0 0"><b>Bottom line: ~1 hour minimum for a ballpark, a handful of hours for a precise number.</b></p>
+  </div>
+
+  <h2 class="sec">1. Introduction</h2>
+  <p>A number a sensor reports is only as useful as the uncertainty attached to it, and the companion paper <a href="sigma-no-reference.html"><i>Measuring a device's σ without a canonical reference</i></a> established <em>how</em> to obtain that uncertainty with no laboratory standard: the three-cornered hat (TCH), in which three devices measuring the same true heart rate let each device's own error variance be recovered from the three pairwise difference variances. That paper's weak corner was the Verity Sense, whose σ rested on a single ~2-hour overlap window — a point estimate with no confidence interval and no way to test the method's core assumption that the three devices' errors are uncorrelated.</p>
+  <p>This paper turns "one window" into "how many windows do you need." It is the metrology twin of <a href="nights-icc.html"><i>How many nights?</i></a>: that paper asks how many nights make a <em>person's</em> metric a reliable trait (ICC, Spearman–Brown); this asks how many trio-windows pin a <em>sensor's</em> error σ (TCH CI versus N). The unknown is different — there it is the between- vs within-subject variance of a metric, here it is the measurement-error variance of an instrument — but the deliverable is the same shape: a curve of precision against the number of occasions and a minimum-N recommendation. Two features make it more than a rehash. First, <b>regime dependence</b>: the TCH's variance estimates behave differently when the true HR variance is small (resting) versus large (dynamic), so the answer is "how many nights <em>of what kind</em>." Second, <b>assumption-testability</b>: a negative recovered variance is the tell of correlated device errors, and "how many windows before that failure is even checkable" is itself a result. The result is fully synthetic (the planted ground truth is what makes the answer defensible), and a single co-recorded real window is included only as an anecdotal comparison, not a validation cohort.</p>
+
+  <h2 class="sec">2. Methods</h2>
+  <h3 class="sub">2.1 Synthetic trio generator (the power arm)</h3>
+  <p>A small dedicated generator (in <code>sensor-trio-power-analysis.js</code>; it does <em>not</em> touch <code>cohort-gen.js</code>) builds, per window, a synthetic 1-Hz "true HR" series of realistic length (≈3,600 s) under a controllable variance regime: <b>resting</b> (slow drift, small true variance) and <b>dynamic</b> (an exercise/recovery ramp, large true variance). Three sensors are then formed as truth + independent Gaussian noise with planted per-device σ fixed to the paper's real estimates — σ<sub>O2Ring</sub>=1.7, σ<sub>H10</sub>=2.2, σ<sub>Verity</sub>=6.2 bpm — with an AR(1) component (φ=0.9) so the noise is temporally correlated like a real residual rather than white. A shared beat-to-beat HRV term (the physiological signal the instantaneous devices track and the smoothed O2Ring partly averages out) is layered on truth; an optional injected error correlation ρ between a device pair calibrates the assumption test.</p>
+  <h3 class="sub">2.2 Estimator under test — the same TCH kernel</h3>
+  <p>The estimator is the <em>unmodified</em> per-window TCH kernel and cross-window aggregation built for the σ-corner work and reused verbatim from <code>sigma-no-reference-analysis.js</code> — for three devices A, B, C with pairwise difference variances V<sub>AB</sub>, V<sub>AC</sub>, V<sub>BC</sub>:</p>
+  <div class="eqn">σ²_A = ½(V_AB + V_AC − V_BC) ,  σ²_B = ½(V_AB + V_BC − V_AC) ,  σ²_C = ½(V_AC + V_BC − V_AB)</div>
+  <p>a negative output flags a broken independence assumption. For each N_windows ∈ {1,2,3,5,8,12,20} we draw N windows, recover each device's σ̂, and repeat <b>720 Monte-Carlo trials</b> per cell, reporting the bias of σ̂ (vs the planted total for that regime) and the 95% CI half-width across trials. We tabulate the minimum N to reach target half-widths of ±0.5, ±0.25, and ±0.15 bpm, sweep the injected ρ ∈ {0, 0.15, 0.3, 0.5, 0.7} for the assumption test, and run the whole grid under both regimes.</p>
+  <h3 class="sub">2.3 Anecdotal real-data comparison</h3>
+  <p>The anecdotal real comparison uses the trio windows produced by the σ-corner derivation pipeline (<code>SIGMA-WINDOW-DERIVATION.md</code>): Verity HR derived from raw PPG with the production <code>PPGDSP.analyze</code> (SQI-gated), the H10 gold leg derived from raw ECG by Pan–Tompkins QRS (<code>ECGDSP</code>), the O2Ring native per-second pulse, all aligned on the Clock Contract's floating-ms grid. These detectors are <em>run, not modified</em> — this is an analysis tool, so no node is re-bundled and no provenance moves. The single committed window's σ̂ ± CI is laid beside the simulation's predicted 1/√N band as an anecdotal check (with the H10↔O2Ring leg as a built-in control); it is illustrative, not a validation set, and the paper's conclusions do not depend on it.</p>
+
+  <h2 class="sec">3. Results</h2>
+  <h3 class="sub">3.1 One clean window pins the trio to ±0.5 bpm; the corners are coupled</h3>
+  <p>In the dynamic regime σ̂ is essentially unbiased at every N (bias |·| ≤ 0.06 bpm), so precision is governed entirely by the CI half-width, which shrinks as ~1/√N (Figure 1). A single ~1-hour window pins H10 and Verity just under ±0.5 bpm and O2Ring right at the line (≈0.50); ±0.25 needs roughly 5–8 windows and ±0.15 needs 12–20 (Table 1). The non-obvious finding is that the half-widths are <b>similar across devices in absolute bpm</b> despite Verity's far larger σ: because the TCH solves the three corners jointly, the noisy Verity corner injects variance into all three pairwise differences and sets a shared precision floor. The practical consequence overturns the naive expectation — it is <em>not</em> "the noisy device needs far more windows"; the whole trio is pinned together, paced by its worst corner.</p>
+
+  <figure>
+    <img src="figures/sensor-trio-fig1-ci-vs-n.png" alt="CI half-width of recovered sigma versus number of trio-windows, per device, dynamic regime">
+    <figcaption><b>Figure 1.</b> CI half-width of the recovered σ̂ versus N_windows, per device, dynamic regime (live output of <code>sensor-trio-power-analysis.html</code>, 720 Monte-Carlo trials/cell). All three corners (O2Ring amber, H10 teal, Verity violet) track a common ~1/√N curve (dashed reference) and clear ±0.5 bpm by a single window; the ±0.25 and ±0.15 targets are marked. Dark theme is the tool's native rendering.</figcaption>
+  </figure>
+
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 1.</b> Minimum trio-windows to pin each device σ to a target CI half-width — <b>dynamic regime</b>, 720 Monte-Carlo trials/cell.</caption>
+    <thead><tr><th>Device</th><th>Planted σ (bpm)</th><th class="num">±0.50 bpm</th><th class="num">±0.25 bpm</th><th class="num">±0.15 bpm</th></tr></thead>
+    <tbody>
+      <tr><td>O2Ring (pulse)</td><td class="num">1.7</td><td class="num">1</td><td class="num">8</td><td class="num">20</td></tr>
+      <tr><td>Polar H10 (ECG)</td><td class="num">2.2</td><td class="num">1</td><td class="num">5</td><td class="num">12</td></tr>
+      <tr><td>Verity Sense (PPG)</td><td class="num">6.2</td><td class="num">1</td><td class="num">5</td><td class="num">20</td></tr>
+      <tr class="hi"><td><b>Worst across devices</b></td><td class="num">—</td><td class="num"><b>1</b></td><td class="num"><b>8</b></td><td class="num"><b>20</b></td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="sub">3.2 The regime cost is bias, not window count</h3>
+  <p>Switching from a dynamic to a resting truth does <em>not</em> meaningfully change the CI half-widths — it changes the <b>bias</b> of what the hat recovers (Figure 2, Table 2). In the dynamic regime σ̂ recovers each device's true total error (bias ≈ 0 for all three). In the resting regime the TCH recovers only the <em>independent-error floor</em>: because true HR barely moves, the shared beat-to-beat HRV that the instantaneous devices (H10, Verity) faithfully track is stripped out as if it were common signal, so their σ̂ is biased low — H10 by −0.47 bpm (−21% of its 2.2) and Verity by −0.17 bpm — while the smoothed O2Ring, which averages that HRV away anyway, drifts slightly high (+0.07 bpm). This is the quantitative reason a non-resting session is worth more than several resting ones: it is not that resting windows are noisier, it is that they answer a subtly different (and under-stated) question.</p>
+
+  <figure>
+    <img src="figures/sensor-trio-fig2-regime.png" alt="Recovered sigma versus number of windows, resting versus dynamic regime, per device">
+    <figcaption><b>Figure 2.</b> Recovered σ̂ versus N_windows under <b>resting</b> vs <b>dynamic</b> truth, per device. The dynamic curves sit on each device's planted σ (unbiased); the resting curves settle below it for the instantaneous devices (H10, Verity) and slightly above for the smoothed O2Ring — a regime <em>bias</em>, flat in N, not a precision difference.</figcaption>
+  </figure>
+
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 2.</b> Recovery bias (σ̂ − true σ, bpm) by regime at N=8 windows. Dynamic ≈ unbiased; resting under-recovers the instantaneous devices because the TCH strips shared HRV.</caption>
+    <thead><tr><th>Device</th><th class="num">Dynamic bias</th><th class="num">Resting bias</th></tr></thead>
+    <tbody>
+      <tr><td>O2Ring (pulse)</td><td class="num">−0.009</td><td class="num">+0.071</td></tr>
+      <tr><td>Polar H10 (ECG)</td><td class="num">−0.031</td><td class="num">−0.473</td></tr>
+      <tr><td>Verity Sense (PPG)</td><td class="num">−0.035</td><td class="num">−0.169</td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="sub">3.3 Below a few windows the uncorrelated-error assumption is uncheckable</h3>
+  <p>The TCH assumes the three devices' errors are independent; a negative recovered variance is the tell that they are not. Injecting a known error correlation ρ between the H10 and Verity legs and measuring the probability that at least one window produces a negative TCH variance quantifies when that failure becomes <em>detectable</em> (Table 3). A clean trio (ρ=0) never produces a negative across any N — the method's specificity is intact. A small correlation (ρ=0.15) is nearly invisible: caught only ~4% of the time at a single window and still only ~53% by 20 windows. A moderate one (ρ=0.3) is caught ~55% at N=1 and almost always by a handful of windows; ρ≥0.5 is caught every time. The reading: <b>below a few windows a correlated-error failure is statistically indistinguishable from sampling noise</b>, so a σ quoted from one or two windows cannot certify its own central assumption — another reason to report N alongside the number.</p>
+
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 3.</b> Assumption test — P(≥1 negative TCH variance across N windows) under an injected H10↔Verity error correlation ρ (resting truth), 720 trials/cell.</caption>
+    <thead><tr><th>ρ (injected)</th><th class="num">N=1</th><th class="num">N=3</th><th class="num">N=8</th><th class="num">N=20</th></tr></thead>
+    <tbody>
+      <tr><td>0 (independent)</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td></tr>
+      <tr><td>0.15</td><td class="num">0.04</td><td class="num">0.11</td><td class="num">0.26</td><td class="num">0.53</td></tr>
+      <tr><td>0.30</td><td class="num">0.55</td><td class="num">0.91</td><td class="num">1.00</td><td class="num">1.00</td></tr>
+      <tr class="hi"><td>0.50</td><td class="num">1.00</td><td class="num">1.00</td><td class="num">1.00</td><td class="num">1.00</td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="sub">3.4 An anecdotal real window agrees with the simulation</h3>
+  <p>The one committed real trio-window (2026-06-16/17, 7,057 simultaneous seconds) recovers σ̂ = 1.67 / 2.17 / 6.22 bpm for O2Ring / H10 / Verity — within hundredths of the planted totals the simulation uses, and the within-window block-bootstrap 95% CIs bracket those values (Table 4, Figure 3). The pairwise correlations (H10↔O2Ring r≈0.74, the rest near 0) are the resting-regime signature, and no window produced a negative TCH variance, so the independence assumption is not contradicted at the one-window level the assumption test says is uncheckable. We treat this as an anecdote rather than a validation: a single window cannot test the 1/√N law or the independence assumption, and the fully synthetic arm already answers the sample-size question on its own. (Two caveats on this one window: it spans ~2 h — longer than the simulation's 1-h windows, so its single-window CI is tighter than a 1-h N=1 cell; and its Verity σ̂ of 6.22 is this single noisy resting window, whereas the companion paper's four-window aggregate refines Verity to ≈4.0 bpm — so the planted 6.2 is a conservative high-end value. The recommendation scales with the σ ratio, so the conclusions hold either way.)</p>
+
+  <figure>
+    <img src="figures/sensor-trio-fig3-real-overlay.png" alt="Real running per-device sigma with CI overlaid on the simulation prediction band">
+    <figcaption><b>Figure 3.</b> Anecdotal real-window σ̂ ± within-window CI per device laid over the simulation's predicted band. The single committed window (N=1) lands on the planted σ for each device; the H10↔O2Ring control leg is tight. An illustrative comparison, not a validation series.</figcaption>
+  </figure>
+
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 4.</b> Real comparison — single committed trio-window (7,057 s). σ̂ with within-window block-bootstrap 95% CI vs the planted total used in the simulation. <span style="color:#888">Anecdotal single window (N_windows = 1), not a validation set.</span></caption>
+    <thead><tr><th>Device</th><th class="num">σ̂ (bpm)</th><th class="num">within-window 95% CI</th><th class="num">planted total</th></tr></thead>
+    <tbody>
+      <tr><td>O2Ring (pulse)</td><td class="num">1.67</td><td class="num">1.30 – 2.03</td><td class="num">1.7</td></tr>
+      <tr><td>Polar H10 (ECG)</td><td class="num">2.17</td><td class="num">1.41 – 2.88</td><td class="num">2.2</td></tr>
+      <tr><td>Verity Sense (PPG)</td><td class="num">6.22</td><td class="num">4.89 – 7.47</td><td class="num">6.2</td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="sub">3.5 How many minutes per window? Length trades against count</h3>
+  <p>The "how many windows" answer above fixes each window at one hour, too coarse for a practitioner deciding how long to wear all three devices. Sweeping the window <em>length</em> at a single window (N=1, dynamic regime) makes the duration cost explicit (Figure 4, Table 5). Because the 1-Hz device error is strongly autocorrelated (AR(1), φ=0.9), the effective number of independent samples grows far slower than the raw seconds, so the σ̂ CI half-width shrinks only gradually with length: a 1-minute window leaves σ̂ uncertain to ≈1.4–2.4 bpm, 10 minutes to ≈1.0 bpm, and a full 60-minute window only just reaches ±0.5 bpm — O2Ring needs even longer than 60 min to clear it. The tighter ±0.25 and ±0.15 targets are <b>out of reach for any single window ≤ 1 h</b>. The practical reading: ~1 hour is the floor for one window to pin σ to ±0.5 bpm; finer precision must come from <em>more windows</em>, not a longer one — what ultimately matters is the total co-recorded minutes of clean (dynamic) signal, split between window length and window count (the exact length×count tradeoff at a fixed total is not separately characterized here).</p>
+
+  <figure>
+    <img src="figures/sensor-trio-fig4-duration.png" alt="CI half-width of recovered sigma versus window length in minutes, per device, N=1, dynamic regime">
+    <figcaption><b>Figure 4.</b> CI half-width of σ̂ versus window length (1–60 min) at a single window (N=1), dynamic regime. The curves flatten because AR(1)-autocorrelated error caps the effective sample count; only at ~60 min do H10 and Verity reach ±0.5 bpm (red dashed), and ±0.25 / ±0.15 stay out of reach for one ≤ 1 h window.</figcaption>
+  </figure>
+
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 5.</b> Minimum window <b>length</b> (of 1 / 2 / 5 / 10 / 20 / 30 / 60 min) to pin a single window's σ̂ to a target — dynamic regime, 720 trials/cell. “&gt;60 min” = not reached within one hour.</caption>
+    <thead><tr><th>Device</th><th class="num">→ ±0.5 bpm</th><th class="num">→ ±0.25 bpm</th><th class="num">→ ±0.15 bpm</th></tr></thead>
+    <tbody>
+      <tr><td>O2Ring (pulse)</td><td class="num">&gt;60 min</td><td class="num">&gt;60 min</td><td class="num">&gt;60 min</td></tr>
+      <tr><td>Polar H10 (ECG)</td><td class="num">60 min</td><td class="num">&gt;60 min</td><td class="num">&gt;60 min</td></tr>
+      <tr><td>Verity Sense (PPG)</td><td class="num">60 min</td><td class="num">&gt;60 min</td><td class="num">&gt;60 min</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="sec">4. Discussion</h2>
+  <p>The answer to "how much co-recording it takes to measure a sensor's error" has three parts. <b>Precision:</b> one clean window pins the trio to ±0.5 bpm, and tighter targets follow the ~1/√N law — ±0.25 at ~5–8 windows, ±0.15 at ~12–20 — with the worst-across-devices column the one a practitioner should plan to. <b>Coupling:</b> the three-cornered hat ties the corners together, so the noisy Verity leg sets a shared floor and the devices are pinned at similar absolute precision rather than the noisy one needing far more data. <b>Regime:</b> the dominant cost of a resting night is not variance but bias — the hat recovers only the independent-error floor and under-states the instantaneous devices, so one dynamic (exercise/recovery) session is worth several resting ones and is what makes the uncorrelated-error assumption both hold and testable. The recommendation generalizes beyond these exact devices because it scales with the true σ ratio: a noisier trio raises the shared floor and shifts every column right, but the structure — couple, then pace by the worst corner, and prefer a dynamic session — is invariant.</p>
+  <div class="callout"><b>Limitations.</b> This pilot is <b>deliberately fully synthetic</b>: it answers how N_windows controls the σ CI <em>under the stated noise model</em> (Gaussian + AR(1) + a shared-HRV term, planted σ at the real estimates), and that model — not any real cohort — is the basis of every result. It is not a claim that real devices obey the model; the one co-recorded window is an <b>anecdote</b> that happens to agree, not evidence that they do. The planted σ values are one subject's resting estimates; a different cohort, a different wrist-PPG fit, or sustained motion artifact would move them. The assumption test injects only a single H10↔Verity correlation structure; other correlation patterns (e.g. both optical devices sharing a motion artifact) would have their own detectability curves. These results <b>certify the sample-size method and quantify the regime trade-off in simulation</b>; turning them into a validated real-device claim would be a separate empirical study (the 5–10 co-recorded windows, incl. a non-resting session) and is explicitly out of scope here.</div>
+
+  <h2 class="sec">5. Reproducibility</h2>
+  <ul>
+    <li><b>Run it:</b> open <code>sensor-trio-power-analysis.html</code> → set trials/cell, window length, regime, and the N-grid → "Run power sweep". The σ-vs-N curves, regime panel, assumption-test table, and real overlay populate live. Export <code>sensor-trio-power-stats.json</code> and the three figures (<code>sensor-trio-fig1…3</code>).</li>
+    <li><b>Estimator:</b> the per-window TCH kernel and cross-window aggregation are imported unchanged from <code>sigma-no-reference-analysis.js</code> — this paper adds only the synthetic trio generator and the Monte-Carlo sweep over N_windows and ρ.</li>
+    <li><b>Real comparison:</b> real <code>ppgdex-dsp.js</code> (<code>PPGDSP.analyze</code>, SQI-gated) for Verity HR from raw PPG and <code>ecgdex-dsp.js</code> (Pan–Tompkins QRS) for the H10 gold leg; O2Ring native pulse; aligned on the Clock Contract floating-ms grid. Derivation path: <code>SIGMA-WINDOW-DERIVATION.md</code>. Detectors are run, not modified — no app re-bundle, no provenance change.</li>
+    <li><b>Config (this run):</b> 720 Monte-Carlo trials/cell on a Web-Worker pool (<code>sensor-trio-worker.js</code> — per-trial deterministic seeding, pool-size-independent and bit-reproducible; live ETA, single-instance lock, IndexedDB checkpoint/resume, cancel), window 3,600 s, AR(1) φ=0.9, N ∈ {1,2,3,5,8,12,20}, ρ ∈ {0,0.15,0.3,0.5,0.7}, targets {±0.5, ±0.25, ±0.15} bpm; planted σ 1.7 / 2.2 / 6.2.</li>
+    <li><b>Scope:</b> this paper is deliberately fully synthetic; the single real window is an anecdotal comparison. Gathering 5–10 co-recorded windows (3-device + Verity raw PPG + ≥1 non-resting session) would be a separate real-validation study, not a continuation of this one.</li>
+  </ul>
+
+  <h2 class="sec">6. Sample size &amp; statistical power</h2>
+  <p>This pilot is self-referential: its subject <em>is</em> sample size, on two axes. The <b>simulation precision</b> is governed by the Monte-Carlo trial count per cell (720 here), which fixes how finely each CI half-width and bias is itself estimated; the <b>scientific N</b> is the number of <em>trio-windows</em>, whose effect on the σ CI is the result (Table 1). The synthetic arm answers the practitioner's question directly: ~5–10 windows to pin σ to a publishable CI and make the uncorrelated-error assumption testable (Table 3 shows why: at N=1 only a gross ρ≥0.3 correlation is even visible). The one real window we hold is anecdotal — a single illustrative point, not part of that count.</p>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 6.</b> Sample-size guidance — trio-windows (the real binding axis), with the Monte-Carlo trial count (720/cell) that fixes the simulation's own precision.</caption>
+    <thead><tr><th>Tier</th><th class="num">Sample size</th><th>What it buys</th></tr></thead>
+    <tbody>
+      <tr><td>Minimum (acceptable)</td><td class="num">1–2</td><td>Each device σ to ≈±0.5 bpm in a clean dynamic window; a point estimate with a within-window CI. Cannot test the uncorrelated-error assumption (only ρ≥0.3 visible).</td></tr>
+      <tr class="hi"><td>Recommended</td><td class="num">5–10</td><td>σ to ≈±0.25 bpm with an across-window CI; the assumption becomes checkable for moderate ρ; the resting-vs-dynamic bias is directly measurable from the real windows.</td></tr>
+      <tr><td>This run (real, anecdotal)</td><td class="num">1</td><td>Single committed window (7,057 s) recovering 1.67 / 2.17 / 6.22 bpm — matches the planted totals; shown as an anecdote, not a validation set.</td></tr>
+      <tr class="hi"><td>This run — simulation</td><td class="num">720 trials/cell</td><td>The Monte-Carlo sample size behind every number in this paper. At 720 trials/cell each σ̂, bias and CI-half is pinned to its displayed precision (MC error on a half-width ≈ ±0.02 bpm), so the window thresholds above are the estimator's answer, not sampling noise. Ran on the Web-Worker pool in ~15 s (6 cores) — the worker-count axis is free, the trio-window axis is the binding one.</td></tr>
+      <tr><td>Diminishing returns</td><td class="num">&gt; ~20</td><td>CI half-widths are already &lt;±0.15 bpm in simulation; beyond here a dynamic session (removing regime bias) is worth more than another resting window.</td></tr>
+    </tbody>
+  </table>
+  <p>Practical reading: <b>1</b> clean window to state each device σ to ±0.5 bpm, <b>5–10</b> to publish a CI and certify the method's assumption, with at least one non-resting session in the set; the simulation's own 720 trials/cell pin every reported half-width to the displayed precision.</p>
+
+  <h2 class="sec">References</h2>
+  <ol class="refs">
+    <li>Project documentation: <code>CLAUDE.md</code> (Clock Contract, evidence-grade system), <code>VERITY-SIGMA-CORNER-BRIEF.md</code>, <code>SIGMA-WINDOW-DERIVATION.md</code>, Tepna suite.</li>
+    <li>Companion method paper: <code>papers/sigma-no-reference.html</code> — reference-free per-device σ via the three-cornered hat.</li>
+    <li>Companion "how many nights" template: <code>papers/nights-icc.html</code> — test–retest reliability and minimum recording length.</li>
+    <li>Gray JE, Allan DW. A method for estimating the frequency stability of an individual oscillator. <i>Proc. 28th Symp. Frequency Control.</i> 1974:243–246 (three-cornered hat).</li>
+    <li>Tavella P, Premoli A. Estimating the instabilities of N clocks by measuring differences of their readings. <i>Metrologia.</i> 1994;30(5):479–486.</li>
+    <li>Bland JM, Altman DG. Statistical methods for assessing agreement between two methods of clinical measurement. <i>Lancet.</i> 1986;327(8476):307–310.</li>
+    <li>Efron B, Tibshirani RJ. <i>An Introduction to the Bootstrap.</i> Chapman &amp; Hall; 1993 (block bootstrap for dependent data).</li>
+  </ol>
+
+  <div class="footer">Tepna working preprint · generated from live analysis output · figures and statistics regenerate deterministically from the cited tool. Not peer-reviewed; not for clinical use.</div>
+</div>
+
+<div class="dxl dxl-oneline" style="max-width:820px;margin:30px auto 8px;justify-content:center">
+  <span class="dxl-mark">T</span>
+  <span>© 2026 <b style="font-weight:600;color:var(--text,#F4F7FB)">Michal Planicka</b></span>
+  <span class="dxl-sep">·</span><span>Tepna v1.0.0</span>
+  <span class="dxl-sep">·</span><span class="dxl-lic">Apache-2.0</span>
+  <span class="dxl-sep">·</span><span style="color:var(--text4,#6E7F94)">◈ Asheville, NC</span>
+  <span class="dxl-sep">·</span><span style="color:var(--text4,#6E7F94)">not a medical device</span>
+</div>
+</body></html>

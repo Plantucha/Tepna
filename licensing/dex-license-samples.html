@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  dex-license-samples.html — copy-paste reference for the Tepna license stamps
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tepna — License Stamp Samples (reusable)</title>
+<link rel="stylesheet" href="dex-license.css">
+<style>
+  :root{
+    --bg:#0B0F14; --surface:#121821; --surface2:#18212C; --surface3:#1E2835;
+    --border:#1e2d42; --text:#F4F7FB; --text2:#9FB0C3; --text3:#8C9DB3; --text4:#6E7F94;
+    --teal:#3DE0D0; --blue:#58A6FF; --green:#39D98A;
+    --sans:'Inter',system-ui,-apple-system,sans-serif;
+    --mono:ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;
+    background-image:radial-gradient(ellipse 80% 50% at 20% 0%, rgba(61,224,208,.04), transparent 70%);}
+  .wrap{max-width:1000px;margin:0 auto;padding:56px 28px 96px;}
+  h1{font-size:28px;font-weight:800;letter-spacing:-.02em;margin:0 0 6px;}
+  .sub{color:var(--text3);font-size:14px;margin:0 0 8px;}
+  .lead{color:var(--text2);font-size:13.5px;max-width:680px;margin:0 0 40px;text-wrap:pretty;}
+  .lead code{font-family:var(--mono);font-size:12px;background:var(--surface2);padding:1px 6px;border-radius:5px;color:var(--teal);}
+  section{margin:0 0 44px;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--teal);margin:0 0 4px;}
+  h2{font-size:18px;font-weight:700;letter-spacing:-.01em;margin:0 0 4px;}
+  .where{font-size:12.5px;color:var(--text3);margin:0 0 16px;}
+  .stage{background:repeating-linear-gradient(45deg,rgba(255,255,255,.012),rgba(255,255,255,.012) 10px,transparent 10px,transparent 20px);
+    border:1px solid var(--border);border-radius:16px;padding:26px;margin:0 0 12px;}
+  pre{background:#0c1117;border:1px solid var(--border);border-radius:12px;padding:16px 18px;overflow-x:auto;margin:0;
+    font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--text2);}
+  pre .tag{color:#7da9d9;} pre .at{color:var(--teal);} pre .cm{color:var(--text4);}
+  .note{font-size:12px;color:var(--text4);margin:8px 0 0;font-family:var(--mono);}
+  footer{margin-top:64px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">Tepna · physiological-signal suite</p>
+  <h1>License &amp; attribution stamps</h1>
+  <p class="sub">Reusable, drop-in. One stylesheet, five snippets.</p>
+  <p class="lead">Load <code>dex-license.css</code> once, then paste the snippet for the context. Every stamp carries the same payload — author, © year, Apache-2.0, and the regulatory line — sized for where it sits. Classes are <code>dxl-</code> prefixed so they never collide with <code>ans-design.css</code>. Fonts are system monospace only; nothing is bundled or fetched.</p>
+
+  <!-- ════════ 0 · SPDX source header ════════ -->
+  <section>
+    <p class="eyebrow">0 · Source header</p>
+    <h2>SPDX file header</h2>
+    <p class="where">Top of every <code>.js</code> / <code>.css</code> / source <code>.html</code>. The machine-readable source of truth — the visual stamps below render from this fact.</p>
+    <pre><span class="cm">/*
+ * oxydex-dsp.js — DSP &amp; metrics engine
+ * </span><span class="at">Copyright 2026 Michal Planicka</span><span class="cm">
+ * </span><span class="at">SPDX-License-Identifier: Apache-2.0</span><span class="cm">
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. See the LICENSE and
+ * NOTICE files at the project root, or http://www.apache.org/licenses/LICENSE-2.0
+ */</span></pre>
+    <p class="note">Full per-type variants in <span style="color:var(--teal)">licensing/SPDX-HEADERS.txt</span></p>
+  </section>
+
+  <!-- ════════ 1 · sidebar ════════ -->
+  <section>
+    <p class="eyebrow">1 · App sidebar foot</p>
+    <h2>Sidebar micro-stamp</h2>
+    <p class="where">Bottom of each node's nav rail (OxyDex, ECGDex, …).</p>
+    <div class="stage">
+      <div class="dxl dxl-sidebar">
+        <div class="dxl-row">
+          <span style="display:flex;align-items:center;gap:8px">
+            <span class="dxl-dot"></span>
+            <b style="font-size:12.5px">OxyDex</b>
+          </span>
+          <span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span>
+        </div>
+        <hr class="dxl-div">
+        <div class="dxl-row">
+          <span style="display:flex;flex-direction:column;gap:1px">
+            <span style="font-size:11.5px;color:var(--text2);font-weight:600">Michal Planicka</span>
+            <span class="dxl-colophon">© 2026 · Tepna</span>
+          </span>
+          <span class="dxl-colophon">◈ Asheville, NC</span>
+        </div>
+      </div>
+    </div>
+    <pre><span class="tag">&lt;link</span> rel=<span class="at">"stylesheet"</span> href=<span class="at">"dex-license.css"</span><span class="tag">&gt;</span>
+
+<span class="tag">&lt;div</span> class=<span class="at">"dxl dxl-sidebar"</span><span class="tag">&gt;</span>
+  <span class="tag">&lt;div</span> class=<span class="at">"dxl-row"</span><span class="tag">&gt;</span>
+    <span class="tag">&lt;span</span> style=<span class="at">"display:flex;align-items:center;gap:8px"</span><span class="tag">&gt;</span>
+      <span class="tag">&lt;span</span> class=<span class="at">"dxl-dot"</span><span class="tag">&gt;&lt;/span&gt;</span> <span class="tag">&lt;b&gt;</span>OxyDex<span class="tag">&lt;/b&gt;</span>
+    <span class="tag">&lt;/span&gt;</span>
+    <span class="tag">&lt;span</span> class=<span class="at">"dxl-spdx"</span><span class="tag">&gt;&lt;span</span> class=<span class="at">"k"</span><span class="tag">&gt;</span>licence<span class="tag">&lt;/span&gt;&lt;span</span> class=<span class="at">"v"</span><span class="tag">&gt;</span>Apache-2.0<span class="tag">&lt;/span&gt;&lt;/span&gt;</span>
+  <span class="tag">&lt;/div&gt;</span>
+  <span class="tag">&lt;hr</span> class=<span class="at">"dxl-div"</span><span class="tag">&gt;</span>
+  <span class="tag">&lt;div</span> class=<span class="at">"dxl-row"</span><span class="tag">&gt;</span>
+    <span class="tag">&lt;span</span> style=<span class="at">"display:flex;flex-direction:column;gap:1px"</span><span class="tag">&gt;</span>
+      <span class="tag">&lt;span&gt;</span>Michal Planicka<span class="tag">&lt;/span&gt;</span>
+      <span class="tag">&lt;span</span> class=<span class="at">"dxl-colophon"</span><span class="tag">&gt;</span>© 2026 · Tepna<span class="tag">&lt;/span&gt;</span>
+    <span class="tag">&lt;/span&gt;</span>
+    <span class="tag">&lt;span</span> class=<span class="at">"dxl-colophon"</span><span class="tag">&gt;</span>◈ Asheville, NC<span class="tag">&lt;/span&gt;</span>
+  <span class="tag">&lt;/div&gt;</span>
+<span class="tag">&lt;/div&gt;</span></pre>
+  </section>
+
+  <!-- ════════ 2 · ribbon ════════ -->
+  <section>
+    <p class="eyebrow">2 · App &amp; paper footer</p>
+    <h2>Footer ribbon</h2>
+    <p class="where">Full-width foot of an app view or a paper sheet.</p>
+    <div class="stage">
+      <div class="dxl dxl-ribbon">
+        <div class="dxl-seg">
+          <span class="dxl-mark">T</span>
+          <span style="display:flex;flex-direction:column">
+            <b style="font-size:13px">Tepna</b>
+            <span class="dxl-colophon">physiological-signal suite</span>
+          </span>
+        </div>
+        <div class="dxl-seg dxl-grow">
+          <span style="font-size:11.5px;color:var(--text2)">© 2026 <b>Michal Planicka</b> — Concept · Architecture · Algorithms</span>
+          <span class="dxl-disclaimer">Not a medical device · not FDA/CE cleared · research &amp; personal use · ◈ Made in Asheville, NC</span>
+        </div>
+        <div class="dxl-seg">
+          <span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span>
+        </div>
+      </div>
+    </div>
+    <pre><span class="tag">&lt;div</span> class=<span class="at">"dxl dxl-ribbon"</span><span class="tag">&gt;</span>
+  <span class="tag">&lt;div</span> class=<span class="at">"dxl-seg"</span><span class="tag">&gt;</span>
+    <span class="tag">&lt;span</span> class=<span class="at">"dxl-mark"</span><span class="tag">&gt;</span>T<span class="tag">&lt;/span&gt;</span>
+    <span class="tag">&lt;span</span> style=<span class="at">"display:flex;flex-direction:column"</span><span class="tag">&gt;</span>
+      <span class="tag">&lt;b&gt;</span>Tepna<span class="tag">&lt;/b&gt;&lt;span</span> class=<span class="at">"dxl-colophon"</span><span class="tag">&gt;</span>physiological-signal suite<span class="tag">&lt;/span&gt;</span>
+    <span class="tag">&lt;/span&gt;</span>
+  <span class="tag">&lt;/div&gt;</span>
+  <span class="tag">&lt;div</span> class=<span class="at">"dxl-seg dxl-grow"</span><span class="tag">&gt;</span>
+    <span class="tag">&lt;span&gt;</span>© 2026 <span class="tag">&lt;b&gt;</span>Michal Planicka<span class="tag">&lt;/b&gt;</span> — Concept · Architecture · Algorithms<span class="tag">&lt;/span&gt;</span>
+    <span class="tag">&lt;span</span> class=<span class="at">"dxl-disclaimer"</span><span class="tag">&gt;</span>Not a medical device · … · ◈ Made in Asheville, NC<span class="tag">&lt;/span&gt;</span>
+  <span class="tag">&lt;/div&gt;</span>
+  <span class="tag">&lt;div</span> class=<span class="at">"dxl-seg"</span><span class="tag">&gt;&lt;span</span> class=<span class="at">"dxl-spdx"</span><span class="tag">&gt;</span>…<span class="tag">&lt;/span&gt;&lt;/div&gt;</span>
+<span class="tag">&lt;/div&gt;</span></pre>
+  </section>
+
+  <!-- ════════ 3 · one-liner ════════ -->
+  <section>
+    <p class="eyebrow">3 · Tight contexts</p>
+    <h2>One-liner</h2>
+    <p class="where">Paper colophons, narrow footers, code-doc feet. Wraps gracefully.</p>
+    <div class="stage">
+      <div class="dxl dxl-oneline">
+        <span class="dxl-mark">T</span>
+        <span>© 2026 <b style="font-weight:600;color:var(--text)">Michal Planicka</b></span>
+        <span class="dxl-sep">·</span><span>Tepna v1.0.0</span>
+        <span class="dxl-sep">·</span><span class="dxl-lic">Apache-2.0</span>
+        <span class="dxl-sep">·</span><span style="color:var(--text4)">◈ Asheville, NC</span>
+        <span class="dxl-sep">·</span><span style="color:var(--text4)">not a medical device</span>
+      </div>
+    </div>
+    <pre><span class="tag">&lt;div</span> class=<span class="at">"dxl dxl-oneline"</span><span class="tag">&gt;</span>
+  <span class="tag">&lt;span</span> class=<span class="at">"dxl-mark"</span><span class="tag">&gt;</span>T<span class="tag">&lt;/span&gt;</span>
+  <span class="tag">&lt;span&gt;</span>© 2026 <span class="tag">&lt;b&gt;</span>Michal Planicka<span class="tag">&lt;/b&gt;&lt;/span&gt;</span>
+  <span class="tag">&lt;span</span> class=<span class="at">"dxl-sep"</span><span class="tag">&gt;</span>·<span class="tag">&lt;/span&gt;&lt;span&gt;</span>Tepna v1.0.0<span class="tag">&lt;/span&gt;</span>
+  <span class="tag">&lt;span</span> class=<span class="at">"dxl-sep"</span><span class="tag">&gt;</span>·<span class="tag">&lt;/span&gt;&lt;span</span> class=<span class="at">"dxl-lic"</span><span class="tag">&gt;</span>Apache-2.0<span class="tag">&lt;/span&gt;</span>
+  <span class="cm">&lt;!-- · ◈ Asheville, NC · not a medical device --&gt;</span>
+<span class="tag">&lt;/div&gt;</span></pre>
+  </section>
+
+  <!-- ════════ 4 · credits ════════ -->
+  <section>
+    <p class="eyebrow">4 · About / reference-guide Credits</p>
+    <h2>Credits grid</h2>
+    <p class="where">The fuller authorship + citation block for an About page.</p>
+    <div class="stage">
+      <div class="dxl dxl-credits">
+        <div class="dxl-col">
+          <div class="dxl-k">Author</div>
+          <div class="dxl-name">Michal Planicka</div>
+          <div class="dxl-roles" style="font-size:12px;line-height:1.7">Concept · Architecture · Algorithms<br>Implementation · Validation · UI/UX</div>
+          <div class="dxl-colophon" style="margin-top:9px">◈ Made in Asheville, NC</div>
+        </div>
+        <div class="dxl-col">
+          <div class="dxl-k">Licence &amp; Citation</div>
+          <span class="dxl-spdx"><span class="k">SPDX</span><span class="v">Apache-2.0</span></span>
+          <div class="dxl-cite">Planicka, M. (2026). <span style="color:var(--text);font-style:normal">Tepna — Physiological-Signal Analysis Suite</span> (Version 1.0.0) [Computer software].</div>
+        </div>
+        <div class="dxl-col">
+          <div class="dxl-k">Use &amp; Privacy</div>
+          <div style="font-size:12px;color:var(--text3);line-height:1.7">100% local · no network · no accounts.<br>Not a medical device; not FDA/CE cleared.<br>Research &amp; personal use only.</div>
+        </div>
+      </div>
+    </div>
+    <pre><span class="tag">&lt;div</span> class=<span class="at">"dxl dxl-credits"</span><span class="tag">&gt;</span>
+  <span class="tag">&lt;div</span> class=<span class="at">"dxl-col"</span><span class="tag">&gt;</span>
+    <span class="tag">&lt;div</span> class=<span class="at">"dxl-k"</span><span class="tag">&gt;</span>Author<span class="tag">&lt;/div&gt;</span>
+    <span class="tag">&lt;div</span> class=<span class="at">"dxl-name"</span><span class="tag">&gt;</span>Michal Planicka<span class="tag">&lt;/div&gt;</span>
+    <span class="tag">&lt;div</span> class=<span class="at">"dxl-roles"</span><span class="tag">&gt;</span>Concept · Architecture · Algorithms …<span class="tag">&lt;/div&gt;</span>
+    <span class="tag">&lt;div</span> class=<span class="at">"dxl-colophon"</span><span class="tag">&gt;</span>◈ Made in Asheville, NC<span class="tag">&lt;/div&gt;</span>
+  <span class="tag">&lt;/div&gt;</span>
+  <span class="cm">&lt;!-- + Licence &amp; Citation col, + Use &amp; Privacy col --&gt;</span>
+<span class="tag">&lt;/div&gt;</span></pre>
+  </section>
+
+  <footer>
+    <!-- ════════ 5 · health / intended-use disclaimer ════════ -->
+  <section>
+    <p class="eyebrow">5 · Health &amp; safety</p>
+    <h2>Intended-use disclaimer</h2>
+    <p class="where">Full block on About / Credits / first-run. The short line goes in footers (see ribbon above). Single-sourced from <code style="font-family:var(--mono);color:var(--teal)">Tepna.DISCLAIMER</code> — never paraphrased per file.</p>
+    <div class="stage">
+      <div class="dxl">
+        <div class="dxl-notice">
+          <div class="dxl-k">Intended use &amp; safety</div>
+          <p><b>Tepna</b> computes biometric patterns from your wearable and sensor data to support personal self-quantification. It is <b>not a medical device</b>, does not <b>diagnose, treat, cure, screen for, or prevent</b> any disease or condition, and is <b>not a substitute for professional clinical evaluation</b>. It has not been reviewed or cleared by the FDA, CE, or any regulatory body. Always consult a qualified healthcare provider about your health. Use at your own risk. For research and personal use only. 100% local — no data leaves your device.</p>
+        </div>
+      </div>
+    </div>
+    <pre><span class="tag">&lt;div</span> class=<span class="at">"dxl"</span><span class="tag">&gt;</span>
+  <span class="tag">&lt;div</span> class=<span class="at">"dxl-notice"</span><span class="tag">&gt;</span>
+    <span class="tag">&lt;div</span> class=<span class="at">"dxl-k"</span><span class="tag">&gt;</span>Intended use &amp; safety<span class="tag">&lt;/div&gt;</span>
+    <span class="tag">&lt;p&gt;&lt;b&gt;</span>Tepna<span class="tag">&lt;/b&gt;</span> computes biometric patterns … <span class="cm">[canonical full string]</span><span class="tag">&lt;/p&gt;</span>
+  <span class="tag">&lt;/div&gt;</span>
+<span class="tag">&lt;/div&gt;</span>
+
+<span class="cm">&lt;!-- short, for footers: --&gt;</span>
+<span class="tag">&lt;span</span> class=<span class="at">"dxl-disclaimer"</span><span class="tag">&gt;</span>Not a medical device · does not diagnose or treat · research &amp; personal use only.<span class="tag">&lt;/span&gt;</span></pre>
+  </section>
+
+  <footer>
+    <div class="dxl dxl-oneline">
+      <span class="dxl-mark">T</span>
+      <span>© 2026 <b style="font-weight:600;color:var(--text)">Michal Planicka</b></span>
+      <span class="dxl-sep">·</span><span class="dxl-lic">Apache-2.0</span>
+      <span class="dxl-sep">·</span><span style="color:var(--text4)">this file, too</span>
+    </div>
+  </footer>
+
+</div>
+</body></html>

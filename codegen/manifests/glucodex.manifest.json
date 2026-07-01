@@ -1,0 +1,154 @@
+{
+  "node": "GlucoDex",
+  "modality": "Continuous Glucose Monitoring (CGM)",
+  "icon": "🍬",
+  "accentColor": "var(--amber)",
+  "accentHex": "#FFB84D",
+  "version": "1.0.0",
+  "status": "planned",
+  "description": "Analysis of continuous glucose monitoring data — glycemic control, variability, time-in-range, risk indices, and overnight glucose dynamics for metabolic health assessment.",
+  "warning": "CGM accuracy varies by sensor type (Dexcom, Libre, Medtronic). Interstitial glucose lags blood glucose by 5–15 minutes. Metrics are not equivalent to HbA1c or venous glucose measurements.",
+
+  "dataModel": {
+    "fields": {
+      "glucose":    "Float32Array — mg/dL, typically 1/300 Hz (every 5 min)",
+      "timestamps": "Float64Array — Unix seconds",
+      "mealTags":   "Array<{time:number, type:string}> — optional meal annotations",
+      "sensorType": "string — Dexcom | Libre | Medtronic | other"
+    }
+  },
+
+  "sections": [
+    {
+      "id": "glucose-basics",
+      "title": "Glucose Statistics",
+      "icon": "📊",
+      "description": "Fundamental glucose level statistics",
+      "metrics": [
+        { "id": "meanGlucose","abbr": "Gμ",    "name": "Mean Glucose",       "fullName": "Mean glucose across recording",  "tier": "core", "unit": "mg/dL",
+          "formula": "mean(glucose)", "compute": { "fn": "mean", "source": "glucose" },
+          "ranges": [ { "max": 100, "label": "Normal (< 100 fasting)", "class": "ok" }, { "max": 125, "label": "Pre-diabetic range", "class": "warn" }, { "max": 180, "label": "Elevated", "class": "bad" }, { "max": null, "label": "High — poor control", "class": "bad" } ] },
+        { "id": "glucoseSD",  "abbr": "G-SD",  "name": "Glucose SD",         "fullName": "Standard deviation of glucose",  "tier": "core", "unit": "mg/dL",
+          "formula": "SD(glucose)", "compute": { "fn": "sd", "source": "glucose" },
+          "ranges": [ { "max": 20, "label": "Low variability — stable", "class": "ok" }, { "max": 40, "label": "Moderate", "class": "warn" }, { "max": null, "label": "High variability", "class": "bad" } ] },
+        { "id": "glucoseMedian","abbr": "G50",  "name": "Median Glucose",     "fullName": "Median glucose value",  "tier": "core", "unit": "mg/dL",
+          "formula": "percentile50(glucose)", "compute": { "fn": "percentile", "source": "glucose", "args": [50] },
+          "ranges": [ { "max": 100, "label": "Normal", "class": "ok" }, { "max": 140, "label": "Elevated", "class": "warn" }, { "max": null, "label": "High", "class": "bad" } ] },
+        { "id": "glucoseIQR", "abbr": "G-IQR", "name": "Glucose IQR",        "fullName": "Interquartile range of glucose",  "tier": "secondary", "unit": "mg/dL",
+          "formula": "P75 − P25", "compute": { "fn": "iqr", "source": "glucose" },
+          "ranges": [ { "max": 30, "label": "Tight control", "class": "ok" }, { "max": 60, "label": "Moderate", "class": "warn" }, { "max": null, "label": "Wide — high variability", "class": "bad" } ] }
+      ]
+    },
+    {
+      "id": "time-in-range",
+      "title": "Time in Range",
+      "icon": "🎯",
+      "description": "International consensus time-in-range metrics (TIR, TBR, TAR)",
+      "metrics": [
+        { "id": "tir",       "abbr": "TIR",    "name": "Time in Range",      "fullName": "% time glucose 70–180 mg/dL",  "tier": "core", "unit": "%",
+          "formula": "count(70 ≤ G ≤ 180) / total × 100", "compute": { "fn": "pct_between", "source": "glucose", "args": [70, 180] },
+          "ranges": [ { "max": 50, "label": "Poor — below target", "class": "bad" }, { "max": 70, "label": "Sub-optimal", "class": "warn" }, { "max": null, "label": "Good (target > 70%)", "class": "ok" } ] },
+        { "id": "tar",       "abbr": "TAR",    "name": "Time Above Range",   "fullName": "% time glucose > 180 mg/dL",  "tier": "core", "unit": "%",
+          "formula": "count(G > 180) / total × 100", "compute": { "fn": "pct_above", "source": "glucose", "args": [180] },
+          "ranges": [ { "max": 5, "label": "Excellent", "class": "ok" }, { "max": 25, "label": "Moderate", "class": "warn" }, { "max": null, "label": "High — poor control", "class": "bad" } ] },
+        { "id": "tbr",       "abbr": "TBR",    "name": "Time Below Range",   "fullName": "% time glucose < 70 mg/dL",  "tier": "core", "unit": "%",
+          "formula": "count(G < 70) / total × 100", "compute": { "fn": "pct_below", "source": "glucose", "args": [70] },
+          "ranges": [ { "max": 1, "label": "Minimal — safe", "class": "ok" }, { "max": 4, "label": "Moderate — monitor", "class": "warn" }, { "max": null, "label": "High — hypoglycemia risk", "class": "bad" } ] },
+        { "id": "tir50",     "abbr": "TIR-50", "name": "Time in Tight Range","fullName": "% time glucose 70–140 mg/dL (tight control)",  "tier": "secondary", "unit": "%",
+          "formula": "count(70 ≤ G ≤ 140) / total × 100", "compute": { "fn": "pct_between", "source": "glucose", "args": [70, 140] },
+          "ranges": [ { "max": 50, "label": "Below tight target", "class": "warn" }, { "max": null, "label": "Good tight control", "class": "ok" } ] },
+        { "id": "tar250",    "abbr": "TAR-250","name": "Time Very High",     "fullName": "% time glucose > 250 mg/dL",  "tier": "core", "unit": "%",
+          "formula": "count(G > 250) / total × 100", "compute": { "fn": "pct_above", "source": "glucose", "args": [250] },
+          "ranges": [ { "max": 1, "label": "Minimal", "class": "ok" }, { "max": 5, "label": "Some hyperglycemia", "class": "warn" }, { "max": null, "label": "Significant — poor control", "class": "bad" } ] },
+        { "id": "tbr54",     "abbr": "TBR-54", "name": "Time Very Low",      "fullName": "% time glucose < 54 mg/dL (clinically significant)",  "tier": "core", "unit": "%",
+          "formula": "count(G < 54) / total × 100", "compute": { "fn": "pct_below", "source": "glucose", "args": [54] },
+          "ranges": [ { "max": 0.5, "label": "Safe", "class": "ok" }, { "max": 1, "label": "Mild — monitor", "class": "warn" }, { "max": null, "label": "Dangerous — action needed", "class": "bad" } ] }
+      ]
+    },
+    {
+      "id": "variability",
+      "title": "Glycemic Variability",
+      "icon": "📈",
+      "description": "Glucose fluctuation intensity and regularity metrics",
+      "metrics": [
+        { "id": "cov",       "abbr": "G-CoV",  "name": "Glucose Coefficient of Variation",  "fullName": "SD / mean × 100 — international variability target",  "tier": "core", "unit": "%",
+          "formula": "SD(glucose) / mean(glucose) × 100", "compute": { "fn": "cov", "source": "glucose" },
+          "formulaNote": "Target < 36% (international consensus). >36% = high glycemic variability.",
+          "ranges": [ { "max": 20, "label": "Very stable", "class": "ok" }, { "max": 36, "label": "Stable (target)", "class": "ok" }, { "max": null, "label": "High variability (> 36%)", "class": "bad" } ] },
+        { "id": "mage",      "abbr": "MAGE",   "name": "Mean Amplitude of Glycemic Excursions",  "fullName": "Mean of excursions exceeding 1 SD from mean",  "tier": "secondary", "unit": "mg/dL",
+          "formula": "mean(|excursions| > 1 SD from mean glucose)", "compute": { "fn": "stub", "note": "Requires excursion detection algorithm" },
+          "ranges": [ { "max": 40, "label": "Low — stable", "class": "ok" }, { "max": 80, "label": "Moderate", "class": "warn" }, { "max": null, "label": "High — volatile", "class": "bad" } ] },
+        { "id": "modd",      "abbr": "MODD",   "name": "Mean of Daily Differences",  "fullName": "Mean absolute difference between same-time readings on consecutive days",  "tier": "secondary", "unit": "mg/dL",
+          "formula": "mean|G[i] − G[i−288]| (for 5-min CGM)", "compute": { "fn": "stub", "note": "Requires day-aligned comparison" },
+          "ranges": [ { "max": 30, "label": "Low day-to-day variability", "class": "ok" }, { "max": 50, "label": "Moderate", "class": "warn" }, { "max": null, "label": "High", "class": "bad" } ] },
+        { "id": "conga",     "abbr": "CONGA-1","name": "Continuous Overlapping Net Glycemic Action",  "fullName": "SD of differences between glucose values 1 hr apart",  "tier": "research", "unit": "mg/dL",
+          "formula": "SD(G[t] − G[t−1hr])", "compute": { "fn": "stub", "note": "Requires rolling lag computation" },
+          "ranges": [ { "max": 30, "label": "Low — stable", "class": "ok" }, { "max": 60, "label": "Moderate", "class": "warn" }, { "max": null, "label": "High variability", "class": "bad" } ] }
+      ]
+    },
+    {
+      "id": "risk-indices",
+      "title": "Risk Indices",
+      "icon": "⚠️",
+      "description": "Composite glycemic risk and control indices",
+      "metrics": [
+        { "id": "gri",       "abbr": "GRI",    "name": "Glycemia Risk Index",  "fullName": "Composite hypoglycemia + hyperglycemia risk (0–100)",  "tier": "secondary", "unit": "score",
+          "formula": "f(TBR-54, TBR, TAR-250, TAR) — validated grid", "formulaNote": "Lower = better. 0–20 minimal risk, 20–40 low, 40–60 moderate, 60–80 high, 80–100 very high.",
+          "compute": { "fn": "stub", "note": "Requires validated GRI formula" },
+          "ranges": [ { "max": 20, "label": "Minimal risk", "class": "ok" }, { "max": 40, "label": "Low risk", "class": "ok" }, { "max": 60, "label": "Moderate risk", "class": "warn" }, { "max": 80, "label": "High risk", "class": "bad" }, { "max": null, "label": "Very high risk", "class": "bad" } ] },
+        { "id": "hba1cEst",  "abbr": "eA1c",   "name": "Estimated HbA1c",    "fullName": "Estimated HbA1c from mean glucose (Nathan formula)",  "tier": "core", "unit": "%",
+          "formula": "(mean_glucose_mgdl + 46.7) / 28.7", "formulaNote": "Nathan 2008. Population-level estimate. May differ from lab A1c by ±0.5%.",
+          "compute": { "fn": "expr", "expr": "(results.meanGlucose.value + 46.7) / 28.7" },
+          "ranges": [ { "max": 5.7, "label": "Normal (< 5.7%)", "class": "ok" }, { "max": 6.5, "label": "Pre-diabetic (5.7–6.5%)", "class": "warn" }, { "max": null, "label": "Diabetic range (> 6.5%)", "class": "bad" } ] },
+        { "id": "gmi",       "abbr": "GMI",    "name": "Glucose Management Indicator",  "fullName": "CGM-derived A1c estimate (Bergenstal 2018)",  "tier": "core", "unit": "%",
+          "formula": "3.31 + 0.02392 × mean_glucose_mgdl", "formulaNote": "More accurate than eA1c for CGM data. Bergenstal 2018.",
+          "compute": { "fn": "expr", "expr": "3.31 + 0.02392 * results.meanGlucose.value" },
+          "ranges": [ { "max": 5.7, "label": "Normal", "class": "ok" }, { "max": 6.5, "label": "Pre-diabetic", "class": "warn" }, { "max": 7.0, "label": "Diabetic — sub-optimal", "class": "bad" }, { "max": null, "label": "Diabetic — poor control", "class": "bad" } ] },
+        { "id": "hbgi",      "abbr": "HBGI",   "name": "High Blood Glucose Index",  "fullName": "Risk of hyperglycemia (Kovatchev 2006)",  "tier": "secondary", "unit": "risk units",
+          "formula": "mean(f(G)) where f(G) = 10×(ln(G)^1.084 − 5.381)² for G > 112.5", "compute": { "fn": "stub", "note": "Requires Kovatchev transform" },
+          "ranges": [ { "max": 5, "label": "Low hyperglycemia risk", "class": "ok" }, { "max": 10, "label": "Moderate", "class": "warn" }, { "max": null, "label": "High", "class": "bad" } ] },
+        { "id": "lbgi",      "abbr": "LBGI",   "name": "Low Blood Glucose Index",  "fullName": "Risk of hypoglycemia (Kovatchev 2006)",  "tier": "secondary", "unit": "risk units",
+          "formula": "mean(f(G)) where f(G) = 10×(ln(G)^1.084 − 5.381)² for G < 112.5", "compute": { "fn": "stub", "note": "Requires Kovatchev transform" },
+          "ranges": [ { "max": 2.5, "label": "Low hypoglycemia risk", "class": "ok" }, { "max": 5, "label": "Moderate", "class": "warn" }, { "max": null, "label": "High", "class": "bad" } ] }
+      ]
+    },
+    {
+      "id": "glucose-overnight",
+      "title": "Overnight Glucose Dynamics",
+      "icon": "🌙",
+      "description": "Nocturnal glucose patterns for cross-modal integration with oximetry",
+      "metrics": [
+        { "id": "overnightMean","abbr": "OGμ",  "name": "Overnight Mean Glucose",  "fullName": "Mean glucose during sleep period (motion=0 or time-based)",  "tier": "secondary", "unit": "mg/dL",
+          "formula": "mean(glucose[sleep_period])", "compute": { "fn": "stub", "note": "Requires sleep period detection or time window" },
+          "ranges": [ { "max": 110, "label": "Normal overnight", "class": "ok" }, { "max": 150, "label": "Elevated", "class": "warn" }, { "max": null, "label": "High overnight", "class": "bad" } ] },
+        { "id": "noctHypo",  "abbr": "NH",     "name": "Nocturnal Hypoglycemia Events",  "fullName": "Count of episodes where glucose < 70 during sleep",  "tier": "core", "unit": "count",
+          "formula": "count(glucose < 70 during sleep)", "compute": { "fn": "stub", "note": "Requires sleep period" },
+          "ranges": [ { "max": 0, "label": "None — safe", "class": "ok" }, { "max": 2, "label": "Mild — monitor", "class": "warn" }, { "max": null, "label": "Frequent — investigate", "class": "bad" } ] },
+        { "id": "dawnPhenom","abbr": "DP",     "name": "Dawn Phenomenon Index",  "fullName": "Glucose rise from overnight nadir to morning (4–8 AM)",  "tier": "secondary", "unit": "mg/dL",
+          "formula": "mean(G[4–8am]) − min(G[0–4am])", "compute": { "fn": "stub", "note": "Requires time-of-day filtering" },
+          "ranges": [ { "max": 20, "label": "Minimal dawn effect", "class": "ok" }, { "max": 40, "label": "Moderate", "class": "warn" }, { "max": null, "label": "Significant dawn effect", "class": "bad" } ] }
+      ]
+    }
+  ],
+
+  "abbreviations": {
+    "A1c": "Glycated Hemoglobin",
+    "CGM": "Continuous Glucose Monitor",
+    "CONGA": "Continuous Overlapping Net Glycemic Action",
+    "CoV": "Coefficient of Variation",
+    "DP": "Dawn Phenomenon",
+    "eA1c": "Estimated HbA1c",
+    "GRI": "Glycemia Risk Index",
+    "GMI": "Glucose Management Indicator",
+    "HBGI": "High Blood Glucose Index",
+    "IQR": "Interquartile Range",
+    "LBGI": "Low Blood Glucose Index",
+    "MAGE": "Mean Amplitude of Glycemic Excursions",
+    "MODD": "Mean of Daily Differences",
+    "NH": "Nocturnal Hypoglycemia",
+    "SD": "Standard Deviation",
+    "TAR": "Time Above Range",
+    "TBR": "Time Below Range",
+    "TIR": "Time in Range"
+  }
+}

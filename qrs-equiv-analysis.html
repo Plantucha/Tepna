@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  qrs-equiv-analysis.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Three-way rMSSD equivalence — PulseDex × ECGDex × PpgDex (FULL lane)</title>
+<!-- ════════════════════════════════════════════════════════════════════════
+  qrs-equiv-analysis.html — figure engine for the candidate paper
+  "Three-way rMSSD equivalence: PulseDex · ECGDex · PpgDex on one set of beats."
+
+  One ~9-min apnea-cluster window per patient is scored for rMSSD by all three REAL
+  detectors on the SAME co-generated beats — PulseDex (RR text, reference), ECGDex
+  (raw int16 ECG @130 Hz → Pan-Tompkins), PpgDex (optical pulse @176 Hz). Pairwise
+  Bland–Altman isolates the error sources: ECG−Pulse = sampling + QRS detection;
+  PPG−Pulse = + pulse-arrival-time jitter (+ optical detection).
+
+  HONEST FRAMING: synthetic ground truth — certifies detector agreement and quantifies
+  each modality's intrinsic dispersion, not a real-patient equivalence study. 100% local;
+  FULL-lane realms (qrs-equiv-worker.js) + the shipped PulseDex realm (cohort-harness.html).
+═════════════════════════════════════════════════════════════════════════ -->
+<style>
+  :root{
+    --bg:#0c0f14; --surface:#141922; --surface2:#1b212c; --line:rgba(255,255,255,.08);
+    --text:#e6edf6; --text2:#aab8cc; --text3:#6f8096; --teal:#3DE0D0; --blue:#58A6FF;
+    --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;padding:0 0 90px;}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px;}
+  header{padding:26px 0 16px;border-bottom:1px solid var(--line);margin-bottom:22px;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);}
+  h1{margin:6px 0 3px;font-size:25px;font-weight:650;letter-spacing:-.01em;}
+  h1 .g{color:var(--teal);}
+  .sub{color:var(--text3);font-size:13px;max-width:860px;line-height:1.5;}
+  .controls{display:flex;gap:10px;align-items:center;margin-top:18px;flex-wrap:wrap;}
+  button{font-family:var(--sans);font-size:13px;font-weight:600;padding:9px 16px;border-radius:8px;border:1px solid var(--line);background:var(--surface2);color:var(--text);cursor:pointer;}
+  button:hover{border-color:rgba(255,255,255,.2);}
+  button.primary{background:var(--teal);color:#06251f;border-color:transparent;}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  .pill{font-family:var(--mono);font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid var(--line);}
+  .pill.idle{color:var(--text3);} .pill.run{color:var(--teal);border-color:rgba(61,224,208,.35);} .pill.done{color:var(--green);border-color:rgba(57,217,138,.35);}
+  .field{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text2);}
+  .field input{width:64px;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:5px 7px;font-family:var(--mono);font-size:12px;}
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:18px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;}
+  .card h2{margin:0 0 14px;font-size:13px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;gap:8px;}
+  .card h2 .tag{font-family:var(--mono);font-size:10px;color:var(--text3);font-weight:500;border:1px solid var(--line);border-radius:5px;padding:2px 6px;margin-left:auto;}
+  .col-12{grid-column:span 12;} .col-7{grid-column:span 7;} .col-6{grid-column:span 6;} .col-5{grid-column:span 5;}
+  @media(max-width:900px){ .col-7,.col-6,.col-5{grid-column:span 12;} }
+  canvas{max-width:100%;display:block;background:#0f141b;border-radius:8px;}
+  .legend{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:9px;line-height:1.7;}
+  .chip{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle;}
+  .headline{display:flex;flex-direction:column;gap:12px;}
+  .hcard{background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:13px 15px;}
+  .hl{font-family:var(--mono);font-size:27px;font-weight:600;letter-spacing:-.02em;line-height:1;}
+  .hl .hu{font-size:13px;color:var(--text3);font-weight:500;}
+  .hk{font-size:12px;color:var(--text2);margin-top:6px;}
+  .hs{font-size:10.5px;color:var(--text3);font-family:var(--mono);margin-top:2px;}
+  .muted{color:var(--text3);}
+  .note{background:rgba(61,224,208,.06);border:1px solid rgba(61,224,208,.20);border-radius:10px;padding:12px 15px;font-size:12px;color:var(--text2);line-height:1.55;margin-top:8px;}
+  code{font-family:var(--mono);color:var(--blue);background:var(--surface2);padding:1px 5px;border-radius:4px;font-size:11px;}
+  #prog{height:4px;background:var(--surface2);border-radius:3px;overflow:hidden;flex:1;min-width:120px;max-width:280px;}
+  #progBar{height:100%;width:0;background:var(--teal);transition:width .2s;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.05);}
+  th{color:var(--text3);font-weight:500;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;}
+  td.num,th.num{text-align:right;font-family:var(--mono);}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="eyebrow">PulseDex · ECGDex · PpgDex · rMSSD agreement (FULL lane)</div>
+    <h1>Three-way <span class="g">rMSSD equivalence</span> — one set of beats, three detectors</h1>
+    <div class="sub">One ~9-min apnea-cluster window per patient is scored for <b>rMSSD</b> by all three production detectors on the <b>same co-generated beats</b>: <b>PulseDex</b> reads the ground-truth RR (reference), <b>ECGDex</b> re-derives it from the raw int16 ECG (130 Hz + Pan–Tompkins), and <b>PpgDex</b> from the optical pulse (176 Hz + pulse-arrival-time). Pairwise Bland–Altman isolates the error sources: <b>ECG−Pulse</b> = sampling + QRS detection; <b>PPG−Pulse</b> = + PAT jitter.</div>
+    <div class="controls">
+      <span class="field">patients <input id="nSubj" type="number" value="60" min="10" max="20000" step="10"></span>
+      <span style="font-size:11px;color:var(--text3);align-self:center">↑ large N runs slower (real detectors per night)</span>
+      <button class="primary" id="run">Run cohort</button>
+      <button id="cancel" style="display:none">Cancel</button>
+      <div id="prog"><div id="progBar"></div></div>
+      <span class="pill idle" id="status">idle</span>
+      <span style="flex:1"></span>
+      <button id="dlCsv" disabled>results.csv</button>
+      <button id="dlStats" disabled>stats.json</button>
+      <button id="dlFig" disabled>figures.png</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="grid">
+    <div class="card col-7">
+      <h2>Agreement vs PulseDex reference <span class="tag">detector rMSSD vs reference</span></h2>
+      <canvas id="scatter" width="640" height="340"></canvas>
+      <div class="legend" id="scatterLeg">Run to populate.</div>
+    </div>
+    <div class="card col-5">
+      <h2>Headline <span class="tag">Bland–Altman</span></h2>
+      <div class="headline" id="headline"><div class="muted" style="font-size:12px">Run the cohort to compute pairwise bias, limits of agreement, and the isolated pulse-arrival-time dispersion.</div></div>
+    </div>
+
+    <div class="card col-6">
+      <h2>Bland–Altman · PpgDex − PulseDex <span class="tag">+ PAT jitter</span></h2>
+      <canvas id="baPpg" width="560" height="300"></canvas>
+      <div class="legend">Bias (solid) and ±1.96 SD limits of agreement (dashed). Optical pulse carries pulse-arrival-time jitter on top of sampling + detection.</div>
+    </div>
+    <div class="card col-6">
+      <h2>Bland–Altman · ECGDex − PulseDex <span class="tag">sampling + QRS detect</span></h2>
+      <canvas id="baEcg" width="560" height="300"></canvas>
+      <div class="legend">The electrical arm shares no perfusion/PAT path with the optical one; its tight band is the sampling + detection floor the PPG band is measured against.</div>
+    </div>
+
+    <div class="card col-12">
+      <h2>Pairwise rMSSD agreement <span class="tag">Bland–Altman, ms</span></h2>
+      <table>
+        <thead><tr><th>Pair</th><th class="num">n</th><th class="num">bias (ms)</th><th class="num">bias (%)</th><th class="num">SD (ms)</th><th class="num">95% LoA (ms)</th><th class="num">Pearson r</th></tr></thead>
+        <tbody id="tblBody"><tr><td colspan="7" class="muted">run to populate…</td></tr></tbody>
+      </table>
+      <div class="note"><b>Synthetic ground truth — read before citing.</b> All three detectors score the <em>same</em> co-generated beats of one ~9-min window. PulseDex reads the ground-truth RR (artifact-cleaned) and is the reference; ECGDex re-derives beats from the raw int16 ECG (130 Hz, R-peaks rendered at their true beat times → faithful timing) via real Pan–Tompkins; PpgDex from the 176 Hz optical pulse. <b>ECG−Pulse</b> isolates 130 Hz sampling quantization + QRS-detection jitter; <b>PPG−Pulse</b> adds pulse-arrival-time jitter (and the residual optical over-detection); the quadrature excess of the PPG band over the ECG band is the <b>PAT-jitter</b> dispersion. This certifies the three nodes agree on rMSSD on shared beats and quantifies each modality's intrinsic dispersion — it is <b>not</b> a real-patient equivalence study, which needs simultaneous chest-ECG + finger/wrist-PPG recordings.</div>
+    </div>
+  </div>
+</div>
+
+<script src="qrs-equiv-analysis.js"></script>
+</body></html>

@@ -1,0 +1,24 @@
+{
+  "kernel": null,
+  "schema": {
+    "name": "ganglior.node-export",
+    "version": "2.0",
+    "node": "ECGDex",
+    "nodeVersion": "1.0",
+    "bus": "ganglior",
+    "generated": "2026-06-27T00:00:00.000Z",
+    "provenance": null,
+    "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated."
+  },
+  "recording": {
+    "source": "ecg",
+    "contentId": "de42ad1b210c",
+    "startEpochMs": 1781658377723,
+    "offsetMin": null,
+    "events": 0
+  },
+  "ganglior_events": [],
+  "reserved": {
+    "doc": "Awaiting other fleet nodes; null until available."
+  }
+}

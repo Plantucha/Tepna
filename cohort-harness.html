@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  cohort-harness.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<title>Cohort Harness</title>
+<!-- ════════════════════════════════════════════════════════════════════════
+  cohort-harness.html — a single-node REAL-DSP iframe realm for the cohort runner.
+  Parameterized by ?node=oxydex|pulsedex|glucodex. Each instance loads ONLY that
+  node's real modules (so the plain-global DSP files — which collide on parseCSV /
+  parseTimestamp / mean / std across nodes — never share a realm), then exposes
+  runNode(payload) → MINIMAL ganglior.node-export envelope over postMessage.
+
+  Protocol:
+    parent → iframe : { type:'run', reqId, payload }
+    iframe → parent : { type:'ready', node }                       (on load)
+                      { type:'result', reqId, node, envelope, score, timingMs }
+                      { type:'result', reqId, node, error }         (on throw)
+
+  100% local. Replicates the minimal envelope the Integrator's adaptOxyDex /
+  adaptEnvelopeNode actually read (see COHORT-VALIDATION-BRIEF DSP I/O CONTRACT)
+  — most full envelopes are app/DOM-layer, so we rebuild only the read fields.
+═════════════════════════════════════════════════════════════════════════ -->
+</head>
+<body>
+<!-- DOM stubs some node DSPs touch at top-level load (e.g. OxyDex binds #uploadArea / #fileInput).
+     Hidden + inert — the cohort runner never uses the file-drop UI, but the elements must exist
+     or the script throws mid-execution and leaves later globals (SELFGATE, …) unassigned. -->
+<div id="uploadArea" style="display:none"></div>
+<input id="fileInput" type="file" style="display:none">
+<script>
+  var NODE = (new URLSearchParams(location.search).get('node') || '').toLowerCase();
+  function loadScript(src) {
+    return new Promise(function (res, rej) {
+      var s = document.createElement('script');
+      s.src = src; s.onload = res; s.onerror = function () { rej(new Error('load failed: ' + src)); };
+      document.head.appendChild(s);
+    });
+  }
+  // sequential load keeps function-declaration order deterministic within the realm
+  async function loadAll(list) { for (var i = 0; i < list.length; i++) await loadScript(list[i]); }
+
+  var SCRIPTS = {
+    oxydex:   ['kernel-constants.js', 'oxydex-util.js', 'oxydex-profile.js', 'oxydex-dsp.js'],
+    pulsedex: ['kernel-constants.js', 'pulsedex-dsp.js'],
+    glucodex: ['kernel-constants.js', 'glucodex-dsp.js'],
+  };
+
+  function kern() { return (window.DexKernel ? { hash: DexKernel.HASH, version: DexKernel.VERSION } : null); }
+  function firstFinite(o) {
+    if (o == null) return null;
+    if (typeof o === 'number' && isFinite(o)) return o;
+    if (typeof o === 'object') { for (var k in o) { var v = firstFinite(o[k]); if (v != null) return v; } }
+    return null;
+  }
+
+  // ── per-node adapters (run REAL DSP → minimal envelope + scoring companion) ──
+  var RUN = {
+    // payload = { nights:[{ oxyCSV }] }  → array-of-nights OxyDex summary
+    oxydex: function (payload) {
+      var slim = [], score = { nights: [] };
+      (payload.nights || []).forEach(function (nt) {
+        if (!nt.oxyCSV) return;
+        var rows = parseCSV(nt.oxyCSV, {});                 // real OxyDex parser
+        if (!rows.length) { score.nights.push({ empty: true }); return; }
+        var night = processNight(rows, 'cohort.csv');       // real full pipeline
+        var st = night.stats || {};
+        var dt = (st.durationMin && rows.length) ? st.durationMin * 60000 / rows.length : 1000;
+        var desat = night.desat || null;
+        var devs = (desat && Array.isArray(desat.events)) ? desat.events : [];
+        var detTMs = devs.filter(function (d) { return !d.artifact; }).map(function (d) {
+          var idx = (d.nadirIdx != null ? d.nadirIdx : d.startIdx);
+          return (idx != null && night.t0Ms != null) ? night.t0Ms + idx * dt : null;
+        }).filter(function (v) { return v != null; });
+        var estAHI = firstFinite(night.ahiEst);
+        slim.push({
+          date: night.date, t0Ms: night.t0Ms,
+          stats: { n: rows.length, durationMin: st.durationMin, minSpo2: st.minSpo2, meanSpo2: st.meanSpo2 },
+          odi4: night.odi4 ? { rate: night.odi4.rate, count: night.odi4.count } : null,
+          hb: night.hb ? { rate: night.hb.rate } : null,
+          desatProfile: desat ? { events: devs } : null,
+          stageProxy: night.stageProxy || null,
+          kernel: (window.DexKernel ? { hash: DexKernel.HASH, version: DexKernel.VERSION } : null),
+        });
+        score.nights.push({
+          t0Ms: night.t0Ms, odi: night.odi4 ? night.odi4.rate : null,
+          estAHI: estAHI, minSpo2: st.minSpo2, durationMin: st.durationMin,
+          nDesat: detTMs.length, detectedDesatTMs: detTMs,
+        });
+      });
+      var envelope = { schema: { name: 'ganglior.node-export', node: 'OxyDex' }, bus: 'ganglior', nights: slim };
+      return { envelope: envelope, score: score };
+    },
+
+    // payload = { rrText }  → recording.durationMin + hrv.time.{rmssd,sdnn}
+    pulsedex: function (payload) {
+      var parsed = parseRRInput(payload.rrText || '');       // real PulseDex parser
+      var vals = parsed.vals || [];
+      if (vals.length < 20) throw new Error('too few RR (' + vals.length + ')');
+      var cl = artifactClean(vals);                          // real artifact corrector
+      var clean = cl.clean;
+      var meanRR = clean.reduce(function (s, v) { return s + v; }, 0) / clean.length;
+      var rm = rmssd(clean), sd = std(clean);                // real DSP helpers
+      var durMin = (parsed.tsMs && parsed.tsMs.length)
+        ? (parsed.tsMs[parsed.tsMs.length - 1] - parsed.tsMs[0]) / 60000
+        : clean.reduce(function (s, v) { return s + v; }, 0) / 60000;
+      var t0 = parsed.t0Ms;
+      var envelope = {
+        schema: { name: 'ganglior.node-export', node: 'PulseDex' }, bus: 'ganglior',
+        recording: { startEpochMs: t0, durationMin: +durMin.toFixed(1), offsetMin: parsed.offsetMin },
+        hrv: { time: { rmssd: +rm.toFixed(1), sdnn: +sd.toFixed(1), meanRR: +meanRR.toFixed(1) } },
+        quality: { analyzablePct: +(100 * (1 - cl.pct / 100)).toFixed(1) },
+        kernel: kern(),
+        ganglior_events: [],
+      };
+      var score = { rmssd: +rm.toFixed(1), sdnn: +sd.toFixed(1), nBeats: vals.length, artifactPct: cl.pct, durationMin: +durMin.toFixed(1), t0Ms: t0 };
+      return { envelope: envelope, score: score };
+    },
+
+    // payload = { cgmCSV }  → glycemic.cv + dawn.surge + timeseries.cells + events
+    glucodex: function (payload) {
+      var parsed = GLUDSP.parseCSV(payload.cgmCSV || '');    // real GlucoDex parser
+      var r = GLUDSP.analyze(parsed, null, {});              // real GlucoDex analyze
+      var s = r.series || {};
+      var cells = [];
+      if (s.gT && s.gV) {
+        for (var i = 0; i < s.N; i++) {
+          var f = s.gF ? s.gF[i] : 0;
+          cells.push({ tMs: s.gT[i], v: s.gV[i], f: f });
+        }
+      }
+      var dawnSurge = (r.dawn && (r.dawn.medianRiseMgdl != null ? r.dawn.medianRiseMgdl : firstFinite(r.dawn))) || null;
+      var envelope = {
+        schema: { name: 'ganglior.node-export', node: 'GlucoDex' }, bus: 'ganglior',
+        recording: { startEpochMs: r.t0Ms, durationMin: r.durMin },
+        glycemic: { cv: r.cv, mean: r.mean, tir: r.tir ? r.tir.tir : null, gmi: r.gmi },
+        dawn: { surge: dawnSurge },
+        nocturnalHypo: (r.nocturnalHypo || []).map(function (e) { return { startMs: e.startMs, min: e.min, durMin: e.durMin }; }),
+        timeseries: { t0Ms: r.t0Ms, cadenceMin: r.cadence, cells: cells },
+        kernel: kern(),
+        ganglior_events: r.events || [],
+      };
+      var score = {
+        cv: r.cv, mean: r.mean, gmi: r.gmi, nHypo: (r.nocturnalHypo || []).length,
+        dawnSurge: dawnSurge, nReadings: r.nReadings, durDays: r.durDays,
+      };
+      return { envelope: envelope, score: score };
+    },
+  };
+
+  window.addEventListener('message', function (ev) {
+    var m = ev.data || {};
+    if (m.type !== 'run') return;
+    var t0 = performance.now();
+    try {
+      var out = RUN[NODE](m.payload || {});
+      ev.source.postMessage({ type: 'result', reqId: m.reqId, node: NODE,
+        envelope: out.envelope, score: out.score, timingMs: +(performance.now() - t0).toFixed(2) }, '*');
+    } catch (e) {
+      ev.source.postMessage({ type: 'result', reqId: m.reqId, node: NODE,
+        error: String(e && e.message || e), timingMs: +(performance.now() - t0).toFixed(2) }, '*');
+    }
+  });
+
+  (async function () {
+    if (!SCRIPTS[NODE]) { parent.postMessage({ type: 'ready', node: NODE, error: 'unknown node' }, '*'); return; }
+    try { await loadAll(SCRIPTS[NODE]); parent.postMessage({ type: 'ready', node: NODE }, '*'); }
+    catch (e) { parent.postMessage({ type: 'ready', node: NODE, error: String(e.message || e) }, '*'); }
+  })();
+</script>
+</body></html>

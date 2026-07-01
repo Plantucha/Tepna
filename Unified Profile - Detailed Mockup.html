@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  Unified User Profile — Detailed Interactive Mockup — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unified Profile — Detailed Mockup</title>
+<style>
+  :root{
+    --bg:#0B0F14;--surface:#121821;--surface2:#18212C;--surface3:#1E2835;
+    --border:#1e2d42;--border2:#253550;
+    --text:#F4F7FB;--text2:#9FB0C3;--text3:#8C9DB3;--text4:#6E7F94;
+    --teal:#3DE0D0;--blue:#58A6FF;--green:#39D98A;--amber:#FFB84D;--red:#FF6B7A;--purple:#a78bfa;
+    --ev-ink:#aab8cc;
+    --r-sm:8px;--r-md:12px;
+    --sans:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;padding:34px 28px 90px;line-height:1.5}
+  .wrap{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,600px) 1fr;gap:30px;align-items:start}
+  @media(max-width:1000px){.wrap{grid-template-columns:1fr}}
+  h1{font-size:22px;font-weight:700;margin:0 0 4px;letter-spacing:-.01em;grid-column:1/-1}
+  .sub{color:var(--text3);font-size:13px;margin:0 0 18px;max-width:780px;grid-column:1/-1;line-height:1.55}
+  .sub b{color:var(--text2)}
+  code{font-family:var(--mono);font-size:11px;background:var(--surface2);padding:1px 5px;border-radius:5px;color:var(--teal)}
+
+  /* ── demo control scaffold (NOT part of the real panel) ─────────── */
+  .demo{border:1px dashed var(--border2);border-radius:var(--r-md);padding:14px 16px;margin-bottom:18px;background:rgba(167,139,250,.04)}
+  .demo .dh{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--purple);display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none}
+  .demo .dcaret{margin-left:auto;color:var(--text4);font-size:11px}
+  .demo #demoBody{margin-top:10px}
+  .demo-row{display:flex;gap:18px;flex-wrap:wrap;align-items:center}
+  .seg{display:inline-flex;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden}
+  .seg button{background:none;border:0;color:var(--text3);font-family:var(--sans);font-size:11.5px;padding:7px 12px;cursor:pointer;white-space:nowrap}
+  .seg button.on{background:var(--surface3);color:var(--text)}
+  .seg button + button{border-left:1px solid var(--border)}
+  .demo label{font-size:11px;color:var(--text4);margin-right:8px}
+
+  /* ── THE UNIFIED PROFILE PANEL ──────────────────────────────────── */
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden}
+  .p-head{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:var(--surface2);border-bottom:1px solid var(--border)}
+  .p-head h3{margin:0;font-size:13.5px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .p-head .toggle{font-family:var(--mono);font-size:11px;color:var(--text4);cursor:pointer}
+  .p-auto{padding:10px 18px;background:var(--surface3);border-bottom:1px solid var(--border);font-size:11px;color:var(--text3);line-height:1.5}
+  .p-auto b{color:var(--teal)}
+  .p-body{padding:6px 18px 18px}
+
+  .grp-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text4);margin:16px 0 10px;display:flex;align-items:center;gap:8px}
+  .grp-label .src{margin-left:auto;font-family:var(--mono);font-size:9px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--text4)}
+  .grp-label .src.shared{color:var(--teal)}
+  .prof-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px 18px}
+  .prof-field{display:flex;flex-direction:column;gap:4px}
+  .prof-field.wide{grid-column:1/-1}
+  .prof-label{font-size:12px;font-weight:600;color:var(--text2);display:flex;align-items:center;gap:7px}
+  .prof-sub{font-size:9.5px;color:var(--text4);line-height:1.45;min-height:13px}
+  .prof-sub.est{color:var(--amber)}
+  .prof-sub.ok{color:var(--green)}
+  .prof-sub b{color:var(--text2)}
+
+  .input-wrap{position:relative;display:flex;align-items:center}
+  .prof-input{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);
+    padding:8px 11px;font-size:13px;color:var(--text);font-family:var(--sans);width:100%}
+  .prof-input:focus{outline:none;border-color:var(--teal);background:var(--surface3)}
+  .prof-input.auto{color:var(--text3);font-style:italic}
+  select.prof-input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236F8096'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center;font-style:normal}
+  .revert{position:absolute;right:8px;font-family:var(--mono);font-size:11px;color:var(--text4);cursor:pointer;background:none;border:0;display:none}
+  .revert.show{display:block}
+  .revert:hover{color:var(--teal)}
+
+  /* origin chip */
+  .org{font-family:var(--mono);font-size:8.5px;letter-spacing:.02em;padding:1px 6px;border-radius:4px;border:1px solid var(--border);white-space:nowrap}
+  .org-pop{color:var(--text4);background:var(--surface3)}
+  .org-detected{color:var(--teal);border-color:rgba(61,224,208,.32);background:rgba(61,224,208,.08)}
+  .org-you{color:var(--green);border-color:rgba(57,217,138,.32);background:rgba(57,217,138,.08)}
+
+  /* derived */
+  .pd-group{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
+  .pd-group-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text4);margin-bottom:10px;display:block}
+  .pd-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px 18px}
+  .pdi{font-size:11px;color:var(--text2);line-height:1.5}
+  .pdi b{color:var(--text)}
+  .pdi .f{display:block;font-size:9px;color:var(--text4);font-family:var(--mono)}
+  /* canonical evidence discs (byte-faithful to dex-badges.css) — shape encodes trust, never hue */
+  .ev{position:relative;opacity:.85;display:inline-block}
+  .ev-measured{width:11px;height:11px;border-radius:50%;background:var(--ev-ink);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--ev-ink)}
+  .ev-validated{width:11px;height:11px;border-radius:50%;background:var(--ev-ink);box-shadow:0 0 0 1px var(--ev-ink) inset}
+  .ev-emerging{width:11px;height:11px;border-radius:50%;background:linear-gradient(90deg,var(--ev-ink) 0 50%,transparent 50% 100%);box-shadow:0 0 0 1.5px var(--ev-ink) inset}
+  .ev-experimental{width:11px;height:11px;border-radius:50%;background:transparent;box-shadow:0 0 0 1.5px var(--ev-ink) inset}
+  .ev-heuristic{width:12px;height:12px;border-radius:50%;background:transparent;border:1.5px dashed var(--ev-ink)}
+  .ev[title]{cursor:help}
+  .pdi .ev{position:static;margin:0 6px 0 0;vertical-align:baseline}
+  .ev-legend-strip{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;font-size:10px;color:var(--text3);background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 13px;white-space:nowrap;overflow:hidden}
+  .ev-legend-strip .lg-title{font-family:var(--mono);font-size:9px;letter-spacing:.07em;text-transform:uppercase;color:var(--text4);margin-right:2px}
+  .ev-legend-strip .lg-item{display:inline-flex;align-items:center;gap:5px}
+  .ev-legend-strip .lg-item b{color:var(--text2);font-weight:600}
+  .ev-legend-strip .sep{display:none}
+  .ev-legend-strip .lg-note{margin-left:auto;color:var(--text4);font-size:9.5px}
+  .units-toggle{margin-left:auto;display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden}
+  .units-toggle .ut{background:none;border:0;color:var(--text4);font-family:var(--sans);font-size:10px;padding:3px 9px;cursor:pointer;letter-spacing:0;text-transform:none;font-weight:500}
+  .units-toggle .ut.on{background:var(--surface3);color:var(--text2)}
+  .units-toggle .ut+.ut{border-left:1px solid var(--border)}
+  body.profcollapsed #pbody,body.profcollapsed .ev-legend-strip,body.profcollapsed .side .card{display:none}
+
+  /* ── side column ────────────────────────────────────────────────── */
+  .side{display:flex;flex-direction:column;gap:18px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:16px 18px}
+  .card h4{margin:0 0 4px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text4);display:flex;align-items:center;gap:8px}
+  .card h4::before{content:'';width:3px;height:13px;background:var(--teal);border-radius:2px;flex:none;opacity:.55}
+  .card .lead{font-size:11.5px;color:var(--text3);line-height:1.55;margin:0 0 12px}
+
+  /* autonomic age hero */
+  .aa-hero{text-align:center;padding:6px 0 4px}
+  .aa-big{font-size:46px;font-weight:700;line-height:1;letter-spacing:-.02em}
+  .aa-unit{font-size:16px;color:var(--text3);font-weight:500}
+  .aa-delta{font-size:12px;margin-top:5px}
+  .aa-conf{font-family:var(--mono);font-size:9.5px;color:var(--text4);margin-top:8px}
+  .aa-src{margin-top:12px;border-top:1px solid var(--border);padding-top:10px;display:flex;flex-direction:column;gap:6px}
+  .aa-src .s{display:flex;align-items:center;justify-content:space-between;font-size:10.5px;color:var(--text3)}
+  .aa-src .s b{color:var(--text2);font-weight:600}
+  .aa-src .s .w{font-family:var(--mono);font-size:9px;color:var(--text4)}
+
+  /* cascade legend */
+  .cascade{display:flex;flex-direction:column;gap:0}
+  .casc{display:flex;gap:11px;align-items:flex-start;padding:10px 0}
+  .casc + .casc{border-top:1px dashed var(--border)}
+  .casc .n{flex:0 0 auto;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-family:var(--mono);font-weight:700}
+  .casc .n1{background:var(--surface3);color:var(--text4)}
+  .casc .n2{background:rgba(61,224,208,.12);color:var(--teal)}
+  .casc .n3{background:rgba(57,217,138,.12);color:var(--green)}
+  .casc .t{font-size:11.5px;color:var(--text2);line-height:1.45}
+  .casc .t b{color:var(--text)}
+  .casc .t span{display:block;font-size:10px;color:var(--text4);margin-top:2px}
+
+  /* norms table */
+  .matrix{border-collapse:collapse;font-size:11px;width:100%}
+  .matrix th,.matrix td{border:1px solid var(--border);padding:5px 8px;text-align:right}
+  .matrix th:first-child,.matrix td:first-child{text-align:left;color:var(--text)}
+  .matrix th{background:var(--surface2);color:var(--text3);font-weight:600;font-size:9.5px;text-transform:uppercase;letter-spacing:.03em}
+  .matrix td{color:var(--text2)}
+  .matrix tr.hl td{background:rgba(61,224,208,.06);color:var(--text)}
+  .matrix tr.hl td:first-child{color:var(--teal)}
+  .tnote{font-size:10px;color:var(--text4);margin-top:8px;line-height:1.5;font-family:var(--mono)}
+  .src-list{margin-top:11px;border-top:1px solid var(--border);padding-top:10px;display:flex;flex-direction:column;gap:6px}
+  .src-list .sh{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text4);margin-bottom:1px}
+  .src-list .s{font-size:10px;color:var(--text3);line-height:1.45;display:flex;gap:7px}
+  .src-list .s sup{color:var(--teal);font-family:var(--mono);font-weight:700;flex:0 0 auto}
+  .src-list .s b{color:var(--text2);font-weight:600}
+  .matrix th sup{color:var(--teal);font-size:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Unified Profile — detailed mockup</h1>
+  <p class="sub">Every field resolves through one <b>3-tier cascade</b>: a population norm keyed on age + sex (so a brand-new, no-data user already sees sensible numbers) → values <b>detected from your loaded metrics</b> → your manual override. Works the same whether you use one Dex or all of them. Try the demo controls: change age/sex, or simulate a loaded recording, and watch every field and every field re-resolve. <span style="color:var(--text4)">The dashed box is demo scaffolding; everything below it is the real panel.</span></p>
+
+  <!-- LEFT: the panel -->
+  <div>
+    <div class="panel">
+      <div class="p-head"><h3>👤 Profile &amp; personalisation</h3><span class="toggle">▲ collapse</span></div>
+      <div class="p-auto" id="autoBanner"></div>
+      <div class="p-body" id="pbody"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: explainers + demo -->
+  <div class="side">
+    <div class="demo">
+      <div class="dh" id="demoToggle">Simulate a person &amp; their data <span class="dcaret">▸</span></div>
+      <div id="demoBody" style="display:none">
+        <div class="demo-row">
+          <div><label>Loaded data</label>
+            <div class="seg" id="segData">
+              <button data-d="none" class="on">No data yet</button>
+              <button data-d="oxy">OxyDex night</button>
+              <button data-d="ecg">ECGDex strip</button>
+              <button data-d="ppg">PpgDex wrist</button>
+              <button data-d="both">Oxy + ECG</button>
+            </div>
+          </div>
+        </div>
+        <div class="demo-row" style="margin-top:12px">
+          <div><label>Fitness preset</label>
+            <div class="seg" id="segPreset">
+              <button data-p="athlete">Athlete</button><button data-p="typical" class="on">Typical</button><button data-p="senior">Older adult</button>
+            </div>
+          </div>
+        </div>
+        <div class="demo-row" style="margin-top:12px">
+          <div><label>Sex</label>
+            <div class="seg" id="segSex"><button data-s="M" class="on">Male</button><button data-s="F">Female</button></div>
+          </div>
+          <div><label>Age</label>
+            <div class="seg" id="segAge">
+              <button data-a="25">25</button><button data-a="42" class="on">42</button>
+              <button data-a="58">58</button><button data-a="70">70</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="ev-legend-strip">
+      <span class="lg-title">Evidence</span>
+      <span class="lg-item"><span class="ev ev-measured"></span><b>Measured</b></span>
+      <span class="sep"></span>
+      <span class="lg-item"><span class="ev ev-validated"></span><b>Validated</b></span>
+      <span class="sep"></span>
+      <span class="lg-item"><span class="ev ev-emerging"></span><b>Emerging</b></span>
+      <span class="sep"></span>
+      <span class="lg-item"><span class="ev ev-experimental"></span><b>Experimental</b></span>
+      <span class="sep"></span>
+      <span class="lg-item"><span class="ev ev-heuristic"></span><b>Heuristic</b></span>
+      <span class="lg-note">fill = trust</span>
+    </div>
+    <div class="card">
+      <h4>↳ How each value is chosen</h4>
+      <div class="cascade">
+        <div class="casc"><div class="n n1">1</div><div class="t"><b>Population norm</b> — keyed on age + sex (unified NHANES / ACSM table). <span>Always available the moment age + sex are known. This is the floor — no field is ever blank.</span></div></div>
+        <div class="casc"><div class="n n2">2</div><div class="t"><b>Detected from your metrics</b> — pulled from a loaded recording. <span>Resting HR from the nocturnal floor (sleeping HR + 8), VO₂ from HRmax/HRrest. Overrides the population norm when present.</span></div></div>
+        <div class="casc"><div class="n n3">3</div><div class="t"><b>Your manual value</b> — anything you type. <span>Always wins. Click <code>↺</code> on a field to drop back to detected / population.</span></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h4>📊 Unified norms &amp; sources <span style="margin-left:auto;font-family:var(--mono);font-size:9px;font-weight:400;color:var(--text4);text-transform:none;letter-spacing:0">every default is cited</span></h4>
+      <p class="lead">One table replaces three drifted versions (HRVDex's NHANES bands, OxyDex's linear formula, ECG/PPG's sex-only constants). Every prefill traces to a named source — so a default value is auditable, never a magic constant. Highlighted row ≈ current demo age.</p>
+      <table class="matrix" id="normsTbl"></table>
+      <div class="tnote" id="normsNote"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════ STATE ════════════════
+var S = { age:42, sex:'M', data:'none', units:'metric', manual:{} };
+
+// ════════════════ UNITS — metric is canonical & default; imperial is a thin display layer ════════════════
+var UNITS = {
+  weight:{ m:'kg', i:'lb', f:2.20462, dp:1 },
+  height:{ m:'cm', i:'in', f:0.393701, dp:1 },
+  waist: { m:'cm', i:'in', f:0.393701, dp:1 },
+  elev:  { m:'m',  i:'ft', f:3.28084, dp:0 },
+};
+function unitLabel(k){ var u=UNITS[k]; return u ? (S.units==='metric'?u.m:u.i) : ''; }
+function toDisp(k,vMetric){ var u=UNITS[k]; if(!u||S.units==='metric'||vMetric==null) return vMetric; return +(vMetric*u.f).toFixed(u.dp); }
+function toMetric(k,vDisp){ var u=UNITS[k]; if(!u||S.units==='metric'||isNaN(vDisp)) return vDisp; return +(vDisp/u.f).toFixed(2); }
+
+// ════════════════ EVIDENCE BADGES — canonical discs (dex-badges.css), shape encodes trust ════════════════
+function ev(t){ return t ? '<span class="ev ev-'+t+'" title="evidence: '+t+' — disc shape = trust"></span>' : ''; }
+
+// ════════════════ UNIFIED POPULATION NORMS (NHANES weight/height by age×sex) ════════════════
+var NHANES = {
+  M:[[18,79.8,177.4],[30,85.6,177.2],[40,89.4,176.7],[50,91.4,175.8],[60,87.9,174.6],[70,82.1,172.3]],
+  F:[[18,68.2,163.5],[30,73.4,163.2],[40,76.8,162.7],[50,78.3,161.9],[60,76.1,160.5],[70,71.4,158.2]]
+};
+function interp(tbl, age){
+  if(age<=tbl[0][0]) return [tbl[0][1],tbl[0][2]];
+  if(age>=tbl[tbl.length-1][0]) return [tbl[tbl.length-1][1],tbl[tbl.length-1][2]];
+  for(var i=0;i<tbl.length-1;i++){ if(age>=tbl[i][0]&&age<tbl[i+1][0]){
+    var f=(age-tbl[i][0])/(tbl[i+1][0]-tbl[i][0]);
+    return [ +(tbl[i][1]+f*(tbl[i+1][1]-tbl[i][1])).toFixed(1), +(tbl[i][2]+f*(tbl[i+1][2]-tbl[i][2])).toFixed(1) ]; } }
+  return [tbl[0][1],tbl[0][2]];
+}
+// VO2max 50th-percentile by age×sex (ACSM-style)
+function vo2Norm(age,sex){
+  var M=[[25,45],[35,43],[45,39],[55,35],[65,31]], F=[[25,36],[35,33],[45,29],[55,26],[65,22]];
+  return interp1((sex==='M'?M:F), age);
+}
+function interp1(tbl,age){
+  if(age<=tbl[0][0])return tbl[0][1];
+  if(age>=tbl[tbl.length-1][0])return tbl[tbl.length-1][1];
+  for(var i=0;i<tbl.length-1;i++){ if(age>=tbl[i][0]&&age<tbl[i+1][0]){
+    var f=(age-tbl[i][0])/(tbl[i+1][0]-tbl[i][0]); return Math.round(tbl[i][1]+f*(tbl[i+1][1]-tbl[i][1])); } }
+  return tbl[0][1];
+}
+function popDefaults(){
+  var wh = interp(NHANES[S.sex], S.age);
+  return {
+    weight: wh[0], height: wh[1],
+    rhr:   70,    // flat NHANES adult mean — single average, no age/sex model; weak prior anyway
+    hrmax: Math.round(208 - 0.7*S.age),                                 // Tanaka
+    sbp:   120,   // guideline-normal — age/sex INDEPENDENT (not a population mean; see note)
+    dbp:   80,    // guideline-normal — override only by typing a real cuff reading
+    vo2:   vo2Norm(S.age,S.sex),
+    elev:  0,
+    activity:'light',   // default activity level — user picks
+    betablk: 'no',      // default: no HR-altering meds
+    afib: 'no'          // default: regular rhythm
+  };
+}
+// ════════════════ DETECTED-FROM-METRICS PAYLOADS (simulated) ════════════════
+function detectedSet(){
+  if(S.data==='oxy')  return { rhr:57, _floor:49, vo2:44.0, _note:'OxyDex night · 7.6 h · resting HR from nocturnal floor (p5 + 8)' };
+  if(S.data==='ecg')  return { rhr:58, vo2:46.0, _note:'ECGDex strip · RR intervals · resting HR measured awake' };
+  if(S.data==='ppg')  return { rhr:60, vo2:43.0, _note:'PpgDex wrist · PPI intervals · pulse HR (no nocturnal floor)' };
+  if(S.data==='both') return { rhr:57, _floor:49, vo2:45.0,
+      _note:'OxyDex night + ECGDex strip · resting HR reconciled across both' };
+  return {};
+}
+// ════════════════ CASCADE RESOLVER ════════════════
+function resolve(field){
+  if(S.manual[field]!=null && S.manual[field]!=='') return {v:S.manual[field], o:'you'};
+  var det=detectedSet();
+  if(det[field]!=null) return {v:det[field], o:'detected'};
+  var pd=popDefaults();
+  if(pd[field]!=null) return {v:pd[field], o:'pop'};
+  return {v:null,o:'none'};
+}
+function clampAge(v){return Math.min(85,Math.max(22,Math.round(v)));}
+
+// ════════════════ FIELD DEFINITIONS ════════════════
+var GROUPS=[
+  {label:'Identity', shared:true, fields:[
+    {k:'age',  label:'Age (years)',  identity:true},
+    {k:'sex',  label:'Sex', identity:true, select:[['M','Male'],['F','Female']]},
+  ]},
+  {label:'Body', shared:true, fields:[
+    {k:'weight', label:'Weight'},
+    {k:'height', label:'Height'},
+    {k:'bodyfat', label:'Body fat %', opt:true},
+    {k:'waist', label:'Waist', opt:true},
+  ]},
+  {label:'Cardio / autonomic', shared:true, fields:[
+    {k:'rhr',   label:'Resting HR (awake)', unit:'bpm', popLabel:'typical'},
+    {k:'hrmax', label:'HRmax', unit:'bpm'},
+    {k:'betablk', label:'Beta-blocker / HR meds', select:[['no','No'],['yes','Yes']], popLabel:'default'},
+    {k:'afib', label:'Irregular rhythm / AF', select:[['no','No'],['yes','Yes']], popLabel:'default'},
+  ]},
+  {label:'Hemodynamic', shared:true, fields:[
+    {k:'sbp', label:'Systolic BP', unit:'mmHg', popLabel:'default'},
+    {k:'dbp', label:'Diastolic BP', unit:'mmHg', popLabel:'default'},
+  ]},
+  {label:'Fitness, environment & therapy', shared:true, srcNote:'↔ shared · CPAP node-specific', fields:[
+    {k:'vo2',  label:'VO₂max', unit:'mL/kg/min'},
+    {k:'activity', label:'Activity level', select:[['sed','Sedentary'],['light','Light'],['mod','Moderate'],['active','Active'],['vig','Very active']], popLabel:'default'},
+    {k:'elev', label:'Elevation'},
+    {k:'cpap', label:'CPAP / BiPAP therapy', select:[['no','No'],['yes','Yes']]},
+  ]},
+];
+
+// sublabel text per field (shows where the auto value comes from)
+function subFor(f, r){
+  var pd=popDefaults();
+  if(f.k==='age') return ['', '— drives every age norm below'];
+  if(f.k==='sex') return ['', '— drives BMR · IBW · VO₂ &amp; body norms'];
+  if(f.k==='weight'){ var uw=unitLabel('weight'); return [r.o==='you'?'':'est', r.o==='you'?'✓ your value':'~ pop avg '+toDisp('weight',pd.weight)+' · ideal '+toDisp('weight',idealWt())+' '+uw]; }
+  if(f.k==='height') return [r.o==='you'?'':'est', r.o==='you'?'✓ your value':'~ pop avg '+toDisp('height',pd.height)+' '+unitLabel('height')+' (age '+S.age+')'];
+  if(f.k==='rhr'){ if(r.o==='you')return['ok','✓ your value (awake)']; if(r.o==='detected'){ var d=detectedSet(); return d._floor?['est','~ sleeping floor '+d._floor+' + 8 = '+r.v+' bpm awake']:['est','~ measured '+r.v+' bpm (awake)']; } return['est','~ typical '+pd.rhr+' bpm · wide spread — load a night or type yours']; }
+  if(f.k==='hrmax'){ if(r.o==='you')return['ok','✓ your value']; return['est','~ Tanaka 208 − 0.7×'+S.age+' = '+pd.hrmax]; }
+  if(f.k==='sbp') return [r.o==='you'?'ok':'', r.o==='you'?'✓ your value':'default 120 · type a cuff reading'];
+  if(f.k==='dbp') return [r.o==='you'?'ok':'', r.o==='you'?'✓ your value':'default 80 · age/sex-independent'];
+  if(f.k==='vo2'){ if(r.o==='you')return['ok','✓ your value · '+vo2Cat(r.v)]; if(r.o==='detected')return['est','~ detected '+r.v+' (Uth–Sørensen) · '+vo2Cat(r.v)]; return['est','~ age/sex norm '+pd.vo2+' · '+vo2Cat(pd.vo2)]; }
+  if(f.k==='elev'){ var ue=unitLabel('elev'); return ['', r.v>1500?('⛰ '+toDisp('elev',r.v)+' '+ue+' · adjusts VO₂ & SpO₂ norms'):'~ sea level · adjusts above '+toDisp('elev',1500)+' '+ue]; }
+  if(f.k==='bodyfat') return r.o==='you'?['ok','✓ '+r.v+'% → Katch-McArdle (lean-mass) RMR']:['', 'optional · enables Katch-McArdle RMR if you know it'];
+  if(f.k==='waist'){ var hh=resolve('height').v; return r.o==='you'?['ok','✓ WHtR '+(r.v/hh).toFixed(2)+' · visceral / OSA risk']:['', 'optional · waist÷height ratio (visceral / OSA risk)']; }
+  if(f.k==='betablk') return (r.v==='yes')?['est','⚠ blunts HRmax & resting HR — HR-based VO₂ / zones flagged']:['', '— none · HR-based calcs valid'];
+  if(f.k==='afib') return (r.v==='yes')?['est','⚠ irregular rhythm — HRV (rMSSD / SDNN) unreliable']:['', '— regular rhythm · HRV metrics valid'];
+  if(f.k==='activity') return ['', '— activity level · energy-budget input'];
+  if(f.k==='cpap') return ['', 'reframes apnea read as <i>residual</i> on therapy'];
+  return ['',''];
+}
+function idealWt(){ var h=resolve('height').v/100; return +(22.5*h*h).toFixed(1); }
+function vo2Cat(v){ var pd=popDefaults(); return v>=pd.vo2*1.1?'above average':v>=pd.vo2*0.9?'average for age':'below average'; }
+function vo2Category(v,age,sex){ var n=vo2Norm(age,sex), r=v/n; return r>=1.25?'Superior':r>=1.10?'Excellent':r>=0.95?'Good':r>=0.80?'Fair':'Poor'; }
+function vo2Percentile(v,age,sex){ var n=vo2Norm(age,sex), p=Math.round(50+(v/n-1)*120); return Math.max(1,Math.min(99,p)); }
+
+// ════════════════ RENDER ════════════════
+function render(){
+  var pb=document.getElementById('pbody'), html='';
+  // Preserve the field the user is editing so a re-render doesn't drop focus / caret
+  var _ae=document.activeElement;
+  var _fk=(_ae && _ae.closest && _ae.closest('#pbody') && _ae.getAttribute) ? _ae.getAttribute('data-k') : null;
+  var _caret=(_fk && _ae.selectionStart!=null) ? _ae.selectionStart : null;
+  var _live=_fk ? _ae.value : null;
+  GROUPS.forEach(function(g){
+    var _right;
+    if(g.label==='Identity'){ _right='<span class="units-toggle">'+[['metric','Metric'],['imperial','Imperial']].map(function(u){return '<button class="ut'+(S.units===u[0]?' on':'')+'" data-u="'+u[0]+'">'+u[1]+'</button>';}).join('')+'</span>'; }
+    else { _right = g.srcNote?'<span class="src shared">'+g.srcNote+'</span>':(g.shared?'<span class="src shared">↔ shared identity</span>':'<span class="src">node-specific</span>'); }
+    html += '<div class="grp-label">'+g.label+_right+'</div>';
+    html += '<div class="prof-grid">';
+    g.fields.forEach(function(f){
+      var r = f.identity ? {v:(f.k==='age'?S.age:S.sex), o:'you'} : resolve(f.k);
+      var sub = subFor(f, r);
+      var orgTxt = r.o==='you'?'your value':r.o==='detected'?'detected':r.o==='pop'?(f.popLabel||'pop avg'):'';
+      var orgCls = r.o==='you'?'org-you':r.o==='detected'?'org-detected':'org-pop';
+      var _u=unitLabel(f.k); var labelTxt=f.label+(_u?' ('+_u+')':'')+(f.opt?' · optional':'');
+      html += '<div class="prof-field'+(f.wide?' wide':'')+'">';
+      html += '<div class="prof-label">'+labelTxt+(orgTxt&&!f.identity?'<span class="org '+orgCls+'">'+orgTxt+'</span>':'')+'</div>';
+      html += '<div class="prof-sub '+(sub[0]||'')+'">'+(sub[1]||'')+'</div>';
+      if(f.select){
+        html += '<div class="input-wrap"><select class="prof-input" data-k="'+f.k+'">';
+        f.select.forEach(function(o){ html+='<option value="'+o[0]+'"'+(String(r.v)===o[0]?' selected':'')+'>'+o[1]+'</option>'; });
+        html += '</select></div>';
+      } else {
+        var auto = (r.o!=='you');
+        var dispV = (f.k===_fk) ? _live : (UNITS[f.k]? toDisp(f.k, r.v) : r.v);
+        html += '<div class="input-wrap"><input class="prof-input'+(auto?' auto':'')+'" data-k="'+f.k+'" value="'+(dispV!=null?dispV:'')+'">';
+        html += '<button class="revert'+(r.o==='you'?' show':'')+'" data-rev="'+f.k+'" title="revert to auto">↺</button></div>';
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+  });
+  // derived
+  var W=resolve('weight').v, H=resolve('height').v, sbp=resolve('sbp').v, dbp=resolve('dbp').v, hrmax=resolve('hrmax').v;
+  var bmi=W/((H/100)*(H/100)), bsa=Math.sqrt(H*W/3600);
+  var ibw=(S.sex==='M'?50:45.5)+2.3*((H/2.54)-60);
+  var bmr=Math.round(10*W+6.25*H-5*S.age+(S.sex==='M'?5:-161));
+  var bf=resolve('bodyfat').v, waist=resolve('waist').v, rmr, rmrF;
+  if(bf && bf>3 && bf<60){ var lean=W*(1-bf/100); rmr=Math.round(370+21.6*lean); rmrF='Katch-McArdle: 370 + 21.6·LBM ('+lean.toFixed(1)+' kg)'; }
+  else { rmr=bmr; rmrF='Mifflin-St Jeor · add body-fat % for Katch-McArdle'; }
+  var actMap={sed:[1.2,'sedentary'],light:[1.375,'light'],mod:[1.55,'moderate'],active:[1.725,'active'],vig:[1.9,'very active']};
+  var act=actMap[resolve('activity').v]||actMap.light;
+  var tdee=Math.round(rmr*act[0]);
+  var bb=(resolve('betablk').v==='yes');
+  var vo2v=resolve('vo2').v||vo2Norm(S.age,S.sex), vo2cat=vo2Category(vo2v,S.age,S.sex), vo2pct=vo2Percentile(vo2v,S.age,S.sex);
+  var map=Math.round(dbp+(sbp-dbp)/3), pp=sbp-dbp;
+  var bmiCat=bmi<18.5?'Underweight':bmi<25?'Normal':bmi<30?'Overweight':'Obese';
+  html += '<div class="pd-group"><span class="pd-group-label">Derived — one engine, identical in every node</span><div class="pd-grid">'
+    + di('BMI', bmi.toFixed(1)+' ('+bmiCat+')','kg ÷ m²','validated')
+    + di('BSA', bsa.toFixed(2)+' m²','DuBois','validated')
+    + di('VO₂ category', vo2cat,'ACSM age×sex norms','validated')
+    + (waist&&waist>40&&waist<200 ? di('WHtR', (waist/H).toFixed(2)+(waist/H>=0.5?' (↑ risk)':' (ok)'),'waist ÷ height','validated') : '')
+    + di('RMR', rmr+' kcal', rmrF, 'validated')
+    + di('VO₂ percentile', '~'+vo2pct+'th','ACSM / FRIEND ('+(S.sex==='M'?'M':'F')+' '+S.age+'y)','validated')
+    + di('HRmax', hrmax+' bpm'+(bb?' ⚠':''), bb?'β-blocker: Tanaka unreliable — zones / VO₂ flagged':'Tanaka 208−0.7·age', bb?'experimental':'validated')
+    + di('MAP', map+' mmHg','DBP + ⅓(SBP−DBP)','measured')
+    + di('Pulse pressure', pp+' mmHg', pp<50?'optimal':'elevated','measured')
+    + '</div></div>';
+  pb.innerHTML=html;
+
+  // banner
+  var det=detectedSet();
+  document.getElementById('autoBanner').innerHTML = det._note
+    ? '🔍 <b>Auto-detected from your data</b> · '+det._note+' · override any field with your real value.'
+    : '○ <b>No recording loaded.</b> Every field is prefilled from population norms for age '+S.age+' / '+(S.sex==='M'?'male':'female')+'. Load a recording in any Dex to refine, or type your own values.';
+
+  wireInputs();
+  renderNorms();
+  if(_fk){ var _el=document.querySelector('#pbody [data-k="'+_fk+'"]'); if(_el){ _el.focus(); if(_caret!=null){ try{ _el.setSelectionRange(_caret,_caret); }catch(e){} } } }
+}
+function di(l,v,f,t){ return '<div class="pdi">'+ev(t)+'<b>'+l+'</b> '+v+'<span class="f">'+f+'</span></div>'; }
+
+function renderNorms(){
+  var rows=[18,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100], html='<thead><tr><th>Age</th><th>Wt M<sup>1</sup></th><th>Ht M<sup>1</sup></th><th>Wt F<sup>1</sup></th><th>Ht F<sup>1</sup></th><th>RHR<sup>3</sup></th><th>HRmax<sup>2</sup></th><th>BP<sup>5</sup></th></tr></thead><tbody>';
+  rows.forEach(function(a){
+    var m=interp(NHANES.M,a), f=interp(NHANES.F,a);
+    var hrmax=Math.round(208-0.7*a);
+    var hl=Math.abs(a-S.age)<=5?' class="hl"':'';
+    html+='<tr'+hl+'><td>'+a+'</td><td>'+m[0]+'</td><td>'+m[1]+'</td><td>'+f[0]+'</td><td>'+f[1]+'</td><td>70</td><td>'+hrmax+'</td><td>120/80</td></tr>';
+  });
+  html+='</tbody>';
+  document.getElementById('normsTbl').innerHTML=html;
+  var SOURCES=[
+    {m:'1', f:'Weight · Height', ref:'CDC NHANES 2017–20 anthropometric reference data', note:'age×sex, interpolated by age'},
+    {m:'2', f:'HRmax', ref:'Tanaka, Monahan &amp; Seals 2001 (J Am Coll Cardiol)', note:'208 − 0.7×age — declines with age'},
+    {m:'3', f:'Resting HR', ref:'CDC NHANES resting-pulse reference (Ostchega et al. 2011)', note:'single flat average ~70 bpm · no age/sex model · WIDE individual spread — weakest prior, prefer detected / manual'},
+    {m:'4', f:'VO₂max', ref:'ACSM Guidelines 11th ed. / FRIEND registry (Kaminsky 2015)', note:'50th-percentile by age×sex'},
+    {m:'5', f:'Blood pressure', ref:'2017 ACC/AHA Hypertension Guideline (Whelton et al.)', note:'normal &lt;120/80 — age/sex-INDEPENDENT, not a population mean'},
+  ];
+  document.getElementById('normsNote').innerHTML =
+    '<div>Wt kg · Ht cm · RHR &amp; HRmax bpm · BP mmHg. RHR &amp; BP are flat defaults (no age slope); VO₂max<sup style="color:var(--teal)">4</sup> not shown. Body (Wt/Ht) clamps at the 70 band above 70 (NHANES ceiling).</div>'
+    + '<div class="src-list"><div class="sh">Sources — one citable table for the whole suite</div>'
+    + SOURCES.map(function(s){ return '<div class="s"><sup>'+s.m+'</sup><div><b>'+s.f+'</b> — '+s.ref+'<br><span style="color:var(--text4)">'+s.note+'</span></div></div>'; }).join('')
+    + '</div>';
+}
+
+// ════════════════ WIRING ════════════════
+function wireInputs(){
+  document.querySelectorAll('#pbody .prof-input').forEach(function(el){
+    var k=el.getAttribute('data-k');
+    var ev = el.tagName==='SELECT'?'change':'input';
+    el.addEventListener(ev,function(){
+      if(k==='age'){ S.age=parseInt(el.value,10)||S.age; syncSeg('segAge','a',String(S.age)); }
+      else if(k==='sex'){ S.sex=el.value; syncSeg('segSex','s',S.sex); }
+      else S.manual[k] = UNITS[k] ? toMetric(k, parseFloat(el.value)) : el.value;
+      render();
+    });
+  });
+  document.querySelectorAll('#pbody .revert').forEach(function(b){
+    b.addEventListener('click',function(){ delete S.manual[b.getAttribute('data-rev')]; render(); });
+  });
+  document.querySelectorAll('#pbody .ut').forEach(function(b){
+    b.addEventListener('click',function(){ S.units=b.getAttribute('data-u'); render(); });
+  });
+}
+function syncSeg(id,attr,val){ document.querySelectorAll('#'+id+' button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-'+attr)===val); }); }
+
+document.getElementById('segData').addEventListener('click',function(e){ var b=e.target.closest('button'); if(!b)return;
+  document.querySelectorAll('#segData button').forEach(function(x){x.classList.remove('on');}); b.classList.add('on'); S.data=b.getAttribute('data-d'); render(); });
+document.getElementById('segSex').addEventListener('click',function(e){ var b=e.target.closest('button'); if(!b)return;
+  document.querySelectorAll('#segSex button').forEach(function(x){x.classList.remove('on');}); b.classList.add('on'); S.sex=b.getAttribute('data-s'); render(); });
+document.getElementById('segAge').addEventListener('click',function(e){ var b=e.target.closest('button'); if(!b)return;
+  document.querySelectorAll('#segAge button').forEach(function(x){x.classList.remove('on');}); b.classList.add('on'); S.age=parseInt(b.getAttribute('data-a'),10); render(); });
+document.getElementById('segPreset').addEventListener('click',function(e){ var b=e.target.closest('button'); if(!b)return;
+  document.querySelectorAll('#segPreset button').forEach(function(x){x.classList.remove('on');}); b.classList.add('on');
+  var p=b.getAttribute('data-p');
+  if(p==='athlete'){ S.age=30; S.manual.rhr=48; S.manual.vo2=58; }
+  else if(p==='senior'){ S.age=72; S.manual.rhr=72; S.manual.vo2=27; }
+  else { S.age=42; delete S.manual.rhr; delete S.manual.vo2; }
+  syncSeg('segAge','a',String(S.age)); render(); });
+var _panelToggle=document.querySelector('.panel .toggle');
+if(_panelToggle) _panelToggle.addEventListener('click',function(){
+  var c=document.body.classList.toggle('profcollapsed'); this.textContent=c?'▼ expand':'▲ collapse'; });
+document.getElementById('demoToggle').addEventListener('click',function(){
+  var b=document.getElementById('demoBody'); var open=b.style.display!=='none';
+  b.style.display=open?'none':''; this.querySelector('.dcaret').textContent=open?'▸':'▾';
+});
+
+render();
+</script>
+
+<template id="__bundler_thumbnail">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#0B0F14"/><circle cx="50" cy="37" r="13" fill="none" stroke="#3DE0D0" stroke-width="3"/><path d="M28 74c0-13 10-20 22-20s22 7 22 20" fill="none" stroke="#3DE0D0" stroke-width="3" stroke-linecap="round"/></svg>
+</template>
+</body>
+</html>

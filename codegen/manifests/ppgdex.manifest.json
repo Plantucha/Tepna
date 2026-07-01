@@ -1,0 +1,120 @@
+{
+  "node": "PpgDex",
+  "modality": "Photoplethysmography (PPG Waveform)",
+  "icon": "💡",
+  "accentColor": "var(--blue)",
+  "accentHex": "#58A6FF",
+  "version": "1.0.0",
+  "status": "planned",
+  "description": "Pulse waveform morphology analysis from high-sampling-rate PPG — systolic upstroke dynamics, dicrotic notch features, waveform complexity, and vascular health proxies.",
+  "warning": "PPG waveform shape is influenced by sensor placement, skin pigmentation, peripheral perfusion, and ambient light. Morphological metrics are directional indicators only.",
+
+  "dataModel": {
+    "fields": {
+      "ppg":        "Float32Array — raw PPG signal, 100–500 Hz",
+      "peaks":      "Uint32Array — systolic peak indices",
+      "foot":       "Uint32Array — diastolic foot indices",
+      "timestamps": "Float64Array — Unix seconds",
+      "sampleRate": "number — Hz"
+    }
+  },
+
+  "sections": [
+    {
+      "id": "pulse-basics",
+      "title": "Pulse Rate Basics",
+      "icon": "💓",
+      "description": "Fundamental pulse rate and interval statistics",
+      "metrics": [
+        { "id": "pr",        "abbr": "PR",     "name": "Pulse Rate",         "fullName": "Mean pulse rate from PPG peak detection",  "tier": "core", "unit": "bpm",
+          "formula": "60 / mean(inter_peak_intervals_s)", "compute": { "fn": "stub", "note": "Requires peak detection" },
+          "ranges": [ { "max": 60, "label": "Bradycardia", "class": "warn" }, { "max": 100, "label": "Normal", "class": "ok" }, { "max": null, "label": "Tachycardia", "class": "warn" } ] },
+        { "id": "prSD",      "abbr": "PR-SD",  "name": "Pulse Rate SD",      "fullName": "SD of inter-peak intervals in bpm",  "tier": "core", "unit": "bpm",
+          "formula": "SD(60 / IPI_s)", "compute": { "fn": "stub", "note": "Requires IPI computation" },
+          "ranges": [ { "max": 3, "label": "Low variability", "class": "warn" }, { "max": 10, "label": "Normal", "class": "ok" }, { "max": null, "label": "High", "class": "ok" } ] }
+      ]
+    },
+    {
+      "id": "morphology",
+      "title": "Waveform Morphology",
+      "icon": "📈",
+      "description": "Pulse shape features extracted from averaged or per-beat PPG waveforms",
+      "metrics": [
+        { "id": "ri",        "abbr": "RI",     "name": "Reflection Index",    "fullName": "(dicrotic peak − foot) / (systolic peak − foot) × 100",  "tier": "core", "unit": "%",
+          "formula": "(D − F) / (S − F) × 100", "compute": { "fn": "stub", "note": "Requires dicrotic notch detection" },
+          "ranges": [ { "max": 40, "label": "Low — good vascular compliance", "class": "ok" }, { "max": 60, "label": "Moderate", "class": "ok" }, { "max": null, "label": "High — arterial stiffness proxy", "class": "warn" } ] },
+        { "id": "si",        "abbr": "SI",     "name": "Stiffness Index",     "fullName": "Height / transit time (peak-to-dicrotic notch)",  "tier": "secondary", "unit": "m/s",
+          "formula": "patient_height_m / Δt(peak→dicrotic)", "formulaNote": "Proxy for pulse wave velocity. Requires height input.",
+          "compute": { "fn": "stub", "note": "Requires dicrotic detection + height" },
+          "ranges": [ { "max": 8, "label": "Normal", "class": "ok" }, { "max": 10, "label": "Mildly elevated", "class": "warn" }, { "max": null, "label": "Stiffened arteries", "class": "bad" } ] },
+        { "id": "aix",       "abbr": "AIx",    "name": "Augmentation Index",  "fullName": "(P2 − P1) / (P_peak − P_foot) × 100",  "tier": "research", "unit": "%",
+          "formula": "(P2 − P1) / PP × 100", "formulaNote": "P1 = systolic shoulder, P2 = reflected wave peak. Single-site estimation from PPG.",
+          "compute": { "fn": "stub", "note": "Requires inflection point detection" },
+          "ranges": [ { "max": 0, "label": "Negative — young/elastic", "class": "ok" }, { "max": 30, "label": "Normal range", "class": "ok" }, { "max": null, "label": "High — arterial stiffness", "class": "warn" } ] },
+        { "id": "upstroke",  "abbr": "UT",     "name": "Upstroke Time",       "fullName": "Time from foot to systolic peak",  "tier": "secondary", "unit": "ms",
+          "formula": "t_peak − t_foot (averaged per beat)", "compute": { "fn": "stub", "note": "Requires foot/peak detection" },
+          "ranges": [ { "max": 100, "label": "Normal", "class": "ok" }, { "max": 150, "label": "Prolonged — low cardiac output?", "class": "warn" }, { "max": null, "label": "Very prolonged", "class": "bad" } ] },
+        { "id": "systolicArea","abbr": "SA",    "name": "Systolic Area",      "fullName": "Area under PPG during systolic phase",  "tier": "research", "unit": "a.u.",
+          "formula": "∫PPG dt from foot to dicrotic notch", "compute": { "fn": "stub", "note": "Requires beat segmentation" },
+          "ranges": [ { "max": null, "label": "Reference — stroke volume proxy (relative)", "class": "ok" } ] },
+        { "id": "diaArea",   "abbr": "DA",     "name": "Diastolic Area",      "fullName": "Area under PPG during diastolic phase",  "tier": "research", "unit": "a.u.",
+          "formula": "∫PPG dt from dicrotic notch to next foot", "compute": { "fn": "stub", "note": "Requires beat segmentation" },
+          "ranges": [ { "max": null, "label": "Reference — peripheral resistance proxy", "class": "ok" } ] },
+        { "id": "diaSystolicRatio","abbr": "D/S","name": "Diastolic/Systolic Area Ratio",  "fullName": "DA / SA — peripheral resistance and runoff proxy",  "tier": "research", "unit": "ratio",
+          "formula": "DA / SA", "compute": { "fn": "stub", "note": "Requires beat segmentation" },
+          "ranges": [ { "max": 0.5, "label": "Low — fast runoff", "class": "ok" }, { "max": 1.0, "label": "Normal", "class": "ok" }, { "max": null, "label": "High — slow runoff / resistance", "class": "warn" } ] }
+      ]
+    },
+    {
+      "id": "pulse-dynamics",
+      "title": "Pulse Dynamics",
+      "icon": "🌊",
+      "description": "Beat-to-beat pulse interval and amplitude variability",
+      "metrics": [
+        { "id": "piv",       "abbr": "PIV",    "name": "Pulse Interval Variability",  "fullName": "SD of successive inter-peak intervals (analogous to SDNN)",  "tier": "core", "unit": "ms",
+          "formula": "SD(IPI)", "compute": { "fn": "stub", "note": "Requires peak detection" },
+          "ranges": [ { "max": 30, "label": "Low", "class": "warn" }, { "max": null, "label": "Normal", "class": "ok" } ] },
+        { "id": "pir",       "abbr": "PIR",    "name": "Pulse Interval RMSSD", "fullName": "RMSSD of inter-peak intervals",  "tier": "core", "unit": "ms",
+          "formula": "√(mean((IPI[i+1]−IPI[i])²))", "compute": { "fn": "stub", "note": "Requires IPI computation" },
+          "ranges": [ { "max": 20, "label": "Low", "class": "warn" }, { "max": null, "label": "Normal", "class": "ok" } ] },
+        { "id": "pav",       "abbr": "PAV",    "name": "Pulse Amplitude Variability",  "fullName": "CV of systolic peak amplitudes",  "tier": "secondary", "unit": "%",
+          "formula": "SD(peak_amplitudes) / mean(peak_amplitudes) × 100", "compute": { "fn": "stub", "note": "Requires peak amplitude extraction" },
+          "ranges": [ { "max": 10, "label": "Stable amplitude", "class": "ok" }, { "max": 20, "label": "Moderate", "class": "warn" }, { "max": null, "label": "High — respiratory modulation or artifact", "class": "warn" } ] },
+        { "id": "perfIndex", "abbr": "PI",     "name": "Perfusion Index",     "fullName": "(AC / DC) × 100 of PPG signal",  "tier": "core", "unit": "%",
+          "formula": "(PPG_max − PPG_min) / PPG_mean × 100", "compute": { "fn": "stub", "note": "Requires AC/DC decomposition" },
+          "ranges": [ { "max": 0.5, "label": "Very low — poor perfusion", "class": "bad" }, { "max": 2, "label": "Low", "class": "warn" }, { "max": 10, "label": "Normal", "class": "ok" }, { "max": null, "label": "High", "class": "ok" } ] }
+      ]
+    },
+    {
+      "id": "vascular",
+      "title": "Vascular Health Proxies",
+      "icon": "🩺",
+      "description": "Arterial stiffness and vascular aging indicators from PPG morphology",
+      "metrics": [
+        { "id": "pwa",       "abbr": "PWA",    "name": "Pulse Wave Aging Score",  "fullName": "Composite morphological aging index from RI, SI, and AIx",  "tier": "research", "unit": "score",
+          "formula": "composite(RI, SI, AIx) normalized to age cohorts", "compute": { "fn": "stub", "note": "Composite — requires sub-metrics" },
+          "ranges": [ { "max": 30, "label": "Young vascular profile", "class": "ok" }, { "max": 60, "label": "Age-appropriate", "class": "ok" }, { "max": null, "label": "Elevated vascular age", "class": "warn" } ] }
+      ]
+    }
+  ],
+
+  "abbreviations": {
+    "AIx": "Augmentation Index",
+    "DC": "Direct Current (baseline PPG)",
+    "AC": "Alternating Current (pulsatile PPG)",
+    "IPI": "Inter-Peak Interval",
+    "PAV": "Pulse Amplitude Variability",
+    "PI": "Perfusion Index",
+    "PIR": "Pulse Interval RMSSD",
+    "PIV": "Pulse Interval Variability",
+    "PPG": "Photoplethysmography",
+    "PR": "Pulse Rate",
+    "PWA": "Pulse Wave Aging Score",
+    "PWV": "Pulse Wave Velocity",
+    "RI": "Reflection Index",
+    "SA": "Systolic Area",
+    "DA": "Diastolic Area",
+    "SI": "Stiffness Index",
+    "UT": "Upstroke Time"
+  }
+}

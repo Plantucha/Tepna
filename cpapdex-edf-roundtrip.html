@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  cpapdex-edf-roundtrip.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+--><meta charset="UTF-8"><title>cpapdex real-EDF round-trip</title>
+<style>
+  body{background:#0d1117;color:#e6edf3;font:13px/1.6 ui-monospace,monospace;padding:24px;max-width:1100px;margin:0 auto}
+  h1{font:600 16px system-ui;color:#3DE0D0}
+  h2{font:600 13px system-ui;color:#58A6FF;margin:22px 0 4px;border-bottom:1px solid #21262d;padding-bottom:3px}
+  .pass{color:#39d98a}.fail{color:#ff6b7a}.warn{color:#e3b341}.dim{color:#8b949e}
+  pre{margin:2px 0;white-space:pre-wrap}
+  table{border-collapse:collapse;margin:6px 0;font-size:12px}
+  td,th{border:1px solid #21262d;padding:2px 8px;text-align:right}
+  th{color:#8b949e;font-weight:600}td:first-child,th:first-child{text-align:left}
+  #summary{font:600 14px system-ui;padding:8px 14px;border-radius:6px;display:inline-block;margin-top:8px}
+</style></head>
+<body>
+<h1>CPAPDex — real EDF round-trip (uploads/2026061*_*.edf)</h1>
+<div id="out"></div>
+<div id="summary">running…</div>
+<script src="cpapdex-edf.js"></script>
+<script src="cpapdex-dsp.js"></script>
+<script>
+const FILES = [
+  '20260612_222819_CSL.edf','20260612_222819_EVE.edf',
+  '20260612_222830_BRP.edf','20260612_222830_PLD.edf','20260612_222830_SA2.edf',
+  '20260613_045457_CSL.edf','20260613_045457_EVE.edf',
+  '20260613_045505_BRP.edf','20260613_045505_PLD.edf','20260613_045505_SA2.edf'
+];
+const out = document.getElementById('out');
+let pass=0, fail=0, warn=0;
+function line(cls, txt){ const p=document.createElement('pre'); p.className=cls; p.innerHTML=txt; out.appendChild(p); }
+function ok(name, cond, extra){ cond?pass++:fail++; line(cond?'pass':'fail',(cond?'✓ ':'✗ ')+name+(extra?'  <span class="dim">'+extra+'</span>':'')); }
+function note(txt){ warn++; line('warn','⚠ '+txt); }
+function H(t){ const h=document.createElement('h2'); h.textContent=t; out.appendChild(h); }
+const p2=n=>(n<10?'0':'')+n;
+const fmt=ms=>{const d=new Date(ms);return d.getUTCFullYear()+'-'+p2(d.getUTCMonth()+1)+'-'+p2(d.getUTCDate())+' '+p2(d.getUTCHours())+':'+p2(d.getUTCMinutes())+':'+p2(d.getUTCSeconds());};
+
+async function load(name){
+  const r = await fetch('uploads/'+name);
+  if(!r.ok) throw new Error('fetch failed '+name+' '+r.status);
+  return await r.arrayBuffer();
+}
+
+(async function(){
+  const decoded = {};
+  for(const f of FILES){
+    H(f);
+    let rec;
+    try { rec = CpapEdf.readEDF(await load(f)); }
+    catch(e){ ok('readEDF does not throw', false, e.message); continue; }
+    decoded[f]=rec;
+    ok('readEDF does not throw', true);
+
+    // header summary
+    line('dim','version="'+rec.version+'" edfPlus='+rec.edfPlus+' startdate='+rec.startDate+' starttime='+rec.startTime
+      +' numRecords='+rec.numRecords+' recDur='+rec.recDurSec+'s ns='+rec.ns);
+
+    // clock round-trip: header start time == fmt(t0Ms) via getUTC*
+    ok('clock parses (t0Ms present)', !!rec.clock, rec.clock?('t0Ms='+rec.clock.t0Ms+' = '+fmt(rec.clock.t0Ms)):'null');
+    if(rec.clock){
+      const d=rec.startDate.split('.').map(Number), t=rec.startTime.split('.').map(Number);
+      const dt=new Date(rec.clock.t0Ms);
+      const match = dt.getUTCDate()===d[0]&&dt.getUTCMonth()+1===d[1]&&(dt.getUTCFullYear()%100)===d[2]
+        &&dt.getUTCHours()===t[0]&&dt.getUTCMinutes()===t[1]&&dt.getUTCSeconds()===t[2];
+      ok('header clock round-trips (getUTC* == file header exactly)', match, fmt(rec.clock.t0Ms));
+      ok('offsetMin null (EDF carries no zone)', rec.clock.offsetMin===null);
+    }
+
+    // quirks
+    if(rec.truncated) note('TRUNCATED final record — read '+rec.recordsRead+' of '+rec.numRecords);
+    else line('dim','recordsRead='+rec.recordsRead+' (no truncation)');
+
+    // numeric signals: sample count == spr × records, scaling sane
+    // expected count derived from header samples/rec (s._spr), NOT fs×recDur
+    // (annotation/CRC files carry recDur=0 → fs=0; only _spr is authoritative)
+    const sigKeys = Object.keys(rec.signals);
+    if(sigKeys.length){
+      let tbl='<table><tr><th>signal</th><th>fs Hz</th><th>n</th><th>spr×rec</th><th>dim</th><th>min</th><th>median</th><th>max</th></tr>';
+      let allCounts=true;
+      for(const k of sigKeys){
+        const s=rec.signals[k];
+        const spr=s._spr;
+        const expect=spr*rec.recordsRead;
+        if(s.data.length!==expect) allCounts=false;
+        // stats
+        let mn=Infinity,mx=-Infinity; const arr=s.data;
+        for(let i=0;i<arr.length;i++){const v=arr[i]; if(v<mn)mn=v; if(v>mx)mx=v;}
+        const sorted=Float32Array.from(arr).sort(); const med=sorted.length?sorted[sorted.length>>1]:NaN;
+        const cnt = s.data.length===expect;
+        tbl+='<tr><td>'+k+'</td><td>'+s.fs+'</td><td>'+s.data.length+'</td><td class="'+(cnt?'pass':'fail')+'">'+expect+'</td><td>'+s.dim+'</td><td>'+mn.toFixed(2)+'</td><td>'+med.toFixed(2)+'</td><td>'+mx.toFixed(2)+'</td></tr>';
+      }
+      tbl+='</table>'; line('',tbl);
+      ok('all signal sample counts = spr × recordsRead', allCounts);
+
+      // physical scaling sanity by signal name (Crc16 is a checksum lane — skip)
+      for(const k of sigKeys){
+        if(/crc/i.test(k)) continue;
+        const s=rec.signals[k]; const arr=s.data; let mn=Infinity,mx=-Infinity,valid=0;
+        for(let i=0;i<arr.length;i++){const v=arr[i]; if(v<mn)mn=v; if(v>mx)mx=v; if(v>=1)valid++;}
+        if(/press/i.test(k) && !/mask/i.test(k)){
+          ok('  '+k+' pressure in plausible cmH₂O (0–40)', mn>=-1 && mx<=40, mn.toFixed(1)+'..'+mx.toFixed(1)+' '+s.dim);
+        }
+        if(/leak/i.test(k)){
+          // ResMed writes leak in L/s; clinical threshold is L/min (×60)
+          const lpm=mx*60;
+          ok('  Leak in plausible range (dim '+s.dim+' → '+lpm.toFixed(0)+' L/min peak)', lpm<=120, mn.toFixed(2)+'..'+mx.toFixed(2)+' '+s.dim);
+        }
+        if(/spo2/i.test(k) || /pulse/i.test(k)){
+          if(valid===0){ note('  '+k+': all samples sentinel (-1) → oximeter not connected this session; SA2 QC lane is empty (expected — self-gate/ODI must handle gracefully)'); }
+          else if(/spo2/i.test(k)) ok('  SpO₂ valid samples in plausible % (50–100)', mx<=100 && mx>=50, mn.toFixed(1)+'..'+mx.toFixed(1)+' '+s.dim);
+          else ok('  Pulse valid samples in plausible bpm (30–200)', mx<=200 && mx>=30, mn.toFixed(1)+'..'+mx.toFixed(1)+' '+s.dim);
+        }
+      }
+    }
+
+    // annotations (EVE/CSL)
+    if(rec.annotations && rec.annotations.length){
+      const classed = rec.annotations.filter(a=>a.class!=='Unclassified');
+      const counts={}; rec.annotations.forEach(a=>counts[a.class]=(counts[a.class]||0)+1);
+      line('dim','annotations: '+rec.annotations.length+' total → '+JSON.stringify(counts));
+      // EVE/CSL: a session may legitimately have zero scored events (short morning session,
+      // no CS spans). Assert classed events decode WHEN present; night-level coverage proven below.
+      if(classed.length>0) ok((/EVE/.test(f)?'EVE':'CSL')+' annotations decode to classed events', true, classed.length+' classed');
+      else note(f+': only timekeeping annotation — no scored events this session (legitimate)');
+      ok('every classed event has absolute floating tMs', classed.length===0 || classed.every(a=>a.tMs!=null && isFinite(a.tMs)));
+      // tMs must be ≥ t0Ms and within night window
+      const within = classed.every(a=>a.tMs>=rec.clock.t0Ms);
+      ok('event tMs ≥ session t0Ms (onset offset applied)', within);
+      // show first few
+      const sample = classed.slice(0,4).map(a=>fmt(a.tMs)+' '+a.class+' ('+a.durSec+'s)').join('  |  ');
+      if(sample) line('dim','  e.g. '+sample);
+    } else if(/EVE|CSL/.test(f)){
+      note(f+': no annotations decoded');
+    }
+  }
+
+  // ── cross-file: session prefixes & first/last sample wall-clock ──
+  H('SESSION CLOCK ROUND-TRIP (first/last sample wall-clock)');
+  for(const f of ['20260612_222830_PLD.edf','20260613_045505_PLD.edf']){
+    const rec=decoded[f]; if(!rec||!rec.clock) continue;
+    const anyKey=Object.keys(rec.signals)[0]; const s=rec.signals[anyKey];
+    const durSec=rec.recordsRead*rec.recDurSec;
+    const lastMs=rec.clock.t0Ms + durSec*1000;
+    line('', f+': first sample '+fmt(rec.clock.t0Ms)+'  →  last sample '+fmt(lastMs)+'  ('+(durSec/3600).toFixed(2)+' h)');
+    // header start equals file prefix
+    const pre=f.slice(0,15); // YYYYMMDD_HHMMSS
+    const py=+pre.slice(0,4),pmo=+pre.slice(4,6),pd=+pre.slice(6,8),ph=+pre.slice(9,11),pmi=+pre.slice(11,13),ps=+pre.slice(13,15);
+    const expectMs=Date.UTC(py,pmo-1,pd,ph,pmi,ps);
+    ok('  header t0Ms == filename prefix wall-clock', rec.clock.t0Ms===expectMs, fmt(rec.clock.t0Ms)+' vs prefix '+fmt(expectMs));
+  }
+
+  // ── night-level EVE coverage (events decode across the night) ──
+  H('NIGHT-LEVEL EVENT COVERAGE');
+  let nightClassed=0, nightCounts={};
+  ['20260612_222819_EVE.edf','20260613_045457_EVE.edf','20260612_222819_CSL.edf','20260613_045457_CSL.edf'].forEach(f=>{
+    const r=decoded[f]; if(!r||!r.annotations) return;
+    r.annotations.filter(a=>a.class!=='Unclassified').forEach(a=>{nightClassed++; nightCounts[a.class]=(nightCounts[a.class]||0)+1;});
+  });
+  line('dim','night scored events → '+JSON.stringify(nightCounts));
+  ok('night decodes device-scored apnea/hypopnea events with absolute tMs', nightClassed>0, nightClassed+' events');
+
+  const s=document.getElementById('summary');
+  s.textContent=pass+' passed · '+fail+' failed · '+warn+' notes';
+  s.style.background = fail? '#3d1418' : '#0f2e1b';
+  s.style.color = fail? '#ff6b7a' : '#39d98a';
+})();
+</script></body></html>

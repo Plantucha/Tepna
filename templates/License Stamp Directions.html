@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tepna · License & Attribution Stamp — 10 Directions</title>
+<style>
+  :root{
+    --bg:#0B0F14; --surface:#121821; --surface2:#18212C; --surface3:#1E2835;
+    --border:#1e2d42; --border2:#253550;
+    --text:#F4F7FB; --text2:#9FB0C3; --text3:#8C9DB3; --text4:#6E7F94;
+    --teal:#3DE0D0; --blue:#58A6FF; --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A; --purple:#a78bfa;
+    --sans:'Inter',system-ui,-apple-system,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
+  }
+
+  /* ── Shared stamp surface ───────────────────────────────────── */
+  .ls{
+    font-family:var(--sans); color:var(--text);
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:16px; box-sizing:border-box; line-height:1.5;
+    width:100%; height:100%; overflow:hidden; position:relative;
+  }
+  .ls *{ box-sizing:border-box; }
+  .ls .mono{ font-family:var(--mono); font-variant-numeric:tabular-nums; }
+  .ls .up{ text-transform:uppercase; letter-spacing:.1em; }
+  .ls .roles{ color:var(--text3); }
+  .ls .dot{ width:6px;height:6px;border-radius:50%;background:var(--green);flex:none;
+    box-shadow:0 0 7px rgba(57,217,138,.7); }
+  .ls .mark{
+    display:flex;align-items:center;justify-content:center;flex:none;
+    background:linear-gradient(135deg,var(--teal),var(--blue));color:#041014;
+    font-weight:800;border-radius:9px;letter-spacing:-.02em;
+    box-shadow:0 0 16px rgba(61,224,208,.22);
+  }
+  .ls hr.div{ border:none;border-top:1px solid var(--border);margin:0; }
+  .ls .chip{
+    display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:600;
+    padding:3px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.07);
+    background:rgba(255,255,255,.03);color:var(--text3);white-space:nowrap;
+  }
+  .ls .chip.teal{ color:var(--teal);background:rgba(61,224,208,.07);border-color:rgba(61,224,208,.22); }
+  .ls .chip.blue{ color:var(--blue);background:rgba(88,166,255,.08);border-color:rgba(88,166,255,.22); }
+  .ls .chip.amber{ color:var(--amber);background:rgba(255,184,77,.07);border-color:rgba(255,184,77,.22); }
+
+  /* SPDX shield */
+  .ls .spdx{
+    display:inline-flex;align-items:stretch;border-radius:7px;overflow:hidden;
+    font-family:var(--mono);font-size:11px;font-weight:600;border:1px solid var(--border2);
+    flex:none;white-space:nowrap;
+  }
+  .ls .spdx .k{ background:var(--surface3);color:var(--text3);padding:5px 9px;white-space:nowrap; }
+  .ls .spdx .v{ background:rgba(61,224,208,.12);color:var(--teal);padding:5px 10px;white-space:nowrap; }
+
+  /* ── Stamp captions on the board ────────────────────────────── */
+  .cap{ font-family:var(--mono); font-size:11px; color:#8a8275; margin:0 0 9px; letter-spacing:.02em; }
+  .cap b{ color:#3a352d; font-weight:700; }
+  .cap .use{ color:#a89f90; }
+
+  body{ margin:0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="../design-canvas.jsx"></script>
+
+<script type="text/babel">
+const { DesignCanvas, DCSection, DCArtboard } = window;
+
+/* Caption above each artboard */
+const Cap = ({where, children}) => (
+  <p className="cap"><b>{children}</b> &nbsp;·&nbsp; <span className="use">{where}</span></p>
+);
+
+const ROLES_1 = "Concept · Architecture · Algorithms";
+const ROLES_2 = "Implementation · Validation · UI/UX";
+
+/* ════════════════════════════════════════════════════════════════
+   NAME CANDIDATES — same mark, 5 Czech names, SEO verdict attached
+   ════════════════════════════════════════════════════════════════ */
+const NODES = ["OxyDex","ECGDex","HRVDex","GlucoDex"];
+const NameCard = ({name, mono, meaning, seo, seoNote, ok, place}) => (
+  <div className="ls" style={{padding:"22px",display:"flex",flexDirection:"column"}}>
+    <div style={{display:"flex",alignItems:"center",gap:13,marginBottom:15}}>
+      <span className="mark" style={{width:48,height:48,fontSize:21,borderRadius:14}}>{mono}</span>
+      <div>
+        <div style={{fontSize:27,fontWeight:800,letterSpacing:"-.025em",lineHeight:1}}>{name}</div>
+        <div className="mono up" style={{fontSize:9,color:"var(--text4)",marginTop:5}}>physiological-signal suite</div>
+      </div>
+    </div>
+    <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:14}}>
+      {NODES.map(n=>(<span key={n} className="chip mono" style={{fontSize:9.5}}>{n}</span>))}
+    </div>
+    <hr className="div"/>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"13px 0 0"}}>
+      <span className="mono" style={{fontSize:10.5,color:"var(--text3)"}}>© 2026 Michal Planicka</span>
+      <span className="spdx"><span className="k">licence</span><span className="v">Apache-2.0</span></span>
+    </div>
+    {place && (
+      <div className="mono" style={{fontSize:9.5,color:"var(--text4)",marginTop:7,letterSpacing:".02em"}}>◈ {place}</div>
+    )}
+    <div style={{background:ok?"rgba(57,217,138,.07)":"rgba(255,184,77,.06)",
+      border:"1px solid "+(ok?"rgba(57,217,138,.25)":"rgba(255,184,77,.25)"),
+      borderRadius:9,padding:"9px 12px",display:"flex",gap:9,alignItems:"flex-start"}}>
+      <span style={{color:ok?"var(--green)":"var(--amber)",fontWeight:800,fontSize:13,lineHeight:1.2}}>{ok?"✓":"!"}</span>
+      <div>
+        <div className="up mono" style={{fontSize:9.5,fontWeight:700,color:ok?"var(--green)":"var(--amber)"}}>SEO · {seo}</div>
+        <div style={{fontSize:10.5,color:"var(--text3)",marginTop:3,lineHeight:1.5}}>{seoNote}</div>
+      </div>
+    </div>
+    <div style={{fontSize:10.5,color:"var(--text4)",marginTop:12,fontStyle:"italic",lineHeight:1.45}}>{meaning}</div>
+  </div>
+);
+
+/* ════════════════════════════════════════════════════════════════
+   01 · Sidebar micro-stamp  (evolves the current screenshot)
+   ════════════════════════════════════════════════════════════════ */
+const Stamp01 = () => (
+  <div className="ls" style={{padding:"14px 15px", display:"flex", flexDirection:"column", gap:10}}>
+    <div style={{display:"flex",alignItems:"center",gap:8}}>
+      <span className="dot"></span>
+      <span style={{fontSize:12.5,fontWeight:700}}>Reference Guide</span>
+      <span className="chip teal mono" style={{marginLeft:"auto",fontSize:9.5}}>v1.0.0</span>
+    </div>
+    <hr className="div"/>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <div style={{display:"flex",flexDirection:"column",gap:1}}>
+        <span style={{fontSize:11.5,fontWeight:600,color:"var(--text2)"}}>Michal Planicka</span>
+        <span className="mono" style={{fontSize:9.5,color:"var(--text4)"}}>© 2026 · Tepna</span>
+      </div>
+      <span className="mono up" style={{fontSize:9.5,color:"var(--teal)"}}>Apache&#8209;2.0</span>
+    </div>
+  </div>
+);
+
+/* ════════════════════════════════════════════════════════════════
+   02 · SPDX manifest  (machine-readable header as UI)
+   ════════════════════════════════════════════════════════════════ */
+const Stamp02 = () => (
+  <div className="ls mono" style={{padding:"18px 20px", display:"flex", flexDirection:"column", gap:0, fontSize:11.5}}>
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+      <span style={{color:"var(--text4)"}}>{"//"}</span>
+      <span className="spdx"><span className="k">SPDX-License-Identifier</span><span className="v">Apache-2.0</span></span>
+    </div>
+    {[
+      ["project","Tepna · OxyDex node"],
+      ["version","1.0.0  (build 22.35+)"],
+      ["author","Michal Planicka  © 2026"],
+      ["roles","Concept · Architecture · Algorithms"],
+      ["","Implementation · Validation · UI/UX"],
+      ["runtime","100% local · no network · reproducible"],
+    ].map(([k,v],i)=>(
+      <div key={i} style={{display:"flex",gap:10,padding:"3px 0"}}>
+        <span style={{color:"var(--text4)",minWidth:62,textAlign:"right"}}>{k}</span>
+        <span style={{color:k==="roles"||k===""?"var(--text3)":"var(--text2)"}}>{v}</span>
+      </div>
+    ))}
+  </div>
+);
+
+/* ════════════════════════════════════════════════════════════════
+   03 · Credits trio  (refined version of what ships today)
+   ════════════════════════════════════════════════════════════════ */
+const CreditCol = ({label, children}) => (
+  <div style={{background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:12,padding:"16px 17px",flex:1}}>
+    <div className="mono up" style={{fontSize:10,color:"var(--text4)",marginBottom:9}}>{label}</div>
+    {children}
+  </div>
+);
+const Stamp03 = () => (
+  <div className="ls" style={{padding:18,display:"flex",gap:11,background:"transparent",border:"none"}}>
+    <CreditCol label="Author">
+      <div style={{fontSize:16,fontWeight:700,marginBottom:5}}>Michal Planicka</div>
+      <div className="roles" style={{fontSize:12,lineHeight:1.7}}>{ROLES_1}<br/>{ROLES_2}</div>
+    </CreditCol>
+    <CreditCol label="Assisted Development">
+      <div style={{fontSize:13.5,fontWeight:600,color:"var(--text2)",marginBottom:5}}>AI&#8209;Assisted</div>
+      <div className="roles" style={{fontSize:12,lineHeight:1.7}}>Code review · Documentation<br/>Literature synthesis</div>
+    </CreditCol>
+    <CreditCol label="Licence & Citation">
+      <div style={{fontSize:13,color:"var(--text3)",lineHeight:1.75}}>
+        <span className="spdx" style={{marginBottom:8}}><span className="k">SPDX</span><span className="v">Apache-2.0</span></span>
+        <div style={{fontStyle:"italic",fontSize:11.5,color:"var(--text4)",marginTop:9}}>Planicka M. <em>OxyDex: Nocturnal Oximetry Analysis Platform.</em> v1.0.0. 2026.</div>
+      </div>
+    </CreditCol>
+  </div>
+);
+
+/* ════════════════════════════════════════════════════════════════
+   04 · Footer ribbon  (full-width app / paper foot)
+   ════════════════════════════════════════════════════════════════ */
+const Stamp04 = () => (
+  <div className="ls" style={{padding:"0",display:"flex",alignItems:"stretch",borderRadius:12}}>
+    <div style={{display:"flex",alignItems:"center",gap:11,padding:"15px 20px",borderRight:"1px solid var(--border)"}}>
+      <span className="mark" style={{width:34,height:34,fontSize:16,borderRadius:9}}>G</span>
+      <div style={{display:"flex",flexDirection:"column"}}>
+        <span style={{fontSize:13,fontWeight:700,letterSpacing:"-.01em"}}>Tepna</span>
+        <span className="mono" style={{fontSize:9.5,color:"var(--text4)"}}>physiological-signal suite</span>
+      </div>
+    </div>
+    <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",padding:"0 20px",gap:2}}>
+      <span style={{fontSize:11.5,color:"var(--text2)"}}>© 2026 <b style={{color:"var(--text)"}}>Michal Planicka</b> — {ROLES_1}</span>
+      <span className="mono" style={{fontSize:9.5,color:"var(--text4)"}}>Not a medical device · not FDA/CE cleared · research & personal use</span>
+    </div>
+    <div style={{display:"flex",alignItems:"center",padding:"0 20px",borderLeft:"1px solid var(--border)"}}>
+      <span className="spdx"><span className="k">licence</span><span className="v">Apache-2.0</span></span>
+    </div>
+  </div>
+);
+
+/* ════════════════════════════════════════════════════════════════
+   05 · Author-forward attribution  (monogram + role chips)
+   ════════════════════════════════════════════════════════════════ */
+const Stamp05 = () => (
+  <div className="ls" style={{padding:"20px 22px",display:"flex",flexDirection:"column",gap:14}}>
+    <div style={{display:"flex",alignItems:"center",gap:13}}>
+      <span className="mark" style={{width:46,height:46,fontSize:17,borderRadius:13}}>MP</span>
+      <div>
+        <div style={{fontSize:17,fontWeight:700,lineHeight:1.2}}>Michal Planicka</div>
+        <div className="mono up" style={{fontSize:9.5,color:"var(--text4)",marginTop:3}}>Author · Tepna Suite</div>
+      </div>
+    </div>
+    <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+      {["Concept","Architecture","Algorithms","Implementation","Validation","UI/UX"].map(r=>(
+        <span key={r} className="chip">{r}</span>
+      ))}
+    </div>
+    <hr className="div"/>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <span className="mono" style={{fontSize:10,color:"var(--text4)"}}>© 2026 · v1.0.0</span>
+      <span className="chip teal">Apache-2.0 licence</span>
+    </div>
+  </div>
+);
+
+/* ════════════════════════════════════════════════════════════════
+   06 · Provenance stamp  (ties to the buildHash system)
+   ════════════════════════════════════════════════════════════════ */
+const Stamp06 = () => (
+  <div className="ls" style={{padding:"18px 20px",display:"flex",flexDirection:"column",gap:13}}>
+    <div style={{display:"flex",alignItems:"center",gap:9}}>
+      <span style={{width:22,height:22,borderRadius:"50%",background:"rgba(57,217,138,.12)",border:"1px solid rgba(57,217,138,.4)",
+        display:"flex",alignItems:"center",justifyContent:"center",color:"var(--green)",fontSize:12,fontWeight:800}}>✓</span>
+      <span style={{fontSize:13,fontWeight:700}}>Verifiably reproducible</span>
+      <span className="spdx" style={{marginLeft:"auto"}}><span className="k">licence</span><span className="v">Apache-2.0</span></span>
+    </div>
+    <div style={{background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:9,padding:"10px 13px",
+      display:"flex",flexDirection:"column",gap:6}}>
+      <div style={{display:"flex",justifyContent:"space-between"}}>
+        <span className="mono" style={{fontSize:10,color:"var(--text4)"}}>buildHash</span>
+        <span className="mono" style={{fontSize:11,color:"var(--teal)"}}>3a9f1c7e&#8230;b2d4</span>
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between"}}>
+        <span className="mono" style={{fontSize:10,color:"var(--text4)"}}>built</span>
+        <span className="mono" style={{fontSize:11,color:"var(--text2)"}}>2026-06-18 · OxyDex v1.0.0</span>
+      </div>
+    </div>
+    <div style={{fontSize:11.5,color:"var(--text3)",lineHeight:1.6}}>
+      © 2026 <b style={{color:"var(--text2)"}}>Michal Planicka</b> — {ROLES_1}. 100% local; every export traces to this build.
+    </div>
+  </div>
+);
+
+/* ════════════════════════════════════════════════════════════════
+   07 · Academic citation block  (copy-to-cite)
+   ════════════════════════════════════════════════════════════════ */
+const Stamp07 = () => (
+  <div className="ls" style={{padding:"18px 20px",display:"flex",flexDirection:"column",gap:12}}>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <span className="mono up" style={{fontSize:10,color:"var(--text4)"}}>Cite this work</span>
+      <span className="chip" style={{cursor:"default"}}>⧉ copy BibTeX</span>
+    </div>
+    <div style={{background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:9,padding:"13px 15px",
+      fontFamily:"var(--mono)",fontSize:11.5,color:"var(--text2)",lineHeight:1.65}}>
+      Planicka, M. (2026). <span style={{color:"var(--text)"}}>OxyDex: Nocturnal Oximetry Analysis Platform</span> (Version 1.0.0) [Computer software]. Tepna physiological-signal suite.
+    </div>
+    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+      <span className="spdx"><span className="k">licence</span><span className="v">Apache-2.0</span></span>
+      <span className="chip mono">github.com/Plantucha/OxyDex</span>
+    </div>
+  </div>
+);
+
+/* ════════════════════════════════════════════════════════════════
+   08 · Badge cluster  (SPDX shield + status pills)
+   ════════════════════════════════════════════════════════════════ */
+const Stamp08 = () => (
+  <div className="ls" style={{padding:"18px 20px",display:"flex",flexDirection:"column",gap:13}}>
+    <div style={{display:"flex",flexWrap:"wrap",gap:7,alignItems:"center"}}>
+      <span className="spdx" style={{fontSize:11.5}}><span className="k">licence</span><span className="v">Apache-2.0</span></span>
+      <span className="chip teal">100% local</span>
+      <span className="chip blue mono">v1.0.0</span>
+      <span className="chip amber">not a medical device</span>
+      <span className="chip">research use</span>
+    </div>
+    <hr className="div"/>
+    <div style={{fontSize:11.5,color:"var(--text3)"}}>
+      © 2026 <b style={{color:"var(--text2)"}}>Michal Planicka</b>
+      <span className="mono" style={{display:"block",fontSize:10,color:"var(--text4)",marginTop:3}}>{ROLES_1} · {ROLES_2}</span>
+    </div>
+  </div>
+);
+
+/* ════════════════════════════════════════════════════════════════
+   09 · Formal seal / emblem
+   ════════════════════════════════════════════════════════════════ */
+const Stamp09 = () => (
+  <div className="ls" style={{padding:"22px",display:"flex",flexDirection:"column",alignItems:"center",gap:14,
+    background:"radial-gradient(ellipse at 50% 0%, rgba(61,224,208,.06), transparent 60%), var(--surface)"}}>
+    <div style={{width:108,height:108,borderRadius:"50%",position:"relative",
+      display:"flex",alignItems:"center",justifyContent:"center",
+      border:"1px solid var(--border2)",
+      boxShadow:"0 0 0 6px rgba(18,24,33,1), 0 0 0 7px var(--border), inset 0 0 24px rgba(61,224,208,.05)"}}>
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+        <span className="mark" style={{width:30,height:30,fontSize:14,borderRadius:8}}>T</span>
+        <span className="mono" style={{fontSize:9,color:"var(--teal)",letterSpacing:".08em",marginTop:2}}>APACHE-2.0</span>
+        <span className="mono" style={{fontSize:7.5,color:"var(--text4)",letterSpacing:".14em"}}>EST. 2026</span>
+      </div>
+    </div>
+    <div style={{textAlign:"center"}}>
+      <div style={{fontSize:14,fontWeight:700,letterSpacing:"-.01em"}}>Tepna</div>
+      <div className="mono up" style={{fontSize:8.5,color:"var(--text4)",marginTop:3}}>Physiological-Signal Suite</div>
+      <div style={{fontSize:11.5,color:"var(--text3)",marginTop:9}}>© 2026 Michal Planicka</div>
+      <div className="mono" style={{fontSize:8.5,color:"var(--text4)",marginTop:4,letterSpacing:".06em"}}>MADE IN ASHEVILLE, NC</div>
+    </div>
+  </div>
+);
+
+/* ════════════════════════════════════════════════════════════════
+   10 · Inline one-liner  (paper footers, tight contexts)
+   ════════════════════════════════════════════════════════════════ */
+const OneLine = () => (
+  <div style={{display:"flex",alignItems:"center",gap:9,fontSize:11.5,flexWrap:"wrap"}}>
+    <span className="mark" style={{width:20,height:20,fontSize:10,borderRadius:6}}>G</span>
+    <span className="mono" style={{color:"var(--text3)"}}>© 2026 <b style={{color:"var(--text)",fontWeight:600}}>Michal Planicka</b></span>
+    <span style={{color:"var(--text4)"}}>·</span>
+    <span className="mono" style={{color:"var(--text3)"}}>Tepna v1.0.0</span>
+    <span style={{color:"var(--text4)"}}>·</span>
+    <span className="mono up" style={{color:"var(--teal)",fontSize:10}}>Apache-2.0</span>
+    <span style={{color:"var(--text4)"}}>·</span>
+    <span style={{color:"var(--text4)"}}>not a medical device</span>
+  </div>
+);
+const Stamp10 = () => (
+  <div className="ls" style={{padding:"15px 20px",display:"flex",flexDirection:"column",gap:13,justifyContent:"center"}}>
+    <OneLine/>
+    <hr className="div"/>
+    <div style={{display:"flex",alignItems:"center",gap:9,fontSize:11,color:"var(--text4)"}} className="mono">
+      <span style={{color:"var(--text4)"}}>compact · single row · wraps gracefully on narrow viewports</span>
+    </div>
+  </div>
+);
+
+/* ════════════════════════════════════════════════════════════════ */
+function App(){
+  return (
+    <DesignCanvas>
+      <DCSection id="names" title="Name candidates on the mark · SEO-checked" subtitle="Same stamp, 5 ASCII Czech names — ranked Tepna ▸ Uzel ▸ Soulad ≈ Jadro ▸ Pramen">
+        <DCArtboard id="n-tepna" label="Tepna · ‘artery’" width={350} height={430}>
+          <Cap where="cleanest SEO — recommended">Tepna</Cap>
+          <div style={{height:360}}><NameCard name="Tepna" mono="T" ok={true} seo="clean"
+            place="Made in Asheville, NC"
+            seoNote="No software / app / trademark collision found. Cleanest of the five."
+            meaning="‘artery’ — the conduit every signal flows through. Coined-feeling, ownable."/></div>
+        </DCArtboard>
+        <DCArtboard id="n-uzel" label="Uzel · ‘node / knot’" width={350} height={430}>
+          <Cap where="clean — strongest concept">Uzel</Cap>
+          <div style={{height:360}}><NameCard name="Uzel" mono="U" ok={true} seo="clean"
+            seoNote="Only match is Uzel Holding — a defunct (2012) Turkish tractor maker, different sector."
+            meaning="‘node / knot’ — the mesh of signal nodes, tied together. Secular cousin of ‘ganglion’."/></div>
+        </DCArtboard>
+        <DCArtboard id="n-soulad" label="Soulad · ‘concordance’" width={350} height={430}>
+          <Cap where="moderate — crowded ‘Soul’ space">Soulad</Cap>
+          <div style={{height:360}}><NameCard name="Soulad" mono="S" ok={false} seo="moderate"
+            seoNote="No exact hit, but the ‘Soul’ app namespace is crowded; reads near ‘salad’ in EN."
+            meaning="‘concordance / harmony’ — names the fusion: nodes brought into agreement."/></div>
+        </DCArtboard>
+        <DCArtboard id="n-jadro" label="Jadro · ‘kernel / core’" width={350} height={430}>
+          <Cap where="moderate — IT-name competition">Jadro</Cap>
+          <div style={{height:360}}><NameCard name="Jadro" mono="J" ok={false} seo="moderate"
+            seoNote="Competes with Jadroo IT and Jadu (web CMS) in the software namespace."
+            meaning="‘kernel / core’ — matches your kernel-constants.js. Strong meaning, noisier name."/></div>
+        </DCArtboard>
+        <DCArtboard id="n-pramen" label="Pramen · ‘source / spring’" width={350} height={430}>
+          <Cap where="noisy — common word + legacy brand">Pramen</Cap>
+          <div style={{height:360}}><NameCard name="Pramen" mono="P" ok={false} seo="noisy"
+            seoNote="Common Czech word + legacy ‘Pramen’ retail / mineral-water associations."
+            meaning="‘source / spring’ — origin of the signal. Evocative, but hardest to rank."/></div>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="micro" title="Inline & micro stamps" subtitle="Sidebar footers, doc corners, app/paper feet — small, persistent, low-chrome">
+        <DCArtboard id="s01" label="01 · Sidebar micro-stamp" width={300} height={170}>
+          <Cap where="sidebar foot (evolves current screenshot)">Status + licence + author</Cap>
+          <div style={{height:120}}><Stamp01/></div>
+        </DCArtboard>
+        <DCArtboard id="s10" label="10 · Inline one-liner" width={560} height={170}>
+          <Cap where="paper footer / tight rows">Single-row credit line</Cap>
+          <div style={{height:120}}><Stamp10/></div>
+        </DCArtboard>
+        <DCArtboard id="s08" label="08 · Badge cluster" width={400} height={210}>
+          <Cap where="About panel header / repo-style">SPDX shield + status pills</Cap>
+          <div style={{height:160}}><Stamp08/></div>
+        </DCArtboard>
+        <DCArtboard id="s04" label="04 · Footer ribbon" width={720} height={180}>
+          <Cap where="full-width app & paper foot">Suite mark · author · licence</Cap>
+          <div style={{height:118}}><Stamp04/></div>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="panels" title="Attribution & credits panels" subtitle="About / Credits pages — fuller authorship + citation">
+        <DCArtboard id="s05" label="05 · Author-forward" width={360} height={290}>
+          <Cap where="Credits / About page">Monogram + role chips</Cap>
+          <div style={{height:240}}><Stamp05/></div>
+        </DCArtboard>
+        <DCArtboard id="s07" label="07 · Citation block" width={440} height={290}>
+          <Cap where="academic / reference guides">Copy-to-cite</Cap>
+          <div style={{height:240}}><Stamp07/></div>
+        </DCArtboard>
+        <DCArtboard id="s03" label="03 · Credits trio" width={760} height={290}>
+          <Cap where="Credits section (current pattern, refined)">Author · AI-assist · licence</Cap>
+          <div style={{height:230}}><Stamp03/></div>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="formal" title="Provenance & formal" subtitle="Machine-readable, reproducibility-linked, and ceremonial treatments">
+        <DCArtboard id="s02" label="02 · SPDX manifest" width={400} height={290}>
+          <Cap where="code-doc header / source-of-truth">Machine-readable header</Cap>
+          <div style={{height:240}}><Stamp02/></div>
+        </DCArtboard>
+        <DCArtboard id="s06" label="06 · Provenance stamp" width={400} height={290}>
+          <Cap where="export footers (ties to buildHash)">Reproducible-build linked</Cap>
+          <div style={{height:240}}><Stamp06/></div>
+        </DCArtboard>
+        <DCArtboard id="s09" label="09 · Formal seal" width={320} height={320}>
+          <Cap where="splash / cover / About hero">Ceremonial emblem</Cap>
+          <div style={{height:280}}><Stamp09/></div>
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body></html>

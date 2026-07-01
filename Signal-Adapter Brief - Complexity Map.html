@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Signal-Adapter Brief — Complexity Map</title>
+<style>
+  :root{
+    --bg:#0B0F14; --surface:#121821; --surface2:#18212C; --surface3:#1E2835;
+    --border:#1e2d42; --border2:#253550;
+    --text:#F4F7FB; --text2:#9FB0C3; --text3:#8C9DB3; --text4:#6E7F94;
+    --teal:#3DE0D0; --blue:#58A6FF; --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A; --purple:#a78bfa; --orange:#fb923c;
+    --mono: ui-monospace,'IBM Plex Mono',SFMono-Regular,Menlo,monospace;
+    --sans: system-ui,-apple-system,'Inter',Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:#070A0E;color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+  .page{width:1440px;margin:0 auto;padding:48px 56px 80px;background:
+    radial-gradient(1200px 500px at 80% -10%, rgba(61,224,208,.06), transparent 60%),
+    radial-gradient(900px 400px at 0% 5%, rgba(88,166,255,.05), transparent 55%),
+    var(--bg);}
+  /* ── header ── */
+  .top{display:flex;justify-content:space-between;align-items:flex-start;gap:40px;border-bottom:1px solid var(--border);padding-bottom:30px;margin-bottom:36px}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--teal);margin-bottom:14px}
+  h1{font-size:39px;font-weight:680;line-height:1.05;letter-spacing:-.02em}
+  h1 .sub{display:block;font-size:19px;font-weight:450;color:var(--text2);margin-top:10px;letter-spacing:0}
+  .filename{font-family:var(--mono);font-size:12.5px;color:var(--text4);margin-top:16px}
+  .statusbox{flex:0 0 300px;background:linear-gradient(160deg,var(--surface2),var(--surface));border:1px solid var(--border2);border-radius:18px;padding:22px 24px}
+  .statusbox .lbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--text4)}
+  .pill{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12px;font-weight:600;padding:5px 12px;border-radius:999px;margin-top:8px}
+  .pill.proposed{background:rgba(255,184,77,.13);color:var(--amber);border:1px solid rgba(255,184,77,.3)}
+  .ring{display:flex;align-items:center;gap:18px;margin-top:18px}
+  .ring svg{flex:0 0 auto}
+  .ring .big{font-size:30px;font-weight:700;line-height:1}
+  .ring .cap{font-size:12px;color:var(--text3);margin-top:4px}
+  /* ── verdict strip ── */
+  .verdict{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:40px}
+  .vc{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px 20px;position:relative;overflow:hidden}
+  .vc::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent,var(--teal))}
+  .vc .n{font-size:30px;font-weight:720;letter-spacing:-.02em;font-family:var(--mono)}
+  .vc .t{font-size:12.5px;color:var(--text2);margin-top:5px;line-height:1.4}
+  .vc.t1{--accent:var(--teal)} .vc.t2{--accent:var(--blue)} .vc.t3{--accent:var(--amber)} .vc.t4{--accent:var(--red)}
+  /* ── section ── */
+  .section{margin-bottom:46px}
+  .sh{display:flex;align-items:baseline;gap:14px;margin-bottom:20px}
+  .sh .num{font-family:var(--mono);font-size:13px;color:var(--teal);font-weight:600}
+  .sh h2{font-size:21px;font-weight:640;letter-spacing:-.01em}
+  .sh .note{font-size:13px;color:var(--text3);margin-left:auto;font-family:var(--mono)}
+  /* ── architecture diagram ── */
+  .arch{display:flex;align-items:stretch;gap:0;background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:28px 26px}
+  .layer{flex:1;text-align:center;padding:0 8px;position:relative}
+  .layer .cap{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--text4);margin-bottom:12px}
+  .node{border-radius:13px;padding:16px 12px;font-weight:600;font-size:14.5px;border:1px solid var(--border2)}
+  .node .d{font-size:11.5px;font-weight:430;color:var(--text3);margin-top:6px;line-height:1.4}
+  .node.exist{background:var(--surface3)}
+  .node.new{background:linear-gradient(160deg,rgba(61,224,208,.14),rgba(61,224,208,.04));border-color:rgba(61,224,208,.4);color:var(--teal)}
+  .node.new .d{color:#bfeee9}
+  .arrow{flex:0 0 46px;display:flex;align-items:center;justify-content:center;color:var(--text4);font-size:22px;align-self:center;padding-top:22px}
+  .legend{display:flex;gap:22px;margin-top:16px;font-size:12px;color:var(--text3)}
+  .legend span{display:inline-flex;align-items:center;gap:7px}
+  .sw{width:13px;height:13px;border-radius:4px;display:inline-block}
+  /* ── matrix ── */
+  .matrix{display:grid;grid-template-columns:64px 1fr;gap:0;background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:24px 26px 18px}
+  .ylab{writing-mode:vertical-rl;transform:rotate(180deg);text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--text4);align-self:center}
+  .plot{position:relative;height:430px;border-left:1px solid var(--border2);border-bottom:1px solid var(--border2);margin-bottom:8px}
+  .gl{position:absolute;left:0;right:0;border-top:1px dashed rgba(255,255,255,.045)}
+  .vline{position:absolute;top:0;bottom:0;border-left:1px dashed rgba(255,255,255,.045)}
+  .xlabs{display:flex;justify-content:space-between;padding:8px 0 0 0;font-family:var(--mono);font-size:11px;color:var(--text4)}
+  .xtitle{text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--text4);margin-top:6px}
+  .dot{position:absolute;transform:translate(-50%,50%);display:flex;flex-direction:column;align-items:center;gap:4px;cursor:default}
+  .dot .circ{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;font-size:14px;border:2px solid;box-shadow:0 4px 14px rgba(0,0,0,.35)}
+  .dot .pl{font-size:10.5px;color:var(--text2);white-space:nowrap;font-weight:500;max-width:120px;text-align:center;line-height:1.2}
+  .g-none .circ{background:rgba(57,217,138,.16);border-color:var(--green);color:#9af0c4}
+  .g-low .circ{background:rgba(88,166,255,.16);border-color:var(--blue);color:#bcdcff}
+  .g-mid .circ{background:rgba(255,184,77,.16);border-color:var(--amber);color:#ffdca0}
+  .g-high .circ{background:rgba(255,107,122,.16);border-color:var(--red);color:#ffc1c8}
+  /* ── phase track ── */
+  .track{display:flex;flex-direction:column;gap:10px}
+  .prow{display:grid;grid-template-columns:54px 1fr 96px 96px 92px 130px;gap:14px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:13px 18px}
+  .prow.spine{border-color:rgba(61,224,208,.32);background:linear-gradient(100deg,rgba(61,224,208,.05),var(--surface) 40%)}
+  .pn{font-family:var(--mono);font-weight:700;font-size:19px;color:var(--text2);text-align:center}
+  .prow.spine .pn{color:var(--teal)}
+  .ptitle{font-size:14.5px;font-weight:600}
+  .pdesc{font-size:12px;color:var(--text3);margin-top:3px;line-height:1.4}
+  .chip{font-family:var(--mono);font-size:10.5px;font-weight:600;padding:4px 9px;border-radius:7px;text-align:center;white-space:nowrap;letter-spacing:.02em}
+  .chl{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text4);display:block;margin-bottom:4px}
+  .c-none{background:rgba(57,217,138,.13);color:#7fe6b0} .c-low{background:rgba(88,166,255,.13);color:#9fccff}
+  .c-mid{background:rgba(255,184,77,.13);color:#ffce85} .c-high{background:rgba(255,107,122,.14);color:#ff9aa6}
+  .cell{text-align:center}
+  .stat{font-family:var(--mono);font-size:10px;font-weight:600;padding:4px 8px;border-radius:7px;background:rgba(255,184,77,.1);color:var(--amber);text-align:center;white-space:nowrap}
+  /* ── punch list ── */
+  .punch{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .pi{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:15px 17px;display:flex;gap:14px;align-items:flex-start}
+  .pi.bug{border-color:rgba(255,107,122,.4);background:linear-gradient(120deg,rgba(255,107,122,.06),var(--surface) 45%)}
+  .pi .rank{flex:0 0 30px;height:30px;border-radius:9px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;font-size:14px;color:var(--text2)}
+  .pi.bug .rank{background:rgba(255,107,122,.18);color:#ffb3bb}
+  .pi .body{flex:1}
+  .pi .h{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .pi .meta{font-size:11.5px;color:var(--text3);margin-top:5px;line-height:1.45}
+  .pi .loc{font-family:var(--mono);font-size:10.5px;color:var(--red);margin-top:6px}
+  .tag{font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 7px;border-radius:6px;letter-spacing:.06em}
+  .tag.live{background:rgba(255,107,122,.18);color:#ff9aa6}
+  .tag.star{background:rgba(167,139,250,.16);color:#c9b8ff}
+  .tag.gate0{background:rgba(57,217,138,.14);color:#7fe6b0}
+  .tag.gated{background:rgba(255,184,77,.13);color:#ffce85}
+  /* ── order strip ── */
+  .order{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 22px}
+  .ostep{font-family:var(--mono);font-weight:700;font-size:15px;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border2);background:var(--surface3)}
+  .ostep.spine{background:rgba(61,224,208,.14);border-color:rgba(61,224,208,.4);color:var(--teal)}
+  .ostep.gate{background:rgba(255,107,122,.13);border-color:rgba(255,107,122,.35);color:#ff9aa6}
+  .oarr{color:var(--text4);font-size:15px}
+  .obrace{font-size:11px;color:var(--text3);margin-left:6px;font-family:var(--mono)}
+  .foot{margin-top:48px;padding-top:22px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--text4)}
+  /* ── testing burden ── */
+  .burden{display:grid;grid-template-columns:1fr 56px 1fr;gap:0;background:var(--surface);border:1px solid var(--border);border-radius:18px;overflow:hidden}
+  .bcol{padding:22px 24px}
+  .bcol.before{background:linear-gradient(160deg,rgba(255,107,122,.05),transparent 60%)}
+  .bcol.after{background:linear-gradient(160deg,rgba(57,217,138,.05),transparent 60%)}
+  .bhd{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;margin-bottom:4px}
+  .bcol.before .bhd{color:var(--red)} .bcol.after .bhd{color:var(--green)}
+  .bsub{font-size:12px;color:var(--text3);margin-bottom:18px}
+  .brow{display:flex;gap:11px;align-items:flex-start;padding:11px 0;border-top:1px solid var(--border)}
+  .brow:first-of-type{border-top:none}
+  .bico{flex:0 0 20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;margin-top:1px}
+  .before .bico{background:rgba(255,107,122,.15);color:#ff9aa6} .after .bico{background:rgba(57,217,138,.15);color:#7fe6b0}
+  .btxt{flex:1;font-size:12.5px;line-height:1.45;color:var(--text2)}
+  .btxt b{color:var(--text)}
+  .bmid{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border-left:1px solid var(--border);border-right:1px solid var(--border)}
+  .bmid .ar{color:var(--teal);font-size:22px}
+  .bmid .lab{writing-mode:vertical-rl;transform:rotate(180deg);font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--text4)}
+  .bnote{grid-column:1 / -1;border-top:1px solid var(--border);padding:14px 24px;font-size:12px;color:var(--text3);background:var(--surface2);display:flex;gap:10px;align-items:center}
+  .bnote b{color:var(--amber)}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="top">
+    <div>
+      <div class="eyebrow">Tepna · Dex Suite — Brief Complexity Map</div>
+      <h1>Signal-Adapter Layer + Frontier Hardening
+        <span class="sub">A fourth ingest layer below DSP — converting <b>vendors × nodes</b> into <b>vendors + nodes</b>.</span>
+      </h1>
+      <div class="filename">SIGNAL-ADAPTER-AND-FRONTIER-2026-06-23-BRIEF.md · 616 lines · ~45 KB · 11 phases + 8-item review punch-list</div>
+    </div>
+    <div class="statusbox">
+      <div class="lbl">Status (in-tree, verified)</div>
+      <div class="pill proposed">● PROPOSED — nothing built</div>
+      <div class="ring">
+        <svg width="76" height="76" viewBox="0 0 76 76">
+          <circle cx="38" cy="38" r="32" fill="none" stroke="#1E2835" stroke-width="8"/>
+          <circle cx="38" cy="38" r="32" fill="none" stroke="#FFB84D" stroke-width="8"
+                  stroke-dasharray="201" stroke-dashoffset="201" stroke-linecap="round" transform="rotate(-90 38 38)"/>
+        </svg>
+        <div>
+          <div class="big">0<span style="font-size:18px;color:var(--text3)">/11</span></div>
+          <div class="cap">phases executed</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VERDICT STRIP -->
+  <div class="verdict">
+    <div class="vc t1"><div class="n">HIGH</div><div class="t">Conceptual complexity — a whole new architectural layer spanning the fleet</div></div>
+    <div class="vc t2"><div class="n">LOW</div><div class="t">Risk to ship the <b>spine</b> (Phases 0–2): new files, <b>zero gate cost</b></div></div>
+    <div class="vc t3"><div class="n">3</div><div class="t">Phases carrying real gate cost — only #7 & #9 are heavy; #3 deferred</div></div>
+    <div class="vc t4"><div class="n">2</div><div class="t">Correctness bugs flagged — both confirmed <b>still live</b> in <span style="font-family:var(--mono)">hrvdex-dsp.js</span></div></div>
+  </div>
+
+  <!-- ARCHITECTURE -->
+  <div class="section">
+    <div class="sh"><span class="num">§2</span><h2>The thesis — one new layer below DSP</h2><span class="note">dependency flows downhill · INGEST never touches the DOM</span></div>
+    <div class="arch">
+      <div class="layer"><div class="cap">Vendor file</div>
+        <div class="node exist">Any device export<div class="d">Polar · Coospo · O2Ring · Welltory · CGM · Garmin…</div></div></div>
+      <div class="arrow">▸</div>
+      <div class="layer"><div class="cap">★ New — INGEST</div>
+        <div class="node new">Adapter registry<div class="d">detect() confidence + parse-by-reference → SignalFrame</div></div></div>
+      <div class="arrow">▸</div>
+      <div class="layer"><div class="cap">★ New — CORE</div>
+        <div class="node new">SignalFrame<div class="d">typed · clock-normalized · provenance-stamped intermediate</div></div></div>
+      <div class="arrow">▸</div>
+      <div class="layer"><div class="cap">DSP (unchanged)</div>
+        <div class="node exist">Node compute<div class="d">canonical signal → metrics · no vendor logic</div></div></div>
+      <div class="arrow">▸</div>
+      <div class="layer"><div class="cap">Consumer</div>
+        <div class="node exist">UI / node-export<div class="d">→ Integrator fusion via ganglior.node-export</div></div></div>
+    </div>
+    <div class="legend">
+      <span><i class="sw" style="background:linear-gradient(160deg,rgba(61,224,208,.6),rgba(61,224,208,.2));border:1px solid rgba(61,224,208,.5)"></i> New code (born compliant)</span>
+      <span><i class="sw" style="background:var(--surface3);border:1px solid var(--border2)"></i> Existing — untouched until opt-in migration (Phase 9)</span>
+      <span style="margin-left:auto;color:var(--text4)">The "data unifier" is not a new product — it is this registry given a drop-zone UI.</span>
+    </div>
+  </div>
+
+  <!-- MATRIX -->
+  <div class="section">
+    <div class="sh"><span class="num">MAP</span><h2>Value vs. gate cost — why the spine ships first</h2><span class="note">circle = phase · color = gate cost</span></div>
+    <div class="matrix">
+      <div class="ylab">Value / leverage →</div>
+      <div>
+        <div class="plot" id="plot">
+          <div class="gl" style="top:25%"></div><div class="gl" style="top:50%"></div><div class="gl" style="top:75%"></div>
+          <div class="vline" style="left:33.3%"></div><div class="vline" style="left:66.6%"></div>
+          <!-- dots positioned: left = gate cost axis, bottom = value -->
+          <div class="dot g-none" style="left:12%;bottom:88%"><div class="circ">1</div><div class="pl">Unifier + 2 adapters</div></div>
+          <div class="dot g-none" style="left:9%;bottom:70%"><div class="circ">0</div><div class="pl">CORE scaffold</div></div>
+          <div class="dot g-none" style="left:24%;bottom:64%"><div class="circ">2</div><div class="pl">Property / metamorphic</div></div>
+          <div class="dot g-none" style="left:18%;bottom:78%"><div class="circ">10</div><div class="pl">OverDex capstone</div></div>
+          <div class="dot g-low" style="left:40%;bottom:48%"><div class="circ">4</div><div class="pl">Typed contracts</div></div>
+          <div class="dot g-low" style="left:46%;bottom:58%"><div class="circ">5</div><div class="pl">Differential RR</div></div>
+          <div class="dot g-low" style="left:38%;bottom:38%"><div class="circ">8</div><div class="pl">Fusion algebra</div></div>
+          <div class="dot g-none" style="left:14%;bottom:55%"><div class="circ">6</div><div class="pl">Units + Baevsky guard</div></div>
+          <div class="dot g-mid" style="left:58%;bottom:52%"><div class="circ">3</div><div class="pl">Manifest single-source</div></div>
+          <div class="dot g-high" style="left:84%;bottom:74%"><div class="circ">9</div><div class="pl">Per-node migration</div></div>
+          <div class="dot g-high" style="left:88%;bottom:36%"><div class="circ">7</div><div class="pl">Content-addressed provenance</div></div>
+        </div>
+        <div class="xlabs"><span>none (new files)</span><span>node test runner</span><span>full re-bundle</span></div>
+        <div class="xtitle">Gate cost →</div>
+      </div>
+    </div>
+    <div class="legend" style="justify-content:center;margin-top:14px">
+      <span><i class="sw" style="background:rgba(57,217,138,.5);border:1px solid var(--green)"></i> none — both gates untriggered</span>
+      <span><i class="sw" style="background:rgba(88,166,255,.5);border:1px solid var(--blue)"></i> node tests/run-tests.mjs</span>
+      <span><i class="sw" style="background:rgba(255,184,77,.5);border:1px solid var(--amber)"></i> first generated node only</span>
+      <span><i class="sw" style="background:rgba(255,107,122,.5);border:1px solid var(--red)"></i> full / per-node re-bundle</span>
+    </div>
+  </div>
+
+  <!-- PHASE TRACK -->
+  <div class="section">
+    <div class="sh"><span class="num">§3</span><h2>The eleven phases</h2><span class="note">spine = teal · all currently NOT STARTED</span></div>
+    <div class="track">
+      <div class="prow" style="grid-template-columns:54px 1fr 96px 96px 92px 130px;border:none;background:none;padding:0 18px;margin-bottom:-4px">
+        <div></div><div></div>
+        <div class="cell"><span class="chl">Gate cost</span></div>
+        <div class="cell"><span class="chl">Complexity</span></div>
+        <div class="cell"><span class="chl">Value</span></div>
+        <div class="cell"><span class="chl">State</span></div>
+      </div>
+
+      <div class="prow spine"><div class="pn">0</div>
+        <div><div class="ptitle">CORE scaffold — SignalFrame · SignalSpec · adapter registry</div>
+          <div class="pdesc">3 plain DOM-free globals + validateFrame schema authority. Nothing imports them yet.</div></div>
+        <div class="cell"><span class="chip c-none">NONE</span></div><div class="cell"><span class="chip c-low">LOW</span></div>
+        <div class="cell"><span class="chip c-high">HIGH</span></div><div class="cell"><span class="stat">not started</span></div></div>
+
+      <div class="prow spine"><div class="pn">1</div>
+        <div><div class="ptitle">Unifier tool + first two adapters (Polar-RR, Coospo-RR)</div>
+          <div class="pdesc">⚠ Isolation requirement: bare-global parsers collide + run DOM side-effects → must load each in an iframe/Worker. The headline win, proven end-to-end.</div></div>
+        <div class="cell"><span class="chip c-none">NONE</span></div><div class="cell"><span class="chip c-high">MED–HIGH</span></div>
+        <div class="cell"><span class="chip c-high">V.HIGH</span></div><div class="cell"><span class="stat">not started</span></div></div>
+
+      <div class="prow spine"><div class="pn">2</div>
+        <div><div class="ptitle">Property / metamorphic test module</div>
+          <div class="pdesc">Seeded generator hunts counterexamples to invariants (time-shift, linear scale, frame round-trip).</div></div>
+        <div class="cell"><span class="chip c-low">NODE</span></div><div class="cell"><span class="chip c-mid">MED</span></div>
+        <div class="cell"><span class="chip c-high">HIGH</span></div><div class="cell"><span class="stat">not started</span></div></div>
+
+      <div class="prow"><div class="pn">3</div>
+        <div><div class="ptitle">Manifest as single source of truth</div>
+          <div class="pdesc">Generator projects registry + cross-defs + reference HTML + JSDoc from one manifest. Collapses up-to-4 hand-synced copies.</div></div>
+        <div class="cell"><span class="chip c-mid">1st node</span></div><div class="cell"><span class="chip c-high">HIGH</span></div>
+        <div class="cell"><span class="chip c-mid">MED–HIGH</span></div><div class="cell"><span class="stat">not started</span></div></div>
+
+      <div class="prow"><div class="pn">4</div>
+        <div><div class="ptitle">Machine-checked contracts — JSDoc types + DSP-purity gate</div>
+          <div class="pdesc">tsc --checkJs CI-only (ships nothing). Purity assertion grandfathers known legacy violators.</div></div>
+        <div class="cell"><span class="chip c-low">NODE</span></div><div class="cell"><span class="chip c-mid">MED</span></div>
+        <div class="cell"><span class="chip c-mid">MED</span></div><div class="cell"><span class="stat">not started</span></div></div>
+
+      <div class="prow"><div class="pn">5</div>
+        <div><div class="ptitle">Differential testing across the 3 redundant RR nodes</div>
+          <div class="pdesc">Feed one cross-coherent truth through PulseDex · ECGDex · HRVDex; assert rMSSD/SDNN agree within tolerance.</div></div>
+        <div class="cell"><span class="chip c-low">NODE</span></div><div class="cell"><span class="chip c-mid">MED</span></div>
+        <div class="cell"><span class="chip c-mid">MED–HIGH</span></div><div class="cell"><span class="stat">not started</span></div></div>
+
+      <div class="prow"><div class="pn">6</div>
+        <div><div class="ptitle">Units as quantities + ⚠ Baevsky SI/CSI unit guard</div>
+          <div class="pdesc">Boundary-only Quantity type. First target = bound Mode/MxDMn at HRVDex ingest — a ms↔s slip mis-scales d_si up to 10⁶×.</div></div>
+        <div class="cell"><span class="chip c-none">NONE*</span></div><div class="cell"><span class="chip c-high">MED–HIGH</span></div>
+        <div class="cell"><span class="chip c-high">HIGH</span></div><div class="cell"><span class="stat">bug live</span></div></div>
+
+      <div class="prow"><div class="pn">7</div>
+        <div><div class="ptitle">Content-addressed provenance — replace the buildHash proxy</div>
+          <div class="pdesc">Honest hash(input)+hash(code)→hash(output) ledger. Touches the shared inliner → forces re-bundling ALL 8 apps.</div></div>
+        <div class="cell"><span class="chip c-high">FULL</span></div><div class="cell"><span class="chip c-high">V.HIGH</span></div>
+        <div class="cell"><span class="chip c-mid">MED</span></div><div class="cell"><span class="stat">not started</span></div></div>
+
+      <div class="prow"><div class="pn">8</div>
+        <div><div class="ptitle">Fusion algebra with proven laws</div>
+          <div class="pdesc">State Integrator blend as algebra; property-test associativity, monotonicity, null-identity, "never invents precision".</div></div>
+        <div class="cell"><span class="chip c-low">NODE</span></div><div class="cell"><span class="chip c-mid">MED</span></div>
+        <div class="cell"><span class="chip c-mid">MED</span></div><div class="cell"><span class="stat">not started</span></div></div>
+
+      <div class="prow"><div class="pn">9</div>
+        <div><div class="ptitle">Opportunistic node migration (the long tail)</div>
+          <div class="pdesc">Per-node, opt-in, full re-bundle protocol each time — never six at once. Defer indefinitely; the spine delivers value without it.</div></div>
+        <div class="cell"><span class="chip c-high">PER-NODE</span></div><div class="cell"><span class="chip c-high">HIGH ↻</span></div>
+        <div class="cell"><span class="chip c-high">HIGH Σ</span></div><div class="cell"><span class="stat">not started</span></div></div>
+
+      <div class="prow"><div class="pn">10</div>
+        <div><div class="ptitle">OverDex — one-drop folder → route → run → fuse (optional capstone)</div>
+          <div class="pdesc">Walks a folder, routes via the registry, runs nodes, fuses via Integrator. 🔒 Independence invariant: no Dex depends on another.</div></div>
+        <div class="cell"><span class="chip c-none">NONE</span></div><div class="cell"><span class="chip c-high">HIGH</span></div>
+        <div class="cell"><span class="chip c-high">V.HIGH</span></div><div class="cell"><span class="stat">not started</span></div></div>
+    </div>
+    <div style="font-size:11.5px;color:var(--text4);margin-top:10px;font-family:var(--mono)">* Phase 6 gate cost is NONE for the new adapter layer; node adoption of the guard is per-node, deferred. ↻ = recurring cost · Σ = cumulative value</div>
+  </div>
+
+  <!-- SUGGESTED ORDER -->
+  <div class="section">
+    <div class="sh"><span class="num">§7</span><h2>Suggested execution order — by value-per-gate-cost</h2></div>
+    <div class="order">
+      <div class="ostep spine">0</div><span class="oarr">→</span>
+      <div class="ostep spine">1</div><span class="oarr">→</span>
+      <div class="ostep spine">2</div>
+      <span class="obrace">spine — no gates</span>
+      <span class="oarr">→</span>
+      <div class="ostep">4</div><span class="oarr">→</span>
+      <div class="ostep">5</div><span class="oarr">→</span>
+      <div class="ostep">8</div>
+      <span class="obrace">test-only hardening</span>
+      <span class="oarr">→</span>
+      <div class="ostep">3</div><span class="oarr">→</span>
+      <div class="ostep">6</div><span class="oarr">→</span>
+      <div class="ostep gate">7</div>
+      <span class="obrace">owner-gated</span>
+      <span class="oarr">→</span>
+      <div class="ostep gate">9</div><span class="oarr">→</span>
+      <div class="ostep">10</div>
+      <span class="obrace">capstone</span>
+    </div>
+  </div>
+
+  <!-- PUNCH LIST -->
+  <div class="section">
+    <div class="sh"><span class="num">§8</span><h2>Independent-review punch-list</h2><span class="note">★ = adapter layer is the right home · ranked by value</span></div>
+    <div class="punch">
+      <div class="pi bug"><div class="rank">1</div><div class="body">
+        <div class="h">Baevsky SI/CSI unit guard <span class="tag star">★</span><span class="tag live">LIVE</span><span class="tag gate0">gate 0</span></div>
+        <div class="meta">No bound on Mode/MxDMn — a ms-vs-s vendor export mis-scales <span style="font-family:var(--mono)">d_si</span> up to 10⁶× (divides by both), <span style="font-family:var(--mono)">d_csi</span> ~10³×. Folded into Phase 6.</div>
+        <div class="loc">hrvdex-dsp.js L334 · L370 — assumption unguarded</div></div></div>
+
+      <div class="pi bug"><div class="rank">2</div><div class="body">
+        <div class="h">Zero-default composites emit a fake number <span class="tag star">★</span><span class="tag live">LIVE</span><span class="tag gated">gated</span></div>
+        <div class="meta">Raw recordings seed stress/energy/…=0, so <span style="font-family:var(--mono)">d_efc/d_welfare</span> compute a plausible value from never-measured inputs — a guess dressed as a measurement.</div>
+        <div class="loc">hrvdex-dsp.js L302 (seed 0) → L383 d_efc · L386 d_crs</div></div></div>
+
+      <div class="pi"><div class="rank">3</div><div class="body">
+        <div class="h">Confirm no surfaced value uses crude spectral() path <span class="tag gated">gated</span></div>
+        <div class="meta">pulsedex-dsp.js hf≈rmssd² — if dead code, delete; if live, route to Lomb–Scargle. Do during that node's Phase-9 pass.</div></div></div>
+
+      <div class="pi"><div class="rank">4</div><div class="body">
+        <div class="h">Move ODI-4 severe-night undercount caveat onto the card <span class="tag gated">gated</span></div>
+        <div class="meta">A known underestimate on severe disease shouldn't live only in an analysis doc. Render-side, node edit.</div></div></div>
+
+      <div class="pi"><div class="rank">5</div><div class="body">
+        <div class="h">Quarantine Welltory black-box composites <span class="tag star">★</span><span class="tag gated">gated</span></div>
+        <div class="meta">Tag vendor-derived scores as lower-trust at the adapter boundary; nodes stand on raw-RR math when absent. Per-node.</div></div></div>
+
+      <div class="pi"><div class="rank">6</div><div class="body">
+        <div class="h">Demote VO₂ heuristic out of the top KPI grid <span class="tag gated">gated</span></div>
+        <div class="meta">Registry depth is right, render weight isn't — a heuristic-tier number shouldn't headline. Render-only.</div></div></div>
+
+      <div class="pi"><div class="rank">7</div><div class="body">
+        <div class="h">Tag a versioned release + mint a Zenodo DOI <span class="tag gate0">gate 0</span></div>
+        <div class="meta">v1.0.0 as a string literal isn't a release; a DOI makes the papers/ set citable. No code-path risk.</div></div></div>
+
+      <div class="pi"><div class="rank">8</div><div class="body">
+        <div class="h">A 5-minute contributor path <span class="tag star">★</span><span class="tag gate0">gate 0</span></div>
+        <div class="meta">"Write one detect+parse" — the adapter layer is the natural first contribution. Addresses bus-factor-one.</div></div></div>
+    </div>
+  </div>
+
+  <!-- TESTING BURDEN -->
+  <div class="section">
+    <div class="sh"><span class="num">Q</span><h2>Does it eliminate testing? It shifts &amp; compresses — it doesn't remove</h2><span class="note">hand-maintained tests ↓ · total rigor ↑</span></div>
+    <div class="burden">
+      <div class="bcol before">
+        <div class="bhd">Today — per-vendor, per-copy</div>
+        <div class="bsub">Tests scale with vendors × consuming-nodes, and with every hand-synced copy.</div>
+        <div class="brow"><div class="bico">×</div><div class="btxt"><b>New vendor → re-test multiple nodes.</b> A Coospo export touches ECGDex + PulseDex + HRVDex ingest; each path re-verified.</div></div>
+        <div class="brow"><div class="bico">×</div><div class="btxt"><b>Drift tests you maintain by hand.</b> <span style="font-family:var(--mono);font-size:11.5px">cohesion-badges</span> asserts up-to-4 copies of each metric stayed in sync.</div></div>
+        <div class="brow"><div class="bico">×</div><div class="btxt"><b>Edge cases enumerated one by one.</b> Each input→expected pair hand-picked; misses are found only when the gate fails.</div></div>
+        <div class="brow"><div class="bico">×</div><div class="btxt"><b>Cross-node agreement = unverified risk.</b> Three independent RR paths can silently drift apart.</div></div>
+      </div>
+      <div class="bmid"><span class="lab">converts to</span><span class="ar">▸</span></div>
+      <div class="bcol after">
+        <div class="bhd">After — by reference, generated, invariant</div>
+        <div class="bsub">Tests scale with vendors + nodes; copies become projections; cases become properties.</div>
+        <div class="brow"><div class="bico">✓</div><div class="btxt"><b>New vendor → one detect test + one round-trip.</b> Adapter reuses the same parser; the HRV math is tested once and inherited. <span style="color:var(--text4)">(Phase 1)</span></div></div>
+        <div class="brow"><div class="bico">✓</div><div class="btxt"><b>Drift tests become free.</b> Manifest projects every copy → <span style="font-family:var(--mono);font-size:11.5px">cohesion-badges</span> is true by construction, not by maintenance. <span style="color:var(--text4)">(Phase 3)</span></div></div>
+        <div class="brow"><div class="bico">✓</div><div class="btxt"><b>Generator hunts edge cases.</b> State one invariant; a seeded search finds counterexamples across many inputs. <span style="color:var(--text4)">(Phases 2, 5)</span></div></div>
+        <div class="brow"><div class="bico">✓</div><div class="btxt"><b>Structure carries the caveats.</b> Typed contracts + DSP-purity gate move footguns from prose into enforced checks. <span style="color:var(--text4)">(Phase 4)</span></div></div>
+      </div>
+      <div class="bnote"><b>Still mandatory:</b>&nbsp;both gates (<span style="font-family:var(--mono);font-size:11px">Dex-Test-Suite</span> · <span style="font-family:var(--mono);font-size:11px">verify-provenance</span>) · the two genuinely new signal types (EEGDex, SpiroDex) need real new DSP + tests · Phase 9 carries full gate cost per node. <b style="color:var(--text3);font-weight:600">Net: hand-written/maintained tests go down; total verification rigor goes up.</b></div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span>Map generated from in-tree verification — files probed, bugs confirmed live · 2026-06-24</span>
+    <span>Minimum shippable = Phases 0–2 · zero gate cost incurred</span>
+  </div>
+
+</div>
+</body>
+</html>

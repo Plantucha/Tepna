@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  qrs-yield.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beat-yield under apnea is modality-asymmetric — Tepna preprint</title>
+<link rel="stylesheet" href="../licensing/dex-license.css">
+<link rel="stylesheet" href="paper.css">
+</head>
+<body>
+<div class="sheet">
+  <a class="toplink" href="papers.html">← Tepna preprints</a>
+  <div class="banner">Tepna Working Preprint · not peer-reviewed</div>
+  <h1 class="title">Beat-yield under apnea is modality-asymmetric: robust QRS, fragile optical pulse, and the HRV cost</h1>
+  <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
+  <p class="affil">ECGDex · PpgDex nodes, Tepna physiological-signal suite</p>
+  <p class="meta">Draft v1 · June 2026 · Analysis tool: <code>qrs-yield-analysis.html</code> · Detectors: real <code>ecgdex-dsp.js</code> (Pan–Tompkins) · <code>ppgdex-dsp.js</code> (optical pulse) · FULL lane · 100% local, reproducible</p>
+
+  <div class="abstract">
+    <h2>Abstract</h2>
+    <p style="text-align:left;margin-bottom:0"><b>Background.</b> Wearable heart-rate and HRV pipelines treat every detected beat as ground truth and report a per-beat signal-quality index (SQI) as the trust signal. The two cardiac modalities recover beats by different physics — the electrical QRS by depolarization, the optical pulse by peripheral perfusion — so obstructive apnea, which blunts perfusion without touching depolarization, should affect them asymmetrically, and a correlation-based SQI may not capture whichever errors remain. <b>Methods.</b> On the suite's FULL-lane waveform harness we ran the production ECGDex (Pan–Tompkins QRS) and PpgDex (optical pulse) detectors on one ~9-minute apnea-cluster window per synthetic patient (54 windows per arm; ≈28,100 true beats per arm), matched every detected beat to the co-generated ground-truth beat train (pulse-arrival-corrected, ±120 ms), and split recall and precision by apnea vs clean state alongside the detector's SQI and the downstream rMSSD. <b>Results.</b> QRS recall was essentially complete and <b>apnea-invariant</b> (≈100% clean ≈ 100% apnea; precision ≈100%), and ECG rMSSD tracked truth (bias ≈0%) — a faithful reference. Optical pulse recovery was lower overall (97.3% clean), <b>dipped modestly in apnea</b> as perfusion pushed in-event pulses toward the detector's amplitude floor (96.4%), and the arm <b>mildly over-detected</b> (precision 92.4%). The detector's SQI stayed in its trusted range throughout (0.93→0.90 clean→apnea, never near the 0.5 gate), so it under-represented both the missed and the spurious beats. The imperfect optical train carried a downstream cost: rMSSD was inflated a median <b>+16%</b> versus truth. <b>Conclusion.</b> Beat-yield under apnea is modality-asymmetric — QRS is robust, optical pulse is not — and the residual optical error is largely invisible to a correlation-based SQI and biases HRV upward. When both signals are present, the electrical arm should be the HRV reference and optical HRV should be weighted by event-state, not by SQI alone. <b>This is synthetic ground truth: it certifies the asymmetry and isolates the optical yield error and its HRV consequence — it is not a real-patient miss rate.</b></p>
+  </div>
+  <p class="kw"><b>Keywords:</b> QRS detection · photoplethysmography · beat recall · precision · signal-quality index · obstructive sleep apnea · perfusion · heart-rate variability · rMSSD · sensor fusion</p>
+
+  <div class="callout" style="border:1px dashed #b8860b;background:#fffdf5">
+    <h2 class="sec" style="margin-top:0">0. Layman overview <span style="font-weight:400;color:#b8860b;font-size:13px">(delete before submission)</span></h2>
+    <p>Wearables find heartbeats two ways: <b>electrically</b> (an ECG chest strap) or <b>optically</b> (the green-light / blood-flow sensor in wrist and arm bands). Sleep apnea chokes blood flow but doesn't touch the heart's electrical signal — so the two methods should cope with apnea differently.</p>
+    <p>They do. The electrical method finds <b>essentially every beat</b>, even during apnea. The optical method misses some beats and invents others, and it gets <b>worse during apnea</b>. The catch: the watch's own “signal quality” light stays <b>green</b> through these errors, so it never warns you. Those missed beats make the optical heart-rhythm number read about <b>16% too high</b> — exactly on the worst apnea nights, the opposite of the truth. Bottom line: when a device has both sensors, it should trust the <b>electrical</b> one for heart-rhythm analysis. (Simulation with known truth — it shows the direction and mechanism of the error, not exact human rates.)</p>
+  </div>
+
+  <h2 class="sec">1. Introduction</h2>
+  <p>A heart-rate or HRV product is only as good as the beat train it recovers. Two failure modes matter: missing real beats (low recall, which merges intervals and corrupts beat-to-beat variability) and inventing beats (low precision, which fragments them). Both are usually summarized for the user by a single per-beat signal-quality index, and downstream consumers — a sleep stager, an apnea screen, a fusion layer — implicitly trust that SQI flags the segments where the beat train cannot be relied upon.</p>
+  <p>The electrical and optical modalities recover beats by different physics, and that predicts an asymmetry. The QRS complex is driven by myocardial depolarization; the photoplethysmographic pulse is a peripheral blood-volume change. Obstructive apneas and hypopneas blunt peripheral perfusion — attenuating the optical pulse during the event — while leaving depolarization, and therefore the QRS, untouched. So under apnea the optical arm should lose ground the electrical arm does not. A second, modality-independent question is whether the quality index sees whatever error remains: a correlation-based SQI scores a beat by how pulse-shaped it is, not by whether neighbouring beats were missed or spurious. We measure both — the asymmetry and the SQI's coverage of it — with the production detectors, and trace the optical error through to the HRV number it feeds.</p>
+
+  <h2 class="sec">2. Methods</h2>
+  <h3 class="sub">2.1 FULL-lane waveform harness</h3>
+  <p>The suite's FULL lane renders, for each synthetic patient, a representative ~9-minute window centred on an apnea cluster, in each cardiac modality's native raw form, from <em>one shared master event timeline</em> (so the apnea events, and the underlying RR beat train, are identical across modalities). The ECG arm renders a raw int16 µV waveform at 130 Hz from the timeline's RR beats and runs the unmodified <code>ecgdex-dsp.js</code> (band-pass → Pan–Tompkins R-peak detection → sub-sample refinement → per-beat SQI). The PPG arm renders the 176 Hz Polar-Sense optical signal — in which pulse amplitude is attenuated during apnea/hypopnea windows (the perfusion model) — and runs the unmodified <code>ppgdex-dsp.js</code> (best-SNR channel → band-pass → foot/peak detection → per-beat SQI, the latter a template-correlation × motion score with no amplitude term). No detector parameters were altered; timestamps follow the suite Clock Contract.</p>
+  <h3 class="sub">2.2 Beat matching and stratification</h3>
+  <p>The ground-truth beat train for each window is the master-timeline RR series (the ECG arm additionally carries it as device-RR). Because the optical pulse lags the R-wave by a pulse-arrival time, detected beats are matched to truth after removing the per-window median detected−true lag; a true beat is <em>recovered</em> if a detected beat lies within ±120 ms of its lag-corrected time (recall), and a detected beat is a <em>true positive</em> if it lies within that window of some true beat (precision). Each true beat is labelled apnea or clean by the timeline's own event windows; each detected beat carries the detector's reported SQI. Recall, precision and mean SQI are pooled within apnea and clean strata.</p>
+  <h3 class="sub">2.3 Downstream HRV</h3>
+  <p>To isolate the <em>yield</em> effect on HRV from the detectors' internal interval-editing policies, rMSSD is reconstructed identically from the detected beat-times and from the true beat-times (times → RR → local-median outlier clean → rMSSD); the bias is their difference. The synthetic ECG renderer places each R-peak at its true beat time, so the detected ECG R-to-R intervals equal the true RR (modulo 130 Hz quantization) and ECG rMSSD is faithful — the ECG arm is the rMSSD reference here (ECGDex's HRV is independently validated on real ECG). The PPG arm's truth (the RR train) and detection (pulse feet) are both genuine, so its bias is a real consequence of the recovered train.</p>
+  <p>The run reported here covers 60 sampled patients (one ECG window and one PPG window each; 54 valid windows per arm; ≈28,100 true beats per arm, ≈4,500 of them inside apnea/hypopnea events).</p>
+
+  <h2 class="sec">3. Results</h2>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 1.</b> Pooled beat-yield, signal-quality and HRV bias by detector (54 windows/arm; real detectors, synthetic ground truth).</caption>
+    <thead><tr><th>Detector</th><th class="num">Windows</th><th class="num">True beats</th><th class="num">Recall (all)</th><th class="num">Recall (clean)</th><th class="num">Recall (apnea)</th><th class="num">Precision</th><th class="num">SQI clean</th><th class="num">SQI apnea</th><th class="num">rMSSD bias</th></tr></thead>
+    <tbody>
+      <tr><td>ECGDex (QRS)</td><td class="num">54</td><td class="num">28,115</td><td class="num">100.0%</td><td class="num">100.0%</td><td class="num">100.0%</td><td class="num">100.0%</td><td class="num">0.97</td><td class="num">0.96</td><td class="num">≈0%</td></tr>
+      <tr class="hi"><td>PpgDex (pulse)</td><td class="num">54</td><td class="num">28,076</td><td class="num">97.1%</td><td class="num">97.3%</td><td class="num">96.4%</td><td class="num">92.4%</td><td class="num">0.93</td><td class="num">0.90</td><td class="num">+16.1%</td></tr>
+    </tbody>
+  </table>
+  <p><b>QRS detection is yield-robust to apnea.</b> Recall was ≈100% in both clean and apnea segments — the electrical signal is indifferent to the perfusion collapse that defines the event — with precision ≈100% and SQI ≈0.96, and the recovered R-to-R intervals reproduced the true RR so ECG rMSSD bias was ≈0%. The QRS arm therefore recovers essentially the whole beat train regardless of respiratory state and faithfully preserves its variability; it is the reference against which the optical arm is measured.</p>
+
+  <figure>
+    <img src="figures/qrs-yield.png" alt="Recall bars clean vs apnea per detector; SQI-vs-recall scatter; PPG detected-vs-true rMSSD scatter">
+    <figcaption><b>Figure 1.</b> The modality-asymmetric yield gap and its HRV cost (live output of <code>qrs-yield-analysis.html</code>). <b>Top:</b> beat recall in clean (solid) vs apnea (outlined) segments — ECG QRS sits at ≈100% in both, while PPG pulse recovery is lower and dips slightly in apnea. <b>Middle:</b> per-window SQI vs recall in apnea segments — every point sits inside the "green" band (SQI ≥0.5) across a wide spread of recall, so the quality index under-represents the missed beats; ECG (blue) clusters top-right, PPG (amber) spreads to lower recall at still-high SQI. <b>Bottom:</b> PPG detected vs true rMSSD — the cloud lies above the identity line (median +16% inflation), and the lowest-recall windows (red) sit highest. Dark theme is the tool's native rendering.</figcaption>
+  </figure>
+
+  <h3 class="sub">3.1 Optical pulse recovery is lower, dips in apnea, and over-detects</h3>
+  <p>The optical arm tells a different story on every axis. Overall recall was 97.3% in clean segments and dipped to 96.4% in apnea: the perfusion attenuation lowers in-event pulse amplitude toward the detector's relative-amplitude floor, so a small fraction of apnea pulses adjacent to full-perfusion beats fall below threshold and are missed. The arm simultaneously <b>over-detects</b> — precision 92.4%, i.e. ≈8% of reported pulses do not correspond to a true beat — the residual of the known synthetic-vs-real false-positive tendency. So the optical beat train is at once missing some real apnea beats and adding some spurious ones, both of which corrupt beat-to-beat timing.</p>
+  <p>Crucially, the quality index does not separate the good segments from the bad. Mean SQI moved only from 0.93 (clean) to 0.90 (apnea) and never approached the 0.5 clean-beat gate (Figure 1, middle): because SQI scores each detected beat by pulse-shape correlation, the apnea beats that <em>are</em> detected still look clean, and the missed and spurious beats are simply not represented in it. A consumer that trusts SQI to mark unreliable stretches would see green across the very events where the optical train is least faithful.</p>
+
+  <h3 class="sub">3.2 The optical yield error biases HRV upward</h3>
+  <p>Reconstructing rMSSD identically from the detected and true beat-times, the recovered PPG train was inflated a median <b>+16%</b> relative to truth, largest in the windows with the lowest apnea recall (Figure 1, bottom). Missed pulses merge two short intervals into one long one — a large beat-to-beat jump that rMSSD, a root-mean-square of successive differences, is maximally sensitive to — and the residual pulse-arrival-time jitter and false positives add to it. An HRV summary read off the optical channel without event-aware weighting therefore reports a person as <em>more</em> beat-to-beat variable specifically on their most apneic nights, the opposite of the true autonomic effect. (This residual is the reason the optical arm must be trimmed before a cross-modality rMSSD equivalence comparison: the inflation is yield error, not the pulse-arrival-time jitter such a comparison is meant to isolate.)</p>
+
+  <h2 class="sec">4. Discussion</h2>
+  <p>The two cardiac modalities fail differently, as their physics predicts. QRS detection is electrical and apnea-invariant; optical pulse detection is perfusion-dependent, recovers fewer beats overall, loses a few more inside apnea events, and adds spurious ones. The practical hazard is compounded by the trust signal: a correlation-based SQI answers "does this beat look real?", not "are beats missing or invented here?", so it stays green through an error it structurally cannot see. The net effect on the headline HRV number is an upward bias concentrated exactly where respiratory disease is worst.</p>
+  <p>Two consequences follow for the suite. First, <b>fusion should not weight PPG HRV by SQI alone</b>: the Integrator already carries the apnea/CVHR event channel, and optical HRV should be down-weighted by event-state (or cross-checked against the ECG/RR arm) rather than trusted because quality reads green. Second, the asymmetry argues for treating the electrical arm as the HRV reference whenever both are present, and reading the optical arm primarily for what it recovers robustly (rate, gross trend) rather than for fine beat-to-beat variability during respiratory events.</p>
+  <div class="callout"><b>Limitations.</b> This is synthetic ground truth. The apnea recall dip and the over-detection are properties of the generator's perfusion model and the detector's relative-amplitude floor, not measured human rates — the value of the result is the <em>asymmetry, its SQI-invisibility, and the direction of the HRV bias</em>, which are physical, not the exact magnitudes. One ~9-minute window per patient bounds runtime but limits per-window precision and excludes whole-night drift. PPG motion gating was inactive in this lane (no ACC/GYRO companion), so the result isolates the perfusion and morphology effects from inertial artifact — a real recording would add motion-driven loss on top, which an inertial gate (not SQI) is designed to catch. A real validation needs simultaneous reference ECG and wrist/finger PPG with the inertial channel under scored apnea, which this harness motivates rather than replaces.</p></div>
+
+  <h2 class="sec">5. Reproducibility</h2>
+  <ul>
+    <li><b>Run it:</b> open <code>qrs-yield-analysis.html</code> → set patients → "Run cohort". The recall bars, the SQI-vs-recall scatter, the PPG rMSSD scatter, the headline cards and Table 1 populate live. Export <code>qrs-yield-results.csv</code> (per-window), <code>qrs-yield-stats.json</code> (pooled), <code>qrs-yield-figures.png</code>.</li>
+    <li><b>Detectors:</b> real <code>ecgdex-dsp.js</code> (<code>ECGDSP.analyze</code> → refined R-peak times + per-beat SQI) and <code>ppgdex-dsp.js</code> (<code>PPGDSP.analyze</code> → pulse foot times + per-beat SQI), driven through the FULL-lane worker realm (<code>qrs-yield-worker.js</code>, same script set as <code>cohort-worker.js</code>'s full lane).</li>
+    <li><b>Waveforms &amp; truth:</b> <code>cohort-full.js</code> (<code>renderECGInt16</code>) and <code>synth-gen.js</code> (<code>renderPPG</code>, <code>buildRR</code>, <code>pickWindow</code>) from the shared master timeline; cohort sampling via <code>cohort-gen.js</code>.</li>
+    <li><b>Matching:</b> pulse-arrival-corrected nearest-beat match (±120 ms); apnea labelling from the timeline event windows; rMSSD reconstructed identically from detected and true beat-times.</li>
+    <li><b>Next:</b> repeat on simultaneous reference-ECG + PPG (with inertial channel) under scored apnea to convert the harness result into a clinical miss-rate; feed the event-state PPG-HRV down-weighting into the Integrator.</li>
+  </ul>
+
+  <h2 class="sec">6. Sample size &amp; statistical power</h2>
+  <p>This is a <b>FULL-lane</b> pilot: each patient renders and scores raw waveforms (130 Hz ECG, 176 Hz optical), so runtime per patient is far higher than the FAST metric lanes and a 100k-scale run is impractical (hours). Statistical precision, however, comes from <b>pooled beats</b>, not patients — each ~9-minute window contributes ~520 beats — so a few dozen windows already pool tens of thousands of beats and give tight recall/precision estimates (binomial SE √(p(1−p)/N_beats) with N_beats ≈ 28,000 is well under ±0.3%). The binding cost is wall-clock, not statistics.</p>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 2.</b> Sample-size guidance for this FULL-lane pilot (patients → ~1 window/arm → ~520 beats/window).</caption>
+    <thead><tr><th>Tier</th><th class="num">Patients</th><th>What it buys</th></tr></thead>
+    <tbody>
+      <tr><td>Minimum (acceptable)</td><td class="num">~30</td><td>~15k pooled beats/arm; the modality asymmetry, the SQI-invisibility, and the +16% HRV inflation are all clear with recall/precision to ≈±0.4%.</td></tr>
+      <tr class="hi"><td>Recommended</td><td class="num">~60–100</td><td>~28k–50k pooled beats/arm; pooled rates to ≈±0.3% and enough per-window points for the SQI-vs-recall and rMSSD scatters. This run used 60 (54 valid windows/arm).</td></tr>
+      <tr><td>This run</td><td class="num">60</td><td>54 valid windows/arm, ≈28,100 true beats/arm (≈4,500 inside apnea events).</td></tr>
+      <tr><td>Diminishing returns</td><td class="num">&gt; ~200</td><td>Pooled-beat CIs are already &lt;±0.2%; more patients mainly add FULL-lane hours. Real value past here comes from <em>multiple/whole-night windows per patient</em> (drift, motion) rather than more single windows.</td></tr>
+    </tbody>
+  </table>
+  <p>Practical reading: <b>~30</b> patients to establish the asymmetry, <b>~60–100</b> for publication-grade pooled rates; beyond <b>~200</b> the FULL-lane runtime cost outweighs the shrinking CIs — widen to whole-night or multi-window records instead of more patients.</p>
+
+  <h2 class="sec">References</h2>
+  <ol class="refs">
+    <li>Project documentation: <code>CLAUDE.md</code> (Clock Contract, evidence-grade system), <code>COHORT-VALIDATION-README.md</code>, <code>COHORT-WORKFLOW-GUIDE.md</code>, <code>PAPERS-AND-FIXES-BRIEF.md</code>, Tepna suite.</li>
+    <li>Pan J, Tompkins WJ. A real-time QRS detection algorithm — for the ECG R-peak detector (full citation to be added at submission).</li>
+    <li>Standard references on PPG signal-quality indices, perfusion-dependent pulse detection, and HRV (rMSSD) sensitivity to missed/ectopic beats — to be added at submission.</li>
+    <li>Companion preprints: <code>cgm-hrv-coupling.html</code> (cross-node coherence), <code>nights-icc.html</code> (reliability), Tepna working preprint series.</li>
+  </ol>
+
+  <div class="footer">Tepna working preprint · generated from live analysis output · figures and statistics regenerate deterministically from the cited tool. Not peer-reviewed; not for clinical use.</div>
+</div>
+
+<div class="dxl dxl-oneline" style="max-width:820px;margin:30px auto 8px;justify-content:center">
+  <span class="dxl-mark">T</span>
+  <span>© 2026 <b style="font-weight:600;color:var(--text,#F4F7FB)">Michal Planicka</b></span>
+  <span class="dxl-sep">·</span><span>Tepna v1.0.0</span>
+  <span class="dxl-sep">·</span><span class="dxl-lic">Apache-2.0</span>
+  <span class="dxl-sep">·</span><span style="color:var(--text4,#6E7F94)">◈ Asheville, NC</span>
+  <span class="dxl-sep">·</span><span style="color:var(--text4,#6E7F94)">not a medical device</span>
+</div>
+</body></html>

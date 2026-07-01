@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  cpapdex-edf-selftest.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+--><meta charset="UTF-8"><title>cpapdex self-test</title>
+<style>body{background:#0d1117;color:#e6edf3;font:13px/1.6 ui-monospace,monospace;padding:24px}
+.pass{color:#39d98a}.fail{color:#ff6b7a}h1{font:600 15px system-ui;color:#3DE0D0}h2{font:600 13px system-ui;color:#58A6FF;margin:18px 0 4px}</style></head>
+<body><h1>cpapdex-edf.js + cpapdex-dsp.js — synthetic self-tests</h1>
+<h2>EDF reader</h2><pre id="edf">…</pre>
+<h2>DSP / metrics</h2><pre id="dsp">…</pre>
+<script src="cpapdex-edf.js"></script>
+<script src="cpapdex-dsp.js"></script>
+<script>
+function render(id, r){
+  document.getElementById(id).innerHTML = r.log.map(function(l){
+    return '<span class="'+(l[0]==='\u2713'?'pass':'fail')+'">'+l.replace(/</g,'&lt;')+'</span>';
+  }).join('\n') + '\n\n<b>'+r.pass+' passed, '+r.fail+' failed</b>';
+}
+render('edf', CpapEdf.selfTest());
+render('dsp', CpapDsp.selfTest());
+</script></body></html>

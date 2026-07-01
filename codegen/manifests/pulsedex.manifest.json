@@ -1,0 +1,91 @@
+{
+  "node": "PulseDex",
+  "modality": "Pulse-Based HRV (RR/PPG-derived)",
+  "icon": "📈",
+  "accentColor": "var(--orange)",
+  "accentHex": "#fb923c",
+  "version": "1.0.0",
+  "status": "planned",
+  "description": "HRV analysis from RR-interval series derived from any pulse source (PPG, chest strap, or pulse watch). Focuses on metrics that are robust across different sensor types and sampling qualities.",
+  "warning": "RR intervals derived from pulse sensors (PPG-based) have lower temporal precision than ECG-derived NN intervals. PPG-derived 'HRV' reflects a mix of cardiac autonomic activity and peripheral vascular dynamics. Cross-device comparison requires caution.",
+
+  "dataModel": {
+    "fields": {
+      "rr":         "Float32Array — ms, beat-to-beat (from any pulse source)",
+      "timestamps": "Float64Array — Unix seconds per beat",
+      "source":     "string — PPG | chest_strap | watch | unknown",
+      "quality":    "Float32Array — per-beat quality score 0–1 (optional)"
+    }
+  },
+
+  "sections": [
+    {
+      "id": "pulse-hrv-basics",
+      "title": "Pulse HRV Basics",
+      "icon": "💓",
+      "description": "Core time-domain HRV from pulse-derived RR intervals",
+      "metrics": [
+        { "id": "meanRR",    "abbr": "RRμ",    "name": "Mean RR",             "fullName": "Mean pulse-derived inter-beat interval",  "tier": "core", "unit": "ms",
+          "formula": "mean(RR)", "compute": { "fn": "mean", "source": "rr" },
+          "ranges": [ { "max": 800, "label": "Elevated HR", "class": "warn" }, { "max": 1200, "label": "Normal", "class": "ok" }, { "max": null, "label": "Low HR", "class": "ok" } ] },
+        { "id": "sdnn",      "abbr": "SDNN",   "name": "SDNN",               "fullName": "SD of pulse-derived RR intervals",  "tier": "core", "unit": "ms",
+          "formula": "SD(RR)", "compute": { "fn": "sd", "source": "rr" },
+          "ranges": [ { "max": 30, "label": "Low", "class": "bad" }, { "max": 100, "label": "Moderate", "class": "warn" }, { "max": null, "label": "Good", "class": "ok" } ] },
+        { "id": "rmssd",     "abbr": "RMSSD",  "name": "RMSSD",              "fullName": "Root mean square of successive RR diffs",  "tier": "core", "unit": "ms",
+          "formula": "√(mean((RR[i+1]−RR[i])²))", "compute": { "fn": "rmssd", "source": "rr" },
+          "ranges": [ { "max": 20, "label": "Low vagal", "class": "bad" }, { "max": 50, "label": "Moderate", "class": "warn" }, { "max": null, "label": "Good vagal", "class": "ok" } ] },
+        { "id": "pnn50",     "abbr": "pNN50",  "name": "pNN50",              "fullName": "% of successive RR diffs > 50 ms",  "tier": "core", "unit": "%",
+          "formula": "count(|ΔRR| > 50) / total × 100", "compute": { "fn": "pnn_equiv", "source": "rr", "args": [50] },
+          "ranges": [ { "max": 5, "label": "Low", "class": "warn" }, { "max": null, "label": "Normal", "class": "ok" } ] },
+        { "id": "cvRR",      "abbr": "CV-RR",  "name": "RR Coefficient of Variation",  "fullName": "SD(RR) / mean(RR) × 100",  "tier": "secondary", "unit": "%",
+          "formula": "SD(RR) / mean(RR) × 100", "compute": { "fn": "cov", "source": "rr" },
+          "ranges": [ { "max": 3, "label": "Low", "class": "warn" }, { "max": 10, "label": "Normal", "class": "ok" }, { "max": null, "label": "High", "class": "ok" } ] }
+      ]
+    },
+    {
+      "id": "pulse-freq",
+      "title": "Pulse Spectral HRV",
+      "icon": "🔊",
+      "description": "Frequency-domain HRV from pulse-derived RR intervals",
+      "metrics": [
+        { "id": "lfNorm",    "abbr": "nLF",    "name": "Normalized LF",      "fullName": "LF / (LF + HF) in normalized units",  "tier": "secondary", "unit": "n.u.",
+          "formula": "LF / (LF + HF) × 100", "compute": { "fn": "lf_hf_ratio", "source": "rr", "args": [0.04, 0.15, 0.15, 0.40] },
+          "ranges": [ { "max": 40, "label": "Vagal dominant", "class": "ok" }, { "max": 60, "label": "Balanced", "class": "ok" }, { "max": null, "label": "Sympathetic shift", "class": "warn" } ] },
+        { "id": "hfPeak",    "abbr": "HF-f₀",  "name": "HF Peak Frequency",  "fullName": "Dominant respiratory frequency from HF band",  "tier": "research", "unit": "Hz",
+          "formula": "argmax|X(f)|² in 0.15–0.40 Hz", "compute": { "fn": "peak_freq", "source": "rr", "args": [0.15, 0.40] },
+          "ranges": [ { "max": 0.15, "label": "Low respiratory rate", "class": "warn" }, { "max": 0.25, "label": "Normal (9–15 br/min)", "class": "ok" }, { "max": null, "label": "High respiratory rate", "class": "warn" } ] },
+        { "id": "lfHfPulse", "abbr": "LF/HF",  "name": "LF/HF Ratio",        "fullName": "Sympathovagal balance from pulse-derived HRV",  "tier": "secondary", "unit": "ratio",
+          "formula": "LF_ms² / HF_ms²", "compute": { "fn": "lf_hf_ratio", "source": "rr", "args": [0.04, 0.15, 0.15, 0.40] },
+          "ranges": [ { "max": 2.0, "label": "Balanced", "class": "ok" }, { "max": 4.0, "label": "Sympathetic shift", "class": "warn" }, { "max": null, "label": "Sympathetic dominant", "class": "bad" } ] }
+      ]
+    },
+    {
+      "id": "pulse-quality",
+      "title": "Signal Quality & Robustness",
+      "icon": "📡",
+      "description": "Quality assessment specific to pulse-derived HRV",
+      "metrics": [
+        { "id": "ectopyRate","abbr": "ECT",    "name": "Detected Ectopy Rate",  "fullName": "Suspected ectopic beats per hour from RR outlier detection",  "tier": "secondary", "unit": "events/hr",
+          "formula": "count(RR outside median ± 20%) / hours", "compute": { "fn": "stub", "note": "Requires outlier detection" },
+          "ranges": [ { "max": 5, "label": "Low — clean", "class": "ok" }, { "max": 10, "label": "Moderate", "class": "warn" }, { "max": null, "label": "High — filter before analysis", "class": "bad" } ] },
+        { "id": "rrOutlierPct","abbr": "RR-Out%","name": "RR Outlier Percentage",  "fullName": "Percentage of RR intervals flagged as physiologically implausible",  "tier": "secondary", "unit": "%",
+          "formula": "count(RR < 300 or RR > 2000) / total × 100", "compute": { "fn": "stub", "note": "Requires range-based outlier detection" },
+          "ranges": [ { "max": 1, "label": "Clean", "class": "ok" }, { "max": 3, "label": "Minor", "class": "warn" }, { "max": null, "label": "Significant — unreliable", "class": "bad" } ] }
+      ]
+    }
+  ],
+
+  "abbreviations": {
+    "CV": "Coefficient of Variation",
+    "ECT": "Ectopic Beat Rate",
+    "HF": "High Frequency (0.15–0.40 Hz)",
+    "HRV": "Heart Rate Variability",
+    "LF": "Low Frequency (0.04–0.15 Hz)",
+    "n.u.": "Normalized Units",
+    "pNN50": "Percentage of successive RR diffs > 50 ms",
+    "PPG": "Photoplethysmography",
+    "RMSSD": "Root Mean Square of Successive Differences",
+    "RR": "R-R Interval (inter-beat interval)",
+    "SDNN": "Standard Deviation of RR intervals"
+  }
+}

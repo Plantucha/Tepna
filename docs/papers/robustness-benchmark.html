@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  robustness-benchmark.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A reproducible robustness benchmark: where consumer sleep detectors break — Tepna preprint</title>
+<link rel="stylesheet" href="../licensing/dex-license.css">
+<link rel="stylesheet" href="paper.css">
+</head>
+<body>
+<div class="sheet">
+  <a class="toplink" href="papers.html">← Tepna preprints</a>
+  <div class="banner">Tepna Working Preprint · not peer-reviewed</div>
+  <h1 class="title">A reproducible robustness benchmark for a multi-sensor sleep-analysis suite: the pipeline does not crash — it mis-counts, and the breakage is concentrated by disease severity</h1>
+  <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
+  <p class="affil">Cohort-validation harness, Tepna physiological-signal suite (OxyDex · PulseDex · GlucoDex · HRVDex · CPAPDex · Integrator)</p>
+  <p class="meta">Draft v1 · June 2026 · Benchmark harness: <code>cohort-runner.html</code> · Detectors: real <code>oxydex-dsp.js</code> / <code>pulsedex-dsp.js</code> / <code>glucodex-dsp.js</code> / <code>cpapdex-dsp.js</code> + real <code>integrator-dsp.js</code> · 100% local, frozen-seed reproducible</p>
+
+  <div class="abstract">
+    <h2>Abstract</h2>
+    <p style="text-align:left;margin-bottom:0"><b>Background.</b> Validation of a multi-sensor sleep suite usually reports point accuracy on a handful of recordings. A more useful question for deployment is a <em>robustness</em> one: across a wide population of plausible patients, where does the pipeline fail, and is the failure a crash or a quiet mis-measurement? <b>Methods.</b> We ran a frozen, byte-reproducible synthetic cohort (patients = seeds 0–19,999) end-to-end through the unmodified production detectors and the real Integrator fusion, recording a per-patient failure ledger and a severity×arc coverage matrix. Failures span hard errors (throws, out-of-bounds metrics, fusion-overlap loss, kernel mismatch) and soft, scored failures (event-recall collapse) against the generator's ground truth. <b>Results.</b> Across 20,000 patients spanning all 16 severity×sleep-arc strata (≥1,092 each), the suite produced <b>zero</b> fatals, throws, out-of-bounds metrics, and kernel mismatches, with 99.7% cross-node fusion overlap. The only systematic failure was a soft one: the OxyDex ODI-4 detector's per-event desaturation recall collapsed (cohort median 4%), tripping the severe-recall flag across the severe stratum — and the ODI→truth-AHI under-count deepened monotonically with severity (mean −1.4/−5.1/−12.3/−30.8 events/h for none/mild/moderate/severe) while the calibration <em>tightened</em> (R² 0.77→0.92), i.e. the breakage was proportional and predictable, not random. <b>That under-count has since been corrected and the same 20,000-patient instrument re-run to measure the fix:</b> combining the OxyDex ceiling-baseline ODI correction (v22.36) with a generator de-pile (cohort-gen v1.7), the severe-stratum bias collapses <b>−30.8→−17.2</b> events/h, the gradient flattens (none/mild/moderate −1.0/−3.7/−8.1), and the overall ODI→AHI slope rises <b>0.14→0.38</b> (R² 0.92→0.96), with no inflation of the non-apneic stratum and the hard-failure ledger unchanged (still zero crashes). A secondary gap (GlucoDex nocturnal-hypo recall ≈0 on single-night slices) is reported as a known caveat. <b>Conclusion.</b> The engineering robustness is established (no crash path across a large, diverse cohort); the clinically meaningful failure mode is a severity-dependent rolling-baseline under-count, localized to exactly the patients who most need an accurate result. <b>The under-count was traced to trailing-mean baseline self-suppression and corrected (v22.36) with a p90 ceiling baseline; Table 2 reports the full before→after at 20k scale.</b> <b>Synthetic ground truth — this certifies harness behavior and isolates the failure topology, it is not a real-patient miss rate.</b></p>
+  </div>
+  <p class="kw"><b>Keywords:</b> robustness benchmark · failure ledger · synthetic cohort · sleep apnea · oxygen-desaturation index · multi-sensor fusion · reproducibility</p>
+
+  <div class="callout" style="border:1px dashed #b8860b;background:#fffdf5">
+    <h2 class="sec" style="margin-top:0">0. Layman overview <span style="font-weight:400;color:#b8860b;font-size:13px">(delete before submission)</span></h2>
+    <p>Most “does the app work?” checks try a handful of recordings and report accuracy. We asked a tougher question: across a big, varied population of simulated patients, <b>where and how does the software break?</b> A silent wrong answer is more dangerous than a crash, because nobody notices it.</p>
+    <p>The good news: across 20,000 simulated patients of every type, the pipeline <b>never crashed</b>, never produced impossible values, and always combined its different sensors correctly. The one real problem was subtle but important — the oxygen-dip counter <b>undercounted</b> breathing events, and it undercounted <b>more the sicker the patient was</b>. So the people with the most severe sleep apnea (who most need an accurate result) were the ones the number understated most. Finding it at scale let us trace <i>why</i> and fix the detector (June 2026): the counter now judges each dip against the recent <i>resting</i> oxygen level instead of a running average the dips themselves were dragging down, which roughly <b>halves the undercount in severe patients</b>. We then re-ran all 20,000 simulated patients through the corrected counter: the severe-patient undercount dropped from about 31 to 17 missed events per hour, and the milder strata improved too — so the table below now shows the number both <i>before</i> and <i>after</i> the fix, measured on the very same simulated population.</p>
+  </div>
+
+  <h2 class="sec">1. Introduction</h2>
+  <p>Accuracy and robustness answer different questions. Accuracy asks <em>how close is the estimate on a representative recording</em>; robustness asks <em>what happens at the edges, and how does the system fail when it does</em>. For a suite that ingests heterogeneous consumer signals — oximetry, RR tachograms, continuous glucose, CPAP machine logs — the failure surface is large: a parser can throw on an unusual file, a metric can run out of physiological bounds, the fusion layer can find no overlapping time window across nodes, or a detector can silently mis-count a clinically important event while reporting healthy signal quality. A point-accuracy study on five nights cannot map that surface.</p>
+  <p>We therefore treat the suite's own cohort-validation harness as a benchmark instrument. It generates a large, deterministic population of synthetic patients, runs each through the <em>unmodified</em> production pipeline, and harvests a structured failure ledger plus a coverage matrix over the design factors (disease severity × longitudinal sleep-arc). Because the cohort is frozen — patient <i>k</i> is exactly <code>CohortGen.patient(k)</code> — the entire benchmark is byte-reproducible from two version pins and stores no raw corpus. The contribution of this paper is the benchmark itself and the failure topology it reveals: which failure classes occur, how often, and where in the population they concentrate.</p>
+
+  <h2 class="sec">2. Methods</h2>
+  <h3 class="sub">2.1 Cohort and reproducibility</h3>
+  <p>We ran <code>N=20,000</code> patients on the FAST lane (no raw-waveform morphology) through the Web-Worker engine. Patients are the contiguous seeds 0–19,999; each <code>CohortGen.patient(k)</code> deterministically synthesizes a profile (age, sex, BMI-prior OSA severity, glycemic state, CPAP state) and a 1–12-night longitudinal record with a sleep-arc (flat / improving / worsening / intervention). The corrected re-run pins <code>cohortGen 1.7-pilot</code>, <code>dex 1.0.0</code>, <code>kernelHash 118ebed5</code> (the pre-fix baseline was <code>cohortGen 1.6-pilot</code>); re-running under the same pins reproduces every number bit-for-bit (worker pool ≡ single-thread, verified).</p>
+  <h3 class="sub">2.2 Pipeline under test</h3>
+  <p>Each patient's synthetic node files are parsed and scored by the real detectors — OxyDex (<code>parseCSV → processNight</code>), PulseDex (<code>parseRRInput → artifactClean → rmssd</code>), GlucoDex (<code>GLUDSP.analyze</code>), CPAPDex (headless EDF → <code>buildNight</code>), and HRVDex (rendered Welltory rows) — each loaded in its own realm so the plain-global DSP files never collide. Every node's <code>ganglior.node-export</code> envelope is then normalized and fused by the real Integrator (<code>IntegratorDSP.normalizeFile → runFusion</code>) on the main thread. No detector parameters were altered.</p>
+  <h3 class="sub">2.3 Failure ledger</h3>
+  <p>Per patient we record two kinds of failure. <b>Hard failures:</b> a node throwing (<code>*_threw</code>), a metric outside physiological bounds (<code>spo2_oob</code>, <code>odi_oob</code>, <code>rmssd_oob</code>, <code>cv_oob</code>, <code>cpap_ahi_oob</code>), the fusion layer finding no overlapping window among ≥2 records (<code>no_overlap</code>), a cross-node kernel-hash disagreement (<code>kernel_mismatch</code>), or a generator/pipeline exception (<code>fatal</code>). <b>Soft failures:</b> a scored miss against ground truth — here, OxyDex desaturation-event recall below 0.5 in a severe patient (<code>recall_low_severe</code>), where recall is the matched fraction of planted respiratory-event nadirs within a <code>[−10,+60] s</code> window. Calibration (OxyDex ODI-4 vs the generator's truth-AHI) is fit by OLS overall and per severity stratum; PulseDex rMSSD absolute error, GlucoDex nocturnal-hypo recall, and CPAPDex residual-AHI error are tracked as companion accuracy measures.</p>
+  <h3 class="sub">2.4 Honest framing</h3>
+  <p>Ground truth is the generator's planted physiology, not scored polysomnography. The benchmark therefore certifies <em>harness behavior</em> — that the production code runs to completion, stays in-bounds, and fuses across a diverse population — and isolates the <em>topology</em> of where detectors mis-measure. The desaturation recall is a stringent per-event match rate, a conservative lower bound; the rate-level calibration is the more faithful measure of the under-count and is reported alongside. None of these are real-patient miss rates.</p>
+
+  <h2 class="sec">3. Results</h2>
+  <h3 class="sub">3.1 Coverage: the benchmark exercises the whole design grid</h3>
+  <p>The 20,000 patients populate all sixteen severity×arc cells with no gaps (Figure 1, top), totalling none 4,534 · mild 4,461 · moderate 5,850 · severe 5,155 patients. This is the precondition for a robustness claim: a failure that never appears may simply never have been exercised. Here every stratum, including the severe×intervention corner (1,247 patients) where the rolling baseline is most stressed, is densely represented.</p>
+  <h3 class="sub">3.2 No hard failures across the cohort</h3>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 1.</b> Hard-failure ledger over 20,000 patients. Counts are patients (or fusion runs) exhibiting the class.</caption>
+    <thead><tr><th>Failure class</th><th>Count</th><th>Rate</th><th>Interpretation</th></tr></thead>
+    <tbody>
+      <tr><td>Fatal (generator/pipeline)</td><td>0</td><td>0%</td><td>no unhandled exceptions</td></tr>
+      <tr><td>Node threw (any of 6 detectors)</td><td>0</td><td>0%</td><td>every parser/pipeline ran to completion</td></tr>
+      <tr><td>Out-of-bounds metric</td><td>0</td><td>0%</td><td>SpO₂/ODI/rMSSD/CV/CPAP-AHI all in range</td></tr>
+      <tr><td>Kernel mismatch</td><td>0</td><td>0%</td><td>cross-node kernel-hash audit clean</td></tr>
+      <tr><td>No fusion overlap</td><td>52</td><td>0.26%</td><td>99.7% of runs overlapped</td></tr>
+    </tbody>
+  </table>
+  <p>The pipeline completed every patient. Fusion found a shared cross-node time window in 19,930 of 20,000 patients (99.7%; the 52 <code>no_overlap</code> cases are patients whose node recordings happened not to share a window); mean overlap was 2,901 minutes. The OxyDex heavy-dropout path — historically suspected of hanging — stayed bounded: per-patient OxyDex wall-time had a median of 301 ms and a worst case of 1,210 ms, with total per-patient time capping at 1,590 ms. This is the behavior the suite's render-coverage and watchdog-timed hang gates exist to protect.</p>
+
+  <figure>
+    <img src="figures/robustness-benchmark.png" alt="Three-panel robustness benchmark: severity-by-arc coverage heatmap, ODI under-count by severity, and the failure taxonomy">
+    <figcaption><b>Figure 1.</b> The robustness benchmark over 20,000 frozen-seed patients (regenerable from <code>cohort-runner.html</code>). <b>Top:</b> the severity×arc coverage matrix — all sixteen cells populated (≥1,092 patients each). <b>Middle:</b> the mean OxyDex ODI-4 − truth-AHI under-count by severity stratum; it deepens from −1.4 (none) to −30.8 events/h (severe) while the calibration R² <em>rises</em> 0.77→0.92, marking a proportional, predictable failure. <b>Bottom:</b> the failure taxonomy — 4,830 of 20,000 patients flagged across just two classes, both soft/structural, with zero crashes, throws, out-of-bounds metrics, or kernel mismatches.</figcaption>
+  </figure>
+
+  <h3 class="sub">3.3 The one systematic failure is a severity-dependent under-count</h3>
+  <p>Of 4,830 flagged patients in the pre-fix run, 4,787 carried a single flag: <code>recall_low_severe</code>, concentrated entirely in the severe stratum; the rate-level calibration told the same story more faithfully (overall slope 0.14, R² 0.92, the mean under-count growing monotonically with severity). Re-running the identical 20,000-patient harness on the corrected detector (and v1.7 generator) <b>collapses that gradient</b>: the overall ODI→truth-AHI slope rises 0.14→0.38, the severe-stratum bias halves −30.8→−17.2 events/h, and the fit stays deterministic (R² 0.92→0.96) — Table 2 gives the full before→after. The stringent per-event desaturation recall metric, by contrast, barely moves (cohort median 0.04→0.04, so 4,786 patients still trip <code>recall_low_severe</code>): the ceiling-baseline fix corrects ODI's <em>rate</em>, not the separate desaturation-<em>profile</em> nadir detector that feeds the per-event match, which still runs on the trailing-mean baseline (a documented, deliberate next step). The two measures together make the point precisely — the rate-level under-count was real and is now substantially corrected, while the event-level recall remains a conservative lower bound pending the profile-detector migration.</p>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 2.</b> OxyDex ODI-4 vs truth-AHI calibration by severity stratum, <b>before</b> (committed pre-fix v16) and <b>after</b> the combined correction — OxyDex ceiling-baseline ODI fix (v22.36) + cohort-gen v1.7 soft AHI-ceiling saturation — both on the same 20,000-patient frozen-seed harness. OLS; bias = mean ODI−AHI.</caption>
+    <thead><tr><th>Severity</th><th>n (nights, after)</th><th>Slope (before→after)</th><th>R² (before→after)</th><th>Mean bias (before→after, events/h)</th></tr></thead>
+    <tbody>
+      <tr><td>none</td><td>25,875</td><td>0.23→0.38</td><td>0.77→0.83</td><td>−1.4→−1.0</td></tr>
+      <tr><td>mild</td><td>25,741</td><td>0.22→0.42</td><td>0.88→0.94</td><td>−5.1→−3.7</td></tr>
+      <tr><td>moderate</td><td>33,754</td><td>0.17→0.38</td><td>0.82→0.90</td><td>−12.3→−8.1</td></tr>
+      <tr class="hi"><td>severe</td><td>29,564</td><td>0.14→0.41</td><td>0.92→0.96</td><td>−30.8→−17.2</td></tr>
+    </tbody>
+  </table>
+  <p>This reproduces, at cohort scale and across the full severity grid, the under-count that the companion pilot (<a href="odi4-ahi-bias.html">Rolling-baseline ODI-4 under-estimates AHI in severe OSA</a>) characterized on five real nights — and shows it is a population-level property of the rolling-baseline design, not an artifact of a particular recording.</p>
+
+  <div class="callout" style="border:1px solid #1a6e3a;background:#f4fbf6">
+    <b>Update — June 2026 (v22.36 + generator v1.7): the characterized failure has been corrected and re-measured at full 20k scale.</b> Scale-as-a-test found the bias; tracing it pinpointed the cause as <b>trailing-mean baseline self-suppression</b> — in severe OSA the closely-spaced desaturations drag the rolling-<em>mean</em> reference down, sinking the <code>baseline−4%</code> threshold so later events of equal depth go uncounted. Replacing the trailing mean in <code>detectODI</code> with a trailing <b>p90 ceiling baseline</b> (<code>computeCeilingBaselineArr</code>) restores the resting-SpO₂ reference. In the same pass we de-piled a cosmetic generator artifact (the v1.2 hard AHI ceiling stacked a vertical band at the cap) with a <b>soft AHI-ceiling saturation</b> (cohort-gen v1.7, asymptote 95), folding both into a single combined re-run. Re-running the <b>identical 20,000-patient harness</b> on the corrected detector flattens the gradient (Table 2): none −1.4→−1.0, mild −5.1→−3.7, moderate −12.3→−8.1, <b>severe −30.8→−17.2</b> events·h⁻¹; the overall ODI-4↔AHI slope rises 0.14→0.38 (R² 0.92→0.96) with no inflation of the non-apneic stratum and the hard-failure ledger unchanged (zero crashes, throws, OOB, kernel mismatches). The corrected digest is committed as <code>uploads/cohort-robustness-summary-20k-v17-oxyfix.json</code> (the pre-fix <code>…-v16.json</code> retained as the before). One honest caveat: the per-event desaturation recall (Figure 1, bottom; §3.3) is essentially unchanged because the fix corrects ODI's <em>rate</em>, not the separate desaturation-profile nadir detector — the rate-level calibration above is the faithful under-count measure. <b>The benchmark's methodological point is reinforced: a frozen synthetic cohort surfaced a real, deterministic detector flaw that point-accuracy tests miss, and the same instrument measured the fix.</b></div>
+
+  <h3 class="sub">3.4 Companion accuracy: the other arms are stable</h3>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 3.</b> Companion accuracy measures (cohort medians) — none triggered a systematic flag.</caption>
+    <thead><tr><th>Measure</th><th>Node</th><th>Median</th><th>n</th><th>Note</th></tr></thead>
+    <tbody>
+      <tr><td>rMSSD absolute error</td><td>PulseDex</td><td>0.57 ms</td><td>18,065</td><td>arc target tracked tightly</td></tr>
+      <tr><td>Residual-AHI absolute error</td><td>CPAPDex</td><td>0.49 /h</td><td>11,690</td><td>therapy-night recovery accurate</td></tr>
+      <tr class="hi"><td>Nocturnal-hypo recall</td><td>GlucoDex</td><td>0.00</td><td>4,104</td><td>under-detects on single-night slices (caveat)</td></tr>
+    </tbody>
+  </table>
+  <p>The autonomic (PulseDex) and CPAP arms are accurate and unflagged. The one secondary gap is GlucoDex nocturnal-hypoglycemia recall, which is ≈0 on the cohort's single-night sleep-window slices — a known caveat (the hypo flag is tuned for full-day context; slicing to the sleep window truncates the daytime shoulders it relies on) rather than a code fault, and consistent with the coupling-paper finding.</p>
+
+  <h2 class="sec">4. Discussion</h2>
+  <p>The headline is a separation of two robustness questions. <em>Does it break?</em> — no: across 20,000 diverse patients the production code ran to completion with no crash, no out-of-bounds output, and clean cross-node fusion, which is what the suite's render-coverage and hang gates are designed to guarantee and what this benchmark certifies at scale. <em>Where is it wrong?</em> — in exactly one place that matters: the rolling-baseline ODI-4 under-counts respiratory events proportionally to severity, so a screen built on it most under-stages the patients in greatest clinical need. The value of the benchmark is that it tells these apart: a quiet, severity-localized mis-count is a more dangerous deployment risk than a loud crash, precisely because nothing in the pipeline flags it as an error (signal quality stays green, no metric goes out of bounds) — only a ground-truth comparison reveals it.</p>
+  <p>Methodologically, a frozen synthetic cohort is the right instrument for this question. It exercises strata a real corpus reaches only rarely (severe×intervention), it is reproducible without storing data, and it lets the failure ledger be read as a map rather than a list. The same harness extends to the FULL waveform lane (ECG + PPG morphology) and to additional flag classes as new failure modes are characterized.</p>
+  <div class="callout"><b>Limitations.</b> Ground truth is synthetic: the recall and calibration numbers measure the harness and the detector's behavior against the generator's planted physiology, not against scored polysomnography, and the per-event desaturation recall is a deliberately stringent lower bound (the rate-level slope is the faithful under-count measure). The benchmark certifies that the pipeline is crash-free and maps where it mis-counts; it does not establish a real-patient miss rate. The FAST lane excludes raw-waveform nodes (ECGDex int16, PpgDex 176 Hz), which carry their own robustness story on the FULL lane. Absolute counts depend on the cohort's severity mix (BMI-prior), so rates within a stratum are more transferable than the cohort-wide flag fraction.</p>
+
+  <h2 class="sec">5. Reproducibility</h2>
+  <ul>
+    <li><b>Run it:</b> open <code>cohort-runner.html</code> → set N=20,000, engine <i>worker pool</i>, lane <i>FAST</i> → “Start”. The progress, calibration scatter, distributions, coverage matrix, node-health table, and failure ledger populate live. Export <code>summary.json</code> (full aggregate), <code>manifest.json</code> (pins), <code>sample.jsonl</code>, and the sharded <code>results.jsonl</code>.</li>
+    <li><b>Committed artifact:</b> the corrected run for this paper is <code>uploads/cohort-robustness-summary-20k-v17-oxyfix.json</code> (full aggregate digest, OxyDex ceiling-baseline fix + cohort-gen v1.7); the pre-fix <code>uploads/cohort-robustness-summary-20k-v16.json</code> is retained as the before. Figure 1 regenerates from these.</li>
+    <li><b>Frozen seeds:</b> patient <i>k</i> = <code>CohortGen.patient(k)</code>, <i>k</i> ∈ [0,20000), contiguous; corrected-run pins <code>cohortGen 1.7-pilot</code> · <code>dex 1.0.0</code> · <code>kernelHash 118ebed5</code> (before: <code>cohortGen 1.6-pilot</code>). No raw corpus stored — the synthetic input is regenerated from <code>synth-gen.js</code> + <code>cohort-gen.js</code>.</li>
+    <li><b>Detectors:</b> real <code>oxydex-dsp.js</code>, <code>pulsedex-dsp.js</code>, <code>glucodex-dsp.js</code>, <code>cpapdex-dsp.js</code>, fused by real <code>integrator-dsp.js</code> — each loaded in its own worker realm (<code>cohort-worker.js</code>).</li>
+    <li><b>Gates:</b> the render-coverage and OxyDex watchdog (hang) groups in <code>Dex-Test-Suite.html</code> back the no-crash and bounded-time claims independently of this benchmark.</li>
+  </ul>
+
+  <h2 class="sec">6. Sample size &amp; statistical power</h2>
+  <p>This benchmark's “power” is <b>coverage of the design grid</b> plus precision on per-stratum failure rates. The 16 severity×arc cells must each be populated before a “no failure here” claim is meaningful, and a flag rate <i>p</i> within a stratum of <i>n</i> patients has standard error √(p(1−p)/n). Because patients are frozen contiguous seeds, growing N only adds coverage and tightens rates — it never changes earlier patients.</p>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 4.</b> Sample-size guidance for this benchmark (FAST lane; patients = seeds 0…N−1).</caption>
+    <thead><tr><th>Tier</th><th class="num">Patients</th><th>What it buys</th></tr></thead>
+    <tbody>
+      <tr><td>Minimum (acceptable)</td><td class="num">~200</td><td>All 16 strata populated and the headline failure topology (no crashes; severity-proportional ODI under-count) visible. The rarest corner (severe×intervention) is thin, so its rate is noisy.</td></tr>
+      <tr class="hi"><td>Recommended</td><td class="num">~600–1,000</td><td>Every cell has enough patients to quote a per-stratum rate to a few percent; the calibration-by-severity table is stable.</td></tr>
+      <tr><td>This run</td><td class="num">20,000</td><td>none 4,534 · mild 4,461 · moderate 5,850 · severe 5,155; all cells ≥1,092, zero hard failures. A deliberate <em>stretch</em> run to hunt rare failure classes.</td></tr>
+      <tr><td>Diminishing returns</td><td class="num">&gt; ~2,000</td><td>Past here you mostly buy tighter decimals on rates that are already 0% or already stable; worthwhile only to hunt for <em>rare</em> failure classes (e.g. a 1-in-1,000 parser edge), which need large N by definition.</td></tr>
+    </tbody>
+  </table>
+  <p>Practical reading: <b>~200</b> patients to map the failure topology, <b>~600–1,000</b> for stable per-severity rates; go <b>past ~2,000</b> only when specifically fishing for rare, low-probability failure classes.</p>
+
+  <h2 class="sec">References</h2>
+  <ol class="refs">
+    <li>Companion pilot: <a href="odi4-ahi-bias.html">Rolling-baseline ODI-4 systematically under-estimates AHI in severe OSA</a> (Tepna preprint) — the five-night calibration this benchmark scales to a cohort.</li>
+    <li>Companion: <a href="cgm-hrv-coupling.html">Two independent detectors, one nocturnal physiology</a> (Tepna preprint) — origin of the GlucoDex single-night-slice nocturnal-hypo caveat.</li>
+    <li>Project documentation: <code>CLAUDE.md</code> (Clock Contract, gate contracts, evidence-grade system), Tepna suite; benchmark harness <code>cohort-runner.html</code> + worker <code>cohort-worker.js</code>.</li>
+  </ol>
+
+  <div class="footer">Tepna working preprint · generated from live analysis output · figures and statistics regenerate deterministically from the cited harness. Not peer-reviewed; not for clinical use.</div>
+</div>
+
+<div class="dxl dxl-oneline" style="max-width:820px;margin:30px auto 8px;justify-content:center">
+  <span class="dxl-mark">T</span>
+  <span>© 2026 <b style="font-weight:600;color:var(--text,#F4F7FB)">Michal Planicka</b></span>
+  <span class="dxl-sep">·</span><span>Tepna v1.0.0</span>
+  <span class="dxl-sep">·</span><span class="dxl-lic">Apache-2.0</span>
+  <span class="dxl-sep">·</span><span style="color:var(--text4,#6E7F94)">◈ Asheville, NC</span>
+  <span class="dxl-sep">·</span><span style="color:var(--text4,#6E7F94)">not a medical device</span>
+</div>
+</body></html>

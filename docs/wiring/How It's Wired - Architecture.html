@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  How It's Wired — Architecture · GanglioR / the -Dex suite
+  Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+  The whole system on one page — the contributor on-ramp's visual map.
+  Loads no app code; ships no buildHash.
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How It's Wired — Architecture</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<meta name="description" content="GanglioR architecture on one page: the reflex arc, the three-layer stack, the per-node file pattern, the two gates, and the repo map. The contributor on-ramp.">
+<link rel="stylesheet" href="../dex-wired.css">
+<style>
+  /* ── arc ── */
+  .arc{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;position:relative;}
+  @media(max-width:760px){.arc{grid-template-columns:1fr 1fr;}}
+  .arcstep{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 18px 16px;border-top:2px solid var(--ac,var(--teal));position:relative;}
+  .arcstep .n{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--ac,var(--teal));}
+  .arcstep h4{font-size:16px;font-weight:700;margin:7px 0 5px;letter-spacing:-.01em;}
+  .arcstep p{font-size:12.5px;color:var(--text3);margin:0;line-height:1.5;}
+  .arcstep .w{font-family:var(--mono);font-size:10px;color:var(--text4);text-transform:uppercase;letter-spacing:.06em;margin-top:11px;display:block;}
+  .arcstep .w a{color:var(--ac,var(--teal));}
+  /* ── layer stack ── */
+  .stack{display:flex;flex-direction:column;gap:12px;}
+  .layer{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px 20px;border-left:4px solid var(--lc,var(--border2));}
+  .layer-h{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px;}
+  .layer-h b{font-size:17px;font-weight:800;letter-spacing:-.01em;}
+  .layer-h .tag{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--lc,var(--text4));border:1px solid var(--lc,var(--border2));border-radius:999px;padding:2px 9px;}
+  .layer-h .rule{font-family:var(--mono);font-size:11px;color:var(--text4);margin-left:auto;}
+  .layer p{font-size:13px;color:var(--text3);margin:0 0 10px;line-height:1.55;}
+  .layer .ff{display:flex;flex-wrap:wrap;gap:6px;}
+  .layer .ff span{font-family:var(--mono);font-size:11px;color:var(--text2);background:var(--surface2);border:1px solid var(--border2);border-radius:7px;padding:3px 9px;}
+  .down{text-align:center;color:var(--text4);font-family:var(--mono);font-size:11px;letter-spacing:.04em;margin:-4px 0;}
+  .down b{color:var(--teal);}
+  /* repo map */
+  .repo{width:100%;border-collapse:collapse;font-size:13px;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;}
+  .repo td{padding:11px 15px;border-bottom:1px solid var(--border);vertical-align:top;}
+  .repo tr:last-child td{border-bottom:none;}
+  .repo .p{font-family:var(--mono);font-size:12px;color:var(--blue);white-space:nowrap;}
+  .repo .d{color:var(--text3);}
+  /* node pattern */
+  .pattern{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;font-family:var(--mono);font-size:12.5px;color:var(--text2);line-height:1.95;overflow-x:auto;}
+  .pattern .c{color:var(--text4);}
+  .pattern .k{color:var(--teal);} .pattern .b{color:var(--blue);} .pattern .g{color:var(--green);} .pattern .a{color:var(--amber);} .pattern .pu{color:var(--purple);}
+</style>
+</head>
+<body>
+
+<header class="rail">
+  <div class="rail-in">
+    <a class="brand" href="How It's Wired - the Dex Suite.html"><svg class="brandmark" viewBox="0 0 100 100" aria-hidden="true" style="width:17px;height:17px;flex:none;filter:drop-shadow(0 0 5px rgba(61,224,208,.4))"><defs><linearGradient id="tgrad" x1="14" y1="10" x2="86" y2="88" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3DE0D0"/><stop offset=".58" stop-color="#58A6FF"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs><g fill="none" stroke="url(#tgrad)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></g></svg>How it's wired <small>GanglioR</small></a>
+    <nav class="rail-nodes">
+      <a href="How It's Wired - the Dex Suite.html">◈ Nodes</a>
+      <a href="How It's Wired - Architecture.html" class="cur">Architecture</a>
+      <span class="tool-off">Contributing</span>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <header class="dochead">
+    <div class="eyebrow"><a class="back" href="How It's Wired - the Dex Suite.html">← the -Dex suite</a> · contributor on-ramp</div>
+    <h1><span class="glyph">🗺️</span><span class="g">Architecture</span></h1>
+    <p class="lede">The whole system on <b>one page</b> — not twenty briefs. The reflex arc, the three-layer stack, the file pattern every node repeats, the two gates, and where things live. Start here, then open <span class="tool-off">CONTRIBUTING.md</span>.</p>
+    <div class="specsheet">
+      <div class="cell"><div class="k">Shape</div><div class="v">Reflex arc<small>receptors → relay → integration</small></div></div>
+      <div class="cell"><div class="k">Layers</div><div class="v">CORE · DSP · UI<small>dependencies point downhill</small></div></div>
+      <div class="cell"><div class="k">Runtime</div><div class="v">100% local<small>no network · no CDN · file://</small></div></div>
+      <div class="cell"><div class="k">Guardrails</div><div class="v">Two gates<small>behavior + provenance</small></div></div>
+    </div>
+  </header>
+
+  <!-- 01 ARC -->
+  <section class="sec">
+    <div class="sec-num">01 — THE SHAPE</div>
+    <h2 class="sec-h">One nervous system, read end-to-end</h2>
+    <p class="sec-d">The suite is an autonomic-nervous-system analogue. Each <b>-Dex node</b> is an afferent receptor sensing exactly one signal; <b>Ganglior</b> is the relay bus where exports converge; the <b>Integrator</b> is central integration; the read-out is the insight. Same arc a knee-jerk follows.</p>
+    <div class="arc">
+      <div class="arcstep" style="--ac:var(--teal)"><span class="n">01</span><h4>Sense</h4><p>Seven single-signal receptors. Each transduces one thing well, overnight.</p><span class="w"><a href="How It's Wired - the Dex Suite.html">the -Dex nodes →</a></span></div>
+      <div class="arcstep" style="--ac:var(--blue)"><span class="n">02</span><h4>Relay</h4><p>Node exports converge as events on one shared bus, lined up by the clock.</p><span class="w">Ganglior · the bus</span></div>
+      <div class="arcstep" style="--ac:var(--purple)"><span class="n">03</span><h4>Integrate</h4><p>Afferent signals become one coherent, longitudinal percept.</p><span class="w"><a href="How It's Wired - Integrator.html">the Integrator →</a></span></div>
+      <div class="arcstep" style="--ac:var(--green)"><span class="n">04</span><h4>Insight</h4><p>One daily read-out — what the autonomic system is doing, in plain words.</p><span class="w">ANS Intelligence</span></div>
+    </div>
+    <div class="callout frozen"><span class="ci">🧩</span><div><b>Nodes never import each other.</b> A user may own only one device, so every node is standalone. Cross-signal work happens <b>only</b> through the <code>ganglior.node-export</code> contract, consumed by the Integrator — never by reaching into another node's functions.</div></div>
+  </section>
+
+  <!-- 02 LAYERS -->
+  <section class="sec">
+    <div class="sec-num">02 — THE STACK</div>
+    <h2 class="sec-h">Three layers, one job each</h2>
+    <p class="sec-d">Every file belongs to exactly one layer. Dependencies point <b>downhill only</b> — UI → DSP → CORE — with no cycles. The settling question for any line of code: <b>would deleting it change a number, or only its appearance?</b></p>
+    <div class="stack">
+      <div class="layer" style="--lc:var(--L-app)">
+        <div class="layer-h"><b>UI</b><span class="tag">per node</span><span class="rule">no signal logic</span></div>
+        <p>Rendering and input only. Layout, charts, the evidence-badge spans, the depth selector, file ingest, exports, and view-state persistence. It asks DSP for the number and the registry for how to show it — it never recomputes one.</p>
+        <div class="ff"><span>&lt;node&gt;-render.js</span><span>&lt;node&gt;-app.js</span><span>&lt;Node&gt;.src.html</span></div>
+      </div>
+      <div class="down">▲ calls &nbsp;·&nbsp; <b>depends downhill</b></div>
+      <div class="layer" style="--lc:var(--L-dsp)">
+        <div class="layer-h"><b>DSP</b><span class="tag">per node</span><span class="rule">no UI · no DOM · no localStorage</span></div>
+        <p>One node's signal math: parsing, feature extraction, every metric. The domain expertise — complex, but only about its one signal. Runs headless in Node (the test suite essentially does). <code>parseTimestamp</code> is duplicated here per the Clock Contract, by design.</p>
+        <div class="ff"><span>&lt;node&gt;-dsp.js</span><span>-morph.js</span><span>-edf.js</span><span>-profile.js</span><span>-cross.js</span></div>
+      </div>
+      <div class="down">▲ uses &nbsp;·&nbsp; the Integrator also consumes <b>exports</b>, never internals</div>
+      <div class="layer" style="--lc:var(--L-core)">
+        <div class="layer-h"><b>CORE</b><span class="tag">shared</span><span class="rule">zero device knowledge · depends on nothing</span></div>
+        <p>The constitution every node obeys — stable by default, extended by adding new surface, never mutating old. No "oxygen" or "glucose" knowledge ever lives here. New CORE capability is a new field/method, not a changed one.</p>
+        <div class="ff"><span>kernel-constants.js</span><span>metric-registry.js</span><span>crossnight-envelope.js</span><span>ganglior-provenance.js</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 NODE PATTERN -->
+  <section class="sec">
+    <div class="sec-num">03 — THE PATTERN EVERY NODE REPEATS</div>
+    <h2 class="sec-h">Learn one node, you know them all</h2>
+    <p class="sec-d">A <code>&lt;Node&gt;.src.html</code> references external <code>*.js</code> in dependency order, then bundles to a standalone <code>&lt;Node&gt;.html</code>. The load order <i>is</i> the downhill direction: CORE first, then DSP, then UI.</p>
+    <div class="pattern">
+<span class="c">&lt;Node&gt;.src.html — loads in this order, bundles → &lt;Node&gt;.html</span><br>
+<span class="b">CORE (shared)</span>   ganglior-provenance · kernel-constants · metric-registry · crossnight-envelope<br>
+<span class="b">CORE (node)</span>     &lt;node&gt;-registry.js          <span class="c">— this node's metric DATA (label·unit·depth·evidence·cite)</span><br>
+<span class="k">DSP</span>             &lt;node&gt;-dsp.js  (+ -morph / -edf / -profile)  <span class="c">— pure signal math</span><br>
+<span class="g">UI</span>              &lt;node&gt;-render.js            <span class="c">— charts, tables, badges</span><br>
+<span class="a">UI</span>              &lt;node&gt;-app.js               <span class="c">— ingest · pipeline · exports (loaded last)</span><br>
+<span class="pu">FUSION</span>          &lt;node&gt;-cross.js / -fusion.js  <span class="c">— multi-night + Ganglior export</span><br>
+<span class="c">                ▼</span><br>
+emits  <span class="b">ganglior.node-export</span>  →  the Integrator fuses across nodes
+    </div>
+    <div class="callout"><span class="ci">🔎</span><div>Want the real file list, data flow and limits for a specific node? Each has its own wiring guide — start at the <a href="How It's Wired - the Dex Suite.html" style="color:var(--teal)">index</a>.</div></div>
+  </section>
+
+  <!-- 04 GATES -->
+  <section class="sec">
+    <div class="sec-num">04 — THE GUARDRAILS</div>
+    <h2 class="sec-h">Two gates make the contracts real</h2>
+    <p class="sec-d">Durability comes from <b>enforced contracts</b>, not tidy code. Run both after any change — a red is a blocker, not a nitpick. The shared assertions in <code>tests/dex-tests.js</code> <b>are</b> the public contract; keep back-compat rather than editing an assertion to hide a break.</p>
+    <div class="notes">
+      <div class="note good"><h4>Dex-Test-Suite.html<span class="tagi">behavior</span></h4><p>Loads the real modules + shared assertions and drives a live app bundle. Open it, wait ~3 s, the <code>#summary</code> pill must be all-green. CI mirror: <code>node tests/run-tests.mjs</code>. Run after any DSP/app/cross change and after re-bundling.</p></div>
+      <div class="note info"><h4>verify-provenance.html<span class="tagi">provenance</span></h4><p>Recomputes each bundle's <code>buildHash</code> and audits committed exports against it. Run after <b>re-bundling</b> — confirm no red mismatches. (A re-bundle changes the hash by design.)</p></div>
+      <div class="note warn"><h4>Edit inputs, not bundles<span class="tagi">build rule</span></h4><p>Change <code>*.js</code> + <code>&lt;Node&gt;.src.html</code>, <b>never</b> the bundled <code>&lt;Node&gt;.html</code>, then re-bundle via the inliner. 100% local, system fonts only, no CDN.</p></div>
+      <div class="note lim"><h4>Clock Contract<span class="tagi">non-negotiable</span></h4><p>Floating <code>tMs = Date.UTC(...)</code>, read back with <code>getUTC*</code>. Parse vendor stamps by regex, never <code>new Date(str)</code>. A missing stamp is <code>null</code>, never <code>now()</code>.</p></div>
+    </div>
+  </section>
+
+  <!-- 05 REPO MAP -->
+  <section class="sec">
+    <div class="sec-num">05 — WHERE THINGS LIVE</div>
+    <h2 class="sec-h">The repo map</h2>
+    <p class="sec-d">Not every file — the landmarks. The rest are deep-dive briefs you open only when a task sends you there.</p>
+    <table class="repo">
+      <tr><td class="p">&lt;Node&gt;.html</td><td class="d">The shipped instrument — a frozen, hash-verifiable single file. Generated; don't hand-edit.</td></tr>
+      <tr><td class="p">&lt;Node&gt;.src.html · &lt;node&gt;-*.js</td><td class="d">The editable source for each node (DSP / render / app / registry / …). This is what you change.</td></tr>
+      <tr><td class="p">kernel-constants · metric-registry · crossnight-envelope · ganglior-provenance</td><td class="d">The shared CORE every node loads — thresholds, badge logic, envelope shape, provenance stamp.</td></tr>
+      <tr><td class="p">Integrator.* · integrator-*.js</td><td class="d">The fusion layer — consumes node exports, fuses same-night + longitudinal.</td></tr>
+      <tr><td class="p">Dex-Test-Suite.html · verify-provenance.html · tests/</td><td class="d">The two gates + the shared assertions (the public contract).</td></tr>
+      <tr><td class="p">synth-gen.* · cohort-*.js · cohort-*.html</td><td class="d">SynthGen + the validation harness — synthetic corpus and the real-DSP experiments.</td></tr>
+      <tr><td class="p">*-analysis.html · papers/</td><td class="d">The analysis tools and the working-preprint series each tool feeds.</td></tr>
+      <tr><td class="p">CLAUDE.md · ARCHITECTURE-PRINCIPLES.md · LEXICON.md</td><td class="d">The constitution, the why, and the naming system. Read before the briefs.</td></tr>
+      <tr><td class="p">*-BRIEF.md · *-README.md</td><td class="d">Deep dives. Open the one a task points you to — not the on-ramp.</td></tr>
+    </table>
+    <div class="callout clock"><span class="ci">🚦</span><div><b>The on-ramp is three files, not thirty:</b> this page, <span class="tool-off">CONTRIBUTING.md</span>, and the <a href="How It's Wired - the Dex Suite.html" style="color:var(--teal)">wiring index</a>. Everything else is reference you reach for on demand.</div></div>
+  </section>
+
+  <section class="sec" style="border-top:none;padding-top:8px;">
+      <div class="pager">
+        <span class="tool-off"><div class="pl">Start contributing →</div><div class="pt">CONTRIBUTING.md</div></span>
+        <a class="nx" href="How It's Wired - the Dex Suite.html"><div class="pl">Per-node wiring →</div><div class="pt">The wiring index</div></a>
+      </div>
+  </section>
+
+  <footer class="docfoot">
+    <div class="fl">
+      <a href="How It's Wired - the Dex Suite.html">◈ Wiring index</a>
+      <span class="tool-off">Contributing</span>
+      <span class="tool-off">Constitution</span>
+      <span class="tool-off">Principles</span>
+      <span class="tool-off">Lexicon</span>
+      <a href="../index.html">ANS Intelligence</a>
+    </div>
+    <div class="fn"><b>GanglioR</b> — a browser-native, 100%-local physiological analysis instrument framework. Receptors → relay → integration → insight.</div>
+    <div class="disc">Not a medical device. For research and curiosity, not diagnosis.</div>
+  </footer>
+
+</div>
+</body>
+</html>

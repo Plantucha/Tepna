@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  Science.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  The lab front door: every live experiment tool + its plain-language abstract.
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tepna — Science &amp; experiments</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="stylesheet" href="licensing/dex-license.css">
+<style>
+:root{
+  --bg:#070A0E; --bg2:#0B0F14; --surface:#101722; --surface2:#16202D;
+  --border:#1c2a3b; --border2:#27384f;
+  --text:#F4F7FB; --text2:#A3B4C6; --text3:#7d90a5; --text4:#5a6b7e;
+  --teal:#3DE0D0; --blue:#58A6FF; --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A; --purple:#A78BFA;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden;}
+.wrap{max-width:1200px;margin:0 auto;padding:0 44px;position:relative;z-index:2;}
+.eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--teal);}
+a{color:inherit;text-decoration:none;}
+
+header.nav{position:sticky;top:0;z-index:30;backdrop-filter:blur(14px);background:rgba(7,10,14,.66);border-bottom:1px solid var(--border);}
+.nav-in{max-width:1200px;margin:0 auto;padding:15px 44px;display:flex;align-items:center;justify-content:space-between;}
+.brand{display:flex;align-items:center;gap:13px;font-weight:800;font-size:22px;letter-spacing:-.025em;color:var(--text);}
+.brand .mark{position:relative;width:15px;height:15px;border-radius:50%;background:radial-gradient(circle at 35% 30%,var(--teal),var(--blue));box-shadow:0 0 16px rgba(61,224,208,.85);animation:pulse 2.4s ease-in-out infinite;}
+.brand .mark::after{content:"";position:absolute;inset:-7px;border-radius:50%;border:1.5px solid var(--teal);animation:ring 2.6s ease-out infinite;}
+.brand .wm{line-height:1;}
+@keyframes ring{0%{transform:scale(.55);opacity:.6;}100%{transform:scale(1.5);opacity:0;}}
+@keyframes pulse{0%,100%{box-shadow:0 0 10px rgba(61,224,208,.5);}50%{box-shadow:0 0 20px rgba(61,224,208,.95);}}
+.nav-links{display:flex;gap:26px;font-size:13.5px;color:var(--text3);}
+.nav-links a:hover{color:var(--text);}
+.nav-cta{font-size:13px;font-weight:700;color:var(--bg);background:var(--teal);padding:9px 17px;border-radius:999px;box-shadow:0 0 18px rgba(61,224,208,.4);}
+
+/* hero */
+.hero{position:relative;padding:92px 0 64px;overflow:hidden;}
+#wave-hero{position:absolute;inset:0;width:100%;height:100%;z-index:0;opacity:.8;}
+.hero::after{content:"";position:absolute;inset:0;z-index:1;background:radial-gradient(125% 95% at 50% 10%,transparent 26%,rgba(7,10,14,.62) 68%,var(--bg) 100%);}
+.hero .wrap{text-align:center;}
+.hero h1{font-size:60px;line-height:1.04;letter-spacing:-.035em;font-weight:800;margin:18px auto 0;max-width:17ch;}
+.hero h1 .g{background:linear-gradient(115deg,var(--teal),var(--blue) 55%,var(--purple));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.hero .lede{font-size:18.5px;color:var(--text2);max-width:64ch;margin:22px auto 0;text-wrap:pretty;}
+.hero-actions{display:flex;gap:13px;justify-content:center;margin-top:30px;flex-wrap:wrap;}
+.btn{font-size:14px;font-weight:700;padding:13px 24px;border-radius:999px;cursor:pointer;border:1px solid transparent;transition:.16s;display:inline-flex;align-items:center;gap:8px;}
+.btn-primary{background:var(--teal);color:var(--bg);box-shadow:0 0 30px rgba(61,224,208,.4);}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 0 44px rgba(61,224,208,.6);}
+.btn-ghost{border-color:var(--border2);color:var(--text2);background:rgba(16,23,34,.5);}
+.btn-ghost:hover{border-color:var(--teal);color:var(--text);}
+
+/* honesty legend */
+.legend{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:34px;}
+.legend .lk{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11.5px;color:var(--text3);background:rgba(16,23,34,.55);border:1px solid var(--border);border-radius:999px;padding:6px 13px;}
+.legend .lk i{width:9px;height:9px;border-radius:50%;display:inline-block;}
+.legend .lk.real i{background:var(--green);}
+.legend .lk.det i{background:var(--teal);}
+.legend .lk.sim i{background:var(--blue);}
+.legend .lk.persp i{background:var(--purple);}
+
+/* stat ribbon */
+.ribbon{display:grid;grid-template-columns:repeat(4,1fr);gap:0;max-width:1000px;margin:48px auto 0;border:1px solid var(--border);border-radius:16px;overflow:hidden;background:var(--surface);}
+.ribbon .r{padding:22px 18px;text-align:center;border-right:1px solid var(--border);}
+.ribbon .r:last-child{border-right:0;}
+.ribbon .r b{display:block;font-size:30px;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums;background:linear-gradient(120deg,var(--teal),var(--blue));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.ribbon .r span{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--text4);margin-top:7px;}
+
+.divider{height:58px;position:relative;}
+.divider canvas{position:absolute;inset:0;width:100%;height:100%;}
+
+section{padding:48px 0;position:relative;}
+.grp-head{display:flex;align-items:baseline;gap:16px;margin-bottom:26px;flex-wrap:wrap;}
+.grp-head .gx{font-family:var(--mono);font-size:12px;letter-spacing:.16em;color:var(--acc,var(--teal));}
+.grp-head h2{font-size:27px;font-weight:800;letter-spacing:-.025em;}
+.grp-head p{color:var(--text3);font-size:14.5px;flex:1;min-width:240px;}
+
+/* study cards */
+.studies{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;}
+.study{background:linear-gradient(180deg,var(--surface),var(--bg2));border:1px solid var(--border);border-radius:18px;padding:24px 26px;display:flex;flex-direction:column;position:relative;overflow:hidden;transition:.18s;}
+.study::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--acc,var(--teal));opacity:.55;}
+.study:hover{transform:translateY(-3px);border-color:var(--border2);}
+.study:hover::before{opacity:1;}
+.study-top{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:13px;}
+.kind{font-family:var(--mono);font-size:10px;letter-spacing:.04em;padding:3px 9px;border-radius:999px;border:1px solid var(--border2);color:var(--text3);}
+.kind.real{color:var(--green);border-color:rgba(57,217,138,.4);background:rgba(57,217,138,.08);}
+.kind.det{color:var(--teal);border-color:rgba(61,224,208,.4);background:rgba(61,224,208,.08);}
+.kind.sim{color:var(--blue);border-color:rgba(88,166,255,.4);background:rgba(88,166,255,.08);}
+.kind.persp{color:var(--purple);border-color:rgba(167,139,250,.4);background:rgba(167,139,250,.08);font-style:italic;}
+.study-top .st{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--text4);}
+.study h3{font-size:19px;font-weight:800;letter-spacing:-.02em;line-height:1.22;}
+.study h3 a:hover{color:var(--acc,var(--teal));}
+.study .ab{font-size:14px;color:var(--text2);margin-top:11px;text-wrap:pretty;}
+.study .ab b{color:var(--text);font-weight:600;}
+.study .stat{display:flex;align-items:baseline;gap:11px;margin-top:16px;padding:12px 14px;background:var(--bg);border:1px solid var(--border);border-radius:11px;}
+.study .stat b{font-size:21px;font-weight:800;letter-spacing:-.02em;color:var(--acc,var(--teal));font-variant-numeric:tabular-nums;white-space:nowrap;}
+.study .stat span{font-size:12px;color:var(--text3);line-height:1.4;}
+.study-foot{margin-top:auto;padding-top:18px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
+.study-foot a{font-family:var(--mono);font-size:12px;font-weight:600;}
+.study-foot .rd{color:var(--text2);}
+.study-foot .rd:hover{color:var(--text);}
+.study-foot .tool{color:var(--acc,var(--teal));}
+.study-foot .tool:hover{text-decoration:underline;}
+.study-foot .sep{color:var(--border2);font-family:var(--mono);}
+
+/* bench */
+.bench{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:34px 36px;}
+.bench h2{font-size:24px;font-weight:800;letter-spacing:-.02em;}
+.bench p{color:var(--text3);font-size:14.5px;margin-top:8px;max-width:70ch;}
+.bench-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:24px;}
+.bx{display:flex;flex-direction:column;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px 18px;transition:.15s;}
+.bx:hover{border-color:var(--teal);transform:translateY(-2px);}
+.bx .bn{font-size:14.5px;font-weight:700;display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.bx .bn .ar{font-family:var(--mono);font-size:12px;color:var(--teal);}
+.bx .bd{font-family:var(--mono);font-size:11px;color:var(--text4);}
+.bx p{font-size:12.5px;color:var(--text3);margin-top:5px;}
+
+.note{max-width:760px;margin:0 auto;text-align:center;}
+.note .eyebrow{justify-content:center;}
+.note h2{font-size:26px;font-weight:800;letter-spacing:-.02em;margin-top:12px;}
+.note p{color:var(--text2);margin-top:12px;font-size:15px;text-wrap:pretty;}
+.note code{font-family:var(--mono);font-size:.92em;color:var(--teal);background:var(--bg2);padding:1px 6px;border-radius:5px;}
+
+footer{border-top:1px solid var(--border);padding:32px 0 50px;margin-top:30px;}
+.foot-in{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+.foot-note{font-family:var(--mono);font-size:11.5px;color:var(--text4);line-height:1.9;}
+.foot-links{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;}
+.foot-links a{color:var(--text3);}.foot-links a:hover{color:var(--teal);}
+
+@media(max-width:900px){
+  .wrap,.nav-in{padding-left:22px;padding-right:22px;}
+  .hero h1{font-size:40px;}
+  .studies,.bench-grid{grid-template-columns:1fr;}
+  .ribbon{grid-template-columns:1fr 1fr;}
+  .ribbon .r:nth-child(2){border-right:0;}
+  .nav-links{display:none;}
+}
+</style></head>
+<body>
+
+<header class="nav"><div class="nav-in">
+  <a class="brand" href="index.html"><svg class="brandmark" viewBox="0 0 100 100" aria-hidden="true" style="width:24px;height:24px;flex:none;filter:drop-shadow(0 0 7px rgba(61,224,208,.4))"><defs><linearGradient id="tgrad" x1="14" y1="10" x2="86" y2="88" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3DE0D0"/><stop offset=".58" stop-color="#58A6FF"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs><g fill="none" stroke="url(#tgrad)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></g></svg><span class="wm">Tepna</span></a>
+  <nav class="nav-links"><a href="index.html#devices">Devices</a><a href="How to Collect Data.html">Collect data</a><a href="#metrology">Experiments</a><a href="Architecture.html">Architecture</a><a href="Why This Exists.html">About</a></nav>
+  <a href="papers/papers.html" class="nav-cta">All preprints</a>
+</div></header>
+
+<section class="hero">
+  <canvas id="wave-hero"></canvas>
+  <div class="wrap">
+    <div class="eyebrow">Open lab · working preprints</div>
+    <h1>The <span class="g">experiments</span> behind every number.</h1>
+    <p class="lede">Tepna doesn't ask you to trust a black box. Every claim has a live tool you can run and a short paper that says exactly how sure we are — and labels honestly whether it ran on real devices, real detectors, or simulation. Poke at the methods. That's the point.</p>
+    <div class="hero-actions">
+      <a href="#metrology" class="btn btn-primary">Browse the experiments</a>
+      <a href="papers/papers.html" class="btn btn-ghost">Read the formal preprints →</a>
+    </div>
+    <div class="legend">
+      <span class="lk real"><i></i>real data</span>
+      <span class="lk det"><i></i>real detector</span>
+      <span class="lk sim"><i></i>simulation</span>
+      <span class="lk persp"><i></i>perspective</span>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+  <div class="ribbon">
+    <div class="r"><b>11</b><span>working preprints</span></div>
+    <div class="r"><b>10</b><span>runnable tools</span></div>
+    <div class="r"><b>20,000</b><span>synthetic patients stress-run</span></div>
+    <div class="r"><b>100%</b><span>on-device · reproducible</span></div>
+  </div>
+</div>
+
+<div class="divider"><canvas id="div1" width="2400" height="116"></canvas></div>
+
+<!-- METROLOGY -->
+<section id="metrology" style="--acc:var(--teal)"><div class="wrap">
+  <div class="grp-head"><span class="gx">01 / METROLOGY</span><h2>How much can you trust a cheap sensor?</h2><p>Stating a device's error when you never owned a gold-standard reference — and surviving 20k patients without a crash.</p></div>
+  <div class="studies">
+
+    <div class="study">
+      <div class="study-top"><span class="kind real">real data</span><span class="kind det">real detectors</span><span class="st">pilot complete</span></div>
+      <h3><a href="papers/sigma-no-reference.html">Three sensors, no gold standard — let them check each other</a></h3>
+      <p class="ab">You can't calibrate against a reference you don't own. So we put the O2Ring, Polar H10 and Verity Sense in a <b>three-cornered hat</b> — each one's error falls out of how the trio disagrees, with none assumed to be truth. The O2Ring's pulse reads true (−0.34 bpm bias); the noisy optical leg sets a shared floor.</p>
+      <div class="stat"><b>1.7 / 2.2 / 6.2</b><span>reference-free σ in bpm — H10 / O2Ring / Verity, from a real ~2-hour co-recording</span></div>
+      <div class="study-foot"><a class="rd" href="papers/sigma-no-reference.html">Read preprint →</a></div>
+    </div>
+
+    <div class="study">
+      <div class="study-top"><span class="kind sim">simulation</span><span class="kind det">real detectors</span><span class="st">pilot complete</span></div>
+      <h3><a href="papers/sensor-trio-nights.html">How long must you wear all three to know how good each one is?</a></h3>
+      <p class="ab">The power analysis for the trick above. A Monte-Carlo sweep shows <b>one ~1-hour window</b> pins the whole trio to ±0.5 bpm. The twist: sit still and you <b>understate</b> the fast sensors, because resting strips the shared heart-rate variability the method leans on — you have to move.</p>
+      <div class="stat"><b>~1 hour</b><span>of co-recording pins all three devices to ±0.5 bpm</span></div>
+      <div class="study-foot"><a class="rd" href="papers/sensor-trio-nights.html">Read preprint →</a></div>
+    </div>
+
+    <div class="study">
+      <div class="study-top"><span class="kind sim">simulation</span><span class="kind det">real detectors</span><span class="st">benchmark complete</span></div>
+      <h3><a href="papers/robustness-benchmark.html">20,000 synthetic patients vs the real pipeline. What breaks?</a></h3>
+      <p class="ab">Nothing crashes — zero fatals, 99.7% cross-node fusion overlap. But it <b>quietly miscounts</b>: the worse the apnea, the more breathing events the oximeter misses, tripping the severe-recall flag in 92.8% of severe patients. The dangerous failure is the silent, severity-localized one — not a crash.</p>
+      <div class="stat"><b>0 crashes</b><span>across 20,000 patients · the one real failure is a quiet, predictable under-count</span></div>
+      <div class="study-foot"><a class="rd" href="papers/robustness-benchmark.html">Read preprint →</a></div>
+    </div>
+
+    <div class="study">
+      <div class="study-top"><span class="kind persp">perspective</span><span class="st">parked note</span></div>
+      <h3><a href="papers/synthetic-data-frontier.html">The hard part of fake physiology isn't the waveform</a></h3>
+      <p class="ab">A parking note, not a result. Single-channel waveform synthesis is a solved problem; the open frontier our harness exposes is <b>timestamp pathology, cross-sensor temporal coherence, and provenance</b> — most of which need no learned generator at all. Written down so it isn't rediscovered later.</p>
+      <div class="stat"><b>agenda</b><span>names the narrowest first paper: a deterministic timestamp-pathology benchmark</span></div>
+      <div class="study-foot"><a class="rd" href="papers/synthetic-data-frontier.html">Read the note →</a></div>
+    </div>
+
+  </div>
+</div></section>
+
+<div class="divider"><canvas id="div2" width="2400" height="116"></canvas></div>
+
+<!-- SIGNAL FIDELITY -->
+<section id="fidelity" style="--acc:var(--blue)"><div class="wrap">
+  <div class="grp-head"><span class="gx">02 / SIGNAL FIDELITY</span><h2>Do independent detectors agree?</h2><p>When two pieces of code that share nothing read the same heartbeat, do they land on the same number? Sometimes — and the exceptions matter.</p></div>
+  <div class="studies">
+
+    <div class="study">
+      <div class="study-top"><span class="kind sim">simulation</span><span class="kind det">real detectors</span><span class="st">pilot complete</span></div>
+      <h3><a href="papers/qrs-yield.html">When breathing stops, which signal keeps its beat?</a></h3>
+      <p class="ab">The chest-strap ECG recovers the beat train <b>apnea-invariantly</b> (99.8% either way). The optical wrist pulse fades exactly when perfusion drops — and the quality score stays green while it does, hiding the miss. That imperfect optical train inflates HRV by a median +16%.</p>
+      <div class="stat"><b>99.8% vs 96.4%</b><span>beat recovery in apnea — ECG holds, optical pulse dips</span></div>
+      <div class="study-foot"><a class="rd" href="papers/qrs-yield.html">Read preprint →</a></div>
+    </div>
+
+    <div class="study">
+      <div class="study-top"><span class="kind sim">simulation</span><span class="kind det">real detectors</span><span class="st">pilot complete</span></div>
+      <h3><a href="papers/rmssd-equivalence.html">Three detectors, one tachogram — who agrees on HRV?</a></h3>
+      <p class="ab">Score the same heartbeats with three independent detectors. The two <b>electrical</b> ones (ECG and RR) are interchangeable — bias +0.02 ms, r = 0.9997, sharing no code or sampling rate. The <b>optical</b> one tells a different story (+32%): pulse-arrival jitter, not error. Report it separately; don't substitute.</p>
+      <div class="stat"><b>r = 0.9997</b><span>ECG ≡ RR · optical PRV diverges +12.6 ms (+32%)</span></div>
+      <div class="study-foot"><a class="rd" href="papers/rmssd-equivalence.html">Read preprint →</a></div>
+    </div>
+
+    <div class="study" style="grid-column:1/-1">
+      <div class="study-top"><span class="kind real">real detector</span><span class="kind">n=5 real nights</span><span class="kind">+ power analysis</span><span class="st">pilot → needs PSG</span></div>
+      <h3><a href="papers/odi4-ahi-bias.html">A $150 finger ring vs the sleep lab: it under-counts severe apnea</a></h3>
+      <p class="ab">The production oximetry detector recovers only about <b>a quarter</b> of scored respiratory events, and misses most in the sickest patients (≈−30 events/h in severe disease). The shipped <code style="font-family:var(--mono);color:var(--blue)">AHI ≈ ODI-4 × 1.1</code> rule of thumb has a 15/h error; a re-fit correction halves it. We also work out exactly how big a real validation study would need to be.</p>
+      <div class="stat"><b>~150–300</b><span>paired PSG nights needed to publish this for real — bound by the severe stratum</span></div>
+      <div class="study-foot"><a class="rd" href="papers/odi4-ahi-bias.html">Read preprint →</a></div>
+    </div>
+
+  </div>
+</div></section>
+
+<div class="divider"><canvas id="div3" width="2400" height="116"></canvas></div>
+
+<!-- COHORT -->
+<section id="cohort" style="--acc:var(--green)"><div class="wrap">
+  <div class="grp-head"><span class="gx">03 / COHORT &amp; PHYSIOLOGY</span><h2>What the signals say about people.</h2><p>Reliability, confounds, treatment effects and cross-organ coupling — built on synthetic cohorts run through the real detectors, with the limitation that bounds each claim stated up front.</p></div>
+  <div class="studies">
+
+    <div class="study">
+      <div class="study-top"><span class="kind sim">simulation</span><span class="kind det">real detector</span><span class="st">pilot complete</span></div>
+      <h3><a href="papers/hrv-age-confound.html">Low HRV — is it the apnea, or just getting older?</a></h3>
+      <p class="ab">Both, about equally and additively: rMSSD falls ≈4.2 ms per decade of age and ≈2.2 ms per 10 points of apnea. A naive single-metric HRV screen flags a lot of <b>old-but-healthy</b> people — about a quarter of its alarms. Adjusting for age fixes most of it.</p>
+      <div class="stat"><b>0.69 → 0.78</b><span>screening AUC for moderate+ apnea, before → after age-adjustment</span></div>
+      <div class="study-foot"><a class="rd" href="papers/hrv-age-confound.html">Read preprint →</a></div>
+    </div>
+
+    <div class="study">
+      <div class="study-top"><span class="kind sim">simulation</span><span class="kind det">real detector</span><span class="st">pilot complete</span></div>
+      <h3><a href="papers/nights-icc.html">How many nights before a number is really <i>you</i>?</a></h3>
+      <p class="ab">Test–retest reliability of three metrics. Apnea index and HRV are stable personal traits from a <b>single night</b> (ICC 0.89 / 0.93). Daily glucose variability never settles down — it's a day-to-day <b>state, not a trait</b>, so no recording length makes it reliable as a fixed number.</p>
+      <div class="stat"><b>1 night</b><span>is enough for ODI-4 &amp; rMSSD · CGM-CV stays a daily state (ICC ≈ 0)</span></div>
+      <div class="study-foot"><a class="rd" href="papers/nights-icc.html">Read preprint →</a></div>
+    </div>
+
+    <div class="study">
+      <div class="study-top"><span class="kind sim">simulation</span><span class="kind det">real detector</span><span class="st">pilot complete</span></div>
+      <h3><a href="papers/treatment-response.html">Can the data alone spot the night you started CPAP?</a></h3>
+      <p class="ab">A change-point detector on the nightly oxygen and heart-rhythm trajectory finds the planted therapy-start night with <b>median error of zero nights</b>. Fusing the respiratory and autonomic channels beats either alone — exact 97% of the time, within one night 99%.</p>
+      <div class="stat"><b>AUC 0.99</b><span>detecting a real treatment response vs flat-arc controls</span></div>
+      <div class="study-foot"><a class="rd" href="papers/treatment-response.html">Read preprint →</a></div>
+    </div>
+
+    <div class="study">
+      <div class="study-top"><span class="kind sim">simulation</span><span class="kind det">real detector</span><span class="st">pilot complete</span></div>
+      <h3><a href="papers/cgm-hrv-coupling.html">Does overnight glucose move with your HRV?</a></h3>
+      <p class="ab">Two sensors that share no code or input — CGM and RR→HRV — recover a coherent <b>negative</b> coupling: higher nocturnal glucose ↔ lower HRV. But it's not glucose hurting the heart. Partial out apnea burden and the link collapses: <b>apnea is the shared driver</b> of both.</p>
+      <div class="stat"><b>18,741</b><span>co-generated nights · coupling r −0.23, vanishes when apnea is controlled</span></div>
+      <div class="study-foot"><a class="rd" href="papers/cgm-hrv-coupling.html">Read preprint →</a></div>
+    </div>
+
+  </div>
+</div></section>
+
+<div class="divider"><canvas id="div4" width="2400" height="116"></canvas></div>
+
+<!-- LAB BENCH -->
+<section id="bench"><div class="wrap">
+  <div class="bench">
+    <div class="eyebrow">The lab bench</div>
+    <h2 style="margin-top:10px">The harness everything runs on.</h2>
+    <p>The generators, runners and gates behind the studies above. All deterministic, all local — they live in the source repository (clone and open them locally). Heavier runs (20k patients, full-waveform lanes) stream to keep memory flat.</p>
+    <div class="bench-grid">
+      <div class="bx"><span class="bn">Cohort Runner </span><span class="bd">cohort-runner.html</span><p>Drives up to 20,000 synthetic patients through the real detectors + fusion, resumable via IndexedDB.</p></div>
+      <div class="bx"><span class="bn">Synthetic Generator </span><span class="bd">synth-gen.html</span><p>The frozen-seed corpus engine — SpO₂, ECG, PPG, RR, CGM with planted pathology and timestamps.</p></div>
+      <div class="bx"><span class="bn">Cohort Regression </span><span class="bd">cohort-regression.html</span><p>Re-runs the cohort and diffs results against frozen baselines to catch drift.</p></div>
+      <div class="bx"><span class="bn">Dex Test Suite </span><span class="bd">Dex-Test-Suite.html</span><p>The canonical regression gate — real modules, shared contract assertions, render-coverage.</p></div>
+      <div class="bx"><span class="bn">Provenance Verifier </span><span class="bd">verify-provenance.html</span><p>Recomputes each bundle's build hash and audits committed exports for reproducibility.</p></div>
+      <div class="bx"><span class="bn">ECG Splitter </span><span class="bd">ECG Splitter.html</span><p>Utility to split long Polar H10 ECG captures into the analyzer's part files.</p></div>
+    </div>
+  </div>
+</div></section>
+
+<div class="divider"><canvas id="div5" width="2400" height="116"></canvas></div>
+
+<!-- HONESTY NOTE -->
+<section><div class="wrap">
+  <div class="note">
+    <div class="eyebrow">How to read these</div>
+    <h2>Honest labels, or it doesn't ship.</h2>
+    <p>Every study declares its evidence base — <b>real data</b>, <b>real detector</b>, <b>simulation</b>, or <b>perspective</b> — and states the single limitation that bounds its claim. Simulation pilots run on synthetic cohorts through the <i>actual</i> production code, so a contract break shows up as a wrong number, not a passing test. Each paper regenerates its own tables and figures from a named local tool. Drafts, not peer-reviewed, <b>not for clinical use</b>.</p>
+  </div>
+</div></section>
+
+<footer><div class="wrap foot-in">
+  <div class="foot-note"><b style="color:var(--text2)">Tepna</b> — the Dex Suite · © 2026 Michal Planicka · Apache-2.0
+    <div class="foot-links"><a href="index.html">Home</a><a href="How to Collect Data.html">Collect data</a><a href="Architecture.html">Architecture</a><a href="Why This Exists.html">About</a><a href="papers/papers.html">Preprints</a><a href="OxyDex.html">OxyDex</a><a href="ECGDex.html">ECGDex</a><a href="Integrator.html">Integrator</a></div>
+  </div>
+  <div class="foot-note" style="text-align:right">100% on-device · deterministic · reproducible<br>research &amp; personal use only · not a medical device</div>
+</div></footer>
+
+<div class="dxl dxl-oneline" style="max-width:900px;margin:24px auto 30px;justify-content:center;padding:0 44px">
+  <span class="dxl-mark">T</span>
+  <span>© 2026 <b style="font-weight:600;color:var(--text)">Michal Planicka</b></span>
+  <span class="dxl-sep">·</span><span>Tepna v1.0.0</span>
+  <span class="dxl-sep">·</span><span class="dxl-lic">Apache-2.0</span>
+  <span class="dxl-sep">·</span><span style="color:var(--text4)">◈ Asheville, NC</span>
+  <span class="dxl-sep">·</span><span style="color:var(--text4)">not a medical device</span>
+</div>
+
+<script>
+const rndF=(seed)=>{let s=seed>>>0;return()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296;};};
+// hero scrolling waveform
+(function(){
+  const c=document.getElementById('wave-hero');if(!c)return;const x=c.getContext('2d');
+  function size(){c.width=c.clientWidth*devicePixelRatio;c.height=c.clientHeight*devicePixelRatio;}
+  size();addEventListener('resize',size);
+  let t=0;
+  function ecgY(p){const ph=((p%1)+1)%1;if(ph<.10)return Math.sin(ph/.10*Math.PI)*.06;if(ph<.16)return -.10;if(ph<.20)return .92;if(ph<.25)return -.30;if(ph<.40)return Math.sin((ph-.25)/.15*Math.PI)*.18;return 0;}
+  function frame(){
+    const W=c.width,H=c.height;x.clearRect(0,0,W,H);t+=0.012;
+    const layers=[{col:'rgba(61,224,208,A)',amp:.20,sp:0.9,yb:.42,kind:'ecg',a:.85,w:2.4},
+                  {col:'rgba(88,166,255,A)',amp:.10,sp:1.7,yb:.62,kind:'ppg',a:.5,w:1.8},
+                  {col:'rgba(167,139,250,A)',amp:.05,sp:0.5,yb:.30,kind:'spo2',a:.3,w:1.5}];
+    for(const L of layers){
+      x.beginPath();
+      for(let px=0;px<=W;px+=4){
+        const u=px/W;let y;
+        if(L.kind==='ecg')y=ecgY(u*6 - t*L.sp);
+        else if(L.kind==='ppg')y=Math.sin((u*16 - t*L.sp*3))*.5+Math.sin((u*7 - t*L.sp*1.4))*.2;
+        else y=Math.sin((u*4 - t*L.sp))*.6+Math.sin(u*23)*.08;
+        const Y=H*L.yb - y*H*L.amp;
+        px?x.lineTo(px,Y):x.moveTo(px,Y);
+      }
+      x.strokeStyle=L.col.replace('A',L.a);x.lineWidth=L.w*devicePixelRatio;x.lineJoin='round';
+      x.shadowColor=L.col.replace('A',.5);x.shadowBlur=12*devicePixelRatio;x.stroke();x.shadowBlur=0;
+    }
+    requestAnimationFrame(frame);
+  }
+  frame();
+})();
+// divider waves
+function dividerWave(id,seed,col){
+  const c=document.getElementById(id);if(!c)return;const x=c.getContext('2d');const rnd=rndF(seed);
+  const N=160,base=[];for(let i=0;i<N;i++)base.push(rnd());let t=0;
+  function frame(){
+    const W=c.width=c.clientWidth,H=c.height=58;x.clearRect(0,0,W,H);t+=0.02;
+    x.beginPath();
+    for(let i=0;i<=N;i++){const u=i/N;const y=H/2 + Math.sin(u*22 - t*2)*8 + Math.sin(u*7 - t)*5 + (base[i%N]-.5)*4;u?x.lineTo(u*W,y):x.moveTo(0,y);}
+    x.strokeStyle=col;x.lineWidth=1.5;x.globalAlpha=.5;x.lineJoin='round';x.shadowColor=col;x.shadowBlur=8;x.stroke();x.shadowBlur=0;x.globalAlpha=1;
+    requestAnimationFrame(frame);
+  }
+  frame();
+}
+dividerWave('div1',7,'#3DE0D0');dividerWave('div2',31,'#58A6FF');dividerWave('div3',19,'#58A6FF');dividerWave('div4',54,'#39D98A');dividerWave('div5',88,'#A78BFA');
+</script>
+</body></html>
