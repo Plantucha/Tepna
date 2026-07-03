@@ -23,33 +23,59 @@ import { chromium } from 'playwright';
 
 const BASE = (process.env.BASE_URL || 'http://127.0.0.1:8080').replace(/\/$/, '');
 const FAILS = [];
-const browser = await chromium.launch();
+// --disable-dev-shm-usage: CI containers give /dev/shm only ~64 MB. Render-coverage boots 9 self-
+// contained app bundles (each gunzips + evals MBs of inlined JS) in an iframe; that overflows /dev/shm
+// and the RENDERER PROCESS CRASHES mid-run — which surfaces as an EARLY waitForFunction rejection
+// (~30 s in), NOT a 5-min stall. Routing Chromium shared memory to /tmp removes the crash. (Local runs
+// have a large /dev/shm, which is why the suite is green there but red in CI.)
+const browser = await chromium.launch({ args: ['--disable-dev-shm-usage'] });
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 1600 } });
 
 /* ── Gate 1 · Dex-Test-Suite (assertions + render-coverage) ───────────────── */
 async function gateTestSuite() {
   const page = await ctx.newPage();
+  let crashed = false;
   page.on('pageerror', (e) => console.log('   [suite page error]', e.message));
+  page.on('crash', () => { crashed = true; console.log('   [suite] RENDERER CRASHED (page "crash" event) — almost always /dev/shm OOM booting the app bundles'); });
   console.log('▸ Dex-Test-Suite.html …');
   // ?full is REQUIRED: render-coverage is ON-DEMAND (lazy, 2026-06-30). A bare open paints only the
-  // headless floor and never boots the rigs (no "hang guard" group) → the wait below would time out.
+  // headless floor and never boots the rigs → __rcState stays 'pending' and the wait below times out.
   await page.goto(BASE + '/Dex-Test-Suite.html?full', { waitUntil: 'load', timeout: 60000 });
-  // The oxy-hang group is pushed LAST; wait for it + a settled summary pill.
+  // Read the suite's OWN programmatic verdict (CLAUDE.md: window.__rcState + sameOriginStatus(), never
+  // scrape prose). Render-coverage is complete iff __rcState === 'done'. (The old predicate waited for
+  // the literal words "hang guard" in #results — brittle, and it hid the real failure mode below.)
   try {
-    await page.waitForFunction(() => {
-      const res = document.getElementById('results');
-      const sum = document.querySelector('#summary .pill.pass, #summary .pill.fail');
-      return !!res && /hang guard/i.test(res.innerText || '') && !!sum;
-    }, { timeout: 300000 });
-  } catch {
-    FAILS.push('Dex-Test-Suite: did not finish within 5 min (render-coverage iframes stalled?)');
-    await page.close(); return;
+    await page.waitForFunction(() => window.__rcState === 'done', { timeout: 300000 });
+  } catch (err) {
+    // waitForFunction rejects on EITHER a genuine 5-min stall OR an early execution-context loss
+    // (renderer crash). Distinguish them and report the state actually reached, so the next run is
+    // actionable instead of the old blanket "did not finish within 5 min" that masked the crash.
+    let diag = null;
+    try {
+      diag = await page.evaluate(() => {
+        const s = (window.sameOriginStatus && window.sameOriginStatus()) || {};
+        return { rcState: window.__rcState || 'unknown', rcGroups: s.renderCoverageGroups || 0,
+                 bootSkips: window.__rcBootSkips || [], blocked: !!s.blocked };
+      });
+    } catch (_) { /* context gone → almost certainly a crash */ }
+    if (crashed || !diag) {
+      FAILS.push('Dex-Test-Suite: renderer CRASHED during render-coverage' +
+        (diag ? ' (reached rcState=' + diag.rcState + ', ' + diag.rcGroups + ' rc groups)' : ' (execution context lost)') +
+        ' — this is a CI /dev/shm OOM; chromium must launch with --disable-dev-shm-usage (see launch args above).');
+    } else {
+      FAILS.push('Dex-Test-Suite: render-coverage did not reach done within 5 min — rcState=' +
+        diag.rcState + ', ' + diag.rcGroups + ' rc groups booted, bootSkips=' + JSON.stringify(diag.bootSkips) +
+        (diag.blocked ? ', same-origin BLOCKED' : '') + '.');
+    }
+    try { await page.close(); } catch (_) {}
+    return;
   }
   const r = await page.evaluate(() => ({
     hasFail: !!document.querySelector('#summary .pill.fail'),
+    bootSkips: window.__rcBootSkips || [],
     summary: (document.getElementById('summary').innerText || '').replace(/\s+/g, ' ').trim(),
   }));
-  console.log('   summary:', r.summary);
+  console.log('   summary:', r.summary + (r.bootSkips.length ? '   [boot-skips: ' + r.bootSkips.join(', ') + ']' : ''));
   if (r.hasFail) FAILS.push('Dex-Test-Suite RED — ' + r.summary);
   await page.close();
 }

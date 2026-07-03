@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** REFERENCE (living spec) · **Created:** 2026-06-29 · **last-verified:** 2026-06-30 (CPAPDex `desat`→`desat_event` + dead `cvhr_surge` drop — -II §1/§3; **periodic_breathing cross-node fusion + hrv/stress + carrier-key decisions — -II §2/§4/§5**; **PB-burden longitudinal trend SHIPPED + ECGDex-emit / PB_CVHR_MIN / PB-span decisions — -III §1/§2/§3/§4, see §6.1/6.3/6.4/6.5**; **ECGDex cardiac PB-burden already-present-as-`cvhrIndex` + `cite`-in-mapping deferred decisions — -IV §1/§2, see §6.7/6.8**)
+**Status:** REFERENCE (living spec) · **Created:** 2026-06-29 · **last-verified:** 2026-07-02 (CPAPDex `desat`→`desat_event` + dead `cvhr_surge` drop — -II §1/§3; **periodic_breathing cross-node fusion + hrv/stress + carrier-key decisions — -II §2/§4/§5**; **PB-burden longitudinal trend SHIPPED + ECGDex-emit / PB_CVHR_MIN / PB-span decisions — -III §1/§2/§3/§4, see §6.1/6.3/6.4/6.5**; **ECGDex cardiac PB-burden already-present-as-`cvhrIndex` + `cite`-in-mapping deferred decisions — -IV §1/§2, see §6.7/6.8**; **ECGDex has NO symmetric sqi-floor (INTENTIONAL) + `sqiFloor`/`clampFloor` are audit-only — NODE-RESIDUE-FOLLOWUPS-II §1/§2, see §6.10**)
 
 # EVENT-LEXICON — the canonical `ganglior_events[].impulse` vocabulary
 
@@ -226,3 +226,26 @@ folded into it).
 - **Gate:** `tests/dex-tests.js` group *"Integrator PpgDex sqi-floor down-weight (NODE-RESIDUE-FOLLOWUPS §3)"*
   (both runners) — sub-floor surge → `conf ×0.5` + `sqiFloor`, `sqi` preserved; above-floor + `sqi==null`
   untouched; plus a source-mirror on the `PPG_SQI_FLOOR` constant + the branch loop.
+
+### 6.10 No symmetric ECGDex SQI floor (INTENTIONAL) + `sqiFloor`/`clampFloor` are audit-only (NODE-RESIDUE-FOLLOWUPS-II §1/§2, decisions)
+**DECISION (2026-07-02): the categorical SQI floor (§6.9) is PpgDex-ONLY on purpose, and the `sqiFloor` / `clampFloor`
+tags it sets are audit breadcrumbs — the `conf ×0.5` is the load-bearing part, not the tag.**
+
+- **§1 — the asymmetry is INTENTIONAL, not an oversight.** ECGDex `autonomic_surge` events ALSO carry a per-event
+  `sqi` (`ecgdex-dsp.js` stamps `sqiAt()`, fleet-consistent with PpgDex), and `effConf = conf × (sqi ?? 1)` already
+  tapers BOTH nodes' surges proportionally in the apnea noisy-OR. The EXTRA categorical floor (§6.9) is applied only
+  to the `node==='PpgDex'` branch of `adaptEnvelopeNode` because the two sensors have different quality physics:
+  **PpgDex is limb-worn OPTICAL** (Polar Verity Sense) — motion-prone, its `sqi` legitimately dips into the unusable
+  tail, so the hard categorical distrust is warranted; **ECGDex is a CHEST STRAP** (Polar H10) whose `sqi` rarely
+  reaches `< PPG_SQI_FLOOR` on a real recording, so a floor would almost never fire and `effConf`'s smooth
+  proportional taper already covers it. Deliberately NOT generalized to a shared `NODE_SQI_FLOOR` table — that adds
+  surface area (a per-node table + a shared post-map step + a test twin in both runners) for a floor that would
+  essentially never fire on chest-strap data. Documented at the PpgDex-branch floor site in `integrator-dsp.js`.
+- **§2 — the `sqiFloor` (PpgDex) and `clampFloor` (GlucoDex) tags are AUDIT-ONLY today.** The `conf ×0.5` each floor
+  applies is the LOAD-BEARING down-weight (it flows through `effConf` → the noisy-OR → the posterior); the boolean
+  tag itself is a provenance breadcrumb — grep-confirmed NOT read anywhere (`integrator-dsp.js` /
+  `integrator-render.js` / `integrator-app.js`; not surfaced in `buildFusionExport`'s finding `sources[]` nor on any
+  render card). This mirrors the documented `meta.derived` precedent (the `effConf` header note in
+  `integrator-dsp.js`). Do NOT assume either tag gates anything in the posterior until a reader + a test land. If a
+  future pass surfaces a "quality-floored source" marker on the apnea finding's `sources[]`, that is a source-shape
+  change (Integrator re-bundle + GATE A + a test), not a free-rider on the existing tag.

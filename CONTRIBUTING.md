@@ -107,6 +107,19 @@ These make the contracts real. Treat a red as a **blocker**, not a nitpick.
 > `verify-provenance.html` sets it unconditionally), NOT a keyword-scan of the page body (which now
 > contains the very words such a scan matches).
 
+> **No Node host in the authoring environment → the browser gates ARE authoritative here (do NOT
+> re-file "Node-CI debt").** The fast-loop CLIs — `tests/check-dex.mjs`, `tests/reconcile-provenance.mjs`,
+> `tests/verify-manifest.mjs`, `tests/run-tests.mjs` — run the SAME single-source logic the browser pages
+> run (`tests/dex-tests.js` for behavior; `manifest-gate.js` for provenance). So when there is no shell,
+> `Dex-Test-Suite.html?full` + `verify-provenance.html` **are** the gate, not a substitute — a green
+> browser read is a **discharge, not debt**. `node tests/*.mjs` is the CI mirror (GitHub Actions), run
+> when a Node host exists; its literal invocation being unrun in a no-shell session is **expected — state
+> it once, not per brief.** This closes the recurring "standing Node-CI debt" carried across
+> `SIGNAL-ADAPTER-FOLLOWUPS -IV §7 … -XII §3`, the `ECGDEX/PPGDEX/GLUCODEX-FOLLOWUPS`, and
+> `GENERIC-EMIT-GATE-FOLLOWUPS-II/III`: a browser-only pass is complete; do not add a new tracker.
+> (For the reconcile ledger-edit that `reconcile-provenance.mjs` computes, the browser now has the same
+> report — `verify-provenance.html` §3 Reconcile.)
+
 1. **Behavior — `Dex-Test-Suite.html`.** Render-coverage is **on-demand** (lazy, 2026-06-30): a bare
    open paints only the headless floor in ~3 s and the pill reads amber **`✓ headless green ·
    render-coverage not run — ▶ or ?full`** — that is the floor, **NOT a pass**. To run the FULL gate,

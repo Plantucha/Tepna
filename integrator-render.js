@@ -134,6 +134,16 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
 .pair-ov .ev{ margin-right:5px; vertical-align:middle; }
 .cor-card{ position:relative; }
 .cor-ev{ position:absolute; right:14px; bottom:12px; }
+/* three-cornered-hat per-sensor error bars (INTEGRATOR-THREE-CORNERED-HAT §5) */
+.tch-block{ display:flex; flex-direction:column; gap:6px; margin:2px 0; }
+.tch-row{ display:flex; align-items:center; gap:9px; font-size:12px; }
+.tch-node{ flex:0 0 96px; color:var(--c); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tch-bar{ flex:1 1 auto; height:8px; border-radius:4px; background:rgba(255,255,255,.06); overflow:hidden; }
+.tch-bar i{ display:block; height:100%; border-radius:4px; opacity:.88; }
+.tch-val{ flex:0 0 auto; color:var(--text2); font-size:11.5px; min-width:52px; text-align:right; }
+.tch-culprit .tch-node{ color:#FF6B7A; }
+.tch-recon{ font-size:12px; color:var(--text2); margin-top:8px; }
+.tch-recon-sub{ color:var(--text4); font-size:11px; }
 `;
     var el = document.createElement('style'); el.id='integrator-hero-css'; el.textContent=css;
     (document.head||document.documentElement).appendChild(el);
@@ -171,6 +181,7 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
     positional_apnea: { evidence:'experimental', cite:'Supine vs non-supine event rate from ECGDex ACC posture. Directional, small-n.' },
     auto_glycemic:    { evidence:'heuristic',    cite:'Directional night-to-night association between glucose variability and autonomic load. Hypothesis-generating, not causal.' },
     hrv_consensus:    { evidence:'emerging',     cite:'Cross-device consensus of time-domain HRV (rMSSD / SDNN; Task Force 1996). Divergence flags a QC conflict, not a disease state.' },
+    tch_error:        { evidence:'experimental', cite:'Reference-free three-cornered hat (Gray & Allan 1974): each sensor\'s own error variance recovered from the three pairwise-difference variances of a shared quantity (per-epoch rMSSD). Estimates PRECISION, not trueness — a bias shared by all three is invisible. Needs ≥3 co-recorded sites; degrades to pairwise consensus otherwise.' },
     desat_match:      { evidence:'measured',     cite:'Raw coverage statistic — matched desaturations ÷ total desaturations inside the overlap window.' },
     periodic_breathing:{ evidence:'experimental', cite:'Cross-signal corroboration of periodic breathing / Cheyne–Stokes — SpO₂ oscillation (OxyDex), device flow (CPAPDex), and/or cardiac CVHR (ECGDex). Tier-weighted, down-weighted; a corroboration signal, not a scored CSR index.' }
   };
@@ -573,6 +584,10 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
         cards.push(findingCard('HRV consensus · '+b.window, b.qc==='divergent'?'#FF6B7A':'#39D98A',
           '<div class="fc-big">'+(b.divergencePct)+'%<span class="fc-unit"> max divergence</span></div>',
           b.note + ' Sources: '+b.nodes.join(', ')+'.', b.nodes, 'hrv_consensus'));
+        if(b.tch){   // reference-free per-sensor error (three-cornered hat) — §5
+          cards.push(findingCard('Per-sensor error (TCH) · '+b.window, '#8FB8FF',
+            tchBars(b), tchNote(b), Object.keys(b.tch.sigma2), 'tch_error'));
+        }
       });
     }
     var pb=fusion.periodicBreathing;
@@ -593,6 +608,31 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
     return '<div class="finding-card chart-card" style="--card-accent:'+color+'">'+
       '<div class="fc-head"><h4>'+esc(title)+(badge?'<span class="fc-ev">'+badge+'</span>':'')+'</h4><div class="fc-tags">'+tags+'</div></div>'+
       big+'<p class="fc-note">'+esc(note)+'</p></div>';
+  }
+  /* three-cornered-hat card body — per-sensor σ bars (noisiest first, culprit flagged)
+     + inverse-variance reconciled RMSSD. (INTEGRATOR-THREE-CORNERED-HAT §5) */
+  function tchBars(b){
+    var t=b.tch; if(!t||!t.sigma2) return '';
+    var keys=Object.keys(t.sigma2), sig={}, max=0;
+    keys.forEach(function(k){ var s=(t.sigma&&t.sigma[k]!=null)?t.sigma[k]:Math.sqrt(t.sigma2[k]); sig[k]=s; if(s>max)max=s; });
+    keys.sort(function(a,c){ return sig[c]-sig[a]; });
+    var rows=keys.map(function(k){
+      var pct=max>0?Math.max(4,Math.round(sig[k]/max*100)):0;
+      var base=k.split(' ')[0], isC=(k===t.culprit);
+      return '<div class="tch-row'+(isC?' tch-culprit':'')+'">'+
+        '<span class="tch-node" style="--c:'+D.nodeColor(base)+'">'+esc(k)+(isC?' \u25B2':'')+'</span>'+
+        '<span class="tch-bar"><i style="width:'+pct+'%;background:'+D.nodeColor(base)+'"></i></span>'+
+        '<span class="tch-val mono">\u03C3\u2009'+sig[k].toFixed(1)+'</span></div>';
+    }).join('');
+    var wm=(b.rmssd&&b.rmssd.weightedMean!=null)?'<div class="tch-recon">Reconciled RMSSD <b class="mono">'+b.rmssd.weightedMean+' ms</b> <span class="tch-recon-sub">inverse-variance weighted</span></div>':'';
+    return '<div class="tch-block">'+rows+'</div>'+wm;
+  }
+  function tchNote(b){
+    var t=b.tch; if(!t) return '';
+    var s2=Math.round(t.sigma2[t.culprit]), nn=Object.keys(t.sigma2).length;
+    return t.culprit+' carries the largest error variance (\u03C3\u00B2\u2248'+s2+' ms\u00B2) across '+nn+' co-recorded sites over '+t.n+' epochs'
+      +(t.rho?(' (common-mode \u03C1='+t.rho+', '+t.method+')'):(' ('+t.method+')'))
+      +'. Reference-free three-cornered hat \u2014 estimates precision, not trueness; a bias shared by all three is invisible.';
   }
 
   /* ── full findings table ─────────────────────────────────────────────── */

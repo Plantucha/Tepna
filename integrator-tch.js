@@ -1,0 +1,311 @@
+/* ════════════════════════════════════════════════════════════════════════
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ * ────────────────────────────────────────────────────────────────────────
+ * integrator-tch.js — Three-Cornered Hat (reference-free per-sensor error)
+ *
+ * PURE. NO DOM. Loaded as a plain global script (shares page scope) and by the
+ * Node/browser test runners via env.IntegratorTCH. Deterministic — no Date.now,
+ * no RNG, no I/O.
+ *
+ * WHAT — given THREE estimators of the SAME latent quantity (e.g. instantaneous
+ * HR from ECGDex / PpgDex / OxyDex, or RMSSD from ECGDex / PpgDex / HRVDex),
+ * recover EACH sensor's OWN error variance with NO gold-standard reference, from
+ * the three pairwise-difference variances (Gray & Allan 1974):
+ *
+ *     V_AB = Var(A−B) = σ²_A + σ²_B − 2·Cov(n_A,n_B)
+ *     σ²_A = ½(V_AB + V_AC − V_BC)      (classic — assumes Cov = 0)
+ *     σ²_B = ½(V_AB + V_BC − V_AC)
+ *     σ²_C = ½(V_AC + V_BC − V_AB)
+ *
+ * WHY NOT inside one PPG module — the three LEDs are co-located, so motion is
+ * COMMON-MODE and TCH cancels common-mode by construction → false confidence.
+ * The well-posed application is CROSS-NODE (chest/wrist/finger), where the noise
+ * is largely independent. See INTEGRATOR-THREE-CORNERED-HAT-2026-07-02-BRIEF.md.
+ *
+ * CAVEAT (must be surfaced by the consumer): TCH measures PRECISION / instability,
+ * NOT trueness — a bias shared by all three is invisible to it. That is fine for
+ * the RMSSD-inflation problem, which IS excess variance. A further limit: POSITIVE
+ * common-mode noise biases the classic estimate WITHOUT driving any variance
+ * negative, so it cannot be detected reference-free — pass opts.rho (an externally
+ * estimated common-mode correlation, e.g. from co-motion) to remove it; the auto
+ * min-rho search only engages on the negative-variance failure mode.
+ * ════════════════════════════════════════════════════════════════════════ */
+(function (root) {
+  'use strict';
+
+  var EPS = 1e-9;
+
+  /* ── basic stats (null/NaN-safe) ─────────────────────────────────────── */
+  function _finite(v) { return typeof v === 'number' && isFinite(v); }
+  function mean(a) {
+    var s = 0, n = 0;
+    for (var i = 0; i < a.length; i++) if (_finite(a[i])) { s += a[i]; n++; }
+    return n ? s / n : null;
+  }
+  // population variance (÷N) — TCH difference-variances are consistent under ÷N
+  function variance(a) {
+    var m = mean(a); if (m == null) return null;
+    var s = 0, n = 0;
+    for (var i = 0; i < a.length; i++) if (_finite(a[i])) { var d = a[i] - m; s += d * d; n++; }
+    return n ? s / n : null;
+  }
+
+  /* Variance of the paired difference (A−B), over indices where BOTH are finite. */
+  function pairDiffVar(a, b) {
+    var d = [];
+    var n = Math.min(a.length, b.length);
+    for (var i = 0; i < n; i++) if (_finite(a[i]) && _finite(b[i])) d.push(a[i] - b[i]);
+    if (d.length < 2) return null;
+    return { v: variance(d), n: d.length };
+  }
+
+  /* ── classic Gray–Allan closed form (assumes uncorrelated noise) ──────── */
+  function classic(Vab, Vac, Vbc) {
+    return {
+      a: 0.5 * (Vab + Vac - Vbc),
+      b: 0.5 * (Vab + Vbc - Vac),
+      c: 0.5 * (Vac + Vbc - Vab)
+    };
+  }
+
+  /* ── 3×3 linear solve (Cramer) — for the correlated Newton step ───────── */
+  function solve3(M, y) {
+    function det3(m) {
+      return m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+           - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+           + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+    }
+    var D = det3(M);
+    if (Math.abs(D) < 1e-14) return null;
+    var out = [];
+    for (var col = 0; col < 3; col++) {
+      var Mc = [M[0].slice(), M[1].slice(), M[2].slice()];
+      for (var r = 0; r < 3; r++) Mc[r][col] = y[r];
+      out[col] = det3(Mc) / D;
+    }
+    return out;
+  }
+
+  /* Solve the correlated system for a FIXED common-mode correlation rho.
+     Model: Cov(n_i,n_j) = rho·s_i·s_j, so with s_i = √σ²_i:
+        V_ij = s_i² + s_j² − 2·rho·s_i·s_j
+     3 nonlinear eqs in (s_a,s_b,s_c). DAMPED Newton (backtracking line search on
+     ‖f‖) with s clamped ≥ 0 — the raw system is nonlinear with multiple roots, so a
+     bare Newton step from one start is unreliable. */
+  function _residual(s, rho, Vab, Vac, Vbc) {
+    return [
+      s[0]*s[0] + s[1]*s[1] - 2*rho*s[0]*s[1] - Vab,
+      s[0]*s[0] + s[2]*s[2] - 2*rho*s[0]*s[2] - Vac,
+      s[1]*s[1] + s[2]*s[2] - 2*rho*s[1]*s[2] - Vbc
+    ];
+  }
+  function _norm(f) { return Math.abs(f[0]) + Math.abs(f[1]) + Math.abs(f[2]); }
+  function solveFixedRho(Vab, Vac, Vbc, rho, start) {
+    var s = [Math.max(start[0], 1e-6), Math.max(start[1], 1e-6), Math.max(start[2], 1e-6)];
+    for (var it = 0; it < 60; it++) {
+      var f = _residual(s, rho, Vab, Vac, Vbc);
+      if (_norm(f) < 1e-11) break;
+      var sa = s[0], sb = s[1], sc = s[2];
+      var J = [
+        [2 * sa - 2 * rho * sb, 2 * sb - 2 * rho * sa, 0],
+        [2 * sa - 2 * rho * sc, 0, 2 * sc - 2 * rho * sa],
+        [0, 2 * sb - 2 * rho * sc, 2 * sc - 2 * rho * sb]
+      ];
+      var step = solve3(J, f);
+      if (!step) return null;
+      var lam = 1, cur = _norm(f), tried;
+      for (var bt = 0; bt < 24; bt++) {
+        tried = [Math.max(s[0] - lam*step[0], 0), Math.max(s[1] - lam*step[1], 0), Math.max(s[2] - lam*step[2], 0)];
+        if (_norm(_residual(tried, rho, Vab, Vac, Vbc)) < cur) break;
+        lam *= 0.5;
+      }
+      if (!(_finite(tried[0]) && _finite(tried[1]) && _finite(tried[2]))) return null;
+      s = tried;
+    }
+    if (_norm(_residual(s, rho, Vab, Vac, Vbc)) > 1e-5) return null;
+    return { a: s[0] * s[0], b: s[1] * s[1], c: s[2] * s[2] };
+  }
+
+  /* Multi-start wrapper: the fixed-rho system has multiple roots, so try several
+     starts and keep the lowest-residual non-negative solution. */
+  function _solveMulti(Vab, Vac, Vbc, rho) {
+    var cl = classic(Vab, Vac, Vbc);
+    var mV = (Vab + Vac + Vbc) / 3;
+    var sq = function (x) { return Math.sqrt(Math.max(x, 1e-6)); };
+    var starts = [
+      [sq(cl.a), sq(cl.b), sq(cl.c)],
+      [sq(mV/2), sq(mV/2), sq(mV/2)],
+      [sq(Vab), sq(Vbc), sq(Vac)],
+      [sq(Vab/2)*0.5, sq(Vab/2), sq(Vac/2)],
+      [0.3, sq(Vab), sq(Vbc)],
+      [sq(Vab), 0.3, sq(Vbc)]
+    ];
+    var best = null, bestRes = Infinity;
+    for (var i = 0; i < starts.length; i++) {
+      var sol = solveFixedRho(Vab, Vac, Vbc, rho, starts[i]);
+      if (!sol || sol.a < -1e-6 || sol.b < -1e-6 || sol.c < -1e-6) continue;
+      var res = _norm(_residual([sq(sol.a), sq(sol.b), sq(sol.c)], rho, Vab, Vac, Vbc));
+      if (res < bestRes) { bestRes = res; best = { a: Math.max(sol.a,0), b: Math.max(sol.b,0), c: Math.max(sol.c,0) }; }
+    }
+    return best;
+  }
+
+  /* Generalized / correlated TCH (Premoli–Tavella / Ekström–Koppang spirit):
+     the classic system is under-determined once noises correlate. We close it
+     with a SINGLE common-mode rho (co-timed arousals hit all sites at once) and
+     report the MINIMUM |rho| that restores a non-negative solution — i.e. "the
+     smallest correlation you must assume to make the data consistent", which is
+     exactly the honest quantity to surface. */
+  function correlated(Vab, Vac, Vbc, opts) {
+    opts = opts || {};
+    var rhoMax = opts.rhoMax != null ? opts.rhoMax : 0.95;
+    var rhoStep = opts.rhoStep != null ? opts.rhoStep : 0.01;
+    for (var rho = 0; rho <= rhoMax + EPS; rho += rhoStep) {
+      var sol = _solveMulti(Vab, Vac, Vbc, rho);
+      if (sol && sol.a >= -1e-6 && sol.b >= -1e-6 && sol.c >= -1e-6) {
+        return {
+          a: Math.max(sol.a, 0), b: Math.max(sol.b, 0), c: Math.max(sol.c, 0),
+          rho: +rho.toFixed(4)
+        };
+      }
+    }
+    return null;
+  }
+
+  /* ── main entry ───────────────────────────────────────────────────────
+     seriesA/B/C: arrays of the SAME quantity, index-aligned (use alignTriplet
+     first for {tMin,v} epoch objects). labels: node names in A/B/C order.
+     Returns per-sensor σ²/σ, the method used, the assumed rho, inverse-variance
+     weights, the culprit (largest σ²), n, and an honest reason string. */
+  function threeCorneredHat(seriesA, seriesB, seriesC, opts) {
+    opts = opts || {};
+    var labels = opts.labels || ['A', 'B', 'C'];
+    var minN = opts.minN != null ? opts.minN : 12;
+    if (!seriesA || !seriesB || !seriesC) return { ok: false, reason: 'need three series' };
+
+    var pAB = pairDiffVar(seriesA, seriesB);
+    var pAC = pairDiffVar(seriesA, seriesC);
+    var pBC = pairDiffVar(seriesB, seriesC);
+    if (!pAB || !pAC || !pBC) return { ok: false, reason: 'insufficient paired overlap' };
+    var n = Math.min(pAB.n, pAC.n, pBC.n);
+    if (n < minN) return { ok: false, reason: 'overlap ' + n + ' < minN ' + minN, n: n };
+
+    var Vab = pAB.v, Vac = pAC.v, Vbc = pBC.v;
+    var cl = classic(Vab, Vac, Vbc);
+    var method, rho, sig2, negative = false;
+
+    // (0) EXTERNAL common-mode rho supplied by the consumer (e.g. an ACC-derived
+    // co-motion estimate, or a prior). Positive common-mode BIASES classic without
+    // driving it negative, so it can't be detected reference-free — the honest fix
+    // is to remove a correlation the consumer can independently estimate. Solve the
+    // correlated system directly at that rho.
+    if (opts.rho != null && opts.rho > 0) {
+      var solX = _solveMulti(Vab, Vac, Vbc, opts.rho);
+      if (solX && solX.a >= -1e-6 && solX.b >= -1e-6 && solX.c >= -1e-6) {
+        method = 'correlated-external'; rho = opts.rho; negative = (cl.a < 0 || cl.b < 0 || cl.c < 0);
+        sig2 = { a: Math.max(solX.a, 0), b: Math.max(solX.b, 0), c: Math.max(solX.c, 0) };
+      }
+      // else fall through to the classic / auto path below
+    }
+
+    if (sig2) {
+      /* set by external-rho path */
+    } else if (cl.a >= -1e-9 && cl.b >= -1e-9 && cl.c >= -1e-9) {
+      method = 'classic'; rho = 0;
+      sig2 = { a: Math.max(cl.a, 0), b: Math.max(cl.b, 0), c: Math.max(cl.c, 0) };
+    } else {
+      negative = true;
+      var corr = correlated(Vab, Vac, Vbc, opts);
+      if (corr) {
+        method = 'correlated'; rho = corr.rho;
+        sig2 = { a: corr.a, b: corr.b, c: corr.c };
+      } else {
+        // last resort: report the classic solution clamped, flagged not-ok
+        method = 'classic-clamped'; rho = null;
+        sig2 = { a: Math.max(cl.a, 0), b: Math.max(cl.b, 0), c: Math.max(cl.c, 0) };
+        return {
+          ok: false, reason: 'negative variance; no non-negative correlated fit ≤ rhoMax',
+          negative: true, method: method, n: n,
+          sigma2: _bylabel(labels, sig2), diffVar: { AB: Vab, AC: Vac, BC: Vbc }
+        };
+      }
+    }
+
+    var sigma2 = _bylabel(labels, sig2);
+    var sigma = {}; Object.keys(sigma2).forEach(function (k) { sigma[k] = Math.sqrt(sigma2[k]); });
+    var weights = inverseVarianceWeights(sigma2);
+    var culprit = _argmax(sigma2);
+
+    return {
+      ok: true, method: method, rho: rho, negative: negative, n: n,
+      sigma2: sigma2, sigma: sigma, weights: weights, culprit: culprit,
+      diffVar: { AB: Vab, AC: Vac, BC: Vbc },
+      caveat: 'TCH estimates precision (instability), not trueness — a bias shared by all three sensors is invisible. Positive common-mode noise also biases classic without going negative; supply opts.rho to remove a co-motion correlation you can estimate externally.'
+    };
+  }
+
+  function _bylabel(labels, s) { var o = {}; o[labels[0]] = s.a; o[labels[1]] = s.b; o[labels[2]] = s.c; return o; }
+  function _argmax(map) {
+    var best = null, bv = -Infinity;
+    Object.keys(map).forEach(function (k) { if (map[k] > bv) { bv = map[k]; best = k; } });
+    return best;
+  }
+
+  /* Inverse-variance fusion weights (∝ 1/σ²), normalized to sum 1. A noisier
+     sensor contributes less to the single fused value. REGULARIZED: each σ² is
+     floored at floorFrac×(max σ²) so a spuriously near-zero estimate — sampling
+     noise at short records (~48–96 epochs) can drive one σ²→0 — cannot capture
+     ~all the weight and hijack the reconciled value. Floor is inert when the
+     variances are well-separated and none is pathologically small. */
+  function inverseVarianceWeights(sigma2, opts) {
+    opts = opts || {};
+    var floorFrac = opts.floorFrac != null ? opts.floorFrac : 0.08;
+    var ks = Object.keys(sigma2), maxS2 = 0;
+    ks.forEach(function (k) { if (sigma2[k] > maxS2) maxS2 = sigma2[k]; });
+    var floorV = Math.max(EPS, floorFrac * maxS2);
+    var inv = {}, sum = 0;
+    ks.forEach(function (k) { var s2 = Math.max(sigma2[k], floorV); inv[k] = 1 / s2; sum += inv[k]; });
+    var w = {}; ks.forEach(function (k) { w[k] = sum ? inv[k] / sum : 1 / ks.length; });
+    return w;
+  }
+
+  /* Align three arrays of {tMin (or opts.key), v} onto their COMMON keys, in
+     ascending key order → { A:[…], B:[…], C:[…], keys:[…] } of plain numbers.
+     Epoch grids from node exports (timeseries.epochs[].hr / .rmssd) feed straight in. */
+  function alignTriplet(objsA, objsB, objsC, opts) {
+    opts = opts || {};
+    var key = opts.key || 'tMin', val = opts.val || 'v';
+    function toMap(objs) {
+      var m = new Map();
+      (objs || []).forEach(function (o) {
+        if (o && _finite(o[key]) && _finite(o[val])) m.set(o[key], o[val]);
+      });
+      return m;
+    }
+    var mA = toMap(objsA), mB = toMap(objsB), mC = toMap(objsC);
+    var keys = [];
+    mA.forEach(function (_, k) { if (mB.has(k) && mC.has(k)) keys.push(k); });
+    keys.sort(function (x, y) { return x - y; });
+    return {
+      keys: keys,
+      A: keys.map(function (k) { return mA.get(k); }),
+      B: keys.map(function (k) { return mB.get(k); }),
+      C: keys.map(function (k) { return mC.get(k); })
+    };
+  }
+
+  var API = {
+    threeCorneredHat: threeCorneredHat,
+    alignTriplet: alignTriplet,
+    inverseVarianceWeights: inverseVarianceWeights,
+    pairDiffVar: pairDiffVar,
+    classic: classic,
+    correlated: correlated,
+    variance: variance, mean: mean,
+    VERSION: '1.0.0'
+  };
+
+  if (typeof module !== 'undefined' && module.exports) module.exports = API;
+  root.IntegratorTCH = API;
+})(typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this));

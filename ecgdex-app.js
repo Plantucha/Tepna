@@ -85,8 +85,9 @@ self.onmessage = async (e) => {
   self.postMessage({ type:'done', buffer:out, n, gaps, t0Ms, fs }, [out]);
 };`;
 let workerURL = null;
-// CLOCK-UNIFY: main-thread floating wall-clock helpers (mirror the worker's _ckPF)
-function _floatNow(){ return Date.now() - new Date().getTimezoneOffset()*60000; }
+// CLOCK-UNIFY: main-thread floating wall-clock timestamp parser (mirror of the worker's _ckPF). A
+// missing stamp stays null — the primary loader threads null, never a now() anchor (Clock Contract
+// §2.6). DEEP-AUDIT-FIXES-FOLLOWUPS-2026-07-01 §1 removed the old wall-clock now()-fallback (dead).
 function parseTSfloat(raw){
   if(raw==null) return null;
   const s = String(raw).trim().replace(/^["']|["']$/g,'');
@@ -123,7 +124,7 @@ function loadECGFile(files){
       if(d.type==='progress'){ progress(Math.min(40, 4+d.n/5e6*36), 'Parsed '+(d.n/1e6).toFixed(1)+'M samples…'); }
       else if(d.type==='done'){
         w.terminate();
-        const rec = { int16:new Int16Array(d.buffer), fs:d.fs, gaps:d.gaps, t0Ms:(d.t0Ms!=null?d.t0Ms:_floatNow()), source:'file', durSec:d.n/d.fs };
+        const rec = { int16:new Int16Array(d.buffer), fs:d.fs, gaps:d.gaps, t0Ms:(d.t0Ms!=null?d.t0Ms:null), source:'file', durSec:d.n/d.fs };
         // R1 provenance: the streamed primary ECG bypasses the FileReader hook —
         // attest each part explicitly (name/bytes/mtime) so the export records its true inputs.
         if(window.GangliorProvenance) files.forEach(f=>GangliorProvenance.noteInput(f));
@@ -145,7 +146,7 @@ function loadECGFile(files){
         if(p.length>=3){ const ms=parseFloat(p[2]); if(isFinite(ms)){ if(prevMs!==null && msStep===null){ const d=ms-prevMs; if(d>0&&d<50) msStep=d; } prevMs=ms; } }
       }
       const fs = msStep? Math.round(1000/msStep):130;
-      runPipeline({ int16:new Int16Array(arr), fs, gaps:[], t0Ms:(t0Ms!=null?t0Ms:_floatNow()), source:'file', durSec:arr.length/fs }, file.name);
+      runPipeline({ int16:new Int16Array(arr), fs, gaps:[], t0Ms:(t0Ms!=null?t0Ms:null), source:'file', durSec:arr.length/fs }, file.name);
     };
     fr.readAsText(file);
   }
@@ -176,24 +177,15 @@ function setLoad(which, msg){
   if(st){ st.textContent = msg; st.classList.add('ok'); }
   if(card){ card.classList.add('loaded'); }
 }
-function parseRows(text){
-  // generic: split lines, split each on ; \t or , → numeric fields + leading timestamp
-  const lines = text.split(/\r?\n/), out = [];
-  for(const line of lines){ const t=line.trim(); if(!t) continue;
-    if(/[a-df-zA-DF-Z]/.test(t.replace(/[eE][+-]?\d/g,'')) && !/^\s*[\d.]/.test(t) && !Date.parse(t.split(/[;\t,]/)[0])) continue; // skip header rows
-    const p = t.split(/[;\t,]/).map(s=>s.trim());
-    const ms = Date.parse(p[0]);
-    const nums = p.map(parseFloat);
-    out.push({ raw:p, tsMs:isFinite(ms)?ms:null, nums });
-  }
-  return out;
-}
+// device cross-check loaders ── DEEP-AUDIT 2026-07-01 Finding 2: parse via the Clock-Contract-
+// faithful DSP twins (ECGDSP.parseDeviceRR/parseDeviceHR/parseDeviceACC — regex parseTimestamp,
+// floating wall-clock, a missing stamp stays null). The old app-local parseRows used a locale
+// Date-parse (viewer-timezone-dependent) and loadDeviceHR fabricated a wall-clock now() for a stampless row, both
+// diverging from the twins the Unifier/OverDex routed path already calls. ONE parser now, no fork.
 function loadDeviceRR(file){
   const fr = new FileReader();
   fr.onload = e => {
-    const rows = parseRows(e.target.result), out = [];
-    for(const r of rows){ const rr = r.nums[r.nums.length-1]; if(!isFinite(rr)||rr<200||rr>3000) continue;
-      out.push({ tsMs:r.tsMs, rr }); }
+    const out = DSP.parseDeviceRR(e.target.result);
     if(!out.length){ showErr('No RR values parsed from file.'); return; }
     DEVICE_RR = out;
     setLoad('rr', '✅ '+out.length.toLocaleString()+' RR beats loaded');
@@ -204,10 +196,7 @@ function loadDeviceRR(file){
 function loadDeviceHR(file){
   const fr = new FileReader();
   fr.onload = e => {
-    const rows = parseRows(e.target.result), out = [];
-    let s = 0;
-    for(const r of rows){ const hr = r.nums[r.nums.length-1]; if(!isFinite(hr)||hr<20||hr>260) continue;
-      out.push({ tsMs: isFinite(r.tsMs)? r.tsMs : (RESULT&&RESULT.t0Ms!=null? RESULT.t0Ms : _floatNow())+s*1000, hr }); s++; }
+    const out = DSP.parseDeviceHR(e.target.result);   // stampless rows keep tsMs:null — never a fabricated now()
     if(!out.length){ showErr('No HR values parsed from file.'); return; }
     DEVICE_HR = out;
     setLoad('hr', '✅ '+out.length.toLocaleString()+' HR samples loaded');
@@ -218,26 +207,13 @@ function loadDeviceHR(file){
 function loadDeviceACC(file){
   const fr = new FileReader();
   fr.onload = e => {
-    const rows = parseRows(e.target.result), out = []; let s = 0;
-    for(const r of rows){
-      // take the last three numeric columns as x,y,z
-      const ns = r.nums.filter(isFinite);
-      if(ns.length < 3) continue;
-      const [x,y,z] = ns.slice(-3);
-      out.push({ tsMs: isFinite(r.tsMs)? r.tsMs : null, x, y, z }); s++;
-    }
-    if(out.length < 30){ showErr('Too few ACC samples parsed (need ≥3 numeric columns per row).'); return; }
-    // infer sample rate from median dt
-    let fs = 4; const ts = out.map(o=>o.tsMs).filter(isFinite);
-    if(ts.length > 5){ const dt=[]; for(let i=1;i<ts.length;i++) dt.push(ts[i]-ts[i-1]); dt.sort((a,b)=>a-b);
-      const md = dt[dt.length>>1]; if(md>0) fs = Math.max(1, Math.min(200, Math.round(1000/md))); }
-    if(!isFinite(out[0].tsMs)){
-      // no stamps in file → RELATIVE timing from 0; re-based to the recording's t0Ms at
-      // attach time (never fabricate a now() anchor — Clock Contract)
-      const base = RESULT&&RESULT.t0Ms!=null? RESULT.t0Ms : 0;
-      out._relBase = (base===0);
-      out.forEach((o,i)=>o.tsMs=base+Math.round(i/fs*1000));
-    }
+    const parsed = DSP.parseDeviceACC(e.target.result);   // { acc:[{tsMs,x,y,z}], accFs } | { acc:null }
+    if(!parsed.acc){ showErr('Too few ACC samples parsed (need ≥3 numeric columns per row).'); return; }
+    const out = parsed.acc, fs = parsed.accFs;
+    // a STAMPLESS twin result is relative-from-0 (+_relBase); re-base onto the recording's t0Ms
+    // here, as the old loader did (Clock Contract §2.6 — never fabricate a now() anchor). Inert
+    // when the twin returned absolute stamps (_relBase unset).
+    if(out._relBase && RESULT && RESULT.t0Ms!=null){ out.forEach(o=>{ o.tsMs+=RESULT.t0Ms; }); out._relBase=false; }
     DEVICE_ACC = out; ACC_FS = fs;
     setLoad('acc', '✅ '+out.length.toLocaleString()+' ACC @ '+fs+' Hz loaded');
     if(RESULT){ RESULT.deviceACC = DEVICE_ACC; RESULT.accFs = ACC_FS;
@@ -1089,7 +1065,7 @@ function _baevskyGeom(nn){
 function _welltoryRowFor(r){
   const g = _baevskyGeom(r.nn);
   const mode = g.mode==null?'':g.mode, amo50 = g.amo50==null?'':g.amo50, mxdmn = g.mxDMn==null?'':g.mxDMn;
-  const t0 = (r.t0Ms!=null?r.t0Ms:_floatNow());
+  const t0 = (r.t0Ms!=null?r.t0Ms:0);   // §1 (FOLLOWUPS): undated recording → relative-from-0 (1970 epoch, deterministic), NEVER now()
   const d=new Date(t0), p=x=>String(x).padStart(2,'0');
   // CLOCK-UNIFY: floating wall-clock → ISO (no zone) via getUTC*; HRVDex.parseTimestamp reads it verbatim.
   const ts = d.getUTCFullYear()+'-'+p(d.getUTCMonth()+1)+'-'+p(d.getUTCDate())+' '+p(d.getUTCHours())+':'+p(d.getUTCMinutes())+':'+p(d.getUTCSeconds());
@@ -1116,13 +1092,13 @@ function exportWelltoryCSV(){
 // Computed RR export for PulseDex (Plan-B handoff): timestamp;RR-interval [ms]
 function exportRR(){
   if(!RESULT) return;
-  const r = RESULT; const t0 = (r.t0Ms!=null?r.t0Ms:_floatNow());
+  const r = RESULT; const t0 = (r.t0Ms!=null?r.t0Ms:0);   // §1 (FOLLOWUPS): undated → relative-from-0, never now()
   const lines = ['Phone timestamp;RR-interval [ms]'];
   for(let i=0;i<r.nn.length;i++){
     const ts = new Date(t0 + r.tt[i]*1000).toISOString().replace('Z','');
     lines.push(ts+';'+Math.round(r.nn[i]));
   }
-  dl(lines.join('\n'), 'ecgdex_computed_RR_'+new Date(t0).toISOString().slice(0,10)+'.txt', 'text/plain');
+  dl(lines.join('\n'), 'ecgdex_computed_RR_'+(r.t0Ms!=null?new Date(r.t0Ms).toISOString().slice(0,10):'undated')+'.txt', 'text/plain');
   showOK('Computed RR exported ('+r.nn.length+' beats) — drop this into PulseDex for precise HRV (Plan-B handoff).');
 }
 // ════════════════════════════════════════════════════════════════════════
@@ -1254,7 +1230,7 @@ function renderRecSwitcher(){
   wrap.innerHTML = '<div class="sec-label" style="margin-top:10px">Recordings · '+list.length+'</div>' + list.map(s=>{
     const k=s._key, active=k===activeKey, q=s.analyzablePct>=90?'ok':s.analyzablePct>=75?'warn':'bad';
     return '<button class="rec-item '+(active?'active':'')+'" data-key="'+k+'">'
-      +'<div class="ri-top"><span class="ri-date">'+fmt(s.t0Ms)+'</span><span class="ri-q '+q+'">'+s.analyzablePct+'%</span></div>'
+      +'<div class="ri-top"><span class="ri-date">'+(s.t0Ms!=null?fmt(s.t0Ms):'undated')+'</span><span class="ri-q '+q+'">'+s.analyzablePct+'%</span></div>'
       +'<div class="ri-sub">'+(s.durSec>=3600?(s.durSec/3600).toFixed(1)+' h':(s.durSec/60).toFixed(0)+' min')+' · '+s.dispHr+' bpm · rMSSD '+s.dispRm+'</div></button>';
   }).join('');
   wrap.querySelectorAll('.rec-item').forEach(b=>b.addEventListener('click',()=>selectRecording(b.getAttribute('data-key'))));

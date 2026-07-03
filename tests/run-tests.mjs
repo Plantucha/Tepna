@@ -197,7 +197,7 @@ function main() {
   let ctx;
   try {
     ctx = makeSandbox();
-    ['kernel-constants.js', 'metric-registry.js', 'dex-profile.js', 'oxydex-registry.js', 'ecgdex-registry.js', 'ppgdex-registry.js', 'cpapdex-registry.js', 'pulsedex-registry.js', 'hrvdex-registry.js', 'glucodex-registry.js', 'codegen/generated/eegdex-registry.js', 'crossnight-envelope.js', 'ecgdex-cross.js', 'oxydex-cross.js', 'pulsedex-cross.js', 'ppgdex-cross.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js', 'integrator-dsp.js',
+    ['kernel-constants.js', 'metric-registry.js', 'dex-profile.js', 'oxydex-registry.js', 'ecgdex-registry.js', 'ppgdex-registry.js', 'cpapdex-registry.js', 'pulsedex-registry.js', 'hrvdex-registry.js', 'glucodex-registry.js', 'codegen/generated/eegdex-registry.js', 'crossnight-envelope.js', 'ecgdex-cross.js', 'oxydex-cross.js', 'pulsedex-cross.js', 'ppgdex-cross.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js', 'integrator-dsp.js', 'integrator-tch.js',
      'signal-spec.js', 'signal-frame.js', 'dex-export.js', 'signal-adapters.js', 'adapters/polar-rr.js', 'adapters/coospo-rr.js', 'adapters/wahoo-rr.js', 'adapters/oxydex-spo2.js', 'adapters/welltory-summary.js', 'adapters/libre-cgm.js', 'adapters/polar-sense-ppg.js', 'adapters/polar-h10-ecg.js', 'quantity.js', 'dex-ingest.js', 'provenance-banner.js'].forEach(f => loadInto(ctx, f));
     // §3 NAMESPACED CO-LOAD (SIGNAL-ADAPTER-FOLLOWUPS): the migrated DSPs now ship a
     // namespaced build, so — exactly like the Data Unifier / OverDex / Dex-Test-Suite host
@@ -240,6 +240,7 @@ function main() {
     GLUDSP: ctx.GLUDSP,
     GlucoDex: ctx.GlucoDex,
     IntegratorDSP: ctx.IntegratorDSP,
+    IntegratorTCH: ctx.IntegratorTCH,
     IntegratorLong: ctx.IntegratorLong,
     DexPatientGen: ctx.DexPatientGen,
     parseTimestamp: ctx.parseTimestamp,

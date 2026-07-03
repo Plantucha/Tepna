@@ -1,0 +1,151 @@
+<!doctype html>
+<!-- SPDX: Copyright 2026 Michal Planicka · Apache-2.0 · integrator-tch known-answer self-test -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>IntegratorTCH — known-answer self-test</title>
+<style>
+  body{font:14px/1.5 ui-monospace,monospace;background:#0f1115;color:#d7dbe0;margin:0;padding:24px}
+  h1{font:600 16px system-ui;margin:0 0 4px}
+  .sub{color:#8b93a0;font:12px system-ui;margin:0 0 18px}
+  .row{padding:5px 10px;border-radius:5px;margin:3px 0;display:flex;gap:10px;align-items:baseline}
+  .pass{background:#12261a;color:#7ee2a8}
+  .fail{background:#2a1416;color:#ff9ba3}
+  .tag{color:#6b7280;font-size:12px}
+  .k{color:#8fb8ff}
+  #summary{font:600 15px system-ui;padding:10px 14px;border-radius:6px;margin:14px 0}
+  pre{color:#9aa3b0;font-size:12px;white-space:pre-wrap;margin:2px 0 12px 20px}
+</style>
+</head>
+<body>
+<h1>IntegratorTCH — three-cornered-hat known-answer self-test</h1>
+<p class="sub">Deterministic (seeded RNG). Injects known per-sensor σ² into a common latent series, checks recovery.</p>
+<div id="summary">running…</div>
+<div id="out"></div>
+
+<script src="../integrator-tch.js"></script>
+<script>
+(function(){
+  var T = window.IntegratorTCH;
+  var out = document.getElementById('out'), pass=0, fail=0;
+  function row(ok, name, detail){
+    if(ok) pass++; else fail++;
+    var d=document.createElement('div'); d.className='row '+(ok?'pass':'fail');
+    d.innerHTML='<span>'+(ok?'✓':'✗')+'</span><span>'+name+'</span>'+(detail?'<span class="tag">'+detail+'</span>':'');
+    out.appendChild(d);
+  }
+  function note(txt){ var p=document.createElement('pre'); p.textContent=txt; out.appendChild(p); }
+  function rel(a,b){ return Math.abs(a-b)/Math.abs(b); }
+
+  /* seeded deterministic normal RNG */
+  function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+  function normals(seed,n){ var r=mulberry32(seed),o=[]; for(var i=0;i<n;i+=2){ var u1=Math.max(r(),1e-12),u2=r(); var m=Math.sqrt(-2*Math.log(u1)); o.push(m*Math.cos(2*Math.PI*u2)); o.push(m*Math.sin(2*Math.PI*u2)); } return o.slice(0,n); }
+
+  var N = 6000;
+
+  /* ── 1 · INDEPENDENT noise — the headline known-answer ─────────────────
+     truth cancels in every pairwise difference, so recovery depends only on
+     the injected noise. σ² = [4, 9, 25] (std 2,3,5). */
+  (function(){
+    var sig2 = {ECG:4, PPG:9, Oxy:25};
+    var truth = (function(){ var w=normals(1,N),v=[],acc=60; for(var i=0;i<N;i++){acc+=w[i]*0.8; v.push(acc);} return v; })();
+    var nE=normals(11,N), nP=normals(22,N), nO=normals(33,N);
+    var A=[],B=[],C=[];
+    for(var i=0;i<N;i++){
+      A.push(truth[i]+Math.sqrt(sig2.ECG)*nE[i]);
+      B.push(truth[i]+Math.sqrt(sig2.PPG)*nP[i]);
+      C.push(truth[i]+Math.sqrt(sig2.Oxy)*nO[i]);
+    }
+    var r = T.threeCorneredHat(A,B,C,{labels:['ECG','PPG','Oxy']});
+    row(r.ok, 'independent: estimator ok', 'method='+r.method+' n='+r.n);
+    row(r.method==='classic', 'independent: uses classic (rho=0)', 'rho='+r.rho);
+    note('injected σ²  = '+JSON.stringify(sig2)+'\nrecovered σ² = {ECG:'+r.sigma2.ECG.toFixed(2)+', PPG:'+r.sigma2.PPG.toFixed(2)+', Oxy:'+r.sigma2.Oxy.toFixed(2)+'}');
+    row(rel(r.sigma2.ECG,4)<0.20,  'recover σ²(ECG)=4 within 20%',  '±'+(rel(r.sigma2.ECG,4)*100).toFixed(1)+'%');
+    row(rel(r.sigma2.PPG,9)<0.20,  'recover σ²(PPG)=9 within 20%',  '±'+(rel(r.sigma2.PPG,9)*100).toFixed(1)+'%');
+    row(rel(r.sigma2.Oxy,25)<0.20, 'recover σ²(Oxy)=25 within 20%', '±'+(rel(r.sigma2.Oxy,25)*100).toFixed(1)+'%');
+    row(r.culprit==='Oxy', 'culprit = noisiest sensor (Oxy)', 'culprit='+r.culprit);
+    // inverse-variance weights: noisiest gets the smallest
+    row(r.weights.ECG>r.weights.PPG && r.weights.PPG>r.weights.Oxy, 'weights ordered ECG>PPG>Oxy',
+        'w={ECG:'+r.weights.ECG.toFixed(3)+',PPG:'+r.weights.PPG.toFixed(3)+',Oxy:'+r.weights.Oxy.toFixed(3)+'}');
+    var wsum=r.weights.ECG+r.weights.PPG+r.weights.Oxy;
+    row(Math.abs(wsum-1)<1e-9, 'weights sum to 1', 'Σ='+wsum.toFixed(6));
+  })();
+
+  /* ── 2 · COMMON-MODE, external rho supplied — correlated solver recovery ──
+     n_i = s_i·(√ρ·g + √(1-ρ)·e_i): exactly Cov(n_i,n_j)=ρ·s_i·s_j. Positive
+     common-mode BIASES classic but does NOT make it negative, so it can't be
+     found reference-free — the consumer supplies the co-motion ρ and the solver
+     removes it, recovering the injected σ². */
+  (function(){
+    var sig2 = {ECG:1, PPG:16, Oxy:16}, rho0=0.75;
+    var truth=(function(){ var w=normals(2,N),v=[],acc=55; for(var i=0;i<N;i++){acc+=w[i]*0.5; v.push(acc);} return v; })();
+    var g=normals(101,N), eE=normals(111,N), eP=normals(122,N), eO=normals(133,N);
+    var A=[],B=[],C=[];
+    for(var i=0;i<N;i++){
+      A.push(truth[i]+Math.sqrt(sig2.ECG)*(Math.sqrt(rho0)*g[i]+Math.sqrt(1-rho0)*eE[i]));
+      B.push(truth[i]+Math.sqrt(sig2.PPG)*(Math.sqrt(rho0)*g[i]+Math.sqrt(1-rho0)*eP[i]));
+      C.push(truth[i]+Math.sqrt(sig2.Oxy)*(Math.sqrt(rho0)*g[i]+Math.sqrt(1-rho0)*eO[i]));
+    }
+    var cl = T.classic(T.pairDiffVar(A,B).v, T.pairDiffVar(A,C).v, T.pairDiffVar(B,C).v);
+    var naive = T.threeCorneredHat(A,B,C,{labels:['ECG','PPG','Oxy']});
+    note('common-mode ρ0='+rho0+', injected σ²='+JSON.stringify(sig2)
+      +'\nclassic (ρ ignored) σ² = {ECG:'+cl.a.toFixed(2)+', PPG:'+cl.b.toFixed(2)+', Oxy:'+cl.c.toFixed(2)+'}  ← positive but biased');
+    row(naive.method==='classic', 'positive common-mode does NOT go negative (classic used)', 'method='+naive.method);
+    var r = T.threeCorneredHat(A,B,C,{labels:['ECG','PPG','Oxy'], rho:rho0});
+    row(r.ok && r.method==='correlated-external', 'external-rho: correlated solver engages', 'method='+r.method+' rho='+r.rho);
+    note('recovered w/ external ρ = {ECG:'+r.sigma2.ECG.toFixed(2)+', PPG:'+r.sigma2.PPG.toFixed(2)+', Oxy:'+r.sigma2.Oxy.toFixed(2)+'}');
+    row(rel(r.sigma2.ECG,1)<0.35,  'recover σ²(ECG)=1 within 35%',  '±'+(rel(r.sigma2.ECG,1)*100).toFixed(1)+'%');
+    row(rel(r.sigma2.PPG,16)<0.25, 'recover σ²(PPG)=16 within 25%', '±'+(rel(r.sigma2.PPG,16)*100).toFixed(1)+'%');
+    row(rel(r.sigma2.Oxy,16)<0.25, 'recover σ²(Oxy)=16 within 25%', '±'+(rel(r.sigma2.Oxy,16)*100).toFixed(1)+'%');
+  })();
+
+  /* ── 2b · NEGATIVE-variance failure mode — auto min-rho search engages ────
+     Correlate ONLY the B–C pair (both peripheral), B noisier than C, so classic
+     σ²_C = s_c² − Cov(B,C) < 0. The auto solver must return a non-negative fit. */
+  (function(){
+    var truth=(function(){ var w=normals(3,N),v=[],acc=58; for(var i=0;i<N;i++){acc+=w[i]*0.6; v.push(acc);} return v; })();
+    var h=normals(201,N), eA=normals(211,N), eB=normals(222,N), eC=normals(233,N);
+    var sA=2, sB=4, sC=1, rBC=0.9;   // Cov(B,C)=sB·sC·rBC=3.6 > sC²=1 ⇒ σ²_C classic < 0
+    var A=[],B=[],C=[];
+    for(var i=0;i<N;i++){
+      A.push(truth[i]+sA*eA[i]);
+      B.push(truth[i]+sB*(Math.sqrt(rBC)*h[i]+Math.sqrt(1-rBC)*eB[i]));
+      C.push(truth[i]+sC*(Math.sqrt(rBC)*h[i]+Math.sqrt(1-rBC)*eC[i]));
+    }
+    var cl = T.classic(T.pairDiffVar(A,B).v, T.pairDiffVar(A,C).v, T.pairDiffVar(B,C).v);
+    note('B–C correlated (r=0.9), σ_C small ⇒ classic σ²(Oxy) = '+cl.c.toFixed(2)+'  ← negative');
+    row(cl.c < 0, 'crafted: classic σ²(Oxy) is negative', 'classicOxy='+cl.c.toFixed(2));
+    var r = T.threeCorneredHat(A,B,C,{labels:['ECG','PPG','Oxy']});
+    row(r.ok && r.method==='correlated', 'auto correlated solver engages on negative', 'method='+r.method);
+    row(r.negative===true, 'flags negative-variance failure', 'negative='+r.negative);
+    row(r.sigma2.ECG>=0 && r.sigma2.PPG>=0 && r.sigma2.Oxy>=0, 'all recovered σ² ≥ 0 after fit', JSON.stringify({ECG:+r.sigma2.ECG.toFixed(2),PPG:+r.sigma2.PPG.toFixed(2),Oxy:+r.sigma2.Oxy.toFixed(2)}));
+    row(r.rho>0, 'reports the minimum assumed rho>0', 'rho='+r.rho);
+  })();
+
+  /* ── 3 · DEGRADE — insufficient overlap → ok:false, no throw ───────────── */
+  (function(){
+    var r = T.threeCorneredHat([1,2,3],[1,2,3],[1,2,3],{minN:12});
+    row(r.ok===false && /overlap/.test(r.reason||''), 'degrade: n<minN → ok:false', r.reason);
+    var r2 = T.threeCorneredHat(null,[1],[2]);
+    row(r2.ok===false, 'degrade: missing series → ok:false', r2.reason);
+  })();
+
+  /* ── 4 · alignTriplet — common keys only, ascending ────────────────────── */
+  (function(){
+    var a=[{tMin:0,v:10},{tMin:5,v:11},{tMin:10,v:12}];
+    var b=[{tMin:5,v:20},{tMin:10,v:21},{tMin:15,v:22}];
+    var c=[{tMin:5,v:30},{tMin:10,v:31}];
+    var g=T.alignTriplet(a,b,c);
+    row(JSON.stringify(g.keys)==='[5,10]', 'alignTriplet keeps common keys', 'keys='+JSON.stringify(g.keys));
+    row(JSON.stringify(g.A)==='[11,12]' && JSON.stringify(g.C)==='[30,31]', 'alignTriplet maps values correctly', 'A='+JSON.stringify(g.A));
+  })();
+
+  var s=document.getElementById('summary');
+  s.textContent=(fail===0?'ALL GREEN — ':'RED — ')+pass+' passed, '+fail+' failed';
+  s.style.background=fail===0?'#12261a':'#2a1416';
+  s.style.color=fail===0?'#7ee2a8':'#ff9ba3';
+  window.__tchSelfTest={pass:pass,fail:fail,ok:fail===0};
+})();
+</script>
+</body>
+</html>

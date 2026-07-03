@@ -69,7 +69,12 @@ are <span class="warn">skipped</span>, not failed.</p>
 <p id="gateB" class="sub" style="margin:0 0 8px"></p>
 <table id="fixtures"><thead><tr><th>Fixture</th><th>bundle</th><th>kind</th><th>verdict</th></tr></thead><tbody></tbody></table>
 
-<h2>3 · CI recipe</h2>
+<h2>3 · Reconcile — <span class="mut">exact ledger edits after a re-bundle · READ-ONLY (this page never writes)</span></h2>
+<p class="sub" style="margin-top:0">After a re-bundle moves a <code>manifestHash</code>, the two ledgers need a hand-edit. This panel reuses the GATE&nbsp;A/B results above to classify each drifted bundle and print the EXACT <code>BUILD-MANIFEST.json</code> / <code>FIXTURE-PROVENANCE.json</code> edit — the same verdicts as <code>tests/reconcile-provenance.mjs</code>, for a no-Node-host agent. <b>EXPORT-INERT</b> = code moved but every committed output still hashes to its recorded value &rarr; update <code>manifestHash</code>es only (<code>outputHash</code> unchanged), provisional on the equiv/golden leg staying green. <b>OUTPUT-MOVED</b> = a committed output already drifted &rarr; regenerate by re-running the app + re-exporting (never hand-edit <code>outputHash</code>). It <b>never writes</b> (PROVENANCE-NONDETERMINISM &sect;2/&sect;4 — an auto-writer would race the out-of-band rebuild).</p>
+<p id="reconcile" class="sub" style="margin:0 0 8px"></p>
+<pre id="reconcileOut"></pre>
+
+<h2>4 · CI recipe</h2>
 <pre id="ci"></pre>
 
 <script src="provenance-banner.js"></script>
@@ -96,15 +101,22 @@ let MANIFEST = null, FIXPROV = null, MANIFEST_ERR = null, FIXPROV_ERR = null;
 
 // Static executed-code fingerprint: fetch the bundle FILE, hand its text to the shared GATE-A core.
 async function manifestHashOf(file){
-  try{ const txt = await (await fetch(file + '?_=' + Date.now(), { cache:'no-store' })).text();
-       return await ManifestGate.manifestHashFromText(txt); }
+  try{ const r = await fetch(file + '?_=' + Date.now(), { cache:'no-store' });
+       if(!r.ok) return null;                       // 404/500 → bundle not served; never hash the error page
+       return await ManifestGate.manifestHashFromText(await r.text()); }
   catch(e){ return null; }
 }
 // Content hash of a committed file (RAW bytes → sha256[0:16]) — the SAME value the ledger builder
 // records and the Node sibling recomputes. null when the file isn't served (gitignored uploads/).
 async function fileHash16(relPath){
-  try{ const ab = await (await fetch(relPath + '?_=' + Date.now(), { cache:'no-store' })).arrayBuffer();
-       return await ManifestGate.sha16(new Uint8Array(ab)); }
+  try{ const r = await fetch(relPath + '?_=' + Date.now(), { cache:'no-store' });
+       // CRITICAL: check r.ok. A gitignored uploads/ file 404s on a fresh clone/CI, and a static host
+       // (python3 -m http.server) returns an IDENTICAL error-page body for every miss — so hashing the
+       // response unconditionally made every absent input/output collide on ONE hash (860b53ed6ea6a0cf),
+       // false-redding every fixture as INPUT/OUTPUT DRIFT. null = not served → GATE B SKIPS it (the
+       // documented intent, mirroring the Node sibling's existsSync?…:null).
+       if(!r.ok) return null;
+       return await ManifestGate.sha16(new Uint8Array(await r.arrayBuffer())); }
   catch(e){ return null; }
 }
 
@@ -160,6 +172,49 @@ async function fileHash16(relPath){
     tr.innerHTML = `<td>${r.name}</td><td>${r.bundle||'—'}</td><td class="mut">${r.kind}</td><td>${pill}${det}</td>`;
     tbB.appendChild(tr);
   }
+
+  // ── §3 Reconcile reporter (EFFICIENCY-AUDIT-FIXES-2026-07-01 §3) — READ-ONLY: classify each bundle's
+  // drift + print the EXACT ledger edit for the no-Node-host agent, mirroring tests/reconcile-provenance.mjs.
+  // Reuses the already-computed gateA/gateB results (no new fetch/hash). NEVER writes (PROVENANCE-NONDETERMINISM
+  // §2/§4 — an auto-writer would race the out-of-band rebuild). Additive: does not touch the GATE A/B verdict.
+  (function(){
+    const fixByBundle = {};
+    Object.keys(fixtures).forEach(k => { const v = fixtures[k]; if (v && v.bundle && !v.historical) (fixByBundle[v.bundle] = fixByBundle[v.bundle]||[]).push(k); });
+    const outStatus = {}; gateB.results.forEach(r => { outStatus[r.name] = r; });
+    const lines = []; let drifted = 0;
+    for (const st of gateA.results){
+      const b = st.file;
+      if (st.status === 'match') continue;                       // RECONCILED — nothing to do
+      drifted++;
+      if (st.status === 'missing-committed'){ lines.push('• '+b+'   \u26a0 no committed manifestHash — add BUILD-MANIFEST.json bundles["'+b+'"] = { manifestHash: "'+(MH[b]||'?')+'" }'); lines.push(''); continue; }
+      if (st.status === 'missing-current'){ lines.push('• '+b+'   \u26a0 bundle / __bundler manifest did not load — cannot reconcile (see GATE A)'); lines.push(''); continue; }
+      // drift: current != committed, both present
+      const fx = fixByBundle[b] || [];
+      const moved = fx.filter(n => outStatus[n] && outStatus[n].status === 'output-drift');
+      const inert = fx.filter(n => moved.indexOf(n) < 0);
+      const verdict = moved.length ? 'OUTPUT-MOVED' : 'EXPORT-INERT';
+      lines.push('• '+b+'   '+verdict);
+      lines.push('    BUILD-MANIFEST.json   bundles["'+b+'"].manifestHash:   '+(st.committed||'—')+'  \u2192  '+(MH[b]||'—'));
+      if (verdict === 'EXPORT-INERT'){
+        fx.forEach(n => lines.push('    FIXTURE-PROVENANCE.json   fixtures["'+n+'"].manifestHash \u2192 '+(MH[b]||'—')+'   (outputHash UNCHANGED)'));
+        lines.push('    \u24d8 EXPORT-INERT is provisional on the equiv/golden leg (Dex-Test-Suite) staying green — the GATE-C surface that proves the output did not move.');
+      } else {
+        lines.push('    \u26a0 Regenerate by RE-RUNNING '+b+' on its committed inputs + RE-EXPORTING (never hand-edit outputHash), then re-record { manifestHash, outputHash } for:');
+        moved.forEach(n => lines.push('        - '+n));
+        if (inert.length) lines.push('    (also re-record manifestHash [outputHash unchanged] for: '+inert.join(', ')+')');
+      }
+      lines.push('');
+    }
+    const el = document.getElementById('reconcile'), out = document.getElementById('reconcileOut');
+    if (!drifted){
+      el.innerHTML = '<span class="pill ok">\u2713 all '+BUNDLES.length+' bundle(s) reconciled — ledgers match current code, nothing to do</span>';
+      out.textContent = 'No re-bundle drift. Per CLAUDE.md: if the ledger already reconciles, do NOT hand-edit it — you would only race the out-of-band rebuild writer.';
+    } else {
+      el.innerHTML = '<span class="pill warn">'+drifted+' bundle(s) need a ledger edit after re-bundle — exact edits below (apply by hand; this page never writes)</span>';
+      out.textContent = lines.join('\n');
+    }
+    window.__reconcile = { drifted: drifted, ok: drifted === 0 };
+  })();
 
   // ── Banners (shared pickProvenanceBanner — one source for page + suite) ──
   const _pb = (typeof pickProvenanceBanner === 'function')

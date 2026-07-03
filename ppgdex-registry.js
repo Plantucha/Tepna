@@ -41,6 +41,7 @@ var PPG_REGISTRY = {
   agreement:  { label:'Agreement',      unit:'%',   goodDirection:'up',   depth:'advanced', evidence:'measured', cite:'Self-PPI vs device-PPI mean agreement — direct validation statistic' },
   meanAbsDev: { label:'Mean abs dev',   unit:'ms',  goodDirection:'down', depth:'research', evidence:'measured', cite:'Self-vs-device mean absolute PPI deviation — direct' },
   meanPPI:    { label:'Mean PPI',       unit:'ms',  goodDirection:'up',   depth:'research', evidence:'measured', cite:'Mean pulse-to-pulse interval — direct from the optical waveform' },
+  ledAgreement:{ label:'LED agreement',  unit:'%',   goodDirection:'up',   depth:'advanced', evidence:'measured', cite:'3-LED optical consensus — % of kept beats where ≥2 of 3 photodiode channels place a systolic peak within ±50 ms (optical bSQI); direct quality statistic' },
 
   /* ── VALIDATED — established HRV from pulse-peak intervals ──────────────── */
   rmssd:      { label:'rMSSD',          unit:'ms',  goodDirection:'up',   depth:'advanced', evidence:'validated', cite:'RMSSD — short-term parasympathetic HRV (Task Force 1996)' },
@@ -98,6 +99,7 @@ var PPG_LABEL_ALIAS = {
   'mean motion idx':'motionIdx', 'motion idx':'motionIdx',
   'pulses rejected':'motion', 'acc hz':'accHz', 'gyro hz':'gyroHz',
   'agreement':'agreement', 'mean abs dev':'meanAbsDev', 'mean ppi':'meanPPI',
+  'led agreement':'ledAgreement', 'ledagreement':'ledAgreement', '3-led agreement':'ledAgreement', '3-led consensus':'ledAgreement', 'led consensus':'ledAgreement', 'led agree':'ledAgreement', '3-led agree':'ledAgreement',
   'rmssd':'rmssd', 'sdnn':'sdnn', 'ln rmssd':'lnRMSSD', 'pnn50':'pnn50',
   'sd1':'sd1', 'sd2':'sd2', 'sd1/sd2':'sd1sd2', 'sd1sd2':'sd1sd2', 'ellipse area':'ellArea',
   'dicrotic notch':'dicrotic', 'aug. index':'ai', 'augmentation index':'ai', 'aug index':'ai',

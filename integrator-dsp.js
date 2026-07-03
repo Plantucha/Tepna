@@ -132,6 +132,10 @@ function effConf(e){
    the PB_CVHR_MIN precedent). sqi==null ⇒ no floor (quality-neutral, back-compat — mirrors
    effConf + the clean-CGM clamp path). */
 var PPG_SQI_FLOOR = 0.3;
+// FU §2 — a PpgDex HRV summary whose whole-record 3-LED agreement is below this optical-consensus
+// floor is too single-LED-carried to trust in the cross-node HRV consensus (excluded like a
+// sub-QFLOOR night). Whole-record analog of the per-event PPG_SQI_FLOOR.
+var LED_CONSENSUS_FLOOR = 50;
 function median(a){ if(!a.length) return null; var s=a.slice().sort(function(x,y){return x-y;}); var m=Math.floor(s.length/2); return s.length%2?s[m]:(s[m-1]+s[m])/2; }
 function pearson(xs,ys){ var n=xs.length; if(n<3) return null;
   var mx=xs.reduce(function(s,v){return s+v;},0)/n, my=ys.reduce(function(s,v){return s+v;},0)/n;
@@ -276,8 +280,12 @@ function adaptEnvelopeNode(json, node, filename){
     if(_clamp && _clamp.detected){
       for(var _ei=0;_ei<events.length;_ei++){ var _ev=events[_ei];
         if(_ev && _ev.impulse==='nocturnal_hypo' && _ev.meta && _ev.meta.clampFloor){
+          // AUDIT-ONLY tag (NODE-RESIDUE-FOLLOWUPS-II §2, decided 2026-07-02): the conf ×0.5 on the next line is
+          // the LOAD-BEARING down-weight (it flows through effConf → the noisy-OR → the posterior). clampFloor
+          // itself is a provenance breadcrumb — grep-confirmed NOT read by fusion/render/export today — exactly
+          // like the meta.derived note above. Do NOT assume it gates anything in the posterior until a reader + test land.
           _ev.clampFloor = true;
-          if(typeof _ev.conf==='number') _ev.conf = +(_ev.conf*0.5).toFixed(3);   // clip-floor hypo: trusted less
+          if(typeof _ev.conf==='number') _ev.conf = +(_ev.conf*0.5).toFixed(3);   // clip-floor hypo: trusted less (LOAD-BEARING)
         }
       }
     }
@@ -314,21 +322,38 @@ function adaptEnvelopeNode(json, node, filename){
     summary.hrvQualityPct = _hq;
     summary.hrvWindow = 'wholeRecord';
     summary.hrvUnits = 'ms';
+    // FU §2: the node self-reports a coverage/SQI lowConfidence flag on its whole-record HRV
+    // (PpgDex §3 gate; harmless null→false for PulseDex/HRVDex) — carried onto the summary so the
+    // HRV-consensus can down-weight a sparse night even when its analyzablePct clears QFLOOR.
+    summary.hrvLowConfidence = !!_dig(json,['hrv','time','lowConfidence']);
     // PpgDex carries limb-worn ACC posture (lower reliability than a chest strap) —
     // expose it as a posture series so it can be a positional-apnea FALLBACK when no
     // ECGDex chest-ACC is present. Tagged via postureSource so the fusion down-weights it.
     if(node==='PpgDex'){
       summary.posture = _ecgPostureSeries(json, t0Ms);
       summary.postureSource = 'limb-acc';
+      // FU §2: 3-LED optical consensus (% of kept beats where ≥2/3 channels agree) — a whole-
+      // record optical trust axis folded into the HRV-consensus gate alongside the per-event floor.
+      summary.ledAgreementPct = _dig(json,['quality','ledAgreementPct']);
       // SQI FLOOR (NODE-RESIDUE-FOLLOWUPS §3): categorically down-weight UNUSABLE-quality PpgDex
       // events (a noisy autonomic_surge / motion_artifact_segment is trusted less), MIRRORING the
       // GlucoDex clamp-floor loop above. effConf already tapers a surge PROPORTIONALLY by sqi in the
       // noisy-OR; this adds a hard floor for the noisy tail so a beat window too noisy to trust barely
       // corroborates. sqi PRESERVED (R7 — rides alongside conf); sqi==null / ≥floor → untouched.
+      // NO SYMMETRIC ECGDex FLOOR — INTENTIONAL, not an oversight (NODE-RESIDUE-FOLLOWUPS-II §1, decided
+      // 2026-07-02). ECGDex surges ALSO carry per-event sqi and effConf already tapers them proportionally,
+      // but the categorical floor is PpgDex-ONLY on purpose: PpgDex is limb-worn OPTICAL (Polar Verity Sense),
+      // motion-prone, its sqi legitimately dips into the unusable tail → the extra categorical distrust is
+      // warranted; ECGDex is a CHEST STRAP (Polar H10) whose sqi rarely reaches < PPG_SQI_FLOOR on a real
+      // recording, so a floor would almost never fire and effConf's smooth taper suffices. Different sensor
+      // physics → different treatment; deliberately NOT a shared NODE_SQI_FLOOR table. See EVENT-LEXICON §6.10.
       for(var _pi=0;_pi<events.length;_pi++){ var _pe=events[_pi];
         if(_pe && _pe.sqi!=null && isFinite(_pe.sqi) && _pe.sqi < PPG_SQI_FLOOR){
+          // AUDIT-ONLY tag (NODE-RESIDUE-FOLLOWUPS-II §2): the conf ×0.5 on the next line is the LOAD-BEARING
+          // down-weight (flows through effConf → noisy-OR → posterior); sqiFloor is a provenance breadcrumb,
+          // grep-confirmed NOT read by fusion/render/export today — mirrors the meta.derived note above.
           _pe.sqiFloor = true;
-          if(typeof _pe.conf==='number') _pe.conf = +(_pe.conf*0.5).toFixed(3);   // unusable-SQI PPG event: trusted less
+          if(typeof _pe.conf==='number') _pe.conf = +(_pe.conf*0.5).toFixed(3);   // unusable-SQI PPG event: trusted less (LOAD-BEARING)
         }
       }
     }
@@ -351,6 +376,23 @@ function adaptEnvelopeNode(json, node, filename){
     summary.ahiSource = 'device-scored';
     // body-position passthrough if a future PAP firmware embeds it in event meta
     summary.posture = _ecgPostureSeries(json, t0Ms);
+  }
+  // TCH (INTEGRATOR-THREE-CORNERED-HAT §1): carry the per-epoch HRV/HR SERIES so the
+  // fusion layer can run a three-cornered-hat across nodes (TCH needs aligned series,
+  // not the whole-record scalars above). motion = per-epoch motionIndex (the co-motion
+  // proxy for the correlated-TCH rho, finding §1). Additive + null-tolerant; a node with
+  // no epoch grid simply carries no series and TCH degrades to pairwise consensus.
+  var _tchEps = json.timeseries && json.timeseries.epochs;
+  if(Array.isArray(_tchEps) && _tchEps.length){
+    seriesOut.hrvEpochs = _tchEps.map(function(e){
+      if(!e) return null;
+      var tMin = (e.tMin!=null ? e.tMin : (e.t!=null ? e.t : null));
+      if(tMin==null || !isFinite(tMin)) return null;
+      return { tMin:tMin, tMs:(t0Ms!=null ? t0Ms + tMin*60000 : null),
+        rmssd:(e.rmssd!=null && isFinite(e.rmssd) ? e.rmssd : null),
+        hr:(e.hr!=null && isFinite(e.hr) ? e.hr : null),
+        motion:(e.motionIndex!=null && isFinite(e.motionIndex) ? e.motionIndex : null) };
+    }).filter(function(x){ return x; });
   }
   return [{
     node:node, label: node + (t0Ms!=null?(' · '+fmtDayShort(t0Ms)):' · date unknown'),
@@ -974,6 +1016,29 @@ function fuseAutonomicGlycemic(recs, dtMs, opts2){
    R8: only compares metrics from the SAME analysis window (all normalized to
    wholeRecord in adaptEnvelopeNode), so a definitional mismatch can't masquerade
    as a data-quality divergence. The window is stated in every block. */
+/* ── TCH consensus helpers (INTEGRATOR-THREE-CORNERED-HAT-2026-07-02 §3) ────────
+   Reference-free per-sensor error from the per-epoch rmssd SERIES carried on each rec
+   (series.hrvEpochs, added in adaptEnvelopeNode). PURE; returns a reason-stamped null
+   when <3 nodes carry an alignable series (→ pairwise consensus is used unchanged). */
+function _tchEngine(){ return (typeof IntegratorTCH!=='undefined' && IntegratorTCH) || (typeof window!=='undefined' && window.IntegratorTCH) || null; }
+function _rmssdPts(s){ return ((s.series&&s.series.hrvEpochs)||[]).filter(function(e){return e && e.tMin!=null && e.rmssd!=null;}).map(function(e){return {tMin:e.tMin, v:e.rmssd};}); }
+function _meanMotion(s, keys){ var set={}; keys.forEach(function(k){set[k]=1;}); var eps=(s.series&&s.series.hrvEpochs)||[]; var vs=eps.filter(function(e){return e&&set[e.tMin]&&e.motion!=null;}).map(function(e){return e.motion;}); if(!vs.length) return null; return +(vs.reduce(function(a,b){return a+b;},0)/vs.length).toFixed(3); }
+function _tchConsensus(like){
+  var TCH=_tchEngine(); if(!TCH) return null;
+  var ws=like.filter(function(s){ return _rmssdPts(s).length>=12; });
+  if(ws.length<3) return { ok:false, reason:'need ≥3 series-bearing nodes; have '+ws.length, nodesWithSeries:ws.map(function(s){return s.node;}) };
+  var best=null;   // pick the triple with the most common aligned epochs
+  for(var i=0;i<ws.length;i++) for(var j=i+1;j<ws.length;j++) for(var k=j+1;k<ws.length;k++){
+    var al=TCH.alignTriplet(_rmssdPts(ws[i]),_rmssdPts(ws[j]),_rmssdPts(ws[k]),{key:'tMin',val:'v'});
+    if(!best || al.keys.length>best.al.keys.length) best={A:ws[i],B:ws[j],C:ws[k],al:al};
+  }
+  if(!best || best.al.keys.length<12) return { ok:false, reason:'best triple overlap '+(best?best.al.keys.length:0)+' epochs < 12' };
+  var r=TCH.threeCorneredHat(best.al.A,best.al.B,best.al.C,{labels:[best.A.node,best.B.node,best.C.node], minN:12});
+  if(!r.ok) return r;
+  r.metric='rmssd'; r.coMotion={};   // per-node mean motionIndex over the aligned window (external-rho refinement is future)
+  [best.A,best.B,best.C].forEach(function(s){ r.coMotion[s.node]=_meanMotion(s, best.al.keys); });
+  return r;
+}
 function fuseHRVConsensus(recs, dtMs){
   var sources = recs.filter(function(r){ return ['ECGDex','PulseDex','HRVDex','PpgDex'].indexOf(r.node)>=0 && !r.dateUnknown && r.summary && (r.summary.rmssd!=null||r.summary.sdnn!=null); });
   if(sources.length < 2) return null;
@@ -992,9 +1057,17 @@ function fuseHRVConsensus(recs, dtMs){
     // night) otherwise fabricates a false cross-device 'divergence'. Prune sources below
     // a quality floor — but only while ≥2 trustworthy sources remain.
     var QFLOOR = DexKernel.K.QFLOOR;
-    var usable = likeWin.filter(function(s){ var q=s.summary&&s.summary.hrvQualityPct; return q==null || q>=QFLOOR; });
-    var lowQ = likeWin.filter(function(s){ var q=s.summary&&s.summary.hrvQualityPct; return q!=null && q<QFLOOR; })
-                      .map(function(s){ return s.node+' ('+s.summary.hrvQualityPct+'%)'; });
+    // FU §2: a source is untrusted for HRV consensus if its coverage is below QFLOOR, OR it
+    // self-reported hrv.time.lowConfidence (a sparse/heavily-corrected night that can clear the
+    // analyzablePct floor yet stay jitter-inflated), OR (PpgDex) its whole-record 3-LED agreement
+    // is below the optical-consensus floor. Reason strings stay human-readable (node + why).
+    function _hrvUntrusted(s){ var sm=s.summary||{};
+      if(sm.hrvQualityPct!=null && sm.hrvQualityPct<QFLOOR) return s.node+' ('+sm.hrvQualityPct+'%)';
+      if(sm.hrvLowConfidence===true) return s.node+' (lowConfidence)';
+      if(sm.ledAgreementPct!=null && sm.ledAgreementPct<LED_CONSENSUS_FLOOR) return s.node+' (LED '+sm.ledAgreementPct+'%)';
+      return null; }
+    var usable = likeWin.filter(function(s){ return !_hrvUntrusted(s); });
+    var lowQ = likeWin.map(_hrvUntrusted).filter(Boolean);
     var like = (usable.length>=2) ? usable : likeWin;
     var lowQExcluded = (usable.length>=2 && lowQ.length) ? lowQ : null;
     function spread(key){ var vs=like.map(function(s){return s.summary[key];}).filter(function(v){return v!=null;}); if(vs.length<2) return null;
@@ -1003,14 +1076,24 @@ function fuseHRVConsensus(recs, dtMs){
       return { values:like.map(function(s){return {node:s.node, v:s.summary[key]};}).filter(function(o){return o.v!=null;}), min:mn, max:mx, median:md, divergencePct:divPct }; }
     var rm=spread('rmssd'), sd=spread('sdnn'), lf=spread('lfhf');
     var worst = Math.max(rm&&rm.divergencePct||0, sd&&sd.divergencePct||0);
+    // TCH (INTEGRATOR-THREE-CORNERED-HAT §3): reference-free per-sensor error across ≥3
+    // series-bearing nodes. ADDITIVE — the pairwise spread/divergence above is unchanged;
+    // degrades to a reason-stamped null (tchStatus) when <3 nodes carry an alignable series.
+    var tch = _tchConsensus(like);
+    if(tch && tch.ok && rm && rm.values){   // inverse-variance reconciled RMSSD (weight ∝ 1/σ²)
+      var _ws=0,_acc=0; rm.values.forEach(function(o){ var w=tch.weights[o.node]; if(w!=null){ _acc+=w*o.v; _ws+=w; } });
+      if(_ws>0) rm.weightedMean = +(_acc/_ws).toFixed(1);
+    }
+    var note = (worst>30 ? ('Cross-device divergence '+worst+'% on RMSSD/SDNN ('+win+') — flag as data-quality issue; reconcile before trusting a single value.')
+                     : ('Sources agree within '+worst+'% on '+win+' HRV — reconciled autonomic state is reliable.'))
+            + (lowQExcluded ? ' Excluded low-quality source(s): '+lowQExcluded.join(', ')+'.' : '');
+    if(tch && tch.ok) note += ' TCH: '+tch.culprit+' carries the largest error variance (σ²≈'+Math.round(tch.sigma2[tch.culprit])+' ms², '+tch.method+') — down-weight it in the reconciled value.';
     return { nodes:like.map(function(s){return s.node;}), window:fmtDayShort(g[0].t0Ms),
       hrvWindow:win, units:'ms', crossWindowExcluded:crossWindow,
       rmssd:rm, sdnn:sd, lfhf:lf, divergencePct:worst,
-      lowQualityExcluded:lowQExcluded,
+      lowQualityExcluded:lowQExcluded, tch:(tch&&tch.ok?tch:null), tchStatus:(tch?(tch.ok?'ok':tch.reason):'not-attempted'),
       qc: worst>30?'divergent':'agreement',
-      note: (worst>30 ? ('Cross-device divergence '+worst+'% on RMSSD/SDNN ('+win+') — flag as data-quality issue; reconcile before trusting a single value.')
-                     : ('Sources agree within '+worst+'% on '+win+' HRV — reconciled autonomic state is reliable.'))
-            + (lowQExcluded ? ' Excluded low-quality source(s): '+lowQExcluded.join(', ')+'.' : '') }; });
+      note: note }; });
   return blocks.length ? { blocks:blocks } : null;
 }
 

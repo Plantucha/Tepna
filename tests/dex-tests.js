@@ -160,6 +160,144 @@ function runDexTests(env) {
     T.ok('verdict agreement (not false divergent)', blk.qc === 'agreement', 'divergence ' + blk.divergencePct + '%');
   });
 
+  /* ════ 5b · INTEGRATOR HRV consensus — self-reported lowConfidence + 3-LED agreement gate (FU §2) ════
+     PPGDEX-BEAT-DETECTION-PERF-FOLLOWUPS §2 — PpgDex now EMITS hrv.time.lowConfidence (§3 coverage
+     gate) + quality.ledAgreementPct (§5). This proves the Integrator CONSUMES them: a PPG night that
+     CLEARS the analyzablePct floor but self-reports lowConfidence (or has too-low 3-LED agreement) is
+     excluded from the HRV consensus, exactly like a sub-QFLOOR night; a clean PPG stays (gate inert). */
+  group('Integrator HRV consensus — lowConfidence + LED-agreement gate (FU §2)', 'integrator-dsp · FU', function (T) {
+    var A = env.adaptEnvelopeNode, FC = env.fuseHRVConsensus;
+    if (typeof A !== 'function' || typeof FC !== 'function') { T.ok('fuseHRVConsensus present', false); return; }
+    var t0 = U(2026, 5, 7, 8, 30, 0);
+    var mk2 = function (node, rm, sd, q, opts) { opts = opts || {};
+      var time = { rmssd: rm, sdnn: sd }; if (opts.lowConfidence) time.lowConfidence = true;
+      var quality = { analyzablePct: q }; if (opts.led != null) quality.ledAgreementPct = opts.led;
+      return A({ schema: { node: node }, recording: { startEpochMs: t0, durationMin: 120 }, quality: quality, hrv: { time: time }, ganglior_events: [{ t: '08:30:10', tMs: t0 + 10000, impulse: 'x', node: node, conf: .8 }] }, node, 'test.json')[0]; };
+    // (a) lowConfidence PPG that CLEARS the analyzablePct floor (95%) is still excluded.
+    var consA = FC([mk2('ECGDex', 40, 58, 95), mk2('HRVDex', 44, 60, 90), mk2('PpgDex', 130, 160, 95, { lowConfidence: true })], 1000);
+    var blkA = consA && consA.blocks && consA.blocks[0];
+    T.ok('consensus produced (a)', !!blkA);
+    if (blkA) {
+      T.eq('lowConfidence PPG excluded despite 95% analyzable', blkA.lowQualityExcluded, ['PpgDex (lowConfidence)']);
+      T.eq('surviving nodes = ECGDex + HRVDex', blkA.nodes.slice().sort(), ['ECGDex', 'HRVDex']);
+    }
+    // (b) low 3-LED agreement (below the optical-consensus floor) is excluded too.
+    var consB = FC([mk2('ECGDex', 40, 58, 95), mk2('HRVDex', 44, 60, 90), mk2('PpgDex', 130, 160, 95, { led: 20 })], 1000);
+    var blkB = consB && consB.blocks && consB.blocks[0];
+    if (blkB) T.eq('low-LED-agreement PPG excluded', blkB.lowQualityExcluded, ['PpgDex (LED 20%)']);
+    // (c) a CLEAN PPG (high analyzable, no lowConfidence, high LED) is KEPT — gate inert on good data.
+    var consC = FC([mk2('ECGDex', 40, 58, 95), mk2('PpgDex', 42, 60, 95, { led: 95 })], 1000);
+    var blkC = consC && consC.blocks && consC.blocks[0];
+    if (blkC) T.ok('clean PPG stays in consensus (gate inert on good data)', (blkC.nodes || []).indexOf('PpgDex') >= 0, 'nodes=' + (blkC.nodes || []).join(','));
+  });
+
+  /* ════ 5c · INTEGRATOR three-cornered-hat — reference-free per-sensor error ════
+     Known-answer: inject KNOWN per-sensor noise into a shared latent series and
+     recover each sensor's σ² from the 3 pairwise-difference variances (Gray–Allan).
+     Truth cancels in every difference, so recovery depends only on injected noise.
+     Also: external-ρ correlated solve, inverse-variance weights, culprit, degrade,
+     epoch alignment. (INTEGRATOR-THREE-CORNERED-HAT-2026-07-02-BRIEF §1–§3.) */
+  group('Integrator three-cornered-hat — per-sensor error (TCH)', 'integrator-tch', function (T) {
+    var K = env.IntegratorTCH;
+    T.ok('IntegratorTCH present', !!(K && K.threeCorneredHat), 'load integrator-tch.js + wire env.IntegratorTCH in both runners');
+    if (!(K && K.threeCorneredHat)) return;
+    function rng(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+    function normals(seed,n){ var r=rng(seed),o=[]; for(var i=0;i<n;i+=2){ var u1=Math.max(r(),1e-12),u2=r(),m=Math.sqrt(-2*Math.log(u1)); o.push(m*Math.cos(2*Math.PI*u2)); o.push(m*Math.sin(2*Math.PI*u2)); } return o.slice(0,n); }
+    function rel(a,b){ return Math.abs(a-b)/Math.abs(b); }
+    var N=6000;
+    var truth=(function(){ var w=normals(1,N),v=[],acc=60; for(var i=0;i<N;i++){acc+=w[i]*0.8; v.push(acc);} return v; })();
+
+    // (1) INDEPENDENT noise → classic recovers injected σ² = {4,9,25}
+    (function(){
+      var nE=normals(11,N),nP=normals(22,N),nO=normals(33,N),A=[],B=[],C=[];
+      for(var i=0;i<N;i++){ A.push(truth[i]+2*nE[i]); B.push(truth[i]+3*nP[i]); C.push(truth[i]+5*nO[i]); }
+      var r=K.threeCorneredHat(A,B,C,{labels:['ECG','PPG','Oxy']});
+      T.ok('independent: ok + classic (rho=0)', r.ok && r.method==='classic', 'method='+r.method);
+      T.ok('recover σ²(ECG)=4 within 20%', rel(r.sigma2.ECG,4)<0.20, r.sigma2.ECG.toFixed(2));
+      T.ok('recover σ²(PPG)=9 within 20%', rel(r.sigma2.PPG,9)<0.20, r.sigma2.PPG.toFixed(2));
+      T.ok('recover σ²(Oxy)=25 within 20%', rel(r.sigma2.Oxy,25)<0.20, r.sigma2.Oxy.toFixed(2));
+      T.eq('culprit = noisiest (Oxy)', r.culprit, 'Oxy');
+      T.ok('inverse-variance weights ordered ECG>PPG>Oxy', r.weights.ECG>r.weights.PPG && r.weights.PPG>r.weights.Oxy);
+      T.ok('weights sum to 1', Math.abs(r.weights.ECG+r.weights.PPG+r.weights.Oxy-1)<1e-9);
+    })();
+
+    // (1b) REGULARIZED weights — a spuriously near-zero σ² (sampling noise at short
+    //      records) must NOT capture ~all the inverse-variance weight.
+    (function(){
+      var w = K.inverseVarianceWeights({A:100, B:0.0001, C:100});
+      T.ok('inverse-variance weight floored (no single-σ² domination)', w.B < 0.9 && w.B > w.A, 'wB='+w.B.toFixed(3));
+      var w2 = K.inverseVarianceWeights({A:4, B:9, C:25});   // well-separated, none tiny → floor inert
+      T.ok('floor inert when variances well-separated', w2.A>w2.B && w2.B>w2.C, JSON.stringify({A:+w2.A.toFixed(3),C:+w2.C.toFixed(3)}));
+    })();
+
+    // (2) POSITIVE COMMON-MODE (ρ0=0.75) biases classic but stays non-negative;
+    //     supplying the external ρ recovers injected σ² = {1,16,16}.
+    (function(){
+      var rho0=0.75, kc=Math.sqrt(rho0), ki=Math.sqrt(1-rho0);
+      var g=normals(101,N),eE=normals(111,N),eP=normals(122,N),eO=normals(133,N),A=[],B=[],C=[];
+      for(var i=0;i<N;i++){
+        A.push(truth[i]+1*(kc*g[i]+ki*eE[i]));
+        B.push(truth[i]+4*(kc*g[i]+ki*eP[i]));
+        C.push(truth[i]+4*(kc*g[i]+ki*eO[i]));
+      }
+      var naive=K.threeCorneredHat(A,B,C,{labels:['ECG','PPG','Oxy']});
+      T.ok('positive common-mode stays non-negative (classic, biased)', naive.method==='classic');
+      var r=K.threeCorneredHat(A,B,C,{labels:['ECG','PPG','Oxy'], rho:rho0});
+      T.ok('external-ρ: correlated solver engages', r.ok && r.method==='correlated-external', 'method='+r.method);
+      T.ok('external-ρ recover σ²(ECG)=1 within 40%', rel(r.sigma2.ECG,1)<0.40, r.sigma2.ECG.toFixed(2));
+      T.ok('external-ρ recover σ²(PPG)=16 within 25%', rel(r.sigma2.PPG,16)<0.25, r.sigma2.PPG.toFixed(2));
+    })();
+
+    // (3) DEGRADE — insufficient overlap → ok:false (never throws)
+    var d=K.threeCorneredHat([1,2,3],[1,2,3],[1,2,3],{minN:12});
+    T.ok('degrade: n<minN → ok:false', d.ok===false && /overlap/.test(d.reason||''), d.reason);
+
+    // (4) alignTriplet keeps only common epoch keys, ascending
+    var al=K.alignTriplet([{tMin:0,v:10},{tMin:5,v:11},{tMin:10,v:12}],[{tMin:5,v:20},{tMin:10,v:21}],[{tMin:5,v:30},{tMin:10,v:31},{tMin:15,v:9}],{});
+    T.eq('alignTriplet common keys', al.keys, [5,10]);
+    T.eq('alignTriplet maps values', al.A, [11,12]);
+  });
+
+  /* ════ 5d · INTEGRATOR fuseHRVConsensus → TCH wiring (series-fed, end-to-end) ════
+     3 overlapping nodes carrying per-epoch rmssd SERIES (via adaptEnvelopeNode →
+     series.hrvEpochs) → fuseHRVConsensus attaches a TCH block naming the noisiest
+     node + an inverse-variance reconciled RMSSD. Degrades to tch=null with <3 series,
+     leaving the pairwise consensus intact. (INTEGRATOR-THREE-CORNERED-HAT §1 + §3.) */
+  group('Integrator HRV consensus — TCH wiring (§3)', 'integrator-dsp · integrator-tch', function (T) {
+    var A = env.adaptEnvelopeNode, FC = env.fuseHRVConsensus, K = env.IntegratorTCH;
+    if (typeof A !== 'function' || typeof FC !== 'function' || !(K && K.threeCorneredHat)) { T.ok('deps present (adapt+fuse+TCH)', false, 'need adaptEnvelopeNode + fuseHRVConsensus + IntegratorTCH'); return; }
+    function rng(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+    function normals(seed,n){ var r=rng(seed),o=[]; for(var i=0;i<n;i+=2){ var u1=Math.max(r(),1e-12),u2=r(),m=Math.sqrt(-2*Math.log(u1)); o.push(m*Math.cos(2*Math.PI*u2)); o.push(m*Math.sin(2*Math.PI*u2)); } return o.slice(0,n); }
+    var t0 = U(2026, 5, 7, 23, 0, 0), NE = 48;   // 48 × 5-min epochs = 240 min overlap
+    var truth = (function(){ var w=normals(1,NE),v=[],acc=42; for(var i=0;i<NE;i++){acc+=w[i]*1.5; v.push(Math.max(acc,8));} return v; })();
+    function mk(node, noiseStd, seed){
+      var nz=normals(seed,NE), eps=[];
+      for(var i=0;i<NE;i++){ eps.push({ tMin:i*5, rmssd:+(truth[i]+noiseStd*nz[i]).toFixed(1), hr:55, motionIndex:0.1 }); }
+      var whole = +(eps.reduce(function(a,e){return a+e.rmssd;},0)/NE).toFixed(1);
+      return A({ schema:{node:node}, recording:{startEpochMs:t0, durationMin:240}, quality:{analyzablePct:95},
+        hrv:{time:{rmssd:whole, sdnn:+(whole*1.3).toFixed(1)}}, timeseries:{epochs:eps},
+        ganglior_events:[{t:'23:00:10', tMs:t0+10000, impulse:'x', node:node, conf:.8}] }, node, node+'.json')[0];
+    }
+    // ECG cleanest, HRV medium, PPG noisiest → TCH culprit must be PpgDex
+    var cons = FC([ mk('ECGDex',2,11), mk('HRVDex',5,22), mk('PpgDex',14,33) ], 1000);
+    var blk = cons && cons.blocks && cons.blocks[0];
+    T.ok('consensus block produced', !!blk);
+    if (!blk) return;
+    T.ok('TCH attached + ok', !!(blk.tch && blk.tch.ok), 'status=' + blk.tchStatus);
+    if (blk.tch && blk.tch.ok) {
+      T.eq('TCH names noisiest node (PpgDex) as culprit', blk.tch.culprit, 'PpgDex');
+      T.ok('TCH covers 3 nodes over ≥12 epochs', blk.tch.n >= 12 && Object.keys(blk.tch.sigma2).length === 3, 'n=' + blk.tch.n);
+      T.ok('σ²(PpgDex) > σ²(ECGDex)', blk.tch.sigma2.PpgDex > blk.tch.sigma2.ECGDex, JSON.stringify({ppg:Math.round(blk.tch.sigma2.PpgDex), ecg:Math.round(blk.tch.sigma2.ECGDex)}));
+      T.ok('inverse-variance reconciled RMSSD present', blk.rmssd && blk.rmssd.weightedMean != null, 'wm=' + (blk.rmssd && blk.rmssd.weightedMean));
+      T.ok('note calls out the culprit', /PpgDex/.test(blk.note) && /TCH/.test(blk.note));
+    }
+    // DEGRADE — only 2 series-bearing nodes → no TCH, pairwise consensus intact
+    var cons2 = FC([ mk('ECGDex',2,11), mk('PpgDex',14,33) ], 1000);
+    var blk2 = cons2 && cons2.blocks && cons2.blocks[0];
+    T.ok('degrade: <3 series → tch null', !!blk2 && blk2.tch == null, 'status=' + (blk2 && blk2.tchStatus));
+    T.ok('degrade: pairwise consensus still produced', !!(blk2 && blk2.rmssd));
+  });
+
   /* ════ 5b · INTEGRATOR periodic-breathing cross-node corroboration (OXYDEX-…-II §2) ════
      PB observed by ≥2 INDEPENDENT signals (OxyDex SpO₂ oscillation · CPAPDex device flow ·
      ECGDex cardiac CVHR) corroborates; a LONE observer surfaces NO fused finding; confidence is
@@ -583,6 +721,50 @@ function runDexTests(env) {
     var rS = D.analyze(rec2, function () {});
     var se = (rS.events || []).filter(function (e) { return e.impulse === 'autonomic_surge'; })[0];
     if (se) { T.ok('stamped surge has HH:MM:SS clock', /^\d{2}:\d{2}:\d{2}$/.test(se.t)); T.ok('stamped surge has absolute floating tMs', typeof se.tMs === 'number' && se.tMs === rec2.t0Ms + Math.round(se._sec * 1000)); }
+  });
+
+  /* ════ 12b2 · ECGDex DEVICE CROSS-CHECK PARSERS — Clock-Contract-faithful, no Date.parse / now()
+     (DEEP-AUDIT 2026-07-01 Finding 2). The app's device cross-check loaders (loadDeviceRR/HR/ACC)
+     now delegate to the DSP twins ECGDSP.parseDeviceRR/parseDeviceHR/parseDeviceACC — regex
+     parseTimestamp = FLOATING wall-clock (viewer-TZ-independent), a missing stamp stays null,
+     never a fabricated now(). The old app-local parser used a locale Date-parse (viewer-TZ-
+     dependent) + a _floatNow() ramp for stampless HR, diverging from the twins the Unifier/
+     OverDex routed path already calls. Locks: (1) the twin's tMs == Date.UTC(components), NOT
+     the viewer-local Date-parse instant; (2) a stampless HR row keeps tsMs null; (3) the app
+     loaders call the twins and no longer contain parseRows / a Date-parse call. ════ */
+  group('ECGDex device cross-check parsers — floating clock, no Date-parse/now() (Finding 2)', 'ecgdex-dsp · ecgdex-app', function (T) {
+    var D = env.ECGDSP;
+    if (!(D && typeof D.parseDeviceRR === 'function' && typeof D.parseDeviceHR === 'function' && typeof D.parseDeviceACC === 'function')) {
+      T.ok('ECGDSP.parseDeviceRR/parseDeviceHR/parseDeviceACC exposed', false, 'ECGDSP device twins not loaded'); return;
+    }
+    // (1) RR: floating wall-clock tMs == Date.UTC(components) — viewer-TZ-independent (NOT a Date-parse instant)
+    var rr = D.parseDeviceRR('2026-06-13 20:44:48,0.5,900\n2026-06-13 20:44:49,0.5,905\n');
+    T.ok('parseDeviceRR → [{tsMs,rr}] with the RR value in range', rr.length === 2 && rr[0].rr === 900 && rr[1].rr === 905, 'len=' + rr.length);
+    T.eq('parseDeviceRR tsMs is FLOATING (Date.UTC), not a viewer-local Date-parse instant',
+      rr[0].tsMs, Date.UTC(2026, 5, 13, 20, 44, 48));
+    // (2) HR: a stamped row is floating; a STAMPLESS row keeps tsMs null (never a fabricated now()/ramp)
+    var hrStamp = D.parseDeviceHR('2026-06-13 20:44:48,58\n');
+    T.eq('parseDeviceHR stamped tsMs is floating (Date.UTC)', hrStamp[0].tsMs, Date.UTC(2026, 5, 13, 20, 44, 48));
+    var hrBare = D.parseDeviceHR('58\n60\n62\n');   // no timestamp column
+    T.ok('parseDeviceHR stampless row → tsMs null (no fabricated clock)',
+      hrBare.length === 3 && hrBare.every(function (r) { return r.tsMs === null; }),
+      'tsMs=' + hrBare.map(function (r) { return r.tsMs; }).join(','));
+    // (3) source-mirror: the app loaders delegate to the twins; parseRows + Date-parse are GONE
+    var app = (env.sources || {})['ecgdex-app.js'];
+    if (app) {
+      T.ok('ecgdex-app loadDeviceRR/HR/ACC delegate to DSP.parseDevice* twins',
+        /DSP\.parseDeviceRR\(/.test(app) && /DSP\.parseDeviceHR\(/.test(app) && /DSP\.parseDeviceACC\(/.test(app));
+      T.ok('ecgdex-app no longer defines its own parseRows', !/function\s+parseRows\b/.test(app));
+      T.ok('ecgdex-app cross-check loaders no longer call Date.parse (viewer-TZ-dependent)', !/Date\.parse\(/.test(app));
+      // ── FOLLOWUPS §1: the primary ECG loader + RR/HRV exporters no longer fabricate a now() anchor
+      //    for a stampless recording — thread null (Clock §2.6), so the render falls to a relative axis
+      //    and the node-export startEpochMs stays null (matching the orchestrate path). ──
+      T.ok('ecgdex-app retired the _floatNow() now()-fallback (Clock §2.6 — missing stamp → null)', !/function\s+_floatNow\b/.test(app));
+      T.ok('primary ECG loaders thread null for a missing t0Ms (not a fabricated now())',
+        /t0Ms:\(d\.t0Ms!=null\?d\.t0Ms:null\)/.test(app) && /t0Ms:\(t0Ms!=null\?t0Ms:null\)/.test(app));
+      T.ok('RR / Welltory-CSV exporters anchor an undated recording at 0, never now()',
+        !/r\.t0Ms!=null\?r\.t0Ms:_floatNow/.test(app) && /r\.t0Ms!=null\?r\.t0Ms:0/.test(app));
+    }
   });
 
   /* ════ 12c · R-PEAK SEED ROBUSTNESS — a startup electrode-settling transient must NOT
@@ -2549,6 +2731,23 @@ function runDexTests(env) {
       T.ok('hrvdex-dsp.js splits reading (pure _hrvParseSummaryRows) from committing', /function\s+_hrvParseSummaryRows\b/.test(dsp) && /HRVDex\.parseRows\s*=/.test(dsp));
       T.ok('hrvdex-dsp.js shares ONE event builder (hrvEventsFromRows)', /function\s+hrvEventsFromRows\b/.test(dsp));
       T.ok('parseCSV now delegates to the pure parser + commitRows', /return\s+commitRows\(\s*_hrvParseSummaryRows\(/.test(dsp));
+      // ── DEEP-AUDIT 2026-07-01 Finding 1: transparent HRV columns parse absent→null (not a
+      //    fabricated 0); the rolling SDNN baseline drops null/≤0 symmetrically with its rMSSD
+      //    twin so a blank core cell never biases meanSDNN7/stdSDNN7/d_sdnn_z. ──
+      T.ok('hrvdex-dsp.js has a numOrNull helper (absent/blank → null)', /function\s+numOrNull\b/.test(dsp));
+      T.ok('transparent SDNN/rMSSD/MeanRR parse via numOrNull (absent → null, not 0)',
+        /_sdnn\s*=\s*numOrNull\(/.test(dsp) && /_rmssd\s*=\s*numOrNull\(/.test(dsp) && /_meanRR\s*=\s*numOrNull\(/.test(dsp));
+      T.ok('subjective Welltory columns KEEP ||0 (the _hasSubj presence gate depends on it)',
+        /_stress\s*=\s*parseFloat\(.*\|\|\s*0\)/.test(dsp) && /_energy\s*=\s*parseFloat\(.*\|\|\s*0\)/.test(dsp));
+      T.ok('SDNN rolling filter is symmetric with rmssd7 (drops null/≤0)',
+        /const\s+sdnn7\s*=\s*window7\.map\(x\s*=>\s*x\._sdnn\)\.filter\(v\s*=>\s*!isNaN\(v\)\s*&&\s*v\s*>\s*0\)/.test(dsp));
+      T.ok('d_sdnn_z gates on the row’s OWN _sdnn presence (absent row → NaN, no fabricated z)',
+        /d_sdnn_z\s*=\s*\(r\._sdnn\s*>\s*0\s*&&\s*stdSDNN7\s*>\s*0\)/.test(dsp));
+      // FOLLOWUPS §2: the pNN50 rolling slope drops an ABSENT (null) day but KEEPS a real 0 (pNN50=0
+      // is physiological) — Number.isFinite, not !isNaN (which coerced null→0 and polluted the slope).
+      T.ok('pNN50 rolling slope uses Number.isFinite (keep real 0, drop absent null) — §2 followups',
+        /pnn507\s*=\s*window7\.map\(x\s*=>\s*x\._pnn50\)\.filter\(v\s*=>\s*Number\.isFinite\(v\)\)/.test(dsp)
+        && /window7\.filter\(x=>Number\.isFinite\(x\._pnn50\)\)/.test(dsp));
     }
     if (app2) {
       T.ok('exportGanglior delegates to the shared hrvBuildNodeExport (no 2nd inline copy)', /hrvBuildNodeExport\(/.test(app2));
@@ -2708,6 +2907,28 @@ function runDexTests(env) {
         T.ok('  recording.source === welltory', he.recording && he.recording.source === 'welltory');
         T.ok('  measurements === 2', he.recording && he.recording.measurements === 2, he.recording && he.recording.measurements);
         T.ok('  ganglior_events is an array', Array.isArray(he.ganglior_events));
+      }
+    }
+    // ── DEEP-AUDIT 2026-07-01 Finding 1 (functional): the pure summary parser reads an absent
+    //    TRANSPARENT cell as null, never a fabricated 0; a real "0" stays 0; subjective KEEPS 0. ──
+    if (H && typeof H.parseRows === 'function') {
+      var blankCsv =
+        'Date,Time,Measurement HR,Mean RR,SDNN,rMSSD,MxDMn,pNN50,AMo50,Mode,Stress(HRV),Energy(HRV)\n' +
+        '2026-06-01,07:00:00,58,1030,62,45,320,28,38,1020,40,60\n' +
+        '2026-06-02,07:00:00,60,1000,,,300,,39,1000,,\n' +
+        '2026-06-03,07:00:00,57,1040,68,50,330,31,37,1030,42,58\n';
+      var bRows = H.parseRows(blankCsv);
+      T.ok('parseRows → 3 rows (blank row kept on a finite timestamp)', !!bRows && bRows.length === 3, bRows && ('len=' + bRows.length));
+      if (bRows && bRows.length === 3) {
+        T.ok('present SDNN parses to its number (62, not null)', bRows[0]._sdnn === 62, 'got ' + bRows[0]._sdnn);
+        T.ok('blank SDNN parses to null (absence, NOT a fabricated 0)', bRows[1]._sdnn === null, 'got ' + bRows[1]._sdnn);
+        T.ok('blank rMSSD + pNN50 also parse to null', bRows[1]._rmssd === null && bRows[1]._pnn50 === null,
+          'rmssd=' + bRows[1]._rmssd + ' pnn50=' + bRows[1]._pnn50);
+        T.ok('subjective Stress KEEPS ||0 on a blank cell (0, not null — _hasSubj gate)', bRows[1]._stress === 0, 'got ' + bRows[1]._stress);
+      }
+      var zeroRow = H.parseRows('Date,Time,Measurement HR,SDNN,pNN50\n2026-06-04,07:00:00,58,0,0\n');
+      if (zeroRow && zeroRow.length === 1) {
+        T.ok('a real "0" cell parses to 0 (not null) — pNN50 can legitimately be 0', zeroRow[0]._pnn50 === 0, 'got ' + zeroRow[0]._pnn50);
       }
     }
     // ── -II §8 / -III §3: LOCK the SignalSpec.hrv resolver to the REAL HRVDex functions.
@@ -3794,6 +4015,78 @@ function runDexTests(env) {
     T.ok('clean PPI left unflagged', c.flags[5] === 0);
     T.ok('≥2 corrections counted', c.nCorr >= 2);
     T.approx('ectopic PPI replaced by local median (~1000)', c.nn[15], 1000, 5, 'nn15=' + c.nn[15]);
+  });
+
+  /* ════ PpgDex detector — robust to a supra-physiologic transient (FU §3) ════
+     PPGDEX-BEAT-DETECTION-PERF-FOLLOWUPS §3 — VALIDATES the deliberate deviation from
+     Elgendi's clipped-amplitude-square feature: the real Polar-Sense channel carries a
+     supra-physiologic baseline transient (observed bp max ≈227k vs sd ≈5k, ~45×), which
+     collapsed the amplitude feature to ~10 beats/6.5 min. The shipped POSITIVE-SLOPE energy
+     feature + LOCAL (MA_beat) threshold must confine a transient's effect to its own
+     neighbourhood, NOT suppress the whole record. */
+  group('PpgDex detector — supra-physiologic transient does not collapse detection (FU §3)', 'ppgdex-dsp · FU', function (T) {
+    var PPG = env.PPGDSP;
+    if (!PPG || typeof PPG.detectBeats !== 'function') { T.ok('PPGDSP.detectBeats exposed', false); return; }
+    var fs = 50, period = 1.0, dur = 30, n = Math.round(fs * dur), bp = new Float32Array(n);
+    for (var i = 0; i < n; i++) { var ph = 2 * Math.PI * (i / fs) / period; bp[i] = Math.sin(ph) + 0.30 * Math.sin(2 * ph) + 1.0; }
+    var clean = PPG.detectBeats(bp, fs).peaks.length;
+    var bad = Float32Array.from(bp); bad[Math.round(10 * fs)] += 45;   // ~45× the ~1-amplitude pulse (mirrors the real 227k spike)
+    var withSpike = PPG.detectBeats(bad, fs).peaks.length;
+    T.approx('clean 60 bpm train recovers ~30 beats', clean, 30, 3, 'got ' + clean);
+    T.ok('one 45× transient does NOT collapse detection (slope-energy + LOCAL threshold — FU §3 decision validated)',
+      withSpike >= clean - 3, 'clean=' + clean + ' withSpike=' + withSpike);
+  });
+
+  /* ════ PpgDex detector — tracks an abrupt HR step (no global period; FU §4) ════
+     The OLD detector estimated ONE scalar period for the whole record (autocorrelation),
+     so a drifting/stepping HR dropped beats. The shipped O(N) TERMA threshold is LOCAL, so
+     it must recover BOTH sides of a 60→100 bpm step. Guards the period-stationarity edge
+     case the follow-up flagged. */
+  group('PpgDex detector — abrupt HR step recovered (local threshold; FU §4)', 'ppgdex-dsp · FU', function (T) {
+    var PPG = env.PPGDSP;
+    if (!PPG || typeof PPG.detectBeats !== 'function') { T.ok('PPGDSP.detectBeats exposed', false); return; }
+    var fs = 50, dur1 = 20, dur2 = 20, n = Math.round(fs * (dur1 + dur2)), bp = new Float32Array(n), phase = 0;
+    for (var i = 0; i < n; i++) {
+      var tsec = i / fs, per = tsec < dur1 ? 1.0 : 0.6;   // 60 → 100 bpm, continuous phase (no discontinuity)
+      phase += (2 * Math.PI) / (per * fs);
+      bp[i] = Math.sin(phase) + 0.30 * Math.sin(2 * phase) + 1.0;
+    }
+    var got = PPG.detectBeats(bp, fs).peaks.length;
+    var expect = dur1 / 1.0 + dur2 / 0.6;                  // 20 + 33.3 ≈ 53
+    T.approx('recovers beats across a 60→100 bpm step (no global period)', got, expect, 6, 'got ' + got + ' expect ~' + Math.round(expect));
+  });
+
+  /* ════ PpgDex long-record coverage — overnight tier, no silent collapse (FU §1) ════
+     PPGDEX-BEAT-DETECTION-PERF-FOLLOWUPS §1 — the equiv fixtures are all short clips, so no
+     ≥90-min PPG was exercised in-gate (the same blind spot ECGDex closed with its 3 h synthetic
+     long-record group). Build a 91-min multi-channel pulse train DIRECTLY (typed arrays — no
+     53 MB text round-trip), run the REAL analyze() and assert the detector SCALES with duration
+     (no stall/collapse), unlocks the overnight tier, populates per-5-min epochs, and that the §3
+     coverage-gate flag + §5 LED agreement are computed on a long record. */
+  group('PpgDex long-record coverage — no silent collapse on a 91-min record (FU §1)', 'ppgdex-dsp · FU', function (T) {
+    var PPG = env.PPGDSP;
+    if (!(PPG && typeof PPG.analyze === 'function')) { T.ok('PPGDSP.analyze exposed', false); return; }
+    var fs = 176, durMin = 91, n = Math.round(fs * durMin * 60);
+    var relSec = new Float64Array(n), ch = [new Float32Array(n), new Float32Array(n), new Float32Array(n)], phase = 0;
+    for (var i = 0; i < n; i++) {
+      var tsec = i / fs; relSec[i] = tsec;
+      var per = 60 / (55 + 6 * Math.sin(tsec / 1200));    // slow HR drift ~49–61 bpm (exercises the local threshold)
+      phase += (2 * Math.PI) / (per * fs);
+      var pulse = Math.sin(phase) + 0.30 * Math.sin(2 * phase);
+      var art = (tsec > 3000 && tsec < 3060) ? 900 : 0;   // a 1-min motion-artifact span
+      for (var c = 0; c < 3; c++) ch[c][i] = -500000 + 4000 * pulse + 300 * Math.sin(i * 1.3 + c * 2) + art * Math.sin(i * 0.7 + c);
+    }
+    var rec = { ch: ch, amb: null, relSec: relSec, fs: fs, n: n, t0Ms: Date.UTC(2026, 5, 21, 23, 0, 0), offsetMin: null, durSec: (n - 1) / fs, acc: null, gyro: null, magn: null, devicePPI: null, markers: null };
+    var r = PPG.analyze(rec, null);
+    T.ok('analyzed a ≥90-min record', r.durMin >= 90, 'durMin=' + r.durMin);
+    T.eq('tier unlocks to overnight (≥90 min)', r.tier, 'overnight');
+    // NO silent collapse: at any plausible HR the beat count must be a large fraction of duration×HR,
+    // NOT a handful (the pre-fix stall collapsed a 7 h night to ~1 min of beats).
+    var floorBeats = r.durMin * 35;                        // ≥35 bpm floor over the whole night
+    T.ok('beat count scales with duration (no stall/collapse)', r.nPulses >= floorBeats, 'nPulses=' + r.nPulses + ' floor=' + Math.round(floorBeats));
+    T.ok('per-5-min epochs populated across the night', r.epochs.length >= 15, 'epochs=' + r.epochs.length);
+    T.ok('§3 coverage-gate flag present as a boolean + whole-record HRV computed', typeof r.hrvLowConfidence === 'boolean' && r.rmssd != null, 'lowConf=' + r.hrvLowConfidence + ' rmssd=' + r.rmssd);
+    T.ok('§5 3-LED agreement in [0,100] on the long record', r.ledAgreementPct != null && r.ledAgreementPct >= 0 && r.ledAgreementPct <= 100, 'led=' + r.ledAgreementPct);
   });
 
   /* ════ Clock Contract — parseTimestamp per-node conformance (WP-G) ════

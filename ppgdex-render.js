@@ -254,6 +254,44 @@ function arrMin(a){let m=Infinity;for(let i=0;i<a.length;i++)if(a[i]<m)m=a[i];re
 function arrMax(a){let m=-Infinity;for(let i=0;i<a.length;i++)if(a[i]>m)m=a[i];return m;}
 function meanA(a){let s=0;for(let i=0;i<a.length;i++)s+=a[i];return s/a.length;}
 
-global.PPGUI = { PPGScope, lineChart, poincare, medianPulseChart, buildEnvelope, COLORS:C };
+// ════════════════════════════════════════════════════════════════════════
+//  3-LED AGREEMENT RIBBON (PPGDEX-BEAT-DETECTION-PERF §5)
+//  Per-5-min-epoch stacked fraction of 3/3 (green · all LEDs agree) · 2/3 (amber ·
+//  kept, one LED dissents) · 1/3 (red · single-LED, DROPPED as a gap) beats. Hand-
+//  rolled inline SVG, the existing chart idiom; sits beside the motion ribbon so a
+//  user sees at a glance where the optical signal was trustworthy vs where only one
+//  LED carried it — the low-agreement spans line up with high correction / low-
+//  analyzable windows. Hidden when there is no per-channel data (single-channel
+//  legacy export → series null/empty → '' → app hides the card).
+// ════════════════════════════════════════════════════════════════════════
+function ledRibbon(series, opts){
+  opts=opts||{}; if(!series||!series.length) return '';
+  const W=opts.W||680, H=opts.H||120, P={l:38,r:14,t:12,b:24};
+  const plotW=W-P.l-P.r, plotH=H-P.t-P.b;
+  let xmn=Infinity,xmx=-Infinity; for(const s of series){ if(s.tMin<xmn)xmn=s.tMin; if(s.tMin>xmx)xmx=s.tMin; }
+  if(xmx===xmn)xmx=xmn+5;
+  const span=xmx-xmn||5;
+  const bw=Math.max(3, Math.min(plotW*0.9, (plotW/(span/5+1))*0.82));   // 5-min epochs
+  const sx=x=>P.l+(x-xmn)/span*(plotW-bw)+bw/2;
+  const bars=series.map(s=>{
+    const x0=(sx(s.tMin)-bw/2);
+    let y=P.t+plotH; const out=[];
+    const seg=(frac,col)=>{ const hh=(frac||0)*plotH; if(hh<=0.2) return; y-=hh; out.push(`<rect x="${x0.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${hh.toFixed(1)}" fill="${col}"/>`); };
+    seg(s.f3,C.green); seg(s.f2,C.amber); seg(s.f1,C.red);   // stack bottom→top: 3/3, 2/3, 1/3
+    return out.join('');
+  }).join('');
+  const xt=[]; for(let i=0;i<=4;i++) xt.push(xmn+i*span/4);
+  const xf=x=>span>120?(x/60).toFixed(1)+'h':x.toFixed(0)+'m';
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" style="width:100%;height:auto">
+    <line x1="${P.l}" y1="${H-P.b}" x2="${W-P.r}" y2="${H-P.b}" stroke="${C.axis}"/>
+    <line x1="${P.l}" y1="${P.t}" x2="${P.l}" y2="${H-P.b}" stroke="${C.axis}"/>
+    <text x="${P.l-6}" y="${P.t+8}" fill="${C.dim}" font-size="9" text-anchor="end" font-family="ui-monospace,monospace">100%</text>
+    <text x="${P.l-6}" y="${H-P.b}" fill="${C.dim}" font-size="9" text-anchor="end" font-family="ui-monospace,monospace">0</text>
+    ${bars}
+    ${xt.map(x=>`<text x="${sx(x).toFixed(1)}" y="${H-7}" fill="${C.dim}" font-size="9" text-anchor="middle" font-family="ui-monospace,monospace">${xf(x)}</text>`).join('')}
+  </svg>`;
+}
+
+global.PPGUI = { PPGScope, lineChart, poincare, medianPulseChart, ledRibbon, buildEnvelope, COLORS:C };
 
 })(window);

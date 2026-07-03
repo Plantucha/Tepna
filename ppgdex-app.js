@@ -49,7 +49,7 @@ function loadFiles(fileList){
   const files = Array.from(fileList||[]); if(!files.length) return;
   progress(6,'Reading '+files.length+' file'+(files.length>1?'s':'')+'…');
   Promise.all(files.map(f=>f.text().then(text=>({ name:f.name, text, kind:classify(f.name), stampMs:fnameStampMs(f.name) }))))
-    .then(parsed=>{
+    .then(async parsed=>{
       parsed = DSP.mergeMultipart(parsed);   // fold `…_partNNofMM.txt` into one stream per base
       // §1 (ECG-INGEST-FOLLOWUPS-III): the loadFiles ORCHESTRATION — classify → foreign/skip set-aside →
       // duplicate-session de-dupe → per-primary device-ELIGIBILITY — is now the shared, headless, NAME-only
@@ -68,11 +68,12 @@ function loadFiles(fileList){
       if(plan.hr.length) showOK('Ignored '+plan.hr.length+' Polar `*_HR.txt` device-HR file'+(plan.hr.length>1?'s':'')+' — PpgDex analyzes the raw PPG waveform; drop the matching `*_PPG.txt`.');
       if(!ppgFiles.length){ reportNoPPG(skipped); progress(0,''); return; }
       let added=0, lastKey=null;
-      ppgFiles.forEach((pf,pi)=>{
+      for(let pi=0; pi<ppgFiles.length; pi++){
+        const pf=ppgFiles[pi];
         progress(20+pi/ppgFiles.length*20,'Parsing PPG · '+pf.name+'…');
         let rec;
         try { rec = DSP.parsePPG(pf.text); }
-        catch(e){ showErr(e.message||String(e)); return; }
+        catch(e){ showErr(e.message||String(e)); continue; }
         rec.source='file'; rec.fname=pf.name;
         // §1 (ECG-INGEST-FOLLOWUPS-III): device ELIGIBILITY (only SAME-device sidecars are candidates for
         // this `_PPG` — a Verity-Sense arm session dropped alongside an H10 session no longer cross-pairs an
@@ -97,11 +98,17 @@ function loadFiles(fileList){
           rec.markers=mk;
         }
         let r;
-        try { r = DSP.analyze(rec, progress); }
-        catch(e){ showErr(e.message||String(e)); return; }
+        try {
+          // §2b: detect the 3 optical channels concurrently in the Worker pool (byte-identical
+          // serial fallback when Worker is unavailable — the headless/gated path); analyze() then
+          // reuses rec._preChannels for the consensus merge + HRV on the main thread.
+          rec._preChannels = await DSP.detectChannelsAsync(rec);
+          r = DSP.analyze(rec, progress);
+        }
+        catch(e){ showErr(e.message||String(e)); continue; }
         const key = r.t0Ms!=null ? String(r.t0Ms) : ('nodate_'+pf.name);
         allSessions[key]=r; lastKey=key; added++;
-      });
+      }
       if(added){ activeKey=lastKey; renderSession(allSessions[activeKey]);
         try{ localStorage.setItem('ppgdex_active', activeKey); }catch(e){}
         let msg='Analyzed '+added+' session'+(added>1?'s':'')+' · '+Object.keys(allSessions).length+' loaded total.';
@@ -203,6 +210,7 @@ function renderKPI(r){
     {l:'Mean SQI', v:r.meanSQI, sub:'0–1 · conf', s:r.meanSQI>=0.7?'ok':r.meanSQI>=0.5?'warn':'bad'},
     {l:'DFA α1', v:r.dfa1==null?'—':r.dfa1, sub:'0.9–1.2', s:r.dfa1==null?'neutral':(r.dfa1>=0.9&&r.dfa1<=1.2?'ok':'warn')},
   );
+  if(r.ledAgreementPct!=null) items.push({l:'3-LED agree', v:r.ledAgreementPct+'%', sub:(r.ledAgree3of3Pct!=null?r.ledAgree3of3Pct+'% all-3 LEDs':'optical bSQI'), s:r.ledAgreementPct>=90?'ok':r.ledAgreementPct>=75?'warn':'bad'});
   $('kpiGrid').innerHTML=items.map(k=>`<div class="kpi ${k.s}"><div class="kpi-label">${k.l}${evBadge(k.l)}</div><div class="kpi-val ${k.s}">${k.v}</div><div class="kpi-sub">${k.sub}</div></div>`).join('');
   $('kpiGrid').classList.add('show'); $('slKPI').style.display='flex';
 }
@@ -215,8 +223,10 @@ function renderQuality(r){
       <div class="q-stat"><div class="q-val ${r.cleanBeatPct>=85?'ok':r.cleanBeatPct>=65?'warn':'bad'}">${r.cleanBeatPct}%</div><div class="q-lbl">Clean pulses${evBadge('Clean pulses')}</div><div class="q-sub">SQI ≥ 0.5</div></div>
       <div class="q-stat"><div class="q-val ${r.motionRejectedPct<10?'ok':r.motionRejectedPct<30?'warn':'bad'}">${r.motionRejectedPct}%</div><div class="q-lbl">Motion-rejected${evBadge('Motion-rejected')}</div><div class="q-sub">${m&&m.hasData?'ACC+GYRO':'no ACC/GYRO'}</div></div>
       <div class="q-stat"><div class="q-val ${r.meanSQI>=0.7?'ok':r.meanSQI>=0.5?'warn':'bad'}">${r.meanSQI}</div><div class="q-lbl">Mean SQI${evBadge('Mean SQI')}</div><div class="q-sub">→ Ganglior conf</div></div>
+      ${r.ledAgreementPct!=null?`<div class="q-stat"><div class="q-val ${r.ledAgreementPct>=90?'ok':r.ledAgreementPct>=75?'warn':'bad'}">${r.ledAgreementPct}%</div><div class="q-lbl">3-LED agree${evBadge('LED agreement')}</div><div class="q-sub">${r.ledAgree3of3Pct!=null?r.ledAgree3of3Pct+'% all-3':'optical consensus'}</div></div>`:''}
     </div>
-    <div class="q-note">Per-pulse SQI = template cross-correlation against the median pulse × the <b>ACC+GYRO motion gate</b>. PPIs &gt;20% off the local median (Malik) are corrected; ${r.nCorrected} of ${r.nPulses.toLocaleString()} fixed. ${m&&m.hasData?`Motion bursts (accel-magnitude variance + gyro magnitude, resampled to the PPG base) <b>down-weight</b> pulses — wrist PPG's signature quality channel that OxyDex/ECGDex don't have. Mean motion index ${m.meanMotionIndex}.`:'<b>No ACC/GYRO loaded</b> — motion gating skipped; load the companion files for the full quality channel.'} SQI feeds the <b>conf</b> of every Ganglior event.</div>`;
+    <div class="q-note">Per-pulse SQI = template cross-correlation against the median pulse × the <b>ACC+GYRO motion gate</b>. PPIs &gt;20% off the local median (Malik) are corrected; ${r.nCorrected} of ${r.nPulses.toLocaleString()} fixed. ${m&&m.hasData?`Motion bursts (accel-magnitude variance + gyro magnitude, resampled to the PPG base) <b>down-weight</b> pulses — wrist PPG's signature quality channel that OxyDex/ECGDex don't have. Mean motion index ${m.meanMotionIndex}.`:'<b>No ACC/GYRO loaded</b> — motion gating skipped; load the companion files for the full quality channel.'} SQI feeds the <b>conf</b> of every Ganglior event.</div>
+    ${(r.ledSeries&&r.ledSeries.length&&UI.ledRibbon)?`<div class="mini-h" style="margin-top:14px">${evBadge('LED agreement')}3-LED agreement ribbon <span class="mini-sub">green 3/3 · amber 2/3 (kept) · red 1/3 (dropped) · ref ch${r.channel}</span></div>${UI.ledRibbon(r.ledSeries,{W:680,H:120})}<div class="q-note" style="margin-top:4px">The Polar Sense streams 3 optical channels; a beat is kept only when <b>≥2 of 3</b> place a systolic peak within ±50 ms (optical bSQI) — single-LED beats are <b>dropped, not median-filled</b> (${r.nDroppedBeats||0} dropped this session). Low-agreement spans line up with the motion / poor-perfusion windows.</div>`:''}`;
   $('qualitySection').style.display='block';
 }
 
@@ -490,7 +500,7 @@ function trendColor(label,good){ if(label==='improving') return UI.COLORS.green;
 function _round(v,d=2){ return (v==null||typeof v!=='number'||!isFinite(v)) ? (v==null?null:v) : +v.toFixed(d); }
 function buildV2(r){
   const fq=r.freq||{}; const m=r.morph||{};
-  const epochs=r.epochs.map(e=>({ tMin:e.tMin, beats:e.beats, hr:_round(e.hr,1), meanRR:_round(e.meanRR,1), rmssd:_round(e.rmssd,2), sdnn:_round(e.sdnn,2), pnn50:_round(e.pnn50,1), lf:_round(e.lf,1), hf:_round(e.hf,1), lfhf:_round(e.lfhf,3), respRate:_round(e.respRate,1), pi:_round(e.pi,1), motionIndex:_round(e.motionIndex,3), position:e.position||'unknown', positionConf:_round(e.positionConf,2), headingDeg:_round(e.headingDeg,1), magInterference:!!e.magInterference }));
+  const epochs=r.epochs.map(e=>({ tMin:e.tMin, beats:e.beats, hr:_round(e.hr,1), meanRR:_round(e.meanRR,1), rmssd:_round(e.rmssd,2), sdnn:_round(e.sdnn,2), pnn50:_round(e.pnn50,1), lf:_round(e.lf,1), hf:_round(e.hf,1), lfhf:_round(e.lfhf,3), respRate:_round(e.respRate,1), pi:_round(e.pi,1), motionIndex:_round(e.motionIndex,3), ledAgreementPct:_round(e.ledAgreementPct,0), position:e.position||'unknown', positionConf:_round(e.positionConf,2), headingDeg:_round(e.headingDeg,1), magInterference:!!e.magInterference }));
   return {
     kernel:(window.DexKernel?{version:DexKernel.VERSION,hash:DexKernel.HASH}:null),
     schema:{ name:'ganglior.node-export', version:'2.0', node:'PpgDex', nodeVersion:'1.0',
@@ -503,13 +513,14 @@ function buildV2(r){
       cpapInUse:(r.cpapInUse!=null?r.cpapInUse:(r.profile&&r.profile.cpap!=null?r.profile.cpap:null)) },
     quality:{ analyzablePct:r.analyzablePct, cleanBeatPct:r.cleanBeatPct, coveragePct:r.coveragePct,
       meanSQI:r.meanSQI, motionRejectedPct:r.motionRejectedPct, correctionRatePct:r.correctionRate,
+      ledAgreementPct:(r.ledAgreementPct!=null?r.ledAgreementPct:null), ledAgree3of3Pct:(r.ledAgree3of3Pct!=null?r.ledAgree3of3Pct:null), droppedBeats:(r.nDroppedBeats!=null?r.nDroppedBeats:null),
       magInterferencePct:(r.magInterferencePct!=null?r.magInterferencePct:null),
       deviceAgreementPct:r.validation&&r.validation.usable?r.validation.deviceAgreementPct:null },
     hrv:{ time:{ meanRR:r.meanRR, hr:r.dispHr, sdnn:r.sdnn, rmssd:r.rmssd, pnn50:r.pnn50, lnRMSSD:r.lnRMSSD, triIdx:r.triIdx,
-        window:'wholeRecord', units:'ms',
+        window:'wholeRecord', units:'ms', lowConfidence:!!r.hrvLowConfidence, lowConfidenceReason:(r.hrvLowConfidenceReason||null),
         windowNote:'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD.' },
       poincare:{ sd1:r.sd1, sd2:r.sd2, sd1sd2:r.sd1sd2, ellipseArea:r.ellArea },
-      frequency:{ vlf:fq.vlf, lf:fq.lf, hf:fq.hf, lfhf:fq.lfhf, lfnu:fq.lfnu, hfnu:fq.hfnu, totalPower:fq.totalPower, method:'Lomb-Scargle' },
+      frequency:{ vlf:fq.vlf, lf:fq.lf, hf:fq.hf, lfhf:fq.lfhf, lfnu:fq.lfnu, hfnu:fq.hfnu, totalPower:fq.totalPower, method:'Lomb-Scargle', lowConfidence:!!r.hrvLowConfidence },
       nonlinear:{ dfaAlpha1:r.dfa1, sampEn:r.sampen } },
     personalization:{ profile:r.profile||null, ansReadinessScore:r.hrvScore, ansAge:null, /* ANS Age REMOVED 2026-06-21 (external-review WP-A); null for node-export back-compat. */
       restingHR:r.rhrEff, vo2maxEst:r.vo2adj, expectedRmssd:r.expRmssd },

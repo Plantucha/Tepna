@@ -122,12 +122,24 @@ function parsePPG(text){
 }
 
 // ════════════════════════════════════════════════════════════════════════
-//  CHANNEL SELECTION — best-SNR green channel
-//  pulsatility = power in 0.7–3 Hz band ÷ power in 4–8 Hz band (after BP)
+//  CHANNEL RANKING — best-SNR optical path (REFERENCE-channel selection)
+//  pulsatility = power in 0.7–3 Hz band ÷ power in 4–8 Hz band (after BP).
+//  PPGDEX-BEAT-DETECTION-PERF §2: score on a representative ~90 s WINDOW, not the
+//  whole record. SNR is a ratio of band powers, so a mid-recording window ranks the
+//  3 LEDs identically to the whole night; the old scorer ran TWO whole-record
+//  filtfilt bandpasses (4 biquad passes each) on EVERY channel — ~6 whole-record
+//  filter passes before detection even started. Under §1 all three channels are now
+//  DETECTED on (3-LED consensus), so this is only a RANKING to pick the reference
+//  waveform for the scope/morphology/SQI — never a discard.
 // ════════════════════════════════════════════════════════════════════════
 function channelSNR(sig, fs){
-  const pulse = bandpass(sig, fs, 0.7, 3.0);
-  const noise = bandpass(sig, fs, 4.0, 8.0);
+  // representative mid-recording window (SNR is scale- & length-invariant); touches
+  // ≤ ~90 s·fs samples per channel per band instead of the whole night.
+  const win=Math.min(sig.length, Math.max(Math.round(fs*90), Math.round(fs*20)));
+  let s0=Math.floor((sig.length-win)/2); if(s0<0) s0=0;
+  const slice=(s0===0 && win===sig.length) ? sig : sig.subarray(s0, s0+win);
+  const pulse = bandpass(slice, fs, 0.7, 3.0);
+  const noise = bandpass(slice, fs, 4.0, 8.0);
   const ps = std(pulse), ns = std(noise) || 1e-6;
   return { snr: ps/ns, amp: ps };
 }
@@ -155,62 +167,148 @@ function orient(bp){
 }
 
 // ════════════════════════════════════════════════════════════════════════
-//  OPTICAL BEAT DETECTION  → systolic peaks + intersecting-tangent feet
+//  OPTICAL BEAT DETECTION — O(N) TERMA (Elgendi 2013, "the Pan-Tompkins of PPG")
+//  PPGDEX-BEAT-DETECTION-PERF §1. Two event-related moving averages + a beat-
+//  adaptive offset threshold → systolic peaks in ONE forward pass. NO whole-record
+//  autocorrelation and NO global period. The old detector swept ~235 lags × N
+//  (~1.07e9 mul-adds on a 4.6 M-sample night) to estimate ONE scalar period T, then
+//  used that single period + a fixed 0.30 threshold to segment a whole drifting-HR
+//  night — which both janked the main thread AND dropped beats where amplitude/shape
+//  wandered (the ~19 % missed-beat root cause). TERMA's threshold is LOCAL (tracks
+//  MA_beat), adapting beat-to-beat with no tuned period. Strictly O(N) (running-sum
+//  moving averages + a single block scan). Feet stay the intersecting-tangent
+//  refinement (PPI = foot-to-foot), fed from the new peaks.
 // ════════════════════════════════════════════════════════════════════════
 function detectBeats(bp, fs){
   const n=bp.length;
-  // dominant pulse interval via autocorrelation (36–200 bpm → lag 0.3–1.66 s)
-  const loLag=Math.round(fs*0.33), hiLag=Math.round(fs*1.66);
-  let bestLag=Math.round(fs*0.85), bestR=-Infinity;
-  const m=mean(bp);
-  for(let lag=loLag; lag<=hiLag && lag<n; lag++){
-    let s=0; for(let i=0;i<n-lag;i++) s+=(bp[i]-m)*(bp[i+lag]-m);
-    if(s>bestR){ bestR=s; bestLag=lag; }
-  }
-  const T=bestLag;                      // expected samples between beats
-  const refr=Math.max(Math.round(fs*0.30), Math.round(T*0.5));
-  // adaptive systolic-peak detection on a smoothed upslope energy
-  const d=new Float32Array(n);
-  for(let i=1;i<n;i++){ const dv=bp[i]-bp[i-1]; d[i]=dv>0?dv*dv:0; }  // positive-slope energy
-  const win=Math.max(3,Math.round(fs*0.10));
-  const e=movavg(d,win);
-  // dynamic threshold = running fraction of local max
   const peaks=[];
+  if(n<3) return { peaks, feet:[], T:Math.round(fs*0.85) };
+  // FEATURE = positive-slope (systolic-upstroke) energy. The derivative removes any DC
+  // offset AND slow baseline wander (≈0 slope), so — unlike a clipped-amplitude square —
+  // it is robust to the large baseline drift + supra-physiologic transients real optical
+  // channels carry (a transient inflates only the LOCAL long average, suppressing just its
+  // own neighbourhood, not the whole record). Fed into TERMA's dual moving-average block
+  // logic, which replaces the old autocorrelation-derived GLOBAL period (the missed-beat
+  // root cause) with a LOCAL adaptive threshold.
+  const z=new Float32Array(n);
+  for(let i=1;i<n;i++){ const dv=bp[i]-bp[i-1]; z[i]=dv>0?dv*dv:0; }
+  const W1=Math.max(3, Math.round(fs*0.111));       // systolic-upstroke window (~111 ms)
+  const W2=Math.max(W1+2, Math.round(fs*0.667));    // one-beat window (~667 ms)
+  const maPeak=movavg(z, W1);
+  const maBeat=movavg(z, W2);
+  const minW=Math.max(2, Math.round(fs*0.05));      // min systolic-block width (noise reject)
+  const refr=Math.round(fs*0.30);                    // 200 bpm ceiling — min physiologic PPI
+  // blocks of interest where the short upstroke-energy average exceeds the LOCAL long
+  // average — LOCAL threshold, so no global period and no outlier-inflated global offset;
+  // it adapts beat-to-beat as HR/amplitude drift. Kept only if wider than minW.
   let i=1;
-  const segLen=Math.round(T*1.2);
-  while(i<n-1){
-    // local search window
-    const j0=i, j1=Math.min(n-1,i+segLen);
-    let pk=-1, pv=-Infinity;
-    for(let j=j0;j<j1;j++){ if(e[j]>pv){ pv=e[j]; pk=j; } }
-    // threshold relative to robust scale
-    const thr = 0.30*localMax(e, Math.max(0,pk-segLen), Math.min(n,pk+segLen));
-    if(pv>thr && pk>0){
-      // refine to the true signal maximum (systolic peak) just after the upslope energy peak
-      let sp=pk, sv=bp[pk];
-      for(let j=pk; j<Math.min(n,pk+Math.round(fs*0.15)); j++){ if(bp[j]>sv){ sv=bp[j]; sp=j; } }
-      if(peaks.length===0 || sp-peaks[peaks.length-1]>=refr) peaks.push(sp);
-      else if(bp[sp]>bp[peaks[peaks.length-1]]) peaks[peaks.length-1]=sp;
-      i = sp+refr;
-    } else i = j1;
+  while(i<n){
+    if(maPeak[i] > maBeat[i]){
+      let j=i; while(j<n && maPeak[j] > maBeat[j]) j++;
+      if(j-i >= minW){                                // valid systolic block
+        // systolic peak = max of the ORIGINAL waveform across the upstroke block + a short tail
+        let sp=i, sv=-Infinity; const hi=Math.min(n, j+Math.round(fs*0.12));
+        for(let k=i;k<hi;k++){ const v=bp[k]; if(v>sv){ sv=v; sp=k; } }
+        if(peaks.length===0 || sp-peaks[peaks.length-1]>=refr) peaks.push(sp);
+        else if(bp[sp]>bp[peaks[peaks.length-1]]) peaks[peaks.length-1]=sp;
+      }
+      i=j;
+    } else i++;
   }
-  // feet via intersecting-tangent (per peak)
+  // nominal period (samples) from the DETECTED cadence — back-compat scalar for callers
+  // + the first-foot lower bound. NOT used to gate detection any more.
+  let T=Math.round(fs*0.85);
+  if(peaks.length>2){ const dd=[]; for(let k=1;k<peaks.length;k++) dd.push(peaks[k]-peaks[k-1]); const md=median(dd); if(md>0) T=Math.round(md); }
+  const feet=refineFeet(bp, peaks, T);
+  return { peaks, feet, T };
+}
+// intersecting-tangent systolic foot per peak (PPI timing point). Extracted so BOTH
+// the single-channel detectBeats and the 3-LED consensus (feet re-derived on the
+// reference channel) share ONE implementation.
+function refineFeet(bp, peaks, T){
   const feet=[];
   for(let k=0;k<peaks.length;k++){
     const p=peaks[k];
     const lo=k>0?peaks[k-1]:Math.max(0,p-T);
-    // diastolic min between previous peak and this peak
     let mi=p, mv=bp[p];
     for(let j=p; j>lo; j--){ if(bp[j]<mv){ mv=bp[j]; mi=j; } }
-    // max upslope point between min and peak
     let ms=mi, msv=-Infinity;
     for(let j=mi; j<p; j++){ const dv=bp[j+1]-bp[j]; if(dv>msv){ msv=dv; ms=j; } }
-    // intersecting tangent: foot = where tangent at ms crosses baseline (y=mv)
     let foot=mi;
     if(msv>1e-9){ const cross = ms - (bp[ms]-mv)/msv; foot = Math.max(lo, Math.min(p, cross)); }
     feet.push(foot);
   }
-  return { peaks, feet, T };
+  return feet;
+}
+function negate(x){ const y=new Float32Array(x.length); for(let i=0;i<x.length;i++) y[i]=-x[i]; return y; }
+// bandpass + orient + O(N) detect for ONE optical channel. PURE + self-contained
+// (closes over nothing but the module's pure helpers) so the §2b Web-Worker pool can
+// run it verbatim off its own .toString() — serial + worker paths are then byte-
+// identical by construction. Returns the reference-usable band-passed waveform too.
+function detectChannel(chan, fs){
+  const bp0=bandpass(chan, fs, 0.5, 8.0);
+  const sign=orient(bp0);
+  const bp=sign===1?bp0:negate(bp0);
+  const det=detectBeats(bp, fs);
+  return { bp, sign, peaks:det.peaks, feet:det.feet, T:det.T };
+}
+// ════════════════════════════════════════════════════════════════════════
+//  3-LED CONSENSUS (PPGDEX-BEAT-DETECTION-PERF §1/§5) — optical bSQI
+//  The Polar Sense streams THREE co-located optical paths (ch0/ch1/ch2). Detect
+//  independently on each (detectChannel), then keep a beat only where ≥ 2 of 3
+//  channels place a systolic peak within ±50 ms — the optical analog of ECGDex's
+//  two-detector agreement. A 1/3 beat is almost always motion / poor perfusion:
+//  it is DROPPED (a gap), NEVER median-filled — median-fill fabricates regularity
+//  and was a prime reason the old whole-record RMSSD read implausibly high. Feet are
+//  re-derived on the reference channel so PPI stays foot-to-foot on the best waveform.
+//    perChannel : [{ bp, peaks, feet }, …]  (1..3 channels)
+//    refIdx     : reference channel index (best windowed SNR, §2)
+//  → { peaks, feet, agree:[frac∈{2/3,3/3} per kept beat|null], clusters:[{s,nAgree}],
+//      nDropped, kept33, kept22, singleChannel }
+// ════════════════════════════════════════════════════════════════════════
+function consensusBeats(perChannel, refIdx, fs){
+  const nCh=perChannel.length;
+  const refBp=perChannel[refIdx].bp;
+  // single channel (companion LEDs unavailable) → no consensus possible: pass the
+  // reference channel's own beats through, agreement unknown (null ⇒ ribbon hidden).
+  if(nCh<2){
+    const pk=perChannel[refIdx].peaks.slice();
+    return { peaks:pk, feet:perChannel[refIdx].feet.slice(), agree:pk.map(()=>null),
+             clusters:pk.map(s=>({ s, nAgree:1 })), nDropped:0, kept33:0, kept22:0, singleChannel:true };
+  }
+  const tol=Math.max(1, Math.round(0.05*fs));   // ±50 ms agreement window
+  const ev=[];
+  for(let c=0;c<nCh;c++){ const pks=perChannel[c].peaks; for(let k=0;k<pks.length;k++) ev.push({ s:pks[k], c }); }
+  ev.sort((a,b)=>a.s-b.s);
+  // cluster events within ±tol — one heartbeat's peaks across channels fall inside tol;
+  // the next beat is ≥ refr(0.3 s) away, so a tol(50 ms) window cleanly splits heartbeats.
+  const rawPeaks=[], rawAgree=[], clusters=[]; let nDropped=0, kept33=0, kept22=0;
+  let i=0;
+  while(i<ev.length){
+    const chans={}; const ss=[]; let j=i;
+    chans[ev[j].c]=1; ss.push(ev[j].s); j++;
+    // CHAIN by gap: extend while consecutive events are within tol. One heartbeat's peaks
+    // across channels form a chain ≤ tol wide; the next beat is ≥ refr(0.3 s) away, so a beat
+    // whose 3 channel-peaks spread slightly (localisation noise) stays ONE cluster instead of
+    // boundary-splitting into a spurious 1/3 drop.
+    while(j<ev.length && ev[j].s-ev[j-1].s<=tol){ chans[ev[j].c]=1; ss.push(ev[j].s); j++; }
+    const nAgree=Object.keys(chans).length;
+    const cs=Math.round(median(ss));
+    clusters.push({ s:cs, nAgree });
+    if(nAgree>=2){ rawPeaks.push(cs); rawAgree.push(nAgree/nCh); if(nAgree>=3) kept33++; else kept22++; }
+    else nDropped++;
+    i=j;
+  }
+  // enforce refractory on the merged spine (a boundary split could double a beat)
+  const refr=Math.round(fs*0.30); const peaks=[], agree=[];
+  for(let k=0;k<rawPeaks.length;k++){
+    if(peaks.length && rawPeaks[k]-peaks[peaks.length-1]<refr){
+      if(refBp[rawPeaks[k]]>refBp[peaks[peaks.length-1]]){ peaks[peaks.length-1]=rawPeaks[k]; agree[agree.length-1]=rawAgree[k]; }
+    } else { peaks.push(rawPeaks[k]); agree.push(rawAgree[k]); }
+  }
+  let T=Math.round(fs*0.85); if(peaks.length>2){ const dd=[]; for(let k=1;k<peaks.length;k++) dd.push(peaks[k]-peaks[k-1]); const md=median(dd); if(md>0) T=Math.round(md); }
+  const feet=refineFeet(refBp, peaks, T);
+  return { peaks, feet, agree, clusters, nDropped, kept33, kept22, singleChannel:false };
 }
 function movavg(x, w){ const y=new Float32Array(x.length); let s=0; for(let i=0;i<x.length;i++){ s+=x[i]; if(i>=w)s-=x[i-w]; y[i]=s/Math.min(i+1,w); } return y; }
 function localMax(a,i0,i1){ let m=-Infinity; for(let i=i0;i<i1;i++) if(a[i]>m)m=a[i]; return m; }
@@ -218,7 +316,7 @@ function localMax(a,i0,i1){ let m=-Infinity; for(let i=i0;i<i1;i++) if(a[i]>m)m=
 // ════════════════════════════════════════════════════════════════════════
 //  PER-BEAT SQI  — template correlation × amplitude × motion gate
 // ════════════════════════════════════════════════════════════════════════
-function beatSQI(bp, peaks, fs, motionAt){
+function beatSQI(bp, peaks, fs, motionAt, agree){
   const n=peaks.length; if(!n) return [];
   const pre=Math.round(fs*0.20), post=Math.round(fs*0.45), L=pre+post;
   // build amplitude-normalised beats around peaks
@@ -240,6 +338,10 @@ function beatSQI(bp, peaks, fs, motionAt){
     const mot = motionAt ? motionAt(peaks[k]) : 0;   // 0..1 motion index at beat
     const motFactor = 1 - Math.min(1, mot);          // high motion → low conf
     let q = Math.max(0, corr) * (0.4 + 0.6*motFactor);
+    // §5: fold the 3-LED consensus agreement as a multiplicative axis — a 2/3 beat is
+    // down-weighted vs a 3/3 beat (1/3 beats were already dropped in consensus). A
+    // single-channel session has agree[k]==null → no LED axis (unchanged, back-compat).
+    if(agree && agree[k]!=null){ q *= (0.5 + 0.5*agree[k]); }   // 2/3→0.83×, 3/3→1.0×
     sqi.push(Math.max(0, Math.min(1, q)));
   }
   return sqi;
@@ -282,11 +384,20 @@ function correctRR(rr, tt){
   }
   return { nn:out, tt:ot, nCorr, flags };
 }
-function timeDomain(nn){
+function timeDomain(nn, cleanMask){
   if(nn.length<2) return null;
-  const meanRR=mean(nn), sdnn=std(nn);
+  const meanRR=mean(nn), sdnn=std(nn);            // dispersion: over ALL accepted NN (whole-record)
+  // §4 (PPGDEX-BEAT-DETECTION-PERF): the beat-to-beat metrics (rMSSD/pNN50) are computed
+  // over adjacent HIGH-SQI CLEAN pairs only, so sub-ectopy-threshold optical PAT jitter +
+  // gap boundaries don't inflate them (the whole-record 137 ms → truth). The ectopy/gap
+  // band (correctRR PPI_ECTOPY_THR) stays loose to avoid over-rejecting; this is the SEPARATE
+  // robust jitter pass the brief asks for. No mask (epoch/back-compat) → all adjacent pairs.
   let sumSq=0,cnt=0,nn50=0;
-  for(let i=1;i<nn.length;i++){ const d=nn[i]-nn[i-1]; sumSq+=d*d; cnt++; if(Math.abs(d)>50)nn50++; }
+  for(let i=1;i<nn.length;i++){
+    if(cleanMask && !(cleanMask[i-1] && cleanMask[i])) continue;
+    const d=nn[i]-nn[i-1]; sumSq+=d*d; cnt++; if(Math.abs(d)>50)nn50++;
+  }
+  if(cnt<1){ for(let i=1;i<nn.length;i++){ const d=nn[i]-nn[i-1]; sumSq+=d*d; cnt++; if(Math.abs(d)>50)nn50++; } }  // no clean pair → fall back
   const rmssd=Math.sqrt(sumSq/cnt), pnn50=100*nn50/cnt;
   const hr=60000/meanRR;
   // triangular index
@@ -295,9 +406,12 @@ function timeDomain(nn){
   const triIdx = mx? nn.length/mx : null;
   return { meanRR:Math.round(meanRR), sdnn:r1(sdnn), rmssd:r1(rmssd), pnn50:r1(pnn50), hr:Math.round(hr), lnRMSSD:r2(Math.log(rmssd)), triIdx:triIdx?r1(triIdx):null };
 }
-function poincare(nn){
+function poincare(nn, cleanMask){
   if(nn.length<3) return null;
-  const d=[]; for(let i=1;i<nn.length;i++) d.push(nn[i]-nn[i-1]);
+  // §4: SD1 (≈ short-term beat-to-beat) from the clean adjacent-pair successive
+  // differences; SD2 keeps the whole-record SDNN identity. Mask absent → all pairs.
+  const d=[]; for(let i=1;i<nn.length;i++){ if(cleanMask && !(cleanMask[i-1]&&cleanMask[i])) continue; d.push(nn[i]-nn[i-1]); }
+  if(d.length<2){ d.length=0; for(let i=1;i<nn.length;i++) d.push(nn[i]-nn[i-1]); }   // fallback
   const sd1=Math.sqrt(0.5)*std(d);
   const sdnn=std(nn);
   const sd2=Math.sqrt(Math.max(0,2*sdnn*sdnn-0.5*std(d)*std(d)));
@@ -580,7 +694,7 @@ function rmssdOf(rr){ let s=0,c=0; for(let i=1;i<rr.length;i++){ const d=rr[i]-r
 // ════════════════════════════════════════════════════════════════════════
 //  EPOCHS — 5-min windows over the corrected interval series
 // ════════════════════════════════════════════════════════════════════════
-function buildEpochs(nn, tt, motion, perfWindow){
+function buildEpochs(nn, tt, motion, perfWindow, cleanMask, agreeI){
   const epochs=[]; if(nn.length<2) return epochs;
   const epLen=300; // sec
   const tEnd=tt[tt.length-1];
@@ -588,14 +702,19 @@ function buildEpochs(nn, tt, motion, perfWindow){
     const idx=[]; for(let i=0;i<tt.length;i++){ if(tt[i]>=e0 && tt[i]<e0+epLen) idx.push(i); }
     if(idx.length<5) continue;
     const seg=idx.map(i=>nn[i]);
-    const td=timeDomain(seg); if(!td) continue;
+    const segMask = cleanMask ? idx.map(i=>cleanMask[i]) : null;   // §4: per-epoch clean adjacency
+    const td=timeDomain(seg, segMask); if(!td) continue;
     const ls=lombScargle(idx.map(i=>tt[i]), seg);
     const mi = motion&&motion.hasData ? r2(mean(idx.map(i=>motion.motionAtSec(tt[i])))) : null;
     const pi = perfWindow ? perfWindow(e0+epLen/2) : null;
     const post = (motion&&motion.postureDetailAtSec) ? motion.postureDetailAtSec(e0, e0+epLen) : null;
     const position = post ? post.position : 'unknown';
+    // §5: mean 3-LED agreement across this epoch's beats (null when single-channel session)
+    let ledAgreementPct=null;
+    if(agreeI){ const av=idx.map(i=>agreeI[i]).filter(v=>v!=null); if(av.length) ledAgreementPct=Math.round(100*mean(av)); }
     epochs.push({ tMin:Math.round(e0/60), beats:idx.length, hr:td.hr, meanRR:td.meanRR, rmssd:td.rmssd, sdnn:td.sdnn,
       pnn50:td.pnn50, lf:ls?ls.lf:null, hf:ls?ls.hf:null, lfhf:ls?ls.lfhf:null, respRate:null, pi, motionIndex:mi,
+      ledAgreementPct,
       position, positionConf: post?post.conf:null, headingDeg: post?post.heading:null, magInterference: post?!!post.magInterf:false });
   }
   return epochs;
@@ -615,22 +734,28 @@ function fmtDateTime(ms){ if(ms==null) return '—'; return fmtDate(ms)+' '+fmtC
 // ════════════════════════════════════════════════════════════════════════
 function analyze(rec, progress){
   const P=progress||function(){};
-  P(45,'Selecting best-SNR channel…');
+  P(45,'Ranking optical channels…');
   const sel=pickChannel(rec);
   const raw=rec.ch[sel.idx];
-  const bp0=bandpass(raw, rec.fs, 0.5, 8.0);
-  const sign=orient(bp0);
-  const bp=sign===1?bp0:bp0.map(v=>-v);
 
-  P(55,'Optical beat detection (systolic feet)…');
-  const det=detectBeats(bp, rec.fs);
+  // §1/§2b: detect on ALL channels (3-LED consensus). rec._preChannels lets the app hand
+  // in results already computed in the Web-Worker pool — byte-identical to this serial path
+  // (the workers run detectChannel's own source). compute()/tests never set it, so this
+  // in-thread detect is the numeric source of truth the gates verify.
+  P(55,'Optical beat detection · 3-LED (systolic feet)…');
+  const perChannel = (rec._preChannels && rec._preChannels.length===rec.ch.length)
+    ? rec._preChannels
+    : rec.ch.map(c=>detectChannel(c, rec.fs));
+  const bp = perChannel[sel.idx].bp;                 // reference-channel band-passed waveform
+  const cons = consensusBeats(perChannel, sel.idx, rec.fs);
+  const det = { peaks:cons.peaks, feet:cons.feet, T:0 };
 
   P(62,'Motion gate (ACC + GYRO)…');
   const motion=analyzeMotion(rec.acc, rec.gyro, rec.t0Ms, rec.durSec, rec.magn);
   const motionAt = motion.hasData ? (samp=>motion.motionAtSec(rec.relSec[Math.max(0,Math.min(rec.n-1,Math.round(samp)))])) : null;
 
-  P(68,'Per-beat SQI…');
-  const sqi=beatSQI(bp, det.peaks, rec.fs, motionAt);
+  P(68,'Per-beat SQI (× 3-LED agreement)…');
+  const sqi=beatSQI(bp, det.peaks, rec.fs, motionAt, cons.agree);
 
   // foot times (sec, absolute rel) — interpolate relSec at fractional foot index
   const footSec=det.feet.map(f=>{ const i0=Math.floor(f), i1=Math.min(rec.n-1,i0+1), fr=f-i0;
@@ -641,8 +766,20 @@ function analyze(rec, progress){
   const { rr, tt }=buildPPI(footSec);
   const corr=correctRR(rr, tt);
   const nn=corr.nn;
-  const td=timeDomain(nn)||{};
-  const poin=poincare(nn);
+  // §4: per-interval CLEAN-adjacency mask — interval i (between beat i & i+1) is clean when it
+  // was NOT correction-flagged AND both endpoint beats cleared SQI≥0.5 (SQI folds the 3-LED
+  // agreement, §5). rMSSD/pNN50/SD1 are computed over clean adjacent pairs so sub-ectopy optical
+  // jitter + gap boundaries can't inflate them; SDNN stays whole-record dispersion.
+  const cleanMask=new Array(nn.length);
+  for(let i=0;i<nn.length;i++){
+    const q0=(sqi[i]!=null?sqi[i]:1), q1=(sqi[i+1]!=null?sqi[i+1]:1);
+    cleanMask[i] = (corr.flags[i]===0) && q0>=0.5 && q1>=0.5;
+  }
+  // §5: per-interval mean LED agreement (null when single-channel) for the per-epoch ribbon
+  const agreeI = cons.singleChannel ? null : new Array(nn.length);
+  if(agreeI){ for(let i=0;i<nn.length;i++){ const a0=cons.agree[i], a1=cons.agree[i+1]; agreeI[i]=(a0!=null&&a1!=null)?(a0+a1)/2:(a0!=null?a0:(a1!=null?a1:null)); } }
+  const td=timeDomain(nn, cleanMask)||{};
+  const poin=poincare(nn, cleanMask);
   const freq=lombScargle(corr.tt, nn);
   const dfa1=dfaAlpha1(nn);
   const se=sampEn(nn);
@@ -653,7 +790,7 @@ function analyze(rec, progress){
   const perfWindow=()=> dc>0 ? r2(100*acAmp/dc) : null;
 
   P(80,'Epochs…');
-  const epochs=buildEpochs(nn, corr.tt, motion, perfWindow);
+  const epochs=buildEpochs(nn, corr.tt, motion, perfWindow, cleanMask, agreeI);
 
   // quality
   const meanSQI=sqi.length?r2(mean(sqi)):0;
@@ -666,6 +803,27 @@ function analyze(rec, progress){
   // magnetometer interference coverage (informational — does not alter SQI/conf)
   const magEpochs = epochs.filter(e=>e.magInterference).length;
   const magInterferencePct = (motion.hasMag && epochs.length)? Math.round(100*magEpochs/epochs.length) : null;
+
+  // §5: whole-record 3-LED agreement + the per-5-min ribbon series (all clusters incl dropped 1/3)
+  let ledAgreementPct=null, ledAgree3of3Pct=null, ledSeries=null;
+  if(!cons.singleChannel){
+    const kept=cons.agree.filter(a=>a!=null);
+    ledAgreementPct = kept.length ? Math.round(100*mean(kept)) : null;
+    ledAgree3of3Pct = (cons.kept33+cons.kept22)>0 ? Math.round(100*cons.kept33/(cons.kept33+cons.kept22)) : null;
+    const epLen=300, bins={}, relOf=s=>rec.relSec[Math.max(0,Math.min(rec.n-1,Math.round(s)))];
+    cons.clusters.forEach(c=>{ const e=Math.floor(relOf(c.s)/epLen); if(!bins[e]) bins[e]={c1:0,c2:0,c3:0};
+      if(c.nAgree>=3)bins[e].c3++; else if(c.nAgree===2)bins[e].c2++; else bins[e].c1++; });
+    ledSeries=Object.keys(bins).map(e=>{ const b=bins[e], tot=(b.c1+b.c2+b.c3)||1;
+      return { tMin:(+e)*5, f3:r2(b.c3/tot), f2:r2(b.c2/tot), f1:r2(b.c1/tot), n:tot }; }).sort((a,b)=>a.tMin-b.tMin);
+  }
+  // §3: coverage/SQI gate — a sparse / heavily-corrected record must not publish an
+  // unqualified whole-record short-term HRV (it would feed the Integrator consensus axis a
+  // jitter-inflated number). Keep the values but STAMP low-confidence + reason (option b),
+  // applied consistently to hrv.time/poincare/frequency in the exports. Inert on good data.
+  const hrvLowConfidence = (analyzablePct<60 || correctionRate>20);
+  const hrvLowConfidenceReason = hrvLowConfidence
+    ? ('low coverage — analyzable '+analyzablePct+'% / correction '+correctionRate+'% → whole-record short-term HRV down-weighted; use per-5-min epochs[] + ledAgreementPct')
+    : null;
 
   // tier (mirror ECGDex)
   const durMin=rec.durSec/60;
@@ -705,6 +863,8 @@ function analyze(rec, progress){
     freq, dfa1, sampen:se,
     epochs,
     meanSQI, cleanBeatPct, analyzablePct, coveragePct:cleanBeatPct, correctionRate, nCorrected:corr.nCorr,
+    ledAgreementPct, ledAgree3of3Pct, ledSeries, ledSingleChannel:cons.singleChannel, nDroppedBeats:cons.nDropped,
+    hrvLowConfidence, hrvLowConfidenceReason,
     motion, motionRejectedPct, magHasData:motion.hasMag, magInterferencePct,
     validation, markers, morph,
     perfusionIndex: perfWindow(),
@@ -783,9 +943,63 @@ function mergeMultipart(parsed){           // parsed = [{name,text,kind?,stampMs
   return singles.concat(merged);
 }
 
+// ════════════════════════════════════════════════════════════════════════
+//  §2b — WEB-WORKER per-channel detection pool (SCHEDULING optimisation ONLY)
+//  The three LEDs are independent until the consensus merge, so bandpass+orient+
+//  detect on ch0/ch1/ch2 run concurrently in a small pool (one Worker per channel,
+//  ≤3), each channel transferred via a transferable ArrayBuffer (no copy). The
+//  worker runs detectChannel's OWN source (+ its pure deps) rebuilt from
+//  Function.toString(), so the result is BYTE-IDENTICAL to the serial detectChannel
+//  path — workers change WHEN the work runs, never WHAT it computes. 100% offline:
+//  the worker is a blob: URL minted from an INLINED source string (no external
+//  script, honours the no-CDN rule). analyze()/compute() stay SYNCHRONOUS + serial
+//  (the gated numeric truth); only the live APP awaits this, stashes rec._preChannels,
+//  then calls the same analyze(). ANY Worker failure/absence (the headless test/equiv
+//  path) → resolve via the serial detectChannel path → identical numbers.
+// ════════════════════════════════════════════════════════════════════════
+var _ppgWorkerURL=null, _ppgWorkerTriedURL=false;
+function _buildWorkerURL(){
+  if(_ppgWorkerTriedURL) return _ppgWorkerURL;
+  _ppgWorkerTriedURL=true;
+  if(typeof Blob==='undefined' || typeof URL==='undefined' || !URL.createObjectURL) return null;
+  // ONE source of truth: the worker re-declares the SAME pure functions from their own
+  // .toString() — no algorithm is duplicated as a string literal, so it can't drift.
+  var deps=[biquad,applyBiquad,reverse,filtfilt,bandpass,mean,std,median,movavg,orient,negate,refineFeet,detectBeats,detectChannel];
+  var src = deps.map(function(f){ return f.toString(); }).join('\n')
+    + '\nself.onmessage=function(e){var d=e.data;var chan=new Float32Array(d.buf);'
+    + 'var r=detectChannel(chan,d.fs);'
+    + 'self.postMessage({idx:d.idx,peaks:r.peaks,feet:r.feet,sign:r.sign,T:r.T,bp:r.bp.buffer},[r.bp.buffer]);};';
+  try{ _ppgWorkerURL=URL.createObjectURL(new Blob([src],{type:'text/javascript'})); }catch(e){ _ppgWorkerURL=null; }
+  return _ppgWorkerURL;
+}
+function _detectSerial(rec){ return rec.ch.map(function(c){ return detectChannel(c, rec.fs); }); }
+function detectChannelsAsync(rec){
+  return new Promise(function(resolve){
+    var chans=rec.ch, nCh=chans.length;
+    var url = (typeof Worker!=='undefined') ? _buildWorkerURL() : null;
+    if(!url || !nCh){ resolve(_detectSerial(rec)); return; }
+    var out=new Array(nCh), done=0, settled=false, workers=[];
+    function serialFallback(){ if(settled) return; settled=true; workers.forEach(function(w){ try{ w.terminate(); }catch(e){} }); resolve(_detectSerial(rec)); }
+    try{
+      for(var c=0;c<nCh;c++){
+        (function(ci){
+          var w=new Worker(url); workers.push(w);
+          w.onmessage=function(e){ var m=e.data; out[m.idx]={ bp:new Float32Array(m.bp), sign:m.sign, peaks:m.peaks, feet:m.feet, T:m.T };
+            try{ w.terminate(); }catch(_){} if(++done===nCh && !settled){ settled=true; resolve(out); } };
+          w.onerror=function(){ serialFallback(); };
+          var buf=new Float32Array(chans[ci]).buffer;   // COPY → transfer (leaves rec.ch intact for the serial raw/dc path)
+          w.postMessage({ idx:ci, buf:buf, fs:rec.fs }, [buf]);
+        })(c);
+      }
+    }catch(e){ serialFallback(); }
+    setTimeout(function(){ if(!settled) serialFallback(); }, 20000);   // stall guard
+  });
+}
+
 global.PPGDSP = {
   parsePPG, parseSensorXYZ, parseDevicePPI, analyze, analyzeMotion, validatePPI,
-  bandpass, detectBeats, buildPPI, correctRR, timeDomain, poincare, lombScargle, dfaAlpha1,
+  bandpass, detectBeats, detectChannel, consensusBeats, refineFeet, detectChannelsAsync,
+  buildPPI, correctRR, timeDomain, poincare, lombScargle, dfaAlpha1,
   parseTimestamp, fmtClock, fmtClockSec, fmtDate, fmtDateTime,
   mean, std, median, quantile,
   partKey, mergeMultipart
@@ -833,17 +1047,17 @@ function ppgBuildNodeExport(r, opts){
   if (opts.rich){
     var nz = function(v){ return (v==null || (typeof v==='number' && !isFinite(v))) ? null : v; };
     var fq = r.freq || {};
-    out.quality = { analyzablePct:nz(r.analyzablePct), cleanBeatPct:nz(r.cleanBeatPct), coveragePct:nz(r.coveragePct), motionRejectedPct:nz(r.motionRejectedPct) };
+    out.quality = { analyzablePct:nz(r.analyzablePct), cleanBeatPct:nz(r.cleanBeatPct), coveragePct:nz(r.coveragePct), motionRejectedPct:nz(r.motionRejectedPct), correctionRatePct:nz(r.correctionRate), ledAgreementPct:nz(r.ledAgreementPct) };
     out.hrv = {
       time:{ meanRR:nz(r.meanRR), hr:nz(r.dispHr), sdnn:nz(r.sdnn), rmssd:nz(r.rmssd), pnn50:nz(r.pnn50),
-        window:'wholeRecord', units:'ms',
+        window:'wholeRecord', units:'ms', lowConfidence:!!r.hrvLowConfidence, lowConfidenceReason:(r.hrvLowConfidenceReason||null),
         windowNote:'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD.' },
-      frequency:{ lf:nz(fq.lf), hf:nz(fq.hf), lfhf:nz(fq.lfhf), method:'Lomb-Scargle' }
+      frequency:{ lf:nz(fq.lf), hf:nz(fq.hf), lfhf:nz(fq.lfhf), method:'Lomb-Scargle', lowConfidence:!!r.hrvLowConfidence }
     };
     out.timeseries = {
       doc:'5-min epochs — primary cross-node feed (posture rides on epochs[].position).',
       epochs:(r.epochs||[]).map(function(e){ return { tMin:e.tMin, hr:nz(e.hr), rmssd:nz(e.rmssd), sdnn:nz(e.sdnn), lfhf:nz(e.lfhf),
-        motionIndex:nz(e.motionIndex), position:(e.position||'unknown'), positionConf:nz(e.positionConf), headingDeg:nz(e.headingDeg), magInterference:!!e.magInterference }; })
+        motionIndex:nz(e.motionIndex), ledAgreementPct:nz(e.ledAgreementPct), position:(e.position||'unknown'), positionConf:nz(e.positionConf), headingDeg:nz(e.headingDeg), magInterference:!!e.magInterference }; })
     };
   }
   return out;

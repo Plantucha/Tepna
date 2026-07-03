@@ -773,7 +773,10 @@ function _patLabel(key){ const m=PATTERN_METRICS.find(x=>x.key===key); return m?
 function _patShort(key){ return _patLabel(key).replace(/\s*\(.*\)/,''); }
 function _patPearson(xs, ys){
   const px=[], py=[];
-  for(let i=0;i<xs.length;i++){ if(isFinite(xs[i]) && isFinite(ys[i])){ px.push(xs[i]); py.push(ys[i]); } }
+  // FOLLOWUPS-II §1: Number.isFinite (not global isFinite) so a null pair-member is dropped, not coerced to 0.
+  // renderHeatmap feeds RAW nullable series here (rows.map(r=>r[k]) over HEATMAP_METRICS incl. _rmssd/_sdnn/_hr),
+  // so isFinite(null)===true would let a blank cell enter as 0 and bias r. Scatter pre-filters → no-op there.
+  for(let i=0;i<xs.length;i++){ if(Number.isFinite(xs[i]) && Number.isFinite(ys[i])){ px.push(xs[i]); py.push(ys[i]); } }
   const n=px.length; if(n<3) return { r:NaN, n };
   const mx=_patMean(px), my=_patMean(py);
   let num=0, dx=0, dy=0;
@@ -816,7 +819,9 @@ function renderScatterExplorer(){
   const selX=document.getElementById('corrX'), selY=document.getElementById('corrY');
   _patFillSelect(selX, '_rmssd'); _patFillSelect(selY, '_sdnn');
   const kx = selX ? selX.value : '_rmssd', ky = selY ? selY.value : '_sdnn';
-  const pts = rows.map(r=>({ x:r[kx], y:r[ky] })).filter(p=>isFinite(p.x) && isFinite(p.y));
+  // FOLLOWUPS-II §1: Number.isFinite drops a null (blank transparent cell) instead of plotting it as a
+  // (0,y) point; global isFinite(null)===true would drag the cloud + Pearson r toward the axes. A real 0 is kept.
+  const pts = rows.map(r=>({ x:r[kx], y:r[ky] })).filter(p=>Number.isFinite(p.x) && Number.isFinite(p.y));
   const { r, n } = _patPearson(pts.map(p=>p.x), pts.map(p=>p.y));
   const sub = document.getElementById('corrStats');
   if(sub){
@@ -846,7 +851,9 @@ function renderWeekday(){
   const sel = document.getElementById('wdMetric'); _patFillSelect(sel, '_rmssd');
   const key = sel ? sel.value : '_rmssd';
   const buckets = PATTERN_WEEKDAYS.map(()=>[]);
-  rows.forEach(r=>{ const v=r[key]; if(!isFinite(v)) return; let d=r._date.getUTCDay(); d=(d+6)%7; buckets[d].push(v); });
+  // FOLLOWUPS-II §1: a blank transparent cell is null; isFinite(null)===true would push it as a 0 and
+  // deflate that weekday's average. typeof-number drops null/NaN but keeps a genuine 0 (e.g. pNN50).
+  rows.forEach(r=>{ const v=r[key]; if(!(typeof v==='number' && isFinite(v))) return; let d=r._date.getUTCDay(); d=(d+6)%7; buckets[d].push(v); });
   const avgs = buckets.map(b=> b.length ? _patMean(b) : NaN);
   const sub = document.getElementById('wdStats');
   const finite = avgs.filter(isFinite);
@@ -967,11 +974,14 @@ const TABLE_COLS = [
   { key:'d_hrv_momentum', label:'HRV Momentum', fmt:v=>isNaN(v)?'—':fmt4(v), color:v=>v>0?'green':v>-0.01?'yellow':'red' },
   { key:'d_recovery_debt', label:'Recov Debt 14d', fmt:v=>isNaN(v)?'—':fmt0(v), color:v=>v<3?'green':v<7?'yellow':'red' },
 ];
-const fmt0=v=>isNaN(v)?'—':Math.round(v).toString();
-const fmt4=v=>isNaN(v)?'—':v.toFixed(4);
-const fmt1=v=>isNaN(v)?'—':v.toFixed(1);
-const fmt2=v=>isNaN(v)?'—':v.toFixed(2);
-const fmt3=v=>isNaN(v)?'—':v.toFixed(3);
+// FOLLOWUPS-II §1: guard null explicitly. A nullable transparent field (_sdnn/_rmssd, numOrNull) reaches
+// these via renderTable's fmt; isNaN(null)===false would fall through to null.toFixed() and THROW (a crash
+// regression from Finding 1, when blanks became null instead of 0). A real 0 still formats (0 != null).
+const fmt0=v=>(v==null||isNaN(v))?'—':Math.round(v).toString();
+const fmt4=v=>(v==null||isNaN(v))?'—':v.toFixed(4);
+const fmt1=v=>(v==null||isNaN(v))?'—':v.toFixed(1);
+const fmt2=v=>(v==null||isNaN(v))?'—':v.toFixed(2);
+const fmt3=v=>(v==null||isNaN(v))?'—':v.toFixed(3);
 
 function pillClass(colorFn, val){ const c=colorFn?colorFn(val):''; return c?`pill pill-${c}`:''; }
 

@@ -115,6 +115,7 @@
 <script src="ecgdex-morph.js"></script>
 <script src="ppgdex-morph.js"></script>
 <script src="integrator-dsp.js"></script>
+<script src="integrator-tch.js"></script>
 <script src="integrator-longitudinal.js"></script>
 <!-- FULL-lane harness generators (for the waveform-fidelity gate) -->
 <script src="synth-gen.js"></script>
@@ -170,7 +171,7 @@ const FIXTURE_FILES = {
   'ecgdex.slim-events':  'tests/fixtures/ecgdex.slim-events.json',
   'ppgdex.node-export':  'tests/fixtures/ppgdex.node-export.json'
 };
-const SOURCE_FILES = ['pulsedex-dsp.js','oxydex-dsp.js','hrvdex-dsp.js','integrator-dsp.js','integrator-app.js','ppgdex-dsp.js','glucodex-dsp.js','ecgdex-dsp.js',
+const SOURCE_FILES = ['pulsedex-dsp.js','oxydex-dsp.js','hrvdex-dsp.js','integrator-dsp.js','integrator-tch.js','integrator-app.js','ppgdex-dsp.js','glucodex-dsp.js','ecgdex-dsp.js',
   'ecgdex-cross.js','oxydex-cross.js','pulsedex-cross.js','ppgdex-cross.js',
   'crossnight-envelope.js','ecgdex-app.js','ppgdex-app.js','pulsedex-app.js','oxydex-render.js','signal-orchestrate.js','dex-ingest.js',
   'cpapdex-dsp.js','cpapdex-cross.js','cpapdex-edf.js','cpapdex-app.js','ecgdex-morph.js','ppgdex-morph.js','dex-export.js',
@@ -313,6 +314,7 @@ async function main(){
     SYNTH: window.SYNTH, CohortGen: window.CohortGen, CohortFull: window.CohortFull,
     GLUDSP: window.GLUDSP, GlucoDex: window.GlucoDex, DexPatientGen: window.DexPatientGen,
     IntegratorDSP: window.IntegratorDSP,
+    IntegratorTCH: window.IntegratorTCH,
     IntegratorLong: window.IntegratorLong,
     SignalOrchestrate: window.SignalOrchestrate,
     DexCoload: window.DexCoload,

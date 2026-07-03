@@ -676,7 +676,7 @@ function renderGanglior(r){
       const meta=e.meta?Object.entries(e.meta).filter(([k,v])=>typeof v!=='object').slice(0,2).map(([k,v])=>k+' '+v).join(' · '):'';
       return `<div class="gang-ev ${cls}"><span class="ge-t">${e.t}</span><span class="ge-imp">${e.impulse}</span><span class="ge-meta">${meta}</span><span class="ge-conf">conf ${e.conf}</span></div>`;
     }).join('')}${ev.length>160?`<div class="gang-more">+ ${ev.length-160} more in JSON export</div>`:''}</div>
-    <div class="q-note">Canonical bus shape: <code>{ "t":"${ev[0]?ev[0].t:'02:14:31'}", "impulse":"glucose_excursion", "node":"GlucoDex", "conf":${ev[0]?ev[0].conf:0.8} }</code>. GlucoDex is both <b>producer</b> (glucose events) and <b>consumer</b> (it ingests ECGDex exports) — the only node in the fleet that closes a bidirectional handshake.</div>`;
+    <div class="q-note">Canonical bus shape: <code>{ "t":"${ev[0]?ev[0].t:'02:14:31'}", "impulse":"glucose_excursion", "node":"GlucoDex", "conf":${ev[0]?ev[0].conf:0.8} }</code>. Glucose values in <code>meta</code> mirror the raw <code>ganglior.node-export</code> — always <b>mg/dL</b>, independent of the display toggle. GlucoDex is both <b>producer</b> (glucose events) and <b>consumer</b> (it ingests ECGDex exports) — the only node in the fleet that closes a bidirectional handshake.</div>`;
   $('gangSection').style.display='block';
 }
 
