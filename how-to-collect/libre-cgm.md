@@ -45,4 +45,6 @@ row with no parseable timestamp is dropped (never fabricated to "now"). Need ≥
 ## Where it goes
 Drop the CSV into the **Data Unifier** or **OverDex** → the file routes to `libre-cgm` → GlucoDex
 computes a `ganglior.node-export` (CGM events onto the Ganglior bus), fusing with your RR / SpO₂ /
-HRV nodes. Or open **`GlucoDex.html`** directly for the full GlucoScope / AGP / TIR dashboard.
+HRV nodes. Or open **`GlucoDex.html`** directly for the full GlucoScope / AGP / TIR dashboard. The
+dashboard has a **mg/dL ⇄ mmol/L display switch** in the top bar — display-only; compute, storage and
+the `ganglior.node-export` stay mg/dL.

@@ -60,6 +60,78 @@
     return { v: variance(d), n: d.length };
   }
 
+  /* ── Allan deviation vs averaging time τ (INTEGRATOR-THREE-CORNERED-HAT §3) ──
+     Overlapping Allan variance/deviation of ONE evenly-spaced series at averaging
+     factors `taus` (integers ≥1, in SAMPLES). For frequency-type data yᵢ (per-epoch
+     HR / RMSSD levels): with m-sample overlapping averages ȳᵢ = mean(y[i..i+m-1]),
+         AVAR(m) = 1/(2·K) · Σ (ȳ_{i+m} − ȳᵢ)²,   K = #{ i : i+2m ≤ N }
+     Returns [{ m, avar, adev, n }] index-aligned to `taus`; avar/adev = null when the
+     series is too short (N < 2m+1) or carries a non-finite sample. Assumes a REGULAR
+     grid — index adjacency is treated as one step, so a gappy aligned epoch grid is
+     approximated (fine for an indicative τ-curve, not a metrology claim). */
+  function allanDeviation(series, taus) {
+    var x = series || [], N = x.length, ok = true;
+    for (var i = 0; i < N; i++) if (!_finite(x[i])) { ok = false; break; }
+    var pre = null;
+    if (ok) { pre = new Array(N + 1); pre[0] = 0; for (var j = 0; j < N; j++) pre[j + 1] = pre[j] + x[j]; }
+    return (taus || []).map(function (mRaw) {
+      var m = Math.max(1, Math.round(mRaw));
+      if (!ok || N < 2 * m + 1) return { m: m, avar: null, adev: null, n: 0 };
+      var sum = 0, cnt = 0;
+      for (var i = 0; i + 2 * m <= N; i++) {
+        var d = (pre[i + 2 * m] - pre[i + m]) / m - (pre[i + m] - pre[i]) / m;
+        sum += d * d; cnt++;
+      }
+      if (cnt < 1) return { m: m, avar: null, adev: null, n: 0 };
+      var avar = sum / (2 * cnt);
+      return { m: m, avar: avar, adev: Math.sqrt(avar), n: cnt };
+    });
+  }
+
+  /* Per-sensor Allan-deviation-vs-τ via three-cornered hat in the ALLAN-VARIANCE
+     domain — the ORIGINAL Gray–Allan use. The latent truth cancels in every pairwise
+     difference, so AVAR(A−B, τ) reflects only sensor A+B noise at that averaging time;
+     the classic TCH split then isolates each sensor's Allan variance:
+         σ²ᵢ(τ) = ½( AVAR(i−j,τ) + AVAR(i−k,τ) − AVAR(j−k,τ) )  →  σᵢ(τ) = √σ²ᵢ(τ)
+     seriesA/B/C: index-aligned plain-number arrays (alignTriplet output). opts.taus =
+     averaging factors in samples (default [1,2,4,8]); opts.labels = node names. A τ whose
+     series is too short yields null for that point; a slightly-negative split (the
+     non-negativity artifact when a small-variance member is swamped by sampling noise)
+     clamps to 0 — "error below the reference-free resolution at this τ", consistent with
+     the classic σ-bar path. Classic (ρ=0) — indicative precision-vs-timescale that
+     complements the ρ-aware whole-window σ bars. Returns { taus, adev:{label:[…|null]}, n:[…] } | null. */
+  function allanTriplet(seriesA, seriesB, seriesC, opts) {
+    opts = opts || {};
+    var labels = opts.labels || ['A', 'B', 'C'];
+    var taus = opts.taus || [1, 2, 4, 8];
+    if (!seriesA || !seriesB || !seriesC) return null;
+    function diff(a, b) {
+      var d = [], n = Math.min(a.length, b.length);
+      for (var i = 0; i < n; i++) d.push(_finite(a[i]) && _finite(b[i]) ? a[i] - b[i] : NaN);
+      return d;
+    }
+    var avAB = allanDeviation(diff(seriesA, seriesB), taus),
+        avAC = allanDeviation(diff(seriesA, seriesC), taus),
+        avBC = allanDeviation(diff(seriesB, seriesC), taus);
+    var adev = {}, ns = [];
+    adev[labels[0]] = []; adev[labels[1]] = []; adev[labels[2]] = [];
+    for (var i = 0; i < taus.length; i++) {
+      var Vab = avAB[i].avar, Vac = avAC[i].avar, Vbc = avBC[i].avar;
+      if (Vab == null || Vac == null || Vbc == null) {
+        adev[labels[0]].push(null); adev[labels[1]].push(null); adev[labels[2]].push(null); ns.push(0);
+        continue;
+      }
+      var cl = classic(Vab, Vac, Vbc);   // non-negativity projection: clamp a slightly
+      // negative split (small-variance member swamped by sampling noise) to 0 — same as the
+      // classic σ-bar path (threeCorneredHat's Math.max(cl.x,0)).
+      adev[labels[0]].push(Math.sqrt(Math.max(cl.a, 0)));
+      adev[labels[1]].push(Math.sqrt(Math.max(cl.b, 0)));
+      adev[labels[2]].push(Math.sqrt(Math.max(cl.c, 0)));
+      ns.push(Math.min(avAB[i].n, avAC[i].n, avBC[i].n));
+    }
+    return { taus: taus.slice(), adev: adev, n: ns };
+  }
+
   /* ── classic Gray–Allan closed form (assumes uncorrelated noise) ──────── */
   function classic(Vab, Vac, Vbc) {
     return {
@@ -302,8 +374,10 @@
     pairDiffVar: pairDiffVar,
     classic: classic,
     correlated: correlated,
+    allanDeviation: allanDeviation,
+    allanTriplet: allanTriplet,
     variance: variance, mean: mean,
-    VERSION: '1.0.0'
+    VERSION: '1.1.0'
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = API;

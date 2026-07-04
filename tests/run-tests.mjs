@@ -88,7 +88,7 @@ function readSources() {
   const wanted = [
     'pulsedex-dsp.js', 'oxydex-dsp.js', 'hrvdex-dsp.js', 'integrator-dsp.js', 'ppgdex-dsp.js', 'glucodex-dsp.js', 'ecgdex-dsp.js',
     'ecgdex-cross.js', 'oxydex-cross.js', 'pulsedex-cross.js', 'ppgdex-cross.js', 'cpapdex-cross.js',
-    'crossnight-envelope.js', 'integrator-app.js', 'ecgdex-app.js', 'ppgdex-app.js', 'pulsedex-app.js', 'oxydex-render.js', 'signal-orchestrate.js', 'dex-ingest.js',
+    'crossnight-envelope.js', 'integrator-app.js', 'ecgdex-app.js', 'ppgdex-app.js', 'pulsedex-app.js', 'oxydex-render.js', 'hrvdex-render.js', 'signal-orchestrate.js', 'dex-ingest.js',
     'cpapdex-dsp.js', 'cpapdex-edf.js', 'cpapdex-app.js', 'ecgdex-morph.js', 'ppgdex-morph.js', 'dex-export.js',
     'ganglior-provenance.js', 'signal-frame.js', 'glucodex-render.js', 'glucodex-app.js'
   ];
@@ -126,12 +126,19 @@ function readFixtures() {
 // input prep — PulseDex parses RR text first; OxyDex/HRVDex take {text}).
 function readEquiv() {
   const out = {};
+  // uploads/ raw INPUTS are gitignored (personal medical data — absent on a fresh CI clone); the
+  // derived *.node-export.json FIXTURES are committed (tracked by exact name in .gitignore). Load
+  // each half INDEPENDENTLY: a fixture-only consumer (e.g. the GlucoDex §3 integrator-ingest test)
+  // still gets its committed fixture in CI, while the input+fixture equiv DIFF (needs both —
+  // dex-tests.js's CASES loop) self-skips via T.skip when only the input half is missing. Coupling
+  // them (the old behavior) silently starved the fixture-only consumers too, and made the diff
+  // hard-FAIL instead of skip on a fresh CI clone.
   const pair = (key, inFile, fixFile) => {
     const inP = join(ROOT, 'uploads', inFile), fxP = join(ROOT, 'uploads', fixFile);
-    if (existsSync(inP) && existsSync(fxP)) {
-      try { out[key] = { input: readFileSync(inP, 'utf8'), fixture: JSON.parse(readFileSync(fxP, 'utf8')) }; }
-      catch (e) { /* gate self-skips if absent/unreadable */ }
-    }
+    const rec = {};
+    if (existsSync(inP)) { try { rec.input = readFileSync(inP, 'utf8'); } catch (e) { /* unreadable → treat as absent */ } }
+    if (existsSync(fxP)) { try { rec.fixture = JSON.parse(readFileSync(fxP, 'utf8')); } catch (e) { /* unreadable → treat as absent */ } }
+    if (rec.input !== undefined || rec.fixture !== undefined) out[key] = rec;
   };
   pair('oxydex',   'O2Ring S 2100_20260612230016.csv', 'OxyDex_2026-06-13_1056_summary.json');
   pair('pulsedex', 'Polar_H10_AAAAAAAA_20260613_204448_RR.txt', 'PulseDex_2026-06-25_equiv.node-export.json');
@@ -318,16 +325,20 @@ function main() {
     if (!groups.length) { console.log(paint('  ✗ filter matched ZERO groups — check the pattern', C.red)); process.exit(2); }
   }
 
-  let pass = 0, fail = 0, n = 0;
+  let pass = 0, fail = 0, skip = 0, n = 0;
   const lines = [];
   for (const g of groups) {
-    const gp = g.tests.filter(t => t.pass).length, gf = g.tests.length - gp;
-    pass += gp; fail += gf; n += g.tests.length;
+    // skip-aware tally, mirroring Dex-Test-Suite.html's render-coverage ⊘ convention: a skipped
+    // test counts as NEITHER pass nor fail, so a gitignored-input SKIP never reds the merge gate.
+    const gskip = g.tests.filter(t => t.skip).length;
+    const gp = g.tests.filter(t => t.pass && !t.skip).length;
+    const gf = g.tests.length - gp - gskip;
+    pass += gp; fail += gf; skip += gskip; n += g.tests.length;
     lines.push('\n' + paint('▸ ' + g.title, C.bold) + paint('  [' + g.tag + ']', C.dim) +
-      '  ' + paint(gp + '/' + g.tests.length, gf ? C.red : C.green));
+      '  ' + paint(gp + '/' + (g.tests.length - gskip) + (gskip ? ' · ' + gskip + '⊘' : ''), gf ? C.red : C.green));
     for (const t of g.tests) {
-      const mk = t.pass ? paint('  ✓', C.green) : paint('  ✕', C.red);
-      const detail = t.detail ? paint('  — ' + t.detail, t.pass ? C.dim : C.yellow) : '';
+      const mk = t.skip ? paint('  ⊘', C.yellow) : (t.pass ? paint('  ✓', C.green) : paint('  ✕', C.red));
+      const detail = t.detail ? paint('  — ' + t.detail, t.skip ? C.yellow : (t.pass ? C.dim : C.yellow)) : '';
       lines.push(mk + ' ' + t.name + detail);
     }
   }
@@ -335,8 +346,8 @@ function main() {
   // TAP-ish footer for CI log parsers
   console.log('\n' + paint('1..' + n, C.dim));
   const summary = fail
-    ? paint('✕ ' + fail + ' failing', C.red) + paint('  ·  ' + pass + ' passing', C.dim)
-    : paint('✓ all ' + pass + ' assertions passed', C.green);
+    ? paint('✕ ' + fail + ' failing', C.red) + paint('  ·  ' + pass + ' passing', C.dim) + (skip ? paint('  ·  ' + skip + ' skipped', C.yellow) : '')
+    : paint('✓ all ' + pass + ' assertions passed', C.green) + (skip ? paint('  ·  ' + skip + ' skipped', C.yellow) : '');
   console.log(paint('Tepna test suite', C.cyan) + '  ' + summary + paint('  (' + groups.length + ' groups)', C.dim) + (groupFilter ? paint('  [FILTERED — not the full gate]', C.yellow) : ''));
   process.exit(fail ? 1 : 0);
 }

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  tools/build.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+
+  OWN-THE-BUILD-2026-06-30 Part A (A.1b) — the BROWSER driver / verification surface for the owned
+  bundler. Read-only twin of `node tools/build.mjs --check`: for every bundle it fetches the
+  .src.html + its assets, builds via the SHARED tools/build-core.js, and reports (a) manifestHash,
+  (b) determinism, (c) CROSS-HASHER PARITY — build-core's sync hash === manifest-gate.js's async
+  crypto.subtle hash, and (d) whether the committed .html already equals the fresh build (owned) or
+  is still legacy. An HTML page can't write project files, so the AGENT performs writes via run_script
+  over the same build-core.js (identical output by construction); this page is the human/agent
+  inspection + parity surface. 100% local, no deps, no network.
+-->
+<meta charset="UTF-8">
+<title>Tepna · Owned Build — driver + parity check</title>
+<style>
+  :root { --bg:#0B0F14; --su:#121821; --su2:#18212C; --line:#1e2d42; --tx:#F4F7FB; --tx2:#9FB0C3; --tx3:#6F8096;
+          --green:#39D98A; --red:#FF6B7A; --amber:#FFB84D; --teal:#3DE0D0; --mono:ui-monospace,'SF Mono',Menlo,monospace; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--tx); font:14px/1.55 system-ui,sans-serif; padding:28px; }
+  h1 { font-size:19px; margin:0 0 2px; letter-spacing:-.01em; }
+  .sub { color:var(--tx3); font-size:12.5px; margin-bottom:18px; }
+  #pill { display:inline-block; padding:5px 13px; border-radius:999px; font-weight:700; font-size:12.5px; margin-bottom:16px; }
+  .p-run { background:rgba(255,184,77,.14); color:var(--amber); }
+  .p-ok  { background:rgba(57,217,138,.14); color:var(--green); }
+  .p-bad { background:rgba(255,107,122,.14); color:var(--red); }
+  table { border-collapse:collapse; width:100%; font-size:12.5px; }
+  th,td { text-align:left; padding:8px 12px; border-bottom:1px solid var(--line); }
+  th { color:var(--tx3); font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
+  td.mono, .h { font-family:var(--mono); font-size:11.5px; }
+  .ok { color:var(--green); } .bad { color:var(--red); } .skip { color:var(--tx3); }
+  tr:hover td { background:var(--su2); }
+</style>
+</head>
+<body>
+<h1>Owned Build — driver &amp; cross-hasher parity</h1>
+<div class="sub">Builds each bundle from its <code>.src.html</code> via the shared <code>tools/build-core.js</code>, the exact core <code>tools/build.mjs</code> (Node CI) uses. Read-only — writes happen through <code>build.mjs</code> / the agent's run_script.</div>
+<div id="pill" class="p-run">running…</div>
+<table><thead><tr><th>bundle</th><th>format</th><th>manifestHash</th><th>determinism</th><th>sync≡async</th><th>committed≡build</th></tr></thead><tbody id="rows"></tbody></table>
+
+<script src="../manifest-gate.js"></script>
+<script src="build-core.js"></script>
+<script>
+const BUNDLES = ManifestGate.MANIFEST_BUNDLES;
+const ROOT = '../';                                  // this page lives in tools/
+async function fetchRaw(p){ try{ const r = await fetch(ROOT + p + '?_=' + Date.now(), {cache:'no-store'}); return r.ok ? await r.text() : null; }catch(e){ return null; } }
+async function fetchText(p){ const t = await fetchRaw(p); return t == null ? null : sanitize(t); }
+
+// This preview host injects editor direct-edit artifacts (<style data-omelette…>, data-cc-id attrs,
+// __om-edit-overrides) into FETCHED HTML. They are NOT in the on-disk file (Node fs / run_script
+// readFile / build.mjs never see them), so `fetch`-based reproduction of the byte-exact build is
+// unreliable HERE — `node tools/build.mjs --check` (Node fs, raw bytes) is authoritative. We strip
+// what we can and, when injection is detected, mark committed≡build n/a rather than a false DRIFT.
+function sanitize(t){ return t.replace(/<style\b[^>]*\bdata-omelette\b[^>]*>[\s\S]*?<\/style>/gi, '')
+                              .replace(/<style\b[^>]*\bid="__om-edit-overrides"[^>]*>[\s\S]*?<\/style>/gi, ''); }
+function hostMutates(rawSrc, rawCommitted){ return /data-omelette|data-cc-id|__om-edit-overrides|data-dm-ref/i.test((rawSrc||'') + (rawCommitted||'')); }
+
+async function buildOne(bundleFile){
+  const rawSrc = await fetchRaw(bundleFile.replace(/\.html$/, '.src.html'));
+  const src = rawSrc == null ? null : sanitize(rawSrc);
+  if (src == null) return { err: 'no source' };
+  const refs = DexBuild.scanRefs(src);
+  const assets = {};
+  for (const p of [...refs.styles, ...refs.scripts]) { const t = await fetchText(p); if (t == null) return { err:'missing asset ' + p }; assets[p] = t; }
+  let r; try { r = DexBuild.build({ srcHtml: src, assets }); } catch(e){ return { err: e.message }; }
+  const r2 = DexBuild.build({ srcHtml: src, assets });
+  r.deterministic = (r.html === r2.html && r.manifestHash === r2.manifestHash);
+  r.async = await ManifestGate.manifestHashFromText(r.html);
+  const rawCommitted = await fetchRaw(bundleFile);
+  const committed = rawCommitted == null ? null : sanitize(rawCommitted);
+  r.owned = committed != null && DexBuild.isPlainInline(committed);
+  r.hostMutates = hostMutates(rawSrc, rawCommitted);
+  r.matches = committed != null && r.html === committed;
+  return r;
+}
+
+(async function(){
+  const tb = document.getElementById('rows');
+  let bad = 0, owned = 0, mutated = false;
+  for (const b of BUNDLES) {
+    const tr = document.createElement('tr'); tb.appendChild(tr);
+    const r = await buildOne(b);
+    if (r.err) { tr.innerHTML = `<td>${b}</td><td class="bad" colspan="5">build error: ${r.err}</td>`; bad++; continue; }
+    const parity = r.async === r.manifestHash;
+    const fmt = r.owned ? 'owned' : 'legacy';
+    if (r.hostMutates) mutated = true;
+    // committed≡build: authoritative only when the host serves raw bytes. This preview injects editor
+    // artifacts into fetched HTML → mark n/a (Node `build.mjs --check` is the real gate); legacy = diff format.
+    let matchCell;
+    if (!r.owned) matchCell = '<span class="skip">— (legacy)</span>';
+    else if (r.hostMutates) matchCell = '<span class="skip">n/a (host mutates fetch)</span>';
+    else matchCell = r.matches ? '<span class="ok">✓</span>' : '<span class="bad">✗ DRIFT</span>';
+    if (r.owned) { owned++; if (!r.hostMutates && !r.matches) bad++; }
+    if (!parity || !r.deterministic) bad++;
+    tr.innerHTML = `<td>${b}</td><td class="${r.owned?'ok':'skip'}">${fmt}</td>`
+      + `<td class="mono">${r.manifestHash}</td>`
+      + `<td>${r.deterministic?'<span class="ok">✓</span>':'<span class="bad">✗</span>'}</td>`
+      + `<td>${parity?'<span class="ok">✓</span>':'<span class="bad">✗ '+r.async+'</span>'}</td>`
+      + `<td>${matchCell}</td>`;
+  }
+  const pill = document.getElementById('pill');
+  window.__buildDriverOK = bad === 0;
+  if (bad) { pill.className = 'p-bad'; pill.textContent = '✗ ' + bad + ' problem(s)'; }
+  else { pill.className = 'p-ok'; pill.textContent = '✓ core consistent — ' + owned + ' owned, ' + (BUNDLES.length-owned) + ' legacy'
+      + (mutated ? '  ·  committed≡build n/a in-preview (host mutates fetched HTML; run `node tools/build.mjs --check`)' : ''); }
+})();
+</script>
+</body>
+</html>

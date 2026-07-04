@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-06-30 · **Owner brand:** Tepna
+**Status:** DONE — 2026-07-03 · **Created:** 2026-06-30 · **Owner brand:** Tepna
 **Follows / executes-residue-of:** [`DEEP-AUDIT-FIXES-2026-06-30-BRIEF.md`](DEEP-AUDIT-FIXES-2026-06-30-BRIEF.md) (DONE 2026-06-30)
 
 # Deep-audit fixes — residue (all LOW)
@@ -14,6 +14,46 @@
 > toggle). Everything the parent shipped is gate-green — `Dex-Test-Suite.html` **all-green 1608/104**,
 > `verify-provenance.html` **GATE A 8/8 + GATE B reproducible**. Nothing here blocks anything shipped;
 > all items are LOW polish / deferred-by-rationale.
+
+## Resolution — DONE 2026-07-03
+
+Executed per-surface (§1's three surfaces + the §2 docs note). Both code edits are **display-copy only
+→ EXPORT-INERT** (no compute / storage / `ganglior.node-export` change).
+
+1. **Profile TARGET-INPUT (`glucoseTargetLo` / `glucoseTargetHi`) — KEEP mg/dL, NO code change.** Since
+   this brief was written the field **migrated out of GlucoDex's own profile into the SHARED
+   `dex-profile.js` `renderPanel`** (PROFILE-UNIFY): the `gluTgtLo` / `gluTgtHi` inputs no longer exist in
+   `GlucoDex.src.html` (which now mounts only `#dexProfilePanel`), and the `lbl_gluTgt` echo the brief
+   cited as "already converts" is a **dead no-op** (`glucodex-profile.js` `set('lbl_gluTgt',…)` targets a
+   removed element). In the shared **cross-node identity panel** mg/dL is the **canonical stored unit** and
+   the label is explicit (`Target low/high (mg/dL)`), so it is unambiguous — not misleading residue.
+   Honoring the `GluDisp` toggle here would require editing the **shared module** → re-bundling the
+   **entire fleet** + re-recording **every** code-gated fixture's `manifestHash`, disproportionate for a
+   LOW single-node item and against the parent's "GlucoDex-only re-bundle" scope. `CLAUDE.md` Units mandate
+   is satisfied (store/compute canonical; shown == stored). No GluDisp dependency belongs in the shared panel.
+2. **Ganglior event-stream preview (`glucodex-app.js` `renderGanglior`) — KEEP mg/dL + honest clarifier.**
+   Added one line to the bus-shape note: *"Glucose values in `meta` mirror the raw `ganglior.node-export`
+   — always mg/dL, independent of the display toggle."* (meta keys `riseMgdl` / `minMgdl` already
+   self-label; `peak` / `nadir` were bare.) Resolves the only real ambiguity without converting —
+   converting would misrepresent the export.
+3. **CSV upload-format hint (`GlucoDex.src.html` dropzone) — KEEP format-doc intent, harmonized.**
+   `timestamp, glucose(mg/dL)` → `timestamp, glucose`, matching the sibling `#aInfo` hint; the adjacent
+   "unit (mg/dL ↔ mmol/L) … auto-detected" clause already documents both accepted units.
+
+**§2 (docs):** one-line mg/dL⇄mmol/L display-switch note added to `how-to-collect/libre-cgm.md` and the
+`GlucoDex Reference.html` lede (display-only; compute/export stay mg/dL). Docs-only, no re-bundle.
+
+**Build + gates:** GlucoDex re-bundled `manifestHash 25eaee49bd19→62d38df70558` (`buildHash ebb3b3ab196a`
+inert/unchanged per Phase 7). `BUILD-MANIFEST.json` GlucoDex entry + the `GlucoDex_2026-06-27_equiv`
+fixture `manifestHash` re-recorded; **`outputHash 1489fce3588bffc2` + inputHashes UNCHANGED** (export-inert
+— NOT regenerated). **GATE A 8/8 + GATE B 15/15 reproducible** (GlucoDex fixture `reproducible @
+62d38df70558`; verified via the shared `ManifestGate` algorithm). `Dex-Test-Suite` GlucoDex surface
+confirmed: `GlucoDex mmol/L display toggle` source-mirror group (18/18 assertions hold — edits add text,
+remove no asserted substring) and `env.equiv.glucodex` (its static twin is GATE B, `reproducible`).
+
+**Residue / follow-up:** the dead `lbl_gluTgt` echo in `glucodex-profile.js` (a PROFILE-UNIFY leftover,
+no functional impact) is noted here and left per minimal-diff — not worth a re-bundle. **No follow-up
+brief spawned.**
 
 ## Context — what §3 shipped
 

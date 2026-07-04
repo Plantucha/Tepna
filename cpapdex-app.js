@@ -64,6 +64,8 @@ var CURRENT = null;   // the night shown in the single-night detail (latest)
    Hydrates charts + trend sparklines, re-applies depth tier, reveals export. */
 function renderResults(){
   var host = $('results'); if (!host) return;
+  // SELF-INGEST: a normal (EDF) render is NOT review mode — clear any review context + body flag.
+  window._cpapReview = null; try { document.body.classList.remove('cpap-review'); } catch(_r){}
   var R = global.CpapRender, D = global.CpapDsp;
   LOADED_NIGHTS.sort(function (a, b){ return (a.t0Ms || 0) - (b.t0Ms || 0); });
   CURRENT = LOADED_NIGHTS[LOADED_NIGHTS.length - 1] || null;   // latest night = detail focus
@@ -86,6 +88,31 @@ function renderResults(){
   var rv = $('resultsView'); if (rv) rv.style.display = 'block';
   var eb = $('exportBar'); if (eb) eb.classList.add('show');
   var addBtn = $('addNightsBtn'); if (addBtn) addBtn.style.display = 'inline-flex';
+}
+
+/* SELF-INGEST: paint the review-mode clinical view from a reloaded CPAPDex export (window._cpapReview).
+   Renders the export's STORED values verbatim (no recompute); the export bar re-exports as DERIVED. */
+function renderReview(){
+  var host = $('results'); if (!host) return;
+  var review = window._cpapReview; if (!review) return;
+  var R = global.CpapRender, D = global.CpapDsp;
+  try { document.body.classList.add('cpap-review'); } catch(_r){}
+  host.innerHTML = (R && R.renderReviewView) ? R.renderReviewView(review) : '';
+  if (global.MetricRegistry) try { global.MetricRegistry.applyTier(global.MetricRegistry.getTier()); } catch(e){}
+  var els = review.elements || [];
+  var t0 = (els[0] && els[0].recording) ? els[0].recording.startEpochMs : null;
+  var hdr = $('nightHeader');
+  if (hdr){
+    hdr.innerHTML = '<div class="nh-date">' + ((D && t0 != null) ? D.fmtDate(t0) : 'Export')
+      + ' <span style="color:var(--text3);font-size:.6em;font-weight:600">review mode \u00b7 ' + els.length + ' night' + (els.length === 1 ? '' : 's') + '</span></div>'
+      + '<div class="nh-meta">Loaded from a CPAPDex node-export \u00b7 not recomputed</div>';
+    hdr.style.display = 'block';
+  }
+  var up = $('uploadCard'); if (up) up.style.display = 'none';
+  var rv = $('resultsView'); if (rv) rv.style.display = 'block';
+  var eb = $('exportBar'); if (eb) eb.classList.add('show');
+  var addBtn = $('addNightsBtn'); if (addBtn) addBtn.style.display = 'none';   // no "add nights" in review
+  var ex = $('exportBtn'); if (ex){ ex.style.display = 'inline-flex'; ex.textContent = '\u2913 Re-export (derived)'; }
 }
 
 function handleEntries(entries){
@@ -149,10 +176,15 @@ function handleFileList(fileList){
   var jsons = all.filter(function (f){ return /\.json$/i.test(f.name); });
   if (!edfs.length && !jsons.length){ setStatus('Drop your AirSense .edf set — and optionally an OxyDex/ECGDex .json export to upgrade the read.', 'error'); return; }
 
-  var pending = edfs.length + jsons.length, entries = [], peerMsgs = [];
+  var pending = edfs.length + jsons.length, entries = [], peerMsgs = [], reviewPending = null;
   function done(){
     if (--pending > 0) return;
-    if (entries.length) handleEntries(entries);                 // builds + merges nights, then renders
+    if (entries.length) handleEntries(entries);                 // EDF wins → normal (non-review) dashboard
+    else if (reviewPending){                                     // SELF-INGEST: CPAPDex own export → review-mode clinical view
+      window._cpapReview = reviewPending;
+      renderReview();
+      setStatus('Loaded CPAPDex export \u00b7 review mode \u2014 ' + reviewPending.elements.length + ' night' + (reviewPending.elements.length === 1 ? '' : 's') + '. Not recomputed.');
+    }
     else if (peerMsgs.length){                                   // JSON-only drop: re-render with new corroboration
       if (!LOADED_NIGHTS.length){ setStatus('Loaded ' + peerMsgs.join(' + ') + '. Now drop the AirSense .edf set to pair it.', 'busy'); return; }
       renderResults();
@@ -171,8 +203,24 @@ function handleFileList(fileList){
   jsons.forEach(function (f){
     var rd = new FileReader();
     rd.onload = function (){
+      var parsed = null;
+      try { parsed = JSON.parse(rd.result); } catch (e){ peerMsgs.push(f.name + ' (invalid JSON)'); done(); return; }
+      // SELF-INGEST: CPAPDex's OWN node-export → review-mode clinical view (NOT co-import). A foreign
+      // OxyDex/ECGDex export falls through to CpapCoimport below (borrowed corroboration).
+      if (parsed && parsed.schema && parsed.schema.name === 'ganglior.node-export' && parsed.schema.node === 'CPAPDex'
+          && global.CpapFusion && typeof global.CpapFusion.cpapLoadOwnExport === 'function'){
+        var r = global.CpapFusion.cpapLoadOwnExport(parsed);
+        if (r && r.ok){
+          reviewPending = { provenance:r.provenance, generated:r.generated, derivedFrom:r.derivedFrom, kernel:r.kernel,
+            events:r.events, elements:r.elements, crossNight:r.crossNight, node:r.node,
+            scrubbed:r.scrubbed, multiNight:r.multiNight, raw:r.raw };
+        } else {
+          peerMsgs.push(f.name + ' (' + ((r && r.message) || 'not loadable') + ')');
+        }
+        done(); return;
+      }
       try {
-        var res = global.CpapCoimport ? global.CpapCoimport.ingest(JSON.parse(rd.result), f.name) : null;
+        var res = global.CpapCoimport ? global.CpapCoimport.ingest(parsed, f.name) : null;
         if (res && res.count) peerMsgs.push(res.node + (res.count > 1 ? ' ×' + res.count : ''));
         else peerMsgs.push(f.name + ' (unrecognized — need an OxyDex/ECGDex node-export)');
       } catch (e){ peerMsgs.push(f.name + ' (invalid JSON)'); }
@@ -312,6 +360,28 @@ function simulateOximetrySA2(srcBuf, eventTimesMs){
 /* export: a single-night ganglior.node-export, OR (≥3 nights) a multi-night array
    wrapped in a ganglior.crossnight v1.0 aggregate header — same pattern as OxyDex. */
 function exportNight(){
+  // SELF-INGEST review-mode RE-EXPORT: re-emit the LOADED export stamped schema.derivedFrom (the
+  // original build's identity) — NEVER GangliorProvenance.stamp() over it — with optional scrub.
+  if (window._cpapReview){
+    var rv = window._cpapReview;
+    var env = JSON.parse(JSON.stringify(rv.raw || {}));
+    env.schema = env.schema || {};
+    env.schema.derivedFrom = {
+      buildHash: (rv.provenance && rv.provenance.buildHash) || (rv.derivedFrom && rv.derivedFrom.buildHash) || null,
+      generated: (rv.provenance && rv.provenance.generated) || rv.generated || null,
+      via: 'CPAPDex review-mode re-export'
+    };
+    var outEnv = (window._cpapScrub && global.dexScrubExport) ? global.dexScrubExport(env) : env;
+    var t0R = (outEnv.recording && outEnv.recording.startEpochMs != null) ? outEnv.recording.startEpochMs
+            : ((rv.elements && rv.elements[0] && rv.elements[0].recording) ? rv.elements[0].recording.startEpochMs : null);
+    var fnameR = exportName({ node:'CPAPDex', t0Ms:t0R, kind:(rv.multiNight ? 'series' : 'ganglior'), ext:'json' });
+    var blobR = new Blob([JSON.stringify(outEnv, null, 2)], { type:'application/json;charset=utf-8' });
+    var urlR = URL.createObjectURL(blobR);
+    var aR = document.createElement('a'); aR.href = urlR; aR.download = fnameR;
+    document.body.appendChild(aR); aR.click(); document.body.removeChild(aR);
+    setTimeout(function (){ URL.revokeObjectURL(urlR); }, 1000);
+    return;
+  }
   if (!LOADED_NIGHTS.length || !global.CpapFusion) return;
   var D = global.CpapDsp, payload, fname;
   if (LOADED_NIGHTS.length >= 3 && global.CPAPCross && global.CrossNightEnvelope){
@@ -330,7 +400,10 @@ function exportNight(){
     // single-night cpapBuildExport IS the ganglior node-export (the fusion currency) → kind 'ganglior'.
     fname = exportName({node:'CPAPDex', t0Ms:(CURRENT?CURRENT.t0Ms:null), kind:'ganglior', ext:'json'});
   }
-  var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+  // SELF-INGEST §5 — optional "scrub for sharing" (default OFF): strip device serial / filename / input
+  // sha256 while keeping the clinical summary + a coarse build stamp. OFF → byte-identical to before.
+  var outPayload = (window._cpapScrub && global.dexScrubExport) ? global.dexScrubExport(payload) : payload;
+  var blob = new Blob([JSON.stringify(outPayload, null, 2)], { type: 'application/json;charset=utf-8' });
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
   a.href = url; a.download = fname;
@@ -400,11 +473,23 @@ function init(){
   var again = $('newSetBtn'); if (again) again.addEventListener('click', function (){
     LOADED_NIGHTS = []; CURRENT = null;
     if (global.CpapCoimport) global.CpapCoimport.reset();
+    window._cpapReview = null; try { document.body.classList.remove('cpap-review'); } catch(_r){}   // SELF-INGEST: exit review
     var up = $('uploadCard'); if (up) up.style.display = '';
     var rv = $('resultsView'); if (rv) rv.style.display = 'none';
     var eb = $('exportBar'); if (eb) eb.classList.remove('show');
     if (input) input.value = '';
   });
+  // SELF-INGEST §5 — inject the "scrub for sharing" toggle into the export bar (default OFF). JS-injected
+  // so the .src.html shell (and thus buildHash) stays put; read at export time via window._cpapScrub.
+  (function wireScrub(){
+    if (global.CpapRender && global.CpapRender.injectSelfIngestCSS) try { global.CpapRender.injectSelfIngestCSS(); } catch(_c){}
+    var bar = $('exportBar'); if (!bar || bar.querySelector('.eb-scrub')) return;
+    var lbl = document.createElement('label'); lbl.className = 'eb-scrub';
+    var cb = document.createElement('input'); cb.type = 'checkbox';
+    cb.addEventListener('change', function (){ window._cpapScrub = !!cb.checked; });
+    lbl.appendChild(cb); lbl.appendChild(document.createTextNode(' scrub for sharing'));
+    bar.appendChild(lbl);
+  })();
   // shared depth selector
   if (global.MetricRegistry) try { global.MetricRegistry.mountDepthSelector($('modeBar')); } catch(e){}
   if (location.hash === '#demo') setTimeout(loadDemo, 200);
@@ -415,8 +500,9 @@ else init();
 
 global.CpapApp = {
   groupEdfFiles: groupEdfFiles, analyzeSet: analyzeSet, mergeNights: mergeNights,
-  renderResults: renderResults, handleFileList: handleFileList, loadDemo: loadDemo, exportNight: exportNight,
-  nights: function (){ return LOADED_NIGHTS; }, current: function (){ return CURRENT; }
+  renderResults: renderResults, renderReview: renderReview, handleFileList: handleFileList, loadDemo: loadDemo, exportNight: exportNight,
+  nights: function (){ return LOADED_NIGHTS; }, current: function (){ return CURRENT; },
+  review: function (){ return window._cpapReview || null; }
 };
 
 })(window);

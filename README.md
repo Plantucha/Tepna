@@ -13,7 +13,7 @@ Read one raw biosignal from a consumer device → derive evidence-graded metrics
 
 [![Live at tepna.net](https://img.shields.io/badge/live-tepna.net-2a6fdb)](https://tepna.net)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a6fdb)](LICENSE)
-[![Local-first](https://img.shields.io/badge/local--first-100%25-1f8a5b)](WHY-THIS-EXISTS.md)
+[![Local-first](https://img.shields.io/badge/local--first-100%25-1f8a5b)](docs/WHY-THIS-EXISTS.md)
 ![Data stays local](https://img.shields.io/badge/data-stays_local-1f8a5b)
 [![Every metric graded](https://img.shields.io/badge/every_metric-evidence_graded-8a5cf6)](#the-evidence-ladder-every-metric-is-graded)
 ![Nodes](https://img.shields.io/badge/nodes-7_live-555)
@@ -133,7 +133,7 @@ with the ladder, not the count, on purpose.
 ## Project voice (narrative, not spec)
 
 For the *why* behind Tepna — the philosophy, the constraints, and the jokes — see
-[`WHY-THIS-EXISTS.md`](WHY-THIS-EXISTS.md) (styled mirror: `Why This Exists.html`). It is
+[`WHY-THIS-EXISTS.md`](docs/WHY-THIS-EXISTS.md) (styled mirror: `Why This Exists.html`). It is
 **narrative, not spec**: it defines no formats, APIs, or behavior, and nothing in it should be read
 as an instruction to implement. Authoritative rules live in `CLAUDE.md`, this README, and the
 `*-BRIEF.md` documents.

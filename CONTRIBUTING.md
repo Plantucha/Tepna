@@ -203,7 +203,7 @@ registry disagree, **fix the doc**, not the registry.
 | **Change how a metric is computed** | `<node>-dsp.js` only (never recompute in render) | Suite |
 | **Restyle / re-layout** | `<node>-render.js` or the `.src.html` `<style>` | Suite, then re-bundle → Provenance |
 | **Add a metric** | `<node>-dsp.js` (math) + `<node>-registry.js` (depth+evidence+cite) + envelope `_DEFS`; **then badge it on EVERY surface it appears — corner or inline (🔴 coverage mandate, `CLAUDE.md`)** | Suite |
-| **Add a whole node** | follow the [LEXICON recipe](LEXICON.md) §4 — pick stem → `Dex` → registry → emit on Ganglior → inherit the Clock Contract | Suite + Provenance |
+| **Add a whole node** | follow the [LEXICON recipe](docs/LEXICON.md) §4 — pick stem → `Dex` → registry → emit on Ganglior → inherit the Clock Contract | Suite + Provenance |
 | **Fix a DSP bug** | `<node>-dsp.js`; if the harness needs something DSP doesn't expose, adapt in the **harness layer**, not the shipped DSP | Suite |
 | **Write up a finding** | a tool in [Experiments](wiring/How%20It's%20Wired%20-%20Experiments.html); then a paper under `papers/` (cite the live tool) | — |
 

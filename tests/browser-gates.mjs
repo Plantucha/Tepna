@@ -45,7 +45,14 @@ async function gateTestSuite() {
   // scrape prose). Render-coverage is complete iff __rcState === 'done'. (The old predicate waited for
   // the literal words "hang guard" in #results — brittle, and it hid the real failure mode below.)
   try {
-    await page.waitForFunction(() => window.__rcState === 'done', { timeout: 300000 });
+    // CI runners are meaningfully slower than a local/dev machine for this rig (shared vCPUs, plus
+    // --disable-dev-shm-usage routes iframe boot memory through disk instead of tmpfs) — the ~30-50s
+    // local runtime observed a full clean pass with zero boot-skips; the codebase's own retry-once
+    // boot logic + this 5-min ceiling were already CI headroom over that baseline. A run that reaches
+    // 'running' with groups still legitimately accumulating (no crash, no thrown error) and just needs
+    // more wall-clock is NOT the same failure mode as a genuine hang; widen the ceiling so a slow-but-
+    // progressing CI runner doesn't red on wall-clock alone (BROWSER-GATES-CI-TIMEOUT 2026-07-03).
+    await page.waitForFunction(() => window.__rcState === 'done', { timeout: 900000 });
   } catch (err) {
     // waitForFunction rejects on EITHER a genuine 5-min stall OR an early execution-context loss
     // (renderer crash). Distinguish them and report the state actually reached, so the next run is
@@ -55,7 +62,7 @@ async function gateTestSuite() {
       diag = await page.evaluate(() => {
         const s = (window.sameOriginStatus && window.sameOriginStatus()) || {};
         return { rcState: window.__rcState || 'unknown', rcGroups: s.renderCoverageGroups || 0,
-                 bootSkips: window.__rcBootSkips || [], blocked: !!s.blocked };
+                 bootSkips: window.__rcBootSkips || [], blocked: !!s.blocked, rcTimings: window.__rcTimings || [] };
       });
     } catch (_) { /* context gone → almost certainly a crash */ }
     if (crashed || !diag) {
@@ -63,9 +70,10 @@ async function gateTestSuite() {
         (diag ? ' (reached rcState=' + diag.rcState + ', ' + diag.rcGroups + ' rc groups)' : ' (execution context lost)') +
         ' — this is a CI /dev/shm OOM; chromium must launch with --disable-dev-shm-usage (see launch args above).');
     } else {
-      FAILS.push('Dex-Test-Suite: render-coverage did not reach done within 5 min — rcState=' +
+      FAILS.push('Dex-Test-Suite: render-coverage did not reach done within 15 min — rcState=' +
         diag.rcState + ', ' + diag.rcGroups + ' rc groups booted, bootSkips=' + JSON.stringify(diag.bootSkips) +
-        (diag.blocked ? ', same-origin BLOCKED' : '') + '.');
+        (diag.blocked ? ', same-origin BLOCKED' : '') + '. Per-rig timings (ms) so far: ' + JSON.stringify(diag.rcTimings) +
+        ' — a rig missing from this list is the one that was still in-flight when the ceiling hit.');
     }
     try { await page.close(); } catch (_) {}
     return;

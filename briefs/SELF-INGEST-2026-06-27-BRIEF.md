@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-06-27 · **Authored:** 2026-06-29 (the concept was specced in `OXYDEX-NODE-EXPORT-ENVELOPE-2026-06-27-BRIEF.md §7` on 06-27; filename frozen to that cross-reference) · **Prerequisite:** `OXYDEX-NODE-EXPORT-ENVELOPE-2026-06-27-BRIEF.md` (DONE — one shape to re-ingest)
+**Status:** DONE — 2026-07-02 (pilot OxyDex shipped + gate-verified — reload→review-mode, clinical print, scrub, foreign-guard; §7 live in both runners; `OxyDex.html` re-bundled `manifestHash a16db72bc689`, GATE A 8/8 + GATE B clean, export-inert re-record per `NODE-RESIDUE-FOLLOWUPS-III-2026-07-02-BRIEF.md §1`) · **Created:** 2026-06-27 · **Authored:** 2026-06-29 (the concept was specced in `OXYDEX-NODE-EXPORT-ENVELOPE-2026-06-27-BRIEF.md §7` on 06-27; filename frozen to that cross-reference) · **Prerequisite:** `OXYDEX-NODE-EXPORT-ENVELOPE-2026-06-27-BRIEF.md` (DONE — one shape to re-ingest) · **Followups:** `SELF-INGEST-FOLLOWUPS-2026-07-03-BRIEF.md` (six-node rollout)
 
 # Self-ingest / doctor-summary view — reload a node's OWN export as a clinical summary
 
@@ -162,15 +162,15 @@ still carries `contentId` + a coarse build stamp + the full clinical summary.
 7. **Scrub:** scrub-ON export has no `inputs[].name`/`sha256`/serial, but retains `contentId` + summary.
 
 ## 8. Done when
-- [ ] Dropping a node's OWN v2.0 envelope into it loads a populated dashboard in **review mode** (raw
+- [x] Dropping a node's OWN v2.0 envelope into it loads a populated dashboard in **review mode** (raw
       panels greyed, never faked); a foreign export is rejected with a redirect message.
-- [ ] **No recompute / no badge upgrade / no `buildHash` re-stamp** — the view shows the export's stored
+- [x] **No recompute / no badge upgrade / no `buildHash` re-stamp** — the view shows the export's stored
       values, tiers, and provenance verbatim; review-mode re-export stamps `derivedFrom`.
-- [ ] A **print/PDF clinical summary** (findings · KPIs · event timeline · badges · provenance ·
+- [x] A **print/PDF clinical summary** (findings · KPIs · event timeline · badges · provenance ·
       disclaimer) renders with no raw-chart whitespace.
-- [ ] **Scrub-for-sharing** toggle strips device serials / filenames / input sha256 while keeping
+- [x] **Scrub-for-sharing** toggle strips device serials / filenames / input sha256 while keeping
       `contentId` + a coarse build stamp + the clinical summary.
-- [ ] OxyDex pilot only; §7 tests green in both runners; OxyDex re-bundled; both gates clean.
+- [x] OxyDex pilot only; §7 tests green in both runners; OxyDex re-bundled; both gates clean.
 
 ## 9. Gates + re-bundle ritual
 This touches `oxydex-app.js` (loadOwnExport, review-mode chrome, scrub toggle) + likely `oxydex-dsp.js`

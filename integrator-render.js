@@ -144,6 +144,11 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
 .tch-culprit .tch-node{ color:#FF6B7A; }
 .tch-recon{ font-size:12px; color:var(--text2); margin-top:8px; }
 .tch-recon-sub{ color:var(--text4); font-size:11px; }
+/* τ-curve sparkline — per-sensor Allan deviation vs averaging time (INTEGRATOR-THREE-CORNERED-HAT §3) */
+.tch-tau{ margin-top:10px; }
+.tch-tau-cap{ color:var(--text4); font-size:10.5px; margin-bottom:2px; }
+.tch-tau-svg{ display:block; width:100%; height:auto; overflow:visible; }
+.tch-tau-lab{ fill:var(--text4); font-size:9px; }
 `;
     var el = document.createElement('style'); el.id='integrator-hero-css'; el.textContent=css;
     (document.head||document.documentElement).appendChild(el);
@@ -625,7 +630,34 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
         '<span class="tch-val mono">\u03C3\u2009'+sig[k].toFixed(1)+'</span></div>';
     }).join('');
     var wm=(b.rmssd&&b.rmssd.weightedMean!=null)?'<div class="tch-recon">Reconciled RMSSD <b class="mono">'+b.rmssd.weightedMean+' ms</b> <span class="tch-recon-sub">inverse-variance weighted</span></div>':'';
-    return '<div class="tch-block">'+rows+'</div>'+wm;
+    return '<div class="tch-block">'+rows+'</div>'+wm+tchTauSpark(b);
+  }
+  /* τ-curve sparkline — per-sensor Allan deviation vs averaging time (§3). One
+     node-coloured polyline per sensor on a shared y-scale; lower = steadier at that
+     timescale. Null points (short series / negative split) break the line into
+     segments; a lone finite point renders as a dot. */
+  function tchTauSpark(b){
+    var a=b.tch&&b.tch.allan; if(!a||!a.adev) return '';
+    var nodes=Object.keys(a.adev), taus=a.tausMin||a.taus||[];
+    if(!taus.length) return '';
+    var maxV=0, any=false;
+    nodes.forEach(function(k){ (a.adev[k]||[]).forEach(function(v){ if(v!=null&&isFinite(v)){ any=true; if(v>maxV)maxV=v; } }); });
+    if(!any||maxV<=0) return '';
+    var W=240,H=54,padL=6,padR=6,padT=8,padB=16,iw=W-padL-padR,ih=H-padT-padB,n=taus.length;
+    var xAt=function(i){ return padL+(n<=1?iw/2:(i/(n-1))*iw); };
+    var yAt=function(v){ return padT+(1-v/maxV)*ih; };
+    var lines=nodes.map(function(k){
+      var base=k.split(' ')[0], col=D.nodeColor(base), segs=[], cur=[];
+      (a.adev[k]||[]).forEach(function(v,i){ if(v!=null&&isFinite(v)){ cur.push(xAt(i).toFixed(1)+','+yAt(v).toFixed(1)); } else if(cur.length){ segs.push(cur); cur=[]; } });
+      if(cur.length) segs.push(cur);
+      return segs.map(function(pts){
+        if(pts.length>1) return '<polyline points="'+pts.join(' ')+'" fill="none" stroke="'+col+'" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>';
+        var xy=pts[0].split(','); return '<circle cx="'+xy[0]+'" cy="'+xy[1]+'" r="1.8" fill="'+col+'"/>';
+      }).join('');
+    }).join('');
+    var xlabs=taus.map(function(t,i){ return '<text x="'+xAt(i).toFixed(1)+'" y="'+(H-4)+'" text-anchor="middle" class="tch-tau-lab">'+t+'m</text>'; }).join('');
+    return '<div class="tch-tau"><div class="tch-tau-cap">Allan deviation vs averaging time \u2014 lower = steadier at that timescale</div>'+
+      '<svg viewBox="0 0 '+W+' '+H+'" class="tch-tau-svg" role="img" aria-label="Per-sensor Allan deviation across averaging times">'+lines+xlabs+'</svg></div>';
   }
   function tchNote(b){
     var t=b.tch; if(!t) return '';

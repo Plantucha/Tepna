@@ -90,9 +90,47 @@
     return node + '_' + stamp + '_' + kind + (cid ? '_' + cid : '') + (ext ? '.' + ext : '');
   }
 
-  root.DexExport = { exportName: exportName, EXPORT_KINDS: EXPORT_KINDS };
+  // ── SCRUB FOR SHARING (SELF-INGEST §5 · shared helper D1, SELF-INGEST-FOLLOWUPS-2026-07-03) ──
+  // De-raw'd ≠ de-identified: a node-export's schema.provenance.inputs[].name can carry a DEVICE
+  // SERIAL / source filename + inputs[].sha256. For clinical sharing return a deep CLONE with those
+  // stripped while KEEPING: the full clinical summary (nights[]/recordings[]/… + ganglior_events[] +
+  // crossNight), a COARSE build stamp (buildHash + generated, so provenance integrity survives), and
+  // recording.contentId (the identity-free EXPORT-IDENTITY handle). PURE: never mutates the input.
+  // ONE implementation for every node (D1) — OxyDex shipped its own oxyScrubExport in the pilot; it
+  // folds into this on OxyDex's next re-bundle (leaving it now avoids an export-inert OxyDex churn).
+  // Default OFF at every call site, so a normal export stays byte-identical. DOM-free; node:vm-safe.
+  function scrubExport(envelope) {
+    if (!envelope || typeof envelope !== 'object') return envelope;
+    var out = JSON.parse(JSON.stringify(envelope));        // deep clone — never mutate the caller
+    var sc = out.schema || (out.schema = {});
+    var prov = sc.provenance;
+    if (prov && typeof prov === 'object') {
+      sc.provenance = {
+        buildHash: (prov.buildHash != null ? prov.buildHash : null),   // COARSE build stamp KEPT (integrity)
+        generated: (prov.generated != null ? prov.generated : null),
+        scrubbed: true,
+        // inputs keep only NON-identifying integrity (byte count); drop name + sha256 + device serial/mtime.
+        inputs: (Array.isArray(prov.inputs) ? prov.inputs : []).map(function (inp) {
+          return { bytes: (inp && inp.bytes != null ? inp.bytes : null) };
+        })
+      };
+    }
+    sc.scrubbed = true;
+    // recording.contentId (identity-free) is KEPT; strip any device serial / model a node may carry.
+    if (out.recording && typeof out.recording === 'object') {
+      delete out.recording.device; delete out.recording.serial; delete out.recording.model;
+    }
+    // multi-night wrapper: strip the same identifying keys from each per-night recording block too.
+    if (Array.isArray(out.nights)) out.nights.forEach(function (n) {
+      if (n && n.recording && typeof n.recording === 'object') { delete n.recording.device; delete n.recording.serial; delete n.recording.model; }
+    });
+    return out;
+  }
+
+  root.DexExport = { exportName: exportName, EXPORT_KINDS: EXPORT_KINDS, scrubExport: scrubExport };
   // app/back-compat bare globals (the apps call exportName(...) directly, like fmtDate/fmtClock)
   root.exportName = exportName;
   root.EXPORT_KINDS = EXPORT_KINDS;
+  root.dexScrubExport = scrubExport;   // bare global — the shared scrub every node's app reaches (D1)
   if (typeof module !== 'undefined' && module.exports) module.exports = root.DexExport;
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));

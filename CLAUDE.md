@@ -13,18 +13,22 @@ the Integrator still reads a `fascia` alias on input for back-compat) and a fusi
 `*-dsp.js` / `*-render.js` / `*-app.js` files referenced by a `Foo.src.html`, then bundled to a
 standalone `Foo.html` via the inliner. **Edit the `.js` + `.src.html`, never the bundled `.html`;
 re-bundle after changes.** 100% local — no network, no CDNs. Fonts are **system stacks only**
-(no `@font-face`, no CDN — resolved June 2026; see `AUDIT.md`).
+(no `@font-face`, no CDN — resolved June 2026; see `audits/AUDIT.md`).
 
 ## 📌 Brief lifecycle — date NEW filenames at creation; mark DONE in the HEADER, never rename (non-negotiable)
+**All briefs live in `briefs/`** (as of the 2026-07-03 owner-sanctioned bulk relocation — one of two
+that day that deliberately broke the old "never move" rule for archival docs; briefs are work-plans,
+not runtime inputs — see the **Repo layout** note below for the sibling `audits/` + `docs/` move).
 Briefs are cross-referenced by exact filename across CLAUDE.md and the docs, so **an existing brief's
-filename is FROZEN** — do NOT rename a brief to mark it done (it breaks every link + git history).
+filename is FROZEN** — do NOT rename a brief to mark it done (it breaks every link + git history). The
+`briefs/` prefix is now part of that stable path; do not move a brief out of `briefs/` either.
 Status lives in a one-line header block on the first content line (just after any SPDX comment):
 
 ```
 **Status:** PROPOSED | IN-PROGRESS | DONE — YYYY-MM-DD · **Created:** YYYY-MM-DD
 ```
 
-- **Creating a NEW brief:** put the creation date in the filename — `<NAME>-YYYY-MM-DD-BRIEF.md`
+- **Creating a NEW brief:** create it in `briefs/` with the creation date in the filename — `briefs/<NAME>-YYYY-MM-DD-BRIEF.md`
   (append `-HHMM` only if two briefs are created the same day) — AND stamp the same date as
   `Created:` in the header. The dated filename is set ONCE at birth and then never changes, so it
   stays a stable cross-reference target; the date is a creation marker, not a status marker.
@@ -44,10 +48,23 @@ Status lives in a one-line header block on the first content line (just after an
   industry-standard **ADR / RFC** convention; `Superseded-by:` is the one ADR idea worth borrowing
   over a flat DONE stamp.)
 - `DOCS-INDEX.md` carries the at-a-glance status table; keep it in sync when a status flips. It is the
-  dashboard — reorganize *that view*, not the files. Moving a brief into a `Done/`/`Executed/` folder
-  breaks every cross-reference + splits git history (same failure as renaming), so don't; the only
-  sanctioned relocation is `docs-archive/` for a *truly dead* doc, done deliberately with a redirect
-  stub, never automatically on stamp.
+  dashboard — reorganize *that view*, not the files. Now that all briefs already sit in `briefs/`, do
+  NOT further sub-folder them into `Done/`/`Executed/` — that breaks every cross-reference + splits git
+  history (same failure as renaming); status lives in the header, not the path.
+- **Repo layout (2026-07-03 owner-sanctioned relocation — the second deliberate break of the old
+  "never move" rule).** The **root** holds ONLY: base/entry docs (`README.md`, `CLAUDE.md`,
+  `ARCHITECTURE-PRINCIPLES.md`, `ORIENTATION.md`, `DOCS-INDEX.md`, `CONTRIBUTING.md`, `AUDIT-PROMPT.md`),
+  standard OSS files (`LICENSE`, `NOTICE`, `CITATION.cff`, `THIRD-PARTY.md`), and **all runtime/build
+  files** (`*.js` / `*.html` / `*.src.html` / `*.css` / `*.json` — load-bearing paths, NEVER move them).
+  Everything else archival lives in: **`briefs/`** (work-plans + pre-standard kickoffs/handoffs),
+  **`audits/`** (audit findings, external reviews, fusion issues, validation status, one-off audit
+  prompts), **`docs/`** (specs, derivations, analysis READMEs, `LEXICON.md`/`EVENT-LEXICON.md`, patterns,
+  deploy + privacy statements, narrative). **`ORIENTATION.md` MUST stay in root** — the test suite
+  fetches it (roster gate; `EVENT-LEXICON.md`/`AUDIT.md` are only *mentioned* in tests, safe in their
+  folders). Put a NEW archival doc straight into the right folder and add its `DOCS-INDEX.md` row; do not
+  drop archival docs in root. The only further sanctioned
+  relocation is `docs-archive/` for a *truly dead* doc, done deliberately with a redirect stub, never
+  automatically on stamp.
 
 ## 📏 Units — the metric system is superior and is the default (non-negotiable)
 SI / metric is the **canonical and preferred** unit system across the whole suite. **Store and
@@ -135,6 +152,19 @@ former "buildHash is a coarse / runtime-only / non-deterministic" caveat is gone
 it.) Behavior is gated **separately** by `Dex-Test-Suite.html`.
 
 ### Re-bundle checklist — update `BUILD-MANIFEST.json` (GATE A) + regenerate fixtures (GATE B)
+
+> **⚙️ OWNED BUILD (OWN-THE-BUILD-2026-06-30 Part A — fleet cutover DONE 2026-07-03).** **All 8 bundles are now
+> repo-owned deterministic PLAIN-INLINE bundles** (`<script|style data-inline-src>` text, no gzip/UUID).
+> For an **owned** bundle: edit its `*.js`/`.src.html`, then **rebuild with `node tools/build.mjs --app OxyDex`**
+> (or the browser core `tools/build.html` / run_script over `tools/build-core.js`) — **NOT `super_inline_html`**,
+> which would regress it to the legacy format. `build.mjs` **auto-writes** the bundle's `BUILD-MANIFEST.json`
+> `manifestHash` + re-stamps its code-gated fixtures, so the hand-update dance below is replaced by
+> `build.mjs` + **`node tools/build.mjs --check`** (the CI drift guard: committed bundle ≡ build(source)).
+> `manifest-gate.js` recomputes the plain-inline hash via a **dual-branch** (legacy `__bundler/manifest`
+> bundles unchanged — now that all 8 are plain-inline it is UNUSED; retiring it is Phase 4). The hand-update
+> steps below are fully superseded for the fleet by `build.mjs`; they remain only as reference for the
+> now-retired legacy format. Remaining Phase 4 cleanup: `OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md` §2.
+
 After a re-bundle that **changes JS/CSS**, `manifestHash` moves, so you **MUST hand-update that app's
 entry** in `BUILD-MANIFEST.json` to the new value (read it off the page's `manifestHash` column / the
 Node sibling), or GATE A reads stale (it **HARD-FAILS** on a missing/blocked/stale manifest — no
@@ -219,8 +249,10 @@ badge CSS or re-tier metrics ad hoc.
 ## ✅ Known non-issues (do NOT re-investigate or "fix" — they are intentional/resolved)
 - **Fonts / woff2:** there are no `*.woff2` files and no `@font-face`/CDN refs in source any more.
   The `'Inter'`/`'IBM Plex Mono'` names in font stacks fall through to `system-ui`/`ui-monospace`
-  by design. PulseDex alone ships a locally-bundled IBM Plex Mono (captured as inliner assets, not
-  fetched) — that's fine, leave it. **Do not** add `@font-face`, do not reintroduce a CDN, do not
+  by design. **All 8 bundles are owned plain-inline (OWN-THE-BUILD Part A) and system-fonts-only** —
+  PulseDex's legacy captured IBM Plex Mono woff2 (a stale inliner ext-resource its source never referenced)
+  was **dropped in the 2026-07-03 PulseDex cutover** per owner decision, so it now matches the fleet.
+  **Do not** add `@font-face`, do not reintroduce a CDN, do not re-embed a woff2, do not
   flag "missing woff2" — that whole class of warning was removed at the root in June 2026.
 - **`parseTimestamp` duplicated in every `*-dsp.js`:** intentional per the Clock Contract. Mirror it;
   do not extract a shared util in passing.

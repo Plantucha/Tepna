@@ -358,12 +358,81 @@ function cpapFullMetricsTable(night){
     + '</tr></thead><tbody>' + body + '</tbody></table></div>';
 }
 
+/* ════════════════════════════════════════════════════════════════════════
+   SELF-INGEST — reload CPAPDex's OWN export as a REVIEW-MODE clinical view
+   (SELF-INGEST-FOLLOWUPS-2026-07-03-BRIEF · CPAPDex pass; pattern: OxyDex pilot)
+   ────────────────────────────────────────────────────────────────────────
+   Drop CPAPDex's own ganglior.node-export back into CPAPDex to get a faithful,
+   print/PDF-able CLINICAL SUMMARY (findings · KPIs · badged event timeline ·
+   provenance) to bring to a clinician WITHOUT the raw EDF set — showing what was
+   computed AT EXPORT TIME, never recomputing, re-grading, or re-stamping.
+
+   The CPAPDex export carries a RICH per-night derived layer (metrics · oximetry[]
+   · quality · ganglior_events[]) but NOT the raw 25 Hz flow / 0.5 Hz pressure /
+   leak waveforms — so the review renders the stored values verbatim and GREYS the
+   per-session waveform panels (never fabricates a curve). No night reconstruction:
+   the review reads each export element's stored fields directly (SELF-INGEST §1
+   step 4 — no recompute).
+
+   PURE + DOM-FREE: returns a structured result; the app glue (handleFileList →
+   renderReview) sets window._cpapReview, paints the banner + clinical summary +
+   greyed panels. This path must NEVER call GangliorProvenance.stamp() — a reload
+   is a VIEW of a past computation, stamped with the build that MADE it (§3).
+
+   Carrier: multi-night = json.nights[] (each a full cpapBuildExport element);
+   single-night = the object itself (has recording + metrics, no nights[]). A
+   FOREIGN export (schema.node !== CPAPDex) is REJECTED with a redirect message —
+   the app routes OxyDex/ECGDex exports to CpapCoimport (corroboration) instead.
+   ════════════════════════════════════════════════════════════════════════ */
+function cpapLoadOwnExport(json){
+  // 1 · detect — a ganglior.node-export at all?
+  if (!(json && json.schema && json.schema.name === 'ganglior.node-export'))
+    return { ok:false, reason:'not-node-export',
+      message:'Not a node-export \u2014 drop your AirSense .edf set, or CPAPDex\u2019s own .json export.' };
+  // 2 · guard — a node only re-ingests its OWN kind. A foreign export is REJECTED with a redirect
+  //     message (mirrors the pilot); the app sends OxyDex/ECGDex exports to CpapCoimport, not here.
+  var node = ((json.schema.node || '') + '').trim();
+  if (node !== 'CPAPDex')
+    return { ok:false, reason:'foreign-node', node:node,
+      message:'This is a ' + (node || 'non-CPAPDex') + ' export \u2014 open it in ' + (node || 'its own node')
+        + ', or drop it into the Integrator to fuse. (In CPAPDex an OxyDex/ECGDex export is borrowed as corroboration alongside your .edf set.)' };
+  // 3 · unwrap → per-night export elements (single-night = the object itself). Each element is an
+  //     unchanged cpapBuildExport tree; the review renders its STORED values verbatim (no recompute).
+  var carrier = Array.isArray(json.nights) ? json.nights.slice()
+              : ((json.recording && (json.metrics || json.oximetry)) ? [json] : []);
+  // gather events across elements (single-night: json IS carrier[0], so its ganglior_events ride along),
+  // chronological + monotonic by tMs (Clock Contract) for the clinical timeline.
+  var events = [];
+  carrier.forEach(function (el){ if (el && Array.isArray(el.ganglior_events)) events = events.concat(el.ganglior_events); });
+  events.sort(function (a, b){ return ((a && a.tMs) || 0) - ((b && b.tMs) || 0); });
+  // mark review-mode on each element (the renderer greys raw-only panels; nothing here recomputes).
+  carrier.forEach(function (el){ if (el){ el._reviewMode = true; el._fromExport = true; } });
+  // 4 · preserve provenance / kernel / events / crossNight VERBATIM — the view's provenance IS the
+  //     export's; the current build's stamp must NOT be written over it (no GangliorProvenance.stamp()).
+  return {
+    ok:true, reviewMode:true, node:node,
+    elements: carrier,
+    events: events,
+    provenance: (json.schema && json.schema.provenance) || null,
+    generated:  (json.schema && json.schema.generated)  || null,
+    derivedFrom:(json.schema && json.schema.derivedFrom) || null,
+    kernel:     json.kernel || null,
+    crossNight: json.crossNight || null,
+    multiNight: carrier.length > 1 || !!(json.schema && json.schema.multiNight),
+    scrubbed:  !!(json.schema && json.schema.scrubbed),
+    raw: json
+  };
+}
+
 global.CpapFusion = {
   LEAD: LEAD, TRAIL: TRAIL, LARGE_LEAK_LPM: LARGE_LEAK_LPM,
   fmtClockHMS: fmtClockHMS,
   cpapEvents: cpapEvents, cpapCrossMetrics: cpapCrossMetrics,
   cpapBuildExport: cpapBuildExport, cpapBuildMultiNightExport: cpapBuildMultiNightExport,
-  cpapFullMetricsTable: cpapFullMetricsTable
+  cpapFullMetricsTable: cpapFullMetricsTable,
+  // SELF-INGEST (SELF-INGEST-FOLLOWUPS-2026-07-03): the pure self-reload surface, exposed on the
+  // namespace so BOTH the app (handleFileList routing) and the test runners reach the SAME function.
+  cpapLoadOwnExport: cpapLoadOwnExport
 };
 
 })(window);

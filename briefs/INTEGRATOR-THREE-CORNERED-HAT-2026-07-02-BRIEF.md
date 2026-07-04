@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-02 (estimator landed + gated; app-wiring remains) · **Created:** 2026-07-02 · **Charter:** ad-hoc (cross-node accuracy — reference-free per-sensor error) · **Extends:** `INTEGRATOR-BUILD-BRIEF.md` §4.4 `fuseHRVConsensus` · **Touches:** `integrator-dsp.js` (+ new `integrator-tch.js`) → re-bundle `Integrator.html` + both provenance gates
+**Status:** DONE — 2026-07-03 · **Created:** 2026-07-02 · **Charter:** ad-hoc (cross-node accuracy — reference-free per-sensor error) · **Extends:** `INTEGRATOR-BUILD-BRIEF.md` §4.4 `fuseHRVConsensus` · **Touches:** `integrator-dsp.js` (+ new `integrator-tch.js`) → re-bundle `Integrator.html` + both provenance gates · **Follow-ups:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-2026-07-03-BRIEF.md`
 
 > **What.** Add a **three-cornered-hat (TCH)** estimator to the Integrator: from the three spatially-separate
 > cardiac nodes measuring the same latent heartbeat — **ECGDex (chest), PpgDex (wrist), OxyDex (finger)** —
@@ -10,7 +10,7 @@
 
 # Integrator — three-cornered-hat per-sensor error attribution (2026-07-02)
 
-## ✅ Execution status — 2026-07-02
+## ✅ Execution status — DONE 2026-07-03 (estimator landed 2026-07-02; app-wiring closed out 2026-07-03)
 **DONE (landed + verified, no app bundle touched):**
 - **`integrator-tch.js`** — pure, DOM-free, deterministic estimator: classic Gray–Allan;
   correlated solve with (a) a consumer-supplied external ρ and (b) an auto minimum-ρ non-negativity
@@ -40,13 +40,28 @@ fixture at their re-bundle — **expected, theirs, not this work.** This track s
 files and the shared ledgers; Integrator re-bundle + ledger reconcile is deliberately deferred until
 PpgDex lands so we don't race `BUILD-MANIFEST.json` / `FIXTURE-PROVENANCE.json`.
 
-**REMAINING (next session, after PpgDex lands — the heavy gates):**
-- **§5 render** finding-card upgrade in `integrator-render.js` (per-sensor σ bars + culprit call-out).
-- Re-bundle `Integrator.html` (add `integrator-tch.js` to `Integrator.src.html`) → update
-  `BUILD-MANIFEST.json` (GATE A) → regenerate + re-record Integrator fixtures (GATE B) →
-  `Dex-Test-Suite.html?full` + `verify-provenance.html` green → flip DONE.
-- **External-ρ refinement** (finding §1): estimate common-mode ρ from cross-node `coMotion` and pass
-  it as `opts.rho` so positive co-motion bias is removed (today TCH runs classic/auto only).
+**✅ COMPLETED 2026-07-03 (app-wiring close-out — this flipped the brief to DONE):**
+- **§5 render** shipped in `integrator-render.js` — per-sensor σ-bar card (noisiest-first, culprit ▲,
+  reconciled inverse-variance RMSSD, **experimental** `tch_error` badge).
+- **Re-bundle** — `integrator-tch.js` added to `Integrator.src.html` (external `<script src>` before
+  `integrator-dsp.js`); `Integrator.html` re-bundled `manifestHash be7e7aa83355 → ca7b872a68e8`
+  (`buildHash 78e04e861cce` inert/unchanged per Phase 7); `BUILD-MANIFEST.json` GATE A updated. GATE B
+  unaffected — Integrator's only 2 fixtures are HISTORICAL byte-pinned (not code-gated) → no regen.
+- **Gates** — `Dex-Test-Suite.html?full` **all-green** (1722 passed / 116 groups / 0 fail; all 8 rigs
+  booted, no skips) incl. TCH **17/17** + wiring **9/9** + Integrator render-coverage **9/9**;
+  `verify-provenance.html` GATE A/B clean (`__provenanceOK`), Integrator `ca7b872a68e8` match ✓.
+- **Note:** the OxyDex equiv leg reds seen mid-close-out were the parallel `OXYDEX-HR-ARTIFACT-RUNAWAY-FIX-2026-07-03`
+  (unrelated), which landed + reconciled independently (`OxyDex.html a16db72bc689 → 91196f73460c`); this
+  track stayed OFF `oxydex-*` + the ledgers per the parallel-work discipline below.
+
+**DEFERRED → `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-2026-07-03-BRIEF.md`** (all additive; all blocked
+on upstream node-export data, not the estimator):
+- **External-ρ** (finding §1) — `opts.rho` path is built + gated (test 5c case 2), but a cross-node
+  common-mode ρ needs a per-epoch motion series on ≥2 triplet nodes; only PpgDex emits one today.
+- **Real-night firing** (finding §3) — OxyDex carries no per-epoch HR series + only ECG/PPG carry epoch
+  HRV, so both triplets lack a 3rd node and real-night TCH degrades to pairwise (correct). Upstream
+  OxyDex node-export fix, not an Integrator change.
+- **τ-curve** (§2/§5) — the per-sensor Allan-deviation-vs-τ sparkline was proposed but not shipped.
 
 **⚠ Findings surfaced during execution (fold into the remaining work / a follow-up):**
 1. **Positive common-mode is undetectable reference-free.** The non-negativity/min-ρ fallback only fires

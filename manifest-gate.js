@@ -53,6 +53,38 @@
     return m ? m[1] : null;
   }
 
+  // ── PLAIN-INLINE branch (OWN-THE-BUILD-2026-06-30 Part A) ──────────────────────────────────
+  // tools/build.mjs emits a dependency-free bundle whose executed blocks each carry
+  // `data-inline-src` (external files by path; inline shell <script>/<style> by an ordinal name)
+  // — NO gzip, NO random UUID keys. These two regexes are the SHARED extraction contract with
+  // tools/build-core.js (DexBuild.INLINE_*_RE); the two must stay byte-identical so build-core's
+  // sync hash and this async recompute can never disagree (the whole point of a single source).
+  var PLAIN_SCRIPT_RE = /<script\b[^>]*\bdata-inline-src="([^"]*)"[^>]*>([\s\S]*?)<\/script>/gi;
+  var PLAIN_STYLE_RE = /<style\b[^>]*\bdata-inline-src="([^"]*)"[^>]*>([\s\S]*?)<\/style>/gi;
+
+  function isPlainInline(bundleText) {
+    return typeof bundleText === 'string' && /\bdata-inline-src="/.test(bundleText) && !MANIFEST_RE.test(bundleText);
+  }
+
+  function plainInlineAssets(bundleText) {
+    var assets = [], m;
+    PLAIN_SCRIPT_RE.lastIndex = 0;
+    while ((m = PLAIN_SCRIPT_RE.exec(bundleText)) !== null) assets.push({ name: m[1], text: m[2] });
+    PLAIN_STYLE_RE.lastIndex = 0;
+    while ((m = PLAIN_STYLE_RE.exec(bundleText)) !== null) assets.push({ name: m[1], text: m[2] });
+    return assets;
+  }
+
+  // Plain-inline manifestHash — SHA-256[0:12] of the SORTED `logicalName \0 sha256(assetText)`
+  // over EVERY inlined block. Same projection shape as the legacy branch (sorted, order-independent,
+  // [0:12]); the ASYNC twin of build-core.js manifestHashFromInline (identical value by construction).
+  async function manifestHashPlainInline(bundleText) {
+    var assets = plainInlineAssets(bundleText), parts = [];
+    for (var i = 0; i < assets.length; i++) parts.push(assets[i].name + '\u0000' + (await sha256hex(assets[i].text)));
+    parts.sort();
+    return (await sha256hex(parts.join('\n'))).slice(0, 12);
+  }
+
   function hex(buf) {
     var b = new Uint8Array(buf), s = '';
     for (var i = 0; i < b.length; i++) s += (b[i] < 16 ? '0' : '') + b[i].toString(16);
@@ -86,7 +118,13 @@
   // This IS verify-provenance.html's manifestHashOf minus the fetch (the IO stays in the caller).
   async function manifestHashFromText(bundleText) {
     var body = extractManifest(bundleText);
-    if (body == null) return null;
+    if (body == null) {
+      // DUAL-BRANCH during the OWN-THE-BUILD fleet migration: no __bundler/manifest, but the
+      // owned plain-inline bundler leaves data-inline-src blocks -> hash those. Un-bundled
+      // *.src.html (neither marker) still returns null.
+      if (isPlainInline(bundleText)) return manifestHashPlainInline(bundleText);
+      return null;
+    }
     var obj = JSON.parse(body);
     var parts = [], assets = Object.values(obj);   // drop the random UUID keys
     for (var i = 0; i < assets.length; i++) {
@@ -200,6 +238,8 @@
     MANIFEST_BUNDLES: MANIFEST_BUNDLES,
     MANIFEST_RE: MANIFEST_RE,
     extractManifest: extractManifest,
+    isPlainInline: isPlainInline,
+    plainInlineAssets: plainInlineAssets,
     b64ToBytes: b64ToBytes,
     sha256hex: sha256hex,
     sha16: sha16,

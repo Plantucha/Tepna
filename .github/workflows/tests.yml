@@ -22,5 +22,9 @@ jobs:
           node-version: '20'
       - name: Run GanglioR test suite
         run: node tests/run-tests.mjs
+      - name: Owned-build core tests (KAT + determinism + cross-hasher parity)
+        run: node tests/build-core-tests.mjs
+      - name: Owned bundles ≡ build(source) (deterministic build drift guard)
+        run: node tools/build.mjs --check
       - name: Verify bundle manifestHash ↔ BUILD-MANIFEST (provenance GATE A, headless)
         run: node tests/verify-manifest.mjs

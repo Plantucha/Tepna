@@ -69,8 +69,28 @@ var CFG = {
   // fw 1.0.5.0): a timer-driven routine at the top of each clock hour injects a +21–25 BPM step in
   // ONE 1-s sample (SpO2 flat, motion zero), within ±60 s of the hour. Genuinely O2Ring-local —
   // never a kernel constant; no other device/node exhibits it.
-  HR_ARTIFACT_JUMP: 20,      // node-local: BPM jump in 1 sample — always artifact (physiologically impossible)
-  HR_ARTIFACT_JUMP_SOFT: 15  // node-local: BPM jump in 1 sample within ±2min of a clock hour — clock-aligned O2Ring artifact
+  HR_ARTIFACT_JUMP: 20,        // node-local: BPM jump in 1 sample — always artifact (physiologically impossible)
+  HR_ARTIFACT_JUMP_SOFT: 15,   // node-local: BPM jump in 1 sample within ±2min of a clock hour — clock-aligned O2Ring artifact
+  HR_ARTIFACT_MAX_RUN_SEC: 60, // node-local: cap (seconds, ≈samples at O2Ring's ~1 Hz) on how long
+                               // cleanArtifactHR keeps clamping toward one anchor before giving up on
+                               // it — see cleanArtifactHR below (OXYDEX-HR-ARTIFACT-RUNAWAY-FIX). A
+                               // real artifact resolves in seconds; this bounds the blast radius of a
+                               // bad anchor to ~1 min instead of the rest of the recording.
+  // OXYDEX-HR-ARTIFACT-RUNAWAY-FIX Fix 2 (2026-07-03) — device warm-up / cool-down PLACEHOLDER trim.
+  // The O2Ring emits a byte-frozen (SpO2,HR) block — observed SpO2 84 / HR 100 — for the seconds
+  // before the finger/ear clip gets an optical perfusion lock, then the real signal appears with an
+  // abrupt lock-on step. That placeholder seeded BOTH the runaway HR clamp AND a false critical
+  // minSpo2. Trim is ADAPTIVE (per-night length; 0 / 8 / 25 s observed) + CONSERVATIVE (see
+  // trimSensorWarmup). Node-local: no other device/node exhibits this placeholder.
+  WARMUP_MIN_SEC: 5,       // shortest frozen edge-run to treat as warm-up (≈samples @1 Hz); a 2–3 s flat is normal real signal → kept
+  WARMUP_MAX_SEC: 300,     // never trim more than 5 min of edge as warm-up (safety cap)
+  WARMUP_SPO2_STEP: 4,     // min abrupt SpO2 step at the perfusion-lock boundary confirming the frozen run was a placeholder (OR'd with |ΔHR|≥HR_ARTIFACT_JUMP)
+  // OXYDEX-NADIR-HONESTY (RUNAWAY-FIX-FOLLOWUPS §1/§2) — the headline nadir (minSpo2 / SPO2_CRITICAL_DIP /
+  // impression) ignores non-physiological lows: an opening perfusion-settling RAMP (§1) + self-gated
+  // ARTIFACT desaturations (§2, the tested SELFGATE verdict). Node-local; SpO2 is an OxyDex-only signal.
+  NADIR_RAMP_START_MAX: 88,  // opening qualifies as a settling ramp only if the FIRST sample is ≤ this
+  NADIR_RAMP_RECOVER: 90,    // …and it climbs to ≥ this (a normal plateau)
+  NADIR_RAMP_MAX_SEC: 120    // …within this many seconds (else it is real low SpO2, not sensor settling)
 };
 
 // Capture clean parser source for self-download (runs before any results are rendered)
@@ -515,15 +535,90 @@ function parseTime(s) {
 // ═══════════════════════════════════════════
 // ARTIFACT CLEANING
 // ═══════════════════════════════════════════
+
+// OXYDEX-HR-ARTIFACT-RUNAWAY-FIX Fix 2 (2026-07-03): trim a device warm-up / cool-down PLACEHOLDER
+// block from the edges BEFORE any metric reads the rows. Runs first in processNight — same class of
+// action as parseCSV already dropping the device's '- -' no-reading rows (a non-signal edge block,
+// not real data). The O2Ring holds a byte-frozen (SpO2,HR) placeholder (observed 84/100, motion 0)
+// until the optical perfusion lock, then the true signal starts with an abrupt lock-on step. Left in,
+// that block (a) pins cleanArtifactHR's baseline to the bogus 100 → runaway clamp, and (b) donates a
+// false critical nadir (SpO2 84) to the stats. Detection is:
+//   ADAPTIVE     — trims the frozen run's ACTUAL length (0/8/25 s seen), never a fixed window;
+//   CONSERVATIVE — the run must be byte-frozen-identical in (SpO2,HR), sit at the very edge, be
+//                  ≥ WARMUP_MIN_SEC long, AND be bounded from the real signal by an abrupt lock-on
+//                  step (SpO2 jump ≥ WARMUP_SPO2_STEP OR |ΔHR| ≥ HR_ARTIFACT_JUMP). A smoothly
+//                  settling flat (real elevated HR easing down, stable deep-sleep SpO2, an immediate
+//                  sample-1 lock) has no such step → NOT trimmed;
+//   BOUNDED      — never past WARMUP_MAX_SEC, never below a 60-row floor.
+// Returns {head, tail} counts and mutates `rows` in place so every downstream reader — cleanArtifactHR,
+// computeStats, t0Ms — sees the true signal start. Symmetric tail guard is belt-and-suspenders (this
+// night's cool-down is '- -' rows already dropped by parseCSV); it fires only on a frozen low block
+// entered via an abrupt step DOWN, so genuine stable-sleep flat tails are kept.
+function trimSensorWarmup(rows) {
+  var n = rows.length;
+  if (!n) return { head:0, tail:0 };
+  var MIN = CFG.WARMUP_MIN_SEC, MAX = CFG.WARMUP_MAX_SEC;
+  var SPO2_STEP = CFG.WARMUP_SPO2_STEP, HR_STEP = CFG.HR_ARTIFACT_JUMP, FLOOR = 60;
+  if (n < FLOOR + MIN + 1) return { head:0, tail:0 };   // too short to safely trim anything
+
+  // Length of the run of rows byte-identical in (spo2,hr) to rows[startIdx], walking dir (+1 / -1).
+  function frozenRunLen(startIdx, dir) {
+    var s = rows[startIdx].spo2, h = rows[startIdx].hr, len = 1, k = startIdx + dir;
+    while (k >= 0 && k < n && rows[k].spo2 === s && rows[k].hr === h) { len++; k += dir; }
+    return len;
+  }
+
+  // ── HEAD: frozen run from row 0, ended by an upward-SpO2 / big-ΔHR lock-on step ──
+  var head = 0, hlen = frozenRunLen(0, +1);
+  if (hlen >= MIN && hlen <= MAX && hlen < n) {
+    var dS = rows[hlen].spo2 - rows[hlen-1].spo2;          // SpO2 step up = perfusion lock
+    var dH = Math.abs(rows[hlen].hr - rows[hlen-1].hr);
+    if (dS >= SPO2_STEP || dH >= HR_STEP) head = hlen;
+  }
+
+  // ── TAIL: frozen run ending at the last row, ENTERED via an abrupt step down ──
+  var tail = 0, tlen = frozenRunLen(n-1, -1);
+  if (tlen >= MIN && tlen <= MAX && tlen < n - head) {
+    var pre = rows[n-1-tlen], first = rows[n-tlen];
+    var dS2 = pre.spo2 - first.spo2;                       // step DOWN into placeholder
+    var dH2 = Math.abs(pre.hr - first.hr);
+    if (dS2 >= SPO2_STEP || dH2 >= HR_STEP) tail = tlen;
+  }
+
+  // ── FLOOR guard: never leave fewer than FLOOR rows (favor the head trim) ──
+  if (n - head - tail < FLOOR) {
+    if (n - head < FLOOR) head = Math.max(0, n - FLOOR);
+    tail = Math.max(0, Math.min(tail, n - head - FLOOR));
+  }
+
+  if (tail) rows.splice(n - tail, tail);   // splice tail first (original-n indices unaffected by head splice)
+  if (head) rows.splice(0, head);
+  return { head:head, tail:tail };
+}
+
 // Two-tier filter:
 //   Hard:  any 1-sample HR rise ≥ 20 BPM  → always artifact (physiologically impossible)
 //   Soft:  any 1-sample HR rise ≥ 15 BPM  within ±2 min of a clock hour → clock-aligned artifact
 //          (catches slower-ramp firmware cycles that don't trip the hard threshold)
+// OXYDEX-HR-ARTIFACT-RUNAWAY-FIX (2026-07-03, user-reported "100 bpm all night"): the recovery
+// search below used to run UNBOUNDED — if the signal never wandered back within RECOV of the
+// pre-jump `baseline`, every remaining row got overwritten with that one stale anchor, all the way
+// to the end of the recording. That anchor is often ITSELF the bad reading (an O2Ring warm-up /
+// contact-settling transient before the finger/ear clip seats — the first jump is usually seen in
+// the opening seconds), or the jump is a genuine sustained transition (e.g. awake→sleep HR drop)
+// that simply never returns near the pre-transition level. Either way, one early 1-sample trigger
+// could silently replace an entire multi-hour night with a flat, wrong number (observed: 22083 of
+// 22108 samples clamped to a flat 100 bpm, against the SAME night's independent ECGDex-measured
+// 48.4 bpm). HR_ARTIFACT_MAX_RUN_SEC bounds the search: if recovery hasn't arrived within that many
+// seconds, stop trusting the anchor and let the raw values stand — mirrors ECGDex's local-median
+// beat correction, which is bounded by construction (DEX-DSP-AUDIT-BEATS-ARTIFACT.md), and the
+// ECG-RPEAK-SEED-FIX precedent for a startup transient poisoning a whole-night detector.
 function cleanArtifactHR(rows) {
   var n = rows.length, cleaned = 0;
   var HARD  = CFG.HR_ARTIFACT_JUMP;
   var SOFT  = CFG.HR_ARTIFACT_JUMP_SOFT;
   var RECOV = HARD / 2;
+  var MAX_RUN = CFG.HR_ARTIFACT_MAX_RUN_SEC; // O2Ring is ~1 Hz, so this doubles as a sample count
   var i = 1;
   while (i < n) {
     var rise = rows[i].hr - rows[i-1].hr;
@@ -538,9 +633,16 @@ function cleanArtifactHR(rows) {
       // For rises: recover when HR returns within RECOV of baseline
       // For drops: recover when HR returns within RECOV of baseline (above baseline-RECOV)
       var isRise = rise > 0;
-      while (j < n && (isRise ? rows[j].hr > baseline + RECOV : rows[j].hr < baseline - RECOV)) { j++; }
-      for (var k = i; k < j; k++) { rows[k].hr = baseline; rows[k].hrArtifact = true; cleaned++; }
-      i = j > i ? j : i + 1;  // defensive: guarantee progress even if SOFT ≤ RECOV is ever configured
+      while (j < n && (j - i) < MAX_RUN && (isRise ? rows[j].hr > baseline + RECOV : rows[j].hr < baseline - RECOV)) { j++; }
+      if ((j - i) >= MAX_RUN) {
+        // Recovery never arrived within a plausible artifact duration — the anchor itself was bad, or
+        // this is a real sustained transition. Bail WITHOUT clamping; resume scanning from j so a
+        // genuinely new jump later on can still be caught against the (now-current) level.
+        i = j;
+      } else {
+        for (var k = i; k < j; k++) { rows[k].hr = baseline; rows[k].hrArtifact = true; cleaned++; }
+        i = j > i ? j : i + 1;  // defensive: guarantee progress even if SOFT ≤ RECOV is ever configured
+      }
     } else { i++; }
   }
   return cleaned;
@@ -1550,11 +1652,19 @@ function buildImpression(n, top5, all) {
 }
 
 function processNight(rows, fname) {
-  var artifactsCleaned = cleanArtifactHR(rows);  // must run first — cleans HR before any analysis
+  var warmupTrim = trimSensorWarmup(rows);       // FIRST — drop device warm-up/cool-down placeholder edge rows (OXYDEX-HR-ARTIFACT-RUNAWAY-FIX Fix 2)
+  var artifactsCleaned = cleanArtifactHR(rows);  // then clean HR before any analysis
   var date   = rows.length ? fmtDate(rows[0].t) : 'Unknown';
   var t0Ms   = rows.length ? rows[0].tMs : null;   // CLOCK-UNIFY per-recording anchor
   var stats  = computeStats(rows);
   stats.artifactHrCleaned = artifactsCleaned;
+  // EXPORT-INVARIANCE (OXYDEX-HR-ARTIFACT-RUNAWAY-FIX Fix 2): attach the trim counts ONLY when a trim
+  // actually fired. `stats` is serialized WHOLESALE into the export (oxyBuildNightElement: stats:n.stats),
+  // so an always-present `sensorWarmupTrimmed:0` would move EVERY night's export bytes — including the
+  // committed provenance fixtures (20260612 / 20260624, both no-trim). Conditional assignment → zero
+  // churn on any untrimmed night; buildFlags reads `>0`, correctly false when the field is absent.
+  if (warmupTrim.head > 0) stats.sensorWarmupTrimmed   = warmupTrim.head;
+  if (warmupTrim.tail > 0) stats.sensorCooldownTrimmed = warmupTrim.tail;
   var rawSpikes = detectSpikes(rows);
   var spikes    = filterArtifactSpikes(rawSpikes);
   stats.artifactSpikesRemoved = rawSpikes.length - spikes.length;
@@ -1591,6 +1701,18 @@ function processNight(rows, fname) {
     odi4.count = Math.max(0, (odi4.count||0) - desat.artifactCount);
     odi4.rate  = +(odi4.count / Math.max(durationHr, 0.01)).toFixed(1);
     odi4.artifactExcluded = desat.artifactCount;
+  }
+  // OXYDEX-NADIR-HONESTY (RUNAWAY-FIX-FOLLOWUPS §1/§2): route the HEADLINE nadir through the artifact
+  // gate. computeStats' raw Math.min can be a single-second dropout or the opening settling ramp;
+  // recompute minSpo2 excluding self-gated artifact desats + the opening ramp (computeGatedNadir).
+  // Preserve the raw absolute min as minSpo2Raw ONLY when the gate changes it (conditional → byte-
+  // identical export on the common case + the committed fixtures). SPO2_CRITICAL_DIP / buildImpression /
+  // the minSpo2 card all read stats.minSpo2, so they become honest automatically.
+  var _gatedNadir = computeGatedNadir(rows, desat, stats.minSpo2);
+  if (_gatedNadir.min !== stats.minSpo2) {
+    stats.minSpo2Raw = stats.minSpo2;
+    stats.minSpo2 = _gatedNadir.min;
+    stats.nadirArtifactExcluded = _gatedNadir.excluded;
   }
   var hrProf = computeHRProfile(rows);
   var motSleep = computeMotionSleep(rows);
@@ -1982,6 +2104,9 @@ function buildFlags(stats, spikes, period, osc, odi4, odi3, hrv, motion, stab, h
   }
   if(stats.artifactHrCleaned>0)        f.push({code:'HR_ARTIFACT_CLEANED('+stats.artifactHrCleaned+')',sev:'info'});
   if(stats.artifactSpikesRemoved>0)    f.push({code:'CLOCK_SPIKES_REMOVED('+stats.artifactSpikesRemoved+')',sev:'info'});
+  if(stats.sensorWarmupTrimmed>0)      f.push({code:'SENSOR_WARMUP_TRIMMED('+stats.sensorWarmupTrimmed+')',sev:'info'});
+  if(stats.sensorCooldownTrimmed>0)    f.push({code:'SENSOR_COOLDOWN_TRIMMED('+stats.sensorCooldownTrimmed+')',sev:'info'});
+  if(stats.nadirArtifactExcluded>0)    f.push({code:'SPO2_NADIR_GATED('+stats.minSpo2Raw+'→'+stats.minSpo2+')',sev:'info'});
   if(motion && motion.arousalIndex>=40) f.push({code:'RESTLESS_NIGHT('+motion.arousalIndex+'%)',sev:'warn'});
   if(stab && stab.score != null && stab.score < 50) f.push({code:'POOR_STABILITY('+stab.score+')',sev:'bad'});
   if(hrProf && hrProf.bradyCount>0)    f.push({code:'BRADYCARDIA('+hrProf.bradyCount+')',sev:'bad'});
@@ -2202,6 +2327,47 @@ function computeDesaturationProfile(rows, tIdx, odi4, blArr) {
     artifactCount: artifactCount,
     dip3Rate: dip3Rate
   };
+}
+
+// OXYDEX-NADIR-HONESTY (RUNAWAY-FIX-FOLLOWUPS §1/§2): a physiologically-plausible nadir for the
+// headline minSpo2 / SPO2_CRITICAL_DIP / "nadir SpO₂ N%" impression. The raw Math.min can be a single-
+// second instrument dropout or the sensor's opening settling ramp — either fabricates a scary nadir.
+// Excludes samples that are (a) INSIDE a self-gated ARTIFACT desaturation (desat.eventsAll[].artifact —
+// the SAME tested SELFGATE kinetics/perfusion verdict the ODI already trusts: deep, fast cliffs where
+// the pulse craters), or (b) part of an OPENING settling RAMP (SpO2 starts ≤ NADIR_RAMP_START_MAX and
+// climbs to ≥ NADIR_RAMP_RECOVER within NADIR_RAMP_MAX_SEC, starting at/near its own min — the gradual
+// sibling of the frozen placeholder that trimSensorWarmup already removes). NOT deletion: rows are
+// untouched (the trace + ODI + every other metric are unaffected); ONLY the nadir STATISTIC skips the
+// excluded samples. Returns { min, excluded }. Never masks everything (falls back to rawMin) — an honest
+// low is preserved, we only drop the physiologically-impossible ones. The SpO2 twin of the parent's HR bound.
+function computeGatedNadir(rows, desat, rawMin) {
+  var n = rows.length;
+  if (!n) return { min: rawMin, excluded: 0 };
+  var masked = new Uint8Array(n), ex = 0, i;
+  // (a) self-gated ARTIFACT desaturations — mask each flagged event's [startIdx, endIdx]
+  var ev = (desat && desat.eventsAll) ? desat.eventsAll : [];
+  for (var e = 0; e < ev.length; e++) {
+    if (!ev[e].artifact) continue;
+    var a = (ev[e].startIdx != null) ? ev[e].startIdx : ev[e].nadirIdx;
+    if (a == null) continue;
+    var b = (ev[e].endIdx != null) ? ev[e].endIdx : ev[e].nadirIdx;
+    a = Math.max(0, a | 0); b = Math.min(n - 1, (b != null ? b : a) | 0);
+    for (i = a; i <= b; i++) { if (!masked[i]) { masked[i] = 1; ex++; } }
+  }
+  // (b) opening perfusion-settling ramp
+  if (rows[0].spo2 <= CFG.NADIR_RAMP_START_MAX) {
+    var lim = Math.min(n, CFG.NADIR_RAMP_MAX_SEC), k = 0;
+    while (k < lim && rows[k].spo2 < CFG.NADIR_RAMP_RECOVER) k++;
+    if (k > 0 && k < lim) {                       // reached a normal plateau within the window
+      var openMin = rows[0].spo2;                 // require the region to START at (near) its own min
+      for (var j = 1; j < k; j++) if (rows[j].spo2 < openMin) openMin = rows[j].spo2;   // = a climb, not a dip after a normal start
+      if (rows[0].spo2 <= openMin + 1) { for (i = 0; i < k; i++) { if (!masked[i]) { masked[i] = 1; ex++; } } }
+    }
+  }
+  var mn = Infinity;
+  for (i = 0; i < n; i++) { if (masked[i]) continue; if (rows[i].spo2 < mn) mn = rows[i].spo2; }
+  if (!isFinite(mn)) return { min: rawMin, excluded: 0 };   // never mask the whole night
+  return { min: mn, excluded: ex };
 }
 
 // 2. HR PROFILE — 5 HR-derived metrics
@@ -4164,6 +4330,11 @@ OxyDex.scrubExport = oxyScrubExport;
 // §3) can hand it to the oxydex-spo2 adapter via ctx.parseCSV WITHOUT a bare global —
 // in the namespaced realm `parseCSV` no longer sprays onto window.
 OxyDex.parseCSV = parseCSV;
+// OXYDEX-HR-ARTIFACT-RUNAWAY-FIX Fix 2: expose the warm-up trim for the regression harness + any
+// headless caller that wants to pre-clean rows the way processNight does.
+OxyDex.trimSensorWarmup = trimSensorWarmup;
+OxyDex.cleanArtifactHR = cleanArtifactHR;   // exposed for the OXYDEX-HR-ARTIFACT-RUNAWAY-FIX regression gate
+OxyDex.computeGatedNadir = computeGatedNadir; // exposed for the OXYDEX-NADIR-HONESTY regression gate
 
 // ── public namespace (always) ──
 root.OxyDex = OxyDex;
@@ -4173,13 +4344,13 @@ if (!root.__DEX_NAMESPACED__) {
   Object.assign(root, {
     CFG, APP_VERSION, _parserSource, _fi, ua, isO2RingBin, _o2p2, tzOffset,
     _ckNumEpoch, _ckZoneMin, _ckDMY, parseTimestamp, _o2DateAnchorMs, _o2BinStartMs, decodeO2RingBinToCSV, handleFiles,
-    readFile, parseCSV, parseTime, cleanArtifactHR, filterArtifactSpikes, computeCT94, computeDesatSlopes, computePBmetrics,
+    readFile, parseCSV, parseTime, cleanArtifactHR, trimSensorWarmup, filterArtifactSpikes, computeCT94, computeDesatSlopes, computePBmetrics,
     computeSleepArch, computeODI1, computeMOS, computeAHIestimates, computeNightExtras, computeRollingMetrics, computePatternScores, computeDFA,
     computeSpO2FFT, computeHREntropy, computeSympSurge, computeCircadianHR, computeSpO2Entropy, computeHypoxicLoad, computeVagalIndex, computeRecoveryIndex,
     computeSleepPressure, computeBreathingIrregularity, computeOxyCrash, computeHRNoctDip, computeDesatAsymmetry, computeSmartSummary, buildImpression, processNight,
     computeStats, computeTIndex, computeHRV, detectDesatEvents, detectODI, detectSpikes, detectPeriodicity, parseTimeStr,
     detectOscillations, _flagSev, buildFlags, computeHypoxicBurden, computeMotionProfile, computeSleepStabilityScore, SELFGATE, selfGateDesat,
-    computeDesaturationProfile, computeHRProfile, computeMotionSleep, computeCrossSignal, computeSpO2Advanced, computeHRAdvanced, computeComposite, linReg,
+    computeDesaturationProfile, computeHRProfile, computeMotionSleep, computeCrossSignal, computeSpO2Advanced, computeHRAdvanced, computeComposite, linReg, computeGatedNadir,
     computeSpO2Drift, computeODI2, computeSpO2Overshoot, computeSpO2Autocorr, computeHRFreqBands, computeRespRateProxy, computeHRAsymmetry, computeHRQuartileTrend,
     computeSpO2HRLag, computeSpikeDecay, computeSpikeUndershoot, computeSpikeRiseRate, computeDataGaps, computeHRFlatlines, computeSpO2Ceiling, computeODRI,
     computeSpO2Percentiles, computeSpO2Shape, computeHRCV, computeHypoxicDose, computeT88T85, computeLCSP, computePoincareSD, computeO2HREfficiency,

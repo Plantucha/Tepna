@@ -6,7 +6,7 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-06-30 · **Owner brand:** Tepna
+**Status:** DONE — 2026-07-02 (§1 DECIDED *intentional asymmetry* — no symmetric ECGDex SQI floor; §2 DECIDED `sqiFloor`/`clampFloor` are *audit-only* — the `conf ×0.5` is load-bearing; both annotated at the floor sites in `integrator-dsp.js` + EVENT-LEXICON §6.10. §3/§4/§5 no-action per recorded rationale. Integrator re-bundled `fe4c2c623820→be7e7aa83355`, GATE A updated; Integrator GATE A/B clean, FIXTURE-PROVENANCE untouched (only historical byte-pinned fusions). ⚠ A PRE-EXISTING, UNRELATED OxyDex ledger drift was discovered during the gate check — NOT introduced by this brief — and handed to NODE-RESIDUE-FOLLOWUPS-III.) · **Created:** 2026-06-30 · **Owner brand:** Tepna
 **Executed-residue-of:** NODE-RESIDUE-FOLLOWUPS-2026-06-30-BRIEF.md §3 (DONE 2026-06-30 — PpgDex `event.sqi`
 sqi-floor WIRED into the Integrator).
 

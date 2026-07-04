@@ -23,4 +23,4 @@ jobs:
         with:
           node-version: '20'
       - name: Type-check CORE contracts (tsc --noEmit --checkJs)
-        run: npx -y typescript@5.5.4 tsc --noEmit -p tsconfig.json
+        run: npx -y -p typescript@5.5.4 tsc --noEmit -p tsconfig.json

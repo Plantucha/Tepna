@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** AUDIT FINDINGS (deep-correctness pass per `AUDIT-PROMPT.md`) · **Created:** 2026-07-01 · **Auditor:** AI agent · **Method:** invariant + counterexample, differential, live-module re-run in a sandbox realm · **Follows:** [`DEEP-AUDIT-FINDINGS-2026-06-30.md`](DEEP-AUDIT-FINDINGS-2026-06-30.md) · **Executed-by:** [`DEEP-AUDIT-FIXES-2026-07-01-BRIEF.md`](DEEP-AUDIT-FIXES-2026-07-01-BRIEF.md) — both findings **DONE 2026-07-01** (both gates green; residue → `DEEP-AUDIT-FIXES-FOLLOWUPS-2026-07-01-BRIEF.md`)
+**Status:** AUDIT FINDINGS (deep-correctness pass per `AUDIT-PROMPT.md`) · **Created:** 2026-07-01 · **Auditor:** AI agent · **Method:** invariant + counterexample, differential, live-module re-run in a sandbox realm · **Follows:** [`DEEP-AUDIT-FINDINGS-2026-06-30.md`](DEEP-AUDIT-FINDINGS-2026-06-30.md) · **Executed-by:** [`DEEP-AUDIT-FIXES-2026-07-01-BRIEF.md`](../briefs/DEEP-AUDIT-FIXES-2026-07-01-BRIEF.md) — both findings **DONE 2026-07-01** (both gates green; residue → `DEEP-AUDIT-FIXES-FOLLOWUPS-2026-07-01-BRIEF.md`)
 
 # Deep-audit findings — Tepna Dex suite (2026-07-01)
 
@@ -174,7 +174,7 @@ the DSP `parseTimestamp`, not the app copy).
    export-inert.
 
 *Per the charter + `CLAUDE.md` brief-lifecycle: both findings were accepted and executed in
-[`DEEP-AUDIT-FIXES-2026-07-01-BRIEF.md`](DEEP-AUDIT-FIXES-2026-07-01-BRIEF.md) (Status DONE — 2026-07-01;
+[`DEEP-AUDIT-FIXES-2026-07-01-BRIEF.md`](../briefs/DEEP-AUDIT-FIXES-2026-07-01-BRIEF.md) (Status DONE — 2026-07-01;
 HRVDex `manifestHash 6c4a8930b1cb→00578ca08503`, ECGDex `39388acbc7dd→ede9e04831c8`, both EXPORT-INERT;
 GATE A 8/8 + GATE B 15/15 reproducible; headless behavior floor green with the two new regression
-groups). Residue captured in [`DEEP-AUDIT-FIXES-FOLLOWUPS-2026-07-01-BRIEF.md`](DEEP-AUDIT-FIXES-FOLLOWUPS-2026-07-01-BRIEF.md).*
+groups). Residue captured in [`DEEP-AUDIT-FIXES-FOLLOWUPS-2026-07-01-BRIEF.md`](../briefs/DEEP-AUDIT-FIXES-FOLLOWUPS-2026-07-01-BRIEF.md).*

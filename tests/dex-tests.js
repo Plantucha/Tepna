@@ -64,7 +64,12 @@ function runDexTests(env) {
       approx: function (name, got, want, tol, detail) {
         var pass = (got != null && isFinite(got) && Math.abs(got - want) <= (tol == null ? 1e-6 : tol));
         G.tests.push({ name: name, pass: pass, detail: pass ? (detail || ('' + got)) : ('got ' + got + ' · want ≈' + want) });
-      }
+      },
+      // Environmental SKIP — counted as NEITHER pass nor fail (mirrors Dex-Test-Suite.html's
+      // render-coverage addSkip/⊘ convention, DEX-TEST-DETERMINISM 2026-07-01). Use only when a
+      // precondition outside the code's control is unmet (e.g. a gitignored uploads/ input absent
+      // on a fresh CI clone) — never for a real regression, which must still fail via T.ok.
+      skip: function (name, detail) { G.tests.push({ name: name, pass: false, skip: true, detail: detail == null ? '' : String(detail) }); }
     };
     try { fn(T); } catch (e) { G.tests.push({ name: 'group threw: ' + e.message, pass: false, detail: (e.stack || '').split('\n')[1] || '' }); }
     GROUPS.push(G);
@@ -256,6 +261,36 @@ function runDexTests(env) {
     var al=K.alignTriplet([{tMin:0,v:10},{tMin:5,v:11},{tMin:10,v:12}],[{tMin:5,v:20},{tMin:10,v:21}],[{tMin:5,v:30},{tMin:10,v:31},{tMin:15,v:9}],{});
     T.eq('alignTriplet common keys', al.keys, [5,10]);
     T.eq('alignTriplet maps values', al.A, [11,12]);
+
+    // (5) Allan deviation vs τ (§3) — known-answer single-series primitive.
+    (function(){
+      T.ok('allanDeviation present', typeof K.allanDeviation==='function');
+      if(typeof K.allanDeviation!=='function') return;
+      var c=K.allanDeviation([5,5,5,5,5,5,5],[1,2]);
+      T.ok('constant series → AVAR 0', c[0].avar===0 && c[1].avar===0, JSON.stringify(c.map(function(o){return o.avar;})));
+      var ramp=[]; for(var i=0;i<40;i++) ramp.push(2*i);            // slope c=2 → AVAR(1)=c²/2=2
+      T.ok('linear ramp → AVAR(1)=c²/2', rel(K.allanDeviation(ramp,[1])[0].avar,2)<1e-9, ''+K.allanDeviation(ramp,[1])[0].avar);
+      var alt=[]; for(var i=0;i<40;i++) alt.push(i%2?-3:3);         // ±3 → AVAR(1)=2a²=18
+      T.ok('alternating ±a → AVAR(1)=2a²', rel(K.allanDeviation(alt,[1])[0].avar,18)<1e-9, ''+K.allanDeviation(alt,[1])[0].avar);
+      var sh=K.allanDeviation([1,2],[4]);
+      T.ok('too-short series → null (n=0)', sh[0].avar===null && sh[0].n===0);
+    })();
+
+    // (5b) allanTriplet — per-sensor Allan deviation via TCH in the AVAR domain. Truth
+    //      cancels in the pairwise differences → white per-sensor noise, so σᵢ(τ=1)²
+    //      recovers the injected {4,9,25}; white noise then averages down with τ.
+    (function(){
+      T.ok('allanTriplet present', typeof K.allanTriplet==='function');
+      if(typeof K.allanTriplet!=='function') return;
+      var nE=normals(11,N),nP=normals(22,N),nO=normals(33,N),A=[],B=[],C=[];
+      for(var i=0;i<N;i++){ A.push(truth[i]+2*nE[i]); B.push(truth[i]+3*nP[i]); C.push(truth[i]+5*nO[i]); }
+      var a=K.allanTriplet(A,B,C,{labels:['ECG','PPG','Oxy'],taus:[1,2,4,8]});
+      T.ok('allanTriplet returns per-label adev arrays (len 4)', !!(a && a.adev && a.adev.ECG.length===4 && a.adev.Oxy.length===4));
+      T.ok('recover σ²(ECG,τ1)=4 within 30%', rel(a.adev.ECG[0]*a.adev.ECG[0],4)<0.30, (a.adev.ECG[0]*a.adev.ECG[0]).toFixed(2));
+      T.ok('recover σ²(Oxy,τ1)=25 within 30%', rel(a.adev.Oxy[0]*a.adev.Oxy[0],25)<0.30, (a.adev.Oxy[0]*a.adev.Oxy[0]).toFixed(2));
+      T.ok('Oxy noisier than ECG at τ1 and τ8', a.adev.Oxy[0]>a.adev.ECG[0] && a.adev.Oxy[3]>a.adev.ECG[3]);
+      T.ok('white noise averages down (ECG τ8 < τ1)', a.adev.ECG[3]<a.adev.ECG[0], JSON.stringify([+a.adev.ECG[0].toFixed(2),+a.adev.ECG[3].toFixed(2)]));
+    })();
   });
 
   /* ════ 5d · INTEGRATOR fuseHRVConsensus → TCH wiring (series-fed, end-to-end) ════
@@ -290,6 +325,9 @@ function runDexTests(env) {
       T.ok('σ²(PpgDex) > σ²(ECGDex)', blk.tch.sigma2.PpgDex > blk.tch.sigma2.ECGDex, JSON.stringify({ppg:Math.round(blk.tch.sigma2.PpgDex), ecg:Math.round(blk.tch.sigma2.ECGDex)}));
       T.ok('inverse-variance reconciled RMSSD present', blk.rmssd && blk.rmssd.weightedMean != null, 'wm=' + (blk.rmssd && blk.rmssd.weightedMean));
       T.ok('note calls out the culprit', /PpgDex/.test(blk.note) && /TCH/.test(blk.note));
+      // §3 τ-curve rides on the TCH block: per-node Allan-deviation arrays + wall-clock labels.
+      T.ok('τ-curve (Allan dev) attached with per-node arrays + labels', !!(blk.tch.allan && blk.tch.allan.adev && blk.tch.allan.adev.PpgDex && blk.tch.allan.tausMin && blk.tch.allan.tausMin.length===4), JSON.stringify(blk.tch.allan&&blk.tch.allan.tausMin));
+      T.ok('τ-curve: noisiest node (PpgDex) has higher Allan dev than ECGDex at τ1', (function(){ var ad=blk.tch.allan&&blk.tch.allan.adev; return !!ad && ad.PpgDex[0]!=null && ad.ECGDex[0]!=null && ad.PpgDex[0]>ad.ECGDex[0]; })());
     }
     // DEGRADE — only 2 series-bearing nodes → no TCH, pairwise consensus intact
     var cons2 = FC([ mk('ECGDex',2,11), mk('PpgDex',14,33) ], 1000);
@@ -626,6 +664,37 @@ function runDexTests(env) {
       T.ok('ppgdex lombScargle exposes NO respRate/peak path (band-power only → defect absent)',
         pLsBody.length > 0 && !/respRate/.test(pLsBody) && !/peakF|peakHz|peakBelowHF/.test(pLsBody));
     }
+  });
+
+  /* ════ 9b · HRVDex RENDER — nullable transparent fields never coerce to 0 / crash (DEEP-AUDIT-FIXES-FOLLOWUPS-II §1) ════
+     Finding 1 made the transparent HRV columns (_sdnn/_rmssd/_hr/… numOrNull) NULLABLE. Any render
+     consumer using isFinite()/!isNaN() as a "present?" test then leaks: isFinite(null)===true and
+     isNaN(null)===false both PASS a null (coerced to 0, or null.toFixed() → throw). Render-layer twin
+     of the DSP sdnn7 fix — the two pattern-explorer direct reads, the heatmap's _patPearson (fed RAW
+     nullable series), and the table fmt. A genuine 0 must SURVIVE (physiological, e.g. pNN50). */
+  group('HRVDex render — nullable fields drop null/NaN but keep a real 0 (FOLLOWUPS-II §1)', 'sources', function (T) {
+    var rnd = (env.sources || {})['hrvdex-render.js'];
+    if (!rnd) { T.ok('hrvdex-render.js source provided', false, 'runner passed no hrvdex-render.js'); return; }
+    // (a) correlation SCATTER filters points with Number.isFinite (drops null/NaN, keeps a real 0)
+    T.ok('scatter explorer uses Number.isFinite on both axes (drops null, keeps 0)',
+      /filter\(p=>Number\.isFinite\(p\.x\)\s*&&\s*Number\.isFinite\(p\.y\)\)/.test(rnd));
+    T.ok('scatter explorer no longer uses global isFinite(p.x) (which passes null as 0)',
+      !/filter\(p=>isFinite\(p\.x\)\s*&&\s*isFinite\(p\.y\)\)/.test(rnd));
+    // (b) WEEKDAY distribution presence test is typeof-number (drops null/NaN, keeps a real 0)
+    T.ok('weekday distribution presence test is typeof-number',
+      /const v=r\[key\];\s*if\(!\(typeof v==='number'\s*&&\s*isFinite\(v\)\)\)\s*return;/.test(rnd));
+    T.ok('weekday distribution no longer uses bare if(!isFinite(v)) (which passes null)',
+      !/const v=r\[key\];\s*if\(!isFinite\(v\)\)\s*return;/.test(rnd));
+    // (c) _patPearson guards pair members with Number.isFinite — the heatmap feeds it RAW nullable
+    //     series (renderHeatmap: rows.map(r=>r[k])), so global isFinite would bias r via null→0.
+    T.ok('_patPearson uses Number.isFinite on pair members (heatmap raw-series safe)',
+      /if\(Number\.isFinite\(xs\[i\]\)\s*&&\s*Number\.isFinite\(ys\[i\]\)\)/.test(rnd));
+    // (d) numeric table formatters guard null before toFixed → renderTable fmt(_sdnn/_rmssd) can't
+    //     hit null.toFixed() (isNaN(null)===false would have crashed). A real 0 still formats.
+    var fmtGuards = (rnd.match(/const fmt[0-4]=v=>\(v==null\|\|isNaN\(v\)\)\?/g) || []).length;
+    T.eq('all five fmt0–fmt4 helpers guard null before toFixed', fmtGuards, 5);
+    // (e) the KPI/hero num() helpers were ALREADY correct (v != null && !isNaN(v)) — locked, unchanged
+    T.ok('hero/bench num() helper keeps its correct (v != null && !isNaN(v)) form', /v != null && !isNaN\(v\)/.test(rnd));
   });
 
   /* ════ 10 · INTEGRATOR DEDUP — stampless duplicates (P1) ════ */
@@ -2149,6 +2218,34 @@ function runDexTests(env) {
     // static guard — the JSON export must keep wiring the acc section (regression)
     var appsrc = (env.sources || {})['ecgdex-app.js'];
     if (appsrc) T.ok('buildV2 export wires an `acc:` section', /acc:\s*accEx\s*\?/.test(appsrc));
+
+    // ── FOLLOWUPS-II §2: a STAMPLESS primary ECG (t0Ms=null) drives the ACC companion on a
+    //    relative-from-0 clock. accExtras/accAnalyze/stampEpochPositions each use ecgT0Ms ONLY in
+    //    baseOffset = (ecgT0Ms && acc[0].tsMs) ? … : 0, so a null anchor short-circuits to off=0 —
+    //    byte-IDENTICAL to a 0/misaligned anchor, never a 1970-epoch-ms absolute stamp or NaN.
+    var recN = D.genSynthetic({ durSec: 3 * 3600, scenario: 'osa' });
+    var rN = D.analyze(recN, function () {});
+    var exNull = D.accExtras(recN.deviceACC, recN.accFs, null, rN.durSec, rN.epochs, rN.stages);
+    var exZero = D.accExtras(recN.deviceACC, recN.accFs, 0, rN.durSec, rN.epochs, rN.stages);
+    T.ok('stampless (null t0Ms) accExtras still returns a payload', !!exNull);
+    if (exNull) {
+      T.ok('stampless ACC payload has no NaN/Infinity (null never coerces to a 1970 stamp)', countNonFinite(exNull) === 0, countNonFinite(exNull) + ' bad');
+      T.eq('accExtras: null t0Ms ≡ 0/misaligned anchor (both → relative off=0)', JSON.stringify(exNull), JSON.stringify(exZero));
+      var maxMin = rN.durSec / 60 + 5;
+      T.ok('RRacc epoch times stay relative (never 1970-ms)', (exNull.rracc || []).every(function (e) { return e.tStartMin >= -1 && e.tStartMin <= maxMin; }));
+      T.ok('motion trace times stay relative', (exNull.motionSeries || []).every(function (p) { return p.x >= -1 && p.x <= maxMin; }));
+    }
+    var aNull = D.accAnalyze(recN.deviceACC, recN.accFs, null, rN.durSec, rN.epochs);
+    var aZero = D.accAnalyze(recN.deviceACC, recN.accFs, 0, rN.durSec, rN.epochs);
+    T.eq('accAnalyze: null t0Ms ≡ 0 anchor (relative off=0)', JSON.stringify(aNull), JSON.stringify(aZero));
+    var epIn = rN.epochs.map(function (e) { return { tMin: e.tMin }; });
+    var posNull = D.stampEpochPositions(epIn, recN.deviceACC, recN.accFs, null, rN.durSec);
+    T.ok('stampEpochPositions(null t0Ms) returns one position per epoch', Array.isArray(posNull) && posNull.length === rN.epochs.length);
+    T.ok('stampEpochPositions(null t0Ms) tMin stays relative (never 1970-ms)', posNull.every(function (p) { return isFin(p.tMin) && p.tMin >= -1 && p.tMin <= rN.durSec / 60 + 5; }));
+    // the canonical cross-node export currency stays UNDATED (startEpochMs:null), never 0/now()
+    var recNe = D.genSynthetic({ durSec: 900 }); recNe.t0Ms = null;
+    var expN = D.buildNodeExport(D.analyze(recNe, function () {}), {});
+    T.ok('ecgBuildNodeExport(null t0Ms) → recording.startEpochMs == null (undated)', !!(expN && expN.recording) && expN.recording.startEpochMs == null, 'startEpochMs=' + (expN && expN.recording && expN.recording.startEpochMs));
   });
 
   /* ════ 22 · OXIMETER SELF-GATE & CONSEQUENCE-COROBORATION ════
@@ -2487,6 +2584,151 @@ function runDexTests(env) {
       T.ok('routes an O2Ring CSV → oxydex-spo2 / spo2', !!(ro.best && ro.best.id === 'oxydex-spo2' && ro.best.signalType === 'spo2'), ro.best ? (ro.best.id + '/' + ro.best.signalType) : 'no best');
       var rr = SA.route({ name: 'polar_rr.txt' }, 'Phone timestamp;RR-interval [ms]\n2026-06-12T23:00:00.000+02:00;850');
       T.ok('Polar RR still routes to rr (no spo2 regression)', !!(rr.best && rr.best.signalType === 'rr'), rr.best ? rr.best.signalType : 'no best');
+    }
+  });
+
+  /* ════ OxyDex HR-artifact runaway clamp + sensor warm-up trim (OXYDEX-HR-ARTIFACT-RUNAWAY-FIX-2026-07-03) ════
+     User-reported "100 bpm absolutely wrong" + "first few seconds always look like artifacts". Two coupled
+     defects, both seeded by the O2Ring's frozen warm-up placeholder (observed SpO2 84 / HR 100 held until the
+     finger-clip perfusion lock, then the true signal). Fix 1: cleanArtifactHR's recovery search is BOUNDED
+     (CFG.HR_ARTIFACT_MAX_RUN_SEC) — a non-recovering jump no longer clamps the whole night to a stale anchor.
+     Fix 2: trimSensorWarmup drops the frozen edge placeholder (adaptive length, lock-on-step gated) BEFORE
+     any metric reads the rows. Verified end-to-end (compute()) AND as isolated units. Runs in BOTH runners
+     when the namespace is wired; skips gracefully otherwise. */
+  group('OxyDex HR-artifact runaway clamp + warm-up trim (100bpm fix)', 'oxydex-dsp', function (T) {
+    var OD = env.OxyDex;
+    if (!(OD && typeof OD.trimSensorWarmup === 'function' && typeof OD.cleanArtifactHR === 'function')) {
+      T.ok('env.OxyDex.trimSensorWarmup + cleanArtifactHR available', false, 'namespace not wired — gate skipped'); return;
+    }
+    // row factory (trimSensorWarmup/cleanArtifactHR read spo2/hr; t supplied for the clock-hour soft rule)
+    function rows(specs) { // specs: [ [spo2,hr,count], ... ]
+      var out = [], t0 = Date.UTC(2026, 5, 12, 23, 0, 0), n = 0;
+      specs.forEach(function (s) { for (var i = 0; i < s[2]; i++) { out.push({ spo2: s[0], hr: s[1], motion: 0, tMs: t0 + n * 1000, t: new Date(t0 + n * 1000) }); n++; } });
+      return out;
+    }
+
+    // ── Fix 2 · trimSensorWarmup ──────────────────────────────────────────────
+    // (a) frozen 84/100 placeholder ended by a perfusion lock-on step → head trimmed to the real signal.
+    var warm = rows([[84, 100, 25], [93, 53, 200]]);
+    var tr = OD.trimSensorWarmup(warm);
+    T.eq('warm-up: 25-row frozen 84/100 placeholder trimmed at head', tr.head, 25);
+    T.eq('warm-up: nothing trimmed at tail', tr.tail, 0);
+    T.eq('warm-up: first surviving row is the real lock-on sample (hr 53)', warm[0].hr, 53);
+
+    // (b) real elevated-HR settling (mirrors fixture night 20260624: 97/103 easing DOWN, not frozen) → KEPT.
+    var settleSpecs = [], hr = 103; for (var k = 0; k < 40; k++) { settleSpecs.push([97, hr, 1]); if (hr > 55) hr -= 1; }
+    settleSpecs.push([97, 55, 200]);
+    var settle = rows(settleSpecs);
+    var trS = OD.trimSensorWarmup(settle);
+    T.eq('real elevated-HR settling flat is NOT trimmed (no frozen run + lock step)', trS.head, 0);
+
+    // (c) clean immediate lock (mirrors fixture night 20260612: signal from row 0, minor variation) → KEPT.
+    var cleanSpecs = []; for (var j = 0; j < 240; j++) cleanSpecs.push([96 + (j % 3), 54 + (j % 5), 1]);
+    var clean = rows(cleanSpecs);
+    T.eq('clean immediate-lock night is NOT trimmed', OD.trimSensorWarmup(clean).head, 0);
+
+    // (d) a frozen run NOT ended by a lock-on step (SpO2 drifts +1, HR flat) is NOT a placeholder → KEPT.
+    var frozenNoStep = rows([[95, 60, 12], [96, 60, 200]]);   // +1 SpO2 < WARMUP_SPO2_STEP(4), ΔHR 0
+    T.eq('frozen edge run without a lock-on step is NOT trimmed', OD.trimSensorWarmup(frozenNoStep).head, 0);
+
+    // ── Fix 1 · cleanArtifactHR bounded recovery search ───────────────────────
+    // (e) a big jump that NEVER recovers must NOT clamp the rest of the recording to the stale anchor.
+    var runaway = rows([[95, 55, 30], [95, 100, 120]]);  // +45 jump, then 120 rows never returning near 55
+    var cleanedRunaway = OD.cleanArtifactHR(runaway);
+    var tailAt = runaway[runaway.length - 1].hr;
+    T.eq('runaway: a non-recovering jump does NOT clamp the tail to the stale anchor (stays 100, not 55)', tailAt, 100);
+    T.ok('runaway: far fewer than the whole run is clamped (bounded blast radius)', cleanedRunaway < 120, cleanedRunaway + ' rows clamped of 120');
+    // (f) a SHORT real artifact that recovers is STILL clamped (no regression in the normal path).
+    var blip = rows([[95, 55, 30], [95, 90, 4], [95, 55, 120]]);  // +35 spike, recovers after 4 samples
+    var cleanedBlip = OD.cleanArtifactHR(blip);
+    T.ok('short recovering artifact is still cleaned (normal path intact)', cleanedBlip >= 4 && cleanedBlip <= 8, cleanedBlip + ' rows clamped');
+    T.eq('short artifact: the spike samples are clamped to baseline 55', blip[32].hr, 55);
+
+    // ── End-to-end · the exact reported bug via compute() ─────────────────────
+    if (typeof OD.compute === 'function') {
+      var csv = (function () {
+        var L = ['Time,Oxygen Level,Pulse Rate,Motion'], t0 = Date.UTC(2026, 5, 12, 22, 5, 21), n = 0;
+        function p2(x) { return x < 10 ? '0' + x : '' + x; }
+        function stamp(ms) { var d = new Date(ms); return p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds()) + ' ' + p2(d.getUTCDate()) + '/' + p2(d.getUTCMonth() + 1) + '/' + d.getUTCFullYear(); }
+        function push(sp, hr) { L.push(stamp(t0 + n * 1000) + ',' + sp + ',' + hr + ',0'); n++; }
+        var i; for (i = 0; i < 25; i++) push(84, 100);                 // frozen warm-up placeholder
+        for (i = 0; i < 1200; i++) push(94 + (i % 4), 50 + (i % 6));   // real sleep signal ~50 bpm, ~95%
+        return L.join('\n');
+      })();
+      var exp = OD.compute({ text: csv, fileMeta: { fname: 'O2Ring_test_20260512220521.csv' } });
+      var s = exp && exp.nights && exp.nights[0] && exp.nights[0].stats;
+      T.ok('compute() returns a night with stats', !!s, s ? 'ok' : 'no stats');
+      if (s) {
+        T.ok('meanHr is the real ~50s, NOT the placeholder 100', s.meanHr > 45 && s.meanHr < 60, 'meanHr=' + s.meanHr);
+        T.ok('maxHr is not pinned at the placeholder 100', s.maxHr < 90, 'maxHr=' + s.maxHr);
+        T.ok('minSpo2 is the real signal (≥90), NOT the placeholder 84', s.minSpo2 >= 90, 'minSpo2=' + s.minSpo2);
+        T.eq('sensorWarmupTrimmed records the 25-sample trim', s.sensorWarmupTrimmed, 25);
+      }
+    }
+  });
+
+  /* ════ OxyDex nadir honesty — gated minSpo2 (OXYDEX-HR-ARTIFACT-RUNAWAY-FIX-FOLLOWUPS §1/§2) ════
+     The headline nadir (minSpo2 / SPO2_CRITICAL_DIP / "nadir SpO₂ N%") must ignore non-physiological
+     lows: an opening perfusion-settling RAMP (§1) and self-gated ARTIFACT desaturations (§2 — the SAME
+     tested SELFGATE verdict the ODI already excludes). computeGatedNadir is unit-tested directly (hand-
+     built desat.eventsAll, no self-gate dependency) + end-to-end via compute(). A REAL desat must survive. */
+  group('OxyDex nadir honesty — gated minSpo2 (FOLLOWUPS §1/§2)', 'oxydex-dsp', function (T) {
+    var OD = env.OxyDex;
+    if (!(OD && typeof OD.computeGatedNadir === 'function')) { T.ok('env.OxyDex.computeGatedNadir available', false, 'namespace not wired — gate skipped'); return; }
+    function mk(specs){ var o=[]; specs.forEach(function(s){ for(var i=0;i<s[1];i++) o.push({spo2:s[0],hr:60,motion:0}); }); return o; }
+
+    // (1) no artifact + no opening ramp → gated nadir == raw min (the common case; committed fixtures rely on this).
+    var plain = mk([[97,600],[88,20],[97,600]]);
+    var g1 = OD.computeGatedNadir(plain, { eventsAll: [] }, 88);
+    T.eq('no artifact + no ramp → gated nadir equals raw min (88)', g1.min, 88);
+    T.eq('no exclusions', g1.excluded, 0);
+
+    // (2) a self-gated ARTIFACT desat over the deep region is excluded → nadir rises to the real floor.
+    var cliff = mk([[97,600],[61,3],[97,600]]);
+    var g2 = OD.computeGatedNadir(cliff, { eventsAll: [{ artifact: true, startIdx: 600, endIdx: 602 }] }, 61);
+    T.eq('self-gated artifact cliff (61) excluded from nadir → 97', g2.min, 97);
+    T.eq('excluded exactly the 3 cliff samples', g2.excluded, 3);
+
+    // (2b) a NON-artifact (real) desat MUST survive — we only drop physiologically-impossible lows.
+    var realDip = mk([[97,600],[85,20],[97,600]]);
+    T.eq('a real (non-artifact) desat is NOT excluded — 85 kept', OD.computeGatedNadir(realDip, { eventsAll: [{ artifact: false, startIdx: 600, endIdx: 619 }] }, 85).min, 85);
+
+    // (3) opening settling ramp (starts ≤88, climbs monotonically to ≥90) → excluded from the nadir.
+    var ramp = mk([[81,4],[83,4],[86,4],[89,4],[92,600]]);
+    var g3 = OD.computeGatedNadir(ramp, { eventsAll: [] }, 81);
+    T.ok('opening ramp low (81) excluded → nadir ≥ 90', g3.min >= 90, 'gated=' + g3.min);
+    T.ok('ramp samples excluded', g3.excluded >= 12, 'excluded=' + g3.excluded);
+
+    // (3b) after the opening ramp, a genuine LATER dip must still be the nadir (ramp mask is opening-only).
+    var rampThenDip = mk([[82,4],[86,4],[92,300],[84,20],[95,300]]);
+    T.eq('a later real dip (84) after the opening ramp is still the nadir', OD.computeGatedNadir(rampThenDip, { eventsAll: [] }, 82).min, 84);
+
+    // (3c) a low that is NOT at the very start (a mid-record dip, series starts high) is NOT ramp-masked.
+    var midDip = mk([[97,300],[84,10],[97,300]]);
+    T.eq('a mid-record low with a high start is NOT ramp-masked (84 kept)', OD.computeGatedNadir(midDip, { eventsAll: [] }, 84).min, 84);
+
+    // (4) never masks the whole night — if everything is flagged, fall back to raw min (never fabricate).
+    var allLow = mk([[80,300]]);
+    T.eq('never masks everything → falls back to raw min (80)', OD.computeGatedNadir(allLow, { eventsAll: [{ artifact: true, startIdx: 0, endIdx: 299 }] }, 80).min, 80);
+
+    // End-to-end: an opening-ramp night through compute() → minSpo2 gated to the plateau, raw preserved.
+    if (typeof OD.compute === 'function') {
+      var csv = (function(){
+        var L=['Time,Oxygen Level,Pulse Rate,Motion'], t0=Date.UTC(2026,5,12,22,0,0), n=0;
+        function p2(x){return x<10?'0'+x:''+x;}
+        function st(ms){var d=new Date(ms);return p2(d.getUTCHours())+':'+p2(d.getUTCMinutes())+':'+p2(d.getUTCSeconds())+' '+p2(d.getUTCDate())+'/'+p2(d.getUTCMonth()+1)+'/'+d.getUTCFullYear();}
+        function push(sp,hr){L.push(st(t0+n*1000)+','+sp+','+hr+',0');n++;}
+        var i,v; for(v=81;v<=95;v++) push(v,55);            // opening perfusion ramp 81→95 (not frozen → trimSensorWarmup leaves it)
+        for(i=0;i<1200;i++) push(96+(i%3),52+(i%5));        // real signal ~96–98%, never critical
+        return L.join('\n');
+      })();
+      var exp = OD.compute({ text: csv, fileMeta:{ fname:'O2Ring_ramp_20260512220000.csv' } });
+      var s = exp && exp.nights && exp.nights[0] && exp.nights[0].stats;
+      T.ok('compute() ramp night returns stats', !!s);
+      if (s) {
+        T.ok('compute(): opening-ramp nadir gated up off 81 (≥90, not critical)', s.minSpo2 >= 90, 'minSpo2=' + s.minSpo2);
+        T.eq('compute(): raw absolute min preserved as minSpo2Raw (81)', s.minSpo2Raw, 81);
+      }
     }
   });
 
@@ -3178,10 +3420,16 @@ function runDexTests(env) {
         pick: function (res) { return res; }, fixPick: function (fx) { return fx; } }
     ];
     CASES.forEach(function (c) {
-      var wired = !!(c.node && typeof c.node.compute === 'function' && EQ[c.key] && EQ[c.key].input && EQ[c.key].fixture);
-      T.ok(c.label + ' namespace + committed input/fixture available', wired,
-        EQ[c.key] ? 'present' : 'inputs not wired into env (browser fetch / Node read) — gate skipped');
-      if (!wired) return;
+      // Split the precondition: a missing DSP NAMESPACE is a real regression (co-load broke) → FAIL.
+      // A missing committed INPUT is expected on a fresh CI clone — uploads/ raw recordings are
+      // gitignored personal data; only the derived *.node-export.json FIXTURES are committed — so
+      // that half is a vacuous SKIP, not a fail. This leg still runs the full diff locally (and in
+      // any environment) where uploads/ is present.
+      var nsOk = !!(c.node && typeof c.node.compute === 'function');
+      T.ok(c.label + ' namespace co-loaded (compute present)', nsOk, nsOk ? '' : 'DSP namespace not wired — load into both runners');
+      if (!nsOk) return;
+      var haveInput = !!(EQ[c.key] && EQ[c.key].input && EQ[c.key].fixture);
+      if (!haveInput) { T.skip(c.label + ' compute() ≡ committed export', 'committed input absent — uploads/ is gitignored (personal data); this leg runs locally with uploads/ present'); return; }
       var res = c.run(c.node, EQ[c.key].input);
       var el = c.pick(res);
       // serialize exactly as the export does, so the comparison is structural, not by reference.
@@ -3606,7 +3854,7 @@ function runDexTests(env) {
       'ecgdex-cross.js': 'ECGCross', 'cpapdex-cross.js': 'CPAPCross', 'cpapdex-coimport.js': 'CpapCoimport',
       // node compute aux that exposes a runtime surface
       'cpapdex-edf.js': 'CpapEdf', 'cpapdex-fusion.js': 'CpapFusion', 'ecgdex-morph.js': 'ECGMorph', 'ppgdex-morph.js': 'PPGMorph',
-      'integrator-dsp.js': 'IntegratorDSP', 'integrator-longitudinal.js': 'IntegratorLong',
+      'integrator-dsp.js': 'IntegratorDSP', 'integrator-tch.js': 'IntegratorTCH', 'integrator-longitudinal.js': 'IntegratorLong',
       // registries (grade source of truth)
       'oxydex-registry.js': 'OXY_REGISTRY', 'ecgdex-registry.js': 'ECG_REGISTRY', 'ppgdex-registry.js': 'PPG_REGISTRY',
       'cpapdex-registry.js': 'CPAP_REGISTRY', 'pulsedex-registry.js': 'PULSE_REGISTRY', 'hrvdex-registry.js': 'HRV_REGISTRY', 'glucodex-registry.js': 'GLU_REGISTRY'
@@ -3790,9 +4038,11 @@ function runDexTests(env) {
   group('HRVDex recording block — startEpochMs earliest, spanDays ≥ 0 (VII §1)', 'hrvdex-dsp · clock-contract · equivalence', function (T) {
     var EQ = env.equiv || {};
     var HD = env.HRVDex;
-    var wired = !!(HD && typeof HD.compute === 'function' && EQ.hrvdex && EQ.hrvdex.input);
-    T.ok('HRVDex namespace + committed Welltory CSV available', wired, wired ? 'present' : 'gate skipped');
-    if (!wired) return;
+    var nsOk = !!(HD && typeof HD.compute === 'function');
+    T.ok('HRVDex namespace co-loaded (compute present)', nsOk, nsOk ? '' : 'load hrvdex-dsp.js into both runners');
+    if (!nsOk) return;
+    var haveInput = !!(EQ.hrvdex && EQ.hrvdex.input);
+    if (!haveInput) { T.skip('HRVDex recording block (committed Welltory CSV)', 'committed input absent — uploads/ is gitignored (personal data); this leg runs locally with uploads/ present'); return; }
     var rec = (HD.compute({ text: EQ.hrvdex.input }) || {}).recording;
     T.ok('recording present', !!rec);
     if (!rec) return;

@@ -6,13 +6,31 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-06-30
+**Status:** IN-PROGRESS — 2026-07-03 · **Created:** 2026-06-30 · **Follow-up:** `OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`
+
+> **Execution status (2026-07-03) — Part A Phases 0–2 landed, gate-verified; fleet cutover + docs + Parts B/C/D remain.**
+> - ✅ **Phase 0 spike** — OxyDex plain-inline bundle passes `Dex-Test-Suite.html?full` render-coverage (15/15),
+>   runs standalone, is byte-deterministic. **Plan-killer answered: ownership STICKS** — the platform does NOT
+>   clobber/async-rebuild the owned `OxyDex.html` (no source relocation needed).
+> - ✅ **Phase 1** — `tools/build-core.js` (pure string→string plain-inline bundler + pure-JS sync SHA-256),
+>   `tools/build.mjs` (Node CLI `--app`/`--all`/`--check`), `tools/build.html` (browser driver),
+>   `tests/build-core-tests.mjs` (KAT + determinism + cross-hasher parity) wired into `tests.yml` with `--check`.
+>   *(ans-design single-sourcing deferred to the follow-up §2 — done fleet-wide, not per-bundle.)*
+> - ✅ **Phase 2** — `manifest-gate.js` gained the plain-inline branch (dual-branch; verify-provenance +
+>   verify-manifest inherit it); ledgers are build outputs (`build.mjs` writes GATE-A + re-stamps fixtures).
+> - ✅ **All 8 bundles migrated** (OxyDex/ECGDex/PpgDex/GlucoDex/CPAPDex/Integrator/HRVDex/PulseDex — all
+>   EXPORT-INERT, code-gated fixtures re-stamped, outputs byte-identical; PulseDex cut over 2026-07-03,
+>   dropping its stale captured woff2 per owner decision); `verify-provenance.html` GATE A all 8 `match ✓` +
+>   GATE B green; `Dex-Test-Suite.html?full` all-green (1748 passed, `env.equiv.*` byte-identical, `bootSkips: []`).
+> - ✅ **Phase 3** (fleet cutover — all 8 owned, both gates green). ⏳ **Phase 4** (ans-design single-source + retire the now-unused legacy branch + doc rewrite),
+>   **A5** (single `clock.js`), **Parts B/C/D** → staged in `OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`.
+>   Flip THIS header to DONE only when Part A's "Done when" checklist is fully met with both gates green.
 
 # Own the build + born-compliant nodes (retire the drift-suppression machinery)
 
 > **What this is.** An implementation brief for an AI coder. **One thesis:** replace *drift-suppression*
 > (invariants added after code already violated them, then policed by after-the-fact tests + hand-edited
-> ledgers) with *construction-enforcement* (the violation is impossible to express). Three separable
+> ledgers) with *construction-enforcement* (the violation is impossible to express). Four separable
 > parts, in leverage order:
 > **Part A — Own the build:** a deterministic, dependency-free Node bundler (`tools/build.mjs`) that
 > consumes the existing `*.js` / `*.src.html` and emits `bundle + BUILD-MANIFEST + FIXTURE-PROVENANCE`
@@ -23,12 +41,15 @@
 > construction-enforced badges from commit one. Old nodes migrate opportunistically, never in a big bang.
 > **Part C — Badge-by-construction:** make the registry badge the *only* path a number reaches the DOM;
 > migrate one render file at a time, the next time you're already in it.
+> **Part D — Static gates:** ESLint + expanded `checkJs` + Prettier (the flake8 / mypy / black analogs
+> for JS). Mostly CI-only and free; Prettier rides Part A's re-bundle churn. Explicitly **hygiene,
+> subordinate to the behavior suite** — never a substitute for it.
 >
 > **Read first (do not relitigate):** `CLAUDE.md` §🧪 (test gate) · §🔏 (provenance gates + re-bundle
 > checklist) · §🎫 (evidence badges) · §🔒 (Clock Contract). `ARCHITECTURE-PRINCIPLES.md` §6 (build) + §7
 > (forward-adopt). `GENERATOR-FOLLOWUPS-II-BRIEF.md` §1 (the "own the inliner" path deliberately NOT
-> taken — **this brief takes it**). Parts A/B/C are independent; **Part A is the marquee — ship it alone
-> if that's all there's appetite for.**
+> taken — **this brief takes it**). Parts A/B/C/D are independent; **Part A is the marquee — ship it alone
+> if that's all there's appetite for. Part D's ESLint is the cheapest standalone win — no dependency on A.**
 
 ---
 
@@ -85,10 +106,38 @@ does **not** own. Two consequences drive almost all the build ceremony:
 drift test (`AUDIT.md` 2b). It does **not** retire the two gates — it makes their ledgers **build
 outputs** so the gates verify instead of being hand-fed.
 
-### A.2 The design — `tools/build.mjs` (dependency-free ESM, like `tests/*.mjs`)
+### A.1b Runner constraint — the build CORE must load in BOTH the browser sandbox and Node (non-negotiable)
+
+> **Why this exists.** The AI coder executing this brief has **no Node runtime in-session** — it cannot
+> run `node tools/build.mjs` or `node tests/*.mjs` directly; those run only in **GitHub Actions (CI)**.
+> What the agent CAN run is JavaScript in a **browser sandbox** (read files, inline, hash, write the
+> bundle) and it can open the two `.html` gates and read their verdicts. So a `build.mjs` written with
+> Node-only APIs (`fs`/`path`/`import`) would be un-runnable by the agent — every build would stall on a
+> CI round-trip. Avoid that by construction.
+
+**The build logic lives in a dependency-free `tools/build-core.js`** (no `fs`/`path`/`require`/`import`;
+pure string→string: given `{ srcHtml, assets:{name:text} }` it returns `{ html, manifestHash,
+fixtures }`). Two THIN runners wrap it — **exactly the existing `manifest-gate.js` dual-runner pattern**
+(one core, loaded by both `verify-provenance.html` and `tests/verify-manifest.mjs`):
+
+- **`tools/build.mjs`** — Node CLI: does the file I/O (`fs` read the `.src.html` + assets, write `Foo.html`
+  + ledgers), delegates all transformation to `build-core.js`. This is what CI (`tests.yml`) runs via
+  `node`, and the `--all` / `--check` / `--fixtures` surface below.
+- **`tools/build.html`** (or the agent's `run_script`) — browser driver: reads the same files through the
+  sandbox's file API, calls the SAME `build-core.js`, writes the bundle. This is how the **agent builds
+  and verifies in-session** (then confirms via `Dex-Test-Suite.html` + `verify-provenance.html`).
+
+Both paths MUST produce byte-identical output from identical source (add a cross-runner parity assertion
+to A.4). Hashing lives in `build-core.js` too and must be a **pure-JS SHA-256** (no `crypto.subtle` —
+it's async and absent from the node:vm / opaque-origin sandbox, the same reason `signal-frame.js` uses a
+sync fold). Net: the agent drives the browser path, CI drives the Node path, neither is blocked on the
+other — and `manifestHash` is computed by one shared function in both, so they can never disagree.
+
+### A.2 The design — `tools/build-core.js` + thin `tools/build.mjs` CLI (dependency-free, like `tests/*.mjs`)
 
 Plain-**inline**, not gzip-pack. For a local-first instrument, readable inlined code is *more* auditable
-and trivially deterministic; a 1–3 MB standalone is a non-issue. Per app:
+and trivially deterministic; a 1–3 MB standalone is a non-issue. Per app (all transformation in
+`build-core.js`; `build.mjs`/`build.html` only do I/O per A.1b):
 
 1. Read `Foo.src.html` (or the relocated build-source from A0).
 2. Resolve every `<script src="X.js">` → inline as `<script data-inline-src="X.js">…</script>`; every
@@ -105,8 +154,11 @@ and trivially deterministic; a 1–3 MB standalone is a non-issue. Per app:
    mid-unpack load isn't a blank page. No `DecompressionStream` bootstrap needed — code ships as text.
 6. **Compute + write the ledger entry** (A.3).
 
-CLI: `node tools/build.mjs --app OxyDex` · `--all` · `--check` (build in memory, diff against the
-committed `Foo.html`, exit non-zero on drift — the CI drift guard) · `--fixtures` (A.3).
+CLI (Node, run by CI): `node tools/build.mjs --app OxyDex` · `--all` · `--check` (build in memory, diff
+against the committed `Foo.html`, exit non-zero on drift — the CI drift guard) · `--fixtures` (A.3).
+**Agent-side equivalent (in-session):** `tools/build.html` / `run_script` calls the same `build-core.js`
+to build + diff — same result, no Node (per A.1b). `manifestHash` is `manifest-gate.js`'s shared function
+so browser and Node agree by construction.
 
 ### A.3 Ledgers as build artifacts (the part that kills the toil)
 
@@ -140,6 +192,11 @@ gone; the ledgers are outputs.
 
 - **Determinism test** (`tests/*.mjs`, wired into `tests.yml`): build an app twice in memory → assert
   byte-identical; build → assert `--check` passes; mutate one `*.js` byte → assert `manifestHash` moves.
+- **Cross-runner parity test** (per A.1b): the browser driver (`build.html`/`run_script` over
+  `build-core.js`) and the Node CLI (`build.mjs` over the same core) produce a **byte-identical** bundle
+  from identical source. Since transformation lives entirely in the shared `build-core.js`, this is really
+  a guard that neither thin runner adds I/O-layer drift (line endings, trailing newline). Keeps the
+  agent-built and CI-built bundles provably the same file.
 - **`--check` in CI:** every committed `Foo.html` must equal a fresh build of its source (catches a
   hand-edited bundle or a forgotten rebuild). This *replaces* the "did you remember to re-bundle + update
   the manifest" human step with a machine one.
@@ -150,14 +207,17 @@ gone; the ledgers are outputs.
 ### A.5 Phases — de-risk FIRST, then finish, then migrate
 
 - **Phase 0 — the plan-killer spike (½ day, do this before committing anything).** Build **one** app
-  (OxyDex) with a minimal `build.mjs`; confirm (a) the plain-inline bundle passes `Dex-Test-Suite.html`
-  render-coverage and runs from `file://`, and (b) **the platform leaves the owned `OxyDex.html`
-  alone** — i.e. it does not async-auto-rebuild over it (`CLAUDE.md` §🔏). **If (b) fails, relocate the
+  (OxyDex) with a minimal `build-core.js` driven from the **browser sandbox / `run_script`** (per A.1b —
+  the agent can't run Node in-session; a Node `build.mjs` wrapper can come in Phase 1); confirm (a) the
+  plain-inline bundle passes `Dex-Test-Suite.html` render-coverage and runs from `file://`, and (b) **the
+  platform leaves the owned `OxyDex.html` alone** — i.e. it does not async-auto-rebuild over it (`CLAUDE.md` §🔏). **If (b) fails, relocate the
   build source so the platform doesn't treat it as a bundle input** (e.g. `src/OxyDex.build.html` with
   `build.mjs` writing the committed `OxyDex.html`), and re-confirm. This half-day answers the one
   question that can block the whole effort — spend it before Phase 1.
 - **Phase 1 — finish the bundler (1–2 days):** all includes resolved, `ans-design.css` single-sourced,
-  deterministic byte-identical output, `--all` / `--check`.
+  deterministic byte-identical output, `--all` / `--check`. Land `build-core.js` + BOTH thin runners
+  (the browser driver the agent uses + the `build.mjs` Node CLI for CI) with the cross-runner parity
+  test (A.1b / A.4).
 - **Phase 2 — ledgers as outputs (1 day):** the `manifest-gate.js` plain-inline branch (+ `.mjs` guard +
   `verify-provenance.html` extractor), auto-write `BUILD-MANIFEST.json`, `--fixtures`.
 - **Phase 3 — migrate + re-validate the fleet (1–2 days):** re-bundle all 8, both gates green, fix
@@ -228,6 +288,41 @@ file at a time.
 
 ---
 
+## Part D — Static gates (the flake8 / mypy / black analogs for JS)
+
+Today the static-analysis layer is thin: only `.github/workflows/types.yml` runs `tsc --noEmit --checkJs`
+over the CORE layer. That is the mypy analog, scoped narrowly. Three cheap complements, ordered by
+value-per-risk. **All three are hygiene, subordinate to `Dex-Test-Suite.html` + the provenance gates** —
+a wall of green static checks must NEVER read as "the science is tested." (Reinforced by the sibling
+VariDex audit: a repo can run black + flake8 + mypy all-green while its core classifier is effectively
+untested — static analysis cannot see an inverted `try/except` or a wrong result. Correctness confidence
+comes only from the behavior + equiv gates.)
+
+### D.1 ESLint — do this FIRST (CI-only, ships zero bytes, zero re-bundle impact, no dependency on Part A)
+A new `.github/workflows/lint.yml` (or a job in `types.yml`) runs ESLint over the **source `*.js`** (never
+the bundled `*.html`). **Lint only — no `--fix` in CI**, because autofixing rewrites bytes and would move
+`manifestHash`. Pin the ESLint version (determinism). The rule floor that earns its place is the
+control-flow / dead-code class — exactly what pure formatting/behavior gates miss:
+`no-unreachable`, `no-fallthrough`, `no-constant-condition`, `no-cond-assign`, `no-unused-vars`,
+`no-undef`, `eqeqeq`, `no-dupe-keys`, `no-self-assign`. Leave whitespace/quote style to D.3 — ESLint here
+is for *logic smells*, not formatting. This is independent of Part A; ship it anytime.
+
+### D.2 Widen `checkJs` from CORE to the DSP files — incrementally, one node per pass
+`types.yml` already type-checks CORE via JSDoc + `tsconfig.json`. Extend the `include` to one
+`<node>-dsp.js` at a time, adding JSDoc types at the module seams. This catches the null-shape /
+set-vs-list / arg-order class **statically, before the behavior gate has to** — the same footgun family
+the equiv gates catch dynamically. Opportunistic (`ARCHITECTURE-PRINCIPLES §7` forward-adopt), **never a
+big-bang**: a node is `checkJs`-clean once migrated; the rest stay as-is until their turn.
+
+### D.3 Prettier — yes, but fold it into Part A's fleet re-bundle (Phase 3), NEVER as a standalone pass
+A one-time reformat rewrites every source file's bytes → moves every `manifestHash` → forces a fleet
+re-bundle. Run standalone, that is pure formatting toil paying the entire re-bundle toll. Instead apply
+it **inside Phase 3's quiet churn**, where every bundle regenerates once anyway — the reformat is then
+free. Pin the Prettier version, commit `.prettierrc`, add `prettier --check` to CI. Afterward the
+deterministic build (Part A) + `--check` keep bytes stable, so it never churns again.
+
+---
+
 ## Honesty / risks (read before starting)
 
 - **The platform auto-rebuild is the one real blocker, and it's an UNKNOWN until Phase 0.** If the
@@ -245,12 +340,13 @@ file at a time.
   a red flag the bundler altered behavior — stop and diff, don't re-record it away.
 
 ## Done when
-Flip to `DONE — <date>` only when the relevant gates pass (per `CLAUDE.md` brief-lifecycle). Part A, B, C
+Flip to `DONE — <date>` only when the relevant gates pass (per `CLAUDE.md` brief-lifecycle). Part A, B, C, D
 can flip independently.
 - **Part A:**
   - ☐ Phase 0 spike: OxyDex plain-inline bundle passes `Dex-Test-Suite.html` + runs `file://`, and the
     owned output survives (platform doesn't clobber it; relocation applied if needed).
-  - ☐ `tools/build.mjs` builds all 8 deterministically; `--check` clean; determinism test in CI.
+  - ☐ `tools/build-core.js` + both thin runners (browser driver + `tools/build.mjs` CLI) build all 8
+    deterministically; `--check` clean; determinism + cross-runner-parity tests in CI.
   - ☐ `BUILD-MANIFEST.json` + `FIXTURE-PROVENANCE.json` are **build outputs** (no hand-edit); `node
     tests/verify-manifest.mjs` green; `verify-provenance.html` GATE A/B green.
   - ☐ `Dex-Test-Suite.html` all-green (behavior unchanged) after the fleet re-bundle.
@@ -262,6 +358,9 @@ can flip independently.
   and the `BORN_CLEAN` gate enforces (1)–(4).
 - **Part C:** ☐ the badge helper is the sole render path in ≥1 migrated render file, guarded by the
   `BADGE_ENFORCED` source check.
+- **Part D:** ☐ ESLint workflow green over all `*.js` (control-flow/dead-code rule floor, version-pinned,
+  no `--fix` in CI); ☐ `checkJs` widened to ≥1 DSP file with JSDoc at the seams, `types.yml` green;
+  ☐ Prettier applied **inside** the Phase 3 churn (version-pinned, `--check` in CI), not standalone.
 - ☐ `DOCS-INDEX.md` row added; a follow-up brief (`OWN-THE-BUILD-FOLLOWUPS-YYYY-MM-DD-BRIEF.md`) captures
   what surfaced during execution, or the header says nothing did.
 

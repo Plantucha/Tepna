@@ -1037,6 +1037,19 @@ function _tchConsensus(like){
   if(!r.ok) return r;
   r.metric='rmssd'; r.coMotion={};   // per-node mean motionIndex over the aligned window (external-rho refinement is future)
   [best.A,best.B,best.C].forEach(function(s){ r.coMotion[s.node]=_meanMotion(s, best.al.keys); });
+  // §3 τ-curve: per-sensor Allan deviation vs averaging time (τ = 1/2/4/8 epochs). The
+  // wall-clock label uses the median epoch spacing of the aligned grid (indicative — a
+  // gappy grid is approximated, same caveat as the base TCH). Additive, null-tolerant.
+  if(typeof TCH.allanTriplet==='function'){
+    var _al=TCH.allanTriplet(best.al.A,best.al.B,best.al.C,{labels:[best.A.node,best.B.node,best.C.node], taus:[1,2,4,8]});
+    if(_al){
+      var _keys=best.al.keys, _gaps=[]; for(var _i=1;_i<_keys.length;_i++) _gaps.push(_keys[_i]-_keys[_i-1]);
+      _gaps.sort(function(a,b){return a-b;});
+      var _epMin=_gaps.length?_gaps[Math.floor(_gaps.length/2)]:5;
+      _al.epochMin=_epMin; _al.tausMin=_al.taus.map(function(m){return +(m*_epMin).toFixed(0);});
+      r.allan=_al;
+    }
+  }
   return r;
 }
 function fuseHRVConsensus(recs, dtMs){

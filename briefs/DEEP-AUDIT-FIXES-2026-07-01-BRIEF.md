@@ -5,7 +5,7 @@
 -->
 
 **Status:** DONE — 2026-07-01 (both findings executed; both gates green) · **Created:** 2026-07-01 · **Owner brand:** Tepna
-**Executes:** [`DEEP-AUDIT-FINDINGS-2026-07-01.md`](DEEP-AUDIT-FINDINGS-2026-07-01.md) (its prioritized punch-list — Finding 1 + Finding 2)
+**Executes:** [`DEEP-AUDIT-FINDINGS-2026-07-01.md`](../audits/DEEP-AUDIT-FINDINGS-2026-07-01.md) (its prioritized punch-list — Finding 1 + Finding 2)
 **Follows:** [`DEEP-AUDIT-FIXES-2026-06-30-BRIEF.md`](DEEP-AUDIT-FIXES-2026-06-30-BRIEF.md)
 
 ## Execution log (2026-07-01)

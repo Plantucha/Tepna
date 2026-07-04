@@ -5,7 +5,7 @@
 -->
 
 **Status:** DONE — 2026-06-30 (all three §§ executed; both gates green) · **Created:** 2026-06-30 · **Owner brand:** Tepna
-**Executes:** [`DEEP-AUDIT-FINDINGS-2026-06-30.md`](DEEP-AUDIT-FINDINGS-2026-06-30.md) (its prioritized punch-list)
+**Executes:** [`DEEP-AUDIT-FINDINGS-2026-06-30.md`](../audits/DEEP-AUDIT-FINDINGS-2026-06-30.md) (its prioritized punch-list)
 **Closes:** `SIGNAL-ADAPTER-AND-FRONTIER-2026-06-23-BRIEF §622` — CLOSED 2026-06-30 by §1 (crude `spectral()` proxy deleted; the only spectral source is now Lomb–Scargle).
 
 ## Execution log (2026-06-30)

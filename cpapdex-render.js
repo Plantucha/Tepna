@@ -500,13 +500,267 @@ function hydrateHistory(container, nights){
   });
 }
 
+/* ════════════════════════════════════════════════════════════════════════
+   SELF-INGEST · review-mode banner + clinical "bring-to-doctor" summary
+   (SELF-INGEST-FOLLOWUPS-2026-07-03-BRIEF · CPAPDex pass; pattern: OxyDex pilot)
+   ────────────────────────────────────────────────────────────────────────
+   Rendered ONLY when window._cpapReview is set (a CPAPDex export was reloaded).
+   All CSS is injected from THIS external module (never the .src.html shell) so
+   the bundle's buildHash stays stable — this pass is external-JS-only. Renders
+   the export's STORED values verbatim; greys (never fakes) the raw waveforms the
+   export does not carry (§2/§3/§4).
+   ════════════════════════════════════════════════════════════════════════ */
+function _cpapInjectSelfIngestCSS(){
+  if (typeof document === 'undefined') return;
+  if (document.getElementById('cpap-selfingest-css')) return;
+  var css = ''
+    + '.cpap-review-banner{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin:0 0 18px;padding:13px 18px;border-radius:12px;background:rgba(255,184,77,.08);border:1px solid rgba(255,184,77,.28);font-size:13px;color:var(--text2);line-height:1.5}'
+    + '.cpap-review-banner .crb-tag{display:inline-flex;align-items:center;gap:6px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;font-size:11px;color:var(--amber)}'
+    + '.cpap-review-banner .crb-dot{width:8px;height:8px;border-radius:50%;background:var(--amber)}'
+    + '.cpap-review-banner .crb-meta{color:var(--text3)}'
+    + '.cpap-review-banner .crb-meta code{font-family:"IBM Plex Mono",ui-monospace,monospace;color:var(--text2)}'
+    + '.cpap-review-banner .crb-spacer{flex:1 1 auto}'
+    + '.cpap-review-print{display:inline-flex;align-items:center;gap:7px;cursor:pointer;padding:8px 15px;border-radius:9px;border:1px solid rgba(61,224,208,.4);background:rgba(61,224,208,.12);color:var(--teal);font-size:12.5px;font-weight:700}'
+    + '.cpap-review-print:hover{filter:brightness(1.15)}'
+    + '.eb-scrub{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text3);cursor:pointer;user-select:none;white-space:nowrap}'
+    + '.eb-scrub input{accent-color:var(--teal);cursor:pointer}'
+    + '.cpap-clinical{margin:0 0 22px;padding:24px 26px;border-radius:14px;background:var(--surface);border:var(--b)}'
+    + '.cpap-clinical .ccl-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;padding-bottom:14px;margin-bottom:16px;border-bottom:1px solid var(--border)}'
+    + '.cpap-clinical .ccl-title{font-size:19px;font-weight:800;color:var(--text)}'
+    + '.cpap-clinical .ccl-sub{font-size:13px;color:var(--text3)}'
+    + '.cpap-clinical .ccl-prov{flex:1 1 100%;margin-top:6px;font-size:11px;color:var(--text3);font-family:"IBM Plex Mono",ui-monospace,monospace}'
+    + '.cpap-clinical .ccl-sec{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin:18px 0 9px}'
+    + '.cpap-clinical .ccl-sec:first-of-type{margin-top:0}'
+    + '.cpap-clinical .ccl-impression{font-size:14px;line-height:1.55;color:var(--text2)}'
+    + '.cpap-clinical .ccl-flags{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}'
+    + '.cpap-clinical .ccl-flag{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:8px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--surface2)}'
+    + '.cpap-clinical .ccl-flag.warn{border-color:rgba(255,184,77,.35);color:var(--amber)}'
+    + '.cpap-clinical .ccl-flag.bad{border-color:rgba(255,107,122,.4);color:var(--red)}'
+    + '.cpap-clinical .ccl-flag.ok{border-color:rgba(57,217,138,.3);color:var(--green)}'
+    + '.cpap-clinical .ccl-kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}'
+    + '.cpap-clinical .ccl-kpi{position:relative;padding:12px 14px;border-radius:10px;background:var(--surface2);border:1px solid var(--border)}'
+    + '.cpap-clinical .ccl-kpi .k-lab{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3);margin-bottom:5px}'
+    + '.cpap-clinical .ccl-kpi .k-val{font-size:21px;font-weight:800;color:var(--text)}'
+    + '.cpap-clinical .ccl-kpi .k-val.warn{color:var(--amber)}'
+    + '.cpap-clinical .ccl-kpi .k-val.bad{color:var(--red)}'
+    + '.cpap-clinical .ccl-kpi .k-val.ok{color:var(--green)}'
+    + '.cpap-clinical .ccl-kpi .k-val.neutral{color:var(--blue)}'
+    + '.cpap-clinical .ccl-kpi .k-note{font-size:10.5px;color:var(--text3);margin-top:3px}'
+    + '.cpap-clinical .ccl-tl{display:flex;flex-direction:column;gap:0;border:1px solid var(--border);border-radius:10px;overflow:hidden}'
+    + '.cpap-clinical .ccl-tlrow{display:grid;grid-template-columns:96px 1fr auto;align-items:center;gap:10px;padding:8px 13px;font-size:12.5px;border-top:1px solid var(--border)}'
+    + '.cpap-clinical .ccl-tlrow:first-child{border-top:none}'
+    + '.cpap-clinical .ccl-tlrow .tl-t{font-family:"IBM Plex Mono",ui-monospace,monospace;color:var(--text3);font-size:12px}'
+    + '.cpap-clinical .ccl-tlrow .tl-name{display:flex;align-items:center;gap:6px;color:var(--text)}'
+    + '.cpap-clinical .ccl-tlrow .tl-meta{color:var(--text3);font-size:11.5px}'
+    + '.cpap-clinical .ccl-tlrow .tl-conf{color:var(--text3);font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11.5px;text-align:right}'
+    + '.cpap-clinical .ccl-tlmore{padding:8px 13px;font-size:11.5px;color:var(--text3);text-align:center}'
+    + '.cpap-clinical .ccl-none{font-size:13px;color:var(--text3);font-style:italic}'
+    + '.cpap-clinical .ccl-disc{margin-top:20px;padding-top:14px;border-top:1px solid var(--border);font-size:11px;line-height:1.55;color:var(--text3)}'
+    + '.cpap-clinical .ccl-disc .ccl-dxl{font-weight:700;color:var(--text2)}'
+    + '.cpap-greyed{position:relative;border:1px dashed var(--border);border-radius:12px;padding:22px;background:repeating-linear-gradient(135deg,rgba(255,255,255,.012) 0 10px,transparent 10px 20px);color:var(--text3);font-size:12.5px;line-height:1.5;text-align:center}'
+    + '.cpap-greyed strong{display:block;color:var(--text2);font-size:13px;margin-bottom:4px}'
+    // PRINT ISOLATION: a review-mode print shows ONLY the clinical summary (no banner / greyed whitespace).
+    + '@media print{body.cpap-review #results>*:not(.cpap-clinical){display:none!important}body.cpap-review .cpap-clinical{display:block!important;border:none;padding:0;margin:0}body.cpap-review #resultsView{padding-bottom:0!important}}';
+  var st = document.createElement('style');
+  st.id = 'cpap-selfingest-css';
+  st.textContent = css;
+  (document.head || document.documentElement).appendChild(st);
+}
+
+// Short, human build stamp for the review banner / clinical header.
+function _cpapBuildStamp(review){
+  var prov = review && review.provenance;
+  var bh = (prov && prov.buildHash) ? prov.buildHash : ((review && review.derivedFrom && review.derivedFrom.buildHash) || null);
+  var gen = (prov && prov.generated) ? prov.generated : ((review && review.generated) || null);
+  var genShort = '';
+  if (gen){ try { genShort = String(gen).replace('T', ' ').replace(/\..*$/, '').replace(/Z$/, ' UTC'); } catch (_g){ genShort = String(gen); } }
+  return { build: bh, generated: genShort, scrubbed: !!(review && review.scrubbed) };
+}
+
+// the persistent review-mode banner — "Loaded from export · review mode · not recomputed · built X on Y".
+function cpapReviewBanner(review){
+  var s = _cpapBuildStamp(review);
+  var h = '<div class="cpap-review-banner" role="status">';
+  h += '<span class="crb-tag"><span class="crb-dot"></span>Review mode</span>';
+  h += '<span>Loaded from export · <strong>not recomputed</strong>' + (s.scrubbed ? ' · <strong>scrubbed for sharing</strong>' : '') + '</span>';
+  h += '<span class="crb-meta">' + (s.build ? 'built <code>' + esc(s.build) + '</code>' : 'build unknown') + (s.generated ? ' on <code>' + esc(s.generated) + '</code>' : '') + '</span>';
+  h += '<span class="crb-spacer"></span>';
+  h += '<button class="cpap-review-print" type="button" onclick="window.print()">\uD83D\uDDA8 Save clinical PDF</button>';
+  h += '</div>';
+  return h;
+}
+
+// map an emitted event → the registry id its evidence badge resolves from + a human name/meta.
+function _cpapEventId(e){
+  if (!e) return 'residualAHI';
+  switch (e.impulse){
+    case 'hypopnea': return 'hypopneaIndex';
+    case 'rera': return 'reraIndex';
+    case 'periodic_breathing': return 'periodicBreathingPct';
+    case 'desat_event': return 'odi';
+    case 'large_leak': return 'largeLeakPct';
+    case 'apnea':
+      var cls = e.meta && e.meta.class;
+      return cls === 'central' ? 'centralIndex' : (cls === 'obstructive' ? 'obstructiveIndex' : 'residualAHI');
+    default: return 'residualAHI';
+  }
+}
+function _cpapEventName(e){
+  if (!e) return 'Event';
+  switch (e.impulse){
+    case 'hypopnea': return 'Hypopnea';
+    case 'rera': return 'RERA';
+    case 'periodic_breathing': return 'Periodic breathing';
+    case 'desat_event': return 'Desaturation';
+    case 'large_leak': return 'Large leak';
+    case 'apnea':
+      var cls = e.meta && e.meta.class;
+      return cls === 'central' ? 'Central apnea' : (cls === 'obstructive' ? 'Obstructive apnea' : 'Apnea');
+    default: return e.impulse || 'Event';
+  }
+}
+function _cpapEventMeta(e){
+  if (!e || !e.meta) return '';
+  var m = e.meta, bits = [];
+  if (e.impulse === 'periodic_breathing'){ if (m.totalSec != null) bits.push(m.totalSec + 's total'); if (m.pct != null) bits.push(m.pct + '%'); }
+  else if (e.impulse === 'desat_event'){ if (m.depthPct != null) bits.push('\u2212' + m.depthPct + '%'); if (m.nadir != null) bits.push('nadir ' + m.nadir + '%'); if (m.durSec != null) bits.push(m.durSec + 's'); }
+  else if (e.impulse === 'large_leak'){ if (m.pctNight != null) bits.push(m.pctNight + '% night'); if (m.p95Lpm != null) bits.push('p95 ' + m.p95Lpm + ' L/min'); }
+  else { if (m.class) bits.push(m.class); if (m.durSec) bits.push(m.durSec + 's'); }
+  return bits.join(' \u00b7 ');
+}
+
+// the clinical event timeline — chronological ganglior_events[] with evidence badges, capped for print.
+function cpapEventTimeline(events, multiNight){
+  var evs = Array.isArray(events) ? events.slice() : [];
+  if (!evs.length) return '<div class="ccl-none">No scored events in this export.</div>';
+  evs.sort(function (a, b){ return ((a && a.tMs) || 0) - ((b && b.tMs) || 0); });
+  var apN = evs.filter(function (e){ return e.impulse === 'apnea' || e.impulse === 'hypopnea'; }).length;
+  var CAP = 40, shown = evs.slice(0, CAP);
+  var h = '<div class="ccl-tl">';
+  shown.forEach(function (e){
+    var badge = (REG && REG.evBadge) ? REG.evBadge(_cpapEventId(e)) : '';
+    var when = e.t || ((e.tMs != null && D && D.fmtClock) ? D.fmtClock(e.tMs) : '\u2014');
+    var datePart = (multiNight && e.tMs != null && D && D.fmtDate) ? (D.fmtDate(e.tMs).slice(5) + ' ') : '';
+    h += '<div class="ccl-tlrow">'
+      + '<span class="tl-t">' + esc(datePart + when) + '</span>'
+      + '<span class="tl-name">' + badge + esc(_cpapEventName(e)) + ' <span class="tl-meta">' + esc(_cpapEventMeta(e)) + '</span></span>'
+      + '<span class="tl-conf">conf ' + (e.conf != null ? e.conf : '\u2014') + '</span>'
+      + '</div>';
+  });
+  if (evs.length > CAP) h += '<div class="ccl-tlmore">+ ' + (evs.length - CAP) + ' more · ' + evs.length + ' events total (' + apN + ' apnea/hypopnea)</div>';
+  h += '</div>';
+  return h;
+}
+
+// the clinical "bring-to-doctor" summary — findings → badged KPIs → event timeline → provenance +
+// intended-use disclaimer. Faithfully renders the EXPORT's stored values (no recompute, no re-grade).
+function cpapClinicalSummary(review){
+  var s = _cpapBuildStamp(review);
+  var els = (review.elements || []).slice().sort(function (a, b){
+    return ((a.recording && a.recording.startEpochMs) || 0) - ((b.recording && b.recording.startEpochMs) || 0);
+  });
+  var first = els[0] || {}, last = els[els.length - 1] || {};
+  var t0First = first.recording ? first.recording.startEpochMs : null;
+  var t0Last = last.recording ? last.recording.startEpochMs : null;
+  var dateRange = (t0First != null)
+    ? ((D ? D.fmtDate(t0First) : t0First) + (els.length > 1 ? ' \u2192 ' + (D ? D.fmtDate(t0Last) : t0Last) : ''))
+    : '\u2014';
+  var totHours = els.reduce(function (a, el){ return a + ((el.recording && el.recording.therapyHours) || 0); }, 0);
+  var durTxt = totHours ? (fnum(totHours, 1) + ' h therapy' + (els.length > 1 ? ' total' : '')) : '';
+  var recent = last, m = recent.metrics || {}, recHours = recent.recording ? recent.recording.therapyHours : null;
+
+  function sev(v, good, warn, lowerBetter){
+    if (v == null || !isFinite(v)) return '';
+    if (lowerBetter === false) return v >= good ? 'ok' : (v >= warn ? 'warn' : 'bad');
+    return v <= good ? 'ok' : (v <= warn ? 'warn' : 'bad');
+  }
+
+  var h = '<section class="cpap-clinical" aria-label="Clinical summary (from export · review mode)">';
+  // header
+  h += '<div class="ccl-head">';
+  h += '<span class="ccl-title">CPAPDex \u00b7 Clinical Summary</span>';
+  h += '<span class="ccl-sub">' + esc(dateRange) + (durTxt ? ' \u00b7 ' + esc(durTxt) : '') + ' \u00b7 ' + els.length + ' night' + (els.length > 1 ? 's' : '') + '</span>';
+  h += '<span class="ccl-prov">From export \u00b7 review mode \u00b7 not recomputed' + (s.build ? ' \u00b7 build ' + esc(s.build) : '') + (s.generated ? ' \u00b7 ' + esc(s.generated) : '') + (s.scrubbed ? ' \u00b7 scrubbed' : '') + '</span>';
+  h += '</div>';
+
+  // findings first (headline impression + notable flags)
+  h += '<div class="ccl-sec">Findings</div>';
+  var findings = [];
+  var ahi = m.residualAHI;
+  if (ahi != null){
+    var band = ahi < 5 ? 'well controlled (AHI < 5)' : ahi < 15 ? 'mild residual events (AHI 5\u201315)' : ahi < 30 ? 'moderate residual events (AHI 15\u201330)' : 'severe residual events (AHI \u2265 30)';
+    findings.push('Latest night: residual AHI ' + fnum(ahi, 1) + '/hr \u2014 ' + band + '.');
+  }
+  if (m.largeLeakPct != null && m.largeLeakPct > 5) findings.push('Large-leak ' + fnum(m.largeLeakPct, 1) + '% of therapy \u2014 seal may be corrupting event scoring; address the mask before titrating pressure.');
+  if (m.centralIndex != null && m.centralIndex > 5) findings.push('Central apnea index ' + fnum(m.centralIndex, 1) + '/hr \u2014 elevated; treatment-emergent central apnea warrants clinical review.');
+  if (recHours != null && recHours < 4) findings.push('Therapy ' + fnum(recHours, 1) + ' h \u2014 below the 4 h adherence threshold.');
+  if (findings.length) h += '<div class="ccl-impression">' + findings.map(esc).join('<br>') + '</div>';
+  else if (ahi != null) h += '<div class="ccl-impression">' + esc('Latest night: residual AHI ' + fnum(ahi, 1) + '/hr — well controlled; leak and usage within range.') + '</div>';
+  else h += '<div class="ccl-none">No summary metrics in this export.</div>';
+
+  // KPIs — each carries an inline evidence badge (coverage mandate)
+  h += '<div class="ccl-sec">Key Measurements' + (els.length > 1 ? ' \u00b7 latest night (' + esc(D ? D.fmtDate(t0Last) : '') + ')' : '') + '</div>';
+  function kpi(id, label, val, note, cls){
+    var badge = (REG && REG.evBadge && id) ? REG.evBadge(id) : '';
+    return '<div class="ccl-kpi"><div class="k-lab">' + badge + esc(label) + '</div>'
+      + '<div class="k-val ' + (cls || '') + '">' + esc(val) + '</div>'
+      + (note ? '<div class="k-note">' + esc(note) + '</div>' : '') + '</div>';
+  }
+  h += '<div class="ccl-kpis">';
+  if (m.residualAHI != null) h += kpi('residualAHI', 'Residual AHI', fnum(m.residualAHI, 1) + '/hr', 'target < 5', sev(m.residualAHI, 5, 15));
+  if (m.obstructiveIndex != null) h += kpi('obstructiveIndex', 'Obstructive', fnum(m.obstructiveIndex, 1) + '/hr', 'OA/hr', sev(m.obstructiveIndex, 5, 15));
+  if (m.centralIndex != null) h += kpi('centralIndex', 'Central', fnum(m.centralIndex, 1) + '/hr', 'CA/hr', sev(m.centralIndex, 5, 10));
+  if (m.periodicBreathingPct != null) h += kpi('periodicBreathingPct', 'Periodic Breathing', fnum(m.periodicBreathingPct, 1) + '%', 'CSL spans', sev(m.periodicBreathingPct, 2, 10));
+  if (recHours != null) h += kpi('usageHours', 'Therapy Hours', fnum(recHours, 1) + ' h', '\u2265 4 h', sev(recHours, 4, 2, false));
+  if (m.medianPressure != null) h += kpi('medianPressure', 'Median Pressure', fnum(m.medianPressure, 1), 'cmH\u2082O \u00b7 P95 ' + (m.p95Pressure != null ? fnum(m.p95Pressure, 1) : '\u2014'), 'neutral');
+  if (m.largeLeakPct != null) h += kpi('largeLeakPct', 'Large Leak', fnum(m.largeLeakPct, 1) + '%', 'median ' + (m.medianLeak != null ? fnum(m.medianLeak, 1) + ' L/min' : '\u2014'), sev(m.largeLeakPct, 2, 5));
+  var oxi = (recent.oximetry || []).filter(function (o){ return o && o.available; })[0];
+  if (oxi){
+    if (oxi.odi != null) h += kpi('odi', 'ODI (3%)', fnum(oxi.odi, 1) + '/hr', 'SA2 lane', sev(oxi.odi, 5, 15));
+    if (oxi.t90Pct != null) h += kpi('t90Pct', 'T90', fnum(oxi.t90Pct, 1) + '%', 'below 90%', sev(oxi.t90Pct, 1, 5));
+    if (oxi.spo2Nadir != null) h += kpi('spo2Nadir', 'SpO\u2082 Nadir', fnum(oxi.spo2Nadir) + '%', 'lowest valid', sev(oxi.spo2Nadir, 90, 85, false));
+  }
+  h += '</div>';
+
+  // event timeline
+  h += '<div class="ccl-sec">Event Timeline</div>';
+  h += cpapEventTimeline(review.events, review.multiNight);
+
+  // provenance + intended-use disclaimer + dxl stamp
+  h += '<div class="ccl-disc">';
+  h += '<span class="ccl-dxl">Not a medical device.</span> CPAPDex summarizes device-scored ResMed AirSense data for personal/research use \u2014 it does not diagnose or treat sleep-disordered breathing, and machine-scored AHI is not equivalent to attended polysomnography. Bring this to your clinician; do not change therapy on it alone.';
+  if (s.build || s.generated) h += '<br>Provenance: this view faithfully shows values computed at export time' + (s.build ? ' by build ' + esc(s.build) : '') + (s.generated ? ' on ' + esc(s.generated) : '') + ' \u2014 not recomputed on load.';
+  h += '</div>';
+
+  h += '</section>';
+  return h;
+}
+
+// honest greyed placeholder for a panel that needs raw samples the export does not carry.
+function cpapGreyedPanel(label){
+  return '<div class="cpap-greyed"><strong>' + esc(label) + '</strong>'
+    + 'Raw signal not included in this export \u2014 review mode. Re-run the original AirSense .edf set for waveforms.</div>';
+}
+
+// the full review view: banner + clinical summary + greyed raw-waveform placeholder.
+function renderReviewView(review){
+  _cpapInjectSelfIngestCSS();
+  return cpapReviewBanner(review)
+    + cpapClinicalSummary(review)
+    + '<div style="margin:0 0 22px">' + cpapGreyedPanel('Per-session flow \u00b7 pressure \u00b7 leak waveforms') + '</div>';
+}
+
 global.CpapRender = {
   renderNight: renderNight, renderHistory: renderHistory, hydrate: hydrate, hydrateHistory: hydrateHistory,
   renderKPIs: renderKPIs,
   residualCard: residualCard, pressureCard: pressureCard, leakCard: leakCard,
   ventCard: ventCard, oximetryCard: oximetryCard, crossCard: crossCard, crossNodeCard: crossNodeCard,
   sessionsCard: sessionsCard, eventStream: eventStream,
-  drawAhiByHour: drawAhiByHour, drawPressure: drawPressure, drawNightTrend: drawNightTrend
+  drawAhiByHour: drawAhiByHour, drawPressure: drawPressure, drawNightTrend: drawNightTrend,
+  // SELF-INGEST (SELF-INGEST-FOLLOWUPS-2026-07-03): review-mode clinical view
+  renderReviewView: renderReviewView, injectSelfIngestCSS: _cpapInjectSelfIngestCSS,
+  cpapReviewBanner: cpapReviewBanner, cpapClinicalSummary: cpapClinicalSummary,
+  cpapEventTimeline: cpapEventTimeline, cpapGreyedPanel: cpapGreyedPanel
 };
 
 })(window);

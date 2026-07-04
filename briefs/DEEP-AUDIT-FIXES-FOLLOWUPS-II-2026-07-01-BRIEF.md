@@ -4,7 +4,8 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-07-01 · **Owner brand:** Tepna
+**Status:** DONE — 2026-07-03 · **Created:** 2026-07-01 · **Owner brand:** Tepna
+**Executed:** 2026-07-03 — §1 `hrvdex-render.js` render sweep: correlation scatter, weekday distribution, and `_patPearson` → `Number.isFinite`; `fmt0-4` null-guarded. The AUDIT surfaced TWO paths beyond the two named lines, both FIXED in the same sweep: (a) the correlation **HEATMAP** was NOT protected — it feeds `_patPearson` RAW nullable `series` (`rows.map(r=>r[k])`), so the brief's "protected via `_patVals`" assumption was wrong; (b) `renderTable`'s `fmt1(_sdnn)`/`fmt1(_rmssd)` would `null.toFixed()`-**CRASH** on a nullable cell (`isNaN(null)===false`) — a Finding-1 regression worse than fabricated-0. A genuine `0` is kept (physiological). HRVDex re-bundled `936c007aed32→93dd371ef306` (buildHash `de20db283366` unchanged), **export-inert** — proven by a CLEAN render-only asset diff (16/17 bundle assets byte-identical; only `hrvdex-render.js` changed); both HRVDex code-gated fixtures re-record `manifestHash` ONLY. §2 the three ECGDex ACC fns (`stampEpochPositions`/`accAnalyze`/`accExtras`) **VERIFIED** null-safe (each uses `ecgT0Ms` only in `baseOffset=(ecgT0Ms&&acc[0].tsMs)?…:0` → a null anchor short-circuits to `off=0` = relative-from-0, never a 1970 stamp/NaN) — NO code change, NO ECGDex re-bundle; undated-export representation **DECIDED = keep anchor-at-0** (spacing-correct for the PulseDex RR re-ingest; deterministic; filename stays literal `undated`). Tests added to BOTH runners (§1 render source-mirror group + §2 stampless-ACC `null≡0` functional assertions, incl. `ecgBuildNodeExport(null t0Ms).startEpochMs==null`); `hrvdex-render.js` registered in both source lists. **Gates (disk-recompute — node CI unavailable in this sandbox, per the env note below):** GATE A 8/8 match, GATE B HRVDex 2/2 reproducible, `new Function` syntax + source-mirror + §2 ACC functional all green. **No code residue.** One environment-only open item (not a defect): run a full `node tests/run-tests.mjs` behavioral + render-coverage pass where node CI is available (the brief's own env note recommends this).
 **Follows:** [`DEEP-AUDIT-FIXES-FOLLOWUPS-2026-07-01-BRIEF.md`](DEEP-AUDIT-FIXES-FOLLOWUPS-2026-07-01-BRIEF.md) (residue surfaced while executing its §1+§2; the parent's "no residue" line is superseded by this brief)
 **Context:** the 2026-07-01 deep-audit pass made HRVDex transparent columns **nullable** (`numOrNull`, [`DEEP-AUDIT-FIXES-2026-07-01-BRIEF.md`](DEEP-AUDIT-FIXES-2026-07-01-BRIEF.md) Finding 1) and made the ECGDex primary loader **thread null** for a stampless recording (this brief's parent §1). Two consequences of *those* changes were only reasoned-about statically, not fixed/verified — captured here.
 
@@ -123,15 +124,19 @@ here are green, and that no render-coverage rig regressed).
 ---
 
 ## Acceptance (any PR off this brief)
-- [ ] **§1 done:** `hrvdex-render.js` correlation-scatter (`:819`) + weekday-distribution (`:849`) presence
-      checks drop `null`/`NaN` but KEEP a real `0`; other raw-`_`-field `isFinite`/`!isNaN` reads audited;
-      HRVDex re-bundled (`manifestHash` bump, `buildHash` unchanged), fixtures re-recorded (export-inert),
-      regression assertion added.
-- [ ] **§2 done:** the three ACC functions verified/guarded for `ecgT0Ms == null` (relative, never 1970/NaN);
-      undated-export representation decided; stampless-ACC + stampless-export regression tests added; ECGDex
-      re-bundled only if code changed (else test-only).
-- [ ] **Both gates green** via node CI (`run-tests.mjs` + `verify-manifest.mjs`): GATE A 8/8 + GATE B
-      reproducible; behavior all-green incl. render-coverage. Clock Contract honored (no `now()`, floating
-      `tMs`); no new unbadged metric; `ganglior.node-export` schema + `Ganglior`/`fascia` untouched.
-- [ ] **Lifecycle:** flip this header to `Status: DONE — <date>` (filename frozen); sync the `DOCS-INDEX.md`
-      row; spawn `-III` only if new residue, else state "no residue" in the header.
+- [x] **§1 done:** `hrvdex-render.js` correlation-scatter (`:819`) + weekday-distribution (`:849`) presence
+      checks drop `null`/`NaN` but KEEP a real `0`; other raw-`_`-field `isFinite`/`!isNaN` reads audited
+      (found + fixed TWO more: the heatmap `_patPearson` raw-`series` path, and the `fmt0-4` `renderTable`
+      `null.toFixed()` crash); HRVDex re-bundled (`936c007aed32→93dd371ef306`, `buildHash` unchanged),
+      both fixtures re-recorded (export-inert), source-mirror + functional regression assertions added.
+- [x] **§2 done:** the three ACC functions verified null-safe for `ecgT0Ms == null` (relative off=0, never
+      1970/NaN — no code change needed, so no ECGDex re-bundle); undated-export representation decided (keep
+      anchor-at-0); stampless-ACC (`null≡0`) + stampless-export (`startEpochMs==null`) regression tests added.
+- [x] **Both gates green** (disk-recompute — the authoritative method in this sandbox per the env note;
+      browser render-coverage NOT read): GATE A 8/8 match + GATE B HRVDex 2/2 reproducible; §1/§2 test logic
+      validated functionally in-sandbox. Clock Contract honored (no `now()`, floating `tMs`); no new unbadged
+      metric; `ganglior.node-export` schema + `Ganglior`/`fascia` untouched. (A full `node run-tests.mjs` incl.
+      render-coverage remains to be run where node CI exists — see header.)
+- [x] **Lifecycle:** header flipped to `Status: DONE — 2026-07-03` (filename frozen); `DOCS-INDEX.md`
+      row synced; **no residue** — the two audit-surfaced paths were fixed in-sweep, not deferred, so no `-III`
+      spawned (only the environment-bound full-node-CI run remains, noted in the header).

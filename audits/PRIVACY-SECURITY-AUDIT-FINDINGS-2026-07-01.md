@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** AUDIT FINDINGS (privacy & security pass per `PRIVACY-SECURITY-AUDIT-PROMPT.md`) · **Created:** 2026-07-01 · **Auditor:** AI agent · **Method:** invariant + demonstrated-violation (a network call caught / a key found persisted / a field traced to the DOM), origin-classified static grep of all 8 bundles + runtime traps · **Do-first built:** [`no-network.html`](no-network.html) (green — 8/8 static + runtime, negative control passed) · **Siblings:** `AUDIT-PROMPT.md` (correctness) · `EFFICIENCY-AUDIT-PROMPT.md` (efficiency) · **Posture doc:** `PHI-SURFACE-STATEMENT.md`
+**Status:** AUDIT FINDINGS (privacy & security pass per `PRIVACY-SECURITY-AUDIT-PROMPT.md`) · **Created:** 2026-07-01 · **Auditor:** AI agent · **Method:** invariant + demonstrated-violation (a network call caught / a key found persisted / a field traced to the DOM), origin-classified static grep of all 8 bundles + runtime traps · **Do-first built:** [`no-network.html`](../no-network.html) (green — 8/8 static + runtime, negative control passed) · **Siblings:** `AUDIT-PROMPT.md` (correctness) · `EFFICIENCY-AUDIT-PROMPT.md` (efficiency) · **Posture doc:** `PHI-SURFACE-STATEMENT.md`
 
 # Privacy & security findings — Tepna Dex suite (2026-07-01)
 
@@ -33,7 +33,7 @@ bundled asset — the babel-transform bootstrap `fetch(s.src)` (dead in the inli
 in a shipped surface are journal-citation `<a href="https://doi.org/…" target="_blank" rel="noopener">`
 links in the reference guides — a user-initiated navigation, not automatic egress.
 
-**What was built (the do-first):** [`no-network.html`](no-network.html) — the privacy analogue of
+**What was built (the do-first):** [`no-network.html`](../no-network.html) — the privacy analogue of
 `verify-provenance.html`, self-contained, adds no runtime behavior to any app (**no re-bundle**). Verdict is
 programmatic: `window.__noNetworkOK` (+ `__staticOK`/`__runtimeOK`/`__canaryOK`, `noNetworkStatus()`).
 
