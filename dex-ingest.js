@@ -216,6 +216,7 @@
     var byKind = { ecg: [], rr: [], hr: [], acc: [], skip: [] };
     items.forEach(function (it) { (byKind[ecgKind(it.name)] || byKind.ecg).push(it); });
     // (2) skip bucket → foreign (precise label for the UI breakdown)
+    /** @type {{name:any, kind:any, device?:any}[]} */
     var skipped = byKind.skip.map(function (it) { return { name: it.name, kind: foreignKind(it.name) }; });
     // (3) the caller's header content-sniff: a name-'ecg' item it reclassified as foreign is set aside
     //     with its sniffed kind; the rest are real ECG (drop order preserved).

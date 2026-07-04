@@ -110,4 +110,4 @@
     list: list, byId: byId, bySignal: bySignal, reset: reset
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.SignalAdapters;
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
+})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : /** @type {any} */ (this)));

@@ -40,18 +40,11 @@
   // inlines its own list, and BUILD-MANIFEST.json's `bundles` keys must equal this set.
   var MANIFEST_BUNDLES = ['ECGDex.html', 'OxyDex.html', 'PulseDex.html', 'GlucoDex.html', 'PpgDex.html', 'HRVDex.html', 'CPAPDex.html', 'Integrator.html'];
 
-  // The inliner emits exactly one <script type="__bundler/manifest"> per bundle, carrying the
-  // gzip+base64 JSON of every inlined JS/CSS payload (the EXECUTED code). Non-greedy, FIRST match:
-  // identical to verify-provenance.html's historical inline regex. (The bootstrap's
-  // `querySelector('script[type="__bundler/manifest"]')` is a SELECTOR string, not a `<script ...>`
-  // open tag, so it is never matched; and the gzip+base64 payload contains no `</script>`.)
+  // LEGACY-FORMAT DETECTOR ONLY (OWN-THE-BUILD Phase 4, 2026-07-03). The platform inliner's
+  // gzip+UUID format is RETIRED — every shipped bundle is owned plain-inline (tools/build.mjs).
+  // This regex remains solely so isPlainInline() can refuse to hash a REGRESSED bundle (one
+  // re-bundled via the old inliner): it hashes to null → GATE A 'missing-current' → red.
   var MANIFEST_RE = /<script type="__bundler\/manifest">([\s\S]*?)<\/script>/;
-
-  function extractManifest(bundleText) {
-    if (typeof bundleText !== 'string') return null;
-    var m = bundleText.match(MANIFEST_RE);
-    return m ? m[1] : null;
-  }
 
   // ── PLAIN-INLINE branch (OWN-THE-BUILD-2026-06-30 Part A) ──────────────────────────────────
   // tools/build.mjs emits a dependency-free bundle whose executed blocks each carry
@@ -91,12 +84,6 @@
     return s;
   }
 
-  function b64ToBytes(b64) {
-    var bin = root.atob(String(b64 || '')), u8 = new Uint8Array(bin.length);
-    for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-    return u8;
-  }
-
   // SHA-256 hex of a string OR a Uint8Array (full 64-hex; the manifestHash convention slices to 12).
   function sha256hex(input) {
     var data = (typeof input === 'string') ? new TextEncoder().encode(input) : input;
@@ -107,34 +94,17 @@
   // ganglior-provenance.js inputs[].sha256[0:16]). GATE B's input/output hashes (Phase 7).
   function sha16(input) { return sha256hex(input).then(function (h) { return h.slice(0, 16); }); }
 
-  // gunzip via the Web Streams DecompressionStream — a global in browsers and Node >= 18.
-  function gunzip(u8) {
-    return new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('gzip')))
-      .arrayBuffer().then(function (ab) { return new Uint8Array(ab); });
-  }
-
   // Bundle TEXT -> manifestHash (Promise<string|null>; null when the text carries no manifest —
   // e.g. an un-bundled *.src.html). The UUID-independent content projection described in the header.
   // This IS verify-provenance.html's manifestHashOf minus the fetch (the IO stays in the caller).
   async function manifestHashFromText(bundleText) {
-    var body = extractManifest(bundleText);
-    if (body == null) {
-      // DUAL-BRANCH during the OWN-THE-BUILD fleet migration: no __bundler/manifest, but the
-      // owned plain-inline bundler leaves data-inline-src blocks -> hash those. Un-bundled
-      // *.src.html (neither marker) still returns null.
-      if (isPlainInline(bundleText)) return manifestHashPlainInline(bundleText);
-      return null;
-    }
-    var obj = JSON.parse(body);
-    var parts = [], assets = Object.values(obj);   // drop the random UUID keys
-    for (var i = 0; i < assets.length; i++) {
-      var a = assets[i] || {};
-      var raw = b64ToBytes(a.data);
-      var bytes = a.compressed ? await gunzip(raw) : raw;   // decompress -> content-coupled
-      parts.push((a.mime || '') + '\u0000' + (a.compressed ? 1 : 0) + '\u0000' + (await sha256hex(bytes)));
-    }
-    parts.sort();                                  // order-independent
-    return (await sha256hex(parts.join('\n'))).slice(0, 12);
+    // OWN-THE-BUILD Phase 4 (2026-07-03): the legacy __bundler/manifest hashing branch is RETIRED —
+    // every shipped bundle is owned plain-inline. A bundle still carrying a __bundler/manifest
+    // (regressed via the platform inliner) DELIBERATELY hashes to null so GATE A reds
+    // ('missing-current') and points at the owned rebuild: `node tools/build.mjs --app <Name>`.
+    // Un-bundled *.src.html (no data-inline-src either) also returns null.
+    if (isPlainInline(bundleText)) return manifestHashPlainInline(bundleText);
+    return null;
   }
 
   // GATE A compare — current executed-code manifestHash per bundle vs the committed BUILD-MANIFEST.
@@ -237,17 +207,14 @@
   root.ManifestGate = {
     MANIFEST_BUNDLES: MANIFEST_BUNDLES,
     MANIFEST_RE: MANIFEST_RE,
-    extractManifest: extractManifest,
     isPlainInline: isPlainInline,
     plainInlineAssets: plainInlineAssets,
-    b64ToBytes: b64ToBytes,
     sha256hex: sha256hex,
     sha16: sha16,
-    gunzip: gunzip,
     manifestHashFromText: manifestHashFromText,
     gateACompare: gateACompare,
     gateBFiles: gateBFiles,
     gateBEvaluate: gateBEvaluate
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.ManifestGate;
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
+})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : /** @type {any} */ (this)));

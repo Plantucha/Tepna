@@ -57,9 +57,10 @@ forward-compat — that's deliberate, leave it. No emitter changes needed.
   (`OxyDex v2.html ~13k lines`, `(standalone)` filenames). The refactor is **done**.
   Moved to `docs-archive/` so it stops contradicting the live tree.
 - The `@font-face` block comments said "re-run **sync-design.py**" — that script
-  isn't in the project. Updated to the truth: there's no build step; edits to
-  `ans-design.css` must be **hand-mirrored** into each app's `ANS-DESIGN-START` block
-  and the sha bumped. (All copies are currently `sha 63d47ad1e085` — in sync.)
+  isn't in the project. **UPDATE 2026-07-03 (OWN-THE-BUILD Part A):** the hand-mirror is **RETIRED** — every app now
+  `<link>`s the ONE `ans-design.css`, which the owned bundler (`tools/build.mjs`) inlines, so mirror drift is
+  unrepresentable. OxyDex/HRVDex were the last two on the inline `ANS-DESIGN-START` mirror (single-sourced 2026-07-03,
+  reconciling their drifted tokens to the canonical file). No mirror or sha to bump any more.
 
 ---
 

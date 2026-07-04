@@ -112,7 +112,7 @@
     if (t === 'number') { _h53Str(st, isFinite(v) ? (',' + v) : ',~'); return; }
     if (t === 'boolean' || t === 'string') { _h53Str(st, '|' + v); return; }
     if (Array.isArray(v) || (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(v))) {
-      var n = v.length; _h53Str(st, '#' + n + ':');
+      var n = /** @type {any} */ (v).length; _h53Str(st, '#' + n + ':');
       var CAP = 4096, stride = n > CAP ? Math.floor(n / CAP) : 1;
       for (var i = 0; i < n; i += stride) _fold(st, v[i], depth + 1);
       if (stride > 1) _fold(st, v[n - 1], depth + 1);
@@ -142,6 +142,7 @@
   // Diagnostic-only, identity-free filename token (brief §2.2). Built from a
   // WHITELIST of fragments (vendor family + lane tag + extension); everything else
   // — name, date, device serial, MAC/hex id, digit runs — is dropped, not hashed.
+  /** @type {[RegExp, string][]} */
   var _VENDOR_SIG = [
     [/polar/i, 'polar'], [/o2ring|wellue|viatom/i, 'o2ring'], [/welltory/i, 'welltory'],
     [/lingo|libre|abbott/i, 'lingo'], [/coospo/i, 'coospo'], [/wahoo/i, 'wahoo'],
@@ -303,4 +304,4 @@
   root.SignalFrame = { toSignalFrame: toSignalFrame, validateFrame: validateFrame, describeFrame: describeFrame,
                        computeContentId: computeContentId, scrubFilename: scrubFilename };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.SignalFrame;
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
+})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : /** @type {any} */ (this)));

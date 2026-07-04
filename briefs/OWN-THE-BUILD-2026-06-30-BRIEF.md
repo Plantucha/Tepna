@@ -8,7 +8,7 @@
 
 **Status:** IN-PROGRESS — 2026-07-03 · **Created:** 2026-06-30 · **Follow-up:** `OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`
 
-> **Execution status (2026-07-03) — Part A Phases 0–2 landed, gate-verified; fleet cutover + docs + Parts B/C/D remain.**
+> **Execution status (2026-07-03, final for this thread) — Part A executed THROUGH Phase 4 (gates green); A5 ratified + mapped; Parts B/C/D not started.**
 > - ✅ **Phase 0 spike** — OxyDex plain-inline bundle passes `Dex-Test-Suite.html?full` render-coverage (15/15),
 >   runs standalone, is byte-deterministic. **Plan-killer answered: ownership STICKS** — the platform does NOT
 >   clobber/async-rebuild the owned `OxyDex.html` (no source relocation needed).
@@ -22,9 +22,17 @@
 >   EXPORT-INERT, code-gated fixtures re-stamped, outputs byte-identical; PulseDex cut over 2026-07-03,
 >   dropping its stale captured woff2 per owner decision); `verify-provenance.html` GATE A all 8 `match ✓` +
 >   GATE B green; `Dex-Test-Suite.html?full` all-green (1748 passed, `env.equiv.*` byte-identical, `bootSkips: []`).
-> - ✅ **Phase 3** (fleet cutover — all 8 owned, both gates green). ⏳ **Phase 4** (ans-design single-source + retire the now-unused legacy branch + doc rewrite),
->   **A5** (single `clock.js`), **Parts B/C/D** → staged in `OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`.
->   Flip THIS header to DONE only when Part A's "Done when" checklist is fully met with both gates green.
+> - ✅ **Phase 3** (fleet cutover — all 8 owned, both gates green) **+ the 2 orchestrators** (Data Unifier / OverDex
+>   owned per owner directive, `.src.html` split, in `build.mjs --check` as a non-provenance set; co-load gate green).
+> - ✅ **Phase 4** — `ans-design.css` **single-sourced** (OxyDex/HRVDex mirror + sha markers DELETED, drifted tokens
+>   reconciled to the canonical file; `AUDIT.md` §1c updated) · legacy `__bundler/manifest` branch **RETIRED** in
+>   `manifest-gate.js` (regressed bundle → null → GATE A red) · inert `buildHash` **DROPPED** from `BUILD-MANIFEST.json`
+>   · `no-network.html` re-verified (invariant holds; static scan now sees the inlined code). Still open: the
+>   full `CLAUDE.md` §🔏 / `ARCHITECTURE-PRINCIPLES` §6 prose rewrite (current notes are accurate; polish).
+> - ✅ **A5 RATIFIED** (owner, 2026-07-03) — not yet executed; full execution map in the FOLLOWUPS brief §3
+>   (four parser variants surveyed; one coherent fleet pass required). ⏳ **Parts B/C/D** → staged in
+>   `OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`. Flip THIS header to DONE when A5 + the prose polish land
+>   (Parts B/C/D flip independently per the Done-when).
 
 # Own the build + born-compliant nodes (retire the drift-suppression machinery)
 

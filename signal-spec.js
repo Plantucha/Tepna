@@ -91,4 +91,4 @@
 
   root.SignalSpec = SignalSpec;
   if (typeof module !== 'undefined' && module.exports) module.exports = SignalSpec;
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
+})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : /** @type {any} */ (this)));

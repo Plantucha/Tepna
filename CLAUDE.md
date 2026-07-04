@@ -160,10 +160,11 @@ it.) Behavior is gated **separately** by `Dex-Test-Suite.html`.
 > which would regress it to the legacy format. `build.mjs` **auto-writes** the bundle's `BUILD-MANIFEST.json`
 > `manifestHash` + re-stamps its code-gated fixtures, so the hand-update dance below is replaced by
 > `build.mjs` + **`node tools/build.mjs --check`** (the CI drift guard: committed bundle ≡ build(source)).
-> `manifest-gate.js` recomputes the plain-inline hash via a **dual-branch** (legacy `__bundler/manifest`
-> bundles unchanged — now that all 8 are plain-inline it is UNUSED; retiring it is Phase 4). The hand-update
-> steps below are fully superseded for the fleet by `build.mjs`; they remain only as reference for the
-> now-retired legacy format. Remaining Phase 4 cleanup: `OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md` §2.
+> `manifest-gate.js` hashes plain-inline ONLY (the legacy `__bundler/manifest` branch was **RETIRED
+> 2026-07-03** — a bundle regressed via the old inliner now hashes to null → GATE A reds and points at the
+> owned rebuild). The inert `buildHash` field was dropped from `BUILD-MANIFEST.json` the same day. The hand-update
+> steps below are fully superseded by `build.mjs`; they remain only as reference for the
+> retired legacy format. Remaining Phase 4 cleanup: `OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md` §2.
 
 After a re-bundle that **changes JS/CSS**, `manifestHash` moves, so you **MUST hand-update that app's
 entry** in `BUILD-MANIFEST.json` to the new value (read it off the page's `manifestHash` column / the
@@ -255,7 +256,9 @@ badge CSS or re-tier metrics ad hoc.
   **Do not** add `@font-face`, do not reintroduce a CDN, do not re-embed a woff2, do not
   flag "missing woff2" — that whole class of warning was removed at the root in June 2026.
 - **`parseTimestamp` duplicated in every `*-dsp.js`:** intentional per the Clock Contract. Mirror it;
-  do not extract a shared util in passing.
+  do not extract a shared util in passing. **(A5 RATIFIED 2026-07-03: extraction into ONE `clock.js` is
+  owner-approved — see `OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md` §3 for the execution map. Until that
+  pass lands as one coherent fleet re-bundle, KEEP mirroring — do not half-migrate.)**
 - **`REFACTOR-BRIEF-modularize-Dexes.md`:** historical, the refactor is DONE. See `docs-archive/`.
 
 ---
@@ -285,7 +288,9 @@ timezone (a New-York night reads 03:00 in London). Floating `tMs` + `getUTC*` is
   to `tMs`; compute `utcMs` only for genuine cross-timezone simultaneity. No zone → `offsetMin = null`.
 
 ### 2. One shared parser — `parseTimestamp(raw, opts) → { tMs, offsetMin } | null`
-Duplicated locally inside each app (mirror it; do not add a shared util module). Resolution order:
+Duplicated locally inside each app (mirror it; do not add a shared util module — **A5 exception ratified
+2026-07-03:** a single inlined `clock.js` is approved, staged in `OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`
+§3; keep mirroring until that one coherent pass lands). Resolution order:
 1. Numeric epoch (number / all-digit string, plausible range): real instant → floating for the
    local zone at parse time (`tMs = inst − tzOffset(inst)`), `offsetMin = −tzOffset/60000`.
 2. **ISO-8601 with zone** (`…Z` / `…±HH:MM`): zone authoritative; `tMs = Date.UTC(components as written)`,

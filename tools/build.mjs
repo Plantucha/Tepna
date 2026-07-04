@@ -52,7 +52,12 @@ const ManifestGate = require(join(ROOT, 'manifest-gate.js'));
 const C = { reset: '\x1b[0m', red: '\x1b[31m', green: '\x1b[32m', dim: '\x1b[2m', bold: '\x1b[1m', yellow: '\x1b[33m' };
 const paint = (s, c) => (process.stdout.isTTY ? c + s + C.reset : s);
 const die = (code, msg) => { console.error(paint('\u2715 ' + msg, C.red)); process.exit(code); };
-const BUNDLES = ManifestGate.MANIFEST_BUNDLES;           // single source of the fleet list
+const BUNDLES = ManifestGate.MANIFEST_BUNDLES;           // single source of the fleet (provenance-gated)
+// Orchestrators (Data Unifier / OverDex) are OWNED but NON-provenance — no BUILD-MANIFEST entry / no
+// fixtures (ORIENTATION: they touch neither gate). build.mjs builds them + `--check` guards drift; it does
+// NOT re-stamp ledgers for them. (OWN-THE-BUILD-FOLLOWUPS §6.)
+const ORCHESTRATORS = ['Data Unifier.html', 'OverDex.html'];
+const ALL = BUNDLES.concat(ORCHESTRATORS);
 
 function srcFor(bundleFile) { return bundleFile.replace(/\.html$/, '.src.html'); }
 const readT = (p) => readFileSync(join(ROOT, p), 'utf8');
@@ -103,12 +108,17 @@ function committedHash(bundleFile) {
 
 function writeBundle(bundleFile) {
   const r = buildOne(bundleFile);
-  const old = committedHash(bundleFile);
   writeFileSync(join(ROOT, bundleFile), r.html);
-  const stamp = restampLedgers(bundleFile, old, r.manifestHash);
-  console.log(paint('  \u2713 ', C.green) + bundleFile + paint('  manifestHash ' + old + ' \u2192 ' + r.manifestHash +
-    '  (' + r.html.length + ' bytes, ' + r.assetNames.length + ' assets' +
-    (stamp.fixtures ? ', ' + stamp.fixtures + ' fixture(s) re-stamped' : '') + ')', C.dim));
+  if (BUNDLES.includes(bundleFile)) {                    // provenance bundle — re-stamp ledgers
+    const old = committedHash(bundleFile);
+    const stamp = restampLedgers(bundleFile, old, r.manifestHash);
+    console.log(paint('  \u2713 ', C.green) + bundleFile + paint('  manifestHash ' + old + ' \u2192 ' + r.manifestHash +
+      '  (' + r.html.length + ' bytes, ' + r.assetNames.length + ' assets' +
+      (stamp.fixtures ? ', ' + stamp.fixtures + ' fixture(s) re-stamped' : '') + ')', C.dim));
+  } else {                                               // orchestrator — owned, non-provenance (no ledger)
+    console.log(paint('  \u2713 ', C.green) + bundleFile + paint('  ' + r.manifestHash +
+      '  (' + r.html.length + ' bytes, ' + r.assetNames.length + ' assets · non-provenance orchestrator)', C.dim));
+  }
   return r.manifestHash;
 }
 
@@ -116,7 +126,7 @@ function writeBundle(bundleFile) {
 function check() {
   let drift = 0, checked = 0, skipped = 0;
   console.log(paint('\u25b8 build --check \u2014 committed bundle \u2261 fresh build(source)', C.bold));
-  for (const b of BUNDLES) {
+  for (const b of ALL) {
     const p = join(ROOT, b);
     if (!existsSync(p)) { console.log(paint('  \u2715 ' + b + ' missing', C.red)); drift++; continue; }
     const committed = readFileSync(p, 'utf8');
@@ -139,14 +149,14 @@ function main() {
 
   if (has('--all')) {
     console.log(paint('\u25b8 build --all \u2014 owning every bundle (fleet migrate)', C.bold));
-    let n = 0; for (const b of BUNDLES) { writeBundle(b); n++; }
+    let n = 0; for (const b of ALL) { writeBundle(b); n++; }
     console.log(paint('\u2713 built ' + n + ' bundle(s). Run `node tests/verify-manifest.mjs` + Dex-Test-Suite.html?full.', C.green));
     process.exit(0);
   }
 
   if (appArg) {
     const bundleFile = /\.html$/.test(appArg) ? appArg : appArg + '.html';
-    if (!BUNDLES.includes(bundleFile)) return die(2, appArg + ' is not a MANIFEST bundle (' + BUNDLES.join(', ') + ')');
+    if (!ALL.includes(bundleFile)) return die(2, appArg + ' is not a known bundle (' + ALL.join(', ') + ')');
     console.log(paint('\u25b8 build --app ' + bundleFile, C.bold));
     writeBundle(bundleFile);
     console.log(paint('\u2713 done. Run `node tests/verify-manifest.mjs` + Dex-Test-Suite.html?full to gate.', C.green));

@@ -15,11 +15,9 @@
 > GATE A/B + `Dex-Test-Suite.html?full` all-green, `bootSkips: []`). Tooling shipped: `tools/build-core.js` +
 > `tools/build.mjs` + `tools/build.html`, `tests/build-core-tests.mjs` (in `tests.yml`), `manifest-gate.js`
 > dual-branch. **Do NOT redo Phase 0–3.** Continue in this order: **(1) §5 Part D.1 ESLint** (cheapest standalone
-> win, no dependency on anything else). **(2) §2 Phase 4** — single-source `ans-design.css` (delete the
-> `ANS-DESIGN-START` mirror from `OxyDex.src.html`+`HRVDex.src.html`, add `<link href="ans-design.css">`; verify
-> mirror≡file first), then retire the now-UNUSED legacy `__bundler/manifest` branch (`manifest-gate.js` +
-> `verify-manifest.mjs` guard + `verify-provenance.html` extractor), drop inert `buildHash`, rewrite `CLAUDE.md`
-> §🔏 / `ARCHITECTURE-PRINCIPLES` §6 / `audits/AUDIT.md` 2a. **(3) §3 A5** single `clock.js` (needs human
+> win, no dependency on anything else). **(2) §2 Phase 4** — ans-design single-sourcing, legacy-branch retirement,
+> `buildHash` drop + `AUDIT.md` §1c are all **DONE (2026-07-03)**; still TODO: the full `CLAUDE.md` §🔏 /
+> `ARCHITECTURE-PRINCIPLES` §6 prose rewrite. **(3) §3 A5** single `clock.js` (needs human
 > ratification — contradicts `CLAUDE.md` §🔒). **(4) §5 Parts B/C.** **§6 = the orchestrator open question.**
 > **Gotchas:** rebuild ONLY via `node tools/build.mjs --app <Name>`/`--all` or run_script over `build-core.js`
 > (**never `super_inline_html`** — regresses to legacy; **never browser `fetch`** to read source — this preview
@@ -86,27 +84,60 @@ its inline `ANS-DESIGN-START` mirror (single-source cleanup is §2, like OxyDex)
 
 ## §2 — Phase 4: retire the workarounds + rewrite the docs (only after 8/8 migrated)
 
-- **Single-source `ans-design.css`.** Delete the `ANS-DESIGN-START…END` hand-mirror + sha marker from
-  `OxyDex.src.html` and `HRVDex.src.html`; add `<link rel="stylesheet" href="ans-design.css">` (the other 6
-  already have it). The bundler inlines the ONE file → mirror drift becomes unrepresentable. Re-bundle those
-  two; re-run gates. (Verify the mirror ≡ `ans-design.css` first so it stays EXPORT-INERT for behavior.)
-- **Retire the legacy `__bundler/manifest` branch** in `manifest-gate.js` (+ the `verify-manifest.mjs`
-  single-source guard regex, `verify-provenance.html` extractor) ONLY once every bundle is plain-inline.
-- **Drop the inert `buildHash`** field fleet-wide from `BUILD-MANIFEST.json` (nothing reads it; owned bundles
-  no longer carry a `__bundler/template` so the value is stale-by-construction). `ganglior-provenance.js`
-  still stamps a fallback hash into exports — inert, leave it, or note it.
+- **Single-source `ans-design.css` — DONE 2026-07-03.** Deleted the `ANS-DESIGN-START…END` hand-mirror + sha
+  marker from `OxyDex.src.html` and `HRVDex.src.html` and added `<link rel="stylesheet" href="ans-design.css">`
+  (matching the other 6). The bundler inlines the ONE file → mirror drift is now unrepresentable. Both re-bundled
+  (OxyDex `5f46c7a88b65→d2fcb04a3cd9`, HRVDex `afdc4e75d345→571b5f7d8a0b`), fixtures re-stamped, BOTH gates green
+  (render-coverage OxyDex 15/15, HRVDex 17/17). **Reconciled to `ans-design.css` as canonical** (the larger/newer
+  file the other 6 dexes already ship) — this brought OxyDex/HRVDex's tokens INTO LINE with the fleet (they had
+  been rendering the stale mirror's values, e.g. `--text3` `#6F8096` → `#8C9DB3`).
+- **Retire the legacy `__bundler/manifest` branch — DONE 2026-07-03.** Removed from `manifest-gate.js`:
+  `manifestHashFromText` hashes plain-inline ONLY; a bundle regressed via the old inliner hashes to null →
+  GATE A `missing-current` → red, pointing at the owned rebuild. The `gunzip`/`b64ToBytes`/`extractManifest`
+  legacy helpers were deleted; `MANIFEST_RE` kept solely as the regression detector. The `verify-manifest.mjs`
+  single-source guard + `verify-provenance.html` needed NO change (they consume the shared fn). Gates re-verified.
+- **Drop the inert `buildHash` — DONE 2026-07-03.** All 8 fields removed from `BUILD-MANIFEST.json` (nothing
+  read them; the well-formedness gate requires only the 12-hex `manifestHash`). `ganglior-provenance.js`
+  still stamps a runtime fallback hash into exports — inert, noted in the ledger's `_note_own_the_build`.
 - **Rewrite the docs:** `CLAUDE.md` §🔏 (the re-bundle checklist becomes `node tools/build.mjs --all`
   + `--check`; the hand-update/EXPORT-INERT-re-record dance is gone for owned bundles), `ARCHITECTURE-PRINCIPLES.md`
   §6 (build), `audits/AUDIT.md` item 2a (the `ANS-DESIGN-START` hand-mirror is retired). Remove the
   `PROVENANCE-NONDETERMINISM` workaround references where they describe the now-removed cause.
+  **✅ RESOLVED 2026-07-03 (single-sourced — see the ans-design bullet above):** OxyDex/HRVDex reconciled to
+  `ans-design.css` (canonical); the drift (mirror `--text3:#6F8096` vs file `#8C9DB3`; ~38.7 K vs ~60.9 K normalized)
+  is gone, both gates green. `AUDIT.md` §1c's *"all copies in sync · sha 63d47ad1e085"* note was updated to match.
 
-## §3 — Phase A5 (OPTIONAL, needs human ratification): single `clock.js`
+## §3 — Phase A5: single `clock.js` — **RATIFIED by owner 2026-07-03; execute as the NEXT quiet-tree pass**
 
 With an owned build, `parseTimestamp` can live in ONE `clock.js` inlined into every bundle — single source
-AND still bundled-local. Retires the copy-paste + its drift test (`AUDIT.md` 2b). **This contradicts a
-current `CLAUDE.md` §🔒 rule** ("duplicated … intentional; mirror it, don't extract"). Do NOT do it silently:
-get a human yes, then update §🔒 in the same pass. DSP + Clock-Contract semantics do not change — only where
-the one copy lives. Its own gated pass, not folded into §1/§2.
+AND still bundled-local. Retires the copy-paste + its drift test (`AUDIT.md` 2b). The `CLAUDE.md` §🔒
+"mirror it, don't extract" rule is **ratified to change** (owner yes, 2026-07-03, in-thread); §🔒 carries the
+ratification note — keep mirroring until THIS pass lands, then update §🔒 in the same pass. DSP +
+Clock-Contract semantics do not change — only where the one copy lives.
+
+**Execution map (surveyed 2026-07-03 — the copies are NOT one identical mirror; four variants):**
+- **Canonical** `tzOffset` + `dmOrder` + `parseTimestamp(raw, opts)` — in `oxydex-dsp.js`, `pulsedex-dsp.js`,
+  `hrvdex-dsp.js`, `ecgdex-dsp.js`, `integrator-dsp.js`, AND further copies inside adapter/ingest modules
+  (the Data Unifier bundle shows 5+ occurrences — enumerate `adapters/*.js` + `signal-*.js` at execution).
+  These extract cleanly → `clock.js` exposing `root.DexClock = { tzOffset, dmOrder, parseTimestamp }`
+  (+ `module.exports`), each site rewired to `var parseTimestamp = DexClock.parseTimestamp;` etc.
+- **ppgdex-dsp.js** — textually DIFFERENT body (starts `if(raw==null) return null;`): diff against canonical;
+  if functionally equivalent, adopt `clock.js` (equiv gate proves byte-identical exports); else keep node-local
+  with a documented reason.
+- **glucodex-dsp.js** — full parser lives as `_ckParse` + a thin `parseTimestamp(s)` MDY wrapper: `_ckParse`
+  is the extraction candidate; the wrapper stays node-local.
+- **cpapdex-dsp.js** — a deliberate EDF-subset variant (`YYYYMMDD_HHMMSS_` + 14-digit): likely stays
+  node-local; decide at execution.
+- **Load order:** `clock.js` BEFORE every `*-dsp.js` in: all 8 `*.src.html`, `Data Unifier.src.html`,
+  `OverDex.src.html`, `Dex-Test-Suite.html`, `tests/run-tests.mjs`; add it to the `dex-coload.js` manifest so
+  the host-membership gate enforces it everywhere.
+- **Test updates (same pass):** the WP-G truth-table group keeps running (against `DexClock` + each node's
+  live surface); the STRUCTURAL asserts flip — `tests/dex-tests.js` ~594–605 (fractional-seconds per-mirror)
+  and ~4387 (`defines parseTimestamp`) become "delegates to DexClock / no local mirror". Update `CLAUDE.md`
+  §🔒 §2 + "Known non-issues" parseTimestamp bullet, `ORIENTATION.md`'s "mirrored, intentionally" row,
+  `AUDIT.md` 2b.
+- **Gate cycle:** every bundle rebuilds (`build.mjs --all`) + ledgers re-stamp + BOTH gates + the equiv legs
+  (byte-identical exports are the semantic net). One coherent pass — do NOT land half the fleet.
 
 ## §4 — Findings recorded during execution
 
@@ -139,23 +170,27 @@ the one copy lives. Its own gated pass, not folded into §1/§2.
   churn (a repo-wide reflow moves every hash). See the sibling `DEV-TOOLCHAIN-2026-06-30-BRIEF.md` (Clock/SPDX/
   retired-vocab source-text gates + Biome) — coordinate so ESLint and the house-invariant gates don't overlap.
 
-## §6 — Orchestrators (Data Unifier + OverDex) — OPEN QUESTION (raised by owner 2026-07-03)
+## §6 — Orchestrators (Data Unifier + OverDex) — DONE 2026-07-03 (owner directive: own them)
 
 Both are **deliberately UNBUNDLED** loose HTML (source == served `.html`, ~23–26 loose `<script src>`) — the served
 front-door, same-origin with the dexes (shared profile/longitudinal store); ORIENTATION notes they *"touch neither
 gate"* by design. **Feasibility VERIFIED 2026-07-03:** `build-core.js` plain-inlines both cleanly + deterministically
 (Data Unifier 9 KB→717 KB `e0b812300212`; OverDex 14 KB→831 KB `ac092cbb6921`; every `<script>` tagged, parse-OK).
-So owning them is trivial — but it is a **deploy-model change, deliberately NOT done in this session**, because:
+**DONE 2026-07-03 (owner directive):** each got a `.src.html` split (copy of the loose file) → built to an owned
+standalone `.html`, and **added to `build.mjs`** as a non-provenance owned set (`ORCHESTRATORS`), so `--all`/`--app`
+build them and `--check` guards their drift. Both boot clean; the suite's co-load gate still passes (14/14 modules
+present in each — `indexOf(filename)` survives `data-inline-src`). The tradeoffs that made this a decision, for the record:
 - They have **no `.src.html` split** — bundling in place overwrites the loose source, so it needs a `.src.html`→`.html`
   split like the dexes.
 - They are **ungated** (no provenance fixtures / render-coverage). Loose = always reflects the CURRENT modules.
   Bundled = a frozen snapshot that can go **stale/drift** if a shared module changes without a rebuild, with **no gate
   to catch it** — UNLESS they are added to `build.mjs --check` (committed bundle ≡ build(src)), which closes that gap.
 
-**Recommendation:** if downloadable single-file / offline orchestrators are wanted, split `<name>.src.html`, build the
-owned `<name>.html`, and **add both to `build.mjs --check`** (a new non-provenance owned set) so drift IS caught.
-Otherwise keep them loose (the current always-current design). **Needs owner direction before executing** — it reverses
-a stated ORIENTATION design choice, so it was surfaced, not silently applied.
+**Drift mitigation applied:** they are in `build.mjs --check` (committed bundle ≡ build(src)), so a shared-module
+change without a rebuild reds CI — closing the ungated-staleness gap that had kept them loose. They stay OUT of
+provenance (no `BUILD-MANIFEST`/fixtures entry) and out of render-coverage, per ORIENTATION. **Note for ORIENTATION:**
+its *"both are unbundled"* line is now stale — update it when convenient (they are owned bundles with a `.src.html`
+split, still served front-door + same-origin when served).
 
 ## Done when
 Flip THIS brief per §📌 as each section lands. The parent `OWN-THE-BUILD-2026-06-30-BRIEF.md` flips to `DONE`

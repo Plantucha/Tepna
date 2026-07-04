@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  Data Unifier.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+
+  The adapter registry given a drop-zone UI (SIGNAL-ADAPTER-AND-FRONTIER brief
+  §2.5). UNBUNDLED on purpose — like the *-analysis.html research tools it loads
+  external *.js and is never run through the inliner, so it trips NEITHER gate.
+  100% local: no network, no CDN, system fonts only.
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data Unifier — Tepna universal ingest front-door</title>
+<style>
+  :root{
+    --bg:#0c0f14; --surface:#141922; --surface2:#1b212c; --line:rgba(255,255,255,.08);
+    --text:#e6edf6; --text2:#aab8cc; --text3:#6f8096; --teal:#3DE0D0; --blue:#58A6FF;
+    --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A; --purple:#B98AFF;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;padding:0 0 80px;}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px;}
+  header{padding:28px 0 18px;border-bottom:1px solid var(--line);margin-bottom:24px;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);}
+  h1{margin:7px 0 4px;font-size:26px;font-weight:650;letter-spacing:-.01em;}
+  h1 .g{color:var(--teal);}
+  .sub{color:var(--text3);font-size:13px;max-width:760px;line-height:1.55;}
+  .pill{font-family:var(--mono);font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid var(--line);display:inline-block;}
+  .pill.idle{color:var(--text3);} .pill.run{color:var(--teal);border-color:rgba(61,224,208,.35);}
+  .pill.done{color:var(--green);border-color:rgba(57,217,138,.35);} .pill.bad{color:var(--red);border-color:rgba(255,107,122,.4);}
+  .toprow{display:flex;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap;}
+  #drop{border:1.5px dashed rgba(255,255,255,.16);border-radius:14px;padding:34px 24px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;background:var(--surface);}
+  #drop:hover,#drop.over{border-color:var(--teal);background:var(--surface2);}
+  #drop .big{font-size:15px;font-weight:600;}
+  #drop .small{color:var(--text3);font-size:12px;margin-top:6px;font-family:var(--mono);}
+  .adapters{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 6px;}
+  .adp{font-family:var(--mono);font-size:11px;color:var(--text2);border:1px solid var(--line);border-radius:7px;padding:4px 9px;background:var(--surface);}
+  .adp b{color:var(--teal);font-weight:600;}
+  .adp .muted{color:var(--text3);}
+  #results{display:flex;flex-direction:column;gap:14px;margin-top:18px;}
+  .rescard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:0;overflow:hidden;}
+  .rescard.ok{border-color:rgba(57,217,138,.3);} .rescard.warn{border-color:rgba(255,184,77,.32);}
+  .rescard.bad,.rescard.unknown{border-color:rgba(255,107,122,.32);}
+  .reshead{display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--text3);flex:none;}
+  .rescard.ok .dot{background:var(--green);} .rescard.warn .dot{background:var(--amber);} .rescard.bad .dot,.rescard.unknown .dot{background:var(--red);}
+  .fname{font-family:var(--mono);font-size:13px;font-weight:600;}
+  .route{margin-left:auto;font-size:12px;color:var(--text2);}
+  .route .vendor{color:var(--text);font-weight:600;} .route .sig{font-family:var(--mono);color:var(--blue);}
+  .route .conf{font-family:var(--mono);color:var(--text3);font-size:11px;}
+  .route .amb{color:var(--amber);font-size:11px;}
+  .resbody{padding:14px 18px;display:grid;grid-template-columns:1fr 1fr;gap:7px 26px;}
+  .kv{display:flex;justify-content:space-between;gap:14px;font-size:12.5px;border-bottom:1px dotted rgba(255,255,255,.05);padding-bottom:5px;}
+  .kv span{color:var(--text3);} .kv b{font-family:var(--mono);font-weight:500;}
+  .kv b.good{color:var(--green);} .kv b.bad{color:var(--red);}
+  .reason{grid-column:1/-1;color:var(--amber);font-size:12px;background:rgba(255,184,77,.07);border:1px solid rgba(255,184,77,.2);border-radius:8px;padding:8px 11px;line-height:1.5;}
+  .prov{grid-column:1/-1;color:var(--text3);font-size:11px;margin-top:2px;}
+  .resfoot{padding:12px 18px;border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;background:var(--surface2);}
+  code{font-family:var(--mono);color:var(--blue);background:var(--surface2);padding:1px 5px;border-radius:4px;font-size:11px;}
+  .muted{color:var(--text3);}
+  button{font-family:var(--sans);font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:8px;border:1px solid transparent;background:var(--teal);color:#06251f;cursor:pointer;}
+  button:hover{filter:brightness(1.05);}
+  .emitnote{font-size:11.5px;color:var(--text2);font-family:var(--mono);}
+  #empty{color:var(--text3);font-size:13px;text-align:center;padding:30px 0;font-family:var(--mono);}
+  .note{background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.2);border-radius:10px;padding:12px 15px;font-size:12px;color:var(--text2);line-height:1.55;margin-top:18px;}
+  @media(max-width:680px){ .resbody{grid-template-columns:1fr;} .route{margin-left:0;width:100%;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Tepna · ingest layer</div>
+    <h1>Data <span class="g">Unifier</span></h1>
+    <div class="sub">Drop any vendor's raw export. Every registered adapter's <code>detect()</code> runs over each file; the best match parses it into one canonical <code>SignalFrame</code> — Clock-Contract-normalized, signal-typed, provenance-stamped. A usable RR frame can emit a schema-valid <code>ganglior.node-export</code> for the Integrator. One signal, one math, many vendors.</div>
+    <div class="toprow">
+      <span id="status" class="pill idle">idle</span>
+      <span class="pill idle">100% local · no network</span>
+    </div>
+  </header>
+
+  <div class="adapters" id="adapters"></div>
+
+  <div id="drop">
+    <div class="big">Drop files here, or click to choose</div>
+    <div class="small">Polar <code>*_RR.txt</code> · Coospo RR CSV · (more adapters = more vendors)</div>
+  </div>
+
+  <input type="file" id="file" multiple style="display:none">
+
+  <div id="results"></div>
+  <div id="empty">No files routed yet — drop a vendor export to see its normalized SignalFrame.</div>
+
+  <div class="note">
+    <b>Scope (read the brief §0):</b> the Unifier is the one place a new vendor lands — adding an adapter makes that vendor work <i>here</i> and feed fusion. It does not retroactively teach a sealed node bundle a new vendor until that node is migrated (Phase 9). Unknown files are set aside, never guessed; ambiguous routes are flagged for you to confirm.
+  </div>
+</div>
+
+<!-- CORE (DOM-free, headless-safe) -->
+<script src="kernel-constants.js"></script>
+<script src="signal-spec.js"></script>
+<script src="signal-frame.js"></script>
+<script src="signal-adapters.js"></script>
+<!-- adapters self-register at load -->
+<script src="adapters/polar-rr.js"></script>
+<script src="adapters/coospo-rr.js"></script>
+<script src="adapters/wahoo-rr.js"></script>
+<script src="adapters/oxydex-spo2.js"></script>
+<script src="adapters/welltory-summary.js"></script>
+<script src="adapters/libre-cgm.js"></script>
+<script src="adapters/polar-sense-ppg.js"></script>
+<script src="adapters/polar-h10-ecg.js"></script>
+<!-- units-as-quantities (DexUnits.guardBaevsky) — the welltory-summary adapter applies the Baevsky unit guard at ingest -->
+<script src="quantity.js"></script>
+<!-- §3 namespaced co-load (SIGNAL-ADAPTER-FOLLOWUPS): set the flag, then load the migrated
+     DSPs in ONE realm — no isolation iframe. Each hangs its public surface off PulseDex/
+     OxyDex/HRVDex and (flag set) leaks NO bare globals, so they co-exist on one page. -->
+<script>window.__DEX_NAMESPACED__ = true;</script>
+<script src="oxydex-util.js"></script>
+<script src="pulsedex-dsp.js"></script>
+<script src="oxydex-dsp.js"></script>
+<script src="hrvdex-dsp.js"></script>
+<script src="glucodex-dsp.js"></script>
+<script src="ppgdex-dsp.js"></script>
+<script src="ecgdex-dsp.js"></script>
+<!-- shared file-ingest classifiers (deviceKey/foreignVendor/…) — load BEFORE signal-orchestrate (§1 ECG-INGEST-FOLLOWUPS-II: pairCompanions consults DexIngest) -->
+<script src="dex-ingest.js"></script>
+<!-- shared node orchestration (co-loaded compute() hosts + node-export emit) — reused by OverDex -->
+<script src="signal-orchestrate.js"></script>
+<!-- the tool (routes each file to a co-loaded node's public headless compute()) -->
+<script src="data-unifier-app.js"></script>
+</body>
+</html>
