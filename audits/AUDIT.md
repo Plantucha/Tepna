@@ -68,8 +68,8 @@ forward-compat — that's deliberate, leave it. No emitter changes needed.
 
 | # | Item | Why it's friction | Options |
 |---|---|---|---|
-| 2a | **`sync-design.py` doesn't exist** | The design CSS lives inline in 6 apps + `ans-design.css`, kept in sync by hand. One forgotten copy = silent drift. | (a) recreate the script; (b) make each app `<link>` `ans-design.css` and drop the inline copies (loses single-file portability); (c) accept hand-sync, rely on the sha tag. |
-| 2b | **Clock contract + `parseTimestamp` duplicated 5×** | Mandated today. A fix to date parsing must land in 5 files identically or signals desync. | Keep duplicating (current rule) vs. extract one versioned `dex-clock.js` every app bundles in. See §3. |
+| 2a | **`sync-design.py` doesn't exist** | ~~The design CSS lives inline in 6 apps + `ans-design.css`, kept in sync by hand.~~ **RESOLVED 2026-07-03 (OWN-THE-BUILD Part A):** every app now `<link>`s the ONE `ans-design.css` and the owned bundler inlines it — single-file portability kept, hand-sync gone (option (b) without its downside). | ✅ executed — no mirror or sha remains. |
+| 2b | **Clock contract + `parseTimestamp` duplicated 5×** | ~~A fix to date parsing must land in 5 files identically or signals desync.~~ **RESOLVED 2026-07-03 (A5, owner-ratified):** THE parser is single-sourced in `clock.js` (`DexClock`), inlined by the owned bundler; the 5 canonical copies now delegate. ppgdex/glucodex/cpapdex keep deliberate node-local variants (subset/wrapper/EDF). | ✅ executed — §3's `dex-clock.js` extraction landed (as `clock.js`). |
 | 2c | **Empty-state void** | Integrator (and others) open as a large black emptiness pre-load. First impression reads as "broken / blank." | Add a load-prompt / drop-zone hero as the default empty state. |
 
 ---

@@ -46,8 +46,8 @@
   async function loadAll(list) { for (var i = 0; i < list.length; i++) await loadScript(list[i]); }
 
   var SCRIPTS = {
-    oxydex:   ['kernel-constants.js', 'oxydex-util.js', 'oxydex-profile.js', 'oxydex-dsp.js'],
-    pulsedex: ['kernel-constants.js', 'pulsedex-dsp.js'],
+    oxydex:   ['kernel-constants.js', 'clock.js', 'oxydex-util.js', 'oxydex-profile.js', 'oxydex-dsp.js'],
+    pulsedex: ['kernel-constants.js', 'clock.js', 'pulsedex-dsp.js'],
     glucodex: ['kernel-constants.js', 'glucodex-dsp.js'],
   };
 

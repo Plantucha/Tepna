@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-03 (§3 code landed + headless-green; re-bundle + full gates remain. §1/§2 still PROPOSED) · **Created:** 2026-07-03 · **Executed-residue-of:** `INTEGRATOR-THREE-CORNERED-HAT-2026-07-02-BRIEF.md` (DONE 2026-07-03) · **Extends:** `INTEGRATOR-BUILD-BRIEF.md` §4.4 `fuseHRVConsensus` · **Links:** `PPGDEX-BEAT-DETECTION-PERF-AND-HRV-FIDELITY-2026-07-02-BRIEF.md` (ACC co-motion ρ source) · an OxyDex per-epoch-HR node-export brief (TBD)
+**Status:** IN-PROGRESS — 2026-07-04 (**§3 DONE — 2026-07-04**: bundle+ledger reconcile at Integrator `manifestHash 5ae5434fe914`, `Dex-Test-Suite.html?full` all-green [1744 passed, 0 boot-skips], `verify-provenance` GATE A/B clean. §1/§2 remain PROPOSED — blocked on upstream OxyDex per-epoch-HR export, see §2) · **Created:** 2026-07-03 · **Executed-residue-of:** `INTEGRATOR-THREE-CORNERED-HAT-2026-07-02-BRIEF.md` (DONE 2026-07-03) · **Extends:** `INTEGRATOR-BUILD-BRIEF.md` §4.4 `fuseHRVConsensus` · **Links:** `PPGDEX-BEAT-DETECTION-PERF-AND-HRV-FIDELITY-2026-07-02-BRIEF.md` (ACC co-motion ρ source) · an OxyDex per-epoch-HR node-export brief (TBD)
 
 # Integrator three-cornered-hat — follow-ups (external-ρ · real-night firing · τ-curve)
 

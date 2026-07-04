@@ -79,8 +79,8 @@ async function main() {
     const rMut = DexBuild.build({ srcHtml: s, assets: a });
     ok(rMut.manifestHash !== r1.manifestHash, b + ' manifestHash moves on an executed-code change');
     // CROSS-HASHER PARITY: sync core === async manifest-gate (crypto.subtle)
-    const async = await ManifestGate.manifestHashFromText(r1.html);
-    ok(async === r1.manifestHash, b + ' build-core sync hash \u2261 manifest-gate async hash', async + ' \u2261 ' + r1.manifestHash);
+    const gateHash = await ManifestGate.manifestHashFromText(r1.html);
+    ok(gateHash === r1.manifestHash, b + ' build-core sync hash \u2261 manifest-gate async hash', gateHash + ' \u2261 ' + r1.manifestHash);
     // --check: committed bundle === fresh build(source)
     ok(r1.html === readT(b), b + ' committed \u2261 fresh build(' + srcFor(b) + ')');
   }

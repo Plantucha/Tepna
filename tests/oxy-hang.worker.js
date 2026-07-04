@@ -39,7 +39,7 @@
 
 var READY = false, ERR = null;
 try {
-  importScripts('../kernel-constants.js', '../oxydex-util.js', '../oxydex-profile.js', '../oxydex-dsp.js', '../synth-gen.js', '../cohort-gen.js');
+  importScripts('../kernel-constants.js', '../clock.js', '../oxydex-util.js', '../oxydex-profile.js', '../oxydex-dsp.js', '../synth-gen.js', '../cohort-gen.js');
   READY = !!(self.processNight && self.parseCSV && self.CohortGen);
   if (!READY) ERR = 'modules missing after load (processNight/parseCSV/CohortGen)';
 } catch (e) { ERR = String(e && e.message || e); }

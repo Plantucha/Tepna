@@ -3,7 +3,14 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-07-03 · **Created:** 2026-07-03 · **Parent:** OXYDEX-HR-ARTIFACT-RUNAWAY-FIX-2026-07-03-BRIEF (DONE)
+**Status:** DONE — 2026-07-04 · **Created:** 2026-07-03 · **Parent:** OXYDEX-HR-ARTIFACT-RUNAWAY-FIX-2026-07-03-BRIEF (DONE)
+
+> **Closed 2026-07-04.** §1+§2 (gated-nadir) + §3 (re-checked trigger rate, no code change) landed & validated
+> over all 44 nights. Bookkeeping reconciled: OxyDex `manifestHash f0ee656bd01a` in `BUILD-MANIFEST.json` GATE A
+> AND both `FIXTURE-PROVENANCE.json` OxyDex records (outputHash/inputHashes unchanged — export-inert, gate does
+> not fire on either committed clean night). Gates green: `verify-provenance` GATE A/B clean; `Dex-Test-Suite.html?full`
+> all-green (1744 passed, 0 boot-skips, incl. `env.equiv.oxydex` byte-identical + the new nadir-honesty group).
+> Diagnostics removed (`scan-nadir.html`, `_diag/nights/`).
 
 # OxyDex warm-up / SpO₂-nadir follow-ups — residue from the 44-night corpus scan
 

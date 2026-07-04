@@ -184,10 +184,16 @@ function metricKeys(includeSynthetic){
   _allRows(includeSynthetic).forEach(function(r){ Object.keys(r.values||{}).forEach(function(mid){ if(r.values[mid]!=null) s[r.node+'|'+mid]=1; }); });
   return Object.keys(s);
 }
+// DSP-NITS-2026-07-03 §1: ONE sort key — t0Ms when present (`!= null`: 0 is the sanctioned
+// "undated → anchor at 0" value, never rerouted by truthiness), else Date.parse(date) for rows
+// with no t0Ms at all. The residual real-UTC-midnight vs floating-t0Ms skew is bounded to one
+// tz offset and only affects t0Ms-less rows — do NOT "fix" it by converting t0Ms to real-UTC
+// (that would break the floating-clock invariant, Clock Contract §1).
+function _sortKey(r){ return r.t0Ms != null ? r.t0Ms : (r.date ? Date.parse(r.date) : 0); }
 function seriesFor(node, mid, includeSynthetic){
   return _allRows(includeSynthetic).filter(function(r){ return r.node===node && r.values && r.values[mid]!=null; })
     .map(function(r){ return { date:r.date, t0Ms:r.t0Ms, v:r.values[mid], w:r.weight, lowQuality:r.lowQuality, synthetic:!!r.synthetic }; })
-    .sort(function(a,b){ return (a.t0Ms||Date.parse(a.date))-(b.t0Ms||Date.parse(b.date)); });
+    .sort(function(a,b){ return _sortKey(a) - _sortKey(b); });
 }
 function defOf(node, mid){ return _defs[node+'|'+mid] || { label:mid, unit:'', goodDirection:'up' }; }
 

@@ -9083,7 +9083,7 @@ function profileAutoDetectUpdate(allNights) {
   // Called after renderAll with the nights array — auto-fills from data
   if (!allNights || !allNights.length) return;
 
-  var hrFloors = [], dates = [], morningCount = 0;
+  var hrFloors = [], dates = [];
   var hrMins = [], hrMaxes = [], rmssdVals = [];
   // ANS-age component arrays (ansAges/c1s/c2s/c3s) REMOVED 2026-06-23 (DEX-METRIC-REMOVAL-AUDIT 🔴)
 
@@ -9094,7 +9094,10 @@ function profileAutoDetectUpdate(allNights) {
     // p5 is pre-computed in n.hrv.hrFloor during CSV parsing
     if (n.hrv && n.hrv.hrFloor > 30 && n.hrv.hrFloor < 80) hrFloors.push(n.hrv.hrFloor);
     if (n.stats) { hrMins.push(n.stats.minHr); hrMaxes.push(n.stats.maxHr); }
-    if (n.date && n.date.split('T')[1] && parseInt(n.date.split('T')[1], 10) < 8) morningCount++;
+    // morning-% counter REMOVED (DSP-NITS-2026-07-03 §2): n.date is date-only ('YYYY-MM-DD', no 'T'),
+    // so the old split('T')[1] guard was always false and morningPct was permanently 0 — and OxyDex
+    // never surfaced it. hrvdex-profile.js is the working twin if a morning-% pill is ever wanted
+    // (derive the hour from t0Ms via getUTCHours(), Clock Contract §5 — never string-split a date).
     if (n.hrv) {
       var rmssd  = n.hrv.rmssd;
       if (rmssd != null && isFinite(rmssd)) rmssdVals.push(rmssd);
@@ -9124,7 +9127,6 @@ function profileAutoDetectUpdate(allNights) {
   // Rule of thumb: if user's actual awake resting HR is known, always prefer manual entry.
   var hrRestEst = hrFloorMed ? hrFloorMed + 8 : null;
 
-  var morningPct = n > 0 ? Math.round(morningCount/n*100) : 0;
   var hrMin = hrMins.length ? Math.min.apply(null,hrMins) : null;
   var hrMax = hrMaxes.length ? Math.max.apply(null,hrMaxes) : null;
   // ANS age (ansAge / _ansBreakdown median) REMOVED 2026-06-23 (DEX-METRIC-REMOVAL-AUDIT 🔴).
@@ -9310,6 +9312,99 @@ function openProfile() {
 
 
 </script>
+<script data-inline-src="clock.js">/*
+ * clock.js — Tepna
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+ * project root, or http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * THE Clock Contract parser — single-sourced (A5, owner-ratified 2026-07-03;
+ * OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF §3). Extracted VERBATIM from the canonical
+ * per-node mirror (the byte-identical block pulsedex/ecgdex/integrator carried; hrvdex's
+ * commented copy; oxydex's was the same minus the unused _ckP2). The owned bundler inlines
+ * this ONE file into every bundle, so it stays bundled-local AND single-source — the
+ * copy-paste mirror + its drift risk are retired.
+ *
+ * Contract (CLAUDE.md §🔒): floating wall-clock tMs via Date.UTC on components-as-written;
+ * zoned ISO authoritative; explicit vendor regexes (never locale Date.parse); DMY/MDY §3;
+ * time-only rows anchor+roll; NEVER fabricate now() — miss ⇒ null.
+ *
+ * Adopters delegate via local aliases (var parseTimestamp = DexClock.parseTimestamp; …)
+ * inside their IIFE — public surfaces (ECGDSP.parseTimestamp, bare re-export tails) are
+ * unchanged. NODE-LOCAL VARIANTS THAT STAY (deliberate, do not force onto DexClock):
+ * ppgdex-dsp.js (strict ISO/epoch subset + quote-stripping), glucodex-dsp.js (_ckParse +
+ * numeric-returning MDY wrapper), cpapdex-dsp.js (EDF-subset). Load clock.js BEFORE any
+ * delegating *-dsp.js (dex-coload.js enforces host membership).
+ */
+(function (root) {
+'use strict';
+
+function tzOffset(instantMs){ return new Date(instantMs).getTimezoneOffset()*60000; }
+function _ckP2(n){ return n<10?'0'+n:''+n; }
+function _ckNumEpoch(n){
+  if(!isFinite(n)) return null;
+  if(n < 1e11) n = n*1000;                       // 10-digit (or smaller) → seconds → ms
+  if(n < 1e11 || n > 4e12) return null;          // implausible epoch range
+  var off = tzOffset(n);
+  return { tMs: n - off, offsetMin: -off/60000 };
+}
+function _ckZoneMin(z){ var zs=z.replace(':',''); var sign=zs[0]==='-'?-1:1;
+  return sign*(parseInt(zs.slice(1,3),10)*60 + parseInt(zs.slice(3,5),10)); }
+function _ckDMY(a,b,preferDMY){                    // decide day vs month from first two slash fields
+  if(a>12) return {d:a,mo:b};
+  if(b>12) return {d:b,mo:a};
+  return preferDMY ? {d:a,mo:b} : {d:b,mo:a};
+}
+function parseTimestamp(raw, opts){
+  opts = opts || {};
+  var preferDMY = opts.preferDMY !== false;        // default true (O2Ring/Welltory exports are DMY)
+  var anchor = (opts.dateAnchorMs != null && isFinite(opts.dateAnchorMs)) ? opts.dateAnchorMs : null;
+  if(raw == null) return null;
+  if(typeof raw === 'number') return _ckNumEpoch(raw);
+  var s = String(raw).trim().replace(/^["']|["']$/g,'');
+  if(!s) return null;
+  var m;
+  // 1. all-digits epoch (ms or s) — but not a 14-digit YYYYMMDDHHMMSS run (step 4b)
+  if(/^\d{10,13}$/.test(s)) return _ckNumEpoch(parseInt(s,10));
+  // 2. ISO-8601 WITH explicit zone (Z or ±HH:MM): zone authoritative, re-express as local wall clock
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?\s*(Z|[+-]\d{2}:?\d{2})$/);
+  if(m){ var off=(m[8]==='Z')?0:_ckZoneMin(m[8]);
+    return { tMs: Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],m[6]?+m[6]:0, m[7]?+((m[7]+'00').slice(0,3)):0), offsetMin: off }; }
+  // 3. ISO / "YYYY-MM-DD[ T]HH:MM[:SS][.sss]" NO zone → components verbatim (ms preserved)
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?$/);
+  if(m) return { tMs: Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],m[6]?+m[6]:0, m[7]?+((m[7]+'00').slice(0,3)):0), offsetMin: null };
+  // 4a. "HH:MM:SS DD/MM/YYYY" | "HH:MM:SS MM/DD/YYYY" (O2Ring)
+  m = s.match(/^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(m){ var dm=_ckDMY(+m[4],+m[5],preferDMY);
+    return { tMs: Date.UTC(+m[6],dm.mo-1,dm.d,+m[1],+m[2],+m[3]), offsetMin: null }; }
+  // 4b. compact "YYYYMMDDHHMMSS" (14-digit, O2Ring filename embed)
+  m = s.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/);
+  if(m) return { tMs: Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6]), offsetMin: null };
+  // 4c. "DD/MM/YYYY HH:MM[:SS]" | "MM/DD/YYYY HH:MM[:SS]" (Welltory etc.)
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if(m){ var dm2=_ckDMY(+m[1],+m[2],preferDMY);
+    return { tMs: Date.UTC(+m[3],dm2.mo-1,dm2.d,+m[4],+m[5],m[6]?+m[6]:0), offsetMin: null }; }
+  // 4d. "YYYY/MM/DD HH:MM[:SS]"
+  m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if(m) return { tMs: Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],m[6]?+m[6]:0), offsetMin: null };
+  // 5. Time-only "HH:MM[:SS]" → combine with dateAnchorMs, monotonic roll-forward
+  m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if(m){
+    if(anchor == null) return null;                // never fabricate Jan-1-2000
+    var d0 = new Date(anchor);
+    var t = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth(), d0.getUTCDate(), +m[1],+m[2], m[3]?+m[3]:0);
+    if(opts.prevTMs != null && isFinite(opts.prevTMs)){ while(t < opts.prevTMs) t += 86400000; }
+    return { tMs: t, offsetMin: null };
+  }
+  // 6. Fallback — NEVER now(). A missing stamp stays visible (null).
+  return null;
+}
+
+root.DexClock = { tzOffset: tzOffset, _ckP2: _ckP2, _ckNumEpoch: _ckNumEpoch, _ckZoneMin: _ckZoneMin, _ckDMY: _ckDMY, parseTimestamp: parseTimestamp };
+if (typeof module !== 'undefined' && module.exports) module.exports = root.DexClock;
+})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
+</script>
 <script data-inline-src="oxydex-dsp.js">/* ════ OxyDex · DSP & METRICS — OXYDSP (oxydex-dsp.js) ──────────────────────────────────────────────────
    The whole analysis engine: CONFIG/allNights, file ingest + parsing
    (parseCSV/parseJSONL/processNight; summary-CSV is export-only), artifact cleaning, and
@@ -9461,56 +9556,14 @@ function _o2p2(n){ return n<10 ? '0'+n : ''+n; }
    tMs = floating wall-clock ms: the recording's LOCAL civil time encoded as if
    it were UTC. ALWAYS read back via getUTC* getters. Viewer-timezone-independent.
    parseTimestamp(raw,opts) → { tMs, offsetMin } | null. See CLOCK-UNIFY-BRIEF.md §1. */
-function tzOffset(instantMs){ return new Date(instantMs).getTimezoneOffset()*60000; }
-function _ckNumEpoch(n){
-  if(!isFinite(n)) return null;
-  if(n < 1e11) n = n*1000;                       // 10-digit (or smaller) → seconds → ms
-  if(n < 1e11 || n > 4e12) return null;          // implausible epoch range
-  var off = tzOffset(n);
-  return { tMs: n - off, offsetMin: -off/60000 };
-}
-function _ckZoneMin(z){ var zs=z.replace(':',''); var sign=zs[0]==='-'?-1:1;
-  return sign*(parseInt(zs.slice(1,3),10)*60 + parseInt(zs.slice(3,5),10)); }
-function _ckDMY(a,b,preferDMY){
-  if(a>12) return {d:a,mo:b};
-  if(b>12) return {d:b,mo:a};
-  return preferDMY ? {d:a,mo:b} : {d:b,mo:a};
-}
-function parseTimestamp(raw, opts){
-  opts = opts || {};
-  var preferDMY = opts.preferDMY !== false;
-  var anchor = (opts.dateAnchorMs != null && isFinite(opts.dateAnchorMs)) ? opts.dateAnchorMs : null;
-  if(raw == null) return null;
-  if(typeof raw === 'number') return _ckNumEpoch(raw);
-  var s = String(raw).trim().replace(/^["']|["']$/g,'');
-  if(!s) return null;
-  var m;
-  if(/^\d{10,13}$/.test(s)) return _ckNumEpoch(parseInt(s,10));
-  m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?\s*(Z|[+-]\d{2}:?\d{2})$/);
-  if(m){ var of=(m[8]==='Z')?0:_ckZoneMin(m[8]);
-    return { tMs: Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],m[6]?+m[6]:0, m[7]?+((m[7]+'00').slice(0,3)):0), offsetMin: of }; }
-  m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?$/);
-  if(m) return { tMs: Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],m[6]?+m[6]:0, m[7]?+((m[7]+'00').slice(0,3)):0), offsetMin: null };
-  m = s.match(/^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if(m){ var dm=_ckDMY(+m[4],+m[5],preferDMY);
-    return { tMs: Date.UTC(+m[6],dm.mo-1,dm.d,+m[1],+m[2],+m[3]), offsetMin: null }; }
-  m = s.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/);
-  if(m) return { tMs: Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6]), offsetMin: null };
-  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-  if(m){ var dm2=_ckDMY(+m[1],+m[2],preferDMY);
-    return { tMs: Date.UTC(+m[3],dm2.mo-1,dm2.d,+m[4],+m[5],m[6]?+m[6]:0), offsetMin: null }; }
-  m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-  if(m) return { tMs: Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],m[6]?+m[6]:0), offsetMin: null };
-  m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-  if(m){
-    if(anchor == null) return null;                // never fabricate Jan-1-2000
-    var d0 = new Date(anchor);
-    var t = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth(), d0.getUTCDate(), +m[1],+m[2], m[3]?+m[3]:0);
-    if(opts.prevTMs != null && isFinite(opts.prevTMs)){ while(t < opts.prevTMs) t += 86400000; }
-    return { tMs: t, offsetMin: null };
-  }
-  return null;                                     // NEVER now()
-}
+/* ── §1 CLOCK CONTRACT — single-sourced in clock.js (A5, owner-ratified 2026-07-03;
+   OWN-THE-BUILD-FOLLOWUPS §3). The former verbatim mirror block lived here; clock.js now
+   carries THE canonical tzOffset + _ckP2/_ckNumEpoch/_ckZoneMin/_ckDMY + parseTimestamp and
+   loads BEFORE this file in every
+   host + bundle (dex-coload.js / *.src.html). Local aliases keep every internal call site
+   and the back-compat re-export tail byte-compatible. ── */
+var tzOffset = DexClock.tzOffset, _ckP2 = DexClock._ckP2, _ckNumEpoch = DexClock._ckNumEpoch,
+    _ckZoneMin = DexClock._ckZoneMin, _ckDMY = DexClock._ckDMY, parseTimestamp = DexClock.parseTimestamp;
 // Floating-ms date anchor (00:00) for a recording: filename 14-digit date, else
 // file.lastModified (as floating wall-clock), else null. Used for time-only rows.
 function _o2DateAnchorMs(fname, file){
@@ -9961,8 +10014,9 @@ function cleanArtifactHR(rows) {
 }
 
 // Post-spike-detection clock filter: removes spikes whose timestamp falls within
-// ±2 min of a clock hour during overnight hours (00–05h). Catches gradual-ramp
-// artifacts that the single-sample HR cleaner cannot see.
+// ±2 min of ANY clock hour (the :58–:02 window — v14; no hour gate, matching
+// cleanArtifactHR's soft-artifact rule). Catches gradual-ramp artifacts that the
+// single-sample HR cleaner cannot see.
 function filterArtifactSpikes(spikes) {
   // v14: clock artifacts occur at ANY hour within ±2min of XX:00 (:58-:02 window)
   return spikes.filter(function(sp) {

@@ -32,57 +32,14 @@ const rmssd = a => { let s = 0, n = 0; for (let i = 1; i < a.length; i++){ const
    ECGDex's stamp handling cannot silently diverge (WP-G truth table). ECGDex's hot ingest path
    (Polar Sensor Logger `timestamp [ms]` epoch column) uses the inline parseTSfloat fast-path, but
    this full mirror is the contract-faithful reference + the public ECGDSP.parseTimestamp export. */
-function tzOffset(instantMs){ return new Date(instantMs).getTimezoneOffset()*60000; }
-function _ckP2(n){ return n<10?'0'+n:''+n; }
-function _ckNumEpoch(n){
-  if(!isFinite(n)) return null;
-  if(n < 1e11) n = n*1000;                       // 10-digit (or smaller) → seconds → ms
-  if(n < 1e11 || n > 4e12) return null;          // implausible epoch range
-  var off = tzOffset(n);
-  return { tMs: n - off, offsetMin: -off/60000 };
-}
-function _ckZoneMin(z){ var zs=z.replace(':',''); var sign=zs[0]==='-'?-1:1;
-  return sign*(parseInt(zs.slice(1,3),10)*60 + parseInt(zs.slice(3,5),10)); }
-function _ckDMY(a,b,preferDMY){
-  if(a>12) return {d:a,mo:b};
-  if(b>12) return {d:b,mo:a};
-  return preferDMY ? {d:a,mo:b} : {d:b,mo:a};
-}
-function parseTimestamp(raw, opts){
-  opts = opts || {};
-  var preferDMY = opts.preferDMY !== false;
-  var anchor = (opts.dateAnchorMs != null && isFinite(opts.dateAnchorMs)) ? opts.dateAnchorMs : null;
-  if(raw == null) return null;
-  if(typeof raw === 'number') return _ckNumEpoch(raw);
-  var s = String(raw).trim().replace(/^["']|["']$/g,'');
-  if(!s) return null;
-  var m;
-  if(/^\d{10,13}$/.test(s)) return _ckNumEpoch(parseInt(s,10));
-  m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?\s*(Z|[+-]\d{2}:?\d{2})$/);
-  if(m){ var off=(m[8]==='Z')?0:_ckZoneMin(m[8]);
-    return { tMs: Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],m[6]?+m[6]:0, m[7]?+((m[7]+'00').slice(0,3)):0), offsetMin: off }; }
-  m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?$/);
-  if(m) return { tMs: Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],m[6]?+m[6]:0, m[7]?+((m[7]+'00').slice(0,3)):0), offsetMin: null };
-  m = s.match(/^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if(m){ var dm=_ckDMY(+m[4],+m[5],preferDMY);
-    return { tMs: Date.UTC(+m[6],dm.mo-1,dm.d,+m[1],+m[2],+m[3]), offsetMin: null }; }
-  m = s.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/);
-  if(m) return { tMs: Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6]), offsetMin: null };
-  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-  if(m){ var dm2=_ckDMY(+m[1],+m[2],preferDMY);
-    return { tMs: Date.UTC(+m[3],dm2.mo-1,dm2.d,+m[4],+m[5],m[6]?+m[6]:0), offsetMin: null }; }
-  m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-  if(m) return { tMs: Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],m[6]?+m[6]:0), offsetMin: null };
-  m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-  if(m){
-    if(anchor == null) return null;
-    var d0 = new Date(anchor);
-    var t = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth(), d0.getUTCDate(), +m[1],+m[2], m[3]?+m[3]:0);
-    if(opts.prevTMs != null && isFinite(opts.prevTMs)){ while(t < opts.prevTMs) t += 86400000; }
-    return { tMs: t, offsetMin: null };
-  }
-  return null;   // NEVER now() — a missing stamp stays visible (null)
-}
+/* ── §1 CLOCK CONTRACT — single-sourced in clock.js (A5, owner-ratified 2026-07-03;
+   OWN-THE-BUILD-FOLLOWUPS §3). The former verbatim mirror block lived here; clock.js now
+   carries THE canonical tzOffset + _ckP2/_ckNumEpoch/_ckZoneMin/_ckDMY + parseTimestamp and
+   loads BEFORE this file in every
+   host + bundle (dex-coload.js / *.src.html). Local aliases keep every internal call site
+   and the back-compat re-export tail byte-compatible. ── */
+var tzOffset = DexClock.tzOffset, _ckP2 = DexClock._ckP2, _ckNumEpoch = DexClock._ckNumEpoch,
+    _ckZoneMin = DexClock._ckZoneMin, _ckDMY = DexClock._ckDMY, parseTimestamp = DexClock.parseTimestamp;
 const pnn50 = a => { let n = 0; for (let i = 1; i < a.length; i++) if (Math.abs(a[i]-a[i-1]) > 50) n++; return a.length>1 ? n/(a.length-1)*100 : 0; };
 const nn50c = a => { let n = 0; for (let i = 1; i < a.length; i++) if (Math.abs(a[i]-a[i-1]) > 50) n++; return n; };
 const median = a => { if (!a.length) return 0; const s = [...a].sort((x,y)=>x-y), n = s.length; return n%2 ? s[(n-1)/2] : (s[n/2-1]+s[n/2])/2; };

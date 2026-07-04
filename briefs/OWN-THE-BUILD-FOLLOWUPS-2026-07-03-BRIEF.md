@@ -107,13 +107,27 @@ its inline `ANS-DESIGN-START` mirror (single-source cleanup is §2, like OxyDex)
   `ans-design.css` (canonical); the drift (mirror `--text3:#6F8096` vs file `#8C9DB3`; ~38.7 K vs ~60.9 K normalized)
   is gone, both gates green. `AUDIT.md` §1c's *"all copies in sync · sha 63d47ad1e085"* note was updated to match.
 
-## §3 — Phase A5: single `clock.js` — **RATIFIED by owner 2026-07-03; execute as the NEXT quiet-tree pass**
+## §3 — Phase A5: single `clock.js` — **DONE 2026-07-03 (executed same day as ratification)**
 
-With an owned build, `parseTimestamp` can live in ONE `clock.js` inlined into every bundle — single source
-AND still bundled-local. Retires the copy-paste + its drift test (`AUDIT.md` 2b). The `CLAUDE.md` §🔒
-"mirror it, don't extract" rule is **ratified to change** (owner yes, 2026-07-03, in-thread); §🔒 carries the
-ratification note — keep mirroring until THIS pass lands, then update §🔒 in the same pass. DSP +
-Clock-Contract semantics do not change — only where the one copy lives.
+**Landed:** `clock.js` (`DexClock` = tzOffset/_ckP2/_ckNumEpoch/_ckZoneMin/_ckDMY/parseTimestamp — the canonical
+block extracted VERBATIM from hrvdex's commented copy) · 5 DSPs delegate via local aliases (oxydex/pulsedex/
+hrvdex/ecgdex/integrator) · ppgdex/glucodex/cpapdex keep documented node-local variants · loaded before every
+delegating dsp in 7 src.htmls + Dex-Test-Suite + run-tests + 4 worker `importScripts` lists (oxy-hang, cohort,
+qrs-equiv, qrs-yield) + cohort-harness · `dex-coload.js` gained `shared:['clock.js']` (in `.all`, so the host-
+membership gate enforces it) + a `{file:'clock.js', global:'DexClock'}` nodeModules entry (runtime-presence in
+BOTH runners) · WP-G structural asserts flipped (delegation for the 5; Date.UTC+miss-path for the 3 variants;
+clock.js itself asserted incl. ms-fraction preservation) · fleet rebuilt (5 hashes moved; GlucoDex/CPAPDex/
+PpgDex byte-identical — determinism visible) · BOTH gates green (equiv legs byte-identical ⇒ semantics pinned).
+CLAUDE.md §🔒 §2 + Known non-issues, ORIENTATION truth-table row, AUDIT 2a/2b updated.
+**Execution findings:** (1) a `*/` inside a `_ck*` glob in a block comment terminated it early — syntax error
+across 5 dsps, caught by the suite, fixed; (2) worker realms were the hidden load-order surface — any
+`importScripts` list pulling a delegating dsp needs `clock.js` first (now all patched + the hang-guard gate
+covers the oxy worker); (3) two cold-run rig reds ("14 numeric tokens") were boot/injection timing flakes —
+re-runs 15/15; the suite's accumulate-groups behavior can show a STALE red group after in-page re-runs, so
+judge the NEWEST group / a fresh `?full` open.
+
+With an owned build, `parseTimestamp` lives in ONE `clock.js` inlined into every bundle — single source
+AND bundled-local. The copy-paste + its drift test are retired. Original execution map (kept for reference):
 
 **Execution map (surveyed 2026-07-03 — the copies are NOT one identical mirror; four variants):**
 - **Canonical** `tzOffset` + `dmOrder` + `parseTimestamp(raw, opts)` — in `oxydex-dsp.js`, `pulsedex-dsp.js`,

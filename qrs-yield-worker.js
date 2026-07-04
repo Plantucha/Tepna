@@ -51,7 +51,7 @@
   self.matchMedia = function () { return { matches: false, addListener: function () {}, removeListener: function () {}, addEventListener: function () {} }; };
 })();
 
-var SCRIPTS = ['synth-gen.js', 'cohort-gen.js', 'cohort-full.js', 'kernel-constants.js',
+var SCRIPTS = ['synth-gen.js', 'cohort-gen.js', 'cohort-full.js', 'kernel-constants.js', 'clock.js',
                'ecgdex-morph.js', 'ecgdex-dsp.js', 'ppgdex-morph.js', 'ppgdex-dsp.js'];
 var READY = false;
 var TOL = 0.120;   // beat-match tolerance (s) after PAT lag correction

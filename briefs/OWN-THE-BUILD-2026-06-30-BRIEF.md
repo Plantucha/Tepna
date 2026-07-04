@@ -29,10 +29,11 @@
 >   `manifest-gate.js` (regressed bundle → null → GATE A red) · inert `buildHash` **DROPPED** from `BUILD-MANIFEST.json`
 >   · `no-network.html` re-verified (invariant holds; static scan now sees the inlined code). Still open: the
 >   full `CLAUDE.md` §🔏 / `ARCHITECTURE-PRINCIPLES` §6 prose rewrite (current notes are accurate; polish).
-> - ✅ **A5 RATIFIED** (owner, 2026-07-03) — not yet executed; full execution map in the FOLLOWUPS brief §3
->   (four parser variants surveyed; one coherent fleet pass required). ⏳ **Parts B/C/D** → staged in
->   `OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`. Flip THIS header to DONE when A5 + the prose polish land
->   (Parts B/C/D flip independently per the Done-when).
+> - ✅ **A5 EXECUTED** (ratified + landed 2026-07-03) — `clock.js`/`DexClock` single-sources the Clock-Contract
+>   parser; 5 DSPs delegate, ppgdex/glucodex/cpapdex keep deliberate variants; co-load + worker importScripts
+>   wired; WP-G asserts flipped; fleet rebuilt; BOTH gates green (equiv byte-identical). ⏳ **Parts B/C/D** → staged in
+>   `OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`. Flip THIS header to DONE when the remaining §🔏/ARCH-§6
+>   prose polish lands (Parts B/C/D flip independently per the Done-when).
 
 # Own the build + born-compliant nodes (retire the drift-suppression machinery)
 

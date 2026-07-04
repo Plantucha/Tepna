@@ -170,16 +170,21 @@ authoritative *for*, not that they are authoritative.
 
 - **100% local. No network, no CDN, ever.** Fonts are system stacks. Assets are inlined at bundle
   time, not fetched.
-- **Edit the inputs, never the bundle.** Edit `*-dsp.js` / `*-render.js` / `*.src.html`; re-bundle to
-  `Foo.html`. The bundle's **`manifestHash`** — a deterministic projection of its inlined JS/CSS — is the
+- **Edit the inputs, never the bundle.** Edit `*-dsp.js` / `*-render.js` / `*.src.html`; rebuild with the
+  **owned deterministic bundler** — `node tools/build.mjs --app <Name>` (or the shared `tools/build-core.js`
+  via `tools/build.html` / an agent's run_script) — which emits PLAIN-INLINE bundles (`<script|style
+  data-inline-src>` readable text, no gzip/UUID) and auto-restamps the ledgers. Never use the legacy platform
+  inliner: a regressed `__bundler/manifest` bundle hashes to null and reds GATE A. The bundle's
+  **`manifestHash`** — a deterministic projection of its inlined JS/CSS — is the
   instrument's executed-code fingerprint, and the sole code identity the gates check. (`buildHash` is
-  RETIRED as a provenance signal per `CLAUDE.md` Phase 7 — still stamped into exports as inert legacy
+  RETIRED — dropped from `BUILD-MANIFEST.json` 2026-07-03; still stamped into exports as inert legacy
   metadata, but no gate reads it; do not reason about it.)
 - **Two gates, every change** (`CLAUDE.md`): `Dex-Test-Suite.html` all-green after any DSP/app/bundle
   change; `verify-provenance.html` no red mismatch after any re-bundle. `manifestHash` is deterministic —
-  it moves ONLY on a real JS/CSS code change (an export-inert re-bundle of identical source moves nothing),
-  so after a code re-bundle you hand-update that app's GATE-A entry in `BUILD-MANIFEST.json` and regenerate
-  any fixture whose OUTPUT the change moved (`CLAUDE.md` re-bundle checklist).
+  it moves ONLY on a real JS/CSS code change (a re-build of identical source is byte-identical) — and
+  `build.mjs` writes the GATE-A entry + re-stamps code-gated fixtures for you; regenerate a fixture's OUTPUT
+  only when the change actually moved it (the equiv gate tells you). `node tools/build.mjs --check` is the
+  CI drift guard: every committed bundle ≡ build(source).
 
 ---
 
@@ -230,9 +235,9 @@ restates nothing — follow each pointer for the actual rules. Forward-first: a 
 9. **Wire the gates** — add the node's `<NODE>_REGISTRY` + resolver + reference-guide text to `env` in BOTH
    runners (`run-tests.mjs` + `Dex-Test-Suite.html`) so `cohesion-badges` covers it; add a render-coverage
    rig + an `env.equiv` leg (`CLAUDE.md` gate sections). ≥1 dynamic equiv/golden leg per code-gated node.
-10. **Bundle + ledgers** — bundle `<Node>.src.html` → `<Node>.html`; run the **re-bundle checklist**
-    (`CLAUDE.md`): update `BUILD-MANIFEST.json` GATE-A `manifestHash`, record `FIXTURE-PROVENANCE.json`
-    fixtures. Use `node tests/reconcile-provenance.mjs --bundle=<node>` to see the exact edits;
+10. **Bundle + ledgers** — `node tools/build.mjs --app <Node>` builds `<Node>.src.html` → `<Node>.html`
+    (owned plain-inline) AND auto-writes the `BUILD-MANIFEST.json` GATE-A `manifestHash` + re-stamps its
+    code-gated `FIXTURE-PROVENANCE.json` fixtures. Record NEW fixtures by re-running the app + re-exporting;
     `node tests/check-dex.mjs <node>` for the scoped both-gates check while iterating.
 11. **Land both gates green** — `Dex-Test-Suite.html?full` all-green + `verify-provenance.html`
     `__provenanceOK`. Then flip your brief's header to DONE (`CLAUDE.md` brief lifecycle).

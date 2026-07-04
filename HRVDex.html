@@ -6216,37 +6216,34 @@ global.HrvRegistry = {
   if (typeof module !== 'undefined' && module.exports) module.exports = root.DexUnits;
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
 </script>
-<script data-inline-src="hrvdex-dsp.js">/* ════ HRVDex · DSP & METRICS (hrvdex-dsp.js) ───────────────────────────────────────────────
+<script data-inline-src="clock.js">/*
+ * clock.js — Tepna
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
-   Shared data state, Welltory CSV parsing, the derived-metric engine
-   (computeDerived), stats helpers, row filtering, and the cardiovascular
-   research math (HTN pattern / CAMQ / MAP). No DOM mutation.
-   Plain global script — shares page scope with the other hrvdex-*.js files,
-   exactly as in the original single-script monolith. No behavior change.
-   Load order: hrvdex-dsp → hrvdex-render → hrvdex-profile → hrvdex-app.
-   ════════════════════════════════════════════════════════════════════════ */
+ * Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+ * project root, or http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * THE Clock Contract parser — single-sourced (A5, owner-ratified 2026-07-03;
+ * OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF §3). Extracted VERBATIM from the canonical
+ * per-node mirror (the byte-identical block pulsedex/ecgdex/integrator carried; hrvdex's
+ * commented copy; oxydex's was the same minus the unused _ckP2). The owned bundler inlines
+ * this ONE file into every bundle, so it stays bundled-local AND single-source — the
+ * copy-paste mirror + its drift risk are retired.
+ *
+ * Contract (CLAUDE.md §🔒): floating wall-clock tMs via Date.UTC on components-as-written;
+ * zoned ISO authoritative; explicit vendor regexes (never locale Date.parse); DMY/MDY §3;
+ * time-only rows anchor+roll; NEVER fabricate now() — miss ⇒ null.
+ *
+ * Adopters delegate via local aliases (var parseTimestamp = DexClock.parseTimestamp; …)
+ * inside their IIFE — public surfaces (ECGDSP.parseTimestamp, bare re-export tails) are
+ * unchanged. NODE-LOCAL VARIANTS THAT STAY (deliberate, do not force onto DexClock):
+ * ppgdex-dsp.js (strict ISO/epoch subset + quote-stripping), glucodex-dsp.js (_ckParse +
+ * numeric-returning MDY wrapper), cpapdex-dsp.js (EDF-subset). Load clock.js BEFORE any
+ * delegating *-dsp.js (dex-coload.js enforces host membership).
+ */
+(function (root) {
+'use strict';
 
-/* ════ NAMESPACED BUILD (SIGNAL-ADAPTER-FOLLOWUPS §3) — see pulsedex-dsp.js head.
-   IIFE-wrapped so the bare helpers (parseCSV, parseTimestamp, mean, std …) stay
-   closure-local and don't collide when the Unifier/OverDex co-load all DSPs in one
-   realm (root.__DEX_NAMESPACED__ set → no bare spray, only root.HRVDex). App
-   back-compat: bare re-export below when the flag is unset; mutable cross-file
-   state (allRows/windowDays/charts, written by hrvdex-app.js) is accessor-proxied. */
-;(function (root) {
-
-/* ===== GLOBALS ===== */
-let allRows = [];
-let windowDays = 7;
-let charts = {};
-// AGE is read dynamically inside computeDerived via getProfile().age
-
-
-/* ════ CANONICAL CLOCK · CLOCK-UNIFY (duplicated locally per app) ═══════════
-   tMs = floating wall-clock ms: the recording's LOCAL civil time encoded as if
-   it were UTC — Date.UTC(y,mo-1,d,h,mi,s). ALWAYS read back via getUTC* getters
-   (or toLocale*({timeZone:'UTC'})). Viewer-timezone-independent.
-   parseTimestamp(raw,opts) → { tMs, offsetMin } | null. See CLOCK-UNIFY-BRIEF.md §1. */
 function tzOffset(instantMs){ return new Date(instantMs).getTimezoneOffset()*60000; }
 function _ckP2(n){ return n<10?'0'+n:''+n; }
 function _ckNumEpoch(n){
@@ -6307,6 +6304,50 @@ function parseTimestamp(raw, opts){
   // 6. Fallback — NEVER now(). A missing stamp stays visible (null).
   return null;
 }
+
+root.DexClock = { tzOffset: tzOffset, _ckP2: _ckP2, _ckNumEpoch: _ckNumEpoch, _ckZoneMin: _ckZoneMin, _ckDMY: _ckDMY, parseTimestamp: parseTimestamp };
+if (typeof module !== 'undefined' && module.exports) module.exports = root.DexClock;
+})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
+</script>
+<script data-inline-src="hrvdex-dsp.js">/* ════ HRVDex · DSP & METRICS (hrvdex-dsp.js) ───────────────────────────────────────────────
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+   Shared data state, Welltory CSV parsing, the derived-metric engine
+   (computeDerived), stats helpers, row filtering, and the cardiovascular
+   research math (HTN pattern / CAMQ / MAP). No DOM mutation.
+   Plain global script — shares page scope with the other hrvdex-*.js files,
+   exactly as in the original single-script monolith. No behavior change.
+   Load order: hrvdex-dsp → hrvdex-render → hrvdex-profile → hrvdex-app.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* ════ NAMESPACED BUILD (SIGNAL-ADAPTER-FOLLOWUPS §3) — see pulsedex-dsp.js head.
+   IIFE-wrapped so the bare helpers (parseCSV, parseTimestamp, mean, std …) stay
+   closure-local and don't collide when the Unifier/OverDex co-load all DSPs in one
+   realm (root.__DEX_NAMESPACED__ set → no bare spray, only root.HRVDex). App
+   back-compat: bare re-export below when the flag is unset; mutable cross-file
+   state (allRows/windowDays/charts, written by hrvdex-app.js) is accessor-proxied. */
+;(function (root) {
+
+/* ===== GLOBALS ===== */
+let allRows = [];
+let windowDays = 7;
+let charts = {};
+// AGE is read dynamically inside computeDerived via getProfile().age
+
+
+/* ════ CANONICAL CLOCK · CLOCK-UNIFY (duplicated locally per app) ═══════════
+   tMs = floating wall-clock ms: the recording's LOCAL civil time encoded as if
+   it were UTC — Date.UTC(y,mo-1,d,h,mi,s). ALWAYS read back via getUTC* getters
+   (or toLocale*({timeZone:'UTC'})). Viewer-timezone-independent.
+   parseTimestamp(raw,opts) → { tMs, offsetMin } | null. See CLOCK-UNIFY-BRIEF.md §1. */
+/* ── §1 CLOCK CONTRACT — single-sourced in clock.js (A5, owner-ratified 2026-07-03;
+   OWN-THE-BUILD-FOLLOWUPS §3). The former verbatim mirror block lived here; clock.js now
+   carries THE canonical tzOffset + _ckP2/_ckNumEpoch/_ckZoneMin/_ckDMY + parseTimestamp and
+   loads BEFORE this file in every
+   host + bundle (dex-coload.js / *.src.html). Local aliases keep every internal call site
+   and the back-compat re-export tail byte-compatible. ── */
+var tzOffset = DexClock.tzOffset, _ckP2 = DexClock._ckP2, _ckNumEpoch = DexClock._ckNumEpoch,
+    _ckZoneMin = DexClock._ckZoneMin, _ckDMY = DexClock._ckDMY, parseTimestamp = DexClock.parseTimestamp;
 // Display — ALWAYS UTC getters (tMs is floating wall-clock)
 function fmtClock(ms){ var d=new Date(ms); return _ckP2(d.getUTCHours())+':'+_ckP2(d.getUTCMinutes()); }
 function fmtDate(ms){ var d=new Date(ms); return d.getUTCFullYear()+'-'+_ckP2(d.getUTCMonth()+1)+'-'+_ckP2(d.getUTCDate()); }

@@ -598,9 +598,10 @@ function runDexTests(env) {
     var boundaryBug = [];
     names.forEach(function (n) { if (/\(\s*ci\[0\]\s*>\s*0\s*\)\s*===\s*\(\s*ci\[1\]\s*>\s*0\s*\)/.test(src[n])) boundaryBug.push(n); });
     T.ok('no source has the CI-includes-0 boundary bug (#1)', boundaryBug.length === 0, boundaryBug.join(', '));
-    // (b) every full parseTimestamp mirror handles fractional seconds (#ms fix)
-    var mirrors = names.filter(function (n) { return /-dsp\.js$/.test(n) && /function\s+parseTimestamp/.test(src[n]); });
-    T.ok('found parseTimestamp mirrors', mirrors.length >= 2, mirrors.join(', '));
+    // (b) every full parseTimestamp source (clock.js canonical + remaining node-local variants)
+    //     PRESERVES fractional seconds (#ms fix)
+    var mirrors = names.filter(function (n) { return (/-dsp\.js$/.test(n) || n === 'clock.js') && /function\s+parseTimestamp/.test(src[n]); });
+    T.ok('found parseTimestamp sources (clock.js + node-local variants)', mirrors.length >= 2, mirrors.join(', '));
     mirrors.forEach(function (n) {
       if (n.indexOf('glucodex') >= 0) return;   // thin wrapper around _ckParse — skip
       T.ok(n + ' preserves fractional seconds (captures ms)', msFracRe.test(src[n]), 'no capturing \.(\d…) ms-group found');
@@ -2909,6 +2910,90 @@ function runDexTests(env) {
     } else { T.ok('OxyDex.scrubExport available', false); }
   });
 
+  /* ════ SELF-INGEST (CPAPDex) — cpapLoadOwnExport clinical reload (SELF-INGEST-FOLLOWUPS-2026-07-03 · CPAPDex pass) ════
+     Mirror of the OxyDex §7 group for the CPAPDex port: reload CPAPDex's OWN v2.0 export back into
+     CPAPDex as a FAITHFUL, review-mode clinical view — never recompute, re-grade, or re-stamp. Runs
+     LIVE in BOTH runners off CPAPDex.compute({edfSets:[CpapDsp._synthEdfSet(...)]}) (the same
+     deterministic synthetic night the golden gate rebuilds) → CpapFusion.cpapLoadOwnExport. Scrub is
+     the SHARED helper (D1): env.DexExport.scrubExport — there is no node-local cpapScrubExport.
+     Covers: 1 round-trip · 2 faithful view (no drift) · 3 provenance preserved (no re-stamp) ·
+     4 review-mode not faked · 5 nights[] carrier + event gather/sort · 6 foreign-node guard · 7 scrub. */
+  group('Self-ingest (CPAPDex) — cpapLoadOwnExport clinical reload', 'cpapdex-fusion · dex-export · self-ingest', function (T) {
+    var CD = env.CPAPDex, CF = env.CpapFusion, DSP = env.CpapDsp, DX = env.DexExport, src = env.sources || {};
+    if (!(CD && typeof CD.compute === 'function' && CF && typeof CF.cpapLoadOwnExport === 'function'
+          && DSP && typeof DSP._synthEdfSet === 'function' && DX && typeof DX.scrubExport === 'function')) {
+      T.ok('env.CPAPDex.compute + CpapFusion.cpapLoadOwnExport + CpapDsp._synthEdfSet + DexExport.scrubExport available', false, 'namespace not wired — gate skipped'); return;
+    }
+    // same deterministic synthetic night as the golden gate (oxi lane + CSL span → events guaranteed).
+    var envlp = CD.compute({ edfSets: [DSP._synthEdfSet({ oxi: true, cs: true })] });
+    T.ok('compute() produced a v2.0 single-night export to reload', !!(envlp && envlp.schema && envlp.schema.name === 'ganglior.node-export' && envlp.schema.node === 'CPAPDex' && envlp.recording && envlp.metrics && Array.isArray(envlp.ganglior_events)));
+    T.ok('synthetic night emits ganglior_events (oxi+cs lanes)', !!(envlp && (envlp.ganglior_events || []).length > 0), (envlp && envlp.ganglior_events || []).length + ' events');
+    var pristine = JSON.parse(JSON.stringify(envlp));
+
+    // ── 1 · ROUND-TRIP self-ingest (single-night: the object itself is the carrier) ──
+    var res = CF.cpapLoadOwnExport(envlp);
+    T.ok('cpapLoadOwnExport(own export) → ok + reviewMode', !!(res && res.ok === true && res.reviewMode === true), res ? ('ok=' + res.ok + ' reason=' + (res.reason || '—')) : 'no result');
+    T.eq('single-night carrier: 1 element (the export object itself)', res && res.ok ? res.elements.length : -1, 1);
+    var emitEv = (pristine.ganglior_events || []).slice().sort(function (a, b) { return ((a && a.tMs) || 0) - ((b && b.tMs) || 0); });
+    var loadEv = ((res && res.events) || []);
+    T.ok('round-trip: reloaded events IDENTICAL to emitted (tMs-sorted, verbatim)', JSON.stringify(loadEv.map(function (e) { return [e.tMs, e.impulse, e.conf]; })) === JSON.stringify(emitEv.map(function (e) { return [e.tMs, e.impulse, e.conf]; })), loadEv.length + ' events');
+    T.ok('reloaded events are tMs-monotonic (Clock Contract)', loadEv.every(function (e, i) { return i === 0 || ((loadEv[i - 1].tMs || 0) <= (e.tMs || 0)); }));
+
+    // ── 2 · FAITHFUL VIEW (no recompute drift) — element == export stored bytes (flags aside) ──
+    if (res && res.ok && res.elements.length) {
+      var elClone = JSON.parse(JSON.stringify(res.elements[0]));
+      delete elClone._reviewMode; delete elClone._fromExport;
+      T.ok('faithful view: element == export STORED values verbatim (no recompute, no drift)', JSON.stringify(elClone) === JSON.stringify(pristine));
+      var el0 = res.elements[0];
+      T.ok('clinical KPIs read the stored derived layer directly (metrics + oximetry[] + quality present)', !!(el0.metrics && Array.isArray(el0.oximetry) && el0.quality));
+    }
+
+    // ── 4 · REVIEW MODE not faked — every element flagged from-export ──
+    T.ok('review-mode: every element marked _fromExport + _reviewMode (raw waveform panels greyed, never faked)', !!(res && res.ok) && res.elements.length > 0 && res.elements.every(function (n) { return n._fromExport === true && n._reviewMode === true; }));
+
+    // ── 5 · nights[] carrier (multi-night wrapper) — unwrap + gather events across elements ──
+    var multi = { schema: { name: 'ganglior.node-export', version: '2.0', node: 'CPAPDex', multiNight: true },
+      nights: [JSON.parse(JSON.stringify(pristine)), JSON.parse(JSON.stringify(pristine))] };
+    var resM = CF.cpapLoadOwnExport(multi);
+    T.ok('nights[] carrier: 2 elements unwrapped + multiNight flagged', !!(resM && resM.ok) && resM.elements.length === 2 && resM.multiNight === true);
+    T.eq('events gathered across ALL elements', resM && resM.ok ? resM.events.length : -1, 2 * (pristine.ganglior_events || []).length);
+
+    // ── 3 · PROVENANCE preserved (no re-stamp) ──
+    var fakeProv = { buildHash: 'abc123def456', generated: '2026-06-12T22:28:30Z', inputs: [{ name: '20260612_222830_BRP.edf', sha256: 'deadbeef', bytes: 12345 }] };
+    var envP = JSON.parse(JSON.stringify(pristine)); envP.schema.provenance = fakeProv;
+    envP.recording.device = 'AirSense 11'; envP.recording.serial = '23261999999';
+    var resP = CF.cpapLoadOwnExport(envP);
+    T.ok('provenance preserved VERBATIM (view provenance == export provenance)', JSON.stringify(resP && resP.provenance) === JSON.stringify(fakeProv));
+    var fsrc = src['cpapdex-fusion.js'] || '';
+    var segStart = fsrc.indexOf('function cpapLoadOwnExport'), segEnd = fsrc.indexOf('global.CpapFusion');
+    var loadSeg = (segStart >= 0 && segEnd > segStart) ? fsrc.slice(segStart, segEnd) : '';
+    // strip comments first — honest notes may MENTION the stamp; we assert no real CALL.
+    var loadCode = loadSeg.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    T.ok('cpapLoadOwnExport body never re-stamps (no .stamp( / GangliorProvenance in CODE)', loadSeg.length > 0 && !/\.stamp\s*\(/.test(loadCode) && !/GangliorProvenance/.test(loadCode));
+
+    // ── 6 · FOREIGN-NODE guard — an ECGDex export is rejected with a redirect message, not loaded ──
+    var foreign = { schema: { name: 'ganglior.node-export', node: 'ECGDex' }, recording: { startEpochMs: 0 }, ganglior_events: [], recordings: [{}] };
+    var resF = CF.cpapLoadOwnExport(foreign);
+    T.ok('foreign-node guard: ECGDex export rejected (not loaded)', !!(resF && resF.ok === false && resF.reason === 'foreign-node'));
+    T.ok('foreign-node guard: redirect message names the source node + Integrator', !!(resF && /ECGDex/.test(resF.message) && /Integrator/i.test(resF.message)));
+    var resN = CF.cpapLoadOwnExport({ notAnExport: true });
+    T.ok('non-export input rejected (reason not-node-export)', !!(resN && resN.ok === false && resN.reason === 'not-node-export'));
+
+    // ── 7 · SCRUB for sharing — the SHARED DexExport.scrubExport (D1), not a node-local copy ──
+    var scr = DX.scrubExport(envP);
+    var ins = (scr.schema.provenance && scr.schema.provenance.inputs) || [];
+    T.ok('scrub: no inputs[].name survives (device serial / filename)', ins.length > 0 && !ins.some(function (x) { return x && x.name != null; }));
+    T.ok('scrub: no inputs[].sha256 survives', !ins.some(function (x) { return x && x.sha256 != null; }));
+    T.eq('scrub: non-identifying integrity kept (inputs[].bytes)', ins[0] && ins[0].bytes, 12345);
+    T.eq('scrub: coarse build stamp retained (buildHash)', scr.schema.provenance && scr.schema.provenance.buildHash, 'abc123def456');
+    T.ok('scrub: recording.device/serial stripped, contentId + startEpochMs kept', scr.recording.device == null && scr.recording.serial == null && scr.recording.startEpochMs === pristine.recording.startEpochMs && 'contentId' in scr.recording);
+    T.ok('scrub: clinical summary retained (metrics + ganglior_events[])', !!scr.metrics && Array.isArray(scr.ganglior_events) && scr.ganglior_events.length === (pristine.ganglior_events || []).length);
+    T.ok('scrub: schema flagged scrubbed', scr.schema.scrubbed === true);
+    T.eq('scrub is a PURE clone (source envelope input name untouched)', (envP.schema.provenance.inputs[0] || {}).name, '20260612_222830_BRP.edf');
+    var resS = CF.cpapLoadOwnExport(scr);
+    T.ok('scrubbed export still reloads (ok + scrubbed surfaced)', !!(resS && resS.ok === true && resS.scrubbed === true));
+  });
+
   /* ════ EVENT-LEXICON — canonical impulse vocabulary (OXYDEX-NODE-EXPORT-ENVELOPE-FOLLOWUPS §1) ════
      Pins the desaturation/surge/PB canonical names + the back-compat alias policy (spec: EVENT-LEXICON.md).
      Live in BOTH runners: a legacy bare-array OxyDex ingest now SYNTHESIZES the canonical `desat_event`,
@@ -3843,6 +3928,7 @@ function runDexTests(env) {
     // ── CO-LOADED: file basename → the env global it MUST expose once runtime-co-loaded ──
     var RESOLVE = {
       // shared spine
+      'clock.js': 'DexClock',
       'kernel-constants.js': 'DexKernel', 'metric-registry.js': 'MetricRegistry', 'dex-profile.js': 'DexProfile',
       'dex-export.js': 'DexExport', 'dex-ingest.js': 'DexIngest', 'dex-patient-gen.js': 'DexPatientGen',
       'quantity.js': 'Quantity', 'signal-frame.js': 'SignalFrame', 'crossnight-envelope.js': 'CrossNightEnvelope', 'synth-gen.js': 'SYNTH',
@@ -4340,11 +4426,12 @@ function runDexTests(env) {
   });
 
   /* ════ Clock Contract — parseTimestamp per-node conformance (WP-G) ════
-     CLAUDE.md mandates parseTimestamp is *mirrored* (duplicated) in every node,
-     not shared — so the risk is silent divergence. This group pins ONE shared
-     truth table and runs it against every reachable live copy, then asserts
-     every per-node SOURCE mirror is structurally faithful to the Clock Contract
-     (Date.UTC floating wall-clock + an explicit null/NaN miss path). */
+     A5 (owner-ratified 2026-07-03): the canonical parser is SINGLE-SOURCED in clock.js
+     (DexClock); five nodes delegate, three keep deliberate node-local variants (ppgdex/
+     glucodex/cpapdex). This group pins ONE shared truth table and runs it against every
+     reachable live copy (canonical + variants must agree on the shared ISO/epoch core),
+     then asserts every SOURCE is structurally faithful — delegation for the five,
+     Date.UTC + explicit miss path for the variants. */
   group('Clock Contract — parseTimestamp per-node conformance', 'WP-G', function (T) {
     var U = function (y, mo, d, h, mi, s, ms) { return Date.UTC(y, mo, d, h || 0, mi || 0, s || 0, ms || 0); };
     // ONE shared truth table — the ISO forms every copy MUST handle (Clock Contract §2 steps 2–3).
@@ -4379,12 +4466,32 @@ function runDexTests(env) {
       });
       T.ok('two live copies agree on the whole truth table', agree);
     }
-    // Static: every per-node source mirror is structurally faithful (mirror-drift guard).
+    // Static: per-node SOURCE conformance. A5 (owner-ratified 2026-07-03): the canonical parser is
+    // single-sourced in clock.js/DexClock — oxydex/pulsedex/hrvdex/integrator/ecgdex DELEGATE via local
+    // aliases; ppgdex (strict subset + quote-strip), glucodex (_ckParse + MDY numeric wrapper) and
+    // cpapdex (EDF subset) keep DELIBERATE node-local variants. Structure asserted per family:
     var src = env.sources || {};
-    ['pulsedex-dsp.js', 'oxydex-dsp.js', 'hrvdex-dsp.js', 'integrator-dsp.js', 'ppgdex-dsp.js', 'glucodex-dsp.js', 'cpapdex-dsp.js', 'ecgdex-dsp.js'].forEach(function (f) {
+    var DELEGATORS = ['pulsedex-dsp.js', 'oxydex-dsp.js', 'hrvdex-dsp.js', 'integrator-dsp.js', 'ecgdex-dsp.js'];
+    var LOCALS = ['ppgdex-dsp.js', 'glucodex-dsp.js', 'cpapdex-dsp.js'];
+    var ck = src['clock.js'];
+    if (ck == null) { T.ok('clock.js source available', false, 'not in env.sources'); }
+    else {
+      T.ok('clock.js: defines THE canonical parseTimestamp', /function parseTimestamp/.test(ck));
+      T.ok('clock.js: uses Date.UTC (floating wall-clock)', /Date\.UTC/.test(ck));
+      T.ok('clock.js: has explicit null miss path', /return\s+null/.test(ck));
+      T.ok('clock.js: exposes DexClock', /root\.DexClock\s*=/.test(ck));
+    }
+    DELEGATORS.forEach(function (f) {
       var s = src[f];
       if (s == null) { T.ok(f + ' source available', false, 'not in env.sources'); return; }
-      T.ok(f + ': defines parseTimestamp', /function parseTimestamp/.test(s));
+      T.ok(f + ': delegates parseTimestamp to DexClock (no local mirror)',
+        /parseTimestamp\s*=\s*DexClock\.parseTimestamp/.test(s) && !/function parseTimestamp/.test(s));
+      T.ok(f + ': no residual local tzOffset definition', !/function tzOffset/.test(s));
+    });
+    LOCALS.forEach(function (f) {
+      var s = src[f];
+      if (s == null) { T.ok(f + ' source available', false, 'not in env.sources'); return; }
+      T.ok(f + ': defines its node-local variant', /function parseTimestamp/.test(s));
       T.ok(f + ': uses Date.UTC (floating wall-clock)', /Date\.UTC/.test(s));
       T.ok(f + ': has explicit null/NaN miss path', /return\s+null|return\s+NaN|:\s*NaN/.test(s));
     });
@@ -4593,6 +4700,22 @@ function runDexTests(env) {
     T.eq('clearSynthetic leaves only the real row', L.state().nRows, 1);
     T.eq('clearSynthetic kept the real HRVDex row', L.seriesFor('HRVDex', 'rmssd').length, 1);
     T.ok('hasSynthetic false after clearSynthetic', L.hasSynthetic() === false);
+    L.clear();
+
+    // ── DSP-NITS-2026-07-03 §1: mixed dated/undated series sort on ONE explicit key ──
+    // t0Ms when present (`!= null` — the sanctioned "undated → anchor at 0" value must sort FIRST,
+    // never be rerouted by truthiness to Date.parse), Date.parse(date) only for rows with no t0Ms.
+    var mixEnv = { schema: { name: 'ganglior.crossnight', node: 'ECGDex' },
+      metrics: { hf: { label: 'HF power', unit: 'ms²', goodDirection: 'up' } },
+      series: [{ t0Ms: U(2026, 4, 3, 1, 0), values: { hf: 3 } },   // May 3 01:00 floating
+                { date: '2026-05-02', values: { hf: 2 } },          // dated-only (t0Ms null → parse fallback)
+                { t0Ms: 0, values: { hf: 1 } }] };                  // undated→0 anchor (ECGDex/RR convention)
+    L.ingest(mixEnv, 'mix.json');
+    var mixSer = L.seriesFor('ECGDex', 'hf');
+    T.eq('mixed dated/undated series: all three rows placed', mixSer.length, 3);
+    T.ok('t0Ms===0 anchor sorts FIRST (explicit != null, not truthiness)', mixSer.length === 3 && mixSer[0].v === 1 && mixSer[0].t0Ms === 0);
+    T.ok('dated-only row (no t0Ms) placed by Date.parse fallback, between anchors', mixSer.length === 3 && mixSer[1].v === 2 && mixSer[1].t0Ms == null);
+    T.ok('t0Ms-carrying row sorts by its OWN floating key', mixSer.length === 3 && mixSer[2].v === 3);
     L.clear();
   });
 

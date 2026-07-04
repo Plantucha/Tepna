@@ -255,10 +255,13 @@ badge CSS or re-tier metrics ad hoc.
   was **dropped in the 2026-07-03 PulseDex cutover** per owner decision, so it now matches the fleet.
   **Do not** add `@font-face`, do not reintroduce a CDN, do not re-embed a woff2, do not
   flag "missing woff2" — that whole class of warning was removed at the root in June 2026.
-- **`parseTimestamp` duplicated in every `*-dsp.js`:** intentional per the Clock Contract. Mirror it;
-  do not extract a shared util in passing. **(A5 RATIFIED 2026-07-03: extraction into ONE `clock.js` is
-  owner-approved — see `OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md` §3 for the execution map. Until that
-  pass lands as one coherent fleet re-bundle, KEEP mirroring — do not half-migrate.)**
+- **`parseTimestamp` single-sourced in `clock.js` (A5 EXECUTED 2026-07-03, owner-ratified).** The former
+  "duplicated in every `*-dsp.js`, mirror it" rule is RETIRED: THE canonical Clock-Contract parser now lives
+  in `clock.js` (`DexClock`), inlined by the owned bundler into every bundle (bundled-local AND single-source).
+  oxydex/pulsedex/hrvdex/ecgdex/integrator-dsp DELEGATE via local aliases; ppgdex (strict ISO/epoch subset +
+  quote-strip), glucodex (`_ckParse` + MDY numeric wrapper) and cpapdex (EDF subset) keep DELIBERATE node-local
+  variants — do not force them onto DexClock, and do not reintroduce a mirror. Load `clock.js` BEFORE any
+  delegating `*-dsp.js` (dex-coload.js `shared:` + the co-load gate enforce this; worker `importScripts` lists too).
 - **`REFACTOR-BRIEF-modularize-Dexes.md`:** historical, the refactor is DONE. See `docs-archive/`.
 
 ---
@@ -288,9 +291,10 @@ timezone (a New-York night reads 03:00 in London). Floating `tMs` + `getUTC*` is
   to `tMs`; compute `utcMs` only for genuine cross-timezone simultaneity. No zone → `offsetMin = null`.
 
 ### 2. One shared parser — `parseTimestamp(raw, opts) → { tMs, offsetMin } | null`
-Duplicated locally inside each app (mirror it; do not add a shared util module — **A5 exception ratified
-2026-07-03:** a single inlined `clock.js` is approved, staged in `OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`
-§3; keep mirroring until that one coherent pass lands). Resolution order:
+**Single-sourced in `clock.js` (`DexClock`) since A5 (owner-ratified, executed 2026-07-03)** — the owned
+bundler inlines it into every bundle; delegating DSPs alias it locally (`var parseTimestamp =
+DexClock.parseTimestamp;` …). ppgdex/glucodex/cpapdex keep deliberate node-local variants (see §✅).
+Resolution order:
 1. Numeric epoch (number / all-digit string, plausible range): real instant → floating for the
    local zone at parse time (`tMs = inst − tzOffset(inst)`), `offsetMin = −tzOffset/60000`.
 2. **ISO-8601 with zone** (`…Z` / `…±HH:MM`): zone authoritative; `tMs = Date.UTC(components as written)`,

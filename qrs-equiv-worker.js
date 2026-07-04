@@ -44,7 +44,7 @@
   self.matchMedia = function () { return { matches: false, addListener: function () {}, removeListener: function () {}, addEventListener: function () {} }; };
 })();
 
-var SCRIPTS = ['synth-gen.js', 'cohort-gen.js', 'cohort-full.js', 'kernel-constants.js',
+var SCRIPTS = ['synth-gen.js', 'cohort-gen.js', 'cohort-full.js', 'kernel-constants.js', 'clock.js',
                'ecgdex-morph.js', 'ecgdex-dsp.js', 'ppgdex-morph.js', 'ppgdex-dsp.js'];
 var READY = false;
 

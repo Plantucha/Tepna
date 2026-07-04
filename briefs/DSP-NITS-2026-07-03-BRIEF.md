@@ -6,7 +6,20 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-07-03
+**Status:** DONE — 2026-07-04 · **Created:** 2026-07-03
+
+> **Executed 2026-07-04** (rode the DSP-NITS-dedicated pass; no extra fixture churn — all three
+> EXPORT-INERT, no output moved). #1 `_sortKey` (`!= null`, single-domain key + invariant comment) in
+> `integrator-longitudinal.js` + mixed dated/undated sort assertions added to the suite's longitudinal
+> group (headless-verified: `[t0Ms:0 first · dated-only by parse fallback · floating key last]`).
+> #2 resolved by **(a) deletion** (morningCount/morningPct removed, breadcrumb comment points at the
+> hrvdex-profile twin + Clock Contract §5). #3 `filterArtifactSpikes` comment now matches the v14
+> any-hour `:58–:02` code. Re-bundled every bundle inlining the touched files: **OxyDex →
+> `692a7b110ef9`**, **Integrator → `45a7e6f15e49`**, plus ungated hosts OverDex + Data Unifier;
+> `BUILD-MANIFEST.json` GATE-A entries updated; both OxyDex code-gated fixtures re-recorded
+> (manifestHash only — outputs untouched, never hand-edited); Integrator fixtures are historical
+> (byte-pinned, untouched). Full `?full` + provenance gates re-run at session close. **No followups
+> surfaced** — nothing new beyond what this brief already scoped.
 
 # DSP/render nits — three low-severity fixes found in the 2026-07-03 code sweep
 

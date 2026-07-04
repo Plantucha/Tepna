@@ -128,7 +128,7 @@ a routing bug once and both tools inherit it.
 | a metric's label / unit / good-direction / **evidence grade** | that node's `*-registry.js` | `cohesion-badges` test (registry ≡ `dex-badges.css` ≡ reference guide) |
 | a function's contract / return shape | `tests/dex-tests.js` | the test IS the contract; both runners use it |
 | the rules, gates, invariants, re-bundle ritual | **`CLAUDE.md`** | wins on every conflict |
-| the time model | `CLAUDE.md` "Clock Contract" + each `*-dsp.js` `parseTimestamp` (mirrored, intentionally) | round-trip tests |
+| the time model | `CLAUDE.md` "Clock Contract" + `clock.js` (`DexClock` — THE parser, single-sourced by A5 2026-07-03; ppgdex/glucodex/cpapdex carry deliberate node-local variants) | round-trip tests + WP-G truth table |
 | the event / impulse vocabulary | `EVENT-LEXICON.md` | event-lexicon test group |
 | the canonical signal shape + signal types | `signal-frame.js` / `signal-spec.js` | `validateFrame` + property/round-trip tests |
 | provenance (code identity + fixtures) | `BUILD-MANIFEST.json` / `FIXTURE-PROVENANCE.json` / `manifest-gate.js` | GATE A / GATE B + the equiv gate |

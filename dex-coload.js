@@ -29,6 +29,10 @@
   'use strict';
 
   var DEX_COLOAD = {
+    // shared pre-DSP modules (load FIRST — delegating DSPs alias DexClock at load; A5 2026-07-03).
+    shared: [
+      'clock.js'
+    ],
     // vendor adapters (self-register on load; order = registration order, drift-bait).
     // Load AFTER signal-adapters.js; the parser they wrap is resolved lazily in parse(),
     // so they may load before the DSP (mirrors the existing host ordering).
@@ -63,6 +67,7 @@
     //    `*-edf.js`, `*-fusion.js` are deliberately NOT here — they need a booted app / are covered
     //    by the render-coverage rigs + CpapEdf.selfTest + the equivalence goldens.)
     nodeModules: [
+      { file: 'clock.js',           global: 'DexClock' },
       { file: 'ecgdex-cross.js',    global: 'ECGCross' },
       { file: 'oxydex-cross.js',    global: 'OXYCross' },
       { file: 'pulsedex-cross.js',  global: 'PulseCross' },
@@ -75,7 +80,7 @@
   // basename(path) === the registered adapter id, by convention (see header).
   DEX_COLOAD.adapterIds = DEX_COLOAD.adapters.map(function (p) { return p.replace(/^adapters\//, '').replace(/\.js$/, ''); });
   // every module a host realm must contain (set membership the conformance gate checks).
-  DEX_COLOAD.all = DEX_COLOAD.adapters.concat(DEX_COLOAD.dsps);
+  DEX_COLOAD.all = DEX_COLOAD.shared.concat(DEX_COLOAD.adapters).concat(DEX_COLOAD.dsps);
   // the global each nodeModule must expose once runtime-co-loaded (CROSS-MODULE-RUNTIME-COVERAGE §1/§2).
   DEX_COLOAD.nodeModuleGlobals = DEX_COLOAD.nodeModules.map(function (m) { return m.global; });
 

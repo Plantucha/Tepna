@@ -6,7 +6,7 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-06-30 (§1 CI-parity fix APPLIED — in-browser `?full` run confirmed all-green; playwright CI re-run still owed. **§2 doc-sweep DONE — 2026-07-01** · **§3 Tepna brand-rename sweep DONE — 2026-07-01** · §4 hardening = notes-only) · **Created:** 2026-06-30 · **Follows:** the executed session changes below · **Relates:** `DEV-TOOLCHAIN-2026-06-30-BRIEF.md` §A3 (the legacy-umbrella lint that would prevent §3 recurring)
+**Status:** IN-PROGRESS — 2026-07-04 (§1 fix APPLIED + superseded by the 2026-07-03 hardening: `browser-gates.mjs` now navigates `?full`, waits on the programmatic `window.__rcState==='done'` [not prose], 15-min CI ceiling + crash diagnostics. **Predicate-equivalence verified in-browser 2026-07-04** — both DOM verdicts the script polls go true on a real `?full` run. §1 stays open SOLELY on the literal owner-run `BASE_URL=… node tests/browser-gates.mjs` against a served checkout — Node/playwright unavailable in this environment. **§2 doc-sweep DONE — 2026-07-01** · **§3 Tepna brand-rename sweep DONE — 2026-07-01** · §4 hardening = notes-only) · **Created:** 2026-06-30 · **Follows:** the executed session changes below · **Relates:** `DEV-TOOLCHAIN-2026-06-30-BRIEF.md` §A3 (the legacy-umbrella lint that would prevent §3 recurring)
 
 # Dex-Test-Suite lazy render-coverage — follow-ups (CI parity · brand · hardening)
 

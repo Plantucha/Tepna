@@ -7,8 +7,8 @@
  * this drives the two BROWSER-only gates a headless runner can't otherwise see:
  *   1. Dex-Test-Suite.html  — full assertion suite + render-coverage (boots all
  *      8 app bundles in iframes, confirms computed values reach the DOM).
- *   2. verify-provenance.html — each bundle exposes a buildHash helper (GATE A)
- *      and every committed uploads/*.json fixture is reproducible (GATE B).
+ *   2. verify-provenance.html — GATE A: each committed bundle's plain-inline manifestHash
+ *      matches BUILD-MANIFEST.json; GATE B: every ledger fixture is reproducible.
  *
  * Detection is by polling the pages' own DOM verdicts — no page edits needed.
  *
@@ -24,7 +24,7 @@ import { chromium } from 'playwright';
 const BASE = (process.env.BASE_URL || 'http://127.0.0.1:8080').replace(/\/$/, '');
 const FAILS = [];
 // --disable-dev-shm-usage: CI containers give /dev/shm only ~64 MB. Render-coverage boots 9 self-
-// contained app bundles (each gunzips + evals MBs of inlined JS) in an iframe; that overflows /dev/shm
+// contained app bundles (each evals MBs of inlined plain-text JS) in an iframe; that overflows /dev/shm
 // and the RENDERER PROCESS CRASHES mid-run — which surfaces as an EARLY waitForFunction rejection
 // (~30 s in), NOT a 5-min stall. Routing Chromium shared memory to /tmp removes the crash. (Local runs
 // have a large /dev/shm, which is why the suite is green there but red in CI.)

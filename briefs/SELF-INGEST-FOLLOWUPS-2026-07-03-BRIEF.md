@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-03 (CPAPDex pass) · **Decisions:** D1 = **shared helper** (`dexScrubExport` in `dex-export.js`; OxyDex's node-local `oxyScrubExport` folds in on its next re-bundle) · D2 = **defer** Tier-3 (PpgDex/HRVDex lean-vs-enrich decided in their own passes) · **Created:** 2026-07-03 · **Executed-residue-of:** `SELF-INGEST-2026-06-27-BRIEF.md` (DONE 2026-07-02, pilot OxyDex) · **Prerequisite:** the OxyDex pilot pattern (`oxyLoadOwnExport` / `oxyScrubExport` + review-mode render/clinical-print/scrub, `oxydex-dsp.js` / `oxydex-render.js` / `oxydex-app.js`)
+**Status:** IN-PROGRESS — **CPAPDex pass DONE 2026-07-04** (next node: PulseDex) · **Decisions:** D1 = **shared helper** (`dexScrubExport` in `dex-export.js`; OxyDex's node-local `oxyScrubExport` folds in on its next re-bundle) · D2 = **defer** Tier-3 (PpgDex/HRVDex lean-vs-enrich decided in their own passes) · **Created:** 2026-07-03 · **Executed-residue-of:** `SELF-INGEST-2026-06-27-BRIEF.md` (DONE 2026-07-02, pilot OxyDex) · **Prerequisite:** the OxyDex pilot pattern (`oxyLoadOwnExport` / `oxyScrubExport` + review-mode render/clinical-print/scrub, `oxydex-dsp.js` / `oxydex-render.js` / `oxydex-app.js`)
 
 # Self-ingest roll-out — `loadOwnExport` clinical summary for the other six nodes
 
@@ -9,7 +9,11 @@
 > re-bundle + gate-gated** — but NOT as a blind copy: execution of the pilot surfaced that **two nodes'
 > exports don't carry a per-element derived layer at all**, so they need a decision, not a mechanical port.
 
-> **⏳ CPAPDex pass — IN-PROGRESS checkpoint (2026-07-03) · RESUME HERE.**
+> **✅ CPAPDex pass — DONE checkpoint (2026-07-04) · next node: PulseDex (Tier 1).**
+> Code (2026-07-03, unchanged since): `dex-export.js` shared `scrubExport` (D1) · `cpapdex-fusion.js` `cpapLoadOwnExport` · `cpapdex-render.js` review view · `cpapdex-app.js` routing/scrub-checkbox. Bundle settled + reconciled: CPAPDex `manifestHash 7136e9cd5642` in ledger + both gates green (GATE A/B clean; fixtures export-inert as predicted — no regenerate).
+> Tests (2026-07-04): `Self-ingest (CPAPDex)` group added to `tests/dex-tests.js` after the OxyDex §7 group (22 asserts: round-trip · faithful-view byte-equality · nights[] carrier + event gather/sort · provenance-verbatim + source no-restamp · `_fromExport`/`_reviewMode` · foreign-node guard + not-node-export · shared-scrub incl. purity + reload-after-scrub); `cpapdex-fusion.js` added to BOTH runners' `sources` lists (`tests/run-tests.mjs` + `Dex-Test-Suite.html`). All 22 verified green headless; full `?full` gate re-run same day.
+>
+> ~~**⏳ CPAPDex pass — IN-PROGRESS checkpoint (2026-07-03) · RESUME HERE.**~~ (superseded by the DONE checkpoint above; original todo list kept below for the PulseDex-pass pattern)
 > **Code landed (external JS only — `CPAPDex.src.html` NOT touched, so `buildHash` stays; `manifestHash` moves):**
 > - `dex-export.js` — shared `scrubExport` (D1), exposed as `DexExport.scrubExport` + bare `dexScrubExport`.
 > - `cpapdex-fusion.js` — `cpapLoadOwnExport(json)` (detect · guard `schema.node==='CPAPDex'` · unwrap `nights[]` \| single-obj · gather+sort events · mark `_fromExport`/`_reviewMode`; NEVER `.stamp()`), on `CpapFusion`.

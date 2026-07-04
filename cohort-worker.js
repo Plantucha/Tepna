@@ -62,17 +62,17 @@ function firstFinite(o) {
 }
 
 var SCRIPTS = {
-  oxy:     ['synth-gen.js', 'cohort-gen.js', 'kernel-constants.js', 'oxydex-util.js', 'oxydex-profile.js', 'oxydex-dsp.js'],
+  oxy:     ['synth-gen.js', 'cohort-gen.js', 'kernel-constants.js', 'clock.js', 'oxydex-util.js', 'oxydex-profile.js', 'oxydex-dsp.js'],
   // lean RR→rMSSD only (no gluco/cpap/hrv) — for analyses that need PulseDex alone (near-linear scaling).
-  pulse:   ['synth-gen.js', 'cohort-gen.js', 'kernel-constants.js', 'pulsedex-dsp.js'],
+  pulse:   ['synth-gen.js', 'cohort-gen.js', 'kernel-constants.js', 'clock.js', 'pulsedex-dsp.js'],
   // lean PulseDex + GlucoDex (coexist; no oxydex collision). cgmcouple = rMSSD/night + nocturnal-slice
   // glucose/night; iccpg = rMSSD/night + per-day CV. Windowing done in-worker for parallelism.
-  cgmcouple: ['synth-gen.js', 'cohort-gen.js', 'kernel-constants.js', 'pulsedex-dsp.js', 'glucodex-dsp.js'],
-  iccpg:     ['synth-gen.js', 'cohort-gen.js', 'kernel-constants.js', 'pulsedex-dsp.js', 'glucodex-dsp.js'],
-  rrgluco: ['synth-gen.js', 'cohort-gen.js', 'kernel-constants.js', 'pulsedex-dsp.js', 'glucodex-dsp.js',
+  cgmcouple: ['synth-gen.js', 'cohort-gen.js', 'kernel-constants.js', 'clock.js', 'pulsedex-dsp.js', 'glucodex-dsp.js'],
+  iccpg:     ['synth-gen.js', 'cohort-gen.js', 'kernel-constants.js', 'clock.js', 'pulsedex-dsp.js', 'glucodex-dsp.js'],
+  rrgluco: ['synth-gen.js', 'cohort-gen.js', 'kernel-constants.js', 'clock.js', 'pulsedex-dsp.js', 'glucodex-dsp.js',
             'cpapdex-dsp.js', 'cpapdex-cross.js', 'cpapdex-registry.js', 'cpapdex-fusion.js'],
   // FULL lane (≤500): real 176 Hz PPG + raw-int16 ECG morphology on one ~9-min window.
-  full:    ['synth-gen.js', 'cohort-gen.js', 'cohort-full.js', 'kernel-constants.js',
+  full:    ['synth-gen.js', 'cohort-gen.js', 'cohort-full.js', 'kernel-constants.js', 'clock.js',
             'ecgdex-morph.js', 'ecgdex-dsp.js', 'ppgdex-morph.js', 'ppgdex-dsp.js'],
 };
 

@@ -92,6 +92,7 @@
 
 <!-- real suite modules (order: kernel → shared → node → integrator) -->
 <script src="kernel-constants.js"></script>
+<script src="clock.js"></script>
 <script src="metric-registry.js"></script>
 <script src="dex-profile.js"></script>
 <script src="oxydex-registry.js"></script>
@@ -171,10 +172,10 @@ const FIXTURE_FILES = {
   'ecgdex.slim-events':  'tests/fixtures/ecgdex.slim-events.json',
   'ppgdex.node-export':  'tests/fixtures/ppgdex.node-export.json'
 };
-const SOURCE_FILES = ['pulsedex-dsp.js','oxydex-dsp.js','hrvdex-dsp.js','integrator-dsp.js','integrator-tch.js','integrator-app.js','ppgdex-dsp.js','glucodex-dsp.js','ecgdex-dsp.js',
+const SOURCE_FILES = ['clock.js','pulsedex-dsp.js','oxydex-dsp.js','hrvdex-dsp.js','integrator-dsp.js','integrator-tch.js','integrator-app.js','ppgdex-dsp.js','glucodex-dsp.js','ecgdex-dsp.js',
   'ecgdex-cross.js','oxydex-cross.js','pulsedex-cross.js','ppgdex-cross.js',
   'crossnight-envelope.js','ecgdex-app.js','ppgdex-app.js','pulsedex-app.js','oxydex-render.js','hrvdex-render.js','signal-orchestrate.js','dex-ingest.js',
-  'cpapdex-dsp.js','cpapdex-cross.js','cpapdex-edf.js','cpapdex-app.js','ecgdex-morph.js','ppgdex-morph.js','dex-export.js',
+  'cpapdex-dsp.js','cpapdex-cross.js','cpapdex-edf.js','cpapdex-app.js','cpapdex-fusion.js','ecgdex-morph.js','ppgdex-morph.js','dex-export.js',
   'ganglior-provenance.js','signal-frame.js','glucodex-render.js','glucodex-app.js'];
 
 let ALL_GROUPS = [];
@@ -288,6 +289,7 @@ async function main(){
     PPGDSP: window.PPGDSP,
     PpgDex: window.PpgDex,
     parseTimestamp: window.parseTimestamp,
+    DexClock: window.DexClock,
     PulseDex: window.PulseDex,
     OxyDex: window.OxyDex,
     HRVDex: window.HRVDex,

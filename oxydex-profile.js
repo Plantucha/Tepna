@@ -355,7 +355,7 @@ function profileAutoDetectUpdate(allNights) {
   // Called after renderAll with the nights array — auto-fills from data
   if (!allNights || !allNights.length) return;
 
-  var hrFloors = [], dates = [], morningCount = 0;
+  var hrFloors = [], dates = [];
   var hrMins = [], hrMaxes = [], rmssdVals = [];
   // ANS-age component arrays (ansAges/c1s/c2s/c3s) REMOVED 2026-06-23 (DEX-METRIC-REMOVAL-AUDIT 🔴)
 
@@ -366,7 +366,10 @@ function profileAutoDetectUpdate(allNights) {
     // p5 is pre-computed in n.hrv.hrFloor during CSV parsing
     if (n.hrv && n.hrv.hrFloor > 30 && n.hrv.hrFloor < 80) hrFloors.push(n.hrv.hrFloor);
     if (n.stats) { hrMins.push(n.stats.minHr); hrMaxes.push(n.stats.maxHr); }
-    if (n.date && n.date.split('T')[1] && parseInt(n.date.split('T')[1], 10) < 8) morningCount++;
+    // morning-% counter REMOVED (DSP-NITS-2026-07-03 §2): n.date is date-only ('YYYY-MM-DD', no 'T'),
+    // so the old split('T')[1] guard was always false and morningPct was permanently 0 — and OxyDex
+    // never surfaced it. hrvdex-profile.js is the working twin if a morning-% pill is ever wanted
+    // (derive the hour from t0Ms via getUTCHours(), Clock Contract §5 — never string-split a date).
     if (n.hrv) {
       var rmssd  = n.hrv.rmssd;
       if (rmssd != null && isFinite(rmssd)) rmssdVals.push(rmssd);
@@ -396,7 +399,6 @@ function profileAutoDetectUpdate(allNights) {
   // Rule of thumb: if user's actual awake resting HR is known, always prefer manual entry.
   var hrRestEst = hrFloorMed ? hrFloorMed + 8 : null;
 
-  var morningPct = n > 0 ? Math.round(morningCount/n*100) : 0;
   var hrMin = hrMins.length ? Math.min.apply(null,hrMins) : null;
   var hrMax = hrMaxes.length ? Math.max.apply(null,hrMaxes) : null;
   // ANS age (ansAge / _ansBreakdown median) REMOVED 2026-06-23 (DEX-METRIC-REMOVAL-AUDIT 🔴).
