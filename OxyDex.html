@@ -13443,30 +13443,16 @@ function oxyLoadOwnExport(json){
 // crossNight), a COARSE build stamp (buildHash + generated, so provenance integrity survives), and
 // recording.contentId (the identity-free EXPORT-IDENTITY handle — preserved when present; OxyDex does
 // not surface it yet, see SELF-INGEST §10 / EXPORT-IDENTITY-FOLLOWUPS). PURE: never mutates the input.
-// Default OFF — exportJSON only calls this when the user opts into "scrub for sharing", so the normal
-// export keeps full provenance for the user's own archive + Integrator fusion (and stays byte-identical).
+// SELF-INGEST §5 · "scrub for sharing" — FOLDED INTO the shared dexScrubExport (D1, SELF-INGEST-FOLLOWUPS
+// executed 2026-07-04). The ONE implementation now lives in dex-export.js; this stays a thin OxyDex alias
+// for the app call site + the namespace/back-compat exports + the §7 tests. The shared version is a strict
+// SUPERSET of the old local copy — it ALSO strips device/serial/model from each per-night recording block
+// in a multi-night series export (a gap the local copy missed). Default OFF at the call site, so a normal
+// export stays byte-identical; a single-night scrub is byte-identical to the old local result.
 function oxyScrubExport(envelope){
-  if(!envelope || typeof envelope !== 'object') return envelope;
-  var out = JSON.parse(JSON.stringify(envelope));   // deep clone — never mutate the caller's object
-  var sc = out.schema || (out.schema = {});
-  var prov = sc.provenance;
-  if(prov && typeof prov === 'object'){
-    sc.provenance = {
-      buildHash: (prov.buildHash != null ? prov.buildHash : null),   // COARSE build stamp KEPT (integrity)
-      generated: (prov.generated != null ? prov.generated : null),
-      scrubbed: true,
-      // inputs keep only NON-identifying integrity (byte count); drop name + sha256 + device serial/mtime.
-      inputs: (Array.isArray(prov.inputs) ? prov.inputs : []).map(function(inp){
-        return { bytes:(inp && inp.bytes != null ? inp.bytes : null) };
-      })
-    };
-  }
-  sc.scrubbed = true;
-  // recording.contentId (identity-free) is KEPT; strip any device serial / model string a node may carry.
-  if(out.recording && typeof out.recording === 'object'){
-    delete out.recording.device; delete out.recording.serial; delete out.recording.model;
-  }
-  return out;
+  if(typeof DexExport !== 'undefined' && DexExport && typeof DexExport.scrubExport === 'function') return DexExport.scrubExport(envelope);
+  if(typeof dexScrubExport === 'function') return dexScrubExport(envelope);
+  return envelope;   // dex-export.js always ships in the OxyDex bundle, so this fallthrough is never reached
 }
 
 // ═══════════════════════════════════════════

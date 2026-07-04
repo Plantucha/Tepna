@@ -120,9 +120,16 @@
     if (out.recording && typeof out.recording === 'object') {
       delete out.recording.device; delete out.recording.serial; delete out.recording.model;
     }
-    // multi-night wrapper: strip the same identifying keys from each per-night recording block too.
-    if (Array.isArray(out.nights)) out.nights.forEach(function (n) {
-      if (n && n.recording && typeof n.recording === 'object') { delete n.recording.device; delete n.recording.serial; delete n.recording.model; }
+    // Multi-record wrappers: strip the same identifying keys from each per-element recording block.
+    // EVERY known carrier (SELF-INGEST-FOLLOWUPS-II §F1 — was nights[]-only, leaking device/serial on
+    // multi ECGDex/PulseDex `recordings[]` + PpgDex `sessions[]` exports): nights[] (OxyDex/CPAPDex),
+    // recordings[] (ECGDex/PulseDex), sessions[] (PpgDex).
+    ['nights', 'recordings', 'sessions'].forEach(function (key) {
+      if (Array.isArray(out[key])) out[key].forEach(function (el) {
+        if (el && el.recording && typeof el.recording === 'object') {
+          delete el.recording.device; delete el.recording.serial; delete el.recording.model;
+        }
+      });
     });
     return out;
   }

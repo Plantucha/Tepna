@@ -6,7 +6,7 @@
     "node": "GlucoDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-06-28T03:52:55.052Z",
+    "generated": "2026-07-04T15:50:58.198Z",
     "provenance": null,
     "doc": "GlucoDex glycemic events → Ganglior bus. t/tMs = floating wall-clock (UTC getters). null = unknown, never fabricated."
   },
@@ -17,6 +17,61 @@
     "events": 42,
     "clamp": {
       "detected": false
+    }
+  },
+  "glucose": {
+    "mean": 79,
+    "gmi": 5.2,
+    "ea1c": 4.4,
+    "sd": 12,
+    "cv": 14.8,
+    "tir": {
+      "tbr2": 0,
+      "tbr1": 18.3,
+      "tir": 81.7,
+      "tar1": 0,
+      "tar2": 0
+    },
+    "titr": 81.4,
+    "mage": 24,
+    "modd": 8,
+    "adrr": 13.6,
+    "gvp": 7.8,
+    "lbgi": 5.2,
+    "hbgi": 0,
+    "pctActive": 99.2,
+    "tier": "agp",
+    "dawn": {
+      "present": false
+    },
+    "daypart": {
+      "total": 14.8,
+      "overnight": {
+        "cv": 10.2,
+        "mean": 72,
+        "n": 2016
+      },
+      "morning": {
+        "cv": 9.1,
+        "mean": 84,
+        "n": 2016
+      },
+      "afternoon": {
+        "cv": 16.9,
+        "mean": 84,
+        "n": 2084
+      },
+      "evening": {
+        "cv": 13.3,
+        "mean": 75,
+        "n": 2051
+      },
+      "windows": {
+        "overnight": "00:00–06:00",
+        "morning": "06:00–12:00",
+        "afternoon": "12:00–18:00",
+        "evening": "18:00–24:00"
+      }
     }
   },
   "ganglior_events": [

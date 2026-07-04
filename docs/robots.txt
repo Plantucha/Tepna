@@ -1,0 +1,6 @@
+# Tepna — the Dex Suite
+# tepna.net is a public deployment (also fully usable offline). Index freely.
+User-agent: *
+Allow: /
+
+Sitemap: https://tepna.net/sitemap.xml

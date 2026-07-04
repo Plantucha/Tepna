@@ -88,7 +88,7 @@ function readSources() {
   const wanted = [
     'clock.js', 'pulsedex-dsp.js', 'oxydex-dsp.js', 'hrvdex-dsp.js', 'integrator-dsp.js', 'ppgdex-dsp.js', 'glucodex-dsp.js', 'ecgdex-dsp.js',
     'ecgdex-cross.js', 'oxydex-cross.js', 'pulsedex-cross.js', 'ppgdex-cross.js', 'cpapdex-cross.js',
-    'crossnight-envelope.js', 'integrator-app.js', 'ecgdex-app.js', 'ppgdex-app.js', 'pulsedex-app.js', 'oxydex-render.js', 'hrvdex-render.js', 'signal-orchestrate.js', 'dex-ingest.js',
+    'crossnight-envelope.js', 'integrator-app.js', 'ecgdex-app.js', 'ppgdex-app.js', 'pulsedex-app.js', 'pulsedex-render.js', 'hrvdex-app.js', 'oxydex-render.js', 'hrvdex-render.js', 'signal-orchestrate.js', 'dex-ingest.js',
     'cpapdex-dsp.js', 'cpapdex-edf.js', 'cpapdex-app.js', 'cpapdex-fusion.js', 'ecgdex-morph.js', 'ppgdex-morph.js', 'dex-export.js',
     'ganglior-provenance.js', 'signal-frame.js', 'glucodex-render.js', 'glucodex-app.js'
   ];

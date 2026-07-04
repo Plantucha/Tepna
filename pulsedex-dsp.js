@@ -754,6 +754,57 @@ function pdBuildNodeExport(r, opts){
   };
 }
 
+// ═════════════════════════════════════════════════════════════════════════════════════
+//  SELF-INGEST — reload PulseDex's OWN ganglior.node-export as a review-mode
+//  clinical VIEW (SELF-INGEST-FOLLOWUPS-2026-07-03 · PulseDex pass). PURE +
+//  DOM-FREE: detect → guard-own-kind → unwrap → mark reviewMode → return the
+//  provenance / kernel / events VERBATIM. NEVER recomputes and NEVER calls
+//  GangliorProvenance.stamp() — a reload is a VIEW of a past computation, stamped
+//  with the build that MADE it, not a fresh one (SELF-INGEST §3). The PulseDex
+//  export is single-record and RICH (recording + hrv.{time,frequency,poincare} +
+//  summary), so the review view reads the STORED derived layer directly — no
+//  re-derive; an optional recordings[] wrapper is honored for a multi carrier.
+// ═════════════════════════════════════════════════════════════════════════════════════
+function pulseLoadOwnExport(json){
+  // 1 · detect
+  if(!(json && json.schema && json.schema.name === 'ganglior.node-export'))
+    return { ok:false, reason:'not-node-export',
+      message:'Not a node-export \u2014 drop a raw RR/IBI file, or PulseDex\u2019s own .json export.' };
+  // 2 · guard own kind — a foreign export is REJECTED with a redirect message, never coerced.
+  var node = ((json.schema.node || '') + '').trim();
+  if(node !== 'PulseDex')
+    return { ok:false, reason:'foreign-node', node:node,
+      message:'This is a '+(node||'non-PulseDex')+' export \u2014 open it in '+(node||'its own node')
+        +', or drop it into the Integrator to fuse.' };
+  // 3 · unwrap — a single-record export IS the element; an optional recordings[] wraps many.
+  var carrier = Array.isArray(json.recordings) ? json.recordings : [json];
+  var elements = carrier.map(function(el){
+    var e = JSON.parse(JSON.stringify(el));       // deep clone — never mutate the caller
+    e._fromExport = true; e._reviewMode = true;   // 4 · review-mode flags (renderer greys raw panels)
+    return e;
+  });
+  // gather events: top-level (single-record) else each element's, tMs-sorted (Clock Contract).
+  var evAll = Array.isArray(json.ganglior_events) ? json.ganglior_events.slice() : [];
+  if(!evAll.length) carrier.forEach(function(el){ if(Array.isArray(el.ganglior_events)) evAll = evAll.concat(el.ganglior_events); });
+  evAll.sort(function(a,b){ return ((a&&a.tMs)||0) - ((b&&b.tMs)||0); });
+  // 5 · preserve provenance / kernel / derived layer VERBATIM — the view's provenance IS the export's.
+  return {
+    ok:true, reviewMode:true, node:node,
+    elements: elements,
+    events: evAll,
+    provenance: (json.schema && json.schema.provenance) || null,
+    generated:  (json.schema && json.schema.generated)  || null,
+    derivedFrom:(json.schema && json.schema.derivedFrom) || null,
+    kernel:     json.kernel || null,
+    recording:  json.recording || null,
+    hrv:        json.hrv || null,
+    summary:    json.summary || null,
+    scrubbed:  !!(json.schema && json.schema.scrubbed),
+    multiNight: elements.length > 1,
+    raw: json
+  };
+}
+
 // Public namespace — the headless surface the orchestrator + app both call.
 var PulseDex = (typeof PulseDex !== 'undefined' && PulseDex) ? PulseDex : {};
 PulseDex.compute = function(input, opts){
@@ -766,6 +817,13 @@ PulseDex.compute = function(input, opts){
 PulseDex.computeResult   = pdComputeResult;
 PulseDex.buildNodeExport = pdBuildNodeExport;
 PulseDex.eventsFromResult = pdEventsFromResult;
+PulseDex.loadOwnExport = pulseLoadOwnExport;   // SELF-INGEST reload (review-mode clinical view)
+// scrub-for-sharing → the SHARED dexScrubExport (D1); lazy delegate so co-load order is irrelevant.
+PulseDex.scrubExport = function(env){
+  if(typeof DexExport !== 'undefined' && DexExport && typeof DexExport.scrubExport === 'function') return DexExport.scrubExport(env);
+  if(typeof dexScrubExport === 'function') return dexScrubExport(env);
+  return env;
+};
 // Pure RR parser exposed on the namespace so the co-load host (signal-orchestrate §3)
 // can hand it to the polar/coospo/wahoo RR adapters via ctx.parseRRInput WITHOUT a
 // bare global — in the namespaced realm `parseRRInput` no longer sprays onto window.
@@ -785,7 +843,7 @@ if (!root.__DEX_NAMESPACED__) {
     dfaAlpha1, sampEn, fragmentation, prsaCapacity, triangularIndex, lombScargle, _pdIntervalColFromHeader, _pdIntervalColByRange,
     partKey, mergeMultipart, parseRRInput, arrMin, arrMax, medianOf, artifactClean, beatTimes,
     MODE_LABEL, classifyRecording, windowAnalysis, lineChartSVG, _pdPearson, _pdSeriesStats, compareIntervalSeries, _pdClockS,
-    _pdNormalizeRRInput, pdComputeResult, pdEventsFromResult, pdBuildNodeExport
+    _pdNormalizeRRInput, pdComputeResult, pdEventsFromResult, pdBuildNodeExport, pulseLoadOwnExport
   });
   // mutable cross-file state — proxy bare `lastResult` to the in-closure binding
   Object.defineProperty(root, 'lastResult', { configurable: true,

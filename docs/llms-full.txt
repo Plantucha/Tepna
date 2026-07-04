@@ -1,0 +1,859 @@
+# Tepna — the Dex Suite — concatenated authoritative context
+# Generated 2026-07-04. Public docs only (the internal build/gate constitution CLAUDE.md is intentionally excluded).
+
+
+
+==============================================================================
+# README — README.md
+==============================================================================
+
+<!--
+  README.md — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+-->
+
+<div align="center">
+
+# Tepna — the Dex Suite
+
+**A fleet of local-only, single-signal physiological analyzers.**
+Read one raw biosignal from a consumer device → derive evidence-graded metrics → fuse across signals. Your data never leaves the browser.
+
+[![Live at tepna.net](https://img.shields.io/badge/live-tepna.net-2a6fdb)](https://tepna.net)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a6fdb)](LICENSE)
+[![Local-first](https://img.shields.io/badge/local--first-100%25-1f8a5b)](docs/WHY-THIS-EXISTS.md)
+![Data stays local](https://img.shields.io/badge/data-stays_local-1f8a5b)
+[![Every metric graded](https://img.shields.io/badge/every_metric-evidence_graded-8a5cf6)](#the-evidence-ladder-every-metric-is-graded)
+![Nodes](https://img.shields.io/badge/nodes-7_live-555)
+
+**[tepna.net](https://tepna.net)**  ·  [github.com/Plantucha/Tepna](https://github.com/Plantucha/Tepna)
+
+</div>
+
+Each analyzer reads **one** raw biosignal, derives metrics from it, and reports inward over a shared
+event bus (**Ganglior**) so a fusion layer (the **Integrator**) can read across them. 100%
+client-side — no network, no upload, no accounts.
+
+## Get it running
+
+```bash
+git clone https://github.com/Plantucha/Tepna.git
+```
+
+Then open **`index.html`** in any modern browser and click your device. No build step, no server, no
+install — every node app is a single self-contained HTML file that runs straight from disk.
+
+---
+
+## Start here: what Tepna actually measures well
+
+Tepna derives a large surface of metrics, but they are **not all equally trustworthy** — and we
+say so on every number. The honest front door is this short list of **externally validated**
+metrics, each anchored to a published standard. If you read nothing else, read these.
+
+| Metric | Signal · App | What it is | Anchor |
+|---|---|---|---|
+| **ODI-4** | SpO₂ · OxyDex | 4% oxygen-desaturation index — apnea-screening workhorse | AASM |
+| **T90** | SpO₂ · OxyDex | % of night below 90% SpO₂ — hypoxia severity | Sleep-apnea literature |
+| **Hypoxic burden** | SpO₂ · OxyDex | Area·depth·duration of desaturations | Azarbarzin 2019 |
+| **rMSSD** | RR/ECG · PulseDex · ECGDex · HRVDex | Short-term parasympathetic HRV | Task Force 1996 |
+| **SDNN** | RR/ECG · PulseDex · ECGDex | Overall HRV over the window | Task Force 1996 |
+| **QTc** | ECG · ECGDex | Rate-corrected QT (Bazett / Fridericia) | Repolarisation standard |
+| **Time in Range** | CGM · GlucoDex | % time 70–180 mg/dL — primary CGM metric | 2019 consensus |
+| **GMI** | CGM · GlucoDex | Glucose Management Indicator from mean glucose | Bergenstal 2018 |
+
+Everything past this list exists, but lives lower on the evidence ladder. Treat it accordingly.
+
+---
+
+## The evidence ladder (every metric is graded)
+
+Each metric carries one of five evidence tiers. The grade is shown as a **disc badge** in every
+app — **disc shape encodes trust, never hue** (so the ladder reads the same to colour-blind users
+and in greyscale print). The grade is a per-node fact, defined once in each node's registry.
+
+| Rank | Tier | Means | Example |
+|---|---|---|---|
+| 0 | **measured** | Read directly off the device, not derived | Mean SpO₂, Mean HR |
+| 1 | **validated** | Established + externally validated against a published standard | ODI-4, rMSSD, TIR |
+| 2 | **emerging** | Published, but device-dependent or less standardized | Nonlinear HRV, coupling |
+| 3 | **experimental** | Plausible, internally consistent, not externally confirmed | Composite indices |
+| 4 | **heuristic** | Rule-of-thumb estimate — directional signal only | Sleep-derived BP estimate |
+
+A metric's tier is sourced from its node's registry (`*-registry.js`) and mirrored into the
+reference guides; the badge visuals come from one canonical stylesheet. **A higher rank is not a
+"better" metric — it's a louder one.** A heuristic that points the right direction can still be
+useful; the ladder just makes sure you always know which kind of number you're looking at.
+
+---
+
+## The nodes
+
+| App | Signal | Device | Reads | Reference |
+|---|---|---|---|---|
+| **OxyDex** | SpO₂ / oximetry | O2Ring / Wellue / ViATOM | Raw 1 Hz overnight SpO₂·HR·motion | [Technical guide](OxyDex%20Reference.html) |
+| **PpgDex** | Wrist PPG | Polar Verity Sense | Raw optical pulse → PPI → HRV + pulse-wave morphology | [Technical guide](PpgDex%20Reference.html) |
+| **PulseDex** | HRV from raw RR | Polar Verity Sense | RR-interval streams | [Technical guide](PulseDex%20Reference.html) |
+| **ECGDex** | Raw ECG | Polar H10 | ECG (~130 Hz, Polar Sensor Logger) | [Technical guide](ECGDex%20Reference.html) |
+| **HRVDex** | HRV summaries | — | Vendor HRV exports + ECGDex exports (additive, multi-day) | [Technical guide](HRVDex%20Reference.html) |
+| **GlucoDex** | CGM | — | Continuous glucose traces | [Technical guide](GlucoDex%20Reference.html) |
+| **CPAPDex** | CPAP therapy | ResMed · EDF | EDF therapy data — pressure · leak · respiratory events | [Technical guide](CPAPDex%20Reference.html) |
+| **EEGDex** | EEG *(planned)* | Muse | Raw EEG | *(planned)* |
+
+Each node emits a `ganglior.node-export` JSON that the **Integrator** fuses across signals. Two
+ingest front-doors feed it: the **Data Unifier** takes individual files you drop and routes each to
+the right node, and **OverDex** takes a whole *folder* of mixed exports — it walks the tree, runs the
+right node on each file, and hands every result to the Integrator automatically.
+
+**HRVDex is the suite's HRV ledger.** Its imports are *additive*: every Welltory CSV or ECGDex export (CSV **or** `ganglior.node-export` JSON, including the multi-recording array) appends to one accumulating multi-day table — drop many files or nights at once, exact-duplicate measurements are skipped, and the table is persisted in the browser between visits (clear it with **Clear saved history**). ECGDex's **⬇ HRVDex** export writes a Welltory-style CSV with *all* loaded nights in one file, so a whole H10 history lands in HRVDex in a single drop.
+
+---
+
+## 🔬 Scientific Foundation
+
+Every non-trivial number traces to a published method. The working preprints — each **regenerated
+from the live tool behind it** — are in **[`papers/`](papers/papers.html)**; the methods overview is
+**[`Science.html`](Science.html)** and the system design is **[`Architecture.html`](Architecture.html)**.
+
+---
+
+## Repo map — where things live
+
+Most people never need this: open **`index.html`** and click your device. For anyone reading the
+source, here's the lay of the land.
+
+| You want… | Look at |
+|---|---|
+| **A map of every doc** | [`DOCS-INDEX.md`](DOCS-INDEX.md) — the single entry path over all ~60 briefs, audits, and READMEs, grouped by topic. Start here before opening any individual brief. |
+| **The app for your device** | the bundled `OxyDex.html`, `PpgDex.html`, `PulseDex.html`, `ECGDex.html`, `HRVDex.html`, `GlucoDex.html`, `CPAPDex.html` — open them directly. `Integrator.html` fuses them all; `Data Unifier.html` routes any file you drop to the right node, and `OverDex.html` runs a whole folder at once. |
+| **The front door** | `index.html` (the landing/device picker) — the page normal people start from. |
+| **How an app is built** | its source modules — `<node>-dsp.js` (signal math), `-render.js`, `-app.js`, `-registry.js` — plus `<App>.src.html`. Edit these; **never** the bundled `*.html`, then re-bundle. |
+| **Shared engine** | `metric-registry.js` (evidence badges), `ganglior-provenance.js`, `ans-design.css`. |
+| **Research tools** | `*-analysis.html` — the live tool behind each paper — plus `cohort-*.html`, `synth-gen.html`. Gates: `Dex-Test-Suite.html`, `verify-provenance.html`. |
+| **The papers** | `papers/` — working preprints, each regenerated from its tool. |
+| **Architecture docs** | `wiring/` — the "How It's Wired" reference set; start at `wiring/How It's Wired - the Dex Suite.html`. |
+| **Design system** | `templates/` — visual-language spec, theme + evidence-badge previews. |
+| **House rules** | `CLAUDE.md` (constitution) · `CONTRIBUTING.md` (on-ramp) · `ARCHITECTURE-PRINCIPLES.md` · `LEXICON.md`. |
+
+---
+
+## On the "75+ metrics" number
+
+Yes, the suite derives well over 75 metrics across all nodes. That number describes **surface
+area, not confidence.** The validated set above is the part we'd stake a decision on; the long tail
+is there for exploration and is graded honestly so you can tell the difference at a glance. We lead
+with the ladder, not the count, on purpose.
+
+---
+
+## Project voice (narrative, not spec)
+
+For the *why* behind Tepna — the philosophy, the constraints, and the jokes — see
+[`WHY-THIS-EXISTS.md`](docs/WHY-THIS-EXISTS.md) (styled mirror: `Why This Exists.html`). It is
+**narrative, not spec**: it defines no formats, APIs, or behavior, and nothing in it should be read
+as an instruction to implement. Authoritative rules live in `CLAUDE.md`, this README, and the
+`*-BRIEF.md` documents.
+
+## Licensing
+
+Apache-2.0. Author: **Michal Planicka**. Product brand: **Tepna**. See `LICENSE`, `NOTICE`,
+`CITATION.cff`, and `THIRD-PARTY.md`. User-facing surfaces carry the health intended-use
+disclaimer — Tepna is **not a medical device** and does not diagnose, treat, or monitor any
+condition.
+
+
+==============================================================================
+# ORIENTATION — ORIENTATION.md
+==============================================================================
+
+<!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
+**Status:** REFERENCE (living orientation map) · **last-verified:** 2026-06-30 · **Audience:** a new AI coder or code auditor, first 5 minutes
+
+# Tepna Dex Suite — Orientation (start here)
+
+A fleet of **single-signal physiological analyzers** ("Dexes") that each run **standalone, 100% in the
+browser, fully offline** (no network, no CDN, system fonts only), plus a shared event bus and a fusion
+layer that combine their outputs. The product brand is **Tepna**; the event-bus codename **Ganglior**
+is FROZEN (never rename it). Author/licence: Michal Planicka · Apache-2.0.
+
+> **This file is a MAP, not a description.** It points to where each fact actually lives — it does NOT
+> copy metric names, variables, or function signatures (those drift; see *Maintaining this file* at the
+> bottom). For the rules you must obey, **`CLAUDE.md` wins on every conflict** — read it first.
+
+---
+
+## The 60-second mental model
+
+One signal flows through four layers, downhill only — **UI → DSP → INGEST → CORE**:
+
+```
+vendor file ─▶ [INGEST: detect + parse vendor format] ─▶ SignalFrame ─▶ [DSP: canonical → metrics] ─▶ [UI / export]
+               (adapters/*.js, registered by signal)      (typed,        (one signal, no vendor logic)   (render + the
+                                                            clock-normed)                                  ganglior.node-export)
+```
+
+- A **node** (one Dex) analyzes exactly one signal and never imports another node. Nodes converge ONLY
+  through the **`ganglior.node-export`** JSON contract on the **Ganglior** bus.
+- The **Integrator** reads those exports and fuses them (HRV consensus, apnea/PB corroboration, …). It
+  is a *consumer that sits on top* — delete it and every node still works.
+- **DSP/INGEST never touch the DOM.** A signal can come from many vendors; one **adapter** normalizes
+  one vendor format → one **`SignalFrame`**; DSP only ever sees a `SignalFrame`. New vendor = one new
+  adapter file, not a node edit.
+
+The moat is the offline single-file build: every app is `<App>.src.html` + external `*.js`, bundled to
+a standalone `<App>.html`. **Edit the `.js` + `.src.html`, never the bundled `.html`; re-bundle after.**
+
+---
+
+## The Dex roster (the one list worth memorizing)
+
+| Dex | Signal | Typical input (vendor) | Computes | Core file |
+|---|---|---|---|---|
+| **OxyDex** | SpO₂ / oximetry | O2Ring / Wellue CSV | ODI, desaturation/hypoxic burden, periodic-breathing proxy | `oxydex-dsp.js` |
+| **PulseDex** | raw RR intervals | Polar H10 `*_RR.txt` (Coospo/Wahoo too) | time/freq HRV from RR | `pulsedex-dsp.js` |
+| **HRVDex** | HRV **summaries** | Welltory-style summary CSV | HRV trends + Baevsky SI/CSI (unit-guarded) | `hrvdex-dsp.js` |
+| **ECGDex** | raw ECG waveform | Polar H10 `*_ECG.txt` (~130 Hz) | R-peak detection → NN → HRV, CVHR, QTc | `ecgdex-dsp.js` |
+| **PpgDex** | raw PPG (optical) | Polar Verity Sense `*_PPG.txt` (176 Hz) | optical beat detection → self-PPI → HRV, posture | `ppgdex-dsp.js` |
+| **GlucoDex** | CGM glucose | Abbott Lingo / Libre CSV | TIR, variability, nocturnal hypo, dawn surge | `glucodex-dsp.js` |
+| **CPAPDex** | CPAP therapy (EDF) | ResMed AirSense `*.edf` set | AHI/CSL residual, periodic-breathing %, usage | `cpapdex-dsp.js` |
+| **Integrator** | *(fusion)* | N× `ganglior.node-export` | cross-node consensus + corroborated findings | `integrator-dsp.js` |
+
+Planned (not shipped): **EEGDex** (Muse EEG) and **SpiroDex** (flow-volume) introduce *new* signals →
+they still need real new DSP. **UltrahumanDex / Coospo** are pure adapter wins (signals we already
+analyze). New node names follow `LEXICON.md` (closed compound, capital-D, acronym stems all-caps).
+
+Each node ships the same file pattern: `-dsp.js` (signal math, headless), `-render.js`, `-app.js`,
+`-registry.js` (the metric truth source), usually `-cross.js` (cross-night envelope), plus any node-
+specific aux (`oxydex-util.js`, `cpapdex-edf.js`, …) and `<App>.src.html`.
+
+---
+
+## The two orchestrators (consumers-on-top — NOT nodes)
+
+The main human entry points. Like the Integrator, they **analyze nothing themselves** — they route files
+to nodes and read results through the public `ganglior.node-export` seam. **Independence invariant:** no
+node imports them; delete either and every node + the Integrator stay byte-identical.
+
+- **Data Unifier** (`Data Unifier.html` · `data-unifier-app.js`) — the adapter registry with a drop-zone
+  UI, and the **front-door for adding a vendor**. Drop a file (or a pile): it runs every adapter's
+  `detect()`, routes each to its adapter, shows the normalized `SignalFrame` + `usable`/`reason`, and can
+  emit a `ganglior.node-export`. A new vendor for an existing signal = **one new `adapters/*.js`**, nothing
+  else.
+- **OverDex** (`OverDex.html` · `overdex-walk.js` · `overdex-app.js`) — the capstone: **one drop, one fused
+  result.** Point it at a nested **folder** of mixed exports from any device; `overdex-walk.js` walks the
+  tree, routes every file via the *same* `SignalAdapters.route()` engine (not a fork), runs the right node's
+  headless `compute()` via `signal-orchestrate.js` — or passes an already-exported `*_ganglior.json` straight
+  through — then fuses everything via the Integrator. Unknown files are set aside (never guessed); ambiguous
+  routes are confirmed by the user.
+
+Both are **unbundled** (loose `<script src>` + a plain `.html`), so they touch neither gate. The router
+(`SignalAdapters.route`) and the orchestrator (`signal-orchestrate.js`) are **shared single modules** — fix
+a routing bug once and both tools inherit it.
+
+---
+
+## The shared spine
+
+- **Ganglior bus** — the `ganglior.node-export` schema (events `{ t, impulse, node, conf, meta }`,
+  `recording.startEpochMs` = floating `t0Ms`). FROZEN name + the input `fascia` alias. Vocabulary →
+  `EVENT-LEXICON.md`.
+- **Adapter layer (CORE)** — `signal-frame.js` (the `SignalFrame` type + `validateFrame`),
+  `signal-spec.js` (signal-type registry: rr/ecg/spo2/cgm/ppg/hrv/cpap/…), `signal-adapters.js`
+  (`registerAdapter` / `detect` / `route`), and `adapters/*.js` (one file per vendor format —
+  `polar-rr`, `coospo-rr`, `wahoo-rr`, `polar-h10-ecg`, `polar-sense-ppg`, `libre-cgm`, `oxydex-spo2`,
+  `welltory-summary`). `signal-orchestrate.js` drives a frame through a node's headless `compute()`.
+- **Kernel** — `kernel-constants.js` → `DexKernel.HASH` (content hash of shared physiology constants,
+  stamped into exports to catch cross-deployment drift). Loaded first everywhere.
+- **Evidence badges** — `metric-registry.js` (injects badge CSS; `BADGE_CSS`) + `dex-badges.css`
+  (byte-faithful mirror for static docs). The 5-level ladder lives ONCE; per-metric grade lives in each
+  `*-registry.js`.
+- **Orchestrators** — the two consumers-on-top (**Data Unifier**, **OverDex**) have their own section
+  above; they are not nodes.
+- **Research tools** — `*-analysis.html` (the live tool behind each paper in `papers/`), `cohort-*`,
+  `synth-gen.js`. Architecture wiring diagrams → `wiring/`.
+
+---
+
+## The two gates (run these; treat a red as a blocker)
+
+1. **Behavior — `Dex-Test-Suite.html`** (CI mirror: `node tests/run-tests.mjs`). One assertion library
+   (`tests/dex-tests.js`), real modules loaded, plus browser render-coverage. Render-coverage is
+   **on-demand** (lazy): a bare open paints only the headless floor (amber pill — **not** a pass); open
+   **`Dex-Test-Suite.html?full`** (or click **▶**) to boot the rigs, then the `#summary` pill must read
+   **all green** after the group count stops climbing (~30–50 s). Run after ANY `*-dsp.js` /
+   `*-cross.js` / `*-app.js` change.
+2. **Provenance — `verify-provenance.html`** (CI mirror: `node tests/verify-manifest.mjs`). PURE-STATIC,
+   content-addressed. **GATE A**: each bundle's `manifestHash` matches `BUILD-MANIFEST.json`. **GATE B**:
+   each `FIXTURE-PROVENANCE.json` fixture is a known-answer triple `hash(input) + manifestHash →
+   hash(output)`. `buildHash` is retired (no gate reads it). Read `window.__provenanceOK`.
+
+---
+
+## Where the truth lives — DON'T copy it, point to it
+
+| If you need… | Look at | Kept honest by |
+|---|---|---|
+| a metric's label / unit / good-direction / **evidence grade** | that node's `*-registry.js` | `cohesion-badges` test (registry ≡ `dex-badges.css` ≡ reference guide) |
+| a function's contract / return shape | `tests/dex-tests.js` | the test IS the contract; both runners use it |
+| the rules, gates, invariants, re-bundle ritual | **`CLAUDE.md`** | wins on every conflict |
+| the time model | `CLAUDE.md` "Clock Contract" + `clock.js` (`DexClock` — THE parser, single-sourced by A5 2026-07-03; ppgdex/glucodex/cpapdex carry deliberate node-local variants) | round-trip tests + WP-G truth table |
+| the event / impulse vocabulary | `EVENT-LEXICON.md` | event-lexicon test group |
+| the canonical signal shape + signal types | `signal-frame.js` / `signal-spec.js` | `validateFrame` + property/round-trip tests |
+| provenance (code identity + fixtures) | `BUILD-MANIFEST.json` / `FIXTURE-PROVENANCE.json` / `manifest-gate.js` | GATE A / GATE B + the equiv gate |
+| status of every brief / what's done | `DOCS-INDEX.md` | the dashboard; kept in sync on each status flip |
+| the layered architecture model | `ARCHITECTURE-PRINCIPLES.md` | — |
+| naming a new node | `LEXICON.md` | — |
+| how raw signals were captured | `CLAUDE.md` "Capture provenance" + `how-to-collect/` | — |
+| deploy / what to upload | `SITE-DEPLOY-AND-LAYOUT.md` | — |
+| licensing / attribution | `licensing/LICENSING-BRIEF.md` | SPDX-header + cohesion checks |
+
+---
+
+## Rules you cannot break (full text in `CLAUDE.md`)
+
+FROZEN names (`Ganglior`, `fascia`, `ganglior.node-export`, `DexKernel`) · the **Clock Contract**
+(floating wall-clock `tMs`, read back via `getUTC*`, missing stamp → `null` never `now()`) · **metric
+is the default unit system** (store/compute in SI; imperial is a display-only switch) · **100 % local**
+(no network/CDN/web-font) · **dependency direction downhill** (nodes never import each other) · **every
+surfaced number carries an evidence badge** · **edit `.js`/`.src.html`, never the bundled `.html`** ·
+**SPDX header on every authored file**.
+
+---
+
+## Maintaining this file (so it can't rot)
+
+This map survives only because it documents **slow-changing structure** and **points to** the fast-
+changing truth instead of copying it. Keep it that way:
+- **Never** list variables, metric values, or function signatures here — those live in source +
+  `*-registry.js` + `tests/dex-tests.js`, each gated. A catalog here would silently drift and become a
+  liability (the project's whole philosophy is single-source-of-truth + tests catch drift).
+- The **one volatile list** is the Dex roster table, and it is now **gate-backed**: the `tests/dex-tests.js`
+  group *“Orientation map — roster covers the shipped fleet”* asserts every committed `BUILD-MANIFEST.json`
+  bundle is named here, so shipping a node and forgetting the map turns the suite RED. Update the roster +
+  bump `last-verified` when a node ships; that's the only upkeep this file needs.
+
+
+==============================================================================
+# Architecture principles — ARCHITECTURE-PRINCIPLES.md
+==============================================================================
+
+<!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
+
+# Tepna — Architecture Principles
+
+> **For any coder (human or AI) working on this system, and for whoever eventually does the
+> layer-separation pass.** Read `CLAUDE.md` first (it wins on any conflict — especially the Clock
+> Contract and the two gates). This document states the *target architecture* and the *rules* that
+> keep Tepna scalable. It is a constitution, not a task list: adopt it **forward** (new code is
+> born compliant) and **migrate old code opportunistically** — never in one risky sweep.
+
+---
+
+## 0. What Tepna is (frame the decisions)
+
+Tepna is a **browser-native, 100%-local physiological analysis instrument framework** — a fleet of
+single-signal analyzers (the -Dexes) plus a shared event bus (Ganglior) and a fusion layer
+(Integrator). Its defining advantages, in priority order:
+
+1. **Instant reproducibility** — a bundled `Foo.html` is a frozen, hash-verifiable instrument. Open it
+   in 2026 or 2036, online or on a plane, and it computes the same numbers.
+2. **Portability** — one file, no install, no server, no network. Runs from `file://`.
+3. **Auditability** — provenance stamps + the test suite mean every number traces to a reproducible
+   build and a known contract.
+
+**Every architectural decision must protect these three.** A change that improves "code cleanliness"
+but weakens reproducibility/portability/auditability is the wrong change. This is why the answer to
+"the system is getting serious, should we move to a backend / microservices / Python?" is **no** —
+that trades away advantage #1 and #2 to solve a problem we don't have. The real scaling limit is
+**drift**, and the fix for drift is **tighter contracts inside the architecture we already have**, not
+more infrastructure.
+
+---
+
+## 1. The three layers (one job each)
+
+The single most important rule in this document. Every file belongs to exactly one layer, and each
+layer has exactly one responsibility. The boundaries — not the folder names — are what matter.
+
+### CORE — shared, stable, frozen-ish truth
+The constitution every node obeys. Today: `metric-registry.js`, the kernel
+(`DexKernel`/`kernel-constants`), `crossnight-envelope.js`, the Clock Contract, the Ganglior
+export schema.
+
+- **Rule: nothing device-specific ever lives in CORE.** No "oxygen" knowledge, no "glucose"
+  knowledge. If a constant or function is meaningful to only one node, it does not belong here.
+- CORE is **stable by default**. Changing it is a deliberate, contract-aware act (see §3), because
+  every node depends on it. New CORE capability is added as **new** surface (new field, new method),
+  not by mutating existing surface.
+- Test: *"Would this code be identical regardless of which signal the node measures?"* If yes → CORE.
+
+### DSP — one node's signal logic, and nothing else
+Pure domain math: signal transforms, feature extraction, metric computation. `oxydex-dsp.js` knows
+oxygen; `hrvdex-dsp.js` knows HRV; `cpapdex-dsp.js` will know airflow/pressure.
+
+- **Rule: no UI, no rendering, no DOM, no state persistence, no `localStorage`.** DSP takes parsed
+  input and returns metrics/objects. It is the part you could, in principle, run headless in Node
+  (and the test suite essentially does).
+- DSP is where the **domain expertise** concentrates. It is allowed to be complex — but it is *only*
+  complex about its one signal.
+- `parseTimestamp` is duplicated into each DSP **by design** (Clock Contract) — that is the one
+  sanctioned duplication; do not "fix" it into a shared util.
+- Test: *"Does this compute a number from a signal?"* → DSP. *"Does this decide how a number looks?"*
+  → not DSP.
+
+### UI — rendering and input only
+`*-render.js`, `*-app.js`, `Foo.src.html`. Visualization, file input, calling DSP, wiring controls.
+
+- **Rule: no signal logic in UI.** A render file must never recompute a metric, re-threshold a value,
+  or re-derive physiology. It asks DSP for the number and the registry for how to label/badge it.
+- UI owns: layout, charts, the evidence-badge spans, the depth selector, export buttons, persistence
+  of *view* state (which tier, scroll position).
+- Test: *"If I deleted this line, would a NUMBER change, or only its APPEARANCE?"* Appearance → UI.
+  Number → it's misplaced, move it to DSP.
+
+> **Why this matters concretely.** Today a desaturation rule could exist in OxyDex's render code and
+> get subtly re-implemented in CPAPDex's render code → two truths. With the boundary rule, that rule
+> can only live in DSP (or be a shared CORE definition), so there is exactly one place it can drift
+> from — and the test suite watches that one place.
+
+---
+
+## 2. The dependency direction (acyclic, downhill)
+
+```
+        ┌──────────────────────────────────────────┐
+        │                 CORE                      │   ← depends on nothing
+        │  kernel · metric-registry · envelope ·    │
+        │  clock contract · ganglior export schema  │
+        └──────────────────────────────────────────┘
+                    ▲                    ▲
+                    │ uses               │ uses
+        ┌───────────────────┐   ┌────────────────────┐
+        │   DSP (per node)   │   │  Integrator fusion │  ← consumes node EXPORTS,
+        │  pure signal math  │   │  (cross-node)      │     never node internals
+        └───────────────────┘   └────────────────────┘
+                    ▲
+                    │ calls
+        ┌───────────────────┐
+        │   UI (per node)    │   ← depends on its DSP + CORE; never on another node
+        └───────────────────┘
+```
+
+- **Dependencies point downhill only.** UI → DSP → CORE. CORE never imports a node. DSP never imports
+  UI. No cycles, ever.
+- **Nodes never import each other.** A -Dex is independent and standalone by design (a user may own
+  only one device). Cross-node interaction happens **exclusively through the Ganglior export
+  contract**, consumed by the Integrator — never by reaching into another node's functions.
+- The Integrator depends on the **export schema** (CORE-level contract), not on any node's DSP.
+
+---
+
+## 3. Contracts are the real product (kernel hardening)
+
+The system's durability comes from **enforced contracts**, not from tidy code. Three contracts:
+
+1. **The metric contract.** Every metric a node emits has a single definition — id, label, unit,
+   `goodDirection`, `depth`, `evidence`, `cite` — in that node's registry, matched to its envelope
+   `*_DEFS`. The registry/envelope are the *one* place a metric is described; render and export read
+   from it, never redefine it.
+2. **The export contract.** `ganglior.node-export` shape (`schema.name`, `recording.startEpochMs` =
+   floating `t0Ms`, `ganglior_events[]` with wall-clock `t` + absolute `tMs`). This is the cross-node
+   currency. Consumers must tolerate legacy `t`-only exports.
+3. **The CORE API contract.** Kernel scoring, envelope definitions, registry methods. These do not
+   silently evolve.
+
+**The golden rule of changing a contract** (already in `CLAUDE.md`, restated because it is central):
+> Keep back-compat. Add new params **LAST and optional**; expose new data via a **NEW** field/method.
+> Do not edit a shared assertion to match changed behavior — either preserve the old shape, or update
+> `tests/dex-tests.js` *deliberately*, knowing Node CI uses the same file.
+
+**`Dex-Test-Suite.html` is the guardian of physiological truth.** It is not a regression nicety; it is
+the mechanism that makes the contracts real. The shared assertions in `tests/dex-tests.js` ARE the
+public contract — when behavior and assertion disagree, the assertion is right until a human
+deliberately changes it. (Example already in place: the evidence ladder's `measured` level is
+contract-locked there, so no node can quietly drop or reorder it.)
+
+---
+
+## 4. The epistemic principle (honesty is architectural)
+
+Tepna's credibility rests on never presenting a guess as a measurement. This is encoded, not just
+cultural:
+
+- **The evidence ladder** (`measured ◉ → validated ● → emerging ◐ → experimental ○ → heuristic ◌`) is
+  attached to *every* metric. A raw sensor reading and a population projection must never look alike.
+- **A missing value is `null`, never fabricated** (Clock Contract: a missing timestamp is `null`,
+  never `now()`). Absence must stay visible.
+- **Confidence ≠ quality.** An event's `conf` (severity/likelihood) and its `sqi` (signal quality) are
+  separate axes; fusion attenuates via `effConf = conf × (sqi ?? 1)`. Never collapse them.
+- **Capability before consensus.** When sources disagree, you do not count devices — you filter to
+  sensors that *can* observe the signal, check internal plausibility, and look for the obligate
+  physiological consequence. (See the self-gate / consequence-corroboration brief.)
+
+A new node or metric that cannot honestly place itself on the evidence ladder is a design smell —
+resolve the honesty question before shipping the number.
+
+---
+
+## 5. Authority is per-signal, quality-gated (fusion principle)
+
+There is **no single "best device."** Authority is assigned **per signal**, and a gold-standard source
+**yields to a clean backup when its own quality gate trips**. Chest ECG owns HRV but is useless when
+its battery dies; the wrist PPG is the fallback for HR but never for HRV magnitude under motion. The
+Integrator encodes this matrix (see the CPAPDex brief §6). New nodes declare what they are
+authoritative *for*, not that they are authoritative.
+
+---
+
+## 6. Reproducibility & provenance (don't break the thing that makes us special)
+
+- **100% local. No network, no CDN, ever.** Fonts are system stacks. Assets are inlined at bundle
+  time, not fetched.
+- **Edit the inputs, never the bundle.** Edit `*-dsp.js` / `*-render.js` / `*.src.html`; rebuild with the
+  **owned deterministic bundler** — `node tools/build.mjs --app <Name>` (or the shared `tools/build-core.js`
+  via `tools/build.html` / an agent's run_script) — which emits PLAIN-INLINE bundles (`<script|style
+  data-inline-src>` readable text, no gzip/UUID) and auto-restamps the ledgers. Never use the legacy platform
+  inliner: a regressed `__bundler/manifest` bundle hashes to null and reds GATE A. The bundle's
+  **`manifestHash`** — a deterministic projection of its inlined JS/CSS — is the
+  instrument's executed-code fingerprint, and the sole code identity the gates check. (`buildHash` is
+  RETIRED — dropped from `BUILD-MANIFEST.json` 2026-07-03; still stamped into exports as inert legacy
+  metadata, but no gate reads it; do not reason about it.)
+- **Two gates, every change** (`CLAUDE.md`): `Dex-Test-Suite.html` all-green after any DSP/app/bundle
+  change; `verify-provenance.html` no red mismatch after any re-bundle. `manifestHash` is deterministic —
+  it moves ONLY on a real JS/CSS code change (a re-build of identical source is byte-identical) — and
+  `build.mjs` writes the GATE-A entry + re-stamps code-gated fixtures for you; regenerate a fixture's OUTPUT
+  only when the change actually moved it (the equiv gate tells you). `node tools/build.mjs --check` is the
+  CI drift guard: every committed bundle ≡ build(source).
+
+---
+
+## 7. When (and how) to do the layer-separation pass
+
+This is the one larger refactor implied by §1. Guidance so it's done safely:
+
+- **Do NOT run it during the cohesion rollout or the CPAPDex build.** Moving code while other briefs
+  edit it guarantees conflicts. It is a *deliberate, standalone* pass.
+- **Adopt forward first.** Build CPAPDex layer-clean from day one (its brief already separates
+  `cpapdex-edf.js` / `-dsp.js` / `-render.js` / `-fusion.js`). New code costs nothing to do right.
+- **Migrate old nodes opportunistically**, one node per pass, gating after each — never six at once.
+  The goal state: each node is `<node>-dsp.js` (pure math) + `<node>-render.js` (pure UI) + a thin
+  `<node>-app.js` (wiring/export), all over a CORE that holds zero device knowledge.
+- **Success test for a migrated node:** you can run its DSP headless (Node) with no DOM, and its
+  render file contains no number that isn't sourced from DSP or the registry.
+
+---
+
+## 8. Adding a new Dex — the pointer-checklist (EEGDex, SpiroDex, UltrahumanDex…)
+
+Everything below is already specified in detail *somewhere*; this is the **ordered index of where**, so
+a coder (usually an agent) can add a node by reading *little* rather than slurping the whole doc set. It
+restates nothing — follow each pointer for the actual rules. Forward-first: a new node is born compliant.
+
+1. **Name it** — `LEXICON.md §4` (closed compound, capital-D, acronym stems all-caps: `EEGDex`,
+   `SpiroDex`). Frozen bus/schema names (`Ganglior`, `fascia` alias, `ganglior.node-export`) are NOT yours
+   to touch (`CLAUDE.md`).
+2. **Classify the signal** — new *vendor* for a signal we already compute = just a new **adapter**
+   (`SIGNAL-ADAPTER-AND-FRONTIER` brief); genuinely new signal type (EEG, flow-volume) = new adapter **+
+   real new DSP**. Register the type in `signal-spec.js`.
+3. **Ingest → one `SignalFrame`** — write `adapters/<vendor>-*.js` (`SIGNAL-ADAPTER-AND-FRONTIER` Phase 0);
+   honor the **Clock Contract** verbatim (`CLAUDE.md`) — mirror `parseTimestamp` into the DSP (the one
+   sanctioned duplication, §1), floating `tMs`, `null` never `now()`, vendor formats by regex.
+4. **DSP — the signal's math** (`<node>-dsp.js`, §1 rules: pure, headless-runnable, no UI/DOM/storage).
+   Metric-canonical (SI; imperial only at the display boundary — `CLAUDE.md`).
+5. **Metrics as data, ONCE** — author `codegen/manifests/<node>.manifest.json` and generate
+   `<node>-registry.js` + reference guide via `codegen/dex-registry-gen.js` / `dex-gen.js` (the
+   forward-first path — do NOT hand-write a registry for a new node; §3 metric contract). Every metric
+   places itself on the **evidence ladder** (§4) — resolve the honesty question before shipping the number.
+6. **Evidence badges on every surfaced number** — the COVERAGE MANDATE (`CLAUDE.md`); apps load
+   `metric-registry.js`, never hardcode disc CSS (`dex-badges.css`).
+7. **Export via the contract** — `ganglior.node-export` shape (§3); declare what the node is authoritative
+   *for* (§5), not that it's authoritative. Cross-node interaction is export-only — nodes never import each
+   other (§2).
+8. **UI** — `<node>-render.js` + `<node>-app.js` + `<Node>.src.html` (§1: no signal logic in UI; a number
+   comes from DSP or the registry, never recomputed in render).
+9. **Wire the gates** — add the node's `<NODE>_REGISTRY` + resolver + reference-guide text to `env` in BOTH
+   runners (`run-tests.mjs` + `Dex-Test-Suite.html`) so `cohesion-badges` covers it; add a render-coverage
+   rig + an `env.equiv` leg (`CLAUDE.md` gate sections). ≥1 dynamic equiv/golden leg per code-gated node.
+10. **Bundle + ledgers** — `node tools/build.mjs --app <Node>` builds `<Node>.src.html` → `<Node>.html`
+    (owned plain-inline) AND auto-writes the `BUILD-MANIFEST.json` GATE-A `manifestHash` + re-stamps its
+    code-gated `FIXTURE-PROVENANCE.json` fixtures. Record NEW fixtures by re-running the app + re-exporting;
+    `node tests/check-dex.mjs <node>` for the scoped both-gates check while iterating.
+11. **Land both gates green** — `Dex-Test-Suite.html?full` all-green + `verify-provenance.html`
+    `__provenanceOK`. Then flip your brief's header to DONE (`CLAUDE.md` brief lifecycle).
+
+> Acceptance bar when EEGDex lands is `BADGE-COVERAGE-AUDIT-BRIEF.md`'s method (it's the pre-wired example:
+> `codegen/generated/eegdex-registry.js` already projects through `cohesion-badges`).
+
+---
+
+## TL;DR for a coder in a hurry
+
+1. **Three layers, one job each:** CORE (shared truth, no device logic) · DSP (one signal's math, no
+   UI) · UI (rendering, no signal logic).
+2. **Dependencies point downhill** (UI→DSP→CORE); **nodes never import each other** — only via the
+   export contract.
+3. **Contracts are the product.** Back-compat always; the test suite is the guardian; never edit an
+   assertion to hide a break.
+4. **Be honest:** evidence ladder on every metric; `null` not fabricated; conf ≠ quality; capability
+   before consensus.
+5. **Per-signal authority, quality-gated.** No global "best device."
+6. **Stay local & reproducible.** Edit inputs, re-bundle, pass both gates.
+7. **The layer-separation refactor is forward-first, one node at a time, never mid-rollout.**
+
+
+==============================================================================
+# Lexicon — docs/LEXICON.md
+==============================================================================
+
+<!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
+
+# LEXICON — the Dex Suite naming system
+
+> A **guide, not a rename.** `Ganglior` is FROZEN (see `CLAUDE.md`); the parked
+> `Ganglior → Fascia` rename stays parked behind its single constant. Nothing in
+> this document renames anything. It exists so the suite *reads* as one system
+> instead of separate inventions — and so the next node (CPAPDex, EEGDex, …)
+> slots in without a naming debate.
+
+---
+
+## 1. The metaphor: one nervous system
+
+The suite is an **autonomic-nervous-system analogue**, and the names already encode it.
+Read end to end it is a literal **reflex arc**:
+
+```
+   afferent          relay            integration           efferent
+   receptors    →    bus         →    centre          →     insight
+   ─────────         ───────          ──────────            ────────
+   the -Dex          Ganglior         the Integrator        "Tepna"
+   nodes             event bus        fusion layer          (the read-out)
+```
+
+- **-Dex nodes = afferent receptors.** Each senses exactly **one** signal and reports it
+  inward. OxyDex senses oxygen; ECGDex senses cardiac electrical activity; PulseDex senses
+  raw beat-to-beat timing; GlucoDex senses glucose; HRVDex summarizes variability. A receptor
+  does one transduction well — that is why a node is single-signal.
+- **Ganglior = the relay bus.** *Ganglia* are the nerve junctions where signals are routed and
+  relayed. Ganglior is where node exports converge as events. The name fits the role exactly;
+  it is frozen and untouched. (The `fascia` input alias is read for back-compat only.)
+- **The Integrator = central integration.** Afferent signals converge here and become a single
+  coherent percept — the longitudinal, cross-signal picture no single receptor can produce.
+- **"Tepna" = the tagline, not a sibling brand.** It names *what the system produces*
+  (an autonomic read-out), not a fourth product next to the -Dex nodes. Never capitalize or
+  package it as a node.
+
+This is the same arc a knee-jerk follows: receptor → relay → integration → response.
+
+---
+
+## 2. Role language (use these words)
+
+When you describe any part of the suite, name its **role in the arc**, not just its file:
+
+| Part | Role word | Say | Don't say |
+|---|---|---|---|
+| A `*Dex` app | receptor / node | "the OxyDex **node** senses SpO₂" | "the OxyDex **app/tool/product**" |
+| `Ganglior` | relay / bus | "emit onto the **Ganglior** bus" | "the Ganglior **format/file**" |
+| Integrator | integration centre | "the Integrator **fuses** afferent nodes" | "the Integrator **dashboard**" |
+| Tepna | the read-out | "surfaces **ANS-intelligence** insight" | "the Tepna **app**" |
+
+A node **senses** and **emits**; the bus **relays**; the Integrator **fuses** / **integrates**;
+the system **surfaces insight**. Keep the verbs afferent → efferent.
+
+---
+
+## 3. Capitalization & typographic rules
+
+- **Node names are one closed compound, capital-D:** `OxyDex`, `HRVDex`, `PulseDex`, `GlucoDex`,
+  `ECGDex`, `EEGDex`. Never `Oxydex`, `oxy-dex`, `Oxy Dex`, or `OXYDEX` in prose. The signal stem
+  is title-case (`Oxy`, `Pulse`, `Gluco`); an **acronym stem stays all-caps** (`ECG`, `HRV`, `EEG`).
+- **`Ganglior`** — capital G, never pluralized, never abbreviated. It is a proper noun for the bus.
+- **`Integrator`** — capital I when it means the fusion layer specifically.
+- **`-Dex`** as a class — when referring to the family, write "the **-Dex** nodes" (leading hyphen,
+  capital D). "Dexes" is acceptable casual plural in dev notes only.
+- **"Tepna"** — title-case as a tagline; **"ANS-intelligence"** (hyphen, lowercase i)
+  when used adjectivally ("an ANS-intelligence read-out").
+- **Export schema strings stay lowercase-dotted:** `ganglior.node-export`, `ganglior.crossnight`.
+  Code identifiers are not prose — do not title-case them.
+- **Evidence + depth vocabulary is fixed** (see the Metric Registry): depth tiers are
+  **Core · Advanced · Research**; evidence classes are **Validated · Emerging · Experimental ·
+  Heuristic**. Always those words, in that order (the order is the confidence ladder).
+
+---
+
+## 4. Recipe — naming a NEW node
+
+When a new signal earns a receptor, name it deterministically:
+
+1. **Pick the signal stem.** The shortest unambiguous name of the *one* signal it transduces.
+   - Common word → title-case it: `Pulse`, `Gluco`, `Oxy`, `Sleep`.
+   - Established acronym → keep it all-caps: `ECG`, `EEG`, `EMG`, `CPAP`.
+2. **Append `Dex`** (capital D, closed compound): `CPAPDex`, `EMGDex`, `TempDex`.
+3. **One signal per node.** If you are tempted to sense two signals, that is two nodes. (Fusion is
+   the Integrator's job, never a node's.)
+4. **Declare its metric registry** (`<node>-registry.js`) with the two axes for every surfaced
+   metric — `depth` (Core/Advanced/Research) and `evidence` (Validated/Emerging/Experimental/
+   Heuristic) — plus `label`, `unit`, `goodDirection`, `cite`. Mirror the shape; keep data local.
+5. **Emit onto Ganglior** using the frozen export contract (`ganglior.node-export`,
+   `recording.startEpochMs` = floating `t0Ms`, `ganglior_events:[{t, impulse, node, conf, …}]`).
+6. **Inherit the Clock Contract verbatim** (`CLAUDE.md`). A receptor that lies about time poisons
+   the relay.
+
+If steps 1–6 hold, the node is already coherent with the system — no branding review needed.
+
+---
+
+## 5. One-line glossary
+
+- **-Dex node** — single-signal afferent receptor; senses one physiological signal, emits events.
+- **Ganglior** — the relay/event bus where node exports converge (frozen name).
+- **Integrator** — central integration layer; fuses afferent nodes into a longitudinal percept.
+- **Tepna** — the tagline for the system's autonomic read-out (not a node).
+- **Metric registry** — the per-node declarative map giving each metric a depth + evidence axis.
+- **Depth** — how *much* you see: Core · Advanced · Research (progressive disclosure).
+- **Evidence** — how *trustworthy* a metric is: Validated · Emerging · Experimental · Heuristic
+  (a non-hue badge; the fill ladder is the confidence ladder).
+
+---
+
+*Branding becomes systematic through this document, not through risky renames. The metaphor was
+already latent in the code; this just makes it explicit and repeatable.*
+
+
+==============================================================================
+# Why this exists — docs/WHY-THIS-EXISTS.md
+==============================================================================
+
+<!--
+  WHY-THIS-EXISTS.md — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+
+  NARRATIVE / VOICE — not a contract. This file states the project's intent and
+  tone. It is NOT spec: it defines no formats, no APIs, no behavior. Nothing here
+  should be read as an instruction to implement. For authoritative rules see
+  CLAUDE.md, README.md, and the *-BRIEF.md documents. Styled mirror: "Why This
+  Exists.html".
+-->
+
+# Why This Exists
+
+*Colophon — narrative, not spec.*
+
+The story goes that the Swedish writer [August Strindberg](https://en.wikipedia.org/wiki/August_Strindberg) once blew pipe smoke into a bucket of water to see if he could make gold.
+
+*What a strange idea from a brilliant mind.*
+
+But maybe that's the wrong way to look at it. Maybe Strindberg wasn't the man who thought smoke could make gold. Maybe he was the man who proved that it couldn't.
+
+Someone has to explore the dead ends of human knowledge. Someone has to walk down the wrong path, all the way to the end, and come back to tell everyone else:
+
+> "Not this way, friends."
+
+Under suitably favorable conditions, of course.
+
+By which I mean the arrival of a cold front, freezing temperatures, several failed experiments, three contradictory papers, and the discovery that the thing I spent many moons building measures absolutely nothing useful.
+
+This project exists in that spirit. Some ideas will work. Most won't.
+
+Every experiment deserves to be performed at least once. Preferably by someone else.
+
+## We Already Have the Answer
+
+The answer is **42**. The trouble is that nobody knows the *question.*
+
+That's the actual job here. Answers are cheap — you can compute one to ten decimal places before breakfast. The hard part is working backward to the question that makes the answer mean anything.
+
+The program advances by suddenly running down the wrong end of a maze, eating the wrong bit of cheese, or unexpectedly dropping dead of myxomatosis — and if it's finely calculated, the cumulative effect is enormous.
+
+Every wrong turn is a data point. The cheese counts.
+
+So I run the maze on purpose, and I write down where the walls are.
+
+This project computes a lot of metrics.
+
+Some of them may turn out to measure absolutely nothing useful.
+
+## Why It Looks Like This
+
+As devoted Ham radio operator [KQ4KIJ](https://www.qrz.com/db/KQ4KIJ) I'm previously intimately familiar with a concept called the **Wife Acceptance Factor** — WAF, the informal but merciless measure of how much domestic invasion a hobby can get away with — (occasionally implemented as Partner Acceptance Factor, with lower impact score).
+
+It is an informal measure of how much a partner is willing to tolerate a hobby's cost, equipment, and general invasion of daily life. For biohackers and self-quantifiers, WAF is not a joke. It is a *load-bearing engineering constraint.*
+
+Score is calculated including, but not limited to:
+
+- **Aesthetics** — the number of wearables, pulse oximeters, chest straps, and electrode patches currently attached to your body.
+- **Space** — how much of the bedroom, bathroom, and living room has quietly become a miniature research lab.
+- **Cost** — the budget vanishing into devices, supplements, and "just one more" sensor.
+- **Noise & Light** — the blinking LEDs, charging docks, and overnight lab equipment that turn a bedroom into a small datacenter.
+- **Time** — the hours spent collecting data, tuning dashboards, and reading papers at an hour no reasonable person is awake.
+
+Anyone who can install a whole-home sensor network, maintain a 14-supplement morning routine, and run multiple sleep monitors *without* triggering a household rebellion has achieved a level of systems engineering that deserves academic recognition, possibly a medal.
+
+So the whole project is built around one ironclad rule: **maximum information, minimum hardware, minimum annoyance.**
+
+One should never reject a hypothesis merely because it appears ridiculous. Ridiculous hypotheses have an unfortunate habit of occasionally being correct, which only encourages them.
+
+## Why Consumer Sensors?
+
+Because I like the idea of doing more with less.
+
+Also, because I have them.
+
+I think of [William Kamkwamba](https://en.wikipedia.org/wiki/William_Kamkwamba), a teenager in **Malawi** who built a working wind turbine out of bicycle parts, scrap metal, and a library book — and brought electricity to his family's home during a famine. He did it to keep people alive.
+
+I am, by comparison, using bicycle parts and scrap metal to find out whether my heart rate variability dips after the second coffee.
+
+Same principle. Slightly lower stakes. Significantly better coffee.
+
+Still — consumer devices are cheap, widely available, and already sitting in people's homes. Instead of dreaming about a hospital-grade laboratory, I'd rather see how far I can push the gear ordinary people can actually buy.
+
+The goal isn't to use the most expensive equipment. The goal is to get **105%** out of the equipment you already have.
+
+*(That said — if someone wants to send me free lab equipment, I will not say no. 😁)*
+
+## Why So Much Documentation?
+
+I'm told I have a playful personality. The side effect is that people can't always tell when I'm joking and when I'm serious.
+
+Sometimes I can't either.
+
+This is less of a confession and more of a known system parameter.
+
+That's why you'll find citations, references, and documentation scattered throughout this project. Not because I enjoy over-documenting things — okay, *slightly* because of that — but mostly because citations are a natural guardrail against confusion. When a claim matters, you should be able to trace it back to the source and decide for yourself.
+
+> Life is optional. The references are not.
+>
+> — *the whole thing, in one line*
+
+## Why "Tepna"
+
+[**Tepna**](https://en.wiktionary.org/wiki/tepna) is Czech for *artery* — a small homage to where I'm from, and to the only thing this whole project really does: carry a faint physiological signal from where it's measured to where it can mean something.
+
+The rest of the suite is named from the body too — the nodes that sense, the bus that relays, the centre that integrates. The artery just carries. That felt like the right name for the part you're looking at.
+
+## Who am I
+
+Mailman, Ham radio operator, an amateur scientist, an amateur astronomer, master of dead ends, ballroom dancer, inventor, electronic engineer, world traveller, explorer, philosopher, businessman, photographer and sportsman, among other things.
+
+I am also, according to several years of independently collected customer-satisfaction metrics, a remarkably nice guy. look for yourself:
+
+```
+985,1070,1031,914,878,953,1015,957,878,903,1008,1074,994,889,887,967,997,903,833,880,1003,1026,938,874,915,987,965,837,800,887,989,981,896,868,940,996,949,843,845,939,1029,984,907,921,1009,1042,953,865,889,991,1042,965,889,955,1059,1048,924,853,896,996,978,881,848,944,1038,1000,872,827,892,966,920,819,832,963,1047,978,884,883,966,994,913,838,893,996,1038,964,901,947,1050,1026,921,861,925,1036,1031,936,917,1003,1052,989,867,837,941,1001,957,870,907,989,1040,952,841,847,942,979,906,841,889,1012,1022,927,844,886,976,969,887,851,954,1050,1043,937,899,953,1013,969,862,855,975,1050,996,896,910,998,1013,908,821,854,957,1009,933,852,905,987,974,873,806,877,973,984,900,863,950,1021,997,875,834,920,992,973,879,891,998,1057,983,880,864,965,1019,949,873,926,1039,1070,966,890,915,997,977,888,846,932,1032,1019,911,865,916,987,938,827,827,927,1008,977,866,857,955,1007,920,827,853,951
+```
+
+All metrics are fully reproducible. Permission to understand it is expected within 30–60 business days.
+
+## Dedication
+
+This project is dedicated to [**Jára Cimrman**](https://en.wikipedia.org/wiki/J%C3%A1ra_Cimrman) — the greatest Czech who never existed. Playwright, inventor, polymath, and permanent runner-up in the Greatest Czech of All Time poll, disqualified on a technicality of not being real. He was somehow present at many defining moments of modern history and left no verifiable trace of any of them, which is either a scandal or a methodology.
+
+[Planet 7796 Járacimrman](https://en.wikipedia.org/wiki/7796_J%C3%A1racimrman) orbits the Sun in his honor.
+
+If this project occasionally wanders down strange paths, investigates improbable ideas, and takes itself only slightly too seriously, that is entirely his fault. He would have understood this project completely.
+
+In fact, there is every possibility that he invented it first and neglected to publish the results.
+
+◈ end

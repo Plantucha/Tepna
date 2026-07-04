@@ -81,16 +81,16 @@ useful; the ladder just makes sure you always know which kind of number you're l
 
 ## The nodes
 
-| App | Signal | Device | Reads |
-|---|---|---|---|
-| **OxyDex** | SpO₂ / oximetry | O2Ring / Wellue / ViATOM | Raw 1 Hz overnight SpO₂·HR·motion |
-| **PpgDex** | Wrist PPG | Polar Verity Sense | Raw optical pulse → PPI → HRV + pulse-wave morphology |
-| **PulseDex** | HRV from raw RR | Polar Verity Sense | RR-interval streams |
-| **ECGDex** | Raw ECG | Polar H10 | ECG (~130 Hz, Polar Sensor Logger) |
-| **HRVDex** | HRV summaries | — | Vendor HRV exports + ECGDex exports (additive, multi-day) |
-| **GlucoDex** | CGM | — | Continuous glucose traces |
-| **CPAPDex** | CPAP therapy | ResMed · EDF | EDF therapy data — pressure · leak · respiratory events |
-| **EEGDex** | EEG *(planned)* | Muse | Raw EEG |
+| App | Signal | Device | Reads | Reference |
+|---|---|---|---|---|
+| **OxyDex** | SpO₂ / oximetry | O2Ring / Wellue / ViATOM | Raw 1 Hz overnight SpO₂·HR·motion | [Technical guide](OxyDex%20Reference.html) |
+| **PpgDex** | Wrist PPG | Polar Verity Sense | Raw optical pulse → PPI → HRV + pulse-wave morphology | [Technical guide](PpgDex%20Reference.html) |
+| **PulseDex** | HRV from raw RR | Polar Verity Sense | RR-interval streams | [Technical guide](PulseDex%20Reference.html) |
+| **ECGDex** | Raw ECG | Polar H10 | ECG (~130 Hz, Polar Sensor Logger) | [Technical guide](ECGDex%20Reference.html) |
+| **HRVDex** | HRV summaries | — | Vendor HRV exports + ECGDex exports (additive, multi-day) | [Technical guide](HRVDex%20Reference.html) |
+| **GlucoDex** | CGM | — | Continuous glucose traces | [Technical guide](GlucoDex%20Reference.html) |
+| **CPAPDex** | CPAP therapy | ResMed · EDF | EDF therapy data — pressure · leak · respiratory events | [Technical guide](CPAPDex%20Reference.html) |
+| **EEGDex** | EEG *(planned)* | Muse | Raw EEG | *(planned)* |
 
 Each node emits a `ganglior.node-export` JSON that the **Integrator** fuses across signals. Two
 ingest front-doors feed it: the **Data Unifier** takes individual files you drop and routes each to
@@ -98,6 +98,14 @@ the right node, and **OverDex** takes a whole *folder* of mixed exports — it w
 right node on each file, and hands every result to the Integrator automatically.
 
 **HRVDex is the suite's HRV ledger.** Its imports are *additive*: every Welltory CSV or ECGDex export (CSV **or** `ganglior.node-export` JSON, including the multi-recording array) appends to one accumulating multi-day table — drop many files or nights at once, exact-duplicate measurements are skipped, and the table is persisted in the browser between visits (clear it with **Clear saved history**). ECGDex's **⬇ HRVDex** export writes a Welltory-style CSV with *all* loaded nights in one file, so a whole H10 history lands in HRVDex in a single drop.
+
+---
+
+## 🔬 Scientific Foundation
+
+Every non-trivial number traces to a published method. The working preprints — each **regenerated
+from the live tool behind it** — are in **[`papers/`](papers/papers.html)**; the methods overview is
+**[`Science.html`](Science.html)** and the system design is **[`Architecture.html`](Architecture.html)**.
 
 ---
 

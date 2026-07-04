@@ -1110,7 +1110,48 @@ global.PPGDSP.buildNodeExport = ppgBuildNodeExport;
 // ONE namespaced global (brief §1A). PpgDex leaks nothing bare (the whole DSP is in this
 // IIFE) → no __DEX_NAMESPACED__ suppression gate needed; this is an explicit named global,
 // collision-free in the co-load realm. Standalone bundles still read PPGDSP.
+// ═══ SELF-INGEST — reload PpgDex's OWN ganglior.node-export as a review-mode clinical VIEW
+// (SELF-INGEST-FOLLOWUPS · PpgDex pass, EXPORT-INERT). PpgDex already emits a RICH node-export
+// (buildV2/exportSummary: recording + hrv{time,frequency,nonlinear} + personalization + apnea) AND a
+// light one (exportGanglior). This reader accepts EITHER, single or a sessions[] multi wrapper, and
+// returns whatever derived layer is present VERBATIM. PURE + DOM-FREE; never recomputes, never re-stamps. ═══
+function ppgLoadOwnExport(json){
+  if(!(json && json.schema && json.schema.name === 'ganglior.node-export'))
+    return { ok:false, reason:'not-node-export', message:'Not a node-export \u2014 drop a raw Polar Verity *_PPG.txt, or PpgDex\u2019s own .json export.' };
+  var node = ((json.schema.node || '') + '').trim();
+  if(node !== 'PpgDex')
+    return { ok:false, reason:'foreign-node', node:node,
+      message:'This is a '+(node||'non-PpgDex')+' export \u2014 open it in '+(node||'its own node')+', or drop it into the Integrator to fuse.' };
+  var carrier = Array.isArray(json.sessions) ? json.sessions : [json];
+  var elements = carrier.map(function(el){ var e=JSON.parse(JSON.stringify(el)); e._fromExport=true; e._reviewMode=true; return e; });
+  var evAll = Array.isArray(json.ganglior_events) ? json.ganglior_events.slice() : [];
+  if(!evAll.length) carrier.forEach(function(el){ if(Array.isArray(el.ganglior_events)) evAll = evAll.concat(el.ganglior_events); });
+  evAll.sort(function(a,b){ return ((a&&a.tMs)||0) - ((b&&b.tMs)||0); });
+  return {
+    ok:true, reviewMode:true, node:node,
+    elements:elements, events:evAll,
+    provenance:(json.schema && json.schema.provenance) || null,
+    generated:(json.schema && json.schema.generated) || null,
+    derivedFrom:(json.schema && json.schema.derivedFrom) || null,
+    kernel:json.kernel || null,
+    recording:(carrier[0] && carrier[0].recording) || json.recording || null,
+    hrv:(carrier[0] && carrier[0].hrv) || json.hrv || null,
+    quality:(carrier[0] && carrier[0].quality) || json.quality || null,
+    personalization:(carrier[0] && carrier[0].personalization) || json.personalization || null,
+    crossNight:json.crossNight || null,
+    scrubbed:!!(json.schema && json.schema.scrubbed),
+    multiNight:elements.length > 1, raw:json
+  };
+}
+
 global.PpgDex = global.PpgDex || { compute:compute, parsePPG:parsePPG, analyze:analyze,
   buildNodeExport:ppgBuildNodeExport, _build:ppgBuildNodeExport };
+global.PpgDex.loadOwnExport = ppgLoadOwnExport;   // SELF-INGEST reload (review-mode clinical view)
+// scrub-for-sharing → the SHARED dexScrubExport (D1); lazy delegate, co-load order irrelevant.
+global.PpgDex.scrubExport = function(env){
+  if(global.DexExport && typeof global.DexExport.scrubExport === 'function') return global.DexExport.scrubExport(env);
+  if(typeof global.dexScrubExport === 'function') return global.dexScrubExport(env);
+  return env;
+};
 
 })(window);

@@ -21,6 +21,7 @@ function loadPasted() {
   document.getElementById('pasteFallback').style.display='none';
   // Paste is an import too → additive (a leading { or [ means a pasted ECGDex/Ganglior JSON).
   const head = text.replace(/^\uFEFF/,'').trimStart();
+  if((head[0]==='{' || head[0]==='[') && _hrvMaybeReview(text)) return;   // SELF-INGEST: HRVDex-own export → review
   if((head[0]==='{' || head[0]==='[') && typeof ingestGangliorJSON==='function') ingestGangliorJSON(text, {});
   else parseCSV(text, {});
 }
@@ -48,12 +49,127 @@ function processFile(file) {
     const text = ev.target.result || '';
     const head = text.replace(/^\uFEFF/,'').trimStart();
     const looksJSON = name.endsWith('.json') || head[0]==='{' || head[0]==='[';
+    if(looksJSON && _hrvMaybeReview(text)){ try{ var fir=document.getElementById('fileInput'); if(fir) fir.value=''; }catch(_r){} return; }   // SELF-INGEST review
     if(looksJSON && typeof ingestGangliorJSON==='function') ingestGangliorJSON(text, {});
     else parseCSV(text, {});
     try{ var fi=document.getElementById('fileInput'); if(fi) fi.value=''; }catch(_){}   // allow re-adding the same file
   };
   reader.readAsText(file);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SELF-INGEST review mode (SELF-INGEST-FOLLOWUPS · HRVDex enrich-first pass)
+//  A dropped HRVDex OWN ganglior.node-export → a faithful clinical VIEW from the
+//  enriched per-measurement `measurements[]` table (no recompute, no re-stamp,
+//  no append to the ledger). Foreign JSON (ECGDex) + Welltory CSV keep the
+//  existing additive-import path. HRVDex has no raw waveform → nothing greyed.
+// ═══════════════════════════════════════════════════════════════════════════
+function _hrvMaybeReview(text){
+  try{
+    var j=JSON.parse(text);
+    if(j && j.schema && j.schema.name==='ganglior.node-export' && ((j.schema.node||'')+'').trim()==='HRVDex'){
+      var res=(window.HRVDex && typeof window.HRVDex.loadOwnExport==='function')?window.HRVDex.loadOwnExport(j):null;
+      if(res && res.ok){ hrvRenderReview(res); if(typeof setStatus==='function') setStatus('Loaded HRVDex export \u2014 review mode (not recomputed).'); return true; }
+    }
+  }catch(e){}
+  return false;
+}
+function _hrvesc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+function _hrvD(tMs){ if(tMs==null) return '\u2014'; var d=new Date(tMs); return d.getUTCFullYear()+'-'+('0'+(d.getUTCMonth()+1)).slice(-2)+'-'+('0'+d.getUTCDate()).slice(-2); }
+function _hrvFmtGen(g){ if(!g) return ''; try{ return String(g).replace('T',' ').replace(/\..*$/,'').replace(/Z$/,' UTC'); }catch(e){ return String(g); } }
+function _hrvInjectReviewCSS(){
+  if(typeof document==='undefined'||document.getElementById('hrv-selfingest-css')) return;
+  var css=''
+   + '#hrvReviewCard{margin:0 0 22px}'
+   + '.hrvrv-banner{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin:0 0 18px;padding:13px 18px;border-radius:12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.28);font-size:13px;color:var(--text2,#9FB0C3);line-height:1.5}'
+   + '.hrvrv-tag{display:inline-flex;align-items:center;gap:6px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:11px;color:var(--amber,#F59E0B)}'
+   + '.hrvrv-dot{width:8px;height:8px;border-radius:50%;background:var(--amber,#F59E0B)}'
+   + '.hrvrv-meta code{font-family:ui-monospace,monospace;color:var(--text2,#9FB0C3)}'
+   + '.hrvrv-spacer{flex:1 1 auto}'
+   + '.hrvrv-print{display:inline-flex;align-items:center;gap:7px;cursor:pointer;padding:8px 15px;border-radius:9px;border:1px solid rgba(61,224,208,.4);background:rgba(61,224,208,.12);color:var(--teal,#3DE0D0);font-size:12.5px;font-weight:700}'
+   + '.hrvrv-card{padding:24px 26px;border-radius:14px;background:var(--surface,#10151D);border:1px solid var(--border,#1f2e45)}'
+   + '.hrvrv-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;padding-bottom:14px;margin-bottom:16px;border-bottom:1px solid var(--border,#1f2e45)}'
+   + '.hrvrv-title{font-size:19px;font-weight:800;color:var(--text,#E6EDF5)}'
+   + '.hrvrv-sub{font-size:13px;color:var(--text3,#5E7187)}'
+   + '.hrvrv-sec{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3,#5E7187);margin:18px 0 9px}'
+   + '.hrvrv-imp{font-size:14px;line-height:1.55;color:var(--text2,#9FB0C3)}'
+   + '.hrvrv-kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}'
+   + '.hrvrv-kpi{padding:12px 14px;border-radius:10px;background:var(--surface2,#0C0F15);border:1px solid var(--border,#1f2e45)}'
+   + '.hrvrv-kpi .k-lab{font-size:11px;color:var(--text3,#5E7187);margin-bottom:5px}'
+   + '.hrvrv-kpi .k-val{font-size:21px;font-weight:800;color:var(--text,#E6EDF5)}'
+   + '.hrvrv-kpi .k-sub{font-size:10.5px;color:var(--text3,#5E7187);margin-top:3px}'
+   + '.hrvrv-tbl{width:100%;border-collapse:collapse;font-size:12px}'
+   + '.hrvrv-tbl th{text-align:right;color:var(--text3,#5E7187);font-weight:600;padding:6px 10px;border-bottom:1px solid var(--border,#1f2e45)}'
+   + '.hrvrv-tbl th:first-child{text-align:left}'
+   + '.hrvrv-tbl td{text-align:right;color:var(--text2,#9FB0C3);padding:6px 10px;border-bottom:1px solid var(--border2,#182234);font-variant-numeric:tabular-nums}'
+   + '.hrvrv-tbl td:first-child{text-align:left;font-family:ui-monospace,monospace;color:var(--text3,#5E7187)}'
+   + '.hrvrv-tl{display:flex;flex-direction:column;border:1px solid var(--border,#1f2e45);border-radius:10px;overflow:hidden;margin-top:4px}'
+   + '.hrvrv-tlrow{display:grid;grid-template-columns:110px 1fr auto;align-items:center;gap:10px;padding:8px 13px;font-size:12.5px;border-top:1px solid var(--border,#1f2e45)}'
+   + '.hrvrv-tlrow:first-child{border-top:none}'
+   + '.hrvrv-tlrow .tl-t{font-family:ui-monospace,monospace;color:var(--text3,#5E7187);font-size:12px}'
+   + '.hrvrv-none{font-size:13px;color:var(--text3,#5E7187);font-style:italic;padding:6px 2px}'
+   + '.hrvrv-disc{margin-top:20px;padding-top:14px;border-top:1px solid var(--border,#1f2e45);font-size:11px;line-height:1.55;color:var(--text3,#5E7187)}'
+   + '.hrvrv-disc .dxl{font-weight:700;color:var(--text2,#9FB0C3)}'
+   + '@media print{body > *:not(#hrvReviewCard){display:none !important} #hrvReviewCard .hrvrv-print{display:none !important}}';
+  var st=document.createElement('style'); st.id='hrv-selfingest-css'; st.textContent=css;
+  (document.head||document.documentElement).appendChild(st);
+}
+function hrvReviewView(review){
+  var ms=Array.isArray(review.measurements)?review.measurements:[], rec=review.recording||{};
+  var prov=review.provenance||{}, bh=prov.buildHash||(review.derivedFrom&&review.derivedFrom.buildHash)||null, gen=_hrvFmtGen(prov.generated||review.generated);
+  var nv=function(v,d){ return (v==null||v!==v)?(d||'\u2014'):v; };
+  var num=function(a){ return a.filter(function(v){return typeof v==='number'&&isFinite(v);}); };
+  var mean=function(a){ a=num(a); return a.length?+(a.reduce(function(x,y){return x+y;},0)/a.length).toFixed(1):null; };
+  var last=ms.length?ms[ms.length-1]:{};
+  var meanRm=mean(ms.map(function(m){return m.rmssd;})), meanSd=mean(ms.map(function(m){return m.sdnn;}));
+  var h='<div class="hrvrv-banner" role="status">'
+    +'<span class="hrvrv-tag"><span class="hrvrv-dot"></span>Review mode</span>'
+    +'<span>Loaded from export \u00b7 <strong>not recomputed</strong>'+(review.scrubbed?' \u00b7 <strong>scrubbed for sharing</strong>':'')+'</span>'
+    +'<span class="hrvrv-meta">'+(bh?'built <code>'+_hrvesc(bh)+'</code>':'build unknown')+(gen?' on <code>'+_hrvesc(gen)+'</code>':'')+'</span>'
+    +'<span class="hrvrv-spacer"></span>'
+    +'<button class="hrvrv-print" type="button" onclick="window.print()">\ud83d\udda8 Save clinical PDF</button></div>';
+  h+='<div class="hrvrv-card">';
+  h+='<div class="hrvrv-head"><span class="hrvrv-title">HRVDex \u2014 HRV ledger review</span>'
+    +'<span class="hrvrv-sub">'+ms.length+' measurement'+(ms.length===1?'':'s')+(rec.spanDays!=null?' \u00b7 '+rec.spanDays+' days':'')+' \u00b7 '+_hrvD(rec.firstTMs)+' \u2192 '+_hrvD(rec.lastTMs)+'</span></div>';
+  h+='<div class="hrvrv-sec">Impression</div>';
+  h+='<div class="hrvrv-imp">Latest rMSSD '+nv(last.rmssd)+' ms \u00b7 SDNN '+nv(last.sdnn)+' ms \u00b7 mean HR '+nv(last.hr)+' bpm'+(meanRm!=null?' \u00b7 window mean rMSSD '+meanRm+' ms':'')+'. Rendered from the export\u2019s stored per-measurement table \u2014 no re-analysis.</div>';
+  var kpis=[['rMSSD (latest)',nv(last.rmssd),'ms'],['SDNN (latest)',nv(last.sdnn),'ms'],['Mean HR',nv(last.hr),'bpm'],['pNN50',nv(last.pnn50),'%'],['SD1',nv(last.sd1),'ms'],['SD2',nv(last.sd2),'ms'],['Mean rMSSD',nv(meanRm),'ms (window)'],['Measurements',ms.length,'count']];
+  h+='<div class="hrvrv-sec">Key metrics</div><div class="hrvrv-kpis">'
+    +kpis.map(function(k){ return '<div class="hrvrv-kpi"><div class="k-lab">'+_hrvesc(k[0])+'</div><div class="k-val">'+_hrvesc(k[1])+'</div><div class="k-sub">'+_hrvesc(k[2])+'</div></div>'; }).join('')
+    +'</div>';
+  // per-measurement table (most recent first, capped)
+  h+='<div class="hrvrv-sec">Per-measurement table</div>';
+  if(ms.length){
+    var rowsDesc=ms.slice().sort(function(a,b){return (b.tMs||0)-(a.tMs||0);}).slice(0,16);
+    h+='<table class="hrvrv-tbl"><thead><tr><th>Date</th><th>rMSSD</th><th>SDNN</th><th>HR</th><th>pNN50</th></tr></thead><tbody>'
+      +rowsDesc.map(function(m){ return '<tr><td>'+_hrvD(m.tMs)+'</td><td>'+nv(m.rmssd)+'</td><td>'+nv(m.sdnn)+'</td><td>'+nv(m.hr)+'</td><td>'+nv(m.pnn50)+'</td></tr>'; }).join('')
+      +'</tbody></table>'+(ms.length>16?'<div class="hrvrv-none">+ '+(ms.length-16)+' more measurements</div>':'');
+  } else h+='<div class="hrvrv-none">No per-measurement rows in this export.</div>';
+  // event timeline
+  h+='<div class="hrvrv-sec">Event timeline</div>';
+  var evs=(review.events||[]).slice().sort(function(a,b){return (a.tMs||0)-(b.tMs||0);});
+  if(evs.length){ h+='<div class="hrvrv-tl">'+evs.slice(0,30).map(function(e){ return '<div class="hrvrv-tlrow"><span class="tl-t">'+_hrvesc(_hrvD(e.tMs)+' '+(e.t||''))+'</span><span>'+_hrvesc(e.impulse||'event')+'</span><span class="tl-t">conf '+(e.conf!=null?e.conf:'\u2014')+'</span></div>'; }).join('')+'</div>'; }
+  else h+='<div class="hrvrv-none">No scored events in this export.</div>';
+  h+='<div class="hrvrv-disc">'
+    +(bh?'Provenance \u00b7 build <code>'+_hrvesc(bh)+'</code>'+(gen?' \u00b7 generated '+_hrvesc(gen):''):'Provenance \u00b7 build unknown')
+    +'<br><span class="dxl">Tepna \u00b7 not a medical device.</span> Computes HRV patterns for personal self-quantification; does not diagnose, treat, or monitor any condition.'
+    +'</div></div>';
+  return h;
+}
+function hrvRenderReview(review){
+  if(typeof document==='undefined'||!review) return;
+  _hrvInjectReviewCSS();
+  var host=document.getElementById('hrvReviewCard');
+  if(!host){ host=document.createElement('section'); host.id='hrvReviewCard';
+    var m=document.querySelector('main')||document.body; m.insertBefore(host, m.firstChild); }
+  host.innerHTML=hrvReviewView(review); host.style.display='';
+  try{ window.scrollTo(0,0); }catch(e){}
+}
+function hrvClearReview(){ var h=document.getElementById('hrvReviewCard'); if(h){ h.innerHTML=''; h.style.display='none'; } }
+// F5 (SELF-INGEST-FOLLOWUPS-II): fleet convention — the review renderer is reachable via the node
+// namespace (<Node>.reviewView / .renderReview) so the suite's live review probe (and any global
+// caller) can drive it; the bare names stay IIFE-local.
+try{ if(typeof window!=='undefined' && window.HRVDex){ window.HRVDex.reviewView=hrvReviewView; window.HRVDex.renderReview=hrvRenderReview; } }catch(_rvx){}
 
 
 /* ===== CSV TOOLKIT (mirrored per node; null≠0, RFC-4180, Excel-safe) ===== */

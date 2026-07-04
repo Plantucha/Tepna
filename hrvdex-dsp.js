@@ -747,6 +747,24 @@ function hrvBuildNodeExport(rows, opts){
       offsetMin:(dated[0] && dated[0]._offsetMin!=null ? dated[0]._offsetMin : null),
       measurements:dated.length, firstTMs:t0, lastTMs:last?last._tMs:null,
       spanDays:(t0!=null && last)?Math.round((last._tMs-t0)/864e5)+1:null },
+    // SELF-INGEST enrich (D2 path b, 2026-07-04): the per-measurement table — the whole HRVDex clinical
+    // value — now travels so a reloaded export renders the HRV dashboard. Transparent fields stay null when
+    // absent; SD1/SD2 derived from rMSSD/SDNN (same formula as computeDerived); vendor black-box composites
+    // ride under composites.meta{derived,tier:'heuristic'} ONLY when present (>0) — NO tier upgrade on reload.
+    measurements: dated.map(function(r){
+      var sd1 = (r._rmssd>0) ? r._rmssd/Math.SQRT2 : null;
+      var sd2 = (sd1!=null && r._sdnn>0) ? Math.sqrt(Math.max(0, 2*r._sdnn*r._sdnn - sd1*sd1)) : null;
+      var m = { tMs:r._tMs, offsetMin:(r._offsetMin==null?null:r._offsetMin),
+        hr:r._hr, meanRR:r._meanRR, sdnn:r._sdnn, rmssd:r._rmssd, pnn50:r._pnn50, mxdmn:r._mxdmn,
+        sd1:(sd1==null?null:+sd1.toFixed(2)), sd2:(sd2==null?null:+sd2.toFixed(2)) };
+      var comp = {};
+      if(r._stress>0) comp.stress=r._stress; if(r._energy>0) comp.energy=r._energy;
+      if(r._focus>0) comp.focus=r._focus; if(r._sns>0) comp.sns=r._sns;
+      if(r._psns>0) comp.psns=r._psns; if(r._coherence>0) comp.coherence=r._coherence;
+      if(r._hrv>0) comp.hrvScore=r._hrv;
+      if(Object.keys(comp).length){ comp.meta={ derived:true, tier:'heuristic' }; m.composites=comp; }
+      return m;
+    }),
     ganglior_events:ev,
     reserved:{ doc:'Awaiting other fleet nodes; null until available.', glucoseCorrelation:null, glucoseSource:'GlucoDex' }
   };
@@ -762,6 +780,34 @@ function _hrvRowsFromInput(input){
   return null;
 }
 
+// ═══ SELF-INGEST — reload HRVDex's OWN ganglior.node-export as a review-mode clinical VIEW
+// (SELF-INGEST-FOLLOWUPS · HRVDex enrich-first D2 path b). PURE + DOM-FREE: detect → own-node guard →
+// mark reviewMode → return provenance/kernel/measurements/events VERBATIM. Never recomputes, never
+// re-stamps. The enriched export carries the per-measurement `measurements[]` table, so the review view
+// renders the HRV dashboard from stored values (no re-derive, no tier upgrade). ═══
+function hrvLoadOwnExport(json){
+  if(!(json && json.schema && json.schema.name === 'ganglior.node-export'))
+    return { ok:false, reason:'not-node-export', message:'Not a node-export \u2014 drop a Welltory CSV, or HRVDex\u2019s own .json export.' };
+  var node = ((json.schema.node || '') + '').trim();
+  if(node !== 'HRVDex')
+    return { ok:false, reason:'foreign-node', node:node,
+      message:'This is a '+(node||'non-HRVDex')+' export \u2014 open it in '+(node||'its own node')+', or drop it into the Integrator to fuse.' };
+  var el = JSON.parse(JSON.stringify(json)); el._fromExport=true; el._reviewMode=true;
+  var evAll = Array.isArray(json.ganglior_events) ? json.ganglior_events.slice() : [];
+  evAll.sort(function(a,b){ return ((a&&a.tMs)||0) - ((b&&b.tMs)||0); });
+  return {
+    ok:true, reviewMode:true, node:node,
+    elements:[el], events:evAll,
+    provenance:(json.schema && json.schema.provenance) || null,
+    generated:(json.schema && json.schema.generated) || null,
+    derivedFrom:(json.schema && json.schema.derivedFrom) || null,
+    kernel:json.kernel || null, recording:json.recording || null,
+    measurements:Array.isArray(json.measurements) ? json.measurements : null,
+    scrubbed:!!(json.schema && json.schema.scrubbed),
+    multiNight:false, raw:json
+  };
+}
+
 // Public namespace — the headless surface the orchestrator + app + adapter reach.
 var HRVDex = (typeof HRVDex !== 'undefined' && HRVDex) ? HRVDex : {};
 HRVDex.compute = function(input, opts){
@@ -773,6 +819,13 @@ HRVDex.compute = function(input, opts){
 HRVDex.parseRows = _hrvParseSummaryRows;
 HRVDex.eventsFromRows = hrvEventsFromRows;
 HRVDex.buildNodeExport = hrvBuildNodeExport;
+HRVDex.loadOwnExport = hrvLoadOwnExport;   // SELF-INGEST reload (review-mode clinical view)
+// scrub-for-sharing → the SHARED dexScrubExport (D1); lazy delegate, co-load order irrelevant.
+HRVDex.scrubExport = function(env){
+  if(typeof DexExport !== 'undefined' && DexExport && typeof DexExport.scrubExport === 'function') return DexExport.scrubExport(env);
+  if(typeof dexScrubExport === 'function') return dexScrubExport(env);
+  return env;
+};
 
 // ── public namespace (always) ──
 root.HRVDex = HRVDex;
@@ -784,7 +837,7 @@ if (!root.__DEX_NAMESPACED__) {
     fmtDateTime, utcDayKey, _hrvParseSummaryRows, parseCSV, HRV_STORE_KEY, HRV_SEED_FIELDS, _hrvNum, _hrvSig,
     _seedFromRow, _rowFromSeed, persistHRVRows, restoreHRVRows, commitRows, _hrvRefreshChrome, _envToSeed, ingestGangliorJSON,
     computeDerived, mean, std, pearsonCorr, linRegSlope, smooth, getFilteredRows, computeCAMQ,
-    _hrvClockS, hrvEventsFromRows, hrvBuildNodeExport, _hrvRowsFromInput, _hrvUpdateExportHint
+    _hrvClockS, hrvEventsFromRows, hrvBuildNodeExport, _hrvRowsFromInput, _hrvUpdateExportHint, hrvLoadOwnExport
   });
   // mutable cross-file state — proxy bare names to the in-closure bindings
   Object.defineProperty(root, 'allRows',    { configurable: true, get: function () { return allRows; },    set: function (v) { allRows = v; } });

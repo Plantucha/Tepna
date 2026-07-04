@@ -80,6 +80,16 @@ function loadRawFiles(fileList){
   showChip(arr.length>1 ? (arr.length+' files') : arr[0].name);
   Promise.all(arr.map(f => f.text().then(t => ({ name:f.name, text:t }))))
     .then(list => {
+      // SELF-INGEST (PulseDex pass): a PulseDex ganglior.node-export among the dropped files → review mode
+      // (a faithful VIEW of the export's stored HRV, no recompute); a foreign export shows the redirect msg.
+      try { if(typeof pulseClearReview==='function') pulseClearReview(); } catch(_pc){}
+      var _envItem = list.find(function(it){ try{ var j=JSON.parse(it.text); return j && j.schema && j.schema.name==='ganglior.node-export'; }catch(e){ return false; } });
+      if(_envItem){
+        var _res = (typeof pulseLoadOwnExport==='function') ? pulseLoadOwnExport(JSON.parse(_envItem.text)) : null;
+        if(_res && _res.ok){ try{ window._pulseReview=_res; }catch(_w){} if(typeof pulseRenderReview==='function') pulseRenderReview(_res); if(typeof showOK==='function') showOK('Loaded PulseDex export — review mode (not recomputed).'); _curFname=null; return; }
+        if(_res && _res.reason==='foreign-node'){ if(typeof showErr==='function') showErr(_res.message); _curFname=null; return; }
+        // not a PulseDex envelope kind → fall through to the normal RR path (which reports if unreadable).
+      }
       list = mergeMultipart(list);   // fold Polar `_RR_part01of..` / `_PPI_part..` splits into one stream per base
       list.forEach(it => {
         document.getElementById('rawPaste').value = it.text;

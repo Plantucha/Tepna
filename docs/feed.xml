@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Tepna — working preprints</title>
+  <link href="https://tepna.net/papers/papers.html"/>
+  <link rel="self" href="https://tepna.net/feed.xml"/>
+  <id>https://tepna.net/papers/papers.html</id>
+  <updated>2026-07-04T00:00:00Z</updated>
+  <author><name>Michal Planicka</name></author>
+  <entry>
+    <title>CGM variability ↔ nocturnal autonomic coupling — Tepna preprint</title>
+    <link href="https://tepna.net/papers/cgm-hrv-coupling.html"/>
+    <id>https://tepna.net/papers/cgm-hrv-coupling.html</id>
+    <updated>2026-07-04T00:00:00Z</updated>
+  </entry>
+  <entry>
+    <title>Age confounds apnea-driven HRV suppression — Tepna preprint</title>
+    <link href="https://tepna.net/papers/hrv-age-confound.html"/>
+    <id>https://tepna.net/papers/hrv-age-confound.html</id>
+    <updated>2026-07-04T00:00:00Z</updated>
+  </entry>
+  <entry>
+    <title>How many nights? Minimum reliable recording length for ODI-4, rMSSD, and CGM-CV — Tepna preprint</title>
+    <link href="https://tepna.net/papers/nights-icc.html"/>
+    <id>https://tepna.net/papers/nights-icc.html</id>
+    <updated>2026-07-04T00:00:00Z</updated>
+  </entry>
+  <entry>
+    <title>Rolling-baseline ODI-4 under-estimates AHI in severe OSA — Tepna preprint</title>
+    <link href="https://tepna.net/papers/odi4-ahi-bias.html"/>
+    <id>https://tepna.net/papers/odi4-ahi-bias.html</id>
+    <updated>2026-07-04T00:00:00Z</updated>
+  </entry>
+  <entry>
+    <title>Beat-yield under apnea is modality-asymmetric — Tepna preprint</title>
+    <link href="https://tepna.net/papers/qrs-yield.html"/>
+    <id>https://tepna.net/papers/qrs-yield.html</id>
+    <updated>2026-07-04T00:00:00Z</updated>
+  </entry>
+  <entry>
+    <title>Three-way rMSSD equivalence: PulseDex · ECGDex · PpgDex — Tepna preprint</title>
+    <link href="https://tepna.net/papers/rmssd-equivalence.html"/>
+    <id>https://tepna.net/papers/rmssd-equivalence.html</id>
+    <updated>2026-07-04T00:00:00Z</updated>
+  </entry>
+  <entry>
+    <title>A reproducible robustness benchmark: where consumer sleep detectors break — Tepna preprint</title>
+    <link href="https://tepna.net/papers/robustness-benchmark.html"/>
+    <id>https://tepna.net/papers/robustness-benchmark.html</id>
+    <updated>2026-07-04T00:00:00Z</updated>
+  </entry>
+  <entry>
+    <title>Pinning a sensor's error without a reference: how many windows and how long — Tepna preprint</title>
+    <link href="https://tepna.net/papers/sensor-trio-nights.html"/>
+    <id>https://tepna.net/papers/sensor-trio-nights.html</id>
+    <updated>2026-07-04T00:00:00Z</updated>
+  </entry>
+  <entry>
+    <title>Per-device heart-rate uncertainty without a canonical reference — Tepna preprint</title>
+    <link href="https://tepna.net/papers/sigma-no-reference.html"/>
+    <id>https://tepna.net/papers/sigma-no-reference.html</id>
+    <updated>2026-07-04T00:00:00Z</updated>
+  </entry>
+  <entry>
+    <title>What Tepna's harness reveals about the synthetic-physiological-data frontier — Tepna perspective</title>
+    <link href="https://tepna.net/papers/synthetic-data-frontier.html"/>
+    <id>https://tepna.net/papers/synthetic-data-frontier.html</id>
+    <updated>2026-07-04T00:00:00Z</updated>
+  </entry>
+  <entry>
+    <title>Treatment-response detection: recovering the CPAP-start night — Tepna preprint</title>
+    <link href="https://tepna.net/papers/treatment-response.html"/>
+    <id>https://tepna.net/papers/treatment-response.html</id>
+    <updated>2026-07-04T00:00:00Z</updated>
+  </entry>
+</feed>

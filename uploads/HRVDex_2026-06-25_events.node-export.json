@@ -9,7 +9,7 @@
     "node": "HRVDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-06-25T15:37:14.951Z",
+    "generated": "2026-07-04T16:29:36.526Z",
     "doc": "HRVDex per-measurement HRV (Welltory-style) → Ganglior events. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated. stress_high derives from a vendor black-box composite (meta.derived:true, heuristic tier)."
   },
   "recording": {
@@ -22,6 +22,108 @@
     "lastTMs": 1780556400000,
     "spanDays": 4
   },
+  "measurements": [
+    {
+      "tMs": 1780297200000,
+      "offsetMin": null,
+      "hr": 75,
+      "meanRR": 800,
+      "sdnn": 28,
+      "rmssd": 15,
+      "pnn50": 7,
+      "mxdmn": 0.18,
+      "sd1": 10.61,
+      "sd2": 38.15,
+      "composites": {
+        "stress": 75,
+        "energy": 40,
+        "focus": 38,
+        "sns": 58,
+        "psns": 28,
+        "coherence": 33,
+        "hrvScore": 38,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1780383600000,
+      "offsetMin": null,
+      "hr": 65,
+      "meanRR": 920,
+      "sdnn": 30,
+      "rmssd": 14,
+      "pnn50": 8,
+      "mxdmn": 0.2,
+      "sd1": 9.9,
+      "sd2": 41.26,
+      "composites": {
+        "stress": 35,
+        "energy": 60,
+        "focus": 55,
+        "sns": 30,
+        "psns": 50,
+        "coherence": 45,
+        "hrvScore": 55,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1780470000000,
+      "offsetMin": null,
+      "hr": 72,
+      "meanRR": 850,
+      "sdnn": 45,
+      "rmssd": 40,
+      "pnn50": 15,
+      "mxdmn": 0.28,
+      "sd1": 28.28,
+      "sd2": 57.01,
+      "composites": {
+        "stress": 82,
+        "energy": 45,
+        "focus": 40,
+        "sns": 60,
+        "psns": 30,
+        "coherence": 35,
+        "hrvScore": 40,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1780556400000,
+      "offsetMin": null,
+      "hr": 60,
+      "meanRR": 1000,
+      "sdnn": 60,
+      "rmssd": 50,
+      "pnn50": 25,
+      "mxdmn": 0.35,
+      "sd1": 35.36,
+      "sd2": 77.14,
+      "composites": {
+        "stress": 25,
+        "energy": 70,
+        "focus": 60,
+        "sns": 20,
+        "psns": 55,
+        "coherence": 50,
+        "hrvScore": 60,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    }
+  ],
   "ganglior_events": [
     {
       "tMs": 1780297200000,

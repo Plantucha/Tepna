@@ -229,7 +229,9 @@ restates nothing — follow each pointer for the actual rules. Forward-first: a 
    `metric-registry.js`, never hardcode disc CSS (`dex-badges.css`).
 7. **Export via the contract** — `ganglior.node-export` shape (§3); declare what the node is authoritative
    *for* (§5), not that it's authoritative. Cross-node interaction is export-only — nodes never import each
-   other (§2).
+   other (§2). **Decide the export shape up front** — light (events-only) vs rich (clinical reload) builders,
+   multi-carrier key, and which artifact `loadOwnExport` reloads: `docs/EXPORT-SHAPES.md` (per-node table +
+   the rules a new node follows).
 8. **UI** — `<node>-render.js` + `<node>-app.js` + `<Node>.src.html` (§1: no signal logic in UI; a number
    comes from DSP or the registry, never recomputed in render).
 9. **Wire the gates** — add the node's `<NODE>_REGISTRY` + resolver + reference-guide text to `env` in BOTH

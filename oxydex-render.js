@@ -284,6 +284,14 @@ function oxyGreyedPanel(title){
     + 'Raw signal is not included in this export — review mode. Re-run the original recording for waveforms.</div>';
 }
 
+// F5 (SELF-INGEST-FOLLOWUPS-II): fleet convention — expose the review renderer via the node
+// namespace (<Node>.reviewView) like the other five nodes. OxyDex's review view composes
+// banner + clinical summary (review, nights DESC); nights defaults to the review's own elements.
+// (OxyDex has no standalone renderReview — review render is integrated in renderAll.)
+try{ if(typeof window!=='undefined' && window.OxyDex){
+  window.OxyDex.reviewView=function(review, nights){ return oxyReviewBanner(review)+oxyClinicalSummary(review, nights||(review&&review.elements)||[]); };
+} }catch(_rvx){}
+
 // HRV-style chart UID counter (for gradient defs)
 var _hrvChartUid = 0;
 

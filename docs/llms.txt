@@ -1,0 +1,30 @@
+# Tepna
+
+> A fleet of local-only, single-signal physiological analyzers. Read one raw biosignal from a wearable you own — oxygen, heartbeat, pulse, glucose — derive evidence-graded metrics, and fuse across signals. 100% in your browser: no upload, no account.
+
+Repository: https://github.com/Plantucha/Tepna · License: Apache-2.0 · Author: Michal Planicka
+
+## Reference guides (per node)
+- [OxyDex](https://tepna.net/OxyDex%20Reference.html): SpO₂ / oximetry — Overnight blood oxygen — ODI-4, T90, hypoxic burden.
+- [PpgDex](https://tepna.net/PpgDex%20Reference.html): Wrist PPG — Optical pulse → PPI → HRV + pulse-wave morphology.
+- [PulseDex](https://tepna.net/PulseDex%20Reference.html): HRV from raw RR — RR-interval streams → time / frequency HRV.
+- [ECGDex](https://tepna.net/ECGDex%20Reference.html): Raw ECG — ~130 Hz ECG → QRS, QTc, HRV.
+- [HRVDex](https://tepna.net/HRVDex%20Reference.html): HRV summaries — Additive multi-day HRV ledger.
+- [GlucoDex](https://tepna.net/GlucoDex%20Reference.html): CGM — Continuous glucose → Time in Range, GMI.
+- [CPAPDex](https://tepna.net/CPAPDex%20Reference.html): CPAP therapy — EDF therapy data → pressure, leak, respiratory events.
+
+## Overview
+- [Science](https://tepna.net/Science.html)
+- [Architecture](https://tepna.net/Architecture.html)
+- [How to Collect Data](https://tepna.net/How%20to%20Collect%20Data.html)
+- [About](https://tepna.net/Why%20This%20Exists.html)
+- [Papers](https://tepna.net/papers/papers.html)
+
+## Authoritative context (source repository)
+- [README](https://github.com/Plantucha/Tepna/blob/main/README.md): Front door — what the suite measures well, the evidence ladder, the roster.
+- [ORIENTATION](https://github.com/Plantucha/Tepna/blob/main/ORIENTATION.md): The 60-second map: roster, shared spine, the two gates.
+- [Architecture principles](https://github.com/Plantucha/Tepna/blob/main/ARCHITECTURE-PRINCIPLES.md): Three layers, downhill deps, contracts-as-product, the epistemic/fusion principles.
+- [Lexicon](https://github.com/Plantucha/Tepna/blob/main/docs/LEXICON.md): Canonical terminology (Ganglior, Integrator, node, tier).
+- [Why this exists](https://github.com/Plantucha/Tepna/blob/main/docs/WHY-THIS-EXISTS.md): The philosophy and constraints (narrative, not spec).
+
+Full concatenated context: https://tepna.net/llms-full.txt

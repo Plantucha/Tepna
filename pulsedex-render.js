@@ -291,3 +291,114 @@ function renderWTTable(r){
   document.getElementById('slWT').style.display='flex';
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  SELF-INGEST review mode (SELF-INGEST-FOLLOWUPS-2026-07-03 · PulseDex pass)
+//  Rendered when a PulseDex ganglior.node-export is dropped: pulseLoadOwnExport
+//  (pulsedex-dsp.js) returns the review context; the app calls pulseRenderReview.
+//  Reads the export's STORED rich layer (hrv/summary/recording) VERBATIM — no
+//  recompute, no re-stamp. Raw-only panels (RR tachogram, Poincaré) are greyed,
+//  never faked. CSS injected from THIS external module (never the shell).
+// ═══════════════════════════════════════════════════════════════════════════
+function _pesc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+function _pulseFmtGen(g){ if(!g) return ''; try{ return String(g).replace('T',' ').replace(/\..*$/,'').replace(/Z$/,' UTC'); }catch(e){ return String(g); } }
+function _pulseInjectReviewCSS(){
+  if(typeof document==='undefined' || document.getElementById('pulse-selfingest-css')) return;
+  var css=''
+   + '#pulseReviewCard{margin:0 0 22px}'
+   + '.prv-banner{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin:0 0 18px;padding:13px 18px;border-radius:12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.28);font-size:13px;color:var(--text2,#9FB0C3);line-height:1.5}'
+   + '.prv-tag{display:inline-flex;align-items:center;gap:6px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:11px;color:var(--amber,#F59E0B)}'
+   + '.prv-dot{width:8px;height:8px;border-radius:50%;background:var(--amber,#F59E0B)}'
+   + '.prv-meta code{font-family:ui-monospace,monospace;color:var(--text2,#9FB0C3)}'
+   + '.prv-spacer{flex:1 1 auto}'
+   + '.prv-print{display:inline-flex;align-items:center;gap:7px;cursor:pointer;padding:8px 15px;border-radius:9px;border:1px solid rgba(61,224,208,.4);background:rgba(61,224,208,.12);color:var(--teal,#3DE0D0);font-size:12.5px;font-weight:700}'
+   + '.prv-print:hover{filter:brightness(1.15)}'
+   + '.prv-card{padding:24px 26px;border-radius:14px;background:var(--surface,#10151D);border:1px solid var(--border,#1f2e45)}'
+   + '.prv-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;padding-bottom:14px;margin-bottom:16px;border-bottom:1px solid var(--border,#1f2e45)}'
+   + '.prv-title{font-size:19px;font-weight:800;color:var(--text,#E6EDF5)}'
+   + '.prv-sub{font-size:13px;color:var(--text3,#5E7187)}'
+   + '.prv-sec{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3,#5E7187);margin:18px 0 9px}'
+   + '.prv-imp{font-size:14px;line-height:1.55;color:var(--text2,#9FB0C3)}'
+   + '.prv-kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}'
+   + '.prv-kpi{padding:12px 14px;border-radius:10px;background:var(--surface2,#0C0F15);border:1px solid var(--border,#1f2e45)}'
+   + '.prv-kpi .k-lab{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3,#5E7187);margin-bottom:5px}'
+   + '.prv-kpi .k-val{font-size:21px;font-weight:800;color:var(--text,#E6EDF5)}'
+   + '.prv-kpi .k-sub{font-size:10.5px;color:var(--text3,#5E7187);margin-top:3px}'
+   + '.prv-tl{display:flex;flex-direction:column;border:1px solid var(--border,#1f2e45);border-radius:10px;overflow:hidden}'
+   + '.prv-tlrow{display:grid;grid-template-columns:84px 1fr auto;align-items:center;gap:10px;padding:8px 13px;font-size:12.5px;border-top:1px solid var(--border,#1f2e45)}'
+   + '.prv-tlrow:first-child{border-top:none}'
+   + '.prv-tlrow .tl-t{font-family:ui-monospace,monospace;color:var(--text3,#5E7187);font-size:12px}'
+   + '.prv-tlrow .tl-conf{color:var(--text3,#5E7187);font-family:ui-monospace,monospace;font-size:11.5px;text-align:right}'
+   + '.prv-none{font-size:13px;color:var(--text3,#5E7187);font-style:italic;padding:6px 2px}'
+   + '.prv-greyed{border:1px dashed var(--border,#1f2e45);border-radius:12px;padding:20px;margin-top:4px;background:repeating-linear-gradient(135deg,rgba(255,255,255,.012) 0 10px,transparent 10px 20px);color:var(--text3,#5E7187);font-size:12.5px;text-align:center}'
+   + '.prv-greyed strong{display:block;color:var(--text2,#9FB0C3);font-size:13px;margin-bottom:4px}'
+   + '.prv-disc{margin-top:20px;padding-top:14px;border-top:1px solid var(--border,#1f2e45);font-size:11px;line-height:1.55;color:var(--text3,#5E7187)}'
+   + '.prv-disc .dxl{font-weight:700;color:var(--text2,#9FB0C3)}'
+   + '@media print{body.has-data > *:not(#pulseReviewCard){display:none !important} #pulseReviewCard .prv-print{display:none !important}}';
+  var st=document.createElement('style'); st.id='pulse-selfingest-css'; st.textContent=css;
+  (document.head||document.documentElement).appendChild(st);
+}
+function pulseReviewTimeline(events){
+  var evs=Array.isArray(events)?events.slice():[];
+  if(!evs.length) return '<div class="prv-none">No scored events in this export.</div>';
+  evs.sort(function(a,b){return (a.tMs||0)-(b.tMs||0);});
+  var CAP=40, shown=evs.slice(0,CAP);
+  var name=function(e){ return e.impulse==='stress_peak'?'Stress peak':(e.impulse==='hrv_drop'?'HRV drop':(e.impulse||'event')); };
+  var h='<div class="prv-tl">'+shown.map(function(e){
+    var when=e.t || (e.tMs!=null && typeof fmtClock==='function' ? fmtClock(e.tMs) : '—');
+    return '<div class="prv-tlrow"><span class="tl-t">'+_pesc(when)+'</span><span>'+(typeof evBadge==='function'?evBadge('rMSSD'):'')+_pesc(name(e))+'</span><span class="tl-conf">conf '+(e.conf!=null?e.conf:'—')+'</span></div>';
+  }).join('')+'</div>';
+  if(evs.length>CAP) h+='<div class="prv-none">+ '+(evs.length-CAP)+' more events</div>';
+  return h;
+}
+function pulseReviewView(review){
+  var rec=review.recording||{}, hrv=(review.hrv||{}), t=(hrv.time||{}), pc=(hrv.poincare||{});
+  var prov=review.provenance||{}, bh=prov.buildHash||(review.derivedFrom&&review.derivedFrom.buildHash)||null, gen=_pulseFmtGen(prov.generated||review.generated);
+  var nv=function(v,d){ return (v==null||v!==v)?(d||'—'):v; };
+  var h='<div class="prv-banner" role="status">'
+    +'<span class="prv-tag"><span class="prv-dot"></span>Review mode</span>'
+    +'<span>Loaded from export · <strong>not recomputed</strong>'+(review.scrubbed?' · <strong>scrubbed for sharing</strong>':'')+'</span>'
+    +'<span class="prv-meta">'+(bh?'built <code>'+_pesc(bh)+'</code>':'build unknown')+(gen?' on <code>'+_pesc(gen)+'</code>':'')+'</span>'
+    +'<span class="prv-spacer"></span>'
+    +'<button class="prv-print" type="button" onclick="window.print()">🖨 Save clinical PDF</button></div>';
+  h+='<div class="prv-card">';
+  h+='<div class="prv-head"><span class="prv-title">PulseDex — HRV review</span>'
+    +'<span class="prv-sub">'+_pesc(rec.modeLabel||rec.mode||'recording')+(rec.durationMin!=null?' · '+Math.round(rec.durationMin)+' min':'')+(rec.beats!=null?' · '+rec.beats+' beats':'')+'</span></div>';
+  h+='<div class="prv-sec">Impression</div>';
+  h+='<div class="prv-imp">rMSSD '+nv(t.rmssd)+' ms · SDNN '+nv(t.sdnn)+' ms · mean HR '+nv(t.hr)+' bpm'+(rec.coveragePct!=null?' · coverage '+rec.coveragePct+'%':'')+'. Rendered from the export\u2019s stored values — no waveform recomputation.</div>';
+  var kpis=[['rMSSD',nv(t.rmssd),'ms'],['SDNN',nv(t.sdnn),'ms'],['Mean HR',nv(t.hr),'bpm'],['Mean RR',nv(t.meanRR),'ms'],['SD1',nv(pc.sd1),'ms'],['SD2',nv(pc.sd2),'ms'],['pNN50',nv(t.pnn50),'%'],['Coverage',nv(rec.coveragePct),'%']];
+  h+='<div class="prv-sec">Key metrics</div><div class="prv-kpis">'
+    +kpis.map(function(k){ return '<div class="prv-kpi"><div class="k-lab">'+(typeof evBadge==='function'?evBadge(k[0]):'')+_pesc(k[0])+'</div><div class="k-val">'+_pesc(k[1])+'</div><div class="k-sub">'+_pesc(k[2])+'</div></div>'; }).join('')
+    +'</div>';
+  h+='<div class="prv-sec">Event timeline</div>'+pulseReviewTimeline(review.events);
+  h+='<div class="prv-sec">Raw signal</div>'
+    +'<div class="prv-greyed"><strong>RR tachogram &amp; Poincaré scatter not included</strong>Per-beat RR intervals are not carried in the export — review mode shows the derived HRV layer only. Re-run the original RR/IBI recording for the beat-by-beat charts.</div>';
+  h+='<div class="prv-disc">'
+    +(bh?'Provenance · build <code>'+_pesc(bh)+'</code>'+(gen?' · generated '+_pesc(gen):''):'Provenance · build unknown')
+    +'<br><span class="dxl">Tepna · not a medical device.</span> Computes HRV patterns for personal self-quantification; does not diagnose, treat, or monitor any condition.'
+    +'</div></div>';
+  return h;
+}
+// DOM glue: inject CSS, create/populate the review container, mark body has-data.
+function pulseRenderReview(review){
+  if(typeof document==='undefined' || !review) return;
+  _pulseInjectReviewCSS();
+  var host=document.getElementById('pulseReviewCard');
+  if(!host){
+    host=document.createElement('section'); host.id='pulseReviewCard';
+    var anchor=document.getElementById('ctxBanner');
+    if(anchor && anchor.parentNode){ anchor.parentNode.insertBefore(host, anchor); }
+    else { var main=document.querySelector('main')||document.body; main.insertBefore(host, main.firstChild); }
+  }
+  host.innerHTML=pulseReviewView(review);
+  host.style.display='';
+  try{ document.body.classList.add('has-data'); }catch(e){}
+}
+function pulseClearReview(){
+  try{ window._pulseReview=null; }catch(e){}
+  var host=document.getElementById('pulseReviewCard'); if(host){ host.innerHTML=''; host.style.display='none'; }
+}
+// F5 (SELF-INGEST-FOLLOWUPS-II): fleet convention — the review renderer is reachable via the node
+// namespace (<Node>.reviewView / .renderReview) so the suite's live review probe (and any global
+// caller) can drive it. dsp loads first, so window.PulseDex exists here.
+try{ if(typeof window!=='undefined' && window.PulseDex){ window.PulseDex.reviewView=pulseReviewView; window.PulseDex.renderReview=pulseRenderReview; } }catch(_rvx){}
+

@@ -174,7 +174,7 @@ const FIXTURE_FILES = {
 };
 const SOURCE_FILES = ['clock.js','pulsedex-dsp.js','oxydex-dsp.js','hrvdex-dsp.js','integrator-dsp.js','integrator-tch.js','integrator-app.js','ppgdex-dsp.js','glucodex-dsp.js','ecgdex-dsp.js',
   'ecgdex-cross.js','oxydex-cross.js','pulsedex-cross.js','ppgdex-cross.js',
-  'crossnight-envelope.js','ecgdex-app.js','ppgdex-app.js','pulsedex-app.js','oxydex-render.js','hrvdex-render.js','signal-orchestrate.js','dex-ingest.js',
+  'crossnight-envelope.js','ecgdex-app.js','ppgdex-app.js','pulsedex-app.js','pulsedex-render.js','hrvdex-app.js','oxydex-render.js','hrvdex-render.js','signal-orchestrate.js','dex-ingest.js',
   'cpapdex-dsp.js','cpapdex-cross.js','cpapdex-edf.js','cpapdex-app.js','cpapdex-fusion.js','ecgdex-morph.js','ppgdex-morph.js','dex-export.js',
   'ganglior-provenance.js','signal-frame.js','glucodex-render.js','glucodex-app.js'];
 
@@ -553,6 +553,56 @@ async function profileEditProbe(g, win, doc){
   add(g, 'dashboard still populated after profile edit', _numTokens(doc) >= Math.max(6, Math.floor(before*0.5)), _numTokens(doc)+' numeric tokens (was '+before+')');
 }
 
+/* ── F2 (SELF-INGEST-FOLLOWUPS-II): live review-mode render coverage ───────────────
+   The §7 groups drive the PURE <node>LoadOwnExport in both runners; the boot path here never
+   enters review mode (rigs boot on raw/synthetic data, not a dropped envelope), so the REVIEW
+   RENDERERS shipped unexercised — a thrown error / null deref on a light export was latent.
+   This probe drives them in the booted bundle via the F5 namespace convention
+   (<Node>.reviewView / .renderReview — 4 of the 6 are app-IIFE-local, unreachable otherwise):
+   loadOwnExport → reviewView on a RICH and a LIGHT export (the light leg pins null-safety —
+   an events-only exportGanglior reload must render, not crash), then the renderReview DOM glue
+   (card mounts with non-trivial content). Export-shape reference: docs/EXPORT-SHAPES.md. */
+function _reviewExps(node){
+  var t0=Date.UTC(2026,5,1,23,0,0);
+  var mk=function(){ return { schema:{ name:'ganglior.node-export', version:'2.0', node:node,
+      provenance:{ buildHash:'rvprobe1', generated:'2026-06-01T23:00:00Z', inputs:[{ name:'probe.txt', sha256:'ab', bytes:42 }] } },
+    recording:{ startEpochMs:t0, durationMin:480, source:'probe' },
+    ganglior_events:[{ t:'01:00:00', tMs:t0+3600000, impulse:'autonomic_surge', node:node, conf:0.7 }] }; };
+  var light=mk(), rich=mk();   // LIGHT = events+recording only (the exportGanglior shape)
+  if(node==='GlucoDex'){ rich.glucose={ tier:'cgm', mean:118, gmi:6.1, cv:31, modd:24, adrr:12, tir:{ tir:78, tbr1:1.5, tbr2:0.3, tar1:16, tar2:4 }, dawn:{ present:true, medianDelta:18 } }; }
+  else if(node==='HRVDex'){ rich.measurements=[{ tMs:t0, hr:60, meanRR:1000, sdnn:50, rmssd:42, pnn50:20, mxdmn:200, sd1:30, sd2:62 }]; rich.recording.measurements=1; }
+  else {
+    rich.quality={ analyzablePct:95 };
+    rich.hrv={ time:{ hr:58, sdnn:105, rmssd:41, pnn50:16, meanRR:1030 }, frequency:{ lf:900, hf:600, lfhf:1.5 } };
+    if(node==='PulseDex'){ rich.hrv.poincare={ sd1:29, sd2:64 }; rich.recording.beats=28000; rich.recording.coveragePct=97; rich.recording.mode='overnight'; }
+    if(node==='PpgDex'){ rich.personalization={ ansReadinessScore:68 }; }
+    if(node==='ECGDex'){ rich.recording.beats=41000; rich.recording.tier='overnight'; }
+  }
+  return { rich:rich, light:light };
+}
+async function reviewProbe(g, win, add, nodeName, cardId){
+  const NS = win[nodeName];
+  const wired = !!(NS && typeof NS.loadOwnExport==='function' && typeof NS.reviewView==='function');
+  add(g, nodeName+'.reviewView reachable on the namespace (F5 convention)', wired, wired?'':'namespace not wired');
+  if(!wired) return;
+  const exps = _reviewExps(nodeName);
+  let richRes=null;
+  for(const kind of ['rich','light']){
+    let res=null, html='', err='';
+    try{ res=NS.loadOwnExport(JSON.parse(JSON.stringify(exps[kind]))); if(res&&res.ok) html=NS.reviewView(res)||''; }
+    catch(e){ err=e.message||'threw'; }
+    if(kind==='rich') richRes=res;
+    add(g, 'reviewView('+kind+' export) renders without throwing', !err && !!(res&&res.ok===true), err||(res&&!res.ok?('reason='+res.reason):''));
+    add(g, 'reviewView('+kind+') carries the review banner + disclaimer', /Review mode/i.test(html) && /not a medical device/i.test(html), (html||'').length+' chars');
+  }
+  if(typeof NS.renderReview==='function' && richRes && richRes.ok){
+    let err2='';
+    try{ NS.renderReview(richRes); }catch(e){ err2=e.message||'threw'; }
+    const card = cardId ? win.document.getElementById(cardId) : null;
+    add(g, 'renderReview mounts the review card'+(cardId?' (#'+cardId+')':''), !err2 && !!card && (card.innerHTML||'').length>300, err2 || (card?((card.innerHTML||'').length+' chars'):'card not found'));
+  }
+}
+
 /* ── XI §1/§2: render-coverage localStorage hygiene — ONE mechanism ───────────
    Every render-coverage leg boots a REAL app bundle in the shared-origin rig and
    drives its load/ingest/profile path, which writes the operator's localStorage
@@ -654,6 +704,8 @@ async function renderCoverageECGDex(){
       numeric.length+' numeric of '+valEls.length+' value cells');
     // a headline KPI shows a plausible heart-rate number
     add(g, 'a bpm value is rendered', /\b\d{2,3}\s*(bpm|BPM)/.test(txt) || /\bbpm\b/i.test(txt));
+    // F2 (SELF-INGEST-FOLLOWUPS-II): drive the review renderer (loadOwnExport → reviewView rich+light → renderReview)
+    try{ await reviewProbe(g, win, add, 'ECGDex', 'ecgReviewCard'); }catch(e){ add(g, 'ECGDex review probe ran without throwing', false, e.message); }
     // live profile-edit probe (PROFILE-DOM-READ-AUDIT §3): edit must not crash the live path
     await profileEditProbe(g, win, doc);
   }catch(e){
@@ -994,6 +1046,7 @@ const APP_COVERAGE = [
       }
     } },
   { name:'PulseDex', file:'PulseDex.html', waitMs:4500, labels:['rMSSD','SDNN','HRV'], minNums:15,
+    review:{ node:'PulseDex', card:'pulseReviewCard' },
     prep:(doc,win)=>{ const tls=window.SYNTH.buildTimelines(); const ta=doc.getElementById('rawPaste'); if(!ta) return false;
       ta.value=window.SYNTH.renderRR(tls[0]); ta.dispatchEvent(new win.Event('input',{bubbles:true}));
       const b=doc.getElementById('calcBtn'); if(b){ b.click(); return true; } return false; },
@@ -1024,6 +1077,7 @@ const APP_COVERAGE = [
       }
     } },
   { name:'HRVDex', file:'HRVDex.html', waitMs:4500, labels:['rMSSD','SDNN','HRV'], minNums:12,
+    review:{ node:'HRVDex', card:'hrvReviewCard' },
     prep:(doc,win)=>{ const tls=window.SYNTH.buildTimelines(); const ta=doc.getElementById('pasteArea'); if(!ta) return false;
       // XI §1/§2: the operator's HRV running log (hrvdex_rows_v1) — and every other key any leg's
       // prep/profile-probe writes — is now snapshotted + restored WHOLESALE at the rig level
@@ -1082,8 +1136,10 @@ const APP_COVERAGE = [
         }
       }
     } },
-  { name:'GlucoDex', file:'GlucoDex.html', hash:'#demo', waitMs:5500, labels:['CV','GMI','range','glucose'], minNums:15, prep:null },
+  { name:'GlucoDex', file:'GlucoDex.html', hash:'#demo', waitMs:5500, labels:['CV','GMI','range','glucose'], minNums:15, prep:null,
+    review:{ node:'GlucoDex', card:'glucoReviewCard' } },
   { name:'PpgDex', file:'PpgDex.html', waitMs:6500, labels:['rMSSD','SDNN','pulse','HRV'], minNums:12,
+    review:{ node:'PpgDex', card:'ppgReviewCard' },
     prep:(doc,win)=>{ const tls=window.SYNTH.buildTimelines(); const tl=tls[0]; const w=window.SYNTH.pickWindow(tl);
       return injectFiles(win,doc,'fileInput',[{name:'Polar_Sense_demo_PPG.txt',text:window.SYNTH.renderPPG(tl,w)}]); } },
   { name:'Integrator', file:'Integrator.html', waitMs:3500, controls:['dropZone','fileInput','exportBtn','tolInput'],
@@ -1145,6 +1201,8 @@ async function renderCoverageApp(cfg){
     const numTokens=(txt.match(/\d[\d.,:]*/g)||[]).length;
     add(g, 'computed numeric output reaches the DOM', numTokens>=(cfg.minNums||12), numTokens+' numeric tokens');
     if(cfg.extraProbe){ try{ await cfg.extraProbe(g, win, doc, add); }catch(e){ add(g, cfg.name+' extra probe ran without throwing', false, e.message); } }
+    // F2 (SELF-INGEST-FOLLOWUPS-II): drive the review renderer (loadOwnExport → reviewView rich+light → renderReview)
+    if(cfg.review){ try{ await reviewProbe(g, win, add, cfg.review.node, cfg.review.card); }catch(e){ add(g, cfg.review.node+' review probe ran without throwing', false, e.message); } }
     // live profile-edit probe (PROFILE-DOM-READ-AUDIT §3) — every unified-panel node
     if(cfg.profileProbe!==false) await profileEditProbe(g, win, doc);
   }catch(e){

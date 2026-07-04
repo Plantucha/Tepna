@@ -61,22 +61,22 @@
   "_note_own_the_build": "OWN-THE-BUILD-2026-06-30 Part A (Phase 0–2) executed 2026-07-03: OxyDex.html migrated to the owned deterministic PLAIN-INLINE bundler (tools/build-core.js + tools/build.mjs) — executed code ships as readable <script/style data-inline-src> text, no gzip/random-UUID. manifestHash recomputed by manifest-gate.js’s plain-inline branch: 91196f73460c → 5f46c7a88b65. EXPORT-INERT (DSP unchanged; both OxyDex fixtures byte-identical, env.equiv.oxydex green). buildHash field DROPPED from this ledger 2026-07-03 (Phase 4 — no gate/test read it; ganglior-provenance.js still stamps a runtime fallback hash into exports, inert). The other 7 bundles stay on the legacy __bundler/manifest format via the manifest-gate dual-branch until the fleet cutover (Phase 3).",
   "bundles": {
     "ECGDex.html": {
-      "manifestHash": "1c05720e361c"
+      "manifestHash": "1711e0b08098"
     },
     "OxyDex.html": {
-      "manifestHash": "692a7b110ef9"
+      "manifestHash": "313731f49b34"
     },
     "PulseDex.html": {
-      "manifestHash": "d2e360b193eb"
+      "manifestHash": "3ecc15845d1b"
     },
     "GlucoDex.html": {
-      "manifestHash": "037f54e14ec5"
+      "manifestHash": "861bcf0923eb"
     },
     "PpgDex.html": {
-      "manifestHash": "cd9d429ac92d"
+      "manifestHash": "59ba60fc079b"
     },
     "HRVDex.html": {
-      "manifestHash": "6c5043354d5a"
+      "manifestHash": "8c3150307a24"
     },
     "CPAPDex.html": {
       "manifestHash": "7136e9cd5642"

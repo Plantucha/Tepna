@@ -5934,8 +5934,49 @@ global.PPGDSP.buildNodeExport = ppgBuildNodeExport;
 // ONE namespaced global (brief §1A). PpgDex leaks nothing bare (the whole DSP is in this
 // IIFE) → no __DEX_NAMESPACED__ suppression gate needed; this is an explicit named global,
 // collision-free in the co-load realm. Standalone bundles still read PPGDSP.
+// ═══ SELF-INGEST — reload PpgDex's OWN ganglior.node-export as a review-mode clinical VIEW
+// (SELF-INGEST-FOLLOWUPS · PpgDex pass, EXPORT-INERT). PpgDex already emits a RICH node-export
+// (buildV2/exportSummary: recording + hrv{time,frequency,nonlinear} + personalization + apnea) AND a
+// light one (exportGanglior). This reader accepts EITHER, single or a sessions[] multi wrapper, and
+// returns whatever derived layer is present VERBATIM. PURE + DOM-FREE; never recomputes, never re-stamps. ═══
+function ppgLoadOwnExport(json){
+  if(!(json && json.schema && json.schema.name === 'ganglior.node-export'))
+    return { ok:false, reason:'not-node-export', message:'Not a node-export \u2014 drop a raw Polar Verity *_PPG.txt, or PpgDex\u2019s own .json export.' };
+  var node = ((json.schema.node || '') + '').trim();
+  if(node !== 'PpgDex')
+    return { ok:false, reason:'foreign-node', node:node,
+      message:'This is a '+(node||'non-PpgDex')+' export \u2014 open it in '+(node||'its own node')+', or drop it into the Integrator to fuse.' };
+  var carrier = Array.isArray(json.sessions) ? json.sessions : [json];
+  var elements = carrier.map(function(el){ var e=JSON.parse(JSON.stringify(el)); e._fromExport=true; e._reviewMode=true; return e; });
+  var evAll = Array.isArray(json.ganglior_events) ? json.ganglior_events.slice() : [];
+  if(!evAll.length) carrier.forEach(function(el){ if(Array.isArray(el.ganglior_events)) evAll = evAll.concat(el.ganglior_events); });
+  evAll.sort(function(a,b){ return ((a&&a.tMs)||0) - ((b&&b.tMs)||0); });
+  return {
+    ok:true, reviewMode:true, node:node,
+    elements:elements, events:evAll,
+    provenance:(json.schema && json.schema.provenance) || null,
+    generated:(json.schema && json.schema.generated) || null,
+    derivedFrom:(json.schema && json.schema.derivedFrom) || null,
+    kernel:json.kernel || null,
+    recording:(carrier[0] && carrier[0].recording) || json.recording || null,
+    hrv:(carrier[0] && carrier[0].hrv) || json.hrv || null,
+    quality:(carrier[0] && carrier[0].quality) || json.quality || null,
+    personalization:(carrier[0] && carrier[0].personalization) || json.personalization || null,
+    crossNight:json.crossNight || null,
+    scrubbed:!!(json.schema && json.schema.scrubbed),
+    multiNight:elements.length > 1, raw:json
+  };
+}
+
 global.PpgDex = global.PpgDex || { compute:compute, parsePPG:parsePPG, analyze:analyze,
   buildNodeExport:ppgBuildNodeExport, _build:ppgBuildNodeExport };
+global.PpgDex.loadOwnExport = ppgLoadOwnExport;   // SELF-INGEST reload (review-mode clinical view)
+// scrub-for-sharing → the SHARED dexScrubExport (D1); lazy delegate, co-load order irrelevant.
+global.PpgDex.scrubExport = function(env){
+  if(global.DexExport && typeof global.DexExport.scrubExport === 'function') return global.DexExport.scrubExport(env);
+  if(typeof global.dexScrubExport === 'function') return global.dexScrubExport(env);
+  return env;
+};
 
 })(window);
 </script>
@@ -8421,6 +8462,17 @@ function loadFiles(fileList){
   progress(6,'Reading '+files.length+' file'+(files.length>1?'s':'')+'…');
   Promise.all(files.map(f=>f.text().then(text=>({ name:f.name, text, kind:classify(f.name), stampMs:fnameStampMs(f.name) }))))
     .then(async parsed=>{
+      // SELF-INGEST: a PpgDex OWN ganglior.node-export among the drop → review mode (a faithful VIEW of the
+      // stored hrv/quality summary, no recompute). Foreign JSON falls through to the normal classify/skip path.
+      try{ if(typeof ppgClearReview==='function') ppgClearReview(); }catch(_pc){}
+      for(const _p of parsed){
+        if(!/\.json$/i.test(_p.name||'') && ((_p.text||'').replace(/^\uFEFF/,'').trimStart()[0]!=='{')) continue;
+        let _j=null; try{ _j=JSON.parse(_p.text); }catch(_pe){}
+        if(_j && _j.schema && _j.schema.name==='ganglior.node-export' && ((_j.schema.node||'')+'').trim()==='PpgDex'){
+          const _res=(window.PpgDex && typeof window.PpgDex.loadOwnExport==='function')?window.PpgDex.loadOwnExport(_j):null;
+          if(_res && _res.ok){ if(typeof ppgRenderReview==='function') ppgRenderReview(_res); if(typeof showOK==='function') showOK('Loaded PpgDex export \u2014 review mode (not recomputed).'); progress(0,''); return; }
+        }
+      }
       parsed = DSP.mergeMultipart(parsed);   // fold `…_partNNofMM.txt` into one stream per base
       // §1 (ECG-INGEST-FOLLOWUPS-III): the loadFiles ORCHESTRATION — classify → foreign/skip set-aside →
       // duplicate-session de-dupe → per-primary device-ELIGIBILITY — is now the shared, headless, NAME-only
@@ -8934,6 +8986,97 @@ function exportJSON(){
   }
   download(JSON.stringify(payload,null,2), exportName({node:'PpgDex',t0Ms:_aT0,kind:(list.length>1?'series':'summary'),ext:'json',spanDays:_aSpan}), 'application/json;charset=utf-8');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SELF-INGEST review mode (SELF-INGEST-FOLLOWUPS · PpgDex pass, export-inert)
+//  A dropped PpgDex OWN node-export → a faithful clinical VIEW from the stored
+//  hrv/quality summary + events. No recompute, no re-stamp; the optical waveform,
+//  LED-agreement ribbon + per-beat Poincaré are greyed (raw not carried).
+// ═══════════════════════════════════════════════════════════════════════
+function _pgesc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+function _pgD(tMs){ if(tMs==null) return '\u2014'; var d=new Date(tMs); return d.getUTCFullYear()+'-'+('0'+(d.getUTCMonth()+1)).slice(-2)+'-'+('0'+d.getUTCDate()).slice(-2); }
+function _pgFmtGen(g){ if(!g) return ''; try{ return String(g).replace('T',' ').replace(/\..*$/,'').replace(/Z$/,' UTC'); }catch(e){ return String(g); } }
+function _ppgInjectReviewCSS(){
+  if(typeof document==='undefined'||document.getElementById('ppg-selfingest-css')) return;
+  var css=''
+   + '#ppgReviewCard{margin:0 0 22px}'
+   + '.pgrv-banner{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin:0 0 18px;padding:13px 18px;border-radius:12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.28);font-size:13px;color:var(--text2,#9FB0C3);line-height:1.5}'
+   + '.pgrv-tag{display:inline-flex;align-items:center;gap:6px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:11px;color:var(--amber,#F59E0B)}'
+   + '.pgrv-dot{width:8px;height:8px;border-radius:50%;background:var(--amber,#F59E0B)}'
+   + '.pgrv-meta code{font-family:ui-monospace,monospace;color:var(--text2,#9FB0C3)}'
+   + '.pgrv-spacer{flex:1 1 auto}'
+   + '.pgrv-print{display:inline-flex;align-items:center;gap:7px;cursor:pointer;padding:8px 15px;border-radius:9px;border:1px solid rgba(61,224,208,.4);background:rgba(61,224,208,.12);color:var(--teal,#3DE0D0);font-size:12.5px;font-weight:700}'
+   + '.pgrv-card{padding:24px 26px;border-radius:14px;background:var(--surface,#10151D);border:1px solid var(--border,#1f2e45)}'
+   + '.pgrv-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;padding-bottom:14px;margin-bottom:16px;border-bottom:1px solid var(--border,#1f2e45)}'
+   + '.pgrv-title{font-size:19px;font-weight:800;color:var(--text,#E6EDF5)}'
+   + '.pgrv-sub{font-size:13px;color:var(--text3,#5E7187)}'
+   + '.pgrv-sec{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3,#5E7187);margin:18px 0 9px}'
+   + '.pgrv-imp{font-size:14px;line-height:1.55;color:var(--text2,#9FB0C3)}'
+   + '.pgrv-kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}'
+   + '.pgrv-kpi{padding:12px 14px;border-radius:10px;background:var(--surface2,#0C0F15);border:1px solid var(--border,#1f2e45)}'
+   + '.pgrv-kpi .k-lab{font-size:11px;color:var(--text3,#5E7187);margin-bottom:5px}'
+   + '.pgrv-kpi .k-val{font-size:21px;font-weight:800;color:var(--text,#E6EDF5)}'
+   + '.pgrv-kpi .k-sub{font-size:10.5px;color:var(--text3,#5E7187);margin-top:3px}'
+   + '.pgrv-tl{display:flex;flex-direction:column;border:1px solid var(--border,#1f2e45);border-radius:10px;overflow:hidden}'
+   + '.pgrv-tlrow{display:grid;grid-template-columns:110px 1fr auto;align-items:center;gap:10px;padding:8px 13px;font-size:12.5px;border-top:1px solid var(--border,#1f2e45)}'
+   + '.pgrv-tlrow:first-child{border-top:none}'
+   + '.pgrv-tlrow .tl-t{font-family:ui-monospace,monospace;color:var(--text3,#5E7187);font-size:12px}'
+   + '.pgrv-none{font-size:13px;color:var(--text3,#5E7187);font-style:italic;padding:6px 2px}'
+   + '.pgrv-greyed{border:1px dashed var(--border,#1f2e45);border-radius:12px;padding:20px;margin-top:4px;background:repeating-linear-gradient(135deg,rgba(255,255,255,.012) 0 10px,transparent 10px 20px);color:var(--text3,#5E7187);font-size:12.5px;text-align:center}'
+   + '.pgrv-greyed strong{display:block;color:var(--text2,#9FB0C3);font-size:13px;margin-bottom:4px}'
+   + '.pgrv-disc{margin-top:20px;padding-top:14px;border-top:1px solid var(--border,#1f2e45);font-size:11px;line-height:1.55;color:var(--text3,#5E7187)}'
+   + '.pgrv-disc .dxl{font-weight:700;color:var(--text2,#9FB0C3)}'
+   + '@media print{body > *:not(#ppgReviewCard){display:none !important} #ppgReviewCard .pgrv-print{display:none !important}}';
+  var st=document.createElement('style'); st.id='ppg-selfingest-css'; st.textContent=css;
+  (document.head||document.documentElement).appendChild(st);
+}
+function ppgReviewTimeline(events){
+  var evs=Array.isArray(events)?events.slice():[];
+  if(!evs.length) return '<div class="pgrv-none">No scored events in this export.</div>';
+  evs.sort(function(a,b){return (a.tMs||0)-(b.tMs||0);});
+  var nm=function(e){ var i=e.impulse||'event'; if(i==='autonomic_surge') return 'Autonomic surge'; if(i==='hrv_drop') return 'HRV drop'; if(i==='motion_artifact_segment') return 'Motion artifact'; return i; };
+  var h='<div class="pgrv-tl">'+evs.slice(0,40).map(function(e){ return '<div class="pgrv-tlrow"><span class="tl-t">'+_pgesc(_pgD(e.tMs)+' '+(e.t||''))+'</span><span>'+_pgesc(nm(e))+'</span><span class="tl-t">conf '+(e.conf!=null?e.conf:'\u2014')+'</span></div>'; }).join('')+'</div>';
+  if(evs.length>40) h+='<div class="pgrv-none">+ '+(evs.length-40)+' more events</div>';
+  return h;
+}
+function ppgReviewView(review){
+  var rec=review.recording||{}, hrv=review.hrv||{}, t=hrv.time||{}, fq=hrv.frequency||{}, q=review.quality||{};
+  var prov=review.provenance||{}, bh=prov.buildHash||(review.derivedFrom&&review.derivedFrom.buildHash)||null, gen=_pgFmtGen(prov.generated||review.generated);
+  var nv=function(v,d){ return (v==null||v!==v)?(d||'\u2014'):v; };
+  var h='<div class="pgrv-banner" role="status">'
+    +'<span class="pgrv-tag"><span class="pgrv-dot"></span>Review mode</span>'
+    +'<span>Loaded from export \u00b7 <strong>not recomputed</strong>'+(review.scrubbed?' \u00b7 <strong>scrubbed for sharing</strong>':'')+'</span>'
+    +'<span class="pgrv-meta">'+(bh?'built <code>'+_pgesc(bh)+'</code>':'build unknown')+(gen?' on <code>'+_pgesc(gen)+'</code>':'')+'</span>'
+    +'<span class="pgrv-spacer"></span>'
+    +'<button class="pgrv-print" type="button" onclick="window.print()">\ud83d\udda8 Save clinical PDF</button></div>';
+  h+='<div class="pgrv-card">';
+  h+='<div class="pgrv-head"><span class="pgrv-title">PpgDex \u2014 wrist-PPG review</span>'
+    +'<span class="pgrv-sub">'+_pgesc(rec.source||'ppg')+(rec.durationMin!=null?' \u00b7 '+Math.round(rec.durationMin)+' min':'')+(rec.beats!=null?' \u00b7 '+rec.beats+' beats':'')+'</span></div>';
+  h+='<div class="pgrv-sec">Impression</div>';
+  h+='<div class="pgrv-imp">Mean HR '+nv(t.hr)+' bpm \u00b7 rMSSD '+nv(t.rmssd)+' ms \u00b7 SDNN '+nv(t.sdnn)+' ms'+(q.analyzablePct!=null?' \u00b7 analyzable '+q.analyzablePct+'%':'')+(t.lowConfidence?' \u00b7 ⚠ low-confidence HRV':'')+'. Rendered from the export\u2019s stored values \u2014 no waveform recomputation.</div>';
+  var kpis=[['Mean HR',nv(t.hr),'bpm'],['rMSSD',nv(t.rmssd),'ms'],['SDNN',nv(t.sdnn),'ms'],['pNN50',nv(t.pnn50),'%'],['LF/HF',nv(fq.lfhf),'ratio'],['Analyzable',nv(q.analyzablePct),'%'],['LED agreement',nv(q.ledAgreementPct),'%'],['Beats',nv(rec.beats),'count']];
+  h+='<div class="pgrv-sec">Key metrics</div><div class="pgrv-kpis">'
+    +kpis.map(function(k){ return '<div class="pgrv-kpi"><div class="k-lab">'+_pgesc(k[0])+'</div><div class="k-val">'+_pgesc(k[1])+'</div><div class="k-sub">'+_pgesc(k[2])+'</div></div>'; }).join('')
+    +'</div>';
+  h+='<div class="pgrv-sec">Event timeline</div>'+ppgReviewTimeline(review.events);
+  h+='<div class="pgrv-sec">Raw signal</div>'
+    +'<div class="pgrv-greyed"><strong>Optical waveform, LED-agreement ribbon &amp; Poincaré not included</strong>Raw optical samples are not carried in the export \u2014 review mode shows the derived HRV/quality layer only. Re-run the original *_PPG.txt for the waveform + morphology charts.</div>';
+  h+='<div class="pgrv-disc">'
+    +(bh?'Provenance \u00b7 build <code>'+_pgesc(bh)+'</code>'+(gen?' \u00b7 generated '+_pgesc(gen):''):'Provenance \u00b7 build unknown')
+    +'<br><span class="dxl">Tepna \u00b7 not a medical device.</span> Computes PPG/HRV patterns for personal self-quantification; does not diagnose, treat, or monitor any condition.'
+    +'</div></div>';
+  return h;
+}
+function ppgRenderReview(review){
+  if(typeof document==='undefined'||!review) return;
+  _ppgInjectReviewCSS();
+  var host=document.getElementById('ppgReviewCard');
+  if(!host){ host=document.createElement('section'); host.id='ppgReviewCard';
+    var m=document.querySelector('main')||document.body; m.insertBefore(host, m.firstChild); }
+  host.innerHTML=ppgReviewView(review); host.style.display='';
+  try{ window.scrollTo(0,0); }catch(e){}
+}
+function ppgClearReview(){ var h=document.getElementById('ppgReviewCard'); if(h){ h.innerHTML=''; h.style.display='none'; } }
 function exportGanglior(){
   const list=sessionsSorted(); if(!list.length) return;
   const _ts=list.map(x=>x.t0Ms).filter(v=>v!=null);

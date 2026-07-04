@@ -2994,6 +2994,390 @@ function runDexTests(env) {
     T.ok('scrubbed export still reloads (ok + scrubbed surfaced)', !!(resS && resS.ok === true && resS.scrubbed === true));
   });
 
+  /* ════ SELF-INGEST (PulseDex) — pulseLoadOwnExport clinical reload (SELF-INGEST-FOLLOWUPS-2026-07-03 · PulseDex pass) ════
+     Reload PulseDex's OWN v2.0 export as a FAITHFUL review-mode clinical view — never recompute, re-grade,
+     or re-stamp. LIVE in BOTH runners off PulseDex.compute(NN[]) → pulseLoadOwnExport. Scrub = the SHARED
+     helper (D1) env.DexExport.scrubExport. PulseDex export is single-record + RICH (recording + hrv +
+     summary). Covers: round-trip · faithful view · provenance no-restamp · review flags · recordings[]
+     carrier · foreign-node guard · scrub. */
+  group('Self-ingest (PulseDex) — pulseLoadOwnExport clinical reload', 'pulsedex-dsp · dex-export · self-ingest', function (T) {
+    var PD = env.PulseDex, DX = env.DexExport, src = env.sources || {};
+    if (!(PD && typeof PD.compute === 'function' && typeof PD.loadOwnExport === 'function' && DX && typeof DX.scrubExport === 'function')) {
+      T.ok('env.PulseDex.compute + PulseDex.loadOwnExport + DexExport.scrubExport available', false, 'namespace not wired — gate skipped'); return;
+    }
+    // deterministic low-variability NN series (~60 beats) → a valid rich export (compute never null at ≥10 beats).
+    var nn = []; for (var i = 0; i < 60; i++) nn.push(820 + ((i % 3) - 1) * 4);   // ~73 bpm, tiny variability
+    var envlp = PD.compute(nn);
+    T.ok('compute(NN[]) produced a v2.0 PulseDex export to reload', !!(envlp && envlp.schema && envlp.schema.name === 'ganglior.node-export' && envlp.schema.node === 'PulseDex' && envlp.recording && envlp.hrv));
+    if (!(envlp && envlp.schema)) return;
+    var pristine = JSON.parse(JSON.stringify(envlp));
+
+    // ── 1 · ROUND-TRIP (single-record: the object itself is the element) ──
+    var res = PD.loadOwnExport(envlp);
+    T.ok('pulseLoadOwnExport(own export) → ok + reviewMode', !!(res && res.ok === true && res.reviewMode === true), res ? ('ok=' + res.ok + ' reason=' + (res.reason || '—')) : 'no result');
+    T.eq('single-record carrier: 1 element (the export object itself)', res && res.ok ? res.elements.length : -1, 1);
+    var emitEv = (pristine.ganglior_events || []).slice().sort(function (a, b) { return ((a && a.tMs) || 0) - ((b && b.tMs) || 0); });
+    var loadEv = (res && res.events) || [];
+    T.ok('round-trip: reloaded events IDENTICAL to emitted (tMs-sorted, verbatim)', JSON.stringify(loadEv.map(function (e) { return [e.tMs, e.impulse, e.conf]; })) === JSON.stringify(emitEv.map(function (e) { return [e.tMs, e.impulse, e.conf]; })), loadEv.length + ' events');
+    T.ok('reloaded events are tMs-monotonic', loadEv.every(function (e, i) { return i === 0 || ((loadEv[i - 1].tMs || 0) <= (e.tMs || 0)); }));
+
+    // ── 2 · FAITHFUL VIEW (no recompute drift) — element == stored bytes (flags aside) ──
+    var elClone = JSON.parse(JSON.stringify(res.elements[0]));
+    delete elClone._reviewMode; delete elClone._fromExport;
+    T.ok('faithful view: element == export STORED values verbatim (no recompute)', JSON.stringify(elClone) === JSON.stringify(pristine));
+    T.ok('clinical KPIs read the stored rich layer directly (hrv.time + poincare + coverage present)', !!(res.elements[0].hrv && res.elements[0].hrv.time && res.elements[0].hrv.poincare && res.elements[0].recording && 'coveragePct' in res.elements[0].recording));
+
+    // ── 4 · REVIEW MODE not faked ──
+    T.ok('review-mode: every element marked _fromExport + _reviewMode', res.elements.length > 0 && res.elements.every(function (n) { return n._fromExport === true && n._reviewMode === true; }));
+
+    // ── 5 · recordings[] carrier (multi wrapper) — unwrap + gather events across elements ──
+    var multi = { schema: { name: 'ganglior.node-export', version: '2.0', node: 'PulseDex' },
+      recordings: [JSON.parse(JSON.stringify(pristine)), JSON.parse(JSON.stringify(pristine))] };
+    var resM = PD.loadOwnExport(multi);
+    T.ok('recordings[] carrier: 2 elements unwrapped + multiNight flagged', !!(resM && resM.ok) && resM.elements.length === 2 && resM.multiNight === true);
+    T.eq('events gathered across ALL elements', resM && resM.ok ? resM.events.length : -1, 2 * (pristine.ganglior_events || []).length);
+
+    // ── 3 · PROVENANCE preserved (no re-stamp) ──
+    var fakeProv = { buildHash: 'abc123def456', generated: '2026-06-21T23:00:00Z', inputs: [{ name: 'Verity RR 2026-06-21.txt', sha256: 'deadbeef', bytes: 4242 }] };
+    var envP = JSON.parse(JSON.stringify(pristine)); envP.schema.provenance = fakeProv;
+    envP.recording.device = 'Polar Verity Sense'; envP.recording.serial = 'VS-99';
+    var resP = PD.loadOwnExport(envP);
+    T.ok('provenance preserved VERBATIM (view provenance == export provenance)', JSON.stringify(resP && resP.provenance) === JSON.stringify(fakeProv));
+    var psrc = src['pulsedex-dsp.js'] || '';
+    var segStart = psrc.indexOf('function pulseLoadOwnExport'), segEnd = psrc.indexOf('PulseDex.loadOwnExport');
+    var loadSeg = (segStart >= 0 && segEnd > segStart) ? psrc.slice(segStart, segEnd) : '';
+    var loadCode = loadSeg.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    T.ok('pulseLoadOwnExport body never re-stamps (no .stamp( / GangliorProvenance in CODE)', loadSeg.length > 0 && !/\.stamp\s*\(/.test(loadCode) && !/GangliorProvenance/.test(loadCode));
+
+    // ── 6 · FOREIGN-NODE guard ──
+    var foreign = { schema: { name: 'ganglior.node-export', node: 'OxyDex' }, recording: {}, ganglior_events: [] };
+    var resF = PD.loadOwnExport(foreign);
+    T.ok('foreign-node guard: OxyDex export rejected', !!(resF && resF.ok === false && resF.reason === 'foreign-node'));
+    T.ok('foreign-node guard: redirect message names the source node + Integrator', !!(resF && /OxyDex/.test(resF.message) && /Integrator/i.test(resF.message)));
+    var resN = PD.loadOwnExport({ notAnExport: true });
+    T.ok('non-export input rejected (reason not-node-export)', !!(resN && resN.ok === false && resN.reason === 'not-node-export'));
+
+    // ── 7 · SCRUB for sharing — the SHARED DexExport.scrubExport (D1) ──
+    var scr = DX.scrubExport(envP);
+    var ins = (scr.schema.provenance && scr.schema.provenance.inputs) || [];
+    T.ok('scrub: no inputs[].name survives', ins.length > 0 && !ins.some(function (x) { return x && x.name != null; }));
+    T.ok('scrub: no inputs[].sha256 survives', !ins.some(function (x) { return x && x.sha256 != null; }));
+    T.eq('scrub: non-identifying integrity kept (inputs[].bytes)', ins[0] && ins[0].bytes, 4242);
+    T.eq('scrub: coarse build stamp retained (buildHash)', scr.schema.provenance && scr.schema.provenance.buildHash, 'abc123def456');
+    T.ok('scrub: recording.device/serial stripped, contentId + startEpochMs kept', scr.recording.device == null && scr.recording.serial == null && 'contentId' in scr.recording && scr.recording.startEpochMs === pristine.recording.startEpochMs);
+    T.ok('scrub: schema flagged scrubbed', scr.schema.scrubbed === true);
+    T.eq('scrub is a PURE clone (source envelope input name untouched)', (envP.schema.provenance.inputs[0] || {}).name, 'Verity RR 2026-06-21.txt');
+    var resS2 = PD.loadOwnExport(scr);
+    T.ok('scrubbed export still reloads (ok + scrubbed surfaced)', !!(resS2 && resS2.ok === true && resS2.scrubbed === true));
+  });
+
+  /* ════ SELF-INGEST (GlucoDex) — glucoLoadOwnExport clinical reload (SELF-INGEST-FOLLOWUPS · GlucoDex enrich-first D2 path b) ════
+     GlucoDex's export was LIGHT (events + recording only); this pass ENRICHED glucoBuildNodeExport with a
+     `glucose` summary block (mean/GMI/CV/TIR/MODD/ADRR/dawn/daypart) so the review view renders the glycemic
+     dashboard from stored values. LIVE in BOTH runners off GlucoDex.compute({tMs,vMgdl}) → glucoLoadOwnExport.
+     Scrub = the SHARED DexExport.scrubExport (D1). Covers: enrichment present · round-trip · faithful view ·
+     provenance no-restamp · review flags · foreign-node guard · shared scrub (glucose block survives). */
+  group('Self-ingest (GlucoDex) — glucoLoadOwnExport clinical reload', 'glucodex-dsp · dex-export · self-ingest', function (T) {
+    var GD = env.GlucoDex, DX = env.DexExport, src = env.sources || {};
+    if (!(GD && typeof GD.compute === 'function' && typeof GD.loadOwnExport === 'function' && DX && typeof DX.scrubExport === 'function')) {
+      T.ok('env.GlucoDex.compute + GlucoDex.loadOwnExport + DexExport.scrubExport available', false, 'namespace not wired — gate skipped'); return;
+    }
+    // deterministic 2-day CGM frame @5-min (planted dawn rise + meals → events + rich stats).
+    var t0 = U(2026, 4, 23, 0, 0, 0), STEP = 5 * 60000, tMs = [], vMgdl = [];
+    for (var day = 0; day < 2; day++) { for (var m = 0; m < 288; m++) { var h = m / 12, v = 95; v -= 8 * Math.exp(-Math.pow((h - 3.5) / 1.5, 2)); v += 38 / (1 + Math.exp(-(h - 5.5) * 1.4)) * Math.exp(-Math.pow(Math.max(0, h - 7.5) / 3, 2)); v += (h >= 12 && h < 14 ? 30 : 0) + (h >= 18 && h < 20 ? 25 : 0); tMs.push(t0 + day * 86400000 + m * STEP); vMgdl.push(Math.round(v)); } }
+    var envlp = GD.compute({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: t0 });
+    T.ok('compute() produced a v2.0 GlucoDex export', !!(envlp && envlp.schema && envlp.schema.name === 'ganglior.node-export' && envlp.schema.node === 'GlucoDex' && envlp.recording));
+    T.ok('ENRICHED: export carries the glucose summary block (mean/GMI/CV/TIR)', !!(envlp && envlp.glucose && envlp.glucose.mean != null && envlp.glucose.gmi != null && envlp.glucose.tir && envlp.glucose.cv != null));
+    if (!(envlp && envlp.schema)) return;
+    var pristine = JSON.parse(JSON.stringify(envlp));
+
+    // ── 1 · ROUND-TRIP (single-record) ──
+    var res = GD.loadOwnExport(envlp);
+    T.ok('glucoLoadOwnExport(own export) → ok + reviewMode', !!(res && res.ok === true && res.reviewMode === true), res ? ('reason=' + (res.reason || '—')) : 'no result');
+    T.eq('single-record carrier: 1 element', res && res.ok ? res.elements.length : -1, 1);
+    var emitEv = (pristine.ganglior_events || []).slice().sort(function (a, b) { return ((a && a.tMs) || 0) - ((b && b.tMs) || 0); });
+    var loadEv = (res && res.events) || [];
+    T.ok('round-trip: reloaded events IDENTICAL to emitted (tMs-sorted)', JSON.stringify(loadEv.map(function (e) { return [e.tMs, e.impulse, e.conf]; })) === JSON.stringify(emitEv.map(function (e) { return [e.tMs, e.impulse, e.conf]; })), loadEv.length + ' events');
+
+    // ── 2 · FAITHFUL VIEW (no drift) ──
+    var elClone = JSON.parse(JSON.stringify(res.elements[0])); delete elClone._reviewMode; delete elClone._fromExport;
+    T.ok('faithful view: element == export STORED values verbatim', JSON.stringify(elClone) === JSON.stringify(pristine));
+    T.ok('clinical KPIs read the stored glucose block directly + review flags set', !!(res.glucose && res.glucose.tir) && res.elements[0]._fromExport === true && res.elements[0]._reviewMode === true);
+
+    // ── 3 · PROVENANCE preserved (no re-stamp) ──
+    var fakeProv = { buildHash: 'abc123def456', generated: '2026-05-23T00:00:00Z', inputs: [{ name: 'Lingo 2026-05-23.csv', sha256: 'deadbeef', bytes: 7777 }] };
+    var envP = JSON.parse(JSON.stringify(pristine)); envP.schema.provenance = fakeProv; envP.recording.device = 'Abbott Lingo'; envP.recording.serial = 'LG-1';
+    var resP = GD.loadOwnExport(envP);
+    T.ok('provenance preserved VERBATIM', JSON.stringify(resP && resP.provenance) === JSON.stringify(fakeProv));
+    var gsrc = src['glucodex-dsp.js'] || '';
+    var segStart = gsrc.indexOf('function glucoLoadOwnExport'), segEnd = gsrc.indexOf('global.GlucoDex = global.GlucoDex');
+    var loadSeg = (segStart >= 0 && segEnd > segStart) ? gsrc.slice(segStart, segEnd) : '';
+    var loadCode = loadSeg.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    T.ok('glucoLoadOwnExport never re-stamps (no .stamp( / GangliorProvenance in CODE)', loadSeg.length > 0 && !/\.stamp\s*\(/.test(loadCode) && !/GangliorProvenance/.test(loadCode));
+
+    // ── 6 · FOREIGN-NODE guard ──
+    var resF = GD.loadOwnExport({ schema: { name: 'ganglior.node-export', node: 'OxyDex' }, recording: {}, ganglior_events: [] });
+    T.ok('foreign-node guard: OxyDex export rejected', !!(resF && resF.ok === false && resF.reason === 'foreign-node'));
+    T.ok('foreign-node guard: message names source + Integrator', !!(resF && /OxyDex/.test(resF.message) && /Integrator/i.test(resF.message)));
+    var resN = GD.loadOwnExport({ notAnExport: true });
+    T.ok('non-export rejected (not-node-export)', !!(resN && resN.ok === false && resN.reason === 'not-node-export'));
+
+    // ── 7 · SCRUB (shared DexExport.scrubExport, D1) — the enriched glucose block must survive ──
+    var scr = DX.scrubExport(envP);
+    var ins = (scr.schema.provenance && scr.schema.provenance.inputs) || [];
+    T.ok('scrub: name+sha stripped, bytes kept', ins.length > 0 && !ins.some(function (x) { return x && x.name != null; }) && !ins.some(function (x) { return x && x.sha256 != null; }) && ins[0].bytes === 7777);
+    T.eq('scrub: coarse buildHash kept', scr.schema.provenance && scr.schema.provenance.buildHash, 'abc123def456');
+    T.ok('scrub: recording.device/serial stripped, contentId + startEpochMs kept', scr.recording.device == null && scr.recording.serial == null && 'contentId' in scr.recording && scr.recording.startEpochMs === pristine.recording.startEpochMs);
+    T.ok('scrub: enriched glucose block retained (clinical summary survives scrub)', !!(scr.glucose && scr.glucose.tir));
+    T.ok('scrub: schema flagged scrubbed', scr.schema.scrubbed === true);
+    var resS3 = GD.loadOwnExport(scr);
+    T.ok('scrubbed export still reloads', !!(resS3 && resS3.ok === true && resS3.scrubbed === true));
+  });
+
+  /* ════ SELF-INGEST (ECGDex) — ecgLoadOwnExport clinical reload (SELF-INGEST-FOLLOWUPS · ECGDex pass, EXPORT-INERT) ════
+     ECGDex already emits a RICH node-export (buildV2/exportSummary: recording+quality+hrv+epochs) AND a light
+     one (exportGanglior); ecgLoadOwnExport reads EITHER, single or recordings[] multi. Driven on a representative
+     buildV2-shaped export (deterministic; buildV2 itself is DOM-adjacent app code) + a guarded genSynthetic→
+     compute leg for authenticity. Scrub = the SHARED DexExport.scrubExport (D1). Covers: round-trip · faithful
+     view · rich layer present · provenance no-restamp · review flags · recordings[] carrier · foreign guard · scrub. */
+  group('Self-ingest (ECGDex) — ecgLoadOwnExport clinical reload', 'ecgdex-dsp · dex-export · self-ingest', function (T) {
+    var ED = env.ECGDex, DX = env.DexExport, src = env.sources || {};
+    if (!(ED && typeof ED.loadOwnExport === 'function' && DX && typeof DX.scrubExport === 'function')) {
+      T.ok('env.ECGDex.loadOwnExport + DexExport.scrubExport available', false, 'namespace not wired — gate skipped'); return;
+    }
+    // representative RICH export (mirrors buildV2's schema/recording/quality/hrv/events shape — see ecgdex-app.js buildV2).
+    var t0 = U(2026, 5, 1, 23, 0, 0);
+    var pristine = { kernel: { version: 'k', hash: 'h' },
+      schema: { name: 'ganglior.node-export', version: '2.0', node: 'ECGDex', nodeVersion: '1.1',
+        provenance: { buildHash: 'ecgbuild1', generated: '2026-06-01T23:00:00Z', inputs: [{ name: 'Polar H10 2026-06-01_ECG.txt', sha256: 'deadbeef', bytes: 9001 }] } },
+      recording: { source: 'ecg', contentId: 'ecgcid', startEpochMs: t0, beats: 41000, durationMin: 480, tier: 'overnight' },
+      quality: { analyzablePct: 96, meanSQI: 0.82, coveragePct: 98 },
+      hrv: { time: { hr: 58, sdnn: 120, rmssd: 42, pnn50: 18, wholeRecordSDNN: 118, wholeRecordRMSSD: 40 }, frequency: { lf: 900, hf: 600, lfhf: 1.5 } },
+      ganglior_events: [ { t: '03:10:00', tMs: t0 + 190 * 60000, impulse: 'stage_deep', node: 'ECGDex', conf: 0.7 },
+                         { t: '01:30:00', tMs: t0 + 90 * 60000, impulse: 'autonomic_surge', node: 'ECGDex', conf: 0.72 } ] };
+
+    // ── 1 · ROUND-TRIP (single-record) ──
+    var res = ED.loadOwnExport(JSON.parse(JSON.stringify(pristine)));
+    T.ok('ecgLoadOwnExport(own export) → ok + reviewMode', !!(res && res.ok === true && res.reviewMode === true), res ? ('reason=' + (res.reason || '—')) : 'no result');
+    T.eq('single-record carrier: 1 element', res && res.ok ? res.elements.length : -1, 1);
+    var emitEv = pristine.ganglior_events.slice().sort(function (a, b) { return a.tMs - b.tMs; });
+    T.ok('round-trip: events tMs-sorted verbatim', JSON.stringify((res.events || []).map(function (e) { return [e.tMs, e.impulse, e.conf]; })) === JSON.stringify(emitEv.map(function (e) { return [e.tMs, e.impulse, e.conf]; })));
+
+    // ── 2 · FAITHFUL VIEW + rich layer present ──
+    var elClone = JSON.parse(JSON.stringify(res.elements[0])); delete elClone._reviewMode; delete elClone._fromExport;
+    T.ok('faithful view: element == export verbatim', JSON.stringify(elClone) === JSON.stringify(pristine));
+    T.ok('rich derived layer surfaced (hrv.time + quality + recording)', !!(res.hrv && res.hrv.time && res.quality && res.recording) && res.elements[0]._fromExport === true && res.elements[0]._reviewMode === true);
+
+    // ── 5 · recordings[] multi carrier ──
+    var multi = { schema: { name: 'ganglior.node-export', version: '2.0', node: 'ECGDex', multiRecording: true },
+      recordings: [JSON.parse(JSON.stringify(pristine)), JSON.parse(JSON.stringify(pristine))] };
+    var resM = ED.loadOwnExport(multi);
+    T.ok('recordings[] carrier: 2 elements + multiNight', !!(resM && resM.ok) && resM.elements.length === 2 && resM.multiNight === true);
+    T.eq('events gathered across elements', resM && resM.ok ? resM.events.length : -1, 2 * pristine.ganglior_events.length);
+    T.ok('multi: rich layer read from recordings[0]', !!(resM.hrv && resM.hrv.time && resM.recording));
+
+    // ── 3 · PROVENANCE no re-stamp ──
+    var resP = ED.loadOwnExport(JSON.parse(JSON.stringify(pristine)));
+    T.ok('provenance preserved VERBATIM', JSON.stringify(resP && resP.provenance) === JSON.stringify(pristine.schema.provenance));
+    var esrc = src['ecgdex-dsp.js'] || '';
+    var segStart = esrc.indexOf('function ecgLoadOwnExport'), segEnd = esrc.indexOf('global.ECGDex = global.ECGDex');
+    var loadSeg = (segStart >= 0 && segEnd > segStart) ? esrc.slice(segStart, segEnd) : '';
+    var loadCode = loadSeg.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    T.ok('ecgLoadOwnExport never re-stamps (no .stamp( / GangliorProvenance in CODE)', loadSeg.length > 0 && !/\.stamp\s*\(/.test(loadCode) && !/GangliorProvenance/.test(loadCode));
+
+    // ── 6 · FOREIGN-NODE guard ──
+    var resF = ED.loadOwnExport({ schema: { name: 'ganglior.node-export', node: 'OxyDex' }, recording: {}, ganglior_events: [] });
+    T.ok('foreign-node guard: OxyDex export rejected', !!(resF && resF.ok === false && resF.reason === 'foreign-node'));
+    T.ok('foreign-node guard: message names source + Integrator', !!(resF && /OxyDex/.test(resF.message) && /Integrator/i.test(resF.message)));
+    var resN = ED.loadOwnExport({ notAnExport: true });
+    T.ok('non-export rejected (not-node-export)', !!(resN && resN.ok === false && resN.reason === 'not-node-export'));
+
+    // ── 7 · SCRUB (shared DexExport.scrubExport, D1) — rich layer survives ──
+    var scr = DX.scrubExport(JSON.parse(JSON.stringify(pristine)));
+    var ins = (scr.schema.provenance && scr.schema.provenance.inputs) || [];
+    T.ok('scrub: name+sha stripped, bytes kept', ins.length > 0 && !ins.some(function (x) { return x && x.name != null; }) && !ins.some(function (x) { return x && x.sha256 != null; }) && ins[0].bytes === 9001);
+    T.eq('scrub: coarse buildHash kept', scr.schema.provenance && scr.schema.provenance.buildHash, 'ecgbuild1');
+    T.ok('scrub: recording.contentId + startEpochMs kept; hrv + quality survive', 'contentId' in scr.recording && scr.recording.startEpochMs === t0 && !!scr.hrv && !!scr.quality);
+    T.ok('scrub: schema flagged scrubbed', scr.schema.scrubbed === true);
+    var resS4 = ED.loadOwnExport(scr);
+    T.ok('scrubbed export still reloads', !!(resS4 && resS4.ok === true && resS4.scrubbed === true));
+
+    // ── F1 (SELF-INGEST-FOLLOWUPS-II): scrub strips device/serial/model from EVERY recordings[] element ──
+    // (was nights[]-only; a multi ECGDex export leaked the device serial inside each recordings[i].recording.)
+    var multiIdent = { schema: { name: 'ganglior.node-export', version: '2.0', node: 'ECGDex', multiRecording: true },
+      recordings: [0, 1].map(function () { var e = JSON.parse(JSON.stringify(pristine)); e.recording.device = 'Polar H10'; e.recording.serial = 'H10-77'; e.recording.model = 'H10'; return e; }) };
+    var scrM = DX.scrubExport(multiIdent);
+    T.ok('scrub (recordings[] multi): device/serial/model stripped from EVERY element', Array.isArray(scrM.recordings) && scrM.recordings.length === 2 && scrM.recordings.every(function (e) { return e.recording && e.recording.device == null && e.recording.serial == null && e.recording.model == null; }));
+    T.ok('scrub (recordings[] multi): contentId + startEpochMs kept per element', scrM.recordings.every(function (e) { return 'contentId' in e.recording && e.recording.startEpochMs === t0; }));
+
+    // ── authenticity leg (guarded): a REAL genSynthetic→compute export reloads faithfully (rich if opts.rich) ──
+    if (typeof ED.compute === 'function' && typeof ED.genSynthetic === 'function') {
+      var real = null; try { var syn = ED.genSynthetic(); real = syn ? ED.compute(syn, { rich: true }) : null; } catch (e) { real = null; }
+      if (real && real.schema && real.schema.node === 'ECGDex') {
+        var rr = ED.loadOwnExport(real);
+        T.ok('genSynthetic→compute(rich) export reloads ok + node ECGDex + faithful element', !!(rr && rr.ok) && JSON.stringify(Object.assign({}, rr.elements[0], { _fromExport: undefined, _reviewMode: undefined })) === JSON.stringify(Object.assign({}, real, { _fromExport: undefined, _reviewMode: undefined })));
+      }
+    }
+  });
+
+  /* ════ SELF-INGEST (HRVDex) — hrvLoadOwnExport clinical reload (SELF-INGEST-FOLLOWUPS · HRVDex enrich-first D2 path b) ════
+     HRVDex's export carried only measurements:N (a count); this pass ENRICHED hrvBuildNodeExport with a per-
+     measurement `measurements[]` table (tMs/hr/meanRR/sdnn/rmssd/pnn50/mxdmn + derived sd1/sd2 + vendor composites
+     tagged meta.derived/heuristic) — the whole HRVDex clinical value. LIVE both runners off HRVDex.compute(rows[])
+     → hrvLoadOwnExport. Scrub = SHARED DexExport.scrubExport (D1). Covers: enrichment present · round-trip ·
+     faithful view · composites tagged (no tier upgrade) · provenance no-restamp · foreign guard · scrub. */
+  group('Self-ingest (HRVDex) — hrvLoadOwnExport clinical reload', 'hrvdex-dsp · dex-export · self-ingest', function (T) {
+    var HD = env.HRVDex, DX = env.DexExport, src = env.sources || {};
+    if (!(HD && typeof HD.compute === 'function' && typeof HD.loadOwnExport === 'function' && DX && typeof DX.scrubExport === 'function')) {
+      T.ok('env.HRVDex.compute + HRVDex.loadOwnExport + DexExport.scrubExport available', false, 'namespace not wired — gate skipped'); return;
+    }
+    var t0 = U(2026, 5, 1, 8, 0, 0);
+    // row 2 carries the vendor composites (>0 → composites block); rows 1,3 have none (0 → omitted).
+    var rows = [
+      { _tMs: t0, _offsetMin: null, _hr: 60, _meanRR: 1000, _sdnn: 50, _rmssd: 42, _pnn50: 20, _mxdmn: 200, _stress: 0, _energy: 0, _focus: 0, _sns: 0, _psns: 0, _coherence: 0, _hrv: 0, _cv: 5 },
+      { _tMs: t0 + 86400000, _offsetMin: null, _hr: 58, _meanRR: 1034, _sdnn: 55, _rmssd: 48, _pnn50: 24, _mxdmn: 210, _stress: 40, _energy: 60, _focus: 55, _sns: 30, _psns: 70, _coherence: 65, _hrv: 72, _cv: 5.3 },
+      { _tMs: t0 + 2 * 86400000, _offsetMin: null, _hr: 62, _meanRR: 968, _sdnn: 45, _rmssd: 35, _pnn50: 15, _mxdmn: 190, _stress: 0, _energy: 0, _focus: 0, _sns: 0, _psns: 0, _coherence: 0, _hrv: 0, _cv: 4.6 }
+    ];
+    var envlp = HD.compute(rows);
+    T.ok('compute(rows) produced a v2.0 HRVDex export', !!(envlp && envlp.schema && envlp.schema.name === 'ganglior.node-export' && envlp.schema.node === 'HRVDex' && envlp.recording));
+    T.ok('ENRICHED: export carries the per-measurement measurements[] table', !!(envlp && Array.isArray(envlp.measurements) && envlp.measurements.length === 3 && envlp.measurements[0].rmssd === 42 && envlp.measurements[0].sd1 != null && envlp.measurements[0].sd2 != null));
+    T.ok('vendor composites tagged heuristic/derived ONLY when present (no tier upgrade)', !!(envlp.measurements[1].composites && envlp.measurements[1].composites.meta && envlp.measurements[1].composites.meta.tier === 'heuristic' && envlp.measurements[1].composites.stress === 40) && envlp.measurements[0].composites === undefined && envlp.measurements[2].composites === undefined);
+    if (!(envlp && envlp.schema)) return;
+    var pristine = JSON.parse(JSON.stringify(envlp));
+
+    // ── round-trip + faithful view ──
+    var res = HD.loadOwnExport(envlp);
+    T.ok('hrvLoadOwnExport(own export) → ok + reviewMode', !!(res && res.ok === true && res.reviewMode === true), res ? ('reason=' + (res.reason || '—')) : 'no result');
+    T.eq('single-record carrier: 1 element', res && res.ok ? res.elements.length : -1, 1);
+    T.eq('measurements surfaced on the review context', res && res.measurements ? res.measurements.length : -1, 3);
+    var elClone = JSON.parse(JSON.stringify(res.elements[0])); delete elClone._reviewMode; delete elClone._fromExport;
+    T.ok('faithful view: element == export verbatim (no recompute)', JSON.stringify(elClone) === JSON.stringify(pristine));
+    T.ok('review flags set', res.elements[0]._fromExport === true && res.elements[0]._reviewMode === true);
+
+    // ── provenance no re-stamp ──
+    var fakeProv = { buildHash: 'abc123def456', generated: '2026-05-20T08:00:00Z', inputs: [{ name: 'WELLTORY export.csv', sha256: 'deadbeef', bytes: 5150 }] };
+    var envP = JSON.parse(JSON.stringify(pristine)); envP.schema.provenance = fakeProv; envP.recording.device = 'Welltory'; envP.recording.serial = 'W-1';
+    var resP = HD.loadOwnExport(envP);
+    T.ok('provenance preserved VERBATIM', JSON.stringify(resP && resP.provenance) === JSON.stringify(fakeProv));
+    var hsrc = src['hrvdex-dsp.js'] || '';
+    var segStart = hsrc.indexOf('function hrvLoadOwnExport'), segEnd = hsrc.indexOf('var HRVDex = (typeof HRVDex');
+    var loadSeg = (segStart >= 0 && segEnd > segStart) ? hsrc.slice(segStart, segEnd) : '';
+    var loadCode = loadSeg.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    T.ok('hrvLoadOwnExport never re-stamps (no .stamp( / GangliorProvenance in CODE)', loadSeg.length > 0 && !/\.stamp\s*\(/.test(loadCode) && !/GangliorProvenance/.test(loadCode));
+
+    // ── foreign guard ──
+    var resF = HD.loadOwnExport({ schema: { name: 'ganglior.node-export', node: 'OxyDex' }, recording: {}, ganglior_events: [] });
+    T.ok('foreign-node guard: OxyDex export rejected', !!(resF && resF.ok === false && resF.reason === 'foreign-node'));
+    T.ok('foreign-node guard: message names source + Integrator', !!(resF && /OxyDex/.test(resF.message) && /Integrator/i.test(resF.message)));
+    var resN = HD.loadOwnExport({ notAnExport: true });
+    T.ok('non-export rejected (not-node-export)', !!(resN && resN.ok === false && resN.reason === 'not-node-export'));
+
+    // ── scrub (shared) — measurements[] survives ──
+    var scr = DX.scrubExport(envP);
+    var ins = (scr.schema.provenance && scr.schema.provenance.inputs) || [];
+    T.ok('scrub: name+sha stripped, bytes kept', ins.length > 0 && !ins.some(function (x) { return x && x.name != null; }) && !ins.some(function (x) { return x && x.sha256 != null; }) && ins[0].bytes === 5150);
+    T.eq('scrub: coarse buildHash kept', scr.schema.provenance && scr.schema.provenance.buildHash, 'abc123def456');
+    T.ok('scrub: recording.device/serial stripped, contentId + startEpochMs kept', scr.recording.device == null && scr.recording.serial == null && 'contentId' in scr.recording && scr.recording.startEpochMs === pristine.recording.startEpochMs);
+    T.ok('scrub: enriched measurements[] retained (clinical value survives scrub)', Array.isArray(scr.measurements) && scr.measurements.length === 3);
+    T.ok('scrub: schema flagged scrubbed', scr.schema.scrubbed === true);
+    var resS5 = HD.loadOwnExport(scr);
+    T.ok('scrubbed export still reloads', !!(resS5 && resS5.ok === true && resS5.scrubbed === true));
+  });
+
+  /* ════ SELF-INGEST (PpgDex) — ppgLoadOwnExport clinical reload (SELF-INGEST-FOLLOWUPS · PpgDex pass, EXPORT-INERT) ════
+     PpgDex already emits a RICH node-export (buildV2/exportSummary: recording+hrv+personalization+apnea) AND a
+     light one (exportGanglior); ppgLoadOwnExport reads EITHER, single or a sessions[] multi wrapper. Driven on a
+     representative buildV2-shaped export (deterministic; buildV2 is DOM-adjacent app code). Scrub = the SHARED
+     DexExport.scrubExport (D1). Covers: round-trip · faithful view · rich layer · provenance no-restamp · review
+     flags · sessions[] carrier · foreign guard · scrub. */
+  group('Self-ingest (PpgDex) — ppgLoadOwnExport clinical reload', 'ppgdex-dsp · dex-export · self-ingest', function (T) {
+    var PG = env.PpgDex, DX = env.DexExport, src = env.sources || {};
+    if (!(PG && typeof PG.loadOwnExport === 'function' && DX && typeof DX.scrubExport === 'function')) {
+      T.ok('env.PpgDex.loadOwnExport + DexExport.scrubExport available', false, 'namespace not wired — gate skipped'); return;
+    }
+    var t0 = U(2026, 5, 21, 23, 0, 0);
+    var pristine = { kernel: { version: 'k', hash: 'h' },
+      schema: { name: 'ganglior.node-export', version: '2.0', node: 'PpgDex', nodeVersion: '1.0',
+        provenance: { buildHash: 'ppgbuild1', generated: '2026-06-21T23:00:00Z', inputs: [{ name: 'Polar_Sense_20260621_PPG.txt', sha256: 'deadbeef', bytes: 7007 }] } },
+      recording: { source: 'ppg', contentId: 'ppgcid', startEpochMs: t0, beats: 21000, durationMin: 420 },
+      quality: { analyzablePct: 88, ledAgreementPct: 91 },
+      hrv: { time: { rmssd: 44, sdnn: 96, hr: 61, pnn50: 16, lowConfidence: false }, frequency: { lf: 850, hf: 700, lfhf: 1.21, method: 'Lomb-Scargle' }, nonlinear: { dfaAlpha1: 1.02, sampEn: 1.4 } },
+      personalization: { ansReadinessScore: 68 },
+      ganglior_events: [ { t: '02:40:00', tMs: t0 + 200 * 60000, impulse: 'hrv_drop', node: 'PpgDex', conf: 0.6 },
+                         { t: '01:05:00', tMs: t0 + 65 * 60000, impulse: 'autonomic_surge', node: 'PpgDex', conf: 0.71 } ] };
+
+    var res = PG.loadOwnExport(JSON.parse(JSON.stringify(pristine)));
+    T.ok('ppgLoadOwnExport(own export) → ok + reviewMode', !!(res && res.ok === true && res.reviewMode === true), res ? ('reason=' + (res.reason || '—')) : 'no result');
+    T.eq('single-record carrier: 1 element', res && res.ok ? res.elements.length : -1, 1);
+    var emitEv = pristine.ganglior_events.slice().sort(function (a, b) { return a.tMs - b.tMs; });
+    T.ok('round-trip: events tMs-sorted verbatim', JSON.stringify((res.events || []).map(function (e) { return [e.tMs, e.impulse, e.conf]; })) === JSON.stringify(emitEv.map(function (e) { return [e.tMs, e.impulse, e.conf]; })));
+    var elClone = JSON.parse(JSON.stringify(res.elements[0])); delete elClone._reviewMode; delete elClone._fromExport;
+    T.ok('faithful view: element == export verbatim', JSON.stringify(elClone) === JSON.stringify(pristine));
+    T.ok('rich derived layer surfaced (hrv.time + quality + recording)', !!(res.hrv && res.hrv.time && res.quality && res.recording) && res.elements[0]._fromExport === true && res.elements[0]._reviewMode === true);
+
+    // sessions[] multi carrier
+    var multi = { schema: { name: 'ganglior.node-export', version: '2.0', node: 'PpgDex', multiSession: true },
+      sessions: [JSON.parse(JSON.stringify(pristine)), JSON.parse(JSON.stringify(pristine))] };
+    var resM = PG.loadOwnExport(multi);
+    T.ok('sessions[] carrier: 2 elements + multiNight', !!(resM && resM.ok) && resM.elements.length === 2 && resM.multiNight === true);
+    T.eq('events gathered across sessions', resM && resM.ok ? resM.events.length : -1, 2 * pristine.ganglior_events.length);
+
+    // provenance no re-stamp
+    var resP = PG.loadOwnExport(JSON.parse(JSON.stringify(pristine)));
+    T.ok('provenance preserved VERBATIM', JSON.stringify(resP && resP.provenance) === JSON.stringify(pristine.schema.provenance));
+    var psrc = src['ppgdex-dsp.js'] || '';
+    var segStart = psrc.indexOf('function ppgLoadOwnExport'), segEnd = psrc.indexOf('global.PpgDex = global.PpgDex');
+    var loadSeg = (segStart >= 0 && segEnd > segStart) ? psrc.slice(segStart, segEnd) : '';
+    var loadCode = loadSeg.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    T.ok('ppgLoadOwnExport never re-stamps (no .stamp( / GangliorProvenance in CODE)', loadSeg.length > 0 && !/\.stamp\s*\(/.test(loadCode) && !/GangliorProvenance/.test(loadCode));
+
+    // foreign guard
+    var resF = PG.loadOwnExport({ schema: { name: 'ganglior.node-export', node: 'OxyDex' }, recording: {}, ganglior_events: [] });
+    T.ok('foreign-node guard: OxyDex export rejected', !!(resF && resF.ok === false && resF.reason === 'foreign-node'));
+    T.ok('foreign-node guard: message names source + Integrator', !!(resF && /OxyDex/.test(resF.message) && /Integrator/i.test(resF.message)));
+    var resN = PG.loadOwnExport({ notAnExport: true });
+    T.ok('non-export rejected (not-node-export)', !!(resN && resN.ok === false && resN.reason === 'not-node-export'));
+
+    // scrub (shared) — rich layer survives
+    var scr = DX.scrubExport(JSON.parse(JSON.stringify(pristine)));
+    var ins = (scr.schema.provenance && scr.schema.provenance.inputs) || [];
+    T.ok('scrub: name+sha stripped, bytes kept', ins.length > 0 && !ins.some(function (x) { return x && x.name != null; }) && !ins.some(function (x) { return x && x.sha256 != null; }) && ins[0].bytes === 7007);
+    T.eq('scrub: coarse buildHash kept', scr.schema.provenance && scr.schema.provenance.buildHash, 'ppgbuild1');
+    T.ok('scrub: recording.contentId + startEpochMs kept; hrv survives', 'contentId' in scr.recording && scr.recording.startEpochMs === t0 && !!scr.hrv);
+    T.ok('scrub: schema flagged scrubbed', scr.schema.scrubbed === true);
+    var resS6 = PG.loadOwnExport(scr);
+    T.ok('scrubbed export still reloads', !!(resS6 && resS6.ok === true && resS6.scrubbed === true));
+
+    // ── F1 (SELF-INGEST-FOLLOWUPS-II): scrub strips device/serial/model from EVERY sessions[] element ──
+    // (was nights[]-only; a multi PpgDex export leaked the device serial inside each sessions[i].recording.)
+    var multiIdent = { schema: { name: 'ganglior.node-export', version: '2.0', node: 'PpgDex', multiSession: true },
+      sessions: [0, 1].map(function () { var e = JSON.parse(JSON.stringify(pristine)); e.recording.device = 'Polar Verity Sense'; e.recording.serial = 'VS-33'; e.recording.model = 'Verity'; return e; }) };
+    var scrM = DX.scrubExport(multiIdent);
+    T.ok('scrub (sessions[] multi): device/serial/model stripped from EVERY element', Array.isArray(scrM.sessions) && scrM.sessions.length === 2 && scrM.sessions.every(function (e) { return e.recording && e.recording.device == null && e.recording.serial == null && e.recording.model == null; }));
+    T.ok('scrub (sessions[] multi): contentId + startEpochMs kept per element', scrM.sessions.every(function (e) { return 'contentId' in e.recording && e.recording.startEpochMs === t0; }));
+  });
+
+  /* ════ SELF-INGEST F5 — review renderers on the node namespace (SELF-INGEST-FOLLOWUPS-II §F5) ════
+     Fleet convention: every node's review renderer is reachable as <Node>.reviewView (+ .renderReview
+     where a standalone DOM-glue fn exists) — 4 of the 6 are app-IIFE-local, so without the namespace
+     attach no global caller (incl. the suite's live review probe, F2) can drive them. Source-mirror in
+     BOTH runners; the browser suite's render-coverage review probe exercises them LIVE (rich + light
+     export) in each booted bundle. */
+  group('Self-ingest F5 — review renderers on the node namespace', 'self-ingest · F5 · fleet convention', function (T) {
+    var src = env.sources || {};
+    [
+      ['pulsedex-render.js', [/PulseDex\.reviewView\s*=\s*pulseReviewView/, /PulseDex\.renderReview\s*=\s*pulseRenderReview/]],
+      ['glucodex-app.js',    [/GlucoDex\.reviewView\s*=\s*glucoReviewView/, /GlucoDex\.renderReview\s*=\s*glucoRenderReview/]],
+      ['ecgdex-app.js',      [/ECGDex\.reviewView\s*=\s*ecgReviewView/, /ECGDex\.renderReview\s*=\s*ecgRenderReview/]],
+      ['hrvdex-app.js',      [/HRVDex\.reviewView\s*=\s*hrvReviewView/, /HRVDex\.renderReview\s*=\s*hrvRenderReview/]],
+      ['ppgdex-app.js',      [/PpgDex\.reviewView\s*=\s*ppgReviewView/, /PpgDex\.renderReview\s*=\s*ppgRenderReview/]],
+      ['oxydex-render.js',   [/OxyDex\.reviewView\s*=/]]
+    ].forEach(function (w) {
+      var s = src[w[0]] || '';
+      T.ok(w[0] + ' exposes the review renderer on the node namespace', s.length > 0 && w[1].every(function (re) { return re.test(s); }), s.length ? '' : 'source not loaded');
+    });
+  });
+
   /* ════ EVENT-LEXICON — canonical impulse vocabulary (OXYDEX-NODE-EXPORT-ENVELOPE-FOLLOWUPS §1) ════
      Pins the desaturation/surge/PB canonical names + the back-compat alias policy (spec: EVENT-LEXICON.md).
      Live in BOTH runners: a legacy bare-array OxyDex ingest now SYNTHESIZES the canonical `desat_event`,

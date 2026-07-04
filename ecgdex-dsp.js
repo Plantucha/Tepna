@@ -1920,8 +1920,52 @@ global.ECGDSP.buildNodeExport = ecgBuildNodeExport;
 // ONE namespaced global (brief §1A). ECGDex leaks nothing bare (the whole DSP is in this
 // IIFE) → no __DEX_NAMESPACED__ suppression gate needed; this is an explicit named global,
 // collision-free in the co-load realm. Standalone bundles still read ECGDSP.
+// ═══════════════════════════════════════════════════════════════════════════
+//  SELF-INGEST — reload ECGDex's OWN ganglior.node-export as a review-mode
+//  clinical VIEW (SELF-INGEST-FOLLOWUPS · ECGDex pass, EXPORT-INERT). ECGDex
+//  already emits a RICH node-export (buildV2 / exportSummary: recording +
+//  quality + hrv + epochs) AND a light one (exportGanglior: recording + events)
+//  — both schema.node 'ECGDex'. This reader accepts EITHER, single or a
+//  recordings[] multi wrapper, and returns whatever derived layer is present
+//  VERBATIM. PURE + DOM-FREE; never recomputes, never re-stamps (§3).
+// ═══════════════════════════════════════════════════════════════════════════
+function ecgLoadOwnExport(json){
+  if(!(json && json.schema && json.schema.name === 'ganglior.node-export'))
+    return { ok:false, reason:'not-node-export', message:'Not a node-export \u2014 drop a raw Polar H10 *_ECG.txt, or ECGDex\u2019s own .json export.' };
+  var node = ((json.schema.node || '') + '').trim();
+  if(node !== 'ECGDex')
+    return { ok:false, reason:'foreign-node', node:node,
+      message:'This is a '+(node||'non-ECGDex')+' export \u2014 open it in '+(node||'its own node')+', or drop it into the Integrator to fuse.' };
+  var carrier = Array.isArray(json.recordings) ? json.recordings : [json];
+  var elements = carrier.map(function(el){ var e=JSON.parse(JSON.stringify(el)); e._fromExport=true; e._reviewMode=true; return e; });
+  var evAll = Array.isArray(json.ganglior_events) ? json.ganglior_events.slice() : [];
+  if(!evAll.length) carrier.forEach(function(el){ if(Array.isArray(el.ganglior_events)) evAll = evAll.concat(el.ganglior_events); });
+  evAll.sort(function(a,b){ return ((a&&a.tMs)||0) - ((b&&b.tMs)||0); });
+  return {
+    ok:true, reviewMode:true, node:node,
+    elements:elements, events:evAll,
+    provenance:(json.schema && json.schema.provenance) || null,
+    generated:(json.schema && json.schema.generated) || null,
+    derivedFrom:(json.schema && json.schema.derivedFrom) || null,
+    kernel:json.kernel || null,
+    recording:(carrier[0] && carrier[0].recording) || json.recording || null,
+    hrv:(carrier[0] && carrier[0].hrv) || json.hrv || null,
+    quality:(carrier[0] && carrier[0].quality) || json.quality || null,
+    crossNight:json.crossNight || null,
+    scrubbed:!!(json.schema && json.schema.scrubbed),
+    multiNight:elements.length > 1, raw:json
+  };
+}
+
 global.ECGDex = global.ECGDex || { compute:compute, parseECG:parseECGText, analyze:analyze,
   genSynthetic:genSynthetic, buildNodeExport:ecgBuildNodeExport, _build:ecgBuildNodeExport,
   parseDeviceRR:parseDeviceRR, parseDeviceHR:parseDeviceHR, parseDeviceACC:parseDeviceACC };
+global.ECGDex.loadOwnExport = ecgLoadOwnExport;   // SELF-INGEST reload (review-mode clinical view)
+// scrub-for-sharing → the SHARED dexScrubExport (D1); lazy delegate, co-load order irrelevant.
+global.ECGDex.scrubExport = function(env){
+  if(global.DexExport && typeof global.DexExport.scrubExport === 'function') return global.DexExport.scrubExport(env);
+  if(typeof global.dexScrubExport === 'function') return global.dexScrubExport(env);
+  return env;
+};
 
 })(window);

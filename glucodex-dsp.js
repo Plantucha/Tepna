@@ -1079,6 +1079,12 @@ function glucoBuildNodeExport(r, opts){
         floor:(cs.floor && cs.floor.saturated && cs.floor.value!=null ? cs.floor.value : null),
         ceiling:(cs.ceiling && cs.ceiling.saturated && cs.ceiling.value!=null ? cs.ceiling.value : null),
         blindMetrics:(cs.blindMetrics||[]) } : { detected:false } },
+    glucose:{ mean:r.mean, gmi:r.gmi, ea1c:r.ea1c, sd:r.sd, cv:r.cv, tir:r.tir, titr:r.titr,
+      mage:(r.mage==null?null:r.mage), modd:(r.modd==null?null:r.modd), adrr:(r.adrr==null?null:r.adrr),
+      gvp:(r.gvp==null?null:r.gvp), lbgi:r.lbgi, hbgi:r.hbgi, stabilityScore:r.stabilityScore,
+      pctActive:r.pctActive, tier:(r.tier||null),
+      dawn:(r.dawn && r.dawn.present ? { present:true, medianDelta:r.dawn.medianDelta } : { present:false }),
+      daypart:(r.daypart||null) },
     ganglior_events:events,
     reserved:{ doc:'Awaiting other fleet nodes; null until available.' }
   };
@@ -1119,6 +1125,45 @@ global.GLUDSP = { parseCSV, analyze, genSynthetic, coreMetrics, detectClampSatur
 // ONE namespaced global (brief §1A). GlucoDex leaks nothing bare (whole DSP is in
 // this IIFE) → no __DEX_NAMESPACED__ suppression gate needed; this is an explicit
 // named global, collision-free in the co-load realm. Standalone bundles still read GLUDSP.
+// ═══════════════════════════════════════════════════════════════════════════
+//  SELF-INGEST — reload GlucoDex's OWN ganglior.node-export as a review-mode
+//  clinical VIEW (SELF-INGEST-FOLLOWUPS · GlucoDex pass, enrich-first D2 path b).
+//  PURE + DOM-FREE: detect → own-node guard → mark reviewMode → return the
+//  provenance/kernel/glucose/events VERBATIM. Never recomputes, never re-stamps.
+//  The enriched export now carries the `glucose` summary block (mean/GMI/CV/TIR/
+//  MODD/ADRR/dawn/daypart), so the review view renders the glycemic dashboard
+//  from stored values; the full-resolution per-reading trace is greyed.
+// ═══════════════════════════════════════════════════════════════════════════
+function glucoLoadOwnExport(json){
+  if(!(json && json.schema && json.schema.name === 'ganglior.node-export'))
+    return { ok:false, reason:'not-node-export', message:'Not a node-export \u2014 drop a raw CGM CSV, or GlucoDex\u2019s own .json export.' };
+  var node = ((json.schema.node || '') + '').trim();
+  if(node !== 'GlucoDex')
+    return { ok:false, reason:'foreign-node', node:node,
+      message:'This is a '+(node||'non-GlucoDex')+' export \u2014 open it in '+(node||'its own node')+', or drop it into the Integrator to fuse.' };
+  var el = JSON.parse(JSON.stringify(json)); el._fromExport = true; el._reviewMode = true;
+  var evAll = Array.isArray(json.ganglior_events) ? json.ganglior_events.slice() : [];
+  evAll.sort(function(a,b){ return ((a&&a.tMs)||0) - ((b&&b.tMs)||0); });
+  return {
+    ok:true, reviewMode:true, node:node,
+    elements:[el], events:evAll,
+    provenance:(json.schema && json.schema.provenance) || null,
+    generated:(json.schema && json.schema.generated) || null,
+    derivedFrom:(json.schema && json.schema.derivedFrom) || null,
+    kernel:json.kernel || null, recording:json.recording || null,
+    glucose:json.glucose || null,
+    scrubbed:!!(json.schema && json.schema.scrubbed),
+    multiNight:false, raw:json
+  };
+}
+
 global.GlucoDex = global.GlucoDex || { compute, parseCSV, analyze, genSynthetic, buildNodeExport:glucoBuildNodeExport, _build:glucoBuildNodeExport };
+global.GlucoDex.loadOwnExport = glucoLoadOwnExport;   // SELF-INGEST reload (review-mode clinical view)
+// scrub-for-sharing → the SHARED dexScrubExport (D1); lazy delegate, co-load order irrelevant.
+global.GlucoDex.scrubExport = function(env){
+  if(global.DexExport && typeof global.DexExport.scrubExport === 'function') return global.DexExport.scrubExport(env);
+  if(typeof global.dexScrubExport === 'function') return global.dexScrubExport(env);
+  return env;
+};
 
 })(window);

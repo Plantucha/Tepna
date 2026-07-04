@@ -1,0 +1,71 @@
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Tepna",
+  "alternateName": "Tepna — the Dex Suite",
+  "applicationCategory": "HealthApplication",
+  "operatingSystem": "Any (modern web browser)",
+  "url": "https://tepna.net/",
+  "codeRepository": "https://github.com/Plantucha/Tepna",
+  "description": "A fleet of local-only, single-signal physiological analyzers. Read one raw biosignal from a wearable you own — oxygen, heartbeat, pulse, glucose — derive evidence-graded metrics, and fuse across signals. 100% in your browser: no upload, no account.",
+  "isAccessibleForFree": true,
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "license": "https://www.apache.org/licenses/LICENSE-2.0",
+  "author": {
+    "@type": "Person",
+    "name": "Michal Planicka"
+  },
+  "disclaimer": "Personal self-quantification. Not a medical device; does not diagnose, treat, cure, or prevent any condition.",
+  "featureList": [
+    "100% local — no network, no upload, no account",
+    "Evidence-graded metrics (every number carries a trust badge)",
+    "OxyDex: SpO₂ / oximetry — Overnight blood oxygen — ODI-4, T90, hypoxic burden.",
+    "PpgDex: Wrist PPG — Optical pulse → PPI → HRV + pulse-wave morphology.",
+    "PulseDex: HRV from raw RR — RR-interval streams → time / frequency HRV.",
+    "ECGDex: Raw ECG — ~130 Hz ECG → QRS, QTc, HRV.",
+    "HRVDex: HRV summaries — Additive multi-day HRV ledger.",
+    "GlucoDex: CGM — Continuous glucose → Time in Range, GMI.",
+    "CPAPDex: CPAP therapy — EDF therapy data → pressure, leak, respiratory events."
+  ],
+  "softwareHelp": [
+    {
+      "@type": "WebPage",
+      "name": "OxyDex technical reference",
+      "url": "https://tepna.net/OxyDex%20Reference.html"
+    },
+    {
+      "@type": "WebPage",
+      "name": "PpgDex technical reference",
+      "url": "https://tepna.net/PpgDex%20Reference.html"
+    },
+    {
+      "@type": "WebPage",
+      "name": "PulseDex technical reference",
+      "url": "https://tepna.net/PulseDex%20Reference.html"
+    },
+    {
+      "@type": "WebPage",
+      "name": "ECGDex technical reference",
+      "url": "https://tepna.net/ECGDex%20Reference.html"
+    },
+    {
+      "@type": "WebPage",
+      "name": "HRVDex technical reference",
+      "url": "https://tepna.net/HRVDex%20Reference.html"
+    },
+    {
+      "@type": "WebPage",
+      "name": "GlucoDex technical reference",
+      "url": "https://tepna.net/GlucoDex%20Reference.html"
+    },
+    {
+      "@type": "WebPage",
+      "name": "CPAPDex technical reference",
+      "url": "https://tepna.net/CPAPDex%20Reference.html"
+    }
+  ]
+}

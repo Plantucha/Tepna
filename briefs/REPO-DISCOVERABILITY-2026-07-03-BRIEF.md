@@ -1,5 +1,18 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED — 2026-07-03 · **Created:** 2026-07-03
+**Status:** IN-PROGRESS — 2026-07-04 (§1 front-door links EXECUTED; §2 no-rename decision affirmed; §3/§4/§5 + gated §5.9 carried to `REPO-DISCOVERABILITY-FOLLOWUPS-2026-07-04-BRIEF.md`) · **Created:** 2026-07-03
+
+> **Execution note (2026-07-04) — §1 done, rest handed off.** §1 (the "do first — cheapest, highest
+> value" step) is EXECUTED, pure-markdown, no re-bundle and no gate touched: `DOCS-INDEX.md` gained an
+> "⚡ At a glance — live surfaces" block above §0 linking all 7 reference guides + `Architecture` /
+> `Science` / `wiring` / `papers/papers.html` with `%20`-encoded targets; `README.md`'s node table
+> gained a **Reference** column (each live Dex → its guide) plus a terse **🔬 Scientific Foundation**
+> section pointing at `papers/`. §2 is recorded as a **decision: no rename** (frozen filenames) — and I
+> deliberately did NOT add a separate `## 🛠️ Architecture: The Dex Suite` heading: the existing
+> `## The nodes` table already IS that roster, so the Reference column satisfies "each Dex links its
+> guide" without a second, drift-prone list (honors §5.2's single-roster discipline). Everything else —
+> §3 `sitemap.xml`/`robots.txt` + generator, §4 GitHub topics (off-repo), §5.1–5.8 metadata/off-site
+> signals, and the single **GATED** §5.9 app-`<head>` `<noscript>` fallback — is carried forward to
+> `REPO-DISCOVERABILITY-FOLLOWUPS-2026-07-04-BRIEF.md`. §7 is answered: `tepna.net` is public → robots = Allow.
 
 # Repo discoverability — "first-look" clarity for humans, crawlers & LLMs
 

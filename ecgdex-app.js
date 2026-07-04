@@ -1144,6 +1144,18 @@ function _deviceName(key){
 }
 async function loadFiles(fileList){
   const files = Array.from(fileList||[]); if(!files.length) return;
+  // SELF-INGEST: a dropped ECGDex ganglior.node-export → review mode (a faithful VIEW of the stored
+  // hrv/quality summary, no recompute); a foreign export shows the redirect message.
+  try{ if(typeof ecgClearReview==='function') ecgClearReview(); }catch(_ec){}
+  for(const _f of files){
+    if(!/\.json$/i.test(_f.name)) continue;
+    let _j=null; try{ _j=JSON.parse(await _f.text()); }catch(_pe){}
+    if(_j && _j.schema && _j.schema.name==='ganglior.node-export'){
+      const _res=(window.ECGDex && typeof window.ECGDex.loadOwnExport==='function')?window.ECGDex.loadOwnExport(_j):null;
+      if(_res && _res.ok){ if(typeof ecgRenderReview==='function') ecgRenderReview(_res); if(typeof showOK==='function') showOK('Loaded ECGDex export \u2014 review mode (not recomputed).'); return; }
+      if(_res && _res.reason==='foreign-node'){ if(typeof showErr==='function') showErr(_res.message); return; }
+    }
+  }
   // Async header content-sniff (the ONE byte-reading step): pull any file NAMED like ECG (or
   // suffix-less, so it defaulted to ecg) but whose first line names a different stream back out of
   // the ECG lane. DexIngest.planIngest is pure + NAME-only + DOM-free, so the byte-reading sniff
@@ -1179,6 +1191,104 @@ async function loadFiles(fileList){
 }
 // Tell the user what was set aside and why. A strong (red) error when the drop held
 // NO ECG at all — otherwise the app would silently do nothing and look frozen.
+// ═══════════════════════════════════════════════════════════════════════════
+//  SELF-INGEST review mode (SELF-INGEST-FOLLOWUPS · ECGDex pass, export-inert)
+//  Renders ECGDex's OWN reloaded export as a faithful clinical VIEW from the
+//  stored hrv/quality summary + events. No recompute, no re-stamp; the ECG
+//  waveform + per-beat morphology are greyed (raw not carried in the export).
+// ═══════════════════════════════════════════════════════════════════════════
+function _eesc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+function _ecgFmtGen(g){ if(!g) return ''; try{ return String(g).replace('T',' ').replace(/\..*$/,'').replace(/Z$/,' UTC'); }catch(e){ return String(g); } }
+function _ecgInjectReviewCSS(){
+  if(typeof document==='undefined'||document.getElementById('ecg-selfingest-css')) return;
+  var css=''
+   + '#ecgReviewCard{margin:0 0 22px}'
+   + '.erv-banner{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin:0 0 18px;padding:13px 18px;border-radius:12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.28);font-size:13px;color:var(--text2,#9FB0C3);line-height:1.5}'
+   + '.erv-tag{display:inline-flex;align-items:center;gap:6px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:11px;color:var(--amber,#F59E0B)}'
+   + '.erv-dot{width:8px;height:8px;border-radius:50%;background:var(--amber,#F59E0B)}'
+   + '.erv-meta code{font-family:ui-monospace,monospace;color:var(--text2,#9FB0C3)}'
+   + '.erv-spacer{flex:1 1 auto}'
+   + '.erv-print{display:inline-flex;align-items:center;gap:7px;cursor:pointer;padding:8px 15px;border-radius:9px;border:1px solid rgba(61,224,208,.4);background:rgba(61,224,208,.12);color:var(--teal,#3DE0D0);font-size:12.5px;font-weight:700}'
+   + '.erv-card{padding:24px 26px;border-radius:14px;background:var(--surface,#10151D);border:1px solid var(--border,#1f2e45)}'
+   + '.erv-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;padding-bottom:14px;margin-bottom:16px;border-bottom:1px solid var(--border,#1f2e45)}'
+   + '.erv-title{font-size:19px;font-weight:800;color:var(--text,#E6EDF5)}'
+   + '.erv-sub{font-size:13px;color:var(--text3,#5E7187)}'
+   + '.erv-sec{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3,#5E7187);margin:18px 0 9px}'
+   + '.erv-imp{font-size:14px;line-height:1.55;color:var(--text2,#9FB0C3)}'
+   + '.erv-kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}'
+   + '.erv-kpi{padding:12px 14px;border-radius:10px;background:var(--surface2,#0C0F15);border:1px solid var(--border,#1f2e45)}'
+   + '.erv-kpi .k-lab{font-size:11px;color:var(--text3,#5E7187);margin-bottom:5px}'
+   + '.erv-kpi .k-val{font-size:21px;font-weight:800;color:var(--text,#E6EDF5)}'
+   + '.erv-kpi .k-sub{font-size:10.5px;color:var(--text3,#5E7187);margin-top:3px}'
+   + '.erv-tl{display:flex;flex-direction:column;border:1px solid var(--border,#1f2e45);border-radius:10px;overflow:hidden}'
+   + '.erv-tlrow{display:grid;grid-template-columns:84px 1fr auto;align-items:center;gap:10px;padding:8px 13px;font-size:12.5px;border-top:1px solid var(--border,#1f2e45)}'
+   + '.erv-tlrow:first-child{border-top:none}'
+   + '.erv-tlrow .tl-t{font-family:ui-monospace,monospace;color:var(--text3,#5E7187);font-size:12px}'
+   + '.erv-tlrow .tl-conf{color:var(--text3,#5E7187);font-family:ui-monospace,monospace;font-size:11.5px;text-align:right}'
+   + '.erv-none{font-size:13px;color:var(--text3,#5E7187);font-style:italic;padding:6px 2px}'
+   + '.erv-greyed{border:1px dashed var(--border,#1f2e45);border-radius:12px;padding:20px;margin-top:4px;background:repeating-linear-gradient(135deg,rgba(255,255,255,.012) 0 10px,transparent 10px 20px);color:var(--text3,#5E7187);font-size:12.5px;text-align:center}'
+   + '.erv-greyed strong{display:block;color:var(--text2,#9FB0C3);font-size:13px;margin-bottom:4px}'
+   + '.erv-disc{margin-top:20px;padding-top:14px;border-top:1px solid var(--border,#1f2e45);font-size:11px;line-height:1.55;color:var(--text3,#5E7187)}'
+   + '.erv-disc .dxl{font-weight:700;color:var(--text2,#9FB0C3)}'
+   + '@media print{body > *:not(#ecgReviewCard){display:none !important} #ecgReviewCard .erv-print{display:none !important}}';
+  var st=document.createElement('style'); st.id='ecg-selfingest-css'; st.textContent=css;
+  (document.head||document.documentElement).appendChild(st);
+}
+function ecgReviewTimeline(events){
+  var evs=Array.isArray(events)?events.slice():[];
+  if(!evs.length) return '<div class="erv-none">No scored events in this export.</div>';
+  evs.sort(function(a,b){return (a.tMs||0)-(b.tMs||0);});
+  var CAP=40, shown=evs.slice(0,CAP);
+  var nm=function(e){ var i=e.impulse||'event'; if(i==='autonomic_surge') return 'Autonomic surge'; if(i.indexOf('stage_')===0) return 'Sleep stage · '+i.slice(6); return i; };
+  var h='<div class="erv-tl">'+shown.map(function(e){
+    var when=e.t || '\u2014';
+    return '<div class="erv-tlrow"><span class="tl-t">'+_eesc(when)+'</span><span>'+_eesc(nm(e))+'</span><span class="tl-conf">conf '+(e.conf!=null?e.conf:'\u2014')+'</span></div>';
+  }).join('')+'</div>';
+  if(evs.length>CAP) h+='<div class="erv-none">+ '+(evs.length-CAP)+' more events</div>';
+  return h;
+}
+function ecgReviewView(review){
+  var rec=review.recording||{}, hrv=review.hrv||{}, t=hrv.time||{}, fq=hrv.frequency||{}, q=review.quality||{};
+  var prov=review.provenance||{}, bh=prov.buildHash||(review.derivedFrom&&review.derivedFrom.buildHash)||null, gen=_ecgFmtGen(prov.generated||review.generated);
+  var nv=function(v,d){ return (v==null||v!==v)?(d||'\u2014'):v; };
+  var h='<div class="erv-banner" role="status">'
+    +'<span class="erv-tag"><span class="erv-dot"></span>Review mode</span>'
+    +'<span>Loaded from export \u00b7 <strong>not recomputed</strong>'+(review.scrubbed?' \u00b7 <strong>scrubbed for sharing</strong>':'')+'</span>'
+    +'<span class="erv-meta">'+(bh?'built <code>'+_eesc(bh)+'</code>':'build unknown')+(gen?' on <code>'+_eesc(gen)+'</code>':'')+'</span>'
+    +'<span class="erv-spacer"></span>'
+    +'<button class="erv-print" type="button" onclick="window.print()">\ud83d\udda8 Save clinical PDF</button></div>';
+  h+='<div class="erv-card">';
+  h+='<div class="erv-head"><span class="erv-title">ECGDex \u2014 ECG review</span>'
+    +'<span class="erv-sub">'+_eesc(rec.tier||rec.mode||rec.source||'recording')+(rec.durationMin!=null?' \u00b7 '+Math.round(rec.durationMin)+' min':'')+(rec.beats!=null?' \u00b7 '+rec.beats+' beats':'')+'</span></div>';
+  h+='<div class="erv-sec">Impression</div>';
+  h+='<div class="erv-imp">Mean HR '+nv(t.hr)+' bpm \u00b7 SDNN '+nv(t.sdnn)+' ms \u00b7 rMSSD '+nv(t.rmssd)+' ms'+(q.analyzablePct!=null?' \u00b7 analyzable '+q.analyzablePct+'%':'')+'. Rendered from the export\u2019s stored values \u2014 no waveform recomputation.</div>';
+  var kpis=[['Mean HR',nv(t.hr),'bpm'],['SDNN',nv(t.sdnn),'ms'],['rMSSD',nv(t.rmssd),'ms'],['pNN50',nv(t.pnn50),'%'],['LF/HF',nv(fq.lfhf),'ratio'],['Analyzable',nv(q.analyzablePct),'%'],['Mean SQI',nv(q.meanSQI),'0\u20131'],['Beats',nv(rec.beats),'count']];
+  h+='<div class="erv-sec">Key metrics</div><div class="erv-kpis">'
+    +kpis.map(function(k){ return '<div class="erv-kpi"><div class="k-lab">'+_eesc(k[0])+'</div><div class="k-val">'+_eesc(k[1])+'</div><div class="k-sub">'+_eesc(k[2])+'</div></div>'; }).join('')
+    +'</div>';
+  h+='<div class="erv-sec">Event timeline</div>'+ecgReviewTimeline(review.events);
+  h+='<div class="erv-sec">Raw signal</div>'
+    +'<div class="erv-greyed"><strong>ECG waveform &amp; per-beat morphology not included</strong>Raw ECG samples are not carried in the export \u2014 review mode shows the derived HRV/quality layer only. Re-run the original *_ECG.txt for the waveform + morphology charts.</div>';
+  h+='<div class="erv-disc">'
+    +(bh?'Provenance \u00b7 build <code>'+_eesc(bh)+'</code>'+(gen?' \u00b7 generated '+_eesc(gen):''):'Provenance \u00b7 build unknown')
+    +'<br><span class="dxl">Tepna \u00b7 not a medical device.</span> Computes ECG/HRV patterns for personal self-quantification; does not diagnose, treat, or monitor any condition.'
+    +'</div></div>';
+  return h;
+}
+function ecgRenderReview(review){
+  if(typeof document==='undefined'||!review) return;
+  _ecgInjectReviewCSS();
+  var host=document.getElementById('ecgReviewCard');
+  if(!host){ host=document.createElement('section'); host.id='ecgReviewCard';
+    var m=document.querySelector('main')||document.body; m.insertBefore(host, m.firstChild); }
+  host.innerHTML=ecgReviewView(review); host.style.display='';
+}
+function ecgClearReview(){ var h=document.getElementById('ecgReviewCard'); if(h){ h.innerHTML=''; h.style.display='none'; } }
+// F5 (SELF-INGEST-FOLLOWUPS-II): fleet convention — the review renderer is reachable via the node
+// namespace (<Node>.reviewView / .renderReview) so the suite's live review probe (and any global
+// caller) can drive it; the bare names stay IIFE-local.
+try{ if(typeof window!=='undefined' && window.ECGDex){ window.ECGDex.reviewView=ecgReviewView; window.ECGDex.renderReview=ecgRenderReview; } }catch(_rvx){}
+
 function reportSkipped(foreign, nEcg){
   const counts = {};
   foreign.forEach(f=>{
