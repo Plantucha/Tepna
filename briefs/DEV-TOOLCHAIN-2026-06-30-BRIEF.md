@@ -6,7 +6,19 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-06-30 · **Follows:** `OWN-THE-BUILD-2026-06-30-BRIEF.md` (shares the *construction-enforcement over drift-suppression* thesis + the Node-host reality) · **Continues:** `SIGNAL-ADAPTER-AND-FRONTIER-2026-06-23-BRIEF.md` Phase 4 (which shipped 4a/4b — this is "Phase 4, the two missing legs")
+**Status:** IN-PROGRESS — 2026-07-04 · **Created:** 2026-06-30 · **Follows:** `OWN-THE-BUILD-2026-06-30-BRIEF.md` (shares the *construction-enforcement over drift-suppression* thesis + the Node-host reality) · **Continues:** `SIGNAL-ADAPTER-AND-FRONTIER-2026-06-23-BRIEF.md` Phase 4 (which shipped 4a/4b — this is "Phase 4, the two missing legs")
+
+> **PARTIAL 2026-07-04 — Part A · A3 LANDED (test-only, no re-bundle).** A `House-invariant lint · retired
+> vocabulary + frozen names` group in `tests/dex-tests.js` (both runners, headless floor) mechanizes §🎫/§📜:
+> no retired evidence tier (proxy/composite/"provisionally validated"), no retired umbrella brand
+> (GanglioR / ANS Intelligence), with the FROZEN codenames (`ganglior.*`, `ganglior.node-export`, `fascia`)
+> allow-listed verbatim + positive controls so it can't rot into a no-op. Verified green on the wired
+> source set. **Remaining Part A:** A1 (Clock-Contract `new Date(str)`/`Date.parse`/non-UTC-getter/now()-
+> fallback lints — needs a careful legitimate-use allow-list + positive controls), A2 (SPDX-header presence
+> — note the pre-cutoff headerless-brief grandfather question), A4 (the -IV §1 reach-in allow-list). **Part
+> B (formatter) DEFERRED — it must ride an on-touch re-bundle (§B2: never big-bang), so fold it into the
+> pending OWN-THE-BUILD Part C fleet re-bundle, not a standalone pass. Part C (widen `tsconfig`) DEFERRED —
+> needs `node tsc` to verify green.** Flip to DONE when all Part-A rules land + Parts B/C per their Done-when.
 
 # Dev toolchain — the formatter + house-invariant linter (the "black + flake8" to the existing "mypy")
 

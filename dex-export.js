@@ -134,10 +134,11 @@
     return out;
   }
 
-  root.DexExport = { exportName: exportName, EXPORT_KINDS: EXPORT_KINDS, scrubExport: scrubExport };
+  var DexExport = { exportName: exportName, EXPORT_KINDS: EXPORT_KINDS, scrubExport: scrubExport };
+  root.DexExport = DexExport;
   // app/back-compat bare globals (the apps call exportName(...) directly, like fmtDate/fmtClock)
   root.exportName = exportName;
   root.EXPORT_KINDS = EXPORT_KINDS;
   root.dexScrubExport = scrubExport;   // bare global — the shared scrub every node's app reaches (D1)
-  if (typeof module !== 'undefined' && module.exports) module.exports = root.DexExport;
+  if (typeof module !== 'undefined' && module.exports) module.exports = DexExport;
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : /** @type {any} */ (this)));

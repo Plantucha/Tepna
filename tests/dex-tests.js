@@ -1650,6 +1650,192 @@ function runDexTests(env) {
     T.ok('every shipped bundle is named in ORIENTATION.md (roster not stale)', missing.length === 0, 'missing: ' + missing.join(', '));
   });
 
+  /* ════ DOCS-LEDGER — the brief lifecycle, machine-checked (DOCS-LEDGER-GATE-2026-07-03) ════
+     The last ungated contract: CLAUDE.md §📌 (immutable dated filenames in briefs/, status-in-header,
+     DOCS-INDEX.md as the synced dashboard, Superseded-by/Supersedes symmetry). Pure static text checks,
+     fed via env.docsLedger (a DISTINCT key from the flat env.docs text-map the badge/roster groups use):
+       { briefs:{name:text}, indexText, rootBriefNames:[], fsBriefNames:[]|null, listedBriefNames:[] }
+     Node lane supplies fsBriefNames (fs.readdirSync) for the staleness check; the browser lane fetches
+     names from tests/docs-ledger-list.json (fetch can't list a dir). Absent env → SKIP (older runners
+     stay green). Grandfather rule (parallels check 6): pre-2026-07-03 / undated legacy briefs predate the
+     lifecycle standardization — 55 are headerless by history; NOT fabricated a status (CLAUDE.md §🧪 —
+     never stamp DONE on unverified work). v1 check-4 scope = briefs/ links (the 2026-07-03 repoint guard);
+     broader-tree link integrity is a documented follow-up. */
+  group('Docs-ledger — brief lifecycle machine-checked (DOCS-LEDGER-GATE)', 'docs · docs-ledger', function (T) {
+    var DL = env.docsLedger;
+    if (!DL || !DL.briefs || DL.indexText == null) { T.skip('env.docsLedger provided to the runner', 'wire env.docsLedger (run-tests.mjs readDocsLedger + Dex-Test-Suite fetch of tests/docs-ledger-list.json)'); return; }
+    var CUTOFF = '2026-07-03';                       // lifecycle-standardization date (CLAUDE.md §📌)
+    var names = Object.keys(DL.briefs).sort(), indexText = DL.indexText;
+    var briefSet = {}; names.forEach(function (n) { briefSet[n] = 1; });
+    var dateInName = function (n) { var m = n.match(/(\d{4}-\d{2}-\d{2})/); return m ? m[1] : null; };
+    function headerBlock(text) { var s = String(text).replace(/^\uFEFF/, ''), p; do { p = s; s = s.replace(/^\s*<!--[\s\S]*?-->\s*/, ''); } while (s !== p); return s.split('\n').slice(0, 4).join('\n'); }
+    // Well-formed header forms (CLAUDE.md §📌): PROPOSED|IN-PROGRESS (± trailing date/prose), DONE — <date>, or REFERENCE|CHECKPOINT.
+    var STATUS_RE = /^\*\*Status:\*\*\s+(?:(?:PROPOSED|IN-PROGRESS)\b|DONE\s+—\s+\d{4}-\d{2}-\d{2}\b|(?:REFERENCE|CHECKPOINT)\b)/m;
+    var HAS_STATUS = /^\*\*Status:\*\*/m;
+    function field(txt, key) { var m = String(txt).match(new RegExp(key + ':\\*{0,2}\\s*`?([A-Za-z0-9._-]+\\.md)`?')); return m ? m[1] : null; }
+
+    // ── CHECK 1 · no *-BRIEF.md at repo root (they live in briefs/; licensing/LICENSING-BRIEF.md is allowlisted by path) ──
+    var rootBriefs = DL.rootBriefNames || [];
+    T.ok('check1 · no *-BRIEF.md at repo root (briefs live in briefs/ — CLAUDE.md §📌)', rootBriefs.length === 0, rootBriefs.length ? ('stray: ' + rootBriefs.join(', ')) : 'clean');
+
+    // ── CHECK 2 · header contract — format-check any present header; require one on briefs dated ≥ cutoff (older grandfathered) ──
+    var badHeader = [], headerlessNew = [];
+    names.forEach(function (n) {
+      var hb = headerBlock(DL.briefs[n]);
+      if (HAS_STATUS.test(hb)) { if (!STATUS_RE.test(hb)) badHeader.push(n); }
+      else { var d = dateInName(n); if (d && d >= CUTOFF) headerlessNew.push(n); }
+    });
+    T.ok('check2a · every present **Status:** header is well-formed (CLAUDE.md §📌 forms)', badHeader.length === 0, badHeader.length ? ('malformed: ' + badHeader.slice(0, 8).join(', ')) : names.length + ' briefs scanned');
+    T.ok('check2b · every brief dated ≥ ' + CUTOFF + ' carries a status header (pre-cutoff/undated grandfathered)', headerlessNew.length === 0, headerlessNew.length ? ('missing header: ' + headerlessNew.join(', ')) : 'ok');
+
+    // ── CHECK 3 · dashboard coverage — every brief linked at least once in DOCS-INDEX ──
+    var unlinked = names.filter(function (n) { return indexText.indexOf('](briefs/' + n + ')') < 0; });
+    T.ok('check3 · every briefs/*.md appears in DOCS-INDEX.md (ship a brief, don\u2019t forget the map)', unlinked.length === 0, unlinked.length ? ('unindexed (' + unlinked.length + '): ' + unlinked.slice(0, 10).join(', ')) : names.length + ' linked');
+
+    // ── CHECK 4 · link integrity (v1: briefs/ targets — the 2026-07-03 repoint guard; decode %20) ──
+    var linkRe = /\]\((briefs\/[^)]+)\)/g, mm, deadLinks = [];
+    while ((mm = linkRe.exec(indexText)) !== null) { var dec = decodeURIComponent(mm[1].split('#')[0]).replace(/^briefs\//, ''); if (!briefSet[dec]) deadLinks.push(mm[1]); }
+    T.ok('check4 · every ](briefs/\u2026) link in DOCS-INDEX resolves to a real brief', deadLinks.length === 0, deadLinks.length ? ('dead: ' + deadLinks.slice(0, 8).join(', ')) : 'all resolve');
+
+    // ── CHECK 5 · Superseded-by / Supersedes symmetry ──
+    var supBy = {}, sup = {};
+    names.forEach(function (n) { var hb = headerBlock(DL.briefs[n]); var a = field(hb, 'Superseded-by'); var b = field(hb, 'Supersedes'); if (a) supBy[n] = a; if (b) sup[n] = b; });
+    var asym = [];
+    Object.keys(supBy).forEach(function (n) { var t = supBy[n]; if (!briefSet[t]) asym.push(n + ' \u2192Superseded-by ' + t + ' (missing)'); else if (sup[t] !== n) asym.push(n + ' \u2194 ' + t + ' one-sided'); });
+    Object.keys(sup).forEach(function (n) { var t = sup[n]; if (!briefSet[t]) asym.push(n + ' \u2192Supersedes ' + t + ' (missing)'); else if (supBy[t] !== n) asym.push(n + ' \u2194 ' + t + ' one-sided'); });
+    T.ok('check5 · Superseded-by/Supersedes links are bidirectional', asym.length === 0, asym.length ? asym.slice(0, 8).join('; ') : 'no supersede links (ok)');
+
+    // ── CHECK 6 · filename-date discipline for briefs Created ≥ cutoff (older undated names FROZEN) ──
+    var c6 = [];
+    names.forEach(function (n) { var hb = headerBlock(DL.briefs[n]); var cm = hb.match(/\*\*Created:\*\*\s*(\d{4}-\d{2}-\d{2})/); var cd = cm ? cm[1] : null; var fd = dateInName(n);
+      if (cd && cd >= CUTOFF) { if (!fd) c6.push(n + ' Created ' + cd + ' but filename undated'); else if (fd !== cd) c6.push(n + ' fnDate ' + fd + '\u2260Created ' + cd); } });
+    T.ok('check6 · briefs Created \u2265 ' + CUTOFF + ' use -YYYY-MM-DD-BRIEF.md matching Created', c6.length === 0, c6.length ? c6.slice(0, 8).join('; ') : 'ok');
+
+    // ── STALENESS · the browser lane's docs-ledger-list.json must match briefs/ on disk (Node lane has fs truth) ──
+    if (DL.fsBriefNames) {
+      var fsJoin = DL.fsBriefNames.slice().sort().join('\n'), listJoin = (DL.listedBriefNames || []).slice().sort().join('\n');
+      T.ok('staleness · tests/docs-ledger-list.json matches briefs/ on disk (regen via tests/gen-docs-ledger-list.mjs on add/remove)', fsJoin === listJoin, fsJoin === listJoin ? (DL.fsBriefNames.length + ' briefs in sync') : 'list is STALE vs fs');
+    } else {
+      T.ok('browser lane · brief set loaded from docs-ledger-list.json (Node lane asserts list==fs)', names.length > 0 && (DL.listedBriefNames || []).length === names.length, names.length + ' briefs');
+    }
+  });
+
+  /* ════ BORN-CLEAN NODES — headless DSP + graded registry + reproducibility leg (OWN-THE-BUILD Part B) ════
+     Construction-enforcement, forward-adopt (ARCHITECTURE-PRINCIPLES §7): a node in the BORN_CLEAN set MUST
+     satisfy (1) its `*-dsp.js` source carries NO DOM/localStorage (headless — the Phase-9 surface), (2) a
+     `compute()` function is exposed on its namespace, (3) every metric in its registry carries an `evidence`
+     grade (the badge-by-construction precondition), (4) it is wired into the reproducibility gate (an
+     `env.equiv` leg or a code-gated FIXTURE-PROVENANCE fixture = GATE-C "current code reproduces the export").
+     The set seeds with the five nodes that VERIFIABLY meet the contract today — the gate then LOCKS that
+     (adding DOM to a clean DSP, or an ungraded registry metric, reds). OxyDex/HRVDex are deliberately OUT:
+     their DSP carries real DOM/localStorage (grandfathered-impure); the brief leaves old nodes, migrating
+     opportunistically. A NEW node (EEGDex/SpiroDex) joins BORN_CLEAN at birth, born compliant. ════ */
+  group('Born-clean nodes — headless DSP + graded registry + reproducibility leg (OWN-THE-BUILD Part B)', 'born-clean · forward-adopt', function (T) {
+    var BORN_CLEAN = [
+      { node: 'PulseDex', dsp: 'pulsedex-dsp.js', ns: 'PulseDex', reg: 'PULSE_REGISTRY', equiv: 'pulsedex' },
+      { node: 'GlucoDex', dsp: 'glucodex-dsp.js', ns: 'GlucoDex', reg: 'GLU_REGISTRY',   equiv: 'glucodex' },
+      { node: 'PpgDex',   dsp: 'ppgdex-dsp.js',   ns: 'PpgDex',   reg: 'PPG_REGISTRY',   equiv: 'ppgdex' },
+      { node: 'ECGDex',   dsp: 'ecgdex-dsp.js',   ns: 'ECGDex',   reg: 'ECG_REGISTRY',   equiv: 'ecgdex' },
+      { node: 'CPAPDex',  dsp: 'cpapdex-dsp.js',  ns: 'CpapDsp',  reg: 'CPAP_REGISTRY',  equiv: 'cpapdex_golden' }
+    ];
+    var src = env.sources || {}, equiv = env.equiv || {};
+    var fp = {}; try { fp = (JSON.parse((env.manifests || {})['FIXTURE-PROVENANCE.json'] || '{}').fixtures) || {}; } catch (e) {}
+    function stripComments(s) { return String(s).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1'); }
+    // REAL DOM/storage API usage (not a bare `window.` mention, which appears in headless namespace comments).
+    var DOM_RE = /\b(?:document|localStorage|sessionStorage)\s*\.|\b(?:getElementById|querySelectorAll|querySelector|addEventListener)\s*\(/;
+    function metricsOf(reg) { if (!reg) return null; if (Array.isArray(reg)) return reg; if (reg.metrics && Array.isArray(reg.metrics)) return reg.metrics; var v = Object.values(reg); return v.length && v.every(function (x) { return x && typeof x === 'object'; }) ? v : null; }
+
+    var anySource = false;
+    BORN_CLEAN.forEach(function (n) {
+      // (1) headless DSP — no DOM/localStorage in source
+      var s = src[n.dsp];
+      if (s == null) { T.skip(n.node + ' · (1) DSP is headless', n.dsp + ' not in env.sources'); }
+      else { anySource = true; var hits = stripComments(s).split('\n').map(function (l, i) { return DOM_RE.test(l) ? (i + 1) : 0; }).filter(Boolean);
+        T.ok(n.node + ' · (1) DSP is headless (no document/localStorage/DOM API)', hits.length === 0, hits.length ? ('DOM at lines ' + hits.slice(0, 6).join(',')) : 'clean'); }
+      // (2) compute() exposed on the namespace (the equiv/render gates exercise it live)
+      var ns = env[n.ns];
+      T.ok(n.node + ' · (2) namespace.compute() is a function (headless surface)', !!(ns && typeof ns.compute === 'function'), ns ? '' : (n.ns + ' not loaded'));
+      // (3) every registry metric carries an evidence grade
+      var ms = metricsOf(env[n.reg]);
+      if (ms == null) { T.skip(n.node + ' · (3) registry metrics graded', n.reg + ' not loaded / unexpected shape'); }
+      else { var ungraded = ms.filter(function (m) { return m && typeof m === 'object' && !m.evidence; });
+        T.ok(n.node + ' · (3) every registry metric has an evidence grade (' + ms.length + ')', ms.length > 0 && ungraded.length === 0, ungraded.length ? (ungraded.length + ' ungraded') : 'all graded'); }
+      // (4) wired into the reproducibility gate (env.equiv leg OR a code-gated fixture — lane-independent)
+      var hasEquiv = Object.prototype.hasOwnProperty.call(equiv, n.equiv);
+      var hasGatedFixture = Object.keys(fp).some(function (k) { var r = fp[k]; return r && r.bundle === n.node + '.html' && r.manifestHash && !r.historical; });
+      T.ok(n.node + ' · (4) wired into the reproducibility gate (env.equiv leg or code-gated fixture)', hasEquiv || hasGatedFixture, hasEquiv ? ('equiv.' + n.equiv) : (hasGatedFixture ? 'code-gated fixture' : 'NEITHER — wire an equiv/fixture leg'));
+    });
+    T.ok('born-clean set non-empty + DSP sources available to scan', BORN_CLEAN.length > 0 && anySource, anySource ? (BORN_CLEAN.length + ' nodes locked') : 'no DSP sources in env.sources');
+
+    // ── self-tests: the (1) headless scan must PASS a clean stub, FAIL a DOM/storage stub, and IGNORE a comment ──
+    T.ok('self-test · (1) passes a headless stub', !DOM_RE.test(stripComments('function compute(x){ return {schema:{}}; } var y=Math.max(1,2);')));
+    T.ok('self-test · (1) fails a document/localStorage stub', DOM_RE.test(stripComments("function f(){ var e=document.getElementById('z'); localStorage.setItem('a','b'); return e; }")));
+    T.ok('self-test · (1) ignores a COMMENTED DOM ref (comment-stripped)', !DOM_RE.test(stripComments('// document.getElementById is fine in a comment\nvar a=1;')));
+  });
+
+  /* ════ BADGE-BY-CONSTRUCTION — enforced render files route metric values through a badge (OWN-THE-BUILD Part C) ════
+     The reviewer's one real defect was a number reaching the UI UNBADGED (PulseDex BP-from-HRV after a
+     half-finished removal). Part C makes that impossible one file at a time: a render file joins BADGE_ENFORCED
+     once its metric-value writes are migrated to the sanctioned path (`MetricRegistry.metricValue()` / the node
+     `evBadge()` on every value tile); the guard then flags a BARE value tile (a `.m-val`/`.k-val`/`.kpi-val`/
+     `.rs-val`/`.q-val` value emitted with NO evidence badge in the same construction), so a number can't reach
+     the DOM ungraded in that file. INCREMENTAL (unmigrated files stay covered by the BADGE-COVERAGE sweeps);
+     HARDENING, not a theorem (static analysis can't prove every write is a metric — brief §Honest limit).
+     The set is EMPTY until Part C's `MetricRegistry.metricValue()` helper lands + the first render file
+     migrates (a shared-module change → fleet re-bundle); the guard + self-tests ship now as the ready mechanism. ════ */
+  group('Badge-by-construction — enforced render files route metric values through a badge (OWN-THE-BUILD Part C)', 'badge-enforced · forward-adopt', function (T) {
+    var BADGE_ENFORCED = [];          // render files opt in here as they migrate (Part C, one at a time)
+    var src = env.sources || {};
+    // A value tile opens with a value class; it is BADGED if an `.ev ev-` disc / evBadge( / metricValue( /
+    // MetricRegistry.badge( appears in the same tile construction (a short window before the value class).
+    var BADGED = /\bev\s+ev-|evBadge\s*\(|metricValue\s*\(|MetricRegistry\.badge\s*\(/;
+    function bareValueTiles(text) {
+      var re = /class="[^"]*\b(?:m-val|k-val|kpi-val|rs-val|q-val)\b[^"]*"/g, m, n = 0;
+      while ((m = re.exec(text)) !== null) { if (!BADGED.test(text.slice(Math.max(0, m.index - 260), m.index + 40))) n++; }
+      return n;
+    }
+    BADGE_ENFORCED.forEach(function (f) {
+      var s = src[f];
+      if (s == null) { T.skip(f + ' · badge-enforced source available', f + ' not in env.sources'); return; }
+      var bare = bareValueTiles(s);
+      T.ok(f + ' · every metric-value tile carries an evidence badge (sanctioned path)', bare === 0, bare ? (bare + ' bare value tile(s)') : 'all badged');
+    });
+    T.ok('badge-enforced set declared (files opt in as migrated — Part C incremental)', Array.isArray(BADGE_ENFORCED));
+    // self-tests: the guard PASSES a badged tile + FAILS a bare one
+    T.ok('self-test · guard passes a BADGED value tile', bareValueTiles('<div class="metric"><div class="m-label">rMSSD<span class="ev ev-validated"></span></div><div class="m-val">42</div></div>') === 0);
+    T.ok('self-test · guard flags a BARE (unbadged) value tile', bareValueTiles('<div class="metric"><div class="m-label">rMSSD</div><div class="m-val">42</div></div>') === 1);
+  });
+
+  /* ════ HOUSE-INVARIANT LINT · retired vocabulary + frozen names (DEV-TOOLCHAIN Part A · A3) ════
+     A source-text gate, sibling of the DSP-purity gate: mechanizes CLAUDE.md §🎫/§📜 — no retired
+     evidence tier (proxy/composite/"provisionally validated" → heuristic/emerging) and no retired
+     umbrella brand string (GanglioR / ANS Intelligence → Tepna). The FROZEN codenames are allow-listed
+     VERBATIM and NEVER flagged: the lowercase `ganglior` bus, the `ganglior.node-export` schema, and the
+     `fascia` input alias — the ban targets brand/tier prose, never the frozen identifiers. Zero new
+     dependency, test-layer only, no re-bundle. Rides env.sources (the wired source set, like group 23);
+     ships positive controls so it can't rot into a no-op. ════ */
+  group('House-invariant lint · retired vocabulary + frozen names (DEV-TOOLCHAIN Part A · A3)', 'house-lint · dev-toolchain', function (T) {
+    var src = env.sources || {};
+    var jsFiles = Object.keys(src).filter(function (f) { return /\.(?:js|mjs)$/.test(f); });
+    if (!jsFiles.length) { T.skip('env.sources provided (js/mjs)', 'no sources wired'); return; }
+    function strip(s) { return String(s).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1'); }
+    var TIER_RE = /evidence\s*:\s*['"](?:proxy|composite|provisionally[ -]validated)['"]/i;   // retired evidence VALUE
+    var UMBRELLA_RE = /\bGanglioR\b|\bANS Intelligence\b/;                                     // retired umbrella brand (NOT lowercase ganglior)
+    var tierHits = [], brandHits = [];
+    jsFiles.forEach(function (f) {
+      var t = strip(src[f]);
+      if (TIER_RE.test(t)) tierHits.push(f);
+      if (UMBRELLA_RE.test(src[f])) brandHits.push(f);
+    });
+    T.ok('A3 · no retired evidence tier (proxy/composite/"provisionally validated")', tierHits.length === 0, tierHits.length ? ('in: ' + tierHits.slice(0, 6).join(', ')) : ('clean across ' + jsFiles.length + ' source files'));
+    T.ok('A3 · no retired umbrella brand string (GanglioR / ANS Intelligence)', brandHits.length === 0, brandHits.length ? ('in: ' + brandHits.slice(0, 6).join(', ')) : 'clean');
+    // frozen-name allow-list: the ban must NEVER fire on the FROZEN codenames
+    T.ok('A3 · frozen ganglior.* / ganglior.node-export / fascia are NOT flagged (allow-listed verbatim)', !TIER_RE.test("schema:'ganglior.node-export'") && !UMBRELLA_RE.test("bus:'ganglior', node:'ganglior.node-export', input.fascia"));
+    // positive controls — proof the gate is not a silent no-op
+    T.ok('A3 · positive control: catches a retired evidence tier', TIER_RE.test("{ evidence: 'proxy' }") && TIER_RE.test('evidence:"composite"'));
+    T.ok('A3 · positive control: catches the retired umbrella brand', UMBRELLA_RE.test('product: GanglioR suite') && UMBRELLA_RE.test('by ANS Intelligence'));
+  });
+
   /* ════ HOST EMIT ALLOWLIST — ecg/ppg/cgm now emit in the live hosts (HOST-EMIT-ALLOWLIST-2026-06-27).
      Both hosts (Data Unifier `canEmit` / OverDex auto-emit) gated their emit UI to rr/spo2/hrv, so the
      migrated cgm/ppg/ecg nodes never emitted in the live UI. Now both gate on the SHARED predicate

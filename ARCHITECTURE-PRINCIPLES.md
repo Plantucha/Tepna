@@ -237,6 +237,9 @@ restates nothing — follow each pointer for the actual rules. Forward-first: a 
 9. **Wire the gates** — add the node's `<NODE>_REGISTRY` + resolver + reference-guide text to `env` in BOTH
    runners (`run-tests.mjs` + `Dex-Test-Suite.html`) so `cohesion-badges` covers it; add a render-coverage
    rig + an `env.equiv` leg (`CLAUDE.md` gate sections). ≥1 dynamic equiv/golden leg per code-gated node.
+   Add the node to the **`BORN_CLEAN` set** in `tests/dex-tests.js` — the `born-clean` group then enforces
+   headless DSP (no DOM/localStorage) + `compute()` + every-metric-evidence-graded + reproducibility leg by
+   construction, so a new node cannot regress those (OWN-THE-BUILD Part B).
 10. **Bundle + ledgers** — `node tools/build.mjs --app <Node>` builds `<Node>.src.html` → `<Node>.html`
     (owned plain-inline) AND auto-writes the `BUILD-MANIFEST.json` GATE-A `manifestHash` + re-stamps its
     code-gated `FIXTURE-PROVENANCE.json` fixtures. Record NEW fixtures by re-running the app + re-exporting;

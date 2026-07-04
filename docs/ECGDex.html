@@ -3663,9 +3663,10 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     return head;
   }
 
-  root.SignalFrame = { toSignalFrame: toSignalFrame, validateFrame: validateFrame, describeFrame: describeFrame,
+  var SignalFrame = { toSignalFrame: toSignalFrame, validateFrame: validateFrame, describeFrame: describeFrame,
                        computeContentId: computeContentId, scrubFilename: scrubFilename };
-  if (typeof module !== 'undefined' && module.exports) module.exports = root.SignalFrame;
+  root.SignalFrame = SignalFrame;
+  if (typeof module !== 'undefined' && module.exports) module.exports = SignalFrame;
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : /** @type {any} */ (this)));
 </script>
 <script data-inline-src="dex-export.js">/*
@@ -3790,19 +3791,27 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     if (out.recording && typeof out.recording === 'object') {
       delete out.recording.device; delete out.recording.serial; delete out.recording.model;
     }
-    // multi-night wrapper: strip the same identifying keys from each per-night recording block too.
-    if (Array.isArray(out.nights)) out.nights.forEach(function (n) {
-      if (n && n.recording && typeof n.recording === 'object') { delete n.recording.device; delete n.recording.serial; delete n.recording.model; }
+    // Multi-record wrappers: strip the same identifying keys from each per-element recording block.
+    // EVERY known carrier (SELF-INGEST-FOLLOWUPS-II §F1 — was nights[]-only, leaking device/serial on
+    // multi ECGDex/PulseDex `recordings[]` + PpgDex `sessions[]` exports): nights[] (OxyDex/CPAPDex),
+    // recordings[] (ECGDex/PulseDex), sessions[] (PpgDex).
+    ['nights', 'recordings', 'sessions'].forEach(function (key) {
+      if (Array.isArray(out[key])) out[key].forEach(function (el) {
+        if (el && el.recording && typeof el.recording === 'object') {
+          delete el.recording.device; delete el.recording.serial; delete el.recording.model;
+        }
+      });
     });
     return out;
   }
 
-  root.DexExport = { exportName: exportName, EXPORT_KINDS: EXPORT_KINDS, scrubExport: scrubExport };
+  var DexExport = { exportName: exportName, EXPORT_KINDS: EXPORT_KINDS, scrubExport: scrubExport };
+  root.DexExport = DexExport;
   // app/back-compat bare globals (the apps call exportName(...) directly, like fmtDate/fmtClock)
   root.exportName = exportName;
   root.EXPORT_KINDS = EXPORT_KINDS;
   root.dexScrubExport = scrubExport;   // bare global — the shared scrub every node's app reaches (D1)
-  if (typeof module !== 'undefined' && module.exports) module.exports = root.DexExport;
+  if (typeof module !== 'undefined' && module.exports) module.exports = DexExport;
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : /** @type {any} */ (this)));
 </script>
 <script data-inline-src="metric-registry.js">/* ════════════════════════════════════════════════════════════════════════
@@ -10295,6 +10304,10 @@ function ecgRenderReview(review){
   host.innerHTML=ecgReviewView(review); host.style.display='';
 }
 function ecgClearReview(){ var h=document.getElementById('ecgReviewCard'); if(h){ h.innerHTML=''; h.style.display='none'; } }
+// F5 (SELF-INGEST-FOLLOWUPS-II): fleet convention — the review renderer is reachable via the node
+// namespace (<Node>.reviewView / .renderReview) so the suite's live review probe (and any global
+// caller) can drive it; the bare names stay IIFE-local.
+try{ if(typeof window!=='undefined' && window.ECGDex){ window.ECGDex.reviewView=ecgReviewView; window.ECGDex.renderReview=ecgRenderReview; } }catch(_rvx){}
 
 function reportSkipped(foreign, nEcg){
   const counts = {};

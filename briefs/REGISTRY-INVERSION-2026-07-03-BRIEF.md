@@ -6,7 +6,7 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-07-03
+**Status:** IN-PROGRESS — 2026-07-04 (Phase 0 executed; **owner selected direction (A) — invert the inversion — on 2026-07-04**; a successor registry→manifest brief will carry the work, and THIS brief closes when that lands) · **Created:** 2026-07-03
 
 # Registry inversion — manifests become the SOLE source; registries become build artifacts
 
@@ -26,6 +26,61 @@
 > hand-written domain knowledge; see the "generate what is data, hand-write what is knowledge"
 > line). No metric is added, removed, re-graded, or re-labeled by this pass. **Zero semantic
 > change** is the acceptance bar.
+
+---
+
+## ⛔ Phase 0 EXECUTED 2026-07-04 — findings & DECISION GATE (Phases 1–3 blocked)
+
+Phase 0 ran (re-runnable harness in `codegen/`) and is committed as **`codegen/PARITY-AUDIT.md`**.
+**Verdict: DO NOT FLIP ANY NODE on the current manifests.** The brief's founding premise — "manifests
+sitting alongside … a drift pair per node" — does **not** hold. `codegen/README.md` itself says only
+`cpapdex.manifest.json` is a canonical codegen target and "the rest are reference examples of the schema";
+the audit confirms the manifests are independently-authored, differently-keyed, and carry **none** of the
+grade layer the registry projects.
+
+| Node | Manifest | Registry | Shared ids | Only-reg | Only-man | evidence/goodDir/cite present | Reg labels still resolving on a flip |
+|---|---|---|---|---|---|---|---|
+| OxyDex | 87 | 50 | 20 | 30 | 67 | 0 / 0 / 0 | 18/99 |
+| PulseDex | 10 | 68 | 4 | 64 | 6 | 0 / 0 / 0 | 5/90 |
+| HRVDex | — none | 34 | — | — | — | — | — |
+| ECGDex | 35 | 78 | 6 | 72 | 29 | 0 / 0 / 0 | 15/112 |
+| PpgDex | 14 | 44 | 0 | 44 | 14 | 0 / 0 / 0 | 4/84 |
+| GlucoDex | 22 | 42 | 7 | 35 | 15 | 0 / 0 / 0 | 9/71 |
+| CPAPDex | 14 | 37 | 14 | 23 | 0 | 0 / 0 / 0 | 20/101 |
+
+**Structural blockers (fleet-wide, not per-node polish):**
+1. **No grade layer.** `evidence`/`goodDirection`/`cite` are absent on **100%** of metrics in **every** manifest
+   → `generateRegistry()` throws on metric #1 today. Nothing to "enrich"; the whole layer must be authored.
+2. **Divergent ids + membership.** Registry `meanSpo2` vs manifest `spo2Mean`, `vo2est` vs `vo2max`; PpgDex
+   shares **0** ids with its manifest. Registries also hold curated metrics the manifests lack (23–72 per node);
+   OxyDex's manifest holds 67 compute-only metrics the registry deliberately leaves to the experimental fallback.
+   A flip silently drops/rekeys/re-grades dozens of metrics and breaks most badge label-resolution.
+3. **HRVDex has no manifest** — un-migratable without authoring one from scratch.
+4. **Generator has no "exclude-from-registry" flag** — it emits an entry per manifest metric, so the curated
+   subset-vs-exhaustive decision can't be expressed without extending the schema (a STOP-and-record item per the
+   brief's own risk rule).
+
+**§0 factual correction (found during Phase 0):** §0 lists a `hrvdex` manifest; on disk there is **no**
+`hrvdex.manifest.json`. Manifests present are oxydex, pulsedex, ecgdex, ppgdex, glucodex, cpapdex, eegdex — where
+cpapdex is the canonical codegen target and eegdex is the forward-first *generated* proof, **not** a shipped
+hand-registry node. So the migratable-with-a-manifest set is 6 nodes, and HRVDex is a 7th that first needs a manifest.
+
+**Revised Phase-1 scope (was "~½ day each"):** author `evidence`+`goodDirection`+`cite` for **~319 registry
+metrics**, reconcile id namespaces, and author the alias spellings the render layer actually calls (manifests carry
+**0** aliases today — hence the resolution collapse). Registry-only and manifest-only metrics have **no** counterpart
+grade, so proceeding means *inventing* clinical evidence tiers — a domain-honesty judgement that changes user-facing
+output and must not be made unilaterally inside a "zero semantic change" pass.
+
+**DECISION GATE — owner picks a direction before Phase 1 starts:**
+- **(A) Invert the inversion (recommended) — ✅ SELECTED 2026-07-04.** The registry is the test-backed truth → generate the manifest's
+  metadata *from the registry* (registry→manifest), keeping truth in one place and inventing no grades. A new,
+  smaller brief; retires the same duplication without the data-fidelity hazard.
+- **(B) Proceed as written, node-by-node, CPAPDex first** (closest — manifest ids ⊆ registry; **not** OxyDex):
+  author grades from the hand registry where metrics map, flag every *invented* grade for owner review pre-ship.
+- **(C) Narrow scope** to the tractable node(s) now, documented stop-point for the rest (allowed by Done-when).
+- **(D) Stop at Phase 0** — audit delivered; brief stays blocked pending decision.
+
+No runtime code, bundles, or provenance ledgers were touched by Phase 0.
 
 ---
 
@@ -127,8 +182,8 @@ without it.**
 
 ## Done when
 
-- ☐ Phase 0 delta tables committed (in this brief's follow-up or as `codegen/PARITY-AUDIT.md`).
-- ☐ Per migrated node: manifest semantically ⊇ old hand registry (empty diff), generated registry
+- ☑ Phase 0 delta tables committed — **DONE 2026-07-04**, see `codegen/PARITY-AUDIT.md` (verdict: no node flip-ready; decision gate above).
+- ☐ **[BLOCKED — decision gate]** Per migrated node: manifest semantically ⊇ old hand registry (empty diff), generated registry
   committed, node in `GENERATED-REGISTRIES.json`, drift guard + `cohesion-badges` +
   `Dex-Test-Suite.html?full` green, GATE A/B green after re-bundle.
 - ☐ `check-registries.mjs` in CI; a hand edit to any generated registry reds the suite (prove once

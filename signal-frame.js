@@ -301,7 +301,8 @@
     return head;
   }
 
-  root.SignalFrame = { toSignalFrame: toSignalFrame, validateFrame: validateFrame, describeFrame: describeFrame,
+  var SignalFrame = { toSignalFrame: toSignalFrame, validateFrame: validateFrame, describeFrame: describeFrame,
                        computeContentId: computeContentId, scrubFilename: scrubFilename };
-  if (typeof module !== 'undefined' && module.exports) module.exports = root.SignalFrame;
+  root.SignalFrame = SignalFrame;
+  if (typeof module !== 'undefined' && module.exports) module.exports = SignalFrame;
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : /** @type {any} */ (this)));

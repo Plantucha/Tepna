@@ -1,0 +1,48 @@
+{
+  "root": true,
+  "env": { "browser": true, "es2021": true, "worker": true },
+  "parserOptions": { "ecmaVersion": 2021, "sourceType": "script" },
+  "ignorePatterns": [
+    "**/*.html",
+    "uploads/",
+    "docs/",
+    "scraps/",
+    "screenshots/",
+    "codegen/generated/",
+    "node_modules/"
+  ],
+  "rules": {
+    "no-unreachable": "error",
+    "no-fallthrough": "error",
+    "no-dupe-keys": "error",
+    "no-dupe-args": "error",
+    "no-duplicate-case": "error",
+    "no-cond-assign": ["error", "except-parens"],
+    "no-self-assign": "error",
+    "no-self-compare": "error",
+    "no-constant-condition": ["error", { "checkLoops": false }],
+    "no-func-assign": "error",
+    "no-unsafe-negation": "error",
+    "no-unsafe-finally": "error",
+    "no-compare-neg-zero": "error",
+    "use-isnan": "error",
+    "valid-typeof": "error",
+    "getter-return": "error",
+    "no-obj-calls": "error",
+    "no-sparse-arrays": "error",
+    "eqeqeq": "warn",
+    "no-unused-vars": ["warn", { "args": "none", "varsIgnorePattern": "^_" }],
+    "no-undef": "off"
+  },
+  "overrides": [
+    {
+      "files": ["*.mjs"],
+      "env": { "node": true, "browser": false },
+      "parserOptions": { "sourceType": "module" }
+    },
+    {
+      "files": ["*-worker.js", "cohort-worker.js", "qrs-vm.js"],
+      "env": { "worker": true }
+    }
+  ]
+}

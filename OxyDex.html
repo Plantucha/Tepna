@@ -6816,9 +6816,10 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
     return head;
   }
 
-  root.SignalFrame = { toSignalFrame: toSignalFrame, validateFrame: validateFrame, describeFrame: describeFrame,
+  var SignalFrame = { toSignalFrame: toSignalFrame, validateFrame: validateFrame, describeFrame: describeFrame,
                        computeContentId: computeContentId, scrubFilename: scrubFilename };
-  if (typeof module !== 'undefined' && module.exports) module.exports = root.SignalFrame;
+  root.SignalFrame = SignalFrame;
+  if (typeof module !== 'undefined' && module.exports) module.exports = SignalFrame;
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : /** @type {any} */ (this)));
 </script>
 <script data-inline-src="dex-export.js">/*
@@ -6943,19 +6944,27 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
     if (out.recording && typeof out.recording === 'object') {
       delete out.recording.device; delete out.recording.serial; delete out.recording.model;
     }
-    // multi-night wrapper: strip the same identifying keys from each per-night recording block too.
-    if (Array.isArray(out.nights)) out.nights.forEach(function (n) {
-      if (n && n.recording && typeof n.recording === 'object') { delete n.recording.device; delete n.recording.serial; delete n.recording.model; }
+    // Multi-record wrappers: strip the same identifying keys from each per-element recording block.
+    // EVERY known carrier (SELF-INGEST-FOLLOWUPS-II §F1 — was nights[]-only, leaking device/serial on
+    // multi ECGDex/PulseDex `recordings[]` + PpgDex `sessions[]` exports): nights[] (OxyDex/CPAPDex),
+    // recordings[] (ECGDex/PulseDex), sessions[] (PpgDex).
+    ['nights', 'recordings', 'sessions'].forEach(function (key) {
+      if (Array.isArray(out[key])) out[key].forEach(function (el) {
+        if (el && el.recording && typeof el.recording === 'object') {
+          delete el.recording.device; delete el.recording.serial; delete el.recording.model;
+        }
+      });
     });
     return out;
   }
 
-  root.DexExport = { exportName: exportName, EXPORT_KINDS: EXPORT_KINDS, scrubExport: scrubExport };
+  var DexExport = { exportName: exportName, EXPORT_KINDS: EXPORT_KINDS, scrubExport: scrubExport };
+  root.DexExport = DexExport;
   // app/back-compat bare globals (the apps call exportName(...) directly, like fmtDate/fmtClock)
   root.exportName = exportName;
   root.EXPORT_KINDS = EXPORT_KINDS;
   root.dexScrubExport = scrubExport;   // bare global — the shared scrub every node's app reaches (D1)
-  if (typeof module !== 'undefined' && module.exports) module.exports = root.DexExport;
+  if (typeof module !== 'undefined' && module.exports) module.exports = DexExport;
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : /** @type {any} */ (this)));
 </script>
 <script data-inline-src="oxydex-util.js">/* ════ OxyDex · UTIL (oxydex-util.js) ──────────────────────────────────────────────────
@@ -13917,10 +13926,27 @@ function oxyClinicalSummary(review, nights){
   h += '<div class="ocl-head">';
   h += '<span class="ocl-title">OxyDex · Clinical Summary</span>';
   h += '<span class="ocl-sub">'+escHTML(dateRange)+(durTxt?' · '+escHTML(durTxt):'')+' · '+nights.length+' night'+(nights.length>1?'s':'')+'</span>';
-  h += '<span class="ocl-prov">From export · review mode · not recomputed'
-     + (s.build?' · build '+escHTML(s.build):'') + (s.generated?' · '+escHTML(s.generated):'')
-     + (s.scrubbed?' · scrubbed':'') + '</span>';
   h += '</div>';
+
+  // SELF-INGEST-FOLLOWUPS-IV F1: honest empty-nights placeholder. A nights[]-less export (e.g. an
+  // events-only reload) carries no per-night clinical KPIs — say so plainly instead of rendering the
+  // misleading "No flags raised — all scored metrics within range" skeleton over zero data. The banner
+  // (prepended by reviewView), the "Clinical Summary" header above, the event timeline + the disclaimer
+  // all still render, so the review chrome stays intact. (oxyClinicalSummary was already crash-safe on
+  // [] via the `first ?` / `nights[0]||{}` guards; this just makes the empty case HONEST.)
+  if(!nights.length){
+    h += '<div class="ocl-none">No per-night summary is included in this export — nothing to review here. (An events-only export carries the event timeline below but no clinical KPIs.)</div>';
+    var evN0 = (review.events||[]).length;
+    h += '<div class="ocl-sec">Event timeline'+(evN0?' · '+evN0+' events':'')+'</div>';
+    h += oxyEventTimeline(review.events, !!review.multiNight);
+    h += '<div class="ocl-disc">';
+    h += '<span class="ocl-dxl">Tepna · OxyDex</span> — wellness &amp; research tool. '
+       + '<strong>Not a medical device</strong> · does not diagnose or treat · not FDA/CE cleared. '
+       + 'This summary reflects values computed at export time and is shared for discussion with a clinician, '
+       + 'not for diagnosis. © 2026 Michal Planicka · Apache-2.0.';
+    h += '</div></section>';
+    return h;
+  }
 
   // ── findings / flags first (headline impression + flags) ──
   h += '<div class="ocl-sec">Findings</div>';
@@ -14004,6 +14030,14 @@ function oxyGreyedPanel(title){
   return '<div class="oxy-greyed"><strong>'+escHTML(title||'Raw signal not included')+'</strong>'
     + 'Raw signal is not included in this export — review mode. Re-run the original recording for waveforms.</div>';
 }
+
+// F5 (SELF-INGEST-FOLLOWUPS-II): fleet convention — expose the review renderer via the node
+// namespace (<Node>.reviewView) like the other five nodes. OxyDex's review view composes
+// banner + clinical summary (review, nights DESC); nights defaults to the review's own elements.
+// (OxyDex has no standalone renderReview — review render is integrated in renderAll.)
+try{ if(typeof window!=='undefined' && window.OxyDex){
+  window.OxyDex.reviewView=function(review, nights){ return oxyReviewBanner(review)+oxyClinicalSummary(review, nights||(review&&review.nights)||[]); };
+} }catch(_rvx){}
 
 // HRV-style chart UID counter (for gradient defs)
 var _hrvChartUid = 0;

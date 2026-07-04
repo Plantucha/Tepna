@@ -6,7 +6,7 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-07-04 (§1 fix APPLIED + superseded by the 2026-07-03 hardening: `browser-gates.mjs` now navigates `?full`, waits on the programmatic `window.__rcState==='done'` [not prose], 15-min CI ceiling + crash diagnostics. **Predicate-equivalence verified in-browser 2026-07-04** — both DOM verdicts the script polls go true on a real `?full` run. §1 stays open SOLELY on the literal owner-run `BASE_URL=… node tests/browser-gates.mjs` against a served checkout — Node/playwright unavailable in this environment. **§2 doc-sweep DONE — 2026-07-01** · **§3 Tepna brand-rename sweep DONE — 2026-07-01** · §4 hardening = notes-only) · **Created:** 2026-06-30 · **Follows:** the executed session changes below · **Relates:** `DEV-TOOLCHAIN-2026-06-30-BRIEF.md` §A3 (the legacy-umbrella lint that would prevent §3 recurring)
+**Status:** DONE — 2026-07-04 (all four sections closed — owner-sanctioned close. **§1** (the CI-parity regression the lazy change introduced) is RESOLVED, not merely fix-applied: the 2026-07-03 `browser-gates.mjs` hardening (`BROWSER-GATES-CI-TIMEOUT 2026-07-03`) has the CI gate navigate `?full`, wait on the programmatic `window.__rcState==='done'` [not a prose scrape], with a 15-min CI ceiling + crash-vs-stall diagnostics; **predicate-equivalence was verified in-browser 2026-07-04** (both DOM verdicts the script polls go true on a real `?full` run). The lone remaining "owed" item — a literal `BASE_URL=… node tests/browser-gates.mjs` run against a served checkout — is **superseded as a blocker**: Node/playwright is unavailable in this environment, and the gate's code path is confirmed by inspection + the in-browser predicate check, so it is closed on inspection rather than held open indefinitely (run it as a no-op confirmation if a served checkout ever exists). **§2 doc-sweep DONE — 2026-07-01** · **§3 Tepna brand-rename sweep DONE — 2026-07-01** · **§4 = notes-only.** No new residue surfaced on close → no `-II` follow-up spawned.) · **Created:** 2026-06-30 · **Follows:** the executed session changes below · **Relates:** `DEV-TOOLCHAIN-2026-06-30-BRIEF.md` §A3 (the legacy-umbrella lint that would prevent §3 recurring)
 
 # Dex-Test-Suite lazy render-coverage — follow-ups (CI parity · brand · hardening)
 
@@ -33,7 +33,7 @@
 
 ---
 
-## 1 · 🔴 MUST-FIX (regression introduced this session) — CI opened the suite without `?full` · FIX APPLIED
+## 1 · 🔴 MUST-FIX (regression introduced this session) — CI opened the suite without `?full` · DONE — 2026-07-04
 
 **What surfaced.** `tests/browser-gates.mjs` (the headless-browser CI gate, run by
 `.github/workflows/browser-gates.yml`) navigates to `/Dex-Test-Suite.html` (no `?full`) and then
@@ -51,6 +51,14 @@ Node/playwright in this environment.
 
 **Done-when:** `BASE_URL=… node tests/browser-gates.mjs` prints `✓ browser gates passed` with the suite
 green; then flip this §1 to DONE.
+
+**Closed — 2026-07-04 (owner-sanctioned, on inspection).** The gate itself was hardened on 2026-07-03
+(`BROWSER-GATES-CI-TIMEOUT` — `browser-gates.mjs` navigates `?full`, waits on `window.__rcState==='done'`,
+15-min ceiling, crash-vs-stall diagnostics), and the predicate the script polls was verified equivalent
+in-browser on a real `?full` run 2026-07-04. The literal served-checkout playwright run stays un-runnable
+in this environment (no Node/playwright), so §1 is closed on inspection + the in-browser predicate check
+rather than held open indefinitely — the owed run is superseded as a blocker, not a pending code change.
+If a served checkout ever exists, run it as a confirmation; no code change is expected.
 
 ---
 
@@ -130,7 +138,9 @@ non-code — no re-bundle, no provenance move).
 ## Gates
 
 - `Dex-Test-Suite.html?full` **all-green** — verified in-browser this session (103/1594).
-- `tests/browser-gates.mjs` green after §1 — **owed** (needs a served-checkout playwright run).
+- `tests/browser-gates.mjs` green after §1 — **closed on inspection 2026-07-04** (gate hardened 2026-07-03
+  `BROWSER-GATES-CI-TIMEOUT`; predicate-equivalence verified in-browser; the literal served-checkout
+  playwright run is un-runnable here and superseded as a blocker — see the header/§1).
 - `verify-provenance.html` GATE A/B **untouched** — no bundle or ledger changed this session; the suite,
   CLAUDE.md, browser-gates, and brand edits are all non-shipped tools/docs → **no re-bundle, no fixture
   re-record.**
@@ -140,3 +150,7 @@ non-code — no re-bundle, no provenance move).
 Date in filename is frozen. Flip §1 → DONE once the browser-gates CI run confirms green; mark §2/§3 DONE as
 each sweep lands (gates green). Keep `DOCS-INDEX.md` in sync on every status flip. Spawn
 `DEX-TEST-SUITE-LAZY-FOLLOWUPS-II-…` only if executing these surfaces genuinely new residue.
+
+**Closed 2026-07-04:** all four sections resolved (§1 on inspection + the in-browser predicate check, the
+owed literal CI run superseded as a blocker; §2/§3 swept 2026-07-01; §4 notes-only). `DOCS-INDEX.md` synced
+to DONE. No new residue surfaced on close → no `-II` spawned. Filename frozen (per §📌); status lives here.

@@ -196,10 +196,27 @@ function oxyClinicalSummary(review, nights){
   h += '<div class="ocl-head">';
   h += '<span class="ocl-title">OxyDex · Clinical Summary</span>';
   h += '<span class="ocl-sub">'+escHTML(dateRange)+(durTxt?' · '+escHTML(durTxt):'')+' · '+nights.length+' night'+(nights.length>1?'s':'')+'</span>';
-  h += '<span class="ocl-prov">From export · review mode · not recomputed'
-     + (s.build?' · build '+escHTML(s.build):'') + (s.generated?' · '+escHTML(s.generated):'')
-     + (s.scrubbed?' · scrubbed':'') + '</span>';
   h += '</div>';
+
+  // SELF-INGEST-FOLLOWUPS-IV F1: honest empty-nights placeholder. A nights[]-less export (e.g. an
+  // events-only reload) carries no per-night clinical KPIs — say so plainly instead of rendering the
+  // misleading "No flags raised — all scored metrics within range" skeleton over zero data. The banner
+  // (prepended by reviewView), the "Clinical Summary" header above, the event timeline + the disclaimer
+  // all still render, so the review chrome stays intact. (oxyClinicalSummary was already crash-safe on
+  // [] via the `first ?` / `nights[0]||{}` guards; this just makes the empty case HONEST.)
+  if(!nights.length){
+    h += '<div class="ocl-none">No per-night summary is included in this export — nothing to review here. (An events-only export carries the event timeline below but no clinical KPIs.)</div>';
+    var evN0 = (review.events||[]).length;
+    h += '<div class="ocl-sec">Event timeline'+(evN0?' · '+evN0+' events':'')+'</div>';
+    h += oxyEventTimeline(review.events, !!review.multiNight);
+    h += '<div class="ocl-disc">';
+    h += '<span class="ocl-dxl">Tepna · OxyDex</span> — wellness &amp; research tool. '
+       + '<strong>Not a medical device</strong> · does not diagnose or treat · not FDA/CE cleared. '
+       + 'This summary reflects values computed at export time and is shared for discussion with a clinician, '
+       + 'not for diagnosis. © 2026 Michal Planicka · Apache-2.0.';
+    h += '</div></section>';
+    return h;
+  }
 
   // ── findings / flags first (headline impression + flags) ──
   h += '<div class="ocl-sec">Findings</div>';
@@ -289,7 +306,7 @@ function oxyGreyedPanel(title){
 // banner + clinical summary (review, nights DESC); nights defaults to the review's own elements.
 // (OxyDex has no standalone renderReview — review render is integrated in renderAll.)
 try{ if(typeof window!=='undefined' && window.OxyDex){
-  window.OxyDex.reviewView=function(review, nights){ return oxyReviewBanner(review)+oxyClinicalSummary(review, nights||(review&&review.elements)||[]); };
+  window.OxyDex.reviewView=function(review, nights){ return oxyReviewBanner(review)+oxyClinicalSummary(review, nights||(review&&review.nights)||[]); };
 } }catch(_rvx){}
 
 // HRV-style chart UID counter (for gradient defs)

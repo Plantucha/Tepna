@@ -542,9 +542,10 @@
     return head;
   }
 
-  root.SignalFrame = { toSignalFrame: toSignalFrame, validateFrame: validateFrame, describeFrame: describeFrame,
+  var SignalFrame = { toSignalFrame: toSignalFrame, validateFrame: validateFrame, describeFrame: describeFrame,
                        computeContentId: computeContentId, scrubFilename: scrubFilename };
-  if (typeof module !== 'undefined' && module.exports) module.exports = root.SignalFrame;
+  root.SignalFrame = SignalFrame;
+  if (typeof module !== 'undefined' && module.exports) module.exports = SignalFrame;
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : /** @type {any} */ (this)));
 </script>
 <script data-inline-src="signal-adapters.js">/*
@@ -651,14 +652,15 @@
 
   function reset() { _ADAPTERS.length = 0; _BY_ID = {}; }   // tests only
 
-  root.SignalAdapters = {
+  var SignalAdapters = {
     registerAdapter: registerAdapter,
     detectAdapters: detectAdapters,
     route: route,
     runAdapter: runAdapter,
     list: list, byId: byId, bySignal: bySignal, reset: reset
   };
-  if (typeof module !== 'undefined' && module.exports) module.exports = root.SignalAdapters;
+  root.SignalAdapters = SignalAdapters;
+  if (typeof module !== 'undefined' && module.exports) module.exports = SignalAdapters;
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : /** @type {any} */ (this)));
 </script>
 <!-- adapters self-register at load -->
@@ -2497,6 +2499,57 @@ function pdBuildNodeExport(r, opts){
   };
 }
 
+// ═════════════════════════════════════════════════════════════════════════════════════
+//  SELF-INGEST — reload PulseDex's OWN ganglior.node-export as a review-mode
+//  clinical VIEW (SELF-INGEST-FOLLOWUPS-2026-07-03 · PulseDex pass). PURE +
+//  DOM-FREE: detect → guard-own-kind → unwrap → mark reviewMode → return the
+//  provenance / kernel / events VERBATIM. NEVER recomputes and NEVER calls
+//  GangliorProvenance.stamp() — a reload is a VIEW of a past computation, stamped
+//  with the build that MADE it, not a fresh one (SELF-INGEST §3). The PulseDex
+//  export is single-record and RICH (recording + hrv.{time,frequency,poincare} +
+//  summary), so the review view reads the STORED derived layer directly — no
+//  re-derive; an optional recordings[] wrapper is honored for a multi carrier.
+// ═════════════════════════════════════════════════════════════════════════════════════
+function pulseLoadOwnExport(json){
+  // 1 · detect
+  if(!(json && json.schema && json.schema.name === 'ganglior.node-export'))
+    return { ok:false, reason:'not-node-export',
+      message:'Not a node-export \u2014 drop a raw RR/IBI file, or PulseDex\u2019s own .json export.' };
+  // 2 · guard own kind — a foreign export is REJECTED with a redirect message, never coerced.
+  var node = ((json.schema.node || '') + '').trim();
+  if(node !== 'PulseDex')
+    return { ok:false, reason:'foreign-node', node:node,
+      message:'This is a '+(node||'non-PulseDex')+' export \u2014 open it in '+(node||'its own node')
+        +', or drop it into the Integrator to fuse.' };
+  // 3 · unwrap — a single-record export IS the element; an optional recordings[] wraps many.
+  var carrier = Array.isArray(json.recordings) ? json.recordings : [json];
+  var elements = carrier.map(function(el){
+    var e = JSON.parse(JSON.stringify(el));       // deep clone — never mutate the caller
+    e._fromExport = true; e._reviewMode = true;   // 4 · review-mode flags (renderer greys raw panels)
+    return e;
+  });
+  // gather events: top-level (single-record) else each element's, tMs-sorted (Clock Contract).
+  var evAll = Array.isArray(json.ganglior_events) ? json.ganglior_events.slice() : [];
+  if(!evAll.length) carrier.forEach(function(el){ if(Array.isArray(el.ganglior_events)) evAll = evAll.concat(el.ganglior_events); });
+  evAll.sort(function(a,b){ return ((a&&a.tMs)||0) - ((b&&b.tMs)||0); });
+  // 5 · preserve provenance / kernel / derived layer VERBATIM — the view's provenance IS the export's.
+  return {
+    ok:true, reviewMode:true, node:node,
+    elements: elements,
+    events: evAll,
+    provenance: (json.schema && json.schema.provenance) || null,
+    generated:  (json.schema && json.schema.generated)  || null,
+    derivedFrom:(json.schema && json.schema.derivedFrom) || null,
+    kernel:     json.kernel || null,
+    recording:  json.recording || null,
+    hrv:        json.hrv || null,
+    summary:    json.summary || null,
+    scrubbed:  !!(json.schema && json.schema.scrubbed),
+    multiNight: elements.length > 1,
+    raw: json
+  };
+}
+
 // Public namespace — the headless surface the orchestrator + app both call.
 var PulseDex = (typeof PulseDex !== 'undefined' && PulseDex) ? PulseDex : {};
 PulseDex.compute = function(input, opts){
@@ -2509,6 +2562,13 @@ PulseDex.compute = function(input, opts){
 PulseDex.computeResult   = pdComputeResult;
 PulseDex.buildNodeExport = pdBuildNodeExport;
 PulseDex.eventsFromResult = pdEventsFromResult;
+PulseDex.loadOwnExport = pulseLoadOwnExport;   // SELF-INGEST reload (review-mode clinical view)
+// scrub-for-sharing → the SHARED dexScrubExport (D1); lazy delegate so co-load order is irrelevant.
+PulseDex.scrubExport = function(env){
+  if(typeof DexExport !== 'undefined' && DexExport && typeof DexExport.scrubExport === 'function') return DexExport.scrubExport(env);
+  if(typeof dexScrubExport === 'function') return dexScrubExport(env);
+  return env;
+};
 // Pure RR parser exposed on the namespace so the co-load host (signal-orchestrate §3)
 // can hand it to the polar/coospo/wahoo RR adapters via ctx.parseRRInput WITHOUT a
 // bare global — in the namespaced realm `parseRRInput` no longer sprays onto window.
@@ -2528,7 +2588,7 @@ if (!root.__DEX_NAMESPACED__) {
     dfaAlpha1, sampEn, fragmentation, prsaCapacity, triangularIndex, lombScargle, _pdIntervalColFromHeader, _pdIntervalColByRange,
     partKey, mergeMultipart, parseRRInput, arrMin, arrMax, medianOf, artifactClean, beatTimes,
     MODE_LABEL, classifyRecording, windowAnalysis, lineChartSVG, _pdPearson, _pdSeriesStats, compareIntervalSeries, _pdClockS,
-    _pdNormalizeRRInput, pdComputeResult, pdEventsFromResult, pdBuildNodeExport
+    _pdNormalizeRRInput, pdComputeResult, pdEventsFromResult, pdBuildNodeExport, pulseLoadOwnExport
   });
   // mutable cross-file state — proxy bare `lastResult` to the in-closure binding
   Object.defineProperty(root, 'lastResult', { configurable: true,
@@ -6576,30 +6636,16 @@ function oxyLoadOwnExport(json){
 // crossNight), a COARSE build stamp (buildHash + generated, so provenance integrity survives), and
 // recording.contentId (the identity-free EXPORT-IDENTITY handle — preserved when present; OxyDex does
 // not surface it yet, see SELF-INGEST §10 / EXPORT-IDENTITY-FOLLOWUPS). PURE: never mutates the input.
-// Default OFF — exportJSON only calls this when the user opts into "scrub for sharing", so the normal
-// export keeps full provenance for the user's own archive + Integrator fusion (and stays byte-identical).
+// SELF-INGEST §5 · "scrub for sharing" — FOLDED INTO the shared dexScrubExport (D1, SELF-INGEST-FOLLOWUPS
+// executed 2026-07-04). The ONE implementation now lives in dex-export.js; this stays a thin OxyDex alias
+// for the app call site + the namespace/back-compat exports + the §7 tests. The shared version is a strict
+// SUPERSET of the old local copy — it ALSO strips device/serial/model from each per-night recording block
+// in a multi-night series export (a gap the local copy missed). Default OFF at the call site, so a normal
+// export stays byte-identical; a single-night scrub is byte-identical to the old local result.
 function oxyScrubExport(envelope){
-  if(!envelope || typeof envelope !== 'object') return envelope;
-  var out = JSON.parse(JSON.stringify(envelope));   // deep clone — never mutate the caller's object
-  var sc = out.schema || (out.schema = {});
-  var prov = sc.provenance;
-  if(prov && typeof prov === 'object'){
-    sc.provenance = {
-      buildHash: (prov.buildHash != null ? prov.buildHash : null),   // COARSE build stamp KEPT (integrity)
-      generated: (prov.generated != null ? prov.generated : null),
-      scrubbed: true,
-      // inputs keep only NON-identifying integrity (byte count); drop name + sha256 + device serial/mtime.
-      inputs: (Array.isArray(prov.inputs) ? prov.inputs : []).map(function(inp){
-        return { bytes:(inp && inp.bytes != null ? inp.bytes : null) };
-      })
-    };
-  }
-  sc.scrubbed = true;
-  // recording.contentId (identity-free) is KEPT; strip any device serial / model string a node may carry.
-  if(out.recording && typeof out.recording === 'object'){
-    delete out.recording.device; delete out.recording.serial; delete out.recording.model;
-  }
-  return out;
+  if(typeof DexExport !== 'undefined' && DexExport && typeof DexExport.scrubExport === 'function') return DexExport.scrubExport(envelope);
+  if(typeof dexScrubExport === 'function') return dexScrubExport(envelope);
+  return envelope;   // dex-export.js always ships in the OxyDex bundle, so this fallthrough is never reached
 }
 
 // ═══════════════════════════════════════════
@@ -7615,6 +7661,24 @@ function hrvBuildNodeExport(rows, opts){
       offsetMin:(dated[0] && dated[0]._offsetMin!=null ? dated[0]._offsetMin : null),
       measurements:dated.length, firstTMs:t0, lastTMs:last?last._tMs:null,
       spanDays:(t0!=null && last)?Math.round((last._tMs-t0)/864e5)+1:null },
+    // SELF-INGEST enrich (D2 path b, 2026-07-04): the per-measurement table — the whole HRVDex clinical
+    // value — now travels so a reloaded export renders the HRV dashboard. Transparent fields stay null when
+    // absent; SD1/SD2 derived from rMSSD/SDNN (same formula as computeDerived); vendor black-box composites
+    // ride under composites.meta{derived,tier:'heuristic'} ONLY when present (>0) — NO tier upgrade on reload.
+    measurements: dated.map(function(r){
+      var sd1 = (r._rmssd>0) ? r._rmssd/Math.SQRT2 : null;
+      var sd2 = (sd1!=null && r._sdnn>0) ? Math.sqrt(Math.max(0, 2*r._sdnn*r._sdnn - sd1*sd1)) : null;
+      var m = { tMs:r._tMs, offsetMin:(r._offsetMin==null?null:r._offsetMin),
+        hr:r._hr, meanRR:r._meanRR, sdnn:r._sdnn, rmssd:r._rmssd, pnn50:r._pnn50, mxdmn:r._mxdmn,
+        sd1:(sd1==null?null:+sd1.toFixed(2)), sd2:(sd2==null?null:+sd2.toFixed(2)) };
+      var comp = {};
+      if(r._stress>0) comp.stress=r._stress; if(r._energy>0) comp.energy=r._energy;
+      if(r._focus>0) comp.focus=r._focus; if(r._sns>0) comp.sns=r._sns;
+      if(r._psns>0) comp.psns=r._psns; if(r._coherence>0) comp.coherence=r._coherence;
+      if(r._hrv>0) comp.hrvScore=r._hrv;
+      if(Object.keys(comp).length){ comp.meta={ derived:true, tier:'heuristic' }; m.composites=comp; }
+      return m;
+    }),
     ganglior_events:ev,
     reserved:{ doc:'Awaiting other fleet nodes; null until available.', glucoseCorrelation:null, glucoseSource:'GlucoDex' }
   };
@@ -7630,6 +7694,34 @@ function _hrvRowsFromInput(input){
   return null;
 }
 
+// ═══ SELF-INGEST — reload HRVDex's OWN ganglior.node-export as a review-mode clinical VIEW
+// (SELF-INGEST-FOLLOWUPS · HRVDex enrich-first D2 path b). PURE + DOM-FREE: detect → own-node guard →
+// mark reviewMode → return provenance/kernel/measurements/events VERBATIM. Never recomputes, never
+// re-stamps. The enriched export carries the per-measurement `measurements[]` table, so the review view
+// renders the HRV dashboard from stored values (no re-derive, no tier upgrade). ═══
+function hrvLoadOwnExport(json){
+  if(!(json && json.schema && json.schema.name === 'ganglior.node-export'))
+    return { ok:false, reason:'not-node-export', message:'Not a node-export \u2014 drop a Welltory CSV, or HRVDex\u2019s own .json export.' };
+  var node = ((json.schema.node || '') + '').trim();
+  if(node !== 'HRVDex')
+    return { ok:false, reason:'foreign-node', node:node,
+      message:'This is a '+(node||'non-HRVDex')+' export \u2014 open it in '+(node||'its own node')+', or drop it into the Integrator to fuse.' };
+  var el = JSON.parse(JSON.stringify(json)); el._fromExport=true; el._reviewMode=true;
+  var evAll = Array.isArray(json.ganglior_events) ? json.ganglior_events.slice() : [];
+  evAll.sort(function(a,b){ return ((a&&a.tMs)||0) - ((b&&b.tMs)||0); });
+  return {
+    ok:true, reviewMode:true, node:node,
+    elements:[el], events:evAll,
+    provenance:(json.schema && json.schema.provenance) || null,
+    generated:(json.schema && json.schema.generated) || null,
+    derivedFrom:(json.schema && json.schema.derivedFrom) || null,
+    kernel:json.kernel || null, recording:json.recording || null,
+    measurements:Array.isArray(json.measurements) ? json.measurements : null,
+    scrubbed:!!(json.schema && json.schema.scrubbed),
+    multiNight:false, raw:json
+  };
+}
+
 // Public namespace — the headless surface the orchestrator + app + adapter reach.
 var HRVDex = (typeof HRVDex !== 'undefined' && HRVDex) ? HRVDex : {};
 HRVDex.compute = function(input, opts){
@@ -7641,6 +7733,13 @@ HRVDex.compute = function(input, opts){
 HRVDex.parseRows = _hrvParseSummaryRows;
 HRVDex.eventsFromRows = hrvEventsFromRows;
 HRVDex.buildNodeExport = hrvBuildNodeExport;
+HRVDex.loadOwnExport = hrvLoadOwnExport;   // SELF-INGEST reload (review-mode clinical view)
+// scrub-for-sharing → the SHARED dexScrubExport (D1); lazy delegate, co-load order irrelevant.
+HRVDex.scrubExport = function(env){
+  if(typeof DexExport !== 'undefined' && DexExport && typeof DexExport.scrubExport === 'function') return DexExport.scrubExport(env);
+  if(typeof dexScrubExport === 'function') return dexScrubExport(env);
+  return env;
+};
 
 // ── public namespace (always) ──
 root.HRVDex = HRVDex;
@@ -7652,7 +7751,7 @@ if (!root.__DEX_NAMESPACED__) {
     fmtDateTime, utcDayKey, _hrvParseSummaryRows, parseCSV, HRV_STORE_KEY, HRV_SEED_FIELDS, _hrvNum, _hrvSig,
     _seedFromRow, _rowFromSeed, persistHRVRows, restoreHRVRows, commitRows, _hrvRefreshChrome, _envToSeed, ingestGangliorJSON,
     computeDerived, mean, std, pearsonCorr, linRegSlope, smooth, getFilteredRows, computeCAMQ,
-    _hrvClockS, hrvEventsFromRows, hrvBuildNodeExport, _hrvRowsFromInput, _hrvUpdateExportHint
+    _hrvClockS, hrvEventsFromRows, hrvBuildNodeExport, _hrvRowsFromInput, _hrvUpdateExportHint, hrvLoadOwnExport
   });
   // mutable cross-file state — proxy bare names to the in-closure bindings
   Object.defineProperty(root, 'allRows',    { configurable: true, get: function () { return allRows; },    set: function (v) { allRows = v; } });
@@ -8745,6 +8844,12 @@ function glucoBuildNodeExport(r, opts){
         floor:(cs.floor && cs.floor.saturated && cs.floor.value!=null ? cs.floor.value : null),
         ceiling:(cs.ceiling && cs.ceiling.saturated && cs.ceiling.value!=null ? cs.ceiling.value : null),
         blindMetrics:(cs.blindMetrics||[]) } : { detected:false } },
+    glucose:{ mean:r.mean, gmi:r.gmi, ea1c:r.ea1c, sd:r.sd, cv:r.cv, tir:r.tir, titr:r.titr,
+      mage:(r.mage==null?null:r.mage), modd:(r.modd==null?null:r.modd), adrr:(r.adrr==null?null:r.adrr),
+      gvp:(r.gvp==null?null:r.gvp), lbgi:r.lbgi, hbgi:r.hbgi, stabilityScore:r.stabilityScore,
+      pctActive:r.pctActive, tier:(r.tier||null),
+      dawn:(r.dawn && r.dawn.present ? { present:true, medianDelta:r.dawn.medianDelta } : { present:false }),
+      daypart:(r.daypart||null) },
     ganglior_events:events,
     reserved:{ doc:'Awaiting other fleet nodes; null until available.' }
   };
@@ -8785,7 +8890,46 @@ global.GLUDSP = { parseCSV, analyze, genSynthetic, coreMetrics, detectClampSatur
 // ONE namespaced global (brief §1A). GlucoDex leaks nothing bare (whole DSP is in
 // this IIFE) → no __DEX_NAMESPACED__ suppression gate needed; this is an explicit
 // named global, collision-free in the co-load realm. Standalone bundles still read GLUDSP.
+// ═══════════════════════════════════════════════════════════════════════════
+//  SELF-INGEST — reload GlucoDex's OWN ganglior.node-export as a review-mode
+//  clinical VIEW (SELF-INGEST-FOLLOWUPS · GlucoDex pass, enrich-first D2 path b).
+//  PURE + DOM-FREE: detect → own-node guard → mark reviewMode → return the
+//  provenance/kernel/glucose/events VERBATIM. Never recomputes, never re-stamps.
+//  The enriched export now carries the `glucose` summary block (mean/GMI/CV/TIR/
+//  MODD/ADRR/dawn/daypart), so the review view renders the glycemic dashboard
+//  from stored values; the full-resolution per-reading trace is greyed.
+// ═══════════════════════════════════════════════════════════════════════════
+function glucoLoadOwnExport(json){
+  if(!(json && json.schema && json.schema.name === 'ganglior.node-export'))
+    return { ok:false, reason:'not-node-export', message:'Not a node-export \u2014 drop a raw CGM CSV, or GlucoDex\u2019s own .json export.' };
+  var node = ((json.schema.node || '') + '').trim();
+  if(node !== 'GlucoDex')
+    return { ok:false, reason:'foreign-node', node:node,
+      message:'This is a '+(node||'non-GlucoDex')+' export \u2014 open it in '+(node||'its own node')+', or drop it into the Integrator to fuse.' };
+  var el = JSON.parse(JSON.stringify(json)); el._fromExport = true; el._reviewMode = true;
+  var evAll = Array.isArray(json.ganglior_events) ? json.ganglior_events.slice() : [];
+  evAll.sort(function(a,b){ return ((a&&a.tMs)||0) - ((b&&b.tMs)||0); });
+  return {
+    ok:true, reviewMode:true, node:node,
+    elements:[el], events:evAll,
+    provenance:(json.schema && json.schema.provenance) || null,
+    generated:(json.schema && json.schema.generated) || null,
+    derivedFrom:(json.schema && json.schema.derivedFrom) || null,
+    kernel:json.kernel || null, recording:json.recording || null,
+    glucose:json.glucose || null,
+    scrubbed:!!(json.schema && json.schema.scrubbed),
+    multiNight:false, raw:json
+  };
+}
+
 global.GlucoDex = global.GlucoDex || { compute, parseCSV, analyze, genSynthetic, buildNodeExport:glucoBuildNodeExport, _build:glucoBuildNodeExport };
+global.GlucoDex.loadOwnExport = glucoLoadOwnExport;   // SELF-INGEST reload (review-mode clinical view)
+// scrub-for-sharing → the SHARED dexScrubExport (D1); lazy delegate, co-load order irrelevant.
+global.GlucoDex.scrubExport = function(env){
+  if(global.DexExport && typeof global.DexExport.scrubExport === 'function') return global.DexExport.scrubExport(env);
+  if(typeof global.dexScrubExport === 'function') return global.dexScrubExport(env);
+  return env;
+};
 
 })(window);
 </script>
@@ -9901,8 +10045,49 @@ global.PPGDSP.buildNodeExport = ppgBuildNodeExport;
 // ONE namespaced global (brief §1A). PpgDex leaks nothing bare (the whole DSP is in this
 // IIFE) → no __DEX_NAMESPACED__ suppression gate needed; this is an explicit named global,
 // collision-free in the co-load realm. Standalone bundles still read PPGDSP.
+// ═══ SELF-INGEST — reload PpgDex's OWN ganglior.node-export as a review-mode clinical VIEW
+// (SELF-INGEST-FOLLOWUPS · PpgDex pass, EXPORT-INERT). PpgDex already emits a RICH node-export
+// (buildV2/exportSummary: recording + hrv{time,frequency,nonlinear} + personalization + apnea) AND a
+// light one (exportGanglior). This reader accepts EITHER, single or a sessions[] multi wrapper, and
+// returns whatever derived layer is present VERBATIM. PURE + DOM-FREE; never recomputes, never re-stamps. ═══
+function ppgLoadOwnExport(json){
+  if(!(json && json.schema && json.schema.name === 'ganglior.node-export'))
+    return { ok:false, reason:'not-node-export', message:'Not a node-export \u2014 drop a raw Polar Verity *_PPG.txt, or PpgDex\u2019s own .json export.' };
+  var node = ((json.schema.node || '') + '').trim();
+  if(node !== 'PpgDex')
+    return { ok:false, reason:'foreign-node', node:node,
+      message:'This is a '+(node||'non-PpgDex')+' export \u2014 open it in '+(node||'its own node')+', or drop it into the Integrator to fuse.' };
+  var carrier = Array.isArray(json.sessions) ? json.sessions : [json];
+  var elements = carrier.map(function(el){ var e=JSON.parse(JSON.stringify(el)); e._fromExport=true; e._reviewMode=true; return e; });
+  var evAll = Array.isArray(json.ganglior_events) ? json.ganglior_events.slice() : [];
+  if(!evAll.length) carrier.forEach(function(el){ if(Array.isArray(el.ganglior_events)) evAll = evAll.concat(el.ganglior_events); });
+  evAll.sort(function(a,b){ return ((a&&a.tMs)||0) - ((b&&b.tMs)||0); });
+  return {
+    ok:true, reviewMode:true, node:node,
+    elements:elements, events:evAll,
+    provenance:(json.schema && json.schema.provenance) || null,
+    generated:(json.schema && json.schema.generated) || null,
+    derivedFrom:(json.schema && json.schema.derivedFrom) || null,
+    kernel:json.kernel || null,
+    recording:(carrier[0] && carrier[0].recording) || json.recording || null,
+    hrv:(carrier[0] && carrier[0].hrv) || json.hrv || null,
+    quality:(carrier[0] && carrier[0].quality) || json.quality || null,
+    personalization:(carrier[0] && carrier[0].personalization) || json.personalization || null,
+    crossNight:json.crossNight || null,
+    scrubbed:!!(json.schema && json.schema.scrubbed),
+    multiNight:elements.length > 1, raw:json
+  };
+}
+
 global.PpgDex = global.PpgDex || { compute:compute, parsePPG:parsePPG, analyze:analyze,
   buildNodeExport:ppgBuildNodeExport, _build:ppgBuildNodeExport };
+global.PpgDex.loadOwnExport = ppgLoadOwnExport;   // SELF-INGEST reload (review-mode clinical view)
+// scrub-for-sharing → the SHARED dexScrubExport (D1); lazy delegate, co-load order irrelevant.
+global.PpgDex.scrubExport = function(env){
+  if(global.DexExport && typeof global.DexExport.scrubExport === 'function') return global.DexExport.scrubExport(env);
+  if(typeof global.dexScrubExport === 'function') return global.dexScrubExport(env);
+  return env;
+};
 
 })(window);
 </script>
@@ -11828,9 +12013,53 @@ global.ECGDSP.buildNodeExport = ecgBuildNodeExport;
 // ONE namespaced global (brief §1A). ECGDex leaks nothing bare (the whole DSP is in this
 // IIFE) → no __DEX_NAMESPACED__ suppression gate needed; this is an explicit named global,
 // collision-free in the co-load realm. Standalone bundles still read ECGDSP.
+// ═══════════════════════════════════════════════════════════════════════════
+//  SELF-INGEST — reload ECGDex's OWN ganglior.node-export as a review-mode
+//  clinical VIEW (SELF-INGEST-FOLLOWUPS · ECGDex pass, EXPORT-INERT). ECGDex
+//  already emits a RICH node-export (buildV2 / exportSummary: recording +
+//  quality + hrv + epochs) AND a light one (exportGanglior: recording + events)
+//  — both schema.node 'ECGDex'. This reader accepts EITHER, single or a
+//  recordings[] multi wrapper, and returns whatever derived layer is present
+//  VERBATIM. PURE + DOM-FREE; never recomputes, never re-stamps (§3).
+// ═══════════════════════════════════════════════════════════════════════════
+function ecgLoadOwnExport(json){
+  if(!(json && json.schema && json.schema.name === 'ganglior.node-export'))
+    return { ok:false, reason:'not-node-export', message:'Not a node-export \u2014 drop a raw Polar H10 *_ECG.txt, or ECGDex\u2019s own .json export.' };
+  var node = ((json.schema.node || '') + '').trim();
+  if(node !== 'ECGDex')
+    return { ok:false, reason:'foreign-node', node:node,
+      message:'This is a '+(node||'non-ECGDex')+' export \u2014 open it in '+(node||'its own node')+', or drop it into the Integrator to fuse.' };
+  var carrier = Array.isArray(json.recordings) ? json.recordings : [json];
+  var elements = carrier.map(function(el){ var e=JSON.parse(JSON.stringify(el)); e._fromExport=true; e._reviewMode=true; return e; });
+  var evAll = Array.isArray(json.ganglior_events) ? json.ganglior_events.slice() : [];
+  if(!evAll.length) carrier.forEach(function(el){ if(Array.isArray(el.ganglior_events)) evAll = evAll.concat(el.ganglior_events); });
+  evAll.sort(function(a,b){ return ((a&&a.tMs)||0) - ((b&&b.tMs)||0); });
+  return {
+    ok:true, reviewMode:true, node:node,
+    elements:elements, events:evAll,
+    provenance:(json.schema && json.schema.provenance) || null,
+    generated:(json.schema && json.schema.generated) || null,
+    derivedFrom:(json.schema && json.schema.derivedFrom) || null,
+    kernel:json.kernel || null,
+    recording:(carrier[0] && carrier[0].recording) || json.recording || null,
+    hrv:(carrier[0] && carrier[0].hrv) || json.hrv || null,
+    quality:(carrier[0] && carrier[0].quality) || json.quality || null,
+    crossNight:json.crossNight || null,
+    scrubbed:!!(json.schema && json.schema.scrubbed),
+    multiNight:elements.length > 1, raw:json
+  };
+}
+
 global.ECGDex = global.ECGDex || { compute:compute, parseECG:parseECGText, analyze:analyze,
   genSynthetic:genSynthetic, buildNodeExport:ecgBuildNodeExport, _build:ecgBuildNodeExport,
   parseDeviceRR:parseDeviceRR, parseDeviceHR:parseDeviceHR, parseDeviceACC:parseDeviceACC };
+global.ECGDex.loadOwnExport = ecgLoadOwnExport;   // SELF-INGEST reload (review-mode clinical view)
+// scrub-for-sharing → the SHARED dexScrubExport (D1); lazy delegate, co-load order irrelevant.
+global.ECGDex.scrubExport = function(env){
+  if(global.DexExport && typeof global.DexExport.scrubExport === 'function') return global.DexExport.scrubExport(env);
+  if(typeof global.dexScrubExport === 'function') return global.dexScrubExport(env);
+  return env;
+};
 
 })(window);
 </script>

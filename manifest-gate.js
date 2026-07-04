@@ -204,7 +204,7 @@
     return { results: results, checked: checked, fail: fail, absent: absent, ok: fail === 0 };
   }
 
-  root.ManifestGate = {
+  var ManifestGate = {
     MANIFEST_BUNDLES: MANIFEST_BUNDLES,
     MANIFEST_RE: MANIFEST_RE,
     isPlainInline: isPlainInline,
@@ -216,5 +216,6 @@
     gateBFiles: gateBFiles,
     gateBEvaluate: gateBEvaluate
   };
-  if (typeof module !== 'undefined' && module.exports) module.exports = root.ManifestGate;
+  root.ManifestGate = ManifestGate;
+  if (typeof module !== 'undefined' && module.exports) module.exports = ManifestGate;
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : /** @type {any} */ (this)));

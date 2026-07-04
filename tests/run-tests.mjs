@@ -186,6 +186,24 @@ function readSrcHtml() {
   return out;
 }
 
+// docs-ledger gate (DOCS-LEDGER-GATE-2026-07-03): the brief lifecycle, machine-checked. Node lane has
+// full fs truth — read every briefs/*.md, DOCS-INDEX.md, the root *-BRIEF.md set, AND the committed
+// tests/docs-ledger-list.json (the browser lane's name source) so the group can assert list == fs.
+function readDocsLedger() {
+  const bdir = join(ROOT, 'briefs');
+  if (!existsSync(bdir)) return null;
+  const fsBriefNames = readdirSync(bdir).filter(f => f.endsWith('.md')).sort();
+  const briefs = {};
+  for (const n of fsBriefNames) briefs[n] = readFileSync(join(bdir, n), 'utf8');
+  const idxP = join(ROOT, 'DOCS-INDEX.md');
+  const indexText = existsSync(idxP) ? readFileSync(idxP, 'utf8') : '';
+  const rootBriefNames = readdirSync(ROOT).filter(f => /-BRIEF\.md$/.test(f)).sort();
+  let listedBriefNames = [];
+  const listP = join(ROOT, 'tests', 'docs-ledger-list.json');
+  if (existsSync(listP)) { try { listedBriefNames = (JSON.parse(readFileSync(listP, 'utf8')).briefs) || []; } catch (e) { /* stale/broken → staleness check reds */ } }
+  return { briefs, indexText, rootBriefNames, fsBriefNames, listedBriefNames };
+}
+
 function readDocs() {
   // text artifacts the cohesion-badge group diffs against the engine
   const wanted = ['dex-badges.css', 'OxyDex Reference.html', 'ECGDex Reference.html', 'PpgDex Reference.html', 'CPAPDex Reference.html', 'PulseDex Reference.html', 'HRVDex Reference.html', 'GlucoDex Reference.html', 'ORIENTATION.md'];
@@ -309,6 +327,7 @@ function main() {
     CohortGen: ctx.CohortGen,
     CohortFull: ctx.CohortFull,
     docs: readDocs(),
+    docsLedger: readDocsLedger(),
     sources: readSources(),
     fixtures: readFixtures(),
     equiv: readEquiv(),

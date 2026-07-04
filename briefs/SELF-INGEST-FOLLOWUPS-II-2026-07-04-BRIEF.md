@@ -1,5 +1,7 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-04 · **Parent:** `SELF-INGEST-FOLLOWUPS-2026-07-03-BRIEF.md` (DONE 2026-07-04, all 6 nodes) · **Supersedes:** — · **House pattern:** `SELF-INGEST-FOLLOWUPS` → `-II`
+**Status:** DONE — 2026-07-04 · **Created:** 2026-07-04 · **Parent:** `SELF-INGEST-FOLLOWUPS-2026-07-03-BRIEF.md` (DONE 2026-07-04, all 6 nodes) · **Supersedes:** — · **Followed-by:** `SELF-INGEST-FOLLOWUPS-III-2026-07-04-BRIEF.md` · **House pattern:** `SELF-INGEST-FOLLOWUPS` → `-II`
+
+> **EXECUTED 2026-07-04.** **F1 ✅** — `dex-export.js` `scrubExport` now sweeps `nights[]`/`recordings[]`/`sessions[]`; new multi-scrub legs in the ECGDex + PpgDex §7 groups (both green). **F2 ✅ (option a, browser-only)** — live review-render probe in `Dex-Test-Suite.html` drives `loadOwnExport → reviewView` (rich + light) + `renderReview` for PulseDex/HRVDex/GlucoDex/PpgDex/ECGDex; OxyDex's live leg is the one residue (its review is `renderAll`-integrated, not a standalone `renderReview`/card) → carried to `-III`. **F3 ✅** (see §F3). **F5 ✅** — six review renderers reachable via `<Node>.reviewView`/`.renderReview`, gated by a new `Self-ingest F5` source-mirror group (both runners). **F4 DEFERRED** (see §F4) → `-III`. Fleet re-bundle done via `tools/build-core.js` (all 8 `manifestHash` moved — CPAPDex/Integrator by the `dex-export.js` diff only, the six review nodes by F1+F5); `BUILD-MANIFEST.json` GATE-A + 13 code-gated `FIXTURE-PROVENANCE.json` fixtures re-recorded EXPORT-INERT (outputHashes unchanged). Gates: `verify-provenance` `__provenanceOK/__gateA_ok/__gateB_ok` all true · self-ingest headless floor all-green · `no-network` `__noNetworkOK` true.
 
 # Self-ingest roll-out — follow-ups II (residue surfaced executing the 6-node roll-out)
 
@@ -11,7 +13,7 @@
 
 ---
 
-## F1 — 🔴 MED/HIGH (privacy): the shared `dexScrubExport` does NOT strip per-element recording blocks on a MULTI-record export
+## F1 — ✅ DONE 2026-07-04 · 🔴 MED/HIGH (privacy): the shared `dexScrubExport` does NOT strip per-element recording blocks on a MULTI-record export
 
 **Verified 2026-07-04.** `scrubExport` in `dex-export.js` de-identifies a shared export by deleting
 `schema.provenance.inputs[].{name,sha256}` + `out.recording.{device,serial,model}` **and** — only —
@@ -48,7 +50,7 @@ scrub strips device/serial from every element of all three carriers; new multi-s
 
 ---
 
-## F2 — 🟠 MED (test coverage): the review-mode RENDER functions are not exercised by any gate
+## F2 — ✅ DONE 2026-07-04 (option a; OxyDex live leg → -III) · 🟠 MED (test coverage): the review-mode RENDER functions are not exercised by any gate
 
 The §7 groups test the **pure** `<node>LoadOwnExport` (detect/guard/unwrap/faithful-view/scrub) in both runners,
 but the **review renderers** — `pulseReviewView` / `glucoReviewView` / `ecgReviewView` / `hrvReviewView` /
@@ -91,7 +93,7 @@ checklist points at it.
 
 ---
 
-## F4 — 🟡 LOW (test fidelity): ECGDex + PpgDex §7 groups drive HAND-BUILT exports, not `compute()`
+## F4 — ⏸ DEFERRED → `-III` · 🟡 LOW (test fidelity): ECGDex + PpgDex §7 groups drive HAND-BUILT exports, not `compute()`
 
 Unlike Pulse/Gluco/HRVDex (whose §7 groups drive `compute()` → `loadOwnExport` on a real synthetic input), the
 ECGDex + PpgDex groups reload a **hand-authored** buildV2-shaped export (raw ECG/PPG synthesis is heavy and
@@ -105,7 +107,7 @@ reloads a real `buildV2`-produced export.
 
 ---
 
-## F5 — 🟢 LOW (consistency): 4 of 5 review renderers are app-IIFE-local, not global (unlike PulseDex's render.js)
+## F5 — ✅ DONE 2026-07-04 · 🟢 LOW (consistency): 4 of 5 review renderers are app-IIFE-local, not global (unlike PulseDex's render.js)
 
 `glucoReviewView`/`ecgReviewView`/`hrvReviewView`/`ppgReviewView` were co-located in each node's `*-app.js`
 (reachable by the file-drop handler in the same scope, but **not** global — a global `eval` can't call them, so

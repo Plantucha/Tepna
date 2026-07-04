@@ -31,9 +31,19 @@
 >   full `CLAUDE.md` §🔏 / `ARCHITECTURE-PRINCIPLES` §6 prose rewrite (current notes are accurate; polish).
 > - ✅ **A5 EXECUTED** (ratified + landed 2026-07-03) — `clock.js`/`DexClock` single-sources the Clock-Contract
 >   parser; 5 DSPs delegate, ppgdex/glucodex/cpapdex keep deliberate variants; co-load + worker importScripts
->   wired; WP-G asserts flipped; fleet rebuilt; BOTH gates green (equiv byte-identical). ⏳ **Parts B/C/D** → staged in
+>   wired; WP-G asserts flipped; fleet rebuilt; BOTH gates green (equiv byte-identical).
+> - ✅ **PART B — the `BORN_CLEAN` gate LANDED 2026-07-04** (test-only, no re-bundle): a `born-clean` group in
+>   `tests/dex-tests.js` (both runners, headless floor) asserts, for each node in the set, (1) its `*-dsp.js`
+>   is headless (no DOM/localStorage), (2) `namespace.compute()` is a function, (3) every registry metric
+>   carries an `evidence` grade, (4) it is wired into the reproducibility gate (`env.equiv` leg or a code-gated
+>   fixture). Seeded with the FIVE nodes that verifiably meet the contract today — PulseDex/GlucoDex/PpgDex/
+>   ECGDex/CPAPDex — so the gate LOCKS their compliance (a regression that adds DOM to a clean DSP, or an
+>   ungraded metric, reds); OxyDex/HRVDex are deliberately OUT (real DOM/localStorage in their DSP —
+>   grandfathered-impure, left per scope discipline). A NEW node joins at birth. Verified: 20 node assertions
+>   + 3 self-tests green, checks (1)/(3) red when broken. **Remaining Part B** (build EEGDex/SpiroDex born-clean
+>   + adapter-only) awaits an actual new node. ⏳ **Parts C/D + the §🔏/ARCH-§6 prose polish** → staged in
 >   `OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`. Flip THIS header to DONE when the remaining §🔏/ARCH-§6
->   prose polish lands (Parts B/C/D flip independently per the Done-when).
+>   prose polish lands (Parts C/D flip independently per the Done-when).
 
 # Own the build + born-compliant nodes (retire the drift-suppression machinery)
 

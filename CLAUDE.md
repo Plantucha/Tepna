@@ -51,6 +51,13 @@ Status lives in a one-line header block on the first content line (just after an
   dashboard — reorganize *that view*, not the files. Now that all briefs already sit in `briefs/`, do
   NOT further sub-folder them into `Done/`/`Executed/` — that breaks every cross-reference + splits git
   history (same failure as renaming); status lives in the header, not the path.
+- **This whole lifecycle is now gate-backed** by the `docs-ledger` group in `tests/dex-tests.js` (both
+  runners, headless floor): a stray root brief, a malformed/absent status header on a brief dated ≥
+  2026-07-03, an unindexed brief, a dead `](briefs/…)` dashboard link, a one-sided `Superseded-by`/
+  `Supersedes` pair, or a filename↔`Created` date mismatch turns the suite RED. Pre-2026-07-03 headerless
+  briefs are grandfathered (never fabricate a status). The browser lane reads brief names from
+  `tests/docs-ledger-list.json` — **regenerate it (`node tests/gen-docs-ledger-list.mjs`) whenever you add
+  or remove a brief**; the Node lane asserts it matches `briefs/` on disk, so a stale list also reds.
 - **Repo layout (2026-07-03 owner-sanctioned relocation — the second deliberate break of the old
   "never move" rule).** The **root** holds ONLY: base/entry docs (`README.md`, `CLAUDE.md`,
   `ARCHITECTURE-PRINCIPLES.md`, `ORIENTATION.md`, `DOCS-INDEX.md`, `CONTRIBUTING.md`, `AUDIT-PROMPT.md`),

@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-04 (**§3 DONE — 2026-07-04**: bundle+ledger reconcile at Integrator `manifestHash 5ae5434fe914`, `Dex-Test-Suite.html?full` all-green [1744 passed, 0 boot-skips], `verify-provenance` GATE A/B clean. §1/§2 remain PROPOSED — blocked on upstream OxyDex per-epoch-HR export, see §2) · **Created:** 2026-07-03 · **Executed-residue-of:** `INTEGRATOR-THREE-CORNERED-HAT-2026-07-02-BRIEF.md` (DONE 2026-07-03) · **Extends:** `INTEGRATOR-BUILD-BRIEF.md` §4.4 `fuseHRVConsensus` · **Links:** `PPGDEX-BEAT-DETECTION-PERF-AND-HRV-FIDELITY-2026-07-02-BRIEF.md` (ACC co-motion ρ source) · an OxyDex per-epoch-HR node-export brief (TBD)
+**Status:** IN-PROGRESS — 2026-07-04 (**§3 DONE — 2026-07-04**: bundle+ledger reconcile at Integrator `manifestHash 5ae5434fe914`, `Dex-Test-Suite.html?full` all-green [1744 passed, 0 boot-skips], `verify-provenance` GATE A/B clean. §1/§2 remain PROPOSED — blocked on upstream OxyDex per-epoch-HR export, see §2. **2026-07-04 investigation** (no code yet): linchpin + route settled (see the §1/§2/§4 additions below); the current committed Integrator `manifestHash` is **f44363fce611** (§3's `5ae5434fe914` was superseded by later Integrator re-bundles), and the browser owned-build loop (`tools/build-core.js` via run_script) was verified to reproduce committed hashes byte-exactly; route DECIDED = **HR-hat** (ECG+PPG+Oxy)) · **Created:** 2026-07-03 · **Executed-residue-of:** `INTEGRATOR-THREE-CORNERED-HAT-2026-07-02-BRIEF.md` (DONE 2026-07-03) · **Extends:** `INTEGRATOR-BUILD-BRIEF.md` §4.4 `fuseHRVConsensus` · **Links:** `PPGDEX-BEAT-DETECTION-PERF-AND-HRV-FIDELITY-2026-07-02-BRIEF.md` (ACC co-motion ρ source) · an OxyDex per-epoch-HR node-export brief (TBD)
 
 # Integrator three-cornered-hat — follow-ups (external-ρ · real-night firing · τ-curve)
 
@@ -49,6 +49,15 @@ gate (`PPGDEX-BEAT-DETECTION-PERF-AND-HRV-FIDELITY-2026-07-02-BRIEF.md`).
 tolerance, *not* `{7,3.8,4.2}`); degrades to classic (`rho:null`) with <2 motion series. Additive —
 pairwise + the <3-node degrade stay byte-identical.
 
+> **2026-07-04 finding — the ≥2-motion-node precondition is met by the SAME OxyDex change as §2.**
+> The O2Ring records a **1 Hz motion column**, so binning it onto the 5-min grid gives the HR triplet a
+> SECOND per-epoch motion series alongside PpgDex's `motionIndex` (the brief text "ECGDex/OxyDex carry
+> posture, not a per-epoch motion series" is true only until OxyDex emits one). Plan: `_tchConsensus`
+> cross-correlates the aligned per-node motion series (already surfaced as `block.tch.coMotion`), maps the
+> correlation → `opts.rho`, and passes it to `threeCorneredHat` (whose `opts.rho` path is already built +
+> gated, test 5c case 2). Degrade to classic (`rho:null`) with <2 aligned motion series. **One OxyDex
+> export change (§2) unblocks BOTH §1 and §2.**
+
 ## §2 — make TCH *fire* on a real night (parent finding §3 — upstream node-export prerequisite)
 **Problem.** The reference night can't exercise real TCH: OxyDex's export carries **no per-epoch HR
 series** (no `timeseries` block), and only ECG+PPG carry an epoch HRV series — so **both** triplets lack
@@ -68,8 +77,35 @@ TCH fires (`block.tch` non-null, `tchStatus:ok`), names a culprit, and the fused
 two agreeing nodes — captured as the **first code-gated Integrator fixture** (today's two are historical
 byte-pinned; a firing-TCH export would carry a `manifestHash + inputHashes + outputHash` GATE-B triple).
 
+> **2026-07-04 findings (investigation, no code yet).**
+> - **There IS a real Integrator edit here (the "NOT an Integrator fix" claim is incomplete).**
+>   `_tchConsensus` today builds ONLY an RMSSD-hat (`_rmssdPts` → `e.rmssd`); there is **no HR-hat
+>   consumer**. ECGDex + PpgDex ALREADY emit per-epoch `hr` (`timeseries.epochs[].hr`) and
+>   `adaptEnvelopeNode` already carries `e.hr`, so the missing pieces are (i) OxyDex's per-epoch `hr`
+>   and (ii) an **additive HR-hat leg** in `_tchConsensus` (align on `hr` → `threeCorneredHat` → attach
+>   e.g. `block.tchHR` + a **reconciled HR**). The RMSSD-hat stays byte-identical.
+> - **Which-hat resolved → HR-hat (owner-confirmed 2026-07-04).** §2's prerequisite (OxyDex per-epoch
+>   HR) implies the **HR-hat** (ECG+PPG+Oxy); the "fused RMSSD moves" wording above describes the
+>   RMSSD-hat (ECG+PPG+PulseDex) and is a mixed-metric slip. Target the HR-hat; surface a reconciled HR
+>   alongside the existing reconciled RMSSD (the RMSSD-hat still fires whenever a 3rd rmssd node overlaps).
+> - **The OxyDex change is export-INERT for its 2 committed fixtures.** They are the `nights[]` array and
+>   the equiv gate diffs `nights[0]`, while `timeseries` is a TOP-LEVEL envelope sibling (exactly where
+>   `adaptEnvelopeNode` reads `json.timeseries.epochs`) — so `nights[0]` stays byte-identical → OxyDex
+>   manifestHash **re-record only, no fixture regeneration** (same pattern as the top-level
+>   `ganglior_events` add, OXYDEX-NODE-EXPORT-ENVELOPE). Emit `{tMin, hr(median), motionIndex(mean)}` on
+>   the 5-min grid, bound in `processNight` from the 1 Hz rows, wired into BOTH `oxyComputeNight`
+>   (headless) and the app `exportJSON` envelope.
+> - **Build loop verified.** The browser owned-build reproduces committed manifestHashes byte-exactly
+>   (OxyDex `7fbedea9a12f`, Integrator `f44363fce611`, PpgDex `ae360930e7f4`), so the re-bundle + GATE-A
+>   re-record is low-risk.
+> - **Reference-night source.** No committed real night is co-recorded across O2Ring+H10+Verity (the
+>   equiv inputs are different nights/durations), so the co-recorded 3-node fixture will come from the
+>   seeded synth generator (`synth-gen.js` / `dex-patient-gen.js` — one subject, every device on the same
+>   floating wall-clock) run through each node's headless `compute()`, then fused → the first code-gated
+>   Integrator golden.
+
 ## §3 — per-sensor Allan-deviation τ-curve sparkline (parent §2/§5)
-**⏳ IN-PROGRESS (2026-07-03) — code landed + headless-green; re-bundle + full gates remain.**
+**✅ DONE (2026-07-04) — re-bundled + all gates green** (recorded in the header block; the code below shipped as written).
 - `integrator-tch.js` (VERSION→1.1.0): pure `allanDeviation(series,taus)` (overlapping Allan
   variance/deviation of one evenly-spaced series) + `allanTriplet(A,B,C,{taus,labels})` (per-sensor
   Allan variance via the classic Gray–Allan split on the pairwise-difference AVARs — truth cancels in
@@ -82,7 +118,7 @@ byte-pinned; a firing-TCH export would carry a `manifestHash + inputHashes + out
 - `tests/dex-tests.js` (both runners): known-answer `allanDeviation` (constant→0, ramp→c²/2,
   alternating→2a², too-short→null) + `allanTriplet` recovery ({4,9,25} at τ1, averages-down) +
   τ-curve wiring. **Headless: TCH 28/28 + wiring 11/11 — 1635 passed / 0 fail.**
-- **REMAINING (resume here):** re-bundle `Integrator.html` (inliner on `Integrator.src.html`) → settle
+- **DONE 2026-07-04 (this was the resume point; now completed):** re-bundle `Integrator.html` (inliner on `Integrator.src.html`) → settle
   → re-read `manifestHash` → update `BUILD-MANIFEST.json` GATE A (GATE B unaffected — Integrator
   fixtures are historical) → `Dex-Test-Suite.html?full` all-green + `verify-provenance` clean → flip
   this §3 to DONE + add a BUILD-MANIFEST note + sync DOCS-INDEX. §1/§2 remain PROPOSED.
@@ -96,6 +132,26 @@ The parent proposed an optional **Allan-deviation-vs-averaging-time** curve per 
 cleanly when a series is too short for the larger τ. Render + pure-helper only → Integrator re-bundle +
 `manifestHash` re-record (export-inert; Integrator fixtures stay historical unless §2's firing-TCH
 fixture lands first).
+
+## §4 — future: N-cornered hat (generalize 3 → N sensors) [PROPOSED · owner-flagged 2026-07-04]
+The estimator is fixed at THREE sensors (the classic Gray–Allan closed form). The owner expects the trio
+to grow, so the target is recorded now:
+- **A 2nd PPG sensor joins → 4 corners.** A second optical site (a ring, a second Verity, or a Muse S
+  PPG channel) adds a 4th independent HR/RMSSD estimator. With N=4 there are N(N−1)/2 = 6
+  pairwise-difference variances for N unknowns — **over-determined** — so the 3-sensor closed form gives
+  way to a **least-squares N-cornered hat** over all pairwise AVARs (Ekström–Koppang / Premoli–Tavella
+  covariance form; the scalar `opts.rho` generalizes to a common-mode covariance matrix). More corners ⇒
+  a tighter per-sensor σ and a drop-one redundancy/consistency check.
+- **Muse → EEGDex as a 4th corner.** The planned **EEGDex** (Muse EEG, `EEGDEX-BUILD-BRIEF.md`) rides a
+  device whose **PPG channel** yields an independent cardiac series, so EEGDex can export the same
+  `timeseries.epochs[].hr` / `.motionIndex` and join the hat as a 4th (or 5th) corner with NO new
+  estimator math beyond the N-sensor generalization above. (EEG-derived arousals are also a future
+  motion/ρ co-signal.)
+- **Shape now to allow N later.** Keep `threeCorneredHat` as the fast N=3 path; add a sibling
+  `nCorneredHat(seriesList, opts)` (least-squares over all pairwise AVARs → per-sensor σ² + inverse-var
+  weights + culprit + a covariance-ρ matrix) and have `_tchConsensus` pick the estimator by sensor count.
+  Additive; the 3-node path stays byte-identical. **Blocked on** a real ≥4-sensor co-recording (and, for
+  the EEGDex corner, on EEGDex shipping).
 
 ---
 

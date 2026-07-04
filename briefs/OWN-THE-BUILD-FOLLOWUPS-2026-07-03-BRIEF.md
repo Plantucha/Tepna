@@ -174,6 +174,13 @@ AND bundled-local. The copy-paste + its drift test are retired. Original executi
 
 - **Part B — born-clean the next node** (EEGDex / SpiroDex): headless `compute()` + registry-graded badges
   + `env.equiv` + adapter-only vendor parsing from commit one; a `BORN_CLEAN` gate in `tests/dex-tests.js`.
+  **✅ GATE DONE 2026-07-04 (test-only, no re-bundle):** the `born-clean` group (both runners, headless floor)
+  enforces checks (1)–(4) — headless DSP · `compute()` present · every registry metric evidence-graded ·
+  reproducibility leg (`env.equiv` or code-gated fixture). Seeded + LOCKING the five nodes that meet it today
+  (PulseDex/GlucoDex/PpgDex/ECGDex/CPAPDex); OxyDex/HRVDex OUT (grandfathered-impure DSP). Needs ZERO new env
+  wiring (consumes existing `env.sources`/namespaces/registries/`equiv`/`manifests`). Verified: 20 node
+  assertions + 3 self-tests green; checks (1)/(3) red when broken. **Remaining:** actually building
+  EEGDex/SpiroDex born-clean (+ adapter-only) — awaits a new node; the gate enforces it at birth.
 - **Part C — badge-by-construction:** make `MetricRegistry.badge()` the sole DOM path for a metric value,
   one render file at a time, guarded by a `BADGE_ENFORCED` source check.
 - **Part D — static gates.** **D.1 ESLint is the cheapest standalone next win** — a new `.github/workflows/lint.yml`

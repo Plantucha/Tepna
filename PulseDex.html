@@ -3474,9 +3474,10 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
     return head;
   }
 
-  root.SignalFrame = { toSignalFrame: toSignalFrame, validateFrame: validateFrame, describeFrame: describeFrame,
+  var SignalFrame = { toSignalFrame: toSignalFrame, validateFrame: validateFrame, describeFrame: describeFrame,
                        computeContentId: computeContentId, scrubFilename: scrubFilename };
-  if (typeof module !== 'undefined' && module.exports) module.exports = root.SignalFrame;
+  root.SignalFrame = SignalFrame;
+  if (typeof module !== 'undefined' && module.exports) module.exports = SignalFrame;
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : /** @type {any} */ (this)));
 </script>
 <script data-inline-src="metric-registry.js">/* ════════════════════════════════════════════════════════════════════════
@@ -5995,6 +5996,10 @@ function pulseClearReview(){
   try{ window._pulseReview=null; }catch(e){}
   var host=document.getElementById('pulseReviewCard'); if(host){ host.innerHTML=''; host.style.display='none'; }
 }
+// F5 (SELF-INGEST-FOLLOWUPS-II): fleet convention — the review renderer is reachable via the node
+// namespace (<Node>.reviewView / .renderReview) so the suite's live review probe (and any global
+// caller) can drive it. dsp loads first, so window.PulseDex exists here.
+try{ if(typeof window!=='undefined' && window.PulseDex){ window.PulseDex.reviewView=pulseReviewView; window.PulseDex.renderReview=pulseRenderReview; } }catch(_rvx){}
 
 </script>
 <script data-inline-src="pulsedex-overview.js">/* ════════════════════════════════════════════════════════════════════════
@@ -7859,19 +7864,27 @@ global.PulseCross = { crossNight, crossNightBlock, ols, mannKendall, bootstrapDe
     if (out.recording && typeof out.recording === 'object') {
       delete out.recording.device; delete out.recording.serial; delete out.recording.model;
     }
-    // multi-night wrapper: strip the same identifying keys from each per-night recording block too.
-    if (Array.isArray(out.nights)) out.nights.forEach(function (n) {
-      if (n && n.recording && typeof n.recording === 'object') { delete n.recording.device; delete n.recording.serial; delete n.recording.model; }
+    // Multi-record wrappers: strip the same identifying keys from each per-element recording block.
+    // EVERY known carrier (SELF-INGEST-FOLLOWUPS-II §F1 — was nights[]-only, leaking device/serial on
+    // multi ECGDex/PulseDex `recordings[]` + PpgDex `sessions[]` exports): nights[] (OxyDex/CPAPDex),
+    // recordings[] (ECGDex/PulseDex), sessions[] (PpgDex).
+    ['nights', 'recordings', 'sessions'].forEach(function (key) {
+      if (Array.isArray(out[key])) out[key].forEach(function (el) {
+        if (el && el.recording && typeof el.recording === 'object') {
+          delete el.recording.device; delete el.recording.serial; delete el.recording.model;
+        }
+      });
     });
     return out;
   }
 
-  root.DexExport = { exportName: exportName, EXPORT_KINDS: EXPORT_KINDS, scrubExport: scrubExport };
+  var DexExport = { exportName: exportName, EXPORT_KINDS: EXPORT_KINDS, scrubExport: scrubExport };
+  root.DexExport = DexExport;
   // app/back-compat bare globals (the apps call exportName(...) directly, like fmtDate/fmtClock)
   root.exportName = exportName;
   root.EXPORT_KINDS = EXPORT_KINDS;
   root.dexScrubExport = scrubExport;   // bare global — the shared scrub every node's app reaches (D1)
-  if (typeof module !== 'undefined' && module.exports) module.exports = root.DexExport;
+  if (typeof module !== 'undefined' && module.exports) module.exports = DexExport;
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : /** @type {any} */ (this)));
 </script>
 <script data-inline-src="pulsedex-app.js">/* ════ PulseDex · App (pulsedex-app.js) ────────────────────────────────────────────────

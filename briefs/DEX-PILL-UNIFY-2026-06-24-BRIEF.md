@@ -2,7 +2,7 @@
 
 # DEX-PILL-UNIFY — status-pill class consolidation (optional polish)
 
-**Status:** DEFERRED — 2026-06-24 · **Created:** 2026-06-24 · **Owner brand:** Tepna
+**Status:** PROPOSED (consciously deferred 2026-06-24; re-reviewed 2026-07-04 — premises intact, still deferred, see notes below) · **Created:** 2026-06-24 · **Owner brand:** Tepna
 **Spawned-by:** `BADGE-PLACEMENT-SWEEP-FOLLOWUPS-2026-06-24-BRIEF.md` §4 (DONE 2026-06-24).
 **Deferral note (2026-06-24):** Reviewed and consciously deferred — not abandoned. Two findings make
 this low-value at the stated cost: (1) the brief's "render consistently today ⇒ one byte-identical
@@ -19,6 +19,20 @@ re-bundle + `BUILD-MANIFEST.json` manifestHash bump + both gates) ≈ a near-ful
 visual/functional change. **Revisit only if** `ans-design.css` is ever centralized into a real linked
 stylesheet (a separate, larger brief), at which point genuine single-source pill dedup becomes possible.
 A comparison preview of both options was built at `DEX-PILL-UNIFY-options.html`.
+
+**Re-review (2026-07-04):** Premises re-checked against current source — all intact, kept deferred; no
+files changed. The three pills are still genuinely distinct shapes (`.proj-badge` 10px / r20 / borderless ·
+`.readiness-zone-chip` 12px / r999 / bordered · `.gang-pill` 12px / r999 / bordered / `--text2` + mono `<b>`),
+so a single `.dex-pill` base can share only the **severity color axis** — which already exists in the shared
+`ans-design.css §11` as BOTH `.pill-green/-yellow/-red/-blue` AND the `.fpill.ok/.warn/.bad/.info` set (literally
+the `--ok/--warn/--bad/--info` modifiers this brief proposes to "introduce"). The per-shape rules still live
+mirror-copied in each node's app-`<style>` block, and `ans-design.css` is still **inlined per-bundle**
+(`<style data-inline-src="ans-design.css">`), not a shared `<link>` — so the "revisit only if `ans-design.css`
+is centralized into a real linked stylesheet" trigger remains **UNMET**. OWN-THE-BUILD (2026-07-03) did lower the
+*mechanical* re-bundle cost (`node tools/build.mjs` auto-stamps `manifestHash` + fixtures), but that does not
+resolve the core contradiction: you cannot migrate three distinct shapes onto one base **and** keep "no visual
+diff", and the only shareable axis is already centralized. Net value still zero-to-negative. Revisit criteria
+unchanged.
 
 > Captured while executing the placement-sweep follow-ups. NOT a coverage or correctness gap — the
 > evidence-disc system is complete and the disc-vs-pill distinction is correct everywhere (no status

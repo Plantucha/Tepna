@@ -6,7 +6,20 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-07-03
+**Status:** DONE — 2026-07-04 · **Created:** 2026-07-03 · **Followed-by:** `DOCS-LEDGER-GATE-FOLLOWUPS-2026-07-04-BRIEF.md`
+
+> **EXECUTED 2026-07-04.** The `docs-ledger` group is live in `tests/dex-tests.js` (both runners, headless
+> floor), skipping cleanly when `env.docsLedger` is absent. Checks 1–6 + a list-staleness leg; all green on
+> the tree, and each check verified to RED with an actionable message when deliberately broken. Wiring:
+> Node lane `readDocsLedger()` (fs truth + list==fs staleness) in `run-tests.mjs`; browser lane fetches
+> names from the committed `tests/docs-ledger-list.json` (generator: `tests/gen-docs-ledger-list.mjs`).
+> Phase-0 findings + fixes: **55 pre-2026-07-03 headerless briefs → grandfathered** (never fabricated a
+> status — CLAUDE.md §🧪); **10 unindexed briefs → DOCS-INDEX rows added** (check 3); **`DEX-PILL-UNIFY`
+> carried an out-of-vocab `DEFERRED` status → rewritten to `PROPOSED (deferred …)`** (check 2a); **a latent
+> `**Superseded-by:**` bold-markdown parser bug in check 5 → fixed** (was vacuous with 0 links today).
+> `env.docsLedger` is a DISTINCT key from the flat `env.docs` text-map (the brief said `env.docs`; that key
+> was taken). CLAUDE.md §📌 notes the gate. **No re-bundle / no provenance churn.** Residue (DEFERRED
+> vocabulary decision · whole-tree check-4 link integrity · v2 status-column sync) → the follow-up.
 
 # Docs-ledger gate — make the brief lifecycle machine-checked
 

@@ -102,12 +102,13 @@
 
   function reset() { _ADAPTERS.length = 0; _BY_ID = {}; }   // tests only
 
-  root.SignalAdapters = {
+  var SignalAdapters = {
     registerAdapter: registerAdapter,
     detectAdapters: detectAdapters,
     route: route,
     runAdapter: runAdapter,
     list: list, byId: byId, bySignal: bySignal, reset: reset
   };
-  if (typeof module !== 'undefined' && module.exports) module.exports = root.SignalAdapters;
+  root.SignalAdapters = SignalAdapters;
+  if (typeof module !== 'undefined' && module.exports) module.exports = SignalAdapters;
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : /** @type {any} */ (this)));
