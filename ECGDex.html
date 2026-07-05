@@ -4955,7 +4955,7 @@ var ECG_LABEL_ALIAS = {
   'ln rmssd':'lnRMSSD', 'lnrmssd':'lnRMSSD', 'ln(rmssd)':'lnRMSSD',
   'mean hr':'hr', 'hr':'hr',
   'dfa α1':'dfaAlpha1', 'dfa a1':'dfaAlpha1', 'dfa alpha1':'dfaAlpha1', 'dfaα1':'dfaAlpha1',
-  'qtc':'qtc', 'qtc (bazett)':'qtc', 'qtc (fridericia)':'qtc', 'qtc bazett':'qtc',
+  'qtc':'qtc', 'qtc (bazett)':'qtc', 'qtc bazett':'qtc',
   'cvhr index':'cvhrIndex', 'cvhr':'cvhrIndex',
   'decel. capacity':'decelCapacity', 'decel. cap.':'decelCapacity', 'decel capacity':'decelCapacity', 'decel cap.':'decelCapacity', 'decel cap':'decelCapacity',
   'resp rate':'respRate',
@@ -6380,7 +6380,6 @@ function analyze(rec, onProgress){
     mode: modeInfo.mode, modeLabel: modeInfo.modeLabel, modeWhy: modeInfo.modeWhy, modeConf: modeInfo.modeConf,
     ambulatory, activityScore: modeInfo.activityScore, activity: modeInfo.activity,
     sleepSuppressed, apneaSuppressed, _accEx,
-    t0Ms: rec.t0Ms,
     // raw refs for canvas + charts
     int16, bp, peaks, refIdx, times: Array.from(times), sqi: Array.from(sqi),
     nn, tt, corrected: Array.from(nnRes.corrected),
@@ -10270,7 +10269,7 @@ function ecgReviewTimeline(events){
 function ecgReviewView(review){
   var rec=review.recording||{}, hrv=review.hrv||{}, t=hrv.time||{}, fq=hrv.frequency||{}, q=review.quality||{};
   var prov=review.provenance||{}, bh=prov.buildHash||(review.derivedFrom&&review.derivedFrom.buildHash)||null, gen=_ecgFmtGen(prov.generated||review.generated);
-  var nv=function(v,d){ return (v==null||v!==v)?(d||'\u2014'):v; };
+  var nv=function(v,d){ return (v==null||Number.isNaN(v))?(d||'\u2014'):v; };
   var h='<div class="erv-banner" role="status">'
     +'<span class="erv-tag"><span class="erv-dot"></span>Review mode</span>'
     +'<span>Loaded from export \u00b7 <strong>not recomputed</strong>'+(review.scrubbed?' \u00b7 <strong>scrubbed for sharing</strong>':'')+'</span>'

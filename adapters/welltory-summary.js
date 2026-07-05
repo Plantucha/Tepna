@@ -84,6 +84,20 @@
       var rows = parseFn(text);
       if (!rows || !rows.length) return root.SignalFrame.toSignalFrame('hrv', { usable: false, reason: 'welltory-summary: no usable HRV measurements parsed (need Date/Time + rMSSD/SDNN columns)' }, prov);
 
+      // ── Clock Contract §4/§5 ordering at the ingest boundary (SIGNAL-ADAPTER-FOLLOWUPS -IV §1) ──
+      // A SignalFrame's samples/tsMs MUST be ascending in floating tMs — validateFrame REJECTS a
+      // backwards tsMs step (the floating-tMs law, signal-frame.js IRREGULAR-tsMs contract §6).
+      // Welltory exports newest-row-FIRST, so sort ascending by _tMs HERE, mirroring the app's
+      // commitRows sort + hrvBuildNodeExport (VII §1). Without it a real newest-first Welltory CSV
+      // yields a usable-but-INVALID frame and the Data Unifier / OverDex HRV emit path silently
+      // dies (found via the live drop-through). Rows with a null/NaN stamp sort last (their own
+      // gap); t0 below then resolves to the EARLIEST sample (Clock Contract §4).
+      rows.sort(function (a, b) {
+        var x = (a && typeof a._tMs === 'number' && isFinite(a._tMs)) ? a._tMs : Infinity;
+        var y = (b && typeof b._tMs === 'number' && isFinite(b._tMs)) ? b._tMs : Infinity;
+        return x - y;
+      });
+
       // ── correctness item 1: Baevsky ms-vs-s unit guard at the ingest boundary ──
       var ba = applyBaevskyGuard(rows);
       if (ba.applied) {

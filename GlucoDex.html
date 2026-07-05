@@ -7736,7 +7736,7 @@ function glucoReviewTimeline(events){
 function glucoReviewView(review){
   var g=review.glucose||{}, rec=review.recording||{}, tir=g.tir||{};
   var prov=review.provenance||{}, bh=prov.buildHash||(review.derivedFrom&&review.derivedFrom.buildHash)||null, gen=_glucoFmtGen(prov.generated||review.generated);
-  var nv=function(v,d){ return (v==null||v!==v)?(d||'\u2014'):v; };
+  var nv=function(v,d){ return (v==null||Number.isNaN(v))?(d||'\u2014'):v; };
   var below=(tir.tbr1!=null||tir.tbr2!=null)?(+( (tir.tbr1||0)+(tir.tbr2||0) ).toFixed(1)):null;
   var above=(tir.tar1!=null||tir.tar2!=null)?(+( (tir.tar1||0)+(tir.tar2||0) ).toFixed(1)):null;
   var h='<div class="grv-banner" role="status">'

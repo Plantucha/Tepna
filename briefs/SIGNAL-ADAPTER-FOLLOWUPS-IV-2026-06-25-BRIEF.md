@@ -4,7 +4,23 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-06-25 (§§2·3·4 DONE; §1 wiring smoke-verified, full real-file UI drop still owed; §5·6 deferred-by-design to the next migration; §7 carried — needs a Node host) · **Created:** 2026-06-25 · **Follows:** SIGNAL-ADAPTER-FOLLOWUPS-2026-06-24-BRIEF.md (§3 namespaced-build / iframe-removal pass) · **Sibling-of:** SIGNAL-ADAPTER-FOLLOWUPS-II / -III-2026-06-24-BRIEF.md
+**Status:** DONE — 2026-07-04 (§§1·2·3·4 DONE — §1 live drop-through discharged 2026-07-04; §5 co-load drift RESOLVED by `dex-coload.js`; §6 util-namespacing + §7 Node-CI carried — see closeout) · **Created:** 2026-06-25 · **Follows:** SIGNAL-ADAPTER-FOLLOWUPS-2026-06-24-BRIEF.md (§3 namespaced-build / iframe-removal pass) · **Sibling-of:** SIGNAL-ADAPTER-FOLLOWUPS-II / -III-2026-06-24-BRIEF.md
+
+> **CLOSED — DONE 2026-07-04.** **§1 fully discharged** in an interactive session: each of the three raw
+> file types produces a valid `ganglior.node-export` through the REAL drop-zone UI — Data Unifier RR→
+> PulseDex (4 ev), SpO₂ O2Ring→OxyDex (15 ev), Welltory→HRVDex (valid, `spanDays` +29) — and OverDex
+> fuses a raw O2Ring + raw RR **live** (computed, not passthrough) beside an ECGDex export. Running it
+> caught + FIXED a real bug: `adapters/welltory-summary.js` emitted `tsMs` in FILE order, so a real
+> newest-first Welltory CSV yielded a `usable`-but-INVALID frame (`validateFrame` rejects a backwards
+> `tsMs` step) → the HRV emit path was silently dead in both tools; the adapter now sorts ascending by
+> `_tMs` at ingest (mirrors `commitRows` / VII §1). Adapter is unbundled source; mirrored into the two
+> OWNED-but-NON-provenance orchestrator bundles (`Data Unifier.html` / `OverDex.html`) drift-free —
+> **zero provenance-gate cost**. **§5 is since RESOLVED** — the 4-site (now 6-site) co-load list is the
+> single greppable `dex-coload.js` manifest, gated by the `dex-coload manifest` test group. **§6**
+> (`oxydex-util`/`-profile` namespacing) stays deferred-by-design to the next node whose `*-util` needs
+> co-loading (still a lone collision-checked bare util). **§7** (`node tests/run-tests.mjs` exit 0) stays
+> the fleet-wide standing Node-CI debt — no Node host in this environment — already carried in the
+> VI–XII tail + `NODE-RESIDUE-FOLLOWUPS`. §8 minor/cosmetic: no action.
 > **Progress 2026-06-25.** **§3 DONE** — the `compute() ≡ committed export` equivalence gate landed (shared dex-tests group, env.equiv wired in BOTH runners, OxyDex CSV→export verified byte-identical live); subsumes §2. **§2 DONE** — the OxyDex compute() floor is now a ≥1 h synthetic (4200×1 Hz) that traverses the vo2est/Karvonen branch + full processNight fan-out (the path that hid the §1 `upVO2category` gap). **§4 DONE** — the self-contained-compute rule ({self · kernel · own *-util} only; reach-ins `typeof`-guarded) is documented in `CONTRIBUTING.md` §6 (chose the cheaper doc option over a source-text gate). **§1** — the §3 fix is confirmed (OxyDex.compute reproduces both fixtures byte-identical) AND the live tools load clean with the shared summarizer wired (Data Unifier + OverDex smoke-checked); the remaining owed bit is a manual raw-file DROP through the drop-zone UI for each of the 3 signal types (needs an interactive session). **§5 / §6** are explicit "defer to the next node migration" decisions (centralize the 4-file co-load list / namespace the bare utils) — not taken at 3 nodes. **§7** (run `node tests/run-tests.mjs`, exit 0) is carried forward — no Node host in this environment (same constraint as §3's pass). No app re-bundle for any executed item here.
 
 # Signal-adapter Phase-9 — follow-ups IV (what the §3 namespaced-build / iframe-removal pass exposed)

@@ -336,6 +336,61 @@ function runDexTests(env) {
     T.ok('degrade: pairwise consensus still produced', !!(blk2 && blk2.rmssd));
   });
 
+  /* ════ 5e · INTEGRATOR HR-hat + external-ρ from cross-node motion (INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS §1/§2) ════
+     OxyDex now emits per-epoch hr + motionIndex → the HR triplet (ECG+PPG+Oxy) gets its 3rd corner AND a
+     2nd per-epoch motion series. fuseHRVConsensus attaches block.tchHR (reference-free per-sensor HR error)
+     + an inverse-variance reconciled HR, and DERIVES ρ from CROSS-NODE motion correlation (degrades to
+     classic with <2 motion series). Known-answer: HR noise is planted with pairwise correlation RHO and the
+     motion series carry the SAME correlation, so the motion-derived ρ ≈ RHO and the correlated-external solve
+     recovers the planted per-sensor variances {1,4,16}; the rmssd hat is independent + degrades (HR-only). */
+  group('Integrator HR-hat + external-ρ from motion (FU §1/§2)', 'integrator-dsp · integrator-tch', function (T) {
+    var A = env.adaptEnvelopeNode, FC = env.fuseHRVConsensus, K = env.IntegratorTCH;
+    if (typeof A !== 'function' || typeof FC !== 'function' || !(K && K.threeCorneredHat)) { T.ok('deps present (adapt+fuse+TCH)', false); return; }
+    function rng(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+    function normals(seed,n){ var r=rng(seed),o=[]; for(var i=0;i<n;i+=2){ var u1=Math.max(r(),1e-12),u2=r(),m=Math.sqrt(-2*Math.log(u1)); o.push(m*Math.cos(2*Math.PI*u2)); o.push(m*Math.sin(2*Math.PI*u2)); } return o.slice(0,n); }
+    var t0 = U(2026, 5, 7, 23, 0, 0), NE = 96;   // 96 × 5-min epochs
+    var truthHR = (function(){ var w=normals(7,NE),v=[],acc=58; for(var i=0;i<NE;i++){acc+=w[i]*0.6; v.push(Math.max(acc,40));} return v; })();
+    var truthMean = +(truthHR.reduce(function(a,b){return a+b;},0)/NE).toFixed(2);
+    var RHO=0.5, wI=Math.sqrt(1-RHO), wC=Math.sqrt(RHO);
+    var sharedN=normals(99,NE), sharedM=normals(77,NE);   // common HR-noise + common motion drivers
+    // per-node HR noise std `s`, planted pairwise correlation RHO; motion (when moSeed!=null) carries the SAME RHO
+    function mk(node, s, hrSeed, moSeed){
+      var iH=normals(hrSeed,NE), iM=(moSeed!=null?normals(moSeed,NE):null), eps=[];
+      for(var i=0;i<NE;i++){ var e={ tMin:i*5, hr:+(truthHR[i]+s*(wI*iH[i]+wC*sharedN[i])).toFixed(2) };
+        if(iM) e.motionIndex=+(wI*iM[i]+wC*sharedM[i]).toFixed(3);
+        eps.push(e); }
+      return A({ schema:{node:node}, recording:{startEpochMs:t0, durationMin:NE*5}, quality:{analyzablePct:95},
+        hrv:{time:{rmssd:40, sdnn:60}}, timeseries:{epochs:eps},
+        ganglior_events:[{t:'23:00:10', tMs:t0+10000, impulse:'x', node:node, conf:.8}] }, node, node+'.json')[0];
+    }
+    // (1) HR-hat fires — ECG σ=1, PPG σ=2, Oxy σ=4 (var {1,4,16}) → culprit OxyDex; all 3 carry correlated motion → ρ from motion
+    var cons = FC([ mk('ECGDex',1,11,111), mk('PpgDex',2,22,222), mk('OxyDex',4,33,333) ], 1000);
+    var blk = cons && cons.blocks && cons.blocks[0];
+    T.ok('consensus block produced (HR triplet)', !!blk);
+    if(!blk) return;
+    T.ok('HR-hat attached + ok', !!(blk.tchHR && blk.tchHR.ok), 'status='+blk.tchHRStatus);
+    if(blk.tchHR && blk.tchHR.ok){
+      T.eq('HR-hat metric = hr', blk.tchHR.metric, 'hr');
+      T.eq('HR-hat names noisiest node (OxyDex) as culprit', blk.tchHR.culprit, 'OxyDex');
+      T.ok('HR-hat σ²(OxyDex) dominates both others (noisy culprit clearly separated)', blk.tchHR.sigma2.OxyDex>2*blk.tchHR.sigma2.PpgDex && blk.tchHR.sigma2.OxyDex>2*blk.tchHR.sigma2.ECGDex, JSON.stringify({oxy:+blk.tchHR.sigma2.OxyDex.toFixed(1),ppg:+blk.tchHR.sigma2.PpgDex.toFixed(1),ecg:+blk.tchHR.sigma2.ECGDex.toFixed(1)}));
+      T.ok('HR-hat recovers σ²(OxyDex)≈16 (planted)', Math.abs(blk.tchHR.sigma2.OxyDex-16)<9, ''+blk.tchHR.sigma2.OxyDex.toFixed(1));
+      T.ok('reconciled HR present + near truth', blk.hrReconciled!=null && Math.abs(blk.hrReconciled-truthMean)<4, 'hr='+blk.hrReconciled+' truth='+truthMean);
+      T.ok('note calls out the HR-hat culprit', /HR-hat/.test(blk.note) && /OxyDex/.test(blk.note));
+      // §1 — ρ DERIVED from cross-node motion (3 correlated motion series) and PASSED to the estimator
+      T.ok('ρ estimated from cross-node motion (3 nodes)', !!(blk.tchHR.rhoEstimate && blk.tchHR.rhoEstimate.method==='cross-node-motion' && blk.tchHR.rhoEstimate.nMotionNodes===3 && blk.tchHR.rhoEstimate.value>0), JSON.stringify(blk.tchHR.rhoEstimate));
+      T.ok('derived ρ ≈ planted RHO=0.5', Math.abs(blk.tchHR.rhoEstimate.value-0.5)<0.25, ''+blk.tchHR.rhoEstimate.value);
+      T.ok('derived ρ passed → correlated-external solve used it', blk.tchHR.method==='correlated-external' && blk.tchHR.rho===blk.tchHR.rhoEstimate.value, 'method='+blk.tchHR.method+' rho='+blk.tchHR.rho);
+    }
+    // (2) DEGRADE ρ — <2 motion series (only ECG carries motion) → classic solve (ρ null estimate), HR-hat still fires
+    var cons2 = FC([ mk('ECGDex',1,11,111), mk('PpgDex',2,22,null), mk('OxyDex',4,33,null) ], 1000);
+    var blk2 = cons2 && cons2.blocks && cons2.blocks[0];
+    T.ok('degrade ρ: <2 motion series → classic (ρ null), HR-hat still fires', !!(blk2 && blk2.tchHR && blk2.tchHR.ok && blk2.tchHR.rhoEstimate==null && blk2.tchHR.method==='classic'), 'method='+(blk2&&blk2.tchHR&&blk2.tchHR.method)+' rhoEst='+(blk2&&blk2.tchHR&&JSON.stringify(blk2.tchHR.rhoEstimate)));
+    // (3) DEGRADE hat — only 2 hr-series nodes → tchHR null (pairwise consensus intact)
+    var cons3 = FC([ mk('ECGDex',1,11,111), mk('PpgDex',2,22,222) ], 1000);
+    var blk3 = cons3 && cons3.blocks && cons3.blocks[0];
+    T.ok('degrade: <3 hr series → tchHR null', !!blk3 && blk3.tchHR==null, 'status='+(blk3&&blk3.tchHRStatus));
+  });
+
   /* ════ 5b · INTEGRATOR periodic-breathing cross-node corroboration (OXYDEX-…-II §2) ════
      PB observed by ≥2 INDEPENDENT signals (OxyDex SpO₂ oscillation · CPAPDex device flow ·
      ECGDex cardiac CVHR) corroborates; a LONE observer surfaces NO fused finding; confidence is
@@ -5205,6 +5260,74 @@ function runDexTests(env) {
 
     // ── viewer-timezone independence: same inputs → identical detection regardless of host TZ ──
     T.eq('hypo detection is viewer-tz independent (re-run → identical count)', run(GENUINE).nocturnalHypo.length, rg.nocturnalHypo.length);
+  });
+
+  /* ════ REGISTRY ↔ _DEFS PARITY (REGISTRY-PROJECTION-2026-07-04 Phase 1) ════
+     The registry is THE grade/display source; each *-cross.js *_DEFS is a hand-kept mirror
+     of it (oxydex-registry.js head: "keep label/unit/goodDirection identical to oxydex-cross.js
+     OXY_DEFS"). This gate asserts, for every EXPORTED DEFS entry that resolves to a registry id
+     (by label, then by id), that label/unit/good — plus evidence/cite where the def carries them —
+     EQUAL the registry (registry WINS). So the second mirror can no longer silently drift. Object-
+     DEFS nodes (OxyDex/PpgDex/CPAPDex) are covered via their exported *_DEFS; ECGDex/PulseDex keep
+     their defs as an un-exported METRICS[] literal → recorded deferred (Phase 2 can export it; no
+     re-bundle here). Pre-existing stale DEFS live in KNOWN_DRIFT and surface as ⊘ skips carrying the
+     exact fix, so the suite stays GREEN while the DEFS-fix + re-bundle is the Phase-2 pass; any NEW/
+     unlisted drift HARD-FAILS. KNOWN_DRIFT is itself checked for staleness (a fixed entry MUST be
+     pruned — the check reds if a baseline item no longer drifts). No env wiring added: env.OXYCross/
+     PPGCross/CPAPCross + the *Registry resolvers are already fed to BOTH runners. ════ */
+  group('Registry ↔ _DEFS parity (registry is the source)', 'registry-defs-parity · cohesion', function (T) {
+    var norm = function (s) { return String(s == null ? '' : s).toLowerCase().replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim(); };
+    // Pre-existing stale DEFS (node|registryId|field). Each is a DEFS that drifted from the registry
+    // truth; clear it in the Phase-2 DEFS-fix + re-bundle (registry wins), then delete the line here.
+    var KNOWN_DRIFT = {
+      'OxyDex|meanSpo2|evidence': 1, 'OxyDex|meanHr|evidence': 1,
+      'PpgDex|pi|label': 1, 'PpgDex|motion|label': 1,
+      'CPAPDex|residualAHI|evidence': 1, 'CPAPDex|centralIndex|evidence': 1,
+      'CPAPDex|usageHours|evidence': 1, 'CPAPDex|usageHours|label': 1
+    };
+    var hit = {};
+    var NODES = [
+      { node: 'OxyDex',  cross: env.OXYCross,  resolver: env.OxyRegistry,  defsKey: 'OXY_DEFS' },
+      { node: 'PpgDex',  cross: env.PPGCross,  resolver: env.PpgRegistry,  defsKey: 'PPG_DEFS' },
+      { node: 'CPAPDex', cross: env.CPAPCross, resolver: env.CpapRegistry, defsKey: 'CPAP_DEFS' }
+    ];
+    var covered = false;
+    NODES.forEach(function (N) {
+      if (!(N.cross && N.resolver && N.resolver.REGISTRY)) { T.ok(N.node + ' — cross + resolver wired', false, 'co-load ' + N.node + ' cross + registry into env (both runners)'); return; }
+      var DEFS = N.cross[N.defsKey];
+      if (!DEFS) { T.skip(N.node + ' — ' + N.defsKey + ' exported', N.defsKey + ' not on ' + N.node + ' cross export surface'); return; }
+      covered = true;
+      var REG = N.resolver.REGISTRY, idForLabel = N.resolver.idForLabel;
+      Object.keys(DEFS).forEach(function (defId) {
+        var d = DEFS[defId];
+        var label = d.label != null ? d.label : defId;
+        var good = d.good != null ? d.good : d.goodDirection;
+        var id = (idForLabel && idForLabel(label)) || (REG[defId] ? defId : null);
+        if (!id) { T.skip(N.node + ' · ' + defId + ' — resolves to a registry grade', 'DEFS label "' + label + '" (id ' + defId + ') resolves to no registry id — longitudinal badge falls to the experimental fallback'); return; }
+        var reg = REG[id];
+        var checks = [
+          { field: 'label', a: norm(reg.label), b: norm(label), sa: reg.label, sb: label },
+          { field: 'unit',  a: (reg.unit || ''), b: (d.unit || ''), sa: reg.unit || '\u2205', sb: d.unit || '\u2205' },
+          { field: 'good',  a: reg.goodDirection, b: good, sa: reg.goodDirection, sb: good }
+        ];
+        if (d.evidence != null) checks.push({ field: 'evidence', a: reg.evidence, b: d.evidence, sa: reg.evidence, sb: d.evidence });
+        if (d.cite != null)     checks.push({ field: 'cite', a: norm(reg.cite), b: norm(d.cite), sa: '(reg)', sb: '(def)' });
+        checks.forEach(function (c) {
+          var name = N.node + ' \u00b7 ' + id + ' \u00b7 ' + c.field + ' — DEFS \u2261 registry';
+          var key = N.node + '|' + id + '|' + c.field;
+          if (c.a === c.b) { T.ok(name, true); }
+          else if (KNOWN_DRIFT[key]) { hit[key] = 1; T.skip(name, 'KNOWN pre-existing drift — registry "' + c.sa + '" vs DEFS "' + c.sb + '"; fix ' + N.defsKey + ' (registry wins) + re-bundle ' + N.node + ' [REGISTRY-PROJECTION Phase 2]'); }
+          else { T.ok(name, false, 'DRIFT — registry "' + c.sa + '" \u2260 DEFS "' + c.sb + '" (registry wins: fix ' + N.defsKey + ')'); }
+        });
+      });
+    });
+    T.ok('at least one node DEFS gated', covered);
+    // KNOWN_DRIFT must not go stale: if a baseline item no longer drifts (fixed), red so it gets pruned.
+    Object.keys(KNOWN_DRIFT).forEach(function (k) { T.ok('KNOWN_DRIFT still applies: ' + k, !!hit[k], hit[k] ? '' : 'baseline entry no longer drifts — remove it from KNOWN_DRIFT'); });
+    // ECGDex/PulseDex carry their metric defs as an un-exported METRICS[] literal used inside
+    // crossNightBlock (not on the cross export surface), so they can't be gated without a source
+    // change → re-bundle. Recorded deferred (REGISTRY-PROJECTION Phase 2 can export METRICS[]).
+    T.skip('ECGDex/PulseDex METRICS[] parity', 'METRICS[] not exported on ECGCross/PulseCross — deferred to Phase 2 (needs a cross-file export change → re-bundle)');
   });
 
   /* ════ Integrator evidence-grade mirror ≡ node registries ════

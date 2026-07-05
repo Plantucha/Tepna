@@ -4,7 +4,18 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-06-25 (§1 DONE — zero-seed gate broadened + HRVDex re-bundled, both gates green; §2 DONE — tier-split rationale recorded, option b; §3 deferred-by-design to PulseDex's own pass; §4 carried — needs a Node host / interactive session) · **Created:** 2026-06-25 · **Follows:** SIGNAL-ADAPTER-FOLLOWUPS-III-2026-06-24-BRIEF.md (§1 native Baevsky guard) + SIGNAL-ADAPTER-AND-FRONTIER §8 #1/#2/#5 · **Sibling-of:** -II / -III / -IV
+**Status:** DONE — 2026-07-04 (§§1·2 DONE 2026-06-25; §4 live-UI drop-through discharged 2026-07-04, §4 Node-CI half carried as fleet standing debt; §3 PulseDex `*Est` quarantine deferred to PulseDex's own pass — see closeout) · **Created:** 2026-06-25 · **Follows:** SIGNAL-ADAPTER-FOLLOWUPS-III-2026-06-24-BRIEF.md (§1 native Baevsky guard) + SIGNAL-ADAPTER-AND-FRONTIER §8 #1/#2/#5 · **Sibling-of:** -II / -III / -IV
+
+> **CLOSED — DONE 2026-07-04.** The **-IV §1 live-UI-drop half of §4 is discharged** (interactive
+> session): a Welltory summary CSV — plus a raw O2Ring + raw RR — emit valid `ganglior.node-export`s
+> through the real Data Unifier / OverDex UI. Note the Welltory path this pass touched (`computeDerived`)
+> is the APP path, NOT the adapter `HRVDex.compute` path the Unifier uses — but running the Unifier route
+> anyway surfaced + FIXED a separate adapter bug (`welltory-summary.js` emitted newest-first `tsMs` →
+> invalid frame → HRV emit silently dead; now sorted ascending at ingest, zero gate cost). **§3** (PulseDex
+> `stressEst/energyEst/focusEst/cohEst` quarantine — the other half of §8 #5) remains correctly deferred
+> to PulseDex's own next pass, NOT a drive-by: the registry still tiers those composites `experimental`
+> (confirmed 2026-07-04). **§4 Node-CI half** (`node tests/run-tests.mjs` exit 0) stays the fleet-wide
+> standing Node-CI debt — no Node host here — already carried in the VI–XII tail + `NODE-RESIDUE-FOLLOWUPS`.
 > **Progress 2026-06-25.** **§1 DONE** — `hrvdex-dsp.js computeDerived` now gates EVERY black-box-fed composite on ONE shared `_hasSubj` predicate (all six subjective inputs >0): `d_se_div`, `d_coh_energy`, `d_pti`, `d_sfd`, `d_focus_eff`, `d_hile` → NaN on a raw recording instead of a fabricated 0 (the three §8 #2 KPIs were already gated; `d_sdi` is measured-backed (LF/HF), intentionally left). HRVDex re-bundled (external-JS-only): manifestHash `dd380264fcef→ea74b3639c33`, buildHash `de20db283366` UNCHANGED; `BUILD-MANIFEST.json` GATE A updated; seconds-unit/Welltory files unaffected (subjective cols >0 → value-identical) so NO fixture drift; HRVDex still has no code-gated fixtures (GATE B clean). **§2 DONE** — option (b): the tier-split rationale (the named five at heuristic; siblings `pti`/`abs`/`coherence`/`focusEff`/`stress`/`energy` stay experimental ON PURPOSE — visibility-weighted, not oversight) is now recorded in `hrvdex-registry.js`; rode the same §1 re-bundle. Dex-Test-Suite all-green (+§1 source-mirror group), verify-provenance GATE A/B clean. **§3** (PulseDex `*Est` quarantine) is left to PulseDex's own next touch — NOT a drive-by, per the brief. **§4** (run `node tests/run-tests.mjs`; manual UI drop-through of -IV §1) is carried forward — no Node host / interactive session here.
 
 # Signal-adapter Phase-9 — follow-ups V (what the HRVDex native-correctness pass exposed)

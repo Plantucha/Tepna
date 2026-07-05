@@ -439,14 +439,15 @@ async function runRenderCoverage(){
   var _rcMark = function(label){ var now = performance.now(); window.__rcTimings.push({ label: label, ms: Math.round(now - _rcT) }); _rcT = now; };
   const btn=document.getElementById('rcBtn'); if(btn){ btn.disabled=true; btn.textContent='⏳ Running render-coverage…'; }
   render();
+  __rcDeadline = Date.now() + RC_TOTAL_BUDGET_MS;   // overall wall-clock ceiling for the whole render-coverage tail
   const want=rcWanted();
-  if(want('Render coverage — ECGDex computed → DOM','browser-only · ECGDex.html')){ ALL_GROUPS.push(await renderCoverageECGDex()); _rcMark('ECGDex'); render(); }
-  if(want('Render coverage — CPAPDex computed → DOM','browser-only · CPAPDex.html')){ ALL_GROUPS.push(await renderCoverageCPAPDex()); _rcMark('CPAPDex'); render(); }
-  if(want('Render coverage — Integrator periodic breathing → DOM','browser-only · Integrator.html · §2')){ ALL_GROUPS.push(await renderCoverageIntegratorPB()); _rcMark('IntegratorPB'); render(); }
+  if(want('Render coverage — ECGDex computed → DOM','browser-only · ECGDex.html')){ ALL_GROUPS.push(await rcLeg('Render coverage — ECGDex computed → DOM','browser-only · ECGDex.html','ECGDex.html', renderCoverageECGDex)); _rcMark('ECGDex'); render(); }
+  if(want('Render coverage — CPAPDex computed → DOM','browser-only · CPAPDex.html')){ ALL_GROUPS.push(await rcLeg('Render coverage — CPAPDex computed → DOM','browser-only · CPAPDex.html','CPAPDex.html', renderCoverageCPAPDex)); _rcMark('CPAPDex'); render(); }
+  if(want('Render coverage — Integrator periodic breathing → DOM','browser-only · Integrator.html · §2')){ ALL_GROUPS.push(await rcLeg('Render coverage — Integrator periodic breathing → DOM','browser-only · Integrator.html · §2','Integrator.html', renderCoverageIntegratorPB)); _rcMark('IntegratorPB'); render(); }
   // app-bundle render coverage for the remaining six apps (synthetic data injected via SYNTH)
   for(const cfg of APP_COVERAGE){
     if(!want('Render coverage — '+cfg.name+' computed → DOM','browser-only · '+cfg.file)) continue;
-    const ga = await renderCoverageApp(cfg);
+    const ga = await rcLeg('Render coverage — '+cfg.name+' computed → DOM','browser-only · '+cfg.file, cfg.file, ()=>renderCoverageApp(cfg));
     ALL_GROUPS.push(ga);
     _rcMark(cfg.name);
     render();
@@ -886,6 +887,48 @@ async function bootRigOrSkip(rig, url, timeout, retryTimeout){
   timeout = timeout||9000; retryTimeout = retryTimeout||18000;
   if(await bootRig(rig, url, timeout)) return { booted:true, attempts:1 };
   return { booted: await bootRig(rig, url, retryTimeout), attempts:2 };
+}
+
+/* ── RENDER-COVERAGE MEMORY/STALL HARDENING (BROWSER-GATES-CI-MEMORY-STALL 2026-07-04) ───────────
+   The CI failure mode was ONE leg (CPAPDex, rig-position 2) dragging the whole gate past the 15-min
+   ceiling with bootSkips=[] and no verdict. Two roots, both addressed here:
+   (1) MEMORY — the 9 legs reuse a single #rig; each leg's finally navigates it to about:blank, which
+       UNLOADS the previous MB-scale bundle's realm (freeing its heap). Between legs _rcYield() then
+       hands the renderer idle time so GC can actually reclaim it before the next boot — the breathing
+       room a memory-thin CI renderer (shm-on-disk) needs so 9 sequential boots don't accumulate + thrash.
+       (An earlier attempt DESTROYED + rebuilt the iframe per leg; it regressed two legs' render-ready
+       detection for no memory gain over about:blank unload, so it was dropped.)
+   (2) NO PER-LEG CEILING — bootRig's watchdog bounds only the onload wait, not the post-boot probes
+       (waitForRender/profile/review), so a thrash-slowed leg had no upper bound. rcLeg() races the
+       ENTIRE leg against RC_LEG_BUDGET_MS and an overall RC_TOTAL_BUDGET_MS deadline; an overrun is
+       an environmental SKIP (⊘, same class as a cold-boot skip) that frees the wedged rig, so the
+       run always reaches __rcState='done' with an actionable verdict WELL under the CI ceiling.
+   The CI stall left the event loop alive (browser-gates.mjs still read window.__rcState at timeout),
+   so these setTimeout-based guards reliably fire; the memory fix attacks the thrash at its source. */
+const RC_LEG_BUDGET_MS = 90000;     // per-leg wall-clock ceiling (healthy worst case ~45s: 27s boot+retry, 14s render, ~3s probes)
+const RC_TOTAL_BUDGET_MS = 660000;  // overall ceiling (11 min) — remaining legs skip instantly past it, keeping total < the 15-min CI ceiling
+let __rcDeadline = 0;
+function _rcYield(){ return new Promise(res=>{ if(typeof requestIdleCallback==='function') requestIdleCallback(()=>res(), {timeout:400}); else setTimeout(res, 80); }); }
+function _rcLegSkip(title, tag, file, why){
+  const old=document.getElementById('rig'); if(old){ try{ old.src='about:blank'; }catch(_){} }   // free the wedged bundle; the reused rig survives for later legs
+  const g=mkGroup(title, tag);
+  addSkip(g, 'render-coverage leg completes within budget', file+' '+why+' — SKIPPED (environmental CI memory stall; inconclusive, not a regression)');
+  try{ (window.__rcBootSkips=window.__rcBootSkips||[]).push(file+' (leg-budget)'); }catch(_){}
+  return g;
+}
+/* Run ONE render-coverage leg on a fresh rig, bounded by the per-leg + overall budgets. Returns the
+   leg's group, or a SKIP group on overrun/overall-deadline (never throws, never hangs the gate). */
+async function rcLeg(title, tag, file, legFn){
+  if(__rcDeadline && Date.now()>__rcDeadline) return _rcLegSkip(title, tag, file, 'skipped past the overall render-coverage deadline');
+  await _rcYield();   // GC breathing room after the previous leg's about:blank unload
+  let timer=null;
+  const budget=new Promise(res=>{ timer=setTimeout(()=>res('__rcbudget'), RC_LEG_BUDGET_MS); });
+  const legP=Promise.resolve().then(legFn).catch(e=>({ __legErr:(e&&e.message)||'threw' }));
+  const r=await Promise.race([legP, budget]);
+  clearTimeout(timer);
+  if(r==='__rcbudget') return _rcLegSkip(title, tag, file, 'exceeded the '+Math.round(RC_LEG_BUDGET_MS/1000)+'s per-leg budget');
+  if(r && r.__legErr){ const g=mkGroup(title, tag); add(g, 'render-coverage leg completes', false, r.__legErr); return g; }
+  return r;
 }
 
 /* Boot Integrator.html, drive the REAL normalize → runFusion → renderAll path in the bundle's

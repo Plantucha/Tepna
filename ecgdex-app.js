@@ -1250,7 +1250,7 @@ function ecgReviewTimeline(events){
 function ecgReviewView(review){
   var rec=review.recording||{}, hrv=review.hrv||{}, t=hrv.time||{}, fq=hrv.frequency||{}, q=review.quality||{};
   var prov=review.provenance||{}, bh=prov.buildHash||(review.derivedFrom&&review.derivedFrom.buildHash)||null, gen=_ecgFmtGen(prov.generated||review.generated);
-  var nv=function(v,d){ return (v==null||v!==v)?(d||'\u2014'):v; };
+  var nv=function(v,d){ return (v==null||Number.isNaN(v))?(d||'\u2014'):v; };
   var h='<div class="erv-banner" role="status">'
     +'<span class="erv-tag"><span class="erv-dot"></span>Review mode</span>'
     +'<span>Loaded from export \u00b7 <strong>not recomputed</strong>'+(review.scrubbed?' \u00b7 <strong>scrubbed for sharing</strong>':'')+'</span>'

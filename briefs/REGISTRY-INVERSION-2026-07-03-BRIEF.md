@@ -6,7 +6,7 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-07-04 (Phase 0 executed; **owner selected direction (A) — invert the inversion — on 2026-07-04**; a successor registry→manifest brief will carry the work, and THIS brief closes when that lands) · **Created:** 2026-07-03
+**Status:** DONE — 2026-07-04 (Phase 0 audit delivered as `codegen/PARITY-AUDIT.md`; the flip mechanism is SUPERSEDED by owner-selected direction (A) — Phases 1–3 deliberately not pursued) · **Superseded-by:** REGISTRY-PROJECTION-2026-07-04-BRIEF.md · **Created:** 2026-07-03
 
 # Registry inversion — manifests become the SOLE source; registries become build artifacts
 

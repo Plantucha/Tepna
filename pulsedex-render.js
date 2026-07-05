@@ -353,7 +353,7 @@ function pulseReviewTimeline(events){
 function pulseReviewView(review){
   var rec=review.recording||{}, hrv=(review.hrv||{}), t=(hrv.time||{}), pc=(hrv.poincare||{});
   var prov=review.provenance||{}, bh=prov.buildHash||(review.derivedFrom&&review.derivedFrom.buildHash)||null, gen=_pulseFmtGen(prov.generated||review.generated);
-  var nv=function(v,d){ return (v==null||v!==v)?(d||'—'):v; };
+  var nv=function(v,d){ return (v==null||Number.isNaN(v))?(d||'—'):v; };
   var h='<div class="prv-banner" role="status">'
     +'<span class="prv-tag"><span class="prv-dot"></span>Review mode</span>'
     +'<span>Loaded from export · <strong>not recomputed</strong>'+(review.scrubbed?' · <strong>scrubbed for sharing</strong>':'')+'</span>'

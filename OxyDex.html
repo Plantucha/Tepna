@@ -8501,7 +8501,7 @@ var OXY_LABEL_ALIAS = {
   /* event-stream impulse label → grade (OXYDEX-NODE-EXPORT-ENVELOPE §2b) */
   'periodic breathing':'periodicBreathing', 'periodic_breathing':'periodicBreathing',
   /* night-row chip + center-KPI short labels */
-  'spo₂':'meanSpo2', 'min o₂':'minSpo2', 't<90%':'t90', 'z2':'z2win', 'hr⌊':'hrFloor',
+  'z2':'z2win', 'hr⌊':'hrFloor',
   'hr-var':'hrVarSd', 'hrsl':'hrSlope', 'sleepeff':'sleepEff', 'ahi':'ahiEst'
 };
 
@@ -11173,6 +11173,11 @@ function processNight(rows, fname) {
   var karv       = computeKarvonenZones(rows, hrv, vo2est, odi4, hypDose, sleepArch, stageProxy, UP.age);
   var night_obj = { date:date, t0Ms:t0Ms, fname:fname, stats:stats, spikes:spikes, period:period, osc:osc, tIdx:tIdx, hrv:hrv, odi4:odi4, odi3:odi3, hb:hb, motion:motion, stab:stab, desat:desat, hrProf:hrProf, motSleep:motSleep, cross:cross, spo2Adv:spo2Adv, hrAdv:hrAdv, comp:comp, sbii:sbii, pred3p:pred3p, desSev:desSev, ctPrec:ctPrec, ct94:ct94, slopes:slopes, pbMet:pbMet, sleepArch:sleepArch, odi1:odi1, mos:mos, ahiEst:ahiEst, extras:extras, rolling:rolling, patScore:patScore, dfa:dfa, fft:fft, hrEnt:hrEnt, ssi:ssi, circHR:circHR, spo2Ent:spo2Ent, hypLoad:hypLoad, vagal:vagal, recIdx:recIdx, sleepP:sleepP, breathI:breathI, oxyCrash:oxyCrash, hrnDip:hrnDip, desatAsym:desatAsym, flags:flags, spo2Drift:spo2Drift, odi2:odi2, spo2Over:spo2Over, spo2Ac1:spo2Ac1, hrFreq:hrFreq, respRate:respRate, hrAsym:hrAsym, hrQuart:hrQuart, spo2HRLag:spo2HRLag, spkDecay:spkDecay, spkUnder:spkUnder, spkRise:spkRise, dataGaps:dataGaps, hrFlat:hrFlat, spo2Ceil:spo2Ceil, odri:odri, spo2Pct:spo2Pct, spo2Shape:spo2Shape, hrCV:hrCV, hypDose:hypDose, t88t85:t88t85, lcsp:lcsp, poincare:poincare, o2hrEff:o2hrEff, condSpo2:condSpo2, nadirTrend:nadirTrend, iei:iei, recovCV:recovCV, hrNadirT:hrNadirT, spo2NadirT:spo2NadirT, rmssdArc:rmssdArc, spk50Rec:spk50Rec, stageProxy:stageProxy, vo2est:vo2est, bpProj:bpProj, karv:karv };
   night_obj.oscEpisodes = _oscEpisodes;
+  // INTEGRATOR-THREE-CORNERED-HAT §2/§1 — per-epoch cross-node feed (5-min HR + motion). Binned
+  // from the SAME cleaned 1 Hz rows every metric reads, keyed on tMin from t0Ms (matches ECG/PPG's
+  // node-relative grid). Feeds the Integrator HR-hat 3rd corner + a 2nd per-epoch motion series for
+  // the correlated-TCH ρ (only PpgDex had one). Additive; empty when rows/t0Ms are absent.
+  night_obj.tchEpochs = oxyBuildEpochSeries(rows, t0Ms);
   night_obj.summary = computeSmartSummary(night_obj);
   // EXPORT-IDENTITY §2.1 / -FOLLOWUPS-II §1: deterministic, identity-free recording handle.
   // processNight is the ONE site BOTH the app (exportJSON→allNights→oxyBuildNightElement) AND
@@ -13646,6 +13651,40 @@ function _oxyRowsFromInput(input){
   if(typeof input.text==='string') return parseCSV(input.text, input.fileMeta||null);
   return null;
 }
+// ── Per-epoch cross-node series (INTEGRATOR-THREE-CORNERED-HAT §2 — OxyDex per-epoch HR) ─────────
+// Bin the cleaned 1 Hz rows into 5-min epochs: hr = MEDIAN pulse-HR (robust to residual spikes),
+// motionIndex = MEAN O2Ring motion count. tMin is node-relative (minutes from t0Ms), matching the
+// ECG/PpgDex epochs[] grid so the Integrator's alignTriplet lines them up. Epochs with <60 s of HR
+// coverage are dropped (sparse edge windows). PURE; [] when rows/t0Ms absent. The O2Ring's motion
+// column makes this the SECOND per-epoch motion series in the HR triplet → unblocks correlated-TCH ρ.
+function oxyBuildEpochSeries(rows, t0Ms){
+  if(!rows || !rows.length || t0Ms==null) return [];
+  var EP=300000, bins={};   // 5 min in ms
+  for(var i=0;i<rows.length;i++){ var r=rows[i]; if(!r || r.tMs==null) continue;
+    var k=Math.floor((r.tMs - t0Ms)/EP); if(k<0) continue;
+    var b=bins[k] || (bins[k]={hr:[],mo:[]});
+    if(typeof r.hr==='number' && isFinite(r.hr)) b.hr.push(r.hr);
+    if(typeof r.motion==='number' && isFinite(r.motion)) b.mo.push(r.motion);
+  }
+  function _median(a){ if(!a.length) return null; var s=a.slice().sort(function(x,y){return x-y;}); var m=s.length>>1; return s.length%2 ? s[m] : (s[m-1]+s[m])/2; }
+  function _mean(a){ if(!a.length) return null; var t=0; for(var j=0;j<a.length;j++) t+=a[j]; return t/a.length; }
+  var out=[];
+  Object.keys(bins).map(Number).sort(function(a,b){return a-b;}).forEach(function(k){
+    var b=bins[k]; if(b.hr.length<60) return;   // ≥1 min HR coverage in the 5-min window
+    var mh=_median(b.hr), mm=_mean(b.mo);
+    out.push({ tMin:k*5, hr:(mh!=null?+mh.toFixed(1):null), motionIndex:(mm!=null?+mm.toFixed(3):null) });
+  });
+  return out;
+}
+// Top-level `timeseries` block — sibling to nights[], where adaptEnvelopeNode reads
+// json.timeseries.epochs[].{hr,motionIndex}. Kept OUT of the per-night element so nights[0] stays
+// byte-identical (the OxyDex equiv fixtures diff nights[0]). Single-recording only (multi-night uses
+// the crossNight longitudinal path, not per-epoch TCH); null when no epochs.
+function oxyBuildTimeseriesBlock(nightsChrono){
+  var n = (nightsChrono && nightsChrono.length===1) ? nightsChrono[0] : null;
+  if(!n || !Array.isArray(n.tchEpochs) || !n.tchEpochs.length) return null;
+  return { doc:'5-min epochs — cross-node feed for three-cornered-hat: hr = median pulse-HR (bpm), motionIndex = mean O2Ring motion count. HR-hat 3rd corner (ECG+PPG+Oxy) + a 2nd per-epoch motion series for the correlated-TCH ρ.', epochs:n.tchEpochs };
+}
 function oxyComputeNight(input, fname){
   var rows=_oxyRowsFromInput(input);
   if(!rows || rows.length<1) return null;
@@ -13677,12 +13716,15 @@ OxyDex.compute = function(input, opts){
     recording:{ source:'spo2', startEpochMs:t0, offsetMin:(opts.offsetMin!=null?opts.offsetMin:null),
       durationMin:(night.stats?night.stats.durationMin:null), beats:(night.stats?night.stats.n:null), coveragePct:null },
     ganglior_events:oxyBuildGangliorEvents([night]),
+    timeseries:oxyBuildTimeseriesBlock([night]),
     nights:[el]
   };
 };
 OxyDex.computeNight = oxyComputeNight;
 OxyDex.buildNightElement = oxyBuildNightElement;
 OxyDex.buildGangliorEvents = oxyBuildGangliorEvents;
+OxyDex.buildTimeseriesBlock = oxyBuildTimeseriesBlock;
+OxyDex.buildEpochSeries = oxyBuildEpochSeries;
 // SELF-INGEST (SELF-INGEST-2026-06-27): the pure self-reload + share-scrub surface, exposed on the
 // namespace so BOTH the app (readFile routing) and the test runners reach the SAME functions.
 OxyDex.loadOwnExport = oxyLoadOwnExport;
@@ -17726,6 +17768,9 @@ function exportJSON(){
       doc:'OxyDex SpO₂/oximetry node-export. nights[] = per-night summaries (unchanged). ganglior_events[] = desat_event (per scored desaturation) + periodic_breathing (per oscillation episode); OxyDex infers respiration from an SpO₂ proxy, not airflow. crossNight = ganglior.crossnight v1.0 aggregate (≥3 nights only, else null). tMs = floating wall-clock ms (UTC getters); null = unknown, never fabricated.' },
     recording:{ startEpochMs:(_aT0!=null?_aT0:null), offsetMin:(_aF&&_aF.offsetMin!=null?_aF.offsetMin:null) },
     ganglior_events:_events,
+    // INTEGRATOR-THREE-CORNERED-HAT §2 — top-level per-epoch HR+motion feed (single-night only,
+    // matching OxyDex.compute). Sibling to nights[] so the per-night elements stay byte-identical.
+    timeseries:(nights.length===1 ? OxyDex.buildTimeseriesBlock(nights) : null),
     crossNight:_crossNight,
     nights: lines
   };

@@ -5,7 +5,6 @@
  * Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
  * project root, or http://www.apache.org/licenses/LICENSE-2.0
  */
-#!/usr/bin/env node
 // dex-test-gen.js — Generates synthetic-data tests from a Dex manifest
 //
 // Usage: node dex-test-gen.js <manifest.json> [--output <file.js>]

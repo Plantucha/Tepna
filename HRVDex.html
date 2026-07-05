@@ -9756,7 +9756,7 @@ function _hrvInjectReviewCSS(){
 function hrvReviewView(review){
   var ms=Array.isArray(review.measurements)?review.measurements:[], rec=review.recording||{};
   var prov=review.provenance||{}, bh=prov.buildHash||(review.derivedFrom&&review.derivedFrom.buildHash)||null, gen=_hrvFmtGen(prov.generated||review.generated);
-  var nv=function(v,d){ return (v==null||v!==v)?(d||'\u2014'):v; };
+  var nv=function(v,d){ return (v==null||Number.isNaN(v))?(d||'\u2014'):v; };
   var num=function(a){ return a.filter(function(v){return typeof v==='number'&&isFinite(v);}); };
   var mean=function(a){ a=num(a); return a.length?+(a.reduce(function(x,y){return x+y;},0)/a.length).toFixed(1):null; };
   var last=ms.length?ms[ms.length-1]:{};

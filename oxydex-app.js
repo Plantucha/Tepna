@@ -130,6 +130,9 @@ function exportJSON(){
       doc:'OxyDex SpO₂/oximetry node-export. nights[] = per-night summaries (unchanged). ganglior_events[] = desat_event (per scored desaturation) + periodic_breathing (per oscillation episode); OxyDex infers respiration from an SpO₂ proxy, not airflow. crossNight = ganglior.crossnight v1.0 aggregate (≥3 nights only, else null). tMs = floating wall-clock ms (UTC getters); null = unknown, never fabricated.' },
     recording:{ startEpochMs:(_aT0!=null?_aT0:null), offsetMin:(_aF&&_aF.offsetMin!=null?_aF.offsetMin:null) },
     ganglior_events:_events,
+    // INTEGRATOR-THREE-CORNERED-HAT §2 — top-level per-epoch HR+motion feed (single-night only,
+    // matching OxyDex.compute). Sibling to nights[] so the per-night elements stay byte-identical.
+    timeseries:(nights.length===1 ? OxyDex.buildTimeseriesBlock(nights) : null),
     crossNight:_crossNight,
     nights: lines
   };

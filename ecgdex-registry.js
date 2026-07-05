@@ -160,7 +160,7 @@ var ECG_LABEL_ALIAS = {
   'ln rmssd':'lnRMSSD', 'lnrmssd':'lnRMSSD', 'ln(rmssd)':'lnRMSSD',
   'mean hr':'hr', 'hr':'hr',
   'dfa α1':'dfaAlpha1', 'dfa a1':'dfaAlpha1', 'dfa alpha1':'dfaAlpha1', 'dfaα1':'dfaAlpha1',
-  'qtc':'qtc', 'qtc (bazett)':'qtc', 'qtc (fridericia)':'qtc', 'qtc bazett':'qtc',
+  'qtc':'qtc', 'qtc (bazett)':'qtc', 'qtc bazett':'qtc',
   'cvhr index':'cvhrIndex', 'cvhr':'cvhrIndex',
   'decel. capacity':'decelCapacity', 'decel. cap.':'decelCapacity', 'decel capacity':'decelCapacity', 'decel cap.':'decelCapacity', 'decel cap':'decelCapacity',
   'resp rate':'respRate',

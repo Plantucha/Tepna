@@ -1250,7 +1250,6 @@ function analyze(rec, onProgress){
     mode: modeInfo.mode, modeLabel: modeInfo.modeLabel, modeWhy: modeInfo.modeWhy, modeConf: modeInfo.modeConf,
     ambulatory, activityScore: modeInfo.activityScore, activity: modeInfo.activity,
     sleepSuppressed, apneaSuppressed, _accEx,
-    t0Ms: rec.t0Ms,
     // raw refs for canvas + charts
     int16, bp, peaks, refIdx, times: Array.from(times), sqi: Array.from(sqi),
     nn, tt, corrected: Array.from(nnRes.corrected),

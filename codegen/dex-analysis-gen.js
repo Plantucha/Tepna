@@ -5,7 +5,6 @@
  * Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
  * project root, or http://www.apache.org/licenses/LICENSE-2.0
  */
-#!/usr/bin/env node
 // dex-analysis-gen.js — Generates a JS analysis module from a Dex manifest
 //
 // Usage: node dex-analysis-gen.js <manifest.json> [--output <file.js>]

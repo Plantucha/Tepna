@@ -202,7 +202,7 @@ var OXY_LABEL_ALIAS = {
   /* event-stream impulse label → grade (OXYDEX-NODE-EXPORT-ENVELOPE §2b) */
   'periodic breathing':'periodicBreathing', 'periodic_breathing':'periodicBreathing',
   /* night-row chip + center-KPI short labels */
-  'spo₂':'meanSpo2', 'min o₂':'minSpo2', 't<90%':'t90', 'z2':'z2win', 'hr⌊':'hrFloor',
+  'z2':'z2win', 'hr⌊':'hrFloor',
   'hr-var':'hrVarSd', 'hrsl':'hrSlope', 'sleepeff':'sleepEff', 'ahi':'ahiEst'
 };
 

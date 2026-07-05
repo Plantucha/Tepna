@@ -237,7 +237,7 @@ badge CSS or re-tier metrics ad hoc.
   docs that don't load the engine (e.g. the reference guides). Apps load `metric-registry.js` and
   must NOT also hardcode disc CSS.
 - **Grade source of truth:** each node's `<node>-registry.js` (`OXY_REGISTRY`, `ECG_REGISTRY`, …) —
-  every metric's `evidence` field. A metric's tier is a NODE fact; never invent a global grade table.
+  every metric's `evidence` field. A metric's tier is a NODE fact; never invent a global grade table. The crossnight `*_DEFS` in each `*-cross.js` is a **projection** of the registry, not a second source — `tests/dex-tests.js`'s `registry-defs-parity` group gates it (label · unit · goodDirection · evidence; registry wins).
   Retired vocabulary (proxy→heuristic, composite→experimental, "provisionally validated"→emerging)
   must never reappear.
 - **Gate:** the shared suite's `cohesion-badges` group (in `tests/dex-tests.js`) asserts engine ≡

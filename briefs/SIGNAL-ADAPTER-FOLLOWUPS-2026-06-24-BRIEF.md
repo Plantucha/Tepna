@@ -4,7 +4,29 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS · **Created:** 2026-06-24 · **Follows:** SIGNAL-ADAPTER-AND-FRONTIER-2026-06-23-BRIEF.md
+**Status:** DONE — 2026-07-04 · **Created:** 2026-06-24 · **Follows:** SIGNAL-ADAPTER-AND-FRONTIER-2026-06-23-BRIEF.md
+
+> **CLOSED — DONE 2026-07-04 (live drop-through discharged in an interactive session).** The last owed
+> executable item (the manual raw-file DROP through the drop-zone UI, tracked here + as -IV §1 / -V §4b)
+> was run against the REAL served tools: **Data Unifier** emits a valid `ganglior.node-export` for all
+> three raw signal types — RR→**PulseDex** (4 ev), SpO₂ O2Ring→**OxyDex** (15 ev), Welltory→**HRVDex**
+> — and **OverDex** fuses a raw O2Ring CSV + a raw RR file **LIVE** (computed via each node's headless
+> `compute()`, not `*_ganglior.json` passthrough) beside a passed-through ECGDex export. **This surfaced +
+> FIXED a real bug the prior 12 rounds never hit** (all earlier HRV testing bypassed the adapter):
+> `adapters/welltory-summary.js` built `tsMs` in FILE order, so a real newest-first Welltory CSV produced
+> a `usable`-but-**INVALID** frame (`validateFrame` rejects a backwards `tsMs` step — the floating-`tMs`
+> law) → the HRV emit path was **silently dead** in BOTH the Unifier and OverDex. Fix: the adapter now
+> sorts parsed rows ascending by `_tMs` at the ingest boundary (mirrors the app's `commitRows` + VII §1's
+> `hrvBuildNodeExport` sort) → frame valid, `t0Ms`/`startEpochMs` = EARLIEST sample, `spanDays` +29.
+> The adapter is unbundled *source*; the two orchestrators **inline** it (OWNED but **NON-provenance** —
+> no `BUILD-MANIFEST`/fixture, `tools/build.mjs` §6), so the identical edit was mirrored into
+> `Data Unifier.html` + `OverDex.html` (drift-free == build output). **Zero provenance-gate cost** — no
+> node bundle touched, GATE A/B untouched by construction. **Residual is external/node-gated only** (not
+> deferrable by effort here): **§5** Coospo `detect()` hardening + fixture (no real Coospo export exists —
+> `how-to-collect/coospo-rr.md` already asks a contributor); **§6** EEGDex/SpiroDex `SignalSpec` resolvers
+> (those nodes aren't built); **§8** manifest-projected `*-cross.js` defs + Integrator GRADE row (no
+> generated node needs them yet). Re-open each when its gating dependency lands. (§§1·2·3·4·7·9 were
+> already DONE; -IV §5 co-load-list drift is since RESOLVED by `dex-coload.js`.)
 > **Re-confirmed 2026-06-25 (FOLLOWUPS-II–V execution pass).** §§1·2 re-checked at the user's request:
 > both remain correctly DONE — `signal-orchestrate.js` calls `pw.PulseDex.compute()` (no `_pdSeriesStats`
 > reach-in) and the full event set (hrv_drop + stress_peak + short branch) is emitted via the shared

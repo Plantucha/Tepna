@@ -59,30 +59,32 @@
   "_note_integrator_three_cornered_hat": "INTEGRATOR-THREE-CORNERED-HAT-2026-07-02-BRIEF executed 2026-07-03 (app-wiring gate close-out; estimator + §1/§3 + test groups landed prior session, no bundle then). integrator-tch.js (pure Gray–Allan three-cornered-hat: classic + external-ρ correlated solve + auto min-ρ non-negativity search, inverse-variance weights, culprit, alignTriplet; exposes window.IntegratorTCH) is now BUNDLED into Integrator.html via Integrator.src.html (new external <script src=integrator-tch.js> before integrator-dsp.js), together with the already-committed §1 adaptEnvelopeNode series.hrvEpochs carry, §3 fuseHRVConsensus _tchConsensus (attaches block.tch{sigma2,sigma,weights,culprit,rho,method,coMotion} + block.tchStatus + inverse-variance rmssd.weightedMean + culprit call-out in note; degrades to tch=null/pairwise with <3 series-bearing nodes), and §5 integrator-render.js per-sensor σ-bar card (noisiest-first, culprit flagged ▲, reconciled RMSSD, experimental tch_error badge). REAL re-bundle (executed code changed): Integrator.html manifestHash be7e7aa83355->ca7b872a68e8; buildHash 78e04e861cce UNCHANGED (external-JS + new external <script src>, no inline-script/style .src.html shell edit; buildHash retired/inert per Phase 7). GATE B unaffected: Integrator's only 2 fixtures are HISTORICAL byte-pinned fusion snapshots (not code-gated, no equiv leg) -> no regen, no re-record. Gates: Dex-Test-Suite groups 'Integrator three-cornered-hat — per-sensor error (TCH)' (15/15) + 'Integrator HRV consensus — TCH wiring (§3)' (9/9) green in both runners (env.IntegratorTCH wired); verify-provenance GATE A 8/8 + GATE B reproducible. DEFERRED to INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-2026-07-03-BRIEF (finding §1): the external-ρ CONSUMER-side estimate — a cross-node common-mode ρ needs motion correlated across >=2 nodes, but only PpgDex emits per-epoch motionIndex (ECG/Oxy carry posture) and real-night TCH does not fire yet (OxyDex has no per-epoch HR series, finding §3), so ρ cannot be honestly estimated now; the estimator opts.rho path is built+gated (test 5c case 2) and per-node coMotion means ride block.tch as the forward hook. Other 7 bundles UNTOUCHED.",
   "_note_oxydex_hr_artifact_runaway_fix": "OXYDEX-HR-ARTIFACT-RUNAWAY-FIX-2026-07-03 executed 2026-07-03 (user report: overnight O2Ring read 100 bpm flat all night; 'first few seconds always look like artifacts'). oxydex-dsp.js, TWO coupled fixes both seeded by the O2Ring frozen warm-up placeholder (SpO2 84 / HR 100 held ~25 s until the finger-clip perfusion lock, then the real signal). Fix 1: cleanArtifactHR's recovery search is now BOUNDED by CFG.HR_ARTIFACT_MAX_RUN_SEC=60 — a jump whose signal never returns near the pre-jump anchor no longer clamps the ENTIRE remaining night to that stale value (the 100-bpm bug: 22083/22108 samples had been overwritten to a flat 100 vs the same night's ECGDex 48.4 bpm). Fix 2: NEW trimSensorWarmup(rows) runs FIRST in processNight, dropping the frozen (SpO2,HR) edge placeholder — ADAPTIVE length (0/8/25 s seen), CONSERVATIVE (frozen-identical run at the very edge, >=WARMUP_MIN_SEC, ended by a lock-on step: SpO2 jump>=WARMUP_SPO2_STEP or |dHR|>=HR_ARTIFACT_JUMP), BOUNDED (<=WARMUP_MAX_SEC, never below a 60-row floor); surfaced via SENSOR_WARMUP/COOLDOWN_TRIMMED info flags + conditional stats.sensorWarmupTrimmed (attached ONLY when a trim fired -> zero export churn on untrimmed nights). Validated across ALL 44 raw O2Ring nights (real-code scan): 4 warm-ups correctly trimmed (8/14/9/25 samples), both provenance-fixture nights (20260612 immediate-lock, 20260624 real elevated-HR settling) NOT trimmed. External-JS-only re-bundle -> OxyDex.html manifestHash a16db72bc689->91196f73460c; buildHash 04d85b8b647d inert/UNCHANGED (Phase 7). EXPORT-INERT for both OxyDex code-gated fixtures (outputHashes UNCHANGED; env.equiv.oxydex green) -> manifestHash re-recorded in FIXTURE-PROVENANCE, NOT regenerated. NEW Dex-Test-Suite group 'OxyDex HR-artifact runaway clamp + warm-up trim (100bpm fix)' (both runners). Other 7 bundles UNTOUCHED.",
   "_note_own_the_build": "OWN-THE-BUILD-2026-06-30 Part A (Phase 0–2) executed 2026-07-03: OxyDex.html migrated to the owned deterministic PLAIN-INLINE bundler (tools/build-core.js + tools/build.mjs) — executed code ships as readable <script/style data-inline-src> text, no gzip/random-UUID. manifestHash recomputed by manifest-gate.js’s plain-inline branch: 91196f73460c → 5f46c7a88b65. EXPORT-INERT (DSP unchanged; both OxyDex fixtures byte-identical, env.equiv.oxydex green). buildHash field DROPPED from this ledger 2026-07-03 (Phase 4 — no gate/test read it; ganglior-provenance.js still stamps a runtime fallback hash into exports, inert). The other 7 bundles stay on the legacy __bundler/manifest format via the manifest-gate dual-branch until the fleet cutover (Phase 3).",
+  "_note_integrator_tch_fu_oxydex_per_epoch": "INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS \u00a72 (OxyDex per-epoch HR export) 2026-07-04: oxydex-dsp.js oxyBuildEpochSeries/oxyBuildTimeseriesBlock + oxydex-app.js emit a TOP-LEVEL timeseries.epochs[]{tMin,hr(median),motionIndex(mean)} 5-min series (HR-hat 3rd corner + a 2nd per-epoch motion series for the correlated-TCH rho). OxyDex re-bundled 7fbedea9a12f->4d3b2194d942. EXPORT-INERT for both committed OxyDex fixtures: timeseries is a nights[] sibling and the equiv gate diffs nights[0] (byte-identical) -> outputHash + inputHashes UNCHANGED, manifestHash re-record only.",
+  "_note_integrator_tch_fu_hr_hat": "INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS \u00a72/\u00a71 (HR-hat + external-\u03c1) 2026-07-04: integrator-dsp.js generalized _tchConsensus\u2192_tchHat(metric); fuseHRVConsensus now attaches block.tchHR (reference-free per-sensor HR error across ECG+PPG+Oxy, unioning overlapping hr-bearing non-HRV nodes) + inverse-variance reconciled HR + hrReconciled, and derives \u03c1 from CROSS-NODE per-epoch motion correlation (_tchRhoFromMotion, degrades to classic <2 motion series). Additive: block.tch/tchStatus + the rmssd hat unchanged. Integrator re-bundled f44363fce611->62da4f43db2a. Integrator fixtures are historical (GATE B unaffected).",
   "bundles": {
     "ECGDex.html": {
-      "manifestHash": "1b013d27e95b"
+      "manifestHash": "48229de74680"
     },
     "OxyDex.html": {
-      "manifestHash": "7fbedea9a12f"
+      "manifestHash": "4d3b2194d942"
     },
     "PulseDex.html": {
-      "manifestHash": "8fa3e7ed10e6"
+      "manifestHash": "2bf3d5c38a78"
     },
     "GlucoDex.html": {
-      "manifestHash": "347a81f5d014"
+      "manifestHash": "be0352210135"
     },
     "PpgDex.html": {
-      "manifestHash": "ae360930e7f4"
+      "manifestHash": "cb870ea34770"
     },
     "HRVDex.html": {
-      "manifestHash": "ae0a69f1ee06"
+      "manifestHash": "97dd26f6db4a"
     },
     "CPAPDex.html": {
       "manifestHash": "5a9046a1d859"
     },
     "Integrator.html": {
-      "manifestHash": "f44363fce611"
+      "manifestHash": "62da4f43db2a"
     }
   }
 }
