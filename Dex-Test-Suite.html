@@ -291,7 +291,27 @@ async function main(){
       const briefs = {};
       await Promise.all(listedBriefNames.map(async n => { const t = await fetchText('briefs/'+encodeURIComponent(n)); if(t!=null) briefs[n]=t; }));
       const indexText = (await fetchText('DOCS-INDEX.md')) || '';
-      docsLedger = { briefs, indexText, rootBriefNames: (list.rootBriefs||[]), listedBriefNames /* no fsBriefNames: browser lane */ };
+      // listedPaths — the committed whole-tree inventory (F2) the browser lane resolves DOCS-INDEX
+      // links against (no fs here); the Node lane owns the listedPaths==fs staleness assertion.
+      docsLedger = { briefs, indexText, rootBriefNames: (list.rootBriefs||[]), listedBriefNames, listedPaths: (list.paths||[]) /* no fsPaths: browser lane */ };
+    }
+  } catch(e) { /* absent/broken → group skips */ }
+
+  // release-ledger gate (CONTROLLED-RELEASES-2026-07-05) — controlled releases machine-checked. The browser
+  // can't list changes/, so changeset NAMES come from the committed tests/changes-list.json (Node lane asserts
+  // list==fs). Fetch the ledger files + each pending changeset in parallel. No fsChangeNames → browser-lane branch.
+  let releaseLedger = null;
+  try {
+    const manifestText = await fetchText('suite.manifest.json');
+    const releaseText = await fetchText('RELEASE-MANIFEST.json');
+    if (manifestText && releaseText) {
+      const changelogText = (await fetchText('CHANGELOG.md')) || '';
+      let listedChangeNames = [];
+      const clistTxt = await fetchText('tests/changes-list.json');
+      if (clistTxt) { try { listedChangeNames = (JSON.parse(clistTxt).changes) || []; } catch(e){} }
+      const changeFiles = {};
+      await Promise.all(listedChangeNames.map(async n => { const t = await fetchText('changes/'+encodeURIComponent(n)); if(t!=null) changeFiles[n]=t; }));
+      releaseLedger = { manifestText, releaseText, changelogText, changeFiles, listedChangeNames /* no fsChangeNames: browser lane */ };
     }
   } catch(e) { /* absent/broken → group skips */ }
 
@@ -352,7 +372,7 @@ async function main(){
     DexCoload: window.DexCoload,
     DexIngest: window.DexIngest,
     pickProvenanceBanner: window.pickProvenanceBanner,
-    docs, hosts, manifests, docsLedger,
+    docs, hosts, manifests, docsLedger, releaseLedger,
     srcHtml,
     fixtures, sources, equiv,
     groupFilter: groupFilterStr() || null

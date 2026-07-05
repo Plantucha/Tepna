@@ -6546,16 +6546,16 @@ function crossNight(series, opts){
 // ENVELOPE-FOLLOWUPS-V §1/§2: each def self-describes its `evidence` tier (sourced from
 // ppgdex-registry.js) so the Integrator Longitudinal view BADGES the crossnight trend/coupling cards
 // (evBadge reads metrics{}.evidence; an ungraded metric renders unbadged — a COVERAGE-MANDATE gap).
-// Tiers mirror the registry exactly: rMSSD/SDNN/ln rMSSD validated · Pulse HR/Perfusion/Motion-rej
+// Tiers mirror the registry exactly: rMSSD/SDNN/ln rMSSD validated · Pulse HR/Perfusion Idx/Motion-rejected
 // measured · Aug. index emerging.
 var PPG_DEFS = {
   rmssd:{ good:'up', label:'rMSSD', unit:'ms', evidence:'validated', get:function(s){ return s.rmssd; } },
   sdnn:{ good:'up', label:'SDNN', unit:'ms', evidence:'validated', get:function(s){ return s.sdnn; } },
   lnRMSSD:{ good:'up', label:'ln rMSSD', unit:'', evidence:'validated', get:function(s){ return s.lnRMSSD; } },
   hr:{ good:'down', label:'Pulse HR', unit:'bpm', evidence:'measured', get:function(s){ return s.dispHr; } },
-  pi:{ good:'up', label:'Perfusion', unit:'%', evidence:'measured', get:function(s){ return s.perfusionIndex; } },
+  pi:{ good:'up', label:'Perfusion Idx', unit:'%', evidence:'measured', get:function(s){ return s.perfusionIndex; } },
   ai:{ good:'down', label:'Aug. index', unit:'%', evidence:'emerging', get:function(s){ return s.morph?s.morph.augmentationIndexPct:null; } },
-  motionRejected:{ good:'down', label:'Motion-rej', unit:'%', evidence:'measured', get:function(s){ return s.motionRejectedPct; } }
+  motionRejected:{ good:'down', label:'Motion-rejected', unit:'%', evidence:'measured', get:function(s){ return s.motionRejectedPct; } }
 };
 function ppgSessionT0(s){ return (s&&s.t0Ms!=null)?s.t0Ms:null; }
 function ppgSessionWeight(s){ return Math.max(0.05,((s&&s.analyzablePct)||0)/100); }

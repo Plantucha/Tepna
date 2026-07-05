@@ -40,7 +40,7 @@
         "label": "Residual AHI",
         "unit": "/hr",
         "goodDirection": "down",
-        "evidence": "validated",
+        "evidence": "measured",
         "cite": null,
         "n": 3,
         "central": {
@@ -73,10 +73,10 @@
         }
       },
       "usageHours": {
-        "label": "Therapy Hours",
+        "label": "Usage Hours",
         "unit": "hr",
         "goodDirection": "up",
-        "evidence": "validated",
+        "evidence": "measured",
         "cite": null,
         "n": 3,
         "central": {
@@ -148,7 +148,7 @@
         "label": "Central Apnea Index",
         "unit": "/hr",
         "goodDirection": "down",
-        "evidence": "validated",
+        "evidence": "measured",
         "cite": null,
         "n": 3,
         "central": {

@@ -1,0 +1,41 @@
+{
+  "_doc": "Tepna release ledger — the machine-readable history of controlled releases (CONTROLLED-RELEASES-2026-07-05). The NEWEST entry in `releases` is the current release; its `version` MUST equal suite.manifest.json.version (the canonical current pointer). The `release-ledger` gate in tests/dex-tests.js asserts: no fork (newest==manifest), versions unique + strictly SemVer-increasing, every release has a matching CHANGELOG.md section, and 'unreleased code needs an unreleased changeset' (per-app manifestHashes snapshot vs BUILD-MANIFEST.json). Cut ONLY by tools/release.mjs from an all-green tree — NEVER hand-edit a version or a manifestHash snapshot. CHANGELOG.md is the human view over this file. Maps to IEC 62304 §8.3 configuration status accounting — see docs/COMPLIANCE/CONFIGURATION-MANAGEMENT-PLAN.md.",
+  "releases": [
+    {
+      "version": "1.0.0",
+      "date": "2026-07-05",
+      "bump": "major",
+      "name": "Baseline",
+      "manifestHashes": {
+        "OxyDex": "69a51c03e025",
+        "PpgDex": "908befaae958",
+        "PulseDex": "2bf3d5c38a78",
+        "ECGDex": "48229de74680",
+        "HRVDex": "97dd26f6db4a",
+        "GlucoDex": "be0352210135",
+        "CPAPDex": "911ce633d101",
+        "Integrator": "62da4f43db2a"
+      },
+      "briefs": [
+        "KERNEL-BUILD-BRIEF.md",
+        "GlucoDex-BUILD-BRIEF.md",
+        "ECGDex-BUILD-BRIEF.md",
+        "PpgDex-BUILD-BRIEF.md",
+        "CPAPDEX-BUILD-BRIEF.md",
+        "INTEGRATOR-BUILD-BRIEF.md",
+        "SIGNAL-ADAPTER-AND-FRONTIER-2026-06-23-BRIEF.md",
+        "DEX-EVENT-UNIFY-AND-CSV-BRIEF.md",
+        "BADGE-COVERAGE-AUDIT-BRIEF.md",
+        "EXPORT-IDENTITY-2026-06-27-BRIEF.md",
+        "OXYDEX-NODE-EXPORT-ENVELOPE-2026-06-27-BRIEF.md",
+        "PROVENANCE-NONDETERMINISM-2026-06-29-BRIEF.md",
+        "OWN-THE-BUILD-2026-06-30-BRIEF.md",
+        "DOCS-LEDGER-GATE-2026-07-03-BRIEF.md",
+        "REGISTRY-PROJECTION-2026-07-04-BRIEF.md",
+        "REPO-DISCOVERABILITY-2026-07-03-BRIEF.md",
+        "CONTROLLED-RELEASES-2026-07-05-BRIEF.md"
+      ],
+      "notes": "First controlled release. Declares the current all-gates-green tree as the 1.0.0 baseline; establishes suite versioning, the changelog, the changeset flow, the release-ledger gate, and the 62304/13485-aligned compliance doc set. The `briefs` list here is a curated set of milestone families; the FULL reconstructed development history (pre-1.0.0 waves 0.1.0-0.9.0) lives in CHANGELOG.md and is RECONSTRUCTED from the DONE brief corpus — those waves were NOT formally cut releases, so no per-app manifestHash snapshot is claimed for them. Concurrent OWN-THE-BUILD Part C / docs-ledger follow-up work landing after this cut ships as post-1.0.0 changesets."
+    }
+  ]
+}

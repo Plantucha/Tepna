@@ -6,15 +6,15 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-07-03 · **Follows:** `OWN-THE-BUILD-2026-06-30-BRIEF.md`
+**Status:** IN-PROGRESS — 2026-07-05 · **Created:** 2026-07-03 · **Follows:** `OWN-THE-BUILD-2026-06-30-BRIEF.md`
 
-# Own the build — follow-ups (Part A Phases 0–3 DONE; Phase 4 + A5 + Parts B/C/D remain)
+# Own the build — follow-ups (Part A Phases 0–3 DONE; Parts C / D.2 / D.3 + Part-B new-node remain)
 
 > **▶ NEXT CODER — RESUME HERE (2026-07-03; this thread may have closed mid-brief).** Current state:
 > **all 8 bundles are owned deterministic plain-inline**, and BOTH gates are GREEN (`verify-provenance.html`
 > GATE A/B + `Dex-Test-Suite.html?full` all-green, `bootSkips: []`). Tooling shipped: `tools/build-core.js` +
 > `tools/build.mjs` + `tools/build.html`, `tests/build-core-tests.mjs` (in `tests.yml`), `manifest-gate.js`
-> dual-branch. **Do NOT redo Phase 0–3.** Continue in this order: **(1) §5 Part D.1 ESLint** (cheapest standalone
+> dual-branch. **Do NOT redo Phase 0–3.** **⟳ UPDATE 2026-07-05 — Part A CLOSED (parent brief now DONE).** Items (1)–(3) + §6 are DONE (§5 Part D.1 ESLint ✅ shipped · §2 Phase 4 docs ✅ · §3 A5 ✅ · §6 orchestrators owned ✅). **⏳ What actually remains:** §5 Part C (badge-by-construction — opportunistic, on-touch only, NEVER a standalone fleet churn), §5 Part D.2 (widen `checkJs`, needs `node tsc`), §5 Part D.3 (Prettier — rides fleet churn), and the Part-B new-node build (awaits EEGDex/SpiroDex). Also fixed this pass: an `OverDex.html` `--check` drift (§7). Original ordering (superseded, kept for context): **(1) §5 Part D.1 ESLint** (cheapest standalone
 > win, no dependency on anything else). **(2) §2 Phase 4** — ans-design single-sourcing, legacy-branch retirement,
 > `buildHash` drop + `AUDIT.md` §1c are all **DONE (2026-07-03)**; still TODO: the full `CLAUDE.md` §🔏 /
 > `ARCHITECTURE-PRINCIPLES` §6 prose rewrite. **(3) §3 A5** single `clock.js` (needs human
@@ -182,7 +182,7 @@ AND bundled-local. The copy-paste + its drift test are retired. Original executi
   assertions + 3 self-tests green; checks (1)/(3) red when broken. **Remaining:** actually building
   EEGDex/SpiroDex born-clean (+ adapter-only) — awaits a new node; the gate enforces it at birth.
 - **Part C — badge-by-construction:** make `MetricRegistry.badge()` the sole DOM path for a metric value,
-  one render file at a time, guarded by a `BADGE_ENFORCED` source check.
+  one render file at a time, guarded by a `BADGE_ENFORCED` source check. **✅ FIRST FILE LANDED 2026-07-05 (test-only, no re-bundle):** the `badge-enforced` gate group + self-tests were already shipped (empty set); seeded it with `pulsedex-render.js`, whose value tiles already lead with the sanctioned `evBadge()` resolver, so the guard now reds if any `kpi-val`/`k-val` tile in it is emitted unbadged (4/4 green, both runners). No fleet re-bundle: `evBadge(` is an accepted badged marker, so evBadge-compliant render files enforce test-only (born-clean model). Remaining: migrate files whose badge TRAILS the value (oxydex/hrvdex `rs-val`) on an on-touch re-bundle, and optionally promote `evBadge` to a shared `MetricRegistry.metricValue()` helper during a fleet pass.
 - **Part D — static gates.** **D.1 ESLint is the cheapest standalone next win** — a new `.github/workflows/lint.yml`
   running ESLint over the source `*.js` (control-flow/dead-code floor: `no-unreachable`, `no-fallthrough`,
   `no-constant-condition`, `no-cond-assign`, `no-unused-vars`, `no-undef`, `eqeqeq`, `no-dupe-keys`,
@@ -210,8 +210,33 @@ present in each — `indexOf(filename)` survives `data-inline-src`). The tradeof
 **Drift mitigation applied:** they are in `build.mjs --check` (committed bundle ≡ build(src)), so a shared-module
 change without a rebuild reds CI — closing the ungated-staleness gap that had kept them loose. They stay OUT of
 provenance (no `BUILD-MANIFEST`/fixtures entry) and out of render-coverage, per ORIENTATION. **Note for ORIENTATION:**
-its *"both are unbundled"* line is now stale — update it when convenient (they are owned bundles with a `.src.html`
+its *"both are unbundled"* line is now stale — ✅ UPDATED 2026-07-05 (they are owned bundles with a `.src.html`
 split, still served front-door + same-origin when served).
+
+## §7 — Found during the 2026-07-05 close-out: `OverDex.html` `--check` drift (FIXED)
+
+While verifying gate state before flipping the parent to DONE, an in-session full byte `--check`
+(`build(src) ≡ committed`, via run_script over `build-core.js`) found **`OverDex.html` drifted** — the
+committed bundle was 428 B shorter than a fresh build of its current source. `Data Unifier.html` and all
+8 provenance-gated dexes were CLEAN (GATE A `manifestHash` match + full byte `--check`).
+
+- **Root cause:** the sole stale asset was `integrator-dsp.js` — a +428 B **comment-only** expansion in
+  the §2 HR-hat block (lines ~1083–1086, "The HR triplet may include NON-HRV nodes…"). That edit had been
+  re-bundled into the provenance-gated `Integrator.html` (GATE A green) but **never propagated to the
+  non-provenance `OverDex.html`**, which inlines the same `integrator-dsp.js`. `Data Unifier.html` does not
+  inline it, so it stayed clean — consistent with the diagnosis.
+- **This is exactly the ungated-orchestrator staleness §6 predicted `--check` would catch** — and it did
+  (the orchestrators have no provenance fixtures / render-coverage; `build.mjs --check` is their only drift
+  guard). The executed code was unchanged (comment-only), so no user-visible behavior moved — but the bundle
+  was genuinely not `build(src)`, i.e. CI `--check` would have RED.
+- **Fix:** rebuilt `OverDex.html` from source (run_script over `build-core.js`; `manifestHash a6e85b850309`).
+  No ledger touched — orchestrators are non-provenance by design. Verified: `--check` now CLEAN
+  (`build(src) ≡ committed`, deterministic), plain-inline, boots with no console errors.
+- **Process takeaway:** an on-touch edit to a **shared** module (`integrator-dsp.js`, `signal-*.js`,
+  `clock.js`, `ans-design.css`, …) must re-bundle **every** owned consumer — the 8 dexes **and** the 2
+  orchestrators. `node tools/build.mjs --all` does this; a per-app `--app Integrator` alone silently leaves
+  OverDex stale until `--check`/CI catches it. Prefer `--all` (or include both orchestrators in the on-touch
+  rebuild set) after any shared-module change.
 
 ## Done when
 Flip THIS brief per §📌 as each section lands. The parent `OWN-THE-BUILD-2026-06-30-BRIEF.md` flips to `DONE`

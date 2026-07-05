@@ -20,16 +20,22 @@
 import { readdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { walkRepoPaths } from './docs-ledger-fs.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const briefs = readdirSync(join(ROOT, 'briefs')).filter(f => f.endsWith('.md')).sort();
 const rootBriefs = readdirSync(ROOT).filter(f => /-BRIEF\.md$/.test(f)).sort();
+// paths[] — the whole-tree link-integrity inventory (DOCS-LEDGER-GATE-FOLLOWUPS §F2): every non-excluded
+// repo file+dir, so the gate's check4b can resolve EVERY relative DOCS-INDEX link (docs/… audits/… wiring/…
+// root), not just briefs/. Shared walker with the Node-lane reality check → the two can never drift.
+const paths = walkRepoPaths(ROOT);
 const out = {
-  _doc: "Generated brief-name ledger for the docs-ledger gate's BROWSER lane (fetch can't list a dir). Regenerate with tests/gen-docs-ledger-list.mjs (Node) whenever a brief is added/removed; the Node lane asserts this matches fs reality, so a stale list reds in CI. DOCS-LEDGER-GATE-2026-07-03.",
+  _doc: "Generated ledger for the docs-ledger gate's BROWSER lane (fetch can't list a dir): brief names + a whole-tree path inventory (paths[]) for link-integrity. Regenerate with tests/gen-docs-ledger-list.mjs (Node) whenever a brief OR any linkable file is added/removed/renamed; the Node lane asserts BOTH lists match fs reality, so a stale list reds in CI. DOCS-LEDGER-GATE-2026-07-03 (+FOLLOWUPS §F2).",
   generated: new Date().toISOString().slice(0, 10),
   count: briefs.length,
   briefs,
-  rootBriefs
+  rootBriefs,
+  paths
 };
 writeFileSync(join(ROOT, 'tests', 'docs-ledger-list.json'), JSON.stringify(out, null, 2) + '\n');
-console.log('wrote tests/docs-ledger-list.json — ' + briefs.length + ' briefs, ' + rootBriefs.length + ' root *-BRIEF.md');
+console.log('wrote tests/docs-ledger-list.json — ' + briefs.length + ' briefs, ' + rootBriefs.length + ' root *-BRIEF.md, ' + paths.length + ' repo paths');

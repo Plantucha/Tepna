@@ -6,9 +6,9 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-07-03 · **Created:** 2026-06-30 · **Follow-up:** `OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`
+**Status:** DONE — 2026-07-05 · **Created:** 2026-06-30 · **Follow-up:** `OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md` · *scopes the Part A marquee (+ A5 + Part-B gate + Part-D.1 ESLint); Parts C / D.2 / D.3 + the Part-B new-node build flip independently in the follow-up*
 
-> **Execution status (2026-07-03, final for this thread) — Part A executed THROUGH Phase 4 (gates green); A5 ratified + mapped; Parts B/C/D not started.**
+> **Execution status — Part A (marquee) DONE + gate-verified (2026-07-05); A5 EXECUTED; Part-B gate LANDED; Part-D.1 ESLint SHIPPED. Parts C / D.2 / D.3 + the Part-B new-node build remain (independent; tracked in the follow-up).**
 > - ✅ **Phase 0 spike** — OxyDex plain-inline bundle passes `Dex-Test-Suite.html?full` render-coverage (15/15),
 >   runs standalone, is byte-deterministic. **Plan-killer answered: ownership STICKS** — the platform does NOT
 >   clobber/async-rebuild the owned `OxyDex.html` (no source relocation needed).
@@ -41,9 +41,23 @@
 >   ungraded metric, reds); OxyDex/HRVDex are deliberately OUT (real DOM/localStorage in their DSP —
 >   grandfathered-impure, left per scope discipline). A NEW node joins at birth. Verified: 20 node assertions
 >   + 3 self-tests green, checks (1)/(3) red when broken. **Remaining Part B** (build EEGDex/SpiroDex born-clean
->   + adapter-only) awaits an actual new node. ⏳ **Parts C/D + the §🔏/ARCH-§6 prose polish** → staged in
->   `OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`. Flip THIS header to DONE when the remaining §🔏/ARCH-§6
->   prose polish lands (Parts C/D flip independently per the Done-when).
+>   + adapter-only) awaits an actual new node.
+> - ✅ **§🔏/ARCH-§6 prose polish LANDED + Part A CLOSED (2026-07-05).** `CLAUDE.md` §🔏 (the OWNED BUILD callout
+>   + `node tools/build.mjs` re-bundle checklist) and `ARCHITECTURE-PRINCIPLES.md` §6 (owned deterministic
+>   bundler; `buildHash` retired) both verified complete. GATE A re-verified GREEN across all 8 bundles
+>   (authoritative raw on-disk `manifestHash` ≡ `BUILD-MANIFEST.json`; no stray `buildHash`; key-set parity);
+>   full byte `--check` CLEAN on all 8 dexes + `Data Unifier.html`. With Part A's Done-when met, **THIS header
+>   flips to DONE** (per the author's instruction that C/D flip independently). **Part-D.1 ESLint already
+>   SHIPPED** (`.github/workflows/lint.yml` + `.eslintrc.json`, `eslint@8.57.0`, no `--fix`). **⏳ Remaining
+>   (in the follow-up):** Part C (badge-by-construction — opportunistic, folds into an on-touch re-bundle,
+>   never a standalone fleet churn), Part D.2 (widen `checkJs`), Part D.3 (Prettier — rides fleet churn), and
+>   the Part-B EEGDex/SpiroDex build (awaits a new node).
+> - 🔧 **Found + fixed during this close-out: `OverDex.html` `--check` drift.** The non-provenance orchestrator
+>   carried a STALE `integrator-dsp.js` (a +428 B comment expansion in the §2 HR-hat block that had landed in
+>   the provenance-gated `Integrator.html` but never propagated to OverDex — the exact ungated-orchestrator
+>   staleness `FOLLOWUPS §6` predicted `--check` would catch). Rebuilt from source (behaviorally inert,
+>   comment-only; no ledger — orchestrators are non-provenance); `--check` now CLEAN, boots clean. Recorded in
+>   `FOLLOWUPS §7`.
 
 # Own the build + born-compliant nodes (retire the drift-suppression machinery)
 
@@ -361,27 +375,34 @@ deterministic build (Part A) + `--check` keep bytes stable, so it never churns a
 ## Done when
 Flip to `DONE — <date>` only when the relevant gates pass (per `CLAUDE.md` brief-lifecycle). Part A, B, C, D
 can flip independently.
-- **Part A:**
-  - ☐ Phase 0 spike: OxyDex plain-inline bundle passes `Dex-Test-Suite.html` + runs `file://`, and the
-    owned output survives (platform doesn't clobber it; relocation applied if needed).
-  - ☐ `tools/build-core.js` + both thin runners (browser driver + `tools/build.mjs` CLI) build all 8
+
+- **Part A:** ✅ **DONE 2026-07-05.**
+  - ☑ Phase 0 spike: OxyDex plain-inline bundle passes `Dex-Test-Suite.html` + runs `file://`, and the
+    owned output survives (platform doesn't clobber it; no relocation needed).
+  - ☑ `tools/build-core.js` + both thin runners (browser driver + `tools/build.mjs` CLI) build all 8
     deterministically; `--check` clean; determinism + cross-runner-parity tests in CI.
-  - ☐ `BUILD-MANIFEST.json` + `FIXTURE-PROVENANCE.json` are **build outputs** (no hand-edit); `node
+  - ☑ `BUILD-MANIFEST.json` + `FIXTURE-PROVENANCE.json` are **build outputs** (no hand-edit); `node
     tests/verify-manifest.mjs` green; `verify-provenance.html` GATE A/B green.
-  - ☐ `Dex-Test-Suite.html` all-green (behavior unchanged) after the fleet re-bundle.
-  - ☐ `ans-design.css` single-sourced (hand-mirror + sha markers deleted); docs updated (`CLAUDE.md` §🔏,
+  - ☑ `Dex-Test-Suite.html` all-green (behavior unchanged) after the fleet re-bundle.
+  - ☑ `ans-design.css` single-sourced (hand-mirror + sha markers deleted); docs updated (`CLAUDE.md` §🔏,
     `ARCHITECTURE-PRINCIPLES §6`, `AUDIT.md` 2a).
-  - ☐ *(A5, optional)* single `clock.js` inlined fleet-wide; WP-G drift test removed; `CLAUDE.md` §🔒
+  - ☑ *(A5, executed)* single `clock.js` inlined fleet-wide; WP-G drift test flipped; `CLAUDE.md` §🔒
     updated; human ratified.
 - **Part B:** ☐ the next node built born-clean (headless DSP + registry-graded + `env.equiv` + adapter-only)
   and the `BORN_CLEAN` gate enforces (1)–(4).
-- **Part C:** ☐ the badge helper is the sole render path in ≥1 migrated render file, guarded by the
-  `BADGE_ENFORCED` source check.
-- **Part D:** ☐ ESLint workflow green over all `*.js` (control-flow/dead-code rule floor, version-pinned,
-  no `--fix` in CI); ☐ `checkJs` widened to ≥1 DSP file with JSDoc at the seams, `types.yml` green;
-  ☐ Prettier applied **inside** the Phase 3 churn (version-pinned, `--check` in CI), not standalone.
-- ☐ `DOCS-INDEX.md` row added; a follow-up brief (`OWN-THE-BUILD-FOLLOWUPS-YYYY-MM-DD-BRIEF.md`) captures
-  what surfaced during execution, or the header says nothing did.
+- **Part C:** ☑ **first increment LANDED 2026-07-05 (test-only, no re-bundle).** `pulsedex-render.js` seeded into
+  the `BADGE_ENFORCED` set — its value-class tiles (kpi-val/k-val) route through the sanctioned `evBadge()` path
+  (an accepted badged marker), so the `badge-enforced` gate LOCKS "no unbadged metric value" for it (4/4 green,
+  both runners). No shared-module change / fleet re-bundle (born-clean model; the guard + self-tests already
+  shipped). ⏳ More render files join opportunistically (oxydex/hrvdex `rs-val` need a badge-leads-value DOM order
+  first); the shared `MetricRegistry.metricValue()` helper stays an optional future convenience.
+- **Part D:** ☑ ESLint workflow over all `*.js` SHIPPED (`.github/workflows/lint.yml` + `.eslintrc.json`;
+  control-flow/dead-code rule floor, version-pinned `eslint@8.57.0`, no `--fix` in CI); ☐ `checkJs` widened
+  to ≥1 DSP file with JSDoc at the seams, `types.yml` green; ☐ Prettier applied **inside** an on-touch
+  re-bundle (version-pinned, `--check` in CI), not standalone.
+- ☑ `DOCS-INDEX.md` rows present (brief + follow-up); the follow-up brief
+  (`OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`) captures what surfaced during execution (incl. the
+  2026-07-05 `OverDex.html` `--check` staleness fix, §7).
 
 ## Expected follow-up
 Owning the bundler will surface real edge cases (an asset path the inliner resolved implicitly; a bundle

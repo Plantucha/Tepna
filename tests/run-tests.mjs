@@ -21,6 +21,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
+import { walkRepoPaths } from './docs-ledger-fs.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -198,10 +199,34 @@ function readDocsLedger() {
   const idxP = join(ROOT, 'DOCS-INDEX.md');
   const indexText = existsSync(idxP) ? readFileSync(idxP, 'utf8') : '';
   const rootBriefNames = readdirSync(ROOT).filter(f => /-BRIEF\.md$/.test(f)).sort();
-  let listedBriefNames = [];
+  let listedBriefNames = [], listedPaths = [];
   const listP = join(ROOT, 'tests', 'docs-ledger-list.json');
-  if (existsSync(listP)) { try { listedBriefNames = (JSON.parse(readFileSync(listP, 'utf8')).briefs) || []; } catch (e) { /* stale/broken → staleness check reds */ } }
-  return { briefs, indexText, rootBriefNames, fsBriefNames, listedBriefNames };
+  if (existsSync(listP)) { try { const j = JSON.parse(readFileSync(listP, 'utf8')); listedBriefNames = j.briefs || []; listedPaths = j.paths || []; } catch (e) { /* stale/broken → staleness check reds */ } }
+  // fsPaths — the whole-tree link inventory recomputed from disk (F2). Authoritative in the Node lane:
+  // check4b resolves against it AND the staleness leg asserts listedPaths == fsPaths (a stale committed
+  // list reds in CI, exactly like the brief-name list). Same shared walker the generator uses.
+  const fsPaths = walkRepoPaths(ROOT);
+  return { briefs, indexText, rootBriefNames, fsBriefNames, listedBriefNames, fsPaths, listedPaths };
+}
+
+// release-ledger gate (CONTROLLED-RELEASES-2026-07-05): controlled releases machine-checked. Node lane
+// has fs truth — read suite.manifest.json, RELEASE-MANIFEST.json, CHANGELOG.md, every real changes/*.md,
+// AND the committed tests/changes-list.json (the browser lane's name source) so the group asserts list==fs.
+function readReleaseLedger() {
+  const manP = join(ROOT, 'suite.manifest.json'), relP = join(ROOT, 'RELEASE-MANIFEST.json');
+  if (!existsSync(manP) || !existsSync(relP)) return null;
+  const manifestText = readFileSync(manP, 'utf8');
+  const releaseText = readFileSync(relP, 'utf8');
+  const clP = join(ROOT, 'CHANGELOG.md');
+  const changelogText = existsSync(clP) ? readFileSync(clP, 'utf8') : '';
+  const cdir = join(ROOT, 'changes');
+  const isChangeset = f => f.endsWith('.md') && f !== 'README.md' && !/^[._]/.test(f);
+  const changeFiles = {}; let fsChangeNames = [];
+  if (existsSync(cdir)) { fsChangeNames = readdirSync(cdir).filter(isChangeset).sort(); for (const n of fsChangeNames) changeFiles[n] = readFileSync(join(cdir, n), 'utf8'); }
+  let listedChangeNames = [];
+  const listP = join(ROOT, 'tests', 'changes-list.json');
+  if (existsSync(listP)) { try { listedChangeNames = (JSON.parse(readFileSync(listP, 'utf8')).changes) || []; } catch (e) { /* stale/broken → staleness check reds */ } }
+  return { manifestText, releaseText, changelogText, changeFiles, fsChangeNames, listedChangeNames };
 }
 
 function readDocs() {
@@ -334,6 +359,7 @@ function main() {
     hosts: readHosts(),
     srcHtml: readSrcHtml(),
     manifests: readManifests(),
+    releaseLedger: readReleaseLedger(),
     groupFilter: GROUP_FILTER || null
   };
 

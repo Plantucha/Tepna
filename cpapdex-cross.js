@@ -140,10 +140,10 @@ function nightOdi(n){
 }
 // CPAPDex outcome metric defs — each an OUTCOME with a clear good-direction.
 var CPAP_DEFS = {
-  residualAHI:  { good:'down', label:'Residual AHI', unit:'/hr',    evidence:'validated',    get:function(n){ return n.metrics?n.metrics.residualAHI:null; } },
-  usageHours:   { good:'up',   label:'Therapy Hours', unit:'hr',    evidence:'validated',    get:function(n){ return n.therapyHours!=null?n.therapyHours:(n.metrics?n.metrics.usageHours:null); } },
+  residualAHI:  { good:'down', label:'Residual AHI', unit:'/hr',    evidence:'measured',     get:function(n){ return n.metrics?n.metrics.residualAHI:null; } },
+  usageHours:   { good:'up',   label:'Usage Hours',   unit:'hr',    evidence:'measured',     get:function(n){ return n.therapyHours!=null?n.therapyHours:(n.metrics?n.metrics.usageHours:null); } },
   largeLeakPct: { good:'down', label:'Large Leak %', unit:'%',      evidence:'validated',    get:function(n){ return n.metrics?n.metrics.largeLeakPct:null; } },
-  centralIndex: { good:'down', label:'Central Apnea Index', unit:'/hr', evidence:'validated', get:function(n){ return n.metrics?n.metrics.centralIndex:null; } },
+  centralIndex: { good:'down', label:'Central Apnea Index', unit:'/hr', evidence:'measured',  get:function(n){ return n.metrics?n.metrics.centralIndex:null; } },
   odi:          { good:'down', label:'ODI', unit:'/hr',             evidence:'validated',    get:nightOdi },
   // -III §1: device-scored PERIODIC-BREATHING burden (% therapy in CSL Cheyne-Stokes/PB spans) so the
   // Integrator Longitudinal view trends PB across nights + couples it against residualAHI/centralIndex/etc.

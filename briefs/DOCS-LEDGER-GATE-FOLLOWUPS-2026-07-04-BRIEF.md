@@ -6,7 +6,22 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-07-04 · **Follows:** `DOCS-LEDGER-GATE-2026-07-03-BRIEF.md` (DONE 2026-07-04)
+**Status:** DONE — 2026-07-05 · **Created:** 2026-07-04 · **Follows:** `DOCS-LEDGER-GATE-2026-07-03-BRIEF.md` (DONE 2026-07-04)
+
+> **EXECUTED 2026-07-05.** **F1** decided = option (a): `DEFERRED` is NOT a first-class status — the
+> vocabulary stays the five values; a parked brief is `PROPOSED (deferred …)`. Recorded in CLAUDE.md §📌
+> and LOCKED by three `STATUS_RE` self-tests in the `docs-ledger` group (a bare `**Status:** DEFERRED`
+> header reds check2a). **F2** landed: check 4 split into **4a** (briefs links → authoritative brief set —
+> the sharp repoint guard, unchanged) + **4b** (every OTHER relative `DOCS-INDEX.md` link — docs/·audits/·
+> wiring/·papers/·root — resolves against a whole-tree path inventory). New `paths[]` (698 paths) in
+> `docs-ledger-list.json`, emitted by a shared walker `tests/docs-ledger-fs.mjs` (imported by BOTH
+> `gen-docs-ledger-list.mjs` + `run-tests.mjs`, so they can't drift); the Node lane recomputes `fsPaths` and
+> asserts `listedPaths == fs` (a stale list reds, same device as the brief-name list). 221 DOCS-INDEX links
+> resolve, 0 dead. Deliberate, documented scope on the brief's "weigh the staleness surface": the inventory
+> excludes never-linked churn dirs (`node_modules`, `screenshots`, `scraps`, `_diag`, `uploads`) + dot-
+> entries — narrowed to the LINKABLE tree, visibly (see the walker header), not silently. **F3** stays a
+> consciously-deferred v2 (no row↔header drift observed; tracked in §F3, not dropped). No re-bundle / no
+> provenance churn. Validated: whole test file parses, all F1/4b self-tests + link resolution green.
 
 # Docs-ledger gate — follow-ups (residue from executing the gate)
 
@@ -64,6 +79,9 @@ add a check that, for every dashboard row carrying a parenthetical status (e.g. 
 `*(PROPOSED …)*`), the value agrees with the linked brief's header status. **Authority rule:** on
 disagreement, fix the ROW (the header is source of truth). Non-trivial to parse the freeform prose
 reliably — keep it a genuine v2, only if the row/header drift becomes a real problem.
+
+**Status (2026-07-05):** still deferred — F1 + F2 executed; no row↔header drift observed on the current
+tree, so v2 stays parked (tracked here, not dropped). Revisit only if a stale dashboard status bites.
 
 ---
 

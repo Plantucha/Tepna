@@ -1747,10 +1747,43 @@ function runDexTests(env) {
     var unlinked = names.filter(function (n) { return indexText.indexOf('](briefs/' + n + ')') < 0; });
     T.ok('check3 · every briefs/*.md appears in DOCS-INDEX.md (ship a brief, don\u2019t forget the map)', unlinked.length === 0, unlinked.length ? ('unindexed (' + unlinked.length + '): ' + unlinked.slice(0, 10).join(', ')) : names.length + ' linked');
 
-    // ── CHECK 4 · link integrity (v1: briefs/ targets — the 2026-07-03 repoint guard; decode %20) ──
+    // ── CHECK 4a · briefs-link integrity (the 2026-07-03 repoint guard) — resolve ](briefs/…) against the
+    //    AUTHORITATIVE brief set (never the staleable path inventory), so this sharp guard stands alone. ──
     var linkRe = /\]\((briefs\/[^)]+)\)/g, mm, deadLinks = [];
     while ((mm = linkRe.exec(indexText)) !== null) { var dec = decodeURIComponent(mm[1].split('#')[0]).replace(/^briefs\//, ''); if (!briefSet[dec]) deadLinks.push(mm[1]); }
-    T.ok('check4 · every ](briefs/\u2026) link in DOCS-INDEX resolves to a real brief', deadLinks.length === 0, deadLinks.length ? ('dead: ' + deadLinks.slice(0, 8).join(', ')) : 'all resolve');
+    T.ok('check4a · every ](briefs/\u2026) link in DOCS-INDEX resolves to a real brief', deadLinks.length === 0, deadLinks.length ? ('dead: ' + deadLinks.slice(0, 8).join(', ')) : 'all resolve');
+
+    // ── CHECK 4b · WHOLE-TREE link integrity (DOCS-LEDGER-GATE-FOLLOWUPS §F2) — every OTHER relative
+    //    DOCS-INDEX link (docs/·audits/·wiring/·papers/·root) resolves against the repo path inventory:
+    //    Node lane = fsPaths (fs truth); browser lane = committed docs-ledger-list.json paths[]. External
+    //    (scheme / //), same-page (#…) and empty targets are ignored; %20 &c. decoded before lookup. ──
+    function relLinkTargets(text) {
+      var re = /\]\(([^)]+)\)/g, m, out = [];
+      while ((m = re.exec(text)) !== null) {
+        var raw = m[1];
+        if (!raw || raw.charAt(0) === '#') continue;                                       // same-page anchor
+        if (/^[a-zA-Z][a-zA-Z0-9+.\-]*:/.test(raw) || raw.slice(0, 2) === '//') continue;   // scheme / protocol-relative → external
+        var t = raw.split('#')[0].split('?')[0];
+        try { t = decodeURIComponent(t); } catch (e) {}
+        t = t.replace(/^\.\//, '').replace(/\/+$/, '');
+        if (t.charAt(0) === '/') t = t.slice(1);
+        if (t !== '') out.push(t);
+      }
+      return out;
+    }
+    var inv4 = DL.fsPaths || DL.listedPaths || null;
+    if (!inv4) { T.skip('check4b · repo path inventory available (F2)', 'no fsPaths/listedPaths wired'); }
+    else {
+      var invSet4 = {}; inv4.forEach(function (p) { invSet4[p] = 1; });
+      var links4 = relLinkTargets(indexText);
+      var dead4b = links4.filter(function (t) { return t.slice(0, 3) === '../' || !invSet4[t]; });
+      T.ok('check4b · every relative DOCS-INDEX link resolves in the repo tree (F2)', dead4b.length === 0, dead4b.length ? ('dead (' + dead4b.length + '): ' + dead4b.slice(0, 8).join(', ')) : (links4.length + ' links resolve'));
+    }
+    // self-tests · the 4b resolver: decoded/good links pass, a dead one flags, external/anchor ignored (can't rot into a no-op)
+    var st4 = { 'docs/LEXICON.md': 1, 'wiring/x.html': 1, 'a.md': 1, 'OxyDex Reference.html': 1 };
+    T.ok('self-test · 4b resolves decoded relative links (%20, ./)', relLinkTargets('[a](docs/LEXICON.md) [b](OxyDex%20Reference.html) [c](./a.md)').filter(function (t) { return !st4[t]; }).length === 0);
+    T.ok('self-test · 4b flags a dead relative link', relLinkTargets('[x](docs/GONE.md)').filter(function (t) { return !st4[t]; }).length === 1);
+    T.ok('self-test · 4b ignores external / anchor / mailto links', relLinkTargets('[a](https://x.io) [b](#frag) [c](mailto:x@y.z)').length === 0);
 
     // ── CHECK 5 · Superseded-by / Supersedes symmetry ──
     var supBy = {}, sup = {};
@@ -1772,6 +1805,99 @@ function runDexTests(env) {
       T.ok('staleness · tests/docs-ledger-list.json matches briefs/ on disk (regen via tests/gen-docs-ledger-list.mjs on add/remove)', fsJoin === listJoin, fsJoin === listJoin ? (DL.fsBriefNames.length + ' briefs in sync') : 'list is STALE vs fs');
     } else {
       T.ok('browser lane · brief set loaded from docs-ledger-list.json (Node lane asserts list==fs)', names.length > 0 && (DL.listedBriefNames || []).length === names.length, names.length + ' briefs');
+    }
+    // paths[] staleness (F2) — same device for the whole-tree inventory: Node lane asserts the committed
+    // list == the fs walk, so a forgotten regen after adding/moving/renaming any linkable file reds CI.
+    if (DL.fsPaths) {
+      var pFs = DL.fsPaths.slice().sort().join('\n'), pList = (DL.listedPaths || []).slice().sort().join('\n');
+      T.ok('staleness · docs-ledger-list.json paths[] matches the repo tree (regen via tests/gen-docs-ledger-list.mjs)', pFs === pList, pFs === pList ? (DL.fsPaths.length + ' paths in sync') : ('paths[] STALE vs fs (' + DL.fsPaths.length + ' fs / ' + (DL.listedPaths || []).length + ' listed)'));
+    }
+
+    // ── F1 (DOCS-LEDGER-GATE-FOLLOWUPS, decided 2026-07-05 = option a) — status vocabulary lock: EXACTLY the
+    //    5 values; "DEFERRED" is NOT a first-class top-level status (park a brief as PROPOSED (deferred …)).
+    //    Self-tested so a bare DEFERRED header reds check2a; CLAUDE.md §📌 records the decision. ──
+    T.ok('F1 · STATUS_RE accepts the 5 canonical status forms', ['**Status:** PROPOSED \u00b7 x', '**Status:** IN-PROGRESS', '**Status:** DONE \u2014 2026-07-04 \u00b7 y', '**Status:** REFERENCE (living map)', '**Status:** CHECKPOINT (living)'].every(function (s) { return STATUS_RE.test(s); }));
+    T.ok('F1 · STATUS_RE accepts PROPOSED (deferred \u2026) — the in-vocab way to park a brief', STATUS_RE.test('**Status:** PROPOSED (consciously deferred 2026-06-24 \u2014 optional polish)'));
+    T.ok('F1 · STATUS_RE REJECTS a bare **Status:** DEFERRED header (not first-class — decision a)', !STATUS_RE.test('**Status:** DEFERRED \u2014 2026-06-24'));
+  });
+
+  /* ════ RELEASE-LEDGER — controlled releases, machine-checked (CONTROLLED-RELEASES-2026-07-05) ════
+     The release-identity layer over code identity (manifestHash) + document identity (dated briefs):
+     ONE suite SemVer in suite.manifest.json, the RELEASE-MANIFEST.json history, CHANGELOG.md as the
+     human view, and collision-free changes/*.md changesets folded by tools/release.mjs. Pure static
+     text/JSON — NO re-bundle, no provenance churn. Fed via env.releaseLedger:
+       { manifestText, releaseText, changelogText, changeFiles:{name:text}, fsChangeNames:[]|null, listedChangeNames:[], versionedSurfaces? }
+     Reuses env.manifests['BUILD-MANIFEST.json'] (check 7) + env.docsLedger.briefs (check 5 brief-exists).
+     Node lane supplies fsChangeNames (fs truth) for the staleness leg; the browser lane fetches names
+     from tests/changes-list.json (fetch can't list a dir). Absent env → SKIP (older runners stay green). */
+  group('Release-ledger — controlled releases machine-checked (CONTROLLED-RELEASES)', 'docs · release-ledger', function (T) {
+    var RL = env.releaseLedger;
+    if (!RL || RL.manifestText == null || RL.releaseText == null || RL.changelogText == null) { T.skip('env.releaseLedger provided to the runner', 'wire env.releaseLedger (run-tests.mjs readReleaseLedger + Dex-Test-Suite fetch of suite.manifest.json / RELEASE-MANIFEST.json / CHANGELOG.md / tests/changes-list.json)'); return; }
+    var SEMVER = /^\d+\.\d+\.\d+$/;
+    function parse(txt) { try { return JSON.parse(txt); } catch (e) { return null; } }
+    var manifest = parse(RL.manifestText), release = parse(RL.releaseText), changelog = String(RL.changelogText);
+    var changeFiles = RL.changeFiles || {}, changeNames = Object.keys(changeFiles).sort();
+    var okJSON = manifest && release && Array.isArray(release.releases);
+    T.ok('parse · suite.manifest.json + RELEASE-MANIFEST.json parse; releases[] is an array', !!okJSON, okJSON ? (release.releases.length + ' release(s)') : 'JSON parse/shape failure');
+    if (!okJSON) return;
+    var version = manifest.version, releases = release.releases, newest = releases[releases.length - 1] || {};
+
+    // ── CHECK 1 · valid SemVer ──
+    T.ok('check1 · suite.manifest.json.version is valid SemVer (MAJOR.MINOR.PATCH)', SEMVER.test(String(version)), 'version=' + version);
+
+    // ── CHECK 2 · no fork — newest ledger record == canonical current pointer ──
+    T.ok('check2 · newest RELEASE-MANIFEST version == suite.manifest.json.version (no fork)', newest.version === version, 'ledger head=' + newest.version + ' · manifest=' + version);
+
+    // ── CHECK 3 · versions unique + strictly SemVer-increasing (catches a duplicate/collision number) ──
+    function cmp(a, b) { var A = String(a).split('.').map(Number), B = String(b).split('.').map(Number); for (var i = 0; i < 3; i++) { if ((A[i] || 0) !== (B[i] || 0)) return (A[i] || 0) - (B[i] || 0); } return 0; }
+    var incr = true, dup = false, seen = {};
+    for (var i = 0; i < releases.length; i++) { var v = releases[i].version; if (seen[v]) dup = true; seen[v] = 1; if (i > 0 && cmp(releases[i - 1].version, v) >= 0) incr = false; }
+    T.ok('check3 · RELEASE-MANIFEST versions are unique + strictly increasing', incr && !dup, dup ? 'duplicate version present' : (incr ? releases.length + ' in order' : 'not strictly increasing'));
+
+    // ── CHECK 4 · history ↔ changelog parity ──
+    var missingSection = releases.map(function (r) { return r.version; }).filter(function (v) { return changelog.indexOf('## [' + v + ']') < 0; });
+    T.ok('check4a · every RELEASE-MANIFEST version has a CHANGELOG.md section', missingSection.length === 0, missingSection.length ? ('missing: ' + missingSection.join(', ')) : releases.length + ' matched');
+    var relHeadings = (changelog.match(/^##\s*\[(\d+\.\d+\.\d+)\]/mg) || []).map(function (h) { return h.match(/(\d+\.\d+\.\d+)/)[1]; });
+    T.ok('check4b · newest CHANGELOG.md release heading == canonical version', relHeadings[0] === version, 'changelog head=' + relHeadings[0] + ' · canonical=' + version);
+
+    // ── CHECK 5 · changeset well-formedness (valid bump/type; brief resolves if the briefs set is available) ──
+    var briefSet = (env.docsLedger && env.docsLedger.briefs) ? env.docsLedger.briefs : null, badCs = [];
+    changeNames.forEach(function (n) {
+      var t = changeFiles[n];
+      var bump = (t.match(/^bump:\s*(patch|minor|major)\s*$/mi) || [])[1];
+      var type = (t.match(/^type:\s*(added|changed|fixed|removed|deprecated|security)\s*$/mi) || [])[1];
+      var brief = (t.match(/^brief:\s*(\S+)\s*$/mi) || [])[1];
+      if (!bump) badCs.push(n + ' (bump)'); else if (!type) badCs.push(n + ' (type)'); else if (brief && brief !== 'none' && briefSet && !briefSet[brief]) badCs.push(n + ' (brief→' + brief + ' missing)');
+    });
+    T.ok('check5 · every changes/*.md is a well-formed changeset', badCs.length === 0, changeNames.length ? (badCs.length ? badCs.slice(0, 6).join('; ') : changeNames.length + ' pending, all valid') : 'no pending changesets');
+
+    // ── CHECK 6 · stamp parity (reserved) — bundle propagation deferred (rides next re-bundle); assert any declared surface == canonical ──
+    var surfaces = RL.versionedSurfaces || {}, stampMismatch = Object.keys(surfaces).filter(function (k) { return surfaces[k] !== version; });
+    T.ok('check6 · every surface that declares a suite version matches the canonical one', stampMismatch.length === 0, Object.keys(surfaces).length ? (stampMismatch.length ? ('mismatch: ' + stampMismatch.join(', ')) : Object.keys(surfaces).length + ' surfaces in sync') : 'no propagated surface yet (deferred to build owner)');
+
+    // ── CHECK 7 · unreleased code needs an unreleased changeset — the "stamped completely at the end" enforcement ──
+    //    ROLLOUT (CONTROLLED-RELEASES-FOLLOWUPS §F8): ships INFORMATIONAL (HARD7=false) while the fleet adopts the
+    //    changeset habit and OWN-THE-BUILD Part C's in-flight re-bundles settle — a coder who moved a manifestHash
+    //    before the changeset flow existed is EXPECTED, not a violation. Flip HARD7=true (one line) once adopted →
+    //    hard gate. Zero false positives when hard: manifestHash is deterministic (an inert re-bundle doesn't move it).
+    var HARD7 = false;
+    var build = parse((env.manifests || {})['BUILD-MANIFEST.json'] || 'null');
+    if (build && build.bundles && newest.manifestHashes) {
+      var moved = [];
+      Object.keys(build.bundles).forEach(function (f) { var node = f.replace(/\.html$/, ''); var cur = build.bundles[f].manifestHash, rec = newest.manifestHashes[node]; if (rec != null && cur !== rec) moved.push(node); });
+      var recorded = moved.length === 0 || changeNames.length > 0;
+      var pass7 = recorded || !HARD7;
+      T.ok('check7 · code moved since last release (manifestHash ≠ snapshot) ⇒ a pending changeset exists' + (HARD7 ? '' : ' [rollout: informational]'), pass7, moved.length ? (recorded ? ('moved: ' + moved.join(', ') + ' — ' + changeNames.length + ' changeset(s) pending') : ('⚠ moved with NO changeset: ' + moved.join(', ') + ' — drop one in changes/ (informational until HARD7)')) : 'no code moved since ' + newest.version);
+    } else {
+      T.ok('check7 · unreleased-work-visible (needs BUILD-MANIFEST + a manifestHashes snapshot)', true, 'snapshot/build absent — check skipped');
+    }
+
+    // ── STALENESS · Node lane has fs truth; browser lane trusts the committed list (Node asserts list==fs) ──
+    if (RL.fsChangeNames) {
+      var fsJoin = RL.fsChangeNames.slice().sort().join('\n'), listJoin = (RL.listedChangeNames || []).slice().sort().join('\n');
+      T.ok('staleness · tests/changes-list.json matches changes/ on disk (regen via tests/gen-changes-list.mjs)', fsJoin === listJoin, fsJoin === listJoin ? (RL.fsChangeNames.length + ' changeset(s) in sync') : 'list is STALE vs fs');
+    } else {
+      T.ok('browser lane · changeset set loaded from changes-list.json (Node lane asserts list==fs)', (RL.listedChangeNames || []).length === changeNames.length, changeNames.length + ' pending changeset(s)');
     }
   });
 
@@ -1836,10 +1962,13 @@ function runDexTests(env) {
      `.rs-val`/`.q-val` value emitted with NO evidence badge in the same construction), so a number can't reach
      the DOM ungraded in that file. INCREMENTAL (unmigrated files stay covered by the BADGE-COVERAGE sweeps);
      HARDENING, not a theorem (static analysis can't prove every write is a metric — brief §Honest limit).
-     The set is EMPTY until Part C's `MetricRegistry.metricValue()` helper lands + the first render file
-     migrates (a shared-module change → fleet re-bundle); the guard + self-tests ship now as the ready mechanism. ════ */
+     SEEDED 2026-07-05 with pulsedex-render.js: its value tiles (kpi-val/k-val) already lead with evBadge(), an
+     accepted badged marker, so the guard LOCKS it with NO shared-module change / fleet re-bundle (the born-clean
+     model). A shared `MetricRegistry.metricValue()` helper stays an OPTIONAL future convenience (fold into a fleet
+     re-bundle), NOT required to enforce; other render files (oxydex/hrvdex rs-val, badge trails value) join once
+     their badge leads the value. The guard + self-tests shipped earlier as the ready mechanism. ════ */
   group('Badge-by-construction — enforced render files route metric values through a badge (OWN-THE-BUILD Part C)', 'badge-enforced · forward-adopt', function (T) {
-    var BADGE_ENFORCED = [];          // render files opt in here as they migrate (Part C, one at a time)
+    var BADGE_ENFORCED = ['pulsedex-render.js'];   // render files opt in as they migrate (Part C, one at a time; seeded 2026-07-05)
     var src = env.sources || {};
     // A value tile opens with a value class; it is BADGED if an `.ev ev-` disc / evBadge( / metricValue( /
     // MetricRegistry.badge( appears in the same tile construction (a short window before the value class).
@@ -5271,20 +5400,20 @@ function runDexTests(env) {
      DEFS nodes (OxyDex/PpgDex/CPAPDex) are covered via their exported *_DEFS; ECGDex/PulseDex keep
      their defs as an un-exported METRICS[] literal → recorded deferred (Phase 2 can export it; no
      re-bundle here). Pre-existing stale DEFS live in KNOWN_DRIFT and surface as ⊘ skips carrying the
-     exact fix, so the suite stays GREEN while the DEFS-fix + re-bundle is the Phase-2 pass; any NEW/
+     exact fix, so the suite stays GREEN while a DEFS-fix + re-bundle lands; it is EMPTY as of\n     REGISTRY-PROJECTION Phase 2 (2026-07-04) — all 8 baselines fixed registry-wins + re-bundled, so\n     every shared-id field is now HARD-GATED; any NEW/
      unlisted drift HARD-FAILS. KNOWN_DRIFT is itself checked for staleness (a fixed entry MUST be
      pruned — the check reds if a baseline item no longer drifts). No env wiring added: env.OXYCross/
      PPGCross/CPAPCross + the *Registry resolvers are already fed to BOTH runners. ════ */
   group('Registry ↔ _DEFS parity (registry is the source)', 'registry-defs-parity · cohesion', function (T) {
     var norm = function (s) { return String(s == null ? '' : s).toLowerCase().replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim(); };
-    // Pre-existing stale DEFS (node|registryId|field). Each is a DEFS that drifted from the registry
-    // truth; clear it in the Phase-2 DEFS-fix + re-bundle (registry wins), then delete the line here.
-    var KNOWN_DRIFT = {
-      'OxyDex|meanSpo2|evidence': 1, 'OxyDex|meanHr|evidence': 1,
-      'PpgDex|pi|label': 1, 'PpgDex|motion|label': 1,
-      'CPAPDex|residualAHI|evidence': 1, 'CPAPDex|centralIndex|evidence': 1,
-      'CPAPDex|usageHours|evidence': 1, 'CPAPDex|usageHours|label': 1
-    };
+    // Baseline for a pre-existing stale DEFS (node|registryId|field): a listed entry is tolerated as a
+    // ⊘ skip until its DEFS-fix + re-bundle lands, then deleted here and hard-gated. EMPTY since
+    // REGISTRY-PROJECTION Phase 2 (2026-07-04): all 8 original baselines — OxyDex meanSpo2/meanHr
+    // evidence · PpgDex pi/motion label · CPAPDex residualAHI/centralIndex/usageHours evidence +
+    // usageHours label — were fixed registry-wins in the *-cross.js DEFS + re-bundled (cpapdex multinight
+    // golden regenerated), so every shared-id field is now HARD-GATED. Add an entry ONLY to temporarily
+    // baseline a freshly-found drift; the staleness self-check below reds it the moment it's fixed.
+    var KNOWN_DRIFT = {};
     var hit = {};
     var NODES = [
       { node: 'OxyDex',  cross: env.OXYCross,  resolver: env.OxyRegistry,  defsKey: 'OXY_DEFS' },

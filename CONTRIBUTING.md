@@ -205,6 +205,7 @@ registry disagree, **fix the doc**, not the registry.
 | **Add a metric** | `<node>-dsp.js` (math) + `<node>-registry.js` (depth+evidence+cite) + envelope `_DEFS`; **then badge it on EVERY surface it appears — corner or inline (🔴 coverage mandate, `CLAUDE.md`)** | Suite |
 | **Add a whole node** | follow the [LEXICON recipe](docs/LEXICON.md) §4 — pick stem → `Dex` → registry → emit on Ganglior → inherit the Clock Contract | Suite + Provenance |
 | **Fix a DSP bug** | `<node>-dsp.js`; if the harness needs something DSP doesn't expose, adapt in the **harness layer**, not the shipped DSP | Suite |
+| **Finish a work-unit (record what changed)** | drop a changeset in `changes/` ([`changes/README.md`](changes/README.md)) — `bump` + `type` + `brief`; your LAST action | Suite (`release-ledger`) |
 | **Write up a finding** | a tool in [Experiments](wiring/How%20It's%20Wired%20-%20Experiments.html); then a paper under `papers/` (cite the live tool) | — |
 
 After **any** of the above: re-bundle the affected app and re-run the gates before you call it done.
@@ -234,6 +235,10 @@ After **any** of the above: re-bundle the affected app and re-run the gates befo
   the headless path can't throw — an unguarded reach-in throws on real files but passes a short synthetic
   floor (this is exactly how the latent OxyDex `upVO2category`/`computeCeilingBaselineArr` gap hid until
   §3). The Phase-9 `compute() ≡ committed export` equivalence gate + the ≥1 h floor in the suite catch it.
+- **Record every work-unit as a changeset.** Your LAST repo action is to drop a `changes/*.md`
+  (`bump`/`type`/`brief` — `changes/README.md`). **Never hand-pick a version;** `tools/release.mjs`
+  computes it at release time from the pending changesets, so parallel coders never collide on a
+  number. The `release-ledger` gate reds if code moved with no changeset.
 - **100% local. No network, no CDN, ever.** Fonts are system stacks. Assets are inlined at bundle time.
 - **Frozen / do-not-touch:** the bus name **`Ganglior`** (the Integrator still reads a `fascia` input
   alias for back-compat). Retired vocabulary (proxy→heuristic, composite→experimental) must not reappear.

@@ -133,11 +133,11 @@ function fmtDateTimeUTC(ms){ if(ms==null) return '—'; const d=new Date(ms); re
 // Carries label/unit/goodDirection so the shared envelope is self-describing.
 var OXY_DEFS = {
   odi4:{ good:'down', label:'ODI-4', unit:'/hr', evidence:'validated', get:function(n){ return n.odi4?n.odi4.rate:null; } },
-  meanSpo2:{ good:'up', label:'Mean SpO₂', unit:'%', evidence:'validated', get:function(n){ return n.stats?n.stats.meanSpo2:null; } },
+  meanSpo2:{ good:'up', label:'Mean SpO₂', unit:'%', evidence:'measured', get:function(n){ return n.stats?n.stats.meanSpo2:null; } },
   t90:{ good:'down', label:'T90', unit:'%', evidence:'validated', get:function(n){ return n.stats?n.stats.t90pct:null; } },
   nsi:{ good:'down', label:'NSI', unit:'', evidence:'experimental', get:function(n){ return n.comp?n.comp.nsi:null; } },
   sleepEff:{ good:'up', label:'Sleep Eff', unit:'%', evidence:'emerging', get:function(n){ return n.motSleep?n.motSleep.sleepEff:null; } },
-  meanHr:{ good:'down', label:'Mean HR', unit:'bpm', evidence:'validated', get:function(n){ return n.stats?n.stats.meanHr:null; } },
+  meanHr:{ good:'down', label:'Mean HR', unit:'bpm', evidence:'measured', get:function(n){ return n.stats?n.stats.meanHr:null; } },
   // -III §1: per-night PB BURDEN (oscillation episodes / hr) so the Integrator Longitudinal view trends
   // periodic breathing across nights + couples it (Pearson) against the other crossnight metrics. The
   // generic ganglior.crossnight ingester picks it up with no Integrator code. EXPERIMENTAL per

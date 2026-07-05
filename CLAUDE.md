@@ -42,6 +42,12 @@ Status lives in a one-line header block on the first content line (just after an
   executed brief's header rather than creating an empty follow-up.
 - **Non-executable docs** (deploy manifests, backlog checkpoints) use `Status: REFERENCE (living …)`
   or `Status: CHECKPOINT (living …)` with a `last-verified` date instead of DONE.
+- **No `DEFERRED` (or any other) top-level status** (DOCS-LEDGER-GATE-FOLLOWUPS §F1, decided 2026-07-05 =
+  option (a)): the status vocabulary is EXACTLY those five values (PROPOSED · IN-PROGRESS · DONE ·
+  REFERENCE · CHECKPOINT). Park a brief by keeping it `PROPOSED` with the reason inline — `**Status:**
+  PROPOSED (deferred YYYY-MM-DD — …)`; "deferred" as a *sub-item* note inside a DONE brief (`§N DEFERRED`)
+  is fine. The gate's `STATUS_RE` deliberately rejects a bare `**Status:** DEFERRED` header (self-test-
+  locked), so fabricating a sixth status reds `docs-ledger` (check2a).
 - **When one brief replaces another,** don't just DONE the old one — add header links both ways:
   `Superseded-by: <NAME>` on the old, `Supersedes: <NAME>` on the new. (This whole scheme — immutable
   filenames, status-in-header, never move/delete on status change, an index as the view — is the
@@ -53,15 +59,17 @@ Status lives in a one-line header block on the first content line (just after an
   history (same failure as renaming); status lives in the header, not the path.
 - **This whole lifecycle is now gate-backed** by the `docs-ledger` group in `tests/dex-tests.js` (both
   runners, headless floor): a stray root brief, a malformed/absent status header on a brief dated ≥
-  2026-07-03, an unindexed brief, a dead `](briefs/…)` dashboard link, a one-sided `Superseded-by`/
-  `Supersedes` pair, or a filename↔`Created` date mismatch turns the suite RED. Pre-2026-07-03 headerless
-  briefs are grandfathered (never fabricate a status). The browser lane reads brief names from
-  `tests/docs-ledger-list.json` — **regenerate it (`node tests/gen-docs-ledger-list.mjs`) whenever you add
-  or remove a brief**; the Node lane asserts it matches `briefs/` on disk, so a stale list also reds.
+  2026-07-03, an unindexed brief, a dead **relative link** in `DOCS-INDEX.md` (any target — `](briefs/…)`
+  resolves against the real brief set, and every other `docs/·audits/·wiring/·root` link resolves against a
+  whole-tree path inventory), a one-sided `Superseded-by`/`Supersedes` pair, or a filename↔`Created` date
+  mismatch turns the suite RED. Pre-2026-07-03 headerless briefs are grandfathered (never fabricate a
+  status). The browser lane reads brief names **and the path inventory** from `tests/docs-ledger-list.json`
+  — **regenerate it (`node tests/gen-docs-ledger-list.mjs`) whenever you add/remove a brief OR move/rename
+  any linkable file**; the Node lane asserts both match `briefs/` + the tree on disk, so a stale list also reds.
 - **Repo layout (2026-07-03 owner-sanctioned relocation — the second deliberate break of the old
   "never move" rule).** The **root** holds ONLY: base/entry docs (`README.md`, `CLAUDE.md`,
   `ARCHITECTURE-PRINCIPLES.md`, `ORIENTATION.md`, `DOCS-INDEX.md`, `CONTRIBUTING.md`, `AUDIT-PROMPT.md`),
-  standard OSS files (`LICENSE`, `NOTICE`, `CITATION.cff`, `THIRD-PARTY.md`), and **all runtime/build
+  standard OSS files (`LICENSE`, `NOTICE`, `CITATION.cff`, `THIRD-PARTY.md`, `CHANGELOG.md`), and **all runtime/build
   files** (`*.js` / `*.html` / `*.src.html` / `*.css` / `*.json` — load-bearing paths, NEVER move them).
   Everything else archival lives in: **`briefs/`** (work-plans + pre-standard kickoffs/handoffs),
   **`audits/`** (audit findings, external reviews, fusion issues, validation status, one-off audit
@@ -253,6 +261,38 @@ badge CSS or re-tier metrics ad hoc.
   byte-identical), so adding it did NOT require re-bundling the apps — and re-bundling 7 apps just to
   carry an inert export would flip every provenance fixture. Leave bundles as-is for inert shared-
   module additions; re-bundle only when runtime behavior changes.
+
+## 📦 Releases, versioning & the changelog (CONTROLLED-RELEASES-2026-07-05)
+One suite **SemVer** is the release identity (the "maintenance number"): canonical in
+`suite.manifest.json` `version`; `RELEASE-MANIFEST.json` is the append-only history; root `CHANGELOG.md`
+(Keep a Changelog) is the human view. **Three identity layers, never conflated:** the release SemVer ·
+each bundle's `manifestHash` (code) · each brief's dated filename+status (docs). Do **NOT** stamp a
+hand-typed version onto source files — `manifestHash` already identifies code more strongly than a number.
+- **Bump semantics** (SemVer vs Tepna's published contracts): **MAJOR** breaks a contract
+  (`ganglior.node-export`, the Clock Contract, `ganglior.crossnight`, a metric's identity/units, node
+  removal); **MINOR** adds backwards-compatibly (node/metric/adapter/gate/additive field); **PATCH**
+  fixes without changing a contract shape (a moved fixture output is still PATCH but MUST regenerate
+  fixtures per §🔏).
+- **Parallel coders never hand-pick a number.** Each work-unit drops a collision-free **changeset** as
+  its last action (`changes/*.md` — `bump`/`type`/`brief`; see `changes/README.md`). `tools/release.mjs`
+  folds all pending changesets, computes the version ONCE from a **green tree**, stamps
+  `suite.manifest.json`, prepends the `CHANGELOG.md` section, appends the `RELEASE-MANIFEST.json` record
+  (+ per-app `manifestHash` snapshot), prunes `changes/`, and prints the `git tag`. Never hand-edit a
+  version or a snapshot.
+- **Gate-backed** by the `release-ledger` group in `tests/dex-tests.js` (both runners, headless floor,
+  sibling of `docs-ledger`): valid SemVer · no fork (newest ledger record ≡ canonical) · unique +
+  strictly-increasing versions · history↔changelog parity · changeset well-formedness · **check 7 — code
+  that moved (`manifestHash` ≠ the last release's snapshot) requires a pending changeset** (you can't
+  ship code without recording it; zero false positives — `manifestHash` is deterministic). The browser
+  lane reads `tests/changes-list.json` — **regenerate it (`node tests/gen-changes-list.mjs`) whenever a
+  changeset is added/pruned** (`release.mjs` does this automatically); the Node lane asserts it matches
+  `changes/` on disk, so a stale list reds.
+- **62304/13485-ALIGNED, not conformant.** The `docs/COMPLIANCE/` set (lifecycle plan · safety class ·
+  config-mgmt · SOUP · release SOP · doc-control) adopts the disciplines as good practice with **no
+  certification claim**; every file carries the non-device disclaimer. Runtime SOUP is empty by design.
+- **Version-into-bundle stamping is DEFERRED** (rides the next behavioral re-bundle — don't re-bundle 8
+  apps just to carry a string; same economics as the inert license-comment/`BADGE_CSS` rules). Until
+  then the version is authoritative in `suite.manifest.json` and surfaced on the docs/deploy pages.
 
 ## ✅ Known non-issues (do NOT re-investigate or "fix" — they are intentional/resolved)
 - **Fonts / woff2:** there are no `*.woff2` files and no `@font-face`/CDN refs in source any more.

@@ -78,7 +78,7 @@ node imports them; delete either and every node + the Integrator stay byte-ident
   through — then fuses everything via the Integrator. Unknown files are set aside (never guessed); ambiguous
   routes are confirmed by the user.
 
-Both are **unbundled** (loose `<script src>` + a plain `.html`), so they touch neither gate. The router
+Both are now **owned plain-inline bundles** (a `.src.html` split → `Foo.html` via `tools/build.mjs`'s non-provenance `ORCHESTRATORS` set), still served front-door + same-origin (shared profile/longitudinal store). They stay OUT of provenance (no `BUILD-MANIFEST`/fixtures) and out of render-coverage — so they touch **only** `build.mjs --check` (committed ≡ build(src), the drift guard), not the two behavior/provenance gates. A shared-module edit must re-bundle both (`build.mjs --all`). The router
 (`SignalAdapters.route`) and the orchestrator (`signal-orchestrate.js`) are **shared single modules** — fix
 a routing bug once and both tools inherit it.
 

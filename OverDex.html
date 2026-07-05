@@ -1383,8 +1383,13 @@ function fuseHRVConsensus(recs, dtMs){
       if(_ws>0) rm.weightedMean = +(_acc/_ws).toFixed(1);
     }
     // §2 HR-hat — reference-free per-sensor HR error across ECG+PPG+Oxy, INDEPENDENT of the rmssd hat
-    // (which needs a 3rd rmssd node). Fires the moment 3 nodes carry a per-epoch hr series; additive.
-    var tchHR = _tchHat(like, _hrPts, 'hr');
+    // (which needs a 3rd rmssd node). The HR triplet may include NON-HRV nodes that carry a per-epoch
+    // hr series (notably OxyDex, excluded from the rmssd/sdnn consensus above) — union `like` with any
+    // overlapping hr-bearing rec. Fires the moment 3 nodes carry a per-epoch hr series; additive.
+    var hrLike = like.slice();
+    recs.forEach(function(rc){ if(hrLike.indexOf(rc)>=0 || rc.dateUnknown || _hrPts(rc).length<12) return;
+      if(g.some(function(o){ return overlapInterval(o, rc); })) hrLike.push(rc); });
+    var tchHR = _tchHat(hrLike, _hrPts, 'hr');
     var hrReconciled = null;
     if(tchHR && tchHR.ok && tchHR.levels){   // inverse-variance reconciled HR (weight ∝ 1/σ²)
       var _hw=0,_ha=0; Object.keys(tchHR.levels).forEach(function(nd){ var v=tchHR.levels[nd], w=tchHR.weights[nd]; if(v!=null&&w!=null){ _ha+=w*v; _hw+=w; } });

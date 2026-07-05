@@ -6,7 +6,7 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-07-04 (Phase 1 gate landed — see Phase 1 note + Done-when) · **Supersedes:** REGISTRY-INVERSION-2026-07-03-BRIEF.md · **Created:** 2026-07-04 · **Spawned-by:** `REGISTRY-INVERSION-2026-07-03-BRIEF.md` Phase-0 decision gate (owner chose direction (A), 2026-07-04)
+**Status:** DONE — 2026-07-05 (Phase 1 gate + Phase 2 DEFS-fix / re-bundle / golden-regen executed; every REGISTRY-PROJECTION gate green — registry-defs-parity 78·0·2 · GATE A 3/3 · GATE B 13/13 · equiv 0/0 · release-ledger. The suite's only reds are the PARALLEL-CODER CONTROLLED-RELEASES docs-ledger dead-links — orthogonal to this brief, not introduced here.) · **Supersedes:** REGISTRY-INVERSION-2026-07-03-BRIEF.md · **Created:** 2026-07-04 · **Spawned-by:** `REGISTRY-INVERSION-2026-07-03-BRIEF.md` Phase-0 decision gate (owner chose direction (A), 2026-07-04)
 
 # Registry projection — the registry stays the grade truth; every other copy becomes a gated projection of it
 
@@ -100,21 +100,29 @@ Known live divergence this would have caught: PpgDex's `crossNightBlock` maps `O
 
 ## Done when
 
-- ◑ `registry-defs-parity` group **live in BOTH runners (2026-07-04)** — green, hard-fails on NEW drift; the 8
-  pre-existing stale DEFS are baselined in `KNOWN_DRIFT` (◘). **Remaining:** fix those 8 DEFS (registry wins) +
-  re-bundle OxyDex/PpgDex/CPAPDex, then delete them from `KNOWN_DRIFT` so they're hard-gated; expose ECGDex/PulseDex `METRICS[]` (Phase 2) to cover
-  them. **Confirmed blast radius (2026-07-04):** exactly 3 owned bundles re-bundle — OxyDex/PpgDex/CPAPDex (+ their
-  `docs/` mirrors); the multi-node hosts (Data Unifier/OverDex) load the cross files externally → no re-bundle. The
-  **CPAPDex multi-night golden `uploads/cpapdex_synthetic_multinight_golden.node-export.json` embeds the changed
-  `evidence`/`label` → it MOVES → regenerate it + re-record `FIXTURE-PROVENANCE.json`**; OxyDex/PpgDex carry no
-  committed crossnight fixture, so they move only `manifestHash` (GATE-A bump). `Dex-Test-Suite.html?full` +
-  `node tests/run-tests.mjs` stay green.
-- ☐ `CLAUDE.md §🎫` updated: registry is THE metadata source; `*_DEFS`/`METRICS[]` + manifests are gated
-  projections of it, not second sources.
-- ☐ (Optional) Phase 2 `generateDefs` landed for ≥1 node with re-bundle + GATE A/B green; OR a documented
-  decision to keep the gate-only (no-generate) end state.
-- ☐ Parent `REGISTRY-INVERSION-2026-07-03-BRIEF.md` closed with reciprocal supersede cross-links + `DOCS-INDEX`
-  synced — do BOTH sides in one pass (a one-sided supersede pair reds `docs-ledger`).
+- ☑ `registry-defs-parity` group **live in BOTH runners** — green, hard-fails on NEW drift. **Phase 2 EXECUTED
+  2026-07-05:** all 8 pre-existing stale DEFS fixed registry-wins in `oxydex/ppgdex/cpapdex-cross.js` (OxyDex
+  mean-SpO₂/mean-HR + CPAPDex residual-AHI/central-index/usage-hours evidence → `measured`; CPAPDex usage-hours
+  label → "Usage Hours"; PpgDex → "Perfusion Idx"/"Motion-rejected"). The 3 owned bundles re-bundled via the owned
+  core (manifestHash OxyDex `4d3b2194d942`→`69a51c03e025`, PpgDex `cb870ea34770`→`908befaae958`, CPAPDex
+  `5a9046a1d859`→`911ce633d101`; `BUILD-MANIFEST.json` + `FIXTURE-PROVENANCE.json` re-stamped). Only the CPAPDex
+  multi-night golden moved output (regenerated; outputHash `51943b9a67b2af2a`→`985c6b8334eb0370`, exactly the 4
+  evidence/label lines — dry-run-proven); OxyDex/PpgDex carry no committed crossnight fixture (manifestHash-only).
+  `KNOWN_DRIFT` pruned to `{}` → every shared-id field HARD-GATED. Verified green: registry-defs-parity (78·0·2),
+  GATE A (3/3), GATE B (13/13), equiv single+multinight (0 diff). Release changeset dropped
+  (`changes/2026-07-05-registry-projection-defs-parity.md`, `changes-list.json` regenerated) → release-ledger green.
+- ☑ `CLAUDE.md §🎫` states the registry is THE metadata source; the crossnight `*_DEFS` is a gated **projection**
+  (the `registry-defs-parity` line is present).
+- ☑ Gate-only end state **ADOPTED** (documented decision): the OPTIONAL generate-`*_DEFS`-from-registry (Phase 2)
+  + registry→manifest meta (Phase 3) are **deferred** — the parity GATE already guarantees no drift, so generation
+  is convenience, not required. ECGDex/PulseDex `METRICS[]` remain un-exported → covered only when a future pass
+  exports them (recorded ⊘ in the gate).
+- ☑ Parent `REGISTRY-INVERSION-2026-07-03-BRIEF.md` closed with reciprocal supersede cross-links + `DOCS-INDEX` synced.
+
+> **Note on the suite's 2 remaining reds (NOT this brief).** `docs-ledger` check4a/check4b flag dead DOCS-INDEX
+> links to `CONTROLLED-RELEASES-FOLLOWUPS-2026-07-05-BRIEF.md` + six `docs/COMPLIANCE/*.md` — forward-references a
+> PARALLEL CODER added for the in-flight CONTROLLED-RELEASES work. They pre-date and are orthogonal to Phase 2;
+> left untouched (that coder owns them). Every gate this brief touches is green.
 
 ## Expected follow-up
 
