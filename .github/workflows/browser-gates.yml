@@ -30,8 +30,14 @@ jobs:
           node-version: '20'
 
       - name: Install Playwright (chromium only)
+<<<<<<< HEAD
         run: |
           npm init -y >/dev/null 2>&1
+=======
+        # NB: a committed root package.json (the dev-tooling spine) now exists — do NOT
+        # `npm init -y` here, it would clobber it. --no-save keeps the manifest untouched.
+        run: |
+>>>>>>> cf3e242 (Tepna suite)
           npm install --no-save playwright@1.48.0
           npx playwright install --with-deps chromium
 
@@ -46,4 +52,8 @@ jobs:
       - name: Run browser gates (render-coverage + provenance)
         env:
           BASE_URL: http://127.0.0.1:8080
+<<<<<<< HEAD
         run: node tests/browser-gates.mjs
+=======
+        run: npm run gates:browser   # → node tests/browser-gates.mjs (package.json spine)
+>>>>>>> cf3e242 (Tepna suite)

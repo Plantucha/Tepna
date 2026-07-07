@@ -66,7 +66,11 @@
       "manifestHash": "48229de74680"
     },
     "OxyDex.html": {
+<<<<<<< HEAD
       "manifestHash": "69a51c03e025"
+=======
+      "manifestHash": "43bd047b12e8"
+>>>>>>> cf3e242 (Tepna suite)
     },
     "PulseDex.html": {
       "manifestHash": "2bf3d5c38a78"
@@ -78,13 +82,21 @@
       "manifestHash": "908befaae958"
     },
     "HRVDex.html": {
+<<<<<<< HEAD
       "manifestHash": "97dd26f6db4a"
+=======
+      "manifestHash": "6b43574be1ea"
+>>>>>>> cf3e242 (Tepna suite)
     },
     "CPAPDex.html": {
       "manifestHash": "911ce633d101"
     },
     "Integrator.html": {
+<<<<<<< HEAD
       "manifestHash": "62da4f43db2a"
+=======
+      "manifestHash": "cef329a4fec6"
+>>>>>>> cf3e242 (Tepna suite)
     }
   }
 }

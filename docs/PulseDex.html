@@ -2697,8 +2697,27 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
   .main-content .topbar{ padding-left:60px; }
 }
 </style>
+<<<<<<< HEAD
 </head>
 <body>
+=======
+<link rel="canonical" href="https://tepna.net/PulseDex.html">
+<meta property="og:url" content="https://tepna.net/PulseDex.html">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://tepna.net/tepna-og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://tepna.net/tepna-og.png">
+</head>
+<body>
+<noscript>
+  <div style="max-width:640px;margin:40px auto;padding:24px;font-family:system-ui,-apple-system,sans-serif;line-height:1.55;color:#0b0f14;background:#fff">
+    <h1>PulseDex — HRV from RR Intervals</h1>
+    <p>Raw RR-interval streams (Polar Verity Sense) → time- and frequency-domain heart-rate variability. 100% in your browser: no upload, no account.</p>
+    <p><strong>PulseDex is an interactive analyzer that requires JavaScript.</strong> For the full method &amp; metric reference, read <a href="PulseDex%20Reference.html">the PulseDex Reference guide</a>, or see the <a href="index.html">Tepna suite overview</a>.</p>
+    <p>Part of <strong>Tepna — the Dex Suite</strong> · Apache-2.0 · Personal self-quantification, not a medical device.</p>
+  </div>
+</noscript>
+>>>>>>> cf3e242 (Tepna suite)
 
 <template id="__bundler_thumbnail">
   <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
@@ -5952,7 +5971,11 @@ function pulseReviewTimeline(events){
 function pulseReviewView(review){
   var rec=review.recording||{}, hrv=(review.hrv||{}), t=(hrv.time||{}), pc=(hrv.poincare||{});
   var prov=review.provenance||{}, bh=prov.buildHash||(review.derivedFrom&&review.derivedFrom.buildHash)||null, gen=_pulseFmtGen(prov.generated||review.generated);
+<<<<<<< HEAD
   var nv=function(v,d){ return (v==null||v!==v)?(d||'—'):v; };
+=======
+  var nv=function(v,d){ return (v==null||Number.isNaN(v))?(d||'—'):v; };
+>>>>>>> cf3e242 (Tepna suite)
   var h='<div class="prv-banner" role="status">'
     +'<span class="prv-tag"><span class="prv-dot"></span>Review mode</span>'
     +'<span>Loaded from export · <strong>not recomputed</strong>'+(review.scrubbed?' · <strong>scrubbed for sharing</strong>':'')+'</span>'

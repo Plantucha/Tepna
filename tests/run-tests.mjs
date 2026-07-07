@@ -87,9 +87,15 @@ function loadInto(ctx, file) {
 /* ── 2 · gather sources (static checks) and fixtures (export completeness) ── */
 function readSources() {
   const wanted = [
+<<<<<<< HEAD
     'clock.js', 'pulsedex-dsp.js', 'oxydex-dsp.js', 'hrvdex-dsp.js', 'integrator-dsp.js', 'ppgdex-dsp.js', 'glucodex-dsp.js', 'ecgdex-dsp.js',
     'ecgdex-cross.js', 'oxydex-cross.js', 'pulsedex-cross.js', 'ppgdex-cross.js', 'cpapdex-cross.js',
     'crossnight-envelope.js', 'integrator-app.js', 'ecgdex-app.js', 'ppgdex-app.js', 'pulsedex-app.js', 'pulsedex-render.js', 'hrvdex-app.js', 'oxydex-render.js', 'hrvdex-render.js', 'signal-orchestrate.js', 'dex-ingest.js',
+=======
+    'clock.js', 'oxydex-util.js', 'pulsedex-dsp.js', 'oxydex-dsp.js', 'hrvdex-dsp.js', 'integrator-dsp.js', 'ppgdex-dsp.js', 'glucodex-dsp.js', 'ecgdex-dsp.js',
+    'ecgdex-cross.js', 'oxydex-cross.js', 'pulsedex-cross.js', 'ppgdex-cross.js', 'cpapdex-cross.js',
+    'crossnight-envelope.js', 'integrator-app.js', 'integrator-render.js', 'ecgdex-app.js', 'ppgdex-app.js', 'pulsedex-app.js', 'pulsedex-render.js', 'hrvdex-app.js', 'oxydex-render.js', 'hrvdex-render.js', 'signal-orchestrate.js', 'dex-ingest.js',
+>>>>>>> cf3e242 (Tepna suite)
     'cpapdex-dsp.js', 'cpapdex-edf.js', 'cpapdex-app.js', 'cpapdex-fusion.js', 'ecgdex-morph.js', 'ppgdex-morph.js', 'dex-export.js',
     'ganglior-provenance.js', 'signal-frame.js', 'glucodex-render.js', 'glucodex-app.js'
   ];
@@ -165,6 +171,13 @@ function readEquiv() {
   // env.CPAPCross / cpapdex-cross.js co-loaded above); only the committed golden EXPORT is wired.
   { const fxP = join(ROOT, 'uploads', 'cpapdex_synthetic_multinight_golden.node-export.json');
     if (existsSync(fxP)) { try { out.cpapdex_multinight_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')) }; } catch (e) { /* gate self-skips */ } } }
+<<<<<<< HEAD
+=======
+  // Integrator TCH-HR GOLDEN (INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II §2): first code-gated Integrator
+  // fixture — fixture-only, the gate rebuilds the three staggered synthetic node-exports in-code and fuses them.
+  { const fxP = join(ROOT, 'uploads', 'integrator_tch_golden.node-export.json');
+    if (existsSync(fxP)) { try { out.integrator_tch_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')) }; } catch (e) { /* gate self-skips */ } } }
+>>>>>>> cf3e242 (Tepna suite)
   return out;
 }
 
@@ -226,7 +239,23 @@ function readReleaseLedger() {
   let listedChangeNames = [];
   const listP = join(ROOT, 'tests', 'changes-list.json');
   if (existsSync(listP)) { try { listedChangeNames = (JSON.parse(readFileSync(listP, 'utf8')).changes) || []; } catch (e) { /* stale/broken → staleness check reds */ } }
+<<<<<<< HEAD
   return { manifestText, releaseText, changelogText, changeFiles, fsChangeNames, listedChangeNames };
+=======
+  // check-6 surfaces (CONTROLLED-RELEASES-FOLLOWUPS F2/F3/F4): raw text of every version-carrying surface;
+  // the gate extracts + compares to canonical (single-sourced there so this lane and the browser lane can't drift).
+  const surfaceTexts = {};
+  for (const s of ['CITATION.cff', 'README.md', 'index.html', 'docs/about.json']) { const sp = join(ROOT, s); if (existsSync(sp)) surfaceTexts[s] = readFileSync(sp, 'utf8'); }
+  return { manifestText, releaseText, changelogText, changeFiles, fsChangeNames, listedChangeNames, surfaceTexts };
+}
+
+// discoverability-cohesion (REPO-DISCOVERABILITY-FOLLOWUPS §5.2) — suite.manifest.json roster ≡
+// the generated docs/sitemap.xml. fs truth for both; the group asserts every deployed surface resolves.
+function readDiscoverability() {
+  const manP = join(ROOT, 'suite.manifest.json'), smP = join(ROOT, 'docs', 'sitemap.xml');
+  if (!existsSync(manP) || !existsSync(smP)) return null;
+  return { manifestText: readFileSync(manP, 'utf8'), sitemapText: readFileSync(smP, 'utf8') };
+>>>>>>> cf3e242 (Tepna suite)
 }
 
 function readDocs() {
@@ -360,6 +389,10 @@ function main() {
     srcHtml: readSrcHtml(),
     manifests: readManifests(),
     releaseLedger: readReleaseLedger(),
+<<<<<<< HEAD
+=======
+    discoverability: readDiscoverability(),
+>>>>>>> cf3e242 (Tepna suite)
     groupFilter: GROUP_FILTER || null
   };
 

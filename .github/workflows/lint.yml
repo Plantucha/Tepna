@@ -28,4 +28,8 @@ jobs:
         with:
           node-version: '20'
       - name: ESLint source (.js/.mjs; no --fix)
+<<<<<<< HEAD
         run: npx -y eslint@8.57.0 . --ext .js,.mjs --max-warnings=100000
+=======
+        run: npm run lint   # → npx -y eslint@8.57.0 . --ext .js,.mjs --max-warnings=100000 (package.json spine)
+>>>>>>> cf3e242 (Tepna suite)

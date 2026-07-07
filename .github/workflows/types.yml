@@ -23,4 +23,8 @@ jobs:
         with:
           node-version: '20'
       - name: Type-check CORE contracts (tsc --noEmit --checkJs)
+<<<<<<< HEAD
         run: npx -y -p typescript@5.5.4 tsc --noEmit -p tsconfig.json
+=======
+        run: npm run typecheck   # → npx -y -p typescript@5.5.4 tsc --noEmit -p tsconfig.json (package.json spine)
+>>>>>>> cf3e242 (Tepna suite)

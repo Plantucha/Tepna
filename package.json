@@ -1,0 +1,32 @@
+{
+  "name": "tepna",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Tepna — the -Dex suite (browser-native, 100%-local physiological analyzers). DEV-TOOLING MANIFEST ONLY: private + unpublished, declares NO runtime dependencies, ships nothing, fetched by nothing at runtime — the 100%-local / offline / single-file invariant is untouched (same contract as tsconfig.json / types.yml). It is the command spine that unifies the OWN-THE-BUILD tooling (tools/build.mjs) with the DEV-TOOLCHAIN legs (tsc, ESLint) and the gate runners under one `npm run` surface.",
+  "_version_note": "This 0.0.0 is a placeholder, NOT the release identity. The canonical suite SemVer lives ONLY in suite.manifest.json (CONTROLLED-RELEASES-2026-07-05); do not conflate the two. Never hand-bump either — tools/release.mjs stamps suite.manifest.json from pending changes/*.md.",
+  "license": "Apache-2.0",
+  "author": "Michal Planicka",
+  "homepage": "https://github.com/",
+  "scripts": {
+    "build": "node tools/build.mjs --all",
+    "build:app": "node tools/build.mjs --app",
+    "build:check": "node tools/build.mjs --check",
+    "typecheck": "npx -y -p typescript@5.5.4 tsc --noEmit -p tsconfig.json",
+    "lint": "npx -y eslint@8.57.0 . --ext .js,.mjs --max-warnings=100000",
+    "test": "node tests/run-tests.mjs",
+    "test:build-core": "node tests/build-core-tests.mjs",
+    "verify:manifest": "node tests/verify-manifest.mjs",
+    "check:dex": "node tests/check-dex.mjs",
+    "reconcile": "node tests/reconcile-provenance.mjs",
+    "gates:browser": "node tests/browser-gates.mjs",
+    "gen:docs-ledger": "node tests/gen-docs-ledger-list.mjs",
+    "gen:changes": "node tests/gen-changes-list.mjs",
+    "gen:lists": "npm run gen:docs-ledger && npm run gen:changes",
+    "release": "node tools/release.mjs",
+    "release:dry": "node tools/release.mjs --dry-run",
+    "check": "npm run typecheck && npm run lint && npm run test && npm run test:build-core && npm run build:check && npm run verify:manifest"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

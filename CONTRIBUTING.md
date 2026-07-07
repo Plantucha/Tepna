@@ -195,6 +195,38 @@ registry disagree, **fix the doc**, not the registry.
 
 ---
 
+<<<<<<< HEAD
+=======
+---
+
+## 4.5 Dev commands — the `npm run` spine
+
+The root **`package.json`** is a **dev-tooling manifest only** — `private`, unpublished, declares
+**no runtime dependencies**, ships nothing, is fetched by nothing at runtime (the 100%-local /
+offline / single-file invariant is untouched, same contract as `tsconfig.json`). It is the single
+command surface that unifies the build tooling and the gate runners; the CI workflows call these same
+scripts, so a command lives in exactly one place. No `npm install` is needed for the pure-Node
+scripts; the two pinned dev tools (`tsc`, ESLint) self-install via `npx -y` on demand.
+
+| Command | Runs | When |
+|---|---|---|
+| `npm run check` | typecheck → lint → test → build-core → build:check → verify:manifest | the full Node-lane floor — run before you call it done |
+| `npm test` | `node tests/run-tests.mjs` | after any `*-dsp.js` / `*-cross.js` / `*-app.js` change |
+| `npm run typecheck` | `tsc --noEmit --checkJs` (pinned) | after touching a `tsconfig`-scoped module |
+| `npm run lint` | ESLint over `*.js`/`*.mjs` (pinned, **never** `--fix`) | control-flow / dead-code floor |
+| `npm run build` / `build:app -- <Name>` / `build:check` | `tools/build.mjs --all` / `--app` / `--check` | re-bundle owned bundles / drift guard |
+| `npm run verify:manifest` | `tests/verify-manifest.mjs` | provenance GATE A after a re-bundle |
+| `npm run gen:lists` | regenerate `docs-ledger-list.json` + `changes-list.json` | after adding/removing a brief, linkable file, or changeset |
+| `npm run release` / `release:dry` | `tools/release.mjs` | cut a release from a green tree |
+
+> The `npm run` names are a convenience layer, **not** a new gate. The canonical gates are still
+> `Dex-Test-Suite.html?full` (behavior) and `verify-provenance.html` (provenance); the browser reads
+> are authoritative here when there is no Node host (§4 above). Never add a shipped dependency to
+> `package.json` — it declares dev tooling only.
+
+---
+
+>>>>>>> cf3e242 (Tepna suite)
 ## 5. Common tasks — exact files + which gate
 
 | I want to… | Touch | Then run |

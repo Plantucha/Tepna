@@ -1,0 +1,155 @@
+{
+  "schema": {
+    "name": "ganglior.integrator-tch-golden",
+    "version": "1.0",
+    "doc": "Deterministic HR-hat (ECG+PPG+Oxy) golden — first code-gated Integrator fixture (INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II §2). Inputs rebuilt in-code by the equivalence gate."
+  },
+  "consensus": {
+    "blocks": [
+      {
+        "nodes": [
+          "ECGDex",
+          "PpgDex"
+        ],
+        "window": "Jun 15",
+        "hrvWindow": "wholeRecord",
+        "units": "ms",
+        "crossWindowExcluded": false,
+        "rmssd": {
+          "values": [
+            {
+              "node": "ECGDex",
+              "v": 42
+            },
+            {
+              "node": "PpgDex",
+              "v": 38
+            }
+          ],
+          "min": 38,
+          "max": 42,
+          "median": 40,
+          "divergencePct": 10
+        },
+        "sdnn": {
+          "values": [
+            {
+              "node": "ECGDex",
+              "v": 60
+            },
+            {
+              "node": "PpgDex",
+              "v": 57
+            }
+          ],
+          "min": 57,
+          "max": 60,
+          "median": 58.5,
+          "divergencePct": 5
+        },
+        "lfhf": null,
+        "divergencePct": 10,
+        "lowQualityExcluded": null,
+        "tch": null,
+        "tchStatus": "need ≥3 nodes with a per-epoch rmssd series; have 2",
+        "tchHR": {
+          "ok": true,
+          "method": "correlated-external",
+          "rho": 0.356,
+          "negative": false,
+          "n": 22,
+          "sigma2": {
+            "ECGDex": 7.211351487379374,
+            "PpgDex": 11.598348747201374,
+            "OxyDex": 12.47428351854051
+          },
+          "sigma": {
+            "ECGDex": 2.6853959647283627,
+            "PpgDex": 3.4056348523001367,
+            "OxyDex": 3.5318951737757605
+          },
+          "weights": {
+            "ECGDex": 0.4545755830021894,
+            "PpgDex": 0.2826354318238771,
+            "OxyDex": 0.26278898517393345
+          },
+          "culprit": "OxyDex",
+          "diffVar": {
+            "AB": 12.298119834710745,
+            "AC": 12.932644628099167,
+            "BC": 15.508450413223143
+          },
+          "caveat": "TCH estimates precision (instability), not trueness — a bias shared by all three sensors is invisible. Positive common-mode noise also biases classic without going negative; supply opts.rho to remove a co-motion correlation you can estimate externally.",
+          "metric": "hr",
+          "coMotion": {
+            "ECGDex": 30.016,
+            "PpgDex": 33.758,
+            "OxyDex": 32.336
+          },
+          "rhoEstimate": {
+            "value": 0.356,
+            "method": "cross-node-motion",
+            "nMotionNodes": 3,
+            "meanPairR": 0.356,
+            "nPairs": 3
+          },
+          "levels": {
+            "ECGDex": 58.1,
+            "PpgDex": 58.5,
+            "OxyDex": 58.9
+          },
+          "allan": {
+            "taus": [
+              1,
+              2,
+              4,
+              8
+            ],
+            "adev": {
+              "ECGDex": [
+                1.6557978942693052,
+                2.0617761887827633,
+                1.2049550475709319,
+                0.8675447703556448
+              ],
+              "PpgDex": [
+                3.148695875165737,
+                2.112992390451339,
+                1.1105460368665498,
+                0.22132414012032134
+              ],
+              "OxyDex": [
+                3.145631892005165,
+                1.0564650590779758,
+                1.179609751852988,
+                0.8116754057415538
+              ]
+            },
+            "n": [
+              21,
+              19,
+              15,
+              7
+            ],
+            "epochMin": 5,
+            "tausMin": [
+              5,
+              10,
+              20,
+              40
+            ]
+          },
+          "quietSensors": [
+            "PpgDex",
+            "ECGDex"
+          ],
+          "quietOrderUncertain": true
+        },
+        "tchHRStatus": "ok",
+        "hrReconciled": 58.4,
+        "qc": "agreement",
+        "note": "Sources agree within 10% on wholeRecord HRV — reconciled autonomic state is reliable. HR-hat: OxyDex is the noisiest HR estimator (σ≈3.5 bpm, correlated-external, ρ=0.356); reconciled HR 58.4 bpm."
+      }
+    ]
+  }
+}

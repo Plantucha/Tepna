@@ -205,7 +205,11 @@ function renderHero(r, prev){
   let subsHtml = '';
   subs.forEach(s => {
     if(s.v == null) return;
+<<<<<<< HEAD
     subsHtml += `<div class="readiness-subscore"><div class="rs-val ${s.cls(s.v)}">${s.fmt(s.v)}${s.unit}</div><div class="rs-label">${evBadge(s.label)}${s.label}</div></div>`;
+=======
+    subsHtml += `<div class="readiness-subscore"><div class="rs-val ${s.cls(s.v)}">${evBadge(s.label)}${s.fmt(s.v)}${s.unit}</div><div class="rs-label">${s.label}</div></div>`;
+>>>>>>> cf3e242 (Tepna suite)
   });
 
   // Trend chips

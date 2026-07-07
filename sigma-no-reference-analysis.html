@@ -62,6 +62,11 @@
   .muted{color:var(--text3);} .mono{font-family:var(--mono);}
   .note{background:rgba(88,166,255,.07);border:1px solid rgba(88,166,255,.2);border-radius:10px;padding:12px 15px;font-size:12px;color:var(--text2);line-height:1.55;margin-top:8px;}
   code{font-family:var(--mono);color:var(--blue);background:var(--surface2);padding:1px 5px;border-radius:4px;font-size:11px;}
+<<<<<<< HEAD
+=======
+  .dlbtn{font-family:var(--sans);font-size:10px;font-weight:600;padding:3px 9px;margin-left:8px;border-radius:6px;border:1px solid var(--line);background:var(--surface2);color:var(--text2);cursor:pointer;}
+  .dlbtn:hover{border-color:rgba(255,255,255,.25);color:var(--text);}
+>>>>>>> cf3e242 (Tepna suite)
 </style>
 </head>
 <body>
@@ -69,9 +74,16 @@
   <div class="wrap">
     <div class="eyebrow">HR channel · O2Ring · Polar H10 · Verity Sense · reference-free σ</div>
     <h1><span class="g">Per-device σ</span> without a canonical reference</h1>
+<<<<<<< HEAD
     <div class="sub">Co-recorded devices share the same wall-clock minute, so by the Clock Contract they share a floating <code>tMs</code> — alignment needs no shared timezone. The method has three rungs: (1) <b>repeatability</b> σ with no reference; (2) <b>transfer-standard</b> Bland–Altman / Arms treating the H10 as ≈truth, with reference-free σ via variance subtraction; (3) the <b>three-cornered hat</b>, which recovers each of three devices' own variance with none assumed canonical. H10 + O2Ring co-record 6 nights deeply; for the third leg, the Verity Sense's dead onboard HR is <b>recovered from raw PPG</b> and the H10 reference from <b>raw ECG</b> (the suite's own PPGDSP/ECGDSP detectors). The hat now runs as <b>multi-window machinery</b>: each committed three-device window is solved by the same kernel and the tool reports a per-device σ <b>distribution — median + CI + N_windows + total simultaneous seconds</b> — with the H10↔O2Ring leg as a built-in control and every negative-variance window surfaced. Channel: HR only — O2Ring's SpO₂ trueness is not testable here (no arterial reference).</div>
     <div class="controls">
       <button class="primary" id="runLocal">Run corpus — 6 pair-nights + the multi-window σ hat</button>
+=======
+    <div class="sub">Co-recorded devices share the same wall-clock minute, so by the Clock Contract they share a floating <code>tMs</code> — alignment needs no shared timezone. The method has three rungs: (1) <b>repeatability</b> σ with no reference; (2) <b>transfer-standard</b> Bland–Altman / Arms treating the H10 as ≈truth, with reference-free σ via variance subtraction; (3) the <b>three-cornered hat</b>, which recovers each of three devices' own variance with none assumed canonical. H10 + O2Ring co-record 6 nights deeply; for the third leg, the Verity Sense's dead onboard HR is <b>recovered from raw PPG</b> and the H10 reference from <b>raw ECG</b> (the suite's own PPGDSP/ECGDSP detectors). The hat now runs as <b>multi-window machinery</b>: each committed three-device window is solved by the same kernel and the tool reports a per-device σ <b>distribution — median + CI + N_windows + total simultaneous seconds</b> — with the H10↔O2Ring leg as a built-in control and every negative-variance window surfaced. <b>Two reproducible corpora:</b> <b>Run corpus</b> re-derives the <b>deep 6-window</b> hat live from the committed device files (→ σ 1.83 / 2.04 / 3.50); <b>Load committed 10-night broad hat</b> reads the archived folder-ingest result (<code>uploads/sigma-no-reference-broadhat.json</code>, 122,903 s → σ 2.72 / 1.86 / 1.94), or drop the full capture folder below to recompute it from raw. Channel: HR only — O2Ring's SpO₂ trueness is not testable here (no arterial reference).</div>
+    <div class="controls">
+      <button class="primary" id="runLocal">Run corpus — 6 pair-nights + the deep multi-window σ hat</button>
+      <button id="loadBroad">Load committed 10-night broad hat</button>
+>>>>>>> cf3e242 (Tepna suite)
       <span class="pill idle" id="status">idle</span>
       <span style="flex:1"></span>
       <button id="dlCsv" disabled>results.csv</button>
@@ -83,8 +95,35 @@
 
 <div class="wrap">
   <div class="grid">
+<<<<<<< HEAD
     <div class="card col-8">
       <h2>Co-recorded HR — three devices, one physiology <span class="tag">1-Hz overlay</span></h2>
+=======
+    <div class="card col-12" id="ingestCard">
+      <h2>Real data — drop your capture folder <span class="tag" id="nightTag2">0 nights</span></h2>
+      <div id="dropzone" style="border:1.5px dashed rgba(255,255,255,.18);border-radius:10px;padding:20px;text-align:center;color:var(--text3);cursor:default;transition:border-color .15s;">
+        Drag the whole <b>capture folder</b> here — or
+        <label style="color:var(--teal);cursor:pointer;text-decoration:underline">choose a folder<input id="folderInput" type="file" webkitdirectory directory multiple style="display:none"></label>
+        · <label style="color:var(--teal);cursor:pointer;text-decoration:underline">or files<input id="fileInput" type="file" multiple style="display:none"></label>
+        <div style="font-size:11px;margin-top:7px;line-height:1.5">Auto-groups files into <b>nights</b> and flags every trio-eligible one (O2Ring pulse + Polar H10 device-HR + Verity Sense). The Verity corner is derived from raw <span class="mono">_PPG</span> via the production PPGDSP detector, one night per worker lane. 100% local — nothing uploaded.</div>
+      </div>
+      <div class="controls" style="margin-top:12px">
+        <button class="primary" id="procBtn2" disabled>Process eligible nights (parallel)</button>
+        <span class="pill idle" id="realStatus">no folder loaded</span>
+      </div>
+      <div id="realBar" style="display:none;margin-top:12px">
+        <div style="height:9px;background:var(--surface2);border-radius:6px;overflow:hidden"><div id="realFill" style="height:100%;width:0%;background:var(--teal);transition:width .3s"></div></div>
+        <div style="display:flex;justify-content:space-between;margin-top:6px;font-family:var(--mono);font-size:11px;color:var(--text3)"><span id="realPhase">…</span><span id="realEta"></span></div>
+      </div>
+      <div style="overflow:auto;margin-top:12px"><table id="nightTbl2"><thead><tr>
+        <th style="width:24px"></th><th>night</th><th class="num">O2Ring</th><th class="num">H10 HR</th><th class="num">Verity src</th><th>σ̂  O2 / H10 / Verity (bpm)</th>
+      </tr></thead><tbody></tbody></table></div>
+      <div class="note">Folder mode runs each eligible night through the same three-cornered-hat kernel as the committed corpus (button above), deriving the Verity HR corner from raw PPG in a worker. Solved windows flow into the σ hat, Bland–Altman, control-leg and per-window tables below. A night whose Verity series decorrelates with an implausible σ is excluded as poor PPG contact, not hidden.</div>
+    </div>
+
+    <div class="card col-8">
+      <h2>Co-recorded HR — three devices, one physiology <span class="tag">1-Hz overlay</span><button class="dlbtn" data-canvas="tsCanvas" data-fn="sigma-timeseries.png">↓ PNG</button></h2>
+>>>>>>> cf3e242 (Tepna suite)
       <canvas id="tsCanvas" width="720" height="300"></canvas>
       <div class="legend">First ~600 aligned seconds of a three-device window. <span style="color:#3DE0D0">H10 (ECG, RR→1 Hz)</span> · <span style="color:#FFB84D">O2Ring (pulse)</span> · <span style="color:#B98AFF">Verity (raw PPG)</span>. All three track the same true HR; the spread between them is device error.</div>
     </div>
@@ -101,12 +140,20 @@
     </div>
 
     <div class="card col-6">
+<<<<<<< HEAD
       <h2>Bland–Altman — O2Ring &amp; Verity vs H10 <span class="tag">vs ECG reference</span></h2>
+=======
+      <h2>Bland–Altman — O2Ring &amp; Verity vs H10 <span class="tag">vs ECG reference</span><button class="dlbtn" data-canvas="baO2" data-fn="sigma-bland-altman.png">↓ PNG</button></h2>
+>>>>>>> cf3e242 (Tepna suite)
       <canvas id="baO2" width="560" height="300"></canvas>
       <div class="legend">Difference vs the H10 reference, <span style="color:#FFB84D">O2Ring−H10</span> and <span style="color:#B98AFF">Verity−H10</span>, both over the same three-device overlap so the Arms are directly comparable. Solid = bias, dashed = 95% LoA. Verity's cloud is visibly wider — that <em>is</em> its larger σ.</div>
     </div>
     <div class="card col-6">
+<<<<<<< HEAD
       <h2>Per-night scatter SD <span class="tag">precision</span></h2>
+=======
+      <h2>Per-night scatter SD <span class="tag">precision</span><button class="dlbtn" data-canvas="nightCanvas" data-fn="sigma-pernight-sd.png">↓ PNG</button></h2>
+>>>>>>> cf3e242 (Tepna suite)
       <canvas id="nightCanvas" width="560" height="300"></canvas>
       <div class="legend">SD of (O2Ring−H10) per night = the O2Ring's second-by-second precision (H10 is ~truth). Red = motion-flagged night (SD &gt; 1.8× median); the dashed line is that threshold.</div>
     </div>
@@ -120,7 +167,11 @@
     </div>
 
     <div class="card col-7">
+<<<<<<< HEAD
       <h2>Three-cornered hat — per-device σ with CI, none canonical <span class="tag">H10 · Verity · O2Ring</span></h2>
+=======
+      <h2>Three-cornered hat — per-device σ with CI, none canonical <span class="tag">H10 · Verity · O2Ring</span><button class="dlbtn" data-canvas="tchCanvas" data-fn="sigma-tch.png">↓ PNG</button></h2>
+>>>>>>> cf3e242 (Tepna suite)
       <canvas id="tchCanvas" width="640" height="300"></canvas>
       <div class="legend">Aggregate reference-free σ over <b id="tchN">0</b> three-device window(s), <b id="tchSecs">0</b> simultaneous s. <span style="color:#FFB84D">O2Ring native pulse</span> · <span style="color:#3DE0D0">H10 — HR from raw ECG (Pan-Tompkins QRS)</span> · <span style="color:#B98AFF">Verity — HR from raw PPG (PPGDSP)</span>. Bar = aggregate σ; white whisker = 95% CI (<b id="tchCiKind">—</b>); faint dots = per-window σ. No device assumed canonical.</div>
     </div>

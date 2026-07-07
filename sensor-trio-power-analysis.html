@@ -91,6 +91,31 @@
 
 <div class="wrap">
   <div class="grid">
+<<<<<<< HEAD
+=======
+    <div class="card col-12" id="ingestCard">
+      <h2>Real data — drop your capture folder <span class="tag" id="nightTag">0 nights</span></h2>
+      <div id="dropzone" style="border:1.5px dashed rgba(255,255,255,.18);border-radius:10px;padding:20px;text-align:center;color:var(--text3);cursor:default;transition:border-color .15s;">
+        Drag the whole <b>capture folder</b> here — or
+        <label style="color:var(--blue);cursor:pointer;text-decoration:underline">choose a folder<input id="folderInput" type="file" webkitdirectory directory multiple style="display:none"></label>
+        · <label style="color:var(--blue);cursor:pointer;text-decoration:underline">or files<input id="fileInput" type="file" multiple style="display:none"></label>
+        <div style="font-size:11px;margin-top:7px;line-height:1.5">Auto-groups files into <b>nights</b> and flags every <b>trio-eligible</b> one (O2Ring pulse + Polar H10 device-HR + Verity Sense). Verity HR comes from the device <span class="mono">_PPI</span> when present, else a compact beat-rate pass over the raw <span class="mono">_PPG</span> waveform. 100% local — nothing is uploaded.</div>
+      </div>
+      <div class="controls" style="margin-top:12px">
+        <button class="primary" id="procBtn" disabled>Process eligible nights (parallel)</button>
+        <span class="pill idle" id="realStatus">no folder loaded</span>
+      </div>
+      <div id="realBar" style="display:none;margin-top:12px">
+        <div style="height:9px;background:var(--surface2);border-radius:6px;overflow:hidden"><div id="realFill" style="height:100%;width:0%;background:var(--blue);transition:width .3s"></div></div>
+        <div style="display:flex;justify-content:space-between;margin-top:6px;font-family:var(--mono);font-size:11px;color:var(--text3)"><span id="realPhase">…</span><span id="realEta"></span></div>
+      </div>
+      <div style="overflow:auto;margin-top:12px"><table id="nightTbl"><thead><tr>
+        <th style="width:24px"></th><th>night</th><th class="num">O2Ring</th><th class="num">H10 HR</th><th class="num">Verity src</th><th>σ̂  O2 / H10 / Verity (bpm)</th>
+      </tr></thead><tbody></tbody></table></div>
+      <div class="note">Each eligible night is solved by the <b>same TCH kernel</b> as the simulation arm, one night per worker lane across every core (the multi-GB raw PPG is parsed + beat-detected inside the worker, never on the UI thread). Solved σ̂ values flow into the real-window table and Figure 3 below — run the power sweep too to overlay the predicted σ band as N accumulates.</div>
+    </div>
+
+>>>>>>> cf3e242 (Tepna suite)
     <div class="card col-8">
       <h2>Figure 1 — σ CI half-width vs N windows <span class="tag">dynamic regime · per device</span></h2>
       <canvas id="curveCanvas" width="720" height="380"></canvas>

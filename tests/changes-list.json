@@ -1,8 +1,23 @@
 {
   "_doc": "Generated changeset-name ledger for the release-ledger gate's BROWSER lane (fetch can't list a dir). Regenerate with tests/gen-changes-list.mjs (Node) whenever a changeset is added to or pruned from changes/; the Node lane asserts this matches fs reality, so a stale list reds in CI. Excludes README.md and _/.-prefixed files. CONTROLLED-RELEASES-2026-07-05.",
+<<<<<<< HEAD
   "generated": "2026-07-05",
   "count": 1,
   "changes": [
     "2026-07-05-registry-projection-defs-parity.md"
+=======
+  "generated": "2026-07-06",
+  "count": 9,
+  "changes": [
+    "2026-07-05-badge-by-construction-oxydex-hrvdex.md",
+    "2026-07-05-integrator-tch-wallclock-align.md",
+    "2026-07-05-registry-projection-defs-parity.md",
+    "2026-07-06-dev-toolchain-a4-reachin-gate.md",
+    "2026-07-06-dev-toolchain-npm-spine.md",
+    "2026-07-06-ownbuild-partc-integrator-render-badge.md",
+    "2026-07-06-release-changelog-compare-links-f6.md",
+    "2026-07-06-release-check7-hard-gate-f8.md",
+    "2026-07-06-release-version-surfaces-f2-f3-f4.md"
+>>>>>>> cf3e242 (Tepna suite)
   ]
 }

@@ -1,7 +1,12 @@
 {
   "_doc": "Generated ledger for the docs-ledger gate's BROWSER lane (fetch can't list a dir): brief names + a whole-tree path inventory (paths[]) for link-integrity. Regenerate with tests/gen-docs-ledger-list.mjs (Node) whenever a brief OR any linkable file is added/removed/renamed; the Node lane asserts BOTH lists match fs reality, so a stale list reds in CI. DOCS-LEDGER-GATE-2026-07-03 (+FOLLOWUPS §F2).",
+<<<<<<< HEAD
   "generated": "2026-07-05",
   "count": 154,
+=======
+  "generated": "2026-07-06",
+  "count": 158,
+>>>>>>> cf3e242 (Tepna suite)
   "briefs": [
     "AMBULATORY-MODE-BRIEF.md",
     "AUDIT-FOLLOWUPS-BRIEF.md",
@@ -17,6 +22,12 @@
     "COHORT-VALIDATION-BRIEF.md",
     "CONTROLLED-RELEASES-2026-07-05-BRIEF.md",
     "CONTROLLED-RELEASES-FOLLOWUPS-2026-07-05-BRIEF.md",
+<<<<<<< HEAD
+=======
+    "OPEN-BRIEFS-POST-TRIO-2026-07-06-BRIEF.md",
+    "SIGMA-PAPER-REWRITE-2026-07-06-BRIEF.md",
+    "TRIO-METHODS-REUSE-2026-07-06-BRIEF.md",
+>>>>>>> cf3e242 (Tepna suite)
     "CPAPDEX-BUILD-BRIEF.md",
     "CPAPDEX-CODEGEN-HANDOFF.md",
     "CPAPDEX-KICKOFF.md",
@@ -89,6 +100,10 @@
     "INTEGRATOR-THREE-CORNERED-HAT-2026-07-02-BRIEF.md",
     "INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-2026-07-03-BRIEF.md",
     "INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II-2026-07-04-BRIEF.md",
+<<<<<<< HEAD
+=======
+    "INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md",
+>>>>>>> cf3e242 (Tepna suite)
     "KERNEL-BUILD-BRIEF.md",
     "NODE-RESIDUE-FOLLOWUPS-2026-06-30-BRIEF.md",
     "NODE-RESIDUE-FOLLOWUPS-II-2026-06-30-BRIEF.md",
@@ -224,6 +239,16 @@
     "adapters/wahoo-rr.js",
     "adapters/welltory-summary.js",
     "ans-design.css",
+<<<<<<< HEAD
+=======
+    "assets",
+    "assets/icons",
+    "assets/icons/apple-touch-icon-180.png",
+    "assets/icons/tepna-192.png",
+    "assets/icons/tepna-512.png",
+    "assets/icons/tepna-maskable-512.png",
+    "assets/tepna-og.png",
+>>>>>>> cf3e242 (Tepna suite)
     "audits",
     "audits/AUDIT.md",
     "audits/BADGE-COVERAGE-AUDIT-FINDINGS.md",
@@ -260,6 +285,12 @@
     "briefs/COHORT-VALIDATION-BRIEF.md",
     "briefs/CONTROLLED-RELEASES-2026-07-05-BRIEF.md",
     "briefs/CONTROLLED-RELEASES-FOLLOWUPS-2026-07-05-BRIEF.md",
+<<<<<<< HEAD
+=======
+    "briefs/OPEN-BRIEFS-POST-TRIO-2026-07-06-BRIEF.md",
+    "briefs/SIGMA-PAPER-REWRITE-2026-07-06-BRIEF.md",
+    "briefs/TRIO-METHODS-REUSE-2026-07-06-BRIEF.md",
+>>>>>>> cf3e242 (Tepna suite)
     "briefs/CPAPDEX-BUILD-BRIEF.md",
     "briefs/CPAPDEX-CODEGEN-HANDOFF.md",
     "briefs/CPAPDEX-KICKOFF.md",
@@ -332,6 +363,10 @@
     "briefs/INTEGRATOR-THREE-CORNERED-HAT-2026-07-02-BRIEF.md",
     "briefs/INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-2026-07-03-BRIEF.md",
     "briefs/INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II-2026-07-04-BRIEF.md",
+<<<<<<< HEAD
+=======
+    "briefs/INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md",
+>>>>>>> cf3e242 (Tepna suite)
     "briefs/KERNEL-BUILD-BRIEF.md",
     "briefs/NODE-RESIDUE-FOLLOWUPS-2026-06-30-BRIEF.md",
     "briefs/NODE-RESIDUE-FOLLOWUPS-II-2026-06-30-BRIEF.md",
@@ -414,6 +449,14 @@
     "cgm-hrv-coupling-analysis.html",
     "cgm-hrv-coupling-analysis.js",
     "changes",
+<<<<<<< HEAD
+=======
+    "changes/2026-07-05-badge-by-construction-oxydex-hrvdex.md",
+    "changes/2026-07-05-integrator-tch-wallclock-align.md",
+    "changes/2026-07-06-dev-toolchain-npm-spine.md",
+    "changes/2026-07-06-release-changelog-compare-links-f6.md",
+    "changes/2026-07-06-release-version-surfaces-f2-f3-f4.md",
+>>>>>>> cf3e242 (Tepna suite)
     "changes/README.md",
     "clock.js",
     "codegen",
@@ -506,6 +549,10 @@
     "docs/HRVDex.html",
     "docs/How to Collect Data.html",
     "docs/INLINER-PATCH-LIST.md",
+<<<<<<< HEAD
+=======
+    "docs/INTEGRATOR-TCH-REALDATA-VALIDATION-2026-07-06.md",
+>>>>>>> cf3e242 (Tepna suite)
     "docs/Integrator.html",
     "docs/LEXICON.md",
     "docs/ODI-BIAS-ANALYSIS-README.md",
@@ -527,6 +574,15 @@
     "docs/WORKER-POOL-PATTERN.md",
     "docs/Why This Exists.html",
     "docs/about.json",
+<<<<<<< HEAD
+=======
+    "docs/assets",
+    "docs/assets/icons",
+    "docs/assets/icons/apple-touch-icon-180.png",
+    "docs/assets/icons/tepna-192.png",
+    "docs/assets/icons/tepna-512.png",
+    "docs/assets/icons/tepna-maskable-512.png",
+>>>>>>> cf3e242 (Tepna suite)
     "docs/dex-badges.css",
     "docs/dex-wired.css",
     "docs/feed.xml",
@@ -556,6 +612,10 @@
     "docs/licensing/dex-license.css",
     "docs/llms-full.txt",
     "docs/llms.txt",
+<<<<<<< HEAD
+=======
+    "docs/manifest.json",
+>>>>>>> cf3e242 (Tepna suite)
     "docs/papers",
     "docs/papers/cgm-hrv-coupling.html",
     "docs/papers/figures",
@@ -600,6 +660,10 @@
     "docs/sitemap.xml",
     "docs/templates",
     "docs/templates/Visual-Language-Spec.html",
+<<<<<<< HEAD
+=======
+    "docs/tepna-og.png",
+>>>>>>> cf3e242 (Tepna suite)
     "docs/wiring",
     "docs/wiring/How It's Wired - Architecture.html",
     "docs/wiring/How It's Wired - CPAPDex.html",
@@ -681,6 +745,10 @@
     "licensing/dex-license-samples.html",
     "licensing/dex-license.css",
     "manifest-gate.js",
+<<<<<<< HEAD
+=======
+    "manifest.json",
+>>>>>>> cf3e242 (Tepna suite)
     "metric-registry.js",
     "nights-icc-analysis.html",
     "nights-icc-analysis.js",
@@ -698,6 +766,10 @@
     "oxydex-registry.js",
     "oxydex-render.js",
     "oxydex-util.js",
+<<<<<<< HEAD
+=======
+    "package.json",
+>>>>>>> cf3e242 (Tepna suite)
     "papers",
     "papers/PAPERS-AUDIT.md",
     "papers/RERUN-RESULTS.md",

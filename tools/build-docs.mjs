@@ -85,7 +85,11 @@ function hasNonPublic(html, dir) {
 }
 
 // ── PHASE 1 — page-body sync ────────────────────────────────────────────────
+<<<<<<< HEAD
 const log = { copy: [], delink: [], preserve: [], asset: [], stale: [], missingRoot: [], assetNoTwin: [] };
+=======
+const log = { copy: [], delink: [], preserve: [], asset: [], stale: [], missingRoot: [], assetNoTwin: [], stamp: [] };
+>>>>>>> cf3e242 (Tepna suite)
 function syncPage(rel) {
   const rootAbs = join(ROOT, rel);
   const docsAbs = join(DEPLOY, rel);
@@ -149,6 +153,10 @@ function buildAbout() {
     '@context': 'https://schema.org', '@type': 'SoftwareApplication',
     name: manifest.site.name, alternateName: manifest.site.brand,
     applicationCategory: 'HealthApplication', operatingSystem: 'Any (modern web browser)',
+<<<<<<< HEAD
+=======
+    softwareVersion: manifest.version,
+>>>>>>> cf3e242 (Tepna suite)
     url: manifest.site.url, codeRepository: manifest.site.repo, description: manifest.site.description,
     isAccessibleForFree: true, offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
     license: manifest.site.licenseUrl, author: { '@type': 'Person', name: manifest.site.author },
@@ -177,6 +185,30 @@ for (const [name, content] of Object.entries(artifacts)) {
   if (cur !== content) { if (CHECK) log.stale.push(name); else writeFileSync(dest, content); }
 }
 
+<<<<<<< HEAD
+=======
+// ── PHASE 3 — project suite.manifest.json version into the human/discovery surfaces ─────────
+//   CONTROLLED-RELEASES-FOLLOWUPS F2. suite.manifest.json is canonical (release.mjs stamps it +
+//   CITATION.cff); this projects that ONE version into README + index.html (root & docs twin) so the
+//   release-ledger check-6 stamp-parity gate has real surfaces to compare. Each rule UPDATES an existing
+//   marker's number in place — it never INSERTS a marker (introduce a new marker by hand once, then this
+//   maintains it), so a surface that lost its marker stays lost and check-6 reds it as `unstamped`.
+const VERSION = manifest.version;
+const stampRules = [
+  ['README.md',       [[/(\*\*Suite version:\*\*\s*)\d+\.\d+\.\d+/g, `$1${VERSION}`]]],
+  ['index.html',      [[/("softwareVersion":\s*")\d+\.\d+\.\d+(")/g, `$1${VERSION}$2`], [/(Michal Planicka · Apache-2\.0 · v)\d+\.\d+\.\d+/g, `$1${VERSION}`]]],
+  ['docs/index.html', [[/("softwareVersion":\s*")\d+\.\d+\.\d+(")/g, `$1${VERSION}$2`], [/(Michal Planicka · Apache-2\.0 · v)\d+\.\d+\.\d+/g, `$1${VERSION}`]]],
+];
+for (const [rel, subs] of stampRules) {
+  const abs = join(ROOT, rel);
+  if (!existsSync(abs)) { log.missingRoot.push(rel); continue; }
+  const orig = readFileSync(abs, 'utf8');
+  let txt = orig;
+  for (const [re, repl] of subs) txt = txt.replace(re, repl);
+  if (txt !== orig) { if (CHECK) log.stale.push(rel); else { writeFileSync(abs, txt); log.stamp.push(rel); } }
+}
+
+>>>>>>> cf3e242 (Tepna suite)
 // ── report ──────────────────────────────────────────────────────────────────
 if (CHECK) {
   if (log.stale.length) { console.error(`STALE (${log.stale.length}): ${log.stale.join(', ')}`); console.error('run: node tools/build-docs.mjs'); process.exit(1); }
@@ -186,4 +218,8 @@ if (CHECK) {
   if (log.preserve.length) console.log(`  ⚠ preserved (editorial de-link — re-apply manually if you edited its source, or --force-delink): ${log.preserve.join(', ')}`);
   console.log(`Phase 1b (assets): synced ${log.asset.length} of ${assetFiles.length} (css/js/img)`);
   console.log(`Phase 2 (artifacts): (re)generated ${Object.keys(artifacts).length}`);
+<<<<<<< HEAD
+=======
+  console.log(`Phase 3 (version stamp): projected v${VERSION} into ${log.stamp.length} surface(s)${log.stamp.length ? ' (' + log.stamp.join(', ') + ')' : ''}`);
+>>>>>>> cf3e242 (Tepna suite)
 }

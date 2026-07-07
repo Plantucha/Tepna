@@ -678,20 +678,36 @@ function renderAll() {
     html+='<div class="readiness-scores-grid">';
     if(s0.meanSpo2!=null) {
       var spo2Cls = s0.meanSpo2>=(95-upSpo2Adj())?'ok':s0.meanSpo2>=(92-upSpo2Adj())?'warn':'bad';
+<<<<<<< HEAD
       html+='<div class="readiness-subscore"><div class="rs-val '+spo2Cls+'">'+s0.meanSpo2+'%</div><div class="rs-label">'+evBadge('SpO₂')+'SpO₂</div></div>';
     }
     if(last.hrv && last.hrv.hrSdnn!=null) {
       var hrvCls = last.hrv.hrSdnn>=4?'ok':last.hrv.hrSdnn>=2.5?'warn':'bad';
       html+='<div class="readiness-subscore"><div class="rs-val '+hrvCls+'">'+last.hrv.hrSdnn+'</div><div class="rs-label">'+evBadge('HR-Var')+'HR-Var</div></div>';
+=======
+      html+='<div class="readiness-subscore"><div class="rs-val '+spo2Cls+'">'+evBadge('SpO₂')+s0.meanSpo2+'%</div><div class="rs-label">SpO₂</div></div>';
+    }
+    if(last.hrv && last.hrv.hrSdnn!=null) {
+      var hrvCls = last.hrv.hrSdnn>=4?'ok':last.hrv.hrSdnn>=2.5?'warn':'bad';
+      html+='<div class="readiness-subscore"><div class="rs-val '+hrvCls+'">'+evBadge('HR-Var')+last.hrv.hrSdnn+'</div><div class="rs-label">HR-Var</div></div>';
+>>>>>>> cf3e242 (Tepna suite)
     }
     if(s0.durationMin) {
       var dh=Math.floor(s0.durationMin/60), dm=Math.round(s0.durationMin%60);
       var durCls = s0.durationMin>=360?'ok':s0.durationMin>=300?'warn':'bad';
+<<<<<<< HEAD
       html+='<div class="readiness-subscore"><div class="rs-val '+durCls+'">'+dh+'h'+(dm<10?'0':'')+dm+'m</div><div class="rs-label">'+evBadge('Sleep')+'Sleep</div></div>';
     }
     if(last.hrv && last.hrv.hrFloor!=null) {
       var hrfCls = last.hrv.hrFloor<=52?'ok':last.hrv.hrFloor<=60?'warn':'bad';
       html+='<div class="readiness-subscore"><div class="rs-val '+hrfCls+'">'+last.hrv.hrFloor+' bpm</div><div class="rs-label">'+evBadge('HR Floor')+'HR Floor</div></div>';
+=======
+      html+='<div class="readiness-subscore"><div class="rs-val '+durCls+'">'+evBadge('Sleep')+dh+'h'+(dm<10?'0':'')+dm+'m</div><div class="rs-label">Sleep</div></div>';
+    }
+    if(last.hrv && last.hrv.hrFloor!=null) {
+      var hrfCls = last.hrv.hrFloor<=52?'ok':last.hrv.hrFloor<=60?'warn':'bad';
+      html+='<div class="readiness-subscore"><div class="rs-val '+hrfCls+'">'+evBadge('HR Floor')+last.hrv.hrFloor+' bpm</div><div class="rs-label">HR Floor</div></div>';
+>>>>>>> cf3e242 (Tepna suite)
     }
     html+='</div>';
 
@@ -2081,7 +2097,11 @@ function nightDetail(n, idx) {
     html+='</div>';
     if(n.period && n.period.intervals){
       html+='<div class="metric info mt-sm">'
+<<<<<<< HEAD
         +'<div class="m-label">Periodicity pattern</div>'
+=======
+        +'<div class="m-label">'+evBadge('Periodicity pattern')+'Periodicity pattern</div>'
+>>>>>>> cf3e242 (Tepna suite)
         +'<div class="m-val">'+n.period.pattern.replace(/_/g,' ')+' · avg '+n.period.avg+'min</div>'
         +'<div class="m-unit">spread '+n.period.spread+'min · intervals: '+n.period.intervals.join(', ')+'min</div>'
         +'</div>';
@@ -2091,13 +2111,21 @@ function nightDetail(n, idx) {
   // Oscillations — core (always visible)
   html+='<div class="sec-label">Periodic Breathing</div>';
   if(!n.osc||!n.osc.episodeCount){
+<<<<<<< HEAD
     html+='<div class="metric good"><div class="m-label">SpO₂ oscillation index</div><div class="m-val">Clear</div><div class="m-unit">No periodic breathing windows detected</div></div>';
+=======
+    html+='<div class="metric good"><div class="m-label">'+evBadge('SpO₂ oscillation index')+'SpO₂ oscillation index</div><div class="m-val">Clear</div><div class="m-unit">No periodic breathing windows detected</div></div>';
+>>>>>>> cf3e242 (Tepna suite)
   } else {
     html+='<div class="grid">'
       +metric('Flagged Windows',n.osc.episodeCount,'5-min non-overlapping',n.osc.episodeCount>=4?'warn':'')
       +metric('Peak Crossings',(n.osc.peakCrossings!=null?n.osc.peakCrossings:'—'),'worst window',n.osc.peakCrossings>12?'warn':'')
       +'</div>';
+<<<<<<< HEAD
     if(n.osc.first) html+='<div class="metric mt-sm"><div class="m-label">Episode range</div><div class="m-val t-caption">'+n.osc.first.substr(0,8)+' → '+n.osc.last.substr(0,8)+'</div></div>';
+=======
+    if(n.osc.first) html+='<div class="metric mt-sm"><div class="m-label">'+evBadge('Episode range')+'Episode range</div><div class="m-val t-caption">'+n.osc.first.substr(0,8)+' → '+n.osc.last.substr(0,8)+'</div></div>';
+>>>>>>> cf3e242 (Tepna suite)
   }
 
   // ── Motion Profile — secondary tier (advanced mode) ─────────────

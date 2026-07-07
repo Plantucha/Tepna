@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
+<!-- Diagnostic harness (NOT a runtime surface) — generates the deterministic Integrator TCH-HR
+     golden (INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II §2). Loads the REAL fusion modules, builds
+     three staggered-wall-clock node-exports in-code, fuses them, and exposes the golden + hashes.
+     The SAME _tchGoldenInputs() builder is pasted into tests/dex-tests.js so the gate reproduces this. -->
+<meta charset="utf-8">
+<title>TCH golden generator</title>
+<script src="../kernel-constants.js"></script>
+<script src="../clock.js"></script>
+<script src="../integrator-tch.js"></script>
+<script src="../integrator-dsp.js"></script>
+<body><pre id="out">running…</pre></body>
+<script>
+// ── SHARED deterministic golden-input builder (byte-identical copy lives in tests/dex-tests.js) ──
+function _tchGoldenInputs(){
+  function mb32(a){ return function(){ a|=0; a=(a+0x6D2B79F5)|0; var t=Math.imul(a^(a>>>15),1|a); t=(t+Math.imul(t^(t>>>7),61|t))^t; return ((t^(t>>>14))>>>0)/4294967296; }; }
+  function gauss(rng){ var u=0,v=0; while(u===0)u=rng(); while(v===0)v=rng(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+  var baseT0 = Date.UTC(2026,5,15,23,0,0);           // ECG anchor 2026-06-15 23:00 (floating wall-clock)
+  var NE = 24;                                        // 24 epochs = 120 min per node
+  function latentHR(a){ return 58 + 4*Math.sin(a/5) - 0.05*a; }   // shared latent HR on the ABSOLUTE 5-min grid
+  function latentMot(a){ return 30 + 20*Math.sin(a/3 + 1); }      // shared motion driver (→ cross-node ρ)
+  var CFG = [
+    { node:'ECGDex', offMin:0,  sHR:1.0, rmssd:42, sdnn:60, seed:11 },
+    { node:'PpgDex', offMin:5,  sHR:2.2, rmssd:38, sdnn:57, seed:22 },
+    { node:'OxyDex', offMin:10, sHR:4.5, rmssd:null, sdnn:null, seed:33 }
+  ];
+  return CFG.map(function(c){
+    var rng=mb32(c.seed), rngM=mb32(c.seed+7);
+    var t0 = baseT0 + c.offMin*60000;
+    var eps=[];
+    for(var i=0;i<NE;i++){
+      var absA = c.offMin/5 + i;                       // shared absolute-grid index (5-min units from baseT0)
+      var e = { tMin:i*5, hr:+(latentHR(absA) + c.sHR*gauss(rng)).toFixed(1),
+                motionIndex:+(latentMot(absA) + 18*gauss(rngM)).toFixed(2) };
+      if(c.rmssd!=null) e.rmssd = +(c.rmssd + 3*gauss(rng)).toFixed(1);
+      eps.push(e);
+    }
+    var json = {
+      schema:{ name:'ganglior.node-export', node:c.node, version:'2.0' },
+      recording:{ startEpochMs:t0, durationMin:NE*5 },
+      quality:{ analyzablePct:95 },
+      timeseries:{ epochs:eps },
+      ganglior_events:[]
+    };
+    if(c.rmssd!=null) json.hrv = { time:{ rmssd:c.rmssd, sdnn:c.sdnn } };
+    return { node:c.node, json:json };
+  });
+}
+
+async function sha16(str){
+  var buf = new TextEncoder().encode(str);
+  var h = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(h)).map(function(b){return b.toString(16).padStart(2,'0');}).join('').slice(0,16);
+}
+
+(async function(){
+  var out = document.getElementById('out');
+  try{
+    var inputs = _tchGoldenInputs();
+    var recs = inputs.map(function(x){ return adaptEnvelopeNode(x.json, x.node, x.node)[0]; });
+    var fusion = fuseHRVConsensus(recs, 1000);
+    var golden = { schema:{ name:'ganglior.integrator-tch-golden', version:'1.0',
+      doc:'Deterministic HR-hat (ECG+PPG+Oxy) golden — first code-gated Integrator fixture (INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II §2). Inputs rebuilt in-code by the equivalence gate.' },
+      consensus: fusion };
+    var goldenStr = JSON.stringify(golden, null, 2);
+    var b0 = fusion && fusion.blocks && fusion.blocks[0];
+    var result = {
+      goldenStr: goldenStr,
+      goldenHash: await sha16(goldenStr),
+      tchHRok: !!(b0 && b0.tchHR),
+      culprit: b0 && b0.tchHR && b0.tchHR.culprit,
+      method: b0 && b0.tchHR && b0.tchHR.method,
+      rho: b0 && b0.tchHR && b0.tchHR.rho,
+      n: b0 && b0.tchHR && b0.tchHR.n,
+      sigma2: b0 && b0.tchHR && b0.tchHR.sigma2,
+      hrReconciled: b0 && b0.hrReconciled,
+      nodes: b0 && b0.nodes,
+      tchHRStatus: b0 && b0.tchHRStatus
+    };
+    window.__TCH = result;
+    out.textContent = JSON.stringify({ ok:true, culprit:result.culprit, method:result.method, rho:result.rho,
+      n:result.n, sigma2:result.sigma2, hrReconciled:result.hrReconciled, nodes:result.nodes,
+      status:result.tchHRStatus, goldenHash:result.goldenHash, goldenBytes:goldenStr.length }, null, 2);
+  }catch(e){ out.textContent = 'ERROR: '+e.message+'\n'+e.stack; window.__TCH={error:e.message}; }
+})();
+</script>

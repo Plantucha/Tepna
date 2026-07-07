@@ -22,7 +22,12 @@
  * then real-data validation):
  *   PART 1 — simulation power. A synthetic trio generator with a controllable
  *     variance REGIME (resting vs dynamic) and KNOWN per-device σ planted at the
+<<<<<<< HEAD
  *     paper's real estimates (σ_O2≈1.7, σ_H10≈2.2, σ_Verity≈6.2 bpm). The SAME
+=======
+ *     paper's best real estimate — the raw-ECG 10-night broad hat (σ_O2≈2.72,
+ *     σ_H10≈1.86, σ_Verity≈1.94 bpm; supersedes the interim device-HR 1.7/2.2/3.0). The SAME
+>>>>>>> cf3e242 (Tepna suite)
  *     per-window TCH kernel sigma-no-reference uses is run over N_windows =
  *     1,2,3,5,8,12,20 across ~MC Monte-Carlo trials → σ̂ bias, CI half-width and
  *     RMSE vs the planted σ as a function of N. Gives a defensible "how many
@@ -44,7 +49,11 @@
  * inefficient for σ metrology and the answer is "how many windows OF WHAT KIND."
  * The generator therefore plants both an independent floor σ0 per device AND a
  * shared resting-HRV component, sized so the RESTING total σ matches the real
+<<<<<<< HEAD
  * estimates (1.7/2.2/6.2). An explicit ρ knob injects extra correlated error
+=======
+ * estimates (2.72/1.86/1.94, raw-ECG broad hat). An explicit ρ knob injects extra correlated error
+>>>>>>> cf3e242 (Tepna suite)
  * between the H10·Verity pair to calibrate the assumption-testability finding.
  *
  * 100% local. Clock-Contract parser mirrored (regex → floating ms; never
@@ -68,9 +77,15 @@
   const SD_H_REST = 1.35;          // bpm SD of the shared beat-to-beat HRV at rest
   const SD_H_DYN  = 0.30;          // HRV collapses during exercise
   const DEV = {
+<<<<<<< HEAD
     o2:     { name: 'O2Ring (pulse)', col: O2COL,  resp: 0.45, sigmaRest: 1.7 },
     h10:    { name: 'H10 (ECG)',      col: H10COL, resp: 1.00, sigmaRest: 2.2 },
     verity: { name: 'Verity (PPG)',   col: VERCOL, resp: 1.00, sigmaRest: 6.2 },
+=======
+    o2:     { name: 'O2Ring (pulse)', col: O2COL,  resp: 0.45, sigmaRest: 2.72 },
+    h10:    { name: 'H10 (ECG)',      col: H10COL, resp: 1.00, sigmaRest: 1.86 },
+    verity: { name: 'Verity (PPG)',   col: VERCOL, resp: 1.00, sigmaRest: 1.94 },   // planted at the raw-ECG 10-night broad hat (O2Ring 2.72 / H10 1.86 / Verity 1.94 bpm, 122,903 s) — the suite's best reference-free estimate; supersedes the interim device-HR re-fit (1.7/2.2/3.0)DSP is cleaner than the earlier estimate) — docs/INTEGRATOR-TCH-REALDATA-VALIDATION-2026-07-06.md
+>>>>>>> cf3e242 (Tepna suite)
   };
   // solve independent floor σ0 so the resting total matches the real estimate
   for (const k in DEV) {
@@ -326,7 +341,11 @@
   //   K real Web Workers run the Monte-Carlo OFF the main thread → true
   //   multicore, no UI freeze. Jobs route by reqId through the shared pend map;
   //   per-trial deterministic seeding makes the result pool-size-independent.
+<<<<<<< HEAD
   let pool = []; const pend = new Map(); let seq = 1; let CANCEL = false;
+=======
+  let pool = []; const pend = new Map(); let seq = 1; let CANCEL = false; let _progHook = null;
+>>>>>>> cf3e242 (Tepna suite)
   function bootPool(K) {
     pool = []; const readies = [];
     for (let i = 0; i < K; i++) {
@@ -334,14 +353,22 @@
         let w; try { w = new Worker('sensor-trio-worker.js'); } catch (e) { return; }
         const rec = { w: w, ready: false, _res: null };
         pool.push(rec); readies.push(new Promise((res) => { rec._res = res; }));
+<<<<<<< HEAD
         w.onmessage = (ev) => { const m = ev.data || {}; if (m.type === 'ready') { rec.ready = true; if (rec._res) { rec._res(); rec._res = null; } return; } if (m.type === 'done') { const p = pend.get(m.reqId); if (p) { pend.delete(m.reqId); p(m); } } };
+=======
+        w.onmessage = (ev) => { const m = ev.data || {}; if (m.type === 'ready') { rec.ready = true; if (rec._res) { rec._res(); rec._res = null; } return; } if (m.type === 'progress') { if (_progHook) _progHook(m); return; } if (m.type === 'done') { const p = pend.get(m.reqId); if (p) { pend.delete(m.reqId); p(m); } } };
+>>>>>>> cf3e242 (Tepna suite)
         w.onerror = () => { if (rec._res) { rec._res(); rec._res = null; } };
         w.postMessage({ type: 'init' });
       })();
     }
     return Promise.race([Promise.all(readies), new Promise((r) => setTimeout(r, 8000))]);
   }
+<<<<<<< HEAD
   function runJob(rec, job) { return new Promise((resolve) => { const id = seq++; pend.set(id, resolve); rec.w.postMessage(Object.assign({ type: 'job', reqId: id, ar1: CFG.ar1, winSec: CFG.winSec }, job)); setTimeout(() => { if (pend.has(id)) { pend.delete(id); resolve({ error: 'timeout' }); } }, 300000); }); }
+=======
+  function runJob(rec, job) { return new Promise((resolve) => { const id = seq++; pend.set(id, resolve); rec.w.postMessage(Object.assign({ type: 'job', reqId: id, ar1: CFG.ar1, winSec: CFG.winSec }, job)); setTimeout(() => { if (pend.has(id)) { pend.delete(id); resolve({ error: 'timeout' }); } }, job.timeoutMs || 300000); }); }
+>>>>>>> cf3e242 (Tepna suite)
 
   function fmtETA(sec) { if (!isFinite(sec) || sec < 0) return '—'; const m = Math.floor(sec / 60), s = Math.round(sec % 60); return m ? (m + 'm' + (s < 10 ? '0' : '') + s + 's') : (s + 's'); }
   // collapse one cell's accumulated per-trial medians → {sigma,ci,half,bias,rmse,negRate}
@@ -767,6 +794,112 @@
     dl('sensor-trio-power-results.csv', new Blob([rows.map((r) => r.join(',')).join('\n')], { type: 'text/csv' }));
   }
 
+<<<<<<< HEAD
+=======
+  // ════════════════════════════════════════════════════════════════════════
+  //  FOLDER INGESTION — drop a capture folder → auto-detect eligible trio
+  //  nights → solve the real TCH per night IN PARALLEL across the worker pool.
+  //  Nothing is read on the main thread; each night's files (incl. the multi-GB
+  //  raw PPG) are handed to a worker lane that parses + beat-detects + solves.
+  // ════════════════════════════════════════════════════════════════════════
+  const NIGHTS = {};
+  function classify(file) {
+    const n = file.name; let mo;
+    if (/^O2Ring.*_(\d{14})\.csv$/i.test(n)) return { role: 'o2', stamp: n.match(/(\d{14})\.csv$/i)[1] };
+    if ((mo = n.match(/^Polar_H10_[0-9A-Za-zx]+_(\d{8})_(\d{6})_([A-Z]+)\.txt$/i))) return mo[3].toUpperCase() === 'HR' ? { role: 'h10', stamp: mo[1] + mo[2] } : null;
+    if ((mo = n.match(/^Polar_Sense_[0-9A-Za-zx]+_(\d{8})_(\d{6})_([A-Z]+)\.txt$/i))) { const k = mo[3].toUpperCase(), role = k === 'PPG' ? 'verityPPG' : k === 'PPI' ? 'verityPPI' : k === 'HR' ? 'verityHR' : null; return role ? { role, stamp: mo[1] + mo[2] } : null; }
+    return null;
+  }
+  // sessions starting before noon fold into the PREVIOUS evening's night (floating civil time)
+  function nightKeyOf(stamp) { const Y = +stamp.slice(0, 4), M = +stamp.slice(4, 6), D = +stamp.slice(6, 8), h = +stamp.slice(8, 10); let ms = Date.UTC(Y, M - 1, D); if (h < 12) ms -= 86400000; const d = new Date(ms); return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0'); }
+  function hashStr(s) { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h >>> 0; }
+  function stampMs(s) { return Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(8, 10), +s.slice(10, 12), +s.slice(12, 14)); }
+  // pick the trio sessions that are CONTEMPORANEOUS (same sleep session), anchored on the
+  // O2Ring start — max-size-per-role independently could pair an evening H10 with a 3am
+  // Verity fragment on the same night → near-zero overlap → false skip.
+  function resolveTriple(nt) {
+    const C = nt.cand || {}, largest = (a) => (a && a.length) ? a.reduce((b, x) => x.size > b.size ? x : b) : null;
+    const o2 = largest(C.o2); nt.o2 = o2 ? o2.file : null; nt.startMs = o2 ? o2.ms : null;
+    const nearest = (a) => { if (!a || !a.length) return null; if (nt.startMs == null) return largest(a); return a.reduce((b, x) => Math.abs(x.ms - nt.startMs) < Math.abs(b.ms - nt.startMs) ? x : b); };
+    const h = nearest(C.h10), vppg = nearest(C.verityPPG), vppi = nearest(C.verityPPI), vhr = nearest(C.verityHR);
+    nt.h10 = h ? h.file : null; nt.verityPPG = vppg ? vppg.file : null; nt.verityPPI = vppi ? vppi.file : null; nt.verityHR = vhr ? vhr.file : null;
+  }
+  function ingestFiles(list) {
+    for (let i = 0; i < list.length; i++) { const f = list[i], c = classify(f); if (!c) continue; const nk = nightKeyOf(c.stamp), nt = NIGHTS[nk] || (NIGHTS[nk] = { key: nk, cand: {} }); (nt.cand[c.role] || (nt.cand[c.role] = [])).push({ file: f, ms: stampMs(c.stamp), size: f.size }); }
+    Object.keys(NIGHTS).forEach((k) => resolveTriple(NIGHTS[k]));
+    renderNightTable();
+    setRealStatus(Object.keys(NIGHTS).length + ' nights indexed from ' + list.length + ' files');
+  }
+  const eligible = (nt) => !!(nt.o2 && nt.h10 && (nt.verityPPG || nt.verityPPI || nt.verityHR));
+  const verSrc = (nt) => nt.verityPPG ? 'PPG' : nt.verityPPI ? 'PPI' : nt.verityHR ? 'HR' : '—';
+  function renderNightTable() {
+    const tb = $('nightTbl') && $('nightTbl').querySelector('tbody'); if (!tb) return; tb.innerHTML = '';
+    const keys = Object.keys(NIGHTS).sort(); let elig = 0;
+    keys.forEach((k) => {
+      const nt = NIGHTS[k], ok = eligible(nt); if (ok) elig++;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td><input type="checkbox" class="nchk" data-k="${k}"${ok ? ' checked' : ' disabled'}></td>` +
+        `<td class="mono">${k}</td>` +
+        `<td class="num">${nt.o2 ? '●' : '<span style="color:#FF6B7A">·</span>'}</td>` +
+        `<td class="num">${nt.h10 ? '●' : '<span style="color:#FF6B7A">·</span>'}</td>` +
+        `<td class="num">${verSrc(nt)}</td>` +
+        `<td class="mono" id="nres-${k}" style="color:#6f8096">${ok ? 'ready' : 'ineligible'}</td>`;
+      tb.appendChild(tr);
+    });
+    const tag = $('nightTag'); if (tag) tag.textContent = keys.length + ' nights · ' + elig + ' eligible';
+    const pb = $('procBtn'); if (pb) pb.disabled = elig === 0;
+  }
+  const setRealStatus = (t) => { const e = $('realStatus'); if (e) e.textContent = t; };
+  async function processSelected() {
+    const boxes = [].slice.call(document.querySelectorAll('.nchk:checked'));
+    const sel = boxes.map((b) => NIGHTS[b.getAttribute('data-k')]).filter((nt) => nt && eligible(nt));
+    if (!sel.length) { setRealStatus('no eligible night selected'); return; }
+    $('procBtn').disabled = true; setRealStatus('booting workers…');
+    const bar = $('realBar'); if (bar) bar.style.display = 'block';
+    const setBar = (frac, txt) => { const fl = $('realFill'); if (fl) fl.style.width = Math.round(frac * 100) + '%'; const et = $('realEta'); if (et) et.textContent = txt; };
+    setBar(0, 'estimating…');
+    _progHook = (mm) => { const rc = $('nres-' + mm.label); if (rc) { rc.textContent = mm.phase + '…'; rc.style.color = '#58A6FF'; } const ph = $('realPhase'); if (ph) ph.textContent = mm.label + ' · ' + mm.phase; };
+    const K = Math.max(1, Math.min(8, navigator.hardwareConcurrency || 4));
+    if (!pool.length) await bootPool(K);
+    const rdy = pool.filter((r) => r.ready);
+    if (!rdy.length) { setRealStatus('no worker realms available'); $('procBtn').disabled = false; return; }
+    const results = []; let qi = 0, doneN = 0; const total = sel.length; const t0 = performance.now();
+    const weight = (nt) => (nt.verityPPG && nt.verityPPG.size) || (nt.verityPPI && nt.verityPPI.size) || (nt.verityHR && nt.verityHR.size) || 5e6;
+    const bytesTotal = sel.reduce((s, nt) => s + weight(nt), 0); let bytesDone = 0;
+    async function lane(rec) {
+      while (true) {
+        const nt = sel[qi++]; if (!nt) return;
+        const rc = $('nres-' + nt.key); if (rc) { rc.textContent = 'processing…'; rc.style.color = '#58A6FF'; }
+        const r = await runJob(rec, { kind: 'realNight', timeoutMs: 1200000, label: nt.key, seed: hashStr(nt.key), files: { o2: nt.o2, h10: nt.h10, verityPPG: nt.verityPPG || null, verityPPI: nt.verityPPI || null, verityHR: nt.verityHR || null } });
+        doneN++; bytesDone += weight(nt);
+        { const el = (performance.now() - t0) / 1000; const frac = bytesTotal > 0 ? bytesDone / bytesTotal : doneN / total; const eta = fmtETA(bytesDone > 0 ? el * (bytesTotal - bytesDone) / bytesDone : NaN); setBar(frac, doneN < total ? ('~' + eta + ' left · ' + doneN + '/' + total + ' nights') : 'finishing…'); }
+        const res = (r && r.real) || { skip: true, reason: (r && r.error) || 'no result' }; res.label = nt.key; results.push(res);
+        if (rc) { if (res.skip) { rc.textContent = 'skip: ' + res.reason; rc.style.color = '#FF6B7A'; } else { rc.textContent = 'σ ' + f2(res.sigma.o2) + ' / ' + f2(res.sigma.h10) + ' / ' + f2(res.sigma.verity) + (res.neg ? ' ⚠neg' : '') + ' · ' + res.source; rc.style.color = '#39D98A'; } }
+        setRealStatus('processed ' + doneN + '/' + total + ' nights · ' + ((performance.now() - t0) / 1000).toFixed(0) + 's');
+      }
+    }
+    await Promise.all(rdy.map(lane));
+    results.sort((a, b) => a.label < b.label ? -1 : 1);
+    RESULT.real = results.map((r) => r.skip ? { skip: true, label: r.label, reason: r.reason } : { label: r.label, n: r.n, sigma: r.sigma, ci: r.ci, neg: r.neg, rHV: r.rHV, rHO: r.rHO, rVO: r.rVO, source: r.source });
+    const band = RESULT.dynamic || { dev: { o2: {}, h10: {}, verity: {} } };
+    try { drawReal($('realCanvas'), band, RESULT.real); } catch (e) {}
+    try { fillRealTbl(); } catch (e) {}
+    const solved = RESULT.real.filter((w) => !w.skip).length;
+    const hn = $('hRealN'); if (hn) hn.textContent = solved;
+    setRealStatus('done · ' + solved + '/' + total + ' nights solved · ' + ((performance.now() - t0) / 1000).toFixed(0) + 's · ' + rdy.length + '× workers');
+    setBar(1, 'done'); const _ph = $('realPhase'); if (_ph) _ph.textContent = 'done'; _progHook = null;
+    $('procBtn').disabled = false;
+    ['dlStats', 'dlCsv', 'dlFig3'].forEach((id) => { const e = $(id); if (e) e.disabled = false; });
+  }
+  // recursive folder drag-drop (webkitGetAsEntry) → flat File[]
+  function collectEntries(items) {
+    const files = [], top = [];
+    function walk(entry) { return new Promise((res) => { if (!entry) return res(); if (entry.isFile) { entry.file((f) => { files.push(f); res(); }, () => res()); } else if (entry.isDirectory) { const rd = entry.createReader(); let all = []; (function batch() { rd.readEntries((ents) => { if (!ents.length) { Promise.all(all.map(walk)).then(() => res()); return; } all = all.concat(ents); batch(); }, () => res()); })(); } else res(); }); }
+    for (let i = 0; i < items.length; i++) { const en = items[i].webkitGetAsEntry && items[i].webkitGetAsEntry(); if (en) top.push(walk(en)); }
+    return Promise.all(top).then(() => files);
+  }
+
+>>>>>>> cf3e242 (Tepna suite)
   window.addEventListener('DOMContentLoaded', () => {
     $('runBtn').addEventListener('click', () => run().catch((e) => { console.error(e); setStatus('idle', 'error: ' + e.message); }));
     if ($('cancel')) $('cancel').addEventListener('click', () => { CANCEL = true; setStatus('idle', 'cancelling…'); });
@@ -779,5 +912,21 @@
     $('dlCsv').addEventListener('click', exportCsv);
     try { updEta(); } catch (e) {}
     try { window.__trioTryResume(); } catch (e) {}
+<<<<<<< HEAD
+=======
+    // folder-ingestion wiring (real-data arm)
+    const fi = $('folderInput'), xi = $('fileInput'), dz = $('dropzone');
+    if (fi) fi.addEventListener('change', (e) => ingestFiles(e.target.files));
+    if (xi) xi.addEventListener('change', (e) => ingestFiles(e.target.files));
+    if (dz) {
+      dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.style.borderColor = 'rgba(88,166,255,.6)'; });
+      dz.addEventListener('dragleave', () => { dz.style.borderColor = 'rgba(255,255,255,.18)'; });
+      dz.addEventListener('drop', (e) => { e.preventDefault(); dz.style.borderColor = 'rgba(255,255,255,.18)'; const dt = e.dataTransfer; if (dt && dt.items && dt.items.length && dt.items[0].webkitGetAsEntry) { setRealStatus('reading folder…'); collectEntries(dt.items).then(ingestFiles); } else if (dt && dt.files) ingestFiles(dt.files); });
+    }
+    if ($('procBtn')) $('procBtn').addEventListener('click', () => processSelected().catch((err) => { console.error(err); setRealStatus('error: ' + err.message); $('procBtn').disabled = false; }));
+    const drawPlaceholder = (id, msg) => { const c = $(id); if (!c) return; const x = c.getContext('2d'); x.fillStyle = '#0f141b'; x.fillRect(0, 0, c.width, c.height); x.fillStyle = '#6f8096'; x.font = '13px ui-monospace,monospace'; x.textAlign = 'center'; x.fillText(msg, c.width / 2, c.height / 2); x.textAlign = 'left'; };
+    ['curveCanvas', 'regimeCanvas', 'negCanvas', 'durCanvas'].forEach((id) => drawPlaceholder(id, 'Run the power simulation (button above) to populate'));
+    drawPlaceholder('realCanvas', 'Process a folder below — or run the sim — to populate Figure 3');
+>>>>>>> cf3e242 (Tepna suite)
   });
 })();

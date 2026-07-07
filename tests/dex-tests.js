@@ -391,6 +391,75 @@ function runDexTests(env) {
     T.ok('degrade: <3 hr series → tchHR null', !!blk3 && blk3.tchHR==null, 'status='+(blk3&&blk3.tchHRStatus));
   });
 
+<<<<<<< HEAD
+=======
+  /* ════ 5f · INTEGRATOR TCH cross-node alignment keys on ABSOLUTE wall-clock, not node-relative tMin
+     (INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II §1 — CORRECTNESS). Co-recorded devices start minutes
+     apart, so a shared node-relative tMin is a DIFFERENT wall-clock instant per node. The HR-hat must
+     align on the absolute 5-min wall-clock grid (each epoch's floating tMs), else the latent HR's own
+     drift leaks into every pairwise-difference variance → σ² inflated + culprit mis-ranked. Here three
+     nodes sample ONE shared latent HR but START STAGGERED (ECG +0, PPG +15, Oxy +30 min); with the fix
+     the overlapping wall-clock bins recover the planted per-sensor σ² {1,4,25}; the OLD tMin alignment
+     paired different instants → σ² blown into the hundreds. Same-start recovery + byte-identity is
+     covered by 5e (unchanged under the fix). ════ */
+  group('Integrator TCH aligns on absolute wall-clock (staggered starts) — FU-II §1', 'integrator-dsp · integrator-tch', function (T) {
+    var A = env.adaptEnvelopeNode, FC = env.fuseHRVConsensus, K = env.IntegratorTCH;
+    if (typeof A !== 'function' || typeof FC !== 'function' || !(K && K.threeCorneredHat)) { T.ok('deps present (adapt+fuse+TCH)', false); return; }
+    function rng(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+    function normals(seed,n){ var r=rng(seed),o=[]; for(var i=0;i<n;i+=2){ var u1=Math.max(r(),1e-12),u2=r(),m=Math.sqrt(-2*Math.log(u1)); o.push(m*Math.cos(2*Math.PI*u2)); o.push(m*Math.sin(2*Math.PI*u2)); } return o.slice(0,n); }
+    var t0 = U(2026, 5, 7, 23, 0, 0), NE = 96, NABS = 110;
+    // one shared latent HR over the ABSOLUTE 5-min grid — a random walk (strong minute-to-minute drift,
+    // so a misalignment cannot hide inside the planted per-sensor noise).
+    var latent = (function(){ var w=normals(7,NABS),v=[],acc=58; for(var i=0;i<NABS;i++){acc+=w[i]*0.8; v.push(Math.max(acc,40));} return v; })();
+    // nodes start staggered by WHOLE 5-min bins so their wall-clock grids line up exactly (offEpochs epochs).
+    function mkStag(node, s, hrSeed, offEpochs){
+      var iH=normals(hrSeed,NE), eps=[];
+      for(var i=0;i<NE;i++){ eps.push({ tMin:i*5, hr:+(latent[offEpochs+i]+s*iH[i]).toFixed(2) }); }
+      return A({ schema:{node:node}, recording:{startEpochMs:t0+offEpochs*5*60000, durationMin:NE*5}, quality:{analyzablePct:95},
+        hrv:{time:{rmssd:40, sdnn:60}}, timeseries:{epochs:eps},
+        ganglior_events:[{t:'23:00:10', tMs:t0+offEpochs*5*60000+10000, impulse:'x', node:node, conf:.8}] }, node, node+'.json')[0];
+    }
+    // ECG σ=1, PPG σ=2, Oxy σ=5 (planted var {1,4,25}); staggered ECG +0, PPG +15 min, Oxy +30 min.
+    var cons = FC([ mkStag('ECGDex',1,11,0), mkStag('PpgDex',2,22,3), mkStag('OxyDex',5,33,6) ], 1000);
+    var blk = cons && cons.blocks && cons.blocks[0];
+    T.ok('consensus block produced (staggered HR triplet)', !!blk);
+    if(!blk) return;
+    T.ok('HR-hat fires despite staggered starts (wall-clock alignment)', !!(blk.tchHR && blk.tchHR.ok), 'status='+blk.tchHRStatus);
+    if(blk.tchHR && blk.tchHR.ok){
+      T.eq('culprit = OxyDex (noisiest)', blk.tchHR.culprit, 'OxyDex');
+      T.ok('σ²(OxyDex) recovers planted ≈25 (NOT inflated by latent drift — the fix)', Math.abs(blk.tchHR.sigma2.OxyDex-25)<16, 'σ²(Oxy)='+blk.tchHR.sigma2.OxyDex.toFixed(1));
+      T.ok('σ²(OxyDex) stays small — old tMin-align would blow it into the hundreds', blk.tchHR.sigma2.OxyDex<70, 'σ²(Oxy)='+blk.tchHR.sigma2.OxyDex.toFixed(1));
+      T.ok('σ²(ECGDex) quietest, not latent-inflated (≪ old-align hundreds)', blk.tchHR.sigma2.ECGDex<25, 'σ²(ECG)='+blk.tchHR.sigma2.ECGDex.toFixed(1));
+      T.ok('aligned overlap ≈ shared wall-clock window (~90), not the full 96-epoch tMin grid', blk.tchHR.n<=92 && blk.tchHR.n>=80, 'n='+blk.tchHR.n);
+    }
+  });
+
+  /* ════ 5g · INTEGRATOR HR-hat quiet-sensor order caveat (FU-II §5). Reference-free TCH determines the
+     two QUIET (non-culprit) sensors poorly — their small pairwise-difference variance is dominated by
+     sampling noise, so their order is uncertain. `_tchHat` flags this when the two quietest σ² sit within
+     ×2. Plant two IDENTICAL quiet sensors (σ=2) + one loud culprit (σ=6): recovered quiet σ² ≈ equal →
+     ratio ≈1 → the caveat MUST fire (robust, order-independent). Documentation + a flag, not an estimate
+     change. ════ */
+  group('Integrator HR-hat quiet-sensor order caveat (FU-II §5)', 'integrator-dsp · integrator-tch', function (T) {
+    var A = env.adaptEnvelopeNode, FC = env.fuseHRVConsensus, K = env.IntegratorTCH;
+    if (typeof A !== 'function' || typeof FC !== 'function' || !(K && K.threeCorneredHat)) { T.ok('deps present (adapt+fuse+TCH)', false); return; }
+    function rng(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+    function normals(seed,n){ var r=rng(seed),o=[]; for(var i=0;i<n;i+=2){ var u1=Math.max(r(),1e-12),u2=r(),m=Math.sqrt(-2*Math.log(u1)); o.push(m*Math.cos(2*Math.PI*u2)); o.push(m*Math.sin(2*Math.PI*u2)); } return o.slice(0,n); }
+    var t0 = U(2026, 5, 7, 23, 0, 0), NE = 96;
+    var truth=(function(){ var w=normals(7,NE),v=[],acc=58; for(var i=0;i<NE;i++){acc+=w[i]*0.6; v.push(Math.max(acc,40));} return v; })();
+    function mk(node, s, seed){ var iH=normals(seed,NE), eps=[]; for(var i=0;i<NE;i++){ eps.push({tMin:i*5, hr:+(truth[i]+s*iH[i]).toFixed(2)}); }
+      return A({ schema:{node:node}, recording:{startEpochMs:t0, durationMin:NE*5}, quality:{analyzablePct:95}, hrv:{time:{rmssd:40,sdnn:60}}, timeseries:{epochs:eps}, ganglior_events:[{t:'23:00:10', tMs:t0+10000, impulse:'x', node:node, conf:.8}] }, node, node+'.json')[0]; }
+    var blk=(FC([ mk('ECGDex',2,11), mk('PpgDex',2,22), mk('OxyDex',6,33) ],1000).blocks||[])[0];
+    T.ok('HR-hat fires', !!(blk && blk.tchHR && blk.tchHR.ok), blk&&('status='+blk.tchHRStatus));
+    if(blk && blk.tchHR && blk.tchHR.ok){
+      var t=blk.tchHR;
+      T.eq('quietOrderUncertain is a boolean', typeof t.quietOrderUncertain, 'boolean');
+      T.ok('quietSensors names 2 nodes, excludes the culprit', Array.isArray(t.quietSensors) && t.quietSensors.length===2 && t.quietSensors.indexOf(t.culprit)<0, JSON.stringify(t.quietSensors)+' culprit='+t.culprit);
+      T.ok('identical-quiet case → order uncertain (caveat fires)', t.quietOrderUncertain===true, 'σ²='+JSON.stringify(Object.keys(t.sigma2).reduce(function(o,k){o[k]=+t.sigma2[k].toFixed(1);return o;},{})));
+    }
+  });
+
+>>>>>>> cf3e242 (Tepna suite)
   /* ════ 5b · INTEGRATOR periodic-breathing cross-node corroboration (OXYDEX-…-II §2) ════
      PB observed by ≥2 INDEPENDENT signals (OxyDex SpO₂ oscillation · CPAPDex device flow ·
      ECGDex cardiac CVHR) corroborates; a LONE observer surfaces NO fused finding; confidence is
@@ -1871,6 +1940,7 @@ function runDexTests(env) {
     });
     T.ok('check5 · every changes/*.md is a well-formed changeset', badCs.length === 0, changeNames.length ? (badCs.length ? badCs.slice(0, 6).join('; ') : changeNames.length + ' pending, all valid') : 'no pending changesets');
 
+<<<<<<< HEAD
     // ── CHECK 6 · stamp parity (reserved) — bundle propagation deferred (rides next re-bundle); assert any declared surface == canonical ──
     var surfaces = RL.versionedSurfaces || {}, stampMismatch = Object.keys(surfaces).filter(function (k) { return surfaces[k] !== version; });
     T.ok('check6 · every surface that declares a suite version matches the canonical one', stampMismatch.length === 0, Object.keys(surfaces).length ? (stampMismatch.length ? ('mismatch: ' + stampMismatch.join(', ')) : Object.keys(surfaces).length + ' surfaces in sync') : 'no propagated surface yet (deferred to build owner)');
@@ -1881,6 +1951,40 @@ function runDexTests(env) {
     //    before the changeset flow existed is EXPECTED, not a violation. Flip HARD7=true (one line) once adopted →
     //    hard gate. Zero false positives when hard: manifestHash is deterministic (an inert re-bundle doesn't move it).
     var HARD7 = false;
+=======
+    // ── CHECK 6 · stamp parity — every surface that declares a suite version == the canonical one ──
+    //    NON-VACUOUS as of CONTROLLED-RELEASES-FOLLOWUPS F2/F3/F4: both runners pass the RAW text of each
+    //    version-carrying surface in RL.surfaceTexts; extraction is SINGLE-SOURCED here so the two lanes
+    //    can't drift. A surface listed in surfaceTexts whose marker is missing/removed is `unstamped` → RED
+    //    (the projection regressed). Legacy RL.versionedSurfaces (pre-extracted map) is still honored. When
+    //    NEITHER is provided (older runner), surfaces stays empty → the informational "deferred" pass.
+    var surfaces = {}; Object.keys(RL.versionedSurfaces || {}).forEach(function (k) { surfaces[k] = RL.versionedSurfaces[k]; });
+    var surfaceTexts = RL.surfaceTexts || {}, unstamped = [];
+    function verFrom(name, txt) {
+      if (txt == null) return null;
+      if (/\.cff$/i.test(name)) return (txt.match(/^version:\s*["']?(\d+\.\d+\.\d+)["']?/m) || [])[1] || null;   // CITATION.cff YAML
+      if (/\.json$/i.test(name)) { var j = parse(txt); return j ? (j.softwareVersion || j.version || null) : null; } // schema.org JSON-LD / JSON
+      if (/readme/i.test(name)) return (txt.match(/\*\*Suite version:\*\*\s*(\d+\.\d+\.\d+)/i) || [])[1] || null;  // README visible marker
+      if (/\.html$/i.test(name)) return (txt.match(/"softwareVersion"\s*:\s*"(\d+\.\d+\.\d+)"/) || [])[1] || null; // inline JSON-LD block
+      return null;
+    }
+    Object.keys(surfaceTexts).forEach(function (n) { var v = verFrom(n, surfaceTexts[n]); if (v) surfaces[n] = v; else unstamped.push(n); });
+    var surfKeys = Object.keys(surfaces), stampMismatch = surfKeys.filter(function (k) { return surfaces[k] !== version; });
+    var msg = (surfKeys.length || unstamped.length)
+      ? [(stampMismatch.length ? 'mismatch: ' + stampMismatch.map(function (k) { return k + '=' + surfaces[k]; }).join(', ') : ''),
+         (unstamped.length ? 'unstamped (marker missing): ' + unstamped.join(', ') : '')].filter(Boolean).join(' · ') || (surfKeys.length + ' surface(s) == ' + version)
+      : 'no propagated surface yet (deferred to build owner)';
+    T.ok('check6 · every surface that declares a suite version matches the canonical one', stampMismatch.length === 0 && unstamped.length === 0, msg);
+
+    // ── CHECK 7 · unreleased code needs an unreleased changeset — the "stamped completely at the end" enforcement ──
+    //    HARD GATE (CONTROLLED-RELEASES-FOLLOWUPS §F8 FLIPPED 2026-07-06): shipped INFORMATIONAL during rollout while
+    //    the fleet adopted the changeset habit + OWN-THE-BUILD Part C's in-flight re-bundles settled; adoption is now
+    //    real (every hash that moved since the 1.0.0 snapshot — OxyDex/HRVDex/Integrator — carries a pending changeset)
+    //    so this is now HARD7=true: un-recorded code movement BLOCKS. Zero false positives — manifestHash is
+    //    deterministic (an inert re-bundle doesn't move it); the 1.0.0 snapshot was reconfirmed consistent against
+    //    BUILD-MANIFEST (5 unmoved bundles byte-match the snapshot; the 3 moved are exactly the changeset-covered set).
+    var HARD7 = true;
+>>>>>>> cf3e242 (Tepna suite)
     var build = parse((env.manifests || {})['BUILD-MANIFEST.json'] || 'null');
     if (build && build.bundles && newest.manifestHashes) {
       var moved = [];
@@ -1965,10 +2069,16 @@ function runDexTests(env) {
      SEEDED 2026-07-05 with pulsedex-render.js: its value tiles (kpi-val/k-val) already lead with evBadge(), an
      accepted badged marker, so the guard LOCKS it with NO shared-module change / fleet re-bundle (the born-clean
      model). A shared `MetricRegistry.metricValue()` helper stays an OPTIONAL future convenience (fold into a fleet
+<<<<<<< HEAD
      re-bundle), NOT required to enforce; other render files (oxydex/hrvdex rs-val, badge trails value) join once
      their badge leads the value. The guard + self-tests shipped earlier as the ready mechanism. ════ */
   group('Badge-by-construction — enforced render files route metric values through a badge (OWN-THE-BUILD Part C)', 'badge-enforced · forward-adopt', function (T) {
     var BADGE_ENFORCED = ['pulsedex-render.js'];   // render files opt in as they migrate (Part C, one at a time; seeded 2026-07-05)
+=======
+     re-bundle), NOT required to enforce; other render files (oxydex/hrvdex rs-val, badge trails value) join once their badge leads the value. The guard + self-tests shipped earlier as the ready mechanism. **✅ oxydex/hrvdex MIGRATED + ENFORCED 2026-07-05 (owner-authorized targeted 2-bundle churn):** the four OxyDex `rs-val` readiness subscores + three descriptor `m-val` tiles (Periodicity pattern / oscillation "Clear" / Episode range, routed through `evBadge()` before the label exactly like the sibling `metric()` helper) and the HRVDex templated `rs-val` subscore now lead with the sanctioned badge → 0 bare value tiles; both files added to `BADGE_ENFORCED`. Rebuilt via `build-core.js` (`OxyDex 69a51c03e025→43bd047b12e8`, `HRVDex 97dd26f6db4a→6b43574be1ea`), EXPORT-INERT (render-only; each bundle's 2 code-gated fixture `manifestHash`es re-stamped, `inputHashes`/`outputHash` untouched — equiv/GATE-C legs confirm the export is unchanged). Browser gates green: `verify-provenance.html` GATE A/B (`__provenanceOK/__gateA_ok/__gateB_ok` all true), `Dex-Test-Suite.html?full` all-green (2068 passed, `bootSkips:[]`, both new asserts `ok`). ⚠️ Node-CI still owes the `--check` + `verify-manifest.mjs` confirmation (no Node shell in-environment). **✅ integrator-render.js ADDED 2026-07-06 (test-only, NO re-bundle — already compliant, `kpi()` leads with `evBadge()`; same born-clean model as the pulsedex seed).** **Remaining:** glucodex/ecgdex/cpapdex/ppgdex render+app+profile files (all still carry bare value tiles) join on their next on-touch re-bundle; the shared `MetricRegistry.metricValue()` helper stays an optional fleet-pass convenience. ════ */
+  group('Badge-by-construction — enforced render files route metric values through a badge (OWN-THE-BUILD Part C)', 'badge-enforced · forward-adopt', function (T) {
+    var BADGE_ENFORCED = ['pulsedex-render.js', 'oxydex-render.js', 'hrvdex-render.js', 'integrator-render.js'];   // render files opt in as they migrate (Part C, one at a time; seeded 2026-07-05; oxydex+hrvdex rs-val migrated 2026-07-05; integrator-render.js added 2026-07-06 — already compliant, its kpi() leads with evBadge(), locked test-only w/ NO re-bundle)
+>>>>>>> cf3e242 (Tepna suite)
     var src = env.sources || {};
     // A value tile opens with a value class; it is BADGED if an `.ev ev-` disc / evBadge( / metricValue( /
     // MetricRegistry.badge( appears in the same tile construction (a short window before the value class).
@@ -2020,6 +2130,197 @@ function runDexTests(env) {
     T.ok('A3 · positive control: catches the retired umbrella brand', UMBRELLA_RE.test('product: GanglioR suite') && UMBRELLA_RE.test('by ANS Intelligence'));
   });
 
+<<<<<<< HEAD
+=======
+  /* ════ HOUSE-INVARIANT LINT · Clock-Contract footguns (DEV-TOOLCHAIN Part A · A1) ════
+     Sibling of the A3 vocabulary lint + the DSP-purity gate: mechanizes CLAUDE.md §🔒 (THE CLOCK
+     CONTRACT) as a source-text gate over env.sources. Catches the exact footguns the contract forbids:
+       • Date.parse(…) / new Date('…') on a vendor timestamp — the contract mandates regex + Date.UTC,
+         never locale string parsing (§2.4).
+       • local-civil getters (.getHours/.getMinutes/.getSeconds/.getFullYear/.getMonth/.getDate/.getDay)
+         — a floating tMs MUST be read back with the getUTC* family (§5), else display is viewer-TZ
+         dependent. getUTC* and getTimezoneOffset (the one legit local read, §2 helper) are NOT matched.
+     Zero dependency, test-layer only, no re-bundle. Ships positive controls so it can't rot to a no-op.
+     ALLOW-LIST (documented): glucodex-dsp.js carries 3 local getters in a synthetic-gen date-anchor
+     (new Date(t0).getFullYear/Month/Date → Date.UTC midnight); latent + non-user-facing (synthetic path),
+     to be converted to getUTC* on the next GlucoDex on-touch re-bundle (recorded in DEV-TOOLCHAIN-
+     FOLLOWUPS). Fixing it here would force a DSP re-bundle, which Part A explicitly avoids. ════ */
+  group('House-invariant lint · Clock-Contract footguns (DEV-TOOLCHAIN Part A · A1)', 'house-lint · dev-toolchain · clock', function (T) {
+    var src = env.sources || {};
+    var jsFiles = Object.keys(src).filter(function (f) { return /\.(?:js|mjs)$/.test(f); });
+    if (!jsFiles.length) { T.skip('env.sources provided (js/mjs)', 'no sources wired'); return; }
+    function strip(s) { return String(s).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1'); }
+    var PARSE_RE = /Date\.parse\s*\(/;                        // locale parse — banned outright (§2.4)
+    var NEWDATE_STR_RE = /new Date\(\s*['"]/;                 // new Date('…') string construction — banned (§2.4)
+    var GETTER_RE = /\.get(?:Hours|Minutes|Seconds|FullYear|Month|Date|Day)\s*\(/;   // non-UTC civil getter (§5); getUTC*/getTimezoneOffset not matched
+    var GETTER_ALLOW = { 'glucodex-dsp.js': 'synthetic-gen date-anchor (new Date(t0).getFullYear/Month/Date → Date.UTC midnight); latent/non-user-facing, convert to getUTC* on next GlucoDex on-touch re-bundle (DEV-TOOLCHAIN-FOLLOWUPS)' };
+    var parseHits = [], newdateHits = [], getterHits = [];
+    jsFiles.forEach(function (f) {
+      var t = strip(src[f]);
+      if (PARSE_RE.test(t)) parseHits.push(f);
+      if (NEWDATE_STR_RE.test(t)) newdateHits.push(f);
+      if (GETTER_RE.test(t) && !GETTER_ALLOW[f]) getterHits.push(f);
+    });
+    T.ok('A1 · no Date.parse() on any source (contract mandates regex + Date.UTC)', parseHits.length === 0, parseHits.length ? ('in: ' + parseHits.join(', ')) : ('clean across ' + jsFiles.length + ' files'));
+    T.ok('A1 · no new Date("…") string construction (locale-parse footgun)', newdateHits.length === 0, newdateHits.length ? ('in: ' + newdateHits.join(', ')) : 'clean');
+    T.ok('A1 · no non-UTC civil getter on a tMs (display must use getUTC*)', getterHits.length === 0, getterHits.length ? ('in: ' + getterHits.join(', ')) : ('clean across ' + jsFiles.length + ' files (glucodex-dsp.js allow-listed w/ reason)'));
+    // frozen helper allow-list: getUTC* / getTimezoneOffset must NOT be flagged
+    T.ok('A1 · getUTC* + getTimezoneOffset are NOT flagged (allow-listed by construction)', !GETTER_RE.test('d.getUTCHours(); d.getUTCFullYear(); d.getTimezoneOffset();'));
+    // positive controls — proof the gate is not a silent no-op
+    T.ok('A1 · positive control: catches Date.parse + new Date(str)', PARSE_RE.test('Date.parse(raw)') && NEWDATE_STR_RE.test("new Date('2026-01-02')"));
+    T.ok('A1 · positive control: catches a local civil getter', GETTER_RE.test('new Date(tMs).getHours()') && GETTER_RE.test('d.getFullYear()'));
+  });
+
+  /* ════ HOUSE-INVARIANT LINT · SPDX header presence (DEV-TOOLCHAIN Part A · A2) ════
+     Sibling gate mechanizing CLAUDE.md §📜 / LICENSING-BRIEF: every authored *.js/*.mjs in the wired
+     source set carries the canonical header (Copyright 2026 Michal Planicka + SPDX-License-Identifier:
+     Apache-2.0) and NO non-Apache SPDX identifier survives. Zero dependency, test-layer only, no
+     re-bundle. Positive controls included. Clean across the wired js/mjs set at landing (2026-07-05) —
+     no allow-list needed. (Scope = the env.sources js/mjs set, like A3; *.src.html / *-BRIEF.md header
+     coverage is a Tier-3 follow-up since those are not in env.sources.) ════ */
+  group('House-invariant lint · SPDX header presence (DEV-TOOLCHAIN Part A · A2)', 'house-lint · dev-toolchain · spdx', function (T) {
+    var src = env.sources || {};
+    var jsFiles = Object.keys(src).filter(function (f) { return /\.(?:js|mjs)$/.test(f); });
+    if (!jsFiles.length) { T.skip('env.sources provided (js/mjs)', 'no sources wired'); return; }
+    var SPDX_RE = /SPDX-License-Identifier:\s*Apache-2\.0/;
+    var COPY_RE = /Copyright\s+2026\s+Michal Planicka/;
+    var OTHER_RE = /SPDX-License-Identifier:\s*(?!Apache-2\.0\b)[A-Za-z0-9.\-]+/;   // any non-Apache id
+    var noSpdx = [], noCopy = [], nonApache = [];
+    jsFiles.forEach(function (f) {
+      var t = src[f];
+      if (!SPDX_RE.test(t)) noSpdx.push(f);
+      if (!COPY_RE.test(t)) noCopy.push(f);
+      if (OTHER_RE.test(t)) nonApache.push(f);
+    });
+    T.ok('A2 · every wired *.js/*.mjs carries SPDX-License-Identifier: Apache-2.0', noSpdx.length === 0, noSpdx.length ? ('missing in: ' + noSpdx.join(', ')) : ('present across ' + jsFiles.length + ' files'));
+    T.ok('A2 · every wired *.js/*.mjs carries the Copyright 2026 Michal Planicka line', noCopy.length === 0, noCopy.length ? ('missing in: ' + noCopy.join(', ')) : 'present');
+    T.ok('A2 · no non-Apache SPDX identifier survives (no MIT/other)', nonApache.length === 0, nonApache.length ? ('in: ' + nonApache.join(', ')) : 'clean');
+    // positive controls — proof the gate is not a silent no-op
+    T.ok('A2 · positive control: flags a file with no SPDX header', !SPDX_RE.test('var x = 1; // no header here'));
+    T.ok('A2 · positive control: flags a non-Apache identifier (and passes Apache)', OTHER_RE.test('SPDX-License-Identifier: MIT') && !OTHER_RE.test('SPDX-License-Identifier: Apache-2.0'));
+  });
+
+  /* ════ HOUSE-INVARIANT LINT · DSP reach-in allow-list (DEV-TOOLCHAIN Part A · A4) ════
+     Folds in SIGNAL-ADAPTER-FOLLOWUPS-IV §1 (the orphaned "called-but-not-defined ⊆ allow-list" gate).
+     Mechanizes the self-contained-compute rule (CONTRIBUTING.md §6): a migrated *-dsp.js's call graph
+     may reference ONLY {itself · kernel (DexKernel is a property read, never a bare call) · its own
+     *-util bare exports · documented JS builtins}. Any OTHER bare call is a reach-in into a render/app/
+     profile sibling — the class that made isolated OxyDex.compute() throw on every real file (§1's
+     computeCeilingBaselineArr / upVO2category gap).
+
+     This is the leg A4 was DEFERRED on ("a precise implementation, not a regex"): a crude string-strip
+     corrupts on regex literals that contain quotes (e.g. /^"|"$/g), silently swallowing whole function
+     definitions → false positives. So we first SCRUB with a real char-scanner that blanks comments,
+     strings, template literals AND regex literals char-for-char, leaving only code; THEN diff calls vs.
+     definitions. Over-including a definition (any bare, non-call, non-property occurrence — captures
+     decls, params, typeof-guards, value-passing) errs toward false-NEGATIVE (a lint that never cries
+     wolf), per the guardrail. Zero dependency, test-layer only, no re-bundle. Ships positive controls
+     + scanner controls so it can't rot into a no-op.
+
+     DOCUMENTED ALLOW-LIST (the drift ledger). Two nodes carry KNOWN unguarded reach-ins into render/app/
+     profile siblings — reached only on the app-orchestration path (parse-progress · renderAll · profile
+     inference), NEVER on the headless compute() path (proved clean by the env.equiv gate). Guarding them
+     typeof-style is a DSP edit → re-bundle, which Part A explicitly avoids; convert on the next on-touch
+     re-bundle (recorded in DEV-TOOLCHAIN-FOLLOWUPS). Each is named with its defining sibling:
+       oxydex-dsp.js: renderAll (oxydex-render) · setStatus/showError (oxydex-render UI) · setProgress (UI)
+       hrvdex-dsp.js: rerender/setStatus (hrvdex-render) · setProgress (hrvdex-app) · getProfile/
+                      calcVo2Cat/inferFromData (hrvdex profile inference) ════ */
+  group('House-invariant lint · DSP reach-in allow-list (DEV-TOOLCHAIN Part A · A4)', 'house-lint · dev-toolchain · reachin', function (T) {
+    var src = env.sources || {};
+    var dspFiles = Object.keys(src).filter(function (f) { return /-dsp\.js$/.test(f); });
+    if (!dspFiles.length) { T.skip('env.sources provided (*-dsp.js)', 'no DSP sources wired'); return; }
+
+    // char-scanner: blank comments / strings / template literals / regex literals, char-for-char.
+    function scrub(s) {
+      var out = '', n = s.length, i = 0, prevSig = '';
+      var RE_KW = { 'return': 1, 'typeof': 1, 'instanceof': 1, 'in': 1, 'of': 1, 'new': 1, 'delete': 1, 'void': 1, 'do': 1, 'else': 1, 'yield': 1, 'case': 1, 'throw': 1 };
+      function trailWord() { var mm = out.match(/([A-Za-z_$][\w$]*)\s*$/); return mm ? mm[1] : ''; }
+      function isRe() { if (prevSig === '') return true; if (prevSig === ')' || prevSig === ']') return false; if (/[\w$]/.test(prevSig)) return !!RE_KW[trailWord()]; return true; }
+      while (i < n) {
+        var c = s[i], d = s[i + 1];
+        if (c === '/' && d === '/') { while (i < n && s[i] !== '\n') { out += ' '; i++; } continue; }
+        if (c === '/' && d === '*') { out += '  '; i += 2; while (i < n && !(s[i] === '*' && s[i + 1] === '/')) { out += (s[i] === '\n' ? '\n' : ' '); i++; } out += '  '; i += 2; continue; }
+        if (c === '"' || c === "'") { var q = c; out += ' '; i++; while (i < n && s[i] !== q) { if (s[i] === '\\') { out += '  '; i += 2; } else { out += (s[i] === '\n' ? '\n' : ' '); i++; } } out += ' '; i++; prevSig = "'"; continue; }
+        if (c === '`') { out += ' '; i++; while (i < n && s[i] !== '`') { if (s[i] === '\\') { out += '  '; i += 2; } else if (s[i] === '$' && s[i + 1] === '{') { out += '  '; i += 2; var dep = 1; while (i < n && dep > 0) { if (s[i] === '{') dep++; else if (s[i] === '}') dep--; if (dep > 0) out += s[i]; i++; } out += ' '; } else { out += (s[i] === '\n' ? '\n' : ' '); i++; } } out += ' '; i++; prevSig = '`'; continue; }
+        if (c === '/' && isRe()) { out += ' '; i++; var inC = false; while (i < n) { var ch = s[i]; if (ch === '\\') { out += '  '; i += 2; continue; } if (ch === '[') inC = true; else if (ch === ']') inC = false; else if (ch === '/' && !inC) { out += ' '; i++; break; } else if (ch === '\n') { break; } out += ' '; i++; } while (i < n && /[a-z]/i.test(s[i])) { out += ' '; i++; } prevSig = '/'; continue; }
+        out += c; if (!/\s/.test(c)) prevSig = c; i++;
+      }
+      return out;
+    }
+    var KEYWORDS = new Set(['if', 'for', 'while', 'switch', 'catch', 'return', 'typeof', 'function', 'do', 'else', 'with', 'delete', 'void', 'in', 'of', 'new', 'instanceof', 'await', 'yield', 'throw', 'case', 'super', 'this', 'try', 'finally', 'const', 'let', 'var', 'class', 'extends', 'import', 'export', 'default', 'break', 'continue']);
+    var BUILTINS = new Set(['parseInt', 'parseFloat', 'isNaN', 'isFinite', 'Number', 'String', 'Boolean', 'Array', 'Object', 'Math', 'JSON', 'Date', 'RegExp', 'Map', 'Set', 'WeakMap', 'WeakSet', 'Promise', 'Symbol', 'Error', 'TypeError', 'RangeError', 'SyntaxError', 'encodeURIComponent', 'decodeURIComponent', 'encodeURI', 'decodeURI', 'Int8Array', 'Uint8Array', 'Uint8ClampedArray', 'Int16Array', 'Uint16Array', 'Int32Array', 'Uint32Array', 'Float32Array', 'Float64Array', 'ArrayBuffer', 'DataView', 'structuredClone', 'BigInt', 'Intl', 'console', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'atob', 'btoa', 'Function', 'eval', 'fetch', 'Proxy', 'Reflect', 'queueMicrotask', 'FileReader', 'TextDecoder', 'TextEncoder', 'Blob', 'URL', 'performance', 'crypto']);
+    // oxydex-util.js top-level bare exports — legit reach-ins for oxydex-dsp ONLY (its own *-util).
+    function topLevelDefs(text) { var o = new Set(), re = /\bfunction\s+([A-Za-z_$][\w$]*)/g, m; while ((m = re.exec(text)) !== null) o.add(m[1]); re = /^\s*(?:var|let|const)\s+([A-Za-z_$][\w$]*)/gm; while ((m = re.exec(text)) !== null) o.add(m[1]); return o; }
+    var UTIL = src['oxydex-util.js'] ? topLevelDefs(scrub(src['oxydex-util.js'])) : new Set();
+    // DOCUMENTED reach-in allow-list (see header block) — the drift ledger for the next on-touch re-bundle.
+    var REACHIN_ALLOW = {
+      'oxydex-dsp.js': new Set(['renderAll', 'setProgress', 'setStatus', 'showError']),
+      'hrvdex-dsp.js': new Set(['calcVo2Cat', 'getProfile', 'inferFromData', 'rerender', 'setProgress'])
+    };
+    function analyze(f, raw) {
+      var s = scrub(raw), m, re;
+      var defined = new Set();
+      re = /\bfunction\s*\*?\s*([A-Za-z_$][\w$]*)\s*\(/g; while ((m = re.exec(s)) !== null) defined.add(m[1]);
+      re = /([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{/g; while ((m = re.exec(s)) !== null) { if (!KEYWORDS.has(m[1])) defined.add(m[1]); }
+      re = /([A-Za-z_$][\w$]*)/g; while ((m = re.exec(s)) !== null) { var nm = m[1], i = m.index; if (i > 0 && s[i - 1] === '.') continue; if (/^\s*\(/.test(s.slice(i + nm.length))) continue; defined.add(nm); }
+      var called = new Set(); re = /([A-Za-z_$][\w$]*)\s*\(/g; while ((m = re.exec(s)) !== null) { var nm2 = m[1], j = m.index, pv = j > 0 ? s[j - 1] : ''; if (pv === '.' || /[\w$]/.test(pv)) continue; called.add(nm2); }
+      var allow = REACHIN_ALLOW[f] || new Set(), isOxy = (f === 'oxydex-dsp.js');
+      var v = []; called.forEach(function (c) { if (defined.has(c) || KEYWORDS.has(c) || BUILTINS.has(c) || allow.has(c)) return; if (isOxy && UTIL.has(c)) return; v.push(c); });
+      return v.sort();
+    }
+    var ledgered = 0;
+    dspFiles.forEach(function (f) {
+      var v = analyze(f, src[f]);
+      var allowN = REACHIN_ALLOW[f] ? REACHIN_ALLOW[f].size : 0; ledgered += allowN;
+      T.ok('A4 · ' + f + ' calls only {self · kernel · own util · builtins · documented reach-ins}', v.length === 0, v.length ? ('un-allow-listed reach-in(s): ' + v.join(', ')) : (allowN ? ('clean (+' + allowN + ' documented reach-in(s) allow-listed)') : 'clean'));
+    });
+    T.ok('A4 · reach-in allow-list is non-empty & named (drift ledger for the next on-touch re-bundle)', ledgered > 0, ledgered + ' documented reach-in(s) across oxydex-dsp / hrvdex-dsp');
+    // positive controls — proof the analyzer is not a silent no-op
+    T.ok('A4 · positive control: a self-contained module is clean', analyze('__demo_clean.js', 'function f(x){return g(x);} function g(y){return Math.round(y);}').length === 0);
+    T.ok('A4 · positive control: an undefined bare reach-in is caught', analyze('__demo_reach.js', 'function f(x){return renderSidebar(x);}').join(',') === 'renderSidebar');
+    // scanner controls — proof comments/strings/regex are ignored but real code is not
+    T.ok('A4 · scanner control: a name only inside comment/string/regex is ignored', analyze('__demo_str.js', 'var s="ghostCall()"; // ghostCall()\nvar re=/ghostCall\\(/; function f(){return 1;}').length === 0);
+    T.ok('A4 · scanner control: a real call is caught despite a string decoy', analyze('__demo_mix.js', 'var s="ghostCall()"; function f(){return ghostCall();}').join(',') === 'ghostCall');
+    T.ok('A4 · scanner control: a regex after `return` is blanked (no phantom call)', analyze('__demo_re.js', 'function f(x){return /ab(c)/.test(x);}').length === 0);
+  });
+
+  /* ════ DISCOVERABILITY COHESION — one roster ≡ the sitemap (REPO-DISCOVERABILITY-FOLLOWUPS §5.2) ════
+     suite.manifest.json is the SINGLE roster; docs/sitemap.xml is generated from the deploy set. This gate
+     keeps the four discoverability surfaces (README table · DOCS-INDEX at-a-glance · sitemap · about.json/
+     JSON-LD) from silently drifting as EEGDex/SpiroDex land: every DEPLOYED node's app + reference guide,
+     every content page, and every deployed fusion app must appear in the sitemap (%20-decoded). Planned
+     nodes (app:null) are skipped. Zero dependency, test-layer only. Positive controls included. ════ */
+  group('Discoverability cohesion — roster ≡ sitemap (REPO-DISCOVERABILITY §5.2)', 'discoverability · cohesion', function (T) {
+    var D = env.discoverability;
+    if (!D || !D.manifestText || !D.sitemapText) { T.skip('discoverability inputs present (suite.manifest.json + docs/sitemap.xml)', 'not wired into env'); return; }
+    var man; try { man = JSON.parse(D.manifestText); } catch (e) { T.ok('suite.manifest.json parses', false, e.message); return; }
+    T.ok('suite.manifest.json parses', true);
+    function sitemapPaths(xml) {
+      var out = {}, re = /<loc>([^<]+)<\/loc>/g, m;
+      while ((m = re.exec(xml)) !== null) { var p = m[1].replace(/^https?:\/\/[^/]+\/?/, ''); try { p = decodeURIComponent(p); } catch (e) {} out[p] = 1; }
+      return out;
+    }
+    var paths = sitemapPaths(D.sitemapText), nPaths = Object.keys(paths).length;
+    var deployedNodes = (man.nodes || []).filter(function (n) { return !n.planned && n.app; });
+    T.ok('sitemap lists ≥ one page per deployed node app+guide (' + nPaths + ' urls)', nPaths >= deployedNodes.length * 2, nPaths + ' urls, ' + deployedNodes.length + ' deployed nodes');
+    var miss = [];
+    deployedNodes.forEach(function (n) {
+      if (!paths[n.app]) miss.push(n.id + ' app ' + n.app);
+      if (!n.guide) miss.push(n.id + ' has null guide');
+      else if (!paths[n.guide]) miss.push(n.id + ' guide "' + n.guide + '"');
+    });
+    (man.content || []).forEach(function (c) { if (!paths[c.href]) miss.push('content ' + c.href); });
+    (man.fusion || []).forEach(function (f) { if (f.deploy === false) return; if (!paths[f.app]) miss.push('fusion ' + f.app); });
+    T.ok('every deployed node (app + reference guide), content page & deployed fusion app resolves in the sitemap', miss.length === 0, miss.length ? ('missing: ' + miss.slice(0, 8).join(', ')) : ('all ' + deployedNodes.length + ' nodes + content + fusion resolve'));
+    var ids = (man.nodes || []).map(function (n) { return n.id; });
+    T.ok('node ids are unique (single roster, no fork)', new Set(ids).size === ids.length, ids.join(','));
+    // positive controls — proof the resolver is not a no-op
+    var demo = sitemapPaths('<loc>https://tepna.net/OxyDex%20Reference.html</loc>\n<loc>https://tepna.net/OxyDex.html</loc>');
+    T.ok('positive control: %20 decodes so a spaced guide name resolves', demo['OxyDex Reference.html'] === 1 && demo['OxyDex.html'] === 1);
+    T.ok('positive control: a page absent from the sitemap is detected', !demo['NotThere.html']);
+  });
+
+>>>>>>> cf3e242 (Tepna suite)
   /* ════ HOST EMIT ALLOWLIST — ecg/ppg/cgm now emit in the live hosts (HOST-EMIT-ALLOWLIST-2026-06-27).
      Both hosts (Data Unifier `canEmit` / OverDex auto-emit) gated their emit UI to rr/spo2/hrv, so the
      migrated cgm/ppg/ecg nodes never emitted in the live UI. Now both gate on the SHARED predicate
@@ -4365,6 +4666,82 @@ function runDexTests(env) {
         && mExp.crossNight && mExp.crossNight.schema && mExp.crossNight.schema.name === 'ganglior.crossnight',
         'nightCount=' + mExp.nightCount + ' nights=' + (mExp.nights && mExp.nights.length));
     })();
+<<<<<<< HEAD
+=======
+
+    // ── Integrator TCH-HR golden — the FIRST code-gated Integrator fixture (INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II §2) ──
+    // The two committed Integrator fusions are `historical:true` (byte-PINNED only) — the evolved fusion code
+    // has no current-code-reproducible golden, so a silent regression in the HR-hat / consensus assembly could
+    // ship. This closes that: build THREE deterministic ganglior.node-exports (ECG+PPG+Oxy) carrying overlapping,
+    // STAGGERED-wall-clock timeseries.epochs[] (hr + motionIndex) in-code, adapt + fuse through the REAL
+    // adaptEnvelopeNode + fuseHRVConsensus, and deep-diff the WHOLE consensus against a committed reference
+    // (uploads/integrator_tch_golden.node-export.json), reusing THIS group's diff + EXCL. Exercises FU-II §1
+    // (staggered +0/+5/+10-min starts → absolute-wall-clock alignment, NOT node-relative tMin), §2 (HR-hat fires,
+    // culprit OxyDex, reconciled HR), §3 (τ-sparkline allan block), §5 (quiet-order caveat) and the §1 external-ρ
+    // (ρ derived from cross-node motion → correlated-external solve). Inputs are rebuilt IN-CODE (inputHashes:{}
+    // in FIXTURE-PROVENANCE — the cpapdex_golden precedent) so the golden is a PURE function of INTEGRATOR code:
+    // an OxyDex/ECGDex/PpgDex DSP change cannot move it. A deliberate fusion-shape change now REQUIRES regenerating
+    // the golden; a silent one REDS. Wired into BOTH runners via env.equiv.integrator_tch_golden.
+    (function () {
+      var Ag = env.adaptEnvelopeNode, FCg = env.fuseHRVConsensus, Kg = env.IntegratorTCH,
+        tFix = EQ.integrator_tch_golden && EQ.integrator_tch_golden.fixture;
+      var wiredT = !!(typeof Ag === 'function' && typeof FCg === 'function' && Kg && typeof Kg.threeCorneredHat === 'function' && tFix);
+      T.ok('Integrator TCH golden: modules + committed golden fixture available', wiredT,
+        tFix ? 'present' : 'uploads/integrator_tch_golden.node-export.json not wired into env.equiv — gate skipped');
+      if (!wiredT) return;
+      // DETERMINISTIC three-node co-recorded night (staggered starts) — byte-identical to the builder in
+      // _diag/tch-golden-gen.html that produced the committed golden (seeded mulberry32; no external RNG).
+      function _tchGoldenInputs(){
+        function mb32(a){ return function(){ a|=0; a=(a+0x6D2B79F5)|0; var t=Math.imul(a^(a>>>15),1|a); t=(t+Math.imul(t^(t>>>7),61|t))^t; return ((t^(t>>>14))>>>0)/4294967296; }; }
+        function gauss(rng){ var u=0,v=0; while(u===0)u=rng(); while(v===0)v=rng(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+        var baseT0 = Date.UTC(2026,5,15,23,0,0);           // ECG anchor 2026-06-15 23:00 (floating wall-clock)
+        var NE = 24;                                        // 24 epochs = 120 min per node
+        function latentHR(a){ return 58 + 4*Math.sin(a/5) - 0.05*a; }   // shared latent HR on the ABSOLUTE 5-min grid
+        function latentMot(a){ return 30 + 20*Math.sin(a/3 + 1); }      // shared motion driver (→ cross-node ρ)
+        var CFG = [
+          { node:'ECGDex', offMin:0,  sHR:1.0, rmssd:42, sdnn:60, seed:11 },
+          { node:'PpgDex', offMin:5,  sHR:2.2, rmssd:38, sdnn:57, seed:22 },
+          { node:'OxyDex', offMin:10, sHR:4.5, rmssd:null, sdnn:null, seed:33 }
+        ];
+        return CFG.map(function(c){
+          var rng=mb32(c.seed), rngM=mb32(c.seed+7);
+          var t0 = baseT0 + c.offMin*60000;
+          var eps=[];
+          for(var i=0;i<NE;i++){
+            var absA = c.offMin/5 + i;                       // shared absolute-grid index (5-min units from baseT0)
+            var e = { tMin:i*5, hr:+(latentHR(absA) + c.sHR*gauss(rng)).toFixed(1),
+                      motionIndex:+(latentMot(absA) + 18*gauss(rngM)).toFixed(2) };
+            if(c.rmssd!=null) e.rmssd = +(c.rmssd + 3*gauss(rng)).toFixed(1);
+            eps.push(e);
+          }
+          var json = {
+            schema:{ name:'ganglior.node-export', node:c.node, version:'2.0' },
+            recording:{ startEpochMs:t0, durationMin:NE*5 },
+            quality:{ analyzablePct:95 },
+            timeseries:{ epochs:eps },
+            ganglior_events:[]
+          };
+          if(c.rmssd!=null) json.hrv = { time:{ rmssd:c.rmssd, sdnn:c.sdnn } };
+          return { node:c.node, json:json };
+        });
+      }
+      var gInputs = _tchGoldenInputs();
+      var gRecs = gInputs.map(function(x){ return Ag(x.json, x.node, x.node)[0]; });
+      var gFusion = FCg(gRecs, 1000);
+      var gGolden = { schema:{ name:'ganglior.integrator-tch-golden', version:'1.0',
+        doc:'Deterministic HR-hat (ECG+PPG+Oxy) golden — first code-gated Integrator fixture (INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II §2). Inputs rebuilt in-code by the equivalence gate.' },
+        consensus: gFusion };
+      var gExp = JSON.parse(JSON.stringify(gGolden));
+      var td = [];
+      diff(gExp, tFix, '', td);
+      T.ok('Integrator TCH-HR consensus ≡ committed golden (full tree; vol excluded)', td.length === 0, td.length ? td.slice(0, 8).join(' · ') : 'byte-identical');
+      var tb = gExp.consensus && gExp.consensus.blocks && gExp.consensus.blocks[0];
+      T.ok('HR-hat fires on the staggered co-recorded night — culprit OxyDex, reconciled HR, ρ from motion',
+        !!(tb && tb.tchHR && tb.tchHR.ok && tb.tchHR.culprit === 'OxyDex' && tb.hrReconciled != null
+           && tb.tchHR.n >= 12 && tb.tchHR.method === 'correlated-external'),
+        tb && tb.tchHR ? ('culprit=' + tb.tchHR.culprit + ' n=' + tb.tchHR.n + ' method=' + tb.tchHR.method + ' ρ=' + tb.tchHR.rho + ' hrRec=' + tb.hrReconciled) : 'no tchHR');
+    })();
+>>>>>>> cf3e242 (Tepna suite)
   });
 
   /* ════ Phase-9 GENERIC adapter → emit → schema-valid export — every signalType (PPGDEX-FOLLOWUPS §10) ════

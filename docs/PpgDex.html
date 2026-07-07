@@ -2725,8 +2725,27 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
 @media(max-width:1080px){.app-shell{grid-template-columns:1fr}.sidebar{display:none}#exportBar{left:0 !important}}
 @media(max-width:768px){#ppgCanvas{height:230px}.cn-spark{width:120px}}
 </style>
+<<<<<<< HEAD
 </head>
 <body>
+=======
+<link rel="canonical" href="https://tepna.net/PpgDex.html">
+<meta property="og:url" content="https://tepna.net/PpgDex.html">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://tepna.net/tepna-og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://tepna.net/tepna-og.png">
+</head>
+<body>
+<noscript>
+  <div style="max-width:640px;margin:40px auto;padding:24px;font-family:system-ui,-apple-system,sans-serif;line-height:1.55;color:#0b0f14;background:#fff">
+    <h1>PpgDex — Wrist PPG Analyzer</h1>
+    <p>Optical pulse from a Polar Verity Sense armband → pulse-to-pulse intervals → HRV and pulse-wave morphology. 100% in your browser: no upload, no account.</p>
+    <p><strong>PpgDex is an interactive analyzer that requires JavaScript.</strong> For the full method &amp; metric reference, read <a href="PpgDex%20Reference.html">the PpgDex Reference guide</a>, or see the <a href="index.html">Tepna suite overview</a>.</p>
+    <p>Part of <strong>Tepna — the Dex Suite</strong> · Apache-2.0 · Personal self-quantification, not a medical device.</p>
+  </div>
+</noscript>
+>>>>>>> cf3e242 (Tepna suite)
 
 <template id="__bundler_thumbnail">
   <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
@@ -6546,16 +6565,26 @@ function crossNight(series, opts){
 // ENVELOPE-FOLLOWUPS-V §1/§2: each def self-describes its `evidence` tier (sourced from
 // ppgdex-registry.js) so the Integrator Longitudinal view BADGES the crossnight trend/coupling cards
 // (evBadge reads metrics{}.evidence; an ungraded metric renders unbadged — a COVERAGE-MANDATE gap).
+<<<<<<< HEAD
 // Tiers mirror the registry exactly: rMSSD/SDNN/ln rMSSD validated · Pulse HR/Perfusion/Motion-rej
+=======
+// Tiers mirror the registry exactly: rMSSD/SDNN/ln rMSSD validated · Pulse HR/Perfusion Idx/Motion-rejected
+>>>>>>> cf3e242 (Tepna suite)
 // measured · Aug. index emerging.
 var PPG_DEFS = {
   rmssd:{ good:'up', label:'rMSSD', unit:'ms', evidence:'validated', get:function(s){ return s.rmssd; } },
   sdnn:{ good:'up', label:'SDNN', unit:'ms', evidence:'validated', get:function(s){ return s.sdnn; } },
   lnRMSSD:{ good:'up', label:'ln rMSSD', unit:'', evidence:'validated', get:function(s){ return s.lnRMSSD; } },
   hr:{ good:'down', label:'Pulse HR', unit:'bpm', evidence:'measured', get:function(s){ return s.dispHr; } },
+<<<<<<< HEAD
   pi:{ good:'up', label:'Perfusion', unit:'%', evidence:'measured', get:function(s){ return s.perfusionIndex; } },
   ai:{ good:'down', label:'Aug. index', unit:'%', evidence:'emerging', get:function(s){ return s.morph?s.morph.augmentationIndexPct:null; } },
   motionRejected:{ good:'down', label:'Motion-rej', unit:'%', evidence:'measured', get:function(s){ return s.motionRejectedPct; } }
+=======
+  pi:{ good:'up', label:'Perfusion Idx', unit:'%', evidence:'measured', get:function(s){ return s.perfusionIndex; } },
+  ai:{ good:'down', label:'Aug. index', unit:'%', evidence:'emerging', get:function(s){ return s.morph?s.morph.augmentationIndexPct:null; } },
+  motionRejected:{ good:'down', label:'Motion-rejected', unit:'%', evidence:'measured', get:function(s){ return s.motionRejectedPct; } }
+>>>>>>> cf3e242 (Tepna suite)
 };
 function ppgSessionT0(s){ return (s&&s.t0Ms!=null)?s.t0Ms:null; }
 function ppgSessionWeight(s){ return Math.max(0.05,((s&&s.analyzablePct)||0)/100); }
@@ -9051,7 +9080,11 @@ function ppgReviewTimeline(events){
 function ppgReviewView(review){
   var rec=review.recording||{}, hrv=review.hrv||{}, t=hrv.time||{}, fq=hrv.frequency||{}, q=review.quality||{};
   var prov=review.provenance||{}, bh=prov.buildHash||(review.derivedFrom&&review.derivedFrom.buildHash)||null, gen=_pgFmtGen(prov.generated||review.generated);
+<<<<<<< HEAD
   var nv=function(v,d){ return (v==null||v!==v)?(d||'\u2014'):v; };
+=======
+  var nv=function(v,d){ return (v==null||Number.isNaN(v))?(d||'\u2014'):v; };
+>>>>>>> cf3e242 (Tepna suite)
   var h='<div class="pgrv-banner" role="status">'
     +'<span class="pgrv-tag"><span class="pgrv-dot"></span>Review mode</span>'
     +'<span>Loaded from export \u00b7 <strong>not recomputed</strong>'+(review.scrubbed?' \u00b7 <strong>scrubbed for sharing</strong>':'')+'</span>'

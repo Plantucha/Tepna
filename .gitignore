@@ -29,6 +29,10 @@ uploads/*
 !uploads/cpapdex-2026-06-16.json
 !uploads/cpapdex_synthetic_golden.node-export.json
 !uploads/cpapdex_synthetic_multinight_golden.node-export.json
+<<<<<<< HEAD
+=======
+!uploads/integrator_tch_golden.node-export.json
+>>>>>>> cf3e242 (Tepna suite)
 
 # Locally-attached raw capture folder (Polar Sensor Logger exports)
 Ecg nightly/

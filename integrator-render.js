@@ -593,6 +593,13 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
           cards.push(findingCard('Per-sensor error (TCH) · '+b.window, '#8FB8FF',
             tchBars(b), tchNote(b), Object.keys(b.tch.sigma2), 'tch_error'));
         }
+<<<<<<< HEAD
+=======
+        if(b.tchHR){   // HR-hat — reference-free per-sensor HR error (ECG+PPG+Oxy) — FU-II §3
+          cards.push(findingCard('Per-sensor HR error (TCH) · '+b.window, '#8FB8FF',
+            tchBars(b,'hr'), tchNote(b,'hr'), Object.keys(b.tchHR.sigma2), 'tch_error'));
+        }
+>>>>>>> cf3e242 (Tepna suite)
       });
     }
     var pb=fusion.periodicBreathing;
@@ -615,9 +622,16 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
       big+'<p class="fc-note">'+esc(note)+'</p></div>';
   }
   /* three-cornered-hat card body — per-sensor σ bars (noisiest first, culprit flagged)
+<<<<<<< HEAD
      + inverse-variance reconciled RMSSD. (INTEGRATOR-THREE-CORNERED-HAT §5) */
   function tchBars(b){
     var t=b.tch; if(!t||!t.sigma2) return '';
+=======
+     + inverse-variance reconciled level. which: undefined/'rmssd' → block.tch (RMSSD, ms);
+     'hr' → block.tchHR (HR-hat, bpm). (INTEGRATOR-THREE-CORNERED-HAT §5 / FU-II §3) */
+  function tchBars(b, which){
+    var isHR=(which==='hr'), t=isHR?b.tchHR:b.tch; if(!t||!t.sigma2) return '';
+>>>>>>> cf3e242 (Tepna suite)
     var keys=Object.keys(t.sigma2), sig={}, max=0;
     keys.forEach(function(k){ var s=(t.sigma&&t.sigma[k]!=null)?t.sigma[k]:Math.sqrt(t.sigma2[k]); sig[k]=s; if(s>max)max=s; });
     keys.sort(function(a,c){ return sig[c]-sig[a]; });
@@ -629,15 +643,28 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
         '<span class="tch-bar"><i style="width:'+pct+'%;background:'+D.nodeColor(base)+'"></i></span>'+
         '<span class="tch-val mono">\u03C3\u2009'+sig[k].toFixed(1)+'</span></div>';
     }).join('');
+<<<<<<< HEAD
     var wm=(b.rmssd&&b.rmssd.weightedMean!=null)?'<div class="tch-recon">Reconciled RMSSD <b class="mono">'+b.rmssd.weightedMean+' ms</b> <span class="tch-recon-sub">inverse-variance weighted</span></div>':'';
     return '<div class="tch-block">'+rows+'</div>'+wm+tchTauSpark(b);
+=======
+    var wm = isHR
+      ? ((b.hrReconciled!=null)?'<div class="tch-recon">Reconciled HR <b class="mono">'+b.hrReconciled+' bpm</b> <span class="tch-recon-sub">inverse-variance weighted</span></div>':'')
+      : ((b.rmssd&&b.rmssd.weightedMean!=null)?'<div class="tch-recon">Reconciled RMSSD <b class="mono">'+b.rmssd.weightedMean+' ms</b> <span class="tch-recon-sub">inverse-variance weighted</span></div>':'');
+    return '<div class="tch-block">'+rows+'</div>'+wm+tchTauSpark(b, which);
+>>>>>>> cf3e242 (Tepna suite)
   }
   /* τ-curve sparkline — per-sensor Allan deviation vs averaging time (§3). One
      node-coloured polyline per sensor on a shared y-scale; lower = steadier at that
      timescale. Null points (short series / negative split) break the line into
      segments; a lone finite point renders as a dot. */
+<<<<<<< HEAD
   function tchTauSpark(b){
     var a=b.tch&&b.tch.allan; if(!a||!a.adev) return '';
+=======
+  function tchTauSpark(b, which){
+    var _t=(which==='hr')?b.tchHR:b.tch;
+    var a=_t&&_t.allan; if(!a||!a.adev) return '';
+>>>>>>> cf3e242 (Tepna suite)
     var nodes=Object.keys(a.adev), taus=a.tausMin||a.taus||[];
     if(!taus.length) return '';
     var maxV=0, any=false;
@@ -659,12 +686,23 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
     return '<div class="tch-tau"><div class="tch-tau-cap">Allan deviation vs averaging time \u2014 lower = steadier at that timescale</div>'+
       '<svg viewBox="0 0 '+W+' '+H+'" class="tch-tau-svg" role="img" aria-label="Per-sensor Allan deviation across averaging times">'+lines+xlabs+'</svg></div>';
   }
+<<<<<<< HEAD
   function tchNote(b){
     var t=b.tch; if(!t) return '';
     var s2=Math.round(t.sigma2[t.culprit]), nn=Object.keys(t.sigma2).length;
     return t.culprit+' carries the largest error variance (\u03C3\u00B2\u2248'+s2+' ms\u00B2) across '+nn+' co-recorded sites over '+t.n+' epochs'
       +(t.rho?(' (common-mode \u03C1='+t.rho+', '+t.method+')'):(' ('+t.method+')'))
       +'. Reference-free three-cornered hat \u2014 estimates precision, not trueness; a bias shared by all three is invisible.';
+=======
+  function tchNote(b, which){
+    var isHR=(which==='hr'), t=isHR?b.tchHR:b.tch; if(!t) return '';
+    var u=isHR?'bpm':'ms';
+    var s2=Math.round(t.sigma2[t.culprit]), nn=Object.keys(t.sigma2).length;
+    return t.culprit+' carries the largest error variance (\u03C3\u00B2\u2248'+s2+' '+u+'\u00B2) across '+nn+' co-recorded sites over '+t.n+' epochs'
+      +(t.rho?(' (common-mode \u03C1='+t.rho+', '+t.method+')'):(' ('+t.method+')'))
+      +'. Reference-free three-cornered hat \u2014 estimates precision, not trueness; a bias shared by all three is invisible.'
+      +(t.quietOrderUncertain?(' Trust the culprit and its \u03C3\u00B2; the two quieter sensors ('+(t.quietSensors||[]).join(', ')+') are both low and their relative order is uncertain (reference-free TCH determines quiet sensors poorly).'):'');
+>>>>>>> cf3e242 (Tepna suite)
   }
 
   /* ── full findings table ─────────────────────────────────────────────── */

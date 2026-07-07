@@ -1,0 +1,22 @@
+{
+  "night": "2026-06-16",
+  "devices": [
+    "O2Ring",
+    "Polar H10 H10-01",
+    "Polar Verity VERITY-01"
+  ],
+  "overlapEpochs30s": 347,
+  "motion_covariation_r": 0.439,
+  "hrDivergence_vs_motion_r": 0.595,
+  "lowMotion": {
+    "meanMotionSD": 1.58,
+    "meanHRdiv_bpm": 0.24,
+    "n": 115
+  },
+  "highMotion": {
+    "meanMotionSD": 4.69,
+    "meanHRdiv_bpm": 1.39,
+    "n": 115
+  },
+  "verityDeviceHR": "all-zero (armband streams raw PPG; onboard HR absent) → PPG corner needs PpgDex on the waveform"
+}

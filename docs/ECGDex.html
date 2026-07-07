@@ -2789,8 +2789,27 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
 @media(max-width:1080px){.app-shell{grid-template-columns:1fr}.sidebar{display:none}#exportBar{left:0 !important}}
 @media(max-width:768px){#ecgCanvas{height:230px}.gang-ev{grid-template-columns:64px 1fr auto;gap:7px}.gang-ev .ge-meta{display:none}}
 </style>
+<<<<<<< HEAD
 </head>
 <body>
+=======
+<link rel="canonical" href="https://tepna.net/ECGDex.html">
+<meta property="og:url" content="https://tepna.net/ECGDex.html">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://tepna.net/tepna-og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://tepna.net/tepna-og.png">
+</head>
+<body>
+<noscript>
+  <div style="max-width:640px;margin:40px auto;padding:24px;font-family:system-ui,-apple-system,sans-serif;line-height:1.55;color:#0b0f14;background:#fff">
+    <h1>ECGDex — Raw ECG Analyzer</h1>
+    <p>~130 Hz single-lead ECG from a Polar H10 chest strap → QRS detection, QTc, and HRV. 100% in your browser: no upload, no account.</p>
+    <p><strong>ECGDex is an interactive analyzer that requires JavaScript.</strong> For the full method &amp; metric reference, read <a href="ECGDex%20Reference.html">the ECGDex Reference guide</a>, or see the <a href="index.html">Tepna suite overview</a>.</p>
+    <p>Part of <strong>Tepna — the Dex Suite</strong> · Apache-2.0 · Personal self-quantification, not a medical device.</p>
+  </div>
+</noscript>
+>>>>>>> cf3e242 (Tepna suite)
 
 <template id="__bundler_thumbnail">
   <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
@@ -4955,7 +4974,11 @@ var ECG_LABEL_ALIAS = {
   'ln rmssd':'lnRMSSD', 'lnrmssd':'lnRMSSD', 'ln(rmssd)':'lnRMSSD',
   'mean hr':'hr', 'hr':'hr',
   'dfa α1':'dfaAlpha1', 'dfa a1':'dfaAlpha1', 'dfa alpha1':'dfaAlpha1', 'dfaα1':'dfaAlpha1',
+<<<<<<< HEAD
   'qtc':'qtc', 'qtc (bazett)':'qtc', 'qtc (fridericia)':'qtc', 'qtc bazett':'qtc',
+=======
+  'qtc':'qtc', 'qtc (bazett)':'qtc', 'qtc bazett':'qtc',
+>>>>>>> cf3e242 (Tepna suite)
   'cvhr index':'cvhrIndex', 'cvhr':'cvhrIndex',
   'decel. capacity':'decelCapacity', 'decel. cap.':'decelCapacity', 'decel capacity':'decelCapacity', 'decel cap.':'decelCapacity', 'decel cap':'decelCapacity',
   'resp rate':'respRate',
@@ -6380,7 +6403,10 @@ function analyze(rec, onProgress){
     mode: modeInfo.mode, modeLabel: modeInfo.modeLabel, modeWhy: modeInfo.modeWhy, modeConf: modeInfo.modeConf,
     ambulatory, activityScore: modeInfo.activityScore, activity: modeInfo.activity,
     sleepSuppressed, apneaSuppressed, _accEx,
+<<<<<<< HEAD
     t0Ms: rec.t0Ms,
+=======
+>>>>>>> cf3e242 (Tepna suite)
     // raw refs for canvas + charts
     int16, bp, peaks, refIdx, times: Array.from(times), sqi: Array.from(sqi),
     nn, tt, corrected: Array.from(nnRes.corrected),
@@ -10270,7 +10296,11 @@ function ecgReviewTimeline(events){
 function ecgReviewView(review){
   var rec=review.recording||{}, hrv=review.hrv||{}, t=hrv.time||{}, fq=hrv.frequency||{}, q=review.quality||{};
   var prov=review.provenance||{}, bh=prov.buildHash||(review.derivedFrom&&review.derivedFrom.buildHash)||null, gen=_ecgFmtGen(prov.generated||review.generated);
+<<<<<<< HEAD
   var nv=function(v,d){ return (v==null||v!==v)?(d||'\u2014'):v; };
+=======
+  var nv=function(v,d){ return (v==null||Number.isNaN(v))?(d||'\u2014'):v; };
+>>>>>>> cf3e242 (Tepna suite)
   var h='<div class="erv-banner" role="status">'
     +'<span class="erv-tag"><span class="erv-dot"></span>Review mode</span>'
     +'<span>Loaded from export \u00b7 <strong>not recomputed</strong>'+(review.scrubbed?' \u00b7 <strong>scrubbed for sharing</strong>':'')+'</span>'

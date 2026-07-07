@@ -45,8 +45,13 @@
     <li>
       <span class="status">Draft v1 · pilot complete</span>
       <a class="t" href="sigma-no-reference.html">Measuring a device's σ without a canonical reference: heart-rate error across O2Ring, Polar H10 and Verity Sense</a>
+<<<<<<< HEAD
       <p class="ab">A three-rung recipe for stating a sensor's uncertainty when you own no calibrated reference: repeatability (no reference), transfer-standard Bland–Altman/Arms (promote the H10 ECG strap to ≈truth), and the three-cornered hat (three devices, none assumed canonical). On 126,277 co-recorded 1-Hz seconds the O2Ring pulse is unbiased vs ECG (−0.34 bpm) but carries a random σ ≈ <b>3.7 bpm</b> at rest (one motion night hit 9.3). The Verity Sense's onboard HR was dead — but its HR <b>recovered cleanly from raw PPG</b> (SQI ≈1.0), and with the H10 leg re-derived from <b>raw ECG</b>, a real ~2-hour three-device hat gives reference-free σ of <b>1.7 / 2.2 / 6.2 bpm</b> (O2Ring / H10 / Verity). SpO₂ trueness stays out of reach (no arterial reference).</p>
       <div class="tags"><span class="tag real">real devices</span><span class="tag real">real data</span><span class="tag">6 pair-nights + 3-device hat</span><span class="tag">raw ECG + raw PPG</span> &nbsp; tool: <code>sigma-no-reference-analysis.html</code></div>
+=======
+      <p class="ab">A three-rung recipe for stating a sensor's uncertainty when you own no calibrated reference: repeatability (no reference), transfer-standard Bland–Altman/Arms (promote the H10 ECG strap to ≈truth), and the three-cornered hat (three devices, none assumed canonical). On 122,903 co-recorded 1-Hz seconds (ten nights) the O2Ring pulse is unbiased vs ECG (−0.29 bpm) but carries a random σ ≈ <b>3.4 bpm</b> at rest (one motion night hit 9.9). The Verity Sense's onboard HR was dead — but its HR <b>recovered cleanly from raw PPG</b> (SQI ≈1.0), and with the H10 leg re-derived from <b>raw ECG</b>, the tool now <b>folder-ingests</b> each night and solves the hat two ways: a <b>deep</b> 6-window hat (63,231 s) → <b>1.83 / 2.04 / 3.50</b> and a <b>broad</b> 10-night hat (122,903 s, production SQI-gated Verity) → <b>2.72 / 1.86 / 1.94 bpm</b> (O2Ring / H10 / Verity). The H10 corner holds at ≈1.9–2.0 (gold leg stable), but the <em>noisy</em> corner reorders — Verity on the deep hat, O2Ring on the broad — as a cleaner production Verity and more O2Ring motion nights redistribute the coupled variance. SpO₂ trueness stays out of reach (no arterial reference).</p>
+      <div class="tags"><span class="tag real">real devices</span><span class="tag real">real data</span><span class="tag">7 pair-nights + 10-night 3-device hat</span><span class="tag">folder-ingest</span><span class="tag">raw ECG + raw PPG</span> &nbsp; tool: <code>sigma-no-reference-analysis.html</code></div>
+>>>>>>> cf3e242 (Tepna suite)
     </li>
     <li>
       <span class="status">Draft v1 · pilot complete</span>
@@ -91,10 +96,17 @@
       <div class="tags"><span class="tag sim">simulation</span><span class="tag real">real detectors</span><span class="tag">FAST lane · 20,000 patients · v1.7 · all 16 strata</span> &nbsp; tool: <code>cohort-runner.html</code></div>
     </li>
     <li>
+<<<<<<< HEAD
       <span class="status">Draft v1 · fully synthetic · anecdotal real check</span>
       <a class="t" href="sensor-trio-nights.html">Pinning a sensor's error without a reference: how many co-recorded windows, and how long each?</a>
       <p class="ab">The metrology twin of <i>nights-icc</i>: how many co-recorded O2Ring + H10 + Verity windows pin each device's reference-free error σ? Monte-Carlo (720 trials/cell, Web-Worker pool) over the same three-cornered-hat kernel with planted σ 1.7 / 2.2 / 6.2 bpm shows <b>one ~1-hour window pins the whole trio to ±0.5 bpm</b>; ±0.25 needs ~5–8, ±0.15 ~12–20. The hat <b>couples</b> the corners, so the noisy Verity leg sets a shared floor (not "the noisy device needs far more data"). The regime cost is <b>bias, not N</b>: a resting night under-states the instantaneous devices (H10 −21%) because the TCH strips shared HRV — a dynamic session recovers the full σ and makes the uncorrelated-error assumption testable. One real window (7,057 s) recovers 1.67 / 2.17 / 6.22 bpm — an anecdotal comparison that matches the planted totals.</p>
       <div class="tags"><span class="tag sim">simulation</span><span class="tag real">real detectors</span><span class="tag">fully synthetic · 720 MC trials/cell · N 1–20 + window-length sweep · 1 anecdotal real window</span> &nbsp; tool: <code>sensor-trio-power-analysis.html</code></div>
+=======
+      <span class="status">Draft v1 · sim + real 10-night validation</span>
+      <a class="t" href="sensor-trio-nights.html">Pinning a sensor's error without a reference: how many co-recorded windows, and how long each?</a>
+      <p class="ab">The metrology twin of <i>nights-icc</i>: how many co-recorded O2Ring + H10 + Verity windows pin each device's reference-free error σ? Monte-Carlo (720 trials/cell, Web-Worker pool) over the same three-cornered-hat kernel with planted σ 2.7 / 1.9 / 1.9 bpm shows <b>one ~1-hour window pins the whole trio to ±0.5 bpm</b>; ±0.25 needs ~5–8, ±0.15 ~12–20. The hat <b>couples</b> the corners, so the noisiest corner (the O2Ring on this corpus) sets a shared floor (not "the noisy device needs far more data"), while the <em>quietest</em> corner is hardest to pin tight. The regime cost is <b>bias, not N</b>: a resting night under-states the instantaneous devices because the TCH strips shared HRV — a dynamic session recovers the full σ. <b>Validated on a real 10-night tri-device corpus</b> (folder-ingested, raw-ECG gold leg; O2Ring σ̂ ≈ 2.72, H10 ≈ 1.86, Verity ≈ 1.94 bpm; the quiet-order regime + motion premise confirmed) — which re-fit the planted σ to 2.7 / 1.9 / 1.9 and reordered the noisy corner (Verity on the earlier single window, O2Ring on the broad corpus).</p>
+      <div class="tags"><span class="tag sim">simulation</span><span class="tag real">real devices</span><span class="tag real">real data</span><span class="tag">720 MC trials/cell · N 1–20 + window-length sweep · 10-night real validation</span> &nbsp; tool: <code>sensor-trio-power-analysis.html</code></div>
+>>>>>>> cf3e242 (Tepna suite)
     </li>
     <li>
       <span class="status">Perspective v1 · parked</span>

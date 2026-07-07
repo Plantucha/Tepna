@@ -977,6 +977,7 @@ function fuseAutonomicGlycemic(recs, dtMs, opts2){
    (series.hrvEpochs, added in adaptEnvelopeNode). PURE; returns a reason-stamped null
    when <3 nodes carry an alignable series (→ pairwise consensus is used unchanged). */
 function _tchEngine(){ return (typeof IntegratorTCH!=='undefined' && IntegratorTCH) || (typeof window!=='undefined' && window.IntegratorTCH) || null; }
+<<<<<<< HEAD
 function _rmssdPts(s){ return ((s.series&&s.series.hrvEpochs)||[]).filter(function(e){return e && e.tMin!=null && e.rmssd!=null;}).map(function(e){return {tMin:e.tMin, v:e.rmssd};}); }
 // §2 HR-hat — per-epoch pulse-HR series (ECGDex/PpgDex/OxyDex all now emit timeseries.epochs[].hr).
 function _hrPts(s){ return ((s.series&&s.series.hrvEpochs)||[]).filter(function(e){return e && e.tMin!=null && e.hr!=null;}).map(function(e){return {tMin:e.tMin, v:e.hr};}); }
@@ -984,6 +985,23 @@ function _meanMotion(s, keys){ var set={}; keys.forEach(function(k){set[k]=1;});
 // §1 external-ρ — a per-node motion vector ALIGNED to the triplet's common epoch keys (null when a
 // node carries no per-epoch motion). Feeds the common-mode correlation the classic TCH can't see.
 function _tchAlignedMotion(s, keys){ var m={}; ((s.series&&s.series.hrvEpochs)||[]).forEach(function(e){ if(e&&e.tMin!=null&&e.motion!=null) m[e.tMin]=e.motion; }); var v=keys.map(function(k){ return m[k]!=null?m[k]:null; }); return v.some(function(x){return x!=null;})?v:null; }
+=======
+// Cross-node epoch alignment MUST key on the SAME wall-clock instant, not the node-relative offset
+// (FU-II §1 / Clock Contract): co-recorded devices start minutes apart, so a shared node-relative tMin
+// is a DIFFERENT absolute time per node → inflated pairwise-difference variance + a mis-ranked culprit.
+// Key on the absolute 5-min wall-clock grid (min) whenever the epoch carries a floating tMs (already
+// stamped in adaptEnvelopeNode); fall back to node-relative tMin only when t0Ms is unknown (tMs null).
+// Same-start nights are byte-identical: the same monotonic key-shift applies to every node, so the
+// alignTriplet intersection membership + order (hence every σ²/weight/level) is unchanged.
+function _epKey(e){ return (e && e.tMs!=null && isFinite(e.tMs)) ? Math.round(e.tMs/300000)*5 : (e?e.tMin:null); }
+function _rmssdPts(s){ return ((s.series&&s.series.hrvEpochs)||[]).filter(function(e){return e && e.tMin!=null && e.rmssd!=null;}).map(function(e){return {tMin:_epKey(e), v:e.rmssd};}); }
+// §2 HR-hat — per-epoch pulse-HR series (ECGDex/PpgDex/OxyDex all now emit timeseries.epochs[].hr).
+function _hrPts(s){ return ((s.series&&s.series.hrvEpochs)||[]).filter(function(e){return e && e.tMin!=null && e.hr!=null;}).map(function(e){return {tMin:_epKey(e), v:e.hr};}); }
+function _meanMotion(s, keys){ var set={}; keys.forEach(function(k){set[k]=1;}); var eps=(s.series&&s.series.hrvEpochs)||[]; var vs=eps.filter(function(e){return e&&set[_epKey(e)]&&e.motion!=null;}).map(function(e){return e.motion;}); if(!vs.length) return null; return +(vs.reduce(function(a,b){return a+b;},0)/vs.length).toFixed(3); }
+// §1 external-ρ — a per-node motion vector ALIGNED to the triplet's common epoch keys (null when a
+// node carries no per-epoch motion). Feeds the common-mode correlation the classic TCH can't see.
+function _tchAlignedMotion(s, keys){ var m={}; ((s.series&&s.series.hrvEpochs)||[]).forEach(function(e){ if(e&&e.tMin!=null&&e.motion!=null) m[_epKey(e)]=e.motion; }); var v=keys.map(function(k){ return m[k]!=null?m[k]:null; }); return v.some(function(x){return x!=null;})?v:null; }
+>>>>>>> cf3e242 (Tepna suite)
 function _tchPearson(a,b){ var xs=[],ys=[],i; for(i=0;i<a.length;i++){ if(a[i]!=null&&b[i]!=null&&isFinite(a[i])&&isFinite(b[i])){ xs.push(a[i]); ys.push(b[i]); } } var n=xs.length; if(n<4) return null; var mx=0,my=0; for(i=0;i<n;i++){ mx+=xs[i]; my+=ys[i]; } mx/=n; my/=n; var sxy=0,sxx=0,syy=0; for(i=0;i<n;i++){ var dx=xs[i]-mx, dy=ys[i]-my; sxy+=dx*dy; sxx+=dx*dx; syy+=dy*dy; } if(sxx<1e-12||syy<1e-12) return null; return sxy/Math.sqrt(sxx*syy); }
 // Estimate the common-mode ρ for the correlated-TCH solve from CROSS-NODE per-epoch motion: the mean
 // of the POSITIVE pairwise motion correlations across the triplet's nodes. Needs ≥2 motion-bearing
@@ -1031,6 +1049,18 @@ function _tchHat(like, ptsFn, metric){
       r.allan=_al;
     }
   }
+<<<<<<< HEAD
+=======
+  // §5 (FU-II) — reference-free TCH determines the QUIET sensors poorly: their pairwise-difference
+  // variance is small, so sampling noise dominates the split (the culprit + its σ² are trustworthy,
+  // the two quieter sensors are "both low, order uncertain"). Flag when the two quietest σ² sit within
+  // a ×2 factor — a caveat, NOT a change to the estimate. (documentation + a small flag)
+  var _s2sorted=Object.keys(r.sigma2).map(function(k){return {k:k,v:r.sigma2[k]};}).sort(function(a,b){return b.v-a.v;});
+  var _quiet=_s2sorted.slice(1);   // drop the loudest (the culprit)
+  r.quietSensors=_quiet.map(function(x){return x.k;});
+  r.quietOrderUncertain = (_quiet.length>=2 && _quiet[0].v>0 && _quiet[_quiet.length-1].v>0)
+    ? (_quiet[0].v/_quiet[_quiet.length-1].v < 2) : false;
+>>>>>>> cf3e242 (Tepna suite)
   return r;
 }
 // Back-compat: the RMSSD hat IS the historical _tchConsensus return (block.tch).

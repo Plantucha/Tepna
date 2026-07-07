@@ -172,7 +172,11 @@ const FIXTURE_FILES = {
   'ecgdex.slim-events':  'tests/fixtures/ecgdex.slim-events.json',
   'ppgdex.node-export':  'tests/fixtures/ppgdex.node-export.json'
 };
+<<<<<<< HEAD
 const SOURCE_FILES = ['clock.js','pulsedex-dsp.js','oxydex-dsp.js','hrvdex-dsp.js','integrator-dsp.js','integrator-tch.js','integrator-app.js','ppgdex-dsp.js','glucodex-dsp.js','ecgdex-dsp.js',
+=======
+const SOURCE_FILES = ['clock.js','oxydex-util.js','pulsedex-dsp.js','oxydex-dsp.js','hrvdex-dsp.js','integrator-dsp.js','integrator-tch.js','integrator-app.js','integrator-render.js','ppgdex-dsp.js','glucodex-dsp.js','ecgdex-dsp.js',
+>>>>>>> cf3e242 (Tepna suite)
   'ecgdex-cross.js','oxydex-cross.js','pulsedex-cross.js','ppgdex-cross.js',
   'crossnight-envelope.js','ecgdex-app.js','ppgdex-app.js','pulsedex-app.js','pulsedex-render.js','hrvdex-app.js','oxydex-render.js','hrvdex-render.js','signal-orchestrate.js','dex-ingest.js',
   'cpapdex-dsp.js','cpapdex-cross.js','cpapdex-edf.js','cpapdex-app.js','cpapdex-fusion.js','ecgdex-morph.js','ppgdex-morph.js','dex-export.js',
@@ -254,6 +258,14 @@ async function main(){
     // (needs window.CPAPCross — cpapdex-cross.js is now loaded above + CPAPCross is in env).
     const cpapMultiFix = await fetchJSON('uploads/' + encodeURIComponent('cpapdex_synthetic_multinight_golden.node-export.json'));
     setEquiv('cpapdex_multinight_golden', null, cpapMultiFix);
+<<<<<<< HEAD
+=======
+    // Integrator TCH-HR GOLDEN (INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II §2): the first code-gated
+    // Integrator fixture. Fixture-only — the gate rebuilds the three staggered synthetic node-exports in-code
+    // (no {text} input) and fuses them; only the committed golden consensus is wired.
+    const tchGoldFix = await fetchJSON('uploads/' + encodeURIComponent('integrator_tch_golden.node-export.json'));
+    setEquiv('integrator_tch_golden', null, tchGoldFix);
+>>>>>>> cf3e242 (Tepna suite)
   } catch(e){ /* browser-only fetch; gate self-skips if absent */ }
   // doc artifacts for the cohesion-badge single-source group (engine ≡ mirror ≡ reference)
   const docs = {};
@@ -311,10 +323,31 @@ async function main(){
       if (clistTxt) { try { listedChangeNames = (JSON.parse(clistTxt).changes) || []; } catch(e){} }
       const changeFiles = {};
       await Promise.all(listedChangeNames.map(async n => { const t = await fetchText('changes/'+encodeURIComponent(n)); if(t!=null) changeFiles[n]=t; }));
+<<<<<<< HEAD
       releaseLedger = { manifestText, releaseText, changelogText, changeFiles, listedChangeNames /* no fsChangeNames: browser lane */ };
     }
   } catch(e) { /* absent/broken → group skips */ }
 
+=======
+      // check-6 surfaces (CONTROLLED-RELEASES-FOLLOWUPS F2/F3/F4): fetch raw text of each version-carrying
+      // surface; the shared gate extracts + compares to canonical (single-sourced there, no lane drift).
+      const surfaceTexts = {};
+      await Promise.all(['CITATION.cff','README.md','index.html','docs/about.json'].map(async s => { const t = await fetchText(s); if(t!=null) surfaceTexts[s]=t; }));
+      releaseLedger = { manifestText, releaseText, changelogText, changeFiles, listedChangeNames, surfaceTexts /* no fsChangeNames: browser lane */ };
+    }
+  } catch(e) { /* absent/broken → group skips */ }
+
+  // discoverability-cohesion gate (REPO-DISCOVERABILITY-FOLLOWUPS §5.2) — one roster
+  // (suite.manifest.json) ≡ the generated docs/sitemap.xml. Fetch both; the group asserts every
+  // deployed surface (node app + guide, content page, deployed fusion app) resolves in the sitemap.
+  let discoverability = null;
+  try {
+    const manifestText = await fetchText('suite.manifest.json');
+    const sitemapText = await fetchText('docs/sitemap.xml');
+    if (manifestText && sitemapText) discoverability = { manifestText, sitemapText };
+  } catch(e) { /* absent → group skips */ }
+
+>>>>>>> cf3e242 (Tepna suite)
   const env = {
     DexKernel: window.DexKernel,
     MetricRegistry: window.MetricRegistry,
@@ -372,7 +405,11 @@ async function main(){
     DexCoload: window.DexCoload,
     DexIngest: window.DexIngest,
     pickProvenanceBanner: window.pickProvenanceBanner,
+<<<<<<< HEAD
     docs, hosts, manifests, docsLedger, releaseLedger,
+=======
+    docs, hosts, manifests, docsLedger, releaseLedger, discoverability,
+>>>>>>> cf3e242 (Tepna suite)
     srcHtml,
     fixtures, sources, equiv,
     groupFilter: groupFilterStr() || null
@@ -998,6 +1035,29 @@ async function renderCoverageIntegratorPB(){
     add(g, 'PB card names both observer nodes (OxyDex + CPAPDex)', /OxyDex/.test(fTxt) && /CPAPDex/.test(fTxt));
     add(g, 'PB card carries an evidence badge (coverage mandate)', !!doc.querySelector('#findings .fc-ev'));
     add(g, 'PB finding reaches the findings table', /periodic_breathing/i.test(tblTxt));
+<<<<<<< HEAD
+=======
+    // FU-II §3 — the HR-hat (block.tchHR) card renders when a 3-node HR triplet is fused. Independent
+    // per-node noise std {1,2,4} (Oxy noisiest) over 48 shared 5-min epochs + a shared motion component
+    // (→ positive cross-node ρ). Proves integrator-render.js surfaces tchHR σ-bars + reconciled HR (bpm).
+    var lcg=function(s){ return function(){ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff-0.5; }; };
+    var mkHR=function(node, std, seed){ var r=lcg(seed), rm=lcg(seed*7+1), eps=[];
+      for(var i=0;i<48;i++){ var latent=58+Math.sin(i/6)*4;
+        eps.push({tMin:i*5, hr:+(latent + std*r()*3.46).toFixed(2), motionIndex:+(0.5 + 0.3*Math.sin(i/5) + 0.15*rm()).toFixed(3)}); }
+      return { schema:{name:'ganglior.node-export',node:node}, bus:'ganglior', recording:{startEpochMs:t0,durationMin:240,offsetMin:null},
+        hrv:{time:{rmssd:42,sdnn:60}}, quality:{analyzablePct:95}, timeseries:{epochs:eps},
+        ganglior_events:[{t:'00:00:10',tMs:t0+10000,impulse:'x',node:node,conf:.8}] }; };
+    var hrRecs=[]; [mkHR('ECGDex',1,101), mkHR('PpgDex',2,202), mkHR('OxyDex',4,303)].forEach(function(j,i){ var nf=D.normalizeFile(j, 'hr'+i+'.json'); hrRecs=hrRecs.concat(nf.recs); });
+    var hrFusion=D.runFusion(hrRecs, { toleranceSec:120 });
+    var hrBlk=hrFusion.hrv && hrFusion.hrv.blocks && hrFusion.hrv.blocks[0];
+    add(g, 'HR triplet fusion attaches block.tchHR (HR-hat fires)', !!(hrBlk && hrBlk.tchHR && hrBlk.tchHR.ok), 'status='+(hrBlk&&hrBlk.tchHRStatus));
+    R.renderAll(hrRecs, hrFusion, []);
+    try{ R.showView && R.showView('findings'); }catch(_){}
+    await waitForRender(doc, function(d){ var fc=d.getElementById('findings'); return fc && /per-sensor hr error/i.test(fc.textContent||''); }, 8000);
+    var hrTxt=(doc.getElementById('findings')||{}).textContent||'';
+    add(g, 'HR-hat card renders ("Per-sensor HR error")', /per-sensor hr error/i.test(hrTxt));
+    add(g, 'HR-hat card surfaces the reconciled HR in bpm', /reconciled hr/i.test(hrTxt) && /\bbpm\b/i.test(hrTxt));
+>>>>>>> cf3e242 (Tepna suite)
   }catch(e){
     add(g, 'render-coverage rig ran without throwing', false, e.message);
   }finally{
@@ -1312,7 +1372,15 @@ async function renderCoverageApp(cfg){
     add(g, 'renders an expected metric label', (cfg.labels||[]).some(l=>new RegExp(l.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i').test(txt)),
       'looked for '+(cfg.labels||[]).join(' / '));
     if(cfg.evidenceRe) add(g, 'renders '+(cfg.evidenceName||'computed evidence'), cfg.evidenceRe.test(txt));
+<<<<<<< HEAD
     const numTokens=(txt.match(/\d[\d.,:]*/g)||[]).length;
+=======
+    // Use the SAME tokenizer as the settle-gate above (_numTokens) so a wait that succeeded at ≥minNums
+    // can't then fail here: the old `/\d[\d.,:]*/g` re-match merged each HH:MM:SS clock token into one, so
+    // it counted fewer than the gate and flaked 14-vs-15 on OxyDex when the dashboard rendered clock times
+    // (CLAUDE.md §3 "14 numeric tokens"). Single tokenizer, read live from the doc — bar unchanged.
+    const numTokens=_numTokens(doc);
+>>>>>>> cf3e242 (Tepna suite)
     add(g, 'computed numeric output reaches the DOM', numTokens>=(cfg.minNums||12), numTokens+' numeric tokens');
     if(cfg.extraProbe){ try{ await cfg.extraProbe(g, win, doc, add); }catch(e){ add(g, cfg.name+' extra probe ran without throwing', false, e.message); } }
     // F2 (SELF-INGEST-FOLLOWUPS-II): drive the review renderer (loadOwnExport → reviewView rich+light → renderReview)

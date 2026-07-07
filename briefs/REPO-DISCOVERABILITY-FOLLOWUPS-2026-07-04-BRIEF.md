@@ -1,5 +1,9 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
+<<<<<<< HEAD
 **Status:** IN-PROGRESS — 2026-07-04 (§3 + §5.1 + §5.4 + §5.6-text + §5.8-feed EXECUTED; asset-gated / test-infra / gated / off-repo items deferred — see the execution log) · **Created:** 2026-07-04 · **Parent:** `REPO-DISCOVERABILITY-2026-07-03-BRIEF.md` (IN-PROGRESS — §1 executed 2026-07-04)
+=======
+**Status:** IN-PROGRESS — 2026-07-05 (§3 + §5.1 + §5.4 + §5.6-text + §5.8-feed + **§5.2 cohesion gate** EXECUTED; asset-gated / gated-§5.9 / off-repo items deferred — see the execution log) · **Created:** 2026-07-04 · **Parent:** `REPO-DISCOVERABILITY-2026-07-03-BRIEF.md` (IN-PROGRESS — §1 executed 2026-07-04)
+>>>>>>> cf3e242 (Tepna suite)
 
 # Repo discoverability — follow-ups (everything after the §1 front-door links)
 
@@ -33,8 +37,13 @@
 - **Root→`docs/` sync (the proposed enhancement — DONE, full coverage)** — `tools/build-docs.mjs` **Phase 1** now syncs the whole served tree, closing the "content edits need manual re-copy" gap. **Phase 1a (pages):** straight-copy every deploy `.html` that links only to shipped targets (apps, guides, content, papers, clean wiring); **mechanically de-link** pages that link to non-public targets (Tier-3 tools/gates + any raw `.md` → `<span class="tool-off">` — verified to reproduce the 13 hand-de-linked wiring pages **byte-for-byte**); **preserve** `deploy.delinkPreserve` pages (Science.html — editorially reworded lab-bench prose; `--force-delink` overrides). **Phase 1b (assets):** byte-compare + copy the 48 CSS/JS/image deploy assets. Coverage audit: all **46 pages + 48 assets have root twins** (0 orphans), so `--check` guards the entire deploy. Applied now: **8 stale app bundles** (docs/ held pre-OWN-THE-BUILD legacy builds → re-synced to the current owned plain-inline bundles, root==docs on all 8) + **GlucoDex Reference.html** + `docs/index.html`; assets audited all in-sync. Result: **0 stale, 0 dead links** across the deploy; Science.html preserved. Policy in `suite.manifest.json` `deploy{}`.
 
 **DEFERRED (needs an asset, test-infra, a re-bundle, or an off-repo action — recorded, not half-shipped):**
+<<<<<<< HEAD
 - **§5.6 `og:image` + §5.8 PWA `manifest.json`/icons** — both need a **real preview image / icon PNGs**; brief says do NOT SVG-fake → **ask the author** for assets, then add.
 - **§5.2 `discoverability-cohesion` gate** — the both-runners test group (every deploy page in the sitemap; every roster node has a resolving guide) is deferred to avoid a full-suite re-run this pass; `--check` in `gen-discoverability.mjs` is the interim guard.
+=======
+- **§5.6 `og:image` + §5.8 PWA `manifest.json`/icons — DONE 2026-07-05 (real asset, no SVG-fake).** The canonical brand mark already existed as the **T-beat monogram** specified in `docs-archive/Tepna Logo.html` (and inline as the app favicons) — rasterized THAT glyph (not a fabricated one) via Canvas into PNGs: `assets/icons/tepna-{192,512}.png` (gradient tile + dark glyph), `tepna-maskable-512.png` (full-bleed, safe-zone padded), `apple-touch-icon-180.png`, and a 1200×630 `tepna-og.png` preview card (primary lockup + wordmark + tagline on the base ground). Added `manifest.json` (roster-derived name/description/theme `#070A0E`/3 icons) and wired `index.html` `<head>`: `<link rel=manifest>`, `apple-touch-icon`, and real `og:image`/`twitter:image` (replacing the "omitted until a real asset exists" note). Written to BOTH repo root (source) and `docs/` (served); front door renders clean. NOTE: `tools/build-docs.mjs` Phase-1b asset sync + `--check` should be re-run on a Node host to register the new assets in its inventory.
+- **§5.2 `discoverability-cohesion` gate — DONE 2026-07-05 (test-layer only, no re-bundle).** New `Discoverability cohesion — roster ≡ sitemap` group in `tests/dex-tests.js` (both runners): reads `suite.manifest.json` + `docs/sitemap.xml` from `env.discoverability` (wired via `readDiscoverability()` in `run-tests.mjs` + a fetch in `Dex-Test-Suite.html`) and asserts every DEPLOYED node's app + reference guide, every content page, and every deployed fusion app resolves (%20-decoded) in the sitemap — planned nodes (app:null) skipped, node-id uniqueness (no forked roster) checked, with positive controls. Currently green (7 deployed nodes + content + Integrator all resolve across 46 sitemap urls). This replaces `gen-discoverability.mjs --check` as the drift guard now that it runs in the canonical suite.
+>>>>>>> cf3e242 (Tepna suite)
 - **§5.3 / §5.6 per-page meta on the non-index served pages** (guides, content) — front door done; the rest is a mechanical static pass, next.
 - **§5.9 crawlable `<noscript>` app fallback** — **GATED** (edits bundled `*.src.html` `<head>` → re-bundle + `BUILD-MANIFEST.json` + `?full`/provenance/`no-network`); sequence last, one app at a time.
 - **§4 GitHub topics · §5.8 Zenodo DOI + registry/backlink submissions** — off-repo actions; keyword/topic list + submission targets are recorded in the parent brief.
@@ -86,6 +95,24 @@ the source of truth so it's re-appliable. **Done when:** topics set on the repo.
    cross-linking; `lastmod`/`dateModified` freshness; PWA `manifest.json` + icons.
 
 ### §5.9 — ⚠️ GATED, LAST — crawlable `<noscript>` fallback for the JS-heavy app pages
+<<<<<<< HEAD
+=======
+> **✅ DONE 2026-07-05 — ALL 8 app pages (fleet-complete), lighter than the brief feared.** Key finding: a
+> `<noscript>`/`<head>` shell change **does NOT move `manifestHash`** — `manifest-gate` hashes only the
+> inlined JS/CSS (`data-inline-src` blocks), not the surrounding shell — so **NO `BUILD-MANIFEST.json`
+> update and NO fixture re-stamp** (GATE A stays green; verified `__gateA_ok`/`__gateB_ok` true after all 8).
+> Each app's `*.src.html` gained (idempotently) the missing `<head>` tags — `<link rel=canonical>`,
+> `og:url`/`og:type`/`og:image`/`twitter:card`/`twitter:image` (→ shared `tepna-og.png`) — plus a roster-
+> derived `<noscript>` summary after `<body>` (what the node does, its inputs, links to its Reference guide
+> + `index.html`, Apache-2.0 / not-a-medical-device). Rebuilt + committed **root AND served `docs/`** copies
+> for all 8 (OxyDex `43bd047b12e8` · PpgDex `908befaae958` · PulseDex `2bf3d5c38a78` · ECGDex `48229de74680`
+> · HRVDex `6b43574be1ea` · GlucoDex `be0352210135` · CPAPDex `911ce633d101` · Integrator `cef329a4fec6` —
+> every `manifestHash` **unchanged**). The executed code is byte-identical, so render-coverage is unaffected.
+> `no-network` is honored by construction (static shell, no egress). NOTE: `tools/build-docs.mjs --check`
+> should run on a Node host to reconfirm root≡docs for the app bundles + register the new `assets/` icons.
+
+### §5.9 (superseded by the note above) — original plan
+>>>>>>> cf3e242 (Tepna suite)
 The bundled app pages (`OxyDex.html`, `ECGDex.html`, …) render a near-empty shell to a crawler/LLM
 that doesn't run their JS. Give each a **static `<head>` (title + description + canonical + OG) and a
 `<noscript>` summary** (what the node does, its inputs, a link to its reference guide) so the URL is
