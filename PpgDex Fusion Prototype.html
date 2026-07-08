@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PpgDex · Multi-LED Foot Fusion — Prototype</title>
+<style>
+  :root{
+    --bg:#0a0d0f; --surface:#14181b; --surface2:#1b2024; --b:1px solid rgba(255,255,255,.08);
+    --text:#e6edf0; --text2:#aeb9c2; --text3:#8c9db3; --text4:#5f6c78;
+    --teal:#3DE0D0; --amber:#FFB84D; --red:#f87171; --green:#39D98A; --violet:#a99bf5;
+    --mono:ui-monospace,'SF Mono','IBM Plex Mono',Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);}
+  body{max-width:900px;margin:0 auto;padding:34px 22px 90px;line-height:1.5;}
+  a{color:var(--teal);} a:hover{color:#7af0e4;}
+  h1{font-size:24px;font-weight:800;letter-spacing:-.02em;margin:0 0 5px;}
+  .sub{color:var(--text3);font-size:13.5px;max-width:680px;}
+  .mono{font-family:var(--mono);}
+  .card{background:var(--surface);border:var(--b);border-radius:14px;padding:20px 22px;margin-top:20px;}
+  .cardhead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;}
+  .cardhead .nm{font-weight:700;font-size:15px;color:var(--teal);font-family:var(--mono);}
+  .cardhead .tag{font-size:11.5px;color:var(--text4);font-family:var(--mono);}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px;}
+  .kpi{background:var(--surface2);border:var(--b);border-radius:10px;padding:11px 13px;}
+  .kpi .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);font-weight:700;}
+  .kpi .v{font-family:var(--mono);font-size:20px;font-weight:700;margin-top:5px;display:flex;align-items:baseline;gap:7px;}
+  .kpi .v .from{color:var(--text4);font-size:14px;font-weight:600;}
+  .kpi .v .arr{color:var(--text4);font-size:13px;}
+  .kpi .d{font-size:11px;font-family:var(--mono);margin-top:3px;}
+  .d.good{color:var(--green);} .d.flat{color:var(--text4);} .d.up{color:var(--amber);}
+  .plot-label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--text3);margin:20px 0 8px;}
+  canvas{width:100%;display:block;border-radius:9px;background:var(--surface2);border:var(--b);}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--text2);font-family:var(--mono);margin-top:9px;}
+  .legend .it{display:flex;align-items:center;gap:6px;}
+  .sw{width:16px;height:3px;border-radius:2px;display:inline-block;}
+  .swd{width:9px;height:9px;border-radius:2px;display:inline-block;}
+  .note{font-size:12px;color:var(--text4);margin-top:12px;line-height:1.5;}
+  .intro{background:var(--surface);border:var(--b);border-left:3px solid var(--teal);border-radius:0 12px 12px 0;padding:15px 18px;margin-top:20px;font-size:13px;color:var(--text2);}
+  .intro b{color:var(--text);}
+  code{font-family:var(--mono);color:var(--violet);font-size:12.5px;}
+  .warn{color:var(--amber);}
+</style>
+</head>
+<body>
+  <h1>Multi-LED Foot Fusion <span style="color:var(--text4);font-weight:600;font-size:15px">PpgDex prototype</span></h1>
+  <div class="sub">The Polar Verity streams three co-located optical LEDs on <b>one sample clock</b> (ch0/1/2 share each row), so they are perfectly time-aligned. This prototype keeps the shipping 3-LED <span class="mono">consensusBeats</span> gating &amp; agreement ribbon, but derives the systolic <b>foot timing from the mean of the three orientation-corrected waveforms</b> instead of the reference LED alone — raising pulse SNR before the nonlinear foot detection.</div>
+
+  <div class="intro">
+    <b>Why waveform-fusion, not foot-median.</b> Taking the median of three <i>independently detected</i> feet injects inter-detector variance and <i>raised</i> RMSSD 7–11% on noisy sessions. Averaging the <b>waveforms first</b> (pulse is common, noise is partly independent) lifts SNR ~35–48%, then a single detection runs on the cleaner signal. On clean data all LEDs already agree, so the result is <b>byte-inert</b>; the gain shows up only where the LEDs disagree.
+  </div>
+
+  <div id="root"></div>
+  <div id="err" class="warn" style="margin-top:20px;display:none"></div>
+
+<script>
+const $=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e;};
+const C={led:['rgba(140,157,179,.34)','rgba(140,157,179,.34)','rgba(140,157,179,.34)'],fused:'#3DE0D0',base:'#FFB84D',fuse:'#3DE0D0',grid:'rgba(255,255,255,.05)'};
+
+function deltaClass(from,to,lowerBetter){
+  const d=to-from; if(Math.abs(d)<0.05) return ['flat','±0.0'];
+  const good=lowerBetter?d<0:d>0; return [good?'good':'up',(d>0?'+':'')+d.toFixed(1)];
+}
+
+function kpi(label, val, sub){ const k=$('div','kpi'); k.appendChild($('div','k',label)); const v=$('div','v'); v.innerHTML=val; k.appendChild(v); if(sub){const[cl,tx]=sub; const d=$('div','d '+cl,tx); k.appendChild(d);} return k; }
+
+function waveCanvas(n){
+  const w=860,h=210,dpr=2;
+  const cv=document.createElement('canvas'); cv.width=w*dpr; cv.height=h*dpr; cv.style.aspectRatio=w+'/'+h;
+  const g=cv.getContext('2d'); g.scale(dpr,dpr);
+  const N=n.wave.fused.length, padL=8,padR=8,padT=14,padB=22, PW=w-padL-padR, PH=h-padT-padB;
+  const x=i=>padL+(i/(N-1))*PW, y=v=>padT+(1-v)*PH;
+  // faint LEDs
+  n.wave.leds.forEach((arr,ci)=>{ g.strokeStyle=C.led[ci]; g.lineWidth=1; g.beginPath(); arr.forEach((v,i)=>{i?g.lineTo(x(i),y(v)):g.moveTo(x(i),y(v));}); g.stroke(); });
+  // fused bold
+  g.strokeStyle=C.fused; g.lineWidth=2; g.beginPath(); n.wave.fused.forEach((v,i)=>{i?g.lineTo(x(i),y(v)):g.moveTo(x(i),y(v));}); g.stroke();
+  // feet ticks: base (amber, upper), fused (teal, lower)
+  const tick=(feet,col,y0,y1)=>{ g.strokeStyle=col; g.lineWidth=1.5; feet.forEach(f=>{ g.beginPath(); g.moveTo(x(f),y0); g.lineTo(x(f),y1); g.stroke(); }); };
+  tick(n.wave.baseFeet, C.base, padT+PH+2, padT+PH+9);
+  tick(n.wave.fuseFeet, C.fuse, padT+PH+11, padT+PH+18);
+  // time axis label
+  g.fillStyle='rgba(140,157,179,.6)'; g.font='10px ui-monospace'; g.fillText(n.winSec+' s @ '+n.fs+' Hz', padL+2, h-6);
+  return cv;
+}
+
+function tacho(n){
+  const w=860,h=180,dpr=2;
+  const cv=document.createElement('canvas'); cv.width=w*dpr; cv.height=h*dpr; cv.style.aspectRatio=w+'/'+h;
+  const g=cv.getContext('2d'); g.scale(dpr,dpr);
+  const M=Math.min(140, n.nnBase.length, n.nnFuse.length);
+  const b=n.nnBase.slice(0,M), f=n.nnFuse.slice(0,M);
+  let mn=Infinity,mx=-Infinity; b.concat(f).forEach(v=>{if(v<mn)mn=v;if(v>mx)mx=v;});
+  const pad=(mx-mn)*0.12||40; mn-=pad; mx+=pad;
+  const padL=44,padR=8,padT=12,padB=20, PW=w-padL-padR, PH=h-padT-padB;
+  const x=i=>padL+(i/(M-1))*PW, y=v=>padT+(1-(v-mn)/(mx-mn))*PH;
+  // grid + y labels
+  g.strokeStyle=C.grid; g.fillStyle='rgba(140,157,179,.6)'; g.font='10px ui-monospace'; g.lineWidth=1;
+  for(let t=0;t<=4;t++){ const v=mn+(mx-mn)*t/4, yy=y(v); g.beginPath(); g.moveTo(padL,yy); g.lineTo(w-padR,yy); g.stroke(); g.fillText(Math.round(v), 6, yy+3); }
+  const line=(arr,col,lw)=>{ g.strokeStyle=col; g.lineWidth=lw; g.beginPath(); arr.forEach((v,i)=>{i?g.lineTo(x(i),y(v)):g.moveTo(x(i),y(v));}); g.stroke(); };
+  line(b, C.base, 1.4); line(f, C.fuse, 1.6);
+  g.fillStyle='rgba(140,157,179,.6)'; g.fillText('NN interval (ms) · first '+M+' beats', padL+2, h-6);
+  return cv;
+}
+
+function render(data){
+  const root=document.getElementById('root');
+  data.nights.forEach(n=>{
+    const card=$('div','card');
+    const head=$('div','cardhead');
+    head.appendChild($('div','nm',n.name.split(' — ')[0]));
+    head.appendChild($('div','tag',(n.name.split(' — ')[1]||'')));
+    card.appendChild(head);
+
+    const kpis=$('div','kpis');
+    const snrGain=['good','+'+n.snr.gainPct+'%'];
+    kpis.appendChild(kpi('Waveform SNR',
+      '<span class="from">'+Math.max(...n.snr.leds).toFixed(2)+'</span><span class="arr">→</span>'+n.snr.fused.toFixed(2), snrGain));
+    const rm=deltaClass(n.base.rmssd,n.fuse.rmssd,true);
+    kpis.appendChild(kpi('RMSSD (ms)',
+      '<span class="from">'+n.base.rmssd+'</span><span class="arr">→</span>'+n.fuse.rmssd, [rm[0],rm[1]+' ms']));
+    kpis.appendChild(kpi('Beats kept',
+      '<span class="from">'+n.base.beats+'</span><span class="arr">→</span>'+n.fuse.beats, deltaClass(n.base.beats,n.fuse.beats,false)));
+    kpis.appendChild(kpi('Correction %',
+      '<span class="from">'+n.base.corrPct+'</span><span class="arr">→</span>'+n.fuse.corrPct, deltaClass(n.base.corrPct,n.fuse.corrPct,true)));
+    card.appendChild(kpis);
+
+    card.appendChild(Object.assign($('div','plot-label'),{textContent:'Waveform · 3 raw LEDs (faint) vs fused (bold) + detected feet'}));
+    card.appendChild(waveCanvas(n));
+    const lg=$('div','legend');
+    lg.innerHTML='<span class="it"><span class="sw" style="background:rgba(140,157,179,.5)"></span>raw LED ×3</span>'+
+      '<span class="it"><span class="sw" style="background:#3DE0D0"></span>fused waveform</span>'+
+      '<span class="it"><span class="swd" style="background:#FFB84D"></span>ref-only feet (ship)</span>'+
+      '<span class="it"><span class="swd" style="background:#3DE0D0"></span>fused feet</span>';
+    card.appendChild(lg);
+
+    card.appendChild(Object.assign($('div','plot-label'),{textContent:'RR tachogram · ref-only (amber) vs fused (teal)'}));
+    card.appendChild(tacho(n));
+
+    const inert = Math.abs(n.fuse.rmssd-n.base.rmssd)<0.15;
+    card.appendChild(Object.assign($('div','note'),{textContent:
+      inert ? 'Clean session: all 3 LEDs agree to sub-ms, so fused feet ≡ ref feet — the pipeline is byte-inert here, while morphology/PI still gain the '+n.snr.gainPct+'% SNR lift.'
+            : 'Noisy session: fused timing pulls RMSSD down '+(n.base.rmssd-n.fuse.rmssd).toFixed(1)+' ms with identical beat count and correction rate — measurement jitter removed, not physiological variability.'}));
+    root.appendChild(card);
+  });
+}
+
+fetch('fusion-proto-data.json').then(r=>{ if(!r.ok) throw new Error('data '+r.status); return r.json(); })
+  .then(render)
+  .catch(e=>{ const el=document.getElementById('err'); el.style.display='block'; el.textContent='Could not load fusion-proto-data.json — '+e.message; });
+</script>
+</body></html>

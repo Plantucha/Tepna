@@ -2692,10 +2692,6 @@ body.light .cov-grid td.cg-node{ background:#fff; }
 .ltc-foot .ltc-dir{ color:var(--text4); }
 .hdr-note{ font-size:11px; font-weight:500; color:var(--text4); letter-spacing:0; text-transform:none; margin-left:8px; }
 </style>
-<<<<<<< HEAD
-</head>
-<body>
-=======
 <link rel="canonical" href="https://tepna.net/Integrator.html">
 <meta property="og:url" content="https://tepna.net/Integrator.html">
 <meta property="og:type" content="website">
@@ -2712,7 +2708,6 @@ body.light .cov-grid td.cg-node{ background:#fff; }
     <p>Part of <strong>Tepna — the Dex Suite</strong> · Apache-2.0 · Personal self-quantification, not a medical device.</p>
   </div>
 </noscript>
->>>>>>> cf3e242 (Tepna suite)
 <div class="app-shell">
   <!-- ───────── Sidebar ───────── -->
   <aside class="sidebar">
@@ -5011,27 +5006,6 @@ function fuseAutonomicGlycemic(recs, dtMs, opts2){
    (series.hrvEpochs, added in adaptEnvelopeNode). PURE; returns a reason-stamped null
    when <3 nodes carry an alignable series (→ pairwise consensus is used unchanged). */
 function _tchEngine(){ return (typeof IntegratorTCH!=='undefined' && IntegratorTCH) || (typeof window!=='undefined' && window.IntegratorTCH) || null; }
-<<<<<<< HEAD
-function _rmssdPts(s){ return ((s.series&&s.series.hrvEpochs)||[]).filter(function(e){return e && e.tMin!=null && e.rmssd!=null;}).map(function(e){return {tMin:e.tMin, v:e.rmssd};}); }
-function _meanMotion(s, keys){ var set={}; keys.forEach(function(k){set[k]=1;}); var eps=(s.series&&s.series.hrvEpochs)||[]; var vs=eps.filter(function(e){return e&&set[e.tMin]&&e.motion!=null;}).map(function(e){return e.motion;}); if(!vs.length) return null; return +(vs.reduce(function(a,b){return a+b;},0)/vs.length).toFixed(3); }
-function _tchConsensus(like){
-  var TCH=_tchEngine(); if(!TCH) return null;
-  var ws=like.filter(function(s){ return _rmssdPts(s).length>=12; });
-  if(ws.length<3) return { ok:false, reason:'need ≥3 series-bearing nodes; have '+ws.length, nodesWithSeries:ws.map(function(s){return s.node;}) };
-  var best=null;   // pick the triple with the most common aligned epochs
-  for(var i=0;i<ws.length;i++) for(var j=i+1;j<ws.length;j++) for(var k=j+1;k<ws.length;k++){
-    var al=TCH.alignTriplet(_rmssdPts(ws[i]),_rmssdPts(ws[j]),_rmssdPts(ws[k]),{key:'tMin',val:'v'});
-    if(!best || al.keys.length>best.al.keys.length) best={A:ws[i],B:ws[j],C:ws[k],al:al};
-  }
-  if(!best || best.al.keys.length<12) return { ok:false, reason:'best triple overlap '+(best?best.al.keys.length:0)+' epochs < 12' };
-  var r=TCH.threeCorneredHat(best.al.A,best.al.B,best.al.C,{labels:[best.A.node,best.B.node,best.C.node], minN:12});
-  if(!r.ok) return r;
-  r.metric='rmssd'; r.coMotion={};   // per-node mean motionIndex over the aligned window (external-rho refinement is future)
-  [best.A,best.B,best.C].forEach(function(s){ r.coMotion[s.node]=_meanMotion(s, best.al.keys); });
-  // §3 τ-curve: per-sensor Allan deviation vs averaging time (τ = 1/2/4/8 epochs). The
-  // wall-clock label uses the median epoch spacing of the aligned grid (indicative — a
-  // gappy grid is approximated, same caveat as the base TCH). Additive, null-tolerant.
-=======
 // Cross-node epoch alignment MUST key on the SAME wall-clock instant, not the node-relative offset
 // (FU-II §1 / Clock Contract): co-recorded devices start minutes apart, so a shared node-relative tMin
 // is a DIFFERENT absolute time per node → inflated pairwise-difference variance + a mis-ranked culprit.
@@ -5084,7 +5058,6 @@ function _tchHat(like, ptsFn, metric){
   [best.A,best.B,best.C].forEach(function(s){ r.coMotion[s.node]=_meanMotion(s, best.al.keys); });
   r.rhoEstimate=(rho||null);   // §1 provenance: how ρ was derived (null → classic solve)
   r.levels={}; [best.A,best.B,best.C].forEach(function(s){ var mp={}; ptsFn(s).forEach(function(p){mp[p.tMin]=p.v;}); var vs=best.al.keys.map(function(kk){return mp[kk];}).filter(function(v){return v!=null;}); r.levels[s.node]=vs.length?+(vs.reduce(function(a,b){return a+b;},0)/vs.length).toFixed(1):null; });
->>>>>>> cf3e242 (Tepna suite)
   if(typeof TCH.allanTriplet==='function'){
     var _al=TCH.allanTriplet(best.al.A,best.al.B,best.al.C,{labels:[best.A.node,best.B.node,best.C.node], taus:[1,2,4,8]});
     if(_al){
@@ -5095,10 +5068,6 @@ function _tchHat(like, ptsFn, metric){
       r.allan=_al;
     }
   }
-<<<<<<< HEAD
-  return r;
-}
-=======
   // §5 (FU-II) — reference-free TCH determines the QUIET sensors poorly: their pairwise-difference
   // variance is small, so sampling noise dominates the split (the culprit + its σ² are trustworthy,
   // the two quieter sensors are "both low, order uncertain"). Flag when the two quietest σ² sit within
@@ -5112,7 +5081,6 @@ function _tchHat(like, ptsFn, metric){
 }
 // Back-compat: the RMSSD hat IS the historical _tchConsensus return (block.tch).
 function _tchConsensus(like){ return _tchHat(like, _rmssdPts, 'rmssd'); }
->>>>>>> cf3e242 (Tepna suite)
 function fuseHRVConsensus(recs, dtMs){
   var sources = recs.filter(function(r){ return ['ECGDex','PulseDex','HRVDex','PpgDex'].indexOf(r.node)>=0 && !r.dateUnknown && r.summary && (r.summary.rmssd!=null||r.summary.sdnn!=null); });
   if(sources.length < 2) return null;
@@ -5158,8 +5126,6 @@ function fuseHRVConsensus(recs, dtMs){
       var _ws=0,_acc=0; rm.values.forEach(function(o){ var w=tch.weights[o.node]; if(w!=null){ _acc+=w*o.v; _ws+=w; } });
       if(_ws>0) rm.weightedMean = +(_acc/_ws).toFixed(1);
     }
-<<<<<<< HEAD
-=======
     // §2 HR-hat — reference-free per-sensor HR error across ECG+PPG+Oxy, INDEPENDENT of the rmssd hat
     // (which needs a 3rd rmssd node). The HR triplet may include NON-HRV nodes that carry a per-epoch
     // hr series (notably OxyDex, excluded from the rmssd/sdnn consensus above) — union `like` with any
@@ -5173,23 +5139,16 @@ function fuseHRVConsensus(recs, dtMs){
       var _hw=0,_ha=0; Object.keys(tchHR.levels).forEach(function(nd){ var v=tchHR.levels[nd], w=tchHR.weights[nd]; if(v!=null&&w!=null){ _ha+=w*v; _hw+=w; } });
       if(_hw>0) hrReconciled = +(_ha/_hw).toFixed(1);
     }
->>>>>>> cf3e242 (Tepna suite)
     var note = (worst>30 ? ('Cross-device divergence '+worst+'% on RMSSD/SDNN ('+win+') — flag as data-quality issue; reconcile before trusting a single value.')
                      : ('Sources agree within '+worst+'% on '+win+' HRV — reconciled autonomic state is reliable.'))
             + (lowQExcluded ? ' Excluded low-quality source(s): '+lowQExcluded.join(', ')+'.' : '');
     if(tch && tch.ok) note += ' TCH: '+tch.culprit+' carries the largest error variance (σ²≈'+Math.round(tch.sigma2[tch.culprit])+' ms², '+tch.method+') — down-weight it in the reconciled value.';
-<<<<<<< HEAD
-=======
     if(tchHR && tchHR.ok) note += ' HR-hat: '+tchHR.culprit+' is the noisiest HR estimator (σ≈'+(tchHR.sigma[tchHR.culprit]!=null?tchHR.sigma[tchHR.culprit].toFixed(1):'?')+' bpm, '+tchHR.method+(tchHR.rho?', ρ='+tchHR.rho:'')+')'+(hrReconciled!=null?'; reconciled HR '+hrReconciled+' bpm.':'.');
->>>>>>> cf3e242 (Tepna suite)
     return { nodes:like.map(function(s){return s.node;}), window:fmtDayShort(g[0].t0Ms),
       hrvWindow:win, units:'ms', crossWindowExcluded:crossWindow,
       rmssd:rm, sdnn:sd, lfhf:lf, divergencePct:worst,
       lowQualityExcluded:lowQExcluded, tch:(tch&&tch.ok?tch:null), tchStatus:(tch?(tch.ok?'ok':tch.reason):'not-attempted'),
-<<<<<<< HEAD
-=======
       tchHR:(tchHR&&tchHR.ok?tchHR:null), tchHRStatus:(tchHR?(tchHR.ok?'ok':tchHR.reason):'not-attempted'), hrReconciled:hrReconciled,
->>>>>>> cf3e242 (Tepna suite)
       qc: worst>30?'divergent':'agreement',
       note: note }; });
   return blocks.length ? { blocks:blocks } : null;
@@ -7649,13 +7608,10 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
           cards.push(findingCard('Per-sensor error (TCH) · '+b.window, '#8FB8FF',
             tchBars(b), tchNote(b), Object.keys(b.tch.sigma2), 'tch_error'));
         }
-<<<<<<< HEAD
-=======
         if(b.tchHR){   // HR-hat — reference-free per-sensor HR error (ECG+PPG+Oxy) — FU-II §3
           cards.push(findingCard('Per-sensor HR error (TCH) · '+b.window, '#8FB8FF',
             tchBars(b,'hr'), tchNote(b,'hr'), Object.keys(b.tchHR.sigma2), 'tch_error'));
         }
->>>>>>> cf3e242 (Tepna suite)
       });
     }
     var pb=fusion.periodicBreathing;
@@ -7678,16 +7634,10 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
       big+'<p class="fc-note">'+esc(note)+'</p></div>';
   }
   /* three-cornered-hat card body — per-sensor σ bars (noisiest first, culprit flagged)
-<<<<<<< HEAD
-     + inverse-variance reconciled RMSSD. (INTEGRATOR-THREE-CORNERED-HAT §5) */
-  function tchBars(b){
-    var t=b.tch; if(!t||!t.sigma2) return '';
-=======
      + inverse-variance reconciled level. which: undefined/'rmssd' → block.tch (RMSSD, ms);
      'hr' → block.tchHR (HR-hat, bpm). (INTEGRATOR-THREE-CORNERED-HAT §5 / FU-II §3) */
   function tchBars(b, which){
     var isHR=(which==='hr'), t=isHR?b.tchHR:b.tch; if(!t||!t.sigma2) return '';
->>>>>>> cf3e242 (Tepna suite)
     var keys=Object.keys(t.sigma2), sig={}, max=0;
     keys.forEach(function(k){ var s=(t.sigma&&t.sigma[k]!=null)?t.sigma[k]:Math.sqrt(t.sigma2[k]); sig[k]=s; if(s>max)max=s; });
     keys.sort(function(a,c){ return sig[c]-sig[a]; });
@@ -7699,28 +7649,18 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
         '<span class="tch-bar"><i style="width:'+pct+'%;background:'+D.nodeColor(base)+'"></i></span>'+
         '<span class="tch-val mono">\u03C3\u2009'+sig[k].toFixed(1)+'</span></div>';
     }).join('');
-<<<<<<< HEAD
-    var wm=(b.rmssd&&b.rmssd.weightedMean!=null)?'<div class="tch-recon">Reconciled RMSSD <b class="mono">'+b.rmssd.weightedMean+' ms</b> <span class="tch-recon-sub">inverse-variance weighted</span></div>':'';
-    return '<div class="tch-block">'+rows+'</div>'+wm+tchTauSpark(b);
-=======
     var wm = isHR
       ? ((b.hrReconciled!=null)?'<div class="tch-recon">Reconciled HR <b class="mono">'+b.hrReconciled+' bpm</b> <span class="tch-recon-sub">inverse-variance weighted</span></div>':'')
       : ((b.rmssd&&b.rmssd.weightedMean!=null)?'<div class="tch-recon">Reconciled RMSSD <b class="mono">'+b.rmssd.weightedMean+' ms</b> <span class="tch-recon-sub">inverse-variance weighted</span></div>':'');
     return '<div class="tch-block">'+rows+'</div>'+wm+tchTauSpark(b, which);
->>>>>>> cf3e242 (Tepna suite)
   }
   /* τ-curve sparkline — per-sensor Allan deviation vs averaging time (§3). One
      node-coloured polyline per sensor on a shared y-scale; lower = steadier at that
      timescale. Null points (short series / negative split) break the line into
      segments; a lone finite point renders as a dot. */
-<<<<<<< HEAD
-  function tchTauSpark(b){
-    var a=b.tch&&b.tch.allan; if(!a||!a.adev) return '';
-=======
   function tchTauSpark(b, which){
     var _t=(which==='hr')?b.tchHR:b.tch;
     var a=_t&&_t.allan; if(!a||!a.adev) return '';
->>>>>>> cf3e242 (Tepna suite)
     var nodes=Object.keys(a.adev), taus=a.tausMin||a.taus||[];
     if(!taus.length) return '';
     var maxV=0, any=false;
@@ -7742,14 +7682,6 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
     return '<div class="tch-tau"><div class="tch-tau-cap">Allan deviation vs averaging time \u2014 lower = steadier at that timescale</div>'+
       '<svg viewBox="0 0 '+W+' '+H+'" class="tch-tau-svg" role="img" aria-label="Per-sensor Allan deviation across averaging times">'+lines+xlabs+'</svg></div>';
   }
-<<<<<<< HEAD
-  function tchNote(b){
-    var t=b.tch; if(!t) return '';
-    var s2=Math.round(t.sigma2[t.culprit]), nn=Object.keys(t.sigma2).length;
-    return t.culprit+' carries the largest error variance (\u03C3\u00B2\u2248'+s2+' ms\u00B2) across '+nn+' co-recorded sites over '+t.n+' epochs'
-      +(t.rho?(' (common-mode \u03C1='+t.rho+', '+t.method+')'):(' ('+t.method+')'))
-      +'. Reference-free three-cornered hat \u2014 estimates precision, not trueness; a bias shared by all three is invisible.';
-=======
   function tchNote(b, which){
     var isHR=(which==='hr'), t=isHR?b.tchHR:b.tch; if(!t) return '';
     var u=isHR?'bpm':'ms';
@@ -7758,7 +7690,6 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
       +(t.rho?(' (common-mode \u03C1='+t.rho+', '+t.method+')'):(' ('+t.method+')'))
       +'. Reference-free three-cornered hat \u2014 estimates precision, not trueness; a bias shared by all three is invisible.'
       +(t.quietOrderUncertain?(' Trust the culprit and its \u03C3\u00B2; the two quieter sensors ('+(t.quietSensors||[]).join(', ')+') are both low and their relative order is uncertain (reference-free TCH determines quiet sensors poorly).'):'');
->>>>>>> cf3e242 (Tepna suite)
   }
 
   /* ── full findings table ─────────────────────────────────────────────── */

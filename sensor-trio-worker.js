@@ -22,8 +22,6 @@
  */
 'use strict';
 
-<<<<<<< HEAD
-=======
 // ── PRODUCTION detectors: load the REAL PpgDex DSP so the Verity HR corner uses the
 //    same validated, gate-tested beat detector the app + papers use (3-LED consensus
 //    systolic feet → buildPPI → Malik correctRR), not a hand-rolled approximation.
@@ -34,7 +32,6 @@ var HAVE_PPGDSP = false, HAVE_ECGDSP = false;
 if (typeof window === 'undefined') { self.window = self; }   // window→self shim: the production DSP wrapper references `window` at load; a worker has none
 try { importScripts('kernel-constants.js', 'clock.js', 'ppgdex-dsp.js', 'ecgdex-dsp.js'); HAVE_ECGDSP = (typeof ECGDSP !== 'undefined' && ECGDSP && typeof ECGDSP.parseECG === 'function' && typeof ECGDSP.bandpass === 'function' && typeof ECGDSP.detectPeaks === 'function'); HAVE_PPGDSP = (typeof PPGDSP !== 'undefined' && PPGDSP && typeof PPGDSP.parsePPG === 'function' && typeof PPGDSP.consensusBeats === 'function' && typeof PPGDSP.detectChannel === 'function' && typeof PPGDSP.buildPPI === 'function' && typeof PPGDSP.correctRR === 'function'); } catch (e) { HAVE_PPGDSP = false; }
 
->>>>>>> cf3e242 (Tepna suite)
 // ── RNG (seeded, deterministic — identical to the main module) ─────────────
 var _s = 0x9e3779b9 >>> 0;
 function seed(v) { _s = (v >>> 0) || 1; }
@@ -57,13 +54,9 @@ function median(a) { var s = Array.prototype.slice.call(a).sort(function (p, q) 
 // ── device truth (planted) — identical decomposition to the main module ────
 var SD_H_REST = 1.35, SD_H_DYN = 0.30;
 var DEV = {
-  o2:     { resp: 0.45, sigmaRest: 1.7 },
-  h10:    { resp: 1.00, sigmaRest: 2.2 },
-<<<<<<< HEAD
-  verity: { resp: 1.00, sigmaRest: 6.2 },
-=======
-  verity: { resp: 1.00, sigmaRest: 3.0 },   // re-fit 6.2→3.0 from real tri-device data (must match the main module)
->>>>>>> cf3e242 (Tepna suite)
+  o2:     { resp: 0.45, sigmaRest: 2.72 },
+  h10:    { resp: 1.00, sigmaRest: 1.86 },
+  verity: { resp: 1.00, sigmaRest: 1.94 },   // planted at the raw-ECG 10-night broad hat (2.72/1.86/1.94) — MUST match sensor-trio-power-analysis.js DEV
 };
 for (var _k in DEV) {
   var _d = DEV[_k], _sh = _d.resp * SD_H_REST;
@@ -139,11 +132,6 @@ function runCell(regime, rho, N, t0, count, ar, n, stream) {
   return { med: med, negCount: negCount, negTot: negTot };
 }
 
-<<<<<<< HEAD
-self.onmessage = function (ev) {
-  var m = ev.data || {};
-  if (m.type === 'init') { self.postMessage({ type: 'ready' }); return; }
-=======
 // ════════════════════════════════════════════════════════════════════════
 //  REAL-NIGHT ARM (folder ingestion) — parse a night's trio → per-second HR →
 //  TCH σ + block-bootstrap CI, entirely in-worker (off the UI). Verity HR from
@@ -338,7 +326,6 @@ self.onmessage = function (ev) {
   var m = ev.data || {};
   if (m.type === 'init') { self.postMessage({ type: 'ready' }); return; }
   if (m.type === 'job' && m.kind === 'realNight') { runRealNight(m).then(function (res) { self.postMessage({ type: 'done', reqId: m.reqId, real: res }); }); return; }
->>>>>>> cf3e242 (Tepna suite)
   if (m.type === 'job') {
     if (m.kind === 'cell' || m.kind === 'dur') {
       var stream = m.seedStream != null ? m.seedStream : (m.regime === 'dynamic' ? 1 : 2);

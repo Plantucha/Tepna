@@ -99,7 +99,7 @@ function renderHeroPx(r){
   ];
   let subsHtml='';
   subs.forEach(s=>{ if(s.v==null||isNaN(s.v))return;
-    subsHtml+=`<div class="readiness-subscore"><div class="rs-val ${s.cls(s.v)}">${s.fmt(s.v)}</div><div class="rs-label">${evBadge(s.label)}${s.label}</div></div>`; });
+    subsHtml+=`<div class="readiness-subscore"><div class="rs-val ${s.cls(s.v)}">${evBadge(s.label)}${s.fmt(s.v)}</div><div class="rs-label">${s.label}</div></div>`; });
 
   // trend chips from history
   let chips='';

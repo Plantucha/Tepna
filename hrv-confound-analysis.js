@@ -335,11 +335,16 @@
     ctx.fillStyle = '#aab8cc'; ctx.fillText(xlab, w / 2 - 30, h - 6);
     ctx.save(); ctx.translate(12, h / 2 + 30); ctx.rotate(-Math.PI / 2); ctx.fillText(ylab, 0, 0); ctx.restore();
   }
+  // N-aware point style so dense scatters render as a density gradient, not a saturated
+  // block (overplotting). Large N → 1px points + low alpha so the cloud stays readable.
+  function ptStyle() { var n = PTS.length; if (n <= 3000) return { r: 2.2, a: 0.50 }; if (n <= 15000) return { r: 1.3, a: 0.32 }; if (n <= 40000) return { r: 0.8, a: 0.20 }; return { r: 0.6, a: 0.12 }; }
+  function dot(ctx, x, y, st) { if (st.r <= 0.85) { ctx.fillRect(x, y, 1, 1); } else { ctx.beginPath(); ctx.arc(x, y, st.r, 0, 7); ctx.fill(); } }
   function drawVsAge(ref) {
     var cv = $('vsAge'), ctx = cv.getContext('2d'), w = cv.width, h = cv.height, P = 44; clearC(ctx, w, h);
     var ymax = 80; frame(ctx, P, w, h, 20, 85, 0, ymax, 'age (years)', 'measured rMSSD (ms)');
     var X = function (a) { return P + (w - P - 12) * (a - 20) / 65; }, Y = function (v) { return (h - P) - (h - P - 10) * v / ymax; };
-    PTS.forEach(function (p) { ctx.fillStyle = SEV_COLOR[p.sev]; ctx.globalAlpha = .5; ctx.beginPath(); ctx.arc(X(p.age), Y(p.rmssd), 2.4, 0, 7); ctx.fill(); });
+    var st = ptStyle(); ctx.globalAlpha = st.a;
+    PTS.forEach(function (p) { ctx.fillStyle = SEV_COLOR[p.sev]; dot(ctx, X(p.age), Y(p.rmssd), st); });
     ctx.globalAlpha = 1;
     if (ref) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6; ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.moveTo(X(20), Y(ref.slope * 20 + ref.intercept)); ctx.lineTo(X(85), Y(ref.slope * 85 + ref.intercept)); ctx.stroke(); ctx.setLineDash([]); }
     $('ageLegend').innerHTML = 'Dashed = healthy (AHI&lt;5) age reference. <span class="chip" style="background:#39D98A"></span>none <span class="chip" style="background:#3DE0D0"></span>mild <span class="chip" style="background:#FFB84D"></span>mod <span class="chip" style="background:#FF6B7A"></span>severe. Apneic dots sit below the healthy age line at every age.';
@@ -349,7 +354,8 @@
     var xmax = Math.max(30, Math.ceil(Math.max.apply(null, PTS.map(function (p) { return p.ahi; })) / 10) * 10), ymax = 80;
     frame(ctx, P, w, h, 0, xmax, 0, ymax, 'true AHI (events/h)', 'measured rMSSD (ms)');
     var X = function (a) { return P + (w - P - 12) * a / xmax; }, Y = function (v) { return (h - P) - (h - P - 10) * v / ymax; };
-    PTS.forEach(function (p) { ctx.fillStyle = ageColor(p.age); ctx.globalAlpha = .55; ctx.beginPath(); ctx.arc(X(p.ahi), Y(p.rmssd), 2.4, 0, 7); ctx.fill(); });
+    var st = ptStyle(); ctx.globalAlpha = st.a;
+    PTS.forEach(function (p) { ctx.fillStyle = ageColor(p.age); dot(ctx, X(p.ahi), Y(p.rmssd), st); });
     ctx.globalAlpha = 1;
     $('ahiLegend').innerHTML = 'Colour = age (blue young → red old). At any AHI the age spread is wide — a young severe-OSA patient can out-score an old healthy one.';
   }

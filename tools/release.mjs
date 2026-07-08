@@ -9,11 +9,7 @@
  * CONTROLLED-RELEASES-2026-07-05 — cut a controlled Tepna release.
  * Reads pending changes/*.md, computes the aggregate SemVer bump, and (from a GREEN tree):
  *   1. stamps suite.manifest.json.version
-<<<<<<< HEAD
- *   2. prepends a Keep-a-Changelog section to CHANGELOG.md
-=======
  *   2. prepends a Keep-a-Changelog section to CHANGELOG.md + maintains its reference compare-links (F6)
->>>>>>> cf3e242 (Tepna suite)
  *   3. appends a RELEASE-MANIFEST.json record (with the current per-app manifestHash snapshot)
  *   4. prunes the consumed changesets and regenerates tests/changes-list.json
  *   5. prints the git tag to create
@@ -106,8 +102,6 @@ function main() {
   // 1 · stamp the canonical version
   manifest.version = to;
   writeFileSync(p('suite.manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
-<<<<<<< HEAD
-=======
   // 1b · F4 — stamp CITATION.cff (a release-identity surface an academic citation pins; release-ledger
   //      check-6 asserts it == canonical). UPDATE the number in place; never touch any other field.
   const cffP = p('CITATION.cff');
@@ -116,7 +110,6 @@ function main() {
     const stamped = cff.replace(/^(version:\s*)["']?\d+\.\d+\.\d+["']?/m, `$1${to}`);
     if (stamped !== cff) writeFileSync(cffP, stamped);
   }
->>>>>>> cf3e242 (Tepna suite)
   // 2 · append the release record
   const release = readJSON('RELEASE-MANIFEST.json');
   release.releases.push(record);
@@ -125,8 +118,6 @@ function main() {
   let cl = readFileSync(p('CHANGELOG.md'), 'utf8');
   const anchor = /(##\s*\[Unreleased\][\s\S]*?\n---\n)/;
   cl = anchor.test(cl) ? cl.replace(anchor, '$1\n' + section + '---\n') : cl.replace(/(# Changelog\n)/, '$1\n' + section);
-<<<<<<< HEAD
-=======
   // 3b · F6 — maintain the reference-style compare links at the file foot (Keep-a-Changelog convention):
   //      [Unreleased] compares from the new tag; the new version compares against its predecessor.
   //      Derive the repo base from the existing [Unreleased] link so no URL is hard-coded here.
@@ -139,17 +130,12 @@ function main() {
       cl = cl.replace(/^(\[Unreleased\]:.*\n)/mi, '$1' + newLink + '\n');  // insert directly under [Unreleased]
     }
   }
->>>>>>> cf3e242 (Tepna suite)
   writeFileSync(p('CHANGELOG.md'), cl);
   // 4 · prune consumed changesets, regenerate the browser-lane list
   for (const c of changesets) unlinkSync(join(CHANGE_DIR, c.name));
   spawnSync('node', ['tests/gen-changes-list.mjs'], { cwd: ROOT, stdio: 'inherit' });
 
-<<<<<<< HEAD
-  console.log('\nReleased ' + to + '. Now:\n\n    git add -A && git commit -m "release: v' + to + '"\n    git tag v' + to + '\n');
-=======
   console.log('\nReleased ' + to + '. Now:\n\n    node tools/build-docs.mjs   # project v' + to + ' into README + index.html + docs/about.json (check-6 surfaces)\n    git add -A && git commit -m "release: v' + to + '"\n    git tag v' + to + '\n');
->>>>>>> cf3e242 (Tepna suite)
 }
 
 main();

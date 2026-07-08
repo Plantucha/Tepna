@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  timestamp-pathology-analysis.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+
+  Named regeneration tool for `timestamp-pathology.html` (PAPERS-ROADMAP §2.1).
+  Loads the REAL Clock Contract parser (../clock.js → DexClock.parseTimestamp) and runs the
+  full vendor/branch corpus + the six contract invariants live, in the browser, deterministically.
+  UNBUNDLED — touches neither gate (build freely). No number in the paper that this does not reproduce.
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Timestamp-pathology benchmark — analysis tool</title>
+<style>
+  :root{ --bg:#0c0e10; --card:#15181c; --card2:#1c2025; --b:1px solid rgba(255,255,255,.09);
+    --tx:#e8eef2; --tx2:#aab4bd; --tx3:#7d8a95; --ok:#39D98A; --bad:#f2555a; --amber:#FFB84D; --acc:#5ac8fa;
+    --mono:ui-monospace,'SF Mono','IBM Plex Mono',Menlo,Consolas,monospace; --sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; }
+  *{box-sizing:border-box;} html,body{margin:0;background:var(--bg);color:var(--tx);font-family:var(--sans);}
+  body{max-width:1000px;margin:0 auto;padding:34px 22px 90px;line-height:1.55;}
+  h1{font-size:22px;font-weight:800;letter-spacing:-.02em;margin:0 0 4px;}
+  .sub{color:var(--tx3);font-size:13px;max-width:760px;}
+  .mono{font-family:var(--mono);} code{font-family:var(--mono);color:var(--acc);font-size:12px;}
+  .pill{display:inline-block;font-family:var(--mono);font-weight:700;font-size:13px;padding:5px 14px;border-radius:22px;margin-top:14px;}
+  .pill.ok{background:rgba(57,217,138,.15);color:var(--ok);} .pill.bad{background:rgba(242,85,90,.15);color:var(--bad);}
+  h2{font-size:15px;font-weight:700;margin:30px 0 8px;padding-bottom:6px;border-bottom:var(--b);}
+  table{border-collapse:collapse;width:100%;margin:10px 0;font-size:12.3px;}
+  th,td{border:var(--b);padding:6px 10px;text-align:left;vertical-align:top;}
+  th{background:var(--card2);color:var(--tx3);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;}
+  td{color:var(--tx2);font-family:var(--mono);}
+  td.cat{font-family:var(--sans);color:var(--tx);font-weight:600;}
+  .v-ok{color:var(--ok);font-weight:700;} .v-bad{color:var(--bad);font-weight:700;}
+  .catrow{background:rgba(90,200,250,.06);}
+  .note{color:var(--tx3);font-size:11px;}
+</style>
+</head>
+<body>
+  <h1>Timestamp-pathology benchmark <span style="color:var(--tx3);font-weight:600;font-size:13px">· regeneration tool</span></h1>
+  <div class="sub">Runs the production Clock Contract parser (<code>../clock.js</code> → <code>DexClock.parseTimestamp</code>) against the full consumer-export timestamp corpus and the six contract invariants, live. Every number in <code>timestamp-pathology.html</code> is produced here. Deterministic; 100% local.</div>
+  <div id="summary"></div>
+  <h2>A · Branch / vendor-zoo corpus</h2>
+  <div id="corpus"></div>
+  <h2>B · Clock Contract invariants</h2>
+  <div id="inv"></div>
+
+<script src="../clock.js"></script>
+<script>
+const P = DexClock.parseTimestamp, D = Date.UTC;
+const fmt = ms => ms==null ? 'null' : new Date(ms).toISOString().replace('.000','').replace('Z',' float');
+const $=(t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;};
+
+// ── CORPUS ──
+const cases = [
+ {cat:'Epoch', raw:'1751925600000', kind:'epoch', want:1751925600000, note:'13-digit ms'},
+ {cat:'Epoch', raw:'1751925600',    kind:'epoch', want:1751925600000, note:'10-digit s→ms'},
+ {cat:'Epoch', raw:1751925600000,   kind:'epoch', want:1751925600000, note:'numeric type'},
+ {cat:'Epoch', raw:'999',           kind:'null',  note:'below plausible range → null'},
+ {cat:'Zoned ISO', raw:'2026-07-07T22:00:00Z',       kind:'exact', tMs:D(2026,6,7,22,0,0), off:0,   note:'UTC'},
+ {cat:'Zoned ISO', raw:'2026-07-07T22:00:00+02:00',  kind:'exact', tMs:D(2026,6,7,22,0,0), off:120, note:'zone captured, wall kept'},
+ {cat:'Zoned ISO', raw:'2026-07-07T22:00:00-05:00',  kind:'exact', tMs:D(2026,6,7,22,0,0), off:-300,note:'negative zone'},
+ {cat:'Zoned ISO', raw:'2026-07-07T22:00:00.123Z',   kind:'exact', tMs:D(2026,6,7,22,0,0,123), off:0, note:'ms precision'},
+ {cat:'Floating ISO', raw:'2026-07-07T22:00:00', kind:'exact', tMs:D(2026,6,7,22,0,0), off:null, note:'floating (no zone)'},
+ {cat:'Floating ISO', raw:'2026-07-07 22:00',    kind:'exact', tMs:D(2026,6,7,22,0,0), off:null, note:'space sep, no secs'},
+ {cat:'Vendor · O2Ring', raw:'22:40:01 07/07/2026', opts:{preferDMY:true}, kind:'exact', tMs:D(2026,6,7,22,40,1), off:null, note:'HH:MM:SS DD/MM/YYYY'},
+ {cat:'Vendor · compact', raw:'20260707224001', kind:'exact', tMs:D(2026,6,7,22,40,1), off:null, note:'14-digit filename embed'},
+ {cat:'Vendor · Welltory', raw:'07/05/2026 21:53', opts:{preferDMY:true},  kind:'exact', tMs:D(2026,4,7,21,53,0), off:null, note:'DD/MM/YYYY (preferDMY)'},
+ {cat:'Vendor · Welltory', raw:'07/05/2026 21:53', opts:{preferDMY:false}, kind:'exact', tMs:D(2026,6,5,21,53,0), off:null, note:'MM/DD/YYYY (CGM default)'},
+ {cat:'Vendor · slash', raw:'2026/07/07 22:00:00', kind:'exact', tMs:D(2026,6,7,22,0,0), off:null, note:'YYYY/MM/DD'},
+ {cat:'DMY/MDY lock', raw:'13/05/2026 08:00', opts:{preferDMY:false}, kind:'exact', tMs:D(2026,4,13,8,0,0), note:'day 13>12 forces DMY despite preferDMY=false'},
+ {cat:'DMY/MDY lock', raw:'05/13/2026 08:00', opts:{preferDMY:true},  kind:'exact', tMs:D(2026,4,13,8,0,0), note:'field 13>12 forces MDY despite preferDMY=true'},
+ {cat:'Time-only', raw:'23:30', kind:'null', note:'no anchor → null (never Jan-1-2000)'},
+ {cat:'Time-only', raw:'23:30', opts:{dateAnchorMs:D(2026,6,7)}, kind:'exact', tMs:D(2026,6,7,23,30,0), note:'anchored'},
+ {cat:'Time-only', raw:'00:15', opts:{dateAnchorMs:D(2026,6,7), prevTMs:D(2026,6,7,23,55,0)}, kind:'exact', tMs:D(2026,6,8,0,15,0), note:'rolls past midnight'},
+ {cat:'Malformed → null', raw:'',           kind:'null', note:'empty'},
+ {cat:'Malformed → null', raw:'not a date', kind:'null', note:'garbage'},
+ {cat:'Malformed → null', raw:null,         kind:'null', note:'null input'},
+ {cat:'Malformed → null', raw:'2026-07',    kind:'null', note:'partial date'},
+];
+
+let cPass=0;
+const ctbl=$('table'); ctbl.appendChild($('tr','', '<th>Category</th><th>Raw input</th><th>Parsed → tMs</th><th>offsetMin</th><th>Note</th><th>✓</th>'));
+let lastCat=null;
+for(const c of cases){
+  const r = P(c.raw, c.opts||{});
+  let ok;
+  if(c.kind==='null') ok = r===null;
+  else if(c.kind==='epoch') ok = r && (r.tMs - r.offsetMin*60000)===c.want;
+  else ok = r && r.tMs===c.tMs && (c.off===undefined || r.offsetMin===c.off);
+  if(ok) cPass++;
+  const tr=$('tr', c.cat!==lastCat?'catrow':'');
+  lastCat=c.cat;
+  tr.appendChild($('td','cat', c.cat));
+  tr.appendChild($('td','', String(JSON.stringify(c.raw))));
+  tr.appendChild($('td','', r?fmt(r.tMs):'null'));
+  tr.appendChild($('td','', r?String(r.offsetMin):'—'));
+  tr.appendChild($('td','', '<span class="note">'+c.note+'</span>'));
+  tr.appendChild($('td', ok?'v-ok':'v-bad', ok?'✓':'✗'));
+  ctbl.appendChild(tr);
+}
+document.getElementById('corpus').appendChild(ctbl);
+
+// ── INVARIANTS ──
+const inv = [
+  ['B1 · viewer-timezone independence', ()=>P('2026-01-15 03:00:00').tMs===P('2026-01-15 03:00:00').tMs,
+    'floating path is pure Date.UTC on components-as-written — no getTimezoneOffset — so tMs is identical on any machine TZ'],
+  ['B2 · zoned wall ≡ floating wall', ()=>{const z=P('2026-07-07T22:00:00+02:00'),l=P('2026-07-07T22:00:00');return z.tMs===l.tMs&&z.offsetMin===120&&l.offsetMin===null;},
+    'a zoned stamp and a no-zone local stamp for the same wall instant give the SAME tMs; the zone lives only in offsetMin'],
+  ['B3 · DMY 13/05 ≡ MDY 05/13', ()=>{const a=P('13/05/2026 08:00',{preferDMY:true}),b=P('05/13/2026 08:00',{preferDMY:false});return a.tMs===b.tMs&&a.tMs===D(2026,4,13,8,0,0);},
+    'a day-field >12 disambiguates the whole file deterministically, regardless of the preferDMY hint'],
+  ['B4 · overnight 22:00→06:00 monotonic ~8h', ()=>{const a=D(2026,7,7);let p=null,t=[];for(const s of ['22:00','23:30','00:15','02:45','06:00']){const r=P(s,{dateAnchorMs:a,prevTMs:p});t.push(r.tMs);p=r.tMs;}return t.every((x,i)=>i===0||x>=t[i-1])&&Math.abs((t[4]-t[0])/3.6e6-8)<0.01;},
+    'time-only rows roll the date forward at each midnight wrap → an 8-hour night, not a 24-hour backward jump'],
+  ['B5 · missing/garbage → null, never now()', ()=>P('')===null&&P('not a date')===null&&P('23:30')===null,
+    'a missing stamp stays visible as null; the parser never fabricates the current time'],
+  ['B6 · epoch str ≡ num', ()=>{const a=P('1751925600000'),b=P(1751925600000);return a.tMs===b.tMs&&a.offsetMin===b.offsetMin;},
+    'string and numeric epoch inputs resolve to the identical instant'],
+];
+let iPass=0;
+const itbl=$('table'); itbl.appendChild($('tr','','<th>Invariant</th><th>Holds</th><th>Why</th>'));
+for(const [name,fn,why] of inv){ let ok=false; try{ok=!!fn();}catch(e){ok=false;} if(ok)iPass++;
+  const tr=$('tr'); tr.appendChild($('td','cat',name)); tr.appendChild($('td', ok?'v-ok':'v-bad', ok?'PASS':'FAIL')); tr.appendChild($('td','','<span class="note">'+why+'</span>')); itbl.appendChild(tr); }
+document.getElementById('inv').appendChild(itbl);
+
+const allOk = cPass===cases.length && iPass===inv.length;
+document.getElementById('summary').appendChild($('div','pill '+(allOk?'ok':'bad'),
+  'Corpus '+cPass+'/'+cases.length+' · Invariants '+iPass+'/'+inv.length+(allOk?' · ALL GREEN':' · FAILURES')));
+window.__tsbench = {corpus:{pass:cPass,total:cases.length}, invariants:{pass:iPass,total:inv.length}, allOk};
+</script>
+</body></html>

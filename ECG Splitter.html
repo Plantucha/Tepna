@@ -108,6 +108,24 @@
 
   <a class="hidden" id="dlAnchor"></a>
 
+  <div class="divider"></div>
+  <div class="card" id="batchCard">
+    <p class="sec-label">Batch — a folder of Polar exports</p>
+    <div class="hint" style="margin-top:2px">Drop a whole capture folder (or pick one). Files are grouped into recording <b>nights</b> — a session starting before noon folds into the previous evening. Split every oversized ECG/PPG waveform in one pass, and run an off-thread <b>signal check</b> (the production Pan–Tompkins / 3-LED detectors, in a Web Worker) to preview HR straight from the raw waveform.</div>
+    <div class="drop" id="bdrop" style="margin-top:16px">
+      <div class="ic">🗂️</div>
+      <div class="t">Drop a capture folder here, or click to choose</div>
+      <div class="s mono">Polar_H10_… · Polar_Sense_… · O2Ring… — scanned recursively</div>
+      <input type="file" id="bfiles" webkitdirectory directory multiple style="display:none">
+    </div>
+    <div class="row" style="margin-top:14px">
+      <label class="fld">Max part size (MB)<input type="number" id="bmb" value="19" min="1" max="49" step="1"></label>
+      <button class="act ghost" id="bSplitAll" style="align-self:flex-end;display:none">Split all oversized</button>
+      <div id="bStatus" style="font-size:12px;color:var(--text3)"></div>
+    </div>
+    <div id="nights"></div>
+  </div>
+
 <script>
 const $=id=>document.getElementById(id);
 const NL=0x0A;
@@ -293,5 +311,242 @@ $('btnWin').addEventListener('click',async()=>{
   triggerDownload(new Blob([HEADER,FILE.slice(start,end)],{type:'text/plain'}),name);
   $('winOut').innerHTML=`Extracted <b class="mono">${name}</b> — actual range <span class="mono ok">${bc.aClock} → ${bc.bClock}</span> (${bc.aRel}–${bc.bRel}), ${fmtSize(sz)}. <span style="color:var(--text4)">Seek is proportional (±~1–2 s if the stream has gaps).</span>`;
 });
+</script>
+
+<script>
+// ════════════════════════════════════════════════════════════════════════
+//  BATCH MODE — folder ingest → night grouping → bulk split + off-thread
+//  signal check. Reuses TRIO-METHODS-REUSE patterns 1 (production *-dsp.js in a
+//  Web Worker via the `self.window = self` shim) and 2 (folder ingest →
+//  contemporaneous night pairing; pre-noon folds to the prior evening).
+// ════════════════════════════════════════════════════════════════════════
+(function(){
+  const NIGHTS = {};                 // key → { key, files:[{file,kind,device,stampMs,size,meta,parts}] }
+  const WAVE = { ECG:1, PPG:1 };     // kinds this splitter slices
+
+  // ── classify a Polar Sensor Logger / O2Ring filename → {device,kind,stamp} ──
+  function classify(file){
+    const n = file.name; let m;
+    if ((m = n.match(/^Polar_H10_[0-9A-Za-zx]+_(\d{8})_(\d{6})_([A-Za-z]+)\.txt$/i)))
+      return { device:'H10', kind:m[3].toUpperCase(), stamp:m[1]+m[2] };
+    if ((m = n.match(/^Polar_Sense_[0-9A-Za-zx]+_(\d{8})_(\d{6})_([A-Za-z]+)\.txt$/i)))
+      return { device:'Verity', kind:m[3].toUpperCase(), stamp:m[1]+m[2] };
+    if ((m = n.match(/^O2Ring.*_(\d{14})\.csv$/i)))
+      return { device:'O2Ring', kind:'PULSE', stamp:m[1] };
+    return null;
+  }
+  // pre-noon session folds into the PREVIOUS evening's night (floating civil time)
+  function nightKeyOf(stamp){
+    const Y=+stamp.slice(0,4), M=+stamp.slice(4,6), D=+stamp.slice(6,8), h=+stamp.slice(8,10);
+    let ms=Date.UTC(Y,M-1,D); if(h<12) ms-=86400000; const d=new Date(ms);
+    return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
+  }
+  function stampMs(s){ return Date.UTC(+s.slice(0,4),+s.slice(4,6)-1,+s.slice(6,8),+s.slice(8,10),+s.slice(10,12),+s.slice(12,14)); }
+
+  // recursive folder drag-drop (webkitGetAsEntry) → flat File[]
+  function collectEntries(items){
+    const files=[], top=[];
+    function walk(entry){ return new Promise((res)=>{
+      if(!entry) return res();
+      if(entry.isFile){ entry.file((f)=>{ files.push(f); res(); }, ()=>res()); }
+      else if(entry.isDirectory){ const rd=entry.createReader(); const all=[];
+        const step=()=>rd.readEntries((es)=>{ if(!es.length){ Promise.all(all.map(walk)).then(()=>res()); return; } es.forEach(e=>all.push(e)); step(); }, ()=>res());
+        step();
+      } else res();
+    }); }
+    for(let i=0;i<items.length;i++){ const en=items[i].webkitGetAsEntry&&items[i].webkitGetAsEntry(); if(en) top.push(walk(en)); }
+    return Promise.all(top).then(()=>files);
+  }
+
+  const bmb = ()=>Math.max(1,+$('bmb').value||19);
+  const setStatus = (t)=>{ $('bStatus').textContent=t; };
+
+  async function ingest(list){
+    for(const k in NIGHTS) delete NIGHTS[k];
+    let indexed=0;
+    for(let i=0;i<list.length;i++){
+      const f=list[i], c=classify(f); if(!c) continue;
+      const nk=nightKeyOf(c.stamp), nt=NIGHTS[nk]||(NIGHTS[nk]={key:nk,files:[]});
+      nt.files.push({ file:f, kind:c.kind, device:c.device, stampMs:stampMs(c.stamp), size:f.size, meta:null, parts:null });
+      indexed++;
+    }
+    Object.keys(NIGHTS).forEach(k=>NIGHTS[k].files.sort((a,b)=>a.stampMs-b.stampMs||a.file.name.localeCompare(b.file.name)));
+    render();
+    const nWave=Object.keys(NIGHTS).reduce((s,k)=>s+NIGHTS[k].files.filter(x=>WAVE[x.kind]).length,0);
+    setStatus(indexed+' Polar files · '+Object.keys(NIGHTS).length+' nights · '+nWave+' ECG/PPG waveform'+(nWave===1?'':'s'));
+    $('bSplitAll').style.display = anyOversized()? 'inline-block':'none';
+  }
+  const cap = ()=>bmb()*MB;
+  function anyOversized(){ return Object.keys(NIGHTS).some(k=>NIGHTS[k].files.some(x=>WAVE[x.kind]&&x.size>cap())); }
+
+  // ── per-file helpers (param File — do NOT touch the single-file globals) ──
+  async function bLastNL(file,lo,hi){
+    const buf=new Uint8Array(await file.slice(lo,hi).arrayBuffer());
+    for(let k=buf.length-1;k>=0;k--) if(buf[k]===NL) return lo+k+1;
+    return -1;
+  }
+  async function bHeader(file){
+    const head=new Uint8Array(await file.slice(0,16384).arrayBuffer());
+    let i=0; while(i<head.length&&head[i]!==NL) i++; const he=i+1;
+    return { header:await file.slice(0,he).text(), headerEnd:he, headBytes:head };
+  }
+  async function bMeta(x){
+    if(x.meta) return x.meta;
+    const file=x.file, {header,headerEnd,headBytes}=await bHeader(file);
+    const msCol=header.trim().split(';').findIndex(c=>/timestamp\s*\[ms\]/i.test(c));
+    const rows=new TextDecoder().decode(headBytes.slice(headerEnd)).split('\n').filter(l=>l.trim());
+    const stamps=rows.slice(0,200).map(l=>parseISO(l.split(';')[0])).filter(v=>v!=null);
+    const t0=stamps.length?stamps[0]:null;
+    const dts=[]; for(let k=1;k<stamps.length;k++){const dd=stamps[k]-stamps[k-1]; if(dd>0&&dd<100)dts.push(dd);} dts.sort((a,b)=>a-b);
+    const fs=dts.length?Math.round(1000/dts[dts.length>>1]):null;
+    const tailN=Math.min(file.size,4096), tail=await file.slice(file.size-tailN,file.size).text();
+    const trows=tail.split('\n').map(l=>l.trim()).filter(Boolean);
+    const lastRow=(trows[trows.length-1]||'').split(';'), lastStamp=parseISO(lastRow[0]);
+    let total=null;
+    if(msCol>=0){ const fm=parseFloat((rows[0]||'').split(';')[msCol]), lm=parseFloat(lastRow[msCol]); if(isFinite(fm)&&isFinite(lm)) total=lm-fm; }
+    if(total==null&&lastStamp!=null&&t0!=null) total=lastStamp-t0;
+    x.meta={ header, headerEnd, t0Ms:t0, fs, totalMs:total };
+    return x.meta;
+  }
+  async function bPlan(file,headerEnd,targetBytes){
+    const budget=targetBytes-headerEnd-64; if(budget<=0) return [];
+    const size=file.size, parts=[]; let start=headerEnd;
+    while(start<size){
+      let end=Math.min(start+budget,size);
+      if(end<size){ const back=await bLastNL(file,Math.max(start,end-16384),end); if(back>start) end=back; }
+      parts.push({start,end}); start=end;
+    }
+    return parts;
+  }
+  function bPartName(name,idx,total){ const base=name.replace(/\.[^.]+$/,''); const p=n=>(n<10?'0':'')+n; return `${base}_part${p(idx)}of${p(total)}.txt`; }
+  function bDownload(file,header,p,name){ triggerDownload(new Blob([header,file.slice(p.start,p.end)],{type:'text/plain'}),name); }
+
+  async function splitFile(x, box){
+    const meta=await bMeta(x);
+    const parts=await bPlan(x.file, meta.headerEnd, cap());
+    x.parts=parts;
+    box.innerHTML='';
+    for(let i=0;i<parts.length;i++){
+      const p=parts[i], name=bPartName(x.file.name,i+1,parts.length), sz=(p.end-p.start)+meta.headerEnd;
+      const el=document.createElement('div'); el.className='part';
+      el.innerHTML=`<span class="n">${i+1}/${parts.length}</span><span class="rng mono" style="color:var(--text3)">${name}</span><span class="sz">${fmtSize(sz)}</span><button class="dl">Download</button>`;
+      el.querySelector('button').addEventListener('click',(ev)=>{ bDownload(x.file,meta.header,p,name); ev.target.textContent='Downloaded ✓'; ev.target.classList.add('done'); });
+      box.appendChild(el);
+    }
+    if(parts.length>1){
+      const all=document.createElement('button'); all.className='dl'; all.textContent='Download all '+parts.length; all.style.marginTop='8px';
+      all.addEventListener('click',async()=>{ for(let i=0;i<parts.length;i++){ bDownload(x.file,meta.header,parts[i],bPartName(x.file.name,i+1,parts.length)); await new Promise(r=>setTimeout(r,400)); } });
+      box.appendChild(all);
+    }
+  }
+
+  // ── pattern 1: production detectors in a Web Worker (shim + importScripts) ──
+  let WK=null, WSEQ=0; const WPEND=new Map();
+  function worker(){
+    if(WK) return WK;
+    const abs=p=>JSON.stringify(new URL(p,location.href).href);
+    const src=
+      'self.window=self;\n'+                                   // ← the shim: DSP IIFE wrappers reference `window` at load; a worker has none
+      'try{importScripts('+abs('kernel-constants.js')+','+abs('clock.js')+','+abs('ecgdex-dsp.js')+','+abs('ppgdex-dsp.js')+');}catch(e){}\n'+
+      'function med(a){if(!a||!a.length)return null;var s=Array.prototype.slice.call(a).sort(function(x,y){return x-y;});var n=s.length;return n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2;}\n'+
+      'self.onmessage=function(e){var d=e.data,id=d.id;try{'+
+      'if(typeof ECGDSP==="undefined"||typeof PPGDSP==="undefined"){self.postMessage({id:id,ok:false,error:"detector modules did not load"});return;}'+
+      'if(d.kind==="ECG"){var rec=ECGDSP.parseECG(d.text);var bp=ECGDSP.bandpass(rec.int16,rec.fs);var pk=ECGDSP.detectPeaks(rec.int16,bp,rec.fs);'+
+      'if(!pk||pk.length<8){self.postMessage({id:id,ok:false,error:"too few R-peaks — flat or not ECG"});return;}'+
+      'var dd=[];for(var i=1;i<pk.length;i++)dd.push(pk[i]-pk[i-1]);var m=med(dd);var dur=rec.durSec||rec.int16.length/rec.fs;'+
+      'self.postMessage({id:id,ok:true,hr:m?60*rec.fs/m:null,beats:pk.length,fs:rec.fs,dur:dur,cov:dur?Math.min(100,(pk[pk.length-1]-pk[0])/rec.fs/dur*100):null});'+
+      '}else{var r=PPGDSP.parsePPG(d.text);var per=r.ch.map(function(c){return PPGDSP.detectChannel(c,r.fs);});'+
+      'var ref=0,best=-1;per.forEach(function(p,i){var nf=(p.feet||[]).length;if(nf>best){best=nf;ref=i;}});'+
+      'var cons=PPGDSP.consensusBeats(per,ref,r.fs);var foot=(cons.feet||[]).map(function(f){return f/r.fs;});'+
+      'if(foot.length<8){self.postMessage({id:id,ok:false,error:"too few optical beats — motion / poor perfusion"});return;}'+
+      'var ppi=PPGDSP.buildPPI(foot);var corr=PPGDSP.correctRR(ppi.rr,ppi.tt);var nn=corr.nn||[];var m=med(nn);var dur=r.ch[0].length/r.fs;'+
+      'self.postMessage({id:id,ok:true,hr:m?60000/m:null,beats:nn.length,fs:r.fs,dur:dur,cov:dur?Math.min(100,(foot[foot.length-1]-foot[0])/dur*100):null});'+
+      '}}catch(err){self.postMessage({id:id,ok:false,error:String(err&&err.message||err)});}};';
+    WK=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
+    WK.onmessage=(e)=>{ const {id}=e.data, r=WPEND.get(id); if(r){ WPEND.delete(id); r(e.data); } };
+    return WK;
+  }
+  // sample the file (header + a line-aligned data window) so the check is fast on multi-GB files
+  async function sampleText(x, capBytes){
+    const meta=await bMeta(x); const file=x.file;
+    let end=Math.min(file.size, meta.headerEnd+(capBytes||6*MB));
+    if(end<file.size){ const back=await bLastNL(file,Math.max(meta.headerEnd,end-16384),end); if(back>meta.headerEnd) end=back; }
+    return meta.header + await file.slice(meta.headerEnd,end).text();
+  }
+  function runCheck(kind,text){ return new Promise((resolve)=>{ const id=++WSEQ; WPEND.set(id,resolve); worker().postMessage({id,kind,text}); }); }
+  async function signalCheck(x, out){
+    out.textContent='checking…'; out.style.color='var(--text3)';
+    try{
+      const text=await sampleText(x, 6*MB);
+      const r=await runCheck(x.kind, text);
+      if(!r.ok){ out.innerHTML='<span class="warn">signal check: '+r.error+'</span>'; return; }
+      out.innerHTML=`<span class="ok">${r.hr!=null?r.hr.toFixed(0)+' bpm':'—'}</span> median · ${r.beats} beats · ${r.cov!=null?r.cov.toFixed(0):'—'}% coverage · ${r.fs} Hz <span style="color:var(--text4)">(first ${(6).toFixed(0)} MB · real ${x.kind==='ECG'?'Pan–Tompkins':'3-LED consensus'} in a worker)</span>`;
+    }catch(err){ out.innerHTML='<span class="warn">signal check failed: '+(err&&err.message||err)+'</span>'; }
+  }
+
+  function render(){
+    const host=$('nights'); host.innerHTML='';
+    const keys=Object.keys(NIGHTS).sort();
+    if(!keys.length){ return; }
+    keys.forEach(k=>{
+      const nt=NIGHTS[k];
+      const devs=Array.from(new Set(nt.files.map(f=>f.device)));
+      const card=document.createElement('div'); card.className='card'; card.style.marginTop='14px';
+      card.innerHTML=`<div class="row" style="justify-content:space-between"><div class="mono" style="font-weight:700;color:var(--teal)">${k}</div><div class="mono" style="font-size:12px;color:var(--text3)">${devs.join(' · ')} · ${nt.files.length} file${nt.files.length===1?'':'s'}</div></div>`;
+      const list=document.createElement('div'); list.style.marginTop='8px'; card.appendChild(list);
+      nt.files.forEach(x=>{
+        const wave=!!WAVE[x.kind], over=wave&&x.size>cap();
+        const row=document.createElement('div'); row.className='part'; row.style.flexWrap='wrap';
+        const kindCol = x.kind==='ECG'?'var(--amber)':x.kind==='PPG'?'var(--teal)':'var(--text3)';
+        row.innerHTML=`<span class="n" style="color:${kindCol};min-width:46px">${x.kind}</span>`+
+          `<span class="rng mono" style="color:var(--text2)">${x.file.name}</span>`+
+          `<span class="sz">${fmtSize(x.size)}${over?' <span class="warn">· over cap</span>':''}</span>`;
+        const actions=document.createElement('div'); actions.className='row'; actions.style.gap='8px'; actions.style.width='100%';
+        const partsBox=document.createElement('div'); partsBox.style.width='100%';
+        const out=document.createElement('div'); out.className='hint'; out.style.width='100%'; out.style.marginTop='0';
+        if(wave){
+          const sc=document.createElement('button'); sc.className='dl'; sc.textContent='Signal check';
+          sc.addEventListener('click',()=>{ sc.disabled=true; signalCheck(x,out).finally(()=>{ sc.disabled=false; }); });
+          actions.appendChild(sc);
+          const sp=document.createElement('button'); sp.className='dl'; sp.textContent=over?'Split ('+Math.ceil(x.size/cap())+')':'Split';
+          sp.addEventListener('click',()=>{ sp.disabled=true; sp.textContent='Splitting…'; splitFile(x,partsBox).finally(()=>{ sp.textContent='Re-split'; sp.disabled=false; }); });
+          actions.appendChild(sp);
+        }
+        row.appendChild(actions); row.appendChild(partsBox); row.appendChild(out);
+        list.appendChild(row);
+      });
+      host.appendChild(card);
+    });
+  }
+
+  $('bSplitAll').addEventListener('click',async()=>{
+    const jobs=[];
+    Object.keys(NIGHTS).sort().forEach(k=>NIGHTS[k].files.forEach(x=>{ if(WAVE[x.kind]&&x.size>cap()) jobs.push(x); }));
+    if(!jobs.length){ setStatus('nothing over the '+bmb()+' MB cap'); return; }
+    $('bSplitAll').disabled=true;
+    for(let j=0;j<jobs.length;j++){
+      setStatus('splitting '+(j+1)+'/'+jobs.length+' — '+jobs[j].file.name);
+      const meta=await bMeta(jobs[j]); const parts=await bPlan(jobs[j].file, meta.headerEnd, cap());
+      for(let i=0;i<parts.length;i++){ bDownload(jobs[j].file,meta.header,parts[i],bPartName(jobs[j].file.name,i+1,parts.length)); await new Promise(r=>setTimeout(r,350)); }
+    }
+    setStatus('done — '+jobs.length+' file'+(jobs.length===1?'':'s')+' split'); $('bSplitAll').disabled=false;
+  });
+
+  // wiring
+  const bdrop=$('bdrop'), bfiles=$('bfiles');
+  bdrop.addEventListener('click',()=>bfiles.click());
+  bfiles.addEventListener('change',ev=>{ if(ev.target.files&&ev.target.files.length) ingest([].slice.call(ev.target.files)); });
+  ['dragenter','dragover'].forEach(e=>bdrop.addEventListener(e,ev=>{ev.preventDefault();bdrop.classList.add('drag');}));
+  ['dragleave','drop'].forEach(e=>bdrop.addEventListener(e,ev=>{ev.preventDefault();bdrop.classList.remove('drag');}));
+  bdrop.addEventListener('drop',async(ev)=>{
+    ev.preventDefault();
+    const dt=ev.dataTransfer;
+    if(dt&&dt.items&&dt.items.length&&dt.items[0].webkitGetAsEntry){ const files=await collectEntries(dt.items); ingest(files); }
+    else if(dt&&dt.files&&dt.files.length){ ingest([].slice.call(dt.files)); }
+  });
+
+  // test hook (house style, e.g. __figDataURL) — drive ingest with a File[] headlessly
+  window.__batchIngest = ingest; window.__batchNights = NIGHTS;
+})();
 </script>
 </body></html>

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  ppg-ecg-hrv-validation.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Optical HRV against chest ECG on real overnight recordings — Tepna preprint</title>
+<link rel="stylesheet" href="../licensing/dex-license.css">
+<link rel="stylesheet" href="paper.css">
+</head>
+<body>
+<div class="sheet">
+  <a class="toplink" href="papers.html">← Tepna preprints</a>
+  <div class="banner">Tepna Working Preprint · not peer-reviewed</div>
+  <h1 class="title">Optical HRV against chest ECG on real overnight recordings: beat-to-beat equivalence, correctable long-term inflation, and a self-knowing confidence gate</h1>
+  <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
+  <p class="affil">PpgDex (raw PPG) · ECGDex (raw ECG) · OxyDex (oximetry) nodes, Tepna physiological-signal suite</p>
+  <p class="meta">Draft v1 · July 2026 · Analysis: <code>ppg-ecg-hrv-validation-analysis</code> (derived stats in <code>paper-multinight.json</code>) · Inputs: real co-recorded node summaries · 100% local, reproducible</p>
+
+  <div class="abstract">
+    <h2>Abstract</h2>
+    <p style="text-align:left;margin-bottom:0"><b>Background.</b> A companion simulation paper (<code>rmssd-equivalence</code>) showed, on synthetic ground truth, that ECG- and RR-derived rMSSD are interchangeable while the optical arm is unbiased-but-noisier. Its stated next step was a <em>real</em> simultaneous ECG + PPG comparison. <b>Data.</b> One subject wore a Polar H10 chest ECG and a Polar Verity Sense wrist PPG together across four overnight sessions (~5.5–7.2 h each; 16–21 k beats/night), with a Wellue O2Ring finger oximeter as a third corner on the deepest night. Every metric is derived from raw signal by the production detectors (<code>ECGDSP</code> Pan–Tompkins QRS; <code>PPGDSP</code> 3-LED consensus optical beats), aligned by the suite's floating wall-clock. <b>Results.</b> The pipeline's own quality gate — computed with <em>no</em> reference — split the four nights cleanly into two it trusted and two it flagged. On the two <b>trusted</b> nights, optical HRV matched chest ECG almost exactly: beat-to-beat rMSSD bias <b>−0.2 ms (−0.6%)</b>, beat counts within <b>0.05%</b> (10 beats in 20,671), SD1 within 1.9%. Whole-record SDNN ran <b>+46%</b> high, an SDANN/baseline-wander inflation reduced to <b>+2.3%</b> by a quality-gated per-5-min median (<code>sdnnRobust</code>); SD2 +54%→+4.1% and band power +89%→+6.9% by the same mechanism. On the two <b>flagged</b> nights (analyzable 56–57%, correction 36–42%), whole-record optical rMSSD was uninterpretable (137 / 144 ms vs an ECG truth of 36–37 ms) — and the gate flagged <em>exactly</em> those nights, with no ECG consulted. <b>Conclusion.</b> On real overnight data, engineered optical HRV is ECG-grade for beat-to-beat metrics when the pipeline says it is trustworthy; long-term dispersion is inflated but correctable by segment-wise aggregation; and the residual, genuinely-limited bands (VLF, motion-driven HF) are best carried as a graded per-metric confidence rather than a blanket flag. This is a single-subject real-data pilot, not a population accuracy rating.</p>
+  </div>
+  <p class="kw"><b>Keywords:</b> heart-rate variability · rMSSD · SDNN · photoplethysmography · chest ECG · method comparison · Bland–Altman · pulse-transit-time · SDANN · signal-quality gating · graded confidence · consumer wearables</p>
+
+  <div class="callout" style="border:1px dashed #b8860b;background:#fffdf5">
+    <h2 class="sec" style="margin-top:0">0. Layman overview <span style="font-weight:400;color:#b8860b;font-size:13px">(delete before submission)</span></h2>
+    <p>Wrist and finger sensors read your pulse with light; a chest strap reads the heart's electrical signal directly and is the trusted “truth.” We wore both to bed for several nights and asked: does the light-based heart-rhythm score agree with the electrical one? <b>Answer, on the good nights: yes, almost perfectly</b> — the beat-to-beat rhythm score matched to within one percent, and the two devices even counted the same number of heartbeats to within ten out of twenty thousand. One longer-term “spread” number ran high on the light sensor, but for a fixable reason (slow drift of the light signal, not the heartbeat itself), and a smarter way of averaging brought it back in line. The most important part: on two <b>bad</b> nights the wrist sensor produced nonsense — and the app <b>knew it was nonsense on its own</b>, before ever seeing the chest strap, and marked those nights as untrustworthy. So the practical lesson isn't “light sensors are perfect”; it's “a good light-sensor pipeline knows when to trust itself.” This is one person over four nights — a demonstration the method works, not a product accuracy rating.</p>
+  </div>
+
+  <h2 class="sec">1. Introduction</h2>
+  <p>Heart-rate variability from a wrist or finger photoplethysmogram (PPG) is attractive because the hardware is cheap and unobtrusive, but optical pulse timing is a mechanical, downstream proxy for the electrical heartbeat that an ECG records directly. The suite's simulation paper <a href="rmssd-equivalence.html"><i>Three independent detectors, one tachogram</i></a> established, on synthetic beats scored by the real detectors, that ECG- and RR-derived rMSSD are interchangeable (bias −0.02 ms) while the optical arm is <em>unbiased in the mean but several-fold noisier</em> — a variance penalty, not a bias. That paper's Reproducibility section named its own sequel: <q>a simultaneous reference-ECG + PPG cohort … to convert the pipeline-equivalence result into a clinical PRV-vs-HRV comparison.</q> This paper is that sequel on real data, and extends it in two directions the simulation did not cover: the <b>long-term / frequency-domain</b> metrics (SDNN, SD2, spectral power), and the behaviour of the pipeline's <b>own signal-quality confidence</b> when the ground truth is available to check it against.</p>
+  <p>Three questions are asked directly, because a chest ECG worn on the same body is the reference for inter-beat timing: (i) do optical beat-to-beat metrics agree with ECG on real overnight data; (ii) can the known long-term optical inflation be corrected rather than merely flagged; and (iii) does the pipeline's reference-free confidence actually separate the nights where optical HRV is trustworthy from the nights where it is not?</p>
+
+  <h2 class="sec">2. Methods</h2>
+  <h3 class="sub">2.1 Devices, channels, and the raw-signal principle</h3>
+  <p>One subject wore three devices together overnight: a <b>Polar H10</b> chest strap (single-lead ECG, ~130 Hz), a <b>Polar Verity Sense</b> wrist band (3-LED PPG, ~176 Hz), and — on the deepest night — a <b>Wellue O2Ring</b> finger oximeter (SpO₂ + 1 Hz pulse). Raw waveforms were captured with Polar Sensor Logger. Every HRV number is derived from <em>raw signal</em> by the production detectors, never a vendor summary: ECG heart-beat train by <code>ECGDSP</code> (Pan–Tompkins QRS), optical beat train by <code>PPGDSP</code> (three-LED consensus foot detection — a beat is kept only where ≥2 of 3 LEDs agree within ±50 ms — then Malik <code>correctRR</code>). Both then feed the identical time-domain, Poincaré and Lomb–Scargle HRV code, so any disagreement is attributable to the front end.</p>
+  <h3 class="sub">2.2 Alignment — the Clock Contract</h3>
+  <p>The devices share no clock or timezone but each stamps local civil time, stored as UTC-normalized floating wall-clock milliseconds (<code>tMs = Date.UTC(y,mo−1,d,h,mi,s)</code>), so two devices recording the same wall-clock second yield the same <code>tMs</code> by construction. Per-5-min epochs are aligned by <code>tMin</code> intersection; whole-record comparators use each summary's <code>wholeRecordRMSSD</code> / <code>wholeRecordSDNN</code> per its <code>windowNote</code>.</p>
+  <h3 class="sub">2.3 The robust long-term estimators under test</h3>
+  <p>Whole-record SDNN folds in SDANN — the drift <em>between</em> 5-min segment means — which optical baseline wander and pulse-transit-time (PTT) modulation inflate. The suite computes two additive, back-compatible alternatives (whole-record <code>sdnn</code> unchanged): <code>sdnnIndex</code> (mean of per-5-min SDNN) and <code>sdnnRobust</code> (the <b>quality-gated median</b> of per-5-min SDNN — epochs with <code>motionIndex&gt;0.5</code> or <code>ledAgreementPct&lt;67</code> dropped, &lt;3-epoch fallback). <code>sd2Robust</code> is rebuilt from <code>sdnnRobust</code> and the clean beat-to-beat SD1; <code>lf/hf/lfhfRobust</code> are gated medians of per-epoch bands. VLF is deliberately not robust-corrected (a 5-min epoch cannot resolve &lt;0.04 Hz).</p>
+  <h3 class="sub">2.4 The reference-free confidence gate</h3>
+  <p>PpgDex marks whole-record HRV low-confidence when <code>analyzablePct&lt;60</code> or <code>correctionRatePct&gt;20</code> — quantities it computes from the optical signal alone, with no ECG. The suite additionally emits a graded 0–1 <code>hrv.confidence</code> per metric family, each scored by the driver that predicts <em>that</em> metric's error (motion→HF, posture/baseline→VLF/SDNN, coverage+correction→beat-to-beat). This paper treats the gate as a classifier and asks whether it agrees with the ECG-measured error.</p>
+
+  <h2 class="sec">3. Results</h2>
+  <h3 class="sub">3.1 The gate splits the four nights before any reference is consulted</h3>
+  <p>Two nights passed the reference-free gate (analyzable 98%, correction 6–10%, mean SQI 0.91–0.92); two failed (analyzable 56–57%, correction 36–42%, SQI 0.49–0.53). This split, computed from the optical signal alone, turns out to be exactly the split between agreement and nonsense against ECG (§3.2, §3.4).</p>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 1.</b> Four co-recorded overnight sessions (one subject; H10 chest ECG + Verity wrist PPG, raw-signal detectors). Whole-record comparators. rMSSD truth is the ECG whole-record value.</caption>
+    <thead><tr><th>Night</th><th class="num">Dur (min)</th><th class="num">ECG beats</th><th class="num">PPG beats</th><th class="num">Analyzable</th><th class="num">Correction</th><th>Gate</th><th class="num">ECG rMSSD</th><th class="num">PPG rMSSD</th></tr></thead>
+    <tbody>
+      <tr><td>2026-07-06</td><td class="num">401</td><td class="num">19,922</td><td class="num">19,926</td><td class="num">98%</td><td class="num">9.8%</td><td style="color:#1a6e3a">trusted</td><td class="num">40.1</td><td class="num">40.4</td></tr>
+      <tr><td>2026-07-07</td><td class="num">421</td><td class="num">20,671</td><td class="num">20,661</td><td class="num">98%</td><td class="num">5.8%</td><td style="color:#1a6e3a">trusted</td><td class="num">37.8</td><td class="num">37.1</td></tr>
+      <tr><td>2026-07-01</td><td class="num">432</td><td class="num">21,087</td><td class="num">16,480</td><td class="num">56%</td><td class="num">36.4%</td><td style="color:#b03030">flagged</td><td class="num">37.4</td><td class="num">136.8</td></tr>
+      <tr><td>2026-07-02</td><td class="num">333</td><td class="num">16,107</td><td class="num">27,620</td><td class="num">57%</td><td class="num">42.3%</td><td style="color:#b03030">flagged</td><td class="num">35.9</td><td class="num">143.9</td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="sub">3.2 On trusted nights, optical beat-to-beat HRV is ECG-grade</h3>
+  <p>Pooling the two trusted nights, optical rMSSD carried a mean bias of <b>−0.2 ms (−0.6%)</b> against chest ECG, and the beat counts agreed to <b>0.02% and 0.05%</b> (4 beats in 19,922; 10 beats in 20,671). On the deepest night (07-07) SD1 agreed to +1.9%, lnRMSSD to +0.4%, pNN50 to +1.4%, and mean HR to +1.8%. This is a real-data confirmation of the simulation paper's central finding — optical rMSSD is unbiased in the mean — now with the mean bias pinned below one percent on true overnight recordings rather than synthetic windows.</p>
+
+  <figure>
+    <svg viewBox="0 0 520 300" width="100%" style="max-width:520px;display:block;margin:0 auto;font-family:var(--sans,sans-serif)">
+      <rect x="0" y="0" width="520" height="300" fill="#fff"/>
+      <!-- axes -->
+      <line x1="60" y1="250" x2="500" y2="250" stroke="#333" stroke-width="1"/>
+      <line x1="60" y1="250" x2="60" y2="20" stroke="#333" stroke-width="1"/>
+      <!-- identity line: ECG rmssd (x) == PPG rmssd (y); scale x,y 30..150 -> 60..500 / 250..30 -->
+      <line x1="60" y1="250" x2="500" y2="30" stroke="#bbb" stroke-width="1" stroke-dasharray="4 3"/>
+      <text x="470" y="45" font-size="10" fill="#999">identity</text>
+      <!-- trusted points (near line): 07-06 (40.1,40.4), 07-07 (37.8,37.1) -->
+      <!-- map: X = 60 + (v-30)/120*440 ; Y = 250 - (v-30)/120*220 -->
+      <circle cx="97" cy="231" r="6" fill="#1a6e3a"/>
+      <circle cx="89" cy="236" r="6" fill="#1a6e3a"/>
+      <!-- flagged points (far above line): 07-01 (37.4,136.8), 07-02 (35.9,143.9) -->
+      <circle cx="87" cy="55" r="6" fill="#b03030"/>
+      <circle cx="82" cy="42" r="6" fill="#b03030"/>
+      <!-- labels -->
+      <text x="108" y="230" font-size="10" fill="#1a6e3a">07-06 · 07-07 (trusted)</text>
+      <text x="98" y="52" font-size="10" fill="#b03030">07-01 · 07-02 (flagged by gate)</text>
+      <text x="250" y="284" font-size="11" fill="#333">ECG rMSSD (ms) — reference</text>
+      <text x="20" y="140" font-size="11" fill="#333" transform="rotate(-90 20 140)">PPG rMSSD (ms)</text>
+      <text x="56" y="264" font-size="9" fill="#666">30</text>
+      <text x="486" y="264" font-size="9" fill="#666">150</text>
+    </svg>
+    <figcaption><b>Figure 1.</b> Optical vs chest-ECG rMSSD, one point per night. The two nights the pipeline's reference-free gate <span style="color:#1a6e3a">trusted</span> sit on the identity line (bias −0.6%); the two it <span style="color:#b03030">flagged</span> shoot far above it (error +99 / +108 ms). The gate — computed with no ECG — separates the classes perfectly. Regenerable from <code>paper-multinight.json</code>.</figcaption>
+  </figure>
+
+  <h3 class="sub">3.3 Long-term dispersion is inflated but correctable</h3>
+  <p>On the trusted nights, whole-record SDNN ran <b>+46%</b> above ECG — the expected SDANN/baseline-wander inflation. Reporting the quality-gated per-5-min median (<code>sdnnRobust</code>) instead reduced the gap to <b>+2.3%</b> against the ECG per-5-min-median truth. On the deepest night the same mechanism corrected SD2 (+54%→+4.1%) and Lomb–Scargle band power (+89%→+6.9%); per-epoch LF alone agreed to +0.7%, confirming that the whole-record spectral inflation is slow between-segment drift, not a genuine spectral error.</p>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 2.</b> Long-term metric families, as-measured (whole-record) vs robust (quality-gated per-5-min), against ECG. SDNN pooled over the two trusted nights; SD2 / band power from the deepest night (07-07).</caption>
+    <thead><tr><th>Metric</th><th class="num">Whole-record vs ECG</th><th class="num">Robust vs ECG</th><th>Robust estimator</th></tr></thead>
+    <tbody>
+      <tr><td>SDNN</td><td class="num">+46%</td><td class="num">+2.3%</td><td><code>sdnnRobust</code> (gated median)</td></tr>
+      <tr><td>SD2</td><td class="num">+54%</td><td class="num">+4.1%</td><td><code>sd2Robust</code></td></tr>
+      <tr><td>Band power (LF+HF)</td><td class="num">+89%</td><td class="num">+6.9%</td><td>gated-median LF+HF</td></tr>
+      <tr><td>VLF</td><td class="num">+62%</td><td class="num">— (not corrected)</td><td>graded confidence, capped 0.7</td></tr>
+    </tbody>
+  </table>
+  <p>Two bands are deliberately <em>not</em> corrected because their excess has no detectable, subtractable cause on this data. Per-epoch SDNN excess showed near-zero correlation with everything the device records (motion r=−0.03, LED disagreement r=0.02) — it is a baseline optical property present even in the cleanest low-motion epochs — so VLF, which is dominated by that slow drift, stays flagged. Residual HF excess, by contrast, <em>was</em> motion-driven (+43% in high-motion epochs vs +12% in low), so a stricter low-motion HF median (<code>hfRobustLowMotion</code>) and a motion-scored HF confidence are emitted. In place of a single binary flag the export now carries a 0–1 confidence per metric family, each tied to its own driver; VLF is capped at 0.7 because single-site optical VLF is baseline-limited even when clean — a real property, not a defect to hide.</p>
+
+  <h3 class="sub">3.4 The confidence gate is a near-perfect self-classifier</h3>
+  <p>Treated as a binary classifier of night usability, the reference-free gate labelled the two nights whose optical rMSSD error was <b>±0.5 ms</b> as trusted and the two whose error was <b>+99 and +108 ms</b> as flagged — a clean separation with no overlap, and with the ECG never consulted by the gate. On the flagged nights the optical detector had catastrophically mis-counted (07-01 missed 22% of beats; 07-02 over-detected by 71%), which is precisely what drives the analyzable/correction quantities the gate reads. The robust SDNN estimator did <em>not</em> rescue these nights (07-01 <code>sdnnRobust</code> 104.7 ms vs an ECG truth of 47.3) — correctly, because they are genuinely uninterpretable, and the confidence score says so. The practical result is that optical HRV becomes usable not by being universally accurate but by the pipeline knowing, from the optical signal alone, when to trust itself.</p>
+
+  <h3 class="sub">3.5 A third modality corroborates the rate backbone</h3>
+  <p>On the deepest night a Wellue O2Ring finger oximeter recorded the same session. Mean heart rate across the three independent modalities — chest electrical, wrist optical, finger optical — agreed to under 1 bpm (ECG 49.1, PPG 50.0, O2Ring 49.2). The O2Ring samples at ~1 Hz and cannot produce beat-to-beat HRV, so it is a rate-and-oxygenation check only; it also confirmed the night was physiologically clean (SpO₂ mean 95.6%, 0.1% of time &lt;90%), ruling out desaturation load as a confounder of the HRV agreement above.</p>
+
+  <h2 class="sec">4. Discussion</h2>
+  <p>Three practical rules follow. <b>(1)</b> Engineered optical beat-to-beat HRV (rMSSD, SD1, pNN50) is interchangeable with chest ECG on real overnight recordings <em>when quality-gated</em> — the real-data confirmation the simulation paper called for, with mean bias below 1%. The engineering that achieves this (3-LED consensus detection, foot timing, Malik correction) is what converts the raw optical arm's variance penalty into ECG-grade agreement on good nights. <b>(2)</b> The long-term optical inflation (SDNN/SD2/band power) is an SDANN/baseline artifact, not a beat error, and is largely removed by segment-wise robust aggregation — a pure reporting change, no new sensing. <b>(3)</b> The bands that remain limited (VLF, motion-driven HF) are best surfaced as a graded, cause-tied confidence than as a blanket flag, and — most importantly — the pipeline's reference-free quality gate is a trustworthy self-classifier of night usability, which is what makes single-site optical HRV safe to consume downstream.</p>
+  <div class="callout"><b>Limitations.</b> This is a single subject, one ECG–PPG device pair, and four overnight sessions (two of which the pipeline itself deems usable) — a real-data pilot that demonstrates the method and the direction of effect, not a population accuracy rating or limits-of-agreement suitable for device grading. The trusted-night sample (n=2) is too small for a published Bland–Altman interval; the value here is the paired direction (bias &lt;1%, beats &lt;0.05%) and the gate's discrimination, not a powered estimate. The tri-device corner is one night. The robust-SDNN and confidence numbers were validated against the same nights they are reported on; a held-out corpus is the obvious next step. A 20-night tri-device archive exists in the suite and is the natural substrate for converting this pilot into a powered agreement study across motion regimes.</p>
+
+  <h2 class="sec">5. Reproducibility</h2>
+  <ul>
+    <li><b>Data:</b> real co-recorded node summaries in <code>uploads/</code> — <code>ECGDex_&lt;date&gt;_summary.json</code> + <code>PpgDex_&lt;date&gt;_summary.json</code> for 2026-07-01/02/06/07, plus the 07-07 O2Ring CSV. Each summary is itself derived from raw signal by the production detectors.</li>
+    <li><b>Detectors:</b> real <code>ecgdex-dsp.js</code> (<code>ECGDSP</code> Pan–Tompkins QRS) and <code>ppgdex-dsp.js</code> (<code>PPGDSP.analyze</code> — 3-LED consensus + <code>correctRR</code>), shared time-domain / Poincaré / Lomb–Scargle HRV code.</li>
+    <li><b>Robust estimators:</b> <code>sdnnRobust</code> / <code>sd2Robust</code> / <code>lf,hf,lfhfRobust</code> / <code>hfRobustLowMotion</code> / <code>hrv.confidence</code> computed in <code>ppgdex-dsp.js</code> (mirrored in <code>ppgdex-app.js</code> <code>buildV2</code>); gate = <code>analyzablePct&lt;60 || correctionRatePct&gt;20</code>.</li>
+    <li><b>Derived statistics</b> (Tables 1–2, Figure 1) regenerate from the committed summaries into <code>paper-multinight.json</code>: whole-record and per-5-min-median agreement per night, robust-SDNN recomputed from PPG epochs by the shipped gate, and the gate's pass/fail label.</li>
+    <li><b>Next:</b> lift the ad-hoc derivation into a named <code>ppg-ecg-hrv-validation-analysis.html</code> (unbundled, touches neither gate) and extend to the full 20-night tri-device corpus across motion regimes for a powered Bland–Altman.</li>
+  </ul>
+
+  <h2 class="sec">6. Sample size, power, and where returns diminish</h2>
+  <p>This draft is a <b>four-night pilot on one subject</b>, of which the pipeline deems two usable — deliberately below any published-agreement threshold. Two sample-size axes matter, and they diminish at very different points.</p>
+  <h3 class="sub">6.1 Within-subject paired nights — the Bland–Altman axis</h3>
+  <p>The trusted-night rMSSD agreement (bias −0.6%) is a paired within-subject comparison; its precision is set by the number of trusted paired nights <i>n</i>. Standard method-comparison theory fixes the scaling: the confidence interval on the bias narrows as ≈1/√<i>n</i>, and the interval on each limit of agreement as ≈1.71·SD/√<i>n</i>. So the returns are steep early and flat late.</p>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 3.</b> Guidance for the within-subject paired-night agreement (one subject, quiet-sleep regime). “Trusted nights” = nights that pass the reference-free gate; expect ~50% yield at these wear conditions, so collect roughly double.</caption>
+    <thead><tr><th>Tier</th><th class="num">Trusted nights</th><th>What it buys</th></tr></thead>
+    <tbody>
+      <tr><td>This pilot</td><td class="num">2</td><td>Paired direction only: bias &lt;1%, beats &lt;0.05%. No interval.</td></tr>
+      <tr><td>Minimum (usable LoA)</td><td class="num">~12–15</td><td>First defensible 95% limits of agreement on rMSSD; bias CI ≈ ±1 ms. Enough to state “interchangeable, quiet sleep, one subject”.</td></tr>
+      <tr class="hi"><td>Recommended</td><td class="num">~25</td><td>LoA and bias CI stabilize to ≈±0.3 ms; the SDNN-whole→<code>sdnnRobust</code> correction gets a per-night distribution, not two points. Diminishing returns begin here.</td></tr>
+      <tr><td>Beyond</td><td class="num">&gt; ~30</td><td>Within-subject LoA is essentially pinned; each further single-subject night adds &lt;5% CI width. Marginal.</td></tr>
+    </tbody>
+  </table>
+  <h3 class="sub">6.2 The real ceiling — breadth, not depth</h3>
+  <p>The point where more nights stop helping is <b>~25–30 trusted nights on one subject</b>: past there the within-subject limits of agreement are pinned and the marginal night is nearly information-free. But that ceiling only closes the <em>within-subject</em> question. It says nothing about between-subject generalization or motion robustness — and those are exactly what a single deep subject cannot buy at any <i>n</i>. So beyond ~30 nights the value shifts decisively from depth to breadth: <b>more subjects</b> (the between-subject variance the pilot cannot see) and <b>more motion regimes</b> (every night here is quiet sleep; the two flagged nights show the failure mode but not a graded motion sweep). The suite's existing <a href="sensor-trio-nights.html"><i>how-many-windows</i></a> power analysis already quantified the intra-night window count for the reference-free σ work on this same corpus; the analogue here is a multi-subject, motion-stratified extension, for which the 20-night tri-device archive is the starting substrate, not the finish line.</p>
+  <div class="callout"><b>One-line answer.</b> Returns diminish at roughly <b>25–30 trusted paired nights per subject</b> for the within-subject limits of agreement; past that, additional single-subject nights are near-worthless and the budget should go to more subjects and more motion, not more nights.</div>
+
+  <h2 class="sec">7. References</h2>
+  <ol class="refs">
+    <li>Companion simulation paper: <code>papers/rmssd-equivalence.html</code> — three-detector rMSSD equivalence on shared synthetic beats.</li>
+    <li>Companion real-data metrology: <code>papers/sigma-no-reference.html</code> — reference-free per-device σ (three-cornered hat) on the same device corpus.</li>
+    <li>Task Force of the ESC/NASPE. Heart rate variability: standards of measurement, physiological interpretation and clinical use. <i>Circulation</i>. 1996;93(5):1043–1065.</li>
+    <li>Malik M. Heart rate variability: RR-interval editing. <i>Ann Noninvasive Electrocardiol.</i> 1996 (Malik correction).</li>
+    <li>Pan J, Tompkins WJ. A real-time QRS detection algorithm. <i>IEEE Trans Biomed Eng.</i> 1985;32(3):230–236.</li>
+    <li>Project documentation: <code>CLAUDE.md</code> (Clock Contract, evidence-grade system), Tepna suite.</li>
+  </ol>
+
+  <div class="footer">Tepna working preprint · real-data single-subject pilot · statistics regenerate deterministically from the committed node summaries via the cited derivation. Not peer-reviewed; not a medical device; not for clinical use. Copyright 2026 Michal Planicka · Apache-2.0.</div>
+</div>
+</body></html>

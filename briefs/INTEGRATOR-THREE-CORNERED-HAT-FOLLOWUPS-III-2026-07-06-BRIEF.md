@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-06 (§1 premise VALIDATED on real data — see `docs/INTEGRATOR-TCH-REALDATA-VALIDATION-2026-07-06.md`; end-to-end ρ-vs-classic + §4 N-cornered still blocked) · **Created:** 2026-07-06 · **Executed-residue-of:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II-2026-07-04-BRIEF.md` (DONE 2026-07-06) · **Extends:** `INTEGRATOR-BUILD-BRIEF.md` §4.4 `fuseHRVConsensus`
+**Status:** IN-PROGRESS — 2026-07-07 (§1 premise VALIDATED 2026-07-06; **end-to-end A/B through the Integrator's OWN `threeCorneredHat` — with a DEMONSTRATED RESCUE**. On real user-provided node exports for 2026-07-06 (all three: ECGDex+PpgDex+OxyDex), the canonical run lands in the **quiet-order / negative-variance** regime (H10↔OxyDex r=0.90); classic drives the smoothed OxyDex σ to a pathological **0.03 bpm**, and a **real measured co-motion ρ=0.655** (Verity↔OxyDex `motionIndex`) **rescues it to 1.02 bpm** — first end-to-end evidence that a motion-derived ρ corrects the quiet-order under-estimate the reference-free path can't. See `docs/INTEGRATOR-TCH-REALDATA-VALIDATION-2026-07-06.md` §5–§6. Mechanism ✓ + rescue ✓ on one night; a distribution/reference-anchored magnitude check wants more trio nights. §4 N-cornered EEGDex-blocked.) · **Created:** 2026-07-06 · **Executed-residue-of:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II-2026-07-04-BRIEF.md` (DONE 2026-07-06) · **Extends:** `INTEGRATOR-BUILD-BRIEF.md` §4.4 `fuseHRVConsensus`
 
 # Integrator three-cornered-hat — follow-ups III (real-data validation · N-cornered generalization)
 
@@ -32,7 +32,24 @@
 > `_tchRhoFromMotion`: O2Ring↔H10 accel co-vary r=0.44, and cross-device HR divergence tracks motion (r=0.60;
 > still 0.24 → motion 1.39 bpm). **REMAINING (still owed):** the end-to-end A/B — run these nights' node
 > exports through the Integrator's own `_tchHat`/`fuseHRVConsensus` with ρ on vs off and confirm ρ *reduces*
-> recovered divergence vs classic (the premise is validated; the Integrator-path comparison is not yet run).
+> recovered divergence vs classic. **PARTLY EXECUTED 2026-07-07 (write-up §5):** the A/B was run through the
+Integrator's OWN `threeCorneredHat` on the committed 5-night trio (30-s epoch-binned) — the shipped fusion
+code reproduces classic σ recovery + the 06-13 negative-variance regime, closing the "never run through the
+Integrator's own code" gap. But a FIXED external ρ=0.44 does NOT reduce divergence — it over-subtracts (Σσ²
+rises on every solvable night; the solve fails on the highest-agreement night), empirically confirming the ρ
+must be PER-NIGHT motion-derived (`_tchRhoFromMotion`), not a constant. **STILL OWED:** the per-night-motion-ρ
+verdict needs committed per-node motion (O2Ring `Motion` is committed; H10/Verity accel are not).
+**UPDATE 2026-07-07 (write-up §6):** a **faithful per-night motion-ρ run** was executed end-to-end through the
+shipped `threeCorneredHat` on real user-provided node exports for **2026-07-06**. **First pass** (raw O2Ring
+`Motion` ↔ Verity `motionIndex`, r=0.585→ρ=0.585) was a positive-variance night — σ merely un-biased upward.
+**Canonical run** (all three node exports — ECGDex+PpgDex+**OxyDex**, using both node `motionIndex`) landed in the
+**quiet-order / negative-variance** regime (H10↔OxyDex r=0.90): classic drove the smoothed OxyDex σ to a
+pathological **0.03 bpm**, and the **real measured co-motion ρ=0.655** (Verity↔OxyDex) **RESCUED it to 1.02 bpm**
+— the first end-to-end evidence on real data that a motion-derived ρ corrects the quiet-order under-estimate the
+reference-free path cannot (the `_tchRhoFromMotion` design intent). **Mechanism ✓ + rescue ✓.** (My earlier
+"over-subtracts" reading was analytically WRONG — classic UNDER-estimates under positive common-mode; ρ un-biases
+upward.) **Still open:** a distribution + reference-anchored magnitude check — more trio nights (each just the
+three tiny node-export JSONs, as here); no raw-ACC ingest needed.
 
 `_tchRhoFromMotion` is a **proxy** (co-motion correlation stands in for the shared motion-driven noise the
 reference-free estimator can't recover), validated only synthetically by the golden. **Blocked on a real

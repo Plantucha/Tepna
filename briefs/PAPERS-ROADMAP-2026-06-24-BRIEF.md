@@ -170,8 +170,8 @@ These are the real-validation front. Each names the **stack dependency** so sequ
 
 | Candidate | Data | Stack dependency | Effort | When |
 |---|---|---|---|---|
-| 2.1 Timestamp-pathology benchmark | real+synth | **none (now)** | LOW | now — cheapest win, already teed up |
-| 2.2 Dead-ends / negative results | mixed | **none (now)** | LOW–MED | now — mostly writing |
+| 2.1 Timestamp-pathology benchmark | real+synth | **none (now)** | LOW | ✅ **DONE 2026-07-08** — `timestamp-pathology.html` (+ live tool) |
+| 2.2 Dead-ends / negative results | mixed | **none (now)** | LOW–MED | ✅ **DONE 2026-07-08** — `dead-ends.html` |
 | 2.3 Cross-signal plausibility QC | synth+real | current stack | MED | now / alongside adapter metamorphic tests |
 | 3.1 Multi-vendor HRV agreement (real) | REAL | adapter **Phase 1** | MED | after adapter spine — flagship |
 | 3.3 Longitudinal σ drift | REAL | **OverDex** (Phase 10) | MED | after OverDex |
@@ -210,7 +210,17 @@ lands (the flagship real-data result) → then the node-gated papers as each pla
 This is a **living agenda**, not a one-shot execution. It is "done for now" when: (a) the in-flight
 re-run/rewrite work in `PAPERS-AUDIT.md` is closed or explicitly parked, and (b) the two **now**
 candidates (2.1 timestamp-pathology, 2.2 dead-ends) are either drafted into `papers.html` or logged as
-deliberately deferred. Each new candidate that ships flips its own row to DONE in §4 and gets a full
+deliberately deferred. **Progress (2026-07-08): BOTH "now" candidates SHIPPED** — 2.1
+`timestamp-pathology.html` (+ live tool, 24/24 corpus + 6/6 invariants) and 2.2 `dead-ends.html`
+(six-wall negative-results synthesis); plus the real-data `ppg-ecg-hrv-validation.html`, which fulfills
+the §0 real-data-arm gap ahead of schedule. **Criterion (b) is met.** **Criterion (a) is also met
+(reconciled 2026-07-08):** the `PAPERS-AUDIT.md` re-run/rewrite backlog is closed — every STALE-v1.0
+simulation paper was re-run to synth-gen 2.1 / cohort-gen 1.9 (robustness-benchmark at 20k on gen v1.7),
+the flagged `processNight().odi4.rate` API bug is fixed, and the one residual (odi4-ahi-bias's v1.6 synth
+power table, superseded by robustness-benchmark's 20k v1.7 severity table) is explicitly parked. **So the
+brief is "done for now."** The only now-buildable candidate left is 2.3 (cross-signal plausibility QC,
+MED effort); the node-gated 3.1–3.6 stay PROPOSED until their stack
+dependency lands. Each new candidate that ships flips its own row to DONE in §4 and gets a full
 entry in `papers.html`. Node-gated candidates (3.1–3.6) stay PROPOSED until their stack dependency
 lands — do **not** mark them blocked-and-forgotten; revisit when the relevant node/Phase ships. After a
 batch of candidates ships, spawn `PAPERS-ROADMAP-FOLLOWUPS-<YYYY-MM-DD>-BRIEF.md` if new findings

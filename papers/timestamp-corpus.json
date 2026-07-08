@@ -1,0 +1,217 @@
+{
+ "cases": [
+  {
+   "cat": "Epoch",
+   "id": "epoch-ms",
+   "raw": "\"1751925600000\"",
+   "got": "2025-07-07T18:00:00 (float) off=-240",
+   "ok": false
+  },
+  {
+   "cat": "Epoch",
+   "id": "epoch-s",
+   "raw": "\"1751925600\"",
+   "got": "2025-07-07T18:00:00 (float) off=-240",
+   "ok": false
+  },
+  {
+   "cat": "Epoch",
+   "id": "epoch-num",
+   "raw": "1751925600000",
+   "got": "2025-07-07T18:00:00 (float) off=-240",
+   "ok": false
+  },
+  {
+   "cat": "Epoch",
+   "id": "epoch-implausible",
+   "raw": "\"999\"",
+   "got": "null",
+   "ok": true
+  },
+  {
+   "cat": "Zoned ISO",
+   "id": "iso-Z",
+   "raw": "\"2026-07-07T22:00:00Z\"",
+   "got": "2026-07-07T22:00:00 (float) off=0",
+   "ok": true
+  },
+  {
+   "cat": "Zoned ISO",
+   "id": "iso+0200",
+   "raw": "\"2026-07-07T22:00:00+02:00\"",
+   "got": "2026-07-07T22:00:00 (float) off=120",
+   "ok": true
+  },
+  {
+   "cat": "Zoned ISO",
+   "id": "iso-0500",
+   "raw": "\"2026-07-07T22:00:00-05:00\"",
+   "got": "2026-07-07T22:00:00 (float) off=-300",
+   "ok": true
+  },
+  {
+   "cat": "Zoned ISO",
+   "id": "iso-ms",
+   "raw": "\"2026-07-07T22:00:00.123Z\"",
+   "got": "2026-07-07T22:00:00.123 (float) off=0",
+   "ok": true
+  },
+  {
+   "cat": "Floating ISO",
+   "id": "iso-nozone-T",
+   "raw": "\"2026-07-07T22:00:00\"",
+   "got": "2026-07-07T22:00:00 (float) off=null",
+   "ok": true
+  },
+  {
+   "cat": "Floating ISO",
+   "id": "iso-nozone-sp",
+   "raw": "\"2026-07-07 22:00\"",
+   "got": "2026-07-07T22:00:00 (float) off=null",
+   "ok": true
+  },
+  {
+   "cat": "Vendor: O2Ring",
+   "id": "o2ring",
+   "raw": "\"22:40:01 07/07/2026\"",
+   "got": "2026-07-07T22:40:01 (float) off=null",
+   "ok": true
+  },
+  {
+   "cat": "Vendor: compact",
+   "id": "compact14",
+   "raw": "\"20260707224001\"",
+   "got": "2026-07-07T22:40:01 (float) off=null",
+   "ok": true
+  },
+  {
+   "cat": "Vendor: Welltory",
+   "id": "welltory-dmy",
+   "raw": "\"07/05/2026 21:53\"",
+   "got": "2026-05-07T21:53:00 (float) off=null",
+   "ok": true
+  },
+  {
+   "cat": "Vendor: Welltory",
+   "id": "welltory-mdy",
+   "raw": "\"07/05/2026 21:53\"",
+   "got": "2026-07-05T21:53:00 (float) off=null",
+   "ok": true
+  },
+  {
+   "cat": "Vendor: slash",
+   "id": "slash-iso",
+   "raw": "\"2026/07/07 22:00:00\"",
+   "got": "2026-07-07T22:00:00 (float) off=null",
+   "ok": true
+  },
+  {
+   "cat": "DMY/MDY",
+   "id": "dmy-day>12",
+   "raw": "\"13/05/2026 08:00\"",
+   "got": "2026-05-13T08:00:00 (float) off=null",
+   "ok": true
+  },
+  {
+   "cat": "DMY/MDY",
+   "id": "mdy-mon>12",
+   "raw": "\"05/13/2026 08:00\"",
+   "got": "2026-05-13T08:00:00 (float) off=null",
+   "ok": true
+  },
+  {
+   "cat": "Time-only",
+   "id": "timeonly-noanchor",
+   "raw": "\"23:30\"",
+   "got": "null",
+   "ok": true
+  },
+  {
+   "cat": "Time-only",
+   "id": "timeonly-anchored",
+   "raw": "\"23:30\"",
+   "got": "2026-07-07T23:30:00 (float) off=null",
+   "ok": true
+  },
+  {
+   "cat": "Time-only",
+   "id": "timeonly-roll",
+   "raw": "\"00:15\"",
+   "got": "2026-07-08T00:15:00 (float) off=null",
+   "ok": true
+  },
+  {
+   "cat": "Malformed→null",
+   "id": "empty",
+   "raw": "\"\"",
+   "got": "null",
+   "ok": true
+  },
+  {
+   "cat": "Malformed→null",
+   "id": "garbage",
+   "raw": "\"not a date\"",
+   "got": "null",
+   "ok": true
+  },
+  {
+   "cat": "Malformed→null",
+   "id": "null",
+   "raw": "null",
+   "got": "null",
+   "ok": true
+  },
+  {
+   "cat": "Malformed→null",
+   "id": "partial",
+   "raw": "\"2026-07\"",
+   "got": "null",
+   "ok": true
+  }
+ ],
+ "pass": 21,
+ "fail": 3,
+ "total": 24,
+ "byCat": {
+  "Epoch": {
+   "n": 4,
+   "ok": 1
+  },
+  "Zoned ISO": {
+   "n": 4,
+   "ok": 4
+  },
+  "Floating ISO": {
+   "n": 2,
+   "ok": 2
+  },
+  "Vendor: O2Ring": {
+   "n": 1,
+   "ok": 1
+  },
+  "Vendor: compact": {
+   "n": 1,
+   "ok": 1
+  },
+  "Vendor: Welltory": {
+   "n": 2,
+   "ok": 2
+  },
+  "Vendor: slash": {
+   "n": 1,
+   "ok": 1
+  },
+  "DMY/MDY": {
+   "n": 2,
+   "ok": 2
+  },
+  "Time-only": {
+   "n": 3,
+   "ok": 3
+  },
+  "Malformed→null": {
+   "n": 4,
+   "ok": 4
+  }
+ }
+}

@@ -320,6 +320,9 @@
   // ════════ figures ════════
   function clearC(ctx, w, h) { ctx.clearRect(0, 0, w, h); ctx.fillStyle = '#0f141b'; ctx.fillRect(0, 0, w, h); }
   function rrect(ctx, x, y, w, h, r) { r = Math.min(r, w / 2, h / 2); ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  // N-aware point style (ported from hrv-confound-analysis.js; SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 2).
+  function ptStyle(n) { if (n <= 3000) return { r: 2.6, a: 0.55 }; if (n <= 15000) return { r: 1.5, a: 0.30 }; if (n <= 40000) return { r: 0.9, a: 0.18 }; return { r: 0.6, a: 0.11 }; }
+  function dot(ctx, x, y, st) { if (st.r <= 0.9) { ctx.fillRect(x, y, 1, 1); } else { ctx.beginPath(); ctx.arc(x, y, st.r, 0, 7); ctx.fill(); } }
 
   // within-patient residual scatter: Δglucose vs ΔrMSSD (centered per patient)
   function drawScatter(yvar, glabel, within) {
@@ -344,7 +347,9 @@
     ctx.fillText('+', X(xmax) - 16, Y(0) - 6); ctx.fillText('Δ ' + (yvar === 'gCV' ? 'CV' : 'glucose') + ' (night − patient mean) →', P, h - P + 22);
     ctx.save(); ctx.translate(15, h / 2 + 64); ctx.rotate(-Math.PI / 2); ctx.fillText('Δ rMSSD (night − patient mean, ms) →', 0, 0); ctx.restore();
     // points
-    pts.forEach(function (p) { ctx.fillStyle = p.c + 'b0'; ctx.beginPath(); ctx.arc(X(p.x), Y(p.y), 2.6, 0, 7); ctx.fill(); });
+    var stS = ptStyle(pts.length); ctx.globalAlpha = stS.a;
+    pts.forEach(function (p) { ctx.fillStyle = p.c; dot(ctx, X(p.x), Y(p.y), stS); });
+    ctx.globalAlpha = 1;
     // OLS line through residuals (origin)
     if (within) {
       var sl = within.slope;
@@ -414,7 +419,9 @@
     for (var g = 0; g <= 4; g++) { var yv = ylo + (yhi - ylo) * g / 4; ctx.fillText(Math.round(yv), ox + 18, Y(yv) + 4); ctx.strokeStyle = 'rgba(255,255,255,.05)'; ctx.beginPath(); ctx.moveTo(ox + P, Y(yv)); ctx.lineTo(ox + pw - 16, Y(yv)); ctx.stroke(); }
     ctx.fillStyle = '#9fb0c4'; ctx.font = '11px ui-monospace'; ctx.fillText(xlab, ox + P, h - P + 22);
     ctx.save(); ctx.translate(ox + 14, h / 2 + ylab.length * 3); ctx.rotate(-Math.PI / 2); ctx.fillText(ylab, 0, 0); ctx.restore();
-    pts.forEach(function (p) { ctx.fillStyle = p.c + 'a0'; ctx.beginPath(); ctx.arc(X(p.x), Y(p.y), 2.4, 0, 7); ctx.fill(); });
+    var stP = ptStyle(pts.length); ctx.globalAlpha = stP.a;
+    pts.forEach(function (p) { ctx.fillStyle = p.c; dot(ctx, X(p.x), Y(p.y), stP); });
+    ctx.globalAlpha = 1;
     // OLS line
     var pr = pearson(xs, ys);
     if (pr) {

@@ -135,7 +135,7 @@ function hrvReviewView(review){
   h+='<div class="hrvrv-imp">Latest rMSSD '+nv(last.rmssd)+' ms \u00b7 SDNN '+nv(last.sdnn)+' ms \u00b7 mean HR '+nv(last.hr)+' bpm'+(meanRm!=null?' \u00b7 window mean rMSSD '+meanRm+' ms':'')+'. Rendered from the export\u2019s stored per-measurement table \u2014 no re-analysis.</div>';
   var kpis=[['rMSSD (latest)',nv(last.rmssd),'ms'],['SDNN (latest)',nv(last.sdnn),'ms'],['Mean HR',nv(last.hr),'bpm'],['pNN50',nv(last.pnn50),'%'],['SD1',nv(last.sd1),'ms'],['SD2',nv(last.sd2),'ms'],['Mean rMSSD',nv(meanRm),'ms (window)'],['Measurements',ms.length,'count']];
   h+='<div class="hrvrv-sec">Key metrics</div><div class="hrvrv-kpis">'
-    +kpis.map(function(k){ return '<div class="hrvrv-kpi"><div class="k-lab">'+_hrvesc(k[0])+'</div><div class="k-val">'+_hrvesc(k[1])+'</div><div class="k-sub">'+_hrvesc(k[2])+'</div></div>'; }).join('')
+    +kpis.map(function(k){ return '<div class="hrvrv-kpi"><div class="k-lab">'+(typeof evBadge==='function'?evBadge(k[0]):'')+_hrvesc(k[0])+'</div><div class="k-val">'+_hrvesc(k[1])+'</div><div class="k-sub">'+_hrvesc(k[2])+'</div></div>'; }).join('')
     +'</div>';
   // per-measurement table (most recent first, capped)
   h+='<div class="hrvrv-sec">Per-measurement table</div>';

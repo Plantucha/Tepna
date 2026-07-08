@@ -367,9 +367,64 @@
     };
   }
 
+  /* ── Pearson correlation over the common finite indices (null if <3 pairs or a
+     degenerate/zero-variance member). Used by the decorrelation quality gate. ── */
+  function pearson(a, b) {
+    var xs = [], ys = [], n = Math.min(a.length, b.length);
+    for (var i = 0; i < n; i++) if (_finite(a[i]) && _finite(b[i])) { xs.push(a[i]); ys.push(b[i]); }
+    if (xs.length < 3) return null;
+    var mx = mean(xs), my = mean(ys), sxy = 0, sxx = 0, syy = 0;
+    for (var j = 0; j < xs.length; j++) { var dx = xs[j] - mx, dy = ys[j] - my; sxy += dx * dy; sxx += dx * dx; syy += dy * dy; }
+    if (sxx < EPS || syy < EPS) return null;
+    return sxy / Math.sqrt(sxx * syy);
+  }
+
+  /* ── Decorrelation quality gate (TRIO-METHODS-REUSE §Do 3) ──────────────────
+     TCH assumes all three estimators track the SAME latent quantity. If one node is
+     a failed extraction (lost contact / mis-detected beats), its series decorrelates
+     from the other two and a 3-way solve folds that garbage into EVERY per-sensor σ
+     (its large pairwise-difference variances contaminate the closed form), producing a
+     confident-looking but meaningless result. This screen catches that case BEFORE the
+     solve: a node is droppable iff BOTH its pairwise correlations fall below `minCorr`
+     AND the surviving pair still agrees above `keepMinCorr`. Exactly-one → drop it and
+     name the trustworthy pair; zero → proceed with the full triplet; two-or-more mutual
+     decorrelations → AMBIGUOUS (can't tell which is truth) → don't drop, don't trust.
+     PURE (no solve, no mutation). Consumer decides what to do with `drop`. */
+  function screenTriplet(seriesA, seriesB, seriesC, opts) {
+    opts = opts || {};
+    var labels = opts.labels || ['A', 'B', 'C'];
+    var minCorr = opts.minCorr != null ? opts.minCorr : 0.2;
+    var keepMinCorr = opts.keepMinCorr != null ? opts.keepMinCorr : 0.4;
+    if (!seriesA || !seriesB || !seriesC) return { ok: false, drop: null, reason: 'need three series' };
+    var rAB = pearson(seriesA, seriesB), rAC = pearson(seriesA, seriesC), rBC = pearson(seriesB, seriesC);
+    var corr = { AB: rAB, AC: rAC, BC: rBC };
+    if (rAB == null || rAC == null || rBC == null)
+      return { ok: false, drop: null, corr: corr, reason: 'insufficient overlap / degenerate series for the correlation screen' };
+    // each node's two correlations, and the correlation of the OTHER pair if it is dropped
+    var pairCorr = { A: [rAB, rAC], B: [rAB, rBC], C: [rAC, rBC] };
+    var keptIfDropped = { A: rBC, B: rAC, C: rAB };
+    var keys = ['A', 'B', 'C'];
+    var cand = keys.filter(function (k) { return pairCorr[k][0] < minCorr && pairCorr[k][1] < minCorr; });
+    if (cand.length === 0)
+      return { ok: true, drop: null, corr: corr, reason: 'every node correlates with ≥one peer above ' + minCorr };
+    if (cand.length >= 2)
+      return { ok: false, drop: null, ambiguous: true, corr: corr,
+               reason: cand.length + ' nodes mutually decorrelate — cannot identify the reliable pair' };
+    var k = cand[0], keptR = keptIfDropped[k];
+    var lbl = labels[keys.indexOf(k)];
+    if (keptR == null || keptR < keepMinCorr)
+      return { ok: false, drop: null, corr: corr,
+               reason: 'candidate ' + lbl + ' decorrelates but the surviving pair also disagrees (r=' + (keptR == null ? '—' : keptR.toFixed(2)) + ') — not dropped' };
+    var keptPair = keys.filter(function (x) { return x !== k; }).map(function (x) { return labels[keys.indexOf(x)]; });
+    return { ok: true, drop: lbl, keptPair: keptPair, corr: corr,
+             reason: 'node ' + lbl + ' decorrelates from both peers (r<' + minCorr + '); ' + keptPair[0] + '–' + keptPair[1] + ' agree (r=' + keptR.toFixed(2) + ')' };
+  }
+
   var API = {
     threeCorneredHat: threeCorneredHat,
     alignTriplet: alignTriplet,
+    screenTriplet: screenTriplet,
+    pearson: pearson,
     inverseVarianceWeights: inverseVarianceWeights,
     pairDiffVar: pairDiffVar,
     classic: classic,
@@ -377,7 +432,7 @@
     allanDeviation: allanDeviation,
     allanTriplet: allanTriplet,
     variance: variance, mean: mean,
-    VERSION: '1.1.0'
+    VERSION: '1.2.0'
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = API;

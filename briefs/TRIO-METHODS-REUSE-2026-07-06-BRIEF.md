@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-06
+**Status:** DONE — 2026-07-07 (all four Do items executed. §Do 1 + §Do 2 — doc-only, no re-bundle: §Do 2 the two capture-provenance facts [Verity `_HR.txt` all-zero / H10 `_HR.txt` smoothed → derive HR from raw waveform; the real O2Ring+H10 `H10-01`+Verity `VERITY-01` corpus] added to `CLAUDE.md` §🎙️; §Do 1 the worker-DSP shim + `importScripts` pattern documented as a code snippet in `CONTRIBUTING.md` §5.5 + a forward-adopt note in `ARCHITECTURE-PRINCIPLES.md` §1 DSP. §Do 3 [Integrator TCH **decorrelation quality gate**] EXECUTED & gated 2026-07-06/07: `integrator-tch.js` `screenTriplet`/`pearson` → 1.2.0, `integrator-dsp.js` `_tchHat` drops a node decorrelated from both peers before the solve, new `dex-tests.js` group [8 assertions], Integrator re-bundled `f19fde9a7913→24ebb7156ca8` [EXPORT-INERT — golden byte-identical], `Dex-Test-Suite.html?full` all-green [2125 passed, 138 groups], `verify-provenance` GATE A/B green, changeset `changes/2026-07-07-integrator-tch-decorrelation-gate.md`. **§Do 4 [folder-batch mode in `ECG Splitter`] EXECUTED this session:** `ECG Splitter.html` gained a folder-batch mode reusing pattern 2 (recursive folder ingest → `classify`/`nightKeyOf` night grouping, pre-noon → prior evening) + pattern 1 (a Blob-URL Web Worker with the `self.window=self` shim + `importScripts(kernel-constants,clock,ecgdex-dsp,ppgdex-dsp)` running the REAL Pan–Tompkins / 3-LED-consensus detectors off-thread for a per-file HR/coverage signal check) + a bulk "split all oversized" over the night set. All inline (worker minted from a Blob URL → no new files → no docs-ledger churn); verified on the committed real corpus (H10 ECG → 57 bpm/130 Hz, Verity PPG → 106 bpm/176 Hz). Standalone tool — not a bundle, no re-bundle/provenance; changeset `changes/2026-07-07-ecg-splitter-folder-batch.md` [minor]. Cohort runners already use a worker pool (`cohort-worker.js`) so the folder-ingest gap was ECG Splitter's; the wider improvement map below is the forward agenda and §Do 3's render-chip follow-up stays open for a fresh thread.) · **Created:** 2026-07-06
 
 # Apply the trio-experiment learnings — reusable data, processes & patterns
 
@@ -40,11 +40,56 @@
 - Motion drives cross-device HR divergence (accel co-variation r≈0.44; still 0.24 → motion 1.39 bpm).
 
 ## Do (in priority order)
-1. Document the **worker-DSP shim + importScripts pattern** as a shared snippet + a note in `CONTRIBUTING.md` /
-   `ARCHITECTURE-PRINCIPLES.md` (§7 forward-adopt).
-2. Add the two **capture-provenance facts** to `CLAUDE.md` §🎙️.
-3. Evaluate the **decorrelation gate** for the Integrator TCH consumer (own brief — it re-bundles).
-4. Offer folder-batch mode in `ECG Splitter.html` / cohort tools using patterns 1–2.
+1. **DONE 2026-07-07.** Documented the **worker-DSP shim + `importScripts` pattern** as a code snippet in
+   `CONTRIBUTING.md` §5.5 (window→self shim before `importScripts`, co-load order, feature-detect, where to
+   apply) + a forward-adopt note in `ARCHITECTURE-PRINCIPLES.md` §1 DSP tying it to the DSP-purity rule. Doc-only.
+2. **DONE 2026-07-07.** Added the two **capture-provenance facts** to `CLAUDE.md` §🎙️ — the per-file honest-HR
+   rule (Verity `_HR.txt` all-zero/`_PPI.txt` header-only → derive from raw `_PPG.txt`; H10 `_HR.txt` smoothed →
+   raw-ECG Pan–Tompkins is the honest H10 leg) and the real tri-device corpus (devices `H10-01`/`VERITY-01`,
+   2026-06-10→07-05, 20 nights). Doc-only.
+3. **DONE 2026-07-07.** Decorrelation gate landed in the Integrator TCH consumer (see header). Its own
+   re-bundle + provenance re-record are complete; `block.tchStatus` now surfaces `decorrelated node dropped — …`
+   and `_tchHat` returns `{dropped, keptPair, corr}` instead of a poisoned 3-way σ. **Follow-up left for a fresh
+   thread:** surface the dropped-node reason in `integrator-render.js` (a “node X dropped: lost contact” chip on
+   the σ-bar card) — render-only, rides an on-touch re-bundle.
+4. **DONE 2026-07-07.** Folder-batch mode landed in `ECG Splitter.html` (patterns 1–2): drop a capture
+   folder → recursive `collectEntries` ingest → `classify`/`nightKeyOf` night grouping (pre-noon folds to the
+   prior evening) → per-night file list with bulk "split all oversized" ECG/PPG waveforms, plus a per-file
+   **signal check** that runs the production ECGDSP/PPGDSP detectors (Pan–Tompkins · 3-LED consensus) in a
+   Blob-URL Web Worker via the `self.window=self` shim + `importScripts` — off the main thread, sampling the
+   first ~6 MB so it's fast on multi-GB files. All inline (no new files). Verified on the committed real corpus.
+   Cohort runners already use a worker pool (`cohort-worker.js`), so the folder-ingest gap this closed was ECG
+   Splitter's; a `__batchIngest` test hook (house style) is exposed for headless drive.
+
+## Full improvement map — paper/analysis techniques that belong in the Dexes (for the next coder)
+> Captured 2026-07-07 so the mapping from findings → shipped detector features doesn't stay siloed. Some are
+> already done (listed for context so they're not re-attempted); the rest are the forward agenda.
+
+**Already productionized (finding → detector — do NOT redo):**
+- **Three-cornered hat → Integrator** (`integrator-tch.js` + `_tchHat`/`fuseHRVConsensus`; TCH FU-I/II DONE,
+  FU-III IN-PROGRESS). The **decorrelation gate** (§Do 3) is the newest addition.
+- **p90 ceiling ODI-4 baseline** (`odi4-ahi-bias` paper) → OxyDex `oxydex-util.js` `computeCeilingBaselineArr` (v22.36).
+- **Nocturnal-hypo Somogyi discriminator** (`cgm-hrv-coupling` paper) → GlucoDex `glucodex-dsp.js` `_looksLikeGenuineHypo()`.
+
+**Open — candidate detector/fusion features (no brief yet unless noted):**
+1. **Age-adjusted rMSSD residual as a screening metric** (`hrv-age-confound`: raw AUC 0.69 → age-adjusted 0.77).
+   Not captured anywhere as a feature — would make a legitimate PulseDex/HRVDex output (report rMSSD *and* its
+   age-expected residual). Needs a defensible age-norm table (cite), like the metric registry's other norms.
+2. **Optical-HRV event-state / variance weighting in fusion** (`rmssd-equivalence` + `qrs-yield`: optical rMSSD is
+   bias-inert but ~22× noisier, and yield-degraded in *both* clean & apnea on the v2.1 texture). The Integrator's
+   inverse-variance TCH weights already down-weight a noisy optical arm; the missing piece is **event-state**
+   weighting (trust optical HRV less inside scored apnea/low-perfusion windows) rather than by whole-window σ alone.
+3. **Cross-signal plausibility as automated QC → OverDex intelligence layer** (`papers.html` backlog): encode
+   coupling laws (apnea→desat→HR surge; exertion→HRV drop; glucose↔HRV shared-driver) as a forward model, run
+   it backward to flag impossible combinations as artifacts / mis-routed files — QC no single-signal SQI can do.
+4. **Reusable engineering patterns 1–2** (worker-DSP shim, folder-ingest night pairing) → **OverDex / Data Unifier**
+   real-folder ingest + `ECG Splitter` batch mode (§Do 1/4 above).
+
+**Real-validation front (stack-gated — tracked in `PAPERS-ROADMAP-2026-06-24-BRIEF.md`):** multi-vendor HRV
+agreement (adapter Phase 1), EEG-anchored sleep-proxy validation + the **N-cornered hat** (EEGDex), longitudinal
+reference-free σ drift (OverDex). `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III` §1 (real-night ρ-vs-classic A/B)
+and §4 (N-cornered, EEGDex-blocked) are the open Integrator legs.
+
 
 ## Gate / lifecycle
 Patterns 1–2, 4-doc are test/doc/tool only (no re-bundle). Pattern 4-Integrator + any DSP edit re-bundle per

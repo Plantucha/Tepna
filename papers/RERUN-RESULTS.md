@@ -1,5 +1,29 @@
 # Pilot re-run results (≥1k synthetic patients) — June 2026
 
+## RE-TEXTURE — synth-gen/2.1 + cohort-gen/1.9, hrv-confound rerun (2026-07-07)
+- Running the parent rerun at 20k surfaced 3 rMSSD-scatter artifacts (hard floor line, hard ceiling line, overplot vertical edge). Owner chose a full generator re-texture (no footnotes). See `briefs/SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS-2026-07-07-BRIEF.md`.
+- **synth-gen/2.1** `buildRR`: dropped τ=2 relaxor, white-noise 3→1.0, HRV-level-scaled fast variability `texF` (bulk α1 protected); SubjectA rsaGain re-fit (1.199/0.866/1.523/1.950/2.268). **cohort-gen/1.9** `rsaGainFor = clamp(√(t²−7²)/19.15, 0.06, 4.35)`.
+- Verified on the real PulseDex chain (~8.9k nights): rendered≈target ±1 ms (25–60); **floor spreads 8.6–19** (pileup 0.32→0.02%), **ceiling spreads to ~76** (0.18→0.01%), **DFA-α1 0.757** (baseline 0.775).
+- **hrv-confound rerun @20k (112,200 nights):** age −3.8/decade, AHI −2.4/10-AHI, R² 0.599, interaction negligible (+0.07 ms/decade·10AHI, p<0.001), AUC 0.685→0.771, **misattribution 25%→29%**; slope recovery vs planted inputs now ~10% off (reads through the realistic texture). Paper `hrv-age-confound.html` + 3 figures regenerated (N-aware 1px/alpha overplot fix in `hrv-confound-analysis.js`).
+- **Part 2 COMPLETE (2026-07-07) — all 6 papers rerun on 2.1/1.9; N-aware overplot fix ported into every dense-scatter tool.** Six material conclusion changes surfaced (documented in each paper's revision note):
+  - **rmssd-equivalence** (N=240, 220 windows): optical PPG−Pulse bias **collapsed +12.6→+0.3 ms** (r 0.57→0.93). With richer true beat-to-beat variance the fixed PAT jitter adds far less relative offset; optical is now near-interchangeable in bias, retaining only ~22× wider limits (PAT-jitter dispersion ≈4.0 ms). Thesis flipped from "diverges sharply" to "unbiased but noisier."
+  - **qrs-yield** (N=400, 727 windows): optical apnea-specific recall dip **washed out** (clean 96.4% ≈ apnea 96.3%, was 0.9% gap); precision 92→89%; rMSSD inflation **+16%→+83%**. Fragility is real but no longer apnea-localized; QRS-vs-optical asymmetry unchanged/stronger.
+  - **cgm-hrv-coupling** (6,000 pts / 48,471 nights): shared-driver conclusion **holds** (partial|AHI ≈0). within coupling −0.18→−0.11 (richer rMSSD variance dilutes it); glucose↔AHI +0.54→+0.42, rMSSD↔AHI −0.32 (stable). Hypo flag recall **0.008→1.00** (detector fix). uploads/cgm-hrv-coupling-stats.json regenerated.
+  - **nights-icc** (6,000 subj): rMSSD ICC **0.929 unchanged** (variance ratio, texture-robust); CGM-CV still 0. ODI-4 ICC **0.885→0.745** (cohort-gen 1.6→1.9 AHI-ceiling change compressed between-subject apnea spread → 2 nights for ICC≥0.80, was 1).
+  - **treatment-response** (912 tx / 918 flat, ≥10 nights): fusion still best (exact 91%, AUC 0.99). ODI-4 localization **95→73%** exact (shallower ODI step); rMSSD held (87%) and now **localizes better than ODI-4** — a reversal. Cohort smaller (time-bounded; ≥10-night population attrits on coverage).
+  - **robustness-benchmark** (RR/HRV arm refreshed at 2,400 on 2.1/1.9): rMSSD abs-err median 0.57→0.80 ms; GlucoDex nocturnal-hypo recall **0.00→1.00** (hypo-detector fix). Oxy ODI-AHI calibration, coverage, hard-failure ledger, Figure 1 texture-independent → retained from committed 20k run.
+- REMAINING (follow-up brief Part 5 only): `tools/release.mjs` (Node — left for the owner) then flip both briefs DONE.
+
+## Part 3–4 COMPLETE (2026-07-07) — provenance cascade + gates
+
+- **Corrected scope (empirically derived, differs from the brief's Part 3 list).** `synth-gen.js` is inlined into **six** app bundles — OxyDex, PulseDex, GlucoDex, PpgDex, HRVDex, Integrator — all of which drifted on the 2.0→2.1 re-texture. **ECGDex and CPAPDex do not inline it** and rebuilt byte-identical (proving the build core is faithful). The brief named PulseDex/ECGDex/HRVDex — wrong in both directions (ECGDex unaffected; OxyDex/GlucoDex/PpgDex/Integrator affected).
+- **EXPORT-INERT re-bundle.** Every provenance fixture runs `compute({committed static input})` (real Polar RR/ECG, Welltory CSV, Lingo CGM, purpose-built synthetic txt, or in-code goldens) with **unchanged DSP code** — synth-gen.js is the demo cohort generator, off the compute/emit path. So all outputHashes + inputHashes are byte-identical; only manifestHash moved. Re-bundled all six via `tools/build-core.js` (driven headless in run_script over raw project bytes = byte-identical to `tools/build.mjs`).
+- **Ledgers updated:** `BUILD-MANIFEST.json` (6 manifestHashes) + `FIXTURE-PROVENANCE.json` (9 fixtures re-recorded manifestHash, outputHash/inputHashes untouched, EXPORT-INERT note added). New hashes: OxyDex 7016053b8ee4 · PulseDex 4c732d37ea19 · GlucoDex 9b7feec22831 · PpgDex d34cbfc49e5d · HRVDex 11ea1f782360 · Integrator f19fde9a7913.
+- **Gates green:** `verify-provenance.html` GATE A (8/8) + GATE B all reproduce; `Dex-Test-Suite.html?full` all-green (2117 passed, 2 skipped, 137 groups, all rigs booted) — the equiv legs confirm compute({committed input}) ≡ committed export byte-identical.
+- **Release prep:** changeset `changes/2026-07-07-synth-gen-v21-retexture-reruns.md` (bump minor, type fixed) + regenerated `tests/changes-list.json`. `tools/release.mjs` (Node) intentionally left for the owner; briefs kept IN-PROGRESS until it is run.
+- `papers/papers.html` updated: six rerun cards refreshed to Draft v2 + a new "Material conclusion changes (July 2026)" block in the open-findings list.
+
+
 Captured live from each analysis tool's stats.json export after a streaming run.
 
 ## sensor-trio-nights — NEW PAPER: fully synthetic power result + anecdotal real comparison (June 20 2026)

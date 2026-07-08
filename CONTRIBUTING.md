@@ -195,8 +195,6 @@ registry disagree, **fix the doc**, not the registry.
 
 ---
 
-<<<<<<< HEAD
-=======
 ---
 
 ## 4.5 Dev commands — the `npm run` spine
@@ -226,7 +224,6 @@ scripts; the two pinned dev tools (`tsc`, ESLint) self-install via `npx -y` on d
 
 ---
 
->>>>>>> cf3e242 (Tepna suite)
 ## 5. Common tasks — exact files + which gate
 
 | I want to… | Touch | Then run |
@@ -241,6 +238,41 @@ scripts; the two pinned dev tools (`tsc`, ESLint) self-install via `npx -y` on d
 | **Write up a finding** | a tool in [Experiments](wiring/How%20It's%20Wired%20-%20Experiments.html); then a paper under `papers/` (cite the live tool) | — |
 
 After **any** of the above: re-bundle the affected app and re-run the gates before you call it done.
+
+---
+
+## 5.5 Running a production DSP off the main thread (the Web-Worker shim)
+
+A proven, reusable pattern (TRIO-METHODS-REUSE §Do 1; in production in `sensor-trio-worker.js`): run
+the **real, gate-tested** `*-dsp.js` detectors inside a Web Worker so a heavy batch (Monte-Carlo,
+cohort, folder ingest) neither freezes the tab nor blocks the UI — and you get the *same* validated
+numbers the app + papers use, not a hand-rolled approximation. The DSP-purity rule (§2 / Architecture
+§1 — no DOM, no `localStorage`) is exactly what makes this possible.
+
+The one gotcha: each `*-dsp.js` is an IIFE that references `window` **at load time**, and a worker has
+no `window`. Shim it to `self` **before** `importScripts`, and honor the co-load order
+(`kernel-constants.js` → `clock.js` → the DSPs, so `DexKernel` and `DexClock.parseTimestamp` exist
+when the DSP wrappers evaluate):
+
+```js
+'use strict';
+// window→self shim: the production DSP IIFE wrapper references `window` at load; a worker has none.
+if (typeof window === 'undefined') { self.window = self; }
+try {
+  importScripts('kernel-constants.js', 'clock.js', 'ppgdex-dsp.js', 'ecgdex-dsp.js');
+} catch (e) { /* fall back to a compact in-worker detector if a module can't load */ }
+
+// Feature-detect before use — never assume the import succeeded:
+const HAVE_ECGDSP = typeof ECGDSP !== 'undefined'
+  && typeof ECGDSP.parseECG === 'function'
+  && typeof ECGDSP.detectPeaks === 'function';
+```
+
+Then drive `PPGDSP` (3-LED consensus → `buildPPI` → Malik `correctRR`) / `ECGDSP` (Pan–Tompkins
+`parseECG → bandpass → detectPeaks`) fully headless. **Apply it to** any tool wanting the real
+detectors off the main thread — `ECG Splitter` batch mode, cohort runners, OverDex / Data Unifier
+folder ingest, future node-analysis tools. Companion patterns from the same experiment (folder-ingest
+night pairing, byte-weighted parallel ETA) live in the brief.
 
 ---
 

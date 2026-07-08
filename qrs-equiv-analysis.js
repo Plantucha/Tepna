@@ -191,6 +191,11 @@
     ctx.save(); ctx.translate(13, h / 2 + 50); ctx.rotate(-Math.PI / 2); ctx.fillText(ylab, 0, 0); ctx.restore();
   }
   function hexA(hex, a) { var n = parseInt(hex.slice(1), 16); return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')'; }
+  // N-aware point style so dense scatters render as a density gradient, not a saturated block
+  // (overplotting). Large N → 1px points + low alpha so the cloud stays readable. (Ported from
+  // hrv-confound-analysis.js per SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 2.)
+  function ptStyle() { var n = WIN.length; if (n <= 3000) return { r: 3.0, a: 0.6 }; if (n <= 15000) return { r: 1.6, a: 0.34 }; if (n <= 40000) return { r: 0.9, a: 0.20 }; return { r: 0.6, a: 0.12 }; }
+  function dot(ctx, x, y, st) { if (st.r <= 0.9) { ctx.fillRect(x, y, 1, 1); } else { ctx.beginPath(); ctx.arc(x, y, st.r, 0, 7); ctx.fill(); } }
 
   // Fig 1 — agreement scatter: PulseDex (x) vs ECG + PPG (y), identity
   function drawScatter(pulse, ecg, ppg) {
@@ -203,10 +208,11 @@
     var Y = function (v) { return (h - P) - (h - P - 12) * Math.max(0, Math.min(1, v / hi)); };
     ctx.strokeStyle = 'rgba(255,255,255,.30)'; ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.moveTo(X(0), Y(0)); ctx.lineTo(X(hi), Y(hi)); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = '#9fb0c4'; ctx.font = '10px ui-monospace'; ctx.fillText('identity', X(hi) - 70, Y(hi) + 14);
+    var st = ptStyle();
     for (var k = 0; k < pulse.length; k++) {
       if (pulse[k] == null) continue;
-      if (ecg[k] != null && isFinite(ecg[k])) { ctx.fillStyle = hexA(COL.ecg, 0.6); ctx.beginPath(); ctx.arc(X(pulse[k]), Y(ecg[k]), 3.2, 0, 7); ctx.fill(); }
-      if (ppg[k] != null && isFinite(ppg[k])) { ctx.fillStyle = hexA(COL.ppg, 0.6); ctx.beginPath(); ctx.arc(X(pulse[k]), Y(ppg[k]), 3.2, 0, 7); ctx.fill(); }
+      if (ecg[k] != null && isFinite(ecg[k])) { ctx.fillStyle = hexA(COL.ecg, st.a); dot(ctx, X(pulse[k]), Y(ecg[k]), st); }
+      if (ppg[k] != null && isFinite(ppg[k])) { ctx.fillStyle = hexA(COL.ppg, st.a); dot(ctx, X(pulse[k]), Y(ppg[k]), st); }
     }
     $('scatterLeg').innerHTML = '<span class="chip" style="background:' + COL.ecg + '"></span>ECGDex &nbsp; <span class="chip" style="background:' + COL.ppg + '"></span>PpgDex &nbsp;·&nbsp; vs PulseDex reference (x). On-identity = agreement.';
   }
@@ -227,7 +233,8 @@
     hline(b.bias, color, [], 'bias ' + b.bias.toFixed(1));
     hline(b.loLoA, 'rgba(255,107,122,.6)', [5, 4], '−1.96 SD ' + b.loLoA.toFixed(1));
     hline(b.hiLoA, 'rgba(255,107,122,.6)', [5, 4], '+1.96 SD ' + b.hiLoA.toFixed(1));
-    for (var i = 0; i < b.d.length; i++) { ctx.fillStyle = hexA(color, 0.5); ctx.beginPath(); ctx.arc(X(b.m[i]), Y(b.d[i]), 2.8, 0, 7); ctx.fill(); }
+    var stB = ptStyle();
+    for (var i = 0; i < b.d.length; i++) { ctx.fillStyle = hexA(color, stB.a - 0.05 > 0.08 ? stB.a - 0.05 : 0.08); dot(ctx, X(b.m[i]), Y(b.d[i]), stB); }
   }
 
   // ── exports ──

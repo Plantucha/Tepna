@@ -356,18 +356,6 @@
     $('hRepH').textContent = f2(R.repH);
 
     let tsGrid;
-<<<<<<< HEAD
-    if (R.hat.status === 'populated' && R.hat.windows.length) {
-      // showcase the cleanest 3-device window: longest span, lowest Verity scatter
-      let cand = R.hat.windows.filter((w) => w.n >= 5000 && w.sigma.verity != null);
-      if (!cand.length) cand = R.hat.windows.slice();
-      const w0 = cand.sort((a, b) => a.sigma.verity - b.sigma.verity)[0];
-      tsGrid = { id: w0.label.split(' ')[0], t: w0.keys, h10: w0.hh, o2: w0.oo, verity: w0.vv };
-    }
-    else { tsGrid = R.grids.find((g) => !R.per.find((p) => p.id === g.id).flag) || R.grids[0]; }
-    drawTimeSeries($('tsCanvas'), tsGrid);
-    drawBland($('baO2'), R.grids, R.pooledAll, R.hat);
-=======
     const hasSamples = !R._summaryOnly && (
       (R.hat && R.hat.status === 'populated' && R.hat.windows.length && R.hat.windows[0].hh) ||
       (R.grids && R.grids.length)
@@ -389,7 +377,6 @@
       noteCanvas($('tsCanvas'), 'per-second overlay not stored in the archived summary', 'Run corpus / drop the folder to render the 3-device overlay');
       noteCanvas($('baO2'), 'Bland–Altman scatter needs per-second samples', 'Run corpus / drop the folder to render the clouds');
     }
->>>>>>> cf3e242 (Tepna suite)
     drawNightBars($('nightCanvas'), R.per, R.medSD);
 
     // per-night table
@@ -505,10 +492,7 @@
   }
 
   function clear(c) { const x = c.getContext('2d'); x.clearRect(0, 0, c.width, c.height); x.fillStyle = '#0f141b'; x.fillRect(0, 0, c.width, c.height); return x; }
-<<<<<<< HEAD
-=======
   function noteCanvas(c, line1, line2) { const x = clear(c); x.fillStyle = '#8a98ab'; x.font = '12px IBM Plex Mono, monospace'; x.fillText(line1, 20, c.height / 2 - 4); if (line2) { x.fillStyle = '#6f8096'; x.fillText(line2, 20, c.height / 2 + 14); } }
->>>>>>> cf3e242 (Tepna suite)
   const sx = (v, x0, x1, P, w) => P.l + (v - x0) / (x1 - x0) * (w - P.l - P.r);
   const sy = (v, y0, y1, P, h) => (h - P.b) - (v - y0) / (y1 - y0) * (h - P.t - P.b);
   function frame(x, P, w, h) { x.strokeStyle = 'rgba(255,255,255,.14)'; x.lineWidth = 1; x.beginPath(); x.moveTo(P.l, P.t); x.lineTo(P.l, h - P.b); x.lineTo(w - P.r, h - P.b); x.stroke(); x.font = '10px IBM Plex Mono, monospace'; }
@@ -627,19 +611,6 @@
   // strip bulky per-sample arrays (grids + aligned window series) from the JSON
   function exportStats() { const drop = new Set(['grids', 'hh', 'vv', 'oo', 'keys', 'dHV', 'dHO', 'dVO']); dl('sigma-no-reference-stats.json', new Blob([JSON.stringify(RESULT, (k, v) => (drop.has(k) ? undefined : v), 2)], { type: 'application/json' })); }
   function exportFig() {
-<<<<<<< HEAD
-    const cs = ['tsCanvas', 'baO2', 'nightCanvas'].map($); const pad = 14;
-    const W = Math.max(cs[0].width, cs[1].width + cs[2].width + pad) + pad * 2;
-    const H = cs[0].height + Math.max(cs[1].height, cs[2].height) + pad * 3;
-    const cc = document.createElement('canvas'); cc.width = W; cc.height = H; const x = cc.getContext('2d'); x.fillStyle = '#0c0f14'; x.fillRect(0, 0, W, H);
-    let y = pad; x.drawImage(cs[0], pad, y); y += cs[0].height + pad; x.drawImage(cs[1], pad, y); x.drawImage(cs[2], pad + cs[1].width + pad, y);
-    cc.toBlob((b) => dl('sigma-no-reference-figures.png', b));
-  }
-
-  window.addEventListener('DOMContentLoaded', () => {
-    $('runLocal').addEventListener('click', () => run().catch((e) => { console.error(e); setStatus('idle', 'error: ' + e.message); }));
-    $('dlCsv').addEventListener('click', exportCsv); $('dlStats').addEventListener('click', exportStats); $('dlFig').addEventListener('click', exportFig);
-=======
     const cs = ['tsCanvas', 'baO2', 'nightCanvas', 'tchCanvas'].map($); const pad = 14;
     const rowW = Math.max(cs[0].width, cs[1].width + cs[2].width + pad, cs[3].width);
     const W = rowW + pad * 2;
@@ -757,6 +728,5 @@
     if (xi) xi.addEventListener('change', (e) => ingestFiles(e.target.files));
     if (dz) { dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.style.borderColor = 'rgba(61,224,208,.6)'; }); dz.addEventListener('dragleave', () => { dz.style.borderColor = 'rgba(255,255,255,.18)'; }); dz.addEventListener('drop', (e) => { e.preventDefault(); dz.style.borderColor = 'rgba(255,255,255,.18)'; const dt = e.dataTransfer; if (dt && dt.items && dt.items.length && dt.items[0].webkitGetAsEntry) { setRealStatus('reading folder…'); collectEntries(dt.items).then(ingestFiles); } else if (dt && dt.files) ingestFiles(dt.files); }); }
     if ($('procBtn2')) $('procBtn2').addEventListener('click', () => processFolder().catch((e) => { console.error(e); setRealStatus('error: ' + e.message); $('procBtn2').disabled = false; }));
->>>>>>> cf3e242 (Tepna suite)
   });
 })();

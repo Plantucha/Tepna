@@ -28,7 +28,7 @@
 (function (global) {
   'use strict';
 
-  var VERSION = 'cohort-gen/1.8';   // 1.8: re-fit rsaGainFor to variance-space form for synth-gen v2.0 broadband-1/f texture (old linear fit ran +3–4 ms over target); 1.7: soft AHI-ceiling saturation (no vertical pileup at the cap in ODI–AHI calibration); 1.6: realistic CGM adoption; 1.5: saturating rMSSD suppression; 1.4: continuous age; 1.3: jittered rMSSD bounds; 1.2: jittered AHI ceiling; 1.1: jittered CPAP residual
+  var VERSION = 'cohort-gen/1.9';   // 1.9: re-fit rsaGainFor for synth-gen v2.1 texture — variance-space form sqrt(t²−7²)/19.15, clamp [0.06, 4.35]. Raised ceiling (was 3.2) so high-HRV targets (61–80 ms) render distinctly instead of stacking on a flat top line; lowered floor const 15.5→7 + min clamp 0.30→0.06 so the low-HRV tail spreads (paired with v2.1's HRV-scaled fast-variability floor) instead of a flat bottom line. 1.8: variance-space rsaGainFor for v2.0 (old linear fit ran +3–4 ms over target); 1.7: soft AHI-ceiling saturation (no vertical pileup at the cap in ODI–AHI calibration); 1.6: realistic CGM adoption; 1.5: saturating rMSSD suppression; 1.4: continuous age; 1.3: jittered rMSSD bounds; 1.2: jittered AHI ceiling; 1.1: jittered CPAP residual
 
   function mulberry32(seed) {
     var a = seed >>> 0;
@@ -55,12 +55,15 @@
   var ARC  = ['flat', 'improving', 'worsening', 'intervention'];
   var CPAP_STATE = ['untreated', 'new', 'adherent-residual', 'non-adherent'];
 
-  // rsaGain that drives rMSSD in SYNTH.buildRR, re-fit to the v2.0 broadband-1/f texture.
-  // The new texture raised the gain→rMSSD transfer's variance floor (≈15.5 ms min renderable
-  // rMSSD), so the old linear `0.061·rmssd − 0.284` rendered every patient +3–4 ms over target.
-  // Variance-space form (anchored to post-artifactClean rMSSD through the real PulseDex chain):
-  //   rsaGain = sqrt(max(0, t² − 15.5²)) / 18.426, clamped [0.30, 3.2].
-  function rsaGainFor(rmssd) { return clamp(Math.sqrt(Math.max(0, rmssd * rmssd - 15.5 * 15.5)) / 18.426, 0.30, 3.2); }
+  // rsaGain that drives rMSSD in SYNTH.buildRR. Re-fit to the v2.1 texture (HRV-level-scaled
+  // fast variability). Variance-space form: rendered rMSSD ≈ sqrt(floor² + (gain·scale)²), so the
+  // inverse is gain = sqrt(max(0, t² − floor²)) / scale, anchored on post-artifactClean rMSSD
+  // through the REAL PulseDex chain (floor=7, scale=19.15; verified target≈rendered ±1 ms, 25–60).
+  //  • CEILING 4.35 (was 3.2): high-HRV targets 61–80 ms now render distinctly — no flat top line.
+  //  • FLOOR const 7 + min clamp 0.06 (were 15.5 / 0.30): low-HRV targets get DISTINCT low gains,
+  //    and v2.1's HRV-scaled texture lowers their rendered floor — so the low tail SPREADS
+  //    (≈8–19 ms) instead of stacking on a flat bottom line. DFA-α1 preserved (≈0.76).
+  function rsaGainFor(rmssd) { return clamp(Math.sqrt(Math.max(0, rmssd * rmssd - 7 * 7)) / 19.15, 0.06, 4.35); }
 
   // BMI → OSA severity prior (heavier ⇒ worse). Returns a SEVERITY index draw.
   // BMI + sex → OSA severity prior. Heavier ⇒ worse; male ⇒ worse (well-established

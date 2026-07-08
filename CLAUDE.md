@@ -114,6 +114,19 @@ as a first-class input format. Honor the Clock Contract when parsing its stamps 
 format; never `new Date(str)`); add its exact column/timestamp formats to the relevant `*-dsp.js`
 parser as you encounter real files.
 
+**Per-file honest-HR facts (TRIO-METHODS-REUSE §Do 2, from the real tri-device corpus).** The Verity
+Sense onboard `_HR.txt` is **all-zero** and `_PPI.txt` is often header-only — a Verity HR MUST be
+**derived from the raw `_PPG.txt`** via PPGDSP (3-LED consensus → `buildPPI` → Malik `correctRR`),
+never read off the device HR file. The Polar H10 device `_HR.txt` is **smoothed** (it under-states σ
+via a quiet-order artifact), so the **raw-ECG Pan–Tompkins** HR (`ECGDSP.parseECG → bandpass →
+detectPeaks`) is the honest H10 leg — derive H10 HR from `_ECG.txt`, not `_HR.txt`. Any comparison or
+fusion consuming these must derive HR from the raw waveform, not the onboard summary.
+
+**A real tri-device corpus exists** — O2Ring + Polar H10 (device `H10-01`) + Polar Verity Sense
+(device `VERITY-01`), 2026-06-10 → 2026-07-05, **20 eligible nights** (~10 with clean Verity). It is
+the ground truth behind the reference-free σ work (`sensor-trio-power-analysis.html` /
+`sigma-no-reference-analysis.html`) and unblocks several `PAPERS-ROADMAP` real-validation items.
+
 ## 🧪 Regression gate — run after ANY `*-dsp.js` / `*-cross.js` / `*-app.js` change
 **`Dex-Test-Suite.html`** is the canonical gate. It loads the REAL modules + shared assertions
 (`tests/dex-tests.js` — the same suite `node tests/run-tests.mjs` runs), then adds a browser-only

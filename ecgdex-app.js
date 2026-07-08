@@ -374,10 +374,10 @@ function renderQuality(r){
   const exReason = [];
   $('qualityCard').innerHTML = `
     <div class="q-grid">
-      <div class="q-stat"><div class="q-val ${r.analyzablePct>=90?'ok':r.analyzablePct>=75?'warn':'bad'}">${r.analyzablePct}%</div><div class="q-lbl">${evBadge('Analyzable')}Analyzable</div><div class="q-sub">clean-beat × coverage</div></div>
-      <div class="q-stat"><div class="q-val ${r.coveragePct>=90?'ok':r.coveragePct>=75?'warn':'bad'}">${r.coveragePct==null?'—':r.coveragePct+'%'}</div><div class="q-lbl">${evBadge('Beat coverage')}Beat coverage</div><div class="q-sub">${r.activeMin} of ${r.spanMin} min span${r.nGaps?` · ${r.nGaps} gap${r.nGaps===1?'':'s'}`:''}</div></div>
-      <div class="q-stat"><div class="q-val ${r.correctionRate<3?'ok':r.correctionRate<8?'warn':'bad'}">${r.correctionRate}%</div><div class="q-lbl">${evBadge('Correction rate')}Correction rate</div><div class="q-sub">${r.nCorrected.toLocaleString()} of ${r.nBeats.toLocaleString()}${r.nEctopyCorrected?' · '+r.nEctopyCorrected+' ectopic':''}</div></div>
-      <div class="q-stat"><div class="q-val ${r.meanSQI>=0.7?'ok':r.meanSQI>=0.5?'warn':'bad'}">${r.meanSQI}</div><div class="q-lbl">${evBadge('Mean SQI')}Mean SQI</div><div class="q-sub">→ Ganglior conf</div></div>
+      <div class="q-stat">${evBadge('Analyzable')}<div class="q-val ${r.analyzablePct>=90?'ok':r.analyzablePct>=75?'warn':'bad'}">${r.analyzablePct}%</div><div class="q-lbl">Analyzable</div><div class="q-sub">clean-beat × coverage</div></div>
+      <div class="q-stat">${evBadge('Beat coverage')}<div class="q-val ${r.coveragePct>=90?'ok':r.coveragePct>=75?'warn':'bad'}">${r.coveragePct==null?'—':r.coveragePct+'%'}</div><div class="q-lbl">Beat coverage</div><div class="q-sub">${r.activeMin} of ${r.spanMin} min span${r.nGaps?` · ${r.nGaps} gap${r.nGaps===1?'':'s'}`:''}</div></div>
+      <div class="q-stat">${evBadge('Correction rate')}<div class="q-val ${r.correctionRate<3?'ok':r.correctionRate<8?'warn':'bad'}">${r.correctionRate}%</div><div class="q-lbl">Correction rate</div><div class="q-sub">${r.nCorrected.toLocaleString()} of ${r.nBeats.toLocaleString()}${r.nEctopyCorrected?' · '+r.nEctopyCorrected+' ectopic':''}</div></div>
+      <div class="q-stat">${evBadge('Mean SQI')}<div class="q-val ${r.meanSQI>=0.7?'ok':r.meanSQI>=0.5?'warn':'bad'}">${r.meanSQI}</div><div class="q-lbl">Mean SQI</div><div class="q-sub">→ Ganglior conf</div></div>
     </div>
     ${r.lowCoverage?`<div class="q-note" style="color:var(--amber);border:1px solid rgba(255,184,77,.25);background:rgba(255,184,77,.06);border-radius:8px;padding:10px 12px;margin-bottom:10px">⚠ <b>Low coverage:</b> beats span ${r.spanMin} min but only ${r.activeMin} min is continuously covered — ${r.gapMin} min of off-body / dropout across ${r.nGaps} gap${r.nGaps===1?'':'s'}. All metrics describe the usable signal only; duration and tier use active time, not the raw span.</div>`:''}
     <div class="q-note">Per-beat SQI = kurtosis (kSQI) · two-detector agreement (bSQI ±50 ms) · RR plausibility (300–2000 ms) · flatline/rail · amplitude range. Coverage = active (beat-covered) time ÷ raw span — stray beats in noise after the strap comes off no longer inflate duration. Excluded spans are greyed on the waveform; SQI feeds the <b>conf</b> of every Ganglior event. <span style="opacity:.7">ACC motion-gating deferred to the Integrator (v1 is ECG-only).</span></div>`;
@@ -500,7 +500,7 @@ function renderMorph(r){
   }
 
   // ectopy / rhythm summary cards
-  const eb = (label,val,sub,sev)=>`<div class="q-stat"><div class="q-val ${sev}">${val}</div><div class="q-lbl">${typeof evBadge==='function'?evBadge(label):''}${label}</div><div class="q-sub">${sub}</div></div>`;
+  const eb = (label,val,sub,sev)=>`<div class="q-stat">${typeof evBadge==='function'?evBadge(label):''}<div class="q-val ${sev}">${val}</div><div class="q-lbl">${label}</div><div class="q-sub">${sub}</div></div>`;
   const pvcSev = m.pvcBurden<0.5?'ok':m.pvcBurden<3?'warn':'bad';
   const pacSev = m.pacBurden<0.5?'ok':m.pacBurden<3?'warn':'bad';
   $('ectopyBody').innerHTML = `<div class="q-grid">
@@ -1264,7 +1264,7 @@ function ecgReviewView(review){
   h+='<div class="erv-imp">Mean HR '+nv(t.hr)+' bpm \u00b7 SDNN '+nv(t.sdnn)+' ms \u00b7 rMSSD '+nv(t.rmssd)+' ms'+(q.analyzablePct!=null?' \u00b7 analyzable '+q.analyzablePct+'%':'')+'. Rendered from the export\u2019s stored values \u2014 no waveform recomputation.</div>';
   var kpis=[['Mean HR',nv(t.hr),'bpm'],['SDNN',nv(t.sdnn),'ms'],['rMSSD',nv(t.rmssd),'ms'],['pNN50',nv(t.pnn50),'%'],['LF/HF',nv(fq.lfhf),'ratio'],['Analyzable',nv(q.analyzablePct),'%'],['Mean SQI',nv(q.meanSQI),'0\u20131'],['Beats',nv(rec.beats),'count']];
   h+='<div class="erv-sec">Key metrics</div><div class="erv-kpis">'
-    +kpis.map(function(k){ return '<div class="erv-kpi"><div class="k-lab">'+_eesc(k[0])+'</div><div class="k-val">'+_eesc(k[1])+'</div><div class="k-sub">'+_eesc(k[2])+'</div></div>'; }).join('')
+    +kpis.map(function(k){ return '<div class="erv-kpi"><div class="k-lab">'+(typeof evBadge==='function'?evBadge(k[0]):'')+_eesc(k[0])+'</div><div class="k-val">'+_eesc(k[1])+'</div><div class="k-sub">'+_eesc(k[2])+'</div></div>'; }).join('')
     +'</div>';
   h+='<div class="erv-sec">Event timeline</div>'+ecgReviewTimeline(review.events);
   h+='<div class="erv-sec">Raw signal</div>'

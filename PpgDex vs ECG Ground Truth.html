@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PpgDex vs ECG — Ground-Truth Validation</title>
+<style>
+  :root{
+    --bg:#0a0d0f; --surface:#14181b; --surface2:#1b2024; --b:1px solid rgba(255,255,255,.08);
+    --text:#e6edf0; --text2:#aeb9c2; --text3:#8c9db3; --text4:#5f6c78;
+    --teal:#3DE0D0; --amber:#FFB84D; --red:#f87171; --green:#39D98A; --violet:#a99bf5;
+    --mono:ui-monospace,'SF Mono','IBM Plex Mono',Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);}
+  body{max-width:940px;margin:0 auto;padding:38px 24px 100px;line-height:1.6;}
+  a{color:var(--teal);}
+  h1{font-size:25px;font-weight:800;letter-spacing:-.02em;margin:0 0 5px;}
+  .sub{color:var(--text3);font-size:13.5px;max-width:720px;}
+  .mono{font-family:var(--mono);} b{color:var(--text);}
+  h2{font-size:16px;font-weight:750;margin:34px 0 10px;padding-bottom:7px;border-bottom:var(--b);}
+  code{font-family:var(--mono);color:var(--violet);font-size:12.5px;background:rgba(169,155,245,.08);padding:1px 4px;border-radius:4px;}
+  .banner{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:22px;}
+  .src{background:var(--surface);border:var(--b);border-radius:12px;padding:15px 18px;}
+  .src .nd{font-family:var(--mono);font-weight:700;font-size:14px;}
+  .src.ecg .nd{color:var(--amber);} .src.ppg .nd{color:var(--teal);} .src.oxy .nd{color:var(--violet);}
+  .src .role{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text4);margin-top:2px;}
+  .src .meta{font-family:var(--mono);font-size:11.5px;color:var(--text3);margin-top:9px;line-height:1.7;}
+  .tldr{background:var(--surface);border:var(--b);border-left:3px solid var(--green);border-radius:0 13px 13px 0;padding:17px 21px;margin-top:20px;}
+  .tldr h3{margin:0 0 7px;color:var(--green);font-size:12.5px;text-transform:uppercase;letter-spacing:.09em;}
+  .tldr p{color:var(--text);font-size:14px;margin:5px 0;}
+  .group-label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--text3);margin:22px 0 4px;}
+  .metric{display:grid;grid-template-columns:150px 74px 74px 1fr 66px;gap:12px;align-items:center;padding:9px 4px;border-bottom:var(--b);}
+  .metric.head{border-bottom:1px solid rgba(255,255,255,.14);padding-bottom:7px;}
+  .metric.head span{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text4);font-weight:700;}
+  .m-name{font-size:13px;color:var(--text);font-weight:600;}
+  .m-val{font-family:var(--mono);font-size:13.5px;text-align:right;}
+  .m-val.ecg{color:var(--amber);} .m-val.ppg{color:var(--teal);} .m-val.oxy{color:var(--violet);}
+  .bar{height:8px;border-radius:5px;background:var(--surface2);position:relative;overflow:hidden;}
+  .bar i{position:absolute;top:0;bottom:0;left:50%;border-radius:5px;}
+  .m-delta{font-family:var(--mono);font-size:12.5px;text-align:right;font-weight:700;}
+  .agree{color:var(--green);} .mild{color:var(--amber);} .diverge{color:var(--red);}
+  .callout{background:var(--surface);border:var(--b);border-radius:12px;padding:16px 20px;margin-top:16px;font-size:13.5px;color:var(--text2);}
+  .callout b{color:var(--text);}
+  .callout.warn{border-left:3px solid var(--amber);border-radius:0 12px 12px 0;}
+  .callout.good{border-left:3px solid var(--green);border-radius:0 12px 12px 0;}
+  ul{margin:7px 0;padding-left:19px;} li{color:var(--text2);font-size:13.5px;margin:4px 0;} li b{color:var(--text);}
+  .foot{color:var(--text4);font-size:12px;margin-top:36px;border-top:var(--b);padding-top:13px;}
+</style>
+</head>
+<body>
+  <h1>PpgDex vs ECG — Ground-Truth Validation</h1>
+  <div class="sub">The deciding test for the fusion work: one <b>7-hour overnight</b> recorded simultaneously by two devices on the same body. The Polar H10 chest ECG (raw Pan–Tompkins) is the reference; the Verity optical PPG is the estimate under test. Same night, same beats — a true head-to-head.</div>
+
+  <div class="banner" style="grid-template-columns:1fr 1fr 1fr">
+    <div class="src ecg"><div class="nd">ECGDex · Polar H10</div><div class="role">ground truth · raw ECG</div>
+      <div class="meta" id="ecgmeta"></div></div>
+    <div class="src ppg"><div class="nd">PpgDex · Verity Sense</div><div class="role">estimate · optical PPG (ch2)</div>
+      <div class="meta" id="ppgmeta"></div></div>
+    <div class="src oxy"><div class="nd">OxyDex · O2Ring</div><div class="role">3rd modality · finger SpO₂ + HR</div>
+      <div class="meta" id="oxymeta"></div></div>
+  </div>
+
+  <div class="tldr">
+    <h3>Verdict</h3>
+    <p><b>Optical PPG matches ECG on beat-to-beat HRV to within 2%</b> — RMSSD 37.1 vs 37.8 ms, SD1 within 1.9%, and beat counts agree to <b>10 beats in 20,671</b> (0.05%). The pipeline is validated for the metrics fusion targets. As predicted, on this clean night (100% 3/3 LED agreement) <b>fusion would be byte-inert</b> — it neither needs to nor would disturb this agreement. Long-term/frequency metrics (SDNN, SD2, VLF power) run <b>26–89% high</b> — a known optical pulse-transit-time artifact that fusion does <i>not</i> address.</p>
+  </div>
+
+  <h2>Metric-by-metric agreement</h2>
+  <div id="table"></div>
+
+  <div class="callout good">
+    <b>Short-term HRV is validated.</b> RMSSD, SD1, lnRMSSD, pNN50, HR and beat count all agree with ECG to ≤2%. These are the beat-to-beat metrics; adjacent-beat optical arrival jitter is small, so they survive the optical path intact. This is the strongest evidence yet that PpgDex's HRV is trustworthy on clean data — and that the fusion baseline is well-calibrated, sitting <i>on</i> the truth rather than over-smoothed below it.
+  </div>
+
+  <div class="callout warn">
+    <b>Long-term / frequency HRV was inflated — SDNN now fixed, frequency flagged.</b> As-measured: SDNN +26%, SD2 +54%, total power +89%, VLF +62%. The textbook PPG signature — respiration- and blood-pressure-driven <b>pulse-transit-time modulation</b> plus baseline wander adds low-frequency variance ECG doesn't see. <b>SDNN is now corrected to +3.5%</b> via segment-wise robust aggregation (shipped, below). The remaining frequency-domain inflation is genuinely PTT-contaminated and is <b>flagged lower-confidence</b> rather than "corrected" — and it is <i>not</i> something waveform fusion addresses either.
+  </div>
+
+  <h2>Three-way, same night: adding OxyDex</h2>
+  <div class="sub" style="margin-bottom:6px">The O2Ring finger oximeter recorded the <b>same 2026-07-07 night</b> — a third modality (finger optical + SpO₂) alongside chest-electrical and wrist-optical. It samples HR at ~1 Hz, so it cannot produce beat-to-beat HRV (its “RMSSD” is a 1 Hz proxy and is excluded from that column) — but it is a powerful independent check on <b>rate</b>, and it alone carries oxygenation.</div>
+  <div id="threeway"></div>
+  <div class="callout good">
+    <b>Three independent sensors agree on rate to under 1 bpm.</b> Chest ECG 49.1, wrist PPG 50.0, finger oximeter 49.2 bpm mean HR on the same night — electrical, wrist-optical and finger-optical modalities converging validates that the rate backbone is real, not a per-device artifact. OxyDex also confirms the night was <b>physiologically clean</b> (SpO₂ mean 95.6%, min 88%, 0.1% of time &lt;90%), so no desaturation/arousal load is confounding the HRV agreement above.
+  </div>
+
+  <h2>Making SDNN &amp; the long-term metrics correct <span style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--green);background:rgba(57,217,138,.14);padding:3px 10px;border-radius:20px;vertical-align:middle;margin-left:6px;letter-spacing:.05em">SHIPPED</span></h2>
+  <div class="sub" style="margin-bottom:8px">Tested on the paired night: the long-term inflation is <b>not within-beat error</b> — it is between-segment drift (SDANN) plus a few motion/artifact epochs. It collapses with aggregation changes alone, no new sensing. <b>Now implemented</b> in <code>ppgdex-dsp.js</code> + <code>ppgdex-app.js</code> as additive fields <code>sdnnIndex</code>, <code>sdnnRobust</code>, <code>sd2Robust</code>, and <code>lf/hf/lfhfRobust</code> (whole-record values unchanged for back-compat); the app UI + node export surface the robust values, and the ladder below shows each metric family before→after.</div>
+  <div id="fix"></div>
+  <div class="callout good">
+    <b>One mechanism, three metric families corrected:</b>
+    <ul style="margin-top:6px">
+      <li><b>SDNN — whole-record +26% → <code>sdnnRobust</code> +3.5%.</b> Gated <b>median</b> of per-5-min SDNN: reporting per-segment drops the between-segment SDANN drift, the median rejects a handful of high-motion epochs, and the quality gate (<code>motionIndex</code>/<code>ledAgreementPct</code>) removes the rest.</li>
+      <li><b>SD2 — whole-record +54% → <code>sd2Robust</code> +4.1%.</b> SD2 is derived from SDNN, so rebuilding it from the robust dispersion + the (already-clean) beat-to-beat SD1 collapses the same inflation.</li>
+      <li><b>Band power — whole <code>totalPower</code> +89% → LF+HF robust median +6.9%.</b> Per-epoch spectra can't see the slow between-segment drift, so aggregating them removes it; per-epoch LF agrees to +0.7%.</li>
+    </ul>
+    <b>The two that stay honest — now graded, not blanket-flagged:</b> instead of one binary <code>lowConfidence</code>, the export now carries a <b>0–1 confidence per metric family</b> (<code>hrv.confidence</code>), each scored by the cause that predicts <i>its</i> error — validated on this night: <b>HF excess is motion-driven</b> (+43% high-motion vs +12% low), so HF confidence tracks the low-motion fraction and a stricter <code>hfRobustLowMotion</code> is emitted; <b>VLF excess is baseline/posture drift</b> (near-zero motion correlation), so VLF confidence tracks posture-stability and record length and is <b>capped at 0.7</b> — single-site optical VLF stays baseline-wander-limited even when clean, which is a real property, not a defect to “fix.” A consumer can now down-weight proportionally instead of discarding.
+  </div>
+
+  <h2>What this does — and doesn't — settle for fusion</h2>
+  <ul>
+    <li><b>Settles:</b> the PpgDex HRV baseline is accurate on clean nights, so fusion's clean-data inertness is a feature, not a limitation — it protects a result that's already correct.</li>
+    <li><b>Settles:</b> even on this clean night PPG corrected <b>5.8% of beats vs ECG's 0.25%</b> (23×). That correction headroom is exactly what fusion's SNR lift targets — fewer beats needing correction.</li>
+    <li><b>Still open:</b> the decisive fusion test is a <b>noisy paired night</b> — does fusion pull a degraded PPG RMSSD <i>toward</i> the ECG truth? This clean night can't show that (there's no gap to close). Need an ECG+PPG pair from a high-motion / low-agreement night.</li>
+  </ul>
+
+  <div id="err" style="color:var(--amber);display:none;margin-top:16px"></div>
+
+<script>
+const $=(t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;};
+function band(dPct){ const a=Math.abs(dPct); if(a<=3) return 'agree'; if(a<=15) return 'mild'; return 'diverge'; }
+function colorFor(cls){ return cls==='agree'?'#39D98A':cls==='mild'?'#FFB84D':'#f87171'; }
+
+fetch('gt-compare-data.json').then(r=>{if(!r.ok)throw new Error(r.status);return r.json();}).then(d=>{
+  document.getElementById('ecgmeta').innerHTML =
+    'dur '+d.durMin+' min · '+d.ecgQ.beats.toLocaleString()+' beats<br>SQI '+d.ecgQ.sqi+' · correction '+d.ecgQ.corr+'%';
+  document.getElementById('ppgmeta').innerHTML =
+    'dur '+d.durMin+' min · 3/3 LED '+d.ppgQ.led3+'%<br>SQI '+d.ppgQ.sqi+' · correction '+d.ppgQ.corr+'% · '+d.ppgQ.dropped+' dropped';
+  if(d.oxySameNight){ const o=d.oxySameNight;
+    document.getElementById('oxymeta').innerHTML =
+      'dur '+o.durMin+' min · ~1 Hz HR<br>SpO₂ mean '+o.meanSpo2+'% · min '+o.minSpo2+'% · t90 '+o.t90+'%';
+    const tw=document.getElementById('threeway');
+    const hrRow=(lab,cls,mean,extra)=>{ const r=$('div','metric'); r.style.gridTemplateColumns='190px 90px 1fr';
+      r.appendChild($('div','m-name',lab));
+      r.appendChild(Object.assign($('div','m-val '+cls),{textContent:mean+' bpm',style:'text-align:left'}));
+      r.appendChild($('div','',extra||'')); return r; };
+    const head=$('div','metric head'); head.style.gridTemplateColumns='190px 90px 1fr';
+    head.append($('span','','Device · modality'),Object.assign($('span'),{innerHTML:'Mean HR'}),$('span','','Detail'));
+    tw.appendChild(head);
+    tw.appendChild(hrRow('ECGDex · chest electrical','ecg',49.1,'beat-level truth · 20,671 beats'));
+    tw.appendChild(hrRow('PpgDex · wrist optical','ppg',50.0,'+1.8% vs ECG'));
+    tw.appendChild(hrRow('OxyDex · finger optical','oxy',o.meanHr,'+'+(100*(o.meanHr-49.1)/49.1).toFixed(1)+'% vs ECG · floor '+o.hrFloor+' bpm'));
+  }
+  // SDNN-fix ladder
+  const fx=document.getElementById('fix');
+  if(fx){
+    const fh=$('div','metric head'); fh.style.gridTemplateColumns='260px 78px 78px 1fr 62px';
+    fh.append($('span','','Long-term metric · method'),Object.assign($('span'),{style:'text-align:right',innerHTML:'PPG'}),
+      Object.assign($('span'),{style:'text-align:right',innerHTML:'ECG'}),$('span','','Gap'),Object.assign($('span'),{style:'text-align:right',innerHTML:'Δ%'}));
+    fx.appendChild(fh);
+    const ladder=[
+      ['SDNN — whole-record (was primary)',132.4,105,26.1],
+      ['SDNN — sdnnIndex (mean per-5-min)',75.4,64,17.9],
+      ['SDNN — sdnnRobust (SHIPPED)',53.5,51.7,3.5],
+      ['SD2 — whole-record',185.4,120.4,54.0],
+      ['SD2 — sd2Robust (SHIPPED)',70.4,67.6,4.1],
+      ['Band power — whole totalPower',15791,8356,89.0],
+      ['Band power — LF+HF robust median (SHIPPED)',1346,1259,6.9],
+    ];
+    ladder.forEach(([lab,p,e,d])=>{
+      const cls=Math.abs(d)<=5?'agree':Math.abs(d)<=20?'mild':'diverge';
+      const shipped=/SHIPPED/.test(lab);
+      const r=$('div','metric'); r.style.gridTemplateColumns='260px 78px 78px 1fr 62px';
+      if(shipped) r.style.background='rgba(57,217,138,.05)';
+      r.appendChild($('div','m-name',lab));
+      r.appendChild(Object.assign($('div','m-val ppg'),{textContent:p.toLocaleString()}));
+      r.appendChild(Object.assign($('div','m-val ecg'),{textContent:e.toLocaleString()}));
+      const bar=$('div','bar'); const i=$('i'); i.style.width=Math.min(50,d/2)+'%'; i.style.background=cls==='agree'?'#39D98A':cls==='mild'?'#FFB84D':'#f87171'; bar.appendChild(i); r.appendChild(bar);
+      r.appendChild($('div','m-delta '+cls,'+'+d+'%'));
+      fx.appendChild(r);
+    });
+  }
+
+  const groups=[
+    ['Beat-to-beat (fusion target)', ['Beats detected','Mean HR (bpm)','Mean RR (ms)','RMSSD (ms)','lnRMSSD','pNN50 (%)','SD1 (ms)']],
+    ['Long-term / frequency — as-measured, then robust (SHIPPED) below each', ['SDNN whole (ms)','SD2 (ms)','Total power (ms²)','VLF (ms²)','LF/HF','DFA α1']],
+  ];
+  const tbl=document.getElementById('table');
+  const head=$('div','metric head');
+  head.append($('span','','Metric'),Object.assign($('span'),{style:'text-align:right',innerHTML:'ECG (truth)'}),
+    Object.assign($('span'),{style:'text-align:right',innerHTML:'PPG'}),$('span','','Agreement'),Object.assign($('span'),{style:'text-align:right',innerHTML:'Δ%'}));
+  tbl.appendChild(head);
+  groups.forEach(([lab,names])=>{
+    tbl.appendChild($('div','group-label',lab));
+    names.forEach(nm=>{
+      const row=d.rows.find(r=>r.m===nm); if(!row) return;
+      const cls=band(row.dPct);
+      const r=$('div','metric');
+      r.appendChild($('div','m-name',row.m));
+      r.appendChild($('div','m-val ecg', fmt(row.e)+(row.u&&row.u!=='count'?'':'')));
+      r.appendChild($('div','m-val ppg', fmt(row.p)));
+      const barw=Math.min(50, Math.abs(row.dPct)/2); // half-width scale, cap
+      const bar=$('div','bar'); const i=$('i');
+      i.style.width=barw+'%'; i.style.background=colorFor(cls);
+      if(row.dPct<0){ i.style.left='auto'; i.style.right='50%'; }
+      bar.appendChild(i); r.appendChild(bar);
+      r.appendChild($('div','m-delta '+cls, (row.dPct>0?'+':'')+row.dPct+'%'));
+      tbl.appendChild(r);
+      // robust (SHIPPED) corrected sub-row for long-term metrics
+      if(row.robustLabel){
+        const rr=$('div','metric'); rr.style.background='rgba(57,217,138,.05)'; rr.style.borderBottom='none';
+        const nm2=$('div','m-name'); nm2.style.paddingLeft='16px'; nm2.style.fontSize='12px'; nm2.style.color='var(--text3)';
+        nm2.innerHTML='&#8618; <code style="font-size:11.5px">'+row.robustLabel+'</code> <span style="color:var(--green);font-weight:700">SHIPPED</span>';
+        rr.appendChild(nm2);
+        if(row.robustDPct!=null){
+          const rcls=band(row.robustDPct);
+          rr.appendChild($('div','m-val ecg', fmt(row.robustEcg)));
+          rr.appendChild($('div','m-val', fmt(row.robustPpg)));
+          const b2=$('div','bar'); const i2=$('i'); i2.style.width=Math.min(50,Math.abs(row.robustDPct)/2)+'%'; i2.style.background=colorFor(rcls);
+          if(row.robustDPct<0){ i2.style.left='auto'; i2.style.right='50%'; }
+          b2.appendChild(i2); rr.appendChild(b2);
+          rr.appendChild($('div','m-delta '+rcls, (row.robustDPct>0?'+':'')+row.robustDPct+'%'));
+        } else {
+          rr.appendChild($('div','')); rr.appendChild($('div',''));
+          const note=$('div'); note.style.gridColumn='4 / 6'; note.style.fontSize='11.5px'; note.style.color='var(--amber)'; note.style.textAlign='right'; note.textContent='kept flagged';
+          rr.appendChild(note);
+        }
+        tbl.appendChild(rr);
+      }
+    });
+  });
+}).catch(e=>{const el=document.getElementById('err');el.style.display='block';el.textContent='Could not load gt-compare-data.json — '+e.message;});
+function fmt(v){ if(typeof v!=='number')return v; if(Math.abs(v)>=1000)return v.toLocaleString(); if(Number.isInteger(v))return v; return v.toString(); }
+</script>
+  <div class="foot">Ground-truth validation · night 2026-07-07 21:53 · device VERITY-01 (Verity) + H10 chest ECG. Companion to <span class="mono">PpgDex Fusion Prototype.html</span> and <span class="mono">PpgDex Fidelity Investigation.html</span>. Engineering finding, not a clinical claim. ECG display-window metrics normalized to whole-record comparators per each summary's <code>windowNote</code>.</div>
+</body></html>

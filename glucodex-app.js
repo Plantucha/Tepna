@@ -181,7 +181,7 @@ function glucoReviewView(review){
   h+='<div class="grv-imp">Mean '+nv(g.mean)+' mg/dL \u00b7 GMI '+nv(g.gmi)+'% \u00b7 TIR '+nv(tir.tir)+'% \u00b7 CV '+nv(g.cv)+'%. Rendered from the export\u2019s stored glycemic summary \u2014 no re-analysis of the raw trace.</div>';
   var kpis=[['Mean glucose',nv(g.mean),'mg/dL'],['GMI',nv(g.gmi),'%'],['Time in Range',nv(tir.tir),'% (70\u2013180)'],['Time Below',nv(below),'% (<70)'],['Time Above',nv(above),'% (>180)'],['CV',nv(g.cv),'%'],['MODD',nv(g.modd),'mg/dL'],['ADRR',nv(g.adrr),'risk'],['Dawn rise',(g.dawn&&g.dawn.present?'+'+nv(g.dawn.medianDelta):'\u2014'),'mg/dL']];
   h+='<div class="grv-sec">Key metrics</div><div class="grv-kpis">'
-    +kpis.map(function(k){ return '<div class="grv-kpi"><div class="k-lab">'+_gesc(k[0])+'</div><div class="k-val">'+_gesc(k[1])+'</div><div class="k-sub">'+_gesc(k[2])+'</div></div>'; }).join('')
+    +kpis.map(function(k){ return '<div class="grv-kpi"><div class="k-lab">'+(typeof evBadge==='function'?evBadge(k[0]):'')+_gesc(k[0])+'</div><div class="k-val">'+_gesc(k[1])+'</div><div class="k-sub">'+_gesc(k[2])+'</div></div>'; }).join('')
     +'</div>';
   h+='<div class="grv-sec">Event timeline</div>'+glucoReviewTimeline(review.events);
   h+='<div class="grv-sec">Raw signal</div>'
@@ -321,7 +321,7 @@ function renderSessions(r){
   $('sessionBody').innerHTML=`
     <div class="card-h" style="margin-bottom:10px">Sensor sessions &amp; drift <span style="font-size:11px;font-weight:500;color:var(--text3);margin-left:6px">${ss.length} wears detected · v1.2</span></div>
     <div class="q-grid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">
-      <div class="q-stat"><div class="q-val neutral">${ss.length}</div><div class="q-lbl">${evBadge('Sessions')}Sessions</div><div class="q-sub">split on ≥90-min gaps / warm-ups</div></div>
+      <div class="q-stat"><div class="q-val neutral">${evBadge('Sessions')}${ss.length}</div><div class="q-lbl">Sessions</div><div class="q-sub">split on ≥90-min gaps / warm-ups</div></div>
       <div class="q-stat"><div class="q-val ${spread<15?'ok':spread<30?'warn':'bad'}">${window.GluDisp.spread(spread)}<span style="font-size:12px;font-weight:600;color:var(--text3)"> ${window.GluDisp.label()}</span></div><div class="q-lbl">${evBadge('Between-session spread')}Between-session spread</div><div class="q-sub">range of session medians</div></div>
       <div class="q-stat"><div class="q-val ${maxDrift<3?'ok':maxDrift<7?'warn':'bad'}">${maxDrift.toFixed(1)}<span style="font-size:12px;font-weight:600;color:var(--text3)"> /day</span></div><div class="q-lbl">${evBadge('Largest drift')}Largest drift</div><div class="q-sub">${window.GluDisp.label()} per day, within a wear</div></div>
     </div>
@@ -348,7 +348,7 @@ function renderNutrition(r){
   const cc=n.corr; const carbLbl=n.carbsKey==='netCarbs'?'Net carbs':'Carbs';
   const strength=v=>v==null?'—':Math.abs(v)<0.2?'none':Math.abs(v)<0.4?'weak':Math.abs(v)<0.6?'moderate':'strong';
   const sev=(v,invert)=>{ if(v==null) return 'neutral'; const a=invert?-v:v; return a>0.4?'bad':a>0.2?'warn':'ok'; };
-  const cell=(lbl,v,sub,invert)=>`<div class="q-stat"><div class="q-val ${sev(v,invert)}">${v==null?'—':(v>0?'+':'')+v}</div><div class="q-lbl">${typeof evBadge==='function'?evBadge(lbl):''}${lbl}</div><div class="q-sub">${v==null?'insufficient variance':strength(v)+(v>0?' positive':' negative')+' · '+sub}</div></div>`;
+  const cell=(lbl,v,sub,invert)=>`<div class="q-stat">${typeof evBadge==='function'?evBadge(lbl):''}<div class="q-val ${sev(v,invert)}">${v==null?'—':(v>0?'+':'')+v}</div><div class="q-lbl">${lbl}</div><div class="q-sub">${v==null?'insufficient variance':strength(v)+(v>0?' positive':' negative')+' · '+sub}</div></div>`;
   // scatter: carbs (x) vs daily mean (y)
   const pts=n.matched.filter(m=>m[n.carbsKey]!=null && m.mean!=null).map(m=>({ x:m[n.carbsKey], y:m.mean }));
   const scatter=pts.length>2?UI.lineChart(pts.slice().sort((a,b)=>a.x-b.x), UI.COLORS.amber, { W:680,H:170, xfmt:x=>Math.round(x)+'g' }):'';
@@ -373,7 +373,7 @@ function renderQuality(r){
   const agpOk=r.pctActive>=70;
   $('qualityCard').innerHTML=`
     <div class="q-grid">
-      <div class="q-stat"><div class="q-val ${r.pctActive>=70?'ok':r.pctActive>=50?'warn':'bad'}">${r.pctActive}%</div><div class="q-lbl">${evBadge('Sensor active')}Sensor active</div><div class="q-sub">AGP needs ≥70%</div></div>
+      <div class="q-stat">${evBadge('Sensor active')}<div class="q-val ${r.pctActive>=70?'ok':r.pctActive>=50?'warn':'bad'}">${r.pctActive}%</div><div class="q-lbl">Sensor active</div><div class="q-sub">AGP needs ≥70%</div></div>
       <div class="q-stat"><div class="q-val neutral">${r.activeMin>=1440?(r.activeMin/1440).toFixed(1)+'d':Math.round(r.activeMin/60)+'h'}</div><div class="q-lbl">${evBadge('Active time')}Active time</div><div class="q-sub">of ${(r.spanMin/1440).toFixed(1)}d span${r.nGaps?` · ${r.nGaps} gap${r.nGaps===1?'':'s'}`:''}</div></div>
       <div class="q-stat"><div class="q-val ${r.warmupMin>0?'warn':'ok'}">${r.warmupMin}m</div><div class="q-lbl">${evBadge('Warm-up suppressed')}Warm-up suppressed</div><div class="q-sub">fresh-sensor low/garbage</div></div>
       <div class="q-stat"><div class="q-val ${r.compMin>0?'warn':'ok'}">${r.compMin}m</div><div class="q-lbl">${evBadge('Compression lows')}Compression lows</div><div class="q-sub">flagged · not deleted</div></div>
@@ -400,14 +400,14 @@ function renderDaypart(r){
   const cells=parts.map(([k,lbl,win])=>{
     const s=d[k]; const cv=s&&s.cv!=null?s.cv:null;
     const sev=cv==null?'neutral':cv<36?'ok':cv<45?'warn':'bad';
-    return `<div class="q-stat"><div class="q-val ${sev}">${cv==null?'—':cv+'<span style="font-size:12px;font-weight:600;color:var(--text3)">%</span>'}</div><div class="q-lbl">${evBadge(lbl+' CV')}${lbl} CV</div><div class="q-sub">${win}${s&&s.mean?' · mean '+window.GluDisp.val(s.mean):''}</div></div>`;
+    return `<div class="q-stat"><div class="q-val ${sev}">${evBadge(lbl+' CV')}${cv==null?'—':cv+'<span style="font-size:12px;font-weight:600;color:var(--text3)">%</span>'}</div><div class="q-lbl">${lbl} CV</div><div class="q-sub">${win}${s&&s.mean?' · mean '+window.GluDisp.val(s.mean):''}</div></div>`;
   }).join('');
   return `<div class="mini-h" style="margin-top:6px">${evBadge('CV')}Variability by time of day <span class="mini-sub">CV split into dayparts — localises where the swings live · total CV ${d.total}%</span></div>
-    <div class="q-grid" style="margin-bottom:10px"><div class="q-stat" style="border-color:rgba(61,224,208,.25)"><div class="q-val neutral">${d.total}<span style="font-size:12px;font-weight:600;color:var(--text3)">%</span></div><div class="q-lbl">${evBadge('Total CV')}Total CV</div><div class="q-sub">whole recording</div></div>${cells}</div>`;
+    <div class="q-grid" style="margin-bottom:10px"><div class="q-stat" style="border-color:rgba(61,224,208,.25)"><div class="q-val neutral">${evBadge('Total CV')}${d.total}<span style="font-size:12px;font-weight:600;color:var(--text3)">%</span></div><div class="q-lbl">Total CV</div><div class="q-sub">whole recording</div></div>${cells}</div>`;
 }
 
 function renderVariability(r){
-  const eb=(label,val,unit,sub,sev,note)=>`<div class="q-stat"><div class="q-val ${sev}">${val==null?'—':val}${val!=null&&unit?`<span style="font-size:12px;font-weight:600;color:var(--text3)"> ${unit}</span>`:''}</div><div class="q-lbl">${evBadge(label)}${label}</div><div class="q-sub">${sub}</div></div>`;
+  const eb=(label,val,unit,sub,sev,note)=>`<div class="q-stat">${evBadge(label)}<div class="q-val ${sev}">${val==null?'—':val}${val!=null&&unit?`<span style="font-size:12px;font-weight:600;color:var(--text3)"> ${unit}</span>`:''}</div><div class="q-lbl">${label}</div><div class="q-sub">${sub}</div></div>`;
   $('variBody').innerHTML=`
     <div class="q-grid">
       ${eb('MAGE', window.GluDisp.spread(r.mage),window.GluDisp.label(),'mean excursion >1 SD', r.mage==null?'neutral':r.mage<60?'ok':r.mage<100?'warn':'bad')}

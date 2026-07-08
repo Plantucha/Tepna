@@ -6,9 +6,6 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-<<<<<<< HEAD
-**Status:** PROPOSED · **Created:** 2026-07-05
-=======
 **Status:** DONE — 2026-07-06 (**F2/F3/F4/F6 + F8 EXECUTED** · F5 decided · F7 verified-closed; **F1 formally re-deferred** — version-into-bundle rides the next behavioral re-bundle, tracked in `CLAUDE.md` §📦 + the OWN-THE-BUILD sequencing) · **Created:** 2026-07-05
 
 > **⟳ EXECUTION NOTE (2026-07-06 · pt 2) — F8 EXECUTED, F1 re-deferred → brief DONE (test-only, NO re-bundle).**
@@ -78,7 +75,6 @@
 >   F4 (`CITATION.cff` sync) is a `release.mjs` edit; F8 (flip check 7 HARD + reconfirm the 1.0.0 snapshot)
 >   waits on Part-C settle + fleet changeset adoption — and MUST re-confirm the snapshot before flipping
 >   (this session moved OxyDex/HRVDex/Integrator hashes).
->>>>>>> cf3e242 (Tepna suite)
 
 # Controlled-releases follow-ups — deferred + surfaced-during-execution
 
@@ -142,14 +138,6 @@
 
 ## Done when
 
-<<<<<<< HEAD
-- ☐ F1 executed on the next behavioral re-bundle (or explicitly re-deferred with a reason).
-- ☐ F2 + F3 landed together (propagation + non-vacuous check 6), coordinated with the build/docs owner.
-- ☐ F4 decided + (if yes) wired into `release.mjs` + check 6.
-- ☐ F5 decision recorded; tags policy stated once.
-- ☐ F6/F7 closed or explicitly carried.
-- ☐ F8: check 7 flipped to HARD once adopted; 1.0.0 snapshot reconfirmed post-Part-C settle.
-=======
 - ☑ F5 decision recorded (no retroactive `v0.x` tags — tag from `v1.0.0` forward).
 - ☑ F7 verified-closed (COMPLIANCE + CHANGELOG + RELEASE-MANIFEST already in the docs-ledger inventory).
 - ☑ **F1 formally re-deferred (2026-07-06)** — version-into-bundle rides the next behavioral re-bundle (its own
@@ -162,7 +150,6 @@
 - ☑ **F6 closed (2026-07-06)** — `release.mjs` step 3b maintains the CHANGELOG reference compare-links (advances `[Unreleased]`, inserts `[x.y.z]: …/compare/v{prev}...v{new}`, repo base derived from the existing link, idempotent).
 - ☑ **F8 executed (2026-07-06)** — check-7 flipped to HARD (`HARD7=true`); 1.0.0 snapshot reconfirmed consistent
   against BUILD-MANIFEST (5 unmoved byte-match; 3 moved = OxyDex/HRVDex/Integrator, all changeset-covered). Green.
->>>>>>> cf3e242 (Tepna suite)
 
 ## Cross-references
 - `CONTROLLED-RELEASES-2026-07-05-BRIEF.md` — the parent (Phases 1–4 executed 2026-07-05).

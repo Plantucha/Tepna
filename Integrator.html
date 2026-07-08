@@ -2692,10 +2692,6 @@ body.light .cov-grid td.cg-node{ background:#fff; }
 .ltc-foot .ltc-dir{ color:var(--text4); }
 .hdr-note{ font-size:11px; font-weight:500; color:var(--text4); letter-spacing:0; text-transform:none; margin-left:8px; }
 </style>
-<<<<<<< HEAD
-</head>
-<body>
-=======
 <link rel="canonical" href="https://tepna.net/Integrator.html">
 <meta property="og:url" content="https://tepna.net/Integrator.html">
 <meta property="og:type" content="website">
@@ -2712,7 +2708,6 @@ body.light .cov-grid td.cg-node{ background:#fff; }
     <p>Part of <strong>Tepna — the Dex Suite</strong> · Apache-2.0 · Personal self-quantification, not a medical device.</p>
   </div>
 </noscript>
->>>>>>> cf3e242 (Tepna suite)
 <div class="app-shell">
   <!-- ───────── Sidebar ───────── -->
   <aside class="sidebar">
@@ -3922,9 +3917,64 @@ global.MetricRegistry = {
     };
   }
 
+  /* ── Pearson correlation over the common finite indices (null if <3 pairs or a
+     degenerate/zero-variance member). Used by the decorrelation quality gate. ── */
+  function pearson(a, b) {
+    var xs = [], ys = [], n = Math.min(a.length, b.length);
+    for (var i = 0; i < n; i++) if (_finite(a[i]) && _finite(b[i])) { xs.push(a[i]); ys.push(b[i]); }
+    if (xs.length < 3) return null;
+    var mx = mean(xs), my = mean(ys), sxy = 0, sxx = 0, syy = 0;
+    for (var j = 0; j < xs.length; j++) { var dx = xs[j] - mx, dy = ys[j] - my; sxy += dx * dy; sxx += dx * dx; syy += dy * dy; }
+    if (sxx < EPS || syy < EPS) return null;
+    return sxy / Math.sqrt(sxx * syy);
+  }
+
+  /* ── Decorrelation quality gate (TRIO-METHODS-REUSE §Do 3) ──────────────────
+     TCH assumes all three estimators track the SAME latent quantity. If one node is
+     a failed extraction (lost contact / mis-detected beats), its series decorrelates
+     from the other two and a 3-way solve folds that garbage into EVERY per-sensor σ
+     (its large pairwise-difference variances contaminate the closed form), producing a
+     confident-looking but meaningless result. This screen catches that case BEFORE the
+     solve: a node is droppable iff BOTH its pairwise correlations fall below `minCorr`
+     AND the surviving pair still agrees above `keepMinCorr`. Exactly-one → drop it and
+     name the trustworthy pair; zero → proceed with the full triplet; two-or-more mutual
+     decorrelations → AMBIGUOUS (can't tell which is truth) → don't drop, don't trust.
+     PURE (no solve, no mutation). Consumer decides what to do with `drop`. */
+  function screenTriplet(seriesA, seriesB, seriesC, opts) {
+    opts = opts || {};
+    var labels = opts.labels || ['A', 'B', 'C'];
+    var minCorr = opts.minCorr != null ? opts.minCorr : 0.2;
+    var keepMinCorr = opts.keepMinCorr != null ? opts.keepMinCorr : 0.4;
+    if (!seriesA || !seriesB || !seriesC) return { ok: false, drop: null, reason: 'need three series' };
+    var rAB = pearson(seriesA, seriesB), rAC = pearson(seriesA, seriesC), rBC = pearson(seriesB, seriesC);
+    var corr = { AB: rAB, AC: rAC, BC: rBC };
+    if (rAB == null || rAC == null || rBC == null)
+      return { ok: false, drop: null, corr: corr, reason: 'insufficient overlap / degenerate series for the correlation screen' };
+    // each node's two correlations, and the correlation of the OTHER pair if it is dropped
+    var pairCorr = { A: [rAB, rAC], B: [rAB, rBC], C: [rAC, rBC] };
+    var keptIfDropped = { A: rBC, B: rAC, C: rAB };
+    var keys = ['A', 'B', 'C'];
+    var cand = keys.filter(function (k) { return pairCorr[k][0] < minCorr && pairCorr[k][1] < minCorr; });
+    if (cand.length === 0)
+      return { ok: true, drop: null, corr: corr, reason: 'every node correlates with ≥one peer above ' + minCorr };
+    if (cand.length >= 2)
+      return { ok: false, drop: null, ambiguous: true, corr: corr,
+               reason: cand.length + ' nodes mutually decorrelate — cannot identify the reliable pair' };
+    var k = cand[0], keptR = keptIfDropped[k];
+    var lbl = labels[keys.indexOf(k)];
+    if (keptR == null || keptR < keepMinCorr)
+      return { ok: false, drop: null, corr: corr,
+               reason: 'candidate ' + lbl + ' decorrelates but the surviving pair also disagrees (r=' + (keptR == null ? '—' : keptR.toFixed(2)) + ') — not dropped' };
+    var keptPair = keys.filter(function (x) { return x !== k; }).map(function (x) { return labels[keys.indexOf(x)]; });
+    return { ok: true, drop: lbl, keptPair: keptPair, corr: corr,
+             reason: 'node ' + lbl + ' decorrelates from both peers (r<' + minCorr + '); ' + keptPair[0] + '–' + keptPair[1] + ' agree (r=' + keptR.toFixed(2) + ')' };
+  }
+
   var API = {
     threeCorneredHat: threeCorneredHat,
     alignTriplet: alignTriplet,
+    screenTriplet: screenTriplet,
+    pearson: pearson,
     inverseVarianceWeights: inverseVarianceWeights,
     pairDiffVar: pairDiffVar,
     classic: classic,
@@ -3932,7 +3982,7 @@ global.MetricRegistry = {
     allanDeviation: allanDeviation,
     allanTriplet: allanTriplet,
     variance: variance, mean: mean,
-    VERSION: '1.1.0'
+    VERSION: '1.2.0'
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
@@ -5011,15 +5061,6 @@ function fuseAutonomicGlycemic(recs, dtMs, opts2){
    (series.hrvEpochs, added in adaptEnvelopeNode). PURE; returns a reason-stamped null
    when <3 nodes carry an alignable series (→ pairwise consensus is used unchanged). */
 function _tchEngine(){ return (typeof IntegratorTCH!=='undefined' && IntegratorTCH) || (typeof window!=='undefined' && window.IntegratorTCH) || null; }
-<<<<<<< HEAD
-function _rmssdPts(s){ return ((s.series&&s.series.hrvEpochs)||[]).filter(function(e){return e && e.tMin!=null && e.rmssd!=null;}).map(function(e){return {tMin:e.tMin, v:e.rmssd};}); }
-// §2 HR-hat — per-epoch pulse-HR series (ECGDex/PpgDex/OxyDex all now emit timeseries.epochs[].hr).
-function _hrPts(s){ return ((s.series&&s.series.hrvEpochs)||[]).filter(function(e){return e && e.tMin!=null && e.hr!=null;}).map(function(e){return {tMin:e.tMin, v:e.hr};}); }
-function _meanMotion(s, keys){ var set={}; keys.forEach(function(k){set[k]=1;}); var eps=(s.series&&s.series.hrvEpochs)||[]; var vs=eps.filter(function(e){return e&&set[e.tMin]&&e.motion!=null;}).map(function(e){return e.motion;}); if(!vs.length) return null; return +(vs.reduce(function(a,b){return a+b;},0)/vs.length).toFixed(3); }
-// §1 external-ρ — a per-node motion vector ALIGNED to the triplet's common epoch keys (null when a
-// node carries no per-epoch motion). Feeds the common-mode correlation the classic TCH can't see.
-function _tchAlignedMotion(s, keys){ var m={}; ((s.series&&s.series.hrvEpochs)||[]).forEach(function(e){ if(e&&e.tMin!=null&&e.motion!=null) m[e.tMin]=e.motion; }); var v=keys.map(function(k){ return m[k]!=null?m[k]:null; }); return v.some(function(x){return x!=null;})?v:null; }
-=======
 // Cross-node epoch alignment MUST key on the SAME wall-clock instant, not the node-relative offset
 // (FU-II §1 / Clock Contract): co-recorded devices start minutes apart, so a shared node-relative tMin
 // is a DIFFERENT absolute time per node → inflated pairwise-difference variance + a mis-ranked culprit.
@@ -5035,7 +5076,6 @@ function _meanMotion(s, keys){ var set={}; keys.forEach(function(k){set[k]=1;});
 // §1 external-ρ — a per-node motion vector ALIGNED to the triplet's common epoch keys (null when a
 // node carries no per-epoch motion). Feeds the common-mode correlation the classic TCH can't see.
 function _tchAlignedMotion(s, keys){ var m={}; ((s.series&&s.series.hrvEpochs)||[]).forEach(function(e){ if(e&&e.tMin!=null&&e.motion!=null) m[_epKey(e)]=e.motion; }); var v=keys.map(function(k){ return m[k]!=null?m[k]:null; }); return v.some(function(x){return x!=null;})?v:null; }
->>>>>>> cf3e242 (Tepna suite)
 function _tchPearson(a,b){ var xs=[],ys=[],i; for(i=0;i<a.length;i++){ if(a[i]!=null&&b[i]!=null&&isFinite(a[i])&&isFinite(b[i])){ xs.push(a[i]); ys.push(b[i]); } } var n=xs.length; if(n<4) return null; var mx=0,my=0; for(i=0;i<n;i++){ mx+=xs[i]; my+=ys[i]; } mx/=n; my/=n; var sxy=0,sxx=0,syy=0; for(i=0;i<n;i++){ var dx=xs[i]-mx, dy=ys[i]-my; sxy+=dx*dy; sxx+=dx*dx; syy+=dy*dy; } if(sxx<1e-12||syy<1e-12) return null; return sxy/Math.sqrt(sxx*syy); }
 // Estimate the common-mode ρ for the correlated-TCH solve from CROSS-NODE per-epoch motion: the mean
 // of the POSITIVE pairwise motion correlations across the triplet's nodes. Needs ≥2 motion-bearing
@@ -5064,6 +5104,19 @@ function _tchHat(like, ptsFn, metric){
     if(!best || al.keys.length>best.al.keys.length) best={A:ws[i],B:ws[j],C:ws[k],al:al};
   }
   if(!best || best.al.keys.length<12) return { ok:false, metric:metric, reason:metric+' best triple overlap '+(best?best.al.keys.length:0)+' epochs < 12' };
+  // Decorrelation quality gate (TRIO-METHODS-REUSE §Do 3): if one node's series decorrelates
+  // from BOTH others (failed extraction / lost contact), a 3-way solve folds its garbage into
+  // every per-sensor σ. Screen the chosen triplet first; if exactly one node is decorrelated
+  // (and the surviving pair still agrees), DROP it and degrade to the trustworthy pair rather
+  // than emit a falsely-confident hat. Zero drops → proceed unchanged (inert on good data).
+  if(typeof TCH.screenTriplet==='function'){
+    var scr=TCH.screenTriplet(best.al.A,best.al.B,best.al.C,{labels:[best.A.node,best.B.node,best.C.node]});
+    if(scr && scr.drop){
+      return { ok:false, metric:metric, reason:'decorrelated node dropped — '+scr.reason,
+               dropped:scr.drop, keptPair:scr.keptPair, corr:scr.corr,
+               nodesWithSeries:ws.map(function(s){return s.node;}) };
+    }
+  }
   var rho=_tchRhoFromMotion([best.A,best.B,best.C], best.al.keys);   // §1
   var opts={ labels:[best.A.node,best.B.node,best.C.node], minN:12 };
   if(rho && rho.value>0) opts.rho=rho.value;
@@ -5083,8 +5136,6 @@ function _tchHat(like, ptsFn, metric){
       r.allan=_al;
     }
   }
-<<<<<<< HEAD
-=======
   // §5 (FU-II) — reference-free TCH determines the QUIET sensors poorly: their pairwise-difference
   // variance is small, so sampling noise dominates the split (the culprit + its σ² are trustworthy,
   // the two quieter sensors are "both low, order uncertain"). Flag when the two quietest σ² sit within
@@ -5094,7 +5145,6 @@ function _tchHat(like, ptsFn, metric){
   r.quietSensors=_quiet.map(function(x){return x.k;});
   r.quietOrderUncertain = (_quiet.length>=2 && _quiet[0].v>0 && _quiet[_quiet.length-1].v>0)
     ? (_quiet[0].v/_quiet[_quiet.length-1].v < 2) : false;
->>>>>>> cf3e242 (Tepna suite)
   return r;
 }
 // Back-compat: the RMSSD hat IS the historical _tchConsensus return (block.tch).
@@ -5801,19 +5851,19 @@ global.CrossNightEnvelope = { build, validate, validateNodeExport, SHAPE_VERSION
   // bedtime as civil [Y,M,D,h,m]; AHI target; glucose & HRV story per night.
   const NIGHTS = [
     { n: 1, date: '2026-05-11', bed: [2026, 5, 11, 23, 10], durSec: 27600, ahi: 22, cpap: false,
-      gluc: 'flat',  rmssd: 24, rsaGain: 0.932, story: 'Baseline untreated OSA' },
+      gluc: 'flat',  rmssd: 24, rsaGain: 1.199, story: 'Baseline untreated OSA' },
     { n: 2, date: '2026-05-12', bed: [2026, 5, 12, 23, 55], durSec: 26400, ahi: 38, cpap: false,
-      gluc: 'hypo',  rmssd: 18, rsaGain: 0.321, story: 'Worse — alcohol, supine, fragmented; nocturnal hypo + CSR run' },
+      gluc: 'hypo',  rmssd: 18, rsaGain: 0.866, story: 'Worse — alcohol, supine, fragmented; nocturnal hypo + CSR run' },
     { n: 3, date: '2026-05-13', bed: [2026, 5, 13, 22, 50], durSec: 28200, ahi: 7,  cpap: true,
-      gluc: 'flat',  rmssd: 30, rsaGain: 1.367, story: 'CPAP started (intervention) — residual events only' },
+      gluc: 'flat',  rmssd: 30, rsaGain: 1.523, story: 'CPAP started (intervention) — residual events only' },
     { n: 4, date: '2026-05-14', bed: [2026, 5, 14, 23, 5],  durSec: 27600, ahi: 4,  cpap: true,
-      gluc: 'dawn',  rmssd: 38, rsaGain: 1.850, story: 'CPAP adherent + dawn phenomenon' },
+      gluc: 'dawn',  rmssd: 38, rsaGain: 1.950, story: 'CPAP adherent + dawn phenomenon' },
     { n: 5, date: '2026-05-15', bed: [2026, 5, 15, 23, 20], durSec: 27000, ahi: 3,  cpap: true,
-      gluc: 'dawn',  rmssd: 44, rsaGain: 2.215, story: 'CPAP stable, best night' },
+      gluc: 'dawn',  rmssd: 44, rsaGain: 2.268, story: 'CPAP stable, best night' },
   ];
   const SUBJECT = { id: 'SubjectA', age: 45, sex: 'M', bmi: 31, polarId: 'BBBBBBBB', glucoZone: '-04:00' };
   // texture/calibration version — read by cohort-runner's provenance pin.
-  const VERSION = 'synth-gen/2.0';   // 2.0: broadband 1/f RR texture (octave-OU relaxor bank τ≈2..256 beats + RSA freq wander; DFA-α1 0.53→0.85) + re-fit NIGHTS rsaGain. Pre-2.0 = single-relaxor texture, no VERSION string.
+  const VERSION = 'synth-gen/2.1';   // 2.1: HRV-level-scaled fast-variability floor (texF) in buildRR + dropped the τ=2 relaxor + white-noise 3→1.0 → the low-HRV RR tail renders below the old ~17.6 ms floor and SPREADS instead of stacking a flat line (paired with cohort-gen/1.9 rsaGainFor re-fit); DFA-α1 preserved ≈0.76. NIGHTS rsaGain re-fit to the new gain→rMSSD transfer. 2.0: broadband 1/f RR texture (octave-OU relaxor bank τ≈2..256 beats + RSA freq wander; DFA-α1 0.53→0.85) + re-fit NIGHTS rsaGain. Pre-2.0 = single-relaxor texture, no VERSION string.
 
   function nightT0(cfg) { return civilMs(cfg.bed[0], cfg.bed[1], cfg.bed[2], cfg.bed[3], cfg.bed[4], 0, 0); }
 
@@ -5972,6 +6022,12 @@ global.CrossNightEnvelope = { build, validate, validateNodeExport, SHAPE_VERSION
   function buildRR(tl) {
     const cfg = tl.cfg;
     const r = mulberry32(tl.seed + 202);
+    // Non-RSA fast-variability scale, tied to the night's HRV level (rsaGain). Bulk/high-HRV
+    // nights (gain ≥ 0.9, target ≳ 22 ms) keep FULL broadband texture — DFA-α1 is measured
+    // there and must not move. Low-HRV nights (severe-apnea/elderly tail) get proportionally
+    // less fast variability, so their rendered rMSSD floor drops and the low tail SPREADS
+    // instead of stacking on a hard line — physiological (low vagal tone ⇒ less complex RR).
+    const texF = Math.min(1, Math.max(0.30, 0.30 + 0.70 * (cfg.rsaGain || 1) / 0.9));
     const beats = [];                               // {tMs, rr, type}
     let tRel = 0.4;                                  // sec
     let lf = 0, lfT = 0, bw = 0, sinus = 1000, pendComp = 0, cvhrS = 0;
@@ -5980,7 +6036,7 @@ global.CrossNightEnvelope = { build, validate, validateNodeExport, SHAPE_VERSION
     // autocorrelation for 15+ beats on clean (low-apnea) nights; letting it wander
     // broadens the HF band so the autocorrelation damps within ~2 cycles, as real RSA does.
     let respPh = r() * 2 * Math.PI, zRespF = gaussFrom(r), lastTRel = 0;
-    // Broadband 1/f background (octave-spaced OU relaxors, τ ≈ 2..256 beats) in place of
+    // Broadband 1/f background (octave-spaced OU relaxors, τ ≈ 3..256 beats) in place of
     // the old single slow relaxor. Real RR is pink at short scales (DFA-α1 ≈ 1.02–1.30,
     // measured across 13 real H10 nights); a single slow OU left the 4–16-beat band white
     // (α1 ≈ 0.5). Spreading 1/f power across that band lifts α1 to ≈0.85 and also pulls
@@ -5989,7 +6045,7 @@ global.CrossNightEnvelope = { build, validate, validateNodeExport, SHAPE_VERSION
     // pinned by the per-night rMSSD targets) caps short-scale α1; closing the last ~0.3
     // needs a multifractal RSA model, not a parameter (a multiplicative 1/f coupling was
     // tested against the real corpus and made α1 worse, so it was rejected).
-    const bwTau = [2, 3, 4, 6, 8, 12, 16, 24, 32, 64, 128, 256];
+    const bwTau = [3, 4, 6, 8, 12, 16, 24, 32, 64, 128, 256];
     const bwA = bwTau.map(t => Math.exp(-1 / t)), bwS = bwA.map(a => Math.sqrt(1 - a * a));
     const bwNorm = Math.sqrt(bwTau.length); const bwBank = bwTau.map(() => gaussFrom(r));
     // hypo window (N2): compensatory tachycardia + rMSSD collapse + a few ectopics
@@ -6023,7 +6079,7 @@ global.CrossNightEnvelope = { build, validate, validateNodeExport, SHAPE_VERSION
       const lfMs = lf * 22 * (1.1 - vagal * 0.5);
       bw = 0;
       for (let j = 0; j < bwA.length; j++) { bwBank[j] = bwA[j] * bwBank[j] + gaussFrom(r) * bwS[j]; bw += bwBank[j]; }
-      bw = bw / bwNorm * 30;                          // broadband 1/f background (see buildRR head)
+      bw = bw / bwNorm * 30 * texF;                  // broadband 1/f background (see buildRR head), HRV-level-scaled
       // CVHR: bradycardia in apnea, tachy rebound at arousal — SMOOTHED over ~6 beats so
       // it loads SDNN/VLF (a slow cyclic oscillation) without spuriously inflating rMSSD.
       const st = apneaStateAt(tl, tRel);
@@ -6041,7 +6097,7 @@ global.CrossNightEnvelope = { build, validate, validateNodeExport, SHAPE_VERSION
         const d = Math.abs(tRel - hypoNadirRel);
         if (d < 25 * 60) { const w = Math.max(0, 1 - d / (25 * 60)); hypoMs = -120 * w; hypoSupp = 1 - 0.5 * w; }
       }
-      let rr = baseRR(tRel) + (resp + lfMs) * hypoSupp + bw + cvhr + pbMs + hypoMs + gaussFrom(r) * 3;
+      let rr = baseRR(tRel) + (resp + lfMs) * hypoSupp + bw + cvhr + pbMs + hypoMs + gaussFrom(r) * 1.0 * texF;
       let type = 'N';
       if (pendComp > 0) { rr += pendComp; pendComp = 0; }
       else if (hypo && Math.abs(tRel - hypoNadirRel) < 12 * 60 && r() < 0.0016) {
@@ -7626,13 +7682,10 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
           cards.push(findingCard('Per-sensor error (TCH) · '+b.window, '#8FB8FF',
             tchBars(b), tchNote(b), Object.keys(b.tch.sigma2), 'tch_error'));
         }
-<<<<<<< HEAD
-=======
         if(b.tchHR){   // HR-hat — reference-free per-sensor HR error (ECG+PPG+Oxy) — FU-II §3
           cards.push(findingCard('Per-sensor HR error (TCH) · '+b.window, '#8FB8FF',
             tchBars(b,'hr'), tchNote(b,'hr'), Object.keys(b.tchHR.sigma2), 'tch_error'));
         }
->>>>>>> cf3e242 (Tepna suite)
       });
     }
     var pb=fusion.periodicBreathing;
@@ -7655,16 +7708,10 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
       big+'<p class="fc-note">'+esc(note)+'</p></div>';
   }
   /* three-cornered-hat card body — per-sensor σ bars (noisiest first, culprit flagged)
-<<<<<<< HEAD
-     + inverse-variance reconciled RMSSD. (INTEGRATOR-THREE-CORNERED-HAT §5) */
-  function tchBars(b){
-    var t=b.tch; if(!t||!t.sigma2) return '';
-=======
      + inverse-variance reconciled level. which: undefined/'rmssd' → block.tch (RMSSD, ms);
      'hr' → block.tchHR (HR-hat, bpm). (INTEGRATOR-THREE-CORNERED-HAT §5 / FU-II §3) */
   function tchBars(b, which){
     var isHR=(which==='hr'), t=isHR?b.tchHR:b.tch; if(!t||!t.sigma2) return '';
->>>>>>> cf3e242 (Tepna suite)
     var keys=Object.keys(t.sigma2), sig={}, max=0;
     keys.forEach(function(k){ var s=(t.sigma&&t.sigma[k]!=null)?t.sigma[k]:Math.sqrt(t.sigma2[k]); sig[k]=s; if(s>max)max=s; });
     keys.sort(function(a,c){ return sig[c]-sig[a]; });
@@ -7676,28 +7723,18 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
         '<span class="tch-bar"><i style="width:'+pct+'%;background:'+D.nodeColor(base)+'"></i></span>'+
         '<span class="tch-val mono">\u03C3\u2009'+sig[k].toFixed(1)+'</span></div>';
     }).join('');
-<<<<<<< HEAD
-    var wm=(b.rmssd&&b.rmssd.weightedMean!=null)?'<div class="tch-recon">Reconciled RMSSD <b class="mono">'+b.rmssd.weightedMean+' ms</b> <span class="tch-recon-sub">inverse-variance weighted</span></div>':'';
-    return '<div class="tch-block">'+rows+'</div>'+wm+tchTauSpark(b);
-=======
     var wm = isHR
       ? ((b.hrReconciled!=null)?'<div class="tch-recon">Reconciled HR <b class="mono">'+b.hrReconciled+' bpm</b> <span class="tch-recon-sub">inverse-variance weighted</span></div>':'')
       : ((b.rmssd&&b.rmssd.weightedMean!=null)?'<div class="tch-recon">Reconciled RMSSD <b class="mono">'+b.rmssd.weightedMean+' ms</b> <span class="tch-recon-sub">inverse-variance weighted</span></div>':'');
     return '<div class="tch-block">'+rows+'</div>'+wm+tchTauSpark(b, which);
->>>>>>> cf3e242 (Tepna suite)
   }
   /* τ-curve sparkline — per-sensor Allan deviation vs averaging time (§3). One
      node-coloured polyline per sensor on a shared y-scale; lower = steadier at that
      timescale. Null points (short series / negative split) break the line into
      segments; a lone finite point renders as a dot. */
-<<<<<<< HEAD
-  function tchTauSpark(b){
-    var a=b.tch&&b.tch.allan; if(!a||!a.adev) return '';
-=======
   function tchTauSpark(b, which){
     var _t=(which==='hr')?b.tchHR:b.tch;
     var a=_t&&_t.allan; if(!a||!a.adev) return '';
->>>>>>> cf3e242 (Tepna suite)
     var nodes=Object.keys(a.adev), taus=a.tausMin||a.taus||[];
     if(!taus.length) return '';
     var maxV=0, any=false;
@@ -7719,14 +7756,6 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
     return '<div class="tch-tau"><div class="tch-tau-cap">Allan deviation vs averaging time \u2014 lower = steadier at that timescale</div>'+
       '<svg viewBox="0 0 '+W+' '+H+'" class="tch-tau-svg" role="img" aria-label="Per-sensor Allan deviation across averaging times">'+lines+xlabs+'</svg></div>';
   }
-<<<<<<< HEAD
-  function tchNote(b){
-    var t=b.tch; if(!t) return '';
-    var s2=Math.round(t.sigma2[t.culprit]), nn=Object.keys(t.sigma2).length;
-    return t.culprit+' carries the largest error variance (\u03C3\u00B2\u2248'+s2+' ms\u00B2) across '+nn+' co-recorded sites over '+t.n+' epochs'
-      +(t.rho?(' (common-mode \u03C1='+t.rho+', '+t.method+')'):(' ('+t.method+')'))
-      +'. Reference-free three-cornered hat \u2014 estimates precision, not trueness; a bias shared by all three is invisible.';
-=======
   function tchNote(b, which){
     var isHR=(which==='hr'), t=isHR?b.tchHR:b.tch; if(!t) return '';
     var u=isHR?'bpm':'ms';
@@ -7735,7 +7764,6 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
       +(t.rho?(' (common-mode \u03C1='+t.rho+', '+t.method+')'):(' ('+t.method+')'))
       +'. Reference-free three-cornered hat \u2014 estimates precision, not trueness; a bias shared by all three is invisible.'
       +(t.quietOrderUncertain?(' Trust the culprit and its \u03C3\u00B2; the two quieter sensors ('+(t.quietSensors||[]).join(', ')+') are both low and their relative order is uncertain (reference-free TCH determines quiet sensors poorly).'):'');
->>>>>>> cf3e242 (Tepna suite)
   }
 
   /* ── full findings table ─────────────────────────────────────────────── */

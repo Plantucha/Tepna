@@ -11,6 +11,8 @@
 **A fleet of local-only, single-signal physiological analyzers.**
 Read one raw biosignal from a consumer device → derive evidence-graded metrics → fuse across signals. Your data never leaves the browser.
 
+**Suite version:** 1.0.0
+
 [![Live at tepna.net](https://img.shields.io/badge/live-tepna.net-2a6fdb)](https://tepna.net)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a6fdb)](LICENSE)
 [![Local-first](https://img.shields.io/badge/local--first-100%25-1f8a5b)](docs/WHY-THIS-EXISTS.md)

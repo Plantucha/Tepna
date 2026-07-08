@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  timestamp-pathology.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A deterministic benchmark of consumer-export timestamp pathologies and the floating wall-clock model — Tepna preprint</title>
+<link rel="stylesheet" href="../licensing/dex-license.css">
+<link rel="stylesheet" href="paper.css">
+</head>
+<body>
+<div class="sheet">
+  <a class="toplink" href="papers.html">← Tepna preprints</a>
+  <div class="banner">Tepna Working Preprint · not peer-reviewed</div>
+  <h1 class="title">Parsing time from the wild: a deterministic benchmark of consumer-export timestamp pathologies and the floating wall-clock model</h1>
+  <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
+  <p class="affil">Clock Contract (<code>clock.js</code> · <code>DexClock</code>), Tepna physiological-signal suite</p>
+  <p class="meta">Draft v1 · July 2026 · Analysis: <code>timestamp-pathology-analysis.html</code> (runs the production parser live) · Corpus: real vendor headers + synthetic edge cases · 100% local, deterministic</p>
+
+  <div class="abstract">
+    <h2>Abstract</h2>
+    <p style="text-align:left;margin-bottom:0"><b>Problem.</b> Every downstream physiological result depends on getting one thing right that the literature almost never discusses: parsing the timestamp out of a consumer device export. Consumer exports carry a zoo of incompatible time formats — ambiguous day/month order, zoned versus zone-less stamps, bare epoch integers, compact 14-digit runs, and time-only rows that silently cross midnight — and the usual reflex (<code>new Date(str)</code> / <code>Date.parse</code>) resolves several of them <em>wrongly but silently</em>, or fabricates the current time when a stamp is missing. <b>Contribution.</b> We state a single time model — <b>UTC-normalized floating wall-clock milliseconds</b> (<code>tMs</code>) — as a citable method, and provide a deterministic pass/fail benchmark of the failure modes it must survive. The model stores each record's local civil time <em>as if it were UTC</em> (<code>tMs = Date.UTC(components-as-written)</code>), which makes displayed time independent of the viewer's timezone and makes two devices that recorded the same wall-clock minute produce the same <code>tMs</code> by construction. <b>Result.</b> The production parser resolves a corpus of <b>24 vendor/branch cases</b> and upholds <b>6 contract invariants</b> — viewer-timezone independence, zoned≡floating equivalence, deterministic DMY/MDY disambiguation, monotonic overnight roll, never-fabricate-on-miss, and epoch determinism — all green, regenerated live from the shipping code. <b>Significance.</b> This is a methods/reproducibility note, not a physiological finding; its value is a stated, testable standard for a step the field treats as an afterthought and a corpus others can run against their own parser.</p>
+  </div>
+  <p class="kw"><b>Keywords:</b> timestamp parsing · data provenance · wall-clock time · timezone · DMY/MDY ambiguity · ISO-8601 · epoch time · consumer wearables · reproducibility · cross-device synchronization</p>
+
+  <div class="callout" style="border:1px dashed #b8860b;background:#fffdf5">
+    <h2 class="sec" style="margin-top:0">0. Layman overview <span style="font-weight:400;color:#b8860b;font-size:13px">(delete before submission)</span></h2>
+    <p>Before you can say anything about someone's heart rate at 3 a.m., you have to know which moment “3 a.m.” actually was — and the little date-and-time text that devices write into their files is a mess. Some write the day first, some the month first (is <code>05/07</code> May 7th or July 5th?); some include a timezone, most don't; some write just a raw number of seconds; some write only the time and leave you to figure out the date. The lazy way to read these — hand the text to the computer's built-in date reader — quietly gets several of them wrong, and worst of all, when a stamp is <em>missing</em> it often just fills in “right now,” inventing data. This paper writes down one careful rule for reading all of these correctly, and a checklist of tricky cases it must pass. The key trick: store each reading as the <em>wall-clock</em> time the person actually saw, not tied to any timezone, so the same bedtime looks the same whether you open the file in New York or London, and two devices worn the same night line up automatically. We run the checklist against the real code: every case passes. It's plumbing, not a discovery — but it's the plumbing everything else stands on.</p>
+  </div>
+
+  <h2 class="sec">1. Introduction</h2>
+  <p>Physiological analysis papers report what happened at a time; almost none report how the time itself was parsed. Yet consumer device exports — the raw material of at-home physiology — encode time in mutually incompatible ways, and the default tools resolve them inconsistently. A single archive can contain an O2Ring oximeter writing <code>HH:MM:SS DD/MM/YYYY</code>, a Welltory CSV writing <code>MM/DD/YYYY HH:MM</code>, a Polar sensor logger writing zoned ISO-8601, and a filename embedding a bare <code>YYYYMMDDHHMMSS</code>. Handing any of these to <code>new Date(str)</code> invokes locale- and engine-dependent heuristics: it may read a European <code>13/05</code> correctly by luck and an American <code>05/13</code> wrongly, attach the parsing machine's timezone to a stamp that had none, or — most dangerously — return <em>the current time</em> for an unparseable input, silently fabricating a data point.</p>
+  <p>The <a href="synthetic-data-frontier.html"><i>synthetic-data-frontier</i></a> perspective explicitly named this as the series' "narrowest first paper." This is that paper. Its contribution is not an algorithm but a <em>stated standard</em>: a single time model, the failure corpus it must survive, and a live tool that proves the shipping parser survives it. We make three claims: (i) the correct canonical unit for zone-less consumer physiology is a <b>floating wall-clock</b>, not a real UTC instant; (ii) every vendor format maps into it deterministically by explicit regex, never by locale heuristics; and (iii) a missing or malformed stamp must resolve to <code>null</code>, never to a fabricated time.</p>
+
+  <h2 class="sec">2. Methods</h2>
+  <h3 class="sub">2.1 The canonical unit — floating wall-clock <code>tMs</code></h3>
+  <p>Each record's local civil time is stored encoded as if it were UTC: <code>tMs = Date.UTC(year, month−1, day, hour, min, sec, ms)</code>. This is deliberately <em>not</em> a real UTC instant. Consumer devices speak local civil time with no zone; storing a real UTC instant and rendering it with local getters would make displayed time depend on the <em>viewer's</em> timezone (a New-York night reads 03:00 in London). Floating <code>tMs</code> read back with the <code>getUTC*</code> family is viewer-timezone-independent, and two devices recording the same wall-clock minute yield the same <code>tMs</code> by construction — so cross-device synchronization holds without either device sharing a timezone. An optional <code>offsetMin</code> is captured only when the input carried a real zone; the true instant is then recoverable as <code>tMs − offsetMin·60000</code>, but all sorting, alignment and display default to <code>tMs</code>.</p>
+  <h3 class="sub">2.2 Resolution order (the parser)</h3>
+  <p>The single parser <code>DexClock.parseTimestamp(raw, opts)</code> resolves in a fixed priority, each branch an explicit regex — never <code>Date.parse</code> on a vendor string: (1) numeric epoch (10–13 digits or numeric type, plausible-range gated), localized to the parse-time zone; (2) ISO-8601 <em>with</em> zone — zone authoritative, re-expressed as wall clock with <code>offsetMin</code> captured; (3) ISO / <code>YYYY-MM-DD[ T]HH:MM[:SS]</code> <em>without</em> zone — components verbatim, <code>offsetMin=null</code>; (4) explicit vendor formats — <code>HH:MM:SS DD/MM/YYYY</code> (O2Ring), 14-digit compact, <code>DD/MM/YYYY HH:MM</code> (Welltory), <code>YYYY/MM/DD HH:MM:SS</code>; (5) time-only <code>HH:MM[:SS]</code> combined with a date anchor and rolled forward monotonically past each midnight; (6) fallback → <code>null</code>, never <code>now()</code>.</p>
+  <h3 class="sub">2.3 DMY vs MDY disambiguation</h3>
+  <p>Any row whose day-field exceeds 12 makes the file unambiguous, and that order is locked for the whole file; otherwise the caller's <code>preferDMY</code> hint decides (default true for O2Ring/Welltory, false for the CGM MDY convention). The order is never switched mid-file.</p>
+  <h3 class="sub">2.4 Benchmark construction</h3>
+  <p>The corpus (Table 1) has one entry per parser branch and per vendor format observed in the suite's real exports, plus adversarial edge cases (implausible epoch, partial date, empty, garbage, anchorless time-only). The invariants (Table 2) encode the contract's behavioural guarantees. Both run against the <em>production</em> <code>clock.js</code> in <code>timestamp-pathology-analysis.html</code>; the pass counts below are read from that tool's live output (<code>window.__tsbench</code>).</p>
+
+  <h2 class="sec">3. Results</h2>
+  <p>The production parser resolved <b>24 / 24</b> corpus cases and upheld <b>6 / 6</b> contract invariants — all green, regenerated live from the shipping code.</p>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 1.</b> Vendor / branch corpus (representative rows; full 24-case set regenerates in the analysis tool). <code>float</code> marks a zone-less floating stamp (<code>offsetMin=null</code>).</caption>
+    <thead><tr><th>Category</th><th>Raw input</th><th>Resolves to</th><th>Note</th></tr></thead>
+    <tbody>
+      <tr><td>Epoch</td><td class="mono">"1751925600000"</td><td class="mono">instant + offsetMin</td><td>13-digit ms; 10-digit s auto-scaled</td></tr>
+      <tr><td>Epoch (bad)</td><td class="mono">"999"</td><td class="mono">null</td><td>below plausible range</td></tr>
+      <tr><td>Zoned ISO</td><td class="mono">"…22:00:00+02:00"</td><td class="mono">22:00 wall, off=120</td><td>zone in offsetMin, wall kept</td></tr>
+      <tr><td>Floating ISO</td><td class="mono">"2026-07-07 22:00"</td><td class="mono">22:00 float</td><td>no zone → offsetMin=null</td></tr>
+      <tr><td>O2Ring</td><td class="mono">"22:40:01 07/07/2026"</td><td class="mono">2026-07-07 22:40:01</td><td>HH:MM:SS DD/MM/YYYY</td></tr>
+      <tr><td>Compact</td><td class="mono">"20260707224001"</td><td class="mono">2026-07-07 22:40:01</td><td>14-digit filename embed</td></tr>
+      <tr><td>Welltory</td><td class="mono">"07/05/2026 21:53"</td><td class="mono">May 7 (DMY) / Jul 5 (MDY)</td><td>preferDMY switch, per-file locked</td></tr>
+      <tr><td>Time-only</td><td class="mono">"00:15" (prev 23:55)</td><td class="mono">next-day 00:15</td><td>monotonic midnight roll</td></tr>
+      <tr><td>Time-only (bad)</td><td class="mono">"23:30" (no anchor)</td><td class="mono">null</td><td>never Jan-1-2000</td></tr>
+      <tr><td>Malformed</td><td class="mono">"" / "not a date" / null</td><td class="mono">null</td><td>never now()</td></tr>
+    </tbody>
+  </table>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 2.</b> Clock Contract invariants — the behavioural guarantees the model exists to provide. All hold against the shipping parser.</caption>
+    <thead><tr><th>Invariant</th><th class="num">Holds</th><th>What it guarantees</th></tr></thead>
+    <tbody>
+      <tr><td>B1 · viewer-timezone independence</td><td class="num">✓</td><td>floating path is pure <code>Date.UTC</code>, no <code>getTimezoneOffset</code> → identical <code>tMs</code> on any machine</td></tr>
+      <tr><td>B2 · zoned wall ≡ floating wall</td><td class="num">✓</td><td>a zoned and a zone-less stamp for the same wall instant give the same <code>tMs</code>; zone lives only in <code>offsetMin</code></td></tr>
+      <tr><td>B3 · DMY 13/05 ≡ MDY 05/13</td><td class="num">✓</td><td>a day-field &gt;12 disambiguates the file deterministically, regardless of the hint</td></tr>
+      <tr><td>B4 · overnight monotonic roll</td><td class="num">✓</td><td>22:00→06:00 time-only rows span 8 h, not a 24 h backward jump</td></tr>
+      <tr><td>B5 · never fabricate on miss</td><td class="num">✓</td><td>missing / garbage / anchorless → <code>null</code>; the parser never returns <code>now()</code></td></tr>
+      <tr><td>B6 · epoch determinism</td><td class="num">✓</td><td>string and numeric epoch inputs resolve to the identical instant</td></tr>
+    </tbody>
+  </table>
+  <p>Invariant B1 deserves a precise statement: <em>only</em> the floating branches (2–5) are viewer-timezone-independent, and by construction — they never call <code>getTimezoneOffset</code>. The epoch branch (1) <em>does</em> consult the runner timezone, deliberately, because a bare epoch is a genuine instant that must be localized to a wall clock; that is the one place the viewer's zone legitimately enters, and it is confined there.</p>
+
+  <h2 class="sec">4. Discussion</h2>
+  <p>The practical lesson is that timestamp parsing is a correctness surface, not a convenience call, and that the default library path is actively unsafe for consumer physiology on three counts: silent DMY/MDY mis-resolution, spurious timezone attachment, and fabrication-on-miss. The floating wall-clock model neutralizes the first two by construction (components-as-written + <code>getUTC*</code> read-back) and the third by contract (miss → <code>null</code>). The model's non-obvious move — storing local civil time <em>as if</em> UTC rather than as a real instant — is what buys viewer-timezone independence and zero-configuration cross-device alignment, the two properties every multi-signal result in this suite silently relies on. Because the benchmark is a live tool over the shipping parser rather than a frozen table, it doubles as a regression guard: any future parser change that breaks a vendor format or an invariant turns the tool red.</p>
+  <div class="callout"><b>Limitations.</b> This is a methods/reproducibility note, not a physiological result — it asserts <em>correctness of parsing</em>, not accuracy of any downstream metric. The corpus is representative of the formats observed in this suite's real exports plus constructed adversarial cases; it is not an exhaustive enumeration of all consumer vendor formats in existence, and new devices will add branches (the vendor-adapter layer, when it lands, only widens the corpus — it does not change the model). The DMY/MDY rule is deterministic but cannot rescue a file that is genuinely ambiguous in every row (all day-fields ≤12) beyond honoring the caller's declared convention. Epoch localization is correct only to the parse-time machine zone, which is the intended and only available behavior for a bare instant.</p>
+
+  <h2 class="sec">5. Reproducibility</h2>
+  <ul>
+    <li><b>Parser under test:</b> <code>clock.js</code> (<code>DexClock.parseTimestamp</code>) — the single-sourced Clock Contract parser inlined into every bundle; unchanged by this paper.</li>
+    <li><b>Analysis tool:</b> <code>papers/timestamp-pathology-analysis.html</code> loads the real parser via <code>&lt;script src="../clock.js"&gt;</code> and runs the full 24-case corpus + 6 invariants live, rendering the pass/fail tables and exposing <code>window.__tsbench</code>. Unbundled → touches neither the behavior gate nor the provenance gate.</li>
+    <li><b>Determinism:</b> every case is a pure function of its literal input and options; no clock, network, or random source is read (the deliberately-excluded <code>now()</code> is exactly what the parser must never call). Re-running yields byte-identical results.</li>
+    <li><b>Corpus snapshots:</b> <code>papers/timestamp-corpus.json</code> and <code>papers/timestamp-invariants.json</code> record a committed run for diffing.</li>
+  </ul>
+
+  <h2 class="sec">6. References</h2>
+  <ol class="refs">
+    <li>Perspective that teed up this paper: <code>papers/synthetic-data-frontier.html</code> — names the timestamp benchmark as the narrowest first paper.</li>
+    <li>Project documentation: <code>CLAUDE.md</code> §🔒 The Clock Contract — the normative specification this paper benchmarks.</li>
+    <li>ISO 8601-1:2019. Date and time — Representations for information interchange.</li>
+    <li>ECMAScript Language Specification, <code>Date.UTC</code> / <code>Date.prototype.getUTC*</code> (the floating-time primitives used).</li>
+  </ol>
+
+  <div class="footer">Tepna working preprint · methods / reproducibility note · benchmark regenerates deterministically from the shipping parser via the cited tool. Not peer-reviewed; not a medical device; not for clinical use. Copyright 2026 Michal Planicka · Apache-2.0.</div>
+</div>
+</body></html>

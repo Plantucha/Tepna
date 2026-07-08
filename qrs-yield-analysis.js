@@ -272,6 +272,7 @@
     var Y = function (v) { return (h - P) - (h - P - 12) * Math.max(0, Math.min(1, (v - y0) / (y1 - y0))); };
     // SQI ≥ 0.5 "green" band reference (the clean-beat gate) — every point sits inside it
     ctx.fillStyle = 'rgba(57,217,138,.06)'; ctx.fillRect(P, 12, w - P - 14, (h - P) - 12);
+    var stD = ptStyle(WIN.ECG.length + WIN.PPG.length);
     ARMS.forEach(function (a) {
       var col = META[a].color;
       WIN[a].forEach(function (win) {
@@ -279,7 +280,7 @@
         var rc = win.recall.apnea.hit / win.recall.apnea.tot;
         var sq = win.sqiApnea.n ? win.sqiApnea.sum / win.sqiApnea.n : null;
         if (sq == null) return;
-        ctx.fillStyle = hexA(col, 0.5); ctx.beginPath(); ctx.arc(X(rc), Y(sq), 3.2, 0, 7); ctx.fill();
+        ctx.fillStyle = hexA(col, stD.a); dot(ctx, X(rc), Y(sq), stD);
       });
     });
     ctx.fillStyle = '#9fb0c4'; ctx.font = '10px ui-monospace';
@@ -304,11 +305,12 @@
     // identity
     ctx.strokeStyle = 'rgba(255,255,255,.30)'; ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.moveTo(X(0), Y(0)); ctx.lineTo(X(hi), Y(hi)); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = '#9fb0c4'; ctx.font = '10px ui-monospace'; ctx.fillText('identity (detected = true)', X(hi) - 150, Y(hi) + 16);
+    var stB = ptStyle(pts.length);
     pts.forEach(function (win) {
       // shade by apnea-segment recall: lower recall → redder (the missed-beat windows sit highest)
       var rc = win.recall.apnea.tot ? win.recall.apnea.hit / win.recall.apnea.tot : 1;
       var col = rc < 0.90 ? '#FF6B7A' : (rc < 0.96 ? '#FFB84D' : '#9CC7FF');
-      ctx.fillStyle = hexA(col, 0.6); ctx.beginPath(); ctx.arc(X(win.rmssdTrue), Y(win.rmssdDet), 3.4, 0, 7); ctx.fill();
+      ctx.fillStyle = hexA(col, stB.a + 0.1); dot(ctx, X(win.rmssdTrue), Y(win.rmssdDet), stB);
     });
     $('biasLeg').innerHTML = '<span class="chip" style="background:#FF6B7A"></span>apnea recall &lt;0.90 &nbsp; <span class="chip" style="background:#FFB84D"></span>0.90–0.96 &nbsp; <span class="chip" style="background:#9CC7FF"></span>≥0.96'
       + ' &nbsp;·&nbsp; PpgDex only — points above identity = inflated rMSSD (missed beats + PAT jitter)';
@@ -318,6 +320,9 @@
     var n = parseInt(hex.slice(1), 16), r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
     return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
   }
+  // N-aware point style (ported from hrv-confound-analysis.js; SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 2).
+  function ptStyle(n) { if (n <= 3000) return { r: 3.2, a: 0.5 }; if (n <= 15000) return { r: 1.6, a: 0.32 }; if (n <= 40000) return { r: 0.9, a: 0.20 }; return { r: 0.6, a: 0.12 }; }
+  function dot(ctx, x, y, st) { if (st.r <= 0.9) { ctx.fillRect(x, y, 1, 1); } else { ctx.beginPath(); ctx.arc(x, y, st.r, 0, 7); ctx.fill(); } }
 
   // ── exports ──
   function dl(name, text, mime) { var b = new Blob([text], { type: mime || 'text/plain' }); var a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = name; a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1500); }

@@ -207,7 +207,7 @@ function renderKPI(r){
     {l:'Pulse HR', v:r.dispHr+'bpm', sub:r.expRHR?('age norm ~'+r.expRHR):'mean', s:hrStat(r.dispHr)},
     {l:'VO₂max Est', v:r.vo2adj!=null?r.vo2adj:'—', sub:'ml/kg/min · HR-ratio', s:r.vo2adj==null?'neutral':r.vo2adj>=45?'ok':r.vo2adj>=38?'warn':'bad'},
     {l:'rMSSD', v:r.rmssd+'ms', sub:r.expRmssd?('age norm ~'+r.expRmssd):'≥30 good', s:r.expRmssd?(r.rmssd>=r.expRmssd?'ok':r.rmssd>r.expRmssd*0.7?'warn':'bad'):sc(r.rmssd,30,20)},
-    {l:'SDNN', v:r.sdnn+'ms', sub:r.tier==='ultra-short'?'needs ≥5min':'≥50 good', s:r.tier==='ultra-short'?'neutral':sc(r.sdnn,50,30)},
+    {l:'SDNN', v:(r.sdnnRobust!=null?r.sdnnRobust:r.sdnn)+'ms', sub:r.tier==='ultra-short'?'needs ≥5min':(r.sdnnRobust!=null?'robust · per-5-min median':'≥50 good'), s:r.tier==='ultra-short'?'neutral':sc(r.sdnnRobust!=null?r.sdnnRobust:r.sdnn,50,30)},
     {l:'Perfusion Idx', v:r.perfusionIndex==null?'—':r.perfusionIndex+'%', sub:'AC/DC · contact', s:pb},
     {l:'Motion-rejected', v:r.motionRejectedPct+'%', sub:r.motion&&r.motion.hasData?'ACC+GYRO gate':'no motion data', s:r.motionRejectedPct<10?'ok':r.motionRejectedPct<30?'warn':'bad'},
   ];
@@ -230,7 +230,7 @@ function renderQuality(r){
   const m=r.motion;
   $('qualityCard').innerHTML=`
     <div class="q-grid">
-      <div class="q-stat"><div class="q-val ${r.analyzablePct>=90?'ok':r.analyzablePct>=75?'warn':'bad'}">${r.analyzablePct}%</div><div class="q-lbl">Analyzable${evBadge('Analyzable')}</div><div class="q-sub">clean-beat × motion gate</div></div>
+      <div class="q-stat">${evBadge('Analyzable')}<div class="q-val ${r.analyzablePct>=90?'ok':r.analyzablePct>=75?'warn':'bad'}">${r.analyzablePct}%</div><div class="q-lbl">Analyzable</div><div class="q-sub">clean-beat × motion gate</div></div>
       <div class="q-stat"><div class="q-val ${r.cleanBeatPct>=85?'ok':r.cleanBeatPct>=65?'warn':'bad'}">${r.cleanBeatPct}%</div><div class="q-lbl">Clean pulses${evBadge('Clean pulses')}</div><div class="q-sub">SQI ≥ 0.5</div></div>
       <div class="q-stat"><div class="q-val ${r.motionRejectedPct<10?'ok':r.motionRejectedPct<30?'warn':'bad'}">${r.motionRejectedPct}%</div><div class="q-lbl">Motion-rejected${evBadge('Motion-rejected')}</div><div class="q-sub">${m&&m.hasData?'ACC+GYRO':'no ACC/GYRO'}</div></div>
       <div class="q-stat"><div class="q-val ${r.meanSQI>=0.7?'ok':r.meanSQI>=0.5?'warn':'bad'}">${r.meanSQI}</div><div class="q-lbl">Mean SQI${evBadge('Mean SQI')}</div><div class="q-sub">→ Ganglior conf</div></div>
@@ -305,7 +305,7 @@ function renderMotion(r){
   const ribbon = m.series && m.series.length>2 ? UI.lineChart(m.series.map(p=>({x:p.x,y:p.y})), UI.COLORS.purple, { W:680,H:140, ymn:0, ymx:1, xfmt:x=>x.toFixed(0)+'m', med:0.5 }) : '<div class="q-note" style="text-align:center;padding:16px">motion index unavailable</div>';
   $('motionCard').innerHTML=`
     <div class="q-grid">
-      <div class="q-stat"><div class="q-val ${m.meanMotionIndex<0.2?'ok':m.meanMotionIndex<0.5?'warn':'bad'}">${m.meanMotionIndex}</div><div class="q-lbl">Mean motion idx${evBadge('Mean motion idx')}</div><div class="q-sub">0 still · 1 moving</div></div>
+      <div class="q-stat">${evBadge('Mean motion idx')}<div class="q-val ${m.meanMotionIndex<0.2?'ok':m.meanMotionIndex<0.5?'warn':'bad'}">${m.meanMotionIndex}</div><div class="q-lbl">Mean motion idx</div><div class="q-sub">0 still · 1 moving</div></div>
       <div class="q-stat"><div class="q-val ${r.motionRejectedPct<10?'ok':r.motionRejectedPct<30?'warn':'bad'}">${r.motionRejectedPct}%</div><div class="q-lbl">Pulses rejected${evBadge('Pulses rejected')}</div><div class="q-sub">idx &gt; 0.5</div></div>
       <div class="q-stat"><div class="q-val neutral">${m.accFs||'—'}</div><div class="q-lbl">ACC Hz${evBadge('ACC Hz')}</div><div class="q-sub">${m.nAcc.toLocaleString()} samples</div></div>
       <div class="q-stat"><div class="q-val neutral">${m.gyroFs||'—'}</div><div class="q-lbl">GYRO Hz${evBadge('GYRO Hz')}</div><div class="q-sub">${m.nGyro.toLocaleString()} samples</div></div>
@@ -335,7 +335,7 @@ function renderValidation(r){
     body=`<div class="q-note" style="padding:20px 8px">Device PPI present (${v.nDevice} interval${v.nDevice===1?'':'s'}) but too sparse / blocker-flagged to validate against. Showing self-PPI only.</div>`;
   } else {
     body=`<div class="q-grid">
-      <div class="q-stat"><div class="q-val ${v.deviceAgreementPct>=95?'ok':v.deviceAgreementPct>=88?'warn':'bad'}">${v.deviceAgreementPct}%</div><div class="q-lbl">Agreement${evBadge('Agreement')}</div><div class="q-sub">self vs device mean</div></div>
+      <div class="q-stat">${evBadge('Agreement')}<div class="q-val ${v.deviceAgreementPct>=95?'ok':v.deviceAgreementPct>=88?'warn':'bad'}">${v.deviceAgreementPct}%</div><div class="q-lbl">Agreement</div><div class="q-sub">self vs device mean</div></div>
       <div class="q-stat"><div class="q-val neutral">${v.meanAbsDevMs}</div><div class="q-lbl">Mean abs dev${evBadge('Mean abs dev')}</div><div class="q-sub">ms</div></div>
       <div class="q-stat"><div class="q-val neutral">${v.selfMean}/${v.devMean}</div><div class="q-lbl">Mean PPI${evBadge('Mean PPI')}</div><div class="q-sub">self / device ms</div></div>
       <div class="q-stat"><div class="q-val neutral">${v.selfRMSSD}/${v.devRMSSD}</div><div class="q-lbl">rMSSD${evBadge('rMSSD')}</div><div class="q-sub">self / device ms</div></div>
@@ -385,7 +385,7 @@ function renderTable(r){
   html+=sec('Time-domain HRV (PPI-derived)', [
     ['Mean PPI', r.meanRR, 'ms', 'pulse-to-pulse'],
     ['Pulse rate', r.dispHr, 'bpm', '', hrStat(r.dispHr)],
-    ['SDNN', r.sdnn, 'ms', us?'needs ≥5 min':'≥50 good', us?'':sc(r.sdnn,50,30)],
+    ['SDNN', (r.sdnnRobust!=null?r.sdnnRobust:r.sdnn), 'ms', us?'needs ≥5 min':(r.sdnnRobust!=null?'robust · per-5-min median':'≥50 good'), us?'':sc(r.sdnnRobust!=null?r.sdnnRobust:r.sdnn,50,30)],
     ['rMSSD', r.rmssd, 'ms', 'parasympathetic · ≥30 good', sc(r.rmssd,30,20)],
     ['pNN50', r.pnn50, '%', ''],
     ['ln rMSSD', r.lnRMSSD, '', ''],
@@ -528,11 +528,14 @@ function buildV2(r){
       magInterferencePct:(r.magInterferencePct!=null?r.magInterferencePct:null),
       deviceAgreementPct:r.validation&&r.validation.usable?r.validation.deviceAgreementPct:null },
     hrv:{ time:{ meanRR:r.meanRR, hr:r.dispHr, sdnn:r.sdnn, rmssd:r.rmssd, pnn50:r.pnn50, lnRMSSD:r.lnRMSSD, triIdx:r.triIdx,
+        sdnnIndex:(r.sdnnIndex!=null?r.sdnnIndex:null), sdnnRobust:(r.sdnnRobust!=null?r.sdnnRobust:null), sd2Robust:(r.sd2Robust!=null?r.sd2Robust:null),
         window:'wholeRecord', units:'ms', lowConfidence:!!r.hrvLowConfidence, lowConfidenceReason:(r.hrvLowConfidenceReason||null),
-        windowNote:'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD.' },
+        windowNote:'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD.',
+        sdnnNote:'whole-record sdnn runs high on optical (SDANN/baseline-wander inflation, ~+26% vs chest ECG). sdnnIndex = mean of per-5-min SDNN (~+18%); sdnnRobust = quality-gated MEDIAN of per-5-min SDNN (~+3.5% vs ECG truth) \u2014 use sdnnRobust for cross-node SDNN comparison.' },
       poincare:{ sd1:r.sd1, sd2:r.sd2, sd1sd2:r.sd1sd2, ellipseArea:r.ellArea },
-      frequency:{ vlf:fq.vlf, lf:fq.lf, hf:fq.hf, lfhf:fq.lfhf, lfnu:fq.lfnu, hfnu:fq.hfnu, totalPower:fq.totalPower, method:'Lomb-Scargle', lowConfidence:!!r.hrvLowConfidence },
-      nonlinear:{ dfaAlpha1:r.dfa1, sampEn:r.sampen } },
+      frequency:{ vlf:fq.vlf, lf:fq.lf, hf:fq.hf, lfhf:fq.lfhf, lfnu:fq.lfnu, hfnu:fq.hfnu, totalPower:fq.totalPower, method:'Lomb-Scargle', lowConfidence:!!r.hrvLowConfidence, lfRobust:(r.lfRobust!=null?r.lfRobust:null), hfRobust:(r.hfRobust!=null?r.hfRobust:null), lfhfRobust:(r.lfhfRobust!=null?r.lfhfRobust:null), hfRobustLowMotion:(r.hfRobustLowMotion!=null?r.hfRobustLowMotion:null) },
+      nonlinear:{ dfaAlpha1:r.dfa1, sampEn:r.sampen },
+      confidence:(r.hrvConfidence||null) },
     personalization:{ profile:r.profile||null, ansReadinessScore:r.hrvScore, ansAge:null, /* ANS Age REMOVED 2026-06-21 (external-review WP-A); null for node-export back-compat. */
       restingHR:r.rhrEff, vo2maxEst:r.vo2adj, expectedRmssd:r.expRmssd },
     apnea: r.longRec ? { screen:'CVHR (PPI-derived bradycardia-rebound)', note:'screen not diagnosis', index:null } : null,
@@ -644,7 +647,7 @@ function ppgReviewView(review){
   h+='<div class="pgrv-imp">Mean HR '+nv(t.hr)+' bpm \u00b7 rMSSD '+nv(t.rmssd)+' ms \u00b7 SDNN '+nv(t.sdnn)+' ms'+(q.analyzablePct!=null?' \u00b7 analyzable '+q.analyzablePct+'%':'')+(t.lowConfidence?' \u00b7 ⚠ low-confidence HRV':'')+'. Rendered from the export\u2019s stored values \u2014 no waveform recomputation.</div>';
   var kpis=[['Mean HR',nv(t.hr),'bpm'],['rMSSD',nv(t.rmssd),'ms'],['SDNN',nv(t.sdnn),'ms'],['pNN50',nv(t.pnn50),'%'],['LF/HF',nv(fq.lfhf),'ratio'],['Analyzable',nv(q.analyzablePct),'%'],['LED agreement',nv(q.ledAgreementPct),'%'],['Beats',nv(rec.beats),'count']];
   h+='<div class="pgrv-sec">Key metrics</div><div class="pgrv-kpis">'
-    +kpis.map(function(k){ return '<div class="pgrv-kpi"><div class="k-lab">'+_pgesc(k[0])+'</div><div class="k-val">'+_pgesc(k[1])+'</div><div class="k-sub">'+_pgesc(k[2])+'</div></div>'; }).join('')
+    +kpis.map(function(k){ return '<div class="pgrv-kpi"><div class="k-lab">'+(typeof evBadge==='function'?evBadge(k[0]):'')+_pgesc(k[0])+'</div><div class="k-val">'+_pgesc(k[1])+'</div><div class="k-sub">'+_pgesc(k[2])+'</div></div>'; }).join('')
     +'</div>';
   h+='<div class="pgrv-sec">Event timeline</div>'+ppgReviewTimeline(review.events);
   h+='<div class="pgrv-sec">Raw signal</div>'

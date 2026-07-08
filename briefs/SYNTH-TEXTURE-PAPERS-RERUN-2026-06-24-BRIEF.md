@@ -2,7 +2,7 @@
 
 # SYNTH-TEXTURE — paper reruns & rewrites
 
-**Status:** PROPOSED · **Created:** 2026-06-24 · **Blocked-by:** `SYNTH-TEXTURE-2026-06-24-BRIEF.md` (start only after it is DONE) · **Supersedes-scope:** the rerun list in that brief's §7
+**Status:** IN-PROGRESS — 2026-07-07 (execution surfaced 3 scale-only rMSSD-figure artifacts → owner chose a full generator re-texture; that re-fit + the hrv-confound rerun DONE. Follow-up now carries the rest: all 6 papers rerun on 2.1/1.9 + the provenance cascade (6 bundles owned-rebuilt EXPORT-INERT, both gates green) are EXECUTED; only `release.mjs` remains before DONE — see `SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS-2026-07-07-BRIEF.md`) · **Created:** 2026-06-24 · **Blocked-by:** `SYNTH-TEXTURE-2026-06-24-BRIEF.md` (DONE) · **Supersedes-scope:** the rerun list in that brief's §7 · **Follow-up:** `SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS-2026-07-07-BRIEF.md`
 
 > The generator v-bump in `SYNTH-TEXTURE-2026-06-24-BRIEF.md` (new RR texture + `rsaGainFor` re-fit
 > + `CohortGen/1.8` + `SYNTH.VERSION`) shifts every **RR-derived** number. This brief re-runs the

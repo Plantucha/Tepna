@@ -293,6 +293,38 @@ function runDexTests(env) {
     })();
   });
 
+  /* ════ Decorrelation quality gate — screenTriplet (TRIO-METHODS-REUSE §Do 3).
+     A node that decorrelates from BOTH peers (failed extraction / lost contact) must be
+     DROPPED before the 3-way solve, else its garbage contaminates every per-sensor σ. The
+     screen drops exactly-one clear culprit (both corrs < minCorr, surviving pair agrees),
+     never drops when ≥2 mutually decorrelate (ambiguous) or when the survivors also disagree. */
+  group('Integrator TCH decorrelation quality gate — screenTriplet (§Do 3)', 'integrator-tch', function (T) {
+    var K = env.IntegratorTCH;
+    T.ok('screenTriplet + pearson present (integrator-tch ≥1.2.0)', !!(K && typeof K.screenTriplet === 'function' && typeof K.pearson === 'function'), 'load integrator-tch.js + wire env.IntegratorTCH');
+    if (!(K && typeof K.screenTriplet === 'function')) return;
+    function rng(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+    function normals(seed,n){ var r=rng(seed),o=[]; for(var i=0;i<n;i+=2){ var u1=Math.max(r(),1e-12),u2=r(),m=Math.sqrt(-2*Math.log(u1)); o.push(m*Math.cos(2*Math.PI*u2)); o.push(m*Math.sin(2*Math.PI*u2)); } return o.slice(0,n); }
+    var N=120, truth=[]; for(var i=0;i<N;i++) truth.push(40+12*Math.sin(i/4));
+    var nA=normals(11,N), nB=normals(22,N), nC=normals(33,N), nD=normals(44,N);
+    // (1) Oxy = independent noise (no latent) → decorrelates from both → dropped, ECG–PPG kept
+    var A=[],B=[],Odec=[]; for(i=0;i<N;i++){ A.push(truth[i]+1*nA[i]); B.push(truth[i]+1.5*nB[i]); Odec.push(40+12*nC[i]); }
+    var s1=K.screenTriplet(A,B,Odec,{labels:['ECG','PPG','Oxy']});
+    T.ok('decorrelated Oxy flagged for drop', s1.ok===true && s1.drop==='Oxy', 'drop='+s1.drop+' · '+s1.reason);
+    T.eq('surviving pair is ECG,PPG', (s1.keptPair||[]).slice().sort(), ['ECG','PPG']);
+    // (2) all three track the latent → no drop (inert on good data — the golden/wiring case)
+    var C=[]; for(i=0;i<N;i++) C.push(truth[i]+2*nC[i]);
+    var s2=K.screenTriplet(A,B,C,{labels:['ECG','PPG','Oxy']});
+    T.ok('all-correlated triplet → no drop', s2.ok===true && s2.drop===null, 'drop='+s2.drop);
+    // (3) three mutually-independent series → never drop (can't tell which is truth)
+    var X=[],Y=[],Z=[]; for(i=0;i<N;i++){ X.push(40+10*nA[i]); Y.push(40+10*nB[i]); Z.push(40+10*nD[i]); }
+    var s3=K.screenTriplet(X,Y,Z,{labels:['ECG','PPG','Oxy']});
+    T.ok('mutually-decorrelated triplet is NOT dropped (ambiguous/uncertain)', s3.drop===null && s3.ok===false, 'drop='+s3.drop+' · '+s3.reason);
+    // (4) pearson known-answers
+    T.ok('pearson=1 for identical series', Math.abs(K.pearson([1,2,3,4,5],[1,2,3,4,5])-1)<1e-9);
+    T.ok('pearson=−1 for perfectly anti-correlated', Math.abs(K.pearson([1,2,3,4,5],[5,4,3,2,1])+1)<1e-9);
+    T.ok('pearson null for <3 finite pairs', K.pearson([1,2],[1,2])===null);
+  });
+
   /* ════ 5d · INTEGRATOR fuseHRVConsensus → TCH wiring (series-fed, end-to-end) ════
      3 overlapping nodes carrying per-epoch rmssd SERIES (via adaptEnvelopeNode →
      series.hrvEpochs) → fuseHRVConsensus attaches a TCH block naming the noisiest
@@ -391,8 +423,6 @@ function runDexTests(env) {
     T.ok('degrade: <3 hr series → tchHR null', !!blk3 && blk3.tchHR==null, 'status='+(blk3&&blk3.tchHRStatus));
   });
 
-<<<<<<< HEAD
-=======
   /* ════ 5f · INTEGRATOR TCH cross-node alignment keys on ABSOLUTE wall-clock, not node-relative tMin
      (INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II §1 — CORRECTNESS). Co-recorded devices start minutes
      apart, so a shared node-relative tMin is a DIFFERENT wall-clock instant per node. The HR-hat must
@@ -459,7 +489,6 @@ function runDexTests(env) {
     }
   });
 
->>>>>>> cf3e242 (Tepna suite)
   /* ════ 5b · INTEGRATOR periodic-breathing cross-node corroboration (OXYDEX-…-II §2) ════
      PB observed by ≥2 INDEPENDENT signals (OxyDex SpO₂ oscillation · CPAPDex device flow ·
      ECGDex cardiac CVHR) corroborates; a LONE observer surfaces NO fused finding; confidence is
@@ -1940,18 +1969,6 @@ function runDexTests(env) {
     });
     T.ok('check5 · every changes/*.md is a well-formed changeset', badCs.length === 0, changeNames.length ? (badCs.length ? badCs.slice(0, 6).join('; ') : changeNames.length + ' pending, all valid') : 'no pending changesets');
 
-<<<<<<< HEAD
-    // ── CHECK 6 · stamp parity (reserved) — bundle propagation deferred (rides next re-bundle); assert any declared surface == canonical ──
-    var surfaces = RL.versionedSurfaces || {}, stampMismatch = Object.keys(surfaces).filter(function (k) { return surfaces[k] !== version; });
-    T.ok('check6 · every surface that declares a suite version matches the canonical one', stampMismatch.length === 0, Object.keys(surfaces).length ? (stampMismatch.length ? ('mismatch: ' + stampMismatch.join(', ')) : Object.keys(surfaces).length + ' surfaces in sync') : 'no propagated surface yet (deferred to build owner)');
-
-    // ── CHECK 7 · unreleased code needs an unreleased changeset — the "stamped completely at the end" enforcement ──
-    //    ROLLOUT (CONTROLLED-RELEASES-FOLLOWUPS §F8): ships INFORMATIONAL (HARD7=false) while the fleet adopts the
-    //    changeset habit and OWN-THE-BUILD Part C's in-flight re-bundles settle — a coder who moved a manifestHash
-    //    before the changeset flow existed is EXPECTED, not a violation. Flip HARD7=true (one line) once adopted →
-    //    hard gate. Zero false positives when hard: manifestHash is deterministic (an inert re-bundle doesn't move it).
-    var HARD7 = false;
-=======
     // ── CHECK 6 · stamp parity — every surface that declares a suite version == the canonical one ──
     //    NON-VACUOUS as of CONTROLLED-RELEASES-FOLLOWUPS F2/F3/F4: both runners pass the RAW text of each
     //    version-carrying surface in RL.surfaceTexts; extraction is SINGLE-SOURCED here so the two lanes
@@ -1984,7 +2001,6 @@ function runDexTests(env) {
     //    deterministic (an inert re-bundle doesn't move it); the 1.0.0 snapshot was reconfirmed consistent against
     //    BUILD-MANIFEST (5 unmoved bundles byte-match the snapshot; the 3 moved are exactly the changeset-covered set).
     var HARD7 = true;
->>>>>>> cf3e242 (Tepna suite)
     var build = parse((env.manifests || {})['BUILD-MANIFEST.json'] || 'null');
     if (build && build.bundles && newest.manifestHashes) {
       var moved = [];
@@ -2069,16 +2085,11 @@ function runDexTests(env) {
      SEEDED 2026-07-05 with pulsedex-render.js: its value tiles (kpi-val/k-val) already lead with evBadge(), an
      accepted badged marker, so the guard LOCKS it with NO shared-module change / fleet re-bundle (the born-clean
      model). A shared `MetricRegistry.metricValue()` helper stays an OPTIONAL future convenience (fold into a fleet
-<<<<<<< HEAD
-     re-bundle), NOT required to enforce; other render files (oxydex/hrvdex rs-val, badge trails value) join once
-     their badge leads the value. The guard + self-tests shipped earlier as the ready mechanism. ════ */
-  group('Badge-by-construction — enforced render files route metric values through a badge (OWN-THE-BUILD Part C)', 'badge-enforced · forward-adopt', function (T) {
-    var BADGE_ENFORCED = ['pulsedex-render.js'];   // render files opt in as they migrate (Part C, one at a time; seeded 2026-07-05)
-=======
      re-bundle), NOT required to enforce; other render files (oxydex/hrvdex rs-val, badge trails value) join once their badge leads the value. The guard + self-tests shipped earlier as the ready mechanism. **✅ oxydex/hrvdex MIGRATED + ENFORCED 2026-07-05 (owner-authorized targeted 2-bundle churn):** the four OxyDex `rs-val` readiness subscores + three descriptor `m-val` tiles (Periodicity pattern / oscillation "Clear" / Episode range, routed through `evBadge()` before the label exactly like the sibling `metric()` helper) and the HRVDex templated `rs-val` subscore now lead with the sanctioned badge → 0 bare value tiles; both files added to `BADGE_ENFORCED`. Rebuilt via `build-core.js` (`OxyDex 69a51c03e025→43bd047b12e8`, `HRVDex 97dd26f6db4a→6b43574be1ea`), EXPORT-INERT (render-only; each bundle's 2 code-gated fixture `manifestHash`es re-stamped, `inputHashes`/`outputHash` untouched — equiv/GATE-C legs confirm the export is unchanged). Browser gates green: `verify-provenance.html` GATE A/B (`__provenanceOK/__gateA_ok/__gateB_ok` all true), `Dex-Test-Suite.html?full` all-green (2068 passed, `bootSkips:[]`, both new asserts `ok`). ⚠️ Node-CI still owes the `--check` + `verify-manifest.mjs` confirmation (no Node shell in-environment). **✅ integrator-render.js ADDED 2026-07-06 (test-only, NO re-bundle — already compliant, `kpi()` leads with `evBadge()`; same born-clean model as the pulsedex seed).** **Remaining:** glucodex/ecgdex/cpapdex/ppgdex render+app+profile files (all still carry bare value tiles) join on their next on-touch re-bundle; the shared `MetricRegistry.metricValue()` helper stays an optional fleet-pass convenience. ════ */
   group('Badge-by-construction — enforced render files route metric values through a badge (OWN-THE-BUILD Part C)', 'badge-enforced · forward-adopt', function (T) {
-    var BADGE_ENFORCED = ['pulsedex-render.js', 'oxydex-render.js', 'hrvdex-render.js', 'integrator-render.js'];   // render files opt in as they migrate (Part C, one at a time; seeded 2026-07-05; oxydex+hrvdex rs-val migrated 2026-07-05; integrator-render.js added 2026-07-06 — already compliant, its kpi() leads with evBadge(), locked test-only w/ NO re-bundle)
->>>>>>> cf3e242 (Tepna suite)
+    var BADGE_ENFORCED = ['pulsedex-render.js', 'oxydex-render.js', 'hrvdex-render.js', 'integrator-render.js',
+      'ecgdex-app.js', 'ppgdex-app.js', 'glucodex-app.js', 'cpapdex-render.js', 'pulsedex-overview.js', 'hrvdex-app.js',
+      'ecgdex-profile.js', 'glucodex-profile.js', 'ppgdex-profile.js'];   // render files opt in as they migrate (Part C, one at a time; seeded 2026-07-05; the 9 added 2026-07-07 close the remaining bare-tile set — badge leads the value/tile; oxydex+hrvdex rs-val migrated 2026-07-05; integrator-render.js added 2026-07-06 — already compliant, its kpi() leads with evBadge(), locked test-only w/ NO re-bundle)
     var src = env.sources || {};
     // A value tile opens with a value class; it is BADGED if an `.ev ev-` disc / evBadge( / metricValue( /
     // MetricRegistry.badge( appears in the same tile construction (a short window before the value class).
@@ -2130,8 +2141,6 @@ function runDexTests(env) {
     T.ok('A3 · positive control: catches the retired umbrella brand', UMBRELLA_RE.test('product: GanglioR suite') && UMBRELLA_RE.test('by ANS Intelligence'));
   });
 
-<<<<<<< HEAD
-=======
   /* ════ HOUSE-INVARIANT LINT · Clock-Contract footguns (DEV-TOOLCHAIN Part A · A1) ════
      Sibling of the A3 vocabulary lint + the DSP-purity gate: mechanizes CLAUDE.md §🔒 (THE CLOCK
      CONTRACT) as a source-text gate over env.sources. Catches the exact footguns the contract forbids:
@@ -2320,7 +2329,6 @@ function runDexTests(env) {
     T.ok('positive control: a page absent from the sitemap is detected', !demo['NotThere.html']);
   });
 
->>>>>>> cf3e242 (Tepna suite)
   /* ════ HOST EMIT ALLOWLIST — ecg/ppg/cgm now emit in the live hosts (HOST-EMIT-ALLOWLIST-2026-06-27).
      Both hosts (Data Unifier `canEmit` / OverDex auto-emit) gated their emit UI to rr/spo2/hrv, so the
      migrated cgm/ppg/ecg nodes never emitted in the live UI. Now both gate on the SHARED predicate
@@ -4666,8 +4674,6 @@ function runDexTests(env) {
         && mExp.crossNight && mExp.crossNight.schema && mExp.crossNight.schema.name === 'ganglior.crossnight',
         'nightCount=' + mExp.nightCount + ' nights=' + (mExp.nights && mExp.nights.length));
     })();
-<<<<<<< HEAD
-=======
 
     // ── Integrator TCH-HR golden — the FIRST code-gated Integrator fixture (INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II §2) ──
     // The two committed Integrator fusions are `historical:true` (byte-PINNED only) — the evolved fusion code
@@ -4741,7 +4747,6 @@ function runDexTests(env) {
            && tb.tchHR.n >= 12 && tb.tchHR.method === 'correlated-external'),
         tb && tb.tchHR ? ('culprit=' + tb.tchHR.culprit + ' n=' + tb.tchHR.n + ' method=' + tb.tchHR.method + ' ρ=' + tb.tchHR.rho + ' hrRec=' + tb.hrReconciled) : 'no tchHR');
     })();
->>>>>>> cf3e242 (Tepna suite)
   });
 
   /* ════ Phase-9 GENERIC adapter → emit → schema-valid export — every signalType (PPGDEX-FOLLOWUPS §10) ════

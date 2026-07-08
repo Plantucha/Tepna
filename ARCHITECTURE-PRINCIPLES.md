@@ -59,6 +59,11 @@ oxygen; `hrvdex-dsp.js` knows HRV; `cpapdex-dsp.js` will know airflow/pressure.
   complex about its one signal.
 - `parseTimestamp` is duplicated into each DSP **by design** (Clock Contract) — that is the one
   sanctioned duplication; do not "fix" it into a shared util.
+- **DSP purity pays off directly: a pure DSP runs headless anywhere** — in Node (the test suite), and
+  in a **Web Worker** off the main thread. The proven shim (`self.window = self` before
+  `importScripts('kernel-constants.js','clock.js',<dsp>.js)` + feature-detect) is a reusable pattern —
+  forward-adopt it for any heavy batch/cohort/folder tool (CONTRIBUTING.md §5.5; TRIO-METHODS-REUSE
+  §Do 1). If a DSP had UI/DOM/storage in it, none of this would work — that is the point of the rule.
 - Test: *"Does this compute a number from a signal?"* → DSP. *"Does this decide how a number looks?"*
   → not DSP.
 

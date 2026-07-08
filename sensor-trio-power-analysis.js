@@ -22,12 +22,8 @@
  * then real-data validation):
  *   PART 1 — simulation power. A synthetic trio generator with a controllable
  *     variance REGIME (resting vs dynamic) and KNOWN per-device σ planted at the
-<<<<<<< HEAD
- *     paper's real estimates (σ_O2≈1.7, σ_H10≈2.2, σ_Verity≈6.2 bpm). The SAME
-=======
  *     paper's best real estimate — the raw-ECG 10-night broad hat (σ_O2≈2.72,
  *     σ_H10≈1.86, σ_Verity≈1.94 bpm; supersedes the interim device-HR 1.7/2.2/3.0). The SAME
->>>>>>> cf3e242 (Tepna suite)
  *     per-window TCH kernel sigma-no-reference uses is run over N_windows =
  *     1,2,3,5,8,12,20 across ~MC Monte-Carlo trials → σ̂ bias, CI half-width and
  *     RMSE vs the planted σ as a function of N. Gives a defensible "how many
@@ -49,11 +45,7 @@
  * inefficient for σ metrology and the answer is "how many windows OF WHAT KIND."
  * The generator therefore plants both an independent floor σ0 per device AND a
  * shared resting-HRV component, sized so the RESTING total σ matches the real
-<<<<<<< HEAD
- * estimates (1.7/2.2/6.2). An explicit ρ knob injects extra correlated error
-=======
  * estimates (2.72/1.86/1.94, raw-ECG broad hat). An explicit ρ knob injects extra correlated error
->>>>>>> cf3e242 (Tepna suite)
  * between the H10·Verity pair to calibrate the assumption-testability finding.
  *
  * 100% local. Clock-Contract parser mirrored (regex → floating ms; never
@@ -77,15 +69,9 @@
   const SD_H_REST = 1.35;          // bpm SD of the shared beat-to-beat HRV at rest
   const SD_H_DYN  = 0.30;          // HRV collapses during exercise
   const DEV = {
-<<<<<<< HEAD
-    o2:     { name: 'O2Ring (pulse)', col: O2COL,  resp: 0.45, sigmaRest: 1.7 },
-    h10:    { name: 'H10 (ECG)',      col: H10COL, resp: 1.00, sigmaRest: 2.2 },
-    verity: { name: 'Verity (PPG)',   col: VERCOL, resp: 1.00, sigmaRest: 6.2 },
-=======
     o2:     { name: 'O2Ring (pulse)', col: O2COL,  resp: 0.45, sigmaRest: 2.72 },
     h10:    { name: 'H10 (ECG)',      col: H10COL, resp: 1.00, sigmaRest: 1.86 },
     verity: { name: 'Verity (PPG)',   col: VERCOL, resp: 1.00, sigmaRest: 1.94 },   // planted at the raw-ECG 10-night broad hat (O2Ring 2.72 / H10 1.86 / Verity 1.94 bpm, 122,903 s) — the suite's best reference-free estimate; supersedes the interim device-HR re-fit (1.7/2.2/3.0)DSP is cleaner than the earlier estimate) — docs/INTEGRATOR-TCH-REALDATA-VALIDATION-2026-07-06.md
->>>>>>> cf3e242 (Tepna suite)
   };
   // solve independent floor σ0 so the resting total matches the real estimate
   for (const k in DEV) {
@@ -341,11 +327,7 @@
   //   K real Web Workers run the Monte-Carlo OFF the main thread → true
   //   multicore, no UI freeze. Jobs route by reqId through the shared pend map;
   //   per-trial deterministic seeding makes the result pool-size-independent.
-<<<<<<< HEAD
-  let pool = []; const pend = new Map(); let seq = 1; let CANCEL = false;
-=======
   let pool = []; const pend = new Map(); let seq = 1; let CANCEL = false; let _progHook = null;
->>>>>>> cf3e242 (Tepna suite)
   function bootPool(K) {
     pool = []; const readies = [];
     for (let i = 0; i < K; i++) {
@@ -353,22 +335,14 @@
         let w; try { w = new Worker('sensor-trio-worker.js'); } catch (e) { return; }
         const rec = { w: w, ready: false, _res: null };
         pool.push(rec); readies.push(new Promise((res) => { rec._res = res; }));
-<<<<<<< HEAD
-        w.onmessage = (ev) => { const m = ev.data || {}; if (m.type === 'ready') { rec.ready = true; if (rec._res) { rec._res(); rec._res = null; } return; } if (m.type === 'done') { const p = pend.get(m.reqId); if (p) { pend.delete(m.reqId); p(m); } } };
-=======
         w.onmessage = (ev) => { const m = ev.data || {}; if (m.type === 'ready') { rec.ready = true; if (rec._res) { rec._res(); rec._res = null; } return; } if (m.type === 'progress') { if (_progHook) _progHook(m); return; } if (m.type === 'done') { const p = pend.get(m.reqId); if (p) { pend.delete(m.reqId); p(m); } } };
->>>>>>> cf3e242 (Tepna suite)
         w.onerror = () => { if (rec._res) { rec._res(); rec._res = null; } };
         w.postMessage({ type: 'init' });
       })();
     }
     return Promise.race([Promise.all(readies), new Promise((r) => setTimeout(r, 8000))]);
   }
-<<<<<<< HEAD
-  function runJob(rec, job) { return new Promise((resolve) => { const id = seq++; pend.set(id, resolve); rec.w.postMessage(Object.assign({ type: 'job', reqId: id, ar1: CFG.ar1, winSec: CFG.winSec }, job)); setTimeout(() => { if (pend.has(id)) { pend.delete(id); resolve({ error: 'timeout' }); } }, 300000); }); }
-=======
   function runJob(rec, job) { return new Promise((resolve) => { const id = seq++; pend.set(id, resolve); rec.w.postMessage(Object.assign({ type: 'job', reqId: id, ar1: CFG.ar1, winSec: CFG.winSec }, job)); setTimeout(() => { if (pend.has(id)) { pend.delete(id); resolve({ error: 'timeout' }); } }, job.timeoutMs || 300000); }); }
->>>>>>> cf3e242 (Tepna suite)
 
   function fmtETA(sec) { if (!isFinite(sec) || sec < 0) return '—'; const m = Math.floor(sec / 60), s = Math.round(sec % 60); return m ? (m + 'm' + (s < 10 ? '0' : '') + s + 's') : (s + 's'); }
   // collapse one cell's accumulated per-trial medians → {sigma,ci,half,bias,rmse,negRate}
@@ -794,8 +768,6 @@
     dl('sensor-trio-power-results.csv', new Blob([rows.map((r) => r.join(',')).join('\n')], { type: 'text/csv' }));
   }
 
-<<<<<<< HEAD
-=======
   // ════════════════════════════════════════════════════════════════════════
   //  FOLDER INGESTION — drop a capture folder → auto-detect eligible trio
   //  nights → solve the real TCH per night IN PARALLEL across the worker pool.
@@ -899,7 +871,6 @@
     return Promise.all(top).then(() => files);
   }
 
->>>>>>> cf3e242 (Tepna suite)
   window.addEventListener('DOMContentLoaded', () => {
     $('runBtn').addEventListener('click', () => run().catch((e) => { console.error(e); setStatus('idle', 'error: ' + e.message); }));
     if ($('cancel')) $('cancel').addEventListener('click', () => { CANCEL = true; setStatus('idle', 'cancelling…'); });
@@ -912,8 +883,6 @@
     $('dlCsv').addEventListener('click', exportCsv);
     try { updEta(); } catch (e) {}
     try { window.__trioTryResume(); } catch (e) {}
-<<<<<<< HEAD
-=======
     // folder-ingestion wiring (real-data arm)
     const fi = $('folderInput'), xi = $('fileInput'), dz = $('dropzone');
     if (fi) fi.addEventListener('change', (e) => ingestFiles(e.target.files));
@@ -927,6 +896,5 @@
     const drawPlaceholder = (id, msg) => { const c = $(id); if (!c) return; const x = c.getContext('2d'); x.fillStyle = '#0f141b'; x.fillRect(0, 0, c.width, c.height); x.fillStyle = '#6f8096'; x.font = '13px ui-monospace,monospace'; x.textAlign = 'center'; x.fillText(msg, c.width / 2, c.height / 2); x.textAlign = 'left'; };
     ['curveCanvas', 'regimeCanvas', 'negCanvas', 'durCanvas'].forEach((id) => drawPlaceholder(id, 'Run the power simulation (button above) to populate'));
     drawPlaceholder('realCanvas', 'Process a folder below — or run the sim — to populate Figure 3');
->>>>>>> cf3e242 (Tepna suite)
   });
 })();

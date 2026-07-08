@@ -141,7 +141,7 @@ function renderHero(r){
   ];
   let subsHtml='';
   subs.forEach(s=>{ if(s.v==null||(typeof s.v==='number'&&isNaN(s.v)))return;
-    subsHtml+=`<div class="readiness-subscore"><div class="rs-val ${s.cls(s.v)}">${s.fmt(s.v)}</div><div class="rs-label">${s.label}${bdg(s.label)}</div></div>`; });
+    subsHtml+=`<div class="readiness-subscore">${(typeof evBadge==='function'?evBadge(s.label):'')}<div class="rs-val ${s.cls(s.v)}">${s.fmt(s.v)}</div><div class="rs-label">${s.label}</div></div>`; });
   let chips='';
   if(r.epochs && r.epochs.length>=4){ const w=r.epochs,t=Math.floor(w.length/3);
     const early=median(w.slice(0,t).map(x=>x.rmssd)), late=median(w.slice(-t).map(x=>x.rmssd));

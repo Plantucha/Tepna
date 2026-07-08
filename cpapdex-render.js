@@ -24,7 +24,7 @@ var MR  = global.MetricRegistry;
 
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function fnum(v, dec){ if (v == null || !isFinite(v)) return '—'; return dec != null ? (+v).toFixed(dec) : String(v); }
-function evb(id){ return (REG && REG.evBadge) ? REG.evBadge(id) : ''; }
+function evBadge(id){ return (REG && REG.evBadge) ? REG.evBadge(id) : ''; }
 function tierAttr(id){
   if (!REG || !MR || !REG.REGISTRY[id]) return '';
   var attr = MR.depthToTier(REG.REGISTRY[id].depth);
@@ -41,18 +41,18 @@ var KPI_CLS = { ok:'good', warn:'warn', bad:'bad', neutral:'neutral' };
 
 /* ── tiles ──────────────────────────────────────────────────────────────── */
 function kpiTile(id, valHtml, statusSev, sub){
-  return '<div class="kpi ' + (KPI_CLS[statusSev] || 'neutral') + '"' + tierAttr(id) + '>'
+  return '<div class="kpi ' + (KPI_CLS[statusSev] || 'neutral') + '"' + tierAttr(id) + '>' + evBadge(id)
     + '<div class="kpi-val ' + (statusSev || 'neutral') + '">' + valHtml + '</div>'
-    + '<div class="kpi-label">' + evb(id) + esc(lbl(id)) + '</div>'
+    + '<div class="kpi-label">' + esc(lbl(id)) + '</div>'
     + (sub ? '<div class="kpi-sub">' + esc(sub) + '</div>' : '')
     + '</div>';
 }
 function metricTile(id, valHtml, statusSev, sub){
   var u = unit(id);
-  return '<div class="metric"' + tierAttr(id) + '>'
+  return '<div class="metric"' + tierAttr(id) + '>' + evBadge(id)
     + '<div class="m-val ' + (statusSev && statusSev !== 'neutral' ? statusSev : '') + '">' + valHtml
       + (u ? '<span class="m-unit">' + esc(u) + '</span>' : '') + '</div>'
-    + '<div class="m-label">' + evb(id) + esc(lbl(id)) + '</div>'
+    + '<div class="m-label">' + esc(lbl(id)) + '</div>'
     + (sub ? '<div class="m-sub">' + esc(sub) + '</div>' : '')
     + '</div>';
 }
@@ -73,7 +73,7 @@ function renderKPIs(night){
   if (cross && cross.oximetryAvailable)
     out += kpiTile('odi', fnum(cross.odi, 1) + '<span class="kpi-u">/hr</span>', sev(5, 15, cross.odi, true), 'SA2 · self-gated');
   else
-    out += '<div class="kpi neutral"' + tierAttr('odi') + '><div class="kpi-val" style="color:var(--text4)">n/a</div><div class="kpi-label">' + evb('odi') + esc(lbl('odi')) + '</div><div class="kpi-sub">no oximeter</div></div>';
+    out += '<div class="kpi neutral"' + tierAttr('odi') + '>' + evBadge('odi') + '<div class="kpi-val" style="color:var(--text4)">' + 'n/a</div><div class="kpi-label">' + esc(lbl('odi')) + '</div><div class="kpi-sub">no oximeter</div></div>';
   out += kpiTile('periodicBreathingPct', fnum(nm.periodicBreathingPct, 1) + '<span class="kpi-u">%</span>', sev(2, 10, nm.periodicBreathingPct, true), 'Cheyne-Stokes / PB');
   return out;
 }
@@ -158,7 +158,7 @@ function drawPressure(cv, nm){
    SECTION CARDS  (return HTML; charts hydrate after insert via hydrate())
    ════════════════════════════════════════════════════════════════════════ */
 function cardHead(title, note, id){
-  return '<div class="card-h">' + (id ? evb(id) : '') + esc(title) + (note ? ' <span class="card-sub">' + esc(note) + '</span>' : '') + '</div>';
+  return '<div class="card-h">' + (id ? evBadge(id) : '') + esc(title) + (note ? ' <span class="card-sub">' + esc(note) + '</span>' : '') + '</div>';
 }
 
 function residualCard(night){
@@ -332,10 +332,10 @@ function renderHistory(nights){
   // headline KPIs
   var ut = lng.usageTrend7d, utCls = ut>0?'good':ut<0?'bad':'neutral';
   var kpis = ''
-    + '<div class="kpi neutral"><div class="kpi-val neutral">' + nights.length + '</div><div class="kpi-label">Nights</div></div>'
+    + '<div class="kpi neutral"><div class="kpi-val neutral">' + evBadge('nights') + nights.length + '</div><div class="kpi-label">Nights</div></div>'
     + kpiTile('compliancePct', fnum(lng.compliancePct,0)+'<span class="kpi-u">%</span>', sev(70,50,lng.compliancePct), '≥4 h nights')
-    + '<div class="kpi '+utCls+'"><div class="kpi-val '+(utCls==='good'?'ok':utCls==='bad'?'bad':'neutral')+'">'+(ut>0?'+':'')+fnum(ut,2)+'<span class="kpi-u">h/night</span></div><div class="kpi-label">'+evb('usageHours')+'Usage trend (7d)'+'</div></div>'
-    + (lng.ahiTrend30d ? '<div class="kpi"><div class="kpi-val neutral">'+fnum(lng.ahiTrend30d.mean,1)+'<span class="kpi-u">±'+fnum(lng.ahiTrend30d.sd,1)+'</span></div><div class="kpi-label">'+evb('residualAHI')+'AHI '+lng.ahiTrend30d.n+'-night'+'</div></div>' : '');
+    + '<div class="kpi '+utCls+'"><div class="kpi-val '+(utCls==='good'?'ok':utCls==='bad'?'bad':'neutral')+'">'+evBadge('usageHours')+(ut>0?'+':'')+fnum(ut,2)+'<span class="kpi-u">h/night</span></div><div class="kpi-label">'+'Usage trend (7d)'+'</div></div>'
+    + (lng.ahiTrend30d ? '<div class="kpi"><div class="kpi-val neutral">'+evBadge('residualAHI')+fnum(lng.ahiTrend30d.mean,1)+'<span class="kpi-u">±'+fnum(lng.ahiTrend30d.sd,1)+'</span></div><div class="kpi-label">'+'AHI '+lng.ahiTrend30d.n+'-night'+'</div></div>' : '');
   // trend rows from the cross-night block
   var trendRows = '';
   if (cn && cn.metrics){
@@ -343,7 +343,7 @@ function renderHistory(nights){
       var M = cn.metrics[id]; if (!M || M.n < 2) return;
       var tl = M.trend ? M.trend.label : '—';
       trendRows += '<div class="trend-row">'
-        + '<span class="trend-name">' + esc(M.label) + evb(id) + '</span>'
+        + '<span class="trend-name">' + esc(M.label) + evBadge(id) + '</span>'
         + '<span class="trend-mean">' + fnum(M.central && M.central.mean, 2) + ' <span class="trend-u">' + esc(M.unit||'') + '</span></span>'
         + '<span class="trend-lbl" style="color:'+(TREND_COL[tl]||'var(--text3)')+'">' + esc(tl) + '</span>'
         + '<canvas class="chart trend-spark" data-trend="'+id+'" style="width:120px;height:34px"></canvas>'
@@ -399,11 +399,11 @@ function crossNodeCard(night){
     if (aut.corroboratedPct != null)
       body += '<div class="xn-note"><b style="color:var(--text2)">' + aut.corroboratedPct + '%</b> of ' + aut.apneasInWindow + ' scored apneas had a matching ECG autonomic surge within the shared ±gate (' + aut.matched + '/' + aut.apneasInWindow + ').</div>';
     body += '<div class="metric-grid" style="margin-top:8px">'
-      + '<div class="metric"><div class="m-val">' + fnum(aut.cvhrIndex, 1) + '</div><div class="m-label">CVHR Index <span class="xn-tag">ECG</span></div><div class="m-sub">cyclic-variation apnea screen</div></div>'
-      + '<div class="metric"><div class="m-val">' + fnum(aut.estAHI, 1) + '</div><div class="m-label">ECG est. AHI <span class="xn-tag">ECG</span></div><div class="m-sub">' + esc(aut.estAHIband || 'independent estimate') + '</div></div>'
-      + '<div class="metric"><div class="m-val">' + fnum(aut.respRateSd, 2) + '</div><div class="m-label">Resp-rate SD <span class="xn-tag">ECG</span></div><div class="m-sub">ventilation instability</div></div>'
-      + '<div class="metric"><div class="m-val">' + fnum(aut.rmssd, 0) + '</div><div class="m-label">RMSSD <span class="xn-tag">ECG</span></div><div class="m-sub">real RR-based HRV</div></div>'
-      + (aut.plvDrop != null ? '<div class="metric"><div class="m-val">' + fnum(aut.plvDrop, 2) + '</div><div class="m-label">Coupling drop <span class="xn-tag">ECG</span></div><div class="m-sub">cardioresp phase-lock loss in surges</div></div>' : '')
+      + '<div class="metric"><div class="m-val">' + evBadge('cvhrIndex') + fnum(aut.cvhrIndex, 1) + '</div><div class="m-label">CVHR Index <span class="xn-tag">ECG</span></div><div class="m-sub">cyclic-variation apnea screen</div></div>'
+      + '<div class="metric"><div class="m-val">' + evBadge('estAHI') + fnum(aut.estAHI, 1) + '</div><div class="m-label">ECG est. AHI <span class="xn-tag">ECG</span></div><div class="m-sub">' + esc(aut.estAHIband || 'independent estimate') + '</div></div>'
+      + '<div class="metric"><div class="m-val">' + evBadge('respRateSd') + fnum(aut.respRateSd, 2) + '</div><div class="m-label">Resp-rate SD <span class="xn-tag">ECG</span></div><div class="m-sub">ventilation instability</div></div>'
+      + '<div class="metric"><div class="m-val">' + evBadge('rmssd') + fnum(aut.rmssd, 0) + '</div><div class="m-label">RMSSD <span class="xn-tag">ECG</span></div><div class="m-sub">real RR-based HRV</div></div>'
+      + (aut.plvDrop != null ? '<div class="metric"><div class="m-val">' + evBadge('plvDrop') + fnum(aut.plvDrop, 2) + '</div><div class="m-label">Coupling drop <span class="xn-tag">ECG</span></div><div class="m-sub">cardioresp phase-lock loss in surges</div></div>' : '')
       + '</div></div>';
   }
   return '<div class="card">' + cardHead('Cross-Node Corroboration', 'optional peer exports · source-attributed, not re-emitted') + body + '</div>';
@@ -426,8 +426,8 @@ function heroCard(night){
   var subs = '';
   var sub = function(val, unitTxt, label, id, sevCls){
     if (val == null || !isFinite(val)) return;
-    subs += '<div class="readiness-subscore"><div class="rs-val ' + sevCls + '">' + fnum(val, val>=100?0:1) + unitTxt + '</div>'
-      + '<div class="rs-label">' + evb(id) + esc(label) + '</div></div>';
+    subs += '<div class="readiness-subscore">' + evBadge(id) + '<div class="rs-val ' + sevCls + '">' + fnum(val, val>=100?0:1) + unitTxt + '</div>'
+      + '<div class="rs-label">' + esc(label) + '</div></div>';
   };
   sub(night.therapyHours, ' h', 'Usage', 'usageHours', sev(4,2,night.therapyHours));
   sub(nm.largeLeakPct, '%', 'Large Leak', 'largeLeakPct', sev(2,5,nm.largeLeakPct,true));

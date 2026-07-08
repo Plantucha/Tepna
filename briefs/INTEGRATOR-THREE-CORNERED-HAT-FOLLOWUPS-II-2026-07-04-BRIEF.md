@@ -1,9 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-<<<<<<< HEAD
-**Status:** PROPOSED — 2026-07-04 · **Created:** 2026-07-04 · **Executed-residue-of:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-2026-07-03-BRIEF.md` (§1/§2 code landed 2026-07-04) · **Extends:** `INTEGRATOR-BUILD-BRIEF.md` §4.4 `fuseHRVConsensus` · **Links:** `OXYDEX-PER-EPOCH-HR-EXPORT-2026-07-04-BRIEF.md` (DONE)
-=======
 **Status:** DONE — 2026-07-06 (**§1 + §3 + §5 DONE — 2026-07-05**; **§2 golden DONE — 2026-07-06**: `uploads/integrator_tch_golden.node-export.json` is the FIRST code-gated Integrator fixture — three staggered (+0/+5/+10 min) synthetic node-exports rebuilt IN-CODE → real `adaptEnvelopeNode` + `fuseHRVConsensus` → HR-hat fires [n=22, culprit OxyDex, ρ=0.356 from cross-node motion → correlated-external, reconciled HR 58.4 bpm], deep-diffed by the `equivalence gate` group in BOTH runners + GATE-B code-gated @ `cef329a4fec6`; both gates green [`Dex-Test-Suite?full` 2102 passed / 0 boot-skips · `verify-provenance` A/B clean]. **§4 real-data-ρ DEFERRED** — blocked on a real co-recorded O2Ring+H10+Verity night the repo doesn't hold; the golden validates the ρ-from-motion mechanism synthetically. Follow-up: `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md`) · **Created:** 2026-07-04 · **Executed-residue-of:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-2026-07-03-BRIEF.md` (§1/§2 code landed 2026-07-04) · **Extends:** `INTEGRATOR-BUILD-BRIEF.md` §4.4 `fuseHRVConsensus` · **Links:** `OXYDEX-PER-EPOCH-HR-EXPORT-2026-07-04-BRIEF.md` (DONE)
->>>>>>> cf3e242 (Tepna suite)
 
 # Integrator three-cornered-hat — follow-ups II (alignment · golden · render · ρ-validation)
 
@@ -25,8 +21,6 @@
 ---
 
 ## §1 (⚠ HIGHEST — CORRECTNESS) — cross-node epoch alignment keys on NODE-RELATIVE `tMin`, not absolute wall-clock
-<<<<<<< HEAD
-=======
 > **✅ DONE — 2026-07-05.** Fix landed tighter than the proposal below (the epochs ALREADY carried a
 > floating `tMs` from `adaptEnvelopeNode`, so step-1 stamping was already done). Added `_epKey(e)` in
 > `integrator-dsp.js` — the absolute 5-min wall-clock grid key `Math.round(e.tMs/300000)*5` when `tMs` is
@@ -50,7 +44,6 @@
 > `minNums`/`waitMs` is out of this brief's scope).
 
 ## §1 (⚠ HIGHEST — CORRECTNESS) — cross-node epoch alignment keys on NODE-RELATIVE `tMin`, not absolute wall-clock
->>>>>>> cf3e242 (Tepna suite)
 **Problem.** `adaptEnvelopeNode` carries each epoch's **node-relative** `tMin` (minutes from *that node's*
 `t0Ms`), and `IntegratorTCH.alignTriplet` keys on `tMin`. So ECG `tMin=5` is paired with PPG `tMin=5` and
 Oxy `tMin=5` — but those are the same *offset*, **not the same wall-clock instant**. Co-recorded devices
@@ -77,8 +70,6 @@ false divergence); same-start nights stay byte-identical; Clock-Contract viewer-
 (align on `getUTC*`-derived `tMs`, never local getters).
 
 ## §2 — the committed reference-night golden = the FIRST code-gated Integrator fixture (from FU-I §2 "Done when")
-<<<<<<< HEAD
-=======
 > **✅ DONE — 2026-07-06 (Approach A — the `cpapdex_synthetic_golden` precedent, owner-selected).** Instead of
 > generating heavy raw streams for three real node computes (a ≥60-min 176 Hz PPG + a synthetic raw-ECG
 > generator that doesn't exist), the golden is built the way CPAPDex's is: the `equivalence gate` group
@@ -94,7 +85,6 @@ false divergence); same-start nights stay byte-identical; Clock-Contract viewer-
 > cannot move it. Generator harness: `_diag/tch-golden-gen.html` (byte-identical builder). Gates: `Dex-Test-Suite?full`
 > all-green (2102 passed, 0 boot-skips) · `verify-provenance` GATE A/B clean (the fixture reads `code-gated ·
 > reproducible ✓ @ cef329a4fec6`). NO Integrator re-bundle (test + fixture + ledger only; `manifestHash` unchanged).
->>>>>>> cf3e242 (Tepna suite)
 FU-I §2 wants real-night TCH captured as the first code-gated Integrator fixture (today's two Integrator
 fusions are `historical:true`, byte-pinned only). Build a **co-recorded** night from the seeded synth
 generator (`synth-gen.js` / `dex-patient-gen.js` — one subject, every device on the same floating
@@ -107,8 +97,6 @@ equiv/golden test that re-runs the fusion on the committed inputs and deep-diffs
 bug); prefer **staggered** starts so the golden actually exercises §1's fix.
 
 ## §3 — surface `block.tchHR` in `integrator-render.js` (parent §5, not done)
-<<<<<<< HEAD
-=======
 > **✅ DONE — 2026-07-05.** Generalized the three TCH render helpers (`tchBars`/`tchNote`/`tchTauSpark`)
 > to take a `which` arg (default → RMSSD hat = **byte-identical** to the shipped card) and added a parallel
 > **HR-hat card** (`Per-sensor HR error (TCH)`, units **bpm**, noisiest-first σ-bars, culprit ▲, reconciled
@@ -123,7 +111,6 @@ bug); prefer **staggered** starts so the golden actually exercises §1's fix.
 > regression.
 
 ## §3 — surface `block.tchHR` in `integrator-render.js` (parent §5, not done)
->>>>>>> cf3e242 (Tepna suite)
 The HR-hat payload (`block.tchHR` σ-bars, `hrReconciled`, culprit ▲, `rho` + `method`, the `allan`
 τ-sparkline) is EMITTED but NOT rendered. Mirror the existing rmssd σ-bar card for the HR-hat (units
 **bpm**, noisiest-first, culprit flagged, an `experimental` badge, show ρ + its source when
@@ -131,8 +118,6 @@ The HR-hat payload (`block.tchHR` σ-bars, `hrReconciled`, culprit ▲, `rho` + 
 (export-inert; Integrator fixtures stay historical). Add a render-coverage assertion.
 
 ## §4 — real-data ρ validation + motion-semantics comparability
-<<<<<<< HEAD
-=======
 > **⏸ DEFERRED — 2026-07-06 (blocked, no code).** This is validation, not a gate, and it needs a **real**
 > co-recorded O2Ring+H10+Verity night — which the repo does not hold (the equiv inputs are different
 > nights/durations; SIGNAL-ADAPTER never captured a tri-device simultaneity). The §2 golden validates the
@@ -140,7 +125,6 @@ The HR-hat payload (`block.tchHR` σ-bars, `hrReconciled`, culprit ▲, `rho` + 
 > *reduces* cross-device HR divergence on a real night, plus the OxyDex↔PpgDex `motionIndex` scale-comparability
 > check (z-score before correlating, min aligned-motion overlap n), waits on a real capture. Carried to
 > `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md` as a blocked item.
->>>>>>> cf3e242 (Tepna suite)
 `_tchRhoFromMotion` is a **proxy** (co-motion correlation stands in for the shared motion-driven noise
 correlation the reference-free estimator can't recover), gated only synthetically. Validate on a real
 co-recorded night: does the motion-derived ρ actually *reduce* cross-device HR divergence vs classic?
@@ -151,8 +135,6 @@ un-correlated by construction). Consider z-scoring per-node motion before correl
 minimum aligned-motion overlap (n) before trusting ρ. Validation, not new gate.
 
 ## §5 — document the HR-hat recovery-precision LIMIT (consumer guidance)
-<<<<<<< HEAD
-=======
 > **✅ DONE — 2026-07-05.** `_tchHat` now attaches `quietOrderUncertain` (bool) + `quietSensors` (the two
 > non-culprit nodes) to every hat block: TRUE when the two quietest σ² sit within a ×2 factor — the
 > reference-free regime where sampling noise dominates the quiet split, so “both low, order uncertain.” A
@@ -165,7 +147,6 @@ minimum aligned-motion overlap (n) before trusting ρ. Validation, not new gate.
 > deterministic floor + all my groups green. **✅ OxyDex render-coverage flake FIXED 2026-07-05 (harness-only, no re-bundle):** the `computed numeric output reaches the DOM` assertion had a real defect — it re-tokenized an EARLY `txt` snapshot with `/\d[\d.,:]*/g` (which merges each `HH:MM:SS` clock token into one), so it undercounted vs the settle-gate's `_numTokens` and flaked 14-vs-15 on OxyDex whenever the dashboard rendered clock times (the CLAUDE.md §3 "14 numeric tokens" flake — a tokenizer mismatch, NOT timing or a borderline `minNums`). Fixed in `Dex-Test-Suite.html` to use `_numTokens(doc)` (the same tokenizer as the gate, read live) → OxyDex now reads 515 tokens, 22/22, `?full` all-green (2099 passed). Bar unchanged (`minNums:15`); a genuinely under-rendering bundle still times out at the gate.
 
 ## §5 — document the HR-hat recovery-precision LIMIT (consumer guidance)
->>>>>>> cf3e242 (Tepna suite)
 `5e` (planted per-sensor σ² `{1,4,16}`) recovered the **dominant** error well (16 → 15.4) but the two
 **quiet** sensors were poorly determined and mis-ordered (`{1,4}` → `{4.7,2.2}`). This is inherent to
 reference-free TCH: the quiet sensors' pairwise-difference variance is small, so sampling noise

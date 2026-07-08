@@ -72,19 +72,19 @@
   // bedtime as civil [Y,M,D,h,m]; AHI target; glucose & HRV story per night.
   const NIGHTS = [
     { n: 1, date: '2026-05-11', bed: [2026, 5, 11, 23, 10], durSec: 27600, ahi: 22, cpap: false,
-      gluc: 'flat',  rmssd: 24, rsaGain: 0.932, story: 'Baseline untreated OSA' },
+      gluc: 'flat',  rmssd: 24, rsaGain: 1.199, story: 'Baseline untreated OSA' },
     { n: 2, date: '2026-05-12', bed: [2026, 5, 12, 23, 55], durSec: 26400, ahi: 38, cpap: false,
-      gluc: 'hypo',  rmssd: 18, rsaGain: 0.321, story: 'Worse — alcohol, supine, fragmented; nocturnal hypo + CSR run' },
+      gluc: 'hypo',  rmssd: 18, rsaGain: 0.866, story: 'Worse — alcohol, supine, fragmented; nocturnal hypo + CSR run' },
     { n: 3, date: '2026-05-13', bed: [2026, 5, 13, 22, 50], durSec: 28200, ahi: 7,  cpap: true,
-      gluc: 'flat',  rmssd: 30, rsaGain: 1.367, story: 'CPAP started (intervention) — residual events only' },
+      gluc: 'flat',  rmssd: 30, rsaGain: 1.523, story: 'CPAP started (intervention) — residual events only' },
     { n: 4, date: '2026-05-14', bed: [2026, 5, 14, 23, 5],  durSec: 27600, ahi: 4,  cpap: true,
-      gluc: 'dawn',  rmssd: 38, rsaGain: 1.850, story: 'CPAP adherent + dawn phenomenon' },
+      gluc: 'dawn',  rmssd: 38, rsaGain: 1.950, story: 'CPAP adherent + dawn phenomenon' },
     { n: 5, date: '2026-05-15', bed: [2026, 5, 15, 23, 20], durSec: 27000, ahi: 3,  cpap: true,
-      gluc: 'dawn',  rmssd: 44, rsaGain: 2.215, story: 'CPAP stable, best night' },
+      gluc: 'dawn',  rmssd: 44, rsaGain: 2.268, story: 'CPAP stable, best night' },
   ];
   const SUBJECT = { id: 'SubjectA', age: 45, sex: 'M', bmi: 31, polarId: 'BBBBBBBB', glucoZone: '-04:00' };
   // texture/calibration version — read by cohort-runner's provenance pin.
-  const VERSION = 'synth-gen/2.0';   // 2.0: broadband 1/f RR texture (octave-OU relaxor bank τ≈2..256 beats + RSA freq wander; DFA-α1 0.53→0.85) + re-fit NIGHTS rsaGain. Pre-2.0 = single-relaxor texture, no VERSION string.
+  const VERSION = 'synth-gen/2.1';   // 2.1: HRV-level-scaled fast-variability floor (texF) in buildRR + dropped the τ=2 relaxor + white-noise 3→1.0 → the low-HRV RR tail renders below the old ~17.6 ms floor and SPREADS instead of stacking a flat line (paired with cohort-gen/1.9 rsaGainFor re-fit); DFA-α1 preserved ≈0.76. NIGHTS rsaGain re-fit to the new gain→rMSSD transfer. 2.0: broadband 1/f RR texture (octave-OU relaxor bank τ≈2..256 beats + RSA freq wander; DFA-α1 0.53→0.85) + re-fit NIGHTS rsaGain. Pre-2.0 = single-relaxor texture, no VERSION string.
 
   function nightT0(cfg) { return civilMs(cfg.bed[0], cfg.bed[1], cfg.bed[2], cfg.bed[3], cfg.bed[4], 0, 0); }
 
@@ -243,6 +243,12 @@
   function buildRR(tl) {
     const cfg = tl.cfg;
     const r = mulberry32(tl.seed + 202);
+    // Non-RSA fast-variability scale, tied to the night's HRV level (rsaGain). Bulk/high-HRV
+    // nights (gain ≥ 0.9, target ≳ 22 ms) keep FULL broadband texture — DFA-α1 is measured
+    // there and must not move. Low-HRV nights (severe-apnea/elderly tail) get proportionally
+    // less fast variability, so their rendered rMSSD floor drops and the low tail SPREADS
+    // instead of stacking on a hard line — physiological (low vagal tone ⇒ less complex RR).
+    const texF = Math.min(1, Math.max(0.30, 0.30 + 0.70 * (cfg.rsaGain || 1) / 0.9));
     const beats = [];                               // {tMs, rr, type}
     let tRel = 0.4;                                  // sec
     let lf = 0, lfT = 0, bw = 0, sinus = 1000, pendComp = 0, cvhrS = 0;
@@ -251,7 +257,7 @@
     // autocorrelation for 15+ beats on clean (low-apnea) nights; letting it wander
     // broadens the HF band so the autocorrelation damps within ~2 cycles, as real RSA does.
     let respPh = r() * 2 * Math.PI, zRespF = gaussFrom(r), lastTRel = 0;
-    // Broadband 1/f background (octave-spaced OU relaxors, τ ≈ 2..256 beats) in place of
+    // Broadband 1/f background (octave-spaced OU relaxors, τ ≈ 3..256 beats) in place of
     // the old single slow relaxor. Real RR is pink at short scales (DFA-α1 ≈ 1.02–1.30,
     // measured across 13 real H10 nights); a single slow OU left the 4–16-beat band white
     // (α1 ≈ 0.5). Spreading 1/f power across that band lifts α1 to ≈0.85 and also pulls
@@ -260,7 +266,7 @@
     // pinned by the per-night rMSSD targets) caps short-scale α1; closing the last ~0.3
     // needs a multifractal RSA model, not a parameter (a multiplicative 1/f coupling was
     // tested against the real corpus and made α1 worse, so it was rejected).
-    const bwTau = [2, 3, 4, 6, 8, 12, 16, 24, 32, 64, 128, 256];
+    const bwTau = [3, 4, 6, 8, 12, 16, 24, 32, 64, 128, 256];
     const bwA = bwTau.map(t => Math.exp(-1 / t)), bwS = bwA.map(a => Math.sqrt(1 - a * a));
     const bwNorm = Math.sqrt(bwTau.length); const bwBank = bwTau.map(() => gaussFrom(r));
     // hypo window (N2): compensatory tachycardia + rMSSD collapse + a few ectopics
@@ -294,7 +300,7 @@
       const lfMs = lf * 22 * (1.1 - vagal * 0.5);
       bw = 0;
       for (let j = 0; j < bwA.length; j++) { bwBank[j] = bwA[j] * bwBank[j] + gaussFrom(r) * bwS[j]; bw += bwBank[j]; }
-      bw = bw / bwNorm * 30;                          // broadband 1/f background (see buildRR head)
+      bw = bw / bwNorm * 30 * texF;                  // broadband 1/f background (see buildRR head), HRV-level-scaled
       // CVHR: bradycardia in apnea, tachy rebound at arousal — SMOOTHED over ~6 beats so
       // it loads SDNN/VLF (a slow cyclic oscillation) without spuriously inflating rMSSD.
       const st = apneaStateAt(tl, tRel);
@@ -312,7 +318,7 @@
         const d = Math.abs(tRel - hypoNadirRel);
         if (d < 25 * 60) { const w = Math.max(0, 1 - d / (25 * 60)); hypoMs = -120 * w; hypoSupp = 1 - 0.5 * w; }
       }
-      let rr = baseRR(tRel) + (resp + lfMs) * hypoSupp + bw + cvhr + pbMs + hypoMs + gaussFrom(r) * 3;
+      let rr = baseRR(tRel) + (resp + lfMs) * hypoSupp + bw + cvhr + pbMs + hypoMs + gaussFrom(r) * 1.0 * texF;
       let type = 'N';
       if (pendComp > 0) { rr += pendComp; pendComp = 0; }
       else if (hypo && Math.abs(tRel - hypoNadirRel) < 12 * 60 && r() < 0.0016) {

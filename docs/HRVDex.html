@@ -3159,10 +3159,6 @@ body.light .readiness-subscore { background: rgba(0,0,0,.02); border-color: rgba
 :root{ --fs-body: clamp(13px, 0.4vw + 11.5px, 14px); }
 body.light .topbar::after{ opacity:.25; }
 </style>
-<<<<<<< HEAD
-</head>
-<body>
-=======
 <link rel="canonical" href="https://tepna.net/HRVDex.html">
 <meta property="og:url" content="https://tepna.net/HRVDex.html">
 <meta property="og:type" content="website">
@@ -3179,7 +3175,6 @@ body.light .topbar::after{ opacity:.25; }
     <p>Part of <strong>Tepna — the Dex Suite</strong> · Apache-2.0 · Personal self-quantification, not a medical device.</p>
   </div>
 </noscript>
->>>>>>> cf3e242 (Tepna suite)
 
 <template id="__bundler_thumbnail">
   <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
@@ -7395,11 +7390,7 @@ function renderHero(r, prev){
   let subsHtml = '';
   subs.forEach(s => {
     if(s.v == null) return;
-<<<<<<< HEAD
-    subsHtml += `<div class="readiness-subscore"><div class="rs-val ${s.cls(s.v)}">${s.fmt(s.v)}${s.unit}</div><div class="rs-label">${evBadge(s.label)}${s.label}</div></div>`;
-=======
     subsHtml += `<div class="readiness-subscore"><div class="rs-val ${s.cls(s.v)}">${evBadge(s.label)}${s.fmt(s.v)}${s.unit}</div><div class="rs-label">${s.label}</div></div>`;
->>>>>>> cf3e242 (Tepna suite)
   });
 
   // Trend chips
@@ -9779,11 +9770,7 @@ function _hrvInjectReviewCSS(){
 function hrvReviewView(review){
   var ms=Array.isArray(review.measurements)?review.measurements:[], rec=review.recording||{};
   var prov=review.provenance||{}, bh=prov.buildHash||(review.derivedFrom&&review.derivedFrom.buildHash)||null, gen=_hrvFmtGen(prov.generated||review.generated);
-<<<<<<< HEAD
-  var nv=function(v,d){ return (v==null||v!==v)?(d||'\u2014'):v; };
-=======
   var nv=function(v,d){ return (v==null||Number.isNaN(v))?(d||'\u2014'):v; };
->>>>>>> cf3e242 (Tepna suite)
   var num=function(a){ return a.filter(function(v){return typeof v==='number'&&isFinite(v);}); };
   var mean=function(a){ a=num(a); return a.length?+(a.reduce(function(x,y){return x+y;},0)/a.length).toFixed(1):null; };
   var last=ms.length?ms[ms.length-1]:{};

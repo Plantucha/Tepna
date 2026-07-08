@@ -15,7 +15,7 @@
   "Rolling-baseline ODI-4 under-estimates AHI in severe OSA".
   Runs the REAL OxyDex detector and plots ODI-4 vs a REFERENCE AHI from three
   sources, in increasing order of publishability:
-    1. SubjectA corpus  — the 5 committed real O2Ring nights vs planted/known AHI
+    1. SubjectA corpus  — the 5 committed synthetic O2Ring nights (SubjectA) vs planted/known AHI
                           (proves the apparatus; runs today, no downloads).
     2. Synthetic cohort — points pulled from the cohort runner's IndexedDB if present
                           (large-N, but synthetic ground truth).
@@ -85,7 +85,7 @@
     <h1><span class="g">ODI-4 vs AHI</span> — Calibration & Bias Analysis</h1>
     <div class="sub">Runs the real OxyDex ODI-4 detector against a reference AHI and quantifies the bias. OxyDex's shipped surrogate is <code>AHI ≈ ODI-4 × 1.1</code> — this page tests whether that holds, and fits a correction.</div>
     <div class="controls">
-      <button class="primary" id="runLocal">Run SubjectA corpus (5 real nights)</button>
+      <button class="primary" id="runLocal">Run SubjectA corpus (5 synthetic nights)</button>
       <button id="loadSynth">Load synthetic cohort (IndexedDB)</button>
       <label class="file">Add NSRR EDF + XML…<input type="file" id="nsrrFiles" multiple accept=".edf,.xml,.EDF,.XML"></label>
       <label class="file">Scored-AHI CSV…<input type="file" id="ahiCsv" accept=".csv,.tsv,.txt"></label>

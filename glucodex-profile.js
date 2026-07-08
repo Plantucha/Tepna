@@ -167,7 +167,7 @@ function renderHero(r){
     { v:r.cv, fmt:v=>v+'%', label:'CV', cls:v=>v<36?'ok':v<42?'warn':'bad' },
     { v:hypo, fmt:v=>v+'%', label:'Below Range', cls:v=>v<=r.hypoGoal?'ok':v<=r.hypoGoal*2?'warn':'bad' },
   ];
-  let subsHtml=subs.map(s=>`<div class="readiness-subscore"><div class="rs-val ${s.cls(s.v)}">${s.fmt(s.v)}</div><div class="rs-label">${typeof evBadge==='function'?evBadge(s.label):''}${s.label}</div></div>`).join('');
+  let subsHtml=subs.map(s=>`<div class="readiness-subscore">${typeof evBadge==='function'?evBadge(s.label):''}<div class="rs-val ${s.cls(s.v)}">${s.fmt(s.v)}</div><div class="rs-label">${s.label}</div></div>`).join('');
 
   // chips
   let chips='';

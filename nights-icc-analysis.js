@@ -369,6 +369,9 @@
     ctx.fillStyle = '#9fb0c4'; ctx.font = '11px ui-monospace'; ctx.fillText('single-occasion ICC (filled = reliable share of variance)   ·   target ICC ≥ ' + target.toFixed(2), 12, top + rowH * MET.length + 16);
   }
   function rrect(ctx, x, y, w, h, r) { r = Math.min(r, w / 2, h / 2); ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  // N-aware point style (ported from hrv-confound-analysis.js; SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 2).
+  function ptStyle(n) { if (n <= 3000) return { r: 2.0, a: 0.55 }; if (n <= 15000) return { r: 1.2, a: 0.30 }; if (n <= 40000) return { r: 0.8, a: 0.18 }; return { r: 0.6, a: 0.11 }; }
+  function pdot(ctx, x, y, st) { if (st.r <= 0.8) { ctx.fillRect(x, y, 1, 1); } else { ctx.beginPath(); ctx.arc(x, y, st.r, 0, 7); ctx.fill(); } }
   function drawRepro(stats) {
     // per-subject mean ± night spread for rMSSD (the most labile metric) — visualizes within vs between
     var cv = $('repro'), ctx = cv.getContext('2d'), w = cv.width, h = cv.height, P = 46; clearC(ctx, w, h);
@@ -382,12 +385,14 @@
       function () { return ''; }, function (v) { return Math.round(v); });
     var X = function (i) { return P + (w - P - 14) * (subs.length <= 1 ? 0.5 : i / (subs.length - 1)); };
     var Y = function (v) { return (h - P) - (h - P - 12) * (v - ymin) / (ymax - ymin); };
+    var stR = ptStyle(subs.length);
     subs.forEach(function (s, i) {
       var x = X(i);
-      ctx.strokeStyle = 'rgba(255,184,77,.30)'; ctx.lineWidth = 1; ctx.beginPath();
+      ctx.strokeStyle = 'rgba(255,184,77,' + (stR.a * 0.6).toFixed(2) + ')'; ctx.lineWidth = 1; ctx.beginPath();
       ctx.moveTo(x, Y(Math.min.apply(null, s.vals))); ctx.lineTo(x, Y(Math.max.apply(null, s.vals))); ctx.stroke();
-      s.vals.forEach(function (v) { ctx.fillStyle = 'rgba(255,184,77,.55)'; ctx.beginPath(); ctx.arc(x, Y(v), 2, 0, 7); ctx.fill(); });
-      ctx.fillStyle = '#FFB84D'; ctx.beginPath(); ctx.arc(x, Y(s.m), 3, 0, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(255,184,77,' + stR.a.toFixed(2) + ')';
+      s.vals.forEach(function (v) { pdot(ctx, x, Y(v), stR); });
+      ctx.fillStyle = '#FFB84D'; ctx.beginPath(); ctx.arc(x, Y(s.m), subs.length > 3000 ? 1.4 : 3, 0, 7); ctx.fill();
     });
     var st = stats.rmssd;
     $('reproLeg').innerHTML = 'Each column = one subject (vertical bar = night-to-night range, large dot = subject mean). '
