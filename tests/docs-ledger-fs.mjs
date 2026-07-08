@@ -21,7 +21,7 @@ import { join } from 'node:path';
    never reds the gate (this is the deliberate, documented answer to the brief's "weigh the added
    staleness surface" — narrow to the LINKABLE tree, visibly, not a silent no-op). Everything a docs
    dashboard actually links (docs/ audits/ wiring/ papers/ briefs/ licensing/ + root) stays IN. */
-export const EXCLUDE_DIRS = new Set(['node_modules', 'screenshots', 'scraps', '_diag', 'uploads']);
+export const EXCLUDE_DIRS = new Set(['node_modules', 'screenshots', 'scraps', '_diag', 'uploads', 'screens', 'derive-bundle', 'Ecg nightly']);
 
 /* Dot-entries (.git, .github, .gitignore, .thumbnail, …) are never a DOCS-INDEX link target and add
    only noise + churn; skipping them keeps the walk deterministic and the inventory focused. */
