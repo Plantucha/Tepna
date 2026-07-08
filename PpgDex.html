@@ -5651,6 +5651,69 @@ function analyze(rec, progress){
   const magEpochs = epochs.filter(e=>e.magInterference).length;
   const magInterferencePct = (motion.hasMag && epochs.length)? Math.round(100*magEpochs/epochs.length) : null;
 
+  // ── Segment-wise SDNN (SDNN-VS-ECG-GROUND-TRUTH, validated on the 2026-07-07 paired night) ──
+  // Whole-record SDNN folds in SDANN (drift BETWEEN 5-min means) + a few motion/artifact epochs,
+  // which optical baseline-wander/PTT inflates most → +26% vs chest ECG. Segment-wise aggregation
+  // removes both: sdnnIndex (mean per-5-min SDNN, Task-Force) → +18%; the QUALITY-GATED MEDIAN of
+  // per-5-min SDNN → +3.5% vs ECG truth. These are additive; whole-record `sdnn` is unchanged.
+  // Same gate extends to the long-term-dominated metrics that inherit the SDANN inflation:
+  // SD2 (whole +54% → robust +4%), LF/HF band power (whole totalPower +89% → gated-median LF+HF +7%).
+  // VLF is deliberately NOT robust-corrected — a 5-min epoch can't resolve <0.04 Hz — it stays
+  // flagged. Residual HF (+17%) is genuine respiratory PTT — but its excess is MOTION-DRIVEN
+  // (+43% high-motion vs +12% low-motion on the paired night), so a low-motion HF + a GRADED
+  // per-metric confidence (below) turn the blanket flag into an earned, continuous score.
+  let sdnnIndex=null, sdnnRobust=null, sdnnRobustNEpochs=0, sd2Robust=null, lfRobust=null, hfRobust=null, lfhfRobust=null, hfRobustLowMotion=null, hrvConfidence=null;
+  if(epochs.length){
+    const segAll = epochs.map(e=>e.sdnn).filter(v=>v!=null && isFinite(v));
+    if(segAll.length){
+      sdnnIndex = r1(mean(segAll));
+      // quality gate: keep epochs that are low-motion AND (single-channel OR ≥2/3 LED agreement).
+      // A gated set of <3 epochs is unreliable → fall back to the ungated segment median.
+      const gatedEp = epochs.filter(e=> e.sdnn!=null && isFinite(e.sdnn)
+        && (e.motionIndex==null || e.motionIndex<=0.5)
+        && (e.ledAgreementPct==null || e.ledAgreementPct>=67) );
+      const usable = gatedEp.length>=3 ? gatedEp : epochs.filter(e=>e.sdnn!=null&&isFinite(e.sdnn));
+      const pool = usable.map(e=>e.sdnn);
+      sdnnRobust = r1(median(pool));
+      sdnnRobustNEpochs = pool.length;
+      // SD2 from the robust dispersion + whole-record clean SD1 (beat-to-beat, already un-inflated)
+      const sd1 = poin ? poin.sd1 : null;
+      if(sd1!=null && sdnnRobust!=null) sd2Robust = r1(Math.sqrt(Math.max(0, 2*sdnnRobust*sdnnRobust - sd1*sd1)));
+      // robust frequency = gated-median of per-epoch bands (per-epoch spectrum drops the SDANN/VLF drift)
+      const lfA=usable.map(e=>e.lf).filter(v=>v!=null&&isFinite(v));
+      const hfA=usable.map(e=>e.hf).filter(v=>v!=null&&isFinite(v));
+      const lhA=usable.map(e=>e.lfhf).filter(v=>v!=null&&isFinite(v));
+      if(lfA.length>=3) lfRobust=r1(median(lfA));
+      if(hfA.length>=3) hfRobust=r1(median(hfA));
+      if(lhA.length>=3) lfhfRobust=r2(median(lhA));
+    }
+    // (a) MOTION-GATED HF — HF excess is motion-driven, so a low-motion-only median approaches the
+    // clean floor (~+12% vs ECG) rather than the mixed +17%. Stricter gate than the shared 0.5.
+    const MOT_STRICT=0.15;
+    const lowMot = epochs.filter(e=> e.motionIndex==null || e.motionIndex<=MOT_STRICT);
+    const hfLM = lowMot.map(e=>e.hf).filter(v=>v!=null&&isFinite(v));
+    if(hfLM.length>=3) hfRobustLowMotion=r1(median(hfLM));
+    // (b) GRADED per-metric confidence (0..1) from measured drivers — replaces the binary flag.
+    // Each metric family is scored by the cause that predicts ITS error (validated on paired night):
+    // motion→hf, posture/baseline drift→vlf/sdnn, coverage+correction→beat-to-beat.
+    const qCov = Math.max(0, Math.min(1, analyzablePct/100));
+    const qCorr = Math.max(0, 1 - correctionRate/25);
+    const qLowMotion = epochs.length ? lowMot.length/epochs.length : 0;
+    let posShift=0; for(let i=1;i<epochs.length;i++){ if(epochs[i].position!==epochs[i-1].position) posShift++; }
+    const qPosture = epochs.length>1 ? 1 - posShift/(epochs.length-1) : 1;
+    const durFactor = Math.max(0, Math.min(1, (rec.durSec/60)/60)); // VLF needs a long record
+    const c=v=>r2(Math.max(0, Math.min(1, v)));
+    hrvConfidence = {
+      beatToBeat: c(qCov*qCorr),                          // rmssd, sd1, pnn50 — already ECG-accurate
+      sdnn:       c(qCov*qCorr*(0.6+0.4*qPosture)),        // + sd2 (robust); posture-drift aware
+      lf:         c(qCov*qCorr),
+      hf:         c(qLowMotion*qCov),                      // motion-graded (the earned part)
+      vlf:        c(Math.min(0.7, qPosture*durFactor)),    // capped: single-site optical VLF inherently baseline-limited
+      drivers:{ analyzableFrac:r2(qCov), correctionOK:r2(qCorr), lowMotionFrac:r2(qLowMotion), postureStableFrac:r2(qPosture) },
+      note:'0..1 per-metric confidence from measured drivers (motion\u2192hf, posture/baseline\u2192vlf/sdnn, coverage+correction\u2192beat-to-beat). vlf capped 0.7 — single-site optical VLF stays baseline-wander-limited even when clean; not a defect to "fix".'
+    };
+  }
+
   // §5: whole-record 3-LED agreement + the per-5-min ribbon series (all clusters incl dropped 1/3)
   let ledAgreementPct=null, ledAgree3of3Pct=null, ledSeries=null;
   if(!cons.singleChannel){
@@ -5706,6 +5769,7 @@ function analyze(rec, progress){
     nPulses:det.peaks.length, nBeats:det.peaks.length,
     hr:td.hr, dispHr, dispRm:td.rmssd, dispSd:td.sdnn, dispPn:td.pnn50,
     meanRR:td.meanRR, sdnn:td.sdnn, rmssd:td.rmssd, pnn50:td.pnn50, lnRMSSD:td.lnRMSSD, triIdx:td.triIdx,
+    sdnnIndex, sdnnRobust, sdnnRobustNEpochs, sd2Robust, lfRobust, hfRobust, lfhfRobust, hfRobustLowMotion, hrvConfidence,
     nn, tt:corr.tt, poincareNN:nn, sd1:poin?poin.sd1:null, sd2:poin?poin.sd2:null, sd1sd2:poin?poin.sd1sd2:null, ellArea:poin?poin.ellArea:null,
     freq, dfa1, sampen:se,
     epochs,
@@ -5897,9 +5961,12 @@ function ppgBuildNodeExport(r, opts){
     out.quality = { analyzablePct:nz(r.analyzablePct), cleanBeatPct:nz(r.cleanBeatPct), coveragePct:nz(r.coveragePct), motionRejectedPct:nz(r.motionRejectedPct), correctionRatePct:nz(r.correctionRate), ledAgreementPct:nz(r.ledAgreementPct) };
     out.hrv = {
       time:{ meanRR:nz(r.meanRR), hr:nz(r.dispHr), sdnn:nz(r.sdnn), rmssd:nz(r.rmssd), pnn50:nz(r.pnn50),
+        sdnnIndex:nz(r.sdnnIndex), sdnnRobust:nz(r.sdnnRobust), sd2Robust:nz(r.sd2Robust),
         window:'wholeRecord', units:'ms', lowConfidence:!!r.hrvLowConfidence, lowConfidenceReason:(r.hrvLowConfidenceReason||null),
-        windowNote:'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD.' },
-      frequency:{ lf:nz(fq.lf), hf:nz(fq.hf), lfhf:nz(fq.lfhf), method:'Lomb-Scargle', lowConfidence:!!r.hrvLowConfidence }
+        windowNote:'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD.',
+        sdnnNote:'whole-record sdnn runs high on optical (SDANN/baseline-wander inflation, ~+26% vs chest ECG). sdnnIndex = mean of per-5-min SDNN (~+18%); sdnnRobust = quality-gated MEDIAN of per-5-min SDNN (~+3.5% vs ECG truth) — use sdnnRobust for cross-node SDNN comparison.' },
+      frequency:{ lf:nz(fq.lf), hf:nz(fq.hf), lfhf:nz(fq.lfhf), method:'Lomb-Scargle', lowConfidence:!!r.hrvLowConfidence, lfRobust:nz(r.lfRobust), hfRobust:nz(r.hfRobust), lfhfRobust:nz(r.lfhfRobust), hfRobustLowMotion:nz(r.hfRobustLowMotion) },
+      confidence:(r.hrvConfidence||null)
     };
     out.timeseries = {
       doc:'5-min epochs — primary cross-node feed (posture rides on epochs[].position).',
@@ -8648,7 +8715,7 @@ function renderKPI(r){
     {l:'Pulse HR', v:r.dispHr+'bpm', sub:r.expRHR?('age norm ~'+r.expRHR):'mean', s:hrStat(r.dispHr)},
     {l:'VO₂max Est', v:r.vo2adj!=null?r.vo2adj:'—', sub:'ml/kg/min · HR-ratio', s:r.vo2adj==null?'neutral':r.vo2adj>=45?'ok':r.vo2adj>=38?'warn':'bad'},
     {l:'rMSSD', v:r.rmssd+'ms', sub:r.expRmssd?('age norm ~'+r.expRmssd):'≥30 good', s:r.expRmssd?(r.rmssd>=r.expRmssd?'ok':r.rmssd>r.expRmssd*0.7?'warn':'bad'):sc(r.rmssd,30,20)},
-    {l:'SDNN', v:r.sdnn+'ms', sub:r.tier==='ultra-short'?'needs ≥5min':'≥50 good', s:r.tier==='ultra-short'?'neutral':sc(r.sdnn,50,30)},
+    {l:'SDNN', v:(r.sdnnRobust!=null?r.sdnnRobust:r.sdnn)+'ms', sub:r.tier==='ultra-short'?'needs ≥5min':(r.sdnnRobust!=null?'robust · per-5-min median':'≥50 good'), s:r.tier==='ultra-short'?'neutral':sc(r.sdnnRobust!=null?r.sdnnRobust:r.sdnn,50,30)},
     {l:'Perfusion Idx', v:r.perfusionIndex==null?'—':r.perfusionIndex+'%', sub:'AC/DC · contact', s:pb},
     {l:'Motion-rejected', v:r.motionRejectedPct+'%', sub:r.motion&&r.motion.hasData?'ACC+GYRO gate':'no motion data', s:r.motionRejectedPct<10?'ok':r.motionRejectedPct<30?'warn':'bad'},
   ];
@@ -8826,7 +8893,7 @@ function renderTable(r){
   html+=sec('Time-domain HRV (PPI-derived)', [
     ['Mean PPI', r.meanRR, 'ms', 'pulse-to-pulse'],
     ['Pulse rate', r.dispHr, 'bpm', '', hrStat(r.dispHr)],
-    ['SDNN', r.sdnn, 'ms', us?'needs ≥5 min':'≥50 good', us?'':sc(r.sdnn,50,30)],
+    ['SDNN', (r.sdnnRobust!=null?r.sdnnRobust:r.sdnn), 'ms', us?'needs ≥5 min':(r.sdnnRobust!=null?'robust · per-5-min median':'≥50 good'), us?'':sc(r.sdnnRobust!=null?r.sdnnRobust:r.sdnn,50,30)],
     ['rMSSD', r.rmssd, 'ms', 'parasympathetic · ≥30 good', sc(r.rmssd,30,20)],
     ['pNN50', r.pnn50, '%', ''],
     ['ln rMSSD', r.lnRMSSD, '', ''],
@@ -8969,11 +9036,14 @@ function buildV2(r){
       magInterferencePct:(r.magInterferencePct!=null?r.magInterferencePct:null),
       deviceAgreementPct:r.validation&&r.validation.usable?r.validation.deviceAgreementPct:null },
     hrv:{ time:{ meanRR:r.meanRR, hr:r.dispHr, sdnn:r.sdnn, rmssd:r.rmssd, pnn50:r.pnn50, lnRMSSD:r.lnRMSSD, triIdx:r.triIdx,
+        sdnnIndex:(r.sdnnIndex!=null?r.sdnnIndex:null), sdnnRobust:(r.sdnnRobust!=null?r.sdnnRobust:null), sd2Robust:(r.sd2Robust!=null?r.sd2Robust:null),
         window:'wholeRecord', units:'ms', lowConfidence:!!r.hrvLowConfidence, lowConfidenceReason:(r.hrvLowConfidenceReason||null),
-        windowNote:'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD.' },
+        windowNote:'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD.',
+        sdnnNote:'whole-record sdnn runs high on optical (SDANN/baseline-wander inflation, ~+26% vs chest ECG). sdnnIndex = mean of per-5-min SDNN (~+18%); sdnnRobust = quality-gated MEDIAN of per-5-min SDNN (~+3.5% vs ECG truth) \u2014 use sdnnRobust for cross-node SDNN comparison.' },
       poincare:{ sd1:r.sd1, sd2:r.sd2, sd1sd2:r.sd1sd2, ellipseArea:r.ellArea },
-      frequency:{ vlf:fq.vlf, lf:fq.lf, hf:fq.hf, lfhf:fq.lfhf, lfnu:fq.lfnu, hfnu:fq.hfnu, totalPower:fq.totalPower, method:'Lomb-Scargle', lowConfidence:!!r.hrvLowConfidence },
-      nonlinear:{ dfaAlpha1:r.dfa1, sampEn:r.sampen } },
+      frequency:{ vlf:fq.vlf, lf:fq.lf, hf:fq.hf, lfhf:fq.lfhf, lfnu:fq.lfnu, hfnu:fq.hfnu, totalPower:fq.totalPower, method:'Lomb-Scargle', lowConfidence:!!r.hrvLowConfidence, lfRobust:(r.lfRobust!=null?r.lfRobust:null), hfRobust:(r.hfRobust!=null?r.hfRobust:null), lfhfRobust:(r.lfhfRobust!=null?r.lfhfRobust:null), hfRobustLowMotion:(r.hfRobustLowMotion!=null?r.hfRobustLowMotion:null) },
+      nonlinear:{ dfaAlpha1:r.dfa1, sampEn:r.sampen },
+      confidence:(r.hrvConfidence||null) },
     personalization:{ profile:r.profile||null, ansReadinessScore:r.hrvScore, ansAge:null, /* ANS Age REMOVED 2026-06-21 (external-review WP-A); null for node-export back-compat. */
       restingHR:r.rhrEff, vo2maxEst:r.vo2adj, expectedRmssd:r.expRmssd },
     apnea: r.longRec ? { screen:'CVHR (PPI-derived bradycardia-rebound)', note:'screen not diagnosis', index:null } : null,
