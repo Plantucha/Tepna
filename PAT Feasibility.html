@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  PAT Feasibility.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+
+  Feasibility spike for ECGDex-BUILD-BRIEF §6 (Vascular / PAT). Load ONE simultaneous
+  night — a Polar H10 *_ECG.txt + a Polar Verity *_PPG.txt logged by the SAME phone —
+  and it reuses the production ECGDSP (R-peaks) + PPGDSP (3-LED consensus feet) to test
+  whether per-beat PAT (foot − R) is a stable, coupled, physiological lag. Go/no-go for a
+  provisional "Vascular (trend only)" panel. 100% local — serve over http:// (workers/
+  file APIs need a real origin); double-clicking file:// will NOT run.
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PAT feasibility — ECG R-peak → PPG foot coupling (spike)</title>
+<style>
+  :root{
+    --bg:#0c0f14; --surface:#141922; --surface2:#1b212c; --line:rgba(255,255,255,.08);
+    --text:#e6edf6; --text2:#aab8cc; --text3:#6f8096; --teal:#3DE0D0; --blue:#58A6FF;
+    --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;padding:0 0 90px;}
+  a{color:var(--blue);} a:hover{color:var(--teal);}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px;}
+  header{padding:26px 0 16px;border-bottom:1px solid var(--line);margin-bottom:22px;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);}
+  h1{margin:6px 0 3px;font-size:25px;font-weight:650;letter-spacing:-.01em;}
+  h1 .g{color:var(--teal);}
+  .sub{color:var(--text3);font-size:13px;max-width:900px;line-height:1.5;}
+  .controls{display:flex;gap:10px;align-items:center;margin-top:18px;flex-wrap:wrap;}
+  button{font-family:var(--sans);font-size:13px;font-weight:600;padding:9px 16px;border-radius:8px;border:1px solid var(--line);background:var(--surface2);color:var(--text);cursor:pointer;}
+  button:hover{border-color:rgba(255,255,255,.2);}
+  button.primary{background:var(--teal);color:#06251f;border-color:transparent;}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  .pill{font-family:var(--mono);font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid var(--line);color:var(--text3);}
+  .pill.run{color:var(--teal);border-color:rgba(61,224,208,.35);}
+  .pill.done{color:var(--green);border-color:rgba(57,217,138,.35);}
+  .filepick{display:flex;align-items:center;gap:8px;font-size:12px;}
+  .filepick label{font-family:var(--sans);font-weight:600;font-size:12.5px;padding:8px 13px;border-radius:8px;border:1px dashed var(--line);background:var(--surface2);color:var(--text2);cursor:pointer;white-space:nowrap;}
+  .filepick label:hover{border-color:var(--teal);color:var(--text);}
+  .fname{font-family:var(--mono);font-size:11px;color:var(--text3);max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .fname.set{color:var(--teal);}
+  input[type=file]{display:none;}
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:18px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;}
+  .card h2{margin:0 0 14px;font-size:13px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;gap:8px;}
+  .card h2 .tag{font-family:var(--mono);font-size:10px;color:var(--text3);font-weight:500;border:1px solid var(--line);border-radius:5px;padding:2px 6px;margin-left:auto;}
+  .col-12{grid-column:span 12;} .col-7{grid-column:span 7;} .col-6{grid-column:span 6;} .col-5{grid-column:span 5;}
+  @media(max-width:900px){ .col-7,.col-6,.col-5{grid-column:span 12;} }
+  canvas{width:100%;display:block;background:#0f141b;border-radius:8px;}
+  .headline{display:flex;flex-direction:column;gap:10px;}
+  .hcard{background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;}
+  .hl{font-family:var(--mono);font-size:25px;font-weight:600;letter-spacing:-.02em;line-height:1;}
+  .hl .hu{font-size:12px;color:var(--text3);font-weight:500;}
+  .hk{font-size:12px;color:var(--text2);margin-top:6px;}
+  .hs{font-size:10.5px;color:var(--text3);font-family:var(--mono);margin-top:2px;}
+  .muted{color:var(--text3);font-size:12px;}
+  .verdict{border-radius:14px;padding:18px 20px;border:1px solid var(--line);background:var(--surface);margin-bottom:18px;}
+  .verdict.go{background:rgba(57,217,138,.06);border-color:rgba(57,217,138,.28);}
+  .verdict.maybe{background:rgba(255,184,77,.06);border-color:rgba(255,184,77,.28);}
+  .verdict.no{background:rgba(255,107,122,.06);border-color:rgba(255,107,122,.28);}
+  .vlabel{font-family:var(--mono);font-size:16px;font-weight:600;letter-spacing:.02em;}
+  .vwhy{font-size:13px;color:var(--text2);line-height:1.55;margin-top:6px;max-width:900px;}
+  #prov{font-family:var(--mono);font-size:11px;color:var(--text3);margin-top:14px;line-height:1.7;}
+  #prov b{color:var(--text2);font-weight:600;}
+  .note{background:rgba(88,166,255,.05);border:1px solid rgba(88,166,255,.18);border-radius:10px;padding:12px 15px;font-size:12px;color:var(--text2);line-height:1.55;}
+  code{font-family:var(--mono);color:var(--blue);background:var(--surface2);padding:1px 5px;border-radius:4px;font-size:11px;}
+  .legend{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:9px;line-height:1.6;}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="eyebrow">Vascular · PAT · ECGDex-BUILD-BRIEF §6 · feasibility spike</div>
+    <h1>PAT coupling — <span class="g">ECG R-peak → PPG foot</span> on one shared clock</h1>
+    <div class="sub">Load ONE simultaneous night: a Polar <b>H10 <code>*_ECG.txt</code></b> and a Polar <b>Verity <code>*_PPG.txt</code></b> logged by the <b>same phone</b>. This reuses the production detectors — <b>ECGDSP</b> Pan–Tompkins R-peaks and <b>PPGDSP</b> 3-LED-consensus feet — and asks the only questions that decide whether a Vascular panel is buildable: do the beats <b>couple</b> (every R gets a foot at a consistent lag?) and is that lag <b>stable</b> across the night? It does <b>not</b> claim absolute PAT or blood pressure.</div>
+    <div class="controls">
+      <span class="filepick"><label for="ecgFile">ECG _ECG.txt</label><span class="fname" id="ecgName">none</span><input type="file" id="ecgFile" accept=".txt,.csv,text/plain"></span>
+      <span class="filepick"><label for="ppgFile">PPG _PPG.txt</label><span class="fname" id="ppgName">none</span><input type="file" id="ppgFile" accept=".txt,.csv,text/plain"></span>
+      <button class="primary" id="run">Run</button>
+      <span class="pill idle" id="status">idle</span>
+      <span style="flex:1"></span>
+      <button id="dlBtn" disabled>result.json</button>
+    </div>
+    <div id="prov"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="verdict" id="verdict"><div class="muted">Load a matching ECG + PPG night and press Run. If you serve the folder over <code>http://localhost:8080/</code> and open this page there, it runs on your real recordings entirely in-browser.</div></div>
+
+  <div class="grid">
+    <div class="card col-7">
+      <h2>PAT lag across the night <span class="tag">per-beat + 5-min median</span></h2>
+      <canvas id="scatter" height="340"></canvas>
+      <div class="legend">Blue dots = per-beat R→foot lag. Teal line = 5-minute median (the stability trace — flat = clocks locked). Green band = the plausible arm-PAT range. Dashed = overall median.</div>
+    </div>
+    <div class="card col-5">
+      <h2>Headline <span class="tag">go / no-go</span></h2>
+      <div class="headline" id="headline"><div class="muted">Run to compute overlap, coupling rate, median PAT, and drift.</div></div>
+    </div>
+
+    <div class="card col-6">
+      <h2>PAT distribution <span class="tag">coupled beats, ms</span></h2>
+      <canvas id="hist" height="260"></canvas>
+    </div>
+    <div class="card col-6">
+      <h2>How to read this <span class="tag">honest framing</span></h2>
+      <div class="note">
+        <b>Coupled + flat</b> → the two device streams are the same heart on a shared phone clock; PAT <em>variation</em> tracks vascular tone → a provisional trend panel is buildable (experimental tier, never a BP number).<br><br>
+        <b>Coupled but drifting</b> → clocks aren't perfectly locked; the "trend" is partly clock drift → needs per-segment correction first.<br><br>
+        <b>Not coupled</b> → the files aren't on one clock (different phone / not simultaneous) → PAT is meaningless from these files. Re-capture both sensors in ONE Polar Sensor Logger session.<br><br>
+        The absolute median lag = PEP + PTT + a constant clock offset, <b>none separable without a BP cuff</b> — so this spike measures coupling &amp; stability, not a clinical value.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- co-load order: kernel → clock → DSPs (CONTRIBUTING.md), then the spike engine -->
+<script src="kernel-constants.js"></script>
+<script src="clock.js"></script>
+<script src="ecgdex-dsp.js"></script>
+<script src="ppgdex-dsp.js"></script>
+<script src="pat-feasibility.js"></script>
+</body></html>
