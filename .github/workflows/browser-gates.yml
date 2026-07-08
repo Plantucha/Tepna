@@ -1,0 +1,59 @@
+name: browser-gates
+
+# Headless-browser gates that the pure-Node suite (tests.yml) can't run:
+#  · Dex-Test-Suite.html?full — assertions + render-coverage (boots all 8 app
+#    bundles in iframes, confirms computed values reach the DOM). Render-coverage
+#    is ON-DEMAND (lazy, 2026-06-30); the ?full query auto-boots the rigs in CI —
+#    a bare open would paint only the headless floor (see browser-gates.mjs).
+#  · verify-provenance.html — every bundle exposes a buildHash helper, and any
+#    committed uploads/*.json fixture is reproducible.
+# Pages are served over HTTP (Workers + fetch + iframes need a real origin).
+# uploads/ is gitignored, so the fixture audit is best-effort in CI (GATE A —
+# bundle reproducibility — is always enforced; run locally with uploads/ present
+# for the full fixture audit). This job is heavier than tests.yml; that one stays
+# the fast pure-Node gate and runs independently.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  browser-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright (chromium only)
+<<<<<<< HEAD
+        run: |
+          npm init -y >/dev/null 2>&1
+=======
+        # NB: a committed root package.json (the dev-tooling spine) now exists — do NOT
+        # `npm init -y` here, it would clobber it. --no-save keeps the manifest untouched.
+        run: |
+>>>>>>> cf3e242 (Tepna suite)
+          npm install --no-save playwright@1.48.0
+          npx playwright install --with-deps chromium
+
+      - name: Serve the repo
+        run: |
+          python3 -m http.server 8080 --bind 127.0.0.1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8080/Dex-Test-Suite.html >/dev/null && break
+            sleep 0.5
+          done
+
+      - name: Run browser gates (render-coverage + provenance)
+        env:
+          BASE_URL: http://127.0.0.1:8080
+<<<<<<< HEAD
+        run: node tests/browser-gates.mjs
+=======
+        run: npm run gates:browser   # → node tests/browser-gates.mjs (package.json spine)
+>>>>>>> cf3e242 (Tepna suite)
