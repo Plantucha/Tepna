@@ -1,9 +1,7 @@
 name: browser-gates
 
+# Manual-only: heavy render-coverage gate. Run from the Actions tab when needed.
 on:
-  push:
-    branches: [main, master]
-  pull_request:
   workflow_dispatch:
 
 jobs:
@@ -11,16 +9,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-
       - name: Install Playwright (chromium only)
         run: |
           npm install --no-save playwright@1.48.0
           npx playwright install --with-deps chromium
-
       - name: Serve the repo
         run: |
           python3 -m http.server 8080 --bind 127.0.0.1 &
@@ -28,7 +23,6 @@ jobs:
             curl -sf http://127.0.0.1:8080/Dex-Test-Suite.html >/dev/null && break
             sleep 0.5
           done
-
       - name: Run browser gates (render-coverage + provenance)
         env:
           BASE_URL: http://127.0.0.1:8080
