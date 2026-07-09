@@ -20,7 +20,8 @@
   <h1 class="title">A reproducible robustness benchmark for a multi-sensor sleep-analysis suite: the pipeline does not crash — it mis-counts, and the breakage is concentrated by disease severity</h1>
   <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
   <p class="affil">Cohort-validation harness, Tepna physiological-signal suite (OxyDex · PulseDex · GlucoDex · HRVDex · CPAPDex · Integrator)</p>
-  <p class="meta">Draft v1 · June 2026 · Benchmark harness: <code>cohort-runner.html</code> · Detectors: real <code>oxydex-dsp.js</code> / <code>pulsedex-dsp.js</code> / <code>glucodex-dsp.js</code> / <code>cpapdex-dsp.js</code> + real <code>integrator-dsp.js</code> · 100% local, frozen-seed reproducible</p>
+  <p class="meta">Draft v2 · July 2026 · Benchmark harness: <code>cohort-runner.html</code> · Detectors: real <code>oxydex-dsp.js</code> / <code>pulsedex-dsp.js</code> / <code>glucodex-dsp.js</code> / <code>cpapdex-dsp.js</code> + real <code>integrator-dsp.js</code> · 100% local, frozen-seed reproducible</p>
+  <p class="meta" style="color:#b8860b">Revision note: the RR/HRV companion-accuracy arm was refreshed on <code>synth-gen 2.1 / cohort-gen 1.9</code> (2,400-patient validation) — rMSSD absolute error and the GlucoDex nocturnal-hypo recall (Table 3) are regenerated. The oxy ODI-4↔AHI calibration (Table 2), coverage matrix, hard-failure ledger, and Figure 1 are <b>texture-independent</b> (oximetry is generated on a separate RNG stream) and are retained from the committed 20,000-patient frozen-seed run.</p>
 
   <div class="abstract">
     <h2>Abstract</h2>
@@ -92,12 +93,12 @@
     <caption class="tbl-cap"><b>Table 3.</b> Companion accuracy measures (cohort medians) — none triggered a systematic flag.</caption>
     <thead><tr><th>Measure</th><th>Node</th><th>Median</th><th>n</th><th>Note</th></tr></thead>
     <tbody>
-      <tr><td>rMSSD absolute error</td><td>PulseDex</td><td>0.57 ms</td><td>18,065</td><td>arc target tracked tightly</td></tr>
+      <tr><td>rMSSD absolute error</td><td>PulseDex</td><td>0.80 ms</td><td>2,172</td><td>arc target tracked tightly (synth-gen 2.1)</td></tr>
       <tr><td>Residual-AHI absolute error</td><td>CPAPDex</td><td>0.49 /h</td><td>11,690</td><td>therapy-night recovery accurate</td></tr>
-      <tr class="hi"><td>Nocturnal-hypo recall</td><td>GlucoDex</td><td>0.00</td><td>4,104</td><td>under-detects on single-night slices (caveat)</td></tr>
+      <tr><td>Nocturnal-hypo recall</td><td>GlucoDex</td><td>1.00</td><td>479</td><td>now recovered after the hypo-detector fix (was 0.00; see cgm-hrv-coupling §3.3)</td></tr>
     </tbody>
   </table>
-  <p>The autonomic (PulseDex) and CPAP arms are accurate and unflagged. The one secondary gap is GlucoDex nocturnal-hypoglycemia recall, which is ≈0 on the cohort's single-night sleep-window slices — a known caveat (the hypo flag is tuned for full-day context; slicing to the sleep window truncates the daytime shoulders it relies on) rather than a code fault, and consistent with the coupling-paper finding.</p>
+  <p>The autonomic (PulseDex) and CPAP arms are accurate and unflagged; on the v2.1 texture the rMSSD arc-target absolute error is a tight 0.80 ms median (the generator re-fit keeps rendered rMSSD ≈ target). The GlucoDex nocturnal-hypoglycemia recall, previously ≈0 on the cohort's single-night sleep-window slices, is now <b>1.00</b>: the June-2026 hypo-detector fix (a <code>_looksLikeGenuineHypo()</code> discriminator that spares a sustained Somogyi-shaped dip from compression-artifact rejection) recovers the planted excursions on the same slices — the same fix validated in the companion coupling paper (§3.3). The one remaining companion caveat is therefore closed.</p>
 
   <h2 class="sec">4. Discussion</h2>
   <p>The headline is a separation of two robustness questions. <em>Does it break?</em> — no: across 20,000 diverse patients the production code ran to completion with no crash, no out-of-bounds output, and clean cross-node fusion, which is what the suite's render-coverage and hang gates are designed to guarantee and what this benchmark certifies at scale. <em>Where is it wrong?</em> — in exactly one place that matters: the rolling-baseline ODI-4 under-counts respiratory events proportionally to severity, so a screen built on it most under-stages the patients in greatest clinical need. The value of the benchmark is that it tells these apart: a quiet, severity-localized mis-count is a more dangerous deployment risk than a loud crash, precisely because nothing in the pipeline flags it as an error (signal quality stays green, no metric goes out of bounds) — only a ground-truth comparison reveals it.</p>

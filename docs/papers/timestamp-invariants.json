@@ -1,0 +1,12 @@
+{
+ "corpus": {
+  "pass": 24,
+  "total": 24
+ },
+ "B1 viewer-timezone independence (same wall → same tMs)": true,
+ "B2 zoned wall ≡ floating wall (same tMs, zone only in offsetMin)": true,
+ "B3 DMY 13/05 ≡ MDY 05/13 → same date (May 13)": true,
+ "B4 overnight 22:00→06:00 monotonic ~8h (no 24h jump)": true,
+ "B5 missing/garbage/anchorless → null (never now())": true,
+ "B6 epoch str ≡ num (same instant)": true
+}

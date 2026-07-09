@@ -1,5 +1,5 @@
 # Tepna — the Dex Suite — concatenated authoritative context
-# Generated 2026-07-04. Public docs only (the internal build/gate constitution CLAUDE.md is intentionally excluded).
+# Generated 2026-07-09. Public docs only (the internal build/gate constitution CLAUDE.md is intentionally excluded).
 
 
 
@@ -19,6 +19,8 @@
 
 **A fleet of local-only, single-signal physiological analyzers.**
 Read one raw biosignal from a consumer device → derive evidence-graded metrics → fuse across signals. Your data never leaves the browser.
+
+**Suite version:** 1.0.0
 
 [![Live at tepna.net](https://img.shields.io/badge/live-tepna.net-2a6fdb)](https://tepna.net)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a6fdb)](LICENSE)
@@ -247,7 +249,7 @@ node imports them; delete either and every node + the Integrator stay byte-ident
   through — then fuses everything via the Integrator. Unknown files are set aside (never guessed); ambiguous
   routes are confirmed by the user.
 
-Both are **unbundled** (loose `<script src>` + a plain `.html`), so they touch neither gate. The router
+Both are now **owned plain-inline bundles** (a `.src.html` split → `Foo.html` via `tools/build.mjs`'s non-provenance `ORCHESTRATORS` set), still served front-door + same-origin (shared profile/longitudinal store). They stay OUT of provenance (no `BUILD-MANIFEST`/fixtures) and out of render-coverage — so they touch **only** `build.mjs --check` (committed ≡ build(src), the drift guard), not the two behavior/provenance gates. A shared-module edit must re-bundle both (`build.mjs --all`). The router
 (`SignalAdapters.route`) and the orchestrator (`signal-orchestrate.js`) are **shared single modules** — fix
 a routing bug once and both tools inherit it.
 
@@ -399,6 +401,11 @@ oxygen; `hrvdex-dsp.js` knows HRV; `cpapdex-dsp.js` will know airflow/pressure.
   complex about its one signal.
 - `parseTimestamp` is duplicated into each DSP **by design** (Clock Contract) — that is the one
   sanctioned duplication; do not "fix" it into a shared util.
+- **DSP purity pays off directly: a pure DSP runs headless anywhere** — in Node (the test suite), and
+  in a **Web Worker** off the main thread. The proven shim (`self.window = self` before
+  `importScripts('kernel-constants.js','clock.js',<dsp>.js)` + feature-detect) is a reusable pattern —
+  forward-adopt it for any heavy batch/cohort/folder tool (CONTRIBUTING.md §5.5; TRIO-METHODS-REUSE
+  §Do 1). If a DSP had UI/DOM/storage in it, none of this would work — that is the point of the rule.
 - Test: *"Does this compute a number from a signal?"* → DSP. *"Does this decide how a number looks?"*
   → not DSP.
 
@@ -569,12 +576,17 @@ restates nothing — follow each pointer for the actual rules. Forward-first: a 
    `metric-registry.js`, never hardcode disc CSS (`dex-badges.css`).
 7. **Export via the contract** — `ganglior.node-export` shape (§3); declare what the node is authoritative
    *for* (§5), not that it's authoritative. Cross-node interaction is export-only — nodes never import each
-   other (§2).
+   other (§2). **Decide the export shape up front** — light (events-only) vs rich (clinical reload) builders,
+   multi-carrier key, and which artifact `loadOwnExport` reloads: `docs/EXPORT-SHAPES.md` (per-node table +
+   the rules a new node follows).
 8. **UI** — `<node>-render.js` + `<node>-app.js` + `<Node>.src.html` (§1: no signal logic in UI; a number
    comes from DSP or the registry, never recomputed in render).
 9. **Wire the gates** — add the node's `<NODE>_REGISTRY` + resolver + reference-guide text to `env` in BOTH
    runners (`run-tests.mjs` + `Dex-Test-Suite.html`) so `cohesion-badges` covers it; add a render-coverage
    rig + an `env.equiv` leg (`CLAUDE.md` gate sections). ≥1 dynamic equiv/golden leg per code-gated node.
+   Add the node to the **`BORN_CLEAN` set** in `tests/dex-tests.js` — the `born-clean` group then enforces
+   headless DSP (no DOM/localStorage) + `compute()` + every-metric-evidence-graded + reproducibility leg by
+   construction, so a new node cannot regress those (OWN-THE-BUILD Part B).
 10. **Bundle + ledgers** — `node tools/build.mjs --app <Node>` builds `<Node>.src.html` → `<Node>.html`
     (owned plain-inline) AND auto-writes the `BUILD-MANIFEST.json` GATE-A `manifestHash` + re-stamps its
     code-gated `FIXTURE-PROVENANCE.json` fixtures. Record NEW fixtures by re-running the app + re-exporting;

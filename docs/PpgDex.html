@@ -2737,7 +2737,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
   <div style="max-width:640px;margin:40px auto;padding:24px;font-family:system-ui,-apple-system,sans-serif;line-height:1.55;color:#0b0f14;background:#fff">
     <h1>PpgDex — Wrist PPG Analyzer</h1>
     <p>Optical pulse from a Polar Verity Sense armband → pulse-to-pulse intervals → HRV and pulse-wave morphology. 100% in your browser: no upload, no account.</p>
-    <p><strong>PpgDex is an interactive analyzer that requires JavaScript.</strong> For the full method &amp; metric reference, read <a href="PpgDex%20Reference.html">the PpgDex Reference guide</a>, or see the <a href="index.html">Tepna suite overview</a>.</p>
+    <p><strong>PpgDex is an interactive analyzer that requires JavaScript.</strong> For the full method &amp; metric reference, read <span class="tool-off">the PpgDex Reference guide</span>, or see the <a href="index.html">Tepna suite overview</a>.</p>
     <p>Part of <strong>Tepna — the Dex Suite</strong> · Apache-2.0 · Personal self-quantification, not a medical device.</p>
   </div>
 </noscript>
@@ -5651,6 +5651,69 @@ function analyze(rec, progress){
   const magEpochs = epochs.filter(e=>e.magInterference).length;
   const magInterferencePct = (motion.hasMag && epochs.length)? Math.round(100*magEpochs/epochs.length) : null;
 
+  // ── Segment-wise SDNN (SDNN-VS-ECG-GROUND-TRUTH, validated on the 2026-07-07 paired night) ──
+  // Whole-record SDNN folds in SDANN (drift BETWEEN 5-min means) + a few motion/artifact epochs,
+  // which optical baseline-wander/PTT inflates most → +26% vs chest ECG. Segment-wise aggregation
+  // removes both: sdnnIndex (mean per-5-min SDNN, Task-Force) → +18%; the QUALITY-GATED MEDIAN of
+  // per-5-min SDNN → +3.5% vs ECG truth. These are additive; whole-record `sdnn` is unchanged.
+  // Same gate extends to the long-term-dominated metrics that inherit the SDANN inflation:
+  // SD2 (whole +54% → robust +4%), LF/HF band power (whole totalPower +89% → gated-median LF+HF +7%).
+  // VLF is deliberately NOT robust-corrected — a 5-min epoch can't resolve <0.04 Hz — it stays
+  // flagged. Residual HF (+17%) is genuine respiratory PTT — but its excess is MOTION-DRIVEN
+  // (+43% high-motion vs +12% low-motion on the paired night), so a low-motion HF + a GRADED
+  // per-metric confidence (below) turn the blanket flag into an earned, continuous score.
+  let sdnnIndex=null, sdnnRobust=null, sdnnRobustNEpochs=0, sd2Robust=null, lfRobust=null, hfRobust=null, lfhfRobust=null, hfRobustLowMotion=null, hrvConfidence=null;
+  if(epochs.length){
+    const segAll = epochs.map(e=>e.sdnn).filter(v=>v!=null && isFinite(v));
+    if(segAll.length){
+      sdnnIndex = r1(mean(segAll));
+      // quality gate: keep epochs that are low-motion AND (single-channel OR ≥2/3 LED agreement).
+      // A gated set of <3 epochs is unreliable → fall back to the ungated segment median.
+      const gatedEp = epochs.filter(e=> e.sdnn!=null && isFinite(e.sdnn)
+        && (e.motionIndex==null || e.motionIndex<=0.5)
+        && (e.ledAgreementPct==null || e.ledAgreementPct>=67) );
+      const usable = gatedEp.length>=3 ? gatedEp : epochs.filter(e=>e.sdnn!=null&&isFinite(e.sdnn));
+      const pool = usable.map(e=>e.sdnn);
+      sdnnRobust = r1(median(pool));
+      sdnnRobustNEpochs = pool.length;
+      // SD2 from the robust dispersion + whole-record clean SD1 (beat-to-beat, already un-inflated)
+      const sd1 = poin ? poin.sd1 : null;
+      if(sd1!=null && sdnnRobust!=null) sd2Robust = r1(Math.sqrt(Math.max(0, 2*sdnnRobust*sdnnRobust - sd1*sd1)));
+      // robust frequency = gated-median of per-epoch bands (per-epoch spectrum drops the SDANN/VLF drift)
+      const lfA=usable.map(e=>e.lf).filter(v=>v!=null&&isFinite(v));
+      const hfA=usable.map(e=>e.hf).filter(v=>v!=null&&isFinite(v));
+      const lhA=usable.map(e=>e.lfhf).filter(v=>v!=null&&isFinite(v));
+      if(lfA.length>=3) lfRobust=r1(median(lfA));
+      if(hfA.length>=3) hfRobust=r1(median(hfA));
+      if(lhA.length>=3) lfhfRobust=r2(median(lhA));
+    }
+    // (a) MOTION-GATED HF — HF excess is motion-driven, so a low-motion-only median approaches the
+    // clean floor (~+12% vs ECG) rather than the mixed +17%. Stricter gate than the shared 0.5.
+    const MOT_STRICT=0.15;
+    const lowMot = epochs.filter(e=> e.motionIndex==null || e.motionIndex<=MOT_STRICT);
+    const hfLM = lowMot.map(e=>e.hf).filter(v=>v!=null&&isFinite(v));
+    if(hfLM.length>=3) hfRobustLowMotion=r1(median(hfLM));
+    // (b) GRADED per-metric confidence (0..1) from measured drivers — replaces the binary flag.
+    // Each metric family is scored by the cause that predicts ITS error (validated on paired night):
+    // motion→hf, posture/baseline drift→vlf/sdnn, coverage+correction→beat-to-beat.
+    const qCov = Math.max(0, Math.min(1, analyzablePct/100));
+    const qCorr = Math.max(0, 1 - correctionRate/25);
+    const qLowMotion = epochs.length ? lowMot.length/epochs.length : 0;
+    let posShift=0; for(let i=1;i<epochs.length;i++){ if(epochs[i].position!==epochs[i-1].position) posShift++; }
+    const qPosture = epochs.length>1 ? 1 - posShift/(epochs.length-1) : 1;
+    const durFactor = Math.max(0, Math.min(1, (rec.durSec/60)/60)); // VLF needs a long record
+    const c=v=>r2(Math.max(0, Math.min(1, v)));
+    hrvConfidence = {
+      beatToBeat: c(qCov*qCorr),                          // rmssd, sd1, pnn50 — already ECG-accurate
+      sdnn:       c(qCov*qCorr*(0.6+0.4*qPosture)),        // + sd2 (robust); posture-drift aware
+      lf:         c(qCov*qCorr),
+      hf:         c(qLowMotion*qCov),                      // motion-graded (the earned part)
+      vlf:        c(Math.min(0.7, qPosture*durFactor)),    // capped: single-site optical VLF inherently baseline-limited
+      drivers:{ analyzableFrac:r2(qCov), correctionOK:r2(qCorr), lowMotionFrac:r2(qLowMotion), postureStableFrac:r2(qPosture) },
+      note:'0..1 per-metric confidence from measured drivers (motion\u2192hf, posture/baseline\u2192vlf/sdnn, coverage+correction\u2192beat-to-beat). vlf capped 0.7 — single-site optical VLF stays baseline-wander-limited even when clean; not a defect to "fix".'
+    };
+  }
+
   // §5: whole-record 3-LED agreement + the per-5-min ribbon series (all clusters incl dropped 1/3)
   let ledAgreementPct=null, ledAgree3of3Pct=null, ledSeries=null;
   if(!cons.singleChannel){
@@ -5706,6 +5769,7 @@ function analyze(rec, progress){
     nPulses:det.peaks.length, nBeats:det.peaks.length,
     hr:td.hr, dispHr, dispRm:td.rmssd, dispSd:td.sdnn, dispPn:td.pnn50,
     meanRR:td.meanRR, sdnn:td.sdnn, rmssd:td.rmssd, pnn50:td.pnn50, lnRMSSD:td.lnRMSSD, triIdx:td.triIdx,
+    sdnnIndex, sdnnRobust, sdnnRobustNEpochs, sd2Robust, lfRobust, hfRobust, lfhfRobust, hfRobustLowMotion, hrvConfidence,
     nn, tt:corr.tt, poincareNN:nn, sd1:poin?poin.sd1:null, sd2:poin?poin.sd2:null, sd1sd2:poin?poin.sd1sd2:null, ellArea:poin?poin.ellArea:null,
     freq, dfa1, sampen:se,
     epochs,
@@ -5897,9 +5961,12 @@ function ppgBuildNodeExport(r, opts){
     out.quality = { analyzablePct:nz(r.analyzablePct), cleanBeatPct:nz(r.cleanBeatPct), coveragePct:nz(r.coveragePct), motionRejectedPct:nz(r.motionRejectedPct), correctionRatePct:nz(r.correctionRate), ledAgreementPct:nz(r.ledAgreementPct) };
     out.hrv = {
       time:{ meanRR:nz(r.meanRR), hr:nz(r.dispHr), sdnn:nz(r.sdnn), rmssd:nz(r.rmssd), pnn50:nz(r.pnn50),
+        sdnnIndex:nz(r.sdnnIndex), sdnnRobust:nz(r.sdnnRobust), sd2Robust:nz(r.sd2Robust),
         window:'wholeRecord', units:'ms', lowConfidence:!!r.hrvLowConfidence, lowConfidenceReason:(r.hrvLowConfidenceReason||null),
-        windowNote:'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD.' },
-      frequency:{ lf:nz(fq.lf), hf:nz(fq.hf), lfhf:nz(fq.lfhf), method:'Lomb-Scargle', lowConfidence:!!r.hrvLowConfidence }
+        windowNote:'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD.',
+        sdnnNote:'whole-record sdnn runs high on optical (SDANN/baseline-wander inflation, ~+26% vs chest ECG). sdnnIndex = mean of per-5-min SDNN (~+18%); sdnnRobust = quality-gated MEDIAN of per-5-min SDNN (~+3.5% vs ECG truth) — use sdnnRobust for cross-node SDNN comparison.' },
+      frequency:{ lf:nz(fq.lf), hf:nz(fq.hf), lfhf:nz(fq.lfhf), method:'Lomb-Scargle', lowConfidence:!!r.hrvLowConfidence, lfRobust:nz(r.lfRobust), hfRobust:nz(r.hfRobust), lfhfRobust:nz(r.lfhfRobust), hfRobustLowMotion:nz(r.hfRobustLowMotion) },
+      confidence:(r.hrvConfidence||null)
     };
     out.timeseries = {
       doc:'5-min epochs — primary cross-node feed (posture rides on epochs[].position).',
@@ -7045,7 +7112,7 @@ function renderHero(r){
   ];
   let subsHtml='';
   subs.forEach(s=>{ if(s.v==null||(typeof s.v==='number'&&isNaN(s.v)))return;
-    subsHtml+=`<div class="readiness-subscore"><div class="rs-val ${s.cls(s.v)}">${s.fmt(s.v)}</div><div class="rs-label">${s.label}${bdg(s.label)}</div></div>`; });
+    subsHtml+=`<div class="readiness-subscore">${(typeof evBadge==='function'?evBadge(s.label):'')}<div class="rs-val ${s.cls(s.v)}">${s.fmt(s.v)}</div><div class="rs-label">${s.label}</div></div>`; });
   let chips='';
   if(r.epochs && r.epochs.length>=4){ const w=r.epochs,t=Math.floor(w.length/3);
     const early=median(w.slice(0,t).map(x=>x.rmssd)), late=median(w.slice(-t).map(x=>x.rmssd));
@@ -7255,19 +7322,19 @@ Object.assign(global, { ppgProfileInput:onInput, ppgProfileToggle:toggle, ppgApp
   // bedtime as civil [Y,M,D,h,m]; AHI target; glucose & HRV story per night.
   const NIGHTS = [
     { n: 1, date: '2026-05-11', bed: [2026, 5, 11, 23, 10], durSec: 27600, ahi: 22, cpap: false,
-      gluc: 'flat',  rmssd: 24, rsaGain: 0.932, story: 'Baseline untreated OSA' },
+      gluc: 'flat',  rmssd: 24, rsaGain: 1.199, story: 'Baseline untreated OSA' },
     { n: 2, date: '2026-05-12', bed: [2026, 5, 12, 23, 55], durSec: 26400, ahi: 38, cpap: false,
-      gluc: 'hypo',  rmssd: 18, rsaGain: 0.321, story: 'Worse — alcohol, supine, fragmented; nocturnal hypo + CSR run' },
+      gluc: 'hypo',  rmssd: 18, rsaGain: 0.866, story: 'Worse — alcohol, supine, fragmented; nocturnal hypo + CSR run' },
     { n: 3, date: '2026-05-13', bed: [2026, 5, 13, 22, 50], durSec: 28200, ahi: 7,  cpap: true,
-      gluc: 'flat',  rmssd: 30, rsaGain: 1.367, story: 'CPAP started (intervention) — residual events only' },
+      gluc: 'flat',  rmssd: 30, rsaGain: 1.523, story: 'CPAP started (intervention) — residual events only' },
     { n: 4, date: '2026-05-14', bed: [2026, 5, 14, 23, 5],  durSec: 27600, ahi: 4,  cpap: true,
-      gluc: 'dawn',  rmssd: 38, rsaGain: 1.850, story: 'CPAP adherent + dawn phenomenon' },
+      gluc: 'dawn',  rmssd: 38, rsaGain: 1.950, story: 'CPAP adherent + dawn phenomenon' },
     { n: 5, date: '2026-05-15', bed: [2026, 5, 15, 23, 20], durSec: 27000, ahi: 3,  cpap: true,
-      gluc: 'dawn',  rmssd: 44, rsaGain: 2.215, story: 'CPAP stable, best night' },
+      gluc: 'dawn',  rmssd: 44, rsaGain: 2.268, story: 'CPAP stable, best night' },
   ];
   const SUBJECT = { id: 'SubjectA', age: 45, sex: 'M', bmi: 31, polarId: 'BBBBBBBB', glucoZone: '-04:00' };
   // texture/calibration version — read by cohort-runner's provenance pin.
-  const VERSION = 'synth-gen/2.0';   // 2.0: broadband 1/f RR texture (octave-OU relaxor bank τ≈2..256 beats + RSA freq wander; DFA-α1 0.53→0.85) + re-fit NIGHTS rsaGain. Pre-2.0 = single-relaxor texture, no VERSION string.
+  const VERSION = 'synth-gen/2.1';   // 2.1: HRV-level-scaled fast-variability floor (texF) in buildRR + dropped the τ=2 relaxor + white-noise 3→1.0 → the low-HRV RR tail renders below the old ~17.6 ms floor and SPREADS instead of stacking a flat line (paired with cohort-gen/1.9 rsaGainFor re-fit); DFA-α1 preserved ≈0.76. NIGHTS rsaGain re-fit to the new gain→rMSSD transfer. 2.0: broadband 1/f RR texture (octave-OU relaxor bank τ≈2..256 beats + RSA freq wander; DFA-α1 0.53→0.85) + re-fit NIGHTS rsaGain. Pre-2.0 = single-relaxor texture, no VERSION string.
 
   function nightT0(cfg) { return civilMs(cfg.bed[0], cfg.bed[1], cfg.bed[2], cfg.bed[3], cfg.bed[4], 0, 0); }
 
@@ -7426,6 +7493,12 @@ Object.assign(global, { ppgProfileInput:onInput, ppgProfileToggle:toggle, ppgApp
   function buildRR(tl) {
     const cfg = tl.cfg;
     const r = mulberry32(tl.seed + 202);
+    // Non-RSA fast-variability scale, tied to the night's HRV level (rsaGain). Bulk/high-HRV
+    // nights (gain ≥ 0.9, target ≳ 22 ms) keep FULL broadband texture — DFA-α1 is measured
+    // there and must not move. Low-HRV nights (severe-apnea/elderly tail) get proportionally
+    // less fast variability, so their rendered rMSSD floor drops and the low tail SPREADS
+    // instead of stacking on a hard line — physiological (low vagal tone ⇒ less complex RR).
+    const texF = Math.min(1, Math.max(0.30, 0.30 + 0.70 * (cfg.rsaGain || 1) / 0.9));
     const beats = [];                               // {tMs, rr, type}
     let tRel = 0.4;                                  // sec
     let lf = 0, lfT = 0, bw = 0, sinus = 1000, pendComp = 0, cvhrS = 0;
@@ -7434,7 +7507,7 @@ Object.assign(global, { ppgProfileInput:onInput, ppgProfileToggle:toggle, ppgApp
     // autocorrelation for 15+ beats on clean (low-apnea) nights; letting it wander
     // broadens the HF band so the autocorrelation damps within ~2 cycles, as real RSA does.
     let respPh = r() * 2 * Math.PI, zRespF = gaussFrom(r), lastTRel = 0;
-    // Broadband 1/f background (octave-spaced OU relaxors, τ ≈ 2..256 beats) in place of
+    // Broadband 1/f background (octave-spaced OU relaxors, τ ≈ 3..256 beats) in place of
     // the old single slow relaxor. Real RR is pink at short scales (DFA-α1 ≈ 1.02–1.30,
     // measured across 13 real H10 nights); a single slow OU left the 4–16-beat band white
     // (α1 ≈ 0.5). Spreading 1/f power across that band lifts α1 to ≈0.85 and also pulls
@@ -7443,7 +7516,7 @@ Object.assign(global, { ppgProfileInput:onInput, ppgProfileToggle:toggle, ppgApp
     // pinned by the per-night rMSSD targets) caps short-scale α1; closing the last ~0.3
     // needs a multifractal RSA model, not a parameter (a multiplicative 1/f coupling was
     // tested against the real corpus and made α1 worse, so it was rejected).
-    const bwTau = [2, 3, 4, 6, 8, 12, 16, 24, 32, 64, 128, 256];
+    const bwTau = [3, 4, 6, 8, 12, 16, 24, 32, 64, 128, 256];
     const bwA = bwTau.map(t => Math.exp(-1 / t)), bwS = bwA.map(a => Math.sqrt(1 - a * a));
     const bwNorm = Math.sqrt(bwTau.length); const bwBank = bwTau.map(() => gaussFrom(r));
     // hypo window (N2): compensatory tachycardia + rMSSD collapse + a few ectopics
@@ -7477,7 +7550,7 @@ Object.assign(global, { ppgProfileInput:onInput, ppgProfileToggle:toggle, ppgApp
       const lfMs = lf * 22 * (1.1 - vagal * 0.5);
       bw = 0;
       for (let j = 0; j < bwA.length; j++) { bwBank[j] = bwA[j] * bwBank[j] + gaussFrom(r) * bwS[j]; bw += bwBank[j]; }
-      bw = bw / bwNorm * 30;                          // broadband 1/f background (see buildRR head)
+      bw = bw / bwNorm * 30 * texF;                  // broadband 1/f background (see buildRR head), HRV-level-scaled
       // CVHR: bradycardia in apnea, tachy rebound at arousal — SMOOTHED over ~6 beats so
       // it loads SDNN/VLF (a slow cyclic oscillation) without spuriously inflating rMSSD.
       const st = apneaStateAt(tl, tRel);
@@ -7495,7 +7568,7 @@ Object.assign(global, { ppgProfileInput:onInput, ppgProfileToggle:toggle, ppgApp
         const d = Math.abs(tRel - hypoNadirRel);
         if (d < 25 * 60) { const w = Math.max(0, 1 - d / (25 * 60)); hypoMs = -120 * w; hypoSupp = 1 - 0.5 * w; }
       }
-      let rr = baseRR(tRel) + (resp + lfMs) * hypoSupp + bw + cvhr + pbMs + hypoMs + gaussFrom(r) * 3;
+      let rr = baseRR(tRel) + (resp + lfMs) * hypoSupp + bw + cvhr + pbMs + hypoMs + gaussFrom(r) * 1.0 * texF;
       let type = 'N';
       if (pendComp > 0) { rr += pendComp; pendComp = 0; }
       else if (hypo && Math.abs(tRel - hypoNadirRel) < 12 * 60 && r() < 0.0016) {
@@ -8642,7 +8715,7 @@ function renderKPI(r){
     {l:'Pulse HR', v:r.dispHr+'bpm', sub:r.expRHR?('age norm ~'+r.expRHR):'mean', s:hrStat(r.dispHr)},
     {l:'VO₂max Est', v:r.vo2adj!=null?r.vo2adj:'—', sub:'ml/kg/min · HR-ratio', s:r.vo2adj==null?'neutral':r.vo2adj>=45?'ok':r.vo2adj>=38?'warn':'bad'},
     {l:'rMSSD', v:r.rmssd+'ms', sub:r.expRmssd?('age norm ~'+r.expRmssd):'≥30 good', s:r.expRmssd?(r.rmssd>=r.expRmssd?'ok':r.rmssd>r.expRmssd*0.7?'warn':'bad'):sc(r.rmssd,30,20)},
-    {l:'SDNN', v:r.sdnn+'ms', sub:r.tier==='ultra-short'?'needs ≥5min':'≥50 good', s:r.tier==='ultra-short'?'neutral':sc(r.sdnn,50,30)},
+    {l:'SDNN', v:(r.sdnnRobust!=null?r.sdnnRobust:r.sdnn)+'ms', sub:r.tier==='ultra-short'?'needs ≥5min':(r.sdnnRobust!=null?'robust · per-5-min median':'≥50 good'), s:r.tier==='ultra-short'?'neutral':sc(r.sdnnRobust!=null?r.sdnnRobust:r.sdnn,50,30)},
     {l:'Perfusion Idx', v:r.perfusionIndex==null?'—':r.perfusionIndex+'%', sub:'AC/DC · contact', s:pb},
     {l:'Motion-rejected', v:r.motionRejectedPct+'%', sub:r.motion&&r.motion.hasData?'ACC+GYRO gate':'no motion data', s:r.motionRejectedPct<10?'ok':r.motionRejectedPct<30?'warn':'bad'},
   ];
@@ -8665,7 +8738,7 @@ function renderQuality(r){
   const m=r.motion;
   $('qualityCard').innerHTML=`
     <div class="q-grid">
-      <div class="q-stat"><div class="q-val ${r.analyzablePct>=90?'ok':r.analyzablePct>=75?'warn':'bad'}">${r.analyzablePct}%</div><div class="q-lbl">Analyzable${evBadge('Analyzable')}</div><div class="q-sub">clean-beat × motion gate</div></div>
+      <div class="q-stat">${evBadge('Analyzable')}<div class="q-val ${r.analyzablePct>=90?'ok':r.analyzablePct>=75?'warn':'bad'}">${r.analyzablePct}%</div><div class="q-lbl">Analyzable</div><div class="q-sub">clean-beat × motion gate</div></div>
       <div class="q-stat"><div class="q-val ${r.cleanBeatPct>=85?'ok':r.cleanBeatPct>=65?'warn':'bad'}">${r.cleanBeatPct}%</div><div class="q-lbl">Clean pulses${evBadge('Clean pulses')}</div><div class="q-sub">SQI ≥ 0.5</div></div>
       <div class="q-stat"><div class="q-val ${r.motionRejectedPct<10?'ok':r.motionRejectedPct<30?'warn':'bad'}">${r.motionRejectedPct}%</div><div class="q-lbl">Motion-rejected${evBadge('Motion-rejected')}</div><div class="q-sub">${m&&m.hasData?'ACC+GYRO':'no ACC/GYRO'}</div></div>
       <div class="q-stat"><div class="q-val ${r.meanSQI>=0.7?'ok':r.meanSQI>=0.5?'warn':'bad'}">${r.meanSQI}</div><div class="q-lbl">Mean SQI${evBadge('Mean SQI')}</div><div class="q-sub">→ Ganglior conf</div></div>
@@ -8740,7 +8813,7 @@ function renderMotion(r){
   const ribbon = m.series && m.series.length>2 ? UI.lineChart(m.series.map(p=>({x:p.x,y:p.y})), UI.COLORS.purple, { W:680,H:140, ymn:0, ymx:1, xfmt:x=>x.toFixed(0)+'m', med:0.5 }) : '<div class="q-note" style="text-align:center;padding:16px">motion index unavailable</div>';
   $('motionCard').innerHTML=`
     <div class="q-grid">
-      <div class="q-stat"><div class="q-val ${m.meanMotionIndex<0.2?'ok':m.meanMotionIndex<0.5?'warn':'bad'}">${m.meanMotionIndex}</div><div class="q-lbl">Mean motion idx${evBadge('Mean motion idx')}</div><div class="q-sub">0 still · 1 moving</div></div>
+      <div class="q-stat">${evBadge('Mean motion idx')}<div class="q-val ${m.meanMotionIndex<0.2?'ok':m.meanMotionIndex<0.5?'warn':'bad'}">${m.meanMotionIndex}</div><div class="q-lbl">Mean motion idx</div><div class="q-sub">0 still · 1 moving</div></div>
       <div class="q-stat"><div class="q-val ${r.motionRejectedPct<10?'ok':r.motionRejectedPct<30?'warn':'bad'}">${r.motionRejectedPct}%</div><div class="q-lbl">Pulses rejected${evBadge('Pulses rejected')}</div><div class="q-sub">idx &gt; 0.5</div></div>
       <div class="q-stat"><div class="q-val neutral">${m.accFs||'—'}</div><div class="q-lbl">ACC Hz${evBadge('ACC Hz')}</div><div class="q-sub">${m.nAcc.toLocaleString()} samples</div></div>
       <div class="q-stat"><div class="q-val neutral">${m.gyroFs||'—'}</div><div class="q-lbl">GYRO Hz${evBadge('GYRO Hz')}</div><div class="q-sub">${m.nGyro.toLocaleString()} samples</div></div>
@@ -8770,7 +8843,7 @@ function renderValidation(r){
     body=`<div class="q-note" style="padding:20px 8px">Device PPI present (${v.nDevice} interval${v.nDevice===1?'':'s'}) but too sparse / blocker-flagged to validate against. Showing self-PPI only.</div>`;
   } else {
     body=`<div class="q-grid">
-      <div class="q-stat"><div class="q-val ${v.deviceAgreementPct>=95?'ok':v.deviceAgreementPct>=88?'warn':'bad'}">${v.deviceAgreementPct}%</div><div class="q-lbl">Agreement${evBadge('Agreement')}</div><div class="q-sub">self vs device mean</div></div>
+      <div class="q-stat">${evBadge('Agreement')}<div class="q-val ${v.deviceAgreementPct>=95?'ok':v.deviceAgreementPct>=88?'warn':'bad'}">${v.deviceAgreementPct}%</div><div class="q-lbl">Agreement</div><div class="q-sub">self vs device mean</div></div>
       <div class="q-stat"><div class="q-val neutral">${v.meanAbsDevMs}</div><div class="q-lbl">Mean abs dev${evBadge('Mean abs dev')}</div><div class="q-sub">ms</div></div>
       <div class="q-stat"><div class="q-val neutral">${v.selfMean}/${v.devMean}</div><div class="q-lbl">Mean PPI${evBadge('Mean PPI')}</div><div class="q-sub">self / device ms</div></div>
       <div class="q-stat"><div class="q-val neutral">${v.selfRMSSD}/${v.devRMSSD}</div><div class="q-lbl">rMSSD${evBadge('rMSSD')}</div><div class="q-sub">self / device ms</div></div>
@@ -8820,7 +8893,7 @@ function renderTable(r){
   html+=sec('Time-domain HRV (PPI-derived)', [
     ['Mean PPI', r.meanRR, 'ms', 'pulse-to-pulse'],
     ['Pulse rate', r.dispHr, 'bpm', '', hrStat(r.dispHr)],
-    ['SDNN', r.sdnn, 'ms', us?'needs ≥5 min':'≥50 good', us?'':sc(r.sdnn,50,30)],
+    ['SDNN', (r.sdnnRobust!=null?r.sdnnRobust:r.sdnn), 'ms', us?'needs ≥5 min':(r.sdnnRobust!=null?'robust · per-5-min median':'≥50 good'), us?'':sc(r.sdnnRobust!=null?r.sdnnRobust:r.sdnn,50,30)],
     ['rMSSD', r.rmssd, 'ms', 'parasympathetic · ≥30 good', sc(r.rmssd,30,20)],
     ['pNN50', r.pnn50, '%', ''],
     ['ln rMSSD', r.lnRMSSD, '', ''],
@@ -8963,11 +9036,14 @@ function buildV2(r){
       magInterferencePct:(r.magInterferencePct!=null?r.magInterferencePct:null),
       deviceAgreementPct:r.validation&&r.validation.usable?r.validation.deviceAgreementPct:null },
     hrv:{ time:{ meanRR:r.meanRR, hr:r.dispHr, sdnn:r.sdnn, rmssd:r.rmssd, pnn50:r.pnn50, lnRMSSD:r.lnRMSSD, triIdx:r.triIdx,
+        sdnnIndex:(r.sdnnIndex!=null?r.sdnnIndex:null), sdnnRobust:(r.sdnnRobust!=null?r.sdnnRobust:null), sd2Robust:(r.sd2Robust!=null?r.sd2Robust:null),
         window:'wholeRecord', units:'ms', lowConfidence:!!r.hrvLowConfidence, lowConfidenceReason:(r.hrvLowConfidenceReason||null),
-        windowNote:'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD.' },
+        windowNote:'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD.',
+        sdnnNote:'whole-record sdnn runs high on optical (SDANN/baseline-wander inflation, ~+26% vs chest ECG). sdnnIndex = mean of per-5-min SDNN (~+18%); sdnnRobust = quality-gated MEDIAN of per-5-min SDNN (~+3.5% vs ECG truth) \u2014 use sdnnRobust for cross-node SDNN comparison.' },
       poincare:{ sd1:r.sd1, sd2:r.sd2, sd1sd2:r.sd1sd2, ellipseArea:r.ellArea },
-      frequency:{ vlf:fq.vlf, lf:fq.lf, hf:fq.hf, lfhf:fq.lfhf, lfnu:fq.lfnu, hfnu:fq.hfnu, totalPower:fq.totalPower, method:'Lomb-Scargle', lowConfidence:!!r.hrvLowConfidence },
-      nonlinear:{ dfaAlpha1:r.dfa1, sampEn:r.sampen } },
+      frequency:{ vlf:fq.vlf, lf:fq.lf, hf:fq.hf, lfhf:fq.lfhf, lfnu:fq.lfnu, hfnu:fq.hfnu, totalPower:fq.totalPower, method:'Lomb-Scargle', lowConfidence:!!r.hrvLowConfidence, lfRobust:(r.lfRobust!=null?r.lfRobust:null), hfRobust:(r.hfRobust!=null?r.hfRobust:null), lfhfRobust:(r.lfhfRobust!=null?r.lfhfRobust:null), hfRobustLowMotion:(r.hfRobustLowMotion!=null?r.hfRobustLowMotion:null) },
+      nonlinear:{ dfaAlpha1:r.dfa1, sampEn:r.sampen },
+      confidence:(r.hrvConfidence||null) },
     personalization:{ profile:r.profile||null, ansReadinessScore:r.hrvScore, ansAge:null, /* ANS Age REMOVED 2026-06-21 (external-review WP-A); null for node-export back-compat. */
       restingHR:r.rhrEff, vo2maxEst:r.vo2adj, expectedRmssd:r.expRmssd },
     apnea: r.longRec ? { screen:'CVHR (PPI-derived bradycardia-rebound)', note:'screen not diagnosis', index:null } : null,
@@ -9079,7 +9155,7 @@ function ppgReviewView(review){
   h+='<div class="pgrv-imp">Mean HR '+nv(t.hr)+' bpm \u00b7 rMSSD '+nv(t.rmssd)+' ms \u00b7 SDNN '+nv(t.sdnn)+' ms'+(q.analyzablePct!=null?' \u00b7 analyzable '+q.analyzablePct+'%':'')+(t.lowConfidence?' \u00b7 ⚠ low-confidence HRV':'')+'. Rendered from the export\u2019s stored values \u2014 no waveform recomputation.</div>';
   var kpis=[['Mean HR',nv(t.hr),'bpm'],['rMSSD',nv(t.rmssd),'ms'],['SDNN',nv(t.sdnn),'ms'],['pNN50',nv(t.pnn50),'%'],['LF/HF',nv(fq.lfhf),'ratio'],['Analyzable',nv(q.analyzablePct),'%'],['LED agreement',nv(q.ledAgreementPct),'%'],['Beats',nv(rec.beats),'count']];
   h+='<div class="pgrv-sec">Key metrics</div><div class="pgrv-kpis">'
-    +kpis.map(function(k){ return '<div class="pgrv-kpi"><div class="k-lab">'+_pgesc(k[0])+'</div><div class="k-val">'+_pgesc(k[1])+'</div><div class="k-sub">'+_pgesc(k[2])+'</div></div>'; }).join('')
+    +kpis.map(function(k){ return '<div class="pgrv-kpi"><div class="k-lab">'+(typeof evBadge==='function'?evBadge(k[0]):'')+_pgesc(k[0])+'</div><div class="k-val">'+_pgesc(k[1])+'</div><div class="k-sub">'+_pgesc(k[2])+'</div></div>'; }).join('')
     +'</div>';
   h+='<div class="pgrv-sec">Event timeline</div>'+ppgReviewTimeline(review.events);
   h+='<div class="pgrv-sec">Raw signal</div>'

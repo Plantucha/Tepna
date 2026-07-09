@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  wearable-clock-drift.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>One phone is not one clock: inter-device timing drift defeats beat-level fusion of consumer wearables — Tepna preprint</title>
+<link rel="stylesheet" href="../licensing/dex-license.css">
+<link rel="stylesheet" href="paper.css">
+</head>
+<body>
+<div class="sheet">
+  <a class="toplink" href="papers.html">← Tepna preprints</a>
+  <div class="banner">Tepna Working Preprint · not peer-reviewed</div>
+  <h1 class="title">One phone is not one clock: inter-device timing drift defeats beat-level fusion of two consumer wearables</h1>
+  <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
+  <p class="affil">Single-subject methods case study, Tepna physiological-signal suite</p>
+  <p class="meta">Draft v1 · July 2026 · Methods / negative-result note · every figure regenerates from <code>PAT Feasibility.html</code> on the author's overnight corpus · 100% local</p>
+
+  <div class="abstract">
+    <h2>Abstract</h2>
+    <p style="text-align:left;margin-bottom:0"><b>Background.</b> Pulse-arrival time (PAT), the delay from the ECG R-peak to the peripheral pulse foot, is an attractive cuff-free vascular marker, and consumer wearables can now supply both legs — a chest ECG (Polar H10) and a peripheral raw-PPG (Polar Verity Sense) — logged simultaneously by one phone. It is widely assumed that same-phone logging yields a common time base. <b>Objective.</b> Test whether beat-level cross-device PAT is recoverable from such captures. <b>Methods.</b> Twenty overnight sessions (one subject; H10 on the chest, Verity on the left ankle; both streamed to one Android phone via Polar Sensor Logger) were auto-paired; 11 met a start-alignment + beat-parity co-recording gate (145,586 coupled beats). Production detectors (Pan–Tompkins R-peaks; 3-LED-consensus PPG feet) timed each fiducial on its device's own clock; the R→foot lag and its drift across the night were measured, and two passive accelerometer re-synchronisation schemes were attempted. <b>Results.</b> The two streams are the same heartbeats (89% beat coupling, 48 ms beat-to-beat spread on the best night), yet the R→foot lag drifts <b>~1.1 s per night</b>, consistent at <b>47.7 ppm (range 37.7–55.3)</b> across nights — i.e. ordinary quartz-crystal tolerance. The phone timestamp does <b>not</b> remove it: over 6.6 h the Verity's phone-timestamp elapsed equals its device sensor-clock elapsed to within the phone's millisecond rounding, proving the logger writes <code>start + device-elapsed</code> — each stream rides its own crystal. Passive re-synchronisation from the two accelerometers failed by both windowed and event-triggered cross-correlation (recovered offsets noisier than the drift itself), because chest and ankle motion are decorrelated in sleep. <b>Conclusion.</b> One phone is not one clock. Beat-level fusion of independently-clocked consumer wearables requires a single acquisition clock (host-side SDK capture); it cannot be salvaged post-hoc from app-timestamped dual-BLE logs, at least when the two sensors sit on decorrelated body segments.</p>
+  </div>
+  <p class="kw"><b>Keywords:</b> pulse arrival time · cross-device synchronization · clock drift · crystal tolerance · consumer wearables · sensor fusion · Polar H10 · Verity Sense · reproducibility · negative results</p>
+
+  <div class="callout" style="border-left-color:#b8860b;background:#fffdf5">
+    <b>Layman overview <span style="font-weight:400;color:#b8860b">(delete before submission)</span>.</b> Your chest heart-monitor and an ankle pulse-sensor can both record the same night through one phone, and you'd think the phone lines them up in time. It doesn't. Each gadget keeps time with its own tiny quartz crystal, and those crystals tick at very slightly different rates — about fifty parts per million apart. Over a night that adds up to roughly a one-second disagreement about <em>when</em> each heartbeat happened. That's fatal for measuring the few-tens-of-milliseconds delay between the heartbeat and the pulse reaching the ankle. We confirmed the phone's own timestamps don't fix it (they're just each gadget's clock relabelled), and we tried to re-align the two using the wobble both accelerometers feel when you move in your sleep — but the chest and the ankle don't move together enough, so that failed too. The takeaway: to do this you need both sensors read by one device with one clock, not two gadgets logged by an app.
+  </div>
+
+  <h2 class="sec">1. Introduction</h2>
+  <p>Pulse-arrival time — the interval from the ECG R-peak to the foot of a downstream pulse wave — tracks arterial tone and blood pressure and needs no cuff, which makes it a standing target for consumer-wearable fusion. The premise is simple: record a chest ECG and a peripheral raw-PPG at the same time and subtract their beat times. Consumer hardware now supplies both legs, and a single phone app (Polar Sensor Logger) can stream and log two Bluetooth-Low-Energy sensors together, writing a "Phone timestamp" column that <em>looks</em> like a shared clock. This paper asks whether that premise survives contact with the data, and reports that it does not — for a specific, quantified, and generalizable reason. The contribution is not a physiological result but a timing-methodology one: a measurement of the inter-device drift, a demonstration that same-phone logging does not synchronize the streams, and two failed attempts to repair it post-hoc, each with its mechanism. The claims are scoped to a single subject and one device pair; the drift <em>magnitude</em>, however, is a property of quartz-crystal tolerance and is expected to generalize.</p>
+
+  <h2 class="sec">2. Methods</h2>
+  <p><b>Capture.</b> One subject wore a Polar H10 chest strap (raw ECG, ~130 Hz) and a Polar Verity Sense on the left ankle (raw 3-LED PPG, ~176 Hz) overnight. Both sensors streamed over BLE to a single Android phone running Polar Sensor Logger, which writes per-stream CSV/TXT with a "Phone timestamp" and a device "sensor timestamp [ns]" column. Twenty nights were collected. <b>Pairing.</b> Files were auto-grouped into nights by filename stamp (sessions before noon folded into the previous evening); the largest ECG and largest PPG per night were paired. A night entered the analysis only if it passed a co-recording gate — start times within 5 s and beat counts within 12 % — which excludes non-simultaneous fragments; 11 of 21 eligible nights passed. <b>Fiducials.</b> R-peaks were detected by the production Pan–Tompkins pipeline (<code>ECGDSP</code>); PPG feet by a 3-LED-consensus detector (<code>PPGDSP</code>). Each fiducial's absolute time was reconstructed from its file's start anchor plus its own device's elapsed time (ECG: sample index ÷ device rate; PPG: device nanosecond clock). <b>Coupling.</b> Each R-peak was matched to the first following foot; a beat "couples" if that lag lies within ±90 ms of a ±30 s local-median baseline (a global baseline wrongly penalizes a slowly-drifting-but-coherent lag). Drift was the range of the per-5-minute median lag; its ppm rate is drift ÷ overlap duration. <b>ACC re-sync.</b> Two schemes estimated the relative clock offset from the two accelerometers' motion envelopes: (a) sliding 2-min windowed normalized cross-correlation; (b) event-triggered — strong isolated chest movements, each cross-correlated in a tight ±1.6 s window against the ankle. Recovered offsets were interpolated and subtracted, then coupling was recomputed. All analysis is browser-local and reproducible from <code>PAT&nbsp;Feasibility.html</code>.</p>
+
+  <h2 class="sec">3. Results</h2>
+
+  <h3 class="sub">3.1 The two streams are the same heartbeats</h3>
+  <p>Co-recording is genuine, not assumed. On the representative night of 2026-07-06 the ECG and PPG start 1.4 s apart, run the same 401 min, and yield 19,922 vs 19,926 beats (0.02 % apart); 89.5 % of R-peaks couple to a coherent foot with a 47.5 ms beat-to-beat spread. Across the 11 gated nights the median coupling is 69 % and the median beat-to-beat spread 45 ms. Whatever follows is therefore a timing problem, not a detection or a wrong-pairing problem — the detectors are seeing one heart on two devices.</p>
+
+  <h3 class="sub">3.2 The R→foot lag drifts ~1 s per night, at a fixed ppm</h3>
+  <p>Despite tight per-beat coupling, the lag baseline wanders across the night by a median of <b>1,156 ms</b> — of the order of a full cardiac cycle at the subject's ~50 bpm. Normalized to the recording length this is <b>47.7 ppm (37.7–55.3)</b>, and it is strikingly consistent night to night (Table 1) — the signature of a <em>fixed</em> difference between two quartz crystals, not a variable physiological or environmental effect. The drift is non-linear (median linear-fit R² = 0.03): it wanders rather than ramping, so a two-point (start+end) correction cannot capture it. Because 1 s of drift is ~20–30× the physiological PAT signal (tens of ms), absolute PAT is unmeasurable and even a relative-trend readout is swamped.</p>
+
+  <table class="data">
+    <thead><tr><th>Night</th><th>overlap (min)</th><th>coupling (%)</th><th>median lag (ms)</th><th>drift (ms)</th><th>drift (ppm)</th></tr></thead>
+    <tbody>
+      <tr><td>2026-06-10</td><td>428</td><td>69</td><td>622</td><td>1162</td><td>45.3</td></tr>
+      <tr><td>2026-06-11</td><td>463</td><td>71</td><td>694</td><td>1047</td><td>37.7</td></tr>
+      <tr><td>2026-06-12</td><td>428</td><td>70</td><td>732</td><td>1174</td><td>45.7</td></tr>
+      <tr><td>2026-06-15</td><td>446</td><td>84</td><td>703</td><td>1304</td><td>48.7</td></tr>
+      <tr><td>2026-06-24</td><td>364</td><td>61</td><td>584</td><td>1089</td><td>49.8</td></tr>
+      <tr><td>2026-06-25</td><td>418</td><td>73</td><td>705</td><td>1225</td><td>48.8</td></tr>
+      <tr><td>2026-06-27</td><td>414</td><td>69</td><td>792</td><td>1252</td><td>50.4</td></tr>
+      <tr><td>2026-06-28</td><td>416</td><td>40</td><td>392</td><td>973</td><td>39.0</td></tr>
+      <tr><td>2026-06-30</td><td>338</td><td>38</td><td>420</td><td>1122</td><td>55.3</td></tr>
+      <tr><td>2026-07-01</td><td>432</td><td>34</td><td>587</td><td>1156</td><td>44.6</td></tr>
+      <tr class="hi"><td>2026-07-06</td><td>401</td><td>90</td><td>454</td><td>1147</td><td>47.7</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:12px;color:#777;margin-top:-4px">Table 1 · The 11 gated co-recording nights (145,586 coupled beats). Median drift 47.7 ppm — within the ±20–50 ppm tolerance band of ordinary wearable-grade quartz. 2026-07-06 (highlighted) is the worked example in §3.1.</p>
+
+  <h3 class="sub">3.3 The phone timestamp is not a common clock</h3>
+  <p>The natural objection is that a single phone should supply a single clock, so timing each fiducial on its device crystal (as §2) merely fails to use the shared reference. It does not exist. For the Verity 2026-07-06 file, the "Phone timestamp" advances by 23,811.246 s between first and last row while the device "sensor timestamp [ns]" advances by 23,811.2467 s — equal to within the phone column's 1-ms rounding over 6.6 h (Table 2). The logger therefore writes <code>phone&nbsp;timestamp = session start + device-elapsed</code>: it anchors the start to the phone wall-clock once, then counts on the device's own crystal. Each stream's "phone timestamp" consequently rides its <em>own</em> crystal, and the two diverge at exactly the inter-device rate of §3.2. Same-phone logging pins the two streams' <em>start</em> to a common instant (±1.4 s) but never their <em>sample timing</em>.</p>
+
+  <table class="data">
+    <thead><tr><th>Elapsed over 6.6 h (Verity 2026-07-06)</th><th>value (s)</th></tr></thead>
+    <tbody>
+      <tr><td>"Phone timestamp" column</td><td>23,811.246</td></tr>
+      <tr><td>Device "sensor timestamp [ns]" column</td><td>23,811.2467</td></tr>
+      <tr class="hi"><td>Difference</td><td>&lt; 0.001 (phone ms rounding)</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:12px;color:#777;margin-top:-4px">Table 2 · The phone timestamp tracks the device clock exactly → it is not an independent acquisition clock.</p>
+
+  <h3 class="sub">3.4 Passive accelerometer re-synchronisation fails</h3>
+  <p>Because both devices carry accelerometers and both feel the subject's sleep movements, the drift should in principle be traceable from shared motion — the movements act as spontaneous sync markers, no user action required. It is not, at this placement. Windowed cross-correlation of the two motion envelopes cut the median drift only 1,156 → 1,127 ms (2.5 %); event-triggered matching on strong isolated movements did nothing (1,156 → 1,158 ms). In both, the recovered per-window offset ranged over <b>2–3 s — wider than the ~1.15 s drift it was meant to estimate</b> — i.e. the cross-correlation locked onto noise. The cause is anatomical: a chest strap and an ankle band register largely different motion (torso versus leg), so even a gross whole-body turn produces uncorrelated accelerometer signatures with no reliable common lag. Motion re-sync needs the two inertial sensors on the same body segment, which defeats the purpose.</p>
+
+  <h2 class="sec">4. Discussion</h2>
+  <p>The result is a clean separation of two things usually conflated: <em>co-recording</em> and <em>synchronisation</em>. Two consumer sensors on one phone are co-recording — same subject, same night, same heartbeats, startable to ~1 s — but they are not synchronised, because no shared clock ever times their samples. The ~48 ppm drift is not a bug in any one product; it is the physics of two free-running crystals, and its consistency across nights (Table 1) is the proof. The practical corollary is a hierarchy of what same-phone logs can and cannot support: night-level and epoch-level fusion (sleep staging, ODI–HRV correlation) tolerate ~1 s of relative drift and are fine; beat-level fusion (PAT, cross-device PWV, beat-to-beat lag) is not. The only durable fix is to remove the second clock: acquire both sensors through one host that timestamps BLE arrivals on a single clock — a Polar-SDK capture on a small always-on host — so relative crystal drift never enters. Passive motion re-sync remains viable in principle for co-located inertial sensors (e.g. two wrist devices), but not across chest and ankle. We deliberately report the failed repairs because they bound the problem: the cheap software fixes were tried on real data and do not work, which is what justifies the hardware requirement.</p>
+  <div class="callout"><b>Limitations.</b> This is a single subject and a single device pair, so the specific 47.7 ppm figure characterizes <em>these two crystals</em>; the generalizable claim is the mechanism and the order of magnitude (drift within the ±20–50 ppm crystal-tolerance band, ~1 s/night, non-linear). Coupling at large median lags (≈450–790 ms, consistent with the long chest→ankle transit path plus pre-ejection period and the foot-vs-R convention) can admit occasional neighbouring-beat aliasing where the drift crosses a cardiac cycle; this inflates the absolute lag but not the drift-<em>range</em> that carries the finding. The ACC re-sync failure is specific to the chest–ankle placement; it does not exclude success for co-located inertial sensors or for a dedicated non-cardiac sync event. No blood-pressure ground truth was collected — this paper makes no PAT-accuracy claim, only a timing-feasibility one.</p>
+
+  <h2 class="sec">5. Reproducibility</h2>
+  <ul>
+    <li><b>One instrument:</b> every number regenerates from <code>PAT Feasibility.html</code> (+ <code>pat-feasibility.js</code>, <code>pat-feasibility-worker.js</code>) run over the capture folder — drop the folder, "Process eligible nights", read the per-night table and aggregate. It reuses the production <code>ECGDSP</code> / <code>PPGDSP</code> detectors verbatim.</li>
+    <li><b>Detectors + clock:</b> Pan–Tompkins R-peaks and 3-LED-consensus feet are the shipped suite detectors; all timestamps follow the suite's floating-wall-clock Clock Contract (regex → <code>Date.UTC</code>, never a locale parse), so results are viewer-timezone-independent.</li>
+    <li><b>Gate:</b> the co-recording gate (start ≤ 5 s, beat parity ≤ 12 %) and the ±90 ms local-baseline coupling are fixed in the tool; the 11/21 pass rate and the Table 1 values are deterministic given the corpus.</li>
+    <li><b>Raw data:</b> the overnight Polar Sensor Logger corpus is personal biosignal data and is not published; the instrument runs on any equivalently-named H10 <code>*_ECG.txt</code> + Verity <code>*_PPG.txt</code> (+ both <code>*_ACC.txt</code>) folder.</li>
+  </ul>
+
+  <h2 class="sec">6. References &amp; provenance</h2>
+  <ol class="refs">
+    <li>Tepna instrument: <code>PAT Feasibility.html</code> · <code>pat-feasibility.js</code> · <code>pat-feasibility-worker.js</code> (batch coupling + ACC-sync).</li>
+    <li>Decision record: <code>PAT-FEASIBILITY-2026-07-08-BRIEF.md</code> (feasibility verdict + unblock path).</li>
+    <li>Companion negative-results synthesis: <code>papers/dead-ends.html</code> (this finding is wall 2.7).</li>
+    <li>Capture provenance &amp; the Clock Contract: <code>CLAUDE.md</code> §🎙️, §🔒; single-host capture: <code>POLAR-SDK-CAPTURE-2026-07-07-BRIEF.md</code>, <code>CAPTURE-HOST</code>.</li>
+    <li>Sensors: Polar H10 (chest ECG), Polar Verity Sense (raw 3-LED PPG); logger: Polar Sensor Logger (j-ware), Android.</li>
+  </ol>
+
+  <div class="footer">Tepna working preprint · single-subject methods / negative-result note · every figure regenerates from <code>PAT Feasibility.html</code>. Not peer-reviewed; not a medical device; not for clinical use. Copyright 2026 Michal Planicka · Apache-2.0.</div>
+</div>
+</body></html>
