@@ -143,6 +143,7 @@ function isRemoteURL(u){
    Returns { remote:[], transport:[], external:[], local:[] }. ── */
 const RESOURCE_REMOTE = /(?:\bsrc|\bhref|\.src|\.href)\s*=\s*["'`]?\s*(https?:\/\/|\/\/|wss?:\/\/|ftp:\/\/)/i;
 const ANCHOR_REMOTE   = /<a\b[^>]*\bhref\s*=\s*["'`]?\s*(https?:\/\/|\/\/)/i;   // a user navigation, not egress
+const META_LINK       = /<link\b[^>]*\brel\s*=\s*["']?(?:canonical|alternate|sitemap|prev|next|me)\b/i; // advisory <link> — metadata hint, never fetched
 const CSS_IMPORT_REMOTE = /@import\s+(?:url\(\s*)?["'`]?\s*(https?:\/\/|\/\/)/i;
 const CSS_URL_REMOTE = /url\(\s*["'`]?\s*(https?:\/\/|\/\/)/i;
 const TRANSPORT = /\b(XMLHttpRequest|WebSocket|EventSource|RTCPeerConnection)\b|\bnavigator\s*\.\s*sendBeacon\b|\bsendBeacon\s*\(/;
@@ -173,6 +174,8 @@ function scanText(text, label){
     if(TRANSPORT.test(line)) push(out.transport, 'transport', (line.match(TRANSPORT)||[''])[0]);
     // (c) remote <a href> = navigation (NOT egress) — classify first so it isn't counted as a resource
     if(ANCHOR_REMOTE.test(line)){ push(out.external, 'a-href', (line.match(ANCHOR_REMOTE)||[])[1]||''); }
+    // (c2) advisory <link rel="canonical|alternate|sitemap|prev|next"> — a metadata hint the browser NEVER fetches → not egress, not a resource load
+    else if(META_LINK.test(line)){ /* skip: no network request */ }
     // (d) remote auto-loading resource attribute (script/link/img/iframe src|href, JS .src=)
     else { let rm; if((rm = RESOURCE_REMOTE.exec(line))) push(out.remote, 'resource', rm[1]); }
     // (e) remote CSS @import / url() / @font-face src
@@ -420,7 +423,8 @@ function localScriptSrcs(html){
     'const r = await fetch(s.src);',
     "el.src = 'data:image/png;base64,AAAA';",
     "link.href = './dex-badges.css';",
-    '<a href="https://doi.org/10.1000/x" target="_blank" rel="noopener">cite</a>'
+    '<a href="https://doi.org/10.1000/x" target="_blank" rel="noopener">cite</a>',
+    '<link rel="canonical" href="https://tepna.net/ECGDex.html">'
   ].join('\n');
   const benignScan = scanText(BENIGN, 'canary/benign');
   const benignRemote = benignScan.remote.length + benignScan.transport.length;
