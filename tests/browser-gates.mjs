@@ -119,8 +119,38 @@ async function gateProvenance() {
   await page.close();
 }
 
-await gateTestSuite();
-await gateProvenance();
+/* ── Gate 3 · no-network invariant (privacy: 0 remote egress across the shipped surfaces) ── */
+async function gateNoNetwork() {
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => console.log('   [no-network page error]', e.message));
+  console.log('▸ no-network.html …');
+  await page.goto(BASE + '/no-network.html', { waitUntil: 'load', timeout: 60000 });
+  // Read the gate's OWN verdict (window.__noNetworkOK + noNetworkStatus()), never scrape prose.
+  // It boots the 8 bundles + 2 orchestrators in trapped iframes; an unsettled boot is a SKIP inside
+  // the gate (static layer is authoritative), so the verdict still resolves without a CI /dev/shm red.
+  try {
+    await page.waitForFunction(() => typeof window.__noNetworkOK === 'boolean', { timeout: 180000 });
+  } catch {
+    FAILS.push('no-network: verdict never computed (gate did not finish scanning/booting the surfaces)');
+    await page.close(); return;
+  }
+  const s = await page.evaluate(() => (window.noNetworkStatus ? window.noNetworkStatus() : { ok: window.__noNetworkOK }));
+  console.log('   static:' + s.static + ' runtime:' + s.runtime + ' python:' + s.python + ' canary:' + s.canary +
+    ' · ' + s.surfacesScanned + ' surfaces, ' + s.looseModules + ' modules, ' + s.surfacesBooted + ' booted');
+  if (!s.ok) FAILS.push('no-network RED — static:' + s.static + ' runtime:' + s.runtime + ' python:' + s.python +
+    ' canary:' + s.canary + ' (staticHits=' + s.staticRemoteHits + ', runtimeHits=' + s.runtimeRemoteHits + ', pyHits=' + s.pythonEgressHits + ')');
+  await page.close();
+}
+
+// NN_ONLY=1 → run just the fast no-network gate (its own lightweight workflow, on every push);
+// default → run all three (rides the on-demand browser-gates workflow).
+if (process.env.NN_ONLY) {
+  await gateNoNetwork();
+} else {
+  await gateTestSuite();
+  await gateProvenance();
+  await gateNoNetwork();
+}
 await browser.close();
 
 if (FAILS.length) {
