@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** REFERENCE (living validation note) · **Created:** 2026-07-06 · **last-verified:** 2026-07-06
+**Status:** REFERENCE (living validation note) · **Created:** 2026-07-06 · **last-verified:** 2026-07-10
 · **Executes:** `briefs/INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md` §1 (real-data ρ validation)
 
 # Three-cornered-hat — real-data validation (Integrator TCH · ρ-from-motion · reference-free σ)
@@ -140,7 +140,54 @@ nights (each just needs the three tiny node-export JSONs, as here).
 r = 0.585 → ρ = 0.585, a **positive-variance** night [classic σ 1.22/5.95/0.99 → 1.67/6.90/1.78], showing only
 the un-biasing direction. The canonical OxyDex-`motionIndex` run above supersedes it.)*
 
+## 7. Multi-night A/B harness + known-answer distribution (2026-07-10) — `tools/tch-multinight.mjs`
+The §5/§6 runs were **ad-hoc**, on user-provided node exports that never entered the repo (privacy
+posture — the raw corpus stays off-repo). So the headline rescue (OxyDex σ 0.03 → 1.02 bpm) was a
+prose result a reviewer could not re-run. This turns it into a **committed, reproducible artifact** and
+generalizes it from one night to a distribution.
+
+**`tools/tch-multinight.mjs`** (Node, deterministic, no I/O/RNG) runs the classic-vs-per-night-motion-ρ
+A/B across N nights through the **shipped** `IntegratorTCH.threeCorneredHat` kernel (v1.2.0), mirroring
+the `_tchRhoFromMotion` aggregation (mean of the positive pairwise motion correlations, clamped
+[0, 0.9]) so the A/B matches what `fuseHRVConsensus` does end-to-end. Two modes:
+
+- **`--selftest`** — a deterministic **synthetic multi-night corpus** with a planted-correlation factor
+  model (`e_i = s_i·(√g·Z_g + √(1−g)·Z_i)`, so `Var(e_i)=s_i²` exactly and the pairwise error
+  correlation is a KNOWN ρ; the motion index is a proxy tied to the same shared driver). Six nights
+  span both regimes: 3 positive-variance (global ρ≈0.4, well-separated σ) and 3 quiet-order (global
+  ρ≈0.6 with OxyDex the smallest-σ corner — the smoothed-O2Ring case of §6). Because **truth is known**,
+  this is a *stronger* magnitude check than the single real night. Result (all 30 known-answer checks
+  green):
+
+  | night | ρ (motion) | classic σ (E/P/O) | ρ-on σ (E/P/O) | culprit |
+  |---|---|---|---|---|
+  | PV-1..3 | 0.43–0.64 | 0.7–1.0 / 1.9–2.7 / 0.8–1.1 | un-biased upward (Σσ² ↑) | PpgDex |
+  | QO-1..3 | 0.67–0.71 | ~0.9 / ~2.8 / **≈0.00** (neg-var) | ~1.1 / ~3.1 / **0.43–0.66** | PpgDex |
+
+  The three quiet-order nights **reproduce the §6 rescue as a known-answer**: the reference-free classic
+  path drives the quiet OxyDex corner to a pathological ≈0 (negative-variance `correlated` auto-branch),
+  and the per-night motion-ρ lifts it back to a physical value — every night, deterministically. The
+  culprit (PpgDex/Verity, the planted-loudest) is named on all six nights; **median culprit σ = 3.06 bpm**,
+  matching the real corpus's ≈2.8 (§2). Asserted invariants: culprit = planted-loudest; culprit σ within
+  ×1.6 (PV) / ×2 (QO) of planted; quiet-order rescue lifts OxyDex σ clearly above the classic floor;
+  positive-variance Σσ² never falls under ρ (the §5 invariant — a scalar-ρ solve redistributes per-node,
+  so the invariant is on the sum, not each component).
+
+- **`--dir <path>`** — the **drop-in path**: one subdirectory per night, each holding the three node-export
+  JSONs (ECGDex + PpgDex + OxyDex summaries carrying `timeseries.epochs[].hr` + `.motionIndex`), the exact
+  §6 input contract. It produces the real distribution + magnitude table via the identical code path — so
+  the **real multi-night distribution is now one command away** once more nights' node-export triples are
+  committed. (This is what §1/§4 below still owe: real nights, not more code.)
+
+**A subtlety this surfaced (worth a paper note).** `_tchRhoFromMotion` averages *all* pairwise motion
+correlations, so when only ONE pair is tightly coupled (the classic quiet-order shape: H10↔Oxy ≈0.9,
+both loud pairs ≈0.4), the mean ρ is diluted and *under*-rescues. §6 got a strong rescue partly because
+H10 motion was unavailable, so ρ came from the single coupled Verity↔OxyDex pair. A per-pair (or
+coupled-pair-weighted) ρ would rescue harder than the mean-of-pairs — a candidate refinement for
+`_tchRhoFromMotion` if the real distribution confirms the dilution matters.
+
 ## Cross-references
+- `tools/tch-multinight.mjs` — the committed multi-night A/B harness (§7); `node tools/tch-multinight.mjs --selftest`.
 - `briefs/INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md` §1 (this executes its premise leg).
 - `sensor-trio-power-analysis.html` / `sensor-trio-worker.js` (the real-data arm + production PPGDSP corner).
 - `papers/sensor-trio-nights.html` (the power/sample-size preprint this real corpus feeds).
