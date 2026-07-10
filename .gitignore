@@ -29,10 +29,7 @@ uploads/*
 !uploads/cpapdex-2026-06-16.json
 !uploads/cpapdex_synthetic_golden.node-export.json
 !uploads/cpapdex_synthetic_multinight_golden.node-export.json
-<<<<<<< HEAD
-=======
 !uploads/integrator_tch_golden.node-export.json
->>>>>>> cf3e242 (Tepna suite)
 
 # Locally-attached raw capture folder (Polar Sensor Logger exports)
 Ecg nightly/
@@ -59,3 +56,15 @@ desktop.ini
 # ── Node (none committed today, but guard against it) ───────────────────────
 node_modules/
 npm-debug.log*
+
+# ── Raw biosignal recordings outside uploads/ (June 2026 miss) ──────────────
+ppg-nights/
+analysis/*realdata*
+Ecg nightly/
+
+# ── AppleDouble / diagnostic / scratch ──────────────────────────────────────
+._*
+_diag/
+scraps/
+_texturetest2.html
+_texworker.js
