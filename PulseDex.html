@@ -3850,13 +3850,15 @@ global.MetricRegistry = {
  *                   persist (health, identity, and app state). Kept beside the
  *                   storage-key inventory so a `dex-forget` gate leg can assert
  *                   it covers every key the app sources write (drift = RED).
- *                   Standalone research/analysis pages (cgm-hrv-coupling,
- *                   nights-icc, …) keep their own checkpoint keys/DBs and are
- *                   deliberately out of scope — their button never renders here.
+ *   · ANALYSIS_KEYS / ANALYSIS_IDB — second tier (FOLLOWUPS §2): the standalone
+ *                   research pages' (cgm-hrv-coupling, nights-icc, …) checkpoint
+ *                   keys/DBs. The control never renders on those pages, but "erase
+ *                   all data on THIS DEVICE" wipes them too (same origin). Kept
+ *                   separate so the Dex-app inventory drift-guard stays scoped.
  *   · IDB_DBS     — the IndexedDB databases to delete (the Integrator store).
- *   · eraseAll()  — remove every LOCAL_KEY (+ DexProfile.LEGACY_KEYS if loaded)
- *                   and deleteDatabase() each IDB. removeItem is a no-op on an
- *                   absent key, so the list is a superset-safe union.
+ *   · eraseAll()  — remove every LOCAL_KEY + ANALYSIS_KEY (+ DexProfile.LEGACY_KEYS
+ *                   if loaded) and deleteDatabase() each IDB + analysis checkpoint.
+ *                   removeItem is a no-op on an absent key → superset-safe union.
  *   · ensureControl(mount) — idempotently render the button + a "what's stored
  *                   here" disclosure into a panel, wired to confirm→erase→reload.
  *
@@ -3911,10 +3913,19 @@ global.MetricRegistry = {
   // IndexedDB databases holding suite health data (the Integrator longitudinal store).
   var IDB_DBS = ['ganglior_integrator'];
 
-  // The effective key set at erase time = LOCAL_KEYS ∪ DexProfile.LEGACY_KEYS (in case a
-  // legacy key is added there and not mirrored here — the gate flags it, this stays correct).
+  // FOLLOWUPS §2: the standalone research/analysis pages (cgm-hrv-coupling, hrv-confound,
+  // nights-icc, sensor-trio-power, treatment-response) keep their OWN checkpoint state. The
+  // erase control doesn't render on those pages, but "erase all data on THIS DEVICE" should
+  // still wipe them (same origin). Second tier, kept separate from LOCAL_KEYS so the Dex-app
+  // inventory drift-guard stays scoped to what the app sources write.
+  var ANALYSIS_KEYS = ['cgmcpl_lock', 'cgmcpl_ptPerSec', 'hrvconf_lock', 'hrvconf_ptPerSec', 'nicc_lock', 'nicc_ptPerSec', 'striopwr_lock', 'striopwr_secPer500', 'txresp_lock', 'txresp_ptPerSec'];
+  var ANALYSIS_IDB = ['cgmcpl_ckpt', 'hrvconf_ckpt', 'nicc_ckpt', 'striopwr_ckpt', 'txresp_ckpt', 'ganglior_cohort_pilot'];
+
+  // The effective localStorage key set at erase time = LOCAL_KEYS ∪ DexProfile.LEGACY_KEYS
+  // ∪ ANALYSIS_KEYS (a legacy key added to DexProfile but not mirrored here is caught by the
+  // gate; unioning it keeps erase correct regardless).
   function _keys() {
-    var out = LOCAL_KEYS.slice();
+    var out = LOCAL_KEYS.concat(ANALYSIS_KEYS);
     try {
       var lk = root.DexProfile && root.DexProfile.LEGACY_KEYS;
       if (lk && lk.length)
@@ -3923,6 +3934,10 @@ global.MetricRegistry = {
         });
     } catch (e) {}
     return out;
+  }
+  // Every IndexedDB database to delete on a full erase (Integrator store + analysis checkpoints).
+  function _idbs() {
+    return IDB_DBS.concat(ANALYSIS_IDB);
   }
 
   // Wipe every known key + delete the IndexedDB stores. Returns a summary.
@@ -3956,7 +3971,7 @@ global.MetricRegistry = {
       }
     }
     if (db) {
-      IDB_DBS.forEach(function (name) {
+      _idbs().forEach(function (name) {
         try {
           db.deleteDatabase(name);
           idb.push(name);
@@ -3980,7 +3995,8 @@ global.MetricRegistry = {
     var note = doc.createElement('div');
     note.style.cssText = 'font-size:11px;line-height:1.5;color:var(--text3,#6F8096);margin-bottom:8px';
     // Static, non-untrusted copy — .textContent for belt-and-suspenders.
-    note.textContent = 'Stored on this device only: your profile, each node’s saved readings and settings, and the Integrator’s longitudinal history. Nothing leaves your browser.';
+    note.textContent =
+      'Stored on this device only: your profile, each node’s saved readings and settings, the Integrator’s longitudinal history, and any analysis-tool checkpoints. Nothing leaves your browser.';
 
     var btn = doc.createElement('button');
     btn.id = 'dex-forget-btn';
@@ -4008,7 +4024,7 @@ global.MetricRegistry = {
     mount.appendChild(wrap);
   }
 
-  var DexForget = { LOCAL_KEYS: LOCAL_KEYS, IDB_DBS: IDB_DBS, eraseAll: eraseAll, ensureControl: ensureControl };
+  var DexForget = { LOCAL_KEYS: LOCAL_KEYS, IDB_DBS: IDB_DBS, ANALYSIS_KEYS: ANALYSIS_KEYS, ANALYSIS_IDB: ANALYSIS_IDB, eraseAll: eraseAll, ensureControl: ensureControl };
   root.DexForget = DexForget;
   if (typeof module !== 'undefined' && module.exports) module.exports = DexForget;
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
