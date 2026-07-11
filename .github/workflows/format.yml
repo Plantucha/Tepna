@@ -1,8 +1,12 @@
 name: format
 
-# DEV-TOOLCHAIN Part B — Biome formatter, CHECK-ONLY, CHANGED-FILES-ONLY (BIOME-FORMATTER brief).
-# A fourth CI sibling of types.yml: it runs the ONE pinned dev tool (@biomejs/biome, a self-contained
-# binary) as a formatter GATE over the *.js/*.mjs a PR actually changed — never the untouched legacy tree.
+# BIOME-FORMATTER Phases 0–1 (formatter) + Phase 3 (lint floor) — Biome, CHECK-ONLY, CHANGED-FILES-ONLY.
+# A CI sibling of types.yml: it runs the ONE pinned dev tool (@biomejs/biome, a self-contained binary) as a
+# formatter AND house-lint-floor GATE over the *.js/*.mjs a PR actually changed — never the untouched legacy
+# tree. `biome ci` runs both the formatter and the linter (biome.json `linter.rules` = the control-flow /
+# dead-code floor mirrored from .eslintrc, 0 errors on the current tree). ESLint (lint.yml) still runs the
+# whole-tree floor IN PARALLEL this cycle (BIOME-FORMATTER Phase 3 rollout); it is retired only once Biome
+# lint has proven parity in CI. Warnings do not fail the gate (advisory, like ESLint's --max-warnings).
 # CI-ONLY: emits nothing, ships nothing, adds no runtime dependency/CDN — the 100%-local / single-file /
 # offline invariant (CLAUDE.md) is untouched. Biome is a devDependency (package.json), exactly like tsc.
 #
@@ -29,7 +33,7 @@ jobs:
           node-version: '20'
       - name: Install pinned Biome (devDependency; ships nothing)
         run: npm ci
-      - name: Biome format check — changed *.js/*.mjs only, check-only (never --write)
+      - name: Biome format + lint-floor check — changed *.js/*.mjs only, check-only (never --write)
         run: |
           BASE="${{ github.base_ref || 'main' }}"
           git fetch --no-tags origin "$BASE"
