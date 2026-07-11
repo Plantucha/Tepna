@@ -456,7 +456,6 @@
     "cgm-hrv-coupling-analysis.html",
     "cgm-hrv-coupling-analysis.js",
     "changes",
-    "changes/2026-07-11-security-csp-strict-script-src.md",
     "changes/README.md",
     "clock.js",
     "codegen",

@@ -9,8 +9,8 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 <meta charset="UTF-8">
-<!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. 'unsafe-inline' + blob:/data: retained for the inline bundle + blob workers — strict nonce/hash script-src deferred (decision A). -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9wWQNX1W5D+WhSG87I6wOiVdkRmmkDfxXxHroLgADj0=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-E2ngOpZHvhTh+21GFums+bwu0xmN5jAymA8joA40KV8=' 'sha256-F7a0/3H9379HYkgLnOuKhb+Fy7ArsyfdzlCn1DMlZKc=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-SbhMwvzlpgPhlroU5JoY5kACF2lbh9q6MEOKlFWAwWY=' 'sha256-V0C9qWkelizTKHjPEtlWmyTc4pTsPSf41HTe+Ia2y7Y=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-fF46IrMGR6TwAmINCMSeAKAcOz57YdRj7ISX7dK8KGU=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-iK9EcZBDjNzU/HabAJ18HheFskGhlbwfIFYuFnQxgXE=' 'sha256-iNPxhp5CmUWM1ebbscxEvZ2ArYCDIRg7cLQDDAOFh/s=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-n0/V9TpXQqMV0xlqN4GBugLvOQEkxjb4N8v367zFAZs=' 'sha256-wMwFbLQvS0B0LmW6+Gs+Wh82l9r2Q/ygQM45UEBwnlE=' 'sha256-znnyGiXDcfbU3wUjydrmyWCFBC9U8tWF9ZOIH8oZ9no=' 'sha256-zoX0rksSqUxFePSlhG6+8O2Euarj7JlN/OQ/SqQyThw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OxyDex — Nocturnal Oximetry Analyzer · v1.0.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -6101,10 +6101,10 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
 </template>
 
 <!-- ── Back to top button ── -->
-<button id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top" title="Back to top">↑</button>
+<button id="backToTop" data-act="scrollTop" aria-label="Back to top" title="Back to top">↑</button>
 
 <!-- ── Theme toggle button (fixed, top-right) ── -->
-<button id="themeToggleBtn" onclick="toggleTheme()" title="Toggle light / dark mode" aria-label="Toggle light/dark theme">
+<button id="themeToggleBtn" data-act="toggleTheme" title="Toggle light / dark mode" aria-label="Toggle light/dark theme">
   <span class="theme-icon" id="themeIcon">☀️</span>
   <span id="themeLabel">Light</span>
 </button>
@@ -6132,9 +6132,9 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
 
   <div class="nav-section-label">Detail Tier</div>
   <div class="nav nav-mode">
-    <div class="nav-item nav-mode-btn active" data-mode="core"     onclick="setMode('core',this)">▣ Core</div>
-    <div class="nav-item nav-mode-btn"        data-mode="advanced" onclick="setMode('advanced',this)">▤ Advanced</div>
-    <div class="nav-item nav-mode-btn"        data-mode="research" onclick="setMode('research',this)">▥ Research</div>
+    <div class="nav-item nav-mode-btn active" data-mode="core"     data-act="setMode" data-mode="core">▣ Core</div>
+    <div class="nav-item nav-mode-btn"        data-mode="advanced" data-act="setMode" data-mode="advanced">▤ Advanced</div>
+    <div class="nav-item nav-mode-btn"        data-mode="research" data-act="setMode" data-mode="research">▥ Research</div>
   </div>
 
   <div class="sidebar-bottom">
@@ -6162,9 +6162,9 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
   </div>
   <div class="topbar-actions">
     <div class="mode-bar" id="modeBar">
-      <button class="mode-btn active" data-mode="core"     onclick="setMode('core',this)">Core</button>
-      <button class="mode-btn"        data-mode="advanced" onclick="setMode('advanced',this)">Advanced</button>
-      <button class="mode-btn"        data-mode="research" onclick="setMode('research',this)">Research</button>
+      <button class="mode-btn active" data-mode="core"     data-act="setMode" data-mode="core">Core</button>
+      <button class="mode-btn"        data-mode="advanced" data-act="setMode" data-mode="advanced">Advanced</button>
+      <button class="mode-btn"        data-mode="research" data-act="setMode" data-mode="research">Research</button>
     </div>
     <div class="mode-hint" id="modeHint">SpO₂ · ODI · HR · Spikes · PB</div>
     <span class="badge hidden" id="topBadgeOxy">⭕ 1Hz SpO₂</span>
@@ -6187,7 +6187,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
 <div id="errorMsg" class="error hidden"></div>
 <div id="procStatus" class="proc-status"></div>
 
-<div id="uploadArea" onclick="document.getElementById('fileInput').click()" role="button" aria-label="Select O2Ring CSV files to upload — drag and drop or click">
+<div id="uploadArea" data-act="clickEl" data-target="fileInput" role="button" aria-label="Select O2Ring CSV files to upload — drag and drop or click">
   <div class="upload-icon">📂</div>
   <h2 class="upload-title">Drop O2Ring CSV files here</h2>
   <p class="upload-desc">
@@ -6195,9 +6195,9 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
     <span class="upload-local">All processing is local — no data leaves your device · Works offline</span><br>
     <span class="upload-android">📱 Android: tap the button below → tap ⋮ menu → "Show all files" if CSV is grayed out</span>
   </p>
-  <button onclick="event.stopPropagation();document.getElementById('fileInput').click()" class="upload-cta">📂 Browse / Select Files</button>
+  <button data-act="clickEl" data-target="fileInput" class="upload-cta">📂 Browse / Select Files</button>
 
-  <div class="synth-line" onclick="event.stopPropagation()">
+  <div class="synth-line" data-act="stop">
     <span>No device?</span>
     <button class="synth-link" type="button" id="genBtn">Generate synthetic</button>
     <select id="genScenario" title="synthetic patient profile">
@@ -6214,7 +6214,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
     </select>
   </div>
 
-  <div class="disclosure-card" onclick="event.stopPropagation()">
+  <div class="disclosure-card" data-act="stop">
     <div class="disclosure-header">
       <span class="disclosure-icon">🔬</span>
       <span class="disclosure-title">Power-user companion analytics</span>
@@ -6249,9 +6249,9 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
 </div>
 
 <div id="userProfilePanel" role="complementary" aria-label="User Profile configuration panel" class="hidden">
-  <div id="profileHeader" onclick="toggleProfile()">
+  <div id="profileHeader" data-act="toggleProfile">
     <h3>👤 User Profile &nbsp;<span class="inline-warn">— personalizes all formulas &amp; norms</span></h3>
-    <button id="profileToggleBtn" onclick="event.stopPropagation();toggleProfile()" aria-expanded="true">▲ collapse</button>
+    <button id="profileToggleBtn" data-act="toggleProfile" aria-expanded="true">▲ collapse</button>
   </div>
   <div id="profileAutoDetect"><span id="profileAutoText">Upload data to auto-detect stats</span> &nbsp;·&nbsp; Auto-estimated fields shown with ~ prefix · Override with real values</div>
   <div id="profileBody">
@@ -6291,6 +6291,128 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
   </div>
   <div class="dxl-seg"><span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span></div>
 </div>
+<script data-inline-src="dex-actions.js">/* ════ Tepna · shared event-delegation dispatcher (dex-actions.js) ══════════
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0. See the LICENSE and NOTICE
+ * files at the project root, or http://www.apache.org/licenses/LICENSE-2.0
+ * ────────────────────────────────────────────────────────────────────────
+ * THE one delegated event dispatcher for the whole suite
+ * (SECURITY-CSP-STRICT-SCRIPT-SRC-2026-07-11). It replaces every inline `on*=`
+ * handler in the fleet so the bundle CSP `script-src` can drop 'unsafe-inline'
+ * and add per-block content hashes — then a script INJECTED into the DOM will
+ * not execute (CSP becomes an injection backstop, not just the egress control).
+ *
+ * HOW IT WORKS. Loaded FIRST in each app shell (before any app script), it
+ * installs ONE listener per event type on `document`. An element opts in with
+ *   data-act="name"            → click
+ *   data-act-change="name"     → change
+ *   data-act-input="name"      → input
+ *   data-act-keydown="name"    → keydown
+ *   data-act-submit="name"     → submit
+ * so ONE element can carry several (e.g. data-act + data-act-keydown). On the
+ * event we walk from `event.target` up to the nearest element carrying the
+ * matching attribute and call the registered `fn(el, event)`, where `el` is
+ * that element (replaces the former inline `this`) and params ride on
+ * `el.dataset` (data-idx, data-win, …). Because delegation fires only the
+ * CLOSEST match, a click on an inner region never also triggers an ancestor's
+ * action — the isolation the old inline `event.stopPropagation()` provided is
+ * inherent (see the `stop` builtin). Elements added after load are handled for
+ * free (the listeners live on `document`).
+ *
+ * Apps register their named actions at load via DexActions.registerAll({…}).
+ * DOM-guarded: under Node / a worker (no document) it still exposes
+ * register/registerAll (a no-op dispatcher), so co-loading it is always safe.
+ * ════════════════════════════════════════════════════════════════════════ */
+(function (root) {
+  'use strict';
+
+  var handlers = Object.create(null); // name -> fn(el, event)
+
+  function register(name, fn) {
+    if (name && typeof fn === 'function') handlers[name] = fn;
+  }
+  function registerAll(map) {
+    if (!map) return;
+    Object.keys(map).forEach(function (k) {
+      register(k, map[k]);
+    });
+  }
+
+  // event type -> the attribute an element uses to opt in for that type.
+  var ATTR = {
+    click: 'data-act',
+    change: 'data-act-change',
+    input: 'data-act-input',
+    keydown: 'data-act-keydown',
+    submit: 'data-act-submit'
+  };
+
+  function dispatch(type, event) {
+    var attr = ATTR[type];
+    if (!attr) return;
+    var start = event.target;
+    if (start && start.nodeType !== 1 && start.parentElement) start = start.parentElement; // climb off text nodes
+    var el = start && start.closest ? start.closest('[' + attr + ']') : null;
+    if (!el) return;
+    var fn = handlers[el.getAttribute(attr)];
+    if (typeof fn === 'function') fn(el, event);
+  }
+
+  function install(doc) {
+    Object.keys(ATTR).forEach(function (type) {
+      doc.addEventListener(
+        type,
+        function (e) {
+          dispatch(type, e);
+        },
+        false
+      );
+    });
+  }
+
+  // ── Generic DOM builtins every app inherits (pure DOM, no app logic) ──────
+  registerAll({
+    // <button data-act="print">
+    print: function () {
+      if (typeof window !== 'undefined' && window.print) window.print();
+    },
+    // <button data-act="scrollTop">
+    scrollTop: function () {
+      if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+    // <button data-act="scrollToEl" data-target="profilePanel">
+    scrollToEl: function (el) {
+      var t = el.dataset && document.getElementById(el.dataset.target);
+      if (t) t.scrollIntoView({ behavior: 'smooth' });
+    },
+    // <button data-act="clickEl" data-target="fileInput"> — proxy a click to another element (opens file dialogs, …)
+    clickEl: function (el) {
+      var t = el.dataset && document.getElementById(el.dataset.target);
+      if (t) t.click();
+    },
+    // <div data-act="stop"> — isolation only. Delegation fires the CLOSEST data-act, so a noop
+    // here stops a click on an inner region from reaching an ancestor's data-act (the former
+    // inline `event.stopPropagation()` idiom on a click-through container).
+    stop: function () {},
+    noop: function () {},
+    // <button data-act="removeClosest" data-sel=".parse-warning-banner"> — dismiss a container (+ preventDefault)
+    removeClosest: function (el, e) {
+      if (e && e.preventDefault) e.preventDefault();
+      var t = el.closest && el.dataset ? el.closest(el.dataset.sel) : null;
+      if (t) t.remove();
+    }
+  });
+
+  var api = { register: register, registerAll: registerAll, dispatch: dispatch, _handlers: handlers };
+
+  if (typeof document !== 'undefined' && document.addEventListener) install(document);
+
+  root.DexActions = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
+</script>
 <script data-inline-src="kernel-constants.js">/* ════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
@@ -10585,7 +10707,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
                 '<span class="pwb-header">⚠️ ' +
                 window._csvParseErrors.length +
                 ' file(s) had parse issues</span>' +
-                '<button class="btn btn-outline pwb-dismiss" onclick="event.preventDefault();this.closest(\'.parse-warning-banner\').remove()">✕</button>' +
+                '<button class="btn btn-outline pwb-dismiss" data-act="removeClosest" data-sel=".parse-warning-banner">✕</button>' +
                 '</summary>' +
                 '<div class="pwb-body">' +
                 _errLines +
@@ -10604,7 +10726,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
             '<strong>⚠ Processing Error</strong><br><code class="error-code">' +
             escHTML(String(e)) +
             '</code>' + // F3: escape error text (may echo a crafted filename)
-            '<br><br><button class="btn btn-outline" onclick="clearAll()">Clear &amp; try again</button></div>';
+            '<br><br><button class="btn btn-outline" data-act="clearAll">Clear &amp; try again</button></div>';
           errEl.style.display = 'block';
         }
         console.error('processFiles catch:', e);
@@ -16387,7 +16509,7 @@ function oxyReviewBanner(review){
      + (s.build ? 'built <code>' + escHTML(s.build) + '</code>' : 'build unknown')
      + (s.generated ? ' on <code>' + escHTML(s.generated) + '</code>' : '') + '</span>';
   h += '<span class="orb-spacer"></span>';
-  h += '<button class="oxy-review-print" type="button" onclick="window.print()">🖨 Save clinical PDF</button>';
+  h += '<button class="oxy-review-print" type="button" data-act="print">🖨 Save clinical PDF</button>';
   h += '</div>';
   return h;
 }
@@ -16975,14 +17097,14 @@ function renderAll() {
   html += '<div class="gc-left">';
   html += '<span class="gc-label">View Window:</span>';
   html += '<div class="gc-btn-group">';
-  html += '<button class="gc-btn'+(_gcWin===7?' active':'')+'" onclick="setGCWindow(7,this)">7d</button>';
-  html += '<button class="gc-btn'+(_gcWin===14?' active':'')+'" onclick="setGCWindow(14,this)">14d</button>';
-  html += '<button class="gc-btn'+(_gcWin===30?' active':'')+'" onclick="setGCWindow(30,this)">30d</button>';
-  html += '<button class="gc-btn'+(_gcWin>=999?' active':'')+'" onclick="setGCWindow(999,this)">All</button>';
+  html += '<button class="gc-btn'+(_gcWin===7?' active':'')+'" data-act="setGCWindow" data-win="7">7d</button>';
+  html += '<button class="gc-btn'+(_gcWin===14?' active':'')+'" data-act="setGCWindow" data-win="14">14d</button>';
+  html += '<button class="gc-btn'+(_gcWin===30?' active':'')+'" data-act="setGCWindow" data-win="30">30d</button>';
+  html += '<button class="gc-btn'+(_gcWin>=999?' active':'')+'" data-act="setGCWindow" data-win="999">All</button>';
   html += '</div></div>';
   html += '<div class="gc-right">';
   html += '<span class="gc-label">Smoothing:</span>';
-  html += '<input type="range" id="gcSmooth" class="gc-range" min="0" max="5" value="'+_gcSmooth+'" oninput="document.getElementById(\'gcSmoothVal\').textContent=this.value" onchange="setGCSmooth(+this.value)">';
+  html += '<input type="range" id="gcSmooth" class="gc-range" min="0" max="5" value="'+_gcSmooth+'" data-act-input="oxyGcSmoothInput" data-act-change="setGCSmooth">';
   html += '<span class="gc-range-val" id="gcSmoothVal">'+_gcSmooth+'</span>';
   html += '</div></div>';
 
@@ -17418,7 +17540,7 @@ function renderAll() {
   html+='<div class="njr-title">Nights</div>';
   nights.forEach(function(n, idx){
     var lbl = (typeof shortDate==='function') ? shortDate(n.date) : escHTML(String(n.date).slice(0,10));
-    html+='<button class="njr-item'+(idx===0?' njr-latest':'')+'" onclick="jumpToNight('+idx+')" title="'+escHTML(n.date)+'">'
+    html+='<button class="njr-item'+(idx===0?' njr-latest':'')+'" data-act="jumpToNight" data-idx="'+idx+'" title="'+escHTML(n.date)+'">'
       +'<span class="njr-idx">'+(idx===0?'★':(idx+1))+'</span>'
       +'<span class="njr-date">'+lbl+'</span>'
       +'</button>';
@@ -17426,7 +17548,7 @@ function renderAll() {
   html+='</div>';
   html+='<div class="night-table">';
   nights.forEach(function(n, idx){
-    html+='<div class="night-row" aria-label="Night '+escHTML(n.date)+' — click to expand details" aria-expanded="false" onclick="toggleDetail(\'det'+idx+'\')" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();toggleDetail(\'det'+idx+'\');}">';
+    html+='<div class="night-row" aria-label="Night '+escHTML(n.date)+' — click to expand details" aria-expanded="false" data-act="toggleDetail" data-det="det'+idx+'" role="button" tabindex="0" data-act-keydown="toggleDetailKey">';
     try {
       html+=nightRowInner(n);
     } catch(e) {
@@ -17451,20 +17573,20 @@ function renderAll() {
   if(_exportBar) {
     var _ebHtml = '<span class="eb-label">Export</span>';
     _ebHtml+='<div class="eb-grp">';
-    _ebHtml+='<button class="eb-btn eb-json" type="button" onclick="exportJSON()">⬇ JSON'+(_review?' (derived)':'')+'</button>';
-    _ebHtml+='<button class="eb-btn eb-csv" type="button" onclick="exportCSV()">⬇ CSV</button>';
-    _ebHtml+='<button class="eb-btn eb-pdf" type="button" onclick="window.print()">'+(_review?'🖨 Clinical PDF':'⬇ PDF')+'</button>';
+    _ebHtml+='<button class="eb-btn eb-json" type="button" data-act="exportJSON">⬇ JSON'+(_review?' (derived)':'')+'</button>';
+    _ebHtml+='<button class="eb-btn eb-csv" type="button" data-act="exportCSV">⬇ CSV</button>';
+    _ebHtml+='<button class="eb-btn eb-pdf" type="button" data-act="print">'+(_review?'🖨 Clinical PDF':'⬇ PDF')+'</button>';
     // SELF-INGEST §5 — "scrub for sharing" toggle (default OFF): strips the device serial / filename /
     // input sha256 from the exported JSON while keeping the clinical summary + a coarse build stamp.
     var _scrubOn = !!(typeof window!=='undefined' && window._oxyScrub);
     _ebHtml+='<label class="eb-scrub" title="Strip device serial / filename / input hash from the exported JSON — keeps the clinical summary + a coarse build stamp. For sharing with a clinician.">'
-      + '<input type="checkbox" '+(_scrubOn?'checked ':'')+'onchange="oxySetScrub(this.checked)"> Scrub for sharing</label>';
+      + '<input type="checkbox" '+(_scrubOn?'checked ':'')+'data-act-change="oxySetScrub"> Scrub for sharing</label>';
     _ebHtml+='</div>';
     _ebHtml+='<span class="eb-spacer"></span>';
     _ebHtml+='<div class="eb-grp">';
-    _ebHtml+='<button class="eb-btn eb-ghost" type="button" onclick="downloadParser()">⬇ Parser</button>';
-    _ebHtml+='<button class="eb-btn eb-ghost" type="button" onclick="addMoreFiles()">＋ Add files</button>';
-    _ebHtml+='<button class="eb-btn eb-danger" type="button" onclick="clearAll()">✕ Clear</button>';
+    _ebHtml+='<button class="eb-btn eb-ghost" type="button" data-act="downloadParser">⬇ Parser</button>';
+    _ebHtml+='<button class="eb-btn eb-ghost" type="button" data-act="addMoreFiles">＋ Add files</button>';
+    _ebHtml+='<button class="eb-btn eb-danger" type="button" data-act="clearAll">✕ Clear</button>';
     _ebHtml+='</div>';
     _exportBar.innerHTML = _ebHtml;
     _exportBar.style.display = 'flex';
@@ -17520,7 +17642,7 @@ var errEl = document.getElementById('results');
 if(errEl) {
   errEl.innerHTML = '<div class="results-error-block">'
     + '<strong>⚠ Render Error</strong><br><code class="error-code">' + errDetail + '</code>'
-    + '<br><br><button class="btn btn-outline" onclick="clearAll()">Clear &amp; try again</button></div>';
+    + '<br><br><button class="btn btn-outline" data-act="clearAll">Clear &amp; try again</button></div>';
   errEl.style.display = 'block';
 }
 safeStyle('uploadArea','display','none');
@@ -17803,9 +17925,7 @@ function nightRowInner(n) {
   var extraHtml = '';
   if(extraChipsArr.length > 0){
     extraHtml = '<button class="chip-more-btn" aria-expanded="false"'
-      +' onclick="var p=this.nextElementSibling;p.classList.toggle(\'open\');'
-      +'this.textContent=p.classList.contains(\'open\')?\'less\':\'+'+extraChipsArr.length+' more\';'
-      +'this.setAttribute(\'aria-expanded\',p.classList.contains(\'open\'));">+'+extraChipsArr.length+' more</button>'
+      +' data-act="oxyChipMore" data-count="'+extraChipsArr.length+'">+'+extraChipsArr.length+' more</button>'
       +'<span class="chip-overflow">'+extraChipsArr.join('')+'</span>';
   }
 
@@ -18121,7 +18241,7 @@ function nightDetail(n, idx) {
   var hasAdvanced = (n.spo2Adv && n.spo2Adv.nadirBins) || (n.hrAdv && n.hrAdv.hrIQR!=null) || n.comp;
   if(hasAdvanced) {
     html+='<div class="research-accordion sec-section" data-tier="secondary">';
-    html+='<div class="research-accordion-header" onclick="toggleResearchAccordion(this)">';
+    html+='<div class="research-accordion-header" data-act="toggleResearchAccordion">';
     html+='<span>📊 Composite · SpO₂ Advanced · HR Advanced</span>';
     html+='<span class="research-accordion-header-line"></span>';
     html+='<span class="research-accordion-chevron">▼</span>';
@@ -18167,7 +18287,7 @@ function nightDetail(n, idx) {
 
   // v20: Literature-validated metrics panel — wrapped in research accordion
   html+='<div class="research-accordion sec-section" data-tier="research">';
-  html+='<div class="research-accordion-header" onclick="toggleResearchAccordion(this)">';
+  html+='<div class="research-accordion-header" data-act="toggleResearchAccordion">';
   html+='<span>🔬 Clinical Hypoxic Indices &amp; CT Thresholds</span>';
   html+='<span class="research-accordion-header-line"></span>';
   html+='<span class="research-accordion-chevron">▼</span>';
@@ -18473,7 +18593,7 @@ function renderResearchMetrics(n) {
   });
   if (!body) return '';
   return '<div class="research-accordion sec-section" data-tier="research">'
-    + '<div class="research-accordion-header" onclick="toggleResearchAccordion(this)">'
+    + '<div class="research-accordion-header" data-act="toggleResearchAccordion">'
     + '<span>\uD83D\uDCCB Full Metrics Table</span>'
     + '<span class="research-accordion-header-line"></span>'
     + '<span class="research-accordion-chevron">▼</span></div>'
@@ -19144,7 +19264,7 @@ function oxyFrontFullTable(n){
   if(!tbl) return '';
   return '<div class="sec-section" id="sec-fulltable">'
     + '<div class="research-accordion oxy-fulltable-acc">'
-    + '<div class="research-accordion-header" onclick="toggleResearchAccordion(this)">'
+    + '<div class="research-accordion-header" data-act="toggleResearchAccordion">'
     +   '<span>📋 Full Metrics Table</span>'
     +   '<span class="research-accordion-header-line"></span>'
     +   '<span class="research-accordion-chevron">▼</span></div>'
@@ -20782,6 +20902,38 @@ function download(content, fname, type) {
     window.open('data:' + type + ';charset=utf-8,' + encodeURIComponent(content), '_blank');
   }
 }
+
+// Event-delegation actions (CSP strict script-src — dex-actions.js). print/scrollTop/clickEl/stop/
+// removeClosest are DexActions builtins; the rest are OxyDex globals. Lazy window.* wrappers resolve
+// at click time regardless of load order.
+if (window.DexActions)
+  DexActions.registerAll({
+    setMode: function (el) { window.setMode(el.dataset.mode, el); },
+    toggleTheme: function () { window.toggleTheme(); },
+    toggleProfile: function () { window.toggleProfile(); },
+    openProfileNav: function (el) { window.openProfile(); window.mobileNavTo(el.dataset.target, el); },
+    mobileNavTo: function (el) { window.mobileNavTo(el.dataset.target, el); },
+    setGCWindow: function (el) { window.setGCWindow(+el.dataset.win, el); },
+    setGCSmooth: function (el) { window.setGCSmooth(+el.value); },
+    oxyGcSmoothInput: function (el) { var o = document.getElementById('gcSmoothVal'); if (o) o.textContent = el.value; },
+    jumpToNight: function (el) { window.jumpToNight(+el.dataset.idx); },
+    toggleDetail: function (el) { window.toggleDetail(el.dataset.det); },
+    toggleDetailKey: function (el, ev) { if (ev && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); window.toggleDetail(el.dataset.det); } },
+    exportJSON: function () { window.exportJSON(); },
+    exportCSV: function () { window.exportCSV(); },
+    oxySetScrub: function (el) { window.oxySetScrub(el.checked); },
+    downloadParser: function () { window.downloadParser(); },
+    addMoreFiles: function () { window.addMoreFiles(); },
+    clearAll: function () { window.clearAll(); },
+    oxyChipMore: function (el) {
+      var p = el.nextElementSibling;
+      if (!p) return;
+      var open = p.classList.toggle('open');
+      el.textContent = open ? 'less' : '+' + el.dataset.count + ' more';
+      el.setAttribute('aria-expanded', open ? 'true' : 'false');
+    },
+    toggleResearchAccordion: function (el) { window.toggleResearchAccordion(el); }
+  });
 </script>
 </div><!-- /.main-wrap -->
 </div><!-- /.app -->
@@ -20800,29 +20952,29 @@ function download(content, fname, type) {
 </div>
 <!-- ── Mobile mode toggle bar ────────────────────────────────── -->
 <div class="mobile-mode-bar" id="mobileModeBar">
-  <button class="mode-btn active" data-mode="core"     onclick="setMode('core',this)">Core</button>
-  <button class="mode-btn"        data-mode="advanced" onclick="setMode('advanced',this)">Advanced</button>
-  <button class="mode-btn"        data-mode="research" onclick="setMode('research',this)">Research</button>
+  <button class="mode-btn active" data-mode="core"     data-act="setMode" data-mode="core">Core</button>
+  <button class="mode-btn"        data-mode="advanced" data-act="setMode" data-mode="advanced">Advanced</button>
+  <button class="mode-btn"        data-mode="research" data-act="setMode" data-mode="research">Research</button>
 </div>
 
 <!-- ── Mobile bottom navigation (Section 7 / 13) ─────────────── -->
 <nav class="mobile-nav" id="mobileNav" role="navigation" aria-label="Main navigation">
   <div class="mobile-nav-modes" role="group" aria-label="Detail level">
-    <button class="mnav-mode-btn" data-mode="core"     onclick="setMode('core',this)">Core</button>
-    <button class="mnav-mode-btn" data-mode="advanced" onclick="setMode('advanced',this)">Advanced</button>
-    <button class="mnav-mode-btn" data-mode="research" onclick="setMode('research',this)">Research</button>
+    <button class="mnav-mode-btn" data-mode="core"     data-act="setMode" data-mode="core">Core</button>
+    <button class="mnav-mode-btn" data-mode="advanced" data-act="setMode" data-mode="advanced">Advanced</button>
+    <button class="mnav-mode-btn" data-mode="research" data-act="setMode" data-mode="research">Research</button>
   </div>
   <div class="mobile-nav-items">
-    <button class="mobile-nav-item active" data-section="uploadArea" onclick="mobileNavTo('uploadArea',this)">
+    <button class="mobile-nav-item active" data-section="uploadArea" data-act="mobileNavTo" data-target="uploadArea">
       <span class="mobile-nav-icon">📋</span>Overview
     </button>
-    <button class="mobile-nav-item" data-section="sec-trends" onclick="mobileNavTo('sec-trends',this)">
+    <button class="mobile-nav-item" data-section="sec-trends" data-act="mobileNavTo" data-target="sec-trends">
       <span class="mobile-nav-icon">📈</span>Trends
     </button>
-    <button class="mobile-nav-item" data-section="sec-nights" onclick="mobileNavTo('sec-nights',this)">
+    <button class="mobile-nav-item" data-section="sec-nights" data-act="mobileNavTo" data-target="sec-nights">
       <span class="mobile-nav-icon">◈</span>Nights
     </button>
-    <button class="mobile-nav-item" data-section="userProfilePanel" onclick="openProfile();mobileNavTo('userProfilePanel',this)">
+    <button class="mobile-nav-item" data-section="userProfilePanel" data-act="openProfileNav" data-target="userProfilePanel">
       <span class="mobile-nav-icon">⚙</span>Profile
     </button>
   </div>
