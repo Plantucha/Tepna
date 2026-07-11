@@ -38,7 +38,8 @@ const paint = (s, c) => (process.stdout.isTTY ? c + s + C.reset : s);
 const GROUP_FILTER = (() => {
   const a = process.argv.slice(2);
   for (let i = 0; i < a.length; i++) {
-    const m = a[i].match(/^--?(?:group|g|only)=(.+)$/i); if (m) return m[1];
+    const m = a[i].match(/^--?(?:group|g|only)=(.+)$/i);
+    if (m) return m[1];
     if (/^--?(?:group|g|only)$/i.test(a[i]) && a[i + 1]) return a[i + 1];
   }
   return process.env.DEX_GROUP || process.env.DEX_GROUPS || '';
@@ -48,22 +49,40 @@ const GROUP_FILTER = (() => {
 function makeSandbox() {
   const noop = () => {};
   const el = () => ({
-    style: {}, dataset: {}, textContent: '', innerHTML: '',
+    style: {},
+    dataset: {},
+    textContent: '',
+    innerHTML: '',
     classList: { add: noop, remove: noop, toggle: noop, contains: () => false },
-    setAttribute: noop, removeAttribute: noop, getAttribute: () => null,
-    appendChild: noop, append: noop, removeChild: noop,
-    querySelector: () => null, querySelectorAll: () => [], addEventListener: noop, removeEventListener: noop
+    setAttribute: noop,
+    removeAttribute: noop,
+    getAttribute: () => null,
+    appendChild: noop,
+    append: noop,
+    removeChild: noop,
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    addEventListener: noop,
+    removeEventListener: noop
   });
   const documentStub = {
-    getElementById: () => null, createElement: el, createTextNode: () => ({}),
-    querySelector: () => null, querySelectorAll: () => [],
-    head: el(), body: el(), documentElement: el(), addEventListener: noop, readyState: 'complete'
+    getElementById: () => null,
+    createElement: el,
+    createTextNode: () => ({}),
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    head: el(),
+    body: el(),
+    documentElement: el(),
+    addEventListener: noop,
+    readyState: 'complete'
   };
   const store = new Map();
   const localStorageStub = {
-    getItem: k => (store.has(k) ? store.get(k) : null),
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
     setItem: (k, v) => store.set(k, String(v)),
-    removeItem: k => store.delete(k), clear: () => store.clear()
+    removeItem: (k) => store.delete(k),
+    clear: () => store.clear()
   };
   const sandbox = {};
   sandbox.window = sandbox;
@@ -87,15 +106,56 @@ function loadInto(ctx, file) {
 /* ── 2 · gather sources (static checks) and fixtures (export completeness) ── */
 function readSources() {
   const wanted = [
-    'clock.js', 'oxydex-util.js', 'pulsedex-dsp.js', 'oxydex-dsp.js', 'hrvdex-dsp.js', 'integrator-dsp.js', 'ppgdex-dsp.js', 'glucodex-dsp.js', 'ecgdex-dsp.js',
-    'ecgdex-cross.js', 'oxydex-cross.js', 'pulsedex-cross.js', 'ppgdex-cross.js', 'cpapdex-cross.js',
-    'crossnight-envelope.js', 'integrator-app.js', 'integrator-render.js', 'ecgdex-app.js', 'ppgdex-app.js', 'pulsedex-app.js', 'pulsedex-render.js', 'hrvdex-app.js', 'oxydex-render.js', 'hrvdex-render.js', 'signal-orchestrate.js', 'dex-ingest.js',
-    'cpapdex-dsp.js', 'cpapdex-edf.js', 'cpapdex-app.js', 'cpapdex-fusion.js', 'ecgdex-morph.js', 'ppgdex-morph.js', 'dex-export.js',
-    'ganglior-provenance.js', 'signal-frame.js', 'glucodex-render.js', 'glucodex-app.js',
-    'cpapdex-render.js', 'pulsedex-overview.js', 'ecgdex-profile.js', 'glucodex-profile.js', 'ppgdex-profile.js'
+    'clock.js',
+    'oxydex-util.js',
+    'pulsedex-dsp.js',
+    'oxydex-dsp.js',
+    'hrvdex-dsp.js',
+    'integrator-dsp.js',
+    'ppgdex-dsp.js',
+    'glucodex-dsp.js',
+    'ecgdex-dsp.js',
+    'ecgdex-cross.js',
+    'oxydex-cross.js',
+    'pulsedex-cross.js',
+    'ppgdex-cross.js',
+    'cpapdex-cross.js',
+    'crossnight-envelope.js',
+    'integrator-app.js',
+    'integrator-render.js',
+    'ecgdex-app.js',
+    'ppgdex-app.js',
+    'pulsedex-app.js',
+    'pulsedex-render.js',
+    'hrvdex-app.js',
+    'oxydex-app.js',
+    'oxydex-render.js',
+    'dex-escape.js',
+    'hrvdex-render.js',
+    'signal-orchestrate.js',
+    'dex-ingest.js',
+    'cpapdex-dsp.js',
+    'cpapdex-edf.js',
+    'cpapdex-app.js',
+    'cpapdex-fusion.js',
+    'ecgdex-morph.js',
+    'ppgdex-morph.js',
+    'dex-export.js',
+    'ganglior-provenance.js',
+    'signal-frame.js',
+    'glucodex-render.js',
+    'glucodex-app.js',
+    'cpapdex-render.js',
+    'pulsedex-overview.js',
+    'ecgdex-profile.js',
+    'glucodex-profile.js',
+    'ppgdex-profile.js'
   ];
   const out = {};
-  for (const f of wanted) { const p = join(ROOT, f); if (existsSync(p)) out[f] = readFileSync(p, 'utf8'); }
+  for (const f of wanted) {
+    const p = join(ROOT, f);
+    if (existsSync(p)) out[f] = readFileSync(p, 'utf8');
+  }
   return out;
 }
 
@@ -105,7 +165,8 @@ function readSources() {
 function readManifests() {
   const out = {};
   for (const f of ['BUILD-MANIFEST.json', 'FIXTURE-PROVENANCE.json']) {
-    const p = join(ROOT, f); if (existsSync(p)) out[f] = readFileSync(p, 'utf8');
+    const p = join(ROOT, f);
+    if (existsSync(p)) out[f] = readFileSync(p, 'utf8');
   }
   return out;
 }
@@ -116,8 +177,12 @@ function readFixtures() {
   if (!existsSync(dir)) return out;
   for (const f of readdirSync(dir)) {
     if (!f.endsWith('.json')) continue;
-    try { out[f.replace(/\.json$/, '')] = JSON.parse(readFileSync(join(dir, f), 'utf8')); }
-    catch (e) { out[f.replace(/\.json$/, '')] = null; console.error(paint('  ! fixture parse error: ' + f + ' — ' + e.message, C.yellow)); }
+    try {
+      out[f.replace(/\.json$/, '')] = JSON.parse(readFileSync(join(dir, f), 'utf8'));
+    } catch (e) {
+      out[f.replace(/\.json$/, '')] = null;
+      console.error(paint('  ! fixture parse error: ' + f + ' — ' + e.message, C.yellow));
+    }
   }
   return out;
 }
@@ -136,18 +201,31 @@ function readEquiv() {
   // them (the old behavior) silently starved the fixture-only consumers too, and made the diff
   // hard-FAIL instead of skip on a fresh CI clone.
   const pair = (key, inFile, fixFile) => {
-    const inP = join(ROOT, 'uploads', inFile), fxP = join(ROOT, 'uploads', fixFile);
+    const inP = join(ROOT, 'uploads', inFile),
+      fxP = join(ROOT, 'uploads', fixFile);
     const rec = {};
-    if (existsSync(inP)) { try { rec.input = readFileSync(inP, 'utf8'); } catch (e) { /* unreadable → treat as absent */ } }
-    if (existsSync(fxP)) { try { rec.fixture = JSON.parse(readFileSync(fxP, 'utf8')); } catch (e) { /* unreadable → treat as absent */ } }
+    if (existsSync(inP)) {
+      try {
+        rec.input = readFileSync(inP, 'utf8');
+      } catch (e) {
+        /* unreadable → treat as absent */
+      }
+    }
+    if (existsSync(fxP)) {
+      try {
+        rec.fixture = JSON.parse(readFileSync(fxP, 'utf8'));
+      } catch (e) {
+        /* unreadable → treat as absent */
+      }
+    }
     if (rec.input !== undefined || rec.fixture !== undefined) out[key] = rec;
   };
-  pair('oxydex',   'O2Ring S 2100_20260612230016.csv', 'OxyDex_2026-06-13_1056_summary.json');
+  pair('oxydex', 'O2Ring S 2100_20260612230016.csv', 'OxyDex_2026-06-13_1056_summary.json');
   pair('pulsedex', 'Polar_H10_AAAAAAAA_20260613_204448_RR.txt', 'PulseDex_2026-06-25_equiv.node-export.json');
-  pair('hrvdex',   'WELLTORY_HRV_DATA_EXPORT_20_May_2026_12_00_AM-17_Jun_2026_11_59_PM.csv', 'HRVDex_2026-06-25_equiv.node-export.json');
+  pair('hrvdex', 'WELLTORY_HRV_DATA_EXPORT_20_May_2026_12_00_AM-17_Jun_2026_11_59_PM.csv', 'HRVDex_2026-06-25_equiv.node-export.json');
   // VII §2: event-byte-coverage cases (purpose-built inputs that emit ≥1 event of each impulse;
   // the equiv cases above carry empty ganglior_events).
-  pair('hrvdex_events',   'HRVDex_2026-06-25_events.csv', 'HRVDex_2026-06-25_events.node-export.json');
+  pair('hrvdex_events', 'HRVDex_2026-06-25_events.csv', 'HRVDex_2026-06-25_events.node-export.json');
   pair('pulsedex_events', 'PulseDex_2026-06-25_events_RR.txt', 'PulseDex_2026-06-25_events.node-export.json');
   // GlucoDex Phase-9 CGM leg (SIGNAL-ADAPTER-PHASE9-REMAINING-NODES §1G): real Abbott Lingo vendor CSV.
   pair('glucodex', 'lingo-glucose-data-2026-MAY-23.csv', 'GlucoDex_2026-06-27_equiv.node-export.json');
@@ -158,18 +236,42 @@ function readEquiv() {
   // CPAPDex GOLDEN reference (CPAPDEX-PHASE9-FOLLOWUPS-II §1): no INPUT file — the gate rebuilds the
   // deterministic synthetic night from CpapDsp._synthEdfSet in-code; only the committed golden EXPORT is
   // wired. (CPAPDex can't join the {text}-input CASES above — its real input is a binary multi-file EDF set.)
-  { const fxP = join(ROOT, 'uploads', 'cpapdex_synthetic_golden.node-export.json');
-    if (existsSync(fxP)) { try { out.cpapdex_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')) }; } catch (e) { /* gate self-skips */ } } }
+  {
+    const fxP = join(ROOT, 'uploads', 'cpapdex_synthetic_golden.node-export.json');
+    if (existsSync(fxP)) {
+      try {
+        out.cpapdex_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')) };
+      } catch (e) {
+        /* gate self-skips */
+      }
+    }
+  }
   // CPAPDex MULTI-NIGHT GOLDEN (CPAPDEX-PHASE9-FOLLOWUPS-III §1): pins exportNight's >=3-night
   // crossnight-wrapper envelope (the only fixture exercising it, cpapdex-multi17, was retired in -I).
   // No INPUT file — the gate rebuilds >=3 deterministic day-shifted synthetic nights in-code (needs
   // env.CPAPCross / cpapdex-cross.js co-loaded above); only the committed golden EXPORT is wired.
-  { const fxP = join(ROOT, 'uploads', 'cpapdex_synthetic_multinight_golden.node-export.json');
-    if (existsSync(fxP)) { try { out.cpapdex_multinight_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')) }; } catch (e) { /* gate self-skips */ } } }
+  {
+    const fxP = join(ROOT, 'uploads', 'cpapdex_synthetic_multinight_golden.node-export.json');
+    if (existsSync(fxP)) {
+      try {
+        out.cpapdex_multinight_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')) };
+      } catch (e) {
+        /* gate self-skips */
+      }
+    }
+  }
   // Integrator TCH-HR GOLDEN (INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II §2): first code-gated Integrator
   // fixture — fixture-only, the gate rebuilds the three staggered synthetic node-exports in-code and fuses them.
-  { const fxP = join(ROOT, 'uploads', 'integrator_tch_golden.node-export.json');
-    if (existsSync(fxP)) { try { out.integrator_tch_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')) }; } catch (e) { /* gate self-skips */ } } }
+  {
+    const fxP = join(ROOT, 'uploads', 'integrator_tch_golden.node-export.json');
+    if (existsSync(fxP)) {
+      try {
+        out.integrator_tch_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')) };
+      } catch (e) {
+        /* gate self-skips */
+      }
+    }
+  }
   return out;
 }
 
@@ -178,7 +280,10 @@ function readEquiv() {
 function readHosts() {
   const wanted = ['Data Unifier.html', 'OverDex.html', 'Dex-Test-Suite.html', 'tests/run-tests.mjs'];
   const out = {};
-  for (const f of wanted) { const p = join(ROOT, f); if (existsSync(p)) out[f] = readFileSync(p, 'utf8'); }
+  for (const f of wanted) {
+    const p = join(ROOT, f);
+    if (existsSync(p)) out[f] = readFileSync(p, 'utf8');
+  }
   return out;
 }
 
@@ -188,7 +293,10 @@ function readHosts() {
 function readSrcHtml() {
   const wanted = ['CPAPDex.src.html', 'ECGDex.src.html', 'GlucoDex.src.html', 'HRVDex.src.html', 'Integrator.src.html', 'OxyDex.src.html', 'PpgDex.src.html', 'PulseDex.src.html'];
   const out = {};
-  for (const f of wanted) { const p = join(ROOT, f); if (existsSync(p)) out[f] = readFileSync(p, 'utf8'); }
+  for (const f of wanted) {
+    const p = join(ROOT, f);
+    if (existsSync(p)) out[f] = readFileSync(p, 'utf8');
+  }
   return out;
 }
 
@@ -198,15 +306,28 @@ function readSrcHtml() {
 function readDocsLedger() {
   const bdir = join(ROOT, 'briefs');
   if (!existsSync(bdir)) return null;
-  const fsBriefNames = readdirSync(bdir).filter(f => f.endsWith('.md')).sort();
+  const fsBriefNames = readdirSync(bdir)
+    .filter((f) => f.endsWith('.md'))
+    .sort();
   const briefs = {};
   for (const n of fsBriefNames) briefs[n] = readFileSync(join(bdir, n), 'utf8');
   const idxP = join(ROOT, 'DOCS-INDEX.md');
   const indexText = existsSync(idxP) ? readFileSync(idxP, 'utf8') : '';
-  const rootBriefNames = readdirSync(ROOT).filter(f => /-BRIEF\.md$/.test(f)).sort();
-  let listedBriefNames = [], listedPaths = [];
+  const rootBriefNames = readdirSync(ROOT)
+    .filter((f) => /-BRIEF\.md$/.test(f))
+    .sort();
+  let listedBriefNames = [],
+    listedPaths = [];
   const listP = join(ROOT, 'tests', 'docs-ledger-list.json');
-  if (existsSync(listP)) { try { const j = JSON.parse(readFileSync(listP, 'utf8')); listedBriefNames = j.briefs || []; listedPaths = j.paths || []; } catch (e) { /* stale/broken → staleness check reds */ } }
+  if (existsSync(listP)) {
+    try {
+      const j = JSON.parse(readFileSync(listP, 'utf8'));
+      listedBriefNames = j.briefs || [];
+      listedPaths = j.paths || [];
+    } catch (e) {
+      /* stale/broken → staleness check reds */
+    }
+  }
   // fsPaths — the whole-tree link inventory recomputed from disk (F2). Authoritative in the Node lane:
   // check4b resolves against it AND the staleness leg asserts listedPaths == fsPaths (a stale committed
   // list reds in CI, exactly like the brief-name list). Same shared walker the generator uses.
@@ -218,39 +339,67 @@ function readDocsLedger() {
 // has fs truth — read suite.manifest.json, RELEASE-MANIFEST.json, CHANGELOG.md, every real changes/*.md,
 // AND the committed tests/changes-list.json (the browser lane's name source) so the group asserts list==fs.
 function readReleaseLedger() {
-  const manP = join(ROOT, 'suite.manifest.json'), relP = join(ROOT, 'RELEASE-MANIFEST.json');
+  const manP = join(ROOT, 'suite.manifest.json'),
+    relP = join(ROOT, 'RELEASE-MANIFEST.json');
   if (!existsSync(manP) || !existsSync(relP)) return null;
   const manifestText = readFileSync(manP, 'utf8');
   const releaseText = readFileSync(relP, 'utf8');
   const clP = join(ROOT, 'CHANGELOG.md');
   const changelogText = existsSync(clP) ? readFileSync(clP, 'utf8') : '';
   const cdir = join(ROOT, 'changes');
-  const isChangeset = f => f.endsWith('.md') && f !== 'README.md' && !/^[._]/.test(f);
-  const changeFiles = {}; let fsChangeNames = [];
-  if (existsSync(cdir)) { fsChangeNames = readdirSync(cdir).filter(isChangeset).sort(); for (const n of fsChangeNames) changeFiles[n] = readFileSync(join(cdir, n), 'utf8'); }
+  const isChangeset = (f) => f.endsWith('.md') && f !== 'README.md' && !/^[._]/.test(f);
+  const changeFiles = {};
+  let fsChangeNames = [];
+  if (existsSync(cdir)) {
+    fsChangeNames = readdirSync(cdir).filter(isChangeset).sort();
+    for (const n of fsChangeNames) changeFiles[n] = readFileSync(join(cdir, n), 'utf8');
+  }
   let listedChangeNames = [];
   const listP = join(ROOT, 'tests', 'changes-list.json');
-  if (existsSync(listP)) { try { listedChangeNames = (JSON.parse(readFileSync(listP, 'utf8')).changes) || []; } catch (e) { /* stale/broken → staleness check reds */ } }
+  if (existsSync(listP)) {
+    try {
+      listedChangeNames = JSON.parse(readFileSync(listP, 'utf8')).changes || [];
+    } catch (e) {
+      /* stale/broken → staleness check reds */
+    }
+  }
   // check-6 surfaces (CONTROLLED-RELEASES-FOLLOWUPS F2/F3/F4): raw text of every version-carrying surface;
   // the gate extracts + compares to canonical (single-sourced there so this lane and the browser lane can't drift).
   const surfaceTexts = {};
-  for (const s of ['CITATION.cff', 'README.md', 'index.html', 'docs/about.json']) { const sp = join(ROOT, s); if (existsSync(sp)) surfaceTexts[s] = readFileSync(sp, 'utf8'); }
+  for (const s of ['CITATION.cff', 'README.md', 'index.html', 'docs/about.json']) {
+    const sp = join(ROOT, s);
+    if (existsSync(sp)) surfaceTexts[s] = readFileSync(sp, 'utf8');
+  }
   return { manifestText, releaseText, changelogText, changeFiles, fsChangeNames, listedChangeNames, surfaceTexts };
 }
 
 // discoverability-cohesion (REPO-DISCOVERABILITY-FOLLOWUPS §5.2) — suite.manifest.json roster ≡
 // the generated docs/sitemap.xml. fs truth for both; the group asserts every deployed surface resolves.
 function readDiscoverability() {
-  const manP = join(ROOT, 'suite.manifest.json'), smP = join(ROOT, 'docs', 'sitemap.xml');
+  const manP = join(ROOT, 'suite.manifest.json'),
+    smP = join(ROOT, 'docs', 'sitemap.xml');
   if (!existsSync(manP) || !existsSync(smP)) return null;
   return { manifestText: readFileSync(manP, 'utf8'), sitemapText: readFileSync(smP, 'utf8') };
 }
 
 function readDocs() {
   // text artifacts the cohesion-badge group diffs against the engine
-  const wanted = ['dex-badges.css', 'OxyDex Reference.html', 'ECGDex Reference.html', 'PpgDex Reference.html', 'CPAPDex Reference.html', 'PulseDex Reference.html', 'HRVDex Reference.html', 'GlucoDex Reference.html', 'ORIENTATION.md'];
+  const wanted = [
+    'dex-badges.css',
+    'OxyDex Reference.html',
+    'ECGDex Reference.html',
+    'PpgDex Reference.html',
+    'CPAPDex Reference.html',
+    'PulseDex Reference.html',
+    'HRVDex Reference.html',
+    'GlucoDex Reference.html',
+    'ORIENTATION.md'
+  ];
   const out = {};
-  for (const f of wanted) { const p = join(ROOT, f); if (existsSync(p)) out[f] = readFileSync(p, 'utf8'); }
+  for (const f of wanted) {
+    const p = join(ROOT, f);
+    if (existsSync(p)) out[f] = readFileSync(p, 'utf8');
+  }
   // GENERATED EEGDex guide (codegen output) — keyed by the conventional doc name the
   // cohesion-badges NODES list uses, read from its generated path. Proves the
   // manifest→guide projection conforms to the generated registry (single-source).
@@ -264,8 +413,44 @@ function main() {
   let ctx;
   try {
     ctx = makeSandbox();
-    ['kernel-constants.js', 'clock.js', 'metric-registry.js', 'dex-profile.js', 'oxydex-registry.js', 'ecgdex-registry.js', 'ppgdex-registry.js', 'cpapdex-registry.js', 'pulsedex-registry.js', 'hrvdex-registry.js', 'glucodex-registry.js', 'codegen/generated/eegdex-registry.js', 'crossnight-envelope.js', 'ecgdex-cross.js', 'oxydex-cross.js', 'pulsedex-cross.js', 'ppgdex-cross.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js', 'integrator-dsp.js', 'integrator-tch.js',
-     'signal-spec.js', 'signal-frame.js', 'dex-export.js', 'signal-adapters.js', 'adapters/polar-rr.js', 'adapters/coospo-rr.js', 'adapters/wahoo-rr.js', 'adapters/oxydex-spo2.js', 'adapters/welltory-summary.js', 'adapters/libre-cgm.js', 'adapters/polar-sense-ppg.js', 'adapters/polar-h10-ecg.js', 'quantity.js', 'dex-ingest.js', 'provenance-banner.js'].forEach(f => loadInto(ctx, f));
+    [
+      'kernel-constants.js',
+      'clock.js',
+      'metric-registry.js',
+      'dex-profile.js',
+      'oxydex-registry.js',
+      'ecgdex-registry.js',
+      'ppgdex-registry.js',
+      'cpapdex-registry.js',
+      'pulsedex-registry.js',
+      'hrvdex-registry.js',
+      'glucodex-registry.js',
+      'codegen/generated/eegdex-registry.js',
+      'crossnight-envelope.js',
+      'ecgdex-cross.js',
+      'oxydex-cross.js',
+      'pulsedex-cross.js',
+      'ppgdex-cross.js',
+      'ecgdex-dsp.js',
+      'ppgdex-dsp.js',
+      'integrator-dsp.js',
+      'integrator-tch.js',
+      'signal-spec.js',
+      'signal-frame.js',
+      'dex-export.js',
+      'signal-adapters.js',
+      'adapters/polar-rr.js',
+      'adapters/coospo-rr.js',
+      'adapters/wahoo-rr.js',
+      'adapters/oxydex-spo2.js',
+      'adapters/welltory-summary.js',
+      'adapters/libre-cgm.js',
+      'adapters/polar-sense-ppg.js',
+      'adapters/polar-h10-ecg.js',
+      'quantity.js',
+      'dex-ingest.js',
+      'provenance-banner.js'
+    ].forEach((f) => loadInto(ctx, f));
     // §3 NAMESPACED CO-LOAD (SIGNAL-ADAPTER-FOLLOWUPS): the migrated DSPs now ship a
     // namespaced build, so — exactly like the Data Unifier / OverDex / Dex-Test-Suite host
     // pages — set the flag and co-load all three in this ONE vm realm. They hang their public
@@ -273,7 +458,7 @@ function main() {
     // collide with integrator-dsp.js's bare parseTimestamp/mean (loaded above). This is what
     // lets the Phase-9 compute() FUNCTIONAL floor run in Node CI, not just the browser rig (-II §3).
     ctx.__DEX_NAMESPACED__ = true;
-    ['oxydex-util.js', 'pulsedex-dsp.js', 'oxydex-dsp.js', 'hrvdex-dsp.js', 'glucodex-dsp.js', 'signal-orchestrate.js', 'dex-coload.js'].forEach(f => loadInto(ctx, f));
+    ['oxydex-util.js', 'pulsedex-dsp.js', 'oxydex-dsp.js', 'hrvdex-dsp.js', 'glucodex-dsp.js', 'signal-orchestrate.js', 'dex-coload.js'].forEach((f) => loadInto(ctx, f));
   } catch (e) {
     console.error(paint('SETUP ERROR: ' + e.message, C.red));
     process.exit(2);
@@ -284,11 +469,26 @@ function main() {
   // env → the self-test group fails), never a dead runner. Morph loads BEFORE the
   // tests run so ECGDSP/PPGDSP `analyze` exercise it morph-active, matching the
   // browser suite (both DSP modules call global.ECGMorph/PPGMorph inside try/catch).
-  ['ecgdex-morph.js', 'ppgdex-morph.js', 'cpapdex-edf.js', 'cpapdex-dsp.js', 'cpapdex-fusion.js', 'cpapdex-cross.js', 'cpapdex-coimport.js',
-   'synth-gen.js', 'cohort-gen.js', 'cohort-full.js',
-   'glucodex-dsp.js', 'dex-patient-gen.js', 'integrator-longitudinal.js'].forEach(f => {
-    try { loadInto(ctx, f); }
-    catch (e) { console.error(paint('  ! optional module failed to load: ' + f + ' — ' + e.message, C.yellow)); }
+  [
+    'ecgdex-morph.js',
+    'ppgdex-morph.js',
+    'cpapdex-edf.js',
+    'cpapdex-dsp.js',
+    'cpapdex-fusion.js',
+    'cpapdex-cross.js',
+    'cpapdex-coimport.js',
+    'synth-gen.js',
+    'cohort-gen.js',
+    'cohort-full.js',
+    'glucodex-dsp.js',
+    'dex-patient-gen.js',
+    'integrator-longitudinal.js'
+  ].forEach((f) => {
+    try {
+      loadInto(ctx, f);
+    } catch (e) {
+      console.error(paint('  ! optional module failed to load: ' + f + ' — ' + e.message, C.yellow));
+    }
   });
 
   const env = {
@@ -386,23 +586,31 @@ function main() {
   if (groupFilter) {
     console.log('\n' + paint('▸ FILTERED RUN', C.yellow) + paint('  --group="' + groupFilter + '"  →  ' + groups.length + ' of ' + totalGroups + ' groups', C.dim));
     console.log(paint('  (dev convenience — NOT the canonical gate; run with no filter for the merge-gate pass)', C.dim));
-    if (!groups.length) { console.log(paint('  ✗ filter matched ZERO groups — check the pattern', C.red)); process.exit(2); }
+    if (!groups.length) {
+      console.log(paint('  ✗ filter matched ZERO groups — check the pattern', C.red));
+      process.exit(2);
+    }
   }
 
-  let pass = 0, fail = 0, skip = 0, n = 0;
+  let pass = 0,
+    fail = 0,
+    skip = 0,
+    n = 0;
   const lines = [];
   for (const g of groups) {
     // skip-aware tally, mirroring Dex-Test-Suite.html's render-coverage ⊘ convention: a skipped
     // test counts as NEITHER pass nor fail, so a gitignored-input SKIP never reds the merge gate.
-    const gskip = g.tests.filter(t => t.skip).length;
-    const gp = g.tests.filter(t => t.pass && !t.skip).length;
+    const gskip = g.tests.filter((t) => t.skip).length;
+    const gp = g.tests.filter((t) => t.pass && !t.skip).length;
     const gf = g.tests.length - gp - gskip;
-    pass += gp; fail += gf; skip += gskip; n += g.tests.length;
-    lines.push('\n' + paint('▸ ' + g.title, C.bold) + paint('  [' + g.tag + ']', C.dim) +
-      '  ' + paint(gp + '/' + (g.tests.length - gskip) + (gskip ? ' · ' + gskip + '⊘' : ''), gf ? C.red : C.green));
+    pass += gp;
+    fail += gf;
+    skip += gskip;
+    n += g.tests.length;
+    lines.push('\n' + paint('▸ ' + g.title, C.bold) + paint('  [' + g.tag + ']', C.dim) + '  ' + paint(gp + '/' + (g.tests.length - gskip) + (gskip ? ' · ' + gskip + '⊘' : ''), gf ? C.red : C.green));
     for (const t of g.tests) {
-      const mk = t.skip ? paint('  ⊘', C.yellow) : (t.pass ? paint('  ✓', C.green) : paint('  ✕', C.red));
-      const detail = t.detail ? paint('  — ' + t.detail, t.skip ? C.yellow : (t.pass ? C.dim : C.yellow)) : '';
+      const mk = t.skip ? paint('  ⊘', C.yellow) : t.pass ? paint('  ✓', C.green) : paint('  ✕', C.red);
+      const detail = t.detail ? paint('  — ' + t.detail, t.skip ? C.yellow : t.pass ? C.dim : C.yellow) : '';
       lines.push(mk + ' ' + t.name + detail);
     }
   }
