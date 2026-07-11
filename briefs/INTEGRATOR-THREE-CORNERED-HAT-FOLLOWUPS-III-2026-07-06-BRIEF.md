@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-07 (§1 premise VALIDATED 2026-07-06; **end-to-end A/B through the Integrator's OWN `threeCorneredHat` — with a DEMONSTRATED RESCUE**. On real user-provided node exports for 2026-07-06 (all three: ECGDex+PpgDex+OxyDex), the canonical run lands in the **quiet-order / negative-variance** regime (H10↔OxyDex r=0.90); classic drives the smoothed OxyDex σ to a pathological **0.03 bpm**, and a **real measured co-motion ρ=0.655** (Verity↔OxyDex `motionIndex`) **rescues it to 1.02 bpm** — first end-to-end evidence that a motion-derived ρ corrects the quiet-order under-estimate the reference-free path can't. See `docs/INTEGRATOR-TCH-REALDATA-VALIDATION-2026-07-06.md` §5–§6. Mechanism ✓ + rescue ✓ on one night; a distribution/reference-anchored magnitude check wants more trio nights. §4 N-cornered EEGDex-blocked.) · **Created:** 2026-07-06 · **Executed-residue-of:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II-2026-07-04-BRIEF.md` (DONE 2026-07-06) · **Extends:** `INTEGRATOR-BUILD-BRIEF.md` §4.4 `fuseHRVConsensus`
+**Status:** IN-PROGRESS — 2026-07-07 (§1 premise VALIDATED 2026-07-06; **end-to-end A/B through the Integrator's OWN `threeCorneredHat` — with a DEMONSTRATED RESCUE**. On real user-provided node exports for 2026-07-06 (all three: ECGDex+PpgDex+OxyDex), the canonical run lands in the **quiet-order / negative-variance** regime (H10↔OxyDex r=0.90); classic drives the smoothed OxyDex σ to a pathological **0.03 bpm**, and a **real measured co-motion ρ=0.655** (Verity↔OxyDex `motionIndex`) **rescues it to 1.02 bpm** — first end-to-end evidence that a motion-derived ρ corrects the quiet-order under-estimate the reference-free path can't. See `docs/INTEGRATOR-TCH-REALDATA-VALIDATION-2026-07-06.md` §5–§6. Mechanism ✓ + rescue ✓ on one night; a distribution/reference-anchored magnitude check wants more trio nights. **2026-07-10: the ad-hoc §5/§6 runs are now a COMMITTED reproducible harness — `tools/tch-multinight.mjs`** (multi-night classic-vs-motion-ρ A/B through the shipped `IntegratorTCH` kernel; `--selftest` reproduces the §6 rescue as a deterministic known-answer distribution across 6 synthetic nights [30/30 checks green], `--dir` ingests real trio node-export triples via the identical path). The real multi-night distribution is now **data-gated, not code-gated** — it needs more nights' three node-export JSONs committed. §4 N-cornered EEGDex-blocked.) · **Created:** 2026-07-06 · **Executed-residue-of:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II-2026-07-04-BRIEF.md` (DONE 2026-07-06) · **Extends:** `INTEGRATOR-BUILD-BRIEF.md` §4.4 `fuseHRVConsensus`
 
 # Integrator three-cornered-hat — follow-ups III (real-data validation · N-cornered generalization)
 
@@ -59,6 +59,19 @@ divergence vs classic; confirm OxyDex `motionIndex` (O2Ring accel count) and Ppg
 index) genuinely co-vary positively under real co-motion (different scales — correlation is scale-invariant,
 but verify not anti-/un-correlated by construction); consider z-scoring per-node motion before correlating and
 a minimum aligned-motion overlap `n` before trusting ρ. **Validation write-up (`papers/` or `docs/`), not a gate.**
+
+**UPDATE 2026-07-10 — reproducible multi-night harness landed (`tools/tch-multinight.mjs`).** The §5/§6
+runs were ad-hoc on off-repo files; they are now a committed, deterministic Node tool that runs the
+classic-vs-per-night-motion-ρ A/B across N nights through the shipped `IntegratorTCH` kernel (mirroring
+`_tchRhoFromMotion`). `--selftest` reproduces the §6 rescue as a **known-answer distribution** on a
+planted-correlation synthetic corpus (6 nights, both regimes, 30/30 checks green: culprit = planted-loudest
+every night; culprit σ within ×1.6/×2 of planted; the 3 quiet-order nights drive classic OxyDex σ ≈0 and
+the motion-ρ rescues it; median culprit σ 3.06 ≈ the real corpus's 2.8). `--dir <path>` ingests real trio
+node-export triples (the §6 input contract) via the identical path. So the **remaining owed work is DATA,
+not code** — commit ≥~5 more nights' three node-export JSONs and `--dir` prints the real distribution. A
+subtlety surfaced (docs §7): the mean-of-all-pairs ρ dilutes when only one pair is tightly coupled, so a
+coupled-pair-weighted ρ is a candidate `_tchRhoFromMotion` refinement if the real distribution confirms it.
+Write-up: `docs/INTEGRATOR-TCH-REALDATA-VALIDATION-2026-07-06.md` §7.
 
 ## §2 — a real-signal (not in-code) golden variant, once a synth raw-ECG generator exists 🟢 (LOW)
 The §2 golden rebuilds its three inputs **in-code** (the `cpapdex_synthetic_golden` precedent) — deliberately, so
