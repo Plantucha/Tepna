@@ -6,7 +6,7 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-07-06 (**Part A COMPLETE** — A1·A2·A3·A4 all landed; Parts B/C carried, blocked on Biome-binary+on-touch-re-bundle / `node tsc`+de-DOM respectively) · **Created:** 2026-06-30 · **Follows:** `OWN-THE-BUILD-2026-06-30-BRIEF.md` (shares the *construction-enforcement over drift-suppression* thesis + the Node-host reality) · **Continues:** `SIGNAL-ADAPTER-AND-FRONTIER-2026-06-23-BRIEF.md` Phase 4 (which shipped 4a/4b — this is "Phase 4, the two missing legs")
+**Status:** IN-PROGRESS — 2026-07-11 (**Part A COMPLETE** — A1·A2·A3·A4; **Part B COMPLETE** — Biome formatter adopted check-only/changed-only via `BIOME-FORMATTER-2026-07-11-BRIEF.md` Phases 0–1: `biome.json` tuned + `@biomejs/biome` devDependency + `format.yml`, provenance untouched; Part C carried, blocked on a `node tsc`+de-DOM host) · **Created:** 2026-06-30 · **Follows:** `OWN-THE-BUILD-2026-06-30-BRIEF.md` (shares the *construction-enforcement over drift-suppression* thesis + the Node-host reality) · **Continues:** `SIGNAL-ADAPTER-AND-FRONTIER-2026-06-23-BRIEF.md` Phase 4 (which shipped 4a/4b — this is "Phase 4, the two missing legs")
 
 > **PARTIAL 2026-07-04 — Part A · A3 LANDED (test-only, no re-bundle).** A `House-invariant lint · retired
 > vocabulary + frozen names` group in `tests/dex-tests.js` (both runners, headless floor) mechanizes §🎫/§📜:
@@ -52,10 +52,12 @@
 > getters — both are DSP edits owed on the **next on-touch re-bundle** of their node, not new work. Parts
 > B/C remain the substantive open legs (below).
 >
-> **Part B (formatter) DEFERRED** — must ride an on-touch re-bundle (§B2: never big-bang), fold into the
-> pending OWN-THE-BUILD Part C fleet re-bundle; also needs the Biome binary (Node). **Part C (widen
-> `tsconfig`) DEFERRED** — needs `node tsc` to verify green + a de-DOMed module. **Flip to DONE when Parts
-> B/C meet their Done-when** (Part A is complete).
+> **Part B (formatter) COMPLETE 2026-07-11** — Biome adopted via `BIOME-FORMATTER-2026-07-11-BRIEF.md`
+> Phases 0–1 (config + pinned devDependency + lockfile + `format.yml` check-only/changed-only + CONTRIBUTING
+> §B2). Its Done-when (`format.yml` green as a fourth sibling; `verify-provenance` GATE A/B untouched, 0
+> fixtures re-recorded) is met; the on-touch application of the formatter to shipped files is Phase 2 of
+> that brief (ongoing by design — never big-bang). **Part C (widen `tsconfig`) DEFERRED** — needs `node
+> tsc` to verify green + a de-DOMed module. **Flip to DONE when Part C meets its Done-when** (Parts A/B are complete).
 
 # Dev toolchain — the formatter + house-invariant linter (the "black + flake8" to the existing "mypy")
 
@@ -74,10 +76,10 @@
 > New source-text gate groups in
 > `tests/dex-tests.js`, siblings of the Phase-4b purity gate, that mechanize the Clock Contract / SPDX /
 > retired-vocabulary rules. Runs in the runners that already exist. Highest value, lowest cost.
-> **Part B — Formatter (ONE self-contained binary; on-touch only, NEVER big-bang). ◻ OPEN — blocked on Biome
-> binary + an on-touch re-bundle (never standalone).** A `black`-equivalent,
-> check-only in CI, applied only to new files + whatever file you are already re-bundling — because a
-> repo-wide reflow is **not** export-inert (§B2).
+> **Part B — Formatter (ONE self-contained binary; on-touch only, NEVER big-bang). ✅ COMPLETE 2026-07-11
+> (BIOME-FORMATTER brief Phases 0–1).** Biome (`@biomejs/biome@2.5.3`), a `black`-equivalent,
+> check-only in CI (`format.yml` runs `biome ci --changed`), applied only to new files + whatever file you
+> are already re-bundling — because a repo-wide reflow is **not** export-inert (§B2).
 > **Part C — Widen the type gate opportunistically. ◻ OPEN — blocked on a `node tsc` host to verify green.**
 > Grow the `tsconfig` `include` one de-DOMed module
 > at a time. No big bang, ever.
@@ -182,10 +184,12 @@ allow-list; `Dex-Test-Suite.html` all-green; **no app re-bundled** (test-layer o
 
 ## Part B — Formatter (one self-contained binary; on-touch only, never big-bang)
 
-> **◻ OPEN 2026-07-06 — NOT STARTED. Blockers: (1) the Biome binary (Node/devDependency), (2) the §B2
-> rule that the formatter may only ride an on-touch re-bundle, never a standalone big-bang. Fold into the
-> next behavioral fleet re-bundle (pending OWN-THE-BUILD Part C). The `package.json` spine already exists
-> (see Wiring below); promote it to a pinned `devDependencies` + lockfile WHEN this lands.**
+> **✅ COMPLETE 2026-07-11 — executed by `BIOME-FORMATTER-2026-07-11-BRIEF.md` Phases 0–1.** Biome
+> `@biomejs/biome@2.5.3` is a pinned `devDependencies` entry + committed lockfile; `biome.json` is tuned to
+> the house style (2-space, single-quote, semicolons, `lineWidth: 200`, `linter`+`assist` off — formatter
+> only, D1); `.github/workflows/format.yml` runs `biome ci --changed` (check-only, changed-files-only, D2/D3).
+> Provenance untouched, 0 fixtures re-recorded (no shipped `*.js` reformatted — the §B2 proof). The §B2
+> on-touch application of the formatter to shipped files is that brief's Phase 2 (ongoing by design).**
 
 - **B1 · Tool.** Prefer **Biome** (`@biomejs/biome`) — a single self-contained binary that formats
   **and** lints, so it adds **one** dependency instead of the `prettier` + `eslint` + `typescript-eslint`
@@ -214,9 +218,10 @@ allow-list; `Dex-Test-Suite.html` all-green; **no app re-bundled** (test-layer o
   thin JS-reference wrappers with little to format; a dedicated HTML formatter/validator is an optional
   **Tier-3** follow-up, `.src.html`-only, on-touch, not in this brief.
 
-**Done-when (B):** `biome check` (or chosen tool) passes on the format-scoped set; a `format.yml` CI job
-is green as a fourth sibling; **`verify-provenance.html` GATE A/B is untouched and no fixture was
-re-recorded** (proof the formatter ran on zero shipped files big-bang).
+**Done-when (B): ✅ MET 2026-07-11.** `biome ci --changed` is wired as a fourth CI sibling (`format.yml`,
+check-only); `verify-provenance.html` GATE A/B is untouched and **no fixture was re-recorded** (proof the
+formatter ran on zero shipped files big-bang). See `BIOME-FORMATTER-2026-07-11-BRIEF.md` for the tuned
+config, the Phase-0 churn measurements, and the on-touch (Phase 2) discipline.
 
 ---
 
@@ -254,17 +259,18 @@ addition must pass `tsc --noEmit --checkJs` before it lands, so `types.yml` stay
   > `private:true`, **NO `devDependencies` / `dependencies` and NO lockfile** — the two pinned tools
   > (`tsc@5.5.4`, `eslint@8.57.0`) self-install via `npx -y` inside the scripts, so the `types.yml`
   > pinned-install pattern is preserved and nothing ships or is fetched at runtime (100%-local invariant
-  > untouched). **Biome was NOT added** (Part B is still deferred; its formatter is the only reason a real
-  > `@biomejs/biome` devDependency + lockfile would appear — that rides the on-touch fleet re-bundle per
-  > §B2). `scripts` unify the whole surface — `check` (typecheck→lint→test→build-core→build:check→
+  > untouched). **Biome was added 2026-07-11** (Part B) as the FIRST real `@biomejs/biome@2.5.3`
+  > `devDependencies` entry + committed `package-lock.json`, with `format`/`format:check`/`format:changed`
+  > scripts — installs via `npm ci`, still ships nothing at runtime. `scripts` unify the whole surface —
+  > `check` (typecheck→lint→test→build-core→build:check→
   > verify:manifest, the Node-lane floor), `test`, `typecheck`, `lint`, `build`/`build:app`/`build:check`,
   > `verify:manifest`, `gates:browser`, `gen:lists`, `release`/`release:dry`. All four CI workflows
   > (`types`/`lint`/`tests`/`browser-gates`) now route through these scripts (single source of the
   > command surface), and `browser-gates.yml` no longer `npm init -y`s over the committed manifest.
   > `CONTRIBUTING.md` §4.5 documents the commands; changeset `changes/2026-07-06-dev-toolchain-npm-spine.md`.
   > The `version` field is a `0.0.0` placeholder with a `_version_note` — the canonical suite SemVer stays
-  > **only** in `suite.manifest.json` (no version fork). No app re-bundled; provenance untouched. **When
-  > Part B lands** its formatter, promote this to a real `devDependencies` block (pinned) + lockfile.
+  > **only** in `suite.manifest.json` (no version fork). No app re-bundled; provenance untouched.
+  > **Part B landed 2026-07-11** — the spine now carries the pinned `@biomejs/biome` devDependency + lockfile.
 
 ---
 

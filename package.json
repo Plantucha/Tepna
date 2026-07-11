@@ -13,6 +13,9 @@
     "build:check": "node tools/build.mjs --check",
     "typecheck": "npx -y -p typescript@5.5.4 tsc --noEmit -p tsconfig.json",
     "lint": "npx -y eslint@8.57.0 . --ext .js,.mjs --max-warnings=100000",
+    "format": "biome format --write",
+    "format:check": "biome ci --no-errors-on-unmatched",
+    "format:changed": "biome ci --changed --no-errors-on-unmatched",
     "test": "node tests/run-tests.mjs",
     "test:build-core": "node tests/build-core-tests.mjs",
     "verify:manifest": "node tests/verify-manifest.mjs",
@@ -28,5 +31,8 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.3"
   }
 }
