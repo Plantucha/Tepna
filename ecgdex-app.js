@@ -1256,7 +1256,7 @@ function ecgReviewView(review){
     +'<span>Loaded from export \u00b7 <strong>not recomputed</strong>'+(review.scrubbed?' \u00b7 <strong>scrubbed for sharing</strong>':'')+'</span>'
     +'<span class="erv-meta">'+(bh?'built <code>'+_eesc(bh)+'</code>':'build unknown')+(gen?' on <code>'+_eesc(gen)+'</code>':'')+'</span>'
     +'<span class="erv-spacer"></span>'
-    +'<button class="erv-print" type="button" onclick="window.print()">\ud83d\udda8 Save clinical PDF</button></div>';
+    +'<button class="erv-print" type="button" data-act="print">\ud83d\udda8 Save clinical PDF</button></div>';
   h+='<div class="erv-card">';
   h+='<div class="erv-head"><span class="erv-title">ECGDex \u2014 ECG review</span>'
     +'<span class="erv-sub">'+_eesc(rec.tier||rec.mode||rec.source||'recording')+(rec.durationMin!=null?' \u00b7 '+Math.round(rec.durationMin)+' min':'')+(rec.beats!=null?' \u00b7 '+rec.beats+' beats':'')+'</span></div>';
@@ -1697,7 +1697,9 @@ function init(){
 
   // ecg input
   const zone=$('ecgZone'), input=$('ecgInput');
-  zone.addEventListener('click', ()=>input.click());
+  // skip clicks on interactive children (the Choose-File button is now data-act="clickEl";
+  // the zone must not also fire input.click() — CSP-strict handler migration).
+  zone.addEventListener('click', (e)=>{ if(e.target.closest('button,a,label,select,input')) return; input.click(); });
   input.addEventListener('change', e=>{ const fs=e.target.files; if(fs&&fs.length) loadFiles(fs); e.target.value=''; });
   zone.addEventListener('dragover', e=>{ e.preventDefault(); zone.classList.add('drag'); });
   zone.addEventListener('dragleave', ()=>zone.classList.remove('drag'));
@@ -1741,6 +1743,9 @@ function init(){
   ['sec-input','heroTop','scopeSection','sec-profile','slKPI','qualitySection','chartsSection','morphSection','hypnoCard','valCard','hrCard','accCard','gangSection','slTbl'].forEach(id=>{ const e=$(id); if(e) spy.observe(e); });
   if(navItems[0]) navItems[0].classList.add('active');
 }
+// Event-delegation actions (CSP strict script-src — dex-actions.js). print/clickEl are DexActions
+// builtins; the profile toggle is an ECGDex global (ecgdex-profile.js).
+if(window.DexActions) DexActions.registerAll({ ecgProfileToggle:function(){ ecgProfileToggle(); } });
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
 

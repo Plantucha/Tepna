@@ -130,8 +130,10 @@ function readSources() {
     'hrvdex-app.js',
     'oxydex-app.js',
     'oxydex-render.js',
+    'oxydex-fusion.js',
     'dex-escape.js',
     'dex-forget.js',
+    'dex-actions.js',
     'dex-profile.js',
     'hrvdex-render.js',
     'signal-orchestrate.js',
@@ -298,6 +300,22 @@ function readSrcHtml() {
   for (const f of wanted) {
     const p = join(ROOT, f);
     if (existsSync(p)) out[f] = readFileSync(p, 'utf8');
+  }
+  return out;
+}
+
+// security · csp-strict (SECURITY-CSP-STRICT-SCRIPT-SRC-2026-07-11): the COMMITTED bundle .html CSP metas,
+// so the gate can assert each shipped script-src carries a 'sha256-' hash and NOT 'unsafe-inline'. Only the
+// <meta> is kept (not the megabyte body). Node lane has full fs; the browser lane fetches the same slice.
+function readBundleCsp() {
+  const wanted = ['CPAPDex.html', 'ECGDex.html', 'GlucoDex.html', 'HRVDex.html', 'Integrator.html', 'OxyDex.html', 'PpgDex.html', 'PulseDex.html', 'Data Unifier.html', 'OverDex.html'];
+  const out = {};
+  for (const f of wanted) {
+    const p = join(ROOT, f);
+    if (!existsSync(p)) continue;
+    const html = readFileSync(p, 'utf8');
+    const meta = (html.match(/<meta[^>]*http-equiv=["']Content-Security-Policy["'][^>]*>/i) || [''])[0];
+    if (meta) out[f] = (meta.match(/content="([^"]*)"/i) || ['', ''])[1];
   }
   return out;
 }
@@ -577,6 +595,7 @@ function main() {
     equiv: readEquiv(),
     hosts: readHosts(),
     srcHtml: readSrcHtml(),
+    bundleCsp: readBundleCsp(),
     manifests: readManifests(),
     releaseLedger: readReleaseLedger(),
     discoverability: readDiscoverability(),

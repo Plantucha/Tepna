@@ -89,7 +89,9 @@
     var dz = $('dropZone'), input = $('fileInput');
     if(input) input.addEventListener('change', function(){ readFiles(input.files); input.value=''; });
     if(dz){
-      dz.addEventListener('click', function(){ if(input) input.click(); });
+      // skip interactive children (Choose-files is now data-act="clickEl"; the synth-line
+      // isolates itself) so the zone doesn't also fire input.click() — CSP-strict migration.
+      dz.addEventListener('click', function(e){ if(e.target.closest('button,a,label,select,input,.synth-line')) return; if(input) input.click(); });
       ['dragenter','dragover'].forEach(function(ev){ dz.addEventListener(ev, function(e){ e.preventDefault(); dz.classList.add('drag'); }); });
       ['dragleave','dragend','drop'].forEach(function(ev){ dz.addEventListener(ev, function(e){ e.preventDefault(); dz.classList.remove('drag'); }); });
       dz.addEventListener('drop', function(e){ if(e.dataTransfer && e.dataTransfer.files) readFiles(e.dataTransfer.files); });

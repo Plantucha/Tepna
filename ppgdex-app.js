@@ -639,7 +639,7 @@ function ppgReviewView(review){
     +'<span>Loaded from export \u00b7 <strong>not recomputed</strong>'+(review.scrubbed?' \u00b7 <strong>scrubbed for sharing</strong>':'')+'</span>'
     +'<span class="pgrv-meta">'+(bh?'built <code>'+_pgesc(bh)+'</code>':'build unknown')+(gen?' on <code>'+_pgesc(gen)+'</code>':'')+'</span>'
     +'<span class="pgrv-spacer"></span>'
-    +'<button class="pgrv-print" type="button" onclick="window.print()">\ud83d\udda8 Save clinical PDF</button></div>';
+    +'<button class="pgrv-print" type="button" data-act="print">\ud83d\udda8 Save clinical PDF</button></div>';
   h+='<div class="pgrv-card">';
   h+='<div class="pgrv-head"><span class="pgrv-title">PpgDex \u2014 wrist-PPG review</span>'
     +'<span class="pgrv-sub">'+_pgesc(rec.source||'ppg')+(rec.durationMin!=null?' \u00b7 '+Math.round(rec.durationMin)+' min':'')+(rec.beats!=null?' \u00b7 '+rec.beats+' beats':'')+'</span></div>';
@@ -841,6 +841,9 @@ function init(){
       if(note) note.insertAdjacentHTML('beforebegin', b+' '); else ge.insertAdjacentHTML('beforeend',' '+b); }
   }
 }
+// Event-delegation actions (CSP strict script-src — dex-actions.js). `print` is a DexActions
+// builtin; the profile toggle is a PpgDex global (ppgdex-profile.js).
+if(window.DexActions) DexActions.registerAll({ ppgProfileToggle:function(){ ppgProfileToggle(); } });
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
 
 })();

@@ -127,7 +127,7 @@ function hrvReviewView(review){
     +'<span>Loaded from export \u00b7 <strong>not recomputed</strong>'+(review.scrubbed?' \u00b7 <strong>scrubbed for sharing</strong>':'')+'</span>'
     +'<span class="hrvrv-meta">'+(bh?'built <code>'+_hrvesc(bh)+'</code>':'build unknown')+(gen?' on <code>'+_hrvesc(gen)+'</code>':'')+'</span>'
     +'<span class="hrvrv-spacer"></span>'
-    +'<button class="hrvrv-print" type="button" onclick="window.print()">\ud83d\udda8 Save clinical PDF</button></div>';
+    +'<button class="hrvrv-print" type="button" data-act="print">\ud83d\udda8 Save clinical PDF</button></div>';
   h+='<div class="hrvrv-card">';
   h+='<div class="hrvrv-head"><span class="hrvrv-title">HRVDex \u2014 HRV ledger review</span>'
     +'<span class="hrvrv-sub">'+ms.length+' measurement'+(ms.length===1?'':'s')+(rec.spanDays!=null?' \u00b7 '+rec.spanDays+' days':'')+' \u00b7 '+_hrvD(rec.firstTMs)+' \u2192 '+_hrvD(rec.lastTMs)+'</span></div>';
@@ -362,3 +362,27 @@ function setProgress(pct){
   window.addEventListener('afterprint', post);
   if(window.matchMedia){ try{ window.matchMedia('print').addEventListener('change', function(e){ e.matches?pre():post(); }); }catch(_){} }
 })();
+
+// Event-delegation actions (CSP strict script-src — dex-actions.js). print/scrollTop/scrollToEl/
+// clickEl/stop are DexActions builtins; the rest are HRVDex globals. Lazy window.* wrappers resolve
+// at click time.
+if(window.DexActions)
+  DexActions.registerAll({
+    switchTab: function(el){ window.switchTab(el.dataset.tab, el); },
+    setMode: function(el){ window.setMode(el.dataset.mode, el); },
+    setWindow: function(el){ window.setWindow(+el.dataset.win, el); },
+    hrvNavTo: function(el){ window.hrvNavTo(el.dataset.nav, el); },
+    toggleTheme: function(){ window.toggleTheme(); },
+    toggleProfilePanel: function(){ window.toggleProfilePanel(); },
+    loadPasted: function(){ window.loadPasted(); },
+    loadFile: function(el, ev){ window.loadFile(ev); },
+    rerender: function(){ window.rerender(); },
+    renderHistogram: function(){ window.renderHistogram(); },
+    renderScatterExplorer: function(){ window.renderScatterExplorer(); },
+    renderWeekday: function(){ window.renderWeekday(); },
+    exportJSONL: function(){ window.exportJSONL(); },
+    exportCSV: function(){ window.exportCSV(); },
+    clearAll: function(){ window.clearAll(); },
+    hrvTogglePaste: function(){ var p=document.getElementById('pasteFallback'); if(p) p.style.display = p.style.display==='none' ? 'block' : 'none'; },
+    hrvSmoothInput: function(el){ var o=document.getElementById('smoothVal'); if(o) o.textContent=el.value; window.rerender(); }
+  });

@@ -359,7 +359,7 @@ function pulseReviewView(review){
     +'<span>Loaded from export · <strong>not recomputed</strong>'+(review.scrubbed?' · <strong>scrubbed for sharing</strong>':'')+'</span>'
     +'<span class="prv-meta">'+(bh?'built <code>'+_pesc(bh)+'</code>':'build unknown')+(gen?' on <code>'+_pesc(gen)+'</code>':'')+'</span>'
     +'<span class="prv-spacer"></span>'
-    +'<button class="prv-print" type="button" onclick="window.print()">🖨 Save clinical PDF</button></div>';
+    +'<button class="prv-print" type="button" data-act="print">🖨 Save clinical PDF</button></div>';
   h+='<div class="prv-card">';
   h+='<div class="prv-head"><span class="prv-title">PulseDex — HRV review</span>'
     +'<span class="prv-sub">'+_pesc(rec.modeLabel||rec.mode||'recording')+(rec.durationMin!=null?' · '+Math.round(rec.durationMin)+' min':'')+(rec.beats!=null?' · '+rec.beats+' beats':'')+'</span></div>';

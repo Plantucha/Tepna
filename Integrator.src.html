@@ -8,8 +8,8 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 <meta charset="UTF-8">
-<!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. 'unsafe-inline' + blob:/data: retained for the inline bundle + blob workers — strict nonce/hash script-src deferred (decision A). -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' __DEX_SCRIPT_HASHES__; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Integrator · Fusion Layer</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -231,10 +231,10 @@ body.light .cov-grid td.cg-node{ background:#fff; }
         <div class="dz-title">Drop 2 or more -Dex JSON exports</div>
         <div class="dz-sub">ECGDex · OxyDex · GlucoDex · PulseDex · HRVDex — full node-export or slim event-stream</div>
         <div class="dz-actions">
-          <button class="btn btn-blue" type="button">Choose files…</button>
+          <button class="btn btn-blue" type="button" data-act="clickEl" data-target="fileInput">Choose files…</button>
           <button class="btn" id="loadSamples" type="button">Load bundled samples</button>
         </div>
-        <div class="synth-line" onclick="event.stopPropagation()">
+        <div class="synth-line" data-act="stop">
           <span>No exports?</span>
           <button class="synth-link" type="button" id="genBtn">Generate synthetic</button>
           <select id="genScenario" title="synthetic patient profile">
@@ -310,8 +310,8 @@ body.light .cov-grid td.cg-node{ background:#fff; }
           so the originating nodes can ingest the result. All string timestamps render via UTC getters (viewer-timezone-independent).
         </div>
         <div style="display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;">
-          <button class="btn-export" id="exportBtnMain" onclick="document.getElementById('exportBtn').click()">Download fusion JSON</button>
-          <button class="btn" id="copyBtnMain" onclick="document.getElementById('copyBtn').click()">Copy to clipboard</button>
+          <button class="btn-export" id="exportBtnMain" data-act="clickEl" data-target="exportBtn">Download fusion JSON</button>
+          <button class="btn" id="copyBtnMain" data-act="clickEl" data-target="copyBtn">Copy to clipboard</button>
         </div>
       </div>
     </section>
@@ -358,7 +358,7 @@ body.light .cov-grid td.cg-node{ background:#fff; }
   <span class="mono" id="exportBarHint" style="display:none">cross-signal findings</span>
   <div class="eb-grp">
     <button class="eb-btn eb-json" type="button" id="exportBtn">⬇ JSON</button>
-    <button class="eb-btn eb-pdf" type="button" onclick="window.print()">⬇ PDF</button>
+    <button class="eb-btn eb-pdf" type="button" data-act="print">⬇ PDF</button>
   </div>
   <span class="eb-spacer"></span>
   <div class="eb-grp">
@@ -396,6 +396,7 @@ body.light .cov-grid td.cg-node{ background:#fff; }
   </div>
   <div class="dxl-seg"><span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span></div>
 </div>
+<script src="dex-actions.js"></script>
 <script src="kernel-constants.js"></script>
 <script src="ganglior-provenance.js"></script>
 <script src="dex-export.js"></script>

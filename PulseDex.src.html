@@ -8,8 +8,8 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 <meta charset="UTF-8">
-<!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. 'unsafe-inline' + blob:/data: retained for the inline bundle + blob workers — strict nonce/hash script-src deferred (decision A). -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' __DEX_SCRIPT_HASHES__; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PulseDex — Raw RR Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -2651,7 +2651,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
     <div class="eb-grp">
       <button class="eb-btn eb-json" type="button" id="btnJSON">⬇ JSON</button>
       <button class="eb-btn eb-csv" type="button" id="btnSumCSV">⬇ CSV</button>
-      <button class="eb-btn eb-pdf" type="button" onclick="window.print()">⬇ PDF</button>
+      <button class="eb-btn eb-pdf" type="button" data-act="print">⬇ PDF</button>
       <span class="eb-div"></span>
       <button class="eb-btn eb-extra" type="button" id="btnCSV">⬇ HRVDex</button>
     </div>
@@ -2691,9 +2691,9 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
     <!-- USER PROFILE (appears after data loads) -->
     <div class="section-title" id="sec-profile" style="display:none">Profile <span class="st-note">personalizes VO₂, BP &amp; norms</span></div>
     <div id="profilePanel" style="display:none">
-      <div id="profileHeader" onclick="toggleProfilePanel()">
+      <div id="profileHeader" data-act="toggleProfilePanel">
         <h3>👤 User Profile &nbsp;<span style="font-size:11px;font-weight:400;color:var(--text2)">— personalizes all formulas &amp; norms</span></h3>
-        <button id="profileToggleBtn" type="button" onclick="event.stopPropagation();toggleProfilePanel()">▲ collapse</button>
+        <button id="profileToggleBtn" type="button" data-act="toggleProfilePanel">▲ collapse</button>
       </div>
       <div id="profileAutoDetect"><span id="profileAutoText">Auto-estimated fields are shown with a ~ hint · override any with your real values</span></div>
       <div id="profileBody">
@@ -2710,7 +2710,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
         <div class="icon">📂</div>
         <h3>Drop .txt file here or click</h3>
         <p>Space / newline / comma-separated RR values — or <code>timestamp;RR</code> / <code>timestamp;PP-interval</code> exports (Polar RR &amp; PPI · PpgDex self-PPI · Welltory · Elite HRV). PPI files auto-map the interval column.</p>
-        <button class="upload-btn" type="button" onclick="event.stopPropagation();document.getElementById('rawInput').click()">Choose File</button>
+        <button class="upload-btn" type="button" data-act="clickEl" data-target="rawInput">Choose File</button>
       </div>
       <div class="section-title">Or paste raw data</div>
       <textarea id="rawPaste" rows="5" placeholder="1060 1112 1139 1115 1063 1080 995 1043 …"></textarea>
@@ -2736,9 +2736,9 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
 
     <div class="action-row">
       <button class="upload-btn" type="button" id="calcBtn">⚡ Calculate</button>
-      <button class="btn" type="button" id="replaceBtn" onclick="document.getElementById('rawInput').click()">↻ Replace recording</button>
+      <button class="btn" type="button" id="replaceBtn" data-act="clickEl" data-target="rawInput">↻ Replace recording</button>
       <label class="ctx-override">Mode
-        <select id="modeOverride" onchange="if(lastResult)calculate()">
+        <select id="modeOverride" data-act-change="pulseModeOverride">
           <option value="auto">Auto-detect</option>
           <option value="morning">🌅 Morning spot</option>
           <option value="exercise">🏃 Exercise</option>
@@ -2826,6 +2826,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
   </div>
   <div class="dxl-seg"><span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span></div>
 </div>
+<script src="dex-actions.js"></script>
 <script src="kernel-constants.js"></script>
 <script src="dex-escape.js"></script>
 <script src="ganglior-provenance.js"></script>

@@ -173,7 +173,7 @@ function glucoReviewView(review){
     +'<span>Loaded from export \u00b7 <strong>not recomputed</strong>'+(review.scrubbed?' \u00b7 <strong>scrubbed for sharing</strong>':'')+'</span>'
     +'<span class="grv-meta">'+(bh?'built <code>'+_gesc(bh)+'</code>':'build unknown')+(gen?' on <code>'+_gesc(gen)+'</code>':'')+'</span>'
     +'<span class="grv-spacer"></span>'
-    +'<button class="grv-print" type="button" onclick="window.print()">\ud83d\udda8 Save clinical PDF</button></div>';
+    +'<button class="grv-print" type="button" data-act="print">\ud83d\udda8 Save clinical PDF</button></div>';
   h+='<div class="grv-card">';
   h+='<div class="grv-head"><span class="grv-title">GlucoDex \u2014 CGM review</span>'
     +'<span class="grv-sub">'+_gesc(g.tier||rec.source||'recording')+(rec.events!=null?' \u00b7 '+rec.events+' events':'')+'</span></div>';
@@ -1118,7 +1118,9 @@ function init(){
   tb.addEventListener('click',()=>{ document.body.classList.toggle('light'); tb.textContent=document.body.classList.contains('light')?'🌙 Dark':'☀️ Light'; if(SCOPE&&RESULT){ SCOPE.light=document.body.classList.contains('light'); SCOPE.draw(); SCOPE.drawMini(); } });
 
   const zone=$('gluZone'), input=$('gluInput');
-  zone.addEventListener('click',()=>input.click());
+  // skip clicks on interactive children (the Choose-File button is now data-act="clickEl";
+  // the zone must not also fire input.click() — CSP-strict handler migration).
+  zone.addEventListener('click',(e)=>{ if(e.target.closest('button,a,label,select,input')) return; input.click(); });
   input.addEventListener('change',e=>{ const f=e.target.files[0]; if(f) loadCSV(f); });
   zone.addEventListener('dragover',e=>{ e.preventDefault(); zone.classList.add('drag'); });
   zone.addEventListener('dragleave',()=>zone.classList.remove('drag'));
@@ -1176,4 +1178,10 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
   window.addEventListener('beforeprint', pre);
   window.addEventListener('afterprint', post);
   if(window.matchMedia){ try{ window.matchMedia('print').addEventListener('change', function(e){ e.matches?pre():post(); }); }catch(_){} }
+  // Event-delegation actions (CSP strict script-src — dex-actions.js). print/clickEl are DexActions
+  // builtins; the profile toggle/input are GlucoDex globals (glucodex-profile.js).
+  if(window.DexActions) DexActions.registerAll({
+    gluProfileToggle:function(){ return gluProfileToggle(); },
+    gluProfileInput:function(){ return gluProfileInput(); }
+  });
 })();

@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** DONE — 2026-07-11 (§2 + §3 executed; **§1 DEFERRED** — assessed infeasible as a follow-up, see below; §4 informational) · **Created:** 2026-07-11 · **Follows:** `SECURITY-REMEDIATION-2026-07-11-BRIEF.md` (executed 2026-07-11, all three phases DONE)
+**Status:** DONE — 2026-07-11 (§2 + §3 executed; **§1 EXECUTED 2026-07-11** via `SECURITY-CSP-STRICT-SCRIPT-SRC-2026-07-11-BRIEF.md` — the strict hash-based `script-src` shipped; §4 informational) · **Created:** 2026-07-11 · **Follows:** `SECURITY-REMEDIATION-2026-07-11-BRIEF.md` (executed 2026-07-11, all three phases DONE)
 
 # Security remediation — follow-ups (what surfaced while executing F1–F7)
 
@@ -7,27 +7,21 @@ The parent brief closed F1–F7. These items were discovered or deliberately def
 did not block it. None is a live injection; all are hardening / completeness.
 
 ## §1 — Nonce/hash-based `script-src` (F7 decision A deferred the strict CSP)
-> **DEFERRED 2026-07-11 — assessed infeasible as a follow-up (concrete blocker).** A strict `script-src`
-> (dropping `'unsafe-inline'`) would need every inline script AND every inline event handler covered by a
-> build-time hash. The bundles carry **111 inline `on*=` event-handler attributes across the 10
-> `.src.html`, plus ~32 handlers injected at RUNTIME via `innerHTML`** (in the external `*.js`). The
-> runtime-injected ones often interpolate values, so their exact bytes aren't known at build time and
-> **can't be hashed** — a strict policy would break them (and `'unsafe-hashes'` can't help). Making §1
-> real therefore requires refactoring ~140 handlers to `addEventListener`/event-delegation fleet-wide — a
-> large, high-risk change for **marginal** value: Phase A already escapes the sinks + `connect-src 'none'`
-> already blocks all egress, so §1 only buys a backstop against a *future* injection regression (already
-> covered by the escaping regression gate). **SCHEDULED 2026-07-11** as its own step-by-step brief —
-> **`SECURITY-CSP-STRICT-SCRIPT-SRC-2026-07-11-BRIEF.md`** — which (1) converts inline handlers to delegated
-> listeners (`dex-actions.js`), then (2) hashes the inline `<script>` blocks in the owned bundler and drops
-> `'unsafe-inline'` from `script-src` (style-src stays inline — non-goal). Intended for a fresh thread.
+> **DONE 2026-07-11 — executed via `SECURITY-CSP-STRICT-SCRIPT-SRC-2026-07-11-BRIEF.md`.** The strict,
+> hash-based `script-src` shipped: all ~150 inline `on*=` handlers (`.src.html` markup + runtime
+> `innerHTML` strings) were converted to a shared event-delegation dispatcher (`dex-actions.js`,
+> `data-act`), the owned bundler (`tools/build-core.js`) now hashes every inline `<script>` block
+> (`sha256` base64, sorted → `build --check` byte-stable), and `'unsafe-inline'` was dropped from
+> `script-src` fleet-wide (`style-src` keeps it — explicit non-goal). CSP is now an **injection**
+> backstop, not just the `connect-src 'none'` egress control: an injected `<script>`/`<img onerror>`
+> no longer executes (proven by the Playwright negative control + the `security · csp-strict` gate).
 
-The shipped CSP keeps `'unsafe-inline'` for scripts (the bundles are inline `<script>`, and decision A
-was "baseline now, defer nonce"). So the CSP is an **egress** control (`connect-src`), not an **injection**
-backstop — a future untrusted→DOM regression's inline script would still execute. To make CSP also block
-injection, teach the owned bundler (`tools/build-core.js`) to emit a per-inline-block **hash** (not a
-random nonce — a nonce would break `manifestHash` determinism / `build --check`) and list the hashes in
-`script-src` (+ `style-src` for inline `<style>`). Bigger change; only worth it if the injection-backstop
-value is wanted on top of the escaping + `connect-src 'none'` already in place. **Deferred, not dropped.**
+_(Historical context — now executed.)_ Decision A shipped `'unsafe-inline'` for scripts as the baseline
+and deferred the strict policy; that made the CSP an **egress** control (`connect-src`) but not an
+**injection** backstop. The execution (see the strict-CSP brief) taught the owned bundler
+(`tools/build-core.js`) to emit a per-inline-block **hash** (not a random nonce — a nonce would break
+`manifestHash` determinism / `build --check`) and list the hashes in `script-src`; `style-src` keeps
+`'unsafe-inline'` (inline styles are pervasive; style injection is not code execution — non-goal). **Done.**
 
 ## §2 — Erase-all coverage of the standalone analysis pages
 > **EXECUTED 2026-07-11.** `dex-forget.js` gained a second tier — `ANALYSIS_KEYS` (the `cgmcpl_*`/

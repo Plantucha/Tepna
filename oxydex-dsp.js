@@ -330,7 +330,7 @@
                 '<span class="pwb-header">⚠️ ' +
                 window._csvParseErrors.length +
                 ' file(s) had parse issues</span>' +
-                '<button class="btn btn-outline pwb-dismiss" onclick="event.preventDefault();this.closest(\'.parse-warning-banner\').remove()">✕</button>' +
+                '<button class="btn btn-outline pwb-dismiss" data-act="removeClosest" data-sel=".parse-warning-banner">✕</button>' +
                 '</summary>' +
                 '<div class="pwb-body">' +
                 _errLines +
@@ -349,7 +349,7 @@
             '<strong>⚠ Processing Error</strong><br><code class="error-code">' +
             escHTML(String(e)) +
             '</code>' + // F3: escape error text (may echo a crafted filename)
-            '<br><br><button class="btn btn-outline" onclick="clearAll()">Clear &amp; try again</button></div>';
+            '<br><br><button class="btn btn-outline" data-act="clearAll">Clear &amp; try again</button></div>';
           errEl.style.display = 'block';
         }
         console.error('processFiles catch:', e);

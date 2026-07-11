@@ -9,8 +9,8 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 <meta charset="UTF-8">
-<!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. 'unsafe-inline' + blob:/data: retained for the inline bundle + blob workers — strict nonce/hash script-src deferred (decision A). -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' __DEX_SCRIPT_HASHES__; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OxyDex — Nocturnal Oximetry Analyzer · v1.0.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -3580,10 +3580,10 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
 </template>
 
 <!-- ── Back to top button ── -->
-<button id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top" title="Back to top">↑</button>
+<button id="backToTop" data-act="scrollTop" aria-label="Back to top" title="Back to top">↑</button>
 
 <!-- ── Theme toggle button (fixed, top-right) ── -->
-<button id="themeToggleBtn" onclick="toggleTheme()" title="Toggle light / dark mode" aria-label="Toggle light/dark theme">
+<button id="themeToggleBtn" data-act="toggleTheme" title="Toggle light / dark mode" aria-label="Toggle light/dark theme">
   <span class="theme-icon" id="themeIcon">☀️</span>
   <span id="themeLabel">Light</span>
 </button>
@@ -3611,9 +3611,9 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
 
   <div class="nav-section-label">Detail Tier</div>
   <div class="nav nav-mode">
-    <div class="nav-item nav-mode-btn active" data-mode="core"     onclick="setMode('core',this)">▣ Core</div>
-    <div class="nav-item nav-mode-btn"        data-mode="advanced" onclick="setMode('advanced',this)">▤ Advanced</div>
-    <div class="nav-item nav-mode-btn"        data-mode="research" onclick="setMode('research',this)">▥ Research</div>
+    <div class="nav-item nav-mode-btn active" data-mode="core"     data-act="setMode" data-mode="core">▣ Core</div>
+    <div class="nav-item nav-mode-btn"        data-mode="advanced" data-act="setMode" data-mode="advanced">▤ Advanced</div>
+    <div class="nav-item nav-mode-btn"        data-mode="research" data-act="setMode" data-mode="research">▥ Research</div>
   </div>
 
   <div class="sidebar-bottom">
@@ -3641,9 +3641,9 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
   </div>
   <div class="topbar-actions">
     <div class="mode-bar" id="modeBar">
-      <button class="mode-btn active" data-mode="core"     onclick="setMode('core',this)">Core</button>
-      <button class="mode-btn"        data-mode="advanced" onclick="setMode('advanced',this)">Advanced</button>
-      <button class="mode-btn"        data-mode="research" onclick="setMode('research',this)">Research</button>
+      <button class="mode-btn active" data-mode="core"     data-act="setMode" data-mode="core">Core</button>
+      <button class="mode-btn"        data-mode="advanced" data-act="setMode" data-mode="advanced">Advanced</button>
+      <button class="mode-btn"        data-mode="research" data-act="setMode" data-mode="research">Research</button>
     </div>
     <div class="mode-hint" id="modeHint">SpO₂ · ODI · HR · Spikes · PB</div>
     <span class="badge hidden" id="topBadgeOxy">⭕ 1Hz SpO₂</span>
@@ -3666,7 +3666,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
 <div id="errorMsg" class="error hidden"></div>
 <div id="procStatus" class="proc-status"></div>
 
-<div id="uploadArea" onclick="document.getElementById('fileInput').click()" role="button" aria-label="Select O2Ring CSV files to upload — drag and drop or click">
+<div id="uploadArea" data-act="clickEl" data-target="fileInput" role="button" aria-label="Select O2Ring CSV files to upload — drag and drop or click">
   <div class="upload-icon">📂</div>
   <h2 class="upload-title">Drop O2Ring CSV files here</h2>
   <p class="upload-desc">
@@ -3674,9 +3674,9 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
     <span class="upload-local">All processing is local — no data leaves your device · Works offline</span><br>
     <span class="upload-android">📱 Android: tap the button below → tap ⋮ menu → "Show all files" if CSV is grayed out</span>
   </p>
-  <button onclick="event.stopPropagation();document.getElementById('fileInput').click()" class="upload-cta">📂 Browse / Select Files</button>
+  <button data-act="clickEl" data-target="fileInput" class="upload-cta">📂 Browse / Select Files</button>
 
-  <div class="synth-line" onclick="event.stopPropagation()">
+  <div class="synth-line" data-act="stop">
     <span>No device?</span>
     <button class="synth-link" type="button" id="genBtn">Generate synthetic</button>
     <select id="genScenario" title="synthetic patient profile">
@@ -3693,7 +3693,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
     </select>
   </div>
 
-  <div class="disclosure-card" onclick="event.stopPropagation()">
+  <div class="disclosure-card" data-act="stop">
     <div class="disclosure-header">
       <span class="disclosure-icon">🔬</span>
       <span class="disclosure-title">Power-user companion analytics</span>
@@ -3728,9 +3728,9 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
 </div>
 
 <div id="userProfilePanel" role="complementary" aria-label="User Profile configuration panel" class="hidden">
-  <div id="profileHeader" onclick="toggleProfile()">
+  <div id="profileHeader" data-act="toggleProfile">
     <h3>👤 User Profile &nbsp;<span class="inline-warn">— personalizes all formulas &amp; norms</span></h3>
-    <button id="profileToggleBtn" onclick="event.stopPropagation();toggleProfile()" aria-expanded="true">▲ collapse</button>
+    <button id="profileToggleBtn" data-act="toggleProfile" aria-expanded="true">▲ collapse</button>
   </div>
   <div id="profileAutoDetect"><span id="profileAutoText">Upload data to auto-detect stats</span> &nbsp;·&nbsp; Auto-estimated fields shown with ~ prefix · Override with real values</div>
   <div id="profileBody">
@@ -3770,6 +3770,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
   </div>
   <div class="dxl-seg"><span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span></div>
 </div>
+<script src="dex-actions.js"></script>
 <script src="kernel-constants.js"></script>
 <script src="dex-escape.js"></script>
 <script src="ganglior-provenance.js"></script>
@@ -3808,29 +3809,29 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
 </div>
 <!-- ── Mobile mode toggle bar ────────────────────────────────── -->
 <div class="mobile-mode-bar" id="mobileModeBar">
-  <button class="mode-btn active" data-mode="core"     onclick="setMode('core',this)">Core</button>
-  <button class="mode-btn"        data-mode="advanced" onclick="setMode('advanced',this)">Advanced</button>
-  <button class="mode-btn"        data-mode="research" onclick="setMode('research',this)">Research</button>
+  <button class="mode-btn active" data-mode="core"     data-act="setMode" data-mode="core">Core</button>
+  <button class="mode-btn"        data-mode="advanced" data-act="setMode" data-mode="advanced">Advanced</button>
+  <button class="mode-btn"        data-mode="research" data-act="setMode" data-mode="research">Research</button>
 </div>
 
 <!-- ── Mobile bottom navigation (Section 7 / 13) ─────────────── -->
 <nav class="mobile-nav" id="mobileNav" role="navigation" aria-label="Main navigation">
   <div class="mobile-nav-modes" role="group" aria-label="Detail level">
-    <button class="mnav-mode-btn" data-mode="core"     onclick="setMode('core',this)">Core</button>
-    <button class="mnav-mode-btn" data-mode="advanced" onclick="setMode('advanced',this)">Advanced</button>
-    <button class="mnav-mode-btn" data-mode="research" onclick="setMode('research',this)">Research</button>
+    <button class="mnav-mode-btn" data-mode="core"     data-act="setMode" data-mode="core">Core</button>
+    <button class="mnav-mode-btn" data-mode="advanced" data-act="setMode" data-mode="advanced">Advanced</button>
+    <button class="mnav-mode-btn" data-mode="research" data-act="setMode" data-mode="research">Research</button>
   </div>
   <div class="mobile-nav-items">
-    <button class="mobile-nav-item active" data-section="uploadArea" onclick="mobileNavTo('uploadArea',this)">
+    <button class="mobile-nav-item active" data-section="uploadArea" data-act="mobileNavTo" data-target="uploadArea">
       <span class="mobile-nav-icon">📋</span>Overview
     </button>
-    <button class="mobile-nav-item" data-section="sec-trends" onclick="mobileNavTo('sec-trends',this)">
+    <button class="mobile-nav-item" data-section="sec-trends" data-act="mobileNavTo" data-target="sec-trends">
       <span class="mobile-nav-icon">📈</span>Trends
     </button>
-    <button class="mobile-nav-item" data-section="sec-nights" onclick="mobileNavTo('sec-nights',this)">
+    <button class="mobile-nav-item" data-section="sec-nights" data-act="mobileNavTo" data-target="sec-nights">
       <span class="mobile-nav-icon">◈</span>Nights
     </button>
-    <button class="mobile-nav-item" data-section="userProfilePanel" onclick="openProfile();mobileNavTo('userProfilePanel',this)">
+    <button class="mobile-nav-item" data-section="userProfilePanel" data-act="openProfileNav" data-target="userProfilePanel">
       <span class="mobile-nav-icon">⚙</span>Profile
     </button>
   </div>

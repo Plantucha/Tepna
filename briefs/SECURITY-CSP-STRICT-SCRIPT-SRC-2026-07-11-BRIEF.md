@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-11 · **Executes:** `SECURITY-REMEDIATION-FOLLOWUPS-2026-07-11-BRIEF.md` §1 (the deferred strict CSP) · **Supersedes-the-deferral-of:** FOLLOWUPS §1
+**Status:** DONE — 2026-07-11 · **Created:** 2026-07-11 · **Executes:** `SECURITY-REMEDIATION-FOLLOWUPS-2026-07-11-BRIEF.md` §1 (the deferred strict CSP) · **Supersedes-the-deferral-of:** FOLLOWUPS §1
 
 # Strict, hash-based `script-src` — make CSP an injection backstop (FOLLOWUPS §1)
 

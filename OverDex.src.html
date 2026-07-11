@@ -19,8 +19,8 @@
   it and every node + the Integrator work byte-identically.
 -->
 <meta charset="UTF-8">
-<!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. 'unsafe-inline' + blob:/data: retained for the inline bundle + blob workers — strict nonce/hash script-src deferred (decision A). -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' __DEX_SCRIPT_HASHES__; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style>
@@ -143,7 +143,7 @@
     <div class="small">nested folders OK · raw RR files run live · <code>*_ganglior.json</code> node-exports pass through · unknown files set aside</div>
   </div>
   <div class="pickrow">
-    <button class="ghost" onclick="document.getElementById('files').click()">…or pick individual files</button>
+    <button class="ghost" data-act="clickEl" data-target="files">…or pick individual files</button>
     <span class="muted small">Everything stays on this device — nothing is uploaded.</span>
   </div>
 
@@ -166,6 +166,7 @@
 </div>
 
 <!-- CORE physiology kernel (drift hash) -->
+<script src="dex-actions.js"></script>
 <script src="kernel-constants.js"></script>
 <script src="dex-escape.js"></script>
 <!-- the FUSER (public IntegratorDSP surface; bare globals are unique on this page) -->

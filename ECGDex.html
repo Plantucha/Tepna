@@ -9,8 +9,8 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 <meta charset="UTF-8">
-<!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. 'unsafe-inline' + blob:/data: retained for the inline bundle + blob workers — strict nonce/hash script-src deferred (decision A). -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-07TDsYyaS4AXLj+6O5vEQWa/2wv2MRA3V8u8cLNZhZE=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-DAai3/Ebx9zIppnSVQp3WaBJ7W9Kl1h/coglmrhaoZs=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-SbhMwvzlpgPhlroU5JoY5kACF2lbh9q6MEOKlFWAwWY=' 'sha256-VLjmo4S0mjqgRo8fEU0kx1Vc+jNONpTHKXbUPjZCGys=' 'sha256-XSaqaYcXgkh/1koukmF/FhO8A7ogMFSeDJJdXUxWE0k=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-fF46IrMGR6TwAmINCMSeAKAcOz57YdRj7ISX7dK8KGU=' 'sha256-gxRDJ7OQU3PoPHu5YHtoA1xs7mfXhL5rm7rQs8xaH3I=' 'sha256-gy3imQ7W4QJ8tUgsOixB3eM9opH4JiMHvhV/HOYbe2M=' 'sha256-wdj9R9Gei2xVKEJ5WmzR5Z6Xza6ZG2G+AtVTygDgS1o=' 'sha256-zoX0rksSqUxFePSlhG6+8O2Euarj7JlN/OQ/SqQyThw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ECGDex — Raw ECG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -2879,7 +2879,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     <div class="eb-grp">
       <button class="eb-btn eb-json" type="button" id="btnJSON">⬇ JSON</button>
       <button class="eb-btn eb-csv" type="button" id="btnCSV">⬇ CSV</button>
-      <button class="eb-btn eb-pdf" type="button" onclick="window.print()">⬇ PDF</button>
+      <button class="eb-btn eb-pdf" type="button" data-act="print">⬇ PDF</button>
       <span class="eb-div"></span>
       <button class="eb-btn eb-extra" type="button" id="btnRR">⬇ RR</button>
       <button class="eb-btn eb-extra" type="button" id="btnHRV">⬇ HRVDex</button>
@@ -2924,7 +2924,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         <div class="icon">🫀</div>
         <h3>Drop your ECG session — or click to choose</h3>
         <p><code>.txt / .csv</code> · <code>Phone timestamp;sensor ns;ms;ecg [uV]</code> @ 130 Hz · Polar-H10-style<br>Drop the whole session together — <b>ECG + companion <code>_RR</code> / <code>_HR</code> / <code>_ACC</code></b> files are sorted automatically. Big overnight files stream in a worker → Int16Array (no melt)</p>
-        <button class="upload-btn" type="button" onclick="event.stopPropagation();document.getElementById('ecgInput').click()" style="margin-top:12px">Choose File(s)</button>
+        <button class="upload-btn" type="button" data-act="clickEl" data-target="ecgInput" style="margin-top:12px">Choose File(s)</button>
       </div>
     </div>
     <div class="synth-line">
@@ -3016,7 +3016,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     <div id="profilePanel" style="display:none">
       <div id="profileHeader">
         <h3>👤 Profile &amp; personalisation</h3>
-        <button type="button" id="profileToggleBtn" onclick="ecgProfileToggle()">▲ collapse</button>
+        <button type="button" id="profileToggleBtn" data-act="ecgProfileToggle">▲ collapse</button>
       </div>
       <div id="profileAutoDetect"><span id="profileAutoText">Auto-estimated fields show a ~ hint (rest HR from your nocturnal floor, HRmax from age) · override any with your real values. No BP/vascular fields — single-lead ECG has no pulse wave to estimate them from.</span></div>
       <div id="profileBody">
@@ -3138,6 +3138,128 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   </div>
   <div class="dxl-seg"><span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span></div>
 </div>
+<script data-inline-src="dex-actions.js">/* ════ Tepna · shared event-delegation dispatcher (dex-actions.js) ══════════
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0. See the LICENSE and NOTICE
+ * files at the project root, or http://www.apache.org/licenses/LICENSE-2.0
+ * ────────────────────────────────────────────────────────────────────────
+ * THE one delegated event dispatcher for the whole suite
+ * (SECURITY-CSP-STRICT-SCRIPT-SRC-2026-07-11). It replaces every inline `on*=`
+ * handler in the fleet so the bundle CSP `script-src` can drop 'unsafe-inline'
+ * and add per-block content hashes — then a script INJECTED into the DOM will
+ * not execute (CSP becomes an injection backstop, not just the egress control).
+ *
+ * HOW IT WORKS. Loaded FIRST in each app shell (before any app script), it
+ * installs ONE listener per event type on `document`. An element opts in with
+ *   data-act="name"            → click
+ *   data-act-change="name"     → change
+ *   data-act-input="name"      → input
+ *   data-act-keydown="name"    → keydown
+ *   data-act-submit="name"     → submit
+ * so ONE element can carry several (e.g. data-act + data-act-keydown). On the
+ * event we walk from `event.target` up to the nearest element carrying the
+ * matching attribute and call the registered `fn(el, event)`, where `el` is
+ * that element (replaces the former inline `this`) and params ride on
+ * `el.dataset` (data-idx, data-win, …). Because delegation fires only the
+ * CLOSEST match, a click on an inner region never also triggers an ancestor's
+ * action — the isolation the old inline `event.stopPropagation()` provided is
+ * inherent (see the `stop` builtin). Elements added after load are handled for
+ * free (the listeners live on `document`).
+ *
+ * Apps register their named actions at load via DexActions.registerAll({…}).
+ * DOM-guarded: under Node / a worker (no document) it still exposes
+ * register/registerAll (a no-op dispatcher), so co-loading it is always safe.
+ * ════════════════════════════════════════════════════════════════════════ */
+(function (root) {
+  'use strict';
+
+  var handlers = Object.create(null); // name -> fn(el, event)
+
+  function register(name, fn) {
+    if (name && typeof fn === 'function') handlers[name] = fn;
+  }
+  function registerAll(map) {
+    if (!map) return;
+    Object.keys(map).forEach(function (k) {
+      register(k, map[k]);
+    });
+  }
+
+  // event type -> the attribute an element uses to opt in for that type.
+  var ATTR = {
+    click: 'data-act',
+    change: 'data-act-change',
+    input: 'data-act-input',
+    keydown: 'data-act-keydown',
+    submit: 'data-act-submit'
+  };
+
+  function dispatch(type, event) {
+    var attr = ATTR[type];
+    if (!attr) return;
+    var start = event.target;
+    if (start && start.nodeType !== 1 && start.parentElement) start = start.parentElement; // climb off text nodes
+    var el = start && start.closest ? start.closest('[' + attr + ']') : null;
+    if (!el) return;
+    var fn = handlers[el.getAttribute(attr)];
+    if (typeof fn === 'function') fn(el, event);
+  }
+
+  function install(doc) {
+    Object.keys(ATTR).forEach(function (type) {
+      doc.addEventListener(
+        type,
+        function (e) {
+          dispatch(type, e);
+        },
+        false
+      );
+    });
+  }
+
+  // ── Generic DOM builtins every app inherits (pure DOM, no app logic) ──────
+  registerAll({
+    // <button data-act="print">
+    print: function () {
+      if (typeof window !== 'undefined' && window.print) window.print();
+    },
+    // <button data-act="scrollTop">
+    scrollTop: function () {
+      if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+    // <button data-act="scrollToEl" data-target="profilePanel">
+    scrollToEl: function (el) {
+      var t = el.dataset && document.getElementById(el.dataset.target);
+      if (t) t.scrollIntoView({ behavior: 'smooth' });
+    },
+    // <button data-act="clickEl" data-target="fileInput"> — proxy a click to another element (opens file dialogs, …)
+    clickEl: function (el) {
+      var t = el.dataset && document.getElementById(el.dataset.target);
+      if (t) t.click();
+    },
+    // <div data-act="stop"> — isolation only. Delegation fires the CLOSEST data-act, so a noop
+    // here stops a click on an inner region from reaching an ancestor's data-act (the former
+    // inline `event.stopPropagation()` idiom on a click-through container).
+    stop: function () {},
+    noop: function () {},
+    // <button data-act="removeClosest" data-sel=".parse-warning-banner"> — dismiss a container (+ preventDefault)
+    removeClosest: function (el, e) {
+      if (e && e.preventDefault) e.preventDefault();
+      var t = el.closest && el.dataset ? el.closest(el.dataset.sel) : null;
+      if (t) t.remove();
+    }
+  });
+
+  var api = { register: register, registerAll: registerAll, dispatch: dispatch, _handlers: handlers };
+
+  if (typeof document !== 'undefined' && document.addEventListener) install(document);
+
+  root.DexActions = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
+</script>
 <script data-inline-src="kernel-constants.js">/* ════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
@@ -11036,7 +11158,7 @@ function ecgReviewView(review){
     +'<span>Loaded from export \u00b7 <strong>not recomputed</strong>'+(review.scrubbed?' \u00b7 <strong>scrubbed for sharing</strong>':'')+'</span>'
     +'<span class="erv-meta">'+(bh?'built <code>'+_eesc(bh)+'</code>':'build unknown')+(gen?' on <code>'+_eesc(gen)+'</code>':'')+'</span>'
     +'<span class="erv-spacer"></span>'
-    +'<button class="erv-print" type="button" onclick="window.print()">\ud83d\udda8 Save clinical PDF</button></div>';
+    +'<button class="erv-print" type="button" data-act="print">\ud83d\udda8 Save clinical PDF</button></div>';
   h+='<div class="erv-card">';
   h+='<div class="erv-head"><span class="erv-title">ECGDex \u2014 ECG review</span>'
     +'<span class="erv-sub">'+_eesc(rec.tier||rec.mode||rec.source||'recording')+(rec.durationMin!=null?' \u00b7 '+Math.round(rec.durationMin)+' min':'')+(rec.beats!=null?' \u00b7 '+rec.beats+' beats':'')+'</span></div>';
@@ -11477,7 +11599,9 @@ function init(){
 
   // ecg input
   const zone=$('ecgZone'), input=$('ecgInput');
-  zone.addEventListener('click', ()=>input.click());
+  // skip clicks on interactive children (the Choose-File button is now data-act="clickEl";
+  // the zone must not also fire input.click() — CSP-strict handler migration).
+  zone.addEventListener('click', (e)=>{ if(e.target.closest('button,a,label,select,input')) return; input.click(); });
   input.addEventListener('change', e=>{ const fs=e.target.files; if(fs&&fs.length) loadFiles(fs); e.target.value=''; });
   zone.addEventListener('dragover', e=>{ e.preventDefault(); zone.classList.add('drag'); });
   zone.addEventListener('dragleave', ()=>zone.classList.remove('drag'));
@@ -11521,6 +11645,9 @@ function init(){
   ['sec-input','heroTop','scopeSection','sec-profile','slKPI','qualitySection','chartsSection','morphSection','hypnoCard','valCard','hrCard','accCard','gangSection','slTbl'].forEach(id=>{ const e=$(id); if(e) spy.observe(e); });
   if(navItems[0]) navItems[0].classList.add('active');
 }
+// Event-delegation actions (CSP strict script-src — dex-actions.js). print/clickEl are DexActions
+// builtins; the profile toggle is an ECGDex global (ecgdex-profile.js).
+if(window.DexActions) DexActions.registerAll({ ecgProfileToggle:function(){ ecgProfileToggle(); } });
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
 

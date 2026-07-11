@@ -637,7 +637,7 @@ function oxyFrontFullTable(n){
   if(!tbl) return '';
   return '<div class="sec-section" id="sec-fulltable">'
     + '<div class="research-accordion oxy-fulltable-acc">'
-    + '<div class="research-accordion-header" onclick="toggleResearchAccordion(this)">'
+    + '<div class="research-accordion-header" data-act="toggleResearchAccordion">'
     +   '<span>📋 Full Metrics Table</span>'
     +   '<span class="research-accordion-header-line"></span>'
     +   '<span class="research-accordion-chevron">▼</span></div>'
