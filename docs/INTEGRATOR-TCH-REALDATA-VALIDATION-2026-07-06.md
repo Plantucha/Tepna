@@ -270,7 +270,43 @@ and **ACC-signal filtering of PPG motion artifacts measurably improves PRV** (Pr
 AUC 0.913) and Hsu 2020 (ECG-CVHR + 3-axis-ACC patch, combined AUC 0.90) — belongs to `PAPERS-ROADMAP`, not this
 TCH note; recorded here only as a pointer.)*
 
+## 10. Estimator bake-off — ML-TCH / Groslambert vs the min-ρ clamp (2026-07-11) — `tools/tch-estimator-bakeoff.mjs`
+Executes `INTEGRATOR-TCH-ML-ESTIMATOR-2026-07-11-BRIEF.md` §2. The §9 sweep flagged two published
+candidates for the negative-variance / quiet-order regime the shipped path handles heuristically (min-ρ
+`correlated` clamp + `quietOrderUncertain` flag). The bake-off runs them on the planted-truth synthetic corpus
+(same factor model as §7), so "closer to truth" is measurable:
+
+- **BASE** — shipped `IntegratorTCH.threeCorneredHat` (classic → min-ρ `correlated`).
+- **GCOV** — Groslambert / two-sample covariance: `σ²_A = Cov(A−B, A−C)`.
+- **NNLS** — constrained maximum-likelihood proxy: non-negative least-squares over `σ²_i+σ²_j = V_ij`.
+- **ORACLE** — `threeCorneredHat` with `opts.rho` = the *planted* common-mode ρ (the external-ρ path — "what
+  good looks like" when ρ is known; the shipped `_tchRhoFromMotion` estimates this ρ from motion).
+
+**Result — a clean NEGATIVE (keep the heuristic).** Two findings, both robust on the corpus:
+1. **GCOV ≡ classic at N=3.** The identity check (GCOV vs raw classic) is **0.0000 bpm** — Groslambert
+   covariance is algebraically the classic estimator written as a covariance, so it inherits the same
+   negative-variance failure. No free lunch. (This corrected an earlier hand-analysis that had assumed GCOV
+   might differ; the run settled it.)
+2. **No HR-only estimator resolves the quiet-order ambiguity.** Mean recovery error over BOTH non-culprit
+   ("quiet") corners on the quiet-order nights: **BASE 0.334 · GCOV 0.746 · NNLS 0.719 · ORACLE 0.080** bpm.
+   On a negative-variance night, GCOV and NNLS merely **relocate** which quiet corner is driven to ≈0 (they
+   sacrifice the ECG corner instead of the O2Ring one) — they are *worse* than the min-ρ clamp, not better.
+   Only **ORACLE (external ρ)** recovers both quiet corners. The culprit (loudest) is named correctly by every
+   estimator on every night — that part was never the weak spot.
+
+**Why (the honest reason):** with three sensors each contributing ONE series, the system is exactly
+determined (3 pairwise variances, 3 unknowns) and the common-mode ρ is **not identifiable** from the HR series
+alone. Escaping the quiet-order under-estimate genuinely requires **external information** (the motion-ρ) or
+**over-determination** (N≥4). ML-TCH's real advantages — non-negativity from a fitted likelihood and per-estimate
+uncertainties — only materialize at N≥4.
+
+**Verdict.** Keep the shipped min-ρ clamp + `quietOrderUncertain` flag + `_tchRhoFromMotion` for N=3. Do **not**
+swap the N=3 estimator. Route the ML-TCH / least-squares-AVAR path to the **N-cornered hat (FU-III §4)**, where
+over-determination is what makes it pay off — it lands with EEGDex / a ≥4-sensor co-recording, not before.
+Harness: `node tools/tch-estimator-bakeoff.mjs` (deterministic, analysis-only — does not touch `integrator-tch.js`).
+
 ## Cross-references
+- `tools/tch-estimator-bakeoff.mjs` — the §10 estimator bake-off (ML-TCH/GCOV vs min-ρ clamp).
 - `tools/tch-multinight.mjs` — the committed multi-night A/B harness (§7); `node tools/tch-multinight.mjs --selftest`.
 - `briefs/INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md` §1 (this executes its premise leg).
 - `sensor-trio-power-analysis.html` / `sensor-trio-worker.js` (the real-data arm + production PPGDSP corner).
