@@ -308,11 +308,9 @@
         // Small yield to let the progress bar repaint before heavy render
         setTimeout(function () {
           setProgress(100);
-          setTimeout(function () {
-            try {
-              if (window._cacheO2CSV && typeof rawText !== 'undefined' && rawText) window._cacheO2CSV(rawText, (typeof currentFileName !== 'undefined' ? currentFileName : '') || 'o2ring.csv');
-            } catch (e) {}
-          }, 200);
+          // SECURITY-REMEDIATION-2026-07-11 F4 (drop): removed the _cacheO2CSV call that persisted the
+          // whole raw CSV to localStorage — raw recordings no longer sit at rest (minimization-clean;
+          // also removes F1's payload). The window._cacheO2CSV definition went with the shell block.
           setStatus('');
           renderAll();
           safeSet('fileInput', 'value', '');

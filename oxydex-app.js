@@ -60,6 +60,14 @@ function addMoreFiles() {
 }
 function clearAll() {
   allNights = {};
+  // SECURITY-REMEDIATION-2026-07-11 F5: "Clear" also drops the persisted raw-recording cache keys
+  // (F4 stopped writing them, but old entries can linger from a prior version). removeItem is a no-op
+  // on absent keys. A suite-wide "erase all data on this device" lives in dex-forget.js (profile panel).
+  try {
+    ['oxydex_last_csv', 'oxydex_last_name', 'o2ring_last_csv', 'o2ring_last_name'].forEach(function (k) {
+      localStorage.removeItem(k);
+    });
+  } catch (_cl) {}
   // SELF-INGEST: clearing data also exits review mode (the reloaded export's context no longer applies).
   try {
     window._oxyReview = null;
@@ -619,45 +627,17 @@ function genSyntheticPatient() {
 })();
 
 // ═══════════════════════════════════════════
-// Restore last O2Ring session (bundle-safe). FOLLOWUP-FINDINGS P1.
-// The "reload last session" chip is wired by a small inline <script> in the
-// shell via a bare DOMContentLoaded listener. In the BUNDLE the inliner runs
-// app scripts AFTER DOMContentLoaded has fired, so that inline listener never
-// runs and the chip never appears. Rather than edit the shell (which would move
-// the bundle's buildHash and flip OxyDex's provenance fixtures), we drive the
-// restore from this external module — which lands in the manifest, leaving the
-// template/buildHash stable (same approach as hrvdex-app.js _hrvInit).
-// Guard so dev (unbundled) keeps using the inline listener and we never double-add:
-//   bundle → readyState 'complete' here → run now (inline listener is dead).
-//   dev    → readyState 'loading' here → skip; the inline listener fires normally.
-function _oxyRestoreLast() {
-  if (document.getElementById('lastSessionChip')) return; // never duplicate
-  var CK = 'oxydex_last_csv',
-    NK = 'oxydex_last_name',
-    cached,
-    name;
-  try {
-    cached = localStorage.getItem(CK) || localStorage.getItem('o2ring_last_csv');
-    name = localStorage.getItem(NK) || localStorage.getItem('o2ring_last_name') || 'last session';
-  } catch (e) {}
-  if (!cached) return;
-  var chip = document.createElement('div');
-  chip.id = 'lastSessionChip';
-  chip.style.cssText =
-    'cursor:pointer;margin:8px 0;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:rgba(61,224,208,.08);border:1px solid rgba(61,224,208,.2);border-radius:8px;font-size:12px;color:#3DE0D0';
-  chip.innerHTML = '📂 Reload: <strong>' + escHTML(name) + '</strong>'; // F1: escape persisted filename (untrusted → innerHTML)
-  chip.onclick = function () {
-    try {
-      setProgress && setProgress(3);
-      handleFiles([new File([cached], name, { type: 'text/csv' })]);
-    } catch (e) {
-      setStatus && setStatus('⚠ ' + e.message, true);
-    }
-  };
-  var ua = document.getElementById('uploadArea');
-  if (ua && ua.parentNode) ua.parentNode.insertBefore(chip, ua);
-}
-if (document.readyState !== 'loading') _oxyRestoreLast();
+// SECURITY-REMEDIATION-2026-07-11 F4 (decision A — drop): the "reload last
+// session" feature was REMOVED. It persisted the whole raw O2Ring CSV + its
+// unscrubbed filename to localStorage indefinitely (the `_cacheO2CSV` write in
+// the shell) and re-inserted that filename into the DOM (F1's stored-XSS
+// vector — Phase A escaped it here; Phase C removes it outright, which is
+// strictly stronger: no raw filename re-enters the DOM at all). Dropping
+// raw-recording-at-rest is the minimization-clean choice and removes the F1
+// payload entirely, so the chip (which only existed to re-run the cached raw
+// file) went with it. The stale keys (`oxydex_last_csv`/`_name`, legacy
+// `o2ring_last_*`) are cleared defensively by clearAll() + the shared erase-all
+// control (F5) for anyone who cached under a prior version.
 
 function download(content, fname, type) {
   try {

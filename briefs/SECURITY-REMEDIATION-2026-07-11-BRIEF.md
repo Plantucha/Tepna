@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-11 (**Phase A COMPLETE** — F1/F2/F3 injections closed via one shared `dex-escape.js`; OxyDex+PulseDex (+Data Unifier/OverDex, which embed the same modules) re-bundled EXPORT-INERT, fixtures re-recorded `manifestHash`-only; a "filename renders escaped" gate is green in both runners. **Phases B (CSP) + C (storage hygiene) pending** — need the owner F4/F7 decisions + ride the batched fleet re-bundle) · **Created:** 2026-07-11 · **Executes:** `audits/PRIVACY-SECURITY-AUDIT-FINDINGS-2026-07-01.md` (F1–F7) · **Consolidates** the audit's "each finding → its own dated brief" into ONE phased remediation (the findings share the `escapeHTML` helper + the EXPORT-INERT re-bundle machinery; seven tiny briefs would fragment that)
+**Status:** DONE — 2026-07-11 (all three phases executed; owner chose F4=drop, F7=baseline-CSP-defer-nonce. Phase A landed on `main` separately via PR #9 + v1.2.0 — the shared `dex-escape.js` escaper for F1/F2/F3; **Phases B (CSP) + C (storage hygiene/erase-all) added on top of v1.2.0** here) · **Followups:** `SECURITY-REMEDIATION-FOLLOWUPS-2026-07-11-BRIEF.md` · **Created:** 2026-07-11 · **Executes:** `audits/PRIVACY-SECURITY-AUDIT-FINDINGS-2026-07-01.md` (F1–F7) · **Consolidates** the audit's "each finding → its own dated brief" into ONE phased remediation (the findings share the `escapeHTML` helper + the EXPORT-INERT re-bundle machinery; seven tiny briefs would fragment that)
 
 # Security & storage-hygiene remediation — F1–F7 (untrusted→DOM, CSP, erase-my-data)
 
@@ -60,6 +60,19 @@ string (F2 table cells).
 element) for both apps — a real regression lock, not just a grep.
 
 ## Phase B — Content-Security-Policy (F7) — hardens no-network at the browser layer
+> **EXECUTED 2026-07-11 (on top of v1.2.0; owner decision A — baseline now, defer nonce).** A `<meta
+> http-equiv="Content-Security-Policy">` was added to all 10 `.src.html` heads: `default-src 'self'
+> 'unsafe-inline' blob: data:; connect-src <'none'|'self'>; worker-src 'self' blob:; object-src 'none';
+> base-uri 'none'; form-action 'none'`. `connect-src 'none'` on the 8 pure-local bundles; **CPAPDex +
+> Integrator use `'self'`** (they `fetch()` committed LOCAL samples — verified the only two demo-fetch
+> bundles; `'self'` still blocks every remote origin). `'unsafe-inline'`/`blob:`/`data:` retained so the
+> inline bundles + blob workers keep working (strict nonce/hash `script-src` = FOLLOWUPS §1). Verified all
+> 10 bundles boot headless under the CSP (Chromium): 0 CSP violations, 0 page errors. New `security · csp`
+> gate group (26/26, both runners). ⚠ The CSP *comment* was worded to avoid the literal transport-primitive
+> names (`WebSocket`/`sendBeacon`) — the `no-network` static scanner matches those tokens anywhere in
+> source, so a comment describing the egress block would itself red the gate.
+
+### (original plan)
 - **F7 (LOW–MED).** No `<meta http-equiv="Content-Security-Policy">` in any `.src.html`/bundle. Add one to each
   `.src.html` `<head>`. **Baseline (compatible today):**
   `default-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'` —
@@ -78,6 +91,20 @@ element) for both apps — a real regression lock, not just a grep.
   CSP-presence assertion to the suite; verify `no-network.html` still green (CSP should *reinforce* it).
 
 ## Phase C — storage hygiene & erase-my-data (F4 · F5 · F6) — EXPORT-INERT, decisions needed
+> **EXECUTED 2026-07-11 (on top of v1.2.0; owner decision A on F4 — drop).** **F4:** removed the
+> raw-recording cache entirely — the `_cacheO2CSV` write (in `OxyDex.src.html`'s inline shell, not
+> `oxydex-dsp.js:287` as the audit said) + the whole reload-last-session feature. Note v1.2.0's Phase A
+> only *escaped* that F1 sink; this **removes** it (strictly stronger — no raw filename re-enters the DOM,
+> and it also took out a second inline-shell F1 sink Phase A hadn't touched). **F5:** OxyDex `clearAll()`
+> now clears the raw-cache keys; new shared `dex-forget.js` (canonical `LOCAL_KEYS` inventory + `IDB_DBS` +
+> `eraseAll()` + `ensureControl()`) mounts an "Erase all data on this device" control into the shared
+> profile panel (`dex-profile.js renderPanel`) across the 6 profile apps, clearing every key +
+> `indexedDB.deleteDatabase('ganglior_integrator')`, with a disclosure + confirm. **F6:** `dex-profile.js
+> migrate()` deletes the 16 legacy profile keys it folds, **only after a confirmed `tepna_profile` save**
+> (a failed write never loses data); `LEGACY_KEYS` exported + gated ⊆ `DexForget.LOCAL_KEYS`. New
+> `security · storage` gate group (15/15, both runners). All storage-only → EXPORT-INERT.
+
+### (original plan)
 - **F4 (MED) — raw night + raw filename cached forever.** `oxydex-dsp.js:287` writes the whole raw CSV +
   unscrubbed filename to `localStorage` (no TTL/cap); the raw name is F1's injection vector, so this *compounds*
   F1. **⚠ DECISION:** (a) drop the raw-CSV cache, keep a small "last session" descriptor; or (b) keep the
