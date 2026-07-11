@@ -1,10 +1,12 @@
 {
   "_doc": "Canonical Tepna roster + site metadata — the SINGLE source of truth for the deploy build + discoverability surfaces (REPO-DISCOVERABILITY-FOLLOWUPS-2026-07-04 §5.2). tools/build-docs.mjs reads THIS to (1) sync root→docs page bodies and (2) emit docs/{sitemap.xml,robots.txt,feed.xml,about.json,llms.txt,llms-full.txt}. The README node table, the DOCS-INDEX at-a-glance block, and the index.html JSON-LD all describe the same roster — keep them in sync with this file, do not fork a second roster.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "deploy": {
     "dir": "docs",
     "delinkClass": "tool-off",
-    "delinkPreserve": ["Science.html"],
+    "delinkPreserve": [
+      "Science.html"
+    ],
     "_note": "docs/ is the served GitHub-Pages root (docs/SITE-DEPLOY-AND-LAYOUT.md §D). tools/build-docs.mjs syncs root→docs deploy files — HTML page bodies (Phase 1a) AND css/js/image assets (Phase 1b, byte-compare + copy): straight-copy pages that link only to shipped targets; MECHANICALLY de-link pages that link to non-public targets (Tier-3 tools/gates + any raw .md → <span class=tool-off>, reproduces the hand-de-linked wiring pages byte-for-byte); and PRESERVE delinkPreserve pages (editorially de-linked — Science.html reworded its lab-bench prose, so a generic transform can't reproduce it). --force-delink overrides preserve; --check covers the whole served tree."
   },
   "site": {
@@ -22,32 +24,138 @@
     "intendedUse": "Personal self-quantification. Not a medical device; does not diagnose, treat, cure, or prevent any condition."
   },
   "nodes": [
-    { "id": "OxyDex",   "signal": "SpO\u2082 / oximetry",   "device": "O2Ring / Wellue / ViATOM", "app": "OxyDex.html",   "guide": "OxyDex Reference.html",   "summary": "Overnight blood oxygen \u2014 ODI-4, T90, hypoxic burden." },
-    { "id": "PpgDex",   "signal": "Wrist PPG",            "device": "Polar Verity Sense",       "app": "PpgDex.html",   "guide": "PpgDex Reference.html",   "summary": "Optical pulse \u2192 PPI \u2192 HRV + pulse-wave morphology." },
-    { "id": "PulseDex", "signal": "HRV from raw RR",      "device": "Polar Verity Sense",       "app": "PulseDex.html", "guide": "PulseDex Reference.html", "summary": "RR-interval streams \u2192 time / frequency HRV." },
-    { "id": "ECGDex",   "signal": "Raw ECG",              "device": "Polar H10",                "app": "ECGDex.html",   "guide": "ECGDex Reference.html",   "summary": "~130 Hz ECG \u2192 QRS, QTc, HRV." },
-    { "id": "HRVDex",   "signal": "HRV summaries",        "device": "\u2014",                    "app": "HRVDex.html",   "guide": "HRVDex Reference.html",   "summary": "Additive multi-day HRV ledger." },
-    { "id": "GlucoDex", "signal": "CGM",                  "device": "\u2014",                    "app": "GlucoDex.html", "guide": "GlucoDex Reference.html", "summary": "Continuous glucose \u2192 Time in Range, GMI." },
-    { "id": "CPAPDex",  "signal": "CPAP therapy",         "device": "ResMed \u00b7 EDF",          "app": "CPAPDex.html",  "guide": "CPAPDex Reference.html",  "summary": "EDF therapy data \u2192 pressure, leak, respiratory events." },
-    { "id": "EEGDex",   "signal": "EEG",                  "device": "Muse",                     "app": null,            "guide": null,                      "summary": "Raw EEG.", "planned": true }
+    {
+      "id": "OxyDex",
+      "signal": "SpO₂ / oximetry",
+      "device": "O2Ring / Wellue / ViATOM",
+      "app": "OxyDex.html",
+      "guide": "OxyDex Reference.html",
+      "summary": "Overnight blood oxygen — ODI-4, T90, hypoxic burden."
+    },
+    {
+      "id": "PpgDex",
+      "signal": "Wrist PPG",
+      "device": "Polar Verity Sense",
+      "app": "PpgDex.html",
+      "guide": "PpgDex Reference.html",
+      "summary": "Optical pulse → PPI → HRV + pulse-wave morphology."
+    },
+    {
+      "id": "PulseDex",
+      "signal": "HRV from raw RR",
+      "device": "Polar Verity Sense",
+      "app": "PulseDex.html",
+      "guide": "PulseDex Reference.html",
+      "summary": "RR-interval streams → time / frequency HRV."
+    },
+    {
+      "id": "ECGDex",
+      "signal": "Raw ECG",
+      "device": "Polar H10",
+      "app": "ECGDex.html",
+      "guide": "ECGDex Reference.html",
+      "summary": "~130 Hz ECG → QRS, QTc, HRV."
+    },
+    {
+      "id": "HRVDex",
+      "signal": "HRV summaries",
+      "device": "—",
+      "app": "HRVDex.html",
+      "guide": "HRVDex Reference.html",
+      "summary": "Additive multi-day HRV ledger."
+    },
+    {
+      "id": "GlucoDex",
+      "signal": "CGM",
+      "device": "—",
+      "app": "GlucoDex.html",
+      "guide": "GlucoDex Reference.html",
+      "summary": "Continuous glucose → Time in Range, GMI."
+    },
+    {
+      "id": "CPAPDex",
+      "signal": "CPAP therapy",
+      "device": "ResMed · EDF",
+      "app": "CPAPDex.html",
+      "guide": "CPAPDex Reference.html",
+      "summary": "EDF therapy data → pressure, leak, respiratory events."
+    },
+    {
+      "id": "EEGDex",
+      "signal": "EEG",
+      "device": "Muse",
+      "app": null,
+      "guide": null,
+      "summary": "Raw EEG.",
+      "planned": true
+    }
   ],
   "fusion": [
-    { "id": "Integrator",  "app": "Integrator.html", "summary": "Cross-node fusion over the shared Ganglior event bus." },
-    { "id": "Data Unifier","app": "Data Unifier.html","summary": "Routes each dropped file to the right node.", "deploy": false },
-    { "id": "OverDex",     "app": "OverDex.html",     "summary": "Runs a whole folder of mixed exports at once.", "deploy": false }
+    {
+      "id": "Integrator",
+      "app": "Integrator.html",
+      "summary": "Cross-node fusion over the shared Ganglior event bus."
+    },
+    {
+      "id": "Data Unifier",
+      "app": "Data Unifier.html",
+      "summary": "Routes each dropped file to the right node.",
+      "deploy": false
+    },
+    {
+      "id": "OverDex",
+      "app": "OverDex.html",
+      "summary": "Runs a whole folder of mixed exports at once.",
+      "deploy": false
+    }
   ],
   "content": [
-    { "label": "Science",             "href": "Science.html" },
-    { "label": "Architecture",        "href": "Architecture.html" },
-    { "label": "How to Collect Data", "href": "How to Collect Data.html" },
-    { "label": "About",               "href": "Why This Exists.html" },
-    { "label": "Papers",              "href": "papers/papers.html" }
+    {
+      "label": "Science",
+      "href": "Science.html"
+    },
+    {
+      "label": "Architecture",
+      "href": "Architecture.html"
+    },
+    {
+      "label": "How to Collect Data",
+      "href": "How to Collect Data.html"
+    },
+    {
+      "label": "About",
+      "href": "Why This Exists.html"
+    },
+    {
+      "label": "Papers",
+      "href": "papers/papers.html"
+    }
   ],
   "authoritativeContext": [
-    { "title": "README",                  "repoPath": "README.md",                  "note": "Front door \u2014 what the suite measures well, the evidence ladder, the roster." },
-    { "title": "ORIENTATION",             "repoPath": "ORIENTATION.md",             "note": "The 60-second map: roster, shared spine, the two gates." },
-    { "title": "Architecture principles", "repoPath": "ARCHITECTURE-PRINCIPLES.md", "note": "Three layers, downhill deps, contracts-as-product, the epistemic/fusion principles." },
-    { "title": "Lexicon",                 "repoPath": "docs/LEXICON.md",            "note": "Canonical terminology (Ganglior, Integrator, node, tier)." },
-    { "title": "Why this exists",         "repoPath": "docs/WHY-THIS-EXISTS.md",    "note": "The philosophy and constraints (narrative, not spec)." }
+    {
+      "title": "README",
+      "repoPath": "README.md",
+      "note": "Front door — what the suite measures well, the evidence ladder, the roster."
+    },
+    {
+      "title": "ORIENTATION",
+      "repoPath": "ORIENTATION.md",
+      "note": "The 60-second map: roster, shared spine, the two gates."
+    },
+    {
+      "title": "Architecture principles",
+      "repoPath": "ARCHITECTURE-PRINCIPLES.md",
+      "note": "Three layers, downhill deps, contracts-as-product, the epistemic/fusion principles."
+    },
+    {
+      "title": "Lexicon",
+      "repoPath": "docs/LEXICON.md",
+      "note": "Canonical terminology (Ganglior, Integrator, node, tier)."
+    },
+    {
+      "title": "Why this exists",
+      "repoPath": "docs/WHY-THIS-EXISTS.md",
+      "note": "The philosophy and constraints (narrative, not spec)."
+    }
   ]
 }

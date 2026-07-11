@@ -1,5 +1,5 @@
 # Tepna — the Dex Suite — concatenated authoritative context
-# Generated 2026-07-09. Public docs only (the internal build/gate constitution CLAUDE.md is intentionally excluded).
+# Generated 2026-07-11. Public docs only (the internal build/gate constitution CLAUDE.md is intentionally excluded).
 
 
 
@@ -17,25 +17,32 @@
 
 # Tepna — the Dex Suite
 
-**A fleet of local-only, single-signal physiological analyzers.**
-Read one raw biosignal from a consumer device → derive evidence-graded metrics → fuse across signals. Your data never leaves the browser.
+### Read one raw biosignal → grade every number → fuse across signals.
+**Your data never leaves the browser — and CI proves it on every commit.**
+
+A fleet of local-only, single-signal physiological analyzers. No upload. No accounts. No network.
 
 **Suite version:** 1.0.0
 
-[![Live at tepna.net](https://img.shields.io/badge/live-tepna.net-2a6fdb)](https://tepna.net)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a6fdb)](LICENSE)
+[![Live at tepna.net](https://img.shields.io/badge/live-tepna.net-2a6fdb?style=for-the-badge)](https://tepna.net)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a6fdb?style=for-the-badge)](LICENSE)
+
+[![No network · CI-enforced](https://img.shields.io/badge/no_network-CI--enforced-1f8a5b)](no-network.html)
 [![Local-first](https://img.shields.io/badge/local--first-100%25-1f8a5b)](docs/WHY-THIS-EXISTS.md)
-![Data stays local](https://img.shields.io/badge/data-stays_local-1f8a5b)
 [![Every metric graded](https://img.shields.io/badge/every_metric-evidence_graded-8a5cf6)](#the-evidence-ladder-every-metric-is-graded)
-![Nodes](https://img.shields.io/badge/nodes-7_live-555)
+[![Reproducible](https://img.shields.io/badge/every_paper-regenerates_from_its_tool-8a5cf6)](papers/papers.html)
+![Nodes](https://img.shields.io/badge/nodes-7_live_%C2%B7_1_planned-555)
 
 **[tepna.net](https://tepna.net)**  ·  [github.com/Plantucha/Tepna](https://github.com/Plantucha/Tepna)
 
 </div>
 
-Each analyzer reads **one** raw biosignal, derives metrics from it, and reports inward over a shared
-event bus (**Ganglior**) so a fusion layer (the **Integrator**) can read across them. 100%
-client-side — no network, no upload, no accounts.
+> **One signal in, honest numbers out.** Each analyzer reads **one** raw biosignal from a consumer
+> device, derives metrics from it, and reports inward over a shared event bus (**Ganglior**) so a
+> fusion layer (the **Integrator**) can read across them. Every number carries an **evidence grade**,
+> so you always know which kind of number you're looking at. And "100% client-side" isn't a promise
+> — it's a **test**: a headless privacy gate boots every shipped surface and fails the build if
+> anything so much as *reaches* for the network.
 
 ## Get it running
 
@@ -45,6 +52,33 @@ git clone https://github.com/Plantucha/Tepna.git
 
 Then open **`index.html`** in any modern browser and click your device. No build step, no server, no
 install — every node app is a single self-contained HTML file that runs straight from disk.
+
+> 💡 **Why that's remarkable:** an entire overnight sleep-apnea screen, an ECG QT analysis, or a
+> CGM report runs from a file on your disk — the raw biosignal is parsed, the math is done, and the
+> figures are drawn, all without a single byte leaving the tab.
+
+---
+
+## 🔒 The privacy claim is a *test*, not a promise
+
+Most health apps *say* your data is private. Tepna **proves it, mechanically, on every commit.**
+
+[`no-network.html`](no-network.html) is a self-verifying gate — the privacy analogue of a build
+signature. It statically scans every shipped surface (the 8 self-contained bundles + the 2
+orchestrators + their loose modules), **boots each one in a trapped iframe** where any cross-origin
+request throws, and asserts **zero network egress**. A planted-canary negative control ships inside
+the gate, so a vacuous "all clear" can never pass. It runs headless in CI on **every push**.
+
+| CI gate | What it guarantees |
+|---|---|
+| **no-network** | No shipped surface reaches the network — privacy is enforced, not asserted |
+| **tests** | ~1,900 assertions over the real DSP modules + render coverage |
+| **types** | JSDoc type-checking across the signal contracts |
+| **lint** | House invariants (frozen names, Clock Contract, SPDX, evidence vocabulary) |
+
+Beyond CI, [`verify-provenance.html`](verify-provenance.html) content-addresses every bundle
+(GATE A: code identity) and every fixture (GATE B: known-answer reproducibility) — so a shipped app
+is provably the code it claims to be.
 
 ---
 
@@ -114,9 +148,20 @@ right node on each file, and hands every result to the Integrator automatically.
 
 ## 🔬 Scientific Foundation
 
-Every non-trivial number traces to a published method. The working preprints — each **regenerated
-from the live tool behind it** — are in **[`papers/`](papers/papers.html)**; the methods overview is
-**[`Science.html`](Science.html)** and the system design is **[`Architecture.html`](Architecture.html)**.
+Every non-trivial number traces to a published method, and every working preprint is **regenerated
+from the live tool behind it** — no hand-drawn figures, no cherry-picked runs. Highlights from
+**[`papers/`](papers/papers.html)**:
+
+- **[One phone is not one clock](papers/wearable-clock-drift.html)** — a single-subject methods study
+  measuring ~48 ppm inter-device timing drift across 11 nights (145k beats), showing why beat-level
+  fusion of two consumer wearables needs a single acquisition clock.
+- **[Dead ends](papers/dead-ends.html)** — a synthesis of the walls the suite hit and why: fixed,
+  flagged, or fundamental. Negative results, reported honestly.
+- **Sensor-trio power &amp; σ analyses, rMSSD equivalence, ODI-4 calibration, timestamp pathology** —
+  each with its live regenerating tool.
+
+The methods overview is **[`Science.html`](Science.html)** and the system design is
+**[`Architecture.html`](Architecture.html)**.
 
 ---
 
@@ -127,7 +172,7 @@ source, here's the lay of the land.
 
 | You want… | Look at |
 |---|---|
-| **A map of every doc** | [`DOCS-INDEX.md`](DOCS-INDEX.md) — the single entry path over all ~60 briefs, audits, and READMEs, grouped by topic. Start here before opening any individual brief. |
+| **A map of every doc** | [`DOCS-INDEX.md`](DOCS-INDEX.md) — the single entry path over all ~160 briefs, audits, and READMEs, grouped by topic. Start here before opening any individual brief. |
 | **The app for your device** | the bundled `OxyDex.html`, `PpgDex.html`, `PulseDex.html`, `ECGDex.html`, `HRVDex.html`, `GlucoDex.html`, `CPAPDex.html` — open them directly. `Integrator.html` fuses them all; `Data Unifier.html` routes any file you drop to the right node, and `OverDex.html` runs a whole folder at once. |
 | **The front door** | `index.html` (the landing/device picker) — the page normal people start from. |
 | **How an app is built** | its source modules — `<node>-dsp.js` (signal math), `-render.js`, `-app.js`, `-registry.js` — plus `<App>.src.html`. Edit these; **never** the bundled `*.html`, then re-bundle. |

@@ -30,6 +30,30 @@ changesets.)
 
 ---
 
+## [1.1.0] — 2026-07-11
+
+### Added
+- Add the DSP reach-in allow-list gate (DEV-TOOLCHAIN Part A · A4, folding in SIGNAL-ADAPTER-FOLLOWUPS-IV §1) — a source-text house-lint in `tests/dex-tests.js` that scrubs comments/strings/regex with a real char-scanner, then asserts each `*-dsp.js` calls only {self · kernel · own `*-util` · builtins · documented reach-ins}; oxydex/hrvdex render-path reach-ins are allow-listed as a named drift-ledger for the next on-touch re-bundle. Test-layer only, no re-bundle, provenance untouched. (`DEV-TOOLCHAIN-2026-06-30-BRIEF.md`)
+- Add the root `package.json` dev-tooling spine — a private, unpublished manifest (no runtime deps, ships nothing) that unifies `tools/build.mjs`, the pinned `tsc`/ESLint tools, and the gate runners under one `npm run` surface (`check`/`test`/`typecheck`/`lint`/`build*`/`verify:manifest`/`gen:lists`/`release`); the four CI workflows now route through those scripts so each command has a single source, and browser-gates no longer `npm init -y` over the committed manifest. (`DEV-TOOLCHAIN-2026-06-30-BRIEF.md`)
+- Teach `tools/release.mjs` to maintain the CHANGELOG's reference-style compare links (F6): on each release it advances `[Unreleased]` to compare from the new tag and inserts a `[x.y.z]: …/compare/v{prev}...v{new}` line, leaving the oldest `releases/tag` link intact — repo base derived from the existing `[Unreleased]` link (no hard-coded URL), idempotent on re-run. (`CONTROLLED-RELEASES-FOLLOWUPS-2026-07-05-BRIEF.md`)
+- Project the canonical suite version into the discovery surfaces and make the release-ledger check-6 stamp-parity gate non-vacuous (F2/F3/F4): stamp `softwareVersion` into index.html + docs/index.html JSON-LD (and a visible footer `v`), `docs/about.json` (+ build-docs `buildAbout`), and a `**Suite version:**` marker in README; add a build-docs Phase 3 that projects `suite.manifest.json` version into those surfaces (idempotent, updates markers in place); teach `release.mjs` to stamp `CITATION.cff`; and feed each surface's raw text into `env.releaseLedger.surfaceTexts` from both runners so check-6 extracts (single-sourced) and reds on a version mismatch OR a removed marker. (`CONTROLLED-RELEASES-FOLLOWUPS-2026-07-05-BRIEF.md`)
+- ECG Splitter gains a folder-batch mode — drop a capture folder, group files into recording nights, bulk-split oversized ECG/PPG waveforms, and run an off-thread signal check (production Pan–Tompkins / 3-LED detectors in a Web Worker) reusing the trio-experiment folder-ingest + worker-DSP patterns. (`TRIO-METHODS-REUSE-2026-07-06-BRIEF.md`)
+- Add a decorrelation quality gate to the Integrator three-cornered hat — drop a node that decorrelates from both peers before the solve, so a failed extraction can't contaminate every per-sensor σ. (`TRIO-METHODS-REUSE-2026-07-06-BRIEF.md`)
+- Add a reproducible multi-night three-cornered-hat A/B harness (tools/tch-multinight.mjs) with a known-answer synthetic corpus, plus literature- and sensor-anchored σ validation (docs §7–§9). (`INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md`)
+
+### Changed
+- Route OxyDex and HRVDex readiness sub-score value tiles through the evidence-badge path (badge-by-construction, OWN-THE-BUILD Part C) — the badge now leads the value, and both render files join the enforced `badge-enforced` set so a number can't reach the DOM ungraded. (`OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`)
+- Enforce badge-by-construction on `integrator-render.js` (OWN-THE-BUILD Part C) — it is already compliant (its `kpi()` tile leads with `evBadge()`), so it joins `BADGE_ENFORCED` test-only with no re-bundle, and is wired into `env.sources` in both runners; the badge gate now reds if any fusion-layer value tile is emitted unbadged. Remaining Part C render/app/profile files await their next on-touch re-bundle. (`OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`)
+- Flip release-ledger check-7 to a HARD gate (F8, `HARD7=true`) — un-recorded code movement now BLOCKS instead of shipping informational. Adoption is real: the 1.0.0 snapshot was reconfirmed consistent against BUILD-MANIFEST (5 unmoved bundles byte-match; the 3 moved — OxyDex/HRVDex/Integrator — are exactly the changeset-covered set), so the gate is green with zero false positives. (`CONTROLLED-RELEASES-FOLLOWUPS-2026-07-05-BRIEF.md`)
+
+### Fixed
+- Align cross-node three-cornered-hat epochs on absolute wall-clock instead of node-relative tMin (fixes σ² inflation and culprit mis-ranking on staggered-start co-recordings; same-start nights stay byte-identical); surface the HR-hat per-sensor error card + reconciled HR, and flag quiet-sensor order uncertainty. (`INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II-2026-07-04-BRIEF.md`)
+- Correct stale crossnight `*_DEFS` metadata to the registry truth — OxyDex mean-SpO₂/mean-HR and CPAPDex residual-AHI/central-index/usage-hours graded `measured` (not `validated`), CPAPDex usage-hours label "Usage Hours" and PpgDex Perfusion-Idx/Motion-rejected labels — regenerating the CPAPDex multi-night golden; every shared-id field is now hard-gated by the registry↔_DEFS parity check (REGISTRY-PROJECTION Phase 2). (`REGISTRY-PROJECTION-2026-07-04-BRIEF.md`)
+- Badge-by-construction Part C — every remaining bare metric-value tile now leads with an evidence badge (ecgdex/ppgdex/glucodex-app, cpapdex-render, pulsedex-overview, hrvdex-app, ecgdex/glucodex/ppgdex-profile); all nine join BADGE_ENFORCED and the six affected bundles were re-bundled (export-inert, fixtures re-stamped). (`OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`)
+- Re-texture the synthetic RR generator (synth-gen 2.1 / cohort-gen 1.9), rerun all six sim papers, and re-bundle the six apps that inline synth-gen.js. (`SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS-2026-07-07-BRIEF.md`)
+
+---
+
 ## [1.0.0] — 2026-07-05 · Baseline
 
 First **controlled release.** Declares the current all-gates-green tree as the stable 1.0.0 baseline
@@ -175,5 +199,6 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/Plantucha/Tepna/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Plantucha/Tepna/releases/tag/v1.0.0
