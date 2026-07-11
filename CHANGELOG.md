@@ -30,6 +30,20 @@ changesets.)
 
 ---
 
+## [1.3.0] — 2026-07-11
+
+### Added
+- Port the ESLint control-flow/dead-code floor into Biome (`biome.json` `linter.rules`) so `format.yml`'s `biome ci --changed` now enforces format + lint on changed files (0 errors on the current tree, parity-verified); ESLint stays running in parallel this cycle until it's retired (Phase 3 step 2). (`BIOME-FORMATTER-2026-07-11-BRIEF.md`)
+
+### Changed
+- Retire ESLint (`lint.yml` + `.eslintrc.json` + the `npx eslint` script) now that Biome carries the same control-flow/dead-code floor with proven parity — `npm run lint` and `format.yml` are the sole lint gate; one pinned tool does format + lint (BIOME-FORMATTER Phase 3 step 2). (`BIOME-FORMATTER-2026-07-11-BRIEF.md`)
+
+### Security
+- Add a browser-enforced Content-Security-Policy to every bundle (connect-src 'none'/'self' — F7) and suite-wide storage hygiene on top of v1.2.0's Phase A: drop the raw-recording localStorage cache (F4), a shared "erase all data on this device" control clearing every key + the Integrator IndexedDB (F5), and migrate() now deletes the legacy profile keys it folds (F6). (`SECURITY-REMEDIATION-2026-07-11-BRIEF.md`)
+- Extend the erase-all control (dex-forget.js): also wipe the standalone analysis pages' checkpoint keys + IndexedDB (§2), and mount the control in CPAPDex + the Integrator, which own longitudinal data but don't render the shared profile panel (§3). Strict nonce/hash script-src (§1) assessed and deferred — infeasible without a fleet-wide inline-event-handler refactor. (`SECURITY-REMEDIATION-FOLLOWUPS-2026-07-11-BRIEF.md`)
+
+---
+
 ## [1.2.0] — 2026-07-11
 
 ### Added
@@ -216,7 +230,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/Plantucha/Tepna/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/Plantucha/Tepna/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/Plantucha/Tepna/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/Plantucha/Tepna/compare/v1.0.0...v1.1.0

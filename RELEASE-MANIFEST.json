@@ -104,6 +104,28 @@
         "SECURITY-REMEDIATION-2026-07-11-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "1.3.0",
+      "date": "2026-07-11",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "b96b66654d2d",
+        "OxyDex": "cb47fc8c4821",
+        "PulseDex": "634669a6ed8f",
+        "GlucoDex": "02cf97292738",
+        "PpgDex": "74bcf81e31cd",
+        "HRVDex": "a7c005519201",
+        "CPAPDex": "1209fedc9e6c",
+        "Integrator": "4c609f6c4cc6"
+      },
+      "briefs": [
+        "BIOME-FORMATTER-2026-07-11-BRIEF.md",
+        "SECURITY-REMEDIATION-2026-07-11-BRIEF.md",
+        "SECURITY-REMEDIATION-FOLLOWUPS-2026-07-11-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
