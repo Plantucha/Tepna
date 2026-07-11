@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-11 (**Phases 0–1 LANDED** — `biome.json` tuned + pinned, `@biomejs/biome` devDependency + lockfile, `format.yml` check-only/changed-only, CONTRIBUTING §B2; provenance untouched, 0 fixtures re-recorded. **Phase 2** on-touch application + **Phase 3** lint-migration deferred) · **Created:** 2026-07-11 · **Executes:** `DEV-TOOLCHAIN-2026-06-30-BRIEF.md` Part B (Formatter) · **Requires:** a Node host with npm (the Biome binary — not runnable in the current sandbox)
+**Status:** IN-PROGRESS — 2026-07-11 (**Phases 0–1 LANDED**; **Phase 2 first application DEMONSTRATED** — riding SECURITY-REMEDIATION Phase A's EXPORT-INERT re-bundle, the touched shipped files (`oxydex-app/dsp/util.js`, `pulsedex-app.js`, new `dex-escape.js`) were Biome-formatted on-touch, not standalone; the changed-file format gate forced every touched `*.js` (incl. `tests/*.js`) Biome-clean. **Phase 3** lint-migration still deferred) · **Created:** 2026-07-11 · **Executes:** `DEV-TOOLCHAIN-2026-06-30-BRIEF.md` Part B (Formatter) · **Requires:** a Node host with npm (the Biome binary — not runnable in the current sandbox)
 
 # Biome — code formatter for Tepna (one self-contained binary, check-only, on-touch, never big-bang)
 

@@ -25,8 +25,8 @@ function csvSafe(v) {
 // ── sanitizeFname: strip HTML-dangerous chars from filenames ──
 function sanitizeFname(s) {
   if (!s) return '';
-  return String(s).replace(/[<>&"'`]/g, function(c) {
-    return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;','`':'&#96;'}[c];
+  return String(s).replace(/[<>&"'`]/g, function (c) {
+    return { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;', '`': '&#96;' }[c];
   });
 }
 
@@ -34,17 +34,21 @@ function sanitizeFname(s) {
 var _lineChartCache = {};
 
 // ── Global trend controls state (View Window + Smoothing) ──
-var _gcWin    = 999;   // trend/list view window in nights (999 = All)
-var _gcSmooth = 0;     // moving-average radius for trend charts (0 = off)
-function smoothVals(arr, k){
-  if(!k || k<1 || !arr || arr.length<3) return arr;
-  return arr.map(function(_v,i){
-    var sum=0, cnt=0;
-    for(var j=Math.max(0,i-k); j<=Math.min(arr.length-1,i+k); j++){
-      var v=arr[j];
-      if(v!=null && isFinite(v)){ sum+=v; cnt++; }
+var _gcWin = 999; // trend/list view window in nights (999 = All)
+var _gcSmooth = 0; // moving-average radius for trend charts (0 = off)
+function smoothVals(arr, k) {
+  if (!k || k < 1 || !arr || arr.length < 3) return arr;
+  return arr.map(function (_v, i) {
+    var sum = 0,
+      cnt = 0;
+    for (var j = Math.max(0, i - k); j <= Math.min(arr.length - 1, i + k); j++) {
+      var v = arr[j];
+      if (v != null && isFinite(v)) {
+        sum += v;
+        cnt++;
+      }
     }
-    return cnt ? +(sum/cnt).toFixed(4) : arr[i];
+    return cnt ? +(sum / cnt).toFixed(4) : arr[i];
   });
 }
 // ── getBaseline: shared baseline computation (replaces 11x duplication) ──
@@ -52,23 +56,43 @@ function getBaseline(spo2, WIN) {
   WIN = WIN || 60;
   if (!spo2 || !spo2.length) return 95;
   var sl = spo2.slice(Math.max(0, spo2.length - WIN));
-  return sl.length ? sl.reduce(function(a,b){return a+b;},0)/sl.length : (spo2.length ? spo2[0] : 95);
+  return sl.length
+    ? sl.reduce(function (a, b) {
+        return a + b;
+      }, 0) / sl.length
+    : spo2.length
+      ? spo2[0]
+      : 95;
 }
 // safeEl: safe getElementById wrapper injected by audit fix
 // Escape any file-derived / user-controlled string before it enters innerHTML.
 // (Filenames and CSV cell values can contain markup; a crafted shared export
 // must never be able to execute script in the page that holds your health data.)
-function escHTML(s){
-  return String(s == null ? '' : s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+// Delegates to THE canonical suite escaper (dex-escape.js, loaded first in the
+// OxyDex shell) — one implementation, no per-app copy (SECURITY-REMEDIATION F1/F3).
+function escHTML(s) {
+  return escapeHTML(s);
 }
-function safeEl(id){ return document.getElementById(id); }
-function safeSet(id, prop, val){ var el=safeEl(id); if(el) el[prop]=val; }
-function safeStyle(id, prop, val){ var el=safeEl(id); if(el) el.style[prop]=val; }
+function safeEl(id) {
+  return document.getElementById(id);
+}
+function safeSet(id, prop, val) {
+  var el = safeEl(id);
+  if (el) el[prop] = val;
+}
+function safeStyle(id, prop, val) {
+  var el = safeEl(id);
+  if (el) el.style[prop] = val;
+}
 // gv/sv: null-safe value getter/setter for form inputs (guards all profile field access)
-function gv(id){ var el=document.getElementById(id); return el ? el.value : ''; }
-function sv(id, val){ var el=document.getElementById(id); if(el) el.value = val; }
+function gv(id) {
+  var el = document.getElementById(id);
+  return el ? el.value : '';
+}
+function sv(id, val) {
+  var el = document.getElementById(id);
+  if (el) el.value = val;
+}
 
 // ── computeBaselineArr: O(n) sliding-window baseline precomputation ──────────
 // Returns an array bl[] where bl[i] = mean(spo2[max(0,i-WIN)..i-1]).
@@ -78,11 +102,18 @@ function computeBaselineArr(spo2, WIN) {
   WIN = WIN || 300;
   var n = spo2.length;
   var bl = new Array(n);
-  var sum = 0, cnt = 0;
+  var sum = 0,
+    cnt = 0;
   for (var i = 0; i < n; i++) {
     // Window covers spo2[max(0,i-WIN)..i-1] (samples already seen)
-    if (i > 0) { sum += spo2[i - 1]; cnt++; }
-    if (i > WIN) { sum -= spo2[i - WIN - 1]; cnt--; }
+    if (i > 0) {
+      sum += spo2[i - 1];
+      cnt++;
+    }
+    if (i > WIN) {
+      sum -= spo2[i - WIN - 1];
+      cnt--;
+    }
     bl[i] = cnt > 0 ? sum / cnt : 95;
   }
   return bl;
@@ -104,26 +135,43 @@ function computeBaselineArr(spo2, WIN) {
 // Window/fallback semantics mirror computeBaselineArr exactly (same coverage, bl[0]=95).
 function computeCeilingBaselineArr(spo2, WIN, pct) {
   WIN = WIN || 300;
-  pct = (pct == null) ? 90 : pct;   // p90 = the stable resting ceiling (default, brief §2a)
+  pct = pct == null ? 90 : pct; // p90 = the stable resting ceiling (default, brief §2a)
   var n = spo2.length;
   var bl = new Array(n);
-  var NB = 101;                     // bins 0..100 (% SpO2, integer)
+  var NB = 101; // bins 0..100 (% SpO2, integer)
   var hist = new Int32Array(NB);
-  var cnt = 0, i, b;
-  function bin(v) { v = Math.round(v); return v < 0 ? 0 : (v > 100 ? 100 : v); }
+  var cnt = 0,
+    i,
+    b;
+  function bin(v) {
+    v = Math.round(v);
+    return v < 0 ? 0 : v > 100 ? 100 : v;
+  }
   for (i = 0; i < n; i++) {
-    if (i > 0)   { hist[bin(spo2[i - 1])]++;        cnt++; }
-    if (i > WIN) { hist[bin(spo2[i - WIN - 1])]--;  cnt--; }
+    if (i > 0) {
+      hist[bin(spo2[i - 1])]++;
+      cnt++;
+    }
+    if (i > WIN) {
+      hist[bin(spo2[i - WIN - 1])]--;
+      cnt--;
+    }
     if (cnt > 0) {
-      var target = Math.ceil(pct / 100 * cnt);
+      var target = Math.ceil((pct / 100) * cnt);
       if (target < 1) target = 1;
-      var acc = 0, v = 100;
-      for (b = 0; b < NB; b++) { acc += hist[b]; if (acc >= target) { v = b; break; } }
+      var acc = 0,
+        v = 100;
+      for (b = 0; b < NB; b++) {
+        acc += hist[b];
+        if (acc >= target) {
+          v = b;
+          break;
+        }
+      }
       bl[i] = v;
     } else {
-      bl[i] = 95;                   // same cold-start fallback as the mean baseline
+      bl[i] = 95; // same cold-start fallback as the mean baseline
     }
   }
   return bl;
 }
-

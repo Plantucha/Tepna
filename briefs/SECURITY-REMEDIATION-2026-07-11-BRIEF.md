@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-11 · **Executes:** `audits/PRIVACY-SECURITY-AUDIT-FINDINGS-2026-07-01.md` (F1–F7) · **Consolidates** the audit's "each finding → its own dated brief" into ONE phased remediation (the findings share the `escapeHTML` helper + the EXPORT-INERT re-bundle machinery; seven tiny briefs would fragment that)
+**Status:** IN-PROGRESS — 2026-07-11 (**Phase A COMPLETE** — F1/F2/F3 injections closed via one shared `dex-escape.js`; OxyDex+PulseDex (+Data Unifier/OverDex, which embed the same modules) re-bundled EXPORT-INERT, fixtures re-recorded `manifestHash`-only; a "filename renders escaped" gate is green in both runners. **Phases B (CSP) + C (storage hygiene) pending** — need the owner F4/F7 decisions + ride the batched fleet re-bundle) · **Created:** 2026-07-11 · **Executes:** `audits/PRIVACY-SECURITY-AUDIT-FINDINGS-2026-07-01.md` (F1–F7) · **Consolidates** the audit's "each finding → its own dated brief" into ONE phased remediation (the findings share the `escapeHTML` helper + the EXPORT-INERT re-bundle machinery; seven tiny briefs would fragment that)
 
 # Security & storage-hygiene remediation — F1–F7 (untrusted→DOM, CSP, erase-my-data)
 
@@ -19,7 +19,20 @@ corrupt results. The realistic vector is **a maliciously-named capture file** (d
 
 ---
 
-## Phase A — the injections (F1 · F2 · F3) — DO FIRST · display-only · EXPORT-INERT
+## Phase A — the injections (F1 · F2 · F3) — ✅ DONE 2026-07-11 · display-only · EXPORT-INERT
+> **EXECUTED 2026-07-11.** Added the ONE canonical escaper **`dex-escape.js`** (`escapeHTML` — bare global +
+> `DexEsc`), loaded first in every shell that embeds the sinks (OxyDex, PulseDex, **Data Unifier, OverDex** —
+> the last two also inline `oxydex-util.js`/`oxydex-dsp.js`, so they needed it too). OxyDex's pre-existing
+> `escHTML` now **delegates** to it (single source, no per-app copy). Sinks converted: **F1** `oxydex-app.js`
+> filename chip → `escHTML(name)`; **F3** `oxydex-dsp.js` error block → `escHTML(String(e))`; **F2**
+> `pulsedex-app.js` comparison card → `escapeHTML()` on `priLab`/`refLab`/`res.error`/`res.note`. Re-bundled
+> all four (EXPORT-INERT — fixtures re-recorded `manifestHash` only, output bytes unchanged; equiv gate green).
+> A `Security — untrusted filename renders escaped (F1/F2/F3)` group (functional escaper + DOM-render + source-
+> mirror) is green in both runners. On-touch Biome formatting of the touched files rode this re-bundle
+> (BIOME-FORMATTER Phase 2). **F-note (deferred to a follow-up):** the PulseDex recordings-switcher / sidebar
+> `innerHTML` sinks interpolate only derived numerics (dates/coverage/modeLabel), NOT raw filenames — no
+> additional injection there; audited clear.
+
 The actual XSS. All three are "untrusted string → `innerHTML`" where a sibling call already uses `.textContent`
 (the escaping is *inconsistent* — the classic gap). Fix = one shared escaper + convert the sinks.
 
