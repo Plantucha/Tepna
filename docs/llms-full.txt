@@ -22,7 +22,7 @@
 
 A fleet of local-only, single-signal physiological analyzers. No upload. No accounts. No network.
 
-**Suite version:** 1.2.0
+**Suite version:** 1.4.0
 
 [![Live at tepna.net](https://img.shields.io/badge/live-tepna.net-2a6fdb?style=for-the-badge)](https://tepna.net)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a6fdb?style=for-the-badge)](LICENSE)
@@ -79,6 +79,13 @@ the gate, so a vacuous "all clear" can never pass. It runs headless in CI on **e
 Beyond CI, [`verify-provenance.html`](verify-provenance.html) content-addresses every bundle
 (GATE A: code identity) and every fixture (GATE B: known-answer reproducibility) — so a shipped app
 is provably the code it claims to be.
+
+**Browser-enforced, too.** Every bundle ships a strict Content-Security-Policy. `connect-src 'none'`
+blocks egress at the browser layer, and `script-src` lists a per-inline-script `sha256` hash with
+**no `'unsafe-inline'`** — so even a `<script>` injected into the DOM (a future untrusted→HTML
+regression) cannot execute. CSP is an *injection* backstop, not just an egress control; a headless
+negative-control test asserts an injected script stays inert, and the `security · csp-strict` gate
+holds the invariant (no inline handler survives, every `script-src` is hash-based).
 
 ---
 
