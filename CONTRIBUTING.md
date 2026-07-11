@@ -236,10 +236,9 @@ dead-code floor (`noUnreachable`, `noDuplicateObjectKeys`, `noFallthroughSwitchC
 `warn` because the old ESLint `no-cond-assign: except-parens` has no Biome equivalent, and `noDoubleEquals`
 ignores the `!= null` idiom the code relies on). Warnings are advisory (they never fail the gate).
 
-> **Biome now owns lint (Phase 3 DONE).** ESLint the tool was **retired** once Biome's floor proved parity in CI —
-> `.eslintrc.json` + the `npx eslint` script are gone and `npm run lint` runs Biome. One pinned tool does format +
-> lint. `lint.yml` survives only as a thin shim: its `eslint`-named job runs `biome lint` to satisfy the stale
-> `eslint` required-check in the `main` Ruleset — delete it once that requirement is removed (Settings → Rules).
+> **Biome now owns lint (Phase 3 DONE).** ESLint was fully **retired** once Biome's floor proved parity in CI —
+> `.eslintrc.json`, the `npx eslint` script, and the `lint.yml` workflow are all gone; `npm run lint` runs Biome.
+> One pinned tool does format + lint; `format.yml`'s `biome ci --changed` is the sole lint gate.
 
 The one rule that governs *when* you may apply the **formatter** (the lint floor is check-only, no `--write`):
 

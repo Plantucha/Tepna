@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** DONE — 2026-07-11 (**Phases 0–1** formatter [`biome.json` tuned + pinned devDependency + `format.yml` check-only/changed-only]; **Phase 2** on-touch application demonstrated + now BAU [rode SECURITY-REMEDIATION Phase A]; **Phase 3** lint migration COMPLETE — floor ported to `biome.json`, parity-verified [ESLint 0-err ↔ Biome 0-err on the tree], ran parallel one CI cycle, then **ESLint the tool RETIRED** [`.eslintrc` + `npx eslint` deleted; `npm run lint` → biome] — Biome is the sole formatter+linter, one pinned tool. `lint.yml` is retained as a thin `biome lint` shim under the `eslint` check-name (the `main` Ruleset still requires that check); delete it once the owner drops that Ruleset requirement. Only the optional **Tier-3 `.src.html` HTML formatter** remains deferred [not planned; not this brief's scope] — nothing else surfaced, so no follow-up brief) · **Created:** 2026-07-11 · **Executes:** `DEV-TOOLCHAIN-2026-06-30-BRIEF.md` Part B (Formatter) · **Requires:** a Node host with npm (the Biome binary — not runnable in the current sandbox)
+**Status:** DONE — 2026-07-11 (**Phases 0–1** formatter [`biome.json` tuned + pinned devDependency + `format.yml` check-only/changed-only]; **Phase 2** on-touch application demonstrated + now BAU [rode SECURITY-REMEDIATION Phase A]; **Phase 3** lint migration COMPLETE — floor ported to `biome.json`, parity-verified [ESLint 0-err ↔ Biome 0-err on the tree], ran parallel one CI cycle, then **ESLint fully RETIRED** [`.eslintrc` + `npx eslint` + the `lint.yml` workflow all deleted; `npm run lint` → biome] — Biome is the sole formatter+linter, one pinned tool. (The `eslint` required-check was briefly satisfied by a `biome lint` shim in `lint.yml`; once the owner dropped that Ruleset requirement the shim was removed.) Only the optional **Tier-3 `.src.html` HTML formatter** remains deferred [not planned; not this brief's scope] — nothing else surfaced, so no follow-up brief) · **Created:** 2026-07-11 · **Executes:** `DEV-TOOLCHAIN-2026-06-30-BRIEF.md` Part B (Formatter) · **Requires:** a Node host with npm (the Biome binary — not runnable in the current sandbox)
 
 # Biome — code formatter for Tepna (one self-contained binary, check-only, on-touch, never big-bang)
 
@@ -158,11 +158,10 @@ On a Node host, in a throwaway worktree/copy:
   `format` + `eslint` both green), deleted **`.eslintrc.json`** + the `npx eslint` script and repointed
   `npm run lint` → `biome lint` (the `check` script still chains through it). Biome is now the SOLE
   formatter+linter — one pinned tool, zero coverage gap (the floor moved intact; parity was 0-errors↔0-errors).
-  **`.github/workflows/lint.yml` is RETAINED as a thin compatibility shim:** its job is still keyed `eslint`
-  (so it emits the status check the `main` Ruleset still lists as REQUIRED) but now runs **`biome lint`**, not
-  ESLint. This is the only way a PR that removed the ESLint job can merge while that Ruleset requirement stands.
-  **Clean-up (deferred, owner action):** remove `eslint` from the `main` Ruleset's required checks
-  (Settings → Rules → Rulesets), then delete `lint.yml` — Biome lint already runs inside `format.yml`.
+  **`.github/workflows/lint.yml` is DELETED** — it briefly survived as a thin `biome lint` shim (job keyed
+  `eslint`) to satisfy the `main` Ruleset's stale `eslint` required-check; once the owner dropped that required-
+  check, the shim was removed. Biome lint runs inside `format.yml` (`biome ci --changed`) as the sole lint gate.
+  **Phase 3 fully DONE — one pinned tool does format + lint, no ESLint anywhere.**
 
 ## 6 · Scope (B4) — what Biome touches
 **Include:** authored `*.js`/`*.mjs`, `tests/`, `tools/`, `adapters/`. **Exclude:** bundled `*.html`
