@@ -379,6 +379,9 @@ body.light .cov-grid td.cg-node{ background:#fff; }
 </template>
 
 
+<!-- SECURITY-REMEDIATION FOLLOWUPS §3: erase-all control (dex-forget.js) mounted here — the Integrator
+     owns the longitudinal IndexedDB store but doesn't render the shared profile panel, so it gets its own slot. -->
+<div id="dexForgetSlot" style="max-width:1100px;margin:0 auto 20px"></div>
 <div class="dxl dxl-ribbon" style="max-width:1100px;margin:0 auto 30px">
   <div class="dxl-seg">
     <span class="dxl-mark">T</span>
@@ -406,4 +409,6 @@ body.light .cov-grid td.cg-node{ background:#fff; }
 <script src="integrator-longitudinal.js"></script>
 <script src="integrator-render.js"></script>
 <script src="integrator-app.js"></script>
+<script src="dex-forget.js"></script>
+<script>try{ if(window.DexForget) DexForget.ensureControl(document.getElementById('dexForgetSlot')); }catch(e){}</script>
 </body></html>

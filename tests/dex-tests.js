@@ -1432,7 +1432,7 @@
       );
       if (DexForget && typeof DexForget.eraseAll === 'function') {
         // (a) F5 FUNCTIONAL — eraseAll clears every populated key + deletes the Integrator IDB.
-        var store = { tepna_profile: 'x', hrvdex_rows_v1: 'x', glucodex_meals: 'x', oxydex_last_csv: 'x', oxydex_profile: 'x', prof_age: '40', keep_me: 'x' };
+        var store = { tepna_profile: 'x', hrvdex_rows_v1: 'x', glucodex_meals: 'x', oxydex_last_csv: 'x', oxydex_profile: 'x', prof_age: '40', cgmcpl_lock: 'x', keep_me: 'x' };
         var mockLS = {
           getItem: function (k) {
             return k in store ? store[k] : null;
@@ -1467,6 +1467,13 @@
         T.ok('eraseAll deletes the Integrator IndexedDB (ganglior_integrator)', deleted.indexOf('ganglior_integrator') >= 0, deleted.join(','));
         T.ok('eraseAll reports the removed keys', !!(res && res.removed && res.removed.length >= 6));
         T.ok('DexForget.IDB_DBS pins the Integrator longitudinal store', DexForget.IDB_DBS.indexOf('ganglior_integrator') >= 0);
+        // FOLLOWUPS §2 — a full erase also wipes the standalone analysis pages' checkpoint state.
+        T.ok('§2 · eraseAll clears an analysis-tool localStorage key (cgmcpl_lock)', store.cgmcpl_lock === undefined);
+        T.ok('§2 · eraseAll deletes the analysis-tool IndexedDB checkpoints', deleted.indexOf('cgmcpl_ckpt') >= 0 && deleted.indexOf('ganglior_cohort_pilot') >= 0, deleted.join(','));
+        T.ok(
+          '§2 · DexForget exposes ANALYSIS_KEYS + ANALYSIS_IDB (second tier)',
+          Array.isArray(DexForget.ANALYSIS_KEYS) && DexForget.ANALYSIS_KEYS.length >= 10 && Array.isArray(DexForget.ANALYSIS_IDB) && DexForget.ANALYSIS_IDB.length >= 6
+        );
         // (b) F5/F6 PARITY — every legacy key migrate() folds is in the erase set (can't drift apart).
         if (env.DexProfile && env.DexProfile.LEGACY_KEYS) {
           var uncovered = env.DexProfile.LEGACY_KEYS.filter(function (k) {
@@ -1542,6 +1549,20 @@
       T.ok('F6 · migrate() removeItem()s the folded LEGACY_KEYS', /LEGACY_KEYS\.forEach\([\s\S]{0,200}removeItem/.test(prof));
       T.ok('F5 · renderPanel mounts the shared erase control (DexForget.ensureControl)', /DexForget\.ensureControl\(/.test(prof));
       T.ok('dex-forget.js defines eraseAll + ensureControl + the key inventory', /function\s+eraseAll/.test(forget) && /ensureControl/.test(forget) && /LOCAL_KEYS/.test(forget));
+      // FOLLOWUPS §3 — CPAPDex + Integrator (which don't render the profile panel) mount the erase control themselves.
+      var SRCH = env.srcHtml || {};
+      ['CPAPDex.src.html', 'Integrator.src.html'].forEach(function (n) {
+        var h = SRCH[n];
+        if (h == null) {
+          T.ok('§3 · ' + n + ' source available', false, 'wire env.srcHtml');
+          return;
+        }
+        T.ok(
+          '§3 · ' + n + ' co-loads dex-forget.js + mounts the erase control',
+          /dex-forget\.js/.test(h) && /DexForget\.ensureControl\(/.test(h) && /id="dexForgetSlot"/.test(h),
+          'erase control not mounted'
+        );
+      });
     });
 
     /* ════ 8d · SECURITY — CSP present + no-network enforced in every bundle (SECURITY-REMEDIATION B · F7) ════ */
