@@ -1,7 +1,7 @@
 {
   "_doc": "Generated ledger for the docs-ledger gate's BROWSER lane (fetch can't list a dir): brief names + a whole-tree path inventory (paths[]) for link-integrity. Regenerate with tests/gen-docs-ledger-list.mjs (Node) whenever a brief OR any linkable file is added/removed/renamed; the Node lane asserts BOTH lists match fs reality, so a stale list reds in CI. DOCS-LEDGER-GATE-2026-07-03 (+FOLLOWUPS §F2).",
   "generated": "2026-07-11",
-  "count": 164,
+  "count": 165,
   "briefs": [
     "AMBULATORY-MODE-BRIEF.md",
     "AUDIT-FOLLOWUPS-BRIEF.md",
@@ -11,6 +11,7 @@
     "BADGE-COVERAGE-AUDIT-FOLLOWUPS-2026-06-23-BRIEF.md",
     "BADGE-PLACEMENT-SWEEP-2026-06-24-BRIEF.md",
     "BADGE-PLACEMENT-SWEEP-FOLLOWUPS-2026-06-24-BRIEF.md",
+    "BIOME-FORMATTER-2026-07-11-BRIEF.md",
     "CAPTURE-HOST-2026-06-29-BRIEF.md",
     "CLOCK-UNIFY-BRIEF.md",
     "COHESION-ROLLOUT-BRIEF.md",
@@ -279,6 +280,7 @@
     "briefs/BADGE-COVERAGE-AUDIT-FOLLOWUPS-2026-06-23-BRIEF.md",
     "briefs/BADGE-PLACEMENT-SWEEP-2026-06-24-BRIEF.md",
     "briefs/BADGE-PLACEMENT-SWEEP-FOLLOWUPS-2026-06-24-BRIEF.md",
+    "briefs/BIOME-FORMATTER-2026-07-11-BRIEF.md",
     "briefs/CAPTURE-HOST-2026-06-29-BRIEF.md",
     "briefs/CLOCK-UNIFY-BRIEF.md",
     "briefs/COHESION-ROLLOUT-BRIEF.md",
