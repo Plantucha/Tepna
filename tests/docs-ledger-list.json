@@ -455,6 +455,7 @@
     "cgm-hrv-coupling-analysis.js",
     "changes",
     "changes/2026-07-11-biome-lint-floor.md",
+    "changes/2026-07-11-retire-eslint-biome-lint.md",
     "changes/2026-07-11-security-csp-storage-hygiene-f4-f7.md",
     "changes/2026-07-11-security-followups-erase-coverage.md",
     "changes/README.md",
