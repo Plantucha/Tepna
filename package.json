@@ -16,6 +16,7 @@
     "format": "biome format --write",
     "format:check": "biome ci --no-errors-on-unmatched",
     "format:changed": "biome ci --changed --no-errors-on-unmatched",
+    "lint:biome": "biome lint --no-errors-on-unmatched",
     "test": "node tests/run-tests.mjs",
     "test:build-core": "node tests/build-core-tests.mjs",
     "verify:manifest": "node tests/verify-manifest.mjs",

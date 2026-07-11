@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-11 (**Phases 0–1 LANDED**; **Phase 2 first application DEMONSTRATED** — riding SECURITY-REMEDIATION Phase A's EXPORT-INERT re-bundle, the touched shipped files (`oxydex-app/dsp/util.js`, `pulsedex-app.js`, new `dex-escape.js`) were Biome-formatted on-touch, not standalone; the changed-file format gate forced every touched `*.js` (incl. `tests/*.js`) Biome-clean. **Phase 3** lint-migration still deferred) · **Created:** 2026-07-11 · **Executes:** `DEV-TOOLCHAIN-2026-06-30-BRIEF.md` Part B (Formatter) · **Requires:** a Node host with npm (the Biome binary — not runnable in the current sandbox)
+**Status:** IN-PROGRESS — 2026-07-11 (**Phases 0–1 LANDED**; **Phase 2 first application DEMONSTRATED** — riding SECURITY-REMEDIATION Phase A's EXPORT-INERT re-bundle, the touched shipped files (`oxydex-app/dsp/util.js`, `pulsedex-app.js`, new `dex-escape.js`) were Biome-formatted on-touch, not standalone; the changed-file format gate forced every touched `*.js` (incl. `tests/*.js`) Biome-clean. **Phase 3 STEP 1 LANDED** — the `.eslintrc` lint floor ported to `biome.json` + parity-verified [both 0 errors on the tree] + wired into `format.yml`'s `biome ci --changed`, ESLint kept parallel; Step 2 = retire ESLint after a green CI cycle) · **Created:** 2026-07-11 · **Executes:** `DEV-TOOLCHAIN-2026-06-30-BRIEF.md` Part B (Formatter) · **Requires:** a Node host with npm (the Biome binary — not runnable in the current sandbox)
 
 # Biome — code formatter for Tepna (one self-contained binary, check-only, on-touch, never big-bang)
 
@@ -140,10 +140,23 @@ On a Node host, in a throwaway worktree/copy:
   app re-bundled in that batch can be Biome-formatted in the same pass, converting the legacy tree gradually
   with zero *extra* churn.
 
-## 5 · Phase 3 — (DEFERRED, decision D1) migrate lint to Biome, retire ESLint
-Only if the owner wants Biome to own linting too: port the needed rules to `biome.json` `linter.rules`, run
-`biome ci --changed` for lint as well, retire `lint.yml` + the `npx eslint` script. Its own brief — it changes
-what CI enforces and needs rule-by-rule review against the current ESLint config. **Not in this brief's scope.**
+## 5 · Phase 3 — migrate lint to Biome, retire ESLint · IN-PROGRESS (owner said go 2026-07-11, D1 = yes)
+**STEP 1 DONE 2026-07-11 — rule floor ported + parity-verified + wired parallel (ESLint NOT yet retired).**
+- Ported the `.eslintrc` control-flow/dead-code floor into `biome.json` `linter.rules` (`recommended:false` +
+  the explicit floor). Rule-name/category resolution done via `biome explain` (Biome 2.5.3).
+- **Parity check (measured, whole tree):** ESLint = **0 errors**, 2336 warnings (2168 `eqeqeq` + 168 unused).
+  Biome (mapped) = **0 errors**, 459 warnings (`noUnusedVariables` 409 + `noAssignInExpressions` 48 + `noDoubleEquals` 2).
+  Both **error-clean on the current tree** → the changed-files gate is green from day one. Divergences, all
+  intentional & advisory: `noAssignInExpressions` set `warn` (ESLint's `no-cond-assign: except-parens` has no
+  Biome equivalent); `noDoubleEquals` ignores the `!= null` idiom the code uses; `noUnusedVariables` also flags
+  `_`-prefixed/args ESLint ignored. `biome ci` does **not** fail on warnings (confirmed) — advisory like ESLint's
+  `--max-warnings=100000`.
+- **Wired:** enabling `linter` means the existing `format.yml` `biome ci --changed` now enforces format **+**
+  the lint floor on changed files (no new CI job). `npm run lint:biome` added. **ESLint (`lint.yml`) stays running
+  in parallel this cycle — authoritative until Biome lint proves parity in CI.**
+- **STEP 2 REMAINING — retire ESLint:** after a cycle of green Biome-lint CI, delete `lint.yml` + the `npm run
+  lint` script + `.eslintrc.json`, and flip this phase (and the brief) to DONE. Deferred deliberately (no coverage
+  gap until then).
 
 ## 6 · Scope (B4) — what Biome touches
 **Include:** authored `*.js`/`*.mjs`, `tests/`, `tools/`, `adapters/`. **Exclude:** bundled `*.html`
