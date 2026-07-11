@@ -2,7 +2,7 @@
 
 # SYNTH-TEXTURE — paper reruns & rewrites
 
-**Status:** IN-PROGRESS — 2026-07-07 (execution surfaced 3 scale-only rMSSD-figure artifacts → owner chose a full generator re-texture; that re-fit + the hrv-confound rerun DONE. Follow-up now carries the rest: all 6 papers rerun on 2.1/1.9 + the provenance cascade (6 bundles owned-rebuilt EXPORT-INERT, both gates green) are EXECUTED; only `release.mjs` remains before DONE — see `SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS-2026-07-07-BRIEF.md`) · **Created:** 2026-06-24 · **Blocked-by:** `SYNTH-TEXTURE-2026-06-24-BRIEF.md` (DONE) · **Supersedes-scope:** the rerun list in that brief's §7 · **Follow-up:** `SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS-2026-07-07-BRIEF.md`
+**Status:** DONE — 2026-07-11 (all 6 papers rerun on synth-gen 2.1 / cohort-gen 1.9 + the EXPORT-INERT provenance cascade landed; the last remaining item — `release.mjs` — was cut in the **v1.1.0** release that folded `changes/2026-07-07-synth-gen-v21-retexture-reruns.md` (now in `CHANGELOG.md` + `RELEASE-MANIFEST.json`), tree green. The FOLLOWUPS brief carried Parts 2–5, all executed & gate-verified. Nothing further surfaced.) · **Created:** 2026-06-24 · **Blocked-by:** `SYNTH-TEXTURE-2026-06-24-BRIEF.md` (DONE) · **Supersedes-scope:** the rerun list in that brief's §7 · **Follow-up:** `SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS-2026-07-07-BRIEF.md`
 
 > The generator v-bump in `SYNTH-TEXTURE-2026-06-24-BRIEF.md` (new RR texture + `rsaGainFor` re-fit
 > + `CohortGen/1.8` + `SYNTH.VERSION`) shifts every **RR-derived** number. This brief re-runs the
