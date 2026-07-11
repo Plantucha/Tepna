@@ -1403,6 +1403,34 @@
         /function\s+escHTML\(s\)\s*\{\s*return\s+escapeHTML\(s\)\s*;\s*\}/.test(oxyUtil),
         'escHTML is a per-app copy, not a delegate'
       );
+      // ── GlucoDex meal label → innerHTML (DEEP-AUDIT-FINDINGS-2026-07-11 F1): m.label is user free-text
+      // (persisted → stored XSS) AND a parsed nutrition-CSV column (file-derived). Both DOM sinks must
+      // route it through the shared escaper; GlucoDex was outside Security Phase A. ──
+      var glu = src['glucodex-app.js'] || '';
+      T.ok('F1(GlucoDex) · meal-list label escaped', /mr-label">\$\{escapeHTML\(\s*m\.label\s*\|\|\s*'\(meal\)'\s*\)\}/.test(glu), 'meal-list m.label sink not escaped');
+      T.ok('F1(GlucoDex) · postprandial label escaped', /\$\{escapeHTML\(\s*m\.label\s*\)\}/.test(glu), 'postprandial m.label sink not escaped');
+      T.ok('F1(GlucoDex) · NO unescaped ${m.label} DOM interpolation remains', !!glu && !/\$\{\s*m\.label/.test(glu), 'a raw ${m.label} template sink remains');
+    });
+
+    group('Differential HRV — RR-plausibility upper bound unified to 2000 ms (DEEP-AUDIT 2026-07-11 F3/F5)', 'sources · hrv', function (T) {
+      var s2 = env.sources || {};
+      var ecg = s2['ecgdex-dsp.js'] || '';
+      var pdx = s2['pulsedex-dsp.js'] || '';
+      // F3: ECGDex _malikCorrect (device cross-check) must use buildNN's 300–2000 window so the
+      // corrected-vs-corrected comparison its header promises actually holds for [2000,2200] ms beats.
+      var mc = ecg.match(/function _malikCorrect[\s\S]*?return \{ out, nc \};/);
+      T.ok('ECGDex _malikCorrect present', !!mc);
+      if (mc) {
+        // negative check is operator-anchored (>2200 / <=2200) so a prose comment mentioning the old
+        // bound doesn't false-fail; the code must carry the 2000 operators and no 2200 operator.
+        T.ok('_malikCorrect upper bound is 2000 (matches buildNN), no 2200', /<=\s*2000/.test(mc[0]) && /vals\[i\]\s*>\s*2000/.test(mc[0]) && !/[<>]=?\s*2200/.test(mc[0]), '_malikCorrect still carries a 2200 bound');
+      }
+      // F5: PulseDex artifactClean upper bound unified to 2000 (matches ECGDex buildNN / PpgDex correctRR).
+      var ac = pdx.match(/function artifactClean[\s\S]*?return \{clean:out/);
+      T.ok('PulseDex artifactClean present', !!ac);
+      if (ac) {
+        T.ok('artifactClean upper bound is 2000, no 2200', /vals\[i\]\s*>\s*2000/.test(ac[0]) && !/[<>]=?\s*2200/.test(ac[0]), 'artifactClean still carries a 2200 bound');
+      }
     });
 
     /* ════ 9 · STATIC / MIRROR CONSISTENCY (source text) ════ */

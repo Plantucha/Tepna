@@ -43,9 +43,12 @@
     ppg:  { kind: 'samples', unit: 'au',
             frameFields: ['samples', 'fs', 't0Ms', 'offsetMin'],
             dsp: function () { return g('PpgDex') || g('PPGDSP'); } },  // PpgDex namespace (PPGDSP legacy)
-    cgm:  { kind: 'samples', unit: 'mmol/L',
+    cgm:  { kind: 'samples', unit: 'mg/dL',
             frameFields: ['samples', 'tsMs', 't0Ms'],
             dsp: function () { return g('GLUDSP'); } },            // GlucoDex namespace = GLUDSP
+    // ^ unit is mg/dL — the canonical internal CGM unit every frame actually carries (libre-cgm adapter
+    // builds samples[].v from parsed.vMgdl; GlucoDex computes in mg/dL). Was 'mmol/L', a declared-vs-actual
+    // label mismatch (DEEP-AUDIT-FINDINGS-2026-07-11 F6); consumers of unitOf('cgm') are display-only.
     spo2: { kind: 'samples', unit: '%',
             frameFields: ['samples', 't0Ms'],
             dsp: function () { return { parse: g('parseCSV') }; } }, // OxyDex: bare global + DOM side-effects

@@ -1293,11 +1293,16 @@ function analyze(rec, onProgress){
 // comparison is corrected-vs-corrected (apples-to-apples). Without this, a device that
 // leaves ectopy/missed-beats in its RR (Polar does) shows a false 40%+ rMSSD "mismatch".
 function _malikCorrect(vals){
+  // Range bound MUST match buildNN's 300–2000 ms window (DEEP-AUDIT-FINDINGS-2026-07-11 F3): validateRR
+  // corrects the device RR here and compares it against selfNN (built by buildNN), and the header below
+  // promises a corrected-vs-corrected (apples-to-apples) comparison. A 2200 upper bound here vs 2000 in
+  // buildNN broke that for beats in [2000,2200] ms (sub-~30 bpm bradycardia within 20% of local median) —
+  // kept device-side, replaced self-side → a false self-vs-device mismatch. Unified to 2000.
   const n=vals.length, out=vals.slice(), W=5; let nc=0;
   for(let i=0;i<n;i++){ const seg=[];
-    for(let j=Math.max(0,i-W);j<=Math.min(n-1,i+W);j++){ if(j!==i && vals[j]>=300 && vals[j]<=2200) seg.push(vals[j]); }
+    for(let j=Math.max(0,i-W);j<=Math.min(n-1,i+W);j++){ if(j!==i && vals[j]>=300 && vals[j]<=2000) seg.push(vals[j]); }
     seg.sort((a,b)=>a-b); const med=seg.length?seg[seg.length>>1]:0; const dev=med?Math.abs(vals[i]-med)/med:0;
-    if(vals[i]<300||vals[i]>2200||dev>0.20){ out[i]=med||out[i-1]||1000; nc++; } }
+    if(vals[i]<300||vals[i]>2000||dev>0.20){ out[i]=med||out[i-1]||1000; nc++; } }
   return { out, nc };
 }
 function validateRR(selfNN, deviceRR){

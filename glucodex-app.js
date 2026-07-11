@@ -470,7 +470,7 @@ function renderPPGR(r){
     const sev=m.peakDelta==null?'neutral':m.peakDelta<40?'ok':m.peakDelta<70?'warn':'bad';
     const ret=m.returnedPct;
     return `<div class="q-stat" style="border-left:3px solid ${col}">
-      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><div class="q-lbl" style="margin:0">${typeof evBadge==='function'?evBadge(m.label):''}${m.label}</div><span style="font-size:9.5px;color:var(--text4);font-family:'IBM Plex Mono',monospace">${m.nDays}d · ${m.category}</span></div>
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><div class="q-lbl" style="margin:0">${typeof evBadge==='function'?evBadge(m.label):''}${escapeHTML(m.label)}</div><span style="font-size:9.5px;color:var(--text4);font-family:'IBM Plex Mono',monospace">${m.nDays}d · ${m.category}</span></div>
       <div class="q-val ${sev}" style="margin-top:6px">+${m.peakDelta==null?'—':window.GluDisp.val(m.peakDelta)}<span style="font-size:12px;font-weight:600;color:var(--text3)"> ${window.GluDisp.label()} peak</span></div>
       <div class="q-sub" style="margin-top:5px;line-height:1.7">
         peak at <b style="color:var(--text2)">${m.timeToPeakMin==null?'—':m.timeToPeakMin} min</b> · +2 h Δ <b style="color:var(--text2)">${m.delta2h==null?'—':(m.delta2h>0?'+':'')+window.GluDisp.val(m.delta2h)}</b><br>
@@ -1045,7 +1045,7 @@ function fmtMin(mod){ return String(Math.floor(mod/60)).padStart(2,'0')+':'+Stri
 function renderMealList(){
   const el=$('mealList'); if(!el) return;
   MEALS.sort((a,b)=>a.minOfDay-b.minOfDay);
-  el.innerHTML=MEALS.map((m,i)=>`<div class="meal-row"><span class="mr-time">${fmtMin(m.minOfDay)}</span><span class="mr-cat ${m.category}">${m.category}</span><span class="mr-label">${m.label||'(meal)'}</span><button class="mr-del" data-i="${i}" title="remove">✕</button></div>`).join('');
+  el.innerHTML=MEALS.map((m,i)=>`<div class="meal-row"><span class="mr-time">${fmtMin(m.minOfDay)}</span><span class="mr-cat ${m.category}">${m.category}</span><span class="mr-label">${escapeHTML(m.label||'(meal)')}</span><button class="mr-del" data-i="${i}" title="remove">✕</button></div>`).join('');
   el.querySelectorAll('.mr-del').forEach(b=>b.addEventListener('click',()=>{ MEALS.splice(+b.dataset.i,1); saveMeals(); renderMealList(); reanalyzeMeals(); }));
 }
 function addMeal(){

@@ -4900,14 +4900,22 @@
     scores.rmssd = rmssdScore;
 
     // 2. SpO2 / hypoxic load component (25 pts)
-    var spo2Score = 0;
-    var odi4Rate = odi4 ? odi4.rate : 0;
-    var hd94Rate = hypDose ? hypDose.hd94PerHr : 0;
-    if (odi4Rate < 2 && hd94Rate < 30) spo2Score = 25;
-    else if (odi4Rate < 5 && hd94Rate < 60) spo2Score = 20;
-    else if (odi4Rate < 10 && hd94Rate < 120) spo2Score = 13;
-    else if (odi4Rate < 20) spo2Score = 7;
-    else spo2Score = 2;
+    // Fabricated-absence guard (DEEP-AUDIT-FINDINGS-2026-07-11 F2): absent hypoxia inputs must
+    // NOT seed 0/0 into the best (25/25) bucket — that reads a MISSING desaturation analysis as a
+    // perfect night. When the inputs are absent (reachable via the profile-recompute path, which
+    // passes a stored night that may lack odi4/hypDose), withhold the subscore (null) and the whole
+    // composite rather than fabricating a value. The primary compute path always supplies both, so
+    // this is behaviour-preserving there (export-inert).
+    var spo2Absent = (!odi4 || !hypDose || odi4.rate == null || hypDose.hd94PerHr == null);
+    var spo2Score = null;
+    if (!spo2Absent) {
+      var odi4Rate = odi4.rate, hd94Rate = hypDose.hd94PerHr;
+      if (odi4Rate < 2 && hd94Rate < 30) spo2Score = 25;
+      else if (odi4Rate < 5 && hd94Rate < 60) spo2Score = 20;
+      else if (odi4Rate < 10 && hd94Rate < 120) spo2Score = 13;
+      else if (odi4Rate < 20) spo2Score = 7;
+      else spo2Score = 2;
+    }
     scores.spo2 = spo2Score;
 
     // 3. Sleep architecture (20 pts): duration + REM + deep estimates
@@ -4947,12 +4955,20 @@
     } else hrSlopeScore = 5;
     scores.hrSlope = hrSlopeScore;
 
-    var readiness = rmssdScore + spo2Score + sleepScore + hrFloorScore + hrSlopeScore;
-    readiness = Math.min(100, Math.max(0, readiness));
+    // Withhold the composite when a required component (hypoxia) is absent — a partial sum would
+    // either over- or under-state recovery; null is the honest surface (render shows '—' + reason).
+    var readiness = spo2Absent
+      ? null
+      : Math.min(100, Math.max(0, rmssdScore + spo2Score + sleepScore + hrFloorScore + hrSlopeScore));
 
     // ── Readiness tier ─────────────────────────────────────────────
     var readinessTier, readinessColor, zoneRec, trainingNote;
-    if (readiness >= 85) {
+    if (readiness == null) {
+      readinessTier = 'Readiness withheld';
+      readinessColor = '';
+      zoneRec = 'z2_z3';
+      trainingNote = 'Recovery-readiness withheld — no SpO₂/hypoxia analysis for this night, so the composite is not computed (a missing input is not scored as a good one). The HR training zones below are heart-rate-derived and remain valid.';
+    } else if (readiness >= 85) {
       readinessTier = 'Optimal';
       readinessColor = 'good';
       zoneRec = 'z4_z5';
@@ -4991,10 +5007,10 @@
     // Widely used aerobic base-building ceiling
     var mafHR = 180 - age;
     var mafAdj = '';
-    if (readiness >= 85) {
+    if (readiness != null && readiness >= 85) {
       mafAdj = '+5 (recovering well)';
       mafHR += 5;
-    } else if (readiness < 55) {
+    } else if (readiness != null && readiness < 55) {
       mafAdj = '-10 (recovery deficit)';
       mafHR -= 10;
     } else mafAdj = 'no adjustment';

@@ -402,8 +402,11 @@ function arrMax(a){let m=-Infinity;for(let i=0;i<a.length;i++)if(a[i]>m)m=a[i];r
 function medianOf(a){if(!a.length)return 0;const s=[...a].sort((x,y)=>x-y),n=s.length;return n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2;}
 
 // ─── ARTIFACT CORRECTION ─────────────────────────────────────────────────────
-// Flag beats outside physiology (300–2200ms) or deviating >20% from a local
+// Flag beats outside physiology (300–2000ms) or deviating >20% from a local
 // 11-beat median; replace with that median so timing stays aligned for windowing.
+// Upper bound unified to 2000ms fleet-wide (DEEP-AUDIT-FINDINGS-2026-07-11 F5) to match
+// ECGDex buildNN / PpgDex correctRR (Malik/Kubios) — was 2200, an undocumented cross-node
+// drift that made PulseDex keep [2000,2200]ms beats the other HRV nodes replaced.
 function artifactClean(vals){
   const n=vals.length,out=vals.slice(),flags=new Uint8Array(n),W=5;
   for(let i=0;i<n;i++){
@@ -412,7 +415,7 @@ function artifactClean(vals){
     seg.sort((x,y)=>x-y);
     const med=seg[seg.length>>1]||vals[i];
     const dev=med?Math.abs(vals[i]-med)/med:0;
-    if(vals[i]<300||vals[i]>2200||dev>0.20){flags[i]=1;out[i]=med;}
+    if(vals[i]<300||vals[i]>2000||dev>0.20){flags[i]=1;out[i]=med;}
   }
   let nArt=0;for(let i=0;i<n;i++)nArt+=flags[i];
   return {clean:out,flags,nArt,pct:+(nArt/n*100).toFixed(2)};

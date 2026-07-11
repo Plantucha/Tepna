@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** AUDIT FINDINGS (independent deep-correctness pass per `AUDIT-PROMPT.md`) · **Created:** 2026-07-11 · **Auditor:** AI agent (independent re-run) · **Method:** green baseline by re-computation → invariant + counterexample, differential across redundant paths, dimensional pass at every I/O boundary, end-to-end trace of a committed real export · **Follows:** [`DEEP-AUDIT-FINDINGS-2026-07-01.md`](DEEP-AUDIT-FINDINGS-2026-07-01.md) · **Comparison to the prior ledger:** §Comparison below
+**Status:** AUDIT FINDINGS (independent deep-correctness pass per `AUDIT-PROMPT.md`) · **Created:** 2026-07-11 · **Auditor:** AI agent (independent re-run) · **Method:** green baseline by re-computation → invariant + counterexample, differential across redundant paths, dimensional pass at every I/O boundary, end-to-end trace of a committed real export · **Follows:** [`DEEP-AUDIT-FINDINGS-2026-07-01.md`](DEEP-AUDIT-FINDINGS-2026-07-01.md) · **Comparison to the prior ledger:** §Comparison below · **Executed-by:** [`../briefs/DEEP-AUDIT-FIXES-2026-07-11-BRIEF.md`](../briefs/DEEP-AUDIT-FIXES-2026-07-11-BRIEF.md) — F1/F2/F3/F5/F6 **EXECUTED 2026-07-11** (both gates green; two regression groups added); F4 **DEFERRED** (export-moving — needs the raw corpus) → [`../briefs/DEEP-AUDIT-FIXES-FOLLOWUPS-2026-07-11-BRIEF.md`](../briefs/DEEP-AUDIT-FIXES-FOLLOWUPS-2026-07-11-BRIEF.md)
 
 # Independent deep-audit findings — Tepna Dex suite (2026-07-11)
 
@@ -230,17 +230,26 @@ bug is fixed, and the `÷(N−1)` unification is intact. Where it **adds** to th
   drift that no current gate covers.
 
 ## Prioritized punch-list (correctness first)
-1. **Finding 1 (MED, security):** GlucoDex meal-label → `innerHTML` XSS (stored + nutrition-CSV-derived); load
-   `dex-escape.js` + escape `m.label`. One gated GlucoDex re-bundle, export-inert.
-2. **Finding 3 (MED, surfaced number):** ECGDex `validateRR` bound mismatch (2200 vs 2000) breaks the documented
-   corrected-vs-corrected parity. Align the bounds. One gated ECGDex re-bundle.
-3. **Finding 4 (MED, contract):** ECGDex `apnea`/`hrvStability` not in the shared/automated export → Integrator
-   autonomic-slope + apnea authority silently null. Extend the rich builder or warn + assert.
-4. **Finding 2 (MED, latent):** OxyDex Readiness SpO₂ subscore fabricates best-25 on absent hypoxia; gate on
-   inputs present.
-5. **Finding 5 (LOW):** unify the RR-plausibility upper bound fleet-wide (with #3) + add a differential test.
-6. **Finding 6 (LOW):** fix the `SignalSpec.cgm.unit` label to `mg/dL`.
+1. **Finding 1 (MED, security) — ✅ EXECUTED 2026-07-11:** GlucoDex meal-label → `innerHTML` XSS (stored +
+   nutrition-CSV-derived); loaded `dex-escape.js` + escaped `m.label` at both sinks. GlucoDex
+   `3437c8f9f479→489b1a340d43`, export-inert; regression asserts in the Security group.
+2. **Finding 3 (MED, surfaced number) — ✅ EXECUTED 2026-07-11:** ECGDex `_malikCorrect` bound `2200→2000`
+   to match `buildNN` → corrected-vs-corrected parity holds. ECGDex `32552465d29d→3a18fc5541d1`, export-inert.
+3. **Finding 4 (MED, contract) — ⏸ DEFERRED:** ECGDex `apnea`/`hrvStability` not in the shared/automated
+   export. **Export-moving** (regenerates the ECGDex equiv fixture) → deferred to the follow-up brief §1 for a
+   full-corpus environment.
+4. **Finding 2 (MED, latent) — ✅ EXECUTED 2026-07-11:** OxyDex Readiness now withholds the composite (`null` +
+   "Readiness withheld") instead of fabricating best-25 on absent hypoxia. OxyDex `a2894568e7d7→b039ed5a30db`,
+   export-inert (primary path unchanged).
+5. **Finding 5 (LOW) — ✅ EXECUTED 2026-07-11:** PulseDex RR upper bound `2200→2000`, unified fleet-wide;
+   differential regression group added. PulseDex `c5048c39655f→2c4d1a285ad0` (export-inert by reasoning —
+   equiv leg to be confirmed on a full-corpus run, follow-up §2).
+6. **Finding 6 (LOW) — ✅ EXECUTED 2026-07-11:** `SignalSpec.cgm.unit` `mmol/L→mg/dL`; re-bundled the two
+   orchestrators (non-provenance).
 
-*Each accepted item lands as its own dated gated brief per the `CLAUDE.md` lifecycle; honors the re-bundle +
-GATE-A/fixture and `Dex-Test-Suite.html?full` + `verify-provenance.html` gates; touches no frozen name / the
-`ganglior.node-export` schema / the Clock Contract. No fixes were applied in this pass — findings only.*
+*Per the `CLAUDE.md` lifecycle the accepted items were executed in
+[`../briefs/DEEP-AUDIT-FIXES-2026-07-11-BRIEF.md`](../briefs/DEEP-AUDIT-FIXES-2026-07-11-BRIEF.md) (Status DONE
+— 2026-07-11; five findings; both gates green — GATE A 8/8, `run-tests` 1901 pass/127 groups; a `patch`/`security`
+changeset dropped). No frozen name / the `ganglior.node-export` schema / the Clock Contract was touched. Residue
+(F4 deferred + F5 equiv caveat + latent hypotheses) →
+[`../briefs/DEEP-AUDIT-FIXES-FOLLOWUPS-2026-07-11-BRIEF.md`](../briefs/DEEP-AUDIT-FIXES-FOLLOWUPS-2026-07-11-BRIEF.md).*
