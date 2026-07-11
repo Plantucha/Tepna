@@ -63,6 +63,26 @@
         "INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "1.1.1",
+      "date": "2026-07-11",
+      "bump": "patch",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "32552465d29d",
+        "OxyDex": "7016053b8ee4",
+        "PulseDex": "c221f72959c0",
+        "GlucoDex": "3437c8f9f479",
+        "PpgDex": "9c433c60762a",
+        "HRVDex": "72c8cbc8e9eb",
+        "CPAPDex": "f6926fed9a73",
+        "Integrator": "24ebb7156ca8"
+      },
+      "briefs": [
+        "INTEGRATOR-TCH-ML-ESTIMATOR-2026-07-11-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }

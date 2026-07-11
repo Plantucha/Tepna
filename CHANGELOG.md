@@ -30,6 +30,13 @@ changesets.)
 
 ---
 
+## [1.1.1] — 2026-07-11
+
+### Added
+- Add the ML-TCH / Groslambert-covariance estimator bake-off harness (tools/tch-estimator-bakeoff.mjs); result is a recorded negative — no HR-only candidate beats the min-ρ clamp at N=3, so integrator-tch.js is left unchanged. (`INTEGRATOR-TCH-ML-ESTIMATOR-2026-07-11-BRIEF.md`)
+
+---
+
 ## [1.1.0] — 2026-07-11
 
 ### Added
@@ -199,6 +206,7 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/Plantucha/Tepna/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/Plantucha/Tepna/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Plantucha/Tepna/releases/tag/v1.0.0
