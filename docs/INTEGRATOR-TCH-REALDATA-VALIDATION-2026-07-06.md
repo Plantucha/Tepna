@@ -233,6 +233,43 @@ O2Ring OSA screening AUC 0.91 (`10.1007/s11325-024-03232-9`). Via Consensus: Reh
 < 1 beat; Zhang 2020, J Sports Sci — wrist-PPG meta-analysis (sleep −0.40 bpm); Cao 2021, JMIR — Oura ring nocturnal
 HR low bias. Literature search run 2026-07-11; figures are cited references, not bundled data.*
 
+## 9. Method literature & related work (2026-07-11 literature sweep)
+A targeted sweep (PubMed + Consensus/Semantic-Scholar-ArXiv) surfaced prior art that (a) validates our
+approach, (b) offers a **principled fix for the negative-variance / quiet-order regime** we currently work
+around, and (c) grounds the §4 N-cornered generalization. Cited references only — no runtime/bundled data.
+
+**(1) N-cornered hat + a real fix for negative variance (informs §4 AND `integrator-tch.js`'s `correlated`
+branch).** The TCH extends to N≥3 by least-squares over the pairwise Allan variances — confirming the §4
+sketch (Schatzman 2020/2021). More importantly, the **unphysical negative-AVAR weakness** — exactly the
+regime our quiet-order caveat + auto min-ρ clamp handle heuristically — has two published, principled fixes:
+reformulating TCH as a **maximum-likelihood** problem (non-negative by construction, and yields per-estimate
+uncertainties via bootstrapping; Schatzman 2020), and the **Groslambert / two-sample covariance** (GCOV;
+Vernotte–Calosso–Rubiola) which "converges to zero out of the box" without the equal-noise hypothesis and was
+shown to **outperform TCH** on the negative-variance case (Calosso 2018). **Candidate upgrade:** replace/
+complement `integrator-tch.js`'s min-ρ `correlated` hack with an ML-TCH or Groslambert-covariance estimator —
+a real fix for the quiet-order under-estimate rather than a flag. Would be its own brief (changes the estimator
++ regenerates the golden). Sources: Schatzman 2020 (IFCS-ISAF), Schatzman 2021, Calosso et al. 2018 (IEEE TUFFC).
+
+**(2) Reference-free error estimation is an established cross-domain method (related work for the paper).**
+Sjoberg et al. 2021 (*J. Atmos. Oceanic Tech.*) apply the **same clock-metrology 3CH to atmospheric datasets**
+(N≥3), with a sensitivity analysis to sample size, outliers, biases, and **unknown error correlations** — the
+same limitation set we hit (the ρ problem). This is the direct precedent legitimizing Tepna's transplant of the
+method to consumer physiological HR sensors, and the honest novelty framing ("first application to a co-recorded
+wearable HR trio"). Good anchor for the `sensor-trio-nights` paper's related-work.
+
+**(3) The RMSSD-divergence premise + the motion-ρ design are literature-supported.** PPG-derived PRV is *not*
+ECG HRV — it under-/over-states RMSSD/SDNN/pNN50 (Kass/Kantrowitz 2025, N=931; Dewig 2024 traces it to
+pulse-arrival-time dispersion, RMSSD worse than SDNN) — which is exactly the excess-variance the TCH targets.
+And **motion drives the divergence**: absolute PPG HR error is ~30 % higher in activity than rest (Bent 2020),
+and **ACC-signal filtering of PPG motion artifacts measurably improves PRV** (Prucnal 2025) — direct support for
+`_tchRhoFromMotion` using cross-node motion as the common-mode ρ proxy. For our exact device family, Polar OH1
+(PPG) vs Polar H10 (ECG) RMSSD agrees excellently at rest (ICC 0.955 supine) and degrades with posture/motion
+(Coste 2025) — consistent with the quiet-order (rest) vs motion-divergence picture the hat recovers.
+
+*(Thread not folded here: ECGDex CVHR/apnea prior art — Hayano 2010's ACAT algorithm (CVHR index vs AHI r=0.84,
+AUC 0.913) and Hsu 2020 (ECG-CVHR + 3-axis-ACC patch, combined AUC 0.90) — belongs to `PAPERS-ROADMAP`, not this
+TCH note; recorded here only as a pointer.)*
+
 ## Cross-references
 - `tools/tch-multinight.mjs` — the committed multi-night A/B harness (§7); `node tools/tch-multinight.mjs --selftest`.
 - `briefs/INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md` §1 (this executes its premise leg).

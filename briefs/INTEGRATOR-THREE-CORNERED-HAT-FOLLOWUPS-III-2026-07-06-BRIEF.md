@@ -106,6 +106,16 @@ squares over all pairwise AVARs → per-sensor σ² + inverse-var weights + culp
 Ekström–Koppang / Premoli–Tavella), have `_tchHat` pick the estimator by sensor count, keep the N=3 closed form
 byte-identical. Additive. (Verbatim from FU-I §4 — recorded here so it survives FU-I's DONE stamp.)
 
+**Literature note (2026-07-11 sweep — see docs §9).** The N-cornered least-squares form is confirmed by Schatzman
+2020/2021. More usefully, the sweep found **principled fixes for the negative-variance / quiet-order regime** the
+current `correlated` min-ρ clamp only *flags*: a **maximum-likelihood TCH** (non-negative by construction + gives
+per-estimate uncertainties via bootstrap; Schatzman 2020) and the **Groslambert / two-sample covariance** (GCOV;
+Vernotte–Calosso–Rubiola), which converges without the equal-noise hypothesis and **outperforms TCH** on exactly
+the negative-variance case (Calosso 2018). This is a **candidate estimator upgrade** (its own future brief — it
+changes `integrator-tch.js` and regenerates the golden), independent of §4's N-sensor extension. Cross-domain
+precedent for the whole reference-free approach: Sjoberg 2021 applies 3CH to atmospheric datasets with the same
+unknown-error-correlation limitation (related-work anchor for `SENSOR-TRIO-NIGHTS-PAPER`).
+
 ---
 
 ## Ordering & dependency
