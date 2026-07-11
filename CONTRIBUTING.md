@@ -214,8 +214,7 @@ scripts, and `tsc`/ESLint self-install via `npx -y` on demand. The **one** pinne
 | `npm run check` | typecheck → lint → test → build-core → build:check → verify:manifest | the full Node-lane floor — run before you call it done |
 | `npm test` | `node tests/run-tests.mjs` | after any `*-dsp.js` / `*-cross.js` / `*-app.js` change |
 | `npm run typecheck` | `tsc --noEmit --checkJs` (pinned) | after touching a `tsconfig`-scoped module |
-| `npm run lint` | ESLint over `*.js`/`*.mjs` (pinned, **never** `--fix`) | whole-tree control-flow / dead-code floor (still authoritative this cycle) |
-| `npm run lint:biome` | Biome linter over `*.js`/`*.mjs` (the same floor, mirrored) | Phase-3 parity run — see §B2 |
+| `npm run lint` | Biome linter over `*.js`/`*.mjs` (the control-flow / dead-code floor) | the lint gate (ESLint retired — Phase 3 §B2) |
 | `npm run format` | Biome `format --write` (pass paths) | **on-touch only** — a NET-NEW file, or the one file you are already re-bundling (never the tree; see §B2 below) |
 | `npm run format:changed` | Biome `ci --changed` over changed `*.js`/`*.mjs` — format **+ lint floor** (check-only) | what CI (`format.yml`) enforces — validate before pushing |
 | `npm run build` / `build:app -- <Name>` / `build:check` | `tools/build.mjs --all` / `--app` / `--check` | re-bundle owned bundles / drift guard |
@@ -231,16 +230,16 @@ scripts, and `tsc`/ESLint self-install via `npx -y` on demand. The **one** pinne
 ### §B2 — the formatter is on-touch only, NEVER big-bang (read before you run Biome)
 
 Biome (`biome.json`, tuned to the house 2-space / single-quote / semicolon style, `lineWidth: 200`) is a
-**formatter + a house lint floor** (`assist`/import-sort stays off). Its `linter.rules` mirror the
-`.eslintrc` control-flow / dead-code floor (`noUnreachable`, `noDuplicateObjectKeys`, `noFallthroughSwitchClause`,
-`useIsNan`, `noUnusedVariables`, `noDoubleEquals`, …) — tuned so the **current tree is 0 errors** (parity with
-ESLint's error-clean floor; `noAssignInExpressions` is `warn` because ESLint used `no-cond-assign: except-parens`
-which Biome can't express, and `noDoubleEquals` ignores the `!= null` idiom the code relies on). Warnings are
-advisory (they never fail the gate, like ESLint's `--max-warnings=100000`).
+**formatter + the house lint floor** (`assist`/import-sort stays off). Its `linter.rules` are the control-flow /
+dead-code floor (`noUnreachable`, `noDuplicateObjectKeys`, `noFallthroughSwitchClause`, `useIsNan`,
+`noUnusedVariables`, `noDoubleEquals`, …) — tuned so the **current tree is 0 errors** (`noAssignInExpressions` is
+`warn` because the old ESLint `no-cond-assign: except-parens` has no Biome equivalent, and `noDoubleEquals`
+ignores the `!= null` idiom the code relies on). Warnings are advisory (they never fail the gate).
 
-> **Phase-3 rollout (BIOME-FORMATTER §5 / DEV-TOOLCHAIN Part 3).** ESLint (`lint.yml`, whole-tree) still runs
-> **in parallel** and stays authoritative this cycle; `format.yml`'s `biome ci --changed` now enforces the same
-> floor on changed files. Once Biome lint has proven parity in CI, retire `lint.yml` + the `npm run lint` script.
+> **Biome now owns lint (Phase 3 DONE).** ESLint the tool was **retired** once Biome's floor proved parity in CI —
+> `.eslintrc.json` + the `npx eslint` script are gone and `npm run lint` runs Biome. One pinned tool does format +
+> lint. `lint.yml` survives only as a thin shim: its `eslint`-named job runs `biome lint` to satisfy the stale
+> `eslint` required-check in the `main` Ruleset — delete it once that requirement is removed (Settings → Rules).
 
 The one rule that governs *when* you may apply the **formatter** (the lint floor is check-only, no `--write`):
 
