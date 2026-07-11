@@ -16,9 +16,10 @@ did not block it. None is a live injection; all are hardening / completeness.
 > real therefore requires refactoring ~140 handlers to `addEventListener`/event-delegation fleet-wide — a
 > large, high-risk change for **marginal** value: Phase A already escapes the sinks + `connect-src 'none'`
 > already blocks all egress, so §1 only buys a backstop against a *future* injection regression (already
-> covered by the escaping regression gate). **Recommendation:** keep deferred; if ever wanted, do it as its
-> own dedicated brief that (1) converts inline handlers to delegated listeners, then (2) hashes the
-> remaining inline `<script>`/`<style>` blocks in the owned bundler. Not worth blindly attempting here.
+> covered by the escaping regression gate). **SCHEDULED 2026-07-11** as its own step-by-step brief —
+> **`SECURITY-CSP-STRICT-SCRIPT-SRC-2026-07-11-BRIEF.md`** — which (1) converts inline handlers to delegated
+> listeners (`dex-actions.js`), then (2) hashes the inline `<script>` blocks in the owned bundler and drops
+> `'unsafe-inline'` from `script-src` (style-src stays inline — non-goal). Intended for a fresh thread.
 
 The shipped CSP keeps `'unsafe-inline'` for scripts (the bundles are inline `<script>`, and decision A
 was "baseline now, defer nonce"). So the CSP is an **egress** control (`connect-src`), not an **injection**
