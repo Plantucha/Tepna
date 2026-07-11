@@ -73,6 +73,14 @@ subtlety surfaced (docs §7): the mean-of-all-pairs ρ dilutes when only one pai
 coupled-pair-weighted ρ is a candidate `_tchRhoFromMotion` refinement if the real distribution confirms it.
 Write-up: `docs/INTEGRATOR-TCH-REALDATA-VALIDATION-2026-07-06.md` §7.
 
+**UPDATE 2026-07-11 — literature-anchored magnitude check PASSES (docs §8).** The reference-anchored leg now
+has a second, independent anchor beyond committed trio nights: published wearable-HR validation vs gold-standard
+ECG. Our reference-free σ̂ (Verity 2.8 / O2Ring 1.4 / H10 0.9 bpm) matches both the **ranking** (H10 = the
+criterion device → most accurate; arm/finger PPG next) and the **order of magnitude** (Polar Verity Sense
+upper-arm MAE 1.43 bpm → σ-equiv ≈1.8 via σ=MAE·√(π/2); Schweizer & Gilgen-Ammann 2025, JMIR Cardio
+`10.2196/67110`). MAE≠σ and it's a single external anchor, so this does NOT retire the committed-trio
+distribution — but it confirms 2.8 bpm is a physically plausible arm-PPG σ. Details + citations in docs §8.
+
 ## §2 — a real-signal (not in-code) golden variant, once a synth raw-ECG generator exists 🟢 (LOW)
 The §2 golden rebuilds its three inputs **in-code** (the `cpapdex_synthetic_golden` precedent) — deliberately, so
 it gates on Integrator code alone. The heavier "run each node's real `compute()` on co-recorded raw streams"

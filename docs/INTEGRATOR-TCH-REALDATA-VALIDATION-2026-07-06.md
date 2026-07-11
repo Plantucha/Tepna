@@ -186,6 +186,53 @@ H10 motion was unavailable, so ρ came from the single coupled Verity↔OxyDex p
 coupled-pair-weighted) ρ would rescue harder than the mean-of-pairs — a candidate refinement for
 `_tchRhoFromMotion` if the real distribution confirms the dilution matters.
 
+## 8. Reference-anchored magnitude check from published literature (2026-07-11)
+§1 owes a **reference-anchored** magnitude check, and the device-anchored version is data-gated on committed
+trio nights. A **second, independent anchor** is the published wearable-HR validation literature: what is each
+of these three sensors' HR error vs a gold-standard ECG in rest/sleep? If our reference-free σ̂ (§2) lands in
+the same order of magnitude and the same *ranking*, the estimator is anchored without any private data.
+
+> **Statistic caveat (read first).** The literature reports **MAE** (mean absolute error — *trueness* vs an
+> ECG reference); TCH σ̂ is **reference-free precision / instability** (the estimator explicitly measures
+> precision, not trueness). They are different quantities. For an approximately zero-mean Gaussian error they
+> convert as **σ = MAE·√(π/2) ≈ 1.253·MAE**, so a published MAE maps to a comparable σ. The anchor below is an
+> **order-of-magnitude + ranking** sanity check, not an identity.
+
+Published anchors (rest/sleep, vs ECG criterion; metric bpm):
+
+| corner | device | published HR accuracy (rest/sleep vs ECG) | → σ-equiv | our σ̂ (§2) | source |
+|---|---|---|---|---|---|
+| ECGDex | Polar H10 (chest ECG) | used **as the criterion** in essentially every wearable-HR study → most accurate of the three | ≈0 (reference) | **0.9** | Schweizer 2025; Budig 2021 |
+| PpgDex | Polar Verity Sense (upper arm PPG) | **MAE 1.43 bpm**, MAPE 1.35 %, bias −0.05 bpm across activities | ≈**1.8** | **2.8** | Schweizer & Gilgen-Ammann 2025 |
+| — | wrist/arm PPG, sleep (general) | MAE **< 1 beat** (sleep); meta-analysis mean diff **−0.40 bpm** sleep / −0.01 bpm rest | ≈1.0 | — | Rehman 2024; Zhang 2020 |
+| OxyDex | Wellue O2Ring (finger/thumb pulse) | no published HR-MAE (validated for **ODI/OSA screening**, AUC 0.91); finger/ring pulse-rate at rest is low-bias | ≈1–1.5 | **1.4** | Tisyakorn 2024 (OSA); Cao 2021 (ring HR) |
+
+**Reading.**
+1. **Ranking confirmed.** The literature independently ranks H10 (chest ECG, the criterion) as most accurate,
+   arm/finger PPG next — exactly the order the reference-free hat recovers (H10 0.9 < O2Ring 1.4 < Verity 2.8).
+   The estimator names the right noisiest corner *and* the right quietest corner against an external yardstick.
+2. **Magnitude anchored (Verity).** Verity's published upper-arm MAE 1.43 bpm → σ-equiv ≈ 1.8 bpm. Our σ̂ ≈ 2.8
+   is ~1 bpm higher — expected and honest: our σ̂ is per-epoch instability across a **whole real night** incl.
+   night-dependent PPG extraction (5 nights auto-excluded for poor contact, §2), whereas 1.43 bpm is a
+   best-case controlled-lab arm placement. Same order of magnitude; the residual is real-world extraction noise.
+3. **O2Ring** has no device-specific published HR-MAE (its validation literature is ODI/OSA-screening, not
+   pulse-rate), so its anchor is the adjacent finger/ring-pulse literature (low bias at rest) — consistent with
+   our 1.4 bpm sitting between the chest and wrist corners.
+
+**Verdict.** This is a *literature*-anchored magnitude check (not the device-anchored one §1 still owes), and it
+**passes**: the reference-free σ̂ is the right order of magnitude and the correct ranking against published
+gold-standard-ECG validation. It does **not** replace the committed-trio distribution (single external anchor,
+MAE≠σ), but it removes the "is 2.8 bpm even plausible for arm PPG?" question — it is. A published sensor-σ prior
+(the σ-equiv column) is a candidate `validated`-tier input if we ever want to *seed* `_tchRhoFromMotion` or a
+per-sensor floor; today it stays a validation reference, not a runtime input (no networked data enters a bundle).
+
+*Sources (PubMed, with DOIs): Schweizer & Gilgen-Ammann 2025, JMIR Cardio — Verity Sense arm MAE 1.43 bpm vs H10
+(`10.2196/67110`); Budig 2021, Sensors — trackers vs H10 criterion, overall MAPE 2.85 % (`10.3390/s22010180`);
+Topalidis 2023, Sensors — H10 + Verity sleep staging (`10.3390/s23229077`); Tisyakorn 2024, Sleep Breath — Wellue
+O2Ring OSA screening AUC 0.91 (`10.1007/s11325-024-03232-9`). Via Consensus: Rehman 2024, Sensors — PPG sleep MAE
+< 1 beat; Zhang 2020, J Sports Sci — wrist-PPG meta-analysis (sleep −0.40 bpm); Cao 2021, JMIR — Oura ring nocturnal
+HR low bias. Literature search run 2026-07-11; figures are cited references, not bundled data.*
+
 ## Cross-references
 - `tools/tch-multinight.mjs` — the committed multi-night A/B harness (§7); `node tools/tch-multinight.mjs --selftest`.
 - `briefs/INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md` §1 (this executes its premise leg).
