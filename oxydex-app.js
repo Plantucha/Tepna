@@ -656,3 +656,35 @@ function download(content, fname, type) {
     window.open('data:' + type + ';charset=utf-8,' + encodeURIComponent(content), '_blank');
   }
 }
+
+// Event-delegation actions (CSP strict script-src — dex-actions.js). print/scrollTop/clickEl/stop/
+// removeClosest are DexActions builtins; the rest are OxyDex globals. Lazy window.* wrappers resolve
+// at click time regardless of load order.
+if (window.DexActions)
+  DexActions.registerAll({
+    setMode: function (el) { window.setMode(el.dataset.mode, el); },
+    toggleTheme: function () { window.toggleTheme(); },
+    toggleProfile: function () { window.toggleProfile(); },
+    openProfileNav: function (el) { window.openProfile(); window.mobileNavTo(el.dataset.target, el); },
+    mobileNavTo: function (el) { window.mobileNavTo(el.dataset.target, el); },
+    setGCWindow: function (el) { window.setGCWindow(+el.dataset.win, el); },
+    setGCSmooth: function (el) { window.setGCSmooth(+el.value); },
+    oxyGcSmoothInput: function (el) { var o = document.getElementById('gcSmoothVal'); if (o) o.textContent = el.value; },
+    jumpToNight: function (el) { window.jumpToNight(+el.dataset.idx); },
+    toggleDetail: function (el) { window.toggleDetail(el.dataset.det); },
+    toggleDetailKey: function (el, ev) { if (ev && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); window.toggleDetail(el.dataset.det); } },
+    exportJSON: function () { window.exportJSON(); },
+    exportCSV: function () { window.exportCSV(); },
+    oxySetScrub: function (el) { window.oxySetScrub(el.checked); },
+    downloadParser: function () { window.downloadParser(); },
+    addMoreFiles: function () { window.addMoreFiles(); },
+    clearAll: function () { window.clearAll(); },
+    oxyChipMore: function (el) {
+      var p = el.nextElementSibling;
+      if (!p) return;
+      var open = p.classList.toggle('open');
+      el.textContent = open ? 'less' : '+' + el.dataset.count + ' more';
+      el.setAttribute('aria-expanded', open ? 'true' : 'false');
+    },
+    toggleResearchAccordion: function (el) { window.toggleResearchAccordion(el); }
+  });

@@ -175,7 +175,7 @@ const FIXTURE_FILES = {
 };
 const SOURCE_FILES = ['clock.js','oxydex-util.js','pulsedex-dsp.js','oxydex-dsp.js','hrvdex-dsp.js','integrator-dsp.js','integrator-tch.js','integrator-app.js','integrator-render.js','ppgdex-dsp.js','glucodex-dsp.js','ecgdex-dsp.js',
   'ecgdex-cross.js','oxydex-cross.js','pulsedex-cross.js','ppgdex-cross.js',
-  'crossnight-envelope.js','ecgdex-app.js','ppgdex-app.js','pulsedex-app.js','pulsedex-render.js','hrvdex-app.js','oxydex-app.js','oxydex-render.js','dex-escape.js','dex-forget.js','dex-profile.js','hrvdex-render.js','signal-orchestrate.js','dex-ingest.js',
+  'crossnight-envelope.js','ecgdex-app.js','ppgdex-app.js','pulsedex-app.js','pulsedex-render.js','hrvdex-app.js','oxydex-app.js','oxydex-render.js','oxydex-fusion.js','dex-escape.js','dex-forget.js','dex-actions.js','dex-profile.js','hrvdex-render.js','signal-orchestrate.js','dex-ingest.js',
   'cpapdex-dsp.js','cpapdex-cross.js','cpapdex-edf.js','cpapdex-app.js','cpapdex-fusion.js','ecgdex-morph.js','ppgdex-morph.js','dex-export.js',
   'ganglior-provenance.js','signal-frame.js','glucodex-render.js','glucodex-app.js',
   'cpapdex-render.js','pulsedex-overview.js','ecgdex-profile.js','glucodex-profile.js','ppgdex-profile.js'];
@@ -283,6 +283,15 @@ async function main(){
   const manifests = {};
   await Promise.all(['BUILD-MANIFEST.json','FIXTURE-PROVENANCE.json']
     .map(async f => { const t = await fetchText(f); if(t!=null) manifests[f]=t; }));
+
+  // security · csp-strict (SECURITY-CSP-STRICT-SCRIPT-SRC-2026-07-11): the COMMITTED bundle CSP <meta>
+  // so the gate can assert each shipped script-src has a 'sha256-' hash and no 'unsafe-inline'. Only the
+  // meta is kept (regex off the fetched bundle) — parity with the Node lane's readBundleCsp().
+  const bundleCsp = {};
+  await Promise.all(['CPAPDex.html','ECGDex.html','GlucoDex.html','HRVDex.html','Integrator.html','OxyDex.html','PpgDex.html','PulseDex.html','Data Unifier.html','OverDex.html']
+    .map(async f => { const t = await fetchText(encodeURI(f)); if(t==null) return;
+      const meta = (t.match(/<meta[^>]*http-equiv=["']Content-Security-Policy["'][^>]*>/i)||[''])[0];
+      if(meta) bundleCsp[f] = (meta.match(/content="([^"]*)"/i)||['',''])[1]; }));
 
   // docs-ledger gate (DOCS-LEDGER-GATE-2026-07-03) — the brief lifecycle machine-checked. The browser
   // can't list a directory over fetch, so the brief NAMES come from the committed tests/docs-ledger-list.json
@@ -394,7 +403,7 @@ async function main(){
     DexIngest: window.DexIngest,
     pickProvenanceBanner: window.pickProvenanceBanner,
     docs, hosts, manifests, docsLedger, releaseLedger, discoverability,
-    srcHtml,
+    srcHtml, bundleCsp,
     fixtures, sources, equiv,
     groupFilter: groupFilterStr() || null
   };

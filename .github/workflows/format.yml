@@ -17,6 +17,14 @@ name: format
 # is what makes this §B2-safe — a PR that doesn't touch a legacy file never demands it be reformatted, so
 # this gate is green from day one on the unformatted tree and only enforces format on what's new/touched.
 # `--no-errors-on-unmatched` keeps a docs/config-only PR (zero in-scope files) green instead of erroring.
+#
+# FORMATTER OVERRIDE (SECURITY-CSP-STRICT-SCRIPT-SRC-2026-07-11): a few shipped bundle-source *.js files
+# that predate Biome were touched by that PR with BYTE-MINIMAL diffs (the inline-handler -> data-act
+# migration) but deliberately NOT reflowed — reflowing them churns every provenance fixture (§🔏) AND breaks
+# ~17 format-sensitive source-text safety gates in tests/dex-tests.js. So biome.json `overrides` disables the
+# FORMATTER (only) for exactly those files; the LINTER floor still runs on them. Drop a file from that list
+# the day it is genuinely reformatted on a behavioral re-bundle. (This is the §B2 "on-touch" escape hatch for
+# a legacy file you touched but must not reflow — encoded in config instead of left as a red gate.)
 
 on:
   pull_request:

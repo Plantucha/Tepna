@@ -49,5 +49,24 @@
       }
     }
   },
-  "assist": { "enabled": false }
+  "assist": { "enabled": false },
+  "overrides": [
+    {
+      "includes": [
+        "cpapdex-render.js",
+        "ecgdex-app.js",
+        "glucodex-app.js",
+        "integrator-app.js",
+        "ppgdex-app.js",
+        "pulsedex-render.js",
+        "pulsedex-app.js",
+        "oxydex-render.js",
+        "oxydex-fusion.js",
+        "oxydex-app.js",
+        "hrvdex-dsp.js",
+        "hrvdex-app.js"
+      ],
+      "formatter": { "enabled": false }
+    }
+  ]
 }

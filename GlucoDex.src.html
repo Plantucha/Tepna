@@ -9,8 +9,8 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 <meta charset="UTF-8">
-<!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. 'unsafe-inline' + blob:/data: retained for the inline bundle + blob workers — strict nonce/hash script-src deferred (decision A). -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' __DEX_SCRIPT_HASHES__; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GlucoDex — Continuous Glucose Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -303,7 +303,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     <div class="eb-grp">
       <button class="eb-btn eb-json" type="button" id="btnJSON">⬇ JSON</button>
       <button class="eb-btn eb-csv" type="button" id="btnSumCSV">⬇ CSV</button>
-      <button class="eb-btn eb-pdf" type="button" onclick="window.print()">⬇ PDF</button>
+      <button class="eb-btn eb-pdf" type="button" data-act="print">⬇ PDF</button>
       <span class="eb-div"></span>
       <button class="eb-btn eb-extra" type="button" id="btnCSV">⬇ Cleaned CSV</button>
     </div>
@@ -347,7 +347,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         <div class="icon">🩸</div>
         <h3>Drop CGM file — or click to choose</h3>
         <p><code>.csv / .txt</code> · <code>timestamp, glucose</code> · Abbott Lingo / Libre / Dexcom-style<br>tz-offset, unit (mg/dL ↔ mmol/L) &amp; cadence all auto-detected · multi-week files stream in</p>
-        <button class="upload-btn" type="button" onclick="event.stopPropagation();document.getElementById('gluInput').click()" style="margin-top:12px">Choose CGM File</button>
+        <button class="upload-btn" type="button" data-act="clickEl" data-target="gluInput" style="margin-top:12px">Choose CGM File</button>
       </div>
     </div>
     <div class="synth-line">
@@ -453,14 +453,14 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     <div id="profilePanel" style="display:none">
       <div id="profileHeader">
         <h3>👤 Profile &amp; personalisation</h3>
-        <button type="button" id="profileToggleBtn" onclick="gluProfileToggle()">▲ collapse</button>
+        <button type="button" id="profileToggleBtn" data-act="gluProfileToggle">▲ collapse</button>
       </div>
       <div id="profileAutoDetect"><span id="profileAutoText">Diabetes status &amp; therapy reframe interpretation (targets, hypo goal). A target-range override lets a clinician set custom bounds; enter a lab A1c to validate the GMI proxy against ground truth.</span></div>
       <div id="profileBody">
         <div id="dexProfilePanel"></div>
         <div id="calibRow" style="display:none;margin-top:12px;border:1px solid rgba(88,166,255,.22);background:rgba(88,166,255,.05);border-radius:10px;padding:11px 14px">
           <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:12.5px;color:var(--text2)">
-            <input type="checkbox" id="gluCalib" onchange="gluProfileInput()" style="margin-top:2px;width:16px;height:16px;accent-color:var(--blue);flex-shrink:0">
+            <input type="checkbox" id="gluCalib" data-act-change="gluProfileInput" style="margin-top:2px;width:16px;height:16px;accent-color:var(--blue);flex-shrink:0">
             <span><b style="color:var(--text)">Calibrate trace to lab A1c</b> <span id="calibState" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)"></span><br><span style="font-size:11px;color:var(--text3);line-height:1.5">Shifts every reading by the offset between your sensor's mean glucose and the average glucose your lab A1c implies (ADAG eAG = 28.7·A1c − 46.7). Corrects a systematically low/high sensor. Off by default — informational.</span></span>
           </label>
         </div>
@@ -558,6 +558,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   </div>
   <div class="dxl-seg"><span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span></div>
 </div>
+<script src="dex-actions.js"></script>
 <script src="kernel-constants.js"></script>
 <script src="ganglior-provenance.js"></script>
 <script src="signal-frame.js"></script>

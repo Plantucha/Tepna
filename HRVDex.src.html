@@ -9,8 +9,8 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 <meta charset="UTF-8">
-<!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. 'unsafe-inline' + blob:/data: retained for the inline bundle + blob workers — strict nonce/hash script-src deferred (decision A). -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' __DEX_SCRIPT_HASHES__; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HRVDex — Heart Rate Variability Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -680,32 +680,32 @@ body.light .topbar::after{ opacity:.25; }
 
     <div class="sec-label">Core</div>
     <div class="sb-nav">
-      <div class="sb-item active" onclick="switchTab('overview',this)">📈 Overview</div>
-      <div class="sb-item" onclick="switchTab('timeDomain',this)">⏱ Time-Domain HRV</div>
-      <div class="sb-item" onclick="switchTab('freqDomain',this)">🌊 Frequency-Domain</div>
-      <div class="sb-item" onclick="switchTab('composite',this)">🧮 Composite &amp; ANS</div>
+      <div class="sb-item active" data-act="switchTab" data-tab="overview">📈 Overview</div>
+      <div class="sb-item" data-act="switchTab" data-tab="timeDomain">⏱ Time-Domain HRV</div>
+      <div class="sb-item" data-act="switchTab" data-tab="freqDomain">🌊 Frequency-Domain</div>
+      <div class="sb-item" data-act="switchTab" data-tab="composite">🧮 Composite &amp; ANS</div>
     </div>
 
     <div class="sec-label">Analysis</div>
     <div class="sb-nav">
-      <div class="sb-item" onclick="switchTab('rolling',this)">🔄 Rolling / Trend</div>
-      <div class="sb-item" onclick="switchTab('clinical',this)">🏥 Clinical Risk</div>
-      <div class="sb-item" onclick="switchTab('poincare',this)">🔵 Poincaré &amp; Toichi</div>
-      <div class="sb-item" onclick="switchTab('cognitive',this)">🧠 Cognitive &amp; Resilience</div>
-      <div class="sb-item" onclick="switchTab('patterns',this)">📊 Distributions &amp; Patterns</div>
+      <div class="sb-item" data-act="switchTab" data-tab="rolling">🔄 Rolling / Trend</div>
+      <div class="sb-item" data-act="switchTab" data-tab="clinical">🏥 Clinical Risk</div>
+      <div class="sb-item" data-act="switchTab" data-tab="poincare">🔵 Poincaré &amp; Toichi</div>
+      <div class="sb-item" data-act="switchTab" data-tab="cognitive">🧠 Cognitive &amp; Resilience</div>
+      <div class="sb-item" data-act="switchTab" data-tab="patterns">📊 Distributions &amp; Patterns</div>
     </div>
 
     <div class="sec-label">Fitness</div>
     <div class="sb-nav">
-      <div class="sb-item" onclick="switchTab('fitness',this)">🏃 VO₂max &amp; BP</div>
-      <div class="sb-item" onclick="switchTab('raw',this)">📋 Raw + Derived Table</div>
+      <div class="sb-item" data-act="switchTab" data-tab="fitness">🏃 VO₂max &amp; BP</div>
+      <div class="sb-item" data-act="switchTab" data-tab="raw">📋 Raw + Derived Table</div>
     </div>
 
     <div class="sec-label">Detail Tier</div>
     <div class="mode-bar" role="group" aria-label="Detail level">
-      <button class="mode-btn" data-mode="core"     onclick="setMode('core',this)">Core</button>
-      <button class="mode-btn" data-mode="advanced" onclick="setMode('advanced',this)">Advanced</button>
-      <button class="mode-btn" data-mode="research" onclick="setMode('research',this)">Research</button>
+      <button class="mode-btn" data-mode="core"     data-act="setMode" data-mode="core">Core</button>
+      <button class="mode-btn" data-mode="advanced" data-act="setMode" data-mode="advanced">Advanced</button>
+      <button class="mode-btn" data-mode="research" data-act="setMode" data-mode="research">Research</button>
     </div>
 
     <div class="side-foot">
@@ -732,9 +732,9 @@ body.light .topbar::after{ opacity:.25; }
       </div>
       <div class="topbar-actions">
         <div class="mode-bar" id="modeBar">
-          <button class="mode-btn active" data-mode="core"     onclick="setMode('core',this)">Core</button>
-          <button class="mode-btn"        data-mode="advanced" onclick="setMode('advanced',this)">Advanced</button>
-          <button class="mode-btn"        data-mode="research" onclick="setMode('research',this)">Research</button>
+          <button class="mode-btn active" data-mode="core"     data-act="setMode" data-mode="core">Core</button>
+          <button class="mode-btn"        data-mode="advanced" data-act="setMode" data-mode="advanced">Advanced</button>
+          <button class="mode-btn"        data-mode="research" data-act="setMode" data-mode="research">Research</button>
         </div>
         <div class="mode-hint" id="modeHint">Top 3 graphs per tab — the essentials only</div>
         <span class="top-badge hidden">⚙️ 85+ Metrics</span>
@@ -744,13 +744,13 @@ body.light .topbar::after{ opacity:.25; }
 
 
 <!-- UPLOAD -->
-<div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+<div class="upload-zone" id="uploadZone" data-act="clickEl" data-target="fileInput">
   <div class="icon">📂</div>
   <h3>Drop your HRV exports here</h3>
   <p>Welltory CSV <b>or</b> an ECGDex export (CSV / JSON) · imports are <b>additive</b> — drop many files or nights at once and they stack into one multi-day table (exact duplicates are skipped). Your history is <b>saved in this browser</b> between visits; use <b>Clear saved history</b> to wipe it. All processing is local — no data leaves your device<br><small style="color:var(--yellow)">📱 Android: if a file is grayed out, tap the ⋮ menu → "Show all files"</small></p>
-  <button class="upload-btn" onclick="event.stopPropagation(); document.getElementById('fileInput').click()">Browse Files</button>
-  <input type="file" id="fileInput" accept=".csv,.json,text/csv,application/json,text/plain,application/octet-stream,*/*" onchange="loadFile(event)">
-  <div class="synth-line" onclick="event.stopPropagation()">
+  <button class="upload-btn" data-act="clickEl" data-target="fileInput">Browse Files</button>
+  <input type="file" id="fileInput" accept=".csv,.json,text/csv,application/json,text/plain,application/octet-stream,*/*" data-act-change="loadFile">
+  <div class="synth-line" data-act="stop">
     <span>No device?</span>
     <button class="synth-link" type="button" id="genBtn">Generate synthetic</button>
     <select id="genScenario" title="synthetic patient profile">
@@ -767,14 +767,14 @@ body.light .topbar::after{ opacity:.25; }
     </select>
   </div>
   <div id="pasteToggle" style="margin-top:14px">
-    <button class="upload-btn" style="background:#2d333b;border:1px solid var(--border)" onclick="event.stopPropagation();document.getElementById('pasteFallback').style.display=document.getElementById('pasteFallback').style.display==='none'?'block':'none'">📋 Or paste CSV text</button>
-    <div id="pasteFallback" style="display:none;margin-top:10px" onclick="event.stopPropagation()">
+    <button class="upload-btn" style="background:#2d333b;border:1px solid var(--border)" data-act="hrvTogglePaste">📋 Or paste CSV text</button>
+    <div id="pasteFallback" style="display:none;margin-top:10px" data-act="stop">
       <textarea id="pasteArea" rows="6" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px;font-size:11px;font-family:monospace" placeholder="Paste a Welltory CSV or an ECGDex JSON export here..."></textarea>
-      <button class="upload-btn" style="margin-top:6px" onclick="event.stopPropagation();loadPasted()">Load Pasted CSV</button>
+      <button class="upload-btn" style="margin-top:6px" data-act="loadPasted">Load Pasted CSV</button>
     </div>
   </div>
 
-  <div class="disclosure-card" onclick="event.stopPropagation()">
+  <div class="disclosure-card" data-act="stop">
     <div class="disclosure-header">
       <span class="disclosure-icon">🔬</span>
       <span class="disclosure-title">Power-user companion analytics</span>
@@ -809,9 +809,9 @@ body.light .topbar::after{ opacity:.25; }
 <!-- USER PROFILE (under hero) -->
   <!-- USER PROFILE PANEL — O2Ring structure -->
   <div id="profilePanel" style="display:none">
-    <div id="profileHeader" onclick="toggleProfilePanel()">
+    <div id="profileHeader" data-act="toggleProfilePanel">
       <h3>👤 User Profile &nbsp;<span style="font-size:11px;font-weight:400;color:var(--text2)">— personalizes all formulas &amp; norms</span></h3>
-      <button id="profileToggleBtn" onclick="event.stopPropagation();toggleProfilePanel()">▲ collapse</button>
+      <button id="profileToggleBtn" data-act="toggleProfilePanel">▲ collapse</button>
     </div>
     <div id="profileAutoDetect"><span id="profileAutoText">Upload data to auto-detect stats</span> &nbsp;·&nbsp; Auto-estimated fields shown with ~ prefix · Override with real values</div>
     <div id="profileBody">
@@ -845,35 +845,35 @@ body.light .topbar::after{ opacity:.25; }
     <div>
       <label>View Window:</label>
       <div class="btn-group">
-        <button class="btn active" onclick="setWindow(7,this)">7d</button>
-        <button class="btn" onclick="setWindow(14,this)">14d</button>
-        <button class="btn" onclick="setWindow(30,this)">30d</button>
-        <button class="btn" onclick="setWindow(999,this)">All</button>
+        <button class="btn active" data-act="setWindow" data-win="7">7d</button>
+        <button class="btn" data-act="setWindow" data-win="14">14d</button>
+        <button class="btn" data-act="setWindow" data-win="30">30d</button>
+        <button class="btn" data-act="setWindow" data-win="999">All</button>
       </div>
     </div>
     <div>
       <label>Morning only (before 10am):</label>
-      <input type="checkbox" id="morningOnly" onchange="rerender()">
+      <input type="checkbox" id="morningOnly" data-act-change="rerender">
     </div>
     <div>
       <label>Smoothing: </label>
-      <input type="range" id="smoothRange" min="0" max="5" value="0" oninput="document.getElementById('smoothVal').textContent=this.value; rerender()">
+      <input type="range" id="smoothRange" min="0" max="5" value="0" data-act-input="hrvSmoothInput">
       <span class="range-val" id="smoothVal">0</span>
     </div>
   </div>
 
   <div class="tab-bar">
-    <div class="tab active" onclick="switchTab('overview',this)">📈 Overview</div>
-    <div class="tab" onclick="switchTab('timeDomain',this)">⏱ Time-Domain HRV</div>
-    <div class="tab" onclick="switchTab('freqDomain',this)">🌊 Frequency-Domain</div>
-    <div class="tab" onclick="switchTab('composite',this)">🧮 Composite & ANS</div>
-    <div class="tab" onclick="switchTab('rolling',this)">🔄 Rolling / Trend</div>
-    <div class="tab" onclick="switchTab('clinical',this)">🏥 Clinical Risk</div>
-    <div class="tab" onclick="switchTab('poincare',this)">🔵 Poincaré & Toichi</div>
-    <div class="tab" onclick="switchTab('cognitive',this)">🧠 Cognitive & Resilience</div>
-    <div class="tab" onclick="switchTab('patterns',this)">📊 Distributions & Patterns</div>
-    <div class="tab" onclick="switchTab('fitness',this)">🏃 VO₂max &amp; BP</div>
-    <div class="tab" onclick="switchTab('raw',this)">📋 Raw + Derived Table</div>
+    <div class="tab active" data-act="switchTab" data-tab="overview">📈 Overview</div>
+    <div class="tab" data-act="switchTab" data-tab="timeDomain">⏱ Time-Domain HRV</div>
+    <div class="tab" data-act="switchTab" data-tab="freqDomain">🌊 Frequency-Domain</div>
+    <div class="tab" data-act="switchTab" data-tab="composite">🧮 Composite & ANS</div>
+    <div class="tab" data-act="switchTab" data-tab="rolling">🔄 Rolling / Trend</div>
+    <div class="tab" data-act="switchTab" data-tab="clinical">🏥 Clinical Risk</div>
+    <div class="tab" data-act="switchTab" data-tab="poincare">🔵 Poincaré & Toichi</div>
+    <div class="tab" data-act="switchTab" data-tab="cognitive">🧠 Cognitive & Resilience</div>
+    <div class="tab" data-act="switchTab" data-tab="patterns">📊 Distributions & Patterns</div>
+    <div class="tab" data-act="switchTab" data-tab="fitness">🏃 VO₂max &amp; BP</div>
+    <div class="tab" data-act="switchTab" data-tab="raw">📋 Raw + Derived Table</div>
   </div>
 
   <!-- OVERVIEW TAB -->
@@ -1316,7 +1316,7 @@ body.light .topbar::after{ opacity:.25; }
         <p>Histogram of any metric across the selected range. <span id="histStats" class="pattern-stat">—</span></p>
         <div class="pattern-controls">
           <label for="histMetric">Metric</label>
-          <select id="histMetric" onchange="renderHistogram()"></select>
+          <select id="histMetric" data-act-change="renderHistogram"></select>
         </div>
         <canvas id="ch_hist"></canvas>
       </div>
@@ -1325,9 +1325,9 @@ body.light .topbar::after{ opacity:.25; }
         <p>Pick any two metrics to see how they move together. <span id="corrStats" class="pattern-stat">—</span></p>
         <div class="pattern-controls">
           <label for="corrX">X</label>
-          <select id="corrX" onchange="renderScatterExplorer()"></select>
+          <select id="corrX" data-act-change="renderScatterExplorer"></select>
           <label for="corrY">Y</label>
-          <select id="corrY" onchange="renderScatterExplorer()"></select>
+          <select id="corrY" data-act-change="renderScatterExplorer"></select>
         </div>
         <canvas id="ch_corr"></canvas>
       </div>
@@ -1336,7 +1336,7 @@ body.light .topbar::after{ opacity:.25; }
         <p>Average by weekday — surfaces weekly rhythms (weekend recovery, mid-week strain). <span id="wdStats" class="pattern-stat">—</span></p>
         <div class="pattern-controls">
           <label for="wdMetric">Metric</label>
-          <select id="wdMetric" onchange="renderWeekday()"></select>
+          <select id="wdMetric" data-act-change="renderWeekday"></select>
         </div>
         <canvas id="ch_weekday"></canvas>
       </div>
@@ -1379,6 +1379,7 @@ body.light .topbar::after{ opacity:.25; }
   </div>
   <div class="dxl-seg"><span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span></div>
 </div>
+<script src="dex-actions.js"></script>
 <script src="hrvdex-chart.js"></script>
 <script src="kernel-constants.js"></script>
 <script src="ganglior-provenance.js"></script>
@@ -1400,8 +1401,8 @@ body.light .topbar::after{ opacity:.25; }
 <script src="hrvdex-chartbadges.js"></script>
   </main>
 </div>
-<button id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top" title="Back to top">↑</button>
-<button id="themeToggleBtn" onclick="toggleTheme()" title="Toggle light / dark mode" aria-label="Toggle light/dark theme">
+<button id="backToTop" data-act="scrollTop" aria-label="Back to top" title="Back to top">↑</button>
+<button id="themeToggleBtn" data-act="toggleTheme" title="Toggle light / dark mode" aria-label="Toggle light/dark theme">
   <span class="theme-icon" id="themeIcon">☀️</span>
   <span id="themeLabel">Light</span>
 </button>
@@ -1409,23 +1410,23 @@ body.light .topbar::after{ opacity:.25; }
 <!-- ── Mobile bottom navigation (mirrors OxyDex) ─────────────── -->
 <nav class="mobile-nav" id="mobileNav" role="navigation" aria-label="Main navigation">
   <div class="mobile-nav-modes" role="group" aria-label="Detail level">
-    <button class="mnav-mode-btn" data-mode="core"     onclick="setMode('core',this)">Core</button>
-    <button class="mnav-mode-btn" data-mode="advanced" onclick="setMode('advanced',this)">Advanced</button>
-    <button class="mnav-mode-btn" data-mode="research" onclick="setMode('research',this)">Research</button>
+    <button class="mnav-mode-btn" data-mode="core"     data-act="setMode" data-mode="core">Core</button>
+    <button class="mnav-mode-btn" data-mode="advanced" data-act="setMode" data-mode="advanced">Advanced</button>
+    <button class="mnav-mode-btn" data-mode="research" data-act="setMode" data-mode="research">Research</button>
   </div>
   <div class="mobile-nav-items">
-    <button class="mobile-nav-item active" onclick="hrvNavTo('overview',this)"><span class="mobile-nav-icon">📈</span>Overview</button>
-    <button class="mobile-nav-item" onclick="hrvNavTo('timeDomain',this)"><span class="mobile-nav-icon">⏱</span>Time</button>
-    <button class="mobile-nav-item" onclick="hrvNavTo('freqDomain',this)"><span class="mobile-nav-icon">🌊</span>Freq</button>
-    <button class="mobile-nav-item" onclick="hrvNavTo('composite',this)"><span class="mobile-nav-icon">🧮</span>Composite</button>
-    <button class="mobile-nav-item" onclick="hrvNavTo('rolling',this)"><span class="mobile-nav-icon">🔄</span>Rolling</button>
-    <button class="mobile-nav-item" onclick="hrvNavTo('clinical',this)"><span class="mobile-nav-icon">🏥</span>Clinical</button>
-    <button class="mobile-nav-item" onclick="hrvNavTo('poincare',this)"><span class="mobile-nav-icon">🔵</span>Poincaré</button>
-    <button class="mobile-nav-item" onclick="hrvNavTo('cognitive',this)"><span class="mobile-nav-icon">🧠</span>Cognitive</button>
-    <button class="mobile-nav-item" onclick="hrvNavTo('patterns',this)"><span class="mobile-nav-icon">📊</span>Patterns</button>
-    <button class="mobile-nav-item" onclick="hrvNavTo('fitness',this)"><span class="mobile-nav-icon">🏃</span>Fitness</button>
-    <button class="mobile-nav-item" onclick="hrvNavTo('raw',this)"><span class="mobile-nav-icon">📋</span>Raw</button>
-    <button class="mobile-nav-item" onclick="document.getElementById('profilePanel').scrollIntoView({behavior:'smooth'})"><span class="mobile-nav-icon">⚙</span>Profile</button>
+    <button class="mobile-nav-item active" data-act="hrvNavTo" data-nav="overview"><span class="mobile-nav-icon">📈</span>Overview</button>
+    <button class="mobile-nav-item" data-act="hrvNavTo" data-nav="timeDomain"><span class="mobile-nav-icon">⏱</span>Time</button>
+    <button class="mobile-nav-item" data-act="hrvNavTo" data-nav="freqDomain"><span class="mobile-nav-icon">🌊</span>Freq</button>
+    <button class="mobile-nav-item" data-act="hrvNavTo" data-nav="composite"><span class="mobile-nav-icon">🧮</span>Composite</button>
+    <button class="mobile-nav-item" data-act="hrvNavTo" data-nav="rolling"><span class="mobile-nav-icon">🔄</span>Rolling</button>
+    <button class="mobile-nav-item" data-act="hrvNavTo" data-nav="clinical"><span class="mobile-nav-icon">🏥</span>Clinical</button>
+    <button class="mobile-nav-item" data-act="hrvNavTo" data-nav="poincare"><span class="mobile-nav-icon">🔵</span>Poincaré</button>
+    <button class="mobile-nav-item" data-act="hrvNavTo" data-nav="cognitive"><span class="mobile-nav-icon">🧠</span>Cognitive</button>
+    <button class="mobile-nav-item" data-act="hrvNavTo" data-nav="patterns"><span class="mobile-nav-icon">📊</span>Patterns</button>
+    <button class="mobile-nav-item" data-act="hrvNavTo" data-nav="fitness"><span class="mobile-nav-icon">🏃</span>Fitness</button>
+    <button class="mobile-nav-item" data-act="hrvNavTo" data-nav="raw"><span class="mobile-nav-icon">📋</span>Raw</button>
+    <button class="mobile-nav-item" data-act="scrollToEl" data-target="profilePanel"><span class="mobile-nav-icon">⚙</span>Profile</button>
   </div>
 </nav>
 </body>

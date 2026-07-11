@@ -133,7 +133,7 @@ function oxyReviewBanner(review){
      + (s.build ? 'built <code>' + escHTML(s.build) + '</code>' : 'build unknown')
      + (s.generated ? ' on <code>' + escHTML(s.generated) + '</code>' : '') + '</span>';
   h += '<span class="orb-spacer"></span>';
-  h += '<button class="oxy-review-print" type="button" onclick="window.print()">🖨 Save clinical PDF</button>';
+  h += '<button class="oxy-review-print" type="button" data-act="print">🖨 Save clinical PDF</button>';
   h += '</div>';
   return h;
 }
@@ -721,14 +721,14 @@ function renderAll() {
   html += '<div class="gc-left">';
   html += '<span class="gc-label">View Window:</span>';
   html += '<div class="gc-btn-group">';
-  html += '<button class="gc-btn'+(_gcWin===7?' active':'')+'" onclick="setGCWindow(7,this)">7d</button>';
-  html += '<button class="gc-btn'+(_gcWin===14?' active':'')+'" onclick="setGCWindow(14,this)">14d</button>';
-  html += '<button class="gc-btn'+(_gcWin===30?' active':'')+'" onclick="setGCWindow(30,this)">30d</button>';
-  html += '<button class="gc-btn'+(_gcWin>=999?' active':'')+'" onclick="setGCWindow(999,this)">All</button>';
+  html += '<button class="gc-btn'+(_gcWin===7?' active':'')+'" data-act="setGCWindow" data-win="7">7d</button>';
+  html += '<button class="gc-btn'+(_gcWin===14?' active':'')+'" data-act="setGCWindow" data-win="14">14d</button>';
+  html += '<button class="gc-btn'+(_gcWin===30?' active':'')+'" data-act="setGCWindow" data-win="30">30d</button>';
+  html += '<button class="gc-btn'+(_gcWin>=999?' active':'')+'" data-act="setGCWindow" data-win="999">All</button>';
   html += '</div></div>';
   html += '<div class="gc-right">';
   html += '<span class="gc-label">Smoothing:</span>';
-  html += '<input type="range" id="gcSmooth" class="gc-range" min="0" max="5" value="'+_gcSmooth+'" oninput="document.getElementById(\'gcSmoothVal\').textContent=this.value" onchange="setGCSmooth(+this.value)">';
+  html += '<input type="range" id="gcSmooth" class="gc-range" min="0" max="5" value="'+_gcSmooth+'" data-act-input="oxyGcSmoothInput" data-act-change="setGCSmooth">';
   html += '<span class="gc-range-val" id="gcSmoothVal">'+_gcSmooth+'</span>';
   html += '</div></div>';
 
@@ -1164,7 +1164,7 @@ function renderAll() {
   html+='<div class="njr-title">Nights</div>';
   nights.forEach(function(n, idx){
     var lbl = (typeof shortDate==='function') ? shortDate(n.date) : escHTML(String(n.date).slice(0,10));
-    html+='<button class="njr-item'+(idx===0?' njr-latest':'')+'" onclick="jumpToNight('+idx+')" title="'+escHTML(n.date)+'">'
+    html+='<button class="njr-item'+(idx===0?' njr-latest':'')+'" data-act="jumpToNight" data-idx="'+idx+'" title="'+escHTML(n.date)+'">'
       +'<span class="njr-idx">'+(idx===0?'★':(idx+1))+'</span>'
       +'<span class="njr-date">'+lbl+'</span>'
       +'</button>';
@@ -1172,7 +1172,7 @@ function renderAll() {
   html+='</div>';
   html+='<div class="night-table">';
   nights.forEach(function(n, idx){
-    html+='<div class="night-row" aria-label="Night '+escHTML(n.date)+' — click to expand details" aria-expanded="false" onclick="toggleDetail(\'det'+idx+'\')" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();toggleDetail(\'det'+idx+'\');}">';
+    html+='<div class="night-row" aria-label="Night '+escHTML(n.date)+' — click to expand details" aria-expanded="false" data-act="toggleDetail" data-det="det'+idx+'" role="button" tabindex="0" data-act-keydown="toggleDetailKey">';
     try {
       html+=nightRowInner(n);
     } catch(e) {
@@ -1197,20 +1197,20 @@ function renderAll() {
   if(_exportBar) {
     var _ebHtml = '<span class="eb-label">Export</span>';
     _ebHtml+='<div class="eb-grp">';
-    _ebHtml+='<button class="eb-btn eb-json" type="button" onclick="exportJSON()">⬇ JSON'+(_review?' (derived)':'')+'</button>';
-    _ebHtml+='<button class="eb-btn eb-csv" type="button" onclick="exportCSV()">⬇ CSV</button>';
-    _ebHtml+='<button class="eb-btn eb-pdf" type="button" onclick="window.print()">'+(_review?'🖨 Clinical PDF':'⬇ PDF')+'</button>';
+    _ebHtml+='<button class="eb-btn eb-json" type="button" data-act="exportJSON">⬇ JSON'+(_review?' (derived)':'')+'</button>';
+    _ebHtml+='<button class="eb-btn eb-csv" type="button" data-act="exportCSV">⬇ CSV</button>';
+    _ebHtml+='<button class="eb-btn eb-pdf" type="button" data-act="print">'+(_review?'🖨 Clinical PDF':'⬇ PDF')+'</button>';
     // SELF-INGEST §5 — "scrub for sharing" toggle (default OFF): strips the device serial / filename /
     // input sha256 from the exported JSON while keeping the clinical summary + a coarse build stamp.
     var _scrubOn = !!(typeof window!=='undefined' && window._oxyScrub);
     _ebHtml+='<label class="eb-scrub" title="Strip device serial / filename / input hash from the exported JSON — keeps the clinical summary + a coarse build stamp. For sharing with a clinician.">'
-      + '<input type="checkbox" '+(_scrubOn?'checked ':'')+'onchange="oxySetScrub(this.checked)"> Scrub for sharing</label>';
+      + '<input type="checkbox" '+(_scrubOn?'checked ':'')+'data-act-change="oxySetScrub"> Scrub for sharing</label>';
     _ebHtml+='</div>';
     _ebHtml+='<span class="eb-spacer"></span>';
     _ebHtml+='<div class="eb-grp">';
-    _ebHtml+='<button class="eb-btn eb-ghost" type="button" onclick="downloadParser()">⬇ Parser</button>';
-    _ebHtml+='<button class="eb-btn eb-ghost" type="button" onclick="addMoreFiles()">＋ Add files</button>';
-    _ebHtml+='<button class="eb-btn eb-danger" type="button" onclick="clearAll()">✕ Clear</button>';
+    _ebHtml+='<button class="eb-btn eb-ghost" type="button" data-act="downloadParser">⬇ Parser</button>';
+    _ebHtml+='<button class="eb-btn eb-ghost" type="button" data-act="addMoreFiles">＋ Add files</button>';
+    _ebHtml+='<button class="eb-btn eb-danger" type="button" data-act="clearAll">✕ Clear</button>';
     _ebHtml+='</div>';
     _exportBar.innerHTML = _ebHtml;
     _exportBar.style.display = 'flex';
@@ -1266,7 +1266,7 @@ var errEl = document.getElementById('results');
 if(errEl) {
   errEl.innerHTML = '<div class="results-error-block">'
     + '<strong>⚠ Render Error</strong><br><code class="error-code">' + errDetail + '</code>'
-    + '<br><br><button class="btn btn-outline" onclick="clearAll()">Clear &amp; try again</button></div>';
+    + '<br><br><button class="btn btn-outline" data-act="clearAll">Clear &amp; try again</button></div>';
   errEl.style.display = 'block';
 }
 safeStyle('uploadArea','display','none');
@@ -1549,9 +1549,7 @@ function nightRowInner(n) {
   var extraHtml = '';
   if(extraChipsArr.length > 0){
     extraHtml = '<button class="chip-more-btn" aria-expanded="false"'
-      +' onclick="var p=this.nextElementSibling;p.classList.toggle(\'open\');'
-      +'this.textContent=p.classList.contains(\'open\')?\'less\':\'+'+extraChipsArr.length+' more\';'
-      +'this.setAttribute(\'aria-expanded\',p.classList.contains(\'open\'));">+'+extraChipsArr.length+' more</button>'
+      +' data-act="oxyChipMore" data-count="'+extraChipsArr.length+'">+'+extraChipsArr.length+' more</button>'
       +'<span class="chip-overflow">'+extraChipsArr.join('')+'</span>';
   }
 
@@ -1867,7 +1865,7 @@ function nightDetail(n, idx) {
   var hasAdvanced = (n.spo2Adv && n.spo2Adv.nadirBins) || (n.hrAdv && n.hrAdv.hrIQR!=null) || n.comp;
   if(hasAdvanced) {
     html+='<div class="research-accordion sec-section" data-tier="secondary">';
-    html+='<div class="research-accordion-header" onclick="toggleResearchAccordion(this)">';
+    html+='<div class="research-accordion-header" data-act="toggleResearchAccordion">';
     html+='<span>📊 Composite · SpO₂ Advanced · HR Advanced</span>';
     html+='<span class="research-accordion-header-line"></span>';
     html+='<span class="research-accordion-chevron">▼</span>';
@@ -1913,7 +1911,7 @@ function nightDetail(n, idx) {
 
   // v20: Literature-validated metrics panel — wrapped in research accordion
   html+='<div class="research-accordion sec-section" data-tier="research">';
-  html+='<div class="research-accordion-header" onclick="toggleResearchAccordion(this)">';
+  html+='<div class="research-accordion-header" data-act="toggleResearchAccordion">';
   html+='<span>🔬 Clinical Hypoxic Indices &amp; CT Thresholds</span>';
   html+='<span class="research-accordion-header-line"></span>';
   html+='<span class="research-accordion-chevron">▼</span>';
@@ -2219,7 +2217,7 @@ function renderResearchMetrics(n) {
   });
   if (!body) return '';
   return '<div class="research-accordion sec-section" data-tier="research">'
-    + '<div class="research-accordion-header" onclick="toggleResearchAccordion(this)">'
+    + '<div class="research-accordion-header" data-act="toggleResearchAccordion">'
     + '<span>\uD83D\uDCCB Full Metrics Table</span>'
     + '<span class="research-accordion-header-line"></span>'
     + '<span class="research-accordion-chevron">▼</span></div>'

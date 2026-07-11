@@ -64,7 +64,9 @@ const rawInput = document.getElementById('rawInput');
 const rawZone = document.getElementById('rawZone');
 const wtInput = document.getElementById('wtInput');
 
-rawZone.addEventListener('click', () => rawInput.click());
+// skip clicks on interactive children (the Choose-File button is now data-act="clickEl";
+// the zone must not also fire rawInput.click() — CSP-strict handler migration).
+rawZone.addEventListener('click', (e) => { if (e.target.closest('button,a,label,select,input')) return; rawInput.click(); });
 rawInput.addEventListener('change', (e) => {
   const fs = e.target.files;
   if (!fs || !fs.length) return;
@@ -1346,3 +1348,12 @@ function showErr(msg) {
     } catch (_) {}
   }
 })();
+
+// Event-delegation actions (CSP strict script-src — dex-actions.js). print/clickEl are DexActions
+// builtins; toggleProfilePanel is a PulseDex global (pulsedex-overview.js) and calculate is a
+// top-level PulseDex function. Registered at true top level so the wrappers resolve the globals.
+if (window.DexActions)
+  DexActions.registerAll({
+    toggleProfilePanel: function () { return toggleProfilePanel(); },
+    pulseModeOverride: function () { if (window.lastResult) calculate(); }
+  });

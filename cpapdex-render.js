@@ -585,7 +585,7 @@ function cpapReviewBanner(review){
   h += '<span>Loaded from export · <strong>not recomputed</strong>' + (s.scrubbed ? ' · <strong>scrubbed for sharing</strong>' : '') + '</span>';
   h += '<span class="crb-meta">' + (s.build ? 'built <code>' + esc(s.build) + '</code>' : 'build unknown') + (s.generated ? ' on <code>' + esc(s.generated) + '</code>' : '') + '</span>';
   h += '<span class="crb-spacer"></span>';
-  h += '<button class="cpap-review-print" type="button" onclick="window.print()">\uD83D\uDDA8 Save clinical PDF</button>';
+  h += '<button class="cpap-review-print" type="button" data-act="print">\uD83D\uDDA8 Save clinical PDF</button>';
   h += '</div>';
   return h;
 }

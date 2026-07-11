@@ -1604,6 +1604,66 @@
             .sort()
             .join(',')
       );
+      // SECURITY-CSP-STRICT-SCRIPT-SRC: the same metas now carry a STRICT script-src (no 'unsafe-inline').
+      names.forEach(function (n) {
+        var content = (SRC[n].match(/<meta[^>]*Content-Security-Policy[^>]*content="([^"]*)"/i) || ['', ''])[1];
+        var ss = (content.match(/script-src\s+([^;]*)/i) || ['', ''])[1];
+        T.ok(n + " · script-src is present and drops 'unsafe-inline' (strict, hash-based)", /script-src/.test(content) && !/'unsafe-inline'/.test(ss), ss);
+      });
+    });
+
+    /* ════ 8e · SECURITY — STRICT script-src (SECURITY-CSP-STRICT-SCRIPT-SRC-2026-07-11) ════
+       The inline-handler → event-delegation refactor that lets script-src drop 'unsafe-inline' in
+       favour of per-block sha256 hashes. Guards the whole thing statically (the Playwright harness
+       csp-harness.mjs is the live proof; this is the regression net):
+         (a) no inline on*= handler survives in any .src.html MARKUP (they'd be dead under strict CSP),
+         (b) each .src.html script-src is strict: 'self' + __DEX_SCRIPT_HASHES__ placeholder, no 'unsafe-inline',
+         (c) no runtime innerHTML on*= handler survives in any *.js source,
+         (d) each COMMITTED bundle's script-src carries a 'sha256-' hash and NOT 'unsafe-inline' (env.bundleCsp),
+         (e) dex-actions.js exposes the delegation API (register/registerAll + a document-level delegated listener). */
+    group('CSP strict script-src — inline handlers gone, scripts hashed, no unsafe-inline', 'security · csp-strict', function (T) {
+      var SRC = env.srcHtml || {};
+      var srcNames = Object.keys(SRC);
+      var SOURCES = env.sources || {};
+      var BCSP = env.bundleCsp || {};
+      // markup on*= (strip <script>/<style> so inline-JS/CSS never yields a false positive)
+      var ON_MARKUP = /\son[a-z]+\s*=\s*["']/i;
+      // runtime on*= inside a JS string literal (single/double quote, possibly backslash-escaped)
+      var ON_JS = /\bon(click|change|input|keydown|keyup|submit|mousedown|mouseup|mouseover|mouseout|focus|blur|load|error|scroll|dblclick|contextmenu|wheel|drag|drop)\s*=\s*\\?["']/;
+
+      T.ok('app *.src.html sources available to the csp-strict gate', srcNames.length > 0, srcNames.length ? srcNames.length + ' src.html' : 'wire env.srcHtml in BOTH runners');
+
+      // (a) + (b): per .src.html
+      srcNames.forEach(function (n) {
+        var markup = SRC[n].replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '');
+        var hit = markup.match(ON_MARKUP);
+        T.ok(n + ' · no inline on*= handler in markup (converted to data-act)', !hit, hit ? hit[0] : '');
+        var content = (SRC[n].match(/<meta[^>]*Content-Security-Policy[^>]*content="([^"]*)"/i) || ['', ''])[1];
+        var ss = (content.match(/script-src\s+([^;]*)/i) || ['', ''])[1];
+        T.ok(n + " · strict script-src: 'self' + __DEX_SCRIPT_HASHES__, no 'unsafe-inline'", /__DEX_SCRIPT_HASHES__/.test(ss) && /'self'/.test(ss) && !/'unsafe-inline'/.test(ss), ss);
+      });
+
+      // (c) runtime innerHTML handlers in *.js
+      var badJs = Object.keys(SOURCES).filter(function (n) {
+        return !/(^|\/)tests\//.test(n) && ON_JS.test(SOURCES[n]);
+      });
+      T.ok('no runtime innerHTML on*= handler in any *.js source', badJs.length === 0, badJs.join(', '));
+
+      // (d) committed bundle CSP (Node lane provides env.bundleCsp; browser lane fetches the same slice)
+      var bNames = Object.keys(BCSP);
+      T.ok('committed bundle CSP metas available (env.bundleCsp)', bNames.length > 0, bNames.length ? bNames.length + ' bundle metas' : 'wire env.bundleCsp');
+      bNames.forEach(function (n) {
+        var ss = (BCSP[n].match(/script-src\s+([^;]*)/i) || ['', ''])[1];
+        T.ok(n + " · bundle script-src has a sha256 hash and no 'unsafe-inline'", /'sha256-/.test(ss) && !/'unsafe-inline'/.test(ss), ss);
+      });
+
+      // (e) dex-actions.js dispatcher — constructed-from-source (like dex-escape/dex-forget)
+      var da = SOURCES['dex-actions.js'] || '';
+      T.ok('dex-actions.js present in sources', !!da, 'add dex-actions.js to the runner source list');
+      if (da) {
+        T.ok('dex-actions.js exposes register + registerAll', /function\s+register\b/.test(da) && /function\s+registerAll\b/.test(da));
+        T.ok('dex-actions.js installs a document-level delegated listener that walks .closest([data-act])', /addEventListener/.test(da) && /closest\(/.test(da) && /data-act/.test(da));
+      }
     });
 
     /* ════ 9 · STATIC / MIRROR CONSISTENCY (source text) ════ */
@@ -8784,6 +8844,8 @@
           'THE shared HTML escaper (escapeHTML — SECURITY-REMEDIATION F1/F2/F3) — a display-layer helper for DOM sinks; exercised by the "untrusted filename renders escaped" security group + render-coverage',
         'dex-forget.js':
           'THE shared erase-all + storage-key inventory (SECURITY-REMEDIATION F5) — a display/storage-layer helper; exercised by the "Storage hygiene — erase-all + migrate cleanup" security group + render-coverage',
+        'dex-actions.js':
+          'THE shared event-delegation dispatcher (SECURITY-CSP-STRICT-SCRIPT-SRC — replaces inline on*= so script-src can drop unsafe-inline) — a display-layer helper; exercised by the "security · csp-strict" group + the render-coverage boot (real bundles drive the delegation)',
         'oxydex-fusion.js': 'DOM OxyDex fusion card — render-coverage rig',
         'pulsedex-overview.js': 'DOM PulseDex overview — render-coverage rig',
         'hrvdex-chart.js': 'DOM HRVDex chart — render-coverage rig',
