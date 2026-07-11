@@ -1,13 +1,13 @@
-name: format
+name: biome
 
 # BIOME-FORMATTER Phases 0–1 (formatter) + Phase 3 (lint floor) — Biome, CHECK-ONLY, CHANGED-FILES-ONLY.
 # A CI sibling of types.yml: it runs the ONE pinned dev tool (@biomejs/biome, a self-contained binary) as a
 # formatter AND house-lint-floor GATE over the *.js/*.mjs a PR actually changed — never the untouched legacy
 # tree. `biome ci` runs both the formatter and the linter (biome.json `linter.rules` = the control-flow /
-# dead-code floor, 0 errors on the current tree). ESLint the TOOL was RETIRED in Phase 3 step 2 (.eslintrc +
-# the npx eslint script deleted; `npm run lint` = biome). This job is the real lint gate; `lint.yml` survives
-# only as a thin shim whose `eslint`-named job also runs `biome lint`, to satisfy the stale `eslint` required-
-# check in the main Ruleset (delete lint.yml once that requirement is dropped). Warnings don't fail the gate.
+# dead-code floor, 0 errors on the current tree). ESLint was fully RETIRED in Phase 3 (.eslintrc + the npx
+# eslint script + the old lint.yml workflow all deleted; `npm run lint` = biome). This job is the SOLE lint
+# gate — one pinned tool does format + lint. Warnings do not fail the gate (advisory, as ESLint's
+# --max-warnings=100000 was).
 # CI-ONLY: emits nothing, ships nothing, adds no runtime dependency/CDN — the 100%-local / single-file /
 # offline invariant (CLAUDE.md) is untouched. Biome is a devDependency (package.json), exactly like tsc.
 #
@@ -31,7 +31,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  format:
+  biome:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
