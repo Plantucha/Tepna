@@ -30,6 +30,16 @@ changesets.)
 
 ---
 
+## [1.2.0] — 2026-07-11
+
+### Added
+- Add Biome as a check-only, changed-files-only code formatter (`biome.json` tuned to the house style, pinned `@biomejs/biome` devDependency + lockfile, `format.yml` CI sibling) — no shipped file reformatted, provenance untouched. (`BIOME-FORMATTER-2026-07-11-BRIEF.md`)
+
+### Security
+- Escape untrusted filenames/errors at the OxyDex + PulseDex innerHTML sinks (F1/F2/F3) via one shared dex-escape.js — a crafted `<img onerror>` capture name renders as inert text; display-only, EXPORT-INERT re-bundle (also folds on-touch Biome formatting of the touched files, BIOME-FORMATTER Phase 2). (`SECURITY-REMEDIATION-2026-07-11-BRIEF.md`)
+
+---
+
 ## [1.1.1] — 2026-07-11
 
 ### Added
@@ -206,7 +216,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/Plantucha/Tepna/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/Plantucha/Tepna/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/Plantucha/Tepna/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Plantucha/Tepna/releases/tag/v1.0.0

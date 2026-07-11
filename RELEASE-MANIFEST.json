@@ -83,6 +83,27 @@
         "INTEGRATOR-TCH-ML-ESTIMATOR-2026-07-11-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "1.2.0",
+      "date": "2026-07-11",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "32552465d29d",
+        "OxyDex": "a2894568e7d7",
+        "PulseDex": "c5048c39655f",
+        "GlucoDex": "3437c8f9f479",
+        "PpgDex": "9c433c60762a",
+        "HRVDex": "72c8cbc8e9eb",
+        "CPAPDex": "f6926fed9a73",
+        "Integrator": "24ebb7156ca8"
+      },
+      "briefs": [
+        "BIOME-FORMATTER-2026-07-11-BRIEF.md",
+        "SECURITY-REMEDIATION-2026-07-11-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
