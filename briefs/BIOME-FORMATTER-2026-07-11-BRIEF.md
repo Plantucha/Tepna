@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-11 · **Executes:** `DEV-TOOLCHAIN-2026-06-30-BRIEF.md` Part B (Formatter — "◻ OPEN, NOT STARTED") · **Requires:** a Node host with npm (the Biome binary — not runnable in the current sandbox)
+**Status:** IN-PROGRESS — 2026-07-11 (**Phases 0–1 LANDED** — `biome.json` tuned + pinned, `@biomejs/biome` devDependency + lockfile, `format.yml` check-only/changed-only, CONTRIBUTING §B2; provenance untouched, 0 fixtures re-recorded. **Phase 2** on-touch application + **Phase 3** lint-migration deferred) · **Created:** 2026-07-11 · **Executes:** `DEV-TOOLCHAIN-2026-06-30-BRIEF.md` Part B (Formatter) · **Requires:** a Node host with npm (the Biome binary — not runnable in the current sandbox)
 
 # Biome — code formatter for Tepna (one self-contained binary, check-only, on-touch, never big-bang)
 
@@ -75,6 +75,43 @@ On a Node host, in a throwaway worktree/copy:
    this brief. If a setting can't get churn near-zero on the legacy tree, that just confirms `--changed` is the
    right surface (D3) — the legacy tree is never reformatted anyway.
 4. **Pin the version** (`@biomejs/biome@x.y.z`) so formatting is deterministic across machines.
+
+### Phase 0 — EXECUTED 2026-07-11 (measured on a Node 22 host, Biome pinned `@biomejs/biome@2.5.3`)
+- **Version pinned:** `2.5.3` (latest stable; its `files.includes` glob-negation syntax matches the config
+  sketch above — this is a Biome **2.x** config, not 1.x).
+- **House line-length distribution** over authored `*.js`/`*.mjs` (60 520 lines): p50 = 58, **p90 = 124**,
+  p95 = 165, **p99 = 238**, max = 1687 — a real dense-one-liner tail well past 120.
+- **Churn vs. `lineWidth`** (`biome format --write` on a clean tree → `git diff --shortstat -- '*.js' '*.mjs'`,
+  reverted after each). ~38 k deletions are width-*independent* (object-literal expansion + paren
+  normalization); only the insertions move with width:
+
+  | lineWidth | files | insertions | deletions |
+  |---|---|---|---|
+  | 100 | 127 | 96 305 | 38 580 |
+  | 120 | 127 | 88 579 | 38 391 |
+  | 160 | 127 | 78 329 | 38 255 |
+  | **200** ✅ | 127 | **72 447** | 38 242 |
+  | 240 | 127 | 69 657 | 38 249 |
+  | 320 | 128 | 67 237 | 38 286 |
+
+- **Decision — `lineWidth: 200`.** The churn curve knees around 160–200; 200 covers ~p99 of the existing
+  tail, so nearly all dense one-liners survive unwrapped (minimal on-touch churn) without letting
+  pathological 300-char lines through. Indent = 2 spaces, single quotes, semicolons always, no trailing
+  commas, always-parens arrows — matches the hand-style. `linter` **and** `assist` (import-sort) are OFF
+  (D1 = formatter-only; assist is separate from `linter` and on by default — it must be disabled or it
+  fires "Sort these imports" in CI).
+- **Whole-tree is NOT near-zero at any width (127 files, ~70 k lines).** This empirically **confirms D3**:
+  the legacy tree is never whole-tree formatted; CI enforces `--changed` only.
+- **Banners + SPDX survive:** box-drawing separators (`════`/`━━━`) and SPDX header lines are byte-identical
+  after formatting — only whitespace/indentation moves; no comment *content* is ever rewritten (verified).
+- **JSON ledgers are safe:** scope is `*.js`/`*.mjs` only, so `package.json`, `BUILD-MANIFEST.json`,
+  `FIXTURE-PROVENANCE.json`, `suite.manifest.json` and all fixtures report "Checked 0 files" — Biome
+  processes only its own `biome.json` among JSON. Scope also excludes `docs/`, `scraps/`, `uploads/`,
+  `docs-archive/`, `papers/`, `codegen/generated/`, `node_modules/`, `*.min.js`, `*fixture*` (aligned with
+  the ESLint ignore set). Total in-scope: **128** files.
+- **CI empty-set guard:** `biome ci --changed` exits 1 with "No files were processed" on a docs/config-only
+  PR; `--no-errors-on-unmatched` keeps that green. Verified: a committed misformatted `*.mjs` → red; empty
+  in-scope set → green.
 
 ## 3 · Phase 1 — introduce Biome (config + deps + CI), ZERO reformatting [no re-bundle]
 - Commit the tuned **`biome.json`** (from Phase 0) at repo root.

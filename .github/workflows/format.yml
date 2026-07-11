@@ -1,0 +1,36 @@
+name: format
+
+# DEV-TOOLCHAIN Part B — Biome formatter, CHECK-ONLY, CHANGED-FILES-ONLY (BIOME-FORMATTER brief).
+# A fourth CI sibling of types.yml: it runs the ONE pinned dev tool (@biomejs/biome, a self-contained
+# binary) as a formatter GATE over the *.js/*.mjs a PR actually changed — never the untouched legacy tree.
+# CI-ONLY: emits nothing, ships nothing, adds no runtime dependency/CDN — the 100%-local / single-file /
+# offline invariant (CLAUDE.md) is untouched. Biome is a devDependency (package.json), exactly like tsc.
+#
+# ⚠ CHECK-ONLY — NEVER `--write` in CI (CLAUDE.md §🔏 / brief §B2): a formatter that reflows a shipped
+# *.js moves that bundle's manifestHash and forces a full fixture re-record for identical behavior. So the
+# gate only VALIDATES format; applying it is on-touch only (a file you are already re-bundling). `--changed`
+# is what makes this §B2-safe — a PR that doesn't touch a legacy file never demands it be reformatted, so
+# this gate is green from day one on the unformatted tree and only enforces format on what's new/touched.
+# `--no-errors-on-unmatched` keeps a docs/config-only PR (zero in-scope files) green instead of erroring.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0            # full history so Biome can diff changed files vs the base branch
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install pinned Biome (devDependency; ships nothing)
+        run: npm ci
+      - name: Biome format check — changed *.js/*.mjs only, check-only (never --write)
+        run: |
+          BASE="${{ github.base_ref || 'main' }}"
+          git fetch --no-tags origin "$BASE"
+          npx @biomejs/biome ci --changed --since="origin/$BASE" --no-errors-on-unmatched

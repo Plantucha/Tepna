@@ -204,7 +204,10 @@ The root **`package.json`** is a **dev-tooling manifest only** — `private`, un
 offline / single-file invariant is untouched, same contract as `tsconfig.json`). It is the single
 command surface that unifies the build tooling and the gate runners; the CI workflows call these same
 scripts, so a command lives in exactly one place. No `npm install` is needed for the pure-Node
-scripts; the two pinned dev tools (`tsc`, ESLint) self-install via `npx -y` on demand.
+scripts, and `tsc`/ESLint self-install via `npx -y` on demand. The **one** pinned devDependency is
+**Biome** (`@biomejs/biome`, the formatter — see the §B2 on-touch rule below); it installs via
+`npm ci` from the committed lockfile. It ships nothing and is fetched by nothing at runtime — the
+100%-local invariant is untouched, exactly as `tsc` is.
 
 | Command | Runs | When |
 |---|---|---|
@@ -212,6 +215,8 @@ scripts; the two pinned dev tools (`tsc`, ESLint) self-install via `npx -y` on d
 | `npm test` | `node tests/run-tests.mjs` | after any `*-dsp.js` / `*-cross.js` / `*-app.js` change |
 | `npm run typecheck` | `tsc --noEmit --checkJs` (pinned) | after touching a `tsconfig`-scoped module |
 | `npm run lint` | ESLint over `*.js`/`*.mjs` (pinned, **never** `--fix`) | control-flow / dead-code floor |
+| `npm run format` | Biome `format --write` (pass paths) | **on-touch only** — a NET-NEW file, or the one file you are already re-bundling (never the tree; see §B2 below) |
+| `npm run format:changed` | Biome `ci --changed` over changed `*.js`/`*.mjs` (check-only) | what CI (`format.yml`) enforces — validate before pushing |
 | `npm run build` / `build:app -- <Name>` / `build:check` | `tools/build.mjs --all` / `--app` / `--check` | re-bundle owned bundles / drift guard |
 | `npm run verify:manifest` | `tests/verify-manifest.mjs` | provenance GATE A after a re-bundle |
 | `npm run gen:lists` | regenerate `docs-ledger-list.json` + `changes-list.json` | after adding/removing a brief, linkable file, or changeset |
@@ -221,6 +226,25 @@ scripts; the two pinned dev tools (`tsc`, ESLint) self-install via `npx -y` on d
 > `Dex-Test-Suite.html?full` (behavior) and `verify-provenance.html` (provenance); the browser reads
 > are authoritative here when there is no Node host (§4 above). Never add a shipped dependency to
 > `package.json` — it declares dev tooling only.
+
+### §B2 — the formatter is on-touch only, NEVER big-bang (read before you run Biome)
+
+Biome (`biome.json`, tuned to the house 2-space / single-quote / semicolon style, `lineWidth: 200`) is a
+**formatter only** — linting stays with ESLint (Biome's `linter` **and** `assist`/import-sort are off).
+The one rule that governs *when* you may apply it:
+
+- **CI is `--changed` and CHECK-ONLY.** `format.yml` runs `biome ci --changed` — it validates the format
+  of the `*.js`/`*.mjs` a PR touched and **never `--write`s**. The untouched legacy tree is never
+  checked, so the gate is green from day one and only enforces format on what's new or touched.
+- **Why never a repo-wide `biome format --write`:** reflowing a **shipped** `*.js` changes its bytes,
+  which on re-bundle moves that app's `manifestHash` and forces a full **fixture re-record** (`CLAUDE.md`
+  §🔏) — for *identical behavior*. A "format everything" commit would flip **every** provenance fixture
+  across all 8 bundles for zero functional change. So **do not** run `npm run format` over the tree.
+- **The only two times you `--write` a file:** (a) a **net-new** file, before its first commit — it's
+  Biome-clean by construction; (b) a shipped file you are **already re-bundling** for a behavioral
+  change — fold `npm run format <thatfile>` into that re-bundle so the whitespace rides a `manifestHash`
+  move + fixture re-record you were paying anyway. This is `OWN-THE-BUILD` Part C's "one file at a time,
+  the next time you're already in it," applied to whitespace.
 
 ---
 
