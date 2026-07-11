@@ -1,4 +1,4 @@
-name: format
+name: biome
 
 # BIOME-FORMATTER Phases 0–1 (formatter) + Phase 3 (lint floor) — Biome, CHECK-ONLY, CHANGED-FILES-ONLY.
 # A CI sibling of types.yml: it runs the ONE pinned dev tool (@biomejs/biome, a self-contained binary) as a
@@ -31,7 +31,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  format:
+  biome:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
