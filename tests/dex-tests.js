@@ -1390,7 +1390,14 @@
       }
       // ── source-mirror: each fixed sink routes the untrusted value through the escaper ──
       var oxyApp = src['oxydex-app.js'] || '';
-      T.ok('F1 · oxydex-app filename chip routes name through escHTML', /chip\.innerHTML\s*=\s*'[^']*'\s*\+\s*escHTML\(\s*name\s*\)/.test(oxyApp), 'F1 sink not escaped');
+      // F1 was escaped in Phase A; Phase C (F4 drop) then REMOVED the whole reload-last-session feature,
+      // so no raw filename re-enters the DOM at all (strictly stronger than escaping). Assert the sink/driver
+      // is gone; the deeper F4/F5/F6 checks live in the "Storage hygiene" group below.
+      T.ok(
+        'F1 · oxydex-app reload-chip filename sink removed (Phase C F4 dropped the feature)',
+        !/_oxyRestoreLast/.test(oxyApp) && !/Reload:\s*<strong>'\s*\+/.test(oxyApp),
+        'F1 reload feature still present'
+      );
       var oxyDsp = src['oxydex-dsp.js'] || '';
       T.ok('F3 · oxydex-dsp error text routes String(e) through escHTML', /escHTML\(\s*String\(\s*e\s*\)\s*\)/.test(oxyDsp), 'F3 sink not escaped');
       var pls = src['pulsedex-app.js'] || '';
@@ -1402,6 +1409,179 @@
         'OxyDex escHTML delegates to the shared escapeHTML (single source)',
         /function\s+escHTML\(s\)\s*\{\s*return\s+escapeHTML\(s\)\s*;\s*\}/.test(oxyUtil),
         'escHTML is a per-app copy, not a delegate'
+      );
+    });
+
+    /* ════ 8c · SECURITY — storage hygiene: erase-all + migrate cleanup (SECURITY-REMEDIATION C · F4/F5/F6) ════ */
+    group('Storage hygiene — erase-all + migrate cleanup (F4/F5/F6)', 'security · storage · sources', function (T) {
+      var src = env.sources || {};
+      // Construct DexForget from source (mirrors the dex-escape pattern — no env wiring needed).
+      var DexForget = null;
+      if (src['dex-forget.js']) {
+        try {
+          var mf = { exports: {} };
+          new Function('module', src['dex-forget.js'])(mf);
+          DexForget = mf.exports;
+        } catch (e) {
+          /* stays null → reds below */
+        }
+      }
+      T.ok(
+        'dex-forget.js exposes eraseAll + LOCAL_KEYS + IDB_DBS',
+        !!(DexForget && typeof DexForget.eraseAll === 'function' && Array.isArray(DexForget.LOCAL_KEYS) && Array.isArray(DexForget.IDB_DBS))
+      );
+      if (DexForget && typeof DexForget.eraseAll === 'function') {
+        // (a) F5 FUNCTIONAL — eraseAll clears every populated key + deletes the Integrator IDB.
+        var store = { tepna_profile: 'x', hrvdex_rows_v1: 'x', glucodex_meals: 'x', oxydex_last_csv: 'x', oxydex_profile: 'x', prof_age: '40', keep_me: 'x' };
+        var mockLS = {
+          getItem: function (k) {
+            return k in store ? store[k] : null;
+          },
+          setItem: function (k, v) {
+            store[k] = String(v);
+          },
+          removeItem: function (k) {
+            delete store[k];
+          }
+        };
+        var deleted = [];
+        var res = DexForget.eraseAll({
+          localStorage: mockLS,
+          indexedDB: {
+            deleteDatabase: function (n) {
+              deleted.push(n);
+            }
+          }
+        });
+        T.ok(
+          'eraseAll removes every known health/identity key',
+          store.tepna_profile === undefined &&
+            store.hrvdex_rows_v1 === undefined &&
+            store.glucodex_meals === undefined &&
+            store.oxydex_last_csv === undefined &&
+            store.oxydex_profile === undefined &&
+            store.prof_age === undefined,
+          'left: ' + Object.keys(store).join(',')
+        );
+        T.ok('eraseAll does NOT touch an unrelated key (only the inventory)', store.keep_me === 'x');
+        T.ok('eraseAll deletes the Integrator IndexedDB (ganglior_integrator)', deleted.indexOf('ganglior_integrator') >= 0, deleted.join(','));
+        T.ok('eraseAll reports the removed keys', !!(res && res.removed && res.removed.length >= 6));
+        T.ok('DexForget.IDB_DBS pins the Integrator longitudinal store', DexForget.IDB_DBS.indexOf('ganglior_integrator') >= 0);
+        // (b) F5/F6 PARITY — every legacy key migrate() folds is in the erase set (can't drift apart).
+        if (env.DexProfile && env.DexProfile.LEGACY_KEYS) {
+          var uncovered = env.DexProfile.LEGACY_KEYS.filter(function (k) {
+            return DexForget.LOCAL_KEYS.indexOf(k) < 0;
+          });
+          T.ok('DexProfile.LEGACY_KEYS ⊆ DexForget.LOCAL_KEYS (F6 keys are all erasable)', uncovered.length === 0, uncovered.join(','));
+        }
+        // (c) INVENTORY DRIFT-GUARD — every localStorage key the app sources touch is in the erase set.
+        var KEY_RE = /\.(?:get|set|remove)Item\(\s*['"]([a-z0-9_]+)['"]/gi,
+          missing = {},
+          mm;
+        Object.keys(src).forEach(function (n) {
+          var body = src[n];
+          if (!body) return;
+          KEY_RE.lastIndex = 0;
+          while ((mm = KEY_RE.exec(body))) {
+            if (DexForget.LOCAL_KEYS.indexOf(mm[1]) < 0) missing[mm[1]] = n;
+          }
+        });
+        var miss = Object.keys(missing);
+        T.ok(
+          'every localStorage key in the app sources is in DexForget.LOCAL_KEYS (no un-erasable data)',
+          miss.length === 0,
+          miss
+            .map(function (k) {
+              return k + ' (' + missing[k] + ')';
+            })
+            .join(', ')
+        );
+      }
+      // (d) F6 FUNCTIONAL — migrate() folds a legacy key then DELETES it (confirmed-save cleanup).
+      var P = env.DexProfile;
+      if (P && typeof P.migrate === 'function' && typeof P._setStore === 'function') {
+        var pstore = { oxydex_profile: JSON.stringify({ age: 41, sex: 'M', weight: 80, height: 180 }), prof_age: '41' };
+        var pmock = {
+          getItem: function (k) {
+            return k in pstore ? pstore[k] : null;
+          },
+          setItem: function (k, v) {
+            pstore[k] = String(v);
+          },
+          removeItem: function (k) {
+            delete pstore[k];
+          }
+        };
+        try {
+          P._setStore(pmock);
+          var did = P.migrate();
+          T.ok('F6 · migrate() unifies legacy data → tepna_profile written', did === true && pstore['tepna_profile'] != null);
+          T.ok(
+            'F6 · migrate() DELETES the folded legacy keys (no stale duplicates)',
+            pstore['oxydex_profile'] === undefined && pstore['prof_age'] === undefined,
+            'lingering: ' +
+              Object.keys(pstore)
+                .filter(function (k) {
+                  return k !== 'tepna_profile';
+                })
+                .join(',')
+          );
+        } finally {
+          try {
+            P._setStore();
+          } catch (e) {}
+        }
+      }
+      // (e) SOURCE-MIRROR — the fixes are present, not silently reverted.
+      var odsp2 = src['oxydex-dsp.js'] || '',
+        oapp2 = src['oxydex-app.js'] || '',
+        prof = src['dex-profile.js'] || '',
+        forget = src['dex-forget.js'] || '';
+      T.ok('F4 · the raw-CSV cache write call is gone from oxydex-dsp.js', !/window\._cacheO2CSV\s*\(/.test(odsp2));
+      T.ok('F5 · OxyDex clearAll() removes the raw-cache keys', /clearAll\s*\(\s*\)\s*\{[\s\S]*oxydex_last_csv[\s\S]*removeItem/.test(oapp2));
+      T.ok('F6 · migrate() removeItem()s the folded LEGACY_KEYS', /LEGACY_KEYS\.forEach\([\s\S]{0,200}removeItem/.test(prof));
+      T.ok('F5 · renderPanel mounts the shared erase control (DexForget.ensureControl)', /DexForget\.ensureControl\(/.test(prof));
+      T.ok('dex-forget.js defines eraseAll + ensureControl + the key inventory', /function\s+eraseAll/.test(forget) && /ensureControl/.test(forget) && /LOCAL_KEYS/.test(forget));
+    });
+
+    /* ════ 8d · SECURITY — CSP present + no-network enforced in every bundle (SECURITY-REMEDIATION B · F7) ════ */
+    group('CSP present + no-network enforced in every bundle (F7)', 'security · csp · *.src.html', function (T) {
+      var SRC = env.srcHtml || {};
+      var names = Object.keys(SRC);
+      T.ok('app *.src.html sources available to the CSP gate', names.length > 0, names.length ? names.length + ' src.html' : 'wire env.srcHtml in BOTH runners');
+      if (!names.length) return;
+      var SELF = { 'CPAPDex.src.html': 1, 'Integrator.src.html': 1 }; // fetch committed local samples → connect-src 'self'
+      names.forEach(function (n) {
+        var html = SRC[n] || '';
+        var meta = (html.match(/<meta[^>]*http-equiv=["']Content-Security-Policy["'][^>]*>/i) || [''])[0];
+        T.ok(n + ' · carries a <meta> Content-Security-Policy', !!meta, 'add the CSP meta to the <head>');
+        if (!meta) return;
+        var content = (meta.match(/content="([^"]*)"/i) || ['', ''])[1]; // outer dquotes; the policy uses single quotes
+        T.ok(
+          n + ' · connect-src ' + (SELF[n] ? "'self'" : "'none'") + ' (no-network enforced at the browser)',
+          new RegExp("connect-src\\s+'" + (SELF[n] ? 'self' : 'none') + "'").test(content),
+          content
+        );
+        T.ok(
+          n + " · object-src/base-uri/form-action 'none' (plugin/base/form-exfil closed)",
+          /object-src\s+'none'/.test(content) && /base-uri\s+'none'/.test(content) && /form-action\s+'none'/.test(content),
+          content
+        );
+      });
+      T.ok(
+        "only CPAPDex + Integrator relax connect-src to 'self' (the demo-fetch bundles)",
+        names
+          .filter(function (n) {
+            return /connect-src\s+'self'/.test(SRC[n]);
+          })
+          .sort()
+          .join(',') ===
+          names
+            .filter(function (n) {
+              return SELF[n];
+            })
+            .sort()
+            .join(',')
       );
     });
 
@@ -8581,6 +8761,8 @@
         'oxydex-util.js': 'OxyDex.compute() math dependency (computeCeilingBaselineArr etc.) — exercised by the OxyDex equiv/compute gate (env.equiv.oxydex) + render-coverage',
         'dex-escape.js':
           'THE shared HTML escaper (escapeHTML — SECURITY-REMEDIATION F1/F2/F3) — a display-layer helper for DOM sinks; exercised by the "untrusted filename renders escaped" security group + render-coverage',
+        'dex-forget.js':
+          'THE shared erase-all + storage-key inventory (SECURITY-REMEDIATION F5) — a display/storage-layer helper; exercised by the "Storage hygiene — erase-all + migrate cleanup" security group + render-coverage',
         'oxydex-fusion.js': 'DOM OxyDex fusion card — render-coverage rig',
         'pulsedex-overview.js': 'DOM PulseDex overview — render-coverage rig',
         'hrvdex-chart.js': 'DOM HRVDex chart — render-coverage rig',

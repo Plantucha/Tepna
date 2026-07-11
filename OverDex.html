@@ -19,6 +19,8 @@
   it and every node + the Integrator work byte-identically.
 -->
 <meta charset="UTF-8">
+<!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. 'unsafe-inline' + blob:/data: retained for the inline bundle + blob workers — strict nonce/hash script-src deferred (decision A). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -4538,11 +4540,9 @@ if (!root.__DEX_NAMESPACED__) {
         // Small yield to let the progress bar repaint before heavy render
         setTimeout(function () {
           setProgress(100);
-          setTimeout(function () {
-            try {
-              if (window._cacheO2CSV && typeof rawText !== 'undefined' && rawText) window._cacheO2CSV(rawText, (typeof currentFileName !== 'undefined' ? currentFileName : '') || 'o2ring.csv');
-            } catch (e) {}
-          }, 200);
+          // SECURITY-REMEDIATION-2026-07-11 F4 (drop): removed the _cacheO2CSV call that persisted the
+          // whole raw CSV to localStorage — raw recordings no longer sit at rest (minimization-clean;
+          // also removes F1's payload). The window._cacheO2CSV definition went with the shell block.
           setStatus('');
           renderAll();
           safeSet('fileInput', 'value', '');

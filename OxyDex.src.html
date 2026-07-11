@@ -9,6 +9,8 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 <meta charset="UTF-8">
+<!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. 'unsafe-inline' + blob:/data: retained for the inline bundle + blob workers — strict nonce/hash script-src deferred (decision A). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OxyDex — Nocturnal Oximetry Analyzer · v1.0.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -3777,6 +3779,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
 <script src="crossnight-envelope.js"></script>
 <script src="metric-registry.js"></script>
 <script src="entrance-guard.js"></script>
+<script src="dex-forget.js"></script>
 <script src="dex-profile.js"></script>
 <script src="oxydex-registry.js"></script>
 <script src="oxydex-cross.js"></script>
@@ -4224,30 +4227,11 @@ function toggleResearchAccordion(el) {
 
 </script>
 
-<script>
-(function(){
-  var CK='oxydex_last_csv', NK='oxydex_last_name';
-  window._cacheO2CSV=function(text,name){
-    try{if(text&&text.length<3e6){localStorage.setItem(CK,text);localStorage.setItem(NK,name||'data.csv');}}catch(e){}
-  };
-  window.addEventListener('DOMContentLoaded',function(){
-    var cached,name;
-    try{cached=localStorage.getItem(CK)||localStorage.getItem('o2ring_last_csv');name=localStorage.getItem(NK)||localStorage.getItem('o2ring_last_name')||'last session';}catch(e){}
-    if(cached){
-      var chip=document.createElement('div');
-      chip.id='lastSessionChip';
-      chip.style.cssText='cursor:pointer;margin:8px 0;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:rgba(61,224,208,.08);border:1px solid rgba(61,224,208,.2);border-radius:8px;font-size:12px;color:#3DE0D0';
-      chip.innerHTML='📂 Reload: <strong>'+name+'</strong>';
-      chip.onclick=function(){
-        setProgress&&setProgress(3);
-        try{handleFiles([new File([cached],name,{type:'text/csv'})]);}
-        catch(e){setStatus&&setStatus('⚠ '+e.message,true);}
-      };
-      var ua=document.getElementById('uploadArea');
-      if(ua&&ua.parentNode)ua.parentNode.insertBefore(chip,ua);
-    }
-  });
-})();
-</script>
+<!-- SECURITY-REMEDIATION-2026-07-11 F4 (drop) + F1: the inline "reload last
+     session" block was REMOVED. It defined _cacheO2CSV (persisted the whole raw
+     O2Ring CSV + unscrubbed filename to localStorage forever) and rebuilt a chip
+     that interpolated that filename straight into innerHTML (an unescaped F1
+     sink that only survived because it ran on DOMContentLoaded, already fired in
+     the bundle). Dropping raw-at-rest removes both the storage and the payload. -->
 </body>
 </html>

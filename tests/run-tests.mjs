@@ -131,6 +131,8 @@ function readSources() {
     'oxydex-app.js',
     'oxydex-render.js',
     'dex-escape.js',
+    'dex-forget.js',
+    'dex-profile.js',
     'hrvdex-render.js',
     'signal-orchestrate.js',
     'dex-ingest.js',
