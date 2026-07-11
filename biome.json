@@ -19,6 +19,35 @@
       "arrowParentheses": "always"
     }
   },
-  "linter": { "enabled": false },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": false,
+      "correctness": {
+        "noUnreachable": "error",
+        "noUnsafeFinally": "error",
+        "noSelfAssign": "error",
+        "useIsNan": "error",
+        "noUnusedVariables": "warn",
+        "noConstantCondition": "error",
+        "useValidTypeof": "error",
+        "noGlobalObjectCalls": "error",
+        "noSwitchDeclarations": "off"
+      },
+      "suspicious": {
+        "noFallthroughSwitchClause": "error",
+        "noDuplicateObjectKeys": "error",
+        "noDuplicateParameters": "error",
+        "noDuplicateCase": "error",
+        "noAssignInExpressions": "warn",
+        "noFunctionAssign": "error",
+        "noUnsafeNegation": "error",
+        "noCompareNegZero": "error",
+        "noDoubleEquals": "warn",
+        "noSparseArray": "error",
+        "noSelfCompare": "error"
+      }
+    }
+  },
   "assist": { "enabled": false }
 }
