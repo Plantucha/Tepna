@@ -167,6 +167,10 @@
 
 <!-- real modules: OxyDex stack (plain globals, alone in this realm → no collision), EDF reader, adapter -->
 <script src="kernel-constants.js"></script>
+<!-- clock.js MUST precede any delegating *-dsp.js: oxydex-dsp.js aliases DexClock.parseTimestamp
+     at load (CLAUDE.md §Clock Contract, A5). Without it the page threw
+     "DexClock is not defined" at oxydex-dsp.js:171 and the OxyDex path never came up. -->
+<script src="clock.js"></script>
 <script src="metric-registry.js"></script>
 <script src="oxydex-util.js"></script>
 <script src="oxydex-profile.js"></script>
