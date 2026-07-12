@@ -12492,40 +12492,35 @@
       T.ok('exposes the grouping rule for testing', typeof A.groupSessionSets === 'function');
 
       // ── detect ──
-      T.ok('detect: ResMed filename grammar wins decisively',
-        A.detect({ name: '20260613_231433_BRP.edf' }, '') >= 0.9,
-        A.detect({ name: '20260613_231433_BRP.edf' }, ''));
+      T.ok('detect: ResMed filename grammar wins decisively', A.detect({ name: '20260613_231433_BRP.edf' }, '') >= 0.9, A.detect({ name: '20260613_231433_BRP.edf' }, ''));
       T.ok('detect: a non-EDF file is not ours', A.detect({ name: 'Polar_H10_ECG.txt' }, 'Phone timestamp;ecg [uV]') === 0);
 
       var G = A.groupSessionSets;
 
       // ── 1. the ordinary night: one session, five streams, one anchor ──
-      var one = G(['20260613_231433_BRP.edf', '20260613_231433_PLD.edf', '20260613_231433_EVE.edf',
-                   '20260613_231435_CSL.edf', '20260613_231433_SA2.edf']);
+      var one = G(['20260613_231433_BRP.edf', '20260613_231433_PLD.edf', '20260613_231433_EVE.edf', '20260613_231435_CSL.edf', '20260613_231433_SA2.edf']);
       T.ok('a normal 5-stream session groups into ONE set', one.length === 1, one.length + ' sets');
-      T.ok('  … carrying all 5 types', one.length === 1 && Object.keys(one[0].byType).length === 5,
-        one.length === 1 ? Object.keys(one[0].byType).join(',') : '—');
+      T.ok('  … carrying all 5 types', one.length === 1 && Object.keys(one[0].byType).length === 5, one.length === 1 ? Object.keys(one[0].byType).join(',') : '—');
 
       // ── 2. THE TRAP (§F4): a mask-off/on inside the SAME minute repeats EVE + CSL ──
       // 23 s apart — well inside ±60 s, so a naive cluster would fold them together and the
       // SECOND EVE would overwrite the first. The rule must open a NEW set instead.
-      var names = ['20260613_231433_BRP.edf', '20260613_231433_PLD.edf', '20260613_231433_EVE.edf', '20260613_231433_CSL.edf',
-                   '20260613_231456_EVE.edf', '20260613_231456_CSL.edf'];
+      var names = ['20260613_231433_BRP.edf', '20260613_231433_PLD.edf', '20260613_231433_EVE.edf', '20260613_231433_CSL.edf', '20260613_231456_EVE.edf', '20260613_231456_CSL.edf'];
       var two = G(names);
       T.ok('a repeated type inside ±60 s opens a NEW set (does NOT overwrite)', two.length === 2, two.length + ' sets');
 
       // The load-bearing assertion: NO EVE is lost. This is the actual corpus bug — a silent
       // under-count of scored events, which is why it survived until a whole SD card was run.
-      var eves = 0, csls = 0, i;
+      var eves = 0,
+        csls = 0,
+        i;
       for (i = 0; i < two.length; i++) {
         if (two[i].byType.EVE) eves++;
         if (two[i].byType.CSL) csls++;
       }
       T.ok('BOTH EVE files survive grouping (the silent event-drop is what §F4 is about)', eves === 2, eves + ' of 2');
       T.ok('BOTH CSL files survive grouping', csls === 2, csls + ' of 2');
-      T.ok('the two EVE files are DISTINCT (not the same file counted twice)',
-        two.length === 2 && two[0].byType.EVE && two[1].byType.EVE &&
-        two[0].byType.EVE.file !== two[1].byType.EVE.file);
+      T.ok('the two EVE files are DISTINCT (not the same file counted twice)', two.length === 2 && two[0].byType.EVE && two[1].byType.EVE && two[0].byType.EVE.file !== two[1].byType.EVE.file);
 
       // Regression sentinel: the NAIVE rule (±60 s only, no repeat clause) folds these into one
       // set and drops an EVE. If someone "simplifies" groupSessionSets back to that, the count
@@ -12534,12 +12529,23 @@
       for (i = 0; i < names.length; i++) {
         var st = A.stampOf(names[i]);
         var hit = null;
-        for (var j = 0; j < naive.length; j++) { if (Math.abs(naive[j].sec - st.sec) <= 60) { hit = naive[j]; break; } }
-        if (hit) hit.byType[st.type] = st; else { var bt = {}; bt[st.type] = st; naive.push({ sec: st.sec, byType: bt }); }
+        for (var j = 0; j < naive.length; j++) {
+          if (Math.abs(naive[j].sec - st.sec) <= 60) {
+            hit = naive[j];
+            break;
+          }
+        }
+        if (hit) hit.byType[st.type] = st;
+        else {
+          var bt = {};
+          bt[st.type] = st;
+          naive.push({ sec: st.sec, byType: bt });
+        }
       }
-      var naiveEves = naive.reduce(function (n, c) { return n + (c.byType.EVE ? 1 : 0); }, 0);
-      T.ok('… and the naive ±60 s-only rule DOES drop one (proving the clause is load-bearing)',
-        naive.length === 1 && naiveEves === 1, naive.length + ' set(s), ' + naiveEves + ' EVE');
+      var naiveEves = naive.reduce(function (n, c) {
+        return n + (c.byType.EVE ? 1 : 0);
+      }, 0);
+      T.ok('… and the naive ±60 s-only rule DOES drop one (proving the clause is load-bearing)', naive.length === 1 && naiveEves === 1, naive.length + ' set(s), ' + naiveEves + ' EVE');
 
       // ── 3. a genuinely separate session (> 60 s) is its own set ──
       var far = G(['20260613_231433_BRP.edf', '20260613_232959_BRP.edf']);
@@ -12552,23 +12558,21 @@
 
       // ── 5. Clock Contract: the filename stamp is floating wall-clock, parsed by regex ──
       var s0 = A.stampOf('20260613_231433_BRP.edf');
-      T.eq('stampOf → floating tMs via Date.UTC (components as written)',
-        s0.sec * 1000, Date.UTC(2026, 5, 13, 23, 14, 33));
+      T.eq('stampOf → floating tMs via Date.UTC (components as written)', s0.sec * 1000, Date.UTC(2026, 5, 13, 23, 14, 33));
       T.eq('stampOf → stream type', s0.type, 'BRP');
       T.ok('stampOf: a non-ResMed name → null (never fabricated)', A.stampOf('foo.txt') === null);
 
       // ── 6. parse(): binary in, cpap frame out — and a MISSING payload is a frame, not a throw ──
-      var SF = env.SignalFrame, CD = env.CPAPDex;
+      var SF = env.SignalFrame,
+        CD = env.CPAPDex;
       var noBytes = A.parse('', {});
-      T.ok('parse with no bytes → usable:false frame (never throws)',
-        noBytes && noBytes.usable === false && /ctx\.buffers|ctx\.edfSets/.test(noBytes.reason || ''), noBytes && noBytes.reason);
+      T.ok('parse with no bytes → usable:false frame (never throws)', noBytes && noBytes.usable === false && /ctx\.buffers|ctx\.edfSets/.test(noBytes.reason || ''), noBytes && noBytes.reason);
 
       if (SF && CD && typeof CD._synthEdfSet === 'function') {
         var set = CD._synthEdfSet({ oxi: true, cs: true });
         var fr = A.parse('', { edfSets: [set] });
         T.ok('parse(ctx.edfSets) → schema-valid cpap frame', SF.validateFrame(fr).ok, SF.validateFrame(fr).errors.join('; '));
-        T.ok('  … carries the edfSets sidecar CPAPDex.compute() rebuilds the night from',
-          Array.isArray(fr.edfSets) && fr.edfSets.length === 1);
+        T.ok('  … carries the edfSets sidecar CPAPDex.compute() rebuilds the night from', Array.isArray(fr.edfSets) && fr.edfSets.length === 1);
         T.ok('  … samples = the 25 Hz BRP Flow waveform', !!(fr.samples && fr.samples.length) && fr.fs === 25, fr.fs);
         T.ok('  … t0Ms is finite (floating, off the decoded EDF header — not the filename)', isFinite(fr.t0Ms), fr.t0Ms);
       }
@@ -12595,35 +12599,42 @@
     group('event-coupling — shuffled-null cross-node coupling (CPAP-REAL-CORPUS §P5/§M1)', 'event-coupling · spine', function (T) {
       var EC = env.EventCoupling;
       var live = !!(EC && typeof EC.coupling === 'function' && typeof EC.selfTest === 'function');
-      T.ok('event-coupling.js co-loaded and exposes coupling()/selfTest()', live,
-        live ? '' : 'co-load event-coupling.js in BOTH runners (run-tests.mjs loadInto + Dex-Test-Suite.html)');
+      T.ok('event-coupling.js co-loaded and exposes coupling()/selfTest()', live, live ? '' : 'co-load event-coupling.js in BOTH runners (run-tests.mjs loadInto + Dex-Test-Suite.html)');
       if (!live) return;
 
       // 1. the module's own self-test (planted coupling · null · circular wrap · strata ·
       //    window sweep · saturation · honest NaN edges · determinism)
       var st = EC.selfTest();
-      T.ok('selfTest: 0 failed', st.fail === 0,
-        st.fail + ' failed — ' + st.log.filter(function (l) { return l.charAt(0) === '✗'; }).join(' | '));
+      T.ok(
+        'selfTest: 0 failed',
+        st.fail === 0,
+        st.fail +
+          ' failed — ' +
+          st.log
+            .filter(function (l) {
+              return l.charAt(0) === '✗';
+            })
+            .join(' | ')
+      );
       T.ok('selfTest: asserts a non-trivial number of properties (≥ 15)', st.pass >= 15, st.pass + ' passed');
 
       // 2. contract shape, re-asserted from env so a signature change reds here too
       var T0 = Date.UTC(2026, 5, 13, 23, 0, 0);
-      var B = [], i;
+      var B = [],
+        i;
       for (i = 0; i < 120; i++) B.push({ tMs: T0 + i * 60000 });
       var A = [];
       for (i = 10; i < 110; i++) A.push({ tMs: B[i].tMs - 2000, durSec: i < 60 ? 10 : 60 });
       var span = [T0, T0 + 2 * 3600 * 1000];
 
       var r = EC.coupling(A, B, { window: [0, 10000], span: span, stratifyBy: 'durSec' });
-      ['n', 'hits', 'observedPct', 'chancePct', 'lift', 'maxLift', 'saturated',
-        'spanMs', 'window', 'windowSweep', 'strata'].forEach(function (k) {
+      ['n', 'hits', 'observedPct', 'chancePct', 'lift', 'maxLift', 'saturated', 'spanMs', 'window', 'windowSweep', 'strata'].forEach(function (k) {
         T.ok('coupling() returns ' + k, Object.prototype.hasOwnProperty.call(r, k));
       });
       T.ok('windowSweep is an array of measurements', Array.isArray(r.windowSweep) && r.windowSweep.length > 0);
       T.ok('strata is an array (stratifyBy honored)', Array.isArray(r.strata) && r.strata.length >= 2, r.strata.length);
       T.ok('planted coupling recovered (lift > 1 on a tight window)', r.lift > 1, r.lift);
-      T.ok('lift never exceeds its arithmetic ceiling maxLift', !isFinite(r.maxLift) || r.lift <= r.maxLift + 1e-9,
-        r.lift + ' vs ' + r.maxLift);
+      T.ok('lift never exceeds its arithmetic ceiling maxLift', !isFinite(r.maxLift) || r.lift <= r.maxLift + 1e-9, r.lift + ' vs ' + r.maxLift);
 
       // 3. the honest-edge rule: 0 observed on 0 chance is NO INFORMATION (NaN), never "no effect" (0 or 1)
       var none = EC.coupling(A, [], { window: [0, 10000], span: span });
@@ -12632,9 +12643,7 @@
       T.ok('empty A → n = 0, lift NaN, no throw', empty.n === 0 && isNaN(empty.lift), empty.lift);
 
       // 4. purity — no clock read, no RNG: identical inputs must give identical output
-      T.eq('deterministic across calls (pure: no now(), no random)',
-        JSON.stringify(EC.coupling(A, B, { window: [0, 10000], span: span, stratifyBy: 'durSec' })),
-        JSON.stringify(r));
+      T.eq('deterministic across calls (pure: no now(), no random)', JSON.stringify(EC.coupling(A, B, { window: [0, 10000], span: span, stratifyBy: 'durSec' })), JSON.stringify(r));
     });
 
     /* Selection already happened at declaration time (see group() above) — a group that

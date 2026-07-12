@@ -89,9 +89,12 @@
   // These offsets are second-level and share no common factor with 30/60/120 s, so no round
   // periodicity in B can re-phase them.  (Caught by this module's own gate: a 60 s-periodic B
   // scored a planted, perfect coupling at lift 1.006 under whole-minute shifts.)
-  var DEFAULT_SHIFTS = [-887000, -809000, -663000, -461000, -317000,
-                         317000,  461000,  663000,  809000,  887000];
-  var DEFAULT_SWEEP = [[0, 30000], [0, 60000], [0, 120000]];
+  var DEFAULT_SHIFTS = [-887000, -809000, -663000, -461000, -317000, 317000, 461000, 663000, 809000, 887000];
+  var DEFAULT_SWEEP = [
+    [0, 30000],
+    [0, 60000],
+    [0, 120000]
+  ];
 
   function _finiteTs(events) {
     var out = [];
@@ -104,16 +107,20 @@
 
   function _quantile(sorted, p) {
     if (!sorted.length) return NaN;
-    var idx = (sorted.length - 1) * p, lo = Math.floor(idx), hi = Math.ceil(idx);
+    var idx = (sorted.length - 1) * p,
+      lo = Math.floor(idx),
+      hi = Math.ceil(idx);
     return lo === hi ? sorted[lo] : sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
   }
 
   /* Sorted-B + binary search: the first B at or after t. O(|A|·log|B|) per surrogate. */
   function _lowerBound(sortedB, t) {
-    var lo = 0, hi = sortedB.length;
+    var lo = 0,
+      hi = sortedB.length;
     while (lo < hi) {
       var mid = (lo + hi) >> 1;
-      if (sortedB[mid] < t) lo = mid + 1; else hi = mid;
+      if (sortedB[mid] < t) lo = mid + 1;
+      else hi = mid;
     }
     return lo;
   }
@@ -131,7 +138,7 @@
 
   /* Circular displacement within [s0, s1). This is the whole point — see the header. */
   function _wrap(tMs, shift, s0, width) {
-    if (!(width > 0)) return tMs + shift;                 // degenerate span → cannot wrap
+    if (!(width > 0)) return tMs + shift; // degenerate span → cannot wrap
     var d = (tMs - s0 + shift) % width;
     if (d < 0) d += width;
     return s0 + d;
@@ -139,7 +146,7 @@
 
   function _lift(observedPct, chancePct) {
     if (!isFinite(observedPct) || !isFinite(chancePct)) return NaN;
-    if (chancePct === 0) return observedPct === 0 ? NaN : Infinity;   // never coerce to 1.0
+    if (chancePct === 0) return observedPct === 0 ? NaN : Infinity; // never coerce to 1.0
     return observedPct / chancePct;
   }
 
@@ -154,19 +161,28 @@
   /* One (window × event-set) measurement against the circular-shift null. */
   function _measure(A, sortedB, lo, hi, shifts, s0, width) {
     if (!A.length) {
-      return { n: 0, hits: 0, observedPct: NaN, chancePct: NaN, lift: NaN,
-               maxLift: NaN, saturated: false, nullPcts: [] };
+      return { n: 0, hits: 0, observedPct: NaN, chancePct: NaN, lift: NaN, maxLift: NaN, saturated: false, nullPcts: [] };
     }
-    var tA = A.map(function (e) { return e.tMs; });
+    var tA = A.map(function (e) {
+      return e.tMs;
+    });
     var obs = _hitRate(tA, sortedB, lo, hi);
 
-    var nullPcts = shifts.map(function (s) {
-      var shifted = tA.map(function (t) { return _wrap(t, s, s0, width); });
-      return _hitRate(shifted, sortedB, lo, hi).pct;
-    }).filter(function (p) { return isFinite(p); });
+    var nullPcts = shifts
+      .map(function (s) {
+        var shifted = tA.map(function (t) {
+          return _wrap(t, s, s0, width);
+        });
+        return _hitRate(shifted, sortedB, lo, hi).pct;
+      })
+      .filter(function (p) {
+        return isFinite(p);
+      });
 
     var chancePct = nullPcts.length
-      ? nullPcts.reduce(function (a, b) { return a + b; }, 0) / nullPcts.length
+      ? nullPcts.reduce(function (a, b) {
+          return a + b;
+        }, 0) / nullPcts.length
       : NaN;
 
     var maxLift = _maxLift(chancePct);
@@ -194,18 +210,26 @@
     var B = _finiteTs(eventsB || []);
 
     var win = opts.window || DEFAULT_WINDOW;
-    var lo = win[0], hi = win[1];
+    var lo = win[0],
+      hi = win[1];
     var shifts = opts.nullShifts || DEFAULT_SHIFTS;
 
-    var sortedB = B.map(function (e) { return e.tMs; }).sort(function (a, b) { return a - b; });
+    var sortedB = B.map(function (e) {
+      return e.tMs;
+    }).sort(function (a, b) {
+      return a - b;
+    });
 
     // Span for the circular wrap. Derived from the union of both streams when not supplied —
     // a real choice, so it is reported back as spanMs rather than buried.
     var s0, s1;
     if (opts.span && isFinite(opts.span[0]) && isFinite(opts.span[1])) {
-      s0 = opts.span[0]; s1 = opts.span[1];
+      s0 = opts.span[0];
+      s1 = opts.span[1];
     } else {
-      var all = A.concat(B).map(function (e) { return e.tMs; });
+      var all = A.concat(B).map(function (e) {
+        return e.tMs;
+      });
       s0 = all.length ? Math.min.apply(null, all) : 0;
       s1 = all.length ? Math.max.apply(null, all) : 0;
     }
@@ -221,9 +245,13 @@
       var m = _measure(A, sortedB, w[0], w[1], shifts, s0, width);
       return {
         window: [w[0], w[1]],
-        n: m.n, hits: m.hits,
-        observedPct: m.observedPct, chancePct: m.chancePct, lift: m.lift,
-        maxLift: m.maxLift, saturated: m.saturated
+        n: m.n,
+        hits: m.hits,
+        observedPct: m.observedPct,
+        chancePct: m.chancePct,
+        lift: m.lift,
+        maxLift: m.maxLift,
+        saturated: m.saturated
       };
     });
 
@@ -231,13 +259,18 @@
     out.strata = [];
     if (opts.stratifyBy) {
       var key = opts.stratifyBy;
-      var vals = A.map(function (e) { return e[key]; })
-                  .filter(function (v) { return v != null && isFinite(v); })
-                  .sort(function (a, b) { return a - b; });
+      var vals = A.map(function (e) {
+        return e[key];
+      })
+        .filter(function (v) {
+          return v != null && isFinite(v);
+        })
+        .sort(function (a, b) {
+          return a - b;
+        });
 
       if (vals.length) {
-        var edges = opts.strataEdges ||
-          [_quantile(vals, 0.25), _quantile(vals, 0.50), _quantile(vals, 0.75)];
+        var edges = opts.strataEdges || [_quantile(vals, 0.25), _quantile(vals, 0.5), _quantile(vals, 0.75)];
         // Dedupe: a degenerate field (all one value) collapses to a single bucket rather
         // than emitting empty strata that read as "we looked and found nothing".
         var uniq = [];
@@ -247,7 +280,8 @@
         var bounds = [-Infinity].concat(uniq, [Infinity]);
 
         for (var b = 0; b < bounds.length - 1; b++) {
-          var loB = bounds[b], hiB = bounds[b + 1];
+          var loB = bounds[b],
+            hiB = bounds[b + 1];
           /* jshint loopfunc:true */
           var bucket = A.filter(function (e) {
             var v = e[key];
@@ -256,10 +290,16 @@
           if (!bucket.length) continue;
           var sm = _measure(bucket, sortedB, lo, hi, shifts, s0, width);
           out.strata.push({
-            by: key, lo: loB, hi: hiB,
-            n: sm.n, hits: sm.hits,
-            observedPct: sm.observedPct, chancePct: sm.chancePct, lift: sm.lift,
-            maxLift: sm.maxLift, saturated: sm.saturated
+            by: key,
+            lo: loB,
+            hi: hiB,
+            n: sm.n,
+            hits: sm.hits,
+            observedPct: sm.observedPct,
+            chancePct: sm.chancePct,
+            lift: sm.lift,
+            maxLift: sm.maxLift,
+            saturated: sm.saturated
           });
         }
       }
@@ -270,19 +310,26 @@
 
   /* ══ self-test ═══════════════════════════════════════════════════════════════════════ */
   function selfTest() {
-    var pass = 0, fail = 0, log = [];
+    var pass = 0,
+      fail = 0,
+      log = [];
     function ok(name, cond, got) {
-      (cond ? pass++ : fail++);
+      cond ? pass++ : fail++;
       log.push((cond ? '✓ ' : '✗ ') + name + (cond ? '' : ' — got ' + got));
     }
-    function near(a, b, tol) { return a != null && isFinite(a) && Math.abs(a - b) <= tol; }
+    function near(a, b, tol) {
+      return a != null && isFinite(a) && Math.abs(a - b) <= tol;
+    }
 
     // Deterministic LCG — no Math.random (it would break reproducibility).
     var _s = 12345;
-    function rnd() { _s = (_s * 1103515245 + 12345) & 0x7fffffff; return _s / 0x7fffffff; }
+    function rnd() {
+      _s = (_s * 1103515245 + 12345) & 0x7fffffff;
+      return _s / 0x7fffffff;
+    }
 
-    var T0 = Date.UTC(2026, 5, 13, 23, 0, 0);   // floating tMs, per the Clock Contract
-    var SPAN_MS = 3 * 3600 * 1000;              // 3 h recording
+    var T0 = Date.UTC(2026, 5, 13, 23, 0, 0); // floating tMs, per the Clock Contract
+    var SPAN_MS = 3 * 3600 * 1000; // 3 h recording
 
     // Stream B: ~every 60 s with ±15 s deterministic jitter (jitter defeats the resonance
     // failure the header warns about — a perfectly periodic B would re-phase the surrogates).
@@ -298,39 +345,36 @@
     var r1 = coupling(Acoupled, B, { window: [0, 10000], span: span });
     ok('planted coupling: observed = 100%', near(r1.observedPct, 100, 0.01), r1.observedPct);
     ok('planted coupling: lift >> 1 (≥3)', r1.lift >= 3, r1.lift);
-    ok('planted coupling: chance is non-zero (circular wrap kept A in-span)',
-       r1.chancePct > 0 && r1.chancePct < 60, r1.chancePct);
+    ok('planted coupling: chance is non-zero (circular wrap kept A in-span)', r1.chancePct > 0 && r1.chancePct < 60, r1.chancePct);
     ok('planted coupling: hits = n', r1.hits === r1.n, r1.hits + '/' + r1.n);
 
     // ── 2. the null itself: A independent of B → lift ≈ 1 (this is the whole §M1 point) ──
     var Aindep = [];
     for (var k = 0; k < 160; k++) Aindep.push({ tMs: T0 + Math.floor(rnd() * SPAN_MS), durSec: 30 });
     var r2 = coupling(Aindep, B, { window: [0, 10000], span: span });
-    ok('independent streams: lift ≈ 1 (0.6–1.6) despite frequent co-occurrence',
-       r2.lift > 0.6 && r2.lift < 1.6, r2.lift);
-    ok('independent streams: raw co-occurrence is NOT ~0 (the trap the null defuses)',
-       r2.observedPct > 5, r2.observedPct);
+    ok('independent streams: lift ≈ 1 (0.6–1.6) despite frequent co-occurrence', r2.lift > 0.6 && r2.lift < 1.6, r2.lift);
+    ok('independent streams: raw co-occurrence is NOT ~0 (the trap the null defuses)', r2.observedPct > 5, r2.observedPct);
 
     // ── 3. circular wrap: chance must not collapse (the prototype's non-wrapping bug) ──
     // A huge shift past the recording end must still land in-span and score a real rate.
     var rWrap = coupling(Acoupled, B, {
-      window: [0, 10000], span: span, nullShifts: [SPAN_MS * 4 + 137000]
+      window: [0, 10000],
+      span: span,
+      nullShifts: [SPAN_MS * 4 + 137000]
     });
-    ok('circular wrap: a 4×-span shift still yields a finite, non-zero chance',
-       isFinite(rWrap.chancePct) && rWrap.chancePct > 0, rWrap.chancePct);
+    ok('circular wrap: a 4×-span shift still yields a finite, non-zero chance', isFinite(rWrap.chancePct) && rWrap.chancePct > 0, rWrap.chancePct);
 
     // ── 4. duration strata: coupling planted ONLY in the long events (§M1's decisive check) ──
     var Amixed = [];
-    for (var m = 10; m < 90; m++) Amixed.push({ tMs: B[m].tMs - 2000, durSec: 60 });    // long → coupled
-    for (var n = 90; n < 170; n++) Amixed.push({ tMs: B[n].tMs + 30000, durSec: 5 });   // short → not
+    for (var m = 10; m < 90; m++) Amixed.push({ tMs: B[m].tMs - 2000, durSec: 60 }); // long → coupled
+    for (var n = 90; n < 170; n++) Amixed.push({ tMs: B[n].tMs + 30000, durSec: 5 }); // short → not
     var r4 = coupling(Amixed, B, { window: [0, 10000], span: span, stratifyBy: 'durSec' });
     ok('strata: emitted', r4.strata.length >= 2, r4.strata.length);
-    var longS  = r4.strata[r4.strata.length - 1];
+    var longS = r4.strata[r4.strata.length - 1];
     var shortS = r4.strata[0];
     ok('strata: LONG bucket couples (lift ≥ 3)', longS && longS.lift >= 3, longS && longS.lift);
     ok('strata: SHORT bucket does not (lift < 1)', shortS && shortS.lift < 1, shortS && shortS.lift);
-    ok('strata: pooled lift HIDES the split (between the two)',
-       r4.lift > shortS.lift && r4.lift < longS.lift, r4.lift);
+    ok('strata: pooled lift HIDES the split (between the two)', r4.lift > shortS.lift && r4.lift < longS.lift, r4.lift);
 
     // ── 5. window sweep + SATURATION ────────────────────────────────────────────────────
     // B fires ~every 60 s here, so a 0–60 s / 0–120 s window is WIDER than B's inter-event
@@ -340,54 +384,61 @@
     // take as "no coupling"). This is the trap `saturated`/`maxLift` exist to close.
     ok('sweep: 3 windows by default', r1.windowSweep.length === 3, r1.windowSweep.length);
 
-    var tight = r1.windowSweep[0];    // 0–30 s — narrower than B's interval → informative
-    var wide  = r1.windowSweep[2];    // 0–120 s — 2× B's interval        → saturated
-    ok('sweep: the TIGHT window resolves the planted coupling (lift ≥ 1.5, unsaturated)',
-       tight.lift >= 1.5 && !tight.saturated,
-       'lift ' + tight.lift.toFixed(2) + ' saturated=' + tight.saturated);
-    ok('sweep: the WIDE window is flagged SATURATED, not reported as "no coupling"',
-       wide.saturated === true && wide.maxLift < 1.5,
-       'lift ' + wide.lift.toFixed(2) + ' maxLift ' + wide.maxLift.toFixed(2) +
-       ' saturated=' + wide.saturated);
-    ok('sweep: saturated lift ≈ 1.0 is an ARITHMETIC ceiling — lift ≤ maxLift always',
-       r1.windowSweep.every(function (w) { return !isFinite(w.maxLift) || w.lift <= w.maxLift + 1e-9; }),
-       r1.windowSweep.map(function (w) { return w.lift.toFixed(2) + '≤' + w.maxLift.toFixed(2); }).join(' '));
-    ok('sweep: an unsaturated window is what licenses reading lift ≈ 1 as absence',
-       r2.windowSweep[0].saturated === false && r2.windowSweep[0].lift < 1.6,
-       'lift ' + r2.windowSweep[0].lift.toFixed(2));
+    var tight = r1.windowSweep[0]; // 0–30 s — narrower than B's interval → informative
+    var wide = r1.windowSweep[2]; // 0–120 s — 2× B's interval        → saturated
+    ok('sweep: the TIGHT window resolves the planted coupling (lift ≥ 1.5, unsaturated)', tight.lift >= 1.5 && !tight.saturated, 'lift ' + tight.lift.toFixed(2) + ' saturated=' + tight.saturated);
+    ok(
+      'sweep: the WIDE window is flagged SATURATED, not reported as "no coupling"',
+      wide.saturated === true && wide.maxLift < 1.5,
+      'lift ' + wide.lift.toFixed(2) + ' maxLift ' + wide.maxLift.toFixed(2) + ' saturated=' + wide.saturated
+    );
+    ok(
+      'sweep: saturated lift ≈ 1.0 is an ARITHMETIC ceiling — lift ≤ maxLift always',
+      r1.windowSweep.every(function (w) {
+        return !isFinite(w.maxLift) || w.lift <= w.maxLift + 1e-9;
+      }),
+      r1.windowSweep
+        .map(function (w) {
+          return w.lift.toFixed(2) + '≤' + w.maxLift.toFixed(2);
+        })
+        .join(' ')
+    );
+    ok('sweep: an unsaturated window is what licenses reading lift ≈ 1 as absence', r2.windowSweep[0].saturated === false && r2.windowSweep[0].lift < 1.6, 'lift ' + r2.windowSweep[0].lift.toFixed(2));
 
     // ── 6. honest edges — never fabricate a lift ──
     var rEmpty = coupling([], B, { span: span });
-    ok('empty A: n=0, lift NaN (not 1.0), no throw',
-       rEmpty.n === 0 && isNaN(rEmpty.lift), rEmpty.lift);
+    ok('empty A: n=0, lift NaN (not 1.0), no throw', rEmpty.n === 0 && isNaN(rEmpty.lift), rEmpty.lift);
     var rNoB = coupling(Acoupled, [], { window: [0, 10000], span: span });
-    ok('empty B: observed 0, lift NaN (0/0 is "no information", not "no effect")',
-       rNoB.observedPct === 0 && isNaN(rNoB.lift), rNoB.lift);
+    ok('empty B: observed 0, lift NaN (0/0 is "no information", not "no effect")', rNoB.observedPct === 0 && isNaN(rNoB.lift), rNoB.lift);
 
     // ── 7. RESONANCE: the trap the non-round default shifts exist to dodge ──────────────
     // A perfectly PERIODIC B (60 s grid) + whole-MINUTE surrogates = every shift re-lands A on
     // the same phase, so the null reproduces the observed rate and a perfect planted coupling
     // reads as lift ≈ 1.0 — a false negative. Same data, non-round default shifts → recovered.
-    var Bper = [], Aper = [];
+    var Bper = [],
+      Aper = [];
     for (var q = 0; q < 120; q++) Bper.push({ tMs: T0 + q * 60000 });
     for (var w = 10; w < 110; w++) Aper.push({ tMs: Bper[w].tMs - 2000 });
-    var MINUTES = [-15, -13, -11, -7, -5, 5, 7, 11, 13, 15].map(function (x) { return x * 60000; });
+    var MINUTES = [-15, -13, -11, -7, -5, 5, 7, 11, 13, 15].map(function (x) {
+      return x * 60000;
+    });
 
     var rRes = coupling(Aper, Bper, { window: [0, 10000], span: span, nullShifts: MINUTES });
-    ok('resonance: whole-minute shifts vs a 60 s-periodic B DO collapse a real coupling to ~1',
-       rRes.lift < 1.2, rRes.lift);
-    var rFix = coupling(Aper, Bper, { window: [0, 10000], span: span });   // default shifts
-    ok('resonance: the non-round DEFAULT shifts recover that same coupling (lift ≥ 3)',
-       rFix.lift >= 3, rFix.lift);
-    ok('resonance: no default shift is a whole number of minutes',
-       API.DEFAULT_SHIFTS.every(function (s) { return s % 60000 !== 0; }),
-       API.DEFAULT_SHIFTS.join(','));
+    ok('resonance: whole-minute shifts vs a 60 s-periodic B DO collapse a real coupling to ~1', rRes.lift < 1.2, rRes.lift);
+    var rFix = coupling(Aper, Bper, { window: [0, 10000], span: span }); // default shifts
+    ok('resonance: the non-round DEFAULT shifts recover that same coupling (lift ≥ 3)', rFix.lift >= 3, rFix.lift);
+    ok(
+      'resonance: no default shift is a whole number of minutes',
+      API.DEFAULT_SHIFTS.every(function (s) {
+        return s % 60000 !== 0;
+      }),
+      API.DEFAULT_SHIFTS.join(',')
+    );
 
     // ── 8. purity: identical inputs → identical output ──
     var rA = coupling(Amixed, B, { window: [0, 10000], span: span, stratifyBy: 'durSec' });
     var rB = coupling(Amixed, B, { window: [0, 10000], span: span, stratifyBy: 'durSec' });
-    ok('deterministic: identical inputs → identical output',
-       JSON.stringify(rA) === JSON.stringify(rB), 'differs');
+    ok('deterministic: identical inputs → identical output', JSON.stringify(rA) === JSON.stringify(rB), 'differs');
 
     return { pass: pass, fail: fail, log: log };
   }
@@ -399,9 +450,10 @@
 
   if (typeof process !== 'undefined' && process.argv && process.argv.indexOf('--selftest') !== -1) {
     var r = selfTest();
-    r.log.forEach(function (l) { console.log('  ' + l); });
+    r.log.forEach(function (l) {
+      console.log('  ' + l);
+    });
     console.log('\n  EventCoupling self-test: ' + r.pass + ' passed, ' + r.fail + ' failed\n');
     if (typeof process.exitCode !== 'undefined') process.exitCode = r.fail ? 1 : 0;
   }
-
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);

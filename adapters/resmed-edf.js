@@ -71,14 +71,14 @@
    * @returns {{ sec:number, type:string, file:string }|null}
    */
   function stampOf(name) {
-    var base = String(name || '').split('/').pop();
+    var base = String(name || '')
+      .split('/')
+      .pop();
     var m = FNAME_RE.exec(base);
     if (!m) return null;
-    var d = m[1], t = m[2];
-    var sec = Date.UTC(
-      +d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8),
-      +t.slice(0, 2), +t.slice(2, 4), +t.slice(4, 6)
-    ) / 1000;
+    var d = m[1],
+      t = m[2];
+    var sec = Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8), +t.slice(0, 2), +t.slice(2, 4), +t.slice(4, 6)) / 1000;
     if (!isFinite(sec)) return null;
     return { sec: sec, type: m[3].toUpperCase(), file: name };
   }
@@ -97,15 +97,21 @@
     var stamps = (names || [])
       .map(stampOf)
       .filter(Boolean)
-      .sort(function (a, b) { return a.sec - b.sec; });
+      .sort(function (a, b) {
+        return a.sec - b.sec;
+      });
 
     var clusters = [];
     for (var i = 0; i < stamps.length; i++) {
-      var s = stamps[i], hit = null;
+      var s = stamps[i],
+        hit = null;
       for (var j = 0; j < clusters.length; j++) {
         var c = clusters[j];
         // ±60 s of the anchor AND this type is not already taken → it joins.
-        if (Math.abs(c.sec - s.sec) <= 60 && !c.byType[s.type]) { hit = c; break; }
+        if (Math.abs(c.sec - s.sec) <= 60 && !c.byType[s.type]) {
+          hit = c;
+          break;
+        }
       }
       if (hit) {
         hit.byType[s.type] = s;
@@ -113,7 +119,7 @@
         /** @type {Object<string,{sec:number,type:string,file:string}>} */
         var byType = {};
         byType[s.type] = s;
-        clusters.push({ sec: s.sec, byType: byType });   // a repeated type lands HERE — a new set
+        clusters.push({ sec: s.sec, byType: byType }); // a repeated type lands HERE — a new set
       }
     }
     return clusters;
@@ -136,8 +142,8 @@
       var name = ((file && file.name) || '') + '';
       var head = (headText || '') + '';
       var base = name.split('/').pop();
-      if (FNAME_RE.test(base)) return 0.96;                       // YYYYMMDD_HHMMSS_TYPE.edf
-      if (/\.edf$/i.test(base)) return 0.5;                       // some other .edf — still ours
+      if (FNAME_RE.test(base)) return 0.96; // YYYYMMDD_HHMMSS_TYPE.edf
+      if (/\.edf$/i.test(base)) return 0.5; // some other .edf — still ours
       // EDF+ magic: version field is '0' padded to 8 chars, then an 80-char patient field.
       if (/^0\s{7}/.test(head)) return 0.45;
       return 0;
@@ -149,15 +155,15 @@
       ctx = ctx || {};
       var prov = { adapter: 'resmed-edf', vendor: VENDOR, device: DEVICE, files: ctx.files || null, warnings: [] };
       var SF = root.SignalFrame;
-      var bad = function (reason) { return SF.toSignalFrame('cpap', { usable: false, reason: reason }, prov); };
+      var bad = function (reason) {
+        return SF.toSignalFrame('cpap', { usable: false, reason: reason }, prov);
+      };
 
       var EDF = root.CpapEdf;
       // `chan()` lives on the FULL CpapDsp api; `CPAPDex` is the narrow namespaced surface
       // (compute/buildNightFromSets/_synthEdfSet) and does NOT carry it. Resolve by capability,
       // not by name, so neither namespace's shape is assumed.
-      var CD = (root.CpapDsp && typeof root.CpapDsp.chan === 'function') ? root.CpapDsp
-             : (root.CPAPDex && typeof root.CPAPDex.chan === 'function') ? root.CPAPDex
-             : null;
+      var CD = root.CpapDsp && typeof root.CpapDsp.chan === 'function' ? root.CpapDsp : root.CPAPDex && typeof root.CPAPDex.chan === 'function' ? root.CPAPDex : null;
 
       var sets = null;
 
@@ -165,7 +171,7 @@
       if (Array.isArray(ctx.edfSets) && ctx.edfSets.length) {
         sets = ctx.edfSets;
 
-      // (b) raw bytes: ctx.buffers = [{ name, buffer }] — group by the §F4 rule, then decode.
+        // (b) raw bytes: ctx.buffers = [{ name, buffer }] — group by the §F4 rule, then decode.
       } else if (Array.isArray(ctx.buffers) && ctx.buffers.length) {
         if (!EDF || typeof EDF.readEDF !== 'function') {
           return bad('resmed-edf: CpapEdf not in scope (load cpapdex-edf.js before this adapter)');
@@ -184,7 +190,9 @@
         }
         sets = [];
         for (var k = 0; k < clusters.length; k++) {
-          var set = {}, types = Object.keys(clusters[k].byType), any = false;
+          var set = {},
+            types = Object.keys(clusters[k].byType),
+            any = false;
           for (var t = 0; t < types.length; t++) {
             var s = clusters[k].byType[types[t]];
             try {
@@ -201,22 +209,24 @@
           }
         }
         if (!sets.length) return bad('resmed-edf: every EDF in the set failed to decode');
-
       } else {
         return bad('resmed-edf: EDF is binary + multi-file — pass ctx.buffers=[{name,buffer}] (raw) or ctx.edfSets (pre-decoded); the text argument is not used');
       }
 
       // Canonical cpap payload (signal-spec.js): the 25 Hz BRP `Flow` waveform. The decoded sets
       // ride as the `edfSets` sidecar — CPAPDex.compute({edfSets}) rebuilds the night from them.
-      var fl = null, t0 = null;
+      var fl = null,
+        t0 = null;
       var first = sets[0];
       if (CD && typeof CD.chan === 'function' && first && first.BRP) {
-        try { fl = CD.chan(first.BRP, 'Flow'); } catch (e2) { prov.warnings.push('Flow channel: ' + ((e2 && e2.message) || e2)); }
+        try {
+          fl = CD.chan(first.BRP, 'Flow');
+        } catch (e2) {
+          prov.warnings.push('Flow channel: ' + ((e2 && e2.message) || e2));
+        }
       }
       if (first) {
-        t0 = (first.PLD && first.PLD.clock && first.PLD.clock.t0Ms) != null ? first.PLD.clock.t0Ms
-           : (first.BRP && first.BRP.clock && first.BRP.clock.t0Ms) != null ? first.BRP.clock.t0Ms
-           : null;
+        t0 = (first.PLD && first.PLD.clock && first.PLD.clock.t0Ms) != null ? first.PLD.clock.t0Ms : (first.BRP && first.BRP.clock && first.BRP.clock.t0Ms) != null ? first.BRP.clock.t0Ms : null;
       }
 
       var samples = (fl && fl.data) || null;
@@ -226,18 +236,24 @@
       // usable samples-frame however analyzable the night is. It comes back usable:false with the
       // reason stated; its decoded sets still ride the `edfSets` sidecar, so a host that wants the
       // events-only path can take them straight to CPAPDex.compute({edfSets}).
-      var frame = SF.toSignalFrame('cpap', {
-        samples: samples,
-        fs: (fl && fl.fs) || 25,
-        t0Ms: t0,
-        usable: hasFlow,
-        reason: hasFlow ? null
-          : (CD ? 'resmed-edf: no BRP Flow waveform in the set (events/PLD only) — the decoded sets still ride frame.edfSets'
-                : 'resmed-edf: CPAPDex/CpapDsp not in scope (load cpapdex-dsp.js before this adapter)')
-      }, prov);
+      var frame = SF.toSignalFrame(
+        'cpap',
+        {
+          samples: samples,
+          fs: (fl && fl.fs) || 25,
+          t0Ms: t0,
+          usable: hasFlow,
+          reason: hasFlow
+            ? null
+            : CD
+              ? 'resmed-edf: no BRP Flow waveform in the set (events/PLD only) — the decoded sets still ride frame.edfSets'
+              : 'resmed-edf: CPAPDex/CpapDsp not in scope (load cpapdex-dsp.js before this adapter)'
+        },
+        prov
+      );
 
       frame.edfSets = sets;
       return frame;
     }
   });
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);

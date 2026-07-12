@@ -51,37 +51,73 @@ const CHECK = process.argv.includes('--check');
 function realm() {
   const noop = () => {};
   const el = () => ({
-    style: {}, dataset: {}, textContent: '', innerHTML: '',
+    style: {},
+    dataset: {},
+    textContent: '',
+    innerHTML: '',
     classList: { add: noop, remove: noop, toggle: noop, contains: () => false },
-    setAttribute: noop, removeAttribute: noop, getAttribute: () => null,
-    appendChild: noop, append: noop, removeChild: noop,
-    querySelector: () => null, querySelectorAll: () => [],
-    addEventListener: noop, removeEventListener: noop
+    setAttribute: noop,
+    removeAttribute: noop,
+    getAttribute: () => null,
+    appendChild: noop,
+    append: noop,
+    removeChild: noop,
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    addEventListener: noop,
+    removeEventListener: noop
   });
   const sb = {
     document: {
-      getElementById: () => null, createElement: el, createTextNode: () => ({}),
-      querySelector: () => null, querySelectorAll: () => [],
-      head: el(), body: el(), documentElement: el(),
-      addEventListener: noop, readyState: 'complete'
+      getElementById: () => null,
+      createElement: el,
+      createTextNode: () => ({}),
+      querySelector: () => null,
+      querySelectorAll: () => [],
+      head: el(),
+      body: el(),
+      documentElement: el(),
+      addEventListener: noop,
+      readyState: 'complete'
     },
     localStorage: {
       _m: new Map(),
-      getItem(k) { return this._m.has(k) ? this._m.get(k) : null; },
-      setItem(k, v) { this._m.set(k, String(v)); },
-      removeItem(k) { this._m.delete(k); },
-      clear() { this._m.clear(); }
+      getItem(k) {
+        return this._m.has(k) ? this._m.get(k) : null;
+      },
+      setItem(k, v) {
+        this._m.set(k, String(v));
+      },
+      removeItem(k) {
+        this._m.delete(k);
+      },
+      clear() {
+        this._m.clear();
+      }
     },
-    console, setTimeout, clearTimeout
+    console,
+    setTimeout,
+    clearTimeout
   };
-  sb.window = sb; sb.self = sb; sb.globalThis = sb;
+  sb.window = sb;
+  sb.self = sb;
+  sb.globalThis = sb;
   const ctx = vm.createContext(sb);
   ctx.__DEX_NAMESPACED__ = true;
   for (const f of [
-    'kernel-constants.js', 'clock.js', 'signal-frame.js', 'dex-export.js',
-    'metric-registry.js', 'crossnight-envelope.js', 'cpapdex-registry.js',
-    'cpapdex-edf.js', 'cpapdex-dsp.js', 'cpapdex-cross.js', 'cpapdex-fusion.js'
-  ]) vm.runInContext(fs.readFileSync(path.join(REPO, f), 'utf8'), ctx, { filename: f });
+    'kernel-constants.js',
+    'clock.js',
+    'signal-frame.js',
+    'dex-export.js',
+    'metric-registry.js',
+    'crossnight-envelope.js',
+    'cpapdex-registry.js',
+    'cpapdex-edf.js',
+    'cpapdex-dsp.js',
+    'cpapdex-cross.js',
+    'cpapdex-fusion.js'
+  ])
+    vm.runInContext(fs.readFileSync(path.join(REPO, f), 'utf8'), ctx, { filename: f });
   return ctx;
 }
 
@@ -130,7 +166,8 @@ function merge(fresh, old) {
 function diff(a, b, p, out) {
   if (out.length > 30) return;
   if (a === b) return;
-  const ta = typeof a, tb = typeof b;
+  const ta = typeof a,
+    tb = typeof b;
   if (ta === 'number' && tb === 'number') {
     if (!(Number.isNaN(a) && Number.isNaN(b)) && Math.abs(a - b) > 1e-9 * (1 + Math.abs(a))) out.push(`${p}: ${b} → ${a}`);
     return;
@@ -205,14 +242,25 @@ const FIXTURES = [
   }
 ];
 
-let moved = 0, skipped = 0;
+let moved = 0,
+  skipped = 0;
 for (const F of FIXTURES) {
   const p = path.join(UP, F.name);
-  if (!fs.existsSync(p)) { console.log(`  ⊘ ${F.name} — committed fixture absent`); skipped++; continue; }
+  if (!fs.existsSync(p)) {
+    console.log(`  ⊘ ${F.name} — committed fixture absent`);
+    skipped++;
+    continue;
+  }
   const old = JSON.parse(fs.readFileSync(p, 'utf8'));
 
   let fresh;
-  try { fresh = F.build(); } catch (e) { console.log(`  ✗ ${F.name} — build threw: ${e.message}`); skipped++; continue; }
+  try {
+    fresh = F.build();
+  } catch (e) {
+    console.log(`  ✗ ${F.name} — build threw: ${e.message}`);
+    skipped++;
+    continue;
+  }
   if (!fresh) {
     console.log(`  ⊘ ${F.name} — INPUTS ABSENT${F.real ? ' (real recording, gitignored — copy the EDFs into uploads/ to regenerate)' : ''}`);
     skipped++;
@@ -222,7 +270,10 @@ for (const F of FIXTURES) {
 
   const d = [];
   diff(fresh, old, '', d);
-  if (!d.length) { console.log(`  = ${F.name} — content unchanged`); continue; }
+  if (!d.length) {
+    console.log(`  = ${F.name} — content unchanged`);
+    continue;
+  }
 
   const out = merge(fresh, old);
   if (!CHECK) fs.writeFileSync(p, JSON.stringify(out, null, 2) + '\n');

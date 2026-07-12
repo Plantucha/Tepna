@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-6RZXLEoUPvVrjS9laRTHze70mnbaJ+rNK+xDvzCc9JQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7rnyd/PHLymN+NpkvwZzfBCoTH9sQ1PzMBj3eyEzZAQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Cmy5jqXGBn2TOeoIUu5NQ462zWgA2iB09CRh/bkx2pc=' 'sha256-DE/lfDnNKHcSbXxw474kJVe7uFhKKaPy/5FmvRM68U4=' 'sha256-F4s+OtKkoVZS0q8lS4F/sWsYA6V6dQxQKQ7xrw244Q0=' 'sha256-HKfWmGIglGD2FlUrqnaKuiqyTPrluhBx9iHYpe2WtMA=' 'sha256-HMcz3UCFbmyBGi0SQWw6ydup3CHvmu4SX/HIKXkWnkg=' 'sha256-PB+ksOULjQm71LNR8HGSjhTYJn3uj+aFC4FWWaPmtGQ=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-giH7+xYTi6zzmo5ZtCPaGJEzq74hWIaqOK1CAMLayp4=' 'sha256-hEqAV35AmhZiu7dSfiuYRf01Qt+zMV8W5rAOPnn54IE=' 'sha256-hs9K6cuZdV/TNM22sxtyqlWad5F44Inh53puPeYFZmg=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-pF2F1BHb5ALbGyqL7RaEPb4fzp9+gHyW4tWOpeTvV10=' 'sha256-pwWfvoYt3Ims36UoT3wru6Z6nBlwPUBHBajt/0lP8yo=' 'sha256-qlTaUqH5tSf3BuHyIr5wdkBuf2IV2Eokm9O/rer4SI0=' 'sha256-qpDBf/X1+mOTD9ctKFLqqYS2YmkhPZUPSr2/Dut5SX8=' 'sha256-qv3trtp4NKt4EvjyheQSpdoZNzbuGK3XFPmDy/INWkY=' 'sha256-r1iFOMt/UTb6HoQKDZZ1CCMcg/uE2yXUOs1FFX8Dv9w=' 'sha256-roO0qvbiqQFAF7zD/B79CM1goAjzhR5jx8+N3kX4ZSY=' 'sha256-sCx/0jRpwBNzhTpZ4ClKf8BfTccQekveXGhU/zx+WqU=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE=' 'sha256-yNoaiS9N95lBo/AEEOuu3L8+OnQowaAEwE2DA9939Ow='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-6RZXLEoUPvVrjS9laRTHze70mnbaJ+rNK+xDvzCc9JQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7rnyd/PHLymN+NpkvwZzfBCoTH9sQ1PzMBj3eyEzZAQ=' 'sha256-8+nOC4HEYyfbSq9U/hUTt4aPNJiDWM6GiGEd/lhSrQU=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Cmy5jqXGBn2TOeoIUu5NQ462zWgA2iB09CRh/bkx2pc=' 'sha256-DE/lfDnNKHcSbXxw474kJVe7uFhKKaPy/5FmvRM68U4=' 'sha256-F4s+OtKkoVZS0q8lS4F/sWsYA6V6dQxQKQ7xrw244Q0=' 'sha256-HKfWmGIglGD2FlUrqnaKuiqyTPrluhBx9iHYpe2WtMA=' 'sha256-HMcz3UCFbmyBGi0SQWw6ydup3CHvmu4SX/HIKXkWnkg=' 'sha256-PB+ksOULjQm71LNR8HGSjhTYJn3uj+aFC4FWWaPmtGQ=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-giH7+xYTi6zzmo5ZtCPaGJEzq74hWIaqOK1CAMLayp4=' 'sha256-hEqAV35AmhZiu7dSfiuYRf01Qt+zMV8W5rAOPnn54IE=' 'sha256-hs9K6cuZdV/TNM22sxtyqlWad5F44Inh53puPeYFZmg=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-pF2F1BHb5ALbGyqL7RaEPb4fzp9+gHyW4tWOpeTvV10=' 'sha256-pwWfvoYt3Ims36UoT3wru6Z6nBlwPUBHBajt/0lP8yo=' 'sha256-qpDBf/X1+mOTD9ctKFLqqYS2YmkhPZUPSr2/Dut5SX8=' 'sha256-qv3trtp4NKt4EvjyheQSpdoZNzbuGK3XFPmDy/INWkY=' 'sha256-r1iFOMt/UTb6HoQKDZZ1CCMcg/uE2yXUOs1FFX8Dv9w=' 'sha256-roO0qvbiqQFAF7zD/B79CM1goAjzhR5jx8+N3kX4ZSY=' 'sha256-sCx/0jRpwBNzhTpZ4ClKf8BfTccQekveXGhU/zx+WqU=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE=' 'sha256-yNoaiS9N95lBo/AEEOuu3L8+OnQowaAEwE2DA9939Ow='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -3846,14 +3846,14 @@ window.IntegratorDSP = {
    * @returns {{ sec:number, type:string, file:string }|null}
    */
   function stampOf(name) {
-    var base = String(name || '').split('/').pop();
+    var base = String(name || '')
+      .split('/')
+      .pop();
     var m = FNAME_RE.exec(base);
     if (!m) return null;
-    var d = m[1], t = m[2];
-    var sec = Date.UTC(
-      +d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8),
-      +t.slice(0, 2), +t.slice(2, 4), +t.slice(4, 6)
-    ) / 1000;
+    var d = m[1],
+      t = m[2];
+    var sec = Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8), +t.slice(0, 2), +t.slice(2, 4), +t.slice(4, 6)) / 1000;
     if (!isFinite(sec)) return null;
     return { sec: sec, type: m[3].toUpperCase(), file: name };
   }
@@ -3872,15 +3872,21 @@ window.IntegratorDSP = {
     var stamps = (names || [])
       .map(stampOf)
       .filter(Boolean)
-      .sort(function (a, b) { return a.sec - b.sec; });
+      .sort(function (a, b) {
+        return a.sec - b.sec;
+      });
 
     var clusters = [];
     for (var i = 0; i < stamps.length; i++) {
-      var s = stamps[i], hit = null;
+      var s = stamps[i],
+        hit = null;
       for (var j = 0; j < clusters.length; j++) {
         var c = clusters[j];
         // ±60 s of the anchor AND this type is not already taken → it joins.
-        if (Math.abs(c.sec - s.sec) <= 60 && !c.byType[s.type]) { hit = c; break; }
+        if (Math.abs(c.sec - s.sec) <= 60 && !c.byType[s.type]) {
+          hit = c;
+          break;
+        }
       }
       if (hit) {
         hit.byType[s.type] = s;
@@ -3888,7 +3894,7 @@ window.IntegratorDSP = {
         /** @type {Object<string,{sec:number,type:string,file:string}>} */
         var byType = {};
         byType[s.type] = s;
-        clusters.push({ sec: s.sec, byType: byType });   // a repeated type lands HERE — a new set
+        clusters.push({ sec: s.sec, byType: byType }); // a repeated type lands HERE — a new set
       }
     }
     return clusters;
@@ -3911,8 +3917,8 @@ window.IntegratorDSP = {
       var name = ((file && file.name) || '') + '';
       var head = (headText || '') + '';
       var base = name.split('/').pop();
-      if (FNAME_RE.test(base)) return 0.96;                       // YYYYMMDD_HHMMSS_TYPE.edf
-      if (/\.edf$/i.test(base)) return 0.5;                       // some other .edf — still ours
+      if (FNAME_RE.test(base)) return 0.96; // YYYYMMDD_HHMMSS_TYPE.edf
+      if (/\.edf$/i.test(base)) return 0.5; // some other .edf — still ours
       // EDF+ magic: version field is '0' padded to 8 chars, then an 80-char patient field.
       if (/^0\s{7}/.test(head)) return 0.45;
       return 0;
@@ -3924,15 +3930,15 @@ window.IntegratorDSP = {
       ctx = ctx || {};
       var prov = { adapter: 'resmed-edf', vendor: VENDOR, device: DEVICE, files: ctx.files || null, warnings: [] };
       var SF = root.SignalFrame;
-      var bad = function (reason) { return SF.toSignalFrame('cpap', { usable: false, reason: reason }, prov); };
+      var bad = function (reason) {
+        return SF.toSignalFrame('cpap', { usable: false, reason: reason }, prov);
+      };
 
       var EDF = root.CpapEdf;
       // `chan()` lives on the FULL CpapDsp api; `CPAPDex` is the narrow namespaced surface
       // (compute/buildNightFromSets/_synthEdfSet) and does NOT carry it. Resolve by capability,
       // not by name, so neither namespace's shape is assumed.
-      var CD = (root.CpapDsp && typeof root.CpapDsp.chan === 'function') ? root.CpapDsp
-             : (root.CPAPDex && typeof root.CPAPDex.chan === 'function') ? root.CPAPDex
-             : null;
+      var CD = root.CpapDsp && typeof root.CpapDsp.chan === 'function' ? root.CpapDsp : root.CPAPDex && typeof root.CPAPDex.chan === 'function' ? root.CPAPDex : null;
 
       var sets = null;
 
@@ -3940,7 +3946,7 @@ window.IntegratorDSP = {
       if (Array.isArray(ctx.edfSets) && ctx.edfSets.length) {
         sets = ctx.edfSets;
 
-      // (b) raw bytes: ctx.buffers = [{ name, buffer }] — group by the §F4 rule, then decode.
+        // (b) raw bytes: ctx.buffers = [{ name, buffer }] — group by the §F4 rule, then decode.
       } else if (Array.isArray(ctx.buffers) && ctx.buffers.length) {
         if (!EDF || typeof EDF.readEDF !== 'function') {
           return bad('resmed-edf: CpapEdf not in scope (load cpapdex-edf.js before this adapter)');
@@ -3959,7 +3965,9 @@ window.IntegratorDSP = {
         }
         sets = [];
         for (var k = 0; k < clusters.length; k++) {
-          var set = {}, types = Object.keys(clusters[k].byType), any = false;
+          var set = {},
+            types = Object.keys(clusters[k].byType),
+            any = false;
           for (var t = 0; t < types.length; t++) {
             var s = clusters[k].byType[types[t]];
             try {
@@ -3976,22 +3984,24 @@ window.IntegratorDSP = {
           }
         }
         if (!sets.length) return bad('resmed-edf: every EDF in the set failed to decode');
-
       } else {
         return bad('resmed-edf: EDF is binary + multi-file — pass ctx.buffers=[{name,buffer}] (raw) or ctx.edfSets (pre-decoded); the text argument is not used');
       }
 
       // Canonical cpap payload (signal-spec.js): the 25 Hz BRP `Flow` waveform. The decoded sets
       // ride as the `edfSets` sidecar — CPAPDex.compute({edfSets}) rebuilds the night from them.
-      var fl = null, t0 = null;
+      var fl = null,
+        t0 = null;
       var first = sets[0];
       if (CD && typeof CD.chan === 'function' && first && first.BRP) {
-        try { fl = CD.chan(first.BRP, 'Flow'); } catch (e2) { prov.warnings.push('Flow channel: ' + ((e2 && e2.message) || e2)); }
+        try {
+          fl = CD.chan(first.BRP, 'Flow');
+        } catch (e2) {
+          prov.warnings.push('Flow channel: ' + ((e2 && e2.message) || e2));
+        }
       }
       if (first) {
-        t0 = (first.PLD && first.PLD.clock && first.PLD.clock.t0Ms) != null ? first.PLD.clock.t0Ms
-           : (first.BRP && first.BRP.clock && first.BRP.clock.t0Ms) != null ? first.BRP.clock.t0Ms
-           : null;
+        t0 = (first.PLD && first.PLD.clock && first.PLD.clock.t0Ms) != null ? first.PLD.clock.t0Ms : (first.BRP && first.BRP.clock && first.BRP.clock.t0Ms) != null ? first.BRP.clock.t0Ms : null;
       }
 
       var samples = (fl && fl.data) || null;
@@ -4001,21 +4011,27 @@ window.IntegratorDSP = {
       // usable samples-frame however analyzable the night is. It comes back usable:false with the
       // reason stated; its decoded sets still ride the `edfSets` sidecar, so a host that wants the
       // events-only path can take them straight to CPAPDex.compute({edfSets}).
-      var frame = SF.toSignalFrame('cpap', {
-        samples: samples,
-        fs: (fl && fl.fs) || 25,
-        t0Ms: t0,
-        usable: hasFlow,
-        reason: hasFlow ? null
-          : (CD ? 'resmed-edf: no BRP Flow waveform in the set (events/PLD only) — the decoded sets still ride frame.edfSets'
-                : 'resmed-edf: CPAPDex/CpapDsp not in scope (load cpapdex-dsp.js before this adapter)')
-      }, prov);
+      var frame = SF.toSignalFrame(
+        'cpap',
+        {
+          samples: samples,
+          fs: (fl && fl.fs) || 25,
+          t0Ms: t0,
+          usable: hasFlow,
+          reason: hasFlow
+            ? null
+            : CD
+              ? 'resmed-edf: no BRP Flow waveform in the set (events/PLD only) — the decoded sets still ride frame.edfSets'
+              : 'resmed-edf: CPAPDex/CpapDsp not in scope (load cpapdex-dsp.js before this adapter)'
+        },
+        prov
+      );
 
       frame.edfSets = sets;
       return frame;
     }
   });
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
 </script>
 <!-- units-as-quantities (DexUnits.guardBaevsky) — the welltory-summary adapter applies the Baevsky unit guard at ingest -->
 <script data-inline-src="quantity.js">/*
