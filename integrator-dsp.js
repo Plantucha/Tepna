@@ -223,8 +223,13 @@ function adaptEnvelopeNode(json, node, filename){
   if(node==='GlucoDex'){
     var f = json.fusion||{};
     // whole-wear CV — kept as a FALLBACK for legacy exports without timeseries.cells
-    summary.glucoseCV = _dig(json,['glycemic','cv']) || _dig(json,['variability','cv']) || _dig(json,['glycemia','cv']) || (json.summary?json.summary.cv:null);
-    summary.dawnSurge = _dig(json,['fusion','dawnSurge']) || _dig(json,['dawn','surge']) || (json.patterns&&json.patterns.dawnPhenomenon?json.patterns.dawnPhenomenon.medianRiseMgdl:null) || null;
+    /* DEEP-AUDIT-2026-07-11 §13: GlucoDex's LIGHT ganglior export — the one users are told to drop into
+       the Integrator — writes its metrics under `glucose{}` (the 2026-07-04 enrichment). This read-chain
+       only knew the RICH summary's `glycemic{}`, so glucoseCV resolved to null on EVERY ganglior export,
+       and fuseAutonomicGlycemic then published a glucose⟷autonomic coupling computed from the ECG slope
+       ALONE — 0.44 with n=0 and no glucose value in it, surfaced as the "Autonomic⟷glycemic" KPI. */
+    summary.glucoseCV = _dig(json,['glucose','cv']) || _dig(json,['glycemic','cv']) || _dig(json,['variability','cv']) || _dig(json,['glycemia','cv']) || (json.summary?json.summary.cv:null);
+    summary.dawnSurge = _dig(json,['glucose','dawn','riseMgdl']) || _dig(json,['fusion','dawnSurge']) || _dig(json,['dawn','surge']) || (json.patterns&&json.patterns.dawnPhenomenon?json.patterns.dawnPhenomenon.medianRiseMgdl:null) || null;
     summary.glucoseAutonomicCorrelation = (json.reserved && json.reserved.glucoseAutonomicCorrelation!=null)?json.reserved.glucoseAutonomicCorrelation: (f.r!=null?f.r:null);
     summary.autonomicInstabilitySlope = (json.reserved && json.reserved.autonomicInstabilitySlope!=null)?json.reserved.autonomicInstabilitySlope:null;
     // CLAMP-SATURATION (GLUCODEX-FOLLOWUPS §2): a clipped CGM (Abbott Lingo 55–200, etc.) under-counts
@@ -272,11 +277,34 @@ function adaptEnvelopeNode(json, node, filename){
     summary.rmssd = _dig(json,['hrv','time','rmssd']) || _dig(json,['hrv','rmssd']) || _dig(json,['metrics','rmssd']) || (json.rmssd!=null?json.rmssd:null);
     summary.sdnn  = _dig(json,['hrv','time','sdnn'])  || _dig(json,['hrv','sdnn'])  || _dig(json,['metrics','sdnn'])  || (json.sdnn!=null?json.sdnn:null);
     summary.lfhf  = _dig(json,['hrv','frequency','lfhf']) || _dig(json,['hrv','lfhf']) || (json.lfhf!=null?json.lfhf:null);
+    summary.hrvWindow = 'wholeRecord';
+    /* DEEP-AUDIT-2026-07-11 §14: HRVDex — THE HRV node — could never join the HRV consensus. Its export
+       writes per-reading HRV under `measurements[]` (the 2026-07-04 SELF-INGEST enrichment); this chain
+       only knew `hrv.time.*`, so summary.rmssd/sdnn were null on 100 % of HRVDex exports and
+       fuseHRVConsensus's source filter dropped it every time — SILENTLY, with its rMSSD values sitting
+       right there unread.
+       Read them. But label the window HONESTLY: a Welltory capture is a short spot reading, and an
+       export spans many of them, so their median is NOT the same quantity as an overnight whole-record
+       rMSSD. Calling it 'wholeRecord' would let R8's like-window guard compare a month of morning
+       readings against one night's ECG — a false comparison dressed as a consensus. It is tagged
+       'measurementMedian' instead, which the guard then reports as a REASONED, VISIBLE exclusion
+       (crossWindowExcluded) rather than the silent null it used to be. */
+    if(summary.rmssd == null && Array.isArray(json.measurements) && json.measurements.length){
+      var _msd = json.measurements.filter(function(m){ return m && m.sdnn != null; }).map(function(m){ return m.sdnn; });
+      var _mrm = json.measurements.filter(function(m){ return m && m.rmssd != null; }).map(function(m){ return m.rmssd; });
+      var _med = function(a){ if(!a.length) return null; var b=a.slice().sort(function(x,y){return x-y;}); var h=b.length>>1;
+        return +( (b.length%2) ? b[h] : (b[h-1]+b[h])/2 ).toFixed(2); };
+      if(_mrm.length) summary.rmssd = _med(_mrm);
+      if(_msd.length) summary.sdnn  = _med(_msd);
+      if(summary.rmssd != null || summary.sdnn != null){
+        summary.hrvWindow = 'measurementMedian';
+        summary.hrvWindowNote = 'median of '+json.measurements.length+' spot readings — NOT an overnight whole-record value; not directly comparable to a wholeRecord HRV axis.';
+      }
+    }
     var _hq = _dig(json,['quality','analyzablePct']);
     if(_hq==null) _hq = _dig(json,['quality','coveragePct']);
     if(_hq==null) _hq = _dig(json,['recording','coveragePct']);
     summary.hrvQualityPct = _hq;
-    summary.hrvWindow = 'wholeRecord';
     summary.hrvUnits = 'ms';
     // FU §2: the node self-reports a coverage/SQI lowConfidence flag on its whole-record HRV
     // (PpgDex §3 gate; harmless null→false for PulseDex/HRVDex) — carried onto the summary so the
@@ -356,7 +384,7 @@ function adaptEnvelopeNode(json, node, filename){
     dateUnknown:dateUnknown, events:events, series:seriesOut, summary:summary, nEvents:events.length,
     // P8/kernel: carry the source build's physiology-kernel stamp so the fusion can
     // detect a node built against a DIFFERENT rulebook (cross-deployment drift).
-    kernelHash:(json.kernel&&json.kernel.hash)||null, kernelVersion:(json.kernel&&json.kernel.version)||null,
+    kernelHash:_kernelHash(json.kernel), kernelVersion:_kernelVersion(json.kernel),
     // P9: retain ONLY the raw event array (the sole downstream consumer is _recSig's
     // stampless-dedup signature). Storing the whole `json` kept multi-MB timeseries /
     // morphology arrays alive per recording — and duplicated series.cells (already in
@@ -483,19 +511,30 @@ function adaptOxyDex(json, filename){
       durationMin: stats.durationMin, hypoxicBurden: n.hb?n.hb.rate:null,
       desatCount: events.filter(function(e){return e.impulse==='spo2_desaturation' || e.impulse==='desat_event';}).length
     };
-    // T2: oximetry REM proxy for cross-node staging consistency (single-signal estimate)
+    // T2: oximetry REM proxy for cross-node staging consistency (single-signal estimate).
+    // DEEP-AUDIT-2026-07-11 §7: the node now self-reports `plausible:false` when its HR-stability REM
+    // estimator over-fires on quiet sleep (>30 % of the recording — every real night in the corpus). An
+    // implausible proxy is NOT a comparable single-signal estimate, so it must not be folded into the
+    // staging consensus as one; feeding it in would manufacture a "staging_disagreement" out of a known
+    // node-side failure. Absent (not 0) — the same rule the ambulatory-suppression path already follows.
+    // The ceiling is re-checked HERE, not just trusted from the flag, so a LEGACY export (emitted before
+    // the node self-reported plausibility) is judged on its own number rather than folded in blind.
     var _sp = (n.newMetrics && n.newMetrics.stageProxy) || n.stageProxy || null;
-    if(_sp && _sp.remProxyPct!=null){
+    var _remImplausible = !!_sp && (_sp.plausible === false || (_sp.remProxyPct != null && _sp.remProxyPct > 30));
+    if(_sp && _sp.remProxyPct!=null && !_remImplausible){
       summary.remFraction = +( _sp.remProxyPct/100 ).toFixed(3);
       summary.deepFraction = _sp.nremDeepPct!=null ? +(_sp.nremDeepPct/100).toFixed(3) : null;
       summary.stagingMethod = 'SpO₂/PR oximetry proxy, single-signal estimate';
+    } else if(_remImplausible){
+      summary.stagingSuppressed = _sp.plausibilityNote
+        || ('oximetry REM proxy implausible (' + _sp.remProxyPct + '% of the recording)');
     }
     recs.push({
       uid:'OxyDex@'+(t0Ms||('n'+ni)),
       node:'OxyDex', label:'OxyDex · '+(t0Ms!=null?fmtDayShort(t0Ms):(n.date||('night '+(ni+1)))),
       dateStr: n.date || (t0Ms!=null?fmtDate(t0Ms):null), t0Ms:t0Ms, endMs:endMs, offsetMin:null,
       dateUnknown:(t0Ms==null), events:events, series:{ sampleDt:dt }, summary:summary,
-      kernelHash:((n.kernel||_topKernel||{}).hash)||null, kernelVersion:((n.kernel||_topKernel||{}).version)||null,
+      kernelHash:_kernelHash(n.kernel||_topKernel), kernelVersion:_kernelVersion(n.kernel||_topKernel),
       contentId:(n.contentId!=null?n.contentId:null),   // EXPORT-IDENTITY-FOLLOWUPS-II §1 (per-night identity-free handle)
       nEvents:events.length, raw:n, _src:filename
     });
@@ -670,7 +709,15 @@ function fuseApneaEvents(recs, dtMs, gate){
   // CARDIAC surge sources: ECGDex (primary) + PpgDex (PPG-derived). A desat is
   // confirmable by an autonomic surge from EITHER — PpgDex is a first-class node
   // here, not silently dropped (R2). OxyDex anchors the desaturation.
-  var oxy = _byNode(recs,'OxyDex');
+  /* DEEP-AUDIT-2026-07-11 §15: the desaturation pool was keyed by NODE (`_byNode(recs,'OxyDex')`), not by
+     IMPULSE. EVENT-LEXICON.md is explicit that impulses are keyed by the EVENT, not the signal that
+     observed it, and it lists CPAPDex as a first-class `desat_event` emitter (it was deliberately migrated
+     desat → desat_event to join this very pool). It could not: a CPAP+ECG night produced fusion.apnea =
+     null. Metamorphic proof: a byte-identical desat_event stream changes only its `node` label and the
+     whole rule vanishes. Pool by the events a record actually CARRIES — any node that observes a
+     desaturation can corroborate one. (The per-node confidence tiering downstream is unchanged.) */
+  var DESAT_TYPES = ['spo2_desaturation','desat_event'];
+  var oxy = recs.filter(function(r){ return !r.dateUnknown && _eventsOfType(r, DESAT_TYPES).length; });
   var ecg = _byNode(recs,'ECGDex'), ppg = _byNode(recs,'PpgDex');
   var cardiac = ecg.concat(ppg);
   if(!oxy.length || !cardiac.length) return null;
@@ -955,17 +1002,25 @@ function fuseAutonomicGlycemic(recs, dtMs, opts2){
   var xs=[], ys=[];
   pairs.forEach(function(p){ if(p.slope!=null && p.glucoseCV!=null){ xs.push(p.slope); ys.push(p.glucoseCV); } });
   var r = (xs.length>=3) ? pearson(xs,ys) : null;
-  // single-pair directional estimate: positive slope + elevated CV ⇒ positive coupling
+  /* Single-pair directional estimate: positive slope + elevated CV ⇒ positive coupling.
+     DEEP-AUDIT-2026-07-11 §13: this used to fall back to `p0.slope` ALONE. With glucoseCV absent (which
+     it ALWAYS was on a ganglior export — see the read-chain fix above) it still published a confident
+     glucose⟷autonomic coupling of 0.44 with n=0, computed entirely from the ECG side. A coupling between
+     two signals cannot be estimated from one of them: it now requires the pair to actually CARRY a
+     glucose value, and is null (with a reason) otherwise. */
   var directional=null;
   if(r==null && pairs.length){
-    var p0=pairs.find(function(p){return p.slope!=null;})||pairs[0];
-    if(p0.slope!=null) directional = clamp(0.5 + clamp(p0.slope,-0.5,0.5), 0, 1);
+    var p0=pairs.find(function(p){return p.slope!=null && p.glucoseCV!=null;});
+    if(p0) directional = clamp(0.5 + clamp(p0.slope,-0.5,0.5), 0, 1);
   }
   var value = r!=null ? r : (directional!=null?+directional.toFixed(2):null);
+  var anyGlucose = pairs.some(function(p){ return p.glucoseCV != null; });
   return { pairs:pairs, r:r, directional:directional!=null?+directional.toFixed(2):null,
     glucoseAutonomicCorrelation:value, n:xs.length,
     note: r!=null ? ('Pearson r over '+xs.length+' overlapping nights between ECG autonomic-instability slope and CGM glucose variability. Directional, small n.')
-                  : 'Single overlapping night — directional estimate only (need ≥3 nights for a correlation). Rising autonomic instability co-travels with glycemic variability.' };
+                  : (!anyGlucose
+                      ? 'No glucose variability reached the fusion (the CGM export carried no CV on the overlapping window), so an autonomic⟷glycemic coupling CANNOT be estimated — a coupling needs both signals. Reported as unknown, not zero.'
+                      : 'Single overlapping night — directional estimate only (need ≥3 nights for a correlation). Rising autonomic instability co-travels with glycemic variability.') };
 }
 
 /* 4 — HRV consensus across PulseDex / HRVDex / ECGDex / PpgDex on shared windows.
@@ -1101,7 +1156,14 @@ function fuseHRVConsensus(recs, dtMs){
       var divPct = md? +((mx-mn)/md*100).toFixed(0):null;
       return { values:like.map(function(s){return {node:s.node, v:s.summary[key]};}).filter(function(o){return o.v!=null;}), min:mn, max:mx, median:md, divergencePct:divPct }; }
     var rm=spread('rmssd'), sd=spread('sdnn'), lf=spread('lfhf');
-    var worst = Math.max(rm&&rm.divergencePct||0, sd&&sd.divergencePct||0);
+    /* DEEP-AUDIT-2026-07-11 §12: spread() correctly returns NULL for a key no two sources share (each
+       node honestly nulls what it lacks — legal under the node-export contract). `|| 0` converted that
+       ABSENCE into a measured 0 % divergence, which then drove qc:'agreement' and the surfaced note
+       "Sources agree within 0% … reconciled autonomic state is reliable." Nothing was compared, so
+       nothing agreed. With no comparable metric the divergence is UNKNOWN — null — and the block says so. */
+    var _divs = [rm && rm.divergencePct, sd && sd.divergencePct].filter(function(v){ return v != null; });
+    var worst = _divs.length ? Math.max.apply(null, _divs) : null;
+    var comparable = worst != null;
     // TCH (INTEGRATOR-THREE-CORNERED-HAT §3): reference-free per-sensor error across ≥3
     // series-bearing nodes. ADDITIVE — the pairwise spread/divergence above is unchanged;
     // degrades to a reason-stamped null (tchStatus) when <3 nodes carry an alignable series.
@@ -1123,7 +1185,9 @@ function fuseHRVConsensus(recs, dtMs){
       var _hw=0,_ha=0; Object.keys(tchHR.levels).forEach(function(nd){ var v=tchHR.levels[nd], w=tchHR.weights[nd]; if(v!=null&&w!=null){ _ha+=w*v; _hw+=w; } });
       if(_hw>0) hrReconciled = +(_ha/_hw).toFixed(1);
     }
-    var note = (worst>30 ? ('Cross-device divergence '+worst+'% on RMSSD/SDNN ('+win+') — flag as data-quality issue; reconcile before trusting a single value.')
+    var note = (!comparable
+                  ? ('No HRV metric is carried by ≥2 of these sources ('+like.map(function(s){return s.node;}).join(', ')+') — nothing could be compared, so agreement is UNKNOWN, not confirmed.')
+                  : worst>30 ? ('Cross-device divergence '+worst+'% on RMSSD/SDNN ('+win+') — flag as data-quality issue; reconcile before trusting a single value.')
                      : ('Sources agree within '+worst+'% on '+win+' HRV — reconciled autonomic state is reliable.'))
             + (lowQExcluded ? ' Excluded low-quality source(s): '+lowQExcluded.join(', ')+'.' : '');
     if(tch && tch.ok) note += ' TCH: '+tch.culprit+' carries the largest error variance (σ²≈'+Math.round(tch.sigma2[tch.culprit])+' ms², '+tch.method+') — down-weight it in the reconciled value.';
@@ -1133,7 +1197,7 @@ function fuseHRVConsensus(recs, dtMs){
       rmssd:rm, sdnn:sd, lfhf:lf, divergencePct:worst,
       lowQualityExcluded:lowQExcluded, tch:(tch&&tch.ok?tch:null), tchStatus:(tch?(tch.ok?'ok':tch.reason):'not-attempted'),
       tchHR:(tchHR&&tchHR.ok?tchHR:null), tchHRStatus:(tchHR?(tchHR.ok?'ok':tchHR.reason):'not-attempted'), hrReconciled:hrReconciled,
-      qc: worst>30?'divergent':'agreement',
+      qc: !comparable ? 'incomparable' : (worst>30?'divergent':'agreement'),
       note: note }; });
   return blocks.length ? { blocks:blocks } : null;
 }
@@ -1239,6 +1303,22 @@ function fusePeriodicBreathing(recs){
   }).filter(function(b){ return b.corroborated; });
   return blocks.length ? { blocks:blocks } : null;
 }
+/* Read a node's physiology-kernel stamp, WHICHEVER SHAPE it arrives in (DEEP-AUDIT-2026-07-11 §16).
+   OxyDex / PulseDex / HRVDex / CPAPDex NORMALIZE the stamp to `{version, hash}` before exporting, but
+   ECGDex / PpgDex / GlucoDex pass `opts.kernel` straight through — which is the RAW DexKernel object,
+   `{K, VERSION, HASH}`. The Integrator only ever read the lowercase keys, so those three nodes always
+   resolved to `hash: null` → status 'missing'. Two consequences, both bad:
+     · On EVERY real multi-node night the user was told "Node ECGDex built against kernel (none),
+       expected 118ebed5 — thresholds may differ." That is FALSE: the export carries exactly 118ebed5,
+       under HASH. Three of seven nodes cried wolf on every fusion.
+     · Worse, a GENUINE kernel drift in those nodes produced the IDENTICAL 'missing' verdict — so the
+       audit could not distinguish real threshold drift from its own blindness. The one thing it exists
+       to catch was the one thing it could not see.
+   Read both spellings here rather than only fixing the emitters, so exports ALREADY IN THE WILD are
+   audited correctly too. (The emitters are normalized as well — see the *-dsp.js kernel stamps.) */
+function _kernelHash(k){ return (k && (k.hash != null ? k.hash : k.HASH)) || null; }
+function _kernelVersion(k){ return (k && (k.version != null ? k.version : k.VERSION)) || null; }
+
 /* P8/kernel: compare each node's stamped physiology-kernel hash against THIS
    Integrator's own DexKernel.HASH. A node whose hash differs (or is missing) was
    built against a different rulebook — flag it so a cross-deployment threshold

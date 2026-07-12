@@ -198,10 +198,15 @@ function oxyComputeFusion(n, ecg){
   }
   var desatMs=[], desatDepth=[];
   if(n.desat && Array.isArray(n.desat.events) && n.t0Ms!=null){
+    // §8 (DEEP-AUDIT-2026-07-11): use the event's OWN parsed row stamp. `t0Ms + idx*1000` hard-codes
+    // 1 Hz and ignores the rows parseCSV dropped, so on a real lossy night a desat landed up to 849 s
+    // from its true time — while the coincidence gate below is LEAD 15 s / TRAIL 60 s, making the
+    // desat↔surge "confirmed %" pure noise. The index fallback survives only for a legacy stamp-less event.
     n.desat.events.forEach(function(e){
       var idx=(e.nadirIdx!=null?e.nadirIdx:e.startIdx);
-      if(idx!=null){
-        desatMs.push(n.t0Ms + idx*1000);
+      var tMs=(e.tMs!=null)?e.tMs:((idx!=null)?(n.t0Ms + idx*1000):null);
+      if(tMs!=null){
+        desatMs.push(tMs);
         desatDepth.push(e.depth!=null?e.depth:(e.baseline!=null&&e.nadir!=null?(e.baseline-e.nadir):0));
       }
     });

@@ -1382,8 +1382,18 @@ function renderSmartSummary(n) {
   }
   if(n.lcsp) html += ssKPI('LCSP', cv(n.lcsp.lcspMin,45,90,'min',true), n.lcsp.lcspMin>=90?'good':n.lcsp.lcspMin>=45?'warn':'bad');
   if(n.stageProxy && n.stageProxy.remProxyMin!=null) {
-    html += ssKPI('REM ~est',  cv(n.stageProxy.remProxyMin,null,null,'min'),  n.stageProxy.remProxyMin>=45?'good':n.stageProxy.remProxyMin>=20?'warn':'bad');
+    // DEEP-AUDIT §7: an IMPLAUSIBLE REM proxy (>30% of the recording — the estimator over-firing on quiet
+    // sleep) must never render as 'good'. The more minutes it claims, the LESS trustworthy it is, so the
+    // old `remProxyMin>=45 ? 'good'` rule graded the failure mode as the healthiest result.
+    var _remImplausible = (n.stageProxy.plausible === false);
+    html += ssKPI('REM ~est',
+      cv(n.stageProxy.remProxyMin,null,null,'min'),
+      _remImplausible ? 'bad' : n.stageProxy.remProxyMin>=45?'good':n.stageProxy.remProxyMin>=20?'warn':'bad',
+      _remImplausible ? 'unreliable — see note' : null);
     html += ssKPI('Deep ~est', cv(n.stageProxy.nremDeepMin!=null?n.stageProxy.nremDeepMin:null,null,null,'min'),  (n.stageProxy.nremDeepMin||0)>=60?'good':(n.stageProxy.nremDeepMin||0)>=30?'warn':'bad');
+    if(_remImplausible && n.stageProxy.plausibilityNote){
+      html += '<div class="ss-note" style="grid-column:1/-1;opacity:.85;font-size:.82em;line-height:1.35">⚠ '+escapeHTML(n.stageProxy.plausibilityNote)+'</div>';
+    }
   }
   if(n.osc) html += ssKPI('Osc Windows', cv(n.osc.episodeCount,2,5,''), n.osc.episodeCount<2?'good':n.osc.episodeCount<5?'warn':'bad');
   if(n.spo2NadirT) html += ssKPI('SpO₂ Nadir', cv(n.spo2NadirT.spo2NadirValue,null,null,'%'), 'neutral');

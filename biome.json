@@ -67,7 +67,13 @@
         "oxydex-app.js",
         "hrvdex-dsp.js",
         "hrvdex-app.js",
-        "ppgdex-dsp.js"
+        "ppgdex-dsp.js",
+        "clock.js",
+        "glucodex-dsp.js",
+        "glucodex-render.js",
+        "integrator-dsp.js",
+        "ecgdex-dsp.js",
+        "adapters/polar-rr.js"
       ],
       "formatter": { "enabled": false }
     }

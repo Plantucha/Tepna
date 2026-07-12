@@ -3,23 +3,9 @@
     "date": "2026-06-24",
     "t0Ms": 1782340050000,
     "contentId": "4aae89d16d90",
-    "file": "O2Ring S 2100_20260624222730.csv",
-    "provenance": {
-      "buildHash": "04d85b8b647d",
-      "generated": "2026-06-25T08:39:24.777Z",
-      "inputs": [
-        {
-          "name": "O2Ring S 2100_20260624222730.csv",
-          "bytes": 632410,
-          "lastModifiedMs": 1782362066000,
-          "sha256": "8776fc2151dc3e38"
-        }
-      ]
-    },
-    "kernel": {
-      "version": "1.0.0",
-      "hash": "118ebed5"
-    },
+    "file": null,
+    "provenance": null,
+    "kernel": null,
     "stats": {
       "durationMin": 363.2,
       "start": "22:27:30",
@@ -471,7 +457,10 @@
           "onset": 169,
           "artifact": false,
           "fallRate": 1,
-          "pulseValid": 1
+          "pulseValid": 1,
+          "tMs": 1782340234000,
+          "startTMs": 1782340219000,
+          "endTMs": 1782340239000
         },
         {
           "depth": 8,
@@ -485,7 +474,10 @@
           "onset": 208,
           "artifact": false,
           "fallRate": 1,
-          "pulseValid": 1
+          "pulseValid": 1,
+          "tMs": 1782340286000,
+          "startTMs": 1782340258000,
+          "endTMs": 1782340297000
         },
         {
           "depth": 5,
@@ -499,7 +491,10 @@
           "onset": 3831,
           "artifact": false,
           "fallRate": 1,
-          "pulseValid": 1
+          "pulseValid": 1,
+          "tMs": 1782343887000,
+          "startTMs": 1782343881000,
+          "endTMs": 1782343894000
         },
         {
           "depth": 5,
@@ -513,7 +508,10 @@
           "onset": 7248,
           "artifact": false,
           "fallRate": 1,
-          "pulseValid": 1
+          "pulseValid": 1,
+          "tMs": 1782347304000,
+          "startTMs": 1782347298000,
+          "endTMs": 1782347315000
         },
         {
           "depth": 4,
@@ -527,7 +525,10 @@
           "onset": 20757,
           "artifact": false,
           "fallRate": 1,
-          "pulseValid": 1
+          "pulseValid": 1,
+          "tMs": 1782360807000,
+          "startTMs": 1782360807000,
+          "endTMs": 1782360820000
         },
         {
           "depth": 4,
@@ -541,7 +542,10 @@
           "onset": 20802,
           "artifact": false,
           "fallRate": 1,
-          "pulseValid": 1
+          "pulseValid": 1,
+          "tMs": 1782360852000,
+          "startTMs": 1782360852000,
+          "endTMs": 1782360865000
         },
         {
           "depth": 5,
@@ -555,7 +559,10 @@
           "onset": 20903,
           "artifact": false,
           "fallRate": 1,
-          "pulseValid": 1
+          "pulseValid": 1,
+          "tMs": 1782360962000,
+          "startTMs": 1782360953000,
+          "endTMs": 1782360971000
         }
       ],
       "eventsAll": [
@@ -571,7 +578,10 @@
           "onset": 169,
           "artifact": false,
           "fallRate": 1,
-          "pulseValid": 1
+          "pulseValid": 1,
+          "tMs": 1782340234000,
+          "startTMs": 1782340219000,
+          "endTMs": 1782340239000
         },
         {
           "depth": 8,
@@ -585,7 +595,10 @@
           "onset": 208,
           "artifact": false,
           "fallRate": 1,
-          "pulseValid": 1
+          "pulseValid": 1,
+          "tMs": 1782340286000,
+          "startTMs": 1782340258000,
+          "endTMs": 1782340297000
         },
         {
           "depth": 5,
@@ -599,7 +612,10 @@
           "onset": 3831,
           "artifact": false,
           "fallRate": 1,
-          "pulseValid": 1
+          "pulseValid": 1,
+          "tMs": 1782343887000,
+          "startTMs": 1782343881000,
+          "endTMs": 1782343894000
         },
         {
           "depth": 5,
@@ -613,7 +629,10 @@
           "onset": 7248,
           "artifact": false,
           "fallRate": 1,
-          "pulseValid": 1
+          "pulseValid": 1,
+          "tMs": 1782347304000,
+          "startTMs": 1782347298000,
+          "endTMs": 1782347315000
         },
         {
           "depth": 4,
@@ -627,7 +646,10 @@
           "onset": 20757,
           "artifact": false,
           "fallRate": 1,
-          "pulseValid": 1
+          "pulseValid": 1,
+          "tMs": 1782360807000,
+          "startTMs": 1782360807000,
+          "endTMs": 1782360820000
         },
         {
           "depth": 4,
@@ -641,7 +663,10 @@
           "onset": 20802,
           "artifact": false,
           "fallRate": 1,
-          "pulseValid": 1
+          "pulseValid": 1,
+          "tMs": 1782360852000,
+          "startTMs": 1782360852000,
+          "endTMs": 1782360865000
         },
         {
           "depth": 7,
@@ -657,7 +682,10 @@
           "reason": "nonphysiologic-kinetics",
           "sqi": 0.2,
           "fallRate": 3,
-          "pulseValid": 1
+          "pulseValid": 1,
+          "tMs": 1782360917000,
+          "startTMs": 1782360915000,
+          "endTMs": 1782360925000
         },
         {
           "depth": 5,
@@ -671,7 +699,10 @@
           "onset": 20903,
           "artifact": false,
           "fallRate": 1,
-          "pulseValid": 1
+          "pulseValid": 1,
+          "tMs": 1782360962000,
+          "startTMs": 1782360953000,
+          "endTMs": 1782360971000
         }
       ],
       "artifactCount": 1,
@@ -994,18 +1025,20 @@
         "nremDeepSec": 0,
         "nremDeepMin": 0,
         "nremDeepPct": 0,
-        "remProxyLabel": "High REM estimate (>90min)",
+        "plausible": false,
+        "plausibilityNote": "REM proxy implausible (78.2% of the recording; physiological ≈20–25%) — the HR-stability estimator over-fires on quiet sleep. Not a high-REM night; treat as unreliable.",
+        "remProxyLabel": "Implausible — estimator unreliable",
         "nremDeepLabel": "Low deep sleep estimate"
       },
       "vo2est": {
-        "vo2est": 44.7,
-        "vo2Low": 33.9,
-        "vo2High": 55.5,
-        "vo2Category": "Superior (75–90th)",
-        "vo2Pct": "75–90th",
+        "vo2est": 58.3,
+        "vo2Low": 47.5,
+        "vo2High": 69.1,
+        "vo2Category": "Unknown",
+        "vo2Pct": "—",
         "vo2Conf": 100,
-        "hrRest": "58",
-        "hrMax": 173,
+        "hrRest": 45,
+        "hrMax": 174,
         "hrMaxSource": "Age formula (Tanaka 2001)",
         "see": 10.8,
         "dfaAdj": 0,
@@ -1013,46 +1046,46 @@
         "rmssdAdj": -0.9,
         "rmssdNote": "RMSSD 0.57bpm (1Hz proxy) → adj -0.9",
         "formula": "Uth-Sørensen 2004 (VO2max = 15.3 × HRmax/HRrest)",
-        "label": "Top-25% for age 50",
+        "label": "Top-25% for age 49",
         "disclaimer": "Surrogate estimate ±10.8 ml/kg/min SEE (general pop.) · ±5.4 for trained athletes. Trend tracking only."
       },
       "bpProj": null,
       "karv": {
-        "hrRest": "58",
-        "hrMax": 173,
-        "hrr": 115,
+        "hrRest": 45,
+        "hrMax": 174,
+        "hrr": 129,
         "zones": {
           "z1": {
-            "low": 58,
-            "high": 6958,
+            "low": 110,
+            "high": 122,
             "name": "Z1 Recovery",
             "color": "#56d364",
             "purpose": "Active recovery, easy walk/swim"
           },
           "z2": {
-            "low": 6958,
-            "high": 81,
+            "low": 122,
+            "high": 135,
             "name": "Z2 Aerobic Base",
             "color": "#79c0ff",
             "purpose": "Fat oxidation, base fitness, Zone 2 training"
           },
           "z3": {
-            "low": 81,
-            "high": 9258,
+            "low": 135,
+            "high": 148,
             "name": "Z3 Tempo",
             "color": "#ffa657",
             "purpose": "Aerobic capacity building, moderate effort"
           },
           "z4": {
-            "low": 9258,
-            "high": 104,
+            "low": 148,
+            "high": 161,
             "name": "Z4 Threshold",
             "color": "#d29922",
             "purpose": "Lactate threshold, race pace"
           },
           "z5": {
-            "low": 104,
-            "high": 11558,
+            "low": 161,
+            "high": 174,
             "name": "Z5 VO₂max",
             "color": "#f85149",
             "purpose": "Peak VO₂max, high-intensity intervals"
@@ -1060,55 +1093,55 @@
         },
         "allZones": [
           {
-            "low": 58,
-            "high": 6958,
+            "low": 110,
+            "high": 122,
             "name": "Z1 Recovery",
             "color": "#56d364",
             "purpose": "Active recovery, easy walk/swim"
           },
           {
-            "low": 6958,
-            "high": 81,
+            "low": 122,
+            "high": 135,
             "name": "Z2 Aerobic Base",
             "color": "#79c0ff",
             "purpose": "Fat oxidation, base fitness, Zone 2 training"
           },
           {
-            "low": 81,
-            "high": 9258,
+            "low": 135,
+            "high": 148,
             "name": "Z3 Tempo",
             "color": "#ffa657",
             "purpose": "Aerobic capacity building, moderate effort"
           },
           {
-            "low": 9258,
-            "high": 104,
+            "low": 148,
+            "high": 161,
             "name": "Z4 Threshold",
             "color": "#d29922",
             "purpose": "Lactate threshold, race pace"
           },
           {
-            "low": 104,
-            "high": 11558,
+            "low": 161,
+            "high": 174,
             "name": "Z5 VO₂max",
             "color": "#f85149",
             "purpose": "Peak VO₂max, high-intensity intervals"
           }
         ],
-        "readiness": 45,
+        "readiness": 52,
         "readinessTier": "Low",
         "readinessColor": "warn",
         "recZones": [
           {
-            "low": 58,
-            "high": 6958,
+            "low": 110,
+            "high": 122,
             "name": "Z1 Recovery",
             "color": "#56d364",
             "purpose": "Active recovery, easy walk/swim"
           },
           {
-            "low": 6958,
-            "high": 81,
+            "low": 122,
+            "high": 135,
             "name": "Z2 Aerobic Base",
             "color": "#79c0ff",
             "purpose": "Fat oxidation, base fitness, Zone 2 training"
@@ -1119,12 +1152,12 @@
           "rmssd": 4,
           "spo2": 20,
           "sleep": 12,
-          "hrFloor": 8,
+          "hrFloor": 15,
           "hrSlope": 1
         },
-        "mafHR": 120,
+        "mafHR": 121,
         "mafAdj": "-10 (recovery deficit)",
-        "lthr": 152,
+        "lthr": 153,
         "lthrNote": "Zone 4 top ≈ LTHR. Confirm with field test (30-min max effort, avg last 20 min).",
         "method": "Karvonen HRR (ACSM 2022) · Tanaka HRmax · MAF 180-formula"
       }
@@ -1247,12 +1280,12 @@
         "uarsLabel": "Possible"
       },
       "dfa": {
-        "alpha1": 1.719,
-        "dfaLabel": "SpO₂ DFA (α1=1.719) — HR-DFA thresholds do not apply to SpO₂ signal"
+        "alpha1": 1.704,
+        "dfaLabel": "SpO₂ DFA (α1=1.704) — HR-DFA thresholds do not apply to SpO₂ signal"
       },
       "fft": {
-        "peakFreqHz": 0.01,
-        "peakCycSec": 100
+        "peakFreqHz": 0.007,
+        "peakCycSec": 143
       },
       "hrEnt": {
         "sampEn": 1.453,

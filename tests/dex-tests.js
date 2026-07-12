@@ -123,6 +123,35 @@
       T.eq('DMY (preferDMY) 13/05/2026', (P('13/05/2026 08:30', { preferDMY: true }) || {}).tMs, U(2026, 4, 13, 8, 30));
       T.eq('MDY (preferDMY false) 05/13/2026', (P('05/13/2026 08:30', { preferDMY: false }) || {}).tMs, U(2026, 4, 13, 8, 30));
       T.eq('O2Ring "HH:MM:SS DD/MM/YYYY"', (P('22:00:00 07/06/2026', { preferDMY: true }) || {}).tMs, U(2026, 5, 7, 22, 0, 0));
+
+      /* §3 FILE-LEVEL DMY/MDY LOCK (DEEP-AUDIT-2026-07-11 §1). The Contract says: "Any row with
+         day-component > 12 ⇒ file is unambiguous; lock that order for the whole file … Never switch
+         order mid-file." Before the lock, _ckDMY decided PER ROW, so an MM/DD O2Ring file read
+         06/12 as Dec-6 and 06/13 as Jun-13 — the order flipped mid-file, time ran BACKWARD, and the
+         night shipped durationMin = -254460 with ODI-4 = 0 (an apnea night reading as healthy). */
+      var RD = env.DexClock && env.DexClock.resolveDMY;
+      if (typeof RD === 'function') {
+        var lockDMY = RD(['23:00:00 13/05/2026', '01:00:00 06/05/2026'], true);
+        T.ok('§3 lock · a row with day>12 PROVES DMY', lockDMY.dmy === true && lockDMY.locked === true, JSON.stringify(lockDMY));
+        var lockMDY = RD(['23:00:00 05/13/2026', '01:00:00 05/06/2026'], true);
+        T.ok('§3 lock · a row with month-slot>12 PROVES MDY (beats preferDMY)', lockMDY.dmy === false && lockMDY.locked === true, JSON.stringify(lockMDY));
+        var amb = RD(['23:00:00 06/05/2026', '01:00:00 07/05/2026'], true);
+        T.ok('§3 lock · genuinely ambiguous file falls back to preferDMY, unlocked', amb.dmy === true && amb.locked === false, JSON.stringify(amb));
+        var contra = RD(['23:00:00 13/05/2026', '01:00:00 05/13/2026'], true);
+        T.ok('§3 lock · a file carrying BOTH proofs is contradictory → refuse, never guess', contra.contradictory === true && contra.locked === false, JSON.stringify(contra));
+        // the mid-file switch itself: under a locked MDY order, 06/12 and 06/13 must BOTH read as June.
+        var mdyOpt = { preferDMY: false, dmyLocked: true };
+        T.eq('§3 lock · MDY file: 06/12 → Jun 12 (not Dec 6)', (P('23:00:00 06/12/2026', mdyOpt) || {}).tMs, U(2026, 5, 12, 23, 0, 0));
+        T.eq('§3 lock · MDY file: 06/13 → Jun 13 (same order, no mid-file flip)', (P('23:00:00 06/13/2026', mdyOpt) || {}).tMs, U(2026, 5, 13, 23, 0, 0));
+        // a row the lock cannot explain is a contradiction → null, never a fabricated date.
+        T.eq('§3 lock · row contradicting the file lock → null (never fabricate)', P('23:00:00 13/05/2026', { preferDMY: false, dmyLocked: true }), null);
+        // the Contract's own verification case: 13/05 and 05/13 must BOTH land on May 13.
+        T.eq('§3 · DMY 13/05 → May 13', (P('23:00:00 13/05/2026', { preferDMY: true, dmyLocked: true }) || {}).tMs, U(2026, 4, 13, 23, 0, 0));
+        T.eq('§3 · MDY 05/13 → May 13', (P('23:00:00 05/13/2026', { preferDMY: false, dmyLocked: true }) || {}).tMs, U(2026, 4, 13, 23, 0, 0));
+      } else {
+        T.ok('§3 lock · DexClock.resolveDMY present', false, 'clock.js must expose resolveDMY (both runners pass env.DexClock)');
+      }
+
       var anchor = U(2026, 5, 7);
       var t1 = P('23:30', { dateAnchorMs: anchor, prevTMs: null });
       T.eq('time-only 23:30 + anchor', t1 && t1.tMs, U(2026, 5, 7, 23, 30));
@@ -2481,12 +2510,144 @@
     /* ════ INTEGRATOR ingests the GlucoDex orchestrate export end-to-end (GLUCODEX-FOLLOWUPS §3).
      The GlucoDex leg verified the EMIT side headlessly but never drove the Integrator's fusion ingest
      of the light `recording + ganglior_events` CGM export. Feed the REAL committed equiv fixture
-     (env.equiv.glucodex.fixture — real Abbott Lingo, 42 events, recording.clamp:{detected:false}, no
-     timeseries) through adaptEnvelopeNode('GlucoDex'): every event maps (tMs already absolute /
-     reconstructed via startEpochMs + t), clampSat is surfaced (null on this clean file — CHECKED, not
-     absent), and it degrades gracefully on the absent cell series (no throw, empty series.cells). Plus
-     a hand-built clamp-DETECTED light export to prove the §2 down-weight path (meta.clampFloor hypo →
-     conf ×0.5) survives the ingest. ════ */
+     (env.equiv.glucodex.fixture — real Abbott Lingo, 42 events, no timeseries) through
+     adaptEnvelopeNode('GlucoDex'): every event maps (tMs already absolute / reconstructed via
+     startEpochMs + t), clampSat is surfaced, and it degrades gracefully on the absent cell series (no
+     throw, empty series.cells). Plus a hand-built clamp-DETECTED light export to prove the §2 down-weight
+     path (meta.clampFloor hypo → conf ×0.5) survives the ingest.
+
+     ⚠️ DEEP-AUDIT-2026-07-11 §6: this fixture was long asserted to be a CLEAN, unclamped file
+     (`recording.clamp:{detected:false}`). It never was — the real Abbott Lingo export RAILS at 54 mg/dL
+     (46 readings AT the floor vs 15 and 14 beside it, none below), and the old detector simply could not
+     see it, so 37 nocturnal_hypo events shipped unflagged. The detector is fixed; these assertions now
+     encode the TRUTH about the file. The clean-file path stays covered by the hand-built exports below. ════ */
+    /* DEEP-AUDIT-2026-07-11 §12–§16 — the Integrator is a CONSUMER, and every one of these is a read-side
+       defect: it either fabricated agreement it never measured, or silently dropped a node's real data.
+       §12 `|| 0` turned an incomparable (null) divergence into a measured 0 % → "Sources agree … reliable".
+       §13 GlucoDex writes `glucose.cv`; the read-chain knew only `glycemic.cv` → glucoseCV null on EVERY
+           ganglior export → a glucose⟷autonomic coupling of 0.44 computed from the ECG slope ALONE.
+       §14 HRVDex writes `measurements[]`; the chain knew only `hrv.time.*` → the HRV node was dropped
+           from the HRV consensus on 100 % of its exports, its rMSSD values sitting unread.
+       §15 the desat pool was keyed by NODE, not IMPULSE → a byte-identical desat_event stream vanishes
+           from fusion when the emitting node's label changes (CPAPDex is a first-class desat emitter).
+       §16 ECGDex/PpgDex/GlucoDex stamp the RAW DexKernel ({K,VERSION,HASH}); the audit read lowercase
+           → 3 of 7 nodes always read 'missing', so it cried wolf on every night AND could not tell a
+           genuine kernel drift from its own blindness. */
+    group('Integrator §12-§16 — no fabricated agreement, no silently dropped node', 'integrator-dsp · fabricated-absence · contract', function (T) {
+      var A = env.adaptEnvelopeNode,
+        RF = env.runFusion,
+        NF = env.normalizeFile;
+      if (typeof A !== 'function' || typeof RF !== 'function') {
+        T.ok('env.adaptEnvelopeNode + runFusion available', false, 'not wired — gate skipped');
+        return;
+      }
+      var t0 = U(2026, 5, 25, 22, 0, 0);
+      var mkEvents = function (n, impulse, node, stepMin) {
+        var out = [],
+          i;
+        for (i = 0; i < n; i++) out.push({ tMs: t0 + i * (stepMin || 7) * 60000, t: '22:00:00', impulse: impulse, node: node, conf: 0.9, meta: { depth: 5 } });
+        return out;
+      };
+
+      // ── §16 · the kernel audit must SEE a node that stamps the raw DexKernel ────────────────────────
+      var rawKernelExport = {
+        schema: { name: 'ganglior.node-export', node: 'ECGDex' },
+        kernel: { K: { ODI_DROP: 4 }, VERSION: '1.0.0', HASH: (env.DexKernel && env.DexKernel.HASH) || '118ebed5' },
+        recording: { startEpochMs: t0 },
+        ganglior_events: mkEvents(2, 'autonomic_surge', 'ECGDex')
+      };
+      var rk = A(rawKernelExport, 'ECGDex', 'ecg.json');
+      var rkRec = Array.isArray(rk) ? rk[0] : rk;
+      T.eq('§16 · a raw-DexKernel stamp ({K,VERSION,HASH}) is read, not seen as missing', rkRec.kernelHash, (env.DexKernel && env.DexKernel.HASH) || '118ebed5');
+      var lowerKernelExport = JSON.parse(JSON.stringify(rawKernelExport));
+      lowerKernelExport.kernel = { version: '1.0.0', hash: (env.DexKernel && env.DexKernel.HASH) || '118ebed5' };
+      var lk = A(lowerKernelExport, 'ECGDex', 'ecg2.json');
+      T.eq('§16 · the normalized {version,hash} stamp still reads the same', (Array.isArray(lk) ? lk[0] : lk).kernelHash, rkRec.kernelHash);
+      // and a GENUINE drift must now be DISTINGUISHABLE from "missing" — the whole point of the audit
+      var drifted = JSON.parse(JSON.stringify(rawKernelExport));
+      drifted.kernel.HASH = 'deadbeef';
+      var dr = A(drifted, 'ECGDex', 'ecg3.json');
+      T.eq('§16 · a genuine kernel DRIFT is now visible (not indistinguishable from missing)', (Array.isArray(dr) ? dr[0] : dr).kernelHash, 'deadbeef');
+
+      // ── §14 · HRVDex's measurements[] are READ, and honestly window-labelled ────────────────────────
+      var hrvExport = {
+        schema: { name: 'ganglior.node-export', node: 'HRVDex' },
+        recording: { startEpochMs: t0 },
+        measurements: [
+          { tMs: t0, sdnn: 40, rmssd: 30 },
+          { tMs: t0 + 86400000, sdnn: 50, rmssd: 40 },
+          { tMs: t0 + 2 * 86400000, sdnn: 60, rmssd: 50 }
+        ],
+        ganglior_events: []
+      };
+      var hv = A(hrvExport, 'HRVDex', 'hrv.json');
+      var hvRec = Array.isArray(hv) ? hv[0] : hv;
+      T.eq('§14 · HRVDex rMSSD is read from measurements[] (median), not silently dropped', hvRec.summary.rmssd, 40);
+      T.eq('§14 · HRVDex SDNN likewise', hvRec.summary.sdnn, 50);
+      T.eq('§14 · its window is labelled HONESTLY (spot readings ≠ an overnight whole-record)', hvRec.summary.hrvWindow, 'measurementMedian');
+      T.ok('§14 · and it says why', !!hvRec.summary.hrvWindowNote, hvRec.summary.hrvWindowNote);
+
+      // ── §15 · the desat pool is keyed by IMPULSE, not by node label ─────────────────────────────────
+      // METAMORPHIC: the SAME desat_event stream must fuse whatever node observed it.
+      var ecgRec = A(
+        {
+          schema: { name: 'ganglior.node-export', node: 'ECGDex' },
+          recording: { startEpochMs: t0 },
+          hrv: { time: { rmssd: 30, sdnn: 60 } },
+          ganglior_events: mkEvents(12, 'autonomic_surge', 'ECGDex', 7)
+        },
+        'ECGDex',
+        'e.json'
+      );
+      var apneaFor = function (node) {
+        var desats = A({ schema: { name: 'ganglior.node-export', node: node }, recording: { startEpochMs: t0 }, ganglior_events: mkEvents(10, 'desat_event', node, 7) }, node, 'd.json');
+        var recs = [].concat(Array.isArray(desats) ? desats : [desats], Array.isArray(ecgRec) ? ecgRec : [ecgRec]);
+        var f = RF(recs, {});
+        return f && f.apnea;
+      };
+      var apOxy = apneaFor('OxyDex'),
+        apCpap = apneaFor('CPAPDex'),
+        apPpg = apneaFor('PpgDex');
+      T.ok('§15 · OxyDex desats fuse (control)', !!apOxy, 'apnea=' + (apOxy ? 'present' : 'null'));
+      T.ok(
+        '§15 · the SAME desat_event stream from CPAPDex also fuses (impulse-keyed, not node-keyed)',
+        !!apCpap,
+        'apnea=' + (apCpap ? 'present' : 'NULL — the rule was skipped on the node label alone')
+      );
+      T.ok('§15 · …and from PpgDex', !!apPpg, 'apnea=' + (apPpg ? 'present' : 'NULL'));
+      if (apOxy && apCpap) T.eq('§15 · the fused desat count is identical (only the label differed)', apCpap.total.desat, apOxy.total.desat);
+
+      /* ── §12 · nothing comparable ⇒ divergence UNKNOWN, never a measured 0 % "agreement" ────────────
+         Each node honestly nulls the metric it lacks (legal under the contract): ECGDex carries rMSSD but
+         no SDNN, PulseDex the reverse. NOTHING is shared, so nothing can be compared — yet `|| 0` used to
+         report a measured 0 % divergence and tell the user the sources agreed and the result was reliable.
+         Driven through normalizeFile(), the same entry point the app uses. */
+      if (typeof NF !== 'function') {
+        T.ok('env.normalizeFile available', false, 'not wired');
+        return;
+      }
+      var ecgOnlyRmssd = NF(
+        { schema: { name: 'ganglior.node-export', node: 'ECGDex' }, recording: { startEpochMs: t0 }, hrv: { time: { rmssd: 38 } }, ganglior_events: mkEvents(3, 'autonomic_surge', 'ECGDex') },
+        'a.json'
+      ).recs;
+      var pulseOnlySdnn = NF(
+        { schema: { name: 'ganglior.node-export', node: 'PulseDex' }, recording: { startEpochMs: t0 }, hrv: { time: { sdnn: 61 } }, ganglior_events: mkEvents(3, 'autonomic_surge', 'PulseDex') },
+        'b.json'
+      ).recs;
+      var fus = RF(ecgOnlyRmssd.concat(pulseOnlySdnn), {});
+      var blk = fus && fus.hrv && fus.hrv.blocks && fus.hrv.blocks[0];
+      T.ok('§12 · an HRV block still forms', !!blk);
+      if (blk) {
+        T.eq('§12 · with NO shared metric, divergence is null (not a measured 0 %)', blk.divergencePct, null);
+        T.eq('§12 · qc says incomparable — NOT "agreement"', blk.qc, 'incomparable');
+        T.ok(
+          '§12 · the note refuses to claim the sources agree',
+          /unknown, not confirmed|nothing could be compared/i.test(blk.note) && !/reconciled autonomic state is reliable/i.test(blk.note),
+          blk.note
+        );
+      }
+    });
+
     group('Integrator ingests the GlucoDex export end-to-end (GLUCODEX-FOLLOWUPS §3)', 'glucodex-dsp · integrator-dsp', function (T) {
       var A = env.adaptEnvelopeNode;
       if (typeof A !== 'function') {
@@ -2520,12 +2681,24 @@
               return e.impulse === 'nocturnal_hypo';
             })
           );
-          T.ok('clampSat surfaced as null on a clean (unclamped) export — CHECKED, not absent', r.summary && r.summary.clampSat === null);
+          // §6: the real Lingo file IS railed at 54 — clampSat must be SURFACED (not null, not absent),
+          // and the hypos sitting on that rail must be marked as clip artifacts rather than real lows.
+          // (the Integrator's adapter surfaces the clamp block itself — its PRESENCE is the signal;
+          //  it does not re-carry the `detected` boolean.)
           T.ok(
-            'no clip-floor down-weight applied on a clean file (no clampFloor flag)',
-            (r.events || []).every(function (e) {
-              return !e.clampFloor;
-            })
+            'clampSat surfaced from the real Lingo export — CHECKED, not absent',
+            !!(r.summary && r.summary.clampSat && r.summary.clampSat.floor != null),
+            'clampSat=' + JSON.stringify(r.summary && r.summary.clampSat)
+          );
+          T.eq('  the detected rail is the Lingo floor', r.summary.clampSat.floor, 54);
+          T.ok(
+            'clip-floor hypos ARE down-weighted (a rail reading is not a real hypo)',
+            (r.events || []).some(function (e) {
+              return e.clampFloor;
+            }),
+            (r.events || []).filter(function (e) {
+              return e.clampFloor;
+            }).length + ' clip-floor event(s)'
           );
           T.ok('degrades on the absent cell series — no throw, empty cells trace', !r.series || !r.series.cells || r.series.cells.length === 0);
         }
@@ -4389,6 +4562,146 @@
      FLOOR may be artifacts, not true hypos. glucoBuildNodeExport now surfaces the clamp fact on
      recording.clamp + stamps those events meta.clampFloor:true; the Integrator's adaptGlucoDex reads it
      → summary.clampSat + down-weights the clip-floor hypos (conf ×0.5). Lock both sides + back-compat. ════ */
+    /* DEEP-AUDIT-2026-07-11 §5/§6 — GlucoDex must not report interpolation as measured glucose, and must
+       recognise the vendor clip floor it was written for. Drives the REAL compute() on synthetic CSVs
+       (uploads/ is gitignored, so CI cannot depend on the real Lingo file).
+       §5: a long sensor gap was interpolated straight into TIR/GMI/CV/MAGE — the validated-tier headline
+           KPIs — because short and long gaps shared FLAG.GAP and analyzableIndex filtered neither. A real
+           14 h sensor-change gap made TIR read 11 % where the truth was 0 %.
+       §6: detectClampSaturation compared a ±1 (≈2-wide) bound window against a 5-wide inner slab, so the
+           slab was always thicker and the test could essentially never fire. The real Abbott Lingo export
+           rails at 54 mg/dL (46 readings AT the floor vs 15 and 14 beside it) and shipped 37 unflagged
+           nocturnal_hypo events at conf 0.97. The fix must ALSO not flag a genuine nocturnal nadir — a
+           false clip would HIDE real hypoglycemia, which is worse than the bug. */
+    group('GlucoDex §5/§6 — long-gap fill is not measured glucose; the vendor clip floor is detected', 'glucodex-dsp · fabricated-absence · units', function (T) {
+      var G = env.GlucoDex || env.GLUDSP;
+      if (!G || typeof G.compute !== 'function') {
+        T.ok('env.GlucoDex.compute available', false, 'namespace not wired — gate skipped');
+        return;
+      }
+      var HDR = 'Time of Glucose Reading [T=(local time) +/- (time zone offset)], Measurement(mg/dL)';
+      var stamp = function (ms) {
+        return new Date(ms).toISOString().slice(0, 16) + '-04:00';
+      };
+
+      /* ── §5 · a long sensor gap must not manufacture in-range time ──────────────────────────────────
+         Every REAL reading is far out of range (>=250), so the true TIR is 0 %. A 14 h sensor-change gap
+         sits between two blocks; interpolating across it draws a straight line right through 70–180. If
+         those cells are counted, TIR reads non-zero — glucose the sensor never saw. */
+      var t0 = Date.UTC(2026, 4, 3, 0, 0, 0),
+        L = [HDR],
+        i;
+      for (i = 0; i < 288; i++) L.push(stamp(t0 + i * 5 * 60000) + ',' + (250 + (i % 7))); // day 1: all high
+      var afterGap = t0 + (288 * 5 + 14 * 60) * 60000; // 14 h gap
+      for (i = 0; i < 288; i++) L.push(stamp(afterGap + i * 5 * 60000) + ',' + (55 + (i % 5))); // day 2: all low
+      var gapped = G.compute({ text: L.join('\n'), filename: 'gap.csv' }, {});
+      var gl = (gapped && gapped.glucose) || {};
+      var tirPct = gl.tir && typeof gl.tir === 'object' ? gl.tir.tir : gl.tir;
+      T.eq('§5 · every REAL reading is out of range ⇒ TIR is 0 % (long-gap fill contributes none)', tirPct, 0);
+      T.ok('§5 · the long gap is still reported as inactive time (pctActive < 100)', gl.pctActive != null && gl.pctActive < 100, 'pctActive=' + gl.pctActive);
+      T.ok('§5 · the REAL lows are still counted (the exclusion drops interpolation, not measurement)', gl.tir && gl.tir.tbr1 > 0, 'tbr1=' + (gl.tir && gl.tir.tbr1));
+
+      /* ── §6 · clip detection, with the false-positive control ──────────────────────────────────────── */
+      var cgm = function (hardClip) {
+        var out = [HDR],
+          g,
+          h,
+          k;
+        for (k = 0; k < 8 * 24 * 12; k++) {
+          h = ((k * 5) / 60) % 24;
+          g = 105 + 25 * Math.sin(k / 30) + 10 * Math.sin(k / 7);
+          if (h > 2 && h < 4) g = 42 + 8 * Math.sin(k / 3); // a genuine nocturnal hypo, nadir ≈ 34
+          g = Math.round(g);
+          if (hardClip) g = Math.max(55, Math.min(200, g)); // the Lingo rail
+          out.push(stamp(t0 + k * 5 * 60000) + ',' + g);
+        }
+        return out.join('\n');
+      };
+      // (a) THE CONTROL, and the more important half: a real nadir must NOT be called a clip. A glucose
+      //     curve lingers at its turning point, so a mild pile-up at the minimum is PHYSIOLOGICAL (≈1.7×).
+      //     Flagging it would hide true hypoglycemia.
+      var unclipped = G.compute({ text: cgm(false), filename: 'unclipped.csv' }, {});
+      T.ok(
+        '§6 · a genuine nocturnal nadir is NOT flagged as a clip (real hypos stay real)',
+        !(unclipped.recording.clamp && unclipped.recording.clamp.detected === true),
+        'clamp=' + JSON.stringify(unclipped.recording.clamp)
+      );
+      var uHypo = (unclipped.ganglior_events || []).filter(function (e) {
+        return /hypo/i.test(e.impulse);
+      });
+      T.ok(
+        '§6 · its hypo events carry NO clampFloor flag',
+        uHypo.length > 0 &&
+          uHypo.every(function (e) {
+            return !(e.meta && e.meta.clampFloor);
+          }),
+        uHypo.length + ' hypo event(s)'
+      );
+      // (a2) THE FALSE-POSITIVE THAT ALMOST SHIPPED. A plain daily sinusoid (the committed CI synthetic
+      //      input: 95 + 6·sin(2π·hod/24) + meal excursions, NO clamp anywhere) piles up 4.0× at its
+      //      trough of 89 mg/dL — harder than the 1.7× of a busier trace, because a SLOW sinusoid lingers
+      //      at its turning point. A bare ratio test flags that healthy trough as a clip, which would
+      //      SUPPRESS REAL HYPOGLYCEMIA. A clip is claimed only with corroboration: a KNOWN vendor band,
+      //      or a ratio no smooth density produces. 89 mg/dL is neither.
+      var sinus = [HDR],
+        hod,
+        gg;
+      for (i = 0; i < 3 * 24 * 12; i++) {
+        hod = ((i * 5) / 60) % 24;
+        gg = 95 + 6 * Math.sin((2 * Math.PI * hod) / 24);
+        [
+          [8, 45],
+          [13, 55],
+          [19, 50]
+        ].forEach(function (m) {
+          var dt = hod - m[0];
+          if (dt >= 0 && dt < 3) gg += m[1] * Math.exp(-Math.pow(dt - 0.8, 2) / 0.5);
+        });
+        sinus.push(stamp(t0 + i * 5 * 60000) + ',' + Math.round(gg));
+      }
+      var sinusRes = G.compute({ text: sinus.join('\n'), filename: 'sinusoid.csv' }, {});
+      T.ok(
+        '§6 · a plain sinusoid trough (floor 89, NO clamp) is NOT called a clip — a false clip HIDES real hypos',
+        !(sinusRes.recording.clamp && sinusRes.recording.clamp.detected === true),
+        'clamp=' + JSON.stringify(sinusRes.recording.clamp)
+      );
+
+      // (b) THE REAL SHAPE. A vendor rail on a REALISTIC trace: the density RISES away from the floor
+      //     (glucose is rarely at 56–57, often at 60+), exactly like the committed Abbott Lingo export
+      //     (54:46 · 55:15 · 56:14 · 57:26 · 58:47 · 59:65). That rising bulk is what swamped the old
+      //     5-mg/dL-wide inner slab and made the test un-trippable — a naive rail with nothing above it
+      //     would NOT reproduce the bug, so this case is the one that matters.
+      var railed = [HDR],
+        gv;
+      for (i = 0; i < 8 * 24 * 12; i++) {
+        gv = Math.round(110 + 45 * Math.sin(i / 40) + 15 * Math.sin(i / 9));
+        railed.push(stamp(t0 + i * 5 * 60000) + ',' + Math.max(55, Math.min(200, gv))); // the vendor rail
+      }
+      var clipped = G.compute({ text: railed.join('\n'), filename: 'railed.csv' }, {});
+      var cl = clipped.recording.clamp || {};
+      T.ok('§6 · a realistic vendor rail IS detected (the bins above it are populated and rising)', cl.detected === true, 'clamp=' + JSON.stringify(cl));
+      T.eq('§6 · the detected floor is the rail', cl.floor, 55);
+      T.ok(
+        '§6 · the clip-blinded metrics are named (TBR/LBGI/min/nocturnalHypo)',
+        (cl.blindMetrics || []).indexOf('tbr1') >= 0 && (cl.blindMetrics || []).indexOf('nocturnalHypo') >= 0,
+        JSON.stringify(cl.blindMetrics)
+      );
+      var cHypo = (clipped.ganglior_events || []).filter(function (e) {
+        return /hypo/i.test(e.impulse);
+      });
+      T.ok(
+        '§6 · any hypo sitting ON the rail is flagged clampFloor (a clip artifact, not a real hypo)',
+        cHypo.every(function (e) {
+          return e.meta && e.meta.clampFloor === true;
+        }),
+        cHypo.length +
+          ' hypo event(s), flagged=' +
+          cHypo.filter(function (e) {
+            return e.meta && e.meta.clampFloor;
+          }).length
+      );
+    });
+
     group('GlucoDex clamp-saturation honesty flag (GLUCODEX-FOLLOWUPS §2)', 'glucodex-dsp · integrator-dsp', function (T) {
       var G = env.GlucoDex || env.GLUDSP,
         A = env.adaptEnvelopeNode;
@@ -5738,6 +6051,208 @@
      hosts OxyDex in isolation and emits via emitSpO2NodeExport; the Integrator's
      adaptOxyDex synthesizes events from desatProfile/hr_spikes. Source-mirror +
      a functional adapter-route check (compute() runs in the browser rig). */
+    /* DEEP-AUDIT-2026-07-11 §1 — the METAMORPHIC guard on the Clock Contract §3 file-level date lock.
+       The clock-group assertions prove resolveDMY itself; THIS one proves OxyDex actually USES it, which
+       is the leg that would have caught the original bug end-to-end. O2Ring ships BOTH DD/MM/YYYY and
+       MM/DD/YYYY. Before the lock, OxyDex hard-coded preferDMY:true, so an MM/DD file read 06/12 as Dec-6
+       and 06/13 as Jun-13 — the order flipped mid-file, the clock ran BACKWARD, and the night shipped
+       durationMin = -254460 with ODI-4 = 0/h: an apnea night reading as perfectly healthy.
+       INVARIANT: the same physiological night, written in either vendor date order, must compute identically. */
+    /* DEEP-AUDIT-2026-07-11 §7/§8/§9 — OxyDex must place events on the REAL clock, analyse the WHOLE
+       night, and refuse to assert an impossible sleep-stage number as a healthy finding.
+       §8: parseCSV DROPS rows (the device's '- -' no-reading), so a row INDEX is not a second-offset — yet
+           the bus export used t0 + idx·dt and oxydex-fusion used t0 + idx·1000. On a real lossy night the
+           worst desat landed 422 s / 849 s from its true time, against a 15 s / 60 s coincidence gate.
+       §9: computeSpO2FFT / computeDFA head-sliced to the FIRST HOUR of a 6-10 h night, undisclosed. The
+           surfaced FFT cycle length (the periodic-breathing number) changed on ~30 of 39 real nights.
+       §7: the REM proxy ("still + low HR SD + HR near the night mean") describes quiet sleep, not REM —
+           all 39 real nights returned 39.6-87.8 % "REM" (norm ~20-25 %), and EVERY one rendered 'good'. */
+    group('OxyDex §7/§8/§9 — real event clock · whole-night windows · REM plausibility', 'oxydex-dsp · oxydex-fusion · clock · fabricated-absence', function (T) {
+      var OD = env.OxyDex;
+      if (!OD || typeof OD.compute !== 'function' || typeof OD.parseCSV !== 'function') {
+        T.ok('env.OxyDex.compute + parseCSV available', false, 'namespace not wired — gate skipped');
+        return;
+      }
+      var p2 = function (v) {
+        return v < 10 ? '0' + v : '' + v;
+      };
+      /* A LOSSY night — the shape the equiv fixture (a clean clip) can never expose. 1 Hz, but a 20-minute
+         block of the device's '- -' no-reading rows is dropped by parseCSV, so every row index AFTER the
+         dropout is offset from its true second by ~1200. A desat placed after the gap must still be
+         exported at its OWN wall-clock time. */
+      var t0 = Date.UTC(2026, 5, 12, 22, 0, 0),
+        L = ['Time,Oxygen Level,Pulse Rate,Motion'],
+        s,
+        spo2,
+        k;
+      for (s = 0; s < 6 * 3600; s++) {
+        var d = new Date(t0 + s * 1000);
+        var stamp = p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds()) + ' ' + p2(d.getUTCDate()) + '/' + p2(d.getUTCMonth() + 1) + '/' + d.getUTCFullYear();
+        if (s >= 3600 && s < 3600 + 1200) {
+          L.push(stamp + ',- -,- -,0');
+          continue;
+        } // 20 min dropped
+        k = s % 1800;
+        spo2 = 96;
+        if (s >= 600) {
+          // ramped desats → ODI-4 fires
+          if (k < 10) spo2 = 96 - k;
+          else if (k < 25) spo2 = 86;
+          else if (k < 35) spo2 = 86 + (k - 25);
+        }
+        L.push(stamp + ',' + spo2 + ',60,0');
+      }
+      var text = L.join('\n');
+      var rows = OD.parseCSV(text, { fname: 'lossy.csv' });
+      var res = OD.compute({ text: text, filename: 'lossy.csv' });
+      var night = res.nights && res.nights[0];
+      T.ok('the lossy night computes', !!night && !!rows.length);
+      if (!night) return;
+
+      // ── §8 · every exported desat sits on its OWN row's wall clock ──────────────────────────────────
+      // (the EXPORT element carries `desatProfile`; `desat` is the internal name — read the exported one)
+      var dp0 = night.desatProfile || night.desat || null;
+      var devs = (dp0 && dp0.events) || [];
+      T.ok(
+        '§8 · every desat event carries a real row stamp (tMs)',
+        devs.length > 0 &&
+          devs.every(function (e) {
+            return e.tMs != null;
+          }),
+        devs.length + ' event(s)'
+      );
+      var busEvents = (res.ganglior_events || []).filter(function (e) {
+        return e.impulse === 'desat_event';
+      });
+      T.ok('§8 · desat events reach the bus', busEvents.length > 0, busEvents.length + ' on the bus');
+      // pair by ORDER — the bus emits the non-artifact events in sequence (matching on depth/nadir is
+      // ambiguous here, because the synthetic desats are deliberately identical).
+      var live = devs.filter(function (e) {
+        return !e.artifact;
+      });
+      T.eq('§8 · the bus carries every non-artifact desat', busEvents.length, live.length);
+      var worst = 0;
+      busEvents.forEach(function (ev, i) {
+        var d0 = live[i];
+        var truth = d0 && rows[d0.nadirIdx] && rows[d0.nadirIdx].tMs;
+        if (truth == null) return;
+        worst = Math.max(worst, Math.abs(ev.tMs - truth) / 1000);
+      });
+      T.ok(
+        "§8 · exported tMs == the event row's own timestamp (index→time drift is gone)",
+        worst <= 1,
+        'max |exported − true| = ' + worst.toFixed(1) + ' s (the coincidence gate is LEAD 15 s / TRAIL 60 s)'
+      );
+      // the index-based mapping the old code used must be demonstrably WRONG on this input — otherwise the
+      // fixture is too easy and the gate proves nothing.
+      var st = night.stats,
+        dt = (st.durationMin * 60000) / st.n;
+      var idxWorst = 0;
+      devs
+        .filter(function (e) {
+          return !e.artifact;
+        })
+        .forEach(function (e) {
+          var truth = rows[e.nadirIdx].tMs;
+          idxWorst = Math.max(idxWorst, Math.abs(night.t0Ms + e.nadirIdx * dt - truth) / 1000);
+        });
+      T.ok('§8 · (control) the OLD index→time mapping really is wrong on this night', idxWorst > 60, 'old mapping would be off by ' + idxWorst.toFixed(0) + ' s — far outside the 60 s gate');
+
+      /* ── §9 · the surfaced cycle length describes the WHOLE night, not its first hour ───────────────
+         BEHAVIOURAL, not a source-text grep: build a night whose FIRST HOUR oscillates fast (20 s period)
+         and whose remaining 5 hours — 5/6 of the record, the dominant rhythm — oscillate at 50 s. A
+         head-slice reports the first hour's 20 s; the whole-night transform must report ~50 s. This is the
+         surfaced "FFT Cycle Length", i.e. the periodic-breathing / Cheyne-Stokes cycle number. */
+      var L2 = ['Time,Oxygen Level,Pulse Rate,Motion'],
+        per,
+        v;
+      for (s = 0; s < 6 * 3600; s++) {
+        var d2 = new Date(t0 + s * 1000);
+        var st2 = p2(d2.getUTCHours()) + ':' + p2(d2.getUTCMinutes()) + ':' + p2(d2.getUTCSeconds()) + ' ' + p2(d2.getUTCDate()) + '/' + p2(d2.getUTCMonth() + 1) + '/' + d2.getUTCFullYear();
+        per = s < 3600 ? 20 : 50; // first hour 20 s · rest of the night 50 s
+        v = Math.round(95 + 2 * Math.sin((2 * Math.PI * s) / per));
+        L2.push(st2 + ',' + v + ',60,0');
+      }
+      var res2 = OD.compute({ text: L2.join('\n'), filename: 'twoperiod.csv' });
+      var n2 = res2.nights && res2.nights[0];
+      var fft = n2 && ((n2.research && n2.research.fft) || n2.fft || (n2.newMetrics && n2.newMetrics.fft));
+      T.ok('§9 · the FFT cycle length is produced', !!(fft && fft.peakCycSec != null), 'fft=' + JSON.stringify(fft));
+      if (fft && fft.peakCycSec != null) {
+        T.ok(
+          "§9 · it reports the WHOLE-NIGHT rhythm (~50 s), not the first hour's (20 s)",
+          fft.peakCycSec >= 40 && fft.peakCycSec <= 60,
+          'peakCycSec=' + fft.peakCycSec + ' s — a first-hour head-slice would report ~20 s'
+        );
+      }
+
+      // ── §7 · an impossible REM number is never asserted as a healthy finding ───────────────────────
+      var nm = night.newMetrics || {};
+      var sp = nm.stageProxy || night.stageProxy;
+      T.ok('§7 · the stage proxy self-reports plausibility', !!sp && typeof sp.plausible === 'boolean', 'stageProxy=' + JSON.stringify(sp && { pct: sp.remProxyPct, plausible: sp.plausible }));
+      if (sp) {
+        T.ok(
+          '§7 · a REM proxy above the physiological ceiling is flagged IMPLAUSIBLE',
+          sp.remProxyPct <= 30 ? sp.plausible === true : sp.plausible === false,
+          'remProxyPct=' + sp.remProxyPct + '% plausible=' + sp.plausible
+        );
+        if (sp.plausible === false) {
+          T.ok('§7 · it carries a reason (never a bare impossible number)', !!sp.plausibilityNote, sp.plausibilityNote);
+          T.ok('§7 · its label says unreliable — NOT "High REM estimate"', /implausible|unreliable/i.test(sp.remProxyLabel), sp.remProxyLabel);
+        }
+      }
+    });
+
+    group('OxyDex Clock §3 — same night in DMY vs MDY computes identically (DEEP-AUDIT §1)', 'oxydex-dsp · clock', function (T) {
+      var OD = env.OxyDex;
+      if (!OD || typeof OD.compute !== 'function') {
+        T.ok('env.OxyDex.compute available', false, 'namespace not wired — gate skipped');
+        return;
+      }
+      // 22:00 → 05:00, 1 Hz, with recurring RAMPED desaturations (96 → 86 → 96) every 30 min, so ODI-4
+      // genuinely fires — a square-edged dip does not qualify, which is physiologically correct.
+      var p2 = function (n) {
+        return n < 10 ? '0' + n : '' + n;
+      };
+      function night(mdy) {
+        var out = ['Time,Oxygen Level,Pulse Rate,Motion'];
+        var t0 = Date.UTC(2026, 5, 12, 22, 0, 0); // 12 Jun 2026 22:00 — day 12 ≤ 12, so these rows are AMBIGUOUS
+        for (var s = 0; s < 7 * 3600; s++) {
+          var d = new Date(t0 + s * 1000);
+          var D = d.getUTCDate(),
+            M = d.getUTCMonth() + 1,
+            Y = d.getUTCFullYear();
+          var hhmmss = p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds());
+          var date = mdy ? p2(M) + '/' + p2(D) + '/' + Y : p2(D) + '/' + p2(M) + '/' + Y;
+          var k = s % 1800,
+            spo2 = 96;
+          if (s >= 600) {
+            if (k < 10)
+              spo2 = 96 - k; // desaturate
+            else if (k < 25)
+              spo2 = 86; // nadir (−10 % → ODI-4)
+            else if (k < 35) spo2 = 86 + (k - 25); // resaturate
+          }
+          out.push(hhmmss + ' ' + date + ',' + spo2 + ',60,0');
+        }
+        return out.join('\n');
+      }
+      var rDMY = OD.compute({ text: night(false), filename: 'o2ring_dmy.csv' });
+      var rMDY = OD.compute({ text: night(true), filename: 'o2ring_mdy.csv' });
+      var nD = rDMY && rDMY.nights && rDMY.nights[0],
+        nM = rMDY && rMDY.nights && rMDY.nights[0];
+      T.ok('both orders produce a night', !!nD && !!nM);
+      if (!nD || !nM) return;
+      // The night spans 12→13 June, so the MDY file contains 06/13 (day>12 ⇒ proves MDY) alongside the
+      // ambiguous 06/12 rows — exactly the mid-file-flip trigger.
+      T.eq('MDY file: durationMin == the DMY control (never negative)', nM.stats.durationMin, nD.stats.durationMin);
+      T.ok('MDY file: durationMin is positive', nM.stats.durationMin > 0, 'durationMin=' + nM.stats.durationMin);
+      T.ok('MDY file: clock is monotonic (no backward rows)', !nM.stats.clockNonMonotonic, 'clockNonMonotonic set');
+      T.eq('MDY file: t0Ms == the DMY control (not 6 months adrift)', rMDY.recording.startEpochMs, rDMY.recording.startEpochMs);
+      T.eq('MDY file: ODI-4 == the DMY control (a desat is NOT lost to a broken clock)', nM.odi4 && nM.odi4.count, nD.odi4 && nD.odi4.count);
+      T.ok('the control night is diagnostically live (ODI-4 fired)', (nD.odi4 && nD.odi4.count) > 0, 'odi4=' + JSON.stringify(nD.odi4));
+      T.eq('exported recording.durationMin is never negative', rMDY.recording.durationMin, rDMY.recording.durationMin);
+    });
+
     group('OxyDex Phase-9 — compute() surface + spo2 adapter', 'oxydex-dsp · adapters · signal-orchestrate', function (T) {
       var src = env.sources || {};
       var dsp = src['oxydex-dsp.js'],
@@ -7323,6 +7838,67 @@
      and tagging Welltory's black-box composites provenance.derived:true. signal-orchestrate hosts
      HRVDex in isolation + emits via emitSummaryNodeExport. Source-mirror + functional adapter/guard
      checks (both run in BOTH runners; compute() runs live in the browser render-coverage rig). */
+    /* DEEP-AUDIT-2026-07-11 §3/§4 — HRVDex must never fabricate a spectral number from an absent band,
+       and MxDMn/MeanRR must be unit-guarded like its twin d_csi.
+       §3: `(totalPow - vlf) || 0.001` treated an ABSENT band as 0 and then substituted a 1000×-too-small
+           epsilon. ECGDex/PpgDex export lf/hf but NO totalPower/vlf, so on that documented ingest path
+           HF n.u. surfaced as 125,000,000 % — a quantity that is 0–100 BY DEFINITION — and went NEGATIVE
+           when only vlf was present. An absent input must read NaN, never a number.
+       §4: a Welltory export is MIXED-UNIT (MeanRR in ms, MxDMn in SECONDS) — the exact trap
+           DexUnits.guardBaevsky exists for. d_si/d_csi used the guard; d_mxdmn_meanrr, three lines away,
+           divided raw seconds by raw ms and read 1000× low. */
+    group('HRVDex §3/§4 — absent spectrum → NaN, never a fabricated n.u.; MxDMn/MeanRR unit-guarded', 'hrvdex-dsp · units · fabricated-absence', function (T) {
+      var HD = env.HRVDex;
+      if (!HD || typeof HD.derive !== 'function' || typeof HD.rowFromNodeExport !== 'function') {
+        T.ok('env.HRVDex.derive + rowFromNodeExport available', false, 'headless derive surface not wired — gate skipped');
+        return;
+      }
+      var nodeExport = function (freq) {
+        return {
+          schema: { name: 'ganglior.node-export', node: 'ECGDex' },
+          recording: { startEpochMs: Date.UTC(2026, 5, 14, 22, 0, 0) },
+          hrv: { time: { hr: 62, meanRR: 957.7, sdnn: 75.7, rmssd: 36.4, mode: 900, amo50: 30, mxDMn: 0.418 }, frequency: freq }
+        };
+      };
+      var isNaNv = function (v) {
+        return typeof v === 'number' && isNaN(v);
+      };
+
+      // (a) the real ECGDex/PpgDex shape: lf + hf, but NO totalPower / vlf.
+      var rNoTp = HD.derive([HD.rowFromNodeExport(nodeExport({ lf: 780, hf: 1250 }))])[0];
+      T.ok('§3 · lf/hf only (ECGDex/PpgDex export) → HF n.u. is NaN, not 1.25e8', isNaNv(rNoTp.d_hfnu), 'd_hfnu=' + rNoTp.d_hfnu);
+      T.ok('§3 · lf/hf only → LF n.u. is NaN', isNaNv(rNoTp.d_lfnu), 'd_lfnu=' + rNoTp.d_lfnu);
+      T.ok('§3 · lf/hf only → spectral entropy is NaN (no fabricated VLF floor)', isNaNv(rNoTp.d_spectral_ent), 'd_spectral_ent=' + rNoTp.d_spectral_ent);
+      T.ok('§3 · lf/hf only → VLF/HF is NaN, not a confident 0', isNaNv(rNoTp.d_vlf_hf), 'd_vlf_hf=' + rNoTp.d_vlf_hf);
+      T.ok('§3 · lf/hf PRESENT → LF/HF still computes (the honest path is untouched)', Math.abs(rNoTp.d_lfhf - 780 / 1250) < 1e-9, 'd_lfhf=' + rNoTp.d_lfhf);
+
+      // (b) the whole spectrum absent — every spectral derivative must be NaN, none a real-looking 0.
+      var rNone = HD.derive([HD.rowFromNodeExport(nodeExport({}))])[0];
+      ['d_lfhf', 'd_hfnu', 'd_lfnu', 'd_svi', 'd_sdi', 'd_rsa', 'd_sai', 'd_vlf_hf', 'd_spectral_ent', 'd_lfhf_totpow'].forEach(function (k) {
+        T.ok('§3 · no spectrum → ' + k + ' is NaN (absence is not a measurement)', isNaNv(rNone[k]), k + '=' + rNone[k]);
+      });
+
+      // (c) all four bands present → n.u. must be REAL and inside its definitional 0–100 range.
+      var rFull = HD.derive([HD.rowFromNodeExport(nodeExport({ lf: 780, hf: 1250, vlf: 900, totalPower: 2930 }))])[0];
+      T.ok('§3 · full spectrum → HF n.u. is a real number in [0,100]', rFull.d_hfnu > 0 && rFull.d_hfnu <= 100, 'd_hfnu=' + rFull.d_hfnu);
+      T.ok('§3 · full spectrum → HFnu + LFnu ≈ 100 (they are normalized units, by definition)', Math.abs(rFull.d_hfnu + rFull.d_lfnu - 100) < 1e-6, 'sum=' + (rFull.d_hfnu + rFull.d_lfnu));
+
+      // (d) §4 METAMORPHIC: the same measurement expressed in SECONDS vs MILLISECONDS must give the SAME
+      //     ratio — and must equal d_csi, which is literally the same quantity.
+      var seconds = HD.derive([HD.rowFromNodeExport(nodeExport({ lf: 780, hf: 1250, vlf: 900, totalPower: 2930 }))])[0];
+      var msExport = nodeExport({ lf: 780, hf: 1250, vlf: 900, totalPower: 2930 });
+      msExport.hrv.time.mxDMn = 418; // the SAME MxDMn, expressed in ms instead of s
+      msExport.hrv.time.mode = 900;
+      var millis = HD.derive([HD.rowFromNodeExport(msExport)])[0];
+      T.ok('§4 · MxDMn/MeanRR is unit-INVARIANT (s-file == ms-file)', Math.abs(seconds.d_mxdmn_meanrr - millis.d_mxdmn_meanrr) < 1e-9, 's=' + seconds.d_mxdmn_meanrr + ' ms=' + millis.d_mxdmn_meanrr);
+      T.ok(
+        '§4 · MxDMn/MeanRR == d_csi (they ARE the same quantity — no un-guarded fork)',
+        Math.abs(seconds.d_mxdmn_meanrr - seconds.d_csi) < 1e-9,
+        'mxdmn_meanrr=' + seconds.d_mxdmn_meanrr + ' csi=' + seconds.d_csi
+      );
+      T.ok('§4 · the ratio is physiological (~0.4), not 1000× low (~0.0004)', seconds.d_mxdmn_meanrr > 0.01, 'd_mxdmn_meanrr=' + seconds.d_mxdmn_meanrr);
+    });
+
     group('HRVDex Phase-9 — compute() surface + summary adapter', 'hrvdex-dsp · adapters · signal-orchestrate', function (T) {
       var src = env.sources || {};
       var dsp = src['hrvdex-dsp.js'],
@@ -10586,6 +11162,34 @@
               !!(rEcg.best && rEcg.best.id === 'polar-h10-ecg' && rEcg.best.signalType === 'ecg'),
               rEcg.best ? rEcg.best.id + '/' + rEcg.best.signalType : 'no best'
             );
+            /* FOREIGN-STREAM VETO (DEEP-AUDIT-2026-07-11 §2). *_ECG.txt is safe only because polar-h10-ecg
+               OUTRANKS polar-rr's 0.6. The MOTION streams have NO adapter, so nothing outranked them: a real
+               H10 *_ACC.txt won the route by default and its Z-axis gravity rail (~973 mg) landed inside
+               PulseDex's 300–2000 ms interval window — a gravity vector analyzed as a heart recording
+               (HR 61.9 bpm, "overnight", stress 100, 36 stress_peak events @conf 0.92). A stream with no
+               adapter must be SET ASIDE, never guessed. */
+            var accHead = 'Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]\n2026-06-17T01:06:19.794;599630060275983872;211;23;975';
+            var rAcc = SA.route({ name: 'Polar_H10_AAAAAAAA_20260617_010616_ACC.txt' }, accHead);
+            T.ok('*_ACC.txt is SET ASIDE, not analyzed as RR (gravity is not a heartbeat)', rAcc.unknown === true, rAcc.best ? 'routed to ' + rAcc.best.id + ' @' + rAcc.best.confidence : 'unknown');
+            var rMag = SA.route(
+              { name: 'Polar_Sense_BBBBBBBB_20260609_194340_MAGN.txt' },
+              'Phone timestamp;sensor timestamp [ns];X [G];Y [G];Z [G]\n2026-06-09T19:43:40.000;834363822717523328;0.12;-0.44;0.31'
+            );
+            T.ok('*_MAGN.txt is SET ASIDE, not analyzed as RR', rMag.unknown === true, rMag.best ? 'routed to ' + rMag.best.id : 'unknown');
+            var rGyr = SA.route(
+              { name: 'Polar_Sense_BBBBBBBB_20260609_194341_GYRO.txt' },
+              'Phone timestamp;sensor timestamp [ns];X [dps];Y [dps];Z [dps]\n2026-06-09T19:43:45.447;834363822717523328;-3.66;1.41;-2.13'
+            );
+            T.ok('*_GYRO.txt is SET ASIDE, not analyzed as RR', rGyr.unknown === true, rGyr.best ? 'routed to ' + rGyr.best.id : 'unknown');
+            // the veto must also hold on a RENAMED file — the declared unit alone is disqualifying.
+            var rAccRenamed = SA.route({ name: 'session-3.txt' }, accHead);
+            T.ok('a renamed motion stream is still refused (declared [mg] unit is disqualifying)', rAccRenamed.unknown === true, rAccRenamed.best ? 'routed to ' + rAccRenamed.best.id : 'unknown');
+            // and the bare PSL envelope alone must no longer be evidence of an RR stream.
+            T.ok(
+              'the bare "Phone timestamp" PSL envelope alone no longer votes for polar-rr',
+              SA.route({ name: 'mystery.txt' }, 'Phone timestamp;sensor timestamp [ns]\n2026-06-17T01:00:00.000;599630059061536896').unknown === true
+            );
+
             var rRr2 = SA.route({ name: 'Polar_H10_AAAAAAAA_20260617_010615_RR.txt' }, 'Phone timestamp;RR-interval [ms]\n2026-06-17T01:00:00.000+02:00;850');
             T.ok(
               'device *_RR.txt still routes to an rr adapter (ecg adapter does not hijack RR)',

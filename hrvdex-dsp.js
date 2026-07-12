@@ -306,10 +306,18 @@ function ingestGangliorJSON(text, opts){
 }
 
 
-function computeDerived() {
-  // Cache profile ONCE before the loop — avoids 4× DOM reads per row
-  const _p = getProfile();
-  allRows.forEach((r,i,arr) => {
+/* computeDerived(rowsArg?) — derives every d_* column IN PLACE on `rowsArg`, defaulting to the module's
+   allRows (so every existing caller is byte-unchanged). The optional argument makes the derivation a PURE,
+   headless surface the test runners can drive on a synthetic row without touching app state — exposed as
+   HRVDex.derive() below, which is how the §3/§4 presence-gate regression legs reach these columns. */
+function computeDerived(rowsArg) {
+  // Cache profile ONCE before the loop — avoids 4× DOM reads per row.
+  // getProfile() lives in hrvdex-profile.js (a UI module). Guard it so the derivation runs HEADLESS:
+  // with no profile the profile-dependent columns (d_bap, d_vo2_*) fall to NaN — which is the honest
+  // answer when age/sex/BP were never supplied — instead of throwing and taking the whole row with them.
+  const _p = (typeof getProfile === 'function') ? getProfile() : {};
+  const _rows = rowsArg || allRows;
+  _rows.forEach((r,i,arr) => {
     // SIGNAL-ADAPTER-FOLLOWUPS-V §1: ONE predicate for "the Welltory black-box subjective
     // inputs are actually present (>0)". On a real summary file the six move as a group
     // (all present); on a raw / ECGDex-ingest recording they are all seed-0 together. Every
@@ -340,23 +348,38 @@ function computeDerived() {
       r.d_si = (r._amo50 && r._mode && r._mxdmn) ? r._amo50 / (2 * r._mode * r._mxdmn) : NaN;
       r.d_si_ms = false; r.d_si_flagged = false; r._baevskyS = null;
     }
-    r.d_mxdmn_meanrr = r._meanRR ? r._mxdmn / r._meanRR : NaN;
-    // Frequency-domain
-    const lfhf_denom = r._hf || 0.001;
-    r.d_lfhf = r._lf / lfhf_denom;
-    const nu_denom = (r._totalPow - r._vlf) || 0.001;
-    r.d_hfnu = (r._hf / nu_denom) * 100;
-    r.d_lfnu = (r._lf / nu_denom) * 100;
-    r.d_vlf_pct = r._totalPow ? (r._vlf / r._totalPow * 100) : NaN;
-    r.d_svi = (r._lf > 0 && r._hf > 0) ? (Math.log(r._lf) - Math.log(r._hf)) : NaN;
-    // spectral entropy over normalized [hf,lf,vlf]
-    const bandSum = r._hf + r._lf + r._vlf;
-    if(bandSum > 0){
+    // MxDMn/MeanRR is the SAME quantity as d_csi below, and like it MUST divide the guard-normalized
+    // (seconds) MxDMn by meanRR in seconds. Reading raw _mxdmn (SECONDS in a Welltory export) against raw
+    // _meanRR (ms) made this ratio 1000× LOW — the un-guarded sibling of the very mixed-unit trap
+    // DexUnits.guardBaevsky exists for (DEEP-AUDIT-2026-07-11 §4). Same operands as d_csi; do not re-fork.
+    var _mxdmnS0 = (r._baevskyS && r._baevskyS.mxdmnS != null) ? r._baevskyS.mxdmnS : r._mxdmn;
+    var _meanRRs0 = r._meanRR / 1000;
+    r.d_mxdmn_meanrr = (_meanRRs0 > 0 && _mxdmnS0 != null) ? (_mxdmnS0 / _meanRRs0) : NaN;
+
+    /* ── Frequency-domain — PRESENCE-gated (DEEP-AUDIT-2026-07-11 §3) ────────────────────────────────
+       `x || 0.001` treats an ABSENT band as 0 and then substitutes a 1000×-too-small epsilon. ECGDex and
+       PpgDex export lf/hf but NO totalPower/vlf, so on that (documented) ingest path the denominator
+       collapsed to the epsilon and HF n.u. surfaced as 125,000,000 % — a quantity that is 0–100 BY
+       DEFINITION — and went NEGATIVE when only vlf was present. An absent band must read (NaN), never a
+       fabricated number. This is the spectral sibling of the _hasSubj gate above; same rule, same reason:
+       gate on inputs being PRESENT, not on them being non-zero. */
+    const _hasLfHf = (r._lf > 0 && r._hf > 0);
+    const _hasNu = (r._totalPow > 0 && r._vlf != null && r._totalPow > r._vlf);
+    const _hasBands = (r._hf > 0 && r._lf > 0 && r._vlf > 0);
+    r.d_lfhf = _hasLfHf ? (r._lf / r._hf) : NaN;
+    r.d_hfnu = _hasNu ? (r._hf / (r._totalPow - r._vlf)) * 100 : NaN;
+    r.d_lfnu = _hasNu ? (r._lf / (r._totalPow - r._vlf)) * 100 : NaN;
+    r.d_vlf_pct = (r._totalPow > 0 && r._vlf != null) ? (r._vlf / r._totalPow * 100) : NaN;
+    r.d_svi = _hasLfHf ? (Math.log(r._lf) - Math.log(r._hf)) : NaN;
+    // spectral entropy over normalized [hf,lf,vlf] — needs all THREE bands; the old `||0.0001` floor
+    // fabricated a VLF share for an export that never carried one.
+    if(_hasBands){
       // Normalize to HF+LF+VLF (not TotalPow which may include DC) for correct entropy
-      const bands = [r._hf, r._lf, r._vlf].map(v => (v/bandSum)||0.0001);
+      const bandSum = r._hf + r._lf + r._vlf;
+      const bands = [r._hf, r._lf, r._vlf].map(v => v / bandSum);
       r.d_spectral_ent = -bands.reduce((s,p) => s + p*Math.log(p), 0) / Math.log(3);
     } else r.d_spectral_ent = NaN;
-    r.d_lfhf_totpow = r._totalPow ? ((r._lf + r._hf) / r._totalPow) : NaN;
+    r.d_lfhf_totpow = (r._totalPow > 0 && _hasLfHf) ? ((r._lf + r._hf) / r._totalPow) : NaN;
     // Composite
     // Black-box composite — when the Welltory subjective inputs are ABSENT (a raw/ECGDex-ingest
     // recording seeds SNS/Stress/PSNS/Energy = 0), DON'T surface a fabricated 0; require them
@@ -367,7 +390,9 @@ function computeDerived() {
     r.d_pti = _hasSubj ? r._psns * r._rmssd / 100 : NaN;
     r.d_incoherent_stress = r._coherence > 0 ? r._stress * (100 / r._coherence) : NaN;
     r.d_vei = r._hr > 0 ? r._rmssd / r._hr : NaN;
-    r.d_sdi = (r._hf + r._psns * 10 + 0.001) ? (r._lf + r._sns * 10) / (r._hf + r._psns * 10 + 0.001) : NaN;
+    // §3: the old guard `(hf + psns*10 + 0.001)` is ALWAYS truthy (the +0.001 sees to that), so with the
+    // spectrum absent this evaluated to a real-looking 0. Gate on the spectral inputs being present.
+    r.d_sdi = _hasLfHf ? (r._lf + r._sns * 10) / (r._hf + r._psns * 10) : NaN;
     // ── Poincaré SD1 / SD2 ──
     r.d_sd1 = r._rmssd / Math.sqrt(2);
     const sd2sq = Math.max(0, 2 * r._sdnn * r._sdnn - r.d_sd1 * r.d_sd1);
@@ -402,14 +427,14 @@ function computeDerived() {
     // ── Cardiac Resilience Score ──
     r.d_crs = (r._stress > 0) ? (r._coherence * r._rmssd * r._pnn50) / (r._stress * 1000 + 0.001) : NaN;
 
-    // ── RSA Power Proxy ──
-    r.d_rsa = (meanRR_s > 0) ? r._hf / (meanRR_s * meanRR_s) : NaN;
+    // ── RSA Power Proxy ── (§3: an absent HF divided into a real meanRR yielded a confident 0)
+    r.d_rsa = (meanRR_s > 0 && r._hf > 0) ? r._hf / (meanRR_s * meanRR_s) : NaN;
 
-    // ── Spectral Asymmetry Index ──
-    r.d_sai = (r._lf + r._hf > 0) ? (r._lf - r._hf) / (r._lf + r._hf) : NaN;
+    // ── Spectral Asymmetry Index ── (§3: with only ONE band present this returned ±1, a fabricated extreme)
+    r.d_sai = _hasLfHf ? (r._lf - r._hf) / (r._lf + r._hf) : NaN;
 
-    // ── VLF/HF ratio ──
-    r.d_vlf_hf = r._hf > 0 ? r._vlf / r._hf : NaN;
+    // ── VLF/HF ratio ── (§3: an absent VLF over a real HF yielded a confident 0)
+    r.d_vlf_hf = (r._hf > 0 && r._vlf > 0) ? r._vlf / r._hf : NaN;
 
     // ── HRV Power Law Slope (3-band log-log) ──
     if(r._vlf > 0 && r._lf > 0 && r._hf > 0){
@@ -817,6 +842,11 @@ HRVDex.compute = function(input, opts){
   return hrvBuildNodeExport(rows, opts);
 };
 HRVDex.parseRows = _hrvParseSummaryRows;
+// Headless derivation surface (DEEP-AUDIT-2026-07-11 §3/§4): derive the d_* columns on caller-supplied
+// rows without touching app state, so both runners can gate the spectral presence-gates + the unit-guarded
+// MxDMn/MeanRR ratio directly. Also exposes the node-export→row seeding the ECGDex/Ganglior ingest uses.
+HRVDex.derive = function(rows){ computeDerived(rows); return rows; };
+HRVDex.rowFromNodeExport = function(env){ var s = _envToSeed(env); return s ? _rowFromSeed(s) : null; };
 HRVDex.eventsFromRows = hrvEventsFromRows;
 HRVDex.buildNodeExport = hrvBuildNodeExport;
 HRVDex.loadOwnExport = hrvLoadOwnExport;   // SELF-INGEST reload (review-mode clinical view)
