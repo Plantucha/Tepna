@@ -3,7 +3,7 @@
 bump: patch
 type: fixed
 nodes: [suite]
-brief: ''
+brief: none
 ---
 Fix the evidence badge where the public site actually shows it — and put PpgDex on the front door.
 
