@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1aZWjURk+iCKcusRGMNbZLjEbOdvCYlfeKuRRt9lgLQ=' 'sha256-6RZXLEoUPvVrjS9laRTHze70mnbaJ+rNK+xDvzCc9JQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7rnyd/PHLymN+NpkvwZzfBCoTH9sQ1PzMBj3eyEzZAQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-Aagmdj7uloA0DrucBTiCOst/Zu8HtdOMCz2BF1lDtHw=' 'sha256-Cmy5jqXGBn2TOeoIUu5NQ462zWgA2iB09CRh/bkx2pc=' 'sha256-DE/lfDnNKHcSbXxw474kJVe7uFhKKaPy/5FmvRM68U4=' 'sha256-F4s+OtKkoVZS0q8lS4F/sWsYA6V6dQxQKQ7xrw244Q0=' 'sha256-HKfWmGIglGD2FlUrqnaKuiqyTPrluhBx9iHYpe2WtMA=' 'sha256-HMcz3UCFbmyBGi0SQWw6ydup3CHvmu4SX/HIKXkWnkg=' 'sha256-IJ8mbnmkr4o94oh8YkT3mK1n2wYABttxuoRD+1Mvt6Y=' 'sha256-ROGyhT1rJjfiCwpGX5aRiBwshPY6awMfBAkT7N8hXWo=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-giH7+xYTi6zzmo5ZtCPaGJEzq74hWIaqOK1CAMLayp4=' 'sha256-hs9K6cuZdV/TNM22sxtyqlWad5F44Inh53puPeYFZmg=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-pF2F1BHb5ALbGyqL7RaEPb4fzp9+gHyW4tWOpeTvV10=' 'sha256-pwWfvoYt3Ims36UoT3wru6Z6nBlwPUBHBajt/0lP8yo=' 'sha256-qpDBf/X1+mOTD9ctKFLqqYS2YmkhPZUPSr2/Dut5SX8=' 'sha256-rUyLtISg99MnpjTtyxOjorMARW/50/0aQ2FOeNA4TaI=' 'sha256-roO0qvbiqQFAF7zD/B79CM1goAjzhR5jx8+N3kX4ZSY=' 'sha256-sCx/0jRpwBNzhTpZ4ClKf8BfTccQekveXGhU/zx+WqU=' 'sha256-yNoaiS9N95lBo/AEEOuu3L8+OnQowaAEwE2DA9939Ow='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-6RZXLEoUPvVrjS9laRTHze70mnbaJ+rNK+xDvzCc9JQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7rnyd/PHLymN+NpkvwZzfBCoTH9sQ1PzMBj3eyEzZAQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Cmy5jqXGBn2TOeoIUu5NQ462zWgA2iB09CRh/bkx2pc=' 'sha256-DE/lfDnNKHcSbXxw474kJVe7uFhKKaPy/5FmvRM68U4=' 'sha256-F4s+OtKkoVZS0q8lS4F/sWsYA6V6dQxQKQ7xrw244Q0=' 'sha256-HKfWmGIglGD2FlUrqnaKuiqyTPrluhBx9iHYpe2WtMA=' 'sha256-HMcz3UCFbmyBGi0SQWw6ydup3CHvmu4SX/HIKXkWnkg=' 'sha256-IJ8mbnmkr4o94oh8YkT3mK1n2wYABttxuoRD+1Mvt6Y=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-giH7+xYTi6zzmo5ZtCPaGJEzq74hWIaqOK1CAMLayp4=' 'sha256-hEqAV35AmhZiu7dSfiuYRf01Qt+zMV8W5rAOPnn54IE=' 'sha256-hs9K6cuZdV/TNM22sxtyqlWad5F44Inh53puPeYFZmg=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-pF2F1BHb5ALbGyqL7RaEPb4fzp9+gHyW4tWOpeTvV10=' 'sha256-pwWfvoYt3Ims36UoT3wru6Z6nBlwPUBHBajt/0lP8yo=' 'sha256-qXDc7CQGqpFT7sBUyreVjyi7DHxWFcyQEFZCddRjkKo=' 'sha256-qpDBf/X1+mOTD9ctKFLqqYS2YmkhPZUPSr2/Dut5SX8=' 'sha256-r1iFOMt/UTb6HoQKDZZ1CCMcg/uE2yXUOs1FFX8Dv9w=' 'sha256-rUyLtISg99MnpjTtyxOjorMARW/50/0aQ2FOeNA4TaI=' 'sha256-roO0qvbiqQFAF7zD/B79CM1goAjzhR5jx8+N3kX4ZSY=' 'sha256-sCx/0jRpwBNzhTpZ4ClKf8BfTccQekveXGhU/zx+WqU=' 'sha256-urkCjENOheQfAY8yHUg0SiOi0yESGxda6XFx426kIW8=' 'sha256-yNoaiS9N95lBo/AEEOuu3L8+OnQowaAEwE2DA9939Ow='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -359,6 +359,419 @@
   root.DexEsc = { escapeHTML: escapeHTML };
   if (typeof module !== 'undefined' && module.exports) module.exports = { escapeHTML: escapeHTML };
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
+</script>
+<!-- shared export naming (exportName → 'undated', never a fabricated now()) + the evidence-badge
+     engine, which OverDex previously did not load at all while rendering a fused clinical KPI grid
+     (DEEP-AUDIT §17/§21) -->
+<script data-inline-src="dex-export.js">/*
+ * dex-export.js — Tepna shared export-filename helper (CORE/util)
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. See the LICENSE and
+ * NOTICE files at the project root, or http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * ────────────────────────────────────────────────────────────────────────
+ * ONE source of truth for every node's export download filename
+ * (EXPORT-HYGIENE-2026-06-27-BRIEF §2). Replaces the copy-pasted, drifting,
+ * Clock-Contract-VIOLATING `_exportTs()` that every *-app.js carried (each built
+ * the stamp from `new Date()` read through LOCAL getters — the export-click
+ * wall-clock, viewer-timezone-dependent, naming the wrong night for an overnight
+ * recording). This helper instead stamps the RECORDING ANCHOR `t0Ms`, read back
+ * via getUTC* (Clock Contract §5), so a name:
+ *   · identifies the NIGHT the file is about (not when Export was clicked),
+ *   · is DETERMINISTIC (re-exporting the same recording yields the same name),
+ *   · is VIEWER-TIMEZONE-INDEPENDENT by construction (getUTC*, never getHours()).
+ * A missing t0Ms → the literal `undated`, NEVER a fabricated now() (Clock Contract
+ * §1/§6; epistemic-honesty invariant).
+ *
+ *   exportName({ node, t0Ms, kind, ext, spanDays, contentId })
+ *     → "<Node>_<YYYY-MM-DD>_<HHMM>_<kind>.<ext>"             (single recording)
+ *     → "<Node>_<YYYY-MM-DD>_<N>d_<kind>.<ext>"               (spanDays = N, e.g. HRVDex window)
+ *     → "<Node>_<YYYY-MM-DD>_<HHMM>_<kind>_<contentId>.<ext>" (with recording.contentId)
+ *     → "<Node>_undated_<kind>.<ext>"                         (t0Ms null / non-finite)
+ *
+ *   node     : frozen LEXICON node name (capital-D, acronym stems all-caps), e.g. 'PulseDex'
+ *   t0Ms     : recording anchor (floating wall-clock ms) or null
+ *   kind     : controlled vocabulary — one of EXPORT_KINDS (see below). This is the
+ *              FILENAME kind segment ONLY — entirely separate from the FROZEN in-file
+ *              schema.name:"ganglior.node-export" (brief §2.3 frozen-name note).
+ *   ext      : format extension — json | csv | jsonl | html (the format lives in the
+ *              EXTENSION, never duplicated into the kind segment).
+ *   spanDays : for a multi-night window export (HRVDex), the span in days; single-
+ *              recording nodes pass null/omit. (brief §2.4 span-aware names.)
+ *   contentId: OPTIONAL short content digest from EXPORT-IDENTITY's recording.contentId
+ *              (identity-free, deterministic). When a non-empty string it is appended AFTER
+ *              the kind segment as `_<contentId>` (brief §2.5 / EXPORT-HYGIENE-FOLLOWUPS-II §1).
+ *              Omit / empty / non-string → name UNCHANGED, so non-adopting nodes + interop
+ *              files are untouched. Sanitized to [a-z0-9] (filename-safe), exactly like ext.
+ *
+ * Identity-free (brief §2.5 / EXPORT-IDENTITY): the name carries NO patient name and
+ * NO device serial. The only sanctioned disambiguator is the short content digest
+ * from EXPORT-IDENTITY's recording.contentId, appended optionally as `_<contentId>`
+ * (WIRED 2026-06-29, EXPORT-HYGIENE-FOLLOWUPS-II §1, now that PulseDex surfaces
+ * recording.contentId — EXPORT-IDENTITY-FOLLOWUPS §1); do not invent a separate id here.
+ *
+ * DOM-free; sync; loadable in node:vm (no Date-locale, no document, no localStorage).
+ * ──────────────────────────────────────────────────────────────────────── */
+(function (root) {
+  'use strict';
+
+  // Controlled `kind` vocabulary (brief §2.3) — collapses the per-node drift
+  // (_summary / _multi<N> / _ganglior / .node-export.json double-suffix) into four.
+  //   ganglior : the ganglior.node-export JSON — the fusion currency
+  //   summary  : human-readable metrics table (CSV/JSON)
+  //   series   : per-record rows (multi-recording array / JSONL) — NO count suffix
+  //   report   : rendered HTML/PDF
+  var EXPORT_KINDS = ['ganglior', 'summary', 'series', 'report'];
+
+  function _p2(n) { n = '' + n; return n.length < 2 ? '0' + n : n; }
+  // Clock Contract §5: read the floating t0Ms back via getUTC* ONLY, so the output
+  // is identical on any machine regardless of the viewer's timezone.
+  function _date(ms) { var d = new Date(ms); return d.getUTCFullYear() + '-' + _p2(d.getUTCMonth() + 1) + '-' + _p2(d.getUTCDate()); }
+  function _hhmm(ms) { var d = new Date(ms); return _p2(d.getUTCHours()) + _p2(d.getUTCMinutes()); }   // HHMM, no colon (filename-safe)
+
+  function exportName(opts) {
+    opts = opts || {};
+    var node = opts.node || 'Dex';
+    var kind = opts.kind || 'summary';
+    var ext = (opts.ext || 'json').toLowerCase().replace(/[^a-z0-9]/g, '');
+    var t0Ms = opts.t0Ms;
+    var spanDays = opts.spanDays;
+    // OPTIONAL recording.contentId disambiguator (brief §2.5 / EXPORT-HYGIENE-FOLLOWUPS-II §1):
+    // sanitize to [a-z0-9] (filename-safe, like ext); empty / non-string → '' → no suffix, name unchanged.
+    var cid = (typeof opts.contentId === 'string') ? opts.contentId.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+
+    var dated = (typeof t0Ms === 'number' && isFinite(t0Ms));
+    var stamp;
+    if (!dated) {
+      stamp = 'undated';                                   // honesty: never a fabricated now()
+    } else if (typeof spanDays === 'number' && isFinite(spanDays) && spanDays > 0) {
+      stamp = _date(t0Ms) + '_' + Math.round(spanDays) + 'd';   // span-aware (brief §2.4)
+    } else {
+      stamp = _date(t0Ms) + '_' + _hhmm(t0Ms);             // single recording
+    }
+    return node + '_' + stamp + '_' + kind + (cid ? '_' + cid : '') + (ext ? '.' + ext : '');
+  }
+
+  // ── SCRUB FOR SHARING (SELF-INGEST §5 · shared helper D1, SELF-INGEST-FOLLOWUPS-2026-07-03) ──
+  // De-raw'd ≠ de-identified: a node-export's schema.provenance.inputs[].name can carry a DEVICE
+  // SERIAL / source filename + inputs[].sha256. For clinical sharing return a deep CLONE with those
+  // stripped while KEEPING: the full clinical summary (nights[]/recordings[]/… + ganglior_events[] +
+  // crossNight), a COARSE build stamp (buildHash + generated, so provenance integrity survives), and
+  // recording.contentId (the identity-free EXPORT-IDENTITY handle). PURE: never mutates the input.
+  // ONE implementation for every node (D1) — OxyDex shipped its own oxyScrubExport in the pilot; it
+  // folds into this on OxyDex's next re-bundle (leaving it now avoids an export-inert OxyDex churn).
+  // Default OFF at every call site, so a normal export stays byte-identical. DOM-free; node:vm-safe.
+  function scrubExport(envelope) {
+    if (!envelope || typeof envelope !== 'object') return envelope;
+    var out = JSON.parse(JSON.stringify(envelope));        // deep clone — never mutate the caller
+    var sc = out.schema || (out.schema = {});
+    var prov = sc.provenance;
+    if (prov && typeof prov === 'object') {
+      sc.provenance = {
+        buildHash: (prov.buildHash != null ? prov.buildHash : null),   // COARSE build stamp KEPT (integrity)
+        generated: (prov.generated != null ? prov.generated : null),
+        scrubbed: true,
+        // inputs keep only NON-identifying integrity (byte count); drop name + sha256 + device serial/mtime.
+        inputs: (Array.isArray(prov.inputs) ? prov.inputs : []).map(function (inp) {
+          return { bytes: (inp && inp.bytes != null ? inp.bytes : null) };
+        })
+      };
+    }
+    sc.scrubbed = true;
+    // recording.contentId (identity-free) is KEPT; strip any device serial / model a node may carry.
+    if (out.recording && typeof out.recording === 'object') {
+      delete out.recording.device; delete out.recording.serial; delete out.recording.model;
+    }
+    // Multi-record wrappers: strip the same identifying keys from each per-element recording block.
+    // EVERY known carrier (SELF-INGEST-FOLLOWUPS-II §F1 — was nights[]-only, leaking device/serial on
+    // multi ECGDex/PulseDex `recordings[]` + PpgDex `sessions[]` exports): nights[] (OxyDex/CPAPDex),
+    // recordings[] (ECGDex/PulseDex), sessions[] (PpgDex).
+    ['nights', 'recordings', 'sessions'].forEach(function (key) {
+      if (Array.isArray(out[key])) out[key].forEach(function (el) {
+        if (el && el.recording && typeof el.recording === 'object') {
+          delete el.recording.device; delete el.recording.serial; delete el.recording.model;
+        }
+      });
+    });
+    return out;
+  }
+
+  var DexExport = { exportName: exportName, EXPORT_KINDS: EXPORT_KINDS, scrubExport: scrubExport };
+  root.DexExport = DexExport;
+  // app/back-compat bare globals (the apps call exportName(...) directly, like fmtDate/fmtClock)
+  root.exportName = exportName;
+  root.EXPORT_KINDS = EXPORT_KINDS;
+  root.dexScrubExport = scrubExport;   // bare global — the shared scrub every node's app reaches (D1)
+  if (typeof module !== 'undefined' && module.exports) module.exports = DexExport;
+})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : /** @type {any} */ (this)));
+</script>
+<script data-inline-src="metric-registry.js">/* ════════════════════════════════════════════════════════════════════════
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+   Ganglior · METRIC REGISTRY  (metric-registry.js)
+   ────────────────────────────────────────────────────────────────────────
+   The ONE shared piece in the disclosure / epistemic-hierarchy system — the
+   companion to crossnight-envelope.js. It standardizes the LOGIC + VISUAL
+   CONSTANTS, never the per-node DATA. Each node declares its own registry map
+   (`<NODE>_REGISTRY`) locally — same split as the envelope:
+
+       <NODE>_REGISTRY            → DATA   → local per node (label/unit/depth/evidence/cite)
+       MetricRegistry.badge(...)  → SHAPE  → this file (shared)
+
+   Two INDEPENDENT axes travel with every metric:
+     • depth     ∈ basic | advanced | research   → disclosure tiering
+                   (emits the existing [data-tier] / body[data-mode] mechanism)
+     • evidence  ∈ validated | emerging | experimental | heuristic
+                   → epistemic visual hierarchy (a NON-HUE fill ladder badge)
+
+   See SYSTEM-COHESION-BRIEF.md + Visual-Language-Spec.html.
+
+   Exposes window.MetricRegistry = {
+     EVIDENCE, DEPTHS, TIERS,
+     depthToTier, tierToShows, visibleAtTier,
+     entry, badge, legend, evClass,
+     getTier, setTier, applyTier, mountDepthSelector,
+     STORAGE_KEY, VERSION
+   }.
+   Pure logic + DOM-string badge helpers + one-time injected stylesheet.
+   No network, no deps, no fonts. 100% local.
+   ════════════════════════════════════════════════════════════════════════ */
+(function (global) {
+'use strict';
+
+var VERSION     = '1.0';
+var STORAGE_KEY = 'dex_depth_tier';          // SHARED across every node (brief §locked-4)
+var LEGACY_KEYS = ['oxydex_dashMode', 'o2r_dashMode', 'hrvdex_dashMode']; // migrate-from
+
+/* ── EVIDENCE taxonomy — the fill ladder = the confidence ladder ──────────
+   ink is ONE neutral META hue (#aab8cc), deliberately OUTSIDE the status
+   hues (green/amber/red) and the brand hues (teal/blue), so the evidence
+   channel can never collide with status color. */
+var EVIDENCE = {
+  measured:     { rank:0, glyph:'\u25C9', label:'Measured',     fill:'target',
+    desc:'Direct sensor reading or a raw statistic of the recorded signal (mean/min/max/nadir/duration). The ground truth a node senses — not computed.' },
+  validated:    { rank:1, glyph:'\u25CF', label:'Validated',    fill:'solid',
+    desc:'Established, externally validated, clinically meaningful DERIVED metric.' },
+  emerging:     { rank:2, glyph:'\u25D0', label:'Emerging',     fill:'half',
+    desc:'Published and promising, but less standardized or device-dependent.' },
+  experimental: { rank:3, glyph:'\u25CB', label:'Experimental', fill:'hollow',
+    desc:'Plausible node-computed composite, not externally validated. Directional only.' },
+  heuristic:    { rank:4, glyph:'\u25CC', label:'Heuristic',    fill:'dashed',
+    desc:'Convenience estimate / population proxy. A trend, not a measurement.' }
+};
+var EVIDENCE_ORDER = ['measured','validated','emerging','experimental','heuristic'];
+
+/* ── DEPTH axis ↔ existing tier attributes ────────────────────────────────
+   basic   → (no data-tier)      → always visible / Core
+   advanced→ data-tier=secondary → Advanced+
+   research→ data-tier=research  → Research only                         */
+var DEPTHS = ['basic','advanced','research'];
+var TIERS  = ['core','advanced','research'];      // body[data-mode] values
+var DEPTH_TO_TIERATTR = { basic:'', advanced:'secondary', research:'research' };
+var TIER_SHOWS = { core:[''], advanced:['','secondary'], research:['','secondary','research'] };
+
+function depthToTier(depth){ return DEPTH_TO_TIERATTR[depth] != null ? DEPTH_TO_TIERATTR[depth] : 'secondary'; }
+
+// is a metric of <depth> visible when the app is in <tier> mode?
+function visibleAtTier(depth, tier){
+  var attr = depthToTier(depth);
+  var shows = TIER_SHOWS[tier] || TIER_SHOWS.core;
+  return shows.indexOf(attr) >= 0;
+}
+function tierToShows(tier){ return (TIER_SHOWS[tier] || TIER_SHOWS.core).slice(); }
+
+/* ── entry(registry, id) → normalized metric def ──────────────────────────
+   A metric with no registry entry defaults to advanced/experimental and logs
+   a dev warning (forces coverage — brief §1). */
+var _warned = {};
+function entry(registry, id){
+  var r = (registry && registry[id]) || null;
+  if(!r){
+    if(!_warned[id]){ _warned[id] = true;
+      try { console.warn('[MetricRegistry] no registry entry for "'+id+'" — defaulting depth:advanced / evidence:experimental'); } catch(e){} }
+    return { id:id, label:id, unit:'', goodDirection:'up', depth:'advanced', evidence:'experimental', cite:'', _missing:true };
+  }
+  return {
+    id:id,
+    label: r.label != null ? r.label : id,
+    unit:  r.unit  != null ? r.unit  : '',
+    goodDirection: r.goodDirection || r.good || 'up',
+    depth:    DEPTHS.indexOf(r.depth) >= 0 ? r.depth : 'advanced',
+    evidence: EVIDENCE[r.evidence] ? r.evidence : 'experimental',
+    cite: r.cite || ''
+  };
+}
+
+/* ── evClass(evidence) → the badge CSS class (defensive) ── */
+function evClass(evidence){ return EVIDENCE[evidence] ? ('ev-'+evidence) : 'ev-experimental'; }
+
+/* ── badge(evidence, cite) → '<span class="ev ev-…" title="…"></span>' ────
+   Shared so a Validated dot is byte-identical in every node + the Integrator. */
+function _escAttr(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function badge(evidence, cite){
+  var e = EVIDENCE[evidence] ? evidence : 'experimental';
+  var name = EVIDENCE[e].label;
+  var title = name + (cite ? ' \u2014 ' + cite : '');
+  return '<span class="ev ev-'+e+'" title="'+_escAttr(title)+'" aria-label="'+_escAttr(name+' evidence')+'"></span>';
+}
+
+/* ── legend(opts) → one strip per view ────────────────────────────────────
+   opts.only = ['validated','emerging',...] to show a subset; default all. */
+function legend(opts){
+  opts = opts || {};
+  var keys = opts.only && opts.only.length ? opts.only : EVIDENCE_ORDER;
+  var parts = ['<span class="lg-title">Evidence</span>'];
+  keys.forEach(function(k, i){
+    if(!EVIDENCE[k]) return;
+    if(i) parts.push('<span class="ev-sep"></span>');
+    parts.push('<span class="lg-item"><span class="ev ev-'+k+'"></span><b>'+EVIDENCE[k].label+'</b></span>');
+  });
+  parts.push('<span class="lg-note">one strip per view \u00b7 cite on hover</span>');
+  return '<div class="ev-legend" role="group" aria-label="Evidence legend">'+parts.join('')+'</div>';
+}
+
+/* ── Depth-tier persistence (shared key, with legacy migration) ──────────── */
+function getTier(){
+  var v = null;
+  try {
+    v = global.localStorage.getItem(STORAGE_KEY);
+    if(v == null){
+      for(var i=0;i<LEGACY_KEYS.length;i++){
+        var lv = global.localStorage.getItem(LEGACY_KEYS[i]);
+        if(lv){ v = lv; global.localStorage.setItem(STORAGE_KEY, lv); break; }  // migrate forward
+      }
+    }
+  } catch(e){}
+  return TIERS.indexOf(v) >= 0 ? v : 'core';   // default Core (brief §locked-4)
+}
+function setTier(tier){
+  if(TIERS.indexOf(tier) < 0) tier = 'core';
+  try { global.localStorage.setItem(STORAGE_KEY, tier); } catch(e){}
+  applyTier(tier);
+  return tier;
+}
+
+/* applyTier — set body[data-mode] + sync every mode control on the page.
+   Mirrors each node's local setMode() so the shared key drives the existing CSS. */
+function applyTier(tier){
+  if(TIERS.indexOf(tier) < 0) tier = 'core';
+  var b = global.document && global.document.body;
+  if(b){
+    b.dataset.mode = tier;
+    var sel = '.mode-btn, .nav-mode-btn, .mnav-mode-btn';
+    var btns = global.document.querySelectorAll(sel);
+    for(var i=0;i<btns.length;i++){ btns[i].classList.toggle('active', btns[i].dataset.mode === tier); }
+  }
+  return tier;
+}
+
+/* mountDepthSelector(el) — optional convenience: wire an existing .mode-bar
+   (or build one) so every node persists identically under the shared key. */
+function mountDepthSelector(el){
+  if(!el) return;
+  if(!el.querySelector('.mode-btn')){
+    el.classList.add('mode-bar');
+    el.innerHTML = TIERS.map(function(t){
+      return '<button class="mode-btn" data-mode="'+t+'">'+t.charAt(0).toUpperCase()+t.slice(1)+'</button>';
+    }).join('');
+  }
+  el.addEventListener('click', function(e){
+    var btn = e.target.closest('.mode-btn'); if(!btn) return;
+    setTier(btn.dataset.mode);
+  });
+  applyTier(getTier());
+}
+
+/* ── One-time injected stylesheet — the evidence visual language (verbatim
+   from Visual-Language-Spec.html), so every node that loads this file gets
+   identical badges + legend without editing ans-design.css. ──────────────── */
+var BADGE_CSS = '';   // canonical evidence-badge stylesheet (the single source
+                      // of truth other surfaces mirror — see dex-badges.css).
+                      // Populated by _injectCSS on first run; exported below.
+function _injectCSS(){
+  if(!global.document) return;
+  if(global.document.getElementById('metric-registry-css')) return;
+  var css = BADGE_CSS =
+  ':root{ --ev-ink:#aab8cc; }' +
+  '.ev{display:inline-block;width:11px;height:11px;border-radius:50%;flex:none;position:relative;vertical-align:baseline;}' +
+  /* measured = bullseye (solid core + gap ring): the strongest mark, a direct
+     sensor reading — reads as "locked to ground truth", above validated. */
+  '.ev-measured{background:var(--ev-ink);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--ev-ink);}' +
+  '.ev-validated{background:var(--ev-ink);box-shadow:0 0 0 1px var(--ev-ink) inset;}' +
+  '.ev-emerging{background:linear-gradient(90deg,var(--ev-ink) 0 50%,transparent 50% 100%);box-shadow:0 0 0 1.5px var(--ev-ink) inset;}' +
+  '.ev-experimental{background:transparent;box-shadow:0 0 0 1.5px var(--ev-ink) inset;}' +
+  '.ev-heuristic{background:transparent;border:1.5px dashed var(--ev-ink);width:12px;height:12px;}' +
+  /* ── PLACEMENT (cohesion v1.1) — evidence badge lives in the CARD's
+     bottom-right corner, a quiet meta-marker that never competes with the
+     metric value or its status hue. In dense tables / section labels /
+     legends (no card to anchor to) it stays inline by the label. ───────── */
+  /* default: inline (tables, section + chart labels, legend) */
+  '.ev{opacity:.85;}' +
+  '.t-metric .ev,.sec-label .ev,.lg-item .ev,.chart-legend .ev,.legend-item .ev{position:static;margin-left:5px;}' +
+  '.ev[title]{cursor:help;}' +
+  /* card tiles become the positioning context for their corner badge */
+  '.metric,.ss-kpi,.nr-kpi,.kpi,.readiness-subscore{position:relative;}' +
+  /* the badge breaks out of the label and anchors to the tile corner */
+  '.metric>.m-label .ev,.metric>.m-val .ev,.ss-kpi>.ss-kpi-label .ev,.nr-kpi>.nr-kpi-label .ev,.kpi>.kpi-label .ev,.readiness-subscore>.rs-label .ev{position:absolute;right:9px;bottom:8px;margin:0;opacity:.55;transition:opacity .15s;}' +
+  '.metric:hover>.m-label .ev,.metric:hover>.m-val .ev,.ss-kpi:hover>.ss-kpi-label .ev,.nr-kpi:hover>.nr-kpi-label .ev,.kpi:hover>.kpi-label .ev,.readiness-subscore:hover>.rs-label .ev{opacity:.95;}' +
+  /* hero tiles are tall + centered — nudge the corner badge inward to taste */
+  '.metric-hero>.m-label .ev{right:14px;bottom:14px;}' +
+  /* ── WRAPPER: card corner (.ev-corner) — DEEP-AUDIT §21 ────────────────────
+     The mandate's placement (1) for cards / KPIs / HERO numbers. It was defined
+     in dex-badges.css but NEVER in the engine, so no app could use it: the apps
+     load metric-registry.js, not the CSS mirror. A hero (.readiness-hero) is not
+     a .metric/.kpi tile, so the tile rules above never reached it and every hero
+     number in the fleet shipped unbadged. Values are byte-faithful to
+     dex-badges.css. NOTE: no disc property here (background/border/box-shadow/
+     width/height/border-radius) — the cohesion-badges gate deep-compares exactly
+     those between engine and mirror; layout props are free to live in one. */
+  '.ev-corner{position:absolute;bottom:12px;right:14px;z-index:2;cursor:help;opacity:.55;transition:opacity .15s;}' +
+  '.ev-corner:hover{opacity:.7;}' +
+  '.readiness-hero{position:relative;}' +
+  /* reserve bottom clearance so the corner badge never lands on the value
+     (only on tiles that actually carry a badge — others keep their size) */
+  '.metric:has(.ev),.ss-kpi:has(.ev),.nr-kpi:has(.ev),.kpi:has(.ev),.readiness-subscore:has(.ev){padding-bottom:22px;}' +
+  '.metric-hero:has(.ev){padding-bottom:30px;}' +
+  /* full-metrics-table: badge LEADS the metric name (fixed left gutter) so
+     rows align in a clean column and long labels keep full width (no wrap). */
+  '.fmt-m{white-space:normal;}' +
+  '.fmt-m .ev{position:static;margin:0 7px 0 0;opacity:.7;vertical-align:baseline;}' +
+  /* chips: small inline meta-dot after the value */
+  '.nr-chip .ev{position:static;margin-left:5px;opacity:.6;vertical-align:baseline;width:9px;height:9px;}' +
+  /* legend strip */
+  '.ev-legend{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:11.5px;color:var(--text3);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:9px 14px;margin:0 0 16px;}' +
+  '.ev-legend .lg-item{display:inline-flex;align-items:center;gap:6px;}' +
+  '.ev-legend .lg-item b{color:var(--text2);font-weight:600;}' +
+  '.ev-legend .ev-sep{width:1px;height:13px;background:var(--border2);margin:0 4px;}' +
+  '.ev-legend .lg-title{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text4);margin-right:4px;}' +
+  '.ev-legend .lg-note{margin-left:auto;color:var(--text4);font-size:10.5px;}';
+  var s = global.document.createElement('style');
+  s.id = 'metric-registry-css';
+  s.textContent = css;
+  (global.document.head || global.document.documentElement).appendChild(s);
+}
+
+// init: inject CSS + apply persisted tier as early as possible
+function _init(){
+  _injectCSS();
+  // apply tier once the body exists; applyTier no-ops safely if it doesn't yet
+  if(global.document && global.document.body) applyTier(getTier());
+  else if(global.document) global.document.addEventListener('DOMContentLoaded', function(){ applyTier(getTier()); });
+}
+_init();
+
+global.MetricRegistry = {
+  VERSION:VERSION, STORAGE_KEY:STORAGE_KEY, BADGE_CSS:BADGE_CSS,
+  EVIDENCE:EVIDENCE, EVIDENCE_ORDER:EVIDENCE_ORDER, DEPTHS:DEPTHS, TIERS:TIERS,
+  depthToTier:depthToTier, tierToShows:tierToShows, visibleAtTier:visibleAtTier,
+  entry:entry, badge:badge, legend:legend, evClass:evClass,
+  getTier:getTier, setTier:setTier, applyTier:applyTier, mountDepthSelector:mountDepthSelector
+};
+
+})(window);
 </script>
 <!-- the FUSER (public IntegratorDSP surface; bare globals are unique on this page) -->
 <script data-inline-src="clock.js">/*
@@ -8043,7 +8456,11 @@ if (!root.__DEX_NAMESPACED__) {
       // proxy: if spike count ≥ 30% of nadir events → coupling present
       coupledCount = Math.min(spikes.length, nadirEvents);
     }
-    var couplingScore = nadirEvents > 0 ? +((coupledCount / nadirEvents) * 100).toFixed(0) : 0;
+    // With no nadirs the ratio is 0/0 — UNDEFINED, not 0 %. A literal 0 rendered as a real
+    // measurement ("Coupling 0 %", red) on a night that simply had nothing to couple; the
+    // renderer's own guard (oxydex-render.js `cp.couplingScore != null`) was already written
+    // expecting null. DEEP-AUDIT §18.
+    var couplingScore = nadirEvents > 0 ? +((coupledCount / nadirEvents) * 100).toFixed(0) : null;
 
     // Sleep Fragmentation Index: (WASO + HR spikes + osc episodes) / hr
     var wasoWin = motSleep ? motSleep.wasoWindows : 0;
@@ -10657,7 +11074,10 @@ function _hrvParseSummaryRows(text) {
     r._sns = parseFloat(r['ANS balance(SNS)']||r['SNS']||0);
     r._psns = parseFloat(r['ANS balance(PSNS)']||r['PSNS']||0);
     r._coherence = parseFloat(r['Coherence index']||r['Coherence']||0);
-    r._hrv = parseFloat(r['HRV Score']||r['HRV']||0);
+    // DEEP-AUDIT §21 — `||0` turned an ABSENT vendor score into a real-looking 0, which the hero
+    // rendered as a genuine reading ("0 · Strained · Prioritize rest") for a file that simply never
+    // carried the column. Absence is null; the renderer already prints '—' for null.
+    r._hrv = numOrNull(r['HRV Score'] != null && String(r['HRV Score']).trim() !== '' ? r['HRV Score'] : r['HRV']);
     r._cv = numOrNull(r['CV']);
     if(isFinite(r._tMs)) rows.push(r);
   }
@@ -17216,7 +17636,25 @@ global.ECGDex.scrubExport = function(env){
     var ap = fusion.apnea, hrv = fusion.hrv, w = fusion.window;
     var nodes = fusion.nodes || [];
 
-    function stat(label, val, cls) { return '<div class="stat"><div class="sv ' + (cls || '') + '">' + val + '</div><div class="sl">' + esc(label) + '</div></div>'; }
+    // DEEP-AUDIT §21 — OverDex rendered a fused CLINICAL KPI grid while loading no badge engine at
+    // all. These are cross-node fusion outputs that belong to no single node's registry, so they are
+    // graded the way integrator-render.js grades its own: the fusion layer's epistemic tier on the
+    // shared 5-level ladder, rendered through the SAME MetricRegistry.badge so the disc is
+    // byte-identical to every node. Counted quantities are `measured`; the corroborated apnea index
+    // is `emerging` — the exact tier the Integrator gives the same number.
+    var STAT_EV = {
+      'recordings fused': { ev: 'measured', cite: 'Count of recordings that routed to a node and produced an export — a counted quantity, not a model.' },
+      'overlap (union)': { ev: 'measured', cite: 'Union of the recordings\' time windows on the shared clock — counted, not modelled.' },
+      'cross-signal findings': { ev: 'measured', cite: 'Count of coincidences the Integrator confirmed inside the overlap window.' },
+      'confirmed apnea idx': { ev: 'emerging', cite: 'Cross-signal corroboration — O₂ desaturation ⟷ autonomic surge in a directional window (AASM ODI framing; Azarbarzin 2019). A corroboration signal, not a scored AHI.' }
+    };
+    function statBadge(label) {
+      var R = window.MetricRegistry, e = STAT_EV[label];
+      return R && R.badge && e ? R.badge(e.ev, e.cite) : '';
+    }
+    function stat(label, val, cls) {
+      return '<div class="stat">' + '<div class="sv ' + (cls || '') + '">' + val + '</div><div class="sl">' + statBadge(label) + esc(label) + '</div></div>';
+    }
 
     var apIdx = (ap && ap.confirmedAHI != null) ? ap.confirmedAHI : null;
     var apReportable = ap && ap.confirmedAHIReportable;
@@ -17279,8 +17717,14 @@ global.ECGDex.scrubExport = function(env){
     fusionEl.innerHTML = html;
     var dl = document.getElementById('dlFused');
     if (dl) dl.addEventListener('click', function () {
-      var d = (FUSION && FUSION.window.startMs != null) ? D.fmtDate(FUSION.window.startMs) : new Date().toISOString().slice(0, 10);
-      download('overdex_fusion_' + d + '.json', FUSED_EXPORT);
+      // Name through the shared exportName() — recording-anchored to the fusion window start (getUTC*),
+      // span-aware. The old now() fallback stamped an UNDATED export with the date of the click: a
+      // Clock-Contract fabrication that integrator-app.js already dropped for exactly this reason.
+      // No window start → 'undated' (honest). DEEP-AUDIT §17.
+      var ws = (FUSION && FUSION.window.startMs != null) ? FUSION.window.startMs : null;
+      var we = (FUSION && FUSION.window.endMs != null) ? FUSION.window.endMs : null;
+      var span = (ws != null && we != null) ? Math.round((we - ws) / 864e5) : null;
+      download(exportName({ node: 'OverDex', t0Ms: ws, kind: 'summary', ext: 'json', spanDays: span }), FUSED_EXPORT);
     });
   }
 

@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS · **Created:** 2026-07-11 · **Charter:** `AUDIT-PROMPT.md` · **Baseline at audit time:** headless 2000/2000 + provenance GATE A 8/8 / GATE B 16/16 (both green — no finding #0)
+**Status:** DONE — 2026-07-12 · **Created:** 2026-07-11 · **Charter:** `AUDIT-PROMPT.md` · **Baseline at audit time:** headless 2000/2000 + provenance GATE A 8/8 / GATE B 16/16 (both green — no finding #0) · **On completion:** headless 2125/2125 · GATE A 8/8 · GATE B green · build `--check` clean · all 21 findings executed · follow-up: `DEEP-AUDIT-FOLLOWUPS-2026-07-12-BRIEF.md`
 
 # Deep audit 2026-07-11 — 21 reproducible defects
 
@@ -390,10 +390,44 @@ the epoch path already does correctly). **Repro:** `real-diff.mjs`, `ls-grid.mjs
    cannot pass vacuously. Export-inert on the equiv path: **no fixture output moved**.
    Behavior 2109/2109 · GATE A 8/8 · GATE B 23/23 · biome clean.
    Changeset: `changes/2026-07-12-spectral-one-scale-no-grid-lottery.md`.
-8. **§17–§21** — hygiene: `exportName()`, null-not-zero, profile origins, ODI pooling, badge coverage
+8. **§17–§21 hygiene** — ✅ **EXECUTED 2026-07-12.** §17: OverDex names its export through the shared
+   `exportName()` — an undated fusion window is now `OverDex_undated_summary.json`, not stamped with the
+   date of the *click* (the Clock-Contract fabrication `integrator-app.js` had already dropped by name).
+   §18: `couplingScore` is `null` — not `0` — when a night has no nadirs; 0/0 is undefined, and
+   `oxydex-render.js`'s own guard was already written expecting `null`. §19: `derive()` now **reports the
+   provenance it always had and always dropped** — `origins` (per input) + `basis` (per derived value) +
+   `personalized`; one guessed input taints a derived value, so BMI/BSA/RMR/VO₂ from an empty profile
+   self-report as `pop` and the panel marks them **"pop default"** rather than presenting them as findings
+   about the user. `sex` got the `ageSet` treatment it never had (it silently claimed *"your value"* =
+   Male for everyone). The ECGDex/GlucoDex/PpgDex exports now write **only what was entered or detected**,
+   making the shipped note (*"null = left on auto/default"*) true for the first time, and move the priors
+   compute actually ran on into a labelled `assumedDefaults` block — so nothing is lost, but nothing is
+   claimed either. §20: night ODI/T90 **pool** (Σdesats ÷ Σhours; Σbelow90 ÷ Σvalid) instead of averaging
+   per-session *rates* — the lane now exposes its own denominators so the pooling is honest, and the
+   identical bug in `cpapdex-cross.js nightOdi` (not named in the audit) died with it. §21: all four hero
+   numbers are badged; the mandate's `.ev-corner` placement was **defined in the CSS mirror but never in
+   the engine** — so no app could use it — and now exists in `metric-registry.js`; the two counterfeit
+   `<span class="proj-badge proj-good">validated</span>` pills (a ladder word typed into a status *hue*)
+   are gone; OverDex loads the badge engine and grades its fused KPI grid the way `integrator-render.js`
+   grades its own; and an **absent** Welltory `HRV Score` reads `null` instead of a real-looking `0`
+   rendered *"Strained · Prioritize rest"*.
+   **Gated:** a 31-assert group **verified to red on the original code — 22 of 31 fail**, with the audit's
+   exact numbers (coupling `0`; ODI `6.03` vs the pooled truth `4.96`; T90 `17.5` vs `11.44`; `derive()`
+   carrying no provenance at all; every hero unbadged), including **controls** (a single-session night is
+   unchanged by pooling; the derived math still computes — the fix marks provenance, it does not blank the
+   number) so it cannot pass vacuously. **Export-inert: no fixture output moved** — every code-gated
+   fixture is a `compute()` product and `personalization` is written only in the app layer, so only the
+   bundles' `manifestHash` moved (auto-stamped by `build.mjs`).
+   Behavior 2125/2125 · GATE A 8/8 · GATE B green · build `--check` clean · biome clean.
+   Changeset: `changes/2026-07-12-hygiene-origins-pooling-badges.md`.
+   **Residue** (carried to the follow-up): `_envToSeed`'s sibling `||0` coercions in `hrvdex-dsp.js`
+   (`_energy`/`_focus`/`_sns`/`_psns`/`_coherence`) still turn an absent vendor column into a real-looking
+   `0` — only `_hrv`, the surfaced hero, was fixed here; and `spo2HrDecouplingPct` keeps the same
+   `: 0`-for-undefined shape §18 fixed for coupling, but is not proven to move a surfaced number.
 
 ## Follow-ups spawned
-Per `CLAUDE.md` §📌, a `DEEP-AUDIT-FOLLOWUPS-…-BRIEF.md` will capture what execution surfaces. The
+`DEEP-AUDIT-FOLLOWUPS-2026-07-12-BRIEF.md` — the residue each execution surfaced (PulseDex's two deeper
+fail-open layers under §2, the `_envToSeed` null-seed, the OxyDex tail-slice family, `remProxyPct`'s
+denominator mismatch, the HRVDex `||0` siblings), plus the structural finding: the
 **gate blind-spot** this audit exposed — every equiv fixture is a clean ~6-min clip, so §1/§8/§9 were
-structurally invisible — is itself the highest-value follow-up: add a **long, lossy, real** night to the
-equiv set.
+structurally invisible — is the highest-value item: add a **long, lossy, real** night to the equiv set.

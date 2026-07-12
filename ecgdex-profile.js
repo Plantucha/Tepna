@@ -41,19 +41,29 @@ function getProfile(){
     // another node's resting-HR); else 0 ⇒ the node falls back to its own auto-detection.
     // Adopt ONLY origin==='detected' — never let the flat pop default become an override.
     const detOr0=field=>{ const mv=num(man[field]); if(mv>0) return mv; const r=DP().resolve(field); return (r.origin==='detected'&&r.v>0)?r.v:0; };
+    // DEEP-AUDIT §19 — carry the CASCADE ORIGIN of every field COMPUTE uses. The values below are
+    // still the population priors compute needs (age 42 / 80 kg / 178 cm are what the math runs on),
+    // but the export must never present a prior as something the user told us. hrRest/vo2 already
+    // honored this via detOr0; age/sex/weight/height/elevation never did. `_origins` is additive —
+    // every existing reader of this object is unaffected.
+    const org=f=>{ try { return DP().resolve(f).origin; } catch(e){ return 'pop'; } };
     return { age:clamp(num(p.age)||42,12,95), sex:p.sex==='F'?'F':'M',
              weight:clamp(num(p.weight)||80,30,250), height:clamp(num(p.height)||178,120,230),
              hrmax:num(man.hrMax)>0?num(man.hrMax):0, rhr:detOr0('hrRest'),
              vo2gt:detOr0('vo2'), elev:clamp(num(p.elevation)||0,0,6000),
-             cpap: p.cpap==='yes' };
+             cpap: p.cpap==='yes',
+             _origins:{ age:org('age'), sex:org('sex'), weight:org('weight'), height:org('height'),
+                        elevation:org('elevation'), cpap:org('cpap') } };
   }
-  // legacy DOM fallback (DexProfile not loaded)
+  // legacy DOM fallback (DexProfile not loaded) — and the HEADLESS path, where there is no panel and
+  // no record: nothing here was ever "entered", so claim no provenance at all (_origins null ⇒ the
+  // export treats every field as not-entered rather than asserting one).
   const v=(id,d)=>{ const e=$(id); const n=e?parseFloat(e.value):NaN; return isFinite(n)?n:d; };
   const sx=$('ecgSex'); const cp=$('ecgCPAP');
   return { age:clamp(v('ecgAge',42),12,95), sex:sx?sx.value:'M',
            weight:clamp(v('ecgWeight',80),30,250), height:clamp(v('ecgHeight',178),120,230),
            hrmax:v('ecgHRmax',0), rhr:v('ecgRHR',0), vo2gt:v('ecgVO2',0), elev:clamp(v('ecgElev',0),0,6000),
-           cpap: cp ? cp.value==='yes' : false };
+           cpap: cp ? cp.value==='yes' : false, _origins:null };
 }
 function loadProfile(){
   if(DP()){

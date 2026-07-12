@@ -235,6 +235,10 @@ function renderHero(r, prev){
     + (subsHtml ? `<div class="readiness-scores-grid">${subsHtml}</div>` : '')
     + `<div class="readiness-note">${note}</div>`
     + (chips ? `<div class="readiness-zones">${chips}</div>` : '')
+    // DEEP-AUDIT §21 — the hero was the ONE unbadged number on this card while every subscore
+    // below it was badged. It is Welltory's black-box 'HRV Score' (registry: experimental), so
+    // it is exactly the number that most needs its evidence tier shown.
+    + `<span class="ev-corner">${evBadge('HRV Score')}</span>`
     + `</div>`;
 
   // Mirror into the sidebar readiness badge
@@ -267,8 +271,11 @@ function renderHrvBench(r){
   const st = (lbl,val,unit,cls)=>`<div class="proj-stat ps-${cls}"><span class="ps-label">${eb(lbl)}${lbl}</span><span class="ps-val">${val!=null?val:'—'}<span class="ps-unit">${unit}</span></span></div>`;
   host.innerHTML =
     `<div class="proj-card ${sev}">`
-    + `<div class="proj-header"><span class="proj-icon">💓</span><span class="proj-title">HRV Bench · Time-Domain</span>`
-    +   `<span class="proj-badge proj-good">validated</span></div>`
+    // DEEP-AUDIT §21 — this pill hardcoded the ladder word "validated" as literal markup, in a
+    // status-HUE pill (proj-good = green), on a card whose own CAI metric is graded `emerging`.
+    // The evidence ladder is never a hue and is never hand-typed: each metric on this card already
+    // carries its real badge from the registry (eb(...) below). The counterfeit pill is gone.
+    + `<div class="proj-header"><span class="proj-icon">💓</span><span class="proj-title">HRV Bench · Time-Domain</span></div>`
     + `<div class="proj-main"><div class="proj-value ${vc}">${rm!=null?rm.toFixed(0):'—'}</div><div class="proj-unit">ms · ${eb('rMSSD')}rMSSD (vagal tone)</div></div>`
     + `<div class="proj-waterfall">`
     +   f('SDNN','norm 50–100 ms', sd!=null?sd.toFixed(0):null, 'ms', sd>50?'good':sd>35?'warn':'bad')

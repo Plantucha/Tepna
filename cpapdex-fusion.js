@@ -122,14 +122,23 @@ function cpapCrossMetrics(night){
   if (!night) return null;
   var nm = night.metrics || {};
   var ahi = nm.residualAHI;
-  // pool oximetry across sessions that had a live lane
+  // POOL oximetry across sessions that had a live lane — pool the NUMERATOR and the DENOMINATOR,
+  // never the rates. An unweighted mean of per-session ODIs lets a 40-minute nap count as much as a
+  // 6-hour sleep: a real 6.38 h + 0.68 h night reported ODI 5.97 where the pooled truth is 3.68
+  // (×1.62 overstated). residualAHI (nA / totHours) already pools correctly — this is the same
+  // arithmetic, and t90 pools on valid SAMPLES because that is what its own denominator is.
+  // DEEP-AUDIT §20.
   var oxiSessions = (night.sessions || []).filter(function (s){ return s.oximetry && s.oximetry.available; });
   var odi = null, t90 = null, oxiAvailable = oxiSessions.length > 0;
   if (oxiAvailable){
-    var odiSum = 0, t90Sum = 0;
-    oxiSessions.forEach(function (s){ odiSum += (s.oximetry.odi || 0); t90Sum += (s.oximetry.t90Pct || 0); });
-    odi = +(odiSum / oxiSessions.length).toFixed(2);
-    t90 = +(t90Sum / oxiSessions.length).toFixed(2);
+    var desats = 0, oxiHours = 0, below90 = 0, validSamp = 0;
+    oxiSessions.forEach(function (s){
+      var o = s.oximetry;
+      if (o.desatCount != null && o.analyzedHours) { desats += o.desatCount; oxiHours += o.analyzedHours; }
+      if (o.validSamples) { below90 += (o.below90Samples || 0); validSamp += o.validSamples; }
+    });
+    if (oxiHours > 0) odi = +(desats / oxiHours).toFixed(2);
+    if (validSamp > 0) t90 = +(below90 / validSamp * 100).toFixed(2);
   }
   // AHI↔ODI concordance: do scored apneas line up with desats?
   var concordance = null, concordanceNote = null;

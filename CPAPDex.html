@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-2aT2YZ2hUKMKkD1RKJGoUS13DAIfRkfr0+3MpUKSugc=' 'sha256-2tZgpYYnqO0FHght8PJI0/aNqUSdG8rSVPL7M5M1jAc=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ORdL8uvjKI1beQHqsFgODvvhmwrLUpy4mYOg3l9vk8=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-EN+1M3bWeDBOnpFNf8zhkUqII8pkwsAPRHHljeXMLEU=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LG3l34o5fUxaDC0YPGwR220ch4LY53B3Dlc1+Bkl0ao=' 'sha256-MPKKUbacmx+sTwB0TVTbik+GJRGltztlOikx6esFRsk=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-ZgnDxUJ1JS2eRITu5PSjaY+a+l7QxQZSJ6hjeOk1NLY=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-v6gjvlqQKjQQHKgZlUcAUrWQEu7Z72i+mEDeAl4Izek=' 'sha256-zoX0rksSqUxFePSlhG6+8O2Euarj7JlN/OQ/SqQyThw='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-2aT2YZ2hUKMKkD1RKJGoUS13DAIfRkfr0+3MpUKSugc=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ORdL8uvjKI1beQHqsFgODvvhmwrLUpy4mYOg3l9vk8=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-EN+1M3bWeDBOnpFNf8zhkUqII8pkwsAPRHHljeXMLEU=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LG3l34o5fUxaDC0YPGwR220ch4LY53B3Dlc1+Bkl0ao=' 'sha256-PlBCQDTK5BQcHKy/ZI4uswhN3qfOoMF1KuTMxwxuLs8=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-ZgIZAlZn3pR0ZpcupqZKtR3EVUYWVm2TDijJGe6r/l0=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-eBQjDWnGcboIU/PbqPPj8VH/etn/loRvHEWvSBSft+E=' 'sha256-jFfE1dPKGtSp3+g/QsSiLJ/mQHcO2hpiM1EHbi2XVcg=' 'sha256-qXDc7CQGqpFT7sBUyreVjyi7DHxWFcyQEFZCddRjkKo='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CPAPDex — PAP Therapy Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -3818,6 +3818,18 @@ function _injectCSS(){
   '.metric:hover>.m-label .ev,.metric:hover>.m-val .ev,.ss-kpi:hover>.ss-kpi-label .ev,.nr-kpi:hover>.nr-kpi-label .ev,.kpi:hover>.kpi-label .ev,.readiness-subscore:hover>.rs-label .ev{opacity:.95;}' +
   /* hero tiles are tall + centered — nudge the corner badge inward to taste */
   '.metric-hero>.m-label .ev{right:14px;bottom:14px;}' +
+  /* ── WRAPPER: card corner (.ev-corner) — DEEP-AUDIT §21 ────────────────────
+     The mandate's placement (1) for cards / KPIs / HERO numbers. It was defined
+     in dex-badges.css but NEVER in the engine, so no app could use it: the apps
+     load metric-registry.js, not the CSS mirror. A hero (.readiness-hero) is not
+     a .metric/.kpi tile, so the tile rules above never reached it and every hero
+     number in the fleet shipped unbadged. Values are byte-faithful to
+     dex-badges.css. NOTE: no disc property here (background/border/box-shadow/
+     width/height/border-radius) — the cohesion-badges gate deep-compares exactly
+     those between engine and mirror; layout props are free to live in one. */
+  '.ev-corner{position:absolute;bottom:12px;right:14px;z-index:2;cursor:help;opacity:.55;transition:opacity .15s;}' +
+  '.ev-corner:hover{opacity:.7;}' +
+  '.readiness-hero{position:relative;}' +
   /* reserve bottom clearance so the corner badge never lands on the value
      (only on tiles that actually carry a badge — others keep their size) */
   '.metric:has(.ev),.ss-kpi:has(.ev),.nr-kpi:has(.ev),.kpi:has(.ev),.readiness-subscore:has(.ev){padding-bottom:22px;}' +
@@ -5119,6 +5131,11 @@ function oximetryLane(sa2, durSec) {
     available: true, coverage: +coverage.toFixed(3),
     odi: hours > 0 ? +(real.length / hours).toFixed(2) : null,
     desatCount: real.length, artifactCount: artifactCount,
+    // The lane's OWN denominators, so a night that pools several sessions can weight them
+    // (an index is a rate — you pool the numerator and the denominator, never the rates).
+    // DEEP-AUDIT §20.
+    analyzedHours: hours > 0 ? +hours.toFixed(4) : null,
+    validSamples: vArr.length, below90Samples: below90,
     t90Pct: vArr.length ? +(below90 / vArr.length * 100).toFixed(2) : null,
     spo2Nadir: vArr.length ? nadir : null,
     spo2Mean: vArr.length ? +(sum / vArr.length).toFixed(1) : null,
@@ -5847,11 +5864,23 @@ function crossNight(series, opts){
 function _p2(x){ return (x<10?'0':'')+x; }
 function fmtDateUTC(ms){ if(ms==null) return null; const d=new Date(ms); return d.getUTCFullYear()+'-'+_p2(d.getUTCMonth()+1)+'-'+_p2(d.getUTCDate()); }
 
-// night-level ODI = mean of available-oximeter sessions (null if no oximeter that night)
+// night-level ODI = desats POOLED over analyzed hours across available-oximeter sessions (null if
+// no oximeter that night). NOT a mean of the per-session rates — that would let a 40-minute nap
+// weigh as much as a 6-hour sleep. Same arithmetic as residualAHI. DEEP-AUDIT §20.
 function nightOdi(n){
   if(!n.sessions) return null;
   var live=n.sessions.filter(function(s){ return s.oximetry && s.oximetry.available && s.oximetry.odi!=null; });
   if(!live.length) return null;
+  var desats=0, hours=0;
+  live.forEach(function(s){
+    var o=s.oximetry;
+    if(o.desatCount!=null && o.analyzedHours){ desats+=o.desatCount; hours+=o.analyzedHours; }
+  });
+  // 2 dp — the same precision the lane and the cross-metrics report ODI at (an unrounded quotient
+  // would ship 5.99880023995201 into the crossnight series for what is a 6.00 /hr night).
+  if(hours>0) return +(desats/hours).toFixed(2);
+  // LEGACY session objects (no lane denominators recorded) — fall back to the per-session rate,
+  // which is exact for the single-session case and only approximate when several are pooled.
   var sum=0; live.forEach(function(s){ sum+=s.oximetry.odi; }); return sum/live.length;
 }
 // CPAPDex outcome metric defs — each an OUTCOME with a clear good-direction.
@@ -6381,6 +6410,9 @@ function heroCard(night){
     + (subs ? '<div class="readiness-scores-grid">' + subs + '</div>' : '')
     + '<div class="readiness-note">' + esc(note) + '</div>'
     + (chips ? '<div class="readiness-zones">' + chips + '</div>' : '')
+    // DEEP-AUDIT §21 — the hero (residual AHI, the headline clinical number of this node) was
+    // unbadged while every subscore beneath it was badged. Registry: `measured`.
+    + '<span class="ev-corner">' + evBadge('residualAHI') + '</span>'
     + '</div></div>';
 }
 
@@ -6813,14 +6845,23 @@ function cpapCrossMetrics(night){
   if (!night) return null;
   var nm = night.metrics || {};
   var ahi = nm.residualAHI;
-  // pool oximetry across sessions that had a live lane
+  // POOL oximetry across sessions that had a live lane — pool the NUMERATOR and the DENOMINATOR,
+  // never the rates. An unweighted mean of per-session ODIs lets a 40-minute nap count as much as a
+  // 6-hour sleep: a real 6.38 h + 0.68 h night reported ODI 5.97 where the pooled truth is 3.68
+  // (×1.62 overstated). residualAHI (nA / totHours) already pools correctly — this is the same
+  // arithmetic, and t90 pools on valid SAMPLES because that is what its own denominator is.
+  // DEEP-AUDIT §20.
   var oxiSessions = (night.sessions || []).filter(function (s){ return s.oximetry && s.oximetry.available; });
   var odi = null, t90 = null, oxiAvailable = oxiSessions.length > 0;
   if (oxiAvailable){
-    var odiSum = 0, t90Sum = 0;
-    oxiSessions.forEach(function (s){ odiSum += (s.oximetry.odi || 0); t90Sum += (s.oximetry.t90Pct || 0); });
-    odi = +(odiSum / oxiSessions.length).toFixed(2);
-    t90 = +(t90Sum / oxiSessions.length).toFixed(2);
+    var desats = 0, oxiHours = 0, below90 = 0, validSamp = 0;
+    oxiSessions.forEach(function (s){
+      var o = s.oximetry;
+      if (o.desatCount != null && o.analyzedHours) { desats += o.desatCount; oxiHours += o.analyzedHours; }
+      if (o.validSamples) { below90 += (o.below90Samples || 0); validSamp += o.validSamples; }
+    });
+    if (oxiHours > 0) odi = +(desats / oxiHours).toFixed(2);
+    if (validSamp > 0) t90 = +(below90 / validSamp * 100).toFixed(2);
   }
   // AHI↔ODI concordance: do scored apneas line up with desats?
   var concordance = null, concordanceNote = null;

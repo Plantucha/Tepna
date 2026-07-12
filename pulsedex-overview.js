@@ -133,6 +133,9 @@ function renderHeroPx(r){
     +(subsHtml?`<div class="readiness-scores-grid">${subsHtml}</div>`:'')
     +`<div class="readiness-note">${note}</div>`
     +(chips?`<div class="readiness-zones">${chips}</div>`:'')
+    // DEEP-AUDIT §21 — the hero was the only unbadged number on the card (every subscore below it
+    // carries its tier). It is the HRV composite: registry-graded `experimental`.
+    +`<span class="ev-corner">${evBadge('HRV Score')}</span>`
     +`</div>`;
 
   // sidebar badge mirror
@@ -164,8 +167,10 @@ function renderHrvBenchPx(r){
   const st=(lbl,val,unit,cls)=>`<div class="proj-stat ps-${cls}"><span class="ps-label">${evBadge(lbl)}${lbl}</span><span class="ps-val">${val!=null&&!isNaN(val)?val:'—'}<span class="ps-unit">${unit}</span></span></div>`;
   host.innerHTML =
     `<div class="proj-card ${sev}">`
-    + `<div class="proj-header"><span class="proj-icon">💓</span><span class="proj-title">HRV Bench · Time-Domain</span>`
-    +   `<span class="proj-badge proj-good">validated</span></div>`
+    // DEEP-AUDIT §21 — the same counterfeit ladder pill HRVDex carried: the word "validated" typed
+    // as markup into a status-HUE pill. The ladder is never a hue and never hand-written; every
+    // metric on this card already carries its real registry badge via evBadge(...).
+    + `<div class="proj-header"><span class="proj-icon">💓</span><span class="proj-title">HRV Bench · Time-Domain</span></div>`
     + `<div class="proj-main"><div class="proj-value ${vc}">${rm!=null&&!isNaN(rm)?rm:'—'}</div><div class="proj-unit">ms · ${evBadge('rMSSD')}rMSSD (vagal tone)</div></div>`
     + `<div class="proj-waterfall">`
     +   f('rMSSD','norm 20–50 ms', rm, 'ms', rm>=35?'good':rm>=20?'warn':'bad')

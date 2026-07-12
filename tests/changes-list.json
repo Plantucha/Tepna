@@ -1,11 +1,12 @@
 {
   "_doc": "Generated changeset-name ledger for the release-ledger gate's BROWSER lane (fetch can't list a dir). Regenerate with tests/gen-changes-list.mjs (Node) whenever a changeset is added to or pruned from changes/; the Node lane asserts this matches fs reality, so a stale list reds in CI. Excludes README.md and _/.-prefixed files. CONTROLLED-RELEASES-2026-07-05.",
   "generated": "2026-07-12",
-  "count": 6,
+  "count": 7,
   "changes": [
     "2026-07-12-ci-sharding.md",
     "2026-07-12-ecgdex-export-respiration.md",
     "2026-07-12-efficiency-audit-findings.md",
+    "2026-07-12-hygiene-origins-pooling-badges.md",
     "2026-07-12-profiled-hotspots-brief.md",
     "2026-07-12-spectral-one-scale-no-grid-lottery.md",
     "2026-07-12-tch-reference-validation-brief.md"

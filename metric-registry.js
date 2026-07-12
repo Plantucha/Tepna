@@ -209,6 +209,18 @@ function _injectCSS(){
   '.metric:hover>.m-label .ev,.metric:hover>.m-val .ev,.ss-kpi:hover>.ss-kpi-label .ev,.nr-kpi:hover>.nr-kpi-label .ev,.kpi:hover>.kpi-label .ev,.readiness-subscore:hover>.rs-label .ev{opacity:.95;}' +
   /* hero tiles are tall + centered — nudge the corner badge inward to taste */
   '.metric-hero>.m-label .ev{right:14px;bottom:14px;}' +
+  /* ── WRAPPER: card corner (.ev-corner) — DEEP-AUDIT §21 ────────────────────
+     The mandate's placement (1) for cards / KPIs / HERO numbers. It was defined
+     in dex-badges.css but NEVER in the engine, so no app could use it: the apps
+     load metric-registry.js, not the CSS mirror. A hero (.readiness-hero) is not
+     a .metric/.kpi tile, so the tile rules above never reached it and every hero
+     number in the fleet shipped unbadged. Values are byte-faithful to
+     dex-badges.css. NOTE: no disc property here (background/border/box-shadow/
+     width/height/border-radius) — the cohesion-badges gate deep-compares exactly
+     those between engine and mirror; layout props are free to live in one. */
+  '.ev-corner{position:absolute;bottom:12px;right:14px;z-index:2;cursor:help;opacity:.55;transition:opacity .15s;}' +
+  '.ev-corner:hover{opacity:.7;}' +
+  '.readiness-hero{position:relative;}' +
   /* reserve bottom clearance so the corner badge never lands on the value
      (only on tiles that actually carry a badge — others keep their size) */
   '.metric:has(.ev),.ss-kpi:has(.ev),.nr-kpi:has(.ev),.kpi:has(.ev),.readiness-subscore:has(.ev){padding-bottom:22px;}' +

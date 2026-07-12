@@ -33,17 +33,25 @@ function getProfile(){
   if(DP()){
     const p=DP().get(), man=(DP().getRecord().manual)||{};
     const num=(v,d)=>{ const n=parseFloat(v); return isFinite(n)?n:d; };
+    // DEEP-AUDIT §19 — carry the cascade ORIGIN (see ecgdex-profile.js). diab/therapy read `manual`
+    // directly, so their 'none' is a CODE default, not a user statement — mark them by presence.
+    const org=f=>{ try { return DP().resolve(f).origin; } catch(e){ return 'pop'; } };
     return { age:clamp(num(p.age,45),6,95), sex:p.sex==='F'?'F':'M',
              diab: man.diabetes||'none', therapy: man.dxTherapy||'none',
              tgtLo:num(man.glucoseTargetLo,70), tgtHi:num(man.glucoseTargetHi,180),
-             a1c:num(man.a1c,0), calib: cb };
+             a1c:num(man.a1c,0), calib: cb,
+             _origins:{ age:org('age'), sex:org('sex'),
+                        diabetes: man.diabetes ? 'you' : 'pop', dxTherapy: man.dxTherapy ? 'you' : 'pop',
+                        glucoseTargetLo: man.glucoseTargetLo!=null ? 'you' : 'pop',
+                        glucoseTargetHi: man.glucoseTargetHi!=null ? 'you' : 'pop' } };
   }
   const v=(id,d)=>{ const e=$(id); const n=e?parseFloat(e.value):NaN; return isFinite(n)?n:d; };
   const sel=id=>{ const e=$(id); return e?e.value:null; };
+  // No shared record (legacy DOM / headless): nothing here was "entered" — claim no provenance.
   return { age:clamp(v('gluAge',45),6,95), sex:sel('gluSex')||'M',
            diab:sel('gluDiab')||'none', therapy:sel('gluTherapy')||'none',
            tgtLo:v('gluTgtLo',70), tgtHi:v('gluTgtHi',180), a1c:v('gluA1c',0),
-           calib: !!($('gluCalib')&&$('gluCalib').checked) };
+           calib: !!($('gluCalib')&&$('gluCalib').checked), _origins:null };
 }
 function loadProfile(){
   if(DP()){

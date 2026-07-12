@@ -943,8 +943,25 @@ function exportJSON(){
       postprandial: r.postprandial? r.postprandial.map(m=>({ label:m.label, category:m.category, nDays:m.nDays, baselineMgdl:m.baseline, peakDeltaMgdl:m.peakDelta, timeToPeakMin:m.timeToPeakMin, delta2hMgdl:m.delta2h, returnedToBaselinePct:m.returnedPct })) : null,
       ppgrNote:'per meal marker: 30-min pre-meal baseline, peak rise, time-to-peak, +2 h delta, % of days returned to baseline within 3 h',
       note:(r.mealMarkers&&r.mealMarkers.length)?'Excursions tagged against user meal markers (−20→+75 min window); annotated=true carries the meal label/category.':'No meal markers set — excursions are slope-detected & labelled unannotated.' },
-    personalization:{ profile:{ age:p.age??null, sex:p.sex??null, diabetesStatus:p.diab??null, therapy:p.therapy??null,
-        targetRangeMgdl:[r.tgtLo,r.tgtHi], labA1cGroundTruth:(p.a1c&&p.a1c>0)?p.a1c:null, note:'fields the user set in the profile panel; null = default/auto' },
+    // DEEP-AUDIT §19 — age/sex/diabetesStatus/therapy could never be null: the population default
+    // (45 y · M · 'none' · 'none') shipped as though the user had stated it. Only what was actually
+    // entered survives into `profile`; the priors COMPUTE used move to `assumedDefaults`, labelled.
+    personalization:{ profile:(function(){
+        var o = p._origins || null;
+        var ent = function (f, v) { return (o && (o[f]==='you' || o[f]==='detected')) ? v : null; };
+        return { age: ent('age', p.age), sex: ent('sex', p.sex),
+                 diabetesStatus: ent('diabetes', p.diab), therapy: ent('dxTherapy', p.therapy),
+                 targetRangeMgdl:[r.tgtLo,r.tgtHi], labA1cGroundTruth:(p.a1c&&p.a1c>0)?p.a1c:null,
+                 note:'fields the user set in the profile panel; null = default/auto' };
+      })(),
+      assumedDefaults:(function(){
+        var o = p._origins || null;
+        var asm = function (f, v) { return (o && (o[f]==='you' || o[f]==='detected')) ? null : v; };
+        return { age: asm('age', p.age), sex: asm('sex', p.sex),
+                 diabetesStatus: asm('diabetes', p.diab), therapy: asm('dxTherapy', p.therapy),
+                 source:'population norm / code default — the value the analysis ran on',
+                 note:'NOT a statement by this user. A null diabetesStatus here means they did tell us.' };
+      })(),
       glycemicStabilityScore:r.stabilityScore,
       dataQualityConfidence:r.dataQualityConf,
       stabilityScoreFormula:'clamp(0.55·TIR + 0.45·cvScore − min(28, hypoTBR·5)); cvScore=clamp(100−(CV−25)·3); hypoTBR excludes flagged compression artifacts. Read alongside dataQualityConfidence.',

@@ -218,7 +218,7 @@
   //  manual = explicit user entries (cascade tier 3). detected = persisted handoff.
   // ════════════════════════════════════════════════════════════════════════════
   function _blank() {
-    return { schema: SCHEMA, units: 'metric', age: DEFAULT_AGE, ageSet: false, sex: 'M', manual: {}, detected: {}, _pristine: true };
+    return { schema: SCHEMA, units: 'metric', age: DEFAULT_AGE, ageSet: false, sex: 'M', sexSet: false, manual: {}, detected: {}, _pristine: true };
   }
   var _rec = null; // live record (lazy)
   var _runtimeDetected = {}; // per-render detected context (NOT persisted; from a loaded recording)
@@ -259,6 +259,15 @@
         }
       } else if (_a !== _rec.age) {
         _rec.age = _a;
+        _chg = true;
+      }
+      // Sex hygiene — the exact `ageSet` rule, applied to the field that never got it (DEEP-AUDIT §19).
+      // sex is ALWAYS a valid 'M'/'F' for the norms, but `sexSet` distinguishes an ENTERED sex from the
+      // 'M' placeholder — without it, resolve('sex') reported origin 'you' for a user who chose nothing,
+      // and every sex-dependent norm (BSA·IBW·RMR·VO₂ category) silently asserted "male" as your value.
+      // Backfill exactly as age does: a non-default value was clearly entered; exactly-default ⇒ unset.
+      if (_rec.sexSet === undefined) {
+        _rec.sexSet = _rec.sex === 'F';
         _chg = true;
       }
       if (_chg) {
@@ -328,6 +337,7 @@
     function setSx(v) {
       if (v != null) {
         rec.sex = v;
+        rec.sexSet = true;
         touched = true;
       }
     }
@@ -469,7 +479,8 @@
       var _ca = _clampAge(rec.age);
       return { v: _ca != null ? _ca : DEFAULT_AGE, origin: rec.ageSet ? 'you' : 'pop' };
     }
-    if (field === 'sex') return { v: rec.sex, origin: 'you' };
+    // DEEP-AUDIT §19: was hardcoded origin 'you' — it claimed every user had told us their sex.
+    if (field === 'sex') return { v: rec.sex, origin: rec.sexSet ? 'you' : 'pop' };
     if (field === 'units') return { v: rec.units || 'metric', origin: 'you' };
     if (rec.manual[field] != null && rec.manual[field] !== '') return { v: rec.manual[field], origin: 'you' };
     if (_runtimeDetected[field] != null) return { v: _runtimeDetected[field], origin: 'detected' };
@@ -528,7 +539,11 @@
         _rec.ageSet = false;
       }
     } else if (field === 'sex') {
-      _rec.sex = _sex(vMetric) || _rec.sex;
+      var _sv = _sex(vMetric);
+      if (_sv) {
+        _rec.sex = _sv;
+        _rec.sexSet = true;
+      }
     } else if (field === 'units') {
       _rec.units = vMetric === 'imperial' ? 'imperial' : 'metric';
     } else if (vMetric == null || vMetric === '' || (typeof vMetric === 'number' && isNaN(vMetric))) delete _rec.manual[field];
@@ -626,6 +641,59 @@
     gt('hrMax', 'HRmax', Math.round(208 - 0.7 * age), NORMS.hrMax.source);
     gt('weight', 'Weight', pd.weight, NORMS.weight.source);
 
+    // ── PROVENANCE OF THE INPUTS (DEEP-AUDIT §19) ─────────────────────────────
+    // A derived value is PERSONAL only if every input it rests on was entered ('you') or detected
+    // from a recording ('detected'). If ANY input is a population default, the output is a
+    // population estimate wearing a personal number's clothes — a user who entered NOTHING was
+    // shown BMI 28.8 "Overweight" and VO₂max 40 "Good · 50th percentile" as findings about them.
+    // The origins were always in the record (resolve() has returned them since day one); derive()
+    // simply dropped them on the floor. hrRest/vo2 already honored this discipline at the node
+    // boundary (`origin === 'detected'`); age/sex/weight/height never did. Additive + optional, so
+    // every existing caller keeps working.
+    var _org = (p && p._origins) || null;
+    function originOf(f) {
+      if (_org && _org[f]) return _org[f];
+      try { return resolve(f).origin; } catch (e) { return 'pop'; }
+    }
+    function basisOf(fields) {
+      var det = false;
+      for (var i = 0; i < fields.length; i++) {
+        var o = originOf(fields[i]);
+        if (o === 'pop' || o === 'none') return 'pop'; // ONE guessed input taints the whole result
+        if (o === 'detected') det = true;
+      }
+      return det ? 'detected' : 'you';
+    }
+    var usedBodyFat = bf > 3 && bf < 60;
+    var basis = {
+      bmi: basisOf(['weight', 'height']),
+      bsa: basisOf(['weight', 'height']),
+      ibw: basisOf(['height', 'sex']),
+      map: basisOf(['sbp', 'dbp']),
+      pp: basisOf(['sbp', 'dbp']),
+      rmr: usedBodyFat ? basisOf(['weight', 'bodyfat']) : basisOf(['weight', 'height', 'age', 'sex']),
+      hrMax: +p.hrMax ? basisOf(['hrMax']) : basisOf(['age']),
+      vo2: +p.vo2 ? basisOf(['vo2']) : basisOf(['age', 'sex']),
+      vo2Cat: basisOf(+p.vo2 ? ['vo2', 'age', 'sex'] : ['age', 'sex']),
+      vo2Pct: basisOf(+p.vo2 ? ['vo2', 'age', 'sex'] : ['age', 'sex']),
+      whtr: whtr != null ? basisOf(['waist', 'height']) : null
+    };
+    var origins = {},
+      popFields = [];
+    ['age', 'sex', 'weight', 'height', 'sbp', 'dbp', 'bodyfat', 'waist', 'hrRest', 'hrMax', 'vo2'].forEach(function (f) {
+      origins[f] = originOf(f);
+      if (origins[f] === 'pop') popFields.push(f);
+    });
+    // `personalized` asks the question the AUDIT asked: is this profile about a real person at all, or
+    // is it the placeholder? It is the IDENTITY CORE that decides — age·sex·weight·height, the inputs
+    // nearly every derived value rests on. Optional extras (BP, body-fat, waist) legitimately stay on
+    // their norms for most users, so demanding them would make `personalized` false for everyone and
+    // the flag would mean nothing. Per-value truth lives in `basis`; `popFields` lists every default.
+    var IDENTITY_CORE = ['age', 'sex', 'weight', 'height'];
+    var personalized = IDENTITY_CORE.every(function (f) {
+      return origins[f] === 'you' || origins[f] === 'detected';
+    });
+
     return {
       bmi: bmi,
       bmiCat: bmiLabel(bmi),
@@ -642,7 +710,12 @@
       whtr: whtr,
       whtrRisk: whtrRisk,
       flags: flags,
-      groundTruthChecks: gtc
+      groundTruthChecks: gtc,
+      // provenance — see above. `basis[k] === 'pop'` ⇒ k is a POPULATION estimate, not your value.
+      origins: origins,
+      basis: basis,
+      popFields: popFields,
+      personalized: personalized
     };
   }
 
@@ -839,6 +912,7 @@
       '.dxp-grp .src.shared{color:var(--teal)}' +
       '.org{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:8.5px;letter-spacing:.02em;padding:1px 6px;border-radius:4px;border:1px solid var(--border);white-space:nowrap;margin-left:6px}' +
       '.org-pop{color:var(--text4);background:var(--surface3)}' +
+      '.pd-group-note{font-size:9px;color:var(--text4);margin-left:8px;letter-spacing:.01em}' +
       '.org-detected{color:var(--teal);border-color:rgba(61,224,208,.32);background:rgba(61,224,208,.08)}' +
       '.org-you{color:var(--green);border-color:rgba(57,217,138,.32);background:rgba(57,217,138,.08)}' +
       '.dxp-iw{position:relative;display:flex;align-items:center}' +
@@ -1149,31 +1223,42 @@
       var hasFit = groups.indexOf('fitnessEnvTherapy') >= 0 || groups.indexOf('fitness') >= 0;
       var hasCardio = groups.indexOf('cardio') >= 0;
       var hasHemo = groups.indexOf('hemo') >= 0;
-      function di(l, v, f, t) {
-        return '<div class="prof-derived-item">' + _badge(t) + ' <b>' + l + '</b> ' + v + (f ? '<span class="pdi-formula">' + f + '</span>' : '') + '</div>';
+      // DEEP-AUDIT §19 — a derived value whose inputs are population defaults is NOT a finding about
+      // this user, and must not read like one. `k` names the derive() basis key; basis 'pop' earns the
+      // same `org-pop` chip the INPUT fields have always carried, so "BMI 28.8 (Overweight)" from an
+      // empty profile is legible as the population estimate it is. The evidence tier still describes
+      // the FORMULA's evidence base (the ladder's meaning) — provenance is a separate channel.
+      function di(l, v, f, t, k) {
+        var b = k && d.basis ? d.basis[k] : null;
+        var chip = b === 'pop' ? '<span class="org org-pop" title="Computed from a population default — you have not entered these values.">pop default</span>' : '';
+        return '<div class="prof-derived-item">' + _badge(t) + ' <b>' + l + '</b> ' + v + chip + (f ? '<span class="pdi-formula">' + f + '</span>' : '') + '</div>';
       }
       var items = '';
       if (hasBody) {
-        items += di('BMI', d.bmi + ' (' + d.bmiCat + ')', 'kg ÷ m²', 'validated');
-        items += di('BSA', d.bsa + ' m²', 'DuBois', 'validated');
+        items += di('BMI', d.bmi + ' (' + d.bmiCat + ')', 'kg ÷ m²', 'validated', 'bmi');
+        items += di('BSA', d.bsa + ' m²', 'DuBois', 'validated', 'bsa');
       }
-      if (hasFit) items += di('VO₂ category', d.vo2Cat, 'ACSM age×sex', 'validated');
-      if (hasBody && d.whtr != null) items += di('WHtR', d.whtr + (d.whtrRisk === 'elevated' ? ' (↑ risk)' : ' (ok)'), 'waist ÷ height', 'validated');
-      if (hasBody) items += di('RMR', d.rmr + ' kcal', d.rmrFormula, 'validated');
-      if (hasFit) items += di('VO₂ percentile', '~' + d.vo2Pct + 'th', 'ACSM / FRIEND', 'validated');
+      if (hasFit) items += di('VO₂ category', d.vo2Cat, 'ACSM age×sex', 'validated', 'vo2Cat');
+      if (hasBody && d.whtr != null) items += di('WHtR', d.whtr + (d.whtrRisk === 'elevated' ? ' (↑ risk)' : ' (ok)'), 'waist ÷ height', 'validated', 'whtr');
+      if (hasBody) items += di('RMR', d.rmr + ' kcal', d.rmrFormula, 'validated', 'rmr');
+      if (hasFit) items += di('VO₂ percentile', '~' + d.vo2Pct + 'th', 'ACSM / FRIEND', 'validated', 'vo2Pct');
       if (hasCardio)
         items += di(
           'HRmax',
           d.hrMax + ' bpm' + (d.flags.betaBlocker ? ' ⚠' : ''),
           d.flags.betaBlocker ? 'β-blocker: Tanaka unreliable' : 'Tanaka 208−0.7·age',
-          d.flags.betaBlocker ? 'experimental' : 'validated'
+          d.flags.betaBlocker ? 'experimental' : 'validated',
+          'hrMax'
         );
       if (hasHemo) {
-        items += di('MAP', d.map + ' mmHg', 'DBP + ⅓(SBP−DBP)', 'measured');
-        items += di('Pulse pressure', d.pp + ' mmHg', d.pp < 50 ? 'optimal' : 'elevated', 'measured');
+        items += di('MAP', d.map + ' mmHg', 'DBP + ⅓(SBP−DBP)', 'measured', 'map');
+        items += di('Pulse pressure', d.pp + ' mmHg', d.pp < 50 ? 'optimal' : 'elevated', 'measured', 'pp');
       }
       if (!items) return '';
-      return '<div class="pd-group"><span class="pd-group-label">Derived — one engine, identical in every node</span><div class="pd-group-grid">' + items + '</div></div>';
+      var note = d.personalized
+        ? ''
+        : '<span class="pd-group-note">· values marked <b>pop default</b> rest on population norms, not on data you entered</span>';
+      return '<div class="pd-group"><span class="pd-group-label">Derived — one engine, identical in every node</span>' + note + '<div class="pd-group-grid">' + items + '</div></div>';
     }
 
     build();

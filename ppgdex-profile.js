@@ -31,19 +31,24 @@ function getProfile(){
     // else a value DETECTED from a loaded recording (cascade origin==='detected'); else
     // 0 ⇒ node auto. Adopt ONLY origin==='detected' — never the flat pop default.
     const detOr0=field=>{ const mv=num(man[field]); if(mv>0) return mv; const r=DP().resolve(field); return (r.origin==='detected'&&r.v>0)?r.v:0; };
+    // DEEP-AUDIT §19 — carry the cascade ORIGIN of every field (see ecgdex-profile.js). Additive.
+    const org=f=>{ try { return DP().resolve(f).origin; } catch(e){ return 'pop'; } };
     return { age:clamp(num(p.age)||42,12,95), sex:p.sex==='F'?'F':'M',
              weight:clamp(num(p.weight)||80,30,250), height:clamp(num(p.height)||178,120,230),
              hrmax:num(man.hrMax)>0?num(man.hrMax):0, rhr:detOr0('hrRest'),
              vo2gt:detOr0('vo2'), elev:clamp(num(p.elevation)||0,0,6000),
-             cpap:(man.cpap==='yes'?true:man.cpap==='no'?false:null) };
+             cpap:(man.cpap==='yes'?true:man.cpap==='no'?false:null),
+             _origins:{ age:org('age'), sex:org('sex'), weight:org('weight'), height:org('height'),
+                        elevation:org('elevation'), cpap:org('cpap') } };
   }
   const v=(id,d)=>{ const e=$(id); const n=e?parseFloat(e.value):NaN; return isFinite(n)?n:d; };
   const sx=$('ppgSex');
   const cpapEl=$('ppgCPAP'); const cpapVal=cpapEl?cpapEl.value:'';
+  // No shared record (legacy DOM / headless): nothing here was "entered" — claim no provenance.
   return { age:clamp(v('ppgAge',42),12,95), sex:sx?sx.value:'M',
            weight:clamp(v('ppgWeight',80),30,250), height:clamp(v('ppgHeight',178),120,230),
            hrmax:v('ppgHRmax',0), rhr:v('ppgRHR',0), vo2gt:v('ppgVO2',0), elev:clamp(v('ppgElev',0),0,6000),
-           cpap:(cpapVal==='yes'?true:cpapVal==='no'?false:null) };
+           cpap:(cpapVal==='yes'?true:cpapVal==='no'?false:null), _origins:null };
 }
 function loadProfile(){
   if(DP()){

@@ -1457,15 +1457,40 @@ function buildV2(r){
           pipNote:'PIP>55% = fragmented (Costa 2017)', ialsNote:'inverse avg run length — higher=more fragmented', pssNote:'% NN in short (<3-beat) segments' } }
     },
     personalization:{
-      profile:{
-        age:p.age??null, sex:p.sex??null, weightKg:p.weight??null, heightCm:p.height??null,
-        elevationM:p.elev??null,
-        cpapBipap: p.cpap ? 'yes-in-use' : 'not-used', onCPAP:!!p.cpap,
-        hrMaxEntered: (p.hrmax&&p.hrmax>0)?p.hrmax:null,
-        restingHREntered: (p.rhr&&p.rhr>0)?p.rhr:null,
-        vo2maxGroundTruthEntered: (p.vo2gt&&p.vo2gt>0)?p.vo2gt:null,
-        note:'All fields the user entered/selected in the profile panel. null = left on auto/default.'
-      },
+      // DEEP-AUDIT §19 — the note below was FALSE for age/sex/weight/height/elevation/cpap: those six
+      // could never be null, because the population default (42 y · M · 80 kg · 178 cm) was written as
+      // if the user had entered it. A profile nobody filled in shipped as personal identity data.
+      // `_ent()` writes a field ONLY when the cascade says the user actually set it ('you'), or a
+      // recording detected it ('detected') — exactly the discipline hrMax/restingHR/vo2 already used.
+      // What COMPUTE actually ran on is not lost: it moves to `assumedDefaults` below, labelled.
+      profile:(function(){
+        var o = p._origins || null;
+        var ent = function (field, val) { return (o && (o[field]==='you' || o[field]==='detected')) ? val : null; };
+        return {
+          age: ent('age', p.age), sex: ent('sex', p.sex),
+          weightKg: ent('weight', p.weight), heightCm: ent('height', p.height),
+          elevationM: ent('elevation', p.elev),
+          cpapBipap: ent('cpap', p.cpap ? 'yes-in-use' : 'not-used'), onCPAP: ent('cpap', !!p.cpap),
+          hrMaxEntered: (p.hrmax&&p.hrmax>0)?p.hrmax:null,
+          restingHREntered: (p.rhr&&p.rhr>0)?p.rhr:null,
+          vo2maxGroundTruthEntered: (p.vo2gt&&p.vo2gt>0)?p.vo2gt:null,
+          note:'All fields the user entered/selected in the profile panel. null = left on auto/default.'
+        };
+      })(),
+      // The population priors COMPUTE actually used where the user entered nothing. NOT personal data —
+      // recorded so the derived numbers stay reproducible without pretending they describe this person.
+      assumedDefaults:(function(){
+        var o = p._origins || null;
+        var asm = function (field, val) { return (o && (o[field]==='you' || o[field]==='detected')) ? null : val; };
+        return {
+          age: asm('age', p.age), sex: asm('sex', p.sex),
+          weightKg: asm('weight', p.weight), heightCm: asm('height', p.height),
+          elevationM: asm('elevation', p.elev),
+          onCPAP: asm('cpap', !!p.cpap),
+          source:'population norm (NHANES age×sex; Tanaka HRmax) — the value the analysis ran on',
+          note:'null = the user supplied this field, so no default was needed. A non-null value here is NOT a measurement of this person.'
+        };
+      })(),
       ansReadinessScore:r.hrvScore??null,
       ansAge:null,  /* ANS Age REMOVED 2026-06-21 (external-review WP-A); key kept null for node-export back-compat (consumers tolerate null). */
       restingHR:r.rhrEff??null, restingHRNocturnalFloor:r.hrFloor??null,

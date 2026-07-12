@@ -457,6 +457,9 @@ function heroCard(night){
     + (subs ? '<div class="readiness-scores-grid">' + subs + '</div>' : '')
     + '<div class="readiness-note">' + esc(note) + '</div>'
     + (chips ? '<div class="readiness-zones">' + chips + '</div>' : '')
+    // DEEP-AUDIT §21 — the hero (residual AHI, the headline clinical number of this node) was
+    // unbadged while every subscore beneath it was badged. Registry: `measured`.
+    + '<span class="ev-corner">' + evBadge('residualAHI') + '</span>'
     + '</div></div>';
 }
 

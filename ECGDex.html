@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-07TDsYyaS4AXLj+6O5vEQWa/2wv2MRA3V8u8cLNZhZE=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7rnyd/PHLymN+NpkvwZzfBCoTH9sQ1PzMBj3eyEzZAQ=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-SbhMwvzlpgPhlroU5JoY5kACF2lbh9q6MEOKlFWAwWY=' 'sha256-VLjmo4S0mjqgRo8fEU0kx1Vc+jNONpTHKXbUPjZCGys=' 'sha256-XSaqaYcXgkh/1koukmF/FhO8A7ogMFSeDJJdXUxWE0k=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-gxRDJ7OQU3PoPHu5YHtoA1xs7mfXhL5rm7rQs8xaH3I=' 'sha256-gy3imQ7W4QJ8tUgsOixB3eM9opH4JiMHvhV/HOYbe2M=' 'sha256-wdj9R9Gei2xVKEJ5WmzR5Z6Xza6ZG2G+AtVTygDgS1o=' 'sha256-zoX0rksSqUxFePSlhG6+8O2Euarj7JlN/OQ/SqQyThw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-2iSEmHnYbPaha9pdIZJ3cb3LT9zaDPn/D0/SlKy1Na8=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7rnyd/PHLymN+NpkvwZzfBCoTH9sQ1PzMBj3eyEzZAQ=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-VLjmo4S0mjqgRo8fEU0kx1Vc+jNONpTHKXbUPjZCGys=' 'sha256-XSaqaYcXgkh/1koukmF/FhO8A7ogMFSeDJJdXUxWE0k=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-gxRDJ7OQU3PoPHu5YHtoA1xs7mfXhL5rm7rQs8xaH3I=' 'sha256-kHlrB+3KpNXvGEBNjp32ysAvLyjRr6GM+tbtqwpzQvE=' 'sha256-o7hRKU2O068vh4+w5eKAQC0xYUMb34dly3+sQKVXIus=' 'sha256-qXDc7CQGqpFT7sBUyreVjyi7DHxWFcyQEFZCddRjkKo=' 'sha256-wdj9R9Gei2xVKEJ5WmzR5Z6Xza6ZG2G+AtVTygDgS1o='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ECGDex — Raw ECG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -4163,6 +4163,18 @@ function _injectCSS(){
   '.metric:hover>.m-label .ev,.metric:hover>.m-val .ev,.ss-kpi:hover>.ss-kpi-label .ev,.nr-kpi:hover>.nr-kpi-label .ev,.kpi:hover>.kpi-label .ev,.readiness-subscore:hover>.rs-label .ev{opacity:.95;}' +
   /* hero tiles are tall + centered — nudge the corner badge inward to taste */
   '.metric-hero>.m-label .ev{right:14px;bottom:14px;}' +
+  /* ── WRAPPER: card corner (.ev-corner) — DEEP-AUDIT §21 ────────────────────
+     The mandate's placement (1) for cards / KPIs / HERO numbers. It was defined
+     in dex-badges.css but NEVER in the engine, so no app could use it: the apps
+     load metric-registry.js, not the CSS mirror. A hero (.readiness-hero) is not
+     a .metric/.kpi tile, so the tile rules above never reached it and every hero
+     number in the fleet shipped unbadged. Values are byte-faithful to
+     dex-badges.css. NOTE: no disc property here (background/border/box-shadow/
+     width/height/border-radius) — the cohesion-badges gate deep-compares exactly
+     those between engine and mirror; layout props are free to live in one. */
+  '.ev-corner{position:absolute;bottom:12px;right:14px;z-index:2;cursor:help;opacity:.55;transition:opacity .15s;}' +
+  '.ev-corner:hover{opacity:.7;}' +
+  '.readiness-hero{position:relative;}' +
   /* reserve bottom clearance so the corner badge never lands on the value
      (only on tiles that actually carry a badge — others keep their size) */
   '.metric:has(.ev),.ss-kpi:has(.ev),.nr-kpi:has(.ev),.kpi:has(.ev),.readiness-subscore:has(.ev){padding-bottom:22px;}' +
@@ -4675,7 +4687,7 @@ global.MetricRegistry = {
   //  manual = explicit user entries (cascade tier 3). detected = persisted handoff.
   // ════════════════════════════════════════════════════════════════════════════
   function _blank() {
-    return { schema: SCHEMA, units: 'metric', age: DEFAULT_AGE, ageSet: false, sex: 'M', manual: {}, detected: {}, _pristine: true };
+    return { schema: SCHEMA, units: 'metric', age: DEFAULT_AGE, ageSet: false, sex: 'M', sexSet: false, manual: {}, detected: {}, _pristine: true };
   }
   var _rec = null; // live record (lazy)
   var _runtimeDetected = {}; // per-render detected context (NOT persisted; from a loaded recording)
@@ -4716,6 +4728,15 @@ global.MetricRegistry = {
         }
       } else if (_a !== _rec.age) {
         _rec.age = _a;
+        _chg = true;
+      }
+      // Sex hygiene — the exact `ageSet` rule, applied to the field that never got it (DEEP-AUDIT §19).
+      // sex is ALWAYS a valid 'M'/'F' for the norms, but `sexSet` distinguishes an ENTERED sex from the
+      // 'M' placeholder — without it, resolve('sex') reported origin 'you' for a user who chose nothing,
+      // and every sex-dependent norm (BSA·IBW·RMR·VO₂ category) silently asserted "male" as your value.
+      // Backfill exactly as age does: a non-default value was clearly entered; exactly-default ⇒ unset.
+      if (_rec.sexSet === undefined) {
+        _rec.sexSet = _rec.sex === 'F';
         _chg = true;
       }
       if (_chg) {
@@ -4785,6 +4806,7 @@ global.MetricRegistry = {
     function setSx(v) {
       if (v != null) {
         rec.sex = v;
+        rec.sexSet = true;
         touched = true;
       }
     }
@@ -4926,7 +4948,8 @@ global.MetricRegistry = {
       var _ca = _clampAge(rec.age);
       return { v: _ca != null ? _ca : DEFAULT_AGE, origin: rec.ageSet ? 'you' : 'pop' };
     }
-    if (field === 'sex') return { v: rec.sex, origin: 'you' };
+    // DEEP-AUDIT §19: was hardcoded origin 'you' — it claimed every user had told us their sex.
+    if (field === 'sex') return { v: rec.sex, origin: rec.sexSet ? 'you' : 'pop' };
     if (field === 'units') return { v: rec.units || 'metric', origin: 'you' };
     if (rec.manual[field] != null && rec.manual[field] !== '') return { v: rec.manual[field], origin: 'you' };
     if (_runtimeDetected[field] != null) return { v: _runtimeDetected[field], origin: 'detected' };
@@ -4985,7 +5008,11 @@ global.MetricRegistry = {
         _rec.ageSet = false;
       }
     } else if (field === 'sex') {
-      _rec.sex = _sex(vMetric) || _rec.sex;
+      var _sv = _sex(vMetric);
+      if (_sv) {
+        _rec.sex = _sv;
+        _rec.sexSet = true;
+      }
     } else if (field === 'units') {
       _rec.units = vMetric === 'imperial' ? 'imperial' : 'metric';
     } else if (vMetric == null || vMetric === '' || (typeof vMetric === 'number' && isNaN(vMetric))) delete _rec.manual[field];
@@ -5083,6 +5110,59 @@ global.MetricRegistry = {
     gt('hrMax', 'HRmax', Math.round(208 - 0.7 * age), NORMS.hrMax.source);
     gt('weight', 'Weight', pd.weight, NORMS.weight.source);
 
+    // ── PROVENANCE OF THE INPUTS (DEEP-AUDIT §19) ─────────────────────────────
+    // A derived value is PERSONAL only if every input it rests on was entered ('you') or detected
+    // from a recording ('detected'). If ANY input is a population default, the output is a
+    // population estimate wearing a personal number's clothes — a user who entered NOTHING was
+    // shown BMI 28.8 "Overweight" and VO₂max 40 "Good · 50th percentile" as findings about them.
+    // The origins were always in the record (resolve() has returned them since day one); derive()
+    // simply dropped them on the floor. hrRest/vo2 already honored this discipline at the node
+    // boundary (`origin === 'detected'`); age/sex/weight/height never did. Additive + optional, so
+    // every existing caller keeps working.
+    var _org = (p && p._origins) || null;
+    function originOf(f) {
+      if (_org && _org[f]) return _org[f];
+      try { return resolve(f).origin; } catch (e) { return 'pop'; }
+    }
+    function basisOf(fields) {
+      var det = false;
+      for (var i = 0; i < fields.length; i++) {
+        var o = originOf(fields[i]);
+        if (o === 'pop' || o === 'none') return 'pop'; // ONE guessed input taints the whole result
+        if (o === 'detected') det = true;
+      }
+      return det ? 'detected' : 'you';
+    }
+    var usedBodyFat = bf > 3 && bf < 60;
+    var basis = {
+      bmi: basisOf(['weight', 'height']),
+      bsa: basisOf(['weight', 'height']),
+      ibw: basisOf(['height', 'sex']),
+      map: basisOf(['sbp', 'dbp']),
+      pp: basisOf(['sbp', 'dbp']),
+      rmr: usedBodyFat ? basisOf(['weight', 'bodyfat']) : basisOf(['weight', 'height', 'age', 'sex']),
+      hrMax: +p.hrMax ? basisOf(['hrMax']) : basisOf(['age']),
+      vo2: +p.vo2 ? basisOf(['vo2']) : basisOf(['age', 'sex']),
+      vo2Cat: basisOf(+p.vo2 ? ['vo2', 'age', 'sex'] : ['age', 'sex']),
+      vo2Pct: basisOf(+p.vo2 ? ['vo2', 'age', 'sex'] : ['age', 'sex']),
+      whtr: whtr != null ? basisOf(['waist', 'height']) : null
+    };
+    var origins = {},
+      popFields = [];
+    ['age', 'sex', 'weight', 'height', 'sbp', 'dbp', 'bodyfat', 'waist', 'hrRest', 'hrMax', 'vo2'].forEach(function (f) {
+      origins[f] = originOf(f);
+      if (origins[f] === 'pop') popFields.push(f);
+    });
+    // `personalized` asks the question the AUDIT asked: is this profile about a real person at all, or
+    // is it the placeholder? It is the IDENTITY CORE that decides — age·sex·weight·height, the inputs
+    // nearly every derived value rests on. Optional extras (BP, body-fat, waist) legitimately stay on
+    // their norms for most users, so demanding them would make `personalized` false for everyone and
+    // the flag would mean nothing. Per-value truth lives in `basis`; `popFields` lists every default.
+    var IDENTITY_CORE = ['age', 'sex', 'weight', 'height'];
+    var personalized = IDENTITY_CORE.every(function (f) {
+      return origins[f] === 'you' || origins[f] === 'detected';
+    });
+
     return {
       bmi: bmi,
       bmiCat: bmiLabel(bmi),
@@ -5099,7 +5179,12 @@ global.MetricRegistry = {
       whtr: whtr,
       whtrRisk: whtrRisk,
       flags: flags,
-      groundTruthChecks: gtc
+      groundTruthChecks: gtc,
+      // provenance — see above. `basis[k] === 'pop'` ⇒ k is a POPULATION estimate, not your value.
+      origins: origins,
+      basis: basis,
+      popFields: popFields,
+      personalized: personalized
     };
   }
 
@@ -5296,6 +5381,7 @@ global.MetricRegistry = {
       '.dxp-grp .src.shared{color:var(--teal)}' +
       '.org{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:8.5px;letter-spacing:.02em;padding:1px 6px;border-radius:4px;border:1px solid var(--border);white-space:nowrap;margin-left:6px}' +
       '.org-pop{color:var(--text4);background:var(--surface3)}' +
+      '.pd-group-note{font-size:9px;color:var(--text4);margin-left:8px;letter-spacing:.01em}' +
       '.org-detected{color:var(--teal);border-color:rgba(61,224,208,.32);background:rgba(61,224,208,.08)}' +
       '.org-you{color:var(--green);border-color:rgba(57,217,138,.32);background:rgba(57,217,138,.08)}' +
       '.dxp-iw{position:relative;display:flex;align-items:center}' +
@@ -5606,31 +5692,42 @@ global.MetricRegistry = {
       var hasFit = groups.indexOf('fitnessEnvTherapy') >= 0 || groups.indexOf('fitness') >= 0;
       var hasCardio = groups.indexOf('cardio') >= 0;
       var hasHemo = groups.indexOf('hemo') >= 0;
-      function di(l, v, f, t) {
-        return '<div class="prof-derived-item">' + _badge(t) + ' <b>' + l + '</b> ' + v + (f ? '<span class="pdi-formula">' + f + '</span>' : '') + '</div>';
+      // DEEP-AUDIT §19 — a derived value whose inputs are population defaults is NOT a finding about
+      // this user, and must not read like one. `k` names the derive() basis key; basis 'pop' earns the
+      // same `org-pop` chip the INPUT fields have always carried, so "BMI 28.8 (Overweight)" from an
+      // empty profile is legible as the population estimate it is. The evidence tier still describes
+      // the FORMULA's evidence base (the ladder's meaning) — provenance is a separate channel.
+      function di(l, v, f, t, k) {
+        var b = k && d.basis ? d.basis[k] : null;
+        var chip = b === 'pop' ? '<span class="org org-pop" title="Computed from a population default — you have not entered these values.">pop default</span>' : '';
+        return '<div class="prof-derived-item">' + _badge(t) + ' <b>' + l + '</b> ' + v + chip + (f ? '<span class="pdi-formula">' + f + '</span>' : '') + '</div>';
       }
       var items = '';
       if (hasBody) {
-        items += di('BMI', d.bmi + ' (' + d.bmiCat + ')', 'kg ÷ m²', 'validated');
-        items += di('BSA', d.bsa + ' m²', 'DuBois', 'validated');
+        items += di('BMI', d.bmi + ' (' + d.bmiCat + ')', 'kg ÷ m²', 'validated', 'bmi');
+        items += di('BSA', d.bsa + ' m²', 'DuBois', 'validated', 'bsa');
       }
-      if (hasFit) items += di('VO₂ category', d.vo2Cat, 'ACSM age×sex', 'validated');
-      if (hasBody && d.whtr != null) items += di('WHtR', d.whtr + (d.whtrRisk === 'elevated' ? ' (↑ risk)' : ' (ok)'), 'waist ÷ height', 'validated');
-      if (hasBody) items += di('RMR', d.rmr + ' kcal', d.rmrFormula, 'validated');
-      if (hasFit) items += di('VO₂ percentile', '~' + d.vo2Pct + 'th', 'ACSM / FRIEND', 'validated');
+      if (hasFit) items += di('VO₂ category', d.vo2Cat, 'ACSM age×sex', 'validated', 'vo2Cat');
+      if (hasBody && d.whtr != null) items += di('WHtR', d.whtr + (d.whtrRisk === 'elevated' ? ' (↑ risk)' : ' (ok)'), 'waist ÷ height', 'validated', 'whtr');
+      if (hasBody) items += di('RMR', d.rmr + ' kcal', d.rmrFormula, 'validated', 'rmr');
+      if (hasFit) items += di('VO₂ percentile', '~' + d.vo2Pct + 'th', 'ACSM / FRIEND', 'validated', 'vo2Pct');
       if (hasCardio)
         items += di(
           'HRmax',
           d.hrMax + ' bpm' + (d.flags.betaBlocker ? ' ⚠' : ''),
           d.flags.betaBlocker ? 'β-blocker: Tanaka unreliable' : 'Tanaka 208−0.7·age',
-          d.flags.betaBlocker ? 'experimental' : 'validated'
+          d.flags.betaBlocker ? 'experimental' : 'validated',
+          'hrMax'
         );
       if (hasHemo) {
-        items += di('MAP', d.map + ' mmHg', 'DBP + ⅓(SBP−DBP)', 'measured');
-        items += di('Pulse pressure', d.pp + ' mmHg', d.pp < 50 ? 'optimal' : 'elevated', 'measured');
+        items += di('MAP', d.map + ' mmHg', 'DBP + ⅓(SBP−DBP)', 'measured', 'map');
+        items += di('Pulse pressure', d.pp + ' mmHg', d.pp < 50 ? 'optimal' : 'elevated', 'measured', 'pp');
       }
       if (!items) return '';
-      return '<div class="pd-group"><span class="pd-group-label">Derived — one engine, identical in every node</span><div class="pd-group-grid">' + items + '</div></div>';
+      var note = d.personalized
+        ? ''
+        : '<span class="pd-group-note">· values marked <b>pop default</b> rest on population norms, not on data you entered</span>';
+      return '<div class="pd-group"><span class="pd-group-label">Derived — one engine, identical in every node</span>' + note + '<div class="pd-group-grid">' + items + '</div></div>';
     }
 
     build();
@@ -8918,19 +9015,29 @@ function getProfile(){
     // another node's resting-HR); else 0 ⇒ the node falls back to its own auto-detection.
     // Adopt ONLY origin==='detected' — never let the flat pop default become an override.
     const detOr0=field=>{ const mv=num(man[field]); if(mv>0) return mv; const r=DP().resolve(field); return (r.origin==='detected'&&r.v>0)?r.v:0; };
+    // DEEP-AUDIT §19 — carry the CASCADE ORIGIN of every field COMPUTE uses. The values below are
+    // still the population priors compute needs (age 42 / 80 kg / 178 cm are what the math runs on),
+    // but the export must never present a prior as something the user told us. hrRest/vo2 already
+    // honored this via detOr0; age/sex/weight/height/elevation never did. `_origins` is additive —
+    // every existing reader of this object is unaffected.
+    const org=f=>{ try { return DP().resolve(f).origin; } catch(e){ return 'pop'; } };
     return { age:clamp(num(p.age)||42,12,95), sex:p.sex==='F'?'F':'M',
              weight:clamp(num(p.weight)||80,30,250), height:clamp(num(p.height)||178,120,230),
              hrmax:num(man.hrMax)>0?num(man.hrMax):0, rhr:detOr0('hrRest'),
              vo2gt:detOr0('vo2'), elev:clamp(num(p.elevation)||0,0,6000),
-             cpap: p.cpap==='yes' };
+             cpap: p.cpap==='yes',
+             _origins:{ age:org('age'), sex:org('sex'), weight:org('weight'), height:org('height'),
+                        elevation:org('elevation'), cpap:org('cpap') } };
   }
-  // legacy DOM fallback (DexProfile not loaded)
+  // legacy DOM fallback (DexProfile not loaded) — and the HEADLESS path, where there is no panel and
+  // no record: nothing here was ever "entered", so claim no provenance at all (_origins null ⇒ the
+  // export treats every field as not-entered rather than asserting one).
   const v=(id,d)=>{ const e=$(id); const n=e?parseFloat(e.value):NaN; return isFinite(n)?n:d; };
   const sx=$('ecgSex'); const cp=$('ecgCPAP');
   return { age:clamp(v('ecgAge',42),12,95), sex:sx?sx.value:'M',
            weight:clamp(v('ecgWeight',80),30,250), height:clamp(v('ecgHeight',178),120,230),
            hrmax:v('ecgHRmax',0), rhr:v('ecgRHR',0), vo2gt:v('ecgVO2',0), elev:clamp(v('ecgElev',0),0,6000),
-           cpap: cp ? cp.value==='yes' : false };
+           cpap: cp ? cp.value==='yes' : false, _origins:null };
 }
 function loadProfile(){
   if(DP()){
@@ -11461,15 +11568,40 @@ function buildV2(r){
           pipNote:'PIP>55% = fragmented (Costa 2017)', ialsNote:'inverse avg run length — higher=more fragmented', pssNote:'% NN in short (<3-beat) segments' } }
     },
     personalization:{
-      profile:{
-        age:p.age??null, sex:p.sex??null, weightKg:p.weight??null, heightCm:p.height??null,
-        elevationM:p.elev??null,
-        cpapBipap: p.cpap ? 'yes-in-use' : 'not-used', onCPAP:!!p.cpap,
-        hrMaxEntered: (p.hrmax&&p.hrmax>0)?p.hrmax:null,
-        restingHREntered: (p.rhr&&p.rhr>0)?p.rhr:null,
-        vo2maxGroundTruthEntered: (p.vo2gt&&p.vo2gt>0)?p.vo2gt:null,
-        note:'All fields the user entered/selected in the profile panel. null = left on auto/default.'
-      },
+      // DEEP-AUDIT §19 — the note below was FALSE for age/sex/weight/height/elevation/cpap: those six
+      // could never be null, because the population default (42 y · M · 80 kg · 178 cm) was written as
+      // if the user had entered it. A profile nobody filled in shipped as personal identity data.
+      // `_ent()` writes a field ONLY when the cascade says the user actually set it ('you'), or a
+      // recording detected it ('detected') — exactly the discipline hrMax/restingHR/vo2 already used.
+      // What COMPUTE actually ran on is not lost: it moves to `assumedDefaults` below, labelled.
+      profile:(function(){
+        var o = p._origins || null;
+        var ent = function (field, val) { return (o && (o[field]==='you' || o[field]==='detected')) ? val : null; };
+        return {
+          age: ent('age', p.age), sex: ent('sex', p.sex),
+          weightKg: ent('weight', p.weight), heightCm: ent('height', p.height),
+          elevationM: ent('elevation', p.elev),
+          cpapBipap: ent('cpap', p.cpap ? 'yes-in-use' : 'not-used'), onCPAP: ent('cpap', !!p.cpap),
+          hrMaxEntered: (p.hrmax&&p.hrmax>0)?p.hrmax:null,
+          restingHREntered: (p.rhr&&p.rhr>0)?p.rhr:null,
+          vo2maxGroundTruthEntered: (p.vo2gt&&p.vo2gt>0)?p.vo2gt:null,
+          note:'All fields the user entered/selected in the profile panel. null = left on auto/default.'
+        };
+      })(),
+      // The population priors COMPUTE actually used where the user entered nothing. NOT personal data —
+      // recorded so the derived numbers stay reproducible without pretending they describe this person.
+      assumedDefaults:(function(){
+        var o = p._origins || null;
+        var asm = function (field, val) { return (o && (o[field]==='you' || o[field]==='detected')) ? null : val; };
+        return {
+          age: asm('age', p.age), sex: asm('sex', p.sex),
+          weightKg: asm('weight', p.weight), heightCm: asm('height', p.height),
+          elevationM: asm('elevation', p.elev),
+          onCPAP: asm('cpap', !!p.cpap),
+          source:'population norm (NHANES age×sex; Tanaka HRmax) — the value the analysis ran on',
+          note:'null = the user supplied this field, so no default was needed. A non-null value here is NOT a measurement of this person.'
+        };
+      })(),
       ansReadinessScore:r.hrvScore??null,
       ansAge:null,  /* ANS Age REMOVED 2026-06-21 (external-review WP-A); key kept null for node-export back-compat (consumers tolerate null). */
       restingHR:r.rhrEff??null, restingHRNocturnalFloor:r.hrFloor??null,

@@ -249,7 +249,25 @@
     var ap = fusion.apnea, hrv = fusion.hrv, w = fusion.window;
     var nodes = fusion.nodes || [];
 
-    function stat(label, val, cls) { return '<div class="stat"><div class="sv ' + (cls || '') + '">' + val + '</div><div class="sl">' + esc(label) + '</div></div>'; }
+    // DEEP-AUDIT §21 — OverDex rendered a fused CLINICAL KPI grid while loading no badge engine at
+    // all. These are cross-node fusion outputs that belong to no single node's registry, so they are
+    // graded the way integrator-render.js grades its own: the fusion layer's epistemic tier on the
+    // shared 5-level ladder, rendered through the SAME MetricRegistry.badge so the disc is
+    // byte-identical to every node. Counted quantities are `measured`; the corroborated apnea index
+    // is `emerging` — the exact tier the Integrator gives the same number.
+    var STAT_EV = {
+      'recordings fused': { ev: 'measured', cite: 'Count of recordings that routed to a node and produced an export — a counted quantity, not a model.' },
+      'overlap (union)': { ev: 'measured', cite: 'Union of the recordings\' time windows on the shared clock — counted, not modelled.' },
+      'cross-signal findings': { ev: 'measured', cite: 'Count of coincidences the Integrator confirmed inside the overlap window.' },
+      'confirmed apnea idx': { ev: 'emerging', cite: 'Cross-signal corroboration — O₂ desaturation ⟷ autonomic surge in a directional window (AASM ODI framing; Azarbarzin 2019). A corroboration signal, not a scored AHI.' }
+    };
+    function statBadge(label) {
+      var R = window.MetricRegistry, e = STAT_EV[label];
+      return R && R.badge && e ? R.badge(e.ev, e.cite) : '';
+    }
+    function stat(label, val, cls) {
+      return '<div class="stat">' + '<div class="sv ' + (cls || '') + '">' + val + '</div><div class="sl">' + statBadge(label) + esc(label) + '</div></div>';
+    }
 
     var apIdx = (ap && ap.confirmedAHI != null) ? ap.confirmedAHI : null;
     var apReportable = ap && ap.confirmedAHIReportable;
@@ -312,8 +330,14 @@
     fusionEl.innerHTML = html;
     var dl = document.getElementById('dlFused');
     if (dl) dl.addEventListener('click', function () {
-      var d = (FUSION && FUSION.window.startMs != null) ? D.fmtDate(FUSION.window.startMs) : new Date().toISOString().slice(0, 10);
-      download('overdex_fusion_' + d + '.json', FUSED_EXPORT);
+      // Name through the shared exportName() — recording-anchored to the fusion window start (getUTC*),
+      // span-aware. The old now() fallback stamped an UNDATED export with the date of the click: a
+      // Clock-Contract fabrication that integrator-app.js already dropped for exactly this reason.
+      // No window start → 'undated' (honest). DEEP-AUDIT §17.
+      var ws = (FUSION && FUSION.window.startMs != null) ? FUSION.window.startMs : null;
+      var we = (FUSION && FUSION.window.endMs != null) ? FUSION.window.endMs : null;
+      var span = (ws != null && we != null) ? Math.round((we - ws) / 864e5) : null;
+      download(exportName({ node: 'OverDex', t0Ms: ws, kind: 'summary', ext: 'json', spanDays: span }), FUSED_EXPORT);
     });
   }
 
