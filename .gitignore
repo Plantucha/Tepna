@@ -80,3 +80,22 @@ _diag/
 scraps/
 _texturetest2.html
 _texworker.js
+
+# ── Python virtualenvs / build junk ─────────────────────────────────────────
+# The suite ships NO Python runtime: the GPU fast lane is WebGPU (sensor-trio-gpu.js),
+# precisely so nothing here needs torch/ROCm and it still runs on Windows. Any venv is a
+# LOCAL analysis scratch (e.g. an ad-hoc PyTorch/ROCm env) and must never reach the repo —
+# they are multi-GB and machine-specific. NOTE: `*.py` is deliberately NOT ignored, because
+# capture-host/*.py (the Polar capture host) is tracked and authored.
+venv/
+.venv/
+env/
+**/venv/
+**/.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+# large local model / tensor artefacts, if any analysis ever produces them
+*.pt
+*.pth
+*.safetensors

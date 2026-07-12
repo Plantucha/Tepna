@@ -382,10 +382,23 @@
     CFG.trials = Math.max(50, Math.min(50000, +$('trials').value || 500));
     CFG.winSec = Math.max(1200, Math.min(7200, +$('winSec').value || 3600));
     const t0 = performance.now();
+    // ── GPU FAST LANE ────────────────────────────────────────────────────────
+    // Try WebGPU first; the Web-Worker CPU pool is the AUTOMATIC fallback. No WebGPU,
+    // no adapter, or a shader that won't compile → TrioGPU.init() resolves false and
+    // this page behaves exactly as it did before. A RESUMED checkpoint always continues
+    // on the CPU pool that produced it: the two lanes seed differently (per-trial vs
+    // per-window), so their trials must never be mixed inside one sweep.
+    const GPU_OK = !resumeCk && typeof TrioGPU !== 'undefined' && await TrioGPU.init();
     const K = Math.max(1, Math.min(8, navigator.hardwareConcurrency || 4));
-    setStatus('run', 'booting ' + K + '× worker realms…');
-    if (!pool.length) await bootPool(K);
-    const rdy = pool.filter((r) => r.ready);
+    let rdy = [];
+    if (GPU_OK) {
+      setStatus('run', 'WebGPU ' + TrioGPU.why + ' — CPU pool not needed');
+    } else {
+      const whyCpu = (typeof TrioGPU !== 'undefined') ? ' (CPU fallback — ' + TrioGPU.why + ')' : '';
+      setStatus('run', 'booting ' + K + '× worker realms…' + whyCpu);
+      if (!pool.length) await bootPool(K);
+      rdy = pool.filter((r) => r.ready);
+    }
     const sig = CFG.trials + '|' + CFG.winSec + '|' + CFG.ar1 + '|' + N_GRID.join(',');
     const M = Math.max(800, CFG.trials), BLK = 256;
 
@@ -407,6 +420,46 @@
     for (const regime of ['dynamic', 'resting']) for (let di = 0; di < DUR_GRID.length; di++) for (let s = 0; s < CFG.trials; s += BLK) { const key = 'd|' + regime + '|' + di + '|' + s; if (!done[key]) { const cnt = Math.min(BLK, CFG.trials - s); jobs.push({ kind: 'dur', regime: regime, N: 1, rho: 0, durIdx: di, winSec: DUR_GRID[di], seedStream: (regime === 'dynamic' ? 100 : 200) + di, t0: s, count: cnt, key: key, work: cnt }); } }
     const totalWork = 2 * N_GRID.reduce((a, b) => a + b, 0) * CFG.trials + RHO_GRID.length * M + 2 * DUR_GRID.length * CFG.trials;
     let doneWork = totalWork - jobs.reduce((a, j) => a + j.work, 0);
+
+    // ── GPU lane: one dispatch per cell, filling the SAME accumulators the pool fills,
+    //    so finalize/render/CSV below are shared verbatim between the two lanes.
+    if (GPU_OK) {
+      let dw = 0;
+      const bump = (w) => {
+        dw += w;
+        const el = (performance.now() - t0) / 1000, rate = dw / (el || 1);
+        setStatus('run', Math.round(100 * dw / totalWork) + '% · WebGPU · '
+          + (rate / 1000).toFixed(0) + 'k win/s · ETA ' + fmtETA((totalWork - dw) / (rate || 1)));
+      };
+      const yieldUI = () => new Promise((r) => setTimeout(r, 0));
+      const drain = async (r, a) => {
+        for (const k of DKEYS) {
+          for (let i = 0; i < r.med[k].length; i++) a.med[k].push(r.med[k][i]);
+          a.negCount[k] += r.negCount[k]; a.negTot[k] += r.negTot[k];
+        }
+      };
+      for (const regime of ['dynamic', 'resting']) {                      // N-windows sweep
+        const stream = regime === 'dynamic' ? 1 : 2;
+        for (const N of N_GRID) {
+          if (CANCEL) break;
+          await drain(await TrioGPU.runCell(regime, 0, N, 0, CFG.trials, CFG.ar1, CFG.winSec, stream), acc[regime][N]);
+          bump(CFG.trials * N); await yieldUI();
+        }
+      }
+      for (let ri = 0; ri < RHO_GRID.length && !CANCEL; ri++) {           // ρ-injection sweep
+        const rho = RHO_GRID[ri];
+        const r = await TrioGPU.runRho(rho, ri, 0, M, CFG.ar1, CFG.winSec);
+        rhoAcc[rho].neg += r.neg; rhoAcc[rho].M += r.count;
+        bump(M); await yieldUI();
+      }
+      for (const regime of ['dynamic', 'resting']) {                      // window-duration sweep (N=1)
+        for (let di = 0; di < DUR_GRID.length && !CANCEL; di++) {
+          const stream = (regime === 'dynamic' ? 100 : 200) + di;
+          await drain(await TrioGPU.runCell(regime, 0, 1, 0, CFG.trials, CFG.ar1, DUR_GRID[di], stream), durAcc[regime][di]);
+          bump(CFG.trials); await yieldUI();
+        }
+      }
+    } else {
 
     // serial fallback if no worker realm came up (e.g. Worker blocked)
     if (!rdy.length) {
@@ -437,6 +490,9 @@
       }
     }
     await Promise.all(rdy.map(lane));
+
+    }   // ── end CPU-pool lane (the GPU lane above filled the same accumulators)
+
     clearInterval(_hb); lockRelease();
     if (CANCEL) { await ckptSave({ sig: sig, trials: CFG.trials, winSec: CFG.winSec, acc: acc, rhoAcc: rhoAcc, durAcc: durAcc, done: done, savedAt: Date.now() }); setStatus('idle', 'cancelled — partial checkpoint saved (re-run resumes)'); $('runBtn').disabled = false; if ($('cancel')) $('cancel').style.display = 'none'; return; }
     await ckptClear();
@@ -455,7 +511,8 @@
     let real = []; try { real = await loadReal(); } catch (e) { console.warn('real arm:', e.message); }
     assembleResult(dyn, rest, rhoS, real); RESULT.duration = durSweep; RESULT.minMinutes = minMin; render();
     const secs = (performance.now() - t0) / 1000; persistRate(secs);
-    setStatus('done', 'done · ' + CFG.trials + ' trials/cell · win ' + CFG.winSec + 's · ' + rdy.length + '× · ' + secs.toFixed(0) + 's · real N_windows=' + real.filter((w) => !w.skip).length);
+    const lane = GPU_OK ? 'WebGPU' : (rdy.length + '× workers');
+    setStatus('done', 'done · ' + CFG.trials + ' trials/cell · win ' + CFG.winSec + 's · ' + lane + ' · ' + secs.toFixed(0) + 's · real N_windows=' + real.filter((w) => !w.skip).length);
     ['dlFig1', 'dlFig2', 'dlFig3', 'dlStats', 'dlCsv'].forEach((id) => { const e = $(id); if (e) e.disabled = false; });
     $('runBtn').disabled = false; if ($('cancel')) $('cancel').style.display = 'none'; updEta();
   }
@@ -475,6 +532,11 @@
 
   // Synchronous run path (no setTimeout yields) — used for headless figure
   // generation where a hidden iframe pauses timers. Identical math to run().
+  // headless read-back of the finished sweep — lets an automated run verify EITHER lane
+  // (WebGPU or the CPU worker pool) without scraping the DOM. Sibling of __trioRunSync.
+  window.__trioResult = function () { return RESULT && RESULT.dynamic ? RESULT : null; };
+  window.__trioLane = function () { return (typeof TrioGPU !== 'undefined' && TrioGPU.ready) ? 'webgpu' : 'cpu-pool'; };
+
   window.__trioRunSync = function (trials, winSec, ar) {
     CFG.trials = trials || 500; CFG.winSec = winSec || 3600; if (ar) CFG.ar1 = ar;
     seed(0xC0FFEE);
