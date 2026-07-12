@@ -42,6 +42,24 @@ uploads/*
 !uploads/20260613_231433_EVE.edf
 !uploads/20260613_231433_CSL.edf
 !uploads/cpapdex_synthetic_edf_golden.node-export.json
+
+# P9 — SYNTHETIC vendor-format inputs + their goldens (tools/make-synthetic-inputs.mjs).
+# The equivalence gate (compute() ≡ committed export) did not run in CI AT ALL: every node's
+# input was a real recording, hence gitignored, hence ⊘ skipped on a fresh clone. These carry no
+# personal data, so they ship — and the gate finally has teeth in CI. Deterministic: regenerate
+# byte-identically with `node tools/make-synthetic-inputs.mjs`.
+!uploads/synthetic_oxydex_o2ring.csv
+!uploads/synthetic_pulsedex_rr.txt
+!uploads/synthetic_hrvdex_welltory.csv
+!uploads/synthetic_glucodex_lingo.csv
+!uploads/synthetic_ppgdex_verity.txt
+!uploads/synthetic_ecgdex_h10.txt
+!uploads/synthetic_oxydex_golden.node-export.json
+!uploads/synthetic_pulsedex_golden.node-export.json
+!uploads/synthetic_hrvdex_golden.node-export.json
+!uploads/synthetic_glucodex_golden.node-export.json
+!uploads/synthetic_ppgdex_golden.node-export.json
+!uploads/synthetic_ecgdex_golden.node-export.json
 !uploads/integrator_tch_golden.node-export.json
 
 # Trio TCH corpus — DERIVED per-night node-exports (tools/trio-batch.mjs), the §6 input contract

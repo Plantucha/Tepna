@@ -340,6 +340,84 @@
       },
       "outputHash": "6bb9e67924839821",
       "note": "ADDED 2026-07-12 (CPAP-REAL-CORPUS-2026-07-11-BRIEF P2) — the BINARY multi-file EDF equivalence leg, and the FIRST fixture whose INPUT bytes are themselves committed and content-addressed. Every other equiv input is a real recording (gitignored, absent in CI), so every other compute()-equivalence diff SKIPS in CI; this one RUNS. Inputs are SYNTHETIC (tools/make-synthetic-edf.mjs): closed-form waveforms calibrated to a real corpus DISTRIBUTIONS, containing no recording of any person and no device identifier (EDF+ header identity fields blank) — which is exactly why they can ship in a public repo when the real EDFs cannot (their header carries a device serial; brief F3). Deterministic: re-running the generator reproduces the five .edf files byte-for-byte, so inputHashes are stable. Drives the FULL chain the _synthEdfSet golden skips: readEDF (binary parser + EDF+ TAL annotations) -> buildSessionFromEdf -> buildNight -> cpapBuildExport. Also the first gated input to exercise the SA2 oximetry lane (selfGateDesat/detectDesats/oximetryLane) — the real corpus reports oximeter-not-connected on 217/222 sessions, so that lane had never run on any gated input (brief F6). REGENERATE both the inputs (node tools/make-synthetic-edf.mjs) and this golden whenever the export shape changes."
+    },
+    "synthetic_oxydex_golden.node-export.json": {
+      "bundle": "OxyDex.html",
+      "manifestHash": "514ffce06bb2",
+      "added": "2026-07-12",
+      "inputs": [
+        "synthetic_oxydex_o2ring.csv"
+      ],
+      "inputHashes": {
+        "synthetic_oxydex_o2ring.csv": "da85cd313b67f666"
+      },
+      "outputHash": "21deab32346a2136",
+      "note": "ADDED 2026-07-12 (CPAP-REAL-CORPUS-2026-07-11-BRIEF §P9, resolving §M5) — a COMMITTED, content-addressed equivalence input for OxyDex. Before P9, every node's equivalence input was a REAL recording, hence gitignored, hence absent on a fresh clone: ALL EIGHT compute()-equivalence legs SKIPPED in CI. The suite's strongest correctness gate — the GATE-C surface that catches a code change which moved a fixture's OUTPUT — therefore ran only on the maintainer's machine, and a regression that moved an export would have gone green through CI. This input is SYNTHETIC (tools/make-synthetic-inputs.mjs): the vendor FORMAT is reproduced exactly, the DATA never is — closed-form, physiologically plausible waveforms containing no recording of any person and no device identifier. Deterministic (no RNG, no Date.now()), so re-running the generator reproduces it byte-for-byte and inputHashes stay stable. It ADDS to the real-recording leg (which still runs locally and exercises genuine vendor quirks); it does not replace it. REGENERATE the input and this golden together whenever the export shape changes."
+    },
+    "synthetic_pulsedex_golden.node-export.json": {
+      "bundle": "PulseDex.html",
+      "manifestHash": "7cd6acbed410",
+      "added": "2026-07-12",
+      "inputs": [
+        "synthetic_pulsedex_rr.txt"
+      ],
+      "inputHashes": {
+        "synthetic_pulsedex_rr.txt": "e1cf7ffe5c57de32"
+      },
+      "outputHash": "1dd5fc7a581de057",
+      "note": "ADDED 2026-07-12 (CPAP-REAL-CORPUS-2026-07-11-BRIEF §P9, resolving §M5) — a COMMITTED, content-addressed equivalence input for PulseDex. Before P9, every node's equivalence input was a REAL recording, hence gitignored, hence absent on a fresh clone: ALL EIGHT compute()-equivalence legs SKIPPED in CI. The suite's strongest correctness gate — the GATE-C surface that catches a code change which moved a fixture's OUTPUT — therefore ran only on the maintainer's machine, and a regression that moved an export would have gone green through CI. This input is SYNTHETIC (tools/make-synthetic-inputs.mjs): the vendor FORMAT is reproduced exactly, the DATA never is — closed-form, physiologically plausible waveforms containing no recording of any person and no device identifier. Deterministic (no RNG, no Date.now()), so re-running the generator reproduces it byte-for-byte and inputHashes stay stable. It ADDS to the real-recording leg (which still runs locally and exercises genuine vendor quirks); it does not replace it. REGENERATE the input and this golden together whenever the export shape changes."
+    },
+    "synthetic_hrvdex_golden.node-export.json": {
+      "bundle": "HRVDex.html",
+      "manifestHash": "c03e7c597dab",
+      "added": "2026-07-12",
+      "inputs": [
+        "synthetic_hrvdex_welltory.csv"
+      ],
+      "inputHashes": {
+        "synthetic_hrvdex_welltory.csv": "89fec6c3ed8c4760"
+      },
+      "outputHash": "4f6abd88aded18d9",
+      "note": "ADDED 2026-07-12 (CPAP-REAL-CORPUS-2026-07-11-BRIEF §P9, resolving §M5) — a COMMITTED, content-addressed equivalence input for HRVDex. Before P9, every node's equivalence input was a REAL recording, hence gitignored, hence absent on a fresh clone: ALL EIGHT compute()-equivalence legs SKIPPED in CI. The suite's strongest correctness gate — the GATE-C surface that catches a code change which moved a fixture's OUTPUT — therefore ran only on the maintainer's machine, and a regression that moved an export would have gone green through CI. This input is SYNTHETIC (tools/make-synthetic-inputs.mjs): the vendor FORMAT is reproduced exactly, the DATA never is — closed-form, physiologically plausible waveforms containing no recording of any person and no device identifier. Deterministic (no RNG, no Date.now()), so re-running the generator reproduces it byte-for-byte and inputHashes stay stable. It ADDS to the real-recording leg (which still runs locally and exercises genuine vendor quirks); it does not replace it. REGENERATE the input and this golden together whenever the export shape changes."
+    },
+    "synthetic_glucodex_golden.node-export.json": {
+      "bundle": "GlucoDex.html",
+      "manifestHash": "6f000b07cb96",
+      "added": "2026-07-12",
+      "inputs": [
+        "synthetic_glucodex_lingo.csv"
+      ],
+      "inputHashes": {
+        "synthetic_glucodex_lingo.csv": "c33d5886a941bcc0"
+      },
+      "outputHash": "693a136cc73ebcc1",
+      "note": "ADDED 2026-07-12 (CPAP-REAL-CORPUS-2026-07-11-BRIEF §P9, resolving §M5) — a COMMITTED, content-addressed equivalence input for GlucoDex. Before P9, every node's equivalence input was a REAL recording, hence gitignored, hence absent on a fresh clone: ALL EIGHT compute()-equivalence legs SKIPPED in CI. The suite's strongest correctness gate — the GATE-C surface that catches a code change which moved a fixture's OUTPUT — therefore ran only on the maintainer's machine, and a regression that moved an export would have gone green through CI. This input is SYNTHETIC (tools/make-synthetic-inputs.mjs): the vendor FORMAT is reproduced exactly, the DATA never is — closed-form, physiologically plausible waveforms containing no recording of any person and no device identifier. Deterministic (no RNG, no Date.now()), so re-running the generator reproduces it byte-for-byte and inputHashes stay stable. It ADDS to the real-recording leg (which still runs locally and exercises genuine vendor quirks); it does not replace it. REGENERATE the input and this golden together whenever the export shape changes."
+    },
+    "synthetic_ppgdex_golden.node-export.json": {
+      "bundle": "PpgDex.html",
+      "manifestHash": "2a3306eaa6a3",
+      "added": "2026-07-12",
+      "inputs": [
+        "synthetic_ppgdex_verity.txt"
+      ],
+      "inputHashes": {
+        "synthetic_ppgdex_verity.txt": "277cb71eed902d44"
+      },
+      "outputHash": "0a4780ec510c80bc",
+      "note": "ADDED 2026-07-12 (CPAP-REAL-CORPUS-2026-07-11-BRIEF §P9, resolving §M5) — a COMMITTED, content-addressed equivalence input for PpgDex. Before P9, every node's equivalence input was a REAL recording, hence gitignored, hence absent on a fresh clone: ALL EIGHT compute()-equivalence legs SKIPPED in CI. The suite's strongest correctness gate — the GATE-C surface that catches a code change which moved a fixture's OUTPUT — therefore ran only on the maintainer's machine, and a regression that moved an export would have gone green through CI. This input is SYNTHETIC (tools/make-synthetic-inputs.mjs): the vendor FORMAT is reproduced exactly, the DATA never is — closed-form, physiologically plausible waveforms containing no recording of any person and no device identifier. Deterministic (no RNG, no Date.now()), so re-running the generator reproduces it byte-for-byte and inputHashes stay stable. It ADDS to the real-recording leg (which still runs locally and exercises genuine vendor quirks); it does not replace it. REGENERATE the input and this golden together whenever the export shape changes."
+    },
+    "synthetic_ecgdex_golden.node-export.json": {
+      "bundle": "ECGDex.html",
+      "manifestHash": "97f172d48c81",
+      "added": "2026-07-12",
+      "inputs": [
+        "synthetic_ecgdex_h10.txt"
+      ],
+      "inputHashes": {
+        "synthetic_ecgdex_h10.txt": "59acb4e481f070b5"
+      },
+      "outputHash": "e63f85b044be4a6d",
+      "note": "ADDED 2026-07-12 (CPAP-REAL-CORPUS-2026-07-11-BRIEF §P9, resolving §M5) — a COMMITTED, content-addressed equivalence input for ECGDex. Before P9, every node's equivalence input was a REAL recording, hence gitignored, hence absent on a fresh clone: ALL EIGHT compute()-equivalence legs SKIPPED in CI. The suite's strongest correctness gate — the GATE-C surface that catches a code change which moved a fixture's OUTPUT — therefore ran only on the maintainer's machine, and a regression that moved an export would have gone green through CI. This input is SYNTHETIC (tools/make-synthetic-inputs.mjs): the vendor FORMAT is reproduced exactly, the DATA never is — closed-form, physiologically plausible waveforms containing no recording of any person and no device identifier. Deterministic (no RNG, no Date.now()), so re-running the generator reproduces it byte-for-byte and inputHashes stay stable. It ADDS to the real-recording leg (which still runs locally and exercises genuine vendor quirks); it does not replace it. REGENERATE the input and this golden together whenever the export shape changes."
     }
   }
 }

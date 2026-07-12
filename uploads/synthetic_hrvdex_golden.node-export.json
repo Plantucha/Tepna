@@ -1,0 +1,783 @@
+{
+  "kernel": {
+    "version": "1.0.0",
+    "hash": "118ebed5"
+  },
+  "schema": {
+    "name": "ganglior.node-export",
+    "version": "2.0",
+    "node": "HRVDex",
+    "nodeVersion": "1.0",
+    "bus": "ganglior",
+    "generated": "2026-07-12T12:26:20.645Z",
+    "doc": "HRVDex per-measurement HRV (Welltory-style) → Ganglior events. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated. stress_high derives from a vendor black-box composite (meta.derived:true, heuristic tier)."
+  },
+  "recording": {
+    "source": "welltory",
+    "contentId": "870d5b571298",
+    "startEpochMs": 1779169322000,
+    "offsetMin": null,
+    "measurements": 30,
+    "firstTMs": 1779169322000,
+    "lastTMs": 1781674922000,
+    "spanDays": 30
+  },
+  "measurements": [
+    {
+      "tMs": 1779169322000,
+      "offsetMin": null,
+      "hr": 64,
+      "meanRR": 937.506,
+      "sdnn": 76.944,
+      "rmssd": 52.103,
+      "pnn50": 19.68,
+      "mxdmn": 0.37,
+      "sd1": 36.84,
+      "sd2": 102.39,
+      "composites": {
+        "stress": 17.1,
+        "energy": 62.2,
+        "focus": 68.2,
+        "sns": 14.9,
+        "psns": 51.029,
+        "coherence": 43.8,
+        "hrvScore": 56.803,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1779255722000,
+      "offsetMin": null,
+      "hr": 63.9,
+      "meanRR": 939.294,
+      "sdnn": 74.852,
+      "rmssd": 50.193,
+      "pnn50": 18.84,
+      "mxdmn": 0.37,
+      "sd1": 35.49,
+      "sd2": 99.73,
+      "composites": {
+        "stress": 17,
+        "energy": 61.2,
+        "focus": 66.6,
+        "sns": 15.5,
+        "psns": 51.004,
+        "coherence": 45.5,
+        "hrvScore": 55.695,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1779342122000,
+      "offsetMin": null,
+      "hr": 63.5,
+      "meanRR": 944.183,
+      "sdnn": 73.297,
+      "rmssd": 47.976,
+      "pnn50": 18.14,
+      "mxdmn": 0.36,
+      "sd1": 33.92,
+      "sd2": 97.95,
+      "composites": {
+        "stress": 17.2,
+        "energy": 60.4,
+        "focus": 64.5,
+        "sns": 16.1,
+        "psns": 51.09,
+        "coherence": 47.1,
+        "hrvScore": 54.603,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1779428522000,
+      "offsetMin": null,
+      "hr": 63,
+      "meanRR": 951.907,
+      "sdnn": 72.335,
+      "rmssd": 45.582,
+      "pnn50": 17.58,
+      "mxdmn": 0.36,
+      "sd1": 32.23,
+      "sd2": 97.09,
+      "composites": {
+        "stress": 17.6,
+        "energy": 59.7,
+        "focus": 62.2,
+        "sns": 16.7,
+        "psns": 51.284,
+        "coherence": 48.4,
+        "hrvScore": 53.579,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1779514922000,
+      "offsetMin": null,
+      "hr": 62.4,
+      "meanRR": 962.029,
+      "sdnn": 72,
+      "rmssd": 43.154,
+      "pnn50": 17.21,
+      "mxdmn": 0.35,
+      "sd1": 30.51,
+      "sd2": 97.14,
+      "composites": {
+        "stress": 18.2,
+        "energy": 59.2,
+        "focus": 59.7,
+        "sns": 17.5,
+        "psns": 51.581,
+        "coherence": 49.4,
+        "hrvScore": 52.674,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1779601322000,
+      "offsetMin": null,
+      "hr": 61.6,
+      "meanRR": 973.936,
+      "sdnn": 72.304,
+      "rmssd": 40.836,
+      "pnn50": 17.02,
+      "mxdmn": 0.34,
+      "sd1": 28.88,
+      "sd2": 98.09,
+      "composites": {
+        "stress": 18.9,
+        "energy": 59,
+        "focus": 57.2,
+        "sns": 18.3,
+        "psns": 51.973,
+        "coherence": 49.9,
+        "hrvScore": 51.933,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1779687722000,
+      "offsetMin": null,
+      "hr": 60.8,
+      "meanRR": 986.854,
+      "sdnn": 73.236,
+      "rmssd": 38.763,
+      "pnn50": 17.03,
+      "mxdmn": 0.33,
+      "sd1": 27.41,
+      "sd2": 99.88,
+      "composites": {
+        "stress": 19.9,
+        "energy": 59,
+        "focus": 54.9,
+        "sns": 19.1,
+        "psns": 52.448,
+        "coherence": 49.9,
+        "hrvScore": 51.392,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1779774122000,
+      "offsetMin": null,
+      "hr": 60,
+      "meanRR": 999.878,
+      "sdnn": 74.763,
+      "rmssd": 37.06,
+      "pnn50": 17.24,
+      "mxdmn": 0.33,
+      "sd1": 26.21,
+      "sd2": 102.43,
+      "composites": {
+        "stress": 21,
+        "energy": 59.3,
+        "focus": 52.9,
+        "sns": 20,
+        "psns": 52.995,
+        "coherence": 49.3,
+        "hrvScore": 51.078,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1779860522000,
+      "offsetMin": null,
+      "hr": 59.3,
+      "meanRR": 1012.017,
+      "sdnn": 76.831,
+      "rmssd": 35.827,
+      "pnn50": 17.64,
+      "mxdmn": 0.32,
+      "sd1": 25.33,
+      "sd2": 105.66,
+      "composites": {
+        "stress": 22.2,
+        "energy": 59.8,
+        "focus": 51.4,
+        "sns": 20.8,
+        "psns": 53.597,
+        "coherence": 48.3,
+        "hrvScore": 51.005,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1779946922000,
+      "offsetMin": null,
+      "hr": 58.7,
+      "meanRR": 1022.285,
+      "sdnn": 79.366,
+      "rmssd": 35.137,
+      "pnn50": 18.22,
+      "mxdmn": 0.32,
+      "sd1": 24.85,
+      "sd2": 109.46,
+      "composites": {
+        "stress": 23.5,
+        "energy": 60.5,
+        "focus": 50.4,
+        "sns": 21.7,
+        "psns": 54.238,
+        "coherence": 46.9,
+        "hrvScore": 51.178,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1780033322000,
+      "offsetMin": null,
+      "hr": 58.3,
+      "meanRR": 1029.794,
+      "sdnn": 82.279,
+      "rmssd": 35.031,
+      "pnn50": 18.94,
+      "mxdmn": 0.32,
+      "sd1": 24.77,
+      "sd2": 113.69,
+      "composites": {
+        "stress": 24.8,
+        "energy": 61.3,
+        "focus": 50,
+        "sns": 22.5,
+        "psns": 54.9,
+        "coherence": 45.3,
+        "hrvScore": 51.589,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1780119722000,
+      "offsetMin": null,
+      "hr": 58,
+      "meanRR": 1033.862,
+      "sdnn": 85.466,
+      "rmssd": 35.514,
+      "pnn50": 19.79,
+      "mxdmn": 0.32,
+      "sd1": 25.11,
+      "sd2": 118.23,
+      "composites": {
+        "stress": 26.1,
+        "energy": 62.3,
+        "focus": 50.2,
+        "sns": 23.2,
+        "psns": 55.564,
+        "coherence": 43.6,
+        "hrvScore": 52.216,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1780206122000,
+      "offsetMin": null,
+      "hr": 58,
+      "meanRR": 1034.112,
+      "sdnn": 88.814,
+      "rmssd": 36.56,
+      "pnn50": 20.72,
+      "mxdmn": 0.32,
+      "sd1": 25.85,
+      "sd2": 122.91,
+      "composites": {
+        "stress": 27.4,
+        "energy": 63.5,
+        "focus": 51.1,
+        "sns": 23.9,
+        "psns": 56.214,
+        "coherence": 42.1,
+        "hrvScore": 53.029,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1780292522000,
+      "offsetMin": null,
+      "hr": 58.2,
+      "meanRR": 1030.519,
+      "sdnn": 92.204,
+      "rmssd": 38.105,
+      "pnn50": 21.71,
+      "mxdmn": 0.33,
+      "sd1": 26.94,
+      "sd2": 127.58,
+      "composites": {
+        "stress": 28.7,
+        "energy": 64.6,
+        "focus": 52.4,
+        "sns": 24.5,
+        "psns": 56.829,
+        "coherence": 40.9,
+        "hrvScore": 53.989,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1780378922000,
+      "offsetMin": null,
+      "hr": 58.6,
+      "meanRR": 1023.42,
+      "sdnn": 95.515,
+      "rmssd": 40.058,
+      "pnn50": 22.71,
+      "mxdmn": 0.33,
+      "sd1": 28.33,
+      "sd2": 132.08,
+      "composites": {
+        "stress": 29.8,
+        "energy": 65.8,
+        "focus": 54.3,
+        "sns": 25,
+        "psns": 57.394,
+        "coherence": 40.2,
+        "hrvScore": 55.047,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1780465322000,
+      "offsetMin": null,
+      "hr": 59.2,
+      "meanRR": 1013.46,
+      "sdnn": 98.631,
+      "rmssd": 42.303,
+      "pnn50": 23.67,
+      "mxdmn": 0.34,
+      "sd1": 29.91,
+      "sd2": 136.24,
+      "composites": {
+        "stress": 30.8,
+        "energy": 67,
+        "focus": 56.5,
+        "sns": 25.5,
+        "psns": 57.892,
+        "coherence": 40,
+        "hrvScore": 56.152,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1780551722000,
+      "offsetMin": null,
+      "hr": 59.9,
+      "meanRR": 1001.506,
+      "sdnn": 101.44,
+      "rmssd": 44.709,
+      "pnn50": 24.58,
+      "mxdmn": 0.35,
+      "sd1": 31.61,
+      "sd2": 139.93,
+      "composites": {
+        "stress": 31.6,
+        "energy": 68.1,
+        "focus": 58.9,
+        "sns": 25.8,
+        "psns": 58.311,
+        "coherence": 40.4,
+        "hrvScore": 57.25,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1780638122000,
+      "offsetMin": null,
+      "hr": 60.7,
+      "meanRR": 988.54,
+      "sdnn": 103.844,
+      "rmssd": 47.131,
+      "pnn50": 25.38,
+      "mxdmn": 0.35,
+      "sd1": 33.33,
+      "sd2": 143.03,
+      "composites": {
+        "stress": 32.3,
+        "energy": 69.1,
+        "focus": 61.4,
+        "sns": 25.9,
+        "psns": 58.637,
+        "coherence": 41.2,
+        "hrvScore": 58.286,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1780724522000,
+      "offsetMin": null,
+      "hr": 61.5,
+      "meanRR": 975.555,
+      "sdnn": 105.756,
+      "rmssd": 49.428,
+      "pnn50": 26.04,
+      "mxdmn": 0.36,
+      "sd1": 34.95,
+      "sd2": 145.42,
+      "composites": {
+        "stress": 32.7,
+        "energy": 69.9,
+        "focus": 63.8,
+        "sns": 26,
+        "psns": 58.863,
+        "coherence": 42.5,
+        "hrvScore": 59.21,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1780810922000,
+      "offsetMin": null,
+      "hr": 62.3,
+      "meanRR": 963.472,
+      "sdnn": 107.109,
+      "rmssd": 51.462,
+      "pnn50": 26.55,
+      "mxdmn": 0.37,
+      "sd1": 36.39,
+      "sd2": 147.04,
+      "composites": {
+        "stress": 33,
+        "energy": 70.5,
+        "focus": 66,
+        "sns": 25.9,
+        "psns": 58.982,
+        "coherence": 44,
+        "hrvScore": 59.976,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1780897322000,
+      "offsetMin": null,
+      "hr": 63,
+      "meanRR": 953.083,
+      "sdnn": 107.854,
+      "rmssd": 53.114,
+      "pnn50": 26.87,
+      "mxdmn": 0.37,
+      "sd1": 37.56,
+      "sd2": 147.83,
+      "composites": {
+        "stress": 33,
+        "energy": 70.8,
+        "focus": 67.8,
+        "sns": 25.8,
+        "psns": 58.99,
+        "coherence": 45.7,
+        "hrvScore": 60.546,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1780983722000,
+      "offsetMin": null,
+      "hr": 63.5,
+      "meanRR": 945.023,
+      "sdnn": 107.966,
+      "rmssd": 54.285,
+      "pnn50": 27,
+      "mxdmn": 0.38,
+      "sd1": 38.39,
+      "sd2": 147.78,
+      "composites": {
+        "stress": 32.8,
+        "energy": 71,
+        "focus": 69.1,
+        "sns": 25.5,
+        "psns": 58.888,
+        "coherence": 47.3,
+        "hrvScore": 60.893,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1781070122000,
+      "offsetMin": null,
+      "hr": 63.8,
+      "meanRR": 939.751,
+      "sdnn": 107.44,
+      "rmssd": 54.907,
+      "pnn50": 26.93,
+      "mxdmn": 0.38,
+      "sd1": 38.83,
+      "sd2": 146.9,
+      "composites": {
+        "stress": 32.4,
+        "energy": 70.9,
+        "focus": 69.8,
+        "sns": 25,
+        "psns": 58.678,
+        "coherence": 48.6,
+        "hrvScore": 60.999,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1781156522000,
+      "offsetMin": null,
+      "hr": 64,
+      "meanRR": 937.557,
+      "sdnn": 106.295,
+      "rmssd": 54.942,
+      "pnn50": 26.66,
+      "mxdmn": 0.38,
+      "sd1": 38.85,
+      "sd2": 145.22,
+      "composites": {
+        "stress": 31.7,
+        "energy": 70.6,
+        "focus": 70,
+        "sns": 24.5,
+        "psns": 58.366,
+        "coherence": 49.5,
+        "hrvScore": 60.86,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1781242922000,
+      "offsetMin": null,
+      "hr": 63.9,
+      "meanRR": 938.555,
+      "sdnn": 104.572,
+      "rmssd": 54.389,
+      "pnn50": 26.21,
+      "mxdmn": 0.38,
+      "sd1": 38.46,
+      "sd2": 142.8,
+      "composites": {
+        "stress": 30.9,
+        "energy": 70,
+        "focus": 69.5,
+        "sns": 23.9,
+        "psns": 57.961,
+        "coherence": 50,
+        "hrvScore": 60.481,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1781329322000,
+      "offsetMin": null,
+      "hr": 63.6,
+      "meanRR": 942.694,
+      "sdnn": 102.331,
+      "rmssd": 53.28,
+      "pnn50": 25.59,
+      "mxdmn": 0.38,
+      "sd1": 37.67,
+      "sd2": 139.73,
+      "composites": {
+        "stress": 29.9,
+        "energy": 69.3,
+        "focus": 68.4,
+        "sns": 23.2,
+        "psns": 57.473,
+        "coherence": 49.9,
+        "hrvScore": 59.882,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1781415722000,
+      "offsetMin": null,
+      "hr": 63.2,
+      "meanRR": 949.75,
+      "sdnn": 99.653,
+      "rmssd": 51.681,
+      "pnn50": 24.82,
+      "mxdmn": 0.37,
+      "sd1": 36.54,
+      "sd2": 136.11,
+      "composites": {
+        "stress": 28.8,
+        "energy": 68.4,
+        "focus": 66.8,
+        "sns": 22.5,
+        "psns": 56.918,
+        "coherence": 49.2,
+        "hrvScore": 59.092,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1781502122000,
+      "offsetMin": null,
+      "hr": 62.5,
+      "meanRR": 959.328,
+      "sdnn": 96.632,
+      "rmssd": 49.687,
+      "pnn50": 23.95,
+      "mxdmn": 0.36,
+      "sd1": 35.13,
+      "sd2": 132.06,
+      "composites": {
+        "stress": 27.6,
+        "energy": 67.3,
+        "focus": 64.8,
+        "sns": 21.7,
+        "psns": 56.309,
+        "coherence": 48.1,
+        "hrvScore": 58.15,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1781588522000,
+      "offsetMin": null,
+      "hr": 61.8,
+      "meanRR": 970.858,
+      "sdnn": 93.376,
+      "rmssd": 47.415,
+      "pnn50": 22.99,
+      "mxdmn": 0.36,
+      "sd1": 33.53,
+      "sd2": 127.73,
+      "composites": {
+        "stress": 26.3,
+        "energy": 66.2,
+        "focus": 62.5,
+        "sns": 20.9,
+        "psns": 55.664,
+        "coherence": 46.6,
+        "hrvScore": 57.102,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    },
+    {
+      "tMs": 1781674922000,
+      "offsetMin": null,
+      "hr": 61,
+      "meanRR": 983.607,
+      "sdnn": 90,
+      "rmssd": 45,
+      "pnn50": 22,
+      "mxdmn": 0.35,
+      "sd1": 31.82,
+      "sd2": 123.24,
+      "composites": {
+        "stress": 25,
+        "energy": 65,
+        "focus": 60,
+        "sns": 20,
+        "psns": 55,
+        "coherence": 45,
+        "hrvScore": 56,
+        "meta": {
+          "derived": true,
+          "tier": "heuristic"
+        }
+      }
+    }
+  ],
+  "ganglior_events": [],
+  "reserved": {
+    "doc": "Awaiting other fleet nodes; null until available.",
+    "glucoseCorrelation": null,
+    "glucoseSource": "GlucoDex"
+  }
+}

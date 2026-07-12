@@ -207,6 +207,24 @@ async function main(){
     if (fixture != null) rec.fixture = fixture;
     if (Object.keys(rec).length) equiv[key] = rec;
   };
+  // ── P9: the SYNTHETIC, COMMITTED twin for every node (see tests/run-tests.mjs readEquiv) ────
+  // The real-recording inputs below are gitignored → their legs ⊘ skip in CI → the equivalence gate
+  // asserts nothing there. These twins carry no personal data, ship in git, and run everywhere.
+  for (const [k, inF, fxF] of [
+    ['oxydex_synth', 'synthetic_oxydex_o2ring.csv', 'synthetic_oxydex_golden.node-export.json'],
+    ['pulsedex_synth', 'synthetic_pulsedex_rr.txt', 'synthetic_pulsedex_golden.node-export.json'],
+    ['hrvdex_synth', 'synthetic_hrvdex_welltory.csv', 'synthetic_hrvdex_golden.node-export.json'],
+    ['glucodex_synth', 'synthetic_glucodex_lingo.csv', 'synthetic_glucodex_golden.node-export.json'],
+    ['ppgdex_synth', 'synthetic_ppgdex_verity.txt', 'synthetic_ppgdex_golden.node-export.json'],
+    ['ecgdex_synth', 'synthetic_ecgdex_h10.txt', 'synthetic_ecgdex_golden.node-export.json']
+  ]) {
+    try {
+      setEquiv(k, await fetchText('uploads/' + inF), await fetchJSON('uploads/' + fxF));
+    } catch (e) {
+      /* absent → the CASES loop self-skips */
+    }
+  }
+
   // ── CPAPDex BINARY-EDF leg (CPAP-REAL-CORPUS-2026-07-11-BRIEF §P2) ──────────────────────────
   // The ONLY equiv input in the repo that is COMMITTED — because it is SYNTHETIC
   // (tools/make-synthetic-edf.mjs: closed-form waveforms, no recording of any person). Every other
