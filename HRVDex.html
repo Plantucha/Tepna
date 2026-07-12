@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8XI7rAFDr6fMrFQHYZNIuhQfnX4RbyFGOoiPvHl74Lw=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-FLjjbK1/deXvk+myWW6DFN+AnmmVU/GuoGCp55hyOvk=' 'sha256-GGVFXrNbd0tJ+tS9XDXa/3y6pynbDhVB9EZhRBIW4cI=' 'sha256-Gb3EWh154tYCjsYcn91z+v4k8tdIf+uYciqo+q2JDKI=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-SbhMwvzlpgPhlroU5JoY5kACF2lbh9q6MEOKlFWAwWY=' 'sha256-TJAh9DCg7Ek7gwusBHfJhulcRWQPEVr4ZAZQfqDAm/4=' 'sha256-V0C9qWkelizTKHjPEtlWmyTc4pTsPSf41HTe+Ia2y7Y=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-fF46IrMGR6TwAmINCMSeAKAcOz57YdRj7ISX7dK8KGU=' 'sha256-jtxCSuN9HpoPf+Wg3PTmoua5zOT4s9KjrSo/jyJMg34=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-mZBH8zbV4NKqPhrv60Q9ElK/FR50gIXXStn0MsXEjZo=' 'sha256-znnyGiXDcfbU3wUjydrmyWCFBC9U8tWF9ZOIH8oZ9no=' 'sha256-zoX0rksSqUxFePSlhG6+8O2Euarj7JlN/OQ/SqQyThw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8XI7rAFDr6fMrFQHYZNIuhQfnX4RbyFGOoiPvHl74Lw=' 'sha256-Aagmdj7uloA0DrucBTiCOst/Zu8HtdOMCz2BF1lDtHw=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-ElHuXRtAEOK2Lyl2eAs+sECykN42oObwulfVN52UUec=' 'sha256-FLjjbK1/deXvk+myWW6DFN+AnmmVU/GuoGCp55hyOvk=' 'sha256-GGVFXrNbd0tJ+tS9XDXa/3y6pynbDhVB9EZhRBIW4cI=' 'sha256-Gb3EWh154tYCjsYcn91z+v4k8tdIf+uYciqo+q2JDKI=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-SbhMwvzlpgPhlroU5JoY5kACF2lbh9q6MEOKlFWAwWY=' 'sha256-TJAh9DCg7Ek7gwusBHfJhulcRWQPEVr4ZAZQfqDAm/4=' 'sha256-V0C9qWkelizTKHjPEtlWmyTc4pTsPSf41HTe+Ia2y7Y=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-jtxCSuN9HpoPf+Wg3PTmoua5zOT4s9KjrSo/jyJMg34=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-znnyGiXDcfbU3wUjydrmyWCFBC9U8tWF9ZOIH8oZ9no=' 'sha256-zoX0rksSqUxFePSlhG6+8O2Euarj7JlN/OQ/SqQyThw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HRVDex — Heart Rate Variability Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -7147,14 +7147,55 @@ function _ckNumEpoch(n){
 }
 function _ckZoneMin(z){ var zs=z.replace(':',''); var sign=zs[0]==='-'?-1:1;
   return sign*(parseInt(zs.slice(1,3),10)*60 + parseInt(zs.slice(3,5),10)); }
-function _ckDMY(a,b,preferDMY){                    // decide day vs month from first two slash fields
+/* Contract §3 — decide day vs month from the first two slash fields.
+   `locked` (from resolveDMY) means the ORDER WAS PROVEN FOR THIS FILE: apply it unconditionally, so a
+   single row can no longer flip the order mid-file. A row the lock cannot explain (its month field lands
+   outside 1..12) is a contradiction, and a contradiction is null — never a guess.
+   Unlocked (no pre-scan) keeps the historical per-call behavior for back-compat. */
+function _ckDMY(a,b,preferDMY,locked){
+  if(locked){
+    var ld = preferDMY ? a : b, lmo = preferDMY ? b : a;
+    return (lmo>=1 && lmo<=12 && ld>=1 && ld<=31) ? {d:ld,mo:lmo} : null;
+  }
   if(a>12) return {d:a,mo:b};
   if(b>12) return {d:b,mo:a};
   return preferDMY ? {d:a,mo:b} : {d:b,mo:a};
 }
+
+/* Contract §3, the FILE-LEVEL lock: "Any row with day-component > 12 ⇒ file is unambiguous; lock that
+   order for the whole file … Never switch order mid-file."  Scan every stamp ONCE up front:
+     a row whose 1st slash field > 12 PROVES DMY · a row whose 2nd field > 12 PROVES MDY.
+   Both proofs present ⇒ the file contradicts itself ⇒ refuse (contradictory:true) rather than guess.
+   Neither ⇒ genuinely ambiguous ⇒ fall back to the caller's preferDMY, unlocked.
+   Pass the result into parseTimestamp as { preferDMY: r.dmy, dmyLocked: r.locked }.
+   Only the two ambiguous vendor shapes are scanned (4a "HH:MM:SS D/M/Y" and 4c "D/M/Y HH:MM"); ISO and
+   YYYY/MM/DD carry no ambiguity. */
+function resolveDMY(rawStamps, preferDMY){
+  var pref = preferDMY !== false, sawDMY = false, sawMDY = false;
+  var RE_A = /^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/;   // 4a — O2Ring
+  var RE_C = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/; // 4c — Welltory etc.
+  var list = rawStamps || [];
+  for(var i=0;i<list.length;i++){
+    var s = list[i]; if(typeof s !== 'string') continue;
+    s = s.trim().replace(/^["']|["']$/g,'');
+    var a=null,b=null,m;
+    if((m = s.match(RE_A))){ a=+m[4]; b=+m[5]; }
+    else if((m = s.match(RE_C))){ a=+m[1]; b=+m[2]; }
+    else continue;
+    if(a>12) sawDMY = true;
+    if(b>12) sawMDY = true;
+    if(sawDMY && sawMDY) break;                    // contradiction proven — no need to scan further
+  }
+  if(sawDMY && sawMDY) return { dmy:pref, locked:false, contradictory:true };
+  if(sawDMY)           return { dmy:true,  locked:true,  contradictory:false };
+  if(sawMDY)           return { dmy:false, locked:true,  contradictory:false };
+  return { dmy:pref, locked:false, contradictory:false };
+}
+
 function parseTimestamp(raw, opts){
   opts = opts || {};
   var preferDMY = opts.preferDMY !== false;        // default true (O2Ring/Welltory exports are DMY)
+  var dmyLocked = opts.dmyLocked === true;         // set by resolveDMY — the order is proven for this file
   var anchor = (opts.dateAnchorMs != null && isFinite(opts.dateAnchorMs)) ? opts.dateAnchorMs : null;
   if(raw == null) return null;
   if(typeof raw === 'number') return _ckNumEpoch(raw);
@@ -7172,14 +7213,16 @@ function parseTimestamp(raw, opts){
   if(m) return { tMs: Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],m[6]?+m[6]:0, m[7]?+((m[7]+'00').slice(0,3)):0), offsetMin: null };
   // 4a. "HH:MM:SS DD/MM/YYYY" | "HH:MM:SS MM/DD/YYYY" (O2Ring)
   m = s.match(/^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if(m){ var dm=_ckDMY(+m[4],+m[5],preferDMY);
+  if(m){ var dm=_ckDMY(+m[4],+m[5],preferDMY,dmyLocked);
+    if(!dm) return null;                           // row contradicts the file's proven order → honest null
     return { tMs: Date.UTC(+m[6],dm.mo-1,dm.d,+m[1],+m[2],+m[3]), offsetMin: null }; }
   // 4b. compact "YYYYMMDDHHMMSS" (14-digit, O2Ring filename embed)
   m = s.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/);
   if(m) return { tMs: Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6]), offsetMin: null };
   // 4c. "DD/MM/YYYY HH:MM[:SS]" | "MM/DD/YYYY HH:MM[:SS]" (Welltory etc.)
   m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-  if(m){ var dm2=_ckDMY(+m[1],+m[2],preferDMY);
+  if(m){ var dm2=_ckDMY(+m[1],+m[2],preferDMY,dmyLocked);
+    if(!dm2) return null;                          // row contradicts the file's proven order → honest null
     return { tMs: Date.UTC(+m[3],dm2.mo-1,dm2.d,+m[4],+m[5],m[6]?+m[6]:0), offsetMin: null }; }
   // 4d. "YYYY/MM/DD HH:MM[:SS]"
   m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
@@ -7197,7 +7240,7 @@ function parseTimestamp(raw, opts){
   return null;
 }
 
-root.DexClock = { tzOffset: tzOffset, _ckP2: _ckP2, _ckNumEpoch: _ckNumEpoch, _ckZoneMin: _ckZoneMin, _ckDMY: _ckDMY, parseTimestamp: parseTimestamp };
+root.DexClock = { tzOffset: tzOffset, _ckP2: _ckP2, _ckNumEpoch: _ckNumEpoch, _ckZoneMin: _ckZoneMin, _ckDMY: _ckDMY, resolveDMY: resolveDMY, parseTimestamp: parseTimestamp };
 if (typeof module !== 'undefined' && module.exports) module.exports = root.DexClock;
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
 </script>
@@ -7509,10 +7552,18 @@ function ingestGangliorJSON(text, opts){
 }
 
 
-function computeDerived() {
-  // Cache profile ONCE before the loop — avoids 4× DOM reads per row
-  const _p = getProfile();
-  allRows.forEach((r,i,arr) => {
+/* computeDerived(rowsArg?) — derives every d_* column IN PLACE on `rowsArg`, defaulting to the module's
+   allRows (so every existing caller is byte-unchanged). The optional argument makes the derivation a PURE,
+   headless surface the test runners can drive on a synthetic row without touching app state — exposed as
+   HRVDex.derive() below, which is how the §3/§4 presence-gate regression legs reach these columns. */
+function computeDerived(rowsArg) {
+  // Cache profile ONCE before the loop — avoids 4× DOM reads per row.
+  // getProfile() lives in hrvdex-profile.js (a UI module). Guard it so the derivation runs HEADLESS:
+  // with no profile the profile-dependent columns (d_bap, d_vo2_*) fall to NaN — which is the honest
+  // answer when age/sex/BP were never supplied — instead of throwing and taking the whole row with them.
+  const _p = (typeof getProfile === 'function') ? getProfile() : {};
+  const _rows = rowsArg || allRows;
+  _rows.forEach((r,i,arr) => {
     // SIGNAL-ADAPTER-FOLLOWUPS-V §1: ONE predicate for "the Welltory black-box subjective
     // inputs are actually present (>0)". On a real summary file the six move as a group
     // (all present); on a raw / ECGDex-ingest recording they are all seed-0 together. Every
@@ -7543,23 +7594,38 @@ function computeDerived() {
       r.d_si = (r._amo50 && r._mode && r._mxdmn) ? r._amo50 / (2 * r._mode * r._mxdmn) : NaN;
       r.d_si_ms = false; r.d_si_flagged = false; r._baevskyS = null;
     }
-    r.d_mxdmn_meanrr = r._meanRR ? r._mxdmn / r._meanRR : NaN;
-    // Frequency-domain
-    const lfhf_denom = r._hf || 0.001;
-    r.d_lfhf = r._lf / lfhf_denom;
-    const nu_denom = (r._totalPow - r._vlf) || 0.001;
-    r.d_hfnu = (r._hf / nu_denom) * 100;
-    r.d_lfnu = (r._lf / nu_denom) * 100;
-    r.d_vlf_pct = r._totalPow ? (r._vlf / r._totalPow * 100) : NaN;
-    r.d_svi = (r._lf > 0 && r._hf > 0) ? (Math.log(r._lf) - Math.log(r._hf)) : NaN;
-    // spectral entropy over normalized [hf,lf,vlf]
-    const bandSum = r._hf + r._lf + r._vlf;
-    if(bandSum > 0){
+    // MxDMn/MeanRR is the SAME quantity as d_csi below, and like it MUST divide the guard-normalized
+    // (seconds) MxDMn by meanRR in seconds. Reading raw _mxdmn (SECONDS in a Welltory export) against raw
+    // _meanRR (ms) made this ratio 1000× LOW — the un-guarded sibling of the very mixed-unit trap
+    // DexUnits.guardBaevsky exists for (DEEP-AUDIT-2026-07-11 §4). Same operands as d_csi; do not re-fork.
+    var _mxdmnS0 = (r._baevskyS && r._baevskyS.mxdmnS != null) ? r._baevskyS.mxdmnS : r._mxdmn;
+    var _meanRRs0 = r._meanRR / 1000;
+    r.d_mxdmn_meanrr = (_meanRRs0 > 0 && _mxdmnS0 != null) ? (_mxdmnS0 / _meanRRs0) : NaN;
+
+    /* ── Frequency-domain — PRESENCE-gated (DEEP-AUDIT-2026-07-11 §3) ────────────────────────────────
+       `x || 0.001` treats an ABSENT band as 0 and then substitutes a 1000×-too-small epsilon. ECGDex and
+       PpgDex export lf/hf but NO totalPower/vlf, so on that (documented) ingest path the denominator
+       collapsed to the epsilon and HF n.u. surfaced as 125,000,000 % — a quantity that is 0–100 BY
+       DEFINITION — and went NEGATIVE when only vlf was present. An absent band must read (NaN), never a
+       fabricated number. This is the spectral sibling of the _hasSubj gate above; same rule, same reason:
+       gate on inputs being PRESENT, not on them being non-zero. */
+    const _hasLfHf = (r._lf > 0 && r._hf > 0);
+    const _hasNu = (r._totalPow > 0 && r._vlf != null && r._totalPow > r._vlf);
+    const _hasBands = (r._hf > 0 && r._lf > 0 && r._vlf > 0);
+    r.d_lfhf = _hasLfHf ? (r._lf / r._hf) : NaN;
+    r.d_hfnu = _hasNu ? (r._hf / (r._totalPow - r._vlf)) * 100 : NaN;
+    r.d_lfnu = _hasNu ? (r._lf / (r._totalPow - r._vlf)) * 100 : NaN;
+    r.d_vlf_pct = (r._totalPow > 0 && r._vlf != null) ? (r._vlf / r._totalPow * 100) : NaN;
+    r.d_svi = _hasLfHf ? (Math.log(r._lf) - Math.log(r._hf)) : NaN;
+    // spectral entropy over normalized [hf,lf,vlf] — needs all THREE bands; the old `||0.0001` floor
+    // fabricated a VLF share for an export that never carried one.
+    if(_hasBands){
       // Normalize to HF+LF+VLF (not TotalPow which may include DC) for correct entropy
-      const bands = [r._hf, r._lf, r._vlf].map(v => (v/bandSum)||0.0001);
+      const bandSum = r._hf + r._lf + r._vlf;
+      const bands = [r._hf, r._lf, r._vlf].map(v => v / bandSum);
       r.d_spectral_ent = -bands.reduce((s,p) => s + p*Math.log(p), 0) / Math.log(3);
     } else r.d_spectral_ent = NaN;
-    r.d_lfhf_totpow = r._totalPow ? ((r._lf + r._hf) / r._totalPow) : NaN;
+    r.d_lfhf_totpow = (r._totalPow > 0 && _hasLfHf) ? ((r._lf + r._hf) / r._totalPow) : NaN;
     // Composite
     // Black-box composite — when the Welltory subjective inputs are ABSENT (a raw/ECGDex-ingest
     // recording seeds SNS/Stress/PSNS/Energy = 0), DON'T surface a fabricated 0; require them
@@ -7570,7 +7636,9 @@ function computeDerived() {
     r.d_pti = _hasSubj ? r._psns * r._rmssd / 100 : NaN;
     r.d_incoherent_stress = r._coherence > 0 ? r._stress * (100 / r._coherence) : NaN;
     r.d_vei = r._hr > 0 ? r._rmssd / r._hr : NaN;
-    r.d_sdi = (r._hf + r._psns * 10 + 0.001) ? (r._lf + r._sns * 10) / (r._hf + r._psns * 10 + 0.001) : NaN;
+    // §3: the old guard `(hf + psns*10 + 0.001)` is ALWAYS truthy (the +0.001 sees to that), so with the
+    // spectrum absent this evaluated to a real-looking 0. Gate on the spectral inputs being present.
+    r.d_sdi = _hasLfHf ? (r._lf + r._sns * 10) / (r._hf + r._psns * 10) : NaN;
     // ── Poincaré SD1 / SD2 ──
     r.d_sd1 = r._rmssd / Math.sqrt(2);
     const sd2sq = Math.max(0, 2 * r._sdnn * r._sdnn - r.d_sd1 * r.d_sd1);
@@ -7605,14 +7673,14 @@ function computeDerived() {
     // ── Cardiac Resilience Score ──
     r.d_crs = (r._stress > 0) ? (r._coherence * r._rmssd * r._pnn50) / (r._stress * 1000 + 0.001) : NaN;
 
-    // ── RSA Power Proxy ──
-    r.d_rsa = (meanRR_s > 0) ? r._hf / (meanRR_s * meanRR_s) : NaN;
+    // ── RSA Power Proxy ── (§3: an absent HF divided into a real meanRR yielded a confident 0)
+    r.d_rsa = (meanRR_s > 0 && r._hf > 0) ? r._hf / (meanRR_s * meanRR_s) : NaN;
 
-    // ── Spectral Asymmetry Index ──
-    r.d_sai = (r._lf + r._hf > 0) ? (r._lf - r._hf) / (r._lf + r._hf) : NaN;
+    // ── Spectral Asymmetry Index ── (§3: with only ONE band present this returned ±1, a fabricated extreme)
+    r.d_sai = _hasLfHf ? (r._lf - r._hf) / (r._lf + r._hf) : NaN;
 
-    // ── VLF/HF ratio ──
-    r.d_vlf_hf = r._hf > 0 ? r._vlf / r._hf : NaN;
+    // ── VLF/HF ratio ── (§3: an absent VLF over a real HF yielded a confident 0)
+    r.d_vlf_hf = (r._hf > 0 && r._vlf > 0) ? r._vlf / r._hf : NaN;
 
     // ── HRV Power Law Slope (3-band log-log) ──
     if(r._vlf > 0 && r._lf > 0 && r._hf > 0){
@@ -8020,6 +8088,11 @@ HRVDex.compute = function(input, opts){
   return hrvBuildNodeExport(rows, opts);
 };
 HRVDex.parseRows = _hrvParseSummaryRows;
+// Headless derivation surface (DEEP-AUDIT-2026-07-11 §3/§4): derive the d_* columns on caller-supplied
+// rows without touching app state, so both runners can gate the spectral presence-gates + the unit-guarded
+// MxDMn/MeanRR ratio directly. Also exposes the node-export→row seeding the ECGDex/Ganglior ingest uses.
+HRVDex.derive = function(rows){ computeDerived(rows); return rows; };
+HRVDex.rowFromNodeExport = function(env){ var s = _envToSeed(env); return s ? _rowFromSeed(s) : null; };
 HRVDex.eventsFromRows = hrvEventsFromRows;
 HRVDex.buildNodeExport = hrvBuildNodeExport;
 HRVDex.loadOwnExport = hrvLoadOwnExport;   // SELF-INGEST reload (review-mode clinical view)

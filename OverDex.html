@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-08g+++mBJAnnGYhYeNhFlVDT4/4LXnCpWPtewGzntHw=' 'sha256-1aZWjURk+iCKcusRGMNbZLjEbOdvCYlfeKuRRt9lgLQ=' 'sha256-6RZXLEoUPvVrjS9laRTHze70mnbaJ+rNK+xDvzCc9JQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7RmTS26sOINiELsYuBnStOesCpoz23VianbWtnOw1JM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9wWQNX1W5D+WhSG87I6wOiVdkRmmkDfxXxHroLgADj0=' 'sha256-Cmy5jqXGBn2TOeoIUu5NQ462zWgA2iB09CRh/bkx2pc=' 'sha256-DAai3/Ebx9zIppnSVQp3WaBJ7W9Kl1h/coglmrhaoZs=' 'sha256-DE/lfDnNKHcSbXxw474kJVe7uFhKKaPy/5FmvRM68U4=' 'sha256-F4s+OtKkoVZS0q8lS4F/sWsYA6V6dQxQKQ7xrw244Q0=' 'sha256-HMcz3UCFbmyBGi0SQWw6ydup3CHvmu4SX/HIKXkWnkg=' 'sha256-JfLKxSwOjxE7uUrj7GNPtdXlKdaikOhXEpi4ODHOlJ4=' 'sha256-SR4M3q6GdsxBEK+cVani+JkPnHRuS3Z6pj47crTOUaE=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-fF46IrMGR6TwAmINCMSeAKAcOz57YdRj7ISX7dK8KGU=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-giH7+xYTi6zzmo5ZtCPaGJEzq74hWIaqOK1CAMLayp4=' 'sha256-hs9K6cuZdV/TNM22sxtyqlWad5F44Inh53puPeYFZmg=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-mZBH8zbV4NKqPhrv60Q9ElK/FR50gIXXStn0MsXEjZo=' 'sha256-pwWfvoYt3Ims36UoT3wru6Z6nBlwPUBHBajt/0lP8yo=' 'sha256-rUyLtISg99MnpjTtyxOjorMARW/50/0aQ2FOeNA4TaI=' 'sha256-roO0qvbiqQFAF7zD/B79CM1goAjzhR5jx8+N3kX4ZSY=' 'sha256-sCx/0jRpwBNzhTpZ4ClKf8BfTccQekveXGhU/zx+WqU=' 'sha256-yNoaiS9N95lBo/AEEOuu3L8+OnQowaAEwE2DA9939Ow='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1aZWjURk+iCKcusRGMNbZLjEbOdvCYlfeKuRRt9lgLQ=' 'sha256-6RZXLEoUPvVrjS9laRTHze70mnbaJ+rNK+xDvzCc9JQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7RmTS26sOINiELsYuBnStOesCpoz23VianbWtnOw1JM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9UrXIeSg7IqZfUDCvWHdSgrEG8MyymffbEhyXkD0xZM=' 'sha256-Aagmdj7uloA0DrucBTiCOst/Zu8HtdOMCz2BF1lDtHw=' 'sha256-Cmy5jqXGBn2TOeoIUu5NQ462zWgA2iB09CRh/bkx2pc=' 'sha256-DAai3/Ebx9zIppnSVQp3WaBJ7W9Kl1h/coglmrhaoZs=' 'sha256-DE/lfDnNKHcSbXxw474kJVe7uFhKKaPy/5FmvRM68U4=' 'sha256-ElHuXRtAEOK2Lyl2eAs+sECykN42oObwulfVN52UUec=' 'sha256-F4s+OtKkoVZS0q8lS4F/sWsYA6V6dQxQKQ7xrw244Q0=' 'sha256-HMcz3UCFbmyBGi0SQWw6ydup3CHvmu4SX/HIKXkWnkg=' 'sha256-JfLKxSwOjxE7uUrj7GNPtdXlKdaikOhXEpi4ODHOlJ4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XyVFIMTkRAAX52ytkn8WRGcJZEUvGsOP40KTolbmqWY=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-giH7+xYTi6zzmo5ZtCPaGJEzq74hWIaqOK1CAMLayp4=' 'sha256-hs9K6cuZdV/TNM22sxtyqlWad5F44Inh53puPeYFZmg=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-pF2F1BHb5ALbGyqL7RaEPb4fzp9+gHyW4tWOpeTvV10=' 'sha256-pwWfvoYt3Ims36UoT3wru6Z6nBlwPUBHBajt/0lP8yo=' 'sha256-rUyLtISg99MnpjTtyxOjorMARW/50/0aQ2FOeNA4TaI=' 'sha256-roO0qvbiqQFAF7zD/B79CM1goAjzhR5jx8+N3kX4ZSY=' 'sha256-sCx/0jRpwBNzhTpZ4ClKf8BfTccQekveXGhU/zx+WqU=' 'sha256-yNoaiS9N95lBo/AEEOuu3L8+OnQowaAEwE2DA9939Ow='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -400,14 +400,55 @@ function _ckNumEpoch(n){
 }
 function _ckZoneMin(z){ var zs=z.replace(':',''); var sign=zs[0]==='-'?-1:1;
   return sign*(parseInt(zs.slice(1,3),10)*60 + parseInt(zs.slice(3,5),10)); }
-function _ckDMY(a,b,preferDMY){                    // decide day vs month from first two slash fields
+/* Contract §3 — decide day vs month from the first two slash fields.
+   `locked` (from resolveDMY) means the ORDER WAS PROVEN FOR THIS FILE: apply it unconditionally, so a
+   single row can no longer flip the order mid-file. A row the lock cannot explain (its month field lands
+   outside 1..12) is a contradiction, and a contradiction is null — never a guess.
+   Unlocked (no pre-scan) keeps the historical per-call behavior for back-compat. */
+function _ckDMY(a,b,preferDMY,locked){
+  if(locked){
+    var ld = preferDMY ? a : b, lmo = preferDMY ? b : a;
+    return (lmo>=1 && lmo<=12 && ld>=1 && ld<=31) ? {d:ld,mo:lmo} : null;
+  }
   if(a>12) return {d:a,mo:b};
   if(b>12) return {d:b,mo:a};
   return preferDMY ? {d:a,mo:b} : {d:b,mo:a};
 }
+
+/* Contract §3, the FILE-LEVEL lock: "Any row with day-component > 12 ⇒ file is unambiguous; lock that
+   order for the whole file … Never switch order mid-file."  Scan every stamp ONCE up front:
+     a row whose 1st slash field > 12 PROVES DMY · a row whose 2nd field > 12 PROVES MDY.
+   Both proofs present ⇒ the file contradicts itself ⇒ refuse (contradictory:true) rather than guess.
+   Neither ⇒ genuinely ambiguous ⇒ fall back to the caller's preferDMY, unlocked.
+   Pass the result into parseTimestamp as { preferDMY: r.dmy, dmyLocked: r.locked }.
+   Only the two ambiguous vendor shapes are scanned (4a "HH:MM:SS D/M/Y" and 4c "D/M/Y HH:MM"); ISO and
+   YYYY/MM/DD carry no ambiguity. */
+function resolveDMY(rawStamps, preferDMY){
+  var pref = preferDMY !== false, sawDMY = false, sawMDY = false;
+  var RE_A = /^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/;   // 4a — O2Ring
+  var RE_C = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/; // 4c — Welltory etc.
+  var list = rawStamps || [];
+  for(var i=0;i<list.length;i++){
+    var s = list[i]; if(typeof s !== 'string') continue;
+    s = s.trim().replace(/^["']|["']$/g,'');
+    var a=null,b=null,m;
+    if((m = s.match(RE_A))){ a=+m[4]; b=+m[5]; }
+    else if((m = s.match(RE_C))){ a=+m[1]; b=+m[2]; }
+    else continue;
+    if(a>12) sawDMY = true;
+    if(b>12) sawMDY = true;
+    if(sawDMY && sawMDY) break;                    // contradiction proven — no need to scan further
+  }
+  if(sawDMY && sawMDY) return { dmy:pref, locked:false, contradictory:true };
+  if(sawDMY)           return { dmy:true,  locked:true,  contradictory:false };
+  if(sawMDY)           return { dmy:false, locked:true,  contradictory:false };
+  return { dmy:pref, locked:false, contradictory:false };
+}
+
 function parseTimestamp(raw, opts){
   opts = opts || {};
   var preferDMY = opts.preferDMY !== false;        // default true (O2Ring/Welltory exports are DMY)
+  var dmyLocked = opts.dmyLocked === true;         // set by resolveDMY — the order is proven for this file
   var anchor = (opts.dateAnchorMs != null && isFinite(opts.dateAnchorMs)) ? opts.dateAnchorMs : null;
   if(raw == null) return null;
   if(typeof raw === 'number') return _ckNumEpoch(raw);
@@ -425,14 +466,16 @@ function parseTimestamp(raw, opts){
   if(m) return { tMs: Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],m[6]?+m[6]:0, m[7]?+((m[7]+'00').slice(0,3)):0), offsetMin: null };
   // 4a. "HH:MM:SS DD/MM/YYYY" | "HH:MM:SS MM/DD/YYYY" (O2Ring)
   m = s.match(/^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if(m){ var dm=_ckDMY(+m[4],+m[5],preferDMY);
+  if(m){ var dm=_ckDMY(+m[4],+m[5],preferDMY,dmyLocked);
+    if(!dm) return null;                           // row contradicts the file's proven order → honest null
     return { tMs: Date.UTC(+m[6],dm.mo-1,dm.d,+m[1],+m[2],+m[3]), offsetMin: null }; }
   // 4b. compact "YYYYMMDDHHMMSS" (14-digit, O2Ring filename embed)
   m = s.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/);
   if(m) return { tMs: Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6]), offsetMin: null };
   // 4c. "DD/MM/YYYY HH:MM[:SS]" | "MM/DD/YYYY HH:MM[:SS]" (Welltory etc.)
   m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-  if(m){ var dm2=_ckDMY(+m[1],+m[2],preferDMY);
+  if(m){ var dm2=_ckDMY(+m[1],+m[2],preferDMY,dmyLocked);
+    if(!dm2) return null;                          // row contradicts the file's proven order → honest null
     return { tMs: Date.UTC(+m[3],dm2.mo-1,dm2.d,+m[4],+m[5],m[6]?+m[6]:0), offsetMin: null }; }
   // 4d. "YYYY/MM/DD HH:MM[:SS]"
   m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
@@ -450,7 +493,7 @@ function parseTimestamp(raw, opts){
   return null;
 }
 
-root.DexClock = { tzOffset: tzOffset, _ckP2: _ckP2, _ckNumEpoch: _ckNumEpoch, _ckZoneMin: _ckZoneMin, _ckDMY: _ckDMY, parseTimestamp: parseTimestamp };
+root.DexClock = { tzOffset: tzOffset, _ckP2: _ckP2, _ckNumEpoch: _ckNumEpoch, _ckZoneMin: _ckZoneMin, _ckDMY: _ckDMY, resolveDMY: resolveDMY, parseTimestamp: parseTimestamp };
 if (typeof module !== 'undefined' && module.exports) module.exports = root.DexClock;
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
 </script>
@@ -2482,10 +2525,23 @@ window.IntegratorDSP = {
     // cheap, side-effect-free: filename signature first, header signature as fallback.
     detect: function (file, headText) {
       var name = (file && file.name || '') + '';
-      if (/_RR\b|_PPI\b|RR\.txt$|PPI\.txt$/i.test(name) && /polar|psl|verity|h10/i.test(name + ' ' + (headText || '')))
+      var head = headText || '';
+      /* FOREIGN-STREAM VETO (DEEP-AUDIT-2026-07-11 §2). A Polar Sensor Logger session folder carries
+         EVERY stream side by side (_ACC / _MAGN / _GYRO / _PPG / _ECG / _RR / _PPI), and they ALL share
+         the same `Phone timestamp;sensor timestamp` envelope — so that envelope is evidence of PSL, NOT
+         evidence of an RR stream. Without this veto a real H10 *_ACC.txt scored 0.6 here, won by default
+         (nothing outranks it — unlike *_ECG.txt, which polar-h10-ecg outranks), and its Z-axis gravity
+         rail (~973 mg) landed inside PulseDex's 300–2000 ms interval window: a gravity vector was
+         analyzed as a heart recording (HR 61.9 bpm, "overnight", stress 100, 36 stress_peak events).
+         Veto by stream name AND by declared unit, so a renamed file is still refused. */
+      if (/_(ACC|MAGN?|GYRO?|PPG|ECG)\b/i.test(name)) return 0;
+      if (/\[\s*(mg|g|dps|uv|µv|nt|gauss)\s*\]/i.test(head)) return 0;     // a declared NON-interval unit
+      if (/_RR\b|_PPI\b|RR\.txt$|PPI\.txt$/i.test(name) && /polar|psl|verity|h10/i.test(name + ' ' + head))
         return 0.97;
       if (/_RR\b|_PPI\b/i.test(name)) return 0.8;                          // PSL default per-stream naming
-      if (/RR-?interval|PP-?interval|Phone timestamp|sensor timestamp/i.test(headText || '')) return 0.6;
+      // An RR/PP COLUMN is real evidence; the bare PSL timestamp envelope is not, and no longer votes
+      // on its own (every PSL stream has it).
+      if (/RR-?interval|PP-?interval/i.test(head)) return 0.6;
       return 0;
     },
     // REFERENCE the existing pure parser — never copy it.
@@ -4893,6 +4949,16 @@ if (!root.__DEX_NAMESPACED__) {
     var rows = [];
     var _anchorMs = fileMeta ? _o2DateAnchorMs(fileMeta.fname, fileMeta.file) : null;
     var _prevTMs = null;
+    // CLOCK CONTRACT §3 — resolve the file's date order ONCE, before parsing any row. O2Ring ships BOTH
+    // DD/MM/YYYY and MM/DD/YYYY; deciding per-row lets an MM/DD file flip order mid-file (06/12 → Dec 6,
+    // then 06/13 → Jun 13), which runs the clock BACKWARD and collapses the night's ODI to 0.
+    var _stamps = [];
+    for (var _si = firstDataIdx; _si < lines.length; _si++) {
+      var _sp = lines[_si].trim().split(',');
+      if (_sp.length >= 3 && timeCol < _sp.length) _stamps.push(_sp[timeCol].trim());
+    }
+    var _order = DexClock.resolveDMY(_stamps, true);   // O2Ring default is DMY when genuinely ambiguous
+    var _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked };
     for (var i = firstDataIdx; i < lines.length; i++) {
       var p = lines[i].trim().split(',');
       if (p.length < 3) continue;
@@ -4909,7 +4975,7 @@ if (!root.__DEX_NAMESPACED__) {
       // CLOCK-UNIFY: floating wall-clock ms is the source of truth. row.t is a derived
       // compat Date, ALWAYS read back with getUTC*. Time-only rows anchor to _anchorMs
       // and roll forward monotonically past midnight (no Jan-2000, no +86400000 hack).
-      var _ts = parseTimestamp(tStr, { dateAnchorMs: _anchorMs, prevTMs: _prevTMs, preferDMY: true });
+      var _ts = parseTimestamp(tStr, { dateAnchorMs: _anchorMs, prevTMs: _prevTMs, preferDMY: _tsOpts.preferDMY, dmyLocked: _tsOpts.dmyLocked });
       if (!_ts) continue;
       _prevTMs = _ts.tMs;
       rows.push({ tMs: _ts.tMs, t: new Date(_ts.tMs), spo2: spo2, hr: hr, motion: motion });
@@ -6742,9 +6808,14 @@ if (!root.__DEX_NAMESPACED__) {
       n = rows.length;
     var mSpo2 = avg(spo2),
       mHr = avg(hr);
-    var rawDurMs = rows[n - 1].tMs - rows[0].tMs; // monotonic floating wall-clock → always ≥0
+    // Monotonicity is now ENFORCED, not assumed: parseCSV locks the file's date order (Clock Contract
+    // §3), so rows cannot run backward. If one still does, that is a clock failure — surface it as an
+    // absent duration, never as a negative number that would silently divide the ODI/burden denominators.
+    var rawDurMs = rows[n - 1].tMs - rows[0].tMs;
+    var _durBad = !(rawDurMs >= 0);
     return {
-      durationMin: +(rawDurMs / 60000).toFixed(1),
+      durationMin: _durBad ? null : +(rawDurMs / 60000).toFixed(1),
+      clockNonMonotonic: _durBad || undefined,
       start: fmtTime(rows[0].t),
       end: fmtTime(rows[n - 1].t),
       meanSpo2: isFinite(mSpo2) ? +mSpo2.toFixed(1) : 0,
@@ -10659,10 +10730,18 @@ function ingestGangliorJSON(text, opts){
 }
 
 
-function computeDerived() {
-  // Cache profile ONCE before the loop — avoids 4× DOM reads per row
-  const _p = getProfile();
-  allRows.forEach((r,i,arr) => {
+/* computeDerived(rowsArg?) — derives every d_* column IN PLACE on `rowsArg`, defaulting to the module's
+   allRows (so every existing caller is byte-unchanged). The optional argument makes the derivation a PURE,
+   headless surface the test runners can drive on a synthetic row without touching app state — exposed as
+   HRVDex.derive() below, which is how the §3/§4 presence-gate regression legs reach these columns. */
+function computeDerived(rowsArg) {
+  // Cache profile ONCE before the loop — avoids 4× DOM reads per row.
+  // getProfile() lives in hrvdex-profile.js (a UI module). Guard it so the derivation runs HEADLESS:
+  // with no profile the profile-dependent columns (d_bap, d_vo2_*) fall to NaN — which is the honest
+  // answer when age/sex/BP were never supplied — instead of throwing and taking the whole row with them.
+  const _p = (typeof getProfile === 'function') ? getProfile() : {};
+  const _rows = rowsArg || allRows;
+  _rows.forEach((r,i,arr) => {
     // SIGNAL-ADAPTER-FOLLOWUPS-V §1: ONE predicate for "the Welltory black-box subjective
     // inputs are actually present (>0)". On a real summary file the six move as a group
     // (all present); on a raw / ECGDex-ingest recording they are all seed-0 together. Every
@@ -10693,23 +10772,38 @@ function computeDerived() {
       r.d_si = (r._amo50 && r._mode && r._mxdmn) ? r._amo50 / (2 * r._mode * r._mxdmn) : NaN;
       r.d_si_ms = false; r.d_si_flagged = false; r._baevskyS = null;
     }
-    r.d_mxdmn_meanrr = r._meanRR ? r._mxdmn / r._meanRR : NaN;
-    // Frequency-domain
-    const lfhf_denom = r._hf || 0.001;
-    r.d_lfhf = r._lf / lfhf_denom;
-    const nu_denom = (r._totalPow - r._vlf) || 0.001;
-    r.d_hfnu = (r._hf / nu_denom) * 100;
-    r.d_lfnu = (r._lf / nu_denom) * 100;
-    r.d_vlf_pct = r._totalPow ? (r._vlf / r._totalPow * 100) : NaN;
-    r.d_svi = (r._lf > 0 && r._hf > 0) ? (Math.log(r._lf) - Math.log(r._hf)) : NaN;
-    // spectral entropy over normalized [hf,lf,vlf]
-    const bandSum = r._hf + r._lf + r._vlf;
-    if(bandSum > 0){
+    // MxDMn/MeanRR is the SAME quantity as d_csi below, and like it MUST divide the guard-normalized
+    // (seconds) MxDMn by meanRR in seconds. Reading raw _mxdmn (SECONDS in a Welltory export) against raw
+    // _meanRR (ms) made this ratio 1000× LOW — the un-guarded sibling of the very mixed-unit trap
+    // DexUnits.guardBaevsky exists for (DEEP-AUDIT-2026-07-11 §4). Same operands as d_csi; do not re-fork.
+    var _mxdmnS0 = (r._baevskyS && r._baevskyS.mxdmnS != null) ? r._baevskyS.mxdmnS : r._mxdmn;
+    var _meanRRs0 = r._meanRR / 1000;
+    r.d_mxdmn_meanrr = (_meanRRs0 > 0 && _mxdmnS0 != null) ? (_mxdmnS0 / _meanRRs0) : NaN;
+
+    /* ── Frequency-domain — PRESENCE-gated (DEEP-AUDIT-2026-07-11 §3) ────────────────────────────────
+       `x || 0.001` treats an ABSENT band as 0 and then substitutes a 1000×-too-small epsilon. ECGDex and
+       PpgDex export lf/hf but NO totalPower/vlf, so on that (documented) ingest path the denominator
+       collapsed to the epsilon and HF n.u. surfaced as 125,000,000 % — a quantity that is 0–100 BY
+       DEFINITION — and went NEGATIVE when only vlf was present. An absent band must read (NaN), never a
+       fabricated number. This is the spectral sibling of the _hasSubj gate above; same rule, same reason:
+       gate on inputs being PRESENT, not on them being non-zero. */
+    const _hasLfHf = (r._lf > 0 && r._hf > 0);
+    const _hasNu = (r._totalPow > 0 && r._vlf != null && r._totalPow > r._vlf);
+    const _hasBands = (r._hf > 0 && r._lf > 0 && r._vlf > 0);
+    r.d_lfhf = _hasLfHf ? (r._lf / r._hf) : NaN;
+    r.d_hfnu = _hasNu ? (r._hf / (r._totalPow - r._vlf)) * 100 : NaN;
+    r.d_lfnu = _hasNu ? (r._lf / (r._totalPow - r._vlf)) * 100 : NaN;
+    r.d_vlf_pct = (r._totalPow > 0 && r._vlf != null) ? (r._vlf / r._totalPow * 100) : NaN;
+    r.d_svi = _hasLfHf ? (Math.log(r._lf) - Math.log(r._hf)) : NaN;
+    // spectral entropy over normalized [hf,lf,vlf] — needs all THREE bands; the old `||0.0001` floor
+    // fabricated a VLF share for an export that never carried one.
+    if(_hasBands){
       // Normalize to HF+LF+VLF (not TotalPow which may include DC) for correct entropy
-      const bands = [r._hf, r._lf, r._vlf].map(v => (v/bandSum)||0.0001);
+      const bandSum = r._hf + r._lf + r._vlf;
+      const bands = [r._hf, r._lf, r._vlf].map(v => v / bandSum);
       r.d_spectral_ent = -bands.reduce((s,p) => s + p*Math.log(p), 0) / Math.log(3);
     } else r.d_spectral_ent = NaN;
-    r.d_lfhf_totpow = r._totalPow ? ((r._lf + r._hf) / r._totalPow) : NaN;
+    r.d_lfhf_totpow = (r._totalPow > 0 && _hasLfHf) ? ((r._lf + r._hf) / r._totalPow) : NaN;
     // Composite
     // Black-box composite — when the Welltory subjective inputs are ABSENT (a raw/ECGDex-ingest
     // recording seeds SNS/Stress/PSNS/Energy = 0), DON'T surface a fabricated 0; require them
@@ -10720,7 +10814,9 @@ function computeDerived() {
     r.d_pti = _hasSubj ? r._psns * r._rmssd / 100 : NaN;
     r.d_incoherent_stress = r._coherence > 0 ? r._stress * (100 / r._coherence) : NaN;
     r.d_vei = r._hr > 0 ? r._rmssd / r._hr : NaN;
-    r.d_sdi = (r._hf + r._psns * 10 + 0.001) ? (r._lf + r._sns * 10) / (r._hf + r._psns * 10 + 0.001) : NaN;
+    // §3: the old guard `(hf + psns*10 + 0.001)` is ALWAYS truthy (the +0.001 sees to that), so with the
+    // spectrum absent this evaluated to a real-looking 0. Gate on the spectral inputs being present.
+    r.d_sdi = _hasLfHf ? (r._lf + r._sns * 10) / (r._hf + r._psns * 10) : NaN;
     // ── Poincaré SD1 / SD2 ──
     r.d_sd1 = r._rmssd / Math.sqrt(2);
     const sd2sq = Math.max(0, 2 * r._sdnn * r._sdnn - r.d_sd1 * r.d_sd1);
@@ -10755,14 +10851,14 @@ function computeDerived() {
     // ── Cardiac Resilience Score ──
     r.d_crs = (r._stress > 0) ? (r._coherence * r._rmssd * r._pnn50) / (r._stress * 1000 + 0.001) : NaN;
 
-    // ── RSA Power Proxy ──
-    r.d_rsa = (meanRR_s > 0) ? r._hf / (meanRR_s * meanRR_s) : NaN;
+    // ── RSA Power Proxy ── (§3: an absent HF divided into a real meanRR yielded a confident 0)
+    r.d_rsa = (meanRR_s > 0 && r._hf > 0) ? r._hf / (meanRR_s * meanRR_s) : NaN;
 
-    // ── Spectral Asymmetry Index ──
-    r.d_sai = (r._lf + r._hf > 0) ? (r._lf - r._hf) / (r._lf + r._hf) : NaN;
+    // ── Spectral Asymmetry Index ── (§3: with only ONE band present this returned ±1, a fabricated extreme)
+    r.d_sai = _hasLfHf ? (r._lf - r._hf) / (r._lf + r._hf) : NaN;
 
-    // ── VLF/HF ratio ──
-    r.d_vlf_hf = r._hf > 0 ? r._vlf / r._hf : NaN;
+    // ── VLF/HF ratio ── (§3: an absent VLF over a real HF yielded a confident 0)
+    r.d_vlf_hf = (r._hf > 0 && r._vlf > 0) ? r._vlf / r._hf : NaN;
 
     // ── HRV Power Law Slope (3-band log-log) ──
     if(r._vlf > 0 && r._lf > 0 && r._hf > 0){
@@ -11170,6 +11266,11 @@ HRVDex.compute = function(input, opts){
   return hrvBuildNodeExport(rows, opts);
 };
 HRVDex.parseRows = _hrvParseSummaryRows;
+// Headless derivation surface (DEEP-AUDIT-2026-07-11 §3/§4): derive the d_* columns on caller-supplied
+// rows without touching app state, so both runners can gate the spectral presence-gates + the unit-guarded
+// MxDMn/MeanRR ratio directly. Also exposes the node-export→row seeding the ECGDex/Ganglior ingest uses.
+HRVDex.derive = function(rows){ computeDerived(rows); return rows; };
+HRVDex.rowFromNodeExport = function(env){ var s = _envToSeed(env); return s ? _rowFromSeed(s) : null; };
 HRVDex.eventsFromRows = hrvEventsFromRows;
 HRVDex.buildNodeExport = hrvBuildNodeExport;
 HRVDex.loadOwnExport = hrvLoadOwnExport;   // SELF-INGEST reload (review-mode clinical view)
@@ -11353,7 +11454,13 @@ function parseCSV(text){
 // ════════════════════════════════════════════════════════════════════════
 //  CLEAN — cadence detect · warm-up suppress · gap flag+interp · compression-low
 // ════════════════════════════════════════════════════════════════════════
-const FLAG = { OK:0, WARMUP:1, GAP:2, COMPRESSION:3 };
+/* GAP vs GAP_LONG (DEEP-AUDIT-2026-07-11 §5). A SHORT gap is a physiologic bridge — interpolating across
+   one missed 5-min reading is sound, and those cells stay analyzable. A LONG gap (a sensor change, a
+   dropout) is hours of straight line the sensor never saw; it must NOT be counted as measured glucose.
+   Both used to carry FLAG.GAP, and analyzableIndex filtered neither — so a routine 14 h sensor-change gap
+   was interpolated straight into TIR/GMI/CV/MAGE, the validated-tier headline KPIs (TIR read 11 % where
+   the truth was 0 %). The distinction is the fix; the code's own comment already claimed it existed. */
+const FLAG = { OK:0, WARMUP:1, GAP:2, COMPRESSION:3, GAP_LONG:4 };
 
 // ── disambiguate a genuine sharp nocturnal hypo from a positional (compression) artifact ──
 // GLUCODEX-HYPO-DISAMBIG (June 2026): the compression-rejection pass used to eat true sharp
@@ -11413,8 +11520,9 @@ function clean(parsed, progress){
     } else if(tR>tL && gapL<gapThresh && gapR<gapThresh){
       const f=(t-tL)/(tR-tL); gV[i]=vL+(vR-vL)*f; gF[i]=FLAG.GAP;   // short gap → interpolate
     } else {
-      // long gap — carry interpolation but mark; will be excluded from coverage
-      const f=tR>tL?(t-tL)/(tR-tL):0; gV[i]= tR>tL? vL+(vR-vL)*f : vL; gF[i]=FLAG.GAP;
+      // long gap — carry the interpolation (the chart still needs a line) but mark it GAP_LONG so it is
+      // excluded from every distribution metric. These cells are drawn, never measured.
+      const f=tR>tL?(t-tL)/(tR-tL):0; gV[i]= tR>tL? vL+(vR-vL)*f : vL; gF[i]=FLAG.GAP_LONG;
     }
   }
 
@@ -11467,9 +11575,11 @@ function clean(parsed, progress){
     }
   }
 
-  // count gaps (runs of GAP cells longer than one cadence)
+  // count gaps (runs of GAP cells longer than one cadence) — BOTH gap classes count as gap/inactive time,
+  // so pctActive / gapMin keep their previous meaning exactly (only analyzability changes below).
   let nGaps=0, gapCells=0, run=0;
-  for(let i=0;i<N;i++){ if(gF[i]===FLAG.GAP){ run++; gapCells++; } else { if(run>=2) nGaps++; run=0; } }
+  const _isGap = f => (f===FLAG.GAP || f===FLAG.GAP_LONG);
+  for(let i=0;i<N;i++){ if(_isGap(gF[i])){ run++; gapCells++; } else { if(run>=2) nGaps++; run=0; } }
   if(run>=2) nGaps++;
 
   let warmupCells=0,compCells=0; for(let i=0;i<N;i++){ if(gF[i]===FLAG.WARMUP) warmupCells++; else if(gF[i]===FLAG.COMPRESSION) compCells++; }
@@ -11489,13 +11599,17 @@ function clean(parsed, progress){
 }
 
 // analysis mask: cells that count toward glycemic math (exclude warm-up & long gaps).
-// We KEEP short interpolated gaps (they're physiologic bridges) but exclude warm-up
-// and compression lows from distribution metrics (they're artifacts), per the brief.
+// We KEEP short interpolated gaps (they're physiologic bridges) but exclude warm-up, compression lows,
+// and LONG gaps from distribution metrics. The long-gap exclusion is the point: those cells are a straight
+// line drawn across hours the sensor never saw, and admitting them into TIR/GMI/CV/MAGE reports
+// interpolation as measured glucose (DEEP-AUDIT-2026-07-11 §5 — this function's docstring already claimed
+// the exclusion; the code never did it).
 function analyzableIndex(c){
   const ok=[]; const v=[];
   for(let i=0;i<c.N;i++){
     if(c.gF[i]===c.FLAG.WARMUP) continue;
     if(c.gF[i]===c.FLAG.COMPRESSION) continue;
+    if(c.gF[i]===c.FLAG.GAP_LONG) continue;
     ok.push(i); v.push(c.gV[i]);
   }
   return { idx:ok, vals:v };
@@ -11945,19 +12059,36 @@ function detectClampSaturation(vals){
   let lo=Infinity, hi=-Infinity;
   for(let i=0;i<n;i++){ const v=vals[i]; if(!isFinite(v)) continue; if(v<lo) lo=v; if(v>hi) hi=v; }
   if(!isFinite(lo)||!isFinite(hi)||hi<=lo) return empty;
-  // pile-up within ±1 mg/dL of a bound vs density of the 5 mg/dL slab just inside it.
-  // A genuine distribution tail THINS toward its extreme; a hardware/software clip
-  // SPIKES at the bound — so a bound denser than its inner slab is the clip signature.
+  /* A genuine distribution tail THINS toward its extreme; a hardware/software clip PILES UP at the bound.
+     Compare LIKE FOR LIKE: the count AT the exact bound vs the MEAN PER-BIN count of the bins just inside
+     it. The old test compared a ±1 (≈2-wide) bound window against a 5-wide inner slab — the slab was
+     therefore almost always the thicker of the two, so `at >= 1.5*inner` could essentially never fire on
+     real data. The real committed Abbott Lingo export — a hard rail at 54 mg/dL, with 46 readings AT the
+     floor against 15 and 14 in the bins beside it, and zero readings below — went undetected and shipped
+     37 unflagged `nocturnal_hypo` events at conf 0.97 (DEEP-AUDIT-2026-07-11 §6).
+     vals are mg/dL integers, so a 1 mg/dL bin is the natural resolution.
+
+     CLIP_RATIO: a genuine density near an extremum piles up only MILDLY — a glucose curve lingers at its
+     nadir (an arcsine/turning-point effect), so some excess at the exact minimum is PHYSIOLOGICAL and must
+     not be called a clip; flagging a real nadir as an artifact would HIDE true hypoglycemia, which is worse
+     than the bug this fixes. A clip instead pins ALL the sub-bound mass onto one bin, which is a step
+     change. Measured anchors: a real unclipped nocturnal hypo → 1.7× · the real Lingo rail → 3.2× · a hard
+     synthetic rail → 184×. 2.5 sits in the gap, with margin on both sides. */
+  const INNER_BINS = 2;
+  const CLIP_RATIO = 2.5;
   function spikeAt(bound, dir){             // dir +1 = floor (inside is above) · −1 = ceiling
-    let at=0, inner=0;
+    let at=0; const innerBin=new Array(INNER_BINS).fill(0);
     for(let i=0;i<n;i++){
       const v=vals[i]; if(!isFinite(v)) continue;
-      if(Math.abs(v-bound) <= 1) at++;
-      else { const d=(v-bound)*dir; if(d>1 && d<=6) inner++; }
+      const d=(v-bound)*dir;                // 0 at the bound, positive just inside it
+      if(Math.abs(d) < 0.5){ at++; continue; }
+      const b=Math.round(d)-1;              // d≈1 → bin 0 · d≈2 → bin 1
+      if(b>=0 && b<INNER_BINS) innerBin[b]++;
     }
+    const innerMean = innerBin.reduce((s,x)=>s+x,0)/INNER_BINS;
     const pct=+(at/n*100).toFixed(2);
-    const saturated = at>=3 && pct>=0.3 && at >= 1.5*Math.max(1,inner);
-    return { value:Math.round(bound), count:at, pct, saturated };
+    const saturated = at>=3 && pct>=0.3 && at >= CLIP_RATIO*Math.max(1,innerMean);
+    return { value:Math.round(bound), count:at, pct, saturated, innerMean:+innerMean.toFixed(1) };
   }
   const floor = spikeAt(lo, +1), ceiling = spikeAt(hi, -1);
   // Known vendor band: Lingo clips to 55–200 mg/dL (≈54–200 if the file was mmol/L)

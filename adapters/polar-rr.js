@@ -31,10 +31,23 @@
     // cheap, side-effect-free: filename signature first, header signature as fallback.
     detect: function (file, headText) {
       var name = (file && file.name || '') + '';
-      if (/_RR\b|_PPI\b|RR\.txt$|PPI\.txt$/i.test(name) && /polar|psl|verity|h10/i.test(name + ' ' + (headText || '')))
+      var head = headText || '';
+      /* FOREIGN-STREAM VETO (DEEP-AUDIT-2026-07-11 §2). A Polar Sensor Logger session folder carries
+         EVERY stream side by side (_ACC / _MAGN / _GYRO / _PPG / _ECG / _RR / _PPI), and they ALL share
+         the same `Phone timestamp;sensor timestamp` envelope — so that envelope is evidence of PSL, NOT
+         evidence of an RR stream. Without this veto a real H10 *_ACC.txt scored 0.6 here, won by default
+         (nothing outranks it — unlike *_ECG.txt, which polar-h10-ecg outranks), and its Z-axis gravity
+         rail (~973 mg) landed inside PulseDex's 300–2000 ms interval window: a gravity vector was
+         analyzed as a heart recording (HR 61.9 bpm, "overnight", stress 100, 36 stress_peak events).
+         Veto by stream name AND by declared unit, so a renamed file is still refused. */
+      if (/_(ACC|MAGN?|GYRO?|PPG|ECG)\b/i.test(name)) return 0;
+      if (/\[\s*(mg|g|dps|uv|µv|nt|gauss)\s*\]/i.test(head)) return 0;     // a declared NON-interval unit
+      if (/_RR\b|_PPI\b|RR\.txt$|PPI\.txt$/i.test(name) && /polar|psl|verity|h10/i.test(name + ' ' + head))
         return 0.97;
       if (/_RR\b|_PPI\b/i.test(name)) return 0.8;                          // PSL default per-stream naming
-      if (/RR-?interval|PP-?interval|Phone timestamp|sensor timestamp/i.test(headText || '')) return 0.6;
+      // An RR/PP COLUMN is real evidence; the bare PSL timestamp envelope is not, and no longer votes
+      // on its own (every PSL stream has it).
+      if (/RR-?interval|PP-?interval/i.test(head)) return 0.6;
       return 0;
     },
     // REFERENCE the existing pure parser — never copy it.
