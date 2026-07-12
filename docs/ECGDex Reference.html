@@ -10,14 +10,15 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OxyDex — Reference Guide</title>
+<title>ECGDex — Reference Guide</title>
 <link rel="stylesheet" href="licensing/dex-license.css">
 <link rel="stylesheet" href="dex-badges.css">
 <style>
 /* Fonts: system stacks only — no @font-face, no CDN. */
 /* ═══════════════════════════════════════════════════════
-   OxyDex — Reference Guide · Tepna v1.0.0
-   Unified with OxyDex v1.0.0 (Inter, self-hosted, same tokens)
+   ECGDex — Reference Guide · Tepna
+   Shares the OxyDex guide's tokens. Fonts are SYSTEM STACKS ONLY — the 'Inter' / 'IBM Plex Mono'
+   names fall through to system-ui / ui-monospace by design (CLAUDE.md · no @font-face, no CDN).
 ═══════════════════════════════════════════════════════ */
 :root {
   --bg:#0B0F14; --surface:#121821; --surface2:#18212C; --surface3:#1E2835;
@@ -519,8 +520,11 @@ body.light .ev-legend{background:rgba(0,0,0,.03);border-color:rgba(0,0,0,.08);}
 
 /* body.light overrides */
 body.light .ev-legend-strip { background:rgba(0,0,0,.02); border-color:rgba(0,0,0,.08); }
-body.light .ev-measured, body.light .ev-validated, body.light .ev-emerging,
-body.light .ev-experimental, body.light .ev-heuristic { border-color:var(--surface); }
+/* Only .ev-measured has a background-coloured GAP ring (border:2px solid var(--bg)) that must follow the
+   card in light theme. validated/emerging/experimental carry no border at all (inset shadow), and
+   .ev-heuristic's border IS its dashed shape — repainting it --surface drew white-on-white and erased the
+   least-trusted tier entirely, so a heuristic number read as UNBADGED. Scope the override to measured. */
+body.light .ev-measured { border-color:var(--surface); }
 
 /* ── Evidence corner badge (spec placement: bottom-right of card) ── */
 .ev-corner {

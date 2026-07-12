@@ -11,6 +11,9 @@
 <title>Tepna — Architecture principles</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <link rel="stylesheet" href="licensing/dex-license.css">
+<!-- The evidence ladder below is the REAL badge, not a redrawing of it: this page loads no engine,
+     so it links the canonical mirror and uses .ev ev-<tier>. Never hardcode disc CSS here. -->
+<link rel="stylesheet" href="dex-badges.css">
 <style>
 :root{
   --bg:#070A0E; --bg2:#0B0F14; --surface:#101722; --surface2:#16202D;
@@ -116,9 +119,11 @@ p.body b{color:var(--text);}
 .golden p b{color:var(--text);}
 
 /* evidence ladder */
-.ladder{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:24px;}
+.ladder{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:24px;--ev-ink:var(--teal);}
 .lvl{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;text-align:center;}
-.lvl .disc{width:18px;height:18px;border-radius:50%;margin:0 auto 14px;}
+/* Size only — the disc SHAPE comes from dex-badges.css and is never redefined here. scale() grows the
+   whole geometry (ring widths included) so the mark stays proportionally identical to the live apps. */
+.lvl .ev{display:block;margin:0 auto 14px;transform:scale(1.6);opacity:1;}
 .lvl h4{font-size:13.5px;font-weight:700;text-transform:capitalize;}
 .lvl p{font-size:11.5px;color:var(--text3);margin-top:6px;line-height:1.5;}
 
@@ -283,11 +288,11 @@ footer{border-top:1px solid var(--border);padding:32px 0 50px;margin-top:30px;}
 </div>
 <div class="wrap">
   <div class="ladder">
-    <div class="lvl"><div class="disc" style="background:var(--teal);box-shadow:0 0 12px rgba(61,224,208,.6)"></div><h4>measured</h4><p>Read straight off the device.</p></div>
-    <div class="lvl"><div class="disc" style="background:var(--teal);opacity:.78"></div><h4>validated</h4><p>Checked against a standard.</p></div>
-    <div class="lvl"><div class="disc" style="background:linear-gradient(90deg,var(--teal) 50%,transparent 50%);border:1.5px solid var(--teal)"></div><h4>emerging</h4><p>Published, device-dependent.</p></div>
-    <div class="lvl"><div class="disc" style="border:2px solid var(--teal)"></div><h4>experimental</h4><p>Plausible, not confirmed.</p></div>
-    <div class="lvl"><div class="disc" style="border:2px dashed var(--text4)"></div><h4>heuristic</h4><p>Rule-of-thumb direction.</p></div>
+    <div class="lvl"><span class="ev ev-measured" title="Measured — read straight off the device"></span><h4>measured</h4><p>Read straight off the device.</p></div>
+    <div class="lvl"><span class="ev ev-validated" title="Validated — checked against a standard"></span><h4>validated</h4><p>Checked against a standard.</p></div>
+    <div class="lvl"><span class="ev ev-emerging" title="Emerging — published, device-dependent"></span><h4>emerging</h4><p>Published, device-dependent.</p></div>
+    <div class="lvl"><span class="ev ev-experimental" title="Experimental — plausible, not confirmed"></span><h4>experimental</h4><p>Plausible, not confirmed.</p></div>
+    <div class="lvl"><span class="ev ev-heuristic" title="Heuristic — rule-of-thumb direction"></span><h4>heuristic</h4><p>Rule-of-thumb direction.</p></div>
   </div>
   <div class="plist">
     <div class="pl"><span class="pi">null ≠ now()</span><p>A missing value is <b>null</b>, never fabricated. A missing timestamp is null, never <code>now()</code> — absence must stay visible.</p></div>

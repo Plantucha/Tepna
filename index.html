@@ -16,6 +16,9 @@
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon-180.png">
 <link rel="sitemap" type="application/xml" href="sitemap.xml">
 <link rel="alternate" type="application/atom+xml" title="Tepna — working preprints" href="feed.xml">
+<!-- The evidence ladder below is the REAL badge, not a redrawing of it: this page loads no engine,
+     so it links the canonical mirror and uses .ev ev-<tier>. Never hardcode disc CSS here. -->
+<link rel="stylesheet" href="dex-badges.css">
 <!-- Open Graph / Twitter -->
 <meta property="og:image" content="https://tepna.net/tepna-og.png">
 <meta property="og:image:width" content="1200">
@@ -166,9 +169,11 @@ a.dev:hover::before{opacity:1;}
 .dev .open{display:inline-block;margin-top:13px;font-family:var(--mono);font-size:11px;color:var(--teal);opacity:.8;}
 a.dev:hover .open{opacity:1;}
 
-.ladder{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
+.ladder{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;--ev-ink:var(--teal);}
 .lvl{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;text-align:center;}
-.lvl .disc{width:18px;height:18px;border-radius:50%;margin:0 auto 14px;}
+/* Size only — the disc SHAPE comes from dex-badges.css and is never redefined here. scale() grows the
+   whole geometry (ring widths included) so the mark stays proportionally identical to the live apps. */
+.lvl .ev{display:block;margin:0 auto 14px;transform:scale(1.6);opacity:1;}
 .lvl h4{font-size:14px;font-weight:700;text-transform:capitalize;}
 .lvl p{font-size:12px;color:var(--text3);margin-top:6px;line-height:1.5;}
 
@@ -219,7 +224,8 @@ footer{border-top:1px solid var(--border);padding:34px 0 56px;margin-top:24px;}
   <div class="dev-grid">
     <a class="dev" href="OxyDex.html"><span class="pill">OxyDex</span><canvas class="live-spark" data-k="spo2" width="520" height="80"></canvas><h3>Blood oxygen</h3><div class="device-name">O2Ring · overnight ring</div><p>Tracks blood oxygen and catches dips while you sleep.</p><span class="open">Open OxyDex →</span></a>
     <a class="dev" href="ECGDex.html"><span class="pill">ECGDex</span><canvas class="live-spark" data-k="ecg" width="520" height="80"></canvas><h3>Heart's rhythm</h3><div class="device-name">Polar H10 · chest strap</div><p>Reads the heart's electrical beat directly — most precise.</p><span class="open">Open ECGDex →</span></a>
-    <a class="dev" href="PulseDex.html"><span class="pill">PulseDex</span><canvas class="live-spark" data-k="ppg" width="520" height="80"></canvas><h3>Pulse, beat to beat</h3><div class="device-name">Verity Sense · armband</div><p>Times each pulse — how steady and rested the heart is.</p><span class="open">Open PulseDex →</span></a>
+    <a class="dev" href="PulseDex.html"><span class="pill">PulseDex</span><canvas class="live-spark" data-k="rr" width="520" height="80"></canvas><h3>Pulse, beat to beat</h3><div class="device-name">Polar H10 · RR export</div><p>Times the gap between beats — how steady and rested the heart is.</p><span class="open">Open PulseDex →</span></a>
+    <a class="dev" href="PpgDex.html"><span class="pill">PpgDex</span><canvas class="live-spark" data-k="ppg" width="520" height="80"></canvas><h3>Pulse, from the arm</h3><div class="device-name">Verity Sense · armband</div><p>Reads the optical pulse wave straight from the light sensor.</p><span class="open">Open PpgDex →</span></a>
     <a class="dev" href="HRVDex.html"><span class="pill">HRVDex</span><canvas class="live-spark" data-k="hrv" width="520" height="80"></canvas><h3>Daily variability</h3><div class="device-name">Welltory · morning app</div><p>A one-minute morning check of relaxed vs stressed.</p><span class="open">Open HRVDex →</span></a>
     <a class="dev" href="GlucoDex.html"><span class="pill">GlucoDex</span><canvas class="live-spark" data-k="cgm" width="520" height="80"></canvas><h3>Glucose</h3><div class="device-name">CGM · skin patch</div><p>Follows blood sugar around the clock, through the night.</p><span class="open">Open GlucoDex →</span></a>
     <a class="dev" href="CPAPDex.html"><span class="pill">CPAPDex</span><canvas class="live-spark" data-k="cpap" width="520" height="80"></canvas><h3>Breathing support</h3><div class="device-name">CPAP · therapy log</div><p>Adds how well your breathing was supported overnight.</p><span class="open">Open CPAPDex →</span></a>
@@ -234,11 +240,11 @@ footer{border-top:1px solid var(--border);padding:34px 0 56px;margin-top:24px;}
 <section id="trust"><div class="wrap">
   <div class="sec-head"><div class="eyebrow">How we grade it</div><h2>We always tell you how sure we are.</h2><p>A small mark on every number — disc shape, never colour — tells you measurement from estimate.</p></div>
   <div class="ladder">
-    <div class="lvl"><div class="disc" style="background:var(--teal);box-shadow:0 0 12px rgba(61,224,208,.6)"></div><h4>measured</h4><p>Read straight off the device.</p></div>
-    <div class="lvl"><div class="disc" style="background:var(--teal);opacity:.78"></div><h4>validated</h4><p>Checked against a standard.</p></div>
-    <div class="lvl"><div class="disc" style="background:var(--teal);opacity:.55"></div><h4>emerging</h4><p>Published, device-dependent.</p></div>
-    <div class="lvl"><div class="disc" style="border:2px solid var(--teal)"></div><h4>experimental</h4><p>Plausible, not confirmed.</p></div>
-    <div class="lvl"><div class="disc" style="border:2px dashed var(--text4)"></div><h4>heuristic</h4><p>Rule-of-thumb direction.</p></div>
+    <div class="lvl"><span class="ev ev-measured" title="Measured — read straight off the device"></span><h4>measured</h4><p>Read straight off the device.</p></div>
+    <div class="lvl"><span class="ev ev-validated" title="Validated — checked against a standard"></span><h4>validated</h4><p>Checked against a standard.</p></div>
+    <div class="lvl"><span class="ev ev-emerging" title="Emerging — published, device-dependent"></span><h4>emerging</h4><p>Published, device-dependent.</p></div>
+    <div class="lvl"><span class="ev ev-experimental" title="Experimental — plausible, not confirmed"></span><h4>experimental</h4><p>Plausible, not confirmed.</p></div>
+    <div class="lvl"><span class="ev ev-heuristic" title="Heuristic — rule-of-thumb direction"></span><h4>heuristic</h4><p>Rule-of-thumb direction.</p></div>
   </div>
 </div></section>
 
@@ -251,7 +257,7 @@ footer{border-top:1px solid var(--border);padding:34px 0 56px;margin-top:24px;}
 
 <footer><div class="wrap foot-in">
   <div class="foot-note"><b style="color:var(--text2)">Tepna</b> — the Dex Suite · © 2026 Michal Planicka · Apache-2.0 · v1.8.0
-    <div class="foot-links"><a href="How to Collect Data.html">Collect data</a><a href="Science.html">Science</a><a href="Architecture.html">Architecture</a><a href="Why This Exists.html">About</a><a href="OxyDex.html">OxyDex</a><a href="ECGDex.html">ECGDex</a><a href="PulseDex.html">PulseDex</a><a href="HRVDex.html">HRVDex</a><a href="GlucoDex.html">GlucoDex</a><a href="CPAPDex.html">CPAPDex</a><a href="Integrator.html">Integrator</a><a href="https://github.com/Plantucha/Tepna" target="_blank" rel="noopener">Source on GitHub ↗</a></div>
+    <div class="foot-links"><a href="How to Collect Data.html">Collect data</a><a href="Science.html">Science</a><a href="Architecture.html">Architecture</a><a href="Why This Exists.html">About</a><a href="OxyDex.html">OxyDex</a><a href="ECGDex.html">ECGDex</a><a href="PulseDex.html">PulseDex</a><a href="PpgDex.html">PpgDex</a><a href="HRVDex.html">HRVDex</a><a href="GlucoDex.html">GlucoDex</a><a href="CPAPDex.html">CPAPDex</a><a href="Integrator.html">Integrator</a><a href="https://github.com/Plantucha/Tepna" target="_blank" rel="noopener">Source on GitHub ↗</a></div>
   </div>
   <div class="foot-note" style="text-align:right">100% on-device · no cloud · Apache-2.0</div>
 </div></footer>
@@ -338,6 +344,9 @@ dividerWave('div1',7,'#3DE0D0');dividerWave('div2',31,'#58A6FF');
     spo2:{col:'#3DE0D0',f:(u,t)=>Math.sin(u*5-t)*.5+Math.sin(u*19)*.06-((Math.floor((u*5-t))%7===0)?.0:0)},
     ecg:{col:'#3DE0D0',f:(u,t)=>{const p=((u*6 - t)%1+1)%1;return p<.16?0:p<.20?-.18:p<.24?.95:p<.30?-.4:p<.45?Math.sin((p-.30)/.15*Math.PI)*.22:0;}},
     ppg:{col:'#3DE0D0',f:(u,t)=>Math.sin(u*14-t*2)*.55+Math.sin(u*6-t)*.2},
+    /* PulseDex eats an RR series, not a waveform — draw a tachogram (stepped beat-to-beat
+       intervals), so the card's picture matches what the node actually reads. */
+    rr:{col:'#3DE0D0',f:(u,t)=>{const s=Math.floor(u*16-t*2);return Math.sin(s*1.7)*.28+Math.sin(s*.6)*.22;}},
     hrv:{col:'#3DE0D0',f:(u,t)=>Math.sin(u*8-t)*.4+Math.sin(u*3-t*.5)*.3},
     cgm:{col:'#3DE0D0',f:(u,t)=>Math.sin(u*5-t*.6)*.5+Math.sin(u*2-t*.3)*.2},
     cpap:{col:'#3DE0D0',f:(u,t)=>Math.sin(u*3-t*.4)*.5+Math.sin(u*1.3-t*.2)*.18},
