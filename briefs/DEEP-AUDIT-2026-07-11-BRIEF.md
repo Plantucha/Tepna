@@ -374,7 +374,22 @@ the epoch path already does correctly). **Repro:** `real-diff.mjs`, `ls-grid.mjs
    · CPAPDex `apnea = NULL`). Export-inert on the equiv path — **no fixture output moved**.
    Behavior 2079/2079 · GATE A 8/8 · GATE B 16/16 · biome clean.
    Changeset: `changes/2026-07-12-integrator-readset-and-kernel-audit.md`.
-7. **§10 + §11** — one gated ECGDex/PpgDex spectral re-bundle (shared call sites, shared fixture cost)
+7. **§10 + §11** — ✅ **EXECUTED 2026-07-12.** Both defects had one root and died together. The exported
+   spectrum is now the **5-min epoch-median** band set on **one** scale (the Task-Force definition), so
+   §10's two-scale mix is gone — and because the 5-min grid is adequate *by construction* (`df = 0.0025 Hz`
+   finer than the epoch's own `1/300 s` resolution), §11's whole-record grid lottery cannot arise. Verified
+   on a real 3 h H10 record: `vlf+lf+hf = 1780 == totalPower` **exactly**, `window = epochMedian5min`.
+   `totalPower` is now DEFINED as the sum of the reported bands (fixed inside `lombScargle` too, where `tp`
+   was rounded independently of the bands, breaking the identity by ±1 even on the short path). Both nodes
+   emit all four bands + a `window` label; PpgDex keeps its whole-record values under explicit
+   `wholeRecord*` keys. Emitting `vlf`/`totalPower` also closes the **upstream half of §3** — an export
+   with `lf`/`hf` but no `totalPower` is what collapsed HRVDex's n.u. denominator to an epsilon.
+   **Gated:** an 8-assert group that **reds on the original code** (identity broken by 1201 ms² / 6.3 %,
+   `window` undefined), including a **control** proving the whole-record split really is bin-count
+   dependent on that record (LF/HF 2.036 / 2.361 / 2.28 at nf = 219/220/221 — a 16 % swing), so the fix
+   cannot pass vacuously. Export-inert on the equiv path: **no fixture output moved**.
+   Behavior 2109/2109 · GATE A 8/8 · GATE B 23/23 · biome clean.
+   Changeset: `changes/2026-07-12-spectral-one-scale-no-grid-lottery.md`.
 8. **§17–§21** — hygiene: `exportName()`, null-not-zero, profile origins, ODI pooling, badge coverage
 
 ## Follow-ups spawned

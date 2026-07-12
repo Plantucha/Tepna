@@ -1969,6 +1969,77 @@
     });
 
     /* ════ 12 · ECGDex respRate aggregation — median, not HF-peak (whole-record scalar) ════ */
+    /* DEEP-AUDIT-2026-07-11 §10/§11 — the exported spectrum must sit on ONE time scale, and its band
+       split must not hang on an arbitrary internal constant.
+       §10: ECGDex built hf/lf from 5-MIN EPOCH MEDIANS, then OVERWROTE tp and vlf with a WHOLE-NIGHT
+            transform. Four numbers, one block, two time scales: on a real 7.26 h night vlf+lf+hf = 5060
+            but totalPower = 5674 — the Task-Force identity broken by 11 % — and two irreconcilable
+            "HF n.u." fell out of the same export. PpgDex shipped the whole-record values while ALREADY
+            computing the scale-matched epoch medians, which also inflated the Integrator's cross-node
+            divergence with a pure definition mismatch.
+       §11: that whole-record band split is a GRID LOTTERY. A night's intrinsic resolution is 1/T ≈ 3.8e-5
+            Hz, ~50× finer than the fixed grid, so the sum samples a spiky periodogram at arbitrary points.
+            Changing ONLY the bin count swung LF/HF 1.747 → 2.265 → 2.51 (nf = 219/220/221) — 44 % — and it
+            does not converge. Parseval pins the TOTAL to the variance, which is why it looked fine: it is
+            the SPLIT that floats. At the 5-min scale the grid is adequate BY CONSTRUCTION, so both die
+            together. */
+    group('ECGDex/PpgDex §10/§11 — one spectral time scale; the band split is not a grid lottery', 'ecgdex-dsp · ppgdex-dsp · spectral', function (T) {
+      var E = env.ECGDSP;
+      if (!E || typeof E.genSynthetic !== 'function' || typeof E.analyze !== 'function') {
+        T.ok('env.ECGDSP.genSynthetic + analyze available', false, 'not wired — gate skipped');
+        return;
+      }
+      // a LONG record (≥3 five-minute epochs) so the epoch/longRec spectral path actually runs
+      var rec = E.genSynthetic({ durSec: 100 * 60 }); // > the 90-min longRec threshold
+      var r = E.analyze(rec);
+      T.ok('§10 · a long record takes the epoch path', r.longRec === true, 'durMin=' + r.durMin);
+      T.eq('§10 · the exported spectrum names its scale', r.specWindow, 'epochMedian5min');
+      T.ok(
+        '§10 · all four bands are present (vlf/lf/hf/totalPower)',
+        [r.vlf, r.lf, r.hf, r.tp].every(function (v) {
+          return typeof v === 'number' && isFin(v);
+        }),
+        JSON.stringify({ vlf: r.vlf, lf: r.lf, hf: r.hf, tp: r.tp })
+      );
+      T.eq('§10 · TASK-FORCE IDENTITY: vlf + lf + hf == totalPower (one scale, by construction)', r.vlf + r.lf + r.hf, r.tp);
+
+      /* §11 · the CONTROL. The whole-record transform this export used to ship is still available — show
+         that on THIS record its band split really does move with an arbitrary bin count, so the fix above
+         is not vacuously passing on an input where the lottery never bites. */
+      var nn = r.nn || r.NN || null;
+      if (nn && nn.length > 600) {
+        var tt = [],
+          acc = 0,
+          i;
+        for (i = 0; i < nn.length; i++) {
+          acc += nn[i] / 1000;
+          tt.push(acc);
+        }
+        var a = E.lombScargle(nn, tt, 219),
+          b = E.lombScargle(nn, tt, 220),
+          c = E.lombScargle(nn, tt, 221);
+        var lfhf = [a.lfhf, b.lfhf, c.lfhf];
+        var spread = (Math.max.apply(null, lfhf) - Math.min.apply(null, lfhf)) / Math.min.apply(null, lfhf);
+        T.ok(
+          '§11 · (control) the WHOLE-RECORD split really is bin-count dependent on this record',
+          spread > 0.02,
+          'LF/HF at nf=219/220/221 = ' + lfhf.join(' / ') + '  (spread ' + (100 * spread).toFixed(1) + '%)'
+        );
+        T.ok('§11 · …and the EXPORT no longer depends on it (it reports the 5-min epoch median)', r.specWindow === 'epochMedian5min');
+      }
+
+      // PpgDex — same invariant on its own export
+      var P = env.PpgDex;
+      if (P && typeof P.compute === 'function' && env.equiv && env.equiv.ppgdex && env.equiv.ppgdex.input) {
+        var pr = P.compute({ text: env.equiv.ppgdex.input }, { rich: true });
+        var pf = pr && pr.hrv && pr.hrv.frequency;
+        T.ok('§10 · PpgDex exports a frequency block with a named window', !!(pf && pf.window), JSON.stringify(pf && pf.window));
+        if (pf && pf.totalPower != null) {
+          T.eq('§10 · PpgDex TASK-FORCE IDENTITY: vlf + lf + hf == totalPower', (pf.vlf || 0) + (pf.lf || 0) + (pf.hf || 0), pf.totalPower);
+        }
+      }
+    });
+
     group('ECGDex respRate aggregation (median, not HF-peak)', 'ecgdex-dsp', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.analyze === 'function' && typeof D.genSynthetic === 'function')) {
