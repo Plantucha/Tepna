@@ -128,6 +128,7 @@ brief PPGDEX-FOLLOWUPS-2026-06-27-BRIEF.md
 brief PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE-2026-07-11-BRIEF.md
 brief PPGDEX-PI-AND-PARSE-2026-07-12-BRIEF.md
 brief PPGDEX-PI-AND-PARSE-FOLLOWUPS-2026-07-12-BRIEF.md
+brief PPGDEX-WORKER-CLOSURE-2026-07-12-BRIEF.md
 brief PPGDex-BUILD-BRIEF.md
 brief PROFILE-DOM-READ-AUDIT-BRIEF.md
 brief PROFILE-HANDOFF-BRIEF.md
@@ -410,6 +411,7 @@ path briefs/PPGDEX-FOLLOWUPS-2026-06-27-BRIEF.md
 path briefs/PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE-2026-07-11-BRIEF.md
 path briefs/PPGDEX-PI-AND-PARSE-2026-07-12-BRIEF.md
 path briefs/PPGDEX-PI-AND-PARSE-FOLLOWUPS-2026-07-12-BRIEF.md
+path briefs/PPGDEX-WORKER-CLOSURE-2026-07-12-BRIEF.md
 path briefs/PPGDex-BUILD-BRIEF.md
 path briefs/PROFILE-DOM-READ-AUDIT-BRIEF.md
 path briefs/PROFILE-HANDOFF-BRIEF.md
@@ -486,6 +488,7 @@ path changes/2026-07-12-efficiency-audit-findings.md
 path changes/2026-07-12-gate-integrity-and-devloop.md
 path changes/2026-07-12-hygiene-origins-pooling-badges.md
 path changes/2026-07-12-ppgdex-pi-and-parse.md
+path changes/2026-07-12-ppgdex-worker-closure.md
 path changes/2026-07-12-profiled-hotspots-brief.md
 path changes/2026-07-12-r5-hr-triplet-reference.md
 path changes/2026-07-12-spectral-one-scale-no-grid-lottery.md
