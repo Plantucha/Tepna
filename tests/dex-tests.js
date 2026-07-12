@@ -6084,6 +6084,64 @@
        · ecgdex-morph.js / ppgdex-morph.js — had no explicit assertion anywhere;
          loaded so ECGDSP/PPGDSP `analyze` run morph-active, plus a presence gate.
      Each EDF/DSP module exposes selfTest()→{pass,fail,log}; morph exposes analyze(). */
+    /* ════ PpgDex per-window PI — a NON-INTEGER fs must still yield a PI in EVERY window ════
+       Regression pin for EFFICIENCY-AUDIT-FINDINGS-2026-07-12 §C1. perWindowMorph stepped its sample
+       loop by winSamp = winSec*fs, and fs is the median sensor-ns delta — so on a real Polar capture it
+       is NEVER integral (176.26 → winSamp 10575.6). Indexing a Float32Array at a fractional index
+       returns undefined, so from the 2nd window on dc/ac went NaN and `pi` silently became null: the
+       surfaced per-window perfusion-index trend was plotting 2 of 18 windows on a real night, with no
+       error anywhere. A NON-INTEGER fs is therefore the whole point of this test — an integer fs (the
+       obvious thing to synthesise) passes even against the bug. */
+    group('PpgDex per-window PI — non-integer fs (fractional sample index)', 'ppgdex-morph · regression', function (T) {
+      var PM = env.PPGMorph;
+      T.ok('PPGMorph.perWindowMorph present', !!(PM && typeof PM.perWindowMorph === 'function'));
+      if (!(PM && typeof PM.perWindowMorph === 'function')) return;
+
+      var fs = 176.26; // a REAL Polar fs — deliberately not an integer
+      T.ok('the fixture fs is non-integral (else this test cannot see the bug)', fs !== Math.round(fs));
+      var durSec = 180,
+        n = Math.round(durSec * fs);
+      var raw = new Float32Array(n),
+        bp = new Float32Array(n);
+      for (var i = 0; i < n; i++) {
+        var ac = Math.sin((2 * Math.PI * 1.2 * i) / fs); // ~72 bpm
+        raw[i] = 1000 + 40 * ac; // DC + pulsatile → PI ≈ 100*std(ac)/1000
+        bp[i] = 40 * ac; // band-passed = the AC part
+      }
+      var peaks = [],
+        feet = [];
+      var step = fs / 1.2; // one beat per cycle
+      for (var b = 1; b * step < n - 2; b++) {
+        var pk = Math.round(b * step);
+        peaks.push(pk);
+        feet.push(Math.max(0, pk - Math.round(fs * 0.15)));
+      }
+      var sqi = peaks.map(function () {
+        return 1;
+      });
+      var win = PM.perWindowMorph(bp, raw, { peaks: peaks, feet: feet }, fs, sqi, 60);
+
+      T.ok('windows produced (3 × 60 s over a 180 s record)', win.length >= 3, 'got ' + win.length);
+      var withPi = win.filter(function (w) {
+        return w.pi != null && isFinite(w.pi);
+      });
+      // THE assertion. Pre-fix this was 1/3 — only the w0=0 window, the one that lands on an integer.
+      T.eq('EVERY window carries a finite PI (fractional index → undefined → NaN → null is the bug)', withPi.length, win.length);
+      T.ok(
+        'the PI values are physiologic, not NaN-poisoned',
+        withPi.every(function (w) {
+          return w.pi > 0 && w.pi < 100;
+        }),
+        JSON.stringify(
+          win.map(function (w) {
+            return w.pi;
+          })
+        )
+      );
+      // Guard the root cause directly: a window past the first must still index integrally.
+      T.ok('a LATER window (w0 = 60*fs = 10575.6, fractional) still yields a PI — not just w0=0', win.length > 1 && win[1].pi != null && isFinite(win[1].pi), 'win[1].pi=' + (win[1] && win[1].pi));
+    });
+
     group('Leaf-module coverage — CPAPDex DSP/EDF self-tests + morphology', 'cpapdex-edf · cpapdex-dsp · ecgdex-morph · ppgdex-morph', function (T) {
       var ED = env.CpapEdf,
         DS = env.CpapDsp,

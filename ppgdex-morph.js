@@ -147,8 +147,15 @@ function perWindowMorph(bp, raw, det, fs, sqi, winSec){
     const mp = medianPulse(bp, sub, fs, subSqi);
     const d = mp ? delineate(mp) : null;
     // PI within this window: AC (std of bp) ÷ DC (|mean raw|)
+    // s0/s1 MUST be integers: winSamp = winSec*fs and fs is the median sensor-ns delta, so on a real
+    // Polar capture it is never integral (176.26 → winSamp 10575.6). Indexing a Float32Array at a
+    // fractional index returns undefined, so from the 2nd window on dc/ac went NaN and pi silently
+    // became null — the surfaced per-window PI trend was plotting only the windows where w0 happened
+    // to land on an integer (2 of 18 on a real night). Round ONLY the sample bounds: w0 stays a float
+    // for the peak-assignment comparisons above, so beat→window assignment (and ai/ri/beats) is
+    // untouched and pi is the only value that moves. (EFFICIENCY-AUDIT-FINDINGS-2026-07-12 §C1.)
     let pi = null;
-    const s0=w0, s1=Math.min(raw.length, w0+winSamp);
+    const s0=Math.round(w0), s1=Math.min(raw.length, Math.round(w0+winSamp));
     if(s1-s0>fs){ let acc=0,c=0; for(let i=s0;i<s1;i++){ acc+=Math.abs(raw[i]); c++; } const dc=acc/c;
       let m=0; for(let i=s0;i<s1;i++) m+=bp[i]; m/=(s1-s0);
       let v=0; for(let i=s0;i<s1;i++){ const dd=bp[i]-m; v+=dd*dd; } const ac=Math.sqrt(v/(s1-s0));

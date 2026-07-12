@@ -82,7 +82,7 @@ function parsePPG(text){
   const lines = text.split(/\r?\n/);
   const ch0=[], ch1=[], ch2=[], amb=[];
   const nsArr=[];           // BigInt deltas avoided — store as Number of (ns - ns0)/1 via BigInt math
-  let ns0=null, t0Ms=null, firstTs=null, lastTs=null;
+  let ns0=null, t0Ms=null, firstTs=null;   // lastTs is resolved lazily in the fs fallback (§P1)
   let started=false;
   for(let li=0; li<lines.length; li++){
     const line = lines[li].trim();
@@ -99,8 +99,12 @@ function parsePPG(text){
     let relNs = 0;
     try { const b=BigInt(p[1].trim()); if(ns0===null) ns0=b; relNs=Number(b-ns0); } catch(e){ relNs = NaN; }
     nsArr.push(relNs);
-    const ts = parseTimestamp(p[0]);
-    if(ts){ if(t0Ms===null){ t0Ms=ts.tMs; firstTs=ts; } lastTs=ts; }
+    // Clock Contract: only the FIRST stamp is load-bearing here (t0Ms + offsetMin). The LAST stamp is
+    // read ONLY by the degenerate `deltas.length<=20` fs fallback below, which a real capture (190k
+    // valid ns deltas) never takes — so resolve it lazily there instead of parsing every one of ~190k
+    // rows for a value that is then discarded. parseTimestamp was ~half of parsePPG's entire cost.
+    // (EFFICIENCY-AUDIT-FINDINGS-2026-07-12 §P1.)
+    if(t0Ms===null){ const ts = parseTimestamp(p[0]); if(ts){ t0Ms=ts.tMs; firstTs=ts; } }
     started=true;
   }
   const n = ch0.length;
@@ -110,7 +114,19 @@ function parsePPG(text){
   const deltas = [];
   for(let i=1;i<n;i++){ const d=nsArr[i]-nsArr[i-1]; if(isFinite(d)&&d>0) deltas.push(d); }
   if(deltas.length>20){ const md = median(deltas); if(md>0) fs = 1e9/md; }
-  else if(firstTs && lastTs && lastTs.tMs>firstTs.tMs){ fs = (n-1)/((lastTs.tMs-firstTs.tMs)/1000); }
+  else {
+    // Lazy `lastTs` (§P1): scan BACKWARD for the last row that the loop above would have accepted AND
+    // whose stamp parses — byte-identical to the old eager `lastTs`, but paid for only on this
+    // degenerate path. The row filter must mirror the main loop's exactly (>=6 fields, finite ch0).
+    let lastTs = null;
+    for(let li=lines.length-1; li>=0 && !lastTs; li--){
+      const line = lines[li].trim(); if(!line) continue;
+      const p = line.split(';'); if(p.length < 6) continue;
+      if(!isFinite(parseFloat(p[2]))) continue;
+      lastTs = parseTimestamp(p[0]);
+    }
+    if(firstTs && lastTs && lastTs.tMs>firstTs.tMs){ fs = (n-1)/((lastTs.tMs-firstTs.tMs)/1000); }
+  }
   fs = Math.round(fs*100)/100;
   // relSec per sample from ns (most accurate), else index/fs
   const relSec = new Float64Array(n);
