@@ -7975,6 +7975,35 @@
           fixPick: function (fx) {
             return fx;
           }
+        },
+        {
+          // ── CPAPDex BINARY multi-file EDF (CPAP-REAL-CORPUS-2026-07-11-BRIEF §P2) ──────────────
+          // FIXTURE-PROVENANCE used to assert CPAPDex "can't join the equivalence gate (its real
+          // input is a BINARY multi-file EDF set, not a {text}/CSV)". It can — an input is just
+          // bytes, and readEDF takes an ArrayBuffer. This leg drives the FULL real chain that the
+          // _synthEdfSet golden skips entirely: readEDF (binary parser + TAL annotations) →
+          // buildSessionFromEdf → buildNight → cpapBuildExport.
+          //
+          // And unlike EVERY other case in this list, its input is COMMITTED, so this diff actually
+          // RUNS IN CI. The others' inputs are real recordings → gitignored → ⊘ skipped on a fresh
+          // clone. The input here is SYNTHETIC (tools/make-synthetic-edf.mjs): closed-form waveforms
+          // calibrated to a real corpus's DISTRIBUTIONS, carrying no recording of any person.
+          key: 'cpapdex_edf',
+          label: 'CPAPDex (binary EDF)',
+          node: env.CPAPDex,
+          run: function (n, input) {
+            var set = {};
+            ['BRP', 'PLD', 'SA2', 'EVE', 'CSL'].forEach(function (k) {
+              if (input[k]) set[k] = env.CpapEdf.readEDF(input[k]);
+            });
+            return n.compute({ edfSets: [set] });
+          },
+          pick: function (res) {
+            return res;
+          },
+          fixPick: function (fx) {
+            return fx;
+          }
         }
       ];
       CASES.forEach(function (c) {
