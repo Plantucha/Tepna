@@ -166,6 +166,27 @@
         "BIOME-FORMATTER-2026-07-11-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "1.6.0",
+      "date": "2026-07-12",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "97f172d48c81",
+        "OxyDex": "514ffce06bb2",
+        "PulseDex": "7cd6acbed410",
+        "GlucoDex": "6f000b07cb96",
+        "PpgDex": "2a3306eaa6a3",
+        "HRVDex": "c03e7c597dab",
+        "CPAPDex": "e2392eda2d0a",
+        "Integrator": "fddf2da9bb8f"
+      },
+      "briefs": [
+        "CPAP-REAL-CORPUS-2026-07-11-BRIEF.md",
+        "PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE-2026-07-11-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }

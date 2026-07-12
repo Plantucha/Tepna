@@ -179,6 +179,70 @@ function orient(bp){
 //  moving averages + a single block scan). Feet stay the intersecting-tangent
 //  refinement (PPI = foot-to-foot), fed from the new peaks.
 // ════════════════════════════════════════════════════════════════════════
+/* ── CADENCE PRIOR — windowed autocorrelation of the pulse band ────────────────────────────────
+ * Local beat period in SAMPLES for every sample index (Float32Array), or null if the record is too
+ * short to window.
+ *
+ * WHY (the dicrotic-notch double-count — PPGDEX-OPTICAL-DETECTOR §1): TERMA calls a beat wherever the
+ * short upstroke-energy average exceeds the long one — a bare `maPeak > maBeat`, with no amplitude
+ * discrimination. A prominent DIASTOLIC (reflected) wave is a genuine positive-slope event, so it
+ * raises its own block and is detected as a second "beat" about half a cycle after systole. At the
+ * sleeping ~48 bpm of the real corpus that is ~625 ms — far outside the fixed 0.30 s refractory, so
+ * nothing suppressed it and the optical HR read exactly 2× true. On 2026-06-29 / 07-02 / 07-05 ALL
+ * THREE LEDs doubled together, so the 3-LED vote ratified it (2-of-3 agreement on a harmonic is still
+ * 2-of-3) and no cross-channel check could see it either.
+ *
+ * The fundamental is immune to this: a dicrotic notch is a HARMONIC (it sits at T/2), while the
+ * autocorrelation still peaks at the true beat T. Against paired chest-ECG on the whole trio corpus the
+ * ACF cadence is right on EVERY night — including the four where peak-counting doubles (07-01 47.9 vs
+ * ECG 48.0 · 06-29 49.2 vs 49.7 · 07-02 47.9 vs 48.4 · 07-05 56.6 vs 57.8); worst error 1.2 bpm.
+ *
+ * ⚠️ NOT a return to the retired global-period detector. THAT one used a WHOLE-RECORD autocorrelation
+ * period to GATE detection, and was the missed-beat root cause (see the note below). Here the cadence is
+ * (a) WINDOWED — it tracks HR drift across a night, arousals included — and (b) used ONLY to size the
+ * refractory. TERMA still finds every peak; the cadence only says how close two peaks may legitimately be.
+ */
+function cadenceSamples(bp, fs){
+  const n=bp.length;
+  const WIN=Math.round(fs*30), HOP=Math.round(fs*15);
+  if(n < WIN+HOP) return null;
+  // Pulse band only (0.5–3.0 Hz = 30–180 bpm) — drops the harmonics the notch lives in, so the ACF is
+  // dominated by the fundamental. Decimate to ~25 Hz first: the ACF is O(win × lags) and needs no more
+  // resolution than that (a 25 Hz lag step is 40 ms, and the period is smoothed across windows anyway).
+  const lp=bandpass(bp, fs, 0.5, 3.0);
+  const D=Math.max(1, Math.round(fs/25)), fsd=fs/D;
+  const m=Math.floor(n/D), x=new Float32Array(m);
+  for(let i=0;i<m;i++) x[i]=lp[i*D];
+  const lagMin=Math.max(2, Math.round(fsd*0.33));   // 180 bpm ceiling
+  const lagMax=Math.round(fsd*2.0);                 //  30 bpm floor
+  const wd=Math.round(WIN/D), hd=Math.round(HOP/D);
+  const ts=[], ws=[];
+  for(let s=0; s+wd<=m; s+=hd){
+    let mu=0; for(let i=s;i<s+wd;i++) mu+=x[i]; mu/=wd;
+    let best=0, bl=0;
+    for(let L=lagMin; L<=lagMax; L++){
+      let c=0; for(let i=s; i+L<s+wd; i++) c+=(x[i]-mu)*(x[i+L]-mu);
+      if(c>best){ best=c; bl=L; }
+    }
+    if(bl){ ts.push(bl*D); ws.push(s*D + WIN/2); }   // period in ORIGINAL samples, at the window centre
+  }
+  if(!ts.length) return null;
+  // Piecewise-linear across window centres (HR drifts smoothly); flat outside the first/last centre.
+  const out=new Float32Array(n);
+  let k=0;
+  for(let i=0;i<n;i++){
+    while(k<ws.length-2 && i>ws[k+1]) k++;
+    if(i<=ws[0]) out[i]=ts[0];
+    else if(i>=ws[ws.length-1]) out[i]=ts[ts.length-1];
+    else { const f=(i-ws[k])/Math.max(1,(ws[k+1]-ws[k])); out[i]=ts[k]*(1-f)+ts[k+1]*f; }
+  }
+  return out;
+}
+// A systolic peak cannot follow the previous one sooner than this fraction of a beat — an interval
+// below it is the reflected/diastolic wave, not a heartbeat. 0.60 clears the observed intruder (~0.5 × T:
+// a 600–700 ms mode against a 1250 ms beat) while still admitting a genuine beat-to-beat acceleration of
+// up to ~1.67×, which no real sinus rhythm exceeds between ADJACENT beats.
+const REFR_CADENCE_FRAC = 0.60;
 function detectBeats(bp, fs){
   const n=bp.length;
   const peaks=[];
@@ -197,7 +261,12 @@ function detectBeats(bp, fs){
   const maPeak=movavg(z, W1);
   const maBeat=movavg(z, W2);
   const minW=Math.max(2, Math.round(fs*0.05));      // min systolic-block width (noise reject)
-  const refr=Math.round(fs*0.30);                    // 200 bpm ceiling — min physiologic PPI
+  const refrFloor=Math.round(fs*0.30);               // 200 bpm ceiling — absolute physiologic floor
+  // ADAPTIVE refractory: 0.60 × the LOCAL beat (windowed-ACF cadence), floored at the 0.30 s physiologic
+  // ceiling. A fixed 0.30 s cannot reject a diastolic wave at a sleeping 48 bpm (it lands ~625 ms out,
+  // twice the refractory) — which is exactly how the optical HR came to read 2× true. Null cadence (a
+  // clip too short to window) ⇒ the floor, i.e. the old behaviour.
+  const cad=cadenceSamples(bp, fs);
   // blocks of interest where the short upstroke-energy average exceeds the LOCAL long
   // average — LOCAL threshold, so no global period and no outlier-inflated global offset;
   // it adapts beat-to-beat as HR/amplitude drift. Kept only if wider than minW.
@@ -209,6 +278,10 @@ function detectBeats(bp, fs){
         // systolic peak = max of the ORIGINAL waveform across the upstroke block + a short tail
         let sp=i, sv=-Infinity; const hi=Math.min(n, j+Math.round(fs*0.12));
         for(let k=i;k<hi;k++){ const v=bp[k]; if(v>sv){ sv=v; sp=k; } }
+        // Refractory sized by the LOCAL cadence. On a conflict the TALLER peak wins (unchanged) — and
+        // that is what separates systole from its reflection: the diastolic wave is the smaller of the
+        // two, so it loses the arbitration instead of being counted as an extra beat.
+        const refr=cad ? Math.max(refrFloor, Math.round(REFR_CADENCE_FRAC*cad[sp])) : refrFloor;
         if(peaks.length===0 || sp-peaks[peaks.length-1]>=refr) peaks.push(sp);
         else if(bp[sp]>bp[peaks[peaks.length-1]]) peaks[peaks.length-1]=sp;
       }

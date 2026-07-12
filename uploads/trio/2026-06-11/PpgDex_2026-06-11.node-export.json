@@ -21,7 +21,7 @@
     "node": "PpgDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-07-12T00:28:21.098Z",
+    "generated": "2026-07-12T02:08:23.024Z",
     "provenance": null,
     "doc": "PpgDex PPG-derived events → Ganglior bus. t/tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -31,7 +31,7 @@
     "contentId": null,
     "startEpochMs": 1781211856712,
     "sessions": 1,
-    "events": 90
+    "events": 80
   },
   "ganglior_events": [
     {
@@ -53,57 +53,21 @@
       "tMs": 1781236756712,
       "impulse": "autonomic_surge",
       "node": "PpgDex",
-      "conf": 0.8,
+      "conf": 0.78,
       "sqi": 0.89,
       "meta": {
-        "ampBpm": 17,
+        "ampBpm": 16,
         "position": "lateral_L",
         "positionConf": 0.9
       }
     },
     {
-      "t": "21:04:22",
-      "tMs": 1781211862947,
+      "t": "21:04:25",
+      "tMs": 1781211865347,
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.58,
-      "meta": {}
-    },
-    {
-      "t": "21:04:24",
-      "tMs": 1781211864507,
-      "impulse": "motion_artifact_segment",
-      "node": "PpgDex",
-      "conf": 0.3,
-      "sqi": 0.53,
-      "meta": {}
-    },
-    {
-      "t": "21:04:58",
-      "tMs": 1781211898053,
-      "impulse": "motion_artifact_segment",
-      "node": "PpgDex",
-      "conf": 0.3,
-      "sqi": 0.25,
-      "meta": {}
-    },
-    {
-      "t": "21:05:14",
-      "tMs": 1781211914683,
-      "impulse": "motion_artifact_segment",
-      "node": "PpgDex",
-      "conf": 0.3,
-      "sqi": 0.31,
-      "meta": {}
-    },
-    {
-      "t": "21:05:16",
-      "tMs": 1781211916351,
-      "impulse": "motion_artifact_segment",
-      "node": "PpgDex",
-      "conf": 0.3,
-      "sqi": 0.34,
+      "sqi": 0.45,
       "meta": {}
     },
     {
@@ -112,39 +76,21 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.31,
-      "meta": {}
-    },
-    {
-      "t": "21:05:21",
-      "tMs": 1781211921211,
-      "impulse": "motion_artifact_segment",
-      "node": "PpgDex",
-      "conf": 0.3,
-      "sqi": 0.24,
+      "sqi": 0.27,
       "meta": {}
     },
     {
       "t": "21:05:53",
-      "tMs": 1781211953795,
+      "tMs": 1781211953823,
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.24,
+      "sqi": 0.22,
       "meta": {}
     },
     {
       "t": "21:06:17",
       "tMs": 1781211977632,
-      "impulse": "motion_artifact_segment",
-      "node": "PpgDex",
-      "conf": 0.3,
-      "sqi": 0.27,
-      "meta": {}
-    },
-    {
-      "t": "21:06:20",
-      "tMs": 1781211980116,
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
@@ -157,7 +103,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.55,
+      "sqi": 0.52,
       "meta": {}
     },
     {
@@ -175,7 +121,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.34,
+      "sqi": 0.33,
       "meta": {}
     },
     {
@@ -184,7 +130,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.36,
+      "sqi": 0.35,
       "meta": {}
     },
     {
@@ -193,7 +139,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.37,
+      "sqi": 0.36,
       "meta": {}
     },
     {
@@ -206,48 +152,30 @@
       "meta": {}
     },
     {
-      "t": "21:07:46",
-      "tMs": 1781212066067,
-      "impulse": "motion_artifact_segment",
-      "node": "PpgDex",
-      "conf": 0.3,
-      "sqi": 0.26,
-      "meta": {}
-    },
-    {
-      "t": "21:08:01",
-      "tMs": 1781212081527,
-      "impulse": "motion_artifact_segment",
-      "node": "PpgDex",
-      "conf": 0.3,
-      "sqi": 0.27,
-      "meta": {}
-    },
-    {
       "t": "21:08:08",
-      "tMs": 1781212088038,
+      "tMs": 1781212088888,
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.35,
+      "sqi": 0.31,
       "meta": {}
     },
     {
       "t": "21:08:22",
-      "tMs": 1781212102187,
+      "tMs": 1781212102891,
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.44,
+      "sqi": 0.4,
       "meta": {}
     },
     {
       "t": "21:08:28",
-      "tMs": 1781212108828,
+      "tMs": 1781212108840,
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.59,
+      "sqi": 0.57,
       "meta": {}
     },
     {
@@ -301,7 +229,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.64,
+      "sqi": 0.67,
       "meta": {}
     },
     {
@@ -355,7 +283,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.67,
+      "sqi": 0.66,
       "meta": {}
     },
     {
@@ -400,7 +328,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.56,
+      "sqi": 0.61,
       "meta": {}
     },
     {
@@ -436,7 +364,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.71,
+      "sqi": 0.79,
       "meta": {}
     },
     {
@@ -463,7 +391,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.55,
+      "sqi": 0.61,
       "meta": {}
     },
     {
@@ -472,7 +400,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.78,
+      "sqi": 0.77,
       "meta": {}
     },
     {
@@ -490,7 +418,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.61,
+      "sqi": 0.64,
       "meta": {}
     },
     {
@@ -508,7 +436,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.52,
+      "sqi": 0.62,
       "meta": {}
     },
     {
@@ -517,7 +445,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.67,
+      "sqi": 0.71,
       "meta": {}
     },
     {
@@ -526,7 +454,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.39,
+      "sqi": 0.4,
       "meta": {}
     },
     {
@@ -544,25 +472,16 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.68,
+      "sqi": 0.66,
       "meta": {}
     },
     {
-      "t": "03:57:32",
-      "tMs": 1781236652332,
+      "t": "03:57:31",
+      "tMs": 1781236651216,
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.4,
-      "meta": {}
-    },
-    {
-      "t": "03:57:36",
-      "tMs": 1781236656629,
-      "impulse": "motion_artifact_segment",
-      "node": "PpgDex",
-      "conf": 0.3,
-      "sqi": 0.43,
+      "sqi": 0.49,
       "meta": {}
     },
     {
@@ -571,7 +490,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.6,
+      "sqi": 0.59,
       "meta": {}
     },
     {
@@ -679,16 +598,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.4,
-      "meta": {}
-    },
-    {
-      "t": "04:33:47",
-      "tMs": 1781238827769,
-      "impulse": "motion_artifact_segment",
-      "node": "PpgDex",
-      "conf": 0.3,
-      "sqi": 0.27,
+      "sqi": 0.41,
       "meta": {}
     },
     {
@@ -697,7 +607,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.58,
+      "sqi": 0.59,
       "meta": {}
     },
     {
@@ -706,7 +616,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.47,
+      "sqi": 0.46,
       "meta": {}
     },
     {
@@ -861,24 +771,24 @@
     "analyzablePct": 94,
     "cleanBeatPct": 96,
     "coveragePct": 96,
-    "motionRejectedPct": 2.4,
-    "correctionRatePct": 2.7,
+    "motionRejectedPct": 1.9,
+    "correctionRatePct": 2.9,
     "ledAgreementPct": 98,
     "ppiSpine": "foot",
     "ppiAgreementPct": 100,
-    "ppiCorrFootPct": 2.7,
-    "ppiCorrPeakPct": 3
+    "ppiCorrFootPct": 2.9,
+    "ppiCorrPeakPct": 2.3
   },
   "hrv": {
     "time": {
-      "meanRR": 1129,
+      "meanRR": 1132,
       "hr": 52,
-      "sdnn": 102.3,
-      "rmssd": 33.7,
-      "pnn50": 12.4,
-      "sdnnIndex": 60.9,
+      "sdnn": 97.6,
+      "rmssd": 33.5,
+      "pnn50": 12.3,
+      "sdnnIndex": 59.6,
       "sdnnRobust": 47.5,
-      "sd2Robust": 62.8,
+      "sd2Robust": 62.9,
       "window": "wholeRecord",
       "units": "ms",
       "lowConfidence": false,
@@ -887,25 +797,25 @@
       "sdnnNote": "whole-record sdnn runs high on optical (SDANN/baseline-wander inflation, ~+26% vs chest ECG). sdnnIndex = mean of per-5-min SDNN (~+18%); sdnnRobust = quality-gated MEDIAN of per-5-min SDNN (~+3.5% vs ECG truth) — use sdnnRobust for cross-node SDNN comparison."
     },
     "frequency": {
-      "lf": 2675,
-      "hf": 835,
-      "lfhf": 3.2,
+      "lf": 2912,
+      "hf": 976,
+      "lfhf": 2.98,
       "method": "Lomb-Scargle",
       "lowConfidence": false,
-      "lfRobust": 749.5,
-      "hfRobust": 357,
-      "lfhfRobust": 2.17,
-      "hfRobustLowMotion": 339
+      "lfRobust": 731,
+      "hfRobust": 351.5,
+      "lfhfRobust": 2.21,
+      "hfRobustLowMotion": 324.5
     },
     "confidence": {
-      "beatToBeat": 0.84,
-      "sdnn": 0.75,
-      "lf": 0.84,
+      "beatToBeat": 0.83,
+      "sdnn": 0.74,
+      "lf": 0.83,
       "hf": 0.85,
       "vlf": 0.7,
       "drivers": {
         "analyzableFrac": 0.94,
-        "correctionOK": 0.89,
+        "correctionOK": 0.88,
         "lowMotionFrac": 0.9,
         "postureStableFrac": 0.73
       },
@@ -917,12 +827,12 @@
     "epochs": [
       {
         "tMin": 0,
-        "hr": 71,
-        "rmssd": 45.5,
-        "sdnn": 84.7,
-        "lfhf": 0.64,
-        "motionIndex": 0.69,
-        "ledAgreementPct": 89,
+        "hr": 68,
+        "rmssd": 34.1,
+        "sdnn": 78.3,
+        "lfhf": 0.56,
+        "motionIndex": 0.63,
+        "ledAgreementPct": 86,
         "position": "upright",
         "positionConf": 0.15,
         "headingDeg": 36,
@@ -944,9 +854,9 @@
       {
         "tMin": 10,
         "hr": 59,
-        "rmssd": 33.7,
-        "sdnn": 69.9,
-        "lfhf": 1.11,
+        "rmssd": 33.4,
+        "sdnn": 67.5,
+        "lfhf": 1.43,
         "motionIndex": 0.21,
         "ledAgreementPct": 97,
         "position": "supine",
@@ -984,10 +894,10 @@
         "tMin": 25,
         "hr": 54,
         "rmssd": 37.2,
-        "sdnn": 80.2,
-        "lfhf": 2.54,
+        "sdnn": 80.1,
+        "lfhf": 2.42,
         "motionIndex": 0.14,
-        "ledAgreementPct": 98,
+        "ledAgreementPct": 99,
         "position": "lateral",
         "positionConf": 0.44,
         "headingDeg": 343,
@@ -1153,7 +1063,7 @@
         "tMin": 90,
         "hr": 54,
         "rmssd": 28.1,
-        "sdnn": 33.2,
+        "sdnn": 33.3,
         "lfhf": 2.2,
         "motionIndex": 0.11,
         "ledAgreementPct": 100,
@@ -1166,8 +1076,8 @@
         "tMin": 95,
         "hr": 55,
         "rmssd": 25.2,
-        "sdnn": 31,
-        "lfhf": 2.24,
+        "sdnn": 31.1,
+        "lfhf": 2.23,
         "motionIndex": 0.11,
         "ledAgreementPct": 100,
         "position": "lateral_R",
@@ -1205,10 +1115,10 @@
         "tMin": 110,
         "hr": 58,
         "rmssd": 31.1,
-        "sdnn": 100.9,
-        "lfhf": 2,
+        "sdnn": 101.4,
+        "lfhf": 1.71,
         "motionIndex": 0.13,
-        "ledAgreementPct": 98,
+        "ledAgreementPct": 99,
         "position": "lateral",
         "positionConf": 0.43,
         "headingDeg": 344,
@@ -1256,9 +1166,9 @@
       {
         "tMin": 130,
         "hr": 53,
-        "rmssd": 32.2,
-        "sdnn": 75.7,
-        "lfhf": 2.06,
+        "rmssd": 32.3,
+        "sdnn": 73.1,
+        "lfhf": 0.94,
         "motionIndex": 0.12,
         "ledAgreementPct": 99,
         "position": "lateral_R",
@@ -1270,10 +1180,10 @@
         "tMin": 135,
         "hr": 53,
         "rmssd": 38.1,
-        "sdnn": 85.9,
-        "lfhf": 2.27,
+        "sdnn": 85.4,
+        "lfhf": 2.5,
         "motionIndex": 0.16,
-        "ledAgreementPct": 99,
+        "ledAgreementPct": 98,
         "position": "lateral",
         "positionConf": 0.34,
         "headingDeg": 359,
@@ -1464,9 +1374,9 @@
       {
         "tMin": 210,
         "hr": 51,
-        "rmssd": 32.8,
-        "sdnn": 93,
-        "lfhf": 1.07,
+        "rmssd": 33.2,
+        "sdnn": 88.7,
+        "lfhf": 1.69,
         "motionIndex": 0.14,
         "ledAgreementPct": 97,
         "position": "upright",
@@ -1517,9 +1427,9 @@
         "tMin": 230,
         "hr": 50,
         "rmssd": 38.1,
-        "sdnn": 85.3,
-        "lfhf": 1.82,
-        "motionIndex": 0.14,
+        "sdnn": 82.3,
+        "lfhf": 1.81,
+        "motionIndex": 0.13,
         "ledAgreementPct": 92,
         "position": "upright",
         "positionConf": 0.2,
@@ -1555,11 +1465,11 @@
       {
         "tMin": 245,
         "hr": 51,
-        "rmssd": 34.1,
+        "rmssd": 33.5,
         "sdnn": 92.2,
         "lfhf": 2.13,
         "motionIndex": 0.14,
-        "ledAgreementPct": 99,
+        "ledAgreementPct": 98,
         "position": "lateral",
         "positionConf": 0.34,
         "headingDeg": 167,
@@ -1633,9 +1543,9 @@
       {
         "tMin": 275,
         "hr": 51,
-        "rmssd": 38.1,
-        "sdnn": 61.9,
-        "lfhf": 2.29,
+        "rmssd": 38.2,
+        "sdnn": 63,
+        "lfhf": 2.41,
         "motionIndex": 0.12,
         "ledAgreementPct": 99,
         "position": "lateral_L",
@@ -1699,8 +1609,8 @@
         "tMin": 300,
         "hr": 50,
         "rmssd": 36.2,
-        "sdnn": 90.8,
-        "lfhf": 1.8,
+        "sdnn": 90,
+        "lfhf": 2.58,
         "motionIndex": 0.12,
         "ledAgreementPct": 99,
         "position": "lateral_R",
@@ -1790,9 +1700,9 @@
         "tMin": 335,
         "hr": 52,
         "rmssd": 41.3,
-        "sdnn": 110,
+        "sdnn": 99.7,
         "lfhf": 1.11,
-        "motionIndex": 0.17,
+        "motionIndex": 0.16,
         "ledAgreementPct": 98,
         "position": "upright",
         "positionConf": 0.28,
@@ -1802,9 +1712,9 @@
       {
         "tMin": 340,
         "hr": 50,
-        "rmssd": 39.2,
-        "sdnn": 44.8,
-        "lfhf": 1.45,
+        "rmssd": 32.4,
+        "sdnn": 39.5,
+        "lfhf": 2.29,
         "motionIndex": 0.11,
         "ledAgreementPct": 99,
         "position": "upright",
@@ -1842,8 +1752,8 @@
         "tMin": 355,
         "hr": 58,
         "rmssd": 26.4,
-        "sdnn": 150.2,
-        "lfhf": 1.33,
+        "sdnn": 150.5,
+        "lfhf": 1.85,
         "motionIndex": 0.13,
         "ledAgreementPct": 95,
         "position": "upright",
@@ -1892,11 +1802,11 @@
       },
       {
         "tMin": 375,
-        "hr": 50,
+        "hr": 49,
         "rmssd": 30.3,
-        "sdnn": 65.6,
-        "lfhf": 5.34,
-        "motionIndex": 0.15,
+        "sdnn": 53.8,
+        "lfhf": 2.04,
+        "motionIndex": 0.13,
         "ledAgreementPct": 99,
         "position": "lateral",
         "positionConf": 0.48,
@@ -1905,10 +1815,10 @@
       },
       {
         "tMin": 380,
-        "hr": 50,
-        "rmssd": 36.2,
-        "sdnn": 116.4,
-        "lfhf": 1.95,
+        "hr": 49,
+        "rmssd": 36.8,
+        "sdnn": 58.5,
+        "lfhf": 2.25,
         "motionIndex": 0.12,
         "ledAgreementPct": 99,
         "position": "supine",
@@ -1946,10 +1856,10 @@
         "tMin": 395,
         "hr": 51,
         "rmssd": 27.7,
-        "sdnn": 79.6,
-        "lfhf": 1.52,
+        "sdnn": 78.7,
+        "lfhf": 1.46,
         "motionIndex": 0.14,
-        "ledAgreementPct": 99,
+        "ledAgreementPct": 100,
         "position": "supine",
         "positionConf": 0.21,
         "headingDeg": 140,
@@ -1984,11 +1894,11 @@
       {
         "tMin": 410,
         "hr": 57,
-        "rmssd": 37.6,
-        "sdnn": 213.9,
-        "lfhf": 2.63,
-        "motionIndex": 0.14,
-        "ledAgreementPct": 96,
+        "rmssd": 36.9,
+        "sdnn": 209.3,
+        "lfhf": 2.53,
+        "motionIndex": 0.13,
+        "ledAgreementPct": 95,
         "position": "upright",
         "positionConf": 0.18,
         "headingDeg": 240,
@@ -1996,9 +1906,9 @@
       },
       {
         "tMin": 415,
-        "hr": 74,
+        "hr": 73,
         "rmssd": 36.6,
-        "sdnn": 137.9,
+        "sdnn": 135.7,
         "lfhf": 1.09,
         "motionIndex": 0.11,
         "ledAgreementPct": 98,
@@ -2024,8 +1934,8 @@
         "tMin": 425,
         "hr": 57,
         "rmssd": 36.6,
-        "sdnn": 172.7,
-        "lfhf": 3.48,
+        "sdnn": 172.3,
+        "lfhf": 2.77,
         "motionIndex": 0.11,
         "ledAgreementPct": 97,
         "position": "lateral_L",
@@ -2035,10 +1945,10 @@
       },
       {
         "tMin": 430,
-        "hr": 54,
+        "hr": 53,
         "rmssd": 45.6,
-        "sdnn": 146.9,
-        "lfhf": 1.75,
+        "sdnn": 145.4,
+        "lfhf": 2.1,
         "motionIndex": 0.23,
         "ledAgreementPct": 94,
         "position": "supine",
@@ -2062,7 +1972,7 @@
       {
         "tMin": 440,
         "hr": 56,
-        "rmssd": 55.4,
+        "rmssd": 53.6,
         "sdnn": 73,
         "lfhf": 2.83,
         "motionIndex": 0.14,
@@ -2074,11 +1984,11 @@
       },
       {
         "tMin": 445,
-        "hr": 61,
-        "rmssd": 47.4,
-        "sdnn": 101.6,
-        "lfhf": 1.54,
-        "motionIndex": 0.33,
+        "hr": 60,
+        "rmssd": 47.5,
+        "sdnn": 98.6,
+        "lfhf": 1.91,
+        "motionIndex": 0.32,
         "ledAgreementPct": 96,
         "position": "supine",
         "positionConf": 0.26,

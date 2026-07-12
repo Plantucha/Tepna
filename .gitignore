@@ -29,6 +29,19 @@ uploads/*
 !uploads/cpapdex-2026-06-16.json
 !uploads/cpapdex_synthetic_golden.node-export.json
 !uploads/cpapdex_synthetic_multinight_golden.node-export.json
+
+# CPAPDex BINARY-EDF equivalence leg (CPAP-REAL-CORPUS §P2). These five .edf files are
+# SYNTHETIC (tools/make-synthetic-edf.mjs) — closed-form waveforms, no recording of any person,
+# header identity fields blank. They are the ONLY committed equiv INPUT in the repo, which is
+# what lets the compute()-equivalence diff actually RUN IN CI (every other node's input is a real
+# recording, so it is gitignored and its leg skips on a fresh clone). Regenerate byte-identically
+# with `node tools/make-synthetic-edf.mjs`.
+!uploads/20260613_231433_BRP.edf
+!uploads/20260613_231433_PLD.edf
+!uploads/20260613_231433_SA2.edf
+!uploads/20260613_231433_EVE.edf
+!uploads/20260613_231433_CSL.edf
+!uploads/cpapdex_synthetic_edf_golden.node-export.json
 !uploads/integrator_tch_golden.node-export.json
 
 # Trio TCH corpus — DERIVED per-night node-exports (tools/trio-batch.mjs), the §6 input contract
