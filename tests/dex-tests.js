@@ -2558,14 +2558,20 @@
           // and the hypos sitting on that rail must be marked as clip artifacts rather than real lows.
           // (the Integrator's adapter surfaces the clamp block itself — its PRESENCE is the signal;
           //  it does not re-carry the `detected` boolean.)
-          T.ok('clampSat surfaced from the real Lingo export — CHECKED, not absent',
+          T.ok(
+            'clampSat surfaced from the real Lingo export — CHECKED, not absent',
             !!(r.summary && r.summary.clampSat && r.summary.clampSat.floor != null),
-            'clampSat=' + JSON.stringify(r.summary && r.summary.clampSat));
+            'clampSat=' + JSON.stringify(r.summary && r.summary.clampSat)
+          );
           T.eq('  the detected rail is the Lingo floor', r.summary.clampSat.floor, 54);
           T.ok(
             'clip-floor hypos ARE down-weighted (a rail reading is not a real hypo)',
-            (r.events || []).some(function (e) { return e.clampFloor; }),
-            (r.events || []).filter(function (e) { return e.clampFloor; }).length + ' clip-floor event(s)'
+            (r.events || []).some(function (e) {
+              return e.clampFloor;
+            }),
+            (r.events || []).filter(function (e) {
+              return e.clampFloor;
+            }).length + ' clip-floor event(s)'
           );
           T.ok('degrades on the absent cell series — no throw, empty cells trace', !r.series || !r.series.cells || r.series.cells.length === 0);
         }
@@ -4447,34 +4453,39 @@
         return;
       }
       var HDR = 'Time of Glucose Reading [T=(local time) +/- (time zone offset)], Measurement(mg/dL)';
-      var stamp = function (ms) { return new Date(ms).toISOString().slice(0, 16) + '-04:00'; };
+      var stamp = function (ms) {
+        return new Date(ms).toISOString().slice(0, 16) + '-04:00';
+      };
 
       /* ── §5 · a long sensor gap must not manufacture in-range time ──────────────────────────────────
          Every REAL reading is far out of range (>=250), so the true TIR is 0 %. A 14 h sensor-change gap
          sits between two blocks; interpolating across it draws a straight line right through 70–180. If
          those cells are counted, TIR reads non-zero — glucose the sensor never saw. */
-      var t0 = Date.UTC(2026, 4, 3, 0, 0, 0), L = [HDR], i;
-      for (i = 0; i < 288; i++) L.push(stamp(t0 + i * 5 * 60000) + ',' + (250 + (i % 7)));      // day 1: all high
-      var afterGap = t0 + (288 * 5 + 14 * 60) * 60000;                                          // 14 h gap
+      var t0 = Date.UTC(2026, 4, 3, 0, 0, 0),
+        L = [HDR],
+        i;
+      for (i = 0; i < 288; i++) L.push(stamp(t0 + i * 5 * 60000) + ',' + (250 + (i % 7))); // day 1: all high
+      var afterGap = t0 + (288 * 5 + 14 * 60) * 60000; // 14 h gap
       for (i = 0; i < 288; i++) L.push(stamp(afterGap + i * 5 * 60000) + ',' + (55 + (i % 5))); // day 2: all low
       var gapped = G.compute({ text: L.join('\n'), filename: 'gap.csv' }, {});
       var gl = (gapped && gapped.glucose) || {};
       var tirPct = gl.tir && typeof gl.tir === 'object' ? gl.tir.tir : gl.tir;
       T.eq('§5 · every REAL reading is out of range ⇒ TIR is 0 % (long-gap fill contributes none)', tirPct, 0);
-      T.ok('§5 · the long gap is still reported as inactive time (pctActive < 100)', gl.pctActive != null && gl.pctActive < 100,
-        'pctActive=' + gl.pctActive);
-      T.ok('§5 · the REAL lows are still counted (the exclusion drops interpolation, not measurement)',
-        gl.tir && gl.tir.tbr1 > 0, 'tbr1=' + (gl.tir && gl.tir.tbr1));
+      T.ok('§5 · the long gap is still reported as inactive time (pctActive < 100)', gl.pctActive != null && gl.pctActive < 100, 'pctActive=' + gl.pctActive);
+      T.ok('§5 · the REAL lows are still counted (the exclusion drops interpolation, not measurement)', gl.tir && gl.tir.tbr1 > 0, 'tbr1=' + (gl.tir && gl.tir.tbr1));
 
       /* ── §6 · clip detection, with the false-positive control ──────────────────────────────────────── */
       var cgm = function (hardClip) {
-        var out = [HDR], g, h, k;
+        var out = [HDR],
+          g,
+          h,
+          k;
         for (k = 0; k < 8 * 24 * 12; k++) {
-          h = ((k * 5 / 60) % 24);
+          h = ((k * 5) / 60) % 24;
           g = 105 + 25 * Math.sin(k / 30) + 10 * Math.sin(k / 7);
-          if (h > 2 && h < 4) g = 42 + 8 * Math.sin(k / 3);   // a genuine nocturnal hypo, nadir ≈ 34
+          if (h > 2 && h < 4) g = 42 + 8 * Math.sin(k / 3); // a genuine nocturnal hypo, nadir ≈ 34
           g = Math.round(g);
-          if (hardClip) g = Math.max(55, Math.min(200, g));   // the Lingo rail
+          if (hardClip) g = Math.max(55, Math.min(200, g)); // the Lingo rail
           out.push(stamp(t0 + k * 5 * 60000) + ',' + g);
         }
         return out.join('\n');
@@ -4483,34 +4494,56 @@
       //     curve lingers at its turning point, so a mild pile-up at the minimum is PHYSIOLOGICAL (≈1.7×).
       //     Flagging it would hide true hypoglycemia.
       var unclipped = G.compute({ text: cgm(false), filename: 'unclipped.csv' }, {});
-      T.ok('§6 · a genuine nocturnal nadir is NOT flagged as a clip (real hypos stay real)',
+      T.ok(
+        '§6 · a genuine nocturnal nadir is NOT flagged as a clip (real hypos stay real)',
         !(unclipped.recording.clamp && unclipped.recording.clamp.detected === true),
-        'clamp=' + JSON.stringify(unclipped.recording.clamp));
-      var uHypo = (unclipped.ganglior_events || []).filter(function (e) { return /hypo/i.test(e.impulse); });
-      T.ok('§6 · its hypo events carry NO clampFloor flag', uHypo.length > 0 && uHypo.every(function (e) { return !(e.meta && e.meta.clampFloor); }),
-        uHypo.length + ' hypo event(s)');
+        'clamp=' + JSON.stringify(unclipped.recording.clamp)
+      );
+      var uHypo = (unclipped.ganglior_events || []).filter(function (e) {
+        return /hypo/i.test(e.impulse);
+      });
+      T.ok(
+        '§6 · its hypo events carry NO clampFloor flag',
+        uHypo.length > 0 &&
+          uHypo.every(function (e) {
+            return !(e.meta && e.meta.clampFloor);
+          }),
+        uHypo.length + ' hypo event(s)'
+      );
       // (b) THE REAL SHAPE. A vendor rail on a REALISTIC trace: the density RISES away from the floor
       //     (glucose is rarely at 56–57, often at 60+), exactly like the committed Abbott Lingo export
       //     (54:46 · 55:15 · 56:14 · 57:26 · 58:47 · 59:65). That rising bulk is what swamped the old
       //     5-mg/dL-wide inner slab and made the test un-trippable — a naive rail with nothing above it
       //     would NOT reproduce the bug, so this case is the one that matters.
-      var railed = [HDR], gv;
+      var railed = [HDR],
+        gv;
       for (i = 0; i < 8 * 24 * 12; i++) {
         gv = Math.round(110 + 45 * Math.sin(i / 40) + 15 * Math.sin(i / 9));
-        railed.push(stamp(t0 + i * 5 * 60000) + ',' + Math.max(55, Math.min(200, gv)));  // the vendor rail
+        railed.push(stamp(t0 + i * 5 * 60000) + ',' + Math.max(55, Math.min(200, gv))); // the vendor rail
       }
       var clipped = G.compute({ text: railed.join('\n'), filename: 'railed.csv' }, {});
       var cl = clipped.recording.clamp || {};
-      T.ok('§6 · a realistic vendor rail IS detected (the bins above it are populated and rising)',
-        cl.detected === true, 'clamp=' + JSON.stringify(cl));
+      T.ok('§6 · a realistic vendor rail IS detected (the bins above it are populated and rising)', cl.detected === true, 'clamp=' + JSON.stringify(cl));
       T.eq('§6 · the detected floor is the rail', cl.floor, 55);
-      T.ok('§6 · the clip-blinded metrics are named (TBR/LBGI/min/nocturnalHypo)',
+      T.ok(
+        '§6 · the clip-blinded metrics are named (TBR/LBGI/min/nocturnalHypo)',
         (cl.blindMetrics || []).indexOf('tbr1') >= 0 && (cl.blindMetrics || []).indexOf('nocturnalHypo') >= 0,
-        JSON.stringify(cl.blindMetrics));
-      var cHypo = (clipped.ganglior_events || []).filter(function (e) { return /hypo/i.test(e.impulse); });
-      T.ok('§6 · any hypo sitting ON the rail is flagged clampFloor (a clip artifact, not a real hypo)',
-        cHypo.every(function (e) { return e.meta && e.meta.clampFloor === true; }),
-        cHypo.length + ' hypo event(s), flagged=' + cHypo.filter(function (e) { return e.meta && e.meta.clampFloor; }).length);
+        JSON.stringify(cl.blindMetrics)
+      );
+      var cHypo = (clipped.ganglior_events || []).filter(function (e) {
+        return /hypo/i.test(e.impulse);
+      });
+      T.ok(
+        '§6 · any hypo sitting ON the rail is flagged clampFloor (a clip artifact, not a real hypo)',
+        cHypo.every(function (e) {
+          return e.meta && e.meta.clampFloor === true;
+        }),
+        cHypo.length +
+          ' hypo event(s), flagged=' +
+          cHypo.filter(function (e) {
+            return e.meta && e.meta.clampFloor;
+          }).length
+      );
     });
 
     group('GlucoDex clamp-saturation honesty flag (GLUCODEX-FOLLOWUPS §2)', 'glucodex-dsp · integrator-dsp', function (T) {
@@ -5877,20 +5910,27 @@
       }
       // 22:00 → 05:00, 1 Hz, with recurring RAMPED desaturations (96 → 86 → 96) every 30 min, so ODI-4
       // genuinely fires — a square-edged dip does not qualify, which is physiologically correct.
-      var p2 = function (n) { return n < 10 ? '0' + n : '' + n; };
+      var p2 = function (n) {
+        return n < 10 ? '0' + n : '' + n;
+      };
       function night(mdy) {
         var out = ['Time,Oxygen Level,Pulse Rate,Motion'];
         var t0 = Date.UTC(2026, 5, 12, 22, 0, 0); // 12 Jun 2026 22:00 — day 12 ≤ 12, so these rows are AMBIGUOUS
         for (var s = 0; s < 7 * 3600; s++) {
           var d = new Date(t0 + s * 1000);
-          var D = d.getUTCDate(), M = d.getUTCMonth() + 1, Y = d.getUTCFullYear();
+          var D = d.getUTCDate(),
+            M = d.getUTCMonth() + 1,
+            Y = d.getUTCFullYear();
           var hhmmss = p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds());
           var date = mdy ? p2(M) + '/' + p2(D) + '/' + Y : p2(D) + '/' + p2(M) + '/' + Y;
-          var k = s % 1800, spo2 = 96;
+          var k = s % 1800,
+            spo2 = 96;
           if (s >= 600) {
-            if (k < 10) spo2 = 96 - k;              // desaturate
-            else if (k < 25) spo2 = 86;             // nadir (−10 % → ODI-4)
-            else if (k < 35) spo2 = 86 + (k - 25);  // resaturate
+            if (k < 10)
+              spo2 = 96 - k; // desaturate
+            else if (k < 25)
+              spo2 = 86; // nadir (−10 % → ODI-4)
+            else if (k < 35) spo2 = 86 + (k - 25); // resaturate
           }
           out.push(hhmmss + ' ' + date + ',' + spo2 + ',60,0');
         }
@@ -7520,7 +7560,9 @@
           hrv: { time: { hr: 62, meanRR: 957.7, sdnn: 75.7, rmssd: 36.4, mode: 900, amo50: 30, mxDMn: 0.418 }, frequency: freq }
         };
       };
-      var isNaNv = function (v) { return typeof v === 'number' && isNaN(v); };
+      var isNaNv = function (v) {
+        return typeof v === 'number' && isNaN(v);
+      };
 
       // (a) the real ECGDex/PpgDex shape: lf + hf, but NO totalPower / vlf.
       var rNoTp = HD.derive([HD.rowFromNodeExport(nodeExport({ lf: 780, hf: 1250 }))])[0];
@@ -7548,12 +7590,13 @@
       msExport.hrv.time.mxDMn = 418; // the SAME MxDMn, expressed in ms instead of s
       msExport.hrv.time.mode = 900;
       var millis = HD.derive([HD.rowFromNodeExport(msExport)])[0];
-      T.ok('§4 · MxDMn/MeanRR is unit-INVARIANT (s-file == ms-file)', Math.abs(seconds.d_mxdmn_meanrr - millis.d_mxdmn_meanrr) < 1e-9,
-        's=' + seconds.d_mxdmn_meanrr + ' ms=' + millis.d_mxdmn_meanrr);
-      T.ok('§4 · MxDMn/MeanRR == d_csi (they ARE the same quantity — no un-guarded fork)', Math.abs(seconds.d_mxdmn_meanrr - seconds.d_csi) < 1e-9,
-        'mxdmn_meanrr=' + seconds.d_mxdmn_meanrr + ' csi=' + seconds.d_csi);
-      T.ok('§4 · the ratio is physiological (~0.4), not 1000× low (~0.0004)', seconds.d_mxdmn_meanrr > 0.01,
-        'd_mxdmn_meanrr=' + seconds.d_mxdmn_meanrr);
+      T.ok('§4 · MxDMn/MeanRR is unit-INVARIANT (s-file == ms-file)', Math.abs(seconds.d_mxdmn_meanrr - millis.d_mxdmn_meanrr) < 1e-9, 's=' + seconds.d_mxdmn_meanrr + ' ms=' + millis.d_mxdmn_meanrr);
+      T.ok(
+        '§4 · MxDMn/MeanRR == d_csi (they ARE the same quantity — no un-guarded fork)',
+        Math.abs(seconds.d_mxdmn_meanrr - seconds.d_csi) < 1e-9,
+        'mxdmn_meanrr=' + seconds.d_mxdmn_meanrr + ' csi=' + seconds.d_csi
+      );
+      T.ok('§4 · the ratio is physiological (~0.4), not 1000× low (~0.0004)', seconds.d_mxdmn_meanrr > 0.01, 'd_mxdmn_meanrr=' + seconds.d_mxdmn_meanrr);
     });
 
     group('HRVDex Phase-9 — compute() surface + summary adapter', 'hrvdex-dsp · adapters · signal-orchestrate', function (T) {
@@ -10828,16 +10871,24 @@
             var accHead = 'Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]\n2026-06-17T01:06:19.794;599630060275983872;211;23;975';
             var rAcc = SA.route({ name: 'Polar_H10_AAAAAAAA_20260617_010616_ACC.txt' }, accHead);
             T.ok('*_ACC.txt is SET ASIDE, not analyzed as RR (gravity is not a heartbeat)', rAcc.unknown === true, rAcc.best ? 'routed to ' + rAcc.best.id + ' @' + rAcc.best.confidence : 'unknown');
-            var rMag = SA.route({ name: 'Polar_Sense_BBBBBBBB_20260609_194340_MAGN.txt' }, 'Phone timestamp;sensor timestamp [ns];X [G];Y [G];Z [G]\n2026-06-09T19:43:40.000;834363822717523328;0.12;-0.44;0.31');
+            var rMag = SA.route(
+              { name: 'Polar_Sense_BBBBBBBB_20260609_194340_MAGN.txt' },
+              'Phone timestamp;sensor timestamp [ns];X [G];Y [G];Z [G]\n2026-06-09T19:43:40.000;834363822717523328;0.12;-0.44;0.31'
+            );
             T.ok('*_MAGN.txt is SET ASIDE, not analyzed as RR', rMag.unknown === true, rMag.best ? 'routed to ' + rMag.best.id : 'unknown');
-            var rGyr = SA.route({ name: 'Polar_Sense_BBBBBBBB_20260609_194341_GYRO.txt' }, 'Phone timestamp;sensor timestamp [ns];X [dps];Y [dps];Z [dps]\n2026-06-09T19:43:45.447;834363822717523328;-3.66;1.41;-2.13');
+            var rGyr = SA.route(
+              { name: 'Polar_Sense_BBBBBBBB_20260609_194341_GYRO.txt' },
+              'Phone timestamp;sensor timestamp [ns];X [dps];Y [dps];Z [dps]\n2026-06-09T19:43:45.447;834363822717523328;-3.66;1.41;-2.13'
+            );
             T.ok('*_GYRO.txt is SET ASIDE, not analyzed as RR', rGyr.unknown === true, rGyr.best ? 'routed to ' + rGyr.best.id : 'unknown');
             // the veto must also hold on a RENAMED file — the declared unit alone is disqualifying.
             var rAccRenamed = SA.route({ name: 'session-3.txt' }, accHead);
             T.ok('a renamed motion stream is still refused (declared [mg] unit is disqualifying)', rAccRenamed.unknown === true, rAccRenamed.best ? 'routed to ' + rAccRenamed.best.id : 'unknown');
             // and the bare PSL envelope alone must no longer be evidence of an RR stream.
-            T.ok('the bare "Phone timestamp" PSL envelope alone no longer votes for polar-rr',
-              SA.route({ name: 'mystery.txt' }, 'Phone timestamp;sensor timestamp [ns]\n2026-06-17T01:00:00.000;599630059061536896').unknown === true);
+            T.ok(
+              'the bare "Phone timestamp" PSL envelope alone no longer votes for polar-rr',
+              SA.route({ name: 'mystery.txt' }, 'Phone timestamp;sensor timestamp [ns]\n2026-06-17T01:00:00.000;599630059061536896').unknown === true
+            );
 
             var rRr2 = SA.route({ name: 'Polar_H10_AAAAAAAA_20260617_010615_RR.txt' }, 'Phone timestamp;RR-interval [ms]\n2026-06-17T01:00:00.000+02:00;850');
             T.ok(

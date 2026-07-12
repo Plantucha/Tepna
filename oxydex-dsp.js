@@ -547,7 +547,7 @@
       var _sp = lines[_si].trim().split(',');
       if (_sp.length >= 3 && timeCol < _sp.length) _stamps.push(_sp[timeCol].trim());
     }
-    var _order = DexClock.resolveDMY(_stamps, true);   // O2Ring default is DMY when genuinely ambiguous
+    var _order = DexClock.resolveDMY(_stamps, true); // O2Ring default is DMY when genuinely ambiguous
     var _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked };
     for (var i = firstDataIdx; i < lines.length; i++) {
       var p = lines[i].trim().split(',');

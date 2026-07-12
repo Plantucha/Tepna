@@ -68,9 +68,11 @@ function resolveDMY(rawStamps, preferDMY){
   for(var i=0;i<list.length;i++){
     var s = list[i]; if(typeof s !== 'string') continue;
     s = s.trim().replace(/^["']|["']$/g,'');
-    var a=null,b=null,m;
-    if((m = s.match(RE_A))){ a=+m[4]; b=+m[5]; }
-    else if((m = s.match(RE_C))){ a=+m[1]; b=+m[2]; }
+    var a=null,b=null;
+    var mA = s.match(RE_A);
+    var mC = mA ? null : s.match(RE_C);
+    if(mA){ a=+mA[4]; b=+mA[5]; }
+    else if(mC){ a=+mC[1]; b=+mC[2]; }
     else continue;
     if(a>12) sawDMY = true;
     if(b>12) sawMDY = true;
