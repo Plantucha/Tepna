@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+ClpxncoCwII4Ysf9xBe3qqQn/BFARuknGwXVY2msB4=' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-PArDvDhErJwO+wTzwcD7jPN80C3++xYdXhoiobUx5Bw=' 'sha256-SbhMwvzlpgPhlroU5JoY5kACF2lbh9q6MEOKlFWAwWY=' 'sha256-V0C9qWkelizTKHjPEtlWmyTc4pTsPSf41HTe+Ia2y7Y=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-fMc9CU/q1VvrJCsgM4ooVNOe7km3XmXzEht5GJyi2Ng=' 'sha256-g91aaqiPAk+kwULv2BoPpUqhOueAaMGo8NpOvIRpZRk=' 'sha256-ixODejgAnxlJJXcqi8CV+6MUkFag+Feel3Zutcd8jmM=' 'sha256-oR/OkrOh3MTME742+g+gHcB6jvGBAOrh7t31jfMfic4=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-qIOO0xxN906bUVrLD1KREXgehS4tUbYB20NtPtilrwk=' 'sha256-znnyGiXDcfbU3wUjydrmyWCFBC9U8tWF9ZOIH8oZ9no=' 'sha256-zoX0rksSqUxFePSlhG6+8O2Euarj7JlN/OQ/SqQyThw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+ClpxncoCwII4Ysf9xBe3qqQn/BFARuknGwXVY2msB4=' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-IJ8mbnmkr4o94oh8YkT3mK1n2wYABttxuoRD+1Mvt6Y=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-PArDvDhErJwO+wTzwcD7jPN80C3++xYdXhoiobUx5Bw=' 'sha256-SbhMwvzlpgPhlroU5JoY5kACF2lbh9q6MEOKlFWAwWY=' 'sha256-V0C9qWkelizTKHjPEtlWmyTc4pTsPSf41HTe+Ia2y7Y=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-g91aaqiPAk+kwULv2BoPpUqhOueAaMGo8NpOvIRpZRk=' 'sha256-ixODejgAnxlJJXcqi8CV+6MUkFag+Feel3Zutcd8jmM=' 'sha256-oR/OkrOh3MTME742+g+gHcB6jvGBAOrh7t31jfMfic4=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-qIOO0xxN906bUVrLD1KREXgehS4tUbYB20NtPtilrwk=' 'sha256-znnyGiXDcfbU3wUjydrmyWCFBC9U8tWF9ZOIH8oZ9no=' 'sha256-zoX0rksSqUxFePSlhG6+8O2Euarj7JlN/OQ/SqQyThw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PpgDex — Raw Wrist-PPG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -6518,7 +6518,7 @@ function buildEpochs(nn, tt, motion, perfWindow, cleanMask, agreeI){
     let ledAgreementPct=null;
     if(agreeI){ const av=idx.map(i=>agreeI[i]).filter(v=>v!=null); if(av.length) ledAgreementPct=Math.round(100*mean(av)); }
     epochs.push({ tMin:Math.round(e0/60), beats:idx.length, hr:td.hr, meanRR:td.meanRR, rmssd:td.rmssd, sdnn:td.sdnn,
-      pnn50:td.pnn50, lf:ls?ls.lf:null, hf:ls?ls.hf:null, lfhf:ls?ls.lfhf:null, respRate:null, pi, motionIndex:mi,
+      pnn50:td.pnn50, lf:ls?ls.lf:null, hf:ls?ls.hf:null, vlf:ls?ls.vlf:null, tp:ls?ls.totalPower:null, lfhf:ls?ls.lfhf:null, respRate:null, pi, motionIndex:mi,
       ledAgreementPct,
       position, positionConf: post?post.conf:null, headingDeg: post?post.heading:null, magInterference: post?!!post.magInterf:false });
   }
@@ -6652,7 +6652,7 @@ function analyze(rec, progress){
   // flagged. Residual HF (+17%) is genuine respiratory PTT — but its excess is MOTION-DRIVEN
   // (+43% high-motion vs +12% low-motion on the paired night), so a low-motion HF + a GRADED
   // per-metric confidence (below) turn the blanket flag into an earned, continuous score.
-  let sdnnIndex=null, sdnnRobust=null, sdnnRobustNEpochs=0, sd2Robust=null, lfRobust=null, hfRobust=null, lfhfRobust=null, hfRobustLowMotion=null, hrvConfidence=null;
+  let sdnnIndex=null, sdnnRobust=null, sdnnRobustNEpochs=0, sd2Robust=null, lfRobust=null, hfRobust=null, vlfRobust=null, tpRobust=null, lfhfRobust=null, hfRobustLowMotion=null, hrvConfidence=null;
   if(epochs.length){
     const segAll = epochs.map(e=>e.sdnn).filter(v=>v!=null && isFinite(v));
     if(segAll.length){
@@ -6673,9 +6673,13 @@ function analyze(rec, progress){
       const lfA=usable.map(e=>e.lf).filter(v=>v!=null&&isFinite(v));
       const hfA=usable.map(e=>e.hf).filter(v=>v!=null&&isFinite(v));
       const lhA=usable.map(e=>e.lfhf).filter(v=>v!=null&&isFinite(v));
+      const vlA=usable.map(e=>e.vlf).filter(v=>v!=null&&isFinite(v));
       if(lfA.length>=3) lfRobust=r1(median(lfA));
       if(hfA.length>=3) hfRobust=r1(median(hfA));
       if(lhA.length>=3) lfhfRobust=r2(median(lhA));
+      if(vlA.length>=3) vlfRobust=r1(median(vlA));
+      // DEEP-AUDIT §10: totalPower is DEFINED as the sum of the reported bands, so vlf+lf+hf == tp exactly.
+      if(vlfRobust!=null && lfRobust!=null && hfRobust!=null) tpRobust = r1(vlfRobust + lfRobust + hfRobust);
     }
     // (a) MOTION-GATED HF — HF excess is motion-driven, so a low-motion-only median approaches the
     // clean floor (~+12% vs ECG) rather than the mixed +17%. Stricter gate than the shared 0.5.
@@ -6759,7 +6763,7 @@ function analyze(rec, progress){
     nPulses:det.peaks.length, nBeats:det.peaks.length,
     hr:td.hr, dispHr, dispRm:td.rmssd, dispSd:td.sdnn, dispPn:td.pnn50,
     meanRR:td.meanRR, sdnn:td.sdnn, rmssd:td.rmssd, pnn50:td.pnn50, lnRMSSD:td.lnRMSSD, triIdx:td.triIdx,
-    sdnnIndex, sdnnRobust, sdnnRobustNEpochs, sd2Robust, lfRobust, hfRobust, lfhfRobust, hfRobustLowMotion, hrvConfidence,
+    sdnnIndex, sdnnRobust, sdnnRobustNEpochs, sd2Robust, lfRobust, hfRobust, vlfRobust, tpRobust, lfhfRobust, hfRobustLowMotion, hrvConfidence,
     nn, tt:corr.tt, poincareNN:nn, sd1:poin?poin.sd1:null, sd2:poin?poin.sd2:null, sd1sd2:poin?poin.sd1sd2:null, ellArea:poin?poin.ellArea:null,
     freq, dfa1, sampen:se,
     epochs,
@@ -6973,7 +6977,34 @@ function ppgBuildNodeExport(r, opts){
         window:'wholeRecord', units:'ms', lowConfidence:!!r.hrvLowConfidence, lowConfidenceReason:(r.hrvLowConfidenceReason||null),
         windowNote:'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD.',
         sdnnNote:'whole-record sdnn runs high on optical (SDANN/baseline-wander inflation, ~+26% vs chest ECG). sdnnIndex = mean of per-5-min SDNN (~+18%); sdnnRobust = quality-gated MEDIAN of per-5-min SDNN (~+3.5% vs ECG truth) — use sdnnRobust for cross-node SDNN comparison.' },
-      frequency:{ lf:nz(fq.lf), hf:nz(fq.hf), lfhf:nz(fq.lfhf), method:'Lomb-Scargle', lowConfidence:!!r.hrvLowConfidence, lfRobust:nz(r.lfRobust), hfRobust:nz(r.hfRobust), lfhfRobust:nz(r.lfhfRobust), hfRobustLowMotion:nz(r.hfRobustLowMotion) },
+      /* DEEP-AUDIT-2026-07-11 §10/§11: export the 5-MIN EPOCH-MEDIAN spectrum as the primary band set —
+         PpgDex already computed it (the *Robust twins) but shipped the WHOLE-RECORD Lomb–Scargle instead.
+         Two problems, both gone with one change:
+           §11 the whole-record band split is a GRID LOTTERY. df is hard-coded at 0.002 Hz regardless of
+               record length, while a night's intrinsic resolution is 1/T ≈ 3.8e-5 Hz — ~50× finer — so
+               the Riemann sum samples a spiky periodogram at arbitrary points and the split does not
+               converge. (Parseval pins the TOTAL to the variance, which is why it looked fine.)
+           §10 it also put PpgDex on a DIFFERENT time scale from ECGDex's epoch-median lfhf, so the
+               Integrator's cross-node HRV divergence was inflated by a pure definition mismatch.
+         At the 5-min scale df = 0.002 Hz is finer than the epoch's own 1/300 s = 0.0033 Hz resolution, so
+         the grid is adequate by construction. totalPower is the SUM of the reported bands, so the
+         Task-Force identity vlf+lf+hf == totalPower holds exactly. `window` names the scale so a consumer
+         can refuse to compare it against a whole-record value. The whole-record numbers are kept under
+         explicit wholeRecord* keys — labelled, not silently mixed in. */
+      frequency:(function(){
+        const epochScale = (r.lfRobust!=null && r.hfRobust!=null);
+        return {
+          vlf: epochScale ? nz(r.vlfRobust) : nz(fq.vlf),
+          lf:  epochScale ? nz(r.lfRobust)  : nz(fq.lf),
+          hf:  epochScale ? nz(r.hfRobust)  : nz(fq.hf),
+          totalPower: epochScale ? nz(r.tpRobust) : nz(fq.totalPower),
+          lfhf: epochScale ? nz(r.lfhfRobust) : nz(fq.lfhf),
+          window: epochScale ? 'epochMedian5min' : 'wholeRecord',
+          method:'Lomb-Scargle', lowConfidence:!!r.hrvLowConfidence,
+          hfRobustLowMotion:nz(r.hfRobustLowMotion),
+          wholeRecordLf:nz(fq.lf), wholeRecordHf:nz(fq.hf), wholeRecordLfhf:nz(fq.lfhf)
+        };
+      })(),
       confidence:(r.hrvConfidence||null)
     };
     out.timeseries = {

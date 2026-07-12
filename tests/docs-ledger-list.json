@@ -470,6 +470,7 @@
     "changes",
     "changes/2026-07-12-ecgdex-export-respiration.md",
     "changes/2026-07-12-profiled-hotspots-brief.md",
+    "changes/2026-07-12-spectral-one-scale-no-grid-lottery.md",
     "changes/2026-07-12-tch-reference-validation-brief.md",
     "changes/README.md",
     "clock.js",
