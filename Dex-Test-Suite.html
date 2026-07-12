@@ -451,6 +451,10 @@ async function main(){
   // ── CPAPDex node self-tests (fold in the standalone cpapdex-edf-selftest.html harness) ──
   ALL_GROUPS.push(...cpapSelfTestGroups());
   ALL_GROUPS.push(cpapCoimportGroup());
+  // The REAL-Worker rig (browser-only — Node has no Worker, and the headless lanes cover the blob's
+  // realm semantics instead). Cheap (~10k samples), so it rides the HEADLESS FLOOR rather than ?full:
+  // the bug it guards shipped for weeks and only ever showed up in a live console.
+  if (typeof Worker !== 'undefined' && window.PPGDSP) ALL_GROUPS.push(await ppgWorkerPoolGroup());
   render();
 
   // ── browser-only: render coverage (computed values must reach the DOM) ──
@@ -826,6 +830,60 @@ async function renderCoverageECGDex(){
 
 /* CPAPDex cross-node co-import: OxyDex/ECGDex node-export ingest + temporal-overlap
    pairing + borrowed-oximetry / autonomic-corroboration math. */
+/* ── browser-only: the PPG pool must run a REAL Worker, and agree with the serial path ──────────
+   The headless lanes rebuild the blob's source and execute it in worker-realm semantics (dex-tests.js),
+   which is what catches a closure break in CI. But only a browser has an actual Worker, and there is a
+   trap that makes this rig subtle:
+
+     detectChannelsAsync FALLS BACK to the serial path on w.onerror.
+
+   So comparing its RESULTS against serial can NEVER reveal a dead worker — they are identical either
+   way. That is precisely how the pool came to sit dead for weeks behind `ReferenceError: cadenceSamples
+   is not defined`, with every number still right. A results-only check would have gone green the whole
+   time.
+
+   Therefore this rig OBSERVES THE WORKER ITSELF: it wraps window.Worker, and asserts a real one was
+   spawned AND that none of them errored — then, separately, that the output matches serial. */
+async function ppgWorkerPoolGroup(){
+  const g = mkGroup('PpgDex REAL Worker pool — actually spawns, does not throw, ≡ serial', 'browser-only · ppgdex-dsp · worker');
+  const D = window.PPGDSP;
+  if(!D || typeof D.detectChannelsAsync !== 'function'){ add(g, 'PPGDSP.detectChannelsAsync available', false, 'missing'); return g; }
+
+  const fs = 176.26, n = Math.round(fs * 60);           // NON-integer fs — a real Polar file never has one
+  const ch = [0,1,2].map(k => { const a = new Float32Array(n);
+    for(let i=0;i<n;i++) a[i] = 1000 + 40*Math.sin(2*Math.PI*1.2*i/fs + k*0.3) + 6*Math.sin(i/3);
+    return a; });
+  const rec = { ch, fs };
+
+  const OW = window.Worker;
+  let spawned = 0; const werrs = [];
+  window.Worker = function(u,o){ spawned++; const w = new OW(u,o);
+    w.addEventListener('error', ev => werrs.push(ev.message || 'worker error')); return w; };
+  window.Worker.prototype = OW.prototype;
+  let out = null, thrown = '';
+  try { out = await D.detectChannelsAsync(rec); }
+  catch(e){ thrown = String((e && e.message) || e); }
+  finally { window.Worker = OW; }
+
+  add(g, 'detectChannelsAsync resolved', !thrown, thrown);
+  add(g, 'a REAL Worker was spawned (the pool is alive, not silently skipped)', spawned > 0, 'spawned=' + spawned);
+  // THE assertion the old suite could not make: a throwing worker still returns correct numbers via the
+  // serial fallback, so only the worker's OWN error channel exposes it.
+  add(g, 'NO worker threw — a dead worker falls back to serial, so results alone can never reveal it', werrs.length === 0, werrs.join(' | '));
+  if(!out || !out.length) return g;
+
+  const arr = x => JSON.stringify(Array.prototype.slice.call(x || []));
+  let mismatch = '';
+  for(let k=0;k<ch.length;k++){
+    const s = D.detectChannel(ch[k], fs);
+    if(arr(out[k].peaks) !== arr(s.peaks)) mismatch += ' ch'+k+':peaks';
+    if(arr(out[k].feet)  !== arr(s.feet))  mismatch += ' ch'+k+':feet';
+    if(out[k].sign !== s.sign)             mismatch += ' ch'+k+':sign';
+  }
+  add(g, 'worker output ≡ serial output on all 3 channels (workers change WHEN, never WHAT)', !mismatch, mismatch);
+  return g;
+}
+
 function cpapCoimportGroup(){
   const g = mkGroup('CPAPDex cross-node co-import', 'node · cpapdex-coimport.js');
   const CN = window.CpapCoimport;

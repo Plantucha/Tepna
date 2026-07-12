@@ -185,6 +185,7 @@ brief TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md
 brief TRIO-METHODS-REUSE-2026-07-06-BRIEF.md
 brief VERITY-SIGMA-CORNER-BRIEF.md
 brief WELLTORY-COMPOSITES-ENDGAME-2026-07-01-BRIEF.md
+brief WORKER-REALM-GATES-2026-07-12-BRIEF.md
 path ARCHITECTURE-PRINCIPLES.md
 path AUDIT-PROMPT.md
 path Architecture.html
@@ -468,6 +469,7 @@ path briefs/TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md
 path briefs/TRIO-METHODS-REUSE-2026-07-06-BRIEF.md
 path briefs/VERITY-SIGMA-CORNER-BRIEF.md
 path briefs/WELLTORY-COMPOSITES-ENDGAME-2026-07-01-BRIEF.md
+path briefs/WORKER-REALM-GATES-2026-07-12-BRIEF.md
 path capture-host
 path capture-host/Caddyfile
 path capture-host/README.md
@@ -493,6 +495,7 @@ path changes/2026-07-12-profiled-hotspots-brief.md
 path changes/2026-07-12-r5-hr-triplet-reference.md
 path changes/2026-07-12-spectral-one-scale-no-grid-lottery.md
 path changes/2026-07-12-tch-reference-validation-brief.md
+path changes/2026-07-12-worker-realm-gates.md
 path changes/README.md
 path clock.js
 path codegen

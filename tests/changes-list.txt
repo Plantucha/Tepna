@@ -16,3 +16,4 @@ change 2026-07-12-profiled-hotspots-brief.md
 change 2026-07-12-r5-hr-triplet-reference.md
 change 2026-07-12-spectral-one-scale-no-grid-lottery.md
 change 2026-07-12-tch-reference-validation-brief.md
+change 2026-07-12-worker-realm-gates.md

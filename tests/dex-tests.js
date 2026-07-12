@@ -4491,6 +4491,188 @@
        worker-shipped code references must itself be shipped. Note BOTH halves — a call-graph check alone
        misses the const, which is exactly what happened here (only actually running the worker realm found
        REFR_CADENCE_FRAC). */
+    /* ════ Worker-realm helpers (shared by the two groups below) ════
+       A Worker realm starts EMPTY: only what the blob's own source declares exists in it. `new Function`
+       reproduces exactly that semantics in BOTH lanes — the DSP's module-private functions live inside an
+       IIFE, so they are NOT globals, and a free reference to one throws just as it would in the worker.
+       That is what lets these run headless in CI instead of only in a browser. */
+    function _fnBodyFrom(src, name) {
+      var i = src.search(new RegExp('^function\\s+' + name + '\\s*\\(', 'm'));
+      if (i < 0) return '';
+      var d = 0,
+        started = false;
+      for (var k = i; k < src.length; k++) {
+        if (src.charAt(k) === '{') {
+          d++;
+          started = true;
+        } else if (src.charAt(k) === '}') {
+          d--;
+          if (started && d === 0) return src.slice(i, k + 1);
+        }
+      }
+      return '';
+    }
+    // rebuild the PPG worker blob's source exactly as _buildWorkerURL() does
+    function _ppgWorkerSource(src) {
+      var mD = src.match(/var\s+deps\s*=\s*\[([^\]]+)\]/);
+      var mC = src.match(/var\s+consts\s*=\s*\{([^}]*)\}/);
+      if (!mD) return null;
+      var names = mD[1]
+        .split(',')
+        .map(function (s) {
+          return s.trim();
+        })
+        .filter(Boolean);
+      var cs = '';
+      if (mC) {
+        (mC[1].match(/([A-Za-z_$][\w$]*)\s*:/g) || []).forEach(function (t) {
+          var n = t.replace(':', '').trim();
+          var m = src.match(new RegExp('^const\\s+' + n + '\\s*=\\s*([^;]+);', 'm'));
+          if (m) cs += 'const ' + n + '=' + m[1].trim() + ';\n';
+        });
+      }
+      return (
+        cs +
+        names
+          .map(function (n) {
+            return _fnBodyFrom(src, n);
+          })
+          .join('\n')
+      );
+    }
+
+    /* ════ ECGDex >5 MB path: the worker carries its OWN parseTimestamp ════
+       ecgdex-app.js's WORKER_SRC inlines a private clock parser (`_ckPF`) — "workers can't see page
+       scope". That makes it a FOURTH parseTimestamp implementation. CLAUDE.md §🔒 single-sources the
+       parser in clock.js and enumerates exactly three deliberate node-local variants (ppgdex, glucodex,
+       cpapdex); this one is not among them and had NO parity gate.
+
+       Why that is the worst place for a mirror to hide: `_ckPF` runs ONLY when the ECG ingest goes through
+       the worker, which is gated on `totalSize > 5e6 || files.length > 1`. So a drift here would corrupt
+       timestamps EXCLUSIVELY on large overnight recordings — the actual use case — while every small file,
+       every fixture and every gate kept parsing correctly through clock.js. Silent, and size-dependent.
+       So the mirror is now pinned to DexClock across the full vendor battery. */
+    group('ECGDex worker clock — the >5 MB path parses timestamps IDENTICALLY to clock.js', 'ecgdex-app · worker · clock-contract', function (T) {
+      var app = (env.sources && env.sources['ecgdex-app.js']) || '';
+      var P = env.parseTimestamp;
+      T.ok('ecgdex-app.js source + DexClock.parseTimestamp available', !!app && typeof P === 'function');
+      if (!app || typeof P !== 'function') return;
+
+      var i = app.indexOf('const WORKER_SRC = `');
+      T.ok('WORKER_SRC template found', i >= 0);
+      if (i < 0) return;
+      // un-escape the template literal exactly as the runtime does when the blob is minted
+      var ws = app.slice(i, app.indexOf('`;', i)).replace(/\\\\/g, '\\').replace(/\\`/g, '`');
+      var s0 = ws.indexOf('const _ckPF');
+      T.ok('the worker declares its own inline clock parser (_ckPF)', s0 >= 0);
+      if (s0 < 0) return;
+      var d = 0,
+        started = false,
+        end = -1;
+      for (var k = s0; k < ws.length; k++) {
+        if (ws.charAt(k) === '{') {
+          d++;
+          started = true;
+        } else if (ws.charAt(k) === '}') {
+          d--;
+          if (started && d === 0) {
+            end = k + 1;
+            break;
+          }
+        }
+      }
+      var ckPF = null;
+      try {
+        ckPF = new Function(ws.slice(s0, end) + ';\nreturn _ckPF;')();
+      } catch (e) {
+        T.ok('_ckPF is evaluable in an empty (worker-like) realm', false, e.message);
+        return;
+      }
+      T.ok('_ckPF is evaluable in an empty (worker-like) realm', typeof ckPF === 'function');
+
+      // the vendor battery the Clock Contract §2 enumerates — every format an ECG file can carry
+      var BATTERY = [
+        '2026-06-17T01:06:17.723', // Polar Sensor Logger (the real ECG format)
+        '2026-06-17T01:06:17.723Z', // zoned UTC
+        '2026-06-17T01:06:17.723+02:00', // zoned +02:00
+        '2026-06-17 01:06:17', // no-zone, space-separated
+        '2026-06-17T01:06:17', // no ms
+        '01:06:17 17/06/2026', // O2Ring DMY
+        '01:06:17 06/17/2026', // O2Ring MDY (day>12 proves the order)
+        '17/06/2026 01:06', // Welltory DMY
+        '06/17/2026 01:06', // Welltory MDY
+        '1781658377723', // numeric epoch
+        'garbage', // must be null, never fabricated
+        '' // empty → null
+      ];
+      var diverged = [];
+      BATTERY.forEach(function (s) {
+        var a = P(s, {});
+        var av = a ? a.tMs : null;
+        var bv;
+        try {
+          bv = ckPF(s);
+        } catch (e) {
+          bv = 'THREW:' + e.message;
+        }
+        if (String(av) !== String(bv)) diverged.push(s + ' → clock.js ' + av + ' vs worker ' + bv);
+      });
+      T.eq('the worker parser agrees with clock.js on EVERY vendor format (a drift here would corrupt ONLY >5 MB recordings)', diverged, []);
+    });
+
+    /* ════ The PPG worker blob must actually RUN, and agree with the serial path ════
+       The `worker source is CLOSED` group above is STATIC — and static analysis already lied once on this
+       exact bug: it said CLOSED while the worker still threw `REFR_CADENCE_FRAC is not defined`, because a
+       module const does not travel with Function.toString(). Only EXECUTING the realm found it.
+       So this group executes it: rebuild the blob's source, evaluate it in worker-realm semantics, run
+       detectChannel, and assert byte-identity with the module's serial detectChannel. That is the contract
+       the code claims — "workers change WHEN the work runs, never WHAT it computes" — and until now nothing
+       checked it, which is how the pool sat dead behind a silent w.onerror fallback. */
+    group('PpgDex worker blob EXECUTES and ≡ the serial path (not just statically closed)', 'ppgdex-dsp · worker · regression', function (T) {
+      var src = (env.sources && env.sources['ppgdex-dsp.js']) || '';
+      var D = env.PPGDSP;
+      T.ok('ppgdex-dsp.js source + PPGDSP available', !!src && !!(D && typeof D.detectChannel === 'function'));
+      if (!src || !(D && typeof D.detectChannel === 'function')) return;
+
+      var wsrc = _ppgWorkerSource(src);
+      T.ok('the worker blob source could be rebuilt from the deps list', !!wsrc);
+      if (!wsrc) return;
+
+      var workerDetect = null;
+      try {
+        workerDetect = new Function(wsrc + '\nreturn detectChannel;')();
+      } catch (e) {
+        T.ok('the worker blob EVALUATES in an empty realm', false, e.message);
+        return;
+      }
+      T.ok('the worker blob EVALUATES in an empty realm', typeof workerDetect === 'function');
+
+      // a real-shaped channel: NON-INTEGER fs (a real Polar file never has an integer one)
+      var fs = 176.26,
+        n = Math.round(fs * 60);
+      var chan = new Float32Array(n);
+      for (var i = 0; i < n; i++) chan[i] = 1000 + 40 * Math.sin((2 * Math.PI * 1.2 * i) / fs) + 6 * Math.sin(i / 3);
+
+      var wOut = null,
+        threw = '';
+      try {
+        wOut = workerDetect(chan, fs); // THE call that used to throw `cadenceSamples is not defined`
+      } catch (e) {
+        threw = e.constructor.name + ': ' + e.message;
+      }
+      T.ok('the worker RUNS detectChannel without a ReferenceError (the demo-console bug)', !threw, threw);
+      if (threw) return;
+
+      var sOut = D.detectChannel(chan, fs);
+      var arr = function (x) {
+        return JSON.stringify(Array.prototype.slice.call(x || []));
+      };
+      T.ok('worker found beats at all', wOut && wOut.peaks && wOut.peaks.length > 5, 'peaks=' + (wOut && wOut.peaks && wOut.peaks.length));
+      T.eq('worker peaks ≡ serial peaks (workers change WHEN the work runs, never WHAT it computes)', arr(wOut.peaks), arr(sOut.peaks));
+      T.eq('worker feet ≡ serial feet', arr(wOut.feet), arr(sOut.feet));
+      T.eq('worker sign ≡ serial sign', wOut.sign, sOut.sign);
+    });
+
     group('PpgDex worker source is CLOSED — every function + const it references is shipped to the blob', 'ppgdex-dsp · worker · regression', function (T) {
       var src = (env.sources && env.sources['ppgdex-dsp.js']) || '';
       T.ok('ppgdex-dsp.js source available to the gate', !!src);
