@@ -123,6 +123,35 @@
       T.eq('DMY (preferDMY) 13/05/2026', (P('13/05/2026 08:30', { preferDMY: true }) || {}).tMs, U(2026, 4, 13, 8, 30));
       T.eq('MDY (preferDMY false) 05/13/2026', (P('05/13/2026 08:30', { preferDMY: false }) || {}).tMs, U(2026, 4, 13, 8, 30));
       T.eq('O2Ring "HH:MM:SS DD/MM/YYYY"', (P('22:00:00 07/06/2026', { preferDMY: true }) || {}).tMs, U(2026, 5, 7, 22, 0, 0));
+
+      /* §3 FILE-LEVEL DMY/MDY LOCK (DEEP-AUDIT-2026-07-11 §1). The Contract says: "Any row with
+         day-component > 12 ⇒ file is unambiguous; lock that order for the whole file … Never switch
+         order mid-file." Before the lock, _ckDMY decided PER ROW, so an MM/DD O2Ring file read
+         06/12 as Dec-6 and 06/13 as Jun-13 — the order flipped mid-file, time ran BACKWARD, and the
+         night shipped durationMin = -254460 with ODI-4 = 0 (an apnea night reading as healthy). */
+      var RD = env.DexClock && env.DexClock.resolveDMY;
+      if (typeof RD === 'function') {
+        var lockDMY = RD(['23:00:00 13/05/2026', '01:00:00 06/05/2026'], true);
+        T.ok('§3 lock · a row with day>12 PROVES DMY', lockDMY.dmy === true && lockDMY.locked === true, JSON.stringify(lockDMY));
+        var lockMDY = RD(['23:00:00 05/13/2026', '01:00:00 05/06/2026'], true);
+        T.ok('§3 lock · a row with month-slot>12 PROVES MDY (beats preferDMY)', lockMDY.dmy === false && lockMDY.locked === true, JSON.stringify(lockMDY));
+        var amb = RD(['23:00:00 06/05/2026', '01:00:00 07/05/2026'], true);
+        T.ok('§3 lock · genuinely ambiguous file falls back to preferDMY, unlocked', amb.dmy === true && amb.locked === false, JSON.stringify(amb));
+        var contra = RD(['23:00:00 13/05/2026', '01:00:00 05/13/2026'], true);
+        T.ok('§3 lock · a file carrying BOTH proofs is contradictory → refuse, never guess', contra.contradictory === true && contra.locked === false, JSON.stringify(contra));
+        // the mid-file switch itself: under a locked MDY order, 06/12 and 06/13 must BOTH read as June.
+        var mdyOpt = { preferDMY: false, dmyLocked: true };
+        T.eq('§3 lock · MDY file: 06/12 → Jun 12 (not Dec 6)', (P('23:00:00 06/12/2026', mdyOpt) || {}).tMs, U(2026, 5, 12, 23, 0, 0));
+        T.eq('§3 lock · MDY file: 06/13 → Jun 13 (same order, no mid-file flip)', (P('23:00:00 06/13/2026', mdyOpt) || {}).tMs, U(2026, 5, 13, 23, 0, 0));
+        // a row the lock cannot explain is a contradiction → null, never a fabricated date.
+        T.eq('§3 lock · row contradicting the file lock → null (never fabricate)', P('23:00:00 13/05/2026', { preferDMY: false, dmyLocked: true }), null);
+        // the Contract's own verification case: 13/05 and 05/13 must BOTH land on May 13.
+        T.eq('§3 · DMY 13/05 → May 13', (P('23:00:00 13/05/2026', { preferDMY: true, dmyLocked: true }) || {}).tMs, U(2026, 4, 13, 23, 0, 0));
+        T.eq('§3 · MDY 05/13 → May 13', (P('23:00:00 05/13/2026', { preferDMY: false, dmyLocked: true }) || {}).tMs, U(2026, 4, 13, 23, 0, 0));
+      } else {
+        T.ok('§3 lock · DexClock.resolveDMY present', false, 'clock.js must expose resolveDMY (both runners pass env.DexClock)');
+      }
+
       var anchor = U(2026, 5, 7);
       var t1 = P('23:30', { dateAnchorMs: anchor, prevTMs: null });
       T.eq('time-only 23:30 + anchor', t1 && t1.tMs, U(2026, 5, 7, 23, 30));
@@ -5738,6 +5767,57 @@
      hosts OxyDex in isolation and emits via emitSpO2NodeExport; the Integrator's
      adaptOxyDex synthesizes events from desatProfile/hr_spikes. Source-mirror +
      a functional adapter-route check (compute() runs in the browser rig). */
+    /* DEEP-AUDIT-2026-07-11 §1 — the METAMORPHIC guard on the Clock Contract §3 file-level date lock.
+       The clock-group assertions prove resolveDMY itself; THIS one proves OxyDex actually USES it, which
+       is the leg that would have caught the original bug end-to-end. O2Ring ships BOTH DD/MM/YYYY and
+       MM/DD/YYYY. Before the lock, OxyDex hard-coded preferDMY:true, so an MM/DD file read 06/12 as Dec-6
+       and 06/13 as Jun-13 — the order flipped mid-file, the clock ran BACKWARD, and the night shipped
+       durationMin = -254460 with ODI-4 = 0/h: an apnea night reading as perfectly healthy.
+       INVARIANT: the same physiological night, written in either vendor date order, must compute identically. */
+    group('OxyDex Clock §3 — same night in DMY vs MDY computes identically (DEEP-AUDIT §1)', 'oxydex-dsp · clock', function (T) {
+      var OD = env.OxyDex;
+      if (!OD || typeof OD.compute !== 'function') {
+        T.ok('env.OxyDex.compute available', false, 'namespace not wired — gate skipped');
+        return;
+      }
+      // 22:00 → 05:00, 1 Hz, with recurring RAMPED desaturations (96 → 86 → 96) every 30 min, so ODI-4
+      // genuinely fires — a square-edged dip does not qualify, which is physiologically correct.
+      var p2 = function (n) { return n < 10 ? '0' + n : '' + n; };
+      function night(mdy) {
+        var out = ['Time,Oxygen Level,Pulse Rate,Motion'];
+        var t0 = Date.UTC(2026, 5, 12, 22, 0, 0); // 12 Jun 2026 22:00 — day 12 ≤ 12, so these rows are AMBIGUOUS
+        for (var s = 0; s < 7 * 3600; s++) {
+          var d = new Date(t0 + s * 1000);
+          var D = d.getUTCDate(), M = d.getUTCMonth() + 1, Y = d.getUTCFullYear();
+          var hhmmss = p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds());
+          var date = mdy ? p2(M) + '/' + p2(D) + '/' + Y : p2(D) + '/' + p2(M) + '/' + Y;
+          var k = s % 1800, spo2 = 96;
+          if (s >= 600) {
+            if (k < 10) spo2 = 96 - k;              // desaturate
+            else if (k < 25) spo2 = 86;             // nadir (−10 % → ODI-4)
+            else if (k < 35) spo2 = 86 + (k - 25);  // resaturate
+          }
+          out.push(hhmmss + ' ' + date + ',' + spo2 + ',60,0');
+        }
+        return out.join('\n');
+      }
+      var rDMY = OD.compute({ text: night(false), filename: 'o2ring_dmy.csv' });
+      var rMDY = OD.compute({ text: night(true), filename: 'o2ring_mdy.csv' });
+      var nD = rDMY && rDMY.nights && rDMY.nights[0],
+        nM = rMDY && rMDY.nights && rMDY.nights[0];
+      T.ok('both orders produce a night', !!nD && !!nM);
+      if (!nD || !nM) return;
+      // The night spans 12→13 June, so the MDY file contains 06/13 (day>12 ⇒ proves MDY) alongside the
+      // ambiguous 06/12 rows — exactly the mid-file-flip trigger.
+      T.eq('MDY file: durationMin == the DMY control (never negative)', nM.stats.durationMin, nD.stats.durationMin);
+      T.ok('MDY file: durationMin is positive', nM.stats.durationMin > 0, 'durationMin=' + nM.stats.durationMin);
+      T.ok('MDY file: clock is monotonic (no backward rows)', !nM.stats.clockNonMonotonic, 'clockNonMonotonic set');
+      T.eq('MDY file: t0Ms == the DMY control (not 6 months adrift)', rMDY.recording.startEpochMs, rDMY.recording.startEpochMs);
+      T.eq('MDY file: ODI-4 == the DMY control (a desat is NOT lost to a broken clock)', nM.odi4 && nM.odi4.count, nD.odi4 && nD.odi4.count);
+      T.ok('the control night is diagnostically live (ODI-4 fired)', (nD.odi4 && nD.odi4.count) > 0, 'odi4=' + JSON.stringify(nD.odi4));
+      T.eq('exported recording.durationMin is never negative', rMDY.recording.durationMin, rDMY.recording.durationMin);
+    });
+
     group('OxyDex Phase-9 — compute() surface + spo2 adapter', 'oxydex-dsp · adapters · signal-orchestrate', function (T) {
       var src = env.sources || {};
       var dsp = src['oxydex-dsp.js'],
@@ -10542,6 +10622,26 @@
               !!(rEcg.best && rEcg.best.id === 'polar-h10-ecg' && rEcg.best.signalType === 'ecg'),
               rEcg.best ? rEcg.best.id + '/' + rEcg.best.signalType : 'no best'
             );
+            /* FOREIGN-STREAM VETO (DEEP-AUDIT-2026-07-11 §2). *_ECG.txt is safe only because polar-h10-ecg
+               OUTRANKS polar-rr's 0.6. The MOTION streams have NO adapter, so nothing outranked them: a real
+               H10 *_ACC.txt won the route by default and its Z-axis gravity rail (~973 mg) landed inside
+               PulseDex's 300–2000 ms interval window — a gravity vector analyzed as a heart recording
+               (HR 61.9 bpm, "overnight", stress 100, 36 stress_peak events @conf 0.92). A stream with no
+               adapter must be SET ASIDE, never guessed. */
+            var accHead = 'Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]\n2026-06-17T01:06:19.794;599630060275983872;211;23;975';
+            var rAcc = SA.route({ name: 'Polar_H10_AAAAAAAA_20260617_010616_ACC.txt' }, accHead);
+            T.ok('*_ACC.txt is SET ASIDE, not analyzed as RR (gravity is not a heartbeat)', rAcc.unknown === true, rAcc.best ? 'routed to ' + rAcc.best.id + ' @' + rAcc.best.confidence : 'unknown');
+            var rMag = SA.route({ name: 'Polar_Sense_BBBBBBBB_20260609_194340_MAGN.txt' }, 'Phone timestamp;sensor timestamp [ns];X [G];Y [G];Z [G]\n2026-06-09T19:43:40.000;834363822717523328;0.12;-0.44;0.31');
+            T.ok('*_MAGN.txt is SET ASIDE, not analyzed as RR', rMag.unknown === true, rMag.best ? 'routed to ' + rMag.best.id : 'unknown');
+            var rGyr = SA.route({ name: 'Polar_Sense_BBBBBBBB_20260609_194341_GYRO.txt' }, 'Phone timestamp;sensor timestamp [ns];X [dps];Y [dps];Z [dps]\n2026-06-09T19:43:45.447;834363822717523328;-3.66;1.41;-2.13');
+            T.ok('*_GYRO.txt is SET ASIDE, not analyzed as RR', rGyr.unknown === true, rGyr.best ? 'routed to ' + rGyr.best.id : 'unknown');
+            // the veto must also hold on a RENAMED file — the declared unit alone is disqualifying.
+            var rAccRenamed = SA.route({ name: 'session-3.txt' }, accHead);
+            T.ok('a renamed motion stream is still refused (declared [mg] unit is disqualifying)', rAccRenamed.unknown === true, rAccRenamed.best ? 'routed to ' + rAccRenamed.best.id : 'unknown');
+            // and the bare PSL envelope alone must no longer be evidence of an RR stream.
+            T.ok('the bare "Phone timestamp" PSL envelope alone no longer votes for polar-rr',
+              SA.route({ name: 'mystery.txt' }, 'Phone timestamp;sensor timestamp [ns]\n2026-06-17T01:00:00.000;599630059061536896').unknown === true);
+
             var rRr2 = SA.route({ name: 'Polar_H10_AAAAAAAA_20260617_010615_RR.txt' }, 'Phone timestamp;RR-interval [ms]\n2026-06-17T01:00:00.000+02:00;850');
             T.ok(
               'device *_RR.txt still routes to an rr adapter (ecg adapter does not hijack RR)',

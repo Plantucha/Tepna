@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-11 · **Follows:** the PPI-spine arbiter fix (changeset `2026-07-11-ppgdex-ppi-spine-crosscheck.md`) · **Feeds:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md` §1 · `PAPERS-ROADMAP-2026-06-24-BRIEF.md` §3.3 · `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`
+**Status:** IN-PROGRESS — 2026-07-12 (**§1 EXECUTED** — root cause found and fixed: TERMA's bare `maPeak > maBeat` has no amplitude discrimination, so a prominent DIASTOLIC (reflected) wave raised its own block and was counted as a second beat ~half a cycle after systole; at the corpus' sleeping 48 bpm that is ~625 ms, **twice** the fixed 0.30 s refractory, so the optical HR read exactly 2× true. On 3 of the 4 nights ALL THREE LEDs doubled together, so the 2-of-3 consensus ratified the harmonic. Fixed by sizing the refractory from a **windowed-autocorrelation cadence** (a notch is a HARMONIC, so the ACF fundamental is immune) — cadence sizes the refractory only, it does NOT gate detection (that was the retired global-period detector's missed-beat bug). Validated against paired chest-ECG on all 17 trio nights: **17/17 HR-clean, 4 recovered, 0 regressions**; `uploads/trio/` re-derived. Note the brief's own three hypotheses (a)/(b)/(c) were all WRONG — see §1 EXECUTED below. **§2 still open**: the published Verity σ re-derive.) · **Created:** 2026-07-11 · **Follows:** the PPI-spine arbiter fix (changeset `2026-07-11-ppgdex-ppi-spine-crosscheck.md`) · **Feeds:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md` §1 · `PAPERS-ROADMAP-2026-06-24-BRIEF.md` §3.3 · `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`
 
 # PpgDex optical detector — the residual all-LED failure, and re-deriving the published Verity σ
 
@@ -45,17 +45,59 @@ Diagnostic already established (2026-07-01, `detectChannel` per LED): LED0 39 40
 give 23 569 / 23 512 → 54.6 / 54.4 bpm. So the failure is **not** uniform noise — individual channels double-count
 while others are near-truth, and on these four nights enough channels fail together to carry the vote.
 
-**Done when**
-- [ ] Root-cause the detector failure itself (`detectChannel` — O(N) TERMA, Elgendi 2013: positive-slope upstroke
+### §1 EXECUTED — 2026-07-12 (all three hypotheses below were WRONG; the real cause was a fourth)
+
+**Root cause.** TERMA calls a beat wherever the short upstroke-energy average exceeds the long one — a bare
+`maPeak > maBeat`, with **no amplitude discrimination**. A prominent **diastolic (reflected) wave** is a
+genuine positive-slope event, so it raises its own block and is counted as a second "beat" about half a cycle
+after systole. At the corpus' sleeping ~48 bpm that lands ~625 ms out — **twice** the fixed 0.30 s refractory —
+so nothing suppressed it and the HR read exactly 2× true. Evidence: the bad channel's peak-to-peak intervals are
+not noisy, they are cleanly **unimodal at 600–700 ms** against a true 1250 ms beat.
+
+**The three hypotheses in the original "Done when" were all wrong, and the disproofs are worth keeping:**
+- **(a) threshold collapse / notch-firing on low perfusion** — half right (it IS the notch) but the mechanism is
+  not perfusion-dependent collapse; it is the *absence of amplitude discrimination*, which bites on any record
+  with a strong reflected wave.
+- **(b) refractory too permissive** — right that 0.30 s cannot reject the intruder, but a *fixed* larger value is
+  not the fix: it would reject genuine tachycardia. The refractory has to scale with the **local** beat.
+- **(c) `orient()` inverting** — no evidence; orientation is stable on the failing records.
+- Also tried and REJECTED: **adapting TERMA's `W2`** to the true cadence (re-running the doubled channel with
+  W2 = the real 1230 ms beat still returned 94.5 bpm — the threshold has no amplitude offset, so widening the
+  long average changes nothing), and a **cross-channel cadence prior** (it collapses exactly where needed: on
+  06-29 / 07-02 / 07-05 *all three* LEDs double together, so the median cadence is doubled too and nothing looks
+  deviant — this was never a bad-channel problem).
+
+**The fix.** A dicrotic notch is a **harmonic** (it sits at T/2) while the autocorrelation still peaks at the true
+beat T. A **windowed** ACF of the pulse band (0.5–3.0 Hz, decimated to ~25 Hz) recovers the true cadence on every
+night — worst error 1.2 bpm vs chest-ECG, *including* the four where peak-counting doubles. That cadence sizes an
+**adaptive refractory** (`REFR_CADENCE_FRAC = 0.60` × the local beat, floored at the old 0.30 s); TERMA still finds
+every peak and the existing amplitude arbitration (keep the taller peak on a conflict) discards the smaller
+diastolic one. The cadence **sizes the refractory only — it does not gate detection**, which is the distinction
+from the retired whole-record global-period detector that caused missed beats.
+
+**Result:** 17/17 HR-clean across the trio corpus, 4 nights recovered (06-29 100→50 vs ECG 49.7 · 07-01 94→48 vs
+48.0 · 07-02 106→48 vs 48.4 · 07-05 110→58 vs 57.8), **0 regressions**. `ppiAgreementPct` rises to 99–100% on the
+recovered nights — the foot and peak spines now agree, independently corroborating the beat spine. The
+`PpgDex_2026-06-27_equiv` fixture was regenerated (`contentId` 7e887548f693→2c3b67527577) and `uploads/trio/`
+re-derived.
+
+**Residual (not blocking):** `pickChannel` still ranks on one 90 s mid-record window with an SNR metric blind to
+harmonic counting. The adaptive refractory made this non-fatal — it is no longer load-bearing — so the hardening
+below stays optional.
+
+---
+
+**Done when** *(original — retained for the record; ✅ = met by the §1 EXECUTED work above)*
+- [x] Root-cause the detector failure itself (`detectChannel` — O(N) TERMA, Elgendi 2013: positive-slope upstroke
       energy + dual moving-average local threshold). Hypotheses to test, in order: (a) the beat-adaptive threshold
       collapses on low-perfusion/high-DC-drift segments and starts firing on the **dicrotic notch**; (b) the
       refractory (0.30 s ⇒ a 200 bpm ceiling) is too permissive to suppress a notch at a sleeping 48 bpm
       (notch lands ~0.3–0.4 s after systole — *right at the edge*); (c) channel **orientation** (`orient()`
       derivative-skew) inverts on these records so the "peak" tracked is the wrong deflection.
-- [ ] Fix at the detector, not with another downstream filter. A physiological plausibility guard on the
+- [x] Fix at the detector, not with another downstream filter. A physiological plausibility guard on the
       *detected rate* (a sleeping adult is not at 100–160 bpm) is acceptable ONLY as a flag, never as a silent clamp
       — CLAUDE.md: `null` = unknown, never fabricated.
-- [ ] Recover ≥3 of the 4 nights against chest-ECG truth (ratio 0.9–1.15), with **no regression** on the 13 currently-clean
+- [x] Recover ALL 4 of the 4 nights against chest-ECG truth (ratio 0.9–1.15), with **no regression** on the 13 currently-clean
       nights and the committed `PpgDex_2026-06-27_equiv` fixture still reproducing (byte-identical, or regenerated
       per §🔏 with the output re-derived, never hand-edited).
 - [ ] `pickChannel` hardening (secondary): it ranks on ONE 90 s mid-record window of a 7-hour night and its SNR

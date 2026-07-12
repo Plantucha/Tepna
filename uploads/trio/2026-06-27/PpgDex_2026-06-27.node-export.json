@@ -21,7 +21,7 @@
     "node": "PpgDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-07-12T00:34:35.790Z",
+    "generated": "2026-07-12T02:15:16.264Z",
     "provenance": null,
     "doc": "PpgDex PPG-derived events → Ganglior bus. t/tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -31,9 +31,23 @@
     "contentId": null,
     "startEpochMs": 1782604717076,
     "sessions": 1,
-    "events": 103
+    "events": 104
   },
   "ganglior_events": [
+    {
+      "t": "00:38:37",
+      "tMs": 1782607117076,
+      "impulse": "hrv_drop",
+      "node": "PpgDex",
+      "conf": 0.7,
+      "sqi": 0.9,
+      "meta": {
+        "rmssdFrom": 57.2,
+        "rmssdTo": 35.6,
+        "position": "lateral_R",
+        "positionConf": 1
+      }
+    },
     {
       "t": "01:38:37",
       "tMs": 1782610717076,
@@ -57,7 +71,7 @@
       "sqi": 0.93,
       "meta": {
         "rmssdFrom": 55.3,
-        "rmssdTo": 24.2,
+        "rmssdTo": 24.5,
         "position": "lateral",
         "positionConf": 0.42
       }
@@ -67,10 +81,10 @@
       "tMs": 1782625417076,
       "impulse": "autonomic_surge",
       "node": "PpgDex",
-      "conf": 0.7,
+      "conf": 0.72,
       "sqi": 0.93,
       "meta": {
-        "ampBpm": 12,
+        "ampBpm": 13,
         "position": "lateral",
         "positionConf": 0.54
       }
@@ -90,7 +104,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.36,
+      "sqi": 0.45,
       "meta": {}
     },
     {
@@ -108,7 +122,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.34,
+      "sqi": 0.36,
       "meta": {}
     },
     {
@@ -135,7 +149,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.6,
+      "sqi": 0.67,
       "meta": {}
     },
     {
@@ -144,7 +158,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.45,
+      "sqi": 0.48,
       "meta": {}
     },
     {
@@ -171,7 +185,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.66,
+      "sqi": 0.65,
       "meta": {}
     },
     {
@@ -189,7 +203,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.65,
+      "sqi": 0.68,
       "meta": {}
     },
     {
@@ -234,7 +248,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.51,
+      "sqi": 0.6,
       "meta": {}
     },
     {
@@ -270,7 +284,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.36,
+      "sqi": 0.45,
       "meta": {}
     },
     {
@@ -279,7 +293,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.38,
+      "sqi": 0.47,
       "meta": {}
     },
     {
@@ -441,7 +455,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.64,
+      "sqi": 0.72,
       "meta": {}
     },
     {
@@ -450,7 +464,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.56,
+      "sqi": 0.61,
       "meta": {}
     },
     {
@@ -594,7 +608,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.53,
+      "sqi": 0.58,
       "meta": {}
     },
     {
@@ -621,7 +635,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.67,
+      "sqi": 0.74,
       "meta": {}
     },
     {
@@ -630,7 +644,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.5,
+      "sqi": 0.59,
       "meta": {}
     },
     {
@@ -639,7 +653,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.42,
+      "sqi": 0.52,
       "meta": {}
     },
     {
@@ -675,7 +689,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.71,
+      "sqi": 0.72,
       "meta": {}
     },
     {
@@ -846,7 +860,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.53,
+      "sqi": 0.5,
       "meta": {}
     },
     {
@@ -873,7 +887,7 @@
       "impulse": "motion_artifact_segment",
       "node": "PpgDex",
       "conf": 0.3,
-      "sqi": 0.73,
+      "sqi": 0.81,
       "meta": {}
     },
     {
@@ -983,22 +997,22 @@
     "analyzablePct": 98,
     "cleanBeatPct": 99,
     "coveragePct": 99,
-    "motionRejectedPct": 1.5,
-    "correctionRatePct": 3.6,
+    "motionRejectedPct": 1.4,
+    "correctionRatePct": 3.5,
     "ledAgreementPct": 100,
     "ppiSpine": "foot",
     "ppiAgreementPct": 100,
-    "ppiCorrFootPct": 3.6,
-    "ppiCorrPeakPct": 3.6
+    "ppiCorrFootPct": 3.5,
+    "ppiCorrPeakPct": 3.4
   },
   "hrv": {
     "time": {
       "meanRR": 1254,
       "hr": 47,
-      "sdnn": 130.9,
-      "rmssd": 43.7,
+      "sdnn": 129.9,
+      "rmssd": 43.5,
       "pnn50": 20.5,
-      "sdnnIndex": 84,
+      "sdnnIndex": 83.2,
       "sdnnRobust": 68.4,
       "sd2Robust": 91.7,
       "window": "wholeRecord",
@@ -1009,15 +1023,15 @@
       "sdnnNote": "whole-record sdnn runs high on optical (SDANN/baseline-wander inflation, ~+26% vs chest ECG). sdnnIndex = mean of per-5-min SDNN (~+18%); sdnnRobust = quality-gated MEDIAN of per-5-min SDNN (~+3.5% vs ECG truth) — use sdnnRobust for cross-node SDNN comparison."
     },
     "frequency": {
-      "lf": 1891,
-      "hf": 757,
-      "lfhf": 2.5,
+      "lf": 1794,
+      "hf": 830,
+      "lfhf": 2.16,
       "method": "Lomb-Scargle",
       "lowConfidence": false,
-      "lfRobust": 1054,
-      "hfRobust": 573,
-      "lfhfRobust": 1.84,
-      "hfRobustLowMotion": 549
+      "lfRobust": 1108,
+      "hfRobust": 566,
+      "lfhfRobust": 1.89,
+      "hfRobustLowMotion": 548
     },
     "confidence": {
       "beatToBeat": 0.84,
@@ -1040,11 +1054,11 @@
       {
         "tMin": 0,
         "hr": 52,
-        "rmssd": 66.9,
-        "sdnn": 144.8,
-        "lfhf": 1.12,
-        "motionIndex": 0.26,
-        "ledAgreementPct": 95,
+        "rmssd": 67.2,
+        "sdnn": 137.1,
+        "lfhf": 1.14,
+        "motionIndex": 0.24,
+        "ledAgreementPct": 96,
         "position": "lateral",
         "positionConf": 0.36,
         "headingDeg": 29,
@@ -1066,9 +1080,9 @@
       {
         "tMin": 10,
         "hr": 43,
-        "rmssd": 42.3,
-        "sdnn": 47.1,
-        "lfhf": 1.53,
+        "rmssd": 42.7,
+        "sdnn": 47,
+        "lfhf": 1.47,
         "motionIndex": 0.11,
         "ledAgreementPct": 100,
         "position": "lateral_R",
@@ -1144,9 +1158,9 @@
       {
         "tMin": 40,
         "hr": 45,
-        "rmssd": 43.6,
-        "sdnn": 46.1,
-        "lfhf": 0.82,
+        "rmssd": 35.6,
+        "sdnn": 39.2,
+        "lfhf": 1.2,
         "motionIndex": 0.11,
         "ledAgreementPct": 100,
         "position": "lateral_R",
@@ -1197,8 +1211,8 @@
         "tMin": 60,
         "hr": 46,
         "rmssd": 48.6,
-        "sdnn": 101.1,
-        "lfhf": 2.24,
+        "sdnn": 96.7,
+        "lfhf": 1.13,
         "motionIndex": 0.12,
         "ledAgreementPct": 99,
         "position": "lateral_R",
@@ -1418,9 +1432,9 @@
         "tMin": 145,
         "hr": 53,
         "rmssd": 44.2,
-        "sdnn": 113.4,
-        "lfhf": 1.96,
-        "motionIndex": 0.13,
+        "sdnn": 112.4,
+        "lfhf": 2.28,
+        "motionIndex": 0.12,
         "ledAgreementPct": 100,
         "position": "prone",
         "positionConf": 0.31,
@@ -1507,12 +1521,12 @@
       },
       {
         "tMin": 180,
-        "hr": 51,
-        "rmssd": 39.5,
-        "sdnn": 167.8,
-        "lfhf": 1.95,
-        "motionIndex": 0.14,
-        "ledAgreementPct": 99,
+        "hr": 50,
+        "rmssd": 37.3,
+        "sdnn": 160.1,
+        "lfhf": 2.63,
+        "motionIndex": 0.13,
+        "ledAgreementPct": 100,
         "position": "prone",
         "positionConf": 0.55,
         "headingDeg": 41,
@@ -1561,9 +1575,9 @@
         "tMin": 200,
         "hr": 48,
         "rmssd": 37.5,
-        "sdnn": 114.6,
-        "lfhf": 0.65,
-        "motionIndex": 0.14,
+        "sdnn": 111.3,
+        "lfhf": 1.09,
+        "motionIndex": 0.13,
         "ledAgreementPct": 99,
         "position": "prone",
         "positionConf": 0.58,
@@ -1573,9 +1587,9 @@
       {
         "tMin": 205,
         "hr": 48,
-        "rmssd": 50.7,
-        "sdnn": 108.5,
-        "lfhf": 2.78,
+        "rmssd": 50.9,
+        "sdnn": 97.8,
+        "lfhf": 2.1,
         "motionIndex": 0.13,
         "ledAgreementPct": 100,
         "position": "prone",
@@ -1613,8 +1627,8 @@
         "tMin": 220,
         "hr": 46,
         "rmssd": 47.7,
-        "sdnn": 128.4,
-        "lfhf": 2,
+        "sdnn": 129.5,
+        "lfhf": 2.03,
         "motionIndex": 0.14,
         "ledAgreementPct": 100,
         "position": "prone",
@@ -1664,9 +1678,9 @@
       {
         "tMin": 240,
         "hr": 53,
-        "rmssd": 47.7,
+        "rmssd": 48.2,
         "sdnn": 135.4,
-        "lfhf": 2.32,
+        "lfhf": 2.41,
         "motionIndex": 0.17,
         "ledAgreementPct": 100,
         "position": "prone",
@@ -1717,8 +1731,8 @@
         "tMin": 260,
         "hr": 49,
         "rmssd": 36.6,
-        "sdnn": 49.9,
-        "lfhf": 2.01,
+        "sdnn": 50,
+        "lfhf": 2.05,
         "motionIndex": 0.12,
         "ledAgreementPct": 100,
         "position": "prone",
@@ -1742,9 +1756,9 @@
       {
         "tMin": 270,
         "hr": 50,
-        "rmssd": 56.4,
-        "sdnn": 128.2,
-        "lfhf": 1.45,
+        "rmssd": 58.6,
+        "sdnn": 127.5,
+        "lfhf": 1.64,
         "motionIndex": 0.15,
         "ledAgreementPct": 100,
         "position": "prone",
@@ -1833,11 +1847,11 @@
       {
         "tMin": 305,
         "hr": 48,
-        "rmssd": 38.5,
-        "sdnn": 116.3,
-        "lfhf": 1.02,
+        "rmssd": 38.8,
+        "sdnn": 105.1,
+        "lfhf": 1.12,
         "motionIndex": 0.14,
-        "ledAgreementPct": 99,
+        "ledAgreementPct": 100,
         "position": "prone",
         "positionConf": 0.58,
         "headingDeg": 37,
@@ -1859,9 +1873,9 @@
       {
         "tMin": 315,
         "hr": 49,
-        "rmssd": 24.2,
-        "sdnn": 56,
-        "lfhf": 1.78,
+        "rmssd": 24.5,
+        "sdnn": 55.2,
+        "lfhf": 2.83,
         "motionIndex": 0.11,
         "ledAgreementPct": 100,
         "position": "lateral",
@@ -1872,9 +1886,9 @@
       {
         "tMin": 320,
         "hr": 48,
-        "rmssd": 42.6,
-        "sdnn": 88.5,
-        "lfhf": 2.28,
+        "rmssd": 42.5,
+        "sdnn": 85.6,
+        "lfhf": 3.34,
         "motionIndex": 0.11,
         "ledAgreementPct": 100,
         "position": "lateral",
@@ -1885,9 +1899,9 @@
       {
         "tMin": 325,
         "hr": 49,
-        "rmssd": 39.2,
-        "sdnn": 122.2,
-        "lfhf": 2.77,
+        "rmssd": 39.1,
+        "sdnn": 122.3,
+        "lfhf": 2.85,
         "motionIndex": 0.13,
         "ledAgreementPct": 100,
         "position": "lateral",
@@ -1923,10 +1937,10 @@
       },
       {
         "tMin": 340,
-        "hr": 54,
-        "rmssd": 34.2,
-        "sdnn": 196.7,
-        "lfhf": 4.26,
+        "hr": 53,
+        "rmssd": 34.1,
+        "sdnn": 194.9,
+        "lfhf": 2.61,
         "motionIndex": 0.12,
         "ledAgreementPct": 100,
         "position": "prone",
@@ -1950,9 +1964,9 @@
       {
         "tMin": 350,
         "hr": 47,
-        "rmssd": 44,
-        "sdnn": 101.1,
-        "lfhf": 1.84,
+        "rmssd": 43.9,
+        "sdnn": 99,
+        "lfhf": 2.57,
         "motionIndex": 0.13,
         "ledAgreementPct": 100,
         "position": "lateral",
@@ -1989,9 +2003,9 @@
       {
         "tMin": 365,
         "hr": 49,
-        "rmssd": 45.6,
-        "sdnn": 153.5,
-        "lfhf": 1.64,
+        "rmssd": 45.2,
+        "sdnn": 147.6,
+        "lfhf": 1.23,
         "motionIndex": 0.15,
         "ledAgreementPct": 99,
         "position": "prone",
@@ -2054,11 +2068,11 @@
       {
         "tMin": 390,
         "hr": 54,
-        "rmssd": 58.3,
-        "sdnn": 134.2,
-        "lfhf": 1.69,
+        "rmssd": 49.1,
+        "sdnn": 130.2,
+        "lfhf": 2.08,
         "motionIndex": 0.19,
-        "ledAgreementPct": 100,
+        "ledAgreementPct": 99,
         "position": "supine",
         "positionConf": 0.58,
         "headingDeg": 139,
@@ -2080,9 +2094,9 @@
       {
         "tMin": 400,
         "hr": 50,
-        "rmssd": 39.7,
-        "sdnn": 83.4,
-        "lfhf": 3.7,
+        "rmssd": 39.6,
+        "sdnn": 81.5,
+        "lfhf": 4.49,
         "motionIndex": 0.14,
         "ledAgreementPct": 100,
         "position": "lateral_R",
