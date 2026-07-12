@@ -2521,6 +2521,133 @@
      (46 readings AT the floor vs 15 and 14 beside it, none below), and the old detector simply could not
      see it, so 37 nocturnal_hypo events shipped unflagged. The detector is fixed; these assertions now
      encode the TRUTH about the file. The clean-file path stays covered by the hand-built exports below. ════ */
+    /* DEEP-AUDIT-2026-07-11 §12–§16 — the Integrator is a CONSUMER, and every one of these is a read-side
+       defect: it either fabricated agreement it never measured, or silently dropped a node's real data.
+       §12 `|| 0` turned an incomparable (null) divergence into a measured 0 % → "Sources agree … reliable".
+       §13 GlucoDex writes `glucose.cv`; the read-chain knew only `glycemic.cv` → glucoseCV null on EVERY
+           ganglior export → a glucose⟷autonomic coupling of 0.44 computed from the ECG slope ALONE.
+       §14 HRVDex writes `measurements[]`; the chain knew only `hrv.time.*` → the HRV node was dropped
+           from the HRV consensus on 100 % of its exports, its rMSSD values sitting unread.
+       §15 the desat pool was keyed by NODE, not IMPULSE → a byte-identical desat_event stream vanishes
+           from fusion when the emitting node's label changes (CPAPDex is a first-class desat emitter).
+       §16 ECGDex/PpgDex/GlucoDex stamp the RAW DexKernel ({K,VERSION,HASH}); the audit read lowercase
+           → 3 of 7 nodes always read 'missing', so it cried wolf on every night AND could not tell a
+           genuine kernel drift from its own blindness. */
+    group('Integrator §12-§16 — no fabricated agreement, no silently dropped node', 'integrator-dsp · fabricated-absence · contract', function (T) {
+      var A = env.adaptEnvelopeNode,
+        RF = env.runFusion,
+        NF = env.normalizeFile;
+      if (typeof A !== 'function' || typeof RF !== 'function') {
+        T.ok('env.adaptEnvelopeNode + runFusion available', false, 'not wired — gate skipped');
+        return;
+      }
+      var t0 = U(2026, 5, 25, 22, 0, 0);
+      var mkEvents = function (n, impulse, node, stepMin) {
+        var out = [],
+          i;
+        for (i = 0; i < n; i++) out.push({ tMs: t0 + i * (stepMin || 7) * 60000, t: '22:00:00', impulse: impulse, node: node, conf: 0.9, meta: { depth: 5 } });
+        return out;
+      };
+
+      // ── §16 · the kernel audit must SEE a node that stamps the raw DexKernel ────────────────────────
+      var rawKernelExport = {
+        schema: { name: 'ganglior.node-export', node: 'ECGDex' },
+        kernel: { K: { ODI_DROP: 4 }, VERSION: '1.0.0', HASH: (env.DexKernel && env.DexKernel.HASH) || '118ebed5' },
+        recording: { startEpochMs: t0 },
+        ganglior_events: mkEvents(2, 'autonomic_surge', 'ECGDex')
+      };
+      var rk = A(rawKernelExport, 'ECGDex', 'ecg.json');
+      var rkRec = Array.isArray(rk) ? rk[0] : rk;
+      T.eq('§16 · a raw-DexKernel stamp ({K,VERSION,HASH}) is read, not seen as missing', rkRec.kernelHash, (env.DexKernel && env.DexKernel.HASH) || '118ebed5');
+      var lowerKernelExport = JSON.parse(JSON.stringify(rawKernelExport));
+      lowerKernelExport.kernel = { version: '1.0.0', hash: (env.DexKernel && env.DexKernel.HASH) || '118ebed5' };
+      var lk = A(lowerKernelExport, 'ECGDex', 'ecg2.json');
+      T.eq('§16 · the normalized {version,hash} stamp still reads the same', (Array.isArray(lk) ? lk[0] : lk).kernelHash, rkRec.kernelHash);
+      // and a GENUINE drift must now be DISTINGUISHABLE from "missing" — the whole point of the audit
+      var drifted = JSON.parse(JSON.stringify(rawKernelExport));
+      drifted.kernel.HASH = 'deadbeef';
+      var dr = A(drifted, 'ECGDex', 'ecg3.json');
+      T.eq('§16 · a genuine kernel DRIFT is now visible (not indistinguishable from missing)', (Array.isArray(dr) ? dr[0] : dr).kernelHash, 'deadbeef');
+
+      // ── §14 · HRVDex's measurements[] are READ, and honestly window-labelled ────────────────────────
+      var hrvExport = {
+        schema: { name: 'ganglior.node-export', node: 'HRVDex' },
+        recording: { startEpochMs: t0 },
+        measurements: [
+          { tMs: t0, sdnn: 40, rmssd: 30 },
+          { tMs: t0 + 86400000, sdnn: 50, rmssd: 40 },
+          { tMs: t0 + 2 * 86400000, sdnn: 60, rmssd: 50 }
+        ],
+        ganglior_events: []
+      };
+      var hv = A(hrvExport, 'HRVDex', 'hrv.json');
+      var hvRec = Array.isArray(hv) ? hv[0] : hv;
+      T.eq('§14 · HRVDex rMSSD is read from measurements[] (median), not silently dropped', hvRec.summary.rmssd, 40);
+      T.eq('§14 · HRVDex SDNN likewise', hvRec.summary.sdnn, 50);
+      T.eq('§14 · its window is labelled HONESTLY (spot readings ≠ an overnight whole-record)', hvRec.summary.hrvWindow, 'measurementMedian');
+      T.ok('§14 · and it says why', !!hvRec.summary.hrvWindowNote, hvRec.summary.hrvWindowNote);
+
+      // ── §15 · the desat pool is keyed by IMPULSE, not by node label ─────────────────────────────────
+      // METAMORPHIC: the SAME desat_event stream must fuse whatever node observed it.
+      var ecgRec = A(
+        {
+          schema: { name: 'ganglior.node-export', node: 'ECGDex' },
+          recording: { startEpochMs: t0 },
+          hrv: { time: { rmssd: 30, sdnn: 60 } },
+          ganglior_events: mkEvents(12, 'autonomic_surge', 'ECGDex', 7)
+        },
+        'ECGDex',
+        'e.json'
+      );
+      var apneaFor = function (node) {
+        var desats = A({ schema: { name: 'ganglior.node-export', node: node }, recording: { startEpochMs: t0 }, ganglior_events: mkEvents(10, 'desat_event', node, 7) }, node, 'd.json');
+        var recs = [].concat(Array.isArray(desats) ? desats : [desats], Array.isArray(ecgRec) ? ecgRec : [ecgRec]);
+        var f = RF(recs, {});
+        return f && f.apnea;
+      };
+      var apOxy = apneaFor('OxyDex'),
+        apCpap = apneaFor('CPAPDex'),
+        apPpg = apneaFor('PpgDex');
+      T.ok('§15 · OxyDex desats fuse (control)', !!apOxy, 'apnea=' + (apOxy ? 'present' : 'null'));
+      T.ok(
+        '§15 · the SAME desat_event stream from CPAPDex also fuses (impulse-keyed, not node-keyed)',
+        !!apCpap,
+        'apnea=' + (apCpap ? 'present' : 'NULL — the rule was skipped on the node label alone')
+      );
+      T.ok('§15 · …and from PpgDex', !!apPpg, 'apnea=' + (apPpg ? 'present' : 'NULL'));
+      if (apOxy && apCpap) T.eq('§15 · the fused desat count is identical (only the label differed)', apCpap.total.desat, apOxy.total.desat);
+
+      /* ── §12 · nothing comparable ⇒ divergence UNKNOWN, never a measured 0 % "agreement" ────────────
+         Each node honestly nulls the metric it lacks (legal under the contract): ECGDex carries rMSSD but
+         no SDNN, PulseDex the reverse. NOTHING is shared, so nothing can be compared — yet `|| 0` used to
+         report a measured 0 % divergence and tell the user the sources agreed and the result was reliable.
+         Driven through normalizeFile(), the same entry point the app uses. */
+      if (typeof NF !== 'function') {
+        T.ok('env.normalizeFile available', false, 'not wired');
+        return;
+      }
+      var ecgOnlyRmssd = NF(
+        { schema: { name: 'ganglior.node-export', node: 'ECGDex' }, recording: { startEpochMs: t0 }, hrv: { time: { rmssd: 38 } }, ganglior_events: mkEvents(3, 'autonomic_surge', 'ECGDex') },
+        'a.json'
+      ).recs;
+      var pulseOnlySdnn = NF(
+        { schema: { name: 'ganglior.node-export', node: 'PulseDex' }, recording: { startEpochMs: t0 }, hrv: { time: { sdnn: 61 } }, ganglior_events: mkEvents(3, 'autonomic_surge', 'PulseDex') },
+        'b.json'
+      ).recs;
+      var fus = RF(ecgOnlyRmssd.concat(pulseOnlySdnn), {});
+      var blk = fus && fus.hrv && fus.hrv.blocks && fus.hrv.blocks[0];
+      T.ok('§12 · an HRV block still forms', !!blk);
+      if (blk) {
+        T.eq('§12 · with NO shared metric, divergence is null (not a measured 0 %)', blk.divergencePct, null);
+        T.eq('§12 · qc says incomparable — NOT "agreement"', blk.qc, 'incomparable');
+        T.ok(
+          '§12 · the note refuses to claim the sources agree',
+          /unknown, not confirmed|nothing could be compared/i.test(blk.note) && !/reconciled autonomic state is reliable/i.test(blk.note),
+          blk.note
+        );
+      }
+    });
+
     group('Integrator ingests the GlucoDex export end-to-end (GLUCODEX-FOLLOWUPS §3)', 'glucodex-dsp · integrator-dsp', function (T) {
       var A = env.adaptEnvelopeNode;
       if (typeof A !== 'function') {
