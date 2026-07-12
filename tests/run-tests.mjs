@@ -644,6 +644,7 @@ async function main() {
       'adapters/libre-cgm.js',
       'adapters/polar-sense-ppg.js',
       'adapters/polar-h10-ecg.js',
+      'adapters/resmed-edf.js',
       'quantity.js',
       'dex-ingest.js',
       'provenance-banner.js',

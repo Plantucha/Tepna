@@ -12472,6 +12472,108 @@
       T.eq('a partition claims every group exactly once (no orphan, no duplicate)', claims, [1, 1, 1, 1, 1, 1]);
     });
 
+    /* ── adapters/resmed-edf.js — ResMed SD-card EDF ingest (CPAP-REAL-CORPUS §F4/§P3) ────
+       CPAP was the one signal type with NO registered adapter ("EDF is binary + multi-file, so
+       there is no text-stream adapter"), so its SD-card → edfSets grouping had to be hand-rolled
+       in tools/. This gate pins the rule that promotion exists to protect.
+
+       THE TRAP: cluster files within ±60 s of the set's anchor, AND open a NEW set when a TYPE
+       REPEATS. A brief mask-off/on inside one minute writes a SECOND EVE/CSL pair; without the
+       second clause a naive ±60 s cluster OVERWRITES the first and its scored events vanish —
+       silently, with no crash and no warning. 8 sessions in the ~180-night real corpus hit exactly
+       this and under-counted their events. The rule is exposed on the adapter record precisely so
+       it can be asserted here with no filesystem. */
+    group('resmed-edf adapter — SD-card session grouping (CPAP-REAL-CORPUS §F4)', 'adapters · resmed-edf · cpap', function (T) {
+      var SA = env.SignalAdapters;
+      var A = SA && SA.byId ? SA.byId('resmed-edf') : null;
+      T.ok('resmed-edf adapter registered', !!A, A ? '' : 'adapters/resmed-edf.js not co-loaded');
+      if (!A) return;
+      T.ok('signalType = cpap', A.signalType === 'cpap', A.signalType);
+      T.ok('exposes the grouping rule for testing', typeof A.groupSessionSets === 'function');
+
+      // ── detect ──
+      T.ok('detect: ResMed filename grammar wins decisively',
+        A.detect({ name: '20260613_231433_BRP.edf' }, '') >= 0.9,
+        A.detect({ name: '20260613_231433_BRP.edf' }, ''));
+      T.ok('detect: a non-EDF file is not ours', A.detect({ name: 'Polar_H10_ECG.txt' }, 'Phone timestamp;ecg [uV]') === 0);
+
+      var G = A.groupSessionSets;
+
+      // ── 1. the ordinary night: one session, five streams, one anchor ──
+      var one = G(['20260613_231433_BRP.edf', '20260613_231433_PLD.edf', '20260613_231433_EVE.edf',
+                   '20260613_231435_CSL.edf', '20260613_231433_SA2.edf']);
+      T.ok('a normal 5-stream session groups into ONE set', one.length === 1, one.length + ' sets');
+      T.ok('  … carrying all 5 types', one.length === 1 && Object.keys(one[0].byType).length === 5,
+        one.length === 1 ? Object.keys(one[0].byType).join(',') : '—');
+
+      // ── 2. THE TRAP (§F4): a mask-off/on inside the SAME minute repeats EVE + CSL ──
+      // 23 s apart — well inside ±60 s, so a naive cluster would fold them together and the
+      // SECOND EVE would overwrite the first. The rule must open a NEW set instead.
+      var names = ['20260613_231433_BRP.edf', '20260613_231433_PLD.edf', '20260613_231433_EVE.edf', '20260613_231433_CSL.edf',
+                   '20260613_231456_EVE.edf', '20260613_231456_CSL.edf'];
+      var two = G(names);
+      T.ok('a repeated type inside ±60 s opens a NEW set (does NOT overwrite)', two.length === 2, two.length + ' sets');
+
+      // The load-bearing assertion: NO EVE is lost. This is the actual corpus bug — a silent
+      // under-count of scored events, which is why it survived until a whole SD card was run.
+      var eves = 0, csls = 0, i;
+      for (i = 0; i < two.length; i++) {
+        if (two[i].byType.EVE) eves++;
+        if (two[i].byType.CSL) csls++;
+      }
+      T.ok('BOTH EVE files survive grouping (the silent event-drop is what §F4 is about)', eves === 2, eves + ' of 2');
+      T.ok('BOTH CSL files survive grouping', csls === 2, csls + ' of 2');
+      T.ok('the two EVE files are DISTINCT (not the same file counted twice)',
+        two.length === 2 && two[0].byType.EVE && two[1].byType.EVE &&
+        two[0].byType.EVE.file !== two[1].byType.EVE.file);
+
+      // Regression sentinel: the NAIVE rule (±60 s only, no repeat clause) folds these into one
+      // set and drops an EVE. If someone "simplifies" groupSessionSets back to that, the count
+      // above goes 2 → 1 and this comment explains why that is a data-loss bug, not a cleanup.
+      var naive = [];
+      for (i = 0; i < names.length; i++) {
+        var st = A.stampOf(names[i]);
+        var hit = null;
+        for (var j = 0; j < naive.length; j++) { if (Math.abs(naive[j].sec - st.sec) <= 60) { hit = naive[j]; break; } }
+        if (hit) hit.byType[st.type] = st; else { var bt = {}; bt[st.type] = st; naive.push({ sec: st.sec, byType: bt }); }
+      }
+      var naiveEves = naive.reduce(function (n, c) { return n + (c.byType.EVE ? 1 : 0); }, 0);
+      T.ok('… and the naive ±60 s-only rule DOES drop one (proving the clause is load-bearing)',
+        naive.length === 1 && naiveEves === 1, naive.length + ' set(s), ' + naiveEves + ' EVE');
+
+      // ── 3. a genuinely separate session (> 60 s) is its own set ──
+      var far = G(['20260613_231433_BRP.edf', '20260613_232959_BRP.edf']);
+      T.ok('> 60 s apart → separate sets', far.length === 2, far.length + ' sets');
+
+      // ── 4. junk is ignored, not fatal ──
+      var mixed = G(['README.txt', '20260613_231433_BRP.edf', 'Identification.crc']);
+      T.ok('non-ResMed filenames are ignored', mixed.length === 1 && Object.keys(mixed[0].byType).length === 1);
+      T.eq('no ResMed files at all → no sets (not a throw)', G(['a.txt', 'b.csv']).length, 0);
+
+      // ── 5. Clock Contract: the filename stamp is floating wall-clock, parsed by regex ──
+      var s0 = A.stampOf('20260613_231433_BRP.edf');
+      T.eq('stampOf → floating tMs via Date.UTC (components as written)',
+        s0.sec * 1000, Date.UTC(2026, 5, 13, 23, 14, 33));
+      T.eq('stampOf → stream type', s0.type, 'BRP');
+      T.ok('stampOf: a non-ResMed name → null (never fabricated)', A.stampOf('foo.txt') === null);
+
+      // ── 6. parse(): binary in, cpap frame out — and a MISSING payload is a frame, not a throw ──
+      var SF = env.SignalFrame, CD = env.CPAPDex;
+      var noBytes = A.parse('', {});
+      T.ok('parse with no bytes → usable:false frame (never throws)',
+        noBytes && noBytes.usable === false && /ctx\.buffers|ctx\.edfSets/.test(noBytes.reason || ''), noBytes && noBytes.reason);
+
+      if (SF && CD && typeof CD._synthEdfSet === 'function') {
+        var set = CD._synthEdfSet({ oxi: true, cs: true });
+        var fr = A.parse('', { edfSets: [set] });
+        T.ok('parse(ctx.edfSets) → schema-valid cpap frame', SF.validateFrame(fr).ok, SF.validateFrame(fr).errors.join('; '));
+        T.ok('  … carries the edfSets sidecar CPAPDex.compute() rebuilds the night from',
+          Array.isArray(fr.edfSets) && fr.edfSets.length === 1);
+        T.ok('  … samples = the 25 Hz BRP Flow waveform', !!(fr.samples && fr.samples.length) && fr.fs === 25, fr.fs);
+        T.ok('  … t0Ms is finite (floating, off the decoded EDF header — not the filename)', isFinite(fr.t0Ms), fr.t0Ms);
+      }
+    });
+
     /* ── event-coupling.js — the shuffled-null cross-node coupling primitive ──────────────
        CPAP-REAL-CORPUS §P5, executing §M1. The point of the primitive is that a raw
        co-occurrence rate between two FREQUENT event streams is not evidence of anything: on

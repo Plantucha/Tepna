@@ -44,7 +44,8 @@
       'adapters/welltory-summary.js',
       'adapters/libre-cgm.js',
       'adapters/polar-sense-ppg.js',
-      'adapters/polar-h10-ecg.js'
+      'adapters/polar-h10-ecg.js',
+      'adapters/resmed-edf.js'
     ],
     // namespaced node DSPs (each hangs its public surface off ONE global —
     // PulseDex/OxyDex/HRVDex/GlucoDex/PpgDex/ECGDex — and leaks nothing bare under
