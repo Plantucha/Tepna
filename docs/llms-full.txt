@@ -22,7 +22,7 @@
 
 A fleet of local-only, single-signal physiological analyzers. No upload. No accounts. No network.
 
-**Suite version:** 1.7.0
+**Suite version:** 1.8.0
 
 [![Live at tepna.net](https://img.shields.io/badge/live-tepna.net-2a6fdb?style=for-the-badge)](https://tepna.net)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a6fdb?style=for-the-badge)](LICENSE)
@@ -72,9 +72,13 @@ the gate, so a vacuous "all clear" can never pass. It runs headless in CI on **e
 | CI gate | What it guarantees |
 |---|---|
 | **no-network** | No shipped surface reaches the network — privacy is enforced, not asserted |
-| **tests** | ~1,900 assertions over the real DSP modules + render coverage |
+| **tests** | ~2,250 assertions over the real DSP modules, run as 4 parallel shards that provably *partition* the suite — so the union of the shards is the whole gate, and no group can quietly go unrun |
 | **types** | JSDoc type-checking across the signal contracts |
-| **lint** | House invariants (frozen names, Clock Contract, SPDX, evidence vocabulary) |
+| **biome** | Format + house-invariant lint (frozen names, Clock Contract, SPDX, evidence vocabulary) |
+
+Render-coverage (booting each real app bundle in an iframe and asserting computed values reach the
+DOM) is a heavier browser gate — it lives in `Dex-Test-Suite.html?full` and the manual
+`browser-gates` workflow, not on the per-push path.
 
 Beyond CI, [`verify-provenance.html`](verify-provenance.html) content-addresses every bundle
 (GATE A: code identity) and every fixture (GATE B: known-answer reproducibility) — so a shipped app
@@ -137,7 +141,7 @@ useful; the ladder just makes sure you always know which kind of number you're l
 |---|---|---|---|---|
 | **OxyDex** | SpO₂ / oximetry | O2Ring / Wellue / ViATOM | Raw 1 Hz overnight SpO₂·HR·motion | [Technical guide](OxyDex%20Reference.html) |
 | **PpgDex** | Wrist PPG | Polar Verity Sense | Raw optical pulse → PPI → HRV + pulse-wave morphology | [Technical guide](PpgDex%20Reference.html) |
-| **PulseDex** | HRV from raw RR | Polar Verity Sense | RR-interval streams | [Technical guide](PulseDex%20Reference.html) |
+| **PulseDex** | HRV from raw RR | Polar H10 (`*_RR.txt`; Coospo/Wahoo too) | Beat-to-beat RR-interval streams | [Technical guide](PulseDex%20Reference.html) |
 | **ECGDex** | Raw ECG | Polar H10 | ECG (~130 Hz, Polar Sensor Logger) | [Technical guide](ECGDex%20Reference.html) |
 | **HRVDex** | HRV summaries | — | Vendor HRV exports + ECGDex exports (additive, multi-day) | [Technical guide](HRVDex%20Reference.html) |
 | **GlucoDex** | CGM | — | Continuous glucose traces | [Technical guide](GlucoDex%20Reference.html) |
@@ -179,7 +183,7 @@ source, here's the lay of the land.
 
 | You want… | Look at |
 |---|---|
-| **A map of every doc** | [`DOCS-INDEX.md`](DOCS-INDEX.md) — the single entry path over all ~160 briefs, audits, and READMEs, grouped by topic. Start here before opening any individual brief. |
+| **A map of every doc** | [`DOCS-INDEX.md`](DOCS-INDEX.md) — the single entry path over all ~180 briefs, audits, and READMEs, grouped by topic. Start here before opening any individual brief. |
 | **The app for your device** | the bundled `OxyDex.html`, `PpgDex.html`, `PulseDex.html`, `ECGDex.html`, `HRVDex.html`, `GlucoDex.html`, `CPAPDex.html` — open them directly. `Integrator.html` fuses them all; `Data Unifier.html` routes any file you drop to the right node, and `OverDex.html` runs a whole folder at once. |
 | **The front door** | `index.html` (the landing/device picker) — the page normal people start from. |
 | **How an app is built** | its source modules — `<node>-dsp.js` (signal math), `-render.js`, `-app.js`, `-registry.js` — plus `<App>.src.html`. Edit these; **never** the bundled `*.html`, then re-bundle. |
@@ -188,7 +192,7 @@ source, here's the lay of the land.
 | **The papers** | `papers/` — working preprints, each regenerated from its tool. |
 | **Architecture docs** | `wiring/` — the "How It's Wired" reference set; start at `wiring/How It's Wired - the Dex Suite.html`. |
 | **Design system** | `templates/` — visual-language spec, theme + evidence-badge previews. |
-| **House rules** | `CLAUDE.md` (constitution) · `CONTRIBUTING.md` (on-ramp) · `ARCHITECTURE-PRINCIPLES.md` · `LEXICON.md`. |
+| **House rules** | `CLAUDE.md` (constitution) · `CONTRIBUTING.md` (on-ramp) · `ARCHITECTURE-PRINCIPLES.md` · [`docs/LEXICON.md`](docs/LEXICON.md). |
 
 ---
 

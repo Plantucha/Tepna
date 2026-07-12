@@ -496,6 +496,8 @@ path changes/2026-07-12-cpapdex-resmed-adapter-and-mode.md
 path changes/2026-07-12-equiv-blindspot-closed-and-corrected.md
 path changes/2026-07-12-event-coupling-primitive.md
 path changes/2026-07-12-intervals-conserve-time-absence-is-not-zero.md
+path changes/2026-07-12-readme-currency.md
+path changes/2026-07-12-site-badge-drift-and-ppgdex-card.md
 path changes/2026-07-12-trio-planted-sigma-gate.md
 path changes/2026-07-12-verity-gate-classifies-failure.md
 path changes/README.md
