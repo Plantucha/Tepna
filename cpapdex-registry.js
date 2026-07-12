@@ -58,7 +58,12 @@ var CPAP_REGISTRY = {
   p95Pressure:   { label:'95th-%ile Pressure', unit:'cmH₂O',     goodDirection:'down', depth:'basic',    evidence:'measured',
                    cite:'P95 delivered pressure — direct PLD channel' },
   pressureRange: { label:'Pressure Range',     unit:'cmH₂O',     goodDirection:'down', depth:'advanced', evidence:'measured',
-                   cite:'IQR (P75−P25) of delivered pressure — auto-titration spread' },
+                   // NOT "auto-titration spread" — that read is retired (CPAP-REAL-CORPUS §F2). This
+                   // IQR is dominated by EPR's per-breath expiratory dips, so it does NOT isolate
+                   // auto-titration; pressureEnvIqr does.
+                   cite:'IQR (P75−P25) of delivered pressure — includes EPR breath-to-breath swing' },
+  pressureEnvIqr:{ label:'Pressure Envelope',  unit:'cmH₂O',     goodDirection:'down', depth:'research', evidence:'measured',
+                   cite:'IQR across 5-min P90 windows of delivered pressure — the EPR-immune, minutes-scale spread the CPAP-vs-APAP mode call is made on (CPAP-REAL-CORPUS §F2)' },
   eprDelta:      { label:'EPR Delta',          unit:'cmH₂O',     goodDirection:'up',   depth:'advanced', evidence:'measured',
                    cite:'Median (Press − EprPress) — expiratory pressure relief depth' },
   epap95:        { label:'95th-%ile EPAP',     unit:'cmH₂O',     goodDirection:'down', depth:'research', evidence:'measured',
@@ -146,6 +151,7 @@ var CPAP_LABEL_ALIAS = {
   'median pressure':'medianPressure', 'pressure':'medianPressure', 'p50 pressure':'medianPressure', 'median p':'medianPressure',
   '95th-%ile pressure':'p95Pressure', '95th-percentile pressure':'p95Pressure', 'p95 pressure':'p95Pressure', 'p95':'p95Pressure',
   'pressure range':'pressureRange', 'pressure range (iqr)':'pressureRange', 'p-range':'pressureRange',
+  'pressure envelope':'pressureEnvIqr', 'pressure envelope (iqr)':'pressureEnvIqr', 'p-envelope':'pressureEnvIqr',
   'epr delta':'eprDelta', 'epr':'eprDelta', 'epr Δ':'eprDelta',
   '95th-%ile epap':'epap95', '95th-percentile epap':'epap95', 'epap95':'epap95', 'epap':'epap95', 'p95 epap':'epap95', 'expiratory pressure':'epap95',
   'residual ahi':'residualAHI', 'ahi':'residualAHI',

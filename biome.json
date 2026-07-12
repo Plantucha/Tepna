@@ -74,7 +74,11 @@
         "glucodex-render.js",
         "integrator-dsp.js",
         "ecgdex-dsp.js",
-        "adapters/polar-rr.js"
+        "adapters/polar-rr.js",
+        "cpapdex-app.js",
+        "cpapdex-registry.js",
+        "signal-spec.js",
+        "dex-coload.js"
       ],
       "formatter": { "enabled": false }
     }

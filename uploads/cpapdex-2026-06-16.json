@@ -546,6 +546,8 @@
     "medianPressure": 8.68,
     "p95Pressure": 12.52,
     "pressureRange": 2.12,
+    "mode": "APAP",
+    "pressureEnvIqr": 2.2,
     "eprDelta": 3,
     "epap95": 9.52,
     "medianLeak": 0,

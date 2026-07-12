@@ -415,9 +415,16 @@
     r('periodicBreathingPct', 'Periodic Breathing', _fmt(nm.periodicBreathingPct, 2), '%', '<2', _sev(2, 10, nm.periodicBreathingPct, true), '% therapy in CSL Cheyne-Stokes/PB spans');
 
     sec('Pressure');
-    r('medianPressure', 'Median Pressure', _fmt(nm.medianPressure, 1), 'cmH₂O', '—', '', 'P50 delivered (mask-on) · mode ' + (s0.mode || '—'));
+    // mode: the NIGHT-level, stability-guarded call (CPAP-REAL-CORPUS §F2) — null unless every
+    // session agreed. Never `s0.mode`: that surfaced ONE session's label as the whole night's
+    // device setting. 'unknown' is an honest answer; a guessed CPAP/APAP is an invented setting.
+    r('medianPressure', 'Median Pressure', _fmt(nm.medianPressure, 1), 'cmH₂O', '—', '', 'P50 delivered (mask-on) · mode ' + (nm.mode || 'unknown'));
     r('p95Pressure', '95th-%ile Pressure', _fmt(nm.p95Pressure, 1), 'cmH₂O', '—', '', 'P95 delivered');
-    r('pressureRange', 'Pressure Range (IQR)', _fmt(nm.pressureRange, 1), 'cmH₂O', '—', '', 'Auto-titration spread (>1 ⇒ APAP)');
+    // NOT "(>1 ⇒ APAP)" any more — that bare-IQR rule is retired (§F2). The raw IQR is dominated
+    // by EPR's per-breath dips, not by auto-titration, so it cannot call the mode; the
+    // minutes-scale `pressureEnvIqr` does. This stays what it honestly is: a spread statistic.
+    r('pressureRange', 'Pressure Range (IQR)', _fmt(nm.pressureRange, 1), 'cmH₂O', '—', '', 'Spread of delivered pressure (includes EPR breath-swing)');
+    r('pressureEnvIqr', 'Pressure Envelope (IQR)', _fmt(nm.pressureEnvIqr, 1), 'cmH₂O', '—', '', 'Minutes-scale spread, EPR-immune — the mode call is made on this');
     r('eprDelta', 'EPR Delta', _fmt(m.eprDelta, 1), 'cmH₂O', '—', '', 'Median expiratory pressure relief (session 1)');
 
     sec('Leak');

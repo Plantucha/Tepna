@@ -79,6 +79,64 @@ function _p(a, q) { var f = _finite(a).sort(function (x, y) { return x - y; }); 
 function _iqr(a)  { return _p(a, 75) - _p(a, 25); }
 function _countWhere(a, pred) { var c = 0; for (var i = 0; i < a.length; i++) if (pred(a[i])) c++; return c; }
 function _filterBy(a, mask) { var o = []; for (var i = 0; i < a.length; i++) if (mask[i]) o.push(a[i]); return o; }
+
+/* ── CPAP-vs-APAP mode (CPAP-REAL-CORPUS §F2) ─────────────────────────────────────────────
+   The OLD rule was `mode = _iqr(pressureMaskOn) > 1.0 ? 'APAP' : 'CPAP'`, and on ~180 real
+   nights it was NOISE: the label flipped 57 times and 27% of nights sat within ±0.2 cmH₂O of
+   the cut — the threshold landed INSIDE the distribution, not outside it. It read as a device
+   setting and was not one.
+
+   WHY it failed (the confound the synthetic fixtures could never show): the raw IQR of the
+   delivered-pressure samples is dominated by **EPR**, not by auto-titration. EPR drops pressure
+   on every EXPIRATION by 1–3 cmH₂O — and PLD samples at 0.5 Hz, fast enough to catch those dips
+   (see the `epapCh` note: with EPR on, delivered pressure swings every breath even on a FIXED
+   machine). So a fixed-pressure CPAP with EPR=3 shows a raw IQR > 1.0 and is labelled "APAP".
+   The old cut was measuring the EPR setting.
+
+   The FIX separates the two by TIMESCALE, which is what actually distinguishes them:
+     · EPR modulates within a BREATH   (~4 s)
+     · auto-titration drifts over MINUTES
+   So take a per-window P90 of mask-on pressure (P90 ≈ the inspiratory / set pressure — it steps
+   OVER the expiratory dips rather than averaging through them), then the IQR across windows. A
+   fixed machine's envelope is flat however aggressive its EPR; an APAP's tracks its titration.
+
+   And it now REFUSES to guess. Between the two thresholds the answer is `null`, not a coin-flip
+   — per §F2, "do not surface a per-night mode label without a stability guard". A null mode is a
+   visible "don't know"; a wrong label is an invented device setting.                          */
+var MODE_WIN_SEC     = 300;   // 5 min — long vs a breath, short vs a titration ramp
+var MODE_MIN_WINDOWS = 4;     // < 20 min of mask-on time: no defensible call
+var MODE_CPAP_MAX    = 0.5;   // envelope IQR ≤ this ⇒ fixed pressure
+var MODE_APAP_MIN    = 1.0;   // envelope IQR ≥ this ⇒ auto-titrating
+                              // strictly between ⇒ null (indeterminate — never guessed)
+// ⚠️ NOT YET CALIBRATED AGAINST THE FULL CORPUS. These thresholds are set from physiology (a fixed
+// machine's minute-scale envelope is FLAT — IQR ≈ 0 — while an auto-titrating one wanders by
+// cmH₂O), and the fixtures agree: the two real nights score 1.2 and 2.2, the synthetic EDF 1.08,
+// a fixed machine ~0. But the ~180-night corpus that diagnosed §F2 is not in this repo, so the
+// exact cut points have NOT been fitted to it. The dead-band is what makes that safe: a night the
+// thresholds cannot separate returns `null`, not a coin-flip label — the failure mode is "we don't
+// know", never a wrong device setting. Calibrating these two numbers on the real corpus (and
+// reporting how many nights land indeterminate) is the follow-up.
+
+/* Minutes-scale pressure envelope: per-window P90, which is immune to EPR's expiratory dips. */
+function pressureEnvelope(pressureMaskOn, fs) {
+  var n = Math.max(1, Math.round((fs || 0.5) * MODE_WIN_SEC));
+  var out = [];
+  for (var i = 0; i + n <= pressureMaskOn.length; i += n) out.push(_p(pressureMaskOn.slice(i, i + n), 90));
+  return out;
+}
+
+/* → { mode: 'CPAP'|'APAP'|null, envIqr, nWindows }. null mode = not enough evidence. */
+function classifyMode(pressureMaskOn, fs) {
+  var env = pressureEnvelope(pressureMaskOn || [], fs);
+  if (env.length < MODE_MIN_WINDOWS) return { mode: null, envIqr: null, nWindows: env.length };
+  var q = _iqr(env);
+  if (!isFinite(q)) return { mode: null, envIqr: null, nWindows: env.length };
+  return {
+    mode: q <= MODE_CPAP_MAX ? 'CPAP' : q >= MODE_APAP_MIN ? 'APAP' : null,
+    envIqr: +q.toFixed(2),
+    nWindows: env.length
+  };
+}
 /* Leak CV is only meaningful when there IS appreciable leak. A well-sealed mask
    sits at ~0 L/min unintentional leak, where SD/mean blows up (÷ near-zero) into
    a nonsense % — so below LEAK_CV_FLOOR (mean L/min) we report null, not 6000%.
@@ -517,8 +575,11 @@ function buildSessionFromEdf(set, meta) {
     for (var e = 0; e < nn; e++) if (pressCh.data[e] > 0) diffs.push(pressCh.data[e] - eprCh.data[e]);
     eprDelta = diffs.length ? +_p(diffs, 50).toFixed(1) : null;
   }
-  var pressIqr = _iqr(pressureMaskOn);
-  var mode = (isFinite(pressIqr) && pressIqr > 1.0) ? 'APAP' : 'CPAP';   // >1 cmH₂O IQR ⇒ auto-titrating
+  var pressIqr = _iqr(pressureMaskOn);   // still the reported `pressureRange` — an honest spread stat
+  // mode is NO LONGER a bare-IQR cut (§F2 — it was measuring EPR, and flipped 57× on real data).
+  // Minutes-scale envelope + a dead-band that returns null rather than guessing.
+  var modeCls = classifyMode(pressureMaskOn, fs);
+  var mode = modeCls.mode;
   var epapMaskOn = epapCh ? _filterBy(epapCh.data, maskOn) : [];
   var epap95 = epapMaskOn.length ? +(_p(epapMaskOn, 95)).toFixed(2) : null;   // bilevel EPAP / EPR expiratory P95
 
@@ -547,6 +608,9 @@ function buildSessionFromEdf(set, meta) {
     medianPressure:   +(_p(pressureMaskOn, 50)).toFixed(2),
     p95Pressure:      +(_p(pressureMaskOn, 95)).toFixed(2),
     pressureRange:    +pressIqr.toFixed(2),
+    // the EPR-immune, minutes-scale spread the mode call is actually made on (§F2). Surfaced so a
+    // consumer can see WHY mode is CPAP/APAP/null instead of trusting a bare label.
+    pressureEnvIqr:   modeCls.envIqr,
     eprDelta:         eprDelta,
     epap95:           epap95,
     mode:             mode,
@@ -605,7 +669,8 @@ function buildSessionFromEdf(set, meta) {
     _pool: { pressureMaskOn: pressureMaskOn, epapMaskOn: epapMaskOn, leakMaskOn: leakMaskOn, usageHours: usageHours, nApnea: nApnea, nOA: aCount('OA'), nCA: aCount('CA'), nH: aCount('H'), nRE: aCount('RE'), pbSec: pbSec, durSec: durSec,
              rrMaskOn: rrMaskOn, tvMaskOn: tvMaskOn, mvMaskOn: mvMaskOn, snMaskOn: snMaskOn, flMaskOn: flMaskOn,
              breathCount: breath ? breath.breathCount : null, ieRatio: breath ? breath.ieRatio : null,
-             eprDelta: eprDelta, maskOnLatency: metrics.maskOnLatency }
+             eprDelta: eprDelta, maskOnLatency: metrics.maskOnLatency,
+             mode: mode, pressureEnvIqr: modeCls.envIqr }
   };
 }
 
@@ -648,6 +713,21 @@ function nightMetrics(sessions) {
     medianPressure:   +(_p(P, 50)).toFixed(2),
     p95Pressure:      +(_p(P, 95)).toFixed(2),
     pressureRange:    +(_iqr(P)).toFixed(2),
+    // THE STABILITY GUARD (§F2: "do not surface a per-night mode label without a stability
+    // guard"). A night is labelled ONLY if every session made a call and they all AGREE. One
+    // indeterminate session, or two sessions disagreeing, ⇒ null. The old code surfaced the FIRST
+    // session's label as the night's (cpapdex-fusion `s0.mode`), so a single noisy session could
+    // name the whole night's device setting.
+    mode:             (function () {
+                        var ms = pools.map(function (p) { return p.mode; });
+                        if (!ms.length || ms.some(function (m) { return m == null; })) return null;
+                        return ms.every(function (m) { return m === ms[0]; }) ? ms[0] : null;
+                      })(),
+    pressureEnvIqr:   (function () {
+                        var q = pools.map(function (p) { return p.pressureEnvIqr; })
+                                     .filter(function (v) { return v != null && isFinite(v); });
+                        return q.length ? +(_p(q, 50)).toFixed(2) : null;
+                      })(),
     // EPR is a device SETTING, constant within a night in practice — median over the
     // sessions that reported one (not a sample-pooled percentile).
     eprDelta:         eprs.length ? +(_p(eprs, 50)).toFixed(1) : null,
@@ -848,7 +928,64 @@ function selfTest() {
   var sess = buildSessionFromEdf(_synthEdfSet({ cs: true }), { fname: 's1' });
   var uh = 600 / 3600;
   ok('EDF session: usageHours ≈ 0.167', near(sess.usageHours, uh, 0.01), sess.usageHours);
-  ok('EDF session: mode = CPAP (low pressure IQR)', sess.mode === 'CPAP', sess.mode);
+  // The synthetic EDF set is a 10-MINUTE clip (2 × 5-min windows). You cannot tell a fixed machine
+  // from an auto-titrating one in ten minutes, so the honest answer is "don't know" — and §F2's
+  // whole point is that the old rule answered anyway (it called this "CPAP" off a bare IQR).
+  ok('EDF session: mode = null on a 10-min clip (too short to judge — never a default label)',
+     sess.mode === null, sess.mode);
+
+  /* ── §F2: the mode heuristic. The OLD rule was `rawIQR > 1.0 ⇒ APAP`, which on ~180 real nights
+     flipped 57× because it was measuring EPR, not auto-titration. These are the metamorphic cases
+     that distinguish the two — and the FIRST one FAILS under the old rule by construction. ── */
+  var FS = 0.5, WIN = FS * 300;          // 0.5 Hz PLD; 150 samples per 5-min window
+  function press(n, fn) { var a = []; for (var i = 0; i < n; i++) a.push(fn(i)); return a; }
+  // a minimal session _pool carrying just what nightMetrics needs to pool a mode
+  function mkPool(m) {
+    return { pressureMaskOn: [10, 10, 10], epapMaskOn: [], leakMaskOn: [], usageHours: 4,
+             nApnea: 0, nOA: 0, nCA: 0, nH: 0, nRE: 0, pbSec: 0, durSec: 14400,
+             maskOnLatency: 0.5, mode: m, pressureEnvIqr: 0.1 };
+  }
+
+  // (1) THE CONFOUND — a FIXED-pressure machine with aggressive EPR (3 cmH₂O expiratory dip).
+  //     Raw IQR ≈ 3 ⇒ the old rule calls this "APAP". It is a fixed CPAP.
+  var eprFixed = press(WIN * 8, function (i) { return (i % 2 === 0) ? 10 : 7; });
+  ok('§F2 the OLD bare-IQR rule misfires on EPR (raw IQR > 1 on a FIXED machine)',
+     _iqr(eprFixed) > 1.0, _iqr(eprFixed));
+  ok('§F2 fixed pressure + strong EPR ⇒ CPAP (envelope is EPR-immune)',
+     classifyMode(eprFixed, FS).mode === 'CPAP', classifyMode(eprFixed, FS).mode);
+  ok('§F2   … and its envelope IQR is ~0 despite a raw IQR of 3',
+     classifyMode(eprFixed, FS).envIqr <= MODE_CPAP_MAX, classifyMode(eprFixed, FS).envIqr);
+
+  // (2) a genuinely auto-titrating machine: pressure ramps 8 → 14 over the night, EPR on top.
+  var apap = press(WIN * 8, function (i) {
+    var base = 8 + 6 * (i / (WIN * 8));
+    return (i % 2 === 0) ? base : base - 3;
+  });
+  ok('§F2 auto-titrating pressure ⇒ APAP', classifyMode(apap, FS).mode === 'APAP', classifyMode(apap, FS).mode);
+
+  // (3) the dead-band: an envelope spread BETWEEN the thresholds is `null`, not a coin-flip.
+  //     27% of real nights sat within ±0.2 of the old 1.0 cut — those are exactly these.
+  // an 8-window ramp of total range R has envelope IQR ≈ R/2 → R = 1.5 lands IQR ≈ 0.75,
+  // i.e. squarely between MODE_CPAP_MAX (0.5) and MODE_APAP_MIN (1.0).
+  var borderline = press(WIN * 8, function (i) { return 10 + 1.5 * Math.floor(i / WIN) / 7; });
+  var bMode = classifyMode(borderline, FS);
+  ok('§F2 an indeterminate envelope ⇒ mode null (REFUSES to guess)',
+     bMode.mode === null && bMode.envIqr > MODE_CPAP_MAX && bMode.envIqr < MODE_APAP_MIN,
+     bMode.mode + ' @ ' + bMode.envIqr);
+
+  // (4) too little mask-on time to judge ⇒ null (never a default label)
+  ok('§F2 < 20 min of therapy ⇒ mode null (not "CPAP" by default)',
+     classifyMode(press(WIN * 2, function () { return 10; }), FS).mode === null);
+  ok('§F2 no pressure at all ⇒ mode null, no throw', classifyMode([], FS).mode === null);
+
+  // (5) THE STABILITY GUARD — a night is labelled only if every session AGREES.
+  var nmAgree = nightMetrics([{ _pool: mkPool('CPAP') }, { _pool: mkPool('CPAP') }]);
+  var nmSplit = nightMetrics([{ _pool: mkPool('CPAP') }, { _pool: mkPool('APAP') }]);
+  var nmNull  = nightMetrics([{ _pool: mkPool('CPAP') }, { _pool: mkPool(null) }]);
+  ok('§F2 night mode: all sessions agree ⇒ that label', nmAgree && nmAgree.mode === 'CPAP', nmAgree && nmAgree.mode);
+  ok('§F2 night mode: sessions DISAGREE ⇒ null (was: the first session named the night)',
+     nmSplit && nmSplit.mode === null, nmSplit && nmSplit.mode);
+  ok('§F2 night mode: any indeterminate session ⇒ null', nmNull && nmNull.mode === null, nmNull && nmNull.mode);
   ok('EDF session: EPR delta ≈ 3', near(sess.metrics.eprDelta, 3, 0.3), sess.metrics.eprDelta);
   ok('EDF session: epap95 present (expiratory P95 ≈ 7)', near(sess.metrics.epap95, 7, 0.5), sess.metrics.epap95);
   ok('EDF session: medianLeak ≈ 4.8 L/min (L/s×60)', near(sess.metrics.medianLeak, 4.8, 0.4), sess.metrics.medianLeak);
@@ -949,6 +1086,7 @@ var api = {
   buildSession: buildSession, buildNight: buildNight, buildLongitudinal: buildLongitudinal,
   // Step 2 — real-signal adapter + flow/oximetry DSP
   chan: chan, leakToLpm: leakToLpm,
+  classifyMode: classifyMode, pressureEnvelope: pressureEnvelope,   // §F2 — gated in dex-tests.js
   selfGateDesat: selfGateDesat, detectDesats: detectDesats, oximetryLane: oximetryLane,
   detectBreaths: detectBreaths, eveEvents: eveEvents, eveClassToType: eveClassToType,
   periodicBreathingSec: periodicBreathingSec,

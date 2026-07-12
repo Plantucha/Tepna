@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-11 · **Corpus:** ~180 real CPAP nights (6 months), 39 paired with O2Ring, 17 quad-modal · **Related:** `CPAPDEX-PHASE9-FOLLOWUPS-*-BRIEF.md`, `INTEGRATOR-BUILD-BRIEF.md`
+**Status:** DONE — 2026-07-12 (P1 · P2 · P3 · P4 · P5 · P6 · P9 all executed) · **Created:** 2026-07-11 · **Corpus:** ~180 real CPAP nights (6 months), 39 paired with O2Ring, 17 quad-modal · **Related:** `CPAPDEX-PHASE9-FOLLOWUPS-*-BRIEF.md`, `INTEGRATOR-BUILD-BRIEF.md` · **Spawned:** `TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md` (executes §P6)
 
 # CPAP real corpus — what a whole SD card exposed, and what the data still owes us
 
@@ -69,7 +69,44 @@ fields that *are* exported sit at r ≈ 0.16–0.26. **We export the weak predic
 the CPAP fixtures (output moves). Add the new metrics to `CPAP_REGISTRY` with evidence badges (the
 ventilation ones are device-*measured*; `snorePressureCorr` is derived → lower tier).
 
-### F2 — the `mode` heuristic is noise on real data
+### F2 — the `mode` heuristic is noise on real data ✅ **FIXED 2026-07-12 (P4)**
+
+> **Executed — and the diagnosis below understates it. The threshold was not badly chosen; it was
+> measuring the wrong thing.**
+>
+> The raw IQR of delivered pressure is dominated by **EPR**, not by auto-titration. EPR drops pressure
+> **1–3 cmH₂O on every EXPIRATION**, and PLD samples at 0.5 Hz — fast enough to catch those dips (the
+> DSP's own `epapCh` comment already said so: *"on a fixed-CPAP machine with no EPR this equals
+> delivered pressure"*). So a **fixed-pressure CPAP with EPR=3 shows a raw IQR > 1.0 and was labelled
+> "APAP"**. No constant can fix that — the statistic does not contain the signal. That is why the cut
+> landed inside the distribution, and why the label flipped 57×.
+>
+> The fix separates the two by **timescale**, which is what actually distinguishes them — EPR modulates
+> within a *breath* (~4 s), auto-titration drifts over *minutes*. `mode` is now called on the IQR of a
+> **per-5-min P90 pressure envelope** (P90 steps *over* the expiratory dips instead of averaging through
+> them), so it is EPR-immune by construction. Two further guards, both required by this §:
+>
+> - **A dead-band. It refuses to guess.** Between the thresholds the answer is **`null`** — a visible
+>   "don't know", not a coin-flip. The 27% of nights sitting on the old cut are exactly these.
+> - **A night-level stability guard.** A night is labelled only if **every session made a call and they
+>   all agree**. Previously the *first* session's label named the whole night (`s0.mode`). On the real
+>   06-12 fixture this now correctly reports `mode: null` — its two sessions do not agree.
+>
+> **Both user-facing surfaces that shipped the old rule are gone**: the `mode` chip (now `unknown` when
+> indeterminate), and — worse — a subtitle that stated the discredited rule to the user as fact,
+> *"Auto-titration spread (>1 ⇒ APAP)"*. The registry's `cite` said the same and was corrected. New
+> `pressureEnvIqr` metric (registered, `measured`) surfaces the quantity the call is actually made on,
+> so a consumer can see *why* a night is CPAP/APAP/null instead of trusting a bare label.
+>
+> ⚠️ **Honest limit — the cut points are NOT calibrated against the corpus.** They are set from physiology
+> (a fixed machine's minute-scale envelope is flat; an auto-titrating one wanders by cmH₂O) and agree with
+> every fixture (real nights **1.2** and **2.2**, synthetic EDF **1.08**, a fixed machine **~0**) — but the
+> ~180-night corpus is not in this repo, so they have not been *fitted* to it. **The dead-band is what makes
+> that safe**: a night the thresholds cannot separate reads "unknown", never a wrong device setting.
+> Calibrating them (and reporting how many nights land indeterminate) is carried in
+> `CPAP-REAL-CORPUS-FOLLOWUPS-2026-07-12-BRIEF.md` §1.
+
+### F2 (as diagnosed)
 
 `cpapdex-dsp.js:506` — `mode = pressIqr > 1.0 ? 'APAP' : 'CPAP'`. Across ~180 real nights the label
 **flips 57 times**, and **27% of nights sit within ±0.2 cmH₂O of the 1.0 cut** — the threshold lands
@@ -125,7 +162,24 @@ shipped as `tools/cpap-corpus.mjs`. A real-data equivalence leg is buildable tod
 > **Cheaper alternative:** *synthesize* an EDF set calibrated to the corpus's distributions. Gets a genuine
 > **binary-EDF** equivalence leg with no real recording published at all. Probably the right call.
 
-### F4 — no ResMed ingest adapter
+### F4 — no ResMed ingest adapter ✅ **FIXED 2026-07-12 (P3)**
+
+> **Executed.** `adapters/resmed-edf.js` is registered like the other eight (all 6 lists: `dex-coload.js`,
+> both orchestrator `.src.html`, `Dex-Test-Suite.html`, `run-tests.mjs`, `tsconfig.json`). CPAP was the
+> fleet's **only adapter-less signal type**, on the premise that *"EDF is binary + multi-file, so there is
+> NO text-stream adapter"* — but that premise only rules out a **text** adapter. The adapter takes its
+> bytes off the **established `ctx` escape hatch** (`ctx.buffers` / `ctx.edfSets`) and ignores the `text`
+> arg — the same hatch `oxydex-spo2` already uses for `ctx.parseCSV` and `polar-h10-ecg` for
+> `ctx.companions`. The stale "no adapter" prose in `signal-spec.js` is corrected.
+>
+> **The §F4 rule is now gate-backed both ways**, which is the point of promoting it: the test asserts that
+> both EVE files survive grouping **and** that the naive ±60 s-only rule *provably drops one*. So a future
+> "simplification" back to the naive cluster reds instead of silently under-counting events again.
+>
+> Orchestrator-only re-bundle (Data Unifier / OverDex are **non-provenance**): **no `manifestHash` moved,
+> no fixture regenerated.**
+
+### F4 (as diagnosed)
 
 `adapters/` holds 8 vendor adapters (Polar ×3, Coospo, Wahoo, Libre, Welltory, OxyDex-SpO₂) and **none
 for CPAP**. The SD-card tree → `edfSets` grouping had to be hand-rolled. The non-obvious rule:
@@ -291,14 +345,47 @@ nothing in the suite currently pins it. Deserves a fixture.
 | ~~**P1**~~ | ✅ **DONE 2026-07-12** — the lane is on the bus (15 → 30 metrics); F5 rode the same bundle. `manifestHash b7cc3f0256da → e2392eda2d0a`; 4 fixtures regenerated (both `contentId`s unchanged); changeset dropped. No registry/badge work needed (all 15 were already graded). | **high** | med |
 | ~~**P2**~~ | ✅ **DONE 2026-07-12** — binary-EDF equiv leg live (17→20 assertions), via a **committed synthetic** EDF set (no personal data, no device serial). Closes F3 + F6. First fixture with committed, content-addressed INPUT bytes. Surfaced **M5**. | **high** | low |
 | ~~**P9**~~ | ✅ **DONE 2026-07-12** — every node has a committed synthetic input; the equivalence gate runs in CI for the first time (17 → 38 assertions, GATE B 4 → 10). | **highest** | med |
-| **P3** | `adapters/resmed-edf.js` (F4) — promote the session-grouping rule out of `tools/`. | med | low |
-| **P4** | Fix/retire the `mode` heuristic (F2); decide F6. | med | low |
-| **P5** | **`event-coupling.js`** — the shuffled-null primitive (M1). | **high** | med |
-| **P6** | **CPAP as a respiration REFERENCE for the reference-free σ programme** — below. | **highest** | med |
+| ~~**P3**~~ | ✅ **DONE 2026-07-12** — `adapters/resmed-edf.js` registered (all 6 lists); CPAP was the fleet's ONLY adapter-less signal type. Binary EDF rides the established `ctx` escape hatch (`ctx.buffers`/`ctx.edfSets`), so the "no text-stream adapter ⇒ no adapter" premise is retired. The §F4 rule is exposed on the adapter record and unit-tested **both ways**: both EVE files survive, AND the naive ±60 s-only rule provably drops one — so a "simplification" back to it reds. Orchestrator-only re-bundle: **no `manifestHash`, no fixture moved.** | med | low |
+| ~~**P4**~~ | ✅ **DONE 2026-07-12** — the bare-IQR `mode` cut is retired. Root cause was a **confound, not a bad constant**: the raw pressure IQR is dominated by **EPR** (a 1–3 cmH₂O drop on every *expiration*, sampled at 0.5 Hz), so a FIXED machine with EPR=3 read "APAP". `mode` is now called on a minutes-scale P90 pressure envelope (EPR-immune), with a **dead-band that returns `null` rather than guessing** and a **night-level stability guard** (every session must agree — the first session no longer names the night). Both surfaces that shipped the old rule are gone, incl. a subtitle literally telling the user *"Auto-titration spread (>1 ⇒ APAP)"*. F6 decided + documented below. | med | low |
+| ~~**P5**~~ | ✅ **DONE 2026-07-12** — `event-coupling.js` in the spine (22 self-test + 21 contract assertions, both runners). Absorbing the prototype found **three ways it lied, all toward false positives**: the null shift did not **wrap** (surrogates fell off the recording end where no B can match → chance deflated → **lift inflated**); a **saturated** window (wider than B's inter-event interval) crushes lift to ~1.0 *by arithmetic* and was indistinguishable from "no coupling" (now flagged, with the exact ceiling `maxLift = 100/chancePct`); and the whole-minute default shifts **resonate** with any round periodicity in B — a planted, perfect coupling scored **lift 1.006**, a false negative (defaults are now second-level). Bundle-free + fixture-free by construction. | **high** | med |
+| ~~**P6**~~ | ✅ **DONE 2026-07-12** — executed as **`TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md`**. The answer is *no*: over 67 epochs / 11 quad-modal nights the reference-free TCH estimator fails **two** ways that are invisible without a truth signal — it is **blind to bias** by construction (ECG under-reads respiration by 1.35 br/min), and its **independence assumption is violated** (ρ = 0.42 between the ECG and PPG error terms — both read the same RSA proxy with the same estimator), which makes it rate a calibrated flow sensor as noisy as an RSA-derived estimate. Rode a sibling ECGDex fix (respiration was computed two ways and exported zero ways — §F1's bug class in a second node). | **highest** | med |
 | **P7** | Apnea → HR (CVHR) and apnea → motion-arousal coupling on A3, via P5. Independently tests M3's re-labelling alternative. | high | med |
 | **P8** | Use A4's dated change-points as ground truth for `CPAPCross` change detection. | med | low |
 
-### P5 — the coupling primitive
+### P5 — the coupling primitive ✅ **DONE 2026-07-12**
+
+> **Executed** — `event-coupling.js`, spine module, dual-realm, gated in both runners (22 self-test +
+> 21 contract assertions). Not co-loaded into any bundle: no app consumes it yet, so wiring it into
+> `dex-coload.js` would re-bundle all 8 apps to carry inert code (the `BADGE_CSS` economics, §🎫). It
+> rides the first node that uses it. **No `manifestHash` moved; no fixture was touched.**
+>
+> **Absorbing `tools/cpap-oxy-couple.mjs`'s `coupling()` found three defects in it — and all three lie
+> in the direction the reader wants to believe.** This matters beyond CPAP: the prototype's numbers are
+> what §M1 is *reported from*, so the primitive had to be right before anything was built on it.
+>
+> 1. **The null did not WRAP.** The prototype shifted surrogates additively, so displaced A events fell
+>    off the end of the recording, where no B can ever match them. That deflates `chancePct` and
+>    therefore **inflates `lift`** — it manufactures couplings. The shift is now circular within the
+>    recording span. (§M1's *lifts* are directionally safe — the dominant class was called at chance and
+>    a deflated chance would only have exaggerated it — but the magnitudes were never sound.)
+> 2. **Saturation was invisible.** If the window is wider than B's mean inter-event interval, every A
+>    finds a B by chance, `chancePct` → 100%, and `lift` is crushed toward 1.0 **by arithmetic even when
+>    the coupling is perfect**. A bare `lift ≈ 1.0` therefore means *either* "no coupling" *or* "this
+>    window cannot resolve one", and the prototype could not tell them apart. Each measurement now
+>    carries the exact ceiling **`maxLift = 100/chancePct`** and a **`saturated`** flag, so lift ≈ 1 may
+>    be read as absence **only** on a window that could have shown presence.
+> 3. **The default shifts RESONATED.** Whole-minute shifts (±5/7/11/13/15 min) are all multiples of 60 s,
+>    so against any stream with a round periodicity every surrogate re-lands A on the *same phase*, the
+>    null reproduces the observed rate, and a real coupling reads as ~1.0 — a **false negative**. Caught
+>    by the module's own gate: a planted, *perfect* coupling scored **lift 1.006**. Defaults are now
+>    second-level (317/461/663/809/887 s), sharing no factor with 30/60/120 s.
+>
+> Each of the three is pinned by a regression assertion, so none can come back. **§M1's conclusions
+> survive** (a chance-level dominant class, a coupled rare class, a ×0.0 longest-duration bucket), but
+> any *magnitude* quoted from the prototype should be re-derived through the primitive before it is
+> published.
+
+### P5 (as proposed)
 
 `cgm-hrv-coupling-analysis.js` is precedent (GlucoDex × PulseDex) but it validates a mechanism **deliberately
 planted in the synthetic cohort generator** — it answers *"did our detectors recover what we injected?"*. The
@@ -350,14 +437,16 @@ Recorded so nobody rebuilds them. All four were *plausible* and *wrong*, and eac
 
 ## 6 · Done when
 
-- [ ] **P1** — the 15 populated dropped metrics ride the `ganglior` bus; `CPAP_REGISTRY` + badges updated; F5's one-line fix rides the same bundle; CPAP fixtures regenerated (output moves → changeset per §📦); `registry-defs-parity` green.
-- [ ] **P2** — the identifier question settled (**scrub** or **synthesize**); a real-binary-EDF `env.equiv` leg runs `compute({edfSets}) ≡ committed export` in **both** runners; `FIXTURE-PROVENANCE.json`'s "can't join" note **deleted**.
-- [ ] **P3** — `adapters/resmed-edf.js` registered; the second-file-of-type rule has a unit test.
-- [ ] **P4** — `mode` fixed or retired (no bare-IQR label ships); F6 decided and documented.
-- [ ] **P5** — `event-coupling.js` in the shared spine with a self-test (window sweep + duration strata + null).
-- [ ] **P6** — respiration triplet built on A3; TCH σ compared against the CPAP reference; written up (a `PAPERS-ROADMAP` item, not just a gate).
-- [ ] `Dex-Test-Suite.html?full` all-green · `verify-provenance.html` GATE A/B clean · `node tools/build.mjs --check` clean.
-- [ ] Follow-up brief spawned per §📌 with whatever P6 turns up.
+- [x] **P1** — the 15 populated dropped metrics ride the `ganglior` bus; `CPAP_REGISTRY` + badges updated; F5's one-line fix rides the same bundle; CPAP fixtures regenerated (output moves → changeset per §📦); `registry-defs-parity` green.
+- [x] **P2** — the identifier question settled (**synthesize** — no real EDF committed, so no device serial published); a binary-EDF `env.equiv` leg runs `compute({edfSets}) ≡ committed export` in **both** runners; `FIXTURE-PROVENANCE.json`'s "can't join" note **deleted**.
+- [x] **P3** — `adapters/resmed-edf.js` registered; the second-file-of-type rule has a unit test (and a companion assertion proving the naive rule DOES drop an EVE, so the clause cannot be "simplified" away).
+- [x] **P4** — `mode` fixed (no bare-IQR label ships anywhere: not the chip, not the `pressureRange` subtitle, not the registry `cite`); F6 decided and documented (below).
+- [x] **P5** — `event-coupling.js` in the shared spine with a self-test (window sweep + duration strata + null). 22 self-test + 21 contract assertions, gated in both runners; the three prototype defects (non-wrapping null · unflagged saturation · resonant whole-minute shifts) fixed and each pinned by a regression assertion.
+- [x] **P6** — respiration triplet built on A3; TCH σ compared against the CPAP reference; written up as `TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md`. **The estimator does NOT recover the true σ** — blind to bias, and its independence assumption fails (ρ = 0.42).
+- [x] `verify-provenance.html` GATE A/B clean · `node tools/build.mjs --check` clean.
+      *(Final, 2026-07-12: `run-tests.mjs` **2132 passing / 0 failing** (136 groups), `build.mjs --check` **clean (10 owned)**, `verify-manifest.mjs` **GATE A 8/8 · GATE B clean**, `tsc --noEmit --checkJs` clean, `cpapdex-dsp --selftest` **59/0**.)*
+- [x] **`Dex-Test-Suite.html?full` render-coverage lane — RUN, all green** (2441 passed / 0 failing, 11 render groups, `bootSkips: []`), on a tree with **no personal data present**. Running it found a CPAPDex defect the headless floor structurally cannot see: **the demo fetched ten gitignored real recordings, so it had never worked on any fresh clone** — §M5's disease on a user-facing surface. Fixed by pointing it at §P2's committed synthetic EDF set (7/13 → 13/13). Note `origin/main` @ v1.8.0 is **red** on this lane.
+- [x] Follow-up briefs spawned per §📌 — `TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md` (P6; feeds `SIGMA-PAPER-REWRITE` + `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III`) and `CPAP-REAL-CORPUS-FOLLOWUPS-2026-07-12-BRIEF.md` (what P3/P4/P5 surfaced and did not close).
 
 ## 7 · Reproducing
 

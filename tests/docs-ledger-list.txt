@@ -22,6 +22,7 @@ brief COHORT-VALIDATION-BRIEF.md
 brief CONTROLLED-RELEASES-2026-07-05-BRIEF.md
 brief CONTROLLED-RELEASES-FOLLOWUPS-2026-07-05-BRIEF.md
 brief CPAP-REAL-CORPUS-2026-07-11-BRIEF.md
+brief CPAP-REAL-CORPUS-FOLLOWUPS-2026-07-12-BRIEF.md
 brief CPAPDEX-BUILD-BRIEF.md
 brief CPAPDEX-CODEGEN-HANDOFF.md
 brief CPAPDEX-KICKOFF.md
@@ -251,6 +252,7 @@ path adapters/oxydex-spo2.js
 path adapters/polar-h10-ecg.js
 path adapters/polar-rr.js
 path adapters/polar-sense-ppg.js
+path adapters/resmed-edf.js
 path adapters/wahoo-rr.js
 path adapters/welltory-summary.js
 path analysis
@@ -306,6 +308,7 @@ path briefs/COHORT-VALIDATION-BRIEF.md
 path briefs/CONTROLLED-RELEASES-2026-07-05-BRIEF.md
 path briefs/CONTROLLED-RELEASES-FOLLOWUPS-2026-07-05-BRIEF.md
 path briefs/CPAP-REAL-CORPUS-2026-07-11-BRIEF.md
+path briefs/CPAP-REAL-CORPUS-FOLLOWUPS-2026-07-12-BRIEF.md
 path briefs/CPAPDEX-BUILD-BRIEF.md
 path briefs/CPAPDEX-CODEGEN-HANDOFF.md
 path briefs/CPAPDEX-KICKOFF.md
@@ -484,6 +487,9 @@ path capture-host/writers.py
 path cgm-hrv-coupling-analysis.html
 path cgm-hrv-coupling-analysis.js
 path changes
+path changes/2026-07-12-cpapdex-demo-synthetic-input.md
+path changes/2026-07-12-cpapdex-resmed-adapter-and-mode.md
+path changes/2026-07-12-event-coupling-primitive.md
 path changes/README.md
 path clock.js
 path codegen
@@ -716,6 +722,7 @@ path ecgdex-profile.js
 path ecgdex-registry.js
 path ecgdex-render.js
 path entrance-guard.js
+path event-coupling.js
 path fusion-proto-data.json
 path ganglior-provenance.js
 path glucodex-app.js
@@ -931,6 +938,7 @@ path tools/derive-sigma-window.mjs
 path tools/make-synthetic-edf.mjs
 path tools/make-synthetic-inputs.mjs
 path tools/r5-hr-reference.mjs
+path tools/regen-cpap-goldens.mjs
 path tools/release.mjs
 path tools/tch-estimator-bakeoff.mjs
 path tools/tch-multinight.mjs

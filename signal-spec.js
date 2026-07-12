@@ -69,9 +69,13 @@
     //    of the decoded multi-signal set ride as a `edfSets` SIDECAR on the frame (no
     //    event carrier exists on a SignalFrame — GENERIC-EMIT-GATE-FOLLOWUPS-I §1).
     //    CPAPDex.compute reconstructs the night → CpapFusion.cpapBuildExport. EDF is
-    //    BINARY + multi-file, so there is NO text-stream adapter (the readAsText host
-    //    boundary can't carry it — the CPAPDex app owns binary ingest); cpap is emittable
-    //    via SignalOrchestrate.canEmit + the generic-gate provider, not DRIVER-1 adapter. ──
+    //    BINARY + multi-file, so there is no TEXT-stream adapter — but cpap is no longer
+    //    adapter-less: `adapters/resmed-edf.js` (CPAP-REAL-CORPUS §P3) registers for it and
+    //    takes its bytes off the ctx escape hatch (`ctx.buffers` / `ctx.edfSets`), ignoring
+    //    the `text` arg — the same hatch oxydex-spo2 uses for ctx.parseCSV. It carries the
+    //    SD-card session-grouping rule (§F4). The CPAPDex app still owns its own binary
+    //    ingest; cpap remains emittable via SignalOrchestrate.canEmit + the generic-gate
+    //    provider, and is now ALSO reachable through the DRIVER-1 adapter registry. ──
     cpap: { kind: 'samples', unit: 'L/s',
             frameFields: ['samples', 'fs', 't0Ms'],
             dsp: function () { return g('CPAPDex'); } },  // CPAPDex namespace (CpapDsp legacy)

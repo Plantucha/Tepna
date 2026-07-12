@@ -148,6 +148,7 @@
 <script src="adapters/libre-cgm.js"></script>
 <script src="adapters/polar-sense-ppg.js"></script>
 <script src="adapters/polar-h10-ecg.js"></script>
+<script src="adapters/resmed-edf.js"></script>
 <script src="quantity.js"></script>
 <!-- §3 namespaced co-load (SIGNAL-ADAPTER-FOLLOWUPS): set the flag, then load the migrated
      DSPs in ONE realm (no bare-global spray) so the Phase-9 compute() FUNCTIONAL floor (-II §3)
@@ -161,6 +162,7 @@
 <script src="glucodex-dsp.js"></script>
 <!-- shared file-ingest classifiers — load BEFORE signal-orchestrate (§1 ECG-INGEST-FOLLOWUPS-II: pairCompanions consults DexIngest.deviceKey/foreignVendor) -->
 <script src="dex-ingest.js"></script>
+<script src="event-coupling.js"></script>
 <!-- shared node orchestration (live object for the generic emit gate) + the co-load manifest (§10/§5) -->
 <script src="signal-orchestrate.js"></script>
 <script src="dex-coload.js"></script>
@@ -439,6 +441,7 @@ async function main(){
     SignalOrchestrate: window.SignalOrchestrate,
     DexCoload: window.DexCoload,
     DexIngest: window.DexIngest,
+    EventCoupling: window.EventCoupling,
     pickProvenanceBanner: window.pickProvenanceBanner,
     docs, hosts, manifests, docsLedger, releaseLedger, discoverability,
     srcHtml, bundleCsp,
