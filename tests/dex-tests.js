@@ -6722,6 +6722,109 @@
            surfaced FFT cycle length (the periodic-breathing number) changed on ~30 of 39 real nights.
        §7: the REM proxy ("still + low HR SD + HR near the night mean") describes quiet sleep, not REM —
            all 39 real nights returned 39.6-87.8 % "REM" (norm ~20-25 %), and EVERY one rendered 'good'. */
+    /* ════ ADVERSARIAL EQUIVALENCE INPUTS — closing the blind spot the deep audit exposed ════════════
+       Every committed input in this repo — real and synthetic — is a CLEAN, short, DMY, gapless
+       recording. That is not an accident of sampling; it is the shape a maintainer naturally produces.
+       And it meant three of the audit's worst defects were STRUCTURALLY INVISIBLE to CI: the gate could
+       not have caught them no matter how green it ran, because no committed input expressed the shape
+       that triggers them.
+
+         §1  an MM/DD-ordered O2Ring file (the Clock Contract lists BOTH orders for this vendor) flipped
+             date order MID-FILE, ran the clock BACKWARD, and shipped durationMin = -254460 with
+             ODI-4 = 0/h — an apnea night reading as PERFECTLY HEALTHY.
+         §8  parseCSV DROPS the device's '- -' no-reading rows, so a row INDEX stops being a
+             second-offset. Two consumers rebuilt event time from the index anyway; on a lossy night a
+             desat landed 849 s from its true time, against a 15 s / 60 s coincidence gate.
+         §9  two surfaced metrics head-sliced to the FIRST HOUR of a 6-10 h night, undisclosed.
+
+       tools/make-synthetic-inputs.mjs now emits three ADVERSARIAL twins expressing exactly those shapes,
+       and this group asserts the INVARIANTS they violate. These are invariants, not goldens: a golden
+       pins bytes and catches drift, whereas an invariant catches the BUG CLASS — including a future
+       regression nobody has thought of yet. Each input is also proven to BITE (a control asserts the old
+       behaviour really is wrong on it), so none of this can pass vacuously. ════════════════════════ */
+    group('Adversarial equiv inputs — MDY order · dropped rows · a full-length night', 'oxydex-dsp · clock · equivalence · adversarial', function (T) {
+      var OD = env.OxyDex,
+        eq = env.equiv || {};
+      var mdy = eq.oxydex_mdy && eq.oxydex_mdy.input,
+        lossy = eq.oxydex_lossy && eq.oxydex_lossy.input,
+        long = eq.oxydex_longnight && eq.oxydex_longnight.input,
+        clean = eq.oxydex_dmy && eq.oxydex_dmy.input;
+      if (!OD || typeof OD.compute !== 'function') {
+        T.ok('env.OxyDex.compute available', false, 'not wired — gate skipped');
+        return;
+      }
+      if (!mdy || !lossy || !long || !clean) {
+        T.skip('adversarial inputs present (regenerate: node tools/make-synthetic-inputs.mjs)');
+        return;
+      }
+
+      /* ── §1 · METAMORPHIC: the same night in either vendor date order must compute IDENTICALLY ────── */
+      var cD = OD.compute({ text: clean, filename: 'dmy.csv' });
+      var cM = OD.compute({ text: mdy, filename: 'mdy.csv' });
+      var nD = cD.nights && cD.nights[0],
+        nM = cM.nights && cM.nights[0];
+      T.ok('§1 · both date orders produce a night', !!nD && !!nM);
+      if (nD && nM) {
+        T.eq('§1 · MDY file: the DATE matches its DMY twin (not 6 months adrift)', nM.date, nD.date);
+        T.eq('§1 · MDY file: durationMin matches (never negative)', nM.stats.durationMin, nD.stats.durationMin);
+        T.ok('§1 · MDY file: duration is positive', nM.stats.durationMin > 0, 'durationMin=' + nM.stats.durationMin);
+        T.eq('§1 · MDY file: startEpochMs matches', cM.recording.startEpochMs, cD.recording.startEpochMs);
+        T.eq('§1 · MDY file: ODI-4 matches — a desat is NOT lost to a broken clock', nM.odi4 && nM.odi4.count, nD.odi4 && nD.odi4.count);
+        // the control: the file must be diagnostically LIVE, or "ODI matches" is a vacuous 0 == 0.
+        T.ok('§1 · (control) the night actually has desaturations to lose', (nD.odi4 && nD.odi4.count) > 0, 'odi4=' + JSON.stringify(nD.odi4));
+      }
+
+      /* ── §8 · a DROPPED-ROW night: every event sits on its OWN parsed stamp, not on a row index ───── */
+      var rows = OD.parseCSV(lossy, { fname: 'lossy.csv' });
+      var cL = OD.compute({ text: lossy, filename: 'lossy.csv' });
+      var nL = cL.nights && cL.nights[0];
+      T.ok('§8 · the lossy night computes', !!nL && rows.length > 0);
+      if (nL) {
+        var dp = nL.desatProfile || nL.desat || {};
+        var live = (dp.events || []).filter(function (e) {
+          return !e.artifact;
+        });
+        var bus = (cL.ganglior_events || []).filter(function (e) {
+          return e.impulse === 'desat_event';
+        });
+        T.ok('§8 · rows really were dropped (the input expresses the shape)', rows.length < 7200, 7200 - rows.length + ' row(s) dropped');
+        T.ok('§8 · desat events reach the bus', bus.length > 0, bus.length + ' event(s)');
+        var worst = 0,
+          idxWorst = 0,
+          st = nL.stats,
+          dt = (st.durationMin * 60000) / st.n;
+        bus.forEach(function (ev, i) {
+          var d0 = live[i];
+          var truth = d0 && rows[d0.nadirIdx] && rows[d0.nadirIdx].tMs;
+          if (truth == null) return;
+          worst = Math.max(worst, Math.abs(ev.tMs - truth) / 1000);
+          idxWorst = Math.max(idxWorst, Math.abs(nL.t0Ms + d0.nadirIdx * dt - truth) / 1000);
+        });
+        T.ok("§8 · every exported tMs == its own row's timestamp", worst <= 1, 'max drift ' + worst.toFixed(1) + ' s (the coincidence gate is LEAD 15 s / TRAIL 60 s)');
+        // the control: the OLD index→time mapping must be demonstrably wrong here, or the input is toothless.
+        T.ok('§8 · (control) the index→time mapping really IS wrong on this input', idxWorst > 60, 'it would be off by ' + idxWorst.toFixed(0) + ' s — far outside the 60 s gate');
+      }
+
+      /* ── §9 · a FULL-LENGTH night: a window metric must describe the night, not just its head ─────── */
+      var cN = OD.compute({ text: long, filename: 'long.csv' });
+      var n9 = cN.nights && cN.nights[0];
+      T.ok('§9 · the long night computes', !!n9);
+      if (n9) {
+        T.ok('§9 · it really is a full-length overnight', n9.stats.durationMin > 6 * 60, (n9.stats.durationMin / 60).toFixed(1) + ' h');
+        var fft = (n9.research && n9.research.fft) || null;
+        // the input oscillates at 20 s for its first hour and 50 s for the remaining six. A head-slice
+        // reports ~20 s; the whole night is ~50 s. There is no way to pass this by accident.
+        T.ok('§9 · the FFT cycle length is produced', !!(fft && fft.peakCycSec != null), 'fft=' + JSON.stringify(fft));
+        if (fft && fft.peakCycSec != null) {
+          T.ok(
+            '§9 · it reports the WHOLE night (~50 s), not the first hour (~20 s)',
+            fft.peakCycSec >= 40 && fft.peakCycSec <= 60,
+            'peakCycSec=' + fft.peakCycSec + ' s — a first-hour head-slice would report ~20 s'
+          );
+        }
+      }
+    });
+
     group('OxyDex §7/§8/§9 — real event clock · whole-night windows · REM plausibility', 'oxydex-dsp · oxydex-fusion · clock · fabricated-absence', function (T) {
       var OD = env.OxyDex;
       if (!OD || typeof OD.compute !== 'function' || typeof OD.parseCSV !== 'function') {
