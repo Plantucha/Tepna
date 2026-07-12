@@ -18,9 +18,16 @@
  * clock and an O2Ring CSV clock align with NO timezone negotiation. That is the
  * contract's whole point, demonstrated across two unrelated parsers.
  *
- * PROTOTYPE for the shared `event-coupling.js` primitive proposed in
- * briefs/CPAP-REAL-CORPUS-2026-07-11-BRIEF.md §P5. Generalizes to any (node A
- * event, node B event) pair — CPAP apnea × desat, ECG arrhythmia × desat, …
+ * CONSUMER of the shared `event-coupling.js` primitive (was its prototype; the
+ * local copy is deleted, so this tool cannot drift from the gated module).
+ * Generalizes to any (node A event, node B event) pair — CPAP apnea × desat,
+ * ECG arrhythmia × desat, …
+ *
+ * ⚠️ Re-running this through the FIXED primitive RETRACTED the original §M1
+ * magnitude: the prototype's null did not WRAP, so surrogates fell off the end
+ * of a night where no desat could match them → chance deflated → lift inflated.
+ * Re-derived on 44 paired nights, NO event class couples above chance
+ * (CPAP-REAL-CORPUS-FOLLOWUPS §2). Read `maxLift` before believing any `lift`.
  *
  *   node tools/cpap-oxy-couple.mjs --exports <cpap-exports.json> --oxy <dir-of-O2Ring-csv>
  *
@@ -87,33 +94,14 @@ const ctx = vm.createContext(sb);
 ctx.__DEX_NAMESPACED__ = true;
 for (const f of ['kernel-constants.js', 'clock.js', 'oxydex-util.js', 'oxydex-dsp.js']) vm.runInContext(fs.readFileSync(path.join(REPO, f), 'utf8'), ctx, { filename: f });
 
-/* ── THE PRIMITIVE (§P5) ──────────────────────────────────────────────────────
-   coupling(eventsA, eventsB, opts) → { n, hits, observedPct, chancePct, lift }
-   eventsA/eventsB: [{ tMs }]. A "hit" = some B falls in [tA+lo, tA+hi].        */
-export function coupling(eventsA, eventsB, opts = {}) {
-  const [lo, hi] = opts.window || [0, 60000];
-  const shifts = opts.nullShifts || [-900e3, -720e3, -600e3, -420e3, -300e3, 300e3, 420e3, 600e3, 720e3, 900e3];
-  if (!eventsA.length) return { n: 0, hits: 0, observedPct: NaN, chancePct: NaN, lift: NaN };
-  const rate = (shift) => {
-    let h = 0;
-    for (const a of eventsA) {
-      const t = a.tMs + shift;
-      // eventsB is per-night; callers scope it. Linear scan is fine at this size.
-      if (eventsB.some((b) => b.tMs - t >= lo && b.tMs - t <= hi)) h++;
-    }
-    return (h / eventsA.length) * 100;
-  };
-  const observedPct = rate(0);
-  const nulls = shifts.map(rate);
-  const chancePct = nulls.reduce((s, x) => s + x, 0) / nulls.length;
-  return {
-    n: eventsA.length,
-    hits: Math.round((observedPct / 100) * eventsA.length),
-    observedPct,
-    chancePct,
-    lift: observedPct / (chancePct || 1e-9)
-  };
-}
+/* ── THE PRIMITIVE — now imported, not re-implemented (FOLLOWUPS §2) ─────────────────────────
+   `coupling()` used to be defined HERE as a prototype. It is now the shared spine module
+   `event-coupling.js`, which fixed three defects in this prototype — a non-wrapping null (which
+   INFLATED lift), unflagged window saturation, and resonant whole-minute default shifts. Importing
+   it means this tool can no longer drift from the gated primitive.                              */
+// event-coupling.js is a DUAL-REALM (CommonJS + browser-global) spine module, not an ES module,
+// so it arrives as a default export rather than named bindings.
+import EventCoupling from '../event-coupling.js';
 
 /* ── load both sides, pair by overlapping floating clock ──────────────────── */
 const CP = JSON.parse(fs.readFileSync(EXPORTS, 'utf8')).exports;
@@ -178,26 +166,62 @@ for (const [lo, hi, label] of WINDOWS) {
   const cells = Object.values(CLASSES).map((evs) => {
     // scope each event's B-set to its OWN night (carried on _d)
     const r = couplingPerNight(evs, [lo, hi]);
-    return `${r.observedPct.toFixed(1)}% vs ${r.chancePct.toFixed(1)}%  ×${r.lift.toFixed(1)}`.padEnd(24);
+    const sat = r.saturated ? ' SAT' : '';
+    return `${r.observedPct.toFixed(1)}% vs ${r.chancePct.toFixed(1)}%  ×${r.lift.toFixed(1)}${sat}`.padEnd(24);
   });
   console.log('  ' + label.padEnd(11) + cells.join(''));
 }
 
+/* ── couplingPerNight — now a CONSUMER of the real primitive (FOLLOWUPS §2) ──────────────────
+   The prototype that used to live here is GONE. It had three defects, all of which biased toward
+   BELIEVING (see event-coupling.js's header), and the one that matters most here is that its null
+   shift did NOT WRAP: surrogates displaced off the end of a night could never match a desat, which
+   deflates `chance` and therefore INFLATES `lift`. Every magnitude §M1 reported came from that.
+
+   The wrap is only meaningful WITHIN a night, so we run the primitive PER NIGHT (each event carries
+   its own night's desats + that night's span) and then POOL — summing hits and n across nights
+   rather than averaging per-night percentages, so a 20-event night cannot outvote a 200-event one. */
 function couplingPerNight(evs, window) {
-  if (!evs.length) return { observedPct: NaN, chancePct: NaN, lift: NaN };
-  // each event carries its own night's desats — run the primitive per event-group
-  const shifts = [-900e3, -720e3, -600e3, -420e3, -300e3, 300e3, 420e3, 600e3, 720e3, 900e3];
-  const rate = (shift) => {
-    let h = 0;
-    for (const e of evs) {
-      const t = e.tMs + shift;
-      if (e._d.some((b) => b.tMs - t >= window[0] && b.tMs - t <= window[1])) h++;
-    }
-    return (h / evs.length) * 100;
+  if (!evs.length) return { n: 0, observedPct: NaN, chancePct: NaN, lift: NaN, saturated: false };
+
+  // group by night (each event carries a reference to its own night's desat array)
+  const byNight = new Map();
+  for (const e of evs) {
+    if (!byNight.has(e._d)) byNight.set(e._d, []);
+    byNight.get(e._d).push(e);
+  }
+
+  let nTot = 0,
+    hitsTot = 0,
+    chanceWeighted = 0,
+    satNights = 0;
+  for (const [desats, nightEvs] of byNight) {
+    if (!desats.length) {
+      nTot += nightEvs.length;
+      continue;
+    } // no desats that night → 0 hits, still counts
+    // span = the night itself, so the circular shift stays inside the recording
+    const all = [...nightEvs.map((e) => e.tMs), ...desats.map((d) => d.tMs)];
+    const span = [Math.min(...all), Math.max(...all)];
+    const r = EventCoupling.coupling(nightEvs, desats, { window, span });
+    nTot += r.n;
+    hitsTot += r.hits;
+    if (isFinite(r.chancePct)) chanceWeighted += r.chancePct * r.n;
+    if (r.saturated) satNights++;
+  }
+  const observedPct = nTot ? (hitsTot / nTot) * 100 : NaN;
+  const chancePct = nTot ? chanceWeighted / nTot : NaN;
+  const maxLift = chancePct > 0 ? 100 / chancePct : Infinity;
+  return {
+    n: nTot,
+    observedPct,
+    chancePct,
+    lift: chancePct > 0 ? observedPct / chancePct : NaN,
+    maxLift,
+    // a window this wide is uninformative BY ARITHMETIC — lift cannot exceed maxLift
+    saturated: isFinite(maxLift) && maxLift < 1.5,
+    satNights
   };
-  const observedPct = rate(0);
-  const chancePct = shifts.map(rate).reduce((s, x) => s + x, 0) / shifts.length;
-  return { observedPct, chancePct, lift: observedPct / (chancePct || 1e-9) };
 }
 
 /* ── the decisive cut: long apneas MUST desaturate if they matter ─────────── */
@@ -210,5 +234,7 @@ for (const [lo, hi, label] of [
   const g = CLASSES.central.filter((e) => e.durSec >= lo && e.durSec < hi);
   if (!g.length) continue;
   const r = couplingPerNight(g, [0, 90e3]);
-  console.log(`  ${label.padEnd(8)} n=${String(g.length).padStart(4)}   observed ${r.observedPct.toFixed(1)}%   chance ${r.chancePct.toFixed(1)}%   lift ×${r.lift.toFixed(1)}`);
+  console.log(
+    `  ${label.padEnd(8)} n=${String(g.length).padStart(4)}   observed ${r.observedPct.toFixed(1)}%   chance ${r.chancePct.toFixed(1)}%   lift ×${r.lift.toFixed(1)}   maxLift ×${r.maxLift.toFixed(1)}${r.saturated ? '  [SATURATED — uninformative]' : ''}`
+  );
 }

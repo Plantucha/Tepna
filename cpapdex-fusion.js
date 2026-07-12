@@ -418,7 +418,12 @@
     // mode: the NIGHT-level, stability-guarded call (CPAP-REAL-CORPUS §F2) — null unless every
     // session agreed. Never `s0.mode`: that surfaced ONE session's label as the whole night's
     // device setting. 'unknown' is an honest answer; a guessed CPAP/APAP is an invented setting.
-    r('medianPressure', 'Median Pressure', _fmt(nm.medianPressure, 1), 'cmH₂O', '—', '', 'P50 delivered (mask-on) · mode ' + (nm.mode || 'unknown'));
+    // NO mode chip here any more (FOLLOWUPS §1). A device SETTING is not a per-night fact — judged
+    // per-night the label flipped 7× across 182 real nights; judged on a rolling 7-night median, 0×.
+    // The device did not change 7 times. The CPAP-vs-APAP call now lives ONLY in the longitudinal
+    // block (buildLongitudinal), where it has the evidence to stand on. A single night reports what
+    // it can honestly measure — the envelope spread — and does not name a device setting.
+    r('medianPressure', 'Median Pressure', _fmt(nm.medianPressure, 1), 'cmH₂O', '—', '', 'P50 delivered (mask-on)');
     r('p95Pressure', '95th-%ile Pressure', _fmt(nm.p95Pressure, 1), 'cmH₂O', '—', '', 'P95 delivered');
     // NOT "(>1 ⇒ APAP)" any more — that bare-IQR rule is retired (§F2). The raw IQR is dominated
     // by EPR's per-breath dips, not by auto-titration, so it cannot call the mode; the
