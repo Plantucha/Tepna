@@ -26,3 +26,15 @@
 *.edf   binary
 *.dat   binary
 *.pdf   binary
+
+# ── Generated name-ledgers: UNION MERGE (D2 · EFFICIENCY-AUDIT-FINDINGS-2026-07-12) ──
+# These two are the browser lanes' only way to "list a directory", so they are committed — and every
+# doc/brief/changeset-touching PR rewrites them. As JSON they were a conflict ENGINE: 62 of 139 commits
+# (45%) touched them, TEN merge commits in 48 h existed purely to re-resolve them, and a conflicted PR
+# gets NO CI AT ALL (GitHub builds pull_request runs against the merge commit; if it can't merge, it
+# dispatches nothing — silently). Line-oriented + merge=union makes two disjoint additions merge
+# automatically. Readers sort+dedupe (tests/list-format.js), and the Node lane's `list == fs` staleness
+# assertion still reds on a bad union, so the worst case is a RED you fix with `npm run gen:lists` —
+# never a silent no-CI PR. Regenerate, never hand-edit.
+tests/docs-ledger-list.txt  merge=union
+tests/changes-list.txt      merge=union

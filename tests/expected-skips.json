@@ -1,0 +1,62 @@
+{
+  "_doc": "ALLOW-LIST of skips (⊘ = neither pass nor fail). Every skip the suite emits MUST appear here, or the run REDS. why=corpus-absent → the leg needs a raw recording from the gitignored uploads/ corpus, so it cannot run on a fresh clone (CI, or the worktree CLAUDE.md §👥 mandates); point DEX_UPLOADS=<path> at a real corpus to actually run it. why=known-drift → a deliberate, documented environmental skip. Adding an entry here is a DELIBERATE act that shrinks the gate — justify it in the PR. See EFFICIENCY-AUDIT-FINDINGS-2026-07-12 §G1.",
+  "corpusAbsent": 9,
+  "knownDrift": 2,
+  "allow": [
+    {
+      "group": "HRVDex recording block — startEpochMs earliest, spanDays ≥ 0 (VII §1)",
+      "test": "HRVDex recording block (committed Welltory CSV)",
+      "why": "corpus-absent"
+    },
+    {
+      "group": "Phase-9 compute() ≡ committed export — equivalence gate",
+      "test": "ECGDex compute() ≡ committed export",
+      "why": "corpus-absent"
+    },
+    {
+      "group": "Phase-9 compute() ≡ committed export — equivalence gate",
+      "test": "GlucoDex compute() ≡ committed export",
+      "why": "corpus-absent"
+    },
+    {
+      "group": "Phase-9 compute() ≡ committed export — equivalence gate",
+      "test": "HRVDex (events) compute() ≡ committed export",
+      "why": "corpus-absent"
+    },
+    {
+      "group": "Phase-9 compute() ≡ committed export — equivalence gate",
+      "test": "HRVDex compute() ≡ committed export",
+      "why": "corpus-absent"
+    },
+    {
+      "group": "Phase-9 compute() ≡ committed export — equivalence gate",
+      "test": "OxyDex compute() ≡ committed export",
+      "why": "corpus-absent"
+    },
+    {
+      "group": "Phase-9 compute() ≡ committed export — equivalence gate",
+      "test": "PpgDex compute() ≡ committed export",
+      "why": "corpus-absent"
+    },
+    {
+      "group": "Phase-9 compute() ≡ committed export — equivalence gate",
+      "test": "PulseDex (events) compute() ≡ committed export",
+      "why": "corpus-absent"
+    },
+    {
+      "group": "Phase-9 compute() ≡ committed export — equivalence gate",
+      "test": "PulseDex compute() ≡ committed export",
+      "why": "corpus-absent"
+    },
+    {
+      "group": "Registry ↔ _DEFS parity (registry is the source)",
+      "test": "ECGDex/PulseDex METRICS[] parity",
+      "why": "known-drift"
+    },
+    {
+      "group": "Registry ↔ _DEFS parity (registry is the source)",
+      "test": "OxyDex · pbIndex — resolves to a registry grade",
+      "why": "known-drift"
+    }
+  ]
+}

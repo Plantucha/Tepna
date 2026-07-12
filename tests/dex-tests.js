@@ -86,6 +86,42 @@
     };
   }
 
+  /* ── Skip budget (G1 · EFFICIENCY-AUDIT-FINDINGS-2026-07-12) ────────────────
+   A ⊘ SKIP counts as NEITHER pass nor fail, so a leg that stops running does not
+   red the gate — it just quietly stops being checked, and the suite still reports
+   green. That is how CI came to verify 2087 assertions and 10 of 23 GATE-B fixtures
+   while a full-corpus run does 2107 and 23/23: the raw recordings live in a
+   gitignored uploads/, so on a fresh clone ALL EIGHT real-recording equivalence legs
+   — the whole GATE-C surface — silently sat out.
+
+   So every skip must now be DECLARED, in tests/expected-skips.json. This function is
+   the shared checker (both runners call it): any skip NOT on the allow-list is a
+   violation, and the runner reds. It is shard-safe by construction — it only ever
+   judges the groups that actually ran in THIS process, so each shard validates its
+   own skips independently.
+
+   What this buys: a leg that starts skipping for a NEW reason (a renamed input, a
+   quietly-gutted precondition) can no longer hide. Shrinking the gate becomes a
+   deliberate act — you have to add a line to the allow-list, in a diff, in a PR. */
+  function auditSkips(groups, allow) {
+    var ok = Object.create(null);
+    (allow || []).forEach(function (a) {
+      ok[String(a.group) + ' :: ' + String(a.test)] = a.why || true;
+    });
+    var violations = [];
+    var counted = { 'corpus-absent': 0, 'known-drift': 0 };
+    (groups || []).forEach(function (G) {
+      (G.tests || []).forEach(function (t) {
+        if (!t.skip) return;
+        var key = G.title + ' :: ' + t.name;
+        var why = ok[key];
+        if (!why) violations.push({ group: G.title, test: t.name, detail: t.detail || '' });
+        else if (counted[why] != null) counted[why]++;
+      });
+    });
+    return { violations: violations, counted: counted };
+  }
+
   function runDexTests(env) {
     env = env || {};
     var GROUPS = [];
@@ -3684,7 +3720,7 @@
      fed via env.docsLedger (a DISTINCT key from the flat env.docs text-map the badge/roster groups use):
        { briefs:{name:text}, indexText, rootBriefNames:[], fsBriefNames:[]|null, listedBriefNames:[] }
      Node lane supplies fsBriefNames (fs.readdirSync) for the staleness check; the browser lane fetches
-     names from tests/docs-ledger-list.json (fetch can't list a dir). Absent env → SKIP (older runners
+     names from tests/docs-ledger-list.txt (fetch can't list a dir). Absent env → SKIP (older runners
      stay green). Grandfather rule (parallels check 6): pre-2026-07-03 / undated legacy briefs predate the
      lifecycle standardization — 55 are headerless by history; NOT fabricated a status (CLAUDE.md §🧪 —
      never stamp DONE on unverified work). v1 check-4 scope = briefs/ links (the 2026-07-03 repoint guard);
@@ -3692,7 +3728,7 @@
     group('Docs-ledger — brief lifecycle machine-checked (DOCS-LEDGER-GATE)', 'docs · docs-ledger', function (T) {
       var DL = env.docsLedger;
       if (!DL || !DL.briefs || DL.indexText == null) {
-        T.skip('env.docsLedger provided to the runner', 'wire env.docsLedger (run-tests.mjs readDocsLedger + Dex-Test-Suite fetch of tests/docs-ledger-list.json)');
+        T.skip('env.docsLedger provided to the runner', 'wire env.docsLedger (run-tests.mjs readDocsLedger + Dex-Test-Suite fetch of tests/docs-ledger-list.txt)');
         return;
       }
       var CUTOFF = '2026-07-03'; // lifecycle-standardization date (CLAUDE.md §📌)
@@ -3773,7 +3809,7 @@
 
       // ── CHECK 4b · WHOLE-TREE link integrity (DOCS-LEDGER-GATE-FOLLOWUPS §F2) — every OTHER relative
       //    DOCS-INDEX link (docs/·audits/·wiring/·papers/·root) resolves against the repo path inventory:
-      //    Node lane = fsPaths (fs truth); browser lane = committed docs-ledger-list.json paths[]. External
+      //    Node lane = fsPaths (fs truth); browser lane = committed docs-ledger-list.txt path entries. External
       //    (scheme / //), same-page (#…) and empty targets are ignored; %20 &c. decoded before lookup. ──
       function relLinkTargets(text) {
         var re = /\]\(([^)]+)\)/g,
@@ -3864,18 +3900,18 @@
       });
       T.ok('check6 · briefs Created \u2265 ' + CUTOFF + ' use -YYYY-MM-DD-BRIEF.md matching Created', c6.length === 0, c6.length ? c6.slice(0, 8).join('; ') : 'ok');
 
-      // ── STALENESS · the browser lane's docs-ledger-list.json must match briefs/ on disk (Node lane has fs truth) ──
+      // ── STALENESS · the browser lane's docs-ledger-list.txt must match briefs/ on disk (Node lane has fs truth) ──
       if (DL.fsBriefNames) {
         var fsJoin = DL.fsBriefNames.slice().sort().join('\n'),
           listJoin = (DL.listedBriefNames || []).slice().sort().join('\n');
         T.ok(
-          'staleness · tests/docs-ledger-list.json matches briefs/ on disk (regen via tests/gen-docs-ledger-list.mjs on add/remove)',
+          'staleness · tests/docs-ledger-list.txt matches briefs/ on disk (regen via tests/gen-docs-ledger-list.mjs on add/remove)',
           fsJoin === listJoin,
           fsJoin === listJoin ? DL.fsBriefNames.length + ' briefs in sync' : 'list is STALE vs fs'
         );
       } else {
         T.ok(
-          'browser lane · brief set loaded from docs-ledger-list.json (Node lane asserts list==fs)',
+          'browser lane · brief set loaded from docs-ledger-list.txt (Node lane asserts list==fs)',
           names.length > 0 && (DL.listedBriefNames || []).length === names.length,
           names.length + ' briefs'
         );
@@ -3886,7 +3922,7 @@
         var pFs = DL.fsPaths.slice().sort().join('\n'),
           pList = (DL.listedPaths || []).slice().sort().join('\n');
         T.ok(
-          'staleness · docs-ledger-list.json paths[] matches the repo tree (regen via tests/gen-docs-ledger-list.mjs)',
+          'staleness · docs-ledger-list.txt path entries matches the repo tree (regen via tests/gen-docs-ledger-list.mjs)',
           pFs === pList,
           pFs === pList ? DL.fsPaths.length + ' paths in sync' : 'paths[] STALE vs fs (' + DL.fsPaths.length + ' fs / ' + (DL.listedPaths || []).length + ' listed)'
         );
@@ -3915,13 +3951,13 @@
        { manifestText, releaseText, changelogText, changeFiles:{name:text}, fsChangeNames:[]|null, listedChangeNames:[], versionedSurfaces? }
      Reuses env.manifests['BUILD-MANIFEST.json'] (check 7) + env.docsLedger.briefs (check 5 brief-exists).
      Node lane supplies fsChangeNames (fs truth) for the staleness leg; the browser lane fetches names
-     from tests/changes-list.json (fetch can't list a dir). Absent env → SKIP (older runners stay green). */
+     from tests/changes-list.txt (fetch can't list a dir). Absent env → SKIP (older runners stay green). */
     group('Release-ledger — controlled releases machine-checked (CONTROLLED-RELEASES)', 'docs · release-ledger', function (T) {
       var RL = env.releaseLedger;
       if (!RL || RL.manifestText == null || RL.releaseText == null || RL.changelogText == null) {
         T.skip(
           'env.releaseLedger provided to the runner',
-          'wire env.releaseLedger (run-tests.mjs readReleaseLedger + Dex-Test-Suite fetch of suite.manifest.json / RELEASE-MANIFEST.json / CHANGELOG.md / tests/changes-list.json)'
+          'wire env.releaseLedger (run-tests.mjs readReleaseLedger + Dex-Test-Suite fetch of suite.manifest.json / RELEASE-MANIFEST.json / CHANGELOG.md / tests/changes-list.txt)'
         );
         return;
       }
@@ -4094,13 +4130,13 @@
         var fsJoin = RL.fsChangeNames.slice().sort().join('\n'),
           listJoin = (RL.listedChangeNames || []).slice().sort().join('\n');
         T.ok(
-          'staleness · tests/changes-list.json matches changes/ on disk (regen via tests/gen-changes-list.mjs)',
+          'staleness · tests/changes-list.txt matches changes/ on disk (regen via tests/gen-changes-list.mjs)',
           fsJoin === listJoin,
           fsJoin === listJoin ? RL.fsChangeNames.length + ' changeset(s) in sync' : 'list is STALE vs fs'
         );
       } else {
         T.ok(
-          'browser lane · changeset set loaded from changes-list.json (Node lane asserts list==fs)',
+          'browser lane · changeset set loaded from changes-list.txt (Node lane asserts list==fs)',
           (RL.listedChangeNames || []).length === changeNames.length,
           changeNames.length + ' pending changeset(s)'
         );
@@ -12284,5 +12320,6 @@
   root.runDexTests = runDexTests;
   root.dexGroupMatcher = dexGroupMatcher;
   root.dexShardSelector = dexShardSelector;
-  if (typeof module !== 'undefined' && module.exports) module.exports = { runDexTests: runDexTests, dexGroupMatcher: dexGroupMatcher, dexShardSelector: dexShardSelector };
+  root.auditSkips = auditSkips;
+  if (typeof module !== 'undefined' && module.exports) module.exports = { runDexTests: runDexTests, dexGroupMatcher: dexGroupMatcher, dexShardSelector: dexShardSelector, auditSkips: auditSkips };
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);

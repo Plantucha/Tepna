@@ -51,7 +51,7 @@ node tools/release.mjs --dry-run  # preview, write nothing
 
 `release.mjs` stamps `suite.manifest.json`, prepends a section to `CHANGELOG.md`, appends a record to
 `RELEASE-MANIFEST.json` (with the current per-app `manifestHash` snapshot), deletes the consumed
-changesets here, regenerates `tests/changes-list.json`, and prints the `git tag`.
+changesets here, regenerates `tests/changes-list.txt`, and prints the `git tag`.
 
 ## Rules the `release-ledger` gate enforces
 

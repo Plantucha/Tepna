@@ -219,7 +219,7 @@ scripts, and `tsc`/ESLint self-install via `npx -y` on demand. The **one** pinne
 | `npm run format:changed` | Biome `ci --changed` over changed `*.js`/`*.mjs` — format **+ lint floor** (check-only) | what CI (`format.yml`) enforces — validate before pushing |
 | `npm run build` / `build:app -- <Name>` / `build:check` | `tools/build.mjs --all` / `--app` / `--check` | re-bundle owned bundles / drift guard |
 | `npm run verify:manifest` | `tests/verify-manifest.mjs` | provenance GATE A after a re-bundle |
-| `npm run gen:lists` | regenerate `docs-ledger-list.json` + `changes-list.json` | after adding/removing a brief, linkable file, or changeset |
+| `npm run gen:lists` | regenerate `docs-ledger-list.txt` + `changes-list.txt` | after adding/removing a brief, linkable file, or changeset |
 | `npm run release` / `release:dry` | `tools/release.mjs` | cut a release from a green tree |
 
 > The `npm run` names are a convenience layer, **not** a new gate. The canonical gates are still
@@ -316,7 +316,7 @@ night pairing, byte-weighted parallel ETA) live in the brief.
   yours alone: a blanket add sweeps up whatever a concurrent session happens to have in flight and
   publishes it under **your** commit message. It has already happened — `cabd7f7`
   ("fix(ppgdex): arbitrate the PPI spine…") also carries an unrelated CPAP corpus brief, its
-  `DOCS-INDEX.md` row, and a `tests/docs-ledger-list.json` regen, because a blanket add ran while
+  `DOCS-INDEX.md` row, and a `tests/docs-ledger-list.txt` regen, because a blanket add ran while
   another session had them staged-in-tree. Nothing was lost, but the history now misattributes two
   independent work-units to one commit. So: `git add <the exact files you touched>`, and
   `git status` before every commit to see what else is in the tree. If files you don't recognize

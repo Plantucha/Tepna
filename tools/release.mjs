@@ -11,7 +11,7 @@
  *   1. stamps suite.manifest.json.version
  *   2. prepends a Keep-a-Changelog section to CHANGELOG.md + maintains its reference compare-links (F6)
  *   3. appends a RELEASE-MANIFEST.json record (with the current per-app manifestHash snapshot)
- *   4. prunes the consumed changesets and regenerates tests/changes-list.json
+ *   4. prunes the consumed changesets and regenerates tests/changes-list.txt
  *   5. prints the git tag to create
  * The version is computed ONCE, here, at the end — parallel coders only ever drop changesets, so
  * they never collide on a number. NEVER hand-edit a version or a manifestHash snapshot.
@@ -30,58 +30,84 @@ const args = process.argv.slice(2);
 const DRY = args.includes('--dry-run');
 const SKIP_GATES = args.includes('--skip-gates');
 const p = (...a) => join(ROOT, ...a);
-const readJSON = f => JSON.parse(readFileSync(p(f), 'utf8'));
+const readJSON = (f) => JSON.parse(readFileSync(p(f), 'utf8'));
 
 const CHANGE_DIR = p('changes');
-const isChangeset = f => f.endsWith('.md') && f !== 'README.md' && !/^[._]/.test(f);
+const isChangeset = (f) => f.endsWith('.md') && f !== 'README.md' && !/^[._]/.test(f);
 const RANK = { patch: 1, minor: 2, major: 3 };
 
 function readChangesets() {
   if (!existsSync(CHANGE_DIR)) return [];
-  return readdirSync(CHANGE_DIR).filter(isChangeset).sort().map(name => {
-    const text = readFileSync(join(CHANGE_DIR, name), 'utf8');
-    const bump = (text.match(/^bump:\s*(patch|minor|major)\s*$/mi) || [])[1];
-    const type = (text.match(/^type:\s*(added|changed|fixed|removed|deprecated|security)\s*$/mi) || [])[1];
-    const brief = (text.match(/^brief:\s*(\S+)\s*$/mi) || [])[1] || 'none';
-    const body = (text.replace(/^[\s\S]*?---[\s\S]*?---\s*/, '').trim() || text.trim());
-    return { name, bump: (bump || '').toLowerCase(), type: (type || 'changed').toLowerCase(), brief, body };
-  });
+  return readdirSync(CHANGE_DIR)
+    .filter(isChangeset)
+    .sort()
+    .map((name) => {
+      const text = readFileSync(join(CHANGE_DIR, name), 'utf8');
+      const bump = (text.match(/^bump:\s*(patch|minor|major)\s*$/im) || [])[1];
+      const type = (text.match(/^type:\s*(added|changed|fixed|removed|deprecated|security)\s*$/im) || [])[1];
+      const brief = (text.match(/^brief:\s*(\S+)\s*$/im) || [])[1] || 'none';
+      const body = text.replace(/^[\s\S]*?---[\s\S]*?---\s*/, '').trim() || text.trim();
+      return { name, bump: (bump || '').toLowerCase(), type: (type || 'changed').toLowerCase(), brief, body };
+    });
 }
 
 function bumpVersion(v, level) {
   const [maj, min, pat] = v.split('.').map(Number);
-  if (level === 'major') return (maj + 1) + '.0.0';
+  if (level === 'major') return maj + 1 + '.0.0';
   if (level === 'minor') return maj + '.' + (min + 1) + '.0';
   return maj + '.' + min + '.' + (pat + 1);
 }
 
 function main() {
   const changesets = readChangesets();
-  if (!changesets.length) { console.error('No pending changesets in changes/ — nothing to release.'); process.exit(1); }
-  const bad = changesets.filter(c => !RANK[c.bump]);
-  if (bad.length) { console.error('Malformed changesets (bad/missing bump): ' + bad.map(c => c.name).join(', ')); process.exit(2); }
+  if (!changesets.length) {
+    console.error('No pending changesets in changes/ — nothing to release.');
+    process.exit(1);
+  }
+  const bad = changesets.filter((c) => !RANK[c.bump]);
+  if (bad.length) {
+    console.error('Malformed changesets (bad/missing bump): ' + bad.map((c) => c.name).join(', '));
+    process.exit(2);
+  }
 
   // Pre-flight — a controlled release is only cut from a green tree (IEC 62304 §5.8).
   if (!SKIP_GATES) {
-    for (const cmd of [['node', 'tests/run-tests.mjs'], ['node', 'tests/verify-manifest.mjs']]) {
+    for (const cmd of [
+      ['node', 'tests/run-tests.mjs'],
+      ['node', 'tests/verify-manifest.mjs']
+    ]) {
       const r = spawnSync(cmd[0], cmd.slice(1), { cwd: ROOT, stdio: 'inherit' });
-      if (r.status !== 0) { console.error('\nGate failed: ' + cmd.join(' ') + ' — refusing to release. (--skip-gates is dev-only.)'); process.exit(3); }
+      if (r.status !== 0) {
+        console.error('\nGate failed: ' + cmd.join(' ') + ' — refusing to release. (--skip-gates is dev-only.)');
+        process.exit(3);
+      }
     }
   }
 
-  const level = ['major', 'minor', 'patch'].find(l => changesets.some(c => c.bump === l));
+  const level = ['major', 'minor', 'patch'].find((l) => changesets.some((c) => c.bump === l));
   const manifest = readJSON('suite.manifest.json');
-  const from = manifest.version, to = bumpVersion(from, level);
+  const from = manifest.version,
+    to = bumpVersion(from, level);
   const date = new Date().toISOString().slice(0, 10);
 
   // Build the new CHANGELOG section, grouped by Keep-a-Changelog category.
-  const CATS = [['added', 'Added'], ['changed', 'Changed'], ['deprecated', 'Deprecated'], ['removed', 'Removed'], ['fixed', 'Fixed'], ['security', 'Security']];
+  const CATS = [
+    ['added', 'Added'],
+    ['changed', 'Changed'],
+    ['deprecated', 'Deprecated'],
+    ['removed', 'Removed'],
+    ['fixed', 'Fixed'],
+    ['security', 'Security']
+  ];
   let section = '## [' + to + '] — ' + date + '\n\n';
   for (const [cat, head] of CATS) {
-    const rows = changesets.filter(c => c.type === cat);
+    const rows = changesets.filter((c) => c.type === cat);
     if (!rows.length) continue;
     section += '### ' + head + '\n';
-    for (const c of rows) { const ref = (c.brief && c.brief !== 'none') ? (' (`' + c.brief + '`)') : ''; section += '- ' + c.body.split('\n')[0] + ref + '\n'; }
+    for (const c of rows) {
+      const ref = c.brief && c.brief !== 'none' ? ' (`' + c.brief + '`)' : '';
+      section += '- ' + c.body.split('\n')[0] + ref + '\n';
+    }
     section += '\n';
   }
 
@@ -90,12 +116,11 @@ function main() {
   const manifestHashes = {};
   for (const [k, v] of Object.entries(build.bundles || {})) manifestHashes[k.replace(/\.html$/, '')] = v.manifestHash;
 
-  const record = { version: to, date, bump: level, name: '', manifestHashes,
-    briefs: [...new Set(changesets.map(c => c.brief).filter(b => b && b !== 'none'))], notes: '' };
+  const record = { version: to, date, bump: level, name: '', manifestHashes, briefs: [...new Set(changesets.map((c) => c.brief).filter((b) => b && b !== 'none'))], notes: '' };
 
   if (DRY) {
     console.log('DRY RUN: ' + from + ' \u2192 ' + to + ' (' + level + ')\n\n' + section);
-    console.log('Would consume: ' + changesets.map(c => c.name).join(', '));
+    console.log('Would consume: ' + changesets.map((c) => c.name).join(', '));
     return;
   }
 
@@ -121,13 +146,14 @@ function main() {
   // 3b · F6 — maintain the reference-style compare links at the file foot (Keep-a-Changelog convention):
   //      [Unreleased] compares from the new tag; the new version compares against its predecessor.
   //      Derive the repo base from the existing [Unreleased] link so no URL is hard-coded here.
-  const unrel = cl.match(/^\[Unreleased\]:\s*(https?:\/\/\S+?)\/compare\/\S+\.\.\.HEAD\s*$/mi);
+  const unrel = cl.match(/^\[Unreleased\]:\s*(https?:\/\/\S+?)\/compare\/\S+\.\.\.HEAD\s*$/im);
   if (unrel) {
-    const base = unrel[1];                         // e.g. https://github.com/Plantucha/Tepna
-    cl = cl.replace(/^\[Unreleased\]:.*$/mi, '[Unreleased]: ' + base + '/compare/v' + to + '...HEAD');
-    if (!new RegExp('^\\[' + to.replace(/\./g, '\\.') + '\\]:', 'm').test(cl)) {  // idempotent — never double-add
+    const base = unrel[1]; // e.g. https://github.com/Plantucha/Tepna
+    cl = cl.replace(/^\[Unreleased\]:.*$/im, '[Unreleased]: ' + base + '/compare/v' + to + '...HEAD');
+    if (!new RegExp('^\\[' + to.replace(/\./g, '\\.') + '\\]:', 'm').test(cl)) {
+      // idempotent — never double-add
       const newLink = '[' + to + ']: ' + base + '/compare/v' + from + '...v' + to;
-      cl = cl.replace(/^(\[Unreleased\]:.*\n)/mi, '$1' + newLink + '\n');  // insert directly under [Unreleased]
+      cl = cl.replace(/^(\[Unreleased\]:.*\n)/im, '$1' + newLink + '\n'); // insert directly under [Unreleased]
     }
   }
   writeFileSync(p('CHANGELOG.md'), cl);
@@ -135,7 +161,17 @@ function main() {
   for (const c of changesets) unlinkSync(join(CHANGE_DIR, c.name));
   spawnSync('node', ['tests/gen-changes-list.mjs'], { cwd: ROOT, stdio: 'inherit' });
 
-  console.log('\nReleased ' + to + '. Now:\n\n    node tools/build-docs.mjs   # project v' + to + ' into README + index.html + docs/about.json (check-6 surfaces)\n    git add -A && git commit -m "release: v' + to + '"\n    git tag v' + to + '\n');
+  console.log(
+    '\nReleased ' +
+      to +
+      '. Now:\n\n    node tools/build-docs.mjs   # project v' +
+      to +
+      ' into README + index.html + docs/about.json (check-6 surfaces)\n    git add -A && git commit -m "release: v' +
+      to +
+      '"\n    git tag v' +
+      to +
+      '\n'
+  );
 }
 
 main();
