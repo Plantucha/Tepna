@@ -155,9 +155,24 @@ co-recorded nights are needed to pin σ — more surviving nights tighten the CI
 **Done when**
 - [x] Re-run `sensor-trio-worker.js`'s own per-second Verity path over the trio corpus, old vs new DSP, like-for-like.
       → **Done; it REFUTED the section's premise (above).**
-- [ ] **Trace the actual provenance of the planted 6.2 bpm** in `sensor-trio-power-analysis.html:74`. It is NOT the
-      per-second path on this corpus (that gives 1.94 old / 1.85 new). Candidates: an earlier single-window estimate, a
-      device-`_HR`/`_PPI`-derived corner, or a pre-consensus detector. Until traced, **change nothing** in the papers.
+- [x] **Trace the actual provenance of the planted 6.2 bpm.** → **DONE 2026-07-12. It is DEAD PROSE — it does not exist
+      in any live code path, and there was never a 6.2-based result to overturn.**
+      - **Origin:** `Science.html:190` says it outright — *"1.7 / 2.2 / 6.2 … from a real ~2-hour co-recording"*. An
+        **N=1, single ~2-hour window** estimate from the original Verity-corner work. Never a corpus number.
+      - **Superseded twice, knowingly:** `SIGMA-PAPER-REWRITE-2026-07-06` §Do 2 records the chain — *"its planted Verity
+        σ was re-fit **6.2 → 3.0** from the device-HR run; the raw-ECG run gives **1.94**. Decide the planted value once
+        … **re-run `sensor-trio-power-analysis.html` after**."* Do 1–3 (the papers) were EXECUTED; the trailing
+        "re-run the tool" was not — so the tool's PROSE kept the dead number.
+      - **The code was already right.** `sensor-trio-power-analysis.js:72-74` plants **O2Ring 2.72 / H10 1.86 /
+        Verity 1.94** (the raw-ECG 10-night hat). The simulation has been running on 1.94 all along. `6.2` occurs
+        **0 times** in `sensor-trio-power-analysis.js`, `sensor-trio-worker.js` and `sigma-no-reference-analysis.js`;
+        it survived ONLY in two captions (`sensor-trio-power-analysis.html:74`, `Science.html:190`), both now fixed.
+      - **Consequence for this brief:** the retraction above is doubly justified — the "published 6.2" was never
+        published in any executing sense. And the corrected per-second run (**1.85**) confirms the LIVE planted value
+        (**1.94**) to within 0.09 bpm. **Nothing in the science moves.**
+      - **Also fixed:** the tool still called Verity *"the noisy corner"*. On the raw-ECG hat the noisiest corner is the
+        **O2Ring** (2.72) and Verity is the **quietest** (1.94) — the "noisy-corner reorder (Verity→O2Ring)" that
+        `SIGMA-PAPER-REWRITE` applied to the papers but never to this tool.
 - [ ] Fix the Verity gate's **misdiagnosis**, not just its threshold: it labels harmonic doubling as *"poor PPG contact"*.
       The signals are distinguishable — doubling is a *scaled copy* of truth (still correlated, HR ratio ≈ 2 against a
       paired ECG corner), whereas lost contact decorrelates. A cross-node HR-ratio test separates them cleanly
