@@ -49,6 +49,13 @@ uploads/*
 # personal data, so they ship — and the gate finally has teeth in CI. Deterministic: regenerate
 # byte-identically with `node tools/make-synthetic-inputs.mjs`.
 !uploads/synthetic_oxydex_o2ring.csv
+# ADVERSARIAL twins (DEEP-AUDIT-2026-07-11 §1/§8/§9). Every input above is CLEAN, short, DMY and
+# gapless, so three of the audit's worst defects were STRUCTURALLY INVISIBLE to CI. These express the
+# shapes that caught them: an MM/DD date order, a dropped-row night, a full-length overnight.
+!uploads/synthetic_oxydex_o2ring_dmy.csv
+!uploads/synthetic_oxydex_o2ring_mdy.csv
+!uploads/synthetic_oxydex_o2ring_lossy.csv
+!uploads/synthetic_oxydex_o2ring_longnight.csv
 !uploads/synthetic_pulsedex_rr.txt
 !uploads/synthetic_hrvdex_welltory.csv
 !uploads/synthetic_glucodex_lingo.csv

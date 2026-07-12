@@ -74,6 +74,100 @@ const emit = (name, text) => {
   emit('synthetic_oxydex_o2ring.csv', rows.join('\n') + '\n');
 }
 
+/* ── 1b · OxyDex ADVERSARIAL — the shapes the CLEAN synthetics cannot express ───────────────────────
+   DEEP-AUDIT-2026-07-11 §1/§8/§9. Every equivalence input in this file (and every committed fixture
+   before it) is a CLEAN, short, DMY, gapless recording. Three of the audit's worst defects were
+   therefore STRUCTURALLY INVISIBLE to CI — the gate could not have caught them no matter how green it
+   ran:
+
+     §1  an MM/DD-ordered O2Ring file (the Clock Contract lists BOTH orders for this vendor) flipped
+         date order MID-FILE, ran the clock BACKWARD, and shipped durationMin = -254460 with
+         ODI-4 = 0/h — an apnea night reading as perfectly healthy.
+     §8  parseCSV DROPS the device's '- -' no-reading rows, so a row INDEX stops being a second-offset.
+         Two consumers rebuilt event time from the index anyway; on a lossy night a desat landed 849 s
+         from its true time, against a 15 s / 60 s coincidence gate.
+     §9  two surfaced metrics head-sliced to the FIRST HOUR of a 6-10 h night, undisclosed.
+
+   These three inputs express exactly those shapes, so the invariants are now machine-checked in CI:
+   the MDY file must compute IDENTICALLY to the DMY one · a dropped-row night must place every event on
+   its OWN parsed stamp · a long night's window-based metrics must describe the whole night.
+   Deterministic and closed-form, like their clean siblings; they encode a FORMAT, never a person.  */
+{
+  /* NOTE the start date. The night must span 12 → 13 June, NOT 13 → 14, and that is the whole point:
+     a row like 06/12 is AMBIGUOUS (both fields ≤ 12) while 06/13 is not. The per-row heuristic the audit
+     found would read the ambiguous rows one way (preferDMY → 6 Dec) and the unambiguous ones the other
+     (13 > 12 → 13 Jun) — the order FLIPS mid-file and the clock runs BACKWARD. A night that spans only
+     days > 12 has no ambiguous rows at all, so every row resolves correctly and the bug never fires:
+     such an input would pass against the BROKEN code and prove nothing. (This file did exactly that on
+     its first cut; the red-against-old-code check is what caught it.) */
+  const t0 = Date.UTC(2026, 5, 12, 23, 0, 16); // 2026-06-12 23:00:16 — spans midnight into the 13th
+  const DESATS = [1500, 3200, 4800, 6300];
+  // the same physiological night the clean file describes — one shared waveform, three renderings
+  const spo2At = (i) => {
+    let v = 96.6 + 0.5 * Math.sin(i / 420);
+    for (const s of DESATS) {
+      const dt = i - s;
+      if (dt >= 0 && dt < 45) v -= 8.5 * Math.sin((Math.PI * dt) / 45);
+    }
+    return Math.round(v);
+  };
+  const hrAt = (i) => Math.round(58 + 5 * Math.sin(i / 300) + 3 * Math.sin(i / 47));
+  const HEAD = '\ufeffTime,Oxygen Level,Pulse Rate,Motion';
+  const clock = (d) => `${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}:${p2(d.getUTCSeconds())}`;
+  const dmy = (d) => `${p2(d.getUTCDate())}/${p2(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
+  const mdy = (d) => `${p2(d.getUTCMonth() + 1)}/${p2(d.getUTCDate())}/${d.getUTCFullYear()}`;
+
+  // §1 · the SAME night written in BOTH vendor date orders. It spans 12 → 13 June, so it mixes
+  //      AMBIGUOUS rows (06/12 — both fields ≤ 12) with unambiguous ones (06/13) — precisely the
+  //      mid-file-flip trigger. The two files MUST compute identically.
+  for (const [name, fmt] of [
+    ['synthetic_oxydex_o2ring_dmy.csv', dmy],
+    ['synthetic_oxydex_o2ring_mdy.csv', mdy]
+  ]) {
+    const N = 2 * 3600;
+    const rows = [HEAD];
+    for (let i = 0; i < N; i++) {
+      const d = new Date(t0 + i * 1000);
+      rows.push(`${clock(d)} ${fmt(d)},${spo2At(i)},${hrAt(i)},${i % 900 === 0 ? 3 : 0}`);
+    }
+    emit(name, rows.join('\n') + '\n');
+  }
+
+  // §8 · a LOSSY night: a 20-minute block of the device's '- -' no-reading rows sits between two desats,
+  //      so every row index AFTER it is offset from its true second by ~1200. Any consumer that rebuilds
+  //      event time from the INDEX rather than the row's own stamp drifts by minutes here.
+  {
+    const N = 2 * 3600;
+    const GAP0 = 2400,
+      GAP1 = GAP0 + 20 * 60; // the dropout straddles the 2nd desat's neighbourhood
+    const rows = [HEAD];
+    for (let i = 0; i < N; i++) {
+      const d = new Date(t0 + i * 1000);
+      if (i >= GAP0 && i < GAP1) {
+        rows.push(`${clock(d)} ${dmy(d)},- -,- -,0`);
+        continue;
+      }
+      rows.push(`${clock(d)} ${dmy(d)},${spo2At(i)},${hrAt(i)},${i % 900 === 0 ? 3 : 0}`);
+    }
+    emit('synthetic_oxydex_o2ring_lossy.csv', rows.join('\n') + '\n');
+  }
+
+  // §9 · a FULL-LENGTH overnight (7 h). Its first hour is deliberately UNLIKE the rest — a fast 20 s
+  //      SpO2 oscillation for the first hour, a slow 50 s one for the remaining six — so any metric that
+  //      silently analyses only the head reports the wrong rhythm for the night.
+  {
+    const N = 7 * 3600;
+    const rows = [HEAD];
+    for (let i = 0; i < N; i++) {
+      const d = new Date(t0 + i * 1000);
+      const per = i < 3600 ? 20 : 50;
+      const v = Math.round(95 + 2 * Math.sin((2 * Math.PI * i) / per));
+      rows.push(`${clock(d)} ${dmy(d)},${v},${hrAt(i)},${i % 900 === 0 ? 3 : 0}`);
+    }
+    emit('synthetic_oxydex_o2ring_longnight.csv', rows.join('\n') + '\n');
+  }
+}
+
 /* ── 2 · PulseDex — Polar H10 RR text (Polar Sensor Logger) ─────────────────
    "Phone timestamp;RR-interval [ms]" with ISO stamps.                           */
 {

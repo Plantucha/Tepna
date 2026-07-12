@@ -220,10 +220,15 @@ async function main(){
     ['hrvdex_synth', 'synthetic_hrvdex_welltory.csv', 'synthetic_hrvdex_golden.node-export.json'],
     ['glucodex_synth', 'synthetic_glucodex_lingo.csv', 'synthetic_glucodex_golden.node-export.json'],
     ['ppgdex_synth', 'synthetic_ppgdex_verity.txt', 'synthetic_ppgdex_golden.node-export.json'],
-    ['ecgdex_synth', 'synthetic_ecgdex_h10.txt', 'synthetic_ecgdex_golden.node-export.json']
+    ['ecgdex_synth', 'synthetic_ecgdex_h10.txt', 'synthetic_ecgdex_golden.node-export.json'],
+    // ADVERSARIAL twins (DEEP-AUDIT §1/§8/§9) — input only, no golden; the INVARIANTS are the gate.
+    ['oxydex_dmy', 'synthetic_oxydex_o2ring_dmy.csv', null],
+    ['oxydex_mdy', 'synthetic_oxydex_o2ring_mdy.csv', null],
+    ['oxydex_lossy', 'synthetic_oxydex_o2ring_lossy.csv', null],
+    ['oxydex_longnight', 'synthetic_oxydex_o2ring_longnight.csv', null]
   ]) {
     try {
-      setEquiv(k, await fetchText('uploads/' + inF), await fetchJSON('uploads/' + fxF));
+      setEquiv(k, await fetchText('uploads/' + inF), fxF ? await fetchJSON('uploads/' + fxF) : null);
     } catch (e) {
       /* absent → the CASES loop self-skips */
     }

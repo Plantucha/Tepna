@@ -291,9 +291,9 @@ function readEquiv() {
   // dex-tests.js's CASES loop) self-skips via T.skip when only the input half is missing. Coupling
   // them (the old behavior) silently starved the fixture-only consumers too, and made the diff
   // hard-FAIL instead of skip on a fresh CI clone.
-  const pair = (key, inFile, fixFile) => {
-    const inP = join(UPLOADS, inFile),
-      fxP = join(UPLOADS, fixFile);
+  const pairFrom = (base, key, inFile, fixFile) => {
+    const inP = join(base, inFile),
+      fxP = fixFile ? join(base, fixFile) : null; // adversarial twins carry NO golden
     const rec = {};
     if (existsSync(inP)) {
       try {
@@ -302,7 +302,7 @@ function readEquiv() {
         /* unreadable → treat as absent */
       }
     }
-    if (existsSync(fxP)) {
+    if (fxP && existsSync(fxP)) {
       try {
         rec.fixture = JSON.parse(readFileSync(fxP, 'utf8'));
       } catch (e) {
@@ -311,6 +311,11 @@ function readEquiv() {
     }
     if (rec.input !== undefined || rec.fixture !== undefined) out[key] = rec;
   };
+  const pair = (key, inFile, fixFile) => pairFrom(UPLOADS, key, inFile, fixFile);
+  // A COMMITTED input is a repo artifact, not a recording: it lives in the checkout's uploads/ and is
+  // there in every environment. Resolve it against ROOT so DEX_UPLOADS — which points at a REAL corpus —
+  // cannot make it "absent" and turn a gate with teeth into an (undeclared, and now fail-closed) skip.
+  const pairCommitted = (key, inFile, fixFile) => pairFrom(join(ROOT, 'uploads'), key, inFile, fixFile);
   pair('oxydex', 'O2Ring S 2100_20260612230016.csv', 'OxyDex_2026-06-13_1056_summary.json');
   pair('pulsedex', 'Polar_H10_AAAAAAAA_20260613_204448_RR.txt', 'PulseDex_2026-06-25_equiv.node-export.json');
   pair('hrvdex', 'WELLTORY_HRV_DATA_EXPORT_20_May_2026_12_00_AM-17_Jun_2026_11_59_PM.csv', 'HRVDex_2026-06-25_equiv.node-export.json');
@@ -331,6 +336,14 @@ function readEquiv() {
   // carry no personal data, and are therefore COMMITTED — so the diff runs everywhere.
   // They ADD to the real legs (which still exercise genuine vendor quirks locally), never replace them.
   pair('oxydex_synth', 'synthetic_oxydex_o2ring.csv', 'synthetic_oxydex_golden.node-export.json');
+  /* ADVERSARIAL twins (DEEP-AUDIT-2026-07-11 §1/§8/§9) — input only, NO golden. The point is not to pin
+     bytes but to assert INVARIANTS the clean inputs cannot express: an MDY file must compute IDENTICALLY
+     to its DMY twin; a dropped-row night must place every event on its OWN parsed stamp; a long night's
+     window metrics must describe the whole night. See the dex-tests.js group. */
+  pairCommitted('oxydex_dmy', 'synthetic_oxydex_o2ring_dmy.csv', null);
+  pairCommitted('oxydex_mdy', 'synthetic_oxydex_o2ring_mdy.csv', null);
+  pairCommitted('oxydex_lossy', 'synthetic_oxydex_o2ring_lossy.csv', null);
+  pairCommitted('oxydex_longnight', 'synthetic_oxydex_o2ring_longnight.csv', null);
   pair('pulsedex_synth', 'synthetic_pulsedex_rr.txt', 'synthetic_pulsedex_golden.node-export.json');
   pair('hrvdex_synth', 'synthetic_hrvdex_welltory.csv', 'synthetic_hrvdex_golden.node-export.json');
   pair('glucodex_synth', 'synthetic_glucodex_lingo.csv', 'synthetic_glucodex_golden.node-export.json');
