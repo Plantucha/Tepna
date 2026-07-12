@@ -107,11 +107,31 @@ model limitation, not a tuning problem.**
 
 ## 5 · Two code defects found on the way (both F1-class: computed, then dropped)
 
-### D1 — `PPGDSP.lombScargle` never tracks the HF peak frequency
-It returns `{vlf, lf, hf, totalPower, lfhf, lfnu, hfnu}` — no peak frequency, therefore **no `respRate`**.
-That is precisely why `ppgdex-dsp.js` hardcodes `respRate: null` in every epoch. ECGDSP's version *does*
-compute it (`respRate = peakF*60`). PpgDex is one line from a respiration estimate it currently cannot make.
-*(This analysis worked around it by running ECGDSP's estimator on the PPI series.)*
+### ~~D1 — `PPGDSP.lombScargle` never tracks the HF peak frequency~~ ❌ **RETRACTED — NOT a defect**
+
+> **I was wrong, and the suite caught it.** `respRate: null` in PpgDex is a **deliberate, audited safety
+> property**, not an oversight — `SYNTH-TEXTURE-FOLLOWUPS-II §2`, locked by a guard in
+> `tests/dex-tests.js`: *"ppgdex lombScargle exposes NO respRate/peak path (band-power only → defect absent)"*.
+>
+> **Why it is a safety property.** An HF-peak `respRate` reads the **0.15–0.40 Hz** band.
+> **Cheyne–Stokes / periodic breathing modulates at ~0.022–0.05 Hz — far BELOW it.** An HF-peak estimate
+> would therefore report a *normal-looking* respiratory rate straight through a CSR episode and silently
+> erase it. ECGDex can track its HF peak safely **only because** it carries a dedicated apnea-band detector
+> (`detectCVHR`) covering exactly that sub-HF range. **PpgDex has no such channel.** Wiring the peak in
+> would have re-introduced precisely the sub-HF-blindness defect the audit deliberately declined to port
+> from PulseDex.
+>
+> The one-line "fix" was implemented, the guard failed, and it was **reverted**. PpgDex is untouched; its
+> `manifestHash` did not move.
+>
+> **What is actually true:** PpgDex has **no respiration estimate at all**, and giving it one *safely* needs
+> a **sub-HF-aware** estimator (a global peak plus a `peakBelowHF` flag) or its own apnea-band channel —
+> **not** a naive HF peak. That is real work: **R6** below, not a one-liner.
+>
+> **⚠ Consequence for §2/§3 — read this.** The PPG respiration used in the validation was produced by
+> running *ECGDSP's* HF-peak estimator over the PPI series, so **it is itself sub-HF-blind**. In this corpus
+> that is a small effect (CPAP reports periodic breathing on ~0–2% of epochs), but it is a genuine caveat on
+> the **PPG corner's σ**. It does **not** touch Finding A (bias) or Finding C (the common-mode ρ limitation).
 
 ### D2 — ECGDex computes respiration and exports **neither** estimate
 `cardiorespCoupling()` derives `respFromEDR` (R-amplitude modulation) and the spectral path derives
@@ -142,7 +162,8 @@ audit PRs** (#29 holds `clock.js`, which is inlined into every bundle). Do not s
 | **R1** | **Keep a measured reference in the corpus, permanently.** CPAP respiration is the only ground truth the fleet has. Bias is undetectable without it — see §2. | **highest** |
 | **R2** | **Generalize `threeCorneredHat` to a pairwise correlation structure** (`rho_ab`, `rho_ac`, `rho_bc`), not one common-mode ρ (§4). Then a triplet with two mechanistically-coupled corners can be solved honestly. | high |
 | **R3** | **Refuse, or loudly flag, a triplet whose corners share a mechanism.** ECG-RSA and PPG-RSA are not independent looks at respiration. The Integrator should not silently TCH them. | high |
-| **R4** | Fix **D1** (PpgDex `respRate`) and **D2** (ECGDex export its respiration) — queued behind the audit PRs. | med |
+| **R4** | Fix **D2** (ECGDex export its respiration). **D1 is retracted** — not a defect. | med |
+| **R6** | **Give PpgDex a SUB-HF-AWARE respiration estimate** — a global peak with a `peakBelowHF` flag, or its own apnea-band channel like ECGDex's `detectCVHR`. A naive HF peak is *unsafe*: it erases Cheyne–Stokes. This is the real gap D1 mistook for a one-liner. | **high** |
 | **R5** | Re-run this validation on the **HR** triplet once a reference exists for HR (chest-ECG Pan–Tompkins is the closest), and compare against the sibling brief's artifact-gated σ. | med |
 
 ## 8 · Done when
