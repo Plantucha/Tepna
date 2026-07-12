@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-2aT2YZ2hUKMKkD1RKJGoUS13DAIfRkfr0+3MpUKSugc=' 'sha256-2tZgpYYnqO0FHght8PJI0/aNqUSdG8rSVPL7M5M1jAc=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ORdL8uvjKI1beQHqsFgODvvhmwrLUpy4mYOg3l9vk8=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-EN+1M3bWeDBOnpFNf8zhkUqII8pkwsAPRHHljeXMLEU=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LG3l34o5fUxaDC0YPGwR220ch4LY53B3Dlc1+Bkl0ao=' 'sha256-MPKKUbacmx+sTwB0TVTbik+GJRGltztlOikx6esFRsk=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-ZgnDxUJ1JS2eRITu5PSjaY+a+l7QxQZSJ6hjeOk1NLY=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-v6gjvlqQKjQQHKgZlUcAUrWQEu7Z72i+mEDeAl4Izek=' 'sha256-zoX0rksSqUxFePSlhG6+8O2Euarj7JlN/OQ/SqQyThw='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-2aT2YZ2hUKMKkD1RKJGoUS13DAIfRkfr0+3MpUKSugc=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ORdL8uvjKI1beQHqsFgODvvhmwrLUpy4mYOg3l9vk8=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-DV6UgeeAUAQ+UpjTu0rc6PmJ5PXALqxtRrU23mhoWLc=' 'sha256-EN+1M3bWeDBOnpFNf8zhkUqII8pkwsAPRHHljeXMLEU=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LG3l34o5fUxaDC0YPGwR220ch4LY53B3Dlc1+Bkl0ao=' 'sha256-PlBCQDTK5BQcHKy/ZI4uswhN3qfOoMF1KuTMxwxuLs8=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-eBQjDWnGcboIU/PbqPPj8VH/etn/loRvHEWvSBSft+E=' 'sha256-jFfE1dPKGtSp3+g/QsSiLJ/mQHcO2hpiM1EHbi2XVcg='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CPAPDex — PAP Therapy Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -3639,225 +3639,278 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
    No network, no deps, no fonts. 100% local.
    ════════════════════════════════════════════════════════════════════════ */
 (function (global) {
-'use strict';
+  'use strict';
 
-var VERSION     = '1.0';
-var STORAGE_KEY = 'dex_depth_tier';          // SHARED across every node (brief §locked-4)
-var LEGACY_KEYS = ['oxydex_dashMode', 'o2r_dashMode', 'hrvdex_dashMode']; // migrate-from
+  var VERSION = '1.0';
+  var STORAGE_KEY = 'dex_depth_tier'; // SHARED across every node (brief §locked-4)
+  var LEGACY_KEYS = ['oxydex_dashMode', 'o2r_dashMode', 'hrvdex_dashMode']; // migrate-from
 
-/* ── EVIDENCE taxonomy — the fill ladder = the confidence ladder ──────────
+  /* ── EVIDENCE taxonomy — the fill ladder = the confidence ladder ──────────
    ink is ONE neutral META hue (#aab8cc), deliberately OUTSIDE the status
    hues (green/amber/red) and the brand hues (teal/blue), so the evidence
    channel can never collide with status color. */
-var EVIDENCE = {
-  measured:     { rank:0, glyph:'\u25C9', label:'Measured',     fill:'target',
-    desc:'Direct sensor reading or a raw statistic of the recorded signal (mean/min/max/nadir/duration). The ground truth a node senses — not computed.' },
-  validated:    { rank:1, glyph:'\u25CF', label:'Validated',    fill:'solid',
-    desc:'Established, externally validated, clinically meaningful DERIVED metric.' },
-  emerging:     { rank:2, glyph:'\u25D0', label:'Emerging',     fill:'half',
-    desc:'Published and promising, but less standardized or device-dependent.' },
-  experimental: { rank:3, glyph:'\u25CB', label:'Experimental', fill:'hollow',
-    desc:'Plausible node-computed composite, not externally validated. Directional only.' },
-  heuristic:    { rank:4, glyph:'\u25CC', label:'Heuristic',    fill:'dashed',
-    desc:'Convenience estimate / population proxy. A trend, not a measurement.' }
-};
-var EVIDENCE_ORDER = ['measured','validated','emerging','experimental','heuristic'];
+  var EVIDENCE = {
+    measured: {
+      rank: 0,
+      glyph: '\u25C9',
+      label: 'Measured',
+      fill: 'target',
+      desc: 'Direct sensor reading or a raw statistic of the recorded signal (mean/min/max/nadir/duration). The ground truth a node senses — not computed.'
+    },
+    validated: { rank: 1, glyph: '\u25CF', label: 'Validated', fill: 'solid', desc: 'Established, externally validated, clinically meaningful DERIVED metric.' },
+    emerging: { rank: 2, glyph: '\u25D0', label: 'Emerging', fill: 'half', desc: 'Published and promising, but less standardized or device-dependent.' },
+    experimental: { rank: 3, glyph: '\u25CB', label: 'Experimental', fill: 'hollow', desc: 'Plausible node-computed composite, not externally validated. Directional only.' },
+    heuristic: { rank: 4, glyph: '\u25CC', label: 'Heuristic', fill: 'dashed', desc: 'Convenience estimate / population proxy. A trend, not a measurement.' }
+  };
+  var EVIDENCE_ORDER = ['measured', 'validated', 'emerging', 'experimental', 'heuristic'];
 
-/* ── DEPTH axis ↔ existing tier attributes ────────────────────────────────
+  /* ── DEPTH axis ↔ existing tier attributes ────────────────────────────────
    basic   → (no data-tier)      → always visible / Core
    advanced→ data-tier=secondary → Advanced+
    research→ data-tier=research  → Research only                         */
-var DEPTHS = ['basic','advanced','research'];
-var TIERS  = ['core','advanced','research'];      // body[data-mode] values
-var DEPTH_TO_TIERATTR = { basic:'', advanced:'secondary', research:'research' };
-var TIER_SHOWS = { core:[''], advanced:['','secondary'], research:['','secondary','research'] };
+  var DEPTHS = ['basic', 'advanced', 'research'];
+  var TIERS = ['core', 'advanced', 'research']; // body[data-mode] values
+  var DEPTH_TO_TIERATTR = { basic: '', advanced: 'secondary', research: 'research' };
+  var TIER_SHOWS = { core: [''], advanced: ['', 'secondary'], research: ['', 'secondary', 'research'] };
 
-function depthToTier(depth){ return DEPTH_TO_TIERATTR[depth] != null ? DEPTH_TO_TIERATTR[depth] : 'secondary'; }
+  function depthToTier(depth) {
+    return DEPTH_TO_TIERATTR[depth] != null ? DEPTH_TO_TIERATTR[depth] : 'secondary';
+  }
 
-// is a metric of <depth> visible when the app is in <tier> mode?
-function visibleAtTier(depth, tier){
-  var attr = depthToTier(depth);
-  var shows = TIER_SHOWS[tier] || TIER_SHOWS.core;
-  return shows.indexOf(attr) >= 0;
-}
-function tierToShows(tier){ return (TIER_SHOWS[tier] || TIER_SHOWS.core).slice(); }
+  // is a metric of <depth> visible when the app is in <tier> mode?
+  function visibleAtTier(depth, tier) {
+    var attr = depthToTier(depth);
+    var shows = TIER_SHOWS[tier] || TIER_SHOWS.core;
+    return shows.indexOf(attr) >= 0;
+  }
+  function tierToShows(tier) {
+    return (TIER_SHOWS[tier] || TIER_SHOWS.core).slice();
+  }
 
-/* ── entry(registry, id) → normalized metric def ──────────────────────────
+  /* ── entry(registry, id) → normalized metric def ──────────────────────────
    A metric with no registry entry defaults to advanced/experimental and logs
    a dev warning (forces coverage — brief §1). */
-var _warned = {};
-function entry(registry, id){
-  var r = (registry && registry[id]) || null;
-  if(!r){
-    if(!_warned[id]){ _warned[id] = true;
-      try { console.warn('[MetricRegistry] no registry entry for "'+id+'" — defaulting depth:advanced / evidence:experimental'); } catch(e){} }
-    return { id:id, label:id, unit:'', goodDirection:'up', depth:'advanced', evidence:'experimental', cite:'', _missing:true };
+  var _warned = {};
+  function entry(registry, id) {
+    var r = (registry && registry[id]) || null;
+    if (!r) {
+      if (!_warned[id]) {
+        _warned[id] = true;
+        try {
+          console.warn('[MetricRegistry] no registry entry for "' + id + '" — defaulting depth:advanced / evidence:experimental');
+        } catch (e) {}
+      }
+      return { id: id, label: id, unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: '', _missing: true };
+    }
+    return {
+      id: id,
+      label: r.label != null ? r.label : id,
+      unit: r.unit != null ? r.unit : '',
+      goodDirection: r.goodDirection || r.good || 'up',
+      depth: DEPTHS.indexOf(r.depth) >= 0 ? r.depth : 'advanced',
+      evidence: EVIDENCE[r.evidence] ? r.evidence : 'experimental',
+      cite: r.cite || ''
+    };
   }
-  return {
-    id:id,
-    label: r.label != null ? r.label : id,
-    unit:  r.unit  != null ? r.unit  : '',
-    goodDirection: r.goodDirection || r.good || 'up',
-    depth:    DEPTHS.indexOf(r.depth) >= 0 ? r.depth : 'advanced',
-    evidence: EVIDENCE[r.evidence] ? r.evidence : 'experimental',
-    cite: r.cite || ''
-  };
-}
 
-/* ── evClass(evidence) → the badge CSS class (defensive) ── */
-function evClass(evidence){ return EVIDENCE[evidence] ? ('ev-'+evidence) : 'ev-experimental'; }
+  /* ── evClass(evidence) → the badge CSS class (defensive) ── */
+  function evClass(evidence) {
+    return EVIDENCE[evidence] ? 'ev-' + evidence : 'ev-experimental';
+  }
 
-/* ── badge(evidence, cite) → '<span class="ev ev-…" title="…"></span>' ────
+  /* ── badge(evidence, cite) → '<span class="ev ev-…" title="…"></span>' ────
    Shared so a Validated dot is byte-identical in every node + the Integrator. */
-function _escAttr(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function badge(evidence, cite){
-  var e = EVIDENCE[evidence] ? evidence : 'experimental';
-  var name = EVIDENCE[e].label;
-  var title = name + (cite ? ' \u2014 ' + cite : '');
-  return '<span class="ev ev-'+e+'" title="'+_escAttr(title)+'" aria-label="'+_escAttr(name+' evidence')+'"></span>';
-}
+  function _escAttr(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+  function badge(evidence, cite) {
+    var e = EVIDENCE[evidence] ? evidence : 'experimental';
+    var name = EVIDENCE[e].label;
+    var title = name + (cite ? ' \u2014 ' + cite : '');
+    return '<span class="ev ev-' + e + '" title="' + _escAttr(title) + '" aria-label="' + _escAttr(name + ' evidence') + '"></span>';
+  }
 
-/* ── legend(opts) → one strip per view ────────────────────────────────────
+  /* ── legend(opts) → one strip per view ────────────────────────────────────
    opts.only = ['validated','emerging',...] to show a subset; default all. */
-function legend(opts){
-  opts = opts || {};
-  var keys = opts.only && opts.only.length ? opts.only : EVIDENCE_ORDER;
-  var parts = ['<span class="lg-title">Evidence</span>'];
-  keys.forEach(function(k, i){
-    if(!EVIDENCE[k]) return;
-    if(i) parts.push('<span class="ev-sep"></span>');
-    parts.push('<span class="lg-item"><span class="ev ev-'+k+'"></span><b>'+EVIDENCE[k].label+'</b></span>');
-  });
-  parts.push('<span class="lg-note">one strip per view \u00b7 cite on hover</span>');
-  return '<div class="ev-legend" role="group" aria-label="Evidence legend">'+parts.join('')+'</div>';
-}
+  function legend(opts) {
+    opts = opts || {};
+    var keys = opts.only && opts.only.length ? opts.only : EVIDENCE_ORDER;
+    var parts = ['<span class="lg-title">Evidence</span>'];
+    keys.forEach(function (k, i) {
+      if (!EVIDENCE[k]) return;
+      if (i) parts.push('<span class="ev-sep"></span>');
+      parts.push('<span class="lg-item"><span class="ev ev-' + k + '"></span><b>' + EVIDENCE[k].label + '</b></span>');
+    });
+    parts.push('<span class="lg-note">one strip per view \u00b7 cite on hover</span>');
+    return '<div class="ev-legend" role="group" aria-label="Evidence legend">' + parts.join('') + '</div>';
+  }
 
-/* ── Depth-tier persistence (shared key, with legacy migration) ──────────── */
-function getTier(){
-  var v = null;
-  try {
-    v = global.localStorage.getItem(STORAGE_KEY);
-    if(v == null){
-      for(var i=0;i<LEGACY_KEYS.length;i++){
-        var lv = global.localStorage.getItem(LEGACY_KEYS[i]);
-        if(lv){ v = lv; global.localStorage.setItem(STORAGE_KEY, lv); break; }  // migrate forward
+  /* ── Depth-tier persistence (shared key, with legacy migration) ──────────── */
+  function getTier() {
+    var v = null;
+    try {
+      v = global.localStorage.getItem(STORAGE_KEY);
+      if (v == null) {
+        for (var i = 0; i < LEGACY_KEYS.length; i++) {
+          var lv = global.localStorage.getItem(LEGACY_KEYS[i]);
+          if (lv) {
+            v = lv;
+            global.localStorage.setItem(STORAGE_KEY, lv);
+            break;
+          } // migrate forward
+        }
+      }
+    } catch (e) {}
+    return TIERS.indexOf(v) >= 0 ? v : 'core'; // default Core (brief §locked-4)
+  }
+  function setTier(tier) {
+    if (TIERS.indexOf(tier) < 0) tier = 'core';
+    try {
+      global.localStorage.setItem(STORAGE_KEY, tier);
+    } catch (e) {}
+    applyTier(tier);
+    return tier;
+  }
+
+  /* applyTier — set body[data-mode] + sync every mode control on the page.
+   Mirrors each node's local setMode() so the shared key drives the existing CSS. */
+  function applyTier(tier) {
+    if (TIERS.indexOf(tier) < 0) tier = 'core';
+    var b = global.document && global.document.body;
+    if (b) {
+      b.dataset.mode = tier;
+      var sel = '.mode-btn, .nav-mode-btn, .mnav-mode-btn';
+      var btns = global.document.querySelectorAll(sel);
+      for (var i = 0; i < btns.length; i++) {
+        btns[i].classList.toggle('active', btns[i].dataset.mode === tier);
       }
     }
-  } catch(e){}
-  return TIERS.indexOf(v) >= 0 ? v : 'core';   // default Core (brief §locked-4)
-}
-function setTier(tier){
-  if(TIERS.indexOf(tier) < 0) tier = 'core';
-  try { global.localStorage.setItem(STORAGE_KEY, tier); } catch(e){}
-  applyTier(tier);
-  return tier;
-}
-
-/* applyTier — set body[data-mode] + sync every mode control on the page.
-   Mirrors each node's local setMode() so the shared key drives the existing CSS. */
-function applyTier(tier){
-  if(TIERS.indexOf(tier) < 0) tier = 'core';
-  var b = global.document && global.document.body;
-  if(b){
-    b.dataset.mode = tier;
-    var sel = '.mode-btn, .nav-mode-btn, .mnav-mode-btn';
-    var btns = global.document.querySelectorAll(sel);
-    for(var i=0;i<btns.length;i++){ btns[i].classList.toggle('active', btns[i].dataset.mode === tier); }
+    return tier;
   }
-  return tier;
-}
 
-/* mountDepthSelector(el) — optional convenience: wire an existing .mode-bar
+  /* mountDepthSelector(el) — optional convenience: wire an existing .mode-bar
    (or build one) so every node persists identically under the shared key. */
-function mountDepthSelector(el){
-  if(!el) return;
-  if(!el.querySelector('.mode-btn')){
-    el.classList.add('mode-bar');
-    el.innerHTML = TIERS.map(function(t){
-      return '<button class="mode-btn" data-mode="'+t+'">'+t.charAt(0).toUpperCase()+t.slice(1)+'</button>';
-    }).join('');
+  function mountDepthSelector(el) {
+    if (!el) return;
+    if (!el.querySelector('.mode-btn')) {
+      el.classList.add('mode-bar');
+      el.innerHTML = TIERS.map(function (t) {
+        return '<button class="mode-btn" data-mode="' + t + '">' + t.charAt(0).toUpperCase() + t.slice(1) + '</button>';
+      }).join('');
+    }
+    el.addEventListener('click', function (e) {
+      var btn = e.target.closest('.mode-btn');
+      if (!btn) return;
+      setTier(btn.dataset.mode);
+    });
+    applyTier(getTier());
   }
-  el.addEventListener('click', function(e){
-    var btn = e.target.closest('.mode-btn'); if(!btn) return;
-    setTier(btn.dataset.mode);
-  });
-  applyTier(getTier());
-}
 
-/* ── One-time injected stylesheet — the evidence visual language (verbatim
+  /* ── One-time injected stylesheet — the evidence visual language (verbatim
    from Visual-Language-Spec.html), so every node that loads this file gets
    identical badges + legend without editing ans-design.css. ──────────────── */
-var BADGE_CSS = '';   // canonical evidence-badge stylesheet (the single source
-                      // of truth other surfaces mirror — see dex-badges.css).
-                      // Populated by _injectCSS on first run; exported below.
-function _injectCSS(){
-  if(!global.document) return;
-  if(global.document.getElementById('metric-registry-css')) return;
-  var css = BADGE_CSS =
-  ':root{ --ev-ink:#aab8cc; }' +
-  '.ev{display:inline-block;width:11px;height:11px;border-radius:50%;flex:none;position:relative;vertical-align:baseline;}' +
-  /* measured = bullseye (solid core + gap ring): the strongest mark, a direct
+  var BADGE_CSS = ''; // canonical evidence-badge stylesheet (the single source
+  // of truth other surfaces mirror — see dex-badges.css).
+  // Populated by _injectCSS on first run; exported below.
+  function _injectCSS() {
+    if (!global.document) return;
+    if (global.document.getElementById('metric-registry-css')) return;
+    var css = (BADGE_CSS =
+      ':root{ --ev-ink:#aab8cc; }' +
+      '.ev{display:inline-block;width:11px;height:11px;border-radius:50%;flex:none;position:relative;vertical-align:baseline;}' +
+      /* measured = bullseye (solid core + gap ring): the strongest mark, a direct
      sensor reading — reads as "locked to ground truth", above validated. */
-  '.ev-measured{background:var(--ev-ink);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--ev-ink);}' +
-  '.ev-validated{background:var(--ev-ink);box-shadow:0 0 0 1px var(--ev-ink) inset;}' +
-  '.ev-emerging{background:linear-gradient(90deg,var(--ev-ink) 0 50%,transparent 50% 100%);box-shadow:0 0 0 1.5px var(--ev-ink) inset;}' +
-  '.ev-experimental{background:transparent;box-shadow:0 0 0 1.5px var(--ev-ink) inset;}' +
-  '.ev-heuristic{background:transparent;border:1.5px dashed var(--ev-ink);width:12px;height:12px;}' +
-  /* ── PLACEMENT (cohesion v1.1) — evidence badge lives in the CARD's
+      '.ev-measured{background:var(--ev-ink);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--ev-ink);}' +
+      '.ev-validated{background:var(--ev-ink);box-shadow:0 0 0 1px var(--ev-ink) inset;}' +
+      '.ev-emerging{background:linear-gradient(90deg,var(--ev-ink) 0 50%,transparent 50% 100%);box-shadow:0 0 0 1.5px var(--ev-ink) inset;}' +
+      '.ev-experimental{background:transparent;box-shadow:0 0 0 1.5px var(--ev-ink) inset;}' +
+      '.ev-heuristic{background:transparent;border:1.5px dashed var(--ev-ink);width:12px;height:12px;}' +
+      /* ── PLACEMENT (cohesion v1.1) — evidence badge lives in the CARD's
      bottom-right corner, a quiet meta-marker that never competes with the
      metric value or its status hue. In dense tables / section labels /
      legends (no card to anchor to) it stays inline by the label. ───────── */
-  /* default: inline (tables, section + chart labels, legend) */
-  '.ev{opacity:.85;}' +
-  '.t-metric .ev,.sec-label .ev,.lg-item .ev,.chart-legend .ev,.legend-item .ev{position:static;margin-left:5px;}' +
-  '.ev[title]{cursor:help;}' +
-  /* card tiles become the positioning context for their corner badge */
-  '.metric,.ss-kpi,.nr-kpi,.kpi,.readiness-subscore{position:relative;}' +
-  /* the badge breaks out of the label and anchors to the tile corner */
-  '.metric>.m-label .ev,.metric>.m-val .ev,.ss-kpi>.ss-kpi-label .ev,.nr-kpi>.nr-kpi-label .ev,.kpi>.kpi-label .ev,.readiness-subscore>.rs-label .ev{position:absolute;right:9px;bottom:8px;margin:0;opacity:.55;transition:opacity .15s;}' +
-  '.metric:hover>.m-label .ev,.metric:hover>.m-val .ev,.ss-kpi:hover>.ss-kpi-label .ev,.nr-kpi:hover>.nr-kpi-label .ev,.kpi:hover>.kpi-label .ev,.readiness-subscore:hover>.rs-label .ev{opacity:.95;}' +
-  /* hero tiles are tall + centered — nudge the corner badge inward to taste */
-  '.metric-hero>.m-label .ev{right:14px;bottom:14px;}' +
-  /* reserve bottom clearance so the corner badge never lands on the value
+      /* default: inline (tables, section + chart labels, legend) */
+      '.ev{opacity:.85;}' +
+      '.t-metric .ev,.sec-label .ev,.lg-item .ev,.chart-legend .ev,.legend-item .ev{position:static;margin-left:5px;}' +
+      '.ev[title]{cursor:help;}' +
+      /* card tiles become the positioning context for their corner badge */
+      '.metric,.ss-kpi,.nr-kpi,.kpi,.readiness-subscore{position:relative;}' +
+      /* the badge breaks out of the label and anchors to the tile corner */
+      '.metric>.m-label .ev,.metric>.m-val .ev,.ss-kpi>.ss-kpi-label .ev,.nr-kpi>.nr-kpi-label .ev,.kpi>.kpi-label .ev,.readiness-subscore>.rs-label .ev{position:absolute;right:9px;bottom:8px;margin:0;opacity:.55;transition:opacity .15s;}' +
+      '.metric:hover>.m-label .ev,.metric:hover>.m-val .ev,.ss-kpi:hover>.ss-kpi-label .ev,.nr-kpi:hover>.nr-kpi-label .ev,.kpi:hover>.kpi-label .ev,.readiness-subscore:hover>.rs-label .ev{opacity:.95;}' +
+      /* hero tiles are tall + centered — nudge the corner badge inward to taste */
+      '.metric-hero>.m-label .ev{right:14px;bottom:14px;}' +
+      /* ── WRAPPER: card corner (.ev-corner) — DEEP-AUDIT §21 ────────────────────
+     The mandate's placement (1) for cards / KPIs / HERO numbers. It was defined
+     in dex-badges.css but NEVER in the engine, so no app could use it: the apps
+     load metric-registry.js, not the CSS mirror. A hero (.readiness-hero) is not
+     a .metric/.kpi tile, so the tile rules above never reached it and every hero
+     number in the fleet shipped unbadged. Values are byte-faithful to
+     dex-badges.css. NOTE: no disc property here (background/border/box-shadow/
+     width/height/border-radius) — the cohesion-badges gate deep-compares exactly
+     those between engine and mirror; layout props are free to live in one. */
+      '.ev-corner{position:absolute;bottom:12px;right:14px;z-index:2;cursor:help;opacity:.55;transition:opacity .15s;}' +
+      '.ev-corner:hover{opacity:.7;}' +
+      '.readiness-hero{position:relative;}' +
+      /* reserve bottom clearance so the corner badge never lands on the value
      (only on tiles that actually carry a badge — others keep their size) */
-  '.metric:has(.ev),.ss-kpi:has(.ev),.nr-kpi:has(.ev),.kpi:has(.ev),.readiness-subscore:has(.ev){padding-bottom:22px;}' +
-  '.metric-hero:has(.ev){padding-bottom:30px;}' +
-  /* full-metrics-table: badge LEADS the metric name (fixed left gutter) so
+      '.metric:has(.ev),.ss-kpi:has(.ev),.nr-kpi:has(.ev),.kpi:has(.ev),.readiness-subscore:has(.ev){padding-bottom:22px;}' +
+      '.metric-hero:has(.ev){padding-bottom:30px;}' +
+      /* full-metrics-table: badge LEADS the metric name (fixed left gutter) so
      rows align in a clean column and long labels keep full width (no wrap). */
-  '.fmt-m{white-space:normal;}' +
-  '.fmt-m .ev{position:static;margin:0 7px 0 0;opacity:.7;vertical-align:baseline;}' +
-  /* chips: small inline meta-dot after the value */
-  '.nr-chip .ev{position:static;margin-left:5px;opacity:.6;vertical-align:baseline;width:9px;height:9px;}' +
-  /* legend strip */
-  '.ev-legend{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:11.5px;color:var(--text3);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:9px 14px;margin:0 0 16px;}' +
-  '.ev-legend .lg-item{display:inline-flex;align-items:center;gap:6px;}' +
-  '.ev-legend .lg-item b{color:var(--text2);font-weight:600;}' +
-  '.ev-legend .ev-sep{width:1px;height:13px;background:var(--border2);margin:0 4px;}' +
-  '.ev-legend .lg-title{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text4);margin-right:4px;}' +
-  '.ev-legend .lg-note{margin-left:auto;color:var(--text4);font-size:10.5px;}';
-  var s = global.document.createElement('style');
-  s.id = 'metric-registry-css';
-  s.textContent = css;
-  (global.document.head || global.document.documentElement).appendChild(s);
-}
+      '.fmt-m{white-space:normal;}' +
+      '.fmt-m .ev{position:static;margin:0 7px 0 0;opacity:.7;vertical-align:baseline;}' +
+      /* chips: small inline meta-dot after the value */
+      '.nr-chip .ev{position:static;margin-left:5px;opacity:.6;vertical-align:baseline;width:9px;height:9px;}' +
+      /* legend strip */
+      '.ev-legend{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:11.5px;color:var(--text3);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:9px 14px;margin:0 0 16px;}' +
+      '.ev-legend .lg-item{display:inline-flex;align-items:center;gap:6px;}' +
+      '.ev-legend .lg-item b{color:var(--text2);font-weight:600;}' +
+      '.ev-legend .ev-sep{width:1px;height:13px;background:var(--border2);margin:0 4px;}' +
+      '.ev-legend .lg-title{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text4);margin-right:4px;}' +
+      '.ev-legend .lg-note{margin-left:auto;color:var(--text4);font-size:10.5px;}');
+    var s = global.document.createElement('style');
+    s.id = 'metric-registry-css';
+    s.textContent = css;
+    (global.document.head || global.document.documentElement).appendChild(s);
+  }
 
-// init: inject CSS + apply persisted tier as early as possible
-function _init(){
-  _injectCSS();
-  // apply tier once the body exists; applyTier no-ops safely if it doesn't yet
-  if(global.document && global.document.body) applyTier(getTier());
-  else if(global.document) global.document.addEventListener('DOMContentLoaded', function(){ applyTier(getTier()); });
-}
-_init();
+  // init: inject CSS + apply persisted tier as early as possible
+  function _init() {
+    _injectCSS();
+    // apply tier once the body exists; applyTier no-ops safely if it doesn't yet
+    if (global.document && global.document.body) applyTier(getTier());
+    else if (global.document)
+      global.document.addEventListener('DOMContentLoaded', function () {
+        applyTier(getTier());
+      });
+  }
+  _init();
 
-global.MetricRegistry = {
-  VERSION:VERSION, STORAGE_KEY:STORAGE_KEY, BADGE_CSS:BADGE_CSS,
-  EVIDENCE:EVIDENCE, EVIDENCE_ORDER:EVIDENCE_ORDER, DEPTHS:DEPTHS, TIERS:TIERS,
-  depthToTier:depthToTier, tierToShows:tierToShows, visibleAtTier:visibleAtTier,
-  entry:entry, badge:badge, legend:legend, evClass:evClass,
-  getTier:getTier, setTier:setTier, applyTier:applyTier, mountDepthSelector:mountDepthSelector
-};
-
+  global.MetricRegistry = {
+    VERSION: VERSION,
+    STORAGE_KEY: STORAGE_KEY,
+    BADGE_CSS: BADGE_CSS,
+    EVIDENCE: EVIDENCE,
+    EVIDENCE_ORDER: EVIDENCE_ORDER,
+    DEPTHS: DEPTHS,
+    TIERS: TIERS,
+    depthToTier: depthToTier,
+    tierToShows: tierToShows,
+    visibleAtTier: visibleAtTier,
+    entry: entry,
+    badge: badge,
+    legend: legend,
+    evClass: evClass,
+    getTier: getTier,
+    setTier: setTier,
+    applyTier: applyTier,
+    mountDepthSelector: mountDepthSelector
+  };
 })(window);
 </script>
 <script data-inline-src="entrance-guard.js">/*
@@ -5119,6 +5172,11 @@ function oximetryLane(sa2, durSec) {
     available: true, coverage: +coverage.toFixed(3),
     odi: hours > 0 ? +(real.length / hours).toFixed(2) : null,
     desatCount: real.length, artifactCount: artifactCount,
+    // The lane's OWN denominators, so a night that pools several sessions can weight them
+    // (an index is a rate — you pool the numerator and the denominator, never the rates).
+    // DEEP-AUDIT §20.
+    analyzedHours: hours > 0 ? +hours.toFixed(4) : null,
+    validSamples: vArr.length, below90Samples: below90,
     t90Pct: vArr.length ? +(below90 / vArr.length * 100).toFixed(2) : null,
     spo2Nadir: vArr.length ? nadir : null,
     spo2Mean: vArr.length ? +(sum / vArr.length).toFixed(1) : null,
@@ -5847,11 +5905,23 @@ function crossNight(series, opts){
 function _p2(x){ return (x<10?'0':'')+x; }
 function fmtDateUTC(ms){ if(ms==null) return null; const d=new Date(ms); return d.getUTCFullYear()+'-'+_p2(d.getUTCMonth()+1)+'-'+_p2(d.getUTCDate()); }
 
-// night-level ODI = mean of available-oximeter sessions (null if no oximeter that night)
+// night-level ODI = desats POOLED over analyzed hours across available-oximeter sessions (null if
+// no oximeter that night). NOT a mean of the per-session rates — that would let a 40-minute nap
+// weigh as much as a 6-hour sleep. Same arithmetic as residualAHI. DEEP-AUDIT §20.
 function nightOdi(n){
   if(!n.sessions) return null;
   var live=n.sessions.filter(function(s){ return s.oximetry && s.oximetry.available && s.oximetry.odi!=null; });
   if(!live.length) return null;
+  var desats=0, hours=0;
+  live.forEach(function(s){
+    var o=s.oximetry;
+    if(o.desatCount!=null && o.analyzedHours){ desats+=o.desatCount; hours+=o.analyzedHours; }
+  });
+  // 2 dp — the same precision the lane and the cross-metrics report ODI at (an unrounded quotient
+  // would ship 5.99880023995201 into the crossnight series for what is a 6.00 /hr night).
+  if(hours>0) return +(desats/hours).toFixed(2);
+  // LEGACY session objects (no lane denominators recorded) — fall back to the per-session rate,
+  // which is exact for the single-session case and only approximate when several are pooled.
   var sum=0; live.forEach(function(s){ sum+=s.oximetry.odi; }); return sum/live.length;
 }
 // CPAPDex outcome metric defs — each an OUTCOME with a clear good-direction.
@@ -6381,6 +6451,9 @@ function heroCard(night){
     + (subs ? '<div class="readiness-scores-grid">' + subs + '</div>' : '')
     + '<div class="readiness-note">' + esc(note) + '</div>'
     + (chips ? '<div class="readiness-zones">' + chips + '</div>' : '')
+    // DEEP-AUDIT §21 — the hero (residual AHI, the headline clinical number of this node) was
+    // unbadged while every subscore beneath it was badged. Registry: `measured`.
+    + '<span class="ev-corner">' + evBadge('residualAHI') + '</span>'
     + '</div></div>';
 }
 
@@ -6715,217 +6788,324 @@ global.CpapRender = {
    the numbers. R7: conf = severity, sqi = leak-quality, kept on a SEPARATE axis.
    ════════════════════════════════════════════════════════════════════════ */
 (function (global) {
-'use strict';
+  'use strict';
 
-var LEAD = 15, TRAIL = 60;                  // R4 — identical to oxydex-fusion.js / integrator-dsp.js
-var LARGE_LEAK_LPM = 24;                    // ResMed large-leak validity threshold (L/min)
+  var LEAD = 15,
+    TRAIL = 60; // R4 — identical to oxydex-fusion.js / integrator-dsp.js
+  var LARGE_LEAK_LPM = 24; // ResMed large-leak validity threshold (L/min)
 
-function _p2(n){ return (n < 10 ? '0' : '') + n; }
-/* "HH:MM:SS" wall-clock (no date) from floating tMs — getUTC* only */
-function fmtClockHMS(ms){
-  if (ms == null || !isFinite(ms)) return null;
-  var d = new Date(ms);
-  return _p2(d.getUTCHours()) + ':' + _p2(d.getUTCMinutes()) + ':' + _p2(d.getUTCSeconds());
-}
-function _esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function _p2(n) {
+    return (n < 10 ? '0' : '') + n;
+  }
+  /* "HH:MM:SS" wall-clock (no date) from floating tMs — getUTC* only */
+  function fmtClockHMS(ms) {
+    if (ms == null || !isFinite(ms)) return null;
+    var d = new Date(ms);
+    return _p2(d.getUTCHours()) + ':' + _p2(d.getUTCMinutes()) + ':' + _p2(d.getUTCSeconds());
+  }
+  function _esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
 
-/* ── conf per device-scored event (R7 — likelihood/severity, NOT quality) ──
+  /* ── conf per device-scored event (R7 — likelihood/severity, NOT quality) ──
    Device firmware already decided it's an event (it's scored airflow), so the
    floor is high; longer apneas score harder. central > obstructive weighting
    for clinical attention. sqi is the SEPARATE quality axis (session leak). */
-function _eventConf(type, durSec){
-  var base = type === 'CA' ? 0.9 : type === 'OA' ? 0.85 : type === 'H' ? 0.7 : 0.55;
-  var durBoost = Math.min(0.1, (durSec || 0) / 300);    // +0.1 max at ≥30 s
-  return +Math.min(0.98, base + durBoost).toFixed(2);
-}
-function _impulseFor(type){
-  return type === 'H' ? 'hypopnea' : (type === 'RE' ? 'rera' : 'apnea');
-}
-function _classFor(type){
-  return type === 'OA' ? 'obstructive' : type === 'CA' ? 'central' : type === 'H' ? 'hypopnea' : 'rera';
-}
+  function _eventConf(type, durSec) {
+    var base = type === 'CA' ? 0.9 : type === 'OA' ? 0.85 : type === 'H' ? 0.7 : 0.55;
+    var durBoost = Math.min(0.1, (durSec || 0) / 300); // +0.1 max at ≥30 s
+    return +Math.min(0.98, base + durBoost).toFixed(2);
+  }
+  function _impulseFor(type) {
+    return type === 'H' ? 'hypopnea' : type === 'RE' ? 'rera' : 'apnea';
+  }
+  function _classFor(type) {
+    return type === 'OA' ? 'obstructive' : type === 'CA' ? 'central' : type === 'H' ? 'hypopnea' : 'rera';
+  }
 
-/* ════════════════════════════════════════════════════════════════════════
+  /* ════════════════════════════════════════════════════════════════════════
    EVENT EMISSION — one ganglior event per device-scored EVE event, plus CSL
    periodic-breathing spans, self-gated SA2 desats, and large-leak excursions.
    ════════════════════════════════════════════════════════════════════════ */
-function cpapEvents(night){
-  if (!night || !night.sessions) return [];
-  var out = [];
-  night.sessions.forEach(function (s){
-    var sqi = (s.sqi != null ? s.sqi : 1);
-    // ── device-scored apnea / hypopnea / RERA (TOP apnea tier) ──
-    (s.events || []).forEach(function (ev){
-      var tMs = (ev.tMs != null) ? ev.tMs : (s.t0Ms + (ev.timeSec || 0) * 1000);
-      out.push({
-        t: fmtClockHMS(tMs), tMs: tMs,
-        impulse: _impulseFor(ev.type),
-        node: 'CPAPDex',
-        conf: _eventConf(ev.type, ev.durSec),
-        sqi: +sqi.toFixed(2),
-        meta: { class: _classFor(ev.type), durSec: ev.durSec || 0, source: 'device-scored' }
-      });
-    });
-    // ── periodic breathing (CSL spans) — one event marking the night's PB burden ──
-    if (s.pbSec && s.pbSec > 0){
-      out.push({
-        t: fmtClockHMS(s.t0Ms), tMs: s.t0Ms,
-        impulse: 'periodic_breathing', node: 'CPAPDex',
-        conf: 0.8, sqi: +sqi.toFixed(2),
-        meta: { totalSec: Math.round(s.pbSec), pct: s.metrics ? s.metrics.periodicBreathingPct : null, source: 'device-scored' }
-      });
-    }
-    // ── SA2 desats (only the ones NOT self-gated as artifact) ──
-    var oxi = s.oximetry;
-    if (oxi && oxi.available && oxi.events){
-      oxi.events.forEach(function (d){
-        if (d.artifact) return;                            // §4.4 — never emit a squeeze
-        var tMs = s.t0Ms + (d.nadirIdx != null ? d.nadirIdx : d.startIdx) * 1000;  // 1 Hz
+  function cpapEvents(night) {
+    if (!night || !night.sessions) return [];
+    var out = [];
+    night.sessions.forEach(function (s) {
+      var sqi = s.sqi != null ? s.sqi : 1;
+      // ── device-scored apnea / hypopnea / RERA (TOP apnea tier) ──
+      (s.events || []).forEach(function (ev) {
+        var tMs = ev.tMs != null ? ev.tMs : s.t0Ms + (ev.timeSec || 0) * 1000;
         out.push({
-          t: fmtClockHMS(tMs), tMs: tMs,
-          impulse: 'desat_event', node: 'CPAPDex',          // EVENT-LEXICON §1 canonical (was 'desat'; OXYDEX-...-FOLLOWUPS-II §1)
-          conf: +Math.min(0.95, 0.5 + (d.depth || 0) / 20).toFixed(2),
-          sqi: +(d.sqi != null ? d.sqi : sqi).toFixed(2),
-          meta: { depthPct: d.depth, durSec: d.duration, nadir: d.nadir, source: 'sa2-oximeter', selfGated: false }
+          t: fmtClockHMS(tMs),
+          tMs: tMs,
+          impulse: _impulseFor(ev.type),
+          node: 'CPAPDex',
+          conf: _eventConf(ev.type, ev.durSec),
+          sqi: +sqi.toFixed(2),
+          meta: { class: _classFor(ev.type), durSec: ev.durSec || 0, source: 'device-scored' }
         });
       });
-    }
-    // ── large-leak excursion (context for other nodes; not an apnea) ──
-    var m = s.metrics || {};
-    if (m.largeLeakPct != null && m.largeLeakPct > 1){
-      out.push({
-        t: fmtClockHMS(s.t0Ms), tMs: s.t0Ms,
-        impulse: 'large_leak', node: 'CPAPDex',
-        conf: +Math.min(0.95, m.largeLeakPct / 100 + 0.3).toFixed(2),
-        sqi: +sqi.toFixed(2),
-        meta: { pctNight: m.largeLeakPct, p95Lpm: m.p95Leak, maxLpm: m.maxLeak, thresholdLpm: LARGE_LEAK_LPM, source: 'leak-channel' }
-      });
-    }
-  });
-  out.sort(function (a, b){ return (a.tMs || 0) - (b.tMs || 0); });
-  return out;
-}
+      // ── periodic breathing (CSL spans) — one event marking the night's PB burden ──
+      if (s.pbSec && s.pbSec > 0) {
+        out.push({
+          t: fmtClockHMS(s.t0Ms),
+          tMs: s.t0Ms,
+          impulse: 'periodic_breathing',
+          node: 'CPAPDex',
+          conf: 0.8,
+          sqi: +sqi.toFixed(2),
+          meta: { totalSec: Math.round(s.pbSec), pct: s.metrics ? s.metrics.periodicBreathingPct : null, source: 'device-scored' }
+        });
+      }
+      // ── SA2 desats (only the ones NOT self-gated as artifact) ──
+      var oxi = s.oximetry;
+      if (oxi && oxi.available && oxi.events) {
+        oxi.events.forEach(function (d) {
+          if (d.artifact) return; // §4.4 — never emit a squeeze
+          var tMs = s.t0Ms + (d.nadirIdx != null ? d.nadirIdx : d.startIdx) * 1000; // 1 Hz
+          out.push({
+            t: fmtClockHMS(tMs),
+            tMs: tMs,
+            impulse: 'desat_event',
+            node: 'CPAPDex', // EVENT-LEXICON §1 canonical (was 'desat'; OXYDEX-...-FOLLOWUPS-II §1)
+            conf: +Math.min(0.95, 0.5 + (d.depth || 0) / 20).toFixed(2),
+            sqi: +(d.sqi != null ? d.sqi : sqi).toFixed(2),
+            meta: { depthPct: d.depth, durSec: d.duration, nadir: d.nadir, source: 'sa2-oximeter', selfGated: false }
+          });
+        });
+      }
+      // ── large-leak excursion (context for other nodes; not an apnea) ──
+      var m = s.metrics || {};
+      if (m.largeLeakPct != null && m.largeLeakPct > 1) {
+        out.push({
+          t: fmtClockHMS(s.t0Ms),
+          tMs: s.t0Ms,
+          impulse: 'large_leak',
+          node: 'CPAPDex',
+          conf: +Math.min(0.95, m.largeLeakPct / 100 + 0.3).toFixed(2),
+          sqi: +sqi.toFixed(2),
+          meta: { pctNight: m.largeLeakPct, p95Lpm: m.p95Leak, maxLpm: m.maxLeak, thresholdLpm: LARGE_LEAK_LPM, source: 'leak-channel' }
+        });
+      }
+    });
+    out.sort(function (a, b) {
+      return (a.tMs || 0) - (b.tMs || 0);
+    });
+    return out;
+  }
 
-/* ════════════════════════════════════════════════════════════════════════
+  /* ════════════════════════════════════════════════════════════════════════
    CROSS-METRICS — AHI↔ODI concordance + leak↔AHI ("treat the leak")
    ════════════════════════════════════════════════════════════════════════ */
-function cpapCrossMetrics(night){
-  if (!night) return null;
-  var nm = night.metrics || {};
-  var ahi = nm.residualAHI;
-  // pool oximetry across sessions that had a live lane
-  var oxiSessions = (night.sessions || []).filter(function (s){ return s.oximetry && s.oximetry.available; });
-  var odi = null, t90 = null, oxiAvailable = oxiSessions.length > 0;
-  if (oxiAvailable){
-    var odiSum = 0, t90Sum = 0;
-    oxiSessions.forEach(function (s){ odiSum += (s.oximetry.odi || 0); t90Sum += (s.oximetry.t90Pct || 0); });
-    odi = +(odiSum / oxiSessions.length).toFixed(2);
-    t90 = +(t90Sum / oxiSessions.length).toFixed(2);
+  function cpapCrossMetrics(night) {
+    if (!night) return null;
+    var nm = night.metrics || {};
+    var ahi = nm.residualAHI;
+    // POOL oximetry across sessions that had a live lane — pool the NUMERATOR and the DENOMINATOR,
+    // never the rates. An unweighted mean of per-session ODIs lets a 40-minute nap count as much as a
+    // 6-hour sleep: a real 6.38 h + 0.68 h night reported ODI 5.97 where the pooled truth is 3.68
+    // (×1.62 overstated). residualAHI (nA / totHours) already pools correctly — this is the same
+    // arithmetic, and t90 pools on valid SAMPLES because that is what its own denominator is.
+    // DEEP-AUDIT §20.
+    var oxiSessions = (night.sessions || []).filter(function (s) {
+      return s.oximetry && s.oximetry.available;
+    });
+    var odi = null,
+      t90 = null,
+      oxiAvailable = oxiSessions.length > 0;
+    if (oxiAvailable) {
+      var desats = 0,
+        oxiHours = 0,
+        below90 = 0,
+        validSamp = 0;
+      oxiSessions.forEach(function (s) {
+        var o = s.oximetry;
+        if (o.desatCount != null && o.analyzedHours) {
+          desats += o.desatCount;
+          oxiHours += o.analyzedHours;
+        }
+        if (o.validSamples) {
+          below90 += o.below90Samples || 0;
+          validSamp += o.validSamples;
+        }
+      });
+      if (oxiHours > 0) odi = +(desats / oxiHours).toFixed(2);
+      if (validSamp > 0) t90 = +((below90 / validSamp) * 100).toFixed(2);
+    }
+    // AHI↔ODI concordance: do scored apneas line up with desats?
+    var concordance = null,
+      concordanceNote = null;
+    if (oxiAvailable && ahi != null && odi != null) {
+      var ratio = odi > 0 ? ahi / odi : ahi > 0 ? Infinity : 1;
+      if (ratio >= 0.7 && ratio <= 1.5) {
+        concordance = 'concordant';
+        concordanceNote = 'scored apneas track desaturations — coherent obstructive picture';
+      } else if (ratio > 1.5) {
+        concordance = 'ahi-led';
+        concordanceNote = 'AHI exceeds ODI — events without deep desats (central / brief / well-oxygenated)';
+      } else {
+        concordance = 'odi-led';
+        concordanceNote = 'desats exceed scored apneas — possible flow-limit / non-apneic hypoxemia, or a leak masking scoring';
+      }
+    } else if (!oxiAvailable) {
+      concordanceNote = 'no oximeter this night — AHI stands on the airflow scoring alone';
+    }
+    // leak↔AHI: does residual AHI rise when leak is high → "treat the leak"
+    var leakImpact = null,
+      leakNote = null;
+    var largeLeak = nm.largeLeakPct;
+    if (largeLeak != null && ahi != null) {
+      if (largeLeak > 10 && ahi >= 5) {
+        leakImpact = 'leak-confounded';
+        leakNote = 'high leak + elevated residual AHI — the leak likely corrupts scoring; treat the seal before titrating pressure';
+      } else if (largeLeak > 10) {
+        leakImpact = 'leak-high-ahi-ok';
+        leakNote = 'high leak but residual AHI controlled — watch the seal, therapy still effective';
+      } else {
+        leakImpact = 'leak-ok';
+        leakNote = 'leak within validity threshold — AHI is trustworthy';
+      }
+    }
+    return {
+      ahi: ahi,
+      odi: odi,
+      t90: t90,
+      oximetryAvailable: oxiAvailable,
+      concordance: concordance,
+      concordanceNote: concordanceNote,
+      leakImpact: leakImpact,
+      leakNote: leakNote,
+      largeLeakPct: largeLeak
+    };
   }
-  // AHI↔ODI concordance: do scored apneas line up with desats?
-  var concordance = null, concordanceNote = null;
-  if (oxiAvailable && ahi != null && odi != null){
-    var ratio = odi > 0 ? ahi / odi : (ahi > 0 ? Infinity : 1);
-    if (ratio >= 0.7 && ratio <= 1.5){ concordance = 'concordant'; concordanceNote = 'scored apneas track desaturations — coherent obstructive picture'; }
-    else if (ratio > 1.5){ concordance = 'ahi-led'; concordanceNote = 'AHI exceeds ODI — events without deep desats (central / brief / well-oxygenated)'; }
-    else { concordance = 'odi-led'; concordanceNote = 'desats exceed scored apneas — possible flow-limit / non-apneic hypoxemia, or a leak masking scoring'; }
-  } else if (!oxiAvailable){
-    concordanceNote = 'no oximeter this night — AHI stands on the airflow scoring alone';
-  }
-  // leak↔AHI: does residual AHI rise when leak is high → "treat the leak"
-  var leakImpact = null, leakNote = null;
-  var largeLeak = nm.largeLeakPct;
-  if (largeLeak != null && ahi != null){
-    if (largeLeak > 10 && ahi >= 5){ leakImpact = 'leak-confounded'; leakNote = 'high leak + elevated residual AHI — the leak likely corrupts scoring; treat the seal before titrating pressure'; }
-    else if (largeLeak > 10){ leakImpact = 'leak-high-ahi-ok'; leakNote = 'high leak but residual AHI controlled — watch the seal, therapy still effective'; }
-    else { leakImpact = 'leak-ok'; leakNote = 'leak within validity threshold — AHI is trustworthy'; }
-  }
-  return {
-    ahi: ahi, odi: odi, t90: t90, oximetryAvailable: oxiAvailable,
-    concordance: concordance, concordanceNote: concordanceNote,
-    leakImpact: leakImpact, leakNote: leakNote, largeLeakPct: largeLeak
-  };
-}
 
-/* ════════════════════════════════════════════════════════════════════════
+  /* ════════════════════════════════════════════════════════════════════════
    NODE EXPORT — schema.name:"ganglior.node-export"
    ════════════════════════════════════════════════════════════════════════ */
-function cpapBuildExport(night){
-  if (!night) return null;
-  var events = cpapEvents(night);
-  var cross = cpapCrossMetrics(night);
-  var D = global.CpapDsp;
-  return {
-    // P8/kernel: stamp THIS build's physiology-kernel hash so the Integrator's
-    // kernel audit can detect a CPAPDex built against a different rulebook.
-    kernel: (global.DexKernel ? { version: global.DexKernel.VERSION, hash: global.DexKernel.HASH } : null),
-    schema: {
-      name: 'ganglior.node-export', version: '2.0', node: 'CPAPDex', nodeVersion: '1.0',
-      generated: new Date().toISOString(),
-      provenance: (global.GangliorProvenance ? global.GangliorProvenance.stamp() : null),  // R1
-      doc: 'Single-signal PAP-therapy analyzer export. All metrics computed in-browser from the AirSense EDF set only (nothing leaves the device). Device-scored EVE/CSL events are the top apnea tier. SA2 oximetry is a self-gated QC lane — artifact desats are excluded and never emitted. null = not present/computed at this quality. Event `t` is wall-clock HH:MM:SS (no date); `tMs` is absolute floating ms.',
-      units: { pressure: 'cmH2O', leak: 'L/min', ahi: '/hr', odi: '/hr', respRate: '/min', tidVol: 'L', minVent: 'L/min', spo2: '%', pulse: 'bpm', time: 'min', conf: '0..1', sqi: '0..1' }
-    },
-    recording: {
-      source: 'ResMed AirSense 11 (EDF set)',
-      // EXPORT-IDENTITY §2.1 / -FOLLOWUPS-II §1: identity-free contentId (signal-frame.js bundled into
-      // CPAPDex). The raw 25 Hz flow is not retained on `night`, so this folds the per-session structural
-      // signature (floating t0Ms / durations / usage / EDF record counts / mode) + the night anchor —
-      // deterministic, identity-free (source is a generic device family, no serial), single-sourced here
-      // (both cpapdex-app.js exportNight + headless CPAPDex.compute reach this builder; the multi-night
-      // wrapper maps it per night, so each night element carries its own contentId).
-      contentId: ((typeof SignalFrame!=='undefined' && SignalFrame && SignalFrame.computeContentId && (night.sessions||[]).length) ? SignalFrame.computeContentId({ signalType:'flow', kind:'samples', samples:(night.sessions||[]).map(function(s){ return {t:s.t0Ms, dur:s.durMin, usage:s.usageHours, rec:s.recordsRead, num:s.numRecords, mode:s.mode}; }), t0Ms:(night.t0Ms!=null?night.t0Ms:null), usable:true }) : null),
-      startEpochMs: night.t0Ms,                              // floating t0Ms (first session)
-      dateAnchorMs: night.dateAnchorMs, offsetMin: null,     // EDF carries no zone
-      therapyHours: night.therapyHours, sessionCount: night.nSessions,
-      sessions: (night.sessions || []).map(function (s, i){
-        return { idx: i, startEpochMs: s.t0Ms, durMin: s.durMin, usageHours: s.usageHours, mode: s.mode,
-                 truncated: s.truncated, recordsRead: s.recordsRead, numRecords: s.numRecords,
-                 oximeter: s.oximetry && s.oximetry.available ? 'connected' : (s.oximetry ? s.oximetry.reason : 'absent') };
+  function cpapBuildExport(night) {
+    if (!night) return null;
+    var events = cpapEvents(night);
+    var cross = cpapCrossMetrics(night);
+    var D = global.CpapDsp;
+    return {
+      // P8/kernel: stamp THIS build's physiology-kernel hash so the Integrator's
+      // kernel audit can detect a CPAPDex built against a different rulebook.
+      kernel: global.DexKernel ? { version: global.DexKernel.VERSION, hash: global.DexKernel.HASH } : null,
+      schema: {
+        name: 'ganglior.node-export',
+        version: '2.0',
+        node: 'CPAPDex',
+        nodeVersion: '1.0',
+        generated: new Date().toISOString(),
+        provenance: global.GangliorProvenance ? global.GangliorProvenance.stamp() : null, // R1
+        doc: 'Single-signal PAP-therapy analyzer export. All metrics computed in-browser from the AirSense EDF set only (nothing leaves the device). Device-scored EVE/CSL events are the top apnea tier. SA2 oximetry is a self-gated QC lane — artifact desats are excluded and never emitted. null = not present/computed at this quality. Event `t` is wall-clock HH:MM:SS (no date); `tMs` is absolute floating ms.',
+        units: { pressure: 'cmH2O', leak: 'L/min', ahi: '/hr', odi: '/hr', respRate: '/min', tidVol: 'L', minVent: 'L/min', spo2: '%', pulse: 'bpm', time: 'min', conf: '0..1', sqi: '0..1' }
+      },
+      recording: {
+        source: 'ResMed AirSense 11 (EDF set)',
+        // EXPORT-IDENTITY §2.1 / -FOLLOWUPS-II §1: identity-free contentId (signal-frame.js bundled into
+        // CPAPDex). The raw 25 Hz flow is not retained on `night`, so this folds the per-session structural
+        // signature (floating t0Ms / durations / usage / EDF record counts / mode) + the night anchor —
+        // deterministic, identity-free (source is a generic device family, no serial), single-sourced here
+        // (both cpapdex-app.js exportNight + headless CPAPDex.compute reach this builder; the multi-night
+        // wrapper maps it per night, so each night element carries its own contentId).
+        contentId:
+          typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.computeContentId && (night.sessions || []).length
+            ? SignalFrame.computeContentId({
+                signalType: 'flow',
+                kind: 'samples',
+                samples: (night.sessions || []).map(function (s) {
+                  return { t: s.t0Ms, dur: s.durMin, usage: s.usageHours, rec: s.recordsRead, num: s.numRecords, mode: s.mode };
+                }),
+                t0Ms: night.t0Ms != null ? night.t0Ms : null,
+                usable: true
+              })
+            : null,
+        startEpochMs: night.t0Ms, // floating t0Ms (first session)
+        dateAnchorMs: night.dateAnchorMs,
+        offsetMin: null, // EDF carries no zone
+        therapyHours: night.therapyHours,
+        sessionCount: night.nSessions,
+        sessions: (night.sessions || []).map(function (s, i) {
+          return {
+            idx: i,
+            startEpochMs: s.t0Ms,
+            durMin: s.durMin,
+            usageHours: s.usageHours,
+            mode: s.mode,
+            truncated: s.truncated,
+            recordsRead: s.recordsRead,
+            numRecords: s.numRecords,
+            oximeter: s.oximetry && s.oximetry.available ? 'connected' : s.oximetry ? s.oximetry.reason : 'absent'
+          };
+        }),
+        offMaskGaps: (night.offMaskGaps || []).map(function (g) {
+          return { afterSession: g.afterIdx, gapMin: g.gapMin };
+        })
+      },
+      metrics: night.metrics || null,
+      crossMetrics: cross,
+      oximetry: (night.sessions || []).map(function (s, i) {
+        var o = s.oximetry || {};
+        return {
+          session: i,
+          available: !!o.available,
+          reason: o.reason || null,
+          coverage: o.coverage != null ? o.coverage : null,
+          odi: o.odi != null ? o.odi : null,
+          t90Pct: o.t90Pct != null ? o.t90Pct : null,
+          spo2Nadir: o.spo2Nadir != null ? o.spo2Nadir : null,
+          spo2Mean: o.spo2Mean != null ? o.spo2Mean : null,
+          desatCount: o.desatCount != null ? o.desatCount : null,
+          artifactCount: o.artifactCount != null ? o.artifactCount : null,
+          selfGate: 'active'
+        };
       }),
-      offMaskGaps: (night.offMaskGaps || []).map(function (g){ return { afterSession: g.afterIdx, gapMin: g.gapMin }; })
-    },
-    metrics: night.metrics || null,
-    crossMetrics: cross,
-    oximetry: (night.sessions || []).map(function (s, i){
-      var o = s.oximetry || {};
-      return { session: i, available: !!o.available, reason: o.reason || null, coverage: o.coverage != null ? o.coverage : null,
-               odi: o.odi != null ? o.odi : null, t90Pct: o.t90Pct != null ? o.t90Pct : null,
-               spo2Nadir: o.spo2Nadir != null ? o.spo2Nadir : null, spo2Mean: o.spo2Mean != null ? o.spo2Mean : null,
-               desatCount: o.desatCount != null ? o.desatCount : null, artifactCount: o.artifactCount != null ? o.artifactCount : null,
-               selfGate: 'active' };
-    }),
-    quality: {
-      sqi: (night.sessions || []).length ? +(night.sessions.reduce(function (a, s){ return a + (s.sqi != null ? s.sqi : 1); }, 0) / night.sessions.length).toFixed(3) : null,
-      sqiBasis: 'leak-quality (1 − largeLeakFraction) — R7 separate from conf',
-      lowUsage: night.therapyHours != null && night.therapyHours < 2,
-      truncatedSessions: (night.sessions || []).filter(function (s){ return s.truncated; }).length
-    },
-    ganglior_events: events,
-    crossNode: (global.CpapCoimport ? (function (){
-      var cn = global.CpapCoimport.crossNode(night);
-      if (!cn) return null;
-      // DESCRIPTIVE only — borrowed peer data is source-attributed and NEVER
-      // re-emitted as CPAPDex ganglior_events, so the Integrator (which ingests
-      // OxyDex/ECGDex directly) does not double-count.
-      return {
-        doc: 'Optional corroboration from peer node-exports the user dropped in. Source-attributed; not part of CPAPDex ganglior_events.',
-        borrowedOximetry: cn.oximetry || null,
-        autonomicCorroboration: cn.autonomic || null,
-        ahiOdiConcordance: cn.concordance || null, ahiOdiNote: cn.concordanceNote || null
-      };
-    })() : null),
-    reserved: {
-      doc: 'Slots awaiting Integrator fusion; null until paired.',
-      ahiOdiConcordance: cross ? cross.concordance : null,
-      oximetrySource: 'CPAPDex-SA2 (peer of O2Ring)',
-      apneaAuthority: 'device-scored (top tier)'
-    },
-    fmtVersion: D ? 'CpapDsp' : null
-  };
-}
+      quality: {
+        sqi: (night.sessions || []).length
+          ? +(
+              night.sessions.reduce(function (a, s) {
+                return a + (s.sqi != null ? s.sqi : 1);
+              }, 0) / night.sessions.length
+            ).toFixed(3)
+          : null,
+        sqiBasis: 'leak-quality (1 − largeLeakFraction) — R7 separate from conf',
+        lowUsage: night.therapyHours != null && night.therapyHours < 2,
+        truncatedSessions: (night.sessions || []).filter(function (s) {
+          return s.truncated;
+        }).length
+      },
+      ganglior_events: events,
+      crossNode: global.CpapCoimport
+        ? (function () {
+            var cn = global.CpapCoimport.crossNode(night);
+            if (!cn) return null;
+            // DESCRIPTIVE only — borrowed peer data is source-attributed and NEVER
+            // re-emitted as CPAPDex ganglior_events, so the Integrator (which ingests
+            // OxyDex/ECGDex directly) does not double-count.
+            return {
+              doc: 'Optional corroboration from peer node-exports the user dropped in. Source-attributed; not part of CPAPDex ganglior_events.',
+              borrowedOximetry: cn.oximetry || null,
+              autonomicCorroboration: cn.autonomic || null,
+              ahiOdiConcordance: cn.concordance || null,
+              ahiOdiNote: cn.concordanceNote || null
+            };
+          })()
+        : null,
+      reserved: {
+        doc: 'Slots awaiting Integrator fusion; null until paired.',
+        ahiOdiConcordance: cross ? cross.concordance : null,
+        oximetrySource: 'CPAPDex-SA2 (peer of O2Ring)',
+        apneaAuthority: 'device-scored (top tier)'
+      },
+      fmtVersion: D ? 'CpapDsp' : null
+    };
+  }
 
-/* ════════════════════════════════════════════════════════════════════════
+  /* ════════════════════════════════════════════════════════════════════════
    MULTI-NIGHT NODE EXPORT — ≥3 nights wrapped in a ganglior.crossnight v1.0
    aggregate header (CPAPDEX-PHASE9-FOLLOWUPS-IV §2). cpapdex-app.js exportNight
    DELEGATES here so the gate exercises the SAME builder the app runs (retiring
@@ -6933,123 +7113,162 @@ function cpapBuildExport(night){
    GangliorProvenance / CPAPCross) read at CALL time, as exportNight did; the
    app guard (chrono.length>=3 && CPAPCross && CrossNightEnvelope) still fronts it.
    ════════════════════════════════════════════════════════════════════════ */
-function cpapBuildMultiNightExport(chrono){
-  if (!chrono || !chrono.length) return null;
-  return {
-    kernel: (global.DexKernel ? { version: global.DexKernel.VERSION, hash: global.DexKernel.HASH } : null),
-    schema: {
-      name: 'ganglior.node-export', version: '2.0', node: 'CPAPDex', nodeVersion: '1.0', multiNight: true,
+  function cpapBuildMultiNightExport(chrono) {
+    if (!chrono || !chrono.length) return null;
+    return {
+      kernel: global.DexKernel ? { version: global.DexKernel.VERSION, hash: global.DexKernel.HASH } : null,
+      schema: {
+        name: 'ganglior.node-export',
+        version: '2.0',
+        node: 'CPAPDex',
+        nodeVersion: '1.0',
+        multiNight: true,
+        generated: new Date().toISOString(),
+        provenance: global.GangliorProvenance ? global.GangliorProvenance.stamp() : null,
+        doc: 'Array of per-night CPAPDex node-exports (each unchanged) + a ganglior.crossnight v1.0 aggregate header.'
+      },
       generated: new Date().toISOString(),
-      provenance: (global.GangliorProvenance ? global.GangliorProvenance.stamp() : null),
-      doc: 'Array of per-night CPAPDex node-exports (each unchanged) + a ganglior.crossnight v1.0 aggregate header.'
-    },
-    generated: new Date().toISOString(), nightCount: chrono.length,
-    crossNight: global.CPAPCross.crossNightBlock(chrono),
-    nights: chrono.map(function (n){ return cpapBuildExport(n); })
-  };
-}
-
-/* ════════════════════════════════════════════════════════════════════════
-   FULL METRICS TABLE — 6 columns, evidence badge leads the metric-name cell
-   ════════════════════════════════════════════════════════════════════════ */
-function _sev(good, warn, val, lowerBetter){
-  if (val == null || !isFinite(val)) return '';
-  if (lowerBetter) return val <= good ? 'ok' : val <= warn ? 'warn' : 'bad';
-  return val >= good ? 'ok' : val >= warn ? 'warn' : 'bad';
-}
-function _fmt(v, dec){
-  if (v == null || v === '' || (typeof v === 'number' && !isFinite(v))) return '—';
-  if (typeof v === 'number') return dec != null ? (+v).toFixed(dec) : String(v);
-  return String(v);
-}
-function cpapFullMetricsTable(night){
-  if (!night) return '';
-  var nm = night.metrics || {};
-  var s0 = (night.sessions && night.sessions[0]) || {};
-  var m = s0.metrics || {};
-  var cross = cpapCrossMetrics(night);
-  var rows = [];
-  var sec = function (t){ rows.push({ sec: t }); };
-  // id is the registry id so evBadge resolves the evidence dot
-  var r = function (id, label, v, unit, normal, st, note){ rows.push({ id: id, m: label, v: v, u: unit || '', nm: normal || '—', st: st || '', note: note || '' }); };
-
-  sec('Recording');
-  r(null, 'Source', 'ResMed AirSense 11 (EDF)', '', '—', '', 'BRP 25 Hz · PLD 0.5 Hz · SA2 1 Hz · EVE/CSL annotations');
-  r(null, 'Night start', global.CpapDsp ? global.CpapDsp.fmtDateTime(night.t0Ms) : night.t0Ms, '', '—', '', 'Floating wall-clock (viewer-tz-independent)');
-  r(null, 'Sessions', night.nSessions, '', '—', '', (night.offMaskGaps && night.offMaskGaps.length ? night.offMaskGaps.length + ' off-mask gap(s)' : 'single session'));
-  r('usageHours', 'Therapy hours', _fmt(night.therapyHours, 2), 'hr', '≥4', _sev(4, 2, night.therapyHours), 'Total mask-on time across sessions');
-
-  sec('Residual Events (device-scored EVE — top tier)');
-  r('residualAHI', 'Residual AHI', _fmt(nm.residualAHI, 2), '/hr', '<5', _sev(5, 15, nm.residualAHI, true), 'AirSense firmware-scored apneas+hypopneas / therapy hr');
-  r('obstructiveIndex', 'Obstructive Index', _fmt(nm.obstructiveIndex, 2), '/hr', '<5', _sev(5, 15, nm.obstructiveIndex, true), 'OA / hr');
-  r('centralIndex', 'Central Apnea Index', _fmt(nm.centralIndex, 2), '/hr', '<5', _sev(5, 10, nm.centralIndex, true), 'CA / hr');
-  r('hypopneaIndex', 'Hypopnea Index', _fmt(nm.hypopneaIndex, 2), '/hr', '<5', _sev(5, 15, nm.hypopneaIndex, true), 'H / hr');
-  r('reraIndex', 'RERA Index', _fmt(nm.reraIndex, 2), '/hr', '<5', _sev(5, 15, nm.reraIndex, true), 'Respiratory-effort arousals / hr');
-  r('periodicBreathingPct', 'Periodic Breathing', _fmt(nm.periodicBreathingPct, 2), '%', '<2', _sev(2, 10, nm.periodicBreathingPct, true), '% therapy in CSL Cheyne-Stokes/PB spans');
-
-  sec('Pressure');
-  r('medianPressure', 'Median Pressure', _fmt(nm.medianPressure, 1), 'cmH₂O', '—', '', 'P50 delivered (mask-on) · mode ' + (s0.mode || '—'));
-  r('p95Pressure', '95th-%ile Pressure', _fmt(nm.p95Pressure, 1), 'cmH₂O', '—', '', 'P95 delivered');
-  r('pressureRange', 'Pressure Range (IQR)', _fmt(nm.pressureRange, 1), 'cmH₂O', '—', '', 'Auto-titration spread (>1 ⇒ APAP)');
-  r('eprDelta', 'EPR Delta', _fmt(m.eprDelta, 1), 'cmH₂O', '—', '', 'Median expiratory pressure relief (session 1)');
-
-  sec('Leak');
-  r('medianLeak', 'Median Leak', _fmt(nm.medianLeak, 1), 'L/min', '<24', _sev(12, 24, nm.medianLeak, true), 'P50 mask leak (L/s→L/min)');
-  r('p95Leak', '95th-%ile Leak', _fmt(nm.p95Leak, 1), 'L/min', '<24', _sev(18, 24, nm.p95Leak, true), 'P95 mask leak');
-  r('largeLeakPct', 'Large Leak %', _fmt(nm.largeLeakPct, 2), '%', '<5', _sev(2, 5, nm.largeLeakPct, true), '% therapy >24 L/min (ResMed validity)');
-  r('leakCV', 'Leak CV', _fmt(nm.leakCV, 1), '%', '—', '', 'Seal stability (SD/mean)');
-
-  sec('Ventilation & Flow');
-  r('respRateMedian', 'Resp Rate', _fmt(m.respRateMedian, 1), '/min', '12–20', _sev(20, 24, m.respRateMedian, true), 'Device P50 respiratory rate');
-  r('breathRate', 'Breath Rate (flow-derived)', _fmt(m.breathRate, 1), '/min', '12–20', '', 'Zero-crossing on 25 Hz flow — cross-checks device RR');
-  r('ieRatio', 'I:E Ratio', _fmt(m.ieRatio, 2), '', '—', '', 'Inspiratory/expiratory flow-time ratio');
-  r('tidVolMedian', 'Tidal Volume', _fmt(m.tidVolMedian, 2), 'L', '0.3–0.6', '', 'Device P50 tidal volume');
-  r('minVentMedian', 'Minute Ventilation', _fmt(m.minVentMedian, 1), 'L/min', '4–8', '', 'Device P50 minute ventilation');
-  r('flowLimitedPct', 'Flow-Limited %', _fmt(m.flowLimitedPct, 1), '%', '<10', _sev(10, 25, m.flowLimitedPct, true), '% therapy with flow-limitation >0.3');
-  r('snorePct', 'Snore %', _fmt(m.snorePct, 1), '%', '<5', _sev(5, 15, m.snorePct, true), '% therapy with snore index >0.2');
-
-  // ── Oximetry QC lane (only when an oximeter was connected) ──
-  if (cross && cross.oximetryAvailable){
-    sec('Oximetry QC Lane (SA2 · self-gated)');
-    r('odi', 'ODI (3%)', _fmt(cross.odi, 2), '/hr', '<5', _sev(5, 15, cross.odi, true), 'Self-gated desaturation index — squeeze artifacts excluded');
-    r('t90Pct', 'T90', _fmt(cross.t90, 2), '%', '<1', _sev(1, 5, cross.t90, true), '% valid SpO₂ below 90%');
-    var oxiS = (night.sessions || []).filter(function (s){ return s.oximetry && s.oximetry.available; })[0];
-    if (oxiS){
-      r('spo2Nadir', 'SpO₂ Nadir', _fmt(oxiS.oximetry.spo2Nadir), '%', '≥88', _sev(90, 85, oxiS.oximetry.spo2Nadir), 'Lowest valid SpO₂');
-      r('spo2Mean', 'Mean SpO₂', _fmt(oxiS.oximetry.spo2Mean, 1), '%', '≥94', _sev(94, 92, oxiS.oximetry.spo2Mean), 'Mean valid SpO₂');
-      r(null, 'Artifact desats', _fmt(oxiS.oximetry.artifactCount), '', '—', '', 'Self-gated out of ODI (perfusion/kinetics)');
-    }
-  } else {
-    sec('Oximetry QC Lane (SA2)');
-    r(null, 'Oximeter', 'not connected', '', '—', '', 'No SpO₂ accessory this night — ODI/T90 n/a (not fabricated)');
+      nightCount: chrono.length,
+      crossNight: global.CPAPCross.crossNightBlock(chrono),
+      nights: chrono.map(function (n) {
+        return cpapBuildExport(n);
+      })
+    };
   }
 
-  // ── render ──
-  var pill = function (st){
-    if (st === 'ok') return '<span class="pill pill-green">OK</span>';
-    if (st === 'warn') return '<span class="pill pill-yellow">WATCH</span>';
-    if (st === 'bad') return '<span class="pill pill-red">FLAG</span>';
-    return '<span style="color:var(--text4)">—</span>';
-  };
-  var evBadge = (global.CpapRegistry && global.CpapRegistry.evBadge) ? global.CpapRegistry.evBadge : function(){ return ''; };
-  var body = '';
-  rows.forEach(function (row){
-    if (row.sec){ body += '<tr class="fmt-sec"><td colspan="6">' + _esc(row.sec) + '</td></tr>'; return; }
-    body += '<tr>'
-      + '<td class="fmt-m">' + (row.id ? evBadge(row.id) : '') + _esc(String(row.m)) + '</td>'
-      + '<td class="fmt-v">' + (typeof row.v === 'string' && row.v.indexOf('<') >= 0 ? row.v : _esc(String(row.v))) + '</td>'
-      + '<td>' + _esc(String(row.u)) + '</td>'
-      + '<td>' + _esc(String(row.nm)) + '</td>'
-      + '<td>' + pill(row.st) + '</td>'
-      + '<td class="fmt-note">' + _esc(String(row.note)) + '</td>'
-      + '</tr>';
-  });
-  return '<div class="table-wrap cpap-fulltable"><table><thead><tr>'
-    + '<th>Metric</th><th>Value</th><th>Unit</th><th>Normal Range</th><th>Status</th><th>Notes</th>'
-    + '</tr></thead><tbody>' + body + '</tbody></table></div>';
-}
+  /* ════════════════════════════════════════════════════════════════════════
+   FULL METRICS TABLE — 6 columns, evidence badge leads the metric-name cell
+   ════════════════════════════════════════════════════════════════════════ */
+  function _sev(good, warn, val, lowerBetter) {
+    if (val == null || !isFinite(val)) return '';
+    if (lowerBetter) return val <= good ? 'ok' : val <= warn ? 'warn' : 'bad';
+    return val >= good ? 'ok' : val >= warn ? 'warn' : 'bad';
+  }
+  function _fmt(v, dec) {
+    if (v == null || v === '' || (typeof v === 'number' && !isFinite(v))) return '—';
+    if (typeof v === 'number') return dec != null ? (+v).toFixed(dec) : String(v);
+    return String(v);
+  }
+  function cpapFullMetricsTable(night) {
+    if (!night) return '';
+    var nm = night.metrics || {};
+    var s0 = (night.sessions && night.sessions[0]) || {};
+    var m = s0.metrics || {};
+    var cross = cpapCrossMetrics(night);
+    var rows = [];
+    var sec = function (t) {
+      rows.push({ sec: t });
+    };
+    // id is the registry id so evBadge resolves the evidence dot
+    var r = function (id, label, v, unit, normal, st, note) {
+      rows.push({ id: id, m: label, v: v, u: unit || '', nm: normal || '—', st: st || '', note: note || '' });
+    };
 
-/* ════════════════════════════════════════════════════════════════════════
+    sec('Recording');
+    r(null, 'Source', 'ResMed AirSense 11 (EDF)', '', '—', '', 'BRP 25 Hz · PLD 0.5 Hz · SA2 1 Hz · EVE/CSL annotations');
+    r(null, 'Night start', global.CpapDsp ? global.CpapDsp.fmtDateTime(night.t0Ms) : night.t0Ms, '', '—', '', 'Floating wall-clock (viewer-tz-independent)');
+    r(null, 'Sessions', night.nSessions, '', '—', '', night.offMaskGaps && night.offMaskGaps.length ? night.offMaskGaps.length + ' off-mask gap(s)' : 'single session');
+    r('usageHours', 'Therapy hours', _fmt(night.therapyHours, 2), 'hr', '≥4', _sev(4, 2, night.therapyHours), 'Total mask-on time across sessions');
+
+    sec('Residual Events (device-scored EVE — top tier)');
+    r('residualAHI', 'Residual AHI', _fmt(nm.residualAHI, 2), '/hr', '<5', _sev(5, 15, nm.residualAHI, true), 'AirSense firmware-scored apneas+hypopneas / therapy hr');
+    r('obstructiveIndex', 'Obstructive Index', _fmt(nm.obstructiveIndex, 2), '/hr', '<5', _sev(5, 15, nm.obstructiveIndex, true), 'OA / hr');
+    r('centralIndex', 'Central Apnea Index', _fmt(nm.centralIndex, 2), '/hr', '<5', _sev(5, 10, nm.centralIndex, true), 'CA / hr');
+    r('hypopneaIndex', 'Hypopnea Index', _fmt(nm.hypopneaIndex, 2), '/hr', '<5', _sev(5, 15, nm.hypopneaIndex, true), 'H / hr');
+    r('reraIndex', 'RERA Index', _fmt(nm.reraIndex, 2), '/hr', '<5', _sev(5, 15, nm.reraIndex, true), 'Respiratory-effort arousals / hr');
+    r('periodicBreathingPct', 'Periodic Breathing', _fmt(nm.periodicBreathingPct, 2), '%', '<2', _sev(2, 10, nm.periodicBreathingPct, true), '% therapy in CSL Cheyne-Stokes/PB spans');
+
+    sec('Pressure');
+    r('medianPressure', 'Median Pressure', _fmt(nm.medianPressure, 1), 'cmH₂O', '—', '', 'P50 delivered (mask-on) · mode ' + (s0.mode || '—'));
+    r('p95Pressure', '95th-%ile Pressure', _fmt(nm.p95Pressure, 1), 'cmH₂O', '—', '', 'P95 delivered');
+    r('pressureRange', 'Pressure Range (IQR)', _fmt(nm.pressureRange, 1), 'cmH₂O', '—', '', 'Auto-titration spread (>1 ⇒ APAP)');
+    r('eprDelta', 'EPR Delta', _fmt(m.eprDelta, 1), 'cmH₂O', '—', '', 'Median expiratory pressure relief (session 1)');
+
+    sec('Leak');
+    r('medianLeak', 'Median Leak', _fmt(nm.medianLeak, 1), 'L/min', '<24', _sev(12, 24, nm.medianLeak, true), 'P50 mask leak (L/s→L/min)');
+    r('p95Leak', '95th-%ile Leak', _fmt(nm.p95Leak, 1), 'L/min', '<24', _sev(18, 24, nm.p95Leak, true), 'P95 mask leak');
+    r('largeLeakPct', 'Large Leak %', _fmt(nm.largeLeakPct, 2), '%', '<5', _sev(2, 5, nm.largeLeakPct, true), '% therapy >24 L/min (ResMed validity)');
+    r('leakCV', 'Leak CV', _fmt(nm.leakCV, 1), '%', '—', '', 'Seal stability (SD/mean)');
+
+    sec('Ventilation & Flow');
+    r('respRateMedian', 'Resp Rate', _fmt(m.respRateMedian, 1), '/min', '12–20', _sev(20, 24, m.respRateMedian, true), 'Device P50 respiratory rate');
+    r('breathRate', 'Breath Rate (flow-derived)', _fmt(m.breathRate, 1), '/min', '12–20', '', 'Zero-crossing on 25 Hz flow — cross-checks device RR');
+    r('ieRatio', 'I:E Ratio', _fmt(m.ieRatio, 2), '', '—', '', 'Inspiratory/expiratory flow-time ratio');
+    r('tidVolMedian', 'Tidal Volume', _fmt(m.tidVolMedian, 2), 'L', '0.3–0.6', '', 'Device P50 tidal volume');
+    r('minVentMedian', 'Minute Ventilation', _fmt(m.minVentMedian, 1), 'L/min', '4–8', '', 'Device P50 minute ventilation');
+    r('flowLimitedPct', 'Flow-Limited %', _fmt(m.flowLimitedPct, 1), '%', '<10', _sev(10, 25, m.flowLimitedPct, true), '% therapy with flow-limitation >0.3');
+    r('snorePct', 'Snore %', _fmt(m.snorePct, 1), '%', '<5', _sev(5, 15, m.snorePct, true), '% therapy with snore index >0.2');
+
+    // ── Oximetry QC lane (only when an oximeter was connected) ──
+    if (cross && cross.oximetryAvailable) {
+      sec('Oximetry QC Lane (SA2 · self-gated)');
+      r('odi', 'ODI (3%)', _fmt(cross.odi, 2), '/hr', '<5', _sev(5, 15, cross.odi, true), 'Self-gated desaturation index — squeeze artifacts excluded');
+      r('t90Pct', 'T90', _fmt(cross.t90, 2), '%', '<1', _sev(1, 5, cross.t90, true), '% valid SpO₂ below 90%');
+      var oxiS = (night.sessions || []).filter(function (s) {
+        return s.oximetry && s.oximetry.available;
+      })[0];
+      if (oxiS) {
+        r('spo2Nadir', 'SpO₂ Nadir', _fmt(oxiS.oximetry.spo2Nadir), '%', '≥88', _sev(90, 85, oxiS.oximetry.spo2Nadir), 'Lowest valid SpO₂');
+        r('spo2Mean', 'Mean SpO₂', _fmt(oxiS.oximetry.spo2Mean, 1), '%', '≥94', _sev(94, 92, oxiS.oximetry.spo2Mean), 'Mean valid SpO₂');
+        r(null, 'Artifact desats', _fmt(oxiS.oximetry.artifactCount), '', '—', '', 'Self-gated out of ODI (perfusion/kinetics)');
+      }
+    } else {
+      sec('Oximetry QC Lane (SA2)');
+      r(null, 'Oximeter', 'not connected', '', '—', '', 'No SpO₂ accessory this night — ODI/T90 n/a (not fabricated)');
+    }
+
+    // ── render ──
+    var pill = function (st) {
+      if (st === 'ok') return '<span class="pill pill-green">OK</span>';
+      if (st === 'warn') return '<span class="pill pill-yellow">WATCH</span>';
+      if (st === 'bad') return '<span class="pill pill-red">FLAG</span>';
+      return '<span style="color:var(--text4)">—</span>';
+    };
+    var evBadge =
+      global.CpapRegistry && global.CpapRegistry.evBadge
+        ? global.CpapRegistry.evBadge
+        : function () {
+            return '';
+          };
+    var body = '';
+    rows.forEach(function (row) {
+      if (row.sec) {
+        body += '<tr class="fmt-sec"><td colspan="6">' + _esc(row.sec) + '</td></tr>';
+        return;
+      }
+      body +=
+        '<tr>' +
+        '<td class="fmt-m">' +
+        (row.id ? evBadge(row.id) : '') +
+        _esc(String(row.m)) +
+        '</td>' +
+        '<td class="fmt-v">' +
+        (typeof row.v === 'string' && row.v.indexOf('<') >= 0 ? row.v : _esc(String(row.v))) +
+        '</td>' +
+        '<td>' +
+        _esc(String(row.u)) +
+        '</td>' +
+        '<td>' +
+        _esc(String(row.nm)) +
+        '</td>' +
+        '<td>' +
+        pill(row.st) +
+        '</td>' +
+        '<td class="fmt-note">' +
+        _esc(String(row.note)) +
+        '</td>' +
+        '</tr>';
+    });
+    return (
+      '<div class="table-wrap cpap-fulltable"><table><thead><tr>' +
+      '<th>Metric</th><th>Value</th><th>Unit</th><th>Normal Range</th><th>Status</th><th>Notes</th>' +
+      '</tr></thead><tbody>' +
+      body +
+      '</tbody></table></div>'
+    );
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
    SELF-INGEST — reload CPAPDex's OWN export as a REVIEW-MODE clinical view
    (SELF-INGEST-FOLLOWUPS-2026-07-03-BRIEF · CPAPDex pass; pattern: OxyDex pilot)
    ────────────────────────────────────────────────────────────────────────
@@ -7075,57 +7294,77 @@ function cpapFullMetricsTable(night){
    FOREIGN export (schema.node !== CPAPDex) is REJECTED with a redirect message —
    the app routes OxyDex/ECGDex exports to CpapCoimport (corroboration) instead.
    ════════════════════════════════════════════════════════════════════════ */
-function cpapLoadOwnExport(json){
-  // 1 · detect — a ganglior.node-export at all?
-  if (!(json && json.schema && json.schema.name === 'ganglior.node-export'))
-    return { ok:false, reason:'not-node-export',
-      message:'Not a node-export \u2014 drop your AirSense .edf set, or CPAPDex\u2019s own .json export.' };
-  // 2 · guard — a node only re-ingests its OWN kind. A foreign export is REJECTED with a redirect
-  //     message (mirrors the pilot); the app sends OxyDex/ECGDex exports to CpapCoimport, not here.
-  var node = ((json.schema.node || '') + '').trim();
-  if (node !== 'CPAPDex')
-    return { ok:false, reason:'foreign-node', node:node,
-      message:'This is a ' + (node || 'non-CPAPDex') + ' export \u2014 open it in ' + (node || 'its own node')
-        + ', or drop it into the Integrator to fuse. (In CPAPDex an OxyDex/ECGDex export is borrowed as corroboration alongside your .edf set.)' };
-  // 3 · unwrap → per-night export elements (single-night = the object itself). Each element is an
-  //     unchanged cpapBuildExport tree; the review renders its STORED values verbatim (no recompute).
-  var carrier = Array.isArray(json.nights) ? json.nights.slice()
-              : ((json.recording && (json.metrics || json.oximetry)) ? [json] : []);
-  // gather events across elements (single-night: json IS carrier[0], so its ganglior_events ride along),
-  // chronological + monotonic by tMs (Clock Contract) for the clinical timeline.
-  var events = [];
-  carrier.forEach(function (el){ if (el && Array.isArray(el.ganglior_events)) events = events.concat(el.ganglior_events); });
-  events.sort(function (a, b){ return ((a && a.tMs) || 0) - ((b && b.tMs) || 0); });
-  // mark review-mode on each element (the renderer greys raw-only panels; nothing here recomputes).
-  carrier.forEach(function (el){ if (el){ el._reviewMode = true; el._fromExport = true; } });
-  // 4 · preserve provenance / kernel / events / crossNight VERBATIM — the view's provenance IS the
-  //     export's; the current build's stamp must NOT be written over it (no GangliorProvenance.stamp()).
-  return {
-    ok:true, reviewMode:true, node:node,
-    elements: carrier,
-    events: events,
-    provenance: (json.schema && json.schema.provenance) || null,
-    generated:  (json.schema && json.schema.generated)  || null,
-    derivedFrom:(json.schema && json.schema.derivedFrom) || null,
-    kernel:     json.kernel || null,
-    crossNight: json.crossNight || null,
-    multiNight: carrier.length > 1 || !!(json.schema && json.schema.multiNight),
-    scrubbed:  !!(json.schema && json.schema.scrubbed),
-    raw: json
+  function cpapLoadOwnExport(json) {
+    // 1 · detect — a ganglior.node-export at all?
+    if (!(json && json.schema && json.schema.name === 'ganglior.node-export'))
+      return { ok: false, reason: 'not-node-export', message: 'Not a node-export \u2014 drop your AirSense .edf set, or CPAPDex\u2019s own .json export.' };
+    // 2 · guard — a node only re-ingests its OWN kind. A foreign export is REJECTED with a redirect
+    //     message (mirrors the pilot); the app sends OxyDex/ECGDex exports to CpapCoimport, not here.
+    var node = ((json.schema.node || '') + '').trim();
+    if (node !== 'CPAPDex')
+      return {
+        ok: false,
+        reason: 'foreign-node',
+        node: node,
+        message:
+          'This is a ' +
+          (node || 'non-CPAPDex') +
+          ' export \u2014 open it in ' +
+          (node || 'its own node') +
+          ', or drop it into the Integrator to fuse. (In CPAPDex an OxyDex/ECGDex export is borrowed as corroboration alongside your .edf set.)'
+      };
+    // 3 · unwrap → per-night export elements (single-night = the object itself). Each element is an
+    //     unchanged cpapBuildExport tree; the review renders its STORED values verbatim (no recompute).
+    var carrier = Array.isArray(json.nights) ? json.nights.slice() : json.recording && (json.metrics || json.oximetry) ? [json] : [];
+    // gather events across elements (single-night: json IS carrier[0], so its ganglior_events ride along),
+    // chronological + monotonic by tMs (Clock Contract) for the clinical timeline.
+    var events = [];
+    carrier.forEach(function (el) {
+      if (el && Array.isArray(el.ganglior_events)) events = events.concat(el.ganglior_events);
+    });
+    events.sort(function (a, b) {
+      return ((a && a.tMs) || 0) - ((b && b.tMs) || 0);
+    });
+    // mark review-mode on each element (the renderer greys raw-only panels; nothing here recomputes).
+    carrier.forEach(function (el) {
+      if (el) {
+        el._reviewMode = true;
+        el._fromExport = true;
+      }
+    });
+    // 4 · preserve provenance / kernel / events / crossNight VERBATIM — the view's provenance IS the
+    //     export's; the current build's stamp must NOT be written over it (no GangliorProvenance.stamp()).
+    return {
+      ok: true,
+      reviewMode: true,
+      node: node,
+      elements: carrier,
+      events: events,
+      provenance: (json.schema && json.schema.provenance) || null,
+      generated: (json.schema && json.schema.generated) || null,
+      derivedFrom: (json.schema && json.schema.derivedFrom) || null,
+      kernel: json.kernel || null,
+      crossNight: json.crossNight || null,
+      multiNight: carrier.length > 1 || !!(json.schema && json.schema.multiNight),
+      scrubbed: !!(json.schema && json.schema.scrubbed),
+      raw: json
+    };
+  }
+
+  global.CpapFusion = {
+    LEAD: LEAD,
+    TRAIL: TRAIL,
+    LARGE_LEAK_LPM: LARGE_LEAK_LPM,
+    fmtClockHMS: fmtClockHMS,
+    cpapEvents: cpapEvents,
+    cpapCrossMetrics: cpapCrossMetrics,
+    cpapBuildExport: cpapBuildExport,
+    cpapBuildMultiNightExport: cpapBuildMultiNightExport,
+    cpapFullMetricsTable: cpapFullMetricsTable,
+    // SELF-INGEST (SELF-INGEST-FOLLOWUPS-2026-07-03): the pure self-reload surface, exposed on the
+    // namespace so BOTH the app (handleFileList routing) and the test runners reach the SAME function.
+    cpapLoadOwnExport: cpapLoadOwnExport
   };
-}
-
-global.CpapFusion = {
-  LEAD: LEAD, TRAIL: TRAIL, LARGE_LEAK_LPM: LARGE_LEAK_LPM,
-  fmtClockHMS: fmtClockHMS,
-  cpapEvents: cpapEvents, cpapCrossMetrics: cpapCrossMetrics,
-  cpapBuildExport: cpapBuildExport, cpapBuildMultiNightExport: cpapBuildMultiNightExport,
-  cpapFullMetricsTable: cpapFullMetricsTable,
-  // SELF-INGEST (SELF-INGEST-FOLLOWUPS-2026-07-03): the pure self-reload surface, exposed on the
-  // namespace so BOTH the app (handleFileList routing) and the test runners reach the SAME function.
-  cpapLoadOwnExport: cpapLoadOwnExport
-};
-
 })(window);
 </script>
 <script data-inline-src="cpapdex-coimport.js">/* ════════════════════════════════════════════════════════════════════════
