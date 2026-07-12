@@ -222,6 +222,8 @@ function readSources() {
     'dex-actions.js',
     'dex-profile.js',
     'sensor-trio-worker.js',
+    'sensor-trio-power-analysis.js',
+    'sensor-trio-gpu.js',
     'hrvdex-render.js',
     'signal-orchestrate.js',
     'dex-ingest.js',
