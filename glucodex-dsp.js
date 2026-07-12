@@ -767,11 +767,28 @@ function detectClampSaturation(vals){
      nadir (an arcsine/turning-point effect), so some excess at the exact minimum is PHYSIOLOGICAL and must
      not be called a clip; flagging a real nadir as an artifact would HIDE true hypoglycemia, which is worse
      than the bug this fixes. A clip instead pins ALL the sub-bound mass onto one bin, which is a step
-     change. Measured anchors: a real unclipped nocturnal hypo → 1.7× · the real Lingo rail → 3.2× · a hard
-     synthetic rail → 184×. 2.5 sits in the gap, with margin on both sides. */
+     change.
+
+     ⚠️ A PILE-UP ALONE IS NOT ENOUGH, and an earlier cut of this fix got that wrong. A glucose curve
+     lingers at its turning point, so its minimum genuinely accumulates mass (an arcsine effect) — and a
+     SLOW sinusoid concentrates far harder than a busy one: measured, a two-component trace piles up 1.7×
+     but the plain daily sinusoid of the committed synthetic input piles up 4.0× at a floor of 89 mg/dL
+     that is NOT a rail at all. A bare ratio test therefore flags a healthy trough as a clip — which would
+     SUPPRESS REAL HYPOGLYCEMIA, the exact harm this detector exists to prevent.
+     So a clip is claimed only with CORROBORATION — the pile-up must sit either
+       (a) in a KNOWN vendor clamp band (Abbott Lingo: floor 55, ceiling 200 mg/dL), or
+       (b) at a ratio no smooth physiology produces (≥ HARD_RAIL_RATIO — a true rail pins every
+           sub-bound reading onto one bin and measures 10×–180×).
+     Measured anchors: real unclipped nocturnal hypo 1.7× · synthetic sinusoid trough 4.0× (floor 89, NOT
+     a rail) · the real Lingo rail 3.2× (floor 54, IN band) · a hard synthetic rail 184×.
+     The cost of this conservatism is that an UNKNOWN vendor's soft rail may go undetected. That is the
+     right trade: a missed clip under-reports a hypo, whereas a fabricated clip HIDES one. */
   const INNER_BINS = 2;
-  const CLIP_RATIO = 2.5;
-  function spikeAt(bound, dir){             // dir +1 = floor (inside is above) · −1 = ceiling
+  const CLIP_RATIO = 2.5;        // a pile-up worth investigating
+  const HARD_RAIL_RATIO = 10;    // a pile-up no smooth density produces — a rail on its own evidence
+  // Known vendor clamp band: Lingo exports only 55–200 mg/dL (≈54 if the file round-trips via mmol/L).
+  const nearLingoFloor = lo>=53 && lo<=57, nearLingoCeil = hi>=195 && hi<=205;
+  function spikeAt(bound, dir, inVendorBand){   // dir +1 = floor (inside is above) · −1 = ceiling
     let at=0; const innerBin=new Array(INNER_BINS).fill(0);
     for(let i=0;i<n;i++){
       const v=vals[i]; if(!isFinite(v)) continue;
@@ -781,13 +798,13 @@ function detectClampSaturation(vals){
       if(b>=0 && b<INNER_BINS) innerBin[b]++;
     }
     const innerMean = innerBin.reduce((s,x)=>s+x,0)/INNER_BINS;
+    const ratio = at/Math.max(1,innerMean);
     const pct=+(at/n*100).toFixed(2);
-    const saturated = at>=3 && pct>=0.3 && at >= CLIP_RATIO*Math.max(1,innerMean);
-    return { value:Math.round(bound), count:at, pct, saturated, innerMean:+innerMean.toFixed(1) };
+    const pileUp = at>=3 && pct>=0.3 && ratio >= CLIP_RATIO;
+    const saturated = pileUp && (inVendorBand || ratio >= HARD_RAIL_RATIO);
+    return { value:Math.round(bound), count:at, pct, saturated, innerMean:+innerMean.toFixed(1), ratio:+ratio.toFixed(2) };
   }
-  const floor = spikeAt(lo, +1), ceiling = spikeAt(hi, -1);
-  // Known vendor band: Lingo clips to 55–200 mg/dL (≈54–200 if the file was mmol/L)
-  const nearLingoFloor = lo>=53 && lo<=57, nearLingoCeil = hi>=195 && hi<=205;
+  const floor = spikeAt(lo, +1, nearLingoFloor), ceiling = spikeAt(hi, -1, nearLingoCeil);
   let vendor=null;
   if(floor.saturated && ceiling.saturated && nearLingoFloor && nearLingoCeil) vendor='lingo';
   else if((floor.saturated&&nearLingoFloor) || (ceiling.saturated&&nearLingoCeil)) vendor='lingo-like';

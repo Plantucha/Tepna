@@ -4510,6 +4510,35 @@
           }),
         uHypo.length + ' hypo event(s)'
       );
+      // (a2) THE FALSE-POSITIVE THAT ALMOST SHIPPED. A plain daily sinusoid (the committed CI synthetic
+      //      input: 95 + 6·sin(2π·hod/24) + meal excursions, NO clamp anywhere) piles up 4.0× at its
+      //      trough of 89 mg/dL — harder than the 1.7× of a busier trace, because a SLOW sinusoid lingers
+      //      at its turning point. A bare ratio test flags that healthy trough as a clip, which would
+      //      SUPPRESS REAL HYPOGLYCEMIA. A clip is claimed only with corroboration: a KNOWN vendor band,
+      //      or a ratio no smooth density produces. 89 mg/dL is neither.
+      var sinus = [HDR],
+        hod,
+        gg;
+      for (i = 0; i < 3 * 24 * 12; i++) {
+        hod = ((i * 5) / 60) % 24;
+        gg = 95 + 6 * Math.sin((2 * Math.PI * hod) / 24);
+        [
+          [8, 45],
+          [13, 55],
+          [19, 50]
+        ].forEach(function (m) {
+          var dt = hod - m[0];
+          if (dt >= 0 && dt < 3) gg += m[1] * Math.exp(-Math.pow(dt - 0.8, 2) / 0.5);
+        });
+        sinus.push(stamp(t0 + i * 5 * 60000) + ',' + Math.round(gg));
+      }
+      var sinusRes = G.compute({ text: sinus.join('\n'), filename: 'sinusoid.csv' }, {});
+      T.ok(
+        '§6 · a plain sinusoid trough (floor 89, NO clamp) is NOT called a clip — a false clip HIDES real hypos',
+        !(sinusRes.recording.clamp && sinusRes.recording.clamp.detected === true),
+        'clamp=' + JSON.stringify(sinusRes.recording.clamp)
+      );
+
       // (b) THE REAL SHAPE. A vendor rail on a REALISTIC trace: the density RISES away from the floor
       //     (glucose is rarely at 56–57, often at 60+), exactly like the committed Abbott Lingo export
       //     (54:46 · 55:15 · 56:14 · 57:26 · 58:47 · 59:65). That rising bulk is what swamped the old
