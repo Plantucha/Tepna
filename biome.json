@@ -54,6 +54,8 @@
     {
       "includes": [
         "cpapdex-render.js",
+        "cpapdex-dsp.js",
+        "cpapdex-cross.js",
         "ecgdex-app.js",
         "glucodex-app.js",
         "integrator-app.js",

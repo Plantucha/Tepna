@@ -232,7 +232,7 @@ function buildLongitudinal(nights) {
   // error — a silently degraded longitudinal block (brief §F5). Resolved lazily, at the
   // call site, to stay clear of load-order/circularity.
   var CROSS = (root && root.CPAPCross) || (function () {
-    try { return (typeof require !== 'undefined') ? require('./cpapdex-cross.js') : null; } catch (e) { return null; }
+    try { return (typeof require !== 'undefined') ? require('./cpapdex-cross.js') : null; } catch (_e) { return null; }
   })();
   var crossNight = (CROSS && CROSS.crossNightBlock) ? CROSS.crossNightBlock(chrono) : null;
   return { compliancePct: compliancePct, nights: nights.length, usageTrend7d: usageTrend7d, ahiTrend30d: ahiTrend30d, crossNight: crossNight };
