@@ -24,6 +24,18 @@
    ════════════════════════════════════════════════════════════════════════ */
 (function (global) {
 'use strict';
+
+// Physiology-kernel constants. In a bundle/browser realm kernel-constants.js is already
+// co-loaded and DexKernel is a global. Under CommonJS nothing has loaded it, so pull it
+// in for its side effect — it self-registers on globalThis (it is already dual-realm) —
+// which makes the bare `DexKernel` reads below resolve. Without this, requiring this
+// module threw and buildLongitudinal() silently produced crossNight:null (brief §F5).
+// CrossNightEnvelope stays OPTIONAL: it is behind a truthiness guard and simply absent
+// under CommonJS, which selects the local (non-envelope) code path by design.
+if (typeof DexKernel === 'undefined' && typeof require !== 'undefined') {
+  try { require('./kernel-constants.js'); } catch (_e) { /* browser/bundle realm — already global */ }
+}
+
 const r1=v=>v==null||!isFinite(v)?null:Math.round(v*10)/10;
 const r2=v=>v==null||!isFinite(v)?null:Math.round(v*100)/100;
 const r3=v=>v==null||!isFinite(v)?null:Math.round(v*1000)/1000;
@@ -190,6 +202,18 @@ function compliancePct(nights, thresholdH){
   return +(ok/nights.length*100).toFixed(1);
 }
 
-global.CPAPCross = { crossNight, crossNightBlock, compliancePct, ols, mannKendall, bootstrapDeltaCI, fmtDateUTC, CPAP_DEFS, nightTms, nightWeight, nightOdi };
+var api = { crossNight, crossNightBlock, compliancePct, ols, mannKendall, bootstrapDeltaCI, fmtDateUTC, CPAP_DEFS, nightTms, nightWeight, nightOdi };
 
-})(window);
+// Dual-realm, matching the house pattern already used by cpapdex-dsp.js / -edf.js /
+// -fusion.js. This file used to close over a bare `window` and expose NOTHING to
+// CommonJS, so `require('./cpapdex-cross.js')` THREW ("window is not defined") — which
+// is why buildLongitudinal() handed back crossNight:null in every Node realm, silently
+// (brief §F5). Browser behaviour is unchanged: global.CPAPCross is still set.
+//
+// `globalThis` (not null) is passed in Node because the body does bare `global.X`
+// feature lookups (CrossNightEnvelope): it needs a real object on which the optional
+// dependency is simply absent, so the existing truthiness guard does its job.
+if (global) global.CPAPCross = api;
+if (typeof module !== 'undefined' && module.exports) module.exports = api;
+
+})(typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : null));
