@@ -111,7 +111,32 @@ bounded by a single runner's cores).
 
 ---
 
-## §3 — `PpgDex.compute()`: the real cost is `mean`, and it is a one-line fix
+## §3 — ~~`PpgDex.compute()`: the real cost is `mean`, and it is a one-line fix~~ **RETRACTED 2026-07-12**
+
+> ### ⛔ §3 IS WRONG — DO NOT IMPLEMENT IT. Retracted by `audits/EFFICIENCY-AUDIT-FINDINGS-2026-07-12.md` §M1.
+>
+> The hoist was implemented exactly as specified below and A/B'd end-to-end on real captures:
+> **1.015×** (`n0612b`, 1157 beats: 347.4 → 342.3 ms) and **1.00×** (the committed equiv clip).
+> True self-time in a browser-representative realm: **`mean` = 0.84%**, `pearson` = **0.00%** — not 28%.
+> Arithmetically it never could be: 1157 beats × a 114-sample template ≈ 132k float adds ≈ 0.15 ms.
+>
+> **Root cause of the wrong number — and the lesson that generalises:** the profile below was taken
+> inside `run-tests.mjs`'s contextified **Node `vm` sandbox**, where global lookups (`Math`, `Date`) go
+> through the context's interceptors, so **tight numeric loops inflate wildly and non-uniformly — which
+> re-ranks the profile.** Measured distortion vs the main realm: `PulseDex.compute` **12.3×**,
+> `OxyDex.compute` 3.3×, `PpgDex.compute` 2.6×. (OxyDex's SampEn `countMatches` reads as 15.9% of
+> `compute()` in the vm realm and **~0%** in the main realm — do **not** "fix" it either.)
+>
+> This is **§0 happening one rung up**: §0 said *don't trust a synthetic benchmark — profile the real
+> pipeline.* The correction is *don't trust a profile taken in the test harness's vm realm either.*
+> **Profile via `vm.runInThisContext` or a browser.**
+>
+> The *real* PpgDex win is elsewhere and is byte-identical: `parsePPG` runs `parseTimestamp` on all
+> ~190k rows but only ever reads the first → **`compute()` 2.01×** end-to-end. Plus a genuine
+> **correctness bug** in `ppgdex-morph.js` (a fractional `Float32Array` index silently nulls most of the
+> surfaced perfusion-index trend). Both are in the findings doc above.
+
+### The retracted claim, kept verbatim for the record:
 
 CPU profile, real 24.5-min Verity capture (258,737 samples, 3 LEDs), `compute()` = 919 ms:
 
