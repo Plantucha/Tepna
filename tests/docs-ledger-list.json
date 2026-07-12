@@ -463,6 +463,7 @@
     "cgm-hrv-coupling-analysis.js",
     "changes",
     "changes/2026-07-11-clock-dmy-file-lock.md",
+    "changes/2026-07-12-hrvdex-spectral-presence-gate.md",
     "changes/2026-07-12-polar-rr-foreign-stream-veto.md",
     "changes/2026-07-12-ppgdex-cadence-refractory.md",
     "changes/README.md",

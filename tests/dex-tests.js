@@ -4418,6 +4418,80 @@
      FLOOR may be artifacts, not true hypos. glucoBuildNodeExport now surfaces the clamp fact on
      recording.clamp + stamps those events meta.clampFloor:true; the Integrator's adaptGlucoDex reads it
      → summary.clampSat + down-weights the clip-floor hypos (conf ×0.5). Lock both sides + back-compat. ════ */
+    /* DEEP-AUDIT-2026-07-11 §5/§6 — GlucoDex must not report interpolation as measured glucose, and must
+       recognise the vendor clip floor it was written for. Drives the REAL compute() on synthetic CSVs
+       (uploads/ is gitignored, so CI cannot depend on the real Lingo file).
+       §5: a long sensor gap was interpolated straight into TIR/GMI/CV/MAGE — the validated-tier headline
+           KPIs — because short and long gaps shared FLAG.GAP and analyzableIndex filtered neither. A real
+           14 h sensor-change gap made TIR read 11 % where the truth was 0 %.
+       §6: detectClampSaturation compared a ±1 (≈2-wide) bound window against a 5-wide inner slab, so the
+           slab was always thicker and the test could essentially never fire. The real Abbott Lingo export
+           rails at 54 mg/dL (46 readings AT the floor vs 15 and 14 beside it) and shipped 37 unflagged
+           nocturnal_hypo events at conf 0.97. The fix must ALSO not flag a genuine nocturnal nadir — a
+           false clip would HIDE real hypoglycemia, which is worse than the bug. */
+    group('GlucoDex §5/§6 — long-gap fill is not measured glucose; the vendor clip floor is detected', 'glucodex-dsp · fabricated-absence · units', function (T) {
+      var G = env.GlucoDex || env.GLUDSP;
+      if (!G || typeof G.compute !== 'function') {
+        T.ok('env.GlucoDex.compute available', false, 'namespace not wired — gate skipped');
+        return;
+      }
+      var HDR = 'Time of Glucose Reading [T=(local time) +/- (time zone offset)], Measurement(mg/dL)';
+      var stamp = function (ms) { return new Date(ms).toISOString().slice(0, 16) + '-04:00'; };
+
+      /* ── §5 · a long sensor gap must not manufacture in-range time ──────────────────────────────────
+         Every REAL reading is far out of range (>=250), so the true TIR is 0 %. A 14 h sensor-change gap
+         sits between two blocks; interpolating across it draws a straight line right through 70–180. If
+         those cells are counted, TIR reads non-zero — glucose the sensor never saw. */
+      var t0 = Date.UTC(2026, 4, 3, 0, 0, 0), L = [HDR], i;
+      for (i = 0; i < 288; i++) L.push(stamp(t0 + i * 5 * 60000) + ',' + (250 + (i % 7)));      // day 1: all high
+      var afterGap = t0 + (288 * 5 + 14 * 60) * 60000;                                          // 14 h gap
+      for (i = 0; i < 288; i++) L.push(stamp(afterGap + i * 5 * 60000) + ',' + (55 + (i % 5))); // day 2: all low
+      var gapped = G.compute({ text: L.join('\n'), filename: 'gap.csv' }, {});
+      var gl = (gapped && gapped.glucose) || {};
+      var tirPct = gl.tir && typeof gl.tir === 'object' ? gl.tir.tir : gl.tir;
+      T.eq('§5 · every REAL reading is out of range ⇒ TIR is 0 % (long-gap fill contributes none)', tirPct, 0);
+      T.ok('§5 · the long gap is still reported as inactive time (pctActive < 100)', gl.pctActive != null && gl.pctActive < 100,
+        'pctActive=' + gl.pctActive);
+      T.ok('§5 · the REAL lows are still counted (the exclusion drops interpolation, not measurement)',
+        gl.tir && gl.tir.tbr1 > 0, 'tbr1=' + (gl.tir && gl.tir.tbr1));
+
+      /* ── §6 · clip detection, with the false-positive control ──────────────────────────────────────── */
+      var cgm = function (hardClip) {
+        var out = [HDR], g, h, k;
+        for (k = 0; k < 8 * 24 * 12; k++) {
+          h = ((k * 5 / 60) % 24);
+          g = 105 + 25 * Math.sin(k / 30) + 10 * Math.sin(k / 7);
+          if (h > 2 && h < 4) g = 42 + 8 * Math.sin(k / 3);   // a genuine nocturnal hypo, nadir ≈ 34
+          g = Math.round(g);
+          if (hardClip) g = Math.max(55, Math.min(200, g));   // the Lingo rail
+          out.push(stamp(t0 + k * 5 * 60000) + ',' + g);
+        }
+        return out.join('\n');
+      };
+      // (a) THE CONTROL, and the more important half: a real nadir must NOT be called a clip. A glucose
+      //     curve lingers at its turning point, so a mild pile-up at the minimum is PHYSIOLOGICAL (≈1.7×).
+      //     Flagging it would hide true hypoglycemia.
+      var unclipped = G.compute({ text: cgm(false), filename: 'unclipped.csv' }, {});
+      T.ok('§6 · a genuine nocturnal nadir is NOT flagged as a clip (real hypos stay real)',
+        !(unclipped.recording.clamp && unclipped.recording.clamp.detected === true),
+        'clamp=' + JSON.stringify(unclipped.recording.clamp));
+      var uHypo = (unclipped.ganglior_events || []).filter(function (e) { return /hypo/i.test(e.impulse); });
+      T.ok('§6 · its hypo events carry NO clampFloor flag', uHypo.length > 0 && uHypo.every(function (e) { return !(e.meta && e.meta.clampFloor); }),
+        uHypo.length + ' hypo event(s)');
+      // (b) a hard vendor rail must be caught, and every hypo sitting on it disclosed.
+      var clipped = G.compute({ text: cgm(true), filename: 'clipped.csv' }, {});
+      var cl = clipped.recording.clamp || {};
+      T.ok('§6 · a hard rail at the vendor floor IS detected', cl.detected === true, 'clamp=' + JSON.stringify(cl));
+      T.eq('§6 · the detected floor is the rail', cl.floor, 55);
+      T.ok('§6 · the clip-blinded metrics are named (TBR/LBGI/min/nocturnalHypo)',
+        (cl.blindMetrics || []).indexOf('tbr1') >= 0 && (cl.blindMetrics || []).indexOf('nocturnalHypo') >= 0,
+        JSON.stringify(cl.blindMetrics));
+      var cHypo = (clipped.ganglior_events || []).filter(function (e) { return /hypo/i.test(e.impulse); });
+      T.ok('§6 · every hypo sitting ON the rail is flagged clampFloor (a clip artifact, not a real hypo)',
+        cHypo.length > 0 && cHypo.every(function (e) { return e.meta && e.meta.clampFloor === true; }),
+        cHypo.length + ' hypo event(s), flagged=' + cHypo.filter(function (e) { return e.meta && e.meta.clampFloor; }).length);
+    });
+
     group('GlucoDex clamp-saturation honesty flag (GLUCODEX-FOLLOWUPS §2)', 'glucodex-dsp · integrator-dsp', function (T) {
       var G = env.GlucoDex || env.GLUDSP,
         A = env.adaptEnvelopeNode;
@@ -7403,6 +7477,64 @@
      and tagging Welltory's black-box composites provenance.derived:true. signal-orchestrate hosts
      HRVDex in isolation + emits via emitSummaryNodeExport. Source-mirror + functional adapter/guard
      checks (both run in BOTH runners; compute() runs live in the browser render-coverage rig). */
+    /* DEEP-AUDIT-2026-07-11 §3/§4 — HRVDex must never fabricate a spectral number from an absent band,
+       and MxDMn/MeanRR must be unit-guarded like its twin d_csi.
+       §3: `(totalPow - vlf) || 0.001` treated an ABSENT band as 0 and then substituted a 1000×-too-small
+           epsilon. ECGDex/PpgDex export lf/hf but NO totalPower/vlf, so on that documented ingest path
+           HF n.u. surfaced as 125,000,000 % — a quantity that is 0–100 BY DEFINITION — and went NEGATIVE
+           when only vlf was present. An absent input must read NaN, never a number.
+       §4: a Welltory export is MIXED-UNIT (MeanRR in ms, MxDMn in SECONDS) — the exact trap
+           DexUnits.guardBaevsky exists for. d_si/d_csi used the guard; d_mxdmn_meanrr, three lines away,
+           divided raw seconds by raw ms and read 1000× low. */
+    group('HRVDex §3/§4 — absent spectrum → NaN, never a fabricated n.u.; MxDMn/MeanRR unit-guarded', 'hrvdex-dsp · units · fabricated-absence', function (T) {
+      var HD = env.HRVDex;
+      if (!HD || typeof HD.derive !== 'function' || typeof HD.rowFromNodeExport !== 'function') {
+        T.ok('env.HRVDex.derive + rowFromNodeExport available', false, 'headless derive surface not wired — gate skipped');
+        return;
+      }
+      var nodeExport = function (freq) {
+        return {
+          schema: { name: 'ganglior.node-export', node: 'ECGDex' },
+          recording: { startEpochMs: Date.UTC(2026, 5, 14, 22, 0, 0) },
+          hrv: { time: { hr: 62, meanRR: 957.7, sdnn: 75.7, rmssd: 36.4, mode: 900, amo50: 30, mxDMn: 0.418 }, frequency: freq }
+        };
+      };
+      var isNaNv = function (v) { return typeof v === 'number' && isNaN(v); };
+
+      // (a) the real ECGDex/PpgDex shape: lf + hf, but NO totalPower / vlf.
+      var rNoTp = HD.derive([HD.rowFromNodeExport(nodeExport({ lf: 780, hf: 1250 }))])[0];
+      T.ok('§3 · lf/hf only (ECGDex/PpgDex export) → HF n.u. is NaN, not 1.25e8', isNaNv(rNoTp.d_hfnu), 'd_hfnu=' + rNoTp.d_hfnu);
+      T.ok('§3 · lf/hf only → LF n.u. is NaN', isNaNv(rNoTp.d_lfnu), 'd_lfnu=' + rNoTp.d_lfnu);
+      T.ok('§3 · lf/hf only → spectral entropy is NaN (no fabricated VLF floor)', isNaNv(rNoTp.d_spectral_ent), 'd_spectral_ent=' + rNoTp.d_spectral_ent);
+      T.ok('§3 · lf/hf only → VLF/HF is NaN, not a confident 0', isNaNv(rNoTp.d_vlf_hf), 'd_vlf_hf=' + rNoTp.d_vlf_hf);
+      T.ok('§3 · lf/hf PRESENT → LF/HF still computes (the honest path is untouched)', Math.abs(rNoTp.d_lfhf - 780 / 1250) < 1e-9, 'd_lfhf=' + rNoTp.d_lfhf);
+
+      // (b) the whole spectrum absent — every spectral derivative must be NaN, none a real-looking 0.
+      var rNone = HD.derive([HD.rowFromNodeExport(nodeExport({}))])[0];
+      ['d_lfhf', 'd_hfnu', 'd_lfnu', 'd_svi', 'd_sdi', 'd_rsa', 'd_sai', 'd_vlf_hf', 'd_spectral_ent', 'd_lfhf_totpow'].forEach(function (k) {
+        T.ok('§3 · no spectrum → ' + k + ' is NaN (absence is not a measurement)', isNaNv(rNone[k]), k + '=' + rNone[k]);
+      });
+
+      // (c) all four bands present → n.u. must be REAL and inside its definitional 0–100 range.
+      var rFull = HD.derive([HD.rowFromNodeExport(nodeExport({ lf: 780, hf: 1250, vlf: 900, totalPower: 2930 }))])[0];
+      T.ok('§3 · full spectrum → HF n.u. is a real number in [0,100]', rFull.d_hfnu > 0 && rFull.d_hfnu <= 100, 'd_hfnu=' + rFull.d_hfnu);
+      T.ok('§3 · full spectrum → HFnu + LFnu ≈ 100 (they are normalized units, by definition)', Math.abs(rFull.d_hfnu + rFull.d_lfnu - 100) < 1e-6, 'sum=' + (rFull.d_hfnu + rFull.d_lfnu));
+
+      // (d) §4 METAMORPHIC: the same measurement expressed in SECONDS vs MILLISECONDS must give the SAME
+      //     ratio — and must equal d_csi, which is literally the same quantity.
+      var seconds = HD.derive([HD.rowFromNodeExport(nodeExport({ lf: 780, hf: 1250, vlf: 900, totalPower: 2930 }))])[0];
+      var msExport = nodeExport({ lf: 780, hf: 1250, vlf: 900, totalPower: 2930 });
+      msExport.hrv.time.mxDMn = 418; // the SAME MxDMn, expressed in ms instead of s
+      msExport.hrv.time.mode = 900;
+      var millis = HD.derive([HD.rowFromNodeExport(msExport)])[0];
+      T.ok('§4 · MxDMn/MeanRR is unit-INVARIANT (s-file == ms-file)', Math.abs(seconds.d_mxdmn_meanrr - millis.d_mxdmn_meanrr) < 1e-9,
+        's=' + seconds.d_mxdmn_meanrr + ' ms=' + millis.d_mxdmn_meanrr);
+      T.ok('§4 · MxDMn/MeanRR == d_csi (they ARE the same quantity — no un-guarded fork)', Math.abs(seconds.d_mxdmn_meanrr - seconds.d_csi) < 1e-9,
+        'mxdmn_meanrr=' + seconds.d_mxdmn_meanrr + ' csi=' + seconds.d_csi);
+      T.ok('§4 · the ratio is physiological (~0.4), not 1000× low (~0.0004)', seconds.d_mxdmn_meanrr > 0.01,
+        'd_mxdmn_meanrr=' + seconds.d_mxdmn_meanrr);
+    });
+
     group('HRVDex Phase-9 — compute() surface + summary adapter', 'hrvdex-dsp · adapters · signal-orchestrate', function (T) {
       var src = env.sources || {};
       var dsp = src['hrvdex-dsp.js'],

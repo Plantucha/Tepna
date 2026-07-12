@@ -262,9 +262,53 @@ the epoch path already does correctly). **Repro:** `real-diff.mjs`, `ls-grid.mjs
 
 ## Punch-list (correctness first)
 
-1. **§1 Clock DMY/MDY file-lock** ← *in progress* (a contract violation that zeroes ODI on an apnea night)
-2. **§2 ACC-as-RR** — one-line adapter exclusion first (no node re-bundle), then harden the column picker
-3. **§3 + §4 HRVDex** — presence-gate the spectral columns; route `d_mxdmn_meanrr` through the guard
+1. **§1 Clock DMY/MDY file-lock** — ✅ **EXECUTED 2026-07-11.** `clock.js` gained `DexClock.resolveDMY()`
+   (scan once; day>12 proves DMY, month-slot>12 proves MDY, *both* proofs ⇒ contradictory ⇒ refuse, neither
+   ⇒ fall back to `preferDMY`) + `opts.dmyLocked`, applied unconditionally so no single row can flip the
+   order, with a contradicting row returning `null` rather than a fabricated date. `oxydex-dsp.js parseCSV`
+   resolves the order before parsing any row; `computeStats` now yields `durationMin: null` +
+   `clockNonMonotonic` instead of a negative number. Back-compatible (`dmyLocked` optional, defaults off).
+   **Gated:** a new clock group (§3 lock, 9 asserts) + a metamorphic OxyDex group — *the same night written
+   DMY vs MDY must compute identically* — which **reds on the original bug** with the exact audit numbers
+   (`durationMin −254460`, `t0Ms` 6 months adrift). All 39 real O2Ring nights parse byte-identically; **no
+   fixture output moved.** Re-bundled the 7 `clock.js` delegators (PpgDex/GlucoDex/CPAPDex keep node-local
+   parsers, untouched). Behavior 2017/2017 · GATE A 8/8 · GATE B 16/16 · build drift clean.
+   Changeset: `changes/2026-07-11-clock-dmy-file-lock.md`.
+2. **§2 ACC-as-RR** — ✅ **EXECUTED 2026-07-12.** `adapters/polar-rr.js detect()` now vetoes a foreign PSL
+   stream by **name** (`_ACC`/`_MAGN`/`_GYRO`/`_PPG`/`_ECG`) **and by declared unit** (`[mg]`/`[G]`/`[dps]`/
+   `[uV]`/`[nT]`, so a *renamed* file is still refused), and the bare `Phone timestamp` envelope — which
+   **every** PSL stream carries — no longer votes for an RR stream on its own; an `RR-interval`/`PP-interval`
+   column does. The real H10 `*_ACC.txt` now reports `ROUTE: UNKNOWN → set aside`. Genuine `*_RR.txt`/
+   `*_PPI.txt` still route to `polar-rr` @0.97 and `*_PPG.txt`/`*_ECG.txt` to their own adapters, unchanged.
+   **Gated:** 5 new route-precedence asserts (incl. the renamed-file and bare-envelope cases) that **red on
+   the original bug** ("routed to polar-rr @0.6"). Adapters inline only into the two orchestrators → **no node
+   re-bundle, no fixture churn.** Behavior 2022/2022 · provenance PASS · build clean.
+   Changeset: `changes/2026-07-12-polar-rr-foreign-stream-veto.md`.
+   **Residue:** the two *deeper* layers still fail open — `pulsedex-dsp.js:289 _pdIntervalColByRange` accepts
+   any column whose median lands in 300–2000 (no unit/header check), and the `usable` gate never asks whether
+   the values behave like *intervals* (the gravity rail's SDNN 9.5 ms over 3 h is impossible and went
+   unquestioned). The adapter veto closes the reachable production path; hardening PulseDex itself is
+   defence-in-depth and needs a judgement call on rejecting genuinely low-variability recordings → carry to
+   the follow-up brief.
+3. **§3 + §4 HRVDex** — ✅ **EXECUTED 2026-07-12.** §3: every spectral derivative (`d_lfhf`, `d_hfnu`,
+   `d_lfnu`, `d_svi`, `d_sdi`, `d_rsa`, `d_sai`, `d_vlf_hf`, `d_spectral_ent`, `d_lfhf_totpow`) now gates on
+   its inputs being **present** — mirroring the existing `_hasSubj` rule — and reads `NaN` when they are not.
+   The `|| 0.001` epsilon denominators are gone, `d_sdi`'s always-truthy guard (a `+0.001` term saw to that)
+   is gone, and `d_spectral_ent` no longer fabricates a VLF share via a `|| 0.0001` floor. §4:
+   `d_mxdmn_meanrr` now uses the **same guard-normalized operands as `d_csi`** — which is literally the same
+   quantity — so it is unit-invariant and the two agree exactly. Also made the derivation genuinely headless
+   (`getProfile()` guarded — it previously *threw* outside the app, which is why nothing ever gated these
+   columns) and exposed `HRVDex.derive()` / `HRVDex.rowFromNodeExport()` as the headless surface.
+   **Gated:** a 20-assert group that **reds on the original math** with the exact audit numbers
+   (`d_hfnu = 125000000`; `d_mxdmn_meanrr = 0.000436` vs `d_csi = 0.4364`). The honest path is provably
+   untouched — with all four bands present, `HFnu + LFnu` is **exactly 100**. Export-inert: **no fixture
+   output moved**. Re-bundled HRVDex + the two orchestrators.
+   Behavior 2042/2042 · GATE A 8/8 · GATE B 16/16 · build drift clean.
+   Changeset: `changes/2026-07-12-hrvdex-spectral-presence-gate.md`.
+   **Residue:** `_envToSeed` still seeds absent objective columns to `0` (`n()`); the new `> 0` presence
+   gates make that harmless today (a real band power is never exactly 0), but `null` would be the honest
+   seed — carry to the follow-up. Unchanged and still open: HRVDex's export writes `measurements[]` while
+   the Integrator reads `hrv.time.*` (§14), so HRVDex still cannot join the HRV consensus.
 4. **§5 + §6 GlucoDex** — exclude long-gap fill from TIR/GMI; fix the clip test's bound-vs-slab comparison
 5. **§7 + §8 + §9 OxyDex** — real row timestamps on events; whole-night decimation; a REM plausibility gate
 6. **§12–§16 Integrator** — read-set fixes + the kernel-key mismatch (all consumer-side, cheap)
