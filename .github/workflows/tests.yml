@@ -25,7 +25,9 @@ name: tests
 #
 # Shard count lives in TWO places that must agree: the `matrix.shard` list below and
 # CI_SHARDS in tests/verify-shard-union.mjs (GitHub forbids env: inside a matrix literal).
-# Measured: 4m05s → ~1m10s wall (4 shards, LPT-balanced to ~25 s each — 4.00x).
+# MEASURED on CI (run 29198623082): 4m05s → 1m20s wall. The suite STEP itself went 245 s → 63 s
+# (3.9x — the 4.00x plan holds); the remaining wall is ~7 s job setup per shard + the 3 s aggregator.
+# Shards came in at 40/63/55/60 s — the spread is runner-to-runner speed variance, not plan skew.
 
 on:
   push:

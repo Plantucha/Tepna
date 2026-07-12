@@ -8,7 +8,10 @@ The `tests` workflow took **4m05s**, and *all* of it was one step: `node tests/r
 multi-core runner** — with ~75% of its time inside `ecgdex-dsp.js`
 (`PROFILED-HOTSPOTS-CI-AND-DSP-2026-07-12-BRIEF` §1). It now runs as **4 parallel shards**.
 
-**Measured: 4m05s → ~1m10s.** Locally: 101.3 s → **25.3 s** makespan, a clean **4.00x**.
+**Measured on CI** (run `29198623082`): **4m05s → 1m20s** wall. The suite *step* itself went
+**245 s → 63 s (3.9x)** — the 4.00x plan holds; the rest of the wall is ~7 s of job setup per shard plus
+the 3 s aggregator. The four shards landed at 40/63/55/60 s (the spread is runner-to-runner speed
+variance, not plan skew — locally the plan is dead even at 25.3 s each).
 
 ## What was actually wrong (§2 of the profiling brief, confirmed)
 
@@ -79,7 +82,7 @@ lives in two places that must agree: `matrix.shard` in `tests.yml` and `CI_SHARD
 
 ## Gates
 
-`run-tests.mjs` **0 failures, 134 groups / 2103 assertions** (unchanged from baseline) ·
+`run-tests.mjs` **0 failures, 134 groups / 2109 assertions** (2103 baseline + 6 new shard-selector self-tests) ·
 `verify-shard-union.mjs --deep` **union ≡ full run, every verdict identical** ·
 `build.mjs --check` clean · `verify-manifest.mjs` clean · biome clean.
 **No runtime file touched — no `manifestHash` moved, no fixture re-recorded.**

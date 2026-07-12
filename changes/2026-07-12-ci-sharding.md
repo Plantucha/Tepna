@@ -5,11 +5,12 @@ type: changed
 nodes: [ci, tests]
 brief: CI-SHARDING-2026-07-12-BRIEF.md
 ---
-Shard the CI `test` gate 4 ways — **4m05s → ~1m10s** — and prove the shards still add up to the full gate.
+Shard the CI `test` gate 4 ways — **4m05s → 1m20s** — and prove the shards still add up to the full gate.
 
 The `tests` workflow spent **all** of its 4m05s in one step (`node tests/run-tests.mjs`; the other three
 steps total 2 s), running single-threaded at 104% CPU on a multi-core runner. It now runs as a 4-way
-matrix. Locally: **101.3 s → 25.3 s makespan, a clean 4.00x.**
+matrix. **Measured on CI: 4m05s → 1m20s** — the suite *step* itself 245 s → 63 s (3.9x; locally the plan
+is dead even at 25.3 s per shard, a clean 4.00x). The residual wall is job setup + the aggregator.
 
 - **`group()` now skips EXECUTION, not just the report** (`tests/dex-tests.js`). It called `fn(T)`
   immediately and filtered afterwards, so a "scoped" run did the whole suite's work and discarded most of
