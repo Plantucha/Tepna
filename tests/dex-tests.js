@@ -69,6 +69,23 @@
     };
   }
 
+  /* ── Shard selector (CI-SHARDING) ───────────────────────────────────────────
+   `env.shardIndices` is an explicit set of DECLARATION INDICES this process must run —
+   computed by tests/shard-plan.mjs (Node/CI only; the browser lane never shards). Index-
+   based, NOT name-based, on purpose: a name/pattern shard silently DROPS any group no
+   pattern happens to claim, so the union of shards would be a strict subset of the suite
+   and a group could vanish from the gate while it still went green. An explicit index set
+   makes "every group runs in exactly one shard" a checkable property — and it IS checked,
+   by tests/verify-shard-union.mjs on every push. Absent → run everything (the DEFAULT). */
+  function dexShardSelector(shardIndices) {
+    if (!shardIndices) return null;
+    var set = shardIndices instanceof Set ? shardIndices : new Set(shardIndices);
+    if (!set.size) return null;
+    return function (i) {
+      return set.has(i);
+    };
+  }
+
   function runDexTests(env) {
     env = env || {};
     var GROUPS = [];
@@ -76,8 +93,26 @@
       return Date.UTC(y, mo, d, h || 0, mi || 0, s || 0, ms || 0);
     };
 
+    /* Selection is decided BEFORE fn() runs, so an unselected group costs ~0.
+       (Until CI-SHARDING this filter was applied only to the REPORT, at the bottom
+       of runDexTests — every group still EXECUTED, so `--group=oxydex` was 100.7 s
+       against the full run's 101.1 s. It filtered the output, not the work.
+       PROFILED-HOTSPOTS-CI-AND-DSP-2026-07-12-BRIEF §2.) */
+    var _match = env.groupFilter ? dexGroupMatcher(env.groupFilter) : null;
+    var _inShard = dexShardSelector(env.shardIndices);
+    var _listOnly = !!env.listOnly; // inventory mode: declare every group, execute none (~0 s)
+    var _gi = -1;
+
     function group(title, tag, fn) {
-      var G = { title: title, tag: tag, tests: [] };
+      var gi = ++_gi;
+      // Unselected → RECORDED (so declaration indices stay stable + totalGroups is honest)
+      // but NOT executed. This is the whole speedup: skipping the fn() call skips the DSP.
+      if (_listOnly || (_match && !_match(title, tag)) || (_inShard && !_inShard(gi))) {
+        GROUPS.push({ title: title, tag: tag, tests: [], index: gi, selected: false });
+        return;
+      }
+      var G = { title: title, tag: tag, tests: [], index: gi, selected: true };
+      var _t0 = Date.now();
       var T = {
         ok: function (name, cond, detail) {
           G.tests.push({ name: name, pass: !!cond, detail: detail == null ? '' : String(detail) });
@@ -103,6 +138,7 @@
       } catch (e) {
         G.tests.push({ name: 'group threw: ' + e.message, pass: false, detail: (e.stack || '').split('\n')[1] || '' });
       }
+      G.ms = Date.now() - _t0; // per-group wall time — sizes the CI shards (run-tests --timings)
       GROUPS.push(G);
     }
 
@@ -11788,17 +11824,54 @@
       T.ok('comma = OR', mk('glucodex,oxydex')('OxyDex ODI-4 caveat', '') === true);
       T.ok('regex alternation', mk('oxy|ecg')('ECGDex crossnight', '') === true);
       T.ok('invalid regex falls back to literal substring', mk('a(b')('x a(b y', '') === true);
+
+      /* ── the shard selector (CI-SHARDING) ──
+         The gate that a SHARDED CI run is still the full gate lives in tests/verify-shard-union.mjs
+         (Node-only — it owns the LPT planner). What is checkable HERE, in the shared suite both
+         runners load, is the selector's contract: it runs a group iff that group's declaration index
+         is in the set it was handed. If this ever silently returned true for an unassigned index, two
+         shards would run the same group; if it returned false for an assigned one, NO shard would run
+         it and every shard would still go green. Both are coverage lies, so both are pinned. */
+      var sel = dexShardSelector;
+      T.ok('null/absent shard → no selector (run everything — the DEFAULT)', sel(null) === null && sel(undefined) === null);
+      T.ok('empty index set → no selector (never silently select nothing)', sel([]) === null);
+      var s13 = sel([1, 3]);
+      T.ok('selects exactly the assigned indices', s13(1) === true && s13(3) === true);
+      T.ok('rejects every unassigned index (no double-run across shards)', s13(0) === false && s13(2) === false && s13(4) === false);
+      T.ok('accepts a Set as well as an array', sel(new Set([7]))(7) === true && sel(new Set([7]))(8) === false);
+      // the partition property, in miniature: 3 bins over 0..5, each index claimed exactly once
+      var bins = [
+        [0, 3],
+        [1, 4],
+        [2, 5]
+      ].map(sel);
+      var claims = [0, 1, 2, 3, 4, 5].map(function (i) {
+        return bins.filter(function (b) {
+          return b(i);
+        }).length;
+      });
+      T.eq('a partition claims every group exactly once (no orphan, no duplicate)', claims, [1, 1, 1, 1, 1, 1]);
     });
 
+    /* Selection already happened at declaration time (see group() above) — a group that
+       was not selected never RAN, so here we only drop its placeholder from the report.
+       `totalGroups` stays the full declaration count, so "N of 134" is still honest. */
     var _filter = env.groupFilter != null ? String(env.groupFilter).trim() : '';
-    if (_filter) {
-      var _match = dexGroupMatcher(_filter);
-      var _sel = GROUPS.filter(function (G) {
-        return _match(G.title, G.tag);
-      });
-      return { groups: _sel, groupFilter: _filter, totalGroups: GROUPS.length };
-    }
-    return { groups: GROUPS, groupFilter: null, totalGroups: GROUPS.length };
+    // listOnly → hand back the whole declaration inventory (index/title/tag, zero tests run).
+    // This is what makes the shard-partition proof CHEAP: verify-shard-union.mjs can enumerate
+    // every group without paying for a single DSP.
+    var _selected = _listOnly
+      ? GROUPS
+      : GROUPS.filter(function (G) {
+          return G.selected;
+        });
+    return {
+      groups: _selected,
+      groupFilter: _filter || null,
+      shard: env.shard || null,
+      listOnly: _listOnly,
+      totalGroups: GROUPS.length
+    };
     function countNonFinite(o) {
       var bad = 0;
       (function walk(v) {
@@ -11901,5 +11974,6 @@
 
   root.runDexTests = runDexTests;
   root.dexGroupMatcher = dexGroupMatcher;
-  if (typeof module !== 'undefined' && module.exports) module.exports = { runDexTests: runDexTests, dexGroupMatcher: dexGroupMatcher };
+  root.dexShardSelector = dexShardSelector;
+  if (typeof module !== 'undefined' && module.exports) module.exports = { runDexTests: runDexTests, dexGroupMatcher: dexGroupMatcher, dexShardSelector: dexShardSelector };
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
