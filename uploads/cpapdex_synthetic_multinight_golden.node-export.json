@@ -13,7 +13,7 @@
     "provenance": null,
     "doc": "Array of per-night CPAPDex node-exports (each unchanged) + a ganglior.crossnight v1.0 aggregate header."
   },
-  "generated": "2026-06-30T01:09:11.972Z",
+  "generated": "2026-07-12T09:09:09.969Z",
   "nightCount": 3,
   "crossNight": {
     "schema": {
@@ -23,7 +23,7 @@
       "engineVersion": "1.0.0",
       "node": "CPAPDex",
       "nodeVersion": "1.0",
-      "generated": "2026-06-30T01:09:11.973Z"
+      "generated": "2026-07-12T09:09:09.970Z"
     },
     "window": {
       "unit": "night",
@@ -313,8 +313,12 @@
         "version": "2.0",
         "node": "CPAPDex",
         "nodeVersion": "1.0",
-        "generated": "2026-06-30T01:09:11.973Z",
-        "provenance": null,
+        "generated": "2026-07-12T09:09:09.970Z",
+        "provenance": {
+          "buildHash": null,
+          "generated": "2026-07-12T09:09:09.970Z",
+          "inputs": []
+        },
         "doc": "Single-signal PAP-therapy analyzer export. All metrics computed in-browser from the AirSense EDF set only (nothing leaves the device). Device-scored EVE/CSL events are the top apnea tier. SA2 oximetry is a self-gated QC lane — artifact desats are excluded and never emitted. null = not present/computed at this quality. Event `t` is wall-clock HH:MM:SS (no date); `tMs` is absolute floating ms.",
         "units": {
           "pressure": "cmH2O",
@@ -356,6 +360,7 @@
       },
       "metrics": {
         "usageHours": 0.167,
+        "maskOnLatency": 0,
         "residualAHI": 24,
         "obstructiveIndex": 12,
         "centralIndex": 6,
@@ -365,11 +370,25 @@
         "medianPressure": 10.01,
         "p95Pressure": 10.1,
         "pressureRange": 0.15,
+        "eprDelta": 3,
         "epap95": 7,
         "medianLeak": 4.8,
         "p95Leak": 4.8,
+        "maxLeak": 4.8,
         "largeLeakPct": 0,
-        "leakCV": 0
+        "leakCV": 0,
+        "respRateMedian": 14,
+        "respRateRange": 0,
+        "tidVolMedian": 0.5,
+        "minVentMedian": 7,
+        "minVentStability": 0,
+        "flowLimMean": 0.1,
+        "flowLimitedPct": 0,
+        "snorePct": 0,
+        "snorePressureCorr": null,
+        "breathCount": 150,
+        "breathRate": 15,
+        "ieRatio": 1
       },
       "crossMetrics": {
         "ahi": 24,
@@ -517,8 +536,12 @@
         "version": "2.0",
         "node": "CPAPDex",
         "nodeVersion": "1.0",
-        "generated": "2026-06-30T01:09:11.973Z",
-        "provenance": null,
+        "generated": "2026-07-12T09:09:09.970Z",
+        "provenance": {
+          "buildHash": null,
+          "generated": "2026-07-12T09:09:09.970Z",
+          "inputs": []
+        },
         "doc": "Single-signal PAP-therapy analyzer export. All metrics computed in-browser from the AirSense EDF set only (nothing leaves the device). Device-scored EVE/CSL events are the top apnea tier. SA2 oximetry is a self-gated QC lane — artifact desats are excluded and never emitted. null = not present/computed at this quality. Event `t` is wall-clock HH:MM:SS (no date); `tMs` is absolute floating ms.",
         "units": {
           "pressure": "cmH2O",
@@ -560,6 +583,7 @@
       },
       "metrics": {
         "usageHours": 0.167,
+        "maskOnLatency": 0,
         "residualAHI": 24,
         "obstructiveIndex": 12,
         "centralIndex": 6,
@@ -569,11 +593,25 @@
         "medianPressure": 10.01,
         "p95Pressure": 10.1,
         "pressureRange": 0.15,
+        "eprDelta": 3,
         "epap95": 7,
         "medianLeak": 4.8,
         "p95Leak": 4.8,
+        "maxLeak": 4.8,
         "largeLeakPct": 0,
-        "leakCV": 0
+        "leakCV": 0,
+        "respRateMedian": 14,
+        "respRateRange": 0,
+        "tidVolMedian": 0.5,
+        "minVentMedian": 7,
+        "minVentStability": 0,
+        "flowLimMean": 0.1,
+        "flowLimitedPct": 0,
+        "snorePct": 0,
+        "snorePressureCorr": null,
+        "breathCount": 150,
+        "breathRate": 15,
+        "ieRatio": 1
       },
       "crossMetrics": {
         "ahi": 24,
@@ -721,8 +759,12 @@
         "version": "2.0",
         "node": "CPAPDex",
         "nodeVersion": "1.0",
-        "generated": "2026-06-30T01:09:11.973Z",
-        "provenance": null,
+        "generated": "2026-07-12T09:09:09.970Z",
+        "provenance": {
+          "buildHash": null,
+          "generated": "2026-07-12T09:09:09.970Z",
+          "inputs": []
+        },
         "doc": "Single-signal PAP-therapy analyzer export. All metrics computed in-browser from the AirSense EDF set only (nothing leaves the device). Device-scored EVE/CSL events are the top apnea tier. SA2 oximetry is a self-gated QC lane — artifact desats are excluded and never emitted. null = not present/computed at this quality. Event `t` is wall-clock HH:MM:SS (no date); `tMs` is absolute floating ms.",
         "units": {
           "pressure": "cmH2O",
@@ -764,6 +806,7 @@
       },
       "metrics": {
         "usageHours": 0.167,
+        "maskOnLatency": 0,
         "residualAHI": 24,
         "obstructiveIndex": 12,
         "centralIndex": 6,
@@ -773,11 +816,25 @@
         "medianPressure": 10.01,
         "p95Pressure": 10.1,
         "pressureRange": 0.15,
+        "eprDelta": 3,
         "epap95": 7,
         "medianLeak": 4.8,
         "p95Leak": 4.8,
+        "maxLeak": 4.8,
         "largeLeakPct": 0,
-        "leakCV": 0
+        "leakCV": 0,
+        "respRateMedian": 14,
+        "respRateRange": 0,
+        "tidVolMedian": 0.5,
+        "minVentMedian": 7,
+        "minVentStability": 0,
+        "flowLimMean": 0.1,
+        "flowLimitedPct": 0,
+        "snorePct": 0,
+        "snorePressureCorr": null,
+        "breathCount": 150,
+        "breathRate": 15,
+        "ieRatio": 1
       },
       "crossMetrics": {
         "ahi": 24,

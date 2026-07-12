@@ -224,7 +224,15 @@ function buildLongitudinal(nights) {
   var usageTrend7d = _olsSlope(chrono.slice(-7).map(usageH));
   var last30 = chrono.slice(-30).map(ahiOf).filter(function (v) { return v != null && isFinite(v); });
   var ahiTrend30d = last30.length ? { mean: +_mean(last30).toFixed(2), sd: last30.length > 1 ? +_sd(last30).toFixed(2) : 0, n: last30.length } : null;
-  var crossNight = (root && root.CPAPCross && root.CPAPCross.crossNightBlock) ? root.CPAPCross.crossNightBlock(chrono) : null;
+  // CPAPCross resolution mirrors the EDF dep at the top of this file: browser global
+  // FIRST (the bundled realm has no require), CommonJS fallback SECOND. Before this it
+  // was browser-global ONLY, so a plain `require()` consumer got crossNight:null with no
+  // error — a silently degraded longitudinal block (brief §F5). Resolved lazily, at the
+  // call site, to stay clear of load-order/circularity.
+  var CROSS = (root && root.CPAPCross) || (function () {
+    try { return (typeof require !== 'undefined') ? require('./cpapdex-cross.js') : null; } catch (e) { return null; }
+  })();
+  var crossNight = (CROSS && CROSS.crossNightBlock) ? CROSS.crossNightBlock(chrono) : null;
   return { compliancePct: compliancePct, nights: nights.length, usageTrend7d: usageTrend7d, ahiTrend30d: ahiTrend30d, crossNight: crossNight };
 }
 
@@ -509,6 +517,7 @@ function buildSessionFromEdf(set, meta) {
 
   // ── ventilation, flow-limitation, snore ──
   var rrMaskOn = rrCh ? _filterBy(rrCh.data, maskOn) : [];
+  var tvMaskOn = tvCh ? _filterBy(tvCh.data, maskOn) : [];
   var mvMaskOn = mvCh ? _filterBy(mvCh.data, maskOn) : [];
   var snMaskOn = snCh ? _filterBy(snCh.data, maskOn) : [];
   var flMaskOn = flCh ? _filterBy(flCh.data, maskOn) : [];
@@ -550,7 +559,7 @@ function buildSessionFromEdf(set, meta) {
     // Ventilation
     respRateMedian:   rrMaskOn.length ? +(_p(rrMaskOn, 50)).toFixed(1) : null,
     respRateRange:    rrMaskOn.length ? +(_iqr(rrMaskOn)).toFixed(1) : null,
-    tidVolMedian:     tvCh ? +(_p(_filterBy(tvCh.data, maskOn), 50)).toFixed(2) : null,
+    tidVolMedian:     tvMaskOn.length ? +(_p(tvMaskOn, 50)).toFixed(2) : null,
     minVentMedian:    mvMaskOn.length ? +(_p(mvMaskOn, 50)).toFixed(2) : null,
     minVentStability: mvMaskOn.length ? +(_cov(mvMaskOn)).toFixed(1) : null,
     // Flow limitation
@@ -581,8 +590,15 @@ function buildSessionFromEdf(set, meta) {
     pbSec: pbSec,
     sqi: sqi,
     nEvents: events.length,
-    // pooled raw for night-level recompute (kept lightweight: mask-on slices only)
-    _pool: { pressureMaskOn: pressureMaskOn, epapMaskOn: epapMaskOn, leakMaskOn: leakMaskOn, usageHours: usageHours, nApnea: nApnea, nOA: aCount('OA'), nCA: aCount('CA'), nH: aCount('H'), nRE: aCount('RE'), pbSec: pbSec, durSec: durSec }
+    // pooled raw for night-level recompute (kept lightweight: mask-on slices only).
+    // The ventilation / flow-limitation / snore lanes ride here too so nightMetrics()
+    // can pool them exactly the way it pools pressure and leak — before this they were
+    // computed per session and then DROPPED, so no ventilation variable ever reached
+    // the ganglior bus (CPAP-REAL-CORPUS-2026-07-11-BRIEF §F1).
+    _pool: { pressureMaskOn: pressureMaskOn, epapMaskOn: epapMaskOn, leakMaskOn: leakMaskOn, usageHours: usageHours, nApnea: nApnea, nOA: aCount('OA'), nCA: aCount('CA'), nH: aCount('H'), nRE: aCount('RE'), pbSec: pbSec, durSec: durSec,
+             rrMaskOn: rrMaskOn, tvMaskOn: tvMaskOn, mvMaskOn: mvMaskOn, snMaskOn: snMaskOn, flMaskOn: flMaskOn,
+             breathCount: breath ? breath.breathCount : null, ieRatio: breath ? breath.ieRatio : null,
+             eprDelta: eprDelta, maskOnLatency: metrics.maskOnLatency }
   };
 }
 
@@ -593,14 +609,29 @@ function nightMetrics(sessions) {
   var pools = sessions.map(function (s) { return s._pool; }).filter(Boolean);
   if (!pools.length) return null;
   var P = [], E = [], L = [], totHours = 0, nA = 0, nOA = 0, nCA = 0, nH = 0, nRE = 0, pbSec = 0, durSec = 0;
+  // ventilation / flow-limitation / snore lanes, pooled the same way (brief §F1)
+  var RR = [], TV = [], MV = [], SN = [], FL = [], eprs = [], breaths = 0, haveBreaths = false, ieW = 0, ieWsum = 0;
   pools.forEach(function (p) {
     for (var i = 0; i < p.pressureMaskOn.length; i++) P.push(p.pressureMaskOn[i]);
     if (p.epapMaskOn) for (var k = 0; k < p.epapMaskOn.length; k++) E.push(p.epapMaskOn[k]);
     for (var j = 0; j < p.leakMaskOn.length; j++) L.push(p.leakMaskOn[j]);
     totHours += p.usageHours; nA += p.nApnea; nOA += p.nOA; nCA += p.nCA; nH += p.nH; nRE += p.nRE; pbSec += p.pbSec; durSec += p.durSec;
+    if (p.rrMaskOn) for (var a = 0; a < p.rrMaskOn.length; a++) RR.push(p.rrMaskOn[a]);
+    if (p.tvMaskOn) for (var b = 0; b < p.tvMaskOn.length; b++) TV.push(p.tvMaskOn[b]);
+    if (p.mvMaskOn) for (var c = 0; c < p.mvMaskOn.length; c++) MV.push(p.mvMaskOn[c]);
+    if (p.snMaskOn) for (var d = 0; d < p.snMaskOn.length; d++) SN.push(p.snMaskOn[d]);
+    if (p.flMaskOn) for (var e = 0; e < p.flMaskOn.length; e++) FL.push(p.flMaskOn[e]);
+    if (p.eprDelta != null && isFinite(p.eprDelta)) eprs.push(p.eprDelta);
+    if (p.breathCount != null && isFinite(p.breathCount)) { breaths += p.breathCount; haveBreaths = true; }
+    // I:E is a ratio, so it pools as a usage-weighted mean, not a sum
+    if (p.ieRatio != null && isFinite(p.ieRatio)) { ieWsum += p.ieRatio * p.usageHours; ieW += p.usageHours; }
   });
   return {
     usageHours:       +totHours.toFixed(3),
+    // maskOnLatency is a NIGHT-onset fact: how long until therapy started. Sessions are
+    // sorted chronologically by buildNight(), so the first pool owns it — averaging it
+    // across a fragmented night would be meaningless.
+    maskOnLatency:    (pools[0].maskOnLatency != null && isFinite(pools[0].maskOnLatency)) ? +pools[0].maskOnLatency.toFixed(2) : null,
     residualAHI:      totHours > 0 ? +(nA / totHours).toFixed(2) : null,
     obstructiveIndex: totHours > 0 ? +(nOA / totHours).toFixed(2) : null,
     centralIndex:     totHours > 0 ? +(nCA / totHours).toFixed(2) : null,
@@ -610,11 +641,35 @@ function nightMetrics(sessions) {
     medianPressure:   +(_p(P, 50)).toFixed(2),
     p95Pressure:      +(_p(P, 95)).toFixed(2),
     pressureRange:    +(_iqr(P)).toFixed(2),
+    // EPR is a device SETTING, constant within a night in practice — median over the
+    // sessions that reported one (not a sample-pooled percentile).
+    eprDelta:         eprs.length ? +(_p(eprs, 50)).toFixed(1) : null,
     epap95:           E.length ? +(_p(E, 95)).toFixed(2) : null,
     medianLeak:       L.length ? +(_p(L, 50)).toFixed(2) : null,
     p95Leak:          L.length ? +(_p(L, 95)).toFixed(2) : null,
+    maxLeak:          L.length ? +Math.max.apply(null, L).toFixed(2) : null,
     largeLeakPct:     L.length ? +(_countWhere(L, function (v) { return v > 24; }) / L.length * 100).toFixed(2) : null,
-    leakCV:           L.length ? _leakCV(L) : null
+    leakCV:           L.length ? _leakCV(L) : null,
+    // ── Ventilation (thresholds + rounding mirror buildSessionFromEdf exactly, so a
+    //    single-session night reads identically at both levels) ──
+    respRateMedian:   RR.length ? +(_p(RR, 50)).toFixed(1) : null,
+    respRateRange:    RR.length ? +(_iqr(RR)).toFixed(1) : null,
+    tidVolMedian:     TV.length ? +(_p(TV, 50)).toFixed(2) : null,
+    minVentMedian:    MV.length ? +(_p(MV, 50)).toFixed(2) : null,
+    minVentStability: MV.length ? +(_cov(MV)).toFixed(1) : null,
+    // ── Flow limitation ──
+    flowLimMean:      FL.length ? +(_mean(FL)).toFixed(3) : null,
+    flowLimitedPct:   FL.length ? +(_countWhere(FL, function (v) { return v > 0.3; }) / FL.length * 100).toFixed(2) : null,
+    // ── Snore ──
+    snorePct:         SN.length ? +(_countWhere(SN, function (v) { return v > 0.2; }) / SN.length * 100).toFixed(2) : null,
+    // Pearson needs paired samples: only valid when every session contributed BOTH lanes,
+    // i.e. the pooled arrays line up 1:1. A session missing Snore would shift the pairing.
+    snorePressureCorr: (SN.length && SN.length === P.length) ? +(_pearson(SN, P)).toFixed(2) : null,
+    // ── Breath detection (flow-derived) ──
+    breathCount:      haveBreaths ? breaths : null,
+    // rate over TOTAL therapy time — not a mean of per-session rates
+    breathRate:       (haveBreaths && durSec > 0) ? +(breaths / (durSec / 60)).toFixed(1) : null,
+    ieRatio:          ieW > 0 ? +(ieWsum / ieW).toFixed(2) : null
   };
 }
 
@@ -736,7 +791,11 @@ function selfTest() {
   ok('longitudinal: usageTrend7d > 0 (usage rising)', lng2.usageTrend7d > 0, lng2.usageTrend7d);
   ok('longitudinal: ahiTrend30d mean ≈ 5 over 7 nights', lng2.ahiTrend30d && near(lng2.ahiTrend30d.mean, 5, 0.6), JSON.stringify(lng2.ahiTrend30d));
   ok('longitudinal: chronological order independent of input order', buildLongitudinal(hist.slice().reverse()).usageTrend7d === lng2.usageTrend7d, 'reversed == forward');
-  if (root.CPAPCross) ok('longitudinal: crossNight block present (CPAPCross bundled)', !!(lng2.crossNight && lng2.crossNight.metrics && lng2.crossNight.metrics.residualAHI), JSON.stringify(lng2.crossNight && lng2.crossNight.schema));
+  // Was `if (root.CPAPCross)` — an UNGUARDED read that threw outright under CommonJS
+  // (root is null there), so `node cpapdex-dsp.js --selftest` had never reached this
+  // point. Since §F5 makes CPAPCross resolve in BOTH realms, the block is now always
+  // expected and the assertion is unconditional — which is what makes the fix gated.
+  ok('longitudinal: crossNight block present (CPAPCross resolved in this realm)', !!(lng2.crossNight && lng2.crossNight.metrics && lng2.crossNight.metrics.residualAHI), JSON.stringify(lng2.crossNight && (lng2.crossNight.schema || lng2.crossNight.doc)));
 
   // parseTimestamp mirror — floating + fractional seconds (Clock Contract §2)
   var pt1 = parseTimestamp('20260612_222830');

@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-2aT2YZ2hUKMKkD1RKJGoUS13DAIfRkfr0+3MpUKSugc=' 'sha256-2tZgpYYnqO0FHght8PJI0/aNqUSdG8rSVPL7M5M1jAc=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-53lInzet5Mol1i3YKg9+FMmi+1p/U9g1yYBOzfP8Npk=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ORdL8uvjKI1beQHqsFgODvvhmwrLUpy4mYOg3l9vk8=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-EN+1M3bWeDBOnpFNf8zhkUqII8pkwsAPRHHljeXMLEU=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LG3l34o5fUxaDC0YPGwR220ch4LY53B3Dlc1+Bkl0ao=' 'sha256-MPKKUbacmx+sTwB0TVTbik+GJRGltztlOikx6esFRsk=' 'sha256-VAe6CCJX0lX7Q1XPsPOwnmiMnfapY8ucwUNZHQg1e6A=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-zoX0rksSqUxFePSlhG6+8O2Euarj7JlN/OQ/SqQyThw='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-1A5XrvZAhJ3NKdzLqAARFzxrH6EyqADS4W5JVhaoJMM=' 'sha256-2aT2YZ2hUKMKkD1RKJGoUS13DAIfRkfr0+3MpUKSugc=' 'sha256-2tZgpYYnqO0FHght8PJI0/aNqUSdG8rSVPL7M5M1jAc=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ORdL8uvjKI1beQHqsFgODvvhmwrLUpy4mYOg3l9vk8=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-EN+1M3bWeDBOnpFNf8zhkUqII8pkwsAPRHHljeXMLEU=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LG3l34o5fUxaDC0YPGwR220ch4LY53B3Dlc1+Bkl0ao=' 'sha256-MPKKUbacmx+sTwB0TVTbik+GJRGltztlOikx6esFRsk=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-sYB27SzYnss2YBDR8vAlWZmgj9IYiRWD2QBSJxNsVAY=' 'sha256-zoX0rksSqUxFePSlhG6+8O2Euarj7JlN/OQ/SqQyThw='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CPAPDex — PAP Therapy Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -4954,7 +4954,15 @@ function buildLongitudinal(nights) {
   var usageTrend7d = _olsSlope(chrono.slice(-7).map(usageH));
   var last30 = chrono.slice(-30).map(ahiOf).filter(function (v) { return v != null && isFinite(v); });
   var ahiTrend30d = last30.length ? { mean: +_mean(last30).toFixed(2), sd: last30.length > 1 ? +_sd(last30).toFixed(2) : 0, n: last30.length } : null;
-  var crossNight = (root && root.CPAPCross && root.CPAPCross.crossNightBlock) ? root.CPAPCross.crossNightBlock(chrono) : null;
+  // CPAPCross resolution mirrors the EDF dep at the top of this file: browser global
+  // FIRST (the bundled realm has no require), CommonJS fallback SECOND. Before this it
+  // was browser-global ONLY, so a plain `require()` consumer got crossNight:null with no
+  // error — a silently degraded longitudinal block (brief §F5). Resolved lazily, at the
+  // call site, to stay clear of load-order/circularity.
+  var CROSS = (root && root.CPAPCross) || (function () {
+    try { return (typeof require !== 'undefined') ? require('./cpapdex-cross.js') : null; } catch (e) { return null; }
+  })();
+  var crossNight = (CROSS && CROSS.crossNightBlock) ? CROSS.crossNightBlock(chrono) : null;
   return { compliancePct: compliancePct, nights: nights.length, usageTrend7d: usageTrend7d, ahiTrend30d: ahiTrend30d, crossNight: crossNight };
 }
 
@@ -5239,6 +5247,7 @@ function buildSessionFromEdf(set, meta) {
 
   // ── ventilation, flow-limitation, snore ──
   var rrMaskOn = rrCh ? _filterBy(rrCh.data, maskOn) : [];
+  var tvMaskOn = tvCh ? _filterBy(tvCh.data, maskOn) : [];
   var mvMaskOn = mvCh ? _filterBy(mvCh.data, maskOn) : [];
   var snMaskOn = snCh ? _filterBy(snCh.data, maskOn) : [];
   var flMaskOn = flCh ? _filterBy(flCh.data, maskOn) : [];
@@ -5280,7 +5289,7 @@ function buildSessionFromEdf(set, meta) {
     // Ventilation
     respRateMedian:   rrMaskOn.length ? +(_p(rrMaskOn, 50)).toFixed(1) : null,
     respRateRange:    rrMaskOn.length ? +(_iqr(rrMaskOn)).toFixed(1) : null,
-    tidVolMedian:     tvCh ? +(_p(_filterBy(tvCh.data, maskOn), 50)).toFixed(2) : null,
+    tidVolMedian:     tvMaskOn.length ? +(_p(tvMaskOn, 50)).toFixed(2) : null,
     minVentMedian:    mvMaskOn.length ? +(_p(mvMaskOn, 50)).toFixed(2) : null,
     minVentStability: mvMaskOn.length ? +(_cov(mvMaskOn)).toFixed(1) : null,
     // Flow limitation
@@ -5311,8 +5320,15 @@ function buildSessionFromEdf(set, meta) {
     pbSec: pbSec,
     sqi: sqi,
     nEvents: events.length,
-    // pooled raw for night-level recompute (kept lightweight: mask-on slices only)
-    _pool: { pressureMaskOn: pressureMaskOn, epapMaskOn: epapMaskOn, leakMaskOn: leakMaskOn, usageHours: usageHours, nApnea: nApnea, nOA: aCount('OA'), nCA: aCount('CA'), nH: aCount('H'), nRE: aCount('RE'), pbSec: pbSec, durSec: durSec }
+    // pooled raw for night-level recompute (kept lightweight: mask-on slices only).
+    // The ventilation / flow-limitation / snore lanes ride here too so nightMetrics()
+    // can pool them exactly the way it pools pressure and leak — before this they were
+    // computed per session and then DROPPED, so no ventilation variable ever reached
+    // the ganglior bus (CPAP-REAL-CORPUS-2026-07-11-BRIEF §F1).
+    _pool: { pressureMaskOn: pressureMaskOn, epapMaskOn: epapMaskOn, leakMaskOn: leakMaskOn, usageHours: usageHours, nApnea: nApnea, nOA: aCount('OA'), nCA: aCount('CA'), nH: aCount('H'), nRE: aCount('RE'), pbSec: pbSec, durSec: durSec,
+             rrMaskOn: rrMaskOn, tvMaskOn: tvMaskOn, mvMaskOn: mvMaskOn, snMaskOn: snMaskOn, flMaskOn: flMaskOn,
+             breathCount: breath ? breath.breathCount : null, ieRatio: breath ? breath.ieRatio : null,
+             eprDelta: eprDelta, maskOnLatency: metrics.maskOnLatency }
   };
 }
 
@@ -5323,14 +5339,29 @@ function nightMetrics(sessions) {
   var pools = sessions.map(function (s) { return s._pool; }).filter(Boolean);
   if (!pools.length) return null;
   var P = [], E = [], L = [], totHours = 0, nA = 0, nOA = 0, nCA = 0, nH = 0, nRE = 0, pbSec = 0, durSec = 0;
+  // ventilation / flow-limitation / snore lanes, pooled the same way (brief §F1)
+  var RR = [], TV = [], MV = [], SN = [], FL = [], eprs = [], breaths = 0, haveBreaths = false, ieW = 0, ieWsum = 0;
   pools.forEach(function (p) {
     for (var i = 0; i < p.pressureMaskOn.length; i++) P.push(p.pressureMaskOn[i]);
     if (p.epapMaskOn) for (var k = 0; k < p.epapMaskOn.length; k++) E.push(p.epapMaskOn[k]);
     for (var j = 0; j < p.leakMaskOn.length; j++) L.push(p.leakMaskOn[j]);
     totHours += p.usageHours; nA += p.nApnea; nOA += p.nOA; nCA += p.nCA; nH += p.nH; nRE += p.nRE; pbSec += p.pbSec; durSec += p.durSec;
+    if (p.rrMaskOn) for (var a = 0; a < p.rrMaskOn.length; a++) RR.push(p.rrMaskOn[a]);
+    if (p.tvMaskOn) for (var b = 0; b < p.tvMaskOn.length; b++) TV.push(p.tvMaskOn[b]);
+    if (p.mvMaskOn) for (var c = 0; c < p.mvMaskOn.length; c++) MV.push(p.mvMaskOn[c]);
+    if (p.snMaskOn) for (var d = 0; d < p.snMaskOn.length; d++) SN.push(p.snMaskOn[d]);
+    if (p.flMaskOn) for (var e = 0; e < p.flMaskOn.length; e++) FL.push(p.flMaskOn[e]);
+    if (p.eprDelta != null && isFinite(p.eprDelta)) eprs.push(p.eprDelta);
+    if (p.breathCount != null && isFinite(p.breathCount)) { breaths += p.breathCount; haveBreaths = true; }
+    // I:E is a ratio, so it pools as a usage-weighted mean, not a sum
+    if (p.ieRatio != null && isFinite(p.ieRatio)) { ieWsum += p.ieRatio * p.usageHours; ieW += p.usageHours; }
   });
   return {
     usageHours:       +totHours.toFixed(3),
+    // maskOnLatency is a NIGHT-onset fact: how long until therapy started. Sessions are
+    // sorted chronologically by buildNight(), so the first pool owns it — averaging it
+    // across a fragmented night would be meaningless.
+    maskOnLatency:    (pools[0].maskOnLatency != null && isFinite(pools[0].maskOnLatency)) ? +pools[0].maskOnLatency.toFixed(2) : null,
     residualAHI:      totHours > 0 ? +(nA / totHours).toFixed(2) : null,
     obstructiveIndex: totHours > 0 ? +(nOA / totHours).toFixed(2) : null,
     centralIndex:     totHours > 0 ? +(nCA / totHours).toFixed(2) : null,
@@ -5340,11 +5371,35 @@ function nightMetrics(sessions) {
     medianPressure:   +(_p(P, 50)).toFixed(2),
     p95Pressure:      +(_p(P, 95)).toFixed(2),
     pressureRange:    +(_iqr(P)).toFixed(2),
+    // EPR is a device SETTING, constant within a night in practice — median over the
+    // sessions that reported one (not a sample-pooled percentile).
+    eprDelta:         eprs.length ? +(_p(eprs, 50)).toFixed(1) : null,
     epap95:           E.length ? +(_p(E, 95)).toFixed(2) : null,
     medianLeak:       L.length ? +(_p(L, 50)).toFixed(2) : null,
     p95Leak:          L.length ? +(_p(L, 95)).toFixed(2) : null,
+    maxLeak:          L.length ? +Math.max.apply(null, L).toFixed(2) : null,
     largeLeakPct:     L.length ? +(_countWhere(L, function (v) { return v > 24; }) / L.length * 100).toFixed(2) : null,
-    leakCV:           L.length ? _leakCV(L) : null
+    leakCV:           L.length ? _leakCV(L) : null,
+    // ── Ventilation (thresholds + rounding mirror buildSessionFromEdf exactly, so a
+    //    single-session night reads identically at both levels) ──
+    respRateMedian:   RR.length ? +(_p(RR, 50)).toFixed(1) : null,
+    respRateRange:    RR.length ? +(_iqr(RR)).toFixed(1) : null,
+    tidVolMedian:     TV.length ? +(_p(TV, 50)).toFixed(2) : null,
+    minVentMedian:    MV.length ? +(_p(MV, 50)).toFixed(2) : null,
+    minVentStability: MV.length ? +(_cov(MV)).toFixed(1) : null,
+    // ── Flow limitation ──
+    flowLimMean:      FL.length ? +(_mean(FL)).toFixed(3) : null,
+    flowLimitedPct:   FL.length ? +(_countWhere(FL, function (v) { return v > 0.3; }) / FL.length * 100).toFixed(2) : null,
+    // ── Snore ──
+    snorePct:         SN.length ? +(_countWhere(SN, function (v) { return v > 0.2; }) / SN.length * 100).toFixed(2) : null,
+    // Pearson needs paired samples: only valid when every session contributed BOTH lanes,
+    // i.e. the pooled arrays line up 1:1. A session missing Snore would shift the pairing.
+    snorePressureCorr: (SN.length && SN.length === P.length) ? +(_pearson(SN, P)).toFixed(2) : null,
+    // ── Breath detection (flow-derived) ──
+    breathCount:      haveBreaths ? breaths : null,
+    // rate over TOTAL therapy time — not a mean of per-session rates
+    breathRate:       (haveBreaths && durSec > 0) ? +(breaths / (durSec / 60)).toFixed(1) : null,
+    ieRatio:          ieW > 0 ? +(ieWsum / ieW).toFixed(2) : null
   };
 }
 
@@ -5466,7 +5521,11 @@ function selfTest() {
   ok('longitudinal: usageTrend7d > 0 (usage rising)', lng2.usageTrend7d > 0, lng2.usageTrend7d);
   ok('longitudinal: ahiTrend30d mean ≈ 5 over 7 nights', lng2.ahiTrend30d && near(lng2.ahiTrend30d.mean, 5, 0.6), JSON.stringify(lng2.ahiTrend30d));
   ok('longitudinal: chronological order independent of input order', buildLongitudinal(hist.slice().reverse()).usageTrend7d === lng2.usageTrend7d, 'reversed == forward');
-  if (root.CPAPCross) ok('longitudinal: crossNight block present (CPAPCross bundled)', !!(lng2.crossNight && lng2.crossNight.metrics && lng2.crossNight.metrics.residualAHI), JSON.stringify(lng2.crossNight && lng2.crossNight.schema));
+  // Was `if (root.CPAPCross)` — an UNGUARDED read that threw outright under CommonJS
+  // (root is null there), so `node cpapdex-dsp.js --selftest` had never reached this
+  // point. Since §F5 makes CPAPCross resolve in BOTH realms, the block is now always
+  // expected and the assertion is unconditional — which is what makes the fix gated.
+  ok('longitudinal: crossNight block present (CPAPCross resolved in this realm)', !!(lng2.crossNight && lng2.crossNight.metrics && lng2.crossNight.metrics.residualAHI), JSON.stringify(lng2.crossNight && (lng2.crossNight.schema || lng2.crossNight.doc)));
 
   // parseTimestamp mirror — floating + fractional seconds (Clock Contract §2)
   var pt1 = parseTimestamp('20260612_222830');
@@ -5667,6 +5726,18 @@ if (typeof process !== 'undefined' && process.argv && process.argv.indexOf('--se
    ════════════════════════════════════════════════════════════════════════ */
 (function (global) {
 'use strict';
+
+// Physiology-kernel constants. In a bundle/browser realm kernel-constants.js is already
+// co-loaded and DexKernel is a global. Under CommonJS nothing has loaded it, so pull it
+// in for its side effect — it self-registers on globalThis (it is already dual-realm) —
+// which makes the bare `DexKernel` reads below resolve. Without this, requiring this
+// module threw and buildLongitudinal() silently produced crossNight:null (brief §F5).
+// CrossNightEnvelope stays OPTIONAL: it is behind a truthiness guard and simply absent
+// under CommonJS, which selects the local (non-envelope) code path by design.
+if (typeof DexKernel === 'undefined' && typeof require !== 'undefined') {
+  try { require('./kernel-constants.js'); } catch (e) { /* browser/bundle realm — already global */ }
+}
+
 const r1=v=>v==null||!isFinite(v)?null:Math.round(v*10)/10;
 const r2=v=>v==null||!isFinite(v)?null:Math.round(v*100)/100;
 const r3=v=>v==null||!isFinite(v)?null:Math.round(v*1000)/1000;
@@ -5833,9 +5904,21 @@ function compliancePct(nights, thresholdH){
   return +(ok/nights.length*100).toFixed(1);
 }
 
-global.CPAPCross = { crossNight, crossNightBlock, compliancePct, ols, mannKendall, bootstrapDeltaCI, fmtDateUTC, CPAP_DEFS, nightTms, nightWeight, nightOdi };
+var api = { crossNight, crossNightBlock, compliancePct, ols, mannKendall, bootstrapDeltaCI, fmtDateUTC, CPAP_DEFS, nightTms, nightWeight, nightOdi };
 
-})(window);
+// Dual-realm, matching the house pattern already used by cpapdex-dsp.js / -edf.js /
+// -fusion.js. This file used to close over a bare `window` and expose NOTHING to
+// CommonJS, so `require('./cpapdex-cross.js')` THREW ("window is not defined") — which
+// is why buildLongitudinal() handed back crossNight:null in every Node realm, silently
+// (brief §F5). Browser behaviour is unchanged: global.CPAPCross is still set.
+//
+// `globalThis` (not null) is passed in Node because the body does bare `global.X`
+// feature lookups (CrossNightEnvelope): it needs a real object on which the optional
+// dependency is simply absent, so the existing truthiness guard does its job.
+if (global) global.CPAPCross = api;
+if (typeof module !== 'undefined' && module.exports) module.exports = api;
+
+})(typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : null));
 </script>
 <script data-inline-src="cpapdex-render.js">/* ════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka

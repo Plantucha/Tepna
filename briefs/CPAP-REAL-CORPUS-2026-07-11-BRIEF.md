@@ -36,7 +36,17 @@ A1–A2 are personal recordings and stay out of git. A3's node-exports are alrea
 
 ## 2 · Code defects (none findable with synthetic fixtures)
 
-### F1 — the node-export throws away 17 of 32 computed metrics, including the ENTIRE ventilation lane ⚠️ **biggest**
+### F1 — the ventilation lane never reaches the bus ✅ **FIXED 2026-07-12 (P1)**
+
+> **Executed.** The export now carries **30** metrics (was 15). Note the diagnosis below was
+> *mis-attributed*: `cpapBuildExport` does **not** filter — it does `metrics: night.metrics`, passing
+> straight through. The drop was upstream in **`nightMetrics()`**, which aggregated only 15 of the 32
+> session metrics and never pooled the ventilation lanes at all. Fixed by carrying the mask-on slices
+> in `_pool` and pooling them exactly as pressure/leak are pooled. Thresholds and rounding mirror
+> `buildSessionFromEdf`, so a single-session night reads **identically** at both levels — verified
+> 15/15 on a real EDF night. All 15 were **already graded in `CPAP_REGISTRY`** (rendered per session,
+> never aggregated), so no registry or badge work was needed. Fixtures regenerated; both `contentId`s
+> unchanged. See `changes/2026-07-12-cpapdex-ventilation-lane.md`.
 
 `buildSessionFromEdf` computes 32 metrics. `cpapBuildExport` emits **15**. The 17 dropped, and whether
 they carry real data:
@@ -119,7 +129,19 @@ minute writes a second CSL/EVE pair, and a naive ±60 s cluster overwrites the f
 events. The rule now lives in `tools/cpap-corpus.mjs`; *fix* is to promote it to `adapters/resmed-edf.js`
 and register it like the others.
 
-### F5 — `buildLongitudinal` silently returns `crossNight: null` in any Node realm ✅ **DIAGNOSED**
+### F5 — `buildLongitudinal` silently returns `crossNight: null` in any Node realm ✅ **FIXED 2026-07-12 (rode P1)**
+
+> **Executed — and the root cause was deeper than the diagnosis below.** Mirroring line 34 was *not*
+> sufficient: `cpapdex-cross.js` was a **browser-only IIFE** (`})(window)`) that exposed nothing to
+> CommonJS, so `require()`ing it **threw** (`window is not defined`) and the caller swallowed that into
+> a null. Real fix: make the module **dual-realm** like its siblings (`module.exports` + `globalThis`
+> fallback + a side-effect `require` of the already-dual-realm `kernel-constants.js` for its bare
+> `DexKernel` reads; `CrossNightEnvelope` stays optional behind its existing guard), *then* resolve it
+> browser-global-first / CommonJS-second in `cpapdex-dsp.js`.
+>
+> It also exposed a **second, pre-existing bug**: the DSP self-test's unguarded `root.CPAPCross` read
+> threw outright under CommonJS, so **`node cpapdex-dsp.js --selftest` had never once completed**. It is
+> now an unconditional assertion — **49 passed, 0 failed**, headless.
 
 **Root cause: inconsistent dependency resolution.** `cpapdex-dsp.js` resolves its two external deps two
 different ways:
@@ -214,7 +236,7 @@ nothing in the suite currently pins it. Deserves a fixture.
 
 | id | proposal | value | effort |
 |---|---|---|---|
-| **P1** | **Export the dropped lane** (F1) — ventilation + flow-limitation + snore + `eprDelta`/`maxLeak`/`maskOnLatency`; register + badge. Additive → MINOR. Carries F5's one-line fix on the same bundle pass. | **high** | med |
+| ~~**P1**~~ | ✅ **DONE 2026-07-12** — the lane is on the bus (15 → 30 metrics); F5 rode the same bundle. `manifestHash b7cc3f0256da → 1017cee5952a`; 4 fixtures regenerated; changeset dropped. No registry/badge work needed (all 15 were already graded). | **high** | med |
 | **P2** | **Real-EDF equivalence leg** (F3) — closes the fleet's last synthetic-only GATE-C. Harness exists. **Gated on the identifier scrub / synthesize-instead decision.** | **high** | low |
 | **P3** | `adapters/resmed-edf.js` (F4) — promote the session-grouping rule out of `tools/`. | med | low |
 | **P4** | Fix/retire the `mode` heuristic (F2); decide F6. | med | low |
