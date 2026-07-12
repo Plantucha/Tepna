@@ -353,6 +353,22 @@ function pearson(a,b){ const n=Math.min(a.length,b.length); const ma=mean(a),mb=
 // ════════════════════════════════════════════════════════════════════════
 //  PPI + correction (Malik-style) and HRV suite
 // ════════════════════════════════════════════════════════════════════════
+// Foot-spine displacement margin, in PERCENTAGE POINTS of correctRR() correction rate. The peak spine
+// replaces the (preferred) foot spine ONLY when it needs at least this much LESS Malik repair.
+//
+// Why the correction rate and not a "do the two medians agree" threshold: an agreement test detects
+// only THAT the halves disagree, never WHICH one is right — and both directions occur in the real
+// corpus (2026-06-30 needs peaks, 2026-06-15 needs feet, and both look like "disagreement"). An
+// agreement cutoff therefore has to be wrong on one of them; a 0.90 cutoff duly regressed 2026-06-15
+// (correct feet at 49.1 bpm → wrong peaks at 57.5). The correction rate is a PHYSIOLOGICAL arbiter
+// instead: correctRR rejects impossible/outlier intervals, so a coherent beat series needs few repairs
+// while a doubled/corrupted one needs many. Measured on the real trio corpus the separation is stark —
+// the good half needs 1–29% correction, the corrupted half 43–98%.
+//
+// The MARGIN (not a bare `<`) protects clean records: there both spines need the SAME repair (3.6% vs
+// 3.6%), and a hair's-width float difference must not flip the spine and churn the committed fixture.
+// 10 pp is far below the observed corrupted-vs-good gap (≥ 35 pp) and far above clean-record noise (0 pp).
+const PPI_SPINE_MARGIN_PP = 10;
 function buildPPI(footSec){
   const rr=[], tt=[];
   for(let i=1;i<footSec.length;i++){ const d=(footSec[i]-footSec[i-1])*1000; rr.push(d); tt.push(footSec[i]); }
@@ -763,8 +779,40 @@ function analyze(rec, progress){
   const peakSec=det.peaks.map(p=>rec.relSec[Math.max(0,Math.min(rec.n-1,p))]);
 
   P(74,'PPI + HRV…');
-  const { rr, tt }=buildPPI(footSec);
-  const corr=correctRR(rr, tt);
+  // ── PPI SPINE — foot-to-foot by default, 3-LED-VOTED peak-to-peak as the fallback ──────────
+  // Foot-to-foot is the PREFERRED interval (systolic feet are amplitude-invariant, so PPI does not
+  // ride pulse-amplitude drift) and stays the default. But the two halves of a beat are NOT equally
+  // trustworthy: `cons.peaks` is the 3-LED CONSENSUS spine (a beat survives only where ≥2 of 3
+  // channels agree within ±50 ms — reference-INDEPENDENT), while `cons.feet` is `refineFeet(refBp…)`
+  // re-derived on the SINGLE reference channel that pickChannel scored highest. pickChannel ranks by
+  // pulse-band SNR (0.7–3.0 Hz) over ONE 90 s mid-record window — and a channel counting HARMONICS
+  // still lands in that band (a doubled 48 bpm = 96 bpm = 1.6 Hz), so a corrupted LED can be chosen
+  // as the reference. When that happens the vote's robustness is thrown away exactly where it counts:
+  // the peak spine stays correct while the feet collapse, and foot-to-foot PPI reads 2–3× the true HR.
+  // Observed on the real trio corpus (2026-06-30): consensus peaks → 50.6 bpm (chest ECG: 50.0) while
+  // every reference channel's feet → 80–132 bpm.
+  // So: measure BOTH off the same spine and cross-check. Agreement ⇒ keep feet (clean records are
+  // byte-identical to before — no fixture churn). Disagreement ⇒ the SINGLE-channel half is the
+  // unreliable one; fall back to the VOTED peak spine. `ppiAgreementPct` is surfaced either way, so a
+  // record where BOTH halves are broken (all 3 LEDs mis-detecting) is visibly flagged rather than
+  // silently shipping a plausible-looking wrong HR.
+  // Build BOTH spines off the same consensus beats, Malik-correct each, and let the CORRECTION RATE
+  // arbitrate (see PPI_SPINE_MARGIN_PP): the spine that needs less repair is the physiologically
+  // coherent one. Feet stay the default and are displaced only by a clear margin, so a clean record —
+  // where both halves need identical repair — keeps its foot spine and its export stays byte-identical.
+  // `ppiAgreementPct` is reported alongside: it does not DECIDE the spine, but a low value means the two
+  // halves disagree, and when the WINNING spine still needs heavy correction the optical HR is not
+  // trustworthy at all (both halves broken — all 3 LEDs mis-detecting). That is the honest flag.
+  const _ppiFoot=buildPPI(footSec), _ppiPeak=buildPPI(peakSec);
+  const _corrFoot=correctRR(_ppiFoot.rr, _ppiFoot.tt), _corrPeak=correctRR(_ppiPeak.rr, _ppiPeak.tt);
+  const _rateFoot=_ppiFoot.rr.length ? 100*_corrFoot.nCorr/_ppiFoot.rr.length : 100;
+  const _ratePeak=_ppiPeak.rr.length ? 100*_corrPeak.nCorr/_ppiPeak.rr.length : 100;
+  const footSpineOK=!(_ratePeak < _rateFoot - PPI_SPINE_MARGIN_PP);
+  const _mFoot=median(_corrFoot.nn), _mPeak=median(_corrPeak.nn);
+  const ppiAgreement=(_mFoot>0 && _mPeak>0) ? Math.min(_mFoot,_mPeak)/Math.max(_mFoot,_mPeak) : 0;
+  const ppiSpine=footSpineOK ? 'foot' : 'peak';
+  const { rr, tt }=footSpineOK ? _ppiFoot : _ppiPeak;
+  const corr=footSpineOK ? _corrFoot : _corrPeak;
   const nn=corr.nn;
   // §4: per-interval CLEAN-adjacency mask — interval i (between beat i & i+1) is clean when it
   // was NOT correction-flagged AND both endpoint beats cleared SQI≥0.5 (SQI folds the 3-LED
@@ -927,6 +975,21 @@ function analyze(rec, progress){
     freq, dfa1, sampen:se,
     epochs,
     meanSQI, cleanBeatPct, analyzablePct, coveragePct:cleanBeatPct, correctionRate, nCorrected:corr.nCorr,
+    // PPI-spine cross-check (see the PPI SPINE note in analyze()). Export BOTH spines' correction rates,
+    // not just the winner's: the loser's rate is the most discriminating number the node has, and a
+    // consumer that throws it away cannot re-derive it. `correctionRate` above is the WINNING spine's.
+    //   ppiSpine            'foot' (default) | 'peak' (single-channel feet displaced by the voted spine)
+    //   ppiAgreementPct     how closely the two corrected medians agree (100 = the halves concur)
+    //   ppiCorrFootPct      correctRR repair rate on the foot spine   ┐ the arbiter's own evidence —
+    //   ppiCorrPeakPct      correctRR repair rate on the peak spine   ┘ a coherent series needs few
+    // NOTE the WINNING rate alone does NOT cleanly separate good records from bad (2026-06-25 is
+    // CORRECT at 28.8% while 2026-06-29 is WRONG at 30.5% — they overlap), so do not gate on it in
+    // isolation. The decisive test is CROSS-NODE: compare this HR against a paired chest-ECG corner
+    // (Integrator / ECGDex). On the real trio corpus that ratio is 0.99–1.01 on good nights vs 1.6–2.9
+    // on records where all 3 LEDs mis-detect — bimodal, with nothing in between. These four fields are
+    // what let that consumer make the call with evidence instead of a guess.
+    ppiSpine, ppiAgreementPct: Math.round(100*ppiAgreement),
+    ppiCorrFootPct: r1(_rateFoot), ppiCorrPeakPct: r1(_ratePeak),
     ledAgreementPct, ledAgree3of3Pct, ledSeries, ledSingleChannel:cons.singleChannel, nDroppedBeats:cons.nDropped,
     hrvLowConfidence, hrvLowConfidenceReason,
     motion, motionRejectedPct, magHasData:motion.hasMag, magInterferencePct,
@@ -1111,7 +1174,7 @@ function ppgBuildNodeExport(r, opts){
   if (opts.rich){
     var nz = function(v){ return (v==null || (typeof v==='number' && !isFinite(v))) ? null : v; };
     var fq = r.freq || {};
-    out.quality = { analyzablePct:nz(r.analyzablePct), cleanBeatPct:nz(r.cleanBeatPct), coveragePct:nz(r.coveragePct), motionRejectedPct:nz(r.motionRejectedPct), correctionRatePct:nz(r.correctionRate), ledAgreementPct:nz(r.ledAgreementPct) };
+    out.quality = { analyzablePct:nz(r.analyzablePct), cleanBeatPct:nz(r.cleanBeatPct), coveragePct:nz(r.coveragePct), motionRejectedPct:nz(r.motionRejectedPct), correctionRatePct:nz(r.correctionRate), ledAgreementPct:nz(r.ledAgreementPct), ppiSpine:(r.ppiSpine||null), ppiAgreementPct:nz(r.ppiAgreementPct), ppiCorrFootPct:nz(r.ppiCorrFootPct), ppiCorrPeakPct:nz(r.ppiCorrPeakPct) };
     out.hrv = {
       time:{ meanRR:nz(r.meanRR), hr:nz(r.dispHr), sdnn:nz(r.sdnn), rmssd:nz(r.rmssd), pnn50:nz(r.pnn50),
         sdnnIndex:nz(r.sdnnIndex), sdnnRobust:nz(r.sdnnRobust), sd2Robust:nz(r.sd2Robust),

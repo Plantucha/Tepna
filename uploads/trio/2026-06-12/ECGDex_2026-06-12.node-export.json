@@ -1,0 +1,2164 @@
+{
+  "kernel": {
+    "K": {
+      "SIGNIF_P": 0.1,
+      "SIGNIF_TAU": 0.15,
+      "Z_HEADLINE": 1.2,
+      "Z_WARN": 1,
+      "Z_BAD": 2,
+      "ODI_DROP": 4,
+      "ODI_HYST": 2,
+      "MOS_SHORT": 5,
+      "MOS_LONG": 15,
+      "QFLOOR": 50
+    },
+    "VERSION": "1.0.0",
+    "HASH": "118ebed5"
+  },
+  "schema": {
+    "name": "ganglior.node-export",
+    "version": "2.0",
+    "node": "ECGDex",
+    "nodeVersion": "1.0",
+    "bus": "ganglior",
+    "generated": "2026-07-12T00:28:30.969Z",
+    "provenance": null,
+    "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
+    "scrubbed": true
+  },
+  "recording": {
+    "source": "ecg",
+    "contentId": null,
+    "startEpochMs": 1781304885614,
+    "offsetMin": null,
+    "events": 73
+  },
+  "ganglior_events": [
+    {
+      "t": "22:54:45",
+      "tMs": 1781304885614,
+      "impulse": "stage_wake",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "22:58:52",
+      "tMs": 1781305132614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.68,
+      "sqi": 0.53,
+      "meta": {
+        "ampBpm": 10.8,
+        "periodSec": 19,
+        "position": "lateral",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "22:59:45",
+      "tMs": 1781305185614,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "23:07:13",
+      "tMs": 1781305633614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.79,
+      "sqi": 0.55,
+      "meta": {
+        "ampBpm": 16.4,
+        "periodSec": 16,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "23:09:45",
+      "tMs": 1781305785614,
+      "impulse": "stage_deep",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "23:19:45",
+      "tMs": 1781306385614,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "00:40:20",
+      "tMs": 1781311220614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.88,
+      "sqi": 0.49,
+      "meta": {
+        "ampBpm": 20.7,
+        "periodSec": 22,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "00:40:56",
+      "tMs": 1781311256614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.66,
+      "sqi": 0.48,
+      "meta": {
+        "ampBpm": 9.9,
+        "periodSec": 40,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "01:08:40",
+      "tMs": 1781312920614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.75,
+      "sqi": 0.5,
+      "meta": {
+        "ampBpm": 14.6,
+        "periodSec": 16,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "01:09:45",
+      "tMs": 1781312985614,
+      "impulse": "stage_deep",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "01:18:41",
+      "tMs": 1781313521614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.76,
+      "sqi": 0.5,
+      "meta": {
+        "ampBpm": 15,
+        "periodSec": 19,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "01:19:45",
+      "tMs": 1781313585614,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "01:29:45",
+      "tMs": 1781314185614,
+      "impulse": "stage_deep",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "01:37:39",
+      "tMs": 1781314659614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.83,
+      "sqi": 0.49,
+      "meta": {
+        "ampBpm": 18.2,
+        "periodSec": 17,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "01:38:14",
+      "tMs": 1781314694614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.64,
+      "sqi": 0.52,
+      "meta": {
+        "ampBpm": 9.3,
+        "periodSec": 38,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "01:39:45",
+      "tMs": 1781314785614,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "02:12:57",
+      "tMs": 1781316777614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.95,
+      "sqi": 0.53,
+      "meta": {
+        "ampBpm": 24.4,
+        "periodSec": 20,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "02:13:31",
+      "tMs": 1781316811614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.61,
+      "sqi": 0.52,
+      "meta": {
+        "ampBpm": 7.9,
+        "periodSec": 26,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "02:21:37",
+      "tMs": 1781317297614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.81,
+      "sqi": 0.5,
+      "meta": {
+        "ampBpm": 17.3,
+        "periodSec": 16,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "02:22:12",
+      "tMs": 1781317332614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.68,
+      "sqi": 0.54,
+      "meta": {
+        "ampBpm": 11.1,
+        "periodSec": 22,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "02:42:39",
+      "tMs": 1781318559614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.83,
+      "sqi": 0.51,
+      "meta": {
+        "ampBpm": 18.4,
+        "periodSec": 16,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "02:43:14",
+      "tMs": 1781318594614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.81,
+      "sqi": 0.51,
+      "meta": {
+        "ampBpm": 17.3,
+        "periodSec": 28,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "02:43:59",
+      "tMs": 1781318639614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.65,
+      "sqi": 0.49,
+      "meta": {
+        "ampBpm": 9.6,
+        "periodSec": 17,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "02:48:44",
+      "tMs": 1781318924614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.8,
+      "sqi": 0.43,
+      "meta": {
+        "ampBpm": 16.8,
+        "periodSec": 23,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "02:49:23",
+      "tMs": 1781318963614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.61,
+      "sqi": 0.47,
+      "meta": {
+        "ampBpm": 7.6,
+        "periodSec": 35,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "02:54:45",
+      "tMs": 1781319285614,
+      "impulse": "stage_deep",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "03:02:46",
+      "tMs": 1781319766614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.82,
+      "sqi": 0.51,
+      "meta": {
+        "ampBpm": 17.9,
+        "periodSec": 20,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "03:03:23",
+      "tMs": 1781319803614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.64,
+      "sqi": 0.49,
+      "meta": {
+        "ampBpm": 9,
+        "periodSec": 20,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "03:04:45",
+      "tMs": 1781319885614,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "03:09:45",
+      "tMs": 1781320185614,
+      "impulse": "stage_rem",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "03:14:08",
+      "tMs": 1781320448614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.82,
+      "sqi": 0.5,
+      "meta": {
+        "ampBpm": 17.6,
+        "periodSec": 23,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "03:29:45",
+      "tMs": 1781321385614,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "03:44:57",
+      "tMs": 1781322297614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.91,
+      "sqi": 0.5,
+      "meta": {
+        "ampBpm": 22.1,
+        "periodSec": 19,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "03:45:32",
+      "tMs": 1781322332614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.64,
+      "sqi": 0.49,
+      "meta": {
+        "ampBpm": 8.9,
+        "periodSec": 41,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:07:44",
+      "tMs": 1781323664614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.95,
+      "sqi": 0.47,
+      "meta": {
+        "ampBpm": 24.7,
+        "periodSec": 18,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:08:17",
+      "tMs": 1781323697614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": 0.53,
+      "meta": {
+        "ampBpm": 11.8,
+        "periodSec": 34,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:14:48",
+      "tMs": 1781324088614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.84,
+      "sqi": 0.52,
+      "meta": {
+        "ampBpm": 18.8,
+        "periodSec": 18,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:15:26",
+      "tMs": 1781324126614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.56,
+      "sqi": 0.51,
+      "meta": {
+        "ampBpm": 5.1,
+        "periodSec": 34,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:19:45",
+      "tMs": 1781324385614,
+      "impulse": "stage_rem",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "04:29:45",
+      "tMs": 1781324985614,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "04:35:57",
+      "tMs": 1781325357614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.88,
+      "sqi": 0.54,
+      "meta": {
+        "ampBpm": 20.6,
+        "periodSec": 17,
+        "position": "upright",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:39:45",
+      "tMs": 1781325585614,
+      "impulse": "stage_wake",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "04:41:14",
+      "tMs": 1781325674614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.8,
+      "sqi": 0.46,
+      "meta": {
+        "ampBpm": 16.9,
+        "periodSec": 41,
+        "position": "upright",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:41:33",
+      "tMs": 1781325693614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.86,
+      "sqi": 0.39,
+      "meta": {
+        "ampBpm": 19.7,
+        "periodSec": 22,
+        "position": "upright",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:42:21",
+      "tMs": 1781325741614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.82,
+      "sqi": 0.39,
+      "meta": {
+        "ampBpm": 17.8,
+        "periodSec": 21,
+        "position": "upright",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:43:14",
+      "tMs": 1781325794614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.95,
+      "sqi": 0.33,
+      "meta": {
+        "ampBpm": 71.3,
+        "periodSec": 22,
+        "position": "upright",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:43:44",
+      "tMs": 1781325824614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.95,
+      "sqi": 0.23,
+      "meta": {
+        "ampBpm": 26,
+        "periodSec": 37,
+        "position": "upright",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:43:59",
+      "tMs": 1781325839614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.73,
+      "sqi": 0.27,
+      "meta": {
+        "ampBpm": 13.6,
+        "periodSec": 22,
+        "position": "upright",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:44:53",
+      "tMs": 1781325893614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.91,
+      "sqi": 0.39,
+      "meta": {
+        "ampBpm": 22.1,
+        "periodSec": 32,
+        "position": "upright",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:45:35",
+      "tMs": 1781325935614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.95,
+      "sqi": 0.36,
+      "meta": {
+        "ampBpm": 30.8,
+        "periodSec": 39,
+        "position": "upright",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:45:58",
+      "tMs": 1781325958614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.86,
+      "sqi": 0.38,
+      "meta": {
+        "ampBpm": 19.6,
+        "periodSec": 16,
+        "position": "upright",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:46:23",
+      "tMs": 1781325983614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.9,
+      "sqi": 0.35,
+      "meta": {
+        "ampBpm": 21.4,
+        "periodSec": 44,
+        "position": "upright",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:46:58",
+      "tMs": 1781326018614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.75,
+      "sqi": 0.33,
+      "meta": {
+        "ampBpm": 14.6,
+        "periodSec": 21,
+        "position": "upright",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:47:29",
+      "tMs": 1781326049614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.95,
+      "sqi": 0.36,
+      "meta": {
+        "ampBpm": 30.3,
+        "periodSec": 21,
+        "position": "upright",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:48:08",
+      "tMs": 1781326088614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.95,
+      "sqi": 0.38,
+      "meta": {
+        "ampBpm": 36.2,
+        "periodSec": 20,
+        "position": "upright",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:48:48",
+      "tMs": 1781326128614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.95,
+      "sqi": 0.42,
+      "meta": {
+        "ampBpm": 40,
+        "periodSec": 21,
+        "position": "upright",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:49:18",
+      "tMs": 1781326158614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.91,
+      "sqi": 0.34,
+      "meta": {
+        "ampBpm": 22.3,
+        "periodSec": 32,
+        "position": "upright",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:50:13",
+      "tMs": 1781326213614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.95,
+      "sqi": 0.37,
+      "meta": {
+        "ampBpm": 70.9,
+        "periodSec": 17,
+        "position": "upright",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:50:44",
+      "tMs": 1781326244614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.95,
+      "sqi": 0.48,
+      "meta": {
+        "ampBpm": 33.1,
+        "periodSec": 23,
+        "position": "upright",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:51:29",
+      "tMs": 1781326289614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.95,
+      "sqi": 0.49,
+      "meta": {
+        "ampBpm": 34.1,
+        "periodSec": 26,
+        "position": "upright",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:52:40",
+      "tMs": 1781326360614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.68,
+      "sqi": 0.45,
+      "meta": {
+        "ampBpm": 11.1,
+        "periodSec": 17,
+        "position": "upright",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "04:54:45",
+      "tMs": 1781326485614,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "05:00:04",
+      "tMs": 1781326804614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.95,
+      "sqi": 0.6,
+      "meta": {
+        "ampBpm": 46.7,
+        "periodSec": 35,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "05:00:49",
+      "tMs": 1781326849614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.8,
+      "sqi": 0.56,
+      "meta": {
+        "ampBpm": 17,
+        "periodSec": 24,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "05:02:09",
+      "tMs": 1781326929614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.87,
+      "sqi": 0.58,
+      "meta": {
+        "ampBpm": 20,
+        "periodSec": 23,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "05:02:46",
+      "tMs": 1781326966614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.6,
+      "sqi": 0.6,
+      "meta": {
+        "ampBpm": 7.2,
+        "periodSec": 36,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "05:05:15",
+      "tMs": 1781327115614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.83,
+      "sqi": 0.59,
+      "meta": {
+        "ampBpm": 18.2,
+        "periodSec": 15,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "05:05:52",
+      "tMs": 1781327152614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.58,
+      "sqi": 0.52,
+      "meta": {
+        "ampBpm": 6.4,
+        "periodSec": 41,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "05:19:19",
+      "tMs": 1781327959614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.73,
+      "sqi": 0.51,
+      "meta": {
+        "ampBpm": 13.5,
+        "periodSec": 14,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "05:33:22",
+      "tMs": 1781328802614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.65,
+      "sqi": 0.56,
+      "meta": {
+        "ampBpm": 9.6,
+        "periodSec": 45,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "05:34:29",
+      "tMs": 1781328869614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.66,
+      "sqi": 0.53,
+      "meta": {
+        "ampBpm": 10.2,
+        "periodSec": 19,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "05:58:27",
+      "tMs": 1781330307614,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.68,
+      "sqi": 0.54,
+      "meta": {
+        "ampBpm": 11.1,
+        "periodSec": 16,
+        "position": "unknown",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "05:59:45",
+      "tMs": 1781330385614,
+      "impulse": "stage_wake",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    }
+  ],
+  "reserved": {
+    "doc": "Awaiting other fleet nodes; null until available."
+  },
+  "quality": {
+    "analyzablePct": 98,
+    "cleanBeatPct": 98,
+    "coveragePct": 100
+  },
+  "hrv": {
+    "time": {
+      "hr": 50.5,
+      "meanRR": 1150.6,
+      "sdnn": 58.6,
+      "rmssd": 39.9,
+      "pnn50": 16.3,
+      "sdnnIndex": 70.7,
+      "wholeRecordHR": 52.1,
+      "wholeRecordSDNN": 180.5,
+      "wholeRecordRMSSD": 48.2,
+      "units": "ms",
+      "windowNote": "sdnn/rmssd/pnn50 here are DISPLAY values = representative 5-min epoch median on overnight recordings (short recs: whole-record). For CROSS-NODE comparison use wholeRecordSDNN/wholeRecordRMSSD."
+    },
+    "frequency": {
+      "lf": 862,
+      "hf": 443,
+      "lfhf": 1.963,
+      "method": "Lomb–Scargle"
+    }
+  },
+  "timeseries": {
+    "doc": "Per-5-min-epoch aggregates — the primary cross-node feed (posture rides on epochs[].position).",
+    "epochs": [
+      {
+        "tMin": 0,
+        "hr": 61.8,
+        "rmssd": 38.7,
+        "sdnn": 98.4,
+        "lfhf": 2.351,
+        "position": "lateral"
+      },
+      {
+        "tMin": 5,
+        "hr": 53.5,
+        "rmssd": 46.4,
+        "sdnn": 60,
+        "lfhf": 1.585,
+        "position": "lateral"
+      },
+      {
+        "tMin": 10,
+        "hr": 53.7,
+        "rmssd": 51.4,
+        "sdnn": 100.4,
+        "lfhf": 1.084,
+        "position": "supine"
+      },
+      {
+        "tMin": 15,
+        "hr": 47.5,
+        "rmssd": 48.9,
+        "sdnn": 50,
+        "lfhf": 0.706,
+        "position": "supine"
+      },
+      {
+        "tMin": 20,
+        "hr": 45.3,
+        "rmssd": 45.3,
+        "sdnn": 44.5,
+        "lfhf": 0.92,
+        "position": "supine"
+      },
+      {
+        "tMin": 25,
+        "hr": 45.1,
+        "rmssd": 42.1,
+        "sdnn": 41,
+        "lfhf": 0.971,
+        "position": "supine"
+      },
+      {
+        "tMin": 30,
+        "hr": 45.5,
+        "rmssd": 41.2,
+        "sdnn": 34.7,
+        "lfhf": 0.805,
+        "position": "supine"
+      },
+      {
+        "tMin": 35,
+        "hr": 45.1,
+        "rmssd": 43.5,
+        "sdnn": 43.4,
+        "lfhf": 1.096,
+        "position": "supine"
+      },
+      {
+        "tMin": 40,
+        "hr": 44.9,
+        "rmssd": 43,
+        "sdnn": 57.4,
+        "lfhf": 1.422,
+        "position": "supine"
+      },
+      {
+        "tMin": 45,
+        "hr": 44.9,
+        "rmssd": 39.8,
+        "sdnn": 37.8,
+        "lfhf": 1.244,
+        "position": "supine"
+      },
+      {
+        "tMin": 50,
+        "hr": 45.3,
+        "rmssd": 54.6,
+        "sdnn": 64.2,
+        "lfhf": 0.749,
+        "position": "supine"
+      },
+      {
+        "tMin": 55,
+        "hr": 47.8,
+        "rmssd": 35.7,
+        "sdnn": 42.6,
+        "lfhf": 2.561,
+        "position": "supine"
+      },
+      {
+        "tMin": 60,
+        "hr": 46.9,
+        "rmssd": 41.2,
+        "sdnn": 57.1,
+        "lfhf": 1.533,
+        "position": "supine"
+      },
+      {
+        "tMin": 65,
+        "hr": 47,
+        "rmssd": 43.3,
+        "sdnn": 59.9,
+        "lfhf": 1.68,
+        "position": "supine"
+      },
+      {
+        "tMin": 70,
+        "hr": 46.1,
+        "rmssd": 41.6,
+        "sdnn": 49.7,
+        "lfhf": 1.639,
+        "position": "supine"
+      },
+      {
+        "tMin": 75,
+        "hr": 46.2,
+        "rmssd": 36.7,
+        "sdnn": 48.1,
+        "lfhf": 1.461,
+        "position": "supine"
+      },
+      {
+        "tMin": 80,
+        "hr": 47.3,
+        "rmssd": 45.3,
+        "sdnn": 67.8,
+        "lfhf": 1.943,
+        "position": "supine"
+      },
+      {
+        "tMin": 85,
+        "hr": 47.7,
+        "rmssd": 40,
+        "sdnn": 51.3,
+        "lfhf": 2.137,
+        "position": "supine"
+      },
+      {
+        "tMin": 90,
+        "hr": 47.4,
+        "rmssd": 35.5,
+        "sdnn": 50.2,
+        "lfhf": 2.466,
+        "position": "supine"
+      },
+      {
+        "tMin": 95,
+        "hr": 48.1,
+        "rmssd": 33.2,
+        "sdnn": 51.1,
+        "lfhf": 3.744,
+        "position": "supine"
+      },
+      {
+        "tMin": 100,
+        "hr": 47.5,
+        "rmssd": 40.8,
+        "sdnn": 56.6,
+        "lfhf": 2.311,
+        "position": "supine"
+      },
+      {
+        "tMin": 105,
+        "hr": 48.7,
+        "rmssd": 51.3,
+        "sdnn": 122.8,
+        "lfhf": 3.184,
+        "position": "supine"
+      },
+      {
+        "tMin": 110,
+        "hr": 48.2,
+        "rmssd": 35.4,
+        "sdnn": 34.4,
+        "lfhf": 1.186,
+        "position": "supine"
+      },
+      {
+        "tMin": 115,
+        "hr": 47.7,
+        "rmssd": 35,
+        "sdnn": 38.7,
+        "lfhf": 1.148,
+        "position": "supine"
+      },
+      {
+        "tMin": 120,
+        "hr": 49,
+        "rmssd": 33.5,
+        "sdnn": 30.7,
+        "lfhf": 1.169,
+        "position": "supine"
+      },
+      {
+        "tMin": 125,
+        "hr": 49.2,
+        "rmssd": 35.9,
+        "sdnn": 30.6,
+        "lfhf": 1.02,
+        "position": "supine"
+      },
+      {
+        "tMin": 130,
+        "hr": 49.6,
+        "rmssd": 41.4,
+        "sdnn": 83.7,
+        "lfhf": 1.655,
+        "position": "supine"
+      },
+      {
+        "tMin": 135,
+        "hr": 48.4,
+        "rmssd": 45.1,
+        "sdnn": 35.4,
+        "lfhf": 0.588,
+        "position": "supine"
+      },
+      {
+        "tMin": 140,
+        "hr": 50.4,
+        "rmssd": 52.2,
+        "sdnn": 89.2,
+        "lfhf": 1.218,
+        "position": "supine"
+      },
+      {
+        "tMin": 145,
+        "hr": 48.5,
+        "rmssd": 40.7,
+        "sdnn": 39.3,
+        "lfhf": 1.331,
+        "position": "supine"
+      },
+      {
+        "tMin": 150,
+        "hr": 49.1,
+        "rmssd": 39.7,
+        "sdnn": 37.3,
+        "lfhf": 1.194,
+        "position": "supine"
+      },
+      {
+        "tMin": 155,
+        "hr": 49.2,
+        "rmssd": 53.5,
+        "sdnn": 37.9,
+        "lfhf": 0.474,
+        "position": "supine"
+      },
+      {
+        "tMin": 160,
+        "hr": 49.8,
+        "rmssd": 53.7,
+        "sdnn": 100,
+        "lfhf": 1.094,
+        "position": "supine"
+      },
+      {
+        "tMin": 165,
+        "hr": 48,
+        "rmssd": 40.1,
+        "sdnn": 35.5,
+        "lfhf": 0.864,
+        "position": "supine"
+      },
+      {
+        "tMin": 170,
+        "hr": 51.1,
+        "rmssd": 34.1,
+        "sdnn": 81.4,
+        "lfhf": 4.419,
+        "position": "supine"
+      },
+      {
+        "tMin": 175,
+        "hr": 53.1,
+        "rmssd": 31.7,
+        "sdnn": 41.8,
+        "lfhf": 2.203,
+        "position": "supine"
+      },
+      {
+        "tMin": 180,
+        "hr": 51,
+        "rmssd": 36.9,
+        "sdnn": 60.1,
+        "lfhf": 2.494,
+        "position": "supine"
+      },
+      {
+        "tMin": 185,
+        "hr": 50.9,
+        "rmssd": 38.2,
+        "sdnn": 50.3,
+        "lfhf": 3.149,
+        "position": "supine"
+      },
+      {
+        "tMin": 190,
+        "hr": 50.7,
+        "rmssd": 43.9,
+        "sdnn": 54.5,
+        "lfhf": 2.484,
+        "position": "supine"
+      },
+      {
+        "tMin": 195,
+        "hr": 52.1,
+        "rmssd": 43.5,
+        "sdnn": 114.7,
+        "lfhf": 2.945,
+        "position": "supine"
+      },
+      {
+        "tMin": 200,
+        "hr": 50.6,
+        "rmssd": 37.3,
+        "sdnn": 39.4,
+        "lfhf": 1.256,
+        "position": "supine"
+      },
+      {
+        "tMin": 205,
+        "hr": 50.5,
+        "rmssd": 40.5,
+        "sdnn": 96.6,
+        "lfhf": 2.275,
+        "position": "supine"
+      },
+      {
+        "tMin": 210,
+        "hr": 49.2,
+        "rmssd": 30.3,
+        "sdnn": 42.2,
+        "lfhf": 2.072,
+        "position": "supine"
+      },
+      {
+        "tMin": 215,
+        "hr": 49.5,
+        "rmssd": 29.5,
+        "sdnn": 35,
+        "lfhf": 1.652,
+        "position": "supine"
+      },
+      {
+        "tMin": 220,
+        "hr": 50,
+        "rmssd": 31.6,
+        "sdnn": 30.7,
+        "lfhf": 1.267,
+        "position": "supine"
+      },
+      {
+        "tMin": 225,
+        "hr": 52.6,
+        "rmssd": 36.5,
+        "sdnn": 117.5,
+        "lfhf": 3.289,
+        "position": "supine"
+      },
+      {
+        "tMin": 230,
+        "hr": 50.9,
+        "rmssd": 67.1,
+        "sdnn": 95.9,
+        "lfhf": 1.186,
+        "position": "supine"
+      },
+      {
+        "tMin": 235,
+        "hr": 49,
+        "rmssd": 43.7,
+        "sdnn": 47,
+        "lfhf": 1.696,
+        "position": "supine"
+      },
+      {
+        "tMin": 240,
+        "hr": 49.7,
+        "rmssd": 45.9,
+        "sdnn": 49.6,
+        "lfhf": 1.513,
+        "position": "supine"
+      },
+      {
+        "tMin": 245,
+        "hr": 50.3,
+        "rmssd": 54.6,
+        "sdnn": 109.6,
+        "lfhf": 1.204,
+        "position": "supine"
+      },
+      {
+        "tMin": 250,
+        "hr": 49.1,
+        "rmssd": 30.5,
+        "sdnn": 30.9,
+        "lfhf": 1.308,
+        "position": "supine"
+      },
+      {
+        "tMin": 255,
+        "hr": 51.4,
+        "rmssd": 31.4,
+        "sdnn": 110.4,
+        "lfhf": 4.364,
+        "position": "supine"
+      },
+      {
+        "tMin": 260,
+        "hr": 48.5,
+        "rmssd": 52,
+        "sdnn": 51.9,
+        "lfhf": 1.729,
+        "position": "supine"
+      },
+      {
+        "tMin": 265,
+        "hr": 51.8,
+        "rmssd": 31,
+        "sdnn": 63.8,
+        "lfhf": 3.395,
+        "position": "supine"
+      },
+      {
+        "tMin": 270,
+        "hr": 51.1,
+        "rmssd": 22.5,
+        "sdnn": 36.1,
+        "lfhf": 2.619,
+        "position": "supine"
+      },
+      {
+        "tMin": 275,
+        "hr": 53,
+        "rmssd": 38.7,
+        "sdnn": 63.3,
+        "lfhf": 3.718,
+        "position": "supine"
+      },
+      {
+        "tMin": 280,
+        "hr": 51.8,
+        "rmssd": 36,
+        "sdnn": 83.2,
+        "lfhf": 3.303,
+        "position": "supine"
+      },
+      {
+        "tMin": 285,
+        "hr": 53.3,
+        "rmssd": 37.2,
+        "sdnn": 77.9,
+        "lfhf": 4.18,
+        "position": "supine"
+      },
+      {
+        "tMin": 290,
+        "hr": 50.9,
+        "rmssd": 46.9,
+        "sdnn": 120.4,
+        "lfhf": 4.662,
+        "position": "supine"
+      },
+      {
+        "tMin": 295,
+        "hr": 51.8,
+        "rmssd": 35.2,
+        "sdnn": 50.4,
+        "lfhf": 2.139,
+        "position": "supine"
+      },
+      {
+        "tMin": 300,
+        "hr": 51.2,
+        "rmssd": 35,
+        "sdnn": 50.7,
+        "lfhf": 4.882,
+        "position": "supine"
+      },
+      {
+        "tMin": 305,
+        "hr": 51.9,
+        "rmssd": 34.8,
+        "sdnn": 64,
+        "lfhf": 2.872,
+        "position": "supine"
+      },
+      {
+        "tMin": 310,
+        "hr": 52.3,
+        "rmssd": 37.2,
+        "sdnn": 125.5,
+        "lfhf": 4.242,
+        "position": "supine"
+      },
+      {
+        "tMin": 315,
+        "hr": 49.3,
+        "rmssd": 35.2,
+        "sdnn": 45,
+        "lfhf": 1.75,
+        "position": "supine"
+      },
+      {
+        "tMin": 320,
+        "hr": 51.6,
+        "rmssd": 35.4,
+        "sdnn": 105.5,
+        "lfhf": 1.993,
+        "position": "supine"
+      },
+      {
+        "tMin": 325,
+        "hr": 50.5,
+        "rmssd": 30.9,
+        "sdnn": 38,
+        "lfhf": 2.485,
+        "position": "supine"
+      },
+      {
+        "tMin": 330,
+        "hr": 49.1,
+        "rmssd": 28.8,
+        "sdnn": 32.6,
+        "lfhf": 2.215,
+        "position": "supine"
+      },
+      {
+        "tMin": 335,
+        "hr": 50.2,
+        "rmssd": 28.3,
+        "sdnn": 36.7,
+        "lfhf": 2.057,
+        "position": "supine"
+      },
+      {
+        "tMin": 340,
+        "hr": 50.7,
+        "rmssd": 41.5,
+        "sdnn": 117,
+        "lfhf": 3.658,
+        "position": "upright"
+      },
+      {
+        "tMin": 345,
+        "hr": 91.2,
+        "rmssd": 101.6,
+        "sdnn": 288.2,
+        "lfhf": 0.561,
+        "position": "upright"
+      },
+      {
+        "tMin": 350,
+        "hr": 118.1,
+        "rmssd": 87.6,
+        "sdnn": 88.9,
+        "lfhf": 1.06,
+        "position": "upright"
+      },
+      {
+        "tMin": 355,
+        "hr": 63.1,
+        "rmssd": 133.3,
+        "sdnn": 290.5,
+        "lfhf": 1.369,
+        "position": "upright"
+      },
+      {
+        "tMin": 360,
+        "hr": 49.6,
+        "rmssd": 34.8,
+        "sdnn": 43.5,
+        "lfhf": 1.75,
+        "position": "supine"
+      },
+      {
+        "tMin": 365,
+        "hr": 56,
+        "rmssd": 90.2,
+        "sdnn": 183.6,
+        "lfhf": 6.095,
+        "position": "supine"
+      },
+      {
+        "tMin": 370,
+        "hr": 56.7,
+        "rmssd": 40.9,
+        "sdnn": 94.2,
+        "lfhf": 1.736,
+        "position": "supine"
+      },
+      {
+        "tMin": 375,
+        "hr": 56.5,
+        "rmssd": 35.9,
+        "sdnn": 76.1,
+        "lfhf": 2.612,
+        "position": "supine"
+      },
+      {
+        "tMin": 380,
+        "hr": 57.9,
+        "rmssd": 33.4,
+        "sdnn": 77,
+        "lfhf": 2.879,
+        "position": "supine"
+      },
+      {
+        "tMin": 385,
+        "hr": 57.4,
+        "rmssd": 39.6,
+        "sdnn": 68.9,
+        "lfhf": 2.271,
+        "position": "lateral"
+      },
+      {
+        "tMin": 390,
+        "hr": 56.4,
+        "rmssd": 37.2,
+        "sdnn": 61,
+        "lfhf": 2.476,
+        "position": "supine"
+      },
+      {
+        "tMin": 395,
+        "hr": 62.8,
+        "rmssd": 38.1,
+        "sdnn": 92.1,
+        "lfhf": 3.423,
+        "position": "supine"
+      },
+      {
+        "tMin": 400,
+        "hr": 55.3,
+        "rmssd": 52.1,
+        "sdnn": 76.1,
+        "lfhf": 1.983,
+        "position": "supine"
+      },
+      {
+        "tMin": 405,
+        "hr": 54.6,
+        "rmssd": 44.7,
+        "sdnn": 67.8,
+        "lfhf": 2.669,
+        "position": "supine"
+      },
+      {
+        "tMin": 410,
+        "hr": 54.4,
+        "rmssd": 44.1,
+        "sdnn": 80.5,
+        "lfhf": 2.232,
+        "position": "supine"
+      },
+      {
+        "tMin": 415,
+        "hr": 56.1,
+        "rmssd": 41.5,
+        "sdnn": 86.6,
+        "lfhf": 2.469,
+        "position": "supine"
+      },
+      {
+        "tMin": 420,
+        "hr": 56.7,
+        "rmssd": 49.5,
+        "sdnn": 85.6,
+        "lfhf": 2.361,
+        "position": "unknown"
+      },
+      {
+        "tMin": 425,
+        "hr": 64.7,
+        "rmssd": 33.4,
+        "sdnn": 64.4,
+        "lfhf": 1.379,
+        "position": "unknown"
+      }
+    ],
+    "sleepStages": [
+      {
+        "tMin": 0,
+        "stage": "Wake"
+      },
+      {
+        "tMin": 5,
+        "stage": "Light"
+      },
+      {
+        "tMin": 10,
+        "stage": "Light"
+      },
+      {
+        "tMin": 15,
+        "stage": "Deep"
+      },
+      {
+        "tMin": 20,
+        "stage": "Deep"
+      },
+      {
+        "tMin": 25,
+        "stage": "Light"
+      },
+      {
+        "tMin": 30,
+        "stage": "Light"
+      },
+      {
+        "tMin": 35,
+        "stage": "Light"
+      },
+      {
+        "tMin": 40,
+        "stage": "Light"
+      },
+      {
+        "tMin": 45,
+        "stage": "Light"
+      },
+      {
+        "tMin": 50,
+        "stage": "Light"
+      },
+      {
+        "tMin": 55,
+        "stage": "Light"
+      },
+      {
+        "tMin": 60,
+        "stage": "Light"
+      },
+      {
+        "tMin": 65,
+        "stage": "Light"
+      },
+      {
+        "tMin": 70,
+        "stage": "Light"
+      },
+      {
+        "tMin": 75,
+        "stage": "Light"
+      },
+      {
+        "tMin": 80,
+        "stage": "Light"
+      },
+      {
+        "tMin": 85,
+        "stage": "Light"
+      },
+      {
+        "tMin": 90,
+        "stage": "Light"
+      },
+      {
+        "tMin": 95,
+        "stage": "Light"
+      },
+      {
+        "tMin": 100,
+        "stage": "Light"
+      },
+      {
+        "tMin": 105,
+        "stage": "Light"
+      },
+      {
+        "tMin": 110,
+        "stage": "Light"
+      },
+      {
+        "tMin": 115,
+        "stage": "Light"
+      },
+      {
+        "tMin": 120,
+        "stage": "Light"
+      },
+      {
+        "tMin": 125,
+        "stage": "Light"
+      },
+      {
+        "tMin": 130,
+        "stage": "Light"
+      },
+      {
+        "tMin": 135,
+        "stage": "Deep"
+      },
+      {
+        "tMin": 140,
+        "stage": "Deep"
+      },
+      {
+        "tMin": 145,
+        "stage": "Light"
+      },
+      {
+        "tMin": 150,
+        "stage": "Light"
+      },
+      {
+        "tMin": 155,
+        "stage": "Deep"
+      },
+      {
+        "tMin": 160,
+        "stage": "Deep"
+      },
+      {
+        "tMin": 165,
+        "stage": "Light"
+      },
+      {
+        "tMin": 170,
+        "stage": "Light"
+      },
+      {
+        "tMin": 175,
+        "stage": "Light"
+      },
+      {
+        "tMin": 180,
+        "stage": "Light"
+      },
+      {
+        "tMin": 185,
+        "stage": "Light"
+      },
+      {
+        "tMin": 190,
+        "stage": "Light"
+      },
+      {
+        "tMin": 195,
+        "stage": "Light"
+      },
+      {
+        "tMin": 200,
+        "stage": "Light"
+      },
+      {
+        "tMin": 205,
+        "stage": "Light"
+      },
+      {
+        "tMin": 210,
+        "stage": "Light"
+      },
+      {
+        "tMin": 215,
+        "stage": "Light"
+      },
+      {
+        "tMin": 220,
+        "stage": "Light"
+      },
+      {
+        "tMin": 225,
+        "stage": "Light"
+      },
+      {
+        "tMin": 230,
+        "stage": "Light"
+      },
+      {
+        "tMin": 235,
+        "stage": "Light"
+      },
+      {
+        "tMin": 240,
+        "stage": "Deep"
+      },
+      {
+        "tMin": 245,
+        "stage": "Deep"
+      },
+      {
+        "tMin": 250,
+        "stage": "Light"
+      },
+      {
+        "tMin": 255,
+        "stage": "REM"
+      },
+      {
+        "tMin": 260,
+        "stage": "REM"
+      },
+      {
+        "tMin": 265,
+        "stage": "REM"
+      },
+      {
+        "tMin": 270,
+        "stage": "REM"
+      },
+      {
+        "tMin": 275,
+        "stage": "Light"
+      },
+      {
+        "tMin": 280,
+        "stage": "Light"
+      },
+      {
+        "tMin": 285,
+        "stage": "Light"
+      },
+      {
+        "tMin": 290,
+        "stage": "Light"
+      },
+      {
+        "tMin": 295,
+        "stage": "Light"
+      },
+      {
+        "tMin": 300,
+        "stage": "Light"
+      },
+      {
+        "tMin": 305,
+        "stage": "Light"
+      },
+      {
+        "tMin": 310,
+        "stage": "Light"
+      },
+      {
+        "tMin": 315,
+        "stage": "Light"
+      },
+      {
+        "tMin": 320,
+        "stage": "Light"
+      },
+      {
+        "tMin": 325,
+        "stage": "REM"
+      },
+      {
+        "tMin": 330,
+        "stage": "REM"
+      },
+      {
+        "tMin": 335,
+        "stage": "Light"
+      },
+      {
+        "tMin": 340,
+        "stage": "Light"
+      },
+      {
+        "tMin": 345,
+        "stage": "Wake"
+      },
+      {
+        "tMin": 350,
+        "stage": "Wake"
+      },
+      {
+        "tMin": 355,
+        "stage": "Wake"
+      },
+      {
+        "tMin": 360,
+        "stage": "Light"
+      },
+      {
+        "tMin": 365,
+        "stage": "Light"
+      },
+      {
+        "tMin": 370,
+        "stage": "Light"
+      },
+      {
+        "tMin": 375,
+        "stage": "Light"
+      },
+      {
+        "tMin": 380,
+        "stage": "Light"
+      },
+      {
+        "tMin": 385,
+        "stage": "Light"
+      },
+      {
+        "tMin": 390,
+        "stage": "Light"
+      },
+      {
+        "tMin": 395,
+        "stage": "Light"
+      },
+      {
+        "tMin": 400,
+        "stage": "Light"
+      },
+      {
+        "tMin": 405,
+        "stage": "Light"
+      },
+      {
+        "tMin": 410,
+        "stage": "Light"
+      },
+      {
+        "tMin": 415,
+        "stage": "Light"
+      },
+      {
+        "tMin": 420,
+        "stage": "Light"
+      },
+      {
+        "tMin": 425,
+        "stage": "Wake"
+      }
+    ]
+  },
+  "sleep": {
+    "totalSleepMin": 405,
+    "stageMinutes": {
+      "Wake": 25,
+      "REM": 30,
+      "Light": 335,
+      "Deep": 40
+    }
+  }
+}

@@ -1,0 +1,2305 @@
+{
+  "kernel": {
+    "K": {
+      "SIGNIF_P": 0.1,
+      "SIGNIF_TAU": 0.15,
+      "Z_HEADLINE": 1.2,
+      "Z_WARN": 1,
+      "Z_BAD": 2,
+      "ODI_DROP": 4,
+      "ODI_HYST": 2,
+      "MOS_SHORT": 5,
+      "MOS_LONG": 15,
+      "QFLOOR": 50
+    },
+    "VERSION": "1.0.0",
+    "HASH": "118ebed5"
+  },
+  "schema": {
+    "name": "ganglior.node-export",
+    "version": "2.0",
+    "node": "PpgDex",
+    "nodeVersion": "1.0",
+    "bus": "ganglior",
+    "generated": "2026-07-12T00:37:40.905Z",
+    "provenance": null,
+    "doc": "PpgDex PPG-derived events → Ganglior bus. t/tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
+    "scrubbed": true
+  },
+  "recording": {
+    "source": "ppg",
+    "contentId": null,
+    "startEpochMs": 1782942220323,
+    "sessions": 1,
+    "events": 100
+  },
+  "ganglior_events": [
+    {
+      "t": "21:48:40",
+      "tMs": 1782942520323,
+      "impulse": "hrv_drop",
+      "node": "PpgDex",
+      "conf": 0.7,
+      "sqi": 0.53,
+      "meta": {
+        "rmssdFrom": 289.4,
+        "rmssdTo": 42.3,
+        "position": "upright",
+        "positionConf": 0.33,
+        "magInterference": true
+      }
+    },
+    {
+      "t": "21:48:40",
+      "tMs": 1782942520323,
+      "impulse": "autonomic_surge",
+      "node": "PpgDex",
+      "conf": 0.8,
+      "sqi": 0.53,
+      "meta": {
+        "ampBpm": 17,
+        "position": "upright",
+        "positionConf": 0.33,
+        "magInterference": true
+      }
+    },
+    {
+      "t": "21:58:40",
+      "tMs": 1782943120323,
+      "impulse": "hrv_drop",
+      "node": "PpgDex",
+      "conf": 0.7,
+      "sqi": 0.77,
+      "meta": {
+        "rmssdFrom": 33.3,
+        "rmssdTo": 14,
+        "position": "prone",
+        "positionConf": 0.47
+      }
+    },
+    {
+      "t": "22:03:40",
+      "tMs": 1782943420323,
+      "impulse": "hrv_drop",
+      "node": "PpgDex",
+      "conf": 0.7,
+      "sqi": 0.76,
+      "meta": {
+        "rmssdFrom": 14,
+        "rmssdTo": 6.3,
+        "position": "prone",
+        "positionConf": 0.48
+      }
+    },
+    {
+      "t": "22:18:40",
+      "tMs": 1782944320323,
+      "impulse": "hrv_drop",
+      "node": "PpgDex",
+      "conf": 0.7,
+      "sqi": 0.76,
+      "meta": {
+        "rmssdFrom": 26.1,
+        "rmssdTo": 16.5,
+        "position": "prone",
+        "positionConf": 0.49
+      }
+    },
+    {
+      "t": "22:23:40",
+      "tMs": 1782944620323,
+      "impulse": "autonomic_surge",
+      "node": "PpgDex",
+      "conf": 0.64,
+      "sqi": 0.77,
+      "meta": {
+        "ampBpm": 9,
+        "position": "prone",
+        "positionConf": 0.49
+      }
+    },
+    {
+      "t": "22:33:40",
+      "tMs": 1782945220323,
+      "impulse": "hrv_drop",
+      "node": "PpgDex",
+      "conf": 0.7,
+      "sqi": 0.69,
+      "meta": {
+        "rmssdFrom": 35.9,
+        "rmssdTo": 12.1,
+        "position": "prone",
+        "positionConf": 0.5
+      }
+    },
+    {
+      "t": "22:48:40",
+      "tMs": 1782946120323,
+      "impulse": "autonomic_surge",
+      "node": "PpgDex",
+      "conf": 0.66,
+      "sqi": 0.69,
+      "meta": {
+        "ampBpm": 10,
+        "position": "prone",
+        "positionConf": 0.5
+      }
+    },
+    {
+      "t": "22:53:40",
+      "tMs": 1782946420323,
+      "impulse": "hrv_drop",
+      "node": "PpgDex",
+      "conf": 0.7,
+      "sqi": 0.77,
+      "meta": {
+        "rmssdFrom": 27.3,
+        "rmssdTo": 16,
+        "position": "prone",
+        "positionConf": 0.49
+      }
+    },
+    {
+      "t": "22:53:40",
+      "tMs": 1782946420323,
+      "impulse": "autonomic_surge",
+      "node": "PpgDex",
+      "conf": 0.76,
+      "sqi": 0.77,
+      "meta": {
+        "ampBpm": 15,
+        "position": "prone",
+        "positionConf": 0.49
+      }
+    },
+    {
+      "t": "23:23:40",
+      "tMs": 1782948220323,
+      "impulse": "autonomic_surge",
+      "node": "PpgDex",
+      "conf": 0.83,
+      "sqi": 0.72,
+      "meta": {
+        "ampBpm": 18,
+        "position": "prone",
+        "positionConf": 0.32,
+        "magInterference": true
+      }
+    },
+    {
+      "t": "23:33:40",
+      "tMs": 1782948820323,
+      "impulse": "autonomic_surge",
+      "node": "PpgDex",
+      "conf": 0.66,
+      "sqi": 0.57,
+      "meta": {
+        "ampBpm": 10,
+        "position": "lateral_R",
+        "positionConf": 1
+      }
+    },
+    {
+      "t": "23:48:40",
+      "tMs": 1782949720323,
+      "impulse": "hrv_drop",
+      "node": "PpgDex",
+      "conf": 0.7,
+      "sqi": 0.59,
+      "meta": {
+        "rmssdFrom": 170.1,
+        "rmssdTo": 30.6,
+        "position": "lateral_R",
+        "positionConf": 1
+      }
+    },
+    {
+      "t": "23:48:40",
+      "tMs": 1782949720323,
+      "impulse": "autonomic_surge",
+      "node": "PpgDex",
+      "conf": 0.9,
+      "sqi": 0.59,
+      "meta": {
+        "ampBpm": 40,
+        "position": "lateral_R",
+        "positionConf": 1
+      }
+    },
+    {
+      "t": "00:08:40",
+      "tMs": 1782950920323,
+      "impulse": "hrv_drop",
+      "node": "PpgDex",
+      "conf": 0.7,
+      "sqi": 0.74,
+      "meta": {
+        "rmssdFrom": 136.1,
+        "rmssdTo": 41.7,
+        "position": "lateral",
+        "positionConf": 0.67
+      }
+    },
+    {
+      "t": "00:13:40",
+      "tMs": 1782951220323,
+      "impulse": "autonomic_surge",
+      "node": "PpgDex",
+      "conf": 0.9,
+      "sqi": 0.7,
+      "meta": {
+        "ampBpm": 22,
+        "position": "lateral",
+        "positionConf": 0.66
+      }
+    },
+    {
+      "t": "00:33:40",
+      "tMs": 1782952420323,
+      "impulse": "hrv_drop",
+      "node": "PpgDex",
+      "conf": 0.7,
+      "sqi": 0.75,
+      "meta": {
+        "rmssdFrom": 184.8,
+        "rmssdTo": 50,
+        "position": "lateral",
+        "positionConf": 0.65
+      }
+    },
+    {
+      "t": "00:43:40",
+      "tMs": 1782953020323,
+      "impulse": "hrv_drop",
+      "node": "PpgDex",
+      "conf": 0.7,
+      "sqi": 0.7,
+      "meta": {
+        "rmssdFrom": 65.5,
+        "rmssdTo": 5.7,
+        "position": "lateral",
+        "positionConf": 0.62
+      }
+    },
+    {
+      "t": "00:43:40",
+      "tMs": 1782953020323,
+      "impulse": "autonomic_surge",
+      "node": "PpgDex",
+      "conf": 0.72,
+      "sqi": 0.7,
+      "meta": {
+        "ampBpm": 13,
+        "position": "lateral",
+        "positionConf": 0.62
+      }
+    },
+    {
+      "t": "00:48:40",
+      "tMs": 1782953320323,
+      "impulse": "autonomic_surge",
+      "node": "PpgDex",
+      "conf": 0.8,
+      "sqi": 0.74,
+      "meta": {
+        "ampBpm": 17,
+        "position": "lateral",
+        "positionConf": 0.62
+      }
+    },
+    {
+      "t": "00:58:40",
+      "tMs": 1782953920323,
+      "impulse": "hrv_drop",
+      "node": "PpgDex",
+      "conf": 0.7,
+      "sqi": 0.63,
+      "meta": {
+        "rmssdFrom": 54.5,
+        "rmssdTo": 34.9,
+        "position": "lateral",
+        "positionConf": 0.61
+      }
+    },
+    {
+      "t": "00:58:40",
+      "tMs": 1782953920323,
+      "impulse": "autonomic_surge",
+      "node": "PpgDex",
+      "conf": 0.9,
+      "sqi": 0.63,
+      "meta": {
+        "ampBpm": 38,
+        "position": "lateral",
+        "positionConf": 0.61
+      }
+    },
+    {
+      "t": "01:03:40",
+      "tMs": 1782954220323,
+      "impulse": "hrv_drop",
+      "node": "PpgDex",
+      "conf": 0.7,
+      "sqi": 0.77,
+      "meta": {
+        "rmssdFrom": 34.9,
+        "rmssdTo": 19.5,
+        "position": "lateral",
+        "positionConf": 0.61
+      }
+    },
+    {
+      "t": "01:08:40",
+      "tMs": 1782954520323,
+      "impulse": "hrv_drop",
+      "node": "PpgDex",
+      "conf": 0.7,
+      "sqi": 0.77,
+      "meta": {
+        "rmssdFrom": 19.5,
+        "rmssdTo": 6.5,
+        "position": "lateral_R",
+        "positionConf": 1
+      }
+    },
+    {
+      "t": "01:23:40",
+      "tMs": 1782955420323,
+      "impulse": "hrv_drop",
+      "node": "PpgDex",
+      "conf": 0.7,
+      "sqi": 0.6,
+      "meta": {
+        "rmssdFrom": 107.8,
+        "rmssdTo": 28.3,
+        "position": "supine",
+        "positionConf": 0.43,
+        "magInterference": true
+      }
+    },
+    {
+      "t": "01:33:40",
+      "tMs": 1782956020323,
+      "impulse": "autonomic_surge",
+      "node": "PpgDex",
+      "conf": 0.68,
+      "sqi": 0.56,
+      "meta": {
+        "ampBpm": 11,
+        "position": "supine",
+        "positionConf": 0.44,
+        "magInterference": true
+      }
+    },
+    {
+      "t": "01:48:40",
+      "tMs": 1782956920323,
+      "impulse": "hrv_drop",
+      "node": "PpgDex",
+      "conf": 0.7,
+      "sqi": 0.65,
+      "meta": {
+        "rmssdFrom": 236.9,
+        "rmssdTo": 123.4,
+        "position": "supine",
+        "positionConf": 0.44,
+        "magInterference": true
+      }
+    },
+    {
+      "t": "01:48:40",
+      "tMs": 1782956920323,
+      "impulse": "autonomic_surge",
+      "node": "PpgDex",
+      "conf": 0.66,
+      "sqi": 0.65,
+      "meta": {
+        "ampBpm": 10,
+        "position": "supine",
+        "positionConf": 0.44,
+        "magInterference": true
+      }
+    },
+    {
+      "t": "01:53:40",
+      "tMs": 1782957220323,
+      "impulse": "hrv_drop",
+      "node": "PpgDex",
+      "conf": 0.7,
+      "sqi": 0.59,
+      "meta": {
+        "rmssdFrom": 123.4,
+        "rmssdTo": 56,
+        "position": "supine",
+        "positionConf": 0.45,
+        "magInterference": true
+      }
+    },
+    {
+      "t": "03:23:40",
+      "tMs": 1782962620323,
+      "impulse": "hrv_drop",
+      "node": "PpgDex",
+      "conf": 0.7,
+      "sqi": 0.77,
+      "meta": {
+        "rmssdFrom": 63.7,
+        "rmssdTo": 40.2,
+        "position": "prone",
+        "positionConf": 0.38,
+        "magInterference": true
+      }
+    },
+    {
+      "t": "04:18:40",
+      "tMs": 1782965920323,
+      "impulse": "autonomic_surge",
+      "node": "PpgDex",
+      "conf": 0.9,
+      "sqi": 0.51,
+      "meta": {
+        "ampBpm": 23,
+        "position": "upright",
+        "positionConf": 0.19,
+        "magInterference": true
+      }
+    },
+    {
+      "t": "04:23:40",
+      "tMs": 1782966220323,
+      "impulse": "hrv_drop",
+      "node": "PpgDex",
+      "conf": 0.7,
+      "sqi": 0.48,
+      "meta": {
+        "rmssdFrom": 115.6,
+        "rmssdTo": 68,
+        "position": "prone",
+        "positionConf": 0.38,
+        "magInterference": true
+      }
+    },
+    {
+      "t": "04:23:40",
+      "tMs": 1782966220323,
+      "impulse": "autonomic_surge",
+      "node": "PpgDex",
+      "conf": 0.9,
+      "sqi": 0.48,
+      "meta": {
+        "ampBpm": 32,
+        "position": "prone",
+        "positionConf": 0.38,
+        "magInterference": true
+      }
+    },
+    {
+      "t": "04:28:40",
+      "tMs": 1782966520323,
+      "impulse": "hrv_drop",
+      "node": "PpgDex",
+      "conf": 0.7,
+      "sqi": 0.68,
+      "meta": {
+        "rmssdFrom": 68,
+        "rmssdTo": 27.4,
+        "position": "prone",
+        "positionConf": 0.28,
+        "magInterference": true
+      }
+    },
+    {
+      "t": "04:28:40",
+      "tMs": 1782966520323,
+      "impulse": "autonomic_surge",
+      "node": "PpgDex",
+      "conf": 0.9,
+      "sqi": 0.68,
+      "meta": {
+        "ampBpm": 58,
+        "position": "prone",
+        "positionConf": 0.28,
+        "magInterference": true
+      }
+    },
+    {
+      "t": "21:43:58",
+      "tMs": 1782942238092,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.29,
+      "meta": {}
+    },
+    {
+      "t": "21:44:30",
+      "tMs": 1782942270955,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.46,
+      "meta": {}
+    },
+    {
+      "t": "21:49:19",
+      "tMs": 1782942559105,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.42,
+      "meta": {}
+    },
+    {
+      "t": "21:50:34",
+      "tMs": 1782942634419,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.27,
+      "meta": {}
+    },
+    {
+      "t": "21:50:38",
+      "tMs": 1782942638810,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.31,
+      "meta": {}
+    },
+    {
+      "t": "21:53:11",
+      "tMs": 1782942791031,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.54,
+      "meta": {}
+    },
+    {
+      "t": "21:55:59",
+      "tMs": 1782942959884,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.43,
+      "meta": {}
+    },
+    {
+      "t": "23:25:13",
+      "tMs": 1782948313117,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.58,
+      "meta": {}
+    },
+    {
+      "t": "23:25:21",
+      "tMs": 1782948321457,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.38,
+      "meta": {}
+    },
+    {
+      "t": "23:25:23",
+      "tMs": 1782948323680,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.39,
+      "meta": {}
+    },
+    {
+      "t": "23:26:46",
+      "tMs": 1782948406551,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.41,
+      "meta": {}
+    },
+    {
+      "t": "23:54:17",
+      "tMs": 1782950057795,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.32,
+      "meta": {}
+    },
+    {
+      "t": "23:54:23",
+      "tMs": 1782950063749,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.25,
+      "meta": {}
+    },
+    {
+      "t": "23:54:27",
+      "tMs": 1782950067934,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.28,
+      "meta": {}
+    },
+    {
+      "t": "01:06:55",
+      "tMs": 1782954415686,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.39,
+      "meta": {}
+    },
+    {
+      "t": "01:15:08",
+      "tMs": 1782954908813,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.4,
+      "meta": {}
+    },
+    {
+      "t": "01:56:50",
+      "tMs": 1782957410314,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.45,
+      "meta": {}
+    },
+    {
+      "t": "01:56:55",
+      "tMs": 1782957415190,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.3,
+      "meta": {}
+    },
+    {
+      "t": "01:56:59",
+      "tMs": 1782957419549,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.21,
+      "meta": {}
+    },
+    {
+      "t": "02:11:22",
+      "tMs": 1782958282287,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.41,
+      "meta": {}
+    },
+    {
+      "t": "02:18:18",
+      "tMs": 1782958698141,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.44,
+      "meta": {}
+    },
+    {
+      "t": "02:18:30",
+      "tMs": 1782958710886,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.27,
+      "meta": {}
+    },
+    {
+      "t": "02:31:37",
+      "tMs": 1782959497918,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.54,
+      "meta": {}
+    },
+    {
+      "t": "02:31:49",
+      "tMs": 1782959509737,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.25,
+      "meta": {}
+    },
+    {
+      "t": "02:31:52",
+      "tMs": 1782959512538,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.17,
+      "meta": {}
+    },
+    {
+      "t": "02:31:54",
+      "tMs": 1782959514840,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.16,
+      "meta": {}
+    },
+    {
+      "t": "02:31:55",
+      "tMs": 1782959515849,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.2,
+      "meta": {}
+    },
+    {
+      "t": "02:53:12",
+      "tMs": 1782960792070,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.47,
+      "meta": {}
+    },
+    {
+      "t": "02:53:15",
+      "tMs": 1782960795795,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.4,
+      "meta": {}
+    },
+    {
+      "t": "03:06:23",
+      "tMs": 1782961583031,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.32,
+      "meta": {}
+    },
+    {
+      "t": "03:10:44",
+      "tMs": 1782961844808,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.46,
+      "meta": {}
+    },
+    {
+      "t": "03:10:48",
+      "tMs": 1782961848476,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.37,
+      "meta": {}
+    },
+    {
+      "t": "03:10:51",
+      "tMs": 1782961851475,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.24,
+      "meta": {}
+    },
+    {
+      "t": "03:10:53",
+      "tMs": 1782961853119,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.22,
+      "meta": {}
+    },
+    {
+      "t": "03:10:55",
+      "tMs": 1782961855160,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.21,
+      "meta": {}
+    },
+    {
+      "t": "03:18:30",
+      "tMs": 1782962310505,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.58,
+      "meta": {}
+    },
+    {
+      "t": "03:22:26",
+      "tMs": 1782962546266,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.46,
+      "meta": {}
+    },
+    {
+      "t": "03:22:40",
+      "tMs": 1782962560796,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.5,
+      "meta": {}
+    },
+    {
+      "t": "03:34:10",
+      "tMs": 1782963250510,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.54,
+      "meta": {}
+    },
+    {
+      "t": "03:56:51",
+      "tMs": 1782964611043,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.64,
+      "meta": {}
+    },
+    {
+      "t": "03:56:53",
+      "tMs": 1782964613334,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.52,
+      "meta": {}
+    },
+    {
+      "t": "04:15:05",
+      "tMs": 1782965705938,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.38,
+      "meta": {}
+    },
+    {
+      "t": "04:19:01",
+      "tMs": 1782965941414,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.51,
+      "meta": {}
+    },
+    {
+      "t": "04:19:09",
+      "tMs": 1782965949408,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.25,
+      "meta": {}
+    },
+    {
+      "t": "04:21:30",
+      "tMs": 1782966090617,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.26,
+      "meta": {}
+    },
+    {
+      "t": "04:26:05",
+      "tMs": 1782966365912,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.71,
+      "meta": {}
+    },
+    {
+      "t": "04:26:51",
+      "tMs": 1782966411586,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.43,
+      "meta": {}
+    },
+    {
+      "t": "04:28:22",
+      "tMs": 1782966502153,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.51,
+      "meta": {}
+    },
+    {
+      "t": "04:29:04",
+      "tMs": 1782966544599,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.6,
+      "meta": {}
+    },
+    {
+      "t": "04:32:14",
+      "tMs": 1782966734603,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.38,
+      "meta": {}
+    },
+    {
+      "t": "04:36:52",
+      "tMs": 1782967012290,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.37,
+      "meta": {}
+    },
+    {
+      "t": "04:37:42",
+      "tMs": 1782967062285,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.4,
+      "meta": {}
+    },
+    {
+      "t": "04:40:05",
+      "tMs": 1782967205868,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.44,
+      "meta": {}
+    },
+    {
+      "t": "04:40:11",
+      "tMs": 1782967211616,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.22,
+      "meta": {}
+    },
+    {
+      "t": "04:42:36",
+      "tMs": 1782967356270,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.49,
+      "meta": {}
+    },
+    {
+      "t": "04:43:58",
+      "tMs": 1782967438892,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.42,
+      "meta": {}
+    },
+    {
+      "t": "04:44:01",
+      "tMs": 1782967441982,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.32,
+      "meta": {}
+    },
+    {
+      "t": "04:44:35",
+      "tMs": 1782967475204,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.54,
+      "meta": {}
+    },
+    {
+      "t": "04:45:19",
+      "tMs": 1782967519051,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.52,
+      "meta": {}
+    },
+    {
+      "t": "04:47:17",
+      "tMs": 1782967637056,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.46,
+      "meta": {}
+    },
+    {
+      "t": "04:48:54",
+      "tMs": 1782967734719,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.52,
+      "meta": {}
+    },
+    {
+      "t": "04:49:41",
+      "tMs": 1782967781151,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.41,
+      "meta": {}
+    },
+    {
+      "t": "04:50:23",
+      "tMs": 1782967823733,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.52,
+      "meta": {}
+    },
+    {
+      "t": "04:55:07",
+      "tMs": 1782968107578,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.42,
+      "meta": {}
+    },
+    {
+      "t": "04:55:16",
+      "tMs": 1782968116910,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.29,
+      "meta": {}
+    }
+  ],
+  "reserved": {
+    "doc": "Awaiting other fleet nodes; null until available."
+  },
+  "quality": {
+    "analyzablePct": 85,
+    "cleanBeatPct": 86,
+    "coveragePct": 86,
+    "motionRejectedPct": 0.6,
+    "correctionRatePct": 61.7,
+    "ledAgreementPct": 67,
+    "ppiSpine": "peak",
+    "ppiAgreementPct": 61,
+    "ppiCorrFootPct": 92.7,
+    "ppiCorrPeakPct": 61.7
+  },
+  "hrv": {
+    "time": {
+      "meanRR": 794,
+      "hr": 94,
+      "sdnn": 335.4,
+      "rmssd": 54.9,
+      "pnn50": 24.3,
+      "sdnnIndex": 67.7,
+      "sdnnRobust": 55.5,
+      "sd2Robust": 68.2,
+      "window": "wholeRecord",
+      "units": "ms",
+      "lowConfidence": true,
+      "lowConfidenceReason": "low coverage — analyzable 85% / correction 61.7% → whole-record short-term HRV down-weighted; use per-5-min epochs[] + ledAgreementPct",
+      "windowNote": "sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node’s wholeRecord SDNN/RMSSD.",
+      "sdnnNote": "whole-record sdnn runs high on optical (SDANN/baseline-wander inflation, ~+26% vs chest ECG). sdnnIndex = mean of per-5-min SDNN (~+18%); sdnnRobust = quality-gated MEDIAN of per-5-min SDNN (~+3.5% vs ECG truth) — use sdnnRobust for cross-node SDNN comparison."
+    },
+    "frequency": {
+      "lf": 13611,
+      "hf": 34833,
+      "lfhf": 0.39,
+      "method": "Lomb-Scargle",
+      "lowConfidence": true,
+      "lfRobust": 478,
+      "hfRobust": 597,
+      "lfhfRobust": 0.61,
+      "hfRobustLowMotion": 590
+    },
+    "confidence": {
+      "beatToBeat": 0,
+      "sdnn": 0,
+      "lf": 0,
+      "hf": 0.84,
+      "vlf": 0.7,
+      "drivers": {
+        "analyzableFrac": 0.85,
+        "correctionOK": 0,
+        "lowMotionFrac": 0.99,
+        "postureStableFrac": 0.79
+      },
+      "note": "0..1 per-metric confidence from measured drivers (motion→hf, posture/baseline→vlf/sdnn, coverage+correction→beat-to-beat). vlf capped 0.7 — single-site optical VLF stays baseline-wander-limited even when clean; not a defect to \"fix\"."
+    }
+  },
+  "timeseries": {
+    "doc": "5-min epochs — primary cross-node feed (posture rides on epochs[].position).",
+    "epochs": [
+      {
+        "tMin": 0,
+        "hr": 105,
+        "rmssd": 289.4,
+        "sdnn": 187.9,
+        "lfhf": 0.63,
+        "motionIndex": 0.12,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.71,
+        "headingDeg": 25,
+        "magInterference": false
+      },
+      {
+        "tMin": 5,
+        "hr": 122,
+        "rmssd": 42.3,
+        "sdnn": 60.1,
+        "lfhf": 0.43,
+        "motionIndex": 0.14,
+        "ledAgreementPct": 67,
+        "position": "upright",
+        "positionConf": 0.33,
+        "headingDeg": 125,
+        "magInterference": true
+      },
+      {
+        "tMin": 10,
+        "hr": 101,
+        "rmssd": 33.3,
+        "sdnn": 44.4,
+        "lfhf": 0.58,
+        "motionIndex": 0.13,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.18,
+        "headingDeg": 359,
+        "magInterference": true
+      },
+      {
+        "tMin": 15,
+        "hr": 105,
+        "rmssd": 14,
+        "sdnn": 29.6,
+        "lfhf": 0.63,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.47,
+        "headingDeg": 1,
+        "magInterference": false
+      },
+      {
+        "tMin": 20,
+        "hr": 92,
+        "rmssd": 6.3,
+        "sdnn": 12.4,
+        "lfhf": 0.65,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.48,
+        "headingDeg": 1,
+        "magInterference": false
+      },
+      {
+        "tMin": 25,
+        "hr": 93,
+        "rmssd": 8.5,
+        "sdnn": 7.4,
+        "lfhf": 0.38,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.49,
+        "headingDeg": 1,
+        "magInterference": false
+      },
+      {
+        "tMin": 30,
+        "hr": 91,
+        "rmssd": 26.1,
+        "sdnn": 24.1,
+        "lfhf": 0.38,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.49,
+        "headingDeg": 1,
+        "magInterference": false
+      },
+      {
+        "tMin": 35,
+        "hr": 85,
+        "rmssd": 16.5,
+        "sdnn": 23.5,
+        "lfhf": 1,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.49,
+        "headingDeg": 1,
+        "magInterference": false
+      },
+      {
+        "tMin": 40,
+        "hr": 94,
+        "rmssd": 12,
+        "sdnn": 18.8,
+        "lfhf": 0.76,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.49,
+        "headingDeg": 1,
+        "magInterference": false
+      },
+      {
+        "tMin": 45,
+        "hr": 93,
+        "rmssd": 35.9,
+        "sdnn": 25.3,
+        "lfhf": 0.3,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.49,
+        "headingDeg": 1,
+        "magInterference": false
+      },
+      {
+        "tMin": 50,
+        "hr": 101,
+        "rmssd": 12.1,
+        "sdnn": 32.7,
+        "lfhf": 0.91,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.5,
+        "headingDeg": 2,
+        "magInterference": false
+      },
+      {
+        "tMin": 55,
+        "hr": 93,
+        "rmssd": 36.1,
+        "sdnn": 26.7,
+        "lfhf": 0.35,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.5,
+        "headingDeg": 2,
+        "magInterference": false
+      },
+      {
+        "tMin": 60,
+        "hr": 97,
+        "rmssd": 28.5,
+        "sdnn": 21.3,
+        "lfhf": 0.4,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.5,
+        "headingDeg": 2,
+        "magInterference": false
+      },
+      {
+        "tMin": 65,
+        "hr": 107,
+        "rmssd": 27.3,
+        "sdnn": 41.5,
+        "lfhf": 0.59,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.5,
+        "headingDeg": 2,
+        "magInterference": false
+      },
+      {
+        "tMin": 70,
+        "hr": 122,
+        "rmssd": 16,
+        "sdnn": 22,
+        "lfhf": 0.66,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.49,
+        "headingDeg": 1,
+        "magInterference": false
+      },
+      {
+        "tMin": 75,
+        "hr": 101,
+        "rmssd": 37.1,
+        "sdnn": 27.9,
+        "lfhf": 0.47,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.49,
+        "headingDeg": 1,
+        "magInterference": false
+      },
+      {
+        "tMin": 80,
+        "hr": 101,
+        "rmssd": 35.4,
+        "sdnn": 36.1,
+        "lfhf": 0.45,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.5,
+        "headingDeg": 1,
+        "magInterference": false
+      },
+      {
+        "tMin": 85,
+        "hr": 91,
+        "rmssd": 38.2,
+        "sdnn": 29.4,
+        "lfhf": 0.37,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.5,
+        "headingDeg": 1,
+        "magInterference": false
+      },
+      {
+        "tMin": 90,
+        "hr": 97,
+        "rmssd": 44.2,
+        "sdnn": 30.6,
+        "lfhf": 0.28,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.5,
+        "headingDeg": 1,
+        "magInterference": false
+      },
+      {
+        "tMin": 95,
+        "hr": 96,
+        "rmssd": 32.8,
+        "sdnn": 23.6,
+        "lfhf": 0.31,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.5,
+        "headingDeg": 1,
+        "magInterference": false
+      },
+      {
+        "tMin": 100,
+        "hr": 114,
+        "rmssd": 164.4,
+        "sdnn": 85.2,
+        "lfhf": 0.76,
+        "motionIndex": 0.15,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.32,
+        "headingDeg": 17,
+        "magInterference": true
+      },
+      {
+        "tMin": 105,
+        "hr": 100,
+        "rmssd": 165.2,
+        "sdnn": 115,
+        "lfhf": 0.6,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral_R",
+        "positionConf": 1,
+        "headingDeg": 109,
+        "magInterference": false
+      },
+      {
+        "tMin": 110,
+        "hr": 110,
+        "rmssd": 185.1,
+        "sdnn": 108.1,
+        "lfhf": 0.55,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral_R",
+        "positionConf": 1,
+        "headingDeg": 109,
+        "magInterference": false
+      },
+      {
+        "tMin": 115,
+        "hr": 104,
+        "rmssd": 180.5,
+        "sdnn": 119.5,
+        "lfhf": 0.44,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral_R",
+        "positionConf": 1,
+        "headingDeg": 109,
+        "magInterference": false
+      },
+      {
+        "tMin": 120,
+        "hr": 105,
+        "rmssd": 170.1,
+        "sdnn": 111.8,
+        "lfhf": 0.44,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral_R",
+        "positionConf": 1,
+        "headingDeg": 109,
+        "magInterference": false
+      },
+      {
+        "tMin": 125,
+        "hr": 145,
+        "rmssd": 30.6,
+        "sdnn": 37.7,
+        "lfhf": 0.4,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral_R",
+        "positionConf": 1,
+        "headingDeg": 109,
+        "magInterference": false
+      },
+      {
+        "tMin": 130,
+        "hr": 150,
+        "rmssd": 20.2,
+        "sdnn": 34.5,
+        "lfhf": 0.88,
+        "motionIndex": 0.14,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.7,
+        "headingDeg": 10,
+        "magInterference": false
+      },
+      {
+        "tMin": 135,
+        "hr": 99,
+        "rmssd": 45.3,
+        "sdnn": 88,
+        "lfhf": 0.41,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.68,
+        "headingDeg": 9,
+        "magInterference": false
+      },
+      {
+        "tMin": 140,
+        "hr": 91,
+        "rmssd": 136.1,
+        "sdnn": 55.1,
+        "lfhf": 0.8,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.67,
+        "headingDeg": 9,
+        "magInterference": false
+      },
+      {
+        "tMin": 145,
+        "hr": 94,
+        "rmssd": 41.7,
+        "sdnn": 108.5,
+        "lfhf": 0.53,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.67,
+        "headingDeg": 9,
+        "magInterference": false
+      },
+      {
+        "tMin": 150,
+        "hr": 116,
+        "rmssd": 48.6,
+        "sdnn": 75.4,
+        "lfhf": 0.48,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.66,
+        "headingDeg": 9,
+        "magInterference": false
+      },
+      {
+        "tMin": 155,
+        "hr": 124,
+        "rmssd": 34.7,
+        "sdnn": 64.7,
+        "lfhf": 0.63,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.66,
+        "headingDeg": 9,
+        "magInterference": false
+      },
+      {
+        "tMin": 160,
+        "hr": 111,
+        "rmssd": 28.4,
+        "sdnn": 43.9,
+        "lfhf": 0.57,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.65,
+        "headingDeg": 9,
+        "magInterference": false
+      },
+      {
+        "tMin": 165,
+        "hr": 101,
+        "rmssd": 184.8,
+        "sdnn": 54.9,
+        "lfhf": 0.35,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.65,
+        "headingDeg": 9,
+        "magInterference": false
+      },
+      {
+        "tMin": 170,
+        "hr": 107,
+        "rmssd": 50,
+        "sdnn": 67.3,
+        "lfhf": 0.61,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.65,
+        "headingDeg": 9,
+        "magInterference": false
+      },
+      {
+        "tMin": 175,
+        "hr": 97,
+        "rmssd": 65.5,
+        "sdnn": 91.4,
+        "lfhf": 0.57,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.62,
+        "headingDeg": 9,
+        "magInterference": false
+      },
+      {
+        "tMin": 180,
+        "hr": 110,
+        "rmssd": 5.7,
+        "sdnn": 77.4,
+        "lfhf": 0.7,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.62,
+        "headingDeg": 9,
+        "magInterference": false
+      },
+      {
+        "tMin": 185,
+        "hr": 127,
+        "rmssd": 21.4,
+        "sdnn": 25.8,
+        "lfhf": 0.62,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.62,
+        "headingDeg": 9,
+        "magInterference": false
+      },
+      {
+        "tMin": 190,
+        "hr": 103,
+        "rmssd": 54.5,
+        "sdnn": 68.3,
+        "lfhf": 0.76,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.61,
+        "headingDeg": 9,
+        "magInterference": false
+      },
+      {
+        "tMin": 195,
+        "hr": 141,
+        "rmssd": 34.9,
+        "sdnn": 52.6,
+        "lfhf": 1.09,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.61,
+        "headingDeg": 9,
+        "magInterference": false
+      },
+      {
+        "tMin": 200,
+        "hr": 139,
+        "rmssd": 19.5,
+        "sdnn": 19.6,
+        "lfhf": 0.5,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.61,
+        "headingDeg": 9,
+        "magInterference": false
+      },
+      {
+        "tMin": 205,
+        "hr": 143,
+        "rmssd": 6.5,
+        "sdnn": 6.2,
+        "lfhf": 0.31,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral_R",
+        "positionConf": 1,
+        "headingDeg": 106,
+        "magInterference": false
+      },
+      {
+        "tMin": 210,
+        "hr": 106,
+        "rmssd": 51.6,
+        "sdnn": 123.9,
+        "lfhf": 0.44,
+        "motionIndex": 0.12,
+        "ledAgreementPct": 67,
+        "position": "supine",
+        "positionConf": 0.42,
+        "headingDeg": 142,
+        "magInterference": true
+      },
+      {
+        "tMin": 215,
+        "hr": 100,
+        "rmssd": 107.8,
+        "sdnn": 59.8,
+        "lfhf": 0.4,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "supine",
+        "positionConf": 0.43,
+        "headingDeg": 141,
+        "magInterference": true
+      },
+      {
+        "tMin": 220,
+        "hr": 104,
+        "rmssd": 28.3,
+        "sdnn": 74.3,
+        "lfhf": 0.5,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "supine",
+        "positionConf": 0.43,
+        "headingDeg": 141,
+        "magInterference": true
+      },
+      {
+        "tMin": 225,
+        "hr": 90,
+        "rmssd": 169.9,
+        "sdnn": 80.9,
+        "lfhf": 0.44,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "supine",
+        "positionConf": 0.44,
+        "headingDeg": 141,
+        "magInterference": true
+      },
+      {
+        "tMin": 230,
+        "hr": 101,
+        "rmssd": 113.4,
+        "sdnn": 72.5,
+        "lfhf": 0.69,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "supine",
+        "positionConf": 0.44,
+        "headingDeg": 141,
+        "magInterference": true
+      },
+      {
+        "tMin": 235,
+        "hr": 92,
+        "rmssd": 153,
+        "sdnn": 72.6,
+        "lfhf": 0.66,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "supine",
+        "positionConf": 0.44,
+        "headingDeg": 141,
+        "magInterference": true
+      },
+      {
+        "tMin": 240,
+        "hr": 87,
+        "rmssd": 236.9,
+        "sdnn": 76.9,
+        "lfhf": 0.56,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "supine",
+        "positionConf": 0.44,
+        "headingDeg": 141,
+        "magInterference": true
+      },
+      {
+        "tMin": 245,
+        "hr": 97,
+        "rmssd": 123.4,
+        "sdnn": 44.2,
+        "lfhf": 0.45,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "supine",
+        "positionConf": 0.44,
+        "headingDeg": 141,
+        "magInterference": true
+      },
+      {
+        "tMin": 250,
+        "hr": 73,
+        "rmssd": 56,
+        "sdnn": 237,
+        "lfhf": 0.41,
+        "motionIndex": 0.13,
+        "ledAgreementPct": 67,
+        "position": "supine",
+        "positionConf": 0.45,
+        "headingDeg": 141,
+        "magInterference": true
+      },
+      {
+        "tMin": 255,
+        "hr": 48,
+        "rmssd": 41.3,
+        "sdnn": 47.4,
+        "lfhf": 1.53,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.46,
+        "headingDeg": 31,
+        "magInterference": true
+      },
+      {
+        "tMin": 260,
+        "hr": 47,
+        "rmssd": 38.5,
+        "sdnn": 40.7,
+        "lfhf": 1.35,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.46,
+        "headingDeg": 31,
+        "magInterference": true
+      },
+      {
+        "tMin": 265,
+        "hr": 48,
+        "rmssd": 77.6,
+        "sdnn": 103.4,
+        "lfhf": 0.47,
+        "motionIndex": 0.13,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.46,
+        "headingDeg": 31,
+        "magInterference": true
+      },
+      {
+        "tMin": 270,
+        "hr": 47,
+        "rmssd": 86.2,
+        "sdnn": 83,
+        "lfhf": 0.42,
+        "motionIndex": 0.13,
+        "ledAgreementPct": 67,
+        "position": "lateral_R",
+        "positionConf": 0.9,
+        "headingDeg": 93,
+        "magInterference": false
+      },
+      {
+        "tMin": 275,
+        "hr": 46,
+        "rmssd": 68,
+        "sdnn": 74.9,
+        "lfhf": 0.48,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral_R",
+        "positionConf": 1,
+        "headingDeg": 103,
+        "magInterference": false
+      },
+      {
+        "tMin": 280,
+        "hr": 46,
+        "rmssd": 62.7,
+        "sdnn": 65.6,
+        "lfhf": 0.39,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral_R",
+        "positionConf": 1,
+        "headingDeg": 103,
+        "magInterference": false
+      },
+      {
+        "tMin": 285,
+        "hr": 46,
+        "rmssd": 57.4,
+        "sdnn": 74.3,
+        "lfhf": 0.97,
+        "motionIndex": 0.13,
+        "ledAgreementPct": 67,
+        "position": "lateral_R",
+        "positionConf": 1,
+        "headingDeg": 104,
+        "magInterference": false
+      },
+      {
+        "tMin": 290,
+        "hr": 46,
+        "rmssd": 38.1,
+        "sdnn": 38.1,
+        "lfhf": 1.78,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral_R",
+        "positionConf": 1,
+        "headingDeg": 107,
+        "magInterference": false
+      },
+      {
+        "tMin": 295,
+        "hr": 47,
+        "rmssd": 43.4,
+        "sdnn": 52.9,
+        "lfhf": 2,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral_R",
+        "positionConf": 1,
+        "headingDeg": 107,
+        "magInterference": false
+      },
+      {
+        "tMin": 300,
+        "hr": 46,
+        "rmssd": 38,
+        "sdnn": 44.1,
+        "lfhf": 1.65,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral_R",
+        "positionConf": 1,
+        "headingDeg": 106,
+        "magInterference": false
+      },
+      {
+        "tMin": 305,
+        "hr": 48,
+        "rmssd": 38.4,
+        "sdnn": 80.5,
+        "lfhf": 0.82,
+        "motionIndex": 0.12,
+        "ledAgreementPct": 67,
+        "position": "lateral_R",
+        "positionConf": 1,
+        "headingDeg": 106,
+        "magInterference": false
+      },
+      {
+        "tMin": 310,
+        "hr": 48,
+        "rmssd": 69.7,
+        "sdnn": 70.3,
+        "lfhf": 0.45,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral_R",
+        "positionConf": 0.93,
+        "headingDeg": 103,
+        "magInterference": false
+      },
+      {
+        "tMin": 315,
+        "hr": 49,
+        "rmssd": 71.1,
+        "sdnn": 106.1,
+        "lfhf": 0.66,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral_L",
+        "positionConf": 0.77,
+        "headingDeg": 353,
+        "magInterference": false
+      },
+      {
+        "tMin": 320,
+        "hr": 53,
+        "rmssd": 63.7,
+        "sdnn": 101.1,
+        "lfhf": 0.74,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral_L",
+        "positionConf": 0.62,
+        "headingDeg": 356,
+        "magInterference": false
+      },
+      {
+        "tMin": 325,
+        "hr": 49,
+        "rmssd": 73.4,
+        "sdnn": 104.1,
+        "lfhf": 0.54,
+        "motionIndex": 0.13,
+        "ledAgreementPct": 67,
+        "position": "supine",
+        "positionConf": 0.34,
+        "headingDeg": 148,
+        "magInterference": true
+      },
+      {
+        "tMin": 330,
+        "hr": 47,
+        "rmssd": 58.6,
+        "sdnn": 60.1,
+        "lfhf": 0.86,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "supine",
+        "positionConf": 0.34,
+        "headingDeg": 147,
+        "magInterference": true
+      },
+      {
+        "tMin": 335,
+        "hr": 46,
+        "rmssd": 63.7,
+        "sdnn": 98.2,
+        "lfhf": 0.55,
+        "motionIndex": 0.13,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.57,
+        "headingDeg": 110,
+        "magInterference": true
+      },
+      {
+        "tMin": 340,
+        "hr": 47,
+        "rmssd": 40.2,
+        "sdnn": 52,
+        "lfhf": 2.66,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.38,
+        "headingDeg": 11,
+        "magInterference": true
+      },
+      {
+        "tMin": 345,
+        "hr": 47,
+        "rmssd": 40.1,
+        "sdnn": 50.2,
+        "lfhf": 2.49,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.39,
+        "headingDeg": 11,
+        "magInterference": true
+      },
+      {
+        "tMin": 350,
+        "hr": 47,
+        "rmssd": 34.9,
+        "sdnn": 50.9,
+        "lfhf": 1.49,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.34,
+        "headingDeg": 10,
+        "magInterference": true
+      },
+      {
+        "tMin": 355,
+        "hr": 48,
+        "rmssd": 38,
+        "sdnn": 55.5,
+        "lfhf": 1.61,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.35,
+        "headingDeg": 10,
+        "magInterference": true
+      },
+      {
+        "tMin": 360,
+        "hr": 48,
+        "rmssd": 38.4,
+        "sdnn": 52.3,
+        "lfhf": 2.6,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.35,
+        "headingDeg": 10,
+        "magInterference": true
+      },
+      {
+        "tMin": 365,
+        "hr": 48,
+        "rmssd": 43.6,
+        "sdnn": 62.4,
+        "lfhf": 4.21,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.36,
+        "headingDeg": 10,
+        "magInterference": true
+      },
+      {
+        "tMin": 370,
+        "hr": 49,
+        "rmssd": 47.2,
+        "sdnn": 106.7,
+        "lfhf": 1.29,
+        "motionIndex": 0.13,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.36,
+        "headingDeg": 11,
+        "magInterference": true
+      },
+      {
+        "tMin": 375,
+        "hr": 47,
+        "rmssd": 39.6,
+        "sdnn": 47.7,
+        "lfhf": 1.57,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.33,
+        "headingDeg": 163,
+        "magInterference": true
+      },
+      {
+        "tMin": 380,
+        "hr": 48,
+        "rmssd": 33.1,
+        "sdnn": 29.5,
+        "lfhf": 1.01,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.33,
+        "headingDeg": 163,
+        "magInterference": true
+      },
+      {
+        "tMin": 385,
+        "hr": 48,
+        "rmssd": 31.2,
+        "sdnn": 30.4,
+        "lfhf": 1.26,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.32,
+        "headingDeg": 163,
+        "magInterference": true
+      },
+      {
+        "tMin": 390,
+        "hr": 48,
+        "rmssd": 83.3,
+        "sdnn": 94,
+        "lfhf": 0.65,
+        "motionIndex": 0.12,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.56,
+        "headingDeg": 103,
+        "magInterference": true
+      },
+      {
+        "tMin": 395,
+        "hr": 71,
+        "rmssd": 115.6,
+        "sdnn": 258.9,
+        "lfhf": 0.61,
+        "motionIndex": 0.15,
+        "ledAgreementPct": 67,
+        "position": "upright",
+        "positionConf": 0.19,
+        "headingDeg": 120,
+        "magInterference": true
+      },
+      {
+        "tMin": 400,
+        "hr": 103,
+        "rmssd": 68,
+        "sdnn": 104.7,
+        "lfhf": 0.44,
+        "motionIndex": 0.13,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.38,
+        "headingDeg": 6,
+        "magInterference": true
+      },
+      {
+        "tMin": 405,
+        "hr": 161,
+        "rmssd": 27.4,
+        "sdnn": 36.7,
+        "lfhf": 0.44,
+        "motionIndex": 0.12,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.28,
+        "headingDeg": 0,
+        "magInterference": true
+      },
+      {
+        "tMin": 410,
+        "hr": 142,
+        "rmssd": 34.3,
+        "sdnn": 54.5,
+        "lfhf": 0.5,
+        "motionIndex": 0.14,
+        "ledAgreementPct": 67,
+        "position": "prone",
+        "positionConf": 0.29,
+        "headingDeg": 3,
+        "magInterference": true
+      },
+      {
+        "tMin": 415,
+        "hr": 117,
+        "rmssd": 48,
+        "sdnn": 45.1,
+        "lfhf": 0.63,
+        "motionIndex": 0.13,
+        "ledAgreementPct": 67,
+        "position": "upright",
+        "positionConf": 0.16,
+        "headingDeg": 138,
+        "magInterference": true
+      },
+      {
+        "tMin": 420,
+        "hr": 97,
+        "rmssd": 64.6,
+        "sdnn": 236.5,
+        "lfhf": 1.07,
+        "motionIndex": 0.14,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.58,
+        "headingDeg": 107,
+        "magInterference": true
+      },
+      {
+        "tMin": 425,
+        "hr": 53,
+        "rmssd": 84.8,
+        "sdnn": 104.1,
+        "lfhf": 0.62,
+        "motionIndex": 0.12,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.54,
+        "headingDeg": 4,
+        "magInterference": false
+      },
+      {
+        "tMin": 430,
+        "hr": 55,
+        "rmssd": 68.4,
+        "sdnn": 98.1,
+        "lfhf": 0.61,
+        "motionIndex": 0.16,
+        "ledAgreementPct": 67,
+        "position": "lateral",
+        "positionConf": 0.27,
+        "headingDeg": 2,
+        "magInterference": true
+      }
+    ]
+  }
+}

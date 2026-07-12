@@ -64,7 +64,8 @@
         "oxydex-fusion.js",
         "oxydex-app.js",
         "hrvdex-dsp.js",
-        "hrvdex-app.js"
+        "hrvdex-app.js",
+        "ppgdex-dsp.js"
       ],
       "formatter": { "enabled": false }
     }
