@@ -30,6 +30,17 @@ changesets.)
 
 ---
 
+## [1.5.0] — 2026-07-12
+
+### Changed
+- Run the `biome` gate on push to `main` as well as on PRs — a whole-tree Biome lint floor on push (mirroring `tests`/`types`/`no-network`), restoring the on-push lint coverage the retired eslint shim provided, now under the `biome` check name. PRs keep the changed-files `biome ci --changed` format+lint.
+- Delete the `lint.yml` compatibility shim now that the `main` Ruleset no longer requires an `eslint` status check — Biome (`format.yml`) is the sole formatter+linter, no ESLint anywhere. (`BIOME-FORMATTER-2026-07-11-BRIEF.md`)
+
+### Fixed
+- Arbitrate the PPI spine by Malik correction rate — foot-to-foot vs the 3-LED-voted peak spine — fixing optical HR that read 2–3× true when `pickChannel` selects a harmonic-counting LED as the reference.
+
+---
+
 ## [1.4.0] — 2026-07-11
 
 ### Security
@@ -237,7 +248,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/Plantucha/Tepna/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/Plantucha/Tepna/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/Plantucha/Tepna/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/Plantucha/Tepna/compare/v1.1.1...v1.2.0

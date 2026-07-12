@@ -146,6 +146,26 @@
         "SECURITY-CSP-STRICT-SCRIPT-SRC-2026-07-11-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "1.5.0",
+      "date": "2026-07-12",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "97f172d48c81",
+        "OxyDex": "514ffce06bb2",
+        "PulseDex": "7cd6acbed410",
+        "GlucoDex": "6f000b07cb96",
+        "PpgDex": "971039596106",
+        "HRVDex": "c03e7c597dab",
+        "CPAPDex": "b7cc3f0256da",
+        "Integrator": "fddf2da9bb8f"
+      },
+      "briefs": [
+        "BIOME-FORMATTER-2026-07-11-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
