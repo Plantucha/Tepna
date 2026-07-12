@@ -653,7 +653,11 @@
     var _org = (p && p._origins) || null;
     function originOf(f) {
       if (_org && _org[f]) return _org[f];
-      try { return resolve(f).origin; } catch (e) { return 'pop'; }
+      try {
+        return resolve(f).origin;
+      } catch (e) {
+        return 'pop';
+      }
     }
     function basisOf(fields) {
       var det = false;
@@ -1255,9 +1259,7 @@
         items += di('Pulse pressure', d.pp + ' mmHg', d.pp < 50 ? 'optimal' : 'elevated', 'measured', 'pp');
       }
       if (!items) return '';
-      var note = d.personalized
-        ? ''
-        : '<span class="pd-group-note">· values marked <b>pop default</b> rest on population norms, not on data you entered</span>';
+      var note = d.personalized ? '' : '<span class="pd-group-note">· values marked <b>pop default</b> rest on population norms, not on data you entered</span>';
       return '<div class="pd-group"><span class="pd-group-label">Derived — one engine, identical in every node</span>' + note + '<div class="pd-group-grid">' + items + '</div></div>';
     }
 
