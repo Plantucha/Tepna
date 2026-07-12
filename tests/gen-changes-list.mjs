@@ -7,7 +7,7 @@
  * project root, or http://www.apache.org/licenses/LICENSE-2.0
  *
  * CONTROLLED-RELEASES-2026-07-05.
- * Regenerates tests/changes-list.json — the BROWSER lane's changeset-name source for the
+ * Regenerates tests/changes-list.txt — the BROWSER lane's changeset-name source for the
  * `release-ledger` gate (fetch cannot list a directory, so the browser reads names from this
  * committed file). Run this whenever a changeset is ADDED to or PRUNED from changes/:
  *
@@ -19,18 +19,21 @@
  * any _/.-prefixed file are NOT changesets and are excluded (mirrors the gate + release.mjs filter).
  */
 import { readdirSync, writeFileSync, existsSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
+const { formatList } = createRequire(import.meta.url)('./list-format.js');
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const dir = join(ROOT, 'changes');
-const isChangeset = f => f.endsWith('.md') && f !== 'README.md' && !/^[._]/.test(f);
+const isChangeset = (f) => f.endsWith('.md') && f !== 'README.md' && !/^[._]/.test(f);
 const changes = existsSync(dir) ? readdirSync(dir).filter(isChangeset).sort() : [];
-const out = {
-  _doc: "Generated changeset-name ledger for the release-ledger gate's BROWSER lane (fetch can't list a dir). Regenerate with tests/gen-changes-list.mjs (Node) whenever a changeset is added to or pruned from changes/; the Node lane asserts this matches fs reality, so a stale list reds in CI. Excludes README.md and _/.-prefixed files. CONTROLLED-RELEASES-2026-07-05.",
-  generated: new Date().toISOString().slice(0, 10),
-  count: changes.length,
-  changes
-};
-writeFileSync(join(ROOT, 'tests', 'changes-list.json'), JSON.stringify(out, null, 2) + '\n');
-console.log('wrote tests/changes-list.json — ' + changes.length + ' pending changeset(s)');
+const out = formatList(
+  "Generated changeset-name ledger for the release-ledger gate's BROWSER lane (fetch can't list a dir).\n" +
+    'Regenerate with tests/gen-changes-list.mjs whenever a changeset is added to or pruned from changes/;\n' +
+    'the Node lane asserts this matches fs reality, so a stale list reds in CI. Excludes README.md and\n' +
+    '_/.-prefixed files. CONTROLLED-RELEASES-2026-07-05.',
+  { change: changes }
+);
+writeFileSync(join(ROOT, 'tests', 'changes-list.txt'), out);
+console.log('wrote tests/changes-list.txt — ' + changes.length + ' pending changeset(s)');

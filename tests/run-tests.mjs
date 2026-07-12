@@ -19,13 +19,37 @@
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
+import { spawn } from 'node:child_process';
+import { cpus } from 'node:os';
 import { walkRepoPaths } from './docs-ledger-fs.mjs';
 import { planShards, partitionViolations, readTimings } from './shard-plan.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const { parseList } = createRequire(import.meta.url)('./list-format.js');
 const ROOT = join(__dirname, '..');
+
+/* Corpus root (G1 · EFFICIENCY-AUDIT-FINDINGS-2026-07-12). The raw recordings under uploads/ are
+   GITIGNORED (personal medical data), so a fresh clone — CI, and the worktree CLAUDE.md §👥 mandates —
+   simply does not have them, and every leg that needs one degrades to a ⊘ SKIP. A skip is neither pass
+   nor fail, so the gate goes GREEN having never run them: measured, CI verifies 2087 assertions and
+   10 of 23 GATE-B fixtures where a full-corpus run does 2107 and 23/23.
+   DEX_UPLOADS=<path> points the runner at a real corpus (e.g. the main checkout's uploads/ from inside
+   a worktree), so the mandated workflow can run the gate it claims to run. It is ALSO how you reproduce
+   CI's exact coverage locally — point it at a dir holding only the tracked fixtures. */
+const UPLOADS = process.env.DEX_UPLOADS ? resolve(process.env.DEX_UPLOADS) : join(ROOT, 'uploads');
+
+/* The declared skip budget (G1). Missing/corrupt file → an EMPTY allow-list, which means every skip is
+   undeclared and the run reds — deliberately fail-closed: a lost allow-list must not silently re-open
+   the door it was added to close. */
+const EXPECTED_SKIPS = (() => {
+  try {
+    return JSON.parse(readFileSync(join(__dirname, 'expected-skips.json'), 'utf8'));
+  } catch (_) {
+    return { allow: [] };
+  }
+})();
 const require = createRequire(import.meta.url);
 
 const C = { reset: '\x1b[0m', red: '\x1b[31m', green: '\x1b[32m', dim: '\x1b[2m', bold: '\x1b[1m', yellow: '\x1b[33m', cyan: '\x1b[36m' };
@@ -79,6 +103,31 @@ const SHOW_TIMINGS = process.argv.slice(2).some((s) => /^--?timings?$/i.test(s))
 /* --list: declare every group, execute NONE (inventory only, ~0 s) — the cheap input to the
    shard-partition proof. --json: emit machine-readable results instead of the human report; it is
    what verify-shard-union.mjs --deep diffs full-run vs shard-union with. */
+/* --jobs=N (D1 · EFFICIENCY-AUDIT-FINDINGS-2026-07-12): fork N children over the SAME shard plan CI
+   uses and merge their verdicts. The partition proof (tests/verify-shard-union.mjs) already guarantees
+   the union of the shards IS the full gate, so this is the full gate — just on all your cores. The
+   suite was still single-threaded locally (102 s on 1 of 6 cores) while CI finished in 78 s: your
+   laptop was slower than CI at the same work. `--jobs` (or `npm run test:par`) closes that.
+   N defaults to the CI shard count; --jobs=auto sizes to the machine. */
+const JOBS = (() => {
+  const a = process.argv.slice(2);
+  let raw = '';
+  for (let i = 0; i < a.length; i++) {
+    const m = a[i].match(/^--?jobs?=(.+)$/i);
+    if (m) raw = m[1];
+    else if (/^--?jobs?$/i.test(a[i])) raw = a[i + 1] && /^\d+$/.test(a[i + 1]) ? a[i + 1] : 'auto';
+  }
+  raw = raw || process.env.DEX_JOBS || '';
+  if (!raw) return 0;
+  if (/^auto$/i.test(raw)) return Math.max(2, Math.min(8, cpus().length - 1));
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) {
+    console.error(`✗ bad --jobs "${raw}" — want a positive integer, or "auto"`);
+    process.exit(2);
+  }
+  return n;
+})();
+
 const LIST_ONLY = process.argv.slice(2).some((s) => /^--?list$/i.test(s));
 const AS_JSON = process.argv.slice(2).some((s) => /^--?json$/i.test(s));
 
@@ -242,8 +291,8 @@ function readEquiv() {
   // them (the old behavior) silently starved the fixture-only consumers too, and made the diff
   // hard-FAIL instead of skip on a fresh CI clone.
   const pair = (key, inFile, fixFile) => {
-    const inP = join(ROOT, 'uploads', inFile),
-      fxP = join(ROOT, 'uploads', fixFile);
+    const inP = join(UPLOADS, inFile),
+      fxP = join(UPLOADS, fixFile);
     const rec = {};
     if (existsSync(inP)) {
       try {
@@ -301,7 +350,7 @@ function readEquiv() {
     const inp = {};
     let complete = true;
     for (const k of KINDS) {
-      const p = join(ROOT, 'uploads', `20260613_231433_${k}.edf`);
+      const p = join(UPLOADS, `20260613_231433_${k}.edf`);
       if (!existsSync(p)) {
         complete = false;
         break;
@@ -309,7 +358,7 @@ function readEquiv() {
       const b = readFileSync(p); // binary: no 'utf8'
       inp[k] = b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
     }
-    const fxP = join(ROOT, 'uploads', 'cpapdex_synthetic_edf_golden.node-export.json');
+    const fxP = join(UPLOADS, 'cpapdex_synthetic_edf_golden.node-export.json');
     const rec = {};
     if (complete) rec.input = inp;
     if (existsSync(fxP)) {
@@ -325,7 +374,7 @@ function readEquiv() {
   // deterministic synthetic night from CpapDsp._synthEdfSet in-code; only the committed golden EXPORT is
   // wired. (Retained: it pins the DECODED-set path, while cpapdex_edf above pins the BINARY-parser path.)
   {
-    const fxP = join(ROOT, 'uploads', 'cpapdex_synthetic_golden.node-export.json');
+    const fxP = join(UPLOADS, 'cpapdex_synthetic_golden.node-export.json');
     if (existsSync(fxP)) {
       try {
         out.cpapdex_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')) };
@@ -339,7 +388,7 @@ function readEquiv() {
   // No INPUT file — the gate rebuilds >=3 deterministic day-shifted synthetic nights in-code (needs
   // env.CPAPCross / cpapdex-cross.js co-loaded above); only the committed golden EXPORT is wired.
   {
-    const fxP = join(ROOT, 'uploads', 'cpapdex_synthetic_multinight_golden.node-export.json');
+    const fxP = join(UPLOADS, 'cpapdex_synthetic_multinight_golden.node-export.json');
     if (existsSync(fxP)) {
       try {
         out.cpapdex_multinight_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')) };
@@ -351,7 +400,7 @@ function readEquiv() {
   // Integrator TCH-HR GOLDEN (INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II §2): first code-gated Integrator
   // fixture — fixture-only, the gate rebuilds the three staggered synthetic node-exports in-code and fuses them.
   {
-    const fxP = join(ROOT, 'uploads', 'integrator_tch_golden.node-export.json');
+    const fxP = join(UPLOADS, 'integrator_tch_golden.node-export.json');
     if (existsSync(fxP)) {
       try {
         out.integrator_tch_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')) };
@@ -406,7 +455,7 @@ function readBundleCsp() {
 
 // docs-ledger gate (DOCS-LEDGER-GATE-2026-07-03): the brief lifecycle, machine-checked. Node lane has
 // full fs truth — read every briefs/*.md, DOCS-INDEX.md, the root *-BRIEF.md set, AND the committed
-// tests/docs-ledger-list.json (the browser lane's name source) so the group can assert list == fs.
+// tests/docs-ledger-list.txt (the browser lane's name source) so the group can assert list == fs.
 function readDocsLedger() {
   const bdir = join(ROOT, 'briefs');
   if (!existsSync(bdir)) return null;
@@ -422,12 +471,12 @@ function readDocsLedger() {
     .sort();
   let listedBriefNames = [],
     listedPaths = [];
-  const listP = join(ROOT, 'tests', 'docs-ledger-list.json');
+  const listP = join(ROOT, 'tests', 'docs-ledger-list.txt');
   if (existsSync(listP)) {
     try {
-      const j = JSON.parse(readFileSync(listP, 'utf8'));
-      listedBriefNames = j.briefs || [];
-      listedPaths = j.paths || [];
+      const j = parseList(readFileSync(listP, 'utf8')); // sorts + dedupes a union merge's output (D2)
+      listedBriefNames = j.brief || [];
+      listedPaths = j.path || [];
     } catch (e) {
       /* stale/broken → staleness check reds */
     }
@@ -441,7 +490,7 @@ function readDocsLedger() {
 
 // release-ledger gate (CONTROLLED-RELEASES-2026-07-05): controlled releases machine-checked. Node lane
 // has fs truth — read suite.manifest.json, RELEASE-MANIFEST.json, CHANGELOG.md, every real changes/*.md,
-// AND the committed tests/changes-list.json (the browser lane's name source) so the group asserts list==fs.
+// AND the committed tests/changes-list.txt (the browser lane's name source) so the group asserts list==fs.
 function readReleaseLedger() {
   const manP = join(ROOT, 'suite.manifest.json'),
     relP = join(ROOT, 'RELEASE-MANIFEST.json');
@@ -459,10 +508,10 @@ function readReleaseLedger() {
     for (const n of fsChangeNames) changeFiles[n] = readFileSync(join(cdir, n), 'utf8');
   }
   let listedChangeNames = [];
-  const listP = join(ROOT, 'tests', 'changes-list.json');
+  const listP = join(ROOT, 'tests', 'changes-list.txt');
   if (existsSync(listP)) {
     try {
-      listedChangeNames = JSON.parse(readFileSync(listP, 'utf8')).changes || [];
+      listedChangeNames = parseList(readFileSync(listP, 'utf8')).change || [];
     } catch (e) {
       /* stale/broken → staleness check reds */
     }
@@ -513,7 +562,50 @@ function readDocs() {
 }
 
 /* ── 3 · run ─────────────────────────────────────────────────────────────── */
-function main() {
+/* D1 · run the shard plan across N forked children and merge their verdicts.
+   Correctness rides entirely on the partition proof: every declared group lands in exactly one shard,
+   so concatenating the children's groups reconstructs the full run — same groups, same assertions,
+   same verdicts (verify-shard-union.mjs --deep proves this empirically). A child that dies without
+   parseable JSON is a HARD failure, never a silent gap: a lost shard would be a silently shrunken
+   gate, which is the exact failure class G1 is about. */
+async function runForked(jobs) {
+  const self = fileURLToPath(import.meta.url);
+  const passthru = process.argv.slice(2).filter((a) => !/^--?(jobs?|json|timings?)(=|$)/i.test(a));
+  const t0 = Date.now();
+  console.log(paint(`▸ --jobs=${jobs}`, C.cyan) + paint(`  forking ${jobs} shard(s) over the same partition CI uses…`, C.dim));
+
+  const child = (i) =>
+    new Promise((res) => {
+      const c = spawn(process.execPath, [self, `--shard=${i}/${jobs}`, '--json', ...passthru], { encoding: 'utf8' });
+      let out = '',
+        err = '';
+      c.stdout.on('data', (d) => (out += d));
+      c.stderr.on('data', (d) => (err += d));
+      c.on('close', (code) => res({ i, code, out, err }));
+    });
+
+  const results = await Promise.all(Array.from({ length: jobs }, (_, k) => child(k + 1)));
+  const groups = [];
+  for (const r of results) {
+    let j = null;
+    try {
+      j = JSON.parse(r.out);
+    } catch (_) {
+      /* fall through to the hard failure below */
+    }
+    if (!j || !Array.isArray(j.groups)) {
+      console.error(paint(`\n✗ shard ${r.i}/${jobs} produced no parseable result (exit ${r.code}) — refusing to report a partial gate as a pass.`, C.red));
+      console.error((r.err || r.out || '').split('\n').slice(0, 15).join('\n'));
+      process.exit(2);
+    }
+    groups.push(...j.groups);
+  }
+  groups.sort((a, b) => a.index - b.index); // declaration order, so the report reads like a serial run
+  console.log(paint(`  ${groups.length} groups in ${((Date.now() - t0) / 1000).toFixed(1)} s\n`, C.dim));
+  return groups;
+}
+
+async function main() {
   let ctx;
   try {
     ctx = makeSandbox();
@@ -687,7 +779,7 @@ function main() {
     listOnly: LIST_ONLY
   };
 
-  const { runDexTests } = require('./dex-tests.js');
+  const { runDexTests, auditSkips } = require('./dex-tests.js');
 
   /* Sharding is a TWO-PASS run, and it is cheap because pass 1 costs nothing: an inventory pass
      (listOnly) declares all N groups while executing ZERO of them (~0.07 s — every group body is
@@ -709,7 +801,8 @@ function main() {
     SHARD.unknown = unknown.length;
   }
 
-  const { groups, totalGroups, groupFilter } = runDexTests(env);
+  const forked = JOBS && !SHARD && !AS_JSON && !LIST_ONLY ? await runForked(JOBS) : null;
+  const { groups, totalGroups, groupFilter } = forked ? { groups: forked, totalGroups: forked.length, groupFilter: GROUP_FILTER || null } : runDexTests(env);
 
   // Machine-readable lanes (--list inventory / --json results) — no human report, no colour.
   if (AS_JSON || LIST_ONLY) {
@@ -724,7 +817,7 @@ function main() {
           title: g.title,
           tag: g.tag,
           ms: g.ms == null ? null : g.ms,
-          tests: LIST_ONLY ? undefined : g.tests.map((t) => ({ name: t.name, pass: !!t.pass, skip: !!t.skip }))
+          tests: LIST_ONLY ? undefined : g.tests.map((t) => ({ name: t.name, pass: !!t.pass, skip: !!t.skip, detail: t.detail || '' }))
         }))
       })
     );
@@ -790,6 +883,36 @@ function main() {
       const pct = totalMs ? ((100 * g.ms) / totalMs).toFixed(1) : '0.0';
       console.log('  ' + String(g.ms).padStart(7) + ' ms  ' + paint((pct + '%').padStart(6), C.dim) + '  ' + g.title);
     }
+  }
+
+  /* ── SKIP BUDGET (G1) ──────────────────────────────────────────────────────────────────────
+     A ⊘ is neither pass nor fail, so a leg that stops running does not red the gate — it just
+     stops being checked, silently. Every skip must therefore be DECLARED in expected-skips.json.
+     An undeclared skip is a FAILURE: shrinking the gate has to be a deliberate, reviewable act.
+     Shard-safe — it judges only the groups that ran in this process. */
+  const { violations: skipViolations, counted: skipCounted } = auditSkips(groups, EXPECTED_SKIPS.allow || []);
+  if (skipViolations.length) {
+    fail += skipViolations.length;
+    console.log('\n' + paint('▸ SKIP BUDGET — ' + skipViolations.length + ' UNDECLARED skip(s)', C.red));
+    console.log(paint('  A skip is neither pass nor fail: this leg stopped being checked and the gate would still be green.', C.dim));
+    for (const v of skipViolations) console.log(paint('  ✕ ', C.red) + '[' + v.group + '] ' + v.test + (v.detail ? paint('  — ' + v.detail, C.yellow) : ''));
+    console.log(paint('  → If this skip is intended, declare it in tests/expected-skips.json (and justify it — you are shrinking the gate).', C.yellow));
+  }
+
+  /* ── COVERAGE (G1) ────────────────────────────────────────────────────────────────────────
+     Say out loud what this run did NOT verify. The whole G1 finding is that CI silently ran a
+     weaker gate than local for want of one line of output. */
+  if (skipCounted['corpus-absent']) {
+    console.log(
+      '\n' +
+        paint('▸ COVERAGE — ' + skipCounted['corpus-absent'] + ' leg(s) NOT verified: the raw recording is absent', C.yellow) +
+        paint(
+          '\n  uploads/ raw recordings are gitignored, so a fresh clone (CI, or a worktree) cannot run them —' +
+            '\n  including the real-recording equivalence legs (the GATE-C surface). This run is NOT the full gate.' +
+            '\n  → Point DEX_UPLOADS=<path> at a real corpus to actually run them.',
+          C.dim
+        )
+    );
   }
 
   // TAP-ish footer for CI log parsers

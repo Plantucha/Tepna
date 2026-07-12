@@ -36,7 +36,7 @@ node tools/release.mjs               # cut it
 3. prepends a Keep-a-Changelog section to `CHANGELOG.md`;
 4. appends a `RELEASE-MANIFEST.json` record (version, date, bump, contributing briefs, per-app
    `manifestHash` snapshot);
-5. deletes the consumed changesets and regenerates `tests/changes-list.json`;
+5. deletes the consumed changesets and regenerates `tests/changes-list.txt`;
 6. prints the `git` commit + `git tag v<version>` commands.
 
 ## After the script

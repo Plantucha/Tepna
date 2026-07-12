@@ -123,7 +123,7 @@ Status lives in a one-line header block on the first content line (just after an
   resolves against the real brief set, and every other `docs/·audits/·wiring/·root` link resolves against a
   whole-tree path inventory), a one-sided `Superseded-by`/`Supersedes` pair, or a filename↔`Created` date
   mismatch turns the suite RED. Pre-2026-07-03 headerless briefs are grandfathered (never fabricate a
-  status). The browser lane reads brief names **and the path inventory** from `tests/docs-ledger-list.json`
+  status). The browser lane reads brief names **and the path inventory** from `tests/docs-ledger-list.txt`
   — **regenerate it (`node tests/gen-docs-ledger-list.mjs`) whenever you add/remove a brief OR move/rename
   any linkable file**; the Node lane asserts both match `briefs/` + the tree on disk, so a stale list also reds.
 - **Repo layout (2026-07-03 owner-sanctioned relocation — the second deliberate break of the old
@@ -357,7 +357,7 @@ hand-typed version onto source files — `manifestHash` already identifies code 
   strictly-increasing versions · history↔changelog parity · changeset well-formedness · **check 7 — code
   that moved (`manifestHash` ≠ the last release's snapshot) requires a pending changeset** (you can't
   ship code without recording it; zero false positives — `manifestHash` is deterministic). The browser
-  lane reads `tests/changes-list.json` — **regenerate it (`node tests/gen-changes-list.mjs`) whenever a
+  lane reads `tests/changes-list.txt` — **regenerate it (`node tests/gen-changes-list.mjs`) whenever a
   changeset is added/pruned** (`release.mjs` does this automatically); the Node lane asserts it matches
   `changes/` on disk, so a stale list reds.
 - **62304/13485-ALIGNED, not conformant.** The `docs/COMPLIANCE/` set (lifecycle plan · safety class ·

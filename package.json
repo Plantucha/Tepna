@@ -17,6 +17,9 @@
     "format:check": "biome ci --no-errors-on-unmatched",
     "format:changed": "biome ci --changed --no-errors-on-unmatched",
     "test": "node tests/run-tests.mjs",
+    "test:par": "node tests/run-tests.mjs --jobs=auto",
+    "test:shard": "node tests/run-tests.mjs --shard",
+    "verify:shard-union": "node tests/verify-shard-union.mjs",
     "test:build-core": "node tests/build-core-tests.mjs",
     "verify:manifest": "node tests/verify-manifest.mjs",
     "check:dex": "node tests/check-dex.mjs",
@@ -27,7 +30,7 @@
     "gen:lists": "npm run gen:docs-ledger && npm run gen:changes",
     "release": "node tools/release.mjs",
     "release:dry": "node tools/release.mjs --dry-run",
-    "check": "npm run typecheck && npm run lint && npm run test && npm run test:build-core && npm run build:check && npm run verify:manifest"
+    "check": "npm run typecheck && npm run lint && npm run test:par && npm run test:build-core && npm run build:check && npm run verify:manifest"
   },
   "engines": {
     "node": ">=18"
