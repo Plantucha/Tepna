@@ -120,6 +120,22 @@ These make the contracts real. Treat a red as a **blocker**, not a nitpick.
 > (For the reconcile ledger-edit that `reconcile-provenance.mjs` computes, the browser now has the same
 > report — `verify-provenance.html` §3 Reconcile.)
 
+> **⚠️ A green CI is NOT the full gate — the real-corpus legs SKIP in every clone.** The
+> `compute() ≡ committed export` equivalence legs (the **GATE-C** surface) read raw recordings from
+> `uploads/`, which `.gitignore` excludes as **personal data**. So in CI — and in any fresh clone or
+> worktree — those legs report `⊘ committed input absent` and **silently do not run**. A skip reads
+> exactly like a pass in the summary count. To actually run them, point the runner at a real corpus:
+>
+> ```sh
+> DEX_UPLOADS=/path/to/uploads node tests/run-tests.mjs      # runs the 6 real-recording equiv legs
+> ```
+>
+> With the corpus present the suite goes from ~11 skips to 2, and every `compute() ≡ committed export`
+> leg is exercised byte-for-byte. **Run this before cutting a release** (`tools/release.mjs --dry-run`
+> prints the same warning). The *adversarial* equiv inputs — MDY order, dropped rows, a full-length
+> night — are **committed synthetic** files and therefore DO run in CI (DEEP-AUDIT-FOLLOWUPS §A); it is
+> only the real-recording legs that need `DEX_UPLOADS`.
+
 1. **Behavior — `Dex-Test-Suite.html`.** Render-coverage is **on-demand** (lazy, 2026-06-30): a bare
    open paints only the headless floor in ~3 s and the pill reads amber **`✓ headless green ·
    render-coverage not run — ▶ or ?full`** — that is the floor, **NOT a pass**. To run the FULL gate,
