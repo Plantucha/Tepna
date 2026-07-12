@@ -296,7 +296,18 @@ function readEquiv() {
   // hard-FAIL instead of skip on a fresh CI clone.
   const pairFrom = (base, key, inFile, fixFile) => {
     const inP = join(base, inFile),
-      fxP = fixFile ? join(base, fixFile) : null; // adversarial twins carry NO golden
+      // ⚠️ The FIXTURE always comes from the REPO, never from DEX_UPLOADS.
+      //
+      // A fixture is a COMMITTED repo artifact — the reference this checkout's code is being diffed
+      // against. DEX_UPLOADS points at a corpus of gitignored RECORDINGS (often another checkout's
+      // uploads/), and resolving the fixture there means diffing your code against SOMEONE ELSE'S
+      // committed reference. That is not a weaker gate, it is a WRONG one: it produced a false FAILURE
+      // the moment it was tried (a checkout one merge behind still had `metrics.mode:"APAP"` where HEAD
+      // says `null`), and a checkout stale in the other direction would produce a false PASS.
+      //
+      // The same reasoning already fixed committed INPUTS (see pairCommitted below); fixtures were the
+      // half that got missed. DEX_UPLOADS supplies RECORDINGS. It must never supply the ANSWER KEY.
+      fxP = fixFile ? join(ROOT, 'uploads', fixFile) : null; // adversarial twins carry NO golden
     const rec = {};
     if (existsSync(inP)) {
       try {
@@ -312,6 +323,10 @@ function readEquiv() {
         /* unreadable → treat as absent */
       }
     }
+    // WHICH committed fixture file this leg re-runs. Single-sourced here (the runner is the only
+    // place that knows the filename) so the fixture-reproducibility gate can check the ledger's
+    // code-gated set against the set that something actually reproduces, with no third list to drift.
+    if (fixFile) rec.fixtureFile = fixFile;
     if (rec.input !== undefined || rec.fixture !== undefined) out[key] = rec;
   };
   const pair = (key, inFile, fixFile) => pairFrom(UPLOADS, key, inFile, fixFile);
@@ -320,6 +335,11 @@ function readEquiv() {
   // cannot make it "absent" and turn a gate with teeth into an (undeclared, and now fail-closed) skip.
   const pairCommitted = (key, inFile, fixFile) => pairFrom(join(ROOT, 'uploads'), key, inFile, fixFile);
   pair('oxydex', 'O2Ring S 2100_20260612230016.csv', 'OxyDex_2026-06-13_1056_summary.json');
+  // FIXTURE-REPRODUCIBILITY §1: OxyDex's SECOND committed summary was code-gated (it carries a
+  // manifestHash claim) but nothing ever re-ran it — CLAUDE.md even says so in prose ("only _1056 has
+  // an equiv leg, but _0439 shares the same code"), which is an instruction to a human, not a gate.
+  // It has a leg now, so the claim is checked rather than asserted.
+  pair('oxydex_0439', 'O2Ring S 2100_20260624222730.csv', 'OxyDex_2026-06-25_0439_summary.json');
   pair('pulsedex', 'Polar_H10_AAAAAAAA_20260613_204448_RR.txt', 'PulseDex_2026-06-25_equiv.node-export.json');
   pair('hrvdex', 'WELLTORY_HRV_DATA_EXPORT_20_May_2026_12_00_AM-17_Jun_2026_11_59_PM.csv', 'HRVDex_2026-06-25_equiv.node-export.json');
   // VII §2: event-byte-coverage cases (purpose-built inputs that emit ≥1 event of each impulse;
@@ -375,7 +395,7 @@ function readEquiv() {
       const b = readFileSync(p); // binary: no 'utf8'
       inp[k] = b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
     }
-    const fxP = join(UPLOADS, 'cpapdex_synthetic_edf_golden.node-export.json');
+    const fxP = join(ROOT, 'uploads', 'cpapdex_synthetic_edf_golden.node-export.json'); // fixture = repo artifact
     const rec = {};
     if (complete) rec.input = inp;
     if (existsSync(fxP)) {
@@ -385,16 +405,72 @@ function readEquiv() {
         /* unreadable → treat as absent */
       }
     }
+    rec.fixtureFile = 'cpapdex_synthetic_edf_golden.node-export.json';
     if (rec.input !== undefined || rec.fixture !== undefined) out.cpapdex_edf = rec;
   }
+
+  // ── CPAPDex REAL-EDF legs (FIXTURE-REPRODUCIBILITY §1) ──────────────────────────────────────
+  // These two fixtures were CODE-GATED — each carries a `manifestHash` claiming "reproducible under
+  // this code" — while NOTHING re-ran them. FIXTURE-PROVENANCE even said so out loud ("this real-EDF
+  // fixture is NOT in the live equiv gate"), and `build.mjs` silently RE-STAMPED that claim onto a new
+  // manifestHash every time the CPAPDex bundle moved. A reproducibility claim that nothing reproduces
+  // is not provenance; it is decoration. They have legs now.
+  //
+  // Their inputs are REAL recordings (gitignored), so these skip on a fresh clone — exactly like every
+  // other real-recording leg — and run locally where the EDFs exist. The synthetic twin above is what
+  // gives CI its teeth; this is what makes the ledger's claim about THESE fixtures checkable at all.
+  // A session = one stamped group of per-stream EDFs; a night may hold several (06-12 has two).
+  const cpapReal = (key, sessions, fixFile) => {
+    const sets = [];
+    let complete = true;
+    for (const sess of sessions) {
+      const set = {};
+      for (const [kind, file] of Object.entries(sess)) {
+        const p = join(UPLOADS, file);
+        if (!existsSync(p)) {
+          complete = false;
+          break;
+        }
+        const b = readFileSync(p); // binary
+        set[kind] = b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+      }
+      if (!complete) break;
+      sets.push(set);
+    }
+    const fxP = join(ROOT, 'uploads', fixFile); // fixture = repo artifact, never DEX_UPLOADS
+    const rec = {};
+    if (complete && sets.length) rec.input = sets;
+    if (existsSync(fxP)) {
+      try {
+        rec.fixture = JSON.parse(readFileSync(fxP, 'utf8'));
+      } catch (e) {
+        /* unreadable → treat as absent */
+      }
+    }
+    rec.fixtureFile = fixFile;
+    if (rec.input !== undefined || rec.fixture !== undefined) out[key] = rec;
+  };
+  cpapReal(
+    'cpapdex_real_0612',
+    [
+      { BRP: '20260612_222830_BRP.edf', PLD: '20260612_222830_PLD.edf', SA2: '20260612_222830_SA2.edf', EVE: '20260612_222819_EVE.edf', CSL: '20260612_222819_CSL.edf' },
+      { BRP: '20260613_045505_BRP.edf', PLD: '20260613_045505_PLD.edf', SA2: '20260613_045505_SA2.edf', EVE: '20260613_045457_EVE.edf', CSL: '20260613_045457_CSL.edf' }
+    ],
+    'cpapdex-2026-06-12.node-export.json'
+  );
+  cpapReal(
+    'cpapdex_real_0616',
+    [{ BRP: '20260616_213618_BRP.edf', PLD: '20260616_213618_PLD.edf', SA2: '20260616_213618_SA2.edf', EVE: '20260616_213611_EVE.edf', CSL: '20260616_213611_CSL.edf' }],
+    'cpapdex-2026-06-16.json'
+  );
   // CPAPDex GOLDEN reference (CPAPDEX-PHASE9-FOLLOWUPS-II §1): no INPUT file — the gate rebuilds the
   // deterministic synthetic night from CpapDsp._synthEdfSet in-code; only the committed golden EXPORT is
   // wired. (Retained: it pins the DECODED-set path, while cpapdex_edf above pins the BINARY-parser path.)
   {
-    const fxP = join(UPLOADS, 'cpapdex_synthetic_golden.node-export.json');
+    const fxP = join(ROOT, 'uploads', 'cpapdex_synthetic_golden.node-export.json'); // fixture = repo artifact
     if (existsSync(fxP)) {
       try {
-        out.cpapdex_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')) };
+        out.cpapdex_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')), fixtureFile: 'cpapdex_synthetic_golden.node-export.json' };
       } catch (e) {
         /* gate self-skips */
       }
@@ -405,10 +481,10 @@ function readEquiv() {
   // No INPUT file — the gate rebuilds >=3 deterministic day-shifted synthetic nights in-code (needs
   // env.CPAPCross / cpapdex-cross.js co-loaded above); only the committed golden EXPORT is wired.
   {
-    const fxP = join(UPLOADS, 'cpapdex_synthetic_multinight_golden.node-export.json');
+    const fxP = join(ROOT, 'uploads', 'cpapdex_synthetic_multinight_golden.node-export.json'); // fixture = repo artifact
     if (existsSync(fxP)) {
       try {
-        out.cpapdex_multinight_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')) };
+        out.cpapdex_multinight_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')), fixtureFile: 'cpapdex_synthetic_multinight_golden.node-export.json' };
       } catch (e) {
         /* gate self-skips */
       }
@@ -417,10 +493,10 @@ function readEquiv() {
   // Integrator TCH-HR GOLDEN (INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II §2): first code-gated Integrator
   // fixture — fixture-only, the gate rebuilds the three staggered synthetic node-exports in-code and fuses them.
   {
-    const fxP = join(UPLOADS, 'integrator_tch_golden.node-export.json');
+    const fxP = join(ROOT, 'uploads', 'integrator_tch_golden.node-export.json'); // fixture = repo artifact
     if (existsSync(fxP)) {
       try {
-        out.integrator_tch_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')) };
+        out.integrator_tch_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')), fixtureFile: 'integrator_tch_golden.node-export.json' };
       } catch (e) {
         /* gate self-skips */
       }
