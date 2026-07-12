@@ -464,6 +464,7 @@
     "cgm-hrv-coupling-analysis.html",
     "cgm-hrv-coupling-analysis.js",
     "changes",
+    "changes/2026-07-12-ecgdex-export-respiration.md",
     "changes/README.md",
     "clock.js",
     "codegen",

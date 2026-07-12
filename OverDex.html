@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1aZWjURk+iCKcusRGMNbZLjEbOdvCYlfeKuRRt9lgLQ=' 'sha256-6RZXLEoUPvVrjS9laRTHze70mnbaJ+rNK+xDvzCc9JQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-Aagmdj7uloA0DrucBTiCOst/Zu8HtdOMCz2BF1lDtHw=' 'sha256-Cmy5jqXGBn2TOeoIUu5NQ462zWgA2iB09CRh/bkx2pc=' 'sha256-DE/lfDnNKHcSbXxw474kJVe7uFhKKaPy/5FmvRM68U4=' 'sha256-F4s+OtKkoVZS0q8lS4F/sWsYA6V6dQxQKQ7xrw244Q0=' 'sha256-HKfWmGIglGD2FlUrqnaKuiqyTPrluhBx9iHYpe2WtMA=' 'sha256-HMcz3UCFbmyBGi0SQWw6ydup3CHvmu4SX/HIKXkWnkg=' 'sha256-ROGyhT1rJjfiCwpGX5aRiBwshPY6awMfBAkT7N8hXWo=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-fMc9CU/q1VvrJCsgM4ooVNOe7km3XmXzEht5GJyi2Ng=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-giH7+xYTi6zzmo5ZtCPaGJEzq74hWIaqOK1CAMLayp4=' 'sha256-hs9K6cuZdV/TNM22sxtyqlWad5F44Inh53puPeYFZmg=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-pF2F1BHb5ALbGyqL7RaEPb4fzp9+gHyW4tWOpeTvV10=' 'sha256-pwWfvoYt3Ims36UoT3wru6Z6nBlwPUBHBajt/0lP8yo=' 'sha256-qpDBf/X1+mOTD9ctKFLqqYS2YmkhPZUPSr2/Dut5SX8=' 'sha256-rUyLtISg99MnpjTtyxOjorMARW/50/0aQ2FOeNA4TaI=' 'sha256-roO0qvbiqQFAF7zD/B79CM1goAjzhR5jx8+N3kX4ZSY=' 'sha256-sCx/0jRpwBNzhTpZ4ClKf8BfTccQekveXGhU/zx+WqU=' 'sha256-tX34msOtIVpglSLwQPXvSs55vfdXbV9kxRSjVQk2K44=' 'sha256-yNoaiS9N95lBo/AEEOuu3L8+OnQowaAEwE2DA9939Ow='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1aZWjURk+iCKcusRGMNbZLjEbOdvCYlfeKuRRt9lgLQ=' 'sha256-6RZXLEoUPvVrjS9laRTHze70mnbaJ+rNK+xDvzCc9JQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-Aagmdj7uloA0DrucBTiCOst/Zu8HtdOMCz2BF1lDtHw=' 'sha256-Cmy5jqXGBn2TOeoIUu5NQ462zWgA2iB09CRh/bkx2pc=' 'sha256-DE/lfDnNKHcSbXxw474kJVe7uFhKKaPy/5FmvRM68U4=' 'sha256-F4s+OtKkoVZS0q8lS4F/sWsYA6V6dQxQKQ7xrw244Q0=' 'sha256-HKfWmGIglGD2FlUrqnaKuiqyTPrluhBx9iHYpe2WtMA=' 'sha256-HMcz3UCFbmyBGi0SQWw6ydup3CHvmu4SX/HIKXkWnkg=' 'sha256-K3rYas/YXrHGvBiXPtEZpL2o8ZQ+qvSZQI80yTvgDsk=' 'sha256-ROGyhT1rJjfiCwpGX5aRiBwshPY6awMfBAkT7N8hXWo=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-fMc9CU/q1VvrJCsgM4ooVNOe7km3XmXzEht5GJyi2Ng=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-giH7+xYTi6zzmo5ZtCPaGJEzq74hWIaqOK1CAMLayp4=' 'sha256-hs9K6cuZdV/TNM22sxtyqlWad5F44Inh53puPeYFZmg=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-pF2F1BHb5ALbGyqL7RaEPb4fzp9+gHyW4tWOpeTvV10=' 'sha256-pwWfvoYt3Ims36UoT3wru6Z6nBlwPUBHBajt/0lP8yo=' 'sha256-qpDBf/X1+mOTD9ctKFLqqYS2YmkhPZUPSr2/Dut5SX8=' 'sha256-rUyLtISg99MnpjTtyxOjorMARW/50/0aQ2FOeNA4TaI=' 'sha256-roO0qvbiqQFAF7zD/B79CM1goAjzhR5jx8+N3kX4ZSY=' 'sha256-sCx/0jRpwBNzhTpZ4ClKf8BfTccQekveXGhU/zx+WqU=' 'sha256-yNoaiS9N95lBo/AEEOuu3L8+OnQowaAEwE2DA9939Ow='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -15166,7 +15166,12 @@ function analyze(rec, onProgress){
     spec = { tp:Math.round(median(epochs.map(e=>e.hf+e.lf))), hf:Math.round(median(epochs.map(e=>e.hf))),
              lf:Math.round(median(epochs.map(e=>e.lf))), vlf:0,
              lfhf:+median(epochs.map(e=>e.lfhf)).toFixed(3),
-             respRate: _respMedian!=null ? _respMedian : 0 };
+             // null, NOT 0 — a respiratory rate of 0 breaths/min is not a measurement, it is a
+             // FABRICATED value standing in for "unknown". Same discipline as the Clock Contract's
+             // "a missing stamp must be visible (null), never invented" (TCH-REFERENCE-VALIDATION §D2).
+             // Downstream is unaffected: cardiorespCoupling's respHint guard (`respHint && 6..24`)
+             // already falls back to 15 for BOTH 0 and null.
+             respRate: _respMedian };
     const whole = lombScargle(nn, tt, 220); spec.vlf = whole.vlf; spec.tp = whole.tp;
   } else {
     spec = lombScargle(repSeg, repT, 300);
@@ -15884,11 +15889,25 @@ function ecgBuildNodeExport(r, opts){
         sdnnIndex:nz(r.sdnnIdx), wholeRecordHR:nz(r.hr), wholeRecordSDNN:nz(r.sdnn), wholeRecordRMSSD:nz(r.rmssd),
         units:'ms',
         windowNote:'sdnn/rmssd/pnn50 here are DISPLAY values = representative 5-min epoch median on overnight recordings (short recs: whole-record). For CROSS-NODE comparison use wholeRecordSDNN/wholeRecordRMSSD.' },
-      frequency:{ lf:nz(r.lf), hf:nz(r.hf), lfhf:nz(r.lfhf), method:'Lomb\u2013Scargle' }
+      // TCH-REFERENCE-VALIDATION \u00a7D2 \u2014 ECGDex derives respiration TWO independent ways and used to
+      // export NEITHER: this block carried only {lf,hf,lfhf,method}. Both now ride the bus.
+      //   respRate     \u2014 HF-peak of the RR spectrum (RSA). Same method PpgDex now uses (\u00a7D1), so the
+      //                  two nodes are directly comparable.
+      //   respFromEDR  \u2014 R-peak AMPLITUDE modulation (cardiorespCoupling). A genuinely INDEPENDENT
+      //                  estimator: morphology, not rhythm. Do not conflate the two.
+      // Validated against CPAP's measured flow-sensor respiration: the RSA route under-reads by
+      // ~1.35 br/min, so consumers must treat these as biased estimates, not truth.
+      frequency:{ lf:nz(r.lf), hf:nz(r.hf), lfhf:nz(r.lfhf), method:'Lomb\u2013Scargle',
+                  respRate:nz(r.respRate), respRateMethod:'RSA (HF-peak of RR spectrum)',
+                  respFromEDR:(r.crc && r.crc.respFromEDR!=null) ? nz(r.crc.respFromEDR) : null,
+                  respFromEDRMethod:'EDR (R-peak amplitude modulation)' }
     };
     out.timeseries = {
       doc:'Per-5-min-epoch aggregates — the primary cross-node feed (posture rides on epochs[].position).',
-      epochs:(r.epochs||[]).map(function(e){ return { tMin:e.tMin, hr:nz(e.hr), rmssd:nz(e.rmssd), sdnn:nz(e.sdnn), lfhf:nz(e.lfhf), position:(e.position||'unknown') }; }),
+      // §D2: the internal epoch already carried `resp` (ls.respRate) — this map dropped it, so no
+      // per-epoch respiration ever reached the bus. It is the per-epoch series any cross-node
+      // respiration work needs (a night median cannot be correlated against anything).
+      epochs:(r.epochs||[]).map(function(e){ return { tMin:e.tMin, hr:nz(e.hr), rmssd:nz(e.rmssd), sdnn:nz(e.sdnn), lfhf:nz(e.lfhf), resp:nz(e.resp), position:(e.position||'unknown') }; }),
       sleepStages:(lng && !amb && Array.isArray(r.stages)) ? r.stages.map(function(s){ return { tMin:s.tMin, stage:s.stage }; }) : null
     };
     out.sleep = amb ? { suppressed:true, suppressedReason:((r.sleepSuppressed && r.sleepSuppressed.suppressedReason) || 'high-activity / ambulatory'), stages:null }
