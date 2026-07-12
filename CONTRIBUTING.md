@@ -311,6 +311,17 @@ night pairing, byte-weighted parallel ETA) live in the brief.
 
 ## 6. Non-negotiables (skim, then internalize)
 
+- **Stage your commits by EXPLICIT PATH — never `git add -A` / `git add .` / `git commit -a`.**
+  This repo is routinely worked by **several agents/sessions at once**, so the working tree is *not*
+  yours alone: a blanket add sweeps up whatever a concurrent session happens to have in flight and
+  publishes it under **your** commit message. It has already happened — `cabd7f7`
+  ("fix(ppgdex): arbitrate the PPI spine…") also carries an unrelated CPAP corpus brief, its
+  `DOCS-INDEX.md` row, and a `tests/docs-ledger-list.json` regen, because a blanket add ran while
+  another session had them staged-in-tree. Nothing was lost, but the history now misattributes two
+  independent work-units to one commit. So: `git add <the exact files you touched>`, and
+  `git status` before every commit to see what else is in the tree. If files you don't recognize
+  appear, **leave them** — they belong to someone else's work-unit.
+  Corollary: never `git checkout .` / `git stash` / `git reset --hard` a dirty tree you didn't dirty.
 - **The Clock Contract** (`CLAUDE.md`). Store time as floating wall-clock `tMs = Date.UTC(...)` and
   read it back **only** with `getUTC*`. Parse vendor stamps by **regex**, never `new Date(str)`. A
   missing timestamp is **`null`, never `now()`**. `parseTimestamp` is duplicated per node **by design**.
