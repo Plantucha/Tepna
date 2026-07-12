@@ -10379,6 +10379,114 @@
      collapsed the amplitude feature to ~10 beats/6.5 min. The shipped POSITIVE-SLOPE energy
      feature + LOCAL (MA_beat) threshold must confine a transient's effect to its own
      neighbourhood, NOT suppress the whole record. */
+    /* ── PpgDex Web-Worker realm must be SELF-CONTAINED ───────────────────────────────────
+       detectChannelsAsync ships its beat detector to a Worker by serializing a HAND-MAINTAINED
+       list of pure functions via .toString(). The worker realm has NO access to the module's
+       scope, so any function reachable from detectChannel that is missing from that list is
+       simply UNDEFINED there and the worker dies on a ReferenceError.
+
+       It fails QUIETLY: onerror falls back to _detectSerial, so the NUMBERS stay right and the
+       only symptom is that the entire 3-channel parallel path is silently dead (plus an uncaught
+       console error). The headless suite never saw it — it always takes the serial path.
+
+       That is exactly what shipped: `cadenceSamples` (the windowed-ACF beat refractory) is called
+       by detectBeats and was never added to the list, so every PPG analysis had been falling back
+       to serial. The module's own comment claimed this "can't drift" — the ALGORITHMS can't, but
+       the DEPENDENCY LIST is hand-maintained, and that is what drifted.
+
+       This gate closes the CLASS, not the instance: it EVALUATES the worker source in an isolated
+       Function scope (ppgdex-dsp.js is IIFE-wrapped, so its helpers are NOT globals — a missing
+       dep therefore throws exactly as it does in a real Worker) and RUNS detectChannel in it,
+       asserting the result is identical to the serial path. Any future omission reds here. */
+    group('PpgDex worker realm — serialized source is self-contained (ReferenceError guard)', 'ppgdex-dsp · worker · regression', function (T) {
+      var PPG = env.PPGDSP;
+      var live = !!(PPG && typeof PPG._ppgWorkerSource === 'function' && typeof PPG.detectChannel === 'function');
+      T.ok('PPGDSP._ppgWorkerSource exposed for gating', live,
+        live ? '' : 'export _ppgWorkerSource from ppgdex-dsp.js so the worker source can be gated');
+      if (!live) return;
+
+      var src = PPG._ppgWorkerSource();
+      T.ok('worker source is a non-empty string', typeof src === 'string' && src.length > 200, src && src.length);
+
+      /* ── ★ THE STATIC GUARD — the one that actually closes the class ──────────────────────
+         An EXECUTION test only covers the branches its input happens to take, and that is exactly
+         how the second half of this bug survived: `REFR_CADENCE_FRAC` is read by detectBeats ONLY
+         where a cadence was found, so a synthetic signal that produced none never touched it, and
+         the missing constant only blew up on real PPG in the browser. Coverage-by-luck is not a gate.
+
+         So: cross-reference STATICALLY. Every top-level declaration in ppgdex-dsp.js that the worker
+         source REFERENCES must also be DECLARED inside that source — otherwise it is a free
+         identifier in the worker realm and dies on a ReferenceError, on whatever branch reaches it.
+         Catches missing FUNCTIONS and missing CONSTANTS alike, on every path, with no execution. */
+      var dspSrc = (env.sources || {})['ppgdex-dsp.js'];
+      T.ok('ppgdex-dsp.js source available for the static dep scan', !!dspSrc);
+      if (dspSrc) {
+        var declRe = /^(?:function|var|const|let)\s+([A-Za-z_$][\w$]*)/gm;
+        var modNames = [], mm;
+        while ((mm = declRe.exec(dspSrc))) modNames.push(mm[1]);
+
+        var inWorker = {};
+        var wDeclRe = /(?:^|\n)\s*(?:function|var|const|let)\s+([A-Za-z_$][\w$]*)/g;
+        var wm;
+        while ((wm = wDeclRe.exec(src))) inWorker[wm[1]] = 1;
+
+        var missing = [];
+        for (var mi = 0; mi < modNames.length; mi++) {
+          var nm = modNames[mi];
+          if (inWorker[nm]) continue;                                  // shipped into the worker
+          // referenced as a standalone identifier (not a property access `.nm`)?
+          var useRe = new RegExp('(^|[^.\\w$])' + nm.replace(/[$]/g, '\\$') + '\\b');
+          if (useRe.test(src)) missing.push(nm);
+        }
+        T.eq('every module-level name the worker source references is also DECLARED in it ' +
+             '(missing ⇒ ReferenceError in the Worker realm)', missing, []);
+        if (missing.length) {
+          T.ok('  → add these to _ppgWorkerSource (functions to deps[], values to consts): ' + missing.join(', '), false);
+        }
+      }
+
+      // deterministic synthetic PPG: 30 s @ 100 Hz, 60 bpm — a pulse train with a dicrotic notch
+      var fs = 100, N = fs * 30, chan = new Float32Array(N);
+      for (var i = 0; i < N; i++) {
+        var ph = (i % fs) / fs;                       // 1 s period → 60 bpm
+        chan[i] = Math.exp(-Math.pow((ph - 0.15) / 0.06, 2)) +
+                  0.35 * Math.exp(-Math.pow((ph - 0.42) / 0.08, 2)) +
+                  0.02 * Math.sin(i * 0.7);
+      }
+
+      // Evaluate the worker source in an ISOLATED scope — this is the worker realm. A dep that is
+      // missing from the deps[] list is a free identifier here and throws, exactly as in a Worker.
+      var workerDetect = null, threw = null;
+      try {
+        // `self` is injected (the source ends with self.onmessage=…) so it cannot touch the real global.
+        var factory = new Function('self', src + '\nreturn detectChannel;');
+        workerDetect = factory({ onmessage: null, postMessage: function () {} });
+      } catch (e) {
+        threw = (e && e.message) || String(e);
+      }
+      // NB: a missing dep is a FREE IDENTIFIER, so it does NOT throw here — function declarations
+      // hoist and the source parses fine. It only throws when the code RUNS. So this assertion is
+      // a syntax check, and the one BELOW is the actual dependency guard. (Verified: with
+      // cadenceSamples removed from deps[], this passes and the next one reds.)
+      T.ok('worker source parses in an isolated realm', !threw, threw ? 'THREW: ' + threw : '');
+      if (threw || typeof workerDetect !== 'function') return;
+
+      var wOut = null, rErr = null;
+      try { wOut = workerDetect(chan, fs); } catch (e2) { rErr = (e2 && e2.message) || String(e2); }
+      // ★ THE GUARD. Reds with "cadenceSamples is not defined" on the original code — the exact
+      //   error the browser threw. Any function absent from deps[] fails here and nowhere else.
+      T.ok('worker detectChannel RUNS — no missing dependency in deps[] (the ReferenceError bug)',
+        !rErr, rErr ? 'THREW: ' + rErr + "  ← this function is in detectChannel's call graph but absent from deps[]" : '');
+      if (rErr || !wOut) return;
+
+      var sOut = PPG.detectChannel(chan, fs);
+      T.ok('worker path finds beats', wOut.peaks && wOut.peaks.length > 20, wOut.peaks && wOut.peaks.length);
+      T.eq('worker peak COUNT ≡ serial peak count', wOut.peaks.length, sOut.peaks.length);
+      T.eq('worker peaks ≡ serial peaks (the parallel path is not a second implementation)',
+        Array.prototype.slice.call(wOut.peaks), Array.prototype.slice.call(sOut.peaks));
+      T.eq('worker sign ≡ serial sign', wOut.sign, sOut.sign);
+    });
+
     group('PpgDex detector — supra-physiologic transient does not collapse detection (FU §3)', 'ppgdex-dsp · FU', function (T) {
       var PPG = env.PPGDSP;
       if (!PPG || typeof PPG.detectBeats !== 'function') {

@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-6RZXLEoUPvVrjS9laRTHze70mnbaJ+rNK+xDvzCc9JQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7rnyd/PHLymN+NpkvwZzfBCoTH9sQ1PzMBj3eyEzZAQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Cmy5jqXGBn2TOeoIUu5NQ462zWgA2iB09CRh/bkx2pc=' 'sha256-DE/lfDnNKHcSbXxw474kJVe7uFhKKaPy/5FmvRM68U4=' 'sha256-F4s+OtKkoVZS0q8lS4F/sWsYA6V6dQxQKQ7xrw244Q0=' 'sha256-HKfWmGIglGD2FlUrqnaKuiqyTPrluhBx9iHYpe2WtMA=' 'sha256-HMcz3UCFbmyBGi0SQWw6ydup3CHvmu4SX/HIKXkWnkg=' 'sha256-N3HRK8WhCCVdBaik65z27XcCPcBH8aExtRhnk0eorYk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-giH7+xYTi6zzmo5ZtCPaGJEzq74hWIaqOK1CAMLayp4=' 'sha256-hEqAV35AmhZiu7dSfiuYRf01Qt+zMV8W5rAOPnn54IE=' 'sha256-hs9K6cuZdV/TNM22sxtyqlWad5F44Inh53puPeYFZmg=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-pF2F1BHb5ALbGyqL7RaEPb4fzp9+gHyW4tWOpeTvV10=' 'sha256-pwWfvoYt3Ims36UoT3wru6Z6nBlwPUBHBajt/0lP8yo=' 'sha256-qpDBf/X1+mOTD9ctKFLqqYS2YmkhPZUPSr2/Dut5SX8=' 'sha256-r1iFOMt/UTb6HoQKDZZ1CCMcg/uE2yXUOs1FFX8Dv9w=' 'sha256-rUyLtISg99MnpjTtyxOjorMARW/50/0aQ2FOeNA4TaI=' 'sha256-roO0qvbiqQFAF7zD/B79CM1goAjzhR5jx8+N3kX4ZSY=' 'sha256-sCx/0jRpwBNzhTpZ4ClKf8BfTccQekveXGhU/zx+WqU=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE=' 'sha256-yNoaiS9N95lBo/AEEOuu3L8+OnQowaAEwE2DA9939Ow='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-6RZXLEoUPvVrjS9laRTHze70mnbaJ+rNK+xDvzCc9JQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7rnyd/PHLymN+NpkvwZzfBCoTH9sQ1PzMBj3eyEzZAQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Cmy5jqXGBn2TOeoIUu5NQ462zWgA2iB09CRh/bkx2pc=' 'sha256-DE/lfDnNKHcSbXxw474kJVe7uFhKKaPy/5FmvRM68U4=' 'sha256-EsrlWZd93n8OMCmI6AfDKM3g1kJlCZj99kgROgXKq5I=' 'sha256-F4s+OtKkoVZS0q8lS4F/sWsYA6V6dQxQKQ7xrw244Q0=' 'sha256-HKfWmGIglGD2FlUrqnaKuiqyTPrluhBx9iHYpe2WtMA=' 'sha256-HMcz3UCFbmyBGi0SQWw6ydup3CHvmu4SX/HIKXkWnkg=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-giH7+xYTi6zzmo5ZtCPaGJEzq74hWIaqOK1CAMLayp4=' 'sha256-hEqAV35AmhZiu7dSfiuYRf01Qt+zMV8W5rAOPnn54IE=' 'sha256-hs9K6cuZdV/TNM22sxtyqlWad5F44Inh53puPeYFZmg=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-pF2F1BHb5ALbGyqL7RaEPb4fzp9+gHyW4tWOpeTvV10=' 'sha256-pwWfvoYt3Ims36UoT3wru6Z6nBlwPUBHBajt/0lP8yo=' 'sha256-qpDBf/X1+mOTD9ctKFLqqYS2YmkhPZUPSr2/Dut5SX8=' 'sha256-r1iFOMt/UTb6HoQKDZZ1CCMcg/uE2yXUOs1FFX8Dv9w=' 'sha256-rUyLtISg99MnpjTtyxOjorMARW/50/0aQ2FOeNA4TaI=' 'sha256-roO0qvbiqQFAF7zD/B79CM1goAjzhR5jx8+N3kX4ZSY=' 'sha256-sCx/0jRpwBNzhTpZ4ClKf8BfTccQekveXGhU/zx+WqU=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE=' 'sha256-yNoaiS9N95lBo/AEEOuu3L8+OnQowaAEwE2DA9939Ow='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -14297,17 +14297,46 @@ function mergeMultipart(parsed){           // parsed = [{name,text,kind?,stampMs
 //  path) → resolve via the serial detectChannel path → identical numbers.
 // ════════════════════════════════════════════════════════════════════════
 var _ppgWorkerURL=null, _ppgWorkerTriedURL=false;
+
+// ONE source of truth: the worker re-declares the SAME pure functions from their own
+// .toString() — no ALGORITHM is duplicated as a string literal, so the math can't drift.
+//
+// ⚠️ But this list is HAND-MAINTAINED, and that is what drifts. The worker realm has NO
+// access to this module's scope: any function reachable from detectChannel that is NOT
+// listed here is simply UNDEFINED inside the worker, and the worker dies on a
+// ReferenceError. It fails QUIETLY — detectChannelsAsync's onerror falls back to
+// _detectSerial, so the NUMBERS stay right and the only symptom is that the whole
+// 3-channel parallel path is silently dead (plus an uncaught console error).
+//
+// That is exactly what happened: `cadenceSamples` (added with the windowed-ACF beat
+// refractory) is called by detectBeats but was never added here, so every PPG analysis
+// had been falling back to serial. `_ppgWorkerSource()` is exported and GATED in
+// tests/dex-tests.js — the gate EVALUATES this source in an isolated realm and runs
+// detectChannel in it, so ANY missing dep (not just this one) now reds.
+//
+// Keep this list closed over detectChannel's full call graph.
+function _ppgWorkerSource(){
+  var deps=[biquad,applyBiquad,reverse,filtfilt,bandpass,mean,std,median,movavg,orient,negate,
+            cadenceSamples,                      // ← detectBeats calls it; omitted ⇒ worker dies
+            refineFeet,detectBeats,detectChannel];
+  // CONSTANTS are free identifiers in the worker too — .toString() serializes a function's CODE,
+  // not the module-scope values it closes over. detectBeats reads REFR_CADENCE_FRAC, and only on
+  // the branch where a cadence was actually found — which is why omitting it survived a synthetic
+  // signal that produced no cadence and only died on real PPG. Values are single-sourced from the
+  // real bindings below (never re-typed as literals), so they cannot drift.
+  var consts={ REFR_CADENCE_FRAC:REFR_CADENCE_FRAC };
+  var prelude=Object.keys(consts).map(function(k){ return 'var '+k+'='+JSON.stringify(consts[k])+';'; }).join('\n');
+  return prelude+'\n'
+    + deps.map(function(f){ return f.toString(); }).join('\n')
+    + '\nself.onmessage=function(e){var d=e.data;var chan=new Float32Array(d.buf);'
+    + 'var r=detectChannel(chan,d.fs);'
+    + 'self.postMessage({idx:d.idx,peaks:r.peaks,feet:r.feet,sign:r.sign,T:r.T,bp:r.bp.buffer},[r.bp.buffer]);};';
+}
 function _buildWorkerURL(){
   if(_ppgWorkerTriedURL) return _ppgWorkerURL;
   _ppgWorkerTriedURL=true;
   if(typeof Blob==='undefined' || typeof URL==='undefined' || !URL.createObjectURL) return null;
-  // ONE source of truth: the worker re-declares the SAME pure functions from their own
-  // .toString() — no algorithm is duplicated as a string literal, so it can't drift.
-  var deps=[biquad,applyBiquad,reverse,filtfilt,bandpass,mean,std,median,movavg,orient,negate,refineFeet,detectBeats,detectChannel];
-  var src = deps.map(function(f){ return f.toString(); }).join('\n')
-    + '\nself.onmessage=function(e){var d=e.data;var chan=new Float32Array(d.buf);'
-    + 'var r=detectChannel(chan,d.fs);'
-    + 'self.postMessage({idx:d.idx,peaks:r.peaks,feet:r.feet,sign:r.sign,T:r.T,bp:r.bp.buffer},[r.bp.buffer]);};';
+  var src = _ppgWorkerSource();
   try{ _ppgWorkerURL=URL.createObjectURL(new Blob([src],{type:'text/javascript'})); }catch(e){ _ppgWorkerURL=null; }
   return _ppgWorkerURL;
 }
@@ -14338,6 +14367,7 @@ function detectChannelsAsync(rec){
 global.PPGDSP = {
   parsePPG, parseSensorXYZ, parseDevicePPI, analyze, analyzeMotion, validatePPI,
   bandpass, detectBeats, detectChannel, consensusBeats, refineFeet, detectChannelsAsync,
+  _ppgWorkerSource,          // gated: the worker realm must be self-contained (see above)
   buildPPI, correctRR, timeDomain, poincare, lombScargle, dfaAlpha1,
   parseTimestamp, fmtClock, fmtClockSec, fmtDate, fmtDateTime,
   mean, std, median, quantile,

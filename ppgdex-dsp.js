@@ -1178,17 +1178,46 @@ function mergeMultipart(parsed){           // parsed = [{name,text,kind?,stampMs
 //  path) → resolve via the serial detectChannel path → identical numbers.
 // ════════════════════════════════════════════════════════════════════════
 var _ppgWorkerURL=null, _ppgWorkerTriedURL=false;
+
+// ONE source of truth: the worker re-declares the SAME pure functions from their own
+// .toString() — no ALGORITHM is duplicated as a string literal, so the math can't drift.
+//
+// ⚠️ But this list is HAND-MAINTAINED, and that is what drifts. The worker realm has NO
+// access to this module's scope: any function reachable from detectChannel that is NOT
+// listed here is simply UNDEFINED inside the worker, and the worker dies on a
+// ReferenceError. It fails QUIETLY — detectChannelsAsync's onerror falls back to
+// _detectSerial, so the NUMBERS stay right and the only symptom is that the whole
+// 3-channel parallel path is silently dead (plus an uncaught console error).
+//
+// That is exactly what happened: `cadenceSamples` (added with the windowed-ACF beat
+// refractory) is called by detectBeats but was never added here, so every PPG analysis
+// had been falling back to serial. `_ppgWorkerSource()` is exported and GATED in
+// tests/dex-tests.js — the gate EVALUATES this source in an isolated realm and runs
+// detectChannel in it, so ANY missing dep (not just this one) now reds.
+//
+// Keep this list closed over detectChannel's full call graph.
+function _ppgWorkerSource(){
+  var deps=[biquad,applyBiquad,reverse,filtfilt,bandpass,mean,std,median,movavg,orient,negate,
+            cadenceSamples,                      // ← detectBeats calls it; omitted ⇒ worker dies
+            refineFeet,detectBeats,detectChannel];
+  // CONSTANTS are free identifiers in the worker too — .toString() serializes a function's CODE,
+  // not the module-scope values it closes over. detectBeats reads REFR_CADENCE_FRAC, and only on
+  // the branch where a cadence was actually found — which is why omitting it survived a synthetic
+  // signal that produced no cadence and only died on real PPG. Values are single-sourced from the
+  // real bindings below (never re-typed as literals), so they cannot drift.
+  var consts={ REFR_CADENCE_FRAC:REFR_CADENCE_FRAC };
+  var prelude=Object.keys(consts).map(function(k){ return 'var '+k+'='+JSON.stringify(consts[k])+';'; }).join('\n');
+  return prelude+'\n'
+    + deps.map(function(f){ return f.toString(); }).join('\n')
+    + '\nself.onmessage=function(e){var d=e.data;var chan=new Float32Array(d.buf);'
+    + 'var r=detectChannel(chan,d.fs);'
+    + 'self.postMessage({idx:d.idx,peaks:r.peaks,feet:r.feet,sign:r.sign,T:r.T,bp:r.bp.buffer},[r.bp.buffer]);};';
+}
 function _buildWorkerURL(){
   if(_ppgWorkerTriedURL) return _ppgWorkerURL;
   _ppgWorkerTriedURL=true;
   if(typeof Blob==='undefined' || typeof URL==='undefined' || !URL.createObjectURL) return null;
-  // ONE source of truth: the worker re-declares the SAME pure functions from their own
-  // .toString() — no algorithm is duplicated as a string literal, so it can't drift.
-  var deps=[biquad,applyBiquad,reverse,filtfilt,bandpass,mean,std,median,movavg,orient,negate,refineFeet,detectBeats,detectChannel];
-  var src = deps.map(function(f){ return f.toString(); }).join('\n')
-    + '\nself.onmessage=function(e){var d=e.data;var chan=new Float32Array(d.buf);'
-    + 'var r=detectChannel(chan,d.fs);'
-    + 'self.postMessage({idx:d.idx,peaks:r.peaks,feet:r.feet,sign:r.sign,T:r.T,bp:r.bp.buffer},[r.bp.buffer]);};';
+  var src = _ppgWorkerSource();
   try{ _ppgWorkerURL=URL.createObjectURL(new Blob([src],{type:'text/javascript'})); }catch(e){ _ppgWorkerURL=null; }
   return _ppgWorkerURL;
 }
@@ -1219,6 +1248,7 @@ function detectChannelsAsync(rec){
 global.PPGDSP = {
   parsePPG, parseSensorXYZ, parseDevicePPI, analyze, analyzeMotion, validatePPI,
   bandpass, detectBeats, detectChannel, consensusBeats, refineFeet, detectChannelsAsync,
+  _ppgWorkerSource,          // gated: the worker realm must be self-contained (see above)
   buildPPI, correctRR, timeDomain, poincare, lombScargle, dfaAlpha1,
   parseTimestamp, fmtClock, fmtClockSec, fmtDate, fmtDateTime,
   mean, std, median, quantile,
