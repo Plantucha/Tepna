@@ -15,6 +15,66 @@ standalone `Foo.html` via the inliner. **Edit the `.js` + `.src.html`, never the
 re-bundle after changes.** 100% local — no network, no CDNs. Fonts are **system stacks only**
 (no `@font-face`, no CDN — resolved June 2026; see `audits/AUDIT.md`).
 
+## 👥 You are probably NOT alone in this checkout (read before your first `git` command)
+
+**Several agent sessions routinely work this repo at the same time.** The working tree is *not* yours.
+Files you did not create will be sitting in it, half-finished, uncommitted, and sometimes the **only
+copy in existence**. Every rule below was written after it went wrong.
+
+### 1 · Work in your own worktree. This is the fix.
+
+```sh
+git worktree add ../wt-<task> -b claude/<task> origin/main
+```
+
+A private checkout off `origin/main`: nothing of anyone else's is in it, so you cannot sweep their work,
+cannot destroy it, and cannot **gate against their half-finished code**. It costs a few hundred ms and
+shares the object store. *(That last failure is the sneaky one — a session once spent an hour debugging
+a "broken" build that was actually another session's in-flight `clock.js`.)*
+
+**Always worktree when you will touch a bundle, a ledger, or a DSP.** For a one-file doc edit in a clean
+tree, don't bother.
+
+### 2 · Never blanket-stage, never destroy a tree you didn't dirty
+
+- **Stage by EXPLICIT PATH.** No `git add -A`, no `git add .`, no `git commit -a`. A blanket add sweeps a
+  concurrent session's in-flight files into **your** commit, under **your** message. This already
+  happened: `cabd7f7` ("fix(ppgdex): …") also carries an unrelated CPAP brief, its `DOCS-INDEX` row, and
+  a ledger regen — two work-units fused into one, permanently.
+- **`git status` before every commit.** Files you don't recognize? **Leave them.** They're someone's work-unit.
+- **Never** `git reset --hard` / `git checkout .` / `git restore .` / `git stash` / `git clean -f` on a
+  tree you did not dirty. That is someone's only copy.
+- Found **finished, uncommitted work** that isn't yours? **Snapshot it, don't step on it** — a temp-index
+  commit preserves everything without touching the tree:
+  ```sh
+  cp .git/index /tmp/r.idx
+  TREE=$(GIT_INDEX_FILE=/tmp/r.idx sh -c 'git add -A; git write-tree')
+  git branch rescue/$(date +%F)-wip $(git commit-tree $TREE -p origin/main -m 'rescue: WIP snapshot')
+  ```
+  Then tell the user. Do **not** merge it — you don't know whose it is or whether it's finished.
+
+**This is hook-enforced.** `.claude/hooks/guard-shared-tree.sh` (wired via `.claude/settings.json`) denies
+all of the above with an explanation. Escape hatch when the tree is genuinely yours alone:
+`CLAUDE_ALLOW_BLANKET_GIT=1`.
+
+### 3 · Bundles and ledgers must be SERIALIZED — a worktree does not save you here
+
+Isolation solves the *tree*. It does **not** solve the fact that
+**`BUILD-MANIFEST.json` and `FIXTURE-PROVENANCE.json` are single files every bundle-touching PR rewrites**,
+and that **`clock.js` (and any other shared spine module) is inlined into EVERY bundle** — so one clock
+change moves **every** `manifestHash` and invalidates hashes anyone else just recorded.
+
+- **Only one session does bundle/ledger work at a time.** Say so before you start.
+- Landing second? **Rebase, re-run `node tools/build.mjs --app <App>`** — it auto-writes the manifest hash
+  and re-stamps fixtures, so the redo is cheap — then re-run the gates.
+- A shared-spine change (`clock.js`, `kernel-constants.js`, `metric-registry.js`, `dex-export.js`) should
+  land **before** node-local work that would otherwise have to re-record everything.
+
+Note the release layer *already* solves parallelism — §📦's changesets exist precisely so parallel coders
+never hand-pick a version. This section extends that thinking to the tree and the build.
+
+---
+
 ## 📌 Brief lifecycle — date NEW filenames at creation; mark DONE in the HEADER, never rename (non-negotiable)
 **All briefs live in `briefs/`** (as of the 2026-07-03 owner-sanctioned bulk relocation — one of two
 that day that deliberately broke the old "never move" rule for archival docs; briefs are work-plans,
