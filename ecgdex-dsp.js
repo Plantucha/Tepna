@@ -1144,7 +1144,12 @@ function analyze(rec, onProgress){
     spec = { tp:Math.round(median(epochs.map(e=>e.hf+e.lf))), hf:Math.round(median(epochs.map(e=>e.hf))),
              lf:Math.round(median(epochs.map(e=>e.lf))), vlf:0,
              lfhf:+median(epochs.map(e=>e.lfhf)).toFixed(3),
-             respRate: _respMedian!=null ? _respMedian : 0 };
+             // null, NOT 0 — a respiratory rate of 0 breaths/min is not a measurement, it is a
+             // FABRICATED value standing in for "unknown". Same discipline as the Clock Contract's
+             // "a missing stamp must be visible (null), never invented" (TCH-REFERENCE-VALIDATION §D2).
+             // Downstream is unaffected: cardiorespCoupling's respHint guard (`respHint && 6..24`)
+             // already falls back to 15 for BOTH 0 and null.
+             respRate: _respMedian };
     const whole = lombScargle(nn, tt, 220); spec.vlf = whole.vlf; spec.tp = whole.tp;
   } else {
     spec = lombScargle(repSeg, repT, 300);
@@ -1862,11 +1867,25 @@ function ecgBuildNodeExport(r, opts){
         sdnnIndex:nz(r.sdnnIdx), wholeRecordHR:nz(r.hr), wholeRecordSDNN:nz(r.sdnn), wholeRecordRMSSD:nz(r.rmssd),
         units:'ms',
         windowNote:'sdnn/rmssd/pnn50 here are DISPLAY values = representative 5-min epoch median on overnight recordings (short recs: whole-record). For CROSS-NODE comparison use wholeRecordSDNN/wholeRecordRMSSD.' },
-      frequency:{ lf:nz(r.lf), hf:nz(r.hf), lfhf:nz(r.lfhf), method:'Lomb\u2013Scargle' }
+      // TCH-REFERENCE-VALIDATION \u00a7D2 \u2014 ECGDex derives respiration TWO independent ways and used to
+      // export NEITHER: this block carried only {lf,hf,lfhf,method}. Both now ride the bus.
+      //   respRate     \u2014 HF-peak of the RR spectrum (RSA). Same method PpgDex now uses (\u00a7D1), so the
+      //                  two nodes are directly comparable.
+      //   respFromEDR  \u2014 R-peak AMPLITUDE modulation (cardiorespCoupling). A genuinely INDEPENDENT
+      //                  estimator: morphology, not rhythm. Do not conflate the two.
+      // Validated against CPAP's measured flow-sensor respiration: the RSA route under-reads by
+      // ~1.35 br/min, so consumers must treat these as biased estimates, not truth.
+      frequency:{ lf:nz(r.lf), hf:nz(r.hf), lfhf:nz(r.lfhf), method:'Lomb\u2013Scargle',
+                  respRate:nz(r.respRate), respRateMethod:'RSA (HF-peak of RR spectrum)',
+                  respFromEDR:(r.crc && r.crc.respFromEDR!=null) ? nz(r.crc.respFromEDR) : null,
+                  respFromEDRMethod:'EDR (R-peak amplitude modulation)' }
     };
     out.timeseries = {
       doc:'Per-5-min-epoch aggregates — the primary cross-node feed (posture rides on epochs[].position).',
-      epochs:(r.epochs||[]).map(function(e){ return { tMin:e.tMin, hr:nz(e.hr), rmssd:nz(e.rmssd), sdnn:nz(e.sdnn), lfhf:nz(e.lfhf), position:(e.position||'unknown') }; }),
+      // §D2: the internal epoch already carried `resp` (ls.respRate) — this map dropped it, so no
+      // per-epoch respiration ever reached the bus. It is the per-epoch series any cross-node
+      // respiration work needs (a night median cannot be correlated against anything).
+      epochs:(r.epochs||[]).map(function(e){ return { tMin:e.tMin, hr:nz(e.hr), rmssd:nz(e.rmssd), sdnn:nz(e.sdnn), lfhf:nz(e.lfhf), resp:nz(e.resp), position:(e.position||'unknown') }; }),
       sleepStages:(lng && !amb && Array.isArray(r.stages)) ? r.stages.map(function(s){ return { tMin:s.tMin, stage:s.stage }; }) : null
     };
     out.sleep = amb ? { suppressed:true, suppressedReason:((r.sleepSuppressed && r.sleepSuppressed.suppressedReason) || 'high-activity / ambulatory'), stages:null }
