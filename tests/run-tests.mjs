@@ -239,7 +239,8 @@ function readSources() {
     'pulsedex-overview.js',
     'ecgdex-profile.js',
     'glucodex-profile.js',
-    'ppgdex-profile.js'
+    'ppgdex-profile.js',
+    'overdex-app.js'
   ];
   const out = {};
   for (const f of wanted) {

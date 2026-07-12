@@ -143,11 +143,23 @@ function crossNight(series, opts){
 function _p2(x){ return (x<10?'0':'')+x; }
 function fmtDateUTC(ms){ if(ms==null) return null; const d=new Date(ms); return d.getUTCFullYear()+'-'+_p2(d.getUTCMonth()+1)+'-'+_p2(d.getUTCDate()); }
 
-// night-level ODI = mean of available-oximeter sessions (null if no oximeter that night)
+// night-level ODI = desats POOLED over analyzed hours across available-oximeter sessions (null if
+// no oximeter that night). NOT a mean of the per-session rates — that would let a 40-minute nap
+// weigh as much as a 6-hour sleep. Same arithmetic as residualAHI. DEEP-AUDIT §20.
 function nightOdi(n){
   if(!n.sessions) return null;
   var live=n.sessions.filter(function(s){ return s.oximetry && s.oximetry.available && s.oximetry.odi!=null; });
   if(!live.length) return null;
+  var desats=0, hours=0;
+  live.forEach(function(s){
+    var o=s.oximetry;
+    if(o.desatCount!=null && o.analyzedHours){ desats+=o.desatCount; hours+=o.analyzedHours; }
+  });
+  // 2 dp — the same precision the lane and the cross-metrics report ODI at (an unrounded quotient
+  // would ship 5.99880023995201 into the crossnight series for what is a 6.00 /hr night).
+  if(hours>0) return +(desats/hours).toFixed(2);
+  // LEGACY session objects (no lane denominators recorded) — fall back to the per-session rate,
+  // which is exact for the single-session case and only approximate when several are pooled.
   var sum=0; live.forEach(function(s){ sum+=s.oximetry.odi; }); return sum/live.length;
 }
 // CPAPDex outcome metric defs — each an OUTCOME with a clear good-direction.

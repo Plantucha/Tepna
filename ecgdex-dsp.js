@@ -595,7 +595,10 @@ function lombScargle(nn, times, nf){
     if(f<0.04) vlf+=e; else if(f<0.15) lf+=e; else { hf+=e; if(P>peakP){peakP=P;peakF=f;} }
   }
   const variance=x.reduce((s,v)=>s+v*v,0)/N, sc = tp>0 ? variance/tp : 1;
-  return { tp:Math.round(tp*sc), vlf:Math.round(vlf*sc), lf:Math.round(lf*sc), hf:Math.round(hf*sc),
+  // DEEP-AUDIT §10: the sub-bands tile [fLo,fHi) exactly, so tp IS vlf+lf+hf. Round the bands FIRST and
+  // define tp as their sum, so the Task-Force identity holds EXACTLY rather than to within rounding.
+  const _v=Math.round(vlf*sc), _l=Math.round(lf*sc), _h=Math.round(hf*sc);
+  return { tp:_v+_l+_h, vlf:_v, lf:_l, hf:_h,
            lfhf:+(lf/(hf||1)).toFixed(3), respRate:+(peakF*60).toFixed(1) };
 }
 
@@ -676,7 +679,9 @@ function epochEngine(nn, tt, winSec){
       epochs.push({
         tMin:+(w0/60).toFixed(1), n:seg.length, hr:+(60000/m).toFixed(1),
         meanRR:+m.toFixed(1), rmssd:+rmssd(seg).toFixed(1), sdnn:+std(seg).toFixed(1),
-        pnn:+pnn50(seg).toFixed(1), lf:ls.lf, hf:ls.hf, lfhf:ls.lfhf, resp:ls.respRate
+        // vlf/tp carried too (DEEP-AUDIT §10): the exported spectrum is the 5-min epoch median, and it
+        // must report ALL FOUR bands on that one scale — see the spec block in analyze().
+        pnn:+pnn50(seg).toFixed(1), lf:ls.lf, hf:ls.hf, vlf:ls.vlf, tp:ls.tp, lfhf:ls.lfhf, resp:ls.respRate
       });
     }
   }
@@ -1141,16 +1146,38 @@ function analyze(rec, onProgress){
 
   let spec;
   if (longRec && epochs.length>=3){
-    spec = { tp:Math.round(median(epochs.map(e=>e.hf+e.lf))), hf:Math.round(median(epochs.map(e=>e.hf))),
-             lf:Math.round(median(epochs.map(e=>e.lf))), vlf:0,
+    /* ONE TIME SCALE (DEEP-AUDIT-2026-07-11 §10/§11).
+       This block used to build hf/lf from the 5-MIN EPOCH MEDIANS and then OVERWRITE tp and vlf with a
+       WHOLE-NIGHT Lomb–Scargle. Four numbers shipped side by side in one `hrv.frequency` block on two
+       different time scales: on a real 7.26 h night vlf+lf+hf = 5060 ms² while totalPower = 5674 ms² —
+       the Task-Force identity broken by 11 % — and two irreconcilable "HF n.u." fell out of the same
+       export (ECGDex-native 32.1 vs the HRVDex ingest's 20.4).
+
+       The whole-night transform was also the §11 GRID LOTTERY. Its band split is ill-conditioned: the
+       periodogram of a 7 h record has intrinsic resolution 1/T ≈ 3.8e-5 Hz, ~50× finer than the fixed
+       grid, so the Riemann sum samples a spiky spectrum at essentially arbitrary points. Changing ONLY
+       the bin count swung LF/HF from 1.747 (nf=219) to 2.265 (nf=220, shipped) to 2.51 (nf=221) — a 44 %
+       swing on an arbitrary internal constant — and it does not converge. Parseval pins the TOTAL to the
+       variance, which is why nobody noticed: it is the SPLIT that floats.
+
+       Both defects die together. Frequency-domain HRV is DEFINED on 5-minute segments (Task Force 1996);
+       for a long recording you report the per-segment spectrum. At 5 min the grid is adequate by
+       construction (df = 0.0025 Hz is finer than the epoch's own 1/300 s = 0.0033 Hz resolution), so the
+       lottery cannot arise — and every band comes from the same transform on the same window.
+       tp is DEFINED as the sum of the reported bands, so vlf+lf+hf == tp exactly, by construction. */
+    const _med = k => Math.round(median(epochs.map(e => e[k])));
+    const _vlf = _med('vlf'), _lf = _med('lf'), _hf = _med('hf');
+    spec = { tp:_vlf+_lf+_hf, hf:_hf, lf:_lf, vlf:_vlf,
              lfhf:+median(epochs.map(e=>e.lfhf)).toFixed(3),
              // null, NOT 0 — a respiratory rate of 0 breaths/min is not a measurement, it is a
              // FABRICATED value standing in for "unknown". Same discipline as the Clock Contract's
              // "a missing stamp must be visible (null), never invented" (TCH-REFERENCE-VALIDATION §D2).
              // Downstream is unaffected: cardiorespCoupling's respHint guard (`respHint && 6..24`)
              // already falls back to 15 for BOTH 0 and null.
-             respRate: _respMedian };
-    const whole = lombScargle(nn, tt, 220); spec.vlf = whole.vlf; spec.tp = whole.tp;
+             respRate: _respMedian,
+             window:'epochMedian5min' };
+    // (§10/§11: the whole-record `lombScargle(nn, tt, 220)` overwrite of vlf/tp is GONE — it was the
+    //  two-scale mix AND the grid lottery. Every band above now comes from the same 5-min transform.)
   } else {
     spec = lombScargle(repSeg, repT, 300);
     // prefer the per-epoch median over the single representative-window HF peak
@@ -1273,6 +1300,7 @@ function analyze(rec, onProgress){
     poincareNN, poincareRep: (longRec && repSeg.length>=20), poincareRepTMin: repTMin, poincareRepIdx: repIdx,
     // frequency
     tp:spec.tp, hf:spec.hf, lf:spec.lf, vlf:spec.vlf, lfhf:spec.lfhf, respRate:spec.respRate, respStats,
+    specWindow: spec.window || (longRec ? 'epochMedian5min' : 'representative5min'),   // §10: name the scale
     hfnu:+(spec.hf/((spec.hf+spec.lf)||1)*100).toFixed(1), lfnu:+(spec.lf/((spec.hf+spec.lf)||1)*100).toFixed(1),
     // non-linear
     dfa1, sampen, triIdx, dc, ac, pip:frag.pip, ials:frag.ials, pss:frag.pss,
@@ -1867,15 +1895,22 @@ function ecgBuildNodeExport(r, opts){
         sdnnIndex:nz(r.sdnnIdx), wholeRecordHR:nz(r.hr), wholeRecordSDNN:nz(r.sdnn), wholeRecordRMSSD:nz(r.rmssd),
         units:'ms',
         windowNote:'sdnn/rmssd/pnn50 here are DISPLAY values = representative 5-min epoch median on overnight recordings (short recs: whole-record). For CROSS-NODE comparison use wholeRecordSDNN/wholeRecordRMSSD.' },
-      // TCH-REFERENCE-VALIDATION \u00a7D2 \u2014 ECGDex derives respiration TWO independent ways and used to
-      // export NEITHER: this block carried only {lf,hf,lfhf,method}. Both now ride the bus.
-      //   respRate     \u2014 HF-peak of the RR spectrum (RSA). Same method PpgDex now uses (\u00a7D1), so the
-      //                  two nodes are directly comparable.
-      //   respFromEDR  \u2014 R-peak AMPLITUDE modulation (cardiorespCoupling). A genuinely INDEPENDENT
-      //                  estimator: morphology, not rhythm. Do not conflate the two.
-      // Validated against CPAP's measured flow-sensor respiration: the RSA route under-reads by
-      // ~1.35 br/min, so consumers must treat these as biased estimates, not truth.
-      frequency:{ lf:nz(r.lf), hf:nz(r.hf), lfhf:nz(r.lfhf), method:'Lomb\u2013Scargle',
+      /* TCH-REFERENCE-VALIDATION §D2 — ECGDex derives respiration TWO independent ways and used to
+         export NEITHER: this block carried only {lf,hf,lfhf,method}. Both now ride the bus.
+           respRate     — HF-peak of the RR spectrum (RSA). Same method PpgDex now uses (§D1), so the
+                          two nodes are directly comparable.
+           respFromEDR  — R-peak AMPLITUDE modulation (cardiorespCoupling). A genuinely INDEPENDENT
+                          estimator: morphology, not rhythm. Do not conflate the two.
+         Validated against CPAP's measured flow-sensor respiration: the RSA route under-reads by
+         ~1.35 br/min, so consumers must treat these as biased estimates, not truth.
+
+         DEEP-AUDIT-2026-07-11 §10: emit ALL FOUR bands, on ONE time scale. Dropping vlf/totalPower here
+         was also the upstream half of §3 — HRVDex derives normalized units as hf/(totalPower − vlf), so an
+         export carrying lf/hf but no totalPower collapsed its denominator to an epsilon and surfaced
+         HF n.u. = 125,000,000 %. `window` names the scale the bands were measured on, so a consumer can
+         refuse to compare a 5-min epoch median against a whole-record value. */
+      frequency:{ vlf:nz(r.vlf), lf:nz(r.lf), hf:nz(r.hf), totalPower:nz(r.tp), lfhf:nz(r.lfhf),
+                  window:(r.specWindow || null), method:'Lomb–Scargle',
                   respRate:nz(r.respRate), respRateMethod:'RSA (HF-peak of RR spectrum)',
                   respFromEDR:(r.crc && r.crc.respFromEDR!=null) ? nz(r.crc.respFromEDR) : null,
                   respFromEDRMethod:'EDR (R-peak amplitude modulation)' }
