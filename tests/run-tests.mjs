@@ -646,7 +646,8 @@ async function main() {
       'adapters/polar-h10-ecg.js',
       'quantity.js',
       'dex-ingest.js',
-      'provenance-banner.js'
+      'provenance-banner.js',
+      'event-coupling.js'
     ].forEach((f) => loadInto(ctx, f));
     // §3 NAMESPACED CO-LOAD (SIGNAL-ADAPTER-FOLLOWUPS): the migrated DSPs now ship a
     // namespaced build, so — exactly like the Data Unifier / OverDex / Dex-Test-Suite host
@@ -718,6 +719,7 @@ async function main() {
     EXPORT_KINDS: ctx.EXPORT_KINDS,
     SignalSpec: ctx.SignalSpec,
     SignalAdapters: ctx.SignalAdapters,
+    EventCoupling: ctx.EventCoupling,
     SignalOrchestrate: ctx.SignalOrchestrate,
     DexCoload: ctx.DexCoload,
     DexIngest: ctx.DexIngest,

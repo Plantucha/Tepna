@@ -484,6 +484,7 @@ path capture-host/writers.py
 path cgm-hrv-coupling-analysis.html
 path cgm-hrv-coupling-analysis.js
 path changes
+path changes/2026-07-12-event-coupling-primitive.md
 path changes/README.md
 path clock.js
 path codegen
@@ -716,6 +717,7 @@ path ecgdex-profile.js
 path ecgdex-registry.js
 path ecgdex-render.js
 path entrance-guard.js
+path event-coupling.js
 path fusion-proto-data.json
 path ganglior-provenance.js
 path glucodex-app.js

@@ -12472,6 +12472,69 @@
       T.eq('a partition claims every group exactly once (no orphan, no duplicate)', claims, [1, 1, 1, 1, 1, 1]);
     });
 
+    /* ── event-coupling.js — the shuffled-null cross-node coupling primitive ──────────────
+       CPAP-REAL-CORPUS §P5, executing §M1. The point of the primitive is that a raw
+       co-occurrence rate between two FREQUENT event streams is not evidence of anything: on
+       the real ~180-night corpus the chance baseline INVERTED the naive read (the dominant
+       class, n=688, sat at exactly chance). So the gate pins the properties that make it
+       honest, not merely that it returns a number:
+         · a planted coupling is recovered, and independent streams read lift ≈ 1 DESPITE
+           heavy raw co-occurrence (the trap);
+         · the null shift WRAPS circularly — a non-wrapping shift lets A events fall off the
+           recording end where no B can match, deflating chance and INFLATING lift, i.e.
+           manufacturing couplings (the prototype in tools/cpap-oxy-couple.mjs did this);
+         · duration strata expose a coupling confined to long events that the pooled lift hides
+           (§M1's decisive refinement — what turns "no signal" into "provably no signal");
+         · a SATURATED window (wider than B's inter-event interval) is FLAGGED, because there
+           lift is crushed toward 1.0 by arithmetic and must not be read as "no coupling".
+       Runs the module's own selfTest() so the browser + Node lanes gate the same 19 assertions,
+       then re-asserts the contract shape from env (a module co-loaded in only one runner reds
+       in the other — the §3 co-load symmetry, enforced by construction). */
+    group('event-coupling — shuffled-null cross-node coupling (CPAP-REAL-CORPUS §P5/§M1)', 'event-coupling · spine', function (T) {
+      var EC = env.EventCoupling;
+      var live = !!(EC && typeof EC.coupling === 'function' && typeof EC.selfTest === 'function');
+      T.ok('event-coupling.js co-loaded and exposes coupling()/selfTest()', live,
+        live ? '' : 'co-load event-coupling.js in BOTH runners (run-tests.mjs loadInto + Dex-Test-Suite.html)');
+      if (!live) return;
+
+      // 1. the module's own self-test (planted coupling · null · circular wrap · strata ·
+      //    window sweep · saturation · honest NaN edges · determinism)
+      var st = EC.selfTest();
+      T.ok('selfTest: 0 failed', st.fail === 0,
+        st.fail + ' failed — ' + st.log.filter(function (l) { return l.charAt(0) === '✗'; }).join(' | '));
+      T.ok('selfTest: asserts a non-trivial number of properties (≥ 15)', st.pass >= 15, st.pass + ' passed');
+
+      // 2. contract shape, re-asserted from env so a signature change reds here too
+      var T0 = Date.UTC(2026, 5, 13, 23, 0, 0);
+      var B = [], i;
+      for (i = 0; i < 120; i++) B.push({ tMs: T0 + i * 60000 });
+      var A = [];
+      for (i = 10; i < 110; i++) A.push({ tMs: B[i].tMs - 2000, durSec: i < 60 ? 10 : 60 });
+      var span = [T0, T0 + 2 * 3600 * 1000];
+
+      var r = EC.coupling(A, B, { window: [0, 10000], span: span, stratifyBy: 'durSec' });
+      ['n', 'hits', 'observedPct', 'chancePct', 'lift', 'maxLift', 'saturated',
+        'spanMs', 'window', 'windowSweep', 'strata'].forEach(function (k) {
+        T.ok('coupling() returns ' + k, Object.prototype.hasOwnProperty.call(r, k));
+      });
+      T.ok('windowSweep is an array of measurements', Array.isArray(r.windowSweep) && r.windowSweep.length > 0);
+      T.ok('strata is an array (stratifyBy honored)', Array.isArray(r.strata) && r.strata.length >= 2, r.strata.length);
+      T.ok('planted coupling recovered (lift > 1 on a tight window)', r.lift > 1, r.lift);
+      T.ok('lift never exceeds its arithmetic ceiling maxLift', !isFinite(r.maxLift) || r.lift <= r.maxLift + 1e-9,
+        r.lift + ' vs ' + r.maxLift);
+
+      // 3. the honest-edge rule: 0 observed on 0 chance is NO INFORMATION (NaN), never "no effect" (0 or 1)
+      var none = EC.coupling(A, [], { window: [0, 10000], span: span });
+      T.ok('empty B → lift NaN, not a fabricated 0 or 1', isNaN(none.lift), none.lift);
+      var empty = EC.coupling([], B, { span: span });
+      T.ok('empty A → n = 0, lift NaN, no throw', empty.n === 0 && isNaN(empty.lift), empty.lift);
+
+      // 4. purity — no clock read, no RNG: identical inputs must give identical output
+      T.eq('deterministic across calls (pure: no now(), no random)',
+        JSON.stringify(EC.coupling(A, B, { window: [0, 10000], span: span, stratifyBy: 'durSec' })),
+        JSON.stringify(r));
+    });
+
     /* Selection already happened at declaration time (see group() above) — a group that
        was not selected never RAN, so here we only drop its placeholder from the report.
        `totalGroups` stays the full declaration count, so "N of 134" is still honest. */

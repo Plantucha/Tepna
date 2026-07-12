@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-11 · **Corpus:** ~180 real CPAP nights (6 months), 39 paired with O2Ring, 17 quad-modal · **Related:** `CPAPDEX-PHASE9-FOLLOWUPS-*-BRIEF.md`, `INTEGRATOR-BUILD-BRIEF.md`
+**Status:** IN-PROGRESS 2026-07-12 (P1 · P2 · P5 · P6 · P9 DONE; **P3 · P4 remain**) · **Created:** 2026-07-11 · **Corpus:** ~180 real CPAP nights (6 months), 39 paired with O2Ring, 17 quad-modal · **Related:** `CPAPDEX-PHASE9-FOLLOWUPS-*-BRIEF.md`, `INTEGRATOR-BUILD-BRIEF.md` · **Spawned:** `TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md` (executes §P6)
 
 # CPAP real corpus — what a whole SD card exposed, and what the data still owes us
 
@@ -293,12 +293,45 @@ nothing in the suite currently pins it. Deserves a fixture.
 | ~~**P9**~~ | ✅ **DONE 2026-07-12** — every node has a committed synthetic input; the equivalence gate runs in CI for the first time (17 → 38 assertions, GATE B 4 → 10). | **highest** | med |
 | **P3** | `adapters/resmed-edf.js` (F4) — promote the session-grouping rule out of `tools/`. | med | low |
 | **P4** | Fix/retire the `mode` heuristic (F2); decide F6. | med | low |
-| **P5** | **`event-coupling.js`** — the shuffled-null primitive (M1). | **high** | med |
-| **P6** | **CPAP as a respiration REFERENCE for the reference-free σ programme** — below. | **highest** | med |
+| ~~**P5**~~ | ✅ **DONE 2026-07-12** — `event-coupling.js` in the spine (22 self-test + 21 contract assertions, both runners). Absorbing the prototype found **three ways it lied, all toward false positives**: the null shift did not **wrap** (surrogates fell off the recording end where no B can match → chance deflated → **lift inflated**); a **saturated** window (wider than B's inter-event interval) crushes lift to ~1.0 *by arithmetic* and was indistinguishable from "no coupling" (now flagged, with the exact ceiling `maxLift = 100/chancePct`); and the whole-minute default shifts **resonate** with any round periodicity in B — a planted, perfect coupling scored **lift 1.006**, a false negative (defaults are now second-level). Bundle-free + fixture-free by construction. | **high** | med |
+| ~~**P6**~~ | ✅ **DONE 2026-07-12** — executed as **`TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md`**. The answer is *no*: over 67 epochs / 11 quad-modal nights the reference-free TCH estimator fails **two** ways that are invisible without a truth signal — it is **blind to bias** by construction (ECG under-reads respiration by 1.35 br/min), and its **independence assumption is violated** (ρ = 0.42 between the ECG and PPG error terms — both read the same RSA proxy with the same estimator), which makes it rate a calibrated flow sensor as noisy as an RSA-derived estimate. Rode a sibling ECGDex fix (respiration was computed two ways and exported zero ways — §F1's bug class in a second node). | **highest** | med |
 | **P7** | Apnea → HR (CVHR) and apnea → motion-arousal coupling on A3, via P5. Independently tests M3's re-labelling alternative. | high | med |
 | **P8** | Use A4's dated change-points as ground truth for `CPAPCross` change detection. | med | low |
 
-### P5 — the coupling primitive
+### P5 — the coupling primitive ✅ **DONE 2026-07-12**
+
+> **Executed** — `event-coupling.js`, spine module, dual-realm, gated in both runners (22 self-test +
+> 21 contract assertions). Not co-loaded into any bundle: no app consumes it yet, so wiring it into
+> `dex-coload.js` would re-bundle all 8 apps to carry inert code (the `BADGE_CSS` economics, §🎫). It
+> rides the first node that uses it. **No `manifestHash` moved; no fixture was touched.**
+>
+> **Absorbing `tools/cpap-oxy-couple.mjs`'s `coupling()` found three defects in it — and all three lie
+> in the direction the reader wants to believe.** This matters beyond CPAP: the prototype's numbers are
+> what §M1 is *reported from*, so the primitive had to be right before anything was built on it.
+>
+> 1. **The null did not WRAP.** The prototype shifted surrogates additively, so displaced A events fell
+>    off the end of the recording, where no B can ever match them. That deflates `chancePct` and
+>    therefore **inflates `lift`** — it manufactures couplings. The shift is now circular within the
+>    recording span. (§M1's *lifts* are directionally safe — the dominant class was called at chance and
+>    a deflated chance would only have exaggerated it — but the magnitudes were never sound.)
+> 2. **Saturation was invisible.** If the window is wider than B's mean inter-event interval, every A
+>    finds a B by chance, `chancePct` → 100%, and `lift` is crushed toward 1.0 **by arithmetic even when
+>    the coupling is perfect**. A bare `lift ≈ 1.0` therefore means *either* "no coupling" *or* "this
+>    window cannot resolve one", and the prototype could not tell them apart. Each measurement now
+>    carries the exact ceiling **`maxLift = 100/chancePct`** and a **`saturated`** flag, so lift ≈ 1 may
+>    be read as absence **only** on a window that could have shown presence.
+> 3. **The default shifts RESONATED.** Whole-minute shifts (±5/7/11/13/15 min) are all multiples of 60 s,
+>    so against any stream with a round periodicity every surrogate re-lands A on the *same phase*, the
+>    null reproduces the observed rate, and a real coupling reads as ~1.0 — a **false negative**. Caught
+>    by the module's own gate: a planted, *perfect* coupling scored **lift 1.006**. Defaults are now
+>    second-level (317/461/663/809/887 s), sharing no factor with 30/60/120 s.
+>
+> Each of the three is pinned by a regression assertion, so none can come back. **§M1's conclusions
+> survive** (a chance-level dominant class, a coupled rare class, a ×0.0 longest-duration bucket), but
+> any *magnitude* quoted from the prototype should be re-derived through the primitive before it is
+> published.
+
+### P5 (as proposed)
 
 `cgm-hrv-coupling-analysis.js` is precedent (GlucoDex × PulseDex) but it validates a mechanism **deliberately
 planted in the synthetic cohort generator** — it answers *"did our detectors recover what we injected?"*. The
@@ -350,14 +383,15 @@ Recorded so nobody rebuilds them. All four were *plausible* and *wrong*, and eac
 
 ## 6 · Done when
 
-- [ ] **P1** — the 15 populated dropped metrics ride the `ganglior` bus; `CPAP_REGISTRY` + badges updated; F5's one-line fix rides the same bundle; CPAP fixtures regenerated (output moves → changeset per §📦); `registry-defs-parity` green.
-- [ ] **P2** — the identifier question settled (**scrub** or **synthesize**); a real-binary-EDF `env.equiv` leg runs `compute({edfSets}) ≡ committed export` in **both** runners; `FIXTURE-PROVENANCE.json`'s "can't join" note **deleted**.
+- [x] **P1** — the 15 populated dropped metrics ride the `ganglior` bus; `CPAP_REGISTRY` + badges updated; F5's one-line fix rides the same bundle; CPAP fixtures regenerated (output moves → changeset per §📦); `registry-defs-parity` green.
+- [x] **P2** — the identifier question settled (**synthesize** — no real EDF committed, so no device serial published); a binary-EDF `env.equiv` leg runs `compute({edfSets}) ≡ committed export` in **both** runners; `FIXTURE-PROVENANCE.json`'s "can't join" note **deleted**.
 - [ ] **P3** — `adapters/resmed-edf.js` registered; the second-file-of-type rule has a unit test.
 - [ ] **P4** — `mode` fixed or retired (no bare-IQR label ships); F6 decided and documented.
-- [ ] **P5** — `event-coupling.js` in the shared spine with a self-test (window sweep + duration strata + null).
-- [ ] **P6** — respiration triplet built on A3; TCH σ compared against the CPAP reference; written up (a `PAPERS-ROADMAP` item, not just a gate).
+- [x] **P5** — `event-coupling.js` in the shared spine with a self-test (window sweep + duration strata + null). 22 self-test + 21 contract assertions, gated in both runners; the three prototype defects (non-wrapping null · unflagged saturation · resonant whole-minute shifts) fixed and each pinned by a regression assertion.
+- [x] **P6** — respiration triplet built on A3; TCH σ compared against the CPAP reference; written up as `TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md`. **The estimator does NOT recover the true σ** — blind to bias, and its independence assumption fails (ρ = 0.42).
 - [ ] `Dex-Test-Suite.html?full` all-green · `verify-provenance.html` GATE A/B clean · `node tools/build.mjs --check` clean.
-- [ ] Follow-up brief spawned per §📌 with whatever P6 turns up.
+      *(Headless floor + both provenance gates green as of 2026-07-12 after P5: `run-tests.mjs` **2108 passing / 0 failing**, `build.mjs --check` **clean (10 owned)**, `verify-manifest.mjs` **GATE A 8/8 · GATE B 10 reproducible**. The browser `?full` render-coverage lane still owes a run — P5 touches no render surface, but P3/P4 will.)*
+- [x] Follow-up brief spawned per §📌 with whatever P6 turns up — `TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md` (which in turn feeds `SIGMA-PAPER-REWRITE` + `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III`).
 
 ## 7 · Reproducing
 
