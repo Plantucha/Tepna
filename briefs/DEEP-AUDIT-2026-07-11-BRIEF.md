@@ -334,7 +334,27 @@ the epoch path already does correctly). **Repro:** `real-diff.mjs`, `ls-grid.mjs
    could not see it. That assertion now encodes the truth.
    Behavior 2052/2052 · GATE A 8/8 · GATE B 16/16 · build drift clean.
    Changeset: `changes/2026-07-12-glucodex-gapfill-and-clip-floor.md`.
-5. **§7 + §8 + §9 OxyDex** — real row timestamps on events; whole-night decimation; a REM plausibility gate
+5. **§7 + §8 + §9 OxyDex** — ✅ **EXECUTED 2026-07-12.** §8: desat events now carry `tMs`/`startTMs`/`endTMs`
+   from their OWN rows; both consumers (bus export + `oxydex-fusion`) read them, with the index mapping kept
+   only as a legacy fallback. Exported `tMs` now equals the true row stamp exactly (0.0 s); the old mapping is
+   **952 s** off on the same input, against a 60 s gate. §9: `computeSpO2FFT`/`computeDFA` no longer head-slice
+   to the first hour — the committed `_0439` fixture's FFT cycle length moves **100 s → 143 s** on this fix
+   alone. §7: the stage proxy self-reports `plausible:false` + a reason past a 30 % ceiling; the KPI never
+   renders 'good' for it (**all 39 real nights flagged; 0 now render "good", previously 39/39 did**); and the
+   Integrator refuses to fold an implausible proxy into the staging consensus, **re-checking the ceiling itself
+   so LEGACY exports are caught too** — on the real trio night the false 67.7-pt `staging_disagreement`
+   disappears. Deliberately NOT done: re-deriving the REM estimator (research, not an audit fix) — the node
+   now refuses to assert an impossible number as a healthy finding, which is the node-side half §T2 promised.
+   **Gated:** a 12-assert group on a synthetic LOSSY night (the shape a clean 6-min equiv clip can never
+   expose) that **reds on the original code** (952 s drift · cycle 20 s vs 50 s · `plausible: undefined`), incl.
+   a control asserting the OLD index mapping really is wrong on that input. **Both OxyDex fixtures regenerated**
+   by re-running `compute()` on their committed inputs. Behavior 2064/2064 · GATE A 8/8 · GATE B 16/16 · biome clean.
+   Changeset: `changes/2026-07-12-oxydex-event-clock-windows-rem.md`.
+   **Residue:** the *tail*-slice family (`computeSpO2Autocorr`/`computeHRFreqBands`/`computeRespRateProxy`/
+   `computeSpO2HRLag` use `rows.slice(-USE)` = the last 30–60 min, undisclosed) is untouched — same class, but
+   not proven to move a surfaced number. `remProxyPct` also still denominates on RECORDING time while ECGDex's
+   `remFraction` denominates on SLEEP time; moot while the proxy is suppressed, but it must be reconciled if
+   the estimator is ever re-derived.
 6. **§12–§16 Integrator** — read-set fixes + the kernel-key mismatch (all consumer-side, cheap)
 7. **§10 + §11** — one gated ECGDex/PpgDex spectral re-bundle (shared call sites, shared fixture cost)
 8. **§17–§21** — hygiene: `exportName()`, null-not-zero, profile origins, ODI pooling, badge coverage

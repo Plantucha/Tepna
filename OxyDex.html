@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-DDi7btrtjBnHqF8Ibhb8NgorJD+BZW2ji9BP8/sHm5E=' 'sha256-E2ngOpZHvhTh+21GFums+bwu0xmN5jAymA8joA40KV8=' 'sha256-F7a0/3H9379HYkgLnOuKhb+Fy7ArsyfdzlCn1DMlZKc=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-SbhMwvzlpgPhlroU5JoY5kACF2lbh9q6MEOKlFWAwWY=' 'sha256-V0C9qWkelizTKHjPEtlWmyTc4pTsPSf41HTe+Ia2y7Y=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-iK9EcZBDjNzU/HabAJ18HheFskGhlbwfIFYuFnQxgXE=' 'sha256-iNPxhp5CmUWM1ebbscxEvZ2ArYCDIRg7cLQDDAOFh/s=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-n0/V9TpXQqMV0xlqN4GBugLvOQEkxjb4N8v367zFAZs=' 'sha256-wMwFbLQvS0B0LmW6+Gs+Wh82l9r2Q/ygQM45UEBwnlE=' 'sha256-znnyGiXDcfbU3wUjydrmyWCFBC9U8tWF9ZOIH8oZ9no=' 'sha256-zoX0rksSqUxFePSlhG6+8O2Euarj7JlN/OQ/SqQyThw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-CRbiaIss441VNIdqsQL7W4Sh9zr6shLV99vG1GtcNvk=' 'sha256-E2ngOpZHvhTh+21GFums+bwu0xmN5jAymA8joA40KV8=' 'sha256-F7a0/3H9379HYkgLnOuKhb+Fy7ArsyfdzlCn1DMlZKc=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-ROGyhT1rJjfiCwpGX5aRiBwshPY6awMfBAkT7N8hXWo=' 'sha256-SbhMwvzlpgPhlroU5JoY5kACF2lbh9q6MEOKlFWAwWY=' 'sha256-UpMOrfQBFV1q+K88oMlT66QPWv7K/Z64bEx3cGzuWwM=' 'sha256-V0C9qWkelizTKHjPEtlWmyTc4pTsPSf41HTe+Ia2y7Y=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-iNPxhp5CmUWM1ebbscxEvZ2ArYCDIRg7cLQDDAOFh/s=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-wMwFbLQvS0B0LmW6+Gs+Wh82l9r2Q/ygQM45UEBwnlE=' 'sha256-znnyGiXDcfbU3wUjydrmyWCFBC9U8tWF9ZOIH8oZ9no=' 'sha256-zoX0rksSqUxFePSlhG6+8O2Euarj7JlN/OQ/SqQyThw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OxyDex — Nocturnal Oximetry Analyzer · v1.0.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -11859,8 +11859,11 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
       });
     var n = spo2.length;
     if (n < 256) return null;
-    spo2 = spo2.slice(0, Math.min(n, 3600));
-    n = spo2.length;
+    // DEEP-AUDIT-2026-07-11 §9: the old `spo2.slice(0, 3600)` analysed only the FIRST HOUR of a 6–10 h
+    // night and disclosed nothing — the surfaced DFA α1 chip described the settle-in window, not the
+    // night. The cap was never performance-motivated (DFA is O(N·scales)), so it is simply gone: α1 now
+    // spans the whole recording. Same defect the sibling computeHREntropy below already fixed — it was
+    // applied to one of three siblings and these two were missed.
     var mean =
       spo2.reduce(function (a, b) {
         return a + b;
@@ -11940,8 +11943,12 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
     });
     var n = spo2.length;
     if (n < 512) return null;
-    var USE = Math.min(n, 3600); // 1hr max
-    var sig = spo2.slice(0, USE);
+    // DEEP-AUDIT-2026-07-11 §9: `Math.min(n, 3600)` analysed only the FIRST HOUR of the night, undisclosed.
+    // This is the surfaced "FFT Cycle Length" — the periodic-breathing / Cheyne-Stokes cycle number — and
+    // the head-slice CHANGED it on ~30 of 39 real O2Ring nights (63s→200s, 200s→33s, 50s→200s). The probe
+    // is O(11·N), so the cap bought nothing; the cycle length now describes the whole night.
+    var USE = n;
+    var sig = spo2;
     var mean =
       sig.reduce(function (a, b) {
         return a + b;
@@ -13546,6 +13553,26 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
     var dip3Count = detectDesatEvents(spo2, { dropPct: 3, exitPct: 3, minSec: 0, blArr: blArr }).length;
     var dip3Rate = durationHr > 0 ? +(dip3Count / durationHr).toFixed(1) : 0;
 
+    /* CLOCK: stamp each event with the REAL wall-clock time of its own row (DEEP-AUDIT-2026-07-11 §8).
+       parseCSV DROPS rows (the device's '- -' no-reading, out-of-band values, unparsable stamps), so a row
+       INDEX is not a second-offset — yet both consumers rebuilt event time from the index and disagreed
+       with each other AND with the row's own parsed stamp: oxydex-dsp's bus export used t0 + idx·dt (a
+       uniform stretch that smears a dropout evenly across the night) and oxydex-fusion used t0 + idx·1000
+       (hard-coded 1 Hz). On a real lossy night the worst desat landed 422 s / 849 s from its true time —
+       against a coincidence gate of LEAD 15 s / TRAIL 60 s, so desat↔surge corroboration was noise.
+       rows[idx].tMs is the honest value and was already sitting right here. */
+    var _stampEvent = function (e) {
+      var r0 = rows[e.startIdx],
+        rN = rows[e.nadirIdx],
+        rE = rows[e.endIdx];
+      e.tMs = rN && rN.tMs != null ? rN.tMs : null; // the nadir IS the event's instant
+      e.startTMs = r0 && r0.tMs != null ? r0.tMs : null;
+      e.endTMs = rE && rE.tMs != null ? rE.tMs : null;
+      return e;
+    };
+    realEvents.forEach(_stampEvent);
+    nadirEvents.forEach(_stampEvent);
+
     return {
       deltaIndex: deltaIndex,
       spo2CoV: spo2CoV,
@@ -15090,14 +15117,35 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
       // REM proxy: low motion, low SD, HR near mean (explicitly exclude NREM-Deep windows)
       else if (segSD < 3 && segMean > hrMean - 5 && segMean < hrMean + 5) remSec += WIN;
     }
+    /* PLAUSIBILITY GATE (DEEP-AUDIT-2026-07-11 §7).
+       These criteria ("still + low HR SD + HR near the night mean") describe the bulk of quiet sleep, not
+       REM — REM shows INCREASED heart-rate variability. On the committed corpus the proxy therefore fires
+       on most of the night: all 39 real O2Ring nights return 39.6–87.8 % "REM" (median 77.5 %), against a
+       physiological norm of ~20–25 %. Every one of them used to render as KPI colour "good" and be exported
+       to the Integrator as a comparable single-signal estimate.
+       Re-deriving an oximetry REM detector is research, not an audit fix. What the node MUST NOT do is
+       assert an impossible number as a healthy finding: past the ceiling, the estimator has failed, and the
+       output is reported as IMPLAUSIBLE rather than as a high-REM night. This is the node-side half of
+       INTEGRATOR-FUSION-ISSUES §T2 — which was marked ✅ but only ever shipped the Integrator half, so a
+       STANDALONE OxyDex user (the common case — every Dex runs alone) saw the bare number with nothing to
+       disagree with it. */
+    var REM_CEILING_PCT = 30; // adult REM ≈ 20–25 % of sleep; >30 % of the RECORDING is not physiological
+    var remPct = +((remSec / n) * 100).toFixed(1);
+    var deepPct = +((nremDeepSec / n) * 100).toFixed(1);
+    var remPlausible = remPct <= REM_CEILING_PCT;
     return {
       remProxySec: remSec,
       remProxyMin: +(remSec / 60).toFixed(0),
-      remProxyPct: +((remSec / n) * 100).toFixed(1),
+      remProxyPct: remPct,
       nremDeepSec: nremDeepSec,
       nremDeepMin: +(nremDeepSec / 60).toFixed(0),
-      nremDeepPct: +((nremDeepSec / n) * 100).toFixed(1),
-      remProxyLabel: remSec / 60 < 45 ? 'Low REM estimate (<45min)' : remSec / 60 > 90 ? 'High REM estimate (>90min)' : 'Normal',
+      nremDeepPct: deepPct,
+      // the honest self-assessment the Integrator (and a standalone user) can read
+      plausible: remPlausible,
+      plausibilityNote: remPlausible
+        ? null
+        : 'REM proxy implausible (' + remPct + '% of the recording; physiological ≈20–25%) — the HR-stability estimator over-fires on quiet sleep. Not a high-REM night; treat as unreliable.',
+      remProxyLabel: !remPlausible ? 'Implausible — estimator unreliable' : remSec / 60 < 45 ? 'Low REM estimate (<45min)' : remSec / 60 > 90 ? 'High REM estimate (>90min)' : 'Normal',
       nremDeepLabel: nremDeepSec / 60 < 30 ? 'Low deep sleep estimate' : nremDeepSec / 60 > 90 ? 'Good deep sleep estimate' : 'Moderate'
     };
   }
@@ -16091,7 +16139,10 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
         if (!d || d.artifact) return; // self-gated artifacts are never on the bus (belt + braces)
         var idx = d.nadirIdx != null ? d.nadirIdx : d.startIdx != null ? d.startIdx : null;
         if (idx == null) return;
-        var tMs = t0 + idx * dt;
+        // §8: prefer the event's OWN parsed row stamp. The index→time fallback is a uniform stretch that
+        // is only correct on a gapless recording; on a lossy night it drifts by minutes (see the stamp
+        // note in computeDesaturationProfile). Keep it ONLY for a legacy event with no stamp.
+        var tMs = d.tMs != null ? d.tMs : t0 + idx * dt;
         out.push({
           t: fmtTime(new Date(tMs)),
           tMs: tMs,
@@ -17818,8 +17869,18 @@ function renderSmartSummary(n) {
   }
   if(n.lcsp) html += ssKPI('LCSP', cv(n.lcsp.lcspMin,45,90,'min',true), n.lcsp.lcspMin>=90?'good':n.lcsp.lcspMin>=45?'warn':'bad');
   if(n.stageProxy && n.stageProxy.remProxyMin!=null) {
-    html += ssKPI('REM ~est',  cv(n.stageProxy.remProxyMin,null,null,'min'),  n.stageProxy.remProxyMin>=45?'good':n.stageProxy.remProxyMin>=20?'warn':'bad');
+    // DEEP-AUDIT §7: an IMPLAUSIBLE REM proxy (>30% of the recording — the estimator over-firing on quiet
+    // sleep) must never render as 'good'. The more minutes it claims, the LESS trustworthy it is, so the
+    // old `remProxyMin>=45 ? 'good'` rule graded the failure mode as the healthiest result.
+    var _remImplausible = (n.stageProxy.plausible === false);
+    html += ssKPI('REM ~est',
+      cv(n.stageProxy.remProxyMin,null,null,'min'),
+      _remImplausible ? 'bad' : n.stageProxy.remProxyMin>=45?'good':n.stageProxy.remProxyMin>=20?'warn':'bad',
+      _remImplausible ? 'unreliable — see note' : null);
     html += ssKPI('Deep ~est', cv(n.stageProxy.nremDeepMin!=null?n.stageProxy.nremDeepMin:null,null,null,'min'),  (n.stageProxy.nremDeepMin||0)>=60?'good':(n.stageProxy.nremDeepMin||0)>=30?'warn':'bad');
+    if(_remImplausible && n.stageProxy.plausibilityNote){
+      html += '<div class="ss-note" style="grid-column:1/-1;opacity:.85;font-size:.82em;line-height:1.35">⚠ '+escapeHTML(n.stageProxy.plausibilityNote)+'</div>';
+    }
   }
   if(n.osc) html += ssKPI('Osc Windows', cv(n.osc.episodeCount,2,5,''), n.osc.episodeCount<2?'good':n.osc.episodeCount<5?'warn':'bad');
   if(n.spo2NadirT) html += ssKPI('SpO₂ Nadir', cv(n.spo2NadirT.spo2NadirValue,null,null,'%'), 'neutral');
@@ -18885,10 +18946,15 @@ function oxyComputeFusion(n, ecg){
   }
   var desatMs=[], desatDepth=[];
   if(n.desat && Array.isArray(n.desat.events) && n.t0Ms!=null){
+    // §8 (DEEP-AUDIT-2026-07-11): use the event's OWN parsed row stamp. `t0Ms + idx*1000` hard-codes
+    // 1 Hz and ignores the rows parseCSV dropped, so on a real lossy night a desat landed up to 849 s
+    // from its true time — while the coincidence gate below is LEAD 15 s / TRAIL 60 s, making the
+    // desat↔surge "confirmed %" pure noise. The index fallback survives only for a legacy stamp-less event.
     n.desat.events.forEach(function(e){
       var idx=(e.nadirIdx!=null?e.nadirIdx:e.startIdx);
-      if(idx!=null){
-        desatMs.push(n.t0Ms + idx*1000);
+      var tMs=(e.tMs!=null)?e.tMs:((idx!=null)?(n.t0Ms + idx*1000):null);
+      if(tMs!=null){
+        desatMs.push(tMs);
         desatDepth.push(e.depth!=null?e.depth:(e.baseline!=null&&e.nadir!=null?(e.baseline-e.nadir):0));
       }
     });
