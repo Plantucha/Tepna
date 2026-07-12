@@ -1437,8 +1437,11 @@
       });
     var n = spo2.length;
     if (n < 256) return null;
-    spo2 = spo2.slice(0, Math.min(n, 3600));
-    n = spo2.length;
+    // DEEP-AUDIT-2026-07-11 §9: the old `spo2.slice(0, 3600)` analysed only the FIRST HOUR of a 6–10 h
+    // night and disclosed nothing — the surfaced DFA α1 chip described the settle-in window, not the
+    // night. The cap was never performance-motivated (DFA is O(N·scales)), so it is simply gone: α1 now
+    // spans the whole recording. Same defect the sibling computeHREntropy below already fixed — it was
+    // applied to one of three siblings and these two were missed.
     var mean =
       spo2.reduce(function (a, b) {
         return a + b;
@@ -1518,8 +1521,12 @@
     });
     var n = spo2.length;
     if (n < 512) return null;
-    var USE = Math.min(n, 3600); // 1hr max
-    var sig = spo2.slice(0, USE);
+    // DEEP-AUDIT-2026-07-11 §9: `Math.min(n, 3600)` analysed only the FIRST HOUR of the night, undisclosed.
+    // This is the surfaced "FFT Cycle Length" — the periodic-breathing / Cheyne-Stokes cycle number — and
+    // the head-slice CHANGED it on ~30 of 39 real O2Ring nights (63s→200s, 200s→33s, 50s→200s). The probe
+    // is O(11·N), so the cap bought nothing; the cycle length now describes the whole night.
+    var USE = n;
+    var sig = spo2;
     var mean =
       sig.reduce(function (a, b) {
         return a + b;
@@ -3124,6 +3131,26 @@
     var dip3Count = detectDesatEvents(spo2, { dropPct: 3, exitPct: 3, minSec: 0, blArr: blArr }).length;
     var dip3Rate = durationHr > 0 ? +(dip3Count / durationHr).toFixed(1) : 0;
 
+    /* CLOCK: stamp each event with the REAL wall-clock time of its own row (DEEP-AUDIT-2026-07-11 §8).
+       parseCSV DROPS rows (the device's '- -' no-reading, out-of-band values, unparsable stamps), so a row
+       INDEX is not a second-offset — yet both consumers rebuilt event time from the index and disagreed
+       with each other AND with the row's own parsed stamp: oxydex-dsp's bus export used t0 + idx·dt (a
+       uniform stretch that smears a dropout evenly across the night) and oxydex-fusion used t0 + idx·1000
+       (hard-coded 1 Hz). On a real lossy night the worst desat landed 422 s / 849 s from its true time —
+       against a coincidence gate of LEAD 15 s / TRAIL 60 s, so desat↔surge corroboration was noise.
+       rows[idx].tMs is the honest value and was already sitting right here. */
+    var _stampEvent = function (e) {
+      var r0 = rows[e.startIdx],
+        rN = rows[e.nadirIdx],
+        rE = rows[e.endIdx];
+      e.tMs = rN && rN.tMs != null ? rN.tMs : null; // the nadir IS the event's instant
+      e.startTMs = r0 && r0.tMs != null ? r0.tMs : null;
+      e.endTMs = rE && rE.tMs != null ? rE.tMs : null;
+      return e;
+    };
+    realEvents.forEach(_stampEvent);
+    nadirEvents.forEach(_stampEvent);
+
     return {
       deltaIndex: deltaIndex,
       spo2CoV: spo2CoV,
@@ -4668,14 +4695,35 @@
       // REM proxy: low motion, low SD, HR near mean (explicitly exclude NREM-Deep windows)
       else if (segSD < 3 && segMean > hrMean - 5 && segMean < hrMean + 5) remSec += WIN;
     }
+    /* PLAUSIBILITY GATE (DEEP-AUDIT-2026-07-11 §7).
+       These criteria ("still + low HR SD + HR near the night mean") describe the bulk of quiet sleep, not
+       REM — REM shows INCREASED heart-rate variability. On the committed corpus the proxy therefore fires
+       on most of the night: all 39 real O2Ring nights return 39.6–87.8 % "REM" (median 77.5 %), against a
+       physiological norm of ~20–25 %. Every one of them used to render as KPI colour "good" and be exported
+       to the Integrator as a comparable single-signal estimate.
+       Re-deriving an oximetry REM detector is research, not an audit fix. What the node MUST NOT do is
+       assert an impossible number as a healthy finding: past the ceiling, the estimator has failed, and the
+       output is reported as IMPLAUSIBLE rather than as a high-REM night. This is the node-side half of
+       INTEGRATOR-FUSION-ISSUES §T2 — which was marked ✅ but only ever shipped the Integrator half, so a
+       STANDALONE OxyDex user (the common case — every Dex runs alone) saw the bare number with nothing to
+       disagree with it. */
+    var REM_CEILING_PCT = 30; // adult REM ≈ 20–25 % of sleep; >30 % of the RECORDING is not physiological
+    var remPct = +((remSec / n) * 100).toFixed(1);
+    var deepPct = +((nremDeepSec / n) * 100).toFixed(1);
+    var remPlausible = remPct <= REM_CEILING_PCT;
     return {
       remProxySec: remSec,
       remProxyMin: +(remSec / 60).toFixed(0),
-      remProxyPct: +((remSec / n) * 100).toFixed(1),
+      remProxyPct: remPct,
       nremDeepSec: nremDeepSec,
       nremDeepMin: +(nremDeepSec / 60).toFixed(0),
-      nremDeepPct: +((nremDeepSec / n) * 100).toFixed(1),
-      remProxyLabel: remSec / 60 < 45 ? 'Low REM estimate (<45min)' : remSec / 60 > 90 ? 'High REM estimate (>90min)' : 'Normal',
+      nremDeepPct: deepPct,
+      // the honest self-assessment the Integrator (and a standalone user) can read
+      plausible: remPlausible,
+      plausibilityNote: remPlausible
+        ? null
+        : 'REM proxy implausible (' + remPct + '% of the recording; physiological ≈20–25%) — the HR-stability estimator over-fires on quiet sleep. Not a high-REM night; treat as unreliable.',
+      remProxyLabel: !remPlausible ? 'Implausible — estimator unreliable' : remSec / 60 < 45 ? 'Low REM estimate (<45min)' : remSec / 60 > 90 ? 'High REM estimate (>90min)' : 'Normal',
       nremDeepLabel: nremDeepSec / 60 < 30 ? 'Low deep sleep estimate' : nremDeepSec / 60 > 90 ? 'Good deep sleep estimate' : 'Moderate'
     };
   }
@@ -5669,7 +5717,10 @@
         if (!d || d.artifact) return; // self-gated artifacts are never on the bus (belt + braces)
         var idx = d.nadirIdx != null ? d.nadirIdx : d.startIdx != null ? d.startIdx : null;
         if (idx == null) return;
-        var tMs = t0 + idx * dt;
+        // §8: prefer the event's OWN parsed row stamp. The index→time fallback is a uniform stretch that
+        // is only correct on a gapless recording; on a lossy night it drifts by minutes (see the stamp
+        // note in computeDesaturationProfile). Keep it ONLY for a legacy event with no stamp.
+        var tMs = d.tMs != null ? d.tMs : t0 + idx * dt;
         out.push({
           t: fmtTime(new Date(tMs)),
           tMs: tMs,

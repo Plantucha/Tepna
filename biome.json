@@ -71,6 +71,7 @@
         "clock.js",
         "glucodex-dsp.js",
         "glucodex-render.js",
+        "integrator-dsp.js",
         "adapters/polar-rr.js"
       ],
       "formatter": { "enabled": false }

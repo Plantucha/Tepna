@@ -393,7 +393,10 @@
         "onset": 1505,
         "artifact": false,
         "fallRate": 1,
-        "pulseValid": 1
+        "pulseValid": 1,
+        "tMs": 1781393133000,
+        "startTMs": 1781393121000,
+        "endTMs": 1781393157000
       },
       {
         "depth": 8,
@@ -407,7 +410,10 @@
         "onset": 3207,
         "artifact": false,
         "fallRate": 1,
-        "pulseValid": 1
+        "pulseValid": 1,
+        "tMs": 1781394832000,
+        "startTMs": 1781394823000,
+        "endTMs": 1781394855000
       },
       {
         "depth": 8,
@@ -421,7 +427,10 @@
         "onset": 4807,
         "artifact": false,
         "fallRate": 1,
-        "pulseValid": 1
+        "pulseValid": 1,
+        "tMs": 1781396433000,
+        "startTMs": 1781396423000,
+        "endTMs": 1781396455000
       },
       {
         "depth": 9,
@@ -435,7 +444,10 @@
         "onset": 6306,
         "artifact": false,
         "fallRate": 1,
-        "pulseValid": 1
+        "pulseValid": 1,
+        "tMs": 1781397937000,
+        "startTMs": 1781397922000,
+        "endTMs": 1781397956000
       }
     ],
     "eventsAll": [
@@ -451,7 +463,10 @@
         "onset": 1505,
         "artifact": false,
         "fallRate": 1,
-        "pulseValid": 1
+        "pulseValid": 1,
+        "tMs": 1781393133000,
+        "startTMs": 1781393121000,
+        "endTMs": 1781393157000
       },
       {
         "depth": 8,
@@ -465,7 +480,10 @@
         "onset": 3207,
         "artifact": false,
         "fallRate": 1,
-        "pulseValid": 1
+        "pulseValid": 1,
+        "tMs": 1781394832000,
+        "startTMs": 1781394823000,
+        "endTMs": 1781394855000
       },
       {
         "depth": 8,
@@ -479,7 +497,10 @@
         "onset": 4807,
         "artifact": false,
         "fallRate": 1,
-        "pulseValid": 1
+        "pulseValid": 1,
+        "tMs": 1781396433000,
+        "startTMs": 1781396423000,
+        "endTMs": 1781396455000
       },
       {
         "depth": 9,
@@ -493,7 +514,10 @@
         "onset": 6306,
         "artifact": false,
         "fallRate": 1,
-        "pulseValid": 1
+        "pulseValid": 1,
+        "tMs": 1781397937000,
+        "startTMs": 1781397922000,
+        "endTMs": 1781397956000
       }
     ],
     "artifactCount": 0,
@@ -789,7 +813,9 @@
       "nremDeepSec": 480,
       "nremDeepMin": 8,
       "nremDeepPct": 6.7,
-      "remProxyLabel": "Normal",
+      "plausible": false,
+      "plausibilityNote": "REM proxy implausible (66.7% of the recording; physiological ≈20–25%) — the HR-stability estimator over-fires on quiet sleep. Not a high-REM night; treat as unreliable.",
+      "remProxyLabel": "Implausible — estimator unreliable",
       "nremDeepLabel": "Low deep sleep estimate"
     },
     "vo2est": {
@@ -1034,12 +1060,12 @@
       "uarsLabel": "Unlikely"
     },
     "dfa": {
-      "alpha1": 1.945,
-      "dfaLabel": "SpO₂ DFA (α1=1.945) — HR-DFA thresholds do not apply to SpO₂ signal"
+      "alpha1": 1.958,
+      "dfaLabel": "SpO₂ DFA (α1=1.958) — HR-DFA thresholds do not apply to SpO₂ signal"
     },
     "fft": {
-      "peakFreqHz": 0.007,
-      "peakCycSec": 143
+      "peakFreqHz": 0.01,
+      "peakCycSec": 100
     },
     "hrEnt": {
       "sampEn": 0.7772,

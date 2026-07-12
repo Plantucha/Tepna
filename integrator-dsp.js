@@ -483,12 +483,23 @@ function adaptOxyDex(json, filename){
       durationMin: stats.durationMin, hypoxicBurden: n.hb?n.hb.rate:null,
       desatCount: events.filter(function(e){return e.impulse==='spo2_desaturation' || e.impulse==='desat_event';}).length
     };
-    // T2: oximetry REM proxy for cross-node staging consistency (single-signal estimate)
+    // T2: oximetry REM proxy for cross-node staging consistency (single-signal estimate).
+    // DEEP-AUDIT-2026-07-11 §7: the node now self-reports `plausible:false` when its HR-stability REM
+    // estimator over-fires on quiet sleep (>30 % of the recording — every real night in the corpus). An
+    // implausible proxy is NOT a comparable single-signal estimate, so it must not be folded into the
+    // staging consensus as one; feeding it in would manufacture a "staging_disagreement" out of a known
+    // node-side failure. Absent (not 0) — the same rule the ambulatory-suppression path already follows.
+    // The ceiling is re-checked HERE, not just trusted from the flag, so a LEGACY export (emitted before
+    // the node self-reported plausibility) is judged on its own number rather than folded in blind.
     var _sp = (n.newMetrics && n.newMetrics.stageProxy) || n.stageProxy || null;
-    if(_sp && _sp.remProxyPct!=null){
+    var _remImplausible = !!_sp && (_sp.plausible === false || (_sp.remProxyPct != null && _sp.remProxyPct > 30));
+    if(_sp && _sp.remProxyPct!=null && !_remImplausible){
       summary.remFraction = +( _sp.remProxyPct/100 ).toFixed(3);
       summary.deepFraction = _sp.nremDeepPct!=null ? +(_sp.nremDeepPct/100).toFixed(3) : null;
       summary.stagingMethod = 'SpO₂/PR oximetry proxy, single-signal estimate';
+    } else if(_remImplausible){
+      summary.stagingSuppressed = _sp.plausibilityNote
+        || ('oximetry REM proxy implausible (' + _sp.remProxyPct + '% of the recording)');
     }
     recs.push({
       uid:'OxyDex@'+(t0Ms||('n'+ni)),

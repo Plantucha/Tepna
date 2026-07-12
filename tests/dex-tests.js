@@ -5931,6 +5931,150 @@
        and 06/13 as Jun-13 — the order flipped mid-file, the clock ran BACKWARD, and the night shipped
        durationMin = -254460 with ODI-4 = 0/h: an apnea night reading as perfectly healthy.
        INVARIANT: the same physiological night, written in either vendor date order, must compute identically. */
+    /* DEEP-AUDIT-2026-07-11 §7/§8/§9 — OxyDex must place events on the REAL clock, analyse the WHOLE
+       night, and refuse to assert an impossible sleep-stage number as a healthy finding.
+       §8: parseCSV DROPS rows (the device's '- -' no-reading), so a row INDEX is not a second-offset — yet
+           the bus export used t0 + idx·dt and oxydex-fusion used t0 + idx·1000. On a real lossy night the
+           worst desat landed 422 s / 849 s from its true time, against a 15 s / 60 s coincidence gate.
+       §9: computeSpO2FFT / computeDFA head-sliced to the FIRST HOUR of a 6-10 h night, undisclosed. The
+           surfaced FFT cycle length (the periodic-breathing number) changed on ~30 of 39 real nights.
+       §7: the REM proxy ("still + low HR SD + HR near the night mean") describes quiet sleep, not REM —
+           all 39 real nights returned 39.6-87.8 % "REM" (norm ~20-25 %), and EVERY one rendered 'good'. */
+    group('OxyDex §7/§8/§9 — real event clock · whole-night windows · REM plausibility', 'oxydex-dsp · oxydex-fusion · clock · fabricated-absence', function (T) {
+      var OD = env.OxyDex;
+      if (!OD || typeof OD.compute !== 'function' || typeof OD.parseCSV !== 'function') {
+        T.ok('env.OxyDex.compute + parseCSV available', false, 'namespace not wired — gate skipped');
+        return;
+      }
+      var p2 = function (v) {
+        return v < 10 ? '0' + v : '' + v;
+      };
+      /* A LOSSY night — the shape the equiv fixture (a clean clip) can never expose. 1 Hz, but a 20-minute
+         block of the device's '- -' no-reading rows is dropped by parseCSV, so every row index AFTER the
+         dropout is offset from its true second by ~1200. A desat placed after the gap must still be
+         exported at its OWN wall-clock time. */
+      var t0 = Date.UTC(2026, 5, 12, 22, 0, 0),
+        L = ['Time,Oxygen Level,Pulse Rate,Motion'],
+        s,
+        spo2,
+        k;
+      for (s = 0; s < 6 * 3600; s++) {
+        var d = new Date(t0 + s * 1000);
+        var stamp = p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds()) + ' ' + p2(d.getUTCDate()) + '/' + p2(d.getUTCMonth() + 1) + '/' + d.getUTCFullYear();
+        if (s >= 3600 && s < 3600 + 1200) {
+          L.push(stamp + ',- -,- -,0');
+          continue;
+        } // 20 min dropped
+        k = s % 1800;
+        spo2 = 96;
+        if (s >= 600) {
+          // ramped desats → ODI-4 fires
+          if (k < 10) spo2 = 96 - k;
+          else if (k < 25) spo2 = 86;
+          else if (k < 35) spo2 = 86 + (k - 25);
+        }
+        L.push(stamp + ',' + spo2 + ',60,0');
+      }
+      var text = L.join('\n');
+      var rows = OD.parseCSV(text, { fname: 'lossy.csv' });
+      var res = OD.compute({ text: text, filename: 'lossy.csv' });
+      var night = res.nights && res.nights[0];
+      T.ok('the lossy night computes', !!night && !!rows.length);
+      if (!night) return;
+
+      // ── §8 · every exported desat sits on its OWN row's wall clock ──────────────────────────────────
+      // (the EXPORT element carries `desatProfile`; `desat` is the internal name — read the exported one)
+      var dp0 = night.desatProfile || night.desat || null;
+      var devs = (dp0 && dp0.events) || [];
+      T.ok(
+        '§8 · every desat event carries a real row stamp (tMs)',
+        devs.length > 0 &&
+          devs.every(function (e) {
+            return e.tMs != null;
+          }),
+        devs.length + ' event(s)'
+      );
+      var busEvents = (res.ganglior_events || []).filter(function (e) {
+        return e.impulse === 'desat_event';
+      });
+      T.ok('§8 · desat events reach the bus', busEvents.length > 0, busEvents.length + ' on the bus');
+      // pair by ORDER — the bus emits the non-artifact events in sequence (matching on depth/nadir is
+      // ambiguous here, because the synthetic desats are deliberately identical).
+      var live = devs.filter(function (e) {
+        return !e.artifact;
+      });
+      T.eq('§8 · the bus carries every non-artifact desat', busEvents.length, live.length);
+      var worst = 0;
+      busEvents.forEach(function (ev, i) {
+        var d0 = live[i];
+        var truth = d0 && rows[d0.nadirIdx] && rows[d0.nadirIdx].tMs;
+        if (truth == null) return;
+        worst = Math.max(worst, Math.abs(ev.tMs - truth) / 1000);
+      });
+      T.ok(
+        "§8 · exported tMs == the event row's own timestamp (index→time drift is gone)",
+        worst <= 1,
+        'max |exported − true| = ' + worst.toFixed(1) + ' s (the coincidence gate is LEAD 15 s / TRAIL 60 s)'
+      );
+      // the index-based mapping the old code used must be demonstrably WRONG on this input — otherwise the
+      // fixture is too easy and the gate proves nothing.
+      var st = night.stats,
+        dt = (st.durationMin * 60000) / st.n;
+      var idxWorst = 0;
+      devs
+        .filter(function (e) {
+          return !e.artifact;
+        })
+        .forEach(function (e) {
+          var truth = rows[e.nadirIdx].tMs;
+          idxWorst = Math.max(idxWorst, Math.abs(night.t0Ms + e.nadirIdx * dt - truth) / 1000);
+        });
+      T.ok('§8 · (control) the OLD index→time mapping really is wrong on this night', idxWorst > 60, 'old mapping would be off by ' + idxWorst.toFixed(0) + ' s — far outside the 60 s gate');
+
+      /* ── §9 · the surfaced cycle length describes the WHOLE night, not its first hour ───────────────
+         BEHAVIOURAL, not a source-text grep: build a night whose FIRST HOUR oscillates fast (20 s period)
+         and whose remaining 5 hours — 5/6 of the record, the dominant rhythm — oscillate at 50 s. A
+         head-slice reports the first hour's 20 s; the whole-night transform must report ~50 s. This is the
+         surfaced "FFT Cycle Length", i.e. the periodic-breathing / Cheyne-Stokes cycle number. */
+      var L2 = ['Time,Oxygen Level,Pulse Rate,Motion'],
+        per,
+        v;
+      for (s = 0; s < 6 * 3600; s++) {
+        var d2 = new Date(t0 + s * 1000);
+        var st2 = p2(d2.getUTCHours()) + ':' + p2(d2.getUTCMinutes()) + ':' + p2(d2.getUTCSeconds()) + ' ' + p2(d2.getUTCDate()) + '/' + p2(d2.getUTCMonth() + 1) + '/' + d2.getUTCFullYear();
+        per = s < 3600 ? 20 : 50; // first hour 20 s · rest of the night 50 s
+        v = Math.round(95 + 2 * Math.sin((2 * Math.PI * s) / per));
+        L2.push(st2 + ',' + v + ',60,0');
+      }
+      var res2 = OD.compute({ text: L2.join('\n'), filename: 'twoperiod.csv' });
+      var n2 = res2.nights && res2.nights[0];
+      var fft = n2 && ((n2.research && n2.research.fft) || n2.fft || (n2.newMetrics && n2.newMetrics.fft));
+      T.ok('§9 · the FFT cycle length is produced', !!(fft && fft.peakCycSec != null), 'fft=' + JSON.stringify(fft));
+      if (fft && fft.peakCycSec != null) {
+        T.ok(
+          "§9 · it reports the WHOLE-NIGHT rhythm (~50 s), not the first hour's (20 s)",
+          fft.peakCycSec >= 40 && fft.peakCycSec <= 60,
+          'peakCycSec=' + fft.peakCycSec + ' s — a first-hour head-slice would report ~20 s'
+        );
+      }
+
+      // ── §7 · an impossible REM number is never asserted as a healthy finding ───────────────────────
+      var nm = night.newMetrics || {};
+      var sp = nm.stageProxy || night.stageProxy;
+      T.ok('§7 · the stage proxy self-reports plausibility', !!sp && typeof sp.plausible === 'boolean', 'stageProxy=' + JSON.stringify(sp && { pct: sp.remProxyPct, plausible: sp.plausible }));
+      if (sp) {
+        T.ok(
+          '§7 · a REM proxy above the physiological ceiling is flagged IMPLAUSIBLE',
+          sp.remProxyPct <= 30 ? sp.plausible === true : sp.plausible === false,
+          'remProxyPct=' + sp.remProxyPct + '% plausible=' + sp.plausible
+        );
+        if (sp.plausible === false) {
+          T.ok('§7 · it carries a reason (never a bare impossible number)', !!sp.plausibilityNote, sp.plausibilityNote);
+          T.ok('§7 · its label says unreliable — NOT "High REM estimate"', /implausible|unreliable/i.test(sp.remProxyLabel), sp.remProxyLabel);
+        }
+      }
+    });
+
     group('OxyDex Clock §3 — same night in DMY vs MDY computes identically (DEEP-AUDIT §1)', 'oxydex-dsp · clock', function (T) {
       var OD = env.OxyDex;
       if (!OD || typeof OD.compute !== 'function') {
