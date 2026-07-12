@@ -30,6 +30,16 @@ changesets.)
 
 ---
 
+## [1.6.0] — 2026-07-12
+
+### Added
+- Put CPAPDex's ventilation, flow-limitation and snore metrics on the ganglior bus — the DSP had been computing them per session and then dropping them, so no CPAP ventilation variable had ever reached the Integrator. (`CPAP-REAL-CORPUS-2026-07-11-BRIEF.md`)
+
+### Fixed
+- Size the beat-detector refractory from a windowed-autocorrelation cadence — fixes the optical HR reading exactly 2× true when a prominent diastolic wave is counted as a second beat. (`PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE-2026-07-11-BRIEF.md`)
+
+---
+
 ## [1.5.0] — 2026-07-12
 
 ### Changed
@@ -248,7 +258,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/Plantucha/Tepna/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/Plantucha/Tepna/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/Plantucha/Tepna/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/Plantucha/Tepna/compare/v1.2.0...v1.3.0
