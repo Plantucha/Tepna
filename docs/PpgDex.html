@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+ClpxncoCwII4Ysf9xBe3qqQn/BFARuknGwXVY2msB4=' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-PArDvDhErJwO+wTzwcD7jPN80C3++xYdXhoiobUx5Bw=' 'sha256-SbhMwvzlpgPhlroU5JoY5kACF2lbh9q6MEOKlFWAwWY=' 'sha256-V0C9qWkelizTKHjPEtlWmyTc4pTsPSf41HTe+Ia2y7Y=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-fMc9CU/q1VvrJCsgM4ooVNOe7km3XmXzEht5GJyi2Ng=' 'sha256-g91aaqiPAk+kwULv2BoPpUqhOueAaMGo8NpOvIRpZRk=' 'sha256-ixODejgAnxlJJXcqi8CV+6MUkFag+Feel3Zutcd8jmM=' 'sha256-oR/OkrOh3MTME742+g+gHcB6jvGBAOrh7t31jfMfic4=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-qIOO0xxN906bUVrLD1KREXgehS4tUbYB20NtPtilrwk=' 'sha256-znnyGiXDcfbU3wUjydrmyWCFBC9U8tWF9ZOIH8oZ9no=' 'sha256-zoX0rksSqUxFePSlhG6+8O2Euarj7JlN/OQ/SqQyThw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+ClpxncoCwII4Ysf9xBe3qqQn/BFARuknGwXVY2msB4=' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-0ToE5q57M69PYDhV7nyV7///IFPg5kEmWH4xN2ySjOI=' 'sha256-2fYtMqceGFh+1N6SSGF3DeYe5W9WEb4PPSQmHJ+WbyM=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-PArDvDhErJwO+wTzwcD7jPN80C3++xYdXhoiobUx5Bw=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-V0C9qWkelizTKHjPEtlWmyTc4pTsPSf41HTe+Ia2y7Y=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-ixODejgAnxlJJXcqi8CV+6MUkFag+Feel3Zutcd8jmM=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-qv3trtp4NKt4EvjyheQSpdoZNzbuGK3XFPmDy/INWkY=' 'sha256-znnyGiXDcfbU3wUjydrmyWCFBC9U8tWF9ZOIH8oZ9no='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PpgDex — Raw Wrist-PPG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -3866,225 +3866,278 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
    No network, no deps, no fonts. 100% local.
    ════════════════════════════════════════════════════════════════════════ */
 (function (global) {
-'use strict';
+  'use strict';
 
-var VERSION     = '1.0';
-var STORAGE_KEY = 'dex_depth_tier';          // SHARED across every node (brief §locked-4)
-var LEGACY_KEYS = ['oxydex_dashMode', 'o2r_dashMode', 'hrvdex_dashMode']; // migrate-from
+  var VERSION = '1.0';
+  var STORAGE_KEY = 'dex_depth_tier'; // SHARED across every node (brief §locked-4)
+  var LEGACY_KEYS = ['oxydex_dashMode', 'o2r_dashMode', 'hrvdex_dashMode']; // migrate-from
 
-/* ── EVIDENCE taxonomy — the fill ladder = the confidence ladder ──────────
+  /* ── EVIDENCE taxonomy — the fill ladder = the confidence ladder ──────────
    ink is ONE neutral META hue (#aab8cc), deliberately OUTSIDE the status
    hues (green/amber/red) and the brand hues (teal/blue), so the evidence
    channel can never collide with status color. */
-var EVIDENCE = {
-  measured:     { rank:0, glyph:'\u25C9', label:'Measured',     fill:'target',
-    desc:'Direct sensor reading or a raw statistic of the recorded signal (mean/min/max/nadir/duration). The ground truth a node senses — not computed.' },
-  validated:    { rank:1, glyph:'\u25CF', label:'Validated',    fill:'solid',
-    desc:'Established, externally validated, clinically meaningful DERIVED metric.' },
-  emerging:     { rank:2, glyph:'\u25D0', label:'Emerging',     fill:'half',
-    desc:'Published and promising, but less standardized or device-dependent.' },
-  experimental: { rank:3, glyph:'\u25CB', label:'Experimental', fill:'hollow',
-    desc:'Plausible node-computed composite, not externally validated. Directional only.' },
-  heuristic:    { rank:4, glyph:'\u25CC', label:'Heuristic',    fill:'dashed',
-    desc:'Convenience estimate / population proxy. A trend, not a measurement.' }
-};
-var EVIDENCE_ORDER = ['measured','validated','emerging','experimental','heuristic'];
+  var EVIDENCE = {
+    measured: {
+      rank: 0,
+      glyph: '\u25C9',
+      label: 'Measured',
+      fill: 'target',
+      desc: 'Direct sensor reading or a raw statistic of the recorded signal (mean/min/max/nadir/duration). The ground truth a node senses — not computed.'
+    },
+    validated: { rank: 1, glyph: '\u25CF', label: 'Validated', fill: 'solid', desc: 'Established, externally validated, clinically meaningful DERIVED metric.' },
+    emerging: { rank: 2, glyph: '\u25D0', label: 'Emerging', fill: 'half', desc: 'Published and promising, but less standardized or device-dependent.' },
+    experimental: { rank: 3, glyph: '\u25CB', label: 'Experimental', fill: 'hollow', desc: 'Plausible node-computed composite, not externally validated. Directional only.' },
+    heuristic: { rank: 4, glyph: '\u25CC', label: 'Heuristic', fill: 'dashed', desc: 'Convenience estimate / population proxy. A trend, not a measurement.' }
+  };
+  var EVIDENCE_ORDER = ['measured', 'validated', 'emerging', 'experimental', 'heuristic'];
 
-/* ── DEPTH axis ↔ existing tier attributes ────────────────────────────────
+  /* ── DEPTH axis ↔ existing tier attributes ────────────────────────────────
    basic   → (no data-tier)      → always visible / Core
    advanced→ data-tier=secondary → Advanced+
    research→ data-tier=research  → Research only                         */
-var DEPTHS = ['basic','advanced','research'];
-var TIERS  = ['core','advanced','research'];      // body[data-mode] values
-var DEPTH_TO_TIERATTR = { basic:'', advanced:'secondary', research:'research' };
-var TIER_SHOWS = { core:[''], advanced:['','secondary'], research:['','secondary','research'] };
+  var DEPTHS = ['basic', 'advanced', 'research'];
+  var TIERS = ['core', 'advanced', 'research']; // body[data-mode] values
+  var DEPTH_TO_TIERATTR = { basic: '', advanced: 'secondary', research: 'research' };
+  var TIER_SHOWS = { core: [''], advanced: ['', 'secondary'], research: ['', 'secondary', 'research'] };
 
-function depthToTier(depth){ return DEPTH_TO_TIERATTR[depth] != null ? DEPTH_TO_TIERATTR[depth] : 'secondary'; }
+  function depthToTier(depth) {
+    return DEPTH_TO_TIERATTR[depth] != null ? DEPTH_TO_TIERATTR[depth] : 'secondary';
+  }
 
-// is a metric of <depth> visible when the app is in <tier> mode?
-function visibleAtTier(depth, tier){
-  var attr = depthToTier(depth);
-  var shows = TIER_SHOWS[tier] || TIER_SHOWS.core;
-  return shows.indexOf(attr) >= 0;
-}
-function tierToShows(tier){ return (TIER_SHOWS[tier] || TIER_SHOWS.core).slice(); }
+  // is a metric of <depth> visible when the app is in <tier> mode?
+  function visibleAtTier(depth, tier) {
+    var attr = depthToTier(depth);
+    var shows = TIER_SHOWS[tier] || TIER_SHOWS.core;
+    return shows.indexOf(attr) >= 0;
+  }
+  function tierToShows(tier) {
+    return (TIER_SHOWS[tier] || TIER_SHOWS.core).slice();
+  }
 
-/* ── entry(registry, id) → normalized metric def ──────────────────────────
+  /* ── entry(registry, id) → normalized metric def ──────────────────────────
    A metric with no registry entry defaults to advanced/experimental and logs
    a dev warning (forces coverage — brief §1). */
-var _warned = {};
-function entry(registry, id){
-  var r = (registry && registry[id]) || null;
-  if(!r){
-    if(!_warned[id]){ _warned[id] = true;
-      try { console.warn('[MetricRegistry] no registry entry for "'+id+'" — defaulting depth:advanced / evidence:experimental'); } catch(e){} }
-    return { id:id, label:id, unit:'', goodDirection:'up', depth:'advanced', evidence:'experimental', cite:'', _missing:true };
+  var _warned = {};
+  function entry(registry, id) {
+    var r = (registry && registry[id]) || null;
+    if (!r) {
+      if (!_warned[id]) {
+        _warned[id] = true;
+        try {
+          console.warn('[MetricRegistry] no registry entry for "' + id + '" — defaulting depth:advanced / evidence:experimental');
+        } catch (e) {}
+      }
+      return { id: id, label: id, unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: '', _missing: true };
+    }
+    return {
+      id: id,
+      label: r.label != null ? r.label : id,
+      unit: r.unit != null ? r.unit : '',
+      goodDirection: r.goodDirection || r.good || 'up',
+      depth: DEPTHS.indexOf(r.depth) >= 0 ? r.depth : 'advanced',
+      evidence: EVIDENCE[r.evidence] ? r.evidence : 'experimental',
+      cite: r.cite || ''
+    };
   }
-  return {
-    id:id,
-    label: r.label != null ? r.label : id,
-    unit:  r.unit  != null ? r.unit  : '',
-    goodDirection: r.goodDirection || r.good || 'up',
-    depth:    DEPTHS.indexOf(r.depth) >= 0 ? r.depth : 'advanced',
-    evidence: EVIDENCE[r.evidence] ? r.evidence : 'experimental',
-    cite: r.cite || ''
-  };
-}
 
-/* ── evClass(evidence) → the badge CSS class (defensive) ── */
-function evClass(evidence){ return EVIDENCE[evidence] ? ('ev-'+evidence) : 'ev-experimental'; }
+  /* ── evClass(evidence) → the badge CSS class (defensive) ── */
+  function evClass(evidence) {
+    return EVIDENCE[evidence] ? 'ev-' + evidence : 'ev-experimental';
+  }
 
-/* ── badge(evidence, cite) → '<span class="ev ev-…" title="…"></span>' ────
+  /* ── badge(evidence, cite) → '<span class="ev ev-…" title="…"></span>' ────
    Shared so a Validated dot is byte-identical in every node + the Integrator. */
-function _escAttr(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function badge(evidence, cite){
-  var e = EVIDENCE[evidence] ? evidence : 'experimental';
-  var name = EVIDENCE[e].label;
-  var title = name + (cite ? ' \u2014 ' + cite : '');
-  return '<span class="ev ev-'+e+'" title="'+_escAttr(title)+'" aria-label="'+_escAttr(name+' evidence')+'"></span>';
-}
+  function _escAttr(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+  function badge(evidence, cite) {
+    var e = EVIDENCE[evidence] ? evidence : 'experimental';
+    var name = EVIDENCE[e].label;
+    var title = name + (cite ? ' \u2014 ' + cite : '');
+    return '<span class="ev ev-' + e + '" title="' + _escAttr(title) + '" aria-label="' + _escAttr(name + ' evidence') + '"></span>';
+  }
 
-/* ── legend(opts) → one strip per view ────────────────────────────────────
+  /* ── legend(opts) → one strip per view ────────────────────────────────────
    opts.only = ['validated','emerging',...] to show a subset; default all. */
-function legend(opts){
-  opts = opts || {};
-  var keys = opts.only && opts.only.length ? opts.only : EVIDENCE_ORDER;
-  var parts = ['<span class="lg-title">Evidence</span>'];
-  keys.forEach(function(k, i){
-    if(!EVIDENCE[k]) return;
-    if(i) parts.push('<span class="ev-sep"></span>');
-    parts.push('<span class="lg-item"><span class="ev ev-'+k+'"></span><b>'+EVIDENCE[k].label+'</b></span>');
-  });
-  parts.push('<span class="lg-note">one strip per view \u00b7 cite on hover</span>');
-  return '<div class="ev-legend" role="group" aria-label="Evidence legend">'+parts.join('')+'</div>';
-}
+  function legend(opts) {
+    opts = opts || {};
+    var keys = opts.only && opts.only.length ? opts.only : EVIDENCE_ORDER;
+    var parts = ['<span class="lg-title">Evidence</span>'];
+    keys.forEach(function (k, i) {
+      if (!EVIDENCE[k]) return;
+      if (i) parts.push('<span class="ev-sep"></span>');
+      parts.push('<span class="lg-item"><span class="ev ev-' + k + '"></span><b>' + EVIDENCE[k].label + '</b></span>');
+    });
+    parts.push('<span class="lg-note">one strip per view \u00b7 cite on hover</span>');
+    return '<div class="ev-legend" role="group" aria-label="Evidence legend">' + parts.join('') + '</div>';
+  }
 
-/* ── Depth-tier persistence (shared key, with legacy migration) ──────────── */
-function getTier(){
-  var v = null;
-  try {
-    v = global.localStorage.getItem(STORAGE_KEY);
-    if(v == null){
-      for(var i=0;i<LEGACY_KEYS.length;i++){
-        var lv = global.localStorage.getItem(LEGACY_KEYS[i]);
-        if(lv){ v = lv; global.localStorage.setItem(STORAGE_KEY, lv); break; }  // migrate forward
+  /* ── Depth-tier persistence (shared key, with legacy migration) ──────────── */
+  function getTier() {
+    var v = null;
+    try {
+      v = global.localStorage.getItem(STORAGE_KEY);
+      if (v == null) {
+        for (var i = 0; i < LEGACY_KEYS.length; i++) {
+          var lv = global.localStorage.getItem(LEGACY_KEYS[i]);
+          if (lv) {
+            v = lv;
+            global.localStorage.setItem(STORAGE_KEY, lv);
+            break;
+          } // migrate forward
+        }
+      }
+    } catch (e) {}
+    return TIERS.indexOf(v) >= 0 ? v : 'core'; // default Core (brief §locked-4)
+  }
+  function setTier(tier) {
+    if (TIERS.indexOf(tier) < 0) tier = 'core';
+    try {
+      global.localStorage.setItem(STORAGE_KEY, tier);
+    } catch (e) {}
+    applyTier(tier);
+    return tier;
+  }
+
+  /* applyTier — set body[data-mode] + sync every mode control on the page.
+   Mirrors each node's local setMode() so the shared key drives the existing CSS. */
+  function applyTier(tier) {
+    if (TIERS.indexOf(tier) < 0) tier = 'core';
+    var b = global.document && global.document.body;
+    if (b) {
+      b.dataset.mode = tier;
+      var sel = '.mode-btn, .nav-mode-btn, .mnav-mode-btn';
+      var btns = global.document.querySelectorAll(sel);
+      for (var i = 0; i < btns.length; i++) {
+        btns[i].classList.toggle('active', btns[i].dataset.mode === tier);
       }
     }
-  } catch(e){}
-  return TIERS.indexOf(v) >= 0 ? v : 'core';   // default Core (brief §locked-4)
-}
-function setTier(tier){
-  if(TIERS.indexOf(tier) < 0) tier = 'core';
-  try { global.localStorage.setItem(STORAGE_KEY, tier); } catch(e){}
-  applyTier(tier);
-  return tier;
-}
-
-/* applyTier — set body[data-mode] + sync every mode control on the page.
-   Mirrors each node's local setMode() so the shared key drives the existing CSS. */
-function applyTier(tier){
-  if(TIERS.indexOf(tier) < 0) tier = 'core';
-  var b = global.document && global.document.body;
-  if(b){
-    b.dataset.mode = tier;
-    var sel = '.mode-btn, .nav-mode-btn, .mnav-mode-btn';
-    var btns = global.document.querySelectorAll(sel);
-    for(var i=0;i<btns.length;i++){ btns[i].classList.toggle('active', btns[i].dataset.mode === tier); }
+    return tier;
   }
-  return tier;
-}
 
-/* mountDepthSelector(el) — optional convenience: wire an existing .mode-bar
+  /* mountDepthSelector(el) — optional convenience: wire an existing .mode-bar
    (or build one) so every node persists identically under the shared key. */
-function mountDepthSelector(el){
-  if(!el) return;
-  if(!el.querySelector('.mode-btn')){
-    el.classList.add('mode-bar');
-    el.innerHTML = TIERS.map(function(t){
-      return '<button class="mode-btn" data-mode="'+t+'">'+t.charAt(0).toUpperCase()+t.slice(1)+'</button>';
-    }).join('');
+  function mountDepthSelector(el) {
+    if (!el) return;
+    if (!el.querySelector('.mode-btn')) {
+      el.classList.add('mode-bar');
+      el.innerHTML = TIERS.map(function (t) {
+        return '<button class="mode-btn" data-mode="' + t + '">' + t.charAt(0).toUpperCase() + t.slice(1) + '</button>';
+      }).join('');
+    }
+    el.addEventListener('click', function (e) {
+      var btn = e.target.closest('.mode-btn');
+      if (!btn) return;
+      setTier(btn.dataset.mode);
+    });
+    applyTier(getTier());
   }
-  el.addEventListener('click', function(e){
-    var btn = e.target.closest('.mode-btn'); if(!btn) return;
-    setTier(btn.dataset.mode);
-  });
-  applyTier(getTier());
-}
 
-/* ── One-time injected stylesheet — the evidence visual language (verbatim
+  /* ── One-time injected stylesheet — the evidence visual language (verbatim
    from Visual-Language-Spec.html), so every node that loads this file gets
    identical badges + legend without editing ans-design.css. ──────────────── */
-var BADGE_CSS = '';   // canonical evidence-badge stylesheet (the single source
-                      // of truth other surfaces mirror — see dex-badges.css).
-                      // Populated by _injectCSS on first run; exported below.
-function _injectCSS(){
-  if(!global.document) return;
-  if(global.document.getElementById('metric-registry-css')) return;
-  var css = BADGE_CSS =
-  ':root{ --ev-ink:#aab8cc; }' +
-  '.ev{display:inline-block;width:11px;height:11px;border-radius:50%;flex:none;position:relative;vertical-align:baseline;}' +
-  /* measured = bullseye (solid core + gap ring): the strongest mark, a direct
+  var BADGE_CSS = ''; // canonical evidence-badge stylesheet (the single source
+  // of truth other surfaces mirror — see dex-badges.css).
+  // Populated by _injectCSS on first run; exported below.
+  function _injectCSS() {
+    if (!global.document) return;
+    if (global.document.getElementById('metric-registry-css')) return;
+    var css = (BADGE_CSS =
+      ':root{ --ev-ink:#aab8cc; }' +
+      '.ev{display:inline-block;width:11px;height:11px;border-radius:50%;flex:none;position:relative;vertical-align:baseline;}' +
+      /* measured = bullseye (solid core + gap ring): the strongest mark, a direct
      sensor reading — reads as "locked to ground truth", above validated. */
-  '.ev-measured{background:var(--ev-ink);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--ev-ink);}' +
-  '.ev-validated{background:var(--ev-ink);box-shadow:0 0 0 1px var(--ev-ink) inset;}' +
-  '.ev-emerging{background:linear-gradient(90deg,var(--ev-ink) 0 50%,transparent 50% 100%);box-shadow:0 0 0 1.5px var(--ev-ink) inset;}' +
-  '.ev-experimental{background:transparent;box-shadow:0 0 0 1.5px var(--ev-ink) inset;}' +
-  '.ev-heuristic{background:transparent;border:1.5px dashed var(--ev-ink);width:12px;height:12px;}' +
-  /* ── PLACEMENT (cohesion v1.1) — evidence badge lives in the CARD's
+      '.ev-measured{background:var(--ev-ink);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--ev-ink);}' +
+      '.ev-validated{background:var(--ev-ink);box-shadow:0 0 0 1px var(--ev-ink) inset;}' +
+      '.ev-emerging{background:linear-gradient(90deg,var(--ev-ink) 0 50%,transparent 50% 100%);box-shadow:0 0 0 1.5px var(--ev-ink) inset;}' +
+      '.ev-experimental{background:transparent;box-shadow:0 0 0 1.5px var(--ev-ink) inset;}' +
+      '.ev-heuristic{background:transparent;border:1.5px dashed var(--ev-ink);width:12px;height:12px;}' +
+      /* ── PLACEMENT (cohesion v1.1) — evidence badge lives in the CARD's
      bottom-right corner, a quiet meta-marker that never competes with the
      metric value or its status hue. In dense tables / section labels /
      legends (no card to anchor to) it stays inline by the label. ───────── */
-  /* default: inline (tables, section + chart labels, legend) */
-  '.ev{opacity:.85;}' +
-  '.t-metric .ev,.sec-label .ev,.lg-item .ev,.chart-legend .ev,.legend-item .ev{position:static;margin-left:5px;}' +
-  '.ev[title]{cursor:help;}' +
-  /* card tiles become the positioning context for their corner badge */
-  '.metric,.ss-kpi,.nr-kpi,.kpi,.readiness-subscore{position:relative;}' +
-  /* the badge breaks out of the label and anchors to the tile corner */
-  '.metric>.m-label .ev,.metric>.m-val .ev,.ss-kpi>.ss-kpi-label .ev,.nr-kpi>.nr-kpi-label .ev,.kpi>.kpi-label .ev,.readiness-subscore>.rs-label .ev{position:absolute;right:9px;bottom:8px;margin:0;opacity:.55;transition:opacity .15s;}' +
-  '.metric:hover>.m-label .ev,.metric:hover>.m-val .ev,.ss-kpi:hover>.ss-kpi-label .ev,.nr-kpi:hover>.nr-kpi-label .ev,.kpi:hover>.kpi-label .ev,.readiness-subscore:hover>.rs-label .ev{opacity:.95;}' +
-  /* hero tiles are tall + centered — nudge the corner badge inward to taste */
-  '.metric-hero>.m-label .ev{right:14px;bottom:14px;}' +
-  /* reserve bottom clearance so the corner badge never lands on the value
+      /* default: inline (tables, section + chart labels, legend) */
+      '.ev{opacity:.85;}' +
+      '.t-metric .ev,.sec-label .ev,.lg-item .ev,.chart-legend .ev,.legend-item .ev{position:static;margin-left:5px;}' +
+      '.ev[title]{cursor:help;}' +
+      /* card tiles become the positioning context for their corner badge */
+      '.metric,.ss-kpi,.nr-kpi,.kpi,.readiness-subscore{position:relative;}' +
+      /* the badge breaks out of the label and anchors to the tile corner */
+      '.metric>.m-label .ev,.metric>.m-val .ev,.ss-kpi>.ss-kpi-label .ev,.nr-kpi>.nr-kpi-label .ev,.kpi>.kpi-label .ev,.readiness-subscore>.rs-label .ev{position:absolute;right:9px;bottom:8px;margin:0;opacity:.55;transition:opacity .15s;}' +
+      '.metric:hover>.m-label .ev,.metric:hover>.m-val .ev,.ss-kpi:hover>.ss-kpi-label .ev,.nr-kpi:hover>.nr-kpi-label .ev,.kpi:hover>.kpi-label .ev,.readiness-subscore:hover>.rs-label .ev{opacity:.95;}' +
+      /* hero tiles are tall + centered — nudge the corner badge inward to taste */
+      '.metric-hero>.m-label .ev{right:14px;bottom:14px;}' +
+      /* ── WRAPPER: card corner (.ev-corner) — DEEP-AUDIT §21 ────────────────────
+     The mandate's placement (1) for cards / KPIs / HERO numbers. It was defined
+     in dex-badges.css but NEVER in the engine, so no app could use it: the apps
+     load metric-registry.js, not the CSS mirror. A hero (.readiness-hero) is not
+     a .metric/.kpi tile, so the tile rules above never reached it and every hero
+     number in the fleet shipped unbadged. Values are byte-faithful to
+     dex-badges.css. NOTE: no disc property here (background/border/box-shadow/
+     width/height/border-radius) — the cohesion-badges gate deep-compares exactly
+     those between engine and mirror; layout props are free to live in one. */
+      '.ev-corner{position:absolute;bottom:12px;right:14px;z-index:2;cursor:help;opacity:.55;transition:opacity .15s;}' +
+      '.ev-corner:hover{opacity:.7;}' +
+      '.readiness-hero{position:relative;}' +
+      /* reserve bottom clearance so the corner badge never lands on the value
      (only on tiles that actually carry a badge — others keep their size) */
-  '.metric:has(.ev),.ss-kpi:has(.ev),.nr-kpi:has(.ev),.kpi:has(.ev),.readiness-subscore:has(.ev){padding-bottom:22px;}' +
-  '.metric-hero:has(.ev){padding-bottom:30px;}' +
-  /* full-metrics-table: badge LEADS the metric name (fixed left gutter) so
+      '.metric:has(.ev),.ss-kpi:has(.ev),.nr-kpi:has(.ev),.kpi:has(.ev),.readiness-subscore:has(.ev){padding-bottom:22px;}' +
+      '.metric-hero:has(.ev){padding-bottom:30px;}' +
+      /* full-metrics-table: badge LEADS the metric name (fixed left gutter) so
      rows align in a clean column and long labels keep full width (no wrap). */
-  '.fmt-m{white-space:normal;}' +
-  '.fmt-m .ev{position:static;margin:0 7px 0 0;opacity:.7;vertical-align:baseline;}' +
-  /* chips: small inline meta-dot after the value */
-  '.nr-chip .ev{position:static;margin-left:5px;opacity:.6;vertical-align:baseline;width:9px;height:9px;}' +
-  /* legend strip */
-  '.ev-legend{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:11.5px;color:var(--text3);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:9px 14px;margin:0 0 16px;}' +
-  '.ev-legend .lg-item{display:inline-flex;align-items:center;gap:6px;}' +
-  '.ev-legend .lg-item b{color:var(--text2);font-weight:600;}' +
-  '.ev-legend .ev-sep{width:1px;height:13px;background:var(--border2);margin:0 4px;}' +
-  '.ev-legend .lg-title{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text4);margin-right:4px;}' +
-  '.ev-legend .lg-note{margin-left:auto;color:var(--text4);font-size:10.5px;}';
-  var s = global.document.createElement('style');
-  s.id = 'metric-registry-css';
-  s.textContent = css;
-  (global.document.head || global.document.documentElement).appendChild(s);
-}
+      '.fmt-m{white-space:normal;}' +
+      '.fmt-m .ev{position:static;margin:0 7px 0 0;opacity:.7;vertical-align:baseline;}' +
+      /* chips: small inline meta-dot after the value */
+      '.nr-chip .ev{position:static;margin-left:5px;opacity:.6;vertical-align:baseline;width:9px;height:9px;}' +
+      /* legend strip */
+      '.ev-legend{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:11.5px;color:var(--text3);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:9px 14px;margin:0 0 16px;}' +
+      '.ev-legend .lg-item{display:inline-flex;align-items:center;gap:6px;}' +
+      '.ev-legend .lg-item b{color:var(--text2);font-weight:600;}' +
+      '.ev-legend .ev-sep{width:1px;height:13px;background:var(--border2);margin:0 4px;}' +
+      '.ev-legend .lg-title{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text4);margin-right:4px;}' +
+      '.ev-legend .lg-note{margin-left:auto;color:var(--text4);font-size:10.5px;}');
+    var s = global.document.createElement('style');
+    s.id = 'metric-registry-css';
+    s.textContent = css;
+    (global.document.head || global.document.documentElement).appendChild(s);
+  }
 
-// init: inject CSS + apply persisted tier as early as possible
-function _init(){
-  _injectCSS();
-  // apply tier once the body exists; applyTier no-ops safely if it doesn't yet
-  if(global.document && global.document.body) applyTier(getTier());
-  else if(global.document) global.document.addEventListener('DOMContentLoaded', function(){ applyTier(getTier()); });
-}
-_init();
+  // init: inject CSS + apply persisted tier as early as possible
+  function _init() {
+    _injectCSS();
+    // apply tier once the body exists; applyTier no-ops safely if it doesn't yet
+    if (global.document && global.document.body) applyTier(getTier());
+    else if (global.document)
+      global.document.addEventListener('DOMContentLoaded', function () {
+        applyTier(getTier());
+      });
+  }
+  _init();
 
-global.MetricRegistry = {
-  VERSION:VERSION, STORAGE_KEY:STORAGE_KEY, BADGE_CSS:BADGE_CSS,
-  EVIDENCE:EVIDENCE, EVIDENCE_ORDER:EVIDENCE_ORDER, DEPTHS:DEPTHS, TIERS:TIERS,
-  depthToTier:depthToTier, tierToShows:tierToShows, visibleAtTier:visibleAtTier,
-  entry:entry, badge:badge, legend:legend, evClass:evClass,
-  getTier:getTier, setTier:setTier, applyTier:applyTier, mountDepthSelector:mountDepthSelector
-};
-
+  global.MetricRegistry = {
+    VERSION: VERSION,
+    STORAGE_KEY: STORAGE_KEY,
+    BADGE_CSS: BADGE_CSS,
+    EVIDENCE: EVIDENCE,
+    EVIDENCE_ORDER: EVIDENCE_ORDER,
+    DEPTHS: DEPTHS,
+    TIERS: TIERS,
+    depthToTier: depthToTier,
+    tierToShows: tierToShows,
+    visibleAtTier: visibleAtTier,
+    entry: entry,
+    badge: badge,
+    legend: legend,
+    evClass: evClass,
+    getTier: getTier,
+    setTier: setTier,
+    applyTier: applyTier,
+    mountDepthSelector: mountDepthSelector
+  };
 })(window);
 </script>
 <script data-inline-src="entrance-guard.js">/*
@@ -4557,7 +4610,7 @@ global.MetricRegistry = {
   //  manual = explicit user entries (cascade tier 3). detected = persisted handoff.
   // ════════════════════════════════════════════════════════════════════════════
   function _blank() {
-    return { schema: SCHEMA, units: 'metric', age: DEFAULT_AGE, ageSet: false, sex: 'M', manual: {}, detected: {}, _pristine: true };
+    return { schema: SCHEMA, units: 'metric', age: DEFAULT_AGE, ageSet: false, sex: 'M', sexSet: false, manual: {}, detected: {}, _pristine: true };
   }
   var _rec = null; // live record (lazy)
   var _runtimeDetected = {}; // per-render detected context (NOT persisted; from a loaded recording)
@@ -4598,6 +4651,15 @@ global.MetricRegistry = {
         }
       } else if (_a !== _rec.age) {
         _rec.age = _a;
+        _chg = true;
+      }
+      // Sex hygiene — the exact `ageSet` rule, applied to the field that never got it (DEEP-AUDIT §19).
+      // sex is ALWAYS a valid 'M'/'F' for the norms, but `sexSet` distinguishes an ENTERED sex from the
+      // 'M' placeholder — without it, resolve('sex') reported origin 'you' for a user who chose nothing,
+      // and every sex-dependent norm (BSA·IBW·RMR·VO₂ category) silently asserted "male" as your value.
+      // Backfill exactly as age does: a non-default value was clearly entered; exactly-default ⇒ unset.
+      if (_rec.sexSet === undefined) {
+        _rec.sexSet = _rec.sex === 'F';
         _chg = true;
       }
       if (_chg) {
@@ -4667,6 +4729,7 @@ global.MetricRegistry = {
     function setSx(v) {
       if (v != null) {
         rec.sex = v;
+        rec.sexSet = true;
         touched = true;
       }
     }
@@ -4808,7 +4871,8 @@ global.MetricRegistry = {
       var _ca = _clampAge(rec.age);
       return { v: _ca != null ? _ca : DEFAULT_AGE, origin: rec.ageSet ? 'you' : 'pop' };
     }
-    if (field === 'sex') return { v: rec.sex, origin: 'you' };
+    // DEEP-AUDIT §19: was hardcoded origin 'you' — it claimed every user had told us their sex.
+    if (field === 'sex') return { v: rec.sex, origin: rec.sexSet ? 'you' : 'pop' };
     if (field === 'units') return { v: rec.units || 'metric', origin: 'you' };
     if (rec.manual[field] != null && rec.manual[field] !== '') return { v: rec.manual[field], origin: 'you' };
     if (_runtimeDetected[field] != null) return { v: _runtimeDetected[field], origin: 'detected' };
@@ -4867,7 +4931,11 @@ global.MetricRegistry = {
         _rec.ageSet = false;
       }
     } else if (field === 'sex') {
-      _rec.sex = _sex(vMetric) || _rec.sex;
+      var _sv = _sex(vMetric);
+      if (_sv) {
+        _rec.sex = _sv;
+        _rec.sexSet = true;
+      }
     } else if (field === 'units') {
       _rec.units = vMetric === 'imperial' ? 'imperial' : 'metric';
     } else if (vMetric == null || vMetric === '' || (typeof vMetric === 'number' && isNaN(vMetric))) delete _rec.manual[field];
@@ -4965,6 +5033,63 @@ global.MetricRegistry = {
     gt('hrMax', 'HRmax', Math.round(208 - 0.7 * age), NORMS.hrMax.source);
     gt('weight', 'Weight', pd.weight, NORMS.weight.source);
 
+    // ── PROVENANCE OF THE INPUTS (DEEP-AUDIT §19) ─────────────────────────────
+    // A derived value is PERSONAL only if every input it rests on was entered ('you') or detected
+    // from a recording ('detected'). If ANY input is a population default, the output is a
+    // population estimate wearing a personal number's clothes — a user who entered NOTHING was
+    // shown BMI 28.8 "Overweight" and VO₂max 40 "Good · 50th percentile" as findings about them.
+    // The origins were always in the record (resolve() has returned them since day one); derive()
+    // simply dropped them on the floor. hrRest/vo2 already honored this discipline at the node
+    // boundary (`origin === 'detected'`); age/sex/weight/height never did. Additive + optional, so
+    // every existing caller keeps working.
+    var _org = (p && p._origins) || null;
+    function originOf(f) {
+      if (_org && _org[f]) return _org[f];
+      try {
+        return resolve(f).origin;
+      } catch (e) {
+        return 'pop';
+      }
+    }
+    function basisOf(fields) {
+      var det = false;
+      for (var i = 0; i < fields.length; i++) {
+        var o = originOf(fields[i]);
+        if (o === 'pop' || o === 'none') return 'pop'; // ONE guessed input taints the whole result
+        if (o === 'detected') det = true;
+      }
+      return det ? 'detected' : 'you';
+    }
+    var usedBodyFat = bf > 3 && bf < 60;
+    var basis = {
+      bmi: basisOf(['weight', 'height']),
+      bsa: basisOf(['weight', 'height']),
+      ibw: basisOf(['height', 'sex']),
+      map: basisOf(['sbp', 'dbp']),
+      pp: basisOf(['sbp', 'dbp']),
+      rmr: usedBodyFat ? basisOf(['weight', 'bodyfat']) : basisOf(['weight', 'height', 'age', 'sex']),
+      hrMax: +p.hrMax ? basisOf(['hrMax']) : basisOf(['age']),
+      vo2: +p.vo2 ? basisOf(['vo2']) : basisOf(['age', 'sex']),
+      vo2Cat: basisOf(+p.vo2 ? ['vo2', 'age', 'sex'] : ['age', 'sex']),
+      vo2Pct: basisOf(+p.vo2 ? ['vo2', 'age', 'sex'] : ['age', 'sex']),
+      whtr: whtr != null ? basisOf(['waist', 'height']) : null
+    };
+    var origins = {},
+      popFields = [];
+    ['age', 'sex', 'weight', 'height', 'sbp', 'dbp', 'bodyfat', 'waist', 'hrRest', 'hrMax', 'vo2'].forEach(function (f) {
+      origins[f] = originOf(f);
+      if (origins[f] === 'pop') popFields.push(f);
+    });
+    // `personalized` asks the question the AUDIT asked: is this profile about a real person at all, or
+    // is it the placeholder? It is the IDENTITY CORE that decides — age·sex·weight·height, the inputs
+    // nearly every derived value rests on. Optional extras (BP, body-fat, waist) legitimately stay on
+    // their norms for most users, so demanding them would make `personalized` false for everyone and
+    // the flag would mean nothing. Per-value truth lives in `basis`; `popFields` lists every default.
+    var IDENTITY_CORE = ['age', 'sex', 'weight', 'height'];
+    var personalized = IDENTITY_CORE.every(function (f) {
+      return origins[f] === 'you' || origins[f] === 'detected';
+    });
+
     return {
       bmi: bmi,
       bmiCat: bmiLabel(bmi),
@@ -4981,7 +5106,12 @@ global.MetricRegistry = {
       whtr: whtr,
       whtrRisk: whtrRisk,
       flags: flags,
-      groundTruthChecks: gtc
+      groundTruthChecks: gtc,
+      // provenance — see above. `basis[k] === 'pop'` ⇒ k is a POPULATION estimate, not your value.
+      origins: origins,
+      basis: basis,
+      popFields: popFields,
+      personalized: personalized
     };
   }
 
@@ -5178,6 +5308,7 @@ global.MetricRegistry = {
       '.dxp-grp .src.shared{color:var(--teal)}' +
       '.org{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:8.5px;letter-spacing:.02em;padding:1px 6px;border-radius:4px;border:1px solid var(--border);white-space:nowrap;margin-left:6px}' +
       '.org-pop{color:var(--text4);background:var(--surface3)}' +
+      '.pd-group-note{font-size:9px;color:var(--text4);margin-left:8px;letter-spacing:.01em}' +
       '.org-detected{color:var(--teal);border-color:rgba(61,224,208,.32);background:rgba(61,224,208,.08)}' +
       '.org-you{color:var(--green);border-color:rgba(57,217,138,.32);background:rgba(57,217,138,.08)}' +
       '.dxp-iw{position:relative;display:flex;align-items:center}' +
@@ -5488,31 +5619,40 @@ global.MetricRegistry = {
       var hasFit = groups.indexOf('fitnessEnvTherapy') >= 0 || groups.indexOf('fitness') >= 0;
       var hasCardio = groups.indexOf('cardio') >= 0;
       var hasHemo = groups.indexOf('hemo') >= 0;
-      function di(l, v, f, t) {
-        return '<div class="prof-derived-item">' + _badge(t) + ' <b>' + l + '</b> ' + v + (f ? '<span class="pdi-formula">' + f + '</span>' : '') + '</div>';
+      // DEEP-AUDIT §19 — a derived value whose inputs are population defaults is NOT a finding about
+      // this user, and must not read like one. `k` names the derive() basis key; basis 'pop' earns the
+      // same `org-pop` chip the INPUT fields have always carried, so "BMI 28.8 (Overweight)" from an
+      // empty profile is legible as the population estimate it is. The evidence tier still describes
+      // the FORMULA's evidence base (the ladder's meaning) — provenance is a separate channel.
+      function di(l, v, f, t, k) {
+        var b = k && d.basis ? d.basis[k] : null;
+        var chip = b === 'pop' ? '<span class="org org-pop" title="Computed from a population default — you have not entered these values.">pop default</span>' : '';
+        return '<div class="prof-derived-item">' + _badge(t) + ' <b>' + l + '</b> ' + v + chip + (f ? '<span class="pdi-formula">' + f + '</span>' : '') + '</div>';
       }
       var items = '';
       if (hasBody) {
-        items += di('BMI', d.bmi + ' (' + d.bmiCat + ')', 'kg ÷ m²', 'validated');
-        items += di('BSA', d.bsa + ' m²', 'DuBois', 'validated');
+        items += di('BMI', d.bmi + ' (' + d.bmiCat + ')', 'kg ÷ m²', 'validated', 'bmi');
+        items += di('BSA', d.bsa + ' m²', 'DuBois', 'validated', 'bsa');
       }
-      if (hasFit) items += di('VO₂ category', d.vo2Cat, 'ACSM age×sex', 'validated');
-      if (hasBody && d.whtr != null) items += di('WHtR', d.whtr + (d.whtrRisk === 'elevated' ? ' (↑ risk)' : ' (ok)'), 'waist ÷ height', 'validated');
-      if (hasBody) items += di('RMR', d.rmr + ' kcal', d.rmrFormula, 'validated');
-      if (hasFit) items += di('VO₂ percentile', '~' + d.vo2Pct + 'th', 'ACSM / FRIEND', 'validated');
+      if (hasFit) items += di('VO₂ category', d.vo2Cat, 'ACSM age×sex', 'validated', 'vo2Cat');
+      if (hasBody && d.whtr != null) items += di('WHtR', d.whtr + (d.whtrRisk === 'elevated' ? ' (↑ risk)' : ' (ok)'), 'waist ÷ height', 'validated', 'whtr');
+      if (hasBody) items += di('RMR', d.rmr + ' kcal', d.rmrFormula, 'validated', 'rmr');
+      if (hasFit) items += di('VO₂ percentile', '~' + d.vo2Pct + 'th', 'ACSM / FRIEND', 'validated', 'vo2Pct');
       if (hasCardio)
         items += di(
           'HRmax',
           d.hrMax + ' bpm' + (d.flags.betaBlocker ? ' ⚠' : ''),
           d.flags.betaBlocker ? 'β-blocker: Tanaka unreliable' : 'Tanaka 208−0.7·age',
-          d.flags.betaBlocker ? 'experimental' : 'validated'
+          d.flags.betaBlocker ? 'experimental' : 'validated',
+          'hrMax'
         );
       if (hasHemo) {
-        items += di('MAP', d.map + ' mmHg', 'DBP + ⅓(SBP−DBP)', 'measured');
-        items += di('Pulse pressure', d.pp + ' mmHg', d.pp < 50 ? 'optimal' : 'elevated', 'measured');
+        items += di('MAP', d.map + ' mmHg', 'DBP + ⅓(SBP−DBP)', 'measured', 'map');
+        items += di('Pulse pressure', d.pp + ' mmHg', d.pp < 50 ? 'optimal' : 'elevated', 'measured', 'pp');
       }
       if (!items) return '';
-      return '<div class="pd-group"><span class="pd-group-label">Derived — one engine, identical in every node</span><div class="pd-group-grid">' + items + '</div></div>';
+      var note = d.personalized ? '' : '<span class="pd-group-note">· values marked <b>pop default</b> rest on population norms, not on data you entered</span>';
+      return '<div class="pd-group"><span class="pd-group-label">Derived — one engine, identical in every node</span>' + note + '<div class="pd-group-grid">' + items + '</div></div>';
     }
 
     build();
@@ -5798,7 +5938,7 @@ function parsePPG(text){
   const lines = text.split(/\r?\n/);
   const ch0=[], ch1=[], ch2=[], amb=[];
   const nsArr=[];           // BigInt deltas avoided — store as Number of (ns - ns0)/1 via BigInt math
-  let ns0=null, t0Ms=null, firstTs=null, lastTs=null;
+  let ns0=null, t0Ms=null, firstTs=null;   // lastTs is resolved lazily in the fs fallback (§P1)
   let started=false;
   for(let li=0; li<lines.length; li++){
     const line = lines[li].trim();
@@ -5815,8 +5955,12 @@ function parsePPG(text){
     let relNs = 0;
     try { const b=BigInt(p[1].trim()); if(ns0===null) ns0=b; relNs=Number(b-ns0); } catch(e){ relNs = NaN; }
     nsArr.push(relNs);
-    const ts = parseTimestamp(p[0]);
-    if(ts){ if(t0Ms===null){ t0Ms=ts.tMs; firstTs=ts; } lastTs=ts; }
+    // Clock Contract: only the FIRST stamp is load-bearing here (t0Ms + offsetMin). The LAST stamp is
+    // read ONLY by the degenerate `deltas.length<=20` fs fallback below, which a real capture (190k
+    // valid ns deltas) never takes — so resolve it lazily there instead of parsing every one of ~190k
+    // rows for a value that is then discarded. parseTimestamp was ~half of parsePPG's entire cost.
+    // (EFFICIENCY-AUDIT-FINDINGS-2026-07-12 §P1.)
+    if(t0Ms===null){ const ts = parseTimestamp(p[0]); if(ts){ t0Ms=ts.tMs; firstTs=ts; } }
     started=true;
   }
   const n = ch0.length;
@@ -5826,7 +5970,19 @@ function parsePPG(text){
   const deltas = [];
   for(let i=1;i<n;i++){ const d=nsArr[i]-nsArr[i-1]; if(isFinite(d)&&d>0) deltas.push(d); }
   if(deltas.length>20){ const md = median(deltas); if(md>0) fs = 1e9/md; }
-  else if(firstTs && lastTs && lastTs.tMs>firstTs.tMs){ fs = (n-1)/((lastTs.tMs-firstTs.tMs)/1000); }
+  else {
+    // Lazy `lastTs` (§P1): scan BACKWARD for the last row that the loop above would have accepted AND
+    // whose stamp parses — byte-identical to the old eager `lastTs`, but paid for only on this
+    // degenerate path. The row filter must mirror the main loop's exactly (>=6 fields, finite ch0).
+    let lastTs = null;
+    for(let li=lines.length-1; li>=0 && !lastTs; li--){
+      const line = lines[li].trim(); if(!line) continue;
+      const p = line.split(';'); if(p.length < 6) continue;
+      if(!isFinite(parseFloat(p[2]))) continue;
+      lastTs = parseTimestamp(p[0]);
+    }
+    if(firstTs && lastTs && lastTs.tMs>firstTs.tMs){ fs = (n-1)/((lastTs.tMs-firstTs.tMs)/1000); }
+  }
   fs = Math.round(fs*100)/100;
   // relSec per sample from ns (most accurate), else index/fs
   const relSec = new Float64Array(n);
@@ -6518,7 +6674,7 @@ function buildEpochs(nn, tt, motion, perfWindow, cleanMask, agreeI){
     let ledAgreementPct=null;
     if(agreeI){ const av=idx.map(i=>agreeI[i]).filter(v=>v!=null); if(av.length) ledAgreementPct=Math.round(100*mean(av)); }
     epochs.push({ tMin:Math.round(e0/60), beats:idx.length, hr:td.hr, meanRR:td.meanRR, rmssd:td.rmssd, sdnn:td.sdnn,
-      pnn50:td.pnn50, lf:ls?ls.lf:null, hf:ls?ls.hf:null, lfhf:ls?ls.lfhf:null, respRate:null, pi, motionIndex:mi,
+      pnn50:td.pnn50, lf:ls?ls.lf:null, hf:ls?ls.hf:null, vlf:ls?ls.vlf:null, tp:ls?ls.totalPower:null, lfhf:ls?ls.lfhf:null, respRate:null, pi, motionIndex:mi,
       ledAgreementPct,
       position, positionConf: post?post.conf:null, headingDeg: post?post.heading:null, magInterference: post?!!post.magInterf:false });
   }
@@ -6652,7 +6808,7 @@ function analyze(rec, progress){
   // flagged. Residual HF (+17%) is genuine respiratory PTT — but its excess is MOTION-DRIVEN
   // (+43% high-motion vs +12% low-motion on the paired night), so a low-motion HF + a GRADED
   // per-metric confidence (below) turn the blanket flag into an earned, continuous score.
-  let sdnnIndex=null, sdnnRobust=null, sdnnRobustNEpochs=0, sd2Robust=null, lfRobust=null, hfRobust=null, lfhfRobust=null, hfRobustLowMotion=null, hrvConfidence=null;
+  let sdnnIndex=null, sdnnRobust=null, sdnnRobustNEpochs=0, sd2Robust=null, lfRobust=null, hfRobust=null, vlfRobust=null, tpRobust=null, lfhfRobust=null, hfRobustLowMotion=null, hrvConfidence=null;
   if(epochs.length){
     const segAll = epochs.map(e=>e.sdnn).filter(v=>v!=null && isFinite(v));
     if(segAll.length){
@@ -6673,9 +6829,13 @@ function analyze(rec, progress){
       const lfA=usable.map(e=>e.lf).filter(v=>v!=null&&isFinite(v));
       const hfA=usable.map(e=>e.hf).filter(v=>v!=null&&isFinite(v));
       const lhA=usable.map(e=>e.lfhf).filter(v=>v!=null&&isFinite(v));
+      const vlA=usable.map(e=>e.vlf).filter(v=>v!=null&&isFinite(v));
       if(lfA.length>=3) lfRobust=r1(median(lfA));
       if(hfA.length>=3) hfRobust=r1(median(hfA));
       if(lhA.length>=3) lfhfRobust=r2(median(lhA));
+      if(vlA.length>=3) vlfRobust=r1(median(vlA));
+      // DEEP-AUDIT §10: totalPower is DEFINED as the sum of the reported bands, so vlf+lf+hf == tp exactly.
+      if(vlfRobust!=null && lfRobust!=null && hfRobust!=null) tpRobust = r1(vlfRobust + lfRobust + hfRobust);
     }
     // (a) MOTION-GATED HF — HF excess is motion-driven, so a low-motion-only median approaches the
     // clean floor (~+12% vs ECG) rather than the mixed +17%. Stricter gate than the shared 0.5.
@@ -6759,7 +6919,7 @@ function analyze(rec, progress){
     nPulses:det.peaks.length, nBeats:det.peaks.length,
     hr:td.hr, dispHr, dispRm:td.rmssd, dispSd:td.sdnn, dispPn:td.pnn50,
     meanRR:td.meanRR, sdnn:td.sdnn, rmssd:td.rmssd, pnn50:td.pnn50, lnRMSSD:td.lnRMSSD, triIdx:td.triIdx,
-    sdnnIndex, sdnnRobust, sdnnRobustNEpochs, sd2Robust, lfRobust, hfRobust, lfhfRobust, hfRobustLowMotion, hrvConfidence,
+    sdnnIndex, sdnnRobust, sdnnRobustNEpochs, sd2Robust, lfRobust, hfRobust, vlfRobust, tpRobust, lfhfRobust, hfRobustLowMotion, hrvConfidence,
     nn, tt:corr.tt, poincareNN:nn, sd1:poin?poin.sd1:null, sd2:poin?poin.sd2:null, sd1sd2:poin?poin.sd1sd2:null, ellArea:poin?poin.ellArea:null,
     freq, dfa1, sampen:se,
     epochs,
@@ -6880,8 +7040,25 @@ function _buildWorkerURL(){
   if(typeof Blob==='undefined' || typeof URL==='undefined' || !URL.createObjectURL) return null;
   // ONE source of truth: the worker re-declares the SAME pure functions from their own
   // .toString() — no algorithm is duplicated as a string literal, so it can't drift.
-  var deps=[biquad,applyBiquad,reverse,filtfilt,bandpass,mean,std,median,movavg,orient,negate,refineFeet,detectBeats,detectChannel];
-  var src = deps.map(function(f){ return f.toString(); }).join('\n')
+  // ⚠️ This list is the worker realm's ENTIRE universe — it starts empty, so a function called by
+  // anything here but NOT listed is a ReferenceError the moment that path runs. It is hand-maintained,
+  // and it DRIFTED: the optical-detector fix gave detectBeats an adaptive refractory sourced from
+  // cadenceSamples(), which was never added — so every PPG detection threw
+  // `ReferenceError: cadenceSamples is not defined` in the worker, fell back to the serial path via
+  // w.onerror, and the numbers stayed right while the worker pool sat dead and the console filled up.
+  // The drift is now gate-backed: dex-tests.js's `PpgDex worker source is CLOSED` group re-derives the
+  // call graph from this file's own text and reds if any callee is missing. ADD A FUNCTION HERE
+  // whenever a worker-reachable path starts calling it.
+  var deps=[biquad,applyBiquad,reverse,filtfilt,bandpass,mean,std,median,movavg,orient,negate,cadenceSamples,refineFeet,detectBeats,detectChannel];
+  // Module-level CONSTANTS the shipped functions close over. Functions carry their own source via
+  // .toString(), but a `const` at module scope does NOT travel with them — detectBeats reads
+  // REFR_CADENCE_FRAC, so without this the worker throws `REFR_CADENCE_FRAC is not defined` even once
+  // every FUNCTION it calls is shipped. (That is the second half of the same drift, and the static
+  // call-graph check alone did not see it — only running the worker realm did.) Still single-sourced:
+  // the VALUE is read from the live module here, never retyped.
+  var consts={ REFR_CADENCE_FRAC:REFR_CADENCE_FRAC };
+  var constSrc = Object.keys(consts).map(function(k){ return 'const '+k+'='+JSON.stringify(consts[k])+';'; }).join('\n');
+  var src = constSrc + '\n' + deps.map(function(f){ return f.toString(); }).join('\n')
     + '\nself.onmessage=function(e){var d=e.data;var chan=new Float32Array(d.buf);'
     + 'var r=detectChannel(chan,d.fs);'
     + 'self.postMessage({idx:d.idx,peaks:r.peaks,feet:r.feet,sign:r.sign,T:r.T,bp:r.bp.buffer},[r.bp.buffer]);};';
@@ -6973,7 +7150,34 @@ function ppgBuildNodeExport(r, opts){
         window:'wholeRecord', units:'ms', lowConfidence:!!r.hrvLowConfidence, lowConfidenceReason:(r.hrvLowConfidenceReason||null),
         windowNote:'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD.',
         sdnnNote:'whole-record sdnn runs high on optical (SDANN/baseline-wander inflation, ~+26% vs chest ECG). sdnnIndex = mean of per-5-min SDNN (~+18%); sdnnRobust = quality-gated MEDIAN of per-5-min SDNN (~+3.5% vs ECG truth) — use sdnnRobust for cross-node SDNN comparison.' },
-      frequency:{ lf:nz(fq.lf), hf:nz(fq.hf), lfhf:nz(fq.lfhf), method:'Lomb-Scargle', lowConfidence:!!r.hrvLowConfidence, lfRobust:nz(r.lfRobust), hfRobust:nz(r.hfRobust), lfhfRobust:nz(r.lfhfRobust), hfRobustLowMotion:nz(r.hfRobustLowMotion) },
+      /* DEEP-AUDIT-2026-07-11 §10/§11: export the 5-MIN EPOCH-MEDIAN spectrum as the primary band set —
+         PpgDex already computed it (the *Robust twins) but shipped the WHOLE-RECORD Lomb–Scargle instead.
+         Two problems, both gone with one change:
+           §11 the whole-record band split is a GRID LOTTERY. df is hard-coded at 0.002 Hz regardless of
+               record length, while a night's intrinsic resolution is 1/T ≈ 3.8e-5 Hz — ~50× finer — so
+               the Riemann sum samples a spiky periodogram at arbitrary points and the split does not
+               converge. (Parseval pins the TOTAL to the variance, which is why it looked fine.)
+           §10 it also put PpgDex on a DIFFERENT time scale from ECGDex's epoch-median lfhf, so the
+               Integrator's cross-node HRV divergence was inflated by a pure definition mismatch.
+         At the 5-min scale df = 0.002 Hz is finer than the epoch's own 1/300 s = 0.0033 Hz resolution, so
+         the grid is adequate by construction. totalPower is the SUM of the reported bands, so the
+         Task-Force identity vlf+lf+hf == totalPower holds exactly. `window` names the scale so a consumer
+         can refuse to compare it against a whole-record value. The whole-record numbers are kept under
+         explicit wholeRecord* keys — labelled, not silently mixed in. */
+      frequency:(function(){
+        const epochScale = (r.lfRobust!=null && r.hfRobust!=null);
+        return {
+          vlf: epochScale ? nz(r.vlfRobust) : nz(fq.vlf),
+          lf:  epochScale ? nz(r.lfRobust)  : nz(fq.lf),
+          hf:  epochScale ? nz(r.hfRobust)  : nz(fq.hf),
+          totalPower: epochScale ? nz(r.tpRobust) : nz(fq.totalPower),
+          lfhf: epochScale ? nz(r.lfhfRobust) : nz(fq.lfhf),
+          window: epochScale ? 'epochMedian5min' : 'wholeRecord',
+          method:'Lomb-Scargle', lowConfidence:!!r.hrvLowConfidence,
+          hfRobustLowMotion:nz(r.hfRobustLowMotion),
+          wholeRecordLf:nz(fq.lf), wholeRecordHf:nz(fq.hf), wholeRecordLfhf:nz(fq.lfhf)
+        };
+      })(),
       confidence:(r.hrvConfidence||null)
     };
     out.timeseries = {
@@ -7227,8 +7431,15 @@ function perWindowMorph(bp, raw, det, fs, sqi, winSec){
     const mp = medianPulse(bp, sub, fs, subSqi);
     const d = mp ? delineate(mp) : null;
     // PI within this window: AC (std of bp) ÷ DC (|mean raw|)
+    // s0/s1 MUST be integers: winSamp = winSec*fs and fs is the median sensor-ns delta, so on a real
+    // Polar capture it is never integral (176.26 → winSamp 10575.6). Indexing a Float32Array at a
+    // fractional index returns undefined, so from the 2nd window on dc/ac went NaN and pi silently
+    // became null — the surfaced per-window PI trend was plotting only the windows where w0 happened
+    // to land on an integer (2 of 18 on a real night). Round ONLY the sample bounds: w0 stays a float
+    // for the peak-assignment comparisons above, so beat→window assignment (and ai/ri/beats) is
+    // untouched and pi is the only value that moves. (EFFICIENCY-AUDIT-FINDINGS-2026-07-12 §C1.)
     let pi = null;
-    const s0=w0, s1=Math.min(raw.length, w0+winSamp);
+    const s0=Math.round(w0), s1=Math.min(raw.length, Math.round(w0+winSamp));
     if(s1-s0>fs){ let acc=0,c=0; for(let i=s0;i<s1;i++){ acc+=Math.abs(raw[i]); c++; } const dc=acc/c;
       let m=0; for(let i=s0;i<s1;i++) m+=bp[i]; m/=(s1-s0);
       let v=0; for(let i=s0;i<s1;i++){ const dd=bp[i]-m; v+=dd*dd; } const ac=Math.sqrt(v/(s1-s0));
@@ -7988,272 +8199,513 @@ global.PPGUI = { PPGScope, lineChart, poincare, medianPulseChart, ledRibbon, bui
    lives in the Integrator (wrist⟷fingertip PTT). Exposes window.PPGProfile.
    ════════════════════════════════════════════════════════════════════════ */
 (function (global) {
-'use strict';
-const $ = id => document.getElementById(id);
-const KEYS = ['ppgAge','ppgSex','ppgWeight','ppgHeight','ppgHRmax','ppgRHR','ppgVO2','ppgElev','ppgCPAP'];
-let reRenderFn = null;
-let _dexPanel = null;   // handle to the shared DexProfile.renderPanel() instance
-const mean = a => a.reduce((s,v)=>s+v,0)/a.length;
-const median = a => { if(!a.length) return null; const s=[...a].sort((x,y)=>x-y),n=s.length; return n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2; };
-const bdg = (label,fb)=> (global.PpgRegistry && global.PpgRegistry.badgeForLabel(label, fb!==false)) || '';
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const KEYS = ['ppgAge', 'ppgSex', 'ppgWeight', 'ppgHeight', 'ppgHRmax', 'ppgRHR', 'ppgVO2', 'ppgElev', 'ppgCPAP'];
+  let reRenderFn = null;
+  let _dexPanel = null; // handle to the shared DexProfile.renderPanel() instance
+  const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
+  const median = (a) => {
+    if (!a.length) return null;
+    const s = [...a].sort((x, y) => x - y),
+      n = s.length;
+    return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+  };
+  const bdg = (label, fb) => (global.PpgRegistry && global.PpgRegistry.badgeForLabel(label, fb !== false)) || '';
 
-// Thin wrapper over the shared DexProfile engine (key `tepna_profile`); see
-// ecgdex-profile.js / PROFILE-UNIFY-BRIEF §3. PpgDex keeps its own DOM panel +
-// node rendering, but storage/identity/shared formulas live in dex-profile.js.
-const DP = () => global.DexProfile;
-function getProfile(){
-  const clamp=(x,lo,hi)=>Math.max(lo,Math.min(hi,x));
-  if(DP()){
-    const p=DP().get(), man=(DP().getRecord().manual)||{};
-    const num=v=>{ const n=parseFloat(v); return isFinite(n)?n:0; };
-    // Detected handoff into COMPUTE (PROFILE-HANDOFF-BRIEF §1): manual override wins;
-    // else a value DETECTED from a loaded recording (cascade origin==='detected'); else
-    // 0 ⇒ node auto. Adopt ONLY origin==='detected' — never the flat pop default.
-    const detOr0=field=>{ const mv=num(man[field]); if(mv>0) return mv; const r=DP().resolve(field); return (r.origin==='detected'&&r.v>0)?r.v:0; };
-    return { age:clamp(num(p.age)||42,12,95), sex:p.sex==='F'?'F':'M',
-             weight:clamp(num(p.weight)||80,30,250), height:clamp(num(p.height)||178,120,230),
-             hrmax:num(man.hrMax)>0?num(man.hrMax):0, rhr:detOr0('hrRest'),
-             vo2gt:detOr0('vo2'), elev:clamp(num(p.elevation)||0,0,6000),
-             cpap:(man.cpap==='yes'?true:man.cpap==='no'?false:null) };
+  // Thin wrapper over the shared DexProfile engine (key `tepna_profile`); see
+  // ecgdex-profile.js / PROFILE-UNIFY-BRIEF §3. PpgDex keeps its own DOM panel +
+  // node rendering, but storage/identity/shared formulas live in dex-profile.js.
+  const DP = () => global.DexProfile;
+  function getProfile() {
+    const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
+    if (DP()) {
+      const p = DP().get(),
+        man = DP().getRecord().manual || {};
+      const num = (v) => {
+        const n = parseFloat(v);
+        return isFinite(n) ? n : 0;
+      };
+      // Detected handoff into COMPUTE (PROFILE-HANDOFF-BRIEF §1): manual override wins;
+      // else a value DETECTED from a loaded recording (cascade origin==='detected'); else
+      // 0 ⇒ node auto. Adopt ONLY origin==='detected' — never the flat pop default.
+      const detOr0 = (field) => {
+        const mv = num(man[field]);
+        if (mv > 0) return mv;
+        const r = DP().resolve(field);
+        return r.origin === 'detected' && r.v > 0 ? r.v : 0;
+      };
+      // DEEP-AUDIT §19 — carry the cascade ORIGIN of every field (see ecgdex-profile.js). Additive.
+      const org = (f) => {
+        try {
+          return DP().resolve(f).origin;
+        } catch (e) {
+          return 'pop';
+        }
+      };
+      return {
+        age: clamp(num(p.age) || 42, 12, 95),
+        sex: p.sex === 'F' ? 'F' : 'M',
+        weight: clamp(num(p.weight) || 80, 30, 250),
+        height: clamp(num(p.height) || 178, 120, 230),
+        hrmax: num(man.hrMax) > 0 ? num(man.hrMax) : 0,
+        rhr: detOr0('hrRest'),
+        vo2gt: detOr0('vo2'),
+        elev: clamp(num(p.elevation) || 0, 0, 6000),
+        cpap: man.cpap === 'yes' ? true : man.cpap === 'no' ? false : null,
+        _origins: { age: org('age'), sex: org('sex'), weight: org('weight'), height: org('height'), elevation: org('elevation'), cpap: org('cpap') }
+      };
+    }
+    const v = (id, d) => {
+      const e = $(id);
+      const n = e ? parseFloat(e.value) : NaN;
+      return isFinite(n) ? n : d;
+    };
+    const sx = $('ppgSex');
+    const cpapEl = $('ppgCPAP');
+    const cpapVal = cpapEl ? cpapEl.value : '';
+    // No shared record (legacy DOM / headless): nothing here was "entered" — claim no provenance.
+    return {
+      age: clamp(v('ppgAge', 42), 12, 95),
+      sex: sx ? sx.value : 'M',
+      weight: clamp(v('ppgWeight', 80), 30, 250),
+      height: clamp(v('ppgHeight', 178), 120, 230),
+      hrmax: v('ppgHRmax', 0),
+      rhr: v('ppgRHR', 0),
+      vo2gt: v('ppgVO2', 0),
+      elev: clamp(v('ppgElev', 0), 0, 6000),
+      cpap: cpapVal === 'yes' ? true : cpapVal === 'no' ? false : null,
+      _origins: null
+    };
   }
-  const v=(id,d)=>{ const e=$(id); const n=e?parseFloat(e.value):NaN; return isFinite(n)?n:d; };
-  const sx=$('ppgSex');
-  const cpapEl=$('ppgCPAP'); const cpapVal=cpapEl?cpapEl.value:'';
-  return { age:clamp(v('ppgAge',42),12,95), sex:sx?sx.value:'M',
-           weight:clamp(v('ppgWeight',80),30,250), height:clamp(v('ppgHeight',178),120,230),
-           hrmax:v('ppgHRmax',0), rhr:v('ppgRHR',0), vo2gt:v('ppgVO2',0), elev:clamp(v('ppgElev',0),0,6000),
-           cpap:(cpapVal==='yes'?true:cpapVal==='no'?false:null) };
-}
-function loadProfile(){
-  if(DP()){
-    try{ DP().migrate(); }catch(e){}
-    const p=DP().get(), man=(DP().getRecord().manual)||{};
-    const set=(id,val)=>{ const el=$(id); if(el!=null&&val!=null&&val!=='') el.value=val; };
-    set('ppgAge',p.age); const sx=$('ppgSex'); if(sx) sx.value=p.sex==='F'?'F':'M';
-    set('ppgWeight',p.weight); set('ppgHeight',p.height);
-    set('ppgHRmax', man.hrMax!=null?man.hrMax:''); set('ppgRHR', man.hrRest!=null?man.hrRest:'');
-    set('ppgVO2', man.vo2!=null?man.vo2:''); set('ppgElev', p.elevation!=null?p.elevation:0);
-    const cp=$('ppgCPAP'); if(cp && man.cpap!=null) cp.value=man.cpap;
-    return;
+  function loadProfile() {
+    if (DP()) {
+      try {
+        DP().migrate();
+      } catch (e) {}
+      const p = DP().get(),
+        man = DP().getRecord().manual || {};
+      const set = (id, val) => {
+        const el = $(id);
+        if (el != null && val != null && val !== '') el.value = val;
+      };
+      set('ppgAge', p.age);
+      const sx = $('ppgSex');
+      if (sx) sx.value = p.sex === 'F' ? 'F' : 'M';
+      set('ppgWeight', p.weight);
+      set('ppgHeight', p.height);
+      set('ppgHRmax', man.hrMax != null ? man.hrMax : '');
+      set('ppgRHR', man.hrRest != null ? man.hrRest : '');
+      set('ppgVO2', man.vo2 != null ? man.vo2 : '');
+      set('ppgElev', p.elevation != null ? p.elevation : 0);
+      const cp = $('ppgCPAP');
+      if (cp && man.cpap != null) cp.value = man.cpap;
+      return;
+    }
+    let saved = null;
+    try {
+      saved = JSON.parse(localStorage.getItem('ppgdex_profile') || 'null');
+    } catch (e) {}
+    if (saved)
+      KEYS.forEach((k) => {
+        const el = $(k);
+        if (!el) return;
+        if (saved[k] != null && saved[k] !== '') el.value = saved[k];
+      });
   }
-  let saved=null; try{ saved=JSON.parse(localStorage.getItem('ppgdex_profile')||'null'); }catch(e){}
-  if(saved) KEYS.forEach(k=>{ const el=$(k); if(!el) return; if(saved[k]!=null&&saved[k]!=='') el.value=saved[k]; });
-}
-function saveProfile(){
-  if(DP()){
-    const g=id=>{ const e=$(id); return e?e.value:''; };
-    const num=v=>{ const n=parseFloat(v); return isFinite(n)?n:null; };
-    DP().setManual('age', num(g('ppgAge'))); DP().setManual('sex', g('ppgSex'));
-    DP().setManual('weight', num(g('ppgWeight'))); DP().setManual('height', num(g('ppgHeight')));
-    DP().setManual('hrMax', num(g('ppgHRmax'))>0?num(g('ppgHRmax')):null);
-    DP().setManual('hrRest', num(g('ppgRHR'))>0?num(g('ppgRHR')):null);
-    DP().setManual('vo2', num(g('ppgVO2'))>0?num(g('ppgVO2')):null);
-    DP().setManual('elevation', num(g('ppgElev'))); DP().setManual('cpap', g('ppgCPAP'));
-    return;
+  function saveProfile() {
+    if (DP()) {
+      const g = (id) => {
+        const e = $(id);
+        return e ? e.value : '';
+      };
+      const num = (v) => {
+        const n = parseFloat(v);
+        return isFinite(n) ? n : null;
+      };
+      DP().setManual('age', num(g('ppgAge')));
+      DP().setManual('sex', g('ppgSex'));
+      DP().setManual('weight', num(g('ppgWeight')));
+      DP().setManual('height', num(g('ppgHeight')));
+      DP().setManual('hrMax', num(g('ppgHRmax')) > 0 ? num(g('ppgHRmax')) : null);
+      DP().setManual('hrRest', num(g('ppgRHR')) > 0 ? num(g('ppgRHR')) : null);
+      DP().setManual('vo2', num(g('ppgVO2')) > 0 ? num(g('ppgVO2')) : null);
+      DP().setManual('elevation', num(g('ppgElev')));
+      DP().setManual('cpap', g('ppgCPAP'));
+      return;
+    }
+    const o = {};
+    KEYS.forEach((k) => {
+      const el = $(k);
+      if (el) o[k] = el.value;
+    });
+    try {
+      localStorage.setItem('ppgdex_profile', JSON.stringify(o));
+    } catch (e) {}
   }
-  const o={}; KEYS.forEach(k=>{ const el=$(k); if(el) o[k]=el.value; }); try{ localStorage.setItem('ppgdex_profile',JSON.stringify(o)); }catch(e){}
-}
 
-function popNorms(sex){ return sex==='F'?{h:163,w:71}:{h:177,w:86}; }
-function altVO2Factor(elev){ return elev<=1500?1:+(1-0.0033*(elev-1500)/100).toFixed(3); }
-function vo2Base(rhr,hrmax){ return 15.3*hrmax/rhr; }
-function vo2Adj(base,lnrm){ const d=lnrm-3.4; return base*(1+Math.max(-0.08,Math.min(0.08,d*0.10))); }
-function ansAge(rmssd,sdnn,hr){
-  const clamp=v=>Math.min(85,Math.max(22,Math.round(v)));
-  const c1=rmssd>0?clamp(120-18*Math.log(rmssd)):null;
-  const c2=sdnn>0?clamp(100-(Math.log(sdnn)-2.5)*30):null;
-  const c3=(hr>30&&hr<120)?clamp(20+(hr-45)*1.3):null;
-  let cs=0,ws=0; if(c1!=null){cs+=0.25*c1;ws+=0.25;} if(c2!=null){cs+=0.40*c2;ws+=0.40;} if(c3!=null){cs+=0.35*c3;ws+=0.35;}
-  return { age:ws?clamp(cs/ws):null, c1, c2, c3 };
-}
-function hrvScore(rm){ return Math.round(Math.max(0,Math.min(100,1.494*rm-13.37))); }
-function expectedRmssd(age){ return Math.max(12,Math.round(58*Math.exp(-0.018*(age-20)))); }
-function expectedRHR(age){ return Math.round(60+Math.max(0,(age-30))*0.12); }
-function perfusionBand(pi){ if(pi==null) return {sev:'neutral',txt:'—'}; if(pi>=4) return {sev:'ok',txt:'strong'}; if(pi>=1) return {sev:'ok',txt:'adequate'}; if(pi>=0.4) return {sev:'warn',txt:'low'}; return {sev:'bad',txt:'poor contact'}; }
+  function popNorms(sex) {
+    return sex === 'F' ? { h: 163, w: 71 } : { h: 177, w: 86 };
+  }
+  function altVO2Factor(elev) {
+    return elev <= 1500 ? 1 : +(1 - (0.0033 * (elev - 1500)) / 100).toFixed(3);
+  }
+  function vo2Base(rhr, hrmax) {
+    return (15.3 * hrmax) / rhr;
+  }
+  function vo2Adj(base, lnrm) {
+    const d = lnrm - 3.4;
+    return base * (1 + Math.max(-0.08, Math.min(0.08, d * 0.1)));
+  }
+  function ansAge(rmssd, sdnn, hr) {
+    const clamp = (v) => Math.min(85, Math.max(22, Math.round(v)));
+    const c1 = rmssd > 0 ? clamp(120 - 18 * Math.log(rmssd)) : null;
+    const c2 = sdnn > 0 ? clamp(100 - (Math.log(sdnn) - 2.5) * 30) : null;
+    const c3 = hr > 30 && hr < 120 ? clamp(20 + (hr - 45) * 1.3) : null;
+    let cs = 0,
+      ws = 0;
+    if (c1 != null) {
+      cs += 0.25 * c1;
+      ws += 0.25;
+    }
+    if (c2 != null) {
+      cs += 0.4 * c2;
+      ws += 0.4;
+    }
+    if (c3 != null) {
+      cs += 0.35 * c3;
+      ws += 0.35;
+    }
+    return { age: ws ? clamp(cs / ws) : null, c1, c2, c3 };
+  }
+  function hrvScore(rm) {
+    return Math.round(Math.max(0, Math.min(100, 1.494 * rm - 13.37)));
+  }
+  function expectedRmssd(age) {
+    return Math.max(12, Math.round(58 * Math.exp(-0.018 * (age - 20))));
+  }
+  function expectedRHR(age) {
+    return Math.round(60 + Math.max(0, age - 30) * 0.12);
+  }
+  function perfusionBand(pi) {
+    if (pi == null) return { sev: 'neutral', txt: '—' };
+    if (pi >= 4) return { sev: 'ok', txt: 'strong' };
+    if (pi >= 1) return { sev: 'ok', txt: 'adequate' };
+    if (pi >= 0.4) return { sev: 'warn', txt: 'low' };
+    return { sev: 'bad', txt: 'poor contact' };
+  }
 
-function personalize(r){
-  const p=getProfile();
-  const tanaka=Math.round(208-0.7*p.age);
-  let autoRHR=Math.round(r.dispHr);
-  const rhrEff=p.rhr>0?p.rhr:autoRHR;
-  const hrmaxValid=p.hrmax>0&&p.hrmax>=140&&p.hrmax>rhrEff+45;
-  const hrmaxEff=hrmaxValid?Math.round(p.hrmax):tanaka;
-  const altF=altVO2Factor(p.elev);
-  const lnrm=Math.log(Math.max(1,r.dispRm));
-  const vo2b=+(vo2Base(rhrEff,hrmaxEff)*altF).toFixed(1);
-  const vo2a=+vo2Adj(vo2b,lnrm).toFixed(1);
-  const aa=ansAge(r.dispRm,r.dispSd,r.dispHr);
-  Object.assign(r,{ profile:p, tanaka, autoRHR, rhrEff, hrmaxEff, hrmaxRejected:(p.hrmax>0&&!hrmaxValid),
-    altFactor:altF, vo2base:vo2b, vo2adj:vo2a, vo2gt:p.vo2gt>0?p.vo2gt:null,
-    cpapInUse:p.cpap,
-    ansAge:aa, hrvScore:hrvScore(r.dispRm), expRmssd:expectedRmssd(p.age), expRHR:expectedRHR(p.age) });
-  // Publish DETECTED physiology to the shared detected tier (NOT manual identity) —
-  // cross-node handoff + lights up the cascade's middle tier in the unified panel.
-  if (DP()) { try {
-    var _det = { vo2: vo2a, hrRest: autoRHR, _note: 'PpgDex wrist · pulse HR (optical PPI)' };
-    DP().setDetected(_det); DP().prefillFrom(_det);
+  function personalize(r) {
+    const p = getProfile();
+    const tanaka = Math.round(208 - 0.7 * p.age);
+    let autoRHR = Math.round(r.dispHr);
+    const rhrEff = p.rhr > 0 ? p.rhr : autoRHR;
+    const hrmaxValid = p.hrmax > 0 && p.hrmax >= 140 && p.hrmax > rhrEff + 45;
+    const hrmaxEff = hrmaxValid ? Math.round(p.hrmax) : tanaka;
+    const altF = altVO2Factor(p.elev);
+    const lnrm = Math.log(Math.max(1, r.dispRm));
+    const vo2b = +(vo2Base(rhrEff, hrmaxEff) * altF).toFixed(1);
+    const vo2a = +vo2Adj(vo2b, lnrm).toFixed(1);
+    const aa = ansAge(r.dispRm, r.dispSd, r.dispHr);
+    Object.assign(r, {
+      profile: p,
+      tanaka,
+      autoRHR,
+      rhrEff,
+      hrmaxEff,
+      hrmaxRejected: p.hrmax > 0 && !hrmaxValid,
+      altFactor: altF,
+      vo2base: vo2b,
+      vo2adj: vo2a,
+      vo2gt: p.vo2gt > 0 ? p.vo2gt : null,
+      cpapInUse: p.cpap,
+      ansAge: aa,
+      hrvScore: hrvScore(r.dispRm),
+      expRmssd: expectedRmssd(p.age),
+      expRHR: expectedRHR(p.age)
+    });
+    // Publish DETECTED physiology to the shared detected tier (NOT manual identity) —
+    // cross-node handoff + lights up the cascade's middle tier in the unified panel.
+    if (DP()) {
+      try {
+        var _det = { vo2: vo2a, hrRest: autoRHR, _note: 'PpgDex wrist · pulse HR (optical PPI)' };
+        DP().setDetected(_det);
+        DP().prefillFrom(_det);
+        if (_dexPanel) _dexPanel.refresh();
+      } catch (e) {}
+    }
+    return r;
+  }
+
+  function renderHero(r) {
+    const wrap = $('heroWrap');
+    if (!wrap) return;
+    const score = r.hrvScore,
+      p = r.profile;
+    let color, tier;
+    if (score >= 55) {
+      color = 'good';
+      tier = 'Primed · strong autonomic reserve';
+    } else if (score >= 45) {
+      color = 'good';
+      tier = 'Ready · balanced autonomic state';
+    } else if (score >= 33) {
+      color = 'warn';
+      tier = 'Moderate · recovery favoured';
+    } else {
+      color = 'bad';
+      tier = 'Strained · prioritise rest';
+    }
+    const css = color === 'good' ? 'var(--status-ok)' : color === 'warn' ? 'var(--status-caution)' : 'var(--status-concern)';
+    const ratio = r.dispRm / r.expRmssd;
+    let ageNote;
+    if (ratio >= 1.15) ageNote = `rMSSD ${r.dispRm} ms is <b>above</b> the ~${r.expRmssd} ms typical for age ${p.age} — favourable parasympathetic tone.`;
+    else if (ratio >= 0.85) ageNote = `rMSSD ${r.dispRm} ms is <b>about typical</b> for age ${p.age} (~${r.expRmssd} ms expected).`;
+    else ageNote = `rMSSD ${r.dispRm} ms is <b>below</b> the ~${r.expRmssd} ms typical for age ${p.age} — watch recovery &amp; load.`;
+    ageNote += ` <span style="opacity:.75">Derived from wrist <b>PPI</b> (optical pulse intervals), not ECG RR — validated against the device's own PP-intervals.</span>`;
+    const pb = perfusionBand(r.perfusionIndex);
+    const subs = [
+      { v: r.dispRm, fmt: (v) => v.toFixed(0), label: 'rMSSD', cls: (v) => (v >= r.expRmssd ? 'ok' : v > r.expRmssd * 0.7 ? 'warn' : 'bad') },
+      { v: r.dispSd, fmt: (v) => v.toFixed(0), label: 'SDNN', cls: (v) => (v > 50 ? 'ok' : v > 35 ? 'warn' : 'bad') },
+      { v: r.rhrEff, fmt: (v) => v.toFixed(0), label: 'Pulse HR', cls: (v) => (v <= r.expRHR ? 'ok' : v <= r.expRHR + 8 ? 'warn' : 'bad') },
+      { v: r.perfusionIndex, fmt: (v) => (v == null ? '—' : v.toFixed(1)), label: 'Perfusion %', cls: () => pb.sev }
+    ];
+    let subsHtml = '';
+    subs.forEach((s) => {
+      if (s.v == null || (typeof s.v === 'number' && isNaN(s.v))) return;
+      subsHtml += `<div class="readiness-subscore">${typeof evBadge === 'function' ? evBadge(s.label) : ''}<div class="rs-val ${s.cls(s.v)}">${s.fmt(s.v)}</div><div class="rs-label">${s.label}</div></div>`;
+    });
+    let chips = '';
+    if (r.epochs && r.epochs.length >= 4) {
+      const w = r.epochs,
+        t = Math.floor(w.length / 3);
+      const early = median(w.slice(0, t).map((x) => x.rmssd)),
+        late = median(w.slice(-t).map((x) => x.rmssd));
+      if (early > 0) {
+        const mom = late / early;
+        const c = mom > 1.05 ? 'ok' : mom > 0.9 ? 'warn' : 'bad';
+        const a = mom > 1.05 ? '↗' : mom > 0.9 ? '→' : '↘';
+        chips += `<div class="readiness-zone-chip ${c}">${a} HRV ${mom > 1.05 ? 'recovering' : mom > 0.9 ? 'steady' : 'declining'}</div>`;
+      }
+    }
+    chips += `<div class="readiness-zone-chip ${pb.sev === 'neutral' ? 'warn' : pb.sev}">Perfusion · ${pb.txt}</div>`;
+    chips += `<div class="readiness-zone-chip ${r.motionRejectedPct < 10 ? 'ok' : r.motionRejectedPct < 30 ? 'warn' : 'bad'}">${r.motionRejectedPct}% motion-rejected</div>`;
+    chips += `<div class="readiness-zone-chip ${r.analyzablePct >= 90 ? 'ok' : r.analyzablePct >= 75 ? 'warn' : 'bad'}">${r.analyzablePct}% analyzable</div>`;
+    if (r.cpapInUse === true) chips += `<div class="readiness-zone-chip neutral">⊕ on CPAP therapy</div>`;
+    else if (r.cpapInUse === false) chips += `<div class="readiness-zone-chip neutral">no CPAP</div>`;
+    wrap.classList.add('show');
+    wrap.innerHTML =
+      `<div class="readiness-hero" style="--readiness-color:${css}">` +
+      `<div class="readiness-hero-label">ANS Readiness</div>` +
+      `<div class="readiness-date-badge">wrist PPG · ${r.durMin >= 90 ? (r.durSec / 3600).toFixed(1) + ' h' : r.durMin + ' min'}</div>` +
+      `<div class="readiness-score" style="color:${css}">${score}</div>` +
+      `<div class="readiness-tier">${tier}</div>` +
+      (subsHtml ? `<div class="readiness-scores-grid">${subsHtml}</div>` : '') +
+      `<div class="readiness-note">${ageNote}</div>` +
+      (chips ? `<div class="readiness-zones">${chips}</div>` : '') +
+      `</div>`;
+    const srbScore = $('srbScore'),
+      srbNote = $('srbNote'),
+      srb = $('sidebarReadinessBadge');
+    if (srbScore) {
+      srbScore.textContent = score;
+      srbScore.style.setProperty('--srb-color', css);
+    }
+    if (srbNote) srbNote.textContent = tier.split(' · ')[0];
+    if (srb) srb.style.display = 'flex';
+  }
+
+  // ── SECONDARY HERO: VALIDATED HRV BENCH (PPI time-domain + Poincaré) ─────────────
+  //    Fills the #heroTop secondary slot (vacated by the removed ANS-age card) with
+  //    the node's validated bench — RMSSD/SDNN/SD1/SD2/pNN50 derived from optical
+  //    pulse-pulse intervals. Reuses the .proj-card heroTop styling.
+  function renderHrvBench(r) {
+    const top = $('heroTop');
+    if (!top || !r) return;
+    let host = $('heroBenchPpg');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'heroBenchPpg';
+      host.className = 'proj-grid';
+      top.appendChild(host);
+    }
+    const rm = r.dispRm,
+      sd = r.dispSd,
+      sd1 = r.sd1,
+      sd2 = r.sd2,
+      pn = r.dispPn,
+      pi = r.perfusionIndex;
+    const exp = r.expRmssd || 30;
+    const sev = rm >= exp ? 'proj-good' : rm >= exp * 0.7 ? 'proj-warn' : 'proj-bad';
+    const vc = rm >= exp ? 'proj-val-good' : rm >= exp * 0.7 ? 'proj-val-warn' : 'proj-val-bad';
+    const eb = (l) => (typeof bdg === 'function' ? bdg(l) : '');
+    const f = (lbl, sub, val, unit, cls) =>
+      `<div class="proj-factor"><span>${eb(lbl)}${lbl} <span style="opacity:.55">${sub}</span></span><span class="pf-val cv-${cls}">${val != null && !isNaN(val) ? val + ' ' + unit : '—'}</span></div>`;
+    const st = (lbl, val, unit, cls) =>
+      `<div class="proj-stat ps-${cls}"><span class="ps-label">${lbl}${eb(lbl)}</span><span class="ps-val">${val != null && !isNaN(val) ? val : '—'}<span class="ps-unit">${unit}</span></span></div>`;
+    const piSev = pi == null ? 'neutral' : pi >= 4 ? 'good' : pi >= 1 ? 'warn' : 'bad';
+    host.innerHTML =
+      `<div class="proj-card ${sev}">` +
+      `<div class="proj-header"><span class="proj-icon">🩸</span><span class="proj-title">HRV Bench · PPI Time-Domain</span>` +
+      `<span class="proj-badge proj-good">validated</span></div>` +
+      `<div class="proj-main"><div class="proj-value ${vc}">${rm != null && !isNaN(rm) ? rm : '—'}</div><div class="proj-unit">ms · ${eb('rMSSD')}rMSSD (vagal tone)</div></div>` +
+      `<div class="proj-waterfall">` +
+      f('SDNN', 'norm 50–100 ms', sd, 'ms', sd > 50 ? 'good' : sd > 35 ? 'warn' : 'bad') +
+      f('SD1', 'Poincaré short-axis', sd1 != null ? sd1.toFixed(1) : null, 'ms', sd1 >= 20 ? 'good' : sd1 >= 10 ? 'warn' : 'bad') +
+      f('SD2', 'Poincaré long-axis', sd2 != null ? sd2.toFixed(1) : null, 'ms', sd2 >= 40 ? 'good' : sd2 >= 25 ? 'warn' : 'bad') +
+      `</div>` +
+      `<div class="proj-extra">` +
+      st('pNN50', pn, '%', pn >= 15 ? 'good' : pn >= 3 ? 'warn' : 'bad') +
+      st('Perfusion', pi != null ? pi.toFixed(1) : null, '%', piSev === 'neutral' ? 'warn' : piSev) +
+      `</div>` +
+      `<div class="proj-subline" style="margin-top:auto;opacity:.8">Validated HRV bench from optical PPI — RMSSD · SDNN · Poincaré SD1/SD2 · pNN50 (Task Force 1996; Schäfer 2013). The reference-grade autonomic summary.</div>` +
+      `</div>`;
+  }
+
+  function renderProfileDerived() {
+    const d = $('profileDerived');
+    if (!d) return;
+    const p = getProfile();
+    // Body-comp formulas delegate to the shared engine (DuBois BSA, Mifflin/Katch
+    // RMR) so every node matches; BSA label shifts Mosteller→DuBois (display-only,
+    // not exported — brief §3). Node-specific age-relative norms stay local.
+    let bmi, bsa, ibw, rmr, rmrF, bmiCat, hrmax;
+    if (DP()) {
+      const dv = DP().derive(DP().get());
+      bmi = dv.bmi;
+      bsa = dv.bsa;
+      ibw = dv.ibw;
+      rmr = dv.rmr;
+      rmrF = dv.rmrFormula;
+      bmiCat = dv.bmiCat;
+      hrmax = dv.hrMax;
+    } else {
+      bmi = +(p.weight / (p.height / 100) ** 2).toFixed(1);
+      bsa = +Math.sqrt((p.height * p.weight) / 3600).toFixed(2);
+      ibw = +((p.sex === 'M' ? 50 : 45.5) + 2.3 * (p.height / 2.54 - 60)).toFixed(1);
+      rmr = p.sex === 'M' ? Math.round(10 * p.weight + 6.25 * p.height - 5 * p.age + 5) : Math.round(10 * p.weight + 6.25 * p.height - 5 * p.age - 161);
+      rmrF = 'Mifflin';
+      bmiCat = bmi < 18.5 ? 'Underweight' : bmi < 25 ? 'Normal' : bmi < 30 ? 'Overweight' : 'Obese';
+      hrmax = p.hrmax > 0 ? Math.round(p.hrmax) : Math.round(208 - 0.7 * p.age);
+    }
+    const di = (l, v, f) => `<div class="prof-derived-item"><b>${l}</b> ${v}${f ? `<span class="pdi-formula">${f}</span>` : ''}</div>`;
+    const grp = (l, items) => `<div class="pd-group"><span class="pd-group-label">${l}</span><div class="pd-group-grid">${items}</div></div>`;
+    d.innerHTML =
+      grp(
+        'Body composition',
+        di('BMI', bmi.toFixed(1) + ' (' + bmiCat + ')', 'kg ÷ m²') + di('IBW', ibw.toFixed(1) + ' kg', 'Devine') + di('BSA', bsa.toFixed(2) + ' m²', 'DuBois') + di('BMR', rmr + ' kcal', rmrF)
+      ) +
+      grp(
+        'Age-relative norms',
+        di('HRmax', hrmax + ' bpm', p.hrmax > 0 ? 'your entry' : 'Tanaka 208−0.7·' + p.age) +
+          di('Expected rMSSD', expectedRmssd(p.age) + ' ms', 'age ' + p.age + ' median') +
+          di('Expected pulse HR', expectedRHR(p.age) + ' bpm', 'age-typical resting')
+      );
+  }
+
+  function computeHints(r) {
+    if (DP()) return; // unified panel owns the field hints now (legacy DOM inputs removed)
+    const set = (id, txt, est) => {
+      const l = $(id);
+      if (!l) return;
+      l.textContent = txt;
+      l.classList.toggle('est', !!est);
+    };
+    const p = getProfile();
+    const n = popNorms(p.sex);
+    if (r) {
+      const aa = r.ansAge || ansAge(r.dispRm, r.dispSd, r.dispHr);
+      if (aa.age != null) set('lbl_ppgAge', '↑ chronological age · HRV-estimated autonomic age ≈ ' + aa.age + ' yr', true);
+    }
+    const ideal = +(22.5 * ((parseFloat($('ppgHeight').value) || n.h) / 100) ** 2).toFixed(1);
+    set('lbl_ppgWeight', '~ pop. avg ' + n.w + ' kg · ideal ' + ideal + ' kg');
+    set('lbl_ppgHeight', '~ pop. avg ' + n.h + ' cm');
+    if (r) {
+      const hm = r.hrmaxEff || Math.round(208 - 0.7 * p.age),
+        rh = Math.round(r.rhrEff || r.dispHr);
+      const altTxt = r.altFactor && r.altFactor < 1 ? ' · alt ×' + r.altFactor : '';
+      set('lbl_ppgVO2', '~ Uth–Sørensen → ' + r.vo2base + ' (HRmax ' + hm + '/rest ' + rh + altTxt + ')');
+      if (r.hrmaxRejected) set('lbl_ppgHRmax', '⚠ entry too low — using Tanaka ' + r.tanaka + ' bpm', true);
+      else {
+        const hrIn = Number($('ppgHRmax').value) || 0;
+        set('lbl_ppgHRmax', hrIn > 0 ? '✓ your value ' + hm + ' bpm' : '~ Tanaka: 208 − 0.7 × age = ' + r.tanaka);
+      }
+      const ev = Number($('ppgElev').value) || 0;
+      if (ev > 1500) set('lbl_ppgElev', '⛰ ' + ev.toLocaleString() + ' m · VO₂ ×' + r.altFactor, true);
+      else set('lbl_ppgElev', '~ sea level · adjusts VO₂max above 1500 m');
+      const rhrIn = Number($('ppgRHR').value) || 0;
+      if (rhrIn > 0) set('lbl_ppgRHR', '✓ your value');
+      else set('lbl_ppgRHR', '~ measured ' + Math.round(r.dispHr) + ' bpm', true);
+    }
+  }
+
+  function render(r) {
+    $('heroTop').style.display = 'grid';
+    $('sec-profile').style.display = 'block';
+    $('profilePanel').style.display = 'block';
+    personalize(r);
+    computeHints(r);
+    renderHero(r);
+    renderHrvBench(r);
     if (_dexPanel) _dexPanel.refresh();
-  } catch(e){} }
-  return r;
-}
-
-function renderHero(r){
-  const wrap=$('heroWrap'); if(!wrap) return;
-  const score=r.hrvScore, p=r.profile;
-  let color,tier;
-  if(score>=55){color='good';tier='Primed · strong autonomic reserve';}
-  else if(score>=45){color='good';tier='Ready · balanced autonomic state';}
-  else if(score>=33){color='warn';tier='Moderate · recovery favoured';}
-  else {color='bad';tier='Strained · prioritise rest';}
-  const css=color==='good'?'var(--status-ok)':color==='warn'?'var(--status-caution)':'var(--status-concern)';
-  const ratio=r.dispRm/r.expRmssd; let ageNote;
-  if(ratio>=1.15) ageNote=`rMSSD ${r.dispRm} ms is <b>above</b> the ~${r.expRmssd} ms typical for age ${p.age} — favourable parasympathetic tone.`;
-  else if(ratio>=0.85) ageNote=`rMSSD ${r.dispRm} ms is <b>about typical</b> for age ${p.age} (~${r.expRmssd} ms expected).`;
-  else ageNote=`rMSSD ${r.dispRm} ms is <b>below</b> the ~${r.expRmssd} ms typical for age ${p.age} — watch recovery &amp; load.`;
-  ageNote += ` <span style="opacity:.75">Derived from wrist <b>PPI</b> (optical pulse intervals), not ECG RR — validated against the device's own PP-intervals.</span>`;
-  const pb=perfusionBand(r.perfusionIndex);
-  const subs=[
-    {v:r.dispRm, fmt:v=>v.toFixed(0), label:'rMSSD', cls:v=>v>=r.expRmssd?'ok':v>r.expRmssd*0.7?'warn':'bad'},
-    {v:r.dispSd, fmt:v=>v.toFixed(0), label:'SDNN', cls:v=>v>50?'ok':v>35?'warn':'bad'},
-    {v:r.rhrEff, fmt:v=>v.toFixed(0), label:'Pulse HR', cls:v=>v<=r.expRHR?'ok':v<=r.expRHR+8?'warn':'bad'},
-    {v:r.perfusionIndex, fmt:v=>v==null?'—':v.toFixed(1), label:'Perfusion %', cls:()=>pb.sev},
-  ];
-  let subsHtml='';
-  subs.forEach(s=>{ if(s.v==null||(typeof s.v==='number'&&isNaN(s.v)))return;
-    subsHtml+=`<div class="readiness-subscore">${(typeof evBadge==='function'?evBadge(s.label):'')}<div class="rs-val ${s.cls(s.v)}">${s.fmt(s.v)}</div><div class="rs-label">${s.label}</div></div>`; });
-  let chips='';
-  if(r.epochs && r.epochs.length>=4){ const w=r.epochs,t=Math.floor(w.length/3);
-    const early=median(w.slice(0,t).map(x=>x.rmssd)), late=median(w.slice(-t).map(x=>x.rmssd));
-    if(early>0){ const mom=late/early; const c=mom>1.05?'ok':mom>0.9?'warn':'bad'; const a=mom>1.05?'↗':mom>0.9?'→':'↘';
-      chips+=`<div class="readiness-zone-chip ${c}">${a} HRV ${mom>1.05?'recovering':mom>0.9?'steady':'declining'}</div>`; } }
-  chips+=`<div class="readiness-zone-chip ${pb.sev==='neutral'?'warn':pb.sev}">Perfusion · ${pb.txt}</div>`;
-  chips+=`<div class="readiness-zone-chip ${r.motionRejectedPct<10?'ok':r.motionRejectedPct<30?'warn':'bad'}">${r.motionRejectedPct}% motion-rejected</div>`;
-  chips+=`<div class="readiness-zone-chip ${r.analyzablePct>=90?'ok':r.analyzablePct>=75?'warn':'bad'}">${r.analyzablePct}% analyzable</div>`;
-  if(r.cpapInUse===true) chips+=`<div class="readiness-zone-chip neutral">⊕ on CPAP therapy</div>`;
-  else if(r.cpapInUse===false) chips+=`<div class="readiness-zone-chip neutral">no CPAP</div>`;
-  wrap.classList.add('show');
-  wrap.innerHTML=`<div class="readiness-hero" style="--readiness-color:${css}">`
-    +`<div class="readiness-hero-label">ANS Readiness</div>`
-    +`<div class="readiness-date-badge">wrist PPG · ${r.durMin>=90?(r.durSec/3600).toFixed(1)+' h':r.durMin+' min'}</div>`
-    +`<div class="readiness-score" style="color:${css}">${score}</div>`
-    +`<div class="readiness-tier">${tier}</div>`
-    +(subsHtml?`<div class="readiness-scores-grid">${subsHtml}</div>`:'')
-    +`<div class="readiness-note">${ageNote}</div>`
-    +(chips?`<div class="readiness-zones">${chips}</div>`:'')+`</div>`;
-  const srbScore=$('srbScore'),srbNote=$('srbNote'),srb=$('sidebarReadinessBadge');
-  if(srbScore){ srbScore.textContent=score; srbScore.style.setProperty('--srb-color',css); }
-  if(srbNote) srbNote.textContent=tier.split(' · ')[0];
-  if(srb) srb.style.display='flex';
-}
-
-// ── SECONDARY HERO: VALIDATED HRV BENCH (PPI time-domain + Poincaré) ─────────────
-//    Fills the #heroTop secondary slot (vacated by the removed ANS-age card) with
-//    the node's validated bench — RMSSD/SDNN/SD1/SD2/pNN50 derived from optical
-//    pulse-pulse intervals. Reuses the .proj-card heroTop styling.
-function renderHrvBench(r){
-  const top=$('heroTop'); if(!top||!r) return;
-  let host=$('heroBenchPpg');
-  if(!host){ host=document.createElement('div'); host.id='heroBenchPpg'; host.className='proj-grid'; top.appendChild(host); }
-  const rm=r.dispRm, sd=r.dispSd, sd1=r.sd1, sd2=r.sd2, pn=r.dispPn, pi=r.perfusionIndex;
-  const exp=r.expRmssd||30;
-  const sev = rm>=exp?'proj-good':rm>=exp*0.7?'proj-warn':'proj-bad';
-  const vc  = rm>=exp?'proj-val-good':rm>=exp*0.7?'proj-val-warn':'proj-val-bad';
-  const eb = (l)=> (typeof bdg==='function'?bdg(l):'');
-  const f=(lbl,sub,val,unit,cls)=>`<div class="proj-factor"><span>${eb(lbl)}${lbl} <span style="opacity:.55">${sub}</span></span><span class="pf-val cv-${cls}">${val!=null&&!isNaN(val)?val+' '+unit:'—'}</span></div>`;
-  const st=(lbl,val,unit,cls)=>`<div class="proj-stat ps-${cls}"><span class="ps-label">${lbl}${eb(lbl)}</span><span class="ps-val">${val!=null&&!isNaN(val)?val:'—'}<span class="ps-unit">${unit}</span></span></div>`;
-  const piSev = pi==null?'neutral':pi>=4?'good':pi>=1?'warn':'bad';
-  host.innerHTML =
-    `<div class="proj-card ${sev}">`
-    + `<div class="proj-header"><span class="proj-icon">🩸</span><span class="proj-title">HRV Bench · PPI Time-Domain</span>`
-    +   `<span class="proj-badge proj-good">validated</span></div>`
-    + `<div class="proj-main"><div class="proj-value ${vc}">${rm!=null&&!isNaN(rm)?rm:'—'}</div><div class="proj-unit">ms · ${eb('rMSSD')}rMSSD (vagal tone)</div></div>`
-    + `<div class="proj-waterfall">`
-    +   f('SDNN','norm 50–100 ms', sd, 'ms', sd>50?'good':sd>35?'warn':'bad')
-    +   f('SD1','Poincaré short-axis', sd1!=null?sd1.toFixed(1):null, 'ms', sd1>=20?'good':sd1>=10?'warn':'bad')
-    +   f('SD2','Poincaré long-axis', sd2!=null?sd2.toFixed(1):null, 'ms', sd2>=40?'good':sd2>=25?'warn':'bad')
-    + `</div>`
-    + `<div class="proj-extra">`
-    +   st('pNN50', pn, '%', pn>=15?'good':pn>=3?'warn':'bad')
-    +   st('Perfusion', pi!=null?pi.toFixed(1):null, '%', piSev==='neutral'?'warn':piSev)
-    + `</div>`
-    + `<div class="proj-subline" style="margin-top:auto;opacity:.8">Validated HRV bench from optical PPI — RMSSD · SDNN · Poincaré SD1/SD2 · pNN50 (Task Force 1996; Schäfer 2013). The reference-grade autonomic summary.</div>`
-    + `</div>`;
-}
-
-function renderProfileDerived(){
-  const d=$('profileDerived'); if(!d) return;
-  const p=getProfile();
-  // Body-comp formulas delegate to the shared engine (DuBois BSA, Mifflin/Katch
-  // RMR) so every node matches; BSA label shifts Mosteller→DuBois (display-only,
-  // not exported — brief §3). Node-specific age-relative norms stay local.
-  let bmi,bsa,ibw,rmr,rmrF,bmiCat,hrmax;
-  if(DP()){
-    const dv=DP().derive(DP().get());
-    bmi=dv.bmi; bsa=dv.bsa; ibw=dv.ibw; rmr=dv.rmr; rmrF=dv.rmrFormula; bmiCat=dv.bmiCat; hrmax=dv.hrMax;
-  } else {
-    bmi=+(p.weight/((p.height/100)**2)).toFixed(1);
-    bsa=+Math.sqrt((p.height*p.weight)/3600).toFixed(2);
-    ibw=+((p.sex==='M'?50:45.5)+2.3*((p.height/2.54)-60)).toFixed(1);
-    rmr=p.sex==='M'?Math.round(10*p.weight+6.25*p.height-5*p.age+5):Math.round(10*p.weight+6.25*p.height-5*p.age-161);
-    rmrF='Mifflin'; bmiCat=bmi<18.5?'Underweight':bmi<25?'Normal':bmi<30?'Overweight':'Obese';
-    hrmax=p.hrmax>0?Math.round(p.hrmax):Math.round(208-0.7*p.age);
+    else renderProfileDerived(r);
   }
-  const di=(l,v,f)=>`<div class="prof-derived-item"><b>${l}</b> ${v}${f?`<span class="pdi-formula">${f}</span>`:''}</div>`;
-  const grp=(l,items)=>`<div class="pd-group"><span class="pd-group-label">${l}</span><div class="pd-group-grid">${items}</div></div>`;
-  d.innerHTML=grp('Body composition',
-      di('BMI',bmi.toFixed(1)+' ('+bmiCat+')','kg ÷ m²')+
-      di('IBW',ibw.toFixed(1)+' kg','Devine')+
-      di('BSA',bsa.toFixed(2)+' m²','DuBois')+
-      di('BMR',rmr+' kcal',rmrF))+
-    grp('Age-relative norms',
-      di('HRmax',hrmax+' bpm',p.hrmax>0?'your entry':'Tanaka 208−0.7·'+p.age)+
-      di('Expected rMSSD',expectedRmssd(p.age)+' ms','age '+p.age+' median')+
-      di('Expected pulse HR',expectedRHR(p.age)+' bpm','age-typical resting'));
-}
-
-function computeHints(r){
-  if (DP()) return;   // unified panel owns the field hints now (legacy DOM inputs removed)
-  const set=(id,txt,est)=>{ const l=$(id); if(!l)return; l.textContent=txt; l.classList.toggle('est',!!est); };
-  const p=getProfile(); const n=popNorms(p.sex);
-  if(r){ const aa=r.ansAge||ansAge(r.dispRm,r.dispSd,r.dispHr);
-    if(aa.age!=null) set('lbl_ppgAge','↑ chronological age · HRV-estimated autonomic age ≈ '+aa.age+' yr',true); }
-  const ideal=+(22.5*((parseFloat($('ppgHeight').value)||n.h)/100)**2).toFixed(1);
-  set('lbl_ppgWeight','~ pop. avg '+n.w+' kg · ideal '+ideal+' kg');
-  set('lbl_ppgHeight','~ pop. avg '+n.h+' cm');
-  if(r){ const hm=r.hrmaxEff||Math.round(208-0.7*p.age), rh=Math.round(r.rhrEff||r.dispHr);
-    const altTxt=(r.altFactor&&r.altFactor<1)?' · alt ×'+r.altFactor:'';
-    set('lbl_ppgVO2','~ Uth–Sørensen → '+r.vo2base+' (HRmax '+hm+'/rest '+rh+altTxt+')');
-    if(r.hrmaxRejected) set('lbl_ppgHRmax','⚠ entry too low — using Tanaka '+r.tanaka+' bpm',true);
-    else { const hrIn=Number($('ppgHRmax').value)||0; set('lbl_ppgHRmax', hrIn>0?'✓ your value '+hm+' bpm':'~ Tanaka: 208 − 0.7 × age = '+r.tanaka); }
-    const ev=Number($('ppgElev').value)||0;
-    if(ev>1500) set('lbl_ppgElev','⛰ '+ev.toLocaleString()+' m · VO₂ ×'+r.altFactor,true);
-    else set('lbl_ppgElev','~ sea level · adjusts VO₂max above 1500 m');
-    const rhrIn=Number($('ppgRHR').value)||0;
-    if(rhrIn>0) set('lbl_ppgRHR','✓ your value'); else set('lbl_ppgRHR','~ measured '+Math.round(r.dispHr)+' bpm',true);
+  function hide() {
+    $('heroTop').style.display = 'none';
+    $('sec-profile').style.display = 'none';
+    $('profilePanel').style.display = 'none';
+    const srb = $('sidebarReadinessBadge');
+    if (srb) srb.style.display = 'none';
   }
-}
+  function onInput(lblId) {
+    saveProfile();
+    if (lblId) {
+      const l = $(lblId);
+      if (l) {
+        l.textContent = '✓ your value';
+        l.classList.remove('est');
+      }
+    }
+    if (reRenderFn) reRenderFn();
+  }
+  function toggle() {
+    const b = $('profileBody'),
+      btn = $('profileToggleBtn');
+    const open = b.style.display !== 'none';
+    b.style.display = open ? 'none' : 'block';
+    if (btn) btn.textContent = open ? '▼ expand' : '▲ collapse';
+  }
+  function applyNorms(ideal) {
+    // Element-existence guard (PROFILE-DOM-READ-AUDIT §2/§5): under the unified panel the
+    // legacy ppgHeight/ppgWeight inputs are gone — a bare `.value=` write would throw.
+    const hEl = $('ppgHeight'),
+      wEl = $('ppgWeight');
+    if (!hEl || !wEl) return;
+    const p = getProfile();
+    const n = popNorms(p.sex);
+    hEl.value = n.h;
+    wEl.value = ideal ? +(22.5 * (n.h / 100) ** 2).toFixed(1) : n.w;
+    saveProfile();
+    if (reRenderFn) reRenderFn();
+  }
+  function init(reRender) {
+    reRenderFn = reRender;
+    loadProfile();
+    if (DP() && DP().renderPanel) {
+      _dexPanel = DP().renderPanel({
+        node: 'ppgdex',
+        mount: 'dexProfilePanel',
+        onChange: function () {
+          if (reRenderFn) reRenderFn();
+        }
+      });
+    } else {
+      renderProfileDerived();
+    }
+  }
 
-function render(r){ $('heroTop').style.display='grid'; $('sec-profile').style.display='block'; $('profilePanel').style.display='block';
-  personalize(r); computeHints(r); renderHero(r); renderHrvBench(r); if (_dexPanel) _dexPanel.refresh(); else renderProfileDerived(r); }
-function hide(){ $('heroTop').style.display='none'; $('sec-profile').style.display='none'; $('profilePanel').style.display='none';
-  const srb=$('sidebarReadinessBadge'); if(srb) srb.style.display='none'; }
-function onInput(lblId){ saveProfile(); if(lblId){ const l=$(lblId); if(l){ l.textContent='✓ your value'; l.classList.remove('est'); } } if(reRenderFn) reRenderFn(); }
-function toggle(){ const b=$('profileBody'),btn=$('profileToggleBtn'); const open=b.style.display!=='none'; b.style.display=open?'none':'block'; if(btn) btn.textContent=open?'▼ expand':'▲ collapse'; }
-function applyNorms(ideal){
-  // Element-existence guard (PROFILE-DOM-READ-AUDIT §2/§5): under the unified panel the
-  // legacy ppgHeight/ppgWeight inputs are gone — a bare `.value=` write would throw.
-  const hEl=$('ppgHeight'), wEl=$('ppgWeight'); if(!hEl||!wEl) return;
-  const p=getProfile(); const n=popNorms(p.sex);
-  hEl.value=n.h; wEl.value= ideal?+(22.5*(n.h/100)**2).toFixed(1):n.w;
-  saveProfile(); if(reRenderFn) reRenderFn();
-}
-function init(reRender){ reRenderFn=reRender; loadProfile();
-  if (DP() && DP().renderPanel) { _dexPanel = DP().renderPanel({ node:'ppgdex', mount:'dexProfilePanel', onChange:function(){ if(reRenderFn) reRenderFn(); } }); }
-  else { renderProfileDerived(); } }
-
-global.PPGProfile = { init, render, hide, getProfile, personalize, renderHero };
-Object.assign(global, { ppgProfileInput:onInput, ppgProfileToggle:toggle, ppgApplyNorms:applyNorms });
-
+  global.PPGProfile = { init, render, hide, getProfile, personalize, renderHero };
+  Object.assign(global, { ppgProfileInput: onInput, ppgProfileToggle: toggle, ppgApplyNorms: applyNorms });
 })(window);
 </script>
 <script data-inline-src="synth-gen.js">/* ════════════════════════════════════════════════════════════════════════════
@@ -10052,7 +10504,28 @@ function buildV2(r){
       frequency:{ vlf:fq.vlf, lf:fq.lf, hf:fq.hf, lfhf:fq.lfhf, lfnu:fq.lfnu, hfnu:fq.hfnu, totalPower:fq.totalPower, method:'Lomb-Scargle', lowConfidence:!!r.hrvLowConfidence, lfRobust:(r.lfRobust!=null?r.lfRobust:null), hfRobust:(r.hfRobust!=null?r.hfRobust:null), lfhfRobust:(r.lfhfRobust!=null?r.lfhfRobust:null), hfRobustLowMotion:(r.hfRobustLowMotion!=null?r.hfRobustLowMotion:null) },
       nonlinear:{ dfaAlpha1:r.dfa1, sampEn:r.sampen },
       confidence:(r.hrvConfidence||null) },
-    personalization:{ profile:r.profile||null, ansReadinessScore:r.hrvScore, ansAge:null, /* ANS Age REMOVED 2026-06-21 (external-review WP-A); null for node-export back-compat. */
+    // DEEP-AUDIT §19 — the raw profile shipped the POPULATION DEFAULT (42 y · M · 80 kg · 178 cm) as
+    // though the user had entered it. Split it: `profile` = only what was actually entered/detected,
+    // `assumedDefaults` = the priors COMPUTE ran on. Tolerates a profile with no _origins (legacy).
+    personalization:{ profile:(function(){
+        var pr = r.profile || null; if (!pr || typeof pr !== 'object') return pr || null;
+        var o = pr._origins || null;
+        var ent = function (f, v) { return (o && (o[f]==='you' || o[f]==='detected')) ? v : null; };
+        return { age:ent('age',pr.age), sex:ent('sex',pr.sex), weight:ent('weight',pr.weight),
+                 height:ent('height',pr.height), elev:ent('elevation',pr.elev), cpap:ent('cpap',pr.cpap),
+                 hrmax:(pr.hrmax>0?pr.hrmax:null), rhr:(pr.rhr>0?pr.rhr:null), vo2gt:(pr.vo2gt>0?pr.vo2gt:null),
+                 note:'Only what the user entered/selected, or a node detected. null = left on auto/default.' };
+      })(),
+      assumedDefaults:(function(){
+        var pr = r.profile || null; if (!pr || typeof pr !== 'object') return null;
+        var o = pr._origins || null;
+        var asm = function (f, v) { return (o && (o[f]==='you' || o[f]==='detected')) ? null : v; };
+        return { age:asm('age',pr.age), sex:asm('sex',pr.sex), weight:asm('weight',pr.weight),
+                 height:asm('height',pr.height), elev:asm('elevation',pr.elev),
+                 source:'population norm (NHANES age×sex) — the value the analysis ran on',
+                 note:'NOT a measurement of this person.' };
+      })(),
+      ansReadinessScore:r.hrvScore, ansAge:null, /* ANS Age REMOVED 2026-06-21 (external-review WP-A); null for node-export back-compat. */
       restingHR:r.rhrEff, vo2maxEst:r.vo2adj, expectedRmssd:r.expRmssd },
     apnea: r.longRec ? { screen:'CVHR (PPI-derived bradycardia-rebound)', note:'screen not diagnosis', index:null } : null,
     morphology:{ riseTimeMs:m.riseTimeMs, crestTimeMs:m.crestTimeMs, dicroticNotchPresent:!!m.dicroticNotchPresent,

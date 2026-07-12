@@ -210,6 +210,34 @@
         "TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "1.8.0",
+      "date": "2026-07-12",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "84352a1f26b5",
+        "OxyDex": "3b758c54c061",
+        "PulseDex": "1b658f0c4ce5",
+        "GlucoDex": "f136f2a11b74",
+        "PpgDex": "905afc5afca8",
+        "HRVDex": "d1ce742c201e",
+        "CPAPDex": "48c71b54b739",
+        "Integrator": "ace24a7aa8fd"
+      },
+      "briefs": [
+        "CI-SHARDING-2026-07-12-BRIEF.md",
+        "TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md",
+        "GATE-INTEGRITY-AND-DEVLOOP-2026-07-12-BRIEF.md",
+        "DEEP-AUDIT-2026-07-11-BRIEF.md",
+        "PPGDEX-PI-AND-PARSE-2026-07-12-BRIEF.md",
+        "PPGDEX-WORKER-CLOSURE-2026-07-12-BRIEF.md",
+        "PROFILED-HOTSPOTS-CI-AND-DSP-2026-07-12-BRIEF.md",
+        "R5-HR-TRIPLET-REFERENCE-2026-07-12-BRIEF.md",
+        "WORKER-REALM-GATES-2026-07-12-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }

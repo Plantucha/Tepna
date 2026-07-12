@@ -30,6 +30,28 @@ changesets.)
 
 ---
 
+## [1.8.0] — 2026-07-12
+
+### Added
+- Put ECGDex's respiration on the ganglior bus — it derived respiratory rate two independent ways and exported neither. (`TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md`)
+- Run the efficiency-audit charter — and retract `PROFILED-HOTSPOTS §3`, which was measured in a lying realm.
+- Record CPU-profiled ground truth for the CI gate and the DSP hot paths — and the microbenchmark that lied by 18×. (`PROFILED-HOTSPOTS-CI-AND-DSP-2026-07-12-BRIEF.md`)
+- Validate the three-cornered-hat σ estimator against a TRUE reference for the first time — it is blind to bias, and its independence assumption does not hold. (`TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md`)
+- Gate the worker realms — and pin the ECGDex >5 MB path's private clock, which nothing was checking. (`WORKER-REALM-GATES-2026-07-12-BRIEF.md`)
+
+### Changed
+- Shard the CI `test` gate 4 ways — **4m05s → 1m20s** — and prove the shards still add up to the full gate. (`CI-SHARDING-2026-07-12-BRIEF.md`)
+- Stop the gate shrinking in silence, parallelize the local suite, and make the two ledger files union-mergeable. (`GATE-INTEGRITY-AND-DEVLOOP-2026-07-12-BRIEF.md`)
+
+### Fixed
+- Stop presenting a population default as your own data, pool an index instead of averaging rates, and badge the numbers a user actually reads first — the deep audit's final five findings (§17–§21). (`DEEP-AUDIT-2026-07-11-BRIEF.md`)
+- Fix the PpgDex perfusion-index trend, which was silently `null` in most windows — and stop parsing 190k timestamps that were never read. (`PPGDEX-PI-AND-PARSE-2026-07-12-BRIEF.md`)
+- Fix `Uncaught ReferenceError: cadenceSamples is not defined` — the PPG worker pool has been dead, and no gate could see it. (`PPGDEX-WORKER-CLOSURE-2026-07-12-BRIEF.md`)
+- Record that a three-cornered hat cannot be validated using one of its own corners as the reference — the test is algebraically vacuous — and that the one thing it CAN measure, bias, shows OxyDex under-reading by 0.36 bpm. (`R5-HR-TRIPLET-REFERENCE-2026-07-12-BRIEF.md`)
+- Report the frequency spectrum on ONE time scale and stop hanging the band split on an arbitrary bin count — the Task-Force identity was broken by 11% and LF/HF swung 44% on a constant nobody was meant to notice. (`DEEP-AUDIT-2026-07-11-BRIEF.md`)
+
+---
+
 ## [1.7.0] — 2026-07-12
 
 ### Added
@@ -278,7 +300,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/Plantucha/Tepna/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/Plantucha/Tepna/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/Plantucha/Tepna/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/Plantucha/Tepna/compare/v1.4.0...v1.5.0
