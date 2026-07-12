@@ -126,11 +126,12 @@ class GlucoScope {
 
     // ── greyed excluded spans (gap / warm-up / compression) ──
     const i0=Math.max(0,Math.floor(start)), i1=Math.min(this.N-1,Math.ceil(start+span));
-    const exCol={ [this.FLAG.GAP]:'rgba(150,160,175,.16)', [this.FLAG.WARMUP]:'rgba(255,184,77,.13)', [this.FLAG.COMPRESSION]:'rgba(167,139,250,.16)' };
+    // GAP_LONG is shaded like a gap (a long dropout the sensor never saw) — DEEP-AUDIT §5.
+    const exCol={ [this.FLAG.GAP]:'rgba(150,160,175,.16)', [this.FLAG.GAP_LONG]:'rgba(150,160,175,.16)', [this.FLAG.WARMUP]:'rgba(255,184,77,.13)', [this.FLAG.COMPRESSION]:'rgba(167,139,250,.16)' };
     let runS=null, runFlag=null;
     for(let i=i0;i<=i1;i++){
       const f=this.gF[i];
-      const ex=(f===this.FLAG.GAP||f===this.FLAG.WARMUP||f===this.FLAG.COMPRESSION);
+      const ex=(f===this.FLAG.GAP||f===this.FLAG.GAP_LONG||f===this.FLAG.WARMUP||f===this.FLAG.COMPRESSION);
       if(ex && runS===null){ runS=i; runFlag=f; }
       if((!ex||f!==runFlag||i===i1) && runS!==null){
         const x0=sxCell(runS), x1=sxCell(i);

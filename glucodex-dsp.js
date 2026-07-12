@@ -149,7 +149,13 @@ function parseCSV(text){
 // ════════════════════════════════════════════════════════════════════════
 //  CLEAN — cadence detect · warm-up suppress · gap flag+interp · compression-low
 // ════════════════════════════════════════════════════════════════════════
-const FLAG = { OK:0, WARMUP:1, GAP:2, COMPRESSION:3 };
+/* GAP vs GAP_LONG (DEEP-AUDIT-2026-07-11 §5). A SHORT gap is a physiologic bridge — interpolating across
+   one missed 5-min reading is sound, and those cells stay analyzable. A LONG gap (a sensor change, a
+   dropout) is hours of straight line the sensor never saw; it must NOT be counted as measured glucose.
+   Both used to carry FLAG.GAP, and analyzableIndex filtered neither — so a routine 14 h sensor-change gap
+   was interpolated straight into TIR/GMI/CV/MAGE, the validated-tier headline KPIs (TIR read 11 % where
+   the truth was 0 %). The distinction is the fix; the code's own comment already claimed it existed. */
+const FLAG = { OK:0, WARMUP:1, GAP:2, COMPRESSION:3, GAP_LONG:4 };
 
 // ── disambiguate a genuine sharp nocturnal hypo from a positional (compression) artifact ──
 // GLUCODEX-HYPO-DISAMBIG (June 2026): the compression-rejection pass used to eat true sharp
@@ -209,8 +215,9 @@ function clean(parsed, progress){
     } else if(tR>tL && gapL<gapThresh && gapR<gapThresh){
       const f=(t-tL)/(tR-tL); gV[i]=vL+(vR-vL)*f; gF[i]=FLAG.GAP;   // short gap → interpolate
     } else {
-      // long gap — carry interpolation but mark; will be excluded from coverage
-      const f=tR>tL?(t-tL)/(tR-tL):0; gV[i]= tR>tL? vL+(vR-vL)*f : vL; gF[i]=FLAG.GAP;
+      // long gap — carry the interpolation (the chart still needs a line) but mark it GAP_LONG so it is
+      // excluded from every distribution metric. These cells are drawn, never measured.
+      const f=tR>tL?(t-tL)/(tR-tL):0; gV[i]= tR>tL? vL+(vR-vL)*f : vL; gF[i]=FLAG.GAP_LONG;
     }
   }
 
@@ -263,9 +270,11 @@ function clean(parsed, progress){
     }
   }
 
-  // count gaps (runs of GAP cells longer than one cadence)
+  // count gaps (runs of GAP cells longer than one cadence) — BOTH gap classes count as gap/inactive time,
+  // so pctActive / gapMin keep their previous meaning exactly (only analyzability changes below).
   let nGaps=0, gapCells=0, run=0;
-  for(let i=0;i<N;i++){ if(gF[i]===FLAG.GAP){ run++; gapCells++; } else { if(run>=2) nGaps++; run=0; } }
+  const _isGap = f => (f===FLAG.GAP || f===FLAG.GAP_LONG);
+  for(let i=0;i<N;i++){ if(_isGap(gF[i])){ run++; gapCells++; } else { if(run>=2) nGaps++; run=0; } }
   if(run>=2) nGaps++;
 
   let warmupCells=0,compCells=0; for(let i=0;i<N;i++){ if(gF[i]===FLAG.WARMUP) warmupCells++; else if(gF[i]===FLAG.COMPRESSION) compCells++; }
@@ -285,13 +294,17 @@ function clean(parsed, progress){
 }
 
 // analysis mask: cells that count toward glycemic math (exclude warm-up & long gaps).
-// We KEEP short interpolated gaps (they're physiologic bridges) but exclude warm-up
-// and compression lows from distribution metrics (they're artifacts), per the brief.
+// We KEEP short interpolated gaps (they're physiologic bridges) but exclude warm-up, compression lows,
+// and LONG gaps from distribution metrics. The long-gap exclusion is the point: those cells are a straight
+// line drawn across hours the sensor never saw, and admitting them into TIR/GMI/CV/MAGE reports
+// interpolation as measured glucose (DEEP-AUDIT-2026-07-11 §5 — this function's docstring already claimed
+// the exclusion; the code never did it).
 function analyzableIndex(c){
   const ok=[]; const v=[];
   for(let i=0;i<c.N;i++){
     if(c.gF[i]===c.FLAG.WARMUP) continue;
     if(c.gF[i]===c.FLAG.COMPRESSION) continue;
+    if(c.gF[i]===c.FLAG.GAP_LONG) continue;
     ok.push(i); v.push(c.gV[i]);
   }
   return { idx:ok, vals:v };
@@ -741,23 +754,57 @@ function detectClampSaturation(vals){
   let lo=Infinity, hi=-Infinity;
   for(let i=0;i<n;i++){ const v=vals[i]; if(!isFinite(v)) continue; if(v<lo) lo=v; if(v>hi) hi=v; }
   if(!isFinite(lo)||!isFinite(hi)||hi<=lo) return empty;
-  // pile-up within ±1 mg/dL of a bound vs density of the 5 mg/dL slab just inside it.
-  // A genuine distribution tail THINS toward its extreme; a hardware/software clip
-  // SPIKES at the bound — so a bound denser than its inner slab is the clip signature.
-  function spikeAt(bound, dir){             // dir +1 = floor (inside is above) · −1 = ceiling
-    let at=0, inner=0;
+  /* A genuine distribution tail THINS toward its extreme; a hardware/software clip PILES UP at the bound.
+     Compare LIKE FOR LIKE: the count AT the exact bound vs the MEAN PER-BIN count of the bins just inside
+     it. The old test compared a ±1 (≈2-wide) bound window against a 5-wide inner slab — the slab was
+     therefore almost always the thicker of the two, so `at >= 1.5*inner` could essentially never fire on
+     real data. The real committed Abbott Lingo export — a hard rail at 54 mg/dL, with 46 readings AT the
+     floor against 15 and 14 in the bins beside it, and zero readings below — went undetected and shipped
+     37 unflagged `nocturnal_hypo` events at conf 0.97 (DEEP-AUDIT-2026-07-11 §6).
+     vals are mg/dL integers, so a 1 mg/dL bin is the natural resolution.
+
+     CLIP_RATIO: a genuine density near an extremum piles up only MILDLY — a glucose curve lingers at its
+     nadir (an arcsine/turning-point effect), so some excess at the exact minimum is PHYSIOLOGICAL and must
+     not be called a clip; flagging a real nadir as an artifact would HIDE true hypoglycemia, which is worse
+     than the bug this fixes. A clip instead pins ALL the sub-bound mass onto one bin, which is a step
+     change.
+
+     ⚠️ A PILE-UP ALONE IS NOT ENOUGH, and an earlier cut of this fix got that wrong. A glucose curve
+     lingers at its turning point, so its minimum genuinely accumulates mass (an arcsine effect) — and a
+     SLOW sinusoid concentrates far harder than a busy one: measured, a two-component trace piles up 1.7×
+     but the plain daily sinusoid of the committed synthetic input piles up 4.0× at a floor of 89 mg/dL
+     that is NOT a rail at all. A bare ratio test therefore flags a healthy trough as a clip — which would
+     SUPPRESS REAL HYPOGLYCEMIA, the exact harm this detector exists to prevent.
+     So a clip is claimed only with CORROBORATION — the pile-up must sit either
+       (a) in a KNOWN vendor clamp band (Abbott Lingo: floor 55, ceiling 200 mg/dL), or
+       (b) at a ratio no smooth physiology produces (≥ HARD_RAIL_RATIO — a true rail pins every
+           sub-bound reading onto one bin and measures 10×–180×).
+     Measured anchors: real unclipped nocturnal hypo 1.7× · synthetic sinusoid trough 4.0× (floor 89, NOT
+     a rail) · the real Lingo rail 3.2× (floor 54, IN band) · a hard synthetic rail 184×.
+     The cost of this conservatism is that an UNKNOWN vendor's soft rail may go undetected. That is the
+     right trade: a missed clip under-reports a hypo, whereas a fabricated clip HIDES one. */
+  const INNER_BINS = 2;
+  const CLIP_RATIO = 2.5;        // a pile-up worth investigating
+  const HARD_RAIL_RATIO = 10;    // a pile-up no smooth density produces — a rail on its own evidence
+  // Known vendor clamp band: Lingo exports only 55–200 mg/dL (≈54 if the file round-trips via mmol/L).
+  const nearLingoFloor = lo>=53 && lo<=57, nearLingoCeil = hi>=195 && hi<=205;
+  function spikeAt(bound, dir, inVendorBand){   // dir +1 = floor (inside is above) · −1 = ceiling
+    let at=0; const innerBin=new Array(INNER_BINS).fill(0);
     for(let i=0;i<n;i++){
       const v=vals[i]; if(!isFinite(v)) continue;
-      if(Math.abs(v-bound) <= 1) at++;
-      else { const d=(v-bound)*dir; if(d>1 && d<=6) inner++; }
+      const d=(v-bound)*dir;                // 0 at the bound, positive just inside it
+      if(Math.abs(d) < 0.5){ at++; continue; }
+      const b=Math.round(d)-1;              // d≈1 → bin 0 · d≈2 → bin 1
+      if(b>=0 && b<INNER_BINS) innerBin[b]++;
     }
+    const innerMean = innerBin.reduce((s,x)=>s+x,0)/INNER_BINS;
+    const ratio = at/Math.max(1,innerMean);
     const pct=+(at/n*100).toFixed(2);
-    const saturated = at>=3 && pct>=0.3 && at >= 1.5*Math.max(1,inner);
-    return { value:Math.round(bound), count:at, pct, saturated };
+    const pileUp = at>=3 && pct>=0.3 && ratio >= CLIP_RATIO;
+    const saturated = pileUp && (inVendorBand || ratio >= HARD_RAIL_RATIO);
+    return { value:Math.round(bound), count:at, pct, saturated, innerMean:+innerMean.toFixed(1), ratio:+ratio.toFixed(2) };
   }
-  const floor = spikeAt(lo, +1), ceiling = spikeAt(hi, -1);
-  // Known vendor band: Lingo clips to 55–200 mg/dL (≈54–200 if the file was mmol/L)
-  const nearLingoFloor = lo>=53 && lo<=57, nearLingoCeil = hi>=195 && hi<=205;
+  const floor = spikeAt(lo, +1, nearLingoFloor), ceiling = spikeAt(hi, -1, nearLingoCeil);
   let vendor=null;
   if(floor.saturated && ceiling.saturated && nearLingoFloor && nearLingoCeil) vendor='lingo';
   else if((floor.saturated&&nearLingoFloor) || (ceiling.saturated&&nearLingoCeil)) vendor='lingo-like';
