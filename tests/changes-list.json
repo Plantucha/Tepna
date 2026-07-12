@@ -1,20 +1,8 @@
 {
   "_doc": "Generated changeset-name ledger for the release-ledger gate's BROWSER lane (fetch can't list a dir). Regenerate with tests/gen-changes-list.mjs (Node) whenever a changeset is added to or pruned from changes/; the Node lane asserts this matches fs reality, so a stale list reds in CI. Excludes README.md and _/.-prefixed files. CONTROLLED-RELEASES-2026-07-05.",
   "generated": "2026-07-12",
-  "count": 13,
+  "count": 1,
   "changes": [
-    "2026-07-11-clock-dmy-file-lock.md",
-    "2026-07-12-cpapdex-binary-edf-equiv-gate.md",
-    "2026-07-12-glucodex-gapfill-and-clip-floor.md",
-    "2026-07-12-hrvdex-spectral-presence-gate.md",
-    "2026-07-12-integrator-readset-and-kernel-audit.md",
-    "2026-07-12-odi-bias-press-loo.md",
-    "2026-07-12-oxydex-event-clock-windows-rem.md",
-    "2026-07-12-polar-rr-foreign-stream-veto.md",
-    "2026-07-12-profiled-hotspots-brief.md",
-    "2026-07-12-sensor-trio-webgpu-lane.md",
-    "2026-07-12-sigma-caption-refit.md",
-    "2026-07-12-synthetic-equiv-inputs-ci.md",
-    "2026-07-12-trio-artifact-gate-brief.md"
+    "2026-07-12-profiled-hotspots-brief.md"
   ]
 }

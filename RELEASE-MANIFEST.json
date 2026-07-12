@@ -187,6 +187,29 @@
         "PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE-2026-07-11-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "1.7.0",
+      "date": "2026-07-12",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "c04c41520df1",
+        "OxyDex": "4b373c0c12b2",
+        "PulseDex": "aa75a8ff76da",
+        "GlucoDex": "5e474909598f",
+        "PpgDex": "0f3ad1433735",
+        "HRVDex": "12a1ed3a3ffc",
+        "CPAPDex": "e2392eda2d0a",
+        "Integrator": "98d64cb2d5a2"
+      },
+      "briefs": [
+        "DEEP-AUDIT-2026-07-11-BRIEF.md",
+        "CPAP-REAL-CORPUS-2026-07-11-BRIEF.md",
+        "PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE-2026-07-11-BRIEF.md",
+        "TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
