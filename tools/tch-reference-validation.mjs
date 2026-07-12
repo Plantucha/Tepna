@@ -28,27 +28,73 @@ import vm from 'node:vm';
 
 const REPO = '/media/michal/647A504F7A50205A/GENOME/Michal/Tepna';
 const EN = '/media/michal/647A504F7A50205A/Ecg nightly';
-const CLIP_MIN = +(process.env.CLIP_MIN || 30);      // minutes of each raw signal to analyse
+const CLIP_MIN = +(process.env.CLIP_MIN || 30); // minutes of each raw signal to analyse
 const EPOCH_MIN = 5;
 
 /* ── realm ── */
 const noop = () => {};
-const el = () => ({ style: {}, dataset: {}, classList: { add: noop, remove: noop, toggle: noop, contains: () => false },
-  setAttribute: noop, getAttribute: () => null, appendChild: noop, append: noop, removeChild: noop,
-  querySelector: () => null, querySelectorAll: () => [], addEventListener: noop, removeEventListener: noop });
-const sb = { console, setTimeout, clearTimeout, TextEncoder, TextDecoder, crypto: globalThis.crypto,
-  document: { getElementById: () => null, createElement: el, createTextNode: () => ({}), querySelector: () => null,
-    querySelectorAll: () => [], head: el(), body: el(), documentElement: el(), addEventListener: noop, readyState: 'complete' },
-  localStorage: { getItem: () => null, setItem: noop, removeItem: noop, clear: noop } };
-sb.window = sb; sb.self = sb; sb.globalThis = sb;
+const el = () => ({
+  style: {},
+  dataset: {},
+  classList: { add: noop, remove: noop, toggle: noop, contains: () => false },
+  setAttribute: noop,
+  getAttribute: () => null,
+  appendChild: noop,
+  append: noop,
+  removeChild: noop,
+  querySelector: () => null,
+  querySelectorAll: () => [],
+  addEventListener: noop,
+  removeEventListener: noop
+});
+const sb = {
+  console,
+  setTimeout,
+  clearTimeout,
+  TextEncoder,
+  TextDecoder,
+  crypto: globalThis.crypto,
+  document: {
+    getElementById: () => null,
+    createElement: el,
+    createTextNode: () => ({}),
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    head: el(),
+    body: el(),
+    documentElement: el(),
+    addEventListener: noop,
+    readyState: 'complete'
+  },
+  localStorage: { getItem: () => null, setItem: noop, removeItem: noop, clear: noop }
+};
+sb.window = sb;
+sb.self = sb;
+sb.globalThis = sb;
 const ctx = vm.createContext(sb);
 ctx.__DEX_NAMESPACED__ = true;
-for (const f of ['kernel-constants.js', 'clock.js', 'crossnight-envelope.js', 'cpapdex-edf.js', 'cpapdex-dsp.js',
-  'ecgdex-dsp.js', 'ppgdex-dsp.js', 'ecgdex-morph.js', 'ppgdex-morph.js', 'integrator-tch.js']) {
-  try { vm.runInContext(fs.readFileSync(path.join(REPO, f), 'utf8'), ctx, { filename: f }); }
-  catch (e) { console.error('  ! load ' + f + ': ' + e.message); }
+for (const f of [
+  'kernel-constants.js',
+  'clock.js',
+  'crossnight-envelope.js',
+  'cpapdex-edf.js',
+  'cpapdex-dsp.js',
+  'ecgdex-dsp.js',
+  'ppgdex-dsp.js',
+  'ecgdex-morph.js',
+  'ppgdex-morph.js',
+  'integrator-tch.js'
+]) {
+  try {
+    vm.runInContext(fs.readFileSync(path.join(REPO, f), 'utf8'), ctx, { filename: f });
+  } catch (e) {
+    console.error('  ! load ' + f + ': ' + e.message);
+  }
 }
-const ECG = ctx.ECGDSP, PPG = ctx.PPGDSP, EDF = ctx.CpapEdf, CD = ctx.CpapDsp;
+const ECG = ctx.ECGDSP,
+  PPG = ctx.PPGDSP,
+  EDF = ctx.CpapEdf,
+  CD = ctx.CpapDsp;
 const TCH = ctx.IntegratorTCH || ctx.INTEGRATOR_TCH || ctx.TCH || null;
 
 /* read only the first N minutes of a huge raw file (they are 180–330 MB each) */
@@ -58,11 +104,14 @@ function readClip(file, approxBytes) {
   const n = fs.readSync(fd, buf, 0, approxBytes, 0);
   fs.closeSync(fd);
   let s = buf.subarray(0, n).toString('utf8');
-  return s.slice(0, s.lastIndexOf('\n'));            // drop the partial last row
+  return s.slice(0, s.lastIndexOf('\n')); // drop the partial last row
 }
 
 const mean = (a) => a.reduce((s, x) => s + x, 0) / a.length;
-const std = (a) => { const m = mean(a); return Math.sqrt(a.reduce((s, x) => s + (x - m) ** 2, 0) / (a.length - 1)); };
+const std = (a) => {
+  const m = mean(a);
+  return Math.sqrt(a.reduce((s, x) => s + (x - m) ** 2, 0) / (a.length - 1));
+};
 
 /* ── per-night: three respiration series on a shared epoch grid ── */
 function night(dateISO) {
@@ -79,7 +128,8 @@ function night(dateISO) {
   const rrCh = CD.chan(rec, 'RespRate');
   const prCh = CD.chan(rec, 'Press');
   if (!rrCh || !prCh) return null;
-  const cT0 = rec.clock.t0Ms, cFs = rrCh.fs;
+  const cT0 = rec.clock.t0Ms,
+    cFs = rrCh.fs;
 
   // 2 · ECG — Lomb-Scargle HF peak of the NN series
   const ecgF = fs.readdirSync(EN).find((f) => f.includes(ymd) && /_ECG\.txt$/.test(f));
@@ -91,7 +141,10 @@ function night(dateISO) {
   const eNN = { nn: [], times: [] };
   for (let i = 1; i < eIdx.length; i++) {
     const v = ((eIdx[i] - eIdx[i - 1]) / eRec.fs) * 1000;
-    if (v > 300 && v < 2000) { eNN.nn.push(v); eNN.times.push(eIdx[i] / eRec.fs); }
+    if (v > 300 && v < 2000) {
+      eNN.nn.push(v);
+      eNN.times.push(eIdx[i] / eRec.fs);
+    }
   }
   out.eT0 = eRec.t0Ms;
 
@@ -100,7 +153,7 @@ function night(dateISO) {
   if (!ppgF) return null;
   const pRec = PPG.parsePPG(readClip(path.join(EN, ppgF), CLIP_MIN * 60 * 135 * 100));
   if (!pRec) return null;
-  const pAn = PPG.analyze(pRec);                       // → { nn, tt, ... } (Malik-corrected PPI)
+  const pAn = PPG.analyze(pRec); // → { nn, tt, ... } (Malik-corrected PPI)
   const ppi = pAn && pAn.nn && pAn.tt ? { rr: pAn.nn, tt: pAn.tt } : null;
   out.pT0 = pRec.t0Ms;
 
@@ -120,10 +173,14 @@ function night(dateISO) {
     const cpap = +mean(cv).toFixed(2);
 
     // ECG: NN within the epoch → Lomb-Scargle
-    const en = [], et = [];
+    const en = [],
+      et = [];
     for (let i = 0; i < eNN.nn.length; i++) {
       const tms = eRec.t0Ms + eNN.times[i] * 1000;
-      if (tms >= e && tms < e1) { en.push(eNN.nn[i]); et.push(eNN.times[i]); }
+      if (tms >= e && tms < e1) {
+        en.push(eNN.nn[i]);
+        et.push(eNN.times[i]);
+      }
     }
     if (en.length < 40) continue;
     const eLs = ECG.lombScargle(en, et);
@@ -131,10 +188,14 @@ function night(dateISO) {
 
     // PPG: PPI within the epoch → same estimator
     if (!ppi || !ppi.rr || !ppi.tt) continue;
-    const pn = [], pt = [];
+    const pn = [],
+      pt = [];
     for (let i = 0; i < ppi.rr.length; i++) {
       const tms = pRec.t0Ms + ppi.tt[i] * 1000;
-      if (tms >= e && tms < e1) { pn.push(ppi.rr[i]); pt.push(ppi.tt[i]); }
+      if (tms >= e && tms < e1) {
+        pn.push(ppi.rr[i]);
+        pt.push(ppi.tt[i]);
+      }
     }
     if (pn.length < 40) continue;
     // NB: PPGDSP.lombScargle returns {vlf,lf,hf,totalPower,lfhf,lfnu,hfnu} — it never tracks the HF
@@ -151,17 +212,33 @@ function night(dateISO) {
 }
 
 /* ── run ── */
-const DATES = fs.readdirSync(path.join(REPO, 'uploads', 'trio')).filter((d) => /^2026-/.test(d)).sort();
+const DATES = fs
+  .readdirSync(path.join(REPO, 'uploads', 'trio'))
+  .filter((d) => /^2026-/.test(d))
+  .sort();
 const ONLY = process.env.ONLY ? [process.env.ONLY] : DATES;
 const all = [];
 for (const d of ONLY) {
   let r = null;
-  try { r = night(d); } catch (e) { console.log(`  ! ${d}: ${e.message}`); continue; }
-  if (!r || !r.rows || !r.rows.length) { console.log(`  ∘ ${d}: no usable epochs`); continue; }
-  console.log(`  ✓ ${d}: ${r.rows.length} epochs  (CPAP ${mean(r.rows.map((x) => x.cpap)).toFixed(1)} · ECG ${mean(r.rows.map((x) => x.ecg)).toFixed(1)} · PPG ${mean(r.rows.map((x) => x.ppg)).toFixed(1)} br/min)`);
+  try {
+    r = night(d);
+  } catch (e) {
+    console.log(`  ! ${d}: ${e.message}`);
+    continue;
+  }
+  if (!r || !r.rows || !r.rows.length) {
+    console.log(`  ∘ ${d}: no usable epochs`);
+    continue;
+  }
+  console.log(
+    `  ✓ ${d}: ${r.rows.length} epochs  (CPAP ${mean(r.rows.map((x) => x.cpap)).toFixed(1)} · ECG ${mean(r.rows.map((x) => x.ecg)).toFixed(1)} · PPG ${mean(r.rows.map((x) => x.ppg)).toFixed(1)} br/min)`
+  );
   all.push(...r.rows);
 }
-if (!all.length) { console.log('\n  no data'); process.exit(0); }
+if (!all.length) {
+  console.log('\n  no data');
+  process.exit(0);
+}
 
 fs.writeFileSync(process.env.OUT || '/tmp/p6.json', JSON.stringify(all));
 console.log(`\n  total epochs: ${all.length}`);
