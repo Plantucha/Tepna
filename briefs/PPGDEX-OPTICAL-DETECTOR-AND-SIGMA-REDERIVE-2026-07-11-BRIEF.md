@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-12 (**§1 EXECUTED** — root cause found and fixed: TERMA's bare `maPeak > maBeat` has no amplitude discrimination, so a prominent DIASTOLIC (reflected) wave raised its own block and was counted as a second beat ~half a cycle after systole; at the corpus' sleeping 48 bpm that is ~625 ms, **twice** the fixed 0.30 s refractory, so the optical HR read exactly 2× true. On 3 of the 4 nights ALL THREE LEDs doubled together, so the 2-of-3 consensus ratified the harmonic. Fixed by sizing the refractory from a **windowed-autocorrelation cadence** (a notch is a HARMONIC, so the ACF fundamental is immune) — cadence sizes the refractory only, it does NOT gate detection (that was the retired global-period detector's missed-beat bug). Validated against paired chest-ECG on all 17 trio nights: **17/17 HR-clean, 4 recovered, 0 regressions**; `uploads/trio/` re-derived. Note the brief's own three hypotheses (a)/(b)/(c) were all WRONG — see §1 EXECUTED below. **§2 still open**: the published Verity σ re-derive.) · **Created:** 2026-07-11 · **Follows:** the PPI-spine arbiter fix (changeset `2026-07-11-ppgdex-ppi-spine-crosscheck.md`) · **Feeds:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md` §1 · `PAPERS-ROADMAP-2026-06-24-BRIEF.md` §3.3 · `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`
+**Status:** IN-PROGRESS — 2026-07-12 (**§1 EXECUTED** — root cause found and fixed: TERMA's bare `maPeak > maBeat` has no amplitude discrimination, so a prominent DIASTOLIC (reflected) wave raised its own block and was counted as a second beat ~half a cycle after systole; at the corpus' sleeping 48 bpm that is ~625 ms, **twice** the fixed 0.30 s refractory, so the optical HR read exactly 2× true. On 3 of the 4 nights ALL THREE LEDs doubled together, so the 2-of-3 consensus ratified the harmonic. Fixed by sizing the refractory from a **windowed-autocorrelation cadence** (a notch is a HARMONIC, so the ACF fundamental is immune) — cadence sizes the refractory only, it does NOT gate detection (that was the retired global-period detector's missed-beat bug). Validated against paired chest-ECG on all 17 trio nights: **17/17 HR-clean, 4 recovered, 0 regressions**; `uploads/trio/` re-derived. Note the brief's own three hypotheses (a)/(b)/(c) were all WRONG — see §1 EXECUTED below. **§2 PARTIALLY EXECUTED — and its PREMISE WAS REFUTED by its own first test:** the like-for-like run of the REAL `sensor-trio-worker.js` per-second path (old vs new DSP) shows the worker's Verity gate was ALREADY dropping every doubled night as "poor PPG contact", so the contamination never reached the published median — old per-second Verity σ is **1.94 bpm, exactly the `SIGMA-PAPER-REWRITE` figure, which is CONFIRMED and stands**. The earlier claim that "the published 6.2 measured the bug" is **WRONG — do not repeat it**; the 6.2 planted in `sensor-trio-power-analysis.html` remains UNEXPLAINED. The fix's real value: the gate was MISDIAGNOSING harmonic doubling as sensor contact failure, silently costing **41% of the corpus** — nights solved **10 → 15**, σ unchanged (1.94 → 1.85).) · **Created:** 2026-07-11 · **Follows:** the PPI-spine arbiter fix (changeset `2026-07-11-ppgdex-ppi-spine-crosscheck.md`) · **Feeds:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md` §1 · `PAPERS-ROADMAP-2026-06-24-BRIEF.md` §3.3 · `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`
 
 # PpgDex optical detector — the residual all-LED failure, and re-deriving the published Verity σ
 
@@ -105,38 +105,68 @@ below stays optional.
       detected rate is a near-integer multiple of the other channels'. The arbiter made this non-fatal — it is no
       longer load-bearing — so do it for robustness, not urgency.
 
-## §2 — Re-derive the published Verity σ (6.2 bpm may be measuring the bug)
+## §2 — Re-derive the published Verity σ
 
-`sensor-trio-power-analysis.html:74` plants **"the real estimates 1.7 / 2.2 / 6.2 bpm"** (O2Ring / H10 / Verity) and
-sweeps the power analysis against them. Measured through `tools/tch-multinight.mjs` on the 17-night trio corpus:
+### §2 EXECUTED — 2026-07-12 · ⚠️ THE PREMISE OF THIS SECTION WAS **REFUTED** BY ITS OWN FIRST TEST
 
-| corpus | Verity σ (ρ-on) |
-|---|---|
-| all 17 nights (**4 harmonic-broken included**) | **6.83 bpm** |
-| **published estimate** | **6.2 bpm** |
-| 13 HR-clean nights (post-fix) | **4.29 bpm** |
+**The claim this section was written on — that the published σ "measured the bug" — is WRONG. Do not repeat it.**
 
-The published figure sits on the **contaminated** number, not the clean one. ECGDex 1.24 / OxyDex 1.24 bpm on the
-clean 13. **This is suggestive, not proven** — `sensor-trio-worker.js` derives Verity HR on a **per-second** grid via
-`ppgHrMapReal`, whereas the above is the node's **5-min epoch** series, so the two are not the same estimator and the
-numbers are not required to coincide.
+The like-for-like run (Done-when #1) settles it. `tools/` harness drives the REAL committed `sensor-trio-worker.js`
+(its channel pick, its consensus, its foot-to-foot `ppgHrMapReal` per-SECOND grid, its TCH kernel, **and its Verity
+gate**), changing exactly one thing — `ppgdex-dsp.js`, `origin/main` vs the ACF-refractory fix:
 
-The reason it matters: the canonical Verity gate (`sensor-trio-worker.js:315` — drop iff σ>12 **AND** r<0.4 vs **both**
-other corners) **cannot see this failure mode**. Harmonic multiple-counting produces HR ≈ k × truth, a *scaled copy*
-that stays strongly **correlated** with truth, so the decorrelation test passes it. The gate is built for lost-contact
-noise. On this corpus it let 2026-06-30 through at σ = 53 bpm.
+| worker per-second path | nights solved | median σ: O2Ring / H10 / **Verity** |
+|---|---|---|
+| **OLD DSP** (the code behind the published numbers) | **10 / 17** (7 gate-dropped) | 2.95 / 1.84 / **1.94 bpm** |
+| **NEW DSP** (ACF adaptive refractory) | **15 / 17** (2 gate-dropped) | 2.60 / 1.58 / **1.85 bpm** |
+
+**Why the original premise was wrong:** the worker's Verity gate **was already excluding every doubled night** — it
+dropped all 7 as *"Verity unreliable — poor PPG contact"* (σ 15–35 bpm, r < 0.4). The harmonic contamination therefore
+**never reached the published median**. The old per-second median is **1.94 bpm — which is EXACTLY the figure
+`SIGMA-PAPER-REWRITE-2026-07-06` reports.** That paper's number is **correct, reproducible, and stands.**
+
+The mistake was comparing a **5-min-epoch** σ (6.83 on the *unfiltered* corpus) against a published number produced by
+a **different estimator with a gate that had not been run**. `tools/tch-multinight.mjs` has **no Verity gate at all** —
+that, not the published pipeline, is why 6.83 was contaminated.
+
+⚠️ **The 6.2 bpm planted in `sensor-trio-power-analysis.html:74` is STILL UNEXPLAINED.** It is not harmonic doubling and
+it is not the per-second path (which gives 1.94 with the same old code). Its provenance is a genuinely open question —
+see the remaining Done-when below. **Do not "correct" it to 1.85 on the strength of this work.**
+
+### What the fix DOES buy (the real, verified result)
+
+The gate was **misdiagnosing the failure**: 5 of the 7 nights it discarded as *"poor PPG contact"* had perfectly good
+optical signal — the detector was counting the dicrotic notch. They are now recovered:
+
+| night | OLD (worker gate) | NEW |
+|---|---|---|
+| 2026-06-25 | 234 s overlap < 1000 | **solved** · σV 1.40 |
+| 2026-06-29 | dropped — "poor PPG contact" (σ 15, rHV 0.32) | **solved** · σV 5.48 |
+| 2026-07-01 | dropped — "poor PPG contact" (σ 28, rHV 0.21) | **solved** · σV 2.43 |
+| 2026-07-02 | dropped — "poor PPG contact" (σ 20, rHV 0.08) | **solved** · σV 6.19 |
+| 2026-07-05 | dropped — "poor PPG contact" (σ 33, rHV −0.18) | **solved** · σV 5.00 |
+| 2026-06-30 | dropped — (σ 35, rHV 0.10) | still dropped (genuinely bad) |
+
+**Nights solved 10 → 15 (+50% usable corpus), σ essentially unchanged (1.94 → 1.85, within noise).** The headline is
+NOT "the published σ was wrong" — it is: **the detector bug was silently costing 41% of the corpus, disguised as sensor
+contact failure.** That lands directly on `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`, whose whole subject is how many
+co-recorded nights are needed to pin σ — more surviving nights tighten the CI at no capture cost.
 
 **Done when**
-- [ ] Re-run `sensor-trio-worker.js`'s own per-second Verity path over the trio corpus and report σ **with** and
-      **without** the four broken nights, so the per-second and per-epoch estimators are compared like-for-like.
-- [ ] Decide whether the shipped `sensor-trio-worker.js` Verity gate gains a **bias/ratio** test (median PpgDex HR vs
-      the paired ECG corner: 0.99–1.01 on good nights vs 1.6–2.9 on all-LED failures — **bimodal, nothing between**)
-      alongside the existing decorrelation test. Note the node-local `ppiCorr*Pct` rates are NOT sufficient in isolation
-      (2026-06-25 is *correct* at 28.8% while 2026-06-29 is *wrong* at 30.5% — they overlap); the decisive signal is
-      **cross-node**, which the Integrator/OverDex can compute because it holds both corners.
-- [ ] If the re-derived σ moves, update `sensor-trio-power-analysis.html` (the planted 1.7/2.2/6.2), the
-      `SIGMA-PAPER-REWRITE-2026-07-06` outputs, and anything else citing a Verity σ — and say plainly in the paper that
-      the earlier figure included a detector artifact. **Do not quietly restate the number.**
+- [x] Re-run `sensor-trio-worker.js`'s own per-second Verity path over the trio corpus, old vs new DSP, like-for-like.
+      → **Done; it REFUTED the section's premise (above).**
+- [ ] **Trace the actual provenance of the planted 6.2 bpm** in `sensor-trio-power-analysis.html:74`. It is NOT the
+      per-second path on this corpus (that gives 1.94 old / 1.85 new). Candidates: an earlier single-window estimate, a
+      device-`_HR`/`_PPI`-derived corner, or a pre-consensus detector. Until traced, **change nothing** in the papers.
+- [ ] Fix the Verity gate's **misdiagnosis**, not just its threshold: it labels harmonic doubling as *"poor PPG contact"*.
+      The signals are distinguishable — doubling is a *scaled copy* of truth (still correlated, HR ratio ≈ 2 against a
+      paired ECG corner), whereas lost contact decorrelates. A cross-node HR-ratio test separates them cleanly
+      (0.99–1.01 vs 1.6–2.9, bimodal). Note the node-local `ppiCorr*Pct` rates are NOT sufficient alone (2026-06-25 is
+      *correct* at 28.8% while 2026-06-29 is *wrong* at 30.5% — they overlap).
+- [ ] With 5 more nights now surviving, re-run the `SENSOR-TRIO-NIGHTS-PAPER` power analysis: N = 10 → 15 changes the
+      CI, which is that paper's entire deliverable.
+- [ ] `SIGMA-PAPER-REWRITE-2026-07-06`'s Verity 1.94 is CONFIRMED — reproduced exactly. No change needed; record the
+      confirmation rather than restating the number.
 - [ ] Re-check `VERITY-SIGMA-CORNER-BRIEF.md` §7's residual non-resting item against the corrected detector.
 
 ## Inputs (already committed — no new capture needed)
