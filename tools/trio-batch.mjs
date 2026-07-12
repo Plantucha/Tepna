@@ -32,24 +32,36 @@
  * and are filtered out by --min-hours unless --keep-daytime is passed.
  *
  * USAGE
- *   node --max-old-space-size=8192 tools/trio-batch.mjs --src "<capture dir>" [options]
+ *   node tools/trio-batch.mjs --src "<capture dir>" [options]
+ *   (no --max-old-space-size needed — the dispatcher sizes each child's heap from the probed host)
  *
  *     --src <dir>        raw capture folder (required)
  *     --out <dir>        output root (default: uploads/trio) — one subdir per night
  *     --night <key>      only this night (YYYY-MM-DD); repeatable
  *     --limit <n>        process at most n nights
  *     --min-hours <h>    skip a recording shorter than h hours (default 3)
+ *     --min-overlap <h>  required three-way overlap (default 1 — tch-multinight needs ≥12 5-min epochs)
  *     --keep-daytime     do not filter non-nocturnal captures
+ *     --jobs <n>         nights to compute in parallel (default: AUTO — probed from the host)
  *     --dry-run          plan only: print the night/file plan, compute nothing, write nothing
  *
- * The PPG waveforms are ~330 MB each; run with --max-old-space-size=8192.
+ * PARALLELISM + MEMORY. Nights run as CHILD PROCESSES, pool-capped. The cap is PROBED, not assumed:
+ * a night peaks at ~0.9 GB (a ~330 MB PPG text held while it parses into Float32 channels, plus a
+ * ~180 MB ECG), so on a small machine RAM binds before CPU does. The tool takes min(cores−1, free
+ * RAM ÷ ~1.2 GB) and prints what it picked and why — over-committing here does not merely slow the
+ * run, it gets the process OOM-killed mid-corpus. Process-per-night (not threads) means each night's
+ * memory is returned to the OS on exit, so nothing accumulates across the corpus, and no
+ * --max-old-space-size is needed on the command line: the parent sizes each child's heap to the host.
  */
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync, openSync, readSync, closeSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import os from 'node:os';
+import { spawn } from 'node:child_process';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const __filename = fileURLToPath(import.meta.url); // re-spawned as the child (see DISPATCH)
+const __dirname = dirname(__filename);
 const ROOT = join(__dirname, '..');
 
 /* ── args ────────────────────────────────────────────────────────────────── */
@@ -77,6 +89,44 @@ const MIN_HOURS = parseFloat(opt('--min-hours', '3'));
 const MIN_OVERLAP = parseFloat(opt('--min-overlap', '1'));
 const KEEP_DAYTIME = flag('--keep-daytime');
 const DRY = flag('--dry-run');
+const CHILD = flag('--child'); // internal: this process computes ONE night and exits
+
+/* ── HARDWARE PROBE + CONCURRENCY PLAN ────────────────────────────────────────────────────────────
+ * A night is EXPENSIVE and the cost is dominated by memory, not CPU: a Verity `_PPG.txt` is ~330 MB of
+ * text which V8 holds as a string WHILE parsing it into Float32 channels, and the paired H10 `_ECG.txt`
+ * adds ~180 MB. Measured peak ≈ 0.9 GB RSS per night (0.7 GB steady + filter scratch).
+ *
+ * So concurrency is capped by whichever runs out first — cores or RAM — and on a small machine that is
+ * RAM. Getting this wrong is not a slowdown, it is an OOM kill mid-corpus (which is exactly how a
+ * previous run lost its last night). We therefore probe the host and take the MINIMUM of the two limits,
+ * never a fixed guess, and we PRINT what we chose and why (CLAUDE.md: no silent caps).
+ *
+ * Free memory — not total — is the honest budget: the box may already be hosting a browser, an IDE, and
+ * a concurrent agent. We leave a reserve so we degrade to slower-but-correct instead of being OOM-killed.
+ */
+const GB = 1024 ** 3;
+const PER_JOB_GB = 1.2; // measured ~0.9 GB peak/night + headroom
+const RESERVE_GB = 2.0; // never consume the host's last 2 GB
+const HARD_CAP = 8; // beyond this the disk/parse becomes the bottleneck anyway
+function planConcurrency() {
+  const cores = Math.max(1, os.cpus().length);
+  const freeGB = os.freemem() / GB,
+    totalGB = os.totalmem() / GB;
+  // `os.freemem()` excludes reclaimable page cache on Linux, so it UNDER-reports what is really
+  // available. Trust the smaller of (free) and (total − reserve) — pessimistic on purpose.
+  const budgetGB = Math.max(0, Math.min(freeGB, totalGB - RESERVE_GB));
+  const byCpu = Math.max(1, cores - 1); // leave one core for the OS/coordinator
+  const byMem = Math.max(1, Math.floor(budgetGB / PER_JOB_GB));
+  const auto = Math.max(1, Math.min(byCpu, byMem, HARD_CAP));
+  const asked = parseInt(opt('--jobs', '0'), 10) || 0;
+  const jobs = asked > 0 ? asked : auto;
+  return { cores, totalGB, freeGB, budgetGB, byCpu, byMem, auto, jobs, forced: asked > 0 };
+}
+// Child heap: enough for one night with room for the filter scratch, but never more than the host has.
+function childHeapMB(planned) {
+  const perJobMB = Math.floor((planned.budgetGB / Math.max(1, planned.jobs)) * 1024 * 0.9);
+  return Math.max(1536, Math.min(8192, perJobMB));
+}
 
 if (!SRC || !existsSync(SRC)) {
   console.error('trio-batch: --src <capture dir> is required and must exist');
@@ -142,18 +192,29 @@ function loadInto(ctx, file) {
   vm.runInContext(readFileSync(p, 'utf8'), ctx, { filename: file });
 }
 
-const ctx = makeCtx();
-// clock.js FIRST — the delegating DSPs alias DexClock.parseTimestamp at load (CLAUDE.md §Clock Contract).
-// kernel-constants.js supplies DexKernel, which every builder stamps into the export envelope.
-for (const f of ['clock.js', 'kernel-constants.js', 'dex-export.js', 'oxydex-util.js', 'oxydex-dsp.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js']) loadInto(ctx, f);
-
-const { ECGDex, PpgDex, OxyDex, DexKernel, dexScrubExport } = ctx;
-for (const [n, v] of Object.entries({ ECGDex, PpgDex, OxyDex, DexKernel, dexScrubExport })) if (!v) throw new Error('trio-batch: ' + n + ' did not load into the headless realm');
-
-// `rich: true` is what unlocks timeseries.epochs[] — the app's light stream omits it, and ONLY the
-// orchestrate emitter opts in (signal-orchestrate.emitEcg/PpgNodeExport). tch-multinight reads
-// timeseries.epochs[].{hr,motionIndex}, so without rich the export is epoch-less and useless here.
-const COMMON = { kernel: DexKernel, rich: true };
+// LAZY — the DSP realm is built only by a process that actually COMPUTES. A dispatching parent never
+// loads it (it only plans + spawns), which keeps the coordinator at a few MB instead of carrying a full
+// DSP realm for the whole run.
+let ctx = null,
+  ECGDex,
+  PpgDex,
+  OxyDex,
+  DexKernel,
+  dexScrubExport,
+  COMMON;
+function loadDsps() {
+  if (ctx) return;
+  ctx = makeCtx();
+  // clock.js FIRST — the delegating DSPs alias DexClock.parseTimestamp at load (CLAUDE.md §Clock Contract).
+  // kernel-constants.js supplies DexKernel, which every builder stamps into the export envelope.
+  for (const f of ['clock.js', 'kernel-constants.js', 'dex-export.js', 'oxydex-util.js', 'oxydex-dsp.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js']) loadInto(ctx, f);
+  ({ ECGDex, PpgDex, OxyDex, DexKernel, dexScrubExport } = ctx);
+  for (const [n, v] of Object.entries({ ECGDex, PpgDex, OxyDex, DexKernel, dexScrubExport })) if (!v) throw new Error('trio-batch: ' + n + ' did not load into the headless realm');
+  // `rich: true` is what unlocks timeseries.epochs[] — the app's light stream omits it, and ONLY the
+  // orchestrate emitter opts in (signal-orchestrate.emitEcg/PpgNodeExport). tch-multinight reads
+  // timeseries.epochs[].{hr,motionIndex}, so without rich the export is epoch-less and useless here.
+  COMMON = { kernel: DexKernel, rich: true };
+}
 
 /* ── 2 · scan + index the capture folder ─────────────────────────────────── */
 // Polar Sensor Logger: Polar_<H10|Sense>_<SERIAL>_<YYYYMMDD>_<HHMMSS>_<STREAM>.txt
@@ -315,7 +376,90 @@ if (DRY) {
   process.exit(0);
 }
 
+/* ── 3b · DISPATCH — one CHILD PROCESS per night, pool-capped to the host ────────────────────────────
+ * Process-per-night, not worker-threads: a night's ~0.9 GB peak is returned to the OS the moment the
+ * child exits, so memory never accumulates across a 17-night corpus. Threads would share one heap and
+ * the high-water mark would only ever climb. It also contains a crash — one bad night can't take the run
+ * down, it just reports and the pool continues.
+ * The parent NEVER loads a DSP realm (see loadDsps) — it plans, spawns, and streams the children's lines.
+ */
+if (!CHILD && work.length > 1) {
+  const plan = planConcurrency();
+  const heapMB = childHeapMB(plan);
+  console.log(
+    `\nhost: ${plan.cores} core(s) · ${plan.totalGB.toFixed(1)} GB RAM (${plan.freeGB.toFixed(1)} GB free)` +
+      `\nconcurrency: ${plan.jobs}${plan.forced ? ' (forced via --jobs)' : ''}` +
+      ` — cpu allows ${plan.byCpu}, memory allows ${plan.byMem} @ ~${PER_JOB_GB} GB/night` +
+      ` ⇒ ${plan.forced ? 'override' : 'min'} = ${plan.jobs} · child heap ${heapMB} MB`
+  );
+  if (!plan.forced && plan.byMem < plan.byCpu) console.log(`  note: MEMORY-bound on this host (${plan.budgetGB.toFixed(1)} GB usable) — more cores would not help.`);
+  // Below one night's footprint we cannot honestly promise the run will survive. Say so LOUDLY rather
+  // than letting the OS OOM-kill it half-way through and leave a truncated corpus behind (which has
+  // happened: a killed run left 2026-07-06 with only its ECGDex export).
+  if (plan.budgetGB < PER_JOB_GB)
+    console.log(
+      `  ⚠ LOW MEMORY: ~${plan.budgetGB.toFixed(1)} GB usable, but ONE night peaks at ~${PER_JOB_GB} GB` +
+        ` (a ~330 MB PPG text is held while it parses into Float32 channels).\n` +
+        `    Running anyway at 1×, but this host may swap or be OOM-killed. Close other apps, or process` +
+        ` a night at a time with --night <YYYY-MM-DD>.`
+    );
+
+  const t0 = Date.now();
+  const queue = work.slice();
+  let done = 0,
+    failed = 0;
+  const runOne = (p) =>
+    new Promise((res) => {
+      const args = [`--max-old-space-size=${heapMB}`, __filename, '--src', SRC, '--out', OUT, '--night', p.key, '--child', '--min-hours', String(MIN_HOURS), '--min-overlap', String(MIN_OVERLAP)];
+      if (KEEP_DAYTIME) args.push('--keep-daytime');
+      const ch = spawn(process.execPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+      let out = '';
+      ch.stdout.on('data', (d) => {
+        out += d;
+      });
+      ch.stderr.on('data', (d) => {
+        out += d;
+      });
+      ch.on('close', (code) => {
+        done++;
+        // Print each night's block whole, so interleaved children never shred each other's output.
+        const body = out
+          .split('\n')
+          .filter((l) => /^\s{4}[✓✗⊘·]/.test(l))
+          .join('\n');
+        console.log(`\n▸ ${p.key}  [${done}/${work.length}]${code === 0 ? '' : `  ✗ child exit ${code}`}`);
+        if (body) console.log(body);
+        if (code !== 0) {
+          failed++;
+          if (!body)
+            console.log(
+              out
+                .trim()
+                .split('\n')
+                .slice(-3)
+                .map((l) => '    ' + l)
+                .join('\n')
+            );
+        }
+        res();
+      });
+    });
+  const workers = Array.from({ length: Math.min(plan.jobs, queue.length) }, async () => {
+    while (queue.length) await runOne(queue.shift());
+  });
+  await Promise.all(workers);
+
+  const secs = (Date.now() - t0) / 1000;
+  const complete = readdirSync(OUT, { withFileTypes: true }).filter((d) => d.isDirectory() && readdirSync(join(OUT, d.name)).filter((f) => f.endsWith('.json')).length === 3).length;
+  console.log(`\n${'─'.repeat(64)}`);
+  console.log(`nights        : ${work.length} planned · ${complete} complete trio(s) on disk${failed ? ` · ${failed} child failure(s)` : ''}`);
+  console.log(`wall-clock    : ${secs.toFixed(0)}s  (${(secs / work.length).toFixed(0)}s/night at ${plan.jobs}× — sequential would be ~${((secs * plan.jobs) / 60).toFixed(0)} min)`);
+  console.log(`\nnext: node tools/tch-multinight.mjs --dir ${opt('--out', 'uploads/trio')}`);
+  process.exit(failed ? 1 : 0);
+}
+
 /* ── 4 · compute + scrub + write ─────────────────────────────────────────── */
+loadDsps(); // only reached by a CHILD, or a single-night / --jobs 1 run
 const hoursOf = (ex) => {
   const d = ex && ex.recording && ex.recording.durationSec;
   return d != null ? d / 3600 : null;
