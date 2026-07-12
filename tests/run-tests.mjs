@@ -206,7 +206,7 @@ function readEquiv() {
   // hard-FAIL instead of skip on a fresh CI clone.
   const pair = (key, inFile, fixFile) => {
     const inP = join(ROOT, 'uploads', inFile),
-      fxP = join(ROOT, 'uploads', fixFile);
+      fxP = fixFile ? join(ROOT, 'uploads', fixFile) : null; // adversarial twins carry NO golden
     const rec = {};
     if (existsSync(inP)) {
       try {
@@ -215,7 +215,7 @@ function readEquiv() {
         /* unreadable → treat as absent */
       }
     }
-    if (existsSync(fxP)) {
+    if (fxP && existsSync(fxP)) {
       try {
         rec.fixture = JSON.parse(readFileSync(fxP, 'utf8'));
       } catch (e) {
@@ -244,6 +244,14 @@ function readEquiv() {
   // carry no personal data, and are therefore COMMITTED — so the diff runs everywhere.
   // They ADD to the real legs (which still exercise genuine vendor quirks locally), never replace them.
   pair('oxydex_synth', 'synthetic_oxydex_o2ring.csv', 'synthetic_oxydex_golden.node-export.json');
+  /* ADVERSARIAL twins (DEEP-AUDIT-2026-07-11 §1/§8/§9) — input only, NO golden. The point is not to pin
+     bytes but to assert INVARIANTS the clean inputs cannot express: an MDY file must compute IDENTICALLY
+     to its DMY twin; a dropped-row night must place every event on its OWN parsed stamp; a long night's
+     window metrics must describe the whole night. See the dex-tests.js group. */
+  pair('oxydex_dmy', 'synthetic_oxydex_o2ring_dmy.csv', null);
+  pair('oxydex_mdy', 'synthetic_oxydex_o2ring_mdy.csv', null);
+  pair('oxydex_lossy', 'synthetic_oxydex_o2ring_lossy.csv', null);
+  pair('oxydex_longnight', 'synthetic_oxydex_o2ring_longnight.csv', null);
   pair('pulsedex_synth', 'synthetic_pulsedex_rr.txt', 'synthetic_pulsedex_golden.node-export.json');
   pair('hrvdex_synth', 'synthetic_hrvdex_welltory.csv', 'synthetic_hrvdex_golden.node-export.json');
   pair('glucodex_synth', 'synthetic_glucodex_lingo.csv', 'synthetic_glucodex_golden.node-export.json');
