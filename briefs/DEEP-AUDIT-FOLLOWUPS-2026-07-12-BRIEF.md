@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-12 (**§A EXECUTED** — the blind spot is closed, *and this brief's own prescription for it was wrong*; see §A. §B–§E open) · **Created:** 2026-07-12 · **Supersedes:** — · **Parent:** `DEEP-AUDIT-2026-07-11-BRIEF.md` (DONE 2026-07-12, all 21 findings executed)
+**Status:** IN-PROGRESS — 2026-07-12 (**§A + §B EXECUTED** — and in BOTH cases this brief's own prescription was wrong; the corrections are recorded in place. §C–§E open) · **Created:** 2026-07-12 · **Supersedes:** — · **Parent:** `DEEP-AUDIT-2026-07-11-BRIEF.md` (DONE 2026-07-12, all 21 findings executed)
 
 # Deep-audit follow-ups — the residue, and the blind spot that hid it
 
@@ -71,40 +71,60 @@ That is the property the original prescription could never have had.
 
 ---
 
-## §B · Fail-open layers still open (defence-in-depth, no known wrong number)
+## §B · Fail-open layers — ✅ **EXECUTED 2026-07-12** (all four; one of them was a *surfaced* wrong number after all)
 
-### B1 · PulseDex accepts any column that *looks* like an interval — the two layers under §2
-The §2 fix vetoes a foreign Polar-Sensor-Logger stream **at the adapter**, which closes the reachable
-production path (the H10 `*_ACC.txt` now reports `UNKNOWN → set aside`). The two deeper layers still
-fail open:
-- `pulsedex-dsp.js:289 _pdIntervalColByRange` accepts **any** column whose median lands in 300–2000, with
-  no unit or header check.
-- the `usable` gate checks value *range* but never *interval-likeness* — the accelerometer's gravity rail
-  produced **SDNN 9.5 ms over 3 h**, a physiologically impossible number that nothing questioned.
+### B1 · PulseDex accepted any column that *looked* like an interval — ✅ **and the brief's proposed test was wrong**
+§2 vetoed the foreign stream **at the adapter**, closing the reachable production path. Underneath,
+`_pdIntervalColByRange` still accepted **any** column whose median landed in 300–2000 — the H10
+accelerometer's gravity rail (~973 mg) reads as 973 ms beats — and the `usable` gate asked whether the
+values were beat-*sized*, never whether they behaved like *intervals*.
 
-**Why it was not done:** rejecting a near-constant series needs a judgement call on genuinely
-low-variability recordings (a metronomic paced-breathing session is real data). It needs a threshold
-argued from the corpus, not guessed. **Do:** derive the floor from the real trio corpus, then reject
-`[mg]`/`[G]`/`[dps]` headers *and* near-constant series at the DSP layer too.
+**⚠️ The prescribed test would not have worked.** This brief said to reject *near-constant series*,
+citing the rail's **SDNN 9.5 ms** as "physiologically impossible". Measured against the real corpus, that
+framing fails **twice**:
+- The **Verity** accelerometer's SDNN is **69.5 ms** — sitting comfortably *inside* the genuine RR range
+  (24.4–162.7 ms across 19 real recordings). A variability floor tuned to catch the H10 rail would have
+  **let the Verity rail straight through**.
+- And a floor high enough to catch both would risk rejecting **real pathology** — a genuinely flat RR
+  series is real data, which is exactly why the brief flinched from picking a number.
 
-### B2 · `_envToSeed` still seeds an absent objective column to `0`
-`hrvdex-dsp.js` `_envToSeed`'s `n()` maps absence → `0`. The §3 presence gates make this harmless
-*today* (a real band power is never exactly 0, so `> 0` distinguishes them), but `null` is the honest
-seed and the current safety rests on a coincidence of physiology. **Do:** seed `null`, and let the
-presence gates read presence rather than magnitude.
+**What shipped instead is a conservation law, not a threshold.** RR intervals are the gaps *between*
+beats, so they must **sum to the time they span**. Measured: **19/19** genuine RR/PPI recordings conserve
+time to within 1 % (ratio **1.00–1.01**); the H10 accelerometer read as RR claims **24.6×** the elapsed
+time, the Verity **15.6×**. The cut is at **2.0** — ~8× above the worst genuine file, ~8× below the
+nearest offender — and it can only ever fire on the *impossible* side, because dropped beats and paused
+recordings make the sum **smaller** than the span, never larger. A gappy-but-genuine file cannot trip it,
+and neither can a flat one. Gated with a control proving a **pathologically flat** RR series (SDNN ≈ 1 ms)
+still passes.
+Plus a deterministic first line: a column whose header *declares* a foreign unit (`[mg]`/`[dps]`/`[uV]`…)
+is never an interval column, whatever its values do.
 
-### B3 · The `||0` siblings of the HRV Score
-§21 fixed `_hrv` — the *surfaced hero*. Its five siblings in the same block still coerce an absent
-vendor column to a real-looking `0`:
-`hrvdex-dsp.js` `_energy` · `_focus` · `_sns` · `_psns` · `_coherence`.
-None is a hero number today, so none was proven to mis-state a surfaced value — which is exactly why
-they were left rather than changed blind. **Do:** trace each to its render site; any that reaches a user's
-eye gets `numOrNull`, the rest get it anyway for consistency.
+### B2 · `_envToSeed` seeded absence to `0` — ✅ now `null`
+The exact coercion that collapsed §3's n.u. denominator (`_totalPow − _vlf` → `0 − 0` → the `|| 0.001`
+epsilon → **HF n.u. = 125,000,000 %**). The §3 presence gates made it harmless *only because a real band
+power is never exactly 0* — safety resting on a coincidence of physiology rather than on the code being
+right. `null > 0` is false, so every gate reads identically; absence is now simply stored as absence.
 
-### B4 · `spo2HrDecouplingPct` keeps the shape §18 removed from coupling
-`oxydex-dsp.js:1316` — `dcTotal > 0 ? … : 0`. Same 0-for-undefined shape §18 fixed for `couplingScore`,
-but no valid windows is a different (and rarer) condition than no nadirs, and it was **not** proven to
-move a surfaced number. **Do:** confirm the render path, then make absence `null` like its sibling.
+### B3 · The `||0` siblings — ✅ and **this one was surfaced**, contrary to the brief
+The brief said *"none is a hero number today, so none was proven to mis-state a surfaced value."* That
+was wrong: **`_stress` is rendered as a readiness subscore** (`hrvdex-render.js`), so a Welltory file with
+no Stress column displayed a fabricated **"0 · ok"** — green, reassuring, and invented. Exactly §21's bug
+class, one card over. All six now parse absent → `null`, and the renderer omits the subscore.
+
+**A gated decision had to be reversed to do it.** An existing assertion *required* `|| 0`, on the stated
+grounds that *"the `_hasSubj` presence gate depends on it."* **That rationale was false** — `_hasSubj`
+reads `r._stress > 0`, and `null > 0` is false exactly as `0 > 0` is. Verified: every `_hasSubj`-gated
+composite (`d_se_div`, `d_ans_load`, `d_coh_energy`, `d_pti`) is still `NaN` with `null`. The gate never
+depended on the zero — it was merely *protecting* it. Both assertions were updated deliberately, with the
+reasoning recorded in place. A genuine vendor `0` still reads `0`: absence ≠ zero, in both directions.
+
+### B4 · `spo2HrDecouplingPct` — ✅ `null`, like its coupling sibling
+`0/0` is undefined, not "0 % decoupled, a perfectly coupled night". It ships in the node-export, where a
+consumer reading `0` would take it for a measurement.
+
+**Gated:** a 14-assert `§B` group, **verified to red on the original code** (the accelerometer parsed as
+`usable = true, nUsable = 4000`; `_stress = 0`; seeds `0`; decoupling `0`), with controls proving each
+input bites and that the honest paths are untouched. Export-inert: **no fixture output moved.**
 
 ---
 

@@ -59,6 +59,16 @@ function numOrNull(cell){
   var v = parseFloat(s);
   return isFinite(v) ? v : null;
 }
+/* First PRESENT alias wins; absent everywhere ⇒ null (never a real-looking 0). The `a || b || 0`
+   idiom this replaces conflated three different things — "not in this file", "blank cell", and "the
+   vendor really scored 0" — and stored the last one for all three. DEEP-AUDIT-FOLLOWUPS §B3. */
+function _firstNum(){
+  for(var i=0;i<arguments.length;i++){
+    var v = numOrNull(arguments[i]);
+    if(v != null) return v;
+  }
+  return null;
+}
 function _hrvParseSummaryRows(text) {
   const lines = text.trim().split('\n');
   const headers = lines[0].split(',').map(h => h.trim().replace(/\r/,''));
@@ -94,12 +104,19 @@ function _hrvParseSummaryRows(text) {
     // SUBJECTIVE Welltory black-box columns KEEP ||0: computeDerived's _hasSubj gate relies on the
     // six moving as an all-or-none 0-seed group (WELLTORY-COMPOSITES quarantine); migrating them to
     // null is a separate decision. _hrv = Welltory's proprietary black-box HRV Score (not transparent).
-    r._stress = parseFloat(r['Stress(HRV)']||r['Stress']||0);
-    r._energy = parseFloat(r['Energy(HRV)']||r['Energy']||0);
-    r._focus = parseFloat(r['Focus']||0);
-    r._sns = parseFloat(r['ANS balance(SNS)']||r['SNS']||0);
-    r._psns = parseFloat(r['ANS balance(PSNS)']||r['PSNS']||0);
-    r._coherence = parseFloat(r['Coherence index']||r['Coherence']||0);
+    // DEEP-AUDIT-FOLLOWUPS §B3 — the `||0` siblings of the HRV Score. Each of these turned an ABSENT
+    // vendor column into a real-looking 0, exactly as `_hrv` did (§21). None is a hero today, so none
+    // was proven to mis-state a surfaced number — which is why they were left rather than changed
+    // blind. They are fixed now for the same reason `_hrv` was: absence is not zero, and the safety of
+    // every downstream composite currently rests on the coincidence that a real subjective score is
+    // never exactly 0. The `_hasSubj` / `> 0` presence gates read `null > 0` as false, so the honest
+    // seed changes nothing about which composites fire — it just stops the LIE being stored.
+    r._stress = _firstNum(r['Stress(HRV)'], r['Stress']);
+    r._energy = _firstNum(r['Energy(HRV)'], r['Energy']);
+    r._focus = _firstNum(r['Focus']);
+    r._sns = _firstNum(r['ANS balance(SNS)'], r['SNS']);
+    r._psns = _firstNum(r['ANS balance(PSNS)'], r['PSNS']);
+    r._coherence = _firstNum(r['Coherence index'], r['Coherence']);
     // DEEP-AUDIT §21 — `||0` turned an ABSENT vendor score into a real-looking 0, which the hero
     // rendered as a genuine reading ("0 · Strained · Prioritize rest") for a file that simply never
     // carried the column. Absence is null; the renderer already prints '—' for null.
@@ -271,14 +288,20 @@ function _hrvRefreshChrome(){
    each recording's HRV summary to one additive HRVDex measurement row. Many days
    (and multiple sessions per day) land in one import; the dedup keeps re-imports
    idempotent. Welltory-app-only subjective metrics (Stress/Energy/Coherence) have
-   no ECG equivalent → left 0, so their derived cards read '—'. */
+   no ECG equivalent → left NULL, so their derived cards read '—'. */
 function _envToSeed(env){
   if(!env || typeof env!=='object') return null;
   const rec = env.recording||{}, hrv = env.hrv||{};
   const tm = hrv.time||{}, fq = hrv.frequency||{};
   const tMs = (rec.startEpochMs!=null && isFinite(rec.startEpochMs)) ? +rec.startEpochMs : NaN;
   if(!isFinite(tMs)) return null;
-  const n = v => (typeof v==='number' && isFinite(v)) ? v : 0;
+  /* DEEP-AUDIT-FOLLOWUPS §B2 — absence seeds to NULL, not 0. This used to map every missing field to
+     `0`, which is what collapsed HRVDex's n.u. denominator to an epsilon in §3 (`_totalPow − _vlf`
+     → `0 − 0` → the `|| 0.001` fallback → HF n.u. = 125,000,000 %). The §3 presence gates made that
+     harmless — but only because a real band power is never EXACTLY 0, i.e. the safety rested on a
+     coincidence of physiology rather than on the code being right. `null > 0` is false, so every
+     existing gate reads identically; the difference is that an absent value is now stored as absent. */
+  const n = v => (typeof v==='number' && isFinite(v)) ? v : null;
   // Prefer whole-record SDNN/RMSSD for cross-node comparability (ECGDex's own guidance).
   const sdnn  = n(tm.wholeRecordSDNN  != null ? tm.wholeRecordSDNN  : tm.sdnn);
   const rmssd = n(tm.wholeRecordRMSSD != null ? tm.wholeRecordRMSSD : tm.rmssd);
@@ -287,7 +310,8 @@ function _envToSeed(env){
     _hr:n(tm.hr), _meanRR:n(tm.meanRR), _sdnn:sdnn, _rmssd:rmssd, _mxdmn:n(tm.mxDMn),
     _pnn50:n(tm.pnn50), _amo50:n(tm.amo50), _mode:n(tm.mode),
     _totalPow:n(fq.totalPower), _hf:n(fq.hf), _lf:n(fq.lf), _vlf:n(fq.vlf),
-    _stress:0, _energy:0, _focus:0, _sns:0, _psns:0, _coherence:0,
+    // Welltory-app-only subjective scores have no ECG equivalent — they are ABSENT here, not zero (§B2).
+    _stress:null, _energy:null, _focus:null, _sns:null, _psns:null, _coherence:null,
     _hrv:n(env.personalization && env.personalization.ansReadinessScore), _cv:n(tm.cv)
   };
 }

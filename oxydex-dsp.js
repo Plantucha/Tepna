@@ -1313,7 +1313,10 @@
         if (dSpo2 > 0 !== dHr > 0) decoupled++;
       }
     }
-    var spo2HrDecouplingPct = dcTotal > 0 ? +((decoupled / dcTotal) * 100).toFixed(1) : 0;
+    // DEEP-AUDIT-FOLLOWUPS §B4 — the sibling of §18's coupling fix. With no comparable 30 s windows
+    // the decoupled FRACTION is 0/0 — undefined, not "0 % decoupled, a perfectly coupled night". The
+    // value ships in the node-export, so a consumer reading 0 would take it as a measurement.
+    var spo2HrDecouplingPct = dcTotal > 0 ? +((decoupled / dcTotal) * 100).toFixed(1) : null;
 
     // Intra-night NSI: NSI per 90-min epoch (early/mid/late)
     var EPOCH = 5400; // 90 min
