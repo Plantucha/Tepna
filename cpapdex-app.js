@@ -231,12 +231,25 @@ function handleFileList(fileList){
   });
 }
 
-/* demo loader — fetch the bundled AirSense night from uploads/ (dev/preview) */
+/* ── demo loader ───────────────────────────────────────────────────────────────────────────
+   The demo fetches a COMMITTED, SYNTHETIC EDF set (tools/make-synthetic-edf.mjs): closed-form
+   waveforms calibrated to a real corpus's distributions, carrying no recording of any person and
+   no device identifier (the EDF+ header identity fields are blank).
+
+   It used to point at TEN REAL AirSense .edf files — which are gitignored personal recordings.
+   They exist only on the maintainer's machine, so on ANY fresh clone all ten fetches 404'd and
+   the demo died with "Demo data unavailable in this build". **The shipped demo had never worked
+   for anyone but the maintainer**, and the browser render-coverage gate that would have caught it
+   was silently not running its assertions (fixed by GATE-INTEGRITY-AND-DEVLOOP, which is what
+   exposed this).
+
+   That is the same disease as CPAP-REAL-CORPUS §M5 — a surface that only works where the personal
+   data happens to be — except here it is a USER-FACING feature, not a test. The cure is the same
+   one §P2 already built and committed: a synthetic input carries no personal data, so it can ship.
+   Keep it that way: a demo MUST NOT depend on anything gitignored.                              */
 var DEMO_FILES = [
-  '20260612_222819_CSL.edf', '20260612_222819_EVE.edf',
-  '20260612_222830_BRP.edf', '20260612_222830_PLD.edf', '20260612_222830_SA2.edf',
-  '20260613_045457_CSL.edf', '20260613_045457_EVE.edf',
-  '20260613_045505_BRP.edf', '20260613_045505_PLD.edf', '20260613_045505_SA2.edf'
+  '20260613_231433_BRP.edf', '20260613_231433_PLD.edf', '20260613_231433_SA2.edf',
+  '20260613_231433_EVE.edf', '20260613_231433_CSL.edf'
 ];
 function loadDemo(){
   setStatus('Loading demo night…', 'busy');

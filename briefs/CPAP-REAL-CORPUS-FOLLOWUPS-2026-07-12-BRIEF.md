@@ -67,7 +67,31 @@ dominant class is directionally safe.)
 
 ---
 
-## 3 · The browser render-coverage lane has not been run since P4 ⚠️
+## 3 · §M5's disease on a USER-FACING surface — the demo ✅ **FIXED 2026-07-12**
+
+> Running the render lane turned this up, and it is the sharpest confirmation of §M5 yet.
+>
+> **`CPAPDex`'s demo fetched ten GITIGNORED real recordings.** `DEMO_FILES` listed real AirSense
+> `.edf` files, which are personal data and therefore not in the repo — so on **any fresh clone every
+> fetch 404s** and the demo dies with *"Demo data unavailable in this build."* The button is there, the
+> click throws nothing, and nothing happens. **The shipped demo had never worked for anyone but the
+> maintainer.**
+>
+> §M5 found this disease in the *equivalence gate* (every node's input was a real recording → CI never
+> ran the diff). This is the same root cause on a **user-facing feature**. The cure is the same one §P2
+> already built: the **committed synthetic EDF set** carries no personal data, so it ships. The demo now
+> points at it — 7/13 → **13/13**, verified on a tree with no personal data present.
+>
+> **Why nothing caught it, which is the real lesson.** The headless suite structurally cannot (a demo is
+> a browser surface). The render lane *does* have a CPAPDex rig asserting exactly this — but **its
+> assertions were not running**. `GATE-INTEGRITY-AND-DEVLOOP` ("stop the gate shrinking in silence") made
+> them run, and CPAPDex went straight to 7/13 **with a byte-identical bundle**. A gate that silently
+> shrinks is worse than no gate: it reports success for work it never did.
+>
+> **Rule:** a demo must not depend on anything gitignored. Worth a gate of its own — assert every
+> `DEMO_FILES` entry is a tracked path (see §5).
+
+## 4 · The browser render-coverage lane ✅ **RUN 2026-07-12**
 
 Every headless gate is green (`run-tests.mjs` 2132/0, `build.mjs --check` clean, GATE A/B clean,
 `tsc` clean). But **`Dex-Test-Suite.html?full` has not been driven**, and P4 changed a *rendered* surface:
@@ -78,12 +102,17 @@ Every headless gate is green (`run-tests.mjs` 2132/0, `build.mjs --check` clean,
 The headless floor cannot see either — that is precisely what the browser-only render lane is for
 (CLAUDE.md §🧪: a bare open is *the floor, NOT a pass*).
 
-**Do:** open `Dex-Test-Suite.html?full`, wait for the group count to settle, confirm the pill is all-green
-and `sameOriginStatus().bootSkips` is `[]`. **Before release.**
+> **Done.** `Dex-Test-Suite.html?full` on a **clean tree** (no personal data): **all green — 2441 passed,
+> 0 failing, 11 render-coverage groups, `bootSkips: []`.** Both of P4's new rendered surfaces are covered
+> (the `mode` chip reading `unknown`, the new `pressureEnvIqr` card).
+>
+> ⚠️ **`origin/main` @ v1.8.0 is RED on this lane** (CPAPDex 7/13, the demo defect above) — it shipped a
+> release with a red render lane because only the headless floor was run. That is the §M5 lesson landing
+> a third time: **"headless green" is the floor, not a pass** (CLAUDE.md §🧪).
 
 ---
 
-## 4 · P7 and P8 were never in the parent's "Done when"
+## 5 · P7 and P8 were never in the parent's "Done when"
 
 The parent listed them as proposals but never gated them, so they are still open — and both are now
 *cheaper* than when they were written, because P5 shipped the primitive they depend on:
@@ -98,7 +127,7 @@ The parent listed them as proposals but never gated them, so they are still open
 
 ---
 
-## 5 · Smaller things surfaced in passing
+## 6 · Smaller things surfaced in passing
 
 - **`tools/regen-cpap-goldens.mjs` is new and CPAP-only.** It exists because `build.mjs` re-stamps a
   fixture's `manifestHash` but does **not** recompute its `outputHash` — so a content-moving code change
@@ -106,6 +135,9 @@ The parent listed them as proposals but never gated them, so they are still open
   is false. That gap is **fleet-wide, not CPAP-specific**; other nodes regenerate fixtures ad hoc.
   Consider generalizing it (`--node <Name>`), or at least documenting the two-step (regen → build) in
   CLAUDE.md §🔏's re-bundle checklist.
+- **No gate pins a demo to committed inputs.** §3's bug was a *user-facing feature* silently depending on
+  gitignored data, and nothing asserts it cannot recur — in CPAPDex or any other node. A cheap headless
+  gate: parse each app's `DEMO_FILES`/demo fetch list and assert every path is git-tracked.
 - **`how-to-collect/cpap-edf.md` predates the adapter** and does not mention `resmed-edf`. 7 of 8 other
   adapters have a matching `how-to-collect/<adapter-id>.md`; nothing gates it.
 - **`pressureRange` is now a spread statistic with no consumer story.** Its `cite` no longer claims to
