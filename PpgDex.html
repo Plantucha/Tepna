@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+ClpxncoCwII4Ysf9xBe3qqQn/BFARuknGwXVY2msB4=' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-PArDvDhErJwO+wTzwcD7jPN80C3++xYdXhoiobUx5Bw=' 'sha256-SbhMwvzlpgPhlroU5JoY5kACF2lbh9q6MEOKlFWAwWY=' 'sha256-V0C9qWkelizTKHjPEtlWmyTc4pTsPSf41HTe+Ia2y7Y=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-fMc9CU/q1VvrJCsgM4ooVNOe7km3XmXzEht5GJyi2Ng=' 'sha256-g91aaqiPAk+kwULv2BoPpUqhOueAaMGo8NpOvIRpZRk=' 'sha256-ixODejgAnxlJJXcqi8CV+6MUkFag+Feel3Zutcd8jmM=' 'sha256-oR/OkrOh3MTME742+g+gHcB6jvGBAOrh7t31jfMfic4=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-qIOO0xxN906bUVrLD1KREXgehS4tUbYB20NtPtilrwk=' 'sha256-znnyGiXDcfbU3wUjydrmyWCFBC9U8tWF9ZOIH8oZ9no=' 'sha256-zoX0rksSqUxFePSlhG6+8O2Euarj7JlN/OQ/SqQyThw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+ClpxncoCwII4Ysf9xBe3qqQn/BFARuknGwXVY2msB4=' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-0ToE5q57M69PYDhV7nyV7///IFPg5kEmWH4xN2ySjOI=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-HcUHWLuhUgIs5eZ/eEmetSef3zvyYzUcAgEhGkZJEkI=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-PArDvDhErJwO+wTzwcD7jPN80C3++xYdXhoiobUx5Bw=' 'sha256-SbhMwvzlpgPhlroU5JoY5kACF2lbh9q6MEOKlFWAwWY=' 'sha256-V0C9qWkelizTKHjPEtlWmyTc4pTsPSf41HTe+Ia2y7Y=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-g91aaqiPAk+kwULv2BoPpUqhOueAaMGo8NpOvIRpZRk=' 'sha256-ixODejgAnxlJJXcqi8CV+6MUkFag+Feel3Zutcd8jmM=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-qIOO0xxN906bUVrLD1KREXgehS4tUbYB20NtPtilrwk=' 'sha256-znnyGiXDcfbU3wUjydrmyWCFBC9U8tWF9ZOIH8oZ9no=' 'sha256-zoX0rksSqUxFePSlhG6+8O2Euarj7JlN/OQ/SqQyThw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PpgDex — Raw Wrist-PPG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -5798,7 +5798,7 @@ function parsePPG(text){
   const lines = text.split(/\r?\n/);
   const ch0=[], ch1=[], ch2=[], amb=[];
   const nsArr=[];           // BigInt deltas avoided — store as Number of (ns - ns0)/1 via BigInt math
-  let ns0=null, t0Ms=null, firstTs=null, lastTs=null;
+  let ns0=null, t0Ms=null, firstTs=null;   // lastTs is resolved lazily in the fs fallback (§P1)
   let started=false;
   for(let li=0; li<lines.length; li++){
     const line = lines[li].trim();
@@ -5815,8 +5815,12 @@ function parsePPG(text){
     let relNs = 0;
     try { const b=BigInt(p[1].trim()); if(ns0===null) ns0=b; relNs=Number(b-ns0); } catch(e){ relNs = NaN; }
     nsArr.push(relNs);
-    const ts = parseTimestamp(p[0]);
-    if(ts){ if(t0Ms===null){ t0Ms=ts.tMs; firstTs=ts; } lastTs=ts; }
+    // Clock Contract: only the FIRST stamp is load-bearing here (t0Ms + offsetMin). The LAST stamp is
+    // read ONLY by the degenerate `deltas.length<=20` fs fallback below, which a real capture (190k
+    // valid ns deltas) never takes — so resolve it lazily there instead of parsing every one of ~190k
+    // rows for a value that is then discarded. parseTimestamp was ~half of parsePPG's entire cost.
+    // (EFFICIENCY-AUDIT-FINDINGS-2026-07-12 §P1.)
+    if(t0Ms===null){ const ts = parseTimestamp(p[0]); if(ts){ t0Ms=ts.tMs; firstTs=ts; } }
     started=true;
   }
   const n = ch0.length;
@@ -5826,7 +5830,19 @@ function parsePPG(text){
   const deltas = [];
   for(let i=1;i<n;i++){ const d=nsArr[i]-nsArr[i-1]; if(isFinite(d)&&d>0) deltas.push(d); }
   if(deltas.length>20){ const md = median(deltas); if(md>0) fs = 1e9/md; }
-  else if(firstTs && lastTs && lastTs.tMs>firstTs.tMs){ fs = (n-1)/((lastTs.tMs-firstTs.tMs)/1000); }
+  else {
+    // Lazy `lastTs` (§P1): scan BACKWARD for the last row that the loop above would have accepted AND
+    // whose stamp parses — byte-identical to the old eager `lastTs`, but paid for only on this
+    // degenerate path. The row filter must mirror the main loop's exactly (>=6 fields, finite ch0).
+    let lastTs = null;
+    for(let li=lines.length-1; li>=0 && !lastTs; li--){
+      const line = lines[li].trim(); if(!line) continue;
+      const p = line.split(';'); if(p.length < 6) continue;
+      if(!isFinite(parseFloat(p[2]))) continue;
+      lastTs = parseTimestamp(p[0]);
+    }
+    if(firstTs && lastTs && lastTs.tMs>firstTs.tMs){ fs = (n-1)/((lastTs.tMs-firstTs.tMs)/1000); }
+  }
   fs = Math.round(fs*100)/100;
   // relSec per sample from ns (most accurate), else index/fs
   const relSec = new Float64Array(n);
@@ -7227,8 +7243,15 @@ function perWindowMorph(bp, raw, det, fs, sqi, winSec){
     const mp = medianPulse(bp, sub, fs, subSqi);
     const d = mp ? delineate(mp) : null;
     // PI within this window: AC (std of bp) ÷ DC (|mean raw|)
+    // s0/s1 MUST be integers: winSamp = winSec*fs and fs is the median sensor-ns delta, so on a real
+    // Polar capture it is never integral (176.26 → winSamp 10575.6). Indexing a Float32Array at a
+    // fractional index returns undefined, so from the 2nd window on dc/ac went NaN and pi silently
+    // became null — the surfaced per-window PI trend was plotting only the windows where w0 happened
+    // to land on an integer (2 of 18 on a real night). Round ONLY the sample bounds: w0 stays a float
+    // for the peak-assignment comparisons above, so beat→window assignment (and ai/ri/beats) is
+    // untouched and pi is the only value that moves. (EFFICIENCY-AUDIT-FINDINGS-2026-07-12 §C1.)
     let pi = null;
-    const s0=w0, s1=Math.min(raw.length, w0+winSamp);
+    const s0=Math.round(w0), s1=Math.min(raw.length, Math.round(w0+winSamp));
     if(s1-s0>fs){ let acc=0,c=0; for(let i=s0;i<s1;i++){ acc+=Math.abs(raw[i]); c++; } const dc=acc/c;
       let m=0; for(let i=s0;i<s1;i++) m+=bp[i]; m/=(s1-s0);
       let v=0; for(let i=s0;i<s1;i++){ const dd=bp[i]-m; v+=dd*dd; } const ac=Math.sqrt(v/(s1-s0));
