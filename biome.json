@@ -69,6 +69,7 @@
         "hrvdex-app.js",
         "ppgdex-dsp.js",
         "ppgdex-morph.js",
+        "sensor-trio-worker.js",
         "clock.js",
         "glucodex-dsp.js",
         "glucodex-render.js",

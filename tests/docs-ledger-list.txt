@@ -491,6 +491,7 @@ path changes/2026-07-12-adversarial-equiv-inputs.md
 path changes/2026-07-12-cpapdex-demo-synthetic-input.md
 path changes/2026-07-12-cpapdex-resmed-adapter-and-mode.md
 path changes/2026-07-12-event-coupling-primitive.md
+path changes/2026-07-12-verity-gate-classifies-failure.md
 path changes/README.md
 path clock.js
 path codegen

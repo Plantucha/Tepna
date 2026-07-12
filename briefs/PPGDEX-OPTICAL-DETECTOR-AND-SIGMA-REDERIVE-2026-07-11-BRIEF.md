@@ -173,7 +173,31 @@ co-recorded nights are needed to pin σ — more surviving nights tighten the CI
       - **Also fixed:** the tool still called Verity *"the noisy corner"*. On the raw-ECG hat the noisiest corner is the
         **O2Ring** (2.72) and Verity is the **quietest** (1.94) — the "noisy-corner reorder (Verity→O2Ring)" that
         `SIGMA-PAPER-REWRITE` applied to the papers but never to this tool.
-- [ ] Fix the Verity gate's **misdiagnosis**, not just its threshold: it labels harmonic doubling as *"poor PPG contact"*.
+- [x] **Fix the Verity gate's misdiagnosis, not just its threshold** → **DONE 2026-07-12.**
+      `sensor-trio-worker.js` now **classifies** the failure instead of blaming the sensor. A pure
+      `verityFailureClass(hrRatio)` splits it three ways from the median HR ratio against the paired ECG corner:
+      `harmonic-double` (1.5–3.0 — *"OUR DETECTOR is counting the dicrotic notch; the sensor is fine"*),
+      `harmonic-half` (0.33–0.67 — missed beats, also ours), else `poor-contact` (near no multiple = genuinely
+      the strap). The skip result now carries `failure` + `hrRatio` as machine-readable fields.
+      **The skip DECISION is byte-identical** (same σ>12 / r<0.4 condition — only a `{` moved), so the published
+      σ, the nights-solved count and every aggregate are **unchanged**. What changed is the *verdict*: a
+      recurrence now says "look at the detector", not "blame the strap" — which is the mistake that cost 41% of
+      the corpus for weeks.
+      **Separation measured on the real corpus, not assumed:** across all 17 committed trio nights
+      (`ECGDex` vs `PpgDex` `hrv.time.hr`) the CLEAN band is **0.974–1.012, median 1.000** — reproducing the
+      0.99–1.01 cited above from committed data, and leaving a **0.49 margin** below the 1.5 doubling threshold,
+      so no healthy night is reachable by a "detector" verdict. Gate-backed (`Verity gate classifies the
+      FAILURE`, 15 assertions; verified to red against the pre-fix worker). **No re-bundle** — the worker is not
+      inlined into any bundle.
+      ⚠️ **Still owed (corpus-machine only):** the *doubling* band (1.5–3.0) rests on the 1.6–2.9 range recorded
+      in this brief, not on a re-measurement — the raw trio corpus is gitignored and **only 1 of the 17 nights
+      has all three raw files in the repo**, so the old-DSP re-run that would confirm the 5 doubled nights are
+      now labelled `harmonic-double` cannot be done here. Re-run `sensor-trio-worker.js` over the raw corpus on
+      the capture machine to close it. (This is the same gitignored-corpus limit that
+      `EFFICIENCY-AUDIT-FINDINGS-2026-07-12` §G1 documents.)
+      <details><summary>the superseded item, for the record</summary>
+
+      Fix the Verity gate's **misdiagnosis**, not just its threshold: it labels harmonic doubling as *"poor PPG contact"*.
       The signals are distinguishable — doubling is a *scaled copy* of truth (still correlated, HR ratio ≈ 2 against a
       paired ECG corner), whereas lost contact decorrelates. A cross-node HR-ratio test separates them cleanly
       (0.99–1.01 vs 1.6–2.9, bimodal). Note the node-local `ppiCorr*Pct` rates are NOT sufficient alone (2026-06-25 is

@@ -144,6 +144,19 @@ function isoMs(s) { var m = /(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(
 function o2Ms(s) { var m = /(\d{2}):(\d{2}):(\d{2})\s+(\d{2})\/(\d{2})\/(\d{4})/.exec(s); return m ? Date.UTC(+m[6], +m[5] - 1, +m[4], +m[1], +m[2], +m[3]) : null; }
 function secFloor(t) { return Math.floor(t / 1000); }
 function pct(a, p) { return a[Math.max(0, Math.min(a.length - 1, Math.floor(p * (a.length - 1))))]; }
+/* Classify WHY a Verity night failed the quality gate — pure, so it is gate-testable (see
+   tests/dex-tests.js "Verity gate classifies the FAILURE"). Harmonic doubling is a SCALED COPY of
+   truth: the median HR ratio against the paired ECG corner sits near an exact multiple (1.6-2.9 on the
+   doubled nights vs 0.99-1.01 clean -- bimodal, no overlap). Lost contact derives HR from noise, which
+   lands near no multiple at all. Thresholds are deliberately WIDE of the observed bands: doubling is a
+   detector fault we want to catch loudly, and a false "detector" verdict costs a look, whereas a false
+   "sensor" verdict cost us 41% of the corpus for weeks. */
+function verityFailureClass(hrRatio) {
+  if (hrRatio == null || !isFinite(hrRatio)) return 'poor-contact';
+  if (hrRatio >= 1.5 && hrRatio <= 3.0) return 'harmonic-double';
+  if (hrRatio >= 0.33 && hrRatio <= 0.67) return 'harmonic-half';
+  return 'poor-contact';
+}
 function pearson(x, y) { var n = x.length, mx = 0, my = 0, i; for (i = 0; i < n; i++) { mx += x[i]; my += y[i]; } mx /= n; my /= n; var sxy = 0, sx = 0, sy = 0; for (i = 0; i < n; i++) { var dx = x[i] - mx, dy = y[i] - my; sxy += dx * dy; sx += dx * dx; sy += dy * dy; } return (sx > 0 && sy > 0) ? sxy / Math.sqrt(sx * sy) : null; }
 // collapse [sec,val] pairs → Map(sec → median), robust to multi-sample seconds
 function medMap(pairs) { var by = new Map(), i; for (i = 0; i < pairs.length; i++) { var s = pairs[i][0], a = by.get(s); if (!a) { a = []; by.set(s, a); } a.push(pairs[i][1]); } var out = new Map(); by.forEach(function (a, s) { a.sort(function (p, q) { return p - q; }); out.set(s, a[a.length >> 1]); }); return out; }
@@ -312,11 +325,38 @@ async function runRealNight(m) {
     // wrist-PPG error) AND decorrelates from BOTH other corners is failed HR extraction (lost PPG
     // contact / all-night motion), not a real device σ. Skip it honestly rather than let a 20–35 bpm
     // artifact pollute the aggregate. A merely-restful night (low r but small, plausible σ) is kept.
-    if (s.verity != null && s.verity > 12 && (rHV == null || rHV < 0.4) && (rVO == null || rVO < 0.4))
-      return { skip: true, reason: 'Verity unreliable (\u03c3 ' + s.verity.toFixed(0) + ' bpm · rHV ' + (rHV == null ? '\u2014' : rHV.toFixed(2)) + ' \u2014 poor PPG contact)' };
+    //
+    // -- WHY a failing night is now CLASSIFIED, not merely rejected (PPGDEX-OPTICAL-DETECTOR §2) --
+    // This gate used to blame the SENSOR for every failure -- "poor PPG contact". That misdiagnosis was
+    // expensive: it discarded 7 of the 17 trio nights, and FIVE of them had perfectly good optical
+    // signal. The fault was in OUR detector -- TERMA counted the dicrotic notch as a second beat, so the
+    // optical HR read a clean 2x truth. The gate saw a wild sigma, shrugged, and wrote off 41% of the
+    // corpus as a hardware problem. Nobody looked at the detector for weeks.
+    //
+    // The two failures ARE distinguishable, and the discriminator is cheap: harmonic doubling is a
+    // SCALED COPY of truth -- the median HR ratio against the paired ECG corner sits near an exact
+    // multiple (measured 1.6-2.9 on the doubled nights vs 0.99-1.01 clean: bimodal, no overlap) --
+    // whereas lost contact derives HR from noise, which lands near no multiple at all. (The node-local
+    // ppiCorr* rates are NOT sufficient alone: 2026-06-25 is CORRECT at 28.8% while 2026-06-29 is WRONG
+    // at 30.5% -- they overlap. The cross-node ratio does not.)
+    //
+    // Both still SKIP -- a doubled HR is not a valid Verity sigma either way, so the published aggregate
+    // is UNCHANGED by this. What changes is the VERDICT: a recurrence now says "look at the detector",
+    // not "blame the strap".
+    var hrRatio = median(hh) > 0 ? median(vv) / median(hh) : null;
+    if (s.verity != null && s.verity > 12 && (rHV == null || rHV < 0.4) && (rVO == null || rVO < 0.4)) {
+      var _sig = '\u03c3 ' + s.verity.toFixed(0) + ' bpm · rHV ' + (rHV == null ? '\u2014' : rHV.toFixed(2)) + ' · HR\u00d7' + (hrRatio == null ? '\u2014' : hrRatio.toFixed(2));
+      var _fail = verityFailureClass(hrRatio);
+      var _why = _fail === 'harmonic-double'
+        ? 'Verity HR is a HARMONIC of truth (\u00d7' + hrRatio.toFixed(2) + ' vs ECG) \u2014 OUR DETECTOR is counting the dicrotic notch; the sensor is fine'
+        : _fail === 'harmonic-half'
+          ? 'Verity HR is a SUB-harmonic of truth (\u00d7' + hrRatio.toFixed(2) + ' vs ECG) \u2014 OUR DETECTOR is missing beats; the sensor is fine'
+          : 'Verity HR lands near no multiple of truth \u2014 genuinely poor PPG contact / all-night motion';
+      return { skip: true, failure: _fail, hrRatio: hrRatio, reason: 'Verity unreliable (' + _sig + ') \u2014 ' + _why };
+    }
     seed((m.seed >>> 0) || 0x51F0);
     var ci = m.wantSeries ? null : blockCI(hh, vv, oo, 400);
-    var out = { skip: false, n: ks.length, source: src, sigma: { o2: s.o2, h10: s.h10, verity: s.verity }, neg: s.neg, ci: ci, rHV: rHV, rHO: rHO, rVO: rVO };
+    var out = { skip: false, n: ks.length, source: src, sigma: { o2: s.o2, h10: s.h10, verity: s.verity }, neg: s.neg, ci: ci, rHV: rHV, rHO: rHO, rVO: rVO, hrRatio: hrRatio };
     if (m.wantSeries) { out.hh = hh; out.vv = vv; out.oo = oo; out.keys = ks; }   // aligned per-second series for the sigma-no-reference tool (BA / control-leg / repeatability)
     return out;
   } catch (e) { return { skip: true, reason: (e && e.message) || String(e) }; }

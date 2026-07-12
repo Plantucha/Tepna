@@ -4552,6 +4552,77 @@
        timestamps EXCLUSIVELY on large overnight recordings — the actual use case — while every small file,
        every fixture and every gate kept parsing correctly through clock.js. Silent, and size-dependent.
        So the mirror is now pinned to DexClock across the full vendor battery. */
+    /* ════ The Verity gate must CLASSIFY the failure, not blame the sensor ════
+       PPGDEX-OPTICAL-DETECTOR §2. `sensor-trio-worker.js`'s Verity gate used to reject every failing
+       night as "poor PPG contact". That misdiagnosis discarded 7 of 17 trio nights — and FIVE of them
+       had perfectly good optical signal. The fault was OUR detector (TERMA counting the dicrotic notch,
+       so the optical HR read a clean 2× truth). The gate saw a wild σ, blamed the strap, and wrote off
+       41% of the corpus. Nobody looked at the detector for weeks.
+
+       The discriminator is cheap and the separation is MEASURED, not assumed: harmonic doubling is a
+       scaled copy of truth, so the median HR ratio against the paired ECG corner sits near an exact
+       multiple; lost contact derives HR from noise and lands near no multiple. Across the committed
+       17-night trio corpus (ECGDex vs PpgDex `hrv.time.hr`) the CLEAN band measures **0.974–1.012,
+       median 1.000** — the doubling threshold (1.5) is nowhere near it, so a false "detector" verdict
+       on a healthy night is not reachable. (The node-local ppiCorr* rates would NOT do: 2026-06-25 is
+       correct at 28.8% while 2026-06-29 is wrong at 30.5% — those overlap. The cross-node ratio doesn't.)
+
+       Both verdicts still SKIP, so the published σ is untouched. What is gated is the VERDICT. */
+    group('Verity gate classifies the FAILURE (detector harmonic vs lost contact), not just rejects it', 'sensor-trio-worker · trio · regression', function (T) {
+      var src = (env.sources && env.sources['sensor-trio-worker.js']) || '';
+      T.ok('sensor-trio-worker.js source available to the gate', !!src);
+      if (!src) return;
+
+      var i = src.search(/^function verityFailureClass/m);
+      T.ok('the gate exposes a PURE verityFailureClass(hrRatio) (so the verdict is testable, not buried in the skip string)', i >= 0);
+      if (i < 0) return;
+      var d = 0,
+        started = false,
+        end = -1;
+      for (var k = i; k < src.length; k++) {
+        if (src.charAt(k) === '{') {
+          d++;
+          started = true;
+        } else if (src.charAt(k) === '}') {
+          d--;
+          if (started && d === 0) {
+            end = k + 1;
+            break;
+          }
+        }
+      }
+      var cls;
+      try {
+        cls = new Function(src.slice(i, end) + ';\nreturn verityFailureClass;')();
+      } catch (e) {
+        T.ok('verityFailureClass is evaluable', false, e.message);
+        return;
+      }
+
+      // A doubled night is a DETECTOR fault — the verdict must say so, or we blame the hardware again.
+      T.eq('HR×2.03 (the 2026-06-29 signature) → harmonic-double, NOT poor-contact', cls(2.03), 'harmonic-double');
+      T.eq('HR×1.88 → harmonic-double', cls(1.88), 'harmonic-double');
+      T.eq('HR×2.64 → harmonic-double (the band runs to 2.9, not just exactly 2)', cls(2.64), 'harmonic-double');
+      T.eq('HR×0.51 → harmonic-half (missed beats — also OUR fault, also not the strap)', cls(0.51), 'harmonic-half');
+      // A genuine contact loss lands near NO multiple — that one really is the sensor.
+      T.eq('HR×1.04 → poor-contact (near no multiple = genuinely lost contact)', cls(1.04), 'poor-contact');
+      T.eq('HR×1.21 → poor-contact', cls(1.21), 'poor-contact');
+      T.eq('no ratio available → poor-contact (fail to the conservative verdict)', cls(null), 'poor-contact');
+
+      // THE separation, measured on the real corpus: the clean band is 0.974–1.012, so no healthy night
+      // can ever be called a detector fault. If someone widens the threshold toward 1.0, this reds.
+      var CLEAN_LO = 0.974,
+        CLEAN_HI = 1.012; // measured across all 17 committed trio nights
+      T.eq('the measured CLEAN band (0.974) is never called a harmonic', cls(CLEAN_LO), 'poor-contact');
+      T.eq('the measured CLEAN band (1.012) is never called a harmonic', cls(CLEAN_HI), 'poor-contact');
+      T.ok('a comfortable margin separates the clean band from the doubling threshold (≥1.5 vs ≤1.012)', 1.5 - CLEAN_HI > 0.4, 'margin=' + (1.5 - CLEAN_HI).toFixed(3));
+
+      // and the skip path must actually USE it + surface the ratio (else the verdict never reaches a human)
+      T.ok('the gate calls verityFailureClass() on the skip path', /verityFailureClass\(hrRatio\)/.test(src));
+      T.ok('the skip result carries a machine-readable failure class + the ratio', /failure:\s*_fail/.test(src) && /hrRatio:\s*hrRatio/.test(src));
+      T.ok('the doubling verdict names the DETECTOR, not the sensor', /OUR DETECTOR/.test(src) && /sensor is fine/.test(src));
+    });
+
     group('ECGDex worker clock — the >5 MB path parses timestamps IDENTICALLY to clock.js', 'ecgdex-app · worker · clock-contract', function (T) {
       var app = (env.sources && env.sources['ecgdex-app.js']) || '';
       var P = env.parseTimestamp;
