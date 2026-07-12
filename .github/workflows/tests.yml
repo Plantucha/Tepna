@@ -5,6 +5,29 @@ name: tests
 # BUILD-MANIFEST.json, the pure-Node sibling of verify-provenance.html). Both are pure
 # Node (built-in vm + fs) — no npm install, no browser, no network. They are SEPARATE
 # assertions (behavior suite vs provenance) that share this one CI entry.
+#
+# ── SHARDED (CI-SHARDING, 2026-07-12) ────────────────────────────────────────────────
+# The suite was a 4-minute single-threaded step — one core on a multi-core runner, ~75%
+# of it inside ecgdex-dsp.js (PROFILED-HOTSPOTS-CI-AND-DSP-2026-07-12-BRIEF §1). It now
+# runs as 4 parallel shards. Two things make that safe rather than merely fast:
+#
+#   1 · The shards PARTITION the suite — every declared group runs in exactly one shard,
+#       so the union of the shards IS the unsharded gate. The partition is INDEX-based,
+#       never name-based: a pattern shard silently drops any group no pattern claims, and
+#       all N shards would go green having never run it. tests/shard-plan.mjs owns it, and
+#       LPT-packs the groups by measured cost (round-robin skews 42.7s/25.3s here — the
+#       heavy ECGDex groups collide on one residue class).
+#   2 · That partition is PROVEN on every push by the `static` job's shard-union check, so
+#       sharding cannot quietly shrink the gate. `verify-shard-union.mjs --deep` (a real
+#       full run vs the real shard-union, assertion-for-assertion) proved the groups are
+#       order-independent; it costs more than sharding saves, so it is not on every push —
+#       run it when you change the partition scheme.
+#
+# Shard count lives in TWO places that must agree: the `matrix.shard` list below and
+# CI_SHARDS in tests/verify-shard-union.mjs (GitHub forbids env: inside a matrix literal).
+# MEASURED on CI (run 29198623082): 4m05s → 1m20s wall. The suite STEP itself went 245 s → 63 s
+# (3.9x — the 4.00x plan holds); the remaining wall is ~7 s job setup per shard + the 3 s aggregator.
+# Shards came in at 40/63/55/60 s — the spread is runner-to-runner speed variance, not plan skew.
 
 on:
   push:
@@ -13,18 +36,59 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
+  # ── the assertion suite, split 4 ways ──────────────────────────────────────────────
+  suite:
+    name: suite (shard ${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # one shard's red must not cancel the others — surface every failure in one pass
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: GanglioR test suite — shard ${{ matrix.shard }}/4
+        run: node tests/run-tests.mjs --shard=${{ matrix.shard }}/4
+
+  # ── the shard gate's own gate, + the static/provenance checks (~15 s, in parallel) ──
+  static:
+    name: shard-union + build + provenance
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Run GanglioR test suite
-        run: node tests/run-tests.mjs
+      # THE load-bearing check for sharding: prove the 4 shards partition the suite, so no
+      # group can fall between them, go unrun, and still leave every shard green. ~0.1 s.
+      - name: Shard-union — the shards partition the suite (no group goes unrun)
+        run: node tests/verify-shard-union.mjs
       - name: Owned-build core tests (KAT + determinism + cross-hasher parity)
         run: node tests/build-core-tests.mjs
       - name: Owned bundles ≡ build(source) (deterministic build drift guard)
         run: node tools/build.mjs --check
       - name: Verify bundle manifestHash ↔ BUILD-MANIFEST (provenance GATE A, headless)
         run: node tests/verify-manifest.mjs
+
+  # ── one aggregated status ──────────────────────────────────────────────────────────
+  # Keeps a single stable check name (`test`) for branch protection, independent of the
+  # shard count — so the count can change without touching required-checks config.
+  # `if: always()` + explicit result compare so a SKIPPED or CANCELLED shard reds the gate;
+  # a bare `needs:` would let those through as "not failed".
+  test:
+    name: test
+    if: always()
+    needs: [suite, static]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate on every shard
+        run: |
+          echo "suite:  ${{ needs.suite.result }}"
+          echo "static: ${{ needs.static.result }}"
+          if [ "${{ needs.suite.result }}" != "success" ] || [ "${{ needs.static.result }}" != "success" ]; then
+            echo "::error::the test gate is RED — a shard or the static job did not succeed"
+            exit 1
+          fi
+          echo "✓ all 4 shards + static green — their union is the full gate"

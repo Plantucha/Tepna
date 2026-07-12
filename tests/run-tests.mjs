@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
 import { walkRepoPaths } from './docs-ledger-fs.mjs';
+import { planShards, partitionViolations, readTimings } from './shard-plan.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -44,6 +45,42 @@ const GROUP_FILTER = (() => {
   }
   return process.env.DEX_GROUP || process.env.DEX_GROUPS || '';
 })();
+
+/* CI shard (CI-SHARDING): `node tests/run-tests.mjs --shard=1/4` (or DEX_SHARD=1/4) runs only the
+   groups whose DECLARATION INDEX ≡ (shard-1) mod 4 — 1-based on the CLI (`1/4`..`4/4`) because a CI
+   matrix reads naturally 1-based; converted to 0-based for dexShardSelector. Unlike --group, a
+   sharded run IS part of the canonical gate: every group lands in exactly one shard, so the union of
+   all N shards is the full suite (proven by tests/verify-shard-union.mjs, which CI runs). */
+const SHARD = (() => {
+  const a = process.argv.slice(2);
+  let raw = '';
+  for (let i = 0; i < a.length; i++) {
+    const m = a[i].match(/^--?shard=(.+)$/i);
+    if (m) raw = m[1];
+    else if (/^--?shard$/i.test(a[i]) && a[i + 1]) raw = a[i + 1];
+  }
+  raw = raw || process.env.DEX_SHARD || '';
+  if (!raw) return null;
+  const m = String(raw).match(/^(\d+)\s*\/\s*(\d+)$/);
+  if (!m) {
+    console.error(`✗ bad --shard "${raw}" — want i/N, 1-based (e.g. 1/4)`);
+    process.exit(2);
+  }
+  const index = Number(m[1]) - 1,
+    total = Number(m[2]);
+  if (total < 1 || index < 0 || index >= total) {
+    console.error(`✗ bad --shard "${raw}" — need 1 ≤ i ≤ N`);
+    process.exit(2);
+  }
+  return { index, total, label: `${index + 1}/${total}` };
+})();
+
+const SHOW_TIMINGS = process.argv.slice(2).some((s) => /^--?timings?$/i.test(s)) || !!process.env.DEX_TIMINGS;
+/* --list: declare every group, execute NONE (inventory only, ~0 s) — the cheap input to the
+   shard-partition proof. --json: emit machine-readable results instead of the human report; it is
+   what verify-shard-union.mjs --deep diffs full-run vs shard-union with. */
+const LIST_ONLY = process.argv.slice(2).some((s) => /^--?list$/i.test(s));
+const AS_JSON = process.argv.slice(2).some((s) => /^--?json$/i.test(s));
 
 /* ── 1 · build a browser-ish sandbox and load the real modules ───────────── */
 function makeSandbox() {
@@ -646,11 +683,70 @@ function main() {
     manifests: readManifests(),
     releaseLedger: readReleaseLedger(),
     discoverability: readDiscoverability(),
-    groupFilter: GROUP_FILTER || null
+    groupFilter: GROUP_FILTER || null,
+    listOnly: LIST_ONLY
   };
 
   const { runDexTests } = require('./dex-tests.js');
+
+  /* Sharding is a TWO-PASS run, and it is cheap because pass 1 costs nothing: an inventory pass
+     (listOnly) declares all N groups while executing ZERO of them (~0.07 s — every group body is
+     skipped), which hands the planner the full group list. The planner then LPT-packs that list
+     into balanced bins, and pass 2 executes only THIS shard's indices. Every shard process runs
+     the same pure planner over the same inventory, so they agree on the partition with no
+     coordination — and no group can fall between two shards. */
+  if (SHARD) {
+    const inv = runDexTests({ ...env, listOnly: true }).groups.map((g) => ({ index: g.index, title: g.title }));
+    const { bins, weights, unknown } = planShards(inv, readTimings(), SHARD.total);
+    const errs = partitionViolations(inv, bins);
+    if (errs.length) {
+      console.error(paint('✗ shard plan is not a partition — refusing to run a gate that could silently skip a group:', C.red));
+      for (const e of errs) console.error('   · ' + e);
+      process.exit(2);
+    }
+    env.shardIndices = bins[SHARD.index];
+    SHARD.plannedMs = weights[SHARD.index];
+    SHARD.unknown = unknown.length;
+  }
+
   const { groups, totalGroups, groupFilter } = runDexTests(env);
+
+  // Machine-readable lanes (--list inventory / --json results) — no human report, no colour.
+  if (AS_JSON || LIST_ONLY) {
+    console.log(
+      JSON.stringify({
+        totalGroups,
+        listOnly: LIST_ONLY,
+        shard: SHARD ? SHARD.label : null,
+        groupFilter: groupFilter || null,
+        groups: groups.map((g) => ({
+          index: g.index,
+          title: g.title,
+          tag: g.tag,
+          ms: g.ms == null ? null : g.ms,
+          tests: LIST_ONLY ? undefined : g.tests.map((t) => ({ name: t.name, pass: !!t.pass, skip: !!t.skip }))
+        }))
+      })
+    );
+    const failed = LIST_ONLY ? 0 : groups.reduce((a, g) => a + g.tests.filter((t) => !t.pass && !t.skip).length, 0);
+    // exitCode + return, NOT process.exit(): Node's stdout is ASYNC to a pipe (sync only to a file/TTY),
+    // so process.exit() right after a ~140 KB console.log TRUNCATES it mid-write. Redirecting to a file
+    // hid this; spawnSync (a pipe) got a half-written payload and "valid run, unparseable JSON". Setting
+    // exitCode lets the event loop drain stdout, then exits with the same status.
+    process.exitCode = failed ? 1 : 0;
+    return;
+  }
+
+  if (SHARD) {
+    const est = SHARD.plannedMs ? ' · planned ~' + (SHARD.plannedMs / 1000).toFixed(1) + ' s' : '';
+    const unk = SHARD.unknown ? paint('  (' + SHARD.unknown + ' group(s) had no committed timing — balance is a guess for those, coverage is not)', C.yellow) : '';
+    console.log('\n' + paint('▸ SHARD ' + SHARD.label, C.cyan) + paint('  →  ' + groups.length + ' of ' + totalGroups + ' groups' + est, C.dim));
+    console.log(paint('  (cost-balanced partition — the union of all ' + SHARD.total + ' shards IS the full gate; every group runs in exactly one)', C.dim) + unk);
+    if (!groups.length) {
+      console.log(paint('  ✗ shard selected ZERO groups — N exceeds the group count?', C.red));
+      process.exit(2);
+    }
+  }
   if (groupFilter) {
     console.log('\n' + paint('▸ FILTERED RUN', C.yellow) + paint('  --group="' + groupFilter + '"  →  ' + groups.length + ' of ' + totalGroups + ' groups', C.dim));
     console.log(paint('  (dev convenience — NOT the canonical gate; run with no filter for the merge-gate pass)', C.dim));
@@ -683,13 +779,28 @@ function main() {
     }
   }
   console.log(lines.join('\n'));
+
+  // --timings: the slowest groups, and what they cost. This is how the CI shard count gets sized —
+  // a shard can never be faster than its single slowest group, so that number is the real floor.
+  if (SHOW_TIMINGS) {
+    const timed = groups.filter((g) => g.ms != null).sort((a, b) => b.ms - a.ms);
+    const totalMs = timed.reduce((a, g) => a + g.ms, 0);
+    console.log('\n' + paint('▸ slowest groups', C.bold) + paint('  (' + (totalMs / 1000).toFixed(1) + ' s in ' + timed.length + ' groups)', C.dim));
+    for (const g of timed.slice(0, 15)) {
+      const pct = totalMs ? ((100 * g.ms) / totalMs).toFixed(1) : '0.0';
+      console.log('  ' + String(g.ms).padStart(7) + ' ms  ' + paint((pct + '%').padStart(6), C.dim) + '  ' + g.title);
+    }
+  }
+
   // TAP-ish footer for CI log parsers
   console.log('\n' + paint('1..' + n, C.dim));
   const summary = fail
     ? paint('✕ ' + fail + ' failing', C.red) + paint('  ·  ' + pass + ' passing', C.dim) + (skip ? paint('  ·  ' + skip + ' skipped', C.yellow) : '')
     : paint('✓ all ' + pass + ' assertions passed', C.green) + (skip ? paint('  ·  ' + skip + ' skipped', C.yellow) : '');
   console.log(paint('Tepna test suite', C.cyan) + '  ' + summary + paint('  (' + groups.length + ' groups)', C.dim) + (groupFilter ? paint('  [FILTERED — not the full gate]', C.yellow) : ''));
-  process.exit(fail ? 1 : 0);
+  // exitCode, not process.exit() — stdout is async to a PIPE, and CI captures stdout through one, so
+  // exiting immediately after printing the full report can truncate its tail (incl. the summary line).
+  process.exitCode = fail ? 1 : 0;
 }
 
 main();
