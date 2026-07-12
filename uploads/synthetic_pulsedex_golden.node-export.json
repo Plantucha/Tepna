@@ -1,0 +1,60 @@
+{
+  "kernel": null,
+  "schema": {
+    "name": "ganglior.node-export",
+    "version": "2.0",
+    "node": "PulseDex",
+    "nodeVersion": "1.0",
+    "bus": "ganglior",
+    "generated": "2026-07-12T12:26:20.644Z",
+    "provenance": null,
+    "doc": "PulseDex windowed HRV → Ganglior events. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated."
+  },
+  "recording": {
+    "source": "rr",
+    "contentId": "86effda82fe2",
+    "startEpochMs": 1781383490944,
+    "offsetMin": null,
+    "durationMin": 30,
+    "mode": "spot",
+    "modeLabel": "⏱ Spot reading",
+    "longRecording": false,
+    "windows": 0,
+    "beats": 1800,
+    "coveragePct": 100
+  },
+  "hrv": {
+    "time": {
+      "rmssd": 43.29,
+      "sdnn": 32.94,
+      "pnn50": 39,
+      "hr": 60,
+      "meanRR": 1000.3,
+      "lnRMSSD": 3.768
+    },
+    "frequency": {
+      "lf": 1,
+      "hf": 1010,
+      "vlf": 74,
+      "lfhf": 0.001
+    },
+    "poincare": {
+      "sd1": 30.61,
+      "sd2": 35.11
+    }
+  },
+  "summary": {
+    "stress": 46,
+    "hrvScore": 51,
+    "energy": 36,
+    "focus": 44,
+    "snsBal": 0.001,
+    "psnsBal": 1010
+  },
+  "ganglior_events": [],
+  "reserved": {
+    "doc": "Awaiting other fleet nodes; null until available.",
+    "glucoseCorrelation": null,
+    "glucoseSource": "GlucoDex"
+  }
+}

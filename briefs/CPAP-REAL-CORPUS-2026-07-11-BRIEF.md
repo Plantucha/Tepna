@@ -239,7 +239,22 @@ channel then **contradicted**, moving the opposite way and correlating at **r �
 Lesson for the suite: when we ship a causal claim, check whether the node already measures the *precursor* of
 the proposed mechanism, and require it to agree. We had the channel and were not using it (**F1** again).
 
-### M5 — ⚠️ THE FLEET'S EQUIVALENCE GATE DOES NOT RUN IN CI (found 2026-07-12, during P2)
+### M5 — the fleet's equivalence gate did not run in CI ✅ **FIXED 2026-07-12 (P9)**
+
+> **Executed.** Every node now has a **committed, synthetic, vendor-format input**
+> (`tools/make-synthetic-inputs.mjs`) — format reproduced exactly, data never. All six legs now run:
+> `✓ OxyDex / PulseDex / HRVDex / GlucoDex / PpgDex / ECGDex [synthetic].compute() ≡ committed export —
+> byte-identical`. Equivalence group **17 → 38** assertions; GATE B **4 → 10** content-addressed
+> fixtures. The synthetic twins are derived from the real cases programmatically (same node, same
+> run/pick/fixPick), so they cannot drift from what they mirror, and they **add to** the real-recording
+> legs rather than replace them. See `changes/2026-07-12-synthetic-equiv-inputs-ci.md`.
+>
+> **Honest limit:** this makes the gate *execute*; it does not strengthen what it asserts. ECGDex's and
+> PpgDex's exports are event-only and their real fixtures also carry zero events, so those two legs pin
+> `recording.contentId` (a content-fold of the parsed samples — it does catch parser/DSP drift) rather
+> than a rich metric surface. Provoking real events in those two inputs would strengthen them further.
+
+### M5 (as found, during P2)
 
 The single most important finding in this brief, and it was found by accident.
 
@@ -275,7 +290,7 @@ nothing in the suite currently pins it. Deserves a fixture.
 |---|---|---|---|
 | ~~**P1**~~ | ✅ **DONE 2026-07-12** — the lane is on the bus (15 → 30 metrics); F5 rode the same bundle. `manifestHash b7cc3f0256da → e2392eda2d0a`; 4 fixtures regenerated (both `contentId`s unchanged); changeset dropped. No registry/badge work needed (all 15 were already graded). | **high** | med |
 | ~~**P2**~~ | ✅ **DONE 2026-07-12** — binary-EDF equiv leg live (17→20 assertions), via a **committed synthetic** EDF set (no personal data, no device serial). Closes F3 + F6. First fixture with committed, content-addressed INPUT bytes. Surfaced **M5**. | **high** | low |
-| **P9** | **Give every other node a committable synthetic input** (M5) — the fleet's equivalence gate does not currently run in CI at all. | **highest** | med |
+| ~~**P9**~~ | ✅ **DONE 2026-07-12** — every node has a committed synthetic input; the equivalence gate runs in CI for the first time (17 → 38 assertions, GATE B 4 → 10). | **highest** | med |
 | **P3** | `adapters/resmed-edf.js` (F4) — promote the session-grouping rule out of `tools/`. | med | low |
 | **P4** | Fix/retire the `mode` heuristic (F2); decide F6. | med | low |
 | **P5** | **`event-coupling.js`** — the shuffled-null primitive (M1). | **high** | med |

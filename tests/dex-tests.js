@@ -8006,6 +8006,21 @@
           }
         }
       ];
+      // ── P9 — mirror EVERY case above with its SYNTHETIC, COMMITTED twin ────────────────────────
+      // Each case above pairs a node with a REAL recording. Real recordings are gitignored, so on a
+      // fresh clone — i.e. in CI — every one of those diffs ⊘ SKIPS and this gate asserts NOTHING.
+      // (CPAP-REAL-CORPUS-2026-07-11-BRIEF §M5: the suite's strongest correctness gate has been
+      // running only on the maintainer's machine.) The twins use inputs from
+      // tools/make-synthetic-inputs.mjs — same vendor format, no personal data — so they are
+      // COMMITTED and their diffs RUN everywhere. Same node, same run/pick/fixPick; only the input
+      // (and therefore the fixture) differs, so the twin cannot drift from what it mirrors.
+      CASES = CASES.concat(
+        CASES.filter(function (c) {
+          return EQ[c.key + '_synth'];
+        }).map(function (c) {
+          return { key: c.key + '_synth', label: c.label + ' [synthetic]', node: c.node, run: c.run, pick: c.pick, fixPick: c.fixPick };
+        })
+      );
       CASES.forEach(function (c) {
         // Split the precondition: a missing DSP NAMESPACE is a real regression (co-load broke) → FAIL.
         // A missing committed INPUT is expected on a fresh CI clone — uploads/ raw recordings are
