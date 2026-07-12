@@ -4472,6 +4472,98 @@
        oxydex-dsp.js: renderAll (oxydex-render) · setStatus/showError (oxydex-render UI) · setProgress (UI)
        hrvdex-dsp.js: rerender/setStatus (hrvdex-render) · setProgress (hrvdex-app) · getProfile/
                       calcVo2Cat/inferFromData (hrvdex profile inference) ════ */
+    /* ════ PpgDex Web-Worker source must be CLOSED ════
+       The PPG detection worker is a blob: URL minted from an INLINED source string — the deps are
+       re-declared from their own Function.toString() (one source of truth, no algorithm duplicated as
+       a string literal). But that `deps` array is HAND-MAINTAINED, and the worker realm starts EMPTY:
+       anything a shipped function calls but that is not itself shipped is a ReferenceError the moment
+       that path runs.
+
+       It drifted, and the failure was near-silent. The optical-detector fix gave detectBeats an adaptive
+       refractory sourced from cadenceSamples() + the REFR_CADENCE_FRAC constant; neither was added to the
+       worker source. Every PPG detection then threw `ReferenceError: cadenceSamples is not defined` inside
+       the worker, w.onerror fell back to the serial path, and so THE NUMBERS STAYED RIGHT while the worker
+       pool sat dead — all three channels detected on the main thread — and the console filled with uncaught
+       errors. Nothing failed loudly, so nothing caught it: the equiv/headless gates run the serial path and
+       never touch the worker at all.
+
+       So the gate re-derives the closure from the DSP's OWN TEXT: every module-level function or const that
+       worker-shipped code references must itself be shipped. Note BOTH halves — a call-graph check alone
+       misses the const, which is exactly what happened here (only actually running the worker realm found
+       REFR_CADENCE_FRAC). */
+    group('PpgDex worker source is CLOSED — every function + const it references is shipped to the blob', 'ppgdex-dsp · worker · regression', function (T) {
+      var src = (env.sources && env.sources['ppgdex-dsp.js']) || '';
+      T.ok('ppgdex-dsp.js source available to the gate', !!src);
+      if (!src) return;
+
+      var mDeps = src.match(/var\s+deps\s*=\s*\[([^\]]+)\]/);
+      var mConsts = src.match(/var\s+consts\s*=\s*\{([^}]*)\}/);
+      T.ok('the worker deps list is present (var deps=[…])', !!mDeps);
+      T.ok('the worker consts map is present (var consts={…}) — a const does NOT travel with .toString()', !!mConsts);
+      if (!mDeps) return;
+
+      var shipped = {};
+      mDeps[1]
+        .split(',')
+        .map(function (s) {
+          return s.trim();
+        })
+        .filter(Boolean)
+        .forEach(function (n) {
+          shipped[n] = true;
+        });
+      if (mConsts) {
+        var ck = mConsts[1].match(/([A-Za-z_$][\w$]*)\s*:/g) || [];
+        ck.forEach(function (s) {
+          shipped[s.replace(':', '').trim()] = true;
+        });
+      }
+
+      // the module's universe: what EXISTS at module scope but does NOT exist in an empty worker realm
+      var universe = {};
+      var fRe = /^function\s+([A-Za-z_$][\w$]*)\s*\(/gm,
+        m;
+      while ((m = fRe.exec(src))) universe[m[1]] = 'function';
+      var cRe = /^(?:const|let|var)\s+([A-Z_][A-Z0-9_]*)\s*=/gm;
+      while ((m = cRe.exec(src))) universe[m[1]] = 'const';
+
+      // pull each shipped function's own source (balanced braces from its declaration)
+      function bodyOf(name) {
+        var i = src.search(new RegExp('^function\\s+' + name + '\\s*\\(', 'm'));
+        if (i < 0) return '';
+        var d = 0,
+          started = false;
+        for (var k = i; k < src.length; k++) {
+          if (src.charAt(k) === '{') {
+            d++;
+            started = true;
+          } else if (src.charAt(k) === '}') {
+            d--;
+            if (started && d === 0) return src.slice(i, k + 1);
+          }
+        }
+        return '';
+      }
+
+      var missing = [];
+      Object.keys(shipped).forEach(function (dep) {
+        if (universe[dep] !== 'function') return; // consts have no body to scan
+        var body = bodyOf(dep);
+        var idRe = /\b([A-Za-z_$][\w$]*)\b/g,
+          im;
+        while ((im = idRe.exec(body))) {
+          var id = im[1];
+          if (id === dep || shipped[id] || !universe[id]) continue;
+          if (missing.indexOf(id + ' (' + universe[id] + ', referenced by ' + dep + ')') < 0) missing.push(id + ' (' + universe[id] + ', referenced by ' + dep + ')');
+        }
+      });
+
+      T.eq('worker source is CLOSED: nothing it references is left undefined in the blob realm', missing, []);
+      // the two that actually broke — pin them by name so a re-drift is unmistakable
+      T.ok('cadenceSamples is shipped (detectBeats sources the adaptive refractory from it)', !!shipped.cadenceSamples);
+      T.ok('REFR_CADENCE_FRAC is shipped (a module const does NOT travel with Function.toString())', !!shipped.REFR_CADENCE_FRAC);
+    });
+
     group('House-invariant lint · DSP reach-in allow-list (DEV-TOOLCHAIN Part A · A4)', 'house-lint · dev-toolchain · reachin', function (T) {
       var src = env.sources || {};
       var dspFiles = Object.keys(src).filter(function (f) {

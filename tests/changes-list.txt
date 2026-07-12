@@ -11,6 +11,7 @@ change 2026-07-12-efficiency-audit-findings.md
 change 2026-07-12-gate-integrity-and-devloop.md
 change 2026-07-12-hygiene-origins-pooling-badges.md
 change 2026-07-12-ppgdex-pi-and-parse.md
+change 2026-07-12-ppgdex-worker-closure.md
 change 2026-07-12-profiled-hotspots-brief.md
 change 2026-07-12-r5-hr-triplet-reference.md
 change 2026-07-12-spectral-one-scale-no-grid-lottery.md

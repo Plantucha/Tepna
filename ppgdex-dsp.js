@@ -1184,8 +1184,25 @@ function _buildWorkerURL(){
   if(typeof Blob==='undefined' || typeof URL==='undefined' || !URL.createObjectURL) return null;
   // ONE source of truth: the worker re-declares the SAME pure functions from their own
   // .toString() — no algorithm is duplicated as a string literal, so it can't drift.
-  var deps=[biquad,applyBiquad,reverse,filtfilt,bandpass,mean,std,median,movavg,orient,negate,refineFeet,detectBeats,detectChannel];
-  var src = deps.map(function(f){ return f.toString(); }).join('\n')
+  // ⚠️ This list is the worker realm's ENTIRE universe — it starts empty, so a function called by
+  // anything here but NOT listed is a ReferenceError the moment that path runs. It is hand-maintained,
+  // and it DRIFTED: the optical-detector fix gave detectBeats an adaptive refractory sourced from
+  // cadenceSamples(), which was never added — so every PPG detection threw
+  // `ReferenceError: cadenceSamples is not defined` in the worker, fell back to the serial path via
+  // w.onerror, and the numbers stayed right while the worker pool sat dead and the console filled up.
+  // The drift is now gate-backed: dex-tests.js's `PpgDex worker source is CLOSED` group re-derives the
+  // call graph from this file's own text and reds if any callee is missing. ADD A FUNCTION HERE
+  // whenever a worker-reachable path starts calling it.
+  var deps=[biquad,applyBiquad,reverse,filtfilt,bandpass,mean,std,median,movavg,orient,negate,cadenceSamples,refineFeet,detectBeats,detectChannel];
+  // Module-level CONSTANTS the shipped functions close over. Functions carry their own source via
+  // .toString(), but a `const` at module scope does NOT travel with them — detectBeats reads
+  // REFR_CADENCE_FRAC, so without this the worker throws `REFR_CADENCE_FRAC is not defined` even once
+  // every FUNCTION it calls is shipped. (That is the second half of the same drift, and the static
+  // call-graph check alone did not see it — only running the worker realm did.) Still single-sourced:
+  // the VALUE is read from the live module here, never retyped.
+  var consts={ REFR_CADENCE_FRAC:REFR_CADENCE_FRAC };
+  var constSrc = Object.keys(consts).map(function(k){ return 'const '+k+'='+JSON.stringify(consts[k])+';'; }).join('\n');
+  var src = constSrc + '\n' + deps.map(function(f){ return f.toString(); }).join('\n')
     + '\nself.onmessage=function(e){var d=e.data;var chan=new Float32Array(d.buf);'
     + 'var r=detectChannel(chan,d.fs);'
     + 'self.postMessage({idx:d.idx,peaks:r.peaks,feet:r.feet,sign:r.sign,T:r.T,bp:r.bp.buffer},[r.bp.buffer]);};';
