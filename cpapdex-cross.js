@@ -33,7 +33,7 @@
 // CrossNightEnvelope stays OPTIONAL: it is behind a truthiness guard and simply absent
 // under CommonJS, which selects the local (non-envelope) code path by design.
 if (typeof DexKernel === 'undefined' && typeof require !== 'undefined') {
-  try { require('./kernel-constants.js'); } catch (e) { /* browser/bundle realm — already global */ }
+  try { require('./kernel-constants.js'); } catch (_e) { /* browser/bundle realm — already global */ }
 }
 
 const r1=v=>v==null||!isFinite(v)?null:Math.round(v*10)/10;

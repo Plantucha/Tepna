@@ -236,7 +236,7 @@ nothing in the suite currently pins it. Deserves a fixture.
 
 | id | proposal | value | effort |
 |---|---|---|---|
-| ~~**P1**~~ | ✅ **DONE 2026-07-12** — the lane is on the bus (15 → 30 metrics); F5 rode the same bundle. `manifestHash b7cc3f0256da → 1017cee5952a`; 4 fixtures regenerated; changeset dropped. No registry/badge work needed (all 15 were already graded). | **high** | med |
+| ~~**P1**~~ | ✅ **DONE 2026-07-12** — the lane is on the bus (15 → 30 metrics); F5 rode the same bundle. `manifestHash b7cc3f0256da → fd42b95e6602`; 4 fixtures regenerated (both `contentId`s unchanged); changeset dropped. No registry/badge work needed (all 15 were already graded). | **high** | med |
 | **P2** | **Real-EDF equivalence leg** (F3) — closes the fleet's last synthetic-only GATE-C. Harness exists. **Gated on the identifier scrub / synthesize-instead decision.** | **high** | low |
 | **P3** | `adapters/resmed-edf.js` (F4) — promote the session-grouping rule out of `tools/`. | med | low |
 | **P4** | Fix/retire the `mode` heuristic (F2); decide F6. | med | low |

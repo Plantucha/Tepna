@@ -31,7 +31,9 @@
 (function (root) {
 'use strict';
 
-var EDF = (typeof require !== 'undefined') ? require('./cpapdex-edf.js') : (root && root.CpapEdf);
+// Side-effect load only — the reader is reached via CpapEdf/`set.*`, never through this
+// binding, so it is underscore-prefixed to say "intentionally unused" (Biome lint floor).
+var _EDF = (typeof require !== 'undefined') ? require('./cpapdex-edf.js') : (root && root.CpapEdf);
 
 /* ── DISPLAY — always getUTC* (tMs is floating)  (Clock Contract §5) ───────── */
 function _p2(n) { return (n < 10 ? '0' : '') + n; }
