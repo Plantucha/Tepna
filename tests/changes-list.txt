@@ -12,4 +12,6 @@ change 2026-07-12-cpapdex-resmed-adapter-and-mode.md
 change 2026-07-12-equiv-blindspot-closed-and-corrected.md
 change 2026-07-12-event-coupling-primitive.md
 change 2026-07-12-site-badge-drift-and-ppgdex-card.md
+change 2026-07-12-readme-currency.md
+change 2026-07-12-trio-planted-sigma-gate.md
 change 2026-07-12-verity-gate-classifies-failure.md

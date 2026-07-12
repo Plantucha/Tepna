@@ -1591,12 +1591,12 @@
           if (!body) return;
           KEY_RE.lastIndex = 0;
           while ((mm = KEY_RE.exec(body))) {
-            if (DexForget.LOCAL_KEYS.indexOf(mm[1]) < 0) missing[mm[1]] = n;
+            if (DexForget.LOCAL_KEYS.indexOf(mm[1]) < 0 && (DexForget.ANALYSIS_KEYS || []).indexOf(mm[1]) < 0) missing[mm[1]] = n;
           }
         });
         var miss = Object.keys(missing);
         T.ok(
-          'every localStorage key in the app sources is in DexForget.LOCAL_KEYS (no un-erasable data)',
+          'every localStorage key in the sources is ERASABLE — LOCAL_KEYS ∪ ANALYSIS_KEYS (no un-erasable data)',
           miss.length === 0,
           miss
             .map(function (k) {
@@ -4568,6 +4568,56 @@
        correct at 28.8% while 2026-06-29 is wrong at 30.5% — those overlap. The cross-node ratio doesn't.)
 
        Both verdicts still SKIP, so the published σ is untouched. What is gated is the VERDICT. */
+    /* ════ The trio's PLANTED σ is triplicated — the three copies must agree ════
+       SENSOR-TRIO-NIGHTS §181. The power analysis' planted truth (the σ the Monte-Carlo simulates and
+       the paper's whole min-N deliverable is computed at) lives in THREE files: the page
+       (sensor-trio-power-analysis.js), the CPU worker (sensor-trio-worker.js), and the WebGPU lane
+       (sensor-trio-gpu.js). The worker's own comment says "MUST match sensor-trio-power-analysis.js DEV"
+       — and nothing enforced it.
+
+       This is not hypothetical. While regenerating the tables, a stale cached copy left the PAGE on the
+       old hat and the WORKER on the new one: the tool cheerfully REPORTED planted σ = 2.72/1.86/1.94
+       while SIMULATING at 2.60/1.58/1.85, and produced a min-N table that looked plausible and was
+       simply wrong. The failure is silent by construction — the reported truth comes from one copy and
+       the simulated truth from another, so nothing looks amiss.
+
+       So the three are pinned to each other. A drift now reds instead of quietly publishing a table
+       computed at a σ nobody chose. */
+    group('Trio planted σ is single-valued — page ≡ CPU worker ≡ GPU lane', 'sensor-trio · trio · power-analysis', function (T) {
+      var FILES = ['sensor-trio-power-analysis.js', 'sensor-trio-worker.js', 'sensor-trio-gpu.js'];
+      var got = {};
+      var missing = [];
+      FILES.forEach(function (f) {
+        var src = (env.sources && env.sources[f]) || '';
+        if (!src) {
+          missing.push(f);
+          return;
+        }
+        var m = src.match(/sigmaRest:\s*([\d.]+)/g) || [];
+        got[f] = m.slice(0, 3).map(function (x) {
+          return x.replace(/sigmaRest:\s*/, '');
+        });
+      });
+      T.eq('all three planted-σ sources are wired into the gate', missing, []);
+      if (missing.length) return;
+
+      FILES.forEach(function (f) {
+        T.eq(f + ' declares exactly 3 planted σ (o2 / h10 / verity)', got[f].length, 3);
+      });
+
+      // THE assertion: the three copies must be the SAME triple, in the same order.
+      var ref = got[FILES[0]];
+      T.eq('sensor-trio-worker.js (CPU) planted σ ≡ the page’s', got['sensor-trio-worker.js'], ref);
+      T.eq('sensor-trio-gpu.js (WebGPU) planted σ ≡ the page’s', got['sensor-trio-gpu.js'], ref);
+
+      /* The planted σ and the paper's published tables are ONE ATOMIC UNIT — the tables ARE the
+         simulation at this σ. So this pins the value the tables were actually computed at (the
+         10-night hat). Re-fitting to the 15-night hat (2.60/1.58/1.85, which the corpus now supports
+         after the detector fix recovered 5 nights) requires regenerating Tables 1-3 at the paper's
+         stated trial count IN THE SAME CHANGE — see SENSOR-TRIO-NIGHTS §181. Change both, or neither. */
+      T.eq('planted at the hat the published tables were computed at (O2 2.72 / H10 1.86 / Verity 1.94)', ref, ['2.72', '1.86', '1.94']);
+    });
+
     group('Verity gate classifies the FAILURE (detector harmonic vs lost contact), not just rejects it', 'sensor-trio-worker · trio · regression', function (T) {
       var src = (env.sources && env.sources['sensor-trio-worker.js']) || '';
       T.ok('sensor-trio-worker.js source available to the gate', !!src);
