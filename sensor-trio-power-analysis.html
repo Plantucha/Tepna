@@ -172,5 +172,8 @@
   </div>
 </div>
 
+<!-- WebGPU fast lane. Pure accelerator: if WebGPU is absent the page falls back to the
+     existing Web-Worker CPU pool automatically. Must load BEFORE the analysis module. -->
+<script src="sensor-trio-gpu.js"></script>
 <script src="sensor-trio-power-analysis.js"></script>
 </body></html>
