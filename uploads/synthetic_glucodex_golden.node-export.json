@@ -1,0 +1,121 @@
+{
+  "kernel": null,
+  "schema": {
+    "name": "ganglior.node-export",
+    "version": "2.0",
+    "node": "GlucoDex",
+    "nodeVersion": "1.0",
+    "bus": "ganglior",
+    "generated": "2026-07-12T12:26:20.657Z",
+    "provenance": null,
+    "doc": "GlucoDex glycemic events → Ganglior bus. t/tMs = floating wall-clock (UTC getters). null = unknown, never fabricated."
+  },
+  "recording": {
+    "source": "file",
+    "contentId": "43a10df368f9",
+    "startEpochMs": 1777766400000,
+    "events": 3,
+    "clamp": {
+      "detected": false
+    }
+  },
+  "glucose": {
+    "mean": 102,
+    "gmi": 5.8,
+    "ea1c": 5.2,
+    "sd": 15,
+    "cv": 14.4,
+    "tir": {
+      "tbr2": 0,
+      "tbr1": 0,
+      "tir": 100,
+      "tar1": 0,
+      "tar2": 0
+    },
+    "titr": 95.8,
+    "mage": 51,
+    "modd": 0,
+    "adrr": 4.4,
+    "gvp": 8.3,
+    "lbgi": 0.8,
+    "hbgi": 0.2,
+    "pctActive": 100,
+    "tier": "multi-day",
+    "dawn": {
+      "present": false
+    },
+    "daypart": {
+      "total": 14.4,
+      "overnight": {
+        "cv": 1.9,
+        "mean": 99,
+        "n": 216
+      },
+      "morning": {
+        "cv": 14,
+        "mean": 108,
+        "n": 216
+      },
+      "afternoon": {
+        "cv": 18.4,
+        "mean": 102,
+        "n": 216
+      },
+      "evening": {
+        "cv": 15.4,
+        "mean": 101,
+        "n": 216
+      },
+      "windows": {
+        "overnight": "00:00–06:00",
+        "morning": "06:00–12:00",
+        "afternoon": "12:00–18:00",
+        "evening": "18:00–24:00"
+      }
+    }
+  },
+  "ganglior_events": [
+    {
+      "t": "12:55:00",
+      "tMs": 1777812900000,
+      "impulse": "glucose_excursion",
+      "node": "GlucoDex",
+      "conf": 0.95,
+      "meta": {
+        "riseMgdl": 53,
+        "rateMgMin": 1.06,
+        "peak": 147,
+        "meal": "unannotated"
+      }
+    },
+    {
+      "t": "12:55:00",
+      "tMs": 1777899300000,
+      "impulse": "glucose_excursion",
+      "node": "GlucoDex",
+      "conf": 0.95,
+      "meta": {
+        "riseMgdl": 53,
+        "rateMgMin": 1.06,
+        "peak": 147,
+        "meal": "unannotated"
+      }
+    },
+    {
+      "t": "12:55:00",
+      "tMs": 1777985700000,
+      "impulse": "glucose_excursion",
+      "node": "GlucoDex",
+      "conf": 0.95,
+      "meta": {
+        "riseMgdl": 53,
+        "rateMgMin": 1.06,
+        "peak": 147,
+        "meal": "unannotated"
+      }
+    }
+  ],
+  "reserved": {
+    "doc": "Awaiting other fleet nodes; null until available."
+  }
+}
