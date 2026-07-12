@@ -72,6 +72,7 @@
         "glucodex-dsp.js",
         "glucodex-render.js",
         "integrator-dsp.js",
+        "ecgdex-dsp.js",
         "adapters/polar-rr.js"
       ],
       "formatter": { "enabled": false }

@@ -355,7 +355,25 @@ the epoch path already does correctly). **Repro:** `real-diff.mjs`, `ls-grid.mjs
    not proven to move a surfaced number. `remProxyPct` also still denominates on RECORDING time while ECGDex's
    `remFraction` denominates on SLEEP time; moot while the proxy is suppressed, but it must be reconciled if
    the estimator is ever re-derived.
-6. **§12–§16 Integrator** — read-set fixes + the kernel-key mismatch (all consumer-side, cheap)
+6. **§12–§16 Integrator** — ✅ **EXECUTED 2026-07-12.** §12: an incomparable spread is `null`, `qc` is
+   `incomparable`, and the note refuses to claim agreement (`|| 0` no longer turns absence into a measured
+   0 %). §13: the read-chain now knows `glucose.cv` (what the LIGHT ganglior export actually writes — the
+   only file users are told to drop in), and the single-pair fallback **requires the pair to carry a glucose
+   value** — a coupling between two signals cannot be estimated from one of them. §14: HRVDex's
+   `measurements[]` are READ (median), so the HRV node is no longer silently dropped from HRV fusion; its
+   window is labelled `measurementMedian`, **not** `wholeRecord` — a month of Welltory spot readings is not
+   an overnight whole-record value, and tagging it so would let R8's like-window guard stage a false
+   comparison. The exclusion is now REASONED and VISIBLE rather than a silent null. §15: the desat pool is
+   keyed by IMPULSE, not by node label, so CPAPDex/PpgDex `desat_event` streams corroborate apnea (metamorphic:
+   a byte-identical stream used to vanish when only the emitter's label changed). §16: the kernel reader
+   accepts BOTH spellings — so exports already in the wild audit correctly — **and** the three pass-through
+   emitters (ECGDex/PpgDex/GlucoDex) are normalized to the contract `{version, hash}` shape. All three nodes
+   now read `match` instead of `missing`, and a genuine drift is finally distinguishable from the audit's own
+   blindness.
+   **Gated:** a 15-assert group that **reds on the original code** (`kernelHash: null` · HRVDex `rmssd: null`
+   · CPAPDex `apnea = NULL`). Export-inert on the equiv path — **no fixture output moved**.
+   Behavior 2079/2079 · GATE A 8/8 · GATE B 16/16 · biome clean.
+   Changeset: `changes/2026-07-12-integrator-readset-and-kernel-audit.md`.
 7. **§10 + §11** — one gated ECGDex/PpgDex spectral re-bundle (shared call sites, shared fixture cost)
 8. **§17–§21** — hygiene: `exportName()`, null-not-zero, profile origins, ODI pooling, badge coverage
 

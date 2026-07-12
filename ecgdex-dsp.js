@@ -1828,7 +1828,10 @@ function ecgBuildNodeExport(r, opts){
     var c = {}; for (var k in ev){ if (k !== '_sec' && Object.prototype.hasOwnProperty.call(ev, k)) c[k] = ev[k]; } return c;
   });
   var out = {
-    kernel: opts.kernel || null,
+    // DEEP-AUDIT-2026-07-11 §16: NORMALIZE the stamp to the contract shape {version, hash}. Passing
+    // opts.kernel through raw exported the DexKernel object itself ({K, VERSION, HASH}), and the
+    // Integrator reads the lowercase keys — so this node always audited as kernel 'missing'.
+    kernel: (opts.kernel ? { version: (opts.kernel.version != null ? opts.kernel.version : opts.kernel.VERSION) || null, hash: (opts.kernel.hash != null ? opts.kernel.hash : opts.kernel.HASH) || null } : null),
     schema:{ name:'ganglior.node-export', version:'2.0', node:'ECGDex', nodeVersion:'1.0',
       bus:'ganglior', generated:(opts.generated || new Date().toISOString()),
       provenance: opts.provenance || null,
