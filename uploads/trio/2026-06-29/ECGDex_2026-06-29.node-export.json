@@ -21,7 +21,7 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-07-12T00:35:24.633Z",
+    "generated": "2026-07-12T02:16:04.976Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
