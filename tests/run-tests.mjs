@@ -237,9 +237,43 @@ function readEquiv() {
   pair('ppgdex', 'Polar_Sense_BBBBBBBB_20260621_060523_PPG.txt', 'PpgDex_2026-06-27_equiv.node-export.json');
   // ECGDex Phase-9 raw-ECG leg (SIGNAL-ADAPTER-PHASE9-REMAINING-NODES, node 3/4): real Polar H10 *_ECG.txt clip (~6 min, 130 Hz).
   pair('ecgdex', 'Polar_H10_AAAAAAAA_20260617_010615_ECG_clip.txt', 'ECGDex_2026-06-27_equiv.node-export.json');
+  // ── CPAPDex BINARY-EDF equivalence leg (CPAP-REAL-CORPUS-2026-07-11-BRIEF §P2) ──────────────
+  // The fleet's FIRST equiv input that is actually COMMITTED — and therefore the first one whose
+  // diff RUNS IN CI. Every leg above skips on a fresh clone: its input is a real recording, so it
+  // is gitignored, so CI never executes the diff (read the ⊘ reasons). This input is SYNTHETIC
+  // (tools/make-synthetic-edf.mjs — closed-form waveforms, no recording of any person, header
+  // identity fields blank), so it ships in git and the gate has teeth in CI.
+  //
+  // It also retires the FIXTURE-PROVENANCE claim that CPAPDex "can't join" this gate because its
+  // input is a binary multi-file EDF set: an input is just bytes, and readEDF takes an ArrayBuffer.
+  {
+    const KINDS = ['BRP', 'PLD', 'SA2', 'EVE', 'CSL'];
+    const inp = {};
+    let complete = true;
+    for (const k of KINDS) {
+      const p = join(ROOT, 'uploads', `20260613_231433_${k}.edf`);
+      if (!existsSync(p)) {
+        complete = false;
+        break;
+      }
+      const b = readFileSync(p); // binary: no 'utf8'
+      inp[k] = b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+    }
+    const fxP = join(ROOT, 'uploads', 'cpapdex_synthetic_edf_golden.node-export.json');
+    const rec = {};
+    if (complete) rec.input = inp;
+    if (existsSync(fxP)) {
+      try {
+        rec.fixture = JSON.parse(readFileSync(fxP, 'utf8'));
+      } catch (e) {
+        /* unreadable → treat as absent */
+      }
+    }
+    if (rec.input !== undefined || rec.fixture !== undefined) out.cpapdex_edf = rec;
+  }
   // CPAPDex GOLDEN reference (CPAPDEX-PHASE9-FOLLOWUPS-II §1): no INPUT file — the gate rebuilds the
   // deterministic synthetic night from CpapDsp._synthEdfSet in-code; only the committed golden EXPORT is
-  // wired. (CPAPDex can't join the {text}-input CASES above — its real input is a binary multi-file EDF set.)
+  // wired. (Retained: it pins the DECODED-set path, while cpapdex_edf above pins the BINARY-parser path.)
   {
     const fxP = join(ROOT, 'uploads', 'cpapdex_synthetic_golden.node-export.json');
     if (existsSync(fxP)) {

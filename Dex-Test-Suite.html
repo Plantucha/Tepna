@@ -207,6 +207,24 @@ async function main(){
     if (fixture != null) rec.fixture = fixture;
     if (Object.keys(rec).length) equiv[key] = rec;
   };
+  // ── CPAPDex BINARY-EDF leg (CPAP-REAL-CORPUS-2026-07-11-BRIEF §P2) ──────────────────────────
+  // The ONLY equiv input in the repo that is COMMITTED — because it is SYNTHETIC
+  // (tools/make-synthetic-edf.mjs: closed-form waveforms, no recording of any person). Every other
+  // input below is a real recording → gitignored → its leg ⊘ skips on a fresh clone. This one is
+  // present everywhere, so the diff has teeth in CI too. Bytes, not text: ArrayBuffer → readEDF.
+  try {
+    const KINDS = ['BRP', 'PLD', 'SA2', 'EVE', 'CSL'];
+    const bufs = {};
+    for (const k of KINDS) {
+      const r = await fetch('uploads/20260613_231433_' + k + '.edf');
+      if (!r.ok) throw new Error('missing ' + k);
+      bufs[k] = await r.arrayBuffer();
+    }
+    const edfFix = await fetchJSON('uploads/cpapdex_synthetic_edf_golden.node-export.json');
+    setEquiv('cpapdex_edf', bufs, edfFix);
+  } catch (e) {
+    /* absent → the CASES loop self-skips */
+  }
   try {
     const oxyCsv = await fetchText('uploads/' + encodeURIComponent('O2Ring S 2100_20260612230016.csv'));
     const oxyFix = await fetchJSON('uploads/' + encodeURIComponent('OxyDex_2026-06-13_1056_summary.json'));

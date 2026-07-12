@@ -80,7 +80,16 @@ have a clean IQR, so the suite never sees this.
 CPAP-vs-APAP call is available from `pressureRange` + `eprDelta` together rather than a bare IQR cut.
 **Do not surface a per-night mode label without a stability guard.**
 
-### F3 — CPAPDex's synthetic-only equivalence gate: the stated blocker is FALSE
+### F3 — CPAPDex's synthetic-only equivalence gate ✅ **FIXED 2026-07-12 (P2)**
+
+> **Executed — and it exposed something far worse than F3.** The binary-EDF leg now runs
+> (`✓ CPAPDex (binary EDF).compute() ≡ committed export — byte-identical`), driving the full chain the
+> `_synthEdfSet` golden skips: `readEDF` → `buildSessionFromEdf` → `buildNight` → `cpapBuildExport`.
+> The input is a **committed, synthetic** five-file EDF set (`tools/make-synthetic-edf.mjs`) — see **M5**
+> for the discovery that made that the only viable route, and for why it matters far beyond CPAPDex.
+> Also closes **F6**. See `changes/2026-07-12-cpapdex-binary-edf-equiv-gate.md`.
+
+### F3 (as diagnosed) — the stated blocker is FALSE
 
 `FIXTURE-PROVENANCE.json` states:
 
@@ -165,7 +174,13 @@ longitudinal block with no error and no warning.
 `manifestHash` moves**, so this rides P1's bundle pass rather than a standalone one. `tools/cpap-corpus.mjs`
 documents the co-load requirement meanwhile.
 
-### F6 — the SA2 oximetry lane has zero real coverage
+### F6 — the SA2 oximetry lane has zero real coverage ✅ **FIXED 2026-07-12 (rode P2)**
+
+> The synthetic EDF set ships a working SpO₂ channel with genuine desaturations, so the lane finally
+> runs on a gated input: `available:true`, ODI 1.6, nadir 87.1%, 4 desats, self-gate active. Real data
+> could never cover it — the oximeter was simply never connected.
+
+### F6 (as diagnosed)
 
 **217/222** sessions report `oximeter-not-connected`; 5 report `no-spo2-channel`. Every SA2 file parses;
 none carries SpO₂. The self-gated desat lane (`selfGateDesat` / `detectDesats` / `oximetryLane`) has
@@ -224,6 +239,28 @@ channel then **contradicted**, moving the opposite way and correlating at **r �
 Lesson for the suite: when we ship a causal claim, check whether the node already measures the *precursor* of
 the proposed mechanism, and require it to agree. We had the channel and were not using it (**F1** again).
 
+### M5 — ⚠️ THE FLEET'S EQUIVALENCE GATE DOES NOT RUN IN CI (found 2026-07-12, during P2)
+
+The single most important finding in this brief, and it was found by accident.
+
+**All eight** `compute() ≡ committed export` legs **skip on any fresh clone** — i.e. in CI:
+
+```
+⊘ OxyDex / PulseDex / HRVDex / GlucoDex / PpgDex / ECGDex / HRVDex(events) / PulseDex(events)
+  "committed input absent — uploads/ is gitignored (personal data); this leg runs locally with uploads/ present"
+```
+
+Every node's equivalence input is a **real recording**, so it is gitignored, so **CI never executes the
+diff**. The gate CLAUDE.md §🔏 leans on to catch "a code change that moved a fixture's output" — the
+GATE-C surface, the thing that closes the loop GATE B cannot — has been running **only on the
+maintainer's machine**. A regression that moved an export sails through CI green.
+
+The fix is the one P2 stumbled into: **an input that carries no personal data can be committed.** P2's
+synthetic EDF set is the first, and its leg is consequently the **only equivalence diff that runs in CI**.
+
+→ **P9 (new, high value):** synthesize a committable input for every other node, the same way. The
+suite's strongest correctness gate is currently decorative in CI; this makes it real.
+
 ### M4 — the Clock Contract, validated across device families
 
 An EDF-header clock and an O2Ring CSV clock — two unrelated parsers — joined across 39 nights on floating
@@ -237,7 +274,8 @@ nothing in the suite currently pins it. Deserves a fixture.
 | id | proposal | value | effort |
 |---|---|---|---|
 | ~~**P1**~~ | ✅ **DONE 2026-07-12** — the lane is on the bus (15 → 30 metrics); F5 rode the same bundle. `manifestHash b7cc3f0256da → e2392eda2d0a`; 4 fixtures regenerated (both `contentId`s unchanged); changeset dropped. No registry/badge work needed (all 15 were already graded). | **high** | med |
-| **P2** | **Real-EDF equivalence leg** (F3) — closes the fleet's last synthetic-only GATE-C. Harness exists. **Gated on the identifier scrub / synthesize-instead decision.** | **high** | low |
+| ~~**P2**~~ | ✅ **DONE 2026-07-12** — binary-EDF equiv leg live (17→20 assertions), via a **committed synthetic** EDF set (no personal data, no device serial). Closes F3 + F6. First fixture with committed, content-addressed INPUT bytes. Surfaced **M5**. | **high** | low |
+| **P9** | **Give every other node a committable synthetic input** (M5) — the fleet's equivalence gate does not currently run in CI at all. | **highest** | med |
 | **P3** | `adapters/resmed-edf.js` (F4) — promote the session-grouping rule out of `tools/`. | med | low |
 | **P4** | Fix/retire the `mode` heuristic (F2); decide F6. | med | low |
 | **P5** | **`event-coupling.js`** — the shuffled-null primitive (M1). | **high** | med |
