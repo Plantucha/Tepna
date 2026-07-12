@@ -59,21 +59,23 @@
 
 (function () {
   // ── planted device truth — MUST match sensor-trio-worker.js DEV / SD_H_* ──────────
-  const SD_H_REST = 1.35, SD_H_DYN = 0.30;
+  const SD_H_REST = 1.35,
+    SD_H_DYN = 0.3;
   const DEV = {
-    o2:     { resp: 0.45, sigmaRest: 2.72 },
-    h10:    { resp: 1.00, sigmaRest: 1.86 },
-    verity: { resp: 1.00, sigmaRest: 1.94 },
+    o2: { resp: 0.45, sigmaRest: 2.72 },
+    h10: { resp: 1.0, sigmaRest: 1.86 },
+    verity: { resp: 1.0, sigmaRest: 1.94 }
   };
   for (const k in DEV) {
-    const d = DEV[k], sh = d.resp * SD_H_REST;
+    const d = DEV[k],
+      sh = d.resp * SD_H_REST;
     d.sigma0 = Math.sqrt(Math.max(0.04, d.sigmaRest * d.sigmaRest - sh * sh));
   }
-  const DKEYS = ['o2', 'h10', 'verity'];          // shader device order — do not reorder
-  const WG = 64;                                  // workgroup size
-  const MAX_WIN_PER_DISPATCH = 1 << 18;           // keep workgroup count well inside limits
+  const DKEYS = ['o2', 'h10', 'verity']; // shader device order — do not reorder
+  const WG = 64; // workgroup size
+  const MAX_WIN_PER_DISPATCH = 1 << 18; // keep workgroup count well inside limits
 
-  const WGSL = /* wgsl */`
+  const WGSL = /* wgsl */ `
 struct Params {
   n        : u32,          // samples per window
   W        : u32,          // windows in this dispatch
@@ -182,18 +184,34 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
 }
 `;
 
-  let _dev = null, _pipe = null, _initTried = false, _why = 'not initialised';
+  let _dev = null,
+    _pipe = null,
+    _initTried = false,
+    _why = 'not initialised';
 
   async function init() {
     if (_initTried) return !!_dev;
     _initTried = true;
     try {
-      if (typeof navigator === 'undefined' || !navigator.gpu) { _why = 'no navigator.gpu (WebGPU unavailable)'; return false; }
+      if (typeof navigator === 'undefined' || !navigator.gpu) {
+        _why = 'no navigator.gpu (WebGPU unavailable)';
+        return false;
+      }
       const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
-      if (!adapter) { _why = 'no WebGPU adapter granted'; return false; }
+      if (!adapter) {
+        _why = 'no WebGPU adapter granted';
+        return false;
+      }
       const dev = await adapter.requestDevice();
-      if (!dev) { _why = 'no WebGPU device'; return false; }
-      dev.addEventListener?.('uncapturederror', (e) => { try { console.warn('[TrioGPU]', e.error?.message || e); } catch (_) {} });
+      if (!dev) {
+        _why = 'no WebGPU device';
+        return false;
+      }
+      dev.addEventListener?.('uncapturederror', (e) => {
+        try {
+          console.warn('[TrioGPU]', e.error?.message || e);
+        } catch (_) {}
+      });
 
       // A WGSL compile error does NOT throw from createComputePipeline — it surfaces
       // asynchronously. Without this check a broken shader reports "ok" and then writes
@@ -212,7 +230,11 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
       dev.pushErrorScope('validation');
       _pipe = dev.createComputePipeline({ layout: 'auto', compute: { module: mod, entryPoint: 'main' } });
       const vErr = await dev.popErrorScope();
-      if (vErr) { _why = 'pipeline validation: ' + vErr.message; _pipe = null; return false; }
+      if (vErr) {
+        _why = 'pipeline validation: ' + vErr.message;
+        _pipe = null;
+        return false;
+      }
 
       _dev = dev;
 
@@ -223,17 +245,20 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
         const probe = await _dispatch(256, { regime: 'resting', rho: 0, N: 1, t0: 0, winSec: 600, ar1: 0.9, stream: 2 });
         let ok = 0;
         for (let w = 0; w < 256; w++) {
-          const s = probe[w * 3 + 1];                    // h10 corner, planted sigma0 ~1.19
+          const s = probe[w * 3 + 1]; // h10 corner, planted sigma0 ~1.19
           if (isFinite(s) && s > 0.3 && s < 6) ok++;
         }
-        if (ok < 200) {                                   // expect nearly all windows to solve
+        if (ok < 200) {
+          // expect nearly all windows to solve
           _why = `smoke test failed — only ${ok}/256 windows produced a plausible sigma`;
-          _dev = null; _pipe = null;
+          _dev = null;
+          _pipe = null;
           return false;
         }
       } catch (e) {
         _why = 'smoke test threw: ' + ((e && e.message) || e);
-        _dev = null; _pipe = null;
+        _dev = null;
+        _pipe = null;
         return false;
       }
 
@@ -242,7 +267,8 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
       return true;
     } catch (e) {
       _why = (e && e.message) || String(e);
-      _dev = null; _pipe = null;
+      _dev = null;
+      _pipe = null;
       return false;
     }
   }
@@ -255,17 +281,26 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
 
     // uniform: 11 scalars then three vec3 (each 16-byte aligned in std140-ish WGSL layout)
     const ub = new ArrayBuffer(96);
-    const u32 = new Uint32Array(ub), f32 = new Float32Array(ub);
-    u32[0] = winSec; u32[1] = nWin; u32[2] = dyn ? 1 : 0; u32[3] = stream;
-    u32[4] = t0; u32[5] = Math.max(1, N);
-    f32[6] = ar1; f32[7] = b; f32[8] = rho; f32[9] = SD_H_DYN; f32[10] = SD_H_REST;
+    const u32 = new Uint32Array(ub),
+      f32 = new Float32Array(ub);
+    u32[0] = winSec;
+    u32[1] = nWin;
+    u32[2] = dyn ? 1 : 0;
+    u32[3] = stream;
+    u32[4] = t0;
+    u32[5] = Math.max(1, N);
+    f32[6] = ar1;
+    f32[7] = b;
+    f32[8] = rho;
+    f32[9] = SD_H_DYN;
+    f32[10] = SD_H_REST;
     // vec3 members start at the next 16-byte boundary: byte 48, 64, 80
     for (let i = 0; i < 3; i++) {
       const d = DEV[DKEYS[i]];
-      const corr = (DKEYS[i] === 'h10' || DKEYS[i] === 'verity') ? rho : 0;
-      f32[12 + i] = d.resp;                                  // resp  @48
-      f32[16 + i] = d.sigma0 * Math.sqrt(1 - corr);          // sInd  @64
-      f32[20 + i] = d.sigma0 * Math.sqrt(corr);              // sCor  @80
+      const corr = DKEYS[i] === 'h10' || DKEYS[i] === 'verity' ? rho : 0;
+      f32[12 + i] = d.resp; // resp  @48
+      f32[16 + i] = d.sigma0 * Math.sqrt(1 - corr); // sInd  @64
+      f32[20 + i] = d.sigma0 * Math.sqrt(corr); // sCor  @80
     }
 
     const uBuf = _dev.createBuffer({ size: 96, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -277,7 +312,10 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
 
     const bind = _dev.createBindGroup({
       layout: _pipe.getBindGroupLayout(0),
-      entries: [{ binding: 0, resource: { buffer: uBuf } }, { binding: 1, resource: { buffer: sBuf } }],
+      entries: [
+        { binding: 0, resource: { buffer: uBuf } },
+        { binding: 1, resource: { buffer: sBuf } }
+      ]
     });
 
     const enc = _dev.createCommandEncoder();
@@ -292,11 +330,17 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     await rBuf.mapAsync(GPUMapMode.READ);
     const out = new Float32Array(rBuf.getMappedRange().slice(0));
     rBuf.unmap();
-    uBuf.destroy(); sBuf.destroy(); rBuf.destroy();
+    uBuf.destroy();
+    sBuf.destroy();
+    rBuf.destroy();
     return out;
   }
 
-  const median = (a) => { const s = a.slice().sort((p, q) => p - q), n = s.length; return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2; };
+  const median = (a) => {
+    const s = a.slice().sort((p, q) => p - q),
+      n = s.length;
+    return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+  };
 
   /**
    * Same contract as sensor-trio-worker.js runCell → { med, negCount, negTot }.
@@ -319,9 +363,11 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
         for (let w = 0; w < N; w++) {
           const base = (t * N + w) * 3;
           for (let ki = 0; ki < 3; ki++) {
-            const k = DKEYS[ki], v = sig[base + ki];
+            const k = DKEYS[ki],
+              v = sig[base + ki];
             negTot[k]++;
-            if (v > 0) per[k].push(v); else negCount[k]++;
+            if (v > 0) per[k].push(v);
+            else negCount[k]++;
           }
         }
         for (const k of DKEYS) if (per[k].length) med[k].push(median(per[k]));
@@ -333,13 +379,14 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
 
   /** ρ-leg: per-window negative-variance count over M single windows (resting). */
   async function runRho(rho, ri, t0, count, ar1, winSec) {
-    let neg = 0, done = 0;
+    let neg = 0,
+      done = 0;
     while (done < count) {
       const nWin = Math.min(MAX_WIN_PER_DISPATCH, count - done);
       const sig = await _dispatch(nWin, { regime: 'resting', rho, N: 1, t0: t0 + done, winSec, ar1, stream: 3 + ri });
       for (let w = 0; w < nWin; w++) {
         const b = w * 3;
-        if (sig[b] <= 0 || sig[b + 1] <= 0 || sig[b + 2] <= 0) neg++;   // .neg = ANY corner non-positive
+        if (sig[b] <= 0 || sig[b + 1] <= 0 || sig[b + 2] <= 0) neg++; // .neg = ANY corner non-positive
       }
       done += nWin;
     }
@@ -350,7 +397,11 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     init,
     runCell,
     runRho,
-    get ready() { return !!_dev; },
-    get why() { return _why; },
+    get ready() {
+      return !!_dev;
+    },
+    get why() {
+      return _why;
+    }
   };
 })();
