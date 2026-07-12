@@ -1833,18 +1833,24 @@
         T.ok('hrvdex-render.js source provided', false, 'runner passed no hrvdex-render.js');
         return;
       }
+      // NOTE (BIOME-FORMATTER): these are SOURCE-TEXT assertions, so they must not encode the
+      // formatter's whitespace. They were originally written against the un-formatted file
+      // (`p=>Number.isFinite(...)`) and broke the moment Biome reformatted it to `(p) => Number...`
+      // — a false red on a semantics-preserving reformat. Every pattern below tolerates optional
+      // arrow parens and arbitrary whitespace, so it tracks the PROPERTY (null-safety) and not the
+      // layout. Keep them whitespace-agnostic when editing.
       // (a) correlation SCATTER filters points with Number.isFinite (drops null/NaN, keeps a real 0)
-      T.ok('scatter explorer uses Number.isFinite on both axes (drops null, keeps 0)', /filter\(p=>Number\.isFinite\(p\.x\)\s*&&\s*Number\.isFinite\(p\.y\)\)/.test(rnd));
-      T.ok('scatter explorer no longer uses global isFinite(p.x) (which passes null as 0)', !/filter\(p=>isFinite\(p\.x\)\s*&&\s*isFinite\(p\.y\)\)/.test(rnd));
+      T.ok('scatter explorer uses Number.isFinite on both axes (drops null, keeps 0)', /filter\(\s*\(?\s*p\s*\)?\s*=>\s*Number\.isFinite\(p\.x\)\s*&&\s*Number\.isFinite\(p\.y\)\s*\)/.test(rnd));
+      T.ok('scatter explorer no longer uses global isFinite(p.x) (which passes null as 0)', !/=>\s*isFinite\(p\.x\)/.test(rnd));
       // (b) WEEKDAY distribution presence test is typeof-number (drops null/NaN, keeps a real 0)
-      T.ok('weekday distribution presence test is typeof-number', /const v=r\[key\];\s*if\(!\(typeof v==='number'\s*&&\s*isFinite\(v\)\)\)\s*return;/.test(rnd));
-      T.ok('weekday distribution no longer uses bare if(!isFinite(v)) (which passes null)', !/const v=r\[key\];\s*if\(!isFinite\(v\)\)\s*return;/.test(rnd));
+      T.ok('weekday distribution presence test is typeof-number', /const v\s*=\s*r\[key\];\s*if\s*\(\s*!\(\s*typeof v\s*===\s*'number'\s*&&\s*isFinite\(v\)\s*\)\s*\)\s*return;/.test(rnd));
+      T.ok('weekday distribution no longer uses bare if(!isFinite(v)) (which passes null)', !/const v\s*=\s*r\[key\];\s*if\s*\(\s*!isFinite\(v\)\s*\)\s*return;/.test(rnd));
       // (c) _patPearson guards pair members with Number.isFinite — the heatmap feeds it RAW nullable
       //     series (renderHeatmap: rows.map(r=>r[k])), so global isFinite would bias r via null→0.
-      T.ok('_patPearson uses Number.isFinite on pair members (heatmap raw-series safe)', /if\(Number\.isFinite\(xs\[i\]\)\s*&&\s*Number\.isFinite\(ys\[i\]\)\)/.test(rnd));
+      T.ok('_patPearson uses Number.isFinite on pair members (heatmap raw-series safe)', /if\s*\(\s*Number\.isFinite\(xs\[i\]\)\s*&&\s*Number\.isFinite\(ys\[i\]\)\s*\)/.test(rnd));
       // (d) numeric table formatters guard null before toFixed → renderTable fmt(_sdnn/_rmssd) can't
       //     hit null.toFixed() (isNaN(null)===false would have crashed). A real 0 still formats.
-      var fmtGuards = (rnd.match(/const fmt[0-4]=v=>\(v==null\|\|isNaN\(v\)\)\?/g) || []).length;
+      var fmtGuards = (rnd.match(/const fmt[0-4]\s*=\s*\(?\s*v\s*\)?\s*=>\s*\(?\s*v\s*==\s*null\s*\|\|\s*isNaN\(v\)/g) || []).length;
       T.eq('all five fmt0–fmt4 helpers guard null before toFixed', fmtGuards, 5);
       // (e) the KPI/hero num() helpers were ALREADY correct (v != null && !isNaN(v)) — locked, unchanged
       T.ok('hero/bench num() helper keeps its correct (v != null && !isNaN(v)) form', /v != null && !isNaN\(v\)/.test(rnd));
@@ -1969,6 +1975,77 @@
     });
 
     /* ════ 12 · ECGDex respRate aggregation — median, not HF-peak (whole-record scalar) ════ */
+    /* DEEP-AUDIT-2026-07-11 §10/§11 — the exported spectrum must sit on ONE time scale, and its band
+       split must not hang on an arbitrary internal constant.
+       §10: ECGDex built hf/lf from 5-MIN EPOCH MEDIANS, then OVERWROTE tp and vlf with a WHOLE-NIGHT
+            transform. Four numbers, one block, two time scales: on a real 7.26 h night vlf+lf+hf = 5060
+            but totalPower = 5674 — the Task-Force identity broken by 11 % — and two irreconcilable
+            "HF n.u." fell out of the same export. PpgDex shipped the whole-record values while ALREADY
+            computing the scale-matched epoch medians, which also inflated the Integrator's cross-node
+            divergence with a pure definition mismatch.
+       §11: that whole-record band split is a GRID LOTTERY. A night's intrinsic resolution is 1/T ≈ 3.8e-5
+            Hz, ~50× finer than the fixed grid, so the sum samples a spiky periodogram at arbitrary points.
+            Changing ONLY the bin count swung LF/HF 1.747 → 2.265 → 2.51 (nf = 219/220/221) — 44 % — and it
+            does not converge. Parseval pins the TOTAL to the variance, which is why it looked fine: it is
+            the SPLIT that floats. At the 5-min scale the grid is adequate BY CONSTRUCTION, so both die
+            together. */
+    group('ECGDex/PpgDex §10/§11 — one spectral time scale; the band split is not a grid lottery', 'ecgdex-dsp · ppgdex-dsp · spectral', function (T) {
+      var E = env.ECGDSP;
+      if (!E || typeof E.genSynthetic !== 'function' || typeof E.analyze !== 'function') {
+        T.ok('env.ECGDSP.genSynthetic + analyze available', false, 'not wired — gate skipped');
+        return;
+      }
+      // a LONG record (≥3 five-minute epochs) so the epoch/longRec spectral path actually runs
+      var rec = E.genSynthetic({ durSec: 100 * 60 }); // > the 90-min longRec threshold
+      var r = E.analyze(rec);
+      T.ok('§10 · a long record takes the epoch path', r.longRec === true, 'durMin=' + r.durMin);
+      T.eq('§10 · the exported spectrum names its scale', r.specWindow, 'epochMedian5min');
+      T.ok(
+        '§10 · all four bands are present (vlf/lf/hf/totalPower)',
+        [r.vlf, r.lf, r.hf, r.tp].every(function (v) {
+          return typeof v === 'number' && isFin(v);
+        }),
+        JSON.stringify({ vlf: r.vlf, lf: r.lf, hf: r.hf, tp: r.tp })
+      );
+      T.eq('§10 · TASK-FORCE IDENTITY: vlf + lf + hf == totalPower (one scale, by construction)', r.vlf + r.lf + r.hf, r.tp);
+
+      /* §11 · the CONTROL. The whole-record transform this export used to ship is still available — show
+         that on THIS record its band split really does move with an arbitrary bin count, so the fix above
+         is not vacuously passing on an input where the lottery never bites. */
+      var nn = r.nn || r.NN || null;
+      if (nn && nn.length > 600) {
+        var tt = [],
+          acc = 0,
+          i;
+        for (i = 0; i < nn.length; i++) {
+          acc += nn[i] / 1000;
+          tt.push(acc);
+        }
+        var a = E.lombScargle(nn, tt, 219),
+          b = E.lombScargle(nn, tt, 220),
+          c = E.lombScargle(nn, tt, 221);
+        var lfhf = [a.lfhf, b.lfhf, c.lfhf];
+        var spread = (Math.max.apply(null, lfhf) - Math.min.apply(null, lfhf)) / Math.min.apply(null, lfhf);
+        T.ok(
+          '§11 · (control) the WHOLE-RECORD split really is bin-count dependent on this record',
+          spread > 0.02,
+          'LF/HF at nf=219/220/221 = ' + lfhf.join(' / ') + '  (spread ' + (100 * spread).toFixed(1) + '%)'
+        );
+        T.ok('§11 · …and the EXPORT no longer depends on it (it reports the 5-min epoch median)', r.specWindow === 'epochMedian5min');
+      }
+
+      // PpgDex — same invariant on its own export
+      var P = env.PpgDex;
+      if (P && typeof P.compute === 'function' && env.equiv && env.equiv.ppgdex && env.equiv.ppgdex.input) {
+        var pr = P.compute({ text: env.equiv.ppgdex.input }, { rich: true });
+        var pf = pr && pr.hrv && pr.hrv.frequency;
+        T.ok('§10 · PpgDex exports a frequency block with a named window', !!(pf && pf.window), JSON.stringify(pf && pf.window));
+        if (pf && pf.totalPower != null) {
+          T.eq('§10 · PpgDex TASK-FORCE IDENTITY: vlf + lf + hf == totalPower', (pf.vlf || 0) + (pf.lf || 0) + (pf.hf || 0), pf.totalPower);
+        }
+      }
+    });
+
     group('ECGDex respRate aggregation (median, not HF-peak)', 'ecgdex-dsp', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.analyze === 'function' && typeof D.genSynthetic === 'function')) {
@@ -2683,6 +2760,180 @@
         );
       }
     });
+
+    /* DEEP-AUDIT-2026-07-11 §17–§21 — the hygiene tier. Each is small; each shipped a number or a
+       claim that was not true.
+       §17 OverDex stamped an UNDATED export with the date of the export CLICK (a Clock-Contract
+           fabrication integrator-app.js had already dropped by name).
+       §18 OxyDex reported "Coupling 0 %" (red) on a night with ZERO desaturations — 0/0 is UNDEFINED,
+           and the renderer's own guard was already written expecting null.
+       §19 A user who entered NOTHING got BMI 28.8 "Overweight" and VO₂max "Good · 50th pct" as
+           findings about them, and the ECGDex export shipped those population defaults under the note
+           "null = left on auto/default" — which those six fields could never be. The cascade HAD the
+           origin all along ('pop'); derive() and every export writer dropped it.
+       §20 CPAPDex averaged per-session ODI/T90 RATES, so a 40-min nap weighed as much as a 6-h sleep
+           (a real 6.38 h + 0.68 h night: ODI 5.97 vs the pooled truth 3.68). residualAHI next to it
+           pools correctly — this is the same arithmetic.
+       §21 Four hero numbers rendered unbadged while their own subscores were badged; two cards typed
+           the ladder word "validated" into a status-HUE pill; OverDex rendered a fused clinical KPI
+           grid with NO badge engine loaded; and `.ev-corner` — the mandate's card placement — existed
+           in the CSS mirror but NOT in the engine, so no app could actually use it. */
+    group(
+      '§17-§21 hygiene — no fabricated date, no 0-for-undefined, no pop-default-as-you, pooled indices, badged heroes',
+      'oxydex-dsp · cpapdex-fusion · dex-profile · metric-registry · badges',
+      function (T) {
+        var S = env.sources || {};
+
+        // ── §18 · a night with NO desaturations has an UNDEFINED coupling, not 0 % ───────────────────
+        var OD = env.OxyDex;
+        if (OD && typeof OD.compute === 'function') {
+          var p2 = function (v) {
+            return v < 10 ? '0' + v : '' + v;
+          };
+          var t0 = Date.UTC(2026, 5, 12, 22, 0, 0),
+            L = ['Time,Oxygen Level,Pulse Rate,Motion'];
+          // A FLAT, healthy night: SpO₂ pinned at 97 %, HR pinned at 58 → not one ODI-4 nadir exists.
+          for (var s = 0; s < 4 * 3600; s++) {
+            var d = new Date(t0 + s * 1000);
+            L.push(p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds()) + ' ' + p2(d.getUTCDate()) + '/' + p2(d.getUTCMonth() + 1) + '/' + d.getUTCFullYear() + ',97,58,0');
+          }
+          var flat = OD.compute({ text: L.join('\n'), filename: 'flat.csv' });
+          var fn = flat.nights && flat.nights[0];
+          if (fn && fn.composite && fn.desatProfile) {
+            T.eq('§18 · premise — the flat night really has zero ODI-4 nadirs', fn.desatProfile.nadir.count, 0);
+            T.ok('§18 · coupling on a night with no desats is null (UNDEFINED), not a measured 0 %', fn.composite.couplingScore === null, 'got ' + JSON.stringify(fn.composite.couplingScore));
+          } else {
+            T.ok('§18 · flat night computes with composite+desatProfile', false, 'nights=' + (flat.nights ? flat.nights.length : 'none'));
+          }
+        } else {
+          T.ok('§18 · env.OxyDex.compute available', false, 'not wired — gate skipped');
+        }
+
+        // ── §20 · ODI/T90 POOL over analyzed hours; they are not a mean of the rates ─────────────────
+        var CF = env.CpapFusion;
+        if (CF && typeof CF.cpapCrossMetrics === 'function') {
+          // A real two-session night: a long sleep + a short nap. Per-session RATES differ sharply, so
+          // the unweighted mean and the pooled truth cannot coincide by accident.
+          //   A: 6.38 h · 30 desats → 4.70 /h      B: 0.68 h · 5 desats → 7.35 /h
+          //   unweighted mean = 6.03 /h   ·   POOLED = 35 / 7.06 = 4.96 /h
+          var night = {
+            metrics: { residualAHI: 4.2 },
+            sessions: [
+              { oximetry: { available: true, odi: 4.7, desatCount: 30, analyzedHours: 6.38, t90Pct: 10, validSamples: 22968, below90Samples: 2296.8 } },
+              { oximetry: { available: true, odi: 7.35, desatCount: 5, analyzedHours: 0.68, t90Pct: 25, validSamples: 2448, below90Samples: 612 } }
+            ]
+          };
+          var x = CF.cpapCrossMetrics(night);
+          T.eq('§20 · night ODI pools desats over analyzed hours (35 ÷ 7.06)', x.odi, 4.96);
+          T.ok('§20 · and is NOT the unweighted mean of the per-session rates (6.03)', Math.abs(x.odi - 6.03) > 0.5, 'got ' + x.odi);
+          T.eq('§20 · T90 pools over VALID SAMPLES (its own denominator), not over sessions', x.t90, 11.44);
+          // CONTROL: a single-session night is unchanged by pooling — the fix cannot pass vacuously.
+          var one = CF.cpapCrossMetrics({ metrics: { residualAHI: 4.2 }, sessions: [night.sessions[0]] });
+          T.eq('§20 · control — a single-session night still reports its own rate', one.odi, 4.7);
+        } else {
+          T.ok('§20 · env.CpapFusion.cpapCrossMetrics available', false, 'not wired — gate skipped');
+        }
+
+        // ── §19 · a population default is never presented as the user's own value ────────────────────
+        var P = env.DexProfile;
+        if (P && typeof P._setStore === 'function' && typeof P.derive === 'function') {
+          var mk = function () {
+            var m = {};
+            return {
+              getItem: function (k) {
+                return k in m ? m[k] : null;
+              },
+              setItem: function (k, v) {
+                m[k] = String(v);
+              },
+              removeItem: function (k) {
+                delete m[k];
+              }
+            };
+          };
+          P._setStore(mk()); // a PRISTINE record — the user has entered nothing at all
+          var d0 = P.derive(P.get()) || {};
+          var b0 = d0.basis || {},
+            o0 = d0.origins || {};
+          T.ok('§19 · derive() now REPORTS the provenance of its inputs (it used to drop it)', !!d0.basis && !!d0.origins, 'basis/origins missing');
+          T.eq('§19 · an empty profile is not personalized', d0.personalized, false);
+          T.eq('§19 · BMI from an empty profile is flagged as a POPULATION estimate', b0.bmi, 'pop');
+          T.eq('§19 · so is the VO₂ category ("Good · 50th pct" for someone we know nothing about)', b0.vo2Cat, 'pop');
+          T.ok('§19 · sex is no longer claimed as "your value" when nobody chose one', o0.sex === 'pop', 'origin=' + o0.sex);
+          // Now the user actually fills the panel in — the SAME numbers become genuinely theirs.
+          P._setStore(mk());
+          P.setManual('age', 31);
+          P.setManual('sex', 'F');
+          P.setManual('weight', 62);
+          P.setManual('height', 168);
+          var d1 = P.derive(P.get()) || {};
+          var b1 = d1.basis || {};
+          T.eq("§19 · an ENTERED weight+height makes BMI the user's own value", b1.bmi, 'you');
+          T.eq('§19 · and the profile reports itself personalized', d1.personalized, true);
+          T.ok('§19 · the derived number itself still computes (the fix marks provenance, it does not blank the math)', d1.bmi > 20 && d1.bmi < 25, 'bmi=' + d1.bmi);
+          P._setStore(mk()); // leave no state behind for other groups
+        } else {
+          T.ok('§19 · env.DexProfile._setStore + derive available', false, 'not wired — gate skipped');
+        }
+
+        // ── §17 · OverDex names an undated export 'undated', never with today's date ─────────────────
+        if (typeof env.exportName === 'function') {
+          T.eq('§17 · a fusion window with no start yields an UNDATED name', env.exportName({ node: 'OverDex', t0Ms: null, kind: 'summary', ext: 'json' }), 'OverDex_undated_summary.json');
+        }
+        var oa = S['overdex-app.js'];
+        if (oa) {
+          T.ok('§17 · overdex-app.js no longer stamps the export with the date of the CLICK', !/new Date\(\)\.toISOString\(\)/.test(oa), 'a now() fabrication is still in the export path');
+          T.ok('§17 · it names the export through the shared exportName()', /exportName\(\{\s*node:\s*'OverDex'/.test(oa));
+        }
+
+        // ── §21 · badge coverage: heroes, the counterfeit pill, the engine's corner placement ────────
+        var MR = env.MetricRegistry;
+        if (MR && MR.BADGE_CSS) {
+          T.ok("§21 · the ENGINE now defines .ev-corner — the mandate's card placement (it lived only in the CSS mirror, which apps do not load)", /\.ev-corner\s*\{/.test(MR.BADGE_CSS));
+          T.ok('§21 · and .readiness-hero is a positioning context, so a hero can host one', /\.readiness-hero\s*\{[^}]*position:\s*relative/.test(MR.BADGE_CSS));
+        }
+        // every hero number in the fleet now carries a badge
+        var HEROES = [
+          ['hrvdex-render.js', 'HRV Score'],
+          ['pulsedex-overview.js', 'HRV Score'],
+          ['oxydex-render.js', 'Recovery Readiness'],
+          ['cpapdex-render.js', 'residualAHI']
+        ];
+        HEROES.forEach(function (h) {
+          var src = S[h[0]];
+          if (!src) return;
+          T.ok('§21 · ' + h[0] + ' badges its hero number (.ev-corner + evBadge)', /ev-corner/.test(src) && src.indexOf(h[1]) >= 0, 'hero still unbadged');
+        });
+        // the ladder is NEVER hand-typed into a status-hue pill
+        ['hrvdex-render.js', 'pulsedex-overview.js', 'oxydex-render.js', 'cpapdex-render.js', 'glucodex-render.js', 'integrator-render.js'].forEach(function (f) {
+          var src = S[f];
+          if (!src) return;
+          T.ok(
+            '§21 · ' + f + ' types no ladder word into a proj-badge pill',
+            !/proj-badge[^>]*>\s*(measured|validated|emerging|experimental|heuristic)\s*</.test(src),
+            'a counterfeit evidence pill is still rendered'
+          );
+        });
+        // OverDex renders a fused clinical KPI grid — it must load the engine and badge them
+        if (oa) {
+          T.ok('§21 · OverDex badges its fused KPI grid through MetricRegistry.badge', /MetricRegistry/.test(oa) && /statBadge/.test(oa), 'the fused KPI grid is still unbadged');
+        }
+        var oh = (env.hosts || {})['OverDex.html'];
+        if (oh) {
+          T.ok('§21 · the shipped OverDex bundle actually carries the badge engine', /MetricRegistry\s*=/.test(oh), 'metric-registry.js is not inlined into OverDex.html');
+        }
+
+        // ── §21 · an ABSENT vendor HRV Score is null, never a real-looking 0 ─────────────────────────
+        var HX = env.HRVDex;
+        if (HX && typeof HX.parseSummaryCSV === 'function') {
+          var noScore = 'Date,rMSSD,SDNN\n2026-06-12 08:00:00,42,55';
+          var rr = HX.parseSummaryCSV(noScore);
+          if (rr && rr.length) {
+            T.ok('§21 · a Welltory file with NO "HRV Score" column reads null, not 0 ("Strained · Prioritize rest")', rr[0]._hrv === null, 'got ' + JSON.stringify(rr[0]._hrv));
+          }
+        }
+      }
+    );
 
     group('Integrator ingests the GlucoDex export end-to-end (GLUCODEX-FOLLOWUPS §3)', 'glucodex-dsp · integrator-dsp', function (T) {
       var A = env.adaptEnvelopeNode;

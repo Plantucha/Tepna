@@ -3551,7 +3551,11 @@
       // proxy: if spike count ≥ 30% of nadir events → coupling present
       coupledCount = Math.min(spikes.length, nadirEvents);
     }
-    var couplingScore = nadirEvents > 0 ? +((coupledCount / nadirEvents) * 100).toFixed(0) : 0;
+    // With no nadirs the ratio is 0/0 — UNDEFINED, not 0 %. A literal 0 rendered as a real
+    // measurement ("Coupling 0 %", red) on a night that simply had nothing to couple; the
+    // renderer's own guard (oxydex-render.js `cp.couplingScore != null`) was already written
+    // expecting null. DEEP-AUDIT §18.
+    var couplingScore = nadirEvents > 0 ? +((coupledCount / nadirEvents) * 100).toFixed(0) : null;
 
     // Sleep Fragmentation Index: (WASO + HR spikes + osc episodes) / hr
     var wasoWin = motSleep ? motSleep.wasoWindows : 0;

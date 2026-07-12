@@ -100,7 +100,10 @@ function _hrvParseSummaryRows(text) {
     r._sns = parseFloat(r['ANS balance(SNS)']||r['SNS']||0);
     r._psns = parseFloat(r['ANS balance(PSNS)']||r['PSNS']||0);
     r._coherence = parseFloat(r['Coherence index']||r['Coherence']||0);
-    r._hrv = parseFloat(r['HRV Score']||r['HRV']||0);
+    // DEEP-AUDIT §21 — `||0` turned an ABSENT vendor score into a real-looking 0, which the hero
+    // rendered as a genuine reading ("0 · Strained · Prioritize rest") for a file that simply never
+    // carried the column. Absence is null; the renderer already prints '—' for null.
+    r._hrv = numOrNull(r['HRV Score'] != null && String(r['HRV Score']).trim() !== '' ? r['HRV Score'] : r['HRV']);
     r._cv = numOrNull(r['CV']);
     if(isFinite(r._tMs)) rows.push(r);
   }

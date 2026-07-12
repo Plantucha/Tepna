@@ -818,7 +818,7 @@ function buildEpochs(nn, tt, motion, perfWindow, cleanMask, agreeI){
     let ledAgreementPct=null;
     if(agreeI){ const av=idx.map(i=>agreeI[i]).filter(v=>v!=null); if(av.length) ledAgreementPct=Math.round(100*mean(av)); }
     epochs.push({ tMin:Math.round(e0/60), beats:idx.length, hr:td.hr, meanRR:td.meanRR, rmssd:td.rmssd, sdnn:td.sdnn,
-      pnn50:td.pnn50, lf:ls?ls.lf:null, hf:ls?ls.hf:null, lfhf:ls?ls.lfhf:null, respRate:null, pi, motionIndex:mi,
+      pnn50:td.pnn50, lf:ls?ls.lf:null, hf:ls?ls.hf:null, vlf:ls?ls.vlf:null, tp:ls?ls.totalPower:null, lfhf:ls?ls.lfhf:null, respRate:null, pi, motionIndex:mi,
       ledAgreementPct,
       position, positionConf: post?post.conf:null, headingDeg: post?post.heading:null, magInterference: post?!!post.magInterf:false });
   }
@@ -952,7 +952,7 @@ function analyze(rec, progress){
   // flagged. Residual HF (+17%) is genuine respiratory PTT — but its excess is MOTION-DRIVEN
   // (+43% high-motion vs +12% low-motion on the paired night), so a low-motion HF + a GRADED
   // per-metric confidence (below) turn the blanket flag into an earned, continuous score.
-  let sdnnIndex=null, sdnnRobust=null, sdnnRobustNEpochs=0, sd2Robust=null, lfRobust=null, hfRobust=null, lfhfRobust=null, hfRobustLowMotion=null, hrvConfidence=null;
+  let sdnnIndex=null, sdnnRobust=null, sdnnRobustNEpochs=0, sd2Robust=null, lfRobust=null, hfRobust=null, vlfRobust=null, tpRobust=null, lfhfRobust=null, hfRobustLowMotion=null, hrvConfidence=null;
   if(epochs.length){
     const segAll = epochs.map(e=>e.sdnn).filter(v=>v!=null && isFinite(v));
     if(segAll.length){
@@ -973,9 +973,13 @@ function analyze(rec, progress){
       const lfA=usable.map(e=>e.lf).filter(v=>v!=null&&isFinite(v));
       const hfA=usable.map(e=>e.hf).filter(v=>v!=null&&isFinite(v));
       const lhA=usable.map(e=>e.lfhf).filter(v=>v!=null&&isFinite(v));
+      const vlA=usable.map(e=>e.vlf).filter(v=>v!=null&&isFinite(v));
       if(lfA.length>=3) lfRobust=r1(median(lfA));
       if(hfA.length>=3) hfRobust=r1(median(hfA));
       if(lhA.length>=3) lfhfRobust=r2(median(lhA));
+      if(vlA.length>=3) vlfRobust=r1(median(vlA));
+      // DEEP-AUDIT §10: totalPower is DEFINED as the sum of the reported bands, so vlf+lf+hf == tp exactly.
+      if(vlfRobust!=null && lfRobust!=null && hfRobust!=null) tpRobust = r1(vlfRobust + lfRobust + hfRobust);
     }
     // (a) MOTION-GATED HF — HF excess is motion-driven, so a low-motion-only median approaches the
     // clean floor (~+12% vs ECG) rather than the mixed +17%. Stricter gate than the shared 0.5.
@@ -1059,7 +1063,7 @@ function analyze(rec, progress){
     nPulses:det.peaks.length, nBeats:det.peaks.length,
     hr:td.hr, dispHr, dispRm:td.rmssd, dispSd:td.sdnn, dispPn:td.pnn50,
     meanRR:td.meanRR, sdnn:td.sdnn, rmssd:td.rmssd, pnn50:td.pnn50, lnRMSSD:td.lnRMSSD, triIdx:td.triIdx,
-    sdnnIndex, sdnnRobust, sdnnRobustNEpochs, sd2Robust, lfRobust, hfRobust, lfhfRobust, hfRobustLowMotion, hrvConfidence,
+    sdnnIndex, sdnnRobust, sdnnRobustNEpochs, sd2Robust, lfRobust, hfRobust, vlfRobust, tpRobust, lfhfRobust, hfRobustLowMotion, hrvConfidence,
     nn, tt:corr.tt, poincareNN:nn, sd1:poin?poin.sd1:null, sd2:poin?poin.sd2:null, sd1sd2:poin?poin.sd1sd2:null, ellArea:poin?poin.ellArea:null,
     freq, dfa1, sampen:se,
     epochs,
@@ -1273,7 +1277,34 @@ function ppgBuildNodeExport(r, opts){
         window:'wholeRecord', units:'ms', lowConfidence:!!r.hrvLowConfidence, lowConfidenceReason:(r.hrvLowConfidenceReason||null),
         windowNote:'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD.',
         sdnnNote:'whole-record sdnn runs high on optical (SDANN/baseline-wander inflation, ~+26% vs chest ECG). sdnnIndex = mean of per-5-min SDNN (~+18%); sdnnRobust = quality-gated MEDIAN of per-5-min SDNN (~+3.5% vs ECG truth) — use sdnnRobust for cross-node SDNN comparison.' },
-      frequency:{ lf:nz(fq.lf), hf:nz(fq.hf), lfhf:nz(fq.lfhf), method:'Lomb-Scargle', lowConfidence:!!r.hrvLowConfidence, lfRobust:nz(r.lfRobust), hfRobust:nz(r.hfRobust), lfhfRobust:nz(r.lfhfRobust), hfRobustLowMotion:nz(r.hfRobustLowMotion) },
+      /* DEEP-AUDIT-2026-07-11 §10/§11: export the 5-MIN EPOCH-MEDIAN spectrum as the primary band set —
+         PpgDex already computed it (the *Robust twins) but shipped the WHOLE-RECORD Lomb–Scargle instead.
+         Two problems, both gone with one change:
+           §11 the whole-record band split is a GRID LOTTERY. df is hard-coded at 0.002 Hz regardless of
+               record length, while a night's intrinsic resolution is 1/T ≈ 3.8e-5 Hz — ~50× finer — so
+               the Riemann sum samples a spiky periodogram at arbitrary points and the split does not
+               converge. (Parseval pins the TOTAL to the variance, which is why it looked fine.)
+           §10 it also put PpgDex on a DIFFERENT time scale from ECGDex's epoch-median lfhf, so the
+               Integrator's cross-node HRV divergence was inflated by a pure definition mismatch.
+         At the 5-min scale df = 0.002 Hz is finer than the epoch's own 1/300 s = 0.0033 Hz resolution, so
+         the grid is adequate by construction. totalPower is the SUM of the reported bands, so the
+         Task-Force identity vlf+lf+hf == totalPower holds exactly. `window` names the scale so a consumer
+         can refuse to compare it against a whole-record value. The whole-record numbers are kept under
+         explicit wholeRecord* keys — labelled, not silently mixed in. */
+      frequency:(function(){
+        const epochScale = (r.lfRobust!=null && r.hfRobust!=null);
+        return {
+          vlf: epochScale ? nz(r.vlfRobust) : nz(fq.vlf),
+          lf:  epochScale ? nz(r.lfRobust)  : nz(fq.lf),
+          hf:  epochScale ? nz(r.hfRobust)  : nz(fq.hf),
+          totalPower: epochScale ? nz(r.tpRobust) : nz(fq.totalPower),
+          lfhf: epochScale ? nz(r.lfhfRobust) : nz(fq.lfhf),
+          window: epochScale ? 'epochMedian5min' : 'wholeRecord',
+          method:'Lomb-Scargle', lowConfidence:!!r.hrvLowConfidence,
+          hfRobustLowMotion:nz(r.hfRobustLowMotion),
+          wholeRecordLf:nz(fq.lf), wholeRecordHf:nz(fq.hf), wholeRecordLfhf:nz(fq.lfhf)
+        };
+      })(),
       confidence:(r.hrvConfidence||null)
     };
     out.timeseries = {

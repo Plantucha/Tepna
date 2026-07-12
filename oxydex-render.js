@@ -707,6 +707,9 @@ function renderAll() {
       html+='</div>';
     }
 
+    // DEEP-AUDIT §21 — the hero (Recovery Readiness) was unbadged while every mini-metric beneath it
+    // was badged. Registry: `readiness` → experimental (alias 'Recovery Readiness' already resolves).
+    html+='<span class="ev-corner">'+evBadge('Recovery Readiness')+'</span>';
     html+='</div>'; // .readiness-hero
     try { if(typeof oxyHeroBenchCard==='function') html += oxyHeroBenchCard(last, _ecg); } catch(_pae){}
     html+='</div>'; // #heroTop

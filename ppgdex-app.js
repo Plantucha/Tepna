@@ -536,7 +536,28 @@ function buildV2(r){
       frequency:{ vlf:fq.vlf, lf:fq.lf, hf:fq.hf, lfhf:fq.lfhf, lfnu:fq.lfnu, hfnu:fq.hfnu, totalPower:fq.totalPower, method:'Lomb-Scargle', lowConfidence:!!r.hrvLowConfidence, lfRobust:(r.lfRobust!=null?r.lfRobust:null), hfRobust:(r.hfRobust!=null?r.hfRobust:null), lfhfRobust:(r.lfhfRobust!=null?r.lfhfRobust:null), hfRobustLowMotion:(r.hfRobustLowMotion!=null?r.hfRobustLowMotion:null) },
       nonlinear:{ dfaAlpha1:r.dfa1, sampEn:r.sampen },
       confidence:(r.hrvConfidence||null) },
-    personalization:{ profile:r.profile||null, ansReadinessScore:r.hrvScore, ansAge:null, /* ANS Age REMOVED 2026-06-21 (external-review WP-A); null for node-export back-compat. */
+    // DEEP-AUDIT §19 — the raw profile shipped the POPULATION DEFAULT (42 y · M · 80 kg · 178 cm) as
+    // though the user had entered it. Split it: `profile` = only what was actually entered/detected,
+    // `assumedDefaults` = the priors COMPUTE ran on. Tolerates a profile with no _origins (legacy).
+    personalization:{ profile:(function(){
+        var pr = r.profile || null; if (!pr || typeof pr !== 'object') return pr || null;
+        var o = pr._origins || null;
+        var ent = function (f, v) { return (o && (o[f]==='you' || o[f]==='detected')) ? v : null; };
+        return { age:ent('age',pr.age), sex:ent('sex',pr.sex), weight:ent('weight',pr.weight),
+                 height:ent('height',pr.height), elev:ent('elevation',pr.elev), cpap:ent('cpap',pr.cpap),
+                 hrmax:(pr.hrmax>0?pr.hrmax:null), rhr:(pr.rhr>0?pr.rhr:null), vo2gt:(pr.vo2gt>0?pr.vo2gt:null),
+                 note:'Only what the user entered/selected, or a node detected. null = left on auto/default.' };
+      })(),
+      assumedDefaults:(function(){
+        var pr = r.profile || null; if (!pr || typeof pr !== 'object') return null;
+        var o = pr._origins || null;
+        var asm = function (f, v) { return (o && (o[f]==='you' || o[f]==='detected')) ? null : v; };
+        return { age:asm('age',pr.age), sex:asm('sex',pr.sex), weight:asm('weight',pr.weight),
+                 height:asm('height',pr.height), elev:asm('elevation',pr.elev),
+                 source:'population norm (NHANES age×sex) — the value the analysis ran on',
+                 note:'NOT a measurement of this person.' };
+      })(),
+      ansReadinessScore:r.hrvScore, ansAge:null, /* ANS Age REMOVED 2026-06-21 (external-review WP-A); null for node-export back-compat. */
       restingHR:r.rhrEff, vo2maxEst:r.vo2adj, expectedRmssd:r.expRmssd },
     apnea: r.longRec ? { screen:'CVHR (PPI-derived bradycardia-rebound)', note:'screen not diagnosis', index:null } : null,
     morphology:{ riseTimeMs:m.riseTimeMs, crestTimeMs:m.crestTimeMs, dicroticNotchPresent:!!m.dicroticNotchPresent,

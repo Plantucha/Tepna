@@ -389,6 +389,11 @@ function oximetryLane(sa2, durSec) {
     available: true, coverage: +coverage.toFixed(3),
     odi: hours > 0 ? +(real.length / hours).toFixed(2) : null,
     desatCount: real.length, artifactCount: artifactCount,
+    // The lane's OWN denominators, so a night that pools several sessions can weight them
+    // (an index is a rate — you pool the numerator and the denominator, never the rates).
+    // DEEP-AUDIT §20.
+    analyzedHours: hours > 0 ? +hours.toFixed(4) : null,
+    validSamples: vArr.length, below90Samples: below90,
     t90Pct: vArr.length ? +(below90 / vArr.length * 100).toFixed(2) : null,
     spo2Nadir: vArr.length ? nadir : null,
     spo2Mean: vArr.length ? +(sum / vArr.length).toFixed(1) : null,
