@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-07TDsYyaS4AXLj+6O5vEQWa/2wv2MRA3V8u8cLNZhZE=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-DAai3/Ebx9zIppnSVQp3WaBJ7W9Kl1h/coglmrhaoZs=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-SbhMwvzlpgPhlroU5JoY5kACF2lbh9q6MEOKlFWAwWY=' 'sha256-VLjmo4S0mjqgRo8fEU0kx1Vc+jNONpTHKXbUPjZCGys=' 'sha256-XSaqaYcXgkh/1koukmF/FhO8A7ogMFSeDJJdXUxWE0k=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-fF46IrMGR6TwAmINCMSeAKAcOz57YdRj7ISX7dK8KGU=' 'sha256-gxRDJ7OQU3PoPHu5YHtoA1xs7mfXhL5rm7rQs8xaH3I=' 'sha256-gy3imQ7W4QJ8tUgsOixB3eM9opH4JiMHvhV/HOYbe2M=' 'sha256-wdj9R9Gei2xVKEJ5WmzR5Z6Xza6ZG2G+AtVTygDgS1o=' 'sha256-zoX0rksSqUxFePSlhG6+8O2Euarj7JlN/OQ/SqQyThw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-07TDsYyaS4AXLj+6O5vEQWa/2wv2MRA3V8u8cLNZhZE=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-SbhMwvzlpgPhlroU5JoY5kACF2lbh9q6MEOKlFWAwWY=' 'sha256-VLjmo4S0mjqgRo8fEU0kx1Vc+jNONpTHKXbUPjZCGys=' 'sha256-XSaqaYcXgkh/1koukmF/FhO8A7ogMFSeDJJdXUxWE0k=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-gxRDJ7OQU3PoPHu5YHtoA1xs7mfXhL5rm7rQs8xaH3I=' 'sha256-gy3imQ7W4QJ8tUgsOixB3eM9opH4JiMHvhV/HOYbe2M=' 'sha256-tX34msOtIVpglSLwQPXvSs55vfdXbV9kxRSjVQk2K44=' 'sha256-wdj9R9Gei2xVKEJ5WmzR5Z6Xza6ZG2G+AtVTygDgS1o=' 'sha256-zoX0rksSqUxFePSlhG6+8O2Euarj7JlN/OQ/SqQyThw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ECGDex — Raw ECG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -5957,14 +5957,57 @@ function _ckNumEpoch(n){
 }
 function _ckZoneMin(z){ var zs=z.replace(':',''); var sign=zs[0]==='-'?-1:1;
   return sign*(parseInt(zs.slice(1,3),10)*60 + parseInt(zs.slice(3,5),10)); }
-function _ckDMY(a,b,preferDMY){                    // decide day vs month from first two slash fields
+/* Contract §3 — decide day vs month from the first two slash fields.
+   `locked` (from resolveDMY) means the ORDER WAS PROVEN FOR THIS FILE: apply it unconditionally, so a
+   single row can no longer flip the order mid-file. A row the lock cannot explain (its month field lands
+   outside 1..12) is a contradiction, and a contradiction is null — never a guess.
+   Unlocked (no pre-scan) keeps the historical per-call behavior for back-compat. */
+function _ckDMY(a,b,preferDMY,locked){
+  if(locked){
+    var ld = preferDMY ? a : b, lmo = preferDMY ? b : a;
+    return (lmo>=1 && lmo<=12 && ld>=1 && ld<=31) ? {d:ld,mo:lmo} : null;
+  }
   if(a>12) return {d:a,mo:b};
   if(b>12) return {d:b,mo:a};
   return preferDMY ? {d:a,mo:b} : {d:b,mo:a};
 }
+
+/* Contract §3, the FILE-LEVEL lock: "Any row with day-component > 12 ⇒ file is unambiguous; lock that
+   order for the whole file … Never switch order mid-file."  Scan every stamp ONCE up front:
+     a row whose 1st slash field > 12 PROVES DMY · a row whose 2nd field > 12 PROVES MDY.
+   Both proofs present ⇒ the file contradicts itself ⇒ refuse (contradictory:true) rather than guess.
+   Neither ⇒ genuinely ambiguous ⇒ fall back to the caller's preferDMY, unlocked.
+   Pass the result into parseTimestamp as { preferDMY: r.dmy, dmyLocked: r.locked }.
+   Only the two ambiguous vendor shapes are scanned (4a "HH:MM:SS D/M/Y" and 4c "D/M/Y HH:MM"); ISO and
+   YYYY/MM/DD carry no ambiguity. */
+function resolveDMY(rawStamps, preferDMY){
+  var pref = preferDMY !== false, sawDMY = false, sawMDY = false;
+  var RE_A = /^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/;   // 4a — O2Ring
+  var RE_C = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/; // 4c — Welltory etc.
+  var list = rawStamps || [];
+  for(var i=0;i<list.length;i++){
+    var s = list[i]; if(typeof s !== 'string') continue;
+    s = s.trim().replace(/^["']|["']$/g,'');
+    var a=null,b=null;
+    var mA = s.match(RE_A);
+    var mC = mA ? null : s.match(RE_C);
+    if(mA){ a=+mA[4]; b=+mA[5]; }
+    else if(mC){ a=+mC[1]; b=+mC[2]; }
+    else continue;
+    if(a>12) sawDMY = true;
+    if(b>12) sawMDY = true;
+    if(sawDMY && sawMDY) break;                    // contradiction proven — no need to scan further
+  }
+  if(sawDMY && sawMDY) return { dmy:pref, locked:false, contradictory:true };
+  if(sawDMY)           return { dmy:true,  locked:true,  contradictory:false };
+  if(sawMDY)           return { dmy:false, locked:true,  contradictory:false };
+  return { dmy:pref, locked:false, contradictory:false };
+}
+
 function parseTimestamp(raw, opts){
   opts = opts || {};
   var preferDMY = opts.preferDMY !== false;        // default true (O2Ring/Welltory exports are DMY)
+  var dmyLocked = opts.dmyLocked === true;         // set by resolveDMY — the order is proven for this file
   var anchor = (opts.dateAnchorMs != null && isFinite(opts.dateAnchorMs)) ? opts.dateAnchorMs : null;
   if(raw == null) return null;
   if(typeof raw === 'number') return _ckNumEpoch(raw);
@@ -5982,14 +6025,16 @@ function parseTimestamp(raw, opts){
   if(m) return { tMs: Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],m[6]?+m[6]:0, m[7]?+((m[7]+'00').slice(0,3)):0), offsetMin: null };
   // 4a. "HH:MM:SS DD/MM/YYYY" | "HH:MM:SS MM/DD/YYYY" (O2Ring)
   m = s.match(/^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if(m){ var dm=_ckDMY(+m[4],+m[5],preferDMY);
+  if(m){ var dm=_ckDMY(+m[4],+m[5],preferDMY,dmyLocked);
+    if(!dm) return null;                           // row contradicts the file's proven order → honest null
     return { tMs: Date.UTC(+m[6],dm.mo-1,dm.d,+m[1],+m[2],+m[3]), offsetMin: null }; }
   // 4b. compact "YYYYMMDDHHMMSS" (14-digit, O2Ring filename embed)
   m = s.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/);
   if(m) return { tMs: Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6]), offsetMin: null };
   // 4c. "DD/MM/YYYY HH:MM[:SS]" | "MM/DD/YYYY HH:MM[:SS]" (Welltory etc.)
   m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-  if(m){ var dm2=_ckDMY(+m[1],+m[2],preferDMY);
+  if(m){ var dm2=_ckDMY(+m[1],+m[2],preferDMY,dmyLocked);
+    if(!dm2) return null;                          // row contradicts the file's proven order → honest null
     return { tMs: Date.UTC(+m[3],dm2.mo-1,dm2.d,+m[4],+m[5],m[6]?+m[6]:0), offsetMin: null }; }
   // 4d. "YYYY/MM/DD HH:MM[:SS]"
   m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
@@ -6007,7 +6052,7 @@ function parseTimestamp(raw, opts){
   return null;
 }
 
-root.DexClock = { tzOffset: tzOffset, _ckP2: _ckP2, _ckNumEpoch: _ckNumEpoch, _ckZoneMin: _ckZoneMin, _ckDMY: _ckDMY, parseTimestamp: parseTimestamp };
+root.DexClock = { tzOffset: tzOffset, _ckP2: _ckP2, _ckNumEpoch: _ckNumEpoch, _ckZoneMin: _ckZoneMin, _ckDMY: _ckDMY, resolveDMY: resolveDMY, parseTimestamp: parseTimestamp };
 if (typeof module !== 'undefined' && module.exports) module.exports = root.DexClock;
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
 </script>
@@ -7841,7 +7886,10 @@ function ecgBuildNodeExport(r, opts){
     var c = {}; for (var k in ev){ if (k !== '_sec' && Object.prototype.hasOwnProperty.call(ev, k)) c[k] = ev[k]; } return c;
   });
   var out = {
-    kernel: opts.kernel || null,
+    // DEEP-AUDIT-2026-07-11 §16: NORMALIZE the stamp to the contract shape {version, hash}. Passing
+    // opts.kernel through raw exported the DexKernel object itself ({K, VERSION, HASH}), and the
+    // Integrator reads the lowercase keys — so this node always audited as kernel 'missing'.
+    kernel: (opts.kernel ? { version: (opts.kernel.version != null ? opts.kernel.version : opts.kernel.VERSION) || null, hash: (opts.kernel.hash != null ? opts.kernel.hash : opts.kernel.HASH) || null } : null),
     schema:{ name:'ganglior.node-export', version:'2.0', node:'ECGDex', nodeVersion:'1.0',
       bus:'ganglior', generated:(opts.generated || new Date().toISOString()),
       provenance: opts.provenance || null,

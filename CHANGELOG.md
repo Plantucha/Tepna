@@ -30,6 +30,26 @@ changesets.)
 
 ---
 
+## [1.7.0] — 2026-07-12
+
+### Added
+- Give CPAPDex a binary multi-file EDF equivalence leg — and, with it, the suite's first `compute() ≡ committed export` gate that actually runs in CI. (`CPAP-REAL-CORPUS-2026-07-11-BRIEF.md`)
+- Add `sensor-trio-gpu.js` — a WebGPU fast lane for the sensor-trio Monte-Carlo power sweep, with the existing Web-Worker CPU pool as the automatic fallback.
+- Make the `compute() ≡ committed export` equivalence gate actually run in CI — it never has. Every node now has a committed, synthetic, vendor-format input. (`CPAP-REAL-CORPUS-2026-07-11-BRIEF.md`)
+
+### Fixed
+- Lock a file's DMY/MDY date order once, up front, instead of deciding it per row — an MM/DD-configured O2Ring night no longer flips order mid-file, run its clock backward, and report a negative duration with ODI-4 = 0. (`DEEP-AUDIT-2026-07-11-BRIEF.md`)
+- Stop counting long-gap interpolation as measured glucose, and detect the vendor clip floor the real Abbott Lingo export actually rails at — TIR read 11 % where the truth was 0 %, and 37 clip artifacts shipped as real nocturnal hypoglycemia. (`DEEP-AUDIT-2026-07-11-BRIEF.md`)
+- Return NaN when a frequency band is absent instead of fabricating one from an epsilon denominator, and unit-guard MxDMn/MeanRR — HF n.u. surfaced as 125,000,000 % and the MxDMn ratio read 1000× low. (`DEEP-AUDIT-2026-07-11-BRIEF.md`)
+- Stop the Integrator fabricating agreement it never measured and silently dropping nodes whose data it simply could not read — a glucose⟷autonomic coupling with no glucose in it, an HRV consensus that excluded the HRV node, and a kernel-drift audit blind to 3 of 7 nodes. (`DEEP-AUDIT-2026-07-11-BRIEF.md`)
+- Replace odi-bias's O(n²) leave-one-out refit with the O(n) PRESS closed form — same numbers, and the 2,500-night `SYNTH_CAP` is gone.
+- Place desat events on their own row's wall clock, analyse the whole night instead of its first hour, and refuse to report a physiologically impossible REM estimate as a healthy finding. (`DEEP-AUDIT-2026-07-11-BRIEF.md`)
+- Set aside Polar Sensor Logger motion streams instead of analyzing them as heartbeats — a real H10 `*_ACC.txt` was routed to the RR adapter and its gravity axis read as RR intervals. (`DEEP-AUDIT-2026-07-11-BRIEF.md`)
+- Retire the dead 1.7 / 2.2 / 6.2 σ caption — the tool's prose contradicted the code beneath it, which has planted the raw-ECG 10-night hat (O2Ring 2.72 / H10 1.86 / Verity 1.94) all along. (`PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE-2026-07-11-BRIEF.md`)
+- Record that the three-cornered hat has no robustness to artifact — 3 bad epochs of 86 inflated a corner's σ from 2.5 to 9.6 bpm — and specify the validated cross-corner consensus gate that fixes it. (`TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md`)
+
+---
+
 ## [1.6.0] — 2026-07-12
 
 ### Added
@@ -258,7 +278,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/Plantucha/Tepna/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/Plantucha/Tepna/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/Plantucha/Tepna/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/Plantucha/Tepna/compare/v1.3.0...v1.4.0
