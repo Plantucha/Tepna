@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-2aT2YZ2hUKMKkD1RKJGoUS13DAIfRkfr0+3MpUKSugc=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9EuOea999DfrsTNfGzIeByfMo7Vv9GGd2dfC8jGe0Yc=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LG3l34o5fUxaDC0YPGwR220ch4LY53B3Dlc1+Bkl0ao=' 'sha256-PlBCQDTK5BQcHKy/ZI4uswhN3qfOoMF1KuTMxwxuLs8=' 'sha256-Q3AuDmREtmZCWIDZti8Mqeib+YYbMQwccyewR4IGWEU=' 'sha256-RvkJr6yX8cd0uTULvPiCQ8ycw9MDgCzLe+06TDvAmsE=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-eBQjDWnGcboIU/PbqPPj8VH/etn/loRvHEWvSBSft+E=' 'sha256-zR8QAkzQ/0Fdg4l6vMzTjO4X+SuNJ5E0SI+suX6n8t0='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-2aT2YZ2hUKMKkD1RKJGoUS13DAIfRkfr0+3MpUKSugc=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Fl3KA6tNMh9sJSOrRPzysVDv0+kOerFcP/9OfHUMmNI=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LG3l34o5fUxaDC0YPGwR220ch4LY53B3Dlc1+Bkl0ao=' 'sha256-PlBCQDTK5BQcHKy/ZI4uswhN3qfOoMF1KuTMxwxuLs8=' 'sha256-Q3AuDmREtmZCWIDZti8Mqeib+YYbMQwccyewR4IGWEU=' 'sha256-RvkJr6yX8cd0uTULvPiCQ8ycw9MDgCzLe+06TDvAmsE=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-eBQjDWnGcboIU/PbqPPj8VH/etn/loRvHEWvSBSft+E=' 'sha256-uS5wmPLBnQsEHb7E+p/HiIzPQbnV0gtWPyH+fXMcnmE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CPAPDex — PAP Therapy Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -4914,7 +4914,43 @@ function pressureEnvelope(pressureMaskOn, fs) {
   return out;
 }
 
-/* → { mode: 'CPAP'|'APAP'|null, envIqr, nWindows }. null mode = not enough evidence. */
+// The device setting is ONE fact about a machine, not N facts about N nights, so the call is made
+// over a WINDOW OF NIGHTS. 7 is the smallest window that was flip-free on the real corpus (0 flips
+// over 182 nights, vs 7 flips for the same statistic judged per-night).
+var MODE_MIN_NIGHTS = 7;
+
+/**
+ * classifyModeLongitudinal(nights) → { mode, envIqr, nights } — the ONLY honest home for the
+ * CPAP-vs-APAP call (CPAP-REAL-CORPUS-FOLLOWUPS §1). Takes the MEDIAN of the per-night
+ * `pressureEnvIqr` (each of which is itself an EPR-immune, minutes-scale envelope spread) and
+ * applies the same dead-band — refusing to guess in the middle rather than coin-flipping.
+ *
+ * ⚠️ THE THRESHOLDS REMAIN UNVALIDATED, and the corpus is why — not for want of trying. Driving all
+ * 182 real nights through it showed the `pressureEnvIqr` distribution is **UNIMODAL** (one hump,
+ * median 1.33, continuous 0.11–3.83): there is **no valley** for a cut point to sit in, because the
+ * corpus contains **no fixed-CPAP nights at all** — it is one machine in one mode. A boundary
+ * between two classes cannot be fitted to data containing only one of them, so any CPAP/APAP cut is
+ * currently **unfalsifiable**. What IS measured is that the call is now STABLE (0 flips) and that it
+ * no longer reads EPR. Treat the label as a stable inference from the pressure envelope, NOT as a
+ * device readout — and if a fixed-CPAP corpus ever appears, fit the cut to the valley between them.
+ */
+function classifyModeLongitudinal(nights) {
+  var q = (nights || [])
+    .map(function (n) { return n && n.metrics ? n.metrics.pressureEnvIqr : null; })
+    .filter(function (v) { return v != null && isFinite(v); });
+  if (q.length < MODE_MIN_NIGHTS) return { mode: null, envIqr: null, nights: q.length };
+  var med = _p(q, 50);
+  if (!isFinite(med)) return { mode: null, envIqr: null, nights: q.length };
+  return {
+    mode: med <= MODE_CPAP_MAX ? 'CPAP' : med >= MODE_APAP_MIN ? 'APAP' : null,
+    envIqr: +med.toFixed(2),
+    nights: q.length
+  };
+}
+
+/* → { mode: 'CPAP'|'APAP'|null, envIqr, nWindows }. null mode = not enough evidence.
+   PER-SESSION estimate — the raw input the longitudinal call pools. NOT a device-setting claim on
+   its own (see classifyModeLongitudinal + the retirement note in nightMetrics). */
 function classifyMode(pressureMaskOn, fs) {
   var env = pressureEnvelope(pressureMaskOn || [], fs);
   if (env.length < MODE_MIN_WINDOWS) return { mode: null, envIqr: null, nWindows: env.length };
@@ -5061,7 +5097,7 @@ function _olsSlope(arr) {
    crossNight math is CPAPCross.crossNightBlock (shared envelope shape + local
    crossNight engine) — null if that module isn't bundled (DSP stays standalone). */
 function buildLongitudinal(nights) {
-  if (!nights || !nights.length) return { compliancePct: null, nights: 0, usageTrend7d: null, ahiTrend30d: null, crossNight: null };
+  if (!nights || !nights.length) return { compliancePct: null, nights: 0, usageTrend7d: null, ahiTrend30d: null, crossNight: null, mode: null, modeEnvIqr: null, modeNights: 0 };
   var usageH = function (n) { return n.therapyHours != null ? n.therapyHours : (n.metrics ? n.metrics.usageHours : null); };
   var ahiOf  = function (n) { return n.metrics ? n.metrics.residualAHI : (n.residualAHI != null ? n.residualAHI : null); };
   var qualifying = nights.filter(function (n) { var h = usageH(n); return h != null && h >= 4; }).length;
@@ -5082,7 +5118,12 @@ function buildLongitudinal(nights) {
     try { return (typeof require !== 'undefined') ? require('./cpapdex-cross.js') : null; } catch (_e) { return null; }
   })();
   var crossNight = (CROSS && CROSS.crossNightBlock) ? CROSS.crossNightBlock(chrono) : null;
-  return { compliancePct: compliancePct, nights: nights.length, usageTrend7d: usageTrend7d, ahiTrend30d: ahiTrend30d, crossNight: crossNight };
+  // THE device-setting call lives HERE and nowhere else (FOLLOWUPS §1). A night cannot establish a
+  // setting; a run of nights can. Pooled over the chronological run, so it is the same answer no
+  // matter which night you happen to be looking at — which is the whole point of a *setting*.
+  var lm = classifyModeLongitudinal(chrono);
+  return { compliancePct: compliancePct, nights: nights.length, usageTrend7d: usageTrend7d, ahiTrend30d: ahiTrend30d, crossNight: crossNight,
+           mode: lm.mode, modeEnvIqr: lm.envIqr, modeNights: lm.nights };
 }
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -5502,16 +5543,26 @@ function nightMetrics(sessions) {
     medianPressure:   +(_p(P, 50)).toFixed(2),
     p95Pressure:      +(_p(P, 95)).toFixed(2),
     pressureRange:    +(_iqr(P)).toFixed(2),
-    // THE STABILITY GUARD (§F2: "do not surface a per-night mode label without a stability
-    // guard"). A night is labelled ONLY if every session made a call and they all AGREE. One
-    // indeterminate session, or two sessions disagreeing, ⇒ null. The old code surfaced the FIRST
-    // session's label as the night's (cpapdex-fusion `s0.mode`), so a single noisy session could
-    // name the whole night's device setting.
-    mode:             (function () {
-                        var ms = pools.map(function (p) { return p.mode; });
-                        if (!ms.length || ms.some(function (m) { return m == null; })) return null;
-                        return ms.every(function (m) { return m === ms[0]; }) ? ms[0] : null;
-                      })(),
+    // ⛔ THE PER-NIGHT MODE LABEL IS RETIRED — always null. (CPAP-REAL-CORPUS-FOLLOWUPS §1,
+    // measured on the real 182-night corpus 2026-07-12.)
+    //
+    // `mode` describes a DEVICE SETTING. A setting does not change from night to night, so a
+    // per-night estimator has no per-night signal to estimate — it can only measure nightly NOISE
+    // in a quantity that is constant by construction. The corpus says exactly that:
+    //
+    //   · the same envelope statistic, judged PER NIGHT   → 7 label flips across 182 nights
+    //   · the same statistic, judged on a ROLLING 7-NIGHT median → 0 flips
+    //
+    // The device did not change 7 times. The per-night label was the artifact, not the finding —
+    // and the earlier stability guard (all sessions must agree) could not fix it, because it
+    // guarded the wrong axis: it pooled SESSIONS within a night, when the quantity is stable
+    // ACROSS nights.
+    //
+    // So the CPAP-vs-APAP call now lives ONLY in buildLongitudinal(), where it has the evidence to
+    // stand on. A single night cannot establish a device setting, and no longer pretends to.
+    // The field is KEPT (removing it would break the export contract) and is honestly `null`.
+    // What a night CAN honestly report is `pressureEnvIqr` — a measurement, not a classification.
+    mode:             null,
     pressureEnvIqr:   (function () {
                         var q = pools.map(function (p) { return p.pressureEnvIqr; })
                                      .filter(function (v) { return v != null && isFinite(v); });
@@ -5768,13 +5819,47 @@ function selfTest() {
   ok('§F2 no pressure at all ⇒ mode null, no throw', classifyMode([], FS).mode === null);
 
   // (5) THE STABILITY GUARD — a night is labelled only if every session AGREES.
+  /* ── FOLLOWUPS §1: the PER-NIGHT mode label is RETIRED ─────────────────────────────────────
+     Measured on the real 182-night corpus: the same envelope statistic judged PER NIGHT flipped
+     the label 7× ; judged on a rolling 7-night median it flipped 0×. The device did not change 7
+     times — a DEVICE SETTING is not a per-night fact, so no per-night guard can rescue it (the
+     old guard pooled SESSIONS within a night; the quantity is stable ACROSS nights). The call now
+     lives ONLY in buildLongitudinal. A night reports `pressureEnvIqr` — a measurement — and names
+     no device setting. ── */
   var nmAgree = nightMetrics([{ _pool: mkPool('CPAP') }, { _pool: mkPool('CPAP') }]);
   var nmSplit = nightMetrics([{ _pool: mkPool('CPAP') }, { _pool: mkPool('APAP') }]);
-  var nmNull  = nightMetrics([{ _pool: mkPool('CPAP') }, { _pool: mkPool(null) }]);
-  ok('§F2 night mode: all sessions agree ⇒ that label', nmAgree && nmAgree.mode === 'CPAP', nmAgree && nmAgree.mode);
-  ok('§F2 night mode: sessions DISAGREE ⇒ null (was: the first session named the night)',
-     nmSplit && nmSplit.mode === null, nmSplit && nmSplit.mode);
-  ok('§F2 night mode: any indeterminate session ⇒ null', nmNull && nmNull.mode === null, nmNull && nmNull.mode);
+  ok('§1 night mode is ALWAYS null — even when every session agrees (a night cannot name a device setting)',
+     nmAgree && nmAgree.mode === null, nmAgree && nmAgree.mode);
+  ok('§1 night mode is null when sessions disagree too', nmSplit && nmSplit.mode === null, nmSplit && nmSplit.mode);
+  ok('§1 a night still reports pressureEnvIqr (the measurement survives; only the CLAIM is retired)',
+     nmAgree && nmAgree.pressureEnvIqr != null && isFinite(nmAgree.pressureEnvIqr), nmAgree && nmAgree.pressureEnvIqr);
+
+  /* ── the LONGITUDINAL call — where the evidence actually lives ── */
+  var mkNight = function (envIqr) { return { metrics: { pressureEnvIqr: envIqr, usageHours: 7, residualAHI: 2 }, t0Ms: null }; };
+  var runOf = function (v, n) { var a = []; for (var z = 0; z < n; z++) a.push(mkNight(v)); return a; };
+
+  ok('§1 longitudinal: < 7 nights ⇒ null (not enough evidence for a SETTING)',
+     classifyModeLongitudinal(runOf(1.4, 6)).mode === null, classifyModeLongitudinal(runOf(1.4, 6)).mode);
+  ok('§1 longitudinal: a run of auto-titrating nights ⇒ APAP',
+     classifyModeLongitudinal(runOf(1.4, 10)).mode === 'APAP', classifyModeLongitudinal(runOf(1.4, 10)).mode);
+  ok('§1 longitudinal: a run of flat-envelope nights ⇒ CPAP',
+     classifyModeLongitudinal(runOf(0.2, 10)).mode === 'CPAP', classifyModeLongitudinal(runOf(0.2, 10)).mode);
+  ok('§1 longitudinal: a run in the dead-band ⇒ null (still refuses to guess)',
+     classifyModeLongitudinal(runOf(0.75, 10)).mode === null, classifyModeLongitudinal(runOf(0.75, 10)).mode);
+
+  // THE POINT: a MEDIAN over nights is robust to the nightly scatter that made the per-night label
+  // flip. Two outlier nights inside a run of ten do not move the setting — which is exactly what a
+  // "setting" must mean. (Per-night, those two outliers WOULD each have flipped the label.)
+  var noisy = runOf(1.4, 8).concat([mkNight(0.2), mkNight(0.3)]);   // 2 of 10 nights look "fixed"
+  ok('§1 longitudinal: outlier nights do NOT flip the setting (the per-night label would have)',
+     classifyModeLongitudinal(noisy).mode === 'APAP', classifyModeLongitudinal(noisy).mode);
+
+  var lb = buildLongitudinal(runOf(1.4, 10));
+  ok('§1 buildLongitudinal surfaces mode + modeEnvIqr + modeNights',
+     lb.mode === 'APAP' && lb.modeEnvIqr != null && lb.modeNights === 10,
+     lb.mode + '/' + lb.modeEnvIqr + '/' + lb.modeNights);
+  ok('§1 buildLongitudinal on ONE night ⇒ mode null (a night is not a setting)',
+     buildLongitudinal(runOf(1.4, 1)).mode === null);
   ok('EDF session: EPR delta ≈ 3', near(sess.metrics.eprDelta, 3, 0.3), sess.metrics.eprDelta);
   ok('EDF session: epap95 present (expiratory P95 ≈ 7)', near(sess.metrics.epap95, 7, 0.5), sess.metrics.epap95);
   ok('EDF session: medianLeak ≈ 4.8 L/min (L/s×60)', near(sess.metrics.medianLeak, 4.8, 0.4), sess.metrics.medianLeak);
@@ -5876,6 +5961,7 @@ var api = {
   // Step 2 — real-signal adapter + flow/oximetry DSP
   chan: chan, leakToLpm: leakToLpm,
   classifyMode: classifyMode, pressureEnvelope: pressureEnvelope,   // §F2 — gated in dex-tests.js
+  classifyModeLongitudinal: classifyModeLongitudinal,               // FOLLOWUPS §1 — the ONLY mode call
   selfGateDesat: selfGateDesat, detectDesats: detectDesats, oximetryLane: oximetryLane,
   detectBreaths: detectBreaths, eveEvents: eveEvents, eveClassToType: eveClassToType,
   periodicBreathingSec: periodicBreathingSec,
@@ -7326,7 +7412,12 @@ global.CpapRender = {
     // mode: the NIGHT-level, stability-guarded call (CPAP-REAL-CORPUS §F2) — null unless every
     // session agreed. Never `s0.mode`: that surfaced ONE session's label as the whole night's
     // device setting. 'unknown' is an honest answer; a guessed CPAP/APAP is an invented setting.
-    r('medianPressure', 'Median Pressure', _fmt(nm.medianPressure, 1), 'cmH₂O', '—', '', 'P50 delivered (mask-on) · mode ' + (nm.mode || 'unknown'));
+    // NO mode chip here any more (FOLLOWUPS §1). A device SETTING is not a per-night fact — judged
+    // per-night the label flipped 7× across 182 real nights; judged on a rolling 7-night median, 0×.
+    // The device did not change 7 times. The CPAP-vs-APAP call now lives ONLY in the longitudinal
+    // block (buildLongitudinal), where it has the evidence to stand on. A single night reports what
+    // it can honestly measure — the envelope spread — and does not name a device setting.
+    r('medianPressure', 'Median Pressure', _fmt(nm.medianPressure, 1), 'cmH₂O', '—', '', 'P50 delivered (mask-on)');
     r('p95Pressure', '95th-%ile Pressure', _fmt(nm.p95Pressure, 1), 'cmH₂O', '—', '', 'P95 delivered');
     // NOT "(>1 ⇒ APAP)" any more — that bare-IQR rule is retired (§F2). The raw IQR is dominated
     // by EPR's per-breath dips, not by auto-titration, so it cannot call the mode; the

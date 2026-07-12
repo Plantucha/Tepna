@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-12 · **Follows:** `CPAP-REAL-CORPUS-2026-07-11-BRIEF.md` (DONE 2026-07-12) · **Sibling:** `TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md`
+**Status:** DONE — 2026-07-12 (§1 · §2 executed; §3 · §4 already closed) · **Created:** 2026-07-12 · **Follows:** `CPAP-REAL-CORPUS-2026-07-11-BRIEF.md` (DONE 2026-07-12) · **Sibling:** `TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md`
 
 # CPAP real corpus — follow-ups: two uncalibrated numbers, an unrun render lane, and a primitive nobody consumes yet
 
@@ -10,7 +10,45 @@
 
 ---
 
-## 1 · The `mode` thresholds are set from physiology, not fitted to the corpus ⚠️ **the load-bearing one**
+## 1 · The `mode` thresholds ✅ **EXECUTED 2026-07-12 — and the premise was wrong**
+
+> **Measured on all 182 real nights. The calibration this section asked for is IMPOSSIBLE, and finding
+> that out changed the design.**
+>
+> **The distribution is UNIMODAL.** `pressureEnvIqr` is one continuous hump — median **1.33**, range
+> 0.11–3.83, **no valley**. The bimodality this section predicted (a fixed-machine cluster near 0, an
+> auto-titrating cluster above 1, dead-band in the empty space between) **does not exist**, for a
+> reason that is obvious in hindsight: **the corpus contains no fixed-CPAP nights at all.** It is one
+> machine in one mode. A boundary between two classes cannot be fitted to data containing only one of
+> them — so any CPAP-vs-APAP cut is, on this data, **unfalsifiable**. The thresholds stay uncalibrated
+> not through neglect but because the corpus cannot calibrate them.
+>
+> **And the real defect was the UNIT OF ANALYSIS, not the constants.** `mode` describes a device
+> *setting*. A setting does not change from night to night — so a per-night estimator has no per-night
+> signal to find, and can only measure nightly noise in a quantity that is constant by construction.
+> The corpus says exactly this, with the same statistic judged two ways:
+>
+> | estimator | label flips across 182 nights |
+> |---|---|
+> | old bare-IQR cut (pre-P4) | **41** |
+> | P4's per-night envelope + session stability guard | **7** |
+> | **rolling 7-night median of the same envelope** | **0** |
+>
+> The device did not change 7 times. P4 was a real improvement (it stopped measuring EPR) but it was
+> still the **wrong shape**, and no per-night guard could have rescued it — P4's guard pooled SESSIONS
+> *within* a night when the quantity is stable *across* nights. It guarded the wrong axis.
+>
+> **Executed:** the per-night `mode` label is **RETIRED** (`metrics.mode` is now always `null`; the
+> field is kept, so the export contract does not break). The CPAP-vs-APAP call now lives ONLY in
+> `buildLongitudinal()` (`mode` / `modeEnvIqr` / `modeNights`), needs **≥7 nights**, and is flip-free on
+> the corpus (**APAP @ 1.33 cmH₂O over 180 nights, 0 flips**). A single night reports `pressureEnvIqr`
+> — a *measurement* — and names no device setting. The pressure card no longer carries a mode chip.
+>
+> **Still true, and still labelled as such:** the cut points remain unvalidated. Treat the longitudinal
+> label as a *stable inference from the pressure envelope*, not a device readout. If a fixed-CPAP
+> corpus ever appears, fit the cut to the valley between the two modes — that is the only honest way.
+
+## 1 (as proposed) — the premise, now refuted
 
 P4 retired the bare-IQR `mode` cut and replaced it with an EPR-immune, minutes-scale pressure envelope
 plus a dead-band. The *estimator* is now right — it measures auto-titration rather than the EPR setting.
@@ -45,7 +83,41 @@ space between them*, which is exactly what the old raw-IQR cut failed to do. The
 
 ---
 
-## 2 · `event-coupling.js` has no consumer
+## 2 · `event-coupling.js` ✅ **EXECUTED 2026-07-12 — and §M1's headline coupling is RETRACTED**
+
+> **`tools/cpap-oxy-couple.mjs` now IMPORTS the primitive** instead of carrying its own copy (its
+> prototype is deleted, so the tool can no longer drift from the gated module). That made it the
+> primitive's first consumer — and re-running it re-derived §M1's numbers, which is what this section
+> asked for.
+>
+> **The re-derivation kills §M1's positive finding.** On 44 paired CPAP∩O2Ring nights, with the null
+> now WRAPPING circularly:
+>
+> | event class | n | lift, 0–30 s → 0–120 s |
+> |---|---|---|
+> | central | 733 | **×0.5 – 0.7** |
+> | obstructive | 58 | **×0.7 – 1.1** |
+> | hypopnea | 247 | **×0.6 – 1.1** |
+>
+> **Nothing couples above chance.** §M1 reported *"a rare class (n=39) showed ×3.3–10"* — that was an
+> artifact of the **non-wrapping null**, which let surrogates fall off the end of a night where no
+> desat can match them, deflating `chance` and therefore inflating `lift`. Exactly the direction the
+> bug was predicted to bias. **§M1's ×3.3–10 is RETRACTED.** Its two *negative* findings survive
+> unchanged (dominant class at chance; longest-duration bucket at ×0.0).
+>
+> **This is a well-powered null, not a saturation artifact** — `maxLift` is ×14–24 across these
+> windows, so a coupling of up to ×14 *could* have been seen and was not. That is precisely the
+> distinction the `saturated`/`maxLift` machinery was built to make, and it earns its keep here.
+>
+> ⚠️ **One anomaly, recorded as a caveat and NOT as a conclusion.** The longest central apneas (>25 s,
+> n=48) show **zero** desats within 90 s where chance predicts ~3.4. That is not "no coupling" — it is
+> *anti*-coupling, and a long apnea that never desaturates is physiologically odd. Before anyone reads
+> it as a finding, rule out the mundane explanations: an inter-device **clock offset** (cf.
+> `PAT-FEASIBILITY`'s ~48 ppm drift), the oximeter not being worn across those spans, or a desat
+> detector that misses the relevant morphology. **Do not publish the ×0.0 until one of those is
+> excluded.**
+
+## 2 (as proposed)
 
 P5 shipped the shuffled-null coupling primitive with 22 self-test + 21 contract assertions, and it is
 deliberately **not co-loaded into any bundle** — no app uses it, and wiring it into `dex-coload.js` would

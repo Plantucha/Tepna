@@ -246,6 +246,15 @@ lane is synthetic-only.
 ## 3 · Method findings (what changes how we compute, not what any person's numbers are)
 
 ### M1 — a shuffled-null baseline is mandatory for cross-node event coupling
+> ⚠️ **PARTIALLY RETRACTED 2026-07-12** (`CPAP-REAL-CORPUS-FOLLOWUPS` §2). The lesson below stands and
+> is, if anything, strengthened. But the **×3.3–10 lift for the rare class is WRONG and is retracted** —
+> it was produced by the prototype's **non-wrapping null**, which let surrogates fall off the end of a
+> night where no desat could match them, deflating chance and *inflating* lift. Re-derived through the
+> fixed primitive on 44 paired nights: **no event class couples above chance** (central ×0.5–0.7,
+> obstructive ×0.7–1.1, hypopnea ×0.6–1.1), and `maxLift` ×14–24 proves the windows were not saturated,
+> so this is a well-powered null rather than an artifact. The **negative** findings below survive
+> unchanged. The irony is the point: the section arguing that a chance baseline is mandatory was itself
+> undone by a chance baseline that was subtly wrong.
 
 Testing whether node A's events precede node B's events **requires a chance baseline**, because two
 frequent event streams co-occur by construction. Circular time-shift surrogates (displace every A event by
@@ -432,6 +441,7 @@ Recorded so nobody rebuilds them. All four were *plausible* and *wrong*, and eac
 | One regime "beat" another | **Permutation test** — p ≈ 0.22. It was a 9-night block. *Eyeballed block means are not effects.* |
 | A DSP field "reads null — DSP gap" | It is **computed correctly** and then **dropped from the export** (F1). *Check the export before blaming the DSP.* |
 | A mechanism explained a real association | The association survived every test; the **mechanism's own precursor channel contradicted it** (M3). *Statistical strength ≠ mechanistic truth.* |
+| A rare event class coupled to desats at **×3.3–10** (M1) | **The null model itself was broken.** Its time-shift did not WRAP, so surrogates fell off the end of the night where nothing could match them → chance deflated → lift inflated. Re-derived through the fixed primitive: **×0.7–1.1, i.e. chance** (FOLLOWUPS §2, 2026-07-12). *A chance baseline only protects you if the baseline is right — check that your null can actually be hit.* |
 
 ---
 
