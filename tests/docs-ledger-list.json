@@ -894,6 +894,8 @@
     "tools/build-docs.mjs",
     "tools/build.html",
     "tools/build.mjs",
+    "tools/cpap-corpus.mjs",
+    "tools/cpap-oxy-couple.mjs",
     "tools/derive-sigma-window.mjs",
     "tools/release.mjs",
     "tools/tch-estimator-bakeoff.mjs",
