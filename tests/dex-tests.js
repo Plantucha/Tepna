@@ -2971,6 +2971,153 @@
       }
     );
 
+    /* DEEP-AUDIT-FOLLOWUPS §B — the fail-open layers the parent audit closed only at the OUTER edge.
+       §B1 §2 vetoed the H10 accelerometer at the ADAPTER, which closed the reachable production path.
+           Underneath, PulseDex still accepted ANY column whose median landed in 300–2000 — the ACC's
+           gravity rail (~973 mg) reads as 973 ms beats — and the `usable` gate asked whether the values
+           were beat-SIZED but never whether they behaved like INTERVALS.
+           The test is a CONSERVATION LAW, not a threshold: RR intervals are the gaps BETWEEN beats, so
+           they must SUM to the time they span. Measured on the real corpus — 19/19 genuine RR/PPI files
+           conserve time to within 1 % (ratio 1.00–1.01); the H10 ACC read as RR claims 24.6× the elapsed
+           time, the Verity ACC 15.6×. Crucially this CANNOT reject a genuinely flat recording, which is
+           why the brief's "SDNN 9.5 ms is impossible" framing would have been the WRONG test: the Verity
+           ACC's SDNN is 69.5 ms, sitting comfortably INSIDE the real-RR range (24.4–162.7). A variability
+           floor would have missed it and risked rejecting real pathology; time-conservation separates
+           them by 15×.
+       §B2 `_envToSeed` seeded every absent field to 0 — the exact coercion that collapsed §3's n.u.
+           denominator. Now null.
+       §B3 the `||0` siblings of the HRV Score. `_stress` is RENDERED as a readiness subscore, so a file
+           with no Stress column showed a fabricated "0 · ok" — green, reassuring, invented.
+       §B4 `spo2HrDecouplingPct` kept the 0-for-undefined shape §18 removed from its coupling sibling. */
+    group('§B — fail-open layers: an interval must conserve time; absence is not zero', 'pulsedex-dsp · hrvdex-dsp · oxydex-dsp · fabricated-absence · ingest', function (T) {
+      // ── §B1 · a non-beat channel cannot masquerade as RR ──────────────────────────────────────────
+      var PD = env.PulseDex;
+      if (PD && typeof PD.parseRRInput === 'function') {
+        var p2 = function (v) {
+          return v < 10 ? '0' + v : '' + v;
+        };
+        // A real Polar Sensor Logger ACCELEROMETER file: 200 Hz, Z axis railed on gravity (~973 mg).
+        // Every value sits inside the 300–2000 "beat-sized" window, so the range check waves it through.
+        var accLines = ['Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]'];
+        var t0 = Date.UTC(2026, 5, 12, 1, 0, 0);
+        for (var i = 0; i < 4000; i++) {
+          var d = new Date(t0 + i * 5); // 200 Hz
+          var stamp =
+            d.getUTCFullYear() +
+            '-' +
+            p2(d.getUTCMonth() + 1) +
+            '-' +
+            p2(d.getUTCDate()) +
+            ' ' +
+            p2(d.getUTCHours()) +
+            ':' +
+            p2(d.getUTCMinutes()) +
+            ':' +
+            p2(d.getUTCSeconds()) +
+            '.' +
+            String(d.getUTCMilliseconds()).padStart(3, '0');
+          accLines.push(stamp + ';' + i * 5000000 + ';12;-30;' + (970 + (i % 7)));
+        }
+        var acc = PD.parseRRInput(accLines.join('\n'));
+        T.ok('§B1 · a Polar accelerometer file is NOT usable as an RR recording', acc.usable === false, 'usable=' + acc.usable + ' nUsable=' + acc.nUsable);
+        T.ok('§B1 · and it says WHY — the values do not conserve time', /conserve|elapsed time|interval series/i.test(acc.reason || ''), acc.reason);
+        // the control: without the fix this file passes every OLD check — beat-sized values, plenty of them
+        var accVals = accLines.slice(1).map(function (l) {
+          return +l.split(';')[4];
+        });
+        var inBand = accVals.filter(function (v) {
+          return v >= 300 && v <= 2000;
+        }).length;
+        T.ok('§B1 · (control) every value IS beat-sized — the old range check could never catch it', inBand === accVals.length, inBand + '/' + accVals.length + ' inside 300–2000 ms');
+        T.ok('§B1 · (control) the time ratio really is impossible', acc.timeRatio > 10, 'sum(intervals) = ' + (acc.timeRatio || 0).toFixed(1) + '× the elapsed span');
+
+        // A GENUINE RR file must survive — including a flat, low-variability one (the case a variability
+        // floor would have wrongly rejected). 60 bpm, ±2 ms of jitter: SDNN ≈ 1 ms, but time is conserved.
+        var rrLines = ['Phone timestamp;sensor timestamp [ns];RR-interval [ms]'];
+        var rt = Date.UTC(2026, 5, 12, 2, 0, 0);
+        for (var b = 0; b < 600; b++) {
+          var rr = 1000 + (b % 3) - 1; // 999–1001 ms — pathologically flat, but REAL
+          var dd = new Date(rt);
+          var st =
+            dd.getUTCFullYear() +
+            '-' +
+            p2(dd.getUTCMonth() + 1) +
+            '-' +
+            p2(dd.getUTCDate()) +
+            ' ' +
+            p2(dd.getUTCHours()) +
+            ':' +
+            p2(dd.getUTCMinutes()) +
+            ':' +
+            p2(dd.getUTCSeconds()) +
+            '.' +
+            String(dd.getUTCMilliseconds()).padStart(3, '0');
+          rrLines.push(st + ';' + b * 1000000000 + ';' + rr);
+          rt += rr;
+        }
+        var rrp = PD.parseRRInput(rrLines.join('\n'));
+        T.ok('§B1 · a genuine RR recording is still usable', rrp.usable === true, 'usable=' + rrp.usable + ' reason=' + rrp.reason);
+        T.ok(
+          '§B1 · …even one that is PATHOLOGICALLY FLAT (a variability floor would have rejected it)',
+          rrp.usable === true && rrp.timeRatio > 0.9 && rrp.timeRatio < 1.1,
+          'timeRatio=' + (rrp.timeRatio || 0).toFixed(3)
+        );
+      } else {
+        T.ok('§B1 · env.PulseDex.parseRRInput available', false, 'not wired — gate skipped');
+      }
+
+      // ── §B3 · an absent vendor column is absent, not a score of 0 ─────────────────────────────────
+      var H = env.HRVDex;
+      if (H && typeof H.parseRows === 'function') {
+        var noSubj = 'Date,Time,Measurement HR,Mean RR,SDNN,rMSSD,pNN50\n2026-06-01,07:00:00,58,1030,62,45,28\n2026-06-02,07:00:00,60,1000,64,47,30\n';
+        var nsRows = H.parseRows(noSubj);
+        if (nsRows && nsRows.length) {
+          var r0 = nsRows[0];
+          T.ok('§B3 · a file with no Stress column reads _stress = null (it rendered a green "0 · ok")', r0._stress === null, 'got ' + JSON.stringify(r0._stress));
+          T.ok('§B3 · the other siblings too (energy/focus/sns/psns/coherence)', r0._energy === null && r0._focus === null && r0._sns === null && r0._psns === null && r0._coherence === null);
+          // the control: the _hasSubj gate is UNCHANGED by this — its stated dependence on the 0 was false
+          var dr = typeof H.derive === 'function' ? H.derive(nsRows) : null;
+          var d0 = (dr && dr[0]) || r0;
+          T.ok(
+            '§B3 · (control) every _hasSubj-gated composite is STILL absent — the gate never needed the 0',
+            Number.isNaN(d0.d_se_div) && Number.isNaN(d0.d_ans_load) && Number.isNaN(d0.d_coh_energy),
+            'd_se_div=' + d0.d_se_div + ' d_ans_load=' + d0.d_ans_load
+          );
+        }
+        // a REAL 0 must survive as 0 — absence and a genuine zero are different facts
+        var zeroSubj = H.parseRows('Date,Time,Measurement HR,SDNN,Stress(HRV)\n2026-06-04,07:00:00,58,60,0\n');
+        if (zeroSubj && zeroSubj.length) {
+          T.ok('§B3 · a genuine vendor 0 still reads 0 (absence ≠ zero, in both directions)', zeroSubj[0]._stress === 0, 'got ' + JSON.stringify(zeroSubj[0]._stress));
+        }
+      }
+
+      // ── §B2 · the seed for an absent field is null, not 0 ─────────────────────────────────────────
+      if (H && typeof H.rowFromNodeExport === 'function') {
+        var envExp = {
+          schema: { name: 'ganglior.node-export', node: 'ECGDex' },
+          recording: { startEpochMs: U(2026, 5, 25, 22, 0, 0) },
+          hrv: { time: { sdnn: 50, rmssd: 30 }, frequency: { lf: 400, hf: 200 } } // NO totalPower, NO vlf, no subjective
+        };
+        var seed = H.rowFromNodeExport(envExp);
+        if (seed) {
+          T.ok(
+            '§B2 · an absent band seeds to null, not 0 (the coercion that exploded HF n.u. in §3)',
+            seed._totalPow === null && seed._vlf === null,
+            'totalPow=' + JSON.stringify(seed._totalPow) + ' vlf=' + JSON.stringify(seed._vlf)
+          );
+          T.ok('§B2 · absent subjective scores seed to null too', seed._stress === null && seed._coherence === null);
+          T.ok('§B2 · a PRESENT band still seeds to its number', seed._lf === 400 && seed._hf === 200);
+        }
+      }
+
+      // ── §B4 · 0/0 decoupling is undefined, not "0 % decoupled" ────────────────────────────────────
+      var OD4 = env.OxyDex;
+      if (OD4 && typeof OD4.compute === 'function') {
+        var src = (env.sources || {})['oxydex-dsp.js'] || '';
+        T.ok('§B4 · spo2HrDecouplingPct is null when no window is comparable (0/0 is undefined)', /spo2HrDecouplingPct\s*=\s*dcTotal\s*>\s*0\s*\?[^:]*:\s*null/.test(src), 'still coerces to 0');
+      }
+    });
+
     group('Integrator ingests the GlucoDex export end-to-end (GLUCODEX-FOLLOWUPS §3)', 'glucodex-dsp · integrator-dsp', function (T) {
       var A = env.adaptEnvelopeNode;
       if (typeof A !== 'function') {
@@ -8797,9 +8944,18 @@
           'transparent SDNN/rMSSD/MeanRR parse via numOrNull (absent → null, not 0)',
           /_sdnn\s*=\s*numOrNull\(/.test(dsp) && /_rmssd\s*=\s*numOrNull\(/.test(dsp) && /_meanRR\s*=\s*numOrNull\(/.test(dsp)
         );
+        /* ⚠️ REVERSED DELIBERATELY (DEEP-AUDIT-FOLLOWUPS §B3). This assertion used to REQUIRE the
+           subjective columns to keep `|| 0`, on the stated grounds that "the _hasSubj presence gate
+           depends on it". That rationale was FALSE: `_hasSubj` reads `r._stress > 0`, and `null > 0`
+           is false exactly as `0 > 0` is — verified, every `_hasSubj`-gated composite (d_se_div,
+           d_ans_load, d_coh_energy, d_pti) is still NaN with null. So the gate never depended on the
+           0, and the 0 was not harmless: `_stress` is RENDERED as a readiness subscore
+           (hrvdex-render.js), so a Welltory file with no Stress column displayed a fabricated
+           "0 · ok" — a green, reassuring, invented reading. Same bug class as §21's HRV Score. The
+           subjective columns now parse absent → null, and the renderer omits the subscore. */
         T.ok(
-          'subjective Welltory columns KEEP ||0 (the _hasSubj presence gate depends on it)',
-          /_stress\s*=\s*parseFloat\(.*\|\|\s*0\)/.test(dsp) && /_energy\s*=\s*parseFloat\(.*\|\|\s*0\)/.test(dsp)
+          'subjective Welltory columns parse absent → null, NOT a fabricated 0 (§B3 — reverses the old ||0 rule)',
+          /_stress\s*=\s*_firstNum\(/.test(dsp) && /_energy\s*=\s*_firstNum\(/.test(dsp) && !/_stress\s*=\s*parseFloat\(.*\|\|\s*0\)/.test(dsp)
         );
         T.ok('SDNN rolling filter is symmetric with rmssd7 (drops null/≤0)', /const\s+sdnn7\s*=\s*window7\.map\(x\s*=>\s*x\._sdnn\)\.filter\(v\s*=>\s*!isNaN\(v\)\s*&&\s*v\s*>\s*0\)/.test(dsp));
         T.ok('d_sdnn_z gates on the row’s OWN _sdnn presence (absent row → NaN, no fabricated z)', /d_sdnn_z\s*=\s*\(r\._sdnn\s*>\s*0\s*&&\s*stdSDNN7\s*>\s*0\)/.test(dsp));
@@ -9019,7 +9175,9 @@
           T.ok('present SDNN parses to its number (62, not null)', bRows[0]._sdnn === 62, 'got ' + bRows[0]._sdnn);
           T.ok('blank SDNN parses to null (absence, NOT a fabricated 0)', bRows[1]._sdnn === null, 'got ' + bRows[1]._sdnn);
           T.ok('blank rMSSD + pNN50 also parse to null', bRows[1]._rmssd === null && bRows[1]._pnn50 === null, 'rmssd=' + bRows[1]._rmssd + ' pnn50=' + bRows[1]._pnn50);
-          T.ok('subjective Stress KEEPS ||0 on a blank cell (0, not null — _hasSubj gate)', bRows[1]._stress === 0, 'got ' + bRows[1]._stress);
+          // §B3 — a BLANK subjective cell is absence, not a score of 0. It used to render as
+          // "Stress 0 · ok" (green). `_hasSubj` still excludes the row either way (null > 0 === false).
+          T.ok('subjective Stress on a blank cell → null (absence), NOT a fabricated 0 (§B3)', bRows[1]._stress === null, 'got ' + bRows[1]._stress);
         }
         var zeroRow = H.parseRows('Date,Time,Measurement HR,SDNN,pNN50\n2026-06-04,07:00:00,58,0,0\n');
         if (zeroRow && zeroRow.length === 1) {
