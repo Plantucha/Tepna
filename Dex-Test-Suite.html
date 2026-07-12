@@ -205,10 +205,13 @@ async function main(){
   // consumer (e.g. the GlucoDex §3 integrator-ingest test) still gets its committed fixture in CI,
   // while the input+fixture equiv DIFF (needs both — the CASES loop in dex-tests.js) self-skips via
   // T.skip when only the input half is missing, instead of hard-failing on a fresh CI clone.
-  const setEquiv = (key, input, fixture) => {
+  const setEquiv = (key, input, fixture, fixtureFile) => {
     const rec = {};
     if (input != null) rec.input = input;
     if (fixture != null) rec.fixture = fixture;
+    // WHICH committed fixture this leg re-runs — read by the fixture-reproducibility gate, which
+    // forbids a code-gated fixture (a manifestHash claim) that nothing actually reproduces.
+    if (fixtureFile) rec.fixtureFile = fixtureFile;
     if (Object.keys(rec).length) equiv[key] = rec;
   };
   // ── P9: the SYNTHETIC, COMMITTED twin for every node (see tests/run-tests.mjs readEquiv) ────
@@ -228,7 +231,7 @@ async function main(){
     ['oxydex_longnight', 'synthetic_oxydex_o2ring_longnight.csv', null]
   ]) {
     try {
-      setEquiv(k, await fetchText('uploads/' + inF), fxF ? await fetchJSON('uploads/' + fxF) : null);
+      setEquiv(k, await fetchText('uploads/' + inF), fxF ? await fetchJSON('uploads/' + fxF) : null, fxF);
     } catch (e) {
       /* absent → the CASES loop self-skips */
     }
@@ -248,65 +251,79 @@ async function main(){
       bufs[k] = await r.arrayBuffer();
     }
     const edfFix = await fetchJSON('uploads/cpapdex_synthetic_edf_golden.node-export.json');
-    setEquiv('cpapdex_edf', bufs, edfFix);
+    setEquiv('cpapdex_edf', bufs, edfFix, 'cpapdex_synthetic_edf_golden.node-export.json');
   } catch (e) {
     /* absent → the CASES loop self-skips */
   }
-  try {
-    const oxyCsv = await fetchText('uploads/' + encodeURIComponent('O2Ring S 2100_20260612230016.csv'));
-    const oxyFix = await fetchJSON('uploads/' + encodeURIComponent('OxyDex_2026-06-13_1056_summary.json'));
-    setEquiv('oxydex', oxyCsv, oxyFix);
-    const pdRr  = await fetchText('uploads/' + encodeURIComponent('Polar_H10_AAAAAAAA_20260613_204448_RR.txt'));
-    const pdFix = await fetchJSON('uploads/' + encodeURIComponent('PulseDex_2026-06-25_equiv.node-export.json'));
-    setEquiv('pulsedex', pdRr, pdFix);
-    const hrCsv = await fetchText('uploads/' + encodeURIComponent('WELLTORY_HRV_DATA_EXPORT_20_May_2026_12_00_AM-17_Jun_2026_11_59_PM.csv'));
-    const hrFix = await fetchJSON('uploads/' + encodeURIComponent('HRVDex_2026-06-25_equiv.node-export.json'));
-    setEquiv('hrvdex', hrCsv, hrFix);
-    // VII §2: event-byte-coverage cases — purpose-built inputs that emit ≥1 event of EACH impulse
-    // (the equiv cases above carry empty ganglior_events, so the event t-string/meta/ordering went
-    // untested). HRVDex events CSV → hrv_low (measured) + stress_high (heuristic, derived); PulseDex
-    // synthetic overnight RR → hrv_drop + stress_peak (windowed branch).
-    const hrEvCsv = await fetchText('uploads/' + encodeURIComponent('HRVDex_2026-06-25_events.csv'));
-    const hrEvFix = await fetchJSON('uploads/' + encodeURIComponent('HRVDex_2026-06-25_events.node-export.json'));
-    setEquiv('hrvdex_events', hrEvCsv, hrEvFix);
-    const pdEvRr  = await fetchText('uploads/' + encodeURIComponent('PulseDex_2026-06-25_events_RR.txt'));
-    const pdEvFix = await fetchJSON('uploads/' + encodeURIComponent('PulseDex_2026-06-25_events.node-export.json'));
-    setEquiv('pulsedex_events', pdEvRr, pdEvFix);
-    // GlucoDex Phase-9 CGM leg: a real Abbott Lingo vendor CSV (clipped 55-200, tz-offset, newest-first)
-    // → GlucoDex.compute({text}) ≡ the committed ganglior-export. Exercises clamp-saturation + the
-    // zone-offset + ascending-sort clock paths in one fixture.
-    const gluCsv = await fetchText('uploads/' + encodeURIComponent('lingo-glucose-data-2026-MAY-23.csv'));
-    const gluFix = await fetchJSON('uploads/' + encodeURIComponent('GlucoDex_2026-06-27_equiv.node-export.json'));
-    setEquiv('glucodex', gluCsv, gluFix);
-    // PpgDex Phase-9 raw-PPG leg: a real Polar Verity Sense *_PPG.txt (~6.5 min, 176 Hz) →
-    // PpgDex.compute({text}) ≡ the committed light node-export. Exercises optical beat detection
-    // → self-PPI → multi-epoch HRV headlessly (the same path the Unifier/OverDex route through).
-    const ppgTxt = await fetchText('uploads/' + encodeURIComponent('Polar_Sense_BBBBBBBB_20260621_060523_PPG.txt'));
-    const ppgFix = await fetchJSON('uploads/' + encodeURIComponent('PpgDex_2026-06-27_equiv.node-export.json'));
-    setEquiv('ppgdex', ppgTxt, ppgFix);
-    // ECGDex Phase-9 raw-ECG leg (node 3/4): a real Polar H10 *_ECG.txt clip (~6 min, 130 Hz) →
-    // ECGDex.compute({text}) ≡ the committed light node-export. Exercises the pure parseECG +
-    // band-pass → Pan-Tompkins R-peak (NO Worker) → SQI → HRV → CVHR path headlessly.
-    const ecgTxt = await fetchText('uploads/' + encodeURIComponent('Polar_H10_AAAAAAAA_20260617_010615_ECG_clip.txt'));
-    const ecgFix = await fetchJSON('uploads/' + encodeURIComponent('ECGDex_2026-06-27_equiv.node-export.json'));
-    setEquiv('ecgdex', ecgTxt, ecgFix);
-    // CPAPDex GOLDEN reference (CPAPDEX-PHASE9-FOLLOWUPS-II §1): fixture-only — the gate rebuilds the
-    // deterministic synthetic night from CpapDsp._synthEdfSet in-code (no {text} input; CPAPDex's real
-    // input is a binary multi-file EDF set, so it can't join the input-driven equiv CASES).
-    const cpapGoldFix = await fetchJSON('uploads/' + encodeURIComponent('cpapdex_synthetic_golden.node-export.json'));
-    setEquiv('cpapdex_golden', null, cpapGoldFix);
-    // CPAPDex MULTI-NIGHT golden (CPAPDEX-PHASE9-FOLLOWUPS-III §1): pins exportNight's >=3-night
-    // crossnight-wrapper envelope — the only fixture that exercised it (cpapdex-multi17) was retired
-    // in -I. Fixture-only; the gate rebuilds >=3 day-shifted deterministic synthetic nights in-code
-    // (needs window.CPAPCross — cpapdex-cross.js is now loaded above + CPAPCross is in env).
-    const cpapMultiFix = await fetchJSON('uploads/' + encodeURIComponent('cpapdex_synthetic_multinight_golden.node-export.json'));
-    setEquiv('cpapdex_multinight_golden', null, cpapMultiFix);
-    // Integrator TCH-HR GOLDEN (INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II §2): the first code-gated
-    // Integrator fixture. Fixture-only — the gate rebuilds the three staggered synthetic node-exports in-code
-    // (no {text} input) and fuses them; only the committed golden consensus is wired.
-    const tchGoldFix = await fetchJSON('uploads/' + encodeURIComponent('integrator_tch_golden.node-export.json'));
-    setEquiv('integrator_tch_golden', null, tchGoldFix);
-  } catch(e){ /* browser-only fetch; gate self-skips if absent */ }
+  /* ── real-recording equiv legs — ONE TRY PER LEG (FIXTURE-REPRODUCIBILITY §2) ─────────────────
+     These all lived inside a SINGLE try{}. One missing recording threw, and every setEquiv() below
+     it never ran — so ONE absent file silently removed NINE legs from the gate and the suite went
+     green having quietly stopped checking them. Same class as GATE-INTEGRITY-AND-DEVLOOP ("stop the
+     gate shrinking in silence"), here in the equiv loader itself.
+
+     Now each leg fails ALONE, and the FIXTURE registers even when its input is absent — so the
+     fixture-reproducibility gate can still see the fixture HAS a leg (skipping for want of a
+     gitignored recording is budgeted; having no leg at all is not). */
+  for (const [k, inF, fxF] of [
+    ['oxydex', 'O2Ring S 2100_20260612230016.csv', 'OxyDex_2026-06-13_1056_summary.json'],
+    // FIXTURE-REPRODUCIBILITY §1 — OxyDex's SECOND committed summary was code-gated with NO leg.
+    ['oxydex_0439', 'O2Ring S 2100_20260624222730.csv', 'OxyDex_2026-06-25_0439_summary.json'],
+    ['pulsedex', 'Polar_H10_AAAAAAAA_20260613_204448_RR.txt', 'PulseDex_2026-06-25_equiv.node-export.json'],
+    ['hrvdex', 'WELLTORY_HRV_DATA_EXPORT_20_May_2026_12_00_AM-17_Jun_2026_11_59_PM.csv', 'HRVDex_2026-06-25_equiv.node-export.json'],
+    // VII §2: event-byte coverage — inputs that emit >=1 event of EACH impulse (the equiv cases
+    // above carry empty ganglior_events, so event t-string/meta/ordering went untested).
+    ['hrvdex_events', 'HRVDex_2026-06-25_events.csv', 'HRVDex_2026-06-25_events.node-export.json'],
+    ['pulsedex_events', 'PulseDex_2026-06-25_events_RR.txt', 'PulseDex_2026-06-25_events.node-export.json'],
+    // GlucoDex: real Abbott Lingo CSV (clipped, tz-offset, newest-first) — clamp + clock paths.
+    ['glucodex', 'lingo-glucose-data-2026-MAY-23.csv', 'GlucoDex_2026-06-27_equiv.node-export.json'],
+    // PpgDex: real Verity Sense *_PPG.txt — optical beat detection -> self-PPI -> HRV.
+    ['ppgdex', 'Polar_Sense_BBBBBBBB_20260621_060523_PPG.txt', 'PpgDex_2026-06-27_equiv.node-export.json'],
+    // ECGDex: real Polar H10 *_ECG.txt clip — band-pass -> Pan-Tompkins -> SQI -> HRV -> CVHR.
+    ['ecgdex', 'Polar_H10_AAAAAAAA_20260617_010615_ECG_clip.txt', 'ECGDex_2026-06-27_equiv.node-export.json']
+  ]) {
+    let input = null, fixture = null;
+    try { input = await fetchText('uploads/' + encodeURIComponent(inF)); } catch (e) { /* gitignored recording → this leg skips */ }
+    try { fixture = await fetchJSON('uploads/' + encodeURIComponent(fxF)); } catch (e) { /* committed → normally present */ }
+    setEquiv(k, input, fixture, fxF);
+  }
+
+  // ── CPAPDex REAL-EDF legs (FIXTURE-REPRODUCIBILITY §1) — binary, multi-session ───────────────
+  // Both were CODE-GATED (a manifestHash claiming "reproducible under this code") while NOTHING
+  // re-ran them, and build.mjs re-stamped that claim on every bundle move.
+  for (const [k, sessions, fxF] of [
+    ['cpapdex_real_0612', [
+      { BRP: '20260612_222830_BRP.edf', PLD: '20260612_222830_PLD.edf', SA2: '20260612_222830_SA2.edf', EVE: '20260612_222819_EVE.edf', CSL: '20260612_222819_CSL.edf' },
+      { BRP: '20260613_045505_BRP.edf', PLD: '20260613_045505_PLD.edf', SA2: '20260613_045505_SA2.edf', EVE: '20260613_045457_EVE.edf', CSL: '20260613_045457_CSL.edf' }
+    ], 'cpapdex-2026-06-12.node-export.json'],
+    ['cpapdex_real_0616', [
+      { BRP: '20260616_213618_BRP.edf', PLD: '20260616_213618_PLD.edf', SA2: '20260616_213618_SA2.edf', EVE: '20260616_213611_EVE.edf', CSL: '20260616_213611_CSL.edf' }
+    ], 'cpapdex-2026-06-16.json']
+  ]) {
+    let sets = null, fixture = null;
+    try {
+      sets = [];
+      for (const sess of sessions) {
+        const set = {};
+        for (const kind of Object.keys(sess)) {
+          const r = await fetch('uploads/' + sess[kind]);
+          if (!r.ok) throw new Error('missing ' + sess[kind]);
+          set[kind] = await r.arrayBuffer();   // bytes, not text → readEDF
+        }
+        sets.push(set);
+      }
+    } catch (e) { sets = null; /* gitignored recording → this leg skips */ }
+    try { fixture = await fetchJSON('uploads/' + encodeURIComponent(fxF)); } catch (e) { /* committed */ }
+    setEquiv(k, sets, fixture, fxF);
+  }
+
+  // fixture-ONLY legs — the gate rebuilds their input in-code, so there is no {text} to fetch.
+  for (const [k, fxF] of [
+    ['cpapdex_golden', 'cpapdex_synthetic_golden.node-export.json'],
+    ['cpapdex_multinight_golden', 'cpapdex_synthetic_multinight_golden.node-export.json'],
+    ['integrator_tch_golden', 'integrator_tch_golden.node-export.json']
+  ]) {
+    try { setEquiv(k, null, await fetchJSON('uploads/' + encodeURIComponent(fxF)), fxF); } catch (e) { /* self-skips */ }
+  }
   // doc artifacts for the cohesion-badge single-source group (engine ≡ mirror ≡ reference)
   const docs = {};
   await Promise.all([['dex-badges.css','dex-badges.css'],['OxyDex Reference.html','OxyDex Reference.html'],['ECGDex Reference.html','ECGDex Reference.html'],['PpgDex Reference.html','PpgDex Reference.html'],['CPAPDex Reference.html','CPAPDex Reference.html'],['PulseDex Reference.html','PulseDex Reference.html'],['HRVDex Reference.html','HRVDex Reference.html'],['GlucoDex Reference.html','GlucoDex Reference.html'],['EEGDex Reference.html','codegen/generated/eegdex-reference.html'],['ORIENTATION.md','ORIENTATION.md']]

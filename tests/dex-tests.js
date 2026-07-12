@@ -9617,6 +9617,74 @@
           fixPick: function (fx) {
             return fx;
           }
+        },
+        /* ── FIXTURE-REPRODUCIBILITY §1 — the three fixtures nothing re-ran ──────────────────────
+           Each of these carries a `manifestHash` in FIXTURE-PROVENANCE, i.e. the ledger CLAIMS the
+           committed bytes are reproducible under that exact code. Nothing reproduced them. Worse,
+           `build.mjs` silently RE-STAMPED that claim onto a new manifestHash every time the bundle
+           moved — renewing an assertion it had never checked. A reproducibility claim that nothing
+           reproduces is not provenance; it is decoration. These give the claim teeth.
+
+           Their inputs are real recordings (gitignored) so they ⊘ skip in CI, exactly like the other
+           real-recording legs — the synthetic twins are what give CI teeth. What these add is that the
+           claim about THESE fixtures is now checkable AT ALL, and the new gate below makes it
+           impossible to code-gate a fixture without a leg again. */
+        {
+          key: 'oxydex_0439',
+          label: 'OxyDex (2nd real summary — was code-gated with no leg)',
+          node: env.OxyDex,
+          run: function (n, input) {
+            return n.compute({ text: input });
+          },
+          pick: function (res) {
+            return res && res.nights && res.nights[0];
+          },
+          fixPick: function (fx) {
+            return Array.isArray(fx) ? fx[0] : fx;
+          }
+        },
+        {
+          key: 'cpapdex_real_0612',
+          label: 'CPAPDex (real EDF, 2 sessions — was code-gated with no leg)',
+          node: env.CPAPDex,
+          run: function (n, input) {
+            // input = [session, …]; a night may hold several sessions (this one has two)
+            var sets = input.map(function (raw) {
+              var set = {};
+              ['BRP', 'PLD', 'SA2', 'EVE', 'CSL'].forEach(function (k) {
+                if (raw[k]) set[k] = env.CpapEdf.readEDF(raw[k]);
+              });
+              return set;
+            });
+            return n.compute({ edfSets: sets });
+          },
+          pick: function (res) {
+            return res;
+          },
+          fixPick: function (fx) {
+            return fx;
+          }
+        },
+        {
+          key: 'cpapdex_real_0616',
+          label: 'CPAPDex (real EDF, 1 session — was code-gated with no leg)',
+          node: env.CPAPDex,
+          run: function (n, input) {
+            var sets = input.map(function (raw) {
+              var set = {};
+              ['BRP', 'PLD', 'SA2', 'EVE', 'CSL'].forEach(function (k) {
+                if (raw[k]) set[k] = env.CpapEdf.readEDF(raw[k]);
+              });
+              return set;
+            });
+            return n.compute({ edfSets: sets });
+          },
+          pick: function (res) {
+            return res;
+          },
+          fixPick: function (fx) {
+            return fx;
+          }
         }
       ];
       // ── P9 — mirror EVERY case above with its SYNTHETIC, COMMITTED twin ────────────────────────
@@ -12978,6 +13046,72 @@
        Runs the module's own selfTest() so the browser + Node lanes gate the same 19 assertions,
        then re-asserts the contract shape from env (a module co-loaded in only one runner reds
        in the other — the §3 co-load symmetry, enforced by construction). */
+    /* ── FIXTURE REPRODUCIBILITY — a code claim nothing checks is decoration ────────────────────
+       FIXTURE-PROVENANCE.json makes two KINDS of claim about a committed fixture:
+
+         · `historical: true`  → the bytes are PINNED. No claim about code. Honest and cheap.
+         · a `manifestHash`    → "these bytes are REPRODUCIBLE by the code with this hash."
+
+       The second is a strong claim, and GATE B **cannot check it**: GATE B is static — it hashes the
+       committed input, the committed output and the bundle, and never re-runs the app. Only a DYNAMIC
+       leg (the `compute() ≡ committed export` equivalence gate) can. And `tools/build.mjs` RE-STAMPS a
+       fixture's manifestHash onto the new bundle hash every time that bundle moves — silently renewing
+       the claim for a fixture nothing has ever reproduced.
+
+       That gap was real, not theoretical: THREE of 21 code-gated fixtures had no leg at all
+       (`OxyDex_2026-06-25_0439_summary`, `cpapdex-2026-06-12`, `cpapdex-2026-06-16`). FIXTURE-PROVENANCE
+       said so in prose — *"this real-EDF fixture is NOT in the live equiv gate"* — and CLAUDE.md told a
+       human to remember to regenerate the OxyDex one by hand. Prose is not a gate.
+
+       So: **every code-gated fixture must be re-run by something.** If you cannot re-run it, do not
+       code-gate it — mark it `historical` and pin the bytes only, which is an honest, weaker claim.
+       A leg whose input is a gitignored recording still ⊘ skips in CI; that is fine and separately
+       budgeted (expected-skips.json). What this forbids is a claim with NO leg anywhere. */
+    group('fixture reproducibility — every code-gated fixture is actually re-run', 'provenance · fixtures · equivalence', function (T) {
+      var raw = (env.manifests || {})['FIXTURE-PROVENANCE.json'];
+      T.ok('FIXTURE-PROVENANCE.json provided to the runner', !!raw, 'wire env.manifests in both runners');
+      if (!raw) return;
+
+      var fp;
+      try {
+        fp = JSON.parse(raw);
+      } catch (e) {
+        T.ok('FIXTURE-PROVENANCE.json parses', false, (e && e.message) || String(e));
+        return;
+      }
+      var fixtures = (fp && fp.fixtures) || {};
+
+      // the ledger's CODE claims: a manifestHash, and not marked historical
+      var codeGated = Object.keys(fixtures).filter(function (k) {
+        var v = fixtures[k];
+        return k.charAt(0) !== '_' && v && !v.historical && v.manifestHash;
+      });
+      T.ok('the ledger code-gates at least one fixture', codeGated.length > 0, codeGated.length);
+
+      // the fixtures something actually RE-RUNS. Single-sourced from the runners (each equiv record
+      // carries the fixture filename its leg diffs against) — no third list to drift.
+      var EQ = env.equiv || {};
+      var reRun = {};
+      Object.keys(EQ).forEach(function (k) {
+        var f = EQ[k] && EQ[k].fixtureFile;
+        if (f) reRun[f] = k;
+      });
+      T.ok('equiv legs declare which fixture file they re-run (rec.fixtureFile)', Object.keys(reRun).length > 0, Object.keys(reRun).length + ' declared — if 0, wire rec.fixtureFile in BOTH runners');
+      if (!Object.keys(reRun).length) return;
+
+      var orphans = codeGated.filter(function (k) {
+        return !reRun[k];
+      });
+      T.eq('every code-gated fixture has a dynamic leg that re-runs it ' + '(a manifestHash claim with nothing reproducing it is decoration — mark it historical instead)', orphans.sort(), []);
+
+      // …and the converse guard: a leg pointing at a fixture the ledger does not know about is a
+      // wiring typo that would silently gate nothing.
+      var unknown = Object.keys(reRun).filter(function (f) {
+        return !fixtures[f];
+      });
+      T.eq('every equiv leg points at a fixture the ledger actually records', unknown.sort(), []);
+    });
+
     group('event-coupling — shuffled-null cross-node coupling (CPAP-REAL-CORPUS §P5/§M1)', 'event-coupling · spine', function (T) {
       var EC = env.EventCoupling;
       var live = !!(EC && typeof EC.coupling === 'function' && typeof EC.selfTest === 'function');

@@ -495,6 +495,7 @@ path changes/2026-07-12-cpapdex-mode-longitudinal.md
 path changes/2026-07-12-cpapdex-resmed-adapter-and-mode.md
 path changes/2026-07-12-equiv-blindspot-closed-and-corrected.md
 path changes/2026-07-12-event-coupling-primitive.md
+path changes/2026-07-12-fixture-reproducibility-gate.md
 path changes/2026-07-12-intervals-conserve-time-absence-is-not-zero.md
 path changes/2026-07-12-readme-currency.md
 path changes/2026-07-12-site-badge-drift-and-ppgdex-card.md
