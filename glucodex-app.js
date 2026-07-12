@@ -493,8 +493,7 @@ function renderDaily(r){
   }
   const daysCells=[...days.values()].map(pts=>({ pts:pts.sort((a,b)=>a.h-b.h) }));
   // distribution values (analyzable)
-  // DEEP-AUDIT §5: long-gap cells are interpolation, not measurement — keep them out of the daily distribution.
-  const dvals=[]; for(let i=0;i<r.series.N;i++){ if(r.series.gF[i]!==r.series.FLAG.WARMUP&&r.series.gF[i]!==r.series.FLAG.COMPRESSION&&r.series.gF[i]!==r.series.FLAG.GAP_LONG) dvals.push(r.series.gV[i]); }
+  const dvals=[]; for(let i=0;i<r.series.N;i++){ if(r.series.gF[i]!==r.series.FLAG.WARMUP&&r.series.gF[i]!==r.series.FLAG.COMPRESSION) dvals.push(r.series.gV[i]); }
 
   const rows=r.daily.map(d=>{
     const s=sevTIR(d.tir);
@@ -676,16 +675,12 @@ function computeFusion(r, json){
     alignNote = nightOverlap ? 'ECG night ('+new Date(ecgStartMs).toLocaleDateString(undefined,{timeZone:'UTC'})+') overlaps the CGM window — aligned by shared wall-clock.' : 'ECG and CGM appear to be different nights — comparing typical-night profiles, not the same night (directional).';
   } else alignNote='ECG export carries no start timestamp — comparing typical-night profiles.';
 
-  // overnight glucose variability (00:00–06:00) as the GlucoDex-measured night signal.
-  // DEEP-AUDIT §5: long-gap cells are interpolation — an overnight dropout must not be read as "measured".
-  let nightCV=null; { const nv=[]; for(let i=0;i<r.series.N;i++){ const f=r.series.gF[i]; if(f===r.series.FLAG.WARMUP||f===r.series.FLAG.GAP_LONG)continue; const h=new Date(r.series.gT[i]).getUTCHours(); if(h<6) nv.push(r.series.gV[i]); }
+  // overnight glucose variability (00:00–06:00) as the GlucoDex-measured night signal
+  let nightCV=null; { const nv=[]; for(let i=0;i<r.series.N;i++){ if(r.series.gF[i]===r.series.FLAG.WARMUP)continue; const h=new Date(r.series.gT[i]).getUTCHours(); if(h<6) nv.push(r.series.gV[i]); }
     if(nv.length>10){ const m=DSP._mean(nv); nightCV=+(DSP._std(nv,m)/m*100).toFixed(1); } }
 
   // ── producer-side handshake value for ECGDex's reserved.glucoseCorrelation slot ──
-  // The old `(nightCV || r.cv)` silently substituted the DAYTIME CV when there was no nocturnal coverage,
-  // and still surfaced (and emitted) the number as a NOCTURNAL risk. With no night data the risk is
-  // UNKNOWN — null — and the nocturnal_glucose_risk event is not emitted at all (DEEP-AUDIT §5 residue).
-  const nocturnalGlucoseRisk = (nightCV==null) ? null : +(0.5*glyVar + 0.5*clamp(nightCV/50,0,1)).toFixed(3);
+  const nocturnalGlucoseRisk = +(0.5*glyVar + 0.5*clamp((nightCV||r.cv)/50,0,1)).toFixed(3);
   const glucoseAutonomicCorrelation = autoRisk!=null ? +((concordance==='concordant-elevated'?0.6:concordance==='discordant'?-0.2:0.2) + (autoRisk-0.5)*0.4).toFixed(2) : null;
 
   // ── Ganglior events emitted back onto the bus ──
@@ -695,11 +690,8 @@ function computeFusion(r, json){
   const t0ms=(ecgStartMs||r.t0Ms)||null;
   const events=[
     { t:t0, tMs:t0ms, impulse:'glucose_autonomic_correlation', node:'GlucoDex', conf, meta:{ irBand, irScore, concordance, autoRisk, glyVar } },
+    { t:t0, tMs:t0ms, impulse:'nocturnal_glucose_risk', node:'GlucoDex', conf, meta:{ value:nocturnalGlucoseRisk, nightCV } },
   ];
-  // Only emit a NOCTURNAL risk when there is nocturnal data behind it (DEEP-AUDIT §5).
-  if(nocturnalGlucoseRisk!=null){
-    events.push({ t:t0, tMs:t0ms, impulse:'nocturnal_glucose_risk', node:'GlucoDex', conf, meta:{ value:nocturnalGlucoseRisk, nightCV } });
-  }
   if(morph && morph.hypoQtcRisk==='elevated'){
     events.push({ t:t0, tMs:t0ms, impulse:'hypo_qtc_arrhythmia_risk', node:'GlucoDex', conf:+(Math.min(0.95,conf+0.05)).toFixed(2), meta:{ qtcMs:morph.qtc, nocturnalHypos:morph.nNocturnalHypo, nadirMgdl:morph.minNightGlucose } });
   }

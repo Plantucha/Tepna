@@ -539,16 +539,6 @@
     var rows = [];
     var _anchorMs = fileMeta ? _o2DateAnchorMs(fileMeta.fname, fileMeta.file) : null;
     var _prevTMs = null;
-    // CLOCK CONTRACT §3 — resolve the file's date order ONCE, before parsing any row. O2Ring ships BOTH
-    // DD/MM/YYYY and MM/DD/YYYY; deciding per-row lets an MM/DD file flip order mid-file (06/12 → Dec 6,
-    // then 06/13 → Jun 13), which runs the clock BACKWARD and collapses the night's ODI to 0.
-    var _stamps = [];
-    for (var _si = firstDataIdx; _si < lines.length; _si++) {
-      var _sp = lines[_si].trim().split(',');
-      if (_sp.length >= 3 && timeCol < _sp.length) _stamps.push(_sp[timeCol].trim());
-    }
-    var _order = DexClock.resolveDMY(_stamps, true);   // O2Ring default is DMY when genuinely ambiguous
-    var _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked };
     for (var i = firstDataIdx; i < lines.length; i++) {
       var p = lines[i].trim().split(',');
       if (p.length < 3) continue;
@@ -565,7 +555,7 @@
       // CLOCK-UNIFY: floating wall-clock ms is the source of truth. row.t is a derived
       // compat Date, ALWAYS read back with getUTC*. Time-only rows anchor to _anchorMs
       // and roll forward monotonically past midnight (no Jan-2000, no +86400000 hack).
-      var _ts = parseTimestamp(tStr, { dateAnchorMs: _anchorMs, prevTMs: _prevTMs, preferDMY: _tsOpts.preferDMY, dmyLocked: _tsOpts.dmyLocked });
+      var _ts = parseTimestamp(tStr, { dateAnchorMs: _anchorMs, prevTMs: _prevTMs, preferDMY: true });
       if (!_ts) continue;
       _prevTMs = _ts.tMs;
       rows.push({ tMs: _ts.tMs, t: new Date(_ts.tMs), spo2: spo2, hr: hr, motion: motion });
@@ -2398,14 +2388,9 @@
       n = rows.length;
     var mSpo2 = avg(spo2),
       mHr = avg(hr);
-    // Monotonicity is now ENFORCED, not assumed: parseCSV locks the file's date order (Clock Contract
-    // §3), so rows cannot run backward. If one still does, that is a clock failure — surface it as an
-    // absent duration, never as a negative number that would silently divide the ODI/burden denominators.
-    var rawDurMs = rows[n - 1].tMs - rows[0].tMs;
-    var _durBad = !(rawDurMs >= 0);
+    var rawDurMs = rows[n - 1].tMs - rows[0].tMs; // monotonic floating wall-clock → always ≥0
     return {
-      durationMin: _durBad ? null : +(rawDurMs / 60000).toFixed(1),
-      clockNonMonotonic: _durBad || undefined,
+      durationMin: +(rawDurMs / 60000).toFixed(1),
       start: fmtTime(rows[0].t),
       end: fmtTime(rows[n - 1].t),
       meanSpo2: isFinite(mSpo2) ? +mSpo2.toFixed(1) : 0,
