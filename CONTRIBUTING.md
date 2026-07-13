@@ -196,13 +196,14 @@ These make the contracts real. Treat a red as a **blocker**, not a nitpick.
 > It's the tight inner-loop check while iterating on one `*-dsp.js`/registry — NOT a substitute for the
 > unfiltered sweep + `?full` render-coverage (it reminds you of that on green).
 >
-> **Reconcile helper (READ-ONLY):** after a re-bundle moves a `manifestHash`, `node tests/reconcile-provenance.mjs
-> --bundle=oxydex` recomputes the settled hash, classifies the change (**RECONCILED** / **EXPORT-INERT** /
-> **OUTPUT-MOVED**), and prints the EXACT `BUILD-MANIFEST.json` + `FIXTURE-PROVENANCE.json` edit to make —
-> it **NEVER writes** (PROVENANCE-NONDETERMINISM §2/§4: an auto-writer would race the platform's out-of-band
-> rebuild). Apply its edits by hand AFTER the build settles, then re-run it to confirm RECONCILED; if it
-> already flipped to RECONCILED, the concurrent writer synced it — do nothing. For OUTPUT-MOVED it refuses
-> to print an output hash: regenerate the fixture by re-running the app + re-exporting, never hand-paste.
+> **Reconcile helper (READ-ONLY diagnostic — you should rarely need it).** For an **owned** bundle,
+> `node tools/build.mjs --app <Name>` already writes the `BUILD-MANIFEST.json` hash and re-stamps the
+> code-gated fixtures; hand-applying a ledger edit is NOT the normal path. `node tests/reconcile-provenance.mjs
+> --bundle=oxydex` stays useful for *classifying* a change — **RECONCILED** / **EXPORT-INERT** /
+> **OUTPUT-MOVED** — when you want to know what a re-bundle actually did. It **never writes**. For
+> OUTPUT-MOVED it refuses to print an output hash: regenerate the fixture by re-running the app +
+> re-exporting, never hand-paste. If it already reads RECONCILED, the ledger is synced — do nothing
+> (and do not fight a concurrent writer; see CLAUDE.md §👥.3).
 
 **The shared assertions in `tests/dex-tests.js` ARE the public contract.** If you intentionally change
 a function signature or return shape, **keep back-compat** (add new params LAST + optional; expose new

@@ -6,7 +6,15 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-07-05 · **Created:** 2026-07-03 · **Follows:** `OWN-THE-BUILD-2026-06-30-BRIEF.md`
+**Status:** IN-PROGRESS — 2026-07-13 (**§2 docs rewrite DONE** — `CLAUDE.md` §🔏 was the last stale surface [the
+retired hand-update prose was still the body text, with a "superseded" note bolted on top]; also corrected "8
+bundles"→10 owned, retired the PROVENANCE-NONDETERMINISM "wait for the build to settle" rule whose cause is gone,
+and fixed a 4th surface this brief never listed [`CONTRIBUTING.md`'s reconcile helper]. `ARCHITECTURE-PRINCIPLES`
+§6 + `AUDIT.md` 2a were already correct. **§5 D.3 SATISFIED BY DESIGN** — Biome replaced Prettier+ESLint,
+check-only/changed-only. **§5 D.2 PARTIAL** — `kernel-constants.js` typechecked [0 errors]; every other candidate
+measured; the next wins are shared-spine and cost a fleet re-bundle. **Remaining: §5 Part B** [awaits EEGDex/
+SpiroDex existing] **and the D.2 spine decision.** The 2026-07-06 "environment-blocked, no Node shell" note was
+STALE — there is a Node host and `types.yml` was green all along) · **Created:** 2026-07-03 · **Follows:** `OWN-THE-BUILD-2026-06-30-BRIEF.md`
 
 # Own the build — follow-ups (Part A Phases 0–3 DONE; Parts C / D.2 / D.3 + Part-B new-node remain)
 
@@ -99,10 +107,24 @@ its inline `ANS-DESIGN-START` mirror (single-source cleanup is §2, like OxyDex)
 - **Drop the inert `buildHash` — DONE 2026-07-03.** All 8 fields removed from `BUILD-MANIFEST.json` (nothing
   read them; the well-formedness gate requires only the 12-hex `manifestHash`). `ganglior-provenance.js`
   still stamps a runtime fallback hash into exports — inert, noted in the ledger's `_note_own_the_build`.
-- **Rewrite the docs:** `CLAUDE.md` §🔏 (the re-bundle checklist becomes `node tools/build.mjs --all`
-  + `--check`; the hand-update/EXPORT-INERT-re-record dance is gone for owned bundles), `ARCHITECTURE-PRINCIPLES.md`
-  §6 (build), `audits/AUDIT.md` item 2a (the `ANS-DESIGN-START` hand-mirror is retired). Remove the
-  `PROVENANCE-NONDETERMINISM` workaround references where they describe the now-removed cause.
+- **Rewrite the docs — ✅ DONE 2026-07-13.** `CLAUDE.md` §🔏's re-bundle checklist was the last stale
+  surface: it still carried the full hand-update prose with an "⚙️ OWNED BUILD" note bolted on *top* saying
+  "the steps below are superseded" — i.e. the retired procedure was still the body text, and a reader who
+  skimmed the note would follow it. Rewritten so `build.mjs` **is** the procedure (it auto-writes the GATE-A
+  hash + re-stamps code-gated fixtures; you never hand-edit a hash), and the retired legacy prose is gone
+  rather than annotated. Two corrections found while doing it:
+  - **"All 8 bundles" was wrong** — `build.mjs` owns **10** (the 8 apps + the two orchestrators, §6).
+    `BUILD-MANIFEST.json`/GATE A cover the 8; `--check` covers all 10. Now stated.
+  - **A 4th stale surface this brief never listed:** `CONTRIBUTING.md`'s reconcile-helper paragraph told
+    contributors to *"apply its edits by hand AFTER the build settles"*, justified by *"an auto-writer would
+    race the platform's out-of-band rebuild"* — but `build.mjs` **is** an auto-writer and the platform
+    rebuild is gone. Reworded: the helper is a read-only *diagnostic*, hand-applying is not the normal path.
+  - The `PROVENANCE-NONDETERMINISM` §2/§4 "wait for the build to settle / re-read before you trust" rule is
+    now explicitly **RETIRED** in `CLAUDE.md` — its cause (the legacy inliner's async rebuild) no longer
+    exists, so a hash moving under you is a **concurrent session**, not the build. The still-true half (the
+    ledgers are single files another session can rewrite) is kept and pointed at §👥.3.
+  - `ARCHITECTURE-PRINCIPLES.md` §6 and `audits/AUDIT.md` item 2a were **already correct** — done in an
+    earlier pass and never recorded here. Verified, not re-edited.
   **✅ RESOLVED 2026-07-03 (single-sourced — see the ans-design bullet above):** OxyDex/HRVDex reconciled to
   `ans-design.css` (canonical); the drift (mirror `--text3:#6F8096` vs file `#8C9DB3`; ~38.7 K vs ~60.9 K normalized)
   is gone, both gates green. `AUDIT.md` §1c's *"all copies in sync · sha 63d47ad1e085"* note was updated to match.
@@ -172,8 +194,11 @@ AND bundled-local. The copy-paste + its drift test are retired. Original executi
 
 ## §5 — Parts B / C / D (independent; unblocked by Part A)
 
-> **STATUS AT A GLANCE (2026-07-06):** Part B gate ✅ (build awaits a new node) · Part C ✅ **DONE 2026-07-07** (all 13 render/app/profile files enforced; 6 bundles re-bundled) · Part D.1 ✅
-> ESLint · D.2 ◻ (needs `node tsc`) · D.3 ◻ (rides fleet churn). Per-part detail below.
+> **STATUS AT A GLANCE (2026-07-13):** Part B gate ✅ (build awaits a new node) · Part C ✅ **DONE 2026-07-07**
+> (all 13 render/app/profile files enforced; 6 bundles re-bundled) · Part D.1 ✅ (ESLint — since **retired**,
+> Biome is now the sole linter+formatter) · **D.2 ◐ PARTIAL** (`kernel-constants.js` added 2026-07-13, 0 errors;
+> the next wins are shared-spine and cost a fleet re-bundle — see the status block below) · **D.3 ✅ SATISFIED
+> BY DESIGN** (Biome check-only/changed-only; Prettier never adopted, do not resurrect it). Per-part detail below.
 
 - **Part B — born-clean the next node** (EEGDex / SpiroDex): headless `compute()` + registry-graded badges
   + `env.equiv` + adapter-only vendor parsing from commit one; a `BORN_CLEAN` gate in `tests/dex-tests.js`.
@@ -193,12 +218,31 @@ AND bundled-local. The copy-paste + its drift test are retired. Original executi
   ship anytime. **D.2** widen `checkJs` to one `*-dsp.js` at a time. **D.3** Prettier ONLY inside the §1 fleet
   churn (a repo-wide reflow moves every hash). See the sibling `DEV-TOOLCHAIN-2026-06-30-BRIEF.md` (Clock/SPDX/
   retired-vocab source-text gates + Biome) — coordinate so ESLint and the house-invariant gates don't overlap.
-  > **⟳ STATUS 2026-07-06 — D.2 / D.3 both OPEN, environment-blocked (NOT design-blocked):** **D.2** (widen
-  > `checkJs` to a `*-dsp.js`) needs a `node tsc --noEmit --checkJs` host to prove the added module is green
-  > BEFORE it lands — no Node shell here, and expanding `include` blind risks reddening `types.yml`. **D.3**
-  > (Prettier) is forbidden standalone by its own rule — a repo-wide reflow moves every bundle's `manifestHash`
-  > (churns every fixture); it may ONLY ride the §1 fleet churn / an on-touch re-bundle. Both await a Node/
-  > re-bundle session. (D.1 ESLint already shipped — parent §5.)
+  > **⟳ STATUS 2026-07-13 — the 2026-07-06 "environment-blocked" note was STALE on both counts. Superseded:**
+  >
+  > **D.3 is not "pending Prettier" — Prettier was never adopted.** `BIOME-FORMATTER-2026-07-11-BRIEF` (DONE)
+  > made **Biome** the sole formatter *and* linter, retired ESLint entirely, and adopted formatting
+  > **check-only / changed-only** — which is exactly the no-repo-wide-reflow constraint D.3 was protecting.
+  > D.3's concern is therefore **satisfied by design**, not deferred. Nothing to do; do not resurrect Prettier.
+  >
+  > **D.2 was NOT environment-blocked — there is a Node host, and `types.yml` has been green all along.**
+  > It runs `npx -y -p typescript@5.5.4 tsc --noEmit -p tsconfig.json`; run that exact pinned command locally
+  > and you can prove a module green before adding it. (Note `tsc` is *not* a devDependency — only Biome is —
+  > despite `format.yml`'s comment claiming "Biome is a devDependency, exactly like tsc".)
+  >
+  > **D.2 PARTIALLY EXECUTED 2026-07-13:** `kernel-constants.js` added to `include` — **0 errors, no source
+  > edit, no re-bundle.** Every other candidate measured against the baseline so the next session does not
+  > re-derive it (recorded in `tsconfig.json`'s `//d2` key): clock **1** · metric-registry **2** ·
+  > event-coupling 7 · dex-forget 8 · pulsedex-dsp 16 · glucodex-dsp 22 · cpapdex-dsp 27 · integrator-dsp 30 ·
+  > ecgdex-dsp 31 · ppgdex-dsp 31 · hrvdex-dsp 46 · oxydex-dsp **107**.
+  >
+  > **⛔ The real blocker on the next step is CHURN, not environment.** `clock.js` (1 error — the
+  > `module.exports = root.DexClock` alias at `:136`) and `metric-registry.js` (2) are the obvious next wins,
+  > but both are **SHARED SPINE, inlined into every bundle** — so *any* edit that satisfies `tsc`, even a
+  > `@ts-ignore` comment, moves all 10 `manifestHash`es and churns every fixture. That is an owner-authorized
+  > fleet-churn decision (and per CLAUDE.md §👥.3 a shared-spine change should land BEFORE node-local work),
+  > not a free widening. The `*-dsp.js` files are node-local (no fleet churn) but carry real DOM/localStorage
+  > debt — `oxydex-dsp` at 107 errors is the grandfathered-impure one; `pulsedex-dsp` at 16 is the cheapest.
 
 ## §6 — Orchestrators (Data Unifier + OverDex) — DONE 2026-07-03 (owner directive: own them)
 
