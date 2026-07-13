@@ -165,6 +165,19 @@ the **FROZEN event-bus codename `Ganglior`** — rename suite/brand strings only
 whole pass, run the brief (Phases 1→3 = licensing, Phase 4 = Tepna rename); honor the re-bundle +
 provenance/test gates as it specifies.
 
+## 📚 Literature use — how published data/formulas/processes enter the suite (see `briefs/LITERATURE-USE-POLICY-2026-07-11-BRIEF.md`)
+Using a paper is **allowed** in three tiers (formulas/processes · reference statistics/priors · raw datasets),
+under rules that inherit the invariants above. The **hard line:** (1) **no networked data in a bundle, ever** —
+a `Foo.html` never fetches a paper/DOI/dataset/CDN (gate-backed by `no-network.html`); a literature value that
+must reach runtime is **inlined into source at author time as a cited constant**, then it is just code under the
+normal gates. (2) **No fabricated authority** — a paper-sourced number is `validated`-tier ONLY with a real,
+checkable citation; no citation → it keeps the suite's own tier (never upgrade a badge on "the literature says").
+(3) **Attribution is mandatory** — author·year·journal·DOI in the doc + a source comment in code. **Routing:** a
+node-specific validation → that node's validation write-up; a forward paper agenda → `PAPERS-ROADMAP` + `papers/`;
+a method/formula that **changes code** → its own executable brief (gated like any behavioral change). The full
+policy + a living anchor index live in the brief (still PROPOSED — the status flip to `REFERENCE` is the owner's
+ratification).
+
 ## 🎙️ Capture provenance — how the raw signals are recorded
 Raw **ECG** (Polar H10 chest strap) and **PPG** (Polar Verity Sense armband) are captured with the
 **Polar Sensor Logger** Android app (`com.j_ware.polarsensorlogger`, by j-ware). It streams the
