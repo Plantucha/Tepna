@@ -1638,6 +1638,7 @@ function _gait(vm, fs, off){
   const epLen=Math.round(60*fs), cadEp=[];
   for (let e=0; (e+1)*epLen<=N; e++){ const s0=e*epLen, s1=(e+1)*epLen; let c=0; for(const p of peaks){ if(p>=s0&&p<s1) c++; }
     cadEp.push({ tMin:+(((e*60)-off)/60).toFixed(2), cadence:c }); }
+  /** @type {[string,number,number,string][]} */
   const zoneDef=[['Sedentary',0,20,'gray'],['Low active',20,60,'blue'],['Light walk',60,100,'green'],['Brisk walk',100,120,'amber'],['Vigorous',120,1e9,'red']];
   const zones={}; zoneDef.forEach(z=>zones[z[0]]=0);
   cadEp.forEach(c=>{ for(const z of zoneDef){ if(c.cadence>=z[1]&&c.cadence<z[2]){ zones[z[0]]++; break; } } });
@@ -1838,7 +1839,7 @@ function parseDeviceACC(text){
   if (out.length < 30) return { acc: null, accFs: null };
   var fs = 4, ts2 = []; for (var j = 0; j < out.length; j++){ if (isFinite(out[j].tsMs)) ts2.push(out[j].tsMs); }
   if (ts2.length > 5){ var dt = []; for (var m = 1; m < ts2.length; m++) dt.push(ts2[m] - ts2[m - 1]); dt.sort(function(a,b){ return a - b; }); var md = dt[dt.length >> 1]; if (md > 0) fs = Math.max(1, Math.min(200, Math.round(1000 / md))); }
-  if (!isFinite(out[0].tsMs)){ for (var q = 0; q < out.length; q++) out[q].tsMs = Math.round(q / fs * 1000); out._relBase = true; }
+  if (!isFinite(out[0].tsMs)){ for (var q = 0; q < out.length; q++) out[q].tsMs = Math.round(q / fs * 1000); /** @type {any} */(out)._relBase = true; }
   return { acc: out, accFs: fs };
 }
 
