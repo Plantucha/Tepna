@@ -625,15 +625,19 @@
 
   var API = { coupling: coupling, selfTest: selfTest, DEFAULT_SHIFTS: DEFAULT_SHIFTS };
 
-  root.EventCoupling = root.EventCoupling || API;
+  /** @type {any} */ (root).EventCoupling = /** @type {any} */ (root).EventCoupling || API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
 
-  if (typeof process !== 'undefined' && process.argv && process.argv.indexOf('--selftest') !== -1) {
+  // Node CLI self-test. `process` is cast to `any` (the D.2 type-gate runs with types:[] — no @types/node);
+  // behavior is unchanged (this block only runs under `node event-coupling.js --selftest`).
+  var _g = /** @type {any} */ (typeof globalThis !== 'undefined' ? globalThis : {});
+  var _proc = _g.process;
+  if (_proc && _proc.argv && _proc.argv.indexOf('--selftest') !== -1) {
     var r = selfTest();
     r.log.forEach(function (l) {
       console.log('  ' + l);
     });
     console.log('\n  EventCoupling self-test: ' + r.pass + ' passed, ' + r.fail + ' failed\n');
-    if (typeof process.exitCode !== 'undefined') process.exitCode = r.fail ? 1 : 0;
+    if (typeof _proc.exitCode !== 'undefined') _proc.exitCode = r.fail ? 1 : 0;
   }
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);

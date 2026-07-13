@@ -227,9 +227,18 @@ config, the Phase-0 churn measurements, and the on-touch (Phase 2) discipline.
 
 ## Part C — Widen the type gate opportunistically
 
-> **◻ OPEN 2026-07-06 — NOT STARTED. Blocker: needs a `node tsc --noEmit --checkJs` host to prove each
-> newly-included module is green BEFORE it lands (the rule below). Do not expand `tsconfig.include` blind
-> — an unverifiable add risks reddening `types.yml` in CI.**
+> **⟳ STARTED 2026-07-13 — the `node tsc` host materialised, so the blocker is gone.** Three NON-bundled
+> modules added to `tsconfig.include` (zero manifestHash churn), each proven green with the exact `types.yml`
+> pin BEFORE landing: **`event-coupling.js` · `dex-coload.js` · `provenance-banner.js`**. Idiom recorded in
+> `tsconfig.json` `//d2`: cast the `root.X = …` export via `/** @type {any} */ (root).X` (the IIFE-arg type
+> wins over a `@param`, and `module.exports = X` poisons the `this` fallback), and reach Node's `process`
+> through `/** @type {any} */(globalThis).process`. `nsrr-adapter.js` deferred (bare `processNight` global —
+> a runtime dependency, not a type-only fix). **Still OPEN:** the remaining non-bundled CORE modules, then
+> the bundled `*-dsp.js` set (each a deliberate fleet re-bundle).
+>
+> Prior note (blocker now cleared): *needs a `node tsc --noEmit --checkJs` host to prove each newly-included
+> module is green BEFORE it lands. Do not expand `tsconfig.include` blind — an unverifiable add risks
+> reddening `types.yml` in CI.*
 
 The `tsconfig` scope is deliberately forward-first (core adapters only). Grow it **one module at a time**
 as each legacy `*-dsp.js` / `*-render.js` / `*-app.js` is de-DOMed and JSDoc-annotated — the

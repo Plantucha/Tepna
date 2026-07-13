@@ -215,7 +215,10 @@ AND bundled-local. The copy-paste + its drift test are retired. Original executi
   running ESLint over the source `*.js` (control-flow/dead-code floor: `no-unreachable`, `no-fallthrough`,
   `no-constant-condition`, `no-cond-assign`, `no-unused-vars`, `no-undef`, `eqeqeq`, `no-dupe-keys`,
   `no-self-assign`), version-pinned, **no `--fix` in CI** (autofix moves `manifestHash`). Independent of Part A;
-  ship anytime. **D.2** widen `checkJs` to one `*-dsp.js` at a time. **D.3** Prettier ONLY inside the §1 fleet
+  ship anytime. **D.2** widen `checkJs` to one `*-dsp.js` at a time — **⟳ STARTED 2026-07-13** (a `node tsc`
+  host materialised): `event-coupling.js` · `dex-coload.js` · `provenance-banner.js` added (non-bundled → zero
+  churn), each proven green; see `DEV-TOOLCHAIN-2026-06-30-BRIEF.md` Part C + `tsconfig.json` `//d2` for the
+  cast idiom + the remaining set. **D.3** Prettier ONLY inside the §1 fleet
   churn (a repo-wide reflow moves every hash). See the sibling `DEV-TOOLCHAIN-2026-06-30-BRIEF.md` (Clock/SPDX/
   retired-vocab source-text gates + Biome) — coordinate so ESLint and the house-invariant gates don't overlap.
   > **⟳ STATUS 2026-07-13 — the 2026-07-06 "environment-blocked" note was STALE on both counts. Superseded:**
