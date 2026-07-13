@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** REFERENCE (living spec) · **Created:** 2026-06-29 · **last-verified:** 2026-07-02 (CPAPDex `desat`→`desat_event` + dead `cvhr_surge` drop — -II §1/§3; **periodic_breathing cross-node fusion + hrv/stress + carrier-key decisions — -II §2/§4/§5**; **PB-burden longitudinal trend SHIPPED + ECGDex-emit / PB_CVHR_MIN / PB-span decisions — -III §1/§2/§3/§4, see §6.1/6.3/6.4/6.5**; **ECGDex cardiac PB-burden already-present-as-`cvhrIndex` + `cite`-in-mapping deferred decisions — -IV §1/§2, see §6.7/6.8**; **ECGDex has NO symmetric sqi-floor (INTENTIONAL) + `sqiFloor`/`clampFloor` are audit-only — NODE-RESIDUE-FOLLOWUPS-II §1/§2, see §6.10**)
+**Status:** REFERENCE (living spec) · **Created:** 2026-06-29 · **last-verified:** 2026-07-13 — **§7 added: CPAPDex device-scored `apnea`/`hypopnea`/`rera` annotation classes catalogued + the deferred apnea-corroboration decision, and the HRVDex `measurementMedian`≠`wholeRecord` window decision — DEEP-AUDIT-FOLLOWUPS §D1/§D2**; prior 2026-07-02 (CPAPDex `desat`→`desat_event` + dead `cvhr_surge` drop — -II §1/§3; **periodic_breathing cross-node fusion + hrv/stress + carrier-key decisions — -II §2/§4/§5**; **PB-burden longitudinal trend SHIPPED + ECGDex-emit / PB_CVHR_MIN / PB-span decisions — -III §1/§2/§3/§4, see §6.1/6.3/6.4/6.5**; **ECGDex cardiac PB-burden already-present-as-`cvhrIndex` + `cite`-in-mapping deferred decisions — -IV §1/§2, see §6.7/6.8**; **ECGDex has NO symmetric sqi-floor (INTENTIONAL) + `sqiFloor`/`clampFloor` are audit-only — NODE-RESIDUE-FOLLOWUPS-II §1/§2, see §6.10**)
 
 # EVENT-LEXICON — the canonical `ganglior_events[].impulse` vocabulary
 
@@ -249,3 +249,34 @@ tags it sets are audit breadcrumbs — the `conf ×0.5` is the load-bearing part
   `integrator-dsp.js`). Do NOT assume either tag gates anything in the posterior until a reader + a test land. If a
   future pass surfaces a "quality-floored source" marker on the apnea finding's `sources[]`, that is a source-shape
   change (Integrator re-bundle + GATE A + a test), not a free-rider on the existing tag.
+
+## 7. CPAPDex device-scored annotations + the HRVDex consensus window (DEEP-AUDIT-FOLLOWUPS-2026-07-12 §D1/§D2)
+
+### 7.1 `apnea` / `hypopnea` / `rera` — CPAPDex device-scored classes, NOT (yet) first-class fusion impulses (§D1)
+CPAPDex parses the AirSense EVE/CSL annotation channels into device-scored event classes via
+`cpapdex-edf.js` `classifyAnnotation`: **Obstructive / Central / Mixed / (bare) Apnea · Hypopnea · RERA ·
+Cheyne-Stokes · PeriodicBreathing**. These are the device's OWN scored events. Today they are consumed
+**internally only** — they drive the residual-AHI / central-apnea-index trend metrics (`cpapdex-cross.js`)
+and, on the demo path, place the synthetic SA2 desaturations (`cpapdex-app.js`) so ODI tracks the device AHI.
+
+They are **NOT emitted as `ganglior_events[].impulse`**: CPAPDex's bus emissions are `desat_event`,
+`large_leak`, and `periodic_breathing` (`cpapdex-fusion.js` `cpapEvents`). So `apnea` / `hypopnea` / `rera`
+are **not** cross-node impulse names and carry no canonicalization in §1 — they are device-internal classes,
+catalogued here for completeness so the next reader doesn't mistake them for a missing impulse.
+
+**Decision (deferred, recorded — §D1):** whether `fuseApneaEvents` should **corroborate a device-scored
+apnea/hypopnea against an OxyDex/ECGDex desat+surge** — the SAME shape as the §15 fix that keyed the desat
+pool by *impulse* not *node* — is left for a deliberate future work-unit. It would require CPAPDex to emit the
+scored event as a first-class impulse (a `ganglior.node-export` shape change → Integrator re-bundle + GATE A +
+a fusion test), so it is NOT a free-rider on the existing internal classes. Until then a device-scored apnea
+reaches fusion only via the desaturation it produces (`desat_event`) — the current, intentional behavior.
+
+### 7.2 HRVDex `measurementMedian` is NOT compared against an overnight `wholeRecord` value (§D2)
+The HRV consensus axis (`integrator-dsp.js`, R8) is normalized to **`wholeRecord`** — a node's whole-record
+SDNN/RMSSD — with the epoch-scoped display variants carried under explicit keys (`sdnnEpochMedian`, …).
+HRVDex's `measurements[]` median (§14) is a **month of Welltory spot readings**, labelled `measurementMedian`,
+NOT `wholeRecord`. **Decision (§D2):** a spot-reading median and an overnight whole-record SDNN are **different
+analysis windows and are NOT consensus-comparable**; R8's like-window guard deliberately keeps them apart (the
+HRV node is no longer silently dropped — §14 — but it joins the consensus only on a like window). Do **not**
+"fix" this by feeding `measurementMedian` into the whole-record axis — that re-introduces the exact
+window-mismatch R8 exists to prevent.

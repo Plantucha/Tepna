@@ -7193,6 +7193,97 @@
       }
     });
 
+    /* ════ §E1 (DEEP-AUDIT-FOLLOWUPS-2026-07-12) — fixture content-claims verified against the COMMITTED BYTES ════
+       The lesson of §6: an assertion that DESCRIBES a fixture's content is a claim like any other, and a
+       DERIVED check (compute → detector → assert) can pass while the underlying file-claim is false — the
+       real Lingo file "railed at 54" for months while the suite called it a "clean, unclamped file", because
+       the detector was blind and only the derived value was ever checked. This group re-checks each committed
+       fixture's content-claim DIRECTLY against the raw bytes / committed export (no compute in the path), so a
+       derived assertion can never again mask a false claim. All inputs/outputs here are committed → fresh-clone
+       safe. A swept-clean pass is the point; a future edit to a committed fixture that breaks a claim reds HERE. */
+    group('Fixture content-claims — verified against the committed bytes (§E1)', 'fixtures · content-claim · equivalence', function (T) {
+      var EQ = env.equiv || {};
+      var rawLines = function (key) {
+        var r = EQ[key];
+        return r && typeof r.input === 'string'
+          ? r.input.split(/\r?\n/).filter(function (l) {
+              return l.trim();
+            })
+          : null;
+      };
+
+      // (1) lossy — CLAIM: a ~20-min block of the device's "- -" no-reading rows (the §8 off-by-477 control's premise).
+      var lossy = rawLines('oxydex_lossy');
+      if (!lossy) T.skip('oxydex_lossy committed input present', 'env.equiv.oxydex_lossy.input absent (older runner)');
+      else {
+        var noRead = lossy.filter(function (l) {
+          return /- -/.test(l);
+        }).length;
+        T.ok('§E1 · lossy carries the "- -" no-reading block (~1200 rows ≈ 20 min @1Hz)', noRead >= 1000 && noRead <= 1400, noRead + ' no-reading rows');
+      }
+
+      // (2) dmy/mdy — CLAIM: byte-metamorphic twins (same night, only the date ORDER differs). The §1
+      //     metamorphic control proves compute-identity; this proves the INPUTS are truly identical bar the date.
+      var dmy = rawLines('oxydex_dmy'),
+        mdy = rawLines('oxydex_mdy');
+      if (!dmy || !mdy) T.skip('oxydex_dmy + oxydex_mdy committed inputs present', 'twin inputs absent (older runner)');
+      else {
+        // drop the timestamp column (col 0 = "HH:MM:SS DD/MM/YYYY"); the SpO2/HR/motion columns must match row-for-row.
+        var vals = function (arr) {
+          return arr.slice(1).map(function (r) {
+            return r.split(',').slice(1).join(',');
+          });
+        };
+        var a = vals(dmy),
+          b = vals(mdy);
+        var metamorphic =
+          a.length === b.length &&
+          a.every(function (x, i) {
+            return x === b[i];
+          });
+        T.ok('§E1 · dmy/mdy are byte-metamorphic (identical SpO2/HR/motion, only the date order differs)', metamorphic, 'rows ' + a.length + '/' + b.length);
+      }
+
+      // (3) longnight — CLAIM: a full-length night (the §9 whole-night-window premise; a first-hour slice hides the bug).
+      var longn = rawLines('oxydex_longnight');
+      if (!longn) T.skip('oxydex_longnight committed input present', 'env.equiv.oxydex_longnight.input absent (older runner)');
+      else T.ok('§E1 · longnight is a full-length night (≥ ~6.5 h @1Hz), not a short clip', longn.length >= 23400, longn.length + ' rows ≈ ' + (longn.length / 3600).toFixed(1) + ' h');
+
+      // (4) synthetic Lingo golden — CLAIM: the CLEAN-file path is actually clean (min glucose ABOVE the 54 rail).
+      //     The direct converse of the §6 bug: prove the "clean" fixture isn't secretly railed.
+      var gsynth = rawLines('glucodex_synth');
+      if (!gsynth) T.skip('glucodex_synth committed input present', 'env.equiv.glucodex_synth.input absent');
+      else {
+        var mgs = gsynth
+          .slice(1)
+          .map(function (r) {
+            return parseFloat(r.split(',')[1]);
+          })
+          .filter(function (v) {
+            return isFinite(v);
+          });
+        var gmin = mgs.length ? Math.min.apply(null, mgs) : null;
+        T.ok(
+          '§E1 · synthetic Lingo golden is a CLEAN file — min glucose is above the 54 rail (not secretly clamped)',
+          gmin != null && gmin > 54,
+          'min=' + gmin + ' mg/dL over ' + mgs.length + ' readings'
+        );
+      }
+
+      // (5) real Lingo export — CLAIM (§6): the real file RAILS at 54. Locked against the COMMITTED node-export's
+      //     recorded clamp block + clip-floor events, independent of the current detector (the derived path that lied).
+      var gfx = EQ.glucodex && EQ.glucodex.fixture;
+      if (!gfx) T.skip('glucodex committed fixture present', 'env.equiv.glucodex.fixture absent');
+      else {
+        var clamp = gfx.recording && gfx.recording.clamp;
+        T.eq('§E1 · the committed real-Lingo export records the 54 mg/dL rail (§6, byte-locked)', clamp && clamp.detected === true && clamp.floor, 54);
+        var clip = (gfx.ganglior_events || []).filter(function (e) {
+          return e.meta && e.meta.clampFloor;
+        }).length;
+        T.ok('§E1 · and it carries the clip-floor hypo events sitting on that rail', clip > 0, clip + ' clampFloor event(s)');
+      }
+    });
+
     group('OxyDex §7/§8/§9 — real event clock · whole-night windows · REM plausibility', 'oxydex-dsp · oxydex-fusion · clock · fabricated-absence', function (T) {
       var OD = env.OxyDex;
       if (!OD || typeof OD.compute !== 'function' || typeof OD.parseCSV !== 'function') {
