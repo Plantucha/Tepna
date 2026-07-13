@@ -915,7 +915,7 @@ function analyze(rec, progress){
   // §5: per-interval mean LED agreement (null when single-channel) for the per-epoch ribbon
   const agreeI = cons.singleChannel ? null : new Array(nn.length);
   if(agreeI){ for(let i=0;i<nn.length;i++){ const a0=cons.agree[i], a1=cons.agree[i+1]; agreeI[i]=(a0!=null&&a1!=null)?(a0+a1)/2:(a0!=null?a0:(a1!=null?a1:null)); } }
-  const td=timeDomain(nn, cleanMask)||{};
+  const td=/** @type {any} */(timeDomain(nn, cleanMask)||{});
   const poin=poincare(nn, cleanMask);
   const freq=lombScargle(corr.tt, nn);
   const dfa1=dfaAlpha1(nn);

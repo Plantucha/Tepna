@@ -17,6 +17,7 @@ change 2026-07-13-typegate-cpapdex-dsp.md
 change 2026-07-13-typegate-ecgdex-dsp.md
 change 2026-07-13-typegate-glucodex-dsp.md
 change 2026-07-13-typegate-hrvdex-dsp.md
+change 2026-07-13-typegate-ppgdex-dsp.md
 change 2026-07-13-typegate-pulsedex-dsp-ambient.md
 change 2026-07-13-typegate-signal-orchestrate.md
 change 2026-07-13-typegate-widen-nonbundled.md
