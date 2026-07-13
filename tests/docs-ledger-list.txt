@@ -511,6 +511,7 @@ path changes/2026-07-13-typegate-cpapdex-dsp.md
 path changes/2026-07-13-typegate-ecgdex-dsp.md
 path changes/2026-07-13-typegate-glucodex-dsp.md
 path changes/2026-07-13-typegate-hrvdex-dsp.md
+path changes/2026-07-13-typegate-ppgdex-dsp.md
 path changes/2026-07-13-typegate-pulsedex-dsp-ambient.md
 path changes/2026-07-13-typegate-signal-orchestrate.md
 path changes/2026-07-13-typegate-widen-nonbundled.md
@@ -891,6 +892,7 @@ path pat-feasibility.js
 path ppgdex-app.js
 path ppgdex-cross.js
 path ppgdex-dsp.js
+path ppgdex-globals.d.ts
 path ppgdex-morph.js
 path ppgdex-profile.js
 path ppgdex-registry.js
