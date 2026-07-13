@@ -21,3 +21,5 @@ declare var DexClock: any; // clock.js — the Clock-Contract parser (parseTimes
 declare var DexExport: any; // dex-export.js — the shared node-export builder
 declare var dexScrubExport: any; // dex-export.js — the export identity-scrub helper
 declare var SignalFrame: any; // signal-frame.js — the canonical signal container
+declare var DexKernel: any; // kernel-constants.js — the shared kernel constants + fnv1a
+declare var DexUnits: any; // quantity.js — the shared units/quantity engine (toMetric, toDisplay, …)
