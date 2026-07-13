@@ -12,11 +12,12 @@
  * ECGDex arrhythmia × desat, GlucoDex excursion × anything.
  *
  * ── Why a chance baseline is MANDATORY (§M1) ────────────────────────────────────────────
- * Two frequent event streams co-occur BY CONSTRUCTION. A raw co-occurrence rate is therefore
- * not evidence of anything, and on the real ~180-night CPAP corpus the naive read was flatly
- * INVERTED by the null: the DOMINANT event class (n=688) sat at lift ×0.6–1.0 — exactly
- * chance — at every window from 0–30 s to 0–120 s, while a RARE class (n=39) hit ×3.3–10.
- * Without the null the dominant class's raw rate looks like a finding. It is not one.
+ * Two frequent event streams co-occur BY CONSTRUCTION. A raw co-occurrence rate is therefore not
+ * evidence of anything: on the real corpus the dominant class's raw co-occurrence looks like a
+ * finding and is not one. That lesson stands — but note that §M1's *positive* result (a rare class
+ * at ×3.3–10) was itself an ARTIFACT of a broken null and is RETRACTED. Fully corrected (wrapping
+ * null + coverage + power), NO event class couples above chance. A chance baseline only protects
+ * you if the baseline is right; three separate defects below each fooled it in turn.
  *
  * ── The null: CIRCULAR time-shift surrogates ────────────────────────────────────────────
  * Displace every A event by ±5–15 min and re-measure. This preserves both streams' marginal
@@ -35,6 +36,25 @@
  * are deliberately NOT all multiples of one another. If B is periodic by nature, pass
  * `nullShifts` that are incommensurate with its period.
  *
+ * ⚠️⚠️ COVERAGE CAVEAT — the one that actually bit. AN ABSENT READING IS NOT A MISS.
+ * An event stream has an OBSERVATION WINDOW. B's device was on for part of the night, not all of
+ * it. If an A-event happens while B is NOT RECORDING, "no B nearby" says nothing about coupling —
+ * it says B was switched off. The suite already holds this principle one level down (DEEP-AUDIT
+ * §17–21: *an absent reading is not a score of zero*); this is the same error one level up.
+ *
+ * Left uncorrected it does not merely add noise — it BIASES, and in the direction that looks like
+ * a finding. An A-event outside B's recording is a FORCED miss at shift 0, yet the circular shuffle
+ * can carry it BACK INTO the recording, where it CAN hit. So chance rises above observed and lift
+ * lands BELOW 1 — manufactured ANTI-coupling. On the real corpus **30% of apneas fell outside the
+ * oximeter's recording window**, and the primitive duly reported lift ×0.72 with a "×0.0 longest-
+ * duration bucket" that read as a striking physiological finding. It was an artifact. Supplying
+ * coverage moves the same data to **×1.04 — exactly chance** (`CPAP-REAL-CORPUS-FOLLOWUPS` §2).
+ *
+ * So: an A-event counts ONLY if its WHOLE window [t+lo, t+hi] lies inside a coverage span, and its
+ * surrogate wraps inside that SAME span — observed and null measured on identical footing. Events
+ * outside are reported as `excluded`, never as misses. Omit `coverage` and you get the old
+ * behaviour plus `coverageAssumed: true`, so nobody receives the broken answer silently.
+ *
  * ⚠️ SATURATION CAVEAT — and why every measurement reports `maxLift`. If the window is wide
  * relative to B's mean inter-event interval, then EVERY A event finds a B by chance alone, the
  * null rate approaches 100%, and lift is driven toward 1.0 BY ARITHMETIC — even when the
@@ -48,21 +68,27 @@
  * is. `saturated` (maxLift < 1.5) flags such a window as UNINFORMATIVE, not as a negative result.
  * Read a lift of 1.0 as evidence of absence ONLY on an unsaturated window.
  *
- * ── Duration stratification: what turns "no signal" into "provably no signal" (§M1) ──────
- * A long event MUST couple if the coupling is real — a 60 s apnea that never desaturates is
- * not a 60 s apnea. So stratifying A by duration is the decisive check, not a nicety: on the
- * real corpus the LONGEST bucket (n=42) came back at lift ×0.0, which is what promoted "we
- * found nothing" to "there is provably nothing here".
+ * ── Duration stratification — useful, but NOT a proof on its own ─────────────────────────
+ * A long event ought to couple if the coupling is real, so stratifying A by duration is a genuine
+ * check. ⚠️ But the parent brief over-read it: the longest bucket came back ×0.0 and was called
+ * "provably no signal". With ~48 events and a ~5% chance rate you expect ~2.7 hits, so ZERO is an
+ * ordinary outcome (p ≈ 7%), not a proof. A stratum is only informative when `underpowered` is
+ * false — small buckets are exactly where a ×0.0 is most tempting and least meaningful.
  *
  * ── Contract ────────────────────────────────────────────────────────────────────────────
  *   coupling(eventsA, eventsB, opts) → {
- *     n, hits, observedPct, chancePct, lift, nullPcts, spanMs, window, windowSweep[], strata[]
+ *     n, hits, expectedHits, underpowered, excluded, coverageMs, coverageAssumed,
+ *     observedPct, chancePct, lift, maxLift, saturated, nullPcts, spanMs, window,
+ *     windowSweep[], strata[]
  *   }
  *
  *   eventsA / eventsB : [{ tMs, … }]  — floating wall-clock ms (CLAUDE.md §🔒). Extra fields
  *                                       (e.g. durSec) ride along and are used by stratifyBy.
  *   opts.window       : [loMs, hiMs]  — a "hit" = some B lands in [tA+lo, tA+hi]. Default [0, 60s].
  *   opts.nullShifts   : [ms, …]       — surrogate displacements. Default ±5–15 min, incommensurate.
+ *   opts.coverage     : [[t0,t1], …] — ⚠️ THE SPANS IN WHICH **B WAS OBSERVING**. Pass this whenever
+ *                                      you know it. See the coverage caveat below — omitting it is
+ *                                      what made the primitive report ANTI-coupling on real data.
  *   opts.span         : [t0Ms, t1Ms]  — the recording extent the circular wrap runs over.
  *                                       Omitted → derived from the union of both streams' extents
  *                                       and reported back as `spanMs` (derivation is a real
@@ -70,6 +96,14 @@
  *   opts.windowSweep  : [[lo,hi], …]  — extra windows to re-run. Default 0–30 s / 0–60 s / 0–120 s.
  *   opts.stratifyBy   : 'durSec'      — numeric field on eventsA to bucket by. Default: no strata.
  *   opts.strataEdges  : [e1, e2, …]   — bucket boundaries. Omitted → quartiles of the field.
+ *
+ * ⚠️ POWER CAVEAT — and why every measurement reports `expectedHits`. A lift of ×0.0 sounds decisive
+ * and is usually just SMALL. With n=48 events and a 5.6% chance rate you expect ~2.7 hits, so seeing
+ * ZERO has probability e^-2.7 ≈ 7% — unremarkable. The real corpus produced exactly that, and the
+ * parent brief read the ×0.0 longest-duration bucket as "provably no signal". It was not proof; it
+ * was an underpowered bucket. `underpowered` (expectedHits < 3) marks a measurement whose LOW lift
+ * carries no information. Absence of evidence is not evidence of absence — read `lift` only when
+ * `underpowered` and `saturated` are both false.
  *
  * `lift` = observedPct / chancePct. Honest edges: chance 0 & observed 0 → NaN ("no information",
  * NOT 1.0); chance 0 & observed > 0 → Infinity. Never fabricated, per the suite's never-invent rule.
@@ -153,25 +187,77 @@
   // The largest lift a window COULD return at this chance rate (observed caps at 100%).
   // Publishing it is what stops a saturated window's lift≈1.0 being misread as "no coupling".
   var SATURATION_MAX_LIFT = 1.5;
+  // Below ~3 expected hits, a ZERO observation is ordinary (P(0) = e^-3 ≈ 5%), so a low lift says
+  // nothing about coupling — only about sample size. This is the POWER floor.
+  var MIN_EXPECTED_HITS = 3;
   function _maxLift(chancePct) {
     if (!isFinite(chancePct) || chancePct <= 0) return Infinity;
     return 100 / chancePct;
   }
 
-  /* One (window × event-set) measurement against the circular-shift null. */
-  function _measure(A, sortedB, lo, hi, shifts, s0, width) {
-    if (!A.length) {
-      return { n: 0, hits: 0, observedPct: NaN, chancePct: NaN, lift: NaN, maxLift: NaN, saturated: false, nullPcts: [] };
+  /* ── COVERAGE — where was B actually OBSERVING? ────────────────────────────────────────────
+     Merge the caller's coverage spans (sorted, overlaps fused). An A-event outside every span
+     is not a MISS; it is UNOBSERVED, and the difference is the whole ballgame (see the header). */
+  function _mergeSpans(spans) {
+    var s = (spans || [])
+      .filter(function (x) {
+        return x && isFinite(x[0]) && isFinite(x[1]) && x[1] > x[0];
+      })
+      .map(function (x) {
+        return [x[0], x[1]];
+      })
+      .sort(function (a, b) {
+        return a[0] - b[0];
+      });
+    var out = [];
+    for (var i = 0; i < s.length; i++) {
+      var last = out[out.length - 1];
+      if (last && s[i][0] <= last[1]) last[1] = Math.max(last[1], s[i][1]);
+      else out.push(s[i]);
     }
-    var tA = A.map(function (e) {
-      return e.tMs;
+    return out;
+  }
+
+  /* An A-event is ELIGIBLE for a given window only if its ENTIRE window [t+lo, t+hi] lies inside a
+     span where B was observing — otherwise a "no hit" says nothing about B, only about B's absence.
+     Its surrogate must then wrap inside that SAME domain, so the observed rate and the null rate are
+     measured on identical footing. That footing is exactly what the un-covered version broke:
+     an event past the end of B's recording is a FORCED miss at shift 0, yet a shift can carry it back
+     INTO the recording where it CAN hit — so chance > observed, and lift lands BELOW 1. That is
+     manufactured ANTI-coupling, and it is what produced the ×0.72 / ×0.0 readings on the real corpus. */
+  function _eligible(A, spans, lo, hi) {
+    var out = [];
+    for (var i = 0; i < A.length; i++) {
+      var t = A[i].tMs;
+      for (var j = 0; j < spans.length; j++) {
+        var d0 = spans[j][0] - lo; // earliest t whose window still starts inside the span
+        var d1 = spans[j][1] - hi; // latest   t whose window still ends   inside the span
+        var w = d1 - d0;
+        if (w <= 0) continue; // span shorter than the window → it can observe nothing
+        if (t >= d0 && t <= d1) {
+          out.push({ e: A[i], t: t, d0: d0, w: w });
+          break;
+        }
+      }
+    }
+    return out;
+  }
+
+  /* One (window × event-set) measurement against the circular-shift null.
+     E = eligible events, each carrying its OWN wrap domain (see _eligible). */
+  function _measure(E, sortedB, lo, hi, shifts) {
+    if (!E.length) {
+      return { n: 0, hits: 0, expectedHits: NaN, underpowered: true, observedPct: NaN, chancePct: NaN, lift: NaN, maxLift: NaN, saturated: false, nullPcts: [] };
+    }
+    var tA = E.map(function (x) {
+      return x.t;
     });
     var obs = _hitRate(tA, sortedB, lo, hi);
 
     var nullPcts = shifts
       .map(function (s) {
-        var shifted = tA.map(function (t) {
-          return _wrap(t, s, s0, width);
+        var shifted = E.map(function (x) {
+          return _wrap(x.t, s, x.d0, x.w); // wrap INSIDE this event's own observed domain
         });
         return _hitRate(shifted, sortedB, lo, hi).pct;
       })
@@ -186,9 +272,19 @@
       : NaN;
 
     var maxLift = _maxLift(chancePct);
+    // ── POWER. How many hits would CHANCE ALONE have produced? ──────────────────────────────────
+    // A lift of ×0.0 sounds decisive and is usually just SMALL. With n=48 and a 5.6% chance rate you
+    // expect ~2.7 hits, so observing ZERO has probability e^-2.7 ≈ 7% — unremarkable. The real corpus
+    // produced exactly that, and the parent brief read it as "provably no signal". It was not proof;
+    // it was an underpowered bucket. Publish the expected count so a zero cannot masquerade as one.
+    var expectedHits = isFinite(chancePct) ? (E.length * chancePct) / 100 : NaN;
     return {
-      n: A.length,
+      n: E.length,
       hits: obs.hits,
+      expectedHits: isFinite(expectedHits) ? +expectedHits.toFixed(2) : NaN,
+      // TRUE ⇒ chance alone would rarely have produced a hit here, so a LOW lift (even ×0.0) is
+      // NOT evidence of absence — it is evidence of a small sample. Read `lift` only when false.
+      underpowered: isFinite(expectedHits) && expectedHits < MIN_EXPECTED_HITS,
       observedPct: obs.pct,
       chancePct: chancePct,
       lift: _lift(obs.pct, chancePct),
@@ -220,33 +316,52 @@
       return a - b;
     });
 
-    // Span for the circular wrap. Derived from the union of both streams when not supplied —
-    // a real choice, so it is reported back as spanMs rather than buried.
-    var s0, s1;
-    if (opts.span && isFinite(opts.span[0]) && isFinite(opts.span[1])) {
-      s0 = opts.span[0];
-      s1 = opts.span[1];
+    /* ── COVERAGE: the spans in which B was OBSERVING (the fix — see the header) ──────────────
+       Supplied by the caller, because only the caller knows when B's device was recording. If it
+       is NOT supplied we fall back to the union of both streams' extents — the old behaviour — and
+       set `coverageAssumed: true`, so a consumer cannot silently receive the broken answer. That
+       fallback is a GUESS: it assumes B observed everywhere A did, which is exactly the assumption
+       that produced sub-chance lift on the real corpus (30% of apneas fell outside the oximeter's
+       recording, yet were counted as misses). Pass `coverage` whenever you know it. */
+    var coverageAssumed = !(opts.coverage && opts.coverage.length);
+    var spans;
+    if (!coverageAssumed) {
+      spans = _mergeSpans(opts.coverage);
+    } else if (opts.span && isFinite(opts.span[0]) && isFinite(opts.span[1])) {
+      spans = _mergeSpans([[opts.span[0], opts.span[1]]]);
     } else {
       var all = A.concat(B).map(function (e) {
         return e.tMs;
       });
-      s0 = all.length ? Math.min.apply(null, all) : 0;
-      s1 = all.length ? Math.max.apply(null, all) : 0;
+      spans = all.length ? _mergeSpans([[Math.min.apply(null, all), Math.max.apply(null, all)]]) : [];
     }
-    var width = s1 - s0;
+    var coverageMs = spans.reduce(function (s, x) {
+      return s + (x[1] - x[0]);
+    }, 0);
 
-    var out = _measure(A, sortedB, lo, hi, shifts, s0, width);
-    out.spanMs = width;
+    var E = _eligible(A, spans, lo, hi);
+    var out = _measure(E, sortedB, lo, hi, shifts);
     out.window = [lo, hi];
+    out.spanMs = coverageMs; // back-compat name; now the OBSERVED extent, not a naive envelope
+    out.coverageMs = coverageMs;
+    out.coverageAssumed = coverageAssumed;
+    // A-events discarded because B was NOT OBSERVING then. These are not misses — they are
+    // unobserved, and counting them as misses is what manufactured anti-coupling.
+    out.excluded = A.length - E.length;
+    out.nSupplied = A.length;
 
     // ── window sweep: is the lift stable across windows, or an artifact of one? ──
+    // Eligibility is re-computed PER WINDOW: a wider window needs more observed room after the
+    // event, so an event near the end of coverage can qualify at 0–30 s and not at 0–120 s.
     var sweep = opts.windowSweep || DEFAULT_SWEEP;
     out.windowSweep = sweep.map(function (w) {
-      var m = _measure(A, sortedB, w[0], w[1], shifts, s0, width);
+      var m = _measure(_eligible(A, spans, w[0], w[1]), sortedB, w[0], w[1], shifts);
       return {
         window: [w[0], w[1]],
         n: m.n,
         hits: m.hits,
+        expectedHits: m.expectedHits,
+        underpowered: m.underpowered,
         observedPct: m.observedPct,
         chancePct: m.chancePct,
         lift: m.lift,
@@ -288,18 +403,23 @@
             return v != null && isFinite(v) && v >= loB && (hiB === Infinity ? true : v < hiB);
           });
           if (!bucket.length) continue;
-          var sm = _measure(bucket, sortedB, lo, hi, shifts, s0, width);
+          // eligibility applies inside a stratum too — an unobserved long event is not a
+          // long event that failed to couple. (The ×0.0 "longest bucket" was exactly this.)
+          var sm = _measure(_eligible(bucket, spans, lo, hi), sortedB, lo, hi, shifts);
           out.strata.push({
             by: key,
             lo: loB,
             hi: hiB,
             n: sm.n,
             hits: sm.hits,
+            expectedHits: sm.expectedHits,
+            underpowered: sm.underpowered,
             observedPct: sm.observedPct,
             chancePct: sm.chancePct,
             lift: sm.lift,
             maxLift: sm.maxLift,
-            saturated: sm.saturated
+            saturated: sm.saturated,
+            excluded: bucket.length - sm.n
           });
         }
       }
@@ -435,7 +555,67 @@
       API.DEFAULT_SHIFTS.join(',')
     );
 
-    // ── 8. purity: identical inputs → identical output ──
+    /* ── 8. COVERAGE: an absent reading is not a miss ────────────────────────────────────────
+       Reproduces the real-corpus artifact in miniature. B (the oximeter) records only the FIRST
+       HALF of the night. A (apneas) occur across the WHOLE night and are TRULY INDEPENDENT of B —
+       so the honest answer is lift ≈ 1.
+       Without coverage, the second-half A-events are forced misses at shift 0, yet the shuffle
+       carries them back into the recorded half where they CAN hit → chance > observed → lift < 1:
+       ANTI-coupling, out of thin air. With coverage, they are excluded and lift returns to ~1. */
+    var HALF = T0 + SPAN_MS / 2;
+    var Bhalf = B.filter(function (b) {
+      return b.tMs <= HALF;
+    }); // oximeter off at half-time
+    var Aall = [];
+    for (var z = 0; z < 900; z++) Aall.push({ tMs: T0 + Math.floor(rnd() * SPAN_MS) }); // independent of B
+
+    var noCov = coupling(Aall, Bhalf, { window: [0, 10000], span: span });
+    var withCov = coupling(Aall, Bhalf, { window: [0, 10000], coverage: [[T0, HALF]] });
+
+    /* The artifact's SIZE is geometry-dependent (how much of A is unobserved, how far the shifts
+       reach, how B is distributed) — on the real corpus it was ×0.72, here it is milder. What is
+       INVARIANT is the mechanism and its direction: an unobserved event is scored as a MISS, and a
+       shuffle can rescue it, so the bias runs DOWNWARD and independent streams read as anti-coupled.
+       Assert the mechanism and the corrected answer — not a magnitude tuned to this fixture. */
+    ok('§coverage: WITHOUT coverage, INDEPENDENT streams read BELOW chance (lift < 0.95) — the artifact', noCov.lift < 0.95, noCov.lift);
+    ok('§coverage:   … and it says so — coverageAssumed = true', noCov.coverageAssumed === true, noCov.coverageAssumed);
+    ok('§coverage:   … the uncovered half is silently scored as MISSES (n counts them all)', noCov.n === Aall.length && noCov.excluded === 0, noCov.n + '/' + noCov.excluded);
+
+    ok('§coverage: WITH coverage, the same data reads as CHANCE (0.8–1.25) — the artifact is gone', withCov.lift > 0.8 && withCov.lift < 1.25, withCov.lift);
+    ok(
+      '§coverage:   … unobserved events are EXCLUDED, not counted as misses',
+      withCov.excluded > 50 && withCov.n === withCov.nSupplied - withCov.excluded,
+      withCov.excluded + ' excluded of ' + withCov.nSupplied
+    );
+    ok('§coverage:   … coverageAssumed = false when supplied', withCov.coverageAssumed === false);
+    ok('§coverage: coverageMs reports the OBSERVED extent, not the naive envelope', Math.abs(withCov.coverageMs - SPAN_MS / 2) < 1000, withCov.coverageMs);
+
+    // a real coupling INSIDE the covered half must still be found (coverage must not hide signal)
+    var Acoup = Bhalf.slice(5, 60).map(function (b) {
+      return { tMs: b.tMs - 2000 };
+    });
+    var rc = coupling(Acoup, Bhalf, { window: [0, 10000], coverage: [[T0, HALF]] });
+    ok('§coverage: a REAL coupling inside the covered span is still detected (lift ≥ 3)', rc.lift >= 3, rc.lift);
+
+    // an event whose WINDOW runs past the end of coverage is unobserved for that window
+    var edge = coupling([{ tMs: HALF - 2000 }], Bhalf, { window: [0, 10000], coverage: [[T0, HALF]] });
+    ok('§coverage: an event whose WINDOW overruns the coverage end is excluded (n = 0)', edge.n === 0 && edge.excluded === 1, edge.n + '/' + edge.excluded);
+
+    /* ── 9. POWER: a ×0.0 on a tiny bucket is not a finding ──────────────────────────────────
+       The parent brief read a ×0.0 longest-duration bucket (n≈48, chance ≈5%) as "provably no
+       signal". Expected hits there ≈ 2.7, so ZERO is an ordinary outcome (p ≈ 7%). Absence of
+       evidence is not evidence of absence — and a small bucket is exactly where a ×0.0 is most
+       tempting and least meaningful. `underpowered` says so out loud. */
+    var tiny = Bhalf.slice(0, 12).map(function (b) {
+      return { tMs: b.tMs + 40000 };
+    }); // 12 events, no coupling
+    var rp = coupling(tiny, Bhalf, { window: [0, 10000], coverage: [[T0, HALF]] });
+    ok('§power: a tiny bucket reports expectedHits', isFinite(rp.expectedHits), rp.expectedHits);
+    ok('§power: … and is flagged UNDERPOWERED (a low lift here is not evidence of absence)', rp.underpowered === true, 'expectedHits=' + rp.expectedHits);
+    ok('§power: a well-powered measurement is NOT flagged', withCov.underpowered === false, 'expectedHits=' + withCov.expectedHits);
+    ok('§power: expectedHits = n × chance (the count chance alone would have produced)', Math.abs(rp.expectedHits - (rp.n * rp.chancePct) / 100) < 0.02, rp.expectedHits);
+
+    // ── 10. purity: identical inputs → identical output ──
     var rA = coupling(Amixed, B, { window: [0, 10000], span: span, stratifyBy: 'durSec' });
     var rB = coupling(Amixed, B, { window: [0, 10000], span: span, stratifyBy: 'durSec' });
     ok('deterministic: identical inputs → identical output', JSON.stringify(rA) === JSON.stringify(rB), 'differs');
