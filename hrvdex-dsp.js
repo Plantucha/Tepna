@@ -681,7 +681,7 @@ function smooth(arr, k){
 function _hrvUpdateExportHint(){
   var el = document.getElementById('ebScopeHint'); if(!el) return;
   var n  = (typeof windowDays!=='undefined') ? windowDays : 7;
-  var mo = !!(document.getElementById('morningOnly') && document.getElementById('morningOnly').checked);
+  var mo = !!(document.getElementById('morningOnly') && /** @type {HTMLInputElement} */(document.getElementById('morningOnly')).checked);
   var scope = (n>=999) ? 'all measurements' : ('last '+n+' day'+(n===1?'':'s'));
   el.textContent = 'JSON / CSV export the current view — '+scope+(mo?', mornings only':'');
   el.title = 'The JSON and CSV downloads contain only the measurements currently in view ('+scope+(mo?', mornings only':'')+'); older rows are excluded. The Ganglior bus export and the PDF carry the full recording.';
@@ -690,7 +690,7 @@ function _hrvUpdateExportHint(){
 /* ===== FILTER ROWS ===== */
 function getFilteredRows(){
   let rows = allRows;
-  if((document.getElementById('morningOnly') ? document.getElementById('morningOnly').checked : false)){
+  if((document.getElementById('morningOnly') ? /** @type {HTMLInputElement} */(document.getElementById('morningOnly')).checked : false)){
     rows = rows.filter(r => r._date.getUTCHours() < 10);
   }
   if(windowDays < 999){
