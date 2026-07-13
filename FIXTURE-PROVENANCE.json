@@ -147,7 +147,7 @@
     "GlucoDex_2026-06-27_equiv.node-export.json": {
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II — F1 shared dex-export.js scrubExport now sweeps recordings[]/sessions[] multi carriers; F5 review-renderer namespace exposure). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path, reviewView/renderReview are display-only — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
       "bundle": "GlucoDex.html",
-      "manifestHash": "f136f2a11b74",
+      "manifestHash": "e5a5e992c81c",
       "note_deepauditfixes_followups_20260630": "manifestHash re-recorded 2026-07-03 (DEEP-AUDIT-FIXES-FOLLOWUPS-2026-06-30 §1.2/§1.3 — GlucoDex event-stream mg/dL clarifier in renderGanglior + CSV upload-hint harmonization in the dropzone). EXPORT-INERT display-copy only (glucoBuildNodeExport + all compute untouched) → outputHash 1489fce3588bffc2 + inputHashes UNCHANGED; manifestHash-only re-record, NOT regenerated.",
       "note_deepauditfixes": "manifestHash re-recorded 2026-06-30 (DEEP-AUDIT-FIXES-2026-06-30 §3 — GlucoDex mmol/L DISPLAY toggle). EXPORT-INERT: render/app/profile-only (glucoBuildNodeExport + compute untouched, storage stays mg/dL) → this compute()≡export fixture is byte-identical (env.equiv.glucodex green; outputHash 1489fce3588bffc2 UNCHANGED) → NOT regenerated.",
       "note_exportidfollowupsii": "REGENERATED 2026-06-29 (EXPORT-IDENTITY-FOLLOWUPS-II §1 — node adoption of recording.contentId). glucoBuildNodeExport now stamps recording.contentId via the CORE SignalFrame.computeContentId (signal-frame.js newly bundled into GlucoDex) from the cleaned CGM series (r.series.gV) + floating t0Ms — single-sourced in the shared builder both the app + headless GlucoDex.compute delegate to; placed BEFORE startEpochMs, alongside the existing recording.clamp. Re-ran GlucoDex.compute({text}) on the committed lingo-glucose-data-2026-MAY-23.csv → the ONLY non-volatile delta vs the prior fixture is the added contentId:'728ee70b430e' (deterministic, identity-free; equiv-gate diff confirmed 0 other diffs — the 42 events + recording.clamp unchanged). GlucoDex re-bundled ec1eec8b3c5d→294ce446bb32 (buildHash ebb3b3ab196a UNCHANGED — new external <script src=signal-frame.js> moves manifestHash only). GATE B asserts the producing bundle's CURRENT manifestHash still equals 294ce446bb32.",
@@ -382,7 +382,7 @@
     },
     "synthetic_glucodex_golden.node-export.json": {
       "bundle": "GlucoDex.html",
-      "manifestHash": "f136f2a11b74",
+      "manifestHash": "e5a5e992c81c",
       "added": "2026-07-12",
       "inputs": [
         "synthetic_glucodex_lingo.csv"

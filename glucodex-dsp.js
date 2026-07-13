@@ -617,7 +617,7 @@ function dawnPhenomenon(c){
 // Nocturnal hypo: 00:00–06:00 runs ≥15 min < 70 mg/dL
 function nocturnalHypo(c){
   const minCells=Math.max(2,Math.round(15/c.cadence));
-  const eps=[]; let run=null;
+  const eps=[]; let run=/** @type {any} */(null);
   for(let i=0;i<c.N;i++){
     const h=hourOf(c.gT[i]);
     const night = h<6;
@@ -887,7 +887,7 @@ function analyze(parsed, progress, opts){
     hourly, daily,
     TIR_CUT
   };
-  r.events = buildEvents(r);
+  /** @type {any} */(r).events = buildEvents(r);
   progress && progress(96,'Done');
   return r;
 }
