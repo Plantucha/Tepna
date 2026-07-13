@@ -71,6 +71,12 @@ policy (or amends it); until then it stays `PROPOSED`. It never becomes DONE (no
 the §4 index is living and extended whenever a new literature anchor is used. If the policy motivates a
 `CLAUDE.md` addition (a one-paragraph "Literature use" section), that edit is the only executable residue.
 
+> **Executable residue LANDED 2026-07-13.** The one-paragraph **`## 📚 Literature use`** section is now in
+> `CLAUDE.md` (after §📜 Licensing) — it single-sources the §2 hard line (no networked data in a bundle · no
+> fabricated `validated` authority · mandatory attribution) and the §3 routing rule, and points here for the
+> full policy + anchor index. **Status stays PROPOSED** per the rule above — the flip to `REFERENCE` remains
+> the owner's ratification, not an execution step.
+
 ## Cross-references
 - `CLAUDE.md` §📌 (brief lifecycle) · §🎫 (evidence ladder / tiers) · the 100 %-local + `no-network` invariant.
 - `docs/INTEGRATOR-TCH-REALDATA-VALIDATION-2026-07-06.md` §8–§9 — the first worked example of this policy.

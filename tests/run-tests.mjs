@@ -624,7 +624,15 @@ function readDocsLedger() {
   // check4b resolves against it AND the staleness leg asserts listedPaths == fsPaths (a stale committed
   // list reds in CI, exactly like the brief-name list). Same shared walker the generator uses.
   const fsPaths = walkRepoPaths(ROOT);
-  return { briefs, indexText, rootBriefNames, fsBriefNames, listedBriefNames, fsPaths, listedPaths };
+  // X3 (EFFICIENCY-AUDIT-FINDINGS-2026-07-12): the OTHER root docs, so check4b's markdown-link
+  // resolution extends from DOCS-INDEX.md to the whole constitution set (a moved target the prose
+  // missed is otherwise ungated). Browser lane fetches the same set.
+  const rootDocs = {};
+  for (const f of ['README.md', 'CLAUDE.md', 'ARCHITECTURE-PRINCIPLES.md', 'ORIENTATION.md', 'CONTRIBUTING.md', 'AUDIT-PROMPT.md']) {
+    const p = join(ROOT, f);
+    if (existsSync(p)) rootDocs[f] = readFileSync(p, 'utf8');
+  }
+  return { briefs, indexText, rootBriefNames, fsBriefNames, listedBriefNames, fsPaths, listedPaths, rootDocs };
 }
 
 // release-ledger gate (CONTROLLED-RELEASES-2026-07-05): controlled releases machine-checked. Node lane

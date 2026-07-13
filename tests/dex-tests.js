@@ -3988,6 +3988,45 @@
         unlinked.length ? 'unindexed (' + unlinked.length + '): ' + unlinked.slice(0, 10).join(', ') : names.length + ' linked'
       );
 
+      // ── CHECK 3b · index status ≡ header status (X2 · EFFICIENCY-AUDIT-FINDINGS-2026-07-12) ──
+      //    The brief HEADER is the source of truth (CLAUDE.md §📌); a DOCS-INDEX row that claims a
+      //    DIFFERENT status is stale and mis-answers "what's open?". check3 proved a brief HAS a row;
+      //    this proves the row AGREES. Scope: SINGLE-brief rows whose trailing role/status cell carries
+      //    a *(status)* marker, for executable statuses (DONE|PROPOSED|IN-PROGRESS). Multi-brief rows
+      //    (one shared status cell) and status-less roles (Audit/Reference/Narrative) are skipped —
+      //    nothing to compare. Both lanes have brief content, so this runs in Node AND the browser.
+      function headerStatus(text) {
+        var m = headerBlock(text).match(/^\*\*Status:\*\*\s+(PROPOSED|IN-PROGRESS|DONE|REFERENCE|CHECKPOINT)\b/m);
+        return m ? m[1] : null;
+      }
+      var idxLines = indexText.split('\n');
+      var statusMismatch = [];
+      names.forEach(function (n) {
+        var hs = headerStatus(DL.briefs[n]);
+        if (hs !== 'DONE' && hs !== 'PROPOSED' && hs !== 'IN-PROGRESS') return;
+        idxLines.forEach(function (line) {
+          if (line.indexOf('](briefs/' + n + ')') < 0) return;
+          if ((line.match(/\]\(briefs\//g) || []).length > 1) return; // multi-brief row → shared status cell, skip
+          var cells = line
+            .split('|')
+            .map(function (c) {
+              return c.trim();
+            })
+            .filter(function (c) {
+              return c;
+            });
+          var last = cells[cells.length - 1] || '';
+          var m = last.match(/\*\(\s*(DONE|PROPOSED|IN-PROGRESS)\b/);
+          if (!m) return; // no brief-status marker in the role cell → nothing to compare
+          if (m[1] !== hs) statusMismatch.push(n + ' [index ' + m[1] + ' ≠ header ' + hs + ']');
+        });
+      });
+      T.ok(
+        'check3b · DOCS-INDEX row status ≡ brief header status (header is source of truth)',
+        statusMismatch.length === 0,
+        statusMismatch.length ? 'stale rows (' + statusMismatch.length + '): ' + statusMismatch.slice(0, 8).join('; ') : 'in sync'
+      );
+
       // ── CHECK 4a · briefs-link integrity (the 2026-07-03 repoint guard) — resolve ](briefs/…) against the
       //    AUTHORITATIVE brief set (never the staleable path inventory), so this sharp guard stands alone. ──
       var linkRe = /\]\((briefs\/[^)]+)\)/g,
@@ -4011,6 +4050,7 @@
           var raw = m[1];
           if (!raw || raw.charAt(0) === '#') continue; // same-page anchor
           if (/^[a-zA-Z][a-zA-Z0-9+.\-]*:/.test(raw) || raw.slice(0, 2) === '//') continue; // scheme / protocol-relative → external
+          if (/[…<>]/.test(raw)) continue; // X3: illustrative placeholder link (e.g. `](briefs/…)` documenting the pattern), not a real target
           var t = raw.split('#')[0].split('?')[0];
           try {
             t = decodeURIComponent(t);
@@ -4029,14 +4069,29 @@
         inv4.forEach(function (p) {
           invSet4[p] = 1;
         });
-        var links4 = relLinkTargets(indexText);
-        var dead4b = links4.filter(function (t) {
-          return t.slice(0, 3) === '../' || !invSet4[t];
+        // X3 (EFFICIENCY-AUDIT-FINDINGS-2026-07-12): resolve links across DOCS-INDEX AND the 6 other root
+        //    constitution docs (CLAUDE/README/ARCHITECTURE-PRINCIPLES/ORIENTATION/CONTRIBUTING/AUDIT-PROMPT).
+        //    The 2026-07-03 briefs/·audits/·docs/ relocation updated the gated DOCS-INDEX but missed the
+        //    ungated prose; this closes that gap so a moved-target link in any root doc reds. rootDocs absent
+        //    (older runner) → falls back to DOCS-INDEX only.
+        var docs4 = [['DOCS-INDEX.md', indexText]];
+        var RD = DL.rootDocs || {};
+        Object.keys(RD).forEach(function (d) {
+          docs4.push([d, RD[d]]);
+        });
+        var dead4b = [],
+          totalLinks4 = 0;
+        docs4.forEach(function (pair) {
+          var links = relLinkTargets(pair[1]);
+          totalLinks4 += links.length;
+          links.forEach(function (t) {
+            if (t.slice(0, 3) === '../' || !invSet4[t]) dead4b.push(pair[0] + ' → ' + t);
+          });
         });
         T.ok(
-          'check4b · every relative DOCS-INDEX link resolves in the repo tree (F2)',
+          'check4b · every relative link in DOCS-INDEX + the 6 other root docs resolves in the repo tree (F2 · X3)',
           dead4b.length === 0,
-          dead4b.length ? 'dead (' + dead4b.length + '): ' + dead4b.slice(0, 8).join(', ') : links4.length + ' links resolve'
+          dead4b.length ? 'dead (' + dead4b.length + '): ' + dead4b.slice(0, 8).join(', ') : totalLinks4 + ' links resolve across ' + docs4.length + ' root docs'
         );
       }
       // self-tests · the 4b resolver: decoded/good links pass, a dead one flags, external/anchor ignored (can't rot into a no-op)

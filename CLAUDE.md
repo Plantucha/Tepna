@@ -9,7 +9,7 @@ A fleet of single-signal physiological analyzers — **OxyDex** (SpO₂/oximetry
 summaries), **PulseDex** (raw RR → HRV), **GlucoDex** (CGM), **ECGDex** (raw ECG), planned
 **EEGDex** (Muse EEG) — plus a shared event bus (**"Ganglior"** — name is FROZEN, do not rename;
 the Integrator still reads a `fascia` alias on input for back-compat) and a fusion layer
-(**"Integrator"**, see `INTEGRATOR-BUILD-BRIEF.md`). Each app is built from external
+(**"Integrator"**, see `briefs/INTEGRATOR-BUILD-BRIEF.md`). Each app is built from external
 `*-dsp.js` / `*-render.js` / `*-app.js` files referenced by a `Foo.src.html`, then bundled to a
 standalone `Foo.html` via the inliner. **Edit the `.js` + `.src.html`, never the bundled `.html`;
 re-bundle after changes.** 100% local — no network, no CDNs. Fonts are **system stacks only**
@@ -133,9 +133,9 @@ Status lives in a one-line header block on the first content line (just after an
   files** (`*.js` / `*.html` / `*.src.html` / `*.css` / `*.json` — load-bearing paths, NEVER move them).
   Everything else archival lives in: **`briefs/`** (work-plans + pre-standard kickoffs/handoffs),
   **`audits/`** (audit findings, external reviews, fusion issues, validation status, one-off audit
-  prompts), **`docs/`** (specs, derivations, analysis READMEs, `LEXICON.md`/`EVENT-LEXICON.md`, patterns,
+  prompts), **`docs/`** (specs, derivations, analysis READMEs, `docs/LEXICON.md`/`docs/EVENT-LEXICON.md`, patterns,
   deploy + privacy statements, narrative). **`ORIENTATION.md` MUST stay in root** — the test suite
-  fetches it (roster gate; `EVENT-LEXICON.md`/`AUDIT.md` are only *mentioned* in tests, safe in their
+  fetches it (roster gate; `docs/EVENT-LEXICON.md`/`audits/AUDIT.md` are only *mentioned* in tests, safe in their
   folders). Put a NEW archival doc straight into the right folder and add its `DOCS-INDEX.md` row; do not
   drop archival docs in root. The only further sanctioned
   relocation is `docs-archive/` for a *truly dead* doc, done deliberately with a redirect stub, never
@@ -164,6 +164,19 @@ the **FROZEN event-bus codename `Ganglior`** — rename suite/brand strings only
 `ganglior.*` identifiers, the `ganglior.node-export` schema, or the `fascia` alias. To apply the
 whole pass, run the brief (Phases 1→3 = licensing, Phase 4 = Tepna rename); honor the re-bundle +
 provenance/test gates as it specifies.
+
+## 📚 Literature use — how published data/formulas/processes enter the suite (see `briefs/LITERATURE-USE-POLICY-2026-07-11-BRIEF.md`)
+Using a paper is **allowed** in three tiers (formulas/processes · reference statistics/priors · raw datasets),
+under rules that inherit the invariants above. The **hard line:** (1) **no networked data in a bundle, ever** —
+a `Foo.html` never fetches a paper/DOI/dataset/CDN (gate-backed by `no-network.html`); a literature value that
+must reach runtime is **inlined into source at author time as a cited constant**, then it is just code under the
+normal gates. (2) **No fabricated authority** — a paper-sourced number is `validated`-tier ONLY with a real,
+checkable citation; no citation → it keeps the suite's own tier (never upgrade a badge on "the literature says").
+(3) **Attribution is mandatory** — author·year·journal·DOI in the doc + a source comment in code. **Routing:** a
+node-specific validation → that node's validation write-up; a forward paper agenda → `PAPERS-ROADMAP` + `papers/`;
+a method/formula that **changes code** → its own executable brief (gated like any behavioral change). The full
+policy + a living anchor index live in the brief (still PROPOSED — the status flip to `REFERENCE` is the owner's
+ratification).
 
 ## 🎙️ Capture provenance — how the raw signals are recorded
 Raw **ECG** (Polar H10 chest strap) and **PPG** (Polar Verity Sense armband) are captured with the
@@ -386,7 +399,7 @@ hand-typed version onto source files — `manifestHash` already identifies code 
   quote-strip), glucodex (`_ckParse` + MDY numeric wrapper) and cpapdex (EDF subset) keep DELIBERATE node-local
   variants — do not force them onto DexClock, and do not reintroduce a mirror. Load `clock.js` BEFORE any
   delegating `*-dsp.js` (dex-coload.js `shared:` + the co-load gate enforce this; worker `importScripts` lists too).
-- **`REFACTOR-BRIEF-modularize-Dexes.md`:** historical, the refactor is DONE. See `docs-archive/`.
+- **`docs-archive/REFACTOR-BRIEF-modularize-Dexes.md`:** historical, the refactor is DONE. See `docs-archive/`.
 
 ---
 

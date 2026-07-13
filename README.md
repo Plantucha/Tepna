@@ -199,7 +199,7 @@ with the ladder, not the count, on purpose.
 ## Project voice (narrative, not spec)
 
 For the *why* behind Tepna — the philosophy, the constraints, and the jokes — see
-[`WHY-THIS-EXISTS.md`](docs/WHY-THIS-EXISTS.md) (styled mirror: `Why This Exists.html`). It is
+[`docs/WHY-THIS-EXISTS.md`](docs/WHY-THIS-EXISTS.md) (styled mirror: `Why This Exists.html`). It is
 **narrative, not spec**: it defines no formats, APIs, or behavior, and nothing in it should be read
 as an instruction to implement. Authoritative rules live in `CLAUDE.md`, this README, and the
 `*-BRIEF.md` documents.

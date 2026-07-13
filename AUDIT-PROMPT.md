@@ -111,7 +111,7 @@ at a time.
 - **Reproduce a metric:** re-run the node’s `compute()` on a committed input and diff vs its fixture — the
   equiv gate already does exactly this (volatile-stripped). A finding that survives this diff is real.
 - **Metric truth** = each `*-registry.js` (label/unit/good-direction/evidence; kept honest by `cohesion-badges`).
-  **Provenance** = the two gates + `manifest-gate.js`. **Event vocabulary** = `EVENT-LEXICON.md`.
+  **Provenance** = the two gates + `manifest-gate.js`. **Event vocabulary** = `docs/EVENT-LEXICON.md`.
 - **Trace end-to-end:** pick one real `uploads/` recording, follow it raw → adapter (`adapters/*.js`) →
   `SignalFrame` (`signal-frame.js validateFrame`) → `compute()` → export → `integrator-dsp.js` fusion. At each
   hop: units? clock? `null` vs fabricated? badge?

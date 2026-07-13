@@ -369,9 +369,13 @@ async function main(){
       const briefs = {};
       await Promise.all(listedBriefNames.map(async n => { const t = await fetchText('briefs/'+encodeURIComponent(n)); if(t!=null) briefs[n]=t; }));
       const indexText = (await fetchText('DOCS-INDEX.md')) || '';
+      // X3: the OTHER root docs, for check4b's markdown-link resolution across the whole constitution set.
+      const rootDocs = {};
+      await Promise.all(['README.md','CLAUDE.md','ARCHITECTURE-PRINCIPLES.md','ORIENTATION.md','CONTRIBUTING.md','AUDIT-PROMPT.md']
+        .map(async f => { const t = await fetchText(encodeURI(f)); if(t!=null) rootDocs[f]=t; }));
       // listedPaths — the committed whole-tree inventory (F2) the browser lane resolves DOCS-INDEX
       // links against (no fs here); the Node lane owns the listedPaths==fs staleness assertion.
-      docsLedger = { briefs, indexText, rootBriefNames: (list.rootBrief||[]), listedBriefNames, listedPaths: (list.path||[]) /* no fsPaths: browser lane */ };
+      docsLedger = { briefs, indexText, rootBriefNames: (list.rootBrief||[]), listedBriefNames, listedPaths: (list.path||[]), rootDocs /* no fsPaths: browser lane */ };
     }
   } catch(e) { /* absent/broken → group skips */ }
 
