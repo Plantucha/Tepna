@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8XI7rAFDr6fMrFQHYZNIuhQfnX4RbyFGOoiPvHl74Lw=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-FLjjbK1/deXvk+myWW6DFN+AnmmVU/GuoGCp55hyOvk=' 'sha256-GGVFXrNbd0tJ+tS9XDXa/3y6pynbDhVB9EZhRBIW4cI=' 'sha256-Gb3EWh154tYCjsYcn91z+v4k8tdIf+uYciqo+q2JDKI=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-TJAh9DCg7Ek7gwusBHfJhulcRWQPEVr4ZAZQfqDAm/4=' 'sha256-V0C9qWkelizTKHjPEtlWmyTc4pTsPSf41HTe+Ia2y7Y=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-r1iFOMt/UTb6HoQKDZZ1CCMcg/uE2yXUOs1FFX8Dv9w=' 'sha256-x0sSiHucTnwt0T5o99rUupcHOFUpTe1SHgVvi5F+iIs=' 'sha256-znnyGiXDcfbU3wUjydrmyWCFBC9U8tWF9ZOIH8oZ9no='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8XI7rAFDr6fMrFQHYZNIuhQfnX4RbyFGOoiPvHl74Lw=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-FLjjbK1/deXvk+myWW6DFN+AnmmVU/GuoGCp55hyOvk=' 'sha256-GGVFXrNbd0tJ+tS9XDXa/3y6pynbDhVB9EZhRBIW4cI=' 'sha256-Gb3EWh154tYCjsYcn91z+v4k8tdIf+uYciqo+q2JDKI=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-TJAh9DCg7Ek7gwusBHfJhulcRWQPEVr4ZAZQfqDAm/4=' 'sha256-V0C9qWkelizTKHjPEtlWmyTc4pTsPSf41HTe+Ia2y7Y=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-kRCYMgT595ykfKgMz6bcv6o7uAf60dtJmUxZq1mbCng=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-x0sSiHucTnwt0T5o99rUupcHOFUpTe1SHgVvi5F+iIs=' 'sha256-znnyGiXDcfbU3wUjydrmyWCFBC9U8tWF9ZOIH8oZ9no='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HRVDex — Heart Rate Variability Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -7447,6 +7447,16 @@ function numOrNull(cell){
   var v = parseFloat(s);
   return isFinite(v) ? v : null;
 }
+/* First PRESENT alias wins; absent everywhere ⇒ null (never a real-looking 0). The `a || b || 0`
+   idiom this replaces conflated three different things — "not in this file", "blank cell", and "the
+   vendor really scored 0" — and stored the last one for all three. DEEP-AUDIT-FOLLOWUPS §B3. */
+function _firstNum(){
+  for(var i=0;i<arguments.length;i++){
+    var v = numOrNull(arguments[i]);
+    if(v != null) return v;
+  }
+  return null;
+}
 function _hrvParseSummaryRows(text) {
   const lines = text.trim().split('\n');
   const headers = lines[0].split(',').map(h => h.trim().replace(/\r/,''));
@@ -7482,12 +7492,19 @@ function _hrvParseSummaryRows(text) {
     // SUBJECTIVE Welltory black-box columns KEEP ||0: computeDerived's _hasSubj gate relies on the
     // six moving as an all-or-none 0-seed group (WELLTORY-COMPOSITES quarantine); migrating them to
     // null is a separate decision. _hrv = Welltory's proprietary black-box HRV Score (not transparent).
-    r._stress = parseFloat(r['Stress(HRV)']||r['Stress']||0);
-    r._energy = parseFloat(r['Energy(HRV)']||r['Energy']||0);
-    r._focus = parseFloat(r['Focus']||0);
-    r._sns = parseFloat(r['ANS balance(SNS)']||r['SNS']||0);
-    r._psns = parseFloat(r['ANS balance(PSNS)']||r['PSNS']||0);
-    r._coherence = parseFloat(r['Coherence index']||r['Coherence']||0);
+    // DEEP-AUDIT-FOLLOWUPS §B3 — the `||0` siblings of the HRV Score. Each of these turned an ABSENT
+    // vendor column into a real-looking 0, exactly as `_hrv` did (§21). None is a hero today, so none
+    // was proven to mis-state a surfaced number — which is why they were left rather than changed
+    // blind. They are fixed now for the same reason `_hrv` was: absence is not zero, and the safety of
+    // every downstream composite currently rests on the coincidence that a real subjective score is
+    // never exactly 0. The `_hasSubj` / `> 0` presence gates read `null > 0` as false, so the honest
+    // seed changes nothing about which composites fire — it just stops the LIE being stored.
+    r._stress = _firstNum(r['Stress(HRV)'], r['Stress']);
+    r._energy = _firstNum(r['Energy(HRV)'], r['Energy']);
+    r._focus = _firstNum(r['Focus']);
+    r._sns = _firstNum(r['ANS balance(SNS)'], r['SNS']);
+    r._psns = _firstNum(r['ANS balance(PSNS)'], r['PSNS']);
+    r._coherence = _firstNum(r['Coherence index'], r['Coherence']);
     // DEEP-AUDIT §21 — `||0` turned an ABSENT vendor score into a real-looking 0, which the hero
     // rendered as a genuine reading ("0 · Strained · Prioritize rest") for a file that simply never
     // carried the column. Absence is null; the renderer already prints '—' for null.
@@ -7659,14 +7676,20 @@ function _hrvRefreshChrome(){
    each recording's HRV summary to one additive HRVDex measurement row. Many days
    (and multiple sessions per day) land in one import; the dedup keeps re-imports
    idempotent. Welltory-app-only subjective metrics (Stress/Energy/Coherence) have
-   no ECG equivalent → left 0, so their derived cards read '—'. */
+   no ECG equivalent → left NULL, so their derived cards read '—'. */
 function _envToSeed(env){
   if(!env || typeof env!=='object') return null;
   const rec = env.recording||{}, hrv = env.hrv||{};
   const tm = hrv.time||{}, fq = hrv.frequency||{};
   const tMs = (rec.startEpochMs!=null && isFinite(rec.startEpochMs)) ? +rec.startEpochMs : NaN;
   if(!isFinite(tMs)) return null;
-  const n = v => (typeof v==='number' && isFinite(v)) ? v : 0;
+  /* DEEP-AUDIT-FOLLOWUPS §B2 — absence seeds to NULL, not 0. This used to map every missing field to
+     `0`, which is what collapsed HRVDex's n.u. denominator to an epsilon in §3 (`_totalPow − _vlf`
+     → `0 − 0` → the `|| 0.001` fallback → HF n.u. = 125,000,000 %). The §3 presence gates made that
+     harmless — but only because a real band power is never EXACTLY 0, i.e. the safety rested on a
+     coincidence of physiology rather than on the code being right. `null > 0` is false, so every
+     existing gate reads identically; the difference is that an absent value is now stored as absent. */
+  const n = v => (typeof v==='number' && isFinite(v)) ? v : null;
   // Prefer whole-record SDNN/RMSSD for cross-node comparability (ECGDex's own guidance).
   const sdnn  = n(tm.wholeRecordSDNN  != null ? tm.wholeRecordSDNN  : tm.sdnn);
   const rmssd = n(tm.wholeRecordRMSSD != null ? tm.wholeRecordRMSSD : tm.rmssd);
@@ -7675,7 +7698,8 @@ function _envToSeed(env){
     _hr:n(tm.hr), _meanRR:n(tm.meanRR), _sdnn:sdnn, _rmssd:rmssd, _mxdmn:n(tm.mxDMn),
     _pnn50:n(tm.pnn50), _amo50:n(tm.amo50), _mode:n(tm.mode),
     _totalPow:n(fq.totalPower), _hf:n(fq.hf), _lf:n(fq.lf), _vlf:n(fq.vlf),
-    _stress:0, _energy:0, _focus:0, _sns:0, _psns:0, _coherence:0,
+    // Welltory-app-only subjective scores have no ECG equivalent — they are ABSENT here, not zero (§B2).
+    _stress:null, _energy:null, _focus:null, _sns:null, _psns:null, _coherence:null,
     _hrv:n(env.personalization && env.personalization.ansReadinessScore), _cv:n(tm.cv)
   };
 }
