@@ -375,6 +375,10 @@ nothing in the suite currently pins it. Deserves a fixture.
 
 ### P5 — the coupling primitive ✅ **DONE 2026-07-12**
 
+> 📎 **The primitive now has its own brief — `EVENT-COUPLING-2026-07-13-BRIEF.md`.** Read its §2 (THE RULE)
+> before calling `coupling()`: FOUR separate defects in this null model each produced a confident, wrong
+> number, two of them on the very data below. What follows is the original P5 record.
+
 > **Executed** — `event-coupling.js`, spine module, dual-realm, gated in both runners (22 self-test +
 > 21 contract assertions). Not co-loaded into any bundle: no app consumes it yet, so wiring it into
 > `dex-coload.js` would re-bundle all 8 apps to carry inert code (the `BADGE_CSS` economics, §🎫). It
