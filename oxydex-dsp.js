@@ -230,14 +230,7 @@
     try {
       window._oxyReview = null;
     } catch (_rv) {}
-    console.log(
-      '[O2Ring] handleFiles called with',
-      files.length,
-      'files:',
-      files.map(function (f) {
-        return f.name;
-      })
-    );
+    // N2 (PRIVACY-SECURITY-AUDIT-2026-07-13): removed a console.log dumping every dropped filename.
     var _rEl = safeEl('results');
     if (!_rEl) return;
     _rEl.innerHTML = '<div class="results-loading">⏳ Reading ' + files.length + ' file' + (files.length > 1 ? 's' : '') + '…</div>';
@@ -293,7 +286,7 @@
           });
         });
         var nights = Object.keys(allNights);
-        console.log('[O2Ring] Parsed nights:', Object.keys(allNights).length, JSON.stringify(Object.keys(allNights)));
+        console.log('[O2Ring] Parsed nights:', Object.keys(allNights).length); // N2: dropped the date-list dump
         if (!nights.length) {
           var dbg = window._csvParseErrors && window._csvParseErrors.length ? '\n\nDebug info:\n' + window._csvParseErrors.join('\n') : '';
           var errMsg = 'No valid data found. Upload raw O2Ring CSV files (O2Ring S *.csv) or pre-processed .json/.jsonl summaries.' + dbg;
@@ -365,7 +358,6 @@
           var _bytes = new Uint8Array(_buf);
           // ── O2Ring native binary (.bin, or .bin renamed to .txt) ──
           if (isO2RingBin(_bytes)) {
-            console.log('[O2Ring] Detected native binary format:', file.name, _bytes.length, 'bytes');
             var _binCsv = decodeO2RingBinToCSV(_bytes, file.name, file);
             var _binRows = parseCSV(_binCsv, { fname: file.name, file: file });
             if (!_binRows || _binRows.length < 60) {
@@ -377,7 +369,6 @@
           }
           // ── Text formats (CSV / JSON / JSONL) — decode UTF-8 (== old readAsText) ──
           var text = new TextDecoder('utf-8').decode(_buf).trim();
-          console.log('[O2Ring] readFile:', file.name, 'length:', text.length, 'first50:', text.substring(0, 50));
           // Auto-detect: JSON/JSONL (pre-processed summaries) vs raw CSV
           if (text.charAt(0) === '{' || text.charAt(0) === '[') {
             // ── SELF-INGEST: route OxyDex's OWN ganglior.node-export envelope (SELF-INGEST-2026-06-27) ──
@@ -438,9 +429,8 @@
           // (0-is-falsy drops, key-trim mismatches, ReferenceErrors). To reload an analyzed night,
           // use its .json export — parseJSONL / single-JSON round-trips the full night losslessly.
           var cleanText = text.replace(/^[\uFEFF\r\n\s]+/, '');
-          console.log('[O2Ring] cleanText starts:', cleanText.substring(0, 60));
+          // N2: removed console.log of raw cleanText bytes.
           if (cleanText.indexOf('OxyDex Night Summary') === 0 || cleanText.indexOf('O2Ring Night Summary') === 0) {
-            console.log('[O2Ring] Summary CSV detected — export-only format, not re-imported');
             if (!window._csvParseErrors) window._csvParseErrors = [];
             window._csvParseErrors.push(
               file.name + ': this is a human-readable summary CSV (export-only). ' + 'To reload a night, use its .json export. Raw O2Ring CSVs and .json/.jsonl still import normally.'

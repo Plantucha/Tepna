@@ -1,5 +1,14 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-13 · **Executes:** `audits/PRIVACY-SECURITY-AUDIT-FINDINGS-2026-07-13.md` N1 · **Follows:** `SECURITY-REMEDIATION-FOLLOWUPS-2026-07-11-BRIEF.md` §2 (which extended *erasure* to these pages; this extends the *injection/egress backstop* to the same set)
+**Status:** DONE — 2026-07-13 · **Created:** 2026-07-13 · **Executes:** `audits/PRIVACY-SECURITY-AUDIT-FINDINGS-2026-07-13.md` N1 · **Follows:** `SECURITY-REMEDIATION-FOLLOWUPS-2026-07-11-BRIEF.md` §2 (which extended *erasure* to these pages; this extends the *injection/egress backstop* to the same set)
+
+> **EXECUTED 2026-07-13.** Meta-CSP (`default-src 'self' 'unsafe-inline' blob: data:; connect-src 'none'|'self';
+> worker-src 'self' blob:; object-src/base-uri/form-action 'none'`) added to all 15 unbundled surfaces — the 9
+> analysis pages, the 3 `cohort-*` harnesses, `PAT Feasibility.html`, `PpgDex Fusion Prototype.html`
+> (`connect-src 'self'` — it fetches the local corpus), and `index.html`. The `no-network.html` gate now
+> STATIC-scans them (Layer 1; not runtime-booted — they spin up heavy synthetic compute), and a new
+> `security · csp · non-bundle` group in `tests/dex-tests.js` (Node lane; browser lane skips) asserts each
+> carries the locked CSP — **46/46 green**. No bundle touched (these pages are outside `BUILD-MANIFEST.json`)
+> → no `manifestHash` moved, no fixture churn. The reference-guide/narrative lower tier was left as scoped.
 
 # Extend CSP + the no-network gate to the standalone analysis pages (and `index.html`) — N1
 

@@ -1,5 +1,15 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-13 · **Executes:** `audits/PRIVACY-SECURITY-AUDIT-FINDINGS-2026-07-13.md` N2 + N3 · **Follows:** `SECURITY-REMEDIATION-2026-07-11-BRIEF.md` (the F1/F2/F3 escaper pass — this closes the two hygiene residues in the nodes that pass left untouched)
+**Status:** DONE — 2026-07-13 · **Created:** 2026-07-13 · **Executes:** `audits/PRIVACY-SECURITY-AUDIT-FINDINGS-2026-07-13.md` N2 + N3 · **Follows:** `SECURITY-REMEDIATION-2026-07-11-BRIEF.md` (the F1/F2/F3 escaper pass — this closes the two hygiene residues in the nodes that pass left untouched)
+
+> **EXECUTED 2026-07-13.** N2: dropped OxyDex's raw-data console logging — the filename dump in `handleFiles`,
+> the two raw-CSV-byte dumps (`readFile` first50 / `cleanText` first60), the binary-format + summary-detect
+> lines; trimmed the parsed-nights log to a count (was dumping the full date list). Kept the error/warn
+> exception diagnostics (no raw signal). N3: PpgDex `showErr`/`showOK` now set `.textContent` (matching
+> ECGDex/GlucoDex), killing the F3-class `innerHTML`-over-`e.message` sink. Re-bundled **OxyDex**
+> (`c8633e3f0fab→0b9099a1189d`) + **PpgDex** (`905afc5afca8→d4b2e772bc9c`) + the two orchestrators
+> (`Data Unifier`/`OverDex` inline `oxydex-dsp.js`). **EXPORT-INERT** — every equiv leg green, GATE A 8/8,
+> `build --check` clean; fixtures re-recorded `manifestHash` only. Source-mirror regression asserts added
+> (`N2`/`N3` in the F1/F2/F3 group).
 
 # Leak hygiene — OxyDex raw-data console logging (N2) + PpgDex unescaped error toast (N3)
 

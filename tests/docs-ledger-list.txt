@@ -499,8 +499,11 @@ path capture-host/writers.py
 path cgm-hrv-coupling-analysis.html
 path cgm-hrv-coupling-analysis.js
 path changes
+path changes/2026-07-13-efficiency-x1-d3.md
 path changes/2026-07-13-own-the-build-followups-docs-and-checkjs.md
 path changes/2026-07-13-release-regen-docs-ledger-list.md
+path changes/2026-07-13-security-leak-hygiene.md
+path changes/2026-07-13-security-nonbundle-csp.md
 path changes/README.md
 path clock.js
 path codegen

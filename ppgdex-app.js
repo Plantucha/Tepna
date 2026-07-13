@@ -780,8 +780,10 @@ function clearAll(){ allSessions={}; activeKey=null; if(SCOPE){ SCOPE=null; }
 
 // ── UI helpers ────────────────────────────────────────────────────────────
 function progress(pct,msg){ const p=$('prog'); p.classList.add('show'); $('progBar').style.width=Math.min(100,pct)+'%'; if(msg) $('proc').textContent=msg; }
-function showErr(msg){ const a=$('alert'); a.className='alert err show'; a.innerHTML='⚠ '+msg; clearTimeout(a._t); a._t=setTimeout(()=>a.classList.remove('show'),9000); }
-function showOK(msg){ const a=$('alert'); a.className='alert ok show'; a.innerHTML='✓ '+msg; clearTimeout(a._t); a._t=setTimeout(()=>a.classList.remove('show'),5000); }
+// N3 (PRIVACY-SECURITY-AUDIT-2026-07-13): .textContent, not innerHTML — msg may carry file-derived
+// catch() text (e.message). Matches ECGDex/GlucoDex; kills the F3-class injection sink.
+function showErr(msg){ const a=$('alert'); a.className='alert err show'; a.textContent='⚠ '+msg; clearTimeout(a._t); a._t=setTimeout(()=>a.classList.remove('show'),9000); }
+function showOK(msg){ const a=$('alert'); a.className='alert ok show'; a.textContent='✓ '+msg; clearTimeout(a._t); a._t=setTimeout(()=>a.classList.remove('show'),5000); }
 
 // ── scope controls ────────────────────────────────────────────────────────
 function zoomIn(){ if(SCOPE) SCOPE.zoom(0.6); }

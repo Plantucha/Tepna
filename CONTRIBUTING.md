@@ -84,8 +84,9 @@ into a standalone `<Node>.html`.
 > ### ⛔ Edit the `*.js` + `<Node>.src.html`. **Never** edit the bundled `<Node>.html`. Re-bundle after changes.
 > The bundle is generated output. Hand-editing it is lost on the next re-bundle and breaks provenance.
 
-The bundle's **`manifestHash`** (SHA-256[0:12] of a UUID-independent projection of its
-`__bundler/manifest` — the inlined executed JS/CSS) is the instrument's code fingerprint. **Any** code
+The bundle's **`manifestHash`** (SHA-256[0:12] of a projection of its owned plain-inline
+`data-inline-src` assets — the inlined executed JS/CSS, no gzip/UUID; see `CLAUDE.md` §🔏 GATE A for
+the exact algorithm) is the instrument's code fingerprint. **Any** code
 change shifts it; an inert re-bundle of identical source does not. (`buildHash` is **retired** — no gate
 reads it; see gate #2.) After a code change, update `BUILD-MANIFEST.json` and regenerate any committed
 fixture whose output the change moved.
