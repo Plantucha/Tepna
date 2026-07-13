@@ -241,28 +241,30 @@ it.) Behavior is gated **separately** by `Dex-Test-Suite.html`.
 
 ### Re-bundle checklist — update `BUILD-MANIFEST.json` (GATE A) + regenerate fixtures (GATE B)
 
-> **⚙️ OWNED BUILD (OWN-THE-BUILD-2026-06-30 Part A — fleet cutover DONE 2026-07-03).** **All 8 bundles are now
-> repo-owned deterministic PLAIN-INLINE bundles** (`<script|style data-inline-src>` text, no gzip/UUID).
-> For an **owned** bundle: edit its `*.js`/`.src.html`, then **rebuild with `node tools/build.mjs --app OxyDex`**
-> (or the browser core `tools/build.html` / run_script over `tools/build-core.js`) — **NOT `super_inline_html`**,
-> which would regress it to the legacy format. `build.mjs` **auto-writes** the bundle's `BUILD-MANIFEST.json`
-> `manifestHash` + re-stamps its code-gated fixtures, so the hand-update dance below is replaced by
-> `build.mjs` + **`node tools/build.mjs --check`** (the CI drift guard: committed bundle ≡ build(source)).
-> `manifest-gate.js` hashes plain-inline ONLY (the legacy `__bundler/manifest` branch was **RETIRED
-> 2026-07-03** — a bundle regressed via the old inliner now hashes to null → GATE A reds and points at the
-> owned rebuild). The inert `buildHash` field was dropped from `BUILD-MANIFEST.json` the same day. The hand-update
-> steps below are fully superseded by `build.mjs`; they remain only as reference for the
-> retired legacy format. Remaining Phase 4 cleanup: `OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md` §2.
+**The build is OWNED (OWN-THE-BUILD Part A, fleet cutover DONE 2026-07-03). There is no hand-update
+dance — the tool writes the ledgers.** Every bundle is a repo-owned deterministic **plain-inline** bundle
+(`<script|style data-inline-src>` text; no gzip, no UUID). The whole procedure is:
 
-After a re-bundle that **changes JS/CSS**, `manifestHash` moves, so you **MUST hand-update that app's
-entry** in `BUILD-MANIFEST.json` to the new value (read it off the page's `manifestHash` column / the
-Node sibling), or GATE A reads stale (it **HARD-FAILS** on a missing/blocked/stale manifest — no
-pass-with-warn). Then, **only if the code changed a fixture's OUTPUT**, regenerate that node's fixtures
-by **re-running the app on its committed inputs and re-exporting** (NEVER hand-edit), and re-record the
-fixture's `{ manifestHash, inputHashes, outputHash }` in `FIXTURE-PROVENANCE.json` (compute the hashes
-with `ManifestGate.sha16` over the raw input/output bytes; GATE B reds otherwise). Because
-`manifestHash` is deterministic, an **EXPORT-INERT re-bundle of identical source moves nothing** — no
-re-record (the old churn is gone). A fixture-only re-record needs **no app re-bundle**.
+```sh
+node tools/build.mjs --app OxyDex     # edit the *.js / .src.html first, then rebuild
+node tools/build.mjs --check          # drift guard: committed bundle ≡ build(source)
+```
+
+`build.mjs` **auto-writes** that bundle's `BUILD-MANIFEST.json` `manifestHash` and **re-stamps its
+code-gated fixtures**. You do not hand-edit `manifestHash`, and you never hand-edit a fixture hash.
+`tools/build.html` / `tools/build-core.js` are the browser equivalents. Do **NOT** use `super_inline_html`
+— it regresses a bundle to the retired legacy format, which `manifest-gate.js` now hashes to `null`, so
+GATE A reds and points you back here.
+
+**Owned ≠ in GATE A.** `build.mjs` owns **10** bundles — the 8 apps plus the two orchestrators
+(`Data Unifier.html`, `OverDex.html`, owned per FOLLOWUPS §6). `BUILD-MANIFEST.json` / GATE A cover the
+**8 apps**. `--check` is the guard that covers all 10.
+
+**Fixtures.** `build.mjs` re-stamps a code-gated fixture's `manifestHash` on rebuild, but it cannot
+know that your code changed a fixture's **output**. If it did, regenerate the fixture by **re-running the
+app on its committed inputs and re-exporting** (NEVER hand-edit an export), then let the tool re-record
+`{ manifestHash, inputHashes, outputHash }`. Because `manifestHash` is deterministic, an **export-inert
+rebuild of identical source moves nothing** — no re-record. A fixture-only re-record needs no rebuild.
 
 **The regenerate step is gate-enforced (the GATE-C surface).** GATE B is *static* — it pins the
 committed input/output bytes + code identity but does **not** re-run the app, so on its own it can't
@@ -276,16 +278,16 @@ change that moves an export's content **reds that node's equiv/golden leg** — 
 close the loop. So when an equiv leg reds, regenerate **all** of that node's fixtures (e.g. both OxyDex
 summaries — only `_1056` has an equiv leg, but `_0439` shares the same code), not just the one named.
 
-**⏱️ Record AFTER the build settles, and re-read before you trust (PROVENANCE-NONDETERMINISM §2/§4).**
-The platform may **auto-rebuild** a bundle asynchronously after you edit its `*.js`/`.src.html` — a
-one-shot async rebuild that *settles* (observed: a CPAPDex `manifestHash` moved with no explicit
-re-bundle, then stayed) — and the ledgers (`BUILD-MANIFEST.json` / `FIXTURE-PROVENANCE.json`) can be
-rewritten **out-of-band** by that pipeline or a concurrent run. So a `manifestHash` read *immediately*
-after an edit can still move under you. **Safe sequence:** finish ALL source edits → let the build
-settle → **RE-READ** the final `manifestHash` (re-open `verify-provenance.html` / re-fetch the bundle)
-→ only THEN record it → make no further source edit. **Re-read before you trust:** re-derive ground
-truth before editing, and **if GATE A/B already reconcile to the current hashes, do NOT hand-edit the
-ledger** (it is already synced; fighting it just races the other writer).
+**⏱️ The "wait for the build to settle" rule is RETIRED — its cause is gone.** The async platform
+auto-rebuild that PROVENANCE-NONDETERMINISM §2/§4 warned about was an artifact of the **legacy inliner**;
+the owned build is explicit and deterministic — nothing rebuilds behind your back, and a `manifestHash`
+read straight after `build.mjs` is final. Do not re-read-and-wait; do not treat a moving hash as normal.
+If a hash moves with no source edit of yours, that is a **concurrent session**, not the build.
+
+**What DOES still hold: the ledgers are single files that every bundle-touching PR rewrites** (see §👥.3).
+So `BUILD-MANIFEST.json` / `FIXTURE-PROVENANCE.json` can still be rewritten out-of-band by *another
+session*. **If GATE A/B already reconcile to the current hashes, do NOT hand-edit the ledger** — it is
+synced, and fighting it just races the other writer. Rebase and re-run `build.mjs` instead.
 
 ### Fixture provenance ledger — `FIXTURE-PROVENANCE.json` (content-addressed, Phase 7)
 The single source of which fixtures are audited AND their known-answers. Each record is
