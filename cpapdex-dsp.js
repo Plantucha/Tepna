@@ -33,7 +33,7 @@
 
 // Side-effect load only — the reader is reached via CpapEdf/`set.*`, never through this
 // binding, so it is underscore-prefixed to say "intentionally unused" (Biome lint floor).
-var _EDF = (typeof require !== 'undefined') ? require('./cpapdex-edf.js') : (root && root.CpapEdf);
+var _EDF = (typeof require !== 'undefined') ? (/** @type {any} */(require))('./cpapdex-edf.js') : (root && root.CpapEdf);
 
 /* ── DISPLAY — always getUTC* (tMs is floating)  (Clock Contract §5) ───────── */
 function _p2(n) { return (n < 10 ? '0' : '') + n; }
@@ -315,7 +315,7 @@ function buildLongitudinal(nights) {
   var compliancePct = +(qualifying / nights.length * 100).toFixed(1);
   // chronological ascending by floating t0Ms (null t0 keeps input order, sorted last)
   var chrono = nights.slice().map(function (n, i) { return { n: n, t0: n.t0Ms, i: i }; })
-    .sort(function (a, b) { return (a.t0 == null) - (b.t0 == null) || (a.t0 || 0) - (b.t0 || 0) || a.i - b.i; })
+    .sort(function (a, b) { return /** @type {any} */(a.t0 == null) - /** @type {any} */(b.t0 == null) || (a.t0 || 0) - (b.t0 || 0) || a.i - b.i; })
     .map(function (x) { return x.n; });
   var usageTrend7d = _olsSlope(chrono.slice(-7).map(usageH));
   var last30 = chrono.slice(-30).map(ahiOf).filter(function (v) { return v != null && isFinite(v); });
@@ -326,7 +326,7 @@ function buildLongitudinal(nights) {
   // error — a silently degraded longitudinal block (brief §F5). Resolved lazily, at the
   // call site, to stay clear of load-order/circularity.
   var CROSS = (root && root.CPAPCross) || (function () {
-    try { return (typeof require !== 'undefined') ? require('./cpapdex-cross.js') : null; } catch (_e) { return null; }
+    try { return (typeof require !== 'undefined') ? (/** @type {any} */(require))('./cpapdex-cross.js') : null; } catch (_e) { return null; }
   })();
   var crossNight = (CROSS && CROSS.crossNightBlock) ? CROSS.crossNightBlock(chrono) : null;
   // THE device-setting call lives HERE and nowhere else (FOLLOWUPS §1). A night cannot establish a

@@ -507,6 +507,7 @@ path changes/2026-07-13-own-the-build-followups-docs-and-checkjs.md
 path changes/2026-07-13-release-regen-docs-ledger-list.md
 path changes/2026-07-13-security-leak-hygiene.md
 path changes/2026-07-13-security-nonbundle-csp.md
+path changes/2026-07-13-typegate-cpapdex-dsp.md
 path changes/2026-07-13-typegate-ecgdex-dsp.md
 path changes/2026-07-13-typegate-glucodex-dsp.md
 path changes/2026-07-13-typegate-hrvdex-dsp.md
@@ -549,6 +550,7 @@ path cpapdex-edf-roundtrip.html
 path cpapdex-edf-selftest.html
 path cpapdex-edf.js
 path cpapdex-fusion.js
+path cpapdex-globals.d.ts
 path cpapdex-registry.js
 path cpapdex-render.js
 path crossnight-envelope.js
