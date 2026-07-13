@@ -239,7 +239,7 @@ function adaptEnvelopeNode(json, node, filename){
     var _clamp = json.recording && json.recording.clamp;
     summary.clampSat = (_clamp && _clamp.detected) ? { vendor:(_clamp.vendor||null), floor:(_clamp.floor!=null?_clamp.floor:null), ceiling:(_clamp.ceiling!=null?_clamp.ceiling:null), blindMetrics:(_clamp.blindMetrics||[]) } : null;
     if(_clamp && _clamp.detected){
-      for(var _ei=0;_ei<events.length;_ei++){ var _ev=events[_ei];
+      for(var _ei=0;_ei<events.length;_ei++){ var _ev=/** @type {any} */(events[_ei]);
         if(_ev && _ev.impulse==='nocturnal_hypo' && _ev.meta && _ev.meta.clampFloor){
           // AUDIT-ONLY tag (NODE-RESIDUE-FOLLOWUPS-II §2, decided 2026-07-02): the conf ×0.5 on the next line is
           // the LOAD-BEARING down-weight (it flows through effConf → the noisy-OR → the posterior). clampFloor
@@ -331,7 +331,7 @@ function adaptEnvelopeNode(json, node, filename){
       // warranted; ECGDex is a CHEST STRAP (Polar H10) whose sqi rarely reaches < PPG_SQI_FLOOR on a real
       // recording, so a floor would almost never fire and effConf's smooth taper suffices. Different sensor
       // physics → different treatment; deliberately NOT a shared NODE_SQI_FLOOR table. See EVENT-LEXICON §6.10.
-      for(var _pi=0;_pi<events.length;_pi++){ var _pe=events[_pi];
+      for(var _pi=0;_pi<events.length;_pi++){ var _pe=/** @type {any} */(events[_pi]);
         if(_pe && _pe.sqi!=null && isFinite(_pe.sqi) && _pe.sqi < PPG_SQI_FLOOR){
           // AUDIT-ONLY tag (NODE-RESIDUE-FOLLOWUPS-II §2): the conf ×0.5 on the next line is the LOAD-BEARING
           // down-weight (flows through effConf → noisy-OR → posterior); sqiFloor is a provenance breadcrumb,
@@ -775,7 +775,7 @@ function fuseApneaEvents(recs, dtMs, gate){
   //    that desat's arousal response). Greedy in desat-time order. ────────────
   var findings=[], unmatchedDesat=[], usedSurge=new Set();
   desats.forEach(function(d){
-    var best=null, bd=Infinity;
+    var best=/** @type {any} */(null), bd=Infinity;
     surges.forEach(function(s,si){
       if(usedSurge.has(si)) return;
       var lat=(s.tMs-d.tMs)/1000;                 // +ve = surge AFTER desat
@@ -897,7 +897,7 @@ function labelPositionalApnea(recs, apneaResult){
     if(posture.length) src = 'limb-acc';
   }
   if(!posture.length) return { available:false, note:'No ACC / body-position series in any node export — positional analysis unavailable.' };
-  function posAt(tMs){ var best=null,bd=1e12; posture.forEach(function(p){ var d=Math.abs(p.tMs-tMs); if(d<bd){bd=d;best=p;} }); return (best && bd<=10*60000)?best.pos:null; }
+  function posAt(tMs){ var best=null,bd=1e12; posture.forEach(function(p){ var d=Math.abs(p.tMs-tMs); if(d<bd){bd=d;best=p;} }); return (best && bd<=10*60000)?/** @type {any} */(best).pos:null; }
   var supine=0, nonsupine=0, unknown=0;
   apneaResult.findings.forEach(function(f){
     var p=posAt(f.tMs); f.meta = f.meta||{}; f.meta.position=p;
@@ -1372,7 +1372,7 @@ function runFusion(recs, opts){
   var overlapUnionMs = _mergeMs(ivs);
   var pairwiseSumMin = pairs.reduce(function(s,p){ return s+(p.overlap?p.overlap.overlapMin:0); },0);
   // N-way intersection of every dated rec
-  var interStart=null, interEnd=null, haveAll=dated.length>=2;
+  var interStart=/** @type {any} */(null), interEnd=/** @type {any} */(null), haveAll=dated.length>=2;
   dated.forEach(function(r){ var w=recWindow(r); if(!w){ haveAll=false; return; }
     interStart = (interStart==null)?w.startMs:Math.max(interStart,w.startMs);
     interEnd   = (interEnd==null)  ?w.endMs  :Math.min(interEnd,  w.endMs); });
@@ -1442,7 +1442,7 @@ function runFusion(recs, opts){
   return {
     bus:BUS, kind:'fusion', generated:new Date().toISOString(),
     window:{ startMs:startMs, endMs:endMs,
-      spanMin: (startMs!=null&&endMs!=null)? +((endMs-startMs)/60000).toFixed(1):null,
+      spanMin: (startMs!=null&&endMs!=null)? +((/** @type {any} */(endMs)-/** @type {any} */(startMs))/60000).toFixed(1):null,
       // overlapMin now = TRUE merged-union minutes (was: sum of pairwise — see R3)
       overlapMin: +(overlapUnionMs/60000).toFixed(1),
       overlapUnionMin: +(overlapUnionMs/60000).toFixed(1),
