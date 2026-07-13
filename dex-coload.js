@@ -85,6 +85,6 @@
   // the global each nodeModule must expose once runtime-co-loaded (CROSS-MODULE-RUNTIME-COVERAGE §1/§2).
   DEX_COLOAD.nodeModuleGlobals = DEX_COLOAD.nodeModules.map(function (m) { return m.global; });
 
-  root.DexCoload = DEX_COLOAD;
+  /** @type {any} */ (root).DexCoload = DEX_COLOAD;
   if (typeof module !== 'undefined' && module.exports) module.exports = DEX_COLOAD;
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));

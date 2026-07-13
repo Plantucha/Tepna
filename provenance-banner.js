@@ -51,13 +51,25 @@
     // BUILD-MANIFEST.json doesn't load (the "false-clean" gap: a slow fetch left GATE A reading as
     // pass-with-warn instead of comparing).
     if (!MANIFEST) {
-      gateA = '<span class="pill bad">GATE A FAIL — BUILD-MANIFEST.json ' + (MANIFEST_ERR ? 'failed to load/parse (' + MANIFEST_ERR + ')' : 'did not load') + '</span> — a missing/blocked/INVALID manifest is a hard failure, not a skip. Commit & serve VALID JSON (see the run_script in REVIEW-FOLLOWUP-FIXES-BRIEF §P0), then reload.';
+      gateA =
+        '<span class="pill bad">GATE A FAIL — BUILD-MANIFEST.json ' +
+        (MANIFEST_ERR ? 'failed to load/parse (' + MANIFEST_ERR + ')' : 'did not load') +
+        '</span> — a missing/blocked/INVALID manifest is a hard failure, not a skip. Commit & serve VALID JSON (see the run_script in REVIEW-FOLLOWUP-FIXES-BRIEF §P0), then reload.';
     } else if (gateAFail > 0) {
-      gateA = '<span class="pill bad">GATE A FAIL — ' + gateAFail + ' bundle(s) drifted</span> — a module changed without a re-bundle, OR BUILD-MANIFEST.json is stale. Re-bundle the drifted app(s) and regenerate BUILD-MANIFEST.json.';
+      gateA =
+        '<span class="pill bad">GATE A FAIL — ' +
+        gateAFail +
+        ' bundle(s) drifted</span> — a module changed without a re-bundle, OR BUILD-MANIFEST.json is stale. Re-bundle the drifted app(s) and regenerate BUILD-MANIFEST.json.';
     } else if (gateAMissing > 0 || !gateAComplete) {
-      gateA = '<span class="pill bad">GATE A FAIL — ' + (gateAMissing || (bundlesLength - gateAChecked)) + ' bundle(s) have no committed manifestHash</span> — BUILD-MANIFEST.json is incomplete or stale (every shipped bundle must be committed). Regenerate it after the re-bundle, then reload.';
+      gateA =
+        '<span class="pill bad">GATE A FAIL — ' +
+        (gateAMissing || bundlesLength - gateAChecked) +
+        ' bundle(s) have no committed manifestHash</span> — BUILD-MANIFEST.json is incomplete or stale (every shipped bundle must be committed). Regenerate it after the re-bundle, then reload.';
     } else {
-      gateA = '<span class="pill ok">GATE A PASS — ' + gateAChecked + ' bundle(s) match committed manifestHash</span>. manifestHash is the authoritative executed-code fingerprint (a UUID-independent projection of the bundle\'s __bundler/manifest).';
+      gateA =
+        '<span class="pill ok">GATE A PASS — ' +
+        gateAChecked +
+        " bundle(s) match committed manifestHash</span>. manifestHash is the authoritative executed-code fingerprint (a UUID-independent projection of the bundle's __bundler/manifest).";
     }
 
     var gateB;
@@ -65,16 +77,27 @@
     // parse/load failure of the ledger is a DISTINCT hard fail (it used to degrade silently); a content
     // drift (code/input/output hash mismatch) is the real teeth; otherwise PASS. No buildHash anywhere.
     if (FIXPROV_ERR) {
-      gateB = '<span class="pill bad">GATE B FAIL — FIXTURE-PROVENANCE.json failed to load/parse (' + FIXPROV_ERR + ')</span> — the content-addressed known-answer ledger is unreadable, so no fixture can be audited. Fix the JSON (it must JSON.parse) and reload.';
+      gateB =
+        '<span class="pill bad">GATE B FAIL — FIXTURE-PROVENANCE.json failed to load/parse (' +
+        FIXPROV_ERR +
+        ')</span> — the content-addressed known-answer ledger is unreadable, so no fixture can be audited. Fix the JSON (it must JSON.parse) and reload.';
     } else if (gateBFail > 0) {
-      gateB = '<span class="pill bad">GATE B FAIL — ' + gateBFail + ' fixture(s) drifted (code / input / output content hash)</span> — the known-answer no longer holds. Re-run the producing app on its committed inputs and re-export (never hand-edit), then re-record the fixture in FIXTURE-PROVENANCE.json.';
+      gateB =
+        '<span class="pill bad">GATE B FAIL — ' +
+        gateBFail +
+        ' fixture(s) drifted (code / input / output content hash)</span> — the known-answer no longer holds. Re-run the producing app on its committed inputs and re-export (never hand-edit), then re-record the fixture in FIXTURE-PROVENANCE.json.';
     } else {
-      gateB = '<span class="pill ok">FIXTURE-PROVENANCE.json parsed — GATE B PASS: ' + gateBChecked + ' fixture(s) content-addressed reproducible' + (gateBAbsent ? ' (' + gateBAbsent + ' skipped — committed files not served)' : '') + '</span> — each fixture is a known-answer triple: hash(input) + executed-code manifestHash + hash(output). No buildHash.';
+      gateB =
+        '<span class="pill ok">FIXTURE-PROVENANCE.json parsed — GATE B PASS: ' +
+        gateBChecked +
+        ' fixture(s) content-addressed reproducible' +
+        (gateBAbsent ? ' (' + gateBAbsent + ' skipped — committed files not served)' : '') +
+        '</span> — each fixture is a known-answer triple: hash(input) + executed-code manifestHash + hash(output). No buildHash.';
     }
 
     return { gateA: gateA, gateB: gateB };
   }
 
-  root.pickProvenanceBanner = pickProvenanceBanner;
+  /** @type {any} */ (root).pickProvenanceBanner = pickProvenanceBanner;
   if (typeof module !== 'undefined' && module.exports) module.exports = { pickProvenanceBanner: pickProvenanceBanner };
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);

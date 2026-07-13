@@ -1,6 +1,6 @@
 {
   "//": "Tepna — Phase 4a machine-checked contracts (SIGNAL-ADAPTER-AND-FRONTIER brief). CI-ONLY: tsc --noEmit --checkJs. NO emit, NO shipped build, NO runtime dep — the 100%-local/offline invariant (CLAUDE.md §5.3) is untouched; TypeScript is a dev-time gate only. Scope is forward-first: only the clean CORE adapter layer is checked, NOT the legacy node *-dsp.js (those carry their own known DOM/localStorage debts, gated separately by the DSP-purity assertion, Phase 4b).",
-  "//d2": "OWN-THE-BUILD-FOLLOWUPS §5 D.2 — widen this one module at a time, and NEVER blind: prove the module green with `npx -y -p typescript@5.5.4 tsc --noEmit -p tsconfig.json` (the exact pin types.yml runs) BEFORE adding it. Measured 2026-07-13 against this baseline: kernel-constants 0 (ADDED — needed no source edit) · clock 1 · metric-registry 2 · event-coupling 7 · dex-forget 8 · pulsedex-dsp 16 · glucodex-dsp 22 · cpapdex-dsp 27 · integrator-dsp 30 · ecgdex-dsp 31 · ppgdex-dsp 31 · hrvdex-dsp 46 · oxydex-dsp 107. NOTE clock.js and metric-registry.js are SHARED SPINE — inlined into every bundle — so editing either to satisfy tsc (clock's lone error is the `module.exports = root.DexClock` alias at :136) moves all 10 manifestHashes and churns every fixture. That is a deliberate fleet-churn decision, not a free widening.",
+  "//d2": "OWN-THE-BUILD-FOLLOWUPS §5 D.2 — widen this one module at a time, and NEVER blind: prove the module green with `npx -y -p typescript@5.5.4 tsc --noEmit -p tsconfig.json` (the exact pin types.yml runs) BEFORE adding it. Measured 2026-07-13 against this baseline: kernel-constants 0 (ADDED — needed no source edit) · clock 1 · metric-registry 2 · event-coupling 7 · dex-forget 8 · pulsedex-dsp 16 · glucodex-dsp 22 · cpapdex-dsp 27 · integrator-dsp 30 · ecgdex-dsp 31 · ppgdex-dsp 31 · hrvdex-dsp 46 · oxydex-dsp 107. NOTE clock.js and metric-registry.js are SHARED SPINE — inlined into every bundle — so editing either to satisfy tsc (clock's lone error is the `module.exports = root.DexClock` alias at :136) moves all 10 manifestHashes and churns every fixture. That is a deliberate fleet-churn decision, not a free widening. ADDED 2026-07-13 (all NON-bundled → zero manifestHash churn): event-coupling.js · dex-coload.js · provenance-banner.js — each `root.X = …` export cast via `/** @type {any} */ (root).X = …` (the IIFE-arg type wins over a @param, and `module.exports = X` poisons the `this` fallback), and event-coupling's Node-CLI `process` reached through `/** @type {any} */(globalThis).process`. nsrr-adapter.js (2 errs) DEFERRED — it references a bare `processNight` global (a runtime dependency oxydex-dsp doesn't export), not a type-only fix. Prefer the remaining NON-bundled CORE modules next; the bundled *-dsp.js each cost a fleet re-bundle.",
   "compilerOptions": {
     "noEmit": true,
     "allowJs": true,
@@ -8,7 +8,10 @@
     "target": "ES2017",
     "module": "commonjs",
     "moduleResolution": "node",
-    "lib": ["ES2017", "DOM"],
+    "lib": [
+      "ES2017",
+      "DOM"
+    ],
     "types": [],
     "strict": false,
     "noImplicitAny": false,
@@ -33,6 +36,9 @@
     "adapters/polar-sense-ppg.js",
     "adapters/polar-h10-ecg.js",
     "adapters/resmed-edf.js",
-    "kernel-constants.js"
+    "kernel-constants.js",
+    "event-coupling.js",
+    "dex-coload.js",
+    "provenance-banner.js"
   ]
 }
