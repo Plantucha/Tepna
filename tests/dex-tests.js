@@ -13134,6 +13134,37 @@
       );
       T.ok('selfTest: asserts a non-trivial number of properties (≥ 15)', st.pass >= 15, st.pass + ' passed');
 
+      /* ── COVERAGE + POWER (FOLLOWUPS §2, corrected) ────────────────────────────────────────
+         Two more ways this primitive misled, both found on real data AFTER it shipped:
+           · no coverage model — an event outside B's recording was scored as a MISS, and the
+             shuffle could rescue it, so INDEPENDENT streams read as ANTI-coupled (×0.72 on the
+             corpus; 30% of apneas fell outside the oximeter's recording window);
+           · no power floor — a ×0.0 on a bucket where chance predicts <1 hit was published as
+             "provably no signal". It was a ~41% outcome.
+         Both are now first-class outputs. Assert they cannot regress silently. */
+      var CT0 = Date.UTC(2026, 5, 13, 23, 0, 0);
+      var CB = [],
+        ci;
+      for (ci = 0; ci < 60; ci++) CB.push({ tMs: CT0 + ci * 60000 }); // B observes 0–60 min only
+      var CCOV = [[CT0, CT0 + 60 * 60000]];
+      var CA = [];
+      for (ci = 0; ci < 120; ci++) CA.push({ tMs: CT0 + ci * 60000 + 25000 }); // A spans 0–120 min
+
+      var rNo = EC.coupling(CA, CB, { window: [0, 10000] });
+      var rCov = EC.coupling(CA, CB, { window: [0, 10000], coverage: CCOV });
+      T.ok('coverage: omitted ⇒ coverageAssumed=true (you cannot get the broken answer silently)', rNo.coverageAssumed === true, rNo.coverageAssumed);
+      T.ok(
+        'coverage: supplied ⇒ unobserved events EXCLUDED, not scored as misses',
+        rCov.coverageAssumed === false && rCov.excluded > 0 && rCov.n < CA.length,
+        'n=' + rCov.n + ' excluded=' + rCov.excluded
+      );
+      T.ok("coverage: the excluded events are exactly those outside B's recording", rCov.n + rCov.excluded === rCov.nSupplied, rCov.n + '+' + rCov.excluded + ' vs ' + rCov.nSupplied);
+      T.ok("power: every measurement reports expectedHits (chance alone's hit count)", isFinite(rCov.expectedHits), rCov.expectedHits);
+      T.ok(
+        'power: a bucket where chance gives < 3 hits is flagged UNDERPOWERED ' + '(a low lift there is NOT evidence of absence — the ×0.0 that was published as proof)',
+        EC.coupling(CA.slice(0, 4), CB, { window: [0, 10000], coverage: CCOV }).underpowered === true
+      );
+
       // 2. contract shape, re-asserted from env so a signature change reds here too
       var T0 = Date.UTC(2026, 5, 13, 23, 0, 0);
       var B = [],

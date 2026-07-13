@@ -143,9 +143,13 @@ console.log(`OxyDex nights: ${oxy.length}  |  paired to a CPAP night (>1 h overl
 const CLASSES = { central: [], obstructive: [], hypopnea: [] };
 for (const p of pairs) {
   const d = p.o.desats;
+  const cov = [p.o.t0, p.o.t0 + (p.o.durMin || 0) * 60000];
   for (const ev of p.c.ganglior_events || []) {
     const bucket = ev.impulse === 'apnea' ? (ev.meta?.class === 'central' ? 'central' : 'obstructive') : ev.impulse === 'hypopnea' ? 'hypopnea' : null;
-    if (bucket) CLASSES[bucket].push({ tMs: ev.tMs, durSec: ev.meta?.durSec, _d: d });
+    // _cov = the span in which the OXIMETER WAS ACTUALLY RECORDING. Without it, an apnea that
+    // happened while the O2Ring was off is scored as a MISS — see event-coupling.js's coverage
+    // caveat. 30% of apneas in this corpus fall outside it; counting them manufactured ×0.72.
+    if (bucket) CLASSES[bucket].push({ tMs: ev.tMs, durSec: ev.meta?.durSec, _d: d, _cov: cov });
   }
 }
 
@@ -156,6 +160,8 @@ const WINDOWS = [
   [0, 120e3, '0–120 s']
 ];
 console.log('\n── EVENT → DESAT COUPLING  (observed% vs shuffled-null%, lift) ──');
+console.log('   n = events the OXIMETER WAS OBSERVING. Events outside its recording span are');
+console.log('   EXCLUDED, not scored as misses — counting them manufactures anti-coupling.');
 console.log(
   '  window     ' +
     Object.keys(CLASSES)
@@ -166,8 +172,8 @@ for (const [lo, hi, label] of WINDOWS) {
   const cells = Object.values(CLASSES).map((evs) => {
     // scope each event's B-set to its OWN night (carried on _d)
     const r = couplingPerNight(evs, [lo, hi]);
-    const sat = r.saturated ? ' SAT' : '';
-    return `${r.observedPct.toFixed(1)}% vs ${r.chancePct.toFixed(1)}%  ×${r.lift.toFixed(1)}${sat}`.padEnd(24);
+    const flag = r.saturated ? ' SAT' : r.underpowered ? ' LOW-N' : '';
+    return `n=${r.n} ${r.observedPct.toFixed(1)}%v${r.chancePct.toFixed(1)}% ×${r.lift.toFixed(2)}${flag}`.padEnd(26);
   });
   console.log('  ' + label.padEnd(11) + cells.join(''));
 }
@@ -194,17 +200,17 @@ function couplingPerNight(evs, window) {
   let nTot = 0,
     hitsTot = 0,
     chanceWeighted = 0,
-    satNights = 0;
+    satNights = 0,
+    exclTot = 0; // events the oximeter was NOT observing — excluded, never scored as misses
   for (const [desats, nightEvs] of byNight) {
     if (!desats.length) {
       nTot += nightEvs.length;
       continue;
     } // no desats that night → 0 hits, still counts
-    // span = the night itself, so the circular shift stays inside the recording
-    const all = [...nightEvs.map((e) => e.tMs), ...desats.map((d) => d.tMs)];
-    const span = [Math.min(...all), Math.max(...all)];
-    const r = EventCoupling.coupling(nightEvs, desats, { window, span });
+    // coverage = the OXIMETER's recording span. Events outside it are unobserved, not misses.
+    const r = EventCoupling.coupling(nightEvs, desats, { window, coverage: [nightEvs[0]._cov] });
     nTot += r.n;
+    exclTot += r.excluded || 0;
     hitsTot += r.hits;
     if (isFinite(r.chancePct)) chanceWeighted += r.chancePct * r.n;
     if (r.saturated) satNights++;
@@ -212,8 +218,14 @@ function couplingPerNight(evs, window) {
   const observedPct = nTot ? (hitsTot / nTot) * 100 : NaN;
   const chancePct = nTot ? chanceWeighted / nTot : NaN;
   const maxLift = chancePct > 0 ? 100 / chancePct : Infinity;
+  // how many hits chance ALONE would have produced. Below ~3, a low lift (even ×0.0) says nothing
+  // about coupling — only about sample size. The parent brief's "provably no signal" was this.
+  const expectedHits = (nTot * chancePct) / 100;
   return {
     n: nTot,
+    excluded: exclTot,
+    expectedHits,
+    underpowered: isFinite(expectedHits) && expectedHits < 3,
     observedPct,
     chancePct,
     lift: chancePct > 0 ? observedPct / chancePct : NaN,
@@ -224,7 +236,10 @@ function couplingPerNight(evs, window) {
   };
 }
 
-/* ── the decisive cut: long apneas MUST desaturate if they matter ─────────── */
+/* ── duration strata — a long apnea OUGHT to desaturate if the coupling is real ───────────────
+   ⚠️ But a ×0.0 here is NOT a proof. The parent brief read the longest bucket's ×0.0 as "provably
+   no signal"; with ~48 events at a ~5% chance rate you expect ~2.7 hits, so ZERO is an ordinary
+   outcome (p ≈ 7%). `expHits` and the UNDERPOWERED flag say so, so the number cannot be over-read. */
 console.log('\n── central apneas, stratified by duration (0–90 s window) ──');
 for (const [lo, hi, label] of [
   [0, 15, '≤15 s'],
@@ -234,7 +249,12 @@ for (const [lo, hi, label] of [
   const g = CLASSES.central.filter((e) => e.durSec >= lo && e.durSec < hi);
   if (!g.length) continue;
   const r = couplingPerNight(g, [0, 90e3]);
+  const note = r.underpowered
+    ? `   ⚠ UNDERPOWERED — chance alone gives only ${r.expectedHits.toFixed(1)} hits; a low lift here is NOT evidence of absence`
+    : r.saturated
+      ? '   ⚠ SATURATED — uninformative'
+      : '';
   console.log(
-    `  ${label.padEnd(8)} n=${String(g.length).padStart(4)}   observed ${r.observedPct.toFixed(1)}%   chance ${r.chancePct.toFixed(1)}%   lift ×${r.lift.toFixed(1)}   maxLift ×${r.maxLift.toFixed(1)}${r.saturated ? '  [SATURATED — uninformative]' : ''}`
+    `  ${label.padEnd(8)} n=${String(r.n).padStart(4)} (${String(r.excluded).padStart(3)} unobserved)   observed ${r.observedPct.toFixed(1)}%   chance ${r.chancePct.toFixed(1)}%   lift ×${r.lift.toFixed(2)}   expHits ${r.expectedHits.toFixed(1)}${note}`
   );
 }

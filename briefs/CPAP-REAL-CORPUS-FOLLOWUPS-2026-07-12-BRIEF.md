@@ -109,13 +109,34 @@ space between them*, which is exactly what the old raw-IQR cut failed to do. The
 > windows, so a coupling of up to ×14 *could* have been seen and was not. That is precisely the
 > distinction the `saturated`/`maxLift` machinery was built to make, and it earns its keep here.
 >
-> ⚠️ **One anomaly, recorded as a caveat and NOT as a conclusion.** The longest central apneas (>25 s,
-> n=48) show **zero** desats within 90 s where chance predicts ~3.4. That is not "no coupling" — it is
-> *anti*-coupling, and a long apnea that never desaturates is physiologically odd. Before anyone reads
-> it as a finding, rule out the mundane explanations: an inter-device **clock offset** (cf.
-> `PAT-FEASIBILITY`'s ~48 ppm drift), the oximeter not being worn across those spans, or a desat
-> detector that misses the relevant morphology. **Do not publish the ×0.0 until one of those is
-> excluded.**
+>
+> ### ⚠️ CORRECTION 2026-07-12 (later the same day) — the numbers above were STILL wrong
+>
+> The anomaly flagged here (sub-chance lift, a ×0.0 longest bucket) was **not physiology. It was two
+> more defects in my own primitive**, and I chased a clock-offset hypothesis before finding them.
+>
+> **(a) No coverage model — "an absent reading is not a miss".** The O2Ring records for part of the
+> night, not all of it. **30% of apneas happened while the oximeter was not recording**, and the
+> primitive scored every one of them as a MISS. Worse, it BIASES: an unobserved event is a forced miss
+> at shift 0, but the circular shuffle can carry it back INTO the recorded span where it CAN hit — so
+> chance rises above observed and lift lands **below 1**. That is manufactured *anti*-coupling, and it
+> is exactly the ×0.5–0.7 reported above. The suite already holds this principle one level down
+> (DEEP-AUDIT §17–21: *an absent reading is not a score of zero*); this was the same error one level up.
+>
+> **(b) No power floor.** The ×0.0 was never a finding: of those 48 long apneas, **32 were unobserved**,
+> and across the 16 actually watched **chance alone predicts 0.9 hits** — so zero is a ~41% outcome.
+>
+> **Corrected numbers** (wrapping null + coverage + power), *n = events the oximeter was observing*:
+>
+> | class | n (observed) | lift, 0–30 s → 0–120 s |
+> |---|---|---|
+> | central | 527 | ×0.71 – 0.98 (×0.97–0.98 on the well-powered windows) |
+> | obstructive | 25 | ×1.11 – 1.52 — **LOW-N**, not a finding |
+> | hypopnea | 191 | ×0.82 – 1.33 |
+>
+> **The CONCLUSION is unchanged — no event class couples above chance.** But every magnitude in the
+> table above it was wrong, and the ×0.0 "provably no signal" is **retracted**. `event-coupling.js` now
+> takes `coverage` and reports `expectedHits`/`underpowered`, so neither error can recur silently.
 
 ## 2 (as proposed)
 

@@ -246,7 +246,19 @@ lane is synthetic-only.
 ## 3 · Method findings (what changes how we compute, not what any person's numbers are)
 
 ### M1 — a shuffled-null baseline is mandatory for cross-node event coupling
-> ⚠️ **PARTIALLY RETRACTED 2026-07-12** (`CPAP-REAL-CORPUS-FOLLOWUPS` §2). The lesson below stands and
+> ⚠️ **RETRACTED IN BOTH DIRECTIONS 2026-07-12** (`CPAP-REAL-CORPUS-FOLLOWUPS` §2). **Three** separate
+> defects in the null each fooled it in turn — a non-wrapping shift (inflated lift), no coverage model
+> (deflated it), and no power floor (made a tiny bucket look decisive). The *lesson* — that a chance
+> baseline is mandatory — survives and is sharpened: **a chance baseline only protects you if the
+> baseline is right.**
+>
+> The **×0.0 longest-duration bucket is ALSO retracted**, and it is the more embarrassing of the two.
+> It was never "provably no signal": **32 of those 48 apneas happened while the oximeter was not
+> recording at all**, and across the 16 that were actually observed, chance alone predicts **0.9 hits** —
+> so observing zero has probability ≈ 41%. A coin toss was written up as proof. Duration stratification
+> is still a good idea; it just cannot prove a negative on 16 events.
+>
+> Original partial-retraction note follows. The lesson below stands and
 > is, if anything, strengthened. But the **×3.3–10 lift for the rare class is WRONG and is retracted** —
 > it was produced by the prototype's **non-wrapping null**, which let surrogates fall off the end of a
 > night where no desat could match them, deflating chance and *inflating* lift. Re-derived through the
@@ -441,6 +453,7 @@ Recorded so nobody rebuilds them. All four were *plausible* and *wrong*, and eac
 | One regime "beat" another | **Permutation test** — p ≈ 0.22. It was a 9-night block. *Eyeballed block means are not effects.* |
 | A DSP field "reads null — DSP gap" | It is **computed correctly** and then **dropped from the export** (F1). *Check the export before blaming the DSP.* |
 | A mechanism explained a real association | The association survived every test; the **mechanism's own precursor channel contradicted it** (M3). *Statistical strength ≠ mechanistic truth.* |
+| The longest apneas **never** desaturated — "provably no signal" (M1) | **Two-thirds of them were never observed, and the rest was underpowered.** 32 of 48 fell outside the oximeter's recording window and were silently scored as MISSES; of the 16 actually watched, chance predicts **0.9 hits**, so zero is a ~41% outcome. *Check that your instrument was switched on before you conclude it saw nothing — and check you had the power to see anything at all.* |
 | A rare event class coupled to desats at **×3.3–10** (M1) | **The null model itself was broken.** Its time-shift did not WRAP, so surrogates fell off the end of the night where nothing could match them → chance deflated → lift inflated. Re-derived through the fixed primitive: **×0.7–1.1, i.e. chance** (FOLLOWUPS §2, 2026-07-12). *A chance baseline only protects you if the baseline is right — check that your null can actually be hit.* |
 
 ---
