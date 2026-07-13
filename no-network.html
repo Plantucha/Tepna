@@ -124,6 +124,17 @@ against the trap (must throw) + one local fetch (must be allowed). <b>Python:</b
 const BUNDLES_FALLBACK = ['ECGDex.html','OxyDex.html','PulseDex.html','GlucoDex.html',
                           'PpgDex.html','HRVDex.html','CPAPDex.html','Integrator.html'];
 const ORCHESTRATORS = ['Data Unifier.html','OverDex.html'];   // unbundled — loose <script src>, outside BUILD-MANIFEST
+// SECURITY N1 (PRIVACY-SECURITY-AUDIT-FINDINGS-2026-07-13): the standalone analysis/research pages +
+// the landing page are same-origin surfaces that ingest recordings and persist checkpoints (dex-forget
+// already erases them). They are STATIC-scanned here (Layer 1 — the egress grep + their loose modules);
+// they are NOT runtime-booted (Layer 2), because they spin up heavy synthetic compute / workers that
+// would make the gate slow or hang. The static grep is the high-value backstop and the CSP-presence
+// leg lives in tests/dex-tests.js.
+const ANALYSIS_PAGES = ['cgm-hrv-coupling-analysis.html','hrv-confound-analysis.html','nights-icc-analysis.html',
+  'sensor-trio-power-analysis.html','treatment-response-analysis.html','odi-bias-analysis.html',
+  'sigma-no-reference-analysis.html','qrs-equiv-analysis.html','qrs-yield-analysis.html',
+  'cohort-harness.html','cohort-runner.html','cohort-regression.html','PAT Feasibility.html',
+  'PpgDex Fusion Prototype.html','index.html'];
 const PY_FILES = ['capture-host/capture.py','capture-host/polar_pmd.py','capture-host/writers.py','capture-host/requirements.txt'];
 
 /* ── URL origin classifier (shared by the static scanner and the runtime trap string) ── */
@@ -294,6 +305,8 @@ function localScriptSrcs(html){
   try{ const t=await fetchText('BUILD-MANIFEST.json'); if(t){ const j=JSON.parse(t); if(j&&j.bundles) BUNDLES=Object.keys(j.bundles); } }catch(_){}
   const PAGES = BUNDLES.map(b=>({name:b, kind:'bundle', selfContained:true}))
     .concat(ORCHESTRATORS.map(o=>({name:o, kind:'orchestrator', selfContained:false})));
+  // N1: the analysis/landing pages are STATIC-scanned only (not runtime-booted — see ANALYSIS_PAGES note).
+  const STATIC_PAGES = PAGES.concat(ANALYSIS_PAGES.map(a=>({name:a, kind:'analysis', selfContained:false})));
 
   /* ─────────────── LAYER 1 — STATIC ─────────────── */
   const staticTb = document.querySelector('#staticTbl tbody');
@@ -301,7 +314,7 @@ function localScriptSrcs(html){
   const moduleCache = {};   // path → scan (dedupe shared modules across orchestrators)
   let staticRemoteTotal=0, staticScanned=0, staticMissing=0, externalTotal=0;
   const remoteHits=[];
-  for(const pg of PAGES){
+  for(const pg of STATIC_PAGES){
     const html = await fetchText(pg.name);
     if(html==null){ staticMissing++; elRow(staticTb,['<td>'+esc(pg.name)+'</td>','<td class="mut">'+pg.kind+'</td>','<td>'+pill('warn','not served — skipped')+'</td>','<td class="mut">—</td>','<td class="mut">—</td>']); continue; }
     staticScanned++;

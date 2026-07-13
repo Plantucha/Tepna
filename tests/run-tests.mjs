@@ -100,6 +100,17 @@ const SHARD = (() => {
 })();
 
 const SHOW_TIMINGS = process.argv.slice(2).some((s) => /^--?timings?$/i.test(s)) || !!process.env.DEX_TIMINGS;
+
+/* --quiet / -q (D3 · EFFICIENCY-AUDIT-FINDINGS-2026-07-12): collapse the full per-assertion tree —
+   print a header + assertions ONLY for failing groups, and always a trailing FAILURES recap. A red
+   run otherwise emits ~169 KB and names the failure once, mid-log, so `| tail` yields nothing
+   actionable. Default-ON in CI (env CI); --verbose / --no-quiet forces the full tree even in CI. */
+const QUIET = (() => {
+  const a = process.argv.slice(2);
+  if (a.some((s) => /^--?(verbose|no-quiet)$/i.test(s))) return false;
+  if (a.some((s) => /^--?(quiet|q)$/i.test(s))) return true;
+  return !!process.env.CI;
+})();
 /* --list: declare every group, execute NONE (inventory only, ~0 s) — the cheap input to the
    shard-partition proof. --json: emit machine-readable results instead of the human report; it is
    what verify-shard-union.mjs --deep diffs full-run vs shard-union with. */
@@ -530,6 +541,41 @@ function readSrcHtml() {
   return out;
 }
 
+/* N1 (PRIVACY-SECURITY-AUDIT-FINDINGS-2026-07-13): the standalone, unbundled analysis/research pages +
+   the landing page are same-origin surfaces that ingest recordings and persist checkpoints. They must
+   carry the CSP egress/injection backstop the 10 owned bundles do. Node-lane only (fs read); the browser
+   lane has no readdir, so env.nonBundleCsp is undefined there and the group SKIPs. `self` = pages that
+   fetch the local corpus (connect-src 'self'); the rest lock connect-src 'none'. */
+function readNonBundleCsp() {
+  const none = [
+    'cgm-hrv-coupling-analysis.html',
+    'hrv-confound-analysis.html',
+    'nights-icc-analysis.html',
+    'sensor-trio-power-analysis.html',
+    'treatment-response-analysis.html',
+    'odi-bias-analysis.html',
+    'sigma-no-reference-analysis.html',
+    'qrs-equiv-analysis.html',
+    'qrs-yield-analysis.html',
+    'cohort-harness.html',
+    'cohort-runner.html',
+    'cohort-regression.html',
+    'PAT Feasibility.html',
+    'index.html'
+  ];
+  const self = ['PpgDex Fusion Prototype.html'];
+  const out = {};
+  for (const f of none) {
+    const p = join(ROOT, f);
+    if (existsSync(p)) out[f] = { html: readFileSync(p, 'utf8'), connect: 'none' };
+  }
+  for (const f of self) {
+    const p = join(ROOT, f);
+    if (existsSync(p)) out[f] = { html: readFileSync(p, 'utf8'), connect: 'self' };
+  }
+  return out;
+}
+
 // security · csp-strict (SECURITY-CSP-STRICT-SCRIPT-SRC-2026-07-11): the COMMITTED bundle .html CSP metas,
 // so the gate can assert each shipped script-src carries a 'sha256-' hash and NOT 'unsafe-inline'. Only the
 // <meta> is kept (not the megabyte body). Node lane has full fs; the browser lane fetches the same slice.
@@ -663,7 +709,7 @@ function readDocs() {
    gate, which is the exact failure class G1 is about. */
 async function runForked(jobs) {
   const self = fileURLToPath(import.meta.url);
-  const passthru = process.argv.slice(2).filter((a) => !/^--?(jobs?|json|timings?)(=|$)/i.test(a));
+  const passthru = process.argv.slice(2).filter((a) => !/^--?(jobs?|json|timings?|quiet|q|verbose|no-quiet)(=|$)/i.test(a));
   const t0 = Date.now();
   console.log(paint(`▸ --jobs=${jobs}`, C.cyan) + paint(`  forking ${jobs} shard(s) over the same partition CI uses…`, C.dim));
 
@@ -867,6 +913,7 @@ async function main() {
     equiv: readEquiv(),
     hosts: readHosts(),
     srcHtml: readSrcHtml(),
+    nonBundleCsp: readNonBundleCsp(),
     bundleCsp: readBundleCsp(),
     manifests: readManifests(),
     releaseLedger: readReleaseLedger(),
@@ -950,6 +997,7 @@ async function main() {
     skip = 0,
     n = 0;
   const lines = [];
+  const failures = []; // D3: collected for the tail recap
   for (const g of groups) {
     // skip-aware tally, mirroring Dex-Test-Suite.html's render-coverage ⊘ convention: a skipped
     // test counts as NEITHER pass nor fail, so a gitignored-input SKIP never reds the merge gate.
@@ -960,14 +1008,22 @@ async function main() {
     fail += gf;
     skip += gskip;
     n += g.tests.length;
-    lines.push('\n' + paint('▸ ' + g.title, C.bold) + paint('  [' + g.tag + ']', C.dim) + '  ' + paint(gp + '/' + (g.tests.length - gskip) + (gskip ? ' · ' + gskip + '⊘' : ''), gf ? C.red : C.green));
+    // QUIET (D3): print a group header only for FAILING groups; full run prints every header.
+    if (!QUIET || gf) {
+      lines.push(
+        '\n' + paint('▸ ' + g.title, C.bold) + paint('  [' + g.tag + ']', C.dim) + '  ' + paint(gp + '/' + (g.tests.length - gskip) + (gskip ? ' · ' + gskip + '⊘' : ''), gf ? C.red : C.green)
+      );
+    }
     for (const t of g.tests) {
+      if (!t.pass && !t.skip) failures.push({ group: g.title, name: t.name, detail: t.detail || '' });
+      // QUIET (D3): only failing assertions get a line; the passing/skip tree is suppressed.
+      if (QUIET && (t.pass || t.skip)) continue;
       const mk = t.skip ? paint('  ⊘', C.yellow) : t.pass ? paint('  ✓', C.green) : paint('  ✕', C.red);
       const detail = t.detail ? paint('  — ' + t.detail, t.skip ? C.yellow : t.pass ? C.dim : C.yellow) : '';
       lines.push(mk + ' ' + t.name + detail);
     }
   }
-  console.log(lines.join('\n'));
+  if (lines.length) console.log(lines.join('\n'));
 
   // --timings: the slowest groups, and what they cost. This is how the CI shard count gets sized —
   // a shard can never be faster than its single slowest group, so that number is the real floor.
@@ -1009,6 +1065,20 @@ async function main() {
           C.dim
         )
     );
+  }
+
+  /* ── FAILURES recap (D3 · EFFICIENCY-AUDIT-FINDINGS-2026-07-12) ────────────────────────────────
+     A red run otherwise names each failure ONCE, deep in a ~169 KB log — `| tail` sees only the
+     count. Recap every failure at the tail: group ▸ assertion ▸ detail, then the exact --group
+     re-run line per failing group, so the actionable read is < 1 KB regardless of suite size. */
+  if (failures.length) {
+    console.log('\n' + paint('▸ FAILURES (' + failures.length + ')', C.red));
+    for (const f of failures) {
+      console.log(paint('  ✕ ', C.red) + paint('[' + f.group + ']', C.bold) + ' ' + f.name + (f.detail ? paint('  — ' + f.detail, C.yellow) : ''));
+    }
+    const failGroups = [...new Set(failures.map((f) => f.group))];
+    console.log(paint('  → re-run just the failing group(s):', C.dim));
+    for (const gt of failGroups) console.log(paint('      node tests/run-tests.mjs --group=' + JSON.stringify(gt), C.cyan));
   }
 
   // TAP-ish footer for CI log parsers

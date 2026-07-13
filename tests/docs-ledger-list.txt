@@ -150,6 +150,8 @@ brief REPO-DISCOVERABILITY-FOLLOWUPS-2026-07-04-BRIEF.md
 brief RERUN-OXYFIX-PILOTS-BRIEF.md
 brief REVIEW-FOLLOWUP-FIXES-BRIEF.md
 brief SECURITY-CSP-STRICT-SCRIPT-SRC-2026-07-11-BRIEF.md
+brief SECURITY-LEAK-HYGIENE-2026-07-13-BRIEF.md
+brief SECURITY-NONBUNDLE-CSP-COVERAGE-2026-07-13-BRIEF.md
 brief SECURITY-REMEDIATION-2026-07-11-BRIEF.md
 brief SECURITY-REMEDIATION-FOLLOWUPS-2026-07-11-BRIEF.md
 brief SELF-INGEST-2026-06-27-BRIEF.md
@@ -284,12 +286,14 @@ path audits/DEX-SUITE-REVIEW-RESPONSE.md
 path audits/DEX-VALIDATION-STATUS.md
 path audits/EFFICIENCY-AUDIT-FINDINGS-2026-07-01.md
 path audits/EFFICIENCY-AUDIT-FINDINGS-2026-07-12.md
+path audits/EFFICIENCY-AUDIT-FINDINGS-2026-07-13.md
 path audits/EFFICIENCY-AUDIT-PROMPT.md
 path audits/INGEST-AUDIT-FINDINGS.md
 path audits/INTEGRATOR-FUSION-AUDIT.md
 path audits/INTEGRATOR-FUSION-ISSUES.md
 path audits/JSON-EXPORT-AUDIT.md
 path audits/PRIVACY-SECURITY-AUDIT-FINDINGS-2026-07-01.md
+path audits/PRIVACY-SECURITY-AUDIT-FINDINGS-2026-07-13.md
 path audits/PRIVACY-SECURITY-AUDIT-PROMPT.md
 path audits/REFERENCE-GUIDE-AUDIT-FINDINGS.md
 path biome.json
@@ -439,6 +443,8 @@ path briefs/REPO-DISCOVERABILITY-FOLLOWUPS-2026-07-04-BRIEF.md
 path briefs/RERUN-OXYFIX-PILOTS-BRIEF.md
 path briefs/REVIEW-FOLLOWUP-FIXES-BRIEF.md
 path briefs/SECURITY-CSP-STRICT-SCRIPT-SRC-2026-07-11-BRIEF.md
+path briefs/SECURITY-LEAK-HYGIENE-2026-07-13-BRIEF.md
+path briefs/SECURITY-NONBUNDLE-CSP-COVERAGE-2026-07-13-BRIEF.md
 path briefs/SECURITY-REMEDIATION-2026-07-11-BRIEF.md
 path briefs/SECURITY-REMEDIATION-FOLLOWUPS-2026-07-11-BRIEF.md
 path briefs/SELF-INGEST-2026-06-27-BRIEF.md
@@ -493,8 +499,11 @@ path capture-host/writers.py
 path cgm-hrv-coupling-analysis.html
 path cgm-hrv-coupling-analysis.js
 path changes
+path changes/2026-07-13-efficiency-x1-d3.md
 path changes/2026-07-13-own-the-build-followups-docs-and-checkjs.md
 path changes/2026-07-13-release-regen-docs-ledger-list.md
+path changes/2026-07-13-security-leak-hygiene.md
+path changes/2026-07-13-security-nonbundle-csp.md
 path changes/README.md
 path clock.js
 path codegen

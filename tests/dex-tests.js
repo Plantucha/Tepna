@@ -1504,6 +1504,21 @@
       var pls = src['pulsedex-app.js'] || '';
       T.ok('F2 · pulsedex priLab/refLab escaped in the table header', /escapeHTML\(\s*priLab\s*\)/.test(pls) && /escapeHTML\(\s*refLab\s*\)/.test(pls), 'F2 label sink not escaped');
       T.ok('F2 · pulsedex res.error / res.note escaped', /escapeHTML\(\s*res\.error\s*\)/.test(pls) && /escapeHTML\(\s*res\.note\s*\|\|\s*''\s*\)/.test(pls), 'F2 error/note sink not escaped');
+      // ── N3 (PRIVACY-SECURITY-AUDIT-2026-07-13): PpgDex's error toast is .textContent, never innerHTML + msg ──
+      var ppgApp = src['ppgdex-app.js'] || '';
+      T.ok(
+        'N3 · ppgdex showErr/showOK use .textContent (no innerHTML over msg)',
+        /function showErr\(msg\)\{[^}]*\.textContent\s*=\s*'⚠ '\s*\+\s*msg/.test(ppgApp) &&
+          /function showOK\(msg\)\{[^}]*\.textContent\s*=\s*'✓ '\s*\+\s*msg/.test(ppgApp) &&
+          !/function show(Err|OK)\(msg\)\{[^}]*\.innerHTML\s*=\s*'[⚠✓][^']*'\s*\+\s*msg/.test(ppgApp),
+        'N3 error-toast sink not converted to textContent'
+      );
+      // ── N2 (PRIVACY-SECURITY-AUDIT-2026-07-13): oxydex-dsp logs no raw filename / raw CSV bytes ──
+      T.ok(
+        'N2 · oxydex-dsp has no console.log of file.name / raw CSV substring',
+        !/console\.log\([^)]*\bfile\.name\b/.test(oxyDsp) && !/console\.log\([^)]*\.substring\(0/.test(oxyDsp) && !/console\.log\([^)]*\bf\.name\b/.test(oxyDsp),
+        'N2 raw-data console.log returned'
+      );
       // ── regression lock: OxyDex escHTML delegates to the ONE shared escaper (no per-app copy) ──
       var oxyUtil = src['oxydex-util.js'] || '';
       T.ok(
@@ -1710,6 +1725,36 @@
         var content = (SRC[n].match(/<meta[^>]*Content-Security-Policy[^>]*content="([^"]*)"/i) || ['', ''])[1];
         var ss = (content.match(/script-src\s+([^;]*)/i) || ['', ''])[1];
         T.ok(n + " · script-src is present and drops 'unsafe-inline' (strict, hash-based)", /script-src/.test(content) && !/'unsafe-inline'/.test(ss), ss);
+      });
+    });
+
+    /* ════ 8d² · SECURITY — CSP on the UNBUNDLED analysis/landing pages (N1 · PRIVACY-SECURITY-AUDIT-2026-07-13) ════
+       The 10 owned bundles carry a meta-CSP; the standalone analysis/research pages + index.html did not,
+       though they ingest recordings and persist checkpoints (which dex-forget already erases). This leg
+       asserts each now carries a CSP that locks connect-src ('none', or 'self' for the corpus-fetching
+       page) + object-src/base-uri/form-action 'none'. Node-lane only — env.nonBundleCsp is fs-read; the
+       browser lane can't readdir, so it SKIPs (mirrors docs-ledger/release-ledger). */
+    group('CSP present on the unbundled analysis/landing pages (N1)', 'security · csp · non-bundle', function (T) {
+      var NB = env.nonBundleCsp;
+      if (!NB) {
+        T.skip('env.nonBundleCsp provided to the runner', 'Node-lane only — wire env.nonBundleCsp (run-tests.mjs readNonBundleCsp)');
+        return;
+      }
+      var names = Object.keys(NB);
+      T.ok('unbundled pages available to the CSP gate', names.length > 0, names.length + ' pages');
+      names.forEach(function (n) {
+        var rec = NB[n],
+          html = rec.html || '';
+        var meta = (html.match(/<meta[^>]*http-equiv=["']Content-Security-Policy["'][^>]*>/i) || [''])[0];
+        T.ok(n + ' · carries a <meta> Content-Security-Policy', !!meta, 'add the CSP meta to the <head>');
+        if (!meta) return;
+        var content = (meta.match(/content="([^"]*)"/i) || ['', ''])[1];
+        T.ok(n + " · connect-src '" + rec.connect + "' (egress locked at the browser)", new RegExp("connect-src\\s+'" + rec.connect + "'").test(content), content);
+        T.ok(
+          n + " · object-src/base-uri/form-action 'none' (plugin/base/form-exfil closed)",
+          /object-src\s+'none'/.test(content) && /base-uri\s+'none'/.test(content) && /form-action\s+'none'/.test(content),
+          content
+        );
       });
     });
 

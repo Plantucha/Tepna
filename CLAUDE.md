@@ -219,10 +219,12 @@ for the verdict — never scan the body. Two gates:
 
 - **GATE A — bundle code identity.** Every shipped bundle's current **`manifestHash`** must equal the
   value committed in **`BUILD-MANIFEST.json`**. `manifestHash` is the **sole executed-code identity**:
-  a UUID-independent projection of the bundle's `__bundler/manifest` (drop the inliner's random
-  per-build UUID keys, gunzip each asset, hash the DECOMPRESSED bytes, sort, SHA-256[0:12] the join —
-  a pure function of the inlined JS/CSS, **deterministic** across re-bundles of identical source,
-  moving ONLY on a real code change; PROVENANCE-NONDETERMINISM-2026-06-29 §1). Computed statically by
+  a projection of the bundle's owned **plain-inline** assets (no gzip, no random UUID keys) — extract
+  every `data-inline-src` `<script>`/`<style>` block, hash each block's text, form
+  `logicalName \0 sha256(assetText)` per block, sort, and SHA-256[0:12] the join — a pure function of
+  the inlined JS/CSS, **deterministic** across re-bundles of identical source, moving ONLY on a real
+  code change (the legacy gzip+UUID `__bundler/manifest` branch was RETIRED 2026-07-03 — `manifest-gate.js`
+  now hashes such a bundle to `null`; PROVENANCE-NONDETERMINISM-2026-06-29 §1). Computed statically by
   `manifest-gate.js manifestHashFromText`, shared by the page + the Node sibling
   `tests/verify-manifest.mjs` (`node tests/verify-manifest.mjs` runs GATE A + best-effort GATE B).
 - **GATE B — content-addressed known-answer ledger.** Every fixture in **`FIXTURE-PROVENANCE.json`**
