@@ -52,7 +52,7 @@ a standalone `<App>.html`. **Edit the `.js` + `.src.html`, never the bundled `.h
 
 Planned (not shipped): **EEGDex** (Muse EEG) and **SpiroDex** (flow-volume) introduce *new* signals →
 they still need real new DSP. **UltrahumanDex / Coospo** are pure adapter wins (signals we already
-analyze). New node names follow `LEXICON.md` (closed compound, capital-D, acronym stems all-caps).
+analyze). New node names follow `docs/LEXICON.md` (closed compound, capital-D, acronym stems all-caps).
 
 Each node ships the same file pattern: `-dsp.js` (signal math, headless), `-render.js`, `-app.js`,
 `-registry.js` (the metric truth source), usually `-cross.js` (cross-night envelope), plus any node-
@@ -88,7 +88,7 @@ a routing bug once and both tools inherit it.
 
 - **Ganglior bus** — the `ganglior.node-export` schema (events `{ t, impulse, node, conf, meta }`,
   `recording.startEpochMs` = floating `t0Ms`). FROZEN name + the input `fascia` alias. Vocabulary →
-  `EVENT-LEXICON.md`.
+  `docs/EVENT-LEXICON.md`.
 - **Adapter layer (CORE)** — `signal-frame.js` (the `SignalFrame` type + `validateFrame`),
   `signal-spec.js` (signal-type registry: rr/ecg/spo2/cgm/ppg/hrv/cpap/…), `signal-adapters.js`
   (`registerAdapter` / `detect` / `route`), and `adapters/*.js` (one file per vendor format —
@@ -129,14 +129,14 @@ a routing bug once and both tools inherit it.
 | a function's contract / return shape | `tests/dex-tests.js` | the test IS the contract; both runners use it |
 | the rules, gates, invariants, re-bundle ritual | **`CLAUDE.md`** | wins on every conflict |
 | the time model | `CLAUDE.md` "Clock Contract" + `clock.js` (`DexClock` — THE parser, single-sourced by A5 2026-07-03; ppgdex/glucodex/cpapdex carry deliberate node-local variants) | round-trip tests + WP-G truth table |
-| the event / impulse vocabulary | `EVENT-LEXICON.md` | event-lexicon test group |
+| the event / impulse vocabulary | `docs/EVENT-LEXICON.md` | event-lexicon test group |
 | the canonical signal shape + signal types | `signal-frame.js` / `signal-spec.js` | `validateFrame` + property/round-trip tests |
 | provenance (code identity + fixtures) | `BUILD-MANIFEST.json` / `FIXTURE-PROVENANCE.json` / `manifest-gate.js` | GATE A / GATE B + the equiv gate |
 | status of every brief / what's done | `DOCS-INDEX.md` | the dashboard; kept in sync on each status flip |
 | the layered architecture model | `ARCHITECTURE-PRINCIPLES.md` | — |
-| naming a new node | `LEXICON.md` | — |
+| naming a new node | `docs/LEXICON.md` | — |
 | how raw signals were captured | `CLAUDE.md` "Capture provenance" + `how-to-collect/` | — |
-| deploy / what to upload | `SITE-DEPLOY-AND-LAYOUT.md` | — |
+| deploy / what to upload | `docs/SITE-DEPLOY-AND-LAYOUT.md` | — |
 | licensing / attribution | `licensing/LICENSING-BRIEF.md` | SPDX-header + cohesion checks |
 
 ---

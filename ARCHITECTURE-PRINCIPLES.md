@@ -252,7 +252,7 @@ restates nothing — follow each pointer for the actual rules. Forward-first: a 
 11. **Land both gates green** — `Dex-Test-Suite.html?full` all-green + `verify-provenance.html`
     `__provenanceOK`. Then flip your brief's header to DONE (`CLAUDE.md` brief lifecycle).
 
-> Acceptance bar when EEGDex lands is `BADGE-COVERAGE-AUDIT-BRIEF.md`'s method (it's the pre-wired example:
+> Acceptance bar when EEGDex lands is `briefs/BADGE-COVERAGE-AUDIT-BRIEF.md`'s method (it's the pre-wired example:
 > `codegen/generated/eegdex-registry.js` already projects through `cohesion-badges`).
 
 ---

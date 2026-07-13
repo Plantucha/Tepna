@@ -1,9 +1,9 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-# Contributing to GanglioR (the -Dex suite)
+# Contributing to Tepna (the -Dex suite)
 
 Welcome. This is the **one page that gets you oriented** — read it before the briefs.
-There are ~30 `*-BRIEF.md` / `*-README.md` files in this repo; they are *deep dives*, not
+There are many `*-BRIEF.md` / `*-README.md` files in this repo (all indexed in `DOCS-INDEX.md`); they are *deep dives*, not
 the on-ramp. This file plus the **[visual architecture map](wiring/How%20It's%20Wired%20-%20Architecture.html)**
 and the **[wiring guides](wiring/How%20It's%20Wired%20-%20the%20Dex%20Suite.html)** are the on-ramp.
 
@@ -12,22 +12,23 @@ and the **[wiring guides](wiring/How%20It's%20Wired%20-%20the%20Dex%20Suite.html
 
 ---
 
-## 1. What GanglioR is, in 60 seconds
+## 1. What Tepna is, in 60 seconds
 
-A **browser-native, 100%-local** physiological-analysis instrument framework. A fleet of
+A **browser-native, 100%-local** physiological-analysis instrument framework (**Tepna** — the product
+brand; **Ganglior** is the FROZEN event-bus codename, distinct from the brand). A fleet of
 single-signal analyzers (the **-Dex** nodes) plus a shared event bus (**Ganglior**) and a
 fusion layer (**the Integrator**). Read end-to-end it is a **reflex arc**:
 
 ```
    receptors          relay              integration          insight
    ──────────         ───────            ────────────         ─────────
-   the -Dex     ─▶    Ganglior     ─▶    the Integrator  ─▶   "ANS Intelligence"
+   the -Dex     ─▶    Ganglior     ─▶    the Integrator  ─▶   autonomic insight
    nodes              event bus          fusion layer         (the read-out)
 
    OxyDex   · blood oxygen          (O2Ring)
-   ECGDex   · heart electrical      (Polar H10)
-   PulseDex · beat-to-beat RR       (Verity Sense)
-   PpgDex   · raw wrist PPG         (Verity Sense)
+   ECGDex   · heart electrical      (Polar H10 `*_ECG.txt`)
+   PulseDex · beat-to-beat RR       (Polar H10 `*_RR.txt`)
+   PpgDex   · raw wrist PPG         (Polar Verity Sense `*_PPG.txt`)
    HRVDex   · daily HRV summary     (Welltory)
    GlucoDex · continuous glucose    (CGM)
    CPAPDex  · CPAP therapy          (ResMed AirSense)
@@ -35,6 +36,9 @@ fusion layer (**the Integrator**). Read end-to-end it is a **reflex arc**:
 
 Each node **senses one signal** and emits events onto Ganglior. The Integrator **fuses** them.
 Nodes never talk to each other directly — only through the export contract.
+
+> The **gate-backed roster** (each node's signal · device source · files) lives in **`ORIENTATION.md`** —
+> the single source of truth; the diagram above is the 60-second view, not an authority to fork.
 
 **Three advantages we protect above all** (in priority order): **reproducibility** (a bundled
 `Foo.html` is a frozen, hash-verifiable instrument), **portability** (one file, no install, no
@@ -95,116 +99,28 @@ fixture whose output the change moved.
 
 ## 4. The two gates — run after **every** change
 
-These make the contracts real. Treat a red as a **blocker**, not a nitpick.
+These make the contracts real — treat a red as a **blocker**, not a nitpick. The FULL rules — what each
+gate checks, the on-demand render-coverage flow, the `manifestHash` + fixture-provenance triple, and why
+"a green CI is NOT the full gate" (the real-recording equivalence legs read gitignored `uploads/`, so they
+SKIP unless you point `DEX_UPLOADS=<path>` at a real corpus) — live in **`CLAUDE.md` §🧪 (behavior) and §🔏
+(provenance)**, the single source. This is the operational summary.
 
-> **Try the live gate first (GATE-LIVE-RUNNABILITY 2026-06-28).** `Dex-Test-Suite.html`'s
-> render-coverage legs boot real bundles in hidden iframes; whether that reach-in is blocked is
-> **host-specific**, not a law of the preview. On a **same-origin** preview (observed here) it runs
-> **green in-environment** — no external host needed. (`verify-provenance.html` is now **pure-static**
-> — Phase 7 — so it has no iframe reach-in and runs on any host.) Only fall back to
-> `node tests/run-tests.mjs` / a static host if the live behavior gate is ACTUALLY blocked — read the
-> prose-immune signal `window.__sameOriginOK` (set by both harness pages; on the SUITE it only goes
-> true once render-coverage has actually run, so open `Dex-Test-Suite.html?full` or click ▶ first —
-> `verify-provenance.html` sets it unconditionally), NOT a keyword-scan of the page body (which now
-> contains the very words such a scan matches).
+1. **Behavior — `Dex-Test-Suite.html?full`** (CI mirror: `node tests/run-tests.mjs`, same
+   `tests/dex-tests.js`). Render-coverage is on-demand: a bare open is the amber headless FLOOR, not a pass —
+   open `?full` (or click **▶**), wait for the group count to stop climbing, then read the `#summary` pill;
+   only `✓ all green` (`window.__rcState==='done'`) passes. **Run it in ONE tab at a time** — the rigs boot
+   real bundles in a shared hidden `<iframe>` on fixed budgets, so two concurrent runs contend and can throw
+   a transient red. Run after any `*-dsp.js` / `*-cross.js` / `*-app.js` edit and after re-bundling.
+2. **Provenance — `verify-provenance.html`** (CI mirror: `node tests/verify-manifest.mjs`). Run after
+   re-bundling any `Foo.html`: **GATE A** pins each bundle's `manifestHash` to `BUILD-MANIFEST.json`;
+   **GATE B** audits each `FIXTURE-PROVENANCE.json` known-answer triple `hash(input) + manifestHash →
+   hash(output)`. A code change that moves an export → **regenerate that fixture** (re-run + re-export, never
+   hand-edit). Confirm `window.__provenanceOK`. `buildHash` is retired — no gate reads it.
 
-> **No Node host in the authoring environment → the browser gates ARE authoritative here (do NOT
-> re-file "Node-CI debt").** The fast-loop CLIs — `tests/check-dex.mjs`, `tests/reconcile-provenance.mjs`,
-> `tests/verify-manifest.mjs`, `tests/run-tests.mjs` — run the SAME single-source logic the browser pages
-> run (`tests/dex-tests.js` for behavior; `manifest-gate.js` for provenance). So when there is no shell,
-> `Dex-Test-Suite.html?full` + `verify-provenance.html` **are** the gate, not a substitute — a green
-> browser read is a **discharge, not debt**. `node tests/*.mjs` is the CI mirror (GitHub Actions), run
-> when a Node host exists; its literal invocation being unrun in a no-shell session is **expected — state
-> it once, not per brief.** This closes the recurring "standing Node-CI debt" carried across
-> `SIGNAL-ADAPTER-FOLLOWUPS -IV §7 … -XII §3`, the `ECGDEX/PPGDEX/GLUCODEX-FOLLOWUPS`, and
-> `GENERIC-EMIT-GATE-FOLLOWUPS-II/III`: a browser-only pass is complete; do not add a new tracker.
-> (For the reconcile ledger-edit that `reconcile-provenance.mjs` computes, the browser now has the same
-> report — `verify-provenance.html` §3 Reconcile.)
-
-> **⚠️ A green CI is NOT the full gate — the real-corpus legs SKIP in every clone.** The
-> `compute() ≡ committed export` equivalence legs (the **GATE-C** surface) read raw recordings from
-> `uploads/`, which `.gitignore` excludes as **personal data**. So in CI — and in any fresh clone or
-> worktree — those legs report `⊘ committed input absent` and **silently do not run**. A skip reads
-> exactly like a pass in the summary count. To actually run them, point the runner at a real corpus:
->
-> ```sh
-> DEX_UPLOADS=/path/to/uploads node tests/run-tests.mjs      # runs the 6 real-recording equiv legs
-> ```
->
-> With the corpus present the suite goes from ~11 skips to 2, and every `compute() ≡ committed export`
-> leg is exercised byte-for-byte. **Run this before cutting a release** (`tools/release.mjs --dry-run`
-> prints the same warning). The *adversarial* equiv inputs — MDY order, dropped rows, a full-length
-> night — are **committed synthetic** files and therefore DO run in CI (DEEP-AUDIT-FOLLOWUPS §A); it is
-> only the real-recording legs that need `DEX_UPLOADS`.
-
-1. **Behavior — `Dex-Test-Suite.html`.** Render-coverage is **on-demand** (lazy, 2026-06-30): a bare
-   open paints only the headless floor in ~3 s and the pill reads amber **`✓ headless green ·
-   render-coverage not run — ▶ or ?full`** — that is the floor, **NOT a pass**. To run the FULL gate,
-   open **`Dex-Test-Suite.html?full`** (or click **▶ Run render-coverage**); the rigs then boot for
-   ~30–50 s — **wait for the group count to stop climbing**, then read the `#summary` pill — it must be
-   **all green** (`✓ all green` / `0 fails`, `window.__rcState==='done'`). **Only the green / 0-fails verdict is authoritative — the
-   absolute pass- and group-COUNTS are advisory snapshots, NOT a regression baseline.** The browser-only
-   render-coverage legs boot real app bundles in a hidden `<iframe>` and are included/sized by *timing*
-   (per-leg watchdogs), so the counts drift run-to-run with no code change (observed ~1084→1146 passes /
-   68→72 groups across reloads in ONE session, every time all-green). Do **not** diff a recorded count
-   (the `1176/75`-style numbers in execution logs are snapshots, not invariants) to detect a regression —
-   it produces false alarms. The pill is the signal (GENERIC-EMIT-GATE-FOLLOWUPS §3). **The green pill also
-   appears *incrementally*** — the render-coverage groups push as their iframes finish booting (~50 s to
-   settle; the group count climbs, e.g. 70→79), so a green read at ~6 s can be **green-but-incomplete**.
-   Only `✓ all green` **after the group count has stopped climbing** is a pass (`verify-provenance.html`
-   is pure-static — Phase 7 — and settles in ~10 s as it hashes every committed input + output; read
-   `window.__provenanceOK`). (GATE-LIVE-RUNNABILITY §4 —
-   reinforces GENERIC-EMIT-GATE-FOLLOWUPS §3.)
-   Run it after editing any `*-dsp.js` / `*-cross.js` / `*-app.js` and after re-bundling.
-   (CI mirror: `node tests/run-tests.mjs` — same `tests/dex-tests.js` assertions.) A live spot-check on
-   one file is **not** a substitute — the suite catches contract breaks an ad-hoc check misses.
-   **Run it in ONE tab at a time.** The render-coverage groups boot real app bundles in a shared hidden
-   `<iframe>` on fixed 8 s / 12 s budgets, so two concurrent runs (e.g. a manual preview + a forked
-   verifier) contend for wall-clock and can throw a transient red — most often *`Render coverage —
-   ECGDex … bundle loads in iframe`* (onload missed) or the *OxyDex heavy-dropout watchdog* (12 s
-   timeout). A lone one of those under contention is a **flake**: re-run isolated before treating it as
-   real (SIGNAL-ADAPTER-FOLLOWUPS-X §3).
-2. **Provenance — `verify-provenance.html`.** Run after **re-bundling** any `Foo.html`. Pure-static,
-   content-addressed (Phase 7): **GATE A** asserts each bundle's `manifestHash` matches
-   `BUILD-MANIFEST.json` — update that entry after any code-changing re-bundle. **GATE B** audits each
-   `FIXTURE-PROVENANCE.json` fixture as a known-answer triple `hash(input) + manifestHash → hash(output)`;
-   a fixture reds the moment its bundle's code, an input, OR the output changes. So whenever a code change
-   moves a node's export, **regenerate that fixture** (re-run the app + re-export, never hand-edit) and
-   re-record its `{ manifestHash, inputHashes, outputHash }`. Confirm **no red verdicts** (read
-   `window.__provenanceOK`). `buildHash` is retired — no gate reads it. (CI mirror:
-   `node tests/verify-manifest.mjs` runs GATE A + best-effort GATE B.)
-
-> **Section-scoped runs (SECTION-SCOPED-RUNS 2026-07-01) — a dev convenience, NEVER the gate.** All
-> three gate surfaces take the SAME filter (comma = OR; each term is case-insensitive, tried as a regex
-> then as a literal substring; matches a group's title OR tag), so while iterating on one dex you can run
-> just its section — far faster, and it won't red on a parallel coder's in-flight edit to *another* dex:
-> - **Suite:** `Dex-Test-Suite.html?group=oxydex` (or type in the filter box) — scopes BOTH the headless
->   groups AND which render-coverage rigs boot (skip the ~30–50 s of booting unrelated app iframes).
-> - **Node CI mirror:** `node tests/run-tests.mjs --group=oxydex` (aliases `-g` / `--only`, or the
->   `DEX_GROUP` env var).
-> - **Provenance:** `verify-provenance.html?bundle=oxydex` — scopes GATE A + GATE B to the matching
->   bundle(s) only. Fast CLI mirror: `node tests/verify-manifest.mjs --bundle=oxydex` (aliases
->   `--only` / `-b`, or `DEX_BUNDLE`).
->
-> A filtered run is marked LOUDLY everywhere — the suite pill shows `⦷ FILTERED … not the full gate`
-> (and `✓ scoped green`, never `✓ all green`), the Node runner prints a `FILTERED RUN` banner, the
-> provenance page shows a FILTERED bundle-count badge, and `window.__filtered` carries the pattern. **The
-> canonical merge gate is always the UNFILTERED run** (`✓ all green` / `window.__provenanceOK`). A filter
-> that matches zero groups/bundles is a hard error, not a pass.
->
-> **One-liner for "did I break ONE dex?":** `node tests/check-dex.mjs oxydex` runs BOTH scoped headless
-> lanes (behavior `run-tests --group` + provenance `verify-manifest --bundle`) and exits 0 iff both pass.
-> It's the tight inner-loop check while iterating on one `*-dsp.js`/registry — NOT a substitute for the
-> unfiltered sweep + `?full` render-coverage (it reminds you of that on green).
->
-> **Reconcile helper (READ-ONLY diagnostic — you should rarely need it).** For an **owned** bundle,
-> `node tools/build.mjs --app <Name>` already writes the `BUILD-MANIFEST.json` hash and re-stamps the
-> code-gated fixtures; hand-applying a ledger edit is NOT the normal path. `node tests/reconcile-provenance.mjs
-> --bundle=oxydex` stays useful for *classifying* a change — **RECONCILED** / **EXPORT-INERT** /
-> **OUTPUT-MOVED** — when you want to know what a re-bundle actually did. It **never writes**. For
-> OUTPUT-MOVED it refuses to print an output hash: regenerate the fixture by re-running the app +
-> re-exporting, never hand-paste. If it already reads RECONCILED, the ledger is synced — do nothing
-> (and do not fight a concurrent writer; see CLAUDE.md §👥.3).
+**Scoped runs** are a dev convenience, NEVER the gate: all three surfaces take the same
+`group=` / `--group` / `bundle=` / `--bundle` filter, and `node tests/check-dex.mjs <dex>` runs both scoped
+lanes for one node. A filtered run is marked LOUDLY (`⦷ FILTERED … not the full gate`); the canonical merge
+gate is always the UNFILTERED run. The full scoping + read-only reconcile details are in `CLAUDE.md` §🧪/§🔏.
 
 **The shared assertions in `tests/dex-tests.js` ARE the public contract.** If you intentionally change
 a function signature or return shape, **keep back-compat** (add new params LAST + optional; expose new
@@ -212,9 +128,6 @@ data via a NEW field/method) — don't edit an assertion to hide a break. If a d
 registry disagree, **fix the doc**, not the registry.
 
 ---
-
----
-
 ## 4.5 Dev commands — the `npm run` spine
 
 The root **`package.json`** is a **dev-tooling manifest only** — `private`, unpublished, declares
@@ -369,7 +282,7 @@ night pairing, byte-weighted parallel ETA) live in the brief.
 - **Frozen / do-not-touch:** the bus name **`Ganglior`** (the Integrator still reads a `fascia` input
   alias for back-compat). Retired vocabulary (proxy→heuristic, composite→experimental) must not reappear.
 - **Known non-issues** (see `CLAUDE.md` — don't "fix" these): no `*.woff2` / `@font-face` by design;
-  duplicated `parseTimestamp`; the finished `REFACTOR-BRIEF-modularize-Dexes.md`.
+  duplicated `parseTimestamp`; the finished `docs-archive/REFACTOR-BRIEF-modularize-Dexes.md`.
 
 ---
 
@@ -377,9 +290,9 @@ night pairing, byte-weighted parallel ETA) live in the brief.
 
 - **Visual map:** [How It's Wired — Architecture](wiring/How%20It's%20Wired%20-%20Architecture.html) — the whole system on one page.
 - **Per-node wiring:** [the -Dex suite index](wiring/How%20It's%20Wired%20-%20the%20Dex%20Suite.html) — file stack, data flow, evidence ladder, limits, how-to for each node, the Integrator, SynthGen, the experiments, and the papers.
-- **The constitution:** `CLAUDE.md` (rules) · `ARCHITECTURE-PRINCIPLES.md` (the why) · `LEXICON.md` (naming).
-- **Deep dives (only when you need them):** `INTEGRATOR-BUILD-BRIEF.md`, `CPAPDEX-BUILD-BRIEF.md`,
-  `SYSTEM-COHESION-BRIEF.md`, `CLOCK-UNIFY-BRIEF.md`, and the rest of the `*-BRIEF.md` set.
+- **The constitution:** `CLAUDE.md` (rules) · `ARCHITECTURE-PRINCIPLES.md` (the why) · `docs/LEXICON.md` (naming).
+- **Deep dives (only when you need them):** `briefs/INTEGRATOR-BUILD-BRIEF.md`, `briefs/CPAPDEX-BUILD-BRIEF.md`,
+  `briefs/SYSTEM-COHESION-BRIEF.md`, `briefs/CLOCK-UNIFY-BRIEF.md`, and the rest of the `*-BRIEF.md` set.
 
 Drafts and synthetic experiments are for research and curiosity — **not a medical device, not for
 diagnosis.** Label every claim honestly: simulation vs real-detector vs real-data.
