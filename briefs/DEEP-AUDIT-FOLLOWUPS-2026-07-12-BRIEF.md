@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-12 (**§A + §B EXECUTED** — and in BOTH cases this brief's own prescription was wrong; the corrections are recorded in place. §C–§E open) · **Created:** 2026-07-12 · **Supersedes:** — · **Parent:** `DEEP-AUDIT-2026-07-11-BRIEF.md` (DONE 2026-07-12, all 21 findings executed)
+**Status:** IN-PROGRESS — 2026-07-12 (**§A + §B EXECUTED** — and in BOTH cases this brief's own prescription was wrong; the corrections are recorded in place. **§D1 · §D2 · §E1 EXECUTED 2026-07-13** — EVENT-LEXICON §7 records the CPAPDex-annotation + HRVDex-window decisions, and the fixture content-claims are swept-clean + byte-locked as a new gate. **Still open:** §C1/§C2/§C3 (need the gitignored real corpus / are research) + §E2 (version-into-bundle, deferred)) · **Created:** 2026-07-12 · **Supersedes:** — · **Parent:** `DEEP-AUDIT-2026-07-11-BRIEF.md` (DONE 2026-07-12, all 21 findings executed)
 
 # Deep-audit follow-ups — the residue, and the blind spot that hid it
 
@@ -162,6 +162,12 @@ Found while fixing §15 (the desat pool is now keyed by **impulse**, not by node
 `EVENT-LEXICON.md`** altogether. **Do:** add them to the lexicon, then decide whether the apnea rule
 should corroborate a device-scored event against a desat (it is the same shape as the rule §15 fixed).
 
+> **EXECUTED 2026-07-13.** Corrected + recorded in `docs/EVENT-LEXICON.md` §7.1: `apnea`/`hypopnea`/`rera`
+> are CPAPDex **device-scored EDF annotation classes** (`classifyAnnotation`), consumed internally (AHI/ODI +
+> demo desat placement) — NOT emitted as `ganglior_events[].impulse` (CPAPDex emits `desat_event`/`large_leak`/
+> `periodic_breathing`). The apnea-corroboration rule is a **deferred, recorded decision** (it needs CPAPDex to
+> emit a first-class impulse → a node-export shape change + Integrator re-bundle + a fusion test).
+
 ### D2 · HRVDex joins the HRV consensus, but on a labelled window
 §14's fix reads HRVDex's `measurements[]` (median) so the HRV node is no longer silently dropped — and
 labels the window `measurementMedian`, **not** `wholeRecord`, because a month of Welltory spot readings
@@ -169,6 +175,10 @@ is not an overnight whole-record value. The exclusion is now *reasoned and visib
 null, but the deeper question stands: **should** a spot-reading median be compared against an overnight
 whole-record value at all? R8's like-window guard currently prevents it. **Do:** decide deliberately, and
 write the decision into `EVENT-LEXICON.md`.
+
+> **EXECUTED 2026-07-13.** Decision recorded in `docs/EVENT-LEXICON.md` §7.2: a spot-reading median and an
+> overnight whole-record SDNN are **different windows and NOT consensus-comparable** — R8's like-window guard
+> deliberately keeps `measurementMedian` off the `wholeRecord` axis. Do not feed one into the other.
 
 ---
 
@@ -181,6 +191,14 @@ file"*. The assertion now encodes the truth. **The lesson is the item:** an asse
 fixture's *content* is a claim like any other, and this one had never been checked against the bytes.
 **Do:** sweep the remaining fixture-describing assertions for other unverified claims about what a
 committed file contains.
+
+> **EXECUTED 2026-07-13.** Swept every committed fixture's content-claim against the raw bytes (Node
+> inspection of the committed synthetic inputs + node-exports): the §6 lingo case was the only wrong one —
+> the rest hold (lossy carries its 1200-row "- -" gap, dmy/mdy are byte-metamorphic, longnight is a full 7 h,
+> the synthetic-Lingo golden is genuinely clean at min 89). Locked as a regression gate — the new
+> **`Fixture content-claims — verified against the committed bytes (§E1)`** group re-checks each claim
+> **directly against the bytes** (no compute in the path), incl. byte-locking the §6 rail against the committed
+> node-export, so a derived assertion can never again mask a false file-claim. 6/6 green, fresh-clone safe.
 
 ### E2 · Version-into-bundle stamping is still deferred
 Unchanged by this audit; noted so it is not lost. Rides the next behavioral re-bundle (§📦).
