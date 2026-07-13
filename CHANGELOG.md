@@ -30,6 +30,29 @@ changesets.)
 
 ---
 
+## [1.9.0] — 2026-07-13
+
+### Added
+- Add adversarial equivalence inputs — an MM/DD date order, a dropped-row night, a full-length overnight — so the bug class the deep audit had to find BY HAND is now caught by CI automatically. (`DEEP-AUDIT-2026-07-11-BRIEF.md`)
+- Add `event-coupling.js` — the shuffled-null cross-node event-coupling primitive, the suite's missing "is it real or coincidence?" test. (`CPAP-REAL-CORPUS-2026-07-11-BRIEF.md`)
+
+### Changed
+- Retire the per-night CPAP/APAP label — a device *setting* is not a per-night fact. And retract §M1's coupling magnitude: the null model was broken. (`CPAP-REAL-CORPUS-FOLLOWUPS-2026-07-12-BRIEF.md`)
+- Register `adapters/resmed-edf.js` (CPAP was the fleet's only adapter-less signal type), and retire the `mode` heuristic — it was measuring EPR, not auto-titration. (`CPAP-REAL-CORPUS-2026-07-11-BRIEF.md`)
+- Close the deep audit's blind spot in the ledger too — and record that the brief's own prescription for closing it was wrong. (`DEEP-AUDIT-FOLLOWUPS-2026-07-12-BRIEF.md`)
+
+### Fixed
+- The CPAPDex demo had never worked for anyone but the maintainer — it fetched ten **gitignored** real recordings. (`CPAP-REAL-CORPUS-2026-07-11-BRIEF.md`)
+- An absent reading is not a miss, and a ×0.0 on 16 events is not a proof — `event-coupling.js` gets a coverage model and a power floor, and §M1's last surviving claim is retracted. (`CPAP-REAL-CORPUS-FOLLOWUPS-2026-07-12-BRIEF.md`)
+- Three fixtures claimed "reproducible under this code" while nothing reproduced them — and one absent recording was silently deleting nine equivalence legs. (`CPAP-REAL-CORPUS-FOLLOWUPS-2026-07-12-BRIEF.md`)
+- An interval must conserve time, and an absent reading is not a score of zero — the deep audit's four fail-open layers (§B1–§B4). (`DEEP-AUDIT-FOLLOWUPS-2026-07-12-BRIEF.md`)
+- README told people to buy the wrong device for PulseDex.
+- Fix the evidence badge where the public site actually shows it — and put PpgDex on the front door.
+- Pin the trio's planted σ across its three copies — a silent desync had the tool REPORTING one truth while SIMULATING another. (`TRIO-POWER-N15-FINDINGS-2026-07-12-BRIEF.md`)
+- The Verity gate now says WHOSE fault it is — it used to blame the strap for our own detector bug, and that cost 41% of the corpus. (`PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE-2026-07-11-BRIEF.md`)
+
+---
+
 ## [1.8.0] — 2026-07-12
 
 ### Added
@@ -300,7 +323,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/Plantucha/Tepna/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/Plantucha/Tepna/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/Plantucha/Tepna/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/Plantucha/Tepna/compare/v1.5.0...v1.6.0

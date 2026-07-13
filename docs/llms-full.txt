@@ -1,5 +1,5 @@
 # Tepna — the Dex Suite — concatenated authoritative context
-# Generated 2026-07-12. Public docs only (the internal build/gate constitution CLAUDE.md is intentionally excluded).
+# Generated 2026-07-13. Public docs only (the internal build/gate constitution CLAUDE.md is intentionally excluded).
 
 
 

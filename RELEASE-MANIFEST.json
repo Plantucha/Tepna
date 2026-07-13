@@ -238,6 +238,31 @@
         "WORKER-REALM-GATES-2026-07-12-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "1.9.0",
+      "date": "2026-07-13",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "84352a1f26b5",
+        "OxyDex": "c8633e3f0fab",
+        "PulseDex": "afb608799750",
+        "GlucoDex": "f136f2a11b74",
+        "PpgDex": "905afc5afca8",
+        "HRVDex": "229842e56f9f",
+        "CPAPDex": "86e8b88d185e",
+        "Integrator": "ace24a7aa8fd"
+      },
+      "briefs": [
+        "DEEP-AUDIT-2026-07-11-BRIEF.md",
+        "CPAP-REAL-CORPUS-2026-07-11-BRIEF.md",
+        "CPAP-REAL-CORPUS-FOLLOWUPS-2026-07-12-BRIEF.md",
+        "DEEP-AUDIT-FOLLOWUPS-2026-07-12-BRIEF.md",
+        "TRIO-POWER-N15-FINDINGS-2026-07-12-BRIEF.md",
+        "PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE-2026-07-11-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
