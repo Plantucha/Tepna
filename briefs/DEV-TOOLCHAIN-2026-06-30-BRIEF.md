@@ -233,8 +233,16 @@ config, the Phase-0 churn measurements, and the on-touch (Phase 2) discipline.
 > `tsconfig.json` `//d2`: cast the `root.X = …` export via `/** @type {any} */ (root).X` (the IIFE-arg type
 > wins over a `@param`, and `module.exports = X` poisons the `this` fallback), and reach Node's `process`
 > through `/** @type {any} */(globalThis).process`. `nsrr-adapter.js` deferred (bare `processNight` global —
-> a runtime dependency, not a type-only fix). **Still OPEN:** the remaining non-bundled CORE modules, then
-> the bundled `*-dsp.js` set (each a deliberate fleet re-bundle).
+> a runtime dependency, not a type-only fix).
+>
+> **⟳ 2nd pass 2026-07-13 — first DSP gated, and it cost NO re-bundle.** `pulsedex-dsp.js` added: its 16
+> errors were ALL `TS2304` for co-loaded globals (`DexClock`/`DexExport`/`SignalFrame`/`dexScrubExport`), so
+> a new ambient **`dex-globals.d.ts`** (declares them `any` — dev-time only, no runtime/emit) cleared the DSP
+> with **zero source edit → no manifestHash churn**. The lesson reshapes the plan: **a bundled `*-dsp.js`
+> whose only errors are co-loaded-global `TS2304` is a FREE add** (declare the name in `dex-globals.d.ts`);
+> only real `TS2339`/property or DSP-reaches-render-sibling errors force a source edit + re-bundle. **Still
+> OPEN:** glucodex/ecgdex/cpapdex/ppgdex/hrvdex/integrator/oxydex-dsp — each carries such real errors
+> (render-sibling reach-ins like `setStatus`/`UP`, arithmetic, property access), so each is a genuine fix.
 >
 > Prior note (blocker now cleared): *needs a `node tsc --noEmit --checkJs` host to prove each newly-included
 > module is green BEFORE it lands. Do not expand `tsconfig.include` blind — an unverifiable add risks
