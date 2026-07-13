@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-6RZXLEoUPvVrjS9laRTHze70mnbaJ+rNK+xDvzCc9JQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8+nOC4HEYyfbSq9U/hUTt4aPNJiDWM6GiGEd/lhSrQU=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Cmy5jqXGBn2TOeoIUu5NQ462zWgA2iB09CRh/bkx2pc=' 'sha256-DE/lfDnNKHcSbXxw474kJVe7uFhKKaPy/5FmvRM68U4=' 'sha256-F4s+OtKkoVZS0q8lS4F/sWsYA6V6dQxQKQ7xrw244Q0=' 'sha256-FLX23PgjejDwg3MLrTYKCm++svXIKd1sw+h1cHYA9fI=' 'sha256-HKfWmGIglGD2FlUrqnaKuiqyTPrluhBx9iHYpe2WtMA=' 'sha256-HMcz3UCFbmyBGi0SQWw6ydup3CHvmu4SX/HIKXkWnkg=' 'sha256-N4quNlzTw8NSIB6UWZ4D9OWTFHALTfZRK7Lf4xkQQjk=' 'sha256-P9b4M6K+53ZuxT3kUmsqwwy8YCcSK0CnRVVDLEHgxdY=' 'sha256-PB+ksOULjQm71LNR8HGSjhTYJn3uj+aFC4FWWaPmtGQ=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-brX48jeqBFv5TUr/bbfPJkxbDwhSHTALAd7jb+NyQsY=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dQT8xgqk2CuHWNlOyHGfUPo5isWwZnFXTyIW0YHoOjQ=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-giH7+xYTi6zzmo5ZtCPaGJEzq74hWIaqOK1CAMLayp4=' 'sha256-hs9K6cuZdV/TNM22sxtyqlWad5F44Inh53puPeYFZmg=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-mF23WMQ+MXR0pIEIp9B1RndMsNwhMpFhM5eq7VewfDE=' 'sha256-pF2F1BHb5ALbGyqL7RaEPb4fzp9+gHyW4tWOpeTvV10=' 'sha256-roO0qvbiqQFAF7zD/B79CM1goAjzhR5jx8+N3kX4ZSY=' 'sha256-sCx/0jRpwBNzhTpZ4ClKf8BfTccQekveXGhU/zx+WqU=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE=' 'sha256-yNoaiS9N95lBo/AEEOuu3L8+OnQowaAEwE2DA9939Ow='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-6RZXLEoUPvVrjS9laRTHze70mnbaJ+rNK+xDvzCc9JQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8+nOC4HEYyfbSq9U/hUTt4aPNJiDWM6GiGEd/lhSrQU=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Cmy5jqXGBn2TOeoIUu5NQ462zWgA2iB09CRh/bkx2pc=' 'sha256-DE/lfDnNKHcSbXxw474kJVe7uFhKKaPy/5FmvRM68U4=' 'sha256-F4s+OtKkoVZS0q8lS4F/sWsYA6V6dQxQKQ7xrw244Q0=' 'sha256-FLX23PgjejDwg3MLrTYKCm++svXIKd1sw+h1cHYA9fI=' 'sha256-HMcz3UCFbmyBGi0SQWw6ydup3CHvmu4SX/HIKXkWnkg=' 'sha256-N4quNlzTw8NSIB6UWZ4D9OWTFHALTfZRK7Lf4xkQQjk=' 'sha256-P9b4M6K+53ZuxT3kUmsqwwy8YCcSK0CnRVVDLEHgxdY=' 'sha256-PB+ksOULjQm71LNR8HGSjhTYJn3uj+aFC4FWWaPmtGQ=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-brX48jeqBFv5TUr/bbfPJkxbDwhSHTALAd7jb+NyQsY=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dQT8xgqk2CuHWNlOyHGfUPo5isWwZnFXTyIW0YHoOjQ=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-giH7+xYTi6zzmo5ZtCPaGJEzq74hWIaqOK1CAMLayp4=' 'sha256-hs9K6cuZdV/TNM22sxtyqlWad5F44Inh53puPeYFZmg=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-mF23WMQ+MXR0pIEIp9B1RndMsNwhMpFhM5eq7VewfDE=' 'sha256-pF2F1BHb5ALbGyqL7RaEPb4fzp9+gHyW4tWOpeTvV10=' 'sha256-roO0qvbiqQFAF7zD/B79CM1goAjzhR5jx8+N3kX4ZSY=' 'sha256-s3ajFmncxnTFqb8ZM3UbtYM5V4KT6jWy1iwqo2L1U6g=' 'sha256-sCx/0jRpwBNzhTpZ4ClKf8BfTccQekveXGhU/zx+WqU=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE=' 'sha256-yNoaiS9N95lBo/AEEOuu3L8+OnQowaAEwE2DA9939Ow='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -1194,7 +1194,7 @@ function adaptEnvelopeNode(json, node, filename){
     var _clamp = json.recording && json.recording.clamp;
     summary.clampSat = (_clamp && _clamp.detected) ? { vendor:(_clamp.vendor||null), floor:(_clamp.floor!=null?_clamp.floor:null), ceiling:(_clamp.ceiling!=null?_clamp.ceiling:null), blindMetrics:(_clamp.blindMetrics||[]) } : null;
     if(_clamp && _clamp.detected){
-      for(var _ei=0;_ei<events.length;_ei++){ var _ev=events[_ei];
+      for(var _ei=0;_ei<events.length;_ei++){ var _ev=/** @type {any} */(events[_ei]);
         if(_ev && _ev.impulse==='nocturnal_hypo' && _ev.meta && _ev.meta.clampFloor){
           // AUDIT-ONLY tag (NODE-RESIDUE-FOLLOWUPS-II §2, decided 2026-07-02): the conf ×0.5 on the next line is
           // the LOAD-BEARING down-weight (it flows through effConf → the noisy-OR → the posterior). clampFloor
@@ -1286,7 +1286,7 @@ function adaptEnvelopeNode(json, node, filename){
       // warranted; ECGDex is a CHEST STRAP (Polar H10) whose sqi rarely reaches < PPG_SQI_FLOOR on a real
       // recording, so a floor would almost never fire and effConf's smooth taper suffices. Different sensor
       // physics → different treatment; deliberately NOT a shared NODE_SQI_FLOOR table. See EVENT-LEXICON §6.10.
-      for(var _pi=0;_pi<events.length;_pi++){ var _pe=events[_pi];
+      for(var _pi=0;_pi<events.length;_pi++){ var _pe=/** @type {any} */(events[_pi]);
         if(_pe && _pe.sqi!=null && isFinite(_pe.sqi) && _pe.sqi < PPG_SQI_FLOOR){
           // AUDIT-ONLY tag (NODE-RESIDUE-FOLLOWUPS-II §2): the conf ×0.5 on the next line is the LOAD-BEARING
           // down-weight (flows through effConf → noisy-OR → posterior); sqiFloor is a provenance breadcrumb,
@@ -1730,7 +1730,7 @@ function fuseApneaEvents(recs, dtMs, gate){
   //    that desat's arousal response). Greedy in desat-time order. ────────────
   var findings=[], unmatchedDesat=[], usedSurge=new Set();
   desats.forEach(function(d){
-    var best=null, bd=Infinity;
+    var best=/** @type {any} */(null), bd=Infinity;
     surges.forEach(function(s,si){
       if(usedSurge.has(si)) return;
       var lat=(s.tMs-d.tMs)/1000;                 // +ve = surge AFTER desat
@@ -1852,7 +1852,7 @@ function labelPositionalApnea(recs, apneaResult){
     if(posture.length) src = 'limb-acc';
   }
   if(!posture.length) return { available:false, note:'No ACC / body-position series in any node export — positional analysis unavailable.' };
-  function posAt(tMs){ var best=null,bd=1e12; posture.forEach(function(p){ var d=Math.abs(p.tMs-tMs); if(d<bd){bd=d;best=p;} }); return (best && bd<=10*60000)?best.pos:null; }
+  function posAt(tMs){ var best=null,bd=1e12; posture.forEach(function(p){ var d=Math.abs(p.tMs-tMs); if(d<bd){bd=d;best=p;} }); return (best && bd<=10*60000)?/** @type {any} */(best).pos:null; }
   var supine=0, nonsupine=0, unknown=0;
   apneaResult.findings.forEach(function(f){
     var p=posAt(f.tMs); f.meta = f.meta||{}; f.meta.position=p;
@@ -2327,7 +2327,7 @@ function runFusion(recs, opts){
   var overlapUnionMs = _mergeMs(ivs);
   var pairwiseSumMin = pairs.reduce(function(s,p){ return s+(p.overlap?p.overlap.overlapMin:0); },0);
   // N-way intersection of every dated rec
-  var interStart=null, interEnd=null, haveAll=dated.length>=2;
+  var interStart=/** @type {any} */(null), interEnd=/** @type {any} */(null), haveAll=dated.length>=2;
   dated.forEach(function(r){ var w=recWindow(r); if(!w){ haveAll=false; return; }
     interStart = (interStart==null)?w.startMs:Math.max(interStart,w.startMs);
     interEnd   = (interEnd==null)  ?w.endMs  :Math.min(interEnd,  w.endMs); });
@@ -2397,7 +2397,7 @@ function runFusion(recs, opts){
   return {
     bus:BUS, kind:'fusion', generated:new Date().toISOString(),
     window:{ startMs:startMs, endMs:endMs,
-      spanMin: (startMs!=null&&endMs!=null)? +((endMs-startMs)/60000).toFixed(1):null,
+      spanMin: (startMs!=null&&endMs!=null)? +((/** @type {any} */(endMs)-/** @type {any} */(startMs))/60000).toFixed(1):null,
       // overlapMin now = TRUE merged-union minutes (was: sum of pairwise — see R3)
       overlapMin: +(overlapUnionMs/60000).toFixed(1),
       overlapUnionMin: +(overlapUnionMs/60000).toFixed(1),
