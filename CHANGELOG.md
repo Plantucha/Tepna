@@ -30,6 +30,13 @@ changesets.)
 
 ---
 
+## [1.11.1] — 2026-07-14
+
+### Added
+- Add the CPAPDex adversarial two-session-night invariant group, closing one of the two residue shapes DEEP-AUDIT-FOLLOWUPS-2026-07-12 named. The two-session POOLING math (ODI/T90 weight by their own denominator, never an unweighted mean of the per-session rates — a 40-min nap must not count as much as a 6-h sleep, DEEP-AUDIT §20) was only tested on hand-built session objects, and the two-session *pipeline* only on the gitignored real `cpapdex-2026-06-12` EDFs — so it skipped in CI and on any machine without the corpus. The new group drives two synthetic `_synthEdfSet` sessions (B truncated to a short nap + shifted by a 3 h off-mask gap) through the full `buildSessionFromEdf → buildNight → cpapBuildExport` pipeline, in CI, with no corpus: it asserts the grouping (two sets collapse into ONE night, nSessions=2, pooled therapyHours, off-mask gap recorded, anchor on the first session) and the pooling (A 10 min/1 desat = 6/h + B 5 min/1 desat = 12/h → POOLED 8/h, arithmetically ≠ the unweighted-mean 9/h), with a single-session control so it cannot pass vacuously. Verified RED on a rate-averaging regression (reports 9) and on a night-splitting regression (reports nSessions 1). Test-only — no DSP change, no re-bundle. The other named shape, the PPG worker realm, was already closed by `d9ffdcd` (the worker blob executes byte-identical to serial in CI + the live browser pool), and a committed input twin cannot reach the serial-by-design `compute()`, so it needs nothing further; both residue lines are struck. (`DEEP-AUDIT-FOLLOWUPS-2026-07-12-BRIEF.md`)
+
+---
+
 ## [1.11.0] — 2026-07-14
 
 ### Added
@@ -399,7 +406,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.11.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.11.1...HEAD
+[1.11.1]: https://github.com/Plantucha/Tepna/compare/v1.11.0...v1.11.1
 [1.11.0]: https://github.com/Plantucha/Tepna/compare/v1.10.3...v1.11.0
 [1.10.3]: https://github.com/Plantucha/Tepna/compare/v1.10.2...v1.10.3
 [1.10.2]: https://github.com/Plantucha/Tepna/compare/v1.10.1...v1.10.2
