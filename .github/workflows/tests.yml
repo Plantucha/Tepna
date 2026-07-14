@@ -84,6 +84,16 @@ jobs:
         run: node tools/build-docs.mjs --check
       - name: Verify bundle manifestHash ↔ BUILD-MANIFEST (provenance GATE A, headless)
         run: node tests/verify-manifest.mjs
+      # Fixture verification (FIXTURE-VERIFICATION-GATE §3.1) — VISIBILITY, deliberately NOT a blocker.
+      # Names any corpus-backed fixture whose COMPUTE CLOSURE moved with nothing having re-run it since:
+      # an unverified reproducibility claim, which is what shipped a pre-fix GlucoDex DSP to real users.
+      # It needs NO corpus to FAIL (it compares the ledger against computeHash, both committed) — but it
+      # needs one to FIX, and an outside contributor has none. Blocking here would wall off contributions,
+      # so the HARD wall lives in release.mjs's pre-flight instead: harm materialises on SHIP, and the
+      # person cutting a release is the one who HAS the corpus. Report loudly here; block there.
+      - name: Fixture verification — unverified reproducibility claims (informational)
+        run: node tools/verify-fixtures.mjs --check
+        continue-on-error: true
 
   # ── one aggregated status ──────────────────────────────────────────────────────────
   # Keeps a single stable check name (`test`) for branch protection, independent of the

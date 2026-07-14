@@ -71,10 +71,21 @@ function main() {
   }
 
   // Pre-flight — a controlled release is only cut from a green tree (IEC 62304 §5.8).
+  //
+  // `verify-fixtures --check` is THE WALL (FIXTURE-VERIFICATION-GATE §3.2). A corpus-backed fixture
+  // whose producing code moved but which nothing has re-run since is an UNVERIFIED reproducibility
+  // claim — and a release is the moment such a claim reaches real users. This is deliberately the
+  // choke point rather than CI: harm materialises on SHIP, and the person cutting the release is the
+  // one party who HAS the corpus and can discharge the obligation. It needs no corpus to FAIL (it
+  // compares the ledger against computeHash, both committed) — only to be fixed.
+  //
+  // This exact gate would have blocked v1.10.1, which shipped a GlucoDex fixture that current code no
+  // longer reproduced, and with it a pre-fix DSP that reached real users' CGM data.
   if (!SKIP_GATES) {
     for (const cmd of [
       ['node', 'tests/run-tests.mjs'],
-      ['node', 'tests/verify-manifest.mjs']
+      ['node', 'tests/verify-manifest.mjs'],
+      ['node', 'tools/verify-fixtures.mjs', '--check']
     ]) {
       const r = spawnSync(cmd[0], cmd.slice(1), { cwd: ROOT, stdio: 'inherit' });
       if (r.status !== 0) {
