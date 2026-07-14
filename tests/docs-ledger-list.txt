@@ -103,6 +103,7 @@ brief INTEGRATOR-THREE-CORNERED-HAT-2026-07-02-BRIEF.md
 brief INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-2026-07-03-BRIEF.md
 brief INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II-2026-07-04-BRIEF.md
 brief INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md
+brief INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-IV-2026-07-13-BRIEF.md
 brief KERNEL-BUILD-BRIEF.md
 brief LITERATURE-USE-POLICY-2026-07-11-BRIEF.md
 brief NODE-RESIDUE-FOLLOWUPS-2026-06-30-BRIEF.md
@@ -398,6 +399,7 @@ path briefs/INTEGRATOR-THREE-CORNERED-HAT-2026-07-02-BRIEF.md
 path briefs/INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-2026-07-03-BRIEF.md
 path briefs/INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II-2026-07-04-BRIEF.md
 path briefs/INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md
+path briefs/INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-IV-2026-07-13-BRIEF.md
 path briefs/KERNEL-BUILD-BRIEF.md
 path briefs/LITERATURE-USE-POLICY-2026-07-11-BRIEF.md
 path briefs/NODE-RESIDUE-FOLLOWUPS-2026-06-30-BRIEF.md
@@ -511,6 +513,7 @@ path changes/2026-07-13-own-the-build-followups-docs-and-checkjs.md
 path changes/2026-07-13-release-regen-docs-ledger-list.md
 path changes/2026-07-13-security-leak-hygiene.md
 path changes/2026-07-13-security-nonbundle-csp.md
+path changes/2026-07-13-tch-fu3-realdata-distribution.md
 path changes/2026-07-13-trio-batch-o2ring-dat.md
 path changes/2026-07-13-typegate-cpapdex-dsp.md
 path changes/2026-07-13-typegate-ecgdex-dsp.md
