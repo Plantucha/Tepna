@@ -5,6 +5,14 @@
 
 What surfaced while executing `PPGDEX-PI-AND-PARSE-2026-07-12-BRIEF` and still needs addressing.
 
+> **Progress (2026-07-14):** **§3 EXECUTED** (the fractional-index bug-class sweep — proven clean
+> fleet-wide, no lint) and **§4 EXECUTED** (the synthetic-generator `fs`-tidiness audit — de-tidy
+> deliberately not taken, forward rule recorded); both write-ups are inline below. Header stays
+> `PROPOSED` because **§1 remains BLOCKED here** (the companion-parse win needs the gitignored ~600k-row
+> `n0614a` companions + the browser `pat-feasibility.html` to prove non-degeneracy) and **§2 is
+> conditional** (drop `ppgdex-morph.js` from `biome.json`'s formatter-override list only when a behavioural
+> re-bundle genuinely reflows it — no trigger yet).
+
 ## §1 — the companion-parse win, done back-compat-safely (deferred, NOT dismissed)
 
 `EFFICIENCY-AUDIT-FINDINGS-2026-07-12` finding #3 proposed skipping `parseTimestamp` in
@@ -51,6 +59,26 @@ A grep during execution found `ppgdex-morph.js:141` was the fleet's only float-s
 every `for (… i += <expr involving fs> …)` where `i` then indexes a typed array. If a general shape
 emerges, it is a candidate for a house-invariant lint (`DEV-TOOLCHAIN` Part A) rather than a one-off fix.
 
+> **§3 EXECUTED 2026-07-14 — the deliberate sweep is done; the class is PROVEN clean.** Every
+> float-/non-integer-strided loop candidate across the whole runtime tree (`*-dsp.js` · `*-morph.js` ·
+> `*-cross.js` · `*-app.js` · `*-render.js` · `*-fusion.js` · `signal-*.js` · `dex-*.js` ·
+> `sensor-trio-*.js` · `adapters/*` · the workers) was read to its body and classified
+> REAL / SAFE / N/A — a coverage table, not another grep. **Result: `ppgdex-morph.js:141` is the SOLE
+> member of the class, and it is fixed** (bounds `Math.round(w0)` at :158 before any `raw[]/bp[]` read;
+> the float stays only for peak-time math). Everything else is one of: a **time** accumulator whose array
+> is indexed by a separate integer pointer (`ecgdex-dsp.js:672`, `ecgdex-morph.js:207`,
+> `pulsedex-dsp.js:819`, `ppgdex-dsp.js:806`), an **integer-rounded** stride (`Math.round(30*FS)` &c. —
+> `ecgdex-dsp.js:841/863/1504`, `ppgdex-dsp.js:236`, `cpapdex-dsp.js:124`, all decimation
+> `Math.max(1,Math.floor(…))` strides), an **integer constant** window (all the OxyDex 1 Hz `WIN/W5/W10`
+> loops), or a value that is never an array subscript (a frequency into `sin`, a gridline coordinate, a ρ
+> into the TCH solver). **Decision — NO house-invariant lint.** The shape is not general (one instance in
+> the fleet's history), and a reliable detector needs the exact loop-body semantic analysis the sweep did
+> by hand (does the counter, unrounded, reach an `arr[…]`?); a regex lint would false-positive on the
+> ~40 SAFE `Math.round(stride)`/integer-pointer loops above and rot into noise. The one site is pinned
+> behaviourally by the `fs=176.26` regression (`dex-tests.js` group *"PpgDex per-window PI — non-integer
+> fs"*), which asserts EVERY window carries a finite physiologic PI — the exact failure mode. That
+> regression IS the standing guard; the sweep is the proof the guard needs to cover only one place.
+
 ## §4 — the PI trend was wrong in a *shipped* app and no gate noticed
 
 The suite had PpgDex morphology coverage, but every synthetic fixture used an **integer `fs`** — which
@@ -59,3 +87,25 @@ non-integral `fs` (176.26). The generalisable lesson: **synthetic fixtures that 
 messiness (a non-integer sample rate, an unaligned timestamp, a duplicated row) can only prove the code
 works on inputs that never occur.** Worth auditing the other nodes' synthetic generators for the same
 tidiness — `genSynthetic`'s `fs` in particular.
+
+> **§4 EXECUTED 2026-07-14 — the generator audit is done; the de-tidy is deliberately NOT taken (with a
+> forward rule).** Every synthetic sample-rate in the fleet is an integer: the **committed-fixture**
+> generator `tools/make-synthetic-inputs.mjs` writes PpgDex `FS=135` (:263) and ECGDex `FS=130` (:287);
+> the **runtime** demo generator `synth-gen.js` writes `renderPPG` `fs=176` (:485), `renderXYZ` `fs=52`
+> (:580), `renderWalkACC` `fs=26` (:730); the cohort/OxyDex/GlucoDex streams are `1 Hz`. `genSynthetic`
+> (the Integrator's patient generator) emits `ganglior.node-export` **summaries**, not raw waveforms, so
+> it has no sample-index path at all. Cross-referenced with the §3 sweep, **only one of these integer
+> rates ever masked a real code path**: PpgDex `perWindowMorph`, the fleet's sole fractional-sample-index
+> loop. And that path is **already gated** by the dedicated `fs=176.26` regression (`dex-tests.js` group
+> *"PpgDex per-window PI — non-integer fs"*), which drives `perWindowMorph` directly with a non-integral
+> `fs` and asserts every window yields a finite physiologic PI.
+>
+> **Why the committed fixture is NOT de-tidied to a non-integral `FS`:** it would be Node-feasible
+> (`PpgDex.compute` + `ppgBuildNodeExport` are headless, so `synthetic_ppgdex_golden.node-export.json`
+> could be regenerated + GATE-B re-recorded), but the §3 sweep PROVES the whole PpgDex compute pipeline
+> has no fractional-index loop other than the already-gated `perWindowMorph`. So de-tidying the fixture
+> would exercise the **same** covered path — **redundant coverage bought with real provenance churn** (a
+> fixture regen + GATE-B re-record + a changeset). Not worth it. **Forward rule (the durable lesson):**
+> when a node gains a **new** sample-windowed computation, cover it with a dedicated **non-integral-`fs`**
+> regression (the `fs=176.26` pattern) — do NOT rely on the committed equiv fixture, whose `FS` is
+> integral by construction and would pass even against the bug.
