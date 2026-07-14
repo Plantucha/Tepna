@@ -1758,6 +1758,60 @@
       });
     });
 
+    /* ════ ANALYSIS TOOLS — self-contained / file://-safe (LOCAL-DOWNLOAD fix) ════
+       The 9 science tools were bundled to single-file HTML by tools/build-analysis.mjs so they RUN when a
+       user downloads one .html and opens it over file:// (verified with Playwright). Under file:// the
+       browser forbids `new Worker('x.js')` (opaque origin → SecurityError) and external <script src>
+       siblings the download doesn't include — so the file://-safe invariant is: NO external <script src>
+       (all inlined via data-inline-src), and NO `new Worker('file.js')` (all blob workers via __mkWorker).
+       This group is the regression net; tools/build-analysis.mjs --check (CI) is the staleness net.
+       Node-lane only (fs-read env.analysisTools); browser lane SKIPs. */
+    group('Analysis tools are self-contained (file://-safe — no external src / no file worker)', 'security · analysis-tools · file-local', function (T) {
+      var AT = env.analysisTools;
+      if (!AT) {
+        T.skip('env.analysisTools provided to the runner', 'Node-lane only — wire env.analysisTools (run-tests.mjs readAnalysisTools)');
+        return;
+      }
+      var names = Object.keys(AT);
+      T.ok('analysis tools available to the self-contained gate', names.length > 0, names.length + ' tools');
+      names.forEach(function (n) {
+        var html = AT[n] || '';
+        // (a) no external <script src="x.js"> (an inline block is <script data-inline-src="x.js">). Match the
+        //     WHOLE opening-tag attr string and test data-inline-src on it FIRST — so the `src` suffix inside
+        //     `data-inline-src="…"` is never mistaken for a real external src.
+        var extSrc = [];
+        var tagRe = /<script\b([^>]*)>/gi,
+          m;
+        while ((m = tagRe.exec(html))) {
+          var attrs = m[1];
+          if (/\bdata-inline-src=/i.test(attrs)) continue; // inline block, fine
+          var sm = attrs.match(/\bsrc="([^"]+)"/i);
+          if (!sm) continue;
+          if (/^(https?:)?\/\//i.test(sm[1]) || /^data:/i.test(sm[1])) continue; // external URL is not a file:// sibling
+          extSrc.push(sm[1]);
+        }
+        T.ok(
+          n + ' · no external <script src> sibling (all inlined for file://)',
+          extSrc.length === 0,
+          extSrc.length ? 'external: ' + extSrc.join(', ') + ' — re-run tools/build-analysis.mjs' : 'all inline'
+        );
+        // (b) no `new Worker('file.js')` — must be a blob worker (throws under file:// otherwise). Ignore a
+        //     match inside a comment by requiring it NOT be preceded by `//` on the same construct — cheap
+        //     approximation: the bundled tools carry no such literal in executable code (only __mkWorker).
+        var fileWorkers = html.match(/new\s+Worker\(\s*['"][\w.-]+\.js['"]/g) || [];
+        T.ok(
+          n + ' · no new Worker(‘file.js’) (blob workers only for file://)',
+          fileWorkers.length === 0,
+          fileWorkers.length ? fileWorkers.join(', ') + ' — re-run tools/build-analysis.mjs' : 'blob workers / none'
+        );
+        // (c) if it uses __mkWorker, the shim + __WSRC map must be present (so the blob workers resolve)
+        if (/__mkWorker\(/.test(html)) {
+          var shimOK = /data-inline-src="__file-local-workers"/.test(html) && /var __WSRC\s*=/.test(html);
+          T.ok(n + ' · blob-worker shim present (__WSRC + __mkWorker defined)', shimOK, shimOK ? '' : 're-run tools/build-analysis.mjs');
+        }
+      });
+    });
+
     /* ════ 8e · SECURITY — STRICT script-src (SECURITY-CSP-STRICT-SCRIPT-SRC-2026-07-11) ════
        The inline-handler → event-delegation refactor that lets script-src drop 'unsafe-inline' in
        favour of per-block sha256 hashes. Guards the whole thing statically (the Playwright harness
