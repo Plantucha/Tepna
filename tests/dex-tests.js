@@ -3906,6 +3906,88 @@
       T.ok('every shipped bundle is named in ORIENTATION.md (roster not stale)', missing.length === 0, 'missing: ' + missing.join(', '));
     });
 
+    /* ════ DEMO-INPUTS — a shipped demo must never depend on a gitignored file ════
+     (CPAP-REAL-CORPUS-FOLLOWUPS-II §3). Every app's "load demo" button fetches from uploads/ —
+     a dir gitignored except for an explicit allow-list of SYNTHETIC fixtures (real recordings never
+     ship). A demo that names a file outside that allow-list works only on the author's disk and 404s
+     in every clone/deploy — the §M5 disease P2 already cured once, for CPAPDex. This gate closes the
+     class for the whole fleet: parse each *-app.js demo file list and assert every referenced uploads/
+     path is git-tracked. Two demo mechanisms exist and both are covered: a full 'uploads/<path>' string
+     literal (Integrator bindSamples), and a prefix-concat ARRAY.forEach(name → fetch('uploads/'+name))
+     (CPAPDex). A concat demo whose array cannot be resolved REDS (so a new mechanism can't slip through
+     unscanned). Node-lane only — needs `git ls-files` truth; the browser lane SKIPs. */
+    group('Demo-inputs — every shipped demo path is git-tracked (CPAP-REAL-CORPUS-FOLLOWUPS-II §3)', 'provenance · demo-inputs', function (T) {
+      var srcs = env.sources,
+        tracked = env.trackedFiles;
+      if (!srcs || !tracked) {
+        T.skip('env.sources + env.trackedFiles provided to the runner', 'Node-lane only — needs git ls-files truth (run-tests.mjs readTrackedFiles)');
+        return;
+      }
+      var trackedSet = Object.create(null);
+      tracked.forEach(function (p) {
+        trackedSet[p] = 1;
+      });
+      var appNames = Object.keys(srcs)
+        .filter(function (n) {
+          return /-app\.js$/.test(n);
+        })
+        .sort();
+      T.ok('app sources present to scan', appNames.length > 0, appNames.length + ' *-app.js in env.sources');
+      var totalRefs = 0;
+      appNames.forEach(function (app) {
+        var text = srcs[app];
+        var refs = Object.create(null); // path → true (dedupe)
+        // Pattern 1 — a full 'uploads/<path>' string literal (Integrator bindSamples). The bare
+        // 'uploads/' concat prefix has an empty capture and is correctly skipped ([^'"]+ needs ≥1 char).
+        var reLit = /['"]uploads\/([^'"]+)['"]/g,
+          m;
+        while ((m = reLit.exec(text))) {
+          if (m[1]) refs['uploads/' + m[1]] = true;
+        }
+        // Pattern 2 — prefix-concat demo (CPAPDex): ARRAY.forEach(function(name){ … fetch('uploads/'+name) }).
+        // Resolve the array identifier via its forEach param, then each string element is uploads/<el>.
+        var reConcat = /([A-Za-z_$][\w$]*)\.forEach\(\s*function\s*\(\s*(\w+)\s*\)\s*\{[\s\S]*?fetch\(\s*['"]uploads\/['"]\s*\+\s*\2\b/g,
+          mc,
+          concatSeen = 0;
+        while ((mc = reConcat.exec(text))) {
+          concatSeen++;
+          var arrName = mc[1];
+          var am = new RegExp('\\b' + arrName + '\\s*=\\s*\\[([\\s\\S]*?)\\]').exec(text);
+          if (!am) {
+            T.ok(
+              app + ' · concat-demo array "' + arrName + '" resolves to a literal',
+              false,
+              "fetch('uploads/'+" + mc[2] + ') found but no `' + arrName + ' = [...]` literal — extend the gate for this demo mechanism'
+            );
+            continue;
+          }
+          (am[1].match(/['"][^'"]+['"]/g) || []).forEach(function (e) {
+            refs['uploads/' + e.slice(1, -1)] = true;
+          });
+        }
+        // A concat fetch that matched no forEach-array must not slip through unscanned.
+        if (/fetch\(\s*['"]uploads\/['"]\s*\+/.test(text) && concatSeen === 0) {
+          T.ok(
+            app + " · every fetch('uploads/'+…) demo resolves to a scanned array",
+            false,
+            'a concat demo exists but the forEach-array resolver matched nothing — extend the gate for this demo mechanism'
+          );
+        }
+        Object.keys(refs)
+          .sort()
+          .forEach(function (p) {
+            totalRefs++;
+            var isTracked = !!trackedSet[p];
+            T.ok(
+              app + ' · demo input "' + p + '" is git-tracked',
+              isTracked,
+              isTracked ? '' : 'referenced by a demo but NOT git-tracked — a demo must not depend on a gitignored path (repoint it at a committed synthetic fixture)'
+            );
+          });
+      });
+      T.ok('at least one demo input scanned across the fleet', totalRefs > 0, 'no uploads/ demo references found — the scan patterns may be stale');
+    });
+
     /* ════ DOCS-LEDGER — the brief lifecycle, machine-checked (DOCS-LEDGER-GATE-2026-07-03) ════
      The last ungated contract: CLAUDE.md §📌 (immutable dated filenames in briefs/, status-in-header,
      DOCS-INDEX.md as the synced dashboard, Superseded-by/Supersedes symmetry). Pure static text checks,

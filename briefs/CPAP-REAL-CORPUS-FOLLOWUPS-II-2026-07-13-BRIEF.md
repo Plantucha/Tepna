@@ -65,6 +65,18 @@ A few lines; closes the class permanently.
 
 **Rule to encode:** *a demo must not depend on anything gitignored.*
 
+> **§3 EXECUTED 2026-07-14.** `Dex-Test-Suite.html`/`run-tests.mjs` group **"Demo-inputs"**
+> (`provenance · demo-inputs`, dex-tests.js) scans every `*-app.js` for both demo mechanisms — a full
+> `'uploads/<path>'` string literal (Integrator `bindSamples`) and a prefix-concat
+> `ARRAY.forEach(name → fetch('uploads/'+name))` (CPAPDex `DEMO_FILES`) — and asserts each referenced
+> `uploads/` path is git-tracked (`git ls-files` truth, wired via `run-tests.mjs readTrackedFiles`;
+> Node-lane only, browser SKIPs). A concat demo whose array can't be resolved REDS, so a new mechanism
+> can't slip through unscanned. The gate immediately caught a **live bug**: the Integrator demo still
+> fetched `uploads/ecgdex-2026-06-12.node-export.json` + `uploads/oxydex-2026-06-12.summary.json` — both
+> gitignored and absent (the same disease this §describes, one node over) — repointed onto the committed
+> same-night synthetic pair `uploads/trio/2026-06-12/{ECGDex,OxyDex}_2026-06-12.node-export.json`
+> (export-inert re-bundle of Integrator.html; GATE A/B green).
+
 ---
 
 ## 4 · The generated list files cost a rebase on every PR
@@ -109,7 +121,7 @@ conflict. But that is papering over committing derived data.
 
 - [ ] **P7** — a node consumes `event-coupling.js`, passing real `coverage`.
 - [ ] **P8** — `CPAPCross` demonstrably detects A4's two known change-points.
-- [ ] **§3** — a gate asserts every demo input is git-tracked.
+- [x] **§3** — a gate asserts every demo input is git-tracked. *(EXECUTED 2026-07-14 — "Demo-inputs" group; caught + fixed a live Integrator demo pointing at gitignored paths.)*
 - [ ] **§4** — the generated list files are gone (or their conflict cost is otherwise removed).
 - [ ] `Dex-Test-Suite.html?full` all-green · `verify-provenance.html` GATE A/B clean · `build.mjs --check` clean.
 - [ ] Follow-up spawned per §📌 with whatever P7/P8 turn up.
