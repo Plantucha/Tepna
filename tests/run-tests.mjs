@@ -394,6 +394,13 @@ function readEquiv() {
   pair('glucodex_synth', 'synthetic_glucodex_lingo.csv', 'synthetic_glucodex_golden.node-export.json');
   pair('ppgdex_synth', 'synthetic_ppgdex_verity.txt', 'synthetic_ppgdex_golden.node-export.json');
   pair('ecgdex_synth', 'synthetic_ecgdex_h10.txt', 'synthetic_ecgdex_golden.node-export.json');
+  // ADVERSARIAL GlucoDex twin — a COMMITTED 14 h sensor-change gap (FIXTURE-VERIFICATION-GATE-2026-07-14 §4).
+  // The clean twin above trips NO FLAG.GAP_LONG, so nothing committed exercised the long-gap path — which is
+  // exactly how DEEP-AUDIT-2026-07-14 §1 came back byte-identical on it, shipped as "export-inert", and left
+  // the REAL Lingo night's fixture stale. pairCommitted (not pair): the input is a repo artifact, so it
+  // resolves against ROOT/uploads and cannot be hidden by a DEX_UPLOADS override aimed at a real corpus —
+  // same reasoning as the OxyDex adversarial twins.
+  pairCommitted('glucodex_gap', 'synthetic_glucodex_lingo_gap.csv', 'synthetic_glucodex_gap_golden.node-export.json');
 
   // ── CPAPDex BINARY-EDF equivalence leg (CPAP-REAL-CORPUS-2026-07-11-BRIEF §P2) ──────────────
   // The fleet's FIRST equiv input that is actually COMMITTED — and therefore the first one whose

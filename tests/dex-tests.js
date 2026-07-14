@@ -5856,6 +5856,72 @@
       );
     });
 
+    /* ════ GlucoDex ADVERSARIAL GAP TWIN — the drawn line is never measured glucose (FIXTURE-VERIFICATION-GATE §4)
+     WHY A SECOND GATE, when the `_gap` equiv leg already pins this export byte-for-byte? Because a golden
+     only catches an export that moves BY ACCIDENT. A session that changes the compute path and then
+     regenerates the golden makes the equiv leg green again — which is exactly the move that is correct when
+     the change is intended, and catastrophic when it is not. So the PROPERTY has to be asserted separately
+     from the bytes: interpolation across hours the sensor never saw must NEVER be counted as measured
+     glucose, whatever the golden happens to say.
+
+     THE CONTROL IS ARITHMETIC, NOT A SHIM. The gap twin and the clean twin are the SAME 3-day curve; the
+     only difference is a 14 h hole (168 cells @ 5 min). So:
+         clean  daypart n = 216+216+216+216 = 864   (every cell is a real reading)
+         gapped daypart n = 168+216+169+144 = 697   (the 168 drawn cells are excluded — 167 after edges)
+     Pre-§1 code counted the drawn cells and reported 864 for BOTH files. Asserting `clean − gapped ≈ 168`
+     therefore reds on the old code by construction, with no mocking and no second copy of the DSP. ════ */
+    group('GlucoDex adversarial gap twin — the drawn line is never measured glucose', 'glucodex-dsp · fabricated-absence · adversarial-twin', function (T) {
+      var G = env.GlucoDex || env.GLUDSP;
+      var EQ = env.equiv || {};
+      var gapIn = EQ.glucodex_gap && EQ.glucodex_gap.input;
+      var cleanIn = EQ.glucodex_synth && EQ.glucodex_synth.input;
+      if (!G || typeof G.compute !== 'function') {
+        T.ok('env.GlucoDex.compute available', false, 'namespace not wired — gate skipped');
+        return;
+      }
+      if (!gapIn || !cleanIn) {
+        T.ok('committed gap + clean twins wired into env.equiv', false, 'both are COMMITTED inputs — they must be present in every environment, including CI');
+        return;
+      }
+      var PARTS = ['overnight', 'morning', 'afternoon', 'evening'];
+      function daypartSum(text) {
+        var r = G.compute({ text: text });
+        var d = r && r.glucose && r.glucose.daypart;
+        if (!d) return null;
+        var s = 0;
+        for (var i = 0; i < PARTS.length; i++) s += (d[PARTS[i]] && d[PARTS[i]].n) || 0;
+        return { sum: s, d: d };
+      }
+      var clean = daypartSum(cleanIn);
+      var gapped = daypartSum(gapIn);
+      T.ok('both twins produce a daypart block', !!(clean && gapped));
+      if (!clean || !gapped) return;
+
+      // control: the clean twin has NO gap, so nothing may be excluded — every 5-min cell is analyzable.
+      T.ok('control · clean twin counts every cell (864 = 4 dayparts × 216)', clean.sum === 864, 'clean daypart n sum = ' + clean.sum);
+
+      // THE INVARIANT: the 14 h hole's drawn cells are not measured glucose, so they are not counted.
+      var excluded = clean.sum - gapped.sum;
+      T.ok(
+        'gap twin EXCLUDES the interpolated cells from the daypart distributions (≈168 = 14 h ÷ 5 min)',
+        excluded >= 160 && excluded <= 172,
+        excluded + ' samples excluded (gapped ' + gapped.sum + ' vs clean ' + clean.sum + ') — pre-§1 code excluded 0 and reported 864 for BOTH'
+      );
+      // and it must never INVENT samples: no daypart may exceed its clean-twin count.
+      var inflated = PARTS.filter(function (p) {
+        return (gapped.d[p] && gapped.d[p].n) > (clean.d[p] && clean.d[p].n);
+      });
+      T.ok('no daypart reports MORE samples on the gapped file than on the clean one', inflated.length === 0, inflated.length ? 'inflated: ' + inflated.join(', ') : '');
+      // the hole straddles afternoon+evening+overnight — if it did not, the twin would not cover the block
+      // §1 actually moved, and this whole gate would be decorative.
+      T.ok(
+        'the hole lands in the dayparts §1 moved (overnight + afternoon + evening all short of 216)',
+        gapped.d.overnight.n < 216 && gapped.d.afternoon.n < 216 && gapped.d.evening.n < 216,
+        JSON.stringify({ overnight: gapped.d.overnight.n, afternoon: gapped.d.afternoon.n, evening: gapped.d.evening.n })
+      );
+      T.ok('morning is untouched (the twin is surgical, not a blanket truncation)', gapped.d.morning.n === 216, 'morning n = ' + gapped.d.morning.n);
+    });
+
     group('GlucoDex clamp-saturation honesty flag (GLUCODEX-FOLLOWUPS §2)', 'glucodex-dsp · integrator-dsp', function (T) {
       var G = env.GlucoDex || env.GLUDSP,
         A = env.adaptEnvelopeNode;
@@ -10085,13 +10151,28 @@
       // tools/make-synthetic-inputs.mjs — same vendor format, no personal data — so they are
       // COMMITTED and their diffs RUN everywhere. Same node, same run/pick/fixPick; only the input
       // (and therefore the fixture) differs, so the twin cannot drift from what it mirrors.
-      CASES = CASES.concat(
-        CASES.filter(function (c) {
-          return EQ[c.key + '_synth'];
-        }).map(function (c) {
-          return { key: c.key + '_synth', label: c.label + ' [synthetic]', node: c.node, run: c.run, pick: c.pick, fixPick: c.fixPick };
-        })
-      );
+      //
+      // ADVERSARIAL twins ride the same rail (FIXTURE-VERIFICATION-GATE-2026-07-14 §4). A CLEAN twin only
+      // proves the happy path still reproduces — it says nothing about a code path its input never trips.
+      // That is not theoretical: the clean synthetic Lingo trips no FLAG.GAP_LONG, so DEEP-AUDIT-2026-07-14
+      // §1 (which rerouted every GlucoDex distribution metric through a new GAP_LONG predicate) came back
+      // byte-identical on it, was declared EXPORT-INERT, and shipped — while the REAL Lingo night's export
+      // had moved and its fixture went stale. `_gap` is a COMMITTED input that DOES trip the flag, so that
+      // class of change now reds in CI, on its own PR, with no corpus. Add a suffix here to give any node
+      // an adversarial twin; derive from BASE so a twin can never be derived from a twin.
+      var BASE = CASES.slice();
+      [
+        { sfx: '_synth', tag: ' [synthetic]' },
+        { sfx: '_gap', tag: ' [synthetic · 14 h sensor-change gap]' }
+      ].forEach(function (t) {
+        CASES = CASES.concat(
+          BASE.filter(function (c) {
+            return EQ[c.key + t.sfx];
+          }).map(function (c) {
+            return { key: c.key + t.sfx, label: c.label + t.tag, node: c.node, run: c.run, pick: c.pick, fixPick: c.fixPick };
+          })
+        );
+      });
       CASES.forEach(function (c) {
         // Split the precondition: a missing DSP NAMESPACE is a real regression (co-load broke) → FAIL.
         // A missing committed INPUT is expected on a fresh CI clone — uploads/ raw recordings are
