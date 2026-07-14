@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-CRbiaIss441VNIdqsQL7W4Sh9zr6shLV99vG1GtcNvk=' 'sha256-E2ngOpZHvhTh+21GFums+bwu0xmN5jAymA8joA40KV8=' 'sha256-F7a0/3H9379HYkgLnOuKhb+Fy7ArsyfdzlCn1DMlZKc=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-V0C9qWkelizTKHjPEtlWmyTc4pTsPSf41HTe+Ia2y7Y=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-aQECWXwF0cvfO8NC9WRqjQT/tgbCc9DySThSGcA3R70=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ePORSzum7xy5NC5XzBfSc0DVsQn1fo0RoZOmJvTlkEw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-iNPxhp5CmUWM1ebbscxEvZ2ArYCDIRg7cLQDDAOFh/s=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-wMwFbLQvS0B0LmW6+Gs+Wh82l9r2Q/ygQM45UEBwnlE=' 'sha256-znnyGiXDcfbU3wUjydrmyWCFBC9U8tWF9ZOIH8oZ9no='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-CRbiaIss441VNIdqsQL7W4Sh9zr6shLV99vG1GtcNvk=' 'sha256-E2ngOpZHvhTh+21GFums+bwu0xmN5jAymA8joA40KV8=' 'sha256-F7a0/3H9379HYkgLnOuKhb+Fy7ArsyfdzlCn1DMlZKc=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-V0C9qWkelizTKHjPEtlWmyTc4pTsPSf41HTe+Ia2y7Y=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cW/W9EpWhmRb1iDSaUjCDMlyKKpCUjSlnkMet/Q+ess=' 'sha256-ePORSzum7xy5NC5XzBfSc0DVsQn1fo0RoZOmJvTlkEw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-iNPxhp5CmUWM1ebbscxEvZ2ArYCDIRg7cLQDDAOFh/s=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-wMwFbLQvS0B0LmW6+Gs+Wh82l9r2Q/ygQM45UEBwnlE=' 'sha256-znnyGiXDcfbU3wUjydrmyWCFBC9U8tWF9ZOIH8oZ9no='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OxyDex — Nocturnal Oximetry Analyzer · v1.0.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -10792,14 +10792,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
     try {
       window._oxyReview = null;
     } catch (_rv) {}
-    console.log(
-      '[O2Ring] handleFiles called with',
-      files.length,
-      'files:',
-      files.map(function (f) {
-        return f.name;
-      })
-    );
+    // N2 (PRIVACY-SECURITY-AUDIT-2026-07-13): removed a console.log dumping every dropped filename.
     var _rEl = safeEl('results');
     if (!_rEl) return;
     _rEl.innerHTML = '<div class="results-loading">⏳ Reading ' + files.length + ' file' + (files.length > 1 ? 's' : '') + '…</div>';
@@ -10855,7 +10848,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
           });
         });
         var nights = Object.keys(allNights);
-        console.log('[O2Ring] Parsed nights:', Object.keys(allNights).length, JSON.stringify(Object.keys(allNights)));
+        console.log('[O2Ring] Parsed nights:', Object.keys(allNights).length); // N2: dropped the date-list dump
         if (!nights.length) {
           var dbg = window._csvParseErrors && window._csvParseErrors.length ? '\n\nDebug info:\n' + window._csvParseErrors.join('\n') : '';
           var errMsg = 'No valid data found. Upload raw O2Ring CSV files (O2Ring S *.csv) or pre-processed .json/.jsonl summaries.' + dbg;
@@ -10923,11 +10916,10 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
       var reader = new FileReader();
       reader.onload = function (e) {
         try {
-          var _buf = e.target.result; // ArrayBuffer
+          var _buf = /** @type {any} */ (e.target.result); // ArrayBuffer
           var _bytes = new Uint8Array(_buf);
           // ── O2Ring native binary (.bin, or .bin renamed to .txt) ──
           if (isO2RingBin(_bytes)) {
-            console.log('[O2Ring] Detected native binary format:', file.name, _bytes.length, 'bytes');
             var _binCsv = decodeO2RingBinToCSV(_bytes, file.name, file);
             var _binRows = parseCSV(_binCsv, { fname: file.name, file: file });
             if (!_binRows || _binRows.length < 60) {
@@ -10939,7 +10931,6 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
           }
           // ── Text formats (CSV / JSON / JSONL) — decode UTF-8 (== old readAsText) ──
           var text = new TextDecoder('utf-8').decode(_buf).trim();
-          console.log('[O2Ring] readFile:', file.name, 'length:', text.length, 'first50:', text.substring(0, 50));
           // Auto-detect: JSON/JSONL (pre-processed summaries) vs raw CSV
           if (text.charAt(0) === '{' || text.charAt(0) === '[') {
             // ── SELF-INGEST: route OxyDex's OWN ganglior.node-export envelope (SELF-INGEST-2026-06-27) ──
@@ -11000,9 +10991,8 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
           // (0-is-falsy drops, key-trim mismatches, ReferenceErrors). To reload an analyzed night,
           // use its .json export — parseJSONL / single-JSON round-trips the full night losslessly.
           var cleanText = text.replace(/^[\uFEFF\r\n\s]+/, '');
-          console.log('[O2Ring] cleanText starts:', cleanText.substring(0, 60));
+          // N2: removed console.log of raw cleanText bytes.
           if (cleanText.indexOf('OxyDex Night Summary') === 0 || cleanText.indexOf('O2Ring Night Summary') === 0) {
-            console.log('[O2Ring] Summary CSV detected — export-only format, not re-imported');
             if (!window._csvParseErrors) window._csvParseErrors = [];
             window._csvParseErrors.push(
               file.name + ': this is a human-readable summary CSV (export-only). ' + 'To reload a night, use its .json export. Raw O2Ring CSVs and .json/.jsonl still import normally.'
@@ -13659,14 +13649,14 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
       return r.hr;
     });
     nadirEvents.forEach(function (ev) {
-      ev.onset = ev.startIdx;
+      /** @type {any} */ (ev).onset = ev.startIdx;
       selfGateDesat(ev, pulseSeries, spo2);
     });
     var artifactCount = nadirEvents.filter(function (e) {
-      return e.artifact;
+      return /** @type {any} */ (e).artifact;
     }).length;
     var realEvents = nadirEvents.filter(function (e) {
-      return !e.artifact;
+      return !(/** @type {any} */ (e).artifact);
     });
     var meanRecovery = realEvents.length
       ? +(
@@ -16481,6 +16471,12 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
   OxyDex.trimSensorWarmup = trimSensorWarmup;
   OxyDex.cleanArtifactHR = cleanArtifactHR; // exposed for the OXYDEX-HR-ARTIFACT-RUNAWAY-FIX regression gate
   OxyDex.computeGatedNadir = computeGatedNadir; // exposed for the OXYDEX-NADIR-HONESTY regression gate
+  // TRIO-BATCH-O2RING-DAT: the O2Ring writes a native .dat beside the vendor CSV, and when the CSV
+  // export stops the .dat is all that survives. The browser drop path already decodes it; compute()
+  // takes {samples|rows|text} and never bytes, so a headless caller (tools/trio-batch.mjs) needs the
+  // SAME decoder rather than a second copy of the 3-byte layout / 0xFFFF trailer / motion×2 rules.
+  OxyDex.isO2RingBin = isO2RingBin;
+  OxyDex.decodeO2RingBinToCSV = decodeO2RingBinToCSV;
 
   // ── public namespace (always) ──
   root.OxyDex = OxyDex;

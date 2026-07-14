@@ -5,7 +5,7 @@
   "alternateName": "Tepna — the Dex Suite",
   "applicationCategory": "HealthApplication",
   "operatingSystem": "Any (modern web browser)",
-  "softwareVersion": "1.9.0",
+  "softwareVersion": "1.10.0",
   "url": "https://tepna.net/",
   "codeRepository": "https://github.com/Plantucha/Tepna",
   "description": "A fleet of local-only, single-signal physiological analyzers. Read one raw biosignal from a wearable you own — oxygen, heartbeat, pulse, glucose — derive evidence-graded metrics, and fuse across signals. 100% in your browser: no upload, no account.",
