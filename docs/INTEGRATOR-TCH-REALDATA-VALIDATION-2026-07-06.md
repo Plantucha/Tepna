@@ -1,6 +1,7 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** REFERENCE (living validation note) · **Created:** 2026-07-06 · **last-verified:** 2026-07-10
-· **Executes:** `briefs/INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md` §1 (real-data ρ validation)
+**Status:** REFERENCE (living validation note) · **Created:** 2026-07-06 · **last-verified:** 2026-07-13
+· **Executes:** `briefs/INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md` §1 (real-data ρ validation
+— **CLOSED 2026-07-13, see §11**: the real 17-night distribution + magnitude check landed; residue → FU-IV)
 
 # Three-cornered-hat — real-data validation (Integrator TCH · ρ-from-motion · reference-free σ)
 
@@ -305,10 +306,76 @@ swap the N=3 estimator. Route the ML-TCH / least-squares-AVAR path to the **N-co
 over-determination is what makes it pay off — it lands with EEGDex / a ≥4-sensor co-recording, not before.
 Harness: `node tools/tch-estimator-bakeoff.mjs` (deterministic, analysis-only — does not touch `integrator-tch.js`).
 
+## 11. The real multi-night distribution (2026-07-13) — §1's owed leg, executed on committed nights
+§7 built the harness and §1 owed the **real** distribution + reference-anchored magnitude check. The trio
+node-export triples are now committed (**17 nights**, `uploads/trio/<date>/{ECGDex,PpgDex,OxyDex}_*.node-export.json`),
+so this ran end-to-end through the shipped kernel:
+
+```sh
+node tools/tch-multinight.mjs --selftest      # 30/30 known-answer checks green
+node tools/tch-multinight.mjs --dir uploads/trio
+```
+
+**Distribution — 17/17 nights solve** (no `classic-clamped` failures, no insufficient-overlap drops).
+Per-corner medians, and the two independent anchors from §2 (the 10-night reference-free estimate) and §8
+(published wearable-HR validation):
+
+| corner (device) | median σ classic | **median σ ρ-on** | §2 corpus anchor | §8 literature anchor |
+|---|---|---|---|---|
+| ECGDex (H10) | 0.64 | **0.95** bpm | 0.9 | criterion device (most accurate) |
+| OxyDex (O2Ring) | 1.03 | **1.19** bpm | 1.4 | — |
+| PpgDex (Verity) | 1.85 | **1.85** bpm | 2.8 | ≈1.8 (MAE 1.43 → σ=MAE·√(π/2)) |
+
+Median culprit σ (ρ-on) = **3.20 bpm**. **The magnitude check PASSES on both anchors:** the *ranking* is
+preserved (H10 < O2Ring < Verity — the criterion device is the quietest corner, arm-PPG the loudest), and the
+Verity corner's 1.85 bpm sits essentially on §8's independent literature σ-equivalent of ≈1.8. The 24-night
+superset (the 17 committed + 7 further nights present on the capture host but not committed) tells the same
+story: 24/24 solve, medians 0.79 / 1.08 / 2.20 bpm, median culprit σ 3.32.
+
+**The rescue reproduces — and its failures have ONE identified cause.** The quiet-order regime hit **7 of the
+17** nights. The per-night motion-ρ rescued **4** of them; 2026-07-06 reproduced §6 almost exactly (OxyDex
+σ 0.04 → 1.00 bpm here vs the ad-hoc 0.03 → 1.02, the difference being the harness's 30-s epoch binning):
+
+| night | ρ_motion | ρ needed | quiet corner: classic → ρ-on | outcome |
+|---|---|---|---|---|
+| 2026-06-11 | 0.77 | 0.77 | OxyDex 0.02 → **1.02** | rescued |
+| 2026-06-15 | 0.79 | 0.79 | ECGDex 0.01 → **2.13** | rescued |
+| 2026-06-16 | 0.90 | 0.90 | PpgDex 0.01 → **1.29** | rescued |
+| 2026-07-06 | 0.64 | 0.64 | OxyDex 0.04 → **1.00** | rescued (the §6 night) |
+| 2026-06-24 | **0.04** | 0.69 | OxyDex 0.07 → 0.07 | not rescued — ρ fell through |
+| 2026-06-29 | **0.39** | 0.39 | OxyDex 0.04 → 0.13 | not rescued — ρ applied but too small |
+| 2026-07-05 | **0.37** | 0.59 | PpgDex 0.01 → 0.01 | not rescued — ρ fell through |
+
+**§7's dilution hypothesis is CONFIRMED, and it is the whole story.** On every rescued night the measured
+ρ_motion (0.64–0.90) exceeded the ρ the geometry needs; on every failed night it fell short (0.04–0.39 against
+a required 0.59–0.69). When the supplied ρ is too small to yield a non-negative solve, `threeCorneredHat`
+(`integrator-tch.js:275`) **falls through** the `correlated-external` branch into the auto `correlated` min-ρ
+search — which is **boundary-seeking by construction**: it returns the *smallest* ρ restoring non-negativity, so
+it pins the quiet corner's σ at the ≈0.0x boundary. The failure is therefore **not** in the kernel (it is
+behaving as designed, and it flags the night via `quietOrderUncertain`) but in the **ρ estimate feeding it**:
+`_tchRhoFromMotion`'s mean-of-positive-pairwise-ρ dilutes exactly when one pair is tightly coupled, which is the
+quiet-order shape itself. This promotes §7's **coupled-pair-weighted ρ** from a *candidate* refinement to an
+**indicated** one, with a concrete target — lift ρ on those nights into the 0.6–0.7 band the geometry requires.
+It also dovetails with §10's bake-off conclusion (no HR-only estimator escapes the quiet-order ambiguity — only
+*external* ρ does), which is precisely why the quality of that external ρ is now the binding constraint.
+Carried to `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-IV-2026-07-13-BRIEF.md` §1.
+
+**Two nights look like artifacts, not physiology.** 2026-06-12 recovers σ[ECGDex] = **8.64 bpm** — the H10 is the
+*criterion* device (§8), so an 8.6 bpm chest-strap σ is not credible; the untracked 2026-07-04 similarly gives
+σ[PpgDex] = 10.5 bpm. Both are far outside every anchor and most likely reflect an alignment or beat-detection
+failure on one corner rather than a genuinely noisy sensor. They are the intended prey of the cross-corner
+consensus gate proposed in `TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md`; recorded here so that brief
+lands with two known positives to test against.
+
+**Scope note.** Analysis-only — this section ran committed tooling against committed inputs and changed no
+runtime code, so no bundle, `manifestHash`, or fixture moved.
+
 ## Cross-references
 - `tools/tch-estimator-bakeoff.mjs` — the §10 estimator bake-off (ML-TCH/GCOV vs min-ρ clamp).
 - `tools/tch-multinight.mjs` — the committed multi-night A/B harness (§7); `node tools/tch-multinight.mjs --selftest`.
-- `briefs/INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md` §1 (this executes its premise leg).
+- `briefs/INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md` §1 (this executes it — premise leg §5/§6, closed by §11).
+- `briefs/INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-IV-2026-07-13-BRIEF.md` — the residue §11 spawned (coupled-pair-weighted ρ).
+- `uploads/trio/<date>/` — the 17 committed trio node-export triples §11's distribution runs on.
 - `sensor-trio-power-analysis.html` / `sensor-trio-worker.js` (the real-data arm + production PPGDSP corner).
 - `papers/sensor-trio-nights.html` (the power/sample-size preprint this real corpus feeds).
 - Integrator TCH: `integrator-dsp.js` `_tchHat` / `_tchRhoFromMotion` / `fuseHRVConsensus`.

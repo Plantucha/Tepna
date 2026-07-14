@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-07 (§1 premise VALIDATED 2026-07-06; **end-to-end A/B through the Integrator's OWN `threeCorneredHat` — with a DEMONSTRATED RESCUE**. On real user-provided node exports for 2026-07-06 (all three: ECGDex+PpgDex+OxyDex), the canonical run lands in the **quiet-order / negative-variance** regime (H10↔OxyDex r=0.90); classic drives the smoothed OxyDex σ to a pathological **0.03 bpm**, and a **real measured co-motion ρ=0.655** (Verity↔OxyDex `motionIndex`) **rescues it to 1.02 bpm** — first end-to-end evidence that a motion-derived ρ corrects the quiet-order under-estimate the reference-free path can't. See `docs/INTEGRATOR-TCH-REALDATA-VALIDATION-2026-07-06.md` §5–§6. Mechanism ✓ + rescue ✓ on one night; a distribution/reference-anchored magnitude check wants more trio nights. **2026-07-10: the ad-hoc §5/§6 runs are now a COMMITTED reproducible harness — `tools/tch-multinight.mjs`** (multi-night classic-vs-motion-ρ A/B through the shipped `IntegratorTCH` kernel; `--selftest` reproduces the §6 rescue as a deterministic known-answer distribution across 6 synthetic nights [30/30 checks green], `--dir` ingests real trio node-export triples via the identical path). The real multi-night distribution is now **data-gated, not code-gated** — it needs more nights' three node-export JSONs committed. §4 N-cornered EEGDex-blocked.) · **Created:** 2026-07-06 · **Executed-residue-of:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II-2026-07-04-BRIEF.md` (DONE 2026-07-06) · **Extends:** `INTEGRATOR-BUILD-BRIEF.md` §4.4 `fuseHRVConsensus`
+**Status:** DONE — 2026-07-13 (**§1 CLOSED 2026-07-13** — the owed real multi-night distribution + reference-anchored magnitude check LANDED through the committed harness on the 17 committed trio nights: **17/17 solve**; median σ ECGDex **0.95** / OxyDex **1.19** / PpgDex **1.85** bpm — the ranking is preserved (criterion H10 the quietest corner, arm-PPG the loudest) and the Verity corner lands on §8's independent literature anchor (≈1.8). The quiet-order regime hit 7/17 nights and the motion-ρ **rescued 4**, reproducing §6 (2026-07-06: OxyDex σ 0.04 → 1.00 bpm). The 3 failures share ONE identified cause, and it **CONFIRMS §7's dilution hypothesis**: ρ_motion (0.04–0.39) fell short of the ρ the geometry needs (0.59–0.69), so `threeCorneredHat` fell through the `correlated-external` branch into the boundary-seeking min-ρ search, which pins the quiet corner at ≈0 **by construction**. The kernel behaves as designed — the binding constraint is the **ρ estimate feeding it**. Write-up: `docs/INTEGRATOR-TCH-REALDATA-VALIDATION-2026-07-06.md` **§11**. **§2/§3** (LOW optional golden polish) and **§4** (N-cornered — still blocked on EEGDex / a ≥4-sensor co-recording) are **explicitly RE-DEFERRED**, and the now-*indicated* coupled-pair-weighted ρ is spawned, in `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-IV-2026-07-13-BRIEF.md` — satisfying this brief's own DONE criterion ("flip to DONE once the §1 A/B lands and §4 is either executed or explicitly re-deferred"). · **Prior history:** §1 premise VALIDATED 2026-07-06; **end-to-end A/B through the Integrator's OWN `threeCorneredHat` — with a DEMONSTRATED RESCUE**. On real user-provided node exports for 2026-07-06 (all three: ECGDex+PpgDex+OxyDex), the canonical run lands in the **quiet-order / negative-variance** regime (H10↔OxyDex r=0.90); classic drives the smoothed OxyDex σ to a pathological **0.03 bpm**, and a **real measured co-motion ρ=0.655** (Verity↔OxyDex `motionIndex`) **rescues it to 1.02 bpm** — first end-to-end evidence that a motion-derived ρ corrects the quiet-order under-estimate the reference-free path can't. See `docs/INTEGRATOR-TCH-REALDATA-VALIDATION-2026-07-06.md` §5–§6. Mechanism ✓ + rescue ✓ on one night; a distribution/reference-anchored magnitude check wants more trio nights. **2026-07-10: the ad-hoc §5/§6 runs are now a COMMITTED reproducible harness — `tools/tch-multinight.mjs`** (multi-night classic-vs-motion-ρ A/B through the shipped `IntegratorTCH` kernel; `--selftest` reproduces the §6 rescue as a deterministic known-answer distribution across 6 synthetic nights [30/30 checks green], `--dir` ingests real trio node-export triples via the identical path). The real multi-night distribution is now **data-gated, not code-gated** — it needs more nights' three node-export JSONs committed. §4 N-cornered EEGDex-blocked.) · **Created:** 2026-07-06 · **Executed-residue-of:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II-2026-07-04-BRIEF.md` (DONE 2026-07-06) · **Extends:** `INTEGRATOR-BUILD-BRIEF.md` §4.4 `fuseHRVConsensus`
 
 # Integrator three-cornered-hat — follow-ups III (real-data validation · N-cornered generalization)
 
@@ -22,7 +22,7 @@
 
 ---
 
-## §1 — real-data ρ validation (FU-II §4) — ◐ PREMISE VALIDATED 2026-07-06
+## §1 — real-data ρ validation (FU-II §4) — ✅ EXECUTED / CLOSED 2026-07-13 (docs §11)
 > **EXECUTED (premise leg) — write-up `docs/INTEGRATOR-TCH-REALDATA-VALIDATION-2026-07-06.md`.** A real
 > co-recorded O2Ring + Polar H10 + Verity Sense corpus (20 trio-eligible nights 2026-06-10’07-05) was
 > processed through `sensor-trio-power-analysis.html` (production `PPGDSP` Verity corner + the same TCH
@@ -81,7 +81,21 @@ upper-arm MAE 1.43 bpm → σ-equiv ≈1.8 via σ=MAE·√(π/2); Schweizer & Gi
 `10.2196/67110`). MAE≠σ and it's a single external anchor, so this does NOT retire the committed-trio
 distribution — but it confirms 2.8 bpm is a physically plausible arm-PPG σ. Details + citations in docs §8.
 
-## §2 — a real-signal (not in-code) golden variant, once a synth raw-ECG generator exists 🟢 (LOW)
+**CLOSED 2026-07-13 — the committed-trio distribution landed (docs §11).** With 17 trio nights now committed,
+`node tools/tch-multinight.mjs --dir uploads/trio` produced the owed distribution through the shipped kernel:
+**17/17 nights solve**; median σ **ECGDex 0.95 / OxyDex 1.19 / PpgDex 1.85 bpm**, preserving the ranking (the
+criterion H10 is the quietest corner) and landing the Verity corner on §8's independent literature anchor (≈1.8)
+— so the **magnitude check passes on both anchors** and §1's "distribution + reference-anchored magnitude" ask is
+met. The rescue reproduced (quiet-order on 7/17 nights; motion-ρ rescued 4, incl. the §6 night at OxyDex σ
+0.04 → 1.00 bpm). **The 3 failures are the payload:** ρ_motion (0.04–0.39) fell *short* of the ρ the geometry
+requires (0.59–0.69), so `threeCorneredHat` (`integrator-tch.js:275`) fell through the `correlated-external`
+branch into the auto min-ρ search — which is boundary-seeking and therefore pins the quiet corner at ≈0 *by
+construction*. This **confirms the §7 dilution hypothesis** (mean-of-positive-pairwise-ρ under-reads exactly in
+the quiet-order shape) and promotes the **coupled-pair-weighted ρ** from candidate to **indicated** → carried to
+`INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-IV-2026-07-13-BRIEF.md` §1. Analysis-only: no runtime code, bundle,
+`manifestHash`, or fixture moved.
+
+## §2 — a real-signal (not in-code) golden variant, once a synth raw-ECG generator exists 🟢 (LOW) — RE-DEFERRED 2026-07-13 → FU-IV §2
 The §2 golden rebuilds its three inputs **in-code** (the `cpapdex_synthetic_golden` precedent) — deliberately, so
 it gates on Integrator code alone. The heavier "run each node's real `compute()` on co-recorded raw streams"
 path (FU-II §2 Approach B) was NOT taken because (a) no synthetic **raw-ECG** generator exists (`synth-gen.js`
@@ -90,7 +104,7 @@ generator lands (or a real co-recorded night arrives, cf §1), a SECOND golden p
 computes would additionally pin the node→Integrator seam end-to-end. Optional; the in-code golden already closes
 the "fusion has no code-gated fixture" hole.
 
-## §3 — a classic-solve (ρ-null) golden leg for σ² magnitude recovery 🟢 (LOW)
+## §3 — a classic-solve (ρ-null) golden leg for σ² magnitude recovery 🟢 (LOW) — RE-DEFERRED 2026-07-13 → FU-IV §2
 The committed golden's `correlated-external` solve (ρ=0.356) recovers the culprit ORDER (OxyDex noisiest) but
 **compresses** the σ² magnitudes (planted {1, 4.8, 20} → recovered {7.2, 11.6, 12.5}) — inherent to the
 common-mode subtraction. A second in-code golden with **uncorrelated** motion (→ ρ null → classic solve) would
@@ -98,7 +112,13 @@ pin the near-exact magnitude recovery {≈1, ≈4.8, ≈20} as a complementary r
 local — but low value (the estimator's magnitude recovery is already unit-gated by `5e`/`5f`). Do only if a
 magnitude-pinned golden is wanted.
 
-## §4 — N-cornered hat (3 → N sensors), from FU-I §4 [blocked] 🟡
+## §4 — N-cornered hat (3 → N sensors), from FU-I §4 [blocked] 🟡 — EXPLICITLY RE-DEFERRED 2026-07-13 → FU-IV §3
+> **Re-deferral (2026-07-13, the condition this brief's DONE stamp required).** §4 is **not** executed and is
+> **not** dropped: it remains blocked on the same two unmet preconditions — a real **≥4-sensor co-recording** and
+> **EEGDex shipping** (`EEGDEX-BUILD-BRIEF.md`) — neither of which moved. Nothing learned in §1's real-data run
+> changes that (docs §10 reinforces it: ML-TCH's advantages only materialize at N≥4). The section is carried
+> **verbatim** to `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-IV-2026-07-13-BRIEF.md` §3 so it survives this DONE
+> stamp, exactly as FU-I §4 survived FU-I's.
 The estimator is fixed at THREE sensors (classic Gray–Allan closed form). **Blocked on** a real ≥4-sensor
 co-recording (a 2nd PPG site / a second Verity / a Muse S PPG channel) AND, for the EEGDex corner, on **EEGDex
 shipping** (`EEGDEX-BUILD-BRIEF.md`). When unblocked: add a sibling `nCorneredHat(seriesList, opts)` (least-
@@ -125,6 +145,12 @@ quiet-order regime + σ recovery — see the docs write-up). What's left: §1's 
 blocked); §2 + §3 are LOW optional polish on the already-gated golden; §4 (N-cornered) remains blocked on
 EEGDex / a ≥4-sensor co-recording. Flip this brief to DONE once the §1 A/B lands (or is consciously dropped)
 and §4 is either executed or explicitly re-deferred.
+
+**SATISFIED 2026-07-13 → DONE.** §1's A/B **landed** on the 17 committed trio nights (docs §11), and §4 is
+**explicitly re-deferred** above (both preconditions still unmet) — the two stated conditions, met. §2/§3 stay
+LOW-optional and ride to FU-IV with §4. The one genuinely new finding — the confirmed ρ-dilution, which makes
+the coupled-pair-weighted `_tchRhoFromMotion` an *indicated* change rather than a speculative one — is the
+follow-up brief's headline.
 
 ## Scope guard
 Integrator-local + additive when eventually executed. Must NOT touch the shared `parseTimestamp` (Clock-Contract
