@@ -349,5 +349,6 @@ role tag. When a brief is fully executed and superseded, move it to `docs-archiv
 single brief.
 
 Every relative link in this file is gate-checked (`docs-ledger` check 4 — CLAUDE.md §📌): a `briefs/` link resolves against the real brief set (4a), and every other `docs/·audits/·wiring/·root` link resolves
-against a whole-tree path inventory (4b). If you move or rename a linked file, fix the link **and** run
-`node tests/gen-docs-ledger-list.mjs` so the inventory stays fresh — the Node lane reds a stale list.
+against a whole-tree path inventory (4b) the Node lane recomputes from disk on each run. If you move or
+rename a linked file, just fix the link — there is no committed inventory to regenerate (the gate reads the
+tree straight from the filesystem; CPAP-REAL-CORPUS-FOLLOWUPS-II §4).

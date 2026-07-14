@@ -27,7 +27,6 @@ import { walkRepoPaths } from './docs-ledger-fs.mjs';
 import { planShards, partitionViolations, readTimings } from './shard-plan.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const { parseList } = createRequire(import.meta.url)('./list-format.js');
 const ROOT = join(__dirname, '..');
 
 /* Corpus root (G1 · EFFICIENCY-AUDIT-FINDINGS-2026-07-12). The raw recordings under uploads/ are
@@ -604,9 +603,11 @@ function readBundleCsp() {
   return out;
 }
 
-// docs-ledger gate (DOCS-LEDGER-GATE-2026-07-03): the brief lifecycle, machine-checked. Node lane has
-// full fs truth — read every briefs/*.md, DOCS-INDEX.md, the root *-BRIEF.md set, AND the committed
-// tests/docs-ledger-list.txt (the browser lane's name source) so the group can assert list == fs.
+// docs-ledger gate (DOCS-LEDGER-GATE-2026-07-03): the brief lifecycle, machine-checked. Node-lane only
+// (the lane CI runs) — full fs truth: read every briefs/*.md, DOCS-INDEX.md, the root *-BRIEF.md set, and
+// recompute the whole-tree path inventory from disk. No committed list mirror: the browser lane can't list
+// a directory, so it SKIPs this gate rather than carry a snapshot every PR would have to regenerate
+// (CPAP-REAL-CORPUS-FOLLOWUPS-II §4).
 function readDocsLedger() {
   const bdir = join(ROOT, 'briefs');
   if (!existsSync(bdir)) return null;
@@ -620,36 +621,24 @@ function readDocsLedger() {
   const rootBriefNames = readdirSync(ROOT)
     .filter((f) => /-BRIEF\.md$/.test(f))
     .sort();
-  let listedBriefNames = [],
-    listedPaths = [];
-  const listP = join(ROOT, 'tests', 'docs-ledger-list.txt');
-  if (existsSync(listP)) {
-    try {
-      const j = parseList(readFileSync(listP, 'utf8')); // sorts + dedupes a union merge's output (D2)
-      listedBriefNames = j.brief || [];
-      listedPaths = j.path || [];
-    } catch (e) {
-      /* stale/broken → staleness check reds */
-    }
-  }
-  // fsPaths — the whole-tree link inventory recomputed from disk (F2). Authoritative in the Node lane:
-  // check4b resolves against it AND the staleness leg asserts listedPaths == fsPaths (a stale committed
-  // list reds in CI, exactly like the brief-name list). Same shared walker the generator uses.
+  // fsPaths — the whole-tree link inventory recomputed from disk (F2); check4b resolves DOCS-INDEX +
+  // root-doc links against it.
   const fsPaths = walkRepoPaths(ROOT);
   // X3 (EFFICIENCY-AUDIT-FINDINGS-2026-07-12): the OTHER root docs, so check4b's markdown-link
   // resolution extends from DOCS-INDEX.md to the whole constitution set (a moved target the prose
-  // missed is otherwise ungated). Browser lane fetches the same set.
+  // missed is otherwise ungated).
   const rootDocs = {};
   for (const f of ['README.md', 'CLAUDE.md', 'ARCHITECTURE-PRINCIPLES.md', 'ORIENTATION.md', 'CONTRIBUTING.md', 'AUDIT-PROMPT.md']) {
     const p = join(ROOT, f);
     if (existsSync(p)) rootDocs[f] = readFileSync(p, 'utf8');
   }
-  return { briefs, indexText, rootBriefNames, fsBriefNames, listedBriefNames, fsPaths, listedPaths, rootDocs };
+  return { briefs, indexText, rootBriefNames, fsBriefNames, fsPaths, rootDocs };
 }
 
-// release-ledger gate (CONTROLLED-RELEASES-2026-07-05): controlled releases machine-checked. Node lane
-// has fs truth — read suite.manifest.json, RELEASE-MANIFEST.json, CHANGELOG.md, every real changes/*.md,
-// AND the committed tests/changes-list.txt (the browser lane's name source) so the group asserts list==fs.
+// release-ledger gate (CONTROLLED-RELEASES-2026-07-05): controlled releases machine-checked. Node-lane
+// only (the lane CI runs) — fs truth: read suite.manifest.json, RELEASE-MANIFEST.json, CHANGELOG.md and
+// every real changes/*.md. No committed changes-list.txt mirror (CPAP-REAL-CORPUS-FOLLOWUPS-II §4): the
+// browser lane can't list changes/, so it SKIPs this gate rather than carry a per-PR-regenerated snapshot.
 function readReleaseLedger() {
   const manP = join(ROOT, 'suite.manifest.json'),
     relP = join(ROOT, 'RELEASE-MANIFEST.json');
@@ -666,15 +655,6 @@ function readReleaseLedger() {
     fsChangeNames = readdirSync(cdir).filter(isChangeset).sort();
     for (const n of fsChangeNames) changeFiles[n] = readFileSync(join(cdir, n), 'utf8');
   }
-  let listedChangeNames = [];
-  const listP = join(ROOT, 'tests', 'changes-list.txt');
-  if (existsSync(listP)) {
-    try {
-      listedChangeNames = parseList(readFileSync(listP, 'utf8')).change || [];
-    } catch (e) {
-      /* stale/broken → staleness check reds */
-    }
-  }
   // check-6 surfaces (CONTROLLED-RELEASES-FOLLOWUPS F2/F3/F4): raw text of every version-carrying surface;
   // the gate extracts + compares to canonical (single-sourced there so this lane and the browser lane can't drift).
   const surfaceTexts = {};
@@ -682,7 +662,7 @@ function readReleaseLedger() {
     const sp = join(ROOT, s);
     if (existsSync(sp)) surfaceTexts[s] = readFileSync(sp, 'utf8');
   }
-  return { manifestText, releaseText, changelogText, changeFiles, fsChangeNames, listedChangeNames, surfaceTexts };
+  return { manifestText, releaseText, changelogText, changeFiles, fsChangeNames, surfaceTexts };
 }
 
 // discoverability-cohesion (REPO-DISCOVERABILITY-FOLLOWUPS §5.2) — suite.manifest.json roster ≡

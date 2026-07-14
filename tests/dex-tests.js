@@ -3992,17 +3992,18 @@
      The last ungated contract: CLAUDE.md §📌 (immutable dated filenames in briefs/, status-in-header,
      DOCS-INDEX.md as the synced dashboard, Superseded-by/Supersedes symmetry). Pure static text checks,
      fed via env.docsLedger (a DISTINCT key from the flat env.docs text-map the badge/roster groups use):
-       { briefs:{name:text}, indexText, rootBriefNames:[], fsBriefNames:[]|null, listedBriefNames:[] }
-     Node lane supplies fsBriefNames (fs.readdirSync) for the staleness check; the browser lane fetches
-     names from tests/docs-ledger-list.txt (fetch can't list a dir). Absent env → SKIP (older runners
-     stay green). Grandfather rule (parallels check 6): pre-2026-07-03 / undated legacy briefs predate the
+       { briefs:{name:text}, indexText, rootBriefNames:[], fsBriefNames:[], fsPaths:[], rootDocs:{} }
+     NODE-LANE ONLY (CPAP-REAL-CORPUS-FOLLOWUPS-II §4): the runner reads briefs/ + the whole tree straight
+     from fs — there is no committed list mirror. The browser lane can't list a directory, so env.docsLedger
+     is absent there and this gate SKIPs (CI runs the Node lane). Absent env → SKIP (older runners stay
+     green). Grandfather rule (parallels check 6): pre-2026-07-03 / undated legacy briefs predate the
      lifecycle standardization — 55 are headerless by history; NOT fabricated a status (CLAUDE.md §🧪 —
      never stamp DONE on unverified work). v1 check-4 scope = briefs/ links (the 2026-07-03 repoint guard);
      broader-tree link integrity is a documented follow-up. */
     group('Docs-ledger — brief lifecycle machine-checked (DOCS-LEDGER-GATE)', 'docs · docs-ledger', function (T) {
       var DL = env.docsLedger;
       if (!DL || !DL.briefs || DL.indexText == null) {
-        T.skip('env.docsLedger provided to the runner', 'wire env.docsLedger (run-tests.mjs readDocsLedger + Dex-Test-Suite fetch of tests/docs-ledger-list.txt)');
+        T.skip('env.docsLedger provided to the runner', 'Node-lane only (run-tests.mjs readDocsLedger, fs truth) — the browser lane can’t list briefs/ so it SKIPs; CI runs the Node lane');
         return;
       }
       var CUTOFF = '2026-07-03'; // lifecycle-standardization date (CLAUDE.md §📌)
@@ -4121,9 +4122,9 @@
       T.ok('check4a · every ](briefs/\u2026) link in DOCS-INDEX resolves to a real brief', deadLinks.length === 0, deadLinks.length ? 'dead: ' + deadLinks.slice(0, 8).join(', ') : 'all resolve');
 
       // ── CHECK 4b · WHOLE-TREE link integrity (DOCS-LEDGER-GATE-FOLLOWUPS §F2) — every OTHER relative
-      //    DOCS-INDEX link (docs/·audits/·wiring/·papers/·root) resolves against the repo path inventory:
-      //    Node lane = fsPaths (fs truth); browser lane = committed docs-ledger-list.txt path entries. External
-      //    (scheme / //), same-page (#…) and empty targets are ignored; %20 &c. decoded before lookup. ──
+      //    DOCS-INDEX link (docs/·audits/·wiring/·papers/·root) resolves against the repo path inventory
+      //    (DL.fsPaths, the Node lane's fs walk). External (scheme / //), same-page (#…) and empty targets
+      //    are ignored; %20 &c. decoded before lookup. ──
       function relLinkTargets(text) {
         var re = /\]\(([^)]+)\)/g,
           m,
@@ -4143,9 +4144,9 @@
         }
         return out;
       }
-      var inv4 = DL.fsPaths || DL.listedPaths || null;
+      var inv4 = DL.fsPaths || null;
       if (!inv4) {
-        T.skip('check4b · repo path inventory available (F2)', 'no fsPaths/listedPaths wired');
+        T.skip('check4b · repo path inventory available (F2)', 'no fsPaths wired');
       } else {
         var invSet4 = {};
         inv4.forEach(function (p) {
@@ -4229,33 +4230,11 @@
       });
       T.ok('check6 · briefs Created \u2265 ' + CUTOFF + ' use -YYYY-MM-DD-BRIEF.md matching Created', c6.length === 0, c6.length ? c6.slice(0, 8).join('; ') : 'ok');
 
-      // ── STALENESS · the browser lane's docs-ledger-list.txt must match briefs/ on disk (Node lane has fs truth) ──
-      if (DL.fsBriefNames) {
-        var fsJoin = DL.fsBriefNames.slice().sort().join('\n'),
-          listJoin = (DL.listedBriefNames || []).slice().sort().join('\n');
-        T.ok(
-          'staleness · tests/docs-ledger-list.txt matches briefs/ on disk (regen via tests/gen-docs-ledger-list.mjs on add/remove)',
-          fsJoin === listJoin,
-          fsJoin === listJoin ? DL.fsBriefNames.length + ' briefs in sync' : 'list is STALE vs fs'
-        );
-      } else {
-        T.ok(
-          'browser lane · brief set loaded from docs-ledger-list.txt (Node lane asserts list==fs)',
-          names.length > 0 && (DL.listedBriefNames || []).length === names.length,
-          names.length + ' briefs'
-        );
-      }
-      // paths[] staleness (F2) — same device for the whole-tree inventory: Node lane asserts the committed
-      // list == the fs walk, so a forgotten regen after adding/moving/renaming any linkable file reds CI.
-      if (DL.fsPaths) {
-        var pFs = DL.fsPaths.slice().sort().join('\n'),
-          pList = (DL.listedPaths || []).slice().sort().join('\n');
-        T.ok(
-          'staleness · docs-ledger-list.txt path entries matches the repo tree (regen via tests/gen-docs-ledger-list.mjs)',
-          pFs === pList,
-          pFs === pList ? DL.fsPaths.length + ' paths in sync' : 'paths[] STALE vs fs (' + DL.fsPaths.length + ' fs / ' + (DL.listedPaths || []).length + ' listed)'
-        );
-      }
+      // ── FLOOR · the brief set was actually loaded from fs (a non-vacuous gate). CPAP-REAL-CORPUS-
+      //    FOLLOWUPS-II §4 retired the committed-list staleness legs: there is no docs-ledger-list.txt to
+      //    keep in sync any more — the runner reads briefs/ + the tree straight from disk, so every check
+      //    above already runs on fs truth. This asserts that truth is non-empty (not a vacuous pass). ──
+      T.ok('floor · brief set loaded from fs (non-vacuous)', names.length > 0, names.length + ' briefs on disk');
 
       // ── F1 (DOCS-LEDGER-GATE-FOLLOWUPS, decided 2026-07-05 = option a) — status vocabulary lock: EXACTLY the
       //    5 values; "DEFERRED" is NOT a first-class top-level status (park a brief as PROPOSED (deferred …)).
@@ -4277,17 +4256,15 @@
      ONE suite SemVer in suite.manifest.json, the RELEASE-MANIFEST.json history, CHANGELOG.md as the
      human view, and collision-free changes/*.md changesets folded by tools/release.mjs. Pure static
      text/JSON — NO re-bundle, no provenance churn. Fed via env.releaseLedger:
-       { manifestText, releaseText, changelogText, changeFiles:{name:text}, fsChangeNames:[]|null, listedChangeNames:[], versionedSurfaces? }
+       { manifestText, releaseText, changelogText, changeFiles:{name:text}, fsChangeNames:[], surfaceTexts?, versionedSurfaces? }
      Reuses env.manifests['BUILD-MANIFEST.json'] (check 7) + env.docsLedger.briefs (check 5 brief-exists).
-     Node lane supplies fsChangeNames (fs truth) for the staleness leg; the browser lane fetches names
-     from tests/changes-list.txt (fetch can't list a dir). Absent env → SKIP (older runners stay green). */
+     NODE-LANE ONLY (CPAP-REAL-CORPUS-FOLLOWUPS-II §4): the runner reads changes/ straight from fs — no
+     committed changes-list.txt mirror. The browser lane can't list changes/, so env.releaseLedger is absent
+     there and this gate SKIPs (CI runs the Node lane). Absent env → SKIP (older runners stay green). */
     group('Release-ledger — controlled releases machine-checked (CONTROLLED-RELEASES)', 'docs · release-ledger', function (T) {
       var RL = env.releaseLedger;
       if (!RL || RL.manifestText == null || RL.releaseText == null || RL.changelogText == null) {
-        T.skip(
-          'env.releaseLedger provided to the runner',
-          'wire env.releaseLedger (run-tests.mjs readReleaseLedger + Dex-Test-Suite fetch of suite.manifest.json / RELEASE-MANIFEST.json / CHANGELOG.md / tests/changes-list.txt)'
-        );
+        T.skip('env.releaseLedger provided to the runner', 'Node-lane only (run-tests.mjs readReleaseLedger, fs truth) — the browser lane can’t list changes/ so it SKIPs; CI runs the Node lane');
         return;
       }
       var SEMVER = /^\d+\.\d+\.\d+$/;
@@ -4454,22 +4431,9 @@
         T.ok('check7 · unreleased-work-visible (needs BUILD-MANIFEST + a manifestHashes snapshot)', true, 'snapshot/build absent — check skipped');
       }
 
-      // ── STALENESS · Node lane has fs truth; browser lane trusts the committed list (Node asserts list==fs) ──
-      if (RL.fsChangeNames) {
-        var fsJoin = RL.fsChangeNames.slice().sort().join('\n'),
-          listJoin = (RL.listedChangeNames || []).slice().sort().join('\n');
-        T.ok(
-          'staleness · tests/changes-list.txt matches changes/ on disk (regen via tests/gen-changes-list.mjs)',
-          fsJoin === listJoin,
-          fsJoin === listJoin ? RL.fsChangeNames.length + ' changeset(s) in sync' : 'list is STALE vs fs'
-        );
-      } else {
-        T.ok(
-          'browser lane · changeset set loaded from changes-list.txt (Node lane asserts list==fs)',
-          (RL.listedChangeNames || []).length === changeNames.length,
-          changeNames.length + ' pending changeset(s)'
-        );
-      }
+      // CPAP-REAL-CORPUS-FOLLOWUPS-II §4 retired the committed-list staleness leg: there is no
+      // changes-list.txt to keep in sync — the runner reads changes/ straight from fs, so checks 5 + 7
+      // above already run on fs truth (changeNames === the real pending set).
     });
 
     /* ════ BORN-CLEAN NODES — headless DSP + graded registry + reproducibility leg (OWN-THE-BUILD Part B) ════

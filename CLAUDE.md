@@ -117,15 +117,16 @@ Status lives in a one-line header block on the first content line (just after an
   dashboard — reorganize *that view*, not the files. Now that all briefs already sit in `briefs/`, do
   NOT further sub-folder them into `Done/`/`Executed/` — that breaks every cross-reference + splits git
   history (same failure as renaming); status lives in the header, not the path.
-- **This whole lifecycle is now gate-backed** by the `docs-ledger` group in `tests/dex-tests.js` (both
-  runners, headless floor): a stray root brief, a malformed/absent status header on a brief dated ≥
-  2026-07-03, an unindexed brief, a dead **relative link** in `DOCS-INDEX.md` (any target — `](briefs/…)`
-  resolves against the real brief set, and every other `docs/·audits/·wiring/·root` link resolves against a
-  whole-tree path inventory), a one-sided `Superseded-by`/`Supersedes` pair, or a filename↔`Created` date
-  mismatch turns the suite RED. Pre-2026-07-03 headerless briefs are grandfathered (never fabricate a
-  status). The browser lane reads brief names **and the path inventory** from `tests/docs-ledger-list.txt`
-  — **regenerate it (`node tests/gen-docs-ledger-list.mjs`) whenever you add/remove a brief OR move/rename
-  any linkable file**; the Node lane asserts both match `briefs/` + the tree on disk, so a stale list also reds.
+- **This whole lifecycle is now gate-backed** by the `docs-ledger` group in `tests/dex-tests.js`: a stray
+  root brief, a malformed/absent status header on a brief dated ≥ 2026-07-03, an unindexed brief, a dead
+  **relative link** in `DOCS-INDEX.md` (any target — `](briefs/…)` resolves against the real brief set, and
+  every other `docs/·audits/·wiring/·root` link resolves against a whole-tree path inventory), a one-sided
+  `Superseded-by`/`Supersedes` pair, or a filename↔`Created` date mismatch turns the suite RED. Pre-2026-07-03
+  headerless briefs are grandfathered (never fabricate a status). **This gate is Node-lane only** (it reads
+  `briefs/` + the tree straight from the filesystem — the lane CI runs); the browser lane can't list a
+  directory so it SKIPs. There is **no committed list to regenerate** — adding/removing a brief or moving any
+  file needs no follow-up step (the committed `tests/docs-ledger-list.txt` snapshot + its generator were
+  retired 2026-07-14, CPAP-REAL-CORPUS-FOLLOWUPS-II §4, to kill the regenerate-on-every-PR merge tax).
 - **Repo layout (2026-07-03 owner-sanctioned relocation — the second deliberate break of the old
   "never move" rule).** The **root** holds ONLY: base/entry docs (`README.md`, `CLAUDE.md`,
   `ARCHITECTURE-PRINCIPLES.md`, `ORIENTATION.md`, `DOCS-INDEX.md`, `CONTRIBUTING.md`, `AUDIT-PROMPT.md`),
@@ -369,14 +370,14 @@ hand-typed version onto source files — `manifestHash` already identifies code 
   `suite.manifest.json`, prepends the `CHANGELOG.md` section, appends the `RELEASE-MANIFEST.json` record
   (+ per-app `manifestHash` snapshot), prunes `changes/`, and prints the `git tag`. Never hand-edit a
   version or a snapshot.
-- **Gate-backed** by the `release-ledger` group in `tests/dex-tests.js` (both runners, headless floor,
-  sibling of `docs-ledger`): valid SemVer · no fork (newest ledger record ≡ canonical) · unique +
-  strictly-increasing versions · history↔changelog parity · changeset well-formedness · **check 7 — code
-  that moved (`manifestHash` ≠ the last release's snapshot) requires a pending changeset** (you can't
-  ship code without recording it; zero false positives — `manifestHash` is deterministic). The browser
-  lane reads `tests/changes-list.txt` — **regenerate it (`node tests/gen-changes-list.mjs`) whenever a
-  changeset is added/pruned** (`release.mjs` does this automatically); the Node lane asserts it matches
-  `changes/` on disk, so a stale list reds.
+- **Gate-backed** by the `release-ledger` group in `tests/dex-tests.js` (sibling of `docs-ledger`): valid
+  SemVer · no fork (newest ledger record ≡ canonical) · unique + strictly-increasing versions ·
+  history↔changelog parity · changeset well-formedness · **check 7 — code that moved (`manifestHash` ≠ the
+  last release's snapshot) requires a pending changeset** (you can't ship code without recording it; zero
+  false positives — `manifestHash` is deterministic). **Node-lane only** (it reads `changes/` straight from
+  the filesystem — the lane CI runs); the browser lane can't list `changes/` so it SKIPs. There is **no
+  committed list to regenerate** on adding/pruning a changeset — the `tests/changes-list.txt` snapshot + its
+  generator were retired 2026-07-14 (CPAP-REAL-CORPUS-FOLLOWUPS-II §4, killing the per-PR merge tax).
 - **62304/13485-ALIGNED, not conformant.** The `docs/COMPLIANCE/` set (lifecycle plan · safety class ·
   config-mgmt · SOUP · release SOP · doc-control) adopts the disciplines as good practice with **no
   certification claim**; every file carries the non-device disclaimer. Runtime SOUP is empty by design.

@@ -5,13 +5,12 @@
  * Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
  * project root, or http://www.apache.org/licenses/LICENSE-2.0
  *
- * DOCS-LEDGER-GATE-FOLLOWUPS §F2 — the ONE shared repo-path walker behind the docs-ledger gate's
- * whole-tree link-integrity inventory. Imported by BOTH:
- *   - tests/gen-docs-ledger-list.mjs  → writes the committed paths[] the BROWSER lane resolves against
- *   - tests/run-tests.mjs (readDocsLedger) → recomputes fsPaths for the list==fs staleness check
- * Single-sourced so the generator and the Node-lane reality check can NEVER drift (a divergent walk
- * would red the staleness leg forever). Deterministic: sorted, forward-slash relative paths, no
- * timestamps, no absolute paths.
+ * DOCS-LEDGER-GATE-FOLLOWUPS §F2 — the shared repo-path walker behind the docs-ledger gate's whole-tree
+ * link-integrity inventory (check4b). Imported by tests/run-tests.mjs (readDocsLedger) to recompute
+ * fsPaths from disk; check4b resolves every relative DOCS-INDEX + root-doc link against it. Since
+ * CPAP-REAL-CORPUS-FOLLOWUPS-II §4 there is no committed list mirror — the gate is Node-lane only and
+ * reads the tree straight from fs. Deterministic: sorted, forward-slash relative paths, no timestamps,
+ * no absolute paths.
  */
 import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -29,10 +28,7 @@ const isExcluded = (name) => name.charAt(0) === '.' || EXCLUDE_DIRS.has(name);
 
 /* Every non-excluded file AND directory under `root`, as forward-slash relative path strings.
    Directories are included so a directory-targeted link (`](wiring)`) resolves too. Returns a sorted
-   array. NOTE for the browser-lane mirror (tests/gen-docs-ledger-list.mjs writes this to disk): the
-   inventory is path STRINGS only — file vs directory is irrelevant to a link-resolution set, so a
-   consumer that can only tell "leaf vs has-children" (e.g. the sandbox regenerator) produces the
-   identical string set. */
+   array of path STRINGS only — file vs directory is irrelevant to a link-resolution set. */
 export function walkRepoPaths(root) {
   const out = [];
   (function rec(dir, prefix) {
