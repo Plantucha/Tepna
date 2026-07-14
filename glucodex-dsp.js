@@ -299,12 +299,17 @@ function clean(parsed, progress){
 // line drawn across hours the sensor never saw, and admitting them into TIR/GMI/CV/MAGE reports
 // interpolation as measured glucose (DEEP-AUDIT-2026-07-11 §5 — this function's docstring already claimed
 // the exclusion; the code never did it).
+// A cell counts toward a distribution / variability / event metric only if it is a real MEASUREMENT — not
+// warm-up, not a compression drop, and NOT a long-gap interpolation (drawn for the chart, never measured).
+// DEEP-AUDIT-2026-07-11 §5 excluded GAP_LONG from analyzableIndex ONLY; DEEP-AUDIT-2026-07-14 §1 routes
+// EVERY distribution consumer (conga/modd/gvp/mag/adrr/postprandial/dawn/nocturnalHypo/daypart/excursions/
+// agp/perDay) through this one predicate, so the "excluded from every distribution metric" promise is real.
+function _ana(c, i){ const f=c.gF[i]; return f!==c.FLAG.WARMUP && f!==c.FLAG.COMPRESSION && f!==c.FLAG.GAP_LONG; }
+
 function analyzableIndex(c){
   const ok=[]; const v=[];
   for(let i=0;i<c.N;i++){
-    if(c.gF[i]===c.FLAG.WARMUP) continue;
-    if(c.gF[i]===c.FLAG.COMPRESSION) continue;
-    if(c.gF[i]===c.FLAG.GAP_LONG) continue;
+    if(!_ana(c,i)) continue;
     ok.push(i); v.push(c.gV[i]);
   }
   return { idx:ok, vals:v };
@@ -439,7 +444,7 @@ function conga(c, hours){
   const lag=Math.round(hours*60/c.cadence); if(lag<1) return null;
   const diffs=[];
   for(let i=lag;i<c.N;i++){
-    if(c.gF[i]===c.FLAG.WARMUP||c.gF[i-lag]===c.FLAG.WARMUP) continue;
+    if(!_ana(c,i)||!_ana(c,i-lag)) continue;
     diffs.push(c.gV[i]-c.gV[i-lag]);
   }
   if(diffs.length<5) return null;
@@ -451,7 +456,7 @@ function modd(c){
   const lag=Math.round(24*60/c.cadence); if(lag<1||c.N<=lag) return null;
   const diffs=[];
   for(let i=lag;i<c.N;i++){
-    if(c.gF[i]===c.FLAG.WARMUP||c.gF[i-lag]===c.FLAG.WARMUP) continue;
+    if(!_ana(c,i)||!_ana(c,i-lag)) continue;
     diffs.push(Math.abs(c.gV[i]-c.gV[i-lag]));
   }
   if(diffs.length<5) return null;
@@ -463,7 +468,7 @@ function gvp(c){
   let L=0, L0=0;
   const dtMin=c.cadence;
   for(let i=1;i<c.N;i++){
-    if(c.gF[i]===c.FLAG.WARMUP) continue;
+    if(!_ana(c,i)) continue;
     const dg=c.gV[i]-c.gV[i-1];
     L += Math.sqrt(dtMin*dtMin + dg*dg);
     L0 += dtMin;
@@ -503,7 +508,7 @@ function variability(c, ana, core){
 function magRate(c){
   let sum=0, hrs=0;
   for(let i=1;i<c.N;i++){
-    if(c.gF[i]===c.FLAG.WARMUP||c.gF[i-1]===c.FLAG.WARMUP) continue;
+    if(!_ana(c,i)||!_ana(c,i-1)) continue;
     sum+=Math.abs(c.gV[i]-c.gV[i-1]); hrs+=c.cadence/60;
   }
   return hrs>0? round(sum/hrs,1) : null;
@@ -531,7 +536,7 @@ function adrr(c){
   for(const [k,cells] of days){
     let lrMax=0,hrMax=0,cnt=0;
     for(const i of cells){
-      if(c.gF[i]===c.FLAG.WARMUP||c.gF[i]===c.FLAG.COMPRESSION) continue;
+      if(!_ana(c,i)) continue;
       const bg=c.gV[i]; if(bg<=0) continue;
       const f=1.509*(Math.pow(Math.log(bg),1.084)-5.381); const r=10*f*f;
       if(f<0) lrMax=Math.max(lrMax,r); else hrMax=Math.max(hrMax,r);
@@ -552,7 +557,7 @@ function postprandial(c, meals){
     for(let mi=0;mi<meals.length;mi++){
       const m=meals[mi]; const base=[]; const seq=[];
       for(const i of cells){
-        if(c.gF[i]===c.FLAG.WARMUP||c.gF[i]===c.FLAG.COMPRESSION) continue;
+        if(!_ana(c,i)) continue;
         const d=new Date(c.gT[i]); const mod=d.getUTCHours()*60+d.getUTCMinutes(); const rel=mod-m.minOfDay;
         if(rel>=-30 && rel<0) base.push(c.gV[i]);
         if(rel>=0 && rel<=180) seq.push({ rel, v:c.gV[i] });
@@ -598,7 +603,7 @@ function dawnPhenomenon(c){
   for(const [k,cells] of days){
     let nadir=Infinity, pre=[];
     for(const i of cells){
-      if(c.gF[i]===c.FLAG.WARMUP||c.gF[i]===c.FLAG.GAP) continue;
+      if(!_ana(c,i)) continue;
       const h=hourOf(c.gT[i]);
       if(h>=3 && h<6) nadir=Math.min(nadir,c.gV[i]);
       else if(h>=6 && h<8) pre.push(c.gV[i]);
@@ -621,7 +626,7 @@ function nocturnalHypo(c){
   for(let i=0;i<c.N;i++){
     const h=hourOf(c.gT[i]);
     const night = h<6;
-    const lo = c.gF[i]!==c.FLAG.WARMUP && c.gF[i]!==c.FLAG.COMPRESSION && c.gV[i]<70;
+    const lo = _ana(c,i) && c.gV[i]<70;
     if(night && lo){
       if(!run) run={ s:i, min:c.gV[i] };
       run.min=Math.min(run.min,c.gV[i]); run.e=i;
@@ -639,7 +644,7 @@ function nocturnalHypo(c){
 function daypartVariability(c, totalCV){
   const parts=/** @type {{overnight:number[],morning:number[],afternoon:number[],evening:number[]}} */({ overnight:[], morning:[], afternoon:[], evening:[] });
   for(let i=0;i<c.N;i++){
-    if(c.gF[i]===c.FLAG.WARMUP||c.gF[i]===c.FLAG.COMPRESSION) continue;
+    if(!_ana(c,i)) continue;
     const h=new Date(c.gT[i]).getUTCHours();
     const k = h<6?'overnight' : h<12?'morning' : h<18?'afternoon' : 'evening';
     parts[k].push(c.gV[i]);
@@ -661,7 +666,7 @@ function excursions(c, meals){
   const matchMeal=(ms)=>{ if(!meals||!meals.length) return null; const d=new Date(ms); const mod=d.getUTCHours()*60+d.getUTCMinutes();
     let best=null,bd=1e9; for(const m of meals){ let diff=mod-m.minOfDay; if(diff<-20||diff>75) continue; if(Math.abs(diff)<bd){ bd=Math.abs(diff); best=m; } } return best; };
   while(i<c.N-w){
-    if(c.gF[i]===c.FLAG.WARMUP){ i++; continue; }
+    if(!_ana(c,i)){ i++; continue; }
     const trough=c.gV[i];
     const maxAhead=Math.min(c.N-1, i+Math.round(180/c.cadence));
     let peak=trough, peakI=i;
@@ -686,7 +691,7 @@ function agp(c){
   // 48 half-hour bins across the 24h clock
   const NB=48; const bins=/** @type {number[][]} */(Array.from({length:NB},()=>[]));
   for(let i=0;i<c.N;i++){
-    if(c.gF[i]===c.FLAG.WARMUP||c.gF[i]===c.FLAG.COMPRESSION) continue;
+    if(!_ana(c,i)) continue;
     const h=hourOf(c.gT[i]); const b=Math.min(NB-1,Math.floor(h*2));
     bins[b].push(c.gV[i]);
   }
@@ -701,7 +706,7 @@ function agp(c){
 function perDay(c){
   const days=byDay(c); const out=[];
   for(const [k,cells] of days){
-    const vals=[]; for(const i of cells){ if(c.gF[i]!==c.FLAG.WARMUP&&c.gF[i]!==c.FLAG.COMPRESSION) vals.push(c.gV[i]); }
+    const vals=[]; for(const i of cells){ if(_ana(c,i)) vals.push(c.gV[i]); }
     if(vals.length<6) continue;
     const cm=coreMetrics(vals);
     out.push({ day:k, startMs:c.gT[cells[0]], n:vals.length, mean:cm.mean, cv:cm.cv, tir:cm.tir.tir, gmi:cm.gmi,

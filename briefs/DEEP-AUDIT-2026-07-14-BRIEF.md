@@ -20,7 +20,19 @@ surfaced number), then §4/§5, then §6–§8.
 
 ---
 
-## §1 — GlucoDex: long sensor-gaps counted as real glucose in ~9 metric families  ⚠ highest impact
+## §1 — GlucoDex: long sensor-gaps counted as real glucose in ~9 metric families  ⚠ highest impact  ✅ EXECUTED 2026-07-14
+> **EXECUTED 2026-07-14.** One module-level predicate `_ana(c,i) = f!==WARMUP && f!==COMPRESSION &&
+> f!==GAP_LONG` (`glucodex-dsp.js`), and every distribution consumer routed through it —
+> analyzableIndex · conga · modd · gvp · magRate · adrr · postprandial · dawn (also stops excluding the
+> *short* GAP bridge) · nocturnalHypo · daypartVariability · excursions · agp · perDay. Metamorphic gate
+> added to the §5/§6 group (`tests/dex-tests.js`): a 14 h gap vs the SAME readings explicitly filled must
+> give different `gvp` — RED on the old code (gapped 7.1 ≈ filled 7.2), GREEN after (gapped 8.4 ≠ 7.2).
+> **Export-inert** — the committed fixtures carry no GAP_LONG, so the synthetic GlucoDex golden stays
+> byte-identical (equiv leg confirms); re-bundled GlucoDex + the two orchestrators (OverDex, Data Unifier)
+> that inline the DSP; GATE A/B + `build --check` clean. NOTE: `detectSessions`' per-session drift fit
+> (`glucodex-dsp.js:354`) still masks only WARMUP/COMPRESSION — deliberately left to §4, which overhauls
+> that function.
+
 - **Severity:** mis-states surfaced numbers **+ fabricates absence** (interpolation across hours the sensor
   never saw is folded into variability / per-day / AGP; and `nocturnalHypo` can emit fabricated events).
 - **Root cause:** `clean()` splits gaps into `FLAG.GAP` (short bridge) and `FLAG.GAP_LONG`
