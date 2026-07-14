@@ -79,7 +79,7 @@
       ctx = ctx || {};
       var parseFn = ctx.parseRows
         || (root.HRVDex && typeof root.HRVDex.parseRows === 'function' ? root.HRVDex.parseRows : null);
-      var prov = { adapter: 'welltory-summary', vendor: VENDOR, device: DEVICE, files: ctx.files || null, warnings: [] };
+      var prov = { adapter: 'welltory-summary', vendor: VENDOR, device: DEVICE, files: ctx.files || null, warnings: /** @type {string[]} */ ([]) };
       if (!parseFn) return root.SignalFrame.toSignalFrame('hrv', { usable: false, reason: 'welltory-summary: no HRVDex.parseRows in scope (load HRVDex DSP in isolation)' }, prov);
       var rows = parseFn(text);
       if (!rows || !rows.length) return root.SignalFrame.toSignalFrame('hrv', { usable: false, reason: 'welltory-summary: no usable HRV measurements parsed (need Date/Time + rMSSD/SDNN columns)' }, prov);

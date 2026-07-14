@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-6RZXLEoUPvVrjS9laRTHze70mnbaJ+rNK+xDvzCc9JQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8+nOC4HEYyfbSq9U/hUTt4aPNJiDWM6GiGEd/lhSrQU=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Cmy5jqXGBn2TOeoIUu5NQ462zWgA2iB09CRh/bkx2pc=' 'sha256-DE/lfDnNKHcSbXxw474kJVe7uFhKKaPy/5FmvRM68U4=' 'sha256-F4s+OtKkoVZS0q8lS4F/sWsYA6V6dQxQKQ7xrw244Q0=' 'sha256-FLX23PgjejDwg3MLrTYKCm++svXIKd1sw+h1cHYA9fI=' 'sha256-HMcz3UCFbmyBGi0SQWw6ydup3CHvmu4SX/HIKXkWnkg=' 'sha256-N4quNlzTw8NSIB6UWZ4D9OWTFHALTfZRK7Lf4xkQQjk=' 'sha256-PB+ksOULjQm71LNR8HGSjhTYJn3uj+aFC4FWWaPmtGQ=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-brX48jeqBFv5TUr/bbfPJkxbDwhSHTALAd7jb+NyQsY=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cW/W9EpWhmRb1iDSaUjCDMlyKKpCUjSlnkMet/Q+ess=' 'sha256-dQT8xgqk2CuHWNlOyHGfUPo5isWwZnFXTyIW0YHoOjQ=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-giH7+xYTi6zzmo5ZtCPaGJEzq74hWIaqOK1CAMLayp4=' 'sha256-hs9K6cuZdV/TNM22sxtyqlWad5F44Inh53puPeYFZmg=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-mF23WMQ+MXR0pIEIp9B1RndMsNwhMpFhM5eq7VewfDE=' 'sha256-pF2F1BHb5ALbGyqL7RaEPb4fzp9+gHyW4tWOpeTvV10=' 'sha256-roO0qvbiqQFAF7zD/B79CM1goAjzhR5jx8+N3kX4ZSY=' 'sha256-s3ajFmncxnTFqb8ZM3UbtYM5V4KT6jWy1iwqo2L1U6g=' 'sha256-sCx/0jRpwBNzhTpZ4ClKf8BfTccQekveXGhU/zx+WqU=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE=' 'sha256-yNoaiS9N95lBo/AEEOuu3L8+OnQowaAEwE2DA9939Ow='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Cmy5jqXGBn2TOeoIUu5NQ462zWgA2iB09CRh/bkx2pc=' 'sha256-F4s+OtKkoVZS0q8lS4F/sWsYA6V6dQxQKQ7xrw244Q0=' 'sha256-FLX23PgjejDwg3MLrTYKCm++svXIKd1sw+h1cHYA9fI=' 'sha256-HMcz3UCFbmyBGi0SQWw6ydup3CHvmu4SX/HIKXkWnkg=' 'sha256-M5NNoLurSsW3LayThWj6teZrENVAqpQNfRqO3ERgZPQ=' 'sha256-N4quNlzTw8NSIB6UWZ4D9OWTFHALTfZRK7Lf4xkQQjk=' 'sha256-PB+ksOULjQm71LNR8HGSjhTYJn3uj+aFC4FWWaPmtGQ=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZDbkMuVPbDF2fKxbIEXfQXD9u87eEeptYBHB5+bYEy8=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-brX48jeqBFv5TUr/bbfPJkxbDwhSHTALAd7jb+NyQsY=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cW/W9EpWhmRb1iDSaUjCDMlyKKpCUjSlnkMet/Q+ess=' 'sha256-dJ1uibBqsf1fPRfMMRgQXwbieWX/TqD6OvAeh2oVe1Q=' 'sha256-dQT8xgqk2CuHWNlOyHGfUPo5isWwZnFXTyIW0YHoOjQ=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-eekvlPHNW7x5a60a/0ylrGEF5gTVU2lgLSdFPPtYGsc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-giH7+xYTi6zzmo5ZtCPaGJEzq74hWIaqOK1CAMLayp4=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-mF23WMQ+MXR0pIEIp9B1RndMsNwhMpFhM5eq7VewfDE=' 'sha256-pF2F1BHb5ALbGyqL7RaEPb4fzp9+gHyW4tWOpeTvV10=' 'sha256-roO0qvbiqQFAF7zD/B79CM1goAjzhR5jx8+N3kX4ZSY=' 'sha256-s3ajFmncxnTFqb8ZM3UbtYM5V4KT6jWy1iwqo2L1U6g=' 'sha256-sCx/0jRpwBNzhTpZ4ClKf8BfTccQekveXGhU/zx+WqU=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -3358,7 +3358,7 @@ window.IntegratorDSP = {
       ctx = ctx || {};
       var parseFn = ctx.parseRows
         || (root.HRVDex && typeof root.HRVDex.parseRows === 'function' ? root.HRVDex.parseRows : null);
-      var prov = { adapter: 'welltory-summary', vendor: VENDOR, device: DEVICE, files: ctx.files || null, warnings: [] };
+      var prov = { adapter: 'welltory-summary', vendor: VENDOR, device: DEVICE, files: ctx.files || null, warnings: /** @type {string[]} */ ([]) };
       if (!parseFn) return root.SignalFrame.toSignalFrame('hrv', { usable: false, reason: 'welltory-summary: no HRVDex.parseRows in scope (load HRVDex DSP in isolation)' }, prov);
       var rows = parseFn(text);
       if (!rows || !rows.length) return root.SignalFrame.toSignalFrame('hrv', { usable: false, reason: 'welltory-summary: no usable HRV measurements parsed (need Date/Time + rMSSD/SDNN columns)' }, prov);
@@ -3591,7 +3591,7 @@ window.IntegratorDSP = {
     // REFERENCE the existing pure parser — never copy it.
     parse: function (text, ctx) {
       ctx = ctx || {};
-      var prov = { adapter: 'polar-sense-ppg', vendor: VENDOR, device: DEVICE, files: ctx.files || null, warnings: [] };
+      var prov = { adapter: 'polar-sense-ppg', vendor: VENDOR, device: DEVICE, files: ctx.files || null, warnings: /** @type {string[]} */ ([]) };
       // Prefer the namespaced surface; fall back to the PPGDSP legacy name.
       var ppg = root.PpgDex || root.PPGDSP;
       var parseFn = (ppg && typeof ppg.parsePPG === 'function') ? ppg.parsePPG
@@ -3715,7 +3715,7 @@ window.IntegratorDSP = {
     // REFERENCE the existing pure parser — never copy it.
     parse: function (text, ctx) {
       ctx = ctx || {};
-      var prov = { adapter: 'polar-h10-ecg', vendor: VENDOR, device: DEVICE, files: ctx.files || null, warnings: [] };
+      var prov = { adapter: 'polar-h10-ecg', vendor: VENDOR, device: DEVICE, files: ctx.files || null, warnings: /** @type {string[]} */ ([]) };
       // Prefer the namespaced surface; fall back to the ECGDSP legacy name.
       var ecg = root.ECGDex || root.ECGDSP;
       var parseFn = (ecg && typeof ecg.parseECG === 'function') ? ecg.parseECG
@@ -3846,9 +3846,10 @@ window.IntegratorDSP = {
    * @returns {{ sec:number, type:string, file:string }|null}
    */
   function stampOf(name) {
-    var base = String(name || '')
-      .split('/')
-      .pop();
+    var base =
+      String(name || '')
+        .split('/')
+        .pop() || '';
     var m = FNAME_RE.exec(base);
     if (!m) return null;
     var d = m[1],
@@ -3869,12 +3870,9 @@ window.IntegratorDSP = {
    * @returns {{ sec:number, byType:Object<string,{sec:number,type:string,file:string}> }[]}
    */
   function groupSessionSets(names) {
-    var stamps = (names || [])
-      .map(stampOf)
-      .filter(Boolean)
-      .sort(function (a, b) {
-        return a.sec - b.sec;
-      });
+    var stamps = /** @type {{ sec:number, type:string, file:string }[]} */ ((names || []).map(stampOf).filter(Boolean)).sort(function (a, b) {
+      return a.sec - b.sec;
+    });
 
     var clusters = [];
     for (var i = 0; i < stamps.length; i++) {
@@ -3916,7 +3914,7 @@ window.IntegratorDSP = {
     detect: function (file, headText) {
       var name = ((file && file.name) || '') + '';
       var head = (headText || '') + '';
-      var base = name.split('/').pop();
+      var base = name.split('/').pop() || '';
       if (FNAME_RE.test(base)) return 0.96; // YYYYMMDD_HHMMSS_TYPE.edf
       if (/\.edf$/i.test(base)) return 0.5; // some other .edf — still ours
       // EDF+ magic: version field is '0' padded to 8 chars, then an 80-char patient field.
@@ -3928,7 +3926,7 @@ window.IntegratorDSP = {
     // `text` is IGNORED: EDF is binary + multi-file (see the header). Bytes arrive on ctx.
     parse: function (text, ctx) {
       ctx = ctx || {};
-      var prov = { adapter: 'resmed-edf', vendor: VENDOR, device: DEVICE, files: ctx.files || null, warnings: [] };
+      var prov = { adapter: 'resmed-edf', vendor: VENDOR, device: DEVICE, files: ctx.files || null, warnings: /** @type {string[]} */ ([]) };
       var SF = root.SignalFrame;
       var bad = function (reason) {
         return SF.toSignalFrame('cpap', { usable: false, reason: reason }, prov);
@@ -17873,7 +17871,7 @@ global.ECGDex.scrubExport = function(env){
     return new Promise(function (resolve, reject) {
       var t0 = Date.now();
       (function poll() {
-        if (root[ns] && typeof root[ns].compute === 'function') return resolve();
+        if (root[ns] && typeof root[ns].compute === 'function') return resolve(undefined);
         if (Date.now() - t0 > 8000)
           return reject(new Error('signal-orchestrate: ' + ns + ' namespaced DSP not found on host — set window.__DEX_NAMESPACED__=true and load ' +
             ns.toLowerCase() + '-dsp.js (with kernel-constants.js) before using this module'));

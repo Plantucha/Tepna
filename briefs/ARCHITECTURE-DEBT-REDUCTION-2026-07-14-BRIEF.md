@@ -156,6 +156,21 @@ one-line comment where you delete a slice so the next reader knows the invariant
 
 ## P2 — Turn on `strictNullChecks`, one already-gated module at a time · cheap, incremental
 
+> **§P2 IN-PROGRESS — chunk 1 EXECUTED 2026-07-14.** Full count under `strictNullChecks:true` is **104**
+> (not the 74 first estimated — that was a code-subset). Per-file: cpapdex-dsp 38 · resmed-edf 14 ·
+> oxydex-dsp 12 · ecgdex-dsp 10 · dex-ingest 7 · glucodex-dsp 4 · polar-sense-ppg 4 · ppgdex-dsp 3 ·
+> hrvdex-dsp 3 · polar-h10-ecg 3 · signal-frame 2 · welltory-summary 2 · signal-orchestrate 1 ·
+> pulsedex-dsp 1. **CORRECTION to the "no re-bundle" order-suggestion below: it was WRONG — EVERY one of
+> these files is inlined into a bundle** (the four adapters + signal-orchestrate → the two orchestrators;
+> dex-ingest → 4 bundles; signal-frame → ALL 9; each `*-dsp.js` → its app + orchestrators). So every
+> chunk re-bundles. **Chunk 1 (24 errors): the 4 adapters + signal-orchestrate** — all bundled only into
+> the two non-GATE-A orchestrators, so it is the lowest-churn start. Fixes were `never[]`-warning-array
+> annotations, `.pop()` `string|undefined` guards, a `.filter(Boolean)`-array cast (tsc doesn't narrow
+> it), and a Promise resolve-arg — all comment/guard-level, export-inert (GATE A/B green, no fixture
+> output moved). Pre-biome files touched here were **override-listed in `biome.json`** (§B2 on-touch),
+> NOT reflowed — the reflow is P4's job. **Remaining P2 chunks:** the DSPs (cheapest-first) + dex-ingest +
+> the fleet-wide signal-frame, then the final `strictNullChecks:true` flag-flip PR once all 104 are clean.
+
 **Problem.** The gate runs with `strictNullChecks:false`, so the whole null/`undefined`/`{}`/`never`
 class (the errors P4-era casts papered over — `TS18047`, `TS2538`, `.pos on never`) is invisible. Fixing
 them at the source is better than casting them away.
@@ -182,8 +197,11 @@ them at the source is better than casting them away.
 **Files:** the target `*-dsp.js` + `tsconfig.json` (only in the final flip PR).
 **Done-when:** target module has 0 `strictNullChecks` errors; suite green; if a bundle moved, changeset +
 GATE A/B green.
-**Order suggestion:** the adapters and `signal-orchestrate.js` first (small, no re-bundle), then the DSPs
-cheapest-first (they were, roughly: glucodex, cpapdex, ppgdex, ecgdex, integrator, hrvdex, oxydex).
+**Order suggestion (corrected — see the §P2 note above; ALL these files are bundled):** the four adapters
++ `signal-orchestrate.js` first (chunk 1, DONE — lowest churn, re-bundles only the two non-GATE-A
+orchestrators), then the DSPs cheapest-first (glucodex 4 · ppgdex 3 · hrvdex 3 · pulsedex 1 · ecgdex 10 ·
+oxydex 12 · cpapdex 38 — each re-bundles its app + the orchestrators that co-load it), then `dex-ingest.js`
+(4 bundles) and `signal-frame.js` (ALL bundles — fleet churn, land alone), then the flag-flip PR.
 
 ---
 
