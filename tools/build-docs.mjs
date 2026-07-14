@@ -48,7 +48,25 @@ const DELINK_CLASS = (manifest.deploy && manifest.deploy.delinkClass) || 'tool-o
 const PRESERVE = new Set((manifest.deploy && manifest.deploy.delinkPreserve) || []);
 const ARTIFACT_NAMES = new Set(['sitemap.xml', 'robots.txt', 'feed.xml', 'about.json', 'llms.txt', 'llms-full.txt']);
 const BASE = manifest.site.url.replace(/\/+$/, '') + '/';
-const BUILD_DATE = new Date().toISOString().slice(0, 10);
+/* ── the date stamped into sitemap <lastmod> / feed <updated> / llms-full's header ────────────
+   THE RELEASE DATE, NOT `new Date()`. A wall-clock stamp made this tool NON-DETERMINISTIC: it
+   rewrote three committed artifacts every time the calendar rolled over, with no content change — so
+   `build-docs --check` goes RED tomorrow on a tree that is perfectly in sync, and a CI drift gate
+   built on it would cry wolf every midnight. (That is why the gate could not be wired before: the
+   guard would have failed for a reason that is not drift.) It was also DISHONEST: <lastmod> claimed
+   every served page was modified on whatever day the build happened to run. The newest
+   RELEASE-MANIFEST record is the honest answer to "when did this served tree last change" — the
+   suite ships by release — and it is stable between releases, so the artifacts become a pure
+   function of committed content. Same doctrine as the Clock Contract's "never fabricate now()" and
+   tools/build.mjs's determinism. Never fall back to now(): that re-arms the daily false red. */
+const BUILD_DATE = (() => {
+  const rel = JSON.parse(readFileSync(join(ROOT, 'RELEASE-MANIFEST.json'), 'utf8')).releases;
+  const newest = Array.isArray(rel) && rel.length ? rel[rel.length - 1] : null;
+  if (!newest || !/^\d{4}-\d{2}-\d{2}$/.test(newest.date || '')) {
+    throw new Error('build-docs: RELEASE-MANIFEST.json carries no dated release record — refusing to stamp a wall-clock date (it would red the deploy drift gate every midnight)');
+  }
+  return newest.date;
+})();
 const CHECK = process.argv.includes('--check');
 const FORCE_DELINK = process.argv.includes('--force-delink');
 

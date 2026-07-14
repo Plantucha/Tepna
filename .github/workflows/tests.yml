@@ -71,6 +71,17 @@ jobs:
         run: node tools/build.mjs --check
       - name: Self-contained analysis tools ≡ bundle(source) (file://-safe drift guard)
         run: node tools/build-analysis.mjs --check
+      # The SERVED tree (docs/) is a build output of the root tree — and until 2026-07-14 NOTHING
+      # guarded it, so it drifted twice, and both times the drift reached main AND the live site:
+      #   · the 8 served docs/*.html APP BUNDLES fell behind their root twins (re-bundles moved the
+      #     root builds; nobody re-ran build-docs) — tepna.net served pre-1.10.0 app builds, and as
+      #     late as v1.10.1 it was still serving a GlucoDex carrying the PRE-FIX long-gap DSP, i.e.
+      #     counting interpolated sensor-gap samples as measured glucose for real users;
+      #   · docs/llms-full.txt sat a full release behind (the Phase-2/Phase-3 ordering bug, PR #96).
+      # This is the guard that would have caught both, on the PR that caused them. Same shape as the
+      # two drift guards above (committed artifact ≡ build(source)); pure Node, no uploads/, no network.
+      - name: Served docs/ ≡ build-docs(source) (deploy drift guard)
+        run: node tools/build-docs.mjs --check
       - name: Verify bundle manifestHash ↔ BUILD-MANIFEST (provenance GATE A, headless)
         run: node tests/verify-manifest.mjs
 
