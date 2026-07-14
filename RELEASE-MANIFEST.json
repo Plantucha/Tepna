@@ -263,6 +263,33 @@
         "PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE-2026-07-11-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "1.10.0",
+      "date": "2026-07-14",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "51d850b9f6b3",
+        "OxyDex": "f3b6705502fc",
+        "PulseDex": "afb608799750",
+        "GlucoDex": "e5a5e992c81c",
+        "PpgDex": "b864cb285df8",
+        "HRVDex": "dafad1d5bb27",
+        "CPAPDex": "da98027c89b5",
+        "Integrator": "e73a6c528dd0"
+      },
+      "briefs": [
+        "DEEP-AUDIT-FOLLOWUPS-2026-07-12-BRIEF.md",
+        "LITERATURE-USE-POLICY-2026-07-11-BRIEF.md",
+        "OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md",
+        "CPAP-REAL-CORPUS-FOLLOWUPS-II-2026-07-13-BRIEF.md",
+        "SECURITY-LEAK-HYGIENE-2026-07-13-BRIEF.md",
+        "SECURITY-NONBUNDLE-CSP-COVERAGE-2026-07-13-BRIEF.md",
+        "INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md",
+        "TRIO-BATCH-O2RING-DAT-2026-07-13-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }

@@ -30,6 +30,36 @@ changesets.)
 
 ---
 
+## [1.10.0] — 2026-07-14
+
+### Changed
+- Execute DEEP-AUDIT-FOLLOWUPS §D1/§D2 (EVENT-LEXICON §7 records the CPAPDex-annotation + HRVDex-window decisions) and §E1 (sweep fixture content-claims against the committed bytes + a new regression gate locking them). (`DEEP-AUDIT-FOLLOWUPS-2026-07-12-BRIEF.md`)
+- Gate DOCS-INDEX row status against brief headers (X2), extend the relative-link check to all 7 root docs (X3), and trim CONTRIBUTING.md's duplicated deep-dives + drift (X4).
+- Fix the stale manifestHash description in CLAUDE.md/CONTRIBUTING.md (X1) and add a FAILURES recap + --quiet mode to the test runner (D3).
+- Land LITERATURE-USE-POLICY's executable residue: a "Literature use" section in CLAUDE.md (hard line + routing rule + pointer to the policy). (`LITERATURE-USE-POLICY-2026-07-11-BRIEF.md`)
+- Close INTEGRATOR-TCH-FU-III §1 — the real 17-night trio distribution + reference-anchored magnitude check (17/17 solve; median σ 0.95/1.19/1.85 bpm, Verity corner on the literature anchor), confirming the `_tchRhoFromMotion` ρ-dilution that leaves 3 of 7 quiet-order nights unrescued (docs §11; residue → FU-IV). (`INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md`)
+- Gate cpapdex-dsp.js in checkJs (D.2): 5 cpap realm globals + the Node builtins require/process declared in a new node-scoped cpapdex-globals.d.ts, plus 3 comment-only source casts — the two require() call sites (so tsc does not resolve the sibling modules and cascade TS2306) and one boolean-subtraction in a sort comparator. Export-inert re-bundle of CPAPDex (orchestrators don't co-load it); GATE A/B green, no fixture output moved. (`OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`)
+- Gate ecgdex-dsp.js in checkJs (D.2): 13 namespace/sibling globals declared in a new node-scoped ecgdex-globals.d.ts (ECGDSP/ECGDex own attaches kept byte-stable for the ecgLoadOwnExport marker gate, plus the consumed ECGMorph sibling), and 2 genuine internal casts (a tuple annotation on the walk-cadence zoneDef literal, and `_relBase` on an accel array) — comment-only. Export-inert re-bundle of ECGDex (+ the two orchestrators that co-load it); GATE A/B green, no fixture output moved. (`OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`)
+- Gate glucodex-dsp.js in checkJs (D.2): its 13 TS2339 property errors split into the node's own `global.GLUDSP`/`global.GlucoDex` namespace attaches (declared in a new node-scoped glucodex-globals.d.ts so the attach lines stay byte-stable for the source-text safety gates) and two internal inference casts (`.e`, `.events`) — comment-only. Export-inert re-bundle of GlucoDex (+ the two orchestrators that co-load it); GATE A/B green, no fixture output moved. (`OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`)
+- Gate hrvdex-dsp.js in checkJs (D.2) — the first non-free DSP: cast two `.checked` DOM reads to HTMLInputElement (export-inert), add shared spine DexKernel/DexUnits to dex-globals.d.ts, and declare the hrvdex UI-sibling reach-ins in a new node-scoped hrvdex-globals.d.ts. Export-inert re-bundle of HRVDex (+ the two orchestrators that co-load it); GATE A/B green, no fixture output moved. (`OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`)
+- Gate integrator-dsp.js in checkJs (D.2): IntegratorDSP attach + the IntegratorTCH and GangliorProvenance optional siblings declared in a new node-scoped integrator-globals.d.ts, and 6 comment-only source casts (audit-breadcrumb props on fixed-shape events, a null-index accumulator, a never-narrowed posture lookup, and possibly-null window-span arithmetic). Export-inert re-bundle of Integrator (+ OverDex, which co-loads it); GATE A/B green, no fixture output moved. (`OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`)
+- Gate oxydex-dsp.js in checkJs (D.2) — the last DSP, completing the type gate over all 8 nodes. 9 realm siblings + 2 window state globals declared in a new node-scoped oxydex-globals.d.ts (cleared 62 of 68 errors with no source edit), plus 4 comment-only casts (FileReader-result buffer, and added-property writes/reads on desat events) run through biome format since oxydex-dsp.js is not formatter-overridden. Export-inert re-bundle of OxyDex (+ the two orchestrators that co-load it); GATE A/B green, no fixture output moved. Also fixed an invalid-JSON escape in the tsconfig //d2 note. (`OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`)
+- Gate ppgdex-dsp.js in checkJs (D.2): PPGDSP/PpgDex attaches + the PPGMorph sibling + the ES2020 BigInt global declared in a new node-scoped ppgdex-globals.d.ts, and a single comment-only source cast on the `timeDomain(...)||{}` result (whose `{}` fallback poisoned 11 HRV-field accesses). Export-inert re-bundle of PpgDex (+ the two orchestrators that co-load it); GATE A/B green, no fixture output moved. (`OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`)
+- Gate the first DSP (pulsedex-dsp.js) in checkJs via a new ambient dex-globals.d.ts for the co-loaded globals — zero source edit, zero re-bundle churn. (`OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`)
+- Widen the checkJs type gate (D.2 / DEV-TOOLCHAIN Part C) by signal-orchestrate.js — the shared UI-free node-orchestration module (0 tsc errors); zero source edit, zero bundle churn. Records that the free-DSP path is now exhausted (every remaining *-dsp.js needs a real source edit + re-bundle). (`OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`)
+- Widen the checkJs type gate (D.2 / DEV-TOOLCHAIN Part C) by three non-bundled modules — event-coupling.js, dex-coload.js, provenance-banner.js — each proven green with tsc; zero bundle churn. (`OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`)
+
+### Fixed
+- CLAUDE.md still documented the RETIRED hand-update re-bundle dance as its body text, with a "this is superseded" note bolted on top — a reader who followed the steps would fight a tool that already writes the ledgers. Rewritten so `build.mjs` is the procedure. Also: `checkJs` widened to `kernel-constants.js`. (`OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`)
+- `release.mjs` pruned `changes/` but regenerated only one of the two lists it invalidates — every release shipped a red `docs-ledger` gate until someone noticed by hand. (`CPAP-REAL-CORPUS-FOLLOWUPS-II-2026-07-13-BRIEF.md`)
+- trio-batch can anchor a night on the O2Ring's native `.dat`, not only the vendor CSV — six analyzable nights (2026-07-07 … 07-12) were invisible because the CSV export had stopped while the `.dat` kept landing. OxyDex has decoded this format all along on the browser drop path; the fix exposes `isO2RingBin` / `decodeO2RingBinToCSV` on the namespace (export-inert) so the headless corner reuses the SAME decoder instead of a second copy that would drift. Prefers the vendor CSV when both files exist, and ranks the oxy anchor by duration rather than bytes (a `.dat` is ~10× denser, so bytes stopped being comparable). Equivalence proved on 2026-07-06, the night that has both files: same-code CSV-path ≡ `.dat`-path, zero diffs. (`TRIO-BATCH-O2RING-DAT-2026-07-13-BRIEF.md`)
+
+### Security
+- Stop OxyDex logging the raw filename + raw CSV bytes to the console, and render PpgDex's error toast via textContent (kills an F3-class innerHTML sink). (`SECURITY-LEAK-HYGIENE-2026-07-13-BRIEF.md`)
+- Add a meta-CSP (connect-src locked) to the unbundled analysis pages + index.html and cover them in the no-network gate + a CSP-presence test. (`SECURITY-NONBUNDLE-CSP-COVERAGE-2026-07-13-BRIEF.md`)
+
+---
+
 ## [1.9.0] — 2026-07-13
 
 ### Added
@@ -323,7 +353,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.9.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.10.0...HEAD
+[1.10.0]: https://github.com/Plantucha/Tepna/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/Plantucha/Tepna/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/Plantucha/Tepna/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/Plantucha/Tepna/compare/v1.6.0...v1.7.0
