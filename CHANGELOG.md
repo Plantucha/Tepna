@@ -30,6 +30,13 @@ changesets.)
 
 ---
 
+## [1.10.3] — 2026-07-14
+
+### Added
+- Add the GlucoDex adversarial gap twin — a committed synthetic Lingo CSV with a 14 h sensor-change gap — closing the coverage hole that let `DEEP-AUDIT-2026-07-14 §1` ship a moved export as "export-inert". The clean synthetic Lingo trips no `FLAG.GAP_LONG`, so no committed input exercised the long-gap path at all; the only leg that did was the real-recording equiv leg, which **skips wherever `uploads/` is absent** (CI, and the machine of whoever lands the change) — so a wrong number reached the served app. The twin is gated both ways, because each catches what the other cannot: a **golden** (`_gap` equiv leg, catching an export that moves by accident) and **invariants** (the drawn interpolation may never be counted as measured glucose, catching the bug class even if a future session regenerates the golden blindly). The control is arithmetic, not a mock — clean daypart n = 864, gapped = 697, and pre-§1 code reported 864 for both. Verified: reverting the fix reds five assertions in a corpus-less tree, i.e. `9bdb9be` would have failed CI on its own PR. Also teaches `tools/regen-glucodex-goldens.mjs` to MINT a first-generation fixture + its ledger record, so standing up a new golden never means hand-writing an export or hand-typing a hash. (`DEEP-AUDIT-FOLLOWUPS-2026-07-12-BRIEF.md`)
+
+---
+
 ## [1.10.2] — 2026-07-14
 
 ### Added
@@ -382,7 +389,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.10.2...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.10.3...HEAD
+[1.10.3]: https://github.com/Plantucha/Tepna/compare/v1.10.2...v1.10.3
 [1.10.2]: https://github.com/Plantucha/Tepna/compare/v1.10.1...v1.10.2
 [1.10.1]: https://github.com/Plantucha/Tepna/compare/v1.10.0...v1.10.1
 [1.10.0]: https://github.com/Plantucha/Tepna/compare/v1.9.0...v1.10.0
