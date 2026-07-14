@@ -314,6 +314,26 @@
         "REPO-DISCOVERABILITY-FOLLOWUPS-2026-07-04-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "1.10.2",
+      "date": "2026-07-14",
+      "bump": "patch",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "46f1ff175ead",
+        "OxyDex": "8d57e81add62",
+        "PulseDex": "b8c16e7a5d8e",
+        "GlucoDex": "92a7dff75aca",
+        "PpgDex": "a5716aa361c4",
+        "HRVDex": "202615b1c405",
+        "CPAPDex": "a0323f34cb90",
+        "Integrator": "8f3ab6cd32b1"
+      },
+      "briefs": [
+        "REPO-DISCOVERABILITY-FOLLOWUPS-2026-07-04-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
