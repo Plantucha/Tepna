@@ -194,6 +194,19 @@
     };
   }
 
+  // H10 (ECG) corner gate — pure sibling of sensor-trio-worker.js's h10FailureClass (kept byte-identical
+  // so both real-night lanes agree). An ECG-lead fault yields a large POSITIVE σ_h10 that TCH reports
+  // honestly but that is not a device σ (real corpus 2026-06-12: σ_h10≈9.5, rHO 0.43 / rHV 0.38, rVO 0.85).
+  // Fingerprint: σ_h10>5 (healthy nights ≤1.25) AND H10 decorrelated from both partners AND O2·Verity still
+  // agree (the guard that spares Verity-noisy nights, where the bad corner is Verity and σ_h10 is healthy).
+  // Independent H10 error cancels out of the O2/Verity estimates, so the caller nulls ONLY the H10 corner.
+  function h10FailureClass(sigmaH10, rHO, rHV, rVO) {
+    if (sigmaH10 == null || sigmaH10 <= 5) return 'ok';
+    const bothLow = (rHO == null || rHO < 0.5) && (rHV == null || rHV < 0.5);
+    const pairAgrees = rVO != null && rVO >= 0.5;
+    return bothLow && pairAgrees ? 'ecg-lead-fault' : 'ok';
+  }
+
   // ── synthetic trio window generator ──────────────────────────────────────
   // Returns per-device 1-Hz observation arrays = true HR trend + device-rendered
   // shared HRV + independent AR(1) floor noise (+ optional ρ-correlated pair
@@ -471,7 +484,26 @@
       }
       const s = tchSigmas(hh, vv, oo);
       const ci = blockCI(hh, vv, oo, 500);
-      windows.push({ label: e.label, n: ks.length, sigma: { o2: s.o2, h10: s.h10, verity: s.verity }, ci, neg: s.neg, rHV: pearson(hh, vv), rHO: pearson(hh, oo), rVO: pearson(vv, oo) });
+      const rHV = pearson(hh, vv),
+        rHO = pearson(hh, oo),
+        rVO = pearson(vv, oo);
+      // H10 corner gate (see h10FailureClass): null ONLY a lead-faulted H10 σ, keep O2/Verity + the night.
+      const h10Cls = h10FailureClass(s.h10, rHO, rHV, rVO);
+      if (h10Cls !== 'ok') s.h10 = null;
+      // keep each corner's CI consistent with its (possibly nulled) point estimate — neg or gated
+      if (ci) for (const k of DKEYS) if (s[k] == null) ci[k] = null;
+      windows.push({
+        label: e.label,
+        n: ks.length,
+        sigma: { o2: s.o2, h10: s.h10, verity: s.verity },
+        ci,
+        neg: s.neg,
+        h10Unreliable: h10Cls !== 'ok',
+        h10Fault: h10Cls !== 'ok' ? h10Cls : null,
+        rHV,
+        rHO,
+        rVO
+      });
     }
     return windows;
   }
@@ -1927,7 +1959,8 @@
             rc.textContent = 'skip: ' + res.reason;
             rc.style.color = '#FF6B7A';
           } else {
-            rc.textContent = 'σ ' + f2(res.sigma.o2) + ' / ' + f2(res.sigma.h10) + ' / ' + f2(res.sigma.verity) + (res.neg ? ' ⚠neg' : '') + ' · ' + res.source;
+            rc.textContent =
+              'σ ' + f2(res.sigma.o2) + ' / ' + f2(res.sigma.h10) + ' / ' + f2(res.sigma.verity) + (res.neg ? ' ⚠neg' : '') + (res.h10Unreliable ? ' ⚠H10-lead' : '') + ' · ' + res.source;
             rc.style.color = '#39D98A';
           }
         }
@@ -1937,7 +1970,9 @@
     await Promise.all(rdy.map(lane));
     results.sort((a, b) => (a.label < b.label ? -1 : 1));
     RESULT.real = results.map((r) =>
-      r.skip ? { skip: true, label: r.label, reason: r.reason } : { label: r.label, n: r.n, sigma: r.sigma, ci: r.ci, neg: r.neg, rHV: r.rHV, rHO: r.rHO, rVO: r.rVO, source: r.source }
+      r.skip
+        ? { skip: true, label: r.label, reason: r.reason }
+        : { label: r.label, n: r.n, sigma: r.sigma, ci: r.ci, neg: r.neg, h10Unreliable: !!r.h10Unreliable, h10Fault: r.h10Fault || null, rHV: r.rHV, rHO: r.rHO, rVO: r.rVO, source: r.source }
     );
     const band = RESULT.dynamic || { dev: { o2: {}, h10: {}, verity: {} } };
     try {

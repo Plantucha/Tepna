@@ -157,6 +157,35 @@ function verityFailureClass(hrRatio) {
   if (hrRatio >= 0.33 && hrRatio <= 0.67) return 'harmonic-half';
   return 'poor-contact';
 }
+/* Classify WHETHER the H10 (ECG) corner is trustworthy on a night — pure, so it is gate-testable (see
+   tests/dex-tests.js "H10 corner gate"). The SYMMETRIC sibling of the Verity gate, for the OTHER corner.
+
+   WHY H10 needs its own gate: TCH's negative-variance failure ALREADY nulls H10 first on shared-error
+   nights (it is the smallest-true-σ corner, so σ²_h10=σ_h(σ_h−ρσ_partner) crosses zero soonest), but a
+   DIFFERENT failure — a bad ECG lead for a whole night (poor electrode contact / motion) — yields a large
+   POSITIVE σ_h10 that TCH faithfully reports (real corpus: 2026-06-12 σ_h10≈9.5 bpm, CI 7.2–11.7, n≈18.7k).
+   That is a genuine ~9 bpm ECG error, not a device σ, and with no gate it silently inflates the H10
+   aggregate (a lone outlier ~8× the next-highest real night).
+
+   The fingerprint is specific and MEASURED on the corpus, so the gate fires on 06-12 alone:
+     (1) σ_h10 implausibly large — every healthy real night is ≤1.25 bpm; the fault is 9.5. Threshold 5
+         sits in the wide empty gap (same "wide of the observed band" philosophy as the Verity gate).
+     (2) H10 has decorrelated from BOTH partners — rHO<0.5 AND rHV<0.5 (06-12: 0.43 / 0.38; every healthy
+         night ≥0.79), i.e. H10 stopped tracking the true HR.
+     (3) O2 & Verity STILL agree — rVO≥0.5 (06-12: 0.85). This is the guard that makes it H10-specific:
+         it rejects the Verity-noisy nights (06-29 rVO=0.31, 07-02 rVO=0.21) where rHV is also low but the
+         bad corner is VERITY, not H10 (and there σ_h10 is a healthy ~0.65, so (1) already spares them).
+
+   Because a decorrelated H10 error is INDEPENDENT, it cancels out of the O2/Verity TCH estimates
+   (σ²_o2=½(V_HO+V_VO−V_HV) — the inflated H10 terms cancel), so those two corners stay valid. Hence the
+   caller nulls ONLY the H10 corner and KEEPS the night — unlike the Verity gate, whose harmonic-doubled
+   corner is a partially-CORRELATED corruption that compromises the whole solve, so it skips the night. */
+function h10FailureClass(sigmaH10, rHO, rHV, rVO) {
+  if (sigmaH10 == null || sigmaH10 <= 5) return 'ok';                         // plausible ECG σ (corpus ≤1.25)
+  var bothLow = (rHO == null || rHO < 0.5) && (rHV == null || rHV < 0.5);     // H10 decorrelated from both
+  var pairAgrees = (rVO != null && rVO >= 0.5);                               // ...while O2 & Verity still agree
+  return (bothLow && pairAgrees) ? 'ecg-lead-fault' : 'ok';
+}
 function pearson(x, y) { var n = x.length, mx = 0, my = 0, i; for (i = 0; i < n; i++) { mx += x[i]; my += y[i]; } mx /= n; my /= n; var sxy = 0, sx = 0, sy = 0; for (i = 0; i < n; i++) { var dx = x[i] - mx, dy = y[i] - my; sxy += dx * dy; sx += dx * dx; sy += dy * dy; } return (sx > 0 && sy > 0) ? sxy / Math.sqrt(sx * sy) : null; }
 // collapse [sec,val] pairs → Map(sec → median), robust to multi-sample seconds
 function medMap(pairs) { var by = new Map(), i; for (i = 0; i < pairs.length; i++) { var s = pairs[i][0], a = by.get(s); if (!a) { a = []; by.set(s, a); } a.push(pairs[i][1]); } var out = new Map(); by.forEach(function (a, s) { a.sort(function (p, q) { return p - q; }); out.set(s, a[a.length >> 1]); }); return out; }
@@ -354,9 +383,18 @@ async function runRealNight(m) {
           : 'Verity HR lands near no multiple of truth \u2014 genuinely poor PPG contact / all-night motion';
       return { skip: true, failure: _fail, hrRatio: hrRatio, reason: 'Verity unreliable (' + _sig + ') \u2014 ' + _why };
     }
+    // H10 corner gate (sibling of the Verity gate above): an ECG-lead fault yields a large POSITIVE σ_h10
+    // that TCH reports honestly but that is not a device σ. Null ONLY the H10 corner (its independent error
+    // cancels out of the O2/Verity estimates, so those stay valid) and KEEP the night — see h10FailureClass.
+    var h10Cls = h10FailureClass(s.h10, rHO, rHV, rVO);
+    if (h10Cls !== 'ok') s.h10 = null;
     seed((m.seed >>> 0) || 0x51F0);
     var ci = m.wantSeries ? null : blockCI(hh, vv, oo, 400);
-    var out = { skip: false, n: ks.length, source: src, sigma: { o2: s.o2, h10: s.h10, verity: s.verity }, neg: s.neg, ci: ci, rHV: rHV, rHO: rHO, rVO: rVO, hrRatio: hrRatio };
+    // Keep the CI consistent with the point estimate: a corner whose full-window σ is null (TCH-negative,
+    // or gated H10) must not carry a bootstrap CI (individual resamples can still land positive). This also
+    // fixes the neg-night cosmetic where a nulled h10 previously still reported an h10 CI.
+    if (ci) for (var _ci = 0; _ci < DKEYS.length; _ci++) { if (s[DKEYS[_ci]] == null) ci[DKEYS[_ci]] = null; }
+    var out = { skip: false, n: ks.length, source: src, sigma: { o2: s.o2, h10: s.h10, verity: s.verity }, neg: s.neg, h10Unreliable: h10Cls !== 'ok', h10Fault: h10Cls !== 'ok' ? h10Cls : null, ci: ci, rHV: rHV, rHO: rHO, rVO: rVO, hrRatio: hrRatio };
     if (m.wantSeries) { out.hh = hh; out.vv = vv; out.oo = oo; out.keys = ks; }   // aligned per-second series for the sigma-no-reference tool (BA / control-leg / repeatability)
     return out;
   } catch (e) { return { skip: true, reason: (e && e.message) || String(e) }; }

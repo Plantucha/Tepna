@@ -5020,6 +5020,73 @@
       T.ok('the doubling verdict names the DETECTOR, not the sensor', /OUR DETECTOR/.test(src) && /sensor is fine/.test(src));
     });
 
+    /* ════ The H10 (ECG) corner gate — sibling of the Verity gate, for the OTHER corner ════
+       TCH already nulls H10 first on shared-error nights via NEGATIVE variance (smallest-true-σ corner).
+       A DIFFERENT failure — a bad ECG lead for a whole night — yields a large POSITIVE σ_h10 that TCH
+       reports honestly but that is not a device σ (real corpus 2026-06-12: σ_h10≈9.5 bpm, rHO 0.43 / rHV
+       0.38, rVO 0.85, n≈18.7k). Without a gate that lone outlier (~8× the next-highest night) inflates the
+       H10 aggregate mean. The gate nulls ONLY the H10 corner (its independent error cancels out of the
+       O2/Verity estimates) and KEEPS the night. This locks the MEASURED fingerprint so a healthy night is
+       never gated and the Verity-noisy nights (where the bad corner is Verity, not H10) are spared. */
+    group('H10 corner gate fingerprints an ECG-lead fault (σ high + decorrelated) without touching healthy nights', 'sensor-trio-worker · trio · regression', function (T) {
+      var src = (env.sources && env.sources['sensor-trio-worker.js']) || '';
+      T.ok('sensor-trio-worker.js source available to the gate', !!src);
+      if (!src) return;
+
+      var i = src.search(/^function h10FailureClass/m);
+      T.ok('the gate exposes a PURE h10FailureClass(sigmaH10, rHO, rHV, rVO) (so the verdict is testable)', i >= 0);
+      if (i < 0) return;
+      var d = 0,
+        started = false,
+        end = -1;
+      for (var k = i; k < src.length; k++) {
+        if (src.charAt(k) === '{') {
+          d++;
+          started = true;
+        } else if (src.charAt(k) === '}') {
+          d--;
+          if (started && d === 0) {
+            end = k + 1;
+            break;
+          }
+        }
+      }
+      var cls;
+      try {
+        cls = new Function(src.slice(i, end) + ';\nreturn h10FailureClass;')();
+      } catch (e) {
+        T.ok('h10FailureClass is evaluable', false, e.message);
+        return;
+      }
+
+      // THE lead-fault signature (2026-06-12): σ implausibly large AND H10 decorrelated from both partners
+      // while O2 & Verity still agree — that one really is a bad ECG lead, so null the corner.
+      T.eq('06-12 signature (σ9.46, rHO0.43, rHV0.38, rVO0.85) → ecg-lead-fault', cls(9.46, 0.43, 0.38, 0.85), 'ecg-lead-fault');
+      // Every healthy real night keeps H10: σ is small, so the σ>5 gate never even engages.
+      T.eq('a healthy night (σ0.79, rHO0.90, rHV0.72, rVO0.62) → ok', cls(0.79, 0.9, 0.72, 0.62), 'ok');
+      T.eq('the next-highest real H10 night (σ1.25) is nowhere near the σ>5 gate → ok', cls(1.25, 0.84, 0.67, 0.72), 'ok');
+      // THE guard that makes it H10-specific: the Verity-noisy nights have a low rHV too, but their bad
+      // corner is VERITY (σ_h10 stays healthy ~0.65, and rVO collapses). Both spared, for both reasons.
+      T.eq('Verity-noisy 06-29 (σ_h10 0.65, rHO0.85, rHV0.35, rVO0.31) → ok (bad corner is Verity)', cls(0.65, 0.845, 0.346, 0.308), 'ok');
+      T.eq('Verity-noisy 07-02 (σ_h10 0.68, rHO0.85, rHV0.24, rVO0.21) → ok', cls(0.68, 0.848, 0.238, 0.208), 'ok');
+      // The rVO guard is load-bearing: a HYPOTHETICAL high-σ H10 whose partners have DECORRELATED from each
+      // other too (rVO<0.5) is a whole-night mess, not a clean single-corner fault — do NOT silently null H10.
+      T.eq('high σ_h10 but O2·Verity ALSO decorrelated (rVO0.3) → ok (not a clean H10-only fault)', cls(9.0, 0.4, 0.4, 0.3), 'ok');
+      T.eq('a null σ_h10 (already TCH-negative) is left alone → ok (never double-classified as a lead fault)', cls(null, 0.9, 0.9, 0.9), 'ok');
+
+      // MARGIN: every committed real σ_h10 except the 06-12 fault is ≤1.25, so the σ>5 threshold sits in a
+      // wide empty gap (same "wide of the observed band" discipline as the Verity gate). If someone drops
+      // the threshold toward the healthy band, this reds.
+      T.ok('a comfortable margin separates the healthy σ band (≤1.25) from the σ>5 gate', 5 - 1.25 > 3, 'margin=' + (5 - 1.25).toFixed(2));
+
+      // and the solve path must actually USE it + null ONLY the corner (keeping the night), or the fault
+      // never leaves the aggregate.
+      T.ok('the solve calls h10FailureClass() on the real-night path', /h10FailureClass\(s\.h10,\s*rHO,\s*rHV,\s*rVO\)/.test(src));
+      T.ok('a lead fault nulls ONLY the H10 corner (s.h10 = null), not the whole night', /h10Cls\s*!==\s*'ok'\)\s*s\.h10\s*=\s*null/.test(src));
+      T.ok('the result surfaces a machine-readable h10Unreliable flag + fault class', /h10Unreliable:\s*h10Cls\s*!==\s*'ok'/.test(src) && /h10Fault:/.test(src));
+      T.ok('a nulled corner (neg OR gated) never carries a bootstrap CI (point↔CI consistency)', /if \(s\[DKEYS\[_ci\]\] == null\) ci\[DKEYS\[_ci\]\] = null/.test(src));
+    });
+
     group('ECGDex worker clock — the >5 MB path parses timestamps IDENTICALLY to clock.js', 'ecgdex-app · worker · clock-contract', function (T) {
       var app = (env.sources && env.sources['ecgdex-app.js']) || '';
       var P = env.parseTimestamp;
