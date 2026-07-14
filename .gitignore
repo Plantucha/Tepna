@@ -59,12 +59,14 @@ uploads/*
 !uploads/synthetic_pulsedex_rr.txt
 !uploads/synthetic_hrvdex_welltory.csv
 !uploads/synthetic_glucodex_lingo.csv
+!uploads/synthetic_glucodex_lingo_gap.csv
 !uploads/synthetic_ppgdex_verity.txt
 !uploads/synthetic_ecgdex_h10.txt
 !uploads/synthetic_oxydex_golden.node-export.json
 !uploads/synthetic_pulsedex_golden.node-export.json
 !uploads/synthetic_hrvdex_golden.node-export.json
 !uploads/synthetic_glucodex_golden.node-export.json
+!uploads/synthetic_glucodex_gap_golden.node-export.json
 !uploads/synthetic_ppgdex_golden.node-export.json
 !uploads/synthetic_ecgdex_golden.node-export.json
 !uploads/integrator_tch_golden.node-export.json

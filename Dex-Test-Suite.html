@@ -223,6 +223,11 @@ async function main(){
     ['glucodex_synth', 'synthetic_glucodex_lingo.csv', 'synthetic_glucodex_golden.node-export.json'],
     ['ppgdex_synth', 'synthetic_ppgdex_verity.txt', 'synthetic_ppgdex_golden.node-export.json'],
     ['ecgdex_synth', 'synthetic_ecgdex_h10.txt', 'synthetic_ecgdex_golden.node-export.json'],
+    // ADVERSARIAL GlucoDex twin — a 14 h sensor-change gap, WITH a golden (FIXTURE-VERIFICATION-GATE §4).
+    // Unlike the input-only twins below, this one pins an export: the clean Lingo trips no FLAG.GAP_LONG,
+    // so the long-gap path had no committed coverage at all — which is how DEEP-AUDIT-2026-07-14 §1 shipped
+    // "export-inert" while the real night's export had actually moved.
+    ['glucodex_gap', 'synthetic_glucodex_lingo_gap.csv', 'synthetic_glucodex_gap_golden.node-export.json'],
     // ADVERSARIAL twins (DEEP-AUDIT §1/§8/§9) — input only, no golden; the INVARIANTS are the gate.
     ['oxydex_dmy', 'synthetic_oxydex_o2ring_dmy.csv', null],
     ['oxydex_mdy', 'synthetic_oxydex_o2ring_mdy.csv', null],

@@ -68,6 +68,22 @@ That is the property the original prescription could never have had.
   the full gate.
 - The other adversarial shapes this audit hand-built (a two-session CPAP night; a PPG worker realm) have
   no committed synthetic twin yet. Same recipe applies.
+- **⚠️ GlucoDex had no adversarial twin — and that exact hole shipped a wrong number to real users two days
+  later. CLOSED 2026-07-14.** This residue line was not a nice-to-have: `DEEP-AUDIT-2026-07-14 §1` rerouted
+  every GlucoDex distribution metric through a new `FLAG.GAP_LONG` predicate, came back **byte-identical on
+  the clean synthetic Lingo** (which trips no long gap), was declared **EXPORT-INERT** on that evidence, and
+  shipped — while the **real** Lingo night's export had in fact moved. Its fixture went stale, and the
+  **served GlucoDex ran the pre-fix DSP against real users' CGM data** until it was caught by hand. The leg
+  that would have caught it is one of the six real-corpus legs named in the bullet above: it **skipped in
+  CI, and on the machine of the session that landed the change.** Exactly the failure this §A exists to
+  prevent — the recipe was right, it just never reached GlucoDex.
+  **Now shipped:** `uploads/synthetic_glucodex_lingo_gap.csv` (git-tracked, `.gitignore`-whitelisted) — the
+  same 3-day curve as the clean twin with a **14 h sensor-change gap** (168 drawn cells, 143→100 mg/dL).
+  Gated **both** ways, because each catches what the other cannot: a **golden** (`_gap` equiv leg — catches
+  an export that moves by accident) *and* **invariants** (the `GlucoDex adversarial gap twin` group — catches
+  the bug class even if a future session regenerates the golden blindly). The control is arithmetic, not a
+  mock: clean daypart n = 864, gapped = 697, and **pre-§1 code reported 864 for both**. Verified: reverting
+  `_ana` reds five assertions **in a corpus-less tree** — `9bdb9be` would have failed CI on its own PR.
 
 ---
 

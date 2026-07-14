@@ -256,6 +256,62 @@ const emit = (name, text) => {
   emit('synthetic_glucodex_lingo.csv', rows.join('\n') + '\n');
 }
 
+/* ── 4b · GlucoDex ADVERSARIAL twin — a 14 h SENSOR-CHANGE GAP ────────────────
+   WHY THIS FILE EXISTS. The clean twin above carries no long gap, so it exercises none of the
+   FLAG.GAP_LONG path — and that hole cost a real number. DEEP-AUDIT-2026-07-14 §1 (exclude GAP_LONG
+   from every distribution metric) declared itself EXPORT-INERT on the clean twin's evidence and
+   shipped; the REAL Abbott Lingo night *does* carry a multi-hour sensor-change gap, so its export
+   moved, its committed fixture went stale, and the SERVED GlucoDex ran the pre-fix DSP against real
+   users' CGM data until it was found by hand. The leg that would have caught it (the real-recording
+   equiv leg) SKIPS wherever uploads/ is absent — i.e. in CI, and on the machine of whoever lands the
+   change. The fix is not another assertion: it is an input that trips the flag AND CAN BE COMMITTED.
+   Same reasoning, and the same shape, as the four committed adversarial OxyDex twins
+   (DEEP-AUDIT-FOLLOWUPS-2026-07-12 §A) — a real adversarial night would have been gitignored too,
+   and CI would have stayed exactly as blind.
+
+   THE GAP IS BUILT SO THE DRAWN LINE IS WRONG IF COUNTED. Readings stop on the post-lunch decay
+   (143 mg/dL) and resume 14 h later at fasting (100). clean() still draws the bridge — the chart
+   needs a line — so 168 fabricated cells ramp 143→100 with none of the real diurnal structure.
+   Counted as measured glucose they pad every daypart's n and flatten its CV; excluded, they vanish.
+   The hole straddles afternoon + evening + overnight, so it lands squarely in the daypart block the
+   §1 fix actually moved. cadence 5 min ⇒ gapThresh = max(5*2.5, 5+3) = 12.5 min, so every interior
+   cell of a 14 h hole is GAP_LONG, not the short physiologic GAP bridge.
+
+   MEASURED — the twin separates the two codes by 167 samples (this is why it is worth committing):
+     current code   daypart n = {overnight 168, morning 216, afternoon 169, evening 144} = 697
+     PRE-§1 code    daypart n = {216, 216, 216, 216}                                      = 864
+   i.e. the old code reports the 14 h hole as 167 measured readings. The golden below pins 697, so
+   9bdb9be would have RED in CI, on its own PR, with no corpus present.                            */
+{
+  const HEAD = 'Time of Glucose Reading [T=(local time) +/- (time zone offset)], Measurement(mg/dL)';
+  const rows = [HEAD];
+  const t0 = Date.UTC(2026, 4, 3, 0, 0, 0);
+  const N = 3 * 24 * 12; // 3 days @ 5-min — same span/shape as the clean twin
+  // sensor change on day 2: readings stop 14:00, resume 04:00 on day 3 (14 h).
+  const GAP_FROM = Date.UTC(2026, 4, 4, 14, 0, 0);
+  const GAP_TO = Date.UTC(2026, 4, 5, 4, 0, 0);
+  for (let i = N - 1; i >= 0; i--) {
+    const ms = t0 + i * 5 * 60000;
+    if (ms > GAP_FROM && ms < GAP_TO) continue; // the sensor is OFF — no rows at all, not zeros
+    const d = new Date(ms);
+    const hod = d.getUTCHours() + d.getUTCMinutes() / 60;
+    let g = 95 + 6 * Math.sin((2 * Math.PI * hod) / 24);
+    for (const [mh, amp] of [
+      [8, 45],
+      [13, 55],
+      [19, 50]
+    ]) {
+      const dt = hod - mh;
+      if (dt >= 0 && dt < 3) g += amp * Math.exp(-Math.pow(dt - 0.8, 2) / 0.5);
+    }
+    // land the LAST pre-gap reading on the lunch peak (~180) so the drawn bridge falls the full
+    // in-range span to the ~85 fasting reading that resumes 14 h later. A flat bridge would be a
+    // weak twin: the interpolation has to be somewhere the metrics would notice.
+    rows.push(`${iso(ms)}-04:00,${Math.round(g)}`);
+  }
+  emit('synthetic_glucodex_lingo_gap.csv', rows.join('\n') + '\n');
+}
+
 /* ── 5 · PpgDex — Polar Verity Sense raw PPG (3 LEDs + ambient, ~135 Hz) ───── */
 {
   const HEAD = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient';
