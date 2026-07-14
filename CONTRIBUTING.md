@@ -150,7 +150,6 @@ scripts, and `tsc`/ESLint self-install via `npx -y` on demand. The **one** pinne
 | `npm run format:changed` | Biome `ci --changed` over changed `*.js`/`*.mjs` — format **+ lint floor** (check-only) | what CI (`format.yml`) enforces — validate before pushing |
 | `npm run build` / `build:app -- <Name>` / `build:check` | `tools/build.mjs --all` / `--app` / `--check` | re-bundle owned bundles / drift guard |
 | `npm run verify:manifest` | `tests/verify-manifest.mjs` | provenance GATE A after a re-bundle |
-| `npm run gen:lists` | regenerate `docs-ledger-list.txt` + `changes-list.txt` | after adding/removing a brief, linkable file, or changeset |
 | `npm run release` / `release:dry` | `tools/release.mjs` | cut a release from a green tree |
 
 > The `npm run` names are a convenience layer, **not** a new gate. The canonical gates are still

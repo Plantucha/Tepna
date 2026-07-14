@@ -11,9 +11,7 @@
  *   1. stamps suite.manifest.json.version
  *   2. prepends a Keep-a-Changelog section to CHANGELOG.md + maintains its reference compare-links (F6)
  *   3. appends a RELEASE-MANIFEST.json record (with the current per-app manifestHash snapshot)
- *   4. prunes the consumed changesets and regenerates BOTH generated lists
- *      (tests/changes-list.txt AND tests/docs-ledger-list.txt — the pruned files leave the latter's
- *      path inventory stale, which reds docs-ledger just as surely as changes-list reds release-ledger)
+ *   4. prunes the consumed changesets
  *   5. prints the git tag to create
  * The version is computed ONCE, here, at the end — parallel coders only ever drop changesets, so
  * they never collide on a number. NEVER hand-edit a version or a manifestHash snapshot.
@@ -159,18 +157,11 @@ function main() {
     }
   }
   writeFileSync(p('CHANGELOG.md'), cl);
-  // 4 · prune consumed changesets, regenerate BOTH browser-lane lists.
-  //     docs-ledger-list.txt carries a whole-tree path inventory, so pruning changes/ staleness-reds the
-  //     docs-ledger gate too — not just changes-list.txt. Regenerating one without the other ships a red tree.
+  // 4 · prune the consumed changesets. There are no committed list mirrors to regenerate: the
+  //     docs-ledger / release-ledger gates read briefs/ + changes/ straight from the filesystem in
+  //     the Node lane (the lane CI runs), so pruning changes/ needs no follow-up list write
+  //     (CPAP-REAL-CORPUS-FOLLOWUPS-II §4).
   for (const c of changesets) unlinkSync(join(CHANGE_DIR, c.name));
-  for (const gen of ['tests/gen-changes-list.mjs', 'tests/gen-docs-ledger-list.mjs']) {
-    const r = spawnSync('node', [gen], { cwd: ROOT, stdio: 'inherit' });
-    if (r.status !== 0) {
-      console.error('\n✗ ' + gen + ' failed (exit ' + r.status + ') — the ledgers are written but its list is STALE.');
-      console.error('  Re-run it by hand before committing, or the docs-ledger/release-ledger gate will red.');
-      process.exit(1);
-    }
-  }
 
   console.log(
     '\nReleased ' +

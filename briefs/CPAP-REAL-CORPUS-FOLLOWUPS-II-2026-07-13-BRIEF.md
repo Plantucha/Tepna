@@ -96,6 +96,19 @@ from every PR.
 **Second-best** (if browser parity is non-negotiable): a `.gitattributes` merge driver that regenerates on
 conflict. But that is papering over committing derived data.
 
+> **§4 EXECUTED 2026-07-14** (the recommended path). `docs-ledger` + `release-ledger` are now **Node-lane
+> only**: `run-tests.mjs` reads `briefs/` + `changes/` + the whole tree straight from fs, and the browser
+> lane (which can't list a directory) SKIPs both — its worth is render coverage + same-origin, not docs/
+> release checks. Deleted: `tests/docs-ledger-list.txt`, `tests/changes-list.txt`, `tests/gen-docs-ledger-
+> list.mjs`, `tests/gen-changes-list.mjs`, and the now-orphaned `tests/list-format.js`; removed the browser-
+> lane fetch blocks in `Dex-Test-Suite.html`, the committed-list reads in both `run-tests.mjs` readers, the
+> two `list==fs` staleness legs in `dex-tests.js` (replaced by a non-vacuous fs-loaded floor), the
+> `release.mjs` post-prune regenerate loop, the `gen:*`/`gen:lists` npm scripts, and every living-doc
+> "regenerate the list" instruction (CLAUDE.md · CONTRIBUTING.md · DOCS-INDEX.md · changes/README.md ·
+> the COMPLIANCE release SOP). Proof it worked: **this very brief's §4 changeset needed NO list regen** —
+> the whole staleness failure-class and the two "remember to regenerate" steps are gone. Suite 2322✓/150
+> groups; `release.mjs --dry-run` folds cleanly with no gen-list step.
+
 ---
 
 ## 5 · Smaller things
@@ -122,6 +135,6 @@ conflict. But that is papering over committing derived data.
 - [ ] **P7** — a node consumes `event-coupling.js`, passing real `coverage`.
 - [ ] **P8** — `CPAPCross` demonstrably detects A4's two known change-points.
 - [x] **§3** — a gate asserts every demo input is git-tracked. *(EXECUTED 2026-07-14 — "Demo-inputs" group; caught + fixed a live Integrator demo pointing at gitignored paths.)*
-- [ ] **§4** — the generated list files are gone (or their conflict cost is otherwise removed).
+- [x] **§4** — the generated list files are gone (or their conflict cost is otherwise removed). *(EXECUTED 2026-07-14 — both gates Node-lane only; 2 lists + 2 generators + list-format.js deleted; merge tax gone.)*
 - [ ] `Dex-Test-Suite.html?full` all-green · `verify-provenance.html` GATE A/B clean · `build.mjs --check` clean.
 - [ ] Follow-up spawned per §📌 with whatever P7/P8 turn up.
