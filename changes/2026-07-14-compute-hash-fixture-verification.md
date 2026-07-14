@@ -1,8 +1,0 @@
-<!-- SPDX-License-Identifier: Apache-2.0 -->
----
-bump: minor
-type: added
-nodes: [suite]
-brief: FIXTURE-VERIFICATION-GATE-2026-07-14-BRIEF.md
----
-Make "export-inert" a computed value instead of a claim. Adds **`computeHash`** (`manifest-gate.js`) — `manifestHash`'s projection over an export's **compute closure** — so a render/CSS edit provably cannot move an export while a DSP edit provably can, and adds **`verifiedUnder`** to every corpus-backed fixture: the code that *actually re-ran the app and reproduced those bytes*. `build.mjs` re-stamps `manifestHash` on every rebuild, silently upgrading "came from code X" into "is reproducible under code Y" — an assertion no gate ever tested, and the mechanism by which a stale GlucoDex fixture and a pre-fix DSP reached real users. `build.mjs` is now **forbidden** to write `verifiedUnder` (asserted by source scan); the only writer is the new `tools/verify-fixtures.mjs`, which refuses to stamp unless every corpus input is present *and* the full suite is green. **`release.mjs` now refuses to cut a release while any corpus-backed fixture is UNVERIFIED** — the wall sits where harm materialises (shipping) and where the releaser actually holds the corpus; this would have blocked v1.10.1. CI reports the same thing non-blockingly (a corpus-less contributor cannot green it). The compute closure is a **denylist, not an allowlist**: an allowlist that forgets a module fails *open* and the gate goes blind, while a denylist that forgets one merely over-flags. Migration ran against the real corpus: all 14 corpus-backed fixtures re-verified and stamped, so the gate lands green.
