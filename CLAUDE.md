@@ -281,6 +281,23 @@ know that your code changed a fixture's **output**. If it did, regenerate the fi
 app on its committed inputs and re-exporting** (NEVER hand-edit an export), then let the tool re-record
 `{ manifestHash, inputHashes, outputHash }`. Because `manifestHash` is deterministic, an **export-inert
 rebuild of identical source moves nothing** — no re-record. A fixture-only re-record needs no rebuild.
+The regen tools are per-node and are the ONLY sanctioned way to move an output byte:
+`tools/regen-cpap-goldens.mjs` (CPAPDex, 5 fixtures) · `tools/regen-glucodex-goldens.mjs` (GlucoDex, 2).
+Each re-runs the real modules in a co-loaded realm, preserves the volatile keys the equiv gate excludes
+(`file`/`provenance`/`kernel`/`generated`), and re-records the ledger from the bytes it wrote — so an
+**output-only** regeneration under UNCHANGED code (the case `build.mjs` does *not* cover: it re-stamps
+`outputHash` only when the bundle hash moves) still lands in `FIXTURE-PROVENANCE.json` without a hand-edit.
+Writing a node's regen tool is a one-off; copy the CPAP/GlucoDex pair.
+
+**⚠️ "The synthetic golden is byte-identical" does NOT prove a change is export-inert.** The REAL-recording
+equiv legs **SKIP in CI and on any machine without `uploads/`** (gitignored personal data) — so a DSP change
+that moves a real export's content passes every gate the author can see, and the stale fixture ships. This
+is not hypothetical: DEEP-AUDIT-2026-07-14 §1 (GlucoDex long-gap exclusion) declared itself export-inert on
+the synthetic golden's evidence, but the real Lingo night carries a multi-hour sensor gap and its `daypart`
+block moved — caught only later, on a machine with the corpus. **Before you claim export-inert, run the real
+legs:** `DEX_UPLOADS=<corpus> node tests/run-tests.mjs` (fixtures always resolve from the repo; only the
+INPUTS come from `DEX_UPLOADS`). No corpus on hand? Then say "export-inert **on the synthetic goldens**;
+real legs unrun" — never the unqualified claim.
 
 **The regenerate step is gate-enforced (the GATE-C surface).** GATE B is *static* — it pins the
 committed input/output bytes + code identity but does **not** re-run the app, so on its own it can't
