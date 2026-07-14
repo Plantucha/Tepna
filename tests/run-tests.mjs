@@ -587,6 +587,30 @@ function readNonBundleCsp() {
   return out;
 }
 
+// analysis-tools self-contained gate (LOCAL-DOWNLOAD / file:// fix): the 9 science tools are bundled to
+// self-contained single-file HTML by tools/build-analysis.mjs so they run when downloaded to disk. This
+// reads each committed tool HTML so the group can assert the file://-safe invariant (no external <script
+// src>, no `new Worker('file.js')`). Node-lane only (fs read); browser lane SKIPs.
+function readAnalysisTools() {
+  const wanted = [
+    'cgm-hrv-coupling-analysis.html',
+    'hrv-confound-analysis.html',
+    'nights-icc-analysis.html',
+    'odi-bias-analysis.html',
+    'qrs-equiv-analysis.html',
+    'qrs-yield-analysis.html',
+    'sensor-trio-power-analysis.html',
+    'sigma-no-reference-analysis.html',
+    'treatment-response-analysis.html'
+  ];
+  const out = {};
+  for (const f of wanted) {
+    const p = join(ROOT, f);
+    if (existsSync(p)) out[f] = readFileSync(p, 'utf8');
+  }
+  return out;
+}
+
 // security · csp-strict (SECURITY-CSP-STRICT-SCRIPT-SRC-2026-07-11): the COMMITTED bundle .html CSP metas,
 // so the gate can assert each shipped script-src carries a 'sha256-' hash and NOT 'unsafe-inline'. Only the
 // <meta> is kept (not the megabyte body). Node lane has full fs; the browser lane fetches the same slice.
@@ -915,6 +939,7 @@ async function main() {
     hosts: readHosts(),
     srcHtml: readSrcHtml(),
     nonBundleCsp: readNonBundleCsp(),
+    analysisTools: readAnalysisTools(),
     bundleCsp: readBundleCsp(),
     manifests: readManifests(),
     releaseLedger: readReleaseLedger(),
