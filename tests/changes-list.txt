@@ -13,6 +13,7 @@ change 2026-07-13-own-the-build-followups-docs-and-checkjs.md
 change 2026-07-13-release-regen-docs-ledger-list.md
 change 2026-07-13-security-leak-hygiene.md
 change 2026-07-13-security-nonbundle-csp.md
+change 2026-07-13-trio-batch-o2ring-dat.md
 change 2026-07-13-typegate-cpapdex-dsp.md
 change 2026-07-13-typegate-ecgdex-dsp.md
 change 2026-07-13-typegate-glucodex-dsp.md

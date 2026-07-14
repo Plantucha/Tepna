@@ -188,6 +188,7 @@ brief SYNTHETIC-CORPUS-BRIEF.md
 brief SYSTEM-COHESION-BRIEF.md
 brief TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md
 brief TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md
+brief TRIO-BATCH-O2RING-DAT-2026-07-13-BRIEF.md
 brief TRIO-METHODS-REUSE-2026-07-06-BRIEF.md
 brief TRIO-POWER-N15-FINDINGS-2026-07-12-BRIEF.md
 brief VERITY-SIGMA-CORNER-BRIEF.md
@@ -482,6 +483,7 @@ path briefs/SYNTHETIC-CORPUS-BRIEF.md
 path briefs/SYSTEM-COHESION-BRIEF.md
 path briefs/TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md
 path briefs/TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md
+path briefs/TRIO-BATCH-O2RING-DAT-2026-07-13-BRIEF.md
 path briefs/TRIO-METHODS-REUSE-2026-07-06-BRIEF.md
 path briefs/TRIO-POWER-N15-FINDINGS-2026-07-12-BRIEF.md
 path briefs/VERITY-SIGMA-CORNER-BRIEF.md
@@ -509,6 +511,7 @@ path changes/2026-07-13-own-the-build-followups-docs-and-checkjs.md
 path changes/2026-07-13-release-regen-docs-ledger-list.md
 path changes/2026-07-13-security-leak-hygiene.md
 path changes/2026-07-13-security-nonbundle-csp.md
+path changes/2026-07-13-trio-batch-o2ring-dat.md
 path changes/2026-07-13-typegate-cpapdex-dsp.md
 path changes/2026-07-13-typegate-ecgdex-dsp.md
 path changes/2026-07-13-typegate-glucodex-dsp.md

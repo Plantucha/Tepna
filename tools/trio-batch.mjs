@@ -221,6 +221,11 @@ function loadDsps() {
 const RE_POLAR = /^Polar_(H10|Sense)_([0-9A-Fa-f]+)_(\d{8})_(\d{6})_([A-Z]+)\.txt$/;
 // O2Ring: "O2Ring S 2100_<YYYYMMDDHHMMSS>.csv"
 const RE_O2 = /^O2Ring[^_]*_(\d{14})\.csv$/;
+// O2Ring NATIVE BINARY: "<YYYYMMDDHHMMSS>.dat" — the device's own file, written beside the vendor CSV.
+// When the CSV export stops (app not opened, phone not synced) the .dat is all that survives, and a
+// night with a perfectly good ECG+PPG pair used to be dropped for want of an anchor. See
+// TRIO-BATCH-O2RING-DAT-2026-07-13-BRIEF.md.
+const RE_O2_DAT = /^(\d{14})\.dat$/;
 
 // Clock Contract: floating wall-clock ms — components verbatim through Date.UTC, never new Date(str).
 const utc = (y, mo, d, h, mi, s) => Date.UTC(y, mo - 1, d, h, mi, s);
@@ -264,13 +269,47 @@ for (const name of readdirSync(SRC)) {
   m = RE_O2.exec(name);
   if (m) {
     const t0 = parse14(m[1]);
-    bump(nightKeyOf(t0)).oxy.push({ name, full, t0, bytes: st.size, dev: 'O2Ring', stream: 'SPO2' });
+    bump(nightKeyOf(t0)).oxy.push({ name, full, t0, bytes: st.size, dev: 'O2Ring', stream: 'SPO2', kind: 'csv', stamp: m[1] });
+    continue;
   }
+  m = RE_O2_DAT.exec(name);
+  if (m) {
+    const t0 = parse14(m[1]);
+    bump(nightKeyOf(t0)).oxy.push({ name, full, t0, bytes: st.size, dev: 'O2Ring', stream: 'SPO2', kind: 'dat', stamp: m[1] });
+  }
+}
+
+/* PREFER THE VENDOR CSV when the same session is present as BOTH files. The O2Ring writes the CSV and
+   the .dat for one recording under the same 14-digit stamp, and they carry the same samples (the brief
+   pins it: 24,040 rows, zero mismatches on SpO₂/pulse/motion). Keep the CSV — it is the corpus's
+   established provenance — and drop its .dat twin, so one recording never appears as two anchors. */
+for (const n of nights.values()) {
+  const csvStamps = new Set(n.oxy.filter((r) => r.kind === 'csv').map((r) => r.stamp));
+  n.oxy = n.oxy.filter((r) => r.kind !== 'dat' || !csvStamps.has(r.stamp));
 }
 
 /* END-STAMP — the last wall-clock stamp in a stream file, read from a 64 KB TAIL (never the whole
    file: a PPG waveform is ~350 MB). Gives each recording a real [t0, tEnd] window. */
 const endOf = (rec) => {
+  /* O2Ring .dat: a binary with NO text stamps, so the tail-scan below finds nothing. It records at
+     1 Hz, so tEnd = t0 + (records × 1000 ms). Read the whole file — a .dat is ~75 KB, not a waveform.
+     FRAMING ONLY (10-byte header · 3-byte records · 0xFF 0xFF trailer): the VALUE decode — SpO₂, pulse,
+     the motion×2 scale, the timestamps — stays single-sourced in oxydex-dsp.js decodeO2RingBinToCSV,
+     which is what actually parses this file downstream. The planner never loads the DSP realm (see
+     LAZY above), so it counts records rather than decoding them. */
+  if (rec.kind === 'dat') {
+    try {
+      const b = readFileSync(rec.full);
+      let n = 0;
+      for (let off = 10; off + 3 <= b.length; off += 3) {
+        if (b[off] === 0xff && b[off + 1] === 0xff) break;
+        n++;
+      }
+      return n ? rec.t0 + n * 1000 : null;
+    } catch {
+      return null;
+    }
+  }
   const fd = openSync(rec.full, 'r');
   try {
     const size = statSync(rec.full).size;
@@ -339,7 +378,14 @@ if (ONLY.length) plan = plan.filter((n) => ONLY.includes(n.key));
 const trio = [];
 for (const n of plan) {
   // Anchor on the O2Ring: it is always the sleep session (the Polar streams include daytime captures).
-  const anchor = n.oxy.slice().sort((a, b) => b.bytes - a.bytes)[0] || null;
+  // Rank by recorded DURATION, not bytes: bytes stopped being comparable once .dat joined CSV as an
+  // oxy candidate (a binary .dat is ~10× denser than the same session's CSV, so a short daytime CSV
+  // would outweigh a full night's .dat). Duration is what "the sleep session" actually means.
+  const durOf = (r) => {
+    const w = windowOf(r);
+    return w.tEnd - w.t0;
+  };
+  const anchor = n.oxy.slice().sort((a, b) => durOf(b) - durOf(a) || b.bytes - a.bytes)[0] || null;
   if (!anchor) {
     console.log(`  ⊘ ${n.key} — not a trio night (no O2Ring anchor)`);
     continue;
@@ -521,7 +567,20 @@ for (const p of work) {
   /* OxyDex — O2Ring CSV (HH:MM:SS DD/MM/YYYY → Clock Contract rule 4, preferDMY). The Motion
      column supplies this corner's motionIndex. fileMeta name is already serial-free. */
   try {
-    const ex = OxyDex.compute({ text: readFileSync(p.oxy.full, 'utf8'), fileMeta: { name: p.oxy.name } }, { ...COMMON, source: 'o2ring-csv' });
+    /* .dat → CSV text via OxyDex's OWN decoder (the same one the browser drop path uses), because
+       compute() takes {samples|rows|text} and never bytes. Not a second implementation: the 3-byte
+       layout, the 0xFF 0xFF trailer, the motion×2 scale and the filename→t0 rule live in exactly one
+       place. Verified equivalent on 2026-07-06, the night that has both files. */
+    const isDat = p.oxy.kind === 'dat';
+    let text;
+    if (isDat) {
+      const bytes = new Uint8Array(readFileSync(p.oxy.full));
+      if (!OxyDex.isO2RingBin(bytes)) throw new Error(`not an O2Ring native binary: ${p.oxy.name}`);
+      text = OxyDex.decodeO2RingBinToCSV(bytes, p.oxy.name);
+    } else {
+      text = readFileSync(p.oxy.full, 'utf8');
+    }
+    const ex = OxyDex.compute({ text, fileMeta: { name: p.oxy.name } }, { ...COMMON, source: isDat ? 'o2ring-dat' : 'o2ring-csv' });
     const h = hoursOf(ex);
     if (!KEEP_DAYTIME && h != null && h < MIN_HOURS) console.log(`    ⊘ OxyDex  ${h.toFixed(1)} h < --min-hours ${MIN_HOURS} (daytime/short) — skipped`);
     else row.nodes.push(writeExport(dir, 'OxyDex', p.key, ex));

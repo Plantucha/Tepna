@@ -1,0 +1,456 @@
+{
+  "kernel": {
+    "version": "1.0.0",
+    "hash": "118ebed5"
+  },
+  "schema": {
+    "name": "ganglior.node-export",
+    "version": "2.0",
+    "node": "PpgDex",
+    "nodeVersion": "1.0",
+    "bus": "ganglior",
+    "generated": "2026-07-14T01:00:02.839Z",
+    "provenance": null,
+    "doc": "PpgDex PPG-derived events → Ganglior bus. t/tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
+    "scrubbed": true
+  },
+  "recording": {
+    "source": "ppg",
+    "contentId": null,
+    "startEpochMs": 1783808173189,
+    "sessions": 1,
+    "events": 11
+  },
+  "ganglior_events": [
+    {
+      "t": "23:16:13",
+      "tMs": 1783811773189,
+      "impulse": "hrv_drop",
+      "node": "PpgDex",
+      "conf": 0.7,
+      "sqi": 0.92,
+      "meta": {
+        "rmssdFrom": 51,
+        "rmssdTo": 31.2,
+        "position": "prone",
+        "positionConf": 0.76
+      }
+    },
+    {
+      "t": "22:16:49",
+      "tMs": 1783808209072,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.56,
+      "meta": {}
+    },
+    {
+      "t": "22:16:55",
+      "tMs": 1783808215044,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.28,
+      "meta": {}
+    },
+    {
+      "t": "22:17:40",
+      "tMs": 1783808260458,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.87,
+      "meta": {}
+    },
+    {
+      "t": "22:54:35",
+      "tMs": 1783810475080,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.58,
+      "meta": {}
+    },
+    {
+      "t": "22:54:38",
+      "tMs": 1783810478742,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.34,
+      "meta": {}
+    },
+    {
+      "t": "22:54:45",
+      "tMs": 1783810485665,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.27,
+      "meta": {}
+    },
+    {
+      "t": "22:54:56",
+      "tMs": 1783810496648,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.63,
+      "meta": {}
+    },
+    {
+      "t": "23:12:15",
+      "tMs": 1783811535962,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.8,
+      "meta": {}
+    },
+    {
+      "t": "23:50:42",
+      "tMs": 1783813842054,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.67,
+      "meta": {}
+    },
+    {
+      "t": "23:50:44",
+      "tMs": 1783813844372,
+      "impulse": "motion_artifact_segment",
+      "node": "PpgDex",
+      "conf": 0.3,
+      "sqi": 0.63,
+      "meta": {}
+    }
+  ],
+  "reserved": {
+    "doc": "Awaiting other fleet nodes; null until available."
+  },
+  "quality": {
+    "analyzablePct": 98,
+    "cleanBeatPct": 99,
+    "coveragePct": 99,
+    "motionRejectedPct": 0.7,
+    "correctionRatePct": 2.7,
+    "ledAgreementPct": 100,
+    "ppiSpine": "foot",
+    "ppiAgreementPct": 100,
+    "ppiCorrFootPct": 2.7,
+    "ppiCorrPeakPct": 2.7
+  },
+  "hrv": {
+    "time": {
+      "meanRR": 1270,
+      "hr": 47,
+      "sdnn": 94.6,
+      "rmssd": 42.9,
+      "pnn50": 21.7,
+      "sdnnIndex": 68.7,
+      "sdnnRobust": 50.8,
+      "sd2Robust": 65.1,
+      "window": "wholeRecord",
+      "units": "ms",
+      "lowConfidence": false,
+      "lowConfidenceReason": null,
+      "windowNote": "sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node’s wholeRecord SDNN/RMSSD.",
+      "sdnnNote": "whole-record sdnn runs high on optical (SDANN/baseline-wander inflation, ~+26% vs chest ECG). sdnnIndex = mean of per-5-min SDNN (~+18%); sdnnRobust = quality-gated MEDIAN of per-5-min SDNN (~+3.5% vs ECG truth) — use sdnnRobust for cross-node SDNN comparison."
+    },
+    "frequency": {
+      "vlf": 910.5,
+      "lf": 739,
+      "hf": 567.5,
+      "totalPower": 2217,
+      "lfhf": 1.15,
+      "window": "epochMedian5min",
+      "method": "Lomb-Scargle",
+      "lowConfidence": false,
+      "hfRobustLowMotion": 553,
+      "wholeRecordLf": 1134,
+      "wholeRecordHf": 1338,
+      "wholeRecordLfhf": 0.85
+    },
+    "confidence": {
+      "beatToBeat": 0.87,
+      "sdnn": 0.86,
+      "lf": 0.87,
+      "hf": 0.93,
+      "vlf": 0.7,
+      "drivers": {
+        "analyzableFrac": 0.98,
+        "correctionOK": 0.89,
+        "lowMotionFrac": 0.95,
+        "postureStableFrac": 0.95
+      },
+      "note": "0..1 per-metric confidence from measured drivers (motion→hf, posture/baseline→vlf/sdnn, coverage+correction→beat-to-beat). vlf capped 0.7 — single-site optical VLF stays baseline-wander-limited even when clean; not a defect to \"fix\"."
+    }
+  },
+  "timeseries": {
+    "doc": "5-min epochs — primary cross-node feed (posture rides on epochs[].position).",
+    "epochs": [
+      {
+        "tMin": 0,
+        "hr": 51,
+        "rmssd": 46.4,
+        "sdnn": 114.5,
+        "lfhf": 1.43,
+        "motionIndex": 0.15,
+        "ledAgreementPct": 99,
+        "position": "prone",
+        "positionConf": 0.2,
+        "headingDeg": 11,
+        "magInterference": true
+      },
+      {
+        "tMin": 5,
+        "hr": 46,
+        "rmssd": 43.9,
+        "sdnn": 37.6,
+        "lfhf": 0.81,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 100,
+        "position": "prone",
+        "positionConf": 0.34,
+        "headingDeg": 11,
+        "magInterference": false
+      },
+      {
+        "tMin": 10,
+        "hr": 46,
+        "rmssd": 41,
+        "sdnn": 36,
+        "lfhf": 1.08,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 100,
+        "position": "prone",
+        "positionConf": 0.35,
+        "headingDeg": 11,
+        "magInterference": false
+      },
+      {
+        "tMin": 15,
+        "hr": 46,
+        "rmssd": 43.5,
+        "sdnn": 37.9,
+        "lfhf": 1.05,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 100,
+        "position": "prone",
+        "positionConf": 0.35,
+        "headingDeg": 11,
+        "magInterference": false
+      },
+      {
+        "tMin": 20,
+        "hr": 46,
+        "rmssd": 49.8,
+        "sdnn": 43.4,
+        "lfhf": 0.81,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 100,
+        "position": "prone",
+        "positionConf": 0.36,
+        "headingDeg": 11,
+        "magInterference": false
+      },
+      {
+        "tMin": 25,
+        "hr": 47,
+        "rmssd": 41.8,
+        "sdnn": 51.8,
+        "lfhf": 2.1,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 100,
+        "position": "prone",
+        "positionConf": 0.36,
+        "headingDeg": 11,
+        "magInterference": false
+      },
+      {
+        "tMin": 30,
+        "hr": 50,
+        "rmssd": 37.6,
+        "sdnn": 58.9,
+        "lfhf": 0.82,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 100,
+        "position": "prone",
+        "positionConf": 0.37,
+        "headingDeg": 12,
+        "magInterference": false
+      },
+      {
+        "tMin": 35,
+        "hr": 53,
+        "rmssd": 48.1,
+        "sdnn": 145.9,
+        "lfhf": 0.48,
+        "motionIndex": 0.16,
+        "ledAgreementPct": 99,
+        "position": "prone",
+        "positionConf": 0.25,
+        "headingDeg": 12,
+        "magInterference": true
+      },
+      {
+        "tMin": 40,
+        "hr": 48,
+        "rmssd": 56.1,
+        "sdnn": 184.2,
+        "lfhf": 2.69,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 99,
+        "position": "prone",
+        "positionConf": 0.81,
+        "headingDeg": 8,
+        "magInterference": false
+      },
+      {
+        "tMin": 45,
+        "hr": 44,
+        "rmssd": 51.6,
+        "sdnn": 67.6,
+        "lfhf": 2.82,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 99,
+        "position": "prone",
+        "positionConf": 0.82,
+        "headingDeg": 8,
+        "magInterference": false
+      },
+      {
+        "tMin": 50,
+        "hr": 45,
+        "rmssd": 43.3,
+        "sdnn": 49.8,
+        "lfhf": 1.78,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 99,
+        "position": "prone",
+        "positionConf": 0.83,
+        "headingDeg": 8,
+        "magInterference": false
+      },
+      {
+        "tMin": 55,
+        "hr": 45,
+        "rmssd": 51,
+        "sdnn": 102.4,
+        "lfhf": 6.07,
+        "motionIndex": 0.12,
+        "ledAgreementPct": 100,
+        "position": "prone",
+        "positionConf": 0.75,
+        "headingDeg": 5,
+        "magInterference": false
+      },
+      {
+        "tMin": 60,
+        "hr": 46,
+        "rmssd": 31.2,
+        "sdnn": 38.6,
+        "lfhf": 1.39,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 100,
+        "position": "prone",
+        "positionConf": 0.76,
+        "headingDeg": 6,
+        "magInterference": false
+      },
+      {
+        "tMin": 65,
+        "hr": 47,
+        "rmssd": 35.1,
+        "sdnn": 29.3,
+        "lfhf": 0.59,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 100,
+        "position": "prone",
+        "positionConf": 0.76,
+        "headingDeg": 6,
+        "magInterference": false
+      },
+      {
+        "tMin": 70,
+        "hr": 48,
+        "rmssd": 32.5,
+        "sdnn": 28.8,
+        "lfhf": 0.96,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 100,
+        "position": "prone",
+        "positionConf": 0.76,
+        "headingDeg": 6,
+        "magInterference": false
+      },
+      {
+        "tMin": 75,
+        "hr": 48,
+        "rmssd": 42.1,
+        "sdnn": 88.6,
+        "lfhf": 2.36,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 100,
+        "position": "prone",
+        "positionConf": 0.76,
+        "headingDeg": 6,
+        "magInterference": false
+      },
+      {
+        "tMin": 80,
+        "hr": 46,
+        "rmssd": 39.5,
+        "sdnn": 47.6,
+        "lfhf": 1.73,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 100,
+        "position": "prone",
+        "positionConf": 0.72,
+        "headingDeg": 4,
+        "magInterference": false
+      },
+      {
+        "tMin": 85,
+        "hr": 47,
+        "rmssd": 35.9,
+        "sdnn": 34.6,
+        "lfhf": 1.07,
+        "motionIndex": 0.11,
+        "ledAgreementPct": 100,
+        "position": "prone",
+        "positionConf": 0.73,
+        "headingDeg": 4,
+        "magInterference": false
+      },
+      {
+        "tMin": 90,
+        "hr": 47,
+        "rmssd": 41.7,
+        "sdnn": 63.1,
+        "lfhf": 1.22,
+        "motionIndex": 0.13,
+        "ledAgreementPct": 100,
+        "position": "prone",
+        "positionConf": 0.73,
+        "headingDeg": 4,
+        "magInterference": false
+      },
+      {
+        "tMin": 95,
+        "hr": 47,
+        "rmssd": 45.6,
+        "sdnn": 113.2,
+        "lfhf": 0.52,
+        "motionIndex": 0.04,
+        "ledAgreementPct": 97,
+        "position": "unknown",
+        "positionConf": 0,
+        "headingDeg": null,
+        "magInterference": false
+      }
+    ]
+  }
+}
