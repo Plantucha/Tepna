@@ -5920,6 +5920,43 @@
         JSON.stringify({ overnight: gapped.d.overnight.n, afternoon: gapped.d.afternoon.n, evening: gapped.d.evening.n })
       );
       T.ok('morning is untouched (the twin is surgical, not a blanket truncation)', gapped.d.morning.n === 216, 'morning n = ' + gapped.d.morning.n);
+
+      /* ── §4 · a long gap IS a sensor change (DEEP-AUDIT-2026-07-14 §4 — same root as §1) ─────────
+         detectSessions scanned for runs of FLAG.GAP ≥ 90 min. But a 90-min run of SHORT-gap cells is
+         impossible BY CONSTRUCTION: the FLAG.GAP branch requires BOTH neighbour gaps < gapThresh
+         (≈12.5 min at 5-min cadence), so every interior cell of a long hole is GAP_LONG. The boundary
+         could therefore never fire — nSessions was always 1, the per-session drift fit ran ACROSS
+         mixed sensor wears, and levelSessions was a silent no-op. The same fit masked only
+         WARMUP/COMPRESSION, so the DRAWN cells fed its slope/mean/median: the residue 9bdb9be
+         explicitly left to §4. The committed twin is the input that proves it — a 14 h hole must split
+         3 days into 2 wears. */
+      if (typeof G.parseCSV === 'function' && typeof G.analyze === 'function') {
+        var aGap = G.analyze(G.parseCSV(gapIn));
+        var aClean = G.analyze(G.parseCSV(cleanIn));
+        T.ok(
+          '§4 · a 14 h hole is a SENSOR CHANGE — the twin splits into 2 sessions',
+          aGap.nSessions === 2,
+          'nSessions = ' + aGap.nSessions + ' (1 ⇒ the boundary is still scanning FLAG.GAP, which a long hole never carries)'
+        );
+        T.ok('§4 · control · the clean twin is ONE continuous wear', aClean.nSessions === 1, 'nSessions = ' + aClean.nSessions);
+        var fitN = (aGap.sessions || []).reduce(function (a, s) {
+          return a + (s.n || 0);
+        }, 0);
+        T.ok(
+          '§4 · the per-session drift fit EXCLUDES the drawn cells (697 measured, not 864)',
+          fitN === 697,
+          'fitted on ' + fitN + ' cells — 864 means the 167 interpolated cells are feeding the slope/mean/median'
+        );
+        var s1 = (aGap.sessions || [])[0],
+          s2 = (aGap.sessions || [])[1];
+        T.ok(
+          '§4 · the boundary lands ON the hole (session 1 ends before it, session 2 starts after)',
+          !!(s1 && s2 && s1.endMs < s2.startMs && s2.startMs - s1.endMs >= 90 * 60000),
+          s1 && s2 ? 'inter-session gap = ' + Math.round((s2.startMs - s1.endMs) / 60000) + ' min' : 'only ' + (aGap.sessions || []).length + ' session(s) detected'
+        );
+      } else {
+        T.ok('§4 · GlucoDex.parseCSV + analyze exposed (session gate)', false, 'namespace is missing parseCSV/analyze');
+      }
     });
 
     group('GlucoDex clamp-saturation honesty flag (GLUCODEX-FOLLOWUPS §2)', 'glucodex-dsp · integrator-dsp', function (T) {

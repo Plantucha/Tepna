@@ -103,7 +103,21 @@ surfaced number), then §4/§5, then §6–§8.
   mirroring ECGDex:601. **Gate cost:** `pulsedex-dsp.js` → re-bundle PulseDex; **moves the overnight-fixture Total
   Power/VLF output** → PulseDex equiv leg reds → regenerate its fixtures (§🔏) + a changeset (release-ledger check7).
 
-## §4 — GlucoDex `detectSessions` can never detect a sensor-change boundary
+## §4 — GlucoDex `detectSessions` can never detect a sensor-change boundary  ✅ EXECUTED 2026-07-14
+> **EXECUTED 2026-07-14.** Boundary detection now keys on a cell where the sensor was **absent** (new
+> `_absent()` = `GAP || GAP_LONG`) rather than on `FLAG.GAP` alone — so only the ≥90-min **length**, never the
+> flag, decides a sensor change, and the boundary stays honest if `gapThresh` ever moves. The per-session
+> drift fit was routed through **`_ana`** (the §1 predicate), closing the residue `9bdb9be` explicitly left
+> here: the drawn `GAP_LONG` line had been feeding the least-squares slope and the session mean/median.
+> **Gated on the committed 14 h-gap twin** (shipped for §4's sibling need, exactly as this brief predicted —
+> *"can share §1's long-gap fixture"*): 3 days now split into **2 wears** (inter-session gap 840 min) and the
+> fit runs on **697 measured cells, not 864**. Four assertions, each verified RED on the old code first (the
+> clean twin stays 1 session throughout — the control that proves the gate discriminates rather than just
+> failing). Re-bundled GlucoDex (`92a7dff75aca → 7d4065f93f03`) + the two orchestrators that inline the DSP.
+> **EXPORT-INERT — verified, not asserted:** all three GlucoDex fixtures, *including the real Lingo night that
+> actually carries a long gap*, are byte-identical (`regen-glucodex-goldens --check`: 0 moved). Sessions are
+> not in the export and the level/de-drift corrections are off by default. That check is the one §1 skipped.
+
 - **Severity:** mis-states `nSessions` + per-session drift; disables the between-sensor level correction. Same
   root regression as §1.
 - **Root cause:** `detectSessions` scans for runs of `c.gF[i]===c.FLAG.GAP` ≥90 min (`glucodex-dsp.js:331-338`),
