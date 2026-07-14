@@ -512,6 +512,7 @@ path changes/2026-07-13-typegate-ecgdex-dsp.md
 path changes/2026-07-13-typegate-glucodex-dsp.md
 path changes/2026-07-13-typegate-hrvdex-dsp.md
 path changes/2026-07-13-typegate-integrator-dsp.md
+path changes/2026-07-13-typegate-oxydex-dsp.md
 path changes/2026-07-13-typegate-ppgdex-dsp.md
 path changes/2026-07-13-typegate-pulsedex-dsp-ambient.md
 path changes/2026-07-13-typegate-signal-orchestrate.md
@@ -830,6 +831,7 @@ path oxydex-app.js
 path oxydex-cross.js
 path oxydex-dsp.js
 path oxydex-fusion.js
+path oxydex-globals.d.ts
 path oxydex-profile.js
 path oxydex-registry.js
 path oxydex-render.js

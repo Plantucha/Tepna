@@ -354,7 +354,7 @@
       var reader = new FileReader();
       reader.onload = function (e) {
         try {
-          var _buf = e.target.result; // ArrayBuffer
+          var _buf = /** @type {any} */ (e.target.result); // ArrayBuffer
           var _bytes = new Uint8Array(_buf);
           // ── O2Ring native binary (.bin, or .bin renamed to .txt) ──
           if (isO2RingBin(_bytes)) {
@@ -3087,14 +3087,14 @@
       return r.hr;
     });
     nadirEvents.forEach(function (ev) {
-      ev.onset = ev.startIdx;
+      /** @type {any} */ (ev).onset = ev.startIdx;
       selfGateDesat(ev, pulseSeries, spo2);
     });
     var artifactCount = nadirEvents.filter(function (e) {
-      return e.artifact;
+      return /** @type {any} */ (e).artifact;
     }).length;
     var realEvents = nadirEvents.filter(function (e) {
-      return !e.artifact;
+      return !(/** @type {any} */ (e).artifact);
     });
     var meanRecovery = realEvents.length
       ? +(
