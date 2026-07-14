@@ -6,3 +6,4 @@
 # Line-oriented + `merge=union` (see tests/list-format.js): NO count, NO generated-date —
 # a volatile scalar would conflict on every concurrent add. Regenerate, never hand-edit.
 change 2026-07-14-p2-strictnull-adapters-orchestrate.md
+change 2026-07-14-p2-strictnullchecks-on.md

@@ -123,15 +123,15 @@
     // Phase-9: guard so oxydex-dsp.js loads headless (isolation host has no #uploadArea — SIGNAL-ADAPTER-FOLLOWUPS §4)
     ua.addEventListener('dragover', function (e) {
       e.preventDefault();
-      ua.classList.add('drag');
+      /** @type {HTMLElement} */ (ua).classList.add('drag');
     });
     ua.addEventListener('dragleave', function () {
-      ua.classList.remove('drag');
+      /** @type {HTMLElement} */ (ua).classList.remove('drag');
     });
     ua.addEventListener('drop', function (e) {
       e.preventDefault();
-      ua.classList.remove('drag');
-      var files = Array.from(e.dataTransfer.files || []);
+      /** @type {HTMLElement} */ (ua).classList.remove('drag');
+      var files = Array.from(/** @type {any} */ (e.dataTransfer).files || []);
       if (files.length) handleFiles(files);
     });
   }
@@ -354,7 +354,7 @@
       var reader = new FileReader();
       reader.onload = function (e) {
         try {
-          var _buf = /** @type {any} */ (e.target.result); // ArrayBuffer
+          var _buf = /** @type {any} */ (e.target).result; // ArrayBuffer
           var _bytes = new Uint8Array(_buf);
           // ── O2Ring native binary (.bin, or .bin renamed to .txt) ──
           if (isO2RingBin(_bytes)) {
@@ -2148,7 +2148,7 @@
     // display shape byte-identical in the export element) onto night_obj.oscEpisodes, where
     // oxyBuildGangliorEvents reads them to emit one periodic_breathing event per oscillation episode.
     var _oscEpisodes = osc && osc.episodes ? osc.episodes : [];
-    if (osc) delete osc.episodes;
+    if (osc) delete (/** @type {any} */ (osc).episodes);
     var tIdx = computeTIndex(rows);
     var hrv = computeHRV(rows);
     var spo2s = rows.map(function (r) {
@@ -2167,7 +2167,7 @@
     var hb = computeHypoxicBurden(rows);
     var motion = computeMotionProfile(rows);
     var stab = computeSleepStabilityScore(stats, hrv, osc, hb);
-    var durationHr = stats.durationMin / 60;
+    var durationHr = /** @type {number} */ (stats.durationMin) / 60;
     var desat = computeDesaturationProfile(rows, tIdx, odi4, blArr);
     // OXIMETER SELF-GATE (Part A): exclude self-gated artifact desaturations from
     // the ODI-4 rate. The desat profile and the ODI counter share the same
@@ -3846,14 +3846,14 @@
       ).toFixed(1);
     });
     if (qs.indexOf(null) >= 0) return null;
-    var arc = qs && qs.length >= 4 ? +(qs[2] - qs[0]).toFixed(1) : 0;
+    var arc = qs && qs.length >= 4 ? +(/** @type {number} */ (qs[2]) - /** @type {number} */ (qs[0])).toFixed(1) : 0;
     return {
       hrQ1: qs && qs.length >= 4 ? qs[0] : null,
       hrQ2: qs && qs.length >= 4 ? qs[1] : null,
       hrQ3: qs && qs.length >= 4 ? qs[2] : null,
       hrQ4: qs && qs.length >= 4 ? qs[3] : null,
       hrArc: arc,
-      remReemergence: qs[3] > qs[2] + 1,
+      remReemergence: /** @type {number} */ (qs[3]) > /** @type {number} */ (qs[2]) + 1,
       hrArcLabel: arc < -3 ? 'Good (declining arc)' : arc > 3 ? 'Rising (arousal)' : 'Flat'
     };
   }
@@ -5409,7 +5409,7 @@
         };
         // Generate Smart Summary for JSONL imports too (tabs were missing).
         try {
-          night.summary = computeSmartSummary(night);
+          night.summary = /** @type {any} */ (computeSmartSummary(night));
         } catch (e) {
           night.summary = null;
         }

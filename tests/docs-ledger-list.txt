@@ -506,6 +506,7 @@ path cgm-hrv-coupling-analysis.html
 path cgm-hrv-coupling-analysis.js
 path changes
 path changes/2026-07-14-p2-strictnull-adapters-orchestrate.md
+path changes/2026-07-14-p2-strictnullchecks-on.md
 path changes/README.md
 path clock.js
 path codegen

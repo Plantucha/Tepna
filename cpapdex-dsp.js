@@ -925,7 +925,7 @@ function selfTest() {
   // multi-night longitudinal trends (OxyDex-style)
   var mkN = function (day, hrs, ahi) { return { t0Ms: Date.UTC(2026, 5, day, 22, 30, 0), therapyHours: hrs, metrics: { usageHours: hrs, residualAHI: ahi, centralIndex: 0, largeLeakPct: 0 }, sessions: [] }; };
   var hist = [mkN(1, 5, 8), mkN(2, 5.5, 7), mkN(3, 6, 6), mkN(4, 6.5, 5), mkN(5, 7, 4), mkN(6, 7, 3), mkN(7, 7.5, 2)];
-  var lng2 = buildLongitudinal(hist);
+  var lng2 = /** @type {any} */ (buildLongitudinal(hist));
   ok('longitudinal: usageTrend7d > 0 (usage rising)', lng2.usageTrend7d > 0, lng2.usageTrend7d);
   ok('longitudinal: ahiTrend30d mean ≈ 5 over 7 nights', lng2.ahiTrend30d && near(lng2.ahiTrend30d.mean, 5, 0.6), JSON.stringify(lng2.ahiTrend30d));
   ok('longitudinal: chronological order independent of input order', buildLongitudinal(hist.slice().reverse()).usageTrend7d === lng2.usageTrend7d, 'reversed == forward');
@@ -976,7 +976,7 @@ function selfTest() {
   ok('periodicBreathingSec sums CS/PB spans', periodicBreathingSec([{ class: 'Cheyne-Stokes', durSec: 60 }, { class: 'Hypopnea', durSec: 10 }]) === 60);
 
   // ── full EDF-set integration: buildSessionFromEdf on a synthetic file-set ──
-  var sess = buildSessionFromEdf(_synthEdfSet({ cs: true }), { fname: 's1' });
+  var sess = /** @type {any} */ (buildSessionFromEdf(_synthEdfSet({ cs: true }), { fname: 's1' }));
   var uh = 600 / 3600;
   ok('EDF session: usageHours ≈ 0.167', near(sess.usageHours, uh, 0.01), sess.usageHours);
   // The synthetic EDF set is a 10-MINUTE clip (2 × 5-min windows). You cannot tell a fixed machine
@@ -1005,7 +1005,7 @@ function selfTest() {
   ok('§F2 fixed pressure + strong EPR ⇒ CPAP (envelope is EPR-immune)',
      classifyMode(eprFixed, FS).mode === 'CPAP', classifyMode(eprFixed, FS).mode);
   ok('§F2   … and its envelope IQR is ~0 despite a raw IQR of 3',
-     classifyMode(eprFixed, FS).envIqr <= MODE_CPAP_MAX, classifyMode(eprFixed, FS).envIqr);
+     /** @type {any} */ (classifyMode(eprFixed, FS)).envIqr <= MODE_CPAP_MAX, /** @type {any} */ (classifyMode(eprFixed, FS)).envIqr);
 
   // (2) a genuinely auto-titrating machine: pressure ramps 8 → 14 over the night, EPR on top.
   var apap = press(WIN * 8, function (i) {
@@ -1019,7 +1019,7 @@ function selfTest() {
   // an 8-window ramp of total range R has envelope IQR ≈ R/2 → R = 1.5 lands IQR ≈ 0.75,
   // i.e. squarely between MODE_CPAP_MAX (0.5) and MODE_APAP_MIN (1.0).
   var borderline = press(WIN * 8, function (i) { return 10 + 1.5 * Math.floor(i / WIN) / 7; });
-  var bMode = classifyMode(borderline, FS);
+  var bMode = /** @type {any} */ (classifyMode(borderline, FS));
   ok('§F2 an indeterminate envelope ⇒ mode null (REFUSES to guess)',
      bMode.mode === null && bMode.envIqr > MODE_CPAP_MAX && bMode.envIqr < MODE_APAP_MIN,
      bMode.mode + ' @ ' + bMode.envIqr);
@@ -1082,13 +1082,13 @@ function selfTest() {
   ok('EDF session: SA2 sentinel ⇒ oximetry lane unavailable', sess.oximetry.available === false && sess.oximetry.reason === 'oximeter-not-connected', JSON.stringify(sess.oximetry));
 
   // ── oximetry lane WHEN a valid oximeter + a real desat is present ──
-  var sessO = buildSessionFromEdf(_synthEdfSet({ oxi: true }), {});
+  var sessO = /** @type {any} */ (buildSessionFromEdf(_synthEdfSet({ oxi: true }), {}));
   ok('EDF session: valid oximeter ⇒ lane available', sessO.oximetry.available === true, JSON.stringify(sessO.oximetry));
   ok('EDF session: real desat detected, NOT self-gated', sessO.oximetry.desatCount >= 1 && sessO.oximetry.artifactCount === 0, JSON.stringify(sessO.oximetry));
   ok('EDF session: spo2Nadir ≈ 89', near(sessO.oximetry.spo2Nadir, 89, 1.5), sessO.oximetry.spo2Nadir);
 
   // ── injected squeeze: a real-looking desat with a perfusion collapse is gated out of ODI ──
-  var sessSq = buildSessionFromEdf(_synthEdfSet({ oxi: true, squeeze: true }), {});
+  var sessSq = /** @type {any} */ (buildSessionFromEdf(_synthEdfSet({ oxi: true, squeeze: true }), {}));
   ok('EDF session: injected squeeze flagged artifact + excluded from ODI', sessSq.oximetry.artifactCount >= 1, JSON.stringify(sessSq.oximetry));
 
   // ── night-level pooled metrics from real sessions ──

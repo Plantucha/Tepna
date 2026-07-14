@@ -229,9 +229,9 @@ function commitRows(newRows, opts){
       setStatus('✅ Added '+added+' measurement'+(added===1?'':'s')+skip+' — '+allRows.length+' total · '+span);
     }
   }
-  document.getElementById('uploadZone').style.display='none';
-  document.getElementById('emptyState').style.display='none';
-  document.getElementById('mainUI').style.display='block';
+  /** @type {HTMLElement} */(document.getElementById('uploadZone')).style.display='none';
+  /** @type {HTMLElement} */(document.getElementById('emptyState')).style.display='none';
+  /** @type {HTMLElement} */(document.getElementById('mainUI')).style.display='block';
   var _pp=document.getElementById('profilePanel'); if(_pp) _pp.style.display='block';
   _hrvRefreshChrome();
   rerender();

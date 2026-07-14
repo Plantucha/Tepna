@@ -693,7 +693,7 @@
     if (timeImplausible)
       reason =
         'the selected column does not behave like an interval series: its values sum to ' +
-        timeRatio.toFixed(1) +
+        /** @type {number} */ (timeRatio).toFixed(1) +
         "× the recording's elapsed time (intervals must SUM to the time they span). " +
         'This is what a non-beat sensor channel (e.g. an accelerometer axis in mg) looks like when read as RR — set aside, never guessed';
     else if (!vals.length) reason = headerLine || delimHits >= 2 ? 'columns present but no interval rows — the device logged no usable beats' : 'no numeric intervals found in the file';

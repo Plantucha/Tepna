@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-2aT2YZ2hUKMKkD1RKJGoUS13DAIfRkfr0+3MpUKSugc=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LG3l34o5fUxaDC0YPGwR220ch4LY53B3Dlc1+Bkl0ao=' 'sha256-PlBCQDTK5BQcHKy/ZI4uswhN3qfOoMF1KuTMxwxuLs8=' 'sha256-Q3AuDmREtmZCWIDZti8Mqeib+YYbMQwccyewR4IGWEU=' 'sha256-RvkJr6yX8cd0uTULvPiCQ8ycw9MDgCzLe+06TDvAmsE=' 'sha256-YV+FBxZVj3H/JNTmBSsyPUz6gLb8vbYc2/AvNHy6kc8=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-eBQjDWnGcboIU/PbqPPj8VH/etn/loRvHEWvSBSft+E=' 'sha256-uS5wmPLBnQsEHb7E+p/HiIzPQbnV0gtWPyH+fXMcnmE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-2aT2YZ2hUKMKkD1RKJGoUS13DAIfRkfr0+3MpUKSugc=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LG3l34o5fUxaDC0YPGwR220ch4LY53B3Dlc1+Bkl0ao=' 'sha256-LJ5zwQ9pBOLpJrFbOKzGHKRrcjpnzc/SLKAMfrWD/Bw=' 'sha256-PlBCQDTK5BQcHKy/ZI4uswhN3qfOoMF1KuTMxwxuLs8=' 'sha256-Q3AuDmREtmZCWIDZti8Mqeib+YYbMQwccyewR4IGWEU=' 'sha256-RZ3KxRdQKznHZrZu8EtaA0864sSRSaaxGKh6mToY9jQ=' 'sha256-RvkJr6yX8cd0uTULvPiCQ8ycw9MDgCzLe+06TDvAmsE=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-eBQjDWnGcboIU/PbqPPj8VH/etn/loRvHEWvSBSft+E=' 'sha256-uS5wmPLBnQsEHb7E+p/HiIzPQbnV0gtWPyH+fXMcnmE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CPAPDex — PAP Therapy Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -3427,10 +3427,11 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         // Irregular-tsMs contract (§6): gaps OK, but the finite stamps must be monotonic
         // non-decreasing — a backwards step violates the floating-tMs law. Non-finite
         // entries are skipped (their own gap). Equal stamps (repeats) pass.
-        if (hasTs) {
+        if (hasTs && frame.tsMs) {
+          var _tsA = frame.tsMs;
           var _prev = null, _mono = true;
-          for (var _i = 0; _i < frame.tsMs.length; _i++) {
-            var _t = frame.tsMs[_i];
+          for (var _i = 0; _i < _tsA.length; _i++) {
+            var _t = _tsA[_i];
             if (typeof _t !== 'number' || !isFinite(_t)) continue;
             if (_prev !== null && _t < _prev) { _mono = false; break; }
             _prev = _t;
@@ -5714,7 +5715,7 @@ function selfTest() {
   // multi-night longitudinal trends (OxyDex-style)
   var mkN = function (day, hrs, ahi) { return { t0Ms: Date.UTC(2026, 5, day, 22, 30, 0), therapyHours: hrs, metrics: { usageHours: hrs, residualAHI: ahi, centralIndex: 0, largeLeakPct: 0 }, sessions: [] }; };
   var hist = [mkN(1, 5, 8), mkN(2, 5.5, 7), mkN(3, 6, 6), mkN(4, 6.5, 5), mkN(5, 7, 4), mkN(6, 7, 3), mkN(7, 7.5, 2)];
-  var lng2 = buildLongitudinal(hist);
+  var lng2 = /** @type {any} */ (buildLongitudinal(hist));
   ok('longitudinal: usageTrend7d > 0 (usage rising)', lng2.usageTrend7d > 0, lng2.usageTrend7d);
   ok('longitudinal: ahiTrend30d mean ≈ 5 over 7 nights', lng2.ahiTrend30d && near(lng2.ahiTrend30d.mean, 5, 0.6), JSON.stringify(lng2.ahiTrend30d));
   ok('longitudinal: chronological order independent of input order', buildLongitudinal(hist.slice().reverse()).usageTrend7d === lng2.usageTrend7d, 'reversed == forward');
@@ -5765,7 +5766,7 @@ function selfTest() {
   ok('periodicBreathingSec sums CS/PB spans', periodicBreathingSec([{ class: 'Cheyne-Stokes', durSec: 60 }, { class: 'Hypopnea', durSec: 10 }]) === 60);
 
   // ── full EDF-set integration: buildSessionFromEdf on a synthetic file-set ──
-  var sess = buildSessionFromEdf(_synthEdfSet({ cs: true }), { fname: 's1' });
+  var sess = /** @type {any} */ (buildSessionFromEdf(_synthEdfSet({ cs: true }), { fname: 's1' }));
   var uh = 600 / 3600;
   ok('EDF session: usageHours ≈ 0.167', near(sess.usageHours, uh, 0.01), sess.usageHours);
   // The synthetic EDF set is a 10-MINUTE clip (2 × 5-min windows). You cannot tell a fixed machine
@@ -5794,7 +5795,7 @@ function selfTest() {
   ok('§F2 fixed pressure + strong EPR ⇒ CPAP (envelope is EPR-immune)',
      classifyMode(eprFixed, FS).mode === 'CPAP', classifyMode(eprFixed, FS).mode);
   ok('§F2   … and its envelope IQR is ~0 despite a raw IQR of 3',
-     classifyMode(eprFixed, FS).envIqr <= MODE_CPAP_MAX, classifyMode(eprFixed, FS).envIqr);
+     /** @type {any} */ (classifyMode(eprFixed, FS)).envIqr <= MODE_CPAP_MAX, /** @type {any} */ (classifyMode(eprFixed, FS)).envIqr);
 
   // (2) a genuinely auto-titrating machine: pressure ramps 8 → 14 over the night, EPR on top.
   var apap = press(WIN * 8, function (i) {
@@ -5808,7 +5809,7 @@ function selfTest() {
   // an 8-window ramp of total range R has envelope IQR ≈ R/2 → R = 1.5 lands IQR ≈ 0.75,
   // i.e. squarely between MODE_CPAP_MAX (0.5) and MODE_APAP_MIN (1.0).
   var borderline = press(WIN * 8, function (i) { return 10 + 1.5 * Math.floor(i / WIN) / 7; });
-  var bMode = classifyMode(borderline, FS);
+  var bMode = /** @type {any} */ (classifyMode(borderline, FS));
   ok('§F2 an indeterminate envelope ⇒ mode null (REFUSES to guess)',
      bMode.mode === null && bMode.envIqr > MODE_CPAP_MAX && bMode.envIqr < MODE_APAP_MIN,
      bMode.mode + ' @ ' + bMode.envIqr);
@@ -5871,13 +5872,13 @@ function selfTest() {
   ok('EDF session: SA2 sentinel ⇒ oximetry lane unavailable', sess.oximetry.available === false && sess.oximetry.reason === 'oximeter-not-connected', JSON.stringify(sess.oximetry));
 
   // ── oximetry lane WHEN a valid oximeter + a real desat is present ──
-  var sessO = buildSessionFromEdf(_synthEdfSet({ oxi: true }), {});
+  var sessO = /** @type {any} */ (buildSessionFromEdf(_synthEdfSet({ oxi: true }), {}));
   ok('EDF session: valid oximeter ⇒ lane available', sessO.oximetry.available === true, JSON.stringify(sessO.oximetry));
   ok('EDF session: real desat detected, NOT self-gated', sessO.oximetry.desatCount >= 1 && sessO.oximetry.artifactCount === 0, JSON.stringify(sessO.oximetry));
   ok('EDF session: spo2Nadir ≈ 89', near(sessO.oximetry.spo2Nadir, 89, 1.5), sessO.oximetry.spo2Nadir);
 
   // ── injected squeeze: a real-looking desat with a perfusion collapse is gated out of ODI ──
-  var sessSq = buildSessionFromEdf(_synthEdfSet({ oxi: true, squeeze: true }), {});
+  var sessSq = /** @type {any} */ (buildSessionFromEdf(_synthEdfSet({ oxi: true, squeeze: true }), {}));
   ok('EDF session: injected squeeze flagged artifact + excluded from ODI', sessSq.oximetry.artifactCount >= 1, JSON.stringify(sessSq.oximetry));
 
   // ── night-level pooled metrics from real sessions ──

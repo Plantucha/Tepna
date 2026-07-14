@@ -416,7 +416,7 @@ function beatSQI(bp, peaks, fs, motionAt, agree){
   }
   // template = median across valid beats (normalised)
   const norm=b=>{ if(!b) return null; const mn=Math.min.apply(null,b), mx=Math.max.apply(null,b); const r=(mx-mn)||1; const o=new Float32Array(b.length); for(let j=0;j<b.length;j++)o[j]=(b[j]-mn)/r; return o; };
-  const nb=beats.map(norm).filter(Boolean);
+  const nb=/** @type {Float32Array[]} */(beats.map(norm).filter(Boolean));
   const tmpl=new Float32Array(L);
   if(nb.length){ for(let j=0;j<L;j++){ const col=[]; for(const b of nb) col.push(b[j]); tmpl[j]=median(col); } }
   const sqi=[];
@@ -857,7 +857,7 @@ function analyze(rec, progress){
 
   P(62,'Motion gate (ACC + GYRO)…');
   const motion=analyzeMotion(rec.acc, rec.gyro, rec.t0Ms, rec.durSec, rec.magn);
-  const motionAt = motion.hasData ? (samp=>motion.motionAtSec(rec.relSec[Math.max(0,Math.min(rec.n-1,Math.round(samp)))])) : null;
+  const motionAt = motion.hasData ? (samp=>/** @type {any} */(motion).motionAtSec(rec.relSec[Math.max(0,Math.min(rec.n-1,Math.round(samp)))])) : null;
 
   P(68,'Per-beat SQI (× 3-LED agreement)…');
   const sqi=beatSQI(bp, det.peaks, rec.fs, motionAt, cons.agree);
@@ -933,7 +933,7 @@ function analyze(rec, progress){
   const meanSQI=sqi.length?r2(mean(sqi)):0;
   const cleanBeats=sqi.filter(s=>s>=0.5).length;
   const cleanBeatPct=sqi.length?Math.round(100*cleanBeats/sqi.length):0;
-  const motionRejected = motion.hasData ? det.peaks.filter((p,k)=>motionAt(p)>0.5).length : 0;
+  const motionRejected = motion.hasData ? det.peaks.filter((p,k)=>/** @type {any} */(motionAt)(p)>0.5).length : 0;
   const motionRejectedPct = det.peaks.length? r1(100*motionRejected/det.peaks.length):0;
   const correctionRate = rr.length? r1(100*corr.nCorr/rr.length):0;
   const analyzablePct = Math.round(cleanBeatPct*(1-motionRejectedPct/100));
