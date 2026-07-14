@@ -30,6 +30,16 @@ changesets.)
 
 ---
 
+## [1.11.0] — 2026-07-14
+
+### Added
+- Make "export-inert" a computed value instead of a claim. Adds **`computeHash`** (`manifest-gate.js`) — `manifestHash`'s projection over an export's **compute closure** — so a render/CSS edit provably cannot move an export while a DSP edit provably can, and adds **`verifiedUnder`** to every corpus-backed fixture: the code that *actually re-ran the app and reproduced those bytes*. `build.mjs` re-stamps `manifestHash` on every rebuild, silently upgrading "came from code X" into "is reproducible under code Y" — an assertion no gate ever tested, and the mechanism by which a stale GlucoDex fixture and a pre-fix DSP reached real users. `build.mjs` is now **forbidden** to write `verifiedUnder` (asserted by source scan); the only writer is the new `tools/verify-fixtures.mjs`, which refuses to stamp unless every corpus input is present *and* the full suite is green. **`release.mjs` now refuses to cut a release while any corpus-backed fixture is UNVERIFIED** — the wall sits where harm materialises (shipping) and where the releaser actually holds the corpus; this would have blocked v1.10.1. CI reports the same thing non-blockingly (a corpus-less contributor cannot green it). The compute closure is a **denylist, not an allowlist**: an allowlist that forgets a module fails *open* and the gate goes blind, while a denylist that forgets one merely over-flags. Migration ran against the real corpus: all 14 corpus-backed fixtures re-verified and stamped, so the gate lands green. (`FIXTURE-VERIFICATION-GATE-2026-07-14-BRIEF.md`)
+
+### Fixed
+- GlucoDex: make `detectSessions` able to see a sensor change at all (DEEP-AUDIT-2026-07-14 §4, the same root as §1). The boundary scan tested `FLAG.GAP`, which it can never see over a sensor-change hole — the short-gap branch requires *both* neighbour gaps under `gapThresh` (≈12.5 min at 5-min cadence), so every interior cell of a ≥90-min hole is `FLAG.GAP_LONG`, and a run of short-gap cells can never reach 90 min by construction. So the boundary was unreachable: `nSessions` was **always 1**, the per-session drift fit ran **across mixed sensor wears**, and `levelSessions` (which aligns each wear's median) was a silent no-op. The fit also masked only WARMUP/COMPRESSION, so the drawn `GAP_LONG` line fed its slope, mean and median — the residue `9bdb9be` explicitly left to §4; it now routes through the same `_ana` predicate as every other distribution consumer. Gated on the committed 14 h-gap twin: 3 days now split into 2 wears (inter-session gap 840 min) and the fit runs on 697 measured cells, not 864. **Export-inert — verified, not asserted:** all three GlucoDex fixtures (including the real Lingo night, which carries an actual long gap) are byte-identical, because sessions are not in the export and the level/de-drift corrections are off by default. (`DEEP-AUDIT-2026-07-14-BRIEF.md`)
+
+---
+
 ## [1.10.3] — 2026-07-14
 
 ### Added
@@ -389,7 +399,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.10.3...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.11.0...HEAD
+[1.11.0]: https://github.com/Plantucha/Tepna/compare/v1.10.3...v1.11.0
 [1.10.3]: https://github.com/Plantucha/Tepna/compare/v1.10.2...v1.10.3
 [1.10.2]: https://github.com/Plantucha/Tepna/compare/v1.10.1...v1.10.2
 [1.10.1]: https://github.com/Plantucha/Tepna/compare/v1.10.0...v1.10.1
