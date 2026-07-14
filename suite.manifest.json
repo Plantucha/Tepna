@@ -112,23 +112,28 @@
   "content": [
     {
       "label": "Science",
-      "href": "Science.html"
+      "href": "Science.html",
+      "description": "Tepna's validation lab bench: synthetic-corpus experiments, reference-free σ estimation across sensors, and the honest-HR methodology behind every metric."
     },
     {
       "label": "Architecture",
-      "href": "Architecture.html"
+      "href": "Architecture.html",
+      "description": "How Tepna is built — local-first, zero-backend, evidence-graded: the shared spine, the two gates, and the design principles every analyzer node inherits."
     },
     {
       "label": "How to Collect Data",
-      "href": "How to Collect Data.html"
+      "href": "How to Collect Data.html",
+      "description": "Record your own biosignals for Tepna: device-by-device capture guides for O2Ring oximetry, Polar H10 ECG, Verity Sense PPG, CGM glucose, and CPAP therapy data."
     },
     {
       "label": "About",
-      "href": "Why This Exists.html"
+      "href": "Why This Exists.html",
+      "description": "Why Tepna exists: read one raw biosignal from a wearable you own, keep it 100% on your device, and get evidence-graded answers — no account, no upload, no product."
     },
     {
       "label": "Papers",
-      "href": "papers/papers.html"
+      "href": "papers/papers.html",
+      "description": "Working preprints behind Tepna's methods: reference-free uncertainty, the three-cornered-hat sensor validation, and the honest-HR derivations. Local, open, Apache-2.0."
     }
   ],
   "authoritativeContext": [

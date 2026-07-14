@@ -70,26 +70,103 @@ function resolveRel(dir, href) {
 }
 function isNonPublic(dir, href) {
   const c = href.split('#')[0].split('?')[0];
-  if (!c) return false;                                        // pure anchor
+  if (!c) return false; // pure anchor
   if (/^(https?:)?\/\//i.test(c) || /^mailto:/i.test(c)) return false; // external
-  if (/\.md$/i.test(c)) return true;                           // raw markdown is never a public link
+  if (/\.md$/i.test(c)) return true; // raw markdown is never a public link
   if (/\.html$/i.test(c)) return !htmlSet.has(resolveRel(dir, c));
-  return false;                                                // css/js/img asset — keep
+  return false; // css/js/img asset — keep
 }
 function mechanicalDelink(html, dir) {
-  return html.replace(/<a\b[^>]*?\bhref="([^"]+)"[^>]*?>([\s\S]*?)<\/a>/gi,
-    (m, href, inner) => (isNonPublic(dir, href) ? `<span class="${DELINK_CLASS}">${inner}</span>` : m));
+  return html.replace(/<a\b[^>]*?\bhref="([^"]+)"[^>]*?>([\s\S]*?)<\/a>/gi, (m, href, inner) => (isNonPublic(dir, href) ? `<span class="${DELINK_CLASS}">${inner}</span>` : m));
 }
 function hasNonPublic(html, dir) {
   return [...html.matchAll(/<a\b[^>]*?\bhref="([^"]+)"[^>]*?>/gi)].some((m) => isNonPublic(dir, m[1]));
 }
 
 // ── PHASE 1 — page-body sync ────────────────────────────────────────────────
-const log = { copy: [], delink: [], preserve: [], asset: [], stale: [], missingRoot: [], assetNoTwin: [], stamp: [] };
+const log = { copy: [], delink: [], preserve: [], asset: [], stale: [], missingRoot: [], assetNoTwin: [], stamp: [], meta: [] };
+
+// ── PHASE 0 — project roster-derived <head> discovery meta into the guide + content pages ────
+//   REPO-DISCOVERABILITY-FOLLOWUPS §5.3/§5.6. suite.manifest.json is the single source; this UPSERTS a
+//   marked, roster-derived meta block (description · canonical · OG/Twitter) into each reference guide +
+//   content page's <head>, in place at ROOT, so Phase 1a then syncs it to docs/. Idempotent — a
+//   `<!-- meta:auto … /meta:auto -->` region is REPLACED, never duplicated — and `--check` reds if the
+//   roster moved without a re-run. The front door (index.html) keeps its bespoke hand-authored head; only
+//   the uniform guide/content set is generated (so the four surfaces can't drift from the roster).
+const metaEsc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+const META_RE = /<!-- meta:auto\b[\s\S]*?<!-- \/meta:auto -->\n?/;
+const metaTargets = [
+  ...manifest.nodes
+    .filter((n) => !n.planned && n.guide)
+    .map((n) => ({
+      rel: n.guide,
+      title: `${n.id} Reference — ${n.signal} · ${manifest.site.name}`,
+      desc: `${n.summary} ${n.id} is a local-first ${n.signal} analyzer${n.device && n.device !== '—' ? ` for ${n.device}` : ''} — evidence-graded metrics, 100% in your browser, no upload or account.`
+    })),
+  ...manifest.content
+    .filter((c) => c.description && /\.html$/i.test(c.href) && !c.href.startsWith('papers/'))
+    .map((c) => ({ rel: c.href, title: `${c.label} — ${manifest.site.name}`, desc: c.description }))
+];
+function metaBlock(t) {
+  const d = metaEsc(t.desc),
+    ti = metaEsc(t.title),
+    u = metaEsc(BASE + encodeURI(t.rel)),
+    img = `${BASE}tepna-og.png`;
+  return [
+    '<!-- meta:auto — roster-derived by tools/build-docs.mjs (REPO-DISCOVERABILITY-FOLLOWUPS §5.3/§5.6); do not hand-edit, re-run the builder -->',
+    `<meta name="description" content="${d}">`,
+    `<link rel="canonical" href="${u}">`,
+    '<meta name="theme-color" content="#070A0E">',
+    '<meta property="og:type" content="article">',
+    '<meta property="og:site_name" content="Tepna">',
+    `<meta property="og:title" content="${ti}">`,
+    `<meta property="og:description" content="${d}">`,
+    `<meta property="og:url" content="${u}">`,
+    `<meta property="og:image" content="${img}">`,
+    '<meta name="twitter:card" content="summary_large_image">',
+    `<meta name="twitter:title" content="${ti}">`,
+    `<meta name="twitter:description" content="${d}">`,
+    `<meta name="twitter:image" content="${img}">`,
+    '<!-- /meta:auto -->'
+  ].join('\n');
+}
+function upsertMeta(abs, block) {
+  // Inject the block into THIS file's own <head>, preserving the rest of the file byte-for-byte — so a
+  // `preserve`d docs twin (editorially de-linked, Phase 1 skips it) still gets the meta without losing
+  // its body. Returns true if the file changed (and was written, unless --check).
+  if (!existsSync(abs)) return null;
+  const orig = readFileSync(abs, 'utf8');
+  const next = META_RE.test(orig) ? orig.replace(META_RE, block + '\n') : orig.replace(/<\/head>/i, block + '\n</head>');
+  if (next === orig) return false;
+  if (!CHECK) writeFileSync(abs, next);
+  return true;
+}
+for (const t of metaTargets) {
+  const block = metaBlock(t);
+  const rootAbs = join(ROOT, t.rel);
+  if (!existsSync(rootAbs)) {
+    log.missingRoot.push(t.rel);
+    continue;
+  }
+  // ROOT (source of truth). DEPLOY twin too: Phase 1 propagates it for a normal page, but a `preserve`d
+  // page (Science.html) is never re-synced, so inject directly into its own head there as well.
+  const rootChanged = upsertMeta(rootAbs, block);
+  const docsChanged = upsertMeta(join(DEPLOY, t.rel), block);
+  if (rootChanged) {
+    if (CHECK) log.stale.push(t.rel);
+    else log.meta.push(t.rel);
+  }
+  if (docsChanged) {
+    if (CHECK) log.stale.push('docs/' + t.rel);
+  }
+}
 function syncPage(rel) {
   const rootAbs = join(ROOT, rel);
   const docsAbs = join(DEPLOY, rel);
-  if (!existsSync(rootAbs)) { log.missingRoot.push(rel); return; }   // docs-only page (no source) — leave
+  if (!existsSync(rootAbs)) {
+    log.missingRoot.push(rel);
+    return;
+  } // docs-only page (no source) — leave
   const dir = rel.includes('/') ? rel.split('/').slice(0, -1).join('/') : '';
   const root = readFileSync(rootAbs, 'utf8');
   const base = rel.split('/').pop();
@@ -99,15 +176,21 @@ function syncPage(rel) {
     // preserve editorial de-link; only warn if root drifted from a mechanical baseline
     const cur = existsSync(docsAbs) ? readFileSync(docsAbs, 'utf8') : '';
     if (hasNonPublic(root, dir)) log.preserve.push(rel);
-    if (mechanicalDelink(root, dir) !== cur && CHECK) { /* editorial divergence is expected; not counted stale */ }
+    if (mechanicalDelink(root, dir) !== cur && CHECK) {
+      /* editorial divergence is expected; not counted stale */
+    }
     return;
   }
   desired = hasNonPublic(root, dir) ? mechanicalDelink(root, dir) : root;
   const cur = existsSync(docsAbs) ? readFileSync(docsAbs, 'utf8') : null;
-  const kind = (desired === root) ? log.copy : log.delink;
+  const kind = desired === root ? log.copy : log.delink;
   if (cur !== desired) {
-    if (CHECK) { log.stale.push(rel); }
-    else { writeFileSync(docsAbs, desired); kind.push(rel); }
+    if (CHECK) {
+      log.stale.push(rel);
+    } else {
+      writeFileSync(docsAbs, desired);
+      kind.push(rel);
+    }
   }
 }
 for (const rel of htmlPages) syncPage(rel);
@@ -115,67 +198,120 @@ for (const rel of htmlPages) syncPage(rel);
 // ── PHASE 1b — asset sync (css / js / images: byte-compare, copy on drift) ───
 const assetFiles = deployFiles.filter((p) => !/\.(html|md)$/i.test(p) && p !== '.nojekyll' && !ARTIFACT_NAMES.has(p));
 function syncAsset(rel) {
-  const rootAbs = join(ROOT, rel), docsAbs = join(DEPLOY, rel);
-  if (!existsSync(rootAbs)) { log.assetNoTwin.push(rel); return; }   // docs-only / generated — leave
+  const rootAbs = join(ROOT, rel),
+    docsAbs = join(DEPLOY, rel);
+  if (!existsSync(rootAbs)) {
+    log.assetNoTwin.push(rel);
+    return;
+  } // docs-only / generated — leave
   const a = readFileSync(rootAbs);
   const b = existsSync(docsAbs) ? readFileSync(docsAbs) : null;
-  if (b && a.equals(b)) return;                                      // in-sync (byte-identical)
+  if (b && a.equals(b)) return; // in-sync (byte-identical)
   if (CHECK) log.stale.push(rel);
-  else { copyFileSync(rootAbs, docsAbs); log.asset.push(rel); }
+  else {
+    copyFileSync(rootAbs, docsAbs);
+    log.asset.push(rel);
+  }
 }
 for (const rel of assetFiles) syncAsset(rel);
 
 // ── PHASE 2 — discoverability artifacts (regenerate off the synced page set) ─
 const encPath = (p) => encodeURI(p).replace(/&/g, '&amp;');
 const xmlEsc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const pageTitle = (rel) => { try { const m = readFileSync(join(DEPLOY, rel), 'utf8').match(/<title>([^<]*)<\/title>/i); return m ? m[1].trim() : rel; } catch { return rel; } };
+const pageTitle = (rel) => {
+  try {
+    const m = readFileSync(join(DEPLOY, rel), 'utf8').match(/<title>([^<]*)<\/title>/i);
+    return m ? m[1].trim() : rel;
+  } catch {
+    return rel;
+  }
+};
 const live = manifest.nodes.filter((n) => !n.planned);
 
 function buildSitemap() {
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+  return (
+    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
     htmlPages.map((p) => `  <url>\n    <loc>${BASE + (p === 'index.html' ? '' : encPath(p))}</loc>\n    <lastmod>${BUILD_DATE}</lastmod>\n  </url>`).join('\n') +
-    `\n</urlset>\n`;
+    `\n</urlset>\n`
+  );
 }
 function buildRobots() {
   return `# ${manifest.site.brand}\n# tepna.net is a public deployment (also fully usable offline). Index freely.\nUser-agent: *\nAllow: /\n\nSitemap: ${BASE}sitemap.xml\n`;
 }
 function buildFeed() {
   const papers = htmlPages.filter((p) => p.startsWith('papers/') && p !== 'papers/papers.html');
-  const entries = papers.map((p) => { const u = BASE + encPath(p); return `  <entry>\n    <title>${xmlEsc(pageTitle(p))}</title>\n    <link href="${u}"/>\n    <id>${u}</id>\n    <updated>${BUILD_DATE}T00:00:00Z</updated>\n  </entry>`; });
+  const entries = papers.map((p) => {
+    const u = BASE + encPath(p);
+    return `  <entry>\n    <title>${xmlEsc(pageTitle(p))}</title>\n    <link href="${u}"/>\n    <id>${u}</id>\n    <updated>${BUILD_DATE}T00:00:00Z</updated>\n  </entry>`;
+  });
   return `<?xml version="1.0" encoding="UTF-8"?>\n<feed xmlns="http://www.w3.org/2005/Atom">\n  <title>${xmlEsc(manifest.site.name)} — working preprints</title>\n  <link href="${BASE}papers/papers.html"/>\n  <link rel="self" href="${BASE}feed.xml"/>\n  <id>${BASE}papers/papers.html</id>\n  <updated>${BUILD_DATE}T00:00:00Z</updated>\n  <author><name>${xmlEsc(manifest.site.author)}</name></author>\n${entries.join('\n')}\n</feed>\n`;
 }
 function buildAbout() {
-  return JSON.stringify({
-    '@context': 'https://schema.org', '@type': 'SoftwareApplication',
-    name: manifest.site.name, alternateName: manifest.site.brand,
-    applicationCategory: 'HealthApplication', operatingSystem: 'Any (modern web browser)',
-    softwareVersion: manifest.version,
-    url: manifest.site.url, codeRepository: manifest.site.repo, description: manifest.site.description,
-    isAccessibleForFree: true, offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-    license: manifest.site.licenseUrl, author: { '@type': 'Person', name: manifest.site.author },
-    disclaimer: manifest.site.intendedUse,
-    featureList: ['100% local — no network, no upload, no account', 'Evidence-graded metrics (every number carries a trust badge)', ...live.map((n) => `${n.id}: ${n.signal} — ${n.summary}`)],
-    softwareHelp: live.map((n) => ({ '@type': 'WebPage', name: `${n.id} technical reference`, url: manifest.site.url + encodeURI(n.guide) }))
-  }, null, 2) + '\n';
+  return (
+    JSON.stringify(
+      {
+        '@context': 'https://schema.org',
+        '@type': 'SoftwareApplication',
+        name: manifest.site.name,
+        alternateName: manifest.site.brand,
+        applicationCategory: 'HealthApplication',
+        operatingSystem: 'Any (modern web browser)',
+        softwareVersion: manifest.version,
+        url: manifest.site.url,
+        codeRepository: manifest.site.repo,
+        description: manifest.site.description,
+        isAccessibleForFree: true,
+        offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+        license: manifest.site.licenseUrl,
+        author: { '@type': 'Person', name: manifest.site.author },
+        disclaimer: manifest.site.intendedUse,
+        featureList: ['100% local — no network, no upload, no account', 'Evidence-graded metrics (every number carries a trust badge)', ...live.map((n) => `${n.id}: ${n.signal} — ${n.summary}`)],
+        softwareHelp: live.map((n) => ({ '@type': 'WebPage', name: `${n.id} technical reference`, url: manifest.site.url + encodeURI(n.guide) }))
+      },
+      null,
+      2
+    ) + '\n'
+  );
 }
 function buildLlms() {
-  const L = [`# ${manifest.site.name}`, '', `> ${manifest.site.description}`, '', `Repository: ${manifest.site.repo} · License: ${manifest.site.license} · Author: ${manifest.site.author}`, '', '## Reference guides (per node)'];
+  const L = [
+    `# ${manifest.site.name}`,
+    '',
+    `> ${manifest.site.description}`,
+    '',
+    `Repository: ${manifest.site.repo} · License: ${manifest.site.license} · Author: ${manifest.site.author}`,
+    '',
+    '## Reference guides (per node)'
+  ];
   for (const n of live) L.push(`- [${n.id}](${manifest.site.url}${encodeURI(n.guide)}): ${n.signal} — ${n.summary}`);
-  L.push('', '## Overview'); for (const c of manifest.content) L.push(`- [${c.label}](${manifest.site.url}${encodeURI(c.href)})`);
-  L.push('', '## Authoritative context (source repository)'); for (const d of manifest.authoritativeContext) L.push(`- [${d.title}](${manifest.site.repo}/blob/main/${encodeURI(d.repoPath)}): ${d.note}`);
+  L.push('', '## Overview');
+  for (const c of manifest.content) L.push(`- [${c.label}](${manifest.site.url}${encodeURI(c.href)})`);
+  L.push('', '## Authoritative context (source repository)');
+  for (const d of manifest.authoritativeContext) L.push(`- [${d.title}](${manifest.site.repo}/blob/main/${encodeURI(d.repoPath)}): ${d.note}`);
   L.push('', `Full concatenated context: ${manifest.site.url}llms-full.txt`, '');
   return L.join('\n');
 }
 function buildLlmsFull() {
   let out = `# ${manifest.site.brand} — concatenated authoritative context\n# Generated ${BUILD_DATE}. Public docs only (the internal build/gate constitution CLAUDE.md is intentionally excluded).\n\n`;
-  for (const d of manifest.authoritativeContext) { let body; try { body = readFileSync(join(ROOT, d.repoPath), 'utf8'); } catch { body = `(not found: ${d.repoPath})`; } out += `\n\n${'='.repeat(78)}\n# ${d.title} — ${d.repoPath}\n${'='.repeat(78)}\n\n${body}`; }
+  for (const d of manifest.authoritativeContext) {
+    let body;
+    try {
+      body = readFileSync(join(ROOT, d.repoPath), 'utf8');
+    } catch {
+      body = `(not found: ${d.repoPath})`;
+    }
+    out += `\n\n${'='.repeat(78)}\n# ${d.title} — ${d.repoPath}\n${'='.repeat(78)}\n\n${body}`;
+  }
   return out;
 }
 const artifacts = { 'sitemap.xml': buildSitemap(), 'robots.txt': buildRobots(), 'feed.xml': buildFeed(), 'about.json': buildAbout(), 'llms.txt': buildLlms(), 'llms-full.txt': buildLlmsFull() };
 for (const [name, content] of Object.entries(artifacts)) {
   const dest = join(DEPLOY, name);
   const cur = existsSync(dest) ? readFileSync(dest, 'utf8') : null;
-  if (cur !== content) { if (CHECK) log.stale.push(name); else writeFileSync(dest, content); }
+  if (cur !== content) {
+    if (CHECK) log.stale.push(name);
+    else writeFileSync(dest, content);
+  }
 }
 
 // ── PHASE 3 — project suite.manifest.json version into the human/discovery surfaces ─────────
@@ -186,24 +322,52 @@ for (const [name, content] of Object.entries(artifacts)) {
 //   maintains it), so a surface that lost its marker stays lost and check-6 reds it as `unstamped`.
 const VERSION = manifest.version;
 const stampRules = [
-  ['README.md',       [[/(\*\*Suite version:\*\*\s*)\d+\.\d+\.\d+/g, `$1${VERSION}`]]],
-  ['index.html',      [[/("softwareVersion":\s*")\d+\.\d+\.\d+(")/g, `$1${VERSION}$2`], [/(Michal Planicka · Apache-2\.0 · v)\d+\.\d+\.\d+/g, `$1${VERSION}`]]],
-  ['docs/index.html', [[/("softwareVersion":\s*")\d+\.\d+\.\d+(")/g, `$1${VERSION}$2`], [/(Michal Planicka · Apache-2\.0 · v)\d+\.\d+\.\d+/g, `$1${VERSION}`]]],
+  ['README.md', [[/(\*\*Suite version:\*\*\s*)\d+\.\d+\.\d+/g, `$1${VERSION}`]]],
+  [
+    'index.html',
+    [
+      [/("softwareVersion":\s*")\d+\.\d+\.\d+(")/g, `$1${VERSION}$2`],
+      [/(Michal Planicka · Apache-2\.0 · v)\d+\.\d+\.\d+/g, `$1${VERSION}`]
+    ]
+  ],
+  [
+    'docs/index.html',
+    [
+      [/("softwareVersion":\s*")\d+\.\d+\.\d+(")/g, `$1${VERSION}$2`],
+      [/(Michal Planicka · Apache-2\.0 · v)\d+\.\d+\.\d+/g, `$1${VERSION}`]
+    ]
+  ]
 ];
 for (const [rel, subs] of stampRules) {
   const abs = join(ROOT, rel);
-  if (!existsSync(abs)) { log.missingRoot.push(rel); continue; }
+  if (!existsSync(abs)) {
+    log.missingRoot.push(rel);
+    continue;
+  }
   const orig = readFileSync(abs, 'utf8');
   let txt = orig;
   for (const [re, repl] of subs) txt = txt.replace(re, repl);
-  if (txt !== orig) { if (CHECK) log.stale.push(rel); else { writeFileSync(abs, txt); log.stamp.push(rel); } }
+  if (txt !== orig) {
+    if (CHECK) log.stale.push(rel);
+    else {
+      writeFileSync(abs, txt);
+      log.stamp.push(rel);
+    }
+  }
 }
 
 // ── report ──────────────────────────────────────────────────────────────────
 if (CHECK) {
-  if (log.stale.length) { console.error(`STALE (${log.stale.length}): ${log.stale.join(', ')}`); console.error('run: node tools/build-docs.mjs'); process.exit(1); }
-  console.log(`docs/ current — ${htmlPages.length} pages, ${assetFiles.length} assets, ${Object.keys(artifacts).length} artifacts, ${log.preserve.length} preserved (${[...PRESERVE].join(', ') || 'none'})`);
+  if (log.stale.length) {
+    console.error(`STALE (${log.stale.length}): ${log.stale.join(', ')}`);
+    console.error('run: node tools/build-docs.mjs');
+    process.exit(1);
+  }
+  console.log(
+    `docs/ current — ${htmlPages.length} pages, ${assetFiles.length} assets, ${Object.keys(artifacts).length} artifacts, ${log.preserve.length} preserved (${[...PRESERVE].join(', ') || 'none'})`
+  );
 } else {
+  console.log(`Phase 0 (head meta): projected roster meta into ${log.meta.length} guide/content page(s)${log.meta.length ? ' (' + log.meta.length + ' updated)' : ' (all current)'}`);
   console.log(`Phase 1a (pages):  copied ${log.copy.length}, de-linked ${log.delink.length}, preserved ${log.preserve.length} (${[...PRESERVE].join(', ') || 'none'})`);
   if (log.preserve.length) console.log(`  ⚠ preserved (editorial de-link — re-apply manually if you edited its source, or --force-delink): ${log.preserve.join(', ')}`);
   console.log(`Phase 1b (assets): synced ${log.asset.length} of ${assetFiles.length} (css/js/img)`);
