@@ -329,13 +329,22 @@ function analyzableIndex(c){
 //      the session mean (flattens baseline wander; experimental — can shave real
 //      slow physiology, so it's off by default and labelled informational)
 // ════════════════════════════════════════════════════════════════════════
+// A cell where the sensor was ABSENT. DEEP-AUDIT-2026-07-14 §4: the boundary scan below used to test
+// FLAG.GAP, which it can NEVER see over a sensor-change hole — the FLAG.GAP branch (:215) requires BOTH
+// neighbour gaps < gapThresh (≈12.5 min at 5-min cadence), so every interior cell of a ≥90-min hole is
+// FLAG.GAP_LONG. A run of short-GAP cells can never reach 90 min by construction, so a long gap was
+// unreachable: nSessions was ALWAYS 1, the drift fit ran across mixed sensor wears, and levelSessions
+// (which aligns each wear's median) was a silent no-op. Testing both classes keeps the boundary honest
+// if the thresholds ever move — only the ≥90-min length, not the flag, decides a sensor change.
+function _absent(c, i){ const f=c.gF[i]; return f===c.FLAG.GAP || f===c.FLAG.GAP_LONG; }
+
 function detectSessions(c){
   const boundaryGapMin=90;                 // a ≥90-min gap ⇒ likely sensor change
   const minSessionCells=Math.round(360/c.cadence);   // ≥6 h to count
   const bounds=[]; let start=0, i=0;
   while(i<c.N){
-    if(c.gF[i]===c.FLAG.GAP){
-      let j=i; while(j<c.N && c.gF[j]===c.FLAG.GAP) j++;
+    if(_absent(c,i)){
+      let j=i; while(j<c.N && _absent(c,j)) j++;
       if((j-i)*c.cadence >= boundaryGapMin){
         if(i-start>minSessionCells) bounds.push([start,i]);
         start=j;
@@ -348,10 +357,13 @@ function detectSessions(c){
   }
   if(c.N-start>minSessionCells) bounds.push([start,c.N]);
   if(!bounds.length) bounds.push([0,c.N]);
-  // per-session stats + drift slope (mg/dL per day) via least squares on OK cells
+  // Per-session stats + drift slope (mg/dL per day) via least squares on MEASURED cells.
+  // _ana, not a WARMUP/COMPRESSION-only mask (DEEP-AUDIT-2026-07-14 §4 — the residue §1 left here):
+  // the drawn GAP_LONG line was feeding this fit, so a sensor-change hole bent the drift slope and
+  // pulled the session mean/median toward hours the sensor never saw. Interpolation is not evidence.
   return bounds.map(([s,e],k)=>{
     const xs=[],ys=[]; const dayMs=86400000;
-    for(let p=s;p<e;p++){ if(c.gF[p]===c.FLAG.WARMUP||c.gF[p]===c.FLAG.COMPRESSION) continue; xs.push((c.gT[p]-c.gT[s])/dayMs); ys.push(c.gV[p]); }
+    for(let p=s;p<e;p++){ if(!_ana(c,p)) continue; xs.push((c.gT[p]-c.gT[s])/dayMs); ys.push(c.gV[p]); }
     if(ys.length<10) return { idx:k+1, s, e, startMs:c.gT[s], endMs:c.gT[e-1], days:+((e-s)*c.cadence/1440).toFixed(1), n:ys.length, mean:null, median:null, driftPerDay:null };
     const m=mean(ys), md=quantile(ys.slice().sort((a,b)=>a-b),0.5);
     const xRange=Math.max(...xs)-Math.min(...xs);

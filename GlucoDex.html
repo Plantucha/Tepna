@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-002ZEYKPNax6GbIPcKJkuMQYgIrkZmqFmSgeF5qeFVA=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-6zyVCPKnpa8yGXCrOQ92LGA26AalEyGUHrJ1N+VRDbI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-FKXiHVW5mQLxQLV6mK9ON6vF2uUzWwqz0wj5Vh5zQXA=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LJ5zwQ9pBOLpJrFbOKzGHKRrcjpnzc/SLKAMfrWD/Bw=' 'sha256-U25vHkX6xi2J0V08TwvK5iH/Js4Xmp2/lsoBZUOAFHc=' 'sha256-V0C9qWkelizTKHjPEtlWmyTc4pTsPSf41HTe+Ia2y7Y=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-nPAfl8+kfIed05YGBy7kP2t40iJBr9mENjWh8Rrl6Yk=' 'sha256-znnyGiXDcfbU3wUjydrmyWCFBC9U8tWF9ZOIH8oZ9no='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/33QBexsOSpokvf8FWz7WwWhIPetvgUpmmifcv+QOTw=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-6zyVCPKnpa8yGXCrOQ92LGA26AalEyGUHrJ1N+VRDbI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-FKXiHVW5mQLxQLV6mK9ON6vF2uUzWwqz0wj5Vh5zQXA=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LJ5zwQ9pBOLpJrFbOKzGHKRrcjpnzc/SLKAMfrWD/Bw=' 'sha256-U25vHkX6xi2J0V08TwvK5iH/Js4Xmp2/lsoBZUOAFHc=' 'sha256-V0C9qWkelizTKHjPEtlWmyTc4pTsPSf41HTe+Ia2y7Y=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-nPAfl8+kfIed05YGBy7kP2t40iJBr9mENjWh8Rrl6Yk=' 'sha256-znnyGiXDcfbU3wUjydrmyWCFBC9U8tWF9ZOIH8oZ9no='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GlucoDex — Continuous Glucose Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -6244,13 +6244,22 @@ function analyzableIndex(c){
 //      the session mean (flattens baseline wander; experimental — can shave real
 //      slow physiology, so it's off by default and labelled informational)
 // ════════════════════════════════════════════════════════════════════════
+// A cell where the sensor was ABSENT. DEEP-AUDIT-2026-07-14 §4: the boundary scan below used to test
+// FLAG.GAP, which it can NEVER see over a sensor-change hole — the FLAG.GAP branch (:215) requires BOTH
+// neighbour gaps < gapThresh (≈12.5 min at 5-min cadence), so every interior cell of a ≥90-min hole is
+// FLAG.GAP_LONG. A run of short-GAP cells can never reach 90 min by construction, so a long gap was
+// unreachable: nSessions was ALWAYS 1, the drift fit ran across mixed sensor wears, and levelSessions
+// (which aligns each wear's median) was a silent no-op. Testing both classes keeps the boundary honest
+// if the thresholds ever move — only the ≥90-min length, not the flag, decides a sensor change.
+function _absent(c, i){ const f=c.gF[i]; return f===c.FLAG.GAP || f===c.FLAG.GAP_LONG; }
+
 function detectSessions(c){
   const boundaryGapMin=90;                 // a ≥90-min gap ⇒ likely sensor change
   const minSessionCells=Math.round(360/c.cadence);   // ≥6 h to count
   const bounds=[]; let start=0, i=0;
   while(i<c.N){
-    if(c.gF[i]===c.FLAG.GAP){
-      let j=i; while(j<c.N && c.gF[j]===c.FLAG.GAP) j++;
+    if(_absent(c,i)){
+      let j=i; while(j<c.N && _absent(c,j)) j++;
       if((j-i)*c.cadence >= boundaryGapMin){
         if(i-start>minSessionCells) bounds.push([start,i]);
         start=j;
@@ -6263,10 +6272,13 @@ function detectSessions(c){
   }
   if(c.N-start>minSessionCells) bounds.push([start,c.N]);
   if(!bounds.length) bounds.push([0,c.N]);
-  // per-session stats + drift slope (mg/dL per day) via least squares on OK cells
+  // Per-session stats + drift slope (mg/dL per day) via least squares on MEASURED cells.
+  // _ana, not a WARMUP/COMPRESSION-only mask (DEEP-AUDIT-2026-07-14 §4 — the residue §1 left here):
+  // the drawn GAP_LONG line was feeding this fit, so a sensor-change hole bent the drift slope and
+  // pulled the session mean/median toward hours the sensor never saw. Interpolation is not evidence.
   return bounds.map(([s,e],k)=>{
     const xs=[],ys=[]; const dayMs=86400000;
-    for(let p=s;p<e;p++){ if(c.gF[p]===c.FLAG.WARMUP||c.gF[p]===c.FLAG.COMPRESSION) continue; xs.push((c.gT[p]-c.gT[s])/dayMs); ys.push(c.gV[p]); }
+    for(let p=s;p<e;p++){ if(!_ana(c,p)) continue; xs.push((c.gT[p]-c.gT[s])/dayMs); ys.push(c.gV[p]); }
     if(ys.length<10) return { idx:k+1, s, e, startMs:c.gT[s], endMs:c.gT[e-1], days:+((e-s)*c.cadence/1440).toFixed(1), n:ys.length, mean:null, median:null, driftPerDay:null };
     const m=mean(ys), md=quantile(ys.slice().sort((a,b)=>a-b),0.5);
     const xRange=Math.max(...xs)-Math.min(...xs);

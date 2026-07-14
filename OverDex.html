@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-002ZEYKPNax6GbIPcKJkuMQYgIrkZmqFmSgeF5qeFVA=' 'sha256-1iO435cbX0wm1d6usTR7SSCs3uG3lVdiWnp82E5x/k0=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AYzhhU7z6OZm4UCSX04uhP2kUKHG0vnKo9tvzWD/C1c=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Cmy5jqXGBn2TOeoIUu5NQ462zWgA2iB09CRh/bkx2pc=' 'sha256-F4s+OtKkoVZS0q8lS4F/sWsYA6V6dQxQKQ7xrw244Q0=' 'sha256-H9DThidPs/5/1NXxC5dNx0cmlGgf8Yxe0AKZOmotHv4=' 'sha256-HMcz3UCFbmyBGi0SQWw6ydup3CHvmu4SX/HIKXkWnkg=' 'sha256-JW4K7CyopdrwwPvAMLG3/tLyn8Wk3vtcQ8g5fAhUTe0=' 'sha256-LJ5zwQ9pBOLpJrFbOKzGHKRrcjpnzc/SLKAMfrWD/Bw=' 'sha256-LPTMDwYof3miBHr3e+GeI2SVxLG8VFePSJpSa5CfWYs=' 'sha256-M5NNoLurSsW3LayThWj6teZrENVAqpQNfRqO3ERgZPQ=' 'sha256-PB+ksOULjQm71LNR8HGSjhTYJn3uj+aFC4FWWaPmtGQ=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZDbkMuVPbDF2fKxbIEXfQXD9u87eEeptYBHB5+bYEy8=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dJ1uibBqsf1fPRfMMRgQXwbieWX/TqD6OvAeh2oVe1Q=' 'sha256-eekvlPHNW7x5a60a/0ylrGEF5gTVU2lgLSdFPPtYGsc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-giH7+xYTi6zzmo5ZtCPaGJEzq74hWIaqOK1CAMLayp4=' 'sha256-iFbQlgV6jrh7UwwCodH0mH6NJUMLtfyP3T+MuQZix6E=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-pF2F1BHb5ALbGyqL7RaEPb4fzp9+gHyW4tWOpeTvV10=' 'sha256-roO0qvbiqQFAF7zD/B79CM1goAjzhR5jx8+N3kX4ZSY=' 'sha256-s3ajFmncxnTFqb8ZM3UbtYM5V4KT6jWy1iwqo2L1U6g=' 'sha256-sCx/0jRpwBNzhTpZ4ClKf8BfTccQekveXGhU/zx+WqU=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-/33QBexsOSpokvf8FWz7WwWhIPetvgUpmmifcv+QOTw=' 'sha256-1iO435cbX0wm1d6usTR7SSCs3uG3lVdiWnp82E5x/k0=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AYzhhU7z6OZm4UCSX04uhP2kUKHG0vnKo9tvzWD/C1c=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Cmy5jqXGBn2TOeoIUu5NQ462zWgA2iB09CRh/bkx2pc=' 'sha256-F4s+OtKkoVZS0q8lS4F/sWsYA6V6dQxQKQ7xrw244Q0=' 'sha256-H9DThidPs/5/1NXxC5dNx0cmlGgf8Yxe0AKZOmotHv4=' 'sha256-HMcz3UCFbmyBGi0SQWw6ydup3CHvmu4SX/HIKXkWnkg=' 'sha256-JW4K7CyopdrwwPvAMLG3/tLyn8Wk3vtcQ8g5fAhUTe0=' 'sha256-LJ5zwQ9pBOLpJrFbOKzGHKRrcjpnzc/SLKAMfrWD/Bw=' 'sha256-LPTMDwYof3miBHr3e+GeI2SVxLG8VFePSJpSa5CfWYs=' 'sha256-M5NNoLurSsW3LayThWj6teZrENVAqpQNfRqO3ERgZPQ=' 'sha256-PB+ksOULjQm71LNR8HGSjhTYJn3uj+aFC4FWWaPmtGQ=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZDbkMuVPbDF2fKxbIEXfQXD9u87eEeptYBHB5+bYEy8=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dJ1uibBqsf1fPRfMMRgQXwbieWX/TqD6OvAeh2oVe1Q=' 'sha256-eekvlPHNW7x5a60a/0ylrGEF5gTVU2lgLSdFPPtYGsc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-giH7+xYTi6zzmo5ZtCPaGJEzq74hWIaqOK1CAMLayp4=' 'sha256-iFbQlgV6jrh7UwwCodH0mH6NJUMLtfyP3T+MuQZix6E=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-pF2F1BHb5ALbGyqL7RaEPb4fzp9+gHyW4tWOpeTvV10=' 'sha256-roO0qvbiqQFAF7zD/B79CM1goAjzhR5jx8+N3kX4ZSY=' 'sha256-s3ajFmncxnTFqb8ZM3UbtYM5V4KT6jWy1iwqo2L1U6g=' 'sha256-sCx/0jRpwBNzhTpZ4ClKf8BfTccQekveXGhU/zx+WqU=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -13142,13 +13142,22 @@ function analyzableIndex(c){
 //      the session mean (flattens baseline wander; experimental — can shave real
 //      slow physiology, so it's off by default and labelled informational)
 // ════════════════════════════════════════════════════════════════════════
+// A cell where the sensor was ABSENT. DEEP-AUDIT-2026-07-14 §4: the boundary scan below used to test
+// FLAG.GAP, which it can NEVER see over a sensor-change hole — the FLAG.GAP branch (:215) requires BOTH
+// neighbour gaps < gapThresh (≈12.5 min at 5-min cadence), so every interior cell of a ≥90-min hole is
+// FLAG.GAP_LONG. A run of short-GAP cells can never reach 90 min by construction, so a long gap was
+// unreachable: nSessions was ALWAYS 1, the drift fit ran across mixed sensor wears, and levelSessions
+// (which aligns each wear's median) was a silent no-op. Testing both classes keeps the boundary honest
+// if the thresholds ever move — only the ≥90-min length, not the flag, decides a sensor change.
+function _absent(c, i){ const f=c.gF[i]; return f===c.FLAG.GAP || f===c.FLAG.GAP_LONG; }
+
 function detectSessions(c){
   const boundaryGapMin=90;                 // a ≥90-min gap ⇒ likely sensor change
   const minSessionCells=Math.round(360/c.cadence);   // ≥6 h to count
   const bounds=[]; let start=0, i=0;
   while(i<c.N){
-    if(c.gF[i]===c.FLAG.GAP){
-      let j=i; while(j<c.N && c.gF[j]===c.FLAG.GAP) j++;
+    if(_absent(c,i)){
+      let j=i; while(j<c.N && _absent(c,j)) j++;
       if((j-i)*c.cadence >= boundaryGapMin){
         if(i-start>minSessionCells) bounds.push([start,i]);
         start=j;
@@ -13161,10 +13170,13 @@ function detectSessions(c){
   }
   if(c.N-start>minSessionCells) bounds.push([start,c.N]);
   if(!bounds.length) bounds.push([0,c.N]);
-  // per-session stats + drift slope (mg/dL per day) via least squares on OK cells
+  // Per-session stats + drift slope (mg/dL per day) via least squares on MEASURED cells.
+  // _ana, not a WARMUP/COMPRESSION-only mask (DEEP-AUDIT-2026-07-14 §4 — the residue §1 left here):
+  // the drawn GAP_LONG line was feeding this fit, so a sensor-change hole bent the drift slope and
+  // pulled the session mean/median toward hours the sensor never saw. Interpolation is not evidence.
   return bounds.map(([s,e],k)=>{
     const xs=[],ys=[]; const dayMs=86400000;
-    for(let p=s;p<e;p++){ if(c.gF[p]===c.FLAG.WARMUP||c.gF[p]===c.FLAG.COMPRESSION) continue; xs.push((c.gT[p]-c.gT[s])/dayMs); ys.push(c.gV[p]); }
+    for(let p=s;p<e;p++){ if(!_ana(c,p)) continue; xs.push((c.gT[p]-c.gT[s])/dayMs); ys.push(c.gV[p]); }
     if(ys.length<10) return { idx:k+1, s, e, startMs:c.gT[s], endMs:c.gT[e-1], days:+((e-s)*c.cadence/1440).toFixed(1), n:ys.length, mean:null, median:null, driftPerDay:null };
     const m=mean(ys), md=quantile(ys.slice().sort((a,b)=>a-b),0.5);
     const xRange=Math.max(...xs)-Math.min(...xs);
