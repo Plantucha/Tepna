@@ -63,25 +63,25 @@
   "_note_integrator_tch_fu_hr_hat": "INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS \u00a72/\u00a71 (HR-hat + external-\u03c1) 2026-07-04: integrator-dsp.js generalized _tchConsensus\u2192_tchHat(metric); fuseHRVConsensus now attaches block.tchHR (reference-free per-sensor HR error across ECG+PPG+Oxy, unioning overlapping hr-bearing non-HRV nodes) + inverse-variance reconciled HR + hrReconciled, and derives \u03c1 from CROSS-NODE per-epoch motion correlation (_tchRhoFromMotion, degrades to classic <2 motion series). Additive: block.tch/tchStatus + the rmssd hat unchanged. Integrator re-bundled f44363fce611->62da4f43db2a. Integrator fixtures are historical (GATE B unaffected).",
   "bundles": {
     "ECGDex.html": {
-      "manifestHash": "51d850b9f6b3"
+      "manifestHash": "46f1ff175ead"
     },
     "OxyDex.html": {
-      "manifestHash": "f3b6705502fc"
+      "manifestHash": "8d57e81add62"
     },
     "PulseDex.html": {
-      "manifestHash": "afb608799750"
+      "manifestHash": "b8c16e7a5d8e"
     },
     "GlucoDex.html": {
-      "manifestHash": "e5a5e992c81c"
+      "manifestHash": "68d04fc610c6"
     },
     "PpgDex.html": {
-      "manifestHash": "b864cb285df8"
+      "manifestHash": "a5716aa361c4"
     },
     "HRVDex.html": {
-      "manifestHash": "dafad1d5bb27"
+      "manifestHash": "202615b1c405"
     },
     "CPAPDex.html": {
-      "manifestHash": "da98027c89b5"
+      "manifestHash": "a0323f34cb90"
     },
     "Integrator.html": {
       "manifestHash": "e73a6c528dd0"

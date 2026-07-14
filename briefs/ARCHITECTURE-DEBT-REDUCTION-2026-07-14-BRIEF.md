@@ -156,7 +156,21 @@ one-line comment where you delete a slice so the next reader knows the invariant
 
 ## P2 — Turn on `strictNullChecks`, one already-gated module at a time · cheap, incremental
 
-> **§P2 IN-PROGRESS — chunk 1 EXECUTED 2026-07-14.** Full count under `strictNullChecks:true` is **104**
+> **§P2 ✅ EXECUTED / DONE 2026-07-14 — `strictNullChecks:true` is now ON; the gate is ACTIVE.** All
+> **104** errors fixed across 14 files and the flag flipped in `tsconfig.json`. Landed in two PRs: chunk 1
+> (the 4 adapters + signal-orchestrate, #85) then chunk 2 (the remaining 80 = the 8 DSPs + dex-ingest +
+> signal-frame + the flag-flip). Every fix was comment/guard-level and **export-inert** — all 7 GATE-A
+> apps re-bundled (signal-frame is in every app bundle), each manifestHash moved, but GATE B confirms
+> every fixture OUTPUT reproduces unchanged. Root-cause note for the DSPs: most of the 80 collapsed to a
+> few shared causes — `never[]`/inferred-`null`-slot object literals (annotate the literal once),
+> `.filter(Boolean)` arrays tsc won't narrow (cast the array once), and possibly-null result vars from
+> `buildSessionFromEdf`/`classifyMode`/`getElementById` (cast at declaration). cpapdex's 38 were all in
+> `selfTest()` and reduced to 6 declaration casts. biome caveat: `oxydex-dsp.js` had to JOIN the
+> formatter-override list — its inline JSDoc casts get MANGLED by `biome format` (it relocates the
+> comment paren, silently breaking a mid-expression cast); signal-frame + dex-ingest were override-listed
+> as pre-biome (§B2). The historical planning notes below are kept for the record.
+>
+> **§P2 planning history (superseded by the DONE note above):** Full count under `strictNullChecks:true` is **104**
 > (not the 74 first estimated — that was a code-subset). Per-file: cpapdex-dsp 38 · resmed-edf 14 ·
 > oxydex-dsp 12 · ecgdex-dsp 10 · dex-ingest 7 · glucodex-dsp 4 · polar-sense-ppg 4 · ppgdex-dsp 3 ·
 > hrvdex-dsp 3 · polar-h10-ecg 3 · signal-frame 2 · welltory-summary 2 · signal-orchestrate 1 ·

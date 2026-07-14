@@ -1004,7 +1004,7 @@ function gangliorEvents(cvhr, stages, t0Ms, sqi, times, epochPos){
                           node:'ECGDex', conf:0.7, sqi:null, meta:{} }); prev=s.stage; }
   }
   // stable order: by relative seconds when stampless (t is null), else by clock string.
-  events.sort((a,b)=> (a.tMs!=null&&b.tMs!=null) ? a.tMs-b.tMs : (a.t<b.t?-1:1));
+  events.sort((a,b)=> (a.tMs!=null&&b.tMs!=null) ? a.tMs-b.tMs : (/** @type {any} */(a.t)</** @type {any} */(b.t)?-1:1));
   return events;
 }
 
@@ -1235,8 +1235,8 @@ function analyze(rec, onProgress){
       const has = surgeMin.some(m => m>=ec.tMin && m<ec.tMin+5);
       (has?sIn:sOut).push(ec.plv);
     }
-    crc.plvDuringSurges = sIn.length ? +mean(sIn).toFixed(3) : null;
-    crc.plvBaseline     = sOut.length ? +mean(sOut).toFixed(3) : null;
+    crc.plvDuringSurges = /** @type {any} */ (sIn.length ? +mean(sIn).toFixed(3) : null);
+    crc.plvBaseline     = /** @type {any} */ (sOut.length ? +mean(sOut).toFixed(3) : null);
   }
   // per-epoch respiratory-rate spread (EDR) — CPAPDex can flag resp-rate instability without airflow
   const respVals = epochs.filter(e=>e.resp>0).map(e=>e.resp);
@@ -1300,7 +1300,7 @@ function analyze(rec, onProgress){
     poincareNN, poincareRep: (longRec && repSeg.length>=20), poincareRepTMin: repTMin, poincareRepIdx: repIdx,
     // frequency
     tp:spec.tp, hf:spec.hf, lf:spec.lf, vlf:spec.vlf, lfhf:spec.lfhf, respRate:spec.respRate, respStats,
-    specWindow: spec.window || (longRec ? 'epochMedian5min' : 'representative5min'),   // §10: name the scale
+    specWindow: /** @type {any} */ (spec).window || (longRec ? 'epochMedian5min' : 'representative5min'),   // §10: name the scale
     hfnu:+(spec.hf/((spec.hf+spec.lf)||1)*100).toFixed(1), lfnu:+(spec.lf/((spec.hf+spec.lf)||1)*100).toFixed(1),
     // non-linear
     dfa1, sampen, triIdx, dc, ac, pip:frag.pip, ials:frag.ials, pss:frag.pss,
@@ -1690,7 +1690,7 @@ function accExtras(deviceACC, accFs, ecgT0Ms, durSec, epochs, stages){
     for (const e of epochs){ const s0=Math.round((e.tMin*60-off)*fs), s1=Math.round((e.tMin*60+300-off)*fs);
       let a=0,c=0; for(let i=Math.max(1,s0);i<Math.min(N,s1);i++){ a+=dmv[i]; c++; }
       rawMot.push({ tMin:e.tMin, act: c>fs*30? a/c : null }); }
-    const actVals=rawMot.filter(m=>m.act!=null).map(m=>m.act).slice().sort((a,b)=>a-b);
+    const actVals=/** @type {number[]} */(rawMot.filter(m=>m.act!=null).map(m=>m.act)).slice().sort((a,b)=>a-b);
     const qOf=p=>actVals.length?actVals[Math.min(actVals.length-1,Math.floor(actVals.length*p))]:0;
     const floor=qOf(0.50), top=qOf(0.95), span=Math.max(top-floor,1e-6);   // typical-sleep median → 0, p95 → 100
     let agreed=0,total=0; const conflicts=[], voteRows=[];

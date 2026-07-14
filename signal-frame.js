@@ -272,10 +272,11 @@
         // Irregular-tsMs contract (§6): gaps OK, but the finite stamps must be monotonic
         // non-decreasing — a backwards step violates the floating-tMs law. Non-finite
         // entries are skipped (their own gap). Equal stamps (repeats) pass.
-        if (hasTs) {
+        if (hasTs && frame.tsMs) {
+          var _tsA = frame.tsMs;
           var _prev = null, _mono = true;
-          for (var _i = 0; _i < frame.tsMs.length; _i++) {
-            var _t = frame.tsMs[_i];
+          for (var _i = 0; _i < _tsA.length; _i++) {
+            var _t = _tsA[_i];
             if (typeof _t !== 'number' || !isFinite(_t)) continue;
             if (_prev !== null && _t < _prev) { _mono = false; break; }
             _prev = _t;

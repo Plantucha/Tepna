@@ -637,7 +637,7 @@ function nocturnalHypo(c){
 // ─── daypart variability (CV by time-of-day) — mirrors Lingo's overnight/morning/
 //     afternoon/evening CV breakdown. Total CV is core.cv; these localise it. ───
 function daypartVariability(c, totalCV){
-  const parts={ overnight:[], morning:[], afternoon:[], evening:[] };
+  const parts=/** @type {{overnight:number[],morning:number[],afternoon:number[],evening:number[]}} */({ overnight:[], morning:[], afternoon:[], evening:[] });
   for(let i=0;i<c.N;i++){
     if(c.gF[i]===c.FLAG.WARMUP||c.gF[i]===c.FLAG.COMPRESSION) continue;
     const h=new Date(c.gT[i]).getUTCHours();
@@ -684,7 +684,7 @@ function excursions(c, meals){
 // ════════════════════════════════════════════════════════════════════════
 function agp(c){
   // 48 half-hour bins across the 24h clock
-  const NB=48; const bins=Array.from({length:NB},()=>[]);
+  const NB=48; const bins=/** @type {number[][]} */(Array.from({length:NB},()=>[]));
   for(let i=0;i<c.N;i++){
     if(c.gF[i]===c.FLAG.WARMUP||c.gF[i]===c.FLAG.COMPRESSION) continue;
     const h=hourOf(c.gT[i]); const b=Math.min(NB-1,Math.floor(h*2));
@@ -808,7 +808,7 @@ function detectClampSaturation(vals){
   let vendor=null;
   if(floor.saturated && ceiling.saturated && nearLingoFloor && nearLingoCeil) vendor='lingo';
   else if((floor.saturated&&nearLingoFloor) || (ceiling.saturated&&nearLingoCeil)) vendor='lingo-like';
-  const blindMetrics=[]
+  const blindMetrics=/** @type {string[]} */([])
     .concat(floor.saturated   ? ['tbr1','tbr2','lbgi','min','nocturnalHypo'] : [])
     .concat(ceiling.saturated ? ['tar1','tar2','hbgi','max'] : []);
   const detected = floor.saturated || ceiling.saturated;

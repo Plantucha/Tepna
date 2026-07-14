@@ -213,7 +213,7 @@
     var sfGet = function (name) { return sf ? (typeof sf.get === 'function' ? sf.get(name) : sf[name]) : undefined; };
     items = Array.isArray(items) ? items : [];
     // (1) bucket by name classification (the SAME ecgKind the app + the routing-table test use)
-    var byKind = { ecg: [], rr: [], hr: [], acc: [], skip: [] };
+    var byKind = /** @type {{ ecg:any[], rr:any[], hr:any[], acc:any[], skip:any[] }} */ ({ ecg: [], rr: [], hr: [], acc: [], skip: [] });
     items.forEach(function (it) { (byKind[ecgKind(it.name)] || byKind.ecg).push(it); });
     // (2) skip bucket → foreign (precise label for the UI breakdown)
     /** @type {{name:any, kind:any, device?:any}[]} */

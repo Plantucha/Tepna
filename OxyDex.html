@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-CRbiaIss441VNIdqsQL7W4Sh9zr6shLV99vG1GtcNvk=' 'sha256-E2ngOpZHvhTh+21GFums+bwu0xmN5jAymA8joA40KV8=' 'sha256-F7a0/3H9379HYkgLnOuKhb+Fy7ArsyfdzlCn1DMlZKc=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-V0C9qWkelizTKHjPEtlWmyTc4pTsPSf41HTe+Ia2y7Y=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cW/W9EpWhmRb1iDSaUjCDMlyKKpCUjSlnkMet/Q+ess=' 'sha256-ePORSzum7xy5NC5XzBfSc0DVsQn1fo0RoZOmJvTlkEw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-iNPxhp5CmUWM1ebbscxEvZ2ArYCDIRg7cLQDDAOFh/s=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-wMwFbLQvS0B0LmW6+Gs+Wh82l9r2Q/ygQM45UEBwnlE=' 'sha256-znnyGiXDcfbU3wUjydrmyWCFBC9U8tWF9ZOIH8oZ9no='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-CRbiaIss441VNIdqsQL7W4Sh9zr6shLV99vG1GtcNvk=' 'sha256-E2ngOpZHvhTh+21GFums+bwu0xmN5jAymA8joA40KV8=' 'sha256-F7a0/3H9379HYkgLnOuKhb+Fy7ArsyfdzlCn1DMlZKc=' 'sha256-JW4K7CyopdrwwPvAMLG3/tLyn8Wk3vtcQ8g5fAhUTe0=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LJ5zwQ9pBOLpJrFbOKzGHKRrcjpnzc/SLKAMfrWD/Bw=' 'sha256-V0C9qWkelizTKHjPEtlWmyTc4pTsPSf41HTe+Ia2y7Y=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ePORSzum7xy5NC5XzBfSc0DVsQn1fo0RoZOmJvTlkEw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-iNPxhp5CmUWM1ebbscxEvZ2ArYCDIRg7cLQDDAOFh/s=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-wMwFbLQvS0B0LmW6+Gs+Wh82l9r2Q/ygQM45UEBwnlE=' 'sha256-znnyGiXDcfbU3wUjydrmyWCFBC9U8tWF9ZOIH8oZ9no='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OxyDex — Nocturnal Oximetry Analyzer · v1.0.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -6955,10 +6955,11 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
         // Irregular-tsMs contract (§6): gaps OK, but the finite stamps must be monotonic
         // non-decreasing — a backwards step violates the floating-tMs law. Non-finite
         // entries are skipped (their own gap). Equal stamps (repeats) pass.
-        if (hasTs) {
+        if (hasTs && frame.tsMs) {
+          var _tsA = frame.tsMs;
           var _prev = null, _mono = true;
-          for (var _i = 0; _i < frame.tsMs.length; _i++) {
-            var _t = frame.tsMs[_i];
+          for (var _i = 0; _i < _tsA.length; _i++) {
+            var _t = _tsA[_i];
             if (typeof _t !== 'number' || !isFinite(_t)) continue;
             if (_prev !== null && _t < _prev) { _mono = false; break; }
             _prev = _t;
@@ -10685,15 +10686,15 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
     // Phase-9: guard so oxydex-dsp.js loads headless (isolation host has no #uploadArea — SIGNAL-ADAPTER-FOLLOWUPS §4)
     ua.addEventListener('dragover', function (e) {
       e.preventDefault();
-      ua.classList.add('drag');
+      /** @type {HTMLElement} */ (ua).classList.add('drag');
     });
     ua.addEventListener('dragleave', function () {
-      ua.classList.remove('drag');
+      /** @type {HTMLElement} */ (ua).classList.remove('drag');
     });
     ua.addEventListener('drop', function (e) {
       e.preventDefault();
-      ua.classList.remove('drag');
-      var files = Array.from(e.dataTransfer.files || []);
+      /** @type {HTMLElement} */ (ua).classList.remove('drag');
+      var files = Array.from(/** @type {any} */ (e.dataTransfer).files || []);
       if (files.length) handleFiles(files);
     });
   }
@@ -10916,7 +10917,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
       var reader = new FileReader();
       reader.onload = function (e) {
         try {
-          var _buf = /** @type {any} */ (e.target.result); // ArrayBuffer
+          var _buf = /** @type {any} */ (e.target).result; // ArrayBuffer
           var _bytes = new Uint8Array(_buf);
           // ── O2Ring native binary (.bin, or .bin renamed to .txt) ──
           if (isO2RingBin(_bytes)) {
@@ -12710,7 +12711,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
     // display shape byte-identical in the export element) onto night_obj.oscEpisodes, where
     // oxyBuildGangliorEvents reads them to emit one periodic_breathing event per oscillation episode.
     var _oscEpisodes = osc && osc.episodes ? osc.episodes : [];
-    if (osc) delete osc.episodes;
+    if (osc) delete (/** @type {any} */ (osc).episodes);
     var tIdx = computeTIndex(rows);
     var hrv = computeHRV(rows);
     var spo2s = rows.map(function (r) {
@@ -12729,7 +12730,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
     var hb = computeHypoxicBurden(rows);
     var motion = computeMotionProfile(rows);
     var stab = computeSleepStabilityScore(stats, hrv, osc, hb);
-    var durationHr = stats.durationMin / 60;
+    var durationHr = /** @type {number} */ (stats.durationMin) / 60;
     var desat = computeDesaturationProfile(rows, tIdx, odi4, blArr);
     // OXIMETER SELF-GATE (Part A): exclude self-gated artifact desaturations from
     // the ODI-4 rate. The desat profile and the ODI counter share the same
@@ -14408,14 +14409,14 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
       ).toFixed(1);
     });
     if (qs.indexOf(null) >= 0) return null;
-    var arc = qs && qs.length >= 4 ? +(qs[2] - qs[0]).toFixed(1) : 0;
+    var arc = qs && qs.length >= 4 ? +(/** @type {number} */ (qs[2]) - /** @type {number} */ (qs[0])).toFixed(1) : 0;
     return {
       hrQ1: qs && qs.length >= 4 ? qs[0] : null,
       hrQ2: qs && qs.length >= 4 ? qs[1] : null,
       hrQ3: qs && qs.length >= 4 ? qs[2] : null,
       hrQ4: qs && qs.length >= 4 ? qs[3] : null,
       hrArc: arc,
-      remReemergence: qs[3] > qs[2] + 1,
+      remReemergence: /** @type {number} */ (qs[3]) > /** @type {number} */ (qs[2]) + 1,
       hrArcLabel: arc < -3 ? 'Good (declining arc)' : arc > 3 ? 'Rising (arousal)' : 'Flat'
     };
   }
@@ -15971,7 +15972,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
         };
         // Generate Smart Summary for JSONL imports too (tabs were missing).
         try {
-          night.summary = computeSmartSummary(night);
+          night.summary = /** @type {any} */ (computeSmartSummary(night));
         } catch (e) {
           night.summary = null;
         }
