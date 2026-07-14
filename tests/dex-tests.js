@@ -10568,6 +10568,116 @@
       })();
     });
 
+    /* ════ CPAPDex ADVERSARIAL TWO-SESSION NIGHT — one night, N sessions, pooled not averaged ═════════
+       (DEEP-AUDIT-FOLLOWUPS-2026-07-12 §residue → FIXTURE-VERIFICATION-GATE §4; the CPAP sibling of the
+       committed OxyDex adversarial twins.)
+
+       WHY THIS IS A REAL HOLE, not a duplicate. Two independent things about a multi-session CPAP night
+       were only ever exercised OFF a committed input:
+         · the POOLING math (ODI/T90 weight by their own denominator, never an unweighted mean of the
+           per-session rates — a 40-min nap must not count as much as a 6-h sleep, DEEP-AUDIT §20) is
+           tested at `tests/dex-tests.js` §20 — but on HAND-BUILT session objects, bypassing the parser;
+         · the real two-session pipeline (`compute({edfSets:[A,B]})` → `_nightFromInput` groups N sets into
+           ONE night, not N nights) is exercised only by `cpapdex-2026-06-12`, whose EDFs are GITIGNORED
+           personal recordings — so it SKIPS in CI and on any machine without the corpus.
+       This twin drives TWO synthetic `_synthEdfSet` sessions (B truncated to a short "nap" + shifted by a
+       real off-mask gap) through the FULL pipeline, in CI, with no corpus.
+
+       THE CONTROL IS ARITHMETIC. A: 10 min, 1 desat → ODI 6/h.  B: 5 min, 1 desat → ODI 12/h.
+         POOLED   = 2 desats ÷ 0.25 h = 8/h        ← the truth
+         UNWEIGHTED mean of rates = (6+12)/2 = 9/h  ← the bug
+       8 ≠ 9 only because the two sessions differ in length, so this cannot pass vacuously; a regression to
+       rate-averaging reports 9, and a regression that splits the night reports nSessions 1. ════ */
+    group('CPAPDex adversarial two-session night — one night, N sessions, pooled not averaged', 'cpapdex-dsp · cpapdex-fusion · adversarial-twin', function (T) {
+      var D = env.CpapDsp,
+        F = env.CpapFusion;
+      var ok = !!(
+        D &&
+        typeof D._synthEdfSet === 'function' &&
+        typeof D.buildSessionFromEdf === 'function' &&
+        typeof D.buildNight === 'function' &&
+        F &&
+        typeof F.cpapBuildExport === 'function' &&
+        typeof F.cpapCrossMetrics === 'function'
+      );
+      T.ok('CpapDsp + CpapFusion (synth/build/pool) co-loaded', ok, ok ? '' : 'co-load cpapdex-dsp.js + cpapdex-fusion.js in BOTH runners');
+      if (!ok) return;
+
+      // truncate a decoded set to `keep` of its records — a shorter mask-on session (the "nap").
+      var KINDS = ['PLD', 'BRP', 'SA2', 'EVE', 'CSL'];
+      function trunc(set, keep) {
+        var out = {};
+        KINDS.forEach(function (k) {
+          var f = set[k];
+          if (!f) return;
+          var c = { clock: { t0Ms: f.clock.t0Ms }, recDurSec: f.recDurSec };
+          if (f.recordsRead != null) c.recordsRead = Math.max(1, Math.round(f.recordsRead * keep));
+          if (f.numRecords != null) c.numRecords = c.recordsRead;
+          c.truncated = f.truncated;
+          if (f.signals) {
+            c.signals = {};
+            Object.keys(f.signals).forEach(function (sn) {
+              var s = f.signals[sn];
+              var nl = Math.max(1, Math.round(s.data.length * keep));
+              c.signals[sn] = { data: s.data.slice(0, nl), fs: s.fs, dim: s.dim, _spr: s._spr };
+            });
+          }
+          if (f.annotations)
+            c.annotations = f.annotations.filter(function (a) {
+              return a.onsetSec == null || a.onsetSec < f.recordsRead * f.recDurSec * keep;
+            });
+          out[k] = c;
+        });
+        return out;
+      }
+      var GAP = 3 * 3600000; // 3 h off-mask gap between the two mask-on sessions
+      var A = D._synthEdfSet({ oxi: true });
+      var B = trunc(D._synthEdfSet({ oxi: true }), 0.5);
+      KINDS.forEach(function (k) {
+        if (B[k] && B[k].clock && B[k].clock.t0Ms != null) B[k].clock.t0Ms += GAP;
+        if (B[k] && B[k].annotations)
+          B[k].annotations.forEach(function (a) {
+            if (a.tMs != null) a.tMs += GAP;
+          });
+      });
+
+      var night = D.buildNight([D.buildSessionFromEdf(A, {}), D.buildSessionFromEdf(B, {})]);
+
+      // ── GROUPING · two mask-on sets are ONE night with a gap, never two nights ──
+      T.eq('two sessions collapse into ONE night (nSessions = 2)', night.nSessions, 2);
+      T.eq('therapyHours POOL across both sessions (0.1667 + 0.0833 = 0.25), not session-0 only', night.therapyHours, 0.25);
+      T.ok(
+        'the off-mask gap is recorded (~170 min = 3 h − the 10-min first session)',
+        night.offMaskGaps && night.offMaskGaps.length === 1 && Math.abs(night.offMaskGaps[0].gapMin - 170) < 2,
+        JSON.stringify(night.offMaskGaps)
+      );
+      T.eq('the night anchors on the FIRST session (earliest t0Ms), not a 24 h jump', night.t0Ms, night.sessions[0].t0Ms);
+
+      // the two sessions genuinely differ — otherwise the pooling test below is vacuous
+      var sA = night.sessions[0].oximetry,
+        sB = night.sessions[1].oximetry;
+      T.ok(
+        'both sessions carry a live oximetry lane with different rates (6 vs 12 /h)',
+        sA && sB && sA.available && sB.available && sA.odi === 6 && sB.odi === 12,
+        JSON.stringify([sA && sA.odi, sB && sB.odi])
+      );
+
+      // ── POOLING · through the pipeline, ODI weights by hours — not an unweighted mean ──
+      var x = F.cpapCrossMetrics(night);
+      T.eq('night ODI POOLS desats over analyzed hours (2 ÷ 0.25 = 8/h)', x.odi, 8);
+      T.ok('and is NOT the unweighted mean of the per-session rates (9/h)', Math.abs(x.odi - 9) > 0.3, 'got ' + x.odi);
+
+      // ── the export surfaces both sessions ──
+      var exp = F.cpapBuildExport(night);
+      var sess = exp && exp.recording && exp.recording.sessions;
+      T.ok('the export carries BOTH sessions (recording.sessions.length === 2)', sess && sess.length === 2, 'sessions=' + (sess ? sess.length : 'none'));
+
+      // ── CONTROL · a single-session night is unchanged — the twin cannot pass vacuously ──
+      var one = D.buildNight([D.buildSessionFromEdf(D._synthEdfSet({ oxi: true }), {})]);
+      T.eq('control · a single-session night reports nSessions = 1', one.nSessions, 1);
+      T.eq('control · and its ODI is that one session own rate (6/h), pooling a no-op', F.cpapCrossMetrics(one).odi, 6);
+    });
+
     /* ════ Phase-9 GENERIC adapter → emit → schema-valid export — every signalType (PPGDEX-FOLLOWUPS §10) ════
      The recurring Phase-9 trap (brief §1 / §4 #2): each node's signal-orchestrate emit hands
      compute() a CANONICAL SignalFrame, not the node's ad-hoc parser shape — and a too-small {text}/

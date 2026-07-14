@@ -23,10 +23,15 @@
 >   after a fully green run. Exactly as the corrected §5 predicted: GlucoDex was the only stale one, so **the
 >   gate landed green** instead of reding on arrival.
 >
+> **§4 (per-node adversarial coverage) — now COMPLETE for the three shapes named.** GlucoDex 14 h-gap twin
+> shipped; **CPAP two-session night shipped 2026-07-14** (`CPAPDex adversarial two-session night` group —
+> two synthetic sessions through the full pipeline, pooled-not-averaged with an arithmetic control, RED on
+> rate-averaging); and the **PPG worker realm was already closed by `d9ffdcd`** (the blob executes in CI +
+> the live browser pool) — a committed input twin cannot reach the serial-by-design `compute()`, so there is
+> nothing to add without decoration. See DEEP-AUDIT-FOLLOWUPS-2026-07-12 §residue for the full accounting.
+>
 > **Deliberately NOT done:** **§3.3 (CI red)** — a contributor with no corpus *cannot* green it, so it would
-> wall off outside contributions, and the release wall already covers the harm. **§4's generalisation** — its
-> first bullet shipped (the GlucoDex 14 h-gap twin); CPAP's two-session night and the PPG worker realm still
-> have no committed adversarial twin.
+> wall off outside contributions, and the release wall already covers the harm.
 
 Close the hole that put a wrong number in front of real users on 2026-07-14: a code-gated fixture can
 carry a **reproducibility claim that no gate ever tested**, and the tooling *writes that claim for you*.

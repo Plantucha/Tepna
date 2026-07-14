@@ -66,8 +66,24 @@ That is the property the original prescription could never have had.
   `compute() ≡ committed export` legs against real recordings are only ever exercised locally, with
   `DEX_UPLOADS=<corpus>`. Worth a line in `CONTRIBUTING.md` so the next person knows a green CI is not
   the full gate.
-- The other adversarial shapes this audit hand-built (a two-session CPAP night; a PPG worker realm) have
-  no committed synthetic twin yet. Same recipe applies.
+- ~~The other adversarial shapes this audit hand-built (a two-session CPAP night; a PPG worker realm) have
+  no committed synthetic twin yet.~~ **BOTH CLOSED — 2026-07-14.**
+  - **PPG worker realm — closed 2026-07-12 by `d9ffdcd`** ("gate the worker realms"), the SAME DAY this
+    residue was written, but the line was never struck. The PPG detection blob now EXECUTES in the headless
+    CI gates (`PpgDex worker blob EXECUTES and ≡ the serial path`, `tests/dex-tests.js`) and the browser lane
+    drives the live pool (`ppgWorkerPoolGroup`, `Dex-Test-Suite.html`). **A committed *input* twin cannot add
+    worker coverage here:** `compute()`/`analyze()` are serial-by-design (the gated numeric truth), so a
+    committed file flows through the serial path and never spawns a worker — the worker is correctly tested
+    where it actually runs (an executed empty realm + the live browser pool), not through a fixture. Building
+    a "PPG worker twin" would be decoration that falsely implies fixture-level worker coverage.
+  - **CPAP two-session night — closed 2026-07-14** (`CPAPDex adversarial two-session night` group). The gap
+    was real but narrow: the POOLING math was tested on hand-built session objects (§20) and the two-session
+    *pipeline* only on the GITIGNORED real `cpapdex-2026-06-12` EDFs (skips in CI). The new group drives TWO
+    synthetic `_synthEdfSet` sessions — B truncated to a short nap, shifted by a 3 h off-mask gap — through
+    the full `buildSessionFromEdf → buildNight → cpapBuildExport` pipeline, in CI, no corpus. Arithmetic
+    control: A(10 min,1 desat)=6/h + B(5 min,1 desat)=12/h → POOLED 8/h ≠ unweighted-mean 9/h; a regression to
+    rate-averaging reports 9 (verified RED), a regression that splits the night reports nSessions 1. Plus a
+    single-session control so it cannot pass vacuously.
 - **⚠️ GlucoDex had no adversarial twin — and that exact hole shipped a wrong number to real users two days
   later. CLOSED 2026-07-14.** This residue line was not a nice-to-have: `DEEP-AUDIT-2026-07-14 §1` rerouted
   every GlucoDex distribution metric through a new `FLAG.GAP_LONG` predicate, came back **byte-identical on
