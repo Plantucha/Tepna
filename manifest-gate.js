@@ -60,11 +60,12 @@
   }
 
   function plainInlineAssets(bundleText) {
-    var assets = [], m;
+    var assets = [],
+      m;
     PLAIN_SCRIPT_RE.lastIndex = 0;
-    while ((m = PLAIN_SCRIPT_RE.exec(bundleText)) !== null) assets.push({ name: m[1], text: m[2] });
+    for (m = PLAIN_SCRIPT_RE.exec(bundleText); m !== null; m = PLAIN_SCRIPT_RE.exec(bundleText)) assets.push({ name: m[1], text: m[2] });
     PLAIN_STYLE_RE.lastIndex = 0;
-    while ((m = PLAIN_STYLE_RE.exec(bundleText)) !== null) assets.push({ name: m[1], text: m[2] });
+    for (m = PLAIN_STYLE_RE.exec(bundleText); m !== null; m = PLAIN_STYLE_RE.exec(bundleText)) assets.push({ name: m[1], text: m[2] });
     return assets;
   }
 
@@ -72,27 +73,33 @@
   // over EVERY inlined block. Same projection shape as the legacy branch (sorted, order-independent,
   // [0:12]); the ASYNC twin of build-core.js manifestHashFromInline (identical value by construction).
   async function manifestHashPlainInline(bundleText) {
-    var assets = plainInlineAssets(bundleText), parts = [];
+    var assets = plainInlineAssets(bundleText),
+      parts = [];
     for (var i = 0; i < assets.length; i++) parts.push(assets[i].name + '\u0000' + (await sha256hex(assets[i].text)));
     parts.sort();
     return (await sha256hex(parts.join('\n'))).slice(0, 12);
   }
 
   function hex(buf) {
-    var b = new Uint8Array(buf), s = '';
+    var b = new Uint8Array(buf),
+      s = '';
     for (var i = 0; i < b.length; i++) s += (b[i] < 16 ? '0' : '') + b[i].toString(16);
     return s;
   }
 
   // SHA-256 hex of a string OR a Uint8Array (full 64-hex; the manifestHash convention slices to 12).
   function sha256hex(input) {
-    var data = (typeof input === 'string') ? new TextEncoder().encode(input) : input;
+    var data = typeof input === 'string' ? new TextEncoder().encode(input) : input;
     return root.crypto.subtle.digest('SHA-256', data).then(hex);
   }
 
   // sha256[0:16] of a string OR Uint8Array — the content-addressed FILE fingerprint convention (matches
   // ganglior-provenance.js inputs[].sha256[0:16]). GATE B's input/output hashes (Phase 7).
-  function sha16(input) { return sha256hex(input).then(function (h) { return h.slice(0, 16); }); }
+  function sha16(input) {
+    return sha256hex(input).then(function (h) {
+      return h.slice(0, 16);
+    });
+  }
 
   // Bundle TEXT -> manifestHash (Promise<string|null>; null when the text carries no manifest —
   // e.g. an un-bundled *.src.html). The UUID-independent content projection described in the header.
@@ -105,6 +112,78 @@
     // Un-bundled *.src.html (no data-inline-src either) also returns null.
     if (isPlainInline(bundleText)) return manifestHashPlainInline(bundleText);
     return null;
+  }
+
+  /* ══ computeHash — "EXPORT-INERT" AS A COMPUTED VALUE, NOT A CLAIM ════════════════════════════
+     (FIXTURE-VERIFICATION-GATE-2026-07-14 §1.)
+
+     manifestHash identifies ALL executed code, so it moves on a CSS tweak. That is correct for GATE A
+     and useless for the question that actually matters when a fixture is at stake:
+
+         "could this change have moved an EXPORT?"
+
+     For months that question was answered in prose. `FIXTURE-PROVENANCE.json` is full of
+     `note_*: "EXPORT-INERT … outputHash UNCHANGED"` — the single most-repeated assertion in this repo's
+     history. On 2026-07-14 one of them was WRONG: DEEP-AUDIT §1 rerouted every GlucoDex distribution
+     metric, checked only the synthetic golden (which trips no long gap), declared itself export-inert,
+     and shipped — while the REAL night's export had moved. The served app then ran a pre-fix DSP against
+     real users' CGM data. A claim that load-bearing must be COMPUTED.
+
+     computeHash is manifestHash's projection restricted to the export's COMPUTE CLOSURE: every inlined
+     asset that can reach compute(). Then:
+
+         render / CSS / app copy  →  manifestHash moves, computeHash STABLE  →  export-inert, PROVEN
+         DSP / clock / export / registry edit  →  BOTH move  →  re-verification owed
+
+     THE CLOSURE IS A DENYLIST, ON PURPOSE — and this is the load-bearing design choice. An ALLOWLIST of
+     "compute modules" (what the brief first sketched) fails OPEN: forget to list a module and its edits
+     silently do not move computeHash, so the gate goes BLIND — the exact failure mode we are here to kill.
+     A denylist fails CLOSED: forget to exclude a display file and computeHash merely OVER-flags, costing
+     one needless re-verification. Unknown asset ⇒ in the closure. We accept false alarms; we do not accept
+     a gate that cannot see.
+
+     So a change to `synth-gen.js` or `ganglior-provenance.js` DOES move computeHash even though it is
+     almost certainly export-inert. That is the design working, not a bug. ═══════════════════════════ */
+  var DISPLAY_ONLY = [
+    /\.css$/i, // stylesheets — cannot reach compute()
+    /^inline:style:/, // the bundle's inline <style> shells
+    /-render\.js$/, // <node>-render.js — DOM painting
+    /-app\.js$/, // <node>-app.js — host/event wiring
+    /^(?:oxy|pulse|hrv|gluco|ppg|ecg|cpap|eeg)dex-profile\.js$/, // per-node profile UI (NOT the shared dex-profile.js engine, which feeds metrics)
+    /^dex-actions\.js$/, // action-bar UI
+    /^entrance-guard\.js$/, // entry gate UI
+    /^dex-forget\.js$/ // storage-wipe UI
+  ];
+
+  function isComputeAsset(name) {
+    for (var i = 0; i < DISPLAY_ONLY.length; i++) if (DISPLAY_ONLY[i].test(name)) return false;
+    return true; // fail CLOSED — an asset we do not recognise counts as compute
+  }
+
+  // Bundle TEXT -> computeHash (Promise<string|null>). Same projection as manifestHash — sorted
+  // `logicalName \0 sha256(assetText)`, SHA-256[0:12] — over the compute closure only. null for a
+  // non-plain-inline bundle, exactly like manifestHashFromText.
+  async function computeHashFromText(bundleText) {
+    if (!isPlainInline(bundleText)) return null;
+    var assets = plainInlineAssets(bundleText),
+      parts = [];
+    for (var i = 0; i < assets.length; i++) {
+      if (!isComputeAsset(assets[i].name)) continue;
+      parts.push(assets[i].name + ' ' + (await sha256hex(assets[i].text)));
+    }
+    parts.sort();
+    return (await sha256hex(parts.join('\n'))).slice(0, 12);
+  }
+
+  // The closure a bundle's computeHash actually covers — for gates + humans to inspect ("what does
+  // this hash watch?"), so the denylist can never be a silent, unauditable decision.
+  function computeClosure(bundleText) {
+    return plainInlineAssets(bundleText)
+      .map(function (a) {
+        return a.name;
+      })
+      .filter(isComputeAsset)
+      .sort();
   }
 
   // GATE A compare — current executed-code manifestHash per bundle vs the committed BUILD-MANIFEST.
@@ -120,15 +199,26 @@
     bundles = bundles || MANIFEST_BUNDLES;
     current = current || {};
     var hasCommitted = !!(committed && typeof committed === 'object');
-    var results = [], checked = 0, fail = 0, missing = 0;
+    var results = [],
+      checked = 0,
+      fail = 0,
+      missing = 0;
     for (var i = 0; i < bundles.length; i++) {
       var f = bundles[i];
       var cur = current[f] == null ? null : current[f];
-      var cm = (hasCommitted && committed[f] && committed[f].manifestHash != null) ? committed[f].manifestHash : null;
+      var cm = hasCommitted && committed[f] && committed[f].manifestHash != null ? committed[f].manifestHash : null;
       var status;
-      if (cm == null) { status = 'missing-committed'; missing++; }
-      else if (cur === cm) { status = 'match'; checked++; }
-      else { status = (cur == null ? 'missing-current' : 'drift'); checked++; fail++; }
+      if (cm == null) {
+        status = 'missing-committed';
+        missing++;
+      } else if (cur === cm) {
+        status = 'match';
+        checked++;
+      } else {
+        status = cur == null ? 'missing-current' : 'drift';
+        checked++;
+        fail++;
+      }
       results.push({ file: f, current: cur, committed: cm, status: status });
     }
     var complete = checked === bundles.length;
@@ -153,10 +243,12 @@
     fixtures = fixtures || {};
     var set = {};
     Object.keys(fixtures).forEach(function (name) {
-      if (name.charAt(0) === '_') return;            // metadata key (_doc / _note_* / _retired / ...)
+      if (name.charAt(0) === '_') return; // metadata key (_doc / _note_* / _retired / ...)
       set[name] = 1;
       var ih = (fixtures[name] || {}).inputHashes || {};
-      Object.keys(ih).forEach(function (f) { set[f] = 1; });
+      Object.keys(ih).forEach(function (f) {
+        set[f] = 1;
+      });
     });
     return Object.keys(set).sort();
   }
@@ -171,32 +263,73 @@
   // ok = fail===0 (a real drift). 'absent' rows are skips (uploads/ not served) — the CALLER decides their
   // severity (browser shows a warn row; Node CI treats them as skip since uploads/ is gitignored).
   function gateBEvaluate(fixtures, currentMHs, fileHashes) {
-    fixtures = fixtures || {}; currentMHs = currentMHs || {}; fileHashes = fileHashes || {};
-    var results = [], checked = 0, fail = 0, absent = 0;
+    fixtures = fixtures || {};
+    currentMHs = currentMHs || {};
+    fileHashes = fileHashes || {};
+    var results = [],
+      checked = 0,
+      fail = 0,
+      absent = 0;
     Object.keys(fixtures).forEach(function (name) {
       if (name.charAt(0) === '_') return;
       var rec = fixtures[name] || {};
       var bundle = rec.bundle || null;
       var kind = rec.historical ? 'historical' : 'code-gated';
-      var status, detail = '';
-      var outNow = fileHashes[name];                 // sha16 of the committed fixture (output) file
-      if (outNow == null) { status = 'output-absent'; detail = 'committed fixture not available (uploads/ gitignored?)'; absent++; }
-      else if (rec.outputHash && outNow !== rec.outputHash) { status = 'output-drift'; detail = 'output ' + outNow + ' \u2260 recorded ' + rec.outputHash; fail++; }
-      else if (rec.historical) { status = 'historical-ok'; detail = 'byte-pinned (not code-gated)'; checked++; }
-      else {
+      var status,
+        detail = '';
+      var outNow = fileHashes[name]; // sha16 of the committed fixture (output) file
+      if (outNow == null) {
+        status = 'output-absent';
+        detail = 'committed fixture not available (uploads/ gitignored?)';
+        absent++;
+      } else if (rec.outputHash && outNow !== rec.outputHash) {
+        status = 'output-drift';
+        detail = 'output ' + outNow + ' \u2260 recorded ' + rec.outputHash;
+        fail++;
+      } else if (rec.historical) {
+        status = 'historical-ok';
+        detail = 'byte-pinned (not code-gated)';
+        checked++;
+      } else {
         var cur = currentMHs[bundle];
-        if (cur == null) { status = 'bundle-unloaded'; detail = bundle + ' manifestHash unavailable (see GATE A)'; absent++; }
-        else if (cur !== rec.manifestHash) { status = 'code-drift'; detail = bundle + ' is ' + cur + ', fixture made by ' + rec.manifestHash; fail++; }
-        else {
-          var ih = rec.inputHashes || {}, inNames = Object.keys(ih), bad = null, miss = null;
+        if (cur == null) {
+          status = 'bundle-unloaded';
+          detail = bundle + ' manifestHash unavailable (see GATE A)';
+          absent++;
+        } else if (cur !== rec.manifestHash) {
+          status = 'code-drift';
+          detail = bundle + ' is ' + cur + ', fixture made by ' + rec.manifestHash;
+          fail++;
+        } else {
+          var ih = rec.inputHashes || {},
+            inNames = Object.keys(ih),
+            bad = null,
+            miss = null;
           for (var i = 0; i < inNames.length; i++) {
-            var f = inNames[i], now = fileHashes[f];
-            if (now == null) { miss = f; break; }
-            if (now !== ih[f]) { bad = f; break; }
+            var f = inNames[i],
+              now = fileHashes[f];
+            if (now == null) {
+              miss = f;
+              break;
+            }
+            if (now !== ih[f]) {
+              bad = f;
+              break;
+            }
           }
-          if (miss) { status = 'input-absent'; detail = 'input ' + miss + ' not available'; absent++; }
-          else if (bad) { status = 'input-drift'; detail = 'input ' + bad + ' changed (' + fileHashes[bad] + ' \u2260 ' + ih[bad] + ')'; fail++; }
-          else { status = 'reproducible'; detail = inNames.length + ' input(s) + output pinned @ ' + rec.manifestHash; checked++; }
+          if (miss) {
+            status = 'input-absent';
+            detail = 'input ' + miss + ' not available';
+            absent++;
+          } else if (bad) {
+            status = 'input-drift';
+            detail = 'input ' + bad + ' changed (' + fileHashes[bad] + ' \u2260 ' + ih[bad] + ')';
+            fail++;
+          } else {
+            status = 'reproducible';
+            detail = inNames.length + ' input(s) + output pinned @ ' + rec.manifestHash;
+            checked++;
+          }
         }
       }
       results.push({ name: name, bundle: bundle, kind: kind, status: status, detail: detail });
@@ -212,10 +345,13 @@
     sha256hex: sha256hex,
     sha16: sha16,
     manifestHashFromText: manifestHashFromText,
+    computeHashFromText: computeHashFromText,
+    computeClosure: computeClosure,
+    isComputeAsset: isComputeAsset,
     gateACompare: gateACompare,
     gateBFiles: gateBFiles,
     gateBEvaluate: gateBEvaluate
   };
   root.ManifestGate = ManifestGate;
   if (typeof module !== 'undefined' && module.exports) module.exports = ManifestGate;
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : /** @type {any} */ (this)));
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : /** @type {any} */ (this));

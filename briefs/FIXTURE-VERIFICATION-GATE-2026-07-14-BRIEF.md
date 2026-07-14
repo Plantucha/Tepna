@@ -1,7 +1,32 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-14
+**Status:** IN-PROGRESS — 2026-07-14 · **Created:** 2026-07-14
 
 # Fixture verification gate — a fixture may not claim reproducibility nobody checked
+
+> **EXECUTED 2026-07-14 — §1 · §2 · §3.1 · §3.2 · §5.** Only §3.3 (CI-red) and §4's generalisation remain.
+>
+> - **§1 `computeHash`** — live in `manifest-gate.js`, shared by both lanes. **The closure is a DENYLIST, not
+>   the allowlist this brief first sketched.** That reversal is load-bearing, not cosmetic: an allowlist that
+>   forgets a module fails **OPEN** — its edits stop moving `computeHash` and the gate goes blind, which is
+>   the exact failure being abolished — while a denylist that forgets one merely **over-flags**. Unknown asset
+>   ⇒ inside the closure. Self-tested on synthetic bundles *and* proven on the real GlucoDex bundle: a
+>   render-only edit moves `manifestHash` (`7d4065f93f03 → 4ab65ca14432`) but leaves `computeHash` **stable**
+>   ⇒ gate stays green; a DSP edit moves both ⇒ gate **reds**. Cost: a `synth-gen.js` edit over-flags.
+>   Accepted, and stated out loud rather than hidden.
+> - **§2 `verifiedUnder`** — live. `tools/verify-fixtures.mjs` is the ONLY writer, and it **refuses to stamp**
+>   unless every corpus input is present *and* the whole suite is green (partial credit is how false claims
+>   are born). `build.mjs` is provably unable to author it — asserted by source scan in the suite.
+> - **§3.1 visibility** — the `Fixture verification` suite group (10 asserts) + a **non-blocking** CI step.
+> - **§3.2 THE WALL** — `release.mjs` pre-flight runs `verify-fixtures --check` and **refuses to cut a release**
+>   while any corpus-backed fixture is UNVERIFIED. **This would have blocked v1.10.1.**
+> - **§5 migration** — run against the real corpus: **all 14 corpus-backed fixtures re-verified and stamped**
+>   after a fully green run. Exactly as the corrected §5 predicted: GlucoDex was the only stale one, so **the
+>   gate landed green** instead of reding on arrival.
+>
+> **Deliberately NOT done:** **§3.3 (CI red)** — a contributor with no corpus *cannot* green it, so it would
+> wall off outside contributions, and the release wall already covers the harm. **§4's generalisation** — its
+> first bullet shipped (the GlucoDex 14 h-gap twin); CPAP's two-session night and the PPG worker realm still
+> have no committed adversarial twin.
 
 Close the hole that put a wrong number in front of real users on 2026-07-14: a code-gated fixture can
 carry a **reproducibility claim that no gate ever tested**, and the tooling *writes that claim for you*.

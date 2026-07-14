@@ -289,15 +289,42 @@ Each re-runs the real modules in a co-loaded realm, preserves the volatile keys 
 `outputHash` only when the bundle hash moves) still lands in `FIXTURE-PROVENANCE.json` without a hand-edit.
 Writing a node's regen tool is a one-off; copy the CPAP/GlucoDex pair.
 
-**⚠️ "The synthetic golden is byte-identical" does NOT prove a change is export-inert.** The REAL-recording
-equiv legs **SKIP in CI and on any machine without `uploads/`** (gitignored personal data) — so a DSP change
-that moves a real export's content passes every gate the author can see, and the stale fixture ships. This
-is not hypothetical: DEEP-AUDIT-2026-07-14 §1 (GlucoDex long-gap exclusion) declared itself export-inert on
-the synthetic golden's evidence, but the real Lingo night carries a multi-hour sensor gap and its `daypart`
-block moved — caught only later, on a machine with the corpus. **Before you claim export-inert, run the real
-legs:** `DEX_UPLOADS=<corpus> node tests/run-tests.mjs` (fixtures always resolve from the repo; only the
-INPUTS come from `DEX_UPLOADS`). No corpus on hand? Then say "export-inert **on the synthetic goldens**;
-real legs unrun" — never the unqualified claim.
+### 🔒 "EXPORT-INERT" IS A COMPUTED VALUE — you don't get to *claim* it (FIXTURE-VERIFICATION-GATE, 2026-07-14)
+
+Export-inertness used to be a **claim in a commit message**. `FIXTURE-PROVENANCE.json` is full of
+`note_*: "EXPORT-INERT … outputHash UNCHANGED"` — the most-repeated assertion in this repo's history. On
+2026-07-14 one of them was **wrong**: DEEP-AUDIT §1 checked only the synthetic golden (which trips no long
+gap), declared export-inert, and shipped — while the REAL Lingo night's export had moved. The equiv leg that
+would have caught it **SKIPS wherever `uploads/` is absent** (CI, *and* the author's machine); GATE B is
+static and never re-runs the app; **`build.mjs` re-stamped the fixture's `manifestHash`**, silently
+converting "came from code X" into "is reproducible under code Y". Every gate was green and the served
+GlucoDex ran a pre-fix DSP against real users' CGM data. So the claim is now **computed, not asserted**:
+
+- **`computeHash`** (`manifest-gate.js`) — `manifestHash`'s projection over the export's **compute closure**
+  (every inlined asset that can reach `compute()`). Render/CSS/app edit → `manifestHash` moves, `computeHash`
+  **stable** ⇒ **export-inert, PROVEN**. DSP/clock/export/registry edit → **both** move ⇒ re-verification owed.
+  The closure is a **denylist** on purpose: an allowlist that forgets a module fails **OPEN** (the gate goes
+  blind — the exact failure being abolished); a denylist that forgets one merely **over-flags**. Unknown asset
+  ⇒ inside the closure. We accept false alarms; we do not accept a gate that cannot see.
+- **`verifiedUnder`** (per code-gated fixture) — the code that **actually re-ran the app and reproduced those
+  bytes**. **`build.mjs` is FORBIDDEN to write it** (it doesn't run the app, so it cannot know — auto-writing
+  that claim is how the stale fixture shipped; gate-asserted by source scan). The **only** writer is
+  **`tools/verify-fixtures.mjs`**, and only after a **green real-corpus run**.
+
+**What this means in practice:**
+- Re-verify after a compute-path change: **`DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs`**. It refuses
+  to stamp if an input is missing or the suite is red — a verification you didn't run is precisely the false
+  claim being abolished. If a fixture genuinely **moved**, regenerate it (`tools/regen-<node>-goldens.mjs`)
+  first; never re-stamp around a moved output.
+- **`tools/release.mjs` REFUSES to cut a release while any corpus-backed fixture is UNVERIFIED.** That is the
+  wall — it would have blocked v1.10.1. CI reports the same thing but does **not** block (a contributor with
+  no corpus cannot green it; harm materialises on ship, and the releaser is the one holding the corpus).
+- Fixtures with **committed** inputs (the synthetic twins) are **exempt** — CI re-runs them from committed
+  bytes every push, so they cannot go stale unseen. This is why an adversarial **committed** twin beats a real
+  one: see the GlucoDex 14 h-gap twin. A real gappy night would have been gitignored and CI would have stayed
+  just as blind.
+- **Never write "export-inert" as an assertion again.** Either `computeHash` didn't move (say so, and give the
+  hash), or you re-verified (say so, and name the fixtures). Prose is not evidence.
 
 **The regenerate step is gate-enforced (the GATE-C surface).** GATE B is *static* — it pins the
 committed input/output bytes + code identity but does **not** re-run the app, so on its own it can't

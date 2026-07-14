@@ -50,6 +50,8 @@ const EXPECTED_SKIPS = (() => {
   }
 })();
 const require = createRequire(import.meta.url);
+// shared with verify-manifest.mjs + verify-provenance.html — one projection, three consumers
+const ManifestGate = require(join(ROOT, 'manifest-gate.js'));
 
 const C = { reset: '\x1b[0m', red: '\x1b[31m', green: '\x1b[32m', dim: '\x1b[2m', bold: '\x1b[1m', yellow: '\x1b[33m', cyan: '\x1b[36m' };
 const paint = (s, c) => (process.stdout.isTTY ? c + s + C.reset : s);
@@ -231,6 +233,13 @@ function readSources() {
     'dex-forget.js',
     'dex-actions.js',
     'dex-profile.js',
+    // FIXTURE-VERIFICATION-GATE §2 — the fixture-verification group SCANS these two. build.mjs must
+    // NEVER write `verifiedUnder` (it does not run the app, so it cannot know that a fixture still
+    // reproduces — auto-writing that claim is exactly how a stale GlucoDex fixture shipped to users).
+    // verify-fixtures.mjs is the only tool allowed to author it, and only after a green real run.
+    'tools/build.mjs',
+    'tools/verify-fixtures.mjs',
+    'manifest-gate.js',
     'sensor-trio-worker.js',
     'sensor-trio-power-analysis.js',
     'sensor-trio-gpu.js',
@@ -273,6 +282,27 @@ function readManifests() {
     if (existsSync(p)) out[f] = readFileSync(p, 'utf8');
   }
   return out;
+}
+
+/* FIXTURE-VERIFICATION-GATE §1 — the computeHash discrimination probe.
+   computeHash is manifestHash's projection over the export's COMPUTE CLOSURE, so a display edit must NOT
+   move it and a DSP edit MUST. That is the entire premise of "export-inert is a computed value, not a
+   claim" — so it is self-tested on synthetic bundles rather than trusted. The hashes are async
+   (crypto.subtle) while the assertion harness is sync, so the probe is computed here and asserted there. */
+async function readComputeHashProbe() {
+  const MG = ManifestGate;
+  if (!MG || typeof MG.computeHashFromText !== 'function') return null;
+  const mk = (dsp, render) =>
+    '<script data-inline-src="kernel-constants.js">var K=1;</script>' +
+    `<script data-inline-src="glucodex-dsp.js">${dsp}</script>` +
+    `<script data-inline-src="glucodex-render.js">${render}</script>` +
+    '<style data-inline-src="ans-design.css">body{}</style>';
+  const of = async (text) => ({ m: await MG.manifestHashFromText(text), c: await MG.computeHashFromText(text) });
+  return {
+    base: await of(mk('compute(1)', 'paint(1)')),
+    render: await of(mk('compute(1)', 'paint(2)')), // display-only edit
+    dsp: await of(mk('compute(2)', 'paint(1)')) // compute-path edit
+  };
 }
 
 // demo-inputs gate (CPAP-REAL-CORPUS-FOLLOWUPS-II §3): the git-tracked path set, so the group can
@@ -941,6 +971,11 @@ async function main() {
     docsLedger: readDocsLedger(),
     sources: readSources(),
     trackedFiles: readTrackedFiles(),
+    // FIXTURE-VERIFICATION-GATE §1 — computeHash is async (crypto.subtle) and the assertion harness is
+    // synchronous, so the discrimination probe is computed HERE and asserted there. ManifestGate itself
+    // is passed for the (sync) closure-membership self-tests.
+    ManifestGate,
+    computeHashProbe: await readComputeHashProbe(),
     fixtures: readFixtures(),
     equiv: readEquiv(),
     hosts: readHosts(),

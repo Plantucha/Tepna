@@ -4315,6 +4315,117 @@
      NODE-LANE ONLY (CPAP-REAL-CORPUS-FOLLOWUPS-II §4): the runner reads changes/ straight from fs — no
      committed changes-list.txt mirror. The browser lane can't list changes/, so env.releaseLedger is absent
      there and this gate SKIPs (CI runs the Node lane). Absent env → SKIP (older runners stay green). */
+    /* ════ FIXTURE VERIFICATION — a fixture may not claim reproducibility nobody checked ═══════════
+       (FIXTURE-VERIFICATION-GATE-2026-07-14 §1/§2/§3.1.)
+
+       THE FAILURE THIS EXISTS TO PREVENT. build.mjs re-stamps a fixture's manifestHash whenever the
+       bundle moves. That re-stamp silently upgrades "this output CAME FROM code X" into "this output IS
+       REPRODUCIBLE under code Y" — an assertion no gate ever tested. On 2026-07-14 that fabricated claim
+       shipped: DEEP-AUDIT §1 moved GlucoDex's real export, the equiv leg that would have caught it SKIPPED
+       (its input is a gitignored recording — absent in CI *and* on the executing session's machine), GATE B
+       stayed green because it is static and never re-runs the app, and the served GlucoDex ran a pre-fix
+       DSP against real users' CGM data until someone noticed by hand.
+
+       THE FIX IS TWO IDEAS:
+         computeHash   — manifestHash's projection over the export's COMPUTE CLOSURE, so "EXPORT-INERT"
+                         becomes a COMPUTED VALUE instead of the most-repeated claim in this repo's
+                         history. A render/CSS edit moves manifestHash but NOT computeHash; a DSP edit
+                         moves both. The closure is a DENYLIST on purpose: an allowlist that forgets a
+                         module fails OPEN (the gate goes blind) — a denylist that forgets one merely
+                         over-flags. We accept false alarms; we do not accept a gate that cannot see.
+         verifiedUnder — the code that ACTUALLY re-ran the app and reproduced the bytes. Only
+                         tools/verify-fixtures.mjs may write it, and only after a green real-corpus run.
+                         build.mjs is FORBIDDEN to (asserted below by source scan).
+
+       This group is the VISIBILITY half (§3.1): it proves the machinery is wired and honest. The WALL is
+       release.mjs's pre-flight (§3.2) — `verify-fixtures --check` refuses to cut a release while any
+       corpus-backed fixture is UNVERIFIED, which is where the harm actually materialises and where the
+       one person with the corpus stands. CI-red (§3.3) is deliberately NOT here: a contributor with no
+       corpus cannot green it, and that would block outside contributions. ════ */
+    group('Fixture verification — no fixture may claim reproducibility nobody checked', 'provenance · fixture-verification · compute-hash', function (T) {
+      var MG = env.ManifestGate || (typeof ManifestGate !== 'undefined' ? ManifestGate : null);
+      var src = env.sources || {};
+      var raw = (env.manifests || {})['FIXTURE-PROVENANCE.json'];
+
+      // ── §1 · computeHash exists and DISCRIMINATES. The hashes are async (crypto.subtle) and this
+      //         harness is synchronous, so the runner computes the probe up-front and we assert the
+      //         RESULT here — the discrimination itself is what is under test, not the plumbing.
+      var probe = env.computeHashProbe;
+      if (!probe) {
+        T.skip('§1 · computeHash discriminates render from compute', 'env.computeHashProbe not wired in this runner');
+      } else {
+        T.ok('self-test · a RENDER-only edit MOVES manifestHash', probe.base.m !== probe.render.m, probe.base.m + ' → ' + probe.render.m);
+        T.ok('self-test · …but leaves computeHash STABLE ⇒ "export-inert" is PROVEN, not claimed', probe.base.c === probe.render.c, probe.base.c + ' vs ' + probe.render.c);
+        T.ok('self-test · a DSP edit MOVES computeHash ⇒ re-verification is owed', probe.base.c !== probe.dsp.c, probe.base.c + ' → ' + probe.dsp.c);
+        T.ok('self-test · a DSP edit moves manifestHash too (GATE A still sees everything)', probe.base.m !== probe.dsp.m);
+      }
+      if (!MG || typeof MG.isComputeAsset !== 'function') {
+        T.skip('§1 · the compute closure is inspectable', 'ManifestGate not co-loaded');
+      } else {
+        T.ok(
+          'self-test · the closure EXCLUDES render/css and INCLUDES the dsp + spine',
+          MG.isComputeAsset('glucodex-dsp.js') &&
+            MG.isComputeAsset('kernel-constants.js') &&
+            MG.isComputeAsset('dex-export.js') &&
+            !MG.isComputeAsset('glucodex-render.js') &&
+            !MG.isComputeAsset('glucodex-app.js') &&
+            !MG.isComputeAsset('ans-design.css')
+        );
+        T.ok(
+          'self-test · an UNKNOWN asset counts as COMPUTE — the denylist fails CLOSED, never blind',
+          MG.isComputeAsset('some-new-module.js'),
+          'an allowlist would fail OPEN here: forget to list a module and its edits stop moving computeHash — the gate goes blind, which is the exact failure being abolished'
+        );
+      }
+
+      // ── §2 · build.mjs is FORBIDDEN to author the claim; verify-fixtures.mjs is the only writer
+      var buildSrc = src['tools/build.mjs'],
+        vfSrc = src['tools/verify-fixtures.mjs'];
+      if (buildSrc == null || vfSrc == null) {
+        T.skip('§2 · build.mjs cannot write verifiedUnder', 'tools/build.mjs or tools/verify-fixtures.mjs not in env.sources');
+      } else {
+        T.ok(
+          '§2 · build.mjs NEVER writes verifiedUnder (it does not run the app — it cannot know)',
+          buildSrc.indexOf('verifiedUnder') === -1,
+          'build.mjs mentions verifiedUnder — the tool that re-stamps manifestHash must NOT be able to author a reproducibility claim'
+        );
+        T.ok('§2 · verify-fixtures.mjs IS the writer (it re-runs the app first)', vfSrc.indexOf('verifiedUnder') !== -1);
+      }
+
+      // ── §3.1 · the ledger is well-formed: every corpus-backed fixture CARRIES a verification
+      if (!raw) {
+        T.skip('§3.1 · corpus-backed fixtures carry a verifiedUnder', 'FIXTURE-PROVENANCE.json not in env.manifests');
+        return;
+      }
+      var fixtures = {};
+      try {
+        fixtures = (JSON.parse(raw) || {}).fixtures || {};
+      } catch (e) {
+        T.ok('FIXTURE-PROVENANCE.json parses', false, (e && e.message) || String(e));
+        return;
+      }
+      var tracked = env.trackedFiles || null; // `git ls-files` truth (null on a tarball checkout)
+      var codeGated = Object.keys(fixtures).filter(function (k) {
+        var v = fixtures[k];
+        return k.charAt(0) !== '_' && v && !v.historical && v.manifestHash;
+      });
+      // A fixture whose inputs are ALL committed is re-run from committed bytes on every CI push, so it
+      // cannot go stale unnoticed → exempt. Everything else owes a recorded verification. Fail CLOSED.
+      var owing = codeGated.filter(function (k) {
+        var ins = fixtures[k].inputs || [];
+        if (!ins.length) return true;
+        if (!tracked) return true;
+        return !ins.every(function (f) {
+          return tracked.indexOf('uploads/' + f) !== -1;
+        });
+      });
+      var unstamped = owing.filter(function (k) {
+        return !/^[0-9a-f]{12}$/.test(String(fixtures[k].verifiedUnder || ''));
+      });
+      T.eq('§3.1 · every corpus-backed fixture carries a verifiedUnder (a claim nothing in CI can re-run must record what DID)', unstamped.sort(), []);
+      T.ok('§3.1 · the corpus-backed set is non-empty (the gate is not vacuous)', owing.length > 0, owing.length + ' fixture(s) owe a verification');
+    });
+
     group('Release-ledger — controlled releases machine-checked (CONTROLLED-RELEASES)', 'docs · release-ledger', function (T) {
       var RL = env.releaseLedger;
       if (!RL || RL.manifestText == null || RL.releaseText == null || RL.changelogText == null) {
