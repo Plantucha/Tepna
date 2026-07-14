@@ -30,6 +30,24 @@ changesets.)
 
 ---
 
+## [1.10.1] — 2026-07-14
+
+### Added
+- Add a headless gate asserting every shipped demo's `uploads/` inputs are git-tracked, and repoint the Integrator sample-load demo off two gitignored/nonexistent paths onto committed same-night synthetic exports. (`CPAP-REAL-CORPUS-FOLLOWUPS-II-2026-07-13-BRIEF.md`)
+- Add roster-derived per-page `<head>` discovery meta (description · canonical · OG/Twitter) to the 7 reference guides + 4 content pages, generated + `--check`-guarded by a new `tools/build-docs.mjs` Phase 0 that upserts a marked block from `suite.manifest.json` (executes REPO-DISCOVERABILITY-FOLLOWUPS §5.3/§5.6). (`REPO-DISCOVERABILITY-FOLLOWUPS-2026-07-04-BRIEF.md`)
+
+### Changed
+- P2 (strictNullChecks) chunk 1: harden the five adapter/orchestrate modules against the null-class errors strictNullChecks surfaces — annotate `never[]` warning arrays, guard `.pop()`-returns-`string|undefined`, cast the `.filter(Boolean)` EDF-stamp array (which tsc does not narrow), and give the `_await` Promise a resolve arg. Comment/guard-level only; export-inert re-bundle of the two orchestrators that inline them. The flag stays OFF until every gated module is clean (final P2 PR). (`ARCHITECTURE-DEBT-REDUCTION-2026-07-14-BRIEF.md`)
+- P2 complete: turn `strictNullChecks` ON in the checkJs gate. The remaining 80 null-class errors across the 8 DSPs + dex-ingest + signal-frame are fixed at the source (annotate `never[]`/inferred-null object literals, cast `.filter(Boolean)` arrays tsc won't narrow, cast possibly-null result vars at declaration) and the flag is flipped in tsconfig.json. All comment/guard-level → export-inert re-bundle of the 7 GATE-A apps + both orchestrators; every manifestHash moved but GATE B confirms no fixture output changed. oxydex-dsp/signal-frame/dex-ingest joined biome's formatter-override list (§B2) so their inline JSDoc casts are not mangled by the formatter. (`ARCHITECTURE-DEBT-REDUCTION-2026-07-14-BRIEF.md`)
+- Make the `docs-ledger` + `release-ledger` gates Node-lane only and delete the committed `tests/{docs-ledger,changes}-list.txt` snapshots, their generators, and `list-format.js` — killing the regenerate-on-every-PR merge tax (both gates now read `briefs/` + `changes/` straight from the filesystem; the browser lane SKIPs them). (`CPAP-REAL-CORPUS-FOLLOWUPS-II-2026-07-13-BRIEF.md`)
+
+### Fixed
+- Make the 9 science/analysis tools self-contained single-file HTML so they run from a local download over `file://` (they only worked when served): new `tools/build-analysis.mjs` inlines every external script and rewrites `new Worker('x.js')` → a blob-URL worker with its deps inlined; gated by `build-analysis.mjs --check` in CI plus a Node-suite invariant group (no external `<script src>`, no file-path workers). Verified under file:// and http:// with headless Chromium. (`LOCAL-DOWNLOAD-FILE-URL-FIX-2026-07-14-BRIEF.md`)
+- Regenerate the real-recording GlucoDex export fixture, which the §1 long-gap fix moved but left stale — its `daypart` block still reported interpolated sensor-gap samples as measured glucose, reddening the `compute() ≡ committed export` equivalence gate. Adds `tools/regen-glucodex-goldens.mjs` (sibling of the CPAP regen tool: re-runs the real modules on the committed input, preserves volatile keys, re-records `outputHash` from the bytes it wrote — closing the gap where `build.mjs` re-stamps a fixture only when the *bundle* hash moves), and writes the underlying lesson into CLAUDE.md §🔏: a byte-identical synthetic golden is not evidence of export-inertness, because the real-recording equiv legs skip wherever `uploads/` is absent. (`DEEP-AUDIT-2026-07-14-BRIEF.md`)
+- GlucoDex: exclude long-gap interpolation (`FLAG.GAP_LONG`) from EVERY distribution metric, not just the headline TIR family. CONGA/MODD/GVP/MAG/ADRR/postprandial/dawn/nocturnalHypo/daypart/excursions/AGP/per-day all now route through one `_ana()` predicate — so a multi-hour sensor-change gap can no longer inflate surfaced variability or fabricate `nocturnal_hypo` events off an interpolated line (DEEP-AUDIT-2026-07-14 §1). A metamorphic gate (gapped ≠ explicitly-filled gvp) locks it. The real-recording GlucoDex fixture's `daypart` block moved as a result — every `n` drops, because interpolation is no longer counted as measured glucose — and was regenerated; the synthetic golden, which carries no long gap, stays byte-identical. (`DEEP-AUDIT-2026-07-14-BRIEF.md`)
+
+---
+
 ## [1.10.0] — 2026-07-14
 
 ### Changed
@@ -353,7 +371,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.10.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.10.1...HEAD
+[1.10.1]: https://github.com/Plantucha/Tepna/compare/v1.10.0...v1.10.1
 [1.10.0]: https://github.com/Plantucha/Tepna/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/Plantucha/Tepna/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/Plantucha/Tepna/compare/v1.7.0...v1.8.0
