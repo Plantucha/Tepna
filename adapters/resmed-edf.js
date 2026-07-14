@@ -71,9 +71,10 @@
    * @returns {{ sec:number, type:string, file:string }|null}
    */
   function stampOf(name) {
-    var base = String(name || '')
-      .split('/')
-      .pop();
+    var base =
+      String(name || '')
+        .split('/')
+        .pop() || '';
     var m = FNAME_RE.exec(base);
     if (!m) return null;
     var d = m[1],
@@ -94,12 +95,9 @@
    * @returns {{ sec:number, byType:Object<string,{sec:number,type:string,file:string}> }[]}
    */
   function groupSessionSets(names) {
-    var stamps = (names || [])
-      .map(stampOf)
-      .filter(Boolean)
-      .sort(function (a, b) {
-        return a.sec - b.sec;
-      });
+    var stamps = /** @type {{ sec:number, type:string, file:string }[]} */ ((names || []).map(stampOf).filter(Boolean)).sort(function (a, b) {
+      return a.sec - b.sec;
+    });
 
     var clusters = [];
     for (var i = 0; i < stamps.length; i++) {
@@ -141,7 +139,7 @@
     detect: function (file, headText) {
       var name = ((file && file.name) || '') + '';
       var head = (headText || '') + '';
-      var base = name.split('/').pop();
+      var base = name.split('/').pop() || '';
       if (FNAME_RE.test(base)) return 0.96; // YYYYMMDD_HHMMSS_TYPE.edf
       if (/\.edf$/i.test(base)) return 0.5; // some other .edf — still ours
       // EDF+ magic: version field is '0' padded to 8 chars, then an 80-char patient field.
@@ -153,7 +151,7 @@
     // `text` is IGNORED: EDF is binary + multi-file (see the header). Bytes arrive on ctx.
     parse: function (text, ctx) {
       ctx = ctx || {};
-      var prov = { adapter: 'resmed-edf', vendor: VENDOR, device: DEVICE, files: ctx.files || null, warnings: [] };
+      var prov = { adapter: 'resmed-edf', vendor: VENDOR, device: DEVICE, files: ctx.files || null, warnings: /** @type {string[]} */ ([]) };
       var SF = root.SignalFrame;
       var bad = function (reason) {
         return SF.toSignalFrame('cpap', { usable: false, reason: reason }, prov);

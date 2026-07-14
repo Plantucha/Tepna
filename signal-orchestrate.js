@@ -47,7 +47,7 @@
     return new Promise(function (resolve, reject) {
       var t0 = Date.now();
       (function poll() {
-        if (root[ns] && typeof root[ns].compute === 'function') return resolve();
+        if (root[ns] && typeof root[ns].compute === 'function') return resolve(undefined);
         if (Date.now() - t0 > 8000)
           return reject(new Error('signal-orchestrate: ' + ns + ' namespaced DSP not found on host — set window.__DEX_NAMESPACED__=true and load ' +
             ns.toLowerCase() + '-dsp.js (with kernel-constants.js) before using this module'));

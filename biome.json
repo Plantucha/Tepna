@@ -1,6 +1,11 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.3/schema.json",
-  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true, "defaultBranch": "main" },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true,
+    "defaultBranch": "main"
+  },
   "files": {
     "includes": ["**/*.js", "**/*.mjs", "!**/*.min.js", "!node_modules/**", "!uploads/**", "!docs/**", "!docs-archive/**", "!scraps/**", "!papers/**", "!codegen/generated/**", "!**/*fixture*"]
   },
@@ -49,7 +54,9 @@
       }
     }
   },
-  "assist": { "enabled": false },
+  "assist": {
+    "enabled": false
+  },
   "overrides": [
     {
       "includes": [
@@ -79,9 +86,15 @@
         "cpapdex-app.js",
         "cpapdex-registry.js",
         "signal-spec.js",
-        "dex-coload.js"
+        "dex-coload.js",
+        "adapters/polar-h10-ecg.js",
+        "adapters/polar-sense-ppg.js",
+        "adapters/welltory-summary.js",
+        "signal-orchestrate.js"
       ],
-      "formatter": { "enabled": false }
+      "formatter": {
+        "enabled": false
+      }
     }
   ]
 }

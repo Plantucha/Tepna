@@ -64,7 +64,7 @@
     // REFERENCE the existing pure parser — never copy it.
     parse: function (text, ctx) {
       ctx = ctx || {};
-      var prov = { adapter: 'polar-sense-ppg', vendor: VENDOR, device: DEVICE, files: ctx.files || null, warnings: [] };
+      var prov = { adapter: 'polar-sense-ppg', vendor: VENDOR, device: DEVICE, files: ctx.files || null, warnings: /** @type {string[]} */ ([]) };
       // Prefer the namespaced surface; fall back to the PPGDSP legacy name.
       var ppg = root.PpgDex || root.PPGDSP;
       var parseFn = (ppg && typeof ppg.parsePPG === 'function') ? ppg.parsePPG

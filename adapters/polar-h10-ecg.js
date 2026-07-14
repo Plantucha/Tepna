@@ -73,7 +73,7 @@
     // REFERENCE the existing pure parser — never copy it.
     parse: function (text, ctx) {
       ctx = ctx || {};
-      var prov = { adapter: 'polar-h10-ecg', vendor: VENDOR, device: DEVICE, files: ctx.files || null, warnings: [] };
+      var prov = { adapter: 'polar-h10-ecg', vendor: VENDOR, device: DEVICE, files: ctx.files || null, warnings: /** @type {string[]} */ ([]) };
       // Prefer the namespaced surface; fall back to the ECGDSP legacy name.
       var ecg = root.ECGDex || root.ECGDSP;
       var parseFn = (ecg && typeof ecg.parseECG === 'function') ? ecg.parseECG
