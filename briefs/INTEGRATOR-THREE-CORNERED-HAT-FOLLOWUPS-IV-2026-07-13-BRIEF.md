@@ -5,15 +5,16 @@
 
 > **One-line.** FU-III is DONE: its §1 owed leg landed (the real 17-night distribution + magnitude check, docs
 > §11), and it produced **one actionable finding** — `_tchRhoFromMotion`'s mean-of-pairwise ρ is **diluted
-> exactly in the quiet-order shape it exists to rescue**, which is why 3 of 7 quiet-order nights were left with a
+> exactly in the quiet-order shape it exists to rescue**, which is why 5 of 11 quiet-order nights were left with a
 > quiet corner pinned at σ ≈ 0. §1 below is that fix, now *indicated* by real data rather than hypothesized.
 > §2 (LOW golden polish) and §3 (N-cornered, still blocked) are carried from FU-III so they survive its DONE stamp.
 
 ## 0. State recap — what FU-III settled (do NOT redo)
-- The **distribution + reference-anchored magnitude check** — 17/17 nights solve; median σ ECGDex **0.95** /
-  OxyDex **1.19** / PpgDex **1.85** bpm; ranking preserved; the Verity corner sits on the independent literature
-  anchor (≈1.8, docs §8). **This is done. Do not re-run it as if it were open.**
-- The **rescue mechanism** — real, reproduced on 4 of 7 quiet-order nights, incl. the §6 night (OxyDex σ
+- The **distribution + reference-anchored magnitude check** — 24/24 nights solve (the full committed corpus after
+  PR #81); median σ ECGDex **0.79** / OxyDex **1.08** / PpgDex **2.20** bpm; ranking preserved; the Verity corner
+  falls between the two anchors that bracket it (§8's literature ≈1.8, §2's reference-free ≈2.8). **This is done.
+  Do not re-run it as if it were open.**
+- The **rescue mechanism** — real, reproduced on 6 of 11 quiet-order nights, incl. the §6 night (OxyDex σ
   0.04 → 1.00 bpm).
 - **No HR-only estimator escapes the quiet-order ambiguity** (docs §10 bake-off: GCOV ≡ classic at N=3; GCOV/NNLS
   merely *relocate* which quiet corner is driven to ≈0). **Only external ρ recovers both quiet corners.** So the
@@ -41,11 +42,12 @@ hypothesis, now **confirmed on real nights**.
    its own magnitude / couple-strength, or take the max-coupled pair, or solve per-pair) in `_tchRhoFromMotion`
    (`integrator-dsp.js`). Consider z-scoring per-node motion before correlating, and require a minimum aligned
    overlap `n` before trusting ρ (both were flagged as open in FU-III §1 and are still unaddressed).
-2. **Acceptance = the three failed nights.** 2026-06-24 (needs 0.69, got 0.04) · 2026-06-29 (needs 0.39, applied
-   but too small) · 2026-07-05 (needs 0.59, got 0.37) must rescue — the quiet corner lifting clearly off the ≈0
-   boundary — **without disturbing the 4 already-rescued nights or the 10 positive-variance ones** (the §5
-   invariant: ρ must not *lower* Σσ²). `node tools/tch-multinight.mjs --dir uploads/trio` prints the whole
-   before/after in one command; `--selftest` (30/30) must stay green.
+2. **Acceptance = the five failed nights.** 2026-06-24 (needs 0.69, got 0.04) · 2026-06-29 (needs 0.39, applied
+   but too small) · 2026-07-05 (needs 0.59, got 0.37) · 2026-07-07 (needs 0.71, got 0.13) · 2026-07-09 (needs
+   0.64, got 0.49) must rescue — the quiet corner lifting clearly off the ≈0 boundary — **without disturbing the
+   6 already-rescued nights or the 13 positive-variance ones** (the §5 invariant: ρ must not *lower* Σσ²).
+   `node tools/tch-multinight.mjs --dir uploads/trio` prints the whole before/after in one command;
+   `--selftest` (30/30) must stay green.
 3. **Watch for over-correction.** A weighted ρ is strictly ≥ the mean, so it can push a *positive-variance* night
    into over-subtraction. The bound to respect is the geometry's own: the ρ that makes the solve non-negative is a
    *floor*, not a target — an aggregation that always returns ≈0.9 would "rescue" everything and mean nothing.
@@ -63,7 +65,7 @@ recovered values move; no contract shape changes) and needs a changeset. Seriali
 Both are **verbatim carries**, re-deferred at FU-III's DONE stamp, still LOW:
 - **A real-signal golden variant** (FU-III §2) — a second golden produced by three *real* node `compute()` runs on
   co-recorded raw streams, pinning the node→Integrator seam end-to-end. Still blocked on a synthetic **raw-ECG**
-  generator (`synth-gen.js` emits RR/PPG/O2Ring, not 130 Hz ECG µV). *Note: the 17 committed trio nights are
+  generator (`synth-gen.js` emits RR/PPG/O2Ring, not 130 Hz ECG µV). *Note: the 24 committed trio nights are
   node-**exports**, not raw streams, so they do not unblock this.*
 - **A classic-solve (ρ-null) golden leg** (FU-III §3) — pins near-exact σ² magnitude recovery as a complement to
   the committed `correlated-external` golden, whose common-mode subtraction compresses magnitudes. Cheap, additive,
@@ -88,12 +90,13 @@ failure on one corner**, not a noisy sensor. They are the intended prey of the c
 `TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md` — **hand them over as two known positives** to test that
 gate against. Do NOT hand-exclude them from the corpus here; a gate that cannot catch them is the actual finding.
 
-## §5 — commit the remaining trio nights? 🟢 (owner decision, 5 min)
-Seven further trio night-dirs exist on the capture host but are **uncommitted** (`2026-06-20`, `07-04`, `07-07`,
-`07-08`, `07-09`, `07-11`, `07-12`). Committing them takes the reproducible corpus **17 → 24 nights** (the 24-night
-superset gives 24/24 solve, medians 0.79/1.08/2.20 bpm — the same story, tighter). They are tiny JSONs, and the
-privacy posture already permits node-exports (17 are committed). **Owner call**, not an agent's: they were not
-created by this work-unit.
+## §5 — commit the remaining trio nights ✅ ALREADY DONE (by `TRIO-BATCH-O2RING-DAT`, PR #81)
+Superseded before it was written. When this brief was drafted, seven trio night-dirs (`2026-06-20`, `07-04`,
+`07-07`, `07-08`, `07-09`, `07-11`, `07-12`) existed only on the capture host, and committing them was going to be
+an owner call. **PR #81 committed all seven**, taking the reproducible corpus **17 → 24 nights** — so §11's
+distribution, and §1's acceptance set above, are stated on the full committed corpus. Nothing to do. *(Recorded
+rather than deleted: the acceptance set in §1 grew from 3 nights to 5 precisely because of this, and 2026-07-04 —
+one of §4's two artifact nights — is now a committed night.)*
 
 ---
 

@@ -513,8 +513,8 @@ path changes/2026-07-13-own-the-build-followups-docs-and-checkjs.md
 path changes/2026-07-13-release-regen-docs-ledger-list.md
 path changes/2026-07-13-security-leak-hygiene.md
 path changes/2026-07-13-security-nonbundle-csp.md
-path changes/2026-07-13-trio-batch-o2ring-dat.md
 path changes/2026-07-13-tch-fu3-realdata-distribution.md
+path changes/2026-07-13-trio-batch-o2ring-dat.md
 path changes/2026-07-13-typegate-cpapdex-dsp.md
 path changes/2026-07-13-typegate-ecgdex-dsp.md
 path changes/2026-07-13-typegate-glucodex-dsp.md
