@@ -140,15 +140,30 @@ incident is what the gap cost.
 This is the cheaper half and it pays first. **Do §4 before §3.3** — and fold the result back into
 `DEEP-AUDIT-FOLLOWUPS-2026-07-12` §A rather than leaving two briefs claiming the same ground.
 
-## §5 — Migration: verify once, then stamp. Never fabricate.
+## §5 — Migration: verify once, then stamp. Never fabricate. (Already run — and it is CLEAN.)
 
-The ~10 corpus fixtures have **no** honest `verifiedUnder` today — nobody knows what code last reproduced
-them. Do **not** back-fill it from the current `manifestHash` (that fabricates exactly the claim this brief
-exists to abolish). Instead, on a machine with the corpus, **run every real equiv leg once**
-(`DEX_UPLOADS=<corpus> node tests/run-tests.mjs`), and stamp `verifiedUnder` **only** for the fixtures that
-actually reproduced. Any fixture that does **not** reproduce is a **live stale-fixture finding** — regenerate
-it (§🔏's regen tools) and say so. Expect this step to surface more than zero: the GlucoDex one was found by
-accident, and nothing has ever checked the others.
+The corpus fixtures have **no** honest `verifiedUnder` today — nobody knows what code last reproduced them.
+Do **not** back-fill it from the current `manifestHash`: that fabricates exactly the claim this brief exists
+to abolish. Instead, on a machine with the corpus, **run every real equiv leg once**
+(`DEX_UPLOADS=<corpus> node tests/run-tests.mjs`) and stamp `verifiedUnder` **only** for the fixtures that
+actually reproduced. A fixture that does **not** reproduce is a **live stale-fixture finding** — regenerate it
+(§🔏's regen tools) and say so.
+
+**That verification pass was run on 2026-07-14 against the real corpus, at `main` = v1.10.2 — every
+corpus-backed leg PASSED. Zero skips, zero drift:**
+
+    OxyDex (both real summaries) · PulseDex · HRVDex · GlucoDex · PpgDex · ECGDex ·
+    CPAPDex (both real EDF nights) · the HRVDex/PulseDex event twins · all 6 synthetic goldens
+
+So the honest expectation is the **opposite** of this brief's own first draft, which asserted "expect this to
+surface more than zero". **GlucoDex was the only one.** Every other fixture reproduces under current code.
+That makes the migration a **stamp of an actually-measured state** rather than a hunt — cheap, and available
+today. It also means the gate lands **green**, which is the right way to introduce one: a gate that reds on
+arrival teaches people to route around it.
+
+⚠️ A clean snapshot is **not** an argument that the design is unnecessary. It says nothing about the *next*
+compute change — which is the whole point of §1–§3. The 2026-07-14 miss was caught **by accident**, and
+"everything happens to be clean today" is precisely the state the tree was in while it shipped.
 
 ## §6 — Self-tests (the gate must be shown to bite)
 
