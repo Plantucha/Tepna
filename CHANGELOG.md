@@ -30,6 +30,17 @@ changesets.)
 
 ---
 
+## [1.10.2] — 2026-07-14
+
+### Added
+- Wire `build-docs.mjs --check` into CI as the deploy drift guard (`tests.yml` static job, alongside the `build.mjs` / `build-analysis.mjs` drift guards), so the served `docs/` tree can no longer drift from its root twins unnoticed — the hole through which the 8 stale served app bundles and the lagging `llms-full.txt` both reached `main` and the live site. Prerequisite fix in the same change: `build-docs.mjs` stamped `new Date()` into `sitemap.xml` `<lastmod>`, `feed.xml` `<updated>` and the `llms-full.txt` header, which made the tool non-deterministic — it rewrote three committed artifacts every midnight with no content change, so the new gate would have false-red on every PR from the next day onward (verified: under a simulated future clock the old code reports `STALE (3)` on an in-sync tree). The date now comes from the newest `RELEASE-MANIFEST.json` record — honest (`<lastmod>` = when the served tree actually last shipped, not when the build ran), stable between releases, and byte-identical today. (`REPO-DISCOVERABILITY-FOLLOWUPS-2026-07-04-BRIEF.md`)
+
+### Fixed
+- Make `tools/build-docs.mjs` settle the served tree in ONE pass. `llms-full.txt` (Phase 2) concatenates `README.md`, which Phase 3 stamps with the canonical version — so the artifact was generated from the *previous* run's bytes and came out exactly one release behind, leaving `build-docs && build-docs --check` reporting `STALE (1): llms-full.txt` until the writer was run a second time (which no doc prescribes, and the tool's own header comment contradicted). The version stamp is now a pure text transform (`applyStamp`) that Phase 2 derives its text through, instead of re-reading the stamped file — every artifact is a pure function of (source text, canonical version), independent of phase order. Phase numbers are unchanged. (`REPO-DISCOVERABILITY-FOLLOWUPS-2026-07-04-BRIEF.md`)
+- Gate a lead-faulted H10 corner in the sensor-trio σ solve: a bad ECG lead for a whole night yields a large positive σ_h10 that TCH reports honestly but that is not a device σ (2026-06-12: σ≈9.5 bpm, decorrelated from both partners while O2·Verity still agree), silently inflating the H10 aggregate. A pure `h10FailureClass()` (sibling of the Verity gate) fingerprints it — σ>5 AND rHO,rHV<0.5 AND rVO≥0.5 — and nulls ONLY the H10 corner (its independent error cancels out of the O2/Verity estimates), keeping the night; both real-night lanes (`sensor-trio-worker.js`, `sensor-trio-power-analysis.js` loadReal) and a nulled corner's bootstrap CI are now point↔CI consistent, fixing the neg-night cosmetic where a nulled h10 still reported a CI.
+
+---
+
 ## [1.10.1] — 2026-07-14
 
 ### Added
@@ -371,7 +382,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.10.1...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.10.2...HEAD
+[1.10.2]: https://github.com/Plantucha/Tepna/compare/v1.10.1...v1.10.2
 [1.10.1]: https://github.com/Plantucha/Tepna/compare/v1.10.0...v1.10.1
 [1.10.0]: https://github.com/Plantucha/Tepna/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/Plantucha/Tepna/compare/v1.8.0...v1.9.0
