@@ -8058,15 +8058,14 @@
       envWithProv.schema.provenance = fakeProv;
       var resP = OD.loadOwnExport(envWithProv);
       T.ok('provenance preserved VERBATIM (view provenance == export provenance)', JSON.stringify(resP.provenance) === JSON.stringify(fakeProv));
-      var dsp = src['oxydex-dsp.js'] || '';
-      var loadSeg =
-        dsp.indexOf('function oxyLoadOwnExport') >= 0 && dsp.indexOf('function oxyScrubExport') > dsp.indexOf('function oxyLoadOwnExport')
-          ? dsp.slice(dsp.indexOf('function oxyLoadOwnExport'), dsp.indexOf('function oxyScrubExport'))
-          : '';
-      // strip comments first — the body's OWN honest note ("no GangliorProvenance.stamp()") must not trip
-      // the guard; we are asserting no real CALL, not no mention.
-      var loadCode = loadSeg.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-      T.ok('loadOwnExport body never re-stamps (no .stamp( / GangliorProvenance in CODE)', loadSeg.length > 0 && !/\.stamp\s*\(/.test(loadCode) && !/GangliorProvenance/.test(loadCode));
+      // never re-stamps — behavioral (P1, ARCHITECTURE-DEBT-REDUCTION-2026-07-14): replaces the former
+      // source-text slice (regex `no .stamp(` in the sliced body) with the real invariant — an export
+      // carrying NO provenance must not get one fabricated on reload. With the VERBATIM leg above
+      // (present → preserved), this proves loadOwnExport never re-stamps, without reading source text.
+      var envNoP = JSON.parse(JSON.stringify(envlp));
+      if (envNoP.schema) delete envNoP.schema.provenance;
+      var resNo = OD.loadOwnExport(envNoP);
+      T.ok('oxyLoadOwnExport never re-stamps — no provenance fabricated when the export carries none', !!resNo && !resNo.provenance);
 
       // ── 4 · TIER preserved (no upgrade) — the export's EMBEDDED crossNight evidence is shown verbatim ──
       var envTier = JSON.parse(JSON.stringify(envlp));
@@ -8201,13 +8200,14 @@
       envP.recording.serial = '23261999999';
       var resP = CF.cpapLoadOwnExport(envP);
       T.ok('provenance preserved VERBATIM (view provenance == export provenance)', JSON.stringify(resP && resP.provenance) === JSON.stringify(fakeProv));
-      var fsrc = src['cpapdex-fusion.js'] || '';
-      var segStart = fsrc.indexOf('function cpapLoadOwnExport'),
-        segEnd = fsrc.indexOf('global.CpapFusion');
-      var loadSeg = segStart >= 0 && segEnd > segStart ? fsrc.slice(segStart, segEnd) : '';
-      // strip comments first — honest notes may MENTION the stamp; we assert no real CALL.
-      var loadCode = loadSeg.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-      T.ok('cpapLoadOwnExport body never re-stamps (no .stamp( / GangliorProvenance in CODE)', loadSeg.length > 0 && !/\.stamp\s*\(/.test(loadCode) && !/GangliorProvenance/.test(loadCode));
+      // never re-stamps — behavioral (P1, ARCHITECTURE-DEBT-REDUCTION-2026-07-14): replaces the former
+      // source-text slice (regex `no .stamp(` in the sliced body) with the real invariant — an export
+      // carrying NO provenance must not get one fabricated on reload. With the VERBATIM leg above
+      // (present → preserved), this proves loadOwnExport never re-stamps, without reading source text.
+      var envNoP = JSON.parse(JSON.stringify(pristine));
+      if (envNoP.schema) delete envNoP.schema.provenance;
+      var resNo = CF.cpapLoadOwnExport(envNoP);
+      T.ok('cpapLoadOwnExport never re-stamps — no provenance fabricated when the export carries none', !!resNo && !resNo.provenance);
 
       // ── 6 · FOREIGN-NODE guard — an ECGDex export is rejected with a redirect message, not loaded ──
       var foreign = { schema: { name: 'ganglior.node-export', node: 'ECGDex' }, recording: { startEpochMs: 0 }, ganglior_events: [], recordings: [{}] };
@@ -8336,12 +8336,14 @@
       envP.recording.serial = 'VS-99';
       var resP = PD.loadOwnExport(envP);
       T.ok('provenance preserved VERBATIM (view provenance == export provenance)', JSON.stringify(resP && resP.provenance) === JSON.stringify(fakeProv));
-      var psrc = src['pulsedex-dsp.js'] || '';
-      var segStart = psrc.indexOf('function pulseLoadOwnExport'),
-        segEnd = psrc.indexOf('PulseDex.loadOwnExport');
-      var loadSeg = segStart >= 0 && segEnd > segStart ? psrc.slice(segStart, segEnd) : '';
-      var loadCode = loadSeg.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-      T.ok('pulseLoadOwnExport body never re-stamps (no .stamp( / GangliorProvenance in CODE)', loadSeg.length > 0 && !/\.stamp\s*\(/.test(loadCode) && !/GangliorProvenance/.test(loadCode));
+      // never re-stamps — behavioral (P1, ARCHITECTURE-DEBT-REDUCTION-2026-07-14): replaces the former
+      // source-text slice (regex `no .stamp(` in the sliced body) with the real invariant — an export
+      // carrying NO provenance must not get one fabricated on reload. With the VERBATIM leg above
+      // (present → preserved), this proves loadOwnExport never re-stamps, without reading source text.
+      var envNoP = JSON.parse(JSON.stringify(pristine));
+      if (envNoP.schema) delete envNoP.schema.provenance;
+      var resNo = PD.loadOwnExport(envNoP);
+      T.ok('pulseLoadOwnExport never re-stamps — no provenance fabricated when the export carries none', !!resNo && !resNo.provenance);
 
       // ── 6 · FOREIGN-NODE guard ──
       var foreign = { schema: { name: 'ganglior.node-export', node: 'OxyDex' }, recording: {}, ganglior_events: [] };
@@ -8459,12 +8461,14 @@
       envP.recording.serial = 'LG-1';
       var resP = GD.loadOwnExport(envP);
       T.ok('provenance preserved VERBATIM', JSON.stringify(resP && resP.provenance) === JSON.stringify(fakeProv));
-      var gsrc = src['glucodex-dsp.js'] || '';
-      var segStart = gsrc.indexOf('function glucoLoadOwnExport'),
-        segEnd = gsrc.indexOf('global.GlucoDex = global.GlucoDex');
-      var loadSeg = segStart >= 0 && segEnd > segStart ? gsrc.slice(segStart, segEnd) : '';
-      var loadCode = loadSeg.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-      T.ok('glucoLoadOwnExport never re-stamps (no .stamp( / GangliorProvenance in CODE)', loadSeg.length > 0 && !/\.stamp\s*\(/.test(loadCode) && !/GangliorProvenance/.test(loadCode));
+      // never re-stamps — behavioral (P1, ARCHITECTURE-DEBT-REDUCTION-2026-07-14): replaces the former
+      // source-text slice (regex `no .stamp(` in the sliced body) with the real invariant — an export
+      // carrying NO provenance must not get one fabricated on reload. With the VERBATIM leg above
+      // (present → preserved), this proves loadOwnExport never re-stamps, without reading source text.
+      var envNoP = JSON.parse(JSON.stringify(pristine));
+      if (envNoP.schema) delete envNoP.schema.provenance;
+      var resNo = GD.loadOwnExport(envNoP);
+      T.ok('glucoLoadOwnExport never re-stamps — no provenance fabricated when the export carries none', !!resNo && !resNo.provenance);
 
       // ── 6 · FOREIGN-NODE guard ──
       var resF = GD.loadOwnExport({ schema: { name: 'ganglior.node-export', node: 'OxyDex' }, recording: {}, ganglior_events: [] });
@@ -8576,12 +8580,14 @@
       // ── 3 · PROVENANCE no re-stamp ──
       var resP = ED.loadOwnExport(JSON.parse(JSON.stringify(pristine)));
       T.ok('provenance preserved VERBATIM', JSON.stringify(resP && resP.provenance) === JSON.stringify(pristine.schema.provenance));
-      var esrc = src['ecgdex-dsp.js'] || '';
-      var segStart = esrc.indexOf('function ecgLoadOwnExport'),
-        segEnd = esrc.indexOf('global.ECGDex = global.ECGDex');
-      var loadSeg = segStart >= 0 && segEnd > segStart ? esrc.slice(segStart, segEnd) : '';
-      var loadCode = loadSeg.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-      T.ok('ecgLoadOwnExport never re-stamps (no .stamp( / GangliorProvenance in CODE)', loadSeg.length > 0 && !/\.stamp\s*\(/.test(loadCode) && !/GangliorProvenance/.test(loadCode));
+      // never re-stamps — behavioral (P1, ARCHITECTURE-DEBT-REDUCTION-2026-07-14): replaces the former
+      // source-text slice (regex `no .stamp(` in the sliced body) with the real invariant — an export
+      // carrying NO provenance must not get one fabricated on reload. With the VERBATIM leg above
+      // (present → preserved), this proves loadOwnExport never re-stamps, without reading source text.
+      var envNoP = JSON.parse(JSON.stringify(pristine));
+      if (envNoP.schema) delete envNoP.schema.provenance;
+      var resNo = ED.loadOwnExport(envNoP);
+      T.ok('ecgLoadOwnExport never re-stamps — no provenance fabricated when the export carries none', !!resNo && !resNo.provenance);
 
       // ── 6 · FOREIGN-NODE guard ──
       var resF = ED.loadOwnExport({ schema: { name: 'ganglior.node-export', node: 'OxyDex' }, recording: {}, ganglior_events: [] });
@@ -8755,12 +8761,14 @@
       envP.recording.serial = 'W-1';
       var resP = HD.loadOwnExport(envP);
       T.ok('provenance preserved VERBATIM', JSON.stringify(resP && resP.provenance) === JSON.stringify(fakeProv));
-      var hsrc = src['hrvdex-dsp.js'] || '';
-      var segStart = hsrc.indexOf('function hrvLoadOwnExport'),
-        segEnd = hsrc.indexOf('var HRVDex = (typeof HRVDex');
-      var loadSeg = segStart >= 0 && segEnd > segStart ? hsrc.slice(segStart, segEnd) : '';
-      var loadCode = loadSeg.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-      T.ok('hrvLoadOwnExport never re-stamps (no .stamp( / GangliorProvenance in CODE)', loadSeg.length > 0 && !/\.stamp\s*\(/.test(loadCode) && !/GangliorProvenance/.test(loadCode));
+      // never re-stamps — behavioral (P1, ARCHITECTURE-DEBT-REDUCTION-2026-07-14): replaces the former
+      // source-text slice (regex `no .stamp(` in the sliced body) with the real invariant — an export
+      // carrying NO provenance must not get one fabricated on reload. With the VERBATIM leg above
+      // (present → preserved), this proves loadOwnExport never re-stamps, without reading source text.
+      var envNoP = JSON.parse(JSON.stringify(pristine));
+      if (envNoP.schema) delete envNoP.schema.provenance;
+      var resNo = HD.loadOwnExport(envNoP);
+      T.ok('hrvLoadOwnExport never re-stamps — no provenance fabricated when the export carries none', !!resNo && !resNo.provenance);
 
       // ── foreign guard ──
       var resF = HD.loadOwnExport({ schema: { name: 'ganglior.node-export', node: 'OxyDex' }, recording: {}, ganglior_events: [] });
@@ -8872,12 +8880,14 @@
       // provenance no re-stamp
       var resP = PG.loadOwnExport(JSON.parse(JSON.stringify(pristine)));
       T.ok('provenance preserved VERBATIM', JSON.stringify(resP && resP.provenance) === JSON.stringify(pristine.schema.provenance));
-      var psrc = src['ppgdex-dsp.js'] || '';
-      var segStart = psrc.indexOf('function ppgLoadOwnExport'),
-        segEnd = psrc.indexOf('global.PpgDex = global.PpgDex');
-      var loadSeg = segStart >= 0 && segEnd > segStart ? psrc.slice(segStart, segEnd) : '';
-      var loadCode = loadSeg.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-      T.ok('ppgLoadOwnExport never re-stamps (no .stamp( / GangliorProvenance in CODE)', loadSeg.length > 0 && !/\.stamp\s*\(/.test(loadCode) && !/GangliorProvenance/.test(loadCode));
+      // never re-stamps — behavioral (P1, ARCHITECTURE-DEBT-REDUCTION-2026-07-14): replaces the former
+      // source-text slice (regex `no .stamp(` in the sliced body) with the real invariant — an export
+      // carrying NO provenance must not get one fabricated on reload. With the VERBATIM leg above
+      // (present → preserved), this proves loadOwnExport never re-stamps, without reading source text.
+      var envNoP = JSON.parse(JSON.stringify(pristine));
+      if (envNoP.schema) delete envNoP.schema.provenance;
+      var resNo = PG.loadOwnExport(envNoP);
+      T.ok('ppgLoadOwnExport never re-stamps — no provenance fabricated when the export carries none', !!resNo && !resNo.provenance);
 
       // foreign guard
       var resF = PG.loadOwnExport({ schema: { name: 'ganglior.node-export', node: 'OxyDex' }, recording: {}, ganglior_events: [] });

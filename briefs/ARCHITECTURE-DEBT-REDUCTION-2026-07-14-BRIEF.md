@@ -89,6 +89,17 @@ These were paid for in PRs #70–#79. Every one bit at least once.
 
 ## P1 — Replace the brittle source-text safety gates with behavioral tests · **do first**
 
+> **§P1 EXECUTED 2026-07-14** — all **7** `<node>LoadOwnExport` "never re-stamps" gates
+> (oxy·hrv·pulse·gluco·ecg·cpap·ppg) converted from the source-text slice to a behavioral leg. Each
+> node already carried a *present → preserved verbatim* leg; the removed slice's extra coverage (the
+> absent case) is now the real invariant — clone the committed export, delete `schema.provenance`,
+> reload, and assert `!!res && !res.provenance` (no provenance fabricated). Net assertion count
+> unchanged; suite 2315/2315; test-only (no re-bundle, no changeset). Adversarially verified live (flip
+> the expectation → red). **Remaining P1 work:** the broader source-text scans in `tests/dex-tests.js`
+> that are NOT function-body provenance slices (badge/CSS cohesion, retired-vocabulary, format-sensitive
+> safety scans) are **out of scope** and deliberately kept. P4 is now unblocked only w.r.t. these seven
+> gates — audit the rest before running the tree-wide format.
+
 **Problem.** A family of tests in `tests/dex-tests.js` asserts a safety invariant by *slicing a function
 body out of the raw source text and regex-matching it*, e.g. (line numbers approximate — grep to
 confirm):
