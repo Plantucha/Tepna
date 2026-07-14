@@ -5909,6 +5909,12 @@
   OxyDex.trimSensorWarmup = trimSensorWarmup;
   OxyDex.cleanArtifactHR = cleanArtifactHR; // exposed for the OXYDEX-HR-ARTIFACT-RUNAWAY-FIX regression gate
   OxyDex.computeGatedNadir = computeGatedNadir; // exposed for the OXYDEX-NADIR-HONESTY regression gate
+  // TRIO-BATCH-O2RING-DAT: the O2Ring writes a native .dat beside the vendor CSV, and when the CSV
+  // export stops the .dat is all that survives. The browser drop path already decodes it; compute()
+  // takes {samples|rows|text} and never bytes, so a headless caller (tools/trio-batch.mjs) needs the
+  // SAME decoder rather than a second copy of the 3-byte layout / 0xFFFF trailer / motion×2 rules.
+  OxyDex.isO2RingBin = isO2RingBin;
+  OxyDex.decodeO2RingBinToCSV = decodeO2RingBinToCSV;
 
   // ── public namespace (always) ──
   root.OxyDex = OxyDex;

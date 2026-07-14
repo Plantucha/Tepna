@@ -1,0 +1,2464 @@
+{
+  "kernel": {
+    "version": "1.0.0",
+    "hash": "118ebed5"
+  },
+  "schema": {
+    "name": "ganglior.node-export",
+    "version": "2.0",
+    "node": "OxyDex",
+    "nodeVersion": "1.0",
+    "multiNight": false,
+    "generated": "2026-07-14T01:12:05.866Z",
+    "provenance": null,
+    "doc": "OxyDex single-night SpO₂/oximetry summary computed headless from a SignalFrame(spo2). Emits ganglior_events[] (desat_event from desatProfile + periodic_breathing from oscillation episodes); OxyDex infers respiration from an SpO₂ proxy, not airflow. tMs = floating wall-clock ms (UTC getters); null = unknown, never fabricated.",
+    "scrubbed": true
+  },
+  "recording": {
+    "source": "spo2",
+    "startEpochMs": 1783205931000,
+    "offsetMin": null,
+    "durationMin": 471.1,
+    "beats": 28264,
+    "coveragePct": null
+  },
+  "ganglior_events": [
+    {
+      "t": "23:06:49",
+      "tMs": 1783206409000,
+      "impulse": "desat_event",
+      "node": "OxyDex",
+      "conf": 0.91,
+      "meta": {
+        "depth": 9,
+        "duration": 88,
+        "recovery": 67,
+        "nadir": 89
+      }
+    },
+    {
+      "t": "23:07:45",
+      "tMs": 1783206465000,
+      "impulse": "desat_event",
+      "node": "OxyDex",
+      "conf": 0.86,
+      "meta": {
+        "depth": 8,
+        "duration": 56,
+        "recovery": 2,
+        "nadir": 90
+      }
+    },
+    {
+      "t": "23:08:51",
+      "tMs": 1783206531000,
+      "impulse": "periodic_breathing",
+      "node": "OxyDex",
+      "conf": 0.45,
+      "meta": {
+        "cycleLen": 100,
+        "crossings": 6,
+        "windowSec": 300
+      }
+    },
+    {
+      "t": "23:11:13",
+      "tMs": 1783206673000,
+      "impulse": "desat_event",
+      "node": "OxyDex",
+      "conf": 0.83,
+      "meta": {
+        "depth": 8,
+        "duration": 17,
+        "recovery": 63,
+        "nadir": 90
+      }
+    },
+    {
+      "t": "23:11:46",
+      "tMs": 1783206706000,
+      "impulse": "desat_event",
+      "node": "OxyDex",
+      "conf": 0.74,
+      "meta": {
+        "depth": 6,
+        "duration": 14,
+        "recovery": 31,
+        "nadir": 92
+      }
+    },
+    {
+      "t": "23:13:19",
+      "tMs": 1783206799000,
+      "impulse": "desat_event",
+      "node": "OxyDex",
+      "conf": 0.7,
+      "meta": {
+        "depth": 5,
+        "duration": 10,
+        "recovery": 4,
+        "nadir": 93
+      }
+    },
+    {
+      "t": "23:13:51",
+      "tMs": 1783206831000,
+      "impulse": "periodic_breathing",
+      "node": "OxyDex",
+      "conf": 0.5,
+      "meta": {
+        "cycleLen": 75,
+        "crossings": 8,
+        "windowSec": 300
+      }
+    },
+    {
+      "t": "23:14:21",
+      "tMs": 1783206861000,
+      "impulse": "desat_event",
+      "node": "OxyDex",
+      "conf": 0.74,
+      "meta": {
+        "depth": 6,
+        "duration": 17,
+        "recovery": 3,
+        "nadir": 92
+      }
+    },
+    {
+      "t": "23:14:57",
+      "tMs": 1783206897000,
+      "impulse": "desat_event",
+      "node": "OxyDex",
+      "conf": 0.7,
+      "meta": {
+        "depth": 5,
+        "duration": 10,
+        "recovery": 15,
+        "nadir": 93
+      }
+    },
+    {
+      "t": "23:15:57",
+      "tMs": 1783206957000,
+      "impulse": "desat_event",
+      "node": "OxyDex",
+      "conf": 0.7,
+      "meta": {
+        "depth": 5,
+        "duration": 11,
+        "recovery": 5,
+        "nadir": 92
+      }
+    },
+    {
+      "t": "00:23:51",
+      "tMs": 1783211031000,
+      "impulse": "periodic_breathing",
+      "node": "OxyDex",
+      "conf": 0.45,
+      "meta": {
+        "cycleLen": 100,
+        "crossings": 6,
+        "windowSec": 300
+      }
+    },
+    {
+      "t": "00:26:31",
+      "tMs": 1783211191000,
+      "impulse": "desat_event",
+      "node": "OxyDex",
+      "conf": 0.7,
+      "meta": {
+        "depth": 5,
+        "duration": 18,
+        "recovery": 4,
+        "nadir": 91
+      }
+    },
+    {
+      "t": "02:33:06",
+      "tMs": 1783218786000,
+      "impulse": "desat_event",
+      "node": "OxyDex",
+      "conf": 0.71,
+      "meta": {
+        "depth": 5,
+        "duration": 21,
+        "recovery": 3,
+        "nadir": 91
+      }
+    },
+    {
+      "t": "04:23:51",
+      "tMs": 1783225431000,
+      "impulse": "periodic_breathing",
+      "node": "OxyDex",
+      "conf": 0.45,
+      "meta": {
+        "cycleLen": 100,
+        "crossings": 6,
+        "windowSec": 300
+      }
+    },
+    {
+      "t": "04:26:06",
+      "tMs": 1783225566000,
+      "impulse": "desat_event",
+      "node": "OxyDex",
+      "conf": 0.66,
+      "meta": {
+        "depth": 4,
+        "duration": 11,
+        "recovery": 10,
+        "nadir": 94
+      }
+    },
+    {
+      "t": "04:26:53",
+      "tMs": 1783225613000,
+      "impulse": "desat_event",
+      "node": "OxyDex",
+      "conf": 0.7,
+      "meta": {
+        "depth": 5,
+        "duration": 11,
+        "recovery": 13,
+        "nadir": 93
+      }
+    },
+    {
+      "t": "04:27:51",
+      "tMs": 1783225671000,
+      "impulse": "desat_event",
+      "node": "OxyDex",
+      "conf": 0.67,
+      "meta": {
+        "depth": 5,
+        "duration": 18,
+        "recovery": 0,
+        "nadir": 93
+      }
+    },
+    {
+      "t": "04:58:51",
+      "tMs": 1783227531000,
+      "impulse": "periodic_breathing",
+      "node": "OxyDex",
+      "conf": 0.6,
+      "meta": {
+        "cycleLen": 42.9,
+        "crossings": 14,
+        "windowSec": 300
+      }
+    },
+    {
+      "t": "04:59:53",
+      "tMs": 1783227593000,
+      "impulse": "desat_event",
+      "node": "OxyDex",
+      "conf": 0.66,
+      "meta": {
+        "depth": 4,
+        "duration": 10,
+        "recovery": 5,
+        "nadir": 93
+      }
+    },
+    {
+      "t": "05:03:51",
+      "tMs": 1783227831000,
+      "impulse": "periodic_breathing",
+      "node": "OxyDex",
+      "conf": 0.55,
+      "meta": {
+        "cycleLen": 60,
+        "crossings": 10,
+        "windowSec": 300
+      }
+    },
+    {
+      "t": "05:08:51",
+      "tMs": 1783228131000,
+      "impulse": "periodic_breathing",
+      "node": "OxyDex",
+      "conf": 0.55,
+      "meta": {
+        "cycleLen": 60,
+        "crossings": 10,
+        "windowSec": 300
+      }
+    },
+    {
+      "t": "05:11:57",
+      "tMs": 1783228317000,
+      "impulse": "desat_event",
+      "node": "OxyDex",
+      "conf": 0.66,
+      "meta": {
+        "depth": 4,
+        "duration": 10,
+        "recovery": 3,
+        "nadir": 92
+      }
+    },
+    {
+      "t": "05:13:51",
+      "tMs": 1783228431000,
+      "impulse": "periodic_breathing",
+      "node": "OxyDex",
+      "conf": 0.6,
+      "meta": {
+        "cycleLen": 50,
+        "crossings": 12,
+        "windowSec": 300
+      }
+    },
+    {
+      "t": "05:15:23",
+      "tMs": 1783228523000,
+      "impulse": "desat_event",
+      "node": "OxyDex",
+      "conf": 0.66,
+      "meta": {
+        "depth": 4,
+        "duration": 19,
+        "recovery": 7,
+        "nadir": 93
+      }
+    }
+  ],
+  "timeseries": {
+    "doc": "5-min epochs — cross-node feed for three-cornered-hat: hr = median pulse-HR (bpm), motionIndex = mean O2Ring motion count. HR-hat 3rd corner (ECG+PPG+Oxy) + a 2nd per-epoch motion series for the correlated-TCH ρ.",
+    "epochs": [
+      {
+        "tMin": 0,
+        "hr": 53,
+        "motionIndex": 0.24
+      },
+      {
+        "tMin": 5,
+        "hr": 51,
+        "motionIndex": 0.087
+      },
+      {
+        "tMin": 10,
+        "hr": 47,
+        "motionIndex": 0.273
+      },
+      {
+        "tMin": 15,
+        "hr": 45,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 20,
+        "hr": 46,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 25,
+        "hr": 46.5,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 30,
+        "hr": 47,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 35,
+        "hr": 47,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 40,
+        "hr": 46,
+        "motionIndex": 0.007
+      },
+      {
+        "tMin": 45,
+        "hr": 50,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 50,
+        "hr": 49,
+        "motionIndex": 0.007
+      },
+      {
+        "tMin": 55,
+        "hr": 48,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 60,
+        "hr": 49,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 65,
+        "hr": 49,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 70,
+        "hr": 49,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 75,
+        "hr": 49,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 80,
+        "hr": 50,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 85,
+        "hr": 51,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 90,
+        "hr": 49,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 95,
+        "hr": 48,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 100,
+        "hr": 48,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 105,
+        "hr": 48,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 110,
+        "hr": 49,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 115,
+        "hr": 48,
+        "motionIndex": 0.113
+      },
+      {
+        "tMin": 120,
+        "hr": 48,
+        "motionIndex": 0.16
+      },
+      {
+        "tMin": 125,
+        "hr": 48,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 130,
+        "hr": 48,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 135,
+        "hr": 48,
+        "motionIndex": 0.013
+      },
+      {
+        "tMin": 140,
+        "hr": 47,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 145,
+        "hr": 48,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 150,
+        "hr": 49,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 155,
+        "hr": 49,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 160,
+        "hr": 49,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 165,
+        "hr": 49,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 170,
+        "hr": 51.5,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 175,
+        "hr": 55,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 180,
+        "hr": 56,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 185,
+        "hr": 53,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 190,
+        "hr": 50,
+        "motionIndex": 0.04
+      },
+      {
+        "tMin": 195,
+        "hr": 49,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 200,
+        "hr": 50,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 205,
+        "hr": 50,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 210,
+        "hr": 48,
+        "motionIndex": 0.073
+      },
+      {
+        "tMin": 215,
+        "hr": 48,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 220,
+        "hr": 48.5,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 225,
+        "hr": 49,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 230,
+        "hr": 46,
+        "motionIndex": 0.047
+      },
+      {
+        "tMin": 235,
+        "hr": 48,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 240,
+        "hr": 48,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 245,
+        "hr": 48,
+        "motionIndex": 0.14
+      },
+      {
+        "tMin": 250,
+        "hr": 48,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 255,
+        "hr": 49,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 260,
+        "hr": 48,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 265,
+        "hr": 48,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 270,
+        "hr": 48,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 275,
+        "hr": 50,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 280,
+        "hr": 51,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 285,
+        "hr": 51,
+        "motionIndex": 0.04
+      },
+      {
+        "tMin": 290,
+        "hr": 51,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 295,
+        "hr": 50,
+        "motionIndex": 0.087
+      },
+      {
+        "tMin": 300,
+        "hr": 49,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 305,
+        "hr": 49,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 310,
+        "hr": 49,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 315,
+        "hr": 49,
+        "motionIndex": 0.293
+      },
+      {
+        "tMin": 320,
+        "hr": 49,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 325,
+        "hr": 47,
+        "motionIndex": 0.073
+      },
+      {
+        "tMin": 330,
+        "hr": 47,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 335,
+        "hr": 47,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 340,
+        "hr": 47,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 345,
+        "hr": 48,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 350,
+        "hr": 48,
+        "motionIndex": 0.013
+      },
+      {
+        "tMin": 355,
+        "hr": 49,
+        "motionIndex": 0.073
+      },
+      {
+        "tMin": 360,
+        "hr": 50,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 365,
+        "hr": 49,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 370,
+        "hr": 49,
+        "motionIndex": 0.113
+      },
+      {
+        "tMin": 375,
+        "hr": 49,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 380,
+        "hr": 49,
+        "motionIndex": 0.033
+      },
+      {
+        "tMin": 385,
+        "hr": 50,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 390,
+        "hr": 50,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 395,
+        "hr": 50,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 400,
+        "hr": 50,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 405,
+        "hr": 50,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 410,
+        "hr": 49,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 415,
+        "hr": 49,
+        "motionIndex": 0.047
+      },
+      {
+        "tMin": 420,
+        "hr": 49,
+        "motionIndex": 0.167
+      },
+      {
+        "tMin": 425,
+        "hr": 53,
+        "motionIndex": 0.04
+      },
+      {
+        "tMin": 430,
+        "hr": 55,
+        "motionIndex": 0
+      },
+      {
+        "tMin": 435,
+        "hr": 58,
+        "motionIndex": 0.16
+      },
+      {
+        "tMin": 440,
+        "hr": 60,
+        "motionIndex": 0.127
+      },
+      {
+        "tMin": 445,
+        "hr": 59,
+        "motionIndex": 0.1
+      },
+      {
+        "tMin": 450,
+        "hr": 61,
+        "motionIndex": 0.16
+      },
+      {
+        "tMin": 455,
+        "hr": 58,
+        "motionIndex": 0.207
+      },
+      {
+        "tMin": 460,
+        "hr": 57,
+        "motionIndex": 0.18
+      },
+      {
+        "tMin": 465,
+        "hr": 57,
+        "motionIndex": 1.267
+      },
+      {
+        "tMin": 470,
+        "hr": 57,
+        "motionIndex": 1.625
+      }
+    ]
+  },
+  "nights": [
+    {
+      "date": "2026-07-04",
+      "t0Ms": 1783205931000,
+      "contentId": null,
+      "file": null,
+      "provenance": null,
+      "kernel": {
+        "version": "1.0.0",
+        "hash": "118ebed5"
+      },
+      "stats": {
+        "durationMin": 471.1,
+        "start": "22:58:51",
+        "end": "06:49:54",
+        "meanSpo2": 96.1,
+        "minSpo2": 89,
+        "maxSpo2": 99,
+        "spo2Std": 0.99,
+        "t95pct": 3.1,
+        "t90pct": 0.1,
+        "meanHr": 49.9,
+        "minHr": 41,
+        "maxHr": 87,
+        "motionPct": 0.9,
+        "n": 28264,
+        "startTs": 1783205931000,
+        "artifactHrCleaned": 0,
+        "artifactSpikesRemoved": 0
+      },
+      "summary": {
+        "ranked": [
+          {
+            "key": "sbii",
+            "label": "SBII",
+            "value": 34.368,
+            "displayVal": "34.368 %²·min/hr",
+            "score": 10,
+            "sev": "r",
+            "cat": "spo2"
+          },
+          {
+            "key": "hypLoad",
+            "label": "Hypoxic Load",
+            "value": 6.113,
+            "displayVal": 6.113,
+            "score": 9,
+            "sev": "r",
+            "cat": null
+          },
+          {
+            "key": "desSev",
+            "label": "DesSev",
+            "value": 39.42,
+            "displayVal": "39.42%-min/hr",
+            "score": 9,
+            "sev": "r",
+            "cat": "spo2"
+          },
+          {
+            "key": "odi1",
+            "label": "ODI-1/hr",
+            "value": 44.8,
+            "displayVal": "44.8/hr",
+            "score": 8,
+            "sev": "r",
+            "cat": "spo2"
+          },
+          {
+            "key": "recIdx",
+            "label": "Recovery Idx",
+            "value": 0.082,
+            "displayVal": 0.082,
+            "score": 8,
+            "sev": "r",
+            "cat": null
+          },
+          {
+            "key": "pbEp",
+            "label": "PB Episodes",
+            "value": 8,
+            "displayVal": "8 eps",
+            "score": 7,
+            "sev": "r",
+            "cat": null
+          },
+          {
+            "key": "cs",
+            "label": "Cheyne-Stokes",
+            "value": 2,
+            "displayVal": "Probable",
+            "score": 6,
+            "sev": "r",
+            "cat": null
+          },
+          {
+            "key": "minSpo2",
+            "label": "Min SpO₂",
+            "value": 89,
+            "displayVal": "89%",
+            "score": 5,
+            "sev": "w",
+            "cat": "spo2"
+          },
+          {
+            "key": "nsi",
+            "label": "NSI",
+            "value": 42,
+            "displayVal": 42,
+            "score": 5,
+            "sev": "w",
+            "cat": "hr"
+          },
+          {
+            "key": "hrnDip",
+            "label": "Noct HR Dip",
+            "value": 7.8,
+            "displayVal": "7.8%",
+            "score": 3,
+            "sev": "w",
+            "cat": "hr"
+          },
+          {
+            "key": "uars",
+            "label": "UARS Pattern",
+            "value": 1,
+            "displayVal": "Possible",
+            "score": 3,
+            "sev": "w",
+            "cat": null
+          },
+          {
+            "key": "t95",
+            "label": "T95%",
+            "value": 3.1,
+            "displayVal": "3.1%",
+            "score": 2,
+            "sev": "g",
+            "cat": "spo2"
+          },
+          {
+            "key": "odi4",
+            "label": "ODI-4/hr",
+            "value": 2,
+            "displayVal": "2/hr",
+            "score": 2,
+            "sev": "g",
+            "cat": "spo2"
+          },
+          {
+            "key": "odi3",
+            "label": "ODI-3/hr",
+            "value": 3.2,
+            "displayVal": "3.2/hr",
+            "score": 2,
+            "sev": "g",
+            "cat": "spo2"
+          },
+          {
+            "key": "hbRate",
+            "label": "Hypoxic Burden",
+            "value": 1.8,
+            "displayVal": "1.8%-min/hr",
+            "score": 2,
+            "sev": "g",
+            "cat": null
+          },
+          {
+            "key": "spi",
+            "label": "Sleep Pressure",
+            "value": 5.06,
+            "displayVal": 5.06,
+            "score": 2,
+            "sev": "g",
+            "cat": null
+          },
+          {
+            "key": "aai",
+            "label": "AAI",
+            "value": 2.3,
+            "displayVal": 2.3,
+            "score": 2,
+            "sev": "g",
+            "cat": null
+          },
+          {
+            "key": "ct94",
+            "label": "CT<94%",
+            "value": 1.49,
+            "displayVal": "1.49%",
+            "score": 1,
+            "sev": "g",
+            "cat": null
+          },
+          {
+            "key": "meanSpo2",
+            "label": "Mean SpO₂",
+            "value": 96.1,
+            "displayVal": "96.1%",
+            "score": 0,
+            "sev": "g",
+            "cat": "spo2"
+          },
+          {
+            "key": "worst10",
+            "label": "Worst 10min SpO₂",
+            "value": 95,
+            "displayVal": "95%",
+            "score": 0,
+            "sev": "g",
+            "cat": null
+          },
+          {
+            "key": "cdi",
+            "label": "CDI/hr",
+            "value": 0.25,
+            "displayVal": "0.25/hr",
+            "score": 0,
+            "sev": "g",
+            "cat": "spo2"
+          },
+          {
+            "key": "oxyCrash",
+            "label": "OxyCrash/hr",
+            "value": 0.9,
+            "displayVal": "0.9/hr",
+            "score": 0,
+            "sev": "g",
+            "cat": null
+          },
+          {
+            "key": "ahiEst",
+            "label": "AHI Estimate",
+            "value": 2.2,
+            "displayVal": 2.2,
+            "score": 0,
+            "sev": "g",
+            "cat": null
+          },
+          {
+            "key": "waso",
+            "label": "WASO",
+            "value": 4.4,
+            "displayVal": "4.4m",
+            "score": 0,
+            "sev": "g",
+            "cat": "sleep"
+          },
+          {
+            "key": "sol",
+            "label": "Sleep Onset",
+            "value": 0,
+            "displayVal": "0m",
+            "score": 0,
+            "sev": "g",
+            "cat": "sleep"
+          },
+          {
+            "key": "ssi",
+            "label": "Symp Surge",
+            "value": 0.218,
+            "displayVal": 0.218,
+            "score": 0,
+            "sev": "g",
+            "cat": null
+          },
+          {
+            "key": "pred3p",
+            "label": "pRED-3p",
+            "value": 2.52,
+            "displayVal": "2.52%",
+            "score": 0,
+            "sev": "g",
+            "cat": "spo2"
+          },
+          {
+            "key": "wtdsi",
+            "label": "WtDSI",
+            "value": 0.701,
+            "displayVal": 0.701,
+            "score": 0,
+            "sev": "g",
+            "cat": "spo2"
+          }
+        ],
+        "top5": [
+          {
+            "key": "sbii",
+            "label": "SBII",
+            "value": 34.368,
+            "displayVal": "34.368 %²·min/hr",
+            "score": 10,
+            "sev": "r",
+            "cat": "spo2"
+          },
+          {
+            "key": "hypLoad",
+            "label": "Hypoxic Load",
+            "value": 6.113,
+            "displayVal": 6.113,
+            "score": 9,
+            "sev": "r",
+            "cat": null
+          },
+          {
+            "key": "desSev",
+            "label": "DesSev",
+            "value": 39.42,
+            "displayVal": "39.42%-min/hr",
+            "score": 9,
+            "sev": "r",
+            "cat": "spo2"
+          },
+          {
+            "key": "odi1",
+            "label": "ODI-1/hr",
+            "value": 44.8,
+            "displayVal": "44.8/hr",
+            "score": 8,
+            "sev": "r",
+            "cat": "spo2"
+          },
+          {
+            "key": "recIdx",
+            "label": "Recovery Idx",
+            "value": 0.082,
+            "displayVal": 0.082,
+            "score": 8,
+            "sev": "r",
+            "cat": null
+          }
+        ],
+        "impression": "Moderate burden: SBII 34.368 %²·min/hr, hypoxic load 6.113; CS pattern likely — review CPAP pressure.",
+        "overallScore": 9
+      },
+      "odi4": {
+        "rate": 2,
+        "count": 16
+      },
+      "odi3": {
+        "rate": 3.2,
+        "count": 25
+      },
+      "hrv": {
+        "hrSdnnProxy": 4.09,
+        "hrSdnn": 4.09,
+        "pnn3": 0.7,
+        "hrFloor": 46,
+        "hrSlope": 0.7,
+        "rsaProxy": 0.342,
+        "rmssd": 0.58,
+        "maxHr": 87,
+        "n": 28002
+      },
+      "hypoxicBurden": {
+        "total": 14.1,
+        "rate": 1.8
+      },
+      "motionProfile": {
+        "motionPct": 0.9,
+        "arousalIndex": 11,
+        "restlessWindows": 2,
+        "totalWindows": 16,
+        "windows": [
+          {
+            "start": "22:58",
+            "motionPct": 1.9,
+            "samples": 1800
+          },
+          {
+            "start": "23:28",
+            "motionPct": 0.1,
+            "samples": 1800
+          },
+          {
+            "start": "23:58",
+            "motionPct": 0,
+            "samples": 1800
+          },
+          {
+            "start": "00:28",
+            "motionPct": 0.1,
+            "samples": 1800
+          },
+          {
+            "start": "00:58",
+            "motionPct": 0.3,
+            "samples": 1800
+          },
+          {
+            "start": "01:28",
+            "motionPct": 0,
+            "samples": 1800
+          },
+          {
+            "start": "01:58",
+            "motionPct": 0.2,
+            "samples": 1800
+          },
+          {
+            "start": "02:28",
+            "motionPct": 0.3,
+            "samples": 1800
+          },
+          {
+            "start": "02:58",
+            "motionPct": 0.2,
+            "samples": 1800
+          },
+          {
+            "start": "03:28",
+            "motionPct": 0.3,
+            "samples": 1800
+          },
+          {
+            "start": "03:58",
+            "motionPct": 0.6,
+            "samples": 1800
+          },
+          {
+            "start": "04:28",
+            "motionPct": 0.3,
+            "samples": 1800
+          },
+          {
+            "start": "04:58",
+            "motionPct": 0.5,
+            "samples": 1800
+          },
+          {
+            "start": "05:28",
+            "motionPct": 0.2,
+            "samples": 1800
+          },
+          {
+            "start": "05:58",
+            "motionPct": 2.5,
+            "samples": 1800
+          },
+          {
+            "start": "06:28",
+            "motionPct": 10,
+            "samples": 1264
+          }
+        ]
+      },
+      "sleepQuality": {
+        "sleepEff": 99.1,
+        "wasoWindows": 2,
+        "wasoPct": 2,
+        "posShifts": 0
+      },
+      "desatProfile": {
+        "deltaIndex": 0.356,
+        "spo2CoV": 1.03,
+        "tAucWeighted": 3322,
+        "auc90Total": 0.5,
+        "auc90Rate": 0.06,
+        "nadir": {
+          "count": 16,
+          "meanDepth": 5.5,
+          "meanDuration": 21,
+          "meanRecovery": 15
+        },
+        "events": [
+          {
+            "depth": 9,
+            "duration": 88,
+            "recovery": 67,
+            "startIdx": 406,
+            "nadirIdx": 478,
+            "endIdx": 494,
+            "nadir": 89,
+            "recoverySlope": 0.134,
+            "onset": 406,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783206409000,
+            "startTMs": 1783206337000,
+            "endTMs": 1783206425000
+          },
+          {
+            "depth": 8,
+            "duration": 56,
+            "recovery": 2,
+            "startIdx": 503,
+            "nadirIdx": 534,
+            "endIdx": 559,
+            "nadir": 90,
+            "recoverySlope": 4,
+            "onset": 503,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783206465000,
+            "startTMs": 1783206434000,
+            "endTMs": 1783206490000
+          },
+          {
+            "depth": 8,
+            "duration": 17,
+            "recovery": 63,
+            "startIdx": 735,
+            "nadirIdx": 742,
+            "endIdx": 752,
+            "nadir": 90,
+            "recoverySlope": 0.127,
+            "onset": 735,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783206673000,
+            "startTMs": 1783206666000,
+            "endTMs": 1783206683000
+          },
+          {
+            "depth": 6,
+            "duration": 14,
+            "recovery": 31,
+            "startIdx": 770,
+            "nadirIdx": 775,
+            "endIdx": 784,
+            "nadir": 92,
+            "recoverySlope": 0.194,
+            "onset": 770,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783206706000,
+            "startTMs": 1783206701000,
+            "endTMs": 1783206715000
+          },
+          {
+            "depth": 5,
+            "duration": 10,
+            "recovery": 4,
+            "startIdx": 865,
+            "nadirIdx": 868,
+            "endIdx": 875,
+            "nadir": 93,
+            "recoverySlope": 1.25,
+            "onset": 865,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783206799000,
+            "startTMs": 1783206796000,
+            "endTMs": 1783206806000
+          },
+          {
+            "depth": 6,
+            "duration": 17,
+            "recovery": 3,
+            "startIdx": 927,
+            "nadirIdx": 930,
+            "endIdx": 944,
+            "nadir": 92,
+            "recoverySlope": 2,
+            "onset": 927,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783206861000,
+            "startTMs": 1783206858000,
+            "endTMs": 1783206875000
+          },
+          {
+            "depth": 5,
+            "duration": 10,
+            "recovery": 15,
+            "startIdx": 963,
+            "nadirIdx": 966,
+            "endIdx": 973,
+            "nadir": 93,
+            "recoverySlope": 0.333,
+            "onset": 963,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783206897000,
+            "startTMs": 1783206894000,
+            "endTMs": 1783206904000
+          },
+          {
+            "depth": 5,
+            "duration": 11,
+            "recovery": 5,
+            "startIdx": 1023,
+            "nadirIdx": 1026,
+            "endIdx": 1034,
+            "nadir": 92,
+            "recoverySlope": 1,
+            "onset": 1023,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783206957000,
+            "startTMs": 1783206954000,
+            "endTMs": 1783206965000
+          },
+          {
+            "depth": 5,
+            "duration": 18,
+            "recovery": 4,
+            "startIdx": 5258,
+            "nadirIdx": 5260,
+            "endIdx": 5276,
+            "nadir": 91,
+            "recoverySlope": 1.25,
+            "onset": 5258,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783211191000,
+            "startTMs": 1783211189000,
+            "endTMs": 1783211207000
+          },
+          {
+            "depth": 5,
+            "duration": 21,
+            "recovery": 3,
+            "startIdx": 12852,
+            "nadirIdx": 12855,
+            "endIdx": 12873,
+            "nadir": 91,
+            "recoverySlope": 1.667,
+            "onset": 12852,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783218786000,
+            "startTMs": 1783218783000,
+            "endTMs": 1783218804000
+          },
+          {
+            "depth": 4,
+            "duration": 11,
+            "recovery": 10,
+            "startIdx": 19635,
+            "nadirIdx": 19635,
+            "endIdx": 19646,
+            "nadir": 94,
+            "recoverySlope": 0.4,
+            "onset": 19635,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783225566000,
+            "startTMs": 1783225566000,
+            "endTMs": 1783225577000
+          },
+          {
+            "depth": 5,
+            "duration": 11,
+            "recovery": 13,
+            "startIdx": 19679,
+            "nadirIdx": 19682,
+            "endIdx": 19690,
+            "nadir": 93,
+            "recoverySlope": 0.385,
+            "onset": 19679,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783225613000,
+            "startTMs": 1783225610000,
+            "endTMs": 1783225621000
+          },
+          {
+            "depth": 5,
+            "duration": 18,
+            "recovery": 0,
+            "startIdx": 19737,
+            "nadirIdx": 19740,
+            "endIdx": 19755,
+            "nadir": 93,
+            "recoverySlope": 0,
+            "onset": 19737,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783225671000,
+            "startTMs": 1783225668000,
+            "endTMs": 1783225686000
+          },
+          {
+            "depth": 4,
+            "duration": 10,
+            "recovery": 5,
+            "startIdx": 21662,
+            "nadirIdx": 21662,
+            "endIdx": 21672,
+            "nadir": 93,
+            "recoverySlope": 0.8,
+            "onset": 21662,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783227593000,
+            "startTMs": 1783227593000,
+            "endTMs": 1783227603000
+          },
+          {
+            "depth": 4,
+            "duration": 10,
+            "recovery": 3,
+            "startIdx": 22386,
+            "nadirIdx": 22386,
+            "endIdx": 22396,
+            "nadir": 92,
+            "recoverySlope": 1.333,
+            "onset": 22386,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783228317000,
+            "startTMs": 1783228317000,
+            "endTMs": 1783228327000
+          },
+          {
+            "depth": 4,
+            "duration": 19,
+            "recovery": 7,
+            "startIdx": 22592,
+            "nadirIdx": 22592,
+            "endIdx": 22611,
+            "nadir": 93,
+            "recoverySlope": 0.571,
+            "onset": 22592,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783228523000,
+            "startTMs": 1783228523000,
+            "endTMs": 1783228542000
+          }
+        ],
+        "eventsAll": [
+          {
+            "depth": 9,
+            "duration": 88,
+            "recovery": 67,
+            "startIdx": 406,
+            "nadirIdx": 478,
+            "endIdx": 494,
+            "nadir": 89,
+            "recoverySlope": 0.134,
+            "onset": 406,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783206409000,
+            "startTMs": 1783206337000,
+            "endTMs": 1783206425000
+          },
+          {
+            "depth": 8,
+            "duration": 56,
+            "recovery": 2,
+            "startIdx": 503,
+            "nadirIdx": 534,
+            "endIdx": 559,
+            "nadir": 90,
+            "recoverySlope": 4,
+            "onset": 503,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783206465000,
+            "startTMs": 1783206434000,
+            "endTMs": 1783206490000
+          },
+          {
+            "depth": 8,
+            "duration": 17,
+            "recovery": 63,
+            "startIdx": 735,
+            "nadirIdx": 742,
+            "endIdx": 752,
+            "nadir": 90,
+            "recoverySlope": 0.127,
+            "onset": 735,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783206673000,
+            "startTMs": 1783206666000,
+            "endTMs": 1783206683000
+          },
+          {
+            "depth": 6,
+            "duration": 14,
+            "recovery": 31,
+            "startIdx": 770,
+            "nadirIdx": 775,
+            "endIdx": 784,
+            "nadir": 92,
+            "recoverySlope": 0.194,
+            "onset": 770,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783206706000,
+            "startTMs": 1783206701000,
+            "endTMs": 1783206715000
+          },
+          {
+            "depth": 5,
+            "duration": 10,
+            "recovery": 4,
+            "startIdx": 865,
+            "nadirIdx": 868,
+            "endIdx": 875,
+            "nadir": 93,
+            "recoverySlope": 1.25,
+            "onset": 865,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783206799000,
+            "startTMs": 1783206796000,
+            "endTMs": 1783206806000
+          },
+          {
+            "depth": 6,
+            "duration": 17,
+            "recovery": 3,
+            "startIdx": 927,
+            "nadirIdx": 930,
+            "endIdx": 944,
+            "nadir": 92,
+            "recoverySlope": 2,
+            "onset": 927,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783206861000,
+            "startTMs": 1783206858000,
+            "endTMs": 1783206875000
+          },
+          {
+            "depth": 5,
+            "duration": 10,
+            "recovery": 15,
+            "startIdx": 963,
+            "nadirIdx": 966,
+            "endIdx": 973,
+            "nadir": 93,
+            "recoverySlope": 0.333,
+            "onset": 963,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783206897000,
+            "startTMs": 1783206894000,
+            "endTMs": 1783206904000
+          },
+          {
+            "depth": 5,
+            "duration": 11,
+            "recovery": 5,
+            "startIdx": 1023,
+            "nadirIdx": 1026,
+            "endIdx": 1034,
+            "nadir": 92,
+            "recoverySlope": 1,
+            "onset": 1023,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783206957000,
+            "startTMs": 1783206954000,
+            "endTMs": 1783206965000
+          },
+          {
+            "depth": 5,
+            "duration": 18,
+            "recovery": 4,
+            "startIdx": 5258,
+            "nadirIdx": 5260,
+            "endIdx": 5276,
+            "nadir": 91,
+            "recoverySlope": 1.25,
+            "onset": 5258,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783211191000,
+            "startTMs": 1783211189000,
+            "endTMs": 1783211207000
+          },
+          {
+            "depth": 5,
+            "duration": 21,
+            "recovery": 3,
+            "startIdx": 12852,
+            "nadirIdx": 12855,
+            "endIdx": 12873,
+            "nadir": 91,
+            "recoverySlope": 1.667,
+            "onset": 12852,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783218786000,
+            "startTMs": 1783218783000,
+            "endTMs": 1783218804000
+          },
+          {
+            "depth": 4,
+            "duration": 11,
+            "recovery": 10,
+            "startIdx": 19635,
+            "nadirIdx": 19635,
+            "endIdx": 19646,
+            "nadir": 94,
+            "recoverySlope": 0.4,
+            "onset": 19635,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783225566000,
+            "startTMs": 1783225566000,
+            "endTMs": 1783225577000
+          },
+          {
+            "depth": 5,
+            "duration": 11,
+            "recovery": 13,
+            "startIdx": 19679,
+            "nadirIdx": 19682,
+            "endIdx": 19690,
+            "nadir": 93,
+            "recoverySlope": 0.385,
+            "onset": 19679,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783225613000,
+            "startTMs": 1783225610000,
+            "endTMs": 1783225621000
+          },
+          {
+            "depth": 5,
+            "duration": 18,
+            "recovery": 0,
+            "startIdx": 19737,
+            "nadirIdx": 19740,
+            "endIdx": 19755,
+            "nadir": 93,
+            "recoverySlope": 0,
+            "onset": 19737,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783225671000,
+            "startTMs": 1783225668000,
+            "endTMs": 1783225686000
+          },
+          {
+            "depth": 4,
+            "duration": 10,
+            "recovery": 5,
+            "startIdx": 21662,
+            "nadirIdx": 21662,
+            "endIdx": 21672,
+            "nadir": 93,
+            "recoverySlope": 0.8,
+            "onset": 21662,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783227593000,
+            "startTMs": 1783227593000,
+            "endTMs": 1783227603000
+          },
+          {
+            "depth": 4,
+            "duration": 10,
+            "recovery": 3,
+            "startIdx": 22386,
+            "nadirIdx": 22386,
+            "endIdx": 22396,
+            "nadir": 92,
+            "recoverySlope": 1.333,
+            "onset": 22386,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783228317000,
+            "startTMs": 1783228317000,
+            "endTMs": 1783228327000
+          },
+          {
+            "depth": 4,
+            "duration": 19,
+            "recovery": 7,
+            "startIdx": 22592,
+            "nadirIdx": 22592,
+            "endIdx": 22611,
+            "nadir": 93,
+            "recoverySlope": 0.571,
+            "onset": 22592,
+            "artifact": false,
+            "fallRate": 1,
+            "pulseValid": 1,
+            "tMs": 1783228523000,
+            "startTMs": 1783228523000,
+            "endTMs": 1783228542000
+          }
+        ],
+        "artifactCount": 0,
+        "dip3Rate": 6.4
+      },
+      "hrProfile": {
+        "circadianScore": 7.69,
+        "decCapacity": 0,
+        "apEn": 0.9614,
+        "bradyCount": 0,
+        "tachyCount": 0
+      },
+      "crossSignal": {
+        "autoArousalIdx": 2.3,
+        "crcIdx": 0.522,
+        "divergeCount": 4,
+        "divergePct": 50,
+        "hrRecovery": null
+      },
+      "spo2Advanced": {
+        "wtdsi": 0.701,
+        "spo2IQR": 1,
+        "condMeanBelow94": 91.98,
+        "condPctBelow94": 1.5,
+        "nadirBins": {
+          "above91": 0,
+          "b90_91": 16,
+          "b88_89": 3,
+          "b85_87": 1,
+          "below85": 0
+        }
+      },
+      "hrAdvanced": {
+        "rmssd": 0.58,
+        "hrIQR": 3,
+        "meanHRpb": 48.8,
+        "meanHRnonPb": 50,
+        "hrPbContrast": -1.2
+      },
+      "composite": {
+        "couplingScore": 13,
+        "sfi": 0.5,
+        "nsi": 42
+      },
+      "sbii": {
+        "sbii": 34.368,
+        "sbiiQ": "Q5(high)"
+      },
+      "pred3p": {
+        "pred3p": 2.52,
+        "pred3pQ": "Q1(low)"
+      },
+      "desSev": {
+        "desSev": 39.42
+      },
+      "ctPrecise": {
+        "ct90s": 28,
+        "ct89s": 0,
+        "ct88s": 0,
+        "ct85s": 0,
+        "ct80s": 0,
+        "ct90m": 0.5,
+        "ct89m": 0,
+        "ct88m": 0,
+        "ct85m": 0
+      },
+      "sleepStability": {
+        "score": 75,
+        "grade": "Fair",
+        "components": {
+          "spo2Stab": 67,
+          "hrFloor": 100,
+          "motion": 61,
+          "pb": 60,
+          "hypoxicBurden": 88,
+          "t95": 85
+        }
+      },
+      "artifact": {
+        "hrSamplesCleaned": 0,
+        "clockSpikesRemoved": 0
+      },
+      "hr_spikes": {
+        "count": 2,
+        "events": [
+          {
+            "time": "05:10:31 05/07/2026",
+            "baseline": 59,
+            "peak": 87,
+            "duration": 7,
+            "spo2": 96,
+            "mfm": 310.51666666666665
+          },
+          {
+            "time": "05:55:39 05/07/2026",
+            "baseline": 52,
+            "peak": 79,
+            "duration": 5,
+            "spo2": 96,
+            "mfm": 355.65
+          }
+        ],
+        "periodicity": null
+      },
+      "oscillations": {
+        "episodeCount": 8,
+        "peakCrossings": 14,
+        "totalCrossings": 72,
+        "first": "23:08:51 04/07/2026",
+        "last": "05:13:51 05/07/2026"
+      },
+      "flags": [
+        "ODI4_BORDERLINE",
+        "PERIODIC_BREATHING(8)",
+        "SBII_Q5(34.368)"
+      ],
+      "newMetrics": {
+        "spo2Drift": {
+          "driftSlope": 0.0096,
+          "driftPerHr": 0.115,
+          "driftR2": 0.169,
+          "driftLabel": "Stable"
+        },
+        "odi2": {
+          "odi2Count": 41,
+          "odi2Rate": 5.22
+        },
+        "spo2Overshoot": {
+          "overshootMean": 0.66,
+          "overshootCount": 47,
+          "overshootLabel": "Mild"
+        },
+        "spo2Ac1": {
+          "ac1": 0.971,
+          "ac1Label": "Sustained (hypoventilation)"
+        },
+        "hrFreqBands": {
+          "hrLfPow": 5.5,
+          "hrHfPow": 0.2,
+          "hrLfHf": 27.5,
+          "hrLfHfLabel": "SNS dominant"
+        },
+        "respRate": {
+          "respRateBpm": 12.9,
+          "rsaPeakFreq": 0.2142,
+          "rsaPeakPow": 0.8,
+          "respRateLabel": "Normal (10-20)"
+        },
+        "hrAsymmetry": {
+          "hrAccelAsym": 0.991,
+          "meanUpBpm": 1.12,
+          "meanDownBpm": 1.13,
+          "hrAsymLabel": "Symmetric"
+        },
+        "hrQuartiles": {
+          "hrQ1": 48.5,
+          "hrQ2": 49.5,
+          "hrQ3": 48.8,
+          "hrQ4": 53,
+          "hrArc": 0.3,
+          "remReemergence": true,
+          "hrArcLabel": "Flat"
+        },
+        "spo2HRLag": {
+          "crossCorrLag": 0,
+          "crossCorrPeak": 0.253,
+          "crossCorrLabel": "Near-zero lag (central pattern)"
+        },
+        "spikeDecay": null,
+        "spikeUndershoot": null,
+        "spikeRiseRate": {
+          "spikeRiseRate": 2.29,
+          "spikeRiseLabel": "Moderate"
+        },
+        "dataGaps": {
+          "gapCount": 0,
+          "maxGapSec": 0,
+          "gapPct": 0,
+          "gapLabel": "Clean"
+        },
+        "hrFlatlines": {
+          "flatlineCount": 14,
+          "maxFlatlineSec": 50,
+          "flatlineLabel": "Frequent (firmware artifact)"
+        },
+        "spo2Ceiling": {
+          "ceilingRuns": 6,
+          "maxCeilingSec": 118,
+          "ceilingPct": 0.6,
+          "ceilingLabel": "Sensor lift likely"
+        },
+        "odri": {
+          "odri": 0.071,
+          "odriLabel": "Low (mixed/OA)"
+        },
+        "spo2Pct": {
+          "spo2P5": 95,
+          "spo2P10": 95,
+          "spo2P25": 96,
+          "spo2P75": 97,
+          "spo2P90": 97,
+          "spo2IQR": 1
+        },
+        "spo2Shape": {
+          "spo2Mean": 96.09,
+          "spo2SD": 0.99,
+          "spo2Skew": -0.969,
+          "spo2Kurt": 9.246,
+          "spo2ExcessKurt": 6.246,
+          "spo2SkewLabel": "Left-skewed (hypox burden)",
+          "spo2KurtLabel": "Leptokurtic (heavy tails/events)"
+        },
+        "hrCV": {
+          "hrCV": 8.39,
+          "hrCVmean": 49.9,
+          "hrCVsd": 4.19,
+          "hrCVlabel": "Moderate"
+        },
+        "hypDose": {
+          "hd94": 848,
+          "hd90": 28,
+          "hd88": 0,
+          "hd94PerHr": 108,
+          "desatAUC": 3021,
+          "hd94Label": "Moderate"
+        },
+        "t88t85": {
+          "t88Sec": 0,
+          "t88Min": 0,
+          "t88Pct": 0,
+          "t85Sec": 0,
+          "t85Min": 0,
+          "t85Pct": 0,
+          "t88Label": "None"
+        },
+        "lcsp": {
+          "lcspSec": 3842,
+          "lcspMin": 64,
+          "lcspStartMin": 52,
+          "lcspLabel": "Moderate"
+        },
+        "poincare": {
+          "sd1": 0.41,
+          "sd2": 5.77,
+          "sd1sd2Ratio": 0.071,
+          "sd1Label": "Normal (1Hz proxy)",
+          "sd2Label": "Normal (1Hz proxy)"
+        },
+        "o2hrEff": {
+          "o2hrEff": 0.3,
+          "o2hrEffMin": 0,
+          "o2hrEffMax": 1.53,
+          "o2hrEffN": 16,
+          "o2hrEffLabel": "Moderate"
+        },
+        "condSpo2": {
+          "spo2StillMean": 96.08,
+          "spo2MovingMean": 97.15,
+          "spo2MotionDelta": -1.07,
+          "stillPct": 99.1,
+          "motionArtifactLabel": "True apnea pattern (SpO2 worse at rest)"
+        },
+        "nadirTrend": {
+          "nadirTrendSlope": 0.1926,
+          "nadirTrendR2": 0.436,
+          "nadirTrendN": 16,
+          "nadirTrendLabel": "Improving across night"
+        },
+        "iei": {
+          "ieiMeanSec": 1457.6,
+          "ieiSDsec": 2494.3,
+          "ieiCV": 1.71,
+          "ieiLabel": "Highly variable (OA/mixed)"
+        },
+        "recovCV": {
+          "recovSlopeMean": 1.03,
+          "recovSlopeSD": 0.974,
+          "recovSlopeCV": 0.946,
+          "recovSlopeCVlabel": "High variability (inconsistent arousal)"
+        },
+        "hrNadirT": {
+          "hrNadirMinFromStart": 19,
+          "hrNadirFrac": 0.04,
+          "hrNadirSmoothed": 45.1,
+          "hrNadirLabel": "Early nadir (good alignment)"
+        },
+        "spo2NadirT": {
+          "spo2NadirMinFromStart": 8,
+          "spo2NadirFrac": 0.02,
+          "spo2NadirValue": 89,
+          "spo2NadirLabel": "Early worst (supine/onset)"
+        },
+        "rmssdArc": {
+          "rmssdArcWindows": [
+            0.5,
+            0.6,
+            0.5,
+            0.6,
+            0.4,
+            0.4,
+            0.5,
+            0.6,
+            0.6,
+            0.6,
+            0.6,
+            0.5,
+            0.7,
+            0.6,
+            0.8
+          ],
+          "rmssdArcSlope": 0.0136,
+          "rmssdArcR2": 0.336,
+          "rmssdFirstHalf": 0.5,
+          "rmssdLastHalf": 0.6,
+          "rmssdArcDelta": 0.1,
+          "rmssdArcLabel": "Flat"
+        },
+        "spk50Rec": null,
+        "stageProxy": {
+          "remProxySec": 21000,
+          "remProxyMin": 350,
+          "remProxyPct": 74.3,
+          "nremDeepSec": 0,
+          "nremDeepMin": 0,
+          "nremDeepPct": 0,
+          "plausible": false,
+          "plausibilityNote": "REM proxy implausible (74.3% of the recording; physiological ≈20–25%) — the HR-stability estimator over-fires on quiet sleep. Not a high-REM night; treat as unreliable.",
+          "remProxyLabel": "Implausible — estimator unreliable",
+          "nremDeepLabel": "Low deep sleep estimate"
+        },
+        "vo2est": {
+          "vo2est": 57,
+          "vo2Low": 46.2,
+          "vo2High": 67.8,
+          "vo2Category": "Unknown",
+          "vo2Pct": "—",
+          "vo2Conf": 100,
+          "hrRest": 46,
+          "hrMax": 174,
+          "hrMaxSource": "Age formula (Tanaka 2001)",
+          "see": 10.8,
+          "dfaAdj": 0,
+          "dfaNote": "DFA α1 computed on SpO₂ (not HR) — SpO₂ DFA is always >1.0 at short scales; HR-DFA sedentary thresholds do not apply. Adjustment disabled.",
+          "rmssdAdj": -0.9,
+          "rmssdNote": "RMSSD 0.58bpm (1Hz proxy) → adj -0.9",
+          "formula": "Uth-Sørensen 2004 (VO2max = 15.3 × HRmax/HRrest)",
+          "label": "Top-25% for age 49",
+          "disclaimer": "Surrogate estimate ±10.8 ml/kg/min SEE (general pop.) · ±5.4 for trained athletes. Trend tracking only."
+        },
+        "bpProj": null,
+        "karv": {
+          "hrRest": 46,
+          "hrMax": 174,
+          "hrr": 128,
+          "zones": {
+            "z1": {
+              "low": 110,
+              "high": 123,
+              "name": "Z1 Recovery",
+              "color": "#56d364",
+              "purpose": "Active recovery, easy walk/swim"
+            },
+            "z2": {
+              "low": 123,
+              "high": 136,
+              "name": "Z2 Aerobic Base",
+              "color": "#79c0ff",
+              "purpose": "Fat oxidation, base fitness, Zone 2 training"
+            },
+            "z3": {
+              "low": 136,
+              "high": 148,
+              "name": "Z3 Tempo",
+              "color": "#ffa657",
+              "purpose": "Aerobic capacity building, moderate effort"
+            },
+            "z4": {
+              "low": 148,
+              "high": 161,
+              "name": "Z4 Threshold",
+              "color": "#d29922",
+              "purpose": "Lactate threshold, race pace"
+            },
+            "z5": {
+              "low": 161,
+              "high": 174,
+              "name": "Z5 VO₂max",
+              "color": "#f85149",
+              "purpose": "Peak VO₂max, high-intensity intervals"
+            }
+          },
+          "allZones": [
+            {
+              "low": 110,
+              "high": 123,
+              "name": "Z1 Recovery",
+              "color": "#56d364",
+              "purpose": "Active recovery, easy walk/swim"
+            },
+            {
+              "low": 123,
+              "high": 136,
+              "name": "Z2 Aerobic Base",
+              "color": "#79c0ff",
+              "purpose": "Fat oxidation, base fitness, Zone 2 training"
+            },
+            {
+              "low": 136,
+              "high": 148,
+              "name": "Z3 Tempo",
+              "color": "#ffa657",
+              "purpose": "Aerobic capacity building, moderate effort"
+            },
+            {
+              "low": 148,
+              "high": 161,
+              "name": "Z4 Threshold",
+              "color": "#d29922",
+              "purpose": "Lactate threshold, race pace"
+            },
+            {
+              "low": 161,
+              "high": 174,
+              "name": "Z5 VO₂max",
+              "color": "#f85149",
+              "purpose": "Peak VO₂max, high-intensity intervals"
+            }
+          ],
+          "readiness": 48,
+          "readinessTier": "Low",
+          "readinessColor": "warn",
+          "recZones": [
+            {
+              "low": 110,
+              "high": 123,
+              "name": "Z1 Recovery",
+              "color": "#56d364",
+              "purpose": "Active recovery, easy walk/swim"
+            },
+            {
+              "low": 123,
+              "high": 136,
+              "name": "Z2 Aerobic Base",
+              "color": "#79c0ff",
+              "purpose": "Fat oxidation, base fitness, Zone 2 training"
+            }
+          ],
+          "trainingNote": "Recovery or easy Zone 2 only. Prioritize sleep tonight.",
+          "scores": {
+            "rmssd": 4,
+            "spo2": 13,
+            "sleep": 15,
+            "hrFloor": 15,
+            "hrSlope": 1
+          },
+          "mafHR": 121,
+          "mafAdj": "-10 (recovery deficit)",
+          "lthr": 153,
+          "lthrNote": "Zone 4 top ≈ LTHR. Confirm with field test (30-min max effort, avg last 20 min).",
+          "method": "Karvonen HRR (ACSM 2022) · Tanaka HRmax · MAF 180-formula"
+        }
+      },
+      "research": {
+        "tIdx": {
+          "80": {
+            "secs": 0,
+            "pct": 0
+          },
+          "85": {
+            "secs": 0,
+            "pct": 0
+          },
+          "88": {
+            "secs": 0,
+            "pct": 0
+          },
+          "89": {
+            "secs": 0,
+            "pct": 0
+          },
+          "90": {
+            "secs": 28,
+            "pct": 0.1
+          },
+          "91": {
+            "secs": 48,
+            "pct": 0.17
+          },
+          "92": {
+            "secs": 131,
+            "pct": 0.46
+          },
+          "93": {
+            "secs": 221,
+            "pct": 0.78
+          },
+          "94": {
+            "secs": 420,
+            "pct": 1.49
+          },
+          "95": {
+            "secs": 887,
+            "pct": 3.14
+          }
+        },
+        "period": null,
+        "ct94": {
+          "ct94Sec": 420,
+          "ct94Pct": 1.49
+        },
+        "slopes": {
+          "modl": 92.76,
+          "meanDipSlope": -2.526,
+          "meanRecSlope": 0.208,
+          "clusteringIdx": 0.45,
+          "firstHalfNadirs": 11,
+          "lastHalfNadirs": 9
+        },
+        "pbMet": {
+          "pbCycleLen": 118.7,
+          "pbCycleLenSD": 55.6,
+          "pbAmplitude": 5.5,
+          "pbLoad": 11.087,
+          "pbFirstThirdRatio": 1,
+          "pbEarlyCount": 5,
+          "pbLateCount": 0
+        },
+        "sleepArch": {
+          "wasoMin": 4.4,
+          "solMin": 0,
+          "ultradianCycles": 7,
+          "ultradianValleys": 8
+        },
+        "odi1": {
+          "odi1Rate": 44.8,
+          "odi1Total": 352
+        },
+        "mos": {
+          "mos": 1,
+          "mosLabel": "Normal"
+        },
+        "ahiEst": {
+          "ahiODI4": 2.2,
+          "ahiKulkas": 25.5
+        },
+        "extras": {
+          "spo2Range": 10,
+          "tir9499": 98.5,
+          "meanSpo2Early": 95.87,
+          "meanSpo2Late": 96.4,
+          "hrRange": 46,
+          "meanHrEarly": 48.5,
+          "meanHrLate": 52.9,
+          "motionBursts": 22,
+          "longestCleanRun": 47.4,
+          "nadirDensity": 2.04,
+          "t95BurdenScore": 11.64,
+          "odi41ratio": 0.045
+        },
+        "rolling": {
+          "worst10minSpo2": 95,
+          "worst30minT95": 19.6,
+          "spo2StableWindows": 84,
+          "cdi": 0.25,
+          "postDipHrResponse": 0.6,
+          "hrDecelRuns": 0,
+          "spo2HrDecouplingPct": 52.7,
+          "intraNightNSI": [
+            13,
+            5,
+            7
+          ]
+        },
+        "patScore": {
+          "csScore": 2,
+          "csLabel": "Probable",
+          "uarsScore": 1,
+          "uarsLabel": "Possible"
+        },
+        "dfa": {
+          "alpha1": 1.695,
+          "dfaLabel": "SpO₂ DFA (α1=1.695) — HR-DFA thresholds do not apply to SpO₂ signal"
+        },
+        "fft": {
+          "peakFreqHz": 0.007,
+          "peakCycSec": 143
+        },
+        "hrEnt": {
+          "sampEn": 1.5535,
+          "sampEnLabel": "High (irregular)"
+        },
+        "ssi": {
+          "ssi": 0.218,
+          "ssiLabel": "Low"
+        },
+        "circHR": {
+          "circAmplitude": 1.5,
+          "circNadirHour": 3.4
+        },
+        "spo2Ent": {
+          "spo2SampEn": 0.5399,
+          "spo2EnLabel": "Normal"
+        },
+        "hypLoad": {
+          "hypoxicLoad": 6.113,
+          "hlLabel": "High",
+          "hl_nadirCount": 25,
+          "hl_meanDepth": 4.8,
+          "hl_meanDurSec": 24
+        },
+        "vagal": {
+          "vagalIndex": 0.059,
+          "vagalLabel": "High"
+        },
+        "recIdx": {
+          "recoveryIndex": 0.082,
+          "riLabel": "Slow"
+        },
+        "sleepP": {
+          "spi": 5.06,
+          "spiLabel": "Moderate"
+        },
+        "breathI": {
+          "biCV": 192.4,
+          "biLabel": "Irregular"
+        },
+        "oxyCrash": {
+          "oxyCrashCount": 7,
+          "oxyCrashRate": 0.9
+        },
+        "hrnDip": {
+          "hrnDip": 7.8,
+          "hrnDipLabel": "Moderate (intra-night)"
+        },
+        "desatAsym": {
+          "desatAsym": 12.144,
+          "asymLabel": "Abrupt (obstructive)"
+        }
+      },
+      "ecgFusion": null,
+      "ansAge": null
+    }
+  ]
+}
