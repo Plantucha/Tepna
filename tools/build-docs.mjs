@@ -19,6 +19,14 @@
  *   PHASE 2 — discoverability artifacts (regenerated after the sync so they see the current page set):
  *     docs/{sitemap.xml, robots.txt, feed.xml, about.json, llms.txt, llms-full.txt}
  *
+ *   PHASE 3 — project the canonical suite.manifest.json version into README + both index.html twins.
+ *
+ * ONE PASS SETTLES THE TREE (`build-docs && build-docs --check` is clean — it was not, before
+ * 2026-07-14). The trap: llms-full.txt (Phase 2) concatenates README.md, which Phase 3 stamps — so
+ * generating artifacts from on-disk bytes made the run order-dependent and left llms-full.txt one
+ * release behind. Artifacts now derive their text via applyStamp() instead of re-reading the file.
+ * If you add an artifact that embeds a stamped source, STAMP THE TEXT — do not re-read the file.
+ *
  * Run:   node tools/build-docs.mjs                 (sync + regenerate)
  *        node tools/build-docs.mjs --check         (diff-only; non-zero exit if docs/ is stale)
  *        node tools/build-docs.mjs --force-delink  (also overwrite preserved pages, mechanical de-link)
@@ -215,6 +223,45 @@ function syncAsset(rel) {
 }
 for (const rel of assetFiles) syncAsset(rel);
 
+// ── VERSION STAMP RULES — declared HERE, above Phase 2, because Phase 2 CONSUMES them ───────
+//   The rules are APPLIED by Phase 3 below (writing README + both index.html twins); they are declared
+//   this early because llms-full.txt (a Phase-2 artifact) CONCATENATES README.md — a Phase-3 stamp
+//   target. Generating that artifact from README's on-disk bytes made the run ORDER-DEPENDENT: Phase 2
+//   read the version the PREVIOUS run had stamped, so a single `node tools/build-docs.mjs` left
+//   llms-full.txt one release behind and `--check` then reported it STALE until you ran the writer a
+//   second time. (Seen for real at v1.10.1: the artifact still read `Suite version: 1.10.0` while
+//   Phase 3 had just stamped 1.10.1 into README.) Phase 2 now derives its text through applyStamp(),
+//   so every artifact is a pure function of (source text, canonical version) and ONE pass settles.
+//   Keep this invariant if you add an artifact that embeds a stamped file: stamp the text, don't
+//   re-read the file. Phase NUMBERS are stable identities (briefs cite "build-docs Phase 3") — this
+//   moves the DECLARATION, not the phase.
+const VERSION = manifest.version;
+const stampRules = [
+  ['README.md', [[/(\*\*Suite version:\*\*\s*)\d+\.\d+\.\d+/g, `$1${VERSION}`]]],
+  [
+    'index.html',
+    [
+      [/("softwareVersion":\s*")\d+\.\d+\.\d+(")/g, `$1${VERSION}$2`],
+      [/(Michal Planicka · Apache-2\.0 · v)\d+\.\d+\.\d+/g, `$1${VERSION}`]
+    ]
+  ],
+  [
+    'docs/index.html',
+    [
+      [/("softwareVersion":\s*")\d+\.\d+\.\d+(")/g, `$1${VERSION}$2`],
+      [/(Michal Planicka · Apache-2\.0 · v)\d+\.\d+\.\d+/g, `$1${VERSION}`]
+    ]
+  ]
+];
+/* the canonical version projected INTO a source file's text (no disk read, no write) */
+const applyStamp = (rel, txt) => {
+  const rule = stampRules.find(([f]) => f === rel);
+  if (!rule) return txt;
+  let out = txt;
+  for (const [re, repl] of rule[1]) out = out.replace(re, repl);
+  return out;
+};
+
 // ── PHASE 2 — discoverability artifacts (regenerate off the synced page set) ─
 const encPath = (p) => encodeURI(p).replace(/&/g, '&amp;');
 const xmlEsc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -296,7 +343,11 @@ function buildLlmsFull() {
   for (const d of manifest.authoritativeContext) {
     let body;
     try {
-      body = readFileSync(join(ROOT, d.repoPath), 'utf8');
+      // STAMPED, not raw-from-disk. README.md is BOTH an authoritativeContext source AND a Phase-3
+      // stamp target, so reading its bytes here would fold in whatever version the PREVIOUS run left
+      // behind — see the applyStamp header note. Stamping the text we concatenate makes this artifact
+      // a pure function of (source text, canonical version), independent of phase order.
+      body = applyStamp(d.repoPath, readFileSync(join(ROOT, d.repoPath), 'utf8'));
     } catch {
       body = `(not found: ${d.repoPath})`;
     }
@@ -320,33 +371,16 @@ for (const [name, content] of Object.entries(artifacts)) {
 //   release-ledger check-6 stamp-parity gate has real surfaces to compare. Each rule UPDATES an existing
 //   marker's number in place — it never INSERTS a marker (introduce a new marker by hand once, then this
 //   maintains it), so a surface that lost its marker stays lost and check-6 reds it as `unstamped`.
-const VERSION = manifest.version;
-const stampRules = [
-  ['README.md', [[/(\*\*Suite version:\*\*\s*)\d+\.\d+\.\d+/g, `$1${VERSION}`]]],
-  [
-    'index.html',
-    [
-      [/("softwareVersion":\s*")\d+\.\d+\.\d+(")/g, `$1${VERSION}$2`],
-      [/(Michal Planicka · Apache-2\.0 · v)\d+\.\d+\.\d+/g, `$1${VERSION}`]
-    ]
-  ],
-  [
-    'docs/index.html',
-    [
-      [/("softwareVersion":\s*")\d+\.\d+\.\d+(")/g, `$1${VERSION}$2`],
-      [/(Michal Planicka · Apache-2\.0 · v)\d+\.\d+\.\d+/g, `$1${VERSION}`]
-    ]
-  ]
-];
-for (const [rel, subs] of stampRules) {
+//   VERSION / stampRules / applyStamp are declared ABOVE Phase 2 (which consumes them); this phase is
+//   where they are WRITTEN to disk.
+for (const [rel] of stampRules) {
   const abs = join(ROOT, rel);
   if (!existsSync(abs)) {
     log.missingRoot.push(rel);
     continue;
   }
   const orig = readFileSync(abs, 'utf8');
-  let txt = orig;
-  for (const [re, repl] of subs) txt = txt.replace(re, repl);
+  const txt = applyStamp(rel, orig);
   if (txt !== orig) {
     if (CHECK) log.stale.push(rel);
     else {
