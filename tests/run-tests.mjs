@@ -21,7 +21,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
-import { spawn } from 'node:child_process';
+import { spawn, execSync } from 'node:child_process';
 import { cpus } from 'node:os';
 import { walkRepoPaths } from './docs-ledger-fs.mjs';
 import { planShards, partitionViolations, readTimings } from './shard-plan.mjs';
@@ -274,6 +274,18 @@ function readManifests() {
     if (existsSync(p)) out[f] = readFileSync(p, 'utf8');
   }
   return out;
+}
+
+// demo-inputs gate (CPAP-REAL-CORPUS-FOLLOWUPS-II §3): the git-tracked path set, so the group can
+// assert every uploads/ file a shipped demo fetches is committed (never a gitignored personal recording).
+// `git ls-files` is the authority for "tracked"; a missing git (tarball checkout) → null → group SKIPs.
+function readTrackedFiles() {
+  try {
+    const out = execSync('git ls-files -z', { cwd: ROOT, encoding: 'buffer', maxBuffer: 128 * 1024 * 1024 });
+    return out.toString('utf8').split('\0').filter(Boolean);
+  } catch (_) {
+    return null;
+  }
 }
 
 function readFixtures() {
@@ -917,6 +929,7 @@ async function main() {
     docs: readDocs(),
     docsLedger: readDocsLedger(),
     sources: readSources(),
+    trackedFiles: readTrackedFiles(),
     fixtures: readFixtures(),
     equiv: readEquiv(),
     hosts: readHosts(),

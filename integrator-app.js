@@ -219,11 +219,16 @@
     }
   }
 
-  /* ── load bundled sample exports from uploads/ (verification convenience) ─ */
+  /* ── load bundled sample exports from uploads/ (verification convenience) ─
+     These MUST be git-tracked synthetic exports, never the author's real recordings —
+     a demo that names a gitignored path 404s in every clone/deploy (CPAP-REAL-CORPUS
+     -FOLLOWUPS-II §3; gate: dex-tests.js "Demo-inputs"). The two trio/ node-exports below
+     are same-night (2026-06-12) synthetic ECG+Oxy, so the demo produces a real same-night
+     fusion finding. */
   function bindSamples(){
     var b=$('loadSamples'); if(!b) return;
     b.addEventListener('click', function(){
-      var files=['uploads/ecgdex-2026-06-12.node-export.json','uploads/oxydex-2026-06-12.summary.json'];
+      var files=['uploads/trio/2026-06-12/ECGDex_2026-06-12.node-export.json','uploads/trio/2026-06-12/OxyDex_2026-06-12.node-export.json'];
       var pending=files.length, got=0;
       files.forEach(function(path){
         fetch(path).then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
