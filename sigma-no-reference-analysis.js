@@ -713,8 +713,10 @@
   }
 
   window.addEventListener('DOMContentLoaded', () => {
-    $('runLocal').addEventListener('click', () => run().catch((e) => { console.error(e); setStatus('idle', 'error: ' + e.message); }));
-    { const lb = $('loadBroad'); if (lb) lb.addEventListener('click', () => loadBroadHat().catch((e) => { console.error(e); setStatus('idle', 'error: ' + e.message); })); }
+    // The committed-corpus buttons (Run corpus / Load 10-night broad hat) were removed: they
+    // fetched gitignored uploads/ files that don't exist in a public checkout (and the no-network
+    // CSP blocks fetch anyway). Drag-drop below is the sole data path. run()/loadBroadHat() remain
+    // defined but unwired — inert dead code, never invoked.
     // per-figure PNG downloads (named to match the paper's figure files)
     document.querySelectorAll('.dlbtn[data-canvas]').forEach((b) => b.addEventListener('click', () => {
       const c = $(b.getAttribute('data-canvas')); if (!c) return;

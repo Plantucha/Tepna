@@ -343,11 +343,14 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
   };
 
   /**
-   * Same contract as sensor-trio-worker.js runCell → { med, negCount, negTot }.
-   * count = trials in this call; each trial draws N windows.
+   * count = trials in this call; each trial draws N windows. Per-trial medians are STREAMED to
+   * onBlock — one call per GPU dispatch, so each block is bounded by MAX_WIN_PER_DISPATCH — rather
+   * than accumulated into a single { med } array. This lets count reach the millions without
+   * runCell (or its caller) ever holding O(count) memory: the caller folds each block into a fixed
+   * histogram and drops it. onBlock is optional; absent, medians are computed and discarded.
+   * Returns { negCount, negTot } (the neg-variance rates, which stay O(1)).
    */
-  async function runCell(regime, rho, N, t0, count, ar1, winSec, stream) {
-    const med = { o2: [], h10: [], verity: [] };
+  async function runCell(regime, rho, N, t0, count, ar1, winSec, stream, onBlock) {
     const negCount = { o2: 0, h10: 0, verity: 0 };
     const negTot = { o2: 0, h10: 0, verity: 0 };
 
@@ -358,6 +361,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
       const nWin = trials * N;
       const sig = await _dispatch(nWin, { regime, rho, N, t0: t0 + doneTrials, winSec, ar1, stream });
 
+      const block = onBlock ? { o2: [], h10: [], verity: [] } : null;
       for (let t = 0; t < trials; t++) {
         const per = { o2: [], h10: [], verity: [] };
         for (let w = 0; w < N; w++) {
@@ -370,11 +374,12 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
             else negCount[k]++;
           }
         }
-        for (const k of DKEYS) if (per[k].length) med[k].push(median(per[k]));
+        if (block) for (const k of DKEYS) if (per[k].length) block[k].push(median(per[k]));
       }
+      if (onBlock) onBlock(block);
       doneTrials += trials;
     }
-    return { med, negCount, negTot };
+    return { negCount, negTot };
   }
 
   /** ρ-leg: per-window negative-variance count over M single windows (resting). */
