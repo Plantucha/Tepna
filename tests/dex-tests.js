@@ -5666,6 +5666,28 @@
       T.ok('§5 · the long gap is still reported as inactive time (pctActive < 100)', gl.pctActive != null && gl.pctActive < 100, 'pctActive=' + gl.pctActive);
       T.ok('§5 · the REAL lows are still counted (the exclusion drops interpolation, not measurement)', gl.tir && gl.tir.tbr1 > 0, 'tbr1=' + (gl.tir && gl.tir.tbr1));
 
+      /* ── §1 (DEEP-AUDIT-2026-07-14) · the long-gap exclusion must reach EVERY distribution metric, not
+         only the TIR/core family (analyzableIndex). The variability metrics (gvp/modd/…) masked only
+         WARMUP/COMPRESSION, so they still counted the 14 h interpolated ramp as measured glucose. Metamorphic
+         proof: build the SAME two blocks but with the 14 h gap EXPLICITLY FILLED by the linear line clean()
+         would draw. If gvp excludes GAP_LONG, the gapped and filled inputs DIFFER; if it counts the
+         interpolation (the bug), they are identical. */
+      var filledL = [HDR];
+      for (i = 0; i < 288; i++) filledL.push(stamp(t0 + i * 5 * 60000) + ',' + (250 + (i % 7)));
+      var rampN = (14 * 60) / 5; // 168 interpolated 5-min cells across the 14 h gap
+      for (i = 1; i <= rampN; i++) {
+        var _fr = i / (rampN + 1);
+        filledL.push(stamp(t0 + (288 + i) * 5 * 60000) + ',' + Math.round(250 + (55 - 250) * _fr));
+      }
+      for (i = 0; i < 288; i++) filledL.push(stamp(afterGap + i * 5 * 60000) + ',' + (55 + (i % 5)));
+      var filled = G.compute({ text: filledL.join('\n'), filename: 'filled.csv' }, {});
+      var fl = (filled && filled.glucose) || {};
+      T.ok(
+        '§1 · a long gap is EXCLUDED from gvp (interpolation ≠ measured) — gapped ≠ explicitly-filled',
+        gl.gvp != null && fl.gvp != null && Math.abs(gl.gvp - fl.gvp) > 1,
+        'gapped gvp=' + gl.gvp + ' · filled gvp=' + fl.gvp + ' (equal ⇒ the 14 h ramp is counted as measured)'
+      );
+
       /* ── §6 · clip detection, with the false-positive control ──────────────────────────────────────── */
       var cgm = function (hardClip) {
         var out = [HDR],
