@@ -5063,7 +5063,7 @@
       // while O2 & Verity still agree — that one really is a bad ECG lead, so null the corner.
       T.eq('06-12 signature (σ9.46, rHO0.43, rHV0.38, rVO0.85) → ecg-lead-fault', cls(9.46, 0.43, 0.38, 0.85), 'ecg-lead-fault');
       // Every healthy real night keeps H10: σ is small, so the σ>5 gate never even engages.
-      T.eq('a healthy night (σ0.79, rHO0.90, rHV0.72, rVO0.62) → ok', cls(0.79, 0.90, 0.72, 0.62), 'ok');
+      T.eq('a healthy night (σ0.79, rHO0.90, rHV0.72, rVO0.62) → ok', cls(0.79, 0.9, 0.72, 0.62), 'ok');
       T.eq('the next-highest real H10 night (σ1.25) is nowhere near the σ>5 gate → ok', cls(1.25, 0.84, 0.67, 0.72), 'ok');
       // THE guard that makes it H10-specific: the Verity-noisy nights have a low rHV too, but their bad
       // corner is VERITY (σ_h10 stays healthy ~0.65, and rVO collapses). Both spared, for both reasons.

@@ -1084,7 +1084,18 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
       if (h10Cls !== 'ok') s.h10 = null;
       // keep each corner's CI consistent with its (possibly nulled) point estimate — neg or gated
       if (ci) for (const k of DKEYS) if (s[k] == null) ci[k] = null;
-      windows.push({ label: e.label, n: ks.length, sigma: { o2: s.o2, h10: s.h10, verity: s.verity }, ci, neg: s.neg, h10Unreliable: h10Cls !== 'ok', h10Fault: h10Cls !== 'ok' ? h10Cls : null, rHV, rHO, rVO });
+      windows.push({
+        label: e.label,
+        n: ks.length,
+        sigma: { o2: s.o2, h10: s.h10, verity: s.verity },
+        ci,
+        neg: s.neg,
+        h10Unreliable: h10Cls !== 'ok',
+        h10Fault: h10Cls !== 'ok' ? h10Cls : null,
+        rHV,
+        rHO,
+        rVO
+      });
     }
     return windows;
   }
@@ -2540,7 +2551,8 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
             rc.textContent = 'skip: ' + res.reason;
             rc.style.color = '#FF6B7A';
           } else {
-            rc.textContent = 'σ ' + f2(res.sigma.o2) + ' / ' + f2(res.sigma.h10) + ' / ' + f2(res.sigma.verity) + (res.neg ? ' ⚠neg' : '') + (res.h10Unreliable ? ' ⚠H10-lead' : '') + ' · ' + res.source;
+            rc.textContent =
+              'σ ' + f2(res.sigma.o2) + ' / ' + f2(res.sigma.h10) + ' / ' + f2(res.sigma.verity) + (res.neg ? ' ⚠neg' : '') + (res.h10Unreliable ? ' ⚠H10-lead' : '') + ' · ' + res.source;
             rc.style.color = '#39D98A';
           }
         }
@@ -2550,7 +2562,9 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     await Promise.all(rdy.map(lane));
     results.sort((a, b) => (a.label < b.label ? -1 : 1));
     RESULT.real = results.map((r) =>
-      r.skip ? { skip: true, label: r.label, reason: r.reason } : { label: r.label, n: r.n, sigma: r.sigma, ci: r.ci, neg: r.neg, h10Unreliable: !!r.h10Unreliable, h10Fault: r.h10Fault || null, rHV: r.rHV, rHO: r.rHO, rVO: r.rVO, source: r.source }
+      r.skip
+        ? { skip: true, label: r.label, reason: r.reason }
+        : { label: r.label, n: r.n, sigma: r.sigma, ci: r.ci, neg: r.neg, h10Unreliable: !!r.h10Unreliable, h10Fault: r.h10Fault || null, rHV: r.rHV, rHO: r.rHO, rVO: r.rVO, source: r.source }
     );
     const band = RESULT.dynamic || { dev: { o2: {}, h10: {}, verity: {} } };
     try {
