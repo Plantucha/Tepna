@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-VLjmo4S0mjqgRo8fEU0kx1Vc+jNONpTHKXbUPjZCGys=' 'sha256-XSaqaYcXgkh/1koukmF/FhO8A7ogMFSeDJJdXUxWE0k=' 'sha256-ZRgEqiBn6qsCPUOUVGrf4+7infz5Kg8AlMGBsLAGM6M=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-eZcpZ1n1lHGIscnHscxhGZ3y6B2L/vHUlxSbTpIsyLw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-gxRDJ7OQU3PoPHu5YHtoA1xs7mfXhL5rm7rQs8xaH3I=' 'sha256-mF23WMQ+MXR0pIEIp9B1RndMsNwhMpFhM5eq7VewfDE=' 'sha256-o7hRKU2O068vh4+w5eKAQC0xYUMb34dly3+sQKVXIus=' 'sha256-wdj9R9Gei2xVKEJ5WmzR5Z6Xza6ZG2G+AtVTygDgS1o='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AYzhhU7z6OZm4UCSX04uhP2kUKHG0vnKo9tvzWD/C1c=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-H9DThidPs/5/1NXxC5dNx0cmlGgf8Yxe0AKZOmotHv4=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LJ5zwQ9pBOLpJrFbOKzGHKRrcjpnzc/SLKAMfrWD/Bw=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-VLjmo4S0mjqgRo8fEU0kx1Vc+jNONpTHKXbUPjZCGys=' 'sha256-XSaqaYcXgkh/1koukmF/FhO8A7ogMFSeDJJdXUxWE0k=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-gxRDJ7OQU3PoPHu5YHtoA1xs7mfXhL5rm7rQs8xaH3I=' 'sha256-o7hRKU2O068vh4+w5eKAQC0xYUMb34dly3+sQKVXIus=' 'sha256-wdj9R9Gei2xVKEJ5WmzR5Z6Xza6ZG2G+AtVTygDgS1o='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ECGDex — Raw ECG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -3772,10 +3772,11 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         // Irregular-tsMs contract (§6): gaps OK, but the finite stamps must be monotonic
         // non-decreasing — a backwards step violates the floating-tMs law. Non-finite
         // entries are skipped (their own gap). Equal stamps (repeats) pass.
-        if (hasTs) {
+        if (hasTs && frame.tsMs) {
+          var _tsA = frame.tsMs;
           var _prev = null, _mono = true;
-          for (var _i = 0; _i < frame.tsMs.length; _i++) {
-            var _t = frame.tsMs[_i];
+          for (var _i = 0; _i < _tsA.length; _i++) {
+            var _t = _tsA[_i];
             if (typeof _t !== 'number' || !isFinite(_t)) continue;
             if (_prev !== null && _t < _prev) { _mono = false; break; }
             _prev = _t;
@@ -7202,7 +7203,7 @@ function gangliorEvents(cvhr, stages, t0Ms, sqi, times, epochPos){
                           node:'ECGDex', conf:0.7, sqi:null, meta:{} }); prev=s.stage; }
   }
   // stable order: by relative seconds when stampless (t is null), else by clock string.
-  events.sort((a,b)=> (a.tMs!=null&&b.tMs!=null) ? a.tMs-b.tMs : (a.t<b.t?-1:1));
+  events.sort((a,b)=> (a.tMs!=null&&b.tMs!=null) ? a.tMs-b.tMs : (/** @type {any} */(a.t)</** @type {any} */(b.t)?-1:1));
   return events;
 }
 
@@ -7433,8 +7434,8 @@ function analyze(rec, onProgress){
       const has = surgeMin.some(m => m>=ec.tMin && m<ec.tMin+5);
       (has?sIn:sOut).push(ec.plv);
     }
-    crc.plvDuringSurges = sIn.length ? +mean(sIn).toFixed(3) : null;
-    crc.plvBaseline     = sOut.length ? +mean(sOut).toFixed(3) : null;
+    crc.plvDuringSurges = /** @type {any} */ (sIn.length ? +mean(sIn).toFixed(3) : null);
+    crc.plvBaseline     = /** @type {any} */ (sOut.length ? +mean(sOut).toFixed(3) : null);
   }
   // per-epoch respiratory-rate spread (EDR) — CPAPDex can flag resp-rate instability without airflow
   const respVals = epochs.filter(e=>e.resp>0).map(e=>e.resp);
@@ -7498,7 +7499,7 @@ function analyze(rec, onProgress){
     poincareNN, poincareRep: (longRec && repSeg.length>=20), poincareRepTMin: repTMin, poincareRepIdx: repIdx,
     // frequency
     tp:spec.tp, hf:spec.hf, lf:spec.lf, vlf:spec.vlf, lfhf:spec.lfhf, respRate:spec.respRate, respStats,
-    specWindow: spec.window || (longRec ? 'epochMedian5min' : 'representative5min'),   // §10: name the scale
+    specWindow: /** @type {any} */ (spec).window || (longRec ? 'epochMedian5min' : 'representative5min'),   // §10: name the scale
     hfnu:+(spec.hf/((spec.hf+spec.lf)||1)*100).toFixed(1), lfnu:+(spec.lf/((spec.hf+spec.lf)||1)*100).toFixed(1),
     // non-linear
     dfa1, sampen, triIdx, dc, ac, pip:frag.pip, ials:frag.ials, pss:frag.pss,
@@ -7888,7 +7889,7 @@ function accExtras(deviceACC, accFs, ecgT0Ms, durSec, epochs, stages){
     for (const e of epochs){ const s0=Math.round((e.tMin*60-off)*fs), s1=Math.round((e.tMin*60+300-off)*fs);
       let a=0,c=0; for(let i=Math.max(1,s0);i<Math.min(N,s1);i++){ a+=dmv[i]; c++; }
       rawMot.push({ tMin:e.tMin, act: c>fs*30? a/c : null }); }
-    const actVals=rawMot.filter(m=>m.act!=null).map(m=>m.act).slice().sort((a,b)=>a-b);
+    const actVals=/** @type {number[]} */(rawMot.filter(m=>m.act!=null).map(m=>m.act)).slice().sort((a,b)=>a-b);
     const qOf=p=>actVals.length?actVals[Math.min(actVals.length-1,Math.floor(actVals.length*p))]:0;
     const floor=qOf(0.50), top=qOf(0.95), span=Math.max(top-floor,1e-6);   // typical-sleep median → 0, p95 → 100
     let agreed=0,total=0; const conflicts=[], voteRows=[];
@@ -10235,7 +10236,7 @@ global.ECGCross = { crossNight, crossNightBlock, ols, mannKendall, bootstrapDelt
     var sfGet = function (name) { return sf ? (typeof sf.get === 'function' ? sf.get(name) : sf[name]) : undefined; };
     items = Array.isArray(items) ? items : [];
     // (1) bucket by name classification (the SAME ecgKind the app + the routing-table test use)
-    var byKind = { ecg: [], rr: [], hr: [], acc: [], skip: [] };
+    var byKind = /** @type {{ ecg:any[], rr:any[], hr:any[], acc:any[], skip:any[] }} */ ({ ecg: [], rr: [], hr: [], acc: [], skip: [] });
     items.forEach(function (it) { (byKind[ecgKind(it.name)] || byKind.ecg).push(it); });
     // (2) skip bucket → foreign (precise label for the UI breakdown)
     /** @type {{name:any, kind:any, device?:any}[]} */
