@@ -6,6 +6,7 @@
 # Line-oriented + `merge=union` (see tests/list-format.js): NO count, NO generated-date —
 # a volatile scalar would conflict on every concurrent add. Regenerate, never hand-edit.
 brief AMBULATORY-MODE-BRIEF.md
+brief ARCHITECTURE-DEBT-REDUCTION-2026-07-14-BRIEF.md
 brief AUDIT-FOLLOWUPS-BRIEF.md
 brief AUDIT-FOLLOWUPS-II-BRIEF.md
 brief AUDIT-FOLLOWUPS-III-2026-06-23-BRIEF.md
@@ -299,6 +300,7 @@ path audits/REFERENCE-GUIDE-AUDIT-FINDINGS.md
 path biome.json
 path briefs
 path briefs/AMBULATORY-MODE-BRIEF.md
+path briefs/ARCHITECTURE-DEBT-REDUCTION-2026-07-14-BRIEF.md
 path briefs/AUDIT-FOLLOWUPS-BRIEF.md
 path briefs/AUDIT-FOLLOWUPS-II-BRIEF.md
 path briefs/AUDIT-FOLLOWUPS-III-2026-06-23-BRIEF.md
