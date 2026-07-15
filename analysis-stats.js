@@ -173,6 +173,87 @@
       dVO: dVO
     };
   }
+  // ── fused-weight hat (TCH-FUSED-ROBUST-HAT-2026-07-14) ────────────────────────
+  // Per-second, per-corner confidence (cH/cV/cO from the DSP: density × SQI, AF-safe) weights each
+  // difference series in a WEIGHTED-variance TCH — a corner's flagged seconds leave ITS differences
+  // but not the others, so an artifact-inflated corner collapses to its true σ with no bias to the
+  // clean ones. A GENTLE cross-sensor consensus (Tukey C=30 on the per-second spread vs the record's
+  // own typical spread) is a soft secondary net for artifacts the DSP can't self-see. O(n); missing
+  // confidences default to 1 ⇒ this reduces to (near-)classic variance. Same shape as tchSigmas.
+  // Single-sourced HERE (sigma-no-reference-analysis.js delegates, like tchSigmas; the CPU/GPU
+  // sensor-trio worker keeps its own Worker-local mirror). TCH-FUSED test-coverage pass 2026-07-15.
+  function _wvar(d, w) {
+    var sw = 0,
+      swd = 0,
+      i;
+    for (i = 0; i < d.length; i++) {
+      sw += w[i];
+      swd += w[i] * d[i];
+    }
+    if (sw <= 0) return 0;
+    var mu = swd / sw,
+      s = 0;
+    for (i = 0; i < d.length; i++) s += w[i] * (d[i] - mu) * (d[i] - mu);
+    return s / sw;
+  }
+  function _consensusTrust(hh, vv, oo, C) {
+    var n = hh.length,
+      range = new Array(n),
+      i;
+    for (i = 0; i < n; i++) range[i] = Math.max(hh[i], vv[i], oo[i]) - Math.min(hh[i], vv[i], oo[i]);
+    var srt = range.slice().sort(function (a, b) {
+        return a - b;
+      }),
+      rMed = srt[srt.length >> 1] || 0;
+    var ad = range
+        .map(function (x) {
+          return Math.abs(x - rMed);
+        })
+        .sort(function (a, b) {
+          return a - b;
+        }),
+      rMad = 1.4826 * (ad[ad.length >> 1] || 0) || 1e-9;
+    var w = new Array(n);
+    for (i = 0; i < n; i++) {
+      var z = (range[i] - rMed) / rMad;
+      w[i] = z <= 0 ? 1 : z >= C ? 0 : (1 - (z / C) * (z / C)) * (1 - (z / C) * (z / C));
+    }
+    return w;
+  }
+  function tchSigmasFused(hh, vv, oo, cH, cV, cO) {
+    var n = hh.length,
+      dHV = [],
+      dHO = [],
+      dVO = [],
+      wHV = [],
+      wHO = [],
+      wVO = [],
+      i;
+    var ct = _consensusTrust(hh, vv, oo, 30); // very-gentle floor; the per-corner DSP confidence is primary
+    for (i = 0; i < n; i++) {
+      dHV.push(hh[i] - vv[i]);
+      dHO.push(hh[i] - oo[i]);
+      dVO.push(vv[i] - oo[i]);
+      var h = cH ? cH[i] : 1,
+        v = cV ? cV[i] : 1,
+        o = cO ? cO[i] : 1,
+        t = ct[i];
+      wHV.push(t * h * v);
+      wHO.push(t * h * o);
+      wVO.push(t * v * o);
+    }
+    var cv = threeCorneredHat(_wvar(dHV, wHV), _wvar(dHO, wHO), _wvar(dVO, wVO));
+    return {
+      h10: cv.a > 0 ? Math.sqrt(cv.a) : null,
+      verity: cv.b > 0 ? Math.sqrt(cv.b) : null,
+      o2: cv.c > 0 ? Math.sqrt(cv.c) : null,
+      negVar: { h10: cv.a <= 0 ? cv.a : null, verity: cv.b <= 0 ? cv.b : null, o2: cv.c <= 0 ? cv.c : null },
+      neg: cv.a <= 0 || cv.b <= 0 || cv.c <= 0,
+      dHV: dHV,
+      dHO: dHO,
+      dVO: dVO
+    };
+  }
   // Bland–Altman summary of a difference series: bias, SD, 95% LoA half-width, Arms.
   function blandAltman(d) {
     var b = mean(d),
@@ -426,6 +507,7 @@
     // reference-free agreement
     threeCorneredHat: threeCorneredHat,
     tchSigmas: tchSigmas,
+    tchSigmasFused: tchSigmasFused,
     blandAltman: blandAltman,
     pearson: pearson,
     // correlation decomposition
