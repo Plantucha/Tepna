@@ -387,8 +387,8 @@ async function runRealNight(m) {
     var hh = [], vv = [], oo = [], cH = [], cV = [], cO = [], i;
     for (i = 0; i < ks.length; i++) {
       hh.push(H.get(ks[i])); vv.push(V.get(ks[i])); oo.push(O.get(ks[i]));
-      cH.push(Hconf && Hconf.has(ks[i]) ? Hconf.get(ks[i]) : 1);
-      cV.push(Vconf && Vconf.has(ks[i]) ? Vconf.get(ks[i]) : 1);
+      var _ch = Hconf && Hconf.has(ks[i]) ? Hconf.get(ks[i]) : 1; cH.push(Number.isFinite(_ch) ? _ch : 1);
+      var _cv = Vconf && Vconf.has(ks[i]) ? Vconf.get(ks[i]) : 1; cV.push(Number.isFinite(_cv) ? _cv : 1);
       cO.push(1);   // O2Ring native pulse — a smoothed device integer, cannot over-detect ⇒ trust 1
     }
     var s = tchSigmasFused(hh, vv, oo, cH, cV, cO);   // fused-weight hat (per-corner DSP confidence)

@@ -603,7 +603,7 @@ function beatConfidence(peaks, sqi, fs, t0Ms, winSec){
   if (S < 1) return out;
   // bin beats into their second: count + SQI sum
   const cnt = new Float64Array(S), qsum = new Float64Array(S);
-  for (let k = 0; k < n; k++){ const s = secAbs(k) - s0; if (s >= 0 && s < S){ cnt[s]++; qsum[s] += (sqi && sqi[k] != null ? sqi[k] : 1); } }
+  for (let k = 0; k < n; k++){ const s = secAbs(k) - s0; if (s >= 0 && s < S){ cnt[s]++; qsum[s] += (sqi && Number.isFinite(sqi[k]) ? sqi[k] : 1); } }
   // sliding ±half window → local beat count + local mean SQI, O(S)
   const half = Math.max(1, Math.round(winSec / 2));
   const winCnt = new Float64Array(S), winSqi = new Float64Array(S);

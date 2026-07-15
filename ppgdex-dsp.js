@@ -458,7 +458,7 @@ function beatConfidence(peaks, sqi, fs, t0Ms, winSec){
   const s0 = secAbs(0), s1 = secAbs(n - 1), S = s1 - s0 + 1;
   if (S < 1) return out;
   const cnt = new Float64Array(S), qsum = new Float64Array(S);
-  for (let k = 0; k < n; k++){ const s = secAbs(k) - s0; if (s >= 0 && s < S){ cnt[s]++; qsum[s] += (sqi && sqi[k] != null ? sqi[k] : 1); } }
+  for (let k = 0; k < n; k++){ const s = secAbs(k) - s0; if (s >= 0 && s < S){ cnt[s]++; qsum[s] += (sqi && Number.isFinite(sqi[k]) ? sqi[k] : 1); } }
   const half = Math.max(1, Math.round(winSec / 2));
   const winCnt = new Float64Array(S), winSqi = new Float64Array(S);
   let cAcc = 0, qAcc = 0, lo = 0, hi = -1;
