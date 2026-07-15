@@ -1,0 +1,8 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+---
+bump: patch
+type: fixed
+nodes: [OxyDex]
+brief: DEEP-AUDIT-2026-07-14-BRIEF.md
+---
+OxyDex: rate ODI-4 on ONE time basis, not two (DEEP-AUDIT-2026-07-14 §5, owner-ratified canonical basis = SAMPLE). The artifact-exclusion ODI-4 recompute (`oxydex-dsp.js:2178`) rated on the elapsed span (`stats.durationMin/60`) while `detectODI`/`computeODI1`/nadir/`crashRate` + the ODI-4 base all rate on the sample count (`rows.length/3600`); on a gappy night the two diverge, so the surfaced ODI-4/hr and `odi41ratio` sat on incompatible clocks. Fix: `:2178` re-rates on `rows.length/3600`, matching `detectODI` exactly. **A corpus measurement decided the basis and the urgency:** across all 37 real O2Ring nights the two bases produce identical ODI-4 (max gap 2.4 %; the `:2178` recompute never fired), so §5 was a latent landmine with zero current user impact — the O2Ring records continuously at 1 Hz and the hypothesised divergence needs a real finger-off or a sparse-cadence oximeter. SAMPLE was chosen as the clinically honest "per hour of analyzable recording" denominator and the one-site change (the majority already use it). Gated by a new committed twin `synthetic_oxydex_o2ring_gap.csv` — the only input that both diverges the bases (30-min `- -` gap ⇒ rows.length < span) AND fires the `:2178` recompute (a 3.2 %/s fast-fall artifact); on it sample-basis 2/h ≠ span-basis 1.5/h, RED on the old code. Re-bundled OxyDex + Data Unifier + OverDex + the 5 analysis tools that inline oxydex-dsp.js. EXPORT-INERT — verified: all OxyDex equiv legs byte-identical (the clean 1 Hz fixtures never trip `:2178`), `verifiedUnder` re-stamped after a green corpus run.

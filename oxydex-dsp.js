@@ -2175,7 +2175,14 @@
     // ODI-4 event; subtract them so a probe-squeeze "67% cliff" never inflates ODI.
     if (odi4 && desat && desat.artifactCount) {
       odi4.count = Math.max(0, (odi4.count || 0) - desat.artifactCount);
-      odi4.rate = +(odi4.count / Math.max(durationHr, 0.01)).toFixed(1);
+      // §5 (DEEP-AUDIT-2026-07-14): re-rate on the SAME sample basis detectODI/computeODI1/nadir/crashRate
+      // use (rows.length/3600), NOT the elapsed span (stats.durationMin/60). On a gappy night the two diverge
+      // (dropped rows ⇒ rows.length < span), and mixing them made odi4.rate span-based while odi1Rate stayed
+      // sample-based — so the surfaced ODI-4/hr and odi41ratio sat on incompatible clocks. Sample basis is the
+      // clinically honest "per hour of analyzable recording" denominator, and the one every other ODI-family
+      // site already uses. Inert on the current corpus (the O2Ring drops ~0 samples); a real finger-off or a
+      // sparse-cadence oximeter would surface it. Gated by a committed gap+artifact synthetic twin.
+      odi4.rate = +(odi4.count / Math.max(rows.length / 3600, 0.01)).toFixed(1);
       odi4.artifactExcluded = desat.artifactCount;
     }
     // OXYDEX-NADIR-HONESTY (RUNAWAY-FIX-FOLLOWUPS §1/§2): route the HEADLINE nadir through the artifact

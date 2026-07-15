@@ -115,6 +115,17 @@
   const amo50 = (a, mo) => (a.filter((v) => Math.abs(v - mo) <= 25).length / a.length) * 100;
   const sd1 = (r) => r / Math.sqrt(2);
   const sd2 = (s, r) => Math.sqrt(Math.max(0, 2 * s * s - (r * r) / 2));
+  // §8 (DEEP-AUDIT-2026-07-14): the Poincaré SD1 spread is SDSD — the SAMPLE SD (÷N−1) of the successive-
+  // difference series — NOT rMSSD (the RMS of those differences, ÷N, no mean-centering). They differ only by
+  // mean(Δ)² ≈ 0, so this is numerically negligible, but it unifies the SD1 definition with ECGDex/PpgDex
+  // (both SDSD/√2) so the three nodes can never drift definitionally. sd1/sd2 keep the geometric identity —
+  // pass SDSD in place of rMSSD: SD1²=SDSD²/2, SD2=√(2·SDNN²−SD1²) hold exactly as before.
+  const sdsd = (a) => {
+    if (a.length < 3) return 0;
+    const d = [];
+    for (let i = 1; i < a.length; i++) d.push(a[i] - a[i - 1]);
+    return std(d);
+  };
   const lnR = (r) => Math.log(r);
   const lfHf = (lf, hf) => (hf ? lf / hf : 0);
   const nu = (v, tp) => (tp ? (v / tp) * 100 : 0);
@@ -471,11 +482,17 @@
     }
     const variance = x.reduce((s, v) => s + v * v, 0) / N;
     const sc = tp > 0 ? variance / tp : 1; // calibrate ∫PSD = variance
+    // DEEP-AUDIT-2026-07-14 §3: tp is the band SUM, so vlf+lf+hf==totalPower holds EXACTLY rather than to
+    // within rounding — mirrors ECGDex:601 / PpgDex. (Immaterial here vs the ±1–2 ms² rounding, but keeps
+    // the definition identical on both PulseDex spectral paths so the identity can never drift back.)
+    const _v = Math.round(vlf * sc),
+      _l = Math.round(lf * sc),
+      _h = Math.round(hf * sc);
     return {
-      tp: Math.round(tp * sc),
-      vlf: Math.round(vlf * sc),
-      lf: Math.round(lf * sc),
-      hf: Math.round(hf * sc),
+      tp: _v + _l + _h,
+      vlf: _v,
+      lf: _l,
+      hf: _h,
       lfhf: +(lf / (hf || 1)).toFixed(3),
       peakHz: +gPeakF.toFixed(4), // frequency (Hz) of the GLOBAL spectral peak
       peakBand: gPeakF < 0.04 ? 'VLF' : gPeakF < 0.15 ? 'LF' : 'HF',
@@ -1099,7 +1116,7 @@
     let win = null,
       dispRm = rm,
       dispSd = sdnn,
-      dispHr = hr,
+      _dispHr = hr,
       dispPn = pn,
       dispMeanRR = meanRR,
       repSeg = a,
@@ -1114,7 +1131,7 @@
           rrA = win.wins.map((w) => w.meanRR);
         dispRm = +medianOf(rmA).toFixed(2);
         dispSd = +medianOf(sdA).toFixed(2);
-        dispHr = +medianOf(hrA).toFixed(1);
+        _dispHr = +medianOf(hrA).toFixed(1);
         dispPn = +medianOf(pnA).toFixed(1);
         dispMeanRR = +medianOf(rrA).toFixed(1);
         let bi = 0,
@@ -1130,17 +1147,23 @@
         const sh = [],
           sl = [],
           sv = [],
-          stp = [],
           srr = [];
         for (const seg of win.segs) {
           const w = lombScargle(seg, 256);
           sh.push(w.hf);
           sl.push(w.lf);
           sv.push(w.vlf);
-          stp.push(w.tp);
           if (w.respRate > 0) srr.push(w.respRate);
         }
-        winSpec = { hf: Math.round(medianOf(sh)), lf: Math.round(medianOf(sl)), vlf: Math.round(medianOf(sv)), tp: Math.round(medianOf(stp)), respRate: srr.length ? +medianOf(srr).toFixed(1) : 0 };
+        // DEEP-AUDIT-2026-07-14 §3: define tp as the band SUM, not a 4th independent median — the
+        // Task-Force identity vlf+lf+hf==totalPower must hold EXACTLY (median(tp_i) ≠ Σ median(band_i)),
+        // mirroring ECGDex:601 / PpgDex. Otherwise Total Power + the HF/LF fraction bars (hf/(tp||1))
+        // surface numbers that don't reconcile with the bands beside them (~5–20 % on overnight). The
+        // per-segment tp (w.tp) is therefore no longer collected — it never survived the median anyway.
+        const _wh = Math.round(medianOf(sh)),
+          _wl = Math.round(medianOf(sl)),
+          _wv = Math.round(medianOf(sv));
+        winSpec = { hf: _wh, lf: _wl, vlf: _wv, tp: _wv + _wl + _wh, respRate: srr.length ? +medianOf(srr).toFixed(1) : 0 };
       }
     }
 
@@ -1148,7 +1171,7 @@
     const sp = winSpec ? { tp: winSpec.tp, hf: winSpec.hf, lf: winSpec.lf, vlf: winSpec.vlf } : { tp: ls.tp, hf: ls.hf, lf: ls.lf, vlf: ls.vlf };
     const ans = ansBalance(sp.hf, sp.lf);
 
-    const cMeanRR = longRec ? dispMeanRR : meanRR;
+    const _cMeanRR = longRec ? dispMeanRR : meanRR;
     const cSd = longRec ? dispSd : sdnn,
       cRm = longRec ? dispRm : rm,
       cPn = longRec ? dispPn : pn;
@@ -1157,8 +1180,9 @@
       energy = energyEst(cSd, cRm),
       focus = focusEst(cSd, cRm),
       coh = cohEst(cRm, cSd);
-    const sd1v = +sd1(rm).toFixed(2),
-      sd2v = +sd2(sdnn, rm).toFixed(2);
+    const sdsdv = sdsd(a); // §8: SD1/SD2 spread is SDSD (÷N−1), not rMSSD — unified with ECGDex/PpgDex
+    const sd1v = +sd1(sdsdv).toFixed(2),
+      sd2v = +sd2(sdnn, sdsdv).toFixed(2);
     const lnrm = +lnR(cRm).toFixed(3);
     const lfhfv = winSpec ? +(winSpec.lf / (winSpec.hf || 1)).toFixed(3) : ls.lfhf;
 

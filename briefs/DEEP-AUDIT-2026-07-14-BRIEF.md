@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-14
+**Status:** DONE — 2026-07-14 · **Created:** 2026-07-14
 
 # Deep audit (post-193-commit churn) — verified findings
 
@@ -67,7 +67,21 @@ surfaced number), then §4/§5, then §6–§8.
   re-bundle GlucoDex + regenerate its equiv/golden fixtures (the ~6-min equiv clips contain no `GAP_LONG` — add a
   committed synthetic long-gap fixture + assertion that the excluded metrics don't move when the gap is inserted).
 
-## §2 — Integrator silently drops a multi-night CPAP export's entire per-night payload  ⚠ high
+## §2 — Integrator silently drops a multi-night CPAP export's entire per-night payload  ⚠ high  ✅ EXECUTED 2026-07-14
+> **EXECUTED 2026-07-14.** `normalizeFile` now unwraps ANY `schema.multiNight` wrapper generically — each
+> `nights[]` entry is a full single-night node-export, adapted per night like any other envelope — instead of
+> unwrapping only for `node==='OxyDex'`. **Placed AFTER the OxyDex branch, not before it** (the brief sketched
+> "before node dispatch"): OxyDex ALSO sets `schema.multiNight`, so a generic-first unwrap would have pulled
+> OxyDex off its dedicated `nights[]`-aware `adaptOxyDex` and regressed it — the correct placement keeps OxyDex
+> on its own adapter and catches CPAPDex + any future multi-night emitter. Gated by a contract assertion driven
+> through `normalizeFile` (the app's own entry): a 3-night CPAP wrapper → **3 dated records, each with events +
+> a non-null device-scored `estAHI`, on three distinct dates**, verified RED on the old code first (1 empty
+> date-unknown rec, 0 events, null AHI). Re-bundled Integrator (`8f3ab6cd32b1 → 2c64e2c36ed2`) + OverDex (both
+> inline `integrator-dsp.js`; the rebuild also cleared two pre-existing dead-var lint findings the edit pulled
+> into biome's changed-file scope — a `tzOffset`→`_tzOffset` rename to match its `_ck*` DexClock-delegation
+> siblings, and a dead `var w` local). **EXPORT-INERT — verified, not asserted:** the Integrator TCH golden
+> reproduces byte-identical (ingest-only change, outside the compute path); `verifiedUnder` re-stamped to the
+> new compute closure `94033a368c2e` after a green corpus run.
 - **Severity:** contract/provenance drift **+ silent failure** — device-scored AHI (the strongest apnea truth
   on the bus) vanishes from fusion with no warning.
 - **Root cause:** `cpapdex-app.js:406` emits `cpapBuildMultiNightExport` (≥3 nights) → wrapper
@@ -87,9 +101,21 @@ surfaced number), then §4/§5, then §6–§8.
   + `--check`; add a contract assertion (3-night CPAP wrapper → N recs with events + non-null `apneaAuthority`);
   no fixture regen (ingest-only).
 
-## §3 — PulseDex breaks the Task-Force identity `vlf+lf+hf == totalPower` on overnight readings
-- **Severity:** mis-states surfaced numbers (~5–20% on overnight) + differential drift (the un-fixed sibling of
-  a fix ECGDex and PpgDex both carry).
+## §3 — PulseDex breaks the Task-Force identity `vlf+lf+hf == totalPower` on overnight readings  ✅ EXECUTED 2026-07-14
+> **EXECUTED 2026-07-14.** `tp` is now the band SUM on BOTH PulseDex spectral paths — the overnight `winSpec`
+> (`tp = vlf+lf+hf` at :1143, the material fix; the per-segment `w.tp` + its `stp` accumulator are dropped, no
+> longer collected) and the single-window `lombScargle` return (`tp = _v+_l+_h` at :475, mirroring ECGDex:601 /
+> PpgDex). Gated by a PulseDex identity group (sibling of the ECGDex/PpgDex §10/§11 gate) driven through
+> `computeResult` on a ~1.7 h overnight record: `vlf+lf+hf === tp` and the HF fraction (`hf/tp`) matches the true
+> band share — verified RED on the old code first (`vlf+lf+hf = 8681` vs `tp = 8648`). Re-bundled PulseDex
+> (`b8c16e7a5d8e → 51c93d5e18d0`) + Data Unifier + OverDex (both inline `pulsedex-dsp.js`).
+> **⚠️ The fix-sketch below was WRONG about fixture regen — corrected here.** It said the fix "moves the
+> overnight-fixture Total Power/VLF output → PulseDex equiv leg reds → regenerate its fixtures." It does **not**:
+> the export's `hrv.frequency` block is `{lf,hf,vlf,lfhf}` and **omits `tp` entirely** (line 1303), so no fixture
+> moved. **EXPORT-INERT — verified, not asserted:** all three PulseDex equiv legs (real / events / synthetic)
+> reproduce byte-identical; `verifiedUnder` re-stamped to `73e54ee234c1` after a green corpus run. No fixture
+> regen, no regen-pulsedex tool needed. The defect was exactly what this brief's own *body* said — "confined to
+> PulseDex's UI" (Total Power display + the `hf/(tp||1)` fraction bars) — which the fix-sketch then contradicted.
 - **Root cause:** the windowed/overnight path takes **four independent medians** — `winSpec =
   {hf:round(median(sh)), lf:round(median(sl)), vlf:round(median(sv)), tp:round(median(stp))}` (`pulsedex-dsp.js:1143`);
   `median(tp_i) ≠ median(vlf_i)+median(lf_i)+median(hf_i)`. ECGDex **defines** `tp = _v+_l+_h` (`ecgdex-dsp.js:601`),
@@ -129,7 +155,31 @@ surfaced number), then §4/§5, then §6–§8.
 - **Fix sketch:** change the boundary test to match `GAP_LONG` (reuse the `_isGap` helper or a `GAP_LONG` check).
   **Gate cost:** `glucodex-dsp.js` → re-bundle + regenerate fixtures (can share §1's long-gap fixture).
 
-## §5 — OxyDex ODI-family rates use two incompatible time bases  ⚠ needs an owner decision on canonical basis
+## §5 — OxyDex ODI-family rates use two incompatible time bases  ✅ EXECUTED 2026-07-14 (owner ratified: SAMPLE basis)
+> **EXECUTED 2026-07-14 — canonical basis = SAMPLE (`rows.length/3600`), owner-ratified after a corpus
+> measurement.** The one outlier was `oxydex-dsp.js:2178` (the artifact-exclusion ODI-4 recompute), which used
+> the elapsed span (`stats.durationMin/60`) while `detectODI`/`computeODI1`/nadir/`crashRate` + the ODI-4 base
+> all use `rows.length/3600`. Now `:2178` re-rates on `rows.length/3600` — matching `detectODI` EXACTLY (same
+> `n`), so all ODI-family denominators are one basis and `odi41ratio` can no longer mix clocks. The other
+> span-`durationHr` consumers at :2195/:2198/:2200 (cross-signal / composite / SBII) are OUTSIDE the ODI family
+> and were left untouched — deliberately in-scope-only.
+>
+> **Why SAMPLE, and why this was low-urgency (the measurement that decided it):** ran OxyDex on **all 37 real
+> O2Ring nights** — the two bases produce **identical** ODI-4 on every one (max sample-vs-span gap 2.4 %, and the
+> `:2178` recompute never even fired: `artifactExcluded=0` on all 37). The brief's hypothesised ~14 %/4×
+> divergence occurs on **no real night**; the O2Ring records continuously at 1 Hz. So §5 was a **latent** landmine
+> (zero current user impact), not an active mis-statement — it would only surface on a genuine finger-off gap or
+> a sparse-cadence oximeter. SAMPLE is the clinically honest "per hour of *analyzable* recording" denominator,
+> the majority basis (~11 of 12 sites), and the one-site change (vs flipping 11), so it is both principled and
+> minimal.
+>
+> **Gated by a COMMITTED gap+artifact twin** (`synthetic_oxydex_o2ring_gap.csv`) — the ONLY input that both
+> diverges the bases (a 30-min `- -` finger-off gap ⇒ `rows.length` < span) AND fires the `:2178` recompute (a
+> non-physiologic fast-fall artifact, 3.2 %/s > the 1.5 %/s self-gate). On it, sample-basis **2/h ≠ span-basis
+> 1.5/h**; the gate asserts `odi4.rate === 2` (RED on the old code: `1.5`), with a control that the twin genuinely
+> diverges. **EXPORT-INERT — verified, not asserted:** all three OxyDex equiv legs reproduce byte-identical (the
+> committed fixtures are clean 1 Hz clips that never trip `:2178`); re-bundled OxyDex + Data Unifier + OverDex +
+> the 5 analysis tools that inline `oxydex-dsp.js`; `verifiedUnder` re-stamped after a green corpus run.
 - **Severity:** mis-states surfaced `/hr` numbers on gappy / non-1 Hz nights (charter #1, samples-vs-seconds).
 - **Root cause:** `durationHr = n/3600` (valid-sample count; invalid rows dropped at `oxydex-dsp.js:554 continue`)
   drives `detectODI`:2657, `computeODI1`:1024, nadir density :1148, `oxyCrashRate`:1848 (+ ~9 other `n/3600` sites);
@@ -146,7 +196,14 @@ surfaced number), then §4/§5, then §6–§8.
 - **Fix sketch:** thread ONE chosen basis through all ODI-family denominators. **Gate cost:** `oxydex-dsp.js` →
   re-bundle OxyDex + regenerate fixtures (add a gappy fixture — the clean ~6-min clips don't exercise it).
 
-## §6 — Integrator resurrects the retired per-session CPAP `mode` label  (latent)
+## §6 — Integrator resurrects the retired per-session CPAP `mode` label  (latent)  ✅ EXECUTED 2026-07-14
+> **EXECUTED 2026-07-14** (batched with §7). `integrator-dsp.js` now sets `summary.mode = json.metrics?.mode`
+> (honoring the node's night-level value, which CPAPDex forces `null`) instead of `json.recording.sessions[0].mode`.
+> Gated by an assertion driven through `adaptEnvelopeNode`: a CPAP export with `sessions[0].mode='APAP'` but
+> `metrics.mode=null` → `summary.mode === null` (verified RED on old code: it returned `'APAP'`), plus a control
+> that a node-published `metrics.mode` IS surfaced. Re-bundled Integrator + OverDex + the 4 CGM analysis tools
+> that inline `integrator-dsp.js`. EXPORT-INERT — verified: the Integrator TCH golden reproduces byte-identical;
+> `verifiedUnder` re-stamped after a green corpus run.
 - **Severity:** fabricated/misleading value; **latent** today (no consumer reads `summary.mode`) — a contract landmine.
 - **Root cause:** `integrator-dsp.js:358` sets `summary.mode = json.recording.sessions[0].mode` — the first
   session's label — which CPAPDex deliberately retired (`cpapdex-dsp.js:776` forces `metrics.mode=null`;
@@ -154,7 +211,13 @@ surfaced number), then §4/§5, then §6–§8.
 - **Fix sketch:** `summary.mode = json.metrics?.mode || null` (honor the node's null), or drop the field. **Gate
   cost:** `integrator-dsp.js` → re-bundle Integrator; no fixture regen.
 
-## §7 — CPAPDex `periodicBreathingPct: 0` (not `null`) on a zero-duration session  (degenerate)
+## §7 — CPAPDex `periodicBreathingPct: 0` (not `null`) on a zero-duration session  (degenerate)  ✅ EXECUTED 2026-07-14
+> **EXECUTED 2026-07-14** (batched with §6). Both `cpapdex-dsp.js` sites (`:664`, `:753`) now return `null` on a
+> `durSec===0` session instead of `0`, matching the sibling apnea indices (`residualAHI` etc. already `null` on
+> absence). Gated: a zero-duration session → `periodicBreathingPct === null` (verified RED: it was `0`), with a
+> control that a real session still reports a numeric value. Re-bundled CPAPDex + the 4 CGM analysis tools that
+> inline `cpapdex-dsp.js`. EXPORT-INERT — verified: the branch needs `durSec===0`, which the synthetic goldens
+> never hit, so all CPAP goldens reproduce byte-identical; `verifiedUnder` re-stamped after a green corpus run.
 - **Severity:** fabricated absence (null-vs-0), low reach.
 - **Root cause:** `cpapdex-dsp.js:664` and `:753` use `durSec>0 ? … : 0`; sibling metrics on the same object
   return **null** on absence (`residualAHI: usageHours>0 ? … : null`, :659-663/:748-752). A `durSec===0` session
@@ -162,7 +225,22 @@ surfaced number), then §4/§5, then §6–§8.
 - **Fix sketch:** change both `: 0` → `: null`. **Gate cost:** `cpapdex-dsp.js` → re-bundle CPAPDex; verify the
   synthetic goldens don't move (the branch needs `durSec===0`, which they don't hit).
 
-## §8 — SD1 estimator drift across nodes  (code-health, negligible magnitude)
+## §8 — SD1 estimator drift across nodes  (code-health, negligible magnitude)  ✅ EXECUTED 2026-07-14
+> **EXECUTED 2026-07-14 — unified fleet-wide on SDSD/√2 (÷N−1).** PpgDex (`√0.5·std(Δ)`) was already the
+> target. **ECGDex**: `poincareGeo`'s SDSD changed from ÷N (`dvar/dc`) to ÷N−1 (`dvar/(dc-1)`). **PulseDex**:
+> a new `sdsd()` helper (sample SD of the difference series, reusing the ÷N−1 `std`) replaces `rMSSD` as the
+> SD1/SD2 spread — `sd1=SDSD/√2`, `sd2=√(2·SDNN²−SD1²)` unchanged. rMSSD² = SDSD² + mean(Δ)², so the shift is
+> mean(Δ)² ≈ 0 on a stationary night — **negligible, as the brief said** (real fixture `sd1` 18.74→18.75;
+> synthetic 30.61→30.62). Gated by a PulseDex assertion on a deliberately TRENDING RR series (mean(Δ)≠0, so
+> SDSD/√2 2.50 ≠ rMSSD/√2 2.56): exported `sd1` must equal SDSD/√2 and sit BELOW rMSSD/√2 — RED on the old
+> code, non-vacuous by construction. **ECGDex is EXPORT-INERT** (its equiv clip carries no `hrv`/`sd1`, byte-
+> identical). **PulseDex MOVED** (`sd1` is exported): both moving fixtures regenerated via a new
+> `tools/regen-pulsedex-goldens.mjs` (third sibling of the CPAP/GlucoDex regen pair — re-runs the real modules
+> on the committed inputs, never hand-edited), `verifiedUnder` re-stamped after a green corpus run. Re-bundled
+> ECGDex + PulseDex + Data Unifier + OverDex + the 8 analysis tools that inline either DSP.
+>
+> **This closes DEEP-AUDIT-2026-07-14 — all 8 findings executed** (§5 by owner-ratified decision; the rest
+> agent-executed). Flip the top-level Status to DONE once merged.
 - **Severity:** low; real definitional divergence, immaterial numerically.
 - **Root cause:** PulseDex `sd1 = rMSSD/√2` (`pulsedex-dsp.js:116,1160`); ECGDex `SD1 = SDSD/√2` (÷N,
   `ecgdex-dsp.js:56-66`); PpgDex `SD1 = √0.5·std(Δ)` = SDSD/√2 (÷N−1, `ppgdex-dsp.js:520`). Two mismatches:

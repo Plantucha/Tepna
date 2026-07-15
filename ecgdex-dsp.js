@@ -59,7 +59,10 @@ function poincareGeo(nn){
   for (let i=1;i<n;i++){ ds += (nn[i]-nn[i-1]); dc++; }
   const dmean = ds/dc;
   let dvar=0; for (let i=1;i<n;i++){ const d = (nn[i]-nn[i-1]) - dmean; dvar += d*d; }
-  const sdsd = Math.sqrt(dvar/dc);
+  // §8 (DEEP-AUDIT-2026-07-14): SDSD is the SAMPLE SD of the difference series (÷N−1), unifying the SD1
+  // definition fleet-wide (PpgDex √0.5·std(Δ), PulseDex SDSD/√2) — was ÷N (dc), a definitional split with
+  // its siblings. Negligible for large N; the fleet now agrees by construction.
+  const sdsd = Math.sqrt(dvar/Math.max(1, dc-1));
   const s1 = sdsd/Math.sqrt(2);
   const sdnnv = std(nn);
   const s2 = Math.sqrt(Math.max(0, 2*sdnnv*sdnnv - s1*s1));

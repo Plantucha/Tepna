@@ -661,7 +661,7 @@ function buildSessionFromEdf(set, meta) {
     centralIndex:     usageHours > 0 ? +(aCount('CA') / usageHours).toFixed(2) : null,
     hypopneaIndex:    usageHours > 0 ? +(aCount('H') / usageHours).toFixed(2) : null,
     reraIndex:        usageHours > 0 ? +(aCount('RE') / usageHours).toFixed(2) : null,
-    periodicBreathingPct: durSec > 0 ? +(pbSec / durSec * 100).toFixed(2) : 0,
+    periodicBreathingPct: durSec > 0 ? +((pbSec / durSec) * 100).toFixed(2) : null, // §7 (DEEP-AUDIT-2026-07-14): null on absence, matching the sibling apnea indices (residualAHI etc.), not a measured-looking 0
     // Leak (converted to L/min)
     medianLeak:       leak ? +(_p(leakMaskOn, 50)).toFixed(2) : null,
     p95Leak:          leak ? +(_p(leakMaskOn, 95)).toFixed(2) : null,
@@ -750,7 +750,7 @@ function nightMetrics(sessions) {
     centralIndex:     totHours > 0 ? +(nCA / totHours).toFixed(2) : null,
     hypopneaIndex:    totHours > 0 ? +(nH / totHours).toFixed(2) : null,
     reraIndex:        totHours > 0 ? +(nRE / totHours).toFixed(2) : null,
-    periodicBreathingPct: durSec > 0 ? +(pbSec / durSec * 100).toFixed(2) : 0,
+    periodicBreathingPct: durSec > 0 ? +((pbSec / durSec) * 100).toFixed(2) : null, // §7 (DEEP-AUDIT-2026-07-14): null on absence, matching the sibling apnea indices (residualAHI etc.), not a measured-looking 0
     medianPressure:   +(_p(P, 50)).toFixed(2),
     p95Pressure:      +(_p(P, 95)).toFixed(2),
     pressureRange:    +(_iqr(P)).toFixed(2),

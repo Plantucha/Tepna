@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-/33QBexsOSpokvf8FWz7WwWhIPetvgUpmmifcv+QOTw=' 'sha256-1iO435cbX0wm1d6usTR7SSCs3uG3lVdiWnp82E5x/k0=' 'sha256-2h/boaAsuFVdVyNYvNlLPjRqJsx1GE+DlGfTfNHZPLA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AYzhhU7z6OZm4UCSX04uhP2kUKHG0vnKo9tvzWD/C1c=' 'sha256-Cmy5jqXGBn2TOeoIUu5NQ462zWgA2iB09CRh/bkx2pc=' 'sha256-F4s+OtKkoVZS0q8lS4F/sWsYA6V6dQxQKQ7xrw244Q0=' 'sha256-H9DThidPs/5/1NXxC5dNx0cmlGgf8Yxe0AKZOmotHv4=' 'sha256-HMcz3UCFbmyBGi0SQWw6ydup3CHvmu4SX/HIKXkWnkg=' 'sha256-JW4K7CyopdrwwPvAMLG3/tLyn8Wk3vtcQ8g5fAhUTe0=' 'sha256-LJ5zwQ9pBOLpJrFbOKzGHKRrcjpnzc/SLKAMfrWD/Bw=' 'sha256-LPTMDwYof3miBHr3e+GeI2SVxLG8VFePSJpSa5CfWYs=' 'sha256-M5NNoLurSsW3LayThWj6teZrENVAqpQNfRqO3ERgZPQ=' 'sha256-PB+ksOULjQm71LNR8HGSjhTYJn3uj+aFC4FWWaPmtGQ=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZDbkMuVPbDF2fKxbIEXfQXD9u87eEeptYBHB5+bYEy8=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-dJ1uibBqsf1fPRfMMRgQXwbieWX/TqD6OvAeh2oVe1Q=' 'sha256-eekvlPHNW7x5a60a/0ylrGEF5gTVU2lgLSdFPPtYGsc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-iFbQlgV6jrh7UwwCodH0mH6NJUMLtfyP3T+MuQZix6E=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-pF2F1BHb5ALbGyqL7RaEPb4fzp9+gHyW4tWOpeTvV10=' 'sha256-roO0qvbiqQFAF7zD/B79CM1goAjzhR5jx8+N3kX4ZSY=' 'sha256-sCx/0jRpwBNzhTpZ4ClKf8BfTccQekveXGhU/zx+WqU='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-/33QBexsOSpokvf8FWz7WwWhIPetvgUpmmifcv+QOTw=' 'sha256-2h/boaAsuFVdVyNYvNlLPjRqJsx1GE+DlGfTfNHZPLA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-Cmy5jqXGBn2TOeoIUu5NQ462zWgA2iB09CRh/bkx2pc=' 'sha256-F4s+OtKkoVZS0q8lS4F/sWsYA6V6dQxQKQ7xrw244Q0=' 'sha256-H9DThidPs/5/1NXxC5dNx0cmlGgf8Yxe0AKZOmotHv4=' 'sha256-HMcz3UCFbmyBGi0SQWw6ydup3CHvmu4SX/HIKXkWnkg=' 'sha256-LJ5zwQ9pBOLpJrFbOKzGHKRrcjpnzc/SLKAMfrWD/Bw=' 'sha256-LPTMDwYof3miBHr3e+GeI2SVxLG8VFePSJpSa5CfWYs=' 'sha256-LtkkWPinEP8G2Dl0w2EnGuftzTZg8i4Jqdq+hU6KbVY=' 'sha256-M5NNoLurSsW3LayThWj6teZrENVAqpQNfRqO3ERgZPQ=' 'sha256-PB+ksOULjQm71LNR8HGSjhTYJn3uj+aFC4FWWaPmtGQ=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZDbkMuVPbDF2fKxbIEXfQXD9u87eEeptYBHB5+bYEy8=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-dJ1uibBqsf1fPRfMMRgQXwbieWX/TqD6OvAeh2oVe1Q=' 'sha256-e1cyPzuiB+MoCFkDB/IN6O7iUPkJkEjZpQKQgBQIg+4=' 'sha256-eekvlPHNW7x5a60a/0ylrGEF5gTVU2lgLSdFPPtYGsc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-iFbQlgV6jrh7UwwCodH0mH6NJUMLtfyP3T+MuQZix6E=' 'sha256-iuwdeUTiqYpFmA5//Z0k7WSzQRxwPAF4V7VWTjeXmXU=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-pF2F1BHb5ALbGyqL7RaEPb4fzp9+gHyW4tWOpeTvV10=' 'sha256-roO0qvbiqQFAF7zD/B79CM1goAjzhR5jx8+N3kX4ZSY=' 'sha256-sCx/0jRpwBNzhTpZ4ClKf8BfTccQekveXGhU/zx+WqU='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -2397,6 +2397,17 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
   const amo50 = (a, mo) => (a.filter((v) => Math.abs(v - mo) <= 25).length / a.length) * 100;
   const sd1 = (r) => r / Math.sqrt(2);
   const sd2 = (s, r) => Math.sqrt(Math.max(0, 2 * s * s - (r * r) / 2));
+  // §8 (DEEP-AUDIT-2026-07-14): the Poincaré SD1 spread is SDSD — the SAMPLE SD (÷N−1) of the successive-
+  // difference series — NOT rMSSD (the RMS of those differences, ÷N, no mean-centering). They differ only by
+  // mean(Δ)² ≈ 0, so this is numerically negligible, but it unifies the SD1 definition with ECGDex/PpgDex
+  // (both SDSD/√2) so the three nodes can never drift definitionally. sd1/sd2 keep the geometric identity —
+  // pass SDSD in place of rMSSD: SD1²=SDSD²/2, SD2=√(2·SDNN²−SD1²) hold exactly as before.
+  const sdsd = (a) => {
+    if (a.length < 3) return 0;
+    const d = [];
+    for (let i = 1; i < a.length; i++) d.push(a[i] - a[i - 1]);
+    return std(d);
+  };
   const lnR = (r) => Math.log(r);
   const lfHf = (lf, hf) => (hf ? lf / hf : 0);
   const nu = (v, tp) => (tp ? (v / tp) * 100 : 0);
@@ -2753,11 +2764,17 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
     }
     const variance = x.reduce((s, v) => s + v * v, 0) / N;
     const sc = tp > 0 ? variance / tp : 1; // calibrate ∫PSD = variance
+    // DEEP-AUDIT-2026-07-14 §3: tp is the band SUM, so vlf+lf+hf==totalPower holds EXACTLY rather than to
+    // within rounding — mirrors ECGDex:601 / PpgDex. (Immaterial here vs the ±1–2 ms² rounding, but keeps
+    // the definition identical on both PulseDex spectral paths so the identity can never drift back.)
+    const _v = Math.round(vlf * sc),
+      _l = Math.round(lf * sc),
+      _h = Math.round(hf * sc);
     return {
-      tp: Math.round(tp * sc),
-      vlf: Math.round(vlf * sc),
-      lf: Math.round(lf * sc),
-      hf: Math.round(hf * sc),
+      tp: _v + _l + _h,
+      vlf: _v,
+      lf: _l,
+      hf: _h,
       lfhf: +(lf / (hf || 1)).toFixed(3),
       peakHz: +gPeakF.toFixed(4), // frequency (Hz) of the GLOBAL spectral peak
       peakBand: gPeakF < 0.04 ? 'VLF' : gPeakF < 0.15 ? 'LF' : 'HF',
@@ -3381,7 +3398,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
     let win = null,
       dispRm = rm,
       dispSd = sdnn,
-      dispHr = hr,
+      _dispHr = hr,
       dispPn = pn,
       dispMeanRR = meanRR,
       repSeg = a,
@@ -3396,7 +3413,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
           rrA = win.wins.map((w) => w.meanRR);
         dispRm = +medianOf(rmA).toFixed(2);
         dispSd = +medianOf(sdA).toFixed(2);
-        dispHr = +medianOf(hrA).toFixed(1);
+        _dispHr = +medianOf(hrA).toFixed(1);
         dispPn = +medianOf(pnA).toFixed(1);
         dispMeanRR = +medianOf(rrA).toFixed(1);
         let bi = 0,
@@ -3412,17 +3429,23 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
         const sh = [],
           sl = [],
           sv = [],
-          stp = [],
           srr = [];
         for (const seg of win.segs) {
           const w = lombScargle(seg, 256);
           sh.push(w.hf);
           sl.push(w.lf);
           sv.push(w.vlf);
-          stp.push(w.tp);
           if (w.respRate > 0) srr.push(w.respRate);
         }
-        winSpec = { hf: Math.round(medianOf(sh)), lf: Math.round(medianOf(sl)), vlf: Math.round(medianOf(sv)), tp: Math.round(medianOf(stp)), respRate: srr.length ? +medianOf(srr).toFixed(1) : 0 };
+        // DEEP-AUDIT-2026-07-14 §3: define tp as the band SUM, not a 4th independent median — the
+        // Task-Force identity vlf+lf+hf==totalPower must hold EXACTLY (median(tp_i) ≠ Σ median(band_i)),
+        // mirroring ECGDex:601 / PpgDex. Otherwise Total Power + the HF/LF fraction bars (hf/(tp||1))
+        // surface numbers that don't reconcile with the bands beside them (~5–20 % on overnight). The
+        // per-segment tp (w.tp) is therefore no longer collected — it never survived the median anyway.
+        const _wh = Math.round(medianOf(sh)),
+          _wl = Math.round(medianOf(sl)),
+          _wv = Math.round(medianOf(sv));
+        winSpec = { hf: _wh, lf: _wl, vlf: _wv, tp: _wv + _wl + _wh, respRate: srr.length ? +medianOf(srr).toFixed(1) : 0 };
       }
     }
 
@@ -3430,7 +3453,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
     const sp = winSpec ? { tp: winSpec.tp, hf: winSpec.hf, lf: winSpec.lf, vlf: winSpec.vlf } : { tp: ls.tp, hf: ls.hf, lf: ls.lf, vlf: ls.vlf };
     const ans = ansBalance(sp.hf, sp.lf);
 
-    const cMeanRR = longRec ? dispMeanRR : meanRR;
+    const _cMeanRR = longRec ? dispMeanRR : meanRR;
     const cSd = longRec ? dispSd : sdnn,
       cRm = longRec ? dispRm : rm,
       cPn = longRec ? dispPn : pn;
@@ -3439,8 +3462,9 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
       energy = energyEst(cSd, cRm),
       focus = focusEst(cSd, cRm),
       coh = cohEst(cRm, cSd);
-    const sd1v = +sd1(rm).toFixed(2),
-      sd2v = +sd2(sdnn, rm).toFixed(2);
+    const sdsdv = sdsd(a); // §8: SD1/SD2 spread is SDSD (÷N−1), not rMSSD — unified with ECGDex/PpgDex
+    const sd1v = +sd1(sdsdv).toFixed(2),
+      sd2v = +sd2(sdnn, sdsdv).toFixed(2);
     const lnrm = +lnR(cRm).toFixed(3);
     const lfhfv = winSpec ? +(winSpec.lf / (winSpec.hf || 1)).toFixed(3) : ls.lfhf;
 
@@ -5940,7 +5964,14 @@ if (typeof module !== 'undefined' && module.exports) module.exports = root.DexCl
     // ODI-4 event; subtract them so a probe-squeeze "67% cliff" never inflates ODI.
     if (odi4 && desat && desat.artifactCount) {
       odi4.count = Math.max(0, (odi4.count || 0) - desat.artifactCount);
-      odi4.rate = +(odi4.count / Math.max(durationHr, 0.01)).toFixed(1);
+      // §5 (DEEP-AUDIT-2026-07-14): re-rate on the SAME sample basis detectODI/computeODI1/nadir/crashRate
+      // use (rows.length/3600), NOT the elapsed span (stats.durationMin/60). On a gappy night the two diverge
+      // (dropped rows ⇒ rows.length < span), and mixing them made odi4.rate span-based while odi1Rate stayed
+      // sample-based — so the surfaced ODI-4/hr and odi41ratio sat on incompatible clocks. Sample basis is the
+      // clinically honest "per hour of analyzable recording" denominator, and the one every other ODI-family
+      // site already uses. Inert on the current corpus (the O2Ring drops ~0 samples); a real finger-off or a
+      // sparse-cadence oximeter would surface it. Gated by a committed gap+artifact synthetic twin.
+      odi4.rate = +(odi4.count / Math.max(rows.length / 3600, 0.01)).toFixed(1);
       odi4.artifactExcluded = desat.artifactCount;
     }
     // OXYDEX-NADIR-HONESTY (RUNAWAY-FIX-FOLLOWUPS §1/§2): route the HEADLINE nadir through the artifact
@@ -13465,7 +13496,10 @@ function poincareGeo(nn){
   for (let i=1;i<n;i++){ ds += (nn[i]-nn[i-1]); dc++; }
   const dmean = ds/dc;
   let dvar=0; for (let i=1;i<n;i++){ const d = (nn[i]-nn[i-1]) - dmean; dvar += d*d; }
-  const sdsd = Math.sqrt(dvar/dc);
+  // §8 (DEEP-AUDIT-2026-07-14): SDSD is the SAMPLE SD of the difference series (÷N−1), unifying the SD1
+  // definition fleet-wide (PpgDex √0.5·std(Δ), PulseDex SDSD/√2) — was ÷N (dc), a definitional split with
+  // its siblings. Negligible for large N; the fleet now agrees by construction.
+  const sdsd = Math.sqrt(dvar/Math.max(1, dc-1));
   const s1 = sdsd/Math.sqrt(2);
   const sdnnv = std(nn);
   const s2 = Math.sqrt(Math.max(0, 2*sdnnv*sdnnv - s1*s1));

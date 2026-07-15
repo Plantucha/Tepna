@@ -2109,6 +2109,101 @@
       }
     });
 
+    /* ════ PulseDex §3 — the Task-Force identity vlf+lf+hf == totalPower on overnight (DEEP-AUDIT-2026-07-14 §3)
+       PulseDex was the un-fixed SIBLING of the DEEP-AUDIT-2026-07-11 §10 fix ECGDex + PpgDex both carry. Its
+       windowed/overnight path took FOUR INDEPENDENT medians —
+         winSpec = { hf:median(sh), lf:median(sl), vlf:median(sv), tp:median(stp) }
+       and median(tp_i) ≠ median(vlf_i)+median(lf_i)+median(hf_i). So Total Power and the HF/LF fraction bars
+       (hf/(tp||1)) surfaced numbers that don't reconcile with the bands they sit beside — ~5–20 % on overnight.
+       Fix: define tp as the band sum (winSpec.tp = vlf+lf+hf), exactly as ECGDex:601 / PpgDex do. Control: the
+       record must take the overnight winSpec path (longRec), else the four-median split never runs. ════ */
+    group('PulseDex §3 — vlf+lf+hf == totalPower on overnight (Task-Force identity, the un-fixed sibling)', 'pulsedex-dsp · spectral', function (T) {
+      var P = env.PulseDex;
+      if (!P || typeof P.computeResult !== 'function') {
+        T.ok('env.PulseDex.computeResult available', false, 'not wired — gate skipped');
+        return;
+      }
+      // ~1.7 h of RR with real band structure so the overnight winSpec (four-median) path runs.
+      var n = 7200,
+        t0 = Date.UTC(2026, 5, 25, 23, 0, 0),
+        intervals = [],
+        tsMs = [],
+        t = t0;
+      for (var i = 0; i < n; i++) {
+        var rr = 850 + 120 * Math.sin(i / 40) + 60 * Math.sin(i / 7) + 30 * Math.sin(i / 200);
+        intervals.push(rr);
+        tsMs.push(t);
+        t += rr;
+      }
+      var r = P.computeResult({ intervals: intervals, tsMs: tsMs, t0Ms: t0, offsetMin: null });
+      T.ok('the record takes the overnight winSpec path (longRec)', !!(r && r.longRec === true && r.mode === 'overnight'), r ? 'mode=' + r.mode + ' longRec=' + r.longRec : 'null');
+      T.ok(
+        'all four bands are present + finite (vlf/lf/hf/tp)',
+        !!(
+          r &&
+          [r.vlf, r.lf, r.hf, r.tp].every(function (v) {
+            return typeof v === 'number' && isFinite(v);
+          })
+        ),
+        r ? JSON.stringify({ vlf: r.vlf, lf: r.lf, hf: r.hf, tp: r.tp }) : 'null'
+      );
+      if (!(r && r.longRec)) return;
+      T.eq('§3 · TASK-FORCE IDENTITY: vlf + lf + hf == totalPower (one definition, like ECGDex/PpgDex)', r.vlf + r.lf + r.hf, r.tp);
+      // and the surfaced HF fraction reconciles with the bands it sits beside (the render bar reads hf/(tp||1))
+      var hfFrac = r.hf / (r.tp || 1),
+        hfFracTrue = r.hf / (r.vlf + r.lf + r.hf || 1);
+      T.ok('§3 · the HF fraction (hf/tp) matches the true band share (no bar/total mismatch)', Math.abs(hfFrac - hfFracTrue) < 1e-9, 'bar ' + hfFrac.toFixed(4) + ' vs true ' + hfFracTrue.toFixed(4));
+    });
+
+    /* ════ PulseDex §8 — Poincaré SD1 spread is SDSD, not rMSSD (DEEP-AUDIT-2026-07-14 §8) ════════════
+       The SD1 short axis is SDSD/√2 (the SAMPLE SD of the successive-difference series, ÷N−1) — the ECGDex
+       / PpgDex definition. PulseDex used rMSSD/√2 (the RMS of those differences, ÷N, no mean-centering).
+       rMSSD² = SDSD² + mean(Δ)², so they differ ONLY by mean(Δ)² — ≈ 0 on a stationary night (why this was
+       negligible), but on a TRENDING series mean(Δ)≠0 and rMSSD is strictly larger. This gate feeds a gently
+       trending RR series (so mean(Δ)>0): the exported sd1 must equal SDSD/√2 and sit BELOW rMSSD/√2 — RED on
+       the old rMSSD/√2 definition, non-vacuous by construction. */
+    group('PulseDex §8 — Poincaré SD1 uses SDSD (÷N−1)/√2, not rMSSD/√2', 'pulsedex-dsp · poincare', function (T) {
+      var P = env.PulseDex;
+      if (!P || typeof P.computeResult !== 'function') {
+        T.ok('env.PulseDex.computeResult available', false, 'not wired — gate skipped');
+        return;
+      }
+      var m = 300,
+        t0 = Date.UTC(2026, 5, 25, 8, 0, 0),
+        intervals = [],
+        tsMs = [],
+        t = t0;
+      for (var i = 0; i < m; i++) {
+        var rr = 800 + i * 0.8 + 25 * Math.sin(i / 5); // gentle upward trend ⇒ mean(Δ) > 0
+        intervals.push(rr);
+        tsMs.push(t);
+        t += rr;
+      }
+      var r = P.computeResult({ intervals: intervals, tsMs: tsMs, t0Ms: t0, offsetMin: null });
+      // independent references on the SAME raw series (cleaning is a near-no-op on this clean synthetic)
+      var d = [];
+      for (var j = 1; j < intervals.length; j++) d.push(intervals[j] - intervals[j - 1]);
+      var dm =
+        d.reduce(function (a, b) {
+          return a + b;
+        }, 0) / d.length;
+      var dv = 0;
+      for (var k = 0; k < d.length; k++) dv += (d[k] - dm) * (d[k] - dm);
+      var sdsd = Math.sqrt(dv / (d.length - 1)); // SAMPLE SD (÷N−1)
+      var sq = 0;
+      for (var q = 0; q < d.length; q++) sq += d[q] * d[q];
+      var rmssd = Math.sqrt(sq / d.length);
+      var sdsdSD1 = sdsd / Math.SQRT2,
+        rmssdSD1 = rmssd / Math.SQRT2;
+      T.ok(
+        'control · the trending series makes SDSD/√2 and rMSSD/√2 diverge (mean(Δ) ≠ 0)',
+        Math.abs(rmssdSD1 - sdsdSD1) > 0.05,
+        'SDSD/√2 ' + sdsdSD1.toFixed(2) + ' vs rMSSD/√2 ' + rmssdSD1.toFixed(2)
+      );
+      T.ok('§8 · exported sd1 matches the SDSD/√2 definition (± cleaning)', r && r.sd1 != null && Math.abs(r.sd1 - sdsdSD1) < 0.25, 'sd1=' + (r && r.sd1) + ' SDSD/√2=' + sdsdSD1.toFixed(2));
+      T.ok('§8 · …and sits BELOW rMSSD/√2 (the retired definition) — RED on the old code', r && r.sd1 != null && r.sd1 < rmssdSD1 - 0.03, 'sd1=' + (r && r.sd1) + ' rMSSD/√2=' + rmssdSD1.toFixed(2));
+    });
+
     /* ════ 12 · ECGDex respRate aggregation — median, not HF-peak (whole-record scalar) ════ */
     /* DEEP-AUDIT-2026-07-11 §10/§11 — the exported spectrum must sit on ONE time scale, and its band
        split must not hang on an arbitrary internal constant.
@@ -3215,6 +3310,117 @@
         var src = (env.sources || {})['oxydex-dsp.js'] || '';
         T.ok('§B4 · spo2HrDecouplingPct is null when no window is comparable (0/0 is undefined)', /spo2HrDecouplingPct\s*=\s*dcTotal\s*>\s*0\s*\?[^:]*:\s*null/.test(src), 'still coerces to 0');
       }
+    });
+
+    /* ════ Integrator §6 — the retired per-session CPAP `mode` must NOT be resurrected (DEEP-AUDIT-2026-07-14 §6)
+       adaptEnvelopeNode set summary.mode = json.recording.sessions[0].mode — the FIRST session's per-session
+       label, which CPAPDex deliberately RETIRED (a per-session mode "flipped 7× across 182 real nights", so the
+       node forces metrics.mode=null). Latent today (no consumer reads summary.mode) but a contract landmine: it
+       resurrects a value the node chose to null. Fix: honor the node's night-level metrics.mode (null). ════ */
+    group('Integrator §6 — CPAP summary.mode honors the node (never resurrects sessions[0].mode)', 'integrator-dsp · cpapdex-fusion', function (T) {
+      var A = env.adaptEnvelopeNode,
+        D = env.CpapDsp,
+        F = env.CpapFusion;
+      var ok = !!(typeof A === 'function' && D && typeof D._synthEdfSet === 'function' && F && typeof F.cpapBuildExport === 'function');
+      T.ok('adaptEnvelopeNode + CpapDsp + CpapFusion co-loaded', ok, ok ? '' : 'wire into both runners');
+      if (!ok) return;
+      var night = D.buildNight([D.buildSessionFromEdf(D._synthEdfSet({ oxi: true, cs: true }), {})]);
+      var exp = F.cpapBuildExport(night);
+      // a device that DID score a per-session mode, while the node's night-level metrics.mode stays null (retired).
+      exp.recording.sessions[0].mode = 'APAP';
+      if (exp.metrics) exp.metrics.mode = null;
+      var rec = A(exp, 'CPAPDex', 'cpap.json')[0];
+      T.eq('§6 · summary.mode is NULL when the node retired it (not the per-session APAP label)', rec && rec.summary ? rec.summary.mode : 'no-rec', null);
+      // control: when the node DOES publish a night-level mode, it is honored (the fix reads the right field).
+      var exp2 = F.cpapBuildExport(night);
+      if (exp2.metrics) exp2.metrics.mode = 'CPAP';
+      var rec2 = A(exp2, 'CPAPDex', 'cpap2.json')[0];
+      T.eq('§6 · control — a node-published metrics.mode IS surfaced', rec2 && rec2.summary ? rec2.summary.mode : 'no-rec', 'CPAP');
+    });
+
+    /* ════ CPAPDex §7 — periodicBreathingPct is NULL (not 0) on a zero-duration session (DEEP-AUDIT-2026-07-14 §7)
+       cpapdex-dsp.js used `durSec>0 ? … : 0` for periodicBreathingPct, while its sibling metrics on the same
+       object return NULL on absence (residualAHI etc. use `usageHours>0 ? … : null`). So a durSec===0 session
+       exported a measured-looking periodicBreathingPct:0 beside honestly-null apnea indices — fabricated absence.
+       Fix: `: 0` → `: null` on both sites, so absence reads null uniformly. ════ */
+    group('CPAPDex §7 — periodicBreathingPct is null, not 0, on a zero-duration session', 'cpapdex-dsp · fabricated-absence', function (T) {
+      var D = env.CpapDsp;
+      if (!D || typeof D.buildSessionFromEdf !== 'function') {
+        T.ok('env.CpapDsp.buildSessionFromEdf available', false, 'not wired');
+        return;
+      }
+      var t0 = Date.UTC(2026, 5, 12);
+      var zero = D.buildSessionFromEdf(
+        { PLD: { clock: { t0Ms: t0 }, recordsRead: 0, recDurSec: 60, numRecords: 0, signals: {} }, SA2: { clock: { t0Ms: t0 }, recordsRead: 0, recDurSec: 60, signals: {} } },
+        {}
+      );
+      var m = (zero && zero.metrics) || {};
+      T.eq('§7 · periodicBreathingPct is NULL on a zero-duration session (matches the null apnea indices)', m.periodicBreathingPct, null);
+      T.eq('§7 · control — its sibling residualAHI is also null (they now agree on absence)', m.residualAHI, null);
+      // control: a NORMAL session still reports a measured number (the fix does not blank real data).
+      var real = D.buildSessionFromEdf(D._synthEdfSet({ oxi: true, cs: true }), {});
+      var rm = (real && real.metrics) || {};
+      T.ok('§7 · control — a real session still reports a numeric periodicBreathingPct', typeof rm.periodicBreathingPct === 'number', JSON.stringify(rm.periodicBreathingPct));
+    });
+
+    /* ════ Integrator ingests a MULTI-NIGHT CPAP wrapper — no silent payload drop (DEEP-AUDIT-2026-07-14 §2)
+       A CPAPDex ≥3-night Export is a wrapper { schema.multiNight:true, nights:[ per-night node-export ] }
+       with NO top-level recording / ganglior_events / metrics. `normalizeFile` unwrapped a `nights[]`
+       wrapper ONLY for node==='OxyDex'; a CPAPDex wrapper fell through to the flat envelope adapter, which
+       read an EMPTY envelope → one date-unknown rec, t0Ms=null, events=[], estAHI=null, ahiSource still
+       'device-scored', and NO warning. The strongest apnea truth on the bus (device-scored AHI) silently
+       vanished from fusion. Fix: unwrap any `schema.multiNight` wrapper generically, per night, so every
+       multi-night emitter is handled like OxyDex. Driven through normalizeFile — the app's own entry. ════ */
+    group('Integrator ingests a multi-night CPAP wrapper without dropping the payload (DEEP-AUDIT §2)', 'integrator-dsp · cpapdex-fusion · ingest', function (T) {
+      var NF = env.normalizeFile,
+        D = env.CpapDsp,
+        F = env.CpapFusion;
+      var ok = !!(typeof NF === 'function' && D && typeof D._synthEdfSet === 'function' && F && typeof F.cpapBuildMultiNightExport === 'function');
+      T.ok('normalizeFile + CpapDsp + CpapFusion.cpapBuildMultiNightExport co-loaded', ok, ok ? '' : 'wire normalizeFile + cpapdex-fusion.js into BOTH runners');
+      if (!ok) return;
+
+      var DAY = 86400000;
+      var mk = function (delta) {
+        var set = D._synthEdfSet({ oxi: true, cs: true });
+        ['PLD', 'BRP', 'SA2', 'EVE', 'CSL'].forEach(function (k) {
+          if (set[k] && set[k].clock && set[k].clock.t0Ms != null) set[k].clock.t0Ms += delta;
+          if (set[k] && set[k].annotations)
+            set[k].annotations.forEach(function (a) {
+              if (a.tMs != null) a.tMs += delta;
+            });
+        });
+        return D.buildNight([D.buildSessionFromEdf(set, {})]);
+      };
+      var wrapper = F.cpapBuildMultiNightExport([mk(0), mk(DAY), mk(2 * DAY)]);
+      T.ok(
+        'the wrapper is a 3-night multiNight envelope (schema.multiNight, nights[3])',
+        !!(wrapper && wrapper.schema && wrapper.schema.multiNight && wrapper.nights && wrapper.nights.length === 3),
+        wrapper ? 'nights=' + (wrapper.nights || []).length : 'null'
+      );
+
+      var out = NF(wrapper, 'cpap_3night_ganglior.json');
+      var recs = (out && out.recs) || [];
+
+      // THE BUG: one empty date-unknown rec, no events, null AHI, no warning — the whole payload gone.
+      T.eq('all THREE nights survive ingest (not collapsed to one empty rec)', recs.length, 3);
+      var withEvents = recs.filter(function (r) {
+        return (r.events || []).length > 0;
+      });
+      T.ok('every night contributes its device-scored events (none dropped)', withEvents.length === 3, withEvents.length + ' of 3 nights carry events');
+      var dated = recs.filter(function (r) {
+        return r.t0Ms != null;
+      });
+      T.ok('every night is DATED, not date-unknown (t0Ms reconstructed per night)', dated.length === 3, dated.length + ' of 3 dated');
+      var authoritative = recs.filter(function (r) {
+        return r.summary && r.summary.estAHI != null && r.summary.ahiSource === 'device-scored';
+      });
+      T.ok('the device-scored AHI survives on every night (the strongest apnea truth, was null)', authoritative.length === 3, authoritative.length + ' of 3 carry a non-null device-scored estAHI');
+      // the three nights are DISTINCT dates (the wrapper is not just re-ingesting night 0 thrice)
+      var days = {};
+      recs.forEach(function (r) {
+        if (r.t0Ms != null) days[Math.floor(r.t0Ms / DAY)] = 1;
+      });
+      T.eq('the three nights land on three distinct dates', Object.keys(days).length, 3);
     });
 
     group('Integrator ingests the GlucoDex export end-to-end (GLUCODEX-FOLLOWUPS §3)', 'glucodex-dsp · integrator-dsp', function (T) {
@@ -7684,6 +7890,50 @@
           return e.meta && e.meta.clampFloor;
         }).length;
         T.ok('§E1 · and it carries the clip-floor hypo events sitting on that rail', clip > 0, clip + ' clampFloor event(s)');
+      }
+    });
+
+    /* ════ OxyDex §5 — ODI-4 rate is on ONE time basis, not two (DEEP-AUDIT-2026-07-14 §5) ═════════════
+       OxyDex rated ODI-4 on the elapsed SPAN (stats.durationMin/60) when it excluded self-gated artifacts
+       (:2178), but rated ODI-1/nadir/crashRate + the ODI-4 base on the SAMPLE count (rows.length/3600). On a
+       gappy night (dropped '- -' rows ⇒ rows.length < span) the two diverge, so the surfaced ODI-4/hr and
+       odi41ratio sat on incompatible clocks. Chosen basis (owner-ratified): SAMPLE — "per hour of analyzable
+       recording", the clinically honest denominator and the one every other ODI-family site already uses.
+       This is INERT on the real corpus (the O2Ring drops ~0 samples), so it is gated by the committed
+       gap+artifact twin, which is the only input that both diverges the bases AND fires the :2178 recompute.
+       Arithmetic control: on the twin, sample-basis 2/h ≠ span-basis 1.5/h — RED on the old code. ════ */
+    group('OxyDex §5 — ODI-4 rate on ONE (sample) time basis, not the elapsed span', 'oxydex-dsp · adversarial-twin', function (T) {
+      var OD = env.OxyDex,
+        eq = env.equiv || {};
+      var gap = eq.oxydex_odibasis && eq.oxydex_odibasis.input;
+      if (!OD || typeof OD.compute !== 'function') {
+        T.ok('env.OxyDex.compute available', false, 'not wired — gate skipped');
+        return;
+      }
+      if (!gap) {
+        T.skip('oxydex_odibasis committed input present (regenerate: node tools/make-synthetic-inputs.mjs)');
+        return;
+      }
+      var r = OD.compute({ text: gap, filename: 'synthetic_oxydex_o2ring_gap.csv' });
+      var n = r && r.nights && r.nights[0];
+      var o = n && n.odi4;
+      T.ok('the gap twin computes an ODI-4 with a count + rate', !!(o && o.count != null && o.rate != null), o ? JSON.stringify(o) : 'no odi4');
+      if (!(o && o.count != null && o.rate != null)) return;
+      var sampleHr = n.stats.n / 3600,
+        spanHr = n.stats.durationMin / 60;
+      var sampleRate = +(o.count / sampleHr).toFixed(1),
+        spanRate = +(o.count / spanHr).toFixed(1);
+      // non-vacuous: this twin genuinely puts a gap between the two bases (else the assertion proves nothing)
+      T.ok(
+        'control · the twin diverges the two bases (a real gap: rows.length < span)',
+        sampleRate !== spanRate,
+        'sample ' + sampleRate + '/h vs span ' + spanRate + '/h (validN=' + n.stats.n + ' spanMin=' + n.stats.durationMin + ')'
+      );
+      T.eq('§5 · ODI-4/hr uses the SAMPLE basis (count / analyzable-hours), not the elapsed span', o.rate, sampleRate);
+      T.ok('§5 · …and is NOT the span-basis rate (the retired denominator)', o.rate !== spanRate, 'rate ' + o.rate + ' vs span ' + spanRate);
+      // odi41ratio, when present, must divide two rates on the SAME clock → equals the raw count ratio.
+      if (n.odi41ratio != null && n.odi1 && n.odi1.odi1Total) {
+        T.eq('§5 · odi41ratio is count4/count1 (same clock cancels), not a cross-basis mix', n.odi41ratio, +(o.count / n.odi1.odi1Total).toFixed(3));
       }
     });
 
