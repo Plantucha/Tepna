@@ -166,6 +166,34 @@ const emit = (name, text) => {
     }
     emit('synthetic_oxydex_o2ring_longnight.csv', rows.join('\n') + '\n');
   }
+
+  // §5 · a GAP + ARTIFACT night (DEEP-AUDIT-2026-07-14 §5). Two things at once, because the ODI-4 basis bug
+  //      needs both: (a) a 30-min finger-off '- -' gap so the valid-sample count (rows.length) is LESS than
+  //      the elapsed span — the two ODI denominators then diverge; and (b) a self-gated ARTIFACT desat (a
+  //      non-physiologic fast fall, >1.5 %/s — real desats fall ~0.2 %/s) so the artifact-exclusion recompute
+  //      at oxydex-dsp.js:2178 FIRES. Only when it fires does odi4.rate flip to the elapsed-span basis while
+  //      odi1Rate stays sample-based. Neither the real corpus (the O2Ring drops ~0 samples) nor the other
+  //      committed twins exercise this, so without this input the §5 fix is ungated.
+  {
+    const N = 2 * 3600;
+    const GAP0 = 3600,
+      GAP1 = GAP0 + 30 * 60; // 30-min finger-off between desats → rows.length < span
+    const rows = [HEAD];
+    for (let i = 0; i < N; i++) {
+      const d = new Date(t0 + i * 1000);
+      if (i >= GAP0 && i < GAP1) {
+        rows.push(`${clock(d)} ${dmy(d)},- -,- -,0`);
+        continue;
+      }
+      let spo2 = spo2At(i);
+      // a fast-fall ARTIFACT at i=1200: 96→64 over 10 s (3.2 %/s) → self-gates as nonphysiologic-kinetics.
+      if (i >= 1200 && i < 1210) spo2 = 96 - 3.2 * (i - 1200);
+      else if (i >= 1210 && i < 1230) spo2 = 64;
+      else if (i >= 1230 && i < 1240) spo2 = 64 + 3.2 * (i - 1230);
+      rows.push(`${clock(d)} ${dmy(d)},${Math.round(spo2)},${hrAt(i)},${i % 900 === 0 ? 3 : 0}`);
+    }
+    emit('synthetic_oxydex_o2ring_gap.csv', rows.join('\n') + '\n');
+  }
 }
 
 /* ── 2 · PulseDex — Polar H10 RR text (Polar Sensor Logger) ─────────────────

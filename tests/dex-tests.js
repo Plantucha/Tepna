@@ -7844,6 +7844,50 @@
       }
     });
 
+    /* ════ OxyDex §5 — ODI-4 rate is on ONE time basis, not two (DEEP-AUDIT-2026-07-14 §5) ═════════════
+       OxyDex rated ODI-4 on the elapsed SPAN (stats.durationMin/60) when it excluded self-gated artifacts
+       (:2178), but rated ODI-1/nadir/crashRate + the ODI-4 base on the SAMPLE count (rows.length/3600). On a
+       gappy night (dropped '- -' rows ⇒ rows.length < span) the two diverge, so the surfaced ODI-4/hr and
+       odi41ratio sat on incompatible clocks. Chosen basis (owner-ratified): SAMPLE — "per hour of analyzable
+       recording", the clinically honest denominator and the one every other ODI-family site already uses.
+       This is INERT on the real corpus (the O2Ring drops ~0 samples), so it is gated by the committed
+       gap+artifact twin, which is the only input that both diverges the bases AND fires the :2178 recompute.
+       Arithmetic control: on the twin, sample-basis 2/h ≠ span-basis 1.5/h — RED on the old code. ════ */
+    group('OxyDex §5 — ODI-4 rate on ONE (sample) time basis, not the elapsed span', 'oxydex-dsp · adversarial-twin', function (T) {
+      var OD = env.OxyDex,
+        eq = env.equiv || {};
+      var gap = eq.oxydex_odibasis && eq.oxydex_odibasis.input;
+      if (!OD || typeof OD.compute !== 'function') {
+        T.ok('env.OxyDex.compute available', false, 'not wired — gate skipped');
+        return;
+      }
+      if (!gap) {
+        T.skip('oxydex_odibasis committed input present (regenerate: node tools/make-synthetic-inputs.mjs)');
+        return;
+      }
+      var r = OD.compute({ text: gap, filename: 'synthetic_oxydex_o2ring_gap.csv' });
+      var n = r && r.nights && r.nights[0];
+      var o = n && n.odi4;
+      T.ok('the gap twin computes an ODI-4 with a count + rate', !!(o && o.count != null && o.rate != null), o ? JSON.stringify(o) : 'no odi4');
+      if (!(o && o.count != null && o.rate != null)) return;
+      var sampleHr = n.stats.n / 3600,
+        spanHr = n.stats.durationMin / 60;
+      var sampleRate = +(o.count / sampleHr).toFixed(1),
+        spanRate = +(o.count / spanHr).toFixed(1);
+      // non-vacuous: this twin genuinely puts a gap between the two bases (else the assertion proves nothing)
+      T.ok(
+        'control · the twin diverges the two bases (a real gap: rows.length < span)',
+        sampleRate !== spanRate,
+        'sample ' + sampleRate + '/h vs span ' + spanRate + '/h (validN=' + n.stats.n + ' spanMin=' + n.stats.durationMin + ')'
+      );
+      T.eq('§5 · ODI-4/hr uses the SAMPLE basis (count / analyzable-hours), not the elapsed span', o.rate, sampleRate);
+      T.ok('§5 · …and is NOT the span-basis rate (the retired denominator)', o.rate !== spanRate, 'rate ' + o.rate + ' vs span ' + spanRate);
+      // odi41ratio, when present, must divide two rates on the SAME clock → equals the raw count ratio.
+      if (n.odi41ratio != null && n.odi1 && n.odi1.odi1Total) {
+        T.eq('§5 · odi41ratio is count4/count1 (same clock cancels), not a cross-basis mix', n.odi41ratio, +(o.count / n.odi1.odi1Total).toFixed(3));
+      }
+    });
+
     group('OxyDex §7/§8/§9 — real event clock · whole-night windows · REM plausibility', 'oxydex-dsp · oxydex-fusion · clock · fabricated-absence', function (T) {
       var OD = env.OxyDex;
       if (!OD || typeof OD.compute !== 'function' || typeof OD.parseCSV !== 'function') {
