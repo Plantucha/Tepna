@@ -44,7 +44,7 @@ const RUNNER = join(__dirname, 'run-tests.mjs');
 const DEEP = process.argv.slice(2).some((s) => /^--?deep$/i.test(s));
 /* The N the CI matrix actually uses. Keep in sync with .github/workflows/tests.yml — check 3 below
    is what makes a drift here loud instead of silent. */
-const CI_SHARDS = 4;
+const CI_SHARDS = 6;
 
 const C = { reset: '\x1b[0m', red: '\x1b[31m', green: '\x1b[32m', dim: '\x1b[2m', cyan: '\x1b[36m', yellow: '\x1b[33m' };
 const paint = (s, c) => (process.stdout.isTTY ? c + s + C.reset : s);
