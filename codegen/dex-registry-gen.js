@@ -38,22 +38,42 @@
   // retired vocabulary the cohesion gate forbids — fail loudly if a manifest uses it.
   var RETIRED = { proxy: 'heuristic', composite: 'experimental', 'provisionally validated': 'emerging' };
 
-  function pascal(node) { // "EEGDex" → "Eeg" stem for the resolver object name (matches EcgRegistry)
+  function pascal(node) {
+    // "EEGDex" → "Eeg" stem for the resolver object name (matches EcgRegistry)
     var stem = String(node).replace(/Dex$/, '');
     return stem.charAt(0).toUpperCase() + stem.slice(1).toLowerCase() + 'Registry';
   }
-  function upperStem(node) { // "EEGDex" → "EEG" for EEG_REGISTRY (acronym stems stay all-caps per LEXICON §4)
+  function upperStem(node) {
+    // "EEGDex" → "EEG" for EEG_REGISTRY (acronym stems stay all-caps per LEXICON §4)
     return String(node).replace(/Dex$/, '').toUpperCase();
   }
-  function norm(s) { return String(s == null ? '' : s).toLowerCase().replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim(); }
-  function jsStr(s) { return "'" + String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'"; }
+  function norm(s) {
+    return String(s == null ? '' : s)
+      .toLowerCase()
+      .replace(/<[^>]*>/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  function jsStr(s) {
+    return (
+      "'" +
+      String(s == null ? '' : s)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'") +
+      "'"
+    );
+  }
 
   // Validate + normalize the manifest's metric set; throws on a contract breach
   // (missing/invalid evidence, retired vocabulary) so a bad manifest never ships.
   function collectMetrics(manifest) {
-    var out = [], deny = {}, seen = {};
+    var out = [],
+      deny = {},
+      seen = {};
     (manifest.sections || []).forEach(function (sec) {
-      (sec.metaDeny || []).forEach(function (d) { deny[norm(d)] = 1; });
+      (sec.metaDeny || []).forEach(function (d) {
+        deny[norm(d)] = 1;
+      });
       (sec.metrics || []).forEach(function (m) {
         if (!m.id) throw new Error('metric missing id in section ' + sec.id);
         if (seen[m.id]) throw new Error('duplicate metric id: ' + m.id);
@@ -83,15 +103,25 @@
   // labels resolve to a grade). Skips aliases that collide with a different id's
   // direct key, mirroring how idForLabel checks REGISTRY[k] first.
   function buildAlias(metrics) {
-    var directKeys = {}; metrics.forEach(function (m) { directKeys[norm(m.id)] = m.id; });
-    var alias = {}, conflicts = [];
+    var directKeys = {};
+    metrics.forEach(function (m) {
+      directKeys[norm(m.id)] = m.id;
+    });
+    var alias = {},
+      conflicts = [];
     metrics.forEach(function (m) {
       m.aliasLabels.forEach(function (lbl) {
         var k = norm(lbl);
         if (!k) return;
-        if (directKeys[k] && directKeys[k] !== m.id) { conflicts.push(k + '→' + m.id + ' (vs id ' + directKeys[k] + ')'); return; }
-        if (directKeys[k] === m.id) return;     // resolves directly, no alias needed
-        if (alias[k] && alias[k] !== m.id) { conflicts.push(k + '→' + m.id + ' (vs alias ' + alias[k] + ')'); return; }
+        if (directKeys[k] && directKeys[k] !== m.id) {
+          conflicts.push(k + '→' + m.id + ' (vs id ' + directKeys[k] + ')');
+          return;
+        }
+        if (directKeys[k] === m.id) return; // resolves directly, no alias needed
+        if (alias[k] && alias[k] !== m.id) {
+          conflicts.push(k + '→' + m.id + ' (vs alias ' + alias[k] + ')');
+          return;
+        }
         alias[k] = m.id;
       });
     });
@@ -122,20 +152,22 @@
     L.push(' *   badge/legend/tier/persistence logic lives in metric-registry.js. Load AFTER');
     L.push(' *   metric-registry.js, BEFORE ' + node.toLowerCase() + '-render.js.');
     L.push(' */');
-    L.push("(function (global) {");
+    L.push('(function (global) {');
     L.push("'use strict';");
     L.push('');
     L.push('var ' + REG + ' = {');
     col.metrics.forEach(function (m) {
-      L.push('  ' + m.id + ': { label:' + jsStr(m.label) + ', unit:' + jsStr(m.unit) +
-        ', goodDirection:' + jsStr(m.goodDirection) + ', depth:' + jsStr(m.depth) +
-        ', evidence:' + jsStr(m.evidence) + ',');
+      L.push(
+        '  ' + m.id + ': { label:' + jsStr(m.label) + ', unit:' + jsStr(m.unit) + ', goodDirection:' + jsStr(m.goodDirection) + ', depth:' + jsStr(m.depth) + ', evidence:' + jsStr(m.evidence) + ','
+      );
       L.push('    cite:' + jsStr(m.cite) + ' },');
     });
     L.push('};');
     L.push('');
     L.push('var ' + ALIASV + ' = {');
-    Object.keys(ab.alias).forEach(function (k) { L.push('  ' + jsStr(k) + ':' + jsStr(ab.alias[k]) + ','); });
+    Object.keys(ab.alias).forEach(function (k) {
+      L.push('  ' + jsStr(k) + ':' + jsStr(ab.alias[k]) + ',');
+    });
     L.push('};');
     L.push('');
     L.push("function _norm(s){ return String(s==null?'':s).toLowerCase().replace(/<[^>]*>/g,'').replace(/\\s+/g,' ').trim(); }");
@@ -149,12 +181,22 @@
     L.push('');
     // META_DENY from section-level metaDeny + a small structural default set.
     var denyKeys = Object.keys(col.deny);
-    L.push("var _META_DENY = { 'date':1, 'start':1, 'end':1, 'source':1, 'sample rate':1, 'recording':1, 'duration':1, 'scenario':1, 'metric':1, 'tier':1" +
-      (denyKeys.length ? ', ' + denyKeys.map(function (k) { return jsStr(k) + ':1'; }).join(', ') : '') + ' };');
+    L.push(
+      "var _META_DENY = { 'date':1, 'start':1, 'end':1, 'source':1, 'sample rate':1, 'recording':1, 'duration':1, 'scenario':1, 'metric':1, 'tier':1" +
+        (denyKeys.length
+          ? ', ' +
+            denyKeys
+              .map(function (k) {
+                return jsStr(k) + ':1';
+              })
+              .join(', ')
+          : '') +
+        ' };'
+    );
     L.push('');
-    L.push('/* badgeForLabel(label, fallback) → evidence-dot span | \'\' (coverage mandate). */');
+    L.push("/* badgeForLabel(label, fallback) → evidence-dot span | '' (coverage mandate). */");
     L.push('function badgeForLabel(label, fallback){');
-    L.push('  if(!global.MetricRegistry) return \'\';');
+    L.push("  if(!global.MetricRegistry) return '';");
     L.push('  var n = _norm(label);');
     L.push("  if(n === '' || n.charAt(0) === '\\u2014' || n.charAt(0) === '\\u2192') return '';");
     L.push('  var id = idForLabel(label);');
@@ -178,7 +220,7 @@
     L.push('  idForLabel: idForLabel, badgeForLabel: badgeForLabel, depthForLabel: depthForLabel');
     L.push('};');
     L.push('');
-    L.push('})(typeof window !== \'undefined\' ? window : globalThis);');
+    L.push("})(typeof window !== 'undefined' ? window : globalThis);");
     return { source: L.join('\n') + '\n', conflicts: ab.conflicts, metricCount: col.metrics.length, regName: REG, resolverName: Resolver };
   }
 
@@ -193,11 +235,16 @@
     var input = args[0];
     var oi = args.indexOf('--output');
     var output = oi >= 0 ? args[oi + 1] : null;
-    if (!input) { console.error('usage: node dex-registry-gen.js <manifest.json> [--output <file>]'); process.exit(1); }
+    if (!input) {
+      console.error('usage: node dex-registry-gen.js <manifest.json> [--output <file>]');
+      process.exit(1);
+    }
     var manifest = JSON.parse(fs.readFileSync(input, 'utf8'));
     var res = generateRegistry(manifest);
     if (res.conflicts.length) console.error('⚠ alias conflicts skipped: ' + res.conflicts.join('; '));
-    if (output) { fs.writeFileSync(output, res.source); console.log('wrote ' + output + ' (' + res.metricCount + ' metrics)'); }
-    else process.stdout.write(res.source);
+    if (output) {
+      fs.writeFileSync(output, res.source);
+      console.log('wrote ' + output + ' (' + res.metricCount + ' metrics)');
+    } else process.stdout.write(res.source);
   }
 })(typeof globalThis !== 'undefined' ? globalThis : this);

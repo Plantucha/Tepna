@@ -24,45 +24,92 @@
  * ──────────────────────────────────────────────────────────────────────── */
 (function (root) {
   'use strict';
-  function g(name) { try { return root[name]; } catch (e) { return undefined; } }
+  function g(name) {
+    try {
+      return root[name];
+    } catch (e) {
+      return undefined;
+    }
+  }
 
   var SignalSpec = {
     // ── intervals (RR / PPI) ────────────────────────────────────────────────
-    rr:   { kind: 'intervals', unit: 'ms',
-            frameFields: ['intervals', 'tsMs', 't0Ms', 'offsetMin'],
-            dsp: function () { return { parse: g('parseRRInput'), stats: g('_pdSeriesStats') }; } }, // PulseDex: bare global
+    rr: {
+      kind: 'intervals',
+      unit: 'ms',
+      frameFields: ['intervals', 'tsMs', 't0Ms', 'offsetMin'],
+      dsp: function () {
+        return { parse: g('parseRRInput'), stats: g('_pdSeriesStats') };
+      }
+    }, // PulseDex: bare global
     // ── sampled waveforms / traces ──────────────────────────────────────────
-    ecg:  { kind: 'samples', unit: 'uV',
-            frameFields: ['samples', 'fs', 't0Ms', 'offsetMin'],
-            dsp: function () { return g('ECGDex') || g('ECGDSP'); } },  // ECGDex namespace (ECGDSP legacy)
+    ecg: {
+      kind: 'samples',
+      unit: 'uV',
+      frameFields: ['samples', 'fs', 't0Ms', 'offsetMin'],
+      dsp: function () {
+        return g('ECGDex') || g('ECGDSP');
+      }
+    }, // ECGDex namespace (ECGDSP legacy)
     // raw optical PPG waveform (Polar Verity Sense ~176 Hz). `au` = arbitrary units
     // (uncalibrated ADC counts — no SI unit at the raw-waveform level, like ECG µV but
     // PPG carries no calibrated quantity). samples PACKS the multi-channel waveform
     // (ch[3]+amb+relSec, typed arrays — 100+ Hz, so NOT per-sample objects); fs carries
     // the rate. PpgDex.compute reconstructs the rec → beat detection → self-PPI → HRV.
-    ppg:  { kind: 'samples', unit: 'au',
-            frameFields: ['samples', 'fs', 't0Ms', 'offsetMin'],
-            dsp: function () { return g('PpgDex') || g('PPGDSP'); } },  // PpgDex namespace (PPGDSP legacy)
-    cgm:  { kind: 'samples', unit: 'mmol/L',
-            frameFields: ['samples', 'tsMs', 't0Ms'],
-            dsp: function () { return g('GLUDSP'); } },            // GlucoDex namespace = GLUDSP
-    spo2: { kind: 'samples', unit: '%',
-            frameFields: ['samples', 't0Ms'],
-            dsp: function () { return { parse: g('parseCSV') }; } }, // OxyDex: bare global + DOM side-effects
+    ppg: {
+      kind: 'samples',
+      unit: 'au',
+      frameFields: ['samples', 'fs', 't0Ms', 'offsetMin'],
+      dsp: function () {
+        return g('PpgDex') || g('PPGDSP');
+      }
+    }, // PpgDex namespace (PPGDSP legacy)
+    cgm: {
+      kind: 'samples',
+      unit: 'mmol/L',
+      frameFields: ['samples', 'tsMs', 't0Ms'],
+      dsp: function () {
+        return g('GLUDSP');
+      }
+    }, // GlucoDex namespace = GLUDSP
+    spo2: {
+      kind: 'samples',
+      unit: '%',
+      frameFields: ['samples', 't0Ms'],
+      dsp: function () {
+        return { parse: g('parseCSV') };
+      }
+    }, // OxyDex: bare global + DOM side-effects
     // ── pre-computed HRV SUMMARY (Welltory-style spot reads) — NOT a raw signal:
     //    each "sample" is an already-computed HRV measurement at an irregular time,
     //    so there is no fs; per-sample tsMs carries the timing (cgm-like). ──
-    hrv:  { kind: 'samples', unit: 'ms',
-            frameFields: ['samples', 'tsMs', 't0Ms'],
-            dsp: function () { var H = g('HRVDex'); return { parse: g('parseCSV'), rows: H && H.parseRows, compute: H && H.compute }; } }, // HRVDex: bare global + DOM/localStorage commit path
+    hrv: {
+      kind: 'samples',
+      unit: 'ms',
+      frameFields: ['samples', 'tsMs', 't0Ms'],
+      dsp: function () {
+        var H = g('HRVDex');
+        return { parse: g('parseCSV'), rows: H && H.parseRows, compute: H && H.compute };
+      }
+    }, // HRVDex: bare global + DOM/localStorage commit path
     // ── NEW signal types: EEGDex / SpiroDex still need real new DSP; the
     //    adapter layer standardizes their INGEST, not the per-signal math. ──
-    eeg:  { kind: 'samples', unit: 'uV',
-            frameFields: ['samples', 'fs', 't0Ms', 'offsetMin'],
-            dsp: function () { return g('EEGDSP'); } },
-    flow: { kind: 'samples', unit: 'L/s',
-            frameFields: ['samples', 'fs', 't0Ms'],
-            dsp: function () { return g('SPIRODSP'); } },
+    eeg: {
+      kind: 'samples',
+      unit: 'uV',
+      frameFields: ['samples', 'fs', 't0Ms', 'offsetMin'],
+      dsp: function () {
+        return g('EEGDSP');
+      }
+    },
+    flow: {
+      kind: 'samples',
+      unit: 'L/s',
+      frameFields: ['samples', 'fs', 't0Ms'],
+      dsp: function () {
+        return g('SPIRODSP');
+      }
+    },
     // ── CPAP / PAP therapy (ResMed AirSense EDF set) — SIGNAL-ADAPTER-PHASE9 node 4/4.
     //    The canonical sample payload is the 25 Hz BRP FLOW waveform (`au`/L/s); the
     //    device-scored EVE/CSL events (the node's headline `measured` value) + the rest
@@ -76,23 +123,48 @@
     //    SD-card session-grouping rule (§F4). The CPAPDex app still owns its own binary
     //    ingest; cpap remains emittable via SignalOrchestrate.canEmit + the generic-gate
     //    provider, and is now ALSO reachable through the DRIVER-1 adapter registry. ──
-    cpap: { kind: 'samples', unit: 'L/s',
-            frameFields: ['samples', 'fs', 't0Ms'],
-            dsp: function () { return g('CPAPDex'); } },  // CPAPDex namespace (CpapDsp legacy)
+    cpap: {
+      kind: 'samples',
+      unit: 'L/s',
+      frameFields: ['samples', 'fs', 't0Ms'],
+      dsp: function () {
+        return g('CPAPDex');
+      }
+    }, // CPAPDex namespace (CpapDsp legacy)
     // ── auxiliary channels ──────────────────────────────────────────────────
-    hr:   { kind: 'samples', unit: 'bpm',
-            frameFields: ['samples', 'tsMs', 't0Ms'],
-            dsp: function () { return undefined; } },
-    acc:  { kind: 'samples', unit: 'g',
-            frameFields: ['samples', 'fs', 't0Ms'],
-            dsp: function () { return undefined; } }
+    hr: {
+      kind: 'samples',
+      unit: 'bpm',
+      frameFields: ['samples', 'tsMs', 't0Ms'],
+      dsp: function () {
+        return undefined;
+      }
+    },
+    acc: {
+      kind: 'samples',
+      unit: 'g',
+      frameFields: ['samples', 'fs', 't0Ms'],
+      dsp: function () {
+        return undefined;
+      }
+    }
   };
 
   // Convenience: the set of known signal types + a unit lookup the unifier reads.
-  SignalSpec.types = function () { return Object.keys(SignalSpec).filter(function (k) { return typeof SignalSpec[k] === 'object'; }); };
-  SignalSpec.unitOf = function (type) { var s = SignalSpec[type]; return s && typeof s === 'object' ? s.unit : null; };
-  SignalSpec.kindOf = function (type) { var s = SignalSpec[type]; return s && typeof s === 'object' ? s.kind : null; };
+  SignalSpec.types = function () {
+    return Object.keys(SignalSpec).filter(function (k) {
+      return typeof SignalSpec[k] === 'object';
+    });
+  };
+  SignalSpec.unitOf = function (type) {
+    var s = SignalSpec[type];
+    return s && typeof s === 'object' ? s.unit : null;
+  };
+  SignalSpec.kindOf = function (type) {
+    var s = SignalSpec[type];
+    return s && typeof s === 'object' ? s.kind : null;
+  };
 
   root.SignalSpec = SignalSpec;
   if (typeof module !== 'undefined' && module.exports) module.exports = SignalSpec;
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : /** @type {any} */ (this)));
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : /** @type {any} */ (this));

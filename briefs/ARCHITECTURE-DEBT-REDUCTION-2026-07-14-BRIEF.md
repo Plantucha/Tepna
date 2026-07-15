@@ -275,6 +275,50 @@ gates still accept until the last step.
 
 ## P4 — Format the whole tree, retire the biome override list · **depends on P1**
 
+> **§P4 EXECUTED 2026-07-15.** Whole tree reflowed with `@biomejs/biome@2.5.3 format --write`; the
+> `biome.json` `overrides[0]` formatter-disable block DELETED (biome.json now has no formatter override);
+> CI `format.yml`'s push/manual job flipped from whole-tree `biome lint` to whole-tree `biome ci` (format
+> + lint now enforced everywhere). All 8 apps + the 2 orchestrators re-bundled, plus `build-analysis.mjs`
+> + `build-docs.mjs` regenerated. **Gates green:** `biome ci` (whole tree) exit 0 · tsc `--noEmit` exit 0 ·
+> `node tests/run-tests.mjs` 2497/2497 (14 skipped) · `build.mjs --check` clean (10 owned) ·
+> `verify-manifest.mjs` GATE A/B PASS · `build-analysis.mjs --check` + `build-docs.mjs --check` current.
+>
+> **Export-inertness — PROVEN, not asserted.** A pre/post `FIXTURE-PROVENANCE.json` diff shows **0 output
+> hashes moved and 0 input hashes moved across all 24 fixtures** — the committed export bytes are byte-
+> identical; only the 22 `manifestHash` re-stamps (the whitespace churn) moved. The synthetic/committed-input
+> equiv (GATE-C) legs ran and stayed green.
+>
+> **⚠ CORRECTION to the brief's premise — `computeHash` DID move (re-verification is OWED).** The brief's
+> plan step 5 said "a pure format reflow does not change `compute()` output, so `computeHash` is unmoved."
+> The first clause is true (output unchanged), the second is FALSE for a *DSP-touching* reflow: `computeHash`
+> is `manifestHash`'s projection over the **compute-closure asset TEXT**, and reflowing DSP whitespace
+> changes that text — so per CLAUDE.md's own rule ("DSP/clock/export/registry edit → both move ⇒
+> re-verification owed") `computeHash` moved on all 8 apps and `verifiedUnder` on the **14 corpus-backed
+> fixtures** is now stale. `build.mjs` is forbidden to re-stamp `verifiedUnder`; the only sanctioned writer,
+> `tools/verify-fixtures.mjs`, requires the **full gitignored corpus** and fail-closed refuses here (this
+> environment carries only a partial corpus). **This does NOT red any merge gate** (`run-tests` checks
+> `verifiedUnder` *presence*, not freshness; all 14 still carry one), but `tools/release.mjs` WILL block a
+> release until refreshed. **Owner action owed before the next release:** `DEX_UPLOADS=<full-corpus> node
+> tools/verify-fixtures.mjs` (a green run re-stamps all 14 to the new `computeHash`). Tracked in
+> `briefs/ARCHITECTURE-DEBT-REDUCTION-FOLLOWUPS-2026-07-15-BRIEF.md`.
+>
+> **Gate cost was BIGGER than P4-prep advertised (but still not a rewrite).** P4-prep measured only the
+> override-listed + worker/app files and concluded "mostly a myth." It MISSED a whole family of source-mirror
+> gates in `tests/dex-tests.js` that read files never actually format-checked before (the PR lane only checks
+> *changed* files; the push lane only *lint*ed) — so they carried compressed source (`mk.tau||0`, `x=>`,
+> `(cond)?…`) the reflow legitimately canonicalized. ~14 gate groups broke and were hardened to be
+> whitespace/optional-paren/arrow-paren/indent tolerant: the cross-Dex significance rule, the ECG idle-limit
+> guard, both lombScargle mirrors, the HRV derived-metric gates (`d_csi`/`d_welfare`/`d_efc`/`d_ans_load`/
+> `d_sdnn_z`/`_hasSubj`/`pnn507`/`sdnn7`), HRV additive-ingest (`_hrvSig`/`commitRows`/`_envToSeed`), the ECG
+> `t0Ms` loaders + RR exporters, PpgDex `evt`/`ppgBuildNodeExport` sqi, GlucoDex mmol edges, the
+> `scrubFilename` clip, the badge-by-construction lookback window, and — critically — the two worker-source
+> *universe extractors* (`^function`/`^const` anchored) which the reflow's new indentation made match
+> *nothing*, silently draining the "worker source is CLOSED" gate to a vacuous pass; re-armed with a
+> module-scope-indent bound (`^ {0,3}`) so it excludes function-locals and keeps its teeth. Each hardened
+> regex was adversarially checked to still REJECT a broken form. Two files (`ecgdex-dsp.js`,
+> `integrator-dsp.js`) exposed biome formatter *non-idempotency* on JSDoc casts (a dangling `@type` comment;
+> redundant parens inside a cast) — resolved by a second format pass to the fixpoint, runtime-inert, tsc green.
+>
 > **§P4-PREP DONE 2026-07-15 — the "~17 format-sensitive gates break" blocker is mostly a myth; the ONE
 > real one is fixed.** Measured it instead of assuming: reflowed a biome-formatted COPY of each
 > formatter-exempt source (`sensor-trio-worker.js`, `ppgdex-app.js`, the DSPs) and tested every source-text

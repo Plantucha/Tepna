@@ -27,7 +27,7 @@ import { webcrypto } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-if (!globalThis.crypto) globalThis.crypto = webcrypto;   // manifest-gate.js async sha256 needs subtle
+if (!globalThis.crypto) globalThis.crypto = webcrypto; // manifest-gate.js async sha256 needs subtle
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -40,7 +40,10 @@ const paint = (s, c) => (process.stdout.isTTY ? c + s + C.reset : s);
 let fails = 0;
 function ok(cond, name, detail) {
   if (cond) console.log(paint('  \u2713 ', C.green) + name + (detail ? paint('  ' + detail, C.dim) : ''));
-  else { console.log(paint('  \u2715 ', C.red) + name + (detail ? paint('  ' + detail, C.dim) : '')); fails++; }
+  else {
+    console.log(paint('  \u2715 ', C.red) + name + (detail ? paint('  ' + detail, C.dim) : ''));
+    fails++;
+  }
 }
 const readT = (p) => readFileSync(join(ROOT, p), 'utf8');
 const srcFor = (b) => b.replace(/\.html$/, '.src.html');
@@ -61,18 +64,21 @@ async function main() {
   ok(DexBuild.sha256hex('The quick brown fox jumps over the lazy dog') === 'd7a8fbb307d7809469ca9abcb0082e4f8d5651e46d3cdb762d02d0bf37c9e592', 'sha256(fox)');
   // non-ASCII (UTF-8 path): °₂ etc. must match crypto.subtle
   const uni = 'SpO\u2082 \u00b0C \u2192 \ud83d\udd2c';
-  ok(DexBuild.sha256hex(uni) === await ManifestGate.sha256hex(uni), 'sha256(non-ASCII) \u2261 crypto.subtle');
+  ok(DexBuild.sha256hex(uni) === (await ManifestGate.sha256hex(uni)), 'sha256(non-ASCII) \u2261 crypto.subtle');
 
   const BUNDLES = ManifestGate.MANIFEST_BUNDLES;
-  const owned = BUNDLES.filter(b => existsSync(join(ROOT, b)) && DexBuild.isPlainInline(readT(b)));
+  const owned = BUNDLES.filter((b) => existsSync(join(ROOT, b)) && DexBuild.isPlainInline(readT(b)));
   console.log('\n' + paint('\u25b8 owned (plain-inline) bundles: ' + (owned.length ? owned.join(', ') : '(none yet)'), C.bold));
 
   for (const b of owned) {
     console.log(paint('  \u2500 ' + b, C.dim));
-    const r1 = buildOne(b), r2 = buildOne(b);
+    const r1 = buildOne(b),
+      r2 = buildOne(b);
     ok(r1.html === r2.html && r1.manifestHash === r2.manifestHash, b + ' deterministic (build \u00d72 byte-identical)', r1.manifestHash);
     // mutate one executed-code byte -> manifestHash must move (fingerprint sensitivity)
-    const s = readT(srcFor(b)); const rf = DexBuild.scanRefs(s); const a = {};
+    const s = readT(srcFor(b));
+    const rf = DexBuild.scanRefs(s);
+    const a = {};
     for (const p of [...rf.styles, ...rf.scripts]) a[p] = readT(p);
     const firstScript = rf.scripts[0];
     a[firstScript] = a[firstScript] + '\n;/*drift*/';
@@ -87,8 +93,14 @@ async function main() {
   if (!owned.length) console.log(paint('  \u2218 no owned bundles yet \u2014 core KAT + determinism still gate; parity legs activate as bundles migrate', C.dim));
 
   console.log('');
-  if (fails) { console.error(paint('\u2715 build-core tests: ' + fails + ' failure(s)', C.red)); process.exit(1); }
+  if (fails) {
+    console.error(paint('\u2715 build-core tests: ' + fails + ' failure(s)', C.red));
+    process.exit(1);
+  }
   console.log(paint('\u2713 build-core tests PASS', C.green));
   process.exit(0);
 }
-main().catch(e => { console.error(paint('\u2715 setup: ' + ((e && e.stack) || e), C.red)); process.exit(2); });
+main().catch((e) => {
+  console.error(paint('\u2715 setup: ' + ((e && e.stack) || e), C.red));
+  process.exit(2);
+});

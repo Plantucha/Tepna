@@ -61,7 +61,10 @@ const ManifestGate = require(join(ROOT, 'manifest-gate.js'));
 
 const C = { reset: '\x1b[0m', red: '\x1b[31m', green: '\x1b[32m', dim: '\x1b[2m', bold: '\x1b[1m', yellow: '\x1b[33m', cyan: '\x1b[36m' };
 const paint = (s, c) => (process.stdout.isTTY ? c + s + C.reset : s);
-const die = (code, msg) => { console.error(paint('\u2715 ' + msg, C.red)); process.exit(code); };
+const die = (code, msg) => {
+  console.error(paint('\u2715 ' + msg, C.red));
+  process.exit(code);
+};
 
 /* Section filter (SECTION-SCOPED-RUNS 2026-07-01) — `node tests/verify-manifest.mjs --bundle=oxydex`
    (aliases --only / --group / -b, or the DEX_BUNDLE env var) scopes BOTH gates to the matching
@@ -72,26 +75,42 @@ const die = (code, msg) => { console.error(paint('\u2715 ' + msg, C.red)); proce
 const BUNDLE_FILTER = (() => {
   const a = process.argv.slice(2);
   for (let i = 0; i < a.length; i++) {
-    const m = a[i].match(/^--?(?:bundle|bundles|only|group|b)=(.+)$/i); if (m) return m[1];
+    const m = a[i].match(/^--?(?:bundle|bundles|only|group|b)=(.+)$/i);
+    if (m) return m[1];
     if (/^--?(?:bundle|only|group|b)$/i.test(a[i]) && a[i + 1]) return a[i + 1];
   }
   return process.env.DEX_BUNDLE || process.env.DEX_GROUP || '';
 })();
 function bundleMatcher(filter) {
   if (!filter) return () => true;
-  const tests = String(filter).split(',').map(s => s.trim()).filter(Boolean).map(t => {
-    let rx = null; try { rx = new RegExp(t, 'i'); } catch (_) { rx = null; }
-    const lc = t.toLowerCase();
-    return s => { s = String(s == null ? '' : s); return rx ? rx.test(s) : s.toLowerCase().indexOf(lc) >= 0; };
-  });
-  return name => tests.some(fn => fn(name));
+  const tests = String(filter)
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((t) => {
+      let rx = null;
+      try {
+        rx = new RegExp(t, 'i');
+      } catch (_) {
+        rx = null;
+      }
+      const lc = t.toLowerCase();
+      return (s) => {
+        s = String(s == null ? '' : s);
+        return rx ? rx.test(s) : s.toLowerCase().indexOf(lc) >= 0;
+      };
+    });
+  return (name) => tests.some((fn) => fn(name));
 }
 
 async function main() {
   // committed truth
   let manifest;
-  try { manifest = JSON.parse(readFileSync(join(ROOT, 'BUILD-MANIFEST.json'), 'utf8')); }
-  catch (e) { return die(2, 'BUILD-MANIFEST.json failed to load/parse: ' + e.message); }
+  try {
+    manifest = JSON.parse(readFileSync(join(ROOT, 'BUILD-MANIFEST.json'), 'utf8'));
+  } catch (e) {
+    return die(2, 'BUILD-MANIFEST.json failed to load/parse: ' + e.message);
+  }
   const committed = (manifest && manifest.bundles) || null;
   if (!committed) return die(2, 'BUILD-MANIFEST.json has no `bundles` map');
 
@@ -99,7 +118,10 @@ async function main() {
   const _bmatch = bundleMatcher(BUNDLE_FILTER);
   const BUNDLES = BUNDLE_FILTER ? ManifestGate.MANIFEST_BUNDLES.filter(_bmatch) : ManifestGate.MANIFEST_BUNDLES;
   if (BUNDLE_FILTER) {
-    console.log(paint('▸ FILTERED RUN', C.yellow) + paint('  --bundle="' + BUNDLE_FILTER + '"  →  ' + BUNDLES.length + ' of ' + ManifestGate.MANIFEST_BUNDLES.length + ' bundle(s)  (dev convenience — NOT the full provenance gate)', C.dim));
+    console.log(
+      paint('▸ FILTERED RUN', C.yellow) +
+        paint('  --bundle="' + BUNDLE_FILTER + '"  →  ' + BUNDLES.length + ' of ' + ManifestGate.MANIFEST_BUNDLES.length + ' bundle(s)  (dev convenience — NOT the full provenance gate)', C.dim)
+    );
     if (!BUNDLES.length) return die(2, 'filter matched ZERO bundles — check the pattern (nothing was checked; a scoped run that checks nothing is not a pass)');
   }
 
@@ -107,14 +129,16 @@ async function main() {
   const current = {};
   for (const f of BUNDLES) {
     const p = join(ROOT, f);
-    if (!existsSync(p)) { current[f] = null; continue; }
+    if (!existsSync(p)) {
+      current[f] = null;
+      continue;
+    }
     current[f] = await ManifestGate.manifestHashFromText(readFileSync(p, 'utf8'));
   }
 
   const g = ManifestGate.gateACompare(current, committed, BUNDLES);
 
-  console.log(paint('\u25b8 GATE A — manifestHash \u2194 BUILD-MANIFEST.json', C.bold) +
-    paint('  (' + g.checked + '/' + BUNDLES.length + ' checked)', C.dim));
+  console.log(paint('\u25b8 GATE A — manifestHash \u2194 BUILD-MANIFEST.json', C.bold) + paint('  (' + g.checked + '/' + BUNDLES.length + ' checked)', C.dim));
   for (const r of g.results) {
     if (r.status === 'match') console.log(paint('  \u2713', C.green) + ' ' + r.file + paint('  ' + r.current, C.dim));
     else if (r.status === 'drift') console.log(paint('  \u2715', C.red) + ' ' + r.file + paint('  current ' + r.current + ' \u2260 committed ' + r.committed, C.yellow));
@@ -131,7 +155,8 @@ async function main() {
     const reInlinedHash = /\.match\(\/<script type="__bundler\\\/manifest">/.test(vp);
     if (!wired || reInlinedHash) {
       console.error(paint('  \u2715 verify-provenance.html does not source the shared GATE-A core (manifest-gate.js) — page and CI could drift', C.red));
-      g.ok = false; g.fail++;
+      g.ok = false;
+      g.fail++;
     } else {
       console.log(paint('  \u2713 verify-provenance.html sources the shared GATE-A core (manifest-gate.js)', C.green));
     }
@@ -140,14 +165,15 @@ async function main() {
   // ── GATE B — content-addressed known-answer audit (Phase 7), best-effort (uploads/ may be gitignored) ──
   let gb = { fail: 0, checked: 0, absent: 0, ok: true, results: [] };
   let fixprov = null;
-  try { fixprov = JSON.parse(readFileSync(join(ROOT, 'FIXTURE-PROVENANCE.json'), 'utf8')); }
-  catch (e) { return die(2, 'FIXTURE-PROVENANCE.json failed to load/parse: ' + e.message); }
+  try {
+    fixprov = JSON.parse(readFileSync(join(ROOT, 'FIXTURE-PROVENANCE.json'), 'utf8'));
+  } catch (e) {
+    return die(2, 'FIXTURE-PROVENANCE.json failed to load/parse: ' + e.message);
+  }
   const fixturesAll = (fixprov && fixprov.fixtures) || null;
   if (!fixturesAll) return die(2, 'FIXTURE-PROVENANCE.json has no `fixtures` map');
   // scope GATE B to the filtered bundle(s) too, so --bundle audits only their fixtures
-  const fixtures = BUNDLE_FILTER
-    ? Object.fromEntries(Object.entries(fixturesAll).filter(([, v]) => v && v.bundle && _bmatch(v.bundle)))
-    : fixturesAll;
+  const fixtures = BUNDLE_FILTER ? Object.fromEntries(Object.entries(fixturesAll).filter(([, v]) => v && v.bundle && _bmatch(v.bundle))) : fixturesAll;
   // sha256[0:16] of each referenced committed file's RAW bytes (uploads/<f>); null = absent (CI skip).
   const fileHashes = {};
   for (const f of ManifestGate.gateBFiles(fixtures)) {
@@ -155,15 +181,20 @@ async function main() {
     fileHashes[f] = existsSync(p) ? await ManifestGate.sha16(new Uint8Array(readFileSync(p))) : null;
   }
   gb = ManifestGate.gateBEvaluate(fixtures, current, fileHashes);
-  console.log('\n' + paint('\u25b8 GATE B — content-addressed known-answer audit (input + manifestHash \u2192 output)', C.bold) +
-    paint('  (' + gb.checked + ' reproducible, ' + gb.fail + ' drift, ' + gb.absent + ' skipped — uploads/ not served)', C.dim));
+  console.log(
+    '\n' +
+      paint('\u25b8 GATE B — content-addressed known-answer audit (input + manifestHash \u2192 output)', C.bold) +
+      paint('  (' + gb.checked + ' reproducible, ' + gb.fail + ' drift, ' + gb.absent + ' skipped — uploads/ not served)', C.dim)
+  );
   for (const r of gb.results) {
     if (r.status === 'reproducible' || r.status === 'historical-ok') console.log(paint('  \u2713', C.green) + ' ' + r.name + paint('  ' + r.status, C.dim));
     else if (/-absent$|unloaded$/.test(r.status)) console.log(paint('  \u2218', C.yellow) + ' ' + r.name + paint('  ' + r.status + ' (skip) — ' + r.detail, C.dim));
     else console.log(paint('  \u2715', C.red) + ' ' + r.name + paint('  ' + r.status + ' — ' + r.detail, C.yellow));
   }
-  if (gb.fail === 0 && gb.checked > 0) console.log(paint('  \u2713 GATE B PASS — ' + gb.checked + ' fixture(s) content-addressed reproducible' + (gb.absent ? ' (' + gb.absent + ' skipped)' : ''), C.green));
-  else if (gb.checked === 0 && gb.absent > 0) console.log(paint('  \u2218 GATE B skipped — uploads/ not served (gitignored); browser verify-provenance.html is the authoritative GATE-B surface', C.yellow));
+  if (gb.fail === 0 && gb.checked > 0)
+    console.log(paint('  \u2713 GATE B PASS — ' + gb.checked + ' fixture(s) content-addressed reproducible' + (gb.absent ? ' (' + gb.absent + ' skipped)' : ''), C.green));
+  else if (gb.checked === 0 && gb.absent > 0)
+    console.log(paint('  \u2218 GATE B skipped — uploads/ not served (gitignored); browser verify-provenance.html is the authoritative GATE-B surface', C.yellow));
 
   if (!g.ok || gb.fail > 0) {
     const why = [];
@@ -171,12 +202,18 @@ async function main() {
     if (g.missing) why.push(g.missing + ' bundle(s) with no committed manifestHash');
     if (!g.complete) why.push('manifest incomplete (' + g.checked + '/' + BUNDLES.length + ')');
     if (gb.fail) why.push(gb.fail + ' fixture(s) drifted (GATE B: code/input/output content hash)');
-    return die(1, 'PROVENANCE GATE FAILED — ' + (why.join(', ') || 'see above') +
-      '.\n  GATE A fix: re-bundle the drifted app(s) and hand-update BUILD-MANIFEST.json with the new manifestHash.\n' +
-      '  GATE B fix: re-run the producing app on its committed inputs + re-export (never hand-edit), then re-record the\n' +
-      '  fixture (manifestHash + inputHashes + outputHash) in FIXTURE-PROVENANCE.json.');
+    return die(
+      1,
+      'PROVENANCE GATE FAILED — ' +
+        (why.join(', ') || 'see above') +
+        '.\n  GATE A fix: re-bundle the drifted app(s) and hand-update BUILD-MANIFEST.json with the new manifestHash.\n' +
+        '  GATE B fix: re-run the producing app on its committed inputs + re-export (never hand-edit), then re-record the\n' +
+        '  fixture (manifestHash + inputHashes + outputHash) in FIXTURE-PROVENANCE.json.'
+    );
   }
-  console.log('\n' + paint('\u2713 PROVENANCE PASS — GATE A all ' + g.checked + ' bundles match; GATE B ' + gb.checked + ' fixture(s) reproducible' + (gb.absent ? ' (' + gb.absent + ' skipped)' : ''), C.green));
+  console.log(
+    '\n' + paint('\u2713 PROVENANCE PASS — GATE A all ' + g.checked + ' bundles match; GATE B ' + gb.checked + ' fixture(s) reproducible' + (gb.absent ? ' (' + gb.absent + ' skipped)' : ''), C.green)
+  );
   process.exit(0);
 }
 

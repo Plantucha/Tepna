@@ -27,9 +27,7 @@ if (!outputPath) outputPath = path.basename(manifestPath, '.json') + '-tests.js'
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
 const node = manifest.node;
 const analysisModule = path.basename(manifestPath, '.json') + '-analysis.js';
-const allMetrics = manifest.sections.flatMap(s =>
-  s.metrics.map(m => ({ ...m, sectionId: s.id }))
-);
+const allMetrics = manifest.sections.flatMap((s) => s.metrics.map((m) => ({ ...m, sectionId: s.id })));
 
 // ── Synthetic data generators per modality ───────────────────────────────────
 
@@ -105,7 +103,7 @@ function genTestCases() {
       cases.push({
         name: m.id,
         skip: true,
-        reason: c?.note || 'Not yet implemented',
+        reason: c?.note || 'Not yet implemented'
       });
       continue;
     }
@@ -122,7 +120,7 @@ function genTestCases() {
           data: `generateSyntheticData({ ${source}: ${fixedValue}, ${source === 'pressure' ? 'pressureNoise' : 'leakNoise'}: ${noise} })`,
           expected: fixedValue,
           tolerance: source === 'pressure' ? 0.5 : 2,
-          note: `P${p} of near-constant ${source}`,
+          note: `P${p} of near-constant ${source}`
         });
         break;
       }
@@ -135,17 +133,27 @@ function genTestCases() {
         const val = source === 'pressure' ? 10 : 5;
         const noise = source === 'pressure' ? 0.1 : 1;
         let expected, tol;
-        if (c.fn === 'mean') { expected = val; tol = 0.5; }
-        else if (c.fn === 'cov') { expected = 0; tol = 5; } // low noise = low cov
-        else if (c.fn === 'iqr') { expected = 0; tol = 1; }
-        else { expected = 0; tol = 1; }
+        if (c.fn === 'mean') {
+          expected = val;
+          tol = 0.5;
+        } else if (c.fn === 'cov') {
+          expected = 0;
+          tol = 5;
+        } // low noise = low cov
+        else if (c.fn === 'iqr') {
+          expected = 0;
+          tol = 1;
+        } else {
+          expected = 0;
+          tol = 1;
+        }
 
         cases.push({
           name: m.id,
           data: `generateSyntheticData({ ${source}: ${val}, ${source === 'pressure' ? 'pressureNoise' : 'leakNoise'}: ${noise} })`,
           expected,
           tolerance: tol,
-          note: `${c.fn} of near-constant ${source}`,
+          note: `${c.fn} of near-constant ${source}`
         });
         break;
       }
@@ -159,7 +167,7 @@ function genTestCases() {
           data: `generateSyntheticData({ maskOnStart: 0.25, maskOnEnd: 7.75 })`,
           expected: 7.5,
           tolerance: 0.05,
-          note: '7.5 hours of mask-on time',
+          note: '7.5 hours of mask-on time'
         });
         break;
       }
@@ -170,7 +178,7 @@ function genTestCases() {
           data: `generateSyntheticData({ maskOnStart: 0.5 })`,
           expected: 30,
           tolerance: 1,
-          note: 'Mask-on at 30 minutes',
+          note: 'Mask-on at 30 minutes'
         });
         break;
       }
@@ -179,9 +187,7 @@ function genTestCases() {
         const types = c.eventTypes;
         const denom = c.denominator;
         // Generate 5 known events over 8 hours
-        const eventList = types.map((t, i) =>
-          `{ type: '${t}', time: ${(i + 1) * 3600}, duration: 20 }`
-        ).join(', ');
+        const eventList = types.map((t, i) => `{ type: '${t}', time: ${(i + 1) * 3600}, duration: 20 }`).join(', ');
         const expected = types.length / 8;
 
         cases.push({
@@ -189,23 +195,21 @@ function genTestCases() {
           data: `generateSyntheticData({ maskOnStart: 0, maskOnEnd: 8, events: [${eventList}] })`,
           expected,
           tolerance: 0.01,
-          note: `${types.length} events over 8 hours`,
+          note: `${types.length} events over 8 hours`
         });
         break;
       }
 
       case 'event_count': {
         const types = c.eventTypes;
-        const eventList = types.map((t, i) =>
-          `{ type: '${t}', time: ${(i + 1) * 3600}, duration: 20 }`
-        ).join(', ');
+        const eventList = types.map((t, i) => `{ type: '${t}', time: ${(i + 1) * 3600}, duration: 20 }`).join(', ');
 
         cases.push({
           name: m.id,
           data: `generateSyntheticData({ events: [${eventList}] })`,
           expected: types.length,
           tolerance: 0,
-          note: `Count ${types.length} ${types.join('+')} events`,
+          note: `Count ${types.length} ${types.join('+')} events`
         });
         break;
       }
@@ -217,7 +221,7 @@ function genTestCases() {
           data: `generateSyntheticData({ leakBase: ${thresh - 5}, leakNoise: 1 })`,
           expected: 0,
           tolerance: 5,
-          note: `Leak well below ${thresh} threshold`,
+          note: `Leak well below ${thresh} threshold`
         });
         break;
       }
@@ -226,7 +230,7 @@ function genTestCases() {
         cases.push({
           name: m.id,
           skip: true,
-          reason: `No auto-test for fn type: ${c.fn}`,
+          reason: `No auto-test for fn type: ${c.fn}`
         });
     }
   }
@@ -240,7 +244,7 @@ function generate() {
   const testCases = genTestCases();
   const syntheticFn = genSyntheticDataFn();
 
-  const testEntries = testCases.map(tc => {
+  const testEntries = testCases.map((tc) => {
     if (tc.skip) {
       return `  { name: ${JSON.stringify(tc.name)}, skip: true, reason: ${JSON.stringify(tc.reason || '')} }`;
     }
@@ -251,7 +255,7 @@ function generate() {
       `    expected: ${tc.expected},`,
       `    tolerance: ${tc.tolerance},`,
       `    note: ${JSON.stringify(tc.note || '')},`,
-      `  }`,
+      `  }`
     ].join('\n');
   });
 
@@ -339,7 +343,7 @@ const code = generate();
 fs.writeFileSync(outputPath, code, 'utf-8');
 
 const total = allMetrics.length;
-const tested = genTestCases().filter(t => !t.skip).length;
+const tested = genTestCases().filter((t) => !t.skip).length;
 const skipped = total - tested;
 
 console.log(`\n✓ Generated ${node} test harness`);

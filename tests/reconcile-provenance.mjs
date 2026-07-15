@@ -60,7 +60,8 @@ const paint = (s, c) => (process.stdout.isTTY ? c + s + C.reset : s);
 const FILTER = (() => {
   const a = process.argv.slice(2);
   for (let i = 0; i < a.length; i++) {
-    const m = a[i].match(/^--?(?:bundle|group|only|b|g)=(.+)$/i); if (m) return m[1];
+    const m = a[i].match(/^--?(?:bundle|group|only|b|g)=(.+)$/i);
+    if (m) return m[1];
     if (/^--?(?:bundle|group|only|b|g)$/i.test(a[i]) && a[i + 1]) return a[i + 1];
     if (!a[i].startsWith('-')) return a[i];
   }
@@ -68,28 +69,54 @@ const FILTER = (() => {
 })();
 function matcher(filter) {
   if (!filter) return () => true;
-  const tests = String(filter).split(',').map(s => s.trim()).filter(Boolean).map(t => {
-    let rx = null; try { rx = new RegExp(t, 'i'); } catch (_) { rx = null; }
-    const lc = t.toLowerCase();
-    return s => { s = String(s == null ? '' : s); return rx ? rx.test(s) : s.toLowerCase().indexOf(lc) >= 0; };
-  });
-  return name => tests.some(fn => fn(name));
+  const tests = String(filter)
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((t) => {
+      let rx = null;
+      try {
+        rx = new RegExp(t, 'i');
+      } catch (_) {
+        rx = null;
+      }
+      const lc = t.toLowerCase();
+      return (s) => {
+        s = String(s == null ? '' : s);
+        return rx ? rx.test(s) : s.toLowerCase().indexOf(lc) >= 0;
+      };
+    });
+  return (name) => tests.some((fn) => fn(name));
 }
 
 async function main() {
   const _m = matcher(FILTER);
   const BUNDLES = FILTER ? ManifestGate.MANIFEST_BUNDLES.filter(_m) : ManifestGate.MANIFEST_BUNDLES;
 
-  console.log(paint('Tepna reconcile-provenance', C.bold) + paint('  — READ-ONLY report (never writes)', C.dim) +
-    (FILTER ? paint('  · filter "' + FILTER + '" → ' + BUNDLES.length + ' bundle(s)', C.yellow) : ''));
-  if (FILTER && !BUNDLES.length) { console.log(paint('  filter matched ZERO bundles — check the pattern', C.red)); return; }
+  console.log(
+    paint('Tepna reconcile-provenance', C.bold) +
+      paint('  — READ-ONLY report (never writes)', C.dim) +
+      (FILTER ? paint('  · filter "' + FILTER + '" → ' + BUNDLES.length + ' bundle(s)', C.yellow) : '')
+  );
+  if (FILTER && !BUNDLES.length) {
+    console.log(paint('  filter matched ZERO bundles — check the pattern', C.red));
+    return;
+  }
 
   // committed ledgers
   let manifest, fixprov;
-  try { manifest = JSON.parse(readFileSync(join(ROOT, 'BUILD-MANIFEST.json'), 'utf8')); }
-  catch (e) { console.error(paint('✕ BUILD-MANIFEST.json parse: ' + e.message, C.red)); return; }
-  try { fixprov = JSON.parse(readFileSync(join(ROOT, 'FIXTURE-PROVENANCE.json'), 'utf8')); }
-  catch (e) { console.error(paint('✕ FIXTURE-PROVENANCE.json parse: ' + e.message, C.red)); return; }
+  try {
+    manifest = JSON.parse(readFileSync(join(ROOT, 'BUILD-MANIFEST.json'), 'utf8'));
+  } catch (e) {
+    console.error(paint('✕ BUILD-MANIFEST.json parse: ' + e.message, C.red));
+    return;
+  }
+  try {
+    fixprov = JSON.parse(readFileSync(join(ROOT, 'FIXTURE-PROVENANCE.json'), 'utf8'));
+  } catch (e) {
+    console.error(paint('✕ FIXTURE-PROVENANCE.json parse: ' + e.message, C.red));
+    return;
+  }
   const committed = (manifest && manifest.bundles) || {};
   const fixtures = (fixprov && fixprov.fixtures) || {};
 
@@ -98,13 +125,17 @@ async function main() {
   for (const bundle of BUNDLES) {
     const p = join(ROOT, bundle);
     const committedMH = committed[bundle] && committed[bundle].manifestHash;
-    if (!existsSync(p)) { console.log('\n' + paint('● ' + bundle, C.bold) + paint('  bundle file MISSING on disk — cannot recompute', C.red)); anyAction = true; continue; }
+    if (!existsSync(p)) {
+      console.log('\n' + paint('● ' + bundle, C.bold) + paint('  bundle file MISSING on disk — cannot recompute', C.red));
+      anyAction = true;
+      continue;
+    }
     const currentMH = await ManifestGate.manifestHashFromText(readFileSync(p, 'utf8'));
 
     // fixtures produced by THIS bundle (code-gated only; historical snapshots aren't code-reproducible)
     const myFix = Object.keys(fixtures)
-      .filter(k => k[0] !== '_' && fixtures[k] && fixtures[k].bundle === bundle && !fixtures[k].historical)
-      .map(k => ({ name: k, rec: fixtures[k] }));
+      .filter((k) => k[0] !== '_' && fixtures[k] && fixtures[k].bundle === bundle && !fixtures[k].historical)
+      .map((k) => ({ name: k, rec: fixtures[k] }));
 
     if (currentMH === committedMH) {
       console.log('\n' + paint('● ' + bundle, C.bold) + '  ' + paint('✓ RECONCILED', C.green) + paint('  manifestHash ' + currentMH + ' — nothing to do', C.dim));
@@ -112,15 +143,19 @@ async function main() {
     }
 
     anyAction = true;
-    console.log('\n' + paint('● ' + bundle, C.bold) + '  ' + paint('manifestHash MOVED', C.yellow) +
-      paint('  committed ' + (committedMH || '(none)') + '  →  current ' + currentMH, C.dim));
+    console.log('\n' + paint('● ' + bundle, C.bold) + '  ' + paint('manifestHash MOVED', C.yellow) + paint('  committed ' + (committedMH || '(none)') + '  →  current ' + currentMH, C.dim));
 
     // classify: did any committed fixture OUTPUT change? (output-drift => real output change)
-    let outMoved = [], outSame = [], outAbsent = [];
+    let outMoved = [],
+      outSame = [],
+      outAbsent = [];
     for (const f of myFix) {
       const outName = f.name; // fixtures keyed by the committed output file name
       const op = join(ROOT, 'uploads', outName);
-      if (!existsSync(op)) { outAbsent.push(f); continue; }
+      if (!existsSync(op)) {
+        outAbsent.push(f);
+        continue;
+      }
       const outNow = await ManifestGate.sha16(new Uint8Array(readFileSync(op)));
       if (f.rec.outputHash && outNow !== f.rec.outputHash) outMoved.push({ ...f, outNow });
       else outSame.push({ ...f, outNow });
@@ -131,9 +166,15 @@ async function main() {
       console.log(paint('    DO NOT hand-edit outputs. REGENERATE by re-running the app on its committed inputs and re-exporting,', C.dim));
       console.log(paint('    then re-record { manifestHash, inputHashes, outputHash } for each. The equiv/golden leg gates this.', C.dim));
       for (const f of outMoved) console.log(paint('      • ' + f.name + '  output ' + f.rec.outputHash + ' → ' + f.outNow + '  (regenerate; do not paste this hash)', C.yellow));
-      if (outSame.length) console.log(paint('    (also re-record manifestHash on the same-output siblings below — same code moved them: ' + outSame.map(f => f.name).join(', ') + ')', C.dim));
+      if (outSame.length) console.log(paint('    (also re-record manifestHash on the same-output siblings below — same code moved them: ' + outSame.map((f) => f.name).join(', ') + ')', C.dim));
     } else if (outAbsent.length === myFix.length && myFix.length) {
-      console.log('  ' + paint('⟶ CANNOT CLASSIFY', C.yellow) + '  all ' + myFix.length + ' fixture output(s) absent (uploads/ gitignored?). Re-run where uploads/ is served (the browser page) to classify inert vs moved.');
+      console.log(
+        '  ' +
+          paint('⟶ CANNOT CLASSIFY', C.yellow) +
+          '  all ' +
+          myFix.length +
+          ' fixture output(s) absent (uploads/ gitignored?). Re-run where uploads/ is served (the browser page) to classify inert vs moved.'
+      );
     } else {
       console.log('  ' + paint('⟶ EXPORT-INERT', C.green) + '  every committed fixture output is unchanged — the code change did not move any export.');
     }
@@ -145,8 +186,15 @@ async function main() {
     // Fixture manifestHash re-records (both inert siblings and moved ones carry the new code identity)
     const reRecord = outMoved.length ? myFix : outSame; // when output moved, ALL of this bundle's fixtures re-record
     if (reRecord.length) {
-      console.log(paint('    RE-RECORD FIXTURE-PROVENANCE.json fixtures[<name>].manifestHash → "' + currentMH + '"' +
-        (outMoved.length ? '  (AND regenerate outputs first — see above)' : '  (outputHash UNCHANGED — inert):'), C.cyan));
+      console.log(
+        paint(
+          '    RE-RECORD FIXTURE-PROVENANCE.json fixtures[<name>].manifestHash → "' +
+            currentMH +
+            '"' +
+            (outMoved.length ? '  (AND regenerate outputs first — see above)' : '  (outputHash UNCHANGED — inert):'),
+          C.cyan
+        )
+      );
       for (const f of reRecord) console.log(paint('      • ' + f.name + '   ' + (f.rec.manifestHash || '(none)') + ' → ' + currentMH, C.dim));
     }
   }

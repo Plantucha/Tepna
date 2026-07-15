@@ -51,16 +51,19 @@ const TCH = require(join(ROOT, 'integrator-tch.js'));
 /* ── deterministic seeded normals (same generator family as tests/tch-selftest) ── */
 function mulberry32(a) {
   return function () {
-    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
     let t = Math.imul(a ^ (a >>> 15), 1 | a);
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
 function normals(seed, n) {
-  const r = mulberry32(seed), o = [];
+  const r = mulberry32(seed),
+    o = [];
   for (let i = 0; i < n; i += 2) {
-    const u1 = Math.max(r(), 1e-12), u2 = r();
+    const u1 = Math.max(r(), 1e-12),
+      u2 = r();
     const m = Math.sqrt(-2 * Math.log(u1));
     o.push(m * Math.cos(2 * Math.PI * u2));
     o.push(m * Math.sin(2 * Math.PI * u2));
@@ -113,16 +116,24 @@ function runNight(night, labels) {
   const withRho = TCH.threeCorneredHat(al.A, al.B, al.C, opts);
 
   return {
-    ...base, ok: true,
-    rho: rho ? rho.value : null, rhoMeanR: rho ? rho.meanPairR : null,
-    classic, withRho, truth: night.truth || null,
+    ...base,
+    ok: true,
+    rho: rho ? rho.value : null,
+    rhoMeanR: rho ? rho.meanPairR : null,
+    classic,
+    withRho,
+    truth: night.truth || null,
     // per-node σ for the corner that is quietest / smoothed under the quiet-order regime
-    sigmaClassic: sigmaMap(classic), sigmaRho: sigmaMap(withRho),
+    sigmaClassic: sigmaMap(classic),
+    sigmaRho: sigmaMap(withRho)
   };
 }
 function sigmaMap(r) {
   if (!r || !r.ok || !r.sigma) return null;
-  const o = {}; Object.keys(r.sigma).forEach((k) => { o[k] = +r.sigma[k].toFixed(3); });
+  const o = {};
+  Object.keys(r.sigma).forEach((k) => {
+    o[k] = +r.sigma[k].toFixed(3);
+  });
   return o;
 }
 
@@ -145,20 +156,38 @@ const LABELS = ['ECGDex', 'PpgDex', 'OxyDex']; // H10-ECG · Verity-PPG · O2Rin
  * `_tchRhoFromMotion` estimates. quiet-order nights load Zq heavily on H10 & Oxy
  * (corr → ~0.9, both small σ) so classic drives the quieter corner pathological. */
 function synthNight(spec) {
-  const N = spec.n || 120, seed = spec.seed;
-  const L = (() => { const w = normals(seed, N), v = []; let acc = 58; for (let i = 0; i < N; i++) { acc += w[i] * 0.6; v.push(acc); } return v; })();
-  const Zg = normals(seed + 1, N), Zq = normals(seed + 2, N);          // shared drivers
+  const N = spec.n || 120,
+    seed = spec.seed;
+  const L = (() => {
+    const w = normals(seed, N),
+      v = [];
+    let acc = 58;
+    for (let i = 0; i < N; i++) {
+      acc += w[i] * 0.6;
+      v.push(acc);
+    }
+    return v;
+  })();
+  const Zg = normals(seed + 1, N),
+    Zq = normals(seed + 2, N); // shared drivers
   const Z = { ECGDex: normals(seed + 11, N), PpgDex: normals(seed + 22, N), OxyDex: normals(seed + 33, N) };
   const mNoise = { ECGDex: normals(seed + 44, N), PpgDex: normals(seed + 55, N), OxyDex: normals(seed + 66, N) };
-  const s = spec.sigma, ld = spec.load, mScale = spec.motionScale || 1.4, mNz = spec.motionNoise || 0.5;
+  const s = spec.sigma,
+    ld = spec.load,
+    mScale = spec.motionScale || 1.4,
+    mNz = spec.motionNoise || 0.5;
 
-  const series = {}, motion = {};
+  const series = {},
+    motion = {};
   for (const lab of LABELS) {
-    const g = ld[lab].g, q = ld[lab].q, indep = Math.max(0, 1 - g - q);
-    series[lab] = []; motion[lab] = [];
+    const g = ld[lab].g,
+      q = ld[lab].q,
+      indep = Math.max(0, 1 - g - q);
+    series[lab] = [];
+    motion[lab] = [];
     for (let i = 0; i < N; i++) {
-      const shared = Math.sqrt(g) * Zg[i] + Math.sqrt(q) * Zq[i];      // common-mode driver mix
-      const e = s[lab] * (shared + Math.sqrt(indep) * Z[lab][i]);      // Var = s² exactly
+      const shared = Math.sqrt(g) * Zg[i] + Math.sqrt(q) * Zq[i]; // common-mode driver mix
+      const e = s[lab] * (shared + Math.sqrt(indep) * Z[lab][i]); // Var = s² exactly
       series[lab].push({ tMin: i * 0.5, v: L[i] + e });
       // motion index: same shared drivers (physical premise: motion drives shared error) + noise, ≥0
       motion[lab].push({ tMin: i * 0.5, v: Math.abs(mScale * shared + mNz * mNoise[lab][i]) });
@@ -186,7 +215,7 @@ function synthCorpus() {
     { label: 'PV-3', seed: 303, regime: 'positive', load: PV, sigma: { ECGDex: 0.8, PpgDex: 2.4, OxyDex: 1.2 } },
     { label: 'QO-1', seed: 404, regime: 'quiet-order', load: QO, sigma: { ECGDex: 1.0, PpgDex: 2.9, OxyDex: 0.5 } },
     { label: 'QO-2', seed: 505, regime: 'quiet-order', load: QO, sigma: { ECGDex: 1.1, PpgDex: 3.4, OxyDex: 0.5 } },
-    { label: 'QO-3', seed: 606, regime: 'quiet-order', load: QO, sigma: { ECGDex: 0.9, PpgDex: 2.6, OxyDex: 0.45 } },
+    { label: 'QO-3', seed: 606, regime: 'quiet-order', load: QO, sigma: { ECGDex: 0.9, PpgDex: 2.6, OxyDex: 0.45 } }
   ];
   return specs.map(synthNight);
 }
@@ -199,13 +228,20 @@ function synthCorpus() {
  * ──────────────────────────────────────────────────────────────────────── */
 function readNightDir(dir) {
   const files = readdirSync(dir).filter((f) => /\.json$/i.test(f));
-  const series = {}, motion = {};
+  const series = {},
+    motion = {};
   for (const f of files) {
-    let j; try { j = JSON.parse(readFileSync(join(dir, f), 'utf8')); } catch { continue; }
+    let j;
+    try {
+      j = JSON.parse(readFileSync(join(dir, f), 'utf8'));
+    } catch {
+      continue;
+    }
     const node = nodeOf(j, f);
     if (!node || !LABELS.includes(node)) continue;
     const eps = (j.timeseries && j.timeseries.epochs) || (j.series && j.series.epochs) || [];
-    const hr = [], mo = [];
+    const hr = [],
+      mo = [];
     for (const e of eps) {
       const key = epKey(e);
       if (key == null) continue;
@@ -232,38 +268,71 @@ function epKey(e) {
 /* ════════════════════════════════════════════════════════════════════════
  * Reporting + verdict
  * ──────────────────────────────────────────────────────────────────────── */
-function median(xs) { const a = xs.filter((x) => x != null && isFinite(x)).slice().sort((p, q) => p - q); if (!a.length) return null; const m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; }
+function median(xs) {
+  const a = xs
+    .filter((x) => x != null && isFinite(x))
+    .slice()
+    .sort((p, q) => p - q);
+  if (!a.length) return null;
+  const m = a.length >> 1;
+  return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+}
 
 function report(rows, { json } = {}) {
-  if (json) { console.log(JSON.stringify(rows, null, 2)); return; }
+  if (json) {
+    console.log(JSON.stringify(rows, null, 2));
+    return;
+  }
   const w = (s, n) => String(s).padEnd(n);
   const r = (s, n) => String(s).padStart(n);
   console.log('\n  night   n   ρ     method(classic→ρ)          σ classic (E/P/O)       σ ρ-on (E/P/O)        culprit');
   console.log('  ' + '─'.repeat(104));
   for (const row of rows) {
-    if (!row.ok) { console.log('  ' + w(row.label, 7) + r(row.n, 3) + '   —    ' + row.reason); continue; }
-    const sc = row.sigmaClassic, sr = row.sigmaRho;
-    const f3 = (o) => o ? [o.ECGDex, o.PpgDex, o.OxyDex].map((x) => x == null ? ' — ' : x.toFixed(2)).join('/') : 'solve-failed';
+    if (!row.ok) {
+      console.log('  ' + w(row.label, 7) + r(row.n, 3) + '   —    ' + row.reason);
+      continue;
+    }
+    const sc = row.sigmaClassic,
+      sr = row.sigmaRho;
+    const f3 = (o) => (o ? [o.ECGDex, o.PpgDex, o.OxyDex].map((x) => (x == null ? ' — ' : x.toFixed(2))).join('/') : 'solve-failed');
     const meth = (row.classic.method || '?') + '→' + (row.withRho.method || '?');
-    console.log('  ' + w(row.label, 7) + r(row.n, 3) + '  ' + r(row.rho == null ? '—' : row.rho.toFixed(2), 4) + '  '
-      + w(meth, 24) + '  ' + w(f3(sc), 20) + '  ' + w(f3(sr), 20) + '  ' + (row.withRho.culprit || row.classic.culprit || '?'));
+    console.log(
+      '  ' +
+        w(row.label, 7) +
+        r(row.n, 3) +
+        '  ' +
+        r(row.rho == null ? '—' : row.rho.toFixed(2), 4) +
+        '  ' +
+        w(meth, 24) +
+        '  ' +
+        w(f3(sc), 20) +
+        '  ' +
+        w(f3(sr), 20) +
+        '  ' +
+        (row.withRho.culprit || row.classic.culprit || '?')
+    );
   }
   // distribution summary
   const solved = rows.filter((x) => x.ok && x.withRho.ok);
-  const culpritSig = solved.map((x) => x.sigmaRho ? x.sigmaRho[x.withRho.culprit] : null);
+  const culpritSig = solved.map((x) => (x.sigmaRho ? x.sigmaRho[x.withRho.culprit] : null));
   console.log('\n  distribution (' + solved.length + ' solved / ' + rows.length + ' nights):');
   console.log('    median culprit σ (ρ-on)  = ' + fmt(median(culpritSig)) + ' bpm');
   LABELS.forEach((L) => {
-    console.log('    median σ[' + L + ']  classic=' + fmt(median(solved.map((x) => x.sigmaClassic && x.sigmaClassic[L])))
-      + '  ρ-on=' + fmt(median(solved.map((x) => x.sigmaRho && x.sigmaRho[L]))) + ' bpm');
+    console.log(
+      '    median σ[' + L + ']  classic=' + fmt(median(solved.map((x) => x.sigmaClassic && x.sigmaClassic[L]))) + '  ρ-on=' + fmt(median(solved.map((x) => x.sigmaRho && x.sigmaRho[L]))) + ' bpm'
+    );
   });
 }
-function fmt(x) { return x == null ? ' — ' : x.toFixed(2); }
+function fmt(x) {
+  return x == null ? ' — ' : x.toFixed(2);
+}
 
 /* ── known-answer verdict for the synthetic corpus ────────────────────────── */
 function verify(rows, corpus) {
   const checks = [];
-  const ok = (name, cond, detail) => { checks.push({ name, pass: !!cond, detail: detail || '' }); };
+  const ok = (name, cond, detail) => {
+    checks.push({ name, pass: !!cond, detail: detail || '' });
+  };
   const byLabel = Object.fromEntries(corpus.map((c) => [c.label, c]));
 
   for (const row of rows) {
@@ -276,7 +345,8 @@ function verify(rows, corpus) {
     // (2) culprit σ recovered within a factor of planted (reference-anchored magnitude).
     // Positive-variance nights recover tightly (×1.6); a scalar-ρ solve on a quiet-order
     // night whose true correlation is a matrix recovers the culprit only to ×2.
-    const cS = row.sigmaRho[loudest], cT = spec.truth[loudest];
+    const cS = row.sigmaRho[loudest],
+      cT = spec.truth[loudest];
     const fac = spec.regime === 'quiet-order' ? 2.0 : 1.6;
     ok(row.label + ': culprit σ magnitude ≈ planted (×' + fac + ')', cS != null && cS > cT / fac && cS < cT * fac, 'planted ' + cT.toFixed(2) + ' → ' + fmt(cS));
 
@@ -288,15 +358,20 @@ function verify(rows, corpus) {
       const oRho = row.sigmaRho ? row.sigmaRho.OxyDex : null;
       const quietSig = (oClassic != null && oClassic < 0.35) || row.classic.method === 'correlated' || row.classic.negative;
       ok(row.label + ': classic shows the quiet-order signature', quietSig, 'classic OxyDex σ=' + fmt(oClassic) + ' method=' + row.classic.method);
-      ok(row.label + ': motion-ρ RESCUES OxyDex σ (lifts clearly above classic)', oRho != null && oClassic != null && oRho > oClassic + 0.2 && oRho > 0.4, 'classic ' + fmt(oClassic) + ' → ρ-on ' + fmt(oRho));
+      ok(
+        row.label + ': motion-ρ RESCUES OxyDex σ (lifts clearly above classic)',
+        oRho != null && oClassic != null && oRho > oClassic + 0.2 && oRho > 0.4,
+        'classic ' + fmt(oClassic) + ' → ρ-on ' + fmt(oRho)
+      );
       ok(row.label + ': a real co-motion ρ was derived (>0)', row.rho != null && row.rho > 0, 'ρ=' + fmt(row.rho));
     } else {
       // (4) positive-variance: the total recovered variance Σσ² does NOT fall under ρ — the
       // §5 invariant (positive common-mode makes classic UNDER-estimate; ρ un-biases σ upward).
       // Per-node it can redistribute (a scalar-ρ solve may lower one corner while raising others),
       // so the invariant is on the SUM, not each component.
-      const sum = (m) => m ? LABELS.reduce((a, L) => a + (m[L] != null ? m[L] * m[L] : 0), 0) : null;
-      const s2c = sum(row.sigmaClassic), s2r = sum(row.sigmaRho);
+      const sum = (m) => (m ? LABELS.reduce((a, L) => a + (m[L] != null ? m[L] * m[L] : 0), 0) : null);
+      const s2c = sum(row.sigmaClassic),
+        s2r = sum(row.sigmaRho);
       ok(row.label + ': ρ does not lower total Σσ² (§5 invariant)', s2c != null && s2r != null && s2r >= s2c - 0.5, 'Σσ² classic=' + fmt(s2c) + ' → ρ-on=' + fmt(s2r));
     }
   }
@@ -315,9 +390,17 @@ function main() {
 
   if (dirIx >= 0) {
     const base = argv[dirIx + 1];
-    if (!base || !existsSync(base)) { console.error('  --dir: path not found: ' + base); process.exit(2); }
-    const subs = readdirSync(base).map((d) => join(base, d)).filter((p) => statSync(p).isDirectory());
-    if (!subs.length) { console.error('  --dir: expected one subdirectory per night (each with 3 node-export JSONs) under ' + base); process.exit(2); }
+    if (!base || !existsSync(base)) {
+      console.error('  --dir: path not found: ' + base);
+      process.exit(2);
+    }
+    const subs = readdirSync(base)
+      .map((d) => join(base, d))
+      .filter((p) => statSync(p).isDirectory());
+    if (!subs.length) {
+      console.error('  --dir: expected one subdirectory per night (each with 3 node-export JSONs) under ' + base);
+      process.exit(2);
+    }
     const rows = subs.map((d) => runNight(readNightDir(d), LABELS));
     report(rows, { json });
     console.log('\n  (real nights: no planted truth → distribution is the verdict; compare median σ to the corpus reference.)');
@@ -329,10 +412,14 @@ function main() {
   const rows = corpus.map((c) => runNight(c, LABELS));
   report(rows, { json });
   const checks = verify(rows, corpus);
-  const pass = checks.filter((c) => c.pass).length, fail = checks.length - pass;
+  const pass = checks.filter((c) => c.pass).length,
+    fail = checks.length - pass;
   console.log('\n  known-answer checks: ' + pass + '/' + checks.length + ' passed');
   for (const c of checks) if (!c.pass) console.log('    ✗ ' + c.name + (c.detail ? '  [' + c.detail + ']' : ''));
-  if (fail) { console.error('\n  SELF-TEST RED — ' + fail + ' known-answer check(s) failed'); process.exit(1); }
+  if (fail) {
+    console.error('\n  SELF-TEST RED — ' + fail + ' known-answer check(s) failed');
+    process.exit(1);
+  }
   console.log('  ✓ multi-night mechanism + rescue + magnitude reproduced on the known-answer corpus\n');
 }
 

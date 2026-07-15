@@ -41,8 +41,11 @@ const paint = (s, c) => (process.stdout.isTTY ? c + s + C.reset : s);
 const FILTER = (() => {
   const a = process.argv.slice(2);
   for (let i = 0; i < a.length; i++) {
-    const m = a[i].match(/^--?(?:group|bundle|only|g|b)=(.+)$/i); if (m) return m[1];
-    if (/^--?(?:group|bundle|only|g|b)$/i.test(a[i]) && a[i + 1]) { return a[i + 1]; }
+    const m = a[i].match(/^--?(?:group|bundle|only|g|b)=(.+)$/i);
+    if (m) return m[1];
+    if (/^--?(?:group|bundle|only|g|b)$/i.test(a[i]) && a[i + 1]) {
+      return a[i + 1];
+    }
     if (!a[i].startsWith('-')) return a[i];
   }
   return process.env.DEX_GROUP || process.env.DEX_BUNDLE || '';
@@ -60,7 +63,10 @@ function run(label, file, arg) {
     console.log('\n' + paint('▸ ' + label, C.cyan) + paint('  node tests/' + file + ' ' + arg, C.dim));
     const child = spawn(process.execPath, [join(__dirname, file), arg], { stdio: 'inherit' });
     child.on('close', (code) => resolve(code === 0));
-    child.on('error', (e) => { console.error(paint('  ✕ failed to spawn ' + file + ': ' + e.message, C.red)); resolve(false); });
+    child.on('error', (e) => {
+      console.error(paint('  ✕ failed to spawn ' + file + ': ' + e.message, C.red));
+      resolve(false);
+    });
   });
 }
 
@@ -73,9 +79,11 @@ function run(label, file, arg) {
   console.log('\n' + paint('══════════════════════════════════════════', C.dim));
   console.log(
     (ok ? paint('✓ SCOPED GREEN', C.green) : paint('✕ SCOPED FAIL', C.red)) +
-    '  behavior ' + (behavior ? paint('✓', C.green) : paint('✕', C.red)) +
-    '  ·  provenance ' + (provenance ? paint('✓', C.green) : paint('✕', C.red)) +
-    paint('  [FILTERED: ' + FILTER + ' — NOT the full gate]', C.yellow)
+      '  behavior ' +
+      (behavior ? paint('✓', C.green) : paint('✕', C.red)) +
+      '  ·  provenance ' +
+      (provenance ? paint('✓', C.green) : paint('✕', C.red)) +
+      paint('  [FILTERED: ' + FILTER + ' — NOT the full gate]', C.yellow)
   );
   if (ok) console.log(paint('  next: full sweep = `node tests/run-tests.mjs` + `node tests/verify-manifest.mjs` (both UNFILTERED),', C.dim));
   if (ok) console.log(paint('        plus Dex-Test-Suite.html?full for browser render-coverage.', C.dim));

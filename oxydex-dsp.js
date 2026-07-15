@@ -3853,7 +3853,9 @@
       ).toFixed(1);
     });
     if (qs.indexOf(null) >= 0) return null;
-    var arc = qs && qs.length >= 4 ? +(/** @type {number} */ (qs[2]) - /** @type {number} */ (qs[0])).toFixed(1) : 0;
+    var q1hr = /** @type {number} */ (qs[0]);
+    var q3hr = /** @type {number} */ (qs[2]);
+    var arc = qs && qs.length >= 4 ? +(q3hr - q1hr).toFixed(1) : 0;
     return {
       hrQ1: qs && qs.length >= 4 ? qs[0] : null,
       hrQ2: qs && qs.length >= 4 ? qs[1] : null,

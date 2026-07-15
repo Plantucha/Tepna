@@ -35,22 +35,30 @@
     vendor: VENDOR,
     device: DEVICE,
     detect: function (file, headText) {
-      var name = (file && file.name || '') + '';
+      var name = ((file && file.name) || '') + '';
       var head = (headText || '') + '';
-      if (/coospo|hw9|h808/i.test(name + ' ' + head)) return 0.95;          // explicit vendor mark
+      if (/coospo|hw9|h808/i.test(name + ' ' + head)) return 0.95; // explicit vendor mark
       if (/\bRRI?\b|RR\(ms\)|RR_?Interval/i.test(head) && /coospo|hw9|h808/i.test(head)) return 0.8;
       return 0;
     },
     parse: function (text, ctx) {
       ctx = ctx || {};
       var parseRR = ctx.parseRRInput || (typeof root.parseRRInput === 'function' ? root.parseRRInput : null);
-      if (!parseRR) return root.SignalFrame.toSignalFrame('rr', { usable: false, reason: 'coospo-rr: no parseRRInput in scope (load PulseDex DSP in isolation)' }, { adapter: 'coospo-rr', vendor: VENDOR, device: DEVICE });
+      if (!parseRR)
+        return root.SignalFrame.toSignalFrame(
+          'rr',
+          { usable: false, reason: 'coospo-rr: no parseRRInput in scope (load PulseDex DSP in isolation)' },
+          { adapter: 'coospo-rr', vendor: VENDOR, device: DEVICE }
+        );
       // Coospo firmware tends to stamp MDY; let the shared parser resolve via preferDMY:false.
       var raw = parseRR(text);
       return root.SignalFrame.toSignalFrame('rr', raw, {
-        adapter: 'coospo-rr', vendor: VENDOR, device: DEVICE,
-        files: ctx.files || null, warnings: []
+        adapter: 'coospo-rr',
+        vendor: VENDOR,
+        device: DEVICE,
+        files: ctx.files || null,
+        warnings: []
       });
     }
   });
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);

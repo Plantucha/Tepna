@@ -44,7 +44,7 @@
   function applyBaevskyGuard(rows) {
     var Q = root.DexUnits;
     var audit = { applied: !!(Q && Q.guardBaevsky), flagged: 0, msNormalized: 0, total: rows.length };
-    if (!(Q && Q.guardBaevsky)) return audit;   // degrade gracefully if quantity.js isn't loaded
+    if (!(Q && Q.guardBaevsky)) return audit; // degrade gracefully if quantity.js isn't loaded
     rows.forEach(function (r) {
       var g = Q.guardBaevsky(r._mode, r._mxdmn);
       var si = Q.baevskySI(r._amo50, g.modeS, g.mxdmnS);
@@ -61,13 +61,13 @@
     vendor: VENDOR,
     device: DEVICE,
     detect: function (file, headText) {
-      var name = (file && file.name || '') + '';
+      var name = ((file && file.name) || '') + '';
       var head = (headText || '') + '';
       // node-export JSON (any node) is NOT a summary CSV — never claim it here; it
       // routes via OverDex's node-export passthrough. (A node export's body can
       // contain "rmssd"/"sdnn" tokens, so the JSON guard is load-bearing.)
       if (/^[\s\uFEFF]*[\[{]/.test(head)) return 0;
-      if (/welltory/i.test(name)) return 0.95;                                  // explicit app/file mark
+      if (/welltory/i.test(name)) return 0.95; // explicit app/file mark
       // Welltory-specific subjective columns are an unambiguous signature.
       if (/stress\(hrv\)|ans\s*balance/i.test(head)) return 0.95;
       // Generic HRV-summary header shape: rMSSD + SDNN + a Mode/MxDMn/AMo column.
@@ -77,12 +77,12 @@
     },
     parse: function (text, ctx) {
       ctx = ctx || {};
-      var parseFn = ctx.parseRows
-        || (root.HRVDex && typeof root.HRVDex.parseRows === 'function' ? root.HRVDex.parseRows : null);
+      var parseFn = ctx.parseRows || (root.HRVDex && typeof root.HRVDex.parseRows === 'function' ? root.HRVDex.parseRows : null);
       var prov = { adapter: 'welltory-summary', vendor: VENDOR, device: DEVICE, files: ctx.files || null, warnings: /** @type {string[]} */ ([]) };
       if (!parseFn) return root.SignalFrame.toSignalFrame('hrv', { usable: false, reason: 'welltory-summary: no HRVDex.parseRows in scope (load HRVDex DSP in isolation)' }, prov);
       var rows = parseFn(text);
-      if (!rows || !rows.length) return root.SignalFrame.toSignalFrame('hrv', { usable: false, reason: 'welltory-summary: no usable HRV measurements parsed (need Date/Time + rMSSD/SDNN columns)' }, prov);
+      if (!rows || !rows.length)
+        return root.SignalFrame.toSignalFrame('hrv', { usable: false, reason: 'welltory-summary: no usable HRV measurements parsed (need Date/Time + rMSSD/SDNN columns)' }, prov);
 
       // ── Clock Contract §4/§5 ordering at the ingest boundary (SIGNAL-ADAPTER-FOLLOWUPS -IV §1) ──
       // A SignalFrame's samples/tsMs MUST be ascending in floating tMs — validateFrame REJECTS a
@@ -93,8 +93,8 @@
       // dies (found via the live drop-through). Rows with a null/NaN stamp sort last (their own
       // gap); t0 below then resolves to the EARLIEST sample (Clock Contract §4).
       rows.sort(function (a, b) {
-        var x = (a && typeof a._tMs === 'number' && isFinite(a._tMs)) ? a._tMs : Infinity;
-        var y = (b && typeof b._tMs === 'number' && isFinite(b._tMs)) ? b._tMs : Infinity;
+        var x = a && typeof a._tMs === 'number' && isFinite(a._tMs) ? a._tMs : Infinity;
+        var y = b && typeof b._tMs === 'number' && isFinite(b._tMs) ? b._tMs : Infinity;
         return x - y;
       });
 
@@ -106,12 +106,21 @@
       }
       // ── correctness item 2: Welltory subjective scores are black-box composites ──
       var t0 = rows[0]._tMs != null ? rows[0]._tMs : null;
-      var tsMs = rows.map(function (r) { return r._tMs; });
-      var frame = root.SignalFrame.toSignalFrame('hrv', {
-        samples: rows, fs: null, t0Ms: t0, tsMs: tsMs,
-        usable: rows.length >= 1,
-        reason: rows.length >= 1 ? null : 'no measurement rows'
-      }, prov);
+      var tsMs = rows.map(function (r) {
+        return r._tMs;
+      });
+      var frame = root.SignalFrame.toSignalFrame(
+        'hrv',
+        {
+          samples: rows,
+          fs: null,
+          t0Ms: t0,
+          tsMs: tsMs,
+          usable: rows.length >= 1,
+          reason: rows.length >= 1 ? null : 'no measurement rows'
+        },
+        prov
+      );
       // toSignalFrame only copies the known provenance fields, so stamp the
       // black-box-composite markers onto the built frame's provenance directly.
       frame.provenance.derived = true;
@@ -125,4 +134,4 @@
       return frame;
     }
   });
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);

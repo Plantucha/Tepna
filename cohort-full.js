@@ -27,22 +27,37 @@
 
   function mulberry32(seed) {
     var a = seed >>> 0;
-    return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; var t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    return function () {
+      a |= 0;
+      a = (a + 0x6d2b79f5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
   }
-  function gaussFrom(rng) { var u = 0, v = 0; while (u === 0) u = rng(); while (v === 0) v = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+  function gaussFrom(rng) {
+    var u = 0,
+      v = 0;
+    while (u === 0) u = rng();
+    while (v === 0) v = rng();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
 
   // ── PQRST morphology: sum of skew-tuned Gaussians (µV), phase 0..1 within a beat ──
   // Amplitudes/widths fit the Lead-II look ECGDSP.genSynthetic targets: R ~1.1 mV,
   // sharp QRS, broad T, small P. Width scales mildly with RR (rate-dependent QT).
   function pqrst(ph, rrSec) {
-    function g(c, amp, w) { var d = ph - c; return amp * Math.exp(-(d * d) / (2 * w * w)); }
+    function g(c, amp, w) {
+      var d = ph - c;
+      return amp * Math.exp(-(d * d) / (2 * w * w));
+    }
     var qtScale = Math.min(1.25, Math.max(0.8, Math.sqrt(rrSec / 0.8))); // Bazett-ish T stretch
     return (
-      g(0.18, 90, 0.025) +          // P
-      g(0.385, -180, 0.012) +       // Q
-      g(0.41, 1180, 0.0085) +       // R
-      g(0.435, -300, 0.013) +       // S
-      g(0.62, 235, 0.04 * qtScale)  // T
+      g(0.18, 90, 0.025) + // P
+      g(0.385, -180, 0.012) + // Q
+      g(0.41, 1180, 0.0085) + // R
+      g(0.435, -300, 0.013) + // S
+      g(0.62, 235, 0.04 * qtScale) // T
     );
   }
 
@@ -56,17 +71,20 @@
 
     // beats overlapping the window (+2 s guard each side), from the SAME RR series
     var all = SYNTH.buildRR(tl);
-    var beats = all.filter(function (b) { return b.tMs >= t0Ms - 2000 && b.tMs <= t0Ms + win.lenSec * 1000 + 2000; });
+    var beats = all.filter(function (b) {
+      return b.tMs >= t0Ms - 2000 && b.tMs <= t0Ms + win.lenSec * 1000 + 2000;
+    });
     if (beats.length < 3) return null;
 
     var ecg = new Float32Array(N);
     var bi = 0;
     // baseline wander + mains-ish low noise; QRS amplitude dips during apnea (perfusion)
     for (var i = 0; i < N; i++) {
-      var ms = t0Ms + Math.round(i / fs * 1000);
+      var ms = t0Ms + Math.round((i / fs) * 1000);
       var rel = win.startRel + i / fs;
       while (bi < beats.length - 1 && beats[bi + 1].tMs <= ms) bi++;
-      var bcur = beats[bi], bnext = beats[Math.min(bi + 1, beats.length - 1)];
+      var bcur = beats[bi],
+        bnext = beats[Math.min(bi + 1, beats.length - 1)];
       // R-CENTER each beat on its TRUE time. The old form measured phase from the beat's
       // ONSET (ph = (ms − bcur.tMs)/span) with the R lobe at template phase 0.41, so each
       // R landed at bcur.tMs + 0.41·RR and the rendered R-to-R interval became
@@ -76,17 +94,22 @@
       // 0.41 sits exactly on nb.tMs places every R at its true instant → detected R-to-R ==
       // true RR (modulo 130 Hz quantization), so ECGDex rMSSD is faithful and the three-way
       // rMSSD equivalence (rmssd-equivalence.html) can use the ECG arm as a real reference.
-      var nb = (Math.abs(ms - bcur.tMs) <= Math.abs(bnext.tMs - ms)) ? bcur : bnext;
-      var nbi = (nb === bcur) ? bi : Math.min(bi + 1, beats.length - 1);
+      var nb = Math.abs(ms - bcur.tMs) <= Math.abs(bnext.tMs - ms) ? bcur : bnext;
+      var nbi = nb === bcur ? bi : Math.min(bi + 1, beats.length - 1);
       var prevB = beats[Math.max(0, nbi - 1)];
-      var span = Math.max(300, nb.tMs - prevB.tMs) || 900;     // local RR (QT/width scaling)
-      var ph = Math.max(0, Math.min(1, 0.41 + (ms - nb.tMs) / span));   // template R (0.41) at nb.tMs
+      var span = Math.max(300, nb.tMs - prevB.tMs) || 900; // local RR (QT/width scaling)
+      var ph = Math.max(0, Math.min(1, 0.41 + (ms - nb.tMs) / span)); // template R (0.41) at nb.tMs
       var amp = 1.0;
-      var wander = 70 * Math.sin(2 * Math.PI * rel / 11) + 35 * Math.sin(2 * Math.PI * rel / 3.7); // resp + drift
+      var wander = 70 * Math.sin((2 * Math.PI * rel) / 11) + 35 * Math.sin((2 * Math.PI * rel) / 3.7); // resp + drift
       ecg[i] = pqrst(ph, span / 1000) * amp + wander + gaussFrom(rng) * 14;
     }
     var int16 = new Int16Array(N);
-    for (var k = 0; k < N; k++) { var v = Math.round(ecg[k]); if (v > 32767) v = 32767; if (v < -32768) v = -32768; int16[k] = v; }
+    for (var k = 0; k < N; k++) {
+      var v = Math.round(ecg[k]);
+      if (v > 32767) v = 32767;
+      if (v < -32768) v = -32768;
+      int16[k] = v;
+    }
 
     // ground-truth device RR rows for the validation card (windowed)
     var devRR = [];

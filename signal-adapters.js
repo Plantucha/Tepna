@@ -28,7 +28,7 @@
   'use strict';
 
   /** @type {AdapterSpec[]} */
-  var _ADAPTERS = [];           // registration order
+  var _ADAPTERS = []; // registration order
   /** @type {Object<string, AdapterSpec>} */
   var _BY_ID = {};
 
@@ -42,7 +42,8 @@
     if (!spec.signalType) throw new Error('registerAdapter: signalType required (' + spec.id + ')');
     if (typeof spec.detect !== 'function') throw new Error('registerAdapter: detect() required (' + spec.id + ')');
     if (typeof spec.parse !== 'function') throw new Error('registerAdapter: parse() required (' + spec.id + ')');
-    if (_BY_ID[spec.id]) { // idempotent re-register (re-load of an adapter file) replaces in place
+    if (_BY_ID[spec.id]) {
+      // idempotent re-register (re-load of an adapter file) replaces in place
       var i = _ADAPTERS.indexOf(_BY_ID[spec.id]);
       if (i >= 0) _ADAPTERS.splice(i, 1, spec);
     } else {
@@ -52,9 +53,17 @@
     return spec;
   }
 
-  function list() { return _ADAPTERS.slice(); }
-  function byId(id) { return _BY_ID[id] || null; }
-  function bySignal(type) { return _ADAPTERS.filter(function (a) { return a.signalType === type; }); }
+  function list() {
+    return _ADAPTERS.slice();
+  }
+  function byId(id) {
+    return _BY_ID[id] || null;
+  }
+  function bySignal(type) {
+    return _ADAPTERS.filter(function (a) {
+      return a.signalType === type;
+    });
+  }
 
   // Run every registered detect() over (file, headText); return matches sorted
   // by confidence desc. file may be a real File or any { name } stub; headText is
@@ -70,11 +79,18 @@
   function detectAdapters(file, headText) {
     var out = [];
     for (var i = 0; i < _ADAPTERS.length; i++) {
-      var a = _ADAPTERS[i], c = 0;
-      try { c = +a.detect(file || {}, headText || '') || 0; } catch (e) { c = 0; }
+      var a = _ADAPTERS[i],
+        c = 0;
+      try {
+        c = +a.detect(file || {}, headText || '') || 0;
+      } catch (e) {
+        c = 0;
+      }
       if (c > 0) out.push({ id: a.id, adapter: a, signalType: a.signalType, vendor: a.vendor, confidence: Math.max(0, Math.min(1, c)) });
     }
-    out.sort(function (x, y) { return y.confidence - x.confidence; });
+    out.sort(function (x, y) {
+      return y.confidence - x.confidence;
+    });
     return out;
   }
 
@@ -90,8 +106,9 @@
   function route(file, headText) {
     var d = detectAdapters(file, headText);
     if (!d.length) return { best: null, candidates: [], ambiguous: false, unknown: true };
-    var best = d[0], runnerUp = d[1] || null;
-    var ambiguous = !!(runnerUp && (best.confidence - runnerUp.confidence) < 0.15);
+    var best = d[0],
+      runnerUp = d[1] || null;
+    var ambiguous = !!(runnerUp && best.confidence - runnerUp.confidence < 0.15);
     return { best: best, candidates: d, runnerUp: runnerUp, ambiguous: ambiguous, unknown: false };
   }
 
@@ -100,15 +117,21 @@
     return adapter.parse(text, ctx || {});
   }
 
-  function reset() { _ADAPTERS.length = 0; _BY_ID = {}; }   // tests only
+  function reset() {
+    _ADAPTERS.length = 0;
+    _BY_ID = {};
+  } // tests only
 
   var SignalAdapters = {
     registerAdapter: registerAdapter,
     detectAdapters: detectAdapters,
     route: route,
     runAdapter: runAdapter,
-    list: list, byId: byId, bySignal: bySignal, reset: reset
+    list: list,
+    byId: byId,
+    bySignal: bySignal,
+    reset: reset
   };
   root.SignalAdapters = SignalAdapters;
   if (typeof module !== 'undefined' && module.exports) module.exports = SignalAdapters;
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : /** @type {any} */ (this)));
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : /** @type {any} */ (this));

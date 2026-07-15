@@ -36,7 +36,10 @@ async function gateTestSuite() {
   const page = await ctx.newPage();
   let crashed = false;
   page.on('pageerror', (e) => console.log('   [suite page error]', e.message));
-  page.on('crash', () => { crashed = true; console.log('   [suite] RENDERER CRASHED (page "crash" event) — almost always /dev/shm OOM booting the app bundles'); });
+  page.on('crash', () => {
+    crashed = true;
+    console.log('   [suite] RENDERER CRASHED (page "crash" event) — almost always /dev/shm OOM booting the app bundles');
+  });
   console.log('▸ Dex-Test-Suite.html …');
   // ?full is REQUIRED: render-coverage is ON-DEMAND (lazy, 2026-06-30). A bare open paints only the
   // headless floor and never boots the rigs → __rcState stays 'pending' and the wait below times out.
@@ -61,27 +64,40 @@ async function gateTestSuite() {
     try {
       diag = await page.evaluate(() => {
         const s = (window.sameOriginStatus && window.sameOriginStatus()) || {};
-        return { rcState: window.__rcState || 'unknown', rcGroups: s.renderCoverageGroups || 0,
-                 bootSkips: window.__rcBootSkips || [], blocked: !!s.blocked, rcTimings: window.__rcTimings || [] };
+        return { rcState: window.__rcState || 'unknown', rcGroups: s.renderCoverageGroups || 0, bootSkips: window.__rcBootSkips || [], blocked: !!s.blocked, rcTimings: window.__rcTimings || [] };
       });
-    } catch (_) { /* context gone → almost certainly a crash */ }
-    if (crashed || !diag) {
-      FAILS.push('Dex-Test-Suite: renderer CRASHED during render-coverage' +
-        (diag ? ' (reached rcState=' + diag.rcState + ', ' + diag.rcGroups + ' rc groups)' : ' (execution context lost)') +
-        ' — this is a CI /dev/shm OOM; chromium must launch with --disable-dev-shm-usage (see launch args above).');
-    } else {
-      FAILS.push('Dex-Test-Suite: render-coverage did not reach done within 15 min — rcState=' +
-        diag.rcState + ', ' + diag.rcGroups + ' rc groups booted, bootSkips=' + JSON.stringify(diag.bootSkips) +
-        (diag.blocked ? ', same-origin BLOCKED' : '') + '. Per-rig timings (ms) so far: ' + JSON.stringify(diag.rcTimings) +
-        ' — a rig missing from this list is the one that was still in-flight when the ceiling hit.');
+    } catch (_) {
+      /* context gone → almost certainly a crash */
     }
-    try { await page.close(); } catch (_) {}
+    if (crashed || !diag) {
+      FAILS.push(
+        'Dex-Test-Suite: renderer CRASHED during render-coverage' +
+          (diag ? ' (reached rcState=' + diag.rcState + ', ' + diag.rcGroups + ' rc groups)' : ' (execution context lost)') +
+          ' — this is a CI /dev/shm OOM; chromium must launch with --disable-dev-shm-usage (see launch args above).'
+      );
+    } else {
+      FAILS.push(
+        'Dex-Test-Suite: render-coverage did not reach done within 15 min — rcState=' +
+          diag.rcState +
+          ', ' +
+          diag.rcGroups +
+          ' rc groups booted, bootSkips=' +
+          JSON.stringify(diag.bootSkips) +
+          (diag.blocked ? ', same-origin BLOCKED' : '') +
+          '. Per-rig timings (ms) so far: ' +
+          JSON.stringify(diag.rcTimings) +
+          ' — a rig missing from this list is the one that was still in-flight when the ceiling hit.'
+      );
+    }
+    try {
+      await page.close();
+    } catch (_) {}
     return;
   }
   const r = await page.evaluate(() => ({
     hasFail: !!document.querySelector('#summary .pill.fail'),
     bootSkips: window.__rcBootSkips || [],
-    summary: (document.getElementById('summary').innerText || '').replace(/\s+/g, ' ').trim(),
+    summary: (document.getElementById('summary').innerText || '').replace(/\s+/g, ' ').trim()
   }));
   console.log('   summary:', r.summary + (r.bootSkips.length ? '   [boot-skips: ' + r.bootSkips.join(', ') + ']' : ''));
   if (r.hasFail) FAILS.push('Dex-Test-Suite RED — ' + r.summary);
@@ -97,21 +113,19 @@ async function gateProvenance() {
   // Manifest appends one row per bundle (8). Wait for all, then a short settle
   // so the (best-effort) fixture audit finishes too.
   try {
-    await page.waitForFunction(
-      () => document.querySelectorAll('#manifest tbody tr').length >= 8,
-      { timeout: 180000 });
+    await page.waitForFunction(() => document.querySelectorAll('#manifest tbody tr').length >= 8, { timeout: 180000 });
   } catch {
     FAILS.push('verify-provenance: build manifest did not populate all 8 bundles');
-    await page.close(); return;
+    await page.close();
+    return;
   }
   await page.waitForTimeout(2500);
   const out = await page.evaluate(() => {
-    const reds = [...document.querySelectorAll(
-      '#manifest .pill.bad, #manifest td.bad, #fixtures .pill.bad, #fixtures td.bad')];
+    const reds = [...document.querySelectorAll('#manifest .pill.bad, #manifest td.bad, #fixtures .pill.bad, #fixtures td.bad')];
     return {
       bundles: document.querySelectorAll('#manifest tbody tr').length,
       fixtures: document.querySelectorAll('#fixtures tbody tr').length,
-      reds: reds.map((e) => (e.closest('tr')?.innerText || '').replace(/\s+/g, ' ').trim()).slice(0, 30),
+      reds: reds.map((e) => (e.closest('tr')?.innerText || '').replace(/\s+/g, ' ').trim()).slice(0, 30)
     };
   });
   console.log(`   ${out.bundles} bundles · ${out.fixtures} fixtures audited`);
@@ -132,13 +146,45 @@ async function gateNoNetwork() {
     await page.waitForFunction(() => typeof window.__noNetworkOK === 'boolean', { timeout: 180000 });
   } catch {
     FAILS.push('no-network: verdict never computed (gate did not finish scanning/booting the surfaces)');
-    await page.close(); return;
+    await page.close();
+    return;
   }
   const s = await page.evaluate(() => (window.noNetworkStatus ? window.noNetworkStatus() : { ok: window.__noNetworkOK }));
-  console.log('   static:' + s.static + ' runtime:' + s.runtime + ' python:' + s.python + ' canary:' + s.canary +
-    ' · ' + s.surfacesScanned + ' surfaces, ' + s.looseModules + ' modules, ' + s.surfacesBooted + ' booted');
-  if (!s.ok) FAILS.push('no-network RED — static:' + s.static + ' runtime:' + s.runtime + ' python:' + s.python +
-    ' canary:' + s.canary + ' (staticHits=' + s.staticRemoteHits + ', runtimeHits=' + s.runtimeRemoteHits + ', pyHits=' + s.pythonEgressHits + ')');
+  console.log(
+    '   static:' +
+      s.static +
+      ' runtime:' +
+      s.runtime +
+      ' python:' +
+      s.python +
+      ' canary:' +
+      s.canary +
+      ' · ' +
+      s.surfacesScanned +
+      ' surfaces, ' +
+      s.looseModules +
+      ' modules, ' +
+      s.surfacesBooted +
+      ' booted'
+  );
+  if (!s.ok)
+    FAILS.push(
+      'no-network RED — static:' +
+        s.static +
+        ' runtime:' +
+        s.runtime +
+        ' python:' +
+        s.python +
+        ' canary:' +
+        s.canary +
+        ' (staticHits=' +
+        s.staticRemoteHits +
+        ', runtimeHits=' +
+        s.runtimeRemoteHits +
+        ', pyHits=' +
+        s.pythonEgressHits +
+        ')'
+    );
   await page.close();
 }
 

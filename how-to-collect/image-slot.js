@@ -96,7 +96,10 @@
         tombstones.clear();
       })
       .catch(() => {})
-      .then(() => { loaded = true; subs.forEach((fn) => fn()); });
+      .then(() => {
+        loaded = true;
+        subs.forEach((fn) => fn());
+      });
     return loadP;
   }
 
@@ -107,13 +110,22 @@
   let saving = false;
   let saveDirty = false;
   function save() {
-    if (saving) { saveDirty = true; return; }
+    if (saving) {
+      saveDirty = true;
+      return;
+    }
     const w = window.omelette && window.omelette.writeFile;
     if (!w) return;
     saving = true;
     Promise.resolve(w(STATE_FILE, JSON.stringify(slots)))
       .catch(() => {})
-      .then(() => { saving = false; if (saveDirty) { saveDirty = false; save(); } });
+      .then(() => {
+        saving = false;
+        if (saveDirty) {
+          saveDirty = false;
+          save();
+        }
+      });
   }
 
   const S_MAX = 5;
@@ -129,13 +141,19 @@
 
   function setSlot(id, val) {
     if (!id) return;
-    if (val) { slots[id] = val; tombstones.delete(id); }
-    else { delete slots[id]; if (!loaded) tombstones.add(id); }
+    if (val) {
+      slots[id] = val;
+      tombstones.delete(id);
+    } else {
+      delete slots[id];
+      if (!loaded) tombstones.add(id);
+    }
     subs.forEach((fn) => fn());
     // A drop is rare + high-value — write immediately so nav-away can't lose
     // it. Gate on the initial read so we don't overwrite a sidecar we haven't
     // merged yet; the merge in load() keeps this change once the read lands.
-    if (loaded) save(); else load().then(save);
+    if (loaded) save();
+    else load().then(save);
   }
 
   // ── Image downscale ─────────────────────────────────────────────────────
@@ -151,7 +169,8 @@
       const w = Math.max(1, Math.round(bitmap.width * scale));
       const h = Math.max(1, Math.round(bitmap.height * scale));
       const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
+      canvas.width = w;
+      canvas.height = h;
       canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
       return canvas.toDataURL('image/webp', 0.85);
     } finally {
@@ -235,10 +254,13 @@
       // .spill and .ctl sit OUTSIDE .frame so overflow:hidden + border-radius
       // on the frame (circle, pill, rounded) can't clip them.
       root.innerHTML =
-        '<style>' + stylesheet + '</style>' +
+        '<style>' +
+        stylesheet +
+        '</style>' +
         '<div class="frame" part="frame">' +
         '  <img part="image" alt="" draggable="false" style="display:none">' +
-        '  <div class="empty" part="empty">' + icon +
+        '  <div class="empty" part="empty">' +
+        icon +
         '    <div class="cap"></div>' +
         '    <div class="sub">or <u>browse files</u></div></div>' +
         '  <div class="ring" part="ring"></div>' +
@@ -250,7 +272,9 @@
         '</div>' +
         '<div class="ctl"><button data-act="replace" title="Replace image">Replace</button>' +
         '  <button data-act="clear" title="Remove image">Remove</button></div>' +
-        '<input type="file" accept="' + ACCEPT.join(',') + '" hidden>';
+        '<input type="file" accept="' +
+        ACCEPT.join(',') +
+        '" hidden>';
       this._frame = root.querySelector('.frame');
       this._ring = root.querySelector('.ring');
       this._img = root.querySelector('.frame img');
@@ -270,12 +294,16 @@
       this._empty.addEventListener('click', () => this._input.click());
       root.addEventListener('click', (e) => {
         const act = e.target && e.target.getAttribute && e.target.getAttribute('data-act');
-        if (act === 'replace') { this._exitReframe(true); this._input.click(); }
+        if (act === 'replace') {
+          this._exitReframe(true);
+          this._input.click();
+        }
         if (act === 'clear') {
           this._exitReframe(false);
           this._gen++;
           this._local = null;
-          if (this.id) setSlot(this.id, null); else this._render();
+          if (this.id) setSlot(this.id, null);
+          else this._render();
         }
       });
       this._input.addEventListener('change', () => {
@@ -304,32 +332,36 @@
         e.stopPropagation();
         this._spill.setPointerCapture(e.pointerId);
         const rect = this.getBoundingClientRect();
-        const fw = rect.width || 1, fh = rect.height || 1;
+        const fw = rect.width || 1,
+          fh = rect.height || 1;
         const corner = e.target.getAttribute && e.target.getAttribute('data-c');
         let move;
         if (corner) {
           // Resize about the OPPOSITE corner. Viewport-px throughout (rect
           // fw/fh, not clientWidth) so the math survives a transform:scale()
           // ancestor — deck_stage renders slides scaled-to-fit.
-          const iw = this._img.naturalWidth || 1, ih = this._img.naturalHeight || 1;
+          const iw = this._img.naturalWidth || 1,
+            ih = this._img.naturalHeight || 1;
           const base = Math.max(fw / iw, fh / ih);
           const sx = corner.includes('e') ? 1 : -1;
           const sy = corner.includes('s') ? 1 : -1;
           const s0 = this._view.s;
-          const w0 = iw * base * s0, h0 = ih * base * s0;
-          const cx0 = (50 + this._view.x) / 100 * fw;
-          const cy0 = (50 + this._view.y) / 100 * fh;
-          const ox = cx0 - sx * w0 / 2, oy = cy0 - sy * h0 / 2;
+          const w0 = iw * base * s0,
+            h0 = ih * base * s0;
+          const cx0 = ((50 + this._view.x) / 100) * fw;
+          const cy0 = ((50 + this._view.y) / 100) * fh;
+          const ox = cx0 - (sx * w0) / 2,
+            oy = cy0 - (sy * h0) / 2;
           const diag0 = Math.hypot(w0, h0);
-          const ux = sx * w0 / diag0, uy = sy * h0 / diag0;
+          const ux = (sx * w0) / diag0,
+            uy = (sy * h0) / diag0;
           move = (ev) => {
-            const proj = (ev.clientX - rect.left - ox) * ux +
-                         (ev.clientY - rect.top - oy) * uy;
-            const s = clampS(s0 * proj / diag0);
-            const d = diag0 * s / s0;
+            const proj = (ev.clientX - rect.left - ox) * ux + (ev.clientY - rect.top - oy) * uy;
+            const s = clampS((s0 * proj) / diag0);
+            const d = (diag0 * s) / s0;
             this._view.s = s;
-            this._view.x = (ox + ux * d / 2) / fw * 100 - 50;
-            this._view.y = (oy + uy * d / 2) / fh * 100 - 50;
+            this._view.x = ((ox + (ux * d) / 2) / fw) * 100 - 50;
+            this._view.y = ((oy + (uy * d) / 2) / fh) * 100 - 50;
             this._clampView();
             this._applyView();
           };
@@ -337,14 +369,16 @@
           this.setAttribute('data-panning', '');
           const start = { px: e.clientX, py: e.clientY, x: this._view.x, y: this._view.y };
           move = (ev) => {
-            this._view.x = start.x + (ev.clientX - start.px) / fw * 100;
-            this._view.y = start.y + (ev.clientY - start.py) / fh * 100;
+            this._view.x = start.x + ((ev.clientX - start.px) / fw) * 100;
+            this._view.y = start.y + ((ev.clientY - start.py) / fh) * 100;
             this._clampView();
             this._applyView();
           };
         }
         const up = () => {
-          try { this._spill.releasePointerCapture(e.pointerId); } catch {}
+          try {
+            this._spill.releasePointerCapture(e.pointerId);
+          } catch {}
           this._spill.removeEventListener('pointermove', move);
           this._spill.removeEventListener('pointerup', up);
           this._spill.removeEventListener('pointercancel', up);
@@ -360,22 +394,26 @@
       });
       // Wheel zoom stays available inside reframe mode as a trackpad nicety —
       // zooms toward the cursor (offset' = cursor·(1-k) + offset·k).
-      this.addEventListener('wheel', (e) => {
-        if (!this.hasAttribute('data-reframe')) return;
-        e.preventDefault();
-        const r = this.getBoundingClientRect();
-        const cx = (e.clientX - r.left) / r.width * 100 - 50;
-        const cy = (e.clientY - r.top) / r.height * 100 - 50;
-        const prev = this._view.s;
-        const next = clampS(prev * Math.pow(1.0015, -e.deltaY));
-        if (next === prev) return;
-        const k = next / prev;
-        this._view.s = next;
-        this._view.x = cx * (1 - k) + this._view.x * k;
-        this._view.y = cy * (1 - k) + this._view.y * k;
-        this._clampView();
-        this._applyView();
-      }, { passive: false });
+      this.addEventListener(
+        'wheel',
+        (e) => {
+          if (!this.hasAttribute('data-reframe')) return;
+          e.preventDefault();
+          const r = this.getBoundingClientRect();
+          const cx = ((e.clientX - r.left) / r.width) * 100 - 50;
+          const cy = ((e.clientY - r.top) / r.height) * 100 - 50;
+          const prev = this._view.s;
+          const next = clampS(prev * Math.pow(1.0015, -e.deltaY));
+          if (next === prev) return;
+          const k = next / prev;
+          this._view.s = next;
+          this._view.x = cx * (1 - k) + this._view.x * k;
+          this._view.y = cy * (1 - k) + this._view.y * k;
+          this._clampView();
+          this._applyView();
+        },
+        { passive: false }
+      );
     }
 
     connectedCallback() {
@@ -408,7 +446,10 @@
       this.removeEventListener('dragover', this);
       this.removeEventListener('dragleave', this);
       this.removeEventListener('drop', this);
-      if (this._ro) { this._ro.disconnect(); this._ro = null; }
+      if (this._ro) {
+        this._ro.disconnect();
+        this._ro = null;
+      }
       this._exitReframe(false);
     }
 
@@ -424,7 +465,9 @@
         if (e.composedPath && e.composedPath().includes(this)) return;
         this._exitReframe(true);
       };
-      this._esc = (e) => { if (e.key === 'Escape') this._exitReframe(true); };
+      this._esc = (e) => {
+        if (e.key === 'Escape') this._exitReframe(true);
+      };
       document.addEventListener('pointerdown', this._outside, true);
       document.addEventListener('keydown', this._esc, true);
     }
@@ -440,7 +483,9 @@
       if (commit) this._commitView();
     }
 
-    attributeChangedCallback() { if (this.shadowRoot) this._render(); }
+    attributeChangedCallback() {
+      if (this.shadowRoot) this._render();
+    }
 
     // handleEvent — one listener object for all four drag events keeps the
     // add/remove symmetric and the depth counter correct.
@@ -455,7 +500,10 @@
       } else if (e.type === 'dragleave') {
         // dragenter/leave fire for every descendant crossing — count depth
         // so hovering the icon inside the empty state doesn't flicker.
-        if (--this._depth <= 0) { this._depth = 0; this.removeAttribute('data-over'); }
+        if (--this._depth <= 0) {
+          this._depth = 0;
+          this.removeAttribute('data-over');
+        }
       } else if (e.type === 'drop') {
         e.preventDefault();
         e.stopPropagation();
@@ -487,7 +535,10 @@
         setSlot(this.id || '', val);
         // Keep a session-local copy for id-less slots so the drop still
         // shows, even though it cannot persist.
-        if (!this.id) { this._local = val; this._render(); }
+        if (!this.id) {
+          this._local = val;
+          this._render();
+        }
       } catch (err) {
         if (gen !== this._gen) return;
         this._setError('Could not read that image.');
@@ -496,20 +547,28 @@
     }
 
     _setError(msg) {
-      if (this._err) { this._err.remove(); this._err = null; }
+      if (this._err) {
+        this._err.remove();
+        this._err = null;
+      }
       if (!msg) return;
       const d = document.createElement('div');
-      d.className = 'err'; d.textContent = msg;
+      d.className = 'err';
+      d.textContent = msg;
       this.shadowRoot.appendChild(d);
       this._err = d;
-      setTimeout(() => { if (this._err === d) { d.remove(); this._err = null; } }, 3000);
+      setTimeout(() => {
+        if (this._err === d) {
+          d.remove();
+          this._err = null;
+        }
+      }, 3000);
     }
 
     // Reframing (pan/resize) is only meaningful for fit=cover — contain/fill
     // keep the old object-fit path and double-click is a no-op.
     _reframes() {
-      return this.hasAttribute('data-filled') &&
-        (this.getAttribute('fit') || 'cover') === 'cover';
+      return this.hasAttribute('data-filled') && (this.getAttribute('fit') || 'cover') === 'cover';
     }
 
     // Cover-baseline geometry, shared by clamp/apply/resize. Null until the
@@ -518,8 +577,10 @@
     // and clamping against a degenerate 1×1 frame would silently pull the
     // stored pan toward zero.
     _geom() {
-      const iw = this._img.naturalWidth, ih = this._img.naturalHeight;
-      const fw = this.clientWidth, fh = this.clientHeight;
+      const iw = this._img.naturalWidth,
+        ih = this._img.naturalHeight;
+      const fw = this.clientWidth,
+        fh = this.clientHeight;
       if (!iw || !ih || !fw || !fh) return null;
       return { iw, ih, fw, fh, base: Math.max(fw / iw, fh / ih) };
     }
@@ -528,8 +589,8 @@
       // Pan range on each axis is half the overflow past the frame edge.
       const g = this._geom();
       if (!g) return;
-      const mx = Math.max(0, (g.iw * g.base * this._view.s / g.fw - 1) * 50);
-      const my = Math.max(0, (g.ih * g.base * this._view.s / g.fh - 1) * 50);
+      const mx = Math.max(0, ((g.iw * g.base * this._view.s) / g.fw - 1) * 50);
+      const my = Math.max(0, ((g.ih * g.base * this._view.s) / g.fh - 1) * 50);
       this._view.x = Math.max(-mx, Math.min(mx, this._view.x));
       this._view.y = Math.max(-my, Math.min(my, this._view.y));
     }
@@ -553,15 +614,19 @@
       // frame aspect ratio, so a responsive resize keeps the same crop. The
       // spill layer mirrors the same box so its corners = image corners.
       const k = g.base * this._view.s;
-      const w = (g.iw * k / g.fw * 100) + '%';
-      const h = (g.ih * k / g.fh * 100) + '%';
-      const l = (50 + this._view.x) + '%';
-      const t = (50 + this._view.y) + '%';
-      this._img.style.width = w; this._img.style.height = h;
-      this._img.style.left = l; this._img.style.top = t;
+      const w = ((g.iw * k) / g.fw) * 100 + '%';
+      const h = ((g.ih * k) / g.fh) * 100 + '%';
+      const l = 50 + this._view.x + '%';
+      const t = 50 + this._view.y + '%';
+      this._img.style.width = w;
+      this._img.style.height = h;
+      this._img.style.left = l;
+      this._img.style.top = t;
       this._img.style.objectFit = '';
-      this._spill.style.width = w; this._spill.style.height = h;
-      this._spill.style.left = l; this._spill.style.top = t;
+      this._spill.style.width = w;
+      this._spill.style.height = h;
+      this._spill.style.left = l;
+      this._spill.style.top = t;
     }
 
     _commitView() {
@@ -570,7 +635,9 @@
       // Framing-only (no u) persists too so an author-src slot remembers its
       // crop; clearing the sidecar still falls through to src=.
       if (this.id) setSlot(this.id, v);
-      else { this._local = v; }
+      else {
+        this._local = v;
+      }
     }
 
     _render() {
@@ -611,7 +678,7 @@
         this._view = {
           s: stored && Number.isFinite(stored.s) ? clampS(stored.s) : 1,
           x: stored && Number.isFinite(stored.x) ? stored.x : 0,
-          y: stored && Number.isFinite(stored.y) ? stored.y : 0,
+          y: stored && Number.isFinite(stored.y) ? stored.y : 0
         };
       }
       this._cap.textContent = this.getAttribute('placeholder') || 'Drop an image';

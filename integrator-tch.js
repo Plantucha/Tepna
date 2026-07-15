@@ -37,17 +37,31 @@
   var EPS = 1e-9;
 
   /* ── basic stats (null/NaN-safe) ─────────────────────────────────────── */
-  function _finite(v) { return typeof v === 'number' && isFinite(v); }
+  function _finite(v) {
+    return typeof v === 'number' && isFinite(v);
+  }
   function mean(a) {
-    var s = 0, n = 0;
-    for (var i = 0; i < a.length; i++) if (_finite(a[i])) { s += a[i]; n++; }
+    var s = 0,
+      n = 0;
+    for (var i = 0; i < a.length; i++)
+      if (_finite(a[i])) {
+        s += a[i];
+        n++;
+      }
     return n ? s / n : null;
   }
   // population variance (÷N) — TCH difference-variances are consistent under ÷N
   function variance(a) {
-    var m = mean(a); if (m == null) return null;
-    var s = 0, n = 0;
-    for (var i = 0; i < a.length; i++) if (_finite(a[i])) { var d = a[i] - m; s += d * d; n++; }
+    var m = mean(a);
+    if (m == null) return null;
+    var s = 0,
+      n = 0;
+    for (var i = 0; i < a.length; i++)
+      if (_finite(a[i])) {
+        var d = a[i] - m;
+        s += d * d;
+        n++;
+      }
     return n ? s / n : null;
   }
 
@@ -70,17 +84,29 @@
      grid — index adjacency is treated as one step, so a gappy aligned epoch grid is
      approximated (fine for an indicative τ-curve, not a metrology claim). */
   function allanDeviation(series, taus) {
-    var x = series || [], N = x.length, ok = true;
-    for (var i = 0; i < N; i++) if (!_finite(x[i])) { ok = false; break; }
+    var x = series || [],
+      N = x.length,
+      ok = true;
+    for (var i = 0; i < N; i++)
+      if (!_finite(x[i])) {
+        ok = false;
+        break;
+      }
     var pre = null;
-    if (ok) { pre = new Array(N + 1); pre[0] = 0; for (var j = 0; j < N; j++) pre[j + 1] = pre[j] + x[j]; }
+    if (ok) {
+      pre = new Array(N + 1);
+      pre[0] = 0;
+      for (var j = 0; j < N; j++) pre[j + 1] = pre[j] + x[j];
+    }
     return (taus || []).map(function (mRaw) {
       var m = Math.max(1, Math.round(mRaw));
       if (!ok || N < 2 * m + 1) return { m: m, avar: null, adev: null, n: 0 };
-      var sum = 0, cnt = 0;
+      var sum = 0,
+        cnt = 0;
       for (var i = 0; i + 2 * m <= N; i++) {
         var d = (pre[i + 2 * m] - pre[i + m]) / m - (pre[i + m] - pre[i]) / m;
-        sum += d * d; cnt++;
+        sum += d * d;
+        cnt++;
       }
       if (cnt < 1) return { m: m, avar: null, adev: null, n: 0 };
       var avar = sum / (2 * cnt);
@@ -106,22 +132,31 @@
     var taus = opts.taus || [1, 2, 4, 8];
     if (!seriesA || !seriesB || !seriesC) return null;
     function diff(a, b) {
-      var d = [], n = Math.min(a.length, b.length);
+      var d = [],
+        n = Math.min(a.length, b.length);
       for (var i = 0; i < n; i++) d.push(_finite(a[i]) && _finite(b[i]) ? a[i] - b[i] : NaN);
       return d;
     }
     var avAB = allanDeviation(diff(seriesA, seriesB), taus),
-        avAC = allanDeviation(diff(seriesA, seriesC), taus),
-        avBC = allanDeviation(diff(seriesB, seriesC), taus);
-    var adev = {}, ns = [];
-    adev[labels[0]] = []; adev[labels[1]] = []; adev[labels[2]] = [];
+      avAC = allanDeviation(diff(seriesA, seriesC), taus),
+      avBC = allanDeviation(diff(seriesB, seriesC), taus);
+    var adev = {},
+      ns = [];
+    adev[labels[0]] = [];
+    adev[labels[1]] = [];
+    adev[labels[2]] = [];
     for (var i = 0; i < taus.length; i++) {
-      var Vab = avAB[i].avar, Vac = avAC[i].avar, Vbc = avBC[i].avar;
+      var Vab = avAB[i].avar,
+        Vac = avAC[i].avar,
+        Vbc = avBC[i].avar;
       if (Vab == null || Vac == null || Vbc == null) {
-        adev[labels[0]].push(null); adev[labels[1]].push(null); adev[labels[2]].push(null); ns.push(0);
+        adev[labels[0]].push(null);
+        adev[labels[1]].push(null);
+        adev[labels[2]].push(null);
+        ns.push(0);
         continue;
       }
-      var cl = classic(Vab, Vac, Vbc);   // non-negativity projection: clamp a slightly
+      var cl = classic(Vab, Vac, Vbc); // non-negativity projection: clamp a slightly
       // negative split (small-variance member swamped by sampling noise) to 0 — same as the
       // classic σ-bar path (threeCorneredHat's Math.max(cl.x,0)).
       adev[labels[0]].push(Math.sqrt(Math.max(cl.a, 0)));
@@ -144,9 +179,7 @@
   /* ── 3×3 linear solve (Cramer) — for the correlated Newton step ───────── */
   function solve3(M, y) {
     function det3(m) {
-      return m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
-           - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
-           + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+      return m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
     }
     var D = det3(M);
     if (Math.abs(D) < 1e-14) return null;
@@ -166,19 +199,19 @@
      ‖f‖) with s clamped ≥ 0 — the raw system is nonlinear with multiple roots, so a
      bare Newton step from one start is unreliable. */
   function _residual(s, rho, Vab, Vac, Vbc) {
-    return [
-      s[0]*s[0] + s[1]*s[1] - 2*rho*s[0]*s[1] - Vab,
-      s[0]*s[0] + s[2]*s[2] - 2*rho*s[0]*s[2] - Vac,
-      s[1]*s[1] + s[2]*s[2] - 2*rho*s[1]*s[2] - Vbc
-    ];
+    return [s[0] * s[0] + s[1] * s[1] - 2 * rho * s[0] * s[1] - Vab, s[0] * s[0] + s[2] * s[2] - 2 * rho * s[0] * s[2] - Vac, s[1] * s[1] + s[2] * s[2] - 2 * rho * s[1] * s[2] - Vbc];
   }
-  function _norm(f) { return Math.abs(f[0]) + Math.abs(f[1]) + Math.abs(f[2]); }
+  function _norm(f) {
+    return Math.abs(f[0]) + Math.abs(f[1]) + Math.abs(f[2]);
+  }
   function solveFixedRho(Vab, Vac, Vbc, rho, start) {
     var s = [Math.max(start[0], 1e-6), Math.max(start[1], 1e-6), Math.max(start[2], 1e-6)];
     for (var it = 0; it < 60; it++) {
       var f = _residual(s, rho, Vab, Vac, Vbc);
       if (_norm(f) < 1e-11) break;
-      var sa = s[0], sb = s[1], sc = s[2];
+      var sa = s[0],
+        sb = s[1],
+        sc = s[2];
       var J = [
         [2 * sa - 2 * rho * sb, 2 * sb - 2 * rho * sa, 0],
         [2 * sa - 2 * rho * sc, 0, 2 * sc - 2 * rho * sa],
@@ -186,9 +219,11 @@
       ];
       var step = solve3(J, f);
       if (!step) return null;
-      var lam = 1, cur = _norm(f), tried;
+      var lam = 1,
+        cur = _norm(f),
+        tried;
       for (var bt = 0; bt < 24; bt++) {
-        tried = [Math.max(s[0] - lam*step[0], 0), Math.max(s[1] - lam*step[1], 0), Math.max(s[2] - lam*step[2], 0)];
+        tried = [Math.max(s[0] - lam * step[0], 0), Math.max(s[1] - lam * step[1], 0), Math.max(s[2] - lam * step[2], 0)];
         if (_norm(_residual(tried, rho, Vab, Vac, Vbc)) < cur) break;
         lam *= 0.5;
       }
@@ -204,21 +239,27 @@
   function _solveMulti(Vab, Vac, Vbc, rho) {
     var cl = classic(Vab, Vac, Vbc);
     var mV = (Vab + Vac + Vbc) / 3;
-    var sq = function (x) { return Math.sqrt(Math.max(x, 1e-6)); };
+    var sq = function (x) {
+      return Math.sqrt(Math.max(x, 1e-6));
+    };
     var starts = [
       [sq(cl.a), sq(cl.b), sq(cl.c)],
-      [sq(mV/2), sq(mV/2), sq(mV/2)],
+      [sq(mV / 2), sq(mV / 2), sq(mV / 2)],
       [sq(Vab), sq(Vbc), sq(Vac)],
-      [sq(Vab/2)*0.5, sq(Vab/2), sq(Vac/2)],
+      [sq(Vab / 2) * 0.5, sq(Vab / 2), sq(Vac / 2)],
       [0.3, sq(Vab), sq(Vbc)],
       [sq(Vab), 0.3, sq(Vbc)]
     ];
-    var best = null, bestRes = Infinity;
+    var best = null,
+      bestRes = Infinity;
     for (var i = 0; i < starts.length; i++) {
       var sol = solveFixedRho(Vab, Vac, Vbc, rho, starts[i]);
       if (!sol || sol.a < -1e-6 || sol.b < -1e-6 || sol.c < -1e-6) continue;
       var res = _norm(_residual([sq(sol.a), sq(sol.b), sq(sol.c)], rho, Vab, Vac, Vbc));
-      if (res < bestRes) { bestRes = res; best = { a: Math.max(sol.a,0), b: Math.max(sol.b,0), c: Math.max(sol.c,0) }; }
+      if (res < bestRes) {
+        bestRes = res;
+        best = { a: Math.max(sol.a, 0), b: Math.max(sol.b, 0), c: Math.max(sol.c, 0) };
+      }
     }
     return best;
   }
@@ -237,7 +278,9 @@
       var sol = _solveMulti(Vab, Vac, Vbc, rho);
       if (sol && sol.a >= -1e-6 && sol.b >= -1e-6 && sol.c >= -1e-6) {
         return {
-          a: Math.max(sol.a, 0), b: Math.max(sol.b, 0), c: Math.max(sol.c, 0),
+          a: Math.max(sol.a, 0),
+          b: Math.max(sol.b, 0),
+          c: Math.max(sol.c, 0),
           rho: +rho.toFixed(4)
         };
       }
@@ -263,9 +306,14 @@
     var n = Math.min(pAB.n, pAC.n, pBC.n);
     if (n < minN) return { ok: false, reason: 'overlap ' + n + ' < minN ' + minN, n: n };
 
-    var Vab = pAB.v, Vac = pAC.v, Vbc = pBC.v;
+    var Vab = pAB.v,
+      Vac = pAC.v,
+      Vbc = pBC.v;
     var cl = classic(Vab, Vac, Vbc);
-    var method, rho, sig2, negative = false;
+    var method,
+      rho,
+      sig2,
+      negative = false;
 
     // (0) EXTERNAL common-mode rho supplied by the consumer (e.g. an ACC-derived
     // co-motion estimate, or a prior). Positive common-mode BIASES classic without
@@ -275,7 +323,9 @@
     if (opts.rho != null && opts.rho > 0) {
       var solX = _solveMulti(Vab, Vac, Vbc, opts.rho);
       if (solX && solX.a >= -1e-6 && solX.b >= -1e-6 && solX.c >= -1e-6) {
-        method = 'correlated-external'; rho = opts.rho; negative = (cl.a < 0 || cl.b < 0 || cl.c < 0);
+        method = 'correlated-external';
+        rho = opts.rho;
+        negative = cl.a < 0 || cl.b < 0 || cl.c < 0;
         sig2 = { a: Math.max(solX.a, 0), b: Math.max(solX.b, 0), c: Math.max(solX.c, 0) };
       }
       // else fall through to the classic / auto path below
@@ -284,43 +334,73 @@
     if (sig2) {
       /* set by external-rho path */
     } else if (cl.a >= -1e-9 && cl.b >= -1e-9 && cl.c >= -1e-9) {
-      method = 'classic'; rho = 0;
+      method = 'classic';
+      rho = 0;
       sig2 = { a: Math.max(cl.a, 0), b: Math.max(cl.b, 0), c: Math.max(cl.c, 0) };
     } else {
       negative = true;
       var corr = correlated(Vab, Vac, Vbc, opts);
       if (corr) {
-        method = 'correlated'; rho = corr.rho;
+        method = 'correlated';
+        rho = corr.rho;
         sig2 = { a: corr.a, b: corr.b, c: corr.c };
       } else {
         // last resort: report the classic solution clamped, flagged not-ok
-        method = 'classic-clamped'; rho = null;
+        method = 'classic-clamped';
+        rho = null;
         sig2 = { a: Math.max(cl.a, 0), b: Math.max(cl.b, 0), c: Math.max(cl.c, 0) };
         return {
-          ok: false, reason: 'negative variance; no non-negative correlated fit ≤ rhoMax',
-          negative: true, method: method, n: n,
-          sigma2: _bylabel(labels, sig2), diffVar: { AB: Vab, AC: Vac, BC: Vbc }
+          ok: false,
+          reason: 'negative variance; no non-negative correlated fit ≤ rhoMax',
+          negative: true,
+          method: method,
+          n: n,
+          sigma2: _bylabel(labels, sig2),
+          diffVar: { AB: Vab, AC: Vac, BC: Vbc }
         };
       }
     }
 
     var sigma2 = _bylabel(labels, sig2);
-    var sigma = {}; Object.keys(sigma2).forEach(function (k) { sigma[k] = Math.sqrt(sigma2[k]); });
+    var sigma = {};
+    Object.keys(sigma2).forEach(function (k) {
+      sigma[k] = Math.sqrt(sigma2[k]);
+    });
     var weights = inverseVarianceWeights(sigma2);
     var culprit = _argmax(sigma2);
 
     return {
-      ok: true, method: method, rho: rho, negative: negative, n: n,
-      sigma2: sigma2, sigma: sigma, weights: weights, culprit: culprit,
+      ok: true,
+      method: method,
+      rho: rho,
+      negative: negative,
+      n: n,
+      sigma2: sigma2,
+      sigma: sigma,
+      weights: weights,
+      culprit: culprit,
       diffVar: { AB: Vab, AC: Vac, BC: Vbc },
-      caveat: 'TCH estimates precision (instability), not trueness — a bias shared by all three sensors is invisible. Positive common-mode noise also biases classic without going negative; supply opts.rho to remove a co-motion correlation you can estimate externally.'
+      caveat:
+        'TCH estimates precision (instability), not trueness — a bias shared by all three sensors is invisible. Positive common-mode noise also biases classic without going negative; supply opts.rho to remove a co-motion correlation you can estimate externally.'
     };
   }
 
-  function _bylabel(labels, s) { var o = {}; o[labels[0]] = s.a; o[labels[1]] = s.b; o[labels[2]] = s.c; return o; }
+  function _bylabel(labels, s) {
+    var o = {};
+    o[labels[0]] = s.a;
+    o[labels[1]] = s.b;
+    o[labels[2]] = s.c;
+    return o;
+  }
   function _argmax(map) {
-    var best = null, bv = -Infinity;
-    Object.keys(map).forEach(function (k) { if (map[k] > bv) { bv = map[k]; best = k; } });
+    var best = null,
+      bv = -Infinity;
+    Object.keys(map).forEach(function (k) {
+      if (map[k] > bv) {
+        bv = map[k];
+        best = k;
+      }
+    });
     return best;
   }
 
@@ -333,12 +413,23 @@
   function inverseVarianceWeights(sigma2, opts) {
     opts = opts || {};
     var floorFrac = opts.floorFrac != null ? opts.floorFrac : 0.08;
-    var ks = Object.keys(sigma2), maxS2 = 0;
-    ks.forEach(function (k) { if (sigma2[k] > maxS2) maxS2 = sigma2[k]; });
+    var ks = Object.keys(sigma2),
+      maxS2 = 0;
+    ks.forEach(function (k) {
+      if (sigma2[k] > maxS2) maxS2 = sigma2[k];
+    });
     var floorV = Math.max(EPS, floorFrac * maxS2);
-    var inv = {}, sum = 0;
-    ks.forEach(function (k) { var s2 = Math.max(sigma2[k], floorV); inv[k] = 1 / s2; sum += inv[k]; });
-    var w = {}; ks.forEach(function (k) { w[k] = sum ? inv[k] / sum : 1 / ks.length; });
+    var inv = {},
+      sum = 0;
+    ks.forEach(function (k) {
+      var s2 = Math.max(sigma2[k], floorV);
+      inv[k] = 1 / s2;
+      sum += inv[k];
+    });
+    var w = {};
+    ks.forEach(function (k) {
+      w[k] = sum ? inv[k] / sum : 1 / ks.length;
+    });
     return w;
   }
 
@@ -347,7 +438,8 @@
      Epoch grids from node exports (timeseries.epochs[].hr / .rmssd) feed straight in. */
   function alignTriplet(objsA, objsB, objsC, opts) {
     opts = opts || {};
-    var key = opts.key || 'tMin', val = opts.val || 'v';
+    var key = opts.key || 'tMin',
+      val = opts.val || 'v';
     function toMap(objs) {
       var m = new Map();
       (objs || []).forEach(function (o) {
@@ -355,26 +447,54 @@
       });
       return m;
     }
-    var mA = toMap(objsA), mB = toMap(objsB), mC = toMap(objsC);
+    var mA = toMap(objsA),
+      mB = toMap(objsB),
+      mC = toMap(objsC);
     var keys = [];
-    mA.forEach(function (_, k) { if (mB.has(k) && mC.has(k)) keys.push(k); });
-    keys.sort(function (x, y) { return x - y; });
+    mA.forEach(function (_, k) {
+      if (mB.has(k) && mC.has(k)) keys.push(k);
+    });
+    keys.sort(function (x, y) {
+      return x - y;
+    });
     return {
       keys: keys,
-      A: keys.map(function (k) { return mA.get(k); }),
-      B: keys.map(function (k) { return mB.get(k); }),
-      C: keys.map(function (k) { return mC.get(k); })
+      A: keys.map(function (k) {
+        return mA.get(k);
+      }),
+      B: keys.map(function (k) {
+        return mB.get(k);
+      }),
+      C: keys.map(function (k) {
+        return mC.get(k);
+      })
     };
   }
 
   /* ── Pearson correlation over the common finite indices (null if <3 pairs or a
      degenerate/zero-variance member). Used by the decorrelation quality gate. ── */
   function pearson(a, b) {
-    var xs = [], ys = [], n = Math.min(a.length, b.length);
-    for (var i = 0; i < n; i++) if (_finite(a[i]) && _finite(b[i])) { xs.push(a[i]); ys.push(b[i]); }
+    var xs = [],
+      ys = [],
+      n = Math.min(a.length, b.length);
+    for (var i = 0; i < n; i++)
+      if (_finite(a[i]) && _finite(b[i])) {
+        xs.push(a[i]);
+        ys.push(b[i]);
+      }
     if (xs.length < 3) return null;
-    var mx = mean(xs), my = mean(ys), sxy = 0, sxx = 0, syy = 0;
-    for (var j = 0; j < xs.length; j++) { var dx = xs[j] - mx, dy = ys[j] - my; sxy += dx * dy; sxx += dx * dx; syy += dy * dy; }
+    var mx = mean(xs),
+      my = mean(ys),
+      sxy = 0,
+      sxx = 0,
+      syy = 0;
+    for (var j = 0; j < xs.length; j++) {
+      var dx = xs[j] - mx,
+        dy = ys[j] - my;
+      sxy += dx * dy;
+      sxx += dx * dx;
+      syy += dy * dy;
+    }
     if (sxx < EPS || syy < EPS) return null;
     return sxy / Math.sqrt(sxx * syy);
   }
@@ -396,28 +516,44 @@
     var minCorr = opts.minCorr != null ? opts.minCorr : 0.2;
     var keepMinCorr = opts.keepMinCorr != null ? opts.keepMinCorr : 0.4;
     if (!seriesA || !seriesB || !seriesC) return { ok: false, drop: null, reason: 'need three series' };
-    var rAB = pearson(seriesA, seriesB), rAC = pearson(seriesA, seriesC), rBC = pearson(seriesB, seriesC);
+    var rAB = pearson(seriesA, seriesB),
+      rAC = pearson(seriesA, seriesC),
+      rBC = pearson(seriesB, seriesC);
     var corr = { AB: rAB, AC: rAC, BC: rBC };
-    if (rAB == null || rAC == null || rBC == null)
-      return { ok: false, drop: null, corr: corr, reason: 'insufficient overlap / degenerate series for the correlation screen' };
+    if (rAB == null || rAC == null || rBC == null) return { ok: false, drop: null, corr: corr, reason: 'insufficient overlap / degenerate series for the correlation screen' };
     // each node's two correlations, and the correlation of the OTHER pair if it is dropped
     var pairCorr = { A: [rAB, rAC], B: [rAB, rBC], C: [rAC, rBC] };
     var keptIfDropped = { A: rBC, B: rAC, C: rAB };
     var keys = ['A', 'B', 'C'];
-    var cand = keys.filter(function (k) { return pairCorr[k][0] < minCorr && pairCorr[k][1] < minCorr; });
-    if (cand.length === 0)
-      return { ok: true, drop: null, corr: corr, reason: 'every node correlates with ≥one peer above ' + minCorr };
-    if (cand.length >= 2)
-      return { ok: false, drop: null, ambiguous: true, corr: corr,
-               reason: cand.length + ' nodes mutually decorrelate — cannot identify the reliable pair' };
-    var k = cand[0], keptR = keptIfDropped[k];
+    var cand = keys.filter(function (k) {
+      return pairCorr[k][0] < minCorr && pairCorr[k][1] < minCorr;
+    });
+    if (cand.length === 0) return { ok: true, drop: null, corr: corr, reason: 'every node correlates with ≥one peer above ' + minCorr };
+    if (cand.length >= 2) return { ok: false, drop: null, ambiguous: true, corr: corr, reason: cand.length + ' nodes mutually decorrelate — cannot identify the reliable pair' };
+    var k = cand[0],
+      keptR = keptIfDropped[k];
     var lbl = labels[keys.indexOf(k)];
     if (keptR == null || keptR < keepMinCorr)
-      return { ok: false, drop: null, corr: corr,
-               reason: 'candidate ' + lbl + ' decorrelates but the surviving pair also disagrees (r=' + (keptR == null ? '—' : keptR.toFixed(2)) + ') — not dropped' };
-    var keptPair = keys.filter(function (x) { return x !== k; }).map(function (x) { return labels[keys.indexOf(x)]; });
-    return { ok: true, drop: lbl, keptPair: keptPair, corr: corr,
-             reason: 'node ' + lbl + ' decorrelates from both peers (r<' + minCorr + '); ' + keptPair[0] + '–' + keptPair[1] + ' agree (r=' + keptR.toFixed(2) + ')' };
+      return {
+        ok: false,
+        drop: null,
+        corr: corr,
+        reason: 'candidate ' + lbl + ' decorrelates but the surviving pair also disagrees (r=' + (keptR == null ? '—' : keptR.toFixed(2)) + ') — not dropped'
+      };
+    var keptPair = keys
+      .filter(function (x) {
+        return x !== k;
+      })
+      .map(function (x) {
+        return labels[keys.indexOf(x)];
+      });
+    return {
+      ok: true,
+      drop: lbl,
+      keptPair: keptPair,
+      corr: corr,
+      reason: 'node ' + lbl + ' decorrelates from both peers (r<' + minCorr + '); ' + keptPair[0] + '–' + keptPair[1] + ' agree (r=' + keptR.toFixed(2) + ')'
+    };
   }
 
   var API = {
@@ -431,10 +567,11 @@
     correlated: correlated,
     allanDeviation: allanDeviation,
     allanTriplet: allanTriplet,
-    variance: variance, mean: mean,
+    variance: variance,
+    mean: mean,
     VERSION: '1.2.0'
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.IntegratorTCH = API;
-})(typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this));
+})(typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this);

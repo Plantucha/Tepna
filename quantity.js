@@ -29,12 +29,22 @@
 
   // dimension of each known unit — adding across dimensions is forbidden.
   var DIM = {
-    kg: 'mass', lb: 'mass',
-    cm: 'length', m: 'length', in: 'length', ft: 'length',
-    C: 'temp', F: 'temp',
-    s: 'time', ms: 'time',
-    'mmol/L': 'glucose', 'mg/dL': 'glucose',
-    bpm: 'rate', mmHg: 'pressure', '%': 'fraction', 'mL/kg/min': 'vo2'
+    kg: 'mass',
+    lb: 'mass',
+    cm: 'length',
+    m: 'length',
+    in: 'length',
+    ft: 'length',
+    C: 'temp',
+    F: 'temp',
+    s: 'time',
+    ms: 'time',
+    'mmol/L': 'glucose',
+    'mg/dL': 'glucose',
+    bpm: 'rate',
+    mmHg: 'pressure',
+    '%': 'fraction',
+    'mL/kg/min': 'vo2'
   };
   // canonical (metric/SI) unit per dimension — the single source of truth.
   var CANON = { mass: 'kg', length: 'm', temp: 'C', time: 's', glucose: 'mmol/L' };
@@ -43,15 +53,28 @@
   function toMetric(value, unit) {
     if (value == null || !isFinite(value)) return null;
     switch (unit) {
-      case 'lb': return value * 0.45359237;            // → kg
-      case 'in': return value * 0.0254;                // → m
-      case 'ft': return value * 0.3048;                // → m
-      case 'cm': return value / 100;                   // → m
-      case 'F': return (value - 32) * 5 / 9;           // → °C
-      case 'ms': return value / 1000;                  // → s
-      case 'mg/dL': return value / 18.0182;            // → mmol/L (glucose)
-      case 'kg': case 'm': case 'C': case 's': case 'mmol/L': return value; // already metric
-      default: return value;                            // dimensionless / already-canonical clinical units
+      case 'lb':
+        return value * 0.45359237; // → kg
+      case 'in':
+        return value * 0.0254; // → m
+      case 'ft':
+        return value * 0.3048; // → m
+      case 'cm':
+        return value / 100; // → m
+      case 'F':
+        return ((value - 32) * 5) / 9; // → °C
+      case 'ms':
+        return value / 1000; // → s
+      case 'mg/dL':
+        return value / 18.0182; // → mmol/L (glucose)
+      case 'kg':
+      case 'm':
+      case 'C':
+      case 's':
+      case 'mmol/L':
+        return value; // already metric
+      default:
+        return value; // dimensionless / already-canonical clinical units
     }
   }
   // metric → an imperial/display unit, for the display switch ONLY (read field,
@@ -59,14 +82,22 @@
   function toDisplay(metricValue, unit) {
     if (metricValue == null || !isFinite(metricValue)) return null;
     switch (unit) {
-      case 'lb': return metricValue / 0.45359237;
-      case 'in': return metricValue / 0.0254;
-      case 'ft': return metricValue / 0.3048;
-      case 'cm': return metricValue * 100;
-      case 'F': return metricValue * 9 / 5 + 32;
-      case 'ms': return metricValue * 1000;
-      case 'mg/dL': return metricValue * 18.0182;
-      default: return metricValue;
+      case 'lb':
+        return metricValue / 0.45359237;
+      case 'in':
+        return metricValue / 0.0254;
+      case 'ft':
+        return metricValue / 0.3048;
+      case 'cm':
+        return metricValue * 100;
+      case 'F':
+        return (metricValue * 9) / 5 + 32;
+      case 'ms':
+        return metricValue * 1000;
+      case 'mg/dL':
+        return metricValue * 18.0182;
+      default:
+        return metricValue;
     }
   }
 
@@ -76,8 +107,8 @@
     var dim = DIM[unit] || 'dimensionless';
     var canon = CANON[dim] || unit;
     this.dim = dim;
-    this.unit = canon;                       // stored canonical
-    this.value = toMetric(value, unit);      // stored metric value
+    this.unit = canon; // stored canonical
+    this.value = toMetric(value, unit); // stored metric value
   }
   Quantity.prototype.as = function (unit) {
     if ((DIM[unit] || 'dimensionless') !== this.dim) throw new Error('dimension mismatch: cannot express ' + this.dim + ' as ' + unit);
@@ -98,8 +129,9 @@
        guardBaevsky(mode, mxdmn) → { modeS, mxdmnS, assumedMs, flagged }
      `flagged` = the post-conversion value is outside a plausible RR range
      ([0.05, 3.0] s) → surface (never silently use), per the epistemic creed. */
-  var RR_MS_THRESHOLD = 10;       // a seconds RR-quantity is < ~3; ms is > ~50 — 10 is a safe split
-  var RR_MIN_S = 0.05, RR_MAX_S = 3.0;
+  var RR_MS_THRESHOLD = 10; // a seconds RR-quantity is < ~3; ms is > ~50 — 10 is a safe split
+  var RR_MIN_S = 0.05,
+    RR_MAX_S = 3.0;
 
   function asSecondsRR(v) {
     if (v == null || !isFinite(v)) return { valueS: null, assumedMs: false, flagged: true };
@@ -110,27 +142,42 @@
   }
 
   function guardBaevsky(mode, mxdmn) {
-    var m = asSecondsRR(mode), x = asSecondsRR(mxdmn);
+    var m = asSecondsRR(mode),
+      x = asSecondsRR(mxdmn);
     return {
-      modeS: m.valueS, mxdmnS: x.valueS,
+      modeS: m.valueS,
+      mxdmnS: x.valueS,
       assumedMs: m.assumedMs || x.assumedMs,
       flagged: m.flagged || x.flagged,
-      reason: (m.flagged || x.flagged)
-        ? 'Baevsky Mode/MxDMn outside plausible RR range after unit normalization — value surfaced, not silently scaled'
-        : null
+      reason: m.flagged || x.flagged ? 'Baevsky Mode/MxDMn outside plausible RR range after unit normalization — value surfaced, not silently scaled' : null
     };
   }
 
   // Baevsky Stress Index from GUARDED (seconds) inputs — the canonical formula,
   // unit-safe. amo50 = AMo (% of RR in the modal bin). meanRRs in seconds.
   function baevskySI(amo50, modeS, mxdmnS) {
-    if (![amo50, modeS, mxdmnS].every(function (v) { return v != null && isFinite(v); }) || modeS <= 0 || mxdmnS <= 0) return null;
+    if (
+      ![amo50, modeS, mxdmnS].every(function (v) {
+        return v != null && isFinite(v);
+      }) ||
+      modeS <= 0 ||
+      mxdmnS <= 0
+    )
+      return null;
     return amo50 / (2 * modeS * mxdmnS);
   }
 
   root.Quantity = Quantity;
-  root.DexUnits = { Quantity: Quantity, toMetric: toMetric, toDisplay: toDisplay, DIM: DIM, CANON: CANON,
-    asSecondsRR: asSecondsRR, guardBaevsky: guardBaevsky, baevskySI: baevskySI,
-    RR_MS_THRESHOLD: RR_MS_THRESHOLD };
+  root.DexUnits = {
+    Quantity: Quantity,
+    toMetric: toMetric,
+    toDisplay: toDisplay,
+    DIM: DIM,
+    CANON: CANON,
+    asSecondsRR: asSecondsRR,
+    guardBaevsky: guardBaevsky,
+    baevskySI: baevskySI,
+    RR_MS_THRESHOLD: RR_MS_THRESHOLD
+  };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.DexUnits;
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);

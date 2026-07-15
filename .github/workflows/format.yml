@@ -1,32 +1,22 @@
 name: biome
 
-# BIOME-FORMATTER Phases 0–1 (formatter) + Phase 3 (lint floor) — Biome, CHECK-ONLY. The `biome` status
-# check (this workflow) is the SOLE format + lint gate; ESLint was fully RETIRED in Phase 3 (.eslintrc + the
-# npx eslint script + the old lint.yml shim all deleted; `npm run lint` = biome). Two event modes:
-#   • PR            → CHANGED-FILES-ONLY format + lint (`biome ci --changed`) — never touches the untouched
-#                     legacy tree (the §B2-safe gate; see the --changed note below).
-#   • push / manual → WHOLE-TREE lint floor (`biome lint`) — the on-push coverage the retired eslint shim
-#                     ran, now under the `biome` name (lint only; whole-tree format is deliberately NOT run,
-#                     see §🔏). This mirrors tests.yml/types.yml/no-network.yml, which also run on push.
+# BIOME-FORMATTER — Biome, CHECK-ONLY. The `biome` status check (this workflow) is the SOLE format + lint
+# gate; ESLint was fully RETIRED (.eslintrc + the npx eslint script + the old lint.yml shim all deleted;
+# `npm run lint` = biome). Two event modes, BOTH now enforce whole-tree-consistent format + the lint floor:
+#   • PR            → CHANGED-FILES-ONLY format + lint (`biome ci --changed`) — fast per-PR gate.
+#   • push / manual → WHOLE-TREE format + lint (`biome ci`). As of ARCHITECTURE-DEBT-REDUCTION §P4 the whole
+#                     tree is Biome-formatted and the biome.json formatter-override list is RETIRED, so the
+#                     on-push sweep is now `biome ci` (format + lint), not the old `biome lint`-only floor.
+#                     "is this file format-gated?" is no longer a guess — every in-scope *.js is.
 # `biome.json linter.rules` = the control-flow / dead-code floor (0 errors on the current tree). Warnings do
 # not fail the gate (advisory, as ESLint's --max-warnings=100000 was).
 # CI-ONLY: emits nothing, ships nothing, adds no runtime dependency/CDN — the 100%-local / single-file /
 # offline invariant (CLAUDE.md) is untouched. Biome is a devDependency (package.json), exactly like tsc.
 #
-# ⚠ CHECK-ONLY — NEVER `--write` in CI (CLAUDE.md §🔏 / brief §B2): a formatter that reflows a shipped
-# *.js moves that bundle's manifestHash and forces a full fixture re-record for identical behavior. So the
-# gate only VALIDATES format; applying it is on-touch only (a file you are already re-bundling). `--changed`
-# is what makes this §B2-safe — a PR that doesn't touch a legacy file never demands it be reformatted, so
-# this gate is green from day one on the unformatted tree and only enforces format on what's new/touched.
-# `--no-errors-on-unmatched` keeps a docs/config-only PR (zero in-scope files) green instead of erroring.
-#
-# FORMATTER OVERRIDE (SECURITY-CSP-STRICT-SCRIPT-SRC-2026-07-11): a few shipped bundle-source *.js files
-# that predate Biome were touched by that PR with BYTE-MINIMAL diffs (the inline-handler -> data-act
-# migration) but deliberately NOT reflowed — reflowing them churns every provenance fixture (§🔏) AND breaks
-# ~17 format-sensitive source-text safety gates in tests/dex-tests.js. So biome.json `overrides` disables the
-# FORMATTER (only) for exactly those files; the LINTER floor still runs on them. Drop a file from that list
-# the day it is genuinely reformatted on a behavioral re-bundle. (This is the §B2 "on-touch" escape hatch for
-# a legacy file you touched but must not reflow — encoded in config instead of left as a red gate.)
+# ⚠ CHECK-ONLY — NEVER `--write` in CI (CLAUDE.md §🔏): a formatter that reflows a shipped *.js moves that
+# bundle's manifestHash and forces a fixture re-record. So the gate only VALIDATES format; applying it is an
+# author-side step (run `biome format --write` locally, then re-bundle). `--no-errors-on-unmatched` keeps a
+# docs/config-only PR (zero in-scope files) green instead of erroring.
 
 on:
   push:
@@ -54,11 +44,11 @@ jobs:
           BASE="${{ github.base_ref || 'main' }}"
           git fetch --no-tags origin "$BASE"
           npx @biomejs/biome ci --changed --since="origin/$BASE" --no-errors-on-unmatched
-      # push to main / manual → the WHOLE-TREE lint floor (control-flow / dead-code). This is the on-push
-      # coverage the retired eslint shim (lint.yml) provided, now under the `biome` name. LINT only, not
-      # `ci` — whole-tree FORMAT would demand the unformatted legacy tree be reflowed (CLAUDE.md §🔏),
-      # whereas whole-tree LINT is 0 errors. `--changed` is meaningless on a push to main (it would diff
-      # the commit against itself), so the sweep is whole-tree.
-      - name: Biome lint floor — whole tree (push / manual)
+      # push to main / manual → the WHOLE-TREE format + lint gate. Since ARCHITECTURE-DEBT-REDUCTION §P4
+      # reflowed the whole tree and retired the biome.json formatter-override list, whole-tree FORMAT is
+      # now 0 errors (it was the override list that used to force this to lint-only). So the on-push sweep
+      # is `biome ci` (format + lint), making format enforcement unconditional everywhere. `--changed` is
+      # meaningless on a push to main (it would diff the commit against itself), so the sweep is whole-tree.
+      - name: Biome format + lint — whole tree (push / manual)
         if: github.event_name != 'pull_request'
-        run: npx @biomejs/biome lint --no-errors-on-unmatched
+        run: npx @biomejs/biome ci --no-errors-on-unmatched

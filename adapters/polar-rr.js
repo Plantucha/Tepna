@@ -30,7 +30,7 @@
     device: DEVICE,
     // cheap, side-effect-free: filename signature first, header signature as fallback.
     detect: function (file, headText) {
-      var name = (file && file.name || '') + '';
+      var name = ((file && file.name) || '') + '';
       var head = headText || '';
       /* FOREIGN-STREAM VETO (DEEP-AUDIT-2026-07-11 §2). A Polar Sensor Logger session folder carries
          EVERY stream side by side (_ACC / _MAGN / _GYRO / _PPG / _ECG / _RR / _PPI), and they ALL share
@@ -41,10 +41,9 @@
          analyzed as a heart recording (HR 61.9 bpm, "overnight", stress 100, 36 stress_peak events).
          Veto by stream name AND by declared unit, so a renamed file is still refused. */
       if (/_(ACC|MAGN?|GYRO?|PPG|ECG)\b/i.test(name)) return 0;
-      if (/\[\s*(mg|g|dps|uv|µv|nt|gauss)\s*\]/i.test(head)) return 0;     // a declared NON-interval unit
-      if (/_RR\b|_PPI\b|RR\.txt$|PPI\.txt$/i.test(name) && /polar|psl|verity|h10/i.test(name + ' ' + head))
-        return 0.97;
-      if (/_RR\b|_PPI\b/i.test(name)) return 0.8;                          // PSL default per-stream naming
+      if (/\[\s*(mg|g|dps|uv|µv|nt|gauss)\s*\]/i.test(head)) return 0; // a declared NON-interval unit
+      if (/_RR\b|_PPI\b|RR\.txt$|PPI\.txt$/i.test(name) && /polar|psl|verity|h10/i.test(name + ' ' + head)) return 0.97;
+      if (/_RR\b|_PPI\b/i.test(name)) return 0.8; // PSL default per-stream naming
       // An RR/PP COLUMN is real evidence; the bare PSL timestamp envelope is not, and no longer votes
       // on its own (every PSL stream has it).
       if (/RR-?interval|PP-?interval/i.test(head)) return 0.6;
@@ -54,12 +53,20 @@
     parse: function (text, ctx) {
       ctx = ctx || {};
       var parseRR = ctx.parseRRInput || (typeof root.parseRRInput === 'function' ? root.parseRRInput : null);
-      if (!parseRR) return root.SignalFrame.toSignalFrame('rr', { usable: false, reason: 'polar-rr: no parseRRInput in scope (load PulseDex DSP in isolation)' }, { adapter: 'polar-rr', vendor: VENDOR, device: DEVICE });
+      if (!parseRR)
+        return root.SignalFrame.toSignalFrame(
+          'rr',
+          { usable: false, reason: 'polar-rr: no parseRRInput in scope (load PulseDex DSP in isolation)' },
+          { adapter: 'polar-rr', vendor: VENDOR, device: DEVICE }
+        );
       var raw = parseRR(text);
       return root.SignalFrame.toSignalFrame('rr', raw, {
-        adapter: 'polar-rr', vendor: VENDOR, device: DEVICE,
-        files: ctx.files || null, warnings: []
+        adapter: 'polar-rr',
+        vendor: VENDOR,
+        device: DEVICE,
+        files: ctx.files || null,
+        warnings: []
       });
     }
   });
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
