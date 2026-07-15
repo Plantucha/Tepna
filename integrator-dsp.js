@@ -355,7 +355,10 @@ function adaptEnvelopeNode(json, node, filename){
     summary.largeLeakPct     = cm.largeLeakPct!=null?cm.largeLeakPct:null;
     summary.medianPressure   = cm.medianPressure!=null?cm.medianPressure:null;
     summary.therapyHours     = (json.recording && json.recording.therapyHours!=null)?json.recording.therapyHours:null;
-    summary.mode = (json.recording && Array.isArray(json.recording.sessions) && json.recording.sessions[0]) ? json.recording.sessions[0].mode : null;
+    // §6 (DEEP-AUDIT-2026-07-14): honor the NODE's night-level mode, never resurrect sessions[0].mode — the
+    // per-session label CPAPDex deliberately retired (it flipped 7× across 182 real nights; the node forces
+    // metrics.mode=null). Reading sessions[0].mode surfaced a value the node chose to null.
+    summary.mode = json.metrics && json.metrics.mode != null ? json.metrics.mode : null;
     summary.estAHI = cm.residualAHI!=null?cm.residualAHI:null;   // device-scored AHI — strongest apnea truth in the bus
     summary.ahiSource = 'device-scored';
     // body-position passthrough if a future PAP firmware embeds it in event meta

@@ -3263,6 +3263,57 @@
       }
     });
 
+    /* ════ Integrator §6 — the retired per-session CPAP `mode` must NOT be resurrected (DEEP-AUDIT-2026-07-14 §6)
+       adaptEnvelopeNode set summary.mode = json.recording.sessions[0].mode — the FIRST session's per-session
+       label, which CPAPDex deliberately RETIRED (a per-session mode "flipped 7× across 182 real nights", so the
+       node forces metrics.mode=null). Latent today (no consumer reads summary.mode) but a contract landmine: it
+       resurrects a value the node chose to null. Fix: honor the node's night-level metrics.mode (null). ════ */
+    group('Integrator §6 — CPAP summary.mode honors the node (never resurrects sessions[0].mode)', 'integrator-dsp · cpapdex-fusion', function (T) {
+      var A = env.adaptEnvelopeNode,
+        D = env.CpapDsp,
+        F = env.CpapFusion;
+      var ok = !!(typeof A === 'function' && D && typeof D._synthEdfSet === 'function' && F && typeof F.cpapBuildExport === 'function');
+      T.ok('adaptEnvelopeNode + CpapDsp + CpapFusion co-loaded', ok, ok ? '' : 'wire into both runners');
+      if (!ok) return;
+      var night = D.buildNight([D.buildSessionFromEdf(D._synthEdfSet({ oxi: true, cs: true }), {})]);
+      var exp = F.cpapBuildExport(night);
+      // a device that DID score a per-session mode, while the node's night-level metrics.mode stays null (retired).
+      exp.recording.sessions[0].mode = 'APAP';
+      if (exp.metrics) exp.metrics.mode = null;
+      var rec = A(exp, 'CPAPDex', 'cpap.json')[0];
+      T.eq('§6 · summary.mode is NULL when the node retired it (not the per-session APAP label)', rec && rec.summary ? rec.summary.mode : 'no-rec', null);
+      // control: when the node DOES publish a night-level mode, it is honored (the fix reads the right field).
+      var exp2 = F.cpapBuildExport(night);
+      if (exp2.metrics) exp2.metrics.mode = 'CPAP';
+      var rec2 = A(exp2, 'CPAPDex', 'cpap2.json')[0];
+      T.eq('§6 · control — a node-published metrics.mode IS surfaced', rec2 && rec2.summary ? rec2.summary.mode : 'no-rec', 'CPAP');
+    });
+
+    /* ════ CPAPDex §7 — periodicBreathingPct is NULL (not 0) on a zero-duration session (DEEP-AUDIT-2026-07-14 §7)
+       cpapdex-dsp.js used `durSec>0 ? … : 0` for periodicBreathingPct, while its sibling metrics on the same
+       object return NULL on absence (residualAHI etc. use `usageHours>0 ? … : null`). So a durSec===0 session
+       exported a measured-looking periodicBreathingPct:0 beside honestly-null apnea indices — fabricated absence.
+       Fix: `: 0` → `: null` on both sites, so absence reads null uniformly. ════ */
+    group('CPAPDex §7 — periodicBreathingPct is null, not 0, on a zero-duration session', 'cpapdex-dsp · fabricated-absence', function (T) {
+      var D = env.CpapDsp;
+      if (!D || typeof D.buildSessionFromEdf !== 'function') {
+        T.ok('env.CpapDsp.buildSessionFromEdf available', false, 'not wired');
+        return;
+      }
+      var t0 = Date.UTC(2026, 5, 12);
+      var zero = D.buildSessionFromEdf(
+        { PLD: { clock: { t0Ms: t0 }, recordsRead: 0, recDurSec: 60, numRecords: 0, signals: {} }, SA2: { clock: { t0Ms: t0 }, recordsRead: 0, recDurSec: 60, signals: {} } },
+        {}
+      );
+      var m = (zero && zero.metrics) || {};
+      T.eq('§7 · periodicBreathingPct is NULL on a zero-duration session (matches the null apnea indices)', m.periodicBreathingPct, null);
+      T.eq('§7 · control — its sibling residualAHI is also null (they now agree on absence)', m.residualAHI, null);
+      // control: a NORMAL session still reports a measured number (the fix does not blank real data).
+      var real = D.buildSessionFromEdf(D._synthEdfSet({ oxi: true, cs: true }), {});
+      var rm = (real && real.metrics) || {};
+      T.ok('§7 · control — a real session still reports a numeric periodicBreathingPct', typeof rm.periodicBreathingPct === 'number', JSON.stringify(rm.periodicBreathingPct));
+    });
+
     /* ════ Integrator ingests a MULTI-NIGHT CPAP wrapper — no silent payload drop (DEEP-AUDIT-2026-07-14 §2)
        A CPAPDex ≥3-night Export is a wrapper { schema.multiNight:true, nights:[ per-night node-export ] }
        with NO top-level recording / ganglior_events / metrics. `normalizeFile` unwrapped a `nights[]`

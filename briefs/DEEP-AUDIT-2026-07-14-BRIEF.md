@@ -172,7 +172,14 @@ surfaced number), then §4/§5, then §6–§8.
 - **Fix sketch:** thread ONE chosen basis through all ODI-family denominators. **Gate cost:** `oxydex-dsp.js` →
   re-bundle OxyDex + regenerate fixtures (add a gappy fixture — the clean ~6-min clips don't exercise it).
 
-## §6 — Integrator resurrects the retired per-session CPAP `mode` label  (latent)
+## §6 — Integrator resurrects the retired per-session CPAP `mode` label  (latent)  ✅ EXECUTED 2026-07-14
+> **EXECUTED 2026-07-14** (batched with §7). `integrator-dsp.js` now sets `summary.mode = json.metrics?.mode`
+> (honoring the node's night-level value, which CPAPDex forces `null`) instead of `json.recording.sessions[0].mode`.
+> Gated by an assertion driven through `adaptEnvelopeNode`: a CPAP export with `sessions[0].mode='APAP'` but
+> `metrics.mode=null` → `summary.mode === null` (verified RED on old code: it returned `'APAP'`), plus a control
+> that a node-published `metrics.mode` IS surfaced. Re-bundled Integrator + OverDex + the 4 CGM analysis tools
+> that inline `integrator-dsp.js`. EXPORT-INERT — verified: the Integrator TCH golden reproduces byte-identical;
+> `verifiedUnder` re-stamped after a green corpus run.
 - **Severity:** fabricated/misleading value; **latent** today (no consumer reads `summary.mode`) — a contract landmine.
 - **Root cause:** `integrator-dsp.js:358` sets `summary.mode = json.recording.sessions[0].mode` — the first
   session's label — which CPAPDex deliberately retired (`cpapdex-dsp.js:776` forces `metrics.mode=null`;
@@ -180,7 +187,13 @@ surfaced number), then §4/§5, then §6–§8.
 - **Fix sketch:** `summary.mode = json.metrics?.mode || null` (honor the node's null), or drop the field. **Gate
   cost:** `integrator-dsp.js` → re-bundle Integrator; no fixture regen.
 
-## §7 — CPAPDex `periodicBreathingPct: 0` (not `null`) on a zero-duration session  (degenerate)
+## §7 — CPAPDex `periodicBreathingPct: 0` (not `null`) on a zero-duration session  (degenerate)  ✅ EXECUTED 2026-07-14
+> **EXECUTED 2026-07-14** (batched with §6). Both `cpapdex-dsp.js` sites (`:664`, `:753`) now return `null` on a
+> `durSec===0` session instead of `0`, matching the sibling apnea indices (`residualAHI` etc. already `null` on
+> absence). Gated: a zero-duration session → `periodicBreathingPct === null` (verified RED: it was `0`), with a
+> control that a real session still reports a numeric value. Re-bundled CPAPDex + the 4 CGM analysis tools that
+> inline `cpapdex-dsp.js`. EXPORT-INERT — verified: the branch needs `durSec===0`, which the synthetic goldens
+> never hit, so all CPAP goldens reproduce byte-identical; `verifiedUnder` re-stamped after a green corpus run.
 - **Severity:** fabricated absence (null-vs-0), low reach.
 - **Root cause:** `cpapdex-dsp.js:664` and `:753` use `durSec>0 ? … : 0`; sibling metrics on the same object
   return **null** on absence (`residualAHI: usageHours>0 ? … : null`, :659-663/:748-752). A `durSec===0` session
