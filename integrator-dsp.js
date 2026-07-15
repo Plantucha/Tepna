@@ -21,7 +21,7 @@ const BUS_ALIASES = ['ganglior', 'fascia'];
    loads BEFORE this file in every
    host + bundle (dex-coload.js / *.src.html). Local aliases keep every internal call site
    and the back-compat re-export tail byte-compatible. ── */
-var tzOffset = DexClock.tzOffset, _ckP2 = DexClock._ckP2, _ckNumEpoch = DexClock._ckNumEpoch,
+var _tzOffset = DexClock.tzOffset, _ckP2 = DexClock._ckP2, _ckNumEpoch = DexClock._ckNumEpoch,
     _ckZoneMin = DexClock._ckZoneMin, _ckDMY = DexClock._ckDMY, parseTimestamp = DexClock.parseTimestamp;
 function fmtClock(ms){ var d=new Date(ms); return _ckP2(d.getUTCHours())+':'+_ckP2(d.getUTCMinutes()); }
 function fmtClockS(ms){ var d=new Date(ms); return _ckP2(d.getUTCHours())+':'+_ckP2(d.getUTCMinutes())+':'+_ckP2(d.getUTCSeconds()); }
@@ -579,6 +579,21 @@ function normalizeFile(json, filename){
   try {
     if(node==='OxyDex' && (Array.isArray(json) || json.desatProfile || json.hr_spikes || json.nights)){
       return { recs:adaptOxyDex(json, filename), warnings:warnings };
+    }
+    // §2 (DEEP-AUDIT-2026-07-14): a MULTI-NIGHT wrapper carries its per-night node-exports under
+    // nights[] and NO top-level recording / ganglior_events / metrics. Only OxyDex (above) unwrapped
+    // nights[]; a CPAPDex ≥3-night Export fell through to the flat adaptEnvelopeNode below, which read
+    // an empty envelope → one date-unknown rec, no events, null device-scored AHI, and NO warning — the
+    // strongest apnea truth on the bus silently gone. Unwrap ANY schema.multiNight wrapper generically:
+    // each night is itself a full single-night node-export, adapted like any other envelope, so every
+    // multi-night emitter is handled like OxyDex (whose own nights[]-aware adapter runs above).
+    if(node!=='Unknown' && Array.isArray(json.nights) && json.schema && json.schema.multiNight){
+      var mnRecs = [];
+      for(var _ni=0; _ni<json.nights.length; _ni++){
+        var _nightRecs = adaptEnvelopeNode(json.nights[_ni], node, filename);
+        if(_nightRecs && _nightRecs.length) mnRecs = mnRecs.concat(_nightRecs);
+      }
+      return { recs:mnRecs, warnings:warnings };
     }
     if(node==='Unknown' && !json.ganglior_events && !json.events && !json.fascia_events){
       return { recs:[], warnings:warnings.concat(['"'+(filename||'file')+'" — unrecognized format, no events found; skipped']) };
@@ -1412,7 +1427,6 @@ function runFusion(recs, opts){
   // flatten findings list
   var findings = apnea ? apnea.findings.slice() : [];
   if(autoGly && autoGly.glucoseAutonomicCorrelation!=null){
-    var w = autoGly.pairs[0];
     findings.push({ tMs:(startMs||0), type:'glucose_autonomic_correlation', conf:0.6,
       nodes:['ECGDex','GlucoDex'], sources:[], meta:{ r:autoGly.r, directional:autoGly.directional, n:autoGly.n },
       note:autoGly.note });

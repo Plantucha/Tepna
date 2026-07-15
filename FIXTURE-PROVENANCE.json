@@ -313,7 +313,7 @@
     },
     "integrator_tch_golden.node-export.json": {
       "bundle": "Integrator.html",
-      "manifestHash": "8f3ab6cd32b1",
+      "manifestHash": "2c64e2c36ed2",
       "added": "2026-07-06",
       "inputs": [],
       "note": "ADDED 2026-07-06 (INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II §2) — the FIRST code-gated Integrator fixture (the two integrator_fusion_2026-06-1x snapshots are historical:true, byte-PINNED only). Closes FU-I §2's 'make TCH fire on a real co-recorded night' honestly: the Dex-Test-Suite 'equivalence gate' group rebuilds THREE deterministic ganglior.node-exports (ECGDex+PpgDex+OxyDex) carrying overlapping, STAGGERED-wall-clock (+0/+5/+10 min) timeseries.epochs[] {hr, motionIndex} in-code (seeded mulberry32, no RNG/no {text} input — the cpapdex_synthetic_golden pattern), adapts+fuses them through the REAL adaptEnvelopeNode + fuseHRVConsensus, and deep-diffs the WHOLE consensus against this committed reference (vol excluded: file/provenance/kernel/generated). The HR-hat fires (n=22 aligned epochs), names culprit OxyDex (planted σ=4.5, the noisiest of {1.0,2.2,4.5}), derives ρ=0.356 from cross-node motion (→ correlated-external solve, exercising FU-II §1), and reconciles HR to 58.4 bpm — plus the §3 τ-sparkline allan block + §5 quiet-order caveat. INPUTS REBUILT IN-CODE (inputHashes:{}) so the golden is a PURE function of INTEGRATOR code: an OxyDex/ECGDex/PpgDex DSP change cannot move it (it never runs a node compute). Fully regenerable: re-run the gate's _tchGoldenInputs()→adapt→fuse (byte-identical to _diag/tch-golden-gen.html). REGENERATE this golden whenever the fusion/HR-hat export shape intentionally changes. GATE B asserts the producing bundle's CURRENT manifestHash still equals cef329a4fec6 — turns red the moment Integrator code changes.",
@@ -321,7 +321,7 @@
       "inputHashes": {},
       "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash cef329a4fec6→f19fde9a7913). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals f19fde9a7913.",
       "note_decorrelationgate": "manifestHash re-recorded 2026-07-07 (TRIO-METHODS-REUSE §Do 3 — decorrelation quality gate: integrator-tch.js gained screenTriplet/pearson [→1.2.0] + integrator-dsp.js _tchHat drops a node that decorrelates from both peers before the solve). EXPORT-INERT for THIS golden: its inputs are three CORRELATED staggered series, so screenTriplet returns drop:null and _tchHat proceeds exactly as before — the fused consensus is byte-identical (outputHash 72fa6fcafb7afd5a UNCHANGED; the equivalence gate rebuilds+diffs it green). Owned re-bundle f19fde9a7913→24ebb7156ca8. GATE B asserts the producing bundle CURRENT manifestHash still equals 24ebb7156ca8.",
-      "verifiedUnder": "1fb65fa521af"
+      "verifiedUnder": "94033a368c2e"
     },
     "integrator_fusion_2026-06-13.json": {
       "bundle": "Integrator.html",

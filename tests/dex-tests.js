@@ -3217,6 +3217,66 @@
       }
     });
 
+    /* ════ Integrator ingests a MULTI-NIGHT CPAP wrapper — no silent payload drop (DEEP-AUDIT-2026-07-14 §2)
+       A CPAPDex ≥3-night Export is a wrapper { schema.multiNight:true, nights:[ per-night node-export ] }
+       with NO top-level recording / ganglior_events / metrics. `normalizeFile` unwrapped a `nights[]`
+       wrapper ONLY for node==='OxyDex'; a CPAPDex wrapper fell through to the flat envelope adapter, which
+       read an EMPTY envelope → one date-unknown rec, t0Ms=null, events=[], estAHI=null, ahiSource still
+       'device-scored', and NO warning. The strongest apnea truth on the bus (device-scored AHI) silently
+       vanished from fusion. Fix: unwrap any `schema.multiNight` wrapper generically, per night, so every
+       multi-night emitter is handled like OxyDex. Driven through normalizeFile — the app's own entry. ════ */
+    group('Integrator ingests a multi-night CPAP wrapper without dropping the payload (DEEP-AUDIT §2)', 'integrator-dsp · cpapdex-fusion · ingest', function (T) {
+      var NF = env.normalizeFile,
+        D = env.CpapDsp,
+        F = env.CpapFusion;
+      var ok = !!(typeof NF === 'function' && D && typeof D._synthEdfSet === 'function' && F && typeof F.cpapBuildMultiNightExport === 'function');
+      T.ok('normalizeFile + CpapDsp + CpapFusion.cpapBuildMultiNightExport co-loaded', ok, ok ? '' : 'wire normalizeFile + cpapdex-fusion.js into BOTH runners');
+      if (!ok) return;
+
+      var DAY = 86400000;
+      var mk = function (delta) {
+        var set = D._synthEdfSet({ oxi: true, cs: true });
+        ['PLD', 'BRP', 'SA2', 'EVE', 'CSL'].forEach(function (k) {
+          if (set[k] && set[k].clock && set[k].clock.t0Ms != null) set[k].clock.t0Ms += delta;
+          if (set[k] && set[k].annotations)
+            set[k].annotations.forEach(function (a) {
+              if (a.tMs != null) a.tMs += delta;
+            });
+        });
+        return D.buildNight([D.buildSessionFromEdf(set, {})]);
+      };
+      var wrapper = F.cpapBuildMultiNightExport([mk(0), mk(DAY), mk(2 * DAY)]);
+      T.ok(
+        'the wrapper is a 3-night multiNight envelope (schema.multiNight, nights[3])',
+        !!(wrapper && wrapper.schema && wrapper.schema.multiNight && wrapper.nights && wrapper.nights.length === 3),
+        wrapper ? 'nights=' + (wrapper.nights || []).length : 'null'
+      );
+
+      var out = NF(wrapper, 'cpap_3night_ganglior.json');
+      var recs = (out && out.recs) || [];
+
+      // THE BUG: one empty date-unknown rec, no events, null AHI, no warning — the whole payload gone.
+      T.eq('all THREE nights survive ingest (not collapsed to one empty rec)', recs.length, 3);
+      var withEvents = recs.filter(function (r) {
+        return (r.events || []).length > 0;
+      });
+      T.ok('every night contributes its device-scored events (none dropped)', withEvents.length === 3, withEvents.length + ' of 3 nights carry events');
+      var dated = recs.filter(function (r) {
+        return r.t0Ms != null;
+      });
+      T.ok('every night is DATED, not date-unknown (t0Ms reconstructed per night)', dated.length === 3, dated.length + ' of 3 dated');
+      var authoritative = recs.filter(function (r) {
+        return r.summary && r.summary.estAHI != null && r.summary.ahiSource === 'device-scored';
+      });
+      T.ok('the device-scored AHI survives on every night (the strongest apnea truth, was null)', authoritative.length === 3, authoritative.length + ' of 3 carry a non-null device-scored estAHI');
+      // the three nights are DISTINCT dates (the wrapper is not just re-ingesting night 0 thrice)
+      var days = {};
+      recs.forEach(function (r) {
+        if (r.t0Ms != null) days[Math.floor(r.t0Ms / DAY)] = 1;
+      });
+      T.eq('the three nights land on three distinct dates', Object.keys(days).length, 3);
+    });
+
     group('Integrator ingests the GlucoDex export end-to-end (GLUCODEX-FOLLOWUPS §3)', 'glucodex-dsp · integrator-dsp', function (T) {
       var A = env.adaptEnvelopeNode;
       if (typeof A !== 'function') {

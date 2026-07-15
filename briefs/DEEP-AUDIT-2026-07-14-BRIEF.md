@@ -67,7 +67,21 @@ surfaced number), then §4/§5, then §6–§8.
   re-bundle GlucoDex + regenerate its equiv/golden fixtures (the ~6-min equiv clips contain no `GAP_LONG` — add a
   committed synthetic long-gap fixture + assertion that the excluded metrics don't move when the gap is inserted).
 
-## §2 — Integrator silently drops a multi-night CPAP export's entire per-night payload  ⚠ high
+## §2 — Integrator silently drops a multi-night CPAP export's entire per-night payload  ⚠ high  ✅ EXECUTED 2026-07-14
+> **EXECUTED 2026-07-14.** `normalizeFile` now unwraps ANY `schema.multiNight` wrapper generically — each
+> `nights[]` entry is a full single-night node-export, adapted per night like any other envelope — instead of
+> unwrapping only for `node==='OxyDex'`. **Placed AFTER the OxyDex branch, not before it** (the brief sketched
+> "before node dispatch"): OxyDex ALSO sets `schema.multiNight`, so a generic-first unwrap would have pulled
+> OxyDex off its dedicated `nights[]`-aware `adaptOxyDex` and regressed it — the correct placement keeps OxyDex
+> on its own adapter and catches CPAPDex + any future multi-night emitter. Gated by a contract assertion driven
+> through `normalizeFile` (the app's own entry): a 3-night CPAP wrapper → **3 dated records, each with events +
+> a non-null device-scored `estAHI`, on three distinct dates**, verified RED on the old code first (1 empty
+> date-unknown rec, 0 events, null AHI). Re-bundled Integrator (`8f3ab6cd32b1 → 2c64e2c36ed2`) + OverDex (both
+> inline `integrator-dsp.js`; the rebuild also cleared two pre-existing dead-var lint findings the edit pulled
+> into biome's changed-file scope — a `tzOffset`→`_tzOffset` rename to match its `_ck*` DexClock-delegation
+> siblings, and a dead `var w` local). **EXPORT-INERT — verified, not asserted:** the Integrator TCH golden
+> reproduces byte-identical (ingest-only change, outside the compute path); `verifiedUnder` re-stamped to the
+> new compute closure `94033a368c2e` after a green corpus run.
 - **Severity:** contract/provenance drift **+ silent failure** — device-scored AHI (the strongest apnea truth
   on the bus) vanishes from fusion with no warning.
 - **Root cause:** `cpapdex-app.js:406` emits `cpapBuildMultiNightExport` (≥3 nights) → wrapper
