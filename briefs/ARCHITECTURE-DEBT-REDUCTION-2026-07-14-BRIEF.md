@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-14
+**Status:** DONE — 2026-07-15 · **Created:** 2026-07-14
 
 # Architecture-debt reduction — five maintainability wins after the checkJs type gate
 
@@ -236,6 +236,26 @@ oxydex 12 · cpapdex 38 — each re-bundles its app + the orchestrators that co-
 ---
 
 ## P3 — Split the two shared provenance ledgers into per-app files · kills the serialize bottleneck
+
+> **§P3 EXECUTED 2026-07-15.** Split into per-app **`provenance/<App>.json`** fragments (each carries that
+> app's GATE-A `manifestHash` + its GATE-B fixtures) + `provenance/_meta.json` (the free-floating `_note_*`/
+> `_retired`/`_profileCoupledStripList` — no code reads them) + `provenance/index.json` (the app list). The
+> monoliths are DELETED. Chosen shape: **co-locate manifest + fixtures per app** (one file per app per PR →
+> the collision is fully gone, better than the brief's separate manifest/fixtures files). New
+> **`provenance-ledger.js`** — a pure assembler (`assemble`) + per-realm loaders (`loadNode` fs / `loadBrowser`
+> fetch), single-sourced like `manifest-gate.js` — reassembles the identical combined `{ bundles }` /
+> `{ fixtures }` shape, so **`manifest-gate.js` and `dex-tests.js` are UNCHANGED** (they still receive the
+> assembled view). Migration was **equivalence-proven first**: `assemble(fragments)` deep-equals both retired
+> monoliths byte-for-byte (parsed) before anything switched. All writers (`build.mjs` restamp + `committedHash`,
+> `verify-fixtures.mjs`, `regen-glucodex`/`regen-pulsedex`) and readers (`verify-manifest.mjs`, `run-tests.mjs`,
+> `release.mjs`, `reconcile-provenance.mjs`, `verify-provenance.html`, `no-network.html`, `Dex-Test-Suite.html`)
+> migrated. `verify-manifest.mjs` gains a **fragment-set ≡ index.json ≡ canonical-bundles** consistency check
+> (adversarially verified: drop an app from index → red). **Gates green:** `build.mjs --check` clean · GATE A/B
+> PASS · `verify-fixtures --check` 0 unverified · `build-docs --check` current · suite 2525. **No `manifestHash`
+> moved** (bundles byte-identical) — a tooling repackaging, `type: changed` changeset. **Browser lane
+> (verify-provenance/no-network/Dex-Test-Suite) is CI-verified only** (no local browser); the browser readers
+> are thin `loadBrowser` wrappers on the same assembler the Node lane proves. Nothing surfaced needing a new
+> follow-up beyond the CI-lane confirmation.
 
 **Problem.** `BUILD-MANIFEST.json` and `FIXTURE-PROVENANCE.json` are **single files every bundle-touching
 PR rewrites**. That is why `CLAUDE.md` §👥.3 says "only one session does bundle/ledger work at a time" —

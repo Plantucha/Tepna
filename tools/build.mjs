@@ -81,37 +81,33 @@ function buildOne(bundleFile) {
   return DexBuild.build({ srcHtml, assets }); // { html, manifestHash, assetNames }
 }
 
-// Re-stamp a bundle's manifestHash into BOTH ledgers (targeted, formatting-preserving string
-// replace with count assertions — never a blind JSON.stringify that reflows the whole file).
+// Re-stamp a bundle's manifestHash into its per-app provenance/ fragment (P3 — the two monolith
+// ledgers are split so an OxyDex re-bundle touches ONLY provenance/OxyDex.json, never a shared file).
+// The fragment carries this app's GATE-A bundle hash AND its GATE-B fixtures; both are re-stamped
+// here. A per-app fragment is isolated, so a clean whole-fragment rewrite has no cross-app churn.
+function fragPathFor(bundleFile) {
+  return join(ROOT, 'provenance', bundleFile.replace(/\.html$/, '') + '.json');
+}
 function restampLedgers(bundleFile, oldHash, newHash) {
   if (oldHash === newHash) return { manifest: 0, fixtures: 0 };
-  // BUILD-MANIFEST.json — exactly one occurrence for this bundle's committed hash
-  const bmPath = join(ROOT, 'BUILD-MANIFEST.json');
-  let bm = readFileSync(bmPath, 'utf8');
-  const bmKey = '"manifestHash": "' + oldHash + '"';
-  const bmN = bm.split(bmKey).length - 1;
-  if (bmN !== 1) throw new Error('BUILD-MANIFEST: expected 1 "' + oldHash + '" for ' + bundleFile + ', found ' + bmN);
-  bm = bm.split(bmKey).join('"manifestHash": "' + newHash + '"');
-  writeFileSync(bmPath, bm);
-  // FIXTURE-PROVENANCE.json — every code-gated fixture of this bundle carries the committed hash.
-  const fpPath = join(ROOT, 'FIXTURE-PROVENANCE.json');
-  let fp = readFileSync(fpPath, 'utf8');
-  const fixtures = JSON.parse(fp).fixtures || {};
-  const owned = Object.keys(fixtures).filter((k) => k[0] !== '_' && fixtures[k] && fixtures[k].bundle === bundleFile && !fixtures[k].historical);
-  const want = owned.filter((k) => fixtures[k].manifestHash === oldHash).length;
-  const fpKey = '"manifestHash": "' + oldHash + '",';
-  const fpN = fp.split(fpKey).length - 1;
-  if (fpN !== want) throw new Error('FIXTURE-PROVENANCE: expected ' + want + ' code-gated "' + oldHash + '," for ' + bundleFile + ', found ' + fpN);
-  if (fpN) {
-    fp = fp.split(fpKey).join('"manifestHash": "' + newHash + '",');
-    writeFileSync(fpPath, fp);
-  }
-  return { manifest: bmN, fixtures: fpN };
+  const fragPath = fragPathFor(bundleFile);
+  const frag = JSON.parse(readFileSync(fragPath, 'utf8'));
+  if (frag.bundle !== bundleFile) throw new Error('provenance fragment ' + fragPath + ' has bundle ' + frag.bundle + ', expected ' + bundleFile);
+  if (frag.manifestHash !== oldHash) throw new Error('provenance fragment ' + bundleFile + ': manifestHash is ' + frag.manifestHash + ', expected ' + oldHash);
+  frag.manifestHash = newHash;
+  // re-stamp every code-gated fixture of this bundle that carried the committed hash (historical ones pinned)
+  const fixtures = frag.fixtures || {};
+  const owned = Object.keys(fixtures).filter((k) => fixtures[k] && !fixtures[k].historical && fixtures[k].manifestHash === oldHash);
+  for (const k of owned) fixtures[k].manifestHash = newHash;
+  writeFileSync(fragPath, JSON.stringify(frag, null, 2) + '\n');
+  return { manifest: 1, fixtures: owned.length };
 }
 
 function committedHash(bundleFile) {
-  const bm = JSON.parse(readT('BUILD-MANIFEST.json'));
-  return (bm.bundles && bm.bundles[bundleFile] && bm.bundles[bundleFile].manifestHash) || null;
+  const fragPath = fragPathFor(bundleFile);
+  if (!existsSync(fragPath)) return null;
+  const frag = JSON.parse(readFileSync(fragPath, 'utf8'));
+  return frag.manifestHash || null;
 }
 
 function writeBundle(bundleFile) {

@@ -1,0 +1,62 @@
+{
+  "bundle": "HRVDex.html",
+  "manifestHash": "0a3ce72e6498",
+  "fixtures": {
+    "HRVDex_2026-06-25_equiv.node-export.json": {
+      "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II — F1 shared dex-export.js scrubExport now sweeps recordings[]/sessions[] multi carriers; F5 review-renderer namespace exposure). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path, reviewView/renderReview are display-only — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
+      "bundle": "HRVDex.html",
+      "note_deepauditfindings20260701": "manifestHash re-recorded 2026-07-01 (DEEP-AUDIT-FINDINGS-2026-07-01 Finding 1 — HRVDex transparent columns parse absent→null via numOrNull + symmetric SDNN rolling filter + d_sdnn_z presence gate). EXPORT-INERT: the committed Welltory CSV has complete core cells, so HRVDex.compute() reproduces byte-identical (env.equiv.hrvdex green; outputHash + inputHashes unchanged) — NOT regenerated, manifestHash re-recorded only.",
+      "manifestHash": "0a3ce72e6498",
+      "note_deepauditfixesfollowupsii20260703": "manifestHash re-recorded 2026-07-03 (DEEP-AUDIT-FIXES-FOLLOWUPS-II §1 — hrvdex-render.js nullable-transparent-field render sweep: scatter/weekday/_patPearson use Number.isFinite, fmt0-4 guard null before toFixed). EXPORT-INERT (render-only; HRVDex.compute/hrvBuildNodeExport untouched) — HRVDex re-bundled 936c007aed32->93dd371ef306 with a CLEAN render-only asset diff (only hrvdex-render.js changed of 17 assets), so env.equiv.hrvdex stays byte-identical; manifestHash-only re-record, outputHash UNCHANGED (NOT regenerated).",
+      "note_exportidfollowupsii": "REGENERATED 2026-06-29 (EXPORT-IDENTITY-FOLLOWUPS-II §1 — node adoption of recording.contentId). hrvBuildNodeExport now stamps recording.contentId via the CORE SignalFrame.computeContentId (signal-frame.js newly bundled into HRVDex) from the per-measurement series (sorted dated rows → {t,rmssd,sdnn,hr}) + floating t0Ms — single-sourced in the shared builder both hrvdex-app.js exportGanglior + headless HRVDex.compute delegate to. Re-ran HRVDex.compute({text}) on the committed Welltory CSV → the ONLY non-volatile delta vs the prior fixture is the added contentId:'68241ac012a6' (deterministic, identity-free; equiv-gate diff confirmed 0 other diffs). HRVDex re-bundled bd66ba23ae09→1ab25fc2df96 (buildHash de20db283366 UNCHANGED — new external <script src=signal-frame.js> moves manifestHash only). GATE B asserts the producing bundle's CURRENT manifestHash still equals 1ab25fc2df96.",
+      "note_x2": "manifestHash re-recorded 2026-06-25 (SIGNAL-ADAPTER-FOLLOWUPS-X §2) — HRVDex re-bundled (94450ff5b53c→50d1a34cc950; buildHash de20db283366 unchanged, external-JS-only) after adding a VISIBLE export-scope hint to the export bar (hrvdex-dsp.js _hrvRefreshChrome + _hrvUpdateExportHint; hrvdex-render.js rerender hook). UI-CHROME-ONLY — the export/compute builders are untouched, so this fixture (produced by compute({text})) is byte-identical; only the producing-bundle manifestHash moved. NO re-export.",
+      "note_ix1": "manifestHash re-recorded 2026-06-25 (SIGNAL-ADAPTER-FOLLOWUPS-IX §1) — HRVDex re-bundled (12ee06f41b0f→94450ff5b53c; buildHash de20db283366 unchanged, external-JS-only) after hrvdex-app.js exportGanglior() switched from the dashboard's getFilteredRows() VIEW (default last-7-day window) to the FULL allRows recording so the app's Ganglior bus export matches the headless HRVDex.compute({text}) scope. FIXTURE CONTENT UNCHANGED — this fixture is produced by compute({text}) (hrvdex-dsp.js, untouched), so the equivalence-gate diff still reproduces it byte-identical; only the producing-bundle manifestHash moved. NO re-export.",
+      "added": "2026-06-25",
+      "inputs": [
+        "WELLTORY_HRV_DATA_EXPORT_20_May_2026_12_00_AM-17_Jun_2026_11_59_PM.csv"
+      ],
+      "note": "REGENERATED 2026-06-25 (SIGNAL-ADAPTER-FOLLOWUPS-VII §1) — the recording block was re-sorted. hrvBuildNodeExport now sorts rows ascending by floating tMs (ONE ordering rule for both the app's exportGanglior and the headless HRVDex.compute({text}) path); previously the headless path left the newest-first Welltory rows in file order, so recording.startEpochMs/firstTMs was the LAST day, lastTMs the earliest, and spanDays NEGATIVE (-27) — a Clock-Contract §4/§6 violation (startEpochMs must be the EARLIEST valid sample). After the fix this fixture's recording block is startEpochMs/firstTMs 1779254174000 (earliest), lastTMs 1781674922000, spanDays 29. hrvdex-dsp.js is a DSP change → HRVDex re-bundled (manifestHash ea74b3639c33→12ee06f41b0f; buildHash de20db283366 unchanged, external-JS-only) → BUILD-MANIFEST GATE A updated. Re-run HRVDex.compute({text}) on the committed Welltory CSV (uploads/WELLTORY_HRV_DATA_EXPORT_20_May_2026_12_00_AM-17_Jun_2026_11_59_PM.csv); the equivalence-gate diff (excludes generated/provenance/kernel/vo2est/karv) reproduces it with 0 differing fields. 0 events (no rmssd<20 / stress>=70 row on this real file) — event byte-coverage is carried by the new HRVDex_2026-06-25_events fixture below. GATE B asserts the producing bundle's CURRENT manifestHash still equals 12ee06f41b0f.",
+      "regenerated": "2026-06-25",
+      "outputHash": "3b61a2f41dc65b6a",
+      "inputHashes": {
+        "WELLTORY_HRV_DATA_EXPORT_20_May_2026_12_00_AM-17_Jun_2026_11_59_PM.csv": "62ae4673f7d4bed1"
+      },
+      "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash 6b43574be1ea→11ea1f782360). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals 11ea1f782360.",
+      "verifiedUnder": "ffe008b26e55"
+    },
+    "HRVDex_2026-06-25_events.node-export.json": {
+      "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II — F1 shared dex-export.js scrubExport now sweeps recordings[]/sessions[] multi carriers; F5 review-renderer namespace exposure). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path, reviewView/renderReview are display-only — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
+      "bundle": "HRVDex.html",
+      "note_deepauditfindings20260701": "manifestHash re-recorded 2026-07-01 (DEEP-AUDIT-FINDINGS-2026-07-01 Finding 1 — HRVDex transparent columns parse absent→null via numOrNull + symmetric SDNN rolling filter + d_sdnn_z presence gate). EXPORT-INERT: the committed Welltory CSV has complete core cells, so HRVDex.compute() reproduces byte-identical (env.equiv.hrvdex green; outputHash + inputHashes unchanged) — NOT regenerated, manifestHash re-recorded only.",
+      "manifestHash": "0a3ce72e6498",
+      "note_deepauditfixesfollowupsii20260703": "manifestHash re-recorded 2026-07-03 (DEEP-AUDIT-FIXES-FOLLOWUPS-II §1 — see the equiv fixture note; rides the same render-only HRVDex re-bundle 936c007aed32->93dd371ef306). EXPORT-INERT — manifestHash-only re-record, outputHash UNCHANGED (NOT regenerated).",
+      "note_exportidfollowupsii": "REGENERATED 2026-06-29 (EXPORT-IDENTITY-FOLLOWUPS-II §1) — recording.contentId added (see the equiv fixture's note for the mechanism). Re-ran HRVDex.compute({text}) on the committed HRVDex_2026-06-25_events.csv → the ONLY non-volatile delta is the added contentId:'dc0f3f9f4d12' (the 4 events unchanged). Rides the same HRVDex re-bundle bd66ba23ae09→1ab25fc2df96 (buildHash de20db283366 UNCHANGED). GATE B asserts the producing bundle's CURRENT manifestHash still equals 1ab25fc2df96.",
+      "note_x2": "manifestHash re-recorded 2026-06-25 (SIGNAL-ADAPTER-FOLLOWUPS-X §2) — rides the same HRVDex re-bundle (94450ff5b53c→50d1a34cc950; export-bar scope-hint chrome, external-JS-only). FIXTURE CONTENT UNCHANGED (compute({text}) output; export/compute builders untouched). NO re-export.",
+      "note_ix1": "manifestHash re-recorded 2026-06-25 (SIGNAL-ADAPTER-FOLLOWUPS-IX §1) — rides the same HRVDex re-bundle (12ee06f41b0f→94450ff5b53c; exportGanglior full-recording scope fix, external-JS-only). FIXTURE CONTENT UNCHANGED (compute({text}) output; hrvdex-dsp.js untouched). NO re-export.",
+      "added": "2026-06-25",
+      "inputs": [
+        "HRVDex_2026-06-25_events.csv"
+      ],
+      "note": "ADDED 2026-06-25 (SIGNAL-ADAPTER-FOLLOWUPS-VII §2) — event-byte-coverage for the equivalence gate (env.equiv.hrvdex_events). The -VI HRVDex equiv fixture carried ZERO events, so the event t-string/conf/meta/ordering went untested. uploads/HRVDex_2026-06-25_events.csv is a small purpose-built Welltory-format summary CSV (4 rows, multi-day, newest-first to also exercise the VII §1 sort) crafted with rows that cross both thresholds: rMSSD<20 → hrv_low (measured) and Stress(HRV)>=70 → stress_high (meta.derived:true, heuristic tier). Produced by running the current HRVDex bundle (manifestHash 12ee06f41b0f) headless via HRVDex.compute({text}) → 4 events (hrv_low+stress_high at the oldest row, hrv_low, stress_high), sorted ascending by tMs, spanDays 4. This IS hrvBuildNodeExport's output (the app delegates to it) → byte-identical to HRVDex.html's own export. Fully regenerate-able: re-run HRVDex.compute({text}) on the committed CSV; the gate diff (excludes generated/kernel) reproduces it with 0 differing fields. GATE B asserts the producing bundle's CURRENT manifestHash still equals 12ee06f41b0f. NO extra re-bundle (rides VII §1's HRVDex bundle).",
+      "outputHash": "fd18ff65233464c9",
+      "inputHashes": {
+        "HRVDex_2026-06-25_events.csv": "50a5efe22eba35cd"
+      },
+      "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash 6b43574be1ea→11ea1f782360). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals 11ea1f782360.",
+      "verifiedUnder": "ffe008b26e55"
+    },
+    "synthetic_hrvdex_golden.node-export.json": {
+      "bundle": "HRVDex.html",
+      "manifestHash": "0a3ce72e6498",
+      "added": "2026-07-12",
+      "inputs": [
+        "synthetic_hrvdex_welltory.csv"
+      ],
+      "inputHashes": {
+        "synthetic_hrvdex_welltory.csv": "89fec6c3ed8c4760"
+      },
+      "outputHash": "4f6abd88aded18d9",
+      "note": "ADDED 2026-07-12 (CPAP-REAL-CORPUS-2026-07-11-BRIEF §P9, resolving §M5) — a COMMITTED, content-addressed equivalence input for HRVDex. Before P9, every node's equivalence input was a REAL recording, hence gitignored, hence absent on a fresh clone: ALL EIGHT compute()-equivalence legs SKIPPED in CI. The suite's strongest correctness gate — the GATE-C surface that catches a code change which moved a fixture's OUTPUT — therefore ran only on the maintainer's machine, and a regression that moved an export would have gone green through CI. This input is SYNTHETIC (tools/make-synthetic-inputs.mjs): the vendor FORMAT is reproduced exactly, the DATA never is — closed-form, physiologically plausible waveforms containing no recording of any person and no device identifier. Deterministic (no RNG, no Date.now()), so re-running the generator reproduces it byte-for-byte and inputHashes stay stable. It ADDS to the real-recording leg (which still runs locally and exercises genuine vendor quirks); it does not replace it. REGENERATE the input and this golden together whenever the export shape changes."
+    }
+  }
+}

@@ -21,11 +21,15 @@
  *     node tools/release.mjs --skip-gates   # dev only: skip the pre-flight gate run
  */
 import { readdirSync, readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const require = createRequire(import.meta.url);
+// P3 — the per-app manifestHash snapshot comes from the reassembled provenance/ fragments.
+const ProvenanceLedger = require(join(ROOT, 'provenance-ledger.js'));
 const args = process.argv.slice(2);
 const DRY = args.includes('--dry-run');
 const SKIP_GATES = args.includes('--skip-gates');
@@ -123,7 +127,7 @@ function main() {
   }
 
   // Per-app manifestHash snapshot (the check-7 anchor — "unreleased code needs an unreleased entry").
-  const build = readJSON('BUILD-MANIFEST.json');
+  const build = ProvenanceLedger.loadNode({ readFileSync }, { join }, ROOT).buildManifest;
   const manifestHashes = {};
   for (const [k, v] of Object.entries(build.bundles || {})) manifestHashes[k.replace(/\.html$/, '')] = v.manifestHash;
 

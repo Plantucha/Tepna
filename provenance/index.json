@@ -1,0 +1,12 @@
+{
+  "apps": [
+    "ECGDex",
+    "OxyDex",
+    "PulseDex",
+    "GlucoDex",
+    "PpgDex",
+    "HRVDex",
+    "CPAPDex",
+    "Integrator"
+  ]
+}

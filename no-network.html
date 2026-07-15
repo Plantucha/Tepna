@@ -300,9 +300,9 @@ function localScriptSrcs(html){
 }
 
 (async function main(){
-  /* bundle list — authoritative from BUILD-MANIFEST.json, fallback to the known 8 */
+  /* bundle list — authoritative from provenance/index.json (P3: the per-app ledger index), fallback to the known 8 */
   let BUNDLES = BUNDLES_FALLBACK.slice();
-  try{ const t=await fetchText('BUILD-MANIFEST.json'); if(t){ const j=JSON.parse(t); if(j&&j.bundles) BUNDLES=Object.keys(j.bundles); } }catch(_){}
+  try{ const t=await fetchText('provenance/index.json'); if(t){ const j=JSON.parse(t); if(j&&j.apps) BUNDLES=j.apps.map(a=>a+'.html'); } }catch(_){}
   const PAGES = BUNDLES.map(b=>({name:b, kind:'bundle', selfContained:true}))
     .concat(ORCHESTRATORS.map(o=>({name:o, kind:'orchestrator', selfContained:false})));
   // N1: the analysis/landing pages are STATIC-scanned only (not runtime-booted — see ANALYSIS_PAGES note).

@@ -52,6 +52,8 @@ const EXPECTED_SKIPS = (() => {
 const require = createRequire(import.meta.url);
 // shared with verify-manifest.mjs + verify-provenance.html — one projection, three consumers
 const ManifestGate = require(join(ROOT, 'manifest-gate.js'));
+// P3 — reassemble the per-app provenance/ fragments into the combined ledger shapes dex-tests.js parses.
+const ProvenanceLedger = require(join(ROOT, 'provenance-ledger.js'));
 
 const C = { reset: '\x1b[0m', red: '\x1b[31m', green: '\x1b[32m', dim: '\x1b[2m', bold: '\x1b[1m', yellow: '\x1b[33m', cyan: '\x1b[36m' };
 const paint = (s, c) => (process.stdout.isTTY ? c + s + C.reset : s);
@@ -286,9 +288,15 @@ function readSources() {
 // hard-fail on the verify page), closing the silent-degradation gap a stray-quote corruption caused.
 function readManifests() {
   const out = {};
-  for (const f of ['BUILD-MANIFEST.json', 'FIXTURE-PROVENANCE.json']) {
-    const p = join(ROOT, f);
-    if (existsSync(p)) out[f] = readFileSync(p, 'utf8');
+  try {
+    // P3: the two ledgers now live as per-app provenance/ fragments; reassemble the combined shape
+    // (byte-equivalent at the parsed level to the retired monoliths) under the same env keys, so the
+    // structural well-formed assertions in dex-tests.js are unchanged.
+    const led = ProvenanceLedger.loadNode({ readFileSync }, { join }, ROOT);
+    out['BUILD-MANIFEST.json'] = JSON.stringify(led.buildManifest, null, 2);
+    out['FIXTURE-PROVENANCE.json'] = JSON.stringify(led.fixtureProvenance, null, 2);
+  } catch (_e) {
+    /* leave absent → the "Manifest JSON well-formed" group flags the missing/broken ledger */
   }
   return out;
 }
