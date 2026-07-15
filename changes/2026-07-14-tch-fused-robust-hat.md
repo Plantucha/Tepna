@@ -8,5 +8,6 @@ Fused-weight artifact-robust three-cornered hat for the reference-free σ tools.
 worker carries per-corner confidence and the sigma hat solves via `tchSigmasFused` (weighted-variance
 TCH + gentle consensus floor), so a transient single-corner artifact no longer detonates the variance
 estimator (the 2026-06-12 spurious-QRS burst inflated σ_H10 ~1.5→9.6 bpm). Ground truth: recovers the
-planted σ exactly, unbiased, O(n), no corpus-tuned constant. Additive DSP exports (unwired in the node
-paths ⇒ ECGDex/PpgDex outputs unchanged); the fused hat is a behavioral change to the analysis tools only.
+planted σ exactly, unbiased, O(n), no corpus-tuned constant. Additive DSP exports; the fused hat is a behavioral change to the analysis tools. ECGDex's OWN HRV
+(`buildNN`→`analyze`) now also drops confirmed-artifact windows (`c<0.5`) so a burst no longer inflates
+its RMSSD/SDNN/epochs, surfacing `artifactSec` — export-inert on the committed clean-input fixtures.

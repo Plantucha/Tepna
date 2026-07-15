@@ -1171,8 +1171,21 @@ function analyze(rec, onProgress){
   const { sqi, rr } = computeSQI(int16, fs, peaks, times, peaksB);
   prog(56, 'Gating + NN interpolation…');
   const nnRes = buildNN(times, rr, sqi);
-  const nn = Array.from(nnRes.nn), tt = Array.from(nnRes.tt);
+  // TCH-FUSED-ROBUST-HAT: exclude SUSTAINED-artifact windows the per-beat gate misses (a burst of
+  // spurious detections passes SQI≥0.30 individually yet is collectively nonsense). beatConfidence
+  // fires only where beat-density is an upper outlier AND SQI is depressed (both vs the record's own
+  // median) → AF-safe (real fast rhythm keeps clean QRS ⇒ c≈1). c<0.5 = confirmed artifact ⇒ drop, so
+  // it no longer inflates RMSSD/SDNN/epochs. Reported as artifactSec.
+  const _conf = beatConfidence(peaks, sqi, fs, rec.t0Ms || 0);
+  const nn = [], tt = []; let artifactSec = 0, _pSec = null;
+  for (let i = 0; i < nnRes.nn.length; i++) {
+    const secAbs = Math.floor(((rec.t0Ms || 0) + peaks[i] / fs * 1000) / 1000);
+    const c = _conf.has(secAbs) ? _conf.get(secAbs) : 1;
+    if (c >= 0.5) { nn.push(nnRes.nn[i]); tt.push(nnRes.tt[i]); }
+    else if (secAbs !== _pSec) { artifactSec++; _pSec = secAbs; }
+  }
   const N = nn.length;
+  if (N < 12) throw new Error('Too few clean R-peaks after artifact gating — signal may be all-artifact.');
 
   prog(64, 'HRV suite…');
   const meanRR = mean(nn), sdnn = std(nn), rm = rmssd(nn), pn = pnn50(nn);
@@ -1362,7 +1375,7 @@ function analyze(rec, onProgress){
     nn, tt, corrected: Array.from(nnRes.corrected),
     // quality
     analyzablePct: nnRes.analyzablePct, correctionRate: nnRes.correctionRate, nCorrected: nnRes.nCorrected, nEctopyCorrected: nnRes.nEctopyCorrected,
-    cleanBeatPct: nnRes.cleanBeatPct, coveragePct: nnRes.coveragePct, nGaps: nnRes.nGaps,
+    cleanBeatPct: nnRes.cleanBeatPct, coveragePct: nnRes.coveragePct, nGaps: nnRes.nGaps, artifactSec,
     spanMin:+(spanSec/60).toFixed(1), gapMin:+(nnRes.gapSec/60).toFixed(1), activeMin:+(nnRes.activeSec/60).toFixed(1), lowCoverage,
     nBeats: N, meanSQI:+(mean(Array.from(sqi))).toFixed(3),
     // time domain
