@@ -2109,6 +2109,52 @@
       }
     });
 
+    /* ════ PulseDex §3 — the Task-Force identity vlf+lf+hf == totalPower on overnight (DEEP-AUDIT-2026-07-14 §3)
+       PulseDex was the un-fixed SIBLING of the DEEP-AUDIT-2026-07-11 §10 fix ECGDex + PpgDex both carry. Its
+       windowed/overnight path took FOUR INDEPENDENT medians —
+         winSpec = { hf:median(sh), lf:median(sl), vlf:median(sv), tp:median(stp) }
+       and median(tp_i) ≠ median(vlf_i)+median(lf_i)+median(hf_i). So Total Power and the HF/LF fraction bars
+       (hf/(tp||1)) surfaced numbers that don't reconcile with the bands they sit beside — ~5–20 % on overnight.
+       Fix: define tp as the band sum (winSpec.tp = vlf+lf+hf), exactly as ECGDex:601 / PpgDex do. Control: the
+       record must take the overnight winSpec path (longRec), else the four-median split never runs. ════ */
+    group('PulseDex §3 — vlf+lf+hf == totalPower on overnight (Task-Force identity, the un-fixed sibling)', 'pulsedex-dsp · spectral', function (T) {
+      var P = env.PulseDex;
+      if (!P || typeof P.computeResult !== 'function') {
+        T.ok('env.PulseDex.computeResult available', false, 'not wired — gate skipped');
+        return;
+      }
+      // ~1.7 h of RR with real band structure so the overnight winSpec (four-median) path runs.
+      var n = 7200,
+        t0 = Date.UTC(2026, 5, 25, 23, 0, 0),
+        intervals = [],
+        tsMs = [],
+        t = t0;
+      for (var i = 0; i < n; i++) {
+        var rr = 850 + 120 * Math.sin(i / 40) + 60 * Math.sin(i / 7) + 30 * Math.sin(i / 200);
+        intervals.push(rr);
+        tsMs.push(t);
+        t += rr;
+      }
+      var r = P.computeResult({ intervals: intervals, tsMs: tsMs, t0Ms: t0, offsetMin: null });
+      T.ok('the record takes the overnight winSpec path (longRec)', !!(r && r.longRec === true && r.mode === 'overnight'), r ? 'mode=' + r.mode + ' longRec=' + r.longRec : 'null');
+      T.ok(
+        'all four bands are present + finite (vlf/lf/hf/tp)',
+        !!(
+          r &&
+          [r.vlf, r.lf, r.hf, r.tp].every(function (v) {
+            return typeof v === 'number' && isFinite(v);
+          })
+        ),
+        r ? JSON.stringify({ vlf: r.vlf, lf: r.lf, hf: r.hf, tp: r.tp }) : 'null'
+      );
+      if (!(r && r.longRec)) return;
+      T.eq('§3 · TASK-FORCE IDENTITY: vlf + lf + hf == totalPower (one definition, like ECGDex/PpgDex)', r.vlf + r.lf + r.hf, r.tp);
+      // and the surfaced HF fraction reconciles with the bands it sits beside (the render bar reads hf/(tp||1))
+      var hfFrac = r.hf / (r.tp || 1),
+        hfFracTrue = r.hf / (r.vlf + r.lf + r.hf || 1);
+      T.ok('§3 · the HF fraction (hf/tp) matches the true band share (no bar/total mismatch)', Math.abs(hfFrac - hfFracTrue) < 1e-9, 'bar ' + hfFrac.toFixed(4) + ' vs true ' + hfFracTrue.toFixed(4));
+    });
+
     /* ════ 12 · ECGDex respRate aggregation — median, not HF-peak (whole-record scalar) ════ */
     /* DEEP-AUDIT-2026-07-11 §10/§11 — the exported spectrum must sit on ONE time scale, and its band
        split must not hang on an arbitrary internal constant.
