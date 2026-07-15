@@ -110,6 +110,32 @@ function tchSigmas(hh, vv, oo) {
     neg: cv.a <= 0 || cv.b <= 0 || cv.c <= 0,
   };
 }
+// fused-weight hat (TCH-FUSED-ROBUST-HAT-2026-07-14): per-second per-corner confidence (cH/cV/cO —
+// density × SQI from the DSP, AF-safe) weights each difference series in a weighted-variance TCH, so
+// an artifact-inflated corner collapses to its true σ without biasing the clean ones; a gentle
+// cross-sensor consensus (Tukey C=30) is a soft secondary net. Missing confidences default to 1
+// ⇒ classic variance. Same return shape as tchSigmas.
+function _wvarF(d, w){ var sw=0, swd=0, i; for(i=0;i<d.length;i++){ sw+=w[i]; swd+=w[i]*d[i]; } if(sw<=0) return 0; var mu=swd/sw, s=0; for(i=0;i<d.length;i++) s+=w[i]*(d[i]-mu)*(d[i]-mu); return s/sw; }
+function _consensusTrustF(hh, vv, oo, C){
+  var n=hh.length, range=new Array(n), i;
+  for(i=0;i<n;i++) range[i]=Math.max(hh[i],vv[i],oo[i])-Math.min(hh[i],vv[i],oo[i]);
+  var srt=range.slice().sort(function(a,b){return a-b;}), rMed=srt[srt.length>>1]||0;
+  var ad=range.map(function(x){return Math.abs(x-rMed);}).sort(function(a,b){return a-b;}), rMad=1.4826*(ad[ad.length>>1]||0)||1e-9;
+  var w=new Array(n);
+  for(i=0;i<n;i++){ var z=(range[i]-rMed)/rMad; w[i]= z<=0?1 : z>=C?0 : (1-(z/C)*(z/C))*(1-(z/C)*(z/C)); }
+  return w;
+}
+function tchSigmasFused(hh, vv, oo, cH, cV, cO){
+  var n=hh.length, dHV=new Array(n), dHO=new Array(n), dVO=new Array(n), wHV=new Array(n), wHO=new Array(n), wVO=new Array(n), i;
+  var ct=_consensusTrustF(hh, vv, oo, 30);   // very-gentle floor (see sigma-no-reference note); per-corner confidence is primary
+  for(i=0;i<n;i++){
+    dHV[i]=hh[i]-vv[i]; dHO[i]=hh[i]-oo[i]; dVO[i]=vv[i]-oo[i];
+    var h=cH?cH[i]:1, v=cV?cV[i]:1, o=cO?cO[i]:1, t=ct[i];
+    wHV[i]=t*h*v; wHO[i]=t*h*o; wVO[i]=t*v*o;
+  }
+  var cv=threeCorneredHat(_wvarF(dHV,wHV), _wvarF(dHO,wHO), _wvarF(dVO,wVO));
+  return { h10: cv.a>0?Math.sqrt(cv.a):null, verity: cv.b>0?Math.sqrt(cv.b):null, o2: cv.c>0?Math.sqrt(cv.c):null, neg: cv.a<=0||cv.b<=0||cv.c<=0 };
+}
 
 // ── job handlers ───────────────────────────────────────────────────────────
 function runCell(regime, rho, N, t0, count, ar, n, stream) {
@@ -300,7 +326,9 @@ function ecgHrMap(text, onPhase) {
     var secs = Array.from(perSec.keys()).sort(function (a, b) { return a - b; }), vals = secs.map(function (s) { return perSec.get(s); }), out = new Map();
     for (var j = 0; j < secs.length; j++) { var win = vals.slice(Math.max(0, j - 2), Math.min(vals.length, j + 3)).sort(function (a, b) { return a - b; }), med = win[win.length >> 1]; if (Math.abs(vals[j] - med) <= 20) out.set(secs[j], vals[j]); }
     if (out.size < 30) { self.__ecgErr = 'post-clean <30'; return null; }
-    return out;
+    // fused-hat: per-second artifact confidence for THIS corner (density × SQI, AF-safe) — TCH-FUSED-ROBUST-HAT
+    var conf = ECGDSP.hrConfidence ? ECGDSP.hrConfidence(rec.int16, bp, peaks, fs, t0) : null;
+    return { hr: out, conf: conf };
   } catch (e) { self.__ecgErr = (e && e.message) || ('' + e); return null; }
 }
 function ppgHrMapReal(text, onPhase) {
@@ -327,7 +355,12 @@ function ppgHrMapReal(text, onPhase) {
     var secs = Array.from(perSec.keys()).sort(function (a, b) { return a - b; }), vals = secs.map(function (s) { return perSec.get(s); }), out = new Map();
     for (var j = 0; j < secs.length; j++) { var win = vals.slice(Math.max(0, j - 2), Math.min(vals.length, j + 3)).sort(function (a, b) { return a - b; }), med = win[win.length >> 1]; if (Math.abs(vals[j] - med) <= 20) out.set(secs[j], vals[j]); }
     if (out.size < 30) { self.__ppgErr = 'post-clean <30'; return null; }
-    return out;
+    // fused-hat: per-second Verity confidence (density × per-foot SQI, AF-safe) — TCH-FUSED-ROBUST-HAT.
+    // Catches any residual PPG over-detection the optical-refractory fix leaves. feet-as-samples so
+    // beatConfidence's second-keys align with the HR map's secFloor(t0 + footSec*1000).
+    var _sqi = PPGDSP.beatSQI ? PPGDSP.beatSQI(perCh[sel].bp, cons.feet, rec.fs, null, cons.agree || null) : null;
+    var conf = (PPGDSP.beatConfidence && _sqi) ? PPGDSP.beatConfidence(footSec.map(function (s) { return Math.round(s * rec.fs); }), _sqi, rec.fs, t0) : null;
+    return { hr: out, conf: conf };
   } catch (e) { self.__ppgErr = (e && e.message) || ('' + e); return null; }
 }
 async function runRealNight(m) {
@@ -343,12 +376,22 @@ async function runRealNight(m) {
     if (f.verityPPI) { V = ppiHrMap(await f.verityPPI.text()); if (V) src = 'ppi'; }
     if (!V && f.verityPPG) { var _tx = await f.verityPPG.text(); if (HAVE_PPGDSP) { V = ppgHrMapReal(_tx, pg); if (V) src = 'ppg·PPGDSP'; } if (!V) { pg('PT fallback'); V = ppgHrMap(_tx); if (V) src = 'ppg·PT' + (HAVE_PPGDSP ? '[' + (self.__ppgErr || '?') + ']' : ''); } }
     if (!V && f.verityHR) { V = h10HrMap(await f.verityHR.text()); if (V) src = 'device-hr'; }
+    // fused-hat: the raw-signal HR maps (ecgHrMap/ppgHrMapReal) return { hr, conf }; device-HR/PPI
+    // fallbacks return a bare Map (no per-beat data ⇒ confidence defaults to 1). Unwrap uniformly.
+    var Hconf = (H && H.conf) ? H.conf : null; if (H && H.hr) H = H.hr;
+    var Vconf = (V && V.conf) ? V.conf : null; if (V && V.hr) V = V.hr;
     if (!O || !H || !V) return { skip: true, reason: 'no ' + (!O ? 'O2 ' : '') + (!H ? 'H10 ' : '') + (!V ? 'Verity-HR' : '') };
     pg('aligning + solving TCH');
     var ks = []; H.forEach(function (_, s) { if (O.has(s) && V.has(s)) ks.push(s); }); ks.sort(function (a, b) { return a - b; });
     if (ks.length < 1000) return { skip: true, reason: ks.length + ' s overlap < 1000' };
-    var hh = [], vv = [], oo = [], i; for (i = 0; i < ks.length; i++) { hh.push(H.get(ks[i])); vv.push(V.get(ks[i])); oo.push(O.get(ks[i])); }
-    var s = tchSigmas(hh, vv, oo);
+    var hh = [], vv = [], oo = [], cH = [], cV = [], cO = [], i;
+    for (i = 0; i < ks.length; i++) {
+      hh.push(H.get(ks[i])); vv.push(V.get(ks[i])); oo.push(O.get(ks[i]));
+      cH.push(Hconf && Hconf.has(ks[i]) ? Hconf.get(ks[i]) : 1);
+      cV.push(Vconf && Vconf.has(ks[i]) ? Vconf.get(ks[i]) : 1);
+      cO.push(1);   // O2Ring native pulse — a smoothed device integer, cannot over-detect ⇒ trust 1
+    }
+    var s = tchSigmasFused(hh, vv, oo, cH, cV, cO);   // fused-weight hat (per-corner DSP confidence)
     var rHV = pearson(hh, vv), rHO = pearson(hh, oo), rVO = pearson(vv, oo);
     // Verity quality gate: an optical HR whose recovered σ exceeds ~12 bpm (far past any plausible
     // wrist-PPG error) AND decorrelates from BOTH other corners is failed HR extraction (lost PPG
@@ -395,7 +438,7 @@ async function runRealNight(m) {
     // fixes the neg-night cosmetic where a nulled h10 previously still reported an h10 CI.
     if (ci) for (var _ci = 0; _ci < DKEYS.length; _ci++) { if (s[DKEYS[_ci]] == null) ci[DKEYS[_ci]] = null; }
     var out = { skip: false, n: ks.length, source: src, sigma: { o2: s.o2, h10: s.h10, verity: s.verity }, neg: s.neg, h10Unreliable: h10Cls !== 'ok', h10Fault: h10Cls !== 'ok' ? h10Cls : null, ci: ci, rHV: rHV, rHO: rHO, rVO: rVO, hrRatio: hrRatio };
-    if (m.wantSeries) { out.hh = hh; out.vv = vv; out.oo = oo; out.keys = ks; }   // aligned per-second series for the sigma-no-reference tool (BA / control-leg / repeatability)
+    if (m.wantSeries) { out.hh = hh; out.vv = vv; out.oo = oo; out.keys = ks; out.cH = cH; out.cV = cV; out.cO = cO; }   // aligned per-second series + per-corner fused-hat confidence for the sigma-no-reference tool
     return out;
   } catch (e) { return { skip: true, reason: (e && e.message) || String(e) }; }
 }

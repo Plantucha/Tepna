@@ -200,6 +200,42 @@
     };
   }
 
+  // ── fused-weight hat (TCH-FUSED-ROBUST-HAT-2026-07-14) ─────────────────────────────────────
+  // Per-second, per-corner confidence (cH/cV/cO from the DSP: density × SQI, AF-safe) weights each
+  // difference series in a WEIGHTED-variance TCH — a corner's flagged seconds leave ITS differences
+  // but not the others, so the artifact-inflated corner collapses to its true σ with no bias to the
+  // clean ones. A GENTLE cross-sensor consensus (Tukey C=30 on the per-second spread vs the record's
+  // own typical spread) is a soft secondary net for artifacts the DSP can't self-see. O(n); missing
+  // confidences default to 1 ⇒ this reduces to (near-)classic variance. Same shape as tchSigmas.
+  const _wvar = (d, w) => { let sw = 0, swd = 0; for (let i = 0; i < d.length; i++) { sw += w[i]; swd += w[i] * d[i]; } if (sw <= 0) return 0; const mu = swd / sw; let s = 0; for (let i = 0; i < d.length; i++) s += w[i] * (d[i] - mu) * (d[i] - mu); return s / sw; };
+  const _consensusTrust = (hh, vv, oo, C) => {
+    const n = hh.length, range = new Array(n);
+    for (let i = 0; i < n; i++) range[i] = Math.max(hh[i], vv[i], oo[i]) - Math.min(hh[i], vv[i], oo[i]);
+    const srt = range.slice().sort((a, b) => a - b), rMed = srt[srt.length >> 1] || 0;
+    const ad = range.map(x => Math.abs(x - rMed)).sort((a, b) => a - b), rMad = 1.4826 * (ad[ad.length >> 1] || 0) || 1e-9;
+    const w = new Array(n);
+    for (let i = 0; i < n; i++) { const z = (range[i] - rMed) / rMad; w[i] = z <= 0 ? 1 : z >= C ? 0 : (1 - (z / C) * (z / C)) * (1 - (z / C) * (z / C)); }
+    return w;
+  };
+  function tchSigmasFused(hh, vv, oo, cH, cV, cO) {
+    const n = hh.length, dHV = [], dHO = [], dVO = [], wHV = [], wHO = [], wVO = [];
+    const ct = _consensusTrust(hh, vv, oo, 30);   // very-gentle floor: zeros only extreme cross-sensor spikes (clean-corner bias ≈ −0.01); the per-corner DSP confidence is the primary defence
+    for (let i = 0; i < n; i++) {
+      dHV.push(hh[i] - vv[i]); dHO.push(hh[i] - oo[i]); dVO.push(vv[i] - oo[i]);
+      const h = cH ? cH[i] : 1, v = cV ? cV[i] : 1, o = cO ? cO[i] : 1, t = ct[i];
+      wHV.push(t * h * v); wHO.push(t * h * o); wVO.push(t * v * o);
+    }
+    const cv = threeCorneredHat(_wvar(dHV, wHV), _wvar(dHO, wHO), _wvar(dVO, wVO));
+    return {
+      h10: cv.a > 0 ? Math.sqrt(cv.a) : null,
+      verity: cv.b > 0 ? Math.sqrt(cv.b) : null,
+      o2: cv.c > 0 ? Math.sqrt(cv.c) : null,
+      negVar: { h10: cv.a <= 0 ? cv.a : null, verity: cv.b <= 0 ? cv.b : null, o2: cv.c <= 0 ? cv.c : null },
+      neg: cv.a <= 0 || cv.b <= 0 || cv.c <= 0,
+      dHV, dHO, dVO,
+    };
+  }
+
   // Within-window block bootstrap: resample contiguous BLOCK_S-second blocks of the
   // aligned (H,V,O) triples, recompute TCH σ each rep → percentile CI per device.
   // This is the SAMPLING uncertainty of one window's σ — used when N<3 windows exist,
@@ -672,7 +708,7 @@
   function bootSPool(K) { sPool = []; const rd = []; for (let i = 0; i < K; i++) { (function () { let w; try { w = new Worker('sensor-trio-worker.js'); } catch (e) { return; } const rec = { w, ready: false, _r: null }; sPool.push(rec); rd.push(new Promise((r) => rec._r = r)); w.onmessage = (ev) => { const m = ev.data || {}; if (m.type === 'ready') { rec.ready = true; if (rec._r) { rec._r(); rec._r = null; } return; } if (m.type === 'progress') { if (sProg) sProg(m); return; } if (m.type === 'done') { const p = sPend.get(m.reqId); if (p) { sPend.delete(m.reqId); p(m); } } }; w.onerror = () => { if (rec._r) { rec._r(); rec._r = null; } }; w.postMessage({ type: 'init' }); })(); } return Promise.race([Promise.all(rd), new Promise((r) => setTimeout(r, 8000))]); }
   function sRunJob(rec, job) { return new Promise((res) => { const id = sSeq++; sPend.set(id, res); rec.w.postMessage(Object.assign({ type: 'job', reqId: id }, job)); setTimeout(() => { if (sPend.has(id)) { sPend.delete(id); res({ error: 'timeout' }); } }, 1200000); }); }
   // worker result (aligned per-second series) → a window in buildWindow()'s exact shape
-  function windowFromWorker(res) { const hh = res.hh, vv = res.vv, oo = res.oo, ks = res.keys; const s = tchSigmas(hh, vv, oo); const HV = { ...ba(s.dHV), r: pearson(hh, vv) }, HO = { ...ba(s.dHO), r: pearson(hh, oo) }, VO = { ...ba(s.dVO), r: pearson(vv, oo) }; const ctrlDrift = Math.abs(HO.bias) > 1.5 || HO.sd > 4.5 || HO.sd < 0.5; return { label: res.label, n: ks.length, t0: ks[0], t1: ks[ks.length - 1], verSQI: null, sigma: { h10: s.h10, verity: s.verity, o2: s.o2 }, negVar: s.negVar, neg: s.neg, pair: { HV, HO, VO }, ctrlDrift, concord: null, hh, vv, oo, keys: ks, source: res.source }; }
+  function windowFromWorker(res) { const hh = res.hh, vv = res.vv, oo = res.oo, ks = res.keys; const s = tchSigmasFused(hh, vv, oo, res.cH, res.cV, res.cO); const HV = { ...ba(s.dHV), r: pearson(hh, vv) }, HO = { ...ba(s.dHO), r: pearson(hh, oo) }, VO = { ...ba(s.dVO), r: pearson(vv, oo) }; const ctrlDrift = Math.abs(HO.bias) > 1.5 || HO.sd > 4.5 || HO.sd < 0.5; return { label: res.label, n: ks.length, t0: ks[0], t1: ks[ks.length - 1], verSQI: null, sigma: { h10: s.h10, verity: s.verity, o2: s.o2 }, negVar: s.negVar, neg: s.neg, pair: { HV, HO, VO }, ctrlDrift, concord: null, hh, vv, oo, keys: ks, source: res.source }; }
   function collectEntries(items) { const files = [], top = []; function walk(en) { return new Promise((r) => { if (!en) return r(); if (en.isFile) { en.file((f) => { files.push(f); r(); }, () => r()); } else if (en.isDirectory) { const rd = en.createReader(); let all = []; (function b() { rd.readEntries((es) => { if (!es.length) { Promise.all(all.map(walk)).then(() => r()); return; } all = all.concat(es); b(); }, () => r()); })(); } else r(); }); } for (let i = 0; i < items.length; i++) { const e = items[i].webkitGetAsEntry && items[i].webkitGetAsEntry(); if (e) top.push(walk(e)); } return Promise.all(top).then(() => files); }
   async function processFolder() {
     const boxes = [].slice.call(document.querySelectorAll('.nchk2:checked'));

@@ -440,6 +440,54 @@ function pearson(a,b){ const n=Math.min(a.length,b.length); const ma=mean(a),mb=
   const den=Math.sqrt(sa*sb)||1e-9; return sab/den; }
 
 // ════════════════════════════════════════════════════════════════════════
+//  PER-SECOND ARTIFACT CONFIDENCE  (TCH-FUSED-ROBUST-HAT-2026-07-14)
+//  Byte-for-byte MIRROR of ECGDSP.beatConfidence — signal-agnostic (feet/beats + per-beat SQI →
+//  per-second trust c = density_trust × quality_trust, AND-ed via min for AF-safety). For the
+//  Verity corner it catches any residual PPG over-detection (e.g. diastolic-notch doubling the
+//  optical-refractory fix leaves) exactly as it catches the ECG spurious-QRS burst: a window that
+//  is BOTH a beat-density upper-outlier (vs the record's own median) AND SQI-depressed (below the
+//  record's own median SQI) → c→0; high rate with clean beats (real tachycardia) keeps SQI high →
+//  c=1. Self-calibrating; only universal constants. peaks: foot/beat sample indices · sqi: beatSQI.
+// ════════════════════════════════════════════════════════════════════════
+function beatConfidence(peaks, sqi, fs, t0Ms, winSec){
+  winSec = winSec || 60;
+  const n = peaks.length, out = new Map();
+  const t0 = t0Ms || 0;
+  const secAbs = k => Math.floor((t0 + peaks[k] / fs * 1000) / 1000);
+  if (n < 20){ for (let k = 0; k < n; k++) out.set(secAbs(k), 1); return out; }  // too short to calibrate
+  const s0 = secAbs(0), s1 = secAbs(n - 1), S = s1 - s0 + 1;
+  if (S < 1) return out;
+  const cnt = new Float64Array(S), qsum = new Float64Array(S);
+  for (let k = 0; k < n; k++){ const s = secAbs(k) - s0; if (s >= 0 && s < S){ cnt[s]++; qsum[s] += (sqi && sqi[k] != null ? sqi[k] : 1); } }
+  const half = Math.max(1, Math.round(winSec / 2));
+  const winCnt = new Float64Array(S), winSqi = new Float64Array(S);
+  let cAcc = 0, qAcc = 0, lo = 0, hi = -1;
+  for (let i = 0; i < S; i++){
+    const a = Math.max(0, i - half), b = Math.min(S - 1, i + half);
+    while (hi < b){ hi++; cAcc += cnt[hi]; qAcc += qsum[hi]; }
+    while (lo < a){ cAcc -= cnt[lo]; qAcc -= qsum[lo]; lo++; }
+    winCnt[i] = cAcc; winSqi[i] = cAcc > 0 ? qAcc / cAcc : 0;
+  }
+  const active = []; for (let i = 0; i < S; i++) if (winCnt[i] > 0) active.push(i);
+  const medOf = idx => { const a = idx.map(i => winCnt[i]).sort((x, y) => x - y), m = a.length; return m ? (m % 2 ? a[(m - 1) / 2] : (a[m / 2 - 1] + a[m / 2]) / 2) : 0; };
+  const medQ = idx => { const a = idx.map(i => winSqi[i]).sort((x, y) => x - y), m = a.length; return m ? (m % 2 ? a[(m - 1) / 2] : (a[m / 2 - 1] + a[m / 2]) / 2) : 0; };
+  const cMed = medOf(active), qMed = medQ(active);
+  const cAbs = active.map(i => Math.abs(winCnt[i] - cMed)).sort((x, y) => x - y);
+  const qAbs = active.map(i => Math.abs(winSqi[i] - qMed)).sort((x, y) => x - y);
+  const madC = 1.4826 * (cAbs.length ? cAbs[cAbs.length >> 1] : 0) || 1;
+  const madQ = 1.4826 * (qAbs.length ? qAbs[qAbs.length >> 1] : 0) || 1e-6;
+  const C = 6;                                          // universal redescending cut (Tukey-style)
+  const trust = z => z <= 0 ? 1 : z >= C ? 0 : (1 - (z / C) * (z / C)) * (1 - (z / C) * (z / C));
+  for (let i = 0; i < S; i++){
+    if (winCnt[i] <= 0) continue;
+    const sD = Math.max(0, (winCnt[i] - cMed) / madC);   // density upper-outlier suspicion
+    const sQ = Math.max(0, (qMed - winSqi[i]) / madQ);   // SQI-depressed-below-median suspicion
+    out.set(s0 + i, trust(Math.min(sD, sQ)));            // AF-safe AND: both cues must fire
+  }
+  return out;
+}
+
+// ════════════════════════════════════════════════════════════════════════
 //  PPI + correction (Malik-style) and HRV suite
 // ════════════════════════════════════════════════════════════════════════
 // Foot-spine displacement margin, in PERCENTAGE POINTS of correctRR() correction rate. The peak spine
@@ -1236,7 +1284,7 @@ function detectChannelsAsync(rec){
 global.PPGDSP = {
   parsePPG, parseSensorXYZ, parseDevicePPI, analyze, analyzeMotion, validatePPI,
   bandpass, detectBeats, detectChannel, consensusBeats, refineFeet, detectChannelsAsync,
-  buildPPI, correctRR, timeDomain, poincare, lombScargle, dfaAlpha1,
+  buildPPI, correctRR, beatSQI, beatConfidence, timeDomain, poincare, lombScargle, dfaAlpha1,
   parseTimestamp, fmtClock, fmtClockSec, fmtDate, fmtDateTime,
   mean, std, median, quantile,
   partKey, mergeMultipart
