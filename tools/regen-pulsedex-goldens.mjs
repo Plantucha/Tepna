@@ -156,10 +156,11 @@ const fromRR = (file) => {
 const sha16Of = (file) => ManifestGate.sha16(new Uint8Array(fs.readFileSync(path.join(UP, file))));
 
 async function rerecord(fixtureName) {
-  const fpPath = path.join(REPO, 'FIXTURE-PROVENANCE.json');
-  const fp = JSON.parse(fs.readFileSync(fpPath, 'utf8'));
-  const rec = fp.fixtures && fp.fixtures[fixtureName];
-  if (!rec) return console.log(`      ⚠ no FIXTURE-PROVENANCE record for ${fixtureName} — ledger NOT re-recorded`);
+  // P3 — PulseDex fixtures live in provenance/PulseDex.json; re-record into that fragment only.
+  const fragPath = path.join(REPO, 'provenance', 'PulseDex.json');
+  const frag = JSON.parse(fs.readFileSync(fragPath, 'utf8'));
+  const rec = frag.fixtures && frag.fixtures[fixtureName];
+  if (!rec) return console.log(`      ⚠ no provenance record for ${fixtureName} — ledger NOT re-recorded`);
   if (rec.historical) return console.log(`      ∘ ${fixtureName} is historical (byte-pinned, not code-gated) — ledger left alone`);
   const outputHash = await sha16Of(fixtureName);
   const inputHashes = {};
@@ -167,7 +168,7 @@ async function rerecord(fixtureName) {
   const wasOut = rec.outputHash;
   rec.outputHash = outputHash;
   if (Object.keys(inputHashes).length) rec.inputHashes = inputHashes;
-  fs.writeFileSync(fpPath, JSON.stringify(fp, null, 2) + '\n');
+  fs.writeFileSync(fragPath, JSON.stringify(frag, null, 2) + '\n');
   console.log(`      ↻ ledger re-recorded — outputHash ${wasOut} → ${outputHash}`);
 }
 

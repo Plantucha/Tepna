@@ -93,6 +93,7 @@
 <!-- real suite modules (order: kernel → shared → node → integrator) -->
 <script src="kernel-constants.js"></script>
 <script src="clock.js"></script>
+<script src="provenance-ledger.js"></script>
 <script src="metric-registry.js"></script>
 <script src="dex-forget.js"></script>
 <script src="dex-profile.js"></script>
@@ -346,10 +347,15 @@ async function main(){
   await Promise.all(['CPAPDex.src.html','ECGDex.src.html','GlucoDex.src.html','HRVDex.src.html','Integrator.src.html','OxyDex.src.html','PpgDex.src.html','PulseDex.src.html']
     .map(async f => { const t = await fetchText(encodeURI(f)); if(t!=null) srcHtml[f]=t; }));
 
-  // manifests (raw text) for the §6 well-formed assertion (Node CI reads them off disk)
+  // manifests (raw text) for the §6 well-formed assertion. P3: the two ledgers are now per-app
+  // provenance/<App>.json fragments; ProvenanceLedger.loadBrowser fetches + reassembles the identical
+  // combined { bundles } / { fixtures } shape, stringified back under the same keys the suite parses.
   const manifests = {};
-  await Promise.all(['BUILD-MANIFEST.json','FIXTURE-PROVENANCE.json']
-    .map(async f => { const t = await fetchText(f); if(t!=null) manifests[f]=t; }));
+  try {
+    const led = await window.ProvenanceLedger.loadBrowser(fetchText);
+    manifests['BUILD-MANIFEST.json'] = JSON.stringify(led.buildManifest, null, 2);
+    manifests['FIXTURE-PROVENANCE.json'] = JSON.stringify(led.fixtureProvenance, null, 2);
+  } catch(_e) { /* leave absent → the "Manifest JSON well-formed" group flags the broken ledger */ }
 
   // security · csp-strict (SECURITY-CSP-STRICT-SCRIPT-SRC-2026-07-11): the COMMITTED bundle CSP <meta>
   // so the gate can assert each shipped script-src has a 'sha256-' hash and no 'unsafe-inline'. Only the

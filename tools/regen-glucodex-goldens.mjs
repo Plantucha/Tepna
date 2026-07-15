@@ -169,21 +169,23 @@ const fromCsv = (file) => {
 const sha16Of = (file) => ManifestGate.sha16(new Uint8Array(fs.readFileSync(path.join(UP, file))));
 
 async function rerecord(fixtureName, spec) {
-  const fpPath = path.join(REPO, 'FIXTURE-PROVENANCE.json');
-  const fp = JSON.parse(fs.readFileSync(fpPath, 'utf8'));
-  let rec = fp.fixtures && fp.fixtures[fixtureName];
+  // P3 — GlucoDex fixtures live in provenance/GlucoDex.json; that fragment already carries GlucoDex's
+  // committed manifestHash, so the mint path reads the code identity from it (no separate BUILD-MANIFEST).
+  const fragPath = path.join(REPO, 'provenance', 'GlucoDex.json');
+  const frag = JSON.parse(fs.readFileSync(fragPath, 'utf8'));
+  frag.fixtures = frag.fixtures || {};
+  let rec = frag.fixtures[fixtureName];
   // A BRAND-NEW fixture gets its record MINTED here, not hand-typed. Hand-authoring a ledger record means
   // hand-typing a manifestHash — the one thing CLAUDE.md §🔏 forbids — so the tool reads the bundle's
-  // committed code identity from BUILD-MANIFEST.json and hashes the bytes it just wrote.
+  // committed code identity from the fragment and hashes the bytes it just wrote.
   if (!rec && spec && spec.newRecord) {
-    const bm = JSON.parse(fs.readFileSync(path.join(REPO, 'BUILD-MANIFEST.json'), 'utf8'));
-    const mh = bm.bundles && bm.bundles['GlucoDex.html'] && bm.bundles['GlucoDex.html'].manifestHash;
-    if (!mh) return console.log(`      ⚠ BUILD-MANIFEST.json has no GlucoDex.html manifestHash — record NOT minted`);
+    const mh = frag.manifestHash;
+    if (!mh) return console.log(`      ⚠ provenance/GlucoDex.json has no manifestHash — record NOT minted`);
     rec = { bundle: 'GlucoDex.html', manifestHash: mh, added: spec.newRecord.added, note: spec.newRecord.note, inputs: spec.newRecord.inputs, outputHash: '', inputHashes: {} };
-    fp.fixtures[fixtureName] = rec;
-    console.log(`      + minted FIXTURE-PROVENANCE record (bundle GlucoDex.html, manifestHash ${mh})`);
+    frag.fixtures[fixtureName] = rec;
+    console.log(`      + minted provenance/GlucoDex.json record (manifestHash ${mh})`);
   }
-  if (!rec) return console.log(`      ⚠ no FIXTURE-PROVENANCE record for ${fixtureName} — ledger NOT re-recorded`);
+  if (!rec) return console.log(`      ⚠ no provenance record for ${fixtureName} — ledger NOT re-recorded`);
   if (rec.historical) return console.log(`      ∘ ${fixtureName} is historical (byte-pinned, not code-gated) — ledger left alone`);
 
   const outputHash = await sha16Of(fixtureName);
@@ -193,7 +195,7 @@ async function rerecord(fixtureName, spec) {
   const wasOut = rec.outputHash;
   rec.outputHash = outputHash;
   if (Object.keys(inputHashes).length) rec.inputHashes = inputHashes;
-  fs.writeFileSync(fpPath, JSON.stringify(fp, null, 2) + '\n');
+  fs.writeFileSync(fragPath, JSON.stringify(frag, null, 2) + '\n');
   console.log(`      ↻ ledger re-recorded — outputHash ${wasOut} → ${outputHash}`);
 }
 

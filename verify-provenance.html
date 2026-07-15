@@ -79,6 +79,7 @@ are <span class="warn">skipped</span>, not failed.</p>
 
 <script src="provenance-banner.js"></script>
 <script src="manifest-gate.js"></script>
+<script src="provenance-ledger.js"></script>
 <script>
 // The whole gate is single-sourced in manifest-gate.js (GATE A: manifestHashFromText + gateACompare;
 // GATE B: gateBFiles + sha16 + gateBEvaluate) so this PAGE and the headless Node sibling
@@ -123,8 +124,12 @@ async function fileHash16(relPath){
 (async function(){
   // Load both ledgers as TEXT then JSON.parse so an INVALID-JSON ledger becomes a CAPTURED error
   // (a distinct red banner), never a silent null.
-  try{ const r = await fetch('BUILD-MANIFEST.json?_=' + Date.now(), { cache:'no-store' }); if(!r.ok) throw new Error('HTTP '+r.status); MANIFEST = JSON.parse(await r.text()); }catch(e){ MANIFEST = null; MANIFEST_ERR = e.message; }
-  try{ const r = await fetch('FIXTURE-PROVENANCE.json?_=' + Date.now(), { cache:'no-store' }); if(!r.ok) throw new Error('HTTP '+r.status); FIXPROV = JSON.parse(await r.text()); }catch(e){ FIXPROV = null; FIXPROV_ERR = e.message; }
+  // P3: the two ledgers are per-app provenance/<App>.json fragments; ProvenanceLedger.loadBrowser
+  // fetches the index + each fragment + _meta and reassembles the SAME { bundles } / { fixtures }
+  // shape the gate cores consume (single-sourced with the Node sibling's loadNode).
+  const _fetchFrag = async (p) => { try{ const r = await fetch(p + '?_=' + Date.now(), { cache:'no-store' }); return r.ok ? await r.text() : null; }catch(_e){ return null; } };
+  try{ const led = await ProvenanceLedger.loadBrowser(_fetchFrag); MANIFEST = led.buildManifest; FIXPROV = led.fixtureProvenance; }
+  catch(e){ MANIFEST = null; FIXPROV = null; MANIFEST_ERR = e.message; FIXPROV_ERR = e.message; }
   const committed = (MANIFEST && MANIFEST.bundles) || null;
 
   // ── GATE A — recompute each bundle's static manifestHash, compare via the shared core ──

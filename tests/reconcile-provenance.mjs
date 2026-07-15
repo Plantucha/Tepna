@@ -103,18 +103,14 @@ async function main() {
     return;
   }
 
-  // committed ledgers
+  // committed ledgers — reassembled from the per-app provenance/ fragments (P3)
   let manifest, fixprov;
   try {
-    manifest = JSON.parse(readFileSync(join(ROOT, 'BUILD-MANIFEST.json'), 'utf8'));
+    const _led = require(join(ROOT, 'provenance-ledger.js')).loadNode({ readFileSync }, { join }, ROOT);
+    manifest = _led.buildManifest;
+    fixprov = _led.fixtureProvenance;
   } catch (e) {
-    console.error(paint('✕ BUILD-MANIFEST.json parse: ' + e.message, C.red));
-    return;
-  }
-  try {
-    fixprov = JSON.parse(readFileSync(join(ROOT, 'FIXTURE-PROVENANCE.json'), 'utf8'));
-  } catch (e) {
-    console.error(paint('✕ FIXTURE-PROVENANCE.json parse: ' + e.message, C.red));
+    console.error(paint('✕ provenance/ ledger parse: ' + e.message, C.red));
     return;
   }
   const committed = (manifest && manifest.bundles) || {};

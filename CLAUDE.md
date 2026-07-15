@@ -59,12 +59,16 @@ all of the above with an explanation. Escape hatch when the tree is genuinely yo
 
 ### 3 · Bundles and ledgers must be SERIALIZED — a worktree does not save you here
 
-Isolation solves the *tree*. It does **not** solve the fact that
-**`BUILD-MANIFEST.json` and `FIXTURE-PROVENANCE.json` are single files every bundle-touching PR rewrites**,
-and that **`clock.js` (and any other shared spine module) is inlined into EVERY bundle** — so one clock
-change moves **every** `manifestHash` and invalidates hashes anyone else just recorded.
+Isolation solves the *tree*. The old single-file ledger collision is **mostly SOLVED** (ARCHITECTURE-DEBT-
+REDUCTION §P3, 2026-07-15): `BUILD-MANIFEST.json` + `FIXTURE-PROVENANCE.json` were split into per-app
+**`provenance/<App>.json`** fragments (each owns that app's GATE-A `manifestHash` + GATE-B fixtures), so an
+OxyDex re-bundle and a GlucoDex re-bundle now touch **different files** — no collision. `provenance-ledger.js`
+reassembles the combined `{ bundles }` / `{ fixtures }` view every reader/gate still consumes; the monoliths
+are retired. What remains genuinely shared: **`clock.js` (and any other spine module) is inlined into EVERY
+bundle** — so one clock change moves **every** app's `manifestHash` (and thus every fragment) at once.
 
-- **Only one session does bundle/ledger work at a time.** Say so before you start.
+- **A shared-spine change still serializes** (it re-stamps all 8 fragments); a single-app re-bundle no longer
+  does. For spine work, say so before you start.
 - Landing second? **Rebase, re-run `node tools/build.mjs --app <App>`** — it auto-writes the manifest hash
   and re-stamps fixtures, so the redo is cheap — then re-run the gates.
 - A shared-spine change (`clock.js`, `kernel-constants.js`, `metric-registry.js`, `dex-export.js`) should
@@ -224,8 +228,15 @@ that did not actually run — if you need every rig to have truly booted, check 
   `tests/dex-tests.js` deliberately, knowing Node CI uses the same file.
 
 ## 🔏 Provenance gate — run after RE-BUNDLING any `Foo.html`
+> **Ledger packaging (P3, 2026-07-15):** the two ledgers below are no longer single files — they live as
+> per-app **`provenance/<App>.json`** fragments (each carries that app's GATE-A `manifestHash` + GATE-B
+> fixtures) plus `provenance/_meta.json` + `provenance/index.json`. **`provenance-ledger.js`** reassembles
+> the identical combined `{ bundles }` / `{ fixtures }` shape every reader consumes (Node `loadNode`,
+> browser `loadBrowser`), so the gate cores below are unchanged — "`BUILD-MANIFEST.json`" / "`FIXTURE-
+> PROVENANCE.json`" now name the *assembled view*, and edits land in the per-app fragment.
+
 **`verify-provenance.html`** is a **pure-static, content-addressed** gate (SIGNAL-ADAPTER-AND-FRONTIER
-Phase 7, 2026-06-30). It fetches each bundle FILE + the two ledgers and hashes them — it does **not**
+Phase 7, 2026-06-30). It fetches each bundle FILE + the ledger fragments and hashes them — it does **not**
 boot any bundle in an iframe and reads **no `buildHash`**, so there is no runtime race and no
 same-origin dependency. It opens fast but GATE-B file-hashing settles in ~10 s (it hashes every
 committed input + output); read `window.__provenanceOK` / `window.__gateA_ok` / `window.__gateB_ok`

@@ -42,7 +42,9 @@ import { fileURLToPath } from 'node:url';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ManifestGate = createRequire(import.meta.url)(path.join(REPO, 'manifest-gate.js'));
 const CHECK = process.argv.includes('--check');
-const FP_PATH = path.join(REPO, 'FIXTURE-PROVENANCE.json');
+// P3 — fixtures live as per-app provenance/<App>.json fragments; verify-fixtures reads them directly
+// (keeping the fragment objects as write targets) and only rewrites the fragment(s) it stamps.
+const PROV_DIR = path.join(REPO, 'provenance');
 const UPLOADS = process.env.DEX_UPLOADS || path.join(REPO, 'uploads');
 
 const C = { red: '\x1b[31m', green: '\x1b[32m', dim: '\x1b[2m', yellow: '\x1b[33m', reset: '\x1b[0m' };
@@ -73,8 +75,18 @@ function needsVerification(rec, tracked) {
   return !(ins.length > 0 && ins.every((f) => tracked.has(f)));
 }
 
-const fp = JSON.parse(fs.readFileSync(FP_PATH, 'utf8'));
-const fixtures = fp.fixtures || {};
+const _apps = JSON.parse(fs.readFileSync(path.join(PROV_DIR, 'index.json'), 'utf8')).apps;
+const _frags = {}; // app -> fragment object (the write target)
+const _fixtureApp = {}; // fixture name -> owning app (for targeted write-back)
+const fixtures = {}; // fixture name -> record (a live reference into _frags[app].fixtures)
+for (const app of _apps) {
+  const fr = JSON.parse(fs.readFileSync(path.join(PROV_DIR, app + '.json'), 'utf8'));
+  _frags[app] = fr;
+  for (const name of Object.keys(fr.fixtures || {})) {
+    fixtures[name] = fr.fixtures[name];
+    _fixtureApp[name] = app;
+  }
+}
 const tracked = trackedUploads();
 const owing = Object.keys(fixtures).filter((k) => k[0] !== '_' && needsVerification(fixtures[k], tracked));
 
@@ -156,6 +168,7 @@ try {
 
 // 3 · green ⇒ every leg reproduced its fixture under this exact code ⇒ record it.
 let stamped = 0;
+const _touchedApps = new Set();
 for (const k of owing) {
   const ch = computeHashes[fixtures[k].bundle];
   if (!ch) {
@@ -163,9 +176,10 @@ for (const k of owing) {
     continue;
   }
   if (fixtures[k].verifiedUnder === ch) continue;
-  fixtures[k].verifiedUnder = ch;
+  fixtures[k].verifiedUnder = ch; // mutates the live fragment record
+  _touchedApps.add(_fixtureApp[k]);
   stamped++;
   console.log(paint('  ↻ ', C.green) + k + paint('  verifiedUnder → ' + ch, C.dim));
 }
-if (stamped) fs.writeFileSync(FP_PATH, JSON.stringify(fp, null, 2) + '\n');
+if (stamped) for (const app of _touchedApps) fs.writeFileSync(path.join(PROV_DIR, app + '.json'), JSON.stringify(_frags[app], null, 2) + '\n');
 console.log(paint(`\n✓ suite green — ${stamped} fixture(s) stamped, ${owing.length - stamped} already current`, C.green));

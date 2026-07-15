@@ -43,7 +43,7 @@
    (globalThis.crypto), the same algorithm the browser runs, so digests are
    byte-identical to the page's.
    ════════════════════════════════════════════════════════════════════════ */
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { webcrypto } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -58,6 +58,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 const require = createRequire(import.meta.url);
 const ManifestGate = require(join(ROOT, 'manifest-gate.js'));
+// P3 (ARCHITECTURE-DEBT-REDUCTION §P3): the two monolith ledgers are split into per-app
+// provenance/<App>.json fragments; ProvenanceLedger.loadNode reassembles the identical
+// { buildManifest:{bundles}, fixtureProvenance:{fixtures} } shape the gate cores expect.
+const ProvenanceLedger = require(join(ROOT, 'provenance-ledger.js'));
 
 const C = { reset: '\x1b[0m', red: '\x1b[31m', green: '\x1b[32m', dim: '\x1b[2m', bold: '\x1b[1m', yellow: '\x1b[33m', cyan: '\x1b[36m' };
 const paint = (s, c) => (process.stdout.isTTY ? c + s + C.reset : s);
@@ -104,15 +108,29 @@ function bundleMatcher(filter) {
 }
 
 async function main() {
-  // committed truth
-  let manifest;
+  // committed truth — reassembled from the per-app provenance/ fragments (P3)
+  let ledger;
   try {
-    manifest = JSON.parse(readFileSync(join(ROOT, 'BUILD-MANIFEST.json'), 'utf8'));
+    ledger = ProvenanceLedger.loadNode({ readFileSync }, { join }, ROOT);
   } catch (e) {
-    return die(2, 'BUILD-MANIFEST.json failed to load/parse: ' + e.message);
+    return die(2, 'provenance/ ledger failed to load/parse: ' + e.message);
   }
-  const committed = (manifest && manifest.bundles) || null;
-  if (!committed) return die(2, 'BUILD-MANIFEST.json has no `bundles` map');
+  const committed = (ledger.buildManifest && ledger.buildManifest.bundles) || null;
+  if (!committed) return die(2, 'provenance/ fragments produced no `bundles` map');
+
+  // P3 — provenance/ fragment-set consistency: index.json must list EXACTLY the canonical bundle set,
+  // and the on-disk *.json fragment files must equal that list. Without this, an app fragment added
+  // without an index entry would be silently un-gated (the failure the denylist philosophy forbids),
+  // and an index entry with no fragment would already have thrown in loadNode above.
+  const canonical = ManifestGate.MANIFEST_BUNDLES.map((b) => b.replace(/\.html$/, '')).sort();
+  const idxApps = [...(ledger.apps || [])].sort();
+  const onDisk = readdirSync(join(ROOT, 'provenance'))
+    .filter((f) => f.endsWith('.json') && f !== 'index.json' && f !== '_meta.json')
+    .map((f) => f.replace(/\.json$/, ''))
+    .sort();
+  if (JSON.stringify(idxApps) !== JSON.stringify(canonical)) return die(2, 'provenance/index.json apps ≠ canonical bundles\n  index: ' + idxApps.join(', ') + '\n  canon: ' + canonical.join(', '));
+  if (JSON.stringify(onDisk) !== JSON.stringify(idxApps)) return die(2, 'provenance/ fragment files ≠ index.json apps\n  on-disk: ' + onDisk.join(', ') + '\n  index:   ' + idxApps.join(', '));
+  console.log(paint('  ✓ provenance/ fragment set consistent with index.json (' + onDisk.length + ' apps)', C.dim));
 
   // scope (SECTION-SCOPED-RUNS): which bundles this run checks — all, or the --bundle= filtered set
   const _bmatch = bundleMatcher(BUNDLE_FILTER);
@@ -164,14 +182,9 @@ async function main() {
 
   // ── GATE B — content-addressed known-answer audit (Phase 7), best-effort (uploads/ may be gitignored) ──
   let gb = { fail: 0, checked: 0, absent: 0, ok: true, results: [] };
-  let fixprov = null;
-  try {
-    fixprov = JSON.parse(readFileSync(join(ROOT, 'FIXTURE-PROVENANCE.json'), 'utf8'));
-  } catch (e) {
-    return die(2, 'FIXTURE-PROVENANCE.json failed to load/parse: ' + e.message);
-  }
+  const fixprov = ledger.fixtureProvenance;
   const fixturesAll = (fixprov && fixprov.fixtures) || null;
-  if (!fixturesAll) return die(2, 'FIXTURE-PROVENANCE.json has no `fixtures` map');
+  if (!fixturesAll) return die(2, 'provenance/ fragments produced no `fixtures` map');
   // scope GATE B to the filtered bundle(s) too, so --bundle audits only their fixtures
   const fixtures = BUNDLE_FILTER ? Object.fromEntries(Object.entries(fixturesAll).filter(([, v]) => v && v.bundle && _bmatch(v.bundle))) : fixturesAll;
   // sha256[0:16] of each referenced committed file's RAW bytes (uploads/<f>); null = absent (CI skip).
