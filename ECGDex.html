@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AYzhhU7z6OZm4UCSX04uhP2kUKHG0vnKo9tvzWD/C1c=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-H9DThidPs/5/1NXxC5dNx0cmlGgf8Yxe0AKZOmotHv4=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LJ5zwQ9pBOLpJrFbOKzGHKRrcjpnzc/SLKAMfrWD/Bw=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-VLjmo4S0mjqgRo8fEU0kx1Vc+jNONpTHKXbUPjZCGys=' 'sha256-XSaqaYcXgkh/1koukmF/FhO8A7ogMFSeDJJdXUxWE0k=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-gxRDJ7OQU3PoPHu5YHtoA1xs7mfXhL5rm7rQs8xaH3I=' 'sha256-o7hRKU2O068vh4+w5eKAQC0xYUMb34dly3+sQKVXIus=' 'sha256-wdj9R9Gei2xVKEJ5WmzR5Z6Xza6ZG2G+AtVTygDgS1o='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/C6kQ/2tcgJdr7XDl/W7NYcJCuuH6iVomiUIaMaNCZ4=' 'sha256-/DKH5mC3psutOkNrKf4aad/vzaamjY83FStKdfACQvc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-GgNVrhLe7moDaN+yYkXif8dVDWchiMNXzzUSO1stNK4=' 'sha256-H9DThidPs/5/1NXxC5dNx0cmlGgf8Yxe0AKZOmotHv4=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LJ5zwQ9pBOLpJrFbOKzGHKRrcjpnzc/SLKAMfrWD/Bw=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-VLjmo4S0mjqgRo8fEU0kx1Vc+jNONpTHKXbUPjZCGys=' 'sha256-XSaqaYcXgkh/1koukmF/FhO8A7ogMFSeDJJdXUxWE0k=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-gxRDJ7OQU3PoPHu5YHtoA1xs7mfXhL5rm7rQs8xaH3I=' 'sha256-o7hRKU2O068vh4+w5eKAQC0xYUMb34dly3+sQKVXIus=' 'sha256-wdj9R9Gei2xVKEJ5WmzR5Z6Xza6ZG2G+AtVTygDgS1o='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ECGDex — Raw ECG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -6773,6 +6773,78 @@ function buildNN(times, rr, sqi, sqiThr, ectopyThr){
 }
 
 // ════════════════════════════════════════════════════════════════════════
+//  PER-SECOND ARTIFACT CONFIDENCE  (TCH-FUSED-ROBUST-HAT-2026-07-14)
+//  A per-second trust c ∈ [0,1] for the derived HR: c = density_trust × quality_trust.
+//    density_trust — redescends as the LOCAL beat-density (beats in a ±winSec/2 window) becomes
+//      an UPPER outlier vs the RECORD's own median density → spurious over-detection (the 06-12
+//      15-min burst reads z 13–22; clean nights ≤ z 7). This is the signal the per-beat SQI gate
+//      and Malik ectopy gate BOTH miss, because they are local and the burst is sustained.
+//    quality_trust — redescends as the local mean SQI falls BELOW the record's own median SQI.
+//      Keys on SIGNAL QUALITY, never rhythm ⇒ AF-safe: real AF/tachycardia keep clean QRS ⇒ high
+//      SQI ⇒ quality_trust ≈ 1, so nothing is dropped for irregularity alone.
+//  Self-calibrating (record's own medians) + a universal redescending cut C (Tukey-style); NO
+//  corpus-tuned threshold. Consumed by the fused-weight hat as a per-second weight (a corner it
+//  down-weights leaves that corner's difference series but not the others). Unwired here — the
+//  worker's ecgHrMap / the hat call it (see the brief's file-by-file plan).
+//  peaks: sample indices · sqi: per-beat SQI (from computeSQI) · fs · t0Ms: recording start (floating).
+//  Returns Map(absoluteSecond → confidence) aligned to the per-second HR the hat consumes.
+// ════════════════════════════════════════════════════════════════════════
+function beatConfidence(peaks, sqi, fs, t0Ms, winSec){
+  winSec = winSec || 60;
+  const n = peaks.length, out = new Map();
+  const t0 = t0Ms || 0;
+  const secAbs = k => Math.floor((t0 + peaks[k] / fs * 1000) / 1000);
+  if (n < 20){ for (let k = 0; k < n; k++) out.set(secAbs(k), 1); return out; }  // too short to calibrate — trust all
+  const s0 = secAbs(0), s1 = secAbs(n - 1), S = s1 - s0 + 1;
+  if (S < 1) return out;
+  // bin beats into their second: count + SQI sum
+  const cnt = new Float64Array(S), qsum = new Float64Array(S);
+  for (let k = 0; k < n; k++){ const s = secAbs(k) - s0; if (s >= 0 && s < S){ cnt[s]++; qsum[s] += (sqi && sqi[k] != null ? sqi[k] : 1); } }
+  // sliding ±half window → local beat count + local mean SQI, O(S)
+  const half = Math.max(1, Math.round(winSec / 2));
+  const winCnt = new Float64Array(S), winSqi = new Float64Array(S);
+  let cAcc = 0, qAcc = 0, lo = 0, hi = -1;
+  for (let i = 0; i < S; i++){
+    const a = Math.max(0, i - half), b = Math.min(S - 1, i + half);
+    while (hi < b){ hi++; cAcc += cnt[hi]; qAcc += qsum[hi]; }
+    while (lo < a){ cAcc -= cnt[lo]; qAcc -= qsum[lo]; lo++; }
+    winCnt[i] = cAcc; winSqi[i] = cAcc > 0 ? qAcc / cAcc : 0;
+  }
+  // robust record baselines (median + MAD) over windows that actually carry beats
+  const active = []; for (let i = 0; i < S; i++) if (winCnt[i] > 0) active.push(i);
+  const medOf = idx => { const a = idx.map(i => winCnt[i]).sort((x, y) => x - y), m = a.length; return m ? (m % 2 ? a[(m - 1) / 2] : (a[m / 2 - 1] + a[m / 2]) / 2) : 0; };
+  const medQ = idx => { const a = idx.map(i => winSqi[i]).sort((x, y) => x - y), m = a.length; return m ? (m % 2 ? a[(m - 1) / 2] : (a[m / 2 - 1] + a[m / 2]) / 2) : 0; };
+  const cMed = medOf(active), qMed = medQ(active);
+  const cAbs = active.map(i => Math.abs(winCnt[i] - cMed)).sort((x, y) => x - y);
+  const qAbs = active.map(i => Math.abs(winSqi[i] - qMed)).sort((x, y) => x - y);
+  const madC = 1.4826 * (cAbs.length ? cAbs[cAbs.length >> 1] : 0) || 1;
+  const madQ = 1.4826 * (qAbs.length ? qAbs[qAbs.length >> 1] : 0) || 1e-6;
+  const C = 6;                                          // universal redescending cut (Tukey-style)
+  const trust = z => z <= 0 ? 1 : z >= C ? 0 : (1 - (z / C) * (z / C)) * (1 - (z / C) * (z / C));
+  for (let i = 0; i < S; i++){
+    if (winCnt[i] <= 0) continue;
+    const sD = Math.max(0, (winCnt[i] - cMed) / madC);   // density UPPER-outlier suspicion (over-detection)
+    const sQ = Math.max(0, (qMed - winSqi[i]) / madQ);   // SQI-depressed-below-median suspicion
+    // AF-safe AND: an artifact needs BOTH cues — a window is suspect only to the extent its WEAKER cue
+    // fires (min). High rate with clean QRS (AF / real tachycardia) → sQ≈0 → min≈0 → c=1, never dropped.
+    out.set(s0 + i, trust(Math.min(sD, sQ)));
+  }
+  return out;
+}
+
+// Convenience: raw ECG (int16 + its bandpass + the A-peaks) → per-second confidence Map, running
+// detector B + per-beat SQI + beatConfidence internally. The fused-hat consumer (worker ecgHrMap)
+// calls this after detectPeaks. peaks: A-peak sample indices · t0Ms: recording start (floating).
+function hrConfidence(int16, bp, peaks, fs, t0Ms){
+  if (!peaks || peaks.length < 20) return new Map();
+  const B = detectPeaksB(bp, fs);
+  const times = new Float64Array(peaks.length);
+  for (let k = 0; k < peaks.length; k++) times[k] = peaks[k] / fs;   // seconds (computeSQI RR-plausibility)
+  const q = computeSQI(int16, fs, peaks, times, B);
+  return beatConfidence(peaks, q.sqi, fs, t0Ms);
+}
+
+// ════════════════════════════════════════════════════════════════════════
 //  FREQUENCY DOMAIN — Lomb–Scargle on unevenly-sampled NN → VLF/LF/HF + resp.
 // ════════════════════════════════════════════════════════════════════════
 function lombScargle(nn, times, nf){
@@ -7944,7 +8016,7 @@ function mergeMultipart(parsed){           // parsed = [{name,text,kind?,stampMs
   return singles.concat(merged);
 }
 
-global.ECGDSP = { genSynthetic, analyze, classifyMode, validateRR, validateHR, accAnalyze, accExtras, stampEpochPositions, bandpass, detectPeaks, buildNN, median, mean, std, rmssd, partKey, mergeMultipart, lombScargle, dfaAlpha1, sampEn, parseTimestamp };
+global.ECGDSP = { genSynthetic, analyze, classifyMode, validateRR, validateHR, accAnalyze, accExtras, stampEpochPositions, bandpass, detectPeaks, buildNN, beatConfidence, hrConfidence, median, mean, std, rmssd, partKey, mergeMultipart, lombScargle, dfaAlpha1, sampEn, parseTimestamp };
 
 // ════════════════════════════════════════════════════════════════════════
 //  PURE ECG TEXT PARSER  (headless mirror of the app's streaming worker)
