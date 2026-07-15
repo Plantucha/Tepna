@@ -282,7 +282,8 @@ app on its committed inputs and re-exporting** (NEVER hand-edit an export), then
 `{ manifestHash, inputHashes, outputHash }`. Because `manifestHash` is deterministic, an **export-inert
 rebuild of identical source moves nothing** — no re-record. A fixture-only re-record needs no rebuild.
 The regen tools are per-node and are the ONLY sanctioned way to move an output byte:
-`tools/regen-cpap-goldens.mjs` (CPAPDex, 5 fixtures) · `tools/regen-glucodex-goldens.mjs` (GlucoDex, 2).
+`tools/regen-cpap-goldens.mjs` (CPAPDex, 5 fixtures) · `tools/regen-glucodex-goldens.mjs` (GlucoDex, 3) ·
+`tools/regen-pulsedex-goldens.mjs` (PulseDex, 3).
 Each re-runs the real modules in a co-loaded realm, preserves the volatile keys the equiv gate excludes
 (`file`/`provenance`/`kernel`/`generated`), and re-records the ledger from the bytes it wrote — so an
 **output-only** regeneration under UNCHANGED code (the case `build.mjs` does *not* cover: it re-stamps

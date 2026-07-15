@@ -68,7 +68,7 @@
     "PulseDex_2026-06-25_equiv.node-export.json": {
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II — F1 shared dex-export.js scrubExport now sweeps recordings[]/sessions[] multi carriers; F5 review-renderer namespace exposure). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path, reviewView/renderReview are display-only — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
       "bundle": "PulseDex.html",
-      "manifestHash": "51c93d5e18d0",
+      "manifestHash": "dea2ff5aab9a",
       "note_deepauditfixes": "manifestHash re-recorded 2026-06-30 (DEEP-AUDIT-FIXES-2026-06-30 §1 — removed the crude spectral() proxy + its app-display 'VLF (night)'/'Total Pwr (night)' rows + the borrowed 'validated' aliases). EXPORT-INERT: vlfNight/tpNight were app-display-only, absent from pdBuildNodeExport (LS-only frequency block) → this compute()≡export fixture is byte-identical (env.equiv.pulsedex green; outputHash 004169238bad6e47 UNCHANGED) → NOT regenerated.",
       "note_oxydexenvelopefollowupsv": "manifestHash re-recorded 2026-06-30 (OXYDEX-NODE-EXPORT-ENVELOPE-FOLLOWUPS-V §2 — pulsedex-cross.js crossnight metrics gained evidence tiers so the Integrator Longitudinal view badges the trend/coupling cards). EXPORT-INERT: evidence lands ONLY in the crossNight block (multi-recording); this is a SINGLE-recording compute({text}) export with NO crossNight block → byte-identical (env.equiv.pulsedex green in the all-green 1547-pass suite). External-JS-only re-bundle eba6b7d3dcf9→1a8b99cf8a4c, buildHash 17ee0d96c509 UNCHANGED; NOT regenerated. GATE B asserts the producing bundle's CURRENT manifestHash still equals 1a8b99cf8a4c.",
       "note_exporthygienefollowupsii": "manifestHash re-recorded 2026-06-29 (EXPORT-HYGIENE-FOLLOWUPS-II §1 — PulseDex wired the OPTIONAL recording.contentId suffix into the shared dex-export.js exportName() for its 3 single-recording export download FILENAMES; lastResult.contentId, set in calculate()). FIXTURE-INERT: a download filename is NOT hashed content (manifestHash is over the bundle, this fixture's hash over its file bytes — neither sees the name); pdBuildNodeExport/compute UNTOUCHED → this compute({text}) fixture is byte-identical (env.equiv.pulsedex green), NOT regenerated; only the producing-bundle manifestHash moved 8873065887c9→416d161be0be (buildHash 17ee0d96c509 UNCHANGED, external-JS only — dex-export.js + pulsedex-app.js). GATE B asserts the producing bundle's CURRENT manifestHash still equals 416d161be0be.",
@@ -79,12 +79,12 @@
         "Polar_H10_AAAAAAAA_20260613_204448_RR.txt"
       ],
       "note": "ADDED 2026-06-25 (SIGNAL-ADAPTER-FOLLOWUPS-VI §1) — PulseDex's FIRST code-gated fixture + the input for the Phase-9 'compute() ≡ committed export' equivalence gate (env.equiv.pulsedex). Produced by running the current PulseDex DSP (the code bundled into PulseDex.html, manifestHash 3c85d78cd9c2) headless on the committed Polar H10 RR input: PulseDex.parseRRInput(text) → PulseDex.compute({intervals,tsMs,t0Ms,offsetMin}) → this ganglior.node-export (534 usable beats, spot reading 7.3 min, 0 windowed events at current thresholds). This IS the app's exportGanglior shape — pulsedex-app.js delegates to the SAME pdBuildNodeExport, so the fixture is byte-identical to PulseDex.html's own export (the headless compute() leaves schema.generated/provenance/kernel as volatile metadata, which the gate's EXCL strips). Fully regenerate-able: re-run PulseDex.parseRRInput + .compute on the committed RR txt; the equivalence-gate diff (excludes generated/provenance/kernel/vo2est/karv) reproduces it with 0 differing fields. GATE B asserts the producing bundle's CURRENT manifestHash still equals 3c85d78cd9c2 — turns red the moment PulseDex code changes. NO app re-bundle (the fixture is produced BY the current gate-clean bundle).",
-      "outputHash": "004169238bad6e47",
+      "outputHash": "e2a8f8d9d46d9916",
       "inputHashes": {
         "Polar_H10_AAAAAAAA_20260613_204448_RR.txt": "69be13dd4d60d20d"
       },
       "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash 2bf3d5c38a78→4c732d37ea19). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals 4c732d37ea19.",
-      "verifiedUnder": "73e54ee234c1"
+      "verifiedUnder": "fb553a0c7e48"
     },
     "HRVDex_2026-06-25_equiv.node-export.json": {
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II — F1 shared dex-export.js scrubExport now sweeps recordings[]/sessions[] multi carriers; F5 review-renderer namespace exposure). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path, reviewView/renderReview are display-only — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
@@ -132,7 +132,7 @@
     "PulseDex_2026-06-25_events.node-export.json": {
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II — F1 shared dex-export.js scrubExport now sweeps recordings[]/sessions[] multi carriers; F5 review-renderer namespace exposure). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path, reviewView/renderReview are display-only — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
       "bundle": "PulseDex.html",
-      "manifestHash": "51c93d5e18d0",
+      "manifestHash": "dea2ff5aab9a",
       "note_deepauditfixes": "manifestHash re-recorded 2026-06-30 (DEEP-AUDIT-FIXES-2026-06-30 §1 — spectral() proxy + '(night)' rows/aliases removed). EXPORT-INERT: display-only removal, the headless event export is unchanged → byte-identical (env.equiv.pulsedex_events green; outputHash 4d22008127c9fb76 UNCHANGED) → NOT regenerated.",
       "note_oxydexenvelopefollowupsv": "manifestHash re-recorded 2026-06-30 (OXYDEX-NODE-EXPORT-ENVELOPE-FOLLOWUPS-V §2 — pulsedex-cross.js crossnight evidence tiers). EXPORT-INERT: evidence is crossNight-block-only (multi-recording); this SINGLE-recording event-coverage compute() export has no crossNight block → byte-identical (env.equiv.pulsedex_events green). External-JS-only re-bundle eba6b7d3dcf9→1a8b99cf8a4c, buildHash 17ee0d96c509 UNCHANGED; NOT regenerated. GATE B asserts the producing bundle's CURRENT manifestHash still equals 1a8b99cf8a4c.",
       "note_exporthygienefollowupsii": "manifestHash re-recorded 2026-06-29 (EXPORT-HYGIENE-FOLLOWUPS-II §1 — PulseDex contentId filename-suffix adoption; rides the same PulseDex re-bundle 8873065887c9→416d161be0be, buildHash 17ee0d96c509 UNCHANGED). FIXTURE-INERT: the download filename is not hashed content — pdBuildNodeExport/compute UNTOUCHED → this compute() event-coverage fixture is byte-identical (env.equiv.pulsedex_events green), NOT regenerated; only the producing-bundle manifestHash moved. GATE B asserts the producing bundle's CURRENT manifestHash still equals 416d161be0be.",
@@ -148,7 +148,7 @@
         "PulseDex_2026-06-25_events_RR.txt": "9ed6b305a64bd2c9"
       },
       "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash 2bf3d5c38a78→4c732d37ea19). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals 4c732d37ea19.",
-      "verifiedUnder": "73e54ee234c1"
+      "verifiedUnder": "fb553a0c7e48"
     },
     "GlucoDex_2026-06-27_equiv.node-export.json": {
       "note_deepaudit20260714_gaplong": "REGENERATED 2026-07-14 (DEEP-AUDIT-2026-07-14 §1 — GAP_LONG excluded from EVERY distribution consumer). The §1 commit (9bdb9be) called itself EXPORT-INERT on the evidence of the SYNTHETIC golden, which carries no long gap — but this REAL Abbott Lingo night contains a multi-hour sensor-change gap, so daypartVariability (one of the consumers §1 rerouted through the new _ana predicate) DID move: morning.n 2016→2006, afternoon.n 2084→2043 + cv 16.9→15.8, evening.n 2051→2033 + cv 13.3→13.1 + mean 75→76. Every n DROPS — the interpolated line is no longer counted as measured glucose — and the direction is the fix working. The real-input equiv leg SKIPS in CI (uploads/ is gitignored personal data), which is why the drift shipped unseen and only reds locally. Regenerated by RE-RUNNING the real modules on the committed input via the new tools/regen-glucodex-goldens.mjs (GlucoDex.compute({text}) — the same seam the equiv gate drives; volatile file/provenance/kernel/generated preserved), never hand-edited. outputHash e7c124e8ea1d8a54→043492268ac46ec7, re-recorded by that tool from the bytes it wrote. manifestHash 92a7dff75aca UNCHANGED (the code was already bundled by 9bdb9be — this is an output-only regeneration, the case build.mjs does not cover). The 42 ganglior_events + recording block are unchanged.",
@@ -201,7 +201,7 @@
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II — F1 shared dex-export.js scrubExport now sweeps recordings[]/sessions[] multi carriers; F5 review-renderer namespace exposure). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path, reviewView/renderReview are display-only — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
       "bundle": "ECGDex.html",
       "note_deepauditfindings20260701": "manifestHash re-recorded 2026-07-01 (DEEP-AUDIT-FINDINGS-2026-07-01 Finding 2 — ECGDex device cross-check loaders delegate to the Clock-Contract-faithful ECGDSP.parseDeviceRR/HR/ACC twins; app-local parseRows + Date-parse + _floatNow removed). EXPORT-INERT: the cross-check is display-only, absent from ecgBuildNodeExport, so compute() reproduces byte-identical (env.equiv.ecgdex green; outputHash + inputHashes unchanged) — NOT regenerated, manifestHash re-recorded only.",
-      "manifestHash": "46f1ff175ead",
+      "manifestHash": "bf32b9bc7ac6",
       "note_oxydexenvelopefollowupsv": "manifestHash re-recorded 2026-06-30 (OXYDEX-NODE-EXPORT-ENVELOPE-FOLLOWUPS-V §2 — ecgdex-cross.js crossnight metrics gained evidence tiers so the Integrator Longitudinal view badges them). EXPORT-INERT: evidence is crossNight-block-only (multi-recording); this SINGLE-recording compute({text}) export (0-event 6-min clip) has no crossNight block → byte-identical (env.equiv.ecgdex green). External-JS-only re-bundle a39f09197964→bd29b2a7ad91, buildHash 146ac9c8b1bd UNCHANGED; NOT regenerated. GATE B asserts the producing bundle's CURRENT manifestHash still equals bd29b2a7ad91.",
       "note_exportidfollowupsii": "REGENERATED 2026-06-29 (EXPORT-IDENTITY-FOLLOWUPS-II §1 — node adoption of recording.contentId). ecgBuildNodeExport now stamps recording.contentId via the CORE SignalFrame.computeContentId (signal-frame.js newly bundled into ECGDex) from the NN beat-interval series + floating t0Ms — single-sourced in the shared builder both ecgdex-app.js exportGanglior + headless ECGDex.compute delegate to. Re-ran ECGDex.compute({text}) on the committed Polar_H10_AAAAAAAA_20260617_010615_ECG_clip.txt → the ONLY non-volatile delta vs the prior fixture is the added contentId:'de42ad1b210c' (deterministic, identity-free; equiv-gate diff confirmed 0 other diffs). ECGDex re-bundled 31f3e879d5c0→1f371337fe7b (buildHash 146ac9c8b1bd UNCHANGED — new external <script src=signal-frame.js> moves manifestHash only). GATE B asserts the producing bundle's CURRENT manifestHash still equals 1f371337fe7b.",
       "note_ingestfollowupsiv": "manifestHash re-recorded 2026-06-28 (ECG-INGEST-FOLLOWUPS-IV-2026-06-28 §1/§2 — the shared dex-ingest.js gained DexIngest.pickNearestByStamp (§1, the PPG companion nearest-t0Ms pick extracted headless from ppgdex-app.js — ECGDex never calls it) AND factored the device-session dedupe + device-eligibility predicate into shared _dedupeBySession/_isDeviceEligible called by BOTH planIngest + planIngestPpg (§2, behavior-preserving — planIngest steps 5/8 rewritten to call them; the ECG planIngest test group stayed green); ecgdex-app.js itself UNCHANGED) → ECGDex re-bundled 7b9e7d25c3d7→6b7045bce040 (buildHash 146ac9c8b1bd UNCHANGED, external-JS-only — shared dex-ingest.js only). EXPORT-INERT: every edit is file-ingest ROUTING (a behavior-preserving refactor + a PPG-only pick helper ECGDex doesn't call) — compute()/analyze()/ecgBuildNodeExport untouched — so this compute({text}) fixture is byte-identical (env.equiv.ecgdex green); NOT regenerated, only the producing-bundle manifestHash moved. GATE B asserts the producing bundle's CURRENT manifestHash still equals 6b7045bce040.",
@@ -223,7 +223,7 @@
       "inputHashes": {
         "Polar_H10_AAAAAAAA_20260617_010615_ECG_clip.txt": "b7b3f88e84ff3821"
       },
-      "verifiedUnder": "b07c48f4079b"
+      "verifiedUnder": "f1088eb9ec99"
     },
     "cpapdex-2026-06-12.node-export.json": {
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II F1 — shared dex-export.js scrubExport now sweeps recordings[]/sessions[]/nights[] multi carriers). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
@@ -371,7 +371,7 @@
     },
     "synthetic_pulsedex_golden.node-export.json": {
       "bundle": "PulseDex.html",
-      "manifestHash": "51c93d5e18d0",
+      "manifestHash": "dea2ff5aab9a",
       "added": "2026-07-12",
       "inputs": [
         "synthetic_pulsedex_rr.txt"
@@ -379,7 +379,7 @@
       "inputHashes": {
         "synthetic_pulsedex_rr.txt": "e1cf7ffe5c57de32"
       },
-      "outputHash": "1dd5fc7a581de057",
+      "outputHash": "495d293d4268410b",
       "note": "ADDED 2026-07-12 (CPAP-REAL-CORPUS-2026-07-11-BRIEF §P9, resolving §M5) — a COMMITTED, content-addressed equivalence input for PulseDex. Before P9, every node's equivalence input was a REAL recording, hence gitignored, hence absent on a fresh clone: ALL EIGHT compute()-equivalence legs SKIPPED in CI. The suite's strongest correctness gate — the GATE-C surface that catches a code change which moved a fixture's OUTPUT — therefore ran only on the maintainer's machine, and a regression that moved an export would have gone green through CI. This input is SYNTHETIC (tools/make-synthetic-inputs.mjs): the vendor FORMAT is reproduced exactly, the DATA never is — closed-form, physiologically plausible waveforms containing no recording of any person and no device identifier. Deterministic (no RNG, no Date.now()), so re-running the generator reproduces it byte-for-byte and inputHashes stay stable. It ADDS to the real-recording leg (which still runs locally and exercises genuine vendor quirks); it does not replace it. REGENERATE the input and this golden together whenever the export shape changes."
     },
     "synthetic_hrvdex_golden.node-export.json": {
@@ -423,7 +423,7 @@
     },
     "synthetic_ecgdex_golden.node-export.json": {
       "bundle": "ECGDex.html",
-      "manifestHash": "46f1ff175ead",
+      "manifestHash": "bf32b9bc7ac6",
       "added": "2026-07-12",
       "inputs": [
         "synthetic_ecgdex_h10.txt"

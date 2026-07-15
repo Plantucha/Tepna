@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-14
+**Status:** DONE — 2026-07-14 · **Created:** 2026-07-14
 
 # Deep audit (post-193-commit churn) — verified findings
 
@@ -225,7 +225,22 @@ surfaced number), then §4/§5, then §6–§8.
 - **Fix sketch:** change both `: 0` → `: null`. **Gate cost:** `cpapdex-dsp.js` → re-bundle CPAPDex; verify the
   synthetic goldens don't move (the branch needs `durSec===0`, which they don't hit).
 
-## §8 — SD1 estimator drift across nodes  (code-health, negligible magnitude)
+## §8 — SD1 estimator drift across nodes  (code-health, negligible magnitude)  ✅ EXECUTED 2026-07-14
+> **EXECUTED 2026-07-14 — unified fleet-wide on SDSD/√2 (÷N−1).** PpgDex (`√0.5·std(Δ)`) was already the
+> target. **ECGDex**: `poincareGeo`'s SDSD changed from ÷N (`dvar/dc`) to ÷N−1 (`dvar/(dc-1)`). **PulseDex**:
+> a new `sdsd()` helper (sample SD of the difference series, reusing the ÷N−1 `std`) replaces `rMSSD` as the
+> SD1/SD2 spread — `sd1=SDSD/√2`, `sd2=√(2·SDNN²−SD1²)` unchanged. rMSSD² = SDSD² + mean(Δ)², so the shift is
+> mean(Δ)² ≈ 0 on a stationary night — **negligible, as the brief said** (real fixture `sd1` 18.74→18.75;
+> synthetic 30.61→30.62). Gated by a PulseDex assertion on a deliberately TRENDING RR series (mean(Δ)≠0, so
+> SDSD/√2 2.50 ≠ rMSSD/√2 2.56): exported `sd1` must equal SDSD/√2 and sit BELOW rMSSD/√2 — RED on the old
+> code, non-vacuous by construction. **ECGDex is EXPORT-INERT** (its equiv clip carries no `hrv`/`sd1`, byte-
+> identical). **PulseDex MOVED** (`sd1` is exported): both moving fixtures regenerated via a new
+> `tools/regen-pulsedex-goldens.mjs` (third sibling of the CPAP/GlucoDex regen pair — re-runs the real modules
+> on the committed inputs, never hand-edited), `verifiedUnder` re-stamped after a green corpus run. Re-bundled
+> ECGDex + PulseDex + Data Unifier + OverDex + the 8 analysis tools that inline either DSP.
+>
+> **This closes DEEP-AUDIT-2026-07-14 — all 8 findings executed** (§5 by owner-ratified decision; the rest
+> agent-executed). Flip the top-level Status to DONE once merged.
 - **Severity:** low; real definitional divergence, immaterial numerically.
 - **Root cause:** PulseDex `sd1 = rMSSD/√2` (`pulsedex-dsp.js:116,1160`); ECGDex `SD1 = SDSD/√2` (÷N,
   `ecgdex-dsp.js:56-66`); PpgDex `SD1 = √0.5·std(Δ)` = SDSD/√2 (÷N−1, `ppgdex-dsp.js:520`). Two mismatches:
