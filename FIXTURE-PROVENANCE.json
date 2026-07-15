@@ -38,7 +38,7 @@
         "O2Ring S 2100_20260612230016.csv": "0a6b982a3ea41cf9"
       },
       "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash 43bd047b12e8→7016053b8ee4). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals 7016053b8ee4.",
-      "verifiedUnder": "9ce733904c1a"
+      "verifiedUnder": "a4cfa87beae0"
     },
     "OxyDex_2026-06-25_0439_summary.json": {
       "note_selfingestfollowupsiv": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-IV F1 — oxydex-render.js: OxyDex.reviewView nights-default elements→nights + honest empty-nights placeholder in oxyClinicalSummary). EXPORT-INERT: render-only, not in compute()/emit path — outputHash unchanged, only manifestHash. Recorded as the authoritative manifest-gate hash of the shipped owned-build bundle (cf8f4ceaf1fe → 7fbedea9a12f); a stale out-of-band ledger write of bd269931cae1 was corrected per the PROVENANCE-NONDETERMINISM re-read-before-trust rule.",
@@ -63,7 +63,7 @@
         "O2Ring S 2100_20260624222730.csv": "8776fc2151dc3e38"
       },
       "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash 43bd047b12e8→7016053b8ee4). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals 7016053b8ee4.",
-      "verifiedUnder": "9ce733904c1a"
+      "verifiedUnder": "a4cfa87beae0"
     },
     "PulseDex_2026-06-25_equiv.node-export.json": {
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II — F1 shared dex-export.js scrubExport now sweeps recordings[]/sessions[] multi carriers; F5 review-renderer namespace exposure). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path, reviewView/renderReview are display-only — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
@@ -84,7 +84,7 @@
         "Polar_H10_AAAAAAAA_20260613_204448_RR.txt": "69be13dd4d60d20d"
       },
       "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash 2bf3d5c38a78→4c732d37ea19). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals 4c732d37ea19.",
-      "verifiedUnder": "fb553a0c7e48"
+      "verifiedUnder": "d06856a8b244"
     },
     "HRVDex_2026-06-25_equiv.node-export.json": {
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II — F1 shared dex-export.js scrubExport now sweeps recordings[]/sessions[] multi carriers; F5 review-renderer namespace exposure). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path, reviewView/renderReview are display-only — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
@@ -106,7 +106,7 @@
         "WELLTORY_HRV_DATA_EXPORT_20_May_2026_12_00_AM-17_Jun_2026_11_59_PM.csv": "62ae4673f7d4bed1"
       },
       "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash 6b43574be1ea→11ea1f782360). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals 11ea1f782360.",
-      "verifiedUnder": "cd9cb8553794"
+      "verifiedUnder": "ffe008b26e55"
     },
     "HRVDex_2026-06-25_events.node-export.json": {
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II — F1 shared dex-export.js scrubExport now sweeps recordings[]/sessions[] multi carriers; F5 review-renderer namespace exposure). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path, reviewView/renderReview are display-only — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
@@ -127,7 +127,7 @@
         "HRVDex_2026-06-25_events.csv": "50a5efe22eba35cd"
       },
       "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash 6b43574be1ea→11ea1f782360). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals 11ea1f782360.",
-      "verifiedUnder": "cd9cb8553794"
+      "verifiedUnder": "ffe008b26e55"
     },
     "PulseDex_2026-06-25_events.node-export.json": {
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II — F1 shared dex-export.js scrubExport now sweeps recordings[]/sessions[] multi carriers; F5 review-renderer namespace exposure). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path, reviewView/renderReview are display-only — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
@@ -148,7 +148,7 @@
         "PulseDex_2026-06-25_events_RR.txt": "9ed6b305a64bd2c9"
       },
       "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash 2bf3d5c38a78→4c732d37ea19). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals 4c732d37ea19.",
-      "verifiedUnder": "fb553a0c7e48"
+      "verifiedUnder": "d06856a8b244"
     },
     "GlucoDex_2026-06-27_equiv.node-export.json": {
       "note_deepaudit20260714_gaplong": "REGENERATED 2026-07-14 (DEEP-AUDIT-2026-07-14 §1 — GAP_LONG excluded from EVERY distribution consumer). The §1 commit (9bdb9be) called itself EXPORT-INERT on the evidence of the SYNTHETIC golden, which carries no long gap — but this REAL Abbott Lingo night contains a multi-hour sensor-change gap, so daypartVariability (one of the consumers §1 rerouted through the new _ana predicate) DID move: morning.n 2016→2006, afternoon.n 2084→2043 + cv 16.9→15.8, evening.n 2051→2033 + cv 13.3→13.1 + mean 75→76. Every n DROPS — the interpolated line is no longer counted as measured glucose — and the direction is the fix working. The real-input equiv leg SKIPS in CI (uploads/ is gitignored personal data), which is why the drift shipped unseen and only reds locally. Regenerated by RE-RUNNING the real modules on the committed input via the new tools/regen-glucodex-goldens.mjs (GlucoDex.compute({text}) — the same seam the equiv gate drives; volatile file/provenance/kernel/generated preserved), never hand-edited. outputHash e7c124e8ea1d8a54→043492268ac46ec7, re-recorded by that tool from the bytes it wrote. manifestHash 92a7dff75aca UNCHANGED (the code was already bundled by 9bdb9be — this is an output-only regeneration, the case build.mjs does not cover). The 42 ganglior_events + recording block are unchanged.",
@@ -168,7 +168,7 @@
         "lingo-glucose-data-2026-MAY-23.csv": "d84e259aefa07283"
       },
       "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash be0352210135→9b7feec22831). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals 9b7feec22831.",
-      "verifiedUnder": "35053226752b"
+      "verifiedUnder": "a5bda5037069"
     },
     "PpgDex_2026-06-27_equiv.node-export.json": {
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II — F1 shared dex-export.js scrubExport now sweeps recordings[]/sessions[] multi carriers; F5 review-renderer namespace exposure). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path, reviewView/renderReview are display-only — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
@@ -195,7 +195,7 @@
         "Polar_Sense_BBBBBBBB_20260621_060523_PPG.txt": "289ef2aac9fd3d66"
       },
       "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash 908befaae958→d34cbfc49e5d). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals d34cbfc49e5d.",
-      "verifiedUnder": "db3eec396b3e"
+      "verifiedUnder": "0c821837f29d"
     },
     "ECGDex_2026-06-27_equiv.node-export.json": {
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II — F1 shared dex-export.js scrubExport now sweeps recordings[]/sessions[] multi carriers; F5 review-renderer namespace exposure). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path, reviewView/renderReview are display-only — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
@@ -223,7 +223,7 @@
       "inputHashes": {
         "Polar_H10_AAAAAAAA_20260617_010615_ECG_clip.txt": "b7b3f88e84ff3821"
       },
-      "verifiedUnder": "f1088eb9ec99"
+      "verifiedUnder": "f9485d26588d"
     },
     "cpapdex-2026-06-12.node-export.json": {
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II F1 — shared dex-export.js scrubExport now sweeps recordings[]/sessions[]/nights[] multi carriers). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
@@ -258,7 +258,7 @@
         "20260613_045505_PLD.edf": "084b8820dfb4a6d5",
         "20260613_045505_SA2.edf": "f5715251ffec7be7"
       },
-      "verifiedUnder": "bdb517731063"
+      "verifiedUnder": "c314679ef9c9"
     },
     "cpapdex-2026-06-16.json": {
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II F1 — shared dex-export.js scrubExport now sweeps recordings[]/sessions[]/nights[] multi carriers). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
@@ -283,7 +283,7 @@
         "20260616_213618_PLD.edf": "14bd06c4ec8fabaa",
         "20260616_213618_SA2.edf": "a701ea7141acfce5"
       },
-      "verifiedUnder": "bdb517731063"
+      "verifiedUnder": "c314679ef9c9"
     },
     "cpapdex_synthetic_golden.node-export.json": {
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II F1 — shared dex-export.js scrubExport now sweeps recordings[]/sessions[]/nights[] multi carriers). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
@@ -296,7 +296,7 @@
       "note_oxydexenvelopefollowupsiii": "manifestHash re-recorded 2026-06-30 (OXYDEX-NODE-EXPORT-ENVELOPE-FOLLOWUPS-III §1 — added periodicBreathingPct (device-scored CSL %, measured) to cpapdex-cross.js CPAP_DEFS for the longitudinal PB-burden trend). EXPORT-INERT for this fixture: periodicBreathingPct lands ONLY in the crossNight aggregate block (multi-night export); this is a single-night export with NO crossNight block, so its content is byte-identical. External-JS-only re-bundle 6c3e110b6fe2->b4f063b3da7c (two bundles: periodicBreathingPct add, then cite-propagation fix); buildHash 2702e925dfd1 UNCHANGED. GATE B asserts the producing bundle's CURRENT manifestHash still equals b4f063b3da7c.",
       "outputHash": "ff06b3d87da0e4e4",
       "inputHashes": {},
-      "verifiedUnder": "bdb517731063"
+      "verifiedUnder": "c314679ef9c9"
     },
     "cpapdex_synthetic_multinight_golden.node-export.json": {
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II F1 — shared dex-export.js scrubExport now sweeps recordings[]/sessions[]/nights[] multi carriers). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
@@ -309,7 +309,7 @@
       "note_oxydexenvelopefollowupsiii": "REGENERATED 2026-06-30 (OXYDEX-NODE-EXPORT-ENVELOPE-FOLLOWUPS-III §1). Adding periodicBreathingPct to CPAP_DEFS makes CPAPCross.crossNightBlock emit a NEW periodicBreathingPct metric in the ganglior.crossnight aggregate header (+ each series[].values gains it). Regenerated by reproducing the EXACT engine output: all 3 synthetic nights carry metrics.periodicBreathingPct=20 (constant) -> the degenerate-flat crossNight() result (mean/median/min/max 20, sd/iqr/cv/slope/tau 0, p 1, label 'stable', baseline mean 20 z 0) appended after 'odi'. Verified byte-identical against the live CpapFusion.cpapBuildMultiNightExport rebuild by the Dex-Test-Suite 'CPAPDex multi-night golden' diff gate (vol excluded). External-JS-only re-bundle 6c3e110b6fe2->b4f063b3da7c (two bundles: periodicBreathingPct add, then cite-propagation fix); buildHash 2702e925dfd1 UNCHANGED. GATE B asserts the producing bundle's CURRENT manifestHash still equals b4f063b3da7c.",
       "outputHash": "0dcf24a52e22d67d",
       "inputHashes": {},
-      "verifiedUnder": "bdb517731063"
+      "verifiedUnder": "c314679ef9c9"
     },
     "integrator_tch_golden.node-export.json": {
       "bundle": "Integrator.html",
@@ -321,7 +321,7 @@
       "inputHashes": {},
       "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash cef329a4fec6→f19fde9a7913). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals f19fde9a7913.",
       "note_decorrelationgate": "manifestHash re-recorded 2026-07-07 (TRIO-METHODS-REUSE §Do 3 — decorrelation quality gate: integrator-tch.js gained screenTriplet/pearson [→1.2.0] + integrator-dsp.js _tchHat drops a node that decorrelates from both peers before the solve). EXPORT-INERT for THIS golden: its inputs are three CORRELATED staggered series, so screenTriplet returns drop:null and _tchHat proceeds exactly as before — the fused consensus is byte-identical (outputHash 72fa6fcafb7afd5a UNCHANGED; the equivalence gate rebuilds+diffs it green). Owned re-bundle f19fde9a7913→24ebb7156ca8. GATE B asserts the producing bundle CURRENT manifestHash still equals 24ebb7156ca8.",
-      "verifiedUnder": "1551e0953b03"
+      "verifiedUnder": "81364232cc9d"
     },
     "integrator_fusion_2026-06-13.json": {
       "bundle": "Integrator.html",
