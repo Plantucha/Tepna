@@ -2434,7 +2434,11 @@
     });
 
     /* ════ 12b · ECGDex STAMPLESS DETERMINISM — events never carry a fabricated now() ════ */
-    group('ECGDex stampless events — null clock, never now() (Clock §2.6)', 'ecgdex-dsp', function (T) {
+    // NOTE (CI-SHARDING): split from one 3-analyze group into two so the shard planner can place the
+    // stampless-path work and the stamped-control work on different shards (each half already used its
+    // OWN separately-generated 6 h record, so this adds no compute — it only lowers the indivisible
+    // floor; TEST-COVERAGE-ANALYSIS 2026-07-15). The two halves are independent by construction.
+    group('ECGDex stampless events — null clock + determinism (Clock §2.6)', 'ecgdex-dsp', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.analyze === 'function' && typeof D.genSynthetic === 'function')) {
         T.ok('ECGDSP available', false, 'not loaded');
@@ -2473,12 +2477,22 @@
           })
         )
       );
-      // sanity: a STAMPED rec still gets a real wall-clock + absolute tMs
+    });
+
+    group('ECGDex stampless events — stamped control gets a real clock (Clock §2.6)', 'ecgdex-dsp', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.analyze === 'function' && typeof D.genSynthetic === 'function')) {
+        T.ok('ECGDSP available', false, 'not loaded');
+        return;
+      }
+      // sanity: a STAMPED rec still gets a real wall-clock + absolute tMs (the control for the
+      // null-clock group above — a stampless file returns null clocks ONLY because it is stampless).
       var rec2 = D.genSynthetic({ durSec: 6 * 3600, scenario: 'osa' });
       var rS = D.analyze(rec2, function () {});
       var se = (rS.events || []).filter(function (e) {
         return e.impulse === 'autonomic_surge';
       })[0];
+      T.ok('stamped rec produced a surge event to check', !!se, se ? '' : 'no autonomic_surge in control rec');
       if (se) {
         T.ok('stamped surge has HH:MM:SS clock', /^\d{2}:\d{2}:\d{2}$/.test(se.t));
         T.ok('stamped surge has absolute floating tMs', typeof se.tMs === 'number' && se.tMs === rec2.t0Ms + Math.round(se._sec * 1000));
@@ -6905,7 +6919,10 @@
     });
 
     /* ════ 18 · ECGDex SLEEP POSITION from ACC (epoch + event meta) ════ */
-    group('ECGDex sleep position from ACC', 'ecgdex-dsp', function (T) {
+    // NOTE (CI-SHARDING): split into the ACC-present path and the no-ACC fallback path so the shard
+    // planner can place them separately (each already analyzed its OWN 6 h record, so no added compute;
+    // it only lowers the indivisible floor; TEST-COVERAGE-ANALYSIS 2026-07-15).
+    group('ECGDex sleep position from ACC — canonical positions + surge meta', 'ecgdex-dsp', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.analyze === 'function' && typeof D.genSynthetic === 'function')) {
         T.ok('ECGDSP available', false);
@@ -6943,11 +6960,20 @@
         distinct[e.position] = 1;
       });
       T.ok('synthetic night shows posture variety (>1 position)', Object.keys(distinct).length > 1, Object.keys(distinct).join(','));
+    });
+
+    group('ECGDex sleep position from ACC — no-ACC falls back to unknown', 'ecgdex-dsp', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.analyze === 'function' && typeof D.genSynthetic === 'function')) {
+        T.ok('ECGDSP available', false);
+        return;
+      }
       // no-ACC recording → epoch.position falls back to 'unknown', never undefined/null
       var rec2 = D.genSynthetic({ durSec: 6 * 3600, scenario: 'osa' });
       rec2.deviceACC = null;
       rec2.accFs = null;
       var r2 = D.analyze(rec2, function () {});
+      T.ok('no-ACC recording still produced epochs', r2.epochs.length > 0, 'n=' + r2.epochs.length);
       T.ok(
         'no-ACC → all epoch.position === "unknown" (never undefined)',
         r2.epochs.every(function (e) {
