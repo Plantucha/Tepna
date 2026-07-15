@@ -262,7 +262,16 @@ function readSources() {
     'ecgdex-profile.js',
     'glucodex-profile.js',
     'ppgdex-profile.js',
-    'overdex-app.js'
+    'overdex-app.js',
+    // TEST-COVERAGE-ANALYSIS 2026-07-15 — the analysis-page controllers, so the statistics-kernel
+    // group can assert each one delegates to AnalysisStats (delegation-parity leg).
+    'analysis-stats.js',
+    'nights-icc-analysis.js',
+    'sigma-no-reference-analysis.js',
+    'cgm-hrv-coupling-analysis.js',
+    'treatment-response-analysis.js',
+    'odi-bias-analysis.js',
+    'hrv-confound-analysis.js'
   ];
   const out = {};
   for (const f of wanted) {
@@ -881,7 +890,11 @@ async function main() {
     'cohort-full.js',
     'glucodex-dsp.js',
     'dex-patient-gen.js',
-    'integrator-longitudinal.js'
+    'integrator-longitudinal.js',
+    // TEST-COVERAGE-ANALYSIS 2026-07-15 — the analysis-page statistics kernels, single-sourced so the
+    // 'Analysis-page statistics kernels — known-answer' group (dex-tests.js) can execute the paper-figure
+    // math. Load failure → env.AnalysisStats undefined → that group's availability assert reds.
+    'analysis-stats.js'
   ].forEach((f) => {
     try {
       loadInto(ctx, f);
@@ -968,6 +981,7 @@ async function main() {
     SYNTH: ctx.SYNTH,
     CohortGen: ctx.CohortGen,
     CohortFull: ctx.CohortFull,
+    AnalysisStats: ctx.AnalysisStats,
     docs: readDocs(),
     docsLedger: readDocsLedger(),
     sources: readSources(),

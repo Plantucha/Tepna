@@ -84,18 +84,9 @@
 
   // single change-point: minimise within-segment SSE; k = first index of RIGHT segment.
   // requires ≥2 points each side. returns { k, r2, meanL, meanR } or null.
-  function bestSplit(x) {
-    var m = x.length; if (m < 4) return null;
-    var total = sse(x), best = null;
-    for (var k = 2; k <= m - 2; k++) {
-      var L = x.slice(0, k), R = x.slice(k);
-      var s = sse(L) + sse(R);
-      if (!best || s < best.s) best = { k: k, s: s, meanL: mean(L), meanR: mean(R) };
-    }
-    if (!best) return null;
-    best.r2 = total > 0 ? Math.max(0, 1 - best.s / total) : 0;
-    return best;
-  }
+  // Single-sourced in analysis-stats.js (TEST-COVERAGE-ANALYSIS 2026-07-15) — known-answer tested in
+  // dex-tests.js. Aliased so call sites are untouched; behavior is identical.
+  var bestSplit = AnalysisStats.bestSplit;
 
   // join one patient's per-night ODI-4 (oxy pool) + rMSSD (pulse pool) results, both from
   // the SAME deterministic seed. Full coverage required (any gap → skip, as before).
@@ -207,11 +198,9 @@
   var DET = ['odi', 'rmssd', 'fused'];
   var DMETA = { odi: { label: 'ODI-4', color: '#58A6FF' }, rmssd: { label: 'rMSSD', color: '#FFB84D' }, fused: { label: 'Fused', color: '#3DE0D0' } };
 
-  function auc(pos, neg) { // Mann–Whitney AUC of pos vs neg
-    if (!pos.length || !neg.length) return null;
-    var c = 0; for (var i = 0; i < pos.length; i++) for (var j = 0; j < neg.length; j++) { if (pos[i] > neg[j]) c++; else if (pos[i] === neg[j]) c += 0.5; }
-    return c / (pos.length * neg.length);
-  }
+  // Mann–Whitney AUC single-sourced in analysis-stats.js (TEST-COVERAGE-ANALYSIS 2026-07-15) —
+  // known-answer tested in dex-tests.js. Aliased so call sites are untouched; behavior is identical.
+  var auc = AnalysisStats.mannWhitneyAUC;
 
   function analyze() {
     var loc = {}, det = {};

@@ -6,10 +6,10 @@ name: tests
 # Node (built-in vm + fs) — no npm install, no browser, no network. They are SEPARATE
 # assertions (behavior suite vs provenance) that share this one CI entry.
 #
-# ── SHARDED (CI-SHARDING, 2026-07-12) ────────────────────────────────────────────────
+# ── SHARDED (CI-SHARDING, 2026-07-12; widened to 6 on 2026-07-15) ─────────────────────
 # The suite was a 4-minute single-threaded step — one core on a multi-core runner, ~75%
 # of it inside ecgdex-dsp.js (PROFILED-HOTSPOTS-CI-AND-DSP-2026-07-12-BRIEF §1). It now
-# runs as 4 parallel shards. Two things make that safe rather than merely fast:
+# runs as 6 parallel shards. Two things make that safe rather than merely fast:
 #
 #   1 · The shards PARTITION the suite — every declared group runs in exactly one shard,
 #       so the union of the shards IS the unsharded gate. The partition is INDEX-based,
@@ -25,9 +25,13 @@ name: tests
 #
 # Shard count lives in TWO places that must agree: the `matrix.shard` list below and
 # CI_SHARDS in tests/verify-shard-union.mjs (GitHub forbids env: inside a matrix literal).
-# MEASURED on CI (run 29198623082): 4m05s → 1m20s wall. The suite STEP itself went 245 s → 63 s
-# (3.9x — the 4.00x plan holds); the remaining wall is ~7 s job setup per shard + the 3 s aggregator.
-# Shards came in at 40/63/55/60 s — the spread is runner-to-runner speed variance, not plan skew.
+# MEASURED on CI at N=4 (run 29198623082): 4m05s → 1m20s wall. The suite STEP itself went 245 s →
+# 63 s (3.9x — the 4.00x plan holds); the remaining wall is ~7 s job setup per shard + the 3 s
+# aggregator. Shards came in at 40/63/55/60 s — the spread is runner-to-runner speed variance.
+# WIDENED to 6 on 2026-07-15 (TEST-COVERAGE-ANALYSIS): this only paid off once the two heaviest
+# ECGDex groups were split — the heaviest indivisible group fell 24.5 s → 15.3 s, so the planner is
+# no longer group-bound at N>4. The N=6 plan is balance-bound at 4.00x (makespan ≈ total/6); setup
+# overhead is per-job and runs in parallel, so wall improves while the ~15 s floor stays untouched.
 
 on:
   push:
@@ -36,21 +40,21 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ── the assertion suite, split 4 ways ──────────────────────────────────────────────
+  # ── the assertion suite, split 6 ways ──────────────────────────────────────────────
   suite:
-    name: suite (shard ${{ matrix.shard }}/4)
+    name: suite (shard ${{ matrix.shard }}/6)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false # one shard's red must not cancel the others — surface every failure in one pass
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: GanglioR test suite — shard ${{ matrix.shard }}/4
-        run: node tests/run-tests.mjs --shard=${{ matrix.shard }}/4
+      - name: GanglioR test suite — shard ${{ matrix.shard }}/6
+        run: node tests/run-tests.mjs --shard=${{ matrix.shard }}/6
 
   # ── the shard gate's own gate, + the static/provenance checks (~15 s, in parallel) ──
   static:
@@ -61,7 +65,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      # THE load-bearing check for sharding: prove the 4 shards partition the suite, so no
+      # THE load-bearing check for sharding: prove the 6 shards partition the suite, so no
       # group can fall between them, go unrun, and still leave every shard green. ~0.1 s.
       - name: Shard-union — the shards partition the suite (no group goes unrun)
         run: node tests/verify-shard-union.mjs
@@ -114,4 +118,4 @@ jobs:
             echo "::error::the test gate is RED — a shard or the static job did not succeed"
             exit 1
           fi
-          echo "✓ all 4 shards + static green — their union is the full gate"
+          echo "✓ all 6 shards + static green — their union is the full gate"

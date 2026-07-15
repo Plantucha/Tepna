@@ -116,23 +116,12 @@
 
   // ── stats helpers ──
   function mean(a) { return a.length ? a.reduce(function (x, y) { return x + y; }, 0) / a.length : 0; }
-  function pearson(xs, ys) {
-    var n = xs.length; if (n < 3) return null;
-    var mx = mean(xs), my = mean(ys), sxy = 0, sxx = 0, syy = 0;
-    for (var i = 0; i < n; i++) { var dx = xs[i] - mx, dy = ys[i] - my; sxy += dx * dy; sxx += dx * dx; syy += dy * dy; }
-    if (sxx <= 0 || syy <= 0) return null;
-    var r = sxy / Math.sqrt(sxx * syy);
-    r = Math.max(-0.9999, Math.min(0.9999, r));
-    // Fisher-z 95% CI
-    var z = Math.atanh(r), se = 1 / Math.sqrt(Math.max(1, n - 3));
-    return { r: r, n: n, lo: Math.tanh(z - 1.96 * se), hi: Math.tanh(z + 1.96 * se),
-             slope: sxy / sxx, mx: mx, my: my };
-  }
+  // pearson (with Fisher-z CI) + partial correlation single-sourced in analysis-stats.js
+  // (TEST-COVERAGE-ANALYSIS 2026-07-15) — known-answer tested in dex-tests.js. Aliased so call
+  // sites are untouched; behavior is identical.
+  var pearson = AnalysisStats.pearsonCI;
   // partial r(x,y | z)
-  function partial(rxy, rxz, ryz) {
-    var d = Math.sqrt((1 - rxz * rxz) * (1 - ryz * ryz));
-    return d > 0 ? (rxy - rxz * ryz) / d : null;
-  }
+  var partial = AnalysisStats.partialCorr;
   function median(a) { if (!a.length) return null; var s = a.slice().sort(function (x, y) { return x - y; }); var m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
 
   // ── run ──

@@ -1812,6 +1812,183 @@
       });
     });
 
+    /* ════ 8d-bis · ANALYSIS-PAGE STATISTICS KERNELS — KNOWN-ANSWER (TEST-COVERAGE-ANALYSIS 2026-07-15) ════
+       The standalone `*-analysis.html` research tools produce the numbers cited in the σ + validation
+       papers, yet their reliability / agreement / correlation / change-point kernels were covered ONLY by
+       the static "self-contained" gate above (no external src / no file worker) — NOTHING executed the
+       math. A sign error in the three-cornered-hat solve or a between/within swap in the ICC would have
+       shipped a plausible-but-wrong figure with every gate green. The kernels are now single-sourced in
+       analysis-stats.js (window.AnalysisStats); this group pins each with a hand-computed known answer, and
+       a delegation-parity leg asserts every page actually ROUTES through the tested module (so a future
+       edit can't quietly re-inline a divergent private copy). Node-lane only — env.AnalysisStats is loaded
+       by run-tests.mjs; the browser suite doesn't co-load it, so this SKIPs there (like docs/release-ledger). */
+    group('Analysis-page statistics kernels — known-answer (TEST-COVERAGE-ANALYSIS)', 'analysis-stats · statistics · known-answer', function (T) {
+      var S = env.AnalysisStats;
+      if (!S) {
+        T.skip('env.AnalysisStats provided to the runner', 'Node-lane only — run-tests.mjs co-loads analysis-stats.js');
+        return;
+      }
+      T.ok('AnalysisStats present', !!S);
+
+      // ── low-level helpers ──
+      T.eq('mean', S.mean([1, 2, 3, 4]), 2.5);
+      T.eq('mean([]) → 0 (guarded)', S.mean([]), 0);
+      T.approx('variance (sample, /(n−1))', S.variance([2, 4, 4, 4, 5, 5, 7, 9]), 32 / 7, 1e-12); // SS=32, n−1=7
+      T.approx('sd = √variance', S.sd([2, 4, 4, 4, 5, 5, 7, 9]), Math.sqrt(32 / 7), 1e-12);
+      T.eq('median (odd)', S.median([3, 1, 2]), 2);
+      T.eq('median (even)', S.median([1, 2, 3, 4]), 2.5);
+      T.eq('sse', S.sse([1, 2, 3]), 2); // mean 2 → (1+0+1)
+
+      // ── ICC(1,1) via one-way ANOVA ──
+      // subjects [[1,2],[4,5],[7,8]]: msb=18, msw=0.5, n0=2 → icc=(18−0.5)/(18+0.5)=17.5/18.5
+      var icc = S.iccOneWay([
+        [1, 2],
+        [4, 5],
+        [7, 8]
+      ]);
+      T.approx('ICC exact (ANOVA 17.5/18.5)', icc.icc, 17.5 / 18.5, 1e-12);
+      T.approx('  · msb', icc.msb, 18, 1e-12);
+      T.approx('  · msw', icc.msw, 0.5, 1e-12);
+      T.approx('  · n0 (balanced → 2)', icc.n0, 2, 1e-12);
+      // perfect between-subject separation, zero within → capped at 0.999
+      var iccCap = S.iccOneWay([
+        [10, 10],
+        [20, 20],
+        [30, 30]
+      ]);
+      T.approx('ICC zero-within → 0.999 cap', iccCap.icc, 0.999, 1e-12);
+      T.eq('ICC within-variance 0', iccCap.varW, 0);
+      T.eq('ICC <2 usable subjects → null', S.iccOneWay([[1, 2]]), null);
+
+      // ── Spearman–Brown + minimum-occasions ──
+      T.approx('Spearman–Brown (icc 0.5, m 2)', S.spearmanBrown(0.5, 2), 2 / 3, 1e-12);
+      T.eq('Spearman–Brown icc≤0 → 0', S.spearmanBrown(0, 5), 0);
+      T.eq('minOcc (icc 0.5, target 0.75) → 3', S.minOccForReliability(0.5, 0.75), 3); // 0.375/0.125=3 exact
+      // Integer-boundary case: true ratio is exactly 4, but the operands (built via 1−target) round to
+      // 4.0000000000000009 — bare ceil gave 5. The −1e-9 epsilon restores the mathematical 4.
+      T.eq('minOcc integer-boundary (icc 0.5, target 0.8) → 4 (float-noise absorbed, not 5)', S.minOccForReliability(0.5, 0.8), 4);
+      T.eq('minOcc already-reliable → 1', S.minOccForReliability(0.9, 0.8), 1);
+      T.eq('minOcc icc≤0 → Infinity', S.minOccForReliability(0, 0.8), Infinity);
+      // guard the other direction: a genuine fractional need above an integer must NOT be masked by ε.
+      // icc 0.4, target 0.9 → 0.9·0.6/(0.1·0.4)=0.54/0.04=13.5 → 14 (ε can't pull it below 14).
+      T.eq('minOcc genuine fractional need not masked (13.5 → 14)', S.minOccForReliability(0.4, 0.9), 14);
+
+      // ── three-cornered hat (Gray–Allan) σ²_A = ½(V_AB+V_AC−V_BC) ──
+      var hSym = S.threeCorneredHat(2, 2, 2);
+      T.ok('TCH symmetric (2,2,2) → 1,1,1', hSym.a === 1 && hSym.b === 1 && hSym.c === 1);
+      var hAsym = S.threeCorneredHat(5, 3, 4); // a=½(5+3−4)=2, b=½(5+4−3)=3, c=½(3+4−5)=1
+      T.ok('TCH asymmetric (5,3,4) → 2,3,1', hAsym.a === 2 && hAsym.b === 3 && hAsym.c === 1);
+      // tchSigmas: identical series → all diffs 0 → variance 0 → negative-assumption flagged
+      T.ok('tchSigmas identical series → neg flagged', S.tchSigmas([1, 2, 3, 4], [1, 2, 3, 4], [1, 2, 3, 4]).neg === true);
+
+      // ── Bland–Altman ──
+      var ba = S.blandAltman([2, 4]); // bias 3, sd √2, arms √(9+2)
+      T.eq('Bland–Altman bias', ba.bias, 3);
+      T.approx('Bland–Altman sd', ba.sd, Math.SQRT2, 1e-12);
+      T.approx('Bland–Altman LoA half-width (1.96·sd)', ba.loa, 1.96 * Math.SQRT2, 1e-12);
+      T.approx('Bland–Altman Arms', ba.arms, Math.sqrt(11), 1e-12);
+
+      // ── Pearson (bare) + Pearson-with-CI ──
+      T.approx('pearson perfect +1', S.pearson([1, 2, 3], [2, 4, 6]), 1, 1e-12);
+      T.approx('pearson perfect −1', S.pearson([1, 2, 3], [6, 4, 2]), -1, 1e-12);
+      var pci = S.pearsonCI([1, 2, 3, 4], [2, 4, 6, 8]);
+      T.eq('pearsonCI clamps perfect r to 0.9999', pci.r, 0.9999);
+      T.approx('pearsonCI slope (sxy/sxx)', pci.slope, 2, 1e-12);
+      T.eq('pearsonCI n<3 → null', S.pearsonCI([1, 2], [1, 2]), null);
+
+      // ── partial correlation r(x,y|z) ──
+      // rxy 0.6, rxz 0.5, ryz 0.5 → (0.6−0.25)/√(0.75·0.75) = 0.35/0.75
+      T.approx('partialCorr', S.partialCorr(0.6, 0.5, 0.5), 0.35 / 0.75, 1e-12);
+      T.eq('partialCorr degenerate (denom 0) → null', S.partialCorr(0.5, 1, 0.5), null);
+
+      // ── simple OLS (y = 2 + 3x, exact) ──
+      var o = S.ols([0, 1, 2, 3], [2, 5, 8, 11]);
+      T.approx('OLS slope', o.slope, 3, 1e-12);
+      T.approx('OLS intercept', o.intercept, 2, 1e-12);
+      T.approx('OLS r²', o.r2, 1, 1e-12);
+      T.eq('OLS n<2 → null', S.ols([1], [1]), null);
+
+      // ── multiple OLS with inference (y = 1 + 2·x1 + 0·x2, exact) ──
+      var Xrows = [
+        [1, 0, 1],
+        [1, 1, 0],
+        [1, 2, 1],
+        [1, 3, 0],
+        [1, 4, 1],
+        [1, 5, 0]
+      ];
+      var yv = Xrows.map(function (r) {
+        return 1 + 2 * r[1];
+      });
+      var fit = S.olsFit(yv, Xrows);
+      T.approx('olsFit β0 (intercept)', fit.beta[0], 1, 1e-6);
+      T.approx('olsFit β1 (x1)', fit.beta[1], 2, 1e-6);
+      T.approx('olsFit β2 (x2, no effect)', fit.beta[2], 0, 1e-6);
+      T.approx('olsFit r² (perfect fit)', fit.r2, 1, 1e-6);
+      T.eq(
+        'olsFit under-determined (n≤p+1) → null',
+        S.olsFit(
+          [1, 2, 3],
+          [
+            [1, 0],
+            [1, 1],
+            [1, 2]
+          ]
+        ),
+        null
+      );
+      // invMat: 2×2 known inverse
+      var invd = S.invMat([
+        [4, 7],
+        [2, 6]
+      ]); // det=10 → [[0.6,−0.7],[−0.2,0.4]]
+      T.approx('invMat [0][0]', invd[0][0], 0.6, 1e-12);
+      T.approx('invMat [0][1]', invd[0][1], -0.7, 1e-12);
+
+      // ── ROC / AUC ──
+      T.approx('roc perfect separation → auc 1', S.roc([0.9, 0.8, 0.2, 0.1], [true, true, false, false]).auc, 1, 1e-12);
+      T.approx('roc inverted → auc 0', S.roc([0.1, 0.2, 0.8, 0.9], [true, true, false, false]).auc, 0, 1e-12);
+      T.eq('roc single-class → auc null', S.roc([1, 2, 3], [true, true, true]).auc, null);
+
+      // ── change-point (min within-segment SSE) ──
+      var bs = S.bestSplit([0, 0, 0, 10, 10, 10]); // step at index 3
+      T.eq('bestSplit change-point index', bs.k, 3);
+      T.approx('bestSplit r² (clean step)', bs.r2, 1, 1e-12);
+      T.eq('bestSplit meanL', bs.meanL, 0);
+      T.eq('bestSplit meanR', bs.meanR, 10);
+      T.eq('bestSplit <4 points → null', S.bestSplit([1, 2, 3]), null);
+
+      // ── Mann–Whitney AUC ──
+      T.eq('mannWhitneyAUC perfect', S.mannWhitneyAUC([3, 4, 5], [0, 1, 2]), 1);
+      T.eq('mannWhitneyAUC all-ties → 0.5', S.mannWhitneyAUC([1, 1], [1, 1]), 0.5);
+      T.eq('mannWhitneyAUC empty → null', S.mannWhitneyAUC([], [1]), null);
+
+      // ── delegation parity: every analysis page ROUTES through AnalysisStats (so a divergent
+      //    private copy can't silently reappear and dodge the known-answers above). Source-scan;
+      //    SKIPs a page whose source the runner didn't pass (browser lane / partial env). ──
+      var src = env.sources || {};
+      var DELEGATIONS = [
+        ['nights-icc-analysis.js', ['AnalysisStats.iccOneWay', 'AnalysisStats.spearmanBrown', 'AnalysisStats.minOccForReliability']],
+        ['sigma-no-reference-analysis.js', ['AnalysisStats.threeCorneredHat', 'AnalysisStats.tchSigmas', 'AnalysisStats.blandAltman', 'AnalysisStats.pearson']],
+        ['cgm-hrv-coupling-analysis.js', ['AnalysisStats.pearsonCI', 'AnalysisStats.partialCorr']],
+        ['treatment-response-analysis.js', ['AnalysisStats.bestSplit', 'AnalysisStats.mannWhitneyAUC']],
+        ['odi-bias-analysis.js', ['AnalysisStats.ols']],
+        ['hrv-confound-analysis.js', ['AnalysisStats.ols', 'AnalysisStats.olsFit', 'AnalysisStats.roc']]
+      ];
+      DELEGATIONS.forEach(function (pair) {
+        var f = pair[0],
+          code = src[f];
+        if (code == null) {
+          T.skip(f + ' source available for delegation-parity', 'runner passed no ' + f);
+          return;
+        }
+        pair[1].forEach(function (ref) {
+          var found = code.indexOf(ref) !== -1;
+          T.ok(f + ' delegates ' + ref, found, found ? '' : 'MISSING — re-run the delegation edit; analysis-stats.js is the single source');
+        });
+      });
+    });
+
     /* ════ 8e · SECURITY — STRICT script-src (SECURITY-CSP-STRICT-SCRIPT-SRC-2026-07-11) ════
        The inline-handler → event-delegation refactor that lets script-src drop 'unsafe-inline' in
        favour of per-block sha256 hashes. Guards the whole thing statically (the Playwright harness
@@ -2292,7 +2469,11 @@
     });
 
     /* ════ 12b · ECGDex STAMPLESS DETERMINISM — events never carry a fabricated now() ════ */
-    group('ECGDex stampless events — null clock, never now() (Clock §2.6)', 'ecgdex-dsp', function (T) {
+    // NOTE (CI-SHARDING): split from one 3-analyze group into two so the shard planner can place the
+    // stampless-path work and the stamped-control work on different shards (each half already used its
+    // OWN separately-generated 6 h record, so this adds no compute — it only lowers the indivisible
+    // floor; TEST-COVERAGE-ANALYSIS 2026-07-15). The two halves are independent by construction.
+    group('ECGDex stampless events — null clock + determinism (Clock §2.6)', 'ecgdex-dsp', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.analyze === 'function' && typeof D.genSynthetic === 'function')) {
         T.ok('ECGDSP available', false, 'not loaded');
@@ -2331,12 +2512,22 @@
           })
         )
       );
-      // sanity: a STAMPED rec still gets a real wall-clock + absolute tMs
+    });
+
+    group('ECGDex stampless events — stamped control gets a real clock (Clock §2.6)', 'ecgdex-dsp', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.analyze === 'function' && typeof D.genSynthetic === 'function')) {
+        T.ok('ECGDSP available', false, 'not loaded');
+        return;
+      }
+      // sanity: a STAMPED rec still gets a real wall-clock + absolute tMs (the control for the
+      // null-clock group above — a stampless file returns null clocks ONLY because it is stampless).
       var rec2 = D.genSynthetic({ durSec: 6 * 3600, scenario: 'osa' });
       var rS = D.analyze(rec2, function () {});
       var se = (rS.events || []).filter(function (e) {
         return e.impulse === 'autonomic_surge';
       })[0];
+      T.ok('stamped rec produced a surge event to check', !!se, se ? '' : 'no autonomic_surge in control rec');
       if (se) {
         T.ok('stamped surge has HH:MM:SS clock', /^\d{2}:\d{2}:\d{2}$/.test(se.t));
         T.ok('stamped surge has absolute floating tMs', typeof se.tMs === 'number' && se.tMs === rec2.t0Ms + Math.round(se._sec * 1000));
@@ -6763,7 +6954,10 @@
     });
 
     /* ════ 18 · ECGDex SLEEP POSITION from ACC (epoch + event meta) ════ */
-    group('ECGDex sleep position from ACC', 'ecgdex-dsp', function (T) {
+    // NOTE (CI-SHARDING): split into the ACC-present path and the no-ACC fallback path so the shard
+    // planner can place them separately (each already analyzed its OWN 6 h record, so no added compute;
+    // it only lowers the indivisible floor; TEST-COVERAGE-ANALYSIS 2026-07-15).
+    group('ECGDex sleep position from ACC — canonical positions + surge meta', 'ecgdex-dsp', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.analyze === 'function' && typeof D.genSynthetic === 'function')) {
         T.ok('ECGDSP available', false);
@@ -6801,11 +6995,20 @@
         distinct[e.position] = 1;
       });
       T.ok('synthetic night shows posture variety (>1 position)', Object.keys(distinct).length > 1, Object.keys(distinct).join(','));
+    });
+
+    group('ECGDex sleep position from ACC — no-ACC falls back to unknown', 'ecgdex-dsp', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.analyze === 'function' && typeof D.genSynthetic === 'function')) {
+        T.ok('ECGDSP available', false);
+        return;
+      }
       // no-ACC recording → epoch.position falls back to 'unknown', never undefined/null
       var rec2 = D.genSynthetic({ durSec: 6 * 3600, scenario: 'osa' });
       rec2.deviceACC = null;
       rec2.accFs = null;
       var r2 = D.analyze(rec2, function () {});
+      T.ok('no-ACC recording still produced epochs', r2.epochs.length > 0, 'n=' + r2.epochs.length);
       T.ok(
         'no-ACC → all epoch.position === "unknown" (never undefined)',
         r2.epochs.every(function (e) {

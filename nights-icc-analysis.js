@@ -124,42 +124,14 @@
   }
 
   // ── ANOVA one-way random-effects ICC(1,1) over ragged subjects ──
+  // Kernels single-sourced in analysis-stats.js (TEST-COVERAGE-ANALYSIS 2026-07-15) — known-answer
+  // tested in dex-tests.js. Aliased here so call sites below are untouched; behavior is identical.
   function mean(a) { return a.length ? a.reduce(function (x, y) { return x + y; }, 0) / a.length : 0; }
-  function iccOneWay(groups) {
-    // groups: array of arrays (each subject's repeated measurements); keep subjects with ≥2 obs
-    var g = groups.filter(function (a) { return a.length >= 2; });
-    var k = g.length; if (k < 2) return null;
-    var all = []; g.forEach(function (a) { a.forEach(function (v) { all.push(v); }); });
-    var N = all.length, grand = mean(all);
-    var ssb = 0, ssw = 0, sumN2 = 0;
-    g.forEach(function (a) {
-      var mi = mean(a), ni = a.length; sumN2 += ni * ni;
-      ssb += ni * (mi - grand) * (mi - grand);
-      a.forEach(function (v) { ssw += (v - mi) * (v - mi); });
-    });
-    var dfb = k - 1, dfw = N - k;
-    if (dfw <= 0) return null;
-    var msb = ssb / dfb, msw = ssw / dfw;
-    var n0 = (N - sumN2 / N) / dfb;              // average group size (balanced → n per subject)
-    var icc = (msb - msw) / (msb + (n0 - 1) * msw);
-    icc = Math.max(0, Math.min(0.999, icc));
-    var varB = Math.max(0, (msb - msw) / n0), varW = Math.max(0, msw);
-    return {
-      icc: icc, k: k, N: N, n0: n0, msb: msb, msw: msw,
-      varB: varB, varW: varW, grand: grand,
-      withinSD: Math.sqrt(varW), withinCVpct: grand ? 100 * Math.sqrt(varW) / Math.abs(grand) : null,
-      medianOcc: medianOf(g.map(function (a) { return a.length; })),
-    };
-  }
-  function medianOf(a) { if (!a.length) return 0; var s = a.slice().sort(function (x, y) { return x - y; }); var m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
+  var iccOneWay = AnalysisStats.iccOneWay;
   // Spearman–Brown: reliability of an average of m occasions
-  function sb(icc, m) { return icc <= 0 ? 0 : (m * icc) / (1 + (m - 1) * icc); }
+  var sb = AnalysisStats.spearmanBrown;
   // minimum occasions to reach target reliability
-  function minOcc(icc, target) {
-    if (icc <= 0) return Infinity;
-    if (icc >= target) return 1;
-    return Math.ceil((target * (1 - icc)) / ((1 - target) * icc));
-  }
+  var minOcc = AnalysisStats.minOccForReliability;
 
   // ── run ──
   var minNights, targetSubj, RESULT = null;
