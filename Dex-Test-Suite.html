@@ -232,7 +232,8 @@ async function main(){
     ['oxydex_dmy', 'synthetic_oxydex_o2ring_dmy.csv', null],
     ['oxydex_mdy', 'synthetic_oxydex_o2ring_mdy.csv', null],
     ['oxydex_lossy', 'synthetic_oxydex_o2ring_lossy.csv', null],
-    ['oxydex_longnight', 'synthetic_oxydex_o2ring_longnight.csv', null]
+    ['oxydex_longnight', 'synthetic_oxydex_o2ring_longnight.csv', null],
+    ['oxydex_odibasis', 'synthetic_oxydex_o2ring_gap.csv', null]
   ]) {
     try {
       setEquiv(k, await fetchText('uploads/' + inF), fxF ? await fetchJSON('uploads/' + fxF) : null, fxF);

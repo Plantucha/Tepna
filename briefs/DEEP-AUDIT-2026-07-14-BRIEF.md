@@ -155,7 +155,31 @@ surfaced number), then §4/§5, then §6–§8.
 - **Fix sketch:** change the boundary test to match `GAP_LONG` (reuse the `_isGap` helper or a `GAP_LONG` check).
   **Gate cost:** `glucodex-dsp.js` → re-bundle + regenerate fixtures (can share §1's long-gap fixture).
 
-## §5 — OxyDex ODI-family rates use two incompatible time bases  ⚠ needs an owner decision on canonical basis
+## §5 — OxyDex ODI-family rates use two incompatible time bases  ✅ EXECUTED 2026-07-14 (owner ratified: SAMPLE basis)
+> **EXECUTED 2026-07-14 — canonical basis = SAMPLE (`rows.length/3600`), owner-ratified after a corpus
+> measurement.** The one outlier was `oxydex-dsp.js:2178` (the artifact-exclusion ODI-4 recompute), which used
+> the elapsed span (`stats.durationMin/60`) while `detectODI`/`computeODI1`/nadir/`crashRate` + the ODI-4 base
+> all use `rows.length/3600`. Now `:2178` re-rates on `rows.length/3600` — matching `detectODI` EXACTLY (same
+> `n`), so all ODI-family denominators are one basis and `odi41ratio` can no longer mix clocks. The other
+> span-`durationHr` consumers at :2195/:2198/:2200 (cross-signal / composite / SBII) are OUTSIDE the ODI family
+> and were left untouched — deliberately in-scope-only.
+>
+> **Why SAMPLE, and why this was low-urgency (the measurement that decided it):** ran OxyDex on **all 37 real
+> O2Ring nights** — the two bases produce **identical** ODI-4 on every one (max sample-vs-span gap 2.4 %, and the
+> `:2178` recompute never even fired: `artifactExcluded=0` on all 37). The brief's hypothesised ~14 %/4×
+> divergence occurs on **no real night**; the O2Ring records continuously at 1 Hz. So §5 was a **latent** landmine
+> (zero current user impact), not an active mis-statement — it would only surface on a genuine finger-off gap or
+> a sparse-cadence oximeter. SAMPLE is the clinically honest "per hour of *analyzable* recording" denominator,
+> the majority basis (~11 of 12 sites), and the one-site change (vs flipping 11), so it is both principled and
+> minimal.
+>
+> **Gated by a COMMITTED gap+artifact twin** (`synthetic_oxydex_o2ring_gap.csv`) — the ONLY input that both
+> diverges the bases (a 30-min `- -` finger-off gap ⇒ `rows.length` < span) AND fires the `:2178` recompute (a
+> non-physiologic fast-fall artifact, 3.2 %/s > the 1.5 %/s self-gate). On it, sample-basis **2/h ≠ span-basis
+> 1.5/h**; the gate asserts `odi4.rate === 2` (RED on the old code: `1.5`), with a control that the twin genuinely
+> diverges. **EXPORT-INERT — verified, not asserted:** all three OxyDex equiv legs reproduce byte-identical (the
+> committed fixtures are clean 1 Hz clips that never trip `:2178`); re-bundled OxyDex + Data Unifier + OverDex +
+> the 5 analysis tools that inline `oxydex-dsp.js`; `verifiedUnder` re-stamped after a green corpus run.
 - **Severity:** mis-states surfaced `/hr` numbers on gappy / non-1 Hz nights (charter #1, samples-vs-seconds).
 - **Root cause:** `durationHr = n/3600` (valid-sample count; invalid rows dropped at `oxydex-dsp.js:554 continue`)
   drives `detectODI`:2657, `computeODI1`:1024, nadir density :1148, `oxyCrashRate`:1848 (+ ~9 other `n/3600` sites);
