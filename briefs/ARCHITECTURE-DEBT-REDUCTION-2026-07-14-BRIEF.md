@@ -275,6 +275,19 @@ gates still accept until the last step.
 
 ## P4 — Format the whole tree, retire the biome override list · **depends on P1**
 
+> **§P4-PREP DONE 2026-07-15 — the "~17 format-sensitive gates break" blocker is mostly a myth; the ONE
+> real one is fixed.** Measured it instead of assuming: reflowed a biome-formatted COPY of each
+> formatter-exempt source (`sensor-trio-worker.js`, `ppgdex-app.js`, the DSPs) and tested every source-text
+> gate that reads it against BOTH the current and the reflowed bytes. **Only `ppgdex-app.js`'s
+> `showErr`/`showOK` XSS-sink scans actually broke** (biome rewrites `showErr(msg){` → `showErr(msg) {`,
+> and the regex hard-coded `\)\{`). Hardened to `\)\s*\{` (verified matches both forms). **Everything else
+> the brief feared SURVIVES a reflow** — the H10 corner-gate solve-path checks, the `lombScargle`/`sampEn`
+> body-extractions, and the remaining source-mirror regexes all already use `\s*` at their token
+> boundaries, so biome's spacing changes don't move them (empirically confirmed, not asserted). Net: P4's
+> real remaining cost is the **provenance churn** (re-bundle every reflowed app) — NOT a gate-rewrite
+> project. P1 (behavioral conversions) + P4-prep (this) are both done; P4 is unblocked and awaits the
+> owner's go-ahead for the one-time reflow+rebundle.
+
 **Problem.** `biome.json` has an `overrides` block that disables the FORMATTER for ~27 pre-biome files
 (six of eight DSPs, plus render/app/util files). It exists because reflowing them would (a) churn every
 provenance fixture and (b) **break the ~17 format-sensitive source-text gates** in `tests/dex-tests.js`.
