@@ -687,10 +687,12 @@
   // ════════════════════════════════════════════════════════════════════════
   const NIGHTS_IDX = {};
   function classifyF(file) {
-    const n = file.name; let mo;
+    const n = file.name;
     if (/^O2Ring.*_(\d{14})\.csv$/i.test(n)) return { role: 'o2', stamp: n.match(/(\d{14})\.csv$/i)[1] };
-    if ((mo = n.match(/^Polar_H10_[0-9A-Za-zx]+_(\d{8})_(\d{6})_([A-Z]+)\.txt$/i))) { const hk = mo[3].toUpperCase(); return hk === 'HR' ? { role: 'h10', stamp: mo[1] + mo[2] } : hk === 'ECG' ? { role: 'h10ecg', stamp: mo[1] + mo[2] } : null; }
-    if ((mo = n.match(/^Polar_Sense_[0-9A-Za-zx]+_(\d{8})_(\d{6})_([A-Z]+)\.txt$/i))) { const k = mo[3].toUpperCase(), role = k === 'PPG' ? 'verityPPG' : k === 'PPI' ? 'verityPPI' : k === 'HR' ? 'verityHR' : null; return role ? { role, stamp: mo[1] + mo[2] } : null; }
+    let mo = n.match(/^Polar_H10_[0-9A-Za-zx]+_(\d{8})_(\d{6})_([A-Z]+)\.txt$/i);
+    if (mo) { const hk = mo[3].toUpperCase(); return hk === 'HR' ? { role: 'h10', stamp: mo[1] + mo[2] } : hk === 'ECG' ? { role: 'h10ecg', stamp: mo[1] + mo[2] } : null; }
+    mo = n.match(/^Polar_Sense_[0-9A-Za-zx]+_(\d{8})_(\d{6})_([A-Z]+)\.txt$/i);
+    if (mo) { const k = mo[3].toUpperCase(), role = k === 'PPG' ? 'verityPPG' : k === 'PPI' ? 'verityPPI' : k === 'HR' ? 'verityHR' : null; return role ? { role, stamp: mo[1] + mo[2] } : null; }
     return null;
   }
   function nightKeyOf(st) { const Y = +st.slice(0, 4), M = +st.slice(4, 6), D = +st.slice(6, 8), h = +st.slice(8, 10); let ms = Date.UTC(Y, M - 1, D); if (h < 12) ms -= 86400000; const d = new Date(ms); return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0'); }

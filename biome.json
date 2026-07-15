@@ -77,6 +77,8 @@
         "ppgdex-dsp.js",
         "ppgdex-morph.js",
         "sensor-trio-worker.js",
+        "sensor-trio-power-analysis.js",
+        "sigma-no-reference-analysis.js",
         "clock.js",
         "glucodex-dsp.js",
         "glucodex-render.js",
