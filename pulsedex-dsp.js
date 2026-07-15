@@ -115,6 +115,17 @@
   const amo50 = (a, mo) => (a.filter((v) => Math.abs(v - mo) <= 25).length / a.length) * 100;
   const sd1 = (r) => r / Math.sqrt(2);
   const sd2 = (s, r) => Math.sqrt(Math.max(0, 2 * s * s - (r * r) / 2));
+  // §8 (DEEP-AUDIT-2026-07-14): the Poincaré SD1 spread is SDSD — the SAMPLE SD (÷N−1) of the successive-
+  // difference series — NOT rMSSD (the RMS of those differences, ÷N, no mean-centering). They differ only by
+  // mean(Δ)² ≈ 0, so this is numerically negligible, but it unifies the SD1 definition with ECGDex/PpgDex
+  // (both SDSD/√2) so the three nodes can never drift definitionally. sd1/sd2 keep the geometric identity —
+  // pass SDSD in place of rMSSD: SD1²=SDSD²/2, SD2=√(2·SDNN²−SD1²) hold exactly as before.
+  const sdsd = (a) => {
+    if (a.length < 3) return 0;
+    const d = [];
+    for (let i = 1; i < a.length; i++) d.push(a[i] - a[i - 1]);
+    return std(d);
+  };
   const lnR = (r) => Math.log(r);
   const lfHf = (lf, hf) => (hf ? lf / hf : 0);
   const nu = (v, tp) => (tp ? (v / tp) * 100 : 0);
@@ -1169,8 +1180,9 @@
       energy = energyEst(cSd, cRm),
       focus = focusEst(cSd, cRm),
       coh = cohEst(cRm, cSd);
-    const sd1v = +sd1(rm).toFixed(2),
-      sd2v = +sd2(sdnn, rm).toFixed(2);
+    const sdsdv = sdsd(a); // §8: SD1/SD2 spread is SDSD (÷N−1), not rMSSD — unified with ECGDex/PpgDex
+    const sd1v = +sd1(sdsdv).toFixed(2),
+      sd2v = +sd2(sdnn, sdsdv).toFixed(2);
     const lnrm = +lnR(cRm).toFixed(3);
     const lfhfv = winSpec ? +(winSpec.lf / (winSpec.hf || 1)).toFixed(3) : ls.lfhf;
 

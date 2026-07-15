@@ -2155,6 +2155,55 @@
       T.ok('§3 · the HF fraction (hf/tp) matches the true band share (no bar/total mismatch)', Math.abs(hfFrac - hfFracTrue) < 1e-9, 'bar ' + hfFrac.toFixed(4) + ' vs true ' + hfFracTrue.toFixed(4));
     });
 
+    /* ════ PulseDex §8 — Poincaré SD1 spread is SDSD, not rMSSD (DEEP-AUDIT-2026-07-14 §8) ════════════
+       The SD1 short axis is SDSD/√2 (the SAMPLE SD of the successive-difference series, ÷N−1) — the ECGDex
+       / PpgDex definition. PulseDex used rMSSD/√2 (the RMS of those differences, ÷N, no mean-centering).
+       rMSSD² = SDSD² + mean(Δ)², so they differ ONLY by mean(Δ)² — ≈ 0 on a stationary night (why this was
+       negligible), but on a TRENDING series mean(Δ)≠0 and rMSSD is strictly larger. This gate feeds a gently
+       trending RR series (so mean(Δ)>0): the exported sd1 must equal SDSD/√2 and sit BELOW rMSSD/√2 — RED on
+       the old rMSSD/√2 definition, non-vacuous by construction. */
+    group('PulseDex §8 — Poincaré SD1 uses SDSD (÷N−1)/√2, not rMSSD/√2', 'pulsedex-dsp · poincare', function (T) {
+      var P = env.PulseDex;
+      if (!P || typeof P.computeResult !== 'function') {
+        T.ok('env.PulseDex.computeResult available', false, 'not wired — gate skipped');
+        return;
+      }
+      var m = 300,
+        t0 = Date.UTC(2026, 5, 25, 8, 0, 0),
+        intervals = [],
+        tsMs = [],
+        t = t0;
+      for (var i = 0; i < m; i++) {
+        var rr = 800 + i * 0.8 + 25 * Math.sin(i / 5); // gentle upward trend ⇒ mean(Δ) > 0
+        intervals.push(rr);
+        tsMs.push(t);
+        t += rr;
+      }
+      var r = P.computeResult({ intervals: intervals, tsMs: tsMs, t0Ms: t0, offsetMin: null });
+      // independent references on the SAME raw series (cleaning is a near-no-op on this clean synthetic)
+      var d = [];
+      for (var j = 1; j < intervals.length; j++) d.push(intervals[j] - intervals[j - 1]);
+      var dm =
+        d.reduce(function (a, b) {
+          return a + b;
+        }, 0) / d.length;
+      var dv = 0;
+      for (var k = 0; k < d.length; k++) dv += (d[k] - dm) * (d[k] - dm);
+      var sdsd = Math.sqrt(dv / (d.length - 1)); // SAMPLE SD (÷N−1)
+      var sq = 0;
+      for (var q = 0; q < d.length; q++) sq += d[q] * d[q];
+      var rmssd = Math.sqrt(sq / d.length);
+      var sdsdSD1 = sdsd / Math.SQRT2,
+        rmssdSD1 = rmssd / Math.SQRT2;
+      T.ok(
+        'control · the trending series makes SDSD/√2 and rMSSD/√2 diverge (mean(Δ) ≠ 0)',
+        Math.abs(rmssdSD1 - sdsdSD1) > 0.05,
+        'SDSD/√2 ' + sdsdSD1.toFixed(2) + ' vs rMSSD/√2 ' + rmssdSD1.toFixed(2)
+      );
+      T.ok('§8 · exported sd1 matches the SDSD/√2 definition (± cleaning)', r && r.sd1 != null && Math.abs(r.sd1 - sdsdSD1) < 0.25, 'sd1=' + (r && r.sd1) + ' SDSD/√2=' + sdsdSD1.toFixed(2));
+      T.ok('§8 · …and sits BELOW rMSSD/√2 (the retired definition) — RED on the old code', r && r.sd1 != null && r.sd1 < rmssdSD1 - 0.03, 'sd1=' + (r && r.sd1) + ' rMSSD/√2=' + rmssdSD1.toFixed(2));
+    });
+
     /* ════ 12 · ECGDex respRate aggregation — median, not HF-peak (whole-record scalar) ════ */
     /* DEEP-AUDIT-2026-07-11 §10/§11 — the exported spectrum must sit on ONE time scale, and its band
        split must not hang on an arbitrary internal constant.

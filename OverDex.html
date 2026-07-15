@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-/33QBexsOSpokvf8FWz7WwWhIPetvgUpmmifcv+QOTw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7SYWEEHLDPe/kH8CsdEGIezSj0tjvvSAOrQFH0Bip7k=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AYzhhU7z6OZm4UCSX04uhP2kUKHG0vnKo9tvzWD/C1c=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Cmy5jqXGBn2TOeoIUu5NQ462zWgA2iB09CRh/bkx2pc=' 'sha256-F4s+OtKkoVZS0q8lS4F/sWsYA6V6dQxQKQ7xrw244Q0=' 'sha256-H9DThidPs/5/1NXxC5dNx0cmlGgf8Yxe0AKZOmotHv4=' 'sha256-HMcz3UCFbmyBGi0SQWw6ydup3CHvmu4SX/HIKXkWnkg=' 'sha256-LJ5zwQ9pBOLpJrFbOKzGHKRrcjpnzc/SLKAMfrWD/Bw=' 'sha256-LPTMDwYof3miBHr3e+GeI2SVxLG8VFePSJpSa5CfWYs=' 'sha256-M5NNoLurSsW3LayThWj6teZrENVAqpQNfRqO3ERgZPQ=' 'sha256-PB+ksOULjQm71LNR8HGSjhTYJn3uj+aFC4FWWaPmtGQ=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZDbkMuVPbDF2fKxbIEXfQXD9u87eEeptYBHB5+bYEy8=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dJ1uibBqsf1fPRfMMRgQXwbieWX/TqD6OvAeh2oVe1Q=' 'sha256-e1cyPzuiB+MoCFkDB/IN6O7iUPkJkEjZpQKQgBQIg+4=' 'sha256-eekvlPHNW7x5a60a/0ylrGEF5gTVU2lgLSdFPPtYGsc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-giH7+xYTi6zzmo5ZtCPaGJEzq74hWIaqOK1CAMLayp4=' 'sha256-iFbQlgV6jrh7UwwCodH0mH6NJUMLtfyP3T+MuQZix6E=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-pF2F1BHb5ALbGyqL7RaEPb4fzp9+gHyW4tWOpeTvV10=' 'sha256-roO0qvbiqQFAF7zD/B79CM1goAjzhR5jx8+N3kX4ZSY=' 'sha256-sCx/0jRpwBNzhTpZ4ClKf8BfTccQekveXGhU/zx+WqU=' 'sha256-wO3iKFXfvnGwZG+1dw9HVRh0/XqOvdZcTG2xbiQUP1U=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-/33QBexsOSpokvf8FWz7WwWhIPetvgUpmmifcv+QOTw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Cmy5jqXGBn2TOeoIUu5NQ462zWgA2iB09CRh/bkx2pc=' 'sha256-F4s+OtKkoVZS0q8lS4F/sWsYA6V6dQxQKQ7xrw244Q0=' 'sha256-H9DThidPs/5/1NXxC5dNx0cmlGgf8Yxe0AKZOmotHv4=' 'sha256-HMcz3UCFbmyBGi0SQWw6ydup3CHvmu4SX/HIKXkWnkg=' 'sha256-LJ5zwQ9pBOLpJrFbOKzGHKRrcjpnzc/SLKAMfrWD/Bw=' 'sha256-LPTMDwYof3miBHr3e+GeI2SVxLG8VFePSJpSa5CfWYs=' 'sha256-LtkkWPinEP8G2Dl0w2EnGuftzTZg8i4Jqdq+hU6KbVY=' 'sha256-M5NNoLurSsW3LayThWj6teZrENVAqpQNfRqO3ERgZPQ=' 'sha256-PB+ksOULjQm71LNR8HGSjhTYJn3uj+aFC4FWWaPmtGQ=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZDbkMuVPbDF2fKxbIEXfQXD9u87eEeptYBHB5+bYEy8=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dJ1uibBqsf1fPRfMMRgQXwbieWX/TqD6OvAeh2oVe1Q=' 'sha256-e1cyPzuiB+MoCFkDB/IN6O7iUPkJkEjZpQKQgBQIg+4=' 'sha256-eekvlPHNW7x5a60a/0ylrGEF5gTVU2lgLSdFPPtYGsc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-giH7+xYTi6zzmo5ZtCPaGJEzq74hWIaqOK1CAMLayp4=' 'sha256-iFbQlgV6jrh7UwwCodH0mH6NJUMLtfyP3T+MuQZix6E=' 'sha256-iuwdeUTiqYpFmA5//Z0k7WSzQRxwPAF4V7VWTjeXmXU=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-pF2F1BHb5ALbGyqL7RaEPb4fzp9+gHyW4tWOpeTvV10=' 'sha256-roO0qvbiqQFAF7zD/B79CM1goAjzhR5jx8+N3kX4ZSY=' 'sha256-sCx/0jRpwBNzhTpZ4ClKf8BfTccQekveXGhU/zx+WqU=' 'sha256-wO3iKFXfvnGwZG+1dw9HVRh0/XqOvdZcTG2xbiQUP1U=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -4486,6 +4486,17 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   const amo50 = (a, mo) => (a.filter((v) => Math.abs(v - mo) <= 25).length / a.length) * 100;
   const sd1 = (r) => r / Math.sqrt(2);
   const sd2 = (s, r) => Math.sqrt(Math.max(0, 2 * s * s - (r * r) / 2));
+  // §8 (DEEP-AUDIT-2026-07-14): the Poincaré SD1 spread is SDSD — the SAMPLE SD (÷N−1) of the successive-
+  // difference series — NOT rMSSD (the RMS of those differences, ÷N, no mean-centering). They differ only by
+  // mean(Δ)² ≈ 0, so this is numerically negligible, but it unifies the SD1 definition with ECGDex/PpgDex
+  // (both SDSD/√2) so the three nodes can never drift definitionally. sd1/sd2 keep the geometric identity —
+  // pass SDSD in place of rMSSD: SD1²=SDSD²/2, SD2=√(2·SDNN²−SD1²) hold exactly as before.
+  const sdsd = (a) => {
+    if (a.length < 3) return 0;
+    const d = [];
+    for (let i = 1; i < a.length; i++) d.push(a[i] - a[i - 1]);
+    return std(d);
+  };
   const lnR = (r) => Math.log(r);
   const lfHf = (lf, hf) => (hf ? lf / hf : 0);
   const nu = (v, tp) => (tp ? (v / tp) * 100 : 0);
@@ -5540,8 +5551,9 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       energy = energyEst(cSd, cRm),
       focus = focusEst(cSd, cRm),
       coh = cohEst(cRm, cSd);
-    const sd1v = +sd1(rm).toFixed(2),
-      sd2v = +sd2(sdnn, rm).toFixed(2);
+    const sdsdv = sdsd(a); // §8: SD1/SD2 spread is SDSD (÷N−1), not rMSSD — unified with ECGDex/PpgDex
+    const sd1v = +sd1(sdsdv).toFixed(2),
+      sd2v = +sd2(sdnn, sdsdv).toFixed(2);
     const lnrm = +lnR(cRm).toFixed(3);
     const lfhfv = winSpec ? +(winSpec.lf / (winSpec.hf || 1)).toFixed(3) : ls.lfhf;
 
@@ -15573,7 +15585,10 @@ function poincareGeo(nn){
   for (let i=1;i<n;i++){ ds += (nn[i]-nn[i-1]); dc++; }
   const dmean = ds/dc;
   let dvar=0; for (let i=1;i<n;i++){ const d = (nn[i]-nn[i-1]) - dmean; dvar += d*d; }
-  const sdsd = Math.sqrt(dvar/dc);
+  // §8 (DEEP-AUDIT-2026-07-14): SDSD is the SAMPLE SD of the difference series (÷N−1), unifying the SD1
+  // definition fleet-wide (PpgDex √0.5·std(Δ), PulseDex SDSD/√2) — was ÷N (dc), a definitional split with
+  // its siblings. Negligible for large N; the fleet now agrees by construction.
+  const sdsd = Math.sqrt(dvar/Math.max(1, dc-1));
   const s1 = sdsd/Math.sqrt(2);
   const sdnnv = std(nn);
   const s2 = Math.sqrt(Math.max(0, 2*sdnnv*sdnnv - s1*s1));
