@@ -1508,9 +1508,12 @@
       var ppgApp = src['ppgdex-app.js'] || '';
       T.ok(
         'N3 · ppgdex showErr/showOK use .textContent (no innerHTML over msg)',
-        /function showErr\(msg\)\{[^}]*\.textContent\s*=\s*'⚠ '\s*\+\s*msg/.test(ppgApp) &&
-          /function showOK\(msg\)\{[^}]*\.textContent\s*=\s*'✓ '\s*\+\s*msg/.test(ppgApp) &&
-          !/function show(Err|OK)\(msg\)\{[^}]*\.innerHTML\s*=\s*'[⚠✓][^']*'\s*\+\s*msg/.test(ppgApp),
+        // P4-prep (ARCHITECTURE-DEBT-REDUCTION §P4): `\)\s*\{` (was `\)\{`) so a biome reflow of the
+        // formatter-exempt ppgdex-app.js — which rewrites `showErr(msg){` to `showErr(msg) {` — keeps this
+        // XSS-sink safety scan matching. Verified against a biome-formatted copy: both legs still hit.
+        /function showErr\(msg\)\s*\{[^}]*\.textContent\s*=\s*'⚠ '\s*\+\s*msg/.test(ppgApp) &&
+          /function showOK\(msg\)\s*\{[^}]*\.textContent\s*=\s*'✓ '\s*\+\s*msg/.test(ppgApp) &&
+          !/function show(Err|OK)\(msg\)\s*\{[^}]*\.innerHTML\s*=\s*'[⚠✓][^']*'\s*\+\s*msg/.test(ppgApp),
         'N3 error-toast sink not converted to textContent'
       );
       // ── N2 (PRIVACY-SECURITY-AUDIT-2026-07-13): oxydex-dsp logs no raw filename / raw CSV bytes ──
