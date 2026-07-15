@@ -101,9 +101,21 @@ surfaced number), then §4/§5, then §6–§8.
   + `--check`; add a contract assertion (3-night CPAP wrapper → N recs with events + non-null `apneaAuthority`);
   no fixture regen (ingest-only).
 
-## §3 — PulseDex breaks the Task-Force identity `vlf+lf+hf == totalPower` on overnight readings
-- **Severity:** mis-states surfaced numbers (~5–20% on overnight) + differential drift (the un-fixed sibling of
-  a fix ECGDex and PpgDex both carry).
+## §3 — PulseDex breaks the Task-Force identity `vlf+lf+hf == totalPower` on overnight readings  ✅ EXECUTED 2026-07-14
+> **EXECUTED 2026-07-14.** `tp` is now the band SUM on BOTH PulseDex spectral paths — the overnight `winSpec`
+> (`tp = vlf+lf+hf` at :1143, the material fix; the per-segment `w.tp` + its `stp` accumulator are dropped, no
+> longer collected) and the single-window `lombScargle` return (`tp = _v+_l+_h` at :475, mirroring ECGDex:601 /
+> PpgDex). Gated by a PulseDex identity group (sibling of the ECGDex/PpgDex §10/§11 gate) driven through
+> `computeResult` on a ~1.7 h overnight record: `vlf+lf+hf === tp` and the HF fraction (`hf/tp`) matches the true
+> band share — verified RED on the old code first (`vlf+lf+hf = 8681` vs `tp = 8648`). Re-bundled PulseDex
+> (`b8c16e7a5d8e → 51c93d5e18d0`) + Data Unifier + OverDex (both inline `pulsedex-dsp.js`).
+> **⚠️ The fix-sketch below was WRONG about fixture regen — corrected here.** It said the fix "moves the
+> overnight-fixture Total Power/VLF output → PulseDex equiv leg reds → regenerate its fixtures." It does **not**:
+> the export's `hrv.frequency` block is `{lf,hf,vlf,lfhf}` and **omits `tp` entirely** (line 1303), so no fixture
+> moved. **EXPORT-INERT — verified, not asserted:** all three PulseDex equiv legs (real / events / synthetic)
+> reproduce byte-identical; `verifiedUnder` re-stamped to `73e54ee234c1` after a green corpus run. No fixture
+> regen, no regen-pulsedex tool needed. The defect was exactly what this brief's own *body* said — "confined to
+> PulseDex's UI" (Total Power display + the `hf/(tp||1)` fraction bars) — which the fix-sketch then contradicted.
 - **Root cause:** the windowed/overnight path takes **four independent medians** — `winSpec =
   {hf:round(median(sh)), lf:round(median(sl)), vlf:round(median(sv)), tp:round(median(stp))}` (`pulsedex-dsp.js:1143`);
   `median(tp_i) ≠ median(vlf_i)+median(lf_i)+median(hf_i)`. ECGDex **defines** `tp = _v+_l+_h` (`ecgdex-dsp.js:601`),

@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-/33QBexsOSpokvf8FWz7WwWhIPetvgUpmmifcv+QOTw=' 'sha256-1iO435cbX0wm1d6usTR7SSCs3uG3lVdiWnp82E5x/k0=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-ATqkp6Ce5T+u3rRRiorfa01szREHzu0y4kNhubdQrBo=' 'sha256-AYzhhU7z6OZm4UCSX04uhP2kUKHG0vnKo9tvzWD/C1c=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Cmy5jqXGBn2TOeoIUu5NQ462zWgA2iB09CRh/bkx2pc=' 'sha256-F4s+OtKkoVZS0q8lS4F/sWsYA6V6dQxQKQ7xrw244Q0=' 'sha256-H9DThidPs/5/1NXxC5dNx0cmlGgf8Yxe0AKZOmotHv4=' 'sha256-HMcz3UCFbmyBGi0SQWw6ydup3CHvmu4SX/HIKXkWnkg=' 'sha256-JW4K7CyopdrwwPvAMLG3/tLyn8Wk3vtcQ8g5fAhUTe0=' 'sha256-LJ5zwQ9pBOLpJrFbOKzGHKRrcjpnzc/SLKAMfrWD/Bw=' 'sha256-LPTMDwYof3miBHr3e+GeI2SVxLG8VFePSJpSa5CfWYs=' 'sha256-M5NNoLurSsW3LayThWj6teZrENVAqpQNfRqO3ERgZPQ=' 'sha256-PB+ksOULjQm71LNR8HGSjhTYJn3uj+aFC4FWWaPmtGQ=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZDbkMuVPbDF2fKxbIEXfQXD9u87eEeptYBHB5+bYEy8=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dJ1uibBqsf1fPRfMMRgQXwbieWX/TqD6OvAeh2oVe1Q=' 'sha256-eekvlPHNW7x5a60a/0ylrGEF5gTVU2lgLSdFPPtYGsc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-giH7+xYTi6zzmo5ZtCPaGJEzq74hWIaqOK1CAMLayp4=' 'sha256-iFbQlgV6jrh7UwwCodH0mH6NJUMLtfyP3T+MuQZix6E=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-pF2F1BHb5ALbGyqL7RaEPb4fzp9+gHyW4tWOpeTvV10=' 'sha256-roO0qvbiqQFAF7zD/B79CM1goAjzhR5jx8+N3kX4ZSY=' 'sha256-sCx/0jRpwBNzhTpZ4ClKf8BfTccQekveXGhU/zx+WqU=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-/33QBexsOSpokvf8FWz7WwWhIPetvgUpmmifcv+QOTw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7SYWEEHLDPe/kH8CsdEGIezSj0tjvvSAOrQFH0Bip7k=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-ATqkp6Ce5T+u3rRRiorfa01szREHzu0y4kNhubdQrBo=' 'sha256-AYzhhU7z6OZm4UCSX04uhP2kUKHG0vnKo9tvzWD/C1c=' 'sha256-CHhiNY0ciYa8+X1qeHeoMDr2g7985M21lukQmSnGJ+0=' 'sha256-Cmy5jqXGBn2TOeoIUu5NQ462zWgA2iB09CRh/bkx2pc=' 'sha256-F4s+OtKkoVZS0q8lS4F/sWsYA6V6dQxQKQ7xrw244Q0=' 'sha256-H9DThidPs/5/1NXxC5dNx0cmlGgf8Yxe0AKZOmotHv4=' 'sha256-HMcz3UCFbmyBGi0SQWw6ydup3CHvmu4SX/HIKXkWnkg=' 'sha256-JW4K7CyopdrwwPvAMLG3/tLyn8Wk3vtcQ8g5fAhUTe0=' 'sha256-LJ5zwQ9pBOLpJrFbOKzGHKRrcjpnzc/SLKAMfrWD/Bw=' 'sha256-LPTMDwYof3miBHr3e+GeI2SVxLG8VFePSJpSa5CfWYs=' 'sha256-M5NNoLurSsW3LayThWj6teZrENVAqpQNfRqO3ERgZPQ=' 'sha256-PB+ksOULjQm71LNR8HGSjhTYJn3uj+aFC4FWWaPmtGQ=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZDbkMuVPbDF2fKxbIEXfQXD9u87eEeptYBHB5+bYEy8=' 'sha256-buYjKcaafcNf/7/cW0JKuDZI7lnbOU62brnt82O1/pU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dJ1uibBqsf1fPRfMMRgQXwbieWX/TqD6OvAeh2oVe1Q=' 'sha256-eekvlPHNW7x5a60a/0ylrGEF5gTVU2lgLSdFPPtYGsc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gQAUAyd3a12/g8bVAKIiBzClA5niBObTOtUW0TQYnz4=' 'sha256-giH7+xYTi6zzmo5ZtCPaGJEzq74hWIaqOK1CAMLayp4=' 'sha256-iFbQlgV6jrh7UwwCodH0mH6NJUMLtfyP3T+MuQZix6E=' 'sha256-kXyX8R+unToZUI/Fhle8FFTWjfH14oaCgzUGLOmi5CI=' 'sha256-pF2F1BHb5ALbGyqL7RaEPb4fzp9+gHyW4tWOpeTvV10=' 'sha256-roO0qvbiqQFAF7zD/B79CM1goAjzhR5jx8+N3kX4ZSY=' 'sha256-sCx/0jRpwBNzhTpZ4ClKf8BfTccQekveXGhU/zx+WqU=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -4839,11 +4839,17 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     }
     const variance = x.reduce((s, v) => s + v * v, 0) / N;
     const sc = tp > 0 ? variance / tp : 1; // calibrate ∫PSD = variance
+    // DEEP-AUDIT-2026-07-14 §3: tp is the band SUM, so vlf+lf+hf==totalPower holds EXACTLY rather than to
+    // within rounding — mirrors ECGDex:601 / PpgDex. (Immaterial here vs the ±1–2 ms² rounding, but keeps
+    // the definition identical on both PulseDex spectral paths so the identity can never drift back.)
+    const _v = Math.round(vlf * sc),
+      _l = Math.round(lf * sc),
+      _h = Math.round(hf * sc);
     return {
-      tp: Math.round(tp * sc),
-      vlf: Math.round(vlf * sc),
-      lf: Math.round(lf * sc),
-      hf: Math.round(hf * sc),
+      tp: _v + _l + _h,
+      vlf: _v,
+      lf: _l,
+      hf: _h,
       lfhf: +(lf / (hf || 1)).toFixed(3),
       peakHz: +gPeakF.toFixed(4), // frequency (Hz) of the GLOBAL spectral peak
       peakBand: gPeakF < 0.04 ? 'VLF' : gPeakF < 0.15 ? 'LF' : 'HF',
@@ -5467,7 +5473,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     let win = null,
       dispRm = rm,
       dispSd = sdnn,
-      dispHr = hr,
+      _dispHr = hr,
       dispPn = pn,
       dispMeanRR = meanRR,
       repSeg = a,
@@ -5482,7 +5488,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
           rrA = win.wins.map((w) => w.meanRR);
         dispRm = +medianOf(rmA).toFixed(2);
         dispSd = +medianOf(sdA).toFixed(2);
-        dispHr = +medianOf(hrA).toFixed(1);
+        _dispHr = +medianOf(hrA).toFixed(1);
         dispPn = +medianOf(pnA).toFixed(1);
         dispMeanRR = +medianOf(rrA).toFixed(1);
         let bi = 0,
@@ -5498,17 +5504,23 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
         const sh = [],
           sl = [],
           sv = [],
-          stp = [],
           srr = [];
         for (const seg of win.segs) {
           const w = lombScargle(seg, 256);
           sh.push(w.hf);
           sl.push(w.lf);
           sv.push(w.vlf);
-          stp.push(w.tp);
           if (w.respRate > 0) srr.push(w.respRate);
         }
-        winSpec = { hf: Math.round(medianOf(sh)), lf: Math.round(medianOf(sl)), vlf: Math.round(medianOf(sv)), tp: Math.round(medianOf(stp)), respRate: srr.length ? +medianOf(srr).toFixed(1) : 0 };
+        // DEEP-AUDIT-2026-07-14 §3: define tp as the band SUM, not a 4th independent median — the
+        // Task-Force identity vlf+lf+hf==totalPower must hold EXACTLY (median(tp_i) ≠ Σ median(band_i)),
+        // mirroring ECGDex:601 / PpgDex. Otherwise Total Power + the HF/LF fraction bars (hf/(tp||1))
+        // surface numbers that don't reconcile with the bands beside them (~5–20 % on overnight). The
+        // per-segment tp (w.tp) is therefore no longer collected — it never survived the median anyway.
+        const _wh = Math.round(medianOf(sh)),
+          _wl = Math.round(medianOf(sl)),
+          _wv = Math.round(medianOf(sv));
+        winSpec = { hf: _wh, lf: _wl, vlf: _wv, tp: _wv + _wl + _wh, respRate: srr.length ? +medianOf(srr).toFixed(1) : 0 };
       }
     }
 
@@ -5516,7 +5528,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     const sp = winSpec ? { tp: winSpec.tp, hf: winSpec.hf, lf: winSpec.lf, vlf: winSpec.vlf } : { tp: ls.tp, hf: ls.hf, lf: ls.lf, vlf: ls.vlf };
     const ans = ansBalance(sp.hf, sp.lf);
 
-    const cMeanRR = longRec ? dispMeanRR : meanRR;
+    const _cMeanRR = longRec ? dispMeanRR : meanRR;
     const cSd = longRec ? dispSd : sdnn,
       cRm = longRec ? dispRm : rm,
       cPn = longRec ? dispPn : pn;
