@@ -25,11 +25,16 @@
 
   // Tag a File with a folder-relative path without mutating identity semantics.
   function tag(file, relPath) {
-    try { Object.defineProperty(file, 'relPath', { value: relPath || file.name, configurable: true }); }
-    catch (e) { /* some File impls are frozen — fall back to a parallel field */ file._relPath = relPath || file.name; }
+    try {
+      Object.defineProperty(file, 'relPath', { value: relPath || file.name, configurable: true });
+    } catch (e) {
+      /* some File impls are frozen — fall back to a parallel field */ file._relPath = relPath || file.name;
+    }
     return file;
   }
-  function relOf(file) { return file.relPath || file._relPath || file.name; }
+  function relOf(file) {
+    return file.relPath || file._relPath || file.name;
+  }
 
   // ── drag-drop: recurse the webkit Entry tree ────────────────────────────
   function readEntries(reader) {
@@ -38,7 +43,10 @@
       var all = [];
       (function pump() {
         reader.readEntries(function (batch) {
-          if (!batch.length) { resolve(all); return; }
+          if (!batch.length) {
+            resolve(all);
+            return;
+          }
           all = all.concat(Array.prototype.slice.call(batch));
           pump();
         }, reject);
@@ -52,13 +60,27 @@
     var here = prefix ? prefix + '/' + entry.name : entry.name;
     if (entry.isFile) {
       return new Promise(function (resolve) {
-        entry.file(function (f) { resolve([tag(f, here)]); }, function () { resolve([]); });
+        entry.file(
+          function (f) {
+            resolve([tag(f, here)]);
+          },
+          function () {
+            resolve([]);
+          }
+        );
       });
     }
     if (entry.isDirectory) {
       return readEntries(entry.createReader()).then(function (children) {
-        return Promise.all(children.map(function (c) { return walkEntry(c, here); }))
-          .then(function (lists) { return lists.reduce(function (a, b) { return a.concat(b); }, []); });
+        return Promise.all(
+          children.map(function (c) {
+            return walkEntry(c, here);
+          })
+        ).then(function (lists) {
+          return lists.reduce(function (a, b) {
+            return a.concat(b);
+          }, []);
+        });
       });
     }
     return Promise.resolve([]);
@@ -74,8 +96,15 @@
       if (entry) entries.push(entry);
     }
     if (entries.length) {
-      return Promise.all(entries.map(function (e) { return walkEntry(e, ''); }))
-        .then(function (lists) { return lists.reduce(function (a, b) { return a.concat(b); }, []); });
+      return Promise.all(
+        entries.map(function (e) {
+          return walkEntry(e, '');
+        })
+      ).then(function (lists) {
+        return lists.reduce(function (a, b) {
+          return a.concat(b);
+        }, []);
+      });
     }
     // no entry API (or plain file drop) → fall back to the flat file list
     return Promise.resolve(fromInput(dt.files));
@@ -99,4 +128,4 @@
     fromInput: fromInput,
     relOf: relOf
   };
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);

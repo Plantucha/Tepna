@@ -21,11 +21,16 @@
    ════════════════════════════════════════════════════════════════════════ */
 (function (g) {
   var K = Object.freeze({
-    SIGNIF_P: 0.10, SIGNIF_TAU: 0.15,        // cross-night Mann-Kendall significance
-    Z_HEADLINE: 1.2, Z_WARN: 1, Z_BAD: 2,    // baseline z-score thresholds
-    ODI_DROP: 4, ODI_HYST: 2,                // SpO2 desat drop + hysteresis (%)
-    MOS_SHORT: 5, MOS_LONG: 15,              // McGill OxiMetry ODI-4 grade thresholds
-    QFLOOR: 50                               // HRV consensus quality floor (%)
+    SIGNIF_P: 0.1,
+    SIGNIF_TAU: 0.15, // cross-night Mann-Kendall significance
+    Z_HEADLINE: 1.2,
+    Z_WARN: 1,
+    Z_BAD: 2, // baseline z-score thresholds
+    ODI_DROP: 4,
+    ODI_HYST: 2, // SpO2 desat drop + hysteresis (%)
+    MOS_SHORT: 5,
+    MOS_LONG: 15, // McGill OxiMetry ODI-4 grade thresholds
+    QFLOOR: 50 // HRV consensus quality floor (%)
   });
   function fnv1a(s) {
     var h = 0x811c9dc5;

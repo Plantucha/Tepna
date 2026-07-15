@@ -27,15 +27,13 @@ if (!outputPath) outputPath = path.basename(manifestPath, '.json') + '-analysis.
 
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
 const node = manifest.node;
-const allMetrics = manifest.sections.flatMap(s =>
-  s.metrics.map(m => ({ ...m, sectionId: s.id }))
-);
+const allMetrics = manifest.sections.flatMap((s) => s.metrics.map((m) => ({ ...m, sectionId: s.id })));
 
 // ── Compute code generation ─────────────────────────────────────────────────
 
 function sourceExpr(source, where) {
   if (!where) return `d.${source}`;
-  return `d.${source}Filtered`;  // prepared in the data-prep step
+  return `d.${source}Filtered`; // prepared in the data-prep step
 }
 
 function genComputeBody(m) {
@@ -46,7 +44,6 @@ function genComputeBody(m) {
   const args = c.args || [];
 
   switch (c.fn) {
-
     // ── Statistics ──
     case 'percentile':
       return `return _p(${src}, ${args[0]});`;
@@ -109,21 +106,16 @@ function genComputeBody(m) {
     // ── Event-based ──
     case 'event_rate': {
       const types = c.eventTypes;
-      const typeSet = `[${types.map(t => `'${t}'`).join(',')}]`;
-      return [
-        `const types = new Set(${typeSet});`,
-        `const count = d.events.filter(e => types.has(e.type)).length;`,
-        `return d.${c.denominator} > 0 ? count / d.${c.denominator} : NaN;`,
-      ].join('\n    ');
+      const typeSet = `[${types.map((t) => `'${t}'`).join(',')}]`;
+      return [`const types = new Set(${typeSet});`, `const count = d.events.filter(e => types.has(e.type)).length;`, `return d.${c.denominator} > 0 ? count / d.${c.denominator} : NaN;`].join(
+        '\n    '
+      );
     }
 
     case 'event_count': {
       const types = c.eventTypes;
-      const typeSet = `[${types.map(t => `'${t}'`).join(',')}]`;
-      return [
-        `const types = new Set(${typeSet});`,
-        `return d.events.filter(e => types.has(e.type)).length;`,
-      ].join('\n    ');
+      const typeSet = `[${types.map((t) => `'${t}'`).join(',')}]`;
+      return [`const types = new Set(${typeSet});`, `return d.events.filter(e => types.has(e.type)).length;`].join('\n    ');
     }
 
     // ── Time series ──
@@ -142,11 +134,7 @@ function genComputeBody(m) {
 }
 
 function genStubBody(m) {
-  return [
-    `// TODO: Implement — ${m.formula}`,
-    m.compute?.note ? `// Note: ${m.compute.note}` : '',
-    `return NaN;`,
-  ].filter(Boolean).join('\n    ');
+  return [`// TODO: Implement — ${m.formula}`, m.compute?.note ? `// Note: ${m.compute.note}` : '', `return NaN;`].filter(Boolean).join('\n    ');
 }
 
 function genPrepare() {
@@ -158,7 +146,7 @@ function genPrepare() {
     }
   }
 
-  const filterLines = [...combos].map(combo => {
+  const filterLines = [...combos].map((combo) => {
     const [source, where] = combo.split('|');
     const name = `${source}Filtered`;
     return `    const ${name} = _filterBy(d.${source}, d.${where});`;
@@ -184,34 +172,26 @@ function genPrepare() {
     ...filterLines,
     ``,
     `    return d;`,
-    `  }`,
+    `  }`
   ].join('\n');
 }
 
 function genComputeFn(m) {
   const fnName = `compute_${m.id}`;
   const body = genComputeBody(m);
-  return [
-    `  function ${fnName}(d) {`,
-    `    ${body.split('\n').join('\n    ')}`,
-    `  }`,
-  ].join('\n');
+  return [`  function ${fnName}(d) {`, `    ${body.split('\n').join('\n    ')}`, `  }`].join('\n');
 }
 
 function genRangeTable() {
-  const entries = allMetrics.map(m => {
-    const ranges = (m.ranges || []).map(r =>
-      `      { max: ${r.max === null ? 'Infinity' : r.max}, label: ${JSON.stringify(r.label)}, cls: ${JSON.stringify(r.class)} }`
-    ).join(',\n');
+  const entries = allMetrics.map((m) => {
+    const ranges = (m.ranges || []).map((r) => `      { max: ${r.max === null ? 'Infinity' : r.max}, label: ${JSON.stringify(r.label)}, cls: ${JSON.stringify(r.class)} }`).join(',\n');
     return `  ${m.id}: [\n${ranges}\n  ]`;
   });
   return `const RANGES = {\n${entries.join(',\n')}\n};`;
 }
 
 function genComputeMap() {
-  const entries = allMetrics.map(m =>
-    `  ${m.id}: compute_${m.id}`
-  );
+  const entries = allMetrics.map((m) => `  ${m.id}: compute_${m.id}`);
   return `const COMPUTE = {\n${entries.join(',\n')}\n};`;
 }
 
@@ -365,7 +345,7 @@ function generate() {
 const code = generate();
 fs.writeFileSync(outputPath, code, 'utf-8');
 
-const stubCount = allMetrics.filter(m => !m.compute || m.compute.fn === 'stub').length;
+const stubCount = allMetrics.filter((m) => !m.compute || m.compute.fn === 'stub').length;
 console.log(`\n✓ Generated ${node} analysis module`);
 console.log(`  Output:       ${outputPath}`);
 console.log(`  Metrics:      ${allMetrics.length} (${stubCount} stub)`);

@@ -61,11 +61,20 @@
   //   report   : rendered HTML/PDF
   var EXPORT_KINDS = ['ganglior', 'summary', 'series', 'report'];
 
-  function _p2(n) { n = '' + n; return n.length < 2 ? '0' + n : n; }
+  function _p2(n) {
+    n = '' + n;
+    return n.length < 2 ? '0' + n : n;
+  }
   // Clock Contract §5: read the floating t0Ms back via getUTC* ONLY, so the output
   // is identical on any machine regardless of the viewer's timezone.
-  function _date(ms) { var d = new Date(ms); return d.getUTCFullYear() + '-' + _p2(d.getUTCMonth() + 1) + '-' + _p2(d.getUTCDate()); }
-  function _hhmm(ms) { var d = new Date(ms); return _p2(d.getUTCHours()) + _p2(d.getUTCMinutes()); }   // HHMM, no colon (filename-safe)
+  function _date(ms) {
+    var d = new Date(ms);
+    return d.getUTCFullYear() + '-' + _p2(d.getUTCMonth() + 1) + '-' + _p2(d.getUTCDate());
+  }
+  function _hhmm(ms) {
+    var d = new Date(ms);
+    return _p2(d.getUTCHours()) + _p2(d.getUTCMinutes());
+  } // HHMM, no colon (filename-safe)
 
   function exportName(opts) {
     opts = opts || {};
@@ -76,16 +85,16 @@
     var spanDays = opts.spanDays;
     // OPTIONAL recording.contentId disambiguator (brief §2.5 / EXPORT-HYGIENE-FOLLOWUPS-II §1):
     // sanitize to [a-z0-9] (filename-safe, like ext); empty / non-string → '' → no suffix, name unchanged.
-    var cid = (typeof opts.contentId === 'string') ? opts.contentId.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+    var cid = typeof opts.contentId === 'string' ? opts.contentId.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
 
-    var dated = (typeof t0Ms === 'number' && isFinite(t0Ms));
+    var dated = typeof t0Ms === 'number' && isFinite(t0Ms);
     var stamp;
     if (!dated) {
-      stamp = 'undated';                                   // honesty: never a fabricated now()
+      stamp = 'undated'; // honesty: never a fabricated now()
     } else if (typeof spanDays === 'number' && isFinite(spanDays) && spanDays > 0) {
-      stamp = _date(t0Ms) + '_' + Math.round(spanDays) + 'd';   // span-aware (brief §2.4)
+      stamp = _date(t0Ms) + '_' + Math.round(spanDays) + 'd'; // span-aware (brief §2.4)
     } else {
-      stamp = _date(t0Ms) + '_' + _hhmm(t0Ms);             // single recording
+      stamp = _date(t0Ms) + '_' + _hhmm(t0Ms); // single recording
     }
     return node + '_' + stamp + '_' + kind + (cid ? '_' + cid : '') + (ext ? '.' + ext : '');
   }
@@ -101,35 +110,40 @@
   // Default OFF at every call site, so a normal export stays byte-identical. DOM-free; node:vm-safe.
   function scrubExport(envelope) {
     if (!envelope || typeof envelope !== 'object') return envelope;
-    var out = JSON.parse(JSON.stringify(envelope));        // deep clone — never mutate the caller
+    var out = JSON.parse(JSON.stringify(envelope)); // deep clone — never mutate the caller
     var sc = out.schema || (out.schema = {});
     var prov = sc.provenance;
     if (prov && typeof prov === 'object') {
       sc.provenance = {
-        buildHash: (prov.buildHash != null ? prov.buildHash : null),   // COARSE build stamp KEPT (integrity)
-        generated: (prov.generated != null ? prov.generated : null),
+        buildHash: prov.buildHash != null ? prov.buildHash : null, // COARSE build stamp KEPT (integrity)
+        generated: prov.generated != null ? prov.generated : null,
         scrubbed: true,
         // inputs keep only NON-identifying integrity (byte count); drop name + sha256 + device serial/mtime.
         inputs: (Array.isArray(prov.inputs) ? prov.inputs : []).map(function (inp) {
-          return { bytes: (inp && inp.bytes != null ? inp.bytes : null) };
+          return { bytes: inp && inp.bytes != null ? inp.bytes : null };
         })
       };
     }
     sc.scrubbed = true;
     // recording.contentId (identity-free) is KEPT; strip any device serial / model a node may carry.
     if (out.recording && typeof out.recording === 'object') {
-      delete out.recording.device; delete out.recording.serial; delete out.recording.model;
+      delete out.recording.device;
+      delete out.recording.serial;
+      delete out.recording.model;
     }
     // Multi-record wrappers: strip the same identifying keys from each per-element recording block.
     // EVERY known carrier (SELF-INGEST-FOLLOWUPS-II §F1 — was nights[]-only, leaking device/serial on
     // multi ECGDex/PulseDex `recordings[]` + PpgDex `sessions[]` exports): nights[] (OxyDex/CPAPDex),
     // recordings[] (ECGDex/PulseDex), sessions[] (PpgDex).
     ['nights', 'recordings', 'sessions'].forEach(function (key) {
-      if (Array.isArray(out[key])) out[key].forEach(function (el) {
-        if (el && el.recording && typeof el.recording === 'object') {
-          delete el.recording.device; delete el.recording.serial; delete el.recording.model;
-        }
-      });
+      if (Array.isArray(out[key]))
+        out[key].forEach(function (el) {
+          if (el && el.recording && typeof el.recording === 'object') {
+            delete el.recording.device;
+            delete el.recording.serial;
+            delete el.recording.model;
+          }
+        });
     });
     return out;
   }
@@ -139,6 +153,6 @@
   // app/back-compat bare globals (the apps call exportName(...) directly, like fmtDate/fmtClock)
   root.exportName = exportName;
   root.EXPORT_KINDS = EXPORT_KINDS;
-  root.dexScrubExport = scrubExport;   // bare global — the shared scrub every node's app reaches (D1)
+  root.dexScrubExport = scrubExport; // bare global — the shared scrub every node's app reaches (D1)
   if (typeof module !== 'undefined' && module.exports) module.exports = DexExport;
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : /** @type {any} */ (this)));
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : /** @type {any} */ (this));

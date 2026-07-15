@@ -38,9 +38,9 @@
     device: DEVICE,
     // cheap, side-effect-free: filename signature first, header signature as fallback.
     detect: function (file, headText) {
-      var name = (file && file.name || '') + '';
+      var name = ((file && file.name) || '') + '';
       var head = (headText || '') + '';
-      if (/wahoo|tickr/i.test(name + ' ' + head)) return 0.95;                          // explicit vendor mark
+      if (/wahoo|tickr/i.test(name + ' ' + head)) return 0.95; // explicit vendor mark
       if (/RR-?interval|RR\(ms\)|\bRRI?\b/i.test(head) && /wahoo|tickr/i.test(head)) return 0.8;
       return 0;
     },
@@ -48,12 +48,20 @@
     parse: function (text, ctx) {
       ctx = ctx || {};
       var parseRR = ctx.parseRRInput || (typeof root.parseRRInput === 'function' ? root.parseRRInput : null);
-      if (!parseRR) return root.SignalFrame.toSignalFrame('rr', { usable: false, reason: 'wahoo-rr: no parseRRInput in scope (load PulseDex DSP in isolation)' }, { adapter: 'wahoo-rr', vendor: VENDOR, device: DEVICE });
+      if (!parseRR)
+        return root.SignalFrame.toSignalFrame(
+          'rr',
+          { usable: false, reason: 'wahoo-rr: no parseRRInput in scope (load PulseDex DSP in isolation)' },
+          { adapter: 'wahoo-rr', vendor: VENDOR, device: DEVICE }
+        );
       var raw = parseRR(text);
       return root.SignalFrame.toSignalFrame('rr', raw, {
-        adapter: 'wahoo-rr', vendor: VENDOR, device: DEVICE,
-        files: ctx.files || null, warnings: []
+        adapter: 'wahoo-rr',
+        vendor: VENDOR,
+        device: DEVICE,
+        files: ctx.files || null,
+        warnings: []
       });
     }
   });
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);

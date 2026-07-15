@@ -123,4 +123,4 @@
   // Inert runtime marker — the contracts above are the payload. No module.exports
   // (keeps this a global SCRIPT so the @typedefs are program-global for checkJs).
   root.DexContracts = { version: '1.0', doc: 'JSDoc contract typedefs; checked CI-only via tsc --checkJs.' };
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);

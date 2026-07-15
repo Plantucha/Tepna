@@ -62,8 +62,16 @@
 (function (root) {
   'use strict';
 
-  function _kernelHash() { try { return (root.DexKernel && root.DexKernel.HASH) || null; } catch (e) { return null; } }
-  function _spec(type) { return root.SignalSpec ? root.SignalSpec[type] : null; }
+  function _kernelHash() {
+    try {
+      return (root.DexKernel && root.DexKernel.HASH) || null;
+    } catch (e) {
+      return null;
+    }
+  }
+  function _spec(type) {
+    return root.SignalSpec ? root.SignalSpec[type] : null;
+  }
 
   /* ──────────────────────────────────────────────────────────────────────
    * EXPORT-IDENTITY (EXPORT-IDENTITY-2026-06-27-BRIEF §2) — two ingest-boundary
@@ -84,7 +92,9 @@
    * crypto.subtle is async + absent from the node:vm sandbox, so this uses a
    * sync, dependency-free cyrb53 fold — stable on Node and the browser alike.
    * ────────────────────────────────────────────────────────────────────── */
-  function _h53Init(seed) { return { h1: 0xdeadbeef ^ seed, h2: 0x41c6ce57 ^ seed }; }
+  function _h53Init(seed) {
+    return { h1: 0xdeadbeef ^ seed, h2: 0x41c6ce57 ^ seed };
+  }
   function _h53Str(st, str) {
     for (var i = 0, ch; i < str.length; i++) {
       ch = str.charCodeAt(i);
@@ -95,7 +105,8 @@
   function _h53Hex(st) {
     var h1 = Math.imul(st.h1 ^ (st.h1 >>> 16), 2246822507) ^ Math.imul(st.h2 ^ (st.h2 >>> 13), 3266489909);
     var h2 = Math.imul(st.h2 ^ (st.h2 >>> 16), 2246822507) ^ Math.imul(st.h1 ^ (st.h1 >>> 13), 3266489909);
-    var a = (h2 >>> 0).toString(16), b = (h1 >>> 0).toString(16);
+    var a = (h2 >>> 0).toString(16),
+      b = (h1 >>> 0).toString(16);
     while (a.length < 8) a = '0' + a;
     while (b.length < 8) b = '0' + b;
     return (a + b).slice(0, 12);
@@ -109,32 +120,43 @@
   function _fold(st, v, depth) {
     if (v == null || depth > 4) return;
     var t = typeof v;
-    if (t === 'number') { _h53Str(st, isFinite(v) ? (',' + v) : ',~'); return; }
-    if (t === 'boolean' || t === 'string') { _h53Str(st, '|' + v); return; }
+    if (t === 'number') {
+      _h53Str(st, isFinite(v) ? ',' + v : ',~');
+      return;
+    }
+    if (t === 'boolean' || t === 'string') {
+      _h53Str(st, '|' + v);
+      return;
+    }
     if (Array.isArray(v) || (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(v))) {
-      var n = /** @type {any} */ (v).length; _h53Str(st, '#' + n + ':');
-      var CAP = 4096, stride = n > CAP ? Math.floor(n / CAP) : 1;
+      var n = /** @type {any} */ (v).length;
+      _h53Str(st, '#' + n + ':');
+      var CAP = 4096,
+        stride = n > CAP ? Math.floor(n / CAP) : 1;
       for (var i = 0; i < n; i += stride) _fold(st, v[i], depth + 1);
       if (stride > 1) _fold(st, v[n - 1], depth + 1);
       return;
     }
     if (t === 'object') {
-      var keys = []; for (var k in v) if (Object.prototype.hasOwnProperty.call(v, k)) keys.push(k);
+      var keys = [];
+      for (var k in v) if (Object.prototype.hasOwnProperty.call(v, k)) keys.push(k);
       keys.sort();
-      for (var j = 0; j < keys.length; j++) { _h53Str(st, '.' + keys[j]); _fold(st, v[keys[j]], depth + 1); }
+      for (var j = 0; j < keys.length; j++) {
+        _h53Str(st, '.' + keys[j]);
+        _fold(st, v[keys[j]], depth + 1);
+      }
     }
   }
   // Deterministic, identity-free recording digest — null when there is no usable
   // payload (honest absence, never a fabricated id for an empty/absent recording).
   function computeContentId(frame) {
     if (!frame || frame.usable !== true) return null;
-    var payload = (frame.kind === 'intervals') ? frame.intervals : frame.samples;
+    var payload = frame.kind === 'intervals' ? frame.intervals : frame.samples;
     if (payload == null) return null;
-    var len = (typeof payload.length === 'number') ? payload.length : (payload.n != null ? payload.n : null);
+    var len = typeof payload.length === 'number' ? payload.length : payload.n != null ? payload.n : null;
     if (!len) return null;
     var st = _h53Init(0x5d1f);
-    _h53Str(st, (frame.signalType || '?') + '|' +
-      ((typeof frame.t0Ms === 'number' && isFinite(frame.t0Ms)) ? frame.t0Ms : '-') + '|' + frame.kind + '|');
+    _h53Str(st, (frame.signalType || '?') + '|' + (typeof frame.t0Ms === 'number' && isFinite(frame.t0Ms) ? frame.t0Ms : '-') + '|' + frame.kind + '|');
     _fold(st, payload, 0);
     return _h53Hex(st);
   }
@@ -144,26 +166,50 @@
   // — name, date, device serial, MAC/hex id, digit runs — is dropped, not hashed.
   /** @type {[RegExp, string][]} */
   var _VENDOR_SIG = [
-    [/polar/i, 'polar'], [/o2ring|wellue|viatom/i, 'o2ring'], [/welltory/i, 'welltory'],
-    [/lingo|libre|abbott/i, 'lingo'], [/coospo/i, 'coospo'], [/wahoo/i, 'wahoo'],
-    [/oura/i, 'oura'], [/garmin/i, 'garmin']
+    [/polar/i, 'polar'],
+    [/o2ring|wellue|viatom/i, 'o2ring'],
+    [/welltory/i, 'welltory'],
+    [/lingo|libre|abbott/i, 'lingo'],
+    [/coospo/i, 'coospo'],
+    [/wahoo/i, 'wahoo'],
+    [/oura/i, 'oura'],
+    [/garmin/i, 'garmin']
   ];
   var _LANE_SIG = /(?:^|[_\-.\s])(RR|PPI|ECG|PPG|HR|ACC|GYRO|MAGN|TEMP|SA2|BRP|PLD|EVE|CSL|SPO2|SDB|MARKER)(?=$|[_\-.\s])/i;
   function scrubFilename(name) {
-    var s = String(name == null ? '' : name).replace(/^.*[\\/]/, '');   // drop any path
-    var ext = '', dot = s.lastIndexOf('.');
-    if (dot > 0 && dot > s.length - 8) { ext = s.slice(dot + 1).toLowerCase().replace(/[^a-z0-9]/g, ''); s = s.slice(0, dot); }
+    var s = String(name == null ? '' : name).replace(/^.*[\\/]/, ''); // drop any path
+    var ext = '',
+      dot = s.lastIndexOf('.');
+    if (dot > 0 && dot > s.length - 8) {
+      ext = s
+        .slice(dot + 1)
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '');
+      s = s.slice(0, dot);
+    }
     var frag = [];
-    for (var i = 0; i < _VENDOR_SIG.length; i++) { if (_VENDOR_SIG[i][0].test(s)) { frag.push(_VENDOR_SIG[i][1]); break; } }
+    for (var i = 0; i < _VENDOR_SIG.length; i++) {
+      if (_VENDOR_SIG[i][0].test(s)) {
+        frag.push(_VENDOR_SIG[i][1]);
+        break;
+      }
+    }
     var lane = s.match(_LANE_SIG);
-    if (lane) { var L = lane[1].toUpperCase(); frag.push(L === 'SPO2' ? 'SpO2' : L); }
-    var stem = frag.join('_') || '*';   // nothing diagnostic recognised → scrubbed marker
-    return ext ? (stem + '.' + ext) : stem;
+    if (lane) {
+      var L = lane[1].toUpperCase();
+      frag.push(L === 'SPO2' ? 'SpO2' : L);
+    }
+    var stem = frag.join('_') || '*'; // nothing diagnostic recognised → scrubbed marker
+    return ext ? stem + '.' + ext : stem;
   }
   function _scrubFiles(files) {
     if (files == null) return null;
     if (typeof files === 'string') return [scrubFilename(files)];
-    if (typeof files.length === 'number') { var out = []; for (var i = 0; i < files.length; i++) out.push(scrubFilename(files[i])); return out; }
+    if (typeof files.length === 'number') {
+      var out = [];
+      for (var i = 0; i < files.length; i++) out.push(scrubFilename(files[i]));
+      return out;
+    }
     return null;
   }
 
@@ -177,8 +223,8 @@
     ctx = ctx || {};
     raw = raw || {};
     var spec = _spec(signalType);
-    var kind = spec && typeof spec === 'object' ? spec.kind : (raw.kind || 'intervals');
-    var usable = (raw.usable !== undefined) ? !!raw.usable : false;
+    var kind = spec && typeof spec === 'object' ? spec.kind : raw.kind || 'intervals';
+    var usable = raw.usable !== undefined ? !!raw.usable : false;
 
     var frame = {
       signalType: signalType,
@@ -186,32 +232,32 @@
       intervals: null,
       samples: null,
       fs: null,
-      t0Ms: (raw.t0Ms === undefined ? null : raw.t0Ms),       // null = unknown, never now()
-      offsetMin: (raw.offsetMin === undefined ? null : raw.offsetMin),
-      tsMs: (raw.tsMs === undefined ? null : raw.tsMs),
-      sqi: (raw.sqi === undefined ? null : raw.sqi),          // quality-neutral by default; separate axis from conf
+      t0Ms: raw.t0Ms === undefined ? null : raw.t0Ms, // null = unknown, never now()
+      offsetMin: raw.offsetMin === undefined ? null : raw.offsetMin,
+      tsMs: raw.tsMs === undefined ? null : raw.tsMs,
+      sqi: raw.sqi === undefined ? null : raw.sqi, // quality-neutral by default; separate axis from conf
       usable: usable,
-      reason: (raw.reason === undefined ? null : raw.reason), // honesty: human string when usable=false
+      reason: raw.reason === undefined ? null : raw.reason, // honesty: human string when usable=false
       provenance: {
         adapter: ctx.adapter || raw.adapter || null,
         vendor: ctx.vendor || null,
         device: ctx.device || null,
-        files: _scrubFiles(ctx.files),                       // EXPORT-IDENTITY §2.2: PHI/identity stripped at the boundary
+        files: _scrubFiles(ctx.files), // EXPORT-IDENTITY §2.2: PHI/identity stripped at the boundary
 
-        sourceFormat: (raw.sourceFormat !== undefined ? raw.sourceFormat : null),
-        kernelHash: _kernelHash(),                            // DexKernel.HASH at parse time
+        sourceFormat: raw.sourceFormat !== undefined ? raw.sourceFormat : null,
+        kernelHash: _kernelHash(), // DexKernel.HASH at parse time
         warnings: ctx.warnings || []
       }
     };
 
     if (kind === 'intervals') {
-      var iv = (raw.intervals != null) ? raw.intervals : raw.vals;
-      frame.intervals = (iv && iv.length != null) ? Array.prototype.slice.call(iv) : null;
+      var iv = raw.intervals != null ? raw.intervals : raw.vals;
+      frame.intervals = iv && iv.length != null ? Array.prototype.slice.call(iv) : null;
     } else if (kind === 'samples') {
-      frame.samples = (raw.samples != null) ? raw.samples : null;
-      frame.fs = (raw.fs === undefined ? null : raw.fs);
+      frame.samples = raw.samples != null ? raw.samples : null;
+      frame.fs = raw.fs === undefined ? null : raw.fs;
     }
-    frame.contentId = computeContentId(frame);             // EXPORT-IDENTITY §2.1: additive, optional, identity-free
+    frame.contentId = computeContentId(frame); // EXPORT-IDENTITY §2.1: additive, optional, identity-free
     return frame;
   }
 
@@ -221,31 +267,28 @@
   /** @param {SignalFrame} frame */
   function validateFrame(frame) {
     var errors = [];
-    var push = function (m) { errors.push(m); };
+    var push = function (m) {
+      errors.push(m);
+    };
     if (!frame || typeof frame !== 'object') return { ok: false, errors: ['frame is not an object'] };
 
     var spec = _spec(frame.signalType);
     if (!frame.signalType || !spec || typeof spec !== 'object') push('unknown signalType: ' + frame.signalType);
     if (frame.kind !== 'intervals' && frame.kind !== 'samples') push('kind must be intervals|samples, got ' + frame.kind);
-    if (spec && typeof spec === 'object' && frame.kind && spec.kind !== frame.kind)
-      push('kind ' + frame.kind + ' != SignalSpec.' + frame.signalType + '.kind ' + spec.kind);
+    if (spec && typeof spec === 'object' && frame.kind && spec.kind !== frame.kind) push('kind ' + frame.kind + ' != SignalSpec.' + frame.signalType + '.kind ' + spec.kind);
     if (typeof frame.usable !== 'boolean') push('usable must be boolean');
 
     // t0Ms: explicit null OR a finite number — never undefined/NaN (no fabrication, no silent gap).
     if (!('t0Ms' in frame)) push('t0Ms field missing (must be explicit null or a finite number)');
-    else if (frame.t0Ms !== null && !(typeof frame.t0Ms === 'number' && isFinite(frame.t0Ms)))
-      push('t0Ms must be null or a finite number, got ' + frame.t0Ms);
-    if (frame.offsetMin !== null && frame.offsetMin !== undefined && !(typeof frame.offsetMin === 'number' && isFinite(frame.offsetMin)))
-      push('offsetMin must be null or finite');
+    else if (frame.t0Ms !== null && !(typeof frame.t0Ms === 'number' && isFinite(frame.t0Ms))) push('t0Ms must be null or a finite number, got ' + frame.t0Ms);
+    if (frame.offsetMin !== null && frame.offsetMin !== undefined && !(typeof frame.offsetMin === 'number' && isFinite(frame.offsetMin))) push('offsetMin must be null or finite');
 
     // sqi stays a separate 0..1 axis (or null); never a confidence.
-    if (frame.sqi !== null && frame.sqi !== undefined && !(typeof frame.sqi === 'number' && frame.sqi >= 0 && frame.sqi <= 1))
-      push('sqi must be null or 0..1');
+    if (frame.sqi !== null && frame.sqi !== undefined && !(typeof frame.sqi === 'number' && frame.sqi >= 0 && frame.sqi <= 1)) push('sqi must be null or 0..1');
 
     // contentId (EXPORT-IDENTITY §2.1) is OPTIONAL + additive — accept-but-not-require.
     // When present it must be null or a 12-hex digest; it NEVER blocks an otherwise-valid frame.
-    if ('contentId' in frame && frame.contentId !== null && frame.contentId !== undefined &&
-        !(typeof frame.contentId === 'string' && /^[0-9a-f]{12}$/.test(frame.contentId)))
+    if ('contentId' in frame && frame.contentId !== null && frame.contentId !== undefined && !(typeof frame.contentId === 'string' && /^[0-9a-f]{12}$/.test(frame.contentId)))
       push('contentId must be null or a 12-hex-char string');
 
     // provenance: audit-first.
@@ -261,12 +304,17 @@
       // the declared payload must actually be present + finite.
       if (frame.kind === 'intervals') {
         if (!Array.isArray(frame.intervals) || frame.intervals.length === 0) push('usable intervals frame needs a non-empty intervals[]');
-        else if (!frame.intervals.every(function (v) { return typeof v === 'number' && isFinite(v); })) push('intervals[] has non-finite values');
+        else if (
+          !frame.intervals.every(function (v) {
+            return typeof v === 'number' && isFinite(v);
+          })
+        )
+          push('intervals[] has non-finite values');
       } else if (frame.kind === 'samples') {
         if (!frame.samples || frame.samples.length == null || frame.samples.length === 0) push('usable samples frame needs samples');
         // A regularly-sampled signal carries fs>0; an irregularly-sampled one (CGM,
         // HRV summary spot-reads) carries per-sample tsMs instead. One is required.
-        var hasFs = (typeof frame.fs === 'number' && isFinite(frame.fs) && frame.fs > 0);
+        var hasFs = typeof frame.fs === 'number' && isFinite(frame.fs) && frame.fs > 0;
         var hasTs = Array.isArray(frame.tsMs) && frame.tsMs.length > 0;
         if (!hasFs && !hasTs) push('usable samples frame needs fs > 0 or per-sample tsMs');
         // Irregular-tsMs contract (§6): gaps OK, but the finite stamps must be monotonic
@@ -274,11 +322,15 @@
         // entries are skipped (their own gap). Equal stamps (repeats) pass.
         if (hasTs && frame.tsMs) {
           var _tsA = frame.tsMs;
-          var _prev = null, _mono = true;
+          var _prev = null,
+            _mono = true;
           for (var _i = 0; _i < _tsA.length; _i++) {
             var _t = _tsA[_i];
             if (typeof _t !== 'number' || !isFinite(_t)) continue;
-            if (_prev !== null && _t < _prev) { _mono = false; break; }
+            if (_prev !== null && _t < _prev) {
+              _mono = false;
+              break;
+            }
             _prev = _t;
           }
           if (!_mono) push('tsMs must be monotonic non-decreasing (gaps allowed, no backwards step)');
@@ -292,18 +344,15 @@
   function describeFrame(frame) {
     if (!frame) return 'no frame';
     var v = validateFrame(frame);
-    var n = frame.kind === 'intervals' ? (frame.intervals ? frame.intervals.length : 0)
-                                       : (frame.samples ? frame.samples.length : 0);
+    var n = frame.kind === 'intervals' ? (frame.intervals ? frame.intervals.length : 0) : frame.samples ? frame.samples.length : 0;
     var unit = root.SignalSpec ? root.SignalSpec.unitOf(frame.signalType) : null;
-    var head = frame.signalType + '/' + frame.kind + ' · ' + n + (unit ? ' ' + unit : '') +
-               ' · ' + (frame.usable ? 'usable' : 'UNUSABLE');
+    var head = frame.signalType + '/' + frame.kind + ' · ' + n + (unit ? ' ' + unit : '') + ' · ' + (frame.usable ? 'usable' : 'UNUSABLE');
     if (!frame.usable && frame.reason) head += ' — ' + frame.reason;
     if (!v.ok) head += '  [INVALID: ' + v.errors.join('; ') + ']';
     return head;
   }
 
-  var SignalFrame = { toSignalFrame: toSignalFrame, validateFrame: validateFrame, describeFrame: describeFrame,
-                       computeContentId: computeContentId, scrubFilename: scrubFilename };
+  var SignalFrame = { toSignalFrame: toSignalFrame, validateFrame: validateFrame, describeFrame: describeFrame, computeContentId: computeContentId, scrubFilename: scrubFilename };
   root.SignalFrame = SignalFrame;
   if (typeof module !== 'undefined' && module.exports) module.exports = SignalFrame;
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : /** @type {any} */ (this)));
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : /** @type {any} */ (this));

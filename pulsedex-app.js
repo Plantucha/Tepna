@@ -66,7 +66,10 @@ const wtInput = document.getElementById('wtInput');
 
 // skip clicks on interactive children (the Choose-File button is now data-act="clickEl";
 // the zone must not also fire rawInput.click() — CSP-strict handler migration).
-rawZone.addEventListener('click', (e) => { if (e.target.closest('button,a,label,select,input')) return; rawInput.click(); });
+rawZone.addEventListener('click', (e) => {
+  if (e.target.closest('button,a,label,select,input')) return;
+  rawInput.click();
+});
 rawInput.addEventListener('change', (e) => {
   const fs = e.target.files;
   if (!fs || !fs.length) return;
@@ -1354,6 +1357,10 @@ function showErr(msg) {
 // top-level PulseDex function. Registered at true top level so the wrappers resolve the globals.
 if (window.DexActions)
   DexActions.registerAll({
-    toggleProfilePanel: function () { return toggleProfilePanel(); },
-    pulseModeOverride: function () { if (window.lastResult) calculate(); }
+    toggleProfilePanel: function () {
+      return toggleProfilePanel();
+    },
+    pulseModeOverride: function () {
+      if (window.lastResult) calculate();
+    }
   });

@@ -45,21 +45,21 @@
     device: DEVICE,
 
     detect: function (file, headText) {
-      var name = (file && file.name || '') + '';
+      var name = ((file && file.name) || '') + '';
       var head = (headText || '') + '';
 
       // Filename: explicit device/app marks
       if (/libre|librelink|freeStyle|dexcom|cgm/i.test(name)) return 0.95;
       // GlucoDex own exports carry the node name
-      if (/glucodex/i.test(name)) return 0.90;
+      if (/glucodex/i.test(name)) return 0.9;
 
       // Header content: glucose + timestamp is a strong CGM signal
       var hasGlucose = /\b(glucose|cgm|sugar|mmol|mg.?dl)\b/i.test(head);
-      var hasTime    = /\b(time|date|timestamp)\b/i.test(head);
-      var hasPulse   = /\b(pulse|spo2|oxygen|ecg)\b/i.test(head);   // rule out other bio-CSVs
+      var hasTime = /\b(time|date|timestamp)\b/i.test(head);
+      var hasPulse = /\b(pulse|spo2|oxygen|ecg)\b/i.test(head); // rule out other bio-CSVs
 
-      if (hasGlucose && hasTime && !hasPulse) return 0.80;
-      if (hasGlucose && !hasPulse)             return 0.45;
+      if (hasGlucose && hasTime && !hasPulse) return 0.8;
+      if (hasGlucose && !hasPulse) return 0.45;
       return 0;
     },
 
@@ -67,29 +67,33 @@
       ctx = ctx || {};
       // Prefer the namespaced surface; fall back to the GLUDSP legacy name.
       var gluco = root.GlucoDex || root.GLUDSP;
-      var parseFn = (gluco && typeof gluco.parseCSV === 'function') ? gluco.parseCSV
-                  : (typeof root.GLUDSP !== 'undefined' && typeof root.GLUDSP.parseCSV === 'function') ? root.GLUDSP.parseCSV
-                  : null;
+      var parseFn = gluco && typeof gluco.parseCSV === 'function' ? gluco.parseCSV : typeof root.GLUDSP !== 'undefined' && typeof root.GLUDSP.parseCSV === 'function' ? root.GLUDSP.parseCSV : null;
 
       if (!parseFn) {
-        return root.SignalFrame.toSignalFrame('cgm',
+        return root.SignalFrame.toSignalFrame(
+          'cgm',
           { usable: false, reason: 'libre-cgm: GlucoDex/GLUDSP not in scope (load glucodex-dsp.js before this adapter)' },
-          { adapter: 'libre-cgm', vendor: VENDOR, device: DEVICE, files: ctx.files || null });
+          { adapter: 'libre-cgm', vendor: VENDOR, device: DEVICE, files: ctx.files || null }
+        );
       }
 
       var parsed;
       try {
-        parsed = parseFn(text);   // { tMs:[], vMgdl:[], unit, t0Ms }
+        parsed = parseFn(text); // { tMs:[], vMgdl:[], unit, t0Ms }
       } catch (e) {
-        return root.SignalFrame.toSignalFrame('cgm',
+        return root.SignalFrame.toSignalFrame(
+          'cgm',
           { usable: false, reason: 'libre-cgm: parse error — ' + e.message },
-          { adapter: 'libre-cgm', vendor: VENDOR, device: DEVICE, files: ctx.files || null });
+          { adapter: 'libre-cgm', vendor: VENDOR, device: DEVICE, files: ctx.files || null }
+        );
       }
 
       if (!parsed || !parsed.tMs || !parsed.tMs.length) {
-        return root.SignalFrame.toSignalFrame('cgm',
+        return root.SignalFrame.toSignalFrame(
+          'cgm',
           { usable: false, reason: 'libre-cgm: no usable glucose readings parsed (need timestamp + glucose columns)' },
-          { adapter: 'libre-cgm', vendor: VENDOR, device: DEVICE, files: ctx.files || null });
+          { adapter: 'libre-cgm', vendor: VENDOR, device: DEVICE, files: ctx.files || null }
+        );
       }
 
       // Build row objects from parallel arrays (frameFields needs samples[])
@@ -97,22 +101,24 @@
         return { tMs: t, v: parsed.vMgdl[i] };
       });
 
-      return root.SignalFrame.toSignalFrame('cgm', {
-        samples: samples,
-        tsMs:    parsed.tMs,          // frameFields: tsMs required
-        t0Ms:    parsed.t0Ms,
-        unit:    parsed.unit,         // 'mg/dL' (always normalised internally) or 'mmol/L' source
-        usable:  samples.length >= 10,
-        reason:  samples.length >= 10 ? null
-               : ('only ' + samples.length + ' usable glucose reading' +
-                  (samples.length === 1 ? '' : 's') + ' (need ≥10)')
-      }, {
-        adapter: 'libre-cgm',
-        vendor:  VENDOR,
-        device:  DEVICE,
-        files:   ctx.files || null,
-        warnings: []
-      });
+      return root.SignalFrame.toSignalFrame(
+        'cgm',
+        {
+          samples: samples,
+          tsMs: parsed.tMs, // frameFields: tsMs required
+          t0Ms: parsed.t0Ms,
+          unit: parsed.unit, // 'mg/dL' (always normalised internally) or 'mmol/L' source
+          usable: samples.length >= 10,
+          reason: samples.length >= 10 ? null : 'only ' + samples.length + ' usable glucose reading' + (samples.length === 1 ? '' : 's') + ' (need ≥10)'
+        },
+        {
+          adapter: 'libre-cgm',
+          vendor: VENDOR,
+          device: DEVICE,
+          files: ctx.files || null,
+          warnings: []
+        }
+      );
     }
   });
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);

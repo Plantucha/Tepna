@@ -49,8 +49,15 @@
       (function poll() {
         if (root[ns] && typeof root[ns].compute === 'function') return resolve(undefined);
         if (Date.now() - t0 > 8000)
-          return reject(new Error('signal-orchestrate: ' + ns + ' namespaced DSP not found on host — set window.__DEX_NAMESPACED__=true and load ' +
-            ns.toLowerCase() + '-dsp.js (with kernel-constants.js) before using this module'));
+          return reject(
+            new Error(
+              'signal-orchestrate: ' +
+                ns +
+                ' namespaced DSP not found on host — set window.__DEX_NAMESPACED__=true and load ' +
+                ns.toLowerCase() +
+                '-dsp.js (with kernel-constants.js) before using this module'
+            )
+          );
         setTimeout(poll, 25);
       })();
     });
@@ -59,8 +66,20 @@
   // ── host shims (replace the old isolation iframe windows) ─────────────────
   // Each shim exposes exactly what the call sites read; nothing bare lands on the
   // page (the parsers come off the node namespace — PulseDex.parseRRInput / OxyDex.parseCSV).
-  var _win = null, _oxyWin = null, _hrvWin = null, _glucoWin = null, _ppgWin = null, _ecgWin = null, _cpapWin = null;
-  var _pulseReady = null, _oxyReady = null, _hrvReady = null, _glucoReady = null, _ppgReady = null, _ecgReady = null, _cpapReady = null;
+  var _win = null,
+    _oxyWin = null,
+    _hrvWin = null,
+    _glucoWin = null,
+    _ppgWin = null,
+    _ecgWin = null,
+    _cpapWin = null;
+  var _pulseReady = null,
+    _oxyReady = null,
+    _hrvReady = null,
+    _glucoReady = null,
+    _ppgReady = null,
+    _ecgReady = null,
+    _cpapReady = null;
 
   function pulseHost() {
     if (_pulseReady) return _pulseReady;
@@ -70,7 +89,9 @@
     });
     return _pulseReady;
   }
-  function pulseWin() { return _win; }
+  function pulseWin() {
+    return _win;
+  }
 
   // oxyHost(): the SpO₂ host shim (name kept — source-mirror gate + call sites).
   function oxyHost() {
@@ -81,7 +102,9 @@
     });
     return _oxyReady;
   }
-  function oxyWin() { return _oxyWin; }
+  function oxyWin() {
+    return _oxyWin;
+  }
 
   // hrvHost(): the HRV-summary host shim (name kept — source-mirror gate + call sites).
   function hrvHost() {
@@ -92,7 +115,9 @@
     });
     return _hrvReady;
   }
-  function hrvWin() { return _hrvWin; }
+  function hrvWin() {
+    return _hrvWin;
+  }
 
   // ── RR SignalFrame → ganglior.node-export via PulseDex's PUBLIC headless compute ──
   // Hand the normalized frame to PulseDex.compute() on the co-loaded host, which runs
@@ -100,13 +125,12 @@
   // + stress_peak + short branch) — the SAME path PulseDex.html's exportGanglior uses.
   function emitRRNodeExport(frame, pw) {
     pw = pw || _win;
-    if (!(pw && pw.PulseDex && typeof pw.PulseDex.compute === 'function'))
-      throw new Error('signal-orchestrate: PulseDex.compute unavailable (co-load the namespaced pulsedex-dsp.js)');
-    var ingest = { adapter: frame.provenance.adapter, vendor: frame.provenance.vendor, device: frame.provenance.device, via: (frame.provenance.via || 'signal-orchestrate') };
+    if (!(pw && pw.PulseDex && typeof pw.PulseDex.compute === 'function')) throw new Error('signal-orchestrate: PulseDex.compute unavailable (co-load the namespaced pulsedex-dsp.js)');
+    var ingest = { adapter: frame.provenance.adapter, vendor: frame.provenance.vendor, device: frame.provenance.device, via: frame.provenance.via || 'signal-orchestrate' };
     return pw.PulseDex.compute(
-      { intervals: (frame && frame.intervals) || [], tsMs: frame.tsMs,
-        t0Ms: (frame.t0Ms != null ? frame.t0Ms : null), offsetMin: (frame.offsetMin != null ? frame.offsetMin : null) },
-      { kernel: (pw.DexKernel || root.DexKernel || null), ingest: ingest });
+      { intervals: (frame && frame.intervals) || [], tsMs: frame.tsMs, t0Ms: frame.t0Ms != null ? frame.t0Ms : null, offsetMin: frame.offsetMin != null ? frame.offsetMin : null },
+      { kernel: pw.DexKernel || root.DexKernel || null, ingest: ingest }
+    );
   }
 
   // ── SpO₂ SignalFrame → ganglior.node-export via OxyDex's PUBLIC headless compute ──
@@ -115,13 +139,14 @@
   // adaptOxyDex synthesizes spo2_desaturation + autonomic_arousal from desatProfile/hr_spikes).
   function emitSpO2NodeExport(frame, ow) {
     ow = ow || _oxyWin;
-    if (!(ow && ow.OxyDex && typeof ow.OxyDex.compute === 'function'))
-      throw new Error('signal-orchestrate: OxyDex.compute unavailable (co-load the namespaced oxydex-dsp.js)');
-    var ingest = { adapter: frame.provenance.adapter, vendor: frame.provenance.vendor, device: frame.provenance.device, via: (frame.provenance.via || 'signal-orchestrate') };
+    if (!(ow && ow.OxyDex && typeof ow.OxyDex.compute === 'function')) throw new Error('signal-orchestrate: OxyDex.compute unavailable (co-load the namespaced oxydex-dsp.js)');
+    var ingest = { adapter: frame.provenance.adapter, vendor: frame.provenance.vendor, device: frame.provenance.device, via: frame.provenance.via || 'signal-orchestrate' };
     return ow.OxyDex.compute(frame, {
-      kernel: (ow.DexKernel || root.DexKernel || null), ingest: ingest,
+      kernel: ow.DexKernel || root.DexKernel || null,
+      ingest: ingest,
       fname: (frame.provenance.files && frame.provenance.files[0]) || null,
-      offsetMin: (frame.offsetMin != null ? frame.offsetMin : null) });
+      offsetMin: frame.offsetMin != null ? frame.offsetMin : null
+    });
   }
 
   // ── HRV-summary SignalFrame → ganglior.node-export via HRVDex's PUBLIC headless compute ──
@@ -130,11 +155,18 @@
   // applied the Baevsky unit guard + stamped provenance.derived at ingest; that flag rides in.
   function emitSummaryNodeExport(frame, hw) {
     hw = hw || _hrvWin;
-    if (!(hw && hw.HRVDex && typeof hw.HRVDex.compute === 'function'))
-      throw new Error('signal-orchestrate: HRVDex.compute unavailable (co-load the namespaced hrvdex-dsp.js)');
-    var ingest = { adapter: frame.provenance.adapter, vendor: frame.provenance.vendor, device: frame.provenance.device, via: (frame.provenance.via || 'signal-orchestrate'), derived: (frame.provenance.derived || false) };
+    if (!(hw && hw.HRVDex && typeof hw.HRVDex.compute === 'function')) throw new Error('signal-orchestrate: HRVDex.compute unavailable (co-load the namespaced hrvdex-dsp.js)');
+    var ingest = {
+      adapter: frame.provenance.adapter,
+      vendor: frame.provenance.vendor,
+      device: frame.provenance.device,
+      via: frame.provenance.via || 'signal-orchestrate',
+      derived: frame.provenance.derived || false
+    };
     return hw.HRVDex.compute(frame, {
-      kernel: (hw.DexKernel || root.DexKernel || null), ingest: ingest });
+      kernel: hw.DexKernel || root.DexKernel || null,
+      ingest: ingest
+    });
   }
 
   // glucoHost(): GlucoDex CGM host shim. GlucoDex is a co-load global (same realm,
@@ -148,7 +180,9 @@
     });
     return _glucoReady;
   }
-  function glucoWin() { return _glucoWin; }
+  function glucoWin() {
+    return _glucoWin;
+  }
 
   // ppgHost(): PpgDex raw-PPG host shim. PpgDex is a co-load global (same realm, not an
   // iframe), so this resolves immediately once window.PpgDex is present. Mirrors glucoHost.
@@ -160,7 +194,9 @@
     });
     return _ppgReady;
   }
-  function ppgWin() { return _ppgWin; }
+  function ppgWin() {
+    return _ppgWin;
+  }
 
   // ── PPG SignalFrame → ganglior.node-export via PpgDex's PUBLIC headless compute ──
   // PpgDex.compute() runs the real optical beat-detection → self-PPI → HRV pipeline and emits the
@@ -171,18 +207,19 @@
   // straight (the §1 compute()-shape contract — accept the canonical frame, not only {text}).
   function emitPpgNodeExport(frame, pw) {
     pw = pw || _ppgWin;
-    if (!(pw && pw.PpgDex && typeof pw.PpgDex.compute === 'function'))
-      throw new Error('signal-orchestrate: PpgDex.compute unavailable (co-load the namespaced ppgdex-dsp.js)');
-    var ingest = { adapter: frame.provenance.adapter, vendor: frame.provenance.vendor, device: frame.provenance.device, via: (frame.provenance.via || 'signal-orchestrate') };
+    if (!(pw && pw.PpgDex && typeof pw.PpgDex.compute === 'function')) throw new Error('signal-orchestrate: PpgDex.compute unavailable (co-load the namespaced ppgdex-dsp.js)');
+    var ingest = { adapter: frame.provenance.adapter, vendor: frame.provenance.vendor, device: frame.provenance.device, via: frame.provenance.via || 'signal-orchestrate' };
     return pw.PpgDex.compute(frame, {
-      kernel: (pw.DexKernel || root.DexKernel || null), ingest: ingest,
-      source: (frame.provenance.adapter || 'signal-orchestrate'),
+      kernel: pw.DexKernel || root.DexKernel || null,
+      ingest: ingest,
+      source: frame.provenance.adapter || 'signal-orchestrate',
       fname: (frame.provenance.files && frame.provenance.files[0]) || null,
       // rich: carry hrv.time/frequency + quality + timeseries.epochs[].position so a Unifier/OverDex-routed
       // PPG file feeds HRV consensus + (companions §1b) posture (ECG-PPG-FOLLOWUPS-HANDOFF §1 / PPGDEX-FOLLOWUPS §1).
       // The app's exportGanglior() does NOT pass this → its light stream stays byte-identical.
       rich: true,
-      offsetMin: (frame.offsetMin != null ? frame.offsetMin : null) });
+      offsetMin: frame.offsetMin != null ? frame.offsetMin : null
+    });
   }
 
   // ecgHost(): ECGDex raw-ECG host shim. ECGDex is a co-load global (same realm, not an
@@ -195,7 +232,9 @@
     });
     return _ecgReady;
   }
-  function ecgWin() { return _ecgWin; }
+  function ecgWin() {
+    return _ecgWin;
+  }
 
   // ── ECG SignalFrame → ganglior.node-export via ECGDex's PUBLIC headless compute ──
   // ECGDex.compute() runs the real band-pass → Pan-Tompkins R-peak (NO Worker — the pure
@@ -208,18 +247,19 @@
   // shape contract — accept the canonical frame, not only {text}).
   function emitEcgNodeExport(frame, ew) {
     ew = ew || _ecgWin;
-    if (!(ew && ew.ECGDex && typeof ew.ECGDex.compute === 'function'))
-      throw new Error('signal-orchestrate: ECGDex.compute unavailable (co-load the namespaced ecgdex-dsp.js)');
-    var ingest = { adapter: frame.provenance.adapter, vendor: frame.provenance.vendor, device: frame.provenance.device, via: (frame.provenance.via || 'signal-orchestrate') };
+    if (!(ew && ew.ECGDex && typeof ew.ECGDex.compute === 'function')) throw new Error('signal-orchestrate: ECGDex.compute unavailable (co-load the namespaced ecgdex-dsp.js)');
+    var ingest = { adapter: frame.provenance.adapter, vendor: frame.provenance.vendor, device: frame.provenance.device, via: frame.provenance.via || 'signal-orchestrate' };
     return ew.ECGDex.compute(frame, {
-      kernel: (ew.DexKernel || root.DexKernel || null), ingest: ingest,
-      source: (frame.provenance.adapter || 'signal-orchestrate'),
+      kernel: ew.DexKernel || root.DexKernel || null,
+      ingest: ingest,
+      source: frame.provenance.adapter || 'signal-orchestrate',
       fname: (frame.provenance.files && frame.provenance.files[0]) || null,
       // rich: carry the whole-record HRV axis + quality + timeseries.epochs[].position + sleep so a
       // Unifier/OverDex-routed ECG file feeds HRV consensus + (companions §2b) posture (ECG-PPG-FOLLOWUPS-HANDOFF
       // §1 / ECGDEX-FOLLOWUPS-II §2). The app's exportGanglior() does NOT pass this → light stream byte-identical.
       rich: true,
-      offsetMin: (frame.offsetMin != null ? frame.offsetMin : null) });
+      offsetMin: frame.offsetMin != null ? frame.offsetMin : null
+    });
   }
 
   // ── CGM SignalFrame → ganglior.node-export via GlucoDex's PUBLIC headless compute ──
@@ -228,12 +268,13 @@
   // exportGanglior emits, via the shared glucoBuildNodeExport builder (brief §1B parity).
   function emitCgmNodeExport(frame, gw) {
     gw = gw || _glucoWin;
-    if (!(gw && gw.GlucoDex && typeof gw.GlucoDex.compute === 'function'))
-      throw new Error('signal-orchestrate: GlucoDex.compute unavailable (co-load the namespaced glucodex-dsp.js)');
-    var ingest = { adapter: frame.provenance.adapter, vendor: frame.provenance.vendor, device: frame.provenance.device, via: (frame.provenance.via || 'signal-orchestrate') };
+    if (!(gw && gw.GlucoDex && typeof gw.GlucoDex.compute === 'function')) throw new Error('signal-orchestrate: GlucoDex.compute unavailable (co-load the namespaced glucodex-dsp.js)');
+    var ingest = { adapter: frame.provenance.adapter, vendor: frame.provenance.vendor, device: frame.provenance.device, via: frame.provenance.via || 'signal-orchestrate' };
     return gw.GlucoDex.compute(frame, {
-      kernel: (gw.DexKernel || root.DexKernel || null), ingest: ingest,
-      source: (frame.provenance.adapter || 'signal-orchestrate') });
+      kernel: gw.DexKernel || root.DexKernel || null,
+      ingest: ingest,
+      source: frame.provenance.adapter || 'signal-orchestrate'
+    });
   }
 
   // cpapHost(): CPAPDex PAP-therapy host shim. CPAPDex is a co-load global (same realm,
@@ -246,7 +287,9 @@
     });
     return _cpapReady;
   }
-  function cpapWin() { return _cpapWin; }
+  function cpapWin() {
+    return _cpapWin;
+  }
 
   // ── CPAP SignalFrame → ganglior.node-export via CPAPDex's PUBLIC headless compute ──
   // GENERIC-EMIT-GATE-FOLLOWUPS-I §1 frame-shape decision: a SignalFrame has NO event carrier,
@@ -260,13 +303,14 @@
   // text-stream adapter; canEmit('cpap') + this emitter are the gated emit path (DRIVER 2).
   function emitCpapNodeExport(frame, cw) {
     cw = cw || _cpapWin;
-    if (!(cw && cw.CPAPDex && typeof cw.CPAPDex.compute === 'function'))
-      throw new Error('signal-orchestrate: CPAPDex.compute unavailable (co-load the namespaced cpapdex-dsp.js + cpapdex-fusion.js)');
-    var ingest = { adapter: frame.provenance.adapter, vendor: frame.provenance.vendor, device: frame.provenance.device, via: (frame.provenance.via || 'signal-orchestrate') };
+    if (!(cw && cw.CPAPDex && typeof cw.CPAPDex.compute === 'function')) throw new Error('signal-orchestrate: CPAPDex.compute unavailable (co-load the namespaced cpapdex-dsp.js + cpapdex-fusion.js)');
+    var ingest = { adapter: frame.provenance.adapter, vendor: frame.provenance.vendor, device: frame.provenance.device, via: frame.provenance.via || 'signal-orchestrate' };
     return cw.CPAPDex.compute(frame, {
-      kernel: (cw.DexKernel || root.DexKernel || null), ingest: ingest,
+      kernel: cw.DexKernel || root.DexKernel || null,
+      ingest: ingest,
       fname: (frame.provenance.files && frame.provenance.files[0]) || null,
-      offsetMin: (frame.offsetMin != null ? frame.offsetMin : null) });
+      offsetMin: frame.offsetMin != null ? frame.offsetMin : null
+    });
   }
 
   // ── node-export one-line summary (SIGNAL-ADAPTER-FOLLOWUPS-II §5 / -III §3) ──
@@ -280,20 +324,20 @@
     var node = exp.schema && exp.schema.node;
     var nEv = Array.isArray(exp.ganglior_events) ? exp.ganglior_events.length : 0;
     if (node === 'PulseDex' || (exp.hrv && exp.hrv.time)) {
-      var rm = (exp.hrv && exp.hrv.time && exp.hrv.time.rmssd != null) ? exp.hrv.time.rmssd : '—';
+      var rm = exp.hrv && exp.hrv.time && exp.hrv.time.rmssd != null ? exp.hrv.time.rmssd : '—';
       return nEv + ' events · rmssd ' + rm;
     }
     if (node === 'OxyDex' || (Array.isArray(exp.nights) && exp.nights[0])) {
       var nn = (exp.nights && exp.nights[0]) || {};
-      var odi = (nn.odi4 && nn.odi4.rate != null) ? nn.odi4.rate : '—';
-      var mn = (nn.stats && nn.stats.minSpo2 != null) ? nn.stats.minSpo2 : '—';
+      var odi = nn.odi4 && nn.odi4.rate != null ? nn.odi4.rate : '—';
+      var mn = nn.stats && nn.stats.minSpo2 != null ? nn.stats.minSpo2 : '—';
       return 'ODI ' + odi + ' · minSpO₂ ' + mn + '%';
     }
     if (node === 'HRVDex' || (exp.recording && exp.recording.source === 'welltory')) {
       return nEv + ' events · ' + ((exp.recording && exp.recording.measurements) || 0) + ' measurements';
     }
     if (node === 'GlucoDex') {
-      return nEv + ' glycemic events · ' + ((exp.recording && exp.recording.events != null) ? exp.recording.events : nEv) + ' readings';
+      return nEv + ' glycemic events · ' + (exp.recording && exp.recording.events != null ? exp.recording.events : nEv) + ' readings';
     }
     if (node === 'PpgDex') {
       return nEv + ' events · raw wrist-PPG';
@@ -302,8 +346,8 @@
       return nEv + ' events · raw ECG';
     }
     if (node === 'CPAPDex') {
-      var nS = (exp.recording && exp.recording.sessionCount != null) ? exp.recording.sessionCount : (exp.recording && Array.isArray(exp.recording.sessions) ? exp.recording.sessions.length : '?');
-      var ahi = (exp.metrics && exp.metrics.residualAHI != null) ? exp.metrics.residualAHI : '—';
+      var nS = exp.recording && exp.recording.sessionCount != null ? exp.recording.sessionCount : exp.recording && Array.isArray(exp.recording.sessions) ? exp.recording.sessions.length : '?';
+      var ahi = exp.metrics && exp.metrics.residualAHI != null ? exp.metrics.residualAHI : '—';
       return nEv + ' events · AHI ' + ahi + ' · ' + nS + ' session' + (nS === 1 ? '' : 's');
     }
     return 'computed';
@@ -316,12 +360,12 @@
   // cached host shim itself; the caller still boots the relevant host first.
   function emitNodeExport(frame, host) {
     var st = frame && frame.signalType;
-    if (st === 'rr')   return emitRRNodeExport(frame, host || _win);
+    if (st === 'rr') return emitRRNodeExport(frame, host || _win);
     if (st === 'spo2') return emitSpO2NodeExport(frame, host || _oxyWin);
-    if (st === 'hrv')  return emitSummaryNodeExport(frame, host || _hrvWin);
-    if (st === 'cgm')  return emitCgmNodeExport(frame, host || _glucoWin);
-    if (st === 'ppg')  return emitPpgNodeExport(frame, host || _ppgWin);
-    if (st === 'ecg')  return emitEcgNodeExport(frame, host || _ecgWin);
+    if (st === 'hrv') return emitSummaryNodeExport(frame, host || _hrvWin);
+    if (st === 'cgm') return emitCgmNodeExport(frame, host || _glucoWin);
+    if (st === 'ppg') return emitPpgNodeExport(frame, host || _ppgWin);
+    if (st === 'ecg') return emitEcgNodeExport(frame, host || _ecgWin);
     if (st === 'cpap') return emitCpapNodeExport(frame, host || _cpapWin);
     throw new Error('signal-orchestrate: no compute path for signalType "' + st + '"');
   }
@@ -335,7 +379,9 @@
   // the frame → compute(). Pairs by FILENAME stamp (known before parsing; PSL stamps every stream of
   // one recording identically), so no chicken-and-egg with the not-yet-parsed frame's t0Ms.
   var _COMPANION_KINDS = { ecg: ['rr', 'hr', 'acc'], ppg: ['acc', 'gyro', 'magn', 'ppi'] };
-  function companionKinds(signalType) { return (_COMPANION_KINDS[signalType] || []).slice(); }
+  function companionKinds(signalType) {
+    return (_COMPANION_KINDS[signalType] || []).slice();
+  }
   function streamKind(name) {
     var u = String(name == null ? '' : name).toUpperCase();
     if (/_ECG\b|_ECG\./.test(u)) return 'ecg';
@@ -350,7 +396,7 @@
   }
   function fnameStampMs(name) {
     var m = String(name == null ? '' : name).match(/(\d{4})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})/);
-    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : null;   // floating wall-clock (Clock Contract)
+    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : null; // floating wall-clock (Clock Contract)
   }
   // §1 (ECG-INGEST-FOLLOWUPS-II) — device identity + foreign-vendor classification are NO LONGER
   // declared here. pairCompanions now consults the ONE shared registry (dex-ingest.js / DexIngest) —
@@ -376,25 +422,34 @@
   function pairCompanions(signalType, primaryName, entries) {
     var kinds = _COMPANION_KINDS[signalType];
     if (!kinds || !Array.isArray(entries) || !entries.length) return null;
-    var DI = _ingest();                          // §1-II: the shared dex-ingest.js registry (deviceKey / foreignVendor)
+    var DI = _ingest(); // §1-II: the shared dex-ingest.js registry (deviceKey / foreignVendor)
     var ref = fnameStampMs(primaryName);
     var primDev = DI.deviceKey(primaryName);
-    var out = {}, any = false;
+    var out = {},
+      any = false;
     for (var ki = 0; ki < kinds.length; ki++) {
-      var kind = kinds[ki], best = null, bd = Infinity;
+      var kind = kinds[ki],
+        best = null,
+        bd = Infinity;
       for (var ei = 0; ei < entries.length; ei++) {
         var e = entries[ei];
         if (!e || e.name === primaryName || streamKind(e.name) !== kind) continue;
-        if (DI.foreignVendor(e.name)) continue;   // an O2Ring SpO₂ / Libre CGM file is never a sidecar
+        if (DI.foreignVendor(e.name)) continue; // an O2Ring SpO₂ / Libre CGM file is never a sidecar
         // device-id filter: when BOTH names carry a Polar device id they must MATCH (a Verity-Sense
         // `_ACC` never attaches to an H10 `_ECG`, even when its stamp is the nearer one); a bare /
         // non-Polar candidate (cdev null) falls back to nearest-stamp, as before.
         var cdev = DI.deviceKey(e.name);
         if (primDev && cdev && primDev !== cdev) continue;
         var d = Math.abs((fnameStampMs(e.name) || 0) - (ref || 0));
-        if (d < bd) { bd = d; best = e; }
+        if (d < bd) {
+          bd = d;
+          best = e;
+        }
       }
-      if (best && best.text) { out[kind] = best.text; any = true; }
+      if (best && best.text) {
+        out[kind] = best.text;
+        any = true;
+      }
     }
     return any ? out : null;
   }
@@ -403,14 +458,18 @@
   // (acc/hr companions) are NOT emitters. The Data Unifier + OverDex gate their emit UI on this
   // so a newly-migrated node lights up in ONE place, not per-host (HOST-EMIT-ALLOWLIST-2026-06-27).
   var _EMITTABLE = { rr: 1, spo2: 1, hrv: 1, cgm: 1, ppg: 1, ecg: 1, cpap: 1 };
-  function canEmit(signalType) { return !!_EMITTABLE[signalType]; }
+  function canEmit(signalType) {
+    return !!_EMITTABLE[signalType];
+  }
   // emittableTypes(): the LIVE emit-allowlist keys — the durable accessor the generic-emit gate
   // prefers over parsing THIS file's source (GENERIC-EMIT-GATE-FOLLOWUPS-II §3). Reading the runtime
   // object is immune to source-format drift (a nested `}` in a future structured _EMITTABLE value, a
   // reformat, a stray comment-brace) that could silently truncate a regex parse of the literal. Inert
   // at runtime — the apps gate emit on canEmit(), nothing reads this — so adding it needs NO app
   // re-bundle (same inert-shared-module-addition rule as MetricRegistry.BADGE_CSS; see CLAUDE.md).
-  function emittableTypes() { return Object.keys(_EMITTABLE); }
+  function emittableTypes() {
+    return Object.keys(_EMITTABLE);
+  }
 
   root.SignalOrchestrate = {
     pulseHost: pulseHost,
@@ -443,4 +502,4 @@
     canEmit: canEmit,
     emittableTypes: emittableTypes
   };
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);

@@ -107,13 +107,15 @@
   // decides which verdict is "foreign" for its node (ECG: anything≠'ecg'; PPG: anything≠'ppg').
   // Conservative by construction — a plain numeric `.dat` waveform sniffs null → passes as primary.
   function sniffFirstLine(line) {
-    var first = String(line == null ? '' : line).trim().toLowerCase();
+    var first = String(line == null ? '' : line)
+      .trim()
+      .toLowerCase();
     if (!first) return null;
-    if (/ecg\s*\[/.test(first)) return 'ecg';                                    // "…;ecg [uV]"
-    if (/channel\s*\d/.test(first) || /\bambient\b/.test(first)) return 'ppg';    // Verity optical header
-    if (/\[\s*dps\s*\]/.test(first)) return 'gyro';                              // X [dps]
-    if (/[xyz]\s*\[\s*g\s*\]/.test(first)) return 'magn';                        // X [G] (Gauss)
-    if (/[xyz]\s*\[\s*mg\s*\]/.test(first)) return 'acc';                        // X [mg]
+    if (/ecg\s*\[/.test(first)) return 'ecg'; // "…;ecg [uV]"
+    if (/channel\s*\d/.test(first) || /\bambient\b/.test(first)) return 'ppg'; // Verity optical header
+    if (/\[\s*dps\s*\]/.test(first)) return 'gyro'; // X [dps]
+    if (/[xyz]\s*\[\s*g\s*\]/.test(first)) return 'magn'; // X [G] (Gauss)
+    if (/[xyz]\s*\[\s*mg\s*\]/.test(first)) return 'acc'; // X [mg]
     if (/\bspo2\b|spo₂|oxygen\s*level|\bpleth\b|pulse\s*rate|\bsao2\b|\bperfusion\b/.test(first)) return 'spo2';
     if (/\bglucose\b|\bmg\/dl\b|\bmmol\/l\b/.test(first)) return 'cgm';
     return null; // unrecognised header or numeric first row → caller treats as its primary
@@ -132,16 +134,24 @@
   // return the SAME object references grouped, so the app gets its File objects back with no remap.
   // partKey is INJECTED (DSP.partKey) to keep this module DSP-free; absent → every item is a single.
   function _groupParts(items, pk) {
-    var groups = {}, order = [];
+    var groups = {},
+      order = [];
     items.forEach(function (it, idx) {
       var k = pk ? pk(it.name) : null;
-      var base = k ? '\u0001' + k.base : '\u0000' + idx + '_' + it.name;   // singles unique
-      if (!groups[base]) { groups[base] = []; order.push(base); }
+      var base = k ? '\u0001' + k.base : '\u0000' + idx + '_' + it.name; // singles unique
+      if (!groups[base]) {
+        groups[base] = [];
+        order.push(base);
+      }
       groups[base].push(it);
     });
     return order.map(function (b) {
       var arr = groups[b];
-      arr.sort(function (x, y) { var px = pk && pk(x.name), py = pk && pk(y.name); return (px ? px.part : 1) - (py ? py.part : 1); });
+      arr.sort(function (x, y) {
+        var px = pk && pk(x.name),
+          py = pk && pk(y.name);
+        return (px ? px.part : 1) - (py ? py.part : 1);
+      });
       return arr;
     });
   }
@@ -155,12 +165,23 @@
   // (kept) — we only disambiguate identifiable sessions. nameOf extracts the signature name from a unit
   // (default u.name; pass g=>g[0].name for part-GROUPS, where a genuine multi-part stream is ONE group).
   function _dedupeBySession(units, nameOf) {
-    nameOf = nameOf || function (u) { return u && u.name; };
-    var seen = {}, kept = [], dropped = [];
+    nameOf =
+      nameOf ||
+      function (u) {
+        return u && u.name;
+      };
+    var seen = {},
+      kept = [],
+      dropped = [];
     units.forEach(function (u) {
-      var nm = nameOf(u), dk = deviceKey(nm), st = stampMs(nm);
-      var sig = (dk != null && st != null) ? dk + '@' + st : null;
-      if (sig && seen[sig]) { dropped.push(u); return; }
+      var nm = nameOf(u),
+        dk = deviceKey(nm),
+        st = stampMs(nm);
+      var sig = dk != null && st != null ? dk + '@' + st : null;
+      if (sig && seen[sig]) {
+        dropped.push(u);
+        return;
+      }
       if (sig) seen[sig] = 1;
       kept.push(u);
     });
@@ -180,7 +201,9 @@
   // doesn't clobber its lane by load order. Thin wrapper over the shared _dedupeBySession (IV §2);
   // groups without a device+session signature pass through untouched.
   function _dedupeGroups(groups) {
-    return _dedupeBySession(groups, function (g) { return g[0].name; }).kept;
+    return _dedupeBySession(groups, function (g) {
+      return g[0].name;
+    }).kept;
   }
   // The PPG companion PICK that planIngestPpg deliberately keeps app-side (it needs the PARSED rec.t0Ms
   // a NAME-only planner can't see): given device-eligible candidates (each carrying .stampMs) + a
@@ -191,10 +214,15 @@
     candidates = Array.isArray(candidates) ? candidates : [];
     if (!candidates.length) return null;
     if (candidates.length === 1) return candidates[0];
-    var best = candidates[0], bd = Infinity, ref = refMs || 0;
+    var best = candidates[0],
+      bd = Infinity,
+      ref = refMs || 0;
     for (var i = 0; i < candidates.length; i++) {
       var d = Math.abs((candidates[i].stampMs || 0) - ref);
-      if (d < bd) { bd = d; best = candidates[i]; }
+      if (d < bd) {
+        bd = d;
+        best = candidates[i];
+      }
     }
     return best;
   }
@@ -209,24 +237,46 @@
   //     skipped: [{name, kind, device?}] }                        // skip-bucket + sniff-foreign + foreign-device + dup-night
   function planIngest(items, opts) {
     opts = opts || {};
-    var pk = opts.partKey || null, sf = opts.sniffedForeign || null;
-    var sfGet = function (name) { return sf ? (typeof sf.get === 'function' ? sf.get(name) : sf[name]) : undefined; };
+    var pk = opts.partKey || null,
+      sf = opts.sniffedForeign || null;
+    var sfGet = function (name) {
+      return sf ? (typeof sf.get === 'function' ? sf.get(name) : sf[name]) : undefined;
+    };
     items = Array.isArray(items) ? items : [];
     // (1) bucket by name classification (the SAME ecgKind the app + the routing-table test use)
     var byKind = /** @type {{ ecg:any[], rr:any[], hr:any[], acc:any[], skip:any[] }} */ ({ ecg: [], rr: [], hr: [], acc: [], skip: [] });
-    items.forEach(function (it) { (byKind[ecgKind(it.name)] || byKind.ecg).push(it); });
+    items.forEach(function (it) {
+      (byKind[ecgKind(it.name)] || byKind.ecg).push(it);
+    });
     // (2) skip bucket → foreign (precise label for the UI breakdown)
     /** @type {{name:any, kind:any, device?:any}[]} */
-    var skipped = byKind.skip.map(function (it) { return { name: it.name, kind: foreignKind(it.name) }; });
+    var skipped = byKind.skip.map(function (it) {
+      return { name: it.name, kind: foreignKind(it.name) };
+    });
     // (3) the caller's header content-sniff: a name-'ecg' item it reclassified as foreign is set aside
     //     with its sniffed kind; the rest are real ECG (drop order preserved).
     var realEcg = [];
-    byKind.ecg.forEach(function (it) { var fk = sfGet(it.name); if (fk) skipped.push({ name: it.name, kind: fk }); else realEcg.push(it); });
+    byKind.ecg.forEach(function (it) {
+      var fk = sfGet(it.name);
+      if (fk) skipped.push({ name: it.name, kind: fk });
+      else realEcg.push(it);
+    });
     // (4) device anchor: this drop's ECG device(s), else (companions-only drop) the active recording's device
-    var anchor = null, hasDev = false, dev = {};
-    realEcg.forEach(function (it) { var dk = deviceKey(it.name); if (dk) { dev[dk] = 1; hasDev = true; } });
+    var anchor = null,
+      hasDev = false,
+      dev = {};
+    realEcg.forEach(function (it) {
+      var dk = deviceKey(it.name);
+      if (dk) {
+        dev[dk] = 1;
+        hasDev = true;
+      }
+    });
     if (hasDev) anchor = dev;
-    else if (opts.activeDeviceKey) { anchor = {}; anchor[opts.activeDeviceKey] = 1; }
+    else if (opts.activeDeviceKey) {
+      anchor = {};
+      anchor[opts.activeDeviceKey] = 1;
+    }
     // (5) device-id companion filter: a foreign-device sidecar is set aside (otherdevice), never attached.
     //     The eligibility predicate is the shared _isDeviceEligible (IV §2; anchor is the device SET here).
     if (anchor) {
@@ -240,9 +290,17 @@
       });
     }
     // (6) _RR over _PPI: a Polar H10 session ships both → prefer firmware _RR; use _PPI only when no _RR
-    var isPPI = function (n) { return /_PPI\b|_PPI\./i.test(n); };
-    if (byKind.rr.some(function (it) { return !isPPI(it.name); }))
-      byKind.rr = byKind.rr.filter(function (it) { return !isPPI(it.name); });
+    var isPPI = function (n) {
+      return /_PPI\b|_PPI\./i.test(n);
+    };
+    if (
+      byKind.rr.some(function (it) {
+        return !isPPI(it.name);
+      })
+    )
+      byKind.rr = byKind.rr.filter(function (it) {
+        return !isPPI(it.name);
+      });
     // (7) companion lanes: part-group, then de-dupe a duplicated same-device-session sidecar group
     var companionLanes = {
       rr: _dedupeGroups(_groupParts(byKind.rr, pk)),
@@ -251,8 +309,12 @@
     };
     // (8) ECG groups: part-group, then de-dupe a duplicate night (same device id + structured start
     //     stamp) via the shared _dedupeBySession (IV §2); each dropped group → a 'duplicate' set-aside.
-    var _ecgDed = _dedupeBySession(_groupParts(realEcg, pk), function (g) { return g[0].name; });
-    _ecgDed.dropped.forEach(function (g) { skipped.push({ name: g[0].name, kind: 'duplicate' }); });
+    var _ecgDed = _dedupeBySession(_groupParts(realEcg, pk), function (g) {
+      return g[0].name;
+    });
+    _ecgDed.dropped.forEach(function (g) {
+      skipped.push({ name: g[0].name, kind: 'duplicate' });
+    });
     var ecgGroups = _ecgDed.kept;
     return { ecgGroups: ecgGroups, companionLanes: companionLanes, skipped: skipped };
   }
@@ -282,16 +344,30 @@
   function planIngestPpg(items, opts) {
     opts = opts || {};
     var sf = opts.sniffedForeign || null;
-    var sfGet = function (name) { return sf ? (typeof sf.get === 'function' ? sf.get(name) : sf[name]) : undefined; };
+    var sfGet = function (name) {
+      return sf ? (typeof sf.get === 'function' ? sf.get(name) : sf[name]) : undefined;
+    };
     items = Array.isArray(items) ? items : [];
     var COMPANION = ['acc', 'gyro', 'magn', 'ppi', 'marker'];
     // (1) classify by name (the SAME ppgKind the app + routing-table test use); a name-'ppg' item the
     //     caller's content-sniff flagged foreign (sniffedForeign) is set aside with its sniffed kind.
-    var ppgCand = [], hr = [], comp = { acc: [], gyro: [], magn: [], ppi: [], marker: [] }, skipped = [];
+    var ppgCand = [],
+      hr = [],
+      comp = { acc: [], gyro: [], magn: [], ppi: [], marker: [] },
+      skipped = [];
     items.forEach(function (it) {
       var k = ppgKind(it.name);
-      if (k === 'ppg') { var fk = sfGet(it.name); if (fk && fk !== 'ppg') { skipped.push({ name: it.name, kind: fk }); return; } }
-      if (k === 'skip') { skipped.push({ name: it.name, kind: foreignKind(it.name) }); return; }
+      if (k === 'ppg') {
+        var fk = sfGet(it.name);
+        if (fk && fk !== 'ppg') {
+          skipped.push({ name: it.name, kind: fk });
+          return;
+        }
+      }
+      if (k === 'skip') {
+        skipped.push({ name: it.name, kind: foreignKind(it.name) });
+        return;
+      }
       if (k === 'ppg') ppgCand.push(it);
       else if (k === 'hr') hr.push(it);
       else if (comp[k]) comp[k].push(it);
@@ -300,7 +376,9 @@
     //     device id + structured stamp → keep the first, set the rest aside (a DISTINCT session has a
     //     different stamp → still loads separately).
     var _ppgDed = _dedupeBySession(ppgCand);
-    _ppgDed.dropped.forEach(function (it) { skipped.push({ name: it.name, kind: 'duplicate' }); });
+    _ppgDed.dropped.forEach(function (it) {
+      skipped.push({ name: it.name, kind: 'duplicate' });
+    });
     var ppgPrimaries = _ppgDed.kept;
     // (3) per-primary device ELIGIBILITY via the shared _isDeviceEligible (IV §2): only SAME-device
     //     sidecars are candidates for a `_PPG`. A bare / non-Polar candidate (deviceKey null on either
@@ -308,9 +386,12 @@
     //     PARSED rec.t0Ms, app-side) disambiguates.
     var eligibleByPrimary = {};
     ppgPrimaries.forEach(function (pf) {
-      var pfDev = deviceKey(pf.name), elig = {};
+      var pfDev = deviceKey(pf.name),
+        elig = {};
       COMPANION.forEach(function (k) {
-        elig[k] = comp[k].filter(function (c) { return _isDeviceEligible(c.name, pfDev); });
+        elig[k] = comp[k].filter(function (c) {
+          return _isDeviceEligible(c.name, pfDev);
+        });
       });
       eligibleByPrimary[pf.name] = elig;
     });
@@ -329,4 +410,4 @@
     planIngestPpg: planIngestPpg,
     pickNearestByStamp: pickNearestByStamp
   };
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);

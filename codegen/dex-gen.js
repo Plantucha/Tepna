@@ -46,11 +46,7 @@ try {
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-const esc = (s) => String(s)
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;');
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 const tierLabel = (tier) => {
   const map = { core: 'Core', secondary: 'Advanced', research: 'Research' };
@@ -78,16 +74,14 @@ const EVIDENCE_TIERS = ['measured', 'validated', 'emerging', 'experimental', 'he
 const RETIRED_EVIDENCE = { proxy: 'heuristic', composite: 'experimental', 'provisionally validated': 'emerging' };
 function metricEvidence(m) {
   const ev = m.evidence;
-  if (ev == null) return null;  // legacy manifest (pre-Phase-3): no corner badge, warned below
+  if (ev == null) return null; // legacy manifest (pre-Phase-3): no corner badge, warned below
   if (RETIRED_EVIDENCE[ev]) throw new Error(`metric ${m.id} uses RETIRED evidence vocabulary "${ev}" — use "${RETIRED_EVIDENCE[ev]}"`);
   if (!EVIDENCE_TIERS.includes(ev)) throw new Error(`metric ${m.id} has invalid evidence "${ev}" — must be one of ${EVIDENCE_TIERS.join('|')}`);
   return ev;
 }
-const manifestHasEvidence = () => manifest.sections.some(s => (s.metrics || []).some(m => m.evidence != null));
+const manifestHasEvidence = () => manifest.sections.some((s) => (s.metrics || []).some((m) => m.evidence != null));
 
-const allMetrics = () => manifest.sections.flatMap(s =>
-  s.metrics.map(m => ({ ...m, sectionId: s.id, sectionTitle: s.title }))
-);
+const allMetrics = () => manifest.sections.flatMap((s) => s.metrics.map((m) => ({ ...m, sectionId: s.id, sectionTitle: s.title })));
 
 const allAbbrs = () => {
   const abbrs = manifest.abbreviations || {};
@@ -96,30 +90,37 @@ const allAbbrs = () => {
 
 // ─── Generate sidebar nav ───────────────────────────────────────────────────
 function genSidebarNav() {
-  return manifest.sections.map(s => `
+  return manifest.sections
+    .map(
+      (s) => `
     <div class="nav-lbl">${esc(s.title)}</div>
     <div class="nav">
       <a href="#${esc(s.id)}"><span class="nav-dot"></span>${esc(s.title)}</a>
-    </div>`).join('\n');
+    </div>`
+    )
+    .join('\n');
 }
 
 // ─── Generate mobile drawer nav ─────────────────────────────────────────────
 function genMobileNav() {
-  return manifest.sections.map(s => `
+  return manifest.sections
+    .map(
+      (s) => `
     <a href="#${esc(s.id)}" onclick="closeDrawer()">
       <span class="nav-dot"></span>${esc(s.title)}
-    </a>`).join('\n');
+    </a>`
+    )
+    .join('\n');
 }
 
 // ─── Generate Quick Jump index ──────────────────────────────────────────────
 function genQuickJump() {
   const metrics = allMetrics();
-  const groups = manifest.sections.map(s => {
-    const links = `<a href="#${esc(s.id)}" class="qj-sec">${esc(s.title)}</a>`;
-    const mLinks = s.metrics.map(m =>
-      `<a href="#${esc(s.id)}" class="qm">${esc(m.abbr || m.id)}</a>`
-    ).join('');
-    return `
+  const groups = manifest.sections
+    .map((s) => {
+      const links = `<a href="#${esc(s.id)}" class="qj-sec">${esc(s.title)}</a>`;
+      const mLinks = s.metrics.map((m) => `<a href="#${esc(s.id)}" class="qm">${esc(m.abbr || m.id)}</a>`).join('');
+      return `
       <div class="qj-group">
         <div class="qj-group-header">
           <span class="qj-dot" style="background:${manifest.accentColor || 'var(--teal)'}"></span>
@@ -128,7 +129,8 @@ function genQuickJump() {
         <div class="qj-links">${links}</div>
         <div class="qj-metrics">${mLinks}</div>
       </div>`;
-  }).join('\n');
+    })
+    .join('\n');
 
   const totalMetrics = metrics.length;
   const totalSections = manifest.sections.length;
@@ -173,22 +175,22 @@ function genMetricCard(m, sectionId) {
   // string "<Label> — <cite>" (em-dash). Grade comes from the manifest.
   const ev = metricEvidence(m);
   const cite = m.cite || m.fullName || m.name || m.id;
-  const cornerBadge = ev
-    ? `\n    <span class="ev-corner ev-${ev}" title="${esc((m.abbr || m.id) + ' \u2014 ' + cite)}"></span>`
-    : '';
+  const cornerBadge = ev ? `\n    <span class="ev-corner ev-${ev}" title="${esc((m.abbr || m.id) + ' \u2014 ' + cite)}"></span>` : '';
 
   // Range table
   let rangeTable = '';
   if (hasRanges) {
-    const rows = m.ranges.map(r => {
-      const cls = rangeClass(r.class);
-      const maxStr = r.max !== null ? `≤ ${r.max}` : '—';
-      return `
+    const rows = m.ranges
+      .map((r) => {
+        const cls = rangeClass(r.class);
+        const maxStr = r.max !== null ? `≤ ${r.max}` : '—';
+        return `
         <tr class="${cls}">
           <td>${esc(maxStr)}</td>
           <td class="nr">${esc(r.label)}</td>
         </tr>`;
-    }).join('\n');
+      })
+      .join('\n');
 
     rangeTable = `
       <div class="nt-wrap">
@@ -238,9 +240,7 @@ function genEvidenceLegend() {
 
 // ─── Generate section ───────────────────────────────────────────────────────
 function genSection(section) {
-  const metricCards = section.metrics.map(m =>
-    genMetricCard(m, section.id)
-  ).join('\n');
+  const metricCards = section.metrics.map((m) => genMetricCard(m, section.id)).join('\n');
 
   // Determine if we should use a grid layout (>2 metrics)
   const useGrid = section.metrics.length > 2;
@@ -269,9 +269,7 @@ function genAbbrIndex() {
   const entries = allAbbrs();
   if (entries.length === 0) return '';
 
-  const rows = entries.map(([abbr, full]) =>
-    `<tr><td class="nr" style="color:var(--teal)">${esc(abbr)}</td><td>${esc(full)}</td></tr>`
-  ).join('\n');
+  const rows = entries.map(([abbr, full]) => `<tr><td class="nr" style="color:var(--teal)">${esc(abbr)}</td><td>${esc(full)}</td></tr>`).join('\n');
 
   return `
 <div class="rs" id="abbr">
@@ -294,9 +292,9 @@ function genAbbrIndex() {
 // ─── Generate CSS (page-specific overrides only) ───────────────────────────
 function genPageCSS() {
   const hex = manifest.accentHex || '#3DE0D0';
-  const hex10 = hex + '1a';  // ~10% opacity
-  const hex20 = hex + '33';  // ~20% opacity
-  const hex30 = hex + '4d';  // ~30% opacity
+  const hex10 = hex + '1a'; // ~10% opacity
+  const hex20 = hex + '33'; // ~20% opacity
+  const hex30 = hex + '4d'; // ~30% opacity
 
   return `
 /* ${manifest.node} — page-specific overrides (built by dex-gen.js) */
@@ -338,9 +336,9 @@ function genHTML() {
   const quickJump = genQuickJump();
   const pageCSS = genPageCSS();
   const totalMetrics = metrics.length;
-  const coreMetrics = metrics.filter(m => m.tier === 'core').length;
-  const advMetrics = metrics.filter(m => m.tier === 'secondary').length;
-  const resMetrics = metrics.filter(m => m.tier === 'research').length;
+  const coreMetrics = metrics.filter((m) => m.tier === 'core').length;
+  const advMetrics = metrics.filter((m) => m.tier === 'secondary').length;
+  const resMetrics = metrics.filter((m) => m.tier === 'research').length;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -403,11 +401,18 @@ ${pageCSS}
         Quick Jump &amp; Search
       </a>
     </div>
-    ${manifest.sections.map(s => `
+    ${manifest.sections
+      .map(
+        (s) => `
     <div class="nav-lbl">${esc(s.title)}</div>
     <div class="nav">
-      ${mobileDrawerLinks.split('\n').filter(l => l.includes(s.id)).join('\n')}
-    </div>`).join('\n')}
+      ${mobileDrawerLinks
+        .split('\n')
+        .filter((l) => l.includes(s.id))
+        .join('\n')}
+    </div>`
+      )
+      .join('\n')}
   </div>
 </div>
 
@@ -454,11 +459,15 @@ ${pageCSS}
     </p>
   </div>
 
-  ${manifest.warning ? `
+  ${
+    manifest.warning
+      ? `
   <div class="co co-w">
     <span class="co-ic">&#x26A0;&#xFE0F;</span>
     <div><strong>Important:</strong> ${esc(manifest.warning)}</div>
-  </div>` : ''}
+  </div>`
+      : ''
+  }
 
   ${quickJump}
 
@@ -540,11 +549,11 @@ fs.writeFileSync(outputPath, html, 'utf-8');
 const stats = {
   sections: manifest.sections.length,
   metrics: allMetrics().length,
-  core: allMetrics().filter(m => m.tier === 'core').length,
-  secondary: allMetrics().filter(m => m.tier === 'secondary').length,
-  research: allMetrics().filter(m => m.tier === 'research').length,
+  core: allMetrics().filter((m) => m.tier === 'core').length,
+  secondary: allMetrics().filter((m) => m.tier === 'secondary').length,
+  research: allMetrics().filter((m) => m.tier === 'research').length,
   abbreviations: allAbbrs().length,
-  bytes: Buffer.byteLength(html, 'utf-8'),
+  bytes: Buffer.byteLength(html, 'utf-8')
 };
 
 console.log(`\n✓ Generated ${esc(manifest.node)} Reference Guide`);

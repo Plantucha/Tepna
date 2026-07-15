@@ -56,55 +56,5 @@
   },
   "assist": {
     "enabled": false
-  },
-  "overrides": [
-    {
-      "includes": [
-        "cpapdex-render.js",
-        "cpapdex-dsp.js",
-        "cpapdex-cross.js",
-        "ecgdex-app.js",
-        "glucodex-app.js",
-        "integrator-app.js",
-        "ppgdex-app.js",
-        "pulsedex-render.js",
-        "pulsedex-app.js",
-        "oxydex-render.js",
-        "oxydex-fusion.js",
-        "oxydex-app.js",
-        "hrvdex-dsp.js",
-        "hrvdex-app.js",
-        "ppgdex-dsp.js",
-        "ppgdex-morph.js",
-        "sensor-trio-worker.js",
-        "sensor-trio-power-analysis.js",
-        "sigma-no-reference-analysis.js",
-        "nights-icc-analysis.js",
-        "cgm-hrv-coupling-analysis.js",
-        "treatment-response-analysis.js",
-        "hrv-confound-analysis.js",
-        "analysis-stats.js",
-        "clock.js",
-        "glucodex-dsp.js",
-        "glucodex-render.js",
-        "integrator-dsp.js",
-        "ecgdex-dsp.js",
-        "adapters/polar-rr.js",
-        "cpapdex-app.js",
-        "cpapdex-registry.js",
-        "signal-spec.js",
-        "dex-coload.js",
-        "adapters/polar-h10-ecg.js",
-        "adapters/polar-sense-ppg.js",
-        "adapters/welltory-summary.js",
-        "signal-orchestrate.js",
-        "signal-frame.js",
-        "dex-ingest.js",
-        "oxydex-dsp.js"
-      ],
-      "formatter": {
-        "enabled": false
-      }
-    }
-  ]
+  }
 }

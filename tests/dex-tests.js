@@ -2125,13 +2125,13 @@
       //         in PulseDex (which has no such dedicated channel). These guards lock that decision.
       var ecg = src['ecgdex-dsp.js'];
       if (ecg) {
-        T.ok('ecgdex lombScargle tracks its peak in the HF branch only (intentional)', /else\s*\{\s*hf\+=e;\s*if\(P>peakP\)/.test(ecg));
+        T.ok('ecgdex lombScargle tracks its peak in the HF branch only (intentional)', /else\s*\{\s*hf\s*\+=\s*e;\s*if\s*\(\s*P\s*>\s*peakP\s*\)/.test(ecg));
         T.ok('ecgdex covers sub-HF CSR via a dedicated apnea-band detector (detectCVHR), not lombScargle', /function\s+detectCVHR/.test(ecg) && /apnea-band/.test(ecg));
         T.ok('ecgdex whole-record respRate is a per-epoch EDR median (decoupled from single-window peak)', /_respMedian/.test(ecg));
       }
       var ppg = src['ppgdex-dsp.js'];
       if (ppg) {
-        var pLsBody = (ppg.match(/function\s+lombScargle[\s\S]*?\n\}/) || [''])[0];
+        var pLsBody = (ppg.match(/function\s+lombScargle\b[\s\S]*?(?=\n\s*function\s|$)/) || [''])[0];
         T.ok('ppgdex lombScargle exposes NO respRate/peak path (band-power only → defect absent)', pLsBody.length > 0 && !/respRate/.test(pLsBody) && !/peakF|peakHz|peakBelowHF/.test(pLsBody));
       }
     });
@@ -2583,8 +2583,14 @@
         //    for a stampless recording — thread null (Clock §2.6), so the render falls to a relative axis
         //    and the node-export startEpochMs stays null (matching the orchestrate path). ──
         T.ok('ecgdex-app retired the _floatNow() now()-fallback (Clock §2.6 — missing stamp → null)', !/function\s+_floatNow\b/.test(app));
-        T.ok('primary ECG loaders thread null for a missing t0Ms (not a fabricated now())', /t0Ms:\(d\.t0Ms!=null\?d\.t0Ms:null\)/.test(app) && /t0Ms:\(t0Ms!=null\?t0Ms:null\)/.test(app));
-        T.ok('RR / Welltory-CSV exporters anchor an undated recording at 0, never now()', !/r\.t0Ms!=null\?r\.t0Ms:_floatNow/.test(app) && /r\.t0Ms!=null\?r\.t0Ms:0/.test(app));
+        T.ok(
+          'primary ECG loaders thread null for a missing t0Ms (not a fabricated now())',
+          /t0Ms:\s*\(?d\.t0Ms\s*!=\s*null\s*\?\s*d\.t0Ms\s*:\s*null\)?/.test(app) && /t0Ms:\s*\(?t0Ms\s*!=\s*null\s*\?\s*t0Ms\s*:\s*null\)?/.test(app)
+        );
+        T.ok(
+          'RR / Welltory-CSV exporters anchor an undated recording at 0, never now()',
+          !/r\.t0Ms\s*!=\s*null\s*\?\s*r\.t0Ms\s*:\s*_floatNow/.test(app) && /r\.t0Ms\s*!=\s*null\s*\?\s*r\.t0Ms\s*:\s*0/.test(app)
+        );
       }
     });
 
@@ -2719,7 +2725,9 @@
       if (src) {
         T.ok(
           'detectPeaks bleeds a stalled SPKI toward noise after a non-physiologic gap (idleLimit guard)',
-          /idleLimit\s*=\s*Math\.round\(\s*2\.5\s*\*\s*fs\s*\)/.test(src) && /\(i - last\)\s*>\s*idleLimit/.test(src) && /SPKI\s*=\s*Math\.max\(\s*NPKI\s*,\s*SPKI\s*\*\s*0\.99\s*\)/.test(src)
+          /idleLimit\s*=\s*Math\.round\(\s*2\.5\s*\*\s*fs\s*\)/.test(src) &&
+            /\(?\s*i\s*-\s*last\s*\)?\s*>\s*idleLimit/.test(src) &&
+            /SPKI\s*=\s*Math\.max\(\s*NPKI\s*,\s*SPKI\s*\*\s*0\.99\s*\)/.test(src)
         );
       }
     });
@@ -5147,7 +5155,10 @@
           m,
           n = 0;
         while ((m = re.exec(text)) !== null) {
-          if (!BADGED.test(text.slice(Math.max(0, m.index - 260), m.index + 40))) n++;
+          // window widened (was -260/+40) after the BIOME-FORMATTER whole-tree reflow (P4): the reflow
+          // spaces out a tile's construction, so a badge leading OR trailing the value tile now sits
+          // farther from the value class — still the same construction. Heuristic bound, not a theorem.
+          if (!BADGED.test(text.slice(Math.max(0, m.index - 400), m.index + 200))) n++;
         }
         return n;
       }
@@ -5367,7 +5378,7 @@
        IIFE, so they are NOT globals, and a free reference to one throws just as it would in the worker.
        That is what lets these run headless in CI instead of only in a browser. */
     function _fnBodyFrom(src, name) {
-      var i = src.search(new RegExp('^function\\s+' + name + '\\s*\\(', 'm'));
+      var i = src.search(new RegExp('^\\s*function\\s+' + name + '\\s*\\(', 'm'));
       if (i < 0) return '';
       var d = 0,
         started = false;
@@ -5397,7 +5408,7 @@
       if (mC) {
         (mC[1].match(/([A-Za-z_$][\w$]*)\s*:/g) || []).forEach(function (t) {
           var n = t.replace(':', '').trim();
-          var m = src.match(new RegExp('^const\\s+' + n + '\\s*=\\s*([^;]+);', 'm'));
+          var m = src.match(new RegExp('^\\s*const\\s+' + n + '\\s*=\\s*([^;]+);', 'm'));
           if (m) cs += 'const ' + n + '=' + m[1].trim() + ';\n';
         });
       }
@@ -5759,17 +5770,21 @@
         });
       }
 
-      // the module's universe: what EXISTS at module scope but does NOT exist in an empty worker realm
+      // the module's universe: what EXISTS at module scope but does NOT exist in an empty worker realm.
+      // Anchor to the MODULE-scope indent only ({0,3} leading spaces): 0 for an un-wrapped file, 2 for
+      // the single-IIFE ppgdex-dsp.js. This deliberately EXCLUDES function-local decls (≥4-space indent)
+      // — after the BIOME-FORMATTER whole-tree reflow (P4) a plain `^\s*` would scoop up local consts
+      // like `const WIN`/`let T` and false-flag them as unshipped module consts.
       var universe = {};
-      var fRe = /^function\s+([A-Za-z_$][\w$]*)\s*\(/gm,
+      var fRe = /^ {0,3}function\s+([A-Za-z_$][\w$]*)\s*\(/gm,
         m;
       while ((m = fRe.exec(src))) universe[m[1]] = 'function';
-      var cRe = /^(?:const|let|var)\s+([A-Z_][A-Z0-9_]*)\s*=/gm;
+      var cRe = /^ {0,3}(?:const|let|var)\s+([A-Z_][A-Z0-9_]*)\s*=/gm;
       while ((m = cRe.exec(src))) universe[m[1]] = 'const';
 
       // pull each shipped function's own source (balanced braces from its declaration)
       function bodyOf(name) {
-        var i = src.search(new RegExp('^function\\s+' + name + '\\s*\\(', 'm'));
+        var i = src.search(new RegExp('^\\s*function\\s+' + name + '\\s*\\(', 'm'));
         if (i < 0) return '';
         var d = 0,
           started = false;
@@ -6674,9 +6689,9 @@
       // source-mirror: the emit contract (sqi on every event; motion uses sqiAt()) + the §3 preserve fix.
       var src = (env.sources || {})['ppgdex-dsp.js'];
       if (src) {
-        T.ok('evt() helper stamps an sqi axis (number|null) on every emitted event', /sqi\s*:\s*\(\s*sqiVal\s*!==\s*undefined\s*\?\s*sqiVal\s*:\s*null\s*\)/.test(src));
+        T.ok('evt() helper stamps an sqi axis (number|null) on every emitted event', /sqi\s*:\s*\(?\s*sqiVal\s*!==\s*undefined\s*\?\s*sqiVal\s*:\s*null\s*\)?/.test(src));
         T.ok('motion_artifact_segment passes a real sqi via sqiAt()', /motion_artifact_segment'[\s\S]{0,40}sqiAt\(/.test(src));
-        T.ok('ppgBuildNodeExport PRESERVES sqi (the §3 round-trip fix, not the old drop)', /conf:e\.conf,\s*sqi:\(e\.sqi\s*!==\s*undefined/.test(src));
+        T.ok('ppgBuildNodeExport PRESERVES sqi (the §3 round-trip fix, not the old drop)', /conf:\s*e\.conf,\s*sqi:\s*\(?e\.sqi\s*!==\s*undefined/.test(src));
       } else {
         T.ok('ppgdex-dsp.js source available (env.sources)', false, 'add it to both runners');
       }
@@ -6923,7 +6938,7 @@
       var crosses = ['ecgdex-cross.js', 'oxydex-cross.js', 'pulsedex-cross.js', 'ppgdex-cross.js', 'cpapdex-cross.js'].filter(function (f) {
         return s[f];
       });
-      var sigRe = /mk\.p\s*<\s*DexKernel\.K\.SIGNIF_P\s*&&\s*Math\.abs\(mk\.tau\|\|0\)\s*>\s*DexKernel\.K\.SIGNIF_TAU/;
+      var sigRe = /mk\.p\s*<\s*DexKernel\.K\.SIGNIF_P\s*&&\s*Math\.abs\(mk\.tau\s*\|\|\s*0\)\s*>\s*DexKernel\.K\.SIGNIF_TAU/;
       T.ok('≥3 cross modules loaded for comparison', crosses.length >= 3, crosses.join(', '));
       crosses.forEach(function (f) {
         T.ok(f + ' uses kernel significance rule (SIGNIF_P & SIGNIF_TAU)', sigRe.test(s[f]));
@@ -10029,13 +10044,17 @@
           'subjective Welltory columns parse absent → null, NOT a fabricated 0 (§B3 — reverses the old ||0 rule)',
           /_stress\s*=\s*_firstNum\(/.test(dsp) && /_energy\s*=\s*_firstNum\(/.test(dsp) && !/_stress\s*=\s*parseFloat\(.*\|\|\s*0\)/.test(dsp)
         );
-        T.ok('SDNN rolling filter is symmetric with rmssd7 (drops null/≤0)', /const\s+sdnn7\s*=\s*window7\.map\(x\s*=>\s*x\._sdnn\)\.filter\(v\s*=>\s*!isNaN\(v\)\s*&&\s*v\s*>\s*0\)/.test(dsp));
-        T.ok('d_sdnn_z gates on the row’s OWN _sdnn presence (absent row → NaN, no fabricated z)', /d_sdnn_z\s*=\s*\(r\._sdnn\s*>\s*0\s*&&\s*stdSDNN7\s*>\s*0\)/.test(dsp));
+        T.ok(
+          'SDNN rolling filter is symmetric with rmssd7 (drops null/≤0)',
+          /const\s+sdnn7\s*=\s*window7\.map\(\(?x\)?\s*=>\s*x\._sdnn\)\.filter\(\(?v\)?\s*=>\s*!isNaN\(v\)\s*&&\s*v\s*>\s*0\)/.test(dsp)
+        );
+        T.ok('d_sdnn_z gates on the row’s OWN _sdnn presence (absent row → NaN, no fabricated z)', /d_sdnn_z\s*=\s*\(?r\._sdnn\s*>\s*0\s*&&\s*stdSDNN7\s*>\s*0\)?/.test(dsp));
         // FOLLOWUPS §2: the pNN50 rolling slope drops an ABSENT (null) day but KEEPS a real 0 (pNN50=0
         // is physiological) — Number.isFinite, not !isNaN (which coerced null→0 and polluted the slope).
         T.ok(
           'pNN50 rolling slope uses Number.isFinite (keep real 0, drop absent null) — §2 followups',
-          /pnn507\s*=\s*window7\.map\(x\s*=>\s*x\._pnn50\)\.filter\(v\s*=>\s*Number\.isFinite\(v\)\)/.test(dsp) && /window7\.filter\(x=>Number\.isFinite\(x\._pnn50\)\)/.test(dsp)
+          /pnn507\s*=\s*window7\.map\(\(?x\)?\s*=>\s*x\._pnn50\)\.filter\(\(?v\)?\s*=>\s*Number\.isFinite\(v\)\)/.test(dsp) &&
+            /window7\.filter\(\(?x\)?\s*=>\s*Number\.isFinite\(x\._pnn50\)\)/.test(dsp)
         );
       }
       if (app2) {
@@ -10120,18 +10139,18 @@
           'computeDerived guards Baevsky SI via DexUnits.guardBaevsky (single-source, not forked)',
           /DexUnits\.guardBaevsky\(r\._mode, r\._mxdmn\)/.test(dsp) && /DexUnits\.baevskySI\(r\._amo50, _baev\.modeS, _baev\.mxdmnS\)/.test(dsp)
         );
-        T.ok('computeDerived d_csi uses the guard-normalized (seconds) MxDMn, not the raw column', /_mxdmnS = \(r\._baevskyS/.test(dsp) && /d_csi = \(meanRR_s > 0 && _mxdmnS != null\)/.test(dsp));
+        T.ok('computeDerived d_csi uses the guard-normalized (seconds) MxDMn, not the raw column', /_mxdmnS = \(?r\._baevskyS/.test(dsp) && /d_csi = \(?meanRR_s > 0 && _mxdmnS != null\)?/.test(dsp));
         T.ok('computeDerived reads the canonical threshold (no forked RR_MS_THRESHOLD literal)', !/RR_MS_THRESHOLD\s*=/.test(dsp));
         // ── §8 #2: zero-seeded black-box composites must NOT surface a fabricated 0 on a raw recording ──
-        T.ok('d_welfare gated on subjective inputs PRESENT (>0), never a fake 0', /d_welfare = \(r\._energy > 0 && r\._coherence > 0\)/.test(dsp));
-        T.ok('d_efc gated on subjective inputs PRESENT (>0)', /d_efc = \(r\._energy > 0 && r\._focus > 0 && r\._coherence > 0\)/.test(dsp));
-        T.ok('d_ans_load gated on subjective inputs PRESENT (>0)', /d_ans_load = \(r\._sns > 0 && r\._stress > 0 && r\._psns > 0 && r\._energy > 0\)/.test(dsp));
+        T.ok('d_welfare gated on subjective inputs PRESENT (>0), never a fake 0', /d_welfare = \(?r\._energy > 0 && r\._coherence > 0\)?/.test(dsp));
+        T.ok('d_efc gated on subjective inputs PRESENT (>0)', /d_efc = \(?r\._energy > 0 && r\._focus > 0 && r\._coherence > 0\)?/.test(dsp));
+        T.ok('d_ans_load gated on subjective inputs PRESENT (>0)', /d_ans_load = \(?r\._sns > 0 && r\._stress > 0 && r\._psns > 0 && r\._energy > 0\)?/.test(dsp));
         // ── -V §1: the zero-seed gate is BROADER than the three §8 #2 KPIs — every composite FED
         //    by a black-box subjective score gates on the ONE shared _hasSubj predicate, so a raw
         //    recording renders them — (NaN), never a fabricated 0. ──
         T.ok(
           'a single _hasSubj predicate (all six subjective inputs >0) is defined once',
-          /_hasSubj = \(r\._stress > 0 && r\._energy > 0 && r\._focus > 0 && r\._coherence > 0 && r\._sns > 0 && r\._psns > 0\)/.test(dsp)
+          /_hasSubj = \(?r\._stress > 0 && r\._energy > 0 && r\._focus > 0 && r\._coherence > 0 && r\._sns > 0 && r\._psns > 0\)?/.test(dsp)
         );
         ['d_se_div', 'd_coh_energy', 'd_pti', 'd_sfd', 'd_focus_eff', 'd_hile'].forEach(function (m) {
           T.ok(m + ' gated on _hasSubj (no fabricated 0 on a raw recording)', new RegExp(m.replace(/[_]/g, '\\_') + ' = _hasSubj \\?').test(dsp), m);
@@ -12174,10 +12193,10 @@
         T.ok('exposed as window.GluDisp for app/profile', rnd.indexOf('global.GluDisp = GluDisp') >= 0);
         T.ok("default unit is mg/dL (mmol only when stored === 'mmol')", rnd.indexOf("_gluDispUnit = 'mgdl'") >= 0 && rnd.indexOf('glucodex_dispUnit') >= 0);
         // STANDARDIZED consensus mmol cutoffs — NOT naive ÷18.018 of the mg/dL band edges
-        T.ok('mmol band edge 54 → 3.0 (consensus)', rnd.indexOf("54:'3.0'") >= 0);
-        T.ok('mmol band edge 70 → 3.9 (consensus)', rnd.indexOf("70:'3.9'") >= 0);
-        T.ok('mmol band edge 180 → 10.0 (consensus)', rnd.indexOf("180:'10.0'") >= 0);
-        T.ok('mmol band edge 250 → 13.9 (consensus)', rnd.indexOf("250:'13.9'") >= 0);
+        T.ok('mmol band edge 54 → 3.0 (consensus)', /54:\s*'3\.0'/.test(rnd));
+        T.ok('mmol band edge 70 → 3.9 (consensus)', /70:\s*'3\.9'/.test(rnd));
+        T.ok('mmol band edge 180 → 10.0 (consensus)', /180:\s*'10\.0'/.test(rnd));
+        T.ok('mmol band edge 250 → 13.9 (consensus)', /250:\s*'13\.9'/.test(rnd));
         T.ok('boundary conversion factor is 18.018', rnd.indexOf('_GLU_MMOL = 18.018') >= 0);
         T.ok('TIR legend routes through GluDisp.label()', rnd.indexOf('${s.sub} ${GluDisp.label()}') >= 0);
       }
@@ -12507,11 +12526,11 @@
       T.ok('_hrvSig defined', /function _hrvSig/.test(s));
       T.ok('_hrvSig keys on the floating tMs (Math.round(r._tMs))', /Math\.round\(r\._tMs\)/.test(s));
       T.ok('_hrvSig includes the core metric tuple (rmssd+sdnn+meanRR)', /_hrvNum\(r\._rmssd\)/.test(s) && /_hrvNum\(r\._sdnn\)/.test(s) && /_hrvNum\(r\._meanRR\)/.test(s));
-      T.ok("_hrvSig is a joined signature ('|')", /\.join\('\|'\)/.test(s));
+      T.ok("_hrvSig is a joined signature ('|')", /\.join\(\s*'\|'\s*\)/.test(s));
 
       // ── commitRows: additive by default, wipe on replace, dedup, sort, persist ──
       T.ok('commitRows defined', /function commitRows/.test(s));
-      T.ok('commitRows wipes first only on {replace}', /if\(opts\.replace\)\s*allRows\s*=\s*\[\]/.test(s));
+      T.ok('commitRows wipes first only on {replace}', /if\s*\(opts\.replace\)\s*allRows\s*=\s*\[\]/.test(s));
       T.ok('commitRows dedups against existing rows by _hrvSig', /new Set\(allRows\.map\(_hrvSig\)\)/.test(s) && /seen\.has\(sig\)/.test(s));
       T.ok('commitRows sorts the merged table by floating tMs', /allRows\.sort\(\(a,\s*b\)\s*=>\s*a\._tMs\s*-\s*b\._tMs\)/.test(s));
       T.ok('commitRows mirrors to localStorage (persistHRVRows)', /persistHRVRows\(\)/.test(s));
@@ -12519,7 +12538,7 @@
       // ── _envToSeed: ECGDex ganglior.node-export → HRVDex row ──
       T.ok('_envToSeed defined', /function _envToSeed/.test(s));
       T.ok('_envToSeed reconstructs tMs from recording.startEpochMs', /rec\.startEpochMs/.test(s));
-      T.ok('_envToSeed returns null (honest-null) when the start clock is missing', /if\(!isFinite\(tMs\)\)\s*return null/.test(s));
+      T.ok('_envToSeed returns null (honest-null) when the start clock is missing', /if\s*\(!isFinite\(tMs\)\)\s*return null/.test(s));
       T.ok('_envToSeed prefers whole-record SDNN/RMSSD (cross-node comparability)', /wholeRecordRMSSD/.test(s) && /wholeRecordSDNN/.test(s));
       // P4: the Baevsky-SI geometric inputs are now read from the envelope (were hardcoded 0)
       T.ok('_envToSeed reads amo50/mode/mxDMn from hrv.time (P4)', /n\(tm\.amo50\)/.test(s) && /n\(tm\.mode\)/.test(s) && /n\(tm\.mxDMn\)/.test(s));
@@ -14037,7 +14056,7 @@
         var clip = function (s) {
           var i = s.indexOf('var _VENDOR_SIG = [');
           if (i < 0) return null;
-          var j = s.indexOf("return ext ? (stem + '.' + ext) : stem;", i);
+          var j = s.indexOf("return ext ? stem + '.' + ext : stem;", i);
           return j < 0 ? null : s.slice(i, j);
         };
         var a = clip(gp),

@@ -51,15 +51,20 @@ const ManifestGate = require(join(ROOT, 'manifest-gate.js'));
 
 const C = { reset: '\x1b[0m', red: '\x1b[31m', green: '\x1b[32m', dim: '\x1b[2m', bold: '\x1b[1m', yellow: '\x1b[33m' };
 const paint = (s, c) => (process.stdout.isTTY ? c + s + C.reset : s);
-const die = (code, msg) => { console.error(paint('\u2715 ' + msg, C.red)); process.exit(code); };
-const BUNDLES = ManifestGate.MANIFEST_BUNDLES;           // single source of the fleet (provenance-gated)
+const die = (code, msg) => {
+  console.error(paint('\u2715 ' + msg, C.red));
+  process.exit(code);
+};
+const BUNDLES = ManifestGate.MANIFEST_BUNDLES; // single source of the fleet (provenance-gated)
 // Orchestrators (Data Unifier / OverDex) are OWNED but NON-provenance — no BUILD-MANIFEST entry / no
 // fixtures (ORIENTATION: they touch neither gate). build.mjs builds them + `--check` guards drift; it does
 // NOT re-stamp ledgers for them. (OWN-THE-BUILD-FOLLOWUPS §6.)
 const ORCHESTRATORS = ['Data Unifier.html', 'OverDex.html'];
 const ALL = BUNDLES.concat(ORCHESTRATORS);
 
-function srcFor(bundleFile) { return bundleFile.replace(/\.html$/, '.src.html'); }
+function srcFor(bundleFile) {
+  return bundleFile.replace(/\.html$/, '.src.html');
+}
 const readT = (p) => readFileSync(join(ROOT, p), 'utf8');
 
 // Build ONE bundle in memory: read its .src.html + every referenced asset, hand to the core.
@@ -73,7 +78,7 @@ function buildOne(bundleFile) {
     if (!existsSync(join(ROOT, p))) throw new Error(srcFile + ' references missing asset ' + p);
     assets[p] = readT(p);
   }
-  return DexBuild.build({ srcHtml, assets });          // { html, manifestHash, assetNames }
+  return DexBuild.build({ srcHtml, assets }); // { html, manifestHash, assetNames }
 }
 
 // Re-stamp a bundle's manifestHash into BOTH ledgers (targeted, formatting-preserving string
@@ -91,13 +96,16 @@ function restampLedgers(bundleFile, oldHash, newHash) {
   // FIXTURE-PROVENANCE.json — every code-gated fixture of this bundle carries the committed hash.
   const fpPath = join(ROOT, 'FIXTURE-PROVENANCE.json');
   let fp = readFileSync(fpPath, 'utf8');
-  const fixtures = (JSON.parse(fp).fixtures) || {};
-  const owned = Object.keys(fixtures).filter(k => k[0] !== '_' && fixtures[k] && fixtures[k].bundle === bundleFile && !fixtures[k].historical);
-  const want = owned.filter(k => fixtures[k].manifestHash === oldHash).length;
+  const fixtures = JSON.parse(fp).fixtures || {};
+  const owned = Object.keys(fixtures).filter((k) => k[0] !== '_' && fixtures[k] && fixtures[k].bundle === bundleFile && !fixtures[k].historical);
+  const want = owned.filter((k) => fixtures[k].manifestHash === oldHash).length;
   const fpKey = '"manifestHash": "' + oldHash + '",';
   const fpN = fp.split(fpKey).length - 1;
   if (fpN !== want) throw new Error('FIXTURE-PROVENANCE: expected ' + want + ' code-gated "' + oldHash + '," for ' + bundleFile + ', found ' + fpN);
-  if (fpN) { fp = fp.split(fpKey).join('"manifestHash": "' + newHash + '",'); writeFileSync(fpPath, fp); }
+  if (fpN) {
+    fp = fp.split(fpKey).join('"manifestHash": "' + newHash + '",');
+    writeFileSync(fpPath, fp);
+  }
   return { manifest: bmN, fixtures: fpN };
 }
 
@@ -109,47 +117,93 @@ function committedHash(bundleFile) {
 function writeBundle(bundleFile) {
   const r = buildOne(bundleFile);
   writeFileSync(join(ROOT, bundleFile), r.html);
-  if (BUNDLES.includes(bundleFile)) {                    // provenance bundle — re-stamp ledgers
+  if (BUNDLES.includes(bundleFile)) {
+    // provenance bundle — re-stamp ledgers
     const old = committedHash(bundleFile);
     const stamp = restampLedgers(bundleFile, old, r.manifestHash);
-    console.log(paint('  \u2713 ', C.green) + bundleFile + paint('  manifestHash ' + old + ' \u2192 ' + r.manifestHash +
-      '  (' + r.html.length + ' bytes, ' + r.assetNames.length + ' assets' +
-      (stamp.fixtures ? ', ' + stamp.fixtures + ' fixture(s) re-stamped' : '') + ')', C.dim));
-  } else {                                               // orchestrator — owned, non-provenance (no ledger)
-    console.log(paint('  \u2713 ', C.green) + bundleFile + paint('  ' + r.manifestHash +
-      '  (' + r.html.length + ' bytes, ' + r.assetNames.length + ' assets · non-provenance orchestrator)', C.dim));
+    console.log(
+      paint('  \u2713 ', C.green) +
+        bundleFile +
+        paint(
+          '  manifestHash ' +
+            old +
+            ' \u2192 ' +
+            r.manifestHash +
+            '  (' +
+            r.html.length +
+            ' bytes, ' +
+            r.assetNames.length +
+            ' assets' +
+            (stamp.fixtures ? ', ' + stamp.fixtures + ' fixture(s) re-stamped' : '') +
+            ')',
+          C.dim
+        )
+    );
+  } else {
+    // orchestrator — owned, non-provenance (no ledger)
+    console.log(paint('  \u2713 ', C.green) + bundleFile + paint('  ' + r.manifestHash + '  (' + r.html.length + ' bytes, ' + r.assetNames.length + ' assets · non-provenance orchestrator)', C.dim));
   }
   return r.manifestHash;
 }
 
 // READ-ONLY drift check over OWNED bundles only (legacy gzip-pack bundles are skipped).
 function check() {
-  let drift = 0, checked = 0, skipped = 0;
+  let drift = 0,
+    checked = 0,
+    skipped = 0;
   console.log(paint('\u25b8 build --check \u2014 committed bundle \u2261 fresh build(source)', C.bold));
   for (const b of ALL) {
     const p = join(ROOT, b);
-    if (!existsSync(p)) { console.log(paint('  \u2715 ' + b + ' missing', C.red)); drift++; continue; }
+    if (!existsSync(p)) {
+      console.log(paint('  \u2715 ' + b + ' missing', C.red));
+      drift++;
+      continue;
+    }
     const committed = readFileSync(p, 'utf8');
-    if (!DexBuild.isPlainInline(committed)) { console.log(paint('  \u2218 ' + b + ' legacy __bundler/manifest \u2014 not yet owned, skipped', C.dim)); skipped++; continue; }
-    let r; try { r = buildOne(b); } catch (e) { console.log(paint('  \u2715 ' + b + ' build error: ' + e.message, C.red)); drift++; continue; }
-    if (r.html === committed) { console.log(paint('  \u2713 ', C.green) + b + paint('  ' + r.manifestHash, C.dim)); checked++; }
-    else { console.log(paint('  \u2715 ' + b + ' DRIFT \u2014 committed \u2260 fresh build(' + srcFor(b) + '); re-run `build.mjs --app ' + b.replace(/\.html$/, '') + '`', C.red)); drift++; }
+    if (!DexBuild.isPlainInline(committed)) {
+      console.log(paint('  \u2218 ' + b + ' legacy __bundler/manifest \u2014 not yet owned, skipped', C.dim));
+      skipped++;
+      continue;
+    }
+    let r;
+    try {
+      r = buildOne(b);
+    } catch (e) {
+      console.log(paint('  \u2715 ' + b + ' build error: ' + e.message, C.red));
+      drift++;
+      continue;
+    }
+    if (r.html === committed) {
+      console.log(paint('  \u2713 ', C.green) + b + paint('  ' + r.manifestHash, C.dim));
+      checked++;
+    } else {
+      console.log(paint('  \u2715 ' + b + ' DRIFT \u2014 committed \u2260 fresh build(' + srcFor(b) + '); re-run `build.mjs --app ' + b.replace(/\.html$/, '') + '`', C.red));
+      drift++;
+    }
   }
-  console.log((drift ? paint('\u2715 ' + drift + ' drift', C.red) : paint('\u2713 clean', C.green)) +
-    paint('  (' + checked + ' owned checked, ' + skipped + ' legacy skipped)', C.dim));
+  console.log((drift ? paint('\u2715 ' + drift + ' drift', C.red) : paint('\u2713 clean', C.green)) + paint('  (' + checked + ' owned checked, ' + skipped + ' legacy skipped)', C.dim));
   return drift;
 }
 
 function main() {
   const argv = process.argv.slice(2);
   const has = (f) => argv.includes(f);
-  const appArg = (() => { const i = argv.findIndex(a => a === '--app'); return i >= 0 ? argv[i + 1] : null; })();
+  const appArg = (() => {
+    const i = argv.findIndex((a) => a === '--app');
+    return i >= 0 ? argv[i + 1] : null;
+  })();
 
-  if (has('--check')) { process.exit(check() ? 1 : 0); }
+  if (has('--check')) {
+    process.exit(check() ? 1 : 0);
+  }
 
   if (has('--all')) {
     console.log(paint('\u25b8 build --all \u2014 owning every bundle (fleet migrate)', C.bold));
-    let n = 0; for (const b of ALL) { writeBundle(b); n++; }
+    let n = 0;
+    for (const b of ALL) {
+      writeBundle(b);
+      n++;
+    }
     console.log(paint('\u2713 built ' + n + ' bundle(s). Run `node tests/verify-manifest.mjs` + Dex-Test-Suite.html?full.', C.green));
     process.exit(0);
   }

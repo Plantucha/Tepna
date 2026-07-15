@@ -820,16 +820,14 @@
       done = resumeCk.done || {};
     } else {
       acc = { dynamic: {}, resting: {} };
-      for (const reg of ['dynamic', 'resting'])
-        for (const N of N_GRID) acc[reg][N] = newAccCell();
+      for (const reg of ['dynamic', 'resting']) for (const N of N_GRID) acc[reg][N] = newAccCell();
       rhoAcc = {};
       for (const rho of RHO_GRID) rhoAcc[rho] = { neg: 0, M: 0 };
       done = {};
     }
     if (!durAcc) {
       durAcc = { dynamic: {}, resting: {} };
-      for (const reg of ['dynamic', 'resting'])
-        for (let di = 0; di < DUR_GRID.length; di++) durAcc[reg][di] = newAccCell();
+      for (const reg of ['dynamic', 'resting']) for (let di = 0; di < DUR_GRID.length; di++) durAcc[reg][di] = newAccCell();
     }
 
     // build the remaining job queue (cell trials sharded in blocks; ρ legs too)

@@ -30,9 +30,7 @@
 
   var DEX_COLOAD = {
     // shared pre-DSP modules (load FIRST — delegating DSPs alias DexClock at load; A5 2026-07-03).
-    shared: [
-      'clock.js'
-    ],
+    shared: ['clock.js'],
     // vendor adapters (self-register on load; order = registration order, drift-bait).
     // Load AFTER signal-adapters.js; the parser they wrap is resolved lazily in parse(),
     // so they may load before the DSP (mirrors the existing host ordering).
@@ -50,14 +48,7 @@
     // namespaced node DSPs (each hangs its public surface off ONE global —
     // PulseDex/OxyDex/HRVDex/GlucoDex/PpgDex/ECGDex — and leaks nothing bare under
     // __DEX_NAMESPACED__). signal-orchestrate.js resolves these by name.
-    dsps: [
-      'pulsedex-dsp.js',
-      'oxydex-dsp.js',
-      'hrvdex-dsp.js',
-      'glucodex-dsp.js',
-      'ppgdex-dsp.js',
-      'ecgdex-dsp.js'
-    ],
+    dsps: ['pulsedex-dsp.js', 'oxydex-dsp.js', 'hrvdex-dsp.js', 'glucodex-dsp.js', 'ppgdex-dsp.js', 'ecgdex-dsp.js'],
     // ── per-node AUXILIARY modules every app bundle ships but that are NOT routable DSPs/adapters
     //    (CROSS-MODULE-RUNTIME-COVERAGE §1/§2). These fell OUTSIDE the adapters+dsps manifest, so
     //    nothing asserted they were even runtime-LOADED in the suite — exactly how cpapdex-cross.js
@@ -68,23 +59,27 @@
     //    `*-edf.js`, `*-fusion.js` are deliberately NOT here — they need a booted app / are covered
     //    by the render-coverage rigs + CpapEdf.selfTest + the equivalence goldens.)
     nodeModules: [
-      { file: 'clock.js',           global: 'DexClock' },
-      { file: 'ecgdex-cross.js',    global: 'ECGCross' },
-      { file: 'oxydex-cross.js',    global: 'OXYCross' },
-      { file: 'pulsedex-cross.js',  global: 'PulseCross' },
-      { file: 'ppgdex-cross.js',    global: 'PPGCross' },
-      { file: 'cpapdex-cross.js',   global: 'CPAPCross' },
+      { file: 'clock.js', global: 'DexClock' },
+      { file: 'ecgdex-cross.js', global: 'ECGCross' },
+      { file: 'oxydex-cross.js', global: 'OXYCross' },
+      { file: 'pulsedex-cross.js', global: 'PulseCross' },
+      { file: 'ppgdex-cross.js', global: 'PPGCross' },
+      { file: 'cpapdex-cross.js', global: 'CPAPCross' },
       { file: 'cpapdex-coimport.js', global: 'CpapCoimport' }
     ]
   };
 
   // basename(path) === the registered adapter id, by convention (see header).
-  DEX_COLOAD.adapterIds = DEX_COLOAD.adapters.map(function (p) { return p.replace(/^adapters\//, '').replace(/\.js$/, ''); });
+  DEX_COLOAD.adapterIds = DEX_COLOAD.adapters.map(function (p) {
+    return p.replace(/^adapters\//, '').replace(/\.js$/, '');
+  });
   // every module a host realm must contain (set membership the conformance gate checks).
   DEX_COLOAD.all = DEX_COLOAD.shared.concat(DEX_COLOAD.adapters).concat(DEX_COLOAD.dsps);
   // the global each nodeModule must expose once runtime-co-loaded (CROSS-MODULE-RUNTIME-COVERAGE §1/§2).
-  DEX_COLOAD.nodeModuleGlobals = DEX_COLOAD.nodeModules.map(function (m) { return m.global; });
+  DEX_COLOAD.nodeModuleGlobals = DEX_COLOAD.nodeModules.map(function (m) {
+    return m.global;
+  });
 
   /** @type {any} */ (root).DexCoload = DEX_COLOAD;
   if (typeof module !== 'undefined' && module.exports) module.exports = DEX_COLOAD;
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
