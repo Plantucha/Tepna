@@ -153,6 +153,52 @@
     return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
   };
   const pct = (sorted, p) => sorted[Math.max(0, Math.min(sorted.length - 1, Math.floor(p * (sorted.length - 1))))];
+
+  // ── streaming per-cell reduction (fixed histogram + exact running moments) ────────────────
+  // Replaces the unbounded per-trial median arrays, so trials/cell can reach the GPU's millions
+  // without the main thread holding — or sorting — O(trials) memory. Percentiles (σ median, CI)
+  // come from a fixed-range histogram (HIST_BW resolution); RMSE/bias are computed EXACTLY from
+  // running Σv / Σv² / n, so only the order statistics carry any binning quantization. σ here is
+  // an HR-error std in bpm; [0,100] with 0.002-bpm bins covers every plausible value with room to
+  // spare (out-of-range folds clamp to the edge bin). The accumulator is a constant ~600 KB/cell
+  // regardless of trials — and IndexedDB structured-clone checkpoints the Uint32Array as-is.
+  const HIST_LO = 0,
+    HIST_HI = 100,
+    HIST_BINS = 50000,
+    HIST_BW = (HIST_HI - HIST_LO) / HIST_BINS;
+  function newAccCell() {
+    const z = () => ({ o2: 0, h10: 0, verity: 0 });
+    return {
+      hist: { o2: new Uint32Array(HIST_BINS), h10: new Uint32Array(HIST_BINS), verity: new Uint32Array(HIST_BINS) },
+      sumV: z(),
+      sumV2: z(),
+      cnt: z(),
+      negCount: z(),
+      negTot: z()
+    };
+  }
+  function foldMedian(a, k, v) {
+    let bi = ((v - HIST_LO) / HIST_BW) | 0;
+    if (bi < 0) bi = 0;
+    else if (bi >= HIST_BINS) bi = HIST_BINS - 1;
+    a.hist[k][bi]++;
+    a.sumV[k] += v;
+    a.sumV2[k] += v * v;
+    a.cnt[k]++;
+  }
+  // p-quantile from the histogram, linearly interpolated inside the containing bin.
+  function pctHist(hist, cnt, p) {
+    if (!cnt) return null;
+    const target = p * cnt;
+    let cum = 0;
+    for (let b = 0; b < HIST_BINS; b++) {
+      const c = hist[b];
+      if (!c) continue;
+      if (cum + c >= target) return HIST_LO + (b + (target - cum) / c) * HIST_BW;
+      cum += c;
+    }
+    return HIST_HI;
+  }
   function pearson(x, y) {
     const mx = mean(x),
       my = mean(y);
@@ -298,9 +344,9 @@
     const maxN = N_GRID[N_GRID.length - 1];
     for (let gi = 0; gi < N_GRID.length; gi++) {
       const N = N_GRID[gi];
-      const agg = { o2: [], h10: [], verity: [] },
-        negCount = { o2: 0, h10: 0, verity: 0 },
-        negTot = { o2: 0, h10: 0, verity: 0 };
+      // Streaming reduction here too, so the serial last-resort path never holds O(trials)
+      // memory. finalizeCell is the single source of the σ/CI/RMSE math (shared with both lanes).
+      const a = newAccCell();
       for (let t = 0; t < CFG.trials; t++) {
         seed(trialSeed(stream, N, t));
         const per = { o2: [], h10: [], verity: [] };
@@ -308,34 +354,15 @@
           const win = genWindow(regime, rho);
           const s = windowSigma(win);
           for (const k of DKEYS) {
-            negTot[k]++;
+            a.negTot[k]++;
             if (s[k] != null) per[k].push(s[k]);
-            else negCount[k]++;
+            else a.negCount[k]++;
           }
         }
-        for (const k of DKEYS) if (per[k].length) agg[k].push(median(per[k]));
+        for (const k of DKEYS) if (per[k].length) foldMedian(a, k, median(per[k]));
       }
-      for (const k of DKEYS) {
-        const a = agg[k].sort((p, q) => p - q);
-        const m = a.length ? median(a) : null,
-          lo = a.length ? pct(a, 0.025) : null,
-          hi = a.length ? pct(a, 0.975) : null;
-        let rmse = null;
-        if (a.length) {
-          let s = 0;
-          for (const v of a) s += (v - tgt[k]) * (v - tgt[k]);
-          rmse = Math.sqrt(s / a.length);
-        }
-        res[k][N] = {
-          sigma: m,
-          ciLo: lo,
-          ciHi: hi,
-          half: lo != null && hi != null ? (hi - lo) / 2 : null,
-          bias: m != null ? m - tgt[k] : null,
-          rmse,
-          negRate: negTot[k] ? negCount[k] / negTot[k] : 0
-        };
-      }
+      const fc = finalizeCell(a, tgt);
+      for (const k of DKEYS) res[k][N] = fc[k];
       if (onProg) await onProg((gi + 1) / N_GRID.length);
     }
     return { regime, rho, target: tgt, dev: res };
@@ -378,10 +405,13 @@
   // ════════════════════════════════════════════════════════════════════════
   //  REAL ARM — load the committed trio window(s), TCH per window
   // ════════════════════════════════════════════════════════════════════════
-  const TRIOS = [
-    { label: '2026-06-16/17 · 01:06–03:04', h10: 'uploads/h10-ecg-derived-2026-06-17-HR.txt', o2: 'uploads/O2Ring S 2100_20260616221235.csv', verity: 'uploads/verity-ppg-derived-2026-06-17-HR.txt' }
-    // append further real windows as their derived series are committed
-  ];
+  // No committed real window ships in the PUBLIC tool. The uploads/ derived series are gitignored
+  // personal data, so a public checkout has no files to fetch — and the no-network CSP
+  // (connect-src 'none') blocks fetch under file:// regardless. Leaving this empty removes the
+  // "Failed to fetch" row: the "Real trio window(s)" table + Figure 3 stay a drag-drop affordance
+  // (a user's own capture folder populates them live via the dropzone above). To use a committed
+  // window locally, add its { label, h10, o2, verity } entry here with the files in uploads/.
+  const TRIOS = [];
   const HR_MIN = 30,
     HR_MAX = 220,
     MIN_WIN_S = 1000;
@@ -679,19 +709,19 @@
       s = Math.round(sec % 60);
     return m ? m + 'm' + (s < 10 ? '0' : '') + s + 's' : s + 's';
   }
-  // collapse one cell's accumulated per-trial medians → {sigma,ci,half,bias,rmse,negRate}
+  // collapse one cell's streaming histogram + running moments → {sigma,ci,half,bias,rmse,negRate}
   function finalizeCell(a, tgt) {
     const res = {};
     for (const k of DKEYS) {
-      const arr = a.med[k].slice().sort((p, q) => p - q);
-      const m = arr.length ? median(arr) : null,
-        lo = arr.length ? pct(arr, 0.025) : null,
-        hi = arr.length ? pct(arr, 0.975) : null;
+      const n = a.cnt[k];
+      const m = pctHist(a.hist[k], n, 0.5),
+        lo = pctHist(a.hist[k], n, 0.025),
+        hi = pctHist(a.hist[k], n, 0.975);
       let rmse = null;
-      if (arr.length) {
-        let s = 0;
-        for (const v of arr) s += (v - tgt[k]) * (v - tgt[k]);
-        rmse = Math.sqrt(s / arr.length);
+      if (n) {
+        // Σ(v−t)² = Σv² − 2t·Σv + n·t²  — exact from the running moments (no per-trial storage).
+        const t = tgt[k];
+        rmse = Math.sqrt(Math.max(0, a.sumV2[k] - 2 * t * a.sumV[k] + n * t * t) / n);
       }
       res[k] = {
         sigma: m,
@@ -729,7 +759,8 @@
   function updEta() {
     const e = $('eta');
     if (!e) return;
-    const trials = Math.max(50, Math.min(50000, +($('trials') ? $('trials').value : 500) || 500));
+    const tmax = typeof TrioGPU !== 'undefined' && TrioGPU.ready ? 10000000 : 50000;
+    const trials = Math.max(50, Math.min(tmax, +($('trials') ? $('trials').value : 500) || 500));
     const r = parseFloat(localStorage.getItem('striopwr_secPer500'));
     e.textContent = r && isFinite(r) && r > 0 ? '≈ ' + fmtETA((r * trials) / 500) + ' (' + (navigator.hardwareConcurrency || '?') + ' cores)' : '↑ first run calibrates a per-machine estimate';
   }
@@ -748,7 +779,6 @@
       $('cancel').style.display = '';
       $('cancel').disabled = false;
     }
-    CFG.trials = Math.max(50, Math.min(50000, +$('trials').value || 500));
     CFG.winSec = Math.max(1200, Math.min(7200, +$('winSec').value || 3600));
     const t0 = performance.now();
     // ── GPU FAST LANE ────────────────────────────────────────────────────────
@@ -758,6 +788,12 @@
     // on the CPU pool that produced it: the two lanes seed differently (per-trial vs
     // per-window), so their trials must never be mixed inside one sweep.
     const GPU_OK = !resumeCk && typeof TrioGPU !== 'undefined' && (await TrioGPU.init());
+    // Lane-aware trial ceiling (clamp AFTER the lane is known). The GPU chunks every
+    // dispatch (MAX_WIN_PER_DISPATCH), so it absorbs a far larger Monte-Carlo count with a
+    // bounded buffer; the CPU pool streams trials but would freeze the tab for hours at that
+    // scale, so it keeps the original 50k guard. updEta() mirrors this via TrioGPU.ready.
+    const TRIAL_MAX = GPU_OK ? 10000000 : 50000;
+    CFG.trials = Math.max(50, Math.min(TRIAL_MAX, +$('trials').value || 500));
     const K = Math.max(1, Math.min(8, navigator.hardwareConcurrency || 4));
     let rdy = [];
     if (GPU_OK) {
@@ -768,7 +804,10 @@
       if (!pool.length) await bootPool(K);
       rdy = pool.filter((r) => r.ready);
     }
-    const sig = CFG.trials + '|' + CFG.winSec + '|' + CFG.ar1 + '|' + N_GRID.join(',');
+    // 'h1|' = streaming-histogram accumulator format v1. Bumping this token invalidates any
+    // checkpoint written by the old per-trial-array code, so resume never feeds finalizeCell a
+    // stale-shaped acc (missing .hist/.cnt) — a mismatched sig just starts a fresh run.
+    const sig = 'h1|' + CFG.trials + '|' + CFG.winSec + '|' + CFG.ar1 + '|' + N_GRID.join(',');
     const M = Math.max(800, CFG.trials),
       BLK = 256;
 
@@ -782,7 +821,7 @@
     } else {
       acc = { dynamic: {}, resting: {} };
       for (const reg of ['dynamic', 'resting'])
-        for (const N of N_GRID) acc[reg][N] = { med: { o2: [], h10: [], verity: [] }, negCount: { o2: 0, h10: 0, verity: 0 }, negTot: { o2: 0, h10: 0, verity: 0 } };
+        for (const N of N_GRID) acc[reg][N] = newAccCell();
       rhoAcc = {};
       for (const rho of RHO_GRID) rhoAcc[rho] = { neg: 0, M: 0 };
       done = {};
@@ -790,7 +829,7 @@
     if (!durAcc) {
       durAcc = { dynamic: {}, resting: {} };
       for (const reg of ['dynamic', 'resting'])
-        for (let di = 0; di < DUR_GRID.length; di++) durAcc[reg][di] = { med: { o2: [], h10: [], verity: [] }, negCount: { o2: 0, h10: 0, verity: 0 }, negTot: { o2: 0, h10: 0, verity: 0 } };
+        for (let di = 0; di < DUR_GRID.length; di++) durAcc[reg][di] = newAccCell();
     }
 
     // build the remaining job queue (cell trials sharded in blocks; ρ legs too)
@@ -836,9 +875,17 @@
         setStatus('run', Math.round((100 * dw) / totalWork) + '% · WebGPU · ' + (rate / 1000).toFixed(0) + 'k win/s · ETA ' + fmtETA((totalWork - dw) / (rate || 1)));
       };
       const yieldUI = () => new Promise((r) => setTimeout(r, 0));
-      const drain = async (r, a) => {
+      // runCell now STREAMS each dispatch's per-trial medians to onBlock and returns only the
+      // neg totals — fold the medians straight into the cell's histogram (never materialising the
+      // full O(trials) array), then add the neg counts.
+      const foldBlock = (a) => (block) => {
         for (const k of DKEYS) {
-          for (let i = 0; i < r.med[k].length; i++) a.med[k].push(r.med[k][i]);
+          const arr = block[k];
+          for (let i = 0; i < arr.length; i++) foldMedian(a, k, arr[i]);
+        }
+      };
+      const drain = (r, a) => {
+        for (const k of DKEYS) {
           a.negCount[k] += r.negCount[k];
           a.negTot[k] += r.negTot[k];
         }
@@ -848,7 +895,8 @@
         const stream = regime === 'dynamic' ? 1 : 2;
         for (const N of N_GRID) {
           if (CANCEL) break;
-          await drain(await TrioGPU.runCell(regime, 0, N, 0, CFG.trials, CFG.ar1, CFG.winSec, stream), acc[regime][N]);
+          const a = acc[regime][N];
+          drain(await TrioGPU.runCell(regime, 0, N, 0, CFG.trials, CFG.ar1, CFG.winSec, stream, foldBlock(a)), a);
           bump(CFG.trials * N);
           await yieldUI();
         }
@@ -866,7 +914,8 @@
         // window-duration sweep (N=1)
         for (let di = 0; di < DUR_GRID.length && !CANCEL; di++) {
           const stream = (regime === 'dynamic' ? 100 : 200) + di;
-          await drain(await TrioGPU.runCell(regime, 0, 1, 0, CFG.trials, CFG.ar1, DUR_GRID[di], stream), durAcc[regime][di]);
+          const a = durAcc[regime][di];
+          drain(await TrioGPU.runCell(regime, 0, 1, 0, CFG.trials, CFG.ar1, DUR_GRID[di], stream, foldBlock(a)), a);
           bump(CFG.trials);
           await yieldUI();
         }
@@ -919,8 +968,8 @@
           if (j.kind === 'cell' || j.kind === 'dur') {
             const a = j.kind === 'dur' ? durAcc[j.regime][j.durIdx] : acc[j.regime][j.N];
             for (const k of DKEYS) {
-              const src = r.med[k];
-              for (let i = 0; i < src.length; i++) a.med[k].push(src[i]);
+              const src = r.med[k]; // worker blocks are BLK-bounded, so this stays small
+              for (let i = 0; i < src.length; i++) foldMedian(a, k, src[i]);
               a.negCount[k] += r.negCount[k];
               a.negTot[k] += r.negTot[k];
             }

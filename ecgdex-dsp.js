@@ -577,6 +577,78 @@ function buildNN(times, rr, sqi, sqiThr, ectopyThr){
 }
 
 // ════════════════════════════════════════════════════════════════════════
+//  PER-SECOND ARTIFACT CONFIDENCE  (TCH-FUSED-ROBUST-HAT-2026-07-14)
+//  A per-second trust c ∈ [0,1] for the derived HR: c = density_trust × quality_trust.
+//    density_trust — redescends as the LOCAL beat-density (beats in a ±winSec/2 window) becomes
+//      an UPPER outlier vs the RECORD's own median density → spurious over-detection (the 06-12
+//      15-min burst reads z 13–22; clean nights ≤ z 7). This is the signal the per-beat SQI gate
+//      and Malik ectopy gate BOTH miss, because they are local and the burst is sustained.
+//    quality_trust — redescends as the local mean SQI falls BELOW the record's own median SQI.
+//      Keys on SIGNAL QUALITY, never rhythm ⇒ AF-safe: real AF/tachycardia keep clean QRS ⇒ high
+//      SQI ⇒ quality_trust ≈ 1, so nothing is dropped for irregularity alone.
+//  Self-calibrating (record's own medians) + a universal redescending cut C (Tukey-style); NO
+//  corpus-tuned threshold. Consumed by the fused-weight hat as a per-second weight (a corner it
+//  down-weights leaves that corner's difference series but not the others). Unwired here — the
+//  worker's ecgHrMap / the hat call it (see the brief's file-by-file plan).
+//  peaks: sample indices · sqi: per-beat SQI (from computeSQI) · fs · t0Ms: recording start (floating).
+//  Returns Map(absoluteSecond → confidence) aligned to the per-second HR the hat consumes.
+// ════════════════════════════════════════════════════════════════════════
+function beatConfidence(peaks, sqi, fs, t0Ms, winSec){
+  winSec = winSec || 60;
+  const n = peaks.length, out = new Map();
+  const t0 = t0Ms || 0;
+  const secAbs = k => Math.floor((t0 + peaks[k] / fs * 1000) / 1000);
+  if (n < 20){ for (let k = 0; k < n; k++) out.set(secAbs(k), 1); return out; }  // too short to calibrate — trust all
+  const s0 = secAbs(0), s1 = secAbs(n - 1), S = s1 - s0 + 1;
+  if (S < 1) return out;
+  // bin beats into their second: count + SQI sum
+  const cnt = new Float64Array(S), qsum = new Float64Array(S);
+  for (let k = 0; k < n; k++){ const s = secAbs(k) - s0; if (s >= 0 && s < S){ cnt[s]++; qsum[s] += (sqi && Number.isFinite(sqi[k]) ? sqi[k] : 1); } }
+  // sliding ±half window → local beat count + local mean SQI, O(S)
+  const half = Math.max(1, Math.round(winSec / 2));
+  const winCnt = new Float64Array(S), winSqi = new Float64Array(S);
+  let cAcc = 0, qAcc = 0, lo = 0, hi = -1;
+  for (let i = 0; i < S; i++){
+    const a = Math.max(0, i - half), b = Math.min(S - 1, i + half);
+    while (hi < b){ hi++; cAcc += cnt[hi]; qAcc += qsum[hi]; }
+    while (lo < a){ cAcc -= cnt[lo]; qAcc -= qsum[lo]; lo++; }
+    winCnt[i] = cAcc; winSqi[i] = cAcc > 0 ? qAcc / cAcc : 0;
+  }
+  // robust record baselines (median + MAD) over windows that actually carry beats
+  const active = []; for (let i = 0; i < S; i++) if (winCnt[i] > 0) active.push(i);
+  const medOf = idx => { const a = idx.map(i => winCnt[i]).sort((x, y) => x - y), m = a.length; return m ? (m % 2 ? a[(m - 1) / 2] : (a[m / 2 - 1] + a[m / 2]) / 2) : 0; };
+  const medQ = idx => { const a = idx.map(i => winSqi[i]).sort((x, y) => x - y), m = a.length; return m ? (m % 2 ? a[(m - 1) / 2] : (a[m / 2 - 1] + a[m / 2]) / 2) : 0; };
+  const cMed = medOf(active), qMed = medQ(active);
+  const cAbs = active.map(i => Math.abs(winCnt[i] - cMed)).sort((x, y) => x - y);
+  const qAbs = active.map(i => Math.abs(winSqi[i] - qMed)).sort((x, y) => x - y);
+  const madC = 1.4826 * (cAbs.length ? cAbs[cAbs.length >> 1] : 0) || 1;
+  const madQ = 1.4826 * (qAbs.length ? qAbs[qAbs.length >> 1] : 0) || 1e-6;
+  const C = 6;                                          // universal redescending cut (Tukey-style)
+  const trust = z => z <= 0 ? 1 : z >= C ? 0 : (1 - (z / C) * (z / C)) * (1 - (z / C) * (z / C));
+  for (let i = 0; i < S; i++){
+    if (winCnt[i] <= 0) continue;
+    const sD = Math.max(0, (winCnt[i] - cMed) / madC);   // density UPPER-outlier suspicion (over-detection)
+    const sQ = Math.max(0, (qMed - winSqi[i]) / madQ);   // SQI-depressed-below-median suspicion
+    // AF-safe AND: an artifact needs BOTH cues — a window is suspect only to the extent its WEAKER cue
+    // fires (min). High rate with clean QRS (AF / real tachycardia) → sQ≈0 → min≈0 → c=1, never dropped.
+    out.set(s0 + i, trust(Math.min(sD, sQ)));
+  }
+  return out;
+}
+
+// Convenience: raw ECG (int16 + its bandpass + the A-peaks) → per-second confidence Map, running
+// detector B + per-beat SQI + beatConfidence internally. The fused-hat consumer (worker ecgHrMap)
+// calls this after detectPeaks. peaks: A-peak sample indices · t0Ms: recording start (floating).
+function hrConfidence(int16, bp, peaks, fs, t0Ms){
+  if (!peaks || peaks.length < 20) return new Map();
+  const B = detectPeaksB(bp, fs);
+  const times = new Float64Array(peaks.length);
+  for (let k = 0; k < peaks.length; k++) times[k] = peaks[k] / fs;   // seconds (computeSQI RR-plausibility)
+  const q = computeSQI(int16, fs, peaks, times, B);
+  return beatConfidence(peaks, q.sqi, fs, t0Ms);
+}
+
+// ════════════════════════════════════════════════════════════════════════
 //  FREQUENCY DOMAIN — Lomb–Scargle on unevenly-sampled NN → VLF/LF/HF + resp.
 // ════════════════════════════════════════════════════════════════════════
 function lombScargle(nn, times, nf){
@@ -1099,8 +1171,21 @@ function analyze(rec, onProgress){
   const { sqi, rr } = computeSQI(int16, fs, peaks, times, peaksB);
   prog(56, 'Gating + NN interpolation…');
   const nnRes = buildNN(times, rr, sqi);
-  const nn = Array.from(nnRes.nn), tt = Array.from(nnRes.tt);
+  // TCH-FUSED-ROBUST-HAT: exclude SUSTAINED-artifact windows the per-beat gate misses (a burst of
+  // spurious detections passes SQI≥0.30 individually yet is collectively nonsense). beatConfidence
+  // fires only where beat-density is an upper outlier AND SQI is depressed (both vs the record's own
+  // median) → AF-safe (real fast rhythm keeps clean QRS ⇒ c≈1). c<0.5 = confirmed artifact ⇒ drop, so
+  // it no longer inflates RMSSD/SDNN/epochs. Reported as artifactSec.
+  const _conf = beatConfidence(peaks, sqi, fs, rec.t0Ms || 0);
+  const nn = [], tt = []; let artifactSec = 0, _pSec = null;
+  for (let i = 0; i < nnRes.nn.length; i++) {
+    const secAbs = Math.floor(((rec.t0Ms || 0) + peaks[i] / fs * 1000) / 1000);
+    const c = _conf.has(secAbs) ? _conf.get(secAbs) : 1;
+    if (c >= 0.5) { nn.push(nnRes.nn[i]); tt.push(nnRes.tt[i]); }
+    else if (secAbs !== _pSec) { artifactSec++; _pSec = secAbs; }
+  }
   const N = nn.length;
+  if (N < 12) throw new Error('Too few clean R-peaks after artifact gating — signal may be all-artifact.');
 
   prog(64, 'HRV suite…');
   const meanRR = mean(nn), sdnn = std(nn), rm = rmssd(nn), pn = pnn50(nn);
@@ -1290,7 +1375,7 @@ function analyze(rec, onProgress){
     nn, tt, corrected: Array.from(nnRes.corrected),
     // quality
     analyzablePct: nnRes.analyzablePct, correctionRate: nnRes.correctionRate, nCorrected: nnRes.nCorrected, nEctopyCorrected: nnRes.nEctopyCorrected,
-    cleanBeatPct: nnRes.cleanBeatPct, coveragePct: nnRes.coveragePct, nGaps: nnRes.nGaps,
+    cleanBeatPct: nnRes.cleanBeatPct, coveragePct: nnRes.coveragePct, nGaps: nnRes.nGaps, artifactSec,
     spanMin:+(spanSec/60).toFixed(1), gapMin:+(nnRes.gapSec/60).toFixed(1), activeMin:+(nnRes.activeSec/60).toFixed(1), lowCoverage,
     nBeats: N, meanSQI:+(mean(Array.from(sqi))).toFixed(3),
     // time domain
@@ -1748,7 +1833,7 @@ function mergeMultipart(parsed){           // parsed = [{name,text,kind?,stampMs
   return singles.concat(merged);
 }
 
-global.ECGDSP = { genSynthetic, analyze, classifyMode, validateRR, validateHR, accAnalyze, accExtras, stampEpochPositions, bandpass, detectPeaks, buildNN, median, mean, std, rmssd, partKey, mergeMultipart, lombScargle, dfaAlpha1, sampEn, parseTimestamp };
+global.ECGDSP = { genSynthetic, analyze, classifyMode, validateRR, validateHR, accAnalyze, accExtras, stampEpochPositions, bandpass, detectPeaks, buildNN, beatConfidence, hrConfidence, median, mean, std, rmssd, partKey, mergeMultipart, lombScargle, dfaAlpha1, sampEn, parseTimestamp };
 
 // ════════════════════════════════════════════════════════════════════════
 //  PURE ECG TEXT PARSER  (headless mirror of the app's streaming worker)
