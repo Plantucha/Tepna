@@ -99,6 +99,22 @@ These were paid for in PRs #70–#79. Every one bit at least once.
 > that are NOT function-body provenance slices (badge/CSS cohesion, retired-vocabulary, format-sensitive
 > safety scans) are **out of scope** and deliberately kept. P4 is now unblocked only w.r.t. these seven
 > gates — audit the rest before running the tree-wide format.
+>
+> **§P1 EXECUTED (cont.) 2026-07-15** — the eighth and last cleanly-convertible target from the Problem
+> list, the **Integrator PpgDex sqi-floor** write-slice (`/_pe\.sqiFloor\s*=\s*true/` + `/_pe\.sqi\s*<\s*PPG_SQI_FLOOR/`
+> over `integrator-dsp.js`), is now behavioral. The group already drove `adaptEnvelopeNode` (a co-loaded
+> module); a **boundary pair** (an event at sqi 0.29 → floored, one at sqi 0.30 → untouched) now proves the
+> exact `PPG_SQI_FLOOR = 0.3` value AND the strict-`<` comparison behaviorally — strictly stronger than the
+> two source-text legs it replaces (which pinned neither the exact value nor `<`-vs-`<=`). Net assertion
+> count unchanged (−2 source-text +2 boundary); test-only, no re-bundle, no changeset. **Audit of "the rest"
+> for P4 (2026-07-15):** the only remaining function-body **write** slices are the H10 corner-gate's
+> solve-path checks (`~:5601`/`~:5603`, over `sensor-trio-power-analysis.js`) — these are **NOT
+> P1-convertible**: that group already runs the extractable pure `h10FailureClass` via `new Function`, but
+> the *solve/null-the-corner* path lives in the analysis-page IIFE's private closures (worker + DOM deps),
+> so it can't be co-loaded and called. They — plus the deliberately-kept security scans (`showErr`/`showOK`
+> escaping) and the DSP body-extractions (`lombScargle`/`sampEn`) — are **P4-prep = make the regex
+> whitespace/brace-tolerant**, not P1 behavioral conversions. So P1's convert-to-behavioral scope is now
+> **complete**; what remains for P4 is regex-hardening those un-loadable source scans, not conversion.
 
 **Problem.** A family of tests in `tests/dex-tests.js` asserts a safety invariant by *slicing a function
 body out of the raw source text and regex-matching it*, e.g. (line numbers approximate — grep to

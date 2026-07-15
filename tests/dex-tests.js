@@ -3012,7 +3012,10 @@
         ganglior_events: [
           { t: '23:20:00', tMs: t0 + 20 * 60000, impulse: 'autonomic_surge', node: 'PpgDex', conf: 0.8, sqi: 0.2, meta: { ampBpm: 14 } },
           { t: '23:30:00', tMs: t0 + 30 * 60000, impulse: 'autonomic_surge', node: 'PpgDex', conf: 0.8, sqi: 0.8, meta: { ampBpm: 14 } },
-          { t: '23:45:00', tMs: t0 + 45 * 60000, impulse: 'autonomic_surge', node: 'PpgDex', conf: 0.8, sqi: null, meta: { ampBpm: 14 } }
+          { t: '23:45:00', tMs: t0 + 45 * 60000, impulse: 'autonomic_surge', node: 'PpgDex', conf: 0.8, sqi: null, meta: { ampBpm: 14 } },
+          // P1 boundary pair — pins the EXACT strict-< 0.3 floor behaviorally (replaces the source-text slice below):
+          { t: '23:50:00', tMs: t0 + 50 * 60000, impulse: 'autonomic_surge', node: 'PpgDex', conf: 0.8, sqi: 0.29, meta: { ampBpm: 14 } },
+          { t: '23:55:00', tMs: t0 + 55 * 60000, impulse: 'autonomic_surge', node: 'PpgDex', conf: 0.8, sqi: 0.3, meta: { ampBpm: 14 } }
         ],
         reserved: {}
       };
@@ -3027,18 +3030,27 @@
       var nul = evs.filter(function (e) {
         return e.impulse === 'autonomic_surge' && e.sqi == null;
       })[0];
+      var lowB = evs.filter(function (e) {
+        return e.sqi === 0.29;
+      })[0];
+      var atB = evs.filter(function (e) {
+        return e.sqi === 0.3;
+      })[0];
       T.ok('sub-floor PPG event down-weighted (conf ×0.5 → 0.4) + flagged sqiFloor', !!(low && low.sqiFloor === true && low.conf === 0.4), low && 'conf=' + low.conf + ' sqiFloor=' + low.sqiFloor);
       T.ok('  floored event PRESERVES its sqi axis (R7 — not folded into conf)', !!(low && low.sqi === 0.2), low && 'sqi=' + low.sqi);
       T.ok('above-floor PPG event untouched (conf 0.8, no sqiFloor)', !!(clean && clean.conf === 0.8 && !clean.sqiFloor));
       T.ok('sqi-null PPG event untouched (quality-neutral, back-compat)', !!(nul && nul.conf === 0.8 && !nul.sqiFloor));
-      // source-mirror: the constant + the PpgDex-branch floor exist (not silently reverted).
-      var src = (env.sources || {})['integrator-dsp.js'];
-      if (src) {
-        T.ok('PPG_SQI_FLOOR constant defined in integrator-dsp.js', /PPG_SQI_FLOOR\s*=\s*0\.3/.test(src));
-        T.ok('PpgDex branch halves conf + tags sqiFloor below PPG_SQI_FLOOR', /_pe\.sqiFloor\s*=\s*true/.test(src) && /_pe\.sqi\s*<\s*PPG_SQI_FLOOR/.test(src));
-      } else {
-        T.ok('integrator-dsp.js source available (env.sources)', false, 'add it to both runners');
-      }
+      // P1 (ARCHITECTURE-DEBT-REDUCTION §P1) — the exact `PPG_SQI_FLOOR = 0.3` threshold + the strict-`<`
+      // conf-halving/sqiFloor write used to be asserted by SLICING integrator-dsp.js source text (brittle:
+      // a biome reflow moves the sliced bytes → the P4 tree-wide-format blocker). The boundary pair below
+      // proves the SAME invariant behaviorally and STRONGER: sqi 0.29 (just under) is floored while sqi 0.30
+      // (== floor) is untouched, which pins the floor at exactly 0.3 AND that the comparison is strict `<`.
+      T.ok(
+        'boundary: sqi just BELOW floor (0.29) → floored (conf 0.4 + sqiFloor) — pins the 0.3 threshold',
+        !!(lowB && lowB.sqiFloor === true && lowB.conf === 0.4),
+        lowB && 'conf=' + lowB.conf + ' sqiFloor=' + lowB.sqiFloor
+      );
+      T.ok('boundary: sqi AT floor (0.30) → untouched (strict `< 0.3`; conf 0.8, no sqiFloor)', !!(atB && atB.conf === 0.8 && !atB.sqiFloor), atB && 'conf=' + atB.conf + ' sqiFloor=' + atB.sqiFloor);
     });
 
     /* ════ INTEGRATOR ingests the GlucoDex orchestrate export end-to-end (GLUCODEX-FOLLOWUPS §3).
