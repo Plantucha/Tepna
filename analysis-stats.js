@@ -72,11 +72,17 @@
   }
   // Spearman–Brown: reliability of an average of m occasions.
   function spearmanBrown(icc, m) { return icc <= 0 ? 0 : (m * icc) / (1 + (m - 1) * icc); }
-  // minimum occasions to reach target reliability.
+  // minimum occasions to reach target reliability (inverse Spearman–Brown).
+  // The −1e-9 before ceil absorbs IEEE-754 rounding noise: when the true answer sits EXACTLY on an
+  // integer boundary the operands (built via 1−target etc., not clean literals) round the ratio to,
+  // e.g., 4.0000000000000009, which bare ceil would round up to 5. The epsilon (≫ float noise ~1e-15,
+  // ≪ any real fractional occasion) restores the mathematical value without ever masking a genuine
+  // fractional need — a ratio truly at 4.0000001 (needs 5) survives the subtraction. See
+  // TEST-COVERAGE-ANALYSIS 2026-07-15.
   function minOccForReliability(icc, target) {
     if (icc <= 0) return Infinity;
     if (icc >= target) return 1;
-    return Math.ceil((target * (1 - icc)) / ((1 - target) * icc));
+    return Math.ceil((target * (1 - icc)) / ((1 - target) * icc) - 1e-9);
   }
 
   /* ══ REFERENCE-FREE AGREEMENT — sigma-no-reference-analysis.js ═════════════════ */

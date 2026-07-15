@@ -1856,8 +1856,14 @@
       T.approx('Spearman–Brown (icc 0.5, m 2)', S.spearmanBrown(0.5, 2), 2 / 3, 1e-12);
       T.eq('Spearman–Brown icc≤0 → 0', S.spearmanBrown(0, 5), 0);
       T.eq('minOcc (icc 0.5, target 0.75) → 3', S.minOccForReliability(0.5, 0.75), 3); // 0.375/0.125=3 exact
+      // Integer-boundary case: true ratio is exactly 4, but the operands (built via 1−target) round to
+      // 4.0000000000000009 — bare ceil gave 5. The −1e-9 epsilon restores the mathematical 4.
+      T.eq('minOcc integer-boundary (icc 0.5, target 0.8) → 4 (float-noise absorbed, not 5)', S.minOccForReliability(0.5, 0.8), 4);
       T.eq('minOcc already-reliable → 1', S.minOccForReliability(0.9, 0.8), 1);
       T.eq('minOcc icc≤0 → Infinity', S.minOccForReliability(0, 0.8), Infinity);
+      // guard the other direction: a genuine fractional need above an integer must NOT be masked by ε.
+      // icc 0.4, target 0.9 → 0.9·0.6/(0.1·0.4)=0.54/0.04=13.5 → 14 (ε can't pull it below 14).
+      T.eq('minOcc genuine fractional need not masked (13.5 → 14)', S.minOccForReliability(0.4, 0.9), 14);
 
       // ── three-cornered hat (Gray–Allan) σ²_A = ½(V_AB+V_AC−V_BC) ──
       var hSym = S.threeCorneredHat(2, 2, 2);
