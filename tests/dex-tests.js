@@ -1841,13 +1841,21 @@
 
       // ── ICC(1,1) via one-way ANOVA ──
       // subjects [[1,2],[4,5],[7,8]]: msb=18, msw=0.5, n0=2 → icc=(18−0.5)/(18+0.5)=17.5/18.5
-      var icc = S.iccOneWay([[1, 2], [4, 5], [7, 8]]);
+      var icc = S.iccOneWay([
+        [1, 2],
+        [4, 5],
+        [7, 8]
+      ]);
       T.approx('ICC exact (ANOVA 17.5/18.5)', icc.icc, 17.5 / 18.5, 1e-12);
       T.approx('  · msb', icc.msb, 18, 1e-12);
       T.approx('  · msw', icc.msw, 0.5, 1e-12);
       T.approx('  · n0 (balanced → 2)', icc.n0, 2, 1e-12);
       // perfect between-subject separation, zero within → capped at 0.999
-      var iccCap = S.iccOneWay([[10, 10], [20, 20], [30, 30]]);
+      var iccCap = S.iccOneWay([
+        [10, 10],
+        [20, 20],
+        [30, 30]
+      ]);
       T.approx('ICC zero-within → 0.999 cap', iccCap.icc, 0.999, 1e-12);
       T.eq('ICC within-variance 0', iccCap.varW, 0);
       T.eq('ICC <2 usable subjects → null', S.iccOneWay([[1, 2]]), null);
@@ -1901,16 +1909,39 @@
       T.eq('OLS n<2 → null', S.ols([1], [1]), null);
 
       // ── multiple OLS with inference (y = 1 + 2·x1 + 0·x2, exact) ──
-      var Xrows = [[1, 0, 1], [1, 1, 0], [1, 2, 1], [1, 3, 0], [1, 4, 1], [1, 5, 0]];
-      var yv = Xrows.map(function (r) { return 1 + 2 * r[1]; });
+      var Xrows = [
+        [1, 0, 1],
+        [1, 1, 0],
+        [1, 2, 1],
+        [1, 3, 0],
+        [1, 4, 1],
+        [1, 5, 0]
+      ];
+      var yv = Xrows.map(function (r) {
+        return 1 + 2 * r[1];
+      });
       var fit = S.olsFit(yv, Xrows);
       T.approx('olsFit β0 (intercept)', fit.beta[0], 1, 1e-6);
       T.approx('olsFit β1 (x1)', fit.beta[1], 2, 1e-6);
       T.approx('olsFit β2 (x2, no effect)', fit.beta[2], 0, 1e-6);
       T.approx('olsFit r² (perfect fit)', fit.r2, 1, 1e-6);
-      T.eq('olsFit under-determined (n≤p+1) → null', S.olsFit([1, 2, 3], [[1, 0], [1, 1], [1, 2]]), null);
+      T.eq(
+        'olsFit under-determined (n≤p+1) → null',
+        S.olsFit(
+          [1, 2, 3],
+          [
+            [1, 0],
+            [1, 1],
+            [1, 2]
+          ]
+        ),
+        null
+      );
       // invMat: 2×2 known inverse
-      var invd = S.invMat([[4, 7], [2, 6]]); // det=10 → [[0.6,−0.7],[−0.2,0.4]]
+      var invd = S.invMat([
+        [4, 7],
+        [2, 6]
+      ]); // det=10 → [[0.6,−0.7],[−0.2,0.4]]
       T.approx('invMat [0][0]', invd[0][0], 0.6, 1e-12);
       T.approx('invMat [0][1]', invd[0][1], -0.7, 1e-12);
 
@@ -1945,8 +1976,12 @@
         ['hrv-confound-analysis.js', ['AnalysisStats.ols', 'AnalysisStats.olsFit', 'AnalysisStats.roc']]
       ];
       DELEGATIONS.forEach(function (pair) {
-        var f = pair[0], code = src[f];
-        if (code == null) { T.skip(f + ' source available for delegation-parity', 'runner passed no ' + f); return; }
+        var f = pair[0],
+          code = src[f];
+        if (code == null) {
+          T.skip(f + ' source available for delegation-parity', 'runner passed no ' + f);
+          return;
+        }
         pair[1].forEach(function (ref) {
           var found = code.indexOf(ref) !== -1;
           T.ok(f + ' delegates ' + ref, found, found ? '' : 'MISSING — re-run the delegation edit; analysis-stats.js is the single source');
