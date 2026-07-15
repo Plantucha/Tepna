@@ -52,72 +52,20 @@
   // ── stats helpers ──
   function mean(a) { return a.length ? a.reduce(function (x, y) { return x + y; }, 0) / a.length : null; }
   function sd(a) { if (a.length < 2) return null; var m = mean(a), s = 0; a.forEach(function (v) { s += (v - m) * (v - m); }); return Math.sqrt(s / (a.length - 1)); }
-  function ols(xs, ys) {
-    var n = xs.length; if (n < 2) return null;
-    var mx = mean(xs), my = mean(ys), sxx = 0, sxy = 0, syy = 0;
-    for (var i = 0; i < n; i++) { var dx = xs[i] - mx, dy = ys[i] - my; sxx += dx * dx; sxy += dx * dy; syy += dy * dy; }
-    if (!sxx) return null;
-    var slope = sxy / sxx; return { slope: slope, intercept: my - slope * mx, r2: syy ? (sxy * sxy) / (sxx * syy) : 0, n: n };
-  }
-  // ── matrix OLS with full inference (β, SE, t, p, 95% CI) ──
-  function invMat(A) {                 // Gauss-Jordan inverse of n×n
-    var n = A.length, M = A.map(function (row, i) {
-      var aug = row.slice(); for (var j = 0; j < n; j++) aug.push(i === j ? 1 : 0); return aug;
-    });
-    for (var col = 0; col < n; col++) {
-      var piv = col; for (var r = col + 1; r < n; r++) if (Math.abs(M[r][col]) > Math.abs(M[piv][col])) piv = r;
-      if (Math.abs(M[piv][col]) < 1e-12) return null;
-      var tmp = M[col]; M[col] = M[piv]; M[piv] = tmp;
-      var d = M[col][col]; for (var j = 0; j < 2 * n; j++) M[col][j] /= d;
-      for (var r2 = 0; r2 < n; r2++) { if (r2 === col) continue; var f = M[r2][col]; for (var j2 = 0; j2 < 2 * n; j2++) M[r2][j2] -= f * M[col][j2]; }
-    }
-    return M.map(function (row) { return row.slice(n); });
-  }
-  function erf(x) {                     // Abramowitz-Stegun 7.1.26
-    var s = x < 0 ? -1 : 1; x = Math.abs(x);
-    var a1 = .254829592, a2 = -.284496736, a3 = 1.421413741, a4 = -1.453152027, a5 = 1.061405429, pp = .3275911;
-    var t = 1 / (1 + pp * x), y = 1 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
-    return s * y;
-  }
-  function normP(z) { return 2 * (0.5 * (1 - erf(Math.abs(z) / Math.SQRT2))); }   // two-sided
+  // ols · olsFit · roc single-sourced in analysis-stats.js (TEST-COVERAGE-ANALYSIS 2026-07-15) —
+  // known-answer tested in dex-tests.js. Aliased so call sites are untouched; behavior is identical.
+  var ols = AnalysisStats.ols;
+  // ── matrix OLS with full inference (β, SE, t, p, 95% CI) — single-sourced in analysis-stats.js
+  //    (with invMat/erf/normP helpers); known-answer tested in dex-tests.js. Aliased below. ──
   function pearson(a, b) {
     var n = a.length, ma = mean(a), mb = mean(b), sab = 0, saa = 0, sbb = 0;
     for (var i = 0; i < n; i++) { var da = a[i] - ma, db = b[i] - mb; sab += da * db; saa += da * da; sbb += db * db; }
     return (saa && sbb) ? sab / Math.sqrt(saa * sbb) : 0;
   }
   // multiple OLS: y ~ design rows (incl. intercept col). Returns coefficients + inference.
-  function olsFit(y, Xrows) {
-    var n = Xrows.length, p = Xrows[0].length; if (n <= p + 1) return null;
-    var XtX = [], Xty = new Array(p).fill(0), a, b2, i;
-    for (a = 0; a < p; a++) { XtX.push(new Array(p).fill(0)); }
-    for (i = 0; i < n; i++) {
-      var xi = Xrows[i], yi = y[i];
-      for (a = 0; a < p; a++) { Xty[a] += xi[a] * yi; for (b2 = 0; b2 < p; b2++) XtX[a][b2] += xi[a] * xi[b2]; }
-    }
-    var inv = invMat(XtX); if (!inv) return null;
-    var beta = new Array(p).fill(0);
-    for (a = 0; a < p; a++) { var s = 0; for (b2 = 0; b2 < p; b2++) s += inv[a][b2] * Xty[b2]; beta[a] = s; }
-    var my = mean(y), ssTot = 0, sse = 0;
-    for (i = 0; i < n; i++) { var pred = 0, xj = Xrows[i]; for (a = 0; a < p; a++) pred += beta[a] * xj[a]; var e = y[i] - pred; sse += e * e; ssTot += (y[i] - my) * (y[i] - my); }
-    var df = n - p, sigma2 = sse / df, se = [], t = [], pv = [], ci = [];
-    for (a = 0; a < p; a++) { var s2 = Math.sqrt(sigma2 * inv[a][a]); se.push(s2); t.push(beta[a] / s2); pv.push(normP(beta[a] / s2)); ci.push([beta[a] - 1.96 * s2, beta[a] + 1.96 * s2]); }
-    var r2 = ssTot ? 1 - sse / ssTot : 0;
-    return { beta: beta, se: se, t: t, p: pv, ci: ci, r2: r2, adjR2: 1 - (1 - r2) * (n - 1) / df, n: n, df: df, sigma: Math.sqrt(sigma2) };
-  }
+  var olsFit = AnalysisStats.olsFit;
   // ROC from scores where HIGHER score = more suspicious; label = positive class bool
-  function roc(scores, labels) {
-    var pairs = scores.map(function (s, i) { return { s: s, y: labels[i] }; }).sort(function (a, b) { return b.s - a.s; });
-    var P = labels.filter(Boolean).length, N = labels.length - P;
-    if (!P || !N) return { auc: null, pts: [] };
-    var tp = 0, fp = 0, pts = [{ x: 0, y: 0 }], auc = 0, prevFpr = 0, prevTpr = 0;
-    pairs.forEach(function (p) {
-      if (p.y) tp++; else fp++;
-      var tpr = tp / P, fpr = fp / N;
-      auc += (fpr - prevFpr) * (tpr + prevTpr) / 2;
-      pts.push({ x: fpr, y: tpr }); prevFpr = fpr; prevTpr = tpr;
-    });
-    return { auc: auc, pts: pts };
-  }
+  var roc = AnalysisStats.roc;
 
   // ── durable checkpoint (IndexedDB) ──────────────────────────────────────────
   //   A long run lives in page memory; ANY preview refresh (incl. a file write that

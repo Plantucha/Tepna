@@ -175,30 +175,21 @@
   const mean = (a) => a.reduce((s, x) => s + x, 0) / a.length;
   const variance = (a) => { const m = mean(a); return a.reduce((s, x) => s + (x - m) * (x - m), 0) / (a.length - 1); };
   const sd = (a) => Math.sqrt(variance(a));
-  function pearson(x, y) { const mx = mean(x), my = mean(y); let sxy = 0, sx = 0, sy = 0; for (let i = 0; i < x.length; i++) { const dx = x[i] - mx, dy = y[i] - my; sxy += dx * dy; sx += dx * dx; sy += dy * dy; } return sxy / Math.sqrt(sx * sy); }
+  // pearson · ba · threeCorneredHat · tchSigmas single-sourced in analysis-stats.js
+  // (TEST-COVERAGE-ANALYSIS 2026-07-15) — known-answer tested in dex-tests.js. Aliased here so every
+  // call site (incl. tchSigmasFused → threeCorneredHat) is untouched; behavior is identical.
+  var pearson = AnalysisStats.pearson;
   const median = (a) => { const s = [...a].sort((p, q) => p - q), n = s.length; return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2; };
   const robustSD = (a) => { const m = median(a); return 1.4826 * median(a.map((x) => Math.abs(x - m))); };
   function repeatSigma(x) { const r = []; for (let i = 3; i < x.length - 3; i++) r.push(x[i] - median(x.slice(i - 3, i + 4))); return r.length > 20 ? robustSD(r) : null; }
-  function ba(d) { const b = mean(d), s = sd(d); return { n: d.length, bias: b, sd: s, loa: 1.96 * s, arms: Math.sqrt(b * b + s * s) }; }
+  var ba = AnalysisStats.blandAltman;
   const pct = (sorted, p) => sorted[Math.max(0, Math.min(sorted.length - 1, Math.floor(p * sorted.length)))];
   // generic three-cornered hat (returns per-device variance; neg = broken assumption)
-  function threeCorneredHat(vAB, vAC, vBC) { return { a: 0.5 * (vAB + vAC - vBC), b: 0.5 * (vAB + vBC - vAC), c: 0.5 * (vAC + vBC - vAB) }; }
+  var threeCorneredHat = AnalysisStats.threeCorneredHat;
 
   // Per-triple three-cornered-hat σ kernel. A=H10(ECG), B=Verity(PPG), C=O2Ring(pulse).
   // Returns {h10, verity, o2} σ (null where the variance went negative) + neg flags + pairwise diffs.
-  function tchSigmas(hh, vv, oo) {
-    const dHV = [], dHO = [], dVO = [];
-    for (let i = 0; i < hh.length; i++) { dHV.push(hh[i] - vv[i]); dHO.push(hh[i] - oo[i]); dVO.push(vv[i] - oo[i]); }
-    const cv = threeCorneredHat(variance(dHV), variance(dHO), variance(dVO));
-    return {
-      h10: cv.a > 0 ? Math.sqrt(cv.a) : null,
-      verity: cv.b > 0 ? Math.sqrt(cv.b) : null,
-      o2: cv.c > 0 ? Math.sqrt(cv.c) : null,
-      negVar: { h10: cv.a <= 0 ? cv.a : null, verity: cv.b <= 0 ? cv.b : null, o2: cv.c <= 0 ? cv.c : null },
-      neg: cv.a <= 0 || cv.b <= 0 || cv.c <= 0,
-      dHV, dHO, dVO,
-    };
-  }
+  var tchSigmas = AnalysisStats.tchSigmas;
 
   // ── fused-weight hat (TCH-FUSED-ROBUST-HAT-2026-07-14) ─────────────────────────────────────
   // Per-second, per-corner confidence (cH/cV/cO from the DSP: density × SQI, AF-safe) weights each

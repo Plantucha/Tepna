@@ -31,33 +31,9 @@
   }
 
   // ── stats ──
-  function ols(xs, ys) {
-    var n = xs.length;
-    if (n < 2) return null;
-    var sx = 0,
-      sy = 0;
-    for (var i = 0; i < n; i++) {
-      sx += xs[i];
-      sy += ys[i];
-    }
-    var mx = sx / n,
-      my = sy / n,
-      sxx = 0,
-      sxy = 0,
-      syy = 0;
-    for (var j = 0; j < n; j++) {
-      var dx = xs[j] - mx,
-        dy = ys[j] - my;
-      sxx += dx * dx;
-      sxy += dx * dy;
-      syy += dy * dy;
-    }
-    if (sxx === 0) return null;
-    var slope = sxy / sxx,
-      intercept = my - slope * mx,
-      r = syy > 0 ? sxy / Math.sqrt(sxx * syy) : 0;
-    return { slope: slope, intercept: intercept, r2: r * r, n: n };
-  }
+  // OLS single-sourced in analysis-stats.js (TEST-COVERAGE-ANALYSIS 2026-07-15) — known-answer tested
+  // in dex-tests.js. The former local copy was algebraically identical (r² = sxy²/(sxx·syy)).
+  var ols = AnalysisStats.ols;
   function powerFit(xs, ys) {
     var lx = [],
       ly = [];
