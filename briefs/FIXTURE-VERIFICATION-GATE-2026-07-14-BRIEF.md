@@ -1,8 +1,19 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-14 · **Created:** 2026-07-14
+**Status:** DONE — 2026-07-15 · **Created:** 2026-07-14
 
 # Fixture verification gate — a fixture may not claim reproducibility nobody checked
 
+> **DONE 2026-07-15 — §1 · §2 · §3.1 · §3.2 · §4 · §5 all EXECUTED; §3.3 is a conscious deferral (below).**
+> Re-verified live on post-P3 main (2026-07-15): the `Fixture verification` suite group is **10/10 green** —
+> a render-only edit moves `manifestHash` but NOT `computeHash` (export-inert PROVEN), a DSP edit moves both,
+> the closure is a denylist that fails CLOSED on an unknown asset, `build.mjs` provably cannot write
+> `verifiedUnder`, and all 14 corpus-backed fixtures carry one. The `computeHash`/`verifiedUnder` gate and the
+> `release.mjs` wall survived the P3 ledger split (`computeHashFromText` still in `manifest-gate.js`;
+> `provenance-ledger.js` reassembles the per-app fragments the gate reads). **§3.3 (CI-red) is deliberately
+> NOT done** — a corpus-less contributor cannot green it, so it would wall off outside contributions, and the
+> §3.2 release wall already sits where the harm materialises. This is a sub-item deferral inside a DONE brief
+> (CLAUDE.md §📌), not a sixth status.
+>
 > **EXECUTED 2026-07-14 — §1 · §2 · §3.1 · §3.2 · §5.** Only §3.3 (CI-red) and §4's generalisation remain.
 >
 > - **§1 `computeHash`** — live in `manifest-gate.js`, shared by both lanes. **The closure is a DENYLIST, not
@@ -221,15 +232,15 @@ Mirror the house pattern (`docs-ledger`/`release-ledger` self-tests):
 
 ## Done when
 
-- [ ] `computeHash` implemented in `manifest-gate.js` (shared by both lanes, like `manifestHashFromText`), with
-      the per-node compute closure single-sourced and subset/sufficiency-gated.
-- [ ] `verifiedUnder` in `FIXTURE-PROVENANCE.json` for the corpus-backed fixtures; `build.mjs` provably cannot
-      write it; regen tools + `tools/verify-fixtures.mjs` do.
-- [ ] §3.1 suite group green, with self-tests (§6) proving it reds on a compute-closure change and does **not**
-      red on a render-only change.
-- [ ] §3.2 `release.mjs` pre-flight refuses an UNVERIFIED fixture (self-tested).
-- [ ] §5 migration run on the corpus; every fixture either stamped or **regenerated**, with the findings recorded.
-- [ ] §4 synthetic Lingo carries a long gap; per-node flag-coverage declared + gated.
-- [ ] CLAUDE.md §🔏 updated: "export-inert" is no longer a claim you may make — it is a value `computeHash`
-      decides. The prose warning added 2026-07-14 becomes a gate.
-- [ ] §3.3 (CI red) sequenced only after §4 lands.
+- [x] `computeHash` implemented in `manifest-gate.js` (`computeHashFromText`, shared by both lanes like
+      `manifestHashFromText`), with the per-node compute closure single-sourced and (denylist) sufficiency-gated.
+- [x] `verifiedUnder` for the corpus-backed fixtures (now per-app `provenance/<App>.json` after P3); `build.mjs`
+      provably cannot write it (source-scan asserted); regen tools + `tools/verify-fixtures.mjs` do.
+- [x] §3.1 suite group green, with self-tests (§6) proving it reds on a compute-closure change and does **not**
+      red on a render-only change. *(Re-confirmed 10/10 on post-P3 main 2026-07-15.)*
+- [x] §3.2 `release.mjs` pre-flight refuses an UNVERIFIED fixture (self-tested).
+- [x] §5 migration run on the corpus; every fixture either stamped or **regenerated**, findings recorded (clean; GlucoDex was the only stale one).
+- [x] §4 synthetic Lingo carries a long gap; per-node flag-coverage declared + gated (GlucoDex 14 h-gap twin + CPAP two-session night).
+- [x] CLAUDE.md §🔏 updated: "export-inert" is no longer a claim you may make — it is a value `computeHash`
+      decides. The prose warning added 2026-07-14 became a gate.
+- [~] §3.3 (CI red) — **deliberately NOT done** (sub-item deferral): a corpus-less contributor cannot green it; the §3.2 release wall already covers the harm.

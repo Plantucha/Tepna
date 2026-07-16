@@ -1884,6 +1884,67 @@
       // tchSigmas: identical series → all diffs 0 → variance 0 → negative-assumption flagged
       T.ok('tchSigmas identical series → neg flagged', S.tchSigmas([1, 2, 3, 4], [1, 2, 3, 4], [1, 2, 3, 4]).neg === true);
 
+      // ── fused-weight hat (TCH-FUSED-ROBUST-HAT) — artifact-robust, AF-safe, reduces to classic ──
+      // Deterministic clean triple: a common HR truth + per-sensor errors at INCOMMENSURATE sinusoid
+      // frequencies (≈uncorrelated over the record ⇒ TCH recovers each amplitude/√2). Fixed ⇒ reproducible.
+      if (typeof S.tchSigmasFused === 'function') {
+        var N = 240,
+          hhc = [],
+          vvc = [],
+          ooc = [];
+        for (var fi = 0; fi < N; fi++) {
+          var truth = 60 + 5 * Math.sin(fi / 10);
+          hhc.push(truth + 1.0 * Math.sin(fi / 3.1)); // σ_H ≈ 1.0/√2
+          vvc.push(truth + 1.4 * Math.sin(fi / 2.7 + 1)); // σ_V ≈ 1.4/√2
+          ooc.push(truth + 2.2 * Math.sin(fi / 2.3 + 2)); // σ_O ≈ 2.2/√2
+        }
+        var ones = new Array(N).fill(1);
+        var clsClean = S.tchSigmas(hhc, vvc, ooc),
+          fusClean = S.tchSigmasFused(hhc, vvc, ooc, ones, ones, ones);
+        // (1) all-confidence-1 on clean, consensual data ⇒ fused ≈ classic (the gentle C=30 net barely bites)
+        T.approx('fused ≈ classic on clean data (h10)', fusClean.h10, clsClean.h10, 0.06);
+        T.approx('fused ≈ classic on clean data (verity)', fusClean.verity, clsClean.verity, 0.06);
+        T.approx('fused ≈ classic on clean data (o2)', fusClean.o2, clsClean.o2, 0.06);
+        // (2) missing confidences default to 1 (⇒ identical to the all-ones call)
+        T.approx('fused: missing cH/cV/cO default to 1', S.tchSigmasFused(hhc, vvc, ooc).h10, fusClean.h10, 1e-12);
+        // (3) inject a 20-s H10 over-detection burst (spurious QRS ⇒ HR spikes) ⇒ classic σ_h10 detonates
+        var hhb = hhc.slice(),
+          cH = ones.slice();
+        for (var bi = 180; bi < 200; bi++) {
+          hhb[bi] += 40;
+          cH[bi] = 0; // the DSP's per-second confidence flags the burst
+        }
+        var clsBurst = S.tchSigmas(hhb, vvc, ooc);
+        T.ok('classic var() detonates on the H10 burst (σ_h10 > 8)', clsBurst.h10 > 8, 'classic σ_h10=' + clsBurst.h10);
+        var fusBurst = S.tchSigmasFused(hhb, vvc, ooc, cH, ones, ones);
+        // fused recovers σ_h10 back near the clean value; the clean O2 corner is NOT biased by the H10 burst
+        T.ok(
+          'fused hat recovers σ_h10 through the burst (≈clean, ≪ classic)',
+          fusBurst.h10 != null && fusBurst.h10 < clsClean.h10 + 0.5,
+          'fused σ_h10=' + fusBurst.h10 + ' vs classic ' + clsBurst.h10
+        );
+        T.approx('fused leaves the clean O2 corner unbiased through the H10 burst', fusBurst.o2, clsClean.o2, 0.25);
+        // (4) AF-SAFETY at the hat: a big COMMON-MODE excursion (all 3 sensors agree — real tachy/AF) with
+        //     confidence 1 cancels in every difference ⇒ fused == classic (irregularity alone never penalised).
+        var hha = hhc.slice(),
+          vva = vvc.slice(),
+          ooa = ooc.slice();
+        for (var ai = 100; ai < 130; ai++) {
+          var jump = 30 * Math.sin(ai);
+          hha[ai] += jump;
+          vva[ai] += jump;
+          ooa[ai] += jump;
+        }
+        var clsAF = S.tchSigmas(hha, vva, ooa),
+          fusAF = S.tchSigmasFused(hha, vva, ooa, ones, ones, ones);
+        // common-mode cancels in every pairwise difference AND in the cross-sensor spread ⇒ the fused σ is
+        // IDENTICAL to the no-excursion fused σ: a consensual HR swing (real tachy/AF) is never penalised.
+        T.approx('AF-safe: consensual (common-mode) excursion leaves the fused σ unchanged', fusAF.h10, fusClean.h10, 1e-9);
+        T.approx('  · and classic TCH is likewise unchanged (the differences cancel)', clsAF.h10, clsClean.h10, 1e-9);
+        // identical series ⇒ negative-assumption flagged, same as tchSigmas
+        T.ok('tchSigmasFused identical series → neg flagged', S.tchSigmasFused([1, 2, 3, 4], [1, 2, 3, 4], [1, 2, 3, 4]).neg === true);
+      }
+
       // ── Bland–Altman ──
       var ba = S.blandAltman([2, 4]); // bias 3, sd √2, arms √(9+2)
       T.eq('Bland–Altman bias', ba.bias, 3);
@@ -1972,7 +2033,7 @@
       var src = env.sources || {};
       var DELEGATIONS = [
         ['nights-icc-analysis.js', ['AnalysisStats.iccOneWay', 'AnalysisStats.spearmanBrown', 'AnalysisStats.minOccForReliability']],
-        ['sigma-no-reference-analysis.js', ['AnalysisStats.threeCorneredHat', 'AnalysisStats.tchSigmas', 'AnalysisStats.blandAltman', 'AnalysisStats.pearson']],
+        ['sigma-no-reference-analysis.js', ['AnalysisStats.tchSigmas', 'AnalysisStats.tchSigmasFused', 'AnalysisStats.blandAltman', 'AnalysisStats.pearson']],
         ['cgm-hrv-coupling-analysis.js', ['AnalysisStats.pearsonCI', 'AnalysisStats.partialCorr']],
         ['treatment-response-analysis.js', ['AnalysisStats.bestSplit', 'AnalysisStats.mannWhitneyAUC']],
         ['odi-bias-analysis.js', ['AnalysisStats.ols']],
@@ -1990,6 +2051,65 @@
           T.ok(f + ' delegates ' + ref, found, found ? '' : 'MISSING — re-run the delegation edit; analysis-stats.js is the single source');
         });
       });
+    });
+
+    group('ECGDSP.beatConfidence — density×SQI artifact confidence, AF-safe (TCH-FUSED-ROBUST-HAT)', 'ecgdex-dsp · fused-hat · known-answer', function (T) {
+      var D = env.ECGDSP;
+      if (!D || typeof D.beatConfidence !== 'function') {
+        T.skip('env.ECGDSP.beatConfidence available', 'ECGDSP not co-loaded in this runner');
+        return;
+      }
+      var fs = 130;
+      // Build synthetic beat trains from segments {dur, rrSec, sqi}; peaks are sample indices, sqi per-beat.
+      function build(segs) {
+        var peaks = [],
+          sqi = [],
+          tSec = 0;
+        segs.forEach(function (s) {
+          var end = tSec + s.dur;
+          while (tSec < end) {
+            peaks.push(Math.round(tSec * fs));
+            sqi.push(s.sqi);
+            tSec += s.rrSec;
+          }
+        });
+        return { peaks: peaks, sqi: sqi };
+      }
+      // (a) short (<20 beats) → cannot calibrate → trust-all (c = 1)
+      var shortB = build([{ dur: 15, rrSec: 1.0, sqi: 0.9 }]); // 15 beats
+      var csShort = D.beatConfidence(shortB.peaks, shortB.sqi, fs, 0);
+      var allOne = true;
+      csShort.forEach(function (v) {
+        if (v !== 1) allOne = false;
+      });
+      T.ok('short train (<20 beats) → trust-all c=1', allOne);
+      // (b) clean steady (uniform 60 bpm + uniform SQI) → c ≈ 1 mid-record
+      var clean = build([{ dur: 600, rrSec: 1.0, sqi: 0.9 }]);
+      var cc = D.beatConfidence(clean.peaks, clean.sqi, fs, 0);
+      T.ok('clean steady mid-record → c≈1', cc.get(300) > 0.98, 'c@300=' + cc.get(300));
+      // (c) 120-s over-detection burst: 2× beat density AND depressed SQI (below the record's baseline
+      //     0.85) → both cues fire → c ≈ 0 in-window; clean flanks stay trusted (the 06-12 harmonic-
+      //     doubling signature the fused hat weights out).
+      var burst = build([
+        { dur: 240, rrSec: 1.0, sqi: 0.85 },
+        { dur: 120, rrSec: 0.5, sqi: 0.35 },
+        { dur: 240, rrSec: 1.0, sqi: 0.85 }
+      ]);
+      var cb = D.beatConfidence(burst.peaks, burst.sqi, fs, 0);
+      T.ok('artifact burst (2× density + depressed SQI) → c≈0 in-window', cb.get(300) < 0.05, 'c@300=' + cb.get(300));
+      T.ok('clean flanks around the burst stay trusted (c≈1)', cb.get(60) > 0.9 && cb.get(560) > 0.9, 'c@60=' + cb.get(60) + ' c@560=' + cb.get(560));
+      // (d) AF-SAFETY — the SAME 2× density, but CLEAN QRS: SQI at/above the record's baseline (0.92 vs
+      //     0.85). The quality cue is `max(0, (median−winSQI)/MAD)`, so an at-or-above-median SQI yields 0,
+      //     and min(density, 0) = 0 → NOT dropped. This is exactly the (c)/(d) contrast: equal density,
+      //     SQI alone decides. (Modelled slightly ABOVE baseline, not equal: a perfectly-FLAT SQI is a
+      //     degenerate knife-edge where the MAD scale collapses to float noise — real SQI never is.)
+      var af = build([
+        { dur: 240, rrSec: 1.0, sqi: 0.85 },
+        { dur: 120, rrSec: 0.5, sqi: 0.92 },
+        { dur: 240, rrSec: 1.0, sqi: 0.85 }
+      ]);
+      var ca = D.beatConfidence(af.peaks, af.sqi, fs, 0);
+      T.ok('AF/tachycardia (2× density, clean QRS ⇒ SQI ≥ baseline) → NOT down-weighted (c≈1) — AF-safe', ca.get(300) > 0.95, 'c@300=' + ca.get(300));
     });
 
     /* ════ 8e · SECURITY — STRICT script-src (SECURITY-CSP-STRICT-SCRIPT-SRC-2026-07-11) ════

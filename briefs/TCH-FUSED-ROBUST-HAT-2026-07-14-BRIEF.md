@@ -90,8 +90,20 @@ Every threshold is the **record's own median** (self-calibrating) or a **univers
    tracked separately in `TCH-FUSED-ROBUST-HAT-FOLLOWUPS-2026-07-14-BRIEF.md`.
 
 ## Done when
-- [x] `beatConfidence` in ECGDSP + PPGDSP, unit-tested (burst → c≈0 in-window, clean/AF → c≈1) — **done 2026-07-14**; ECG confirmed on the REAL 06-12 night (density z 13–22 **and** SQI-depression z 8–10 both fire → c 0.00–0.51; benign sleep-onset high-density windows keep SQI high → c=1).
-- [ ] worker carries `cH`/`cV`; `tchSigmasFused` wired into both sigma tools + the power real-overlay.
-- [ ] 06-12 σ_H10 across-night CI collapses (≈9.6→≈1.5 point; CI ±1.28→±0.3); clean nights bit-stable.
-- [ ] AF-safety unit test: irregular-but-clean-QRS → 0 down-weighted.
-- [ ] Re-bundle + fixture regen; all gates green; corpus re-derived; papers restated on the clean numbers.
+- [x] `beatConfidence` in ECGDSP + PPGDSP, unit-tested (burst → c≈0 in-window, clean/AF → c≈1) — **done 2026-07-14**; ECG confirmed on the REAL 06-12 night (density z 13–22 **and** SQI-depression z 8–10 both fire → c 0.00–0.51; benign sleep-onset high-density windows keep SQI high → c=1). **Permanent suite coverage added 2026-07-15** (was scratchpad-only): `ECGDSP.beatConfidence` known-answer group in `tests/dex-tests.js` — short<20→trust-all, clean→c≈1, 2× density **+ depressed SQI**→c≈0, and the AF contrast (2× density, **clean QRS ⇒ SQI ≥ baseline**→c≈1).
+- [~] worker carries `cH`/`cV`; `tchSigmasFused` wired into both sigma tools + the power real-overlay. — **worker + `sigma-no-reference` DONE** (merged PR #114). **`tchSigmasFused` single-sourced into `analysis-stats.js` 2026-07-15** (the brief's "add it in the shared kernel"): the sigma page now DELEGATES (like `tchSigmas`), the worker keeps its Worker-local mirror, and a delegation-parity leg guards against a divergent copy. **STILL OPEN:** the **power tool's REAL overlay** (`sensor-trio-power-analysis.js` `loadReal`) still uses classic `tchSigmas` — its `derivedMap` reads 2-col `ms;hr` with no per-second confidence, so routing it through the fused hat needs a confidence-carrying (`ms;hr;c`) corpus re-derivation. Entangled with the N15-power work → **routed to `TRIO-ARTIFACT-GATE-AND-N15-POWER` / `TRIO-POWER-N15-FINDINGS`**.
+- [x] 06-12 σ_H10 across-night CI collapses (≈9.6→≈1.5 point; CI ±1.28→±0.3); clean nights bit-stable. — merged PR #114 (papers restated on 2.41/1.28/1.42).
+- [x] AF-safety unit test: irregular-but-clean-QRS → 0 down-weighted. — **done 2026-07-15**, at BOTH tiers: `beatConfidence` (clean-QRS high density kept, above) and the hat (`tchSigmasFused` — a large **common-mode** excursion cancels in every difference & the cross-sensor spread ⇒ fused σ bit-unchanged; known-answer group asserts it).
+- [x] Re-bundle + fixture regen; all gates green; corpus re-derived; papers restated on the clean numbers. — merged PR #114.
+
+> **§Execution note 2026-07-15 (test-coverage + shared-kernel slice).** The fused hat shipped via PR #114
+> with **zero permanent test coverage** (`beatConfidence`/`tchSigmasFused` were validated only in a since-deleted
+> `scratchpad/fused-hat.mjs`). This pass closes that: (1) `tchSigmasFused` (+ its `_wvar`/`_consensusTrust`)
+> **single-sourced into `analysis-stats.js`** — the sigma page delegates, delegation-parity gated, dead
+> per-page `threeCorneredHat` alias removed; (2) known-answer + AF-safety groups added for both kernels
+> (classic `var()` detonates to σ 11.16 on a planted H10 burst, fused recovers to 0.52 ≈ clean 0.68, clean
+> O2 corner unbiased). **P3-safe:** touches only `analysis-stats.js` + the sigma page + tests + the 6
+> re-bundled analysis-page HTMLs (via `build-analysis.mjs`) — **no app bundle, no fixture ledger, no
+> `BUILD-MANIFEST`/`FIXTURE-PROVENANCE` write** (GATE A all-8 unchanged, `build.mjs --check` clean, no
+> changeset owed). Gates green locally: tsc 0, full node suite 2512✓, GATE A/B PASS. Brief stays
+> **IN-PROGRESS** on the one open item above (power-tool real overlay, routed to the N15-power briefs).

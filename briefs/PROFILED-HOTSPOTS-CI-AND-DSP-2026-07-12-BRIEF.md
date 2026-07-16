@@ -3,6 +3,19 @@
 
 # Profiled hot spots — the CI gate and the DSP, from CPU profiles rather than guesses
 
+> **Progress audit (2026-07-15):** most of this brief has landed — kept `PROPOSED` only because ONE
+> Done-when item is genuinely open. **§2 (`DEX_SHARD` skips *execution* inside `group()`) + §1a (sharded
+> matrix CI) EXECUTED** via `CI-SHARDING-2026-07-12-BRIEF.md` (DONE; `group()` skips out-of-shard, partition
+> proven by `verify-shard-union.mjs`, 4m05s→~1m10s). **§3 (the `mean(tmpl)` hoist) RETRACTED** —
+> `EFFICIENCY-AUDIT-FINDINGS-2026-07-12.md §M1`: the profile that produced "28% in `mean`" was taken in the
+> Node `vm` realm, which inflates tight numeric loops up to 12.3×; the hoist A/B's at **1.015×**. The real,
+> byte-identical PpgDex win (`parsePPG` parsing 190k timestamps it never reads → 2.01×) landed separately.
+> **§4 measured + DISMISSED** (recorded so no re-derivation). **STILL OPEN: §1b** — a recorded decision on
+> `lombScargle` (35% of the ECGDex-bound gate): *optimise (and regenerate fixtures) or leave.* §4's GPU note
+> leans "leave" (a WGSL f32 port would change the f64 gated output = a metric decision, not a perf one), but
+> a CPU optimise-or-leave call is not yet crisply recorded — plus the closing "follow-up brief or nothing-
+> surfaced note." Owner/next-session call; flip to DONE once §1b is recorded.
+
 Four findings, all from **CPU profiles of the real pipeline on real inputs**. Nothing here is estimated
 from an op-count. The point of writing them down is that the next session should not re-derive them —
 and, more importantly, should not repeat the mistake in §0.
