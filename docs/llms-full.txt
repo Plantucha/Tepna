@@ -1,5 +1,5 @@
 # Tepna — the Dex Suite — concatenated authoritative context
-# Generated 2026-07-14. Public docs only (the internal build/gate constitution CLAUDE.md is intentionally excluded).
+# Generated 2026-07-16. Public docs only (the internal build/gate constitution CLAUDE.md is intentionally excluded).
 
 
 
@@ -22,7 +22,7 @@
 
 A fleet of local-only, single-signal physiological analyzers. No upload. No accounts. No network.
 
-**Suite version:** 1.11.1
+**Suite version:** 1.12.0
 
 [![Live at tepna.net](https://img.shields.io/badge/live-tepna.net-2a6fdb?style=for-the-badge)](https://tepna.net)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a6fdb?style=for-the-badge)](LICENSE)

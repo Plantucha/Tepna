@@ -183,9 +183,16 @@ function main() {
       to +
       '. Now:\n\n    node tools/build-docs.mjs   # project v' +
       to +
-      ' into README + index.html + docs/about.json (check-6 surfaces)\n    git add -A && git commit -m "release: v' +
+      ' into README + index.html + docs/about.json (check-6 surfaces)\n' +
+      '    git add suite.manifest.json CHANGELOG.md RELEASE-MANIFEST.json CITATION.cff README.md index.html docs/about.json changes/ \\\n' +
+      '      && git commit -m "release: v' +
       to +
-      '"\n    git tag v' +
+      '"\n    git tag -s v' +
+      to +
+      ' -m "v' +
+      to +
+      '"   # -s = SIGNED → GitHub shows "Verified" (needs a GPG/SSH signing key; v1.8.0 was the last signed tag)\n' +
+      '    git push && git push origin v' +
       to +
       '\n'
   );
