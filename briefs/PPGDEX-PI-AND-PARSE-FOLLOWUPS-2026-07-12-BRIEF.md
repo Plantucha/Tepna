@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-12 · **Follows:** `PPGDEX-PI-AND-PARSE-2026-07-12-BRIEF.md`
+**Status:** PROPOSED (deferred 2026-07-15 — §3/§4 EXECUTED; §1 blocked on gitignored ~600k-row companions; §2 conditional on a morph re-bundle) · **Created:** 2026-07-12 · **Follows:** `PPGDEX-PI-AND-PARSE-2026-07-12-BRIEF.md`
 
 # PpgDex PI + parse — follow-ups
 
