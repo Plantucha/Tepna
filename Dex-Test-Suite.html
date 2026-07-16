@@ -115,7 +115,8 @@
 <script src="ppgdex-cross.js"></script>
 <!-- ecgdex-dsp.js: dual-mode ES module, classic-loaded in main() below (ESM-MIGRATION) -->
 
-<script src="ppgdex-dsp.js"></script>
+<!-- ppgdex-dsp.js: dual-mode ES module, classic-loaded in main() below (ESM-MIGRATION) -->
+
 <script src="ecgdex-morph.js"></script>
 <script src="ppgdex-morph.js"></script>
 <script src="integrator-dsp.js"></script>
@@ -214,6 +215,9 @@ async function main(){
   // ESM-MIGRATION: ecgdex-dsp.js is a dual-mode ES module — classic-load it here (clock.js + ecgdex-morph.js
   // are already loaded classically above, so window.DexClock / window.ECGMorph are present when it evals).
   { const _e = await fetchText('ecgdex-dsp.js'); if(_e) (0, eval)(esmClassicify(_e)); }
+  // ESM-MIGRATION: ppgdex-dsp.js is a dual-mode ES module (ppgdex-morph.js loaded classically above →
+  // window.PPGMorph present; the DSP carries its own local clock parser, so no clock.js dependency).
+  { const _p = await fetchText('ppgdex-dsp.js'); if(_p) (0, eval)(esmClassicify(_p)); }
   // gather fixtures + sources (browser I/O; runner does the equivalent in Node)
   const fixtures = {}, sources = {};
   await Promise.all(Object.keys(FIXTURE_FILES).map(async k => { fixtures[k] = await fetchJSON(FIXTURE_FILES[k]); }));

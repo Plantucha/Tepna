@@ -2435,3 +2435,13 @@
     return env;
   };
 })(window);
+
+// ESM-MIGRATION: ppgdex-dsp is now a DUAL-MODE module. The IIFE above still attaches window.PPGDSP /
+// window.PpgDex — the headless node API AND every classic co-load consumer (the orchestrators, both
+// test runners, and the raw analysis workers, which classic-load this file via tools/build-core.js
+// `classicify`). These re-exports let the owned ESM bundle's ppgdex-app.js `import { PPGDSP }` instead
+// of reading window. IMPORTANT: only these two module-scope exports are added — the worker `deps`
+// functions + REFR_CADENCE_FRAC const stay classic declarations INSIDE the IIFE, so _buildWorkerURL's
+// `f.toString()` serialization (and the "worker source is CLOSED" gate) is byte-unchanged.
+export const PPGDSP = window.PPGDSP;
+export const PpgDex = window.PpgDex;
