@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4MW11iJZlLMksl1WG2LoiEZ5d5evud9437DCZYmvpro=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-80t9gPBLWIOSutMIMKt3L7XVIxCZ4swU3jzzarYuKI8=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AnAF84XkWQfwcKQhTik4RKkmddfMGhUQ/SPghx+UTMs=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OJqOhFcEaTHnRTEoJLpCqCm+qkNxIDecjPFZa26rtDQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-RcbmJXsA8AYceCwpLW+uzSICI8szTcaw7dEemGDXDAs=' 'sha256-TjaNfjdI1uy6Y/QCmKdy3/8OhUhTsxcmpioTK97koSw=' 'sha256-ZLhuBU6RCa7Ww77o3px1o3sKLCkXaKz2xWsFPucj/J0=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4MW11iJZlLMksl1WG2LoiEZ5d5evud9437DCZYmvpro=' 'sha256-6WPp9K2mHPrpTKnNnuL2LvYBXrAq9fshTkqy0Lt2DZc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8qDMGFQtinkcngOjFA9zSjzzmEu8yMU1r+pP7Lt5/aU=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AnAF84XkWQfwcKQhTik4RKkmddfMGhUQ/SPghx+UTMs=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OJqOhFcEaTHnRTEoJLpCqCm+qkNxIDecjPFZa26rtDQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-TjaNfjdI1uy6Y/QCmKdy3/8OhUhTsxcmpioTK97koSw=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-p9Oxv8fTa380+XXRWMPFuq0j+QFn4WmHMO+/E8wCeV4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ECGDex — Raw ECG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -6465,7 +6465,8 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   if (typeof module !== 'undefined' && module.exports) module.exports = root.DexClock;
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
 </script>
-<script data-inline-src="ecgdex-dsp.js">/* ════════════════════════════════════════════════════════════════════════
+<script data-inline-src="ecgdex-dsp.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("ecgdex-dsp.js",function(__require,__exports){
+/* ════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    ECGDex · DSP ENGINE  (ecgdex-dsp.js)
@@ -9958,8 +9959,19 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     return env;
   };
 })(window);
-</script>
-<script data-inline-src="ecgdex-render.js">/* ════════════════════════════════════════════════════════════════════════
+
+// ESM-MIGRATION: ecgdex-dsp is now a DUAL-MODE module. The IIFE above still attaches window.ECGDSP /
+// window.ECGDex — the headless node API AND every classic co-load consumer (the orchestrators, both
+// test runners, and the raw analysis workers, which classic-load this file via tools/build-core.js
+// `classicify`). These re-exports let the owned ESM bundle's ecgdex-app.js `import { ECGDSP }` instead
+// of reading window. The inlined WORKER_SRC in ecgdex-app.js is a hermetic string (references no module
+// binding), so this export does not touch the worker realm.
+__exports.ECGDSP = window.ECGDSP;
+__exports.ECGDex = window.ECGDex;
+
+});})();</script>
+<script data-inline-src="ecgdex-render.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("ecgdex-render.js",function(__require,__exports){
+/* ════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    ECGDex · RENDER  (ecgdex-render.js)
@@ -9983,6 +9995,9 @@ function evBadge(label, fallback) {
     return '';
   }
 }
+// ESM-MIGRATION: this module scopes evBadge away from the global — publish it so the classic profile
+// and the ESM app's bare `evBadge(...)` calls still resolve (mirrors glucodex-render).
+window.evBadge = evBadge;
 
 (function (global) {
   'use strict';
@@ -10527,7 +10542,12 @@ function evBadge(label, fallback) {
 
   global.ECGUI = { ECGScope, lineChart, poincare, hypnogram, medianBeatChart, buildEnvelope, COLORS: C };
 })(window);
-</script>
+
+// ESM-MIGRATION: dual-mode re-export so ecgdex-app.js can `import { ECGUI }`; the IIFE still attaches
+// window.ECGUI for classic consumers (classicify sheds this line for the vm/harness).
+__exports.ECGUI = window.ECGUI;
+
+});})();</script>
 <script data-inline-src="ecgdex-morph.js">/* ════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
@@ -12773,7 +12793,8 @@ function evBadge(label, fallback) {
   };
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
 </script>
-<script data-inline-src="ecgdex-app.js">/* ════════════════════════════════════════════════════════════════════════
+<script data-inline-src="ecgdex-app.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("ecgdex-app.js",function(__require,__exports){
+/* ════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    ECGDex · APP  (ecgdex-app.js)
@@ -12782,11 +12803,16 @@ function evBadge(label, fallback) {
    synthetic generator, pipeline orchestration, and all UI population/exports.
    Depends on window.ECGDSP and window.ECGUI.
    ════════════════════════════════════════════════════════════════════════ */
+// ESM-MIGRATION: real import edges to the DSP + render modules (the DSP↔app coupling P5 targets).
+// Importing ecgdex-render.js also runs its factory (publishing window.evBadge) before this body's bare
+// `evBadge(...)` calls. ecgdex-morph/-profile/-cross stay classic co-loaded (read off window at call time).
+const { ECGDSP } = __require('ecgdex-dsp.js');
+const { ECGUI } = __require('ecgdex-render.js');
 (function () {
   'use strict';
   const $ = (id) => document.getElementById(id);
-  const DSP = window.ECGDSP,
-    UI = window.ECGUI;
+  const DSP = ECGDSP,
+    UI = ECGUI;
   const ING = window.DexIngest; // §3 (ECG-INGEST-FOLLOWUPS): shared, gate-backed file-ingest classification (dex-ingest.js)
   let RESULT = null,
     SCOPE = null,
@@ -15725,7 +15751,8 @@ self.onmessage = async (e) => {
     } catch (_) {}
   }
 })();
-</script>
+
+});__M.require("ecgdex-app.js");})();</script>
 <script data-inline-src="inline:script:0">
 // keep the chip name element in sync (app.js sets text via showChip shim)
 function showChip(name){ document.getElementById('ecgChipName').textContent = name; document.getElementById('ecgChip').classList.add('show'); }
