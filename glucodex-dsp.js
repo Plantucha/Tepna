@@ -1904,3 +1904,10 @@
     return env;
   };
 })(window);
+
+// ESM-MIGRATION Phase 2: dsp is now a DUAL-MODE module. The IIFE above still attaches window.GLUDSP /
+// window.GlucoDex (the external node API + every classic co-load consumer — the orchestrators and both
+// test runners, which classic-load this file via tools/build-core.js `classicify`). These re-exports
+// let the owned ESM bundle's glucodex-app.js `import { GLUDSP, GlucoDex }` instead of reading window.
+export const GLUDSP = window.GLUDSP;
+export const GlucoDex = window.GlucoDex;

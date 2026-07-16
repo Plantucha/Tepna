@@ -263,6 +263,120 @@
     return { scripts: scripts, styles: styles };
   }
 
+  /* ── ESM bundling (ESM-MIGRATION Phase 1) ────────────────────────────────────────────────────
+     A `<script type="module" src="X">` ref in a `.src.html` marks X as an ES module. The owned build
+     resolves the sibling import/export graph and inlines EACH module as its OWN classic block with the
+     ORIGINAL name preserved — so manifest-gate.js's computeHash denylist still classifies `-render`/
+     `-app`/`-profile` as display and `-dsp`/`-registry` as compute (a single combined block would
+     collapse that distinction and falsely move computeHash on every render edit). The blocks are wired
+     through a shared, idempotent module registry (webpack/rollup classic-output shape): each module runs
+     in its own function scope (so per-module `const $`/`mean`/`clamp` never collide), `import`/`export`
+     become `__require`/`__exports`, and the root module(s) trigger `__require` after every block has run.
+     Output carries NO network edge and NO `<script type="module">` (which fails under file:// — the
+     LOCAL-DOWNLOAD-FILE-URL-FIX / opaque-origin wall). Each module tag is rewritten to a classic
+     `<script src>` here, then the normal build() pass inlines it verbatim. The DSP + registry stay
+     classic <script> refs (co-loaded raw by the orchestrators + both test runners), untouched. */
+  var ESM_IMPORT_NAMED = /^[ \t]*import[ \t]*\{[ \t]*([^}]*?)[ \t]*\}[ \t]*from[ \t]*['"]\.\/([^'"]+)['"];?[ \t]*$/gm;
+  var ESM_IMPORT_SIDE = /^[ \t]*import[ \t]*['"]\.\/([^'"]+)['"];?[ \t]*$/gm;
+  var ESM_EXPORT_CONST = /^[ \t]*export[ \t]+const[ \t]+([A-Za-z_$][\w$]*)[ \t]*=/gm;
+  var ESM_EXPORT_BRACE = /^[ \t]*export[ \t]*\{[ \t]*([^}]*?)[ \t]*\};?[ \t]*$/gm;
+  var ESM_SCRIPT_SRC_RE = /<script\b([^>]*?)\bsrc="([^"]+)"([^>]*)>\s*<\/script>/gi;
+
+  function esmIsModuleTag(pre, post) {
+    return /\btype="module"/i.test((pre || '') + ' ' + (post || ''));
+  }
+  function esmDepsOf(text) {
+    var deps = {},
+      m;
+    ESM_IMPORT_NAMED.lastIndex = 0;
+    for (m = ESM_IMPORT_NAMED.exec(text); m !== null; m = ESM_IMPORT_NAMED.exec(text)) deps[m[2]] = 1;
+    ESM_IMPORT_SIDE.lastIndex = 0;
+    for (m = ESM_IMPORT_SIDE.exec(text); m !== null; m = ESM_IMPORT_SIDE.exec(text)) deps[m[1]] = 1;
+    return Object.keys(deps);
+  }
+  function esmTransformBody(text) {
+    return text
+      .replace(ESM_IMPORT_NAMED, function (_, names, mod) {
+        return 'const { ' + names + " } = __require('" + mod + "');";
+      })
+      .replace(ESM_IMPORT_SIDE, function (_, mod) {
+        return "__require('" + mod + "');";
+      })
+      .replace(ESM_EXPORT_CONST, function (_, name) {
+        return '__exports.' + name + ' =';
+      })
+      .replace(ESM_EXPORT_BRACE, function (_, names) {
+        return names
+          .split(',')
+          .map(function (n) {
+            return n.trim();
+          })
+          .filter(Boolean)
+          .map(function (n) {
+            return '__exports.' + n + ' = ' + n + ';';
+          })
+          .join(' ');
+      });
+  }
+  // Idempotent, self-installing module registry — emitted in EVERY module block so block order is
+  // irrelevant (a define never depends on another block having run; only __require does, and that is
+  // deferred to the root trigger after all defines). `var ex={};cache[n]=ex;` before run = cycle-safe.
+  var ESM_RUNTIME =
+    'var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};' +
+    'function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];' +
+    "var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}" +
+    'return{define:function(n,f){reg[n]=f;},require:require};})());';
+  function esmWrap(name, body, rootRequires) {
+    var out = '(function(){' + ESM_RUNTIME + '__M.define(' + JSON.stringify(name) + ',function(__require,__exports){\n' + esmTransformBody(body) + '\n});';
+    if (rootRequires) for (var i = 0; i < rootRequires.length; i++) out += '__M.require(' + JSON.stringify(rootRequires[i]) + ');';
+    return out + '})();';
+  }
+  /* ── classicify (ESM-MIGRATION Phase 2 — the co-load bridge) ─────────────────────────────────
+     Turn an ES-module co-load file into a classic-evaluable script for the raw loaders that share a
+     global realm (the vm test realm in tests/run-tests.mjs + tools/regen-*, and the browser test
+     harness Dex-Test-Suite.html) — none of which can eval a top-level `export`/`import`. A converted
+     DSP is DUAL-MODE: it keeps its `(function(global){…})(window)` IIFE + `window.<Node>` attaches
+     (so classicify only needs to shed the module syntax), and the ESM app bundle imports its exports.
+       import { A, B } from './x.js';  →  const { A, B } = window   (the sibling classic set them)
+       import './x.js';               →  (removed — the sibling loads separately in the realm)
+       export { A, B };               →  (removed)
+       export const/function/… X      →  const/function/… X        (keep the declaration, shed `export`)
+     A file with no module syntax passes through UNCHANGED, so a loader may classicify() everything. */
+  function classicify(code) {
+    return String(code)
+      .replace(/^([ \t]*)import\s*\{([^}]*)\}\s*from\s*['"][^'"]+['"];?[ \t]*$/gm, '$1const {$2} = (typeof window !== "undefined" ? window : globalThis);')
+      .replace(/^[ \t]*import\s+['"][^'"]+['"];?[ \t]*$/gm, '')
+      .replace(/^[ \t]*export\s*\{[^}]*\}\s*;?[ \t]*$/gm, '')
+      .replace(/^([ \t]*)export\s+(?=(?:const|let|var|function|class|async)\b)/gm, '$1');
+  }
+
+  // Pure (srcHtml, assets) -> { srcHtml, assets }: wrap every ESM module asset, rewrite its tag to
+  // classic, and attach the entry trigger (all graph roots) to the LAST module in source order.
+  function esmBundle(srcHtml, assets) {
+    var mods = [],
+      m;
+    ESM_SCRIPT_SRC_RE.lastIndex = 0;
+    for (m = ESM_SCRIPT_SRC_RE.exec(srcHtml); m !== null; m = ESM_SCRIPT_SRC_RE.exec(srcHtml)) if (esmIsModuleTag(m[1], m[3]) && isLocalRef(m[2])) mods.push(m[2]);
+    if (!mods.length) return { srcHtml: srcHtml, assets: assets };
+    var imported = {};
+    for (var i = 0; i < mods.length; i++) {
+      if (!(mods[i] in assets)) throw new Error('build: missing module asset text for "' + mods[i] + '"');
+      var deps = esmDepsOf(assets[mods[i]]);
+      for (var j = 0; j < deps.length; j++) imported[deps[j]] = 1;
+    }
+    var roots = mods.filter(function (x) {
+      return !imported[x];
+    });
+    var last = mods[mods.length - 1];
+    var out = {};
+    for (var k in assets) if (Object.prototype.hasOwnProperty.call(assets, k)) out[k] = assets[k];
+    for (var a = 0; a < mods.length; a++) out[mods[a]] = esmWrap(mods[a], assets[mods[a]], mods[a] === last ? roots : null);
+    var html = srcHtml.replace(ESM_SCRIPT_SRC_RE, function (full, pre, src, post) {
+      return esmIsModuleTag(pre, post) && isLocalRef(src) ? '<script src="' + src + '"></script>' : full;
+    });
+    return { srcHtml: html, assets: out };
+  }
+
   /* ── The build ──────────────────────────────────────────────────────────────────────────────
      build({ srcHtml, assets }) -> { html, manifestHash, assetNames, inlineCounts }
        srcHtml : the `.src.html` text
@@ -288,6 +402,11 @@
     var src = opts.srcHtml,
       assets = opts.assets || {};
     if (typeof src !== 'string') throw new Error('build: srcHtml must be a string');
+    // ESM-MIGRATION Phase 1: resolve + wrap any `<script type="module">` refs into per-file classic
+    // blocks (no-op when a src.html has none, so every existing bundle is byte-unchanged).
+    var esm = esmBundle(src, assets);
+    src = esm.srcHtml;
+    assets = esm.assets;
     var out = '',
       i = 0,
       si = 0,
@@ -370,6 +489,8 @@
     isPlainInline: isPlainInline,
     manifestHashFromInline: manifestHashFromInline,
     scanRefs: scanRefs,
+    esmBundle: esmBundle,
+    classicify: classicify,
     build: build,
     INLINE_SCRIPT_RE: INLINE_SCRIPT_RE,
     INLINE_STYLE_RE: INLINE_STYLE_RE
