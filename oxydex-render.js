@@ -8,6 +8,10 @@
    exactly as in the original single-script monolith. No behavior change.
    Load order: oxydex-util → oxydex-profile → oxydex-dsp → oxydex-render → oxydex-app.
    ════════════════════════════════════════════════════════════════════════ */
+// ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
+// _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
+// runs on this page; every DSP helper this module uses is named here, import-style).
+const { linReg, fmtDate, fmtTime, shortDate } = window.OxyDex._bare;
 
 // ═══════════════════════════════════════════
 // CHARTS  (pure SVG, no dependencies)

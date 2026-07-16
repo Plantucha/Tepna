@@ -12,6 +12,40 @@
 import './hrvdex-dsp.js';
 import './hrvdex-render.js';
 import './hrvdex-profile.js';
+// ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
+// _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
+// runs on this page; every DSP helper this module uses is named here, import-style).
+const { parseCSV, HRV_STORE_KEY, restoreHRVRows, ingestGangliorJSON, mean, getFilteredRows, hrvBuildNodeExport } = window.HRVDex._bare;
+// mutable page state: bridge bare window.{allRows,windowDays,charts} ↔ the DSP-owned
+// HRVDex.* (the DSP's window proxies are spray-guarded and no longer install here;
+// hrvdex-render/-profile and this file read/write them bare).
+Object.defineProperty(window, 'allRows', {
+  configurable: true,
+  get: function () {
+    return window.HRVDex.allRows;
+  },
+  set: function (v) {
+    window.HRVDex.allRows = v;
+  }
+});
+Object.defineProperty(window, 'windowDays', {
+  configurable: true,
+  get: function () {
+    return window.HRVDex.windowDays;
+  },
+  set: function (v) {
+    window.HRVDex.windowDays = v;
+  }
+});
+Object.defineProperty(window, 'charts', {
+  configurable: true,
+  get: function () {
+    return window.HRVDex.charts;
+  },
+  set: function (v) {
+    window.HRVDex.charts = v;
+  }
+});
 
 /* ===== FILE LOAD ===== */
 const uploadZone = document.getElementById('uploadZone');

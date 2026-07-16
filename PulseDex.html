@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/+6b2gRRXsvuRrt7AXOoDfo6WQBbCCaEW4hSOAPqdqU=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-SUaPqHQ2ESPtQXQL+dIxpK36fSS5ZE7wJQK8rIxhMwg=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-kbVuM1x7tUHH3bQ9FdAx9f11nUKHwVIXfFg1zibFq2E=' 'sha256-mKaj2kmV5b3f5snMYH0YKCGnQsqwcV3tlL7MokM0McU=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-wqDbeDU0SnMajdtM8cSlEKbRzlQom4rfHYB2FEGCoOM=' 'sha256-xA1x7u2tMc2m0l5MXs9Cy41ZkBRF3ttjk70idTlRLHA=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-70AUrHGU2gzNqyJLH1FwsO9kROu2C0urnwj8NpxwQKE=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Cyb9gKlG57aIWDRFiExMPrYDTn3+LhNKUZTbL2nuE/Y=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-SUaPqHQ2ESPtQXQL+dIxpK36fSS5ZE7wJQK8rIxhMwg=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bVxOkEY+uR/AiRWe9ofKFCjGaAeFXC0KvN9gbzJ0/uk=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-k6BAJ1OyWyV7tAMv0ED6IZCbWMW59P51eO3Q04UUYXk=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-xA1x7u2tMc2m0l5MXs9Cy41ZkBRF3ttjk70idTlRLHA=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PulseDex — Raw RR Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -6075,6 +6075,11 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
   if (typeof module !== 'undefined' && module.exports) module.exports = root.DexClock;
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
 </script>
+<!-- ESM-MIGRATION Phase 4: namespaced load — the DSP attaches ONLY its namespace (no bare-global
+     spray on this page); the UI modules import their DSP helpers explicitly (destructured from
+     the namespace _bare surface). The spray still serves the non-namespaced classic realms
+     (test suite + workers) by design. -->
+<script data-inline-src="inline:script:0">window.__DEX_NAMESPACED__ = true;</script>
 <!-- ESM-MIGRATION deep-3: the four pulsedex node modules are ES modules. The owned bundler
      (tools/build-core.js esmBundle) resolves the graph and inlines each as its own classic
      script (external import fails under file:// — the CORS wall). The registry + cross stay
@@ -7503,77 +7508,95 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
   root.PulseDex = PulseDex;
 
   // ── app back-compat: re-export the bare DSP globals UNLESS co-loaded namespaced ──
+  // ESM-MIGRATION Phase 4: the bare-helper surface, exposed ON the namespace so the ESM UI
+  // modules destructure it explicitly (const { … } = window.PulseDex._bare) instead of depending
+  // on the bare-global spray below — which now serves ONLY the non-namespaced classic realms
+  // (the test suite + the six workers, a deliberate test-access surface, not debt).
+  var BARE = {
+    tzOffset,
+    _ckP2,
+    _ckNumEpoch,
+    _ckZoneMin,
+    _ckDMY,
+    parseTimestamp,
+    fmtClock,
+    fmtDate,
+    fmtDateTime,
+    mean,
+    std,
+    rmssd,
+    pnn50,
+    nn50c,
+    minmax,
+    mxdmn,
+    quant,
+    modeV,
+    amo50,
+    sd1,
+    sd2,
+    lnR,
+    lfHf,
+    nu,
+    ansBalance,
+    stressEst,
+    hrvEst,
+    energyEst,
+    focusEst,
+    cohEst,
+    vo2Base,
+    vo2Adj,
+    altVO2Factor,
+    periodicBreathingIndex,
+    siCalc,
+    efcIdx,
+    crsIdx,
+    absIdx,
+    linfit,
+    dfaAlpha1,
+    sampEn,
+    fragmentation,
+    prsaCapacity,
+    triangularIndex,
+    lombScargle,
+    _pdIntervalColFromHeader,
+    _pdIntervalColByRange,
+    partKey,
+    mergeMultipart,
+    parseRRInput,
+    arrMin,
+    arrMax,
+    medianOf,
+    artifactClean,
+    beatTimes,
+    MODE_LABEL,
+    classifyRecording,
+    windowAnalysis,
+    lineChartSVG,
+    _pdPearson,
+    _pdSeriesStats,
+    compareIntervalSeries,
+    _pdClockS,
+    _pdNormalizeRRInput,
+    pdComputeResult,
+    pdEventsFromResult,
+    pdBuildNodeExport,
+    pulseLoadOwnExport
+  };
+  PulseDex._bare = BARE;
+  // mutable cross-file state, namespace-proxied — the DSP closure owns `lastResult`; the app
+  // module bridges window.lastResult to this on its own page (the guarded window proxy below
+  // keeps serving the non-namespaced classic realms).
+  Object.defineProperty(PulseDex, 'lastResult', {
+    configurable: true,
+    get: function () {
+      return lastResult;
+    },
+    set: function (v) {
+      lastResult = v;
+    }
+  });
   if (!root.__DEX_NAMESPACED__) {
-    Object.assign(root, {
-      tzOffset,
-      _ckP2,
-      _ckNumEpoch,
-      _ckZoneMin,
-      _ckDMY,
-      parseTimestamp,
-      fmtClock,
-      fmtDate,
-      fmtDateTime,
-      mean,
-      std,
-      rmssd,
-      pnn50,
-      nn50c,
-      minmax,
-      mxdmn,
-      quant,
-      modeV,
-      amo50,
-      sd1,
-      sd2,
-      lnR,
-      lfHf,
-      nu,
-      ansBalance,
-      stressEst,
-      hrvEst,
-      energyEst,
-      focusEst,
-      cohEst,
-      vo2Base,
-      vo2Adj,
-      altVO2Factor,
-      periodicBreathingIndex,
-      siCalc,
-      efcIdx,
-      crsIdx,
-      absIdx,
-      linfit,
-      dfaAlpha1,
-      sampEn,
-      fragmentation,
-      prsaCapacity,
-      triangularIndex,
-      lombScargle,
-      _pdIntervalColFromHeader,
-      _pdIntervalColByRange,
-      partKey,
-      mergeMultipart,
-      parseRRInput,
-      arrMin,
-      arrMax,
-      medianOf,
-      artifactClean,
-      beatTimes,
-      MODE_LABEL,
-      classifyRecording,
-      windowAnalysis,
-      lineChartSVG,
-      _pdPearson,
-      _pdSeriesStats,
-      compareIntervalSeries,
-      _pdClockS,
-      _pdNormalizeRRInput,
-      pdComputeResult,
-      pdEventsFromResult,
-      pdBuildNodeExport,
-      pulseLoadOwnExport
-    });
+    Object.assign(root, BARE);
     // mutable cross-file state — proxy bare `lastResult` to the in-closure binding
     Object.defineProperty(root, 'lastResult', {
       configurable: true,
@@ -7607,6 +7630,10 @@ __exports.PulseDex = window.PulseDex;
    WT_COLS …) is published to window in the block at the end of this file — the classic-style
    consumers (pulsedex-overview / -app) read them as bare globals at call time.
    No external libraries. ════════════════════════════════════════════════════ */
+// ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
+// _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
+// runs on this page; every DSP helper this module uses is named here, import-style).
+const { fmtClock, vo2Base, vo2Adj, altVO2Factor, lineChartSVG } = window.PulseDex._bare;
 
 // ── evidence badge hook (System-Cohesion) — resolves a badge from a rendered
 // label via PulseRegistry (pulsedex-registry.js). Zero-touch; safe no-op if the
@@ -8290,6 +8317,10 @@ Object.assign(window, {
    Hero · Projected ANS Age (+VO₂max/BP) · Profile body-composition · Key Metrics
    Reads the global `lastResult` (r) + `welltoryData` history + profile inputs.
    ════════════════════════════════════════════════════════════════════════ */
+// ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
+// _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
+// runs on this page; every DSP helper this module uses is named here, import-style).
+const { parseTimestamp, nu } = window.PulseDex._bare;
 
 // ── profile inputs ───────────────────────────────────────────────────────────
 function pxProfile() {
@@ -10847,6 +10878,69 @@ Object.assign(window, {
 __require('pulsedex-dsp.js');
 __require('pulsedex-render.js');
 __require('pulsedex-overview.js');
+// ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
+// _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
+// runs on this page; every DSP helper this module uses is named here, import-style).
+const {
+  fmtDateTime,
+  mean,
+  std,
+  rmssd,
+  pnn50,
+  nn50c,
+  mxdmn,
+  quant,
+  modeV,
+  amo50,
+  sd1,
+  sd2,
+  lnR,
+  nu,
+  ansBalance,
+  stressEst,
+  hrvEst,
+  energyEst,
+  focusEst,
+  cohEst,
+  vo2Base,
+  vo2Adj,
+  altVO2Factor,
+  periodicBreathingIndex,
+  siCalc,
+  efcIdx,
+  crsIdx,
+  absIdx,
+  dfaAlpha1,
+  sampEn,
+  fragmentation,
+  prsaCapacity,
+  triangularIndex,
+  lombScargle,
+  mergeMultipart,
+  parseRRInput,
+  arrMin,
+  arrMax,
+  medianOf,
+  artifactClean,
+  beatTimes,
+  MODE_LABEL,
+  classifyRecording,
+  windowAnalysis,
+  compareIntervalSeries,
+  pdBuildNodeExport,
+  pulseLoadOwnExport
+} = window.PulseDex._bare;
+// mutable page state: bridge bare window.lastResult ↔ the DSP-owned PulseDex.lastResult (the DSP's own
+// window proxy is spray-guarded and no longer installs here; render/overview read it bare).
+Object.defineProperty(window, 'lastResult', {
+  configurable: true,
+  get: function () {
+    return window.PulseDex.lastResult;
+  },
+  set: function (v) {
+    window.PulseDex.lastResult = v;
+  }
+});
 
 // ─── THEME ────────────────────────────────────────────────────────────────────
 const themeBtn = document.getElementById('themeBtn');
@@ -12222,7 +12316,7 @@ if (window.DexActions)
 window.findWTRow = findWTRow;
 
 });__M.require("pulsedex-app.js");})();</script>
-<script data-inline-src="inline:script:0">
+<script data-inline-src="inline:script:1">
 // Mount the SHARED depth selector (System-Cohesion) so PulseDex persists its
 // disclosure tier under the same dex_depth_tier key as every other -Dex node.
 (function(){

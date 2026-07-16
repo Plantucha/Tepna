@@ -193,6 +193,15 @@ coupling becomes import-checked, **retire the corresponding source-mirror gates*
 
 ## Phase 4 — sweep the dead scaffolding · *conditional*
 
+> **⏸ EXECUTED IN PART 2026-07-16 (owner-scoped middle path)** — measurement showed the scaffolding is
+> NOT dead: the sprays feed the test suite (hundreds of deliberate bare calls) + six workers, and the
+> `-globals.d.ts` files are pinned by DSP→UI reach-ins. What DID land: app pages namespaced
+> (`__DEX_NAMESPACED__` in the three deep-3 shells), explicit `_bare` destructure imports in every UI
+> module, namespace proxies for mutable state — the import boundary is real and machine-verified in the
+> product. The remainder (test-suite rewrite → spray deletion, reach-in inversion → d.ts deletion,
+> source-mirror-gate behavioralization) is precisely scoped in `ESM-MIGRATION-FOLLOWUPS-II-2026-07-16-BRIEF.md`
+> (PROPOSED/parked). This brief's Done-when stays open on exactly those items.
+
 Remove the now-unused `<node>-globals.d.ts` files, dead `global.<Node>` attaches, and the retired
 source-mirror gates; update ORIENTATION/ARCHITECTURE docs to describe the module boundary. Flip
 `ARCHITECTURE-DEBT-REDUCTION`'s P5 note from deferred to DONE-via-this-brief.

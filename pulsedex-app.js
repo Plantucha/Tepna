@@ -12,6 +12,69 @@
 import './pulsedex-dsp.js';
 import './pulsedex-render.js';
 import './pulsedex-overview.js';
+// ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
+// _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
+// runs on this page; every DSP helper this module uses is named here, import-style).
+const {
+  fmtDateTime,
+  mean,
+  std,
+  rmssd,
+  pnn50,
+  nn50c,
+  mxdmn,
+  quant,
+  modeV,
+  amo50,
+  sd1,
+  sd2,
+  lnR,
+  nu,
+  ansBalance,
+  stressEst,
+  hrvEst,
+  energyEst,
+  focusEst,
+  cohEst,
+  vo2Base,
+  vo2Adj,
+  altVO2Factor,
+  periodicBreathingIndex,
+  siCalc,
+  efcIdx,
+  crsIdx,
+  absIdx,
+  dfaAlpha1,
+  sampEn,
+  fragmentation,
+  prsaCapacity,
+  triangularIndex,
+  lombScargle,
+  mergeMultipart,
+  parseRRInput,
+  arrMin,
+  arrMax,
+  medianOf,
+  artifactClean,
+  beatTimes,
+  MODE_LABEL,
+  classifyRecording,
+  windowAnalysis,
+  compareIntervalSeries,
+  pdBuildNodeExport,
+  pulseLoadOwnExport
+} = window.PulseDex._bare;
+// mutable page state: bridge bare window.lastResult ↔ the DSP-owned PulseDex.lastResult (the DSP's own
+// window proxy is spray-guarded and no longer installs here; render/overview read it bare).
+Object.defineProperty(window, 'lastResult', {
+  configurable: true,
+  get: function () {
+    return window.PulseDex.lastResult;
+  },
+  set: function (v) {
+    window.PulseDex.lastResult = v;
+  }
+});
 
 // ─── THEME ────────────────────────────────────────────────────────────────────
 const themeBtn = document.getElementById('themeBtn');

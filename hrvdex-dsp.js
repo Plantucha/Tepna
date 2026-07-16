@@ -1102,47 +1102,84 @@
   root.HRVDex = HRVDex;
 
   // ── app back-compat: re-export the bare DSP globals UNLESS co-loaded namespaced ──
+  // ESM-MIGRATION Phase 4: the bare-helper surface, exposed ON the namespace so the ESM UI
+  // modules destructure it explicitly (const { … } = window.HRVDex._bare) instead of depending
+  // on the bare-global spray below — which now serves ONLY the non-namespaced classic realms
+  // (the test suite + the six workers, a deliberate test-access surface, not debt).
+  var BARE = {
+    tzOffset,
+    _ckP2,
+    _ckNumEpoch,
+    _ckZoneMin,
+    _ckDMY,
+    parseTimestamp,
+    fmtClock,
+    fmtDate,
+    fmtDateTime,
+    utcDayKey,
+    _hrvParseSummaryRows,
+    parseCSV,
+    HRV_STORE_KEY,
+    HRV_SEED_FIELDS,
+    _hrvNum,
+    _hrvSig,
+    _seedFromRow,
+    _rowFromSeed,
+    persistHRVRows,
+    restoreHRVRows,
+    commitRows,
+    _hrvRefreshChrome,
+    _envToSeed,
+    ingestGangliorJSON,
+    computeDerived,
+    mean,
+    std,
+    pearsonCorr,
+    linRegSlope,
+    smooth,
+    getFilteredRows,
+    computeCAMQ,
+    _hrvClockS,
+    hrvEventsFromRows,
+    hrvBuildNodeExport,
+    _hrvRowsFromInput,
+    _hrvUpdateExportHint,
+    hrvLoadOwnExport
+  };
+  HRVDex._bare = BARE;
+  // mutable cross-file state, namespace-proxied — the DSP closure owns these; hrvdex-app
+  // bridges the window properties on its own page (the guarded window proxies below keep
+  // serving the non-namespaced classic realms).
+  Object.defineProperty(HRVDex, 'allRows', {
+    configurable: true,
+    get: function () {
+      return allRows;
+    },
+    set: function (v) {
+      allRows = v;
+    }
+  });
+  Object.defineProperty(HRVDex, 'windowDays', {
+    configurable: true,
+    get: function () {
+      return windowDays;
+    },
+    set: function (v) {
+      windowDays = v;
+    }
+  });
+  Object.defineProperty(HRVDex, 'charts', {
+    configurable: true,
+    get: function () {
+      return charts;
+    },
+    set: function (v) {
+      charts = v;
+    }
+  });
+
   if (!root.__DEX_NAMESPACED__) {
-    Object.assign(root, {
-      tzOffset,
-      _ckP2,
-      _ckNumEpoch,
-      _ckZoneMin,
-      _ckDMY,
-      parseTimestamp,
-      fmtClock,
-      fmtDate,
-      fmtDateTime,
-      utcDayKey,
-      _hrvParseSummaryRows,
-      parseCSV,
-      HRV_STORE_KEY,
-      HRV_SEED_FIELDS,
-      _hrvNum,
-      _hrvSig,
-      _seedFromRow,
-      _rowFromSeed,
-      persistHRVRows,
-      restoreHRVRows,
-      commitRows,
-      _hrvRefreshChrome,
-      _envToSeed,
-      ingestGangliorJSON,
-      computeDerived,
-      mean,
-      std,
-      pearsonCorr,
-      linRegSlope,
-      smooth,
-      getFilteredRows,
-      computeCAMQ,
-      _hrvClockS,
-      hrvEventsFromRows,
-      hrvBuildNodeExport,
-      _hrvRowsFromInput,
-      _hrvUpdateExportHint,
-      hrvLoadOwnExport
-    });
+    Object.assign(root, BARE);
     // mutable cross-file state — proxy bare names to the in-closure bindings
     Object.defineProperty(root, 'allRows', {
       configurable: true,
