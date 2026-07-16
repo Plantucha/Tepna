@@ -628,14 +628,14 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
 <script src="dex-profile.js"></script>
 <script src="ecgdex-registry.js"></script>
 <script src="clock.js"></script>
-<script src="ecgdex-dsp.js"></script>
-<script src="ecgdex-render.js"></script>
+<script type="module" src="ecgdex-dsp.js"></script>
+<script type="module" src="ecgdex-render.js"></script>
 <script src="ecgdex-morph.js"></script>
 <script src="ecgdex-profile.js"></script>
 <script src="crossnight-envelope.js"></script>
 <script src="ecgdex-cross.js"></script>
 <script src="dex-ingest.js"></script>
-<script src="ecgdex-app.js"></script>
+<script type="module" src="ecgdex-app.js"></script>
 <script>
 // keep the chip name element in sync (app.js sets text via showChip shim)
 function showChip(name){ document.getElementById('ecgChipName').textContent = name; document.getElementById('ecgChip').classList.add('show'); }

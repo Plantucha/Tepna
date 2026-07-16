@@ -13,6 +13,11 @@
    100% local: drag-drop reads ArrayBuffers in-browser; the demo button fetches
    the bundled uploads/ set (dev/preview only). Nothing leaves the device.
    ════════════════════════════════════════════════════════════════════════ */
+// ESM-MIGRATION: real import edges to the DSP + render modules (the primary DSP↔app coupling P5
+// targets). Importing cpapdex-dsp.js also runs its factory first, so window.CpapDsp is set before this
+// module's body. cpapdex-edf/-cross/-fusion/-coimport/-registry stay classic co-loaded (read off global).
+import { CpapDsp } from './cpapdex-dsp.js';
+import { CpapRender } from './cpapdex-render.js';
 (function (global) {
   'use strict';
 
@@ -85,8 +90,8 @@
     try {
       document.body.classList.remove('cpap-review');
     } catch (_r) {}
-    var R = global.CpapRender,
-      D = global.CpapDsp;
+    var R = CpapRender,
+      D = CpapDsp;
     LOADED_NIGHTS.sort(function (a, b) {
       return (a.t0Ms || 0) - (b.t0Ms || 0);
     });
@@ -141,8 +146,8 @@
     if (!host) return;
     var review = window._cpapReview;
     if (!review) return;
-    var R = global.CpapRender,
-      D = global.CpapDsp;
+    var R = CpapRender,
+      D = CpapDsp;
     try {
       document.body.classList.add('cpap-review');
     } catch (_r) {}
@@ -197,7 +202,7 @@
   /* decode every file in the clusters → sessions, then group sessions into NIGHTS
    (a >12 h gap between consecutive sessions starts a new night). Returns nights[]. */
   function analyzeSet(entries) {
-    if (!global.CpapEdf || !global.CpapDsp) throw new Error('modules not loaded');
+    if (!global.CpapEdf || !CpapDsp) throw new Error('modules not loaded');
     var clusters = groupEdfFiles(entries);
     if (!clusters.length) throw new Error('no recognizable AirSense EDF files (expected *_BRP/PLD/SA2/EVE/CSL.edf)');
     var sessions = [];
@@ -213,7 +218,7 @@
           }
         }
       });
-      var sess = global.CpapDsp.buildSessionFromEdf(set, { fname: (c.files.PLD || c.files.BRP || {}).name || null });
+      var sess = CpapDsp.buildSessionFromEdf(set, { fname: (c.files.PLD || c.files.BRP || {}).name || null });
       if (sess) sessions.push(sess);
     });
     if (!sessions.length) throw new Error('no therapy session could be built (missing PLD/BRP pressure channel?)');
@@ -232,7 +237,7 @@
       cur._lastEnd = Math.max(cur._lastEnd, s.endMs);
     });
     var nights = groups.map(function (g) {
-      return global.CpapDsp.buildNight(g.ss);
+      return CpapDsp.buildNight(g.ss);
     });
     return { nights: nights, clusters: clusters, sessions: sessions };
   }
@@ -603,7 +608,7 @@
       return;
     }
     if (!LOADED_NIGHTS.length || !global.CpapFusion) return;
-    var D = global.CpapDsp,
+    var D = CpapDsp,
       payload,
       fname;
     if (LOADED_NIGHTS.length >= 3 && global.CPAPCross && global.CrossNightEnvelope) {
@@ -674,7 +679,7 @@
       return (a.t0Ms || 0) - (b.t0Ms || 0);
     });
     if (!nights.length) return;
-    var D = global.CpapDsp;
+    var D = CpapDsp;
     var head = [
       'Date',
       'Therapy h',
@@ -809,9 +814,9 @@
     // SELF-INGEST §5 — inject the "scrub for sharing" toggle into the export bar (default OFF). JS-injected
     // so the .src.html shell (and thus buildHash) stays put; read at export time via window._cpapScrub.
     (function wireScrub() {
-      if (global.CpapRender && global.CpapRender.injectSelfIngestCSS)
+      if (CpapRender && CpapRender.injectSelfIngestCSS)
         try {
-          global.CpapRender.injectSelfIngestCSS();
+          CpapRender.injectSelfIngestCSS();
         } catch (_c) {}
       var bar = $('exportBar');
       if (!bar || bar.querySelector('.eb-scrub')) return;

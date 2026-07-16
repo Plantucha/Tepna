@@ -99,7 +99,11 @@ const WORKER_DOM_SHIM = [
 const workerCache = new Map();
 function workerSource(workerFile) {
   if (workerCache.has(workerFile)) return workerCache.get(workerFile);
-  const src = readFile(workerFile);
+  // Strip the served-only ESM co-load fallback (marked @blob-strip in the workers). It is DEAD
+  // here — deps are pre-inlined and importScripts is a no-op stub that never throws — and its
+  // XMLHttpRequest token would red the no-network static lens (transport primitive) in every
+  // tool that inlines the worker. A rethrow keeps the catch honest if the impossible happens.
+  const src = readFile(workerFile).replace(/\/\* @blob-strip:start[\s\S]*?@blob-strip:end \*\//g, 'throw e; /* build-analysis: served-only co-load fallback stripped (deps pre-inlined) */');
   const deps = [];
   const seen = new Set();
   const re = /['"]([\w.-]+\.js)['"]/g;

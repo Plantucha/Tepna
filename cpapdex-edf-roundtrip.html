@@ -23,7 +23,8 @@
 <div id="out"></div>
 <div id="summary">running…</div>
 <script src="cpapdex-edf.js"></script>
-<script src="cpapdex-dsp.js"></script>
+<!-- ESM-MIGRATION: cpapdex-dsp.js is a dual-mode ES module now (this page only uses CpapEdf). -->
+<script type="module" src="cpapdex-dsp.js"></script>
 <script>
 const FILES = [
   '20260612_222819_CSL.edf','20260612_222819_EVE.edf',

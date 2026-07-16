@@ -13,8 +13,10 @@
 <h2>EDF reader</h2><pre id="edf">…</pre>
 <h2>DSP / metrics</h2><pre id="dsp">…</pre>
 <script src="cpapdex-edf.js"></script>
-<script src="cpapdex-dsp.js"></script>
-<script>
+<!-- ESM-MIGRATION: cpapdex-dsp.js is a dual-mode ES module; load natively + run the reader as a module
+     (deferred, after cpapdex-edf.js sets window.CpapEdf). CpapEdf/CpapDsp resolve as window globals. -->
+<script type="module" src="cpapdex-dsp.js"></script>
+<script type="module">
 function render(id, r){
   document.getElementById(id).innerHTML = r.log.map(function(l){
     return '<span class="'+(l[0]==='\u2713'?'pass':'fail')+'">'+l.replace(/</g,'&lt;')+'</span>';

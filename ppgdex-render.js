@@ -21,6 +21,9 @@ function evBadge(label, fallback) {
     return '';
   }
 }
+// ESM-MIGRATION: this module scopes evBadge away from the global — publish it so the classic profile
+// and the ESM app's bare `evBadge(...)` calls still resolve (mirrors glucodex-render / ecgdex-render).
+window.evBadge = evBadge;
 
 (function (global) {
   'use strict';
@@ -561,3 +564,7 @@ function evBadge(label, fallback) {
 
   global.PPGUI = { PPGScope, lineChart, poincare, medianPulseChart, ledRibbon, buildEnvelope, COLORS: C };
 })(window);
+
+// ESM-MIGRATION: dual-mode re-export so ppgdex-app.js can `import { PPGUI }`; the IIFE still attaches
+// window.PPGUI for classic consumers (classicify sheds this line for the vm/harness).
+export const PPGUI = window.PPGUI;

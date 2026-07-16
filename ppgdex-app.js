@@ -8,11 +8,16 @@
    orchestration, all UI population, and v2.0 exports (single + multi wrapper).
    Depends on window.PPGDSP, window.PPGUI, window.PPGMorph, window.PPGProfile.
    ════════════════════════════════════════════════════════════════════════ */
+// ESM-MIGRATION: real import edges to the DSP + render modules (the DSP↔app coupling P5 targets).
+// Importing ppgdex-render.js also runs its factory (publishing window.evBadge) before this body's bare
+// `evBadge(...)` calls. ppgdex-morph/-profile/-cross stay classic co-loaded (read off window at call time).
+import { PPGDSP } from './ppgdex-dsp.js';
+import { PPGUI } from './ppgdex-render.js';
 (function () {
   'use strict';
   const $ = (id) => document.getElementById(id);
-  const DSP = window.PPGDSP,
-    UI = window.PPGUI;
+  const DSP = PPGDSP,
+    UI = PPGUI;
   const ING = window.DexIngest; // §2/§3 (ECG-INGEST-FOLLOWUPS): shared, gate-backed file-ingest classification (dex-ingest.js)
   const F = DSP; // fmt helpers
   // foreign / set-aside stream labels for the no-PPG drop report (§2)

@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (parked 2026-07-16 — the fleet fan-out is bespoke per-node work; its payoff needs completion) · **Created:** 2026-07-16
+**Status:** IN-PROGRESS — 2026-07-16 (nodes 2–4 of 7 landed: CPAPDex · ECGDex · PpgDex; the deep 3 — pulsedex/hrvdex/oxydex — + Phase 4 remain) · **Created:** 2026-07-16
 
 # ESM migration — follow-ups: the fleet fan-out is parked (why, and the path to finish it)
 
@@ -56,3 +56,40 @@ Do it as **dedicated per-node work, one node fully at a time** (NOT a batch), ea
 
 **Recommendation:** leave parked until the full fleet migration is a funded work-item — the reference +
 bridge make it low-*risk* but it is not low-*effort*, and nothing is unlocked before it completes.
+
+## Execution progress — 2026-07-16 (nodes 2–4 landed + fleet infrastructure)
+
+Taken up as funded work. **Three nodes converted, one node per commit, each fully gated** (biome · tsc ·
+`build --check` ×10 · node suite 2540 · GATE A/B · `verify-fixtures` on the real corpus · the browser
+lane `Dex-Test-Suite?full` all-green + `verify-provenance` + `no-network` · a direct bundle smoke):
+
+- **CPAPDex** (node 2) — the only node with a CJS `--selftest`/`module.exports` path; dropped it (a
+  top-level `export` makes the file an ES module Node's CJS loader can't parse — `selfTest()` still runs
+  in the gated suite). dsp+render+app converted; 3 vm tools + 2 `cpapdex-edf-*.html` self-test pages +
+  the Dex-Test-Suite harness taught to `classicify`.
+- **ECGDex** (node 3) — clean capture repoint; render publishes `window.evBadge`; the inlined
+  `WORKER_SRC` template is hermetic (worker realm untouched).
+- **PpgDex** (node 4) — the hard worker: the pool worker is minted from live `Function.toString()` of a
+  `deps` array. Only the two module-scope `export const` were added; every `deps` fn + `REFR_CADENCE_FRAC`
+  stay classic inside the IIFE, so the "worker blob EXECUTES ≡ serial" + "worker source is CLOSED" gates +
+  the browser REAL-Worker gate all held.
+
+**Reusable fleet infrastructure built (repairs a latent regression + a broken gate):**
+- **Worker co-load bridge** — a classic Worker's `importScripts` SyntaxErrors on a dual-mode DSP's
+  top-level `export`. The **GlucoDex (Phase 2) merge silently broke `cohort-worker.js`** (its gluco/cpap
+  KINDs — ungated analysis-page worker); repaired + verified in a real Worker, and the same inline
+  `loadScript` fallback (importScripts → `DexBuild.classicify` + eval; `build-core.js` is worker-safe) is
+  now in all five workers (cohort · pat-feasibility · sensor-trio · qrs-equiv · qrs-yield). `tools/trio-batch.mjs`
+  + `tch-reference-validation.mjs` + `cpap-corpus.mjs` + `regen-cpap-goldens.mjs` classicify their vm loads.
+- **`tests/browser-gates.mjs`** — its `waitForFunction` calls passed the options object in the wrong arg
+  slot, so Playwright silently used a 30 s default timeout; render-coverage (~26–30 s) raced it and the
+  local browser lane was effectively unusable. Fixed → all three gates green.
+
+**What remains (the deep 3 + Phase 4).** pulsedex/hrvdex/oxydex have **no clean DSP capture** (~70 bare
+sprayed-global call sites) and **no-IIFE UI files with shared top-level mutable state** (`let welltoryData`
+…) read cross-file — so their conversion means promoting mutable state to `window` + republishing ~15
+functions per node (bespoke, higher-churn). Per §"Why partial completion unlocks nothing", deleting the
+`-globals.d.ts` + retiring the source-mirror gates still waits on ALL nodes converting AND the classic
+co-load path (orchestrators, both test runners, the five workers) being retired — which itself requires the
+~70-site spray-removal. So the deep 3 are the natural next funded unit; the reference now spans a DSP with a
+CJS path (CPAPDex), a hermetic-blob worker (ECGDex), and a toString-serialized worker (PpgDex).

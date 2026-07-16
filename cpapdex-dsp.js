@@ -25,8 +25,9 @@
        CPAP/APAP mode detection, ventilation stability
      • the SA2 oximeter self-gate (§4.4) — gate desats before ODI
      • cpapdex-fusion.js events/export, cpapdex-registry.js + render cohesion
-   Load AFTER cpapdex-edf.js.   Self-test:  node cpapdex-dsp.js --selftest
-   Exposes: window.CpapDsp
+   Load AFTER cpapdex-edf.js.   Self-test: run by the gated suite via CpapDsp.selfTest()
+   (a top-level `export` below makes this an ES module, so `node cpapdex-dsp.js` no longer parses).
+   Exposes: window.CpapDsp  +  ESM `export { CpapDsp, CPAPDex }` (dual-mode)
    ════════════════════════════════════════════════════════════════════════ */
 (function (root) {
   'use strict';
@@ -1782,7 +1783,9 @@
     selfTest: selfTest,
     _kernel: { _mean: _mean, _sd: _sd, _cov: _cov, _p: _p, _iqr: _iqr, _pearson: _pearson }
   };
-  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  // ESM-MIGRATION: the former `module.exports = api` (CJS dual-mode) is dropped — a top-level ESM
+  // `export` below makes this a module, and nothing `require()`s it; the api reaches Node/vm/browser
+  // consumers via `root.CpapDsp` (classic attach) and the ESM re-export.
   if (root) {
     root.CpapDsp = api;
     // ONE namespaced global (brief §1A) — signal-orchestrate.cpapHost() resolves root.CPAPDex.
@@ -1791,13 +1794,15 @@
     // Phase-9 emit entry; buildNightFromSets is exposed for harness convenience.
     root.CPAPDex = root.CPAPDex || { compute: compute, buildNightFromSets: _nightFromInput, _synthEdfSet: _synthEdfSet };
   }
-
-  if (typeof process !== 'undefined' && process.argv && process.argv.indexOf('--selftest') !== -1) {
-    var r = selfTest();
-    r.log.forEach(function (l) {
-      console.log('  ' + l);
-    });
-    console.log('\n  CPAPDex DSP self-test: ' + r.pass + ' passed, ' + r.fail + ' failed\n');
-    if (typeof process.exitCode !== 'undefined') process.exitCode = r.fail ? 1 : 0;
-  }
 })(typeof window !== 'undefined' ? window : null);
+
+// ESM-MIGRATION: cpapdex-dsp is now a DUAL-MODE module. The IIFE above still attaches window.CpapDsp /
+// window.CPAPDex — the headless node API AND every classic co-load consumer (the edf self-test pages,
+// tools/regen-cpap-goldens.mjs · cpap-corpus.mjs · tch-reference-validation.mjs, cohort-worker.js, and
+// both test runners, which classic-load this file via tools/build-core.js `classicify`). These
+// re-exports let the owned ESM bundle's cpapdex-app.js / -render.js `import { CpapDsp }` instead of
+// reading window. The former `--selftest` CLI runner was dropped (a top-level `export` makes this an
+// ES module that Node's CJS loader cannot parse); selfTest() still runs in the gated suite
+// (tests/dex-tests.js "Leaf-module coverage — CPAPDex DSP/EDF self-tests").
+export const CpapDsp = window.CpapDsp;
+export const CPAPDex = window.CPAPDex;

@@ -25,7 +25,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
+import { createRequire } from 'node:module';
 
+// ESM-MIGRATION: shed cpapdex-dsp.js's top-level export/import via the single classicify source before
+// vm-loading (else "Unexpected token 'export'"). build-core.js is required relative to THIS tool (not
+// the stale REPO below), so it always resolves to the real sibling. No-op on classic files.
+const DexBuild = createRequire(import.meta.url)('./build-core.js');
 const REPO = '/media/michal/647A504F7A50205A/GENOME/Michal/Tepna';
 const EN = '/media/michal/647A504F7A50205A/Ecg nightly';
 const CLIP_MIN = +(process.env.CLIP_MIN || 30); // minutes of each raw signal to analyse
@@ -86,7 +91,7 @@ for (const f of [
   'integrator-tch.js'
 ]) {
   try {
-    vm.runInContext(fs.readFileSync(path.join(REPO, f), 'utf8'), ctx, { filename: f });
+    vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(REPO, f), 'utf8')), ctx, { filename: f });
   } catch (e) {
     console.error('  ! load ' + f + ': ' + e.message);
   }

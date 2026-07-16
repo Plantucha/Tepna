@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+gdUa2XG4Ss0fV/uZfBMAcjipPDgvblasj8wjnNtmY8=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3C74jrSbp+ERhg4htAM15dnQJ19gn2355Ucbqila2dg=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BytiOgqgVxNIXo40Url+HzoWgkdgBOzgpwTQHDdCIEI=' 'sha256-Ct6C/WQM+ozRDvEtpl4lgSroDpuS8VqgSmC94gzpMo4=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OJqOhFcEaTHnRTEoJLpCqCm+qkNxIDecjPFZa26rtDQ=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Rx9usztNOc9caWhfNEwgE27CHbDHnU4hKNlZMzzsENk=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3C74jrSbp+ERhg4htAM15dnQJ19gn2355Ucbqila2dg=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Ct6C/WQM+ozRDvEtpl4lgSroDpuS8VqgSmC94gzpMo4=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OJqOhFcEaTHnRTEoJLpCqCm+qkNxIDecjPFZa26rtDQ=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gtj/J27nuNvTesKfh8Pc6KxJVzQS4DgKAJN2POTeyQQ=' 'sha256-lyH6hW5NbDaUIsk4ockuTQT7l68/cc6l5jOyz7AYV+I=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PpgDex — Raw Wrist-PPG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -6164,7 +6164,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
   };
 })(window);
 </script>
-<script data-inline-src="ppgdex-dsp.js">/* ════════════════════════════════════════════════════════════════════════
+<script data-inline-src="ppgdex-dsp.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("ppgdex-dsp.js",function(__require,__exports){
+/* ════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    PpgDex · DSP  (ppgdex-dsp.js)
@@ -8601,7 +8602,18 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     return env;
   };
 })(window);
-</script>
+
+// ESM-MIGRATION: ppgdex-dsp is now a DUAL-MODE module. The IIFE above still attaches window.PPGDSP /
+// window.PpgDex — the headless node API AND every classic co-load consumer (the orchestrators, both
+// test runners, and the raw analysis workers, which classic-load this file via tools/build-core.js
+// `classicify`). These re-exports let the owned ESM bundle's ppgdex-app.js `import { PPGDSP }` instead
+// of reading window. IMPORTANT: only these two module-scope exports are added — the worker `deps`
+// functions + REFR_CADENCE_FRAC const stay classic declarations INSIDE the IIFE, so _buildWorkerURL's
+// `f.toString()` serialization (and the "worker source is CLOSED" gate) is byte-unchanged.
+__exports.PPGDSP = window.PPGDSP;
+__exports.PpgDex = window.PpgDex;
+
+});})();</script>
 <script data-inline-src="ppgdex-morph.js">/* ════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
@@ -9557,7 +9569,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
   global.PPGCross = { crossNight, crossNightBlock, ols, mannKendall, bootstrapDeltaCI, PPG_DEFS };
 })(window);
 </script>
-<script data-inline-src="ppgdex-render.js">/* ════════════════════════════════════════════════════════════════════════
+<script data-inline-src="ppgdex-render.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("ppgdex-render.js",function(__require,__exports){
+/* ════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    PpgDex · RENDER  (ppgdex-render.js)
@@ -9580,6 +9593,9 @@ function evBadge(label, fallback) {
     return '';
   }
 }
+// ESM-MIGRATION: this module scopes evBadge away from the global — publish it so the classic profile
+// and the ESM app's bare `evBadge(...)` calls still resolve (mirrors glucodex-render / ecgdex-render).
+window.evBadge = evBadge;
 
 (function (global) {
   'use strict';
@@ -10120,7 +10136,12 @@ function evBadge(label, fallback) {
 
   global.PPGUI = { PPGScope, lineChart, poincare, medianPulseChart, ledRibbon, buildEnvelope, COLORS: C };
 })(window);
-</script>
+
+// ESM-MIGRATION: dual-mode re-export so ppgdex-app.js can `import { PPGUI }`; the IIFE still attaches
+// window.PPGUI for classic consumers (classicify sheds this line for the vm/harness).
+__exports.PPGUI = window.PPGUI;
+
+});})();</script>
 <script data-inline-src="ppgdex-profile.js">/* ════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
@@ -12200,7 +12221,8 @@ function evBadge(label, fallback) {
   };
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
 </script>
-<script data-inline-src="ppgdex-app.js">/* ════════════════════════════════════════════════════════════════════════
+<script data-inline-src="ppgdex-app.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("ppgdex-app.js",function(__require,__exports){
+/* ════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    PpgDex · APP  (ppgdex-app.js)
@@ -12210,11 +12232,16 @@ function evBadge(label, fallback) {
    orchestration, all UI population, and v2.0 exports (single + multi wrapper).
    Depends on window.PPGDSP, window.PPGUI, window.PPGMorph, window.PPGProfile.
    ════════════════════════════════════════════════════════════════════════ */
+// ESM-MIGRATION: real import edges to the DSP + render modules (the DSP↔app coupling P5 targets).
+// Importing ppgdex-render.js also runs its factory (publishing window.evBadge) before this body's bare
+// `evBadge(...)` calls. ppgdex-morph/-profile/-cross stay classic co-loaded (read off window at call time).
+const { PPGDSP } = __require('ppgdex-dsp.js');
+const { PPGUI } = __require('ppgdex-render.js');
 (function () {
   'use strict';
   const $ = (id) => document.getElementById(id);
-  const DSP = window.PPGDSP,
-    UI = window.PPGUI;
+  const DSP = PPGDSP,
+    UI = PPGUI;
   const ING = window.DexIngest; // §2/§3 (ECG-INGEST-FOLLOWUPS): shared, gate-backed file-ingest classification (dex-ingest.js)
   const F = DSP; // fmt helpers
   // foreign / set-aside stream labels for the no-PPG drop report (§2)
@@ -13787,7 +13814,8 @@ function evBadge(label, fallback) {
     } catch (_) {}
   }
 })();
-</script>
+
+});__M.require("ppgdex-app.js");})();</script>
 <script data-inline-src="inline:script:0">
 /* theme toggle — mirror suite convention */
 (function(){

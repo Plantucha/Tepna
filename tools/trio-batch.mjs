@@ -59,10 +59,14 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 
 const __filename = fileURLToPath(import.meta.url); // re-spawned as the child (see DISPATCH)
 const __dirname = dirname(__filename);
 const ROOT = join(__dirname, '..');
+// ESM-MIGRATION: a co-loaded DSP (ecgdex-dsp.js …) may be a dual-mode ES module — shed its top-level
+// export/import via the single classicify source before vm-loading (no-op on classic files).
+const DexBuild = createRequire(import.meta.url)('./build-core.js');
 
 /* ── args ────────────────────────────────────────────────────────────────── */
 const argv = process.argv.slice(2);
@@ -189,7 +193,7 @@ function makeCtx() {
 function loadInto(ctx, file) {
   const p = join(ROOT, file);
   if (!existsSync(p)) throw new Error('module not found: ' + file);
-  vm.runInContext(readFileSync(p, 'utf8'), ctx, { filename: file });
+  vm.runInContext(DexBuild.classicify(readFileSync(p, 'utf8')), ctx, { filename: file });
 }
 
 // LAZY — the DSP realm is built only by a process that actually COMPUTES. A dispatching parent never

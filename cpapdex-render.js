@@ -15,10 +15,13 @@
    shared depth selector (Core/Advanced/Research) shows/hides advanced+research
    tiles with zero per-call churn. Clock read-back via CpapDsp.fmt* (getUTC*).
    ════════════════════════════════════════════════════════════════════════ */
+// ESM-MIGRATION: import the DSP so its module factory runs (attaching window.CpapDsp) BEFORE this
+// module's IIFE captures `var D` below — the classic-load-order hazard that forced whole-UI conversion.
+import { CpapDsp } from './cpapdex-dsp.js';
 (function (global) {
   'use strict';
 
-  var D = global.CpapDsp;
+  var D = CpapDsp;
   var REG = global.CpapRegistry;
   var MR = global.MetricRegistry;
 
@@ -1249,3 +1252,7 @@
     cpapGreyedPanel: cpapGreyedPanel
   };
 })(window);
+
+// ESM-MIGRATION: dual-mode re-export so cpapdex-app.js can `import { CpapRender }`. The IIFE above
+// still attaches window.CpapRender for classic consumers (classicify sheds this line for the vm/harness).
+export const CpapRender = window.CpapRender;
