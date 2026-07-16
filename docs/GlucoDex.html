@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6+lSp/8tOwb9vtycGnfHTEW52SHIiLI9umPJE8i4/+A=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-6zyVCPKnpa8yGXCrOQ92LGA26AalEyGUHrJ1N+VRDbI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Wtz2NzT2vlsCkToUnb11bK7zGSCvXYkPtGC9haeTAgU=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE=' 'sha256-zcgn5OWxNaM2FMt9FrknHoKq4JhNW1LFe43GWGMa8Rg=' 'sha256-zrW7QtVO+BbazoZXqXf8iDhpzP05fWZz85gMYdFdluI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Cv1ftxisV85nchQS/mzDUM/dAhgX+aKZtkuTvaVUp1A=' 'sha256-Ddk7xzmjZ2q6DaZkS+vfwOBaCm4CGdM0Np9fprcSIzY=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qbo2Iv27bqsr4jC6FoAo0Lavhb/khOFDfsEdqDJIaWk=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-pwGa5UtAYYw5lcV43nEVXDjabT5bO6Vz6d7mYK8Ttzk=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE=' 'sha256-zrW7QtVO+BbazoZXqXf8iDhpzP05fWZz85gMYdFdluI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GlucoDex — Continuous Glucose Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -6132,7 +6132,8 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   };
 })(window);
 </script>
-<script data-inline-src="glucodex-dsp.js">/* ════════════════════════════════════════════════════════════════════════
+<script data-inline-src="glucodex-dsp.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("glucodex-dsp.js",function(__require,__exports){
+/* ════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    GlucoDex · DSP  (glucodex-dsp.js)
@@ -8038,8 +8039,22 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     return env;
   };
 })(window);
-</script>
-<script data-inline-src="glucodex-render.js">/* ════════════════════════════════════════════════════════════════════════
+
+// ESM-MIGRATION Phase 2: dsp is now a DUAL-MODE module. The IIFE above still attaches window.GLUDSP /
+// window.GlucoDex (the external node API + every classic co-load consumer — the orchestrators and both
+// test runners, which classic-load this file via tools/build-core.js `classicify`). These re-exports
+// let the owned ESM bundle's glucodex-app.js `import { GLUDSP, GlucoDex }` instead of reading window.
+__exports.GLUDSP = window.GLUDSP;
+__exports.GlucoDex = window.GlucoDex;
+
+});})();</script>
+<!-- ESM-MIGRATION Phase 1/2: GlucoDex's UI modules + the DSP are ES modules (import/export). The owned build
+     (tools/build-core.js esmBundle) resolves the graph and inlines each as its own classic script
+     block via a shared module registry — no network edge, no module-type tag (which fails under
+     file://). The registry + DSP stay classic co-loaded scripts (loaded raw by the orchestrators and
+     both test runners). -->
+<script data-inline-src="glucodex-render.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("glucodex-render.js",function(__require,__exports){
+/* ════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    GlucoDex · RENDER  (glucodex-render.js)
@@ -8062,6 +8077,10 @@ function evBadge(label, fallback) {
     return '';
   }
 }
+
+// ESM-MIGRATION Phase 1: render is an ES module (import-wired by glucodex-app.js). evBadge stays a
+// window global so the co-loaded classic profile + the app's remaining bare `evBadge` refs resolve.
+window.evBadge = evBadge;
 
 (function (global) {
   'use strict';
@@ -8659,8 +8678,14 @@ function evBadge(label, fallback) {
   global.GLUUI = { GlucoScope, agpChart, tirBar, lineChart, dayOverlay, distribution, fusionScatter, riskGauge, COLORS: C, BAND, CUT, disp: GluDisp };
   global.GluDisp = GluDisp;
 })(window);
-</script>
-<script data-inline-src="glucodex-profile.js">/* ════════════════════════════════════════════════════════════════════════
+
+// ESM-MIGRATION Phase 1: the node's UI surface, consumed by glucodex-app.js via `import { GLUUI }`.
+// (GluDisp/evBadge stay window globals — read there by the still-classic profile + app's other refs.)
+__exports.GLUUI = window.GLUUI;
+
+});})();</script>
+<script data-inline-src="glucodex-profile.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("glucodex-profile.js",function(__require,__exports){
+/* ════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    GlucoDex · PERSONALIZATION  (glucodex-profile.js)
@@ -9076,7 +9101,8 @@ function evBadge(label, fallback) {
   global.GLUProfile = { init, render, hide, getProfile, personalize, renderHero };
   Object.assign(global, { gluProfileInput: onInput, gluProfileToggle: toggle });
 })(window);
-</script>
+
+});})();</script>
 <script data-inline-src="synth-gen.js">/* ════════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
@@ -10222,7 +10248,8 @@ function evBadge(label, fallback) {
   };
 })(window);
 </script>
-<script data-inline-src="glucodex-app.js">/* ════════════════════════════════════════════════════════════════════════
+<script data-inline-src="glucodex-app.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("glucodex-app.js",function(__require,__exports){
+/* ════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    GlucoDex · APP  (glucodex-app.js)
@@ -10233,11 +10260,19 @@ function evBadge(label, fallback) {
    producer-side correlation back for ECGDex's reserved slot) · all exports.
    Depends on window.GLUDSP, window.GLUUI, window.GLUProfile.
    ════════════════════════════════════════════════════════════════════════ */
+// ESM-MIGRATION Phase 1: app is the ES-module entry. It imports the render surface (load-bearing) and
+// side-effect-imports the profile module (which publishes window.GLUProfile, read below). The DSP +
+// registry stay classic globals (co-loaded raw by the orchestrators + both test runners), so DSP is
+// still read off window.GLUDSP here.
+const { GLUDSP } = __require('glucodex-dsp.js');
+const { GLUUI } = __require('glucodex-render.js');
+__require('glucodex-profile.js');
+
 (function () {
   'use strict';
   const $ = (id) => document.getElementById(id);
-  const DSP = window.GLUDSP,
-    UI = window.GLUUI;
+  const DSP = GLUDSP,
+    UI = GLUUI;
   let RESULT = null,
     SCOPE = null,
     ECGJSON = null,
@@ -12490,7 +12525,8 @@ function evBadge(label, fallback) {
       }
     });
 })();
-</script>
+
+});__M.require("glucodex-app.js");})();</script>
 <script data-inline-src="inline:script:0">
 function showChip(name){ document.getElementById('gluChipName').textContent=name; document.getElementById('gluChip').classList.add('show'); }
 // Mount the SHARED depth selector (System-Cohesion) under the dex_depth_tier key.
