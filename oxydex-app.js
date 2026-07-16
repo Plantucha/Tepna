@@ -4,10 +4,14 @@
    Loaded LAST: UI helper utilities and all exporters (CSV / JSON / parser
    self-download). Page-level glue (mode toggle, theme, mobile nav, #demo
    autoload) stays as small inline <script> blocks in the shell.
-   Plain global script — shares page scope with the other oxydex-*.js files,
-   exactly as in the original single-script monolith. No behavior change.
    Load order: oxydex-util → oxydex-profile → oxydex-dsp → oxydex-render → oxydex-app.
+   ES module (ESM-MIGRATION deep-3): the imports below make that load order a real
+   dependency edge (oxydex-util stays classic — it loads before all modules).
    ════════════════════════════════════════════════════════════════════════ */
+import './oxydex-profile.js';
+import './oxydex-dsp.js';
+import './oxydex-render.js';
+import './oxydex-fusion.js';
 
 // ═══════════════════════════════════════════
 // UI helpers
@@ -729,3 +733,18 @@ if (window.DexActions)
       window.toggleResearchAccordion(el);
     }
   });
+
+// ESM-MIGRATION deep-3: publish the cross-file surface (the dsp's setProgress/setStatus/
+// showError/clearAll reach-ins + the render-called export/scrub/file controls + data-act reset).
+Object.assign(window, {
+  setProgress,
+  setStatus,
+  showError,
+  reset,
+  addMoreFiles,
+  clearAll,
+  oxySetScrub,
+  exportJSON,
+  exportCSV,
+  downloadParser
+});

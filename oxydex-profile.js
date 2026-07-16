@@ -14,7 +14,12 @@
 // ══════════════════════════════════════════════════════════════════
 //  USER PROFILE — localStorage-backed, personalizes all formulas
 // ══════════════════════════════════════════════════════════════════
-var UP = {
+// `let`, NOT `var` (ESM-MIGRATION deep-3): in the CLASSIC co-load realms (the suite's OxyDex
+// worker rig, orchestrators, test runners) a top-level `var` creates a NON-configurable window
+// property, which the defineProperty proxy below cannot redefine ("Cannot redefine property:
+// UP"). `let` is a lexical binding — classic bare readers still resolve it via the scope chain,
+// and the proxy cleanly adds the window property that MODULE-mode consumers fall through to.
+let UP = {
   age: 49,
   sex: 'male',
   weight: 90,
@@ -27,6 +32,19 @@ var UP = {
   elevation: 0, // metres above sea level; adjusts SpO₂ normal thresholds
   cpap: 'no' // CPAP/BiPAP therapy — reframes apnea read as residual on therapy
 };
+// ESM-MIGRATION deep-3: profile is now an ES module, so this `let` is module-scoped — but
+// oxydex-dsp (18 sites) and oxydex-render (6) read/derive from UP as a bare global, and this
+// file REASSIGNS it on save. Proxy the window property to the in-module binding (same pattern
+// as pulsedex-app's welltoryData and oxydex-dsp's allNights).
+Object.defineProperty(window, 'UP', {
+  configurable: true,
+  get: function () {
+    return UP;
+  },
+  set: function (v) {
+    UP = v;
+  }
+});
 
 function upLoad() {
   // Persistence delegated to the shared DexProfile engine (key `tepna_profile`,
@@ -631,3 +649,13 @@ function openProfile() {
     });
   }
 })();
+
+// ESM-MIGRATION deep-3: publish the cross-file surface (dsp's upVO2category reach-in,
+// render's upSpo2Adj/profileAutoDetectUpdate calls, the app/data-act profile controls).
+Object.assign(window, {
+  upSpo2Adj,
+  upVO2category,
+  profileAutoDetectUpdate,
+  toggleProfile,
+  openProfile
+});

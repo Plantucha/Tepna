@@ -31,3 +31,5 @@ declare var computeCeilingBaselineArr: any; // oxydex-util.js — ceiling-baseli
 
 declare var _csvParseErrors: any; // window state — accumulated CSV parse diagnostics
 declare var _oxyReview: any; // window state — self-ingest review-mode payload
+
+declare var OxyDex: any; // oxydex-dsp.js — the node's OWN namespace attach (`root.OxyDex`); lets the dual-mode module tail (`export const OxyDex = window.OxyDex`, ESM-MIGRATION deep-3) type-check

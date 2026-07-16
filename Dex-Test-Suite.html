@@ -159,7 +159,7 @@
 <script>window.__DEX_NAMESPACED__ = true;</script>
 <script src="oxydex-util.js"></script>
 <!-- pulsedex-dsp.js: dual-mode ES module, classic-loaded in main() below (ESM-MIGRATION deep-3) -->
-<script src="oxydex-dsp.js"></script>
+<!-- oxydex-dsp.js: dual-mode ES module, classic-loaded in main() below (ESM-MIGRATION deep-3) -->
 <!-- hrvdex-dsp.js: dual-mode ES module, classic-loaded in main() below (ESM-MIGRATION deep-3) -->
 <!-- glucodex-dsp.js: ES module, classic-loaded in main() below (ESM-MIGRATION Phase 2) -->
 <!-- shared file-ingest classifiers — load BEFORE signal-orchestrate (§1 ECG-INGEST-FOLLOWUPS-II: pairCompanions consults DexIngest.deviceKey/foreignVendor) -->
@@ -225,6 +225,9 @@ async function main(){
   // ESM-MIGRATION deep-3: hrvdex-dsp.js is a dual-mode ES module — same treatment (clock.js loaded
   // classically above; __DEX_NAMESPACED__ true → attaches only window.HRVDex, as its former tag did).
   { const _hd = await fetchText('hrvdex-dsp.js'); if(_hd) (0, eval)(esmClassicify(_hd)); }
+  // ESM-MIGRATION deep-3: oxydex-dsp.js is a dual-mode ES module — same treatment (oxydex-util.js +
+  // clock.js loaded classically above; __DEX_NAMESPACED__ true → attaches only window.OxyDex).
+  { const _od = await fetchText('oxydex-dsp.js'); if(_od) (0, eval)(esmClassicify(_od)); }
   // gather fixtures + sources (browser I/O; runner does the equivalent in Node)
   const fixtures = {}, sources = {};
   await Promise.all(Object.keys(FIXTURE_FILES).map(async k => { fixtures[k] = await fetchJSON(FIXTURE_FILES[k]); }));
