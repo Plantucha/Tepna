@@ -395,6 +395,31 @@
         "DEEP-AUDIT-FOLLOWUPS-2026-07-12-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "1.12.0",
+      "date": "2026-07-16",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "e5e0479c9492",
+        "OxyDex": "28a00a4795d7",
+        "PulseDex": "51d2ae062a40",
+        "GlucoDex": "1e92a7c23fe7",
+        "PpgDex": "9c6e0297529e",
+        "HRVDex": "6b6d60151854",
+        "CPAPDex": "684939b42083",
+        "Integrator": "3cdfd87add7c"
+      },
+      "briefs": [
+        "DEEP-AUDIT-2026-07-14-BRIEF.md",
+        "TCH-FUSED-ROBUST-HAT-2026-07-14-BRIEF.md",
+        "ESM-MIGRATION-2026-07-15-BRIEF.md",
+        "ARCHITECTURE-DEBT-REDUCTION-2026-07-14-BRIEF.md",
+        "ESM-MIGRATION-FOLLOWUPS-2026-07-16-BRIEF.md",
+        "CAPTURE-HOST-FOLLOWUPS-2026-07-16-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
