@@ -42,8 +42,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// ESM-MIGRATION: cpapdex-dsp.js is a dual-mode ES module — shed its top-level export/import via the
+// single classicify source before vm-loading it (else "Unexpected token 'export'"). No-op on classic files.
+const DexBuild = createRequire(import.meta.url)('./build-core.js');
 const UP = path.join(REPO, 'uploads');
 const CHECK = process.argv.includes('--check');
 
@@ -117,7 +121,7 @@ function realm() {
     'cpapdex-cross.js',
     'cpapdex-fusion.js'
   ])
-    vm.runInContext(fs.readFileSync(path.join(REPO, f), 'utf8'), ctx, { filename: f });
+    vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(REPO, f), 'utf8')), ctx, { filename: f });
   return ctx;
 }
 

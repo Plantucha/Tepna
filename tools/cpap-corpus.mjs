@@ -24,8 +24,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// ESM-MIGRATION: shed cpapdex-dsp.js's top-level export/import via the single classicify source before
+// vm-loading (else "Unexpected token 'export'"). No-op on the classic co-load files.
+const DexBuild = createRequire(import.meta.url)('./build-core.js');
 
 /* ── args ─────────────────────────────────────────────────────────────────── */
 const arg = (k, d) => {
@@ -98,7 +102,7 @@ export function cpapRealm() {
     'cpapdex-cross.js',
     'cpapdex-fusion.js'
   ];
-  for (const f of CO_LOAD) vm.runInContext(fs.readFileSync(path.join(REPO, f), 'utf8'), ctx, { filename: f });
+  for (const f of CO_LOAD) vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(REPO, f), 'utf8')), ctx, { filename: f });
   return ctx;
 }
 

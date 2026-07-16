@@ -130,9 +130,8 @@
 <!-- CPAPDex modules (order: registry → edf → dsp → cross → render → fusion) -->
 <script src="cpapdex-registry.js"></script>
 <script src="cpapdex-edf.js"></script>
-<script src="cpapdex-dsp.js"></script>
+<!-- cpapdex-dsp.js + cpapdex-render.js: dual-mode ES modules, classic-loaded in main() below (ESM-MIGRATION) -->
 <script src="cpapdex-cross.js"></script>
-<script src="cpapdex-render.js"></script>
 <script src="cpapdex-fusion.js"></script>
 <script src="cpapdex-coimport.js"></script>
 <!-- shared assertions (also used by tests/run-tests.mjs) -->
@@ -205,6 +204,12 @@ async function main(){
   // sync test realm has window.GlucoDex / window.GLUDSP before any group runs (it replaces the two
   // former `<script src="glucodex-dsp.js">` tags; the DSP is __DEX_NAMESPACED__-independent).
   { const _dsp = await fetchText('glucodex-dsp.js'); if(_dsp) (0, eval)(esmClassicify(_dsp)); }
+  // ESM-MIGRATION: cpapdex-dsp.js + cpapdex-render.js are dual-mode ES modules too — classic-load them
+  // here (dsp FIRST: render's `import { CpapDsp }` classicifies to `const { CpapDsp } = window`, so
+  // window.CpapDsp must exist first). Replaces their former `<script src>` tags above. cpapdex-edf.js /
+  // -registry.js already loaded classically above, so window.CpapEdf / window.CpapRegistry are present.
+  { const _d = await fetchText('cpapdex-dsp.js'); if(_d) (0, eval)(esmClassicify(_d)); }
+  { const _r = await fetchText('cpapdex-render.js'); if(_r) (0, eval)(esmClassicify(_r)); }
   // gather fixtures + sources (browser I/O; runner does the equivalent in Node)
   const fixtures = {}, sources = {};
   await Promise.all(Object.keys(FIXTURE_FILES).map(async k => { fixtures[k] = await fetchJSON(FIXTURE_FILES[k]); }));

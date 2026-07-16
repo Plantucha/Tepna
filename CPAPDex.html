@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+wOhQxxnz1aARA99NL5fJxNjvBwVQTZXvZB13nFhc6M=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Bwa/N+qRzyDsjOZpmfdHYhAreF5CgmWplQccV4x1M1Y=' 'sha256-FKFFs/9yqRmz87JtX6o5thIZtbzyTP9X2DFzILGs6sk=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-U76DW6n8tX0Q9DaOr7gnPMc8+q+E3Eu4rDVmhxaabSA=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-haB6PY2HK7B/N11b2T5TQxAVqTLREr+2bBimPnOUGpQ=' 'sha256-jTCBRTR1xgDDPsolA7xIg50snoCJlQFJRz0zhjInLmM=' 'sha256-pL+OoSzZA6/No49Gro4vRGWQ4CBbTEHTjkhIFTaRMTY=' 'sha256-uS5wmPLBnQsEHb7E+p/HiIzPQbnV0gtWPyH+fXMcnmE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+wOhQxxnz1aARA99NL5fJxNjvBwVQTZXvZB13nFhc6M=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Bwa/N+qRzyDsjOZpmfdHYhAreF5CgmWplQccV4x1M1Y=' 'sha256-FKFFs/9yqRmz87JtX6o5thIZtbzyTP9X2DFzILGs6sk=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OogG9q6rAK+5fVBEgx8S7M4nDToBKJkxC6OeC6v7uhc=' 'sha256-P2KwrhWUp/EoKM0aM2tNMoYs45P1oPPDMmAtkxC5q9k=' 'sha256-aEfZQR6fGbh0Ow231H86nQj4MBDK3qxz5NzQsq3muNI=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-jTCBRTR1xgDDPsolA7xIg50snoCJlQFJRz0zhjInLmM=' 'sha256-uS5wmPLBnQsEHb7E+p/HiIzPQbnV0gtWPyH+fXMcnmE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CPAPDex — PAP Therapy Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -5230,7 +5230,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
   }
 })(typeof window !== 'undefined' ? window : null);
 </script>
-<script data-inline-src="cpapdex-dsp.js">/* ════════════════════════════════════════════════════════════════════════
+<script data-inline-src="cpapdex-dsp.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("cpapdex-dsp.js",function(__require,__exports){
+/* ════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    CPAPDex · DSP / METRICS  (cpapdex-dsp.js)   — SCAFFOLD / STARTING POINT
@@ -5257,8 +5258,9 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
        CPAP/APAP mode detection, ventilation stability
      • the SA2 oximeter self-gate (§4.4) — gate desats before ODI
      • cpapdex-fusion.js events/export, cpapdex-registry.js + render cohesion
-   Load AFTER cpapdex-edf.js.   Self-test:  node cpapdex-dsp.js --selftest
-   Exposes: window.CpapDsp
+   Load AFTER cpapdex-edf.js.   Self-test: run by the gated suite via CpapDsp.selfTest()
+   (a top-level `export` below makes this an ES module, so `node cpapdex-dsp.js` no longer parses).
+   Exposes: window.CpapDsp  +  ESM `export { CpapDsp, CPAPDex }` (dual-mode)
    ════════════════════════════════════════════════════════════════════════ */
 (function (root) {
   'use strict';
@@ -7014,7 +7016,9 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     selfTest: selfTest,
     _kernel: { _mean: _mean, _sd: _sd, _cov: _cov, _p: _p, _iqr: _iqr, _pearson: _pearson }
   };
-  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  // ESM-MIGRATION: the former `module.exports = api` (CJS dual-mode) is dropped — a top-level ESM
+  // `export` below makes this a module, and nothing `require()`s it; the api reaches Node/vm/browser
+  // consumers via `root.CpapDsp` (classic attach) and the ESM re-export.
   if (root) {
     root.CpapDsp = api;
     // ONE namespaced global (brief §1A) — signal-orchestrate.cpapHost() resolves root.CPAPDex.
@@ -7023,17 +7027,20 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     // Phase-9 emit entry; buildNightFromSets is exposed for harness convenience.
     root.CPAPDex = root.CPAPDex || { compute: compute, buildNightFromSets: _nightFromInput, _synthEdfSet: _synthEdfSet };
   }
-
-  if (typeof process !== 'undefined' && process.argv && process.argv.indexOf('--selftest') !== -1) {
-    var r = selfTest();
-    r.log.forEach(function (l) {
-      console.log('  ' + l);
-    });
-    console.log('\n  CPAPDex DSP self-test: ' + r.pass + ' passed, ' + r.fail + ' failed\n');
-    if (typeof process.exitCode !== 'undefined') process.exitCode = r.fail ? 1 : 0;
-  }
 })(typeof window !== 'undefined' ? window : null);
-</script>
+
+// ESM-MIGRATION: cpapdex-dsp is now a DUAL-MODE module. The IIFE above still attaches window.CpapDsp /
+// window.CPAPDex — the headless node API AND every classic co-load consumer (the edf self-test pages,
+// tools/regen-cpap-goldens.mjs · cpap-corpus.mjs · tch-reference-validation.mjs, cohort-worker.js, and
+// both test runners, which classic-load this file via tools/build-core.js `classicify`). These
+// re-exports let the owned ESM bundle's cpapdex-app.js / -render.js `import { CpapDsp }` instead of
+// reading window. The former `--selftest` CLI runner was dropped (a top-level `export` makes this an
+// ES module that Node's CJS loader cannot parse); selfTest() still runs in the gated suite
+// (tests/dex-tests.js "Leaf-module coverage — CPAPDex DSP/EDF self-tests").
+__exports.CpapDsp = window.CpapDsp;
+__exports.CPAPDex = window.CPAPDex;
+
+});})();</script>
 <script data-inline-src="cpapdex-cross.js">/* ════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
@@ -7441,7 +7448,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null);
 </script>
-<script data-inline-src="cpapdex-render.js">/* ════════════════════════════════════════════════════════════════════════
+<script data-inline-src="cpapdex-render.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("cpapdex-render.js",function(__require,__exports){
+/* ════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    CPAPDex · RENDER — cohesion-native views (cpapdex-render.js)
@@ -7458,10 +7466,13 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
    shared depth selector (Core/Advanced/Research) shows/hides advanced+research
    tiles with zero per-call churn. Clock read-back via CpapDsp.fmt* (getUTC*).
    ════════════════════════════════════════════════════════════════════════ */
+// ESM-MIGRATION: import the DSP so its module factory runs (attaching window.CpapDsp) BEFORE this
+// module's IIFE captures `var D` below — the classic-load-order hazard that forced whole-UI conversion.
+const { CpapDsp } = __require('cpapdex-dsp.js');
 (function (global) {
   'use strict';
 
-  var D = global.CpapDsp;
+  var D = CpapDsp;
   var REG = global.CpapRegistry;
   var MR = global.MetricRegistry;
 
@@ -8692,7 +8703,12 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     cpapGreyedPanel: cpapGreyedPanel
   };
 })(window);
-</script>
+
+// ESM-MIGRATION: dual-mode re-export so cpapdex-app.js can `import { CpapRender }`. The IIFE above
+// still attaches window.CpapRender for classic consumers (classicify sheds this line for the vm/harness).
+__exports.CpapRender = window.CpapRender;
+
+});})();</script>
 <script data-inline-src="cpapdex-fusion.js">/* ════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
@@ -9628,7 +9644,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
   };
 })(window);
 </script>
-<script data-inline-src="cpapdex-app.js">/* ════════════════════════════════════════════════════════════════════════
+<script data-inline-src="cpapdex-app.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("cpapdex-app.js",function(__require,__exports){
+/* ════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    CPAPDex · APP — orchestration (cpapdex-app.js)
@@ -9643,6 +9660,11 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
    100% local: drag-drop reads ArrayBuffers in-browser; the demo button fetches
    the bundled uploads/ set (dev/preview only). Nothing leaves the device.
    ════════════════════════════════════════════════════════════════════════ */
+// ESM-MIGRATION: real import edges to the DSP + render modules (the primary DSP↔app coupling P5
+// targets). Importing cpapdex-dsp.js also runs its factory first, so window.CpapDsp is set before this
+// module's body. cpapdex-edf/-cross/-fusion/-coimport/-registry stay classic co-loaded (read off global).
+const { CpapDsp } = __require('cpapdex-dsp.js');
+const { CpapRender } = __require('cpapdex-render.js');
 (function (global) {
   'use strict';
 
@@ -9715,8 +9737,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     try {
       document.body.classList.remove('cpap-review');
     } catch (_r) {}
-    var R = global.CpapRender,
-      D = global.CpapDsp;
+    var R = CpapRender,
+      D = CpapDsp;
     LOADED_NIGHTS.sort(function (a, b) {
       return (a.t0Ms || 0) - (b.t0Ms || 0);
     });
@@ -9771,8 +9793,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     if (!host) return;
     var review = window._cpapReview;
     if (!review) return;
-    var R = global.CpapRender,
-      D = global.CpapDsp;
+    var R = CpapRender,
+      D = CpapDsp;
     try {
       document.body.classList.add('cpap-review');
     } catch (_r) {}
@@ -9827,7 +9849,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
   /* decode every file in the clusters → sessions, then group sessions into NIGHTS
    (a >12 h gap between consecutive sessions starts a new night). Returns nights[]. */
   function analyzeSet(entries) {
-    if (!global.CpapEdf || !global.CpapDsp) throw new Error('modules not loaded');
+    if (!global.CpapEdf || !CpapDsp) throw new Error('modules not loaded');
     var clusters = groupEdfFiles(entries);
     if (!clusters.length) throw new Error('no recognizable AirSense EDF files (expected *_BRP/PLD/SA2/EVE/CSL.edf)');
     var sessions = [];
@@ -9843,7 +9865,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
           }
         }
       });
-      var sess = global.CpapDsp.buildSessionFromEdf(set, { fname: (c.files.PLD || c.files.BRP || {}).name || null });
+      var sess = CpapDsp.buildSessionFromEdf(set, { fname: (c.files.PLD || c.files.BRP || {}).name || null });
       if (sess) sessions.push(sess);
     });
     if (!sessions.length) throw new Error('no therapy session could be built (missing PLD/BRP pressure channel?)');
@@ -9862,7 +9884,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       cur._lastEnd = Math.max(cur._lastEnd, s.endMs);
     });
     var nights = groups.map(function (g) {
-      return global.CpapDsp.buildNight(g.ss);
+      return CpapDsp.buildNight(g.ss);
     });
     return { nights: nights, clusters: clusters, sessions: sessions };
   }
@@ -10233,7 +10255,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       return;
     }
     if (!LOADED_NIGHTS.length || !global.CpapFusion) return;
-    var D = global.CpapDsp,
+    var D = CpapDsp,
       payload,
       fname;
     if (LOADED_NIGHTS.length >= 3 && global.CPAPCross && global.CrossNightEnvelope) {
@@ -10304,7 +10326,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       return (a.t0Ms || 0) - (b.t0Ms || 0);
     });
     if (!nights.length) return;
-    var D = global.CpapDsp;
+    var D = CpapDsp;
     var head = [
       'Date',
       'Therapy h',
@@ -10439,9 +10461,9 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     // SELF-INGEST §5 — inject the "scrub for sharing" toggle into the export bar (default OFF). JS-injected
     // so the .src.html shell (and thus buildHash) stays put; read at export time via window._cpapScrub.
     (function wireScrub() {
-      if (global.CpapRender && global.CpapRender.injectSelfIngestCSS)
+      if (CpapRender && CpapRender.injectSelfIngestCSS)
         try {
-          global.CpapRender.injectSelfIngestCSS();
+          CpapRender.injectSelfIngestCSS();
         } catch (_c) {}
       var bar = $('exportBar');
       if (!bar || bar.querySelector('.eb-scrub')) return;
@@ -10528,7 +10550,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     } catch (_) {}
   }
 })();
-</script>
+
+});__M.require("cpapdex-app.js");})();</script>
 <script data-inline-src="dex-forget.js">/*
  * dex-forget.js — Tepna "erase all data on this device" (SECURITY-REMEDIATION F5)
  * Copyright 2026 Michal Planicka
