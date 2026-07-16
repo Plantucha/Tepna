@@ -55,21 +55,37 @@ class StreamWriter:
         self._fh = open(path, "w", buffering=1 << 20, newline="\n")
         self._fh.write(self.HEADERS[stream] + "\n")
         self._n = 0
+        self._first_ns: int | None = None   # per-file anchor for the relative `timestamp [ms]` column
+
+    # `timestamp [ms]` in a real PSL export is RELATIVE to the recording's first sample and FRACTIONAL:
+    #   0.0, 7.692288, 15.384576, …  (= (sensor_ns - first_sensor_ns)/1e6, verified against a real H10
+    #   export). ECGDex's headless parseECGText infers fs from this column's STEP, so it must NOT be
+    #   rounded to integer ms (7.692→7/8 makes the parser read 143/125 Hz instead of 130) and must NOT be
+    #   the absolute device-clock ms. Emit fractional, relative, trailing-zeros stripped → "0.0" first row.
+    def _rel_ms(self, sensor_ns: int) -> str:
+        if self._first_ns is None:
+            self._first_ns = sensor_ns
+        v = (sensor_ns - self._first_ns) / 1e6
+        s = f"{v:.6f}".rstrip("0").rstrip(".")
+        return s + ".0" if "." not in s else s   # "0" -> "0.0", "30.769280" -> "30.76928"
 
     # --- per-stream row appenders -------------------------------------------------------------
-    # `phone` = host arrival datetime (local); `sensor_ns` = Polar ns since 2000-01-01 of the sample.
+    # `phone` = host arrival datetime (local); `sensor_ns` = Polar device-clock ns of the sample
+    # (monotonic, arbitrary epoch — carried verbatim as the secondary column, NOT ns-since-2000).
+    # `t_ms` is accepted for call-site compatibility but the emitted ms column is derived from
+    # `sensor_ns` via `_rel_ms` so it exactly matches PSL's relative/fractional semantics.
 
     def write_ecg(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, uv: int) -> None:
-        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{t_ms:.0f};{uv}\n")
+        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{self._rel_ms(sensor_ns)};{uv}\n")
         self._bump()
 
     def write_acc(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: int, y: int, z: int) -> None:
-        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{t_ms:.0f};{x};{y};{z}\n")
+        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{self._rel_ms(sensor_ns)};{x};{y};{z}\n")
         self._bump()
 
     def write_ppg(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, ch: Iterable[int], ambient: int) -> None:
         c0, c1, c2 = list(ch)[:3]
-        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{t_ms:.0f};{c0};{c1};{c2};{ambient}\n")
+        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{self._rel_ms(sensor_ns)};{c0};{c1};{c2};{ambient}\n")
         self._bump()
 
     def write_hr(self, phone: _dt.datetime, sensor_ns: int, bpm: int, rr_ms: Iterable[int]) -> None:
@@ -90,6 +106,33 @@ class StreamWriter:
         try:
             self._fh.flush()
             self._fh.close()
+        except Exception:
+            pass
+
+
+class Spo2CsvWriter:
+    """ViHealth-layout SpO2 CSV — `Time,Oxygen Level,Pulse Rate,Motion` with `HH:MM:SS DD/MM/YYYY`
+    stamps, the exact shape OxyDex's oxydex-spo2 adapter reads (Clock Contract §2.4 vendor regex parses
+    the stamp → floating tMs). One row per valid reading (~1/s). Used by the O2Ring/Viatom capture path."""
+
+    def __init__(self, path: str):
+        self.path = path
+        self._fh = open(path, "w", buffering=1 << 16, newline="\n")
+        self._fh.write("Time,Oxygen Level,Pulse Rate,Motion\n")
+        self._n = 0
+
+    def write(self, when: _dt.datetime, spo2: int, pr: int, motion: int) -> None:
+        stamp = when.strftime("%H:%M:%S %d/%m/%Y")   # LOCAL civil (Clock Contract) — O2Ring/ViHealth format
+        self._fh.write(f"{stamp},{spo2},{pr},{motion}\n")
+        self._n += 1
+
+    @property
+    def rows(self) -> int:
+        return self._n
+
+    def close(self) -> None:
+        try:
+            self._fh.flush(); self._fh.close()
         except Exception:
             pass
 
