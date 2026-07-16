@@ -54,6 +54,8 @@ const require = createRequire(import.meta.url);
 const ManifestGate = require(join(ROOT, 'manifest-gate.js'));
 // P3 — reassemble the per-app provenance/ fragments into the combined ledger shapes dex-tests.js parses.
 const ProvenanceLedger = require(join(ROOT, 'provenance-ledger.js'));
+// ESM-MIGRATION Phase 2 — classic-load ESM co-load modules (a converted DSP) into the shared vm realm.
+const DexBuild = require(join(ROOT, 'tools', 'build-core.js'));
 
 const C = { reset: '\x1b[0m', red: '\x1b[31m', green: '\x1b[32m', dim: '\x1b[2m', bold: '\x1b[1m', yellow: '\x1b[33m', cyan: '\x1b[36m' };
 const paint = (s, c) => (process.stdout.isTTY ? c + s + C.reset : s);
@@ -199,7 +201,10 @@ function makeSandbox() {
 function loadInto(ctx, file) {
   const p = join(ROOT, file);
   if (!existsSync(p)) throw new Error('module not found: ' + file);
-  const code = readFileSync(p, 'utf8');
+  // ESM-MIGRATION Phase 2: a converted co-load DSP (glucodex-dsp.js) ships top-level import/export the
+  // shared vm realm can't eval. classicify() sheds the module syntax (the IIFE + window attaches remain),
+  // so the DSP loads exactly as before. No-op on classic files, so it is safe to run on every module.
+  const code = DexBuild.classicify(readFileSync(p, 'utf8'));
   vm.runInContext(code, ctx, { filename: file });
 }
 

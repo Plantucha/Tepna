@@ -37,8 +37,13 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { createRequire } from 'node:module';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+// ESM-MIGRATION Phase 2: a co-loaded DSP may be a dual-mode ES module (top-level export) — a classic
+// inline <script> cannot carry that syntax, so every JS inlined here is classicified first (no-op on
+// classic files; the DSP's IIFE + window attaches are untouched). Same bridge the test runners use.
+const DexBuild = createRequire(import.meta.url)(join(ROOT, 'tools', 'build-core.js'));
 const CHECK = process.argv.includes('--check');
 const ONE = (() => {
   const i = process.argv.indexOf('--tool');
@@ -60,6 +65,8 @@ const TOOLS = [
 ];
 
 const readFile = (f) => readFileSync(join(ROOT, f), 'utf8');
+// JS destined for a classic inline block or a blob worker: shed any top-level import/export first.
+const readJs = (f) => DexBuild.classicify(readFile(f));
 const exists = (f) => existsSync(join(ROOT, f));
 
 // A permissive worker-context DOM/window shim, hoisted ahead of the inlined deps. The production
@@ -108,7 +115,7 @@ function workerSource(workerFile) {
   // same shim to the very top of the blob source, ahead of the inlined deps (idempotent with any
   // shim already inside the worker body, which then no-ops).
   const parts = ['/* build-analysis: blob-worker source — deps inlined, importScripts neutralised (file://-safe) */', WORKER_DOM_SHIM, 'self.importScripts = function () {};'];
-  for (const d of deps) parts.push('/* ==== ' + d + ' ==== */\n' + readFile(d));
+  for (const d of deps) parts.push('/* ==== ' + d + ' ==== */\n' + readJs(d));
   parts.push('/* ==== ' + workerFile + ' ==== */\n' + src);
   const assembled = parts.join('\n;\n') + '\n';
   workerCache.set(workerFile, assembled);
@@ -139,13 +146,13 @@ function inlineScripts(html) {
     if (/\bdata-inline-src=/i.test(pre + post)) return full; // already an inline block's label
     if (/^(https?:)?\/\//i.test(src) || /^data:/i.test(src)) return full; // external URL / data: — leave
     if (!exists(src)) return full; // unknown sibling — leave (surfaces as a real 404, not our concern)
-    return '<script data-inline-src="' + src + '">\n' + readFile(src) + '\n</script>';
+    return '<script data-inline-src="' + src + '">\n' + readJs(src) + '\n</script>';
   });
   // re-fill existing inline blocks (idempotent regen) — but NOT our own worker shim
   html = html.replace(/<script\b[^>]*\bdata-inline-src="([^"]+)"[^>]*>[\s\S]*?<\/script>/gi, (full, name) => {
     if (name === '__file-local-workers') return full; // handled separately
     if (!exists(name)) return full;
-    return '<script data-inline-src="' + name + '">\n' + readFile(name) + '\n</script>';
+    return '<script data-inline-src="' + name + '">\n' + readJs(name) + '\n</script>';
   });
   return html;
 }

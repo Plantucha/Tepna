@@ -22,6 +22,10 @@ function evBadge(label, fallback) {
   }
 }
 
+// ESM-MIGRATION Phase 1: render is an ES module (import-wired by glucodex-app.js). evBadge stays a
+// window global so the co-loaded classic profile + the app's remaining bare `evBadge` refs resolve.
+window.evBadge = evBadge;
+
 (function (global) {
   'use strict';
 
@@ -618,3 +622,7 @@ function evBadge(label, fallback) {
   global.GLUUI = { GlucoScope, agpChart, tirBar, lineChart, dayOverlay, distribution, fusionScatter, riskGauge, COLORS: C, BAND, CUT, disp: GluDisp };
   global.GluDisp = GluDisp;
 })(window);
+
+// ESM-MIGRATION Phase 1: the node's UI surface, consumed by glucodex-app.js via `import { GLUUI }`.
+// (GluDisp/evBadge stay window globals — read there by the still-classic profile + app's other refs.)
+export const GLUUI = window.GLUUI;

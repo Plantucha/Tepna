@@ -4945,6 +4945,17 @@
         return;
       }
       var tracked = env.trackedFiles || null; // `git ls-files` truth (null on a tarball checkout)
+      // Node-lane only: classifying a fixture as corpus-backed (gitignored input) vs committed needs
+      // `git ls-files`, which the browser lane cannot run — so env.trackedFiles is absent there and a
+      // fail-closed check would falsely flag every committed synthetic golden (which correctly carries
+      // no verifiedUnder). SKIP without git, exactly like §2 above and the docs/release-ledger groups;
+      // the WALL that actually enforces this is Node-side (verify-fixtures.mjs --check + this group under
+      // run-tests.mjs, where git IS available). (ESM-MIGRATION Phase 1 — pre-existing browser-lane
+      // false-positive surfaced while gating; the corpus set is all nodes' synthetic goldens, not GlucoDex.)
+      if (!tracked) {
+        T.skip('§3.1 · every corpus-backed fixture carries a verifiedUnder', 'needs `git ls-files` truth (env.trackedFiles) — Node-lane only; verify-fixtures.mjs --check enforces it in CI');
+        return;
+      }
       var codeGated = Object.keys(fixtures).filter(function (k) {
         var v = fixtures[k];
         return k.charAt(0) !== '_' && v && !v.historical && v.manifestHash;

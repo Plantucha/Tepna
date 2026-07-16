@@ -50,6 +50,8 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const UP = path.join(REPO, 'uploads');
 const CHECK = process.argv.includes('--check');
 const ManifestGate = createRequire(import.meta.url)(path.join(REPO, 'manifest-gate.js'));
+// ESM-MIGRATION Phase 2 — glucodex-dsp.js is a dual-mode ES module; classic-load it into the vm realm.
+const DexBuild = createRequire(import.meta.url)(path.join(REPO, 'tools', 'build-core.js'));
 
 /* ── the GlucoDex.src.html script order (headless subset — no render/app/profile) ── */
 function realm() {
@@ -109,7 +111,7 @@ function realm() {
   const ctx = vm.createContext(sb);
   ctx.__DEX_NAMESPACED__ = true;
   for (const f of ['kernel-constants.js', 'signal-frame.js', 'dex-export.js', 'metric-registry.js', 'glucodex-registry.js', 'glucodex-dsp.js'])
-    vm.runInContext(fs.readFileSync(path.join(REPO, f), 'utf8'), ctx, { filename: f });
+    vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(REPO, f), 'utf8')), ctx, { filename: f });
   return ctx;
 }
 

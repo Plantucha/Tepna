@@ -9,11 +9,19 @@
    producer-side correlation back for ECGDex's reserved slot) · all exports.
    Depends on window.GLUDSP, window.GLUUI, window.GLUProfile.
    ════════════════════════════════════════════════════════════════════════ */
+// ESM-MIGRATION Phase 1: app is the ES-module entry. It imports the render surface (load-bearing) and
+// side-effect-imports the profile module (which publishes window.GLUProfile, read below). The DSP +
+// registry stay classic globals (co-loaded raw by the orchestrators + both test runners), so DSP is
+// still read off window.GLUDSP here.
+import { GLUDSP } from './glucodex-dsp.js';
+import { GLUUI } from './glucodex-render.js';
+import './glucodex-profile.js';
+
 (function () {
   'use strict';
   const $ = (id) => document.getElementById(id);
-  const DSP = window.GLUDSP,
-    UI = window.GLUUI;
+  const DSP = GLUDSP,
+    UI = GLUUI;
   let RESULT = null,
     SCOPE = null,
     ECGJSON = null,

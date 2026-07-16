@@ -125,7 +125,7 @@
 <script src="cohort-gen.js"></script>
 <script src="cohort-full.js"></script>
 <!-- GlucoDex coherence gate: real DSP + shared patient engine, executed at top level -->
-<script src="glucodex-dsp.js"></script>
+<!-- glucodex-dsp.js: ES module, classic-loaded in main() below (ESM-MIGRATION Phase 2) -->
 <script src="dex-patient-gen.js"></script>
 <!-- CPAPDex modules (order: registry → edf → dsp → cross → render → fusion) -->
 <script src="cpapdex-registry.js"></script>
@@ -160,7 +160,7 @@
 <script src="pulsedex-dsp.js"></script>
 <script src="oxydex-dsp.js"></script>
 <script src="hrvdex-dsp.js"></script>
-<script src="glucodex-dsp.js"></script>
+<!-- glucodex-dsp.js: ES module, classic-loaded in main() below (ESM-MIGRATION Phase 2) -->
 <!-- shared file-ingest classifiers — load BEFORE signal-orchestrate (§1 ECG-INGEST-FOLLOWUPS-II: pairCompanions consults DexIngest.deviceKey/foreignVendor) -->
 <script src="dex-ingest.js"></script>
 <script src="event-coupling.js"></script>
@@ -189,7 +189,22 @@ let ALL_GROUPS = [];
 async function fetchText(p){ try{ const r=await fetch(p); return r.ok? await r.text(): null; }catch(e){ return null; } }
 async function fetchJSON(p){ try{ const r=await fetch(p); return r.ok? await r.json(): null; }catch(e){ return null; } }
 
+// ESM-MIGRATION Phase 2 — classic-load an ES-module co-load file into this shared realm (mirrors
+// tools/build-core.js `classicify`): shed the top-level module syntax so a converted DSP loads
+// exactly as its old classic <script> did (its IIFE + window attaches are untouched). No CSP here,
+// so indirect eval in global scope is fine; the harness has no strict script-src.
+function esmClassicify(code){
+  return String(code)
+    .replace(/^([ \t]*)import\s*\{([^}]*)\}\s*from\s*['"][^'"]+['"];?[ \t]*$/gm, '$1const {$2} = window;')
+    .replace(/^[ \t]*import\s+['"][^'"]+['"];?[ \t]*$/gm, '')
+    .replace(/^[ \t]*export\s*\{[^}]*\}\s*;?[ \t]*$/gm, '')
+    .replace(/^([ \t]*)export\s+(?=(?:const|let|var|function|class|async)\b)/gm, '$1');
+}
 async function main(){
+  // ESM-MIGRATION Phase 2: glucodex-dsp.js is a dual-mode ES module — classic-load it FIRST so the
+  // sync test realm has window.GlucoDex / window.GLUDSP before any group runs (it replaces the two
+  // former `<script src="glucodex-dsp.js">` tags; the DSP is __DEX_NAMESPACED__-independent).
+  { const _dsp = await fetchText('glucodex-dsp.js'); if(_dsp) (0, eval)(esmClassicify(_dsp)); }
   // gather fixtures + sources (browser I/O; runner does the equivalent in Node)
   const fixtures = {}, sources = {};
   await Promise.all(Object.keys(FIXTURE_FILES).map(async k => { fixtures[k] = await fetchJSON(FIXTURE_FILES[k]); }));

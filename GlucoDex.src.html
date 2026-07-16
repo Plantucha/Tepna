@@ -568,12 +568,17 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
 <script src="dex-forget.js"></script>
 <script src="dex-profile.js"></script>
 <script src="glucodex-registry.js"></script>
-<script src="glucodex-dsp.js"></script>
-<script src="glucodex-render.js"></script>
-<script src="glucodex-profile.js"></script>
+<script type="module" src="glucodex-dsp.js"></script>
+<!-- ESM-MIGRATION Phase 1/2: GlucoDex's UI modules + the DSP are ES modules (import/export). The owned build
+     (tools/build-core.js esmBundle) resolves the graph and inlines each as its own classic script
+     block via a shared module registry — no network edge, no module-type tag (which fails under
+     file://). The registry + DSP stay classic co-loaded scripts (loaded raw by the orchestrators and
+     both test runners). -->
+<script type="module" src="glucodex-render.js"></script>
+<script type="module" src="glucodex-profile.js"></script>
 <script src="synth-gen.js"></script>
 <script src="dex-patient-gen.js"></script>
-<script src="glucodex-app.js"></script>
+<script type="module" src="glucodex-app.js"></script>
 <script>
 function showChip(name){ document.getElementById('gluChipName').textContent=name; document.getElementById('gluChip').classList.add('show'); }
 // Mount the SHARED depth selector (System-Cohesion) under the dex_depth_tier key.

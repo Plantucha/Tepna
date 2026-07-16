@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-15
+**Status:** IN-PROGRESS — Phase 0 spike (GO; `ESM-MIGRATION-SPIKE-FINDINGS-2026-07-15.md`) + Phase 1 (GlucoDex UI modules → ESM) + Phase 2 (GlucoDex DSP → dual-mode ESM + the co-load bridge) done; Phase 3 (fan out the remaining nodes) + Phase 4 (sweep scaffolding) pending owner go · **Created:** 2026-07-15
 
 # ESM migration — make the DSP↔render coupling a real module boundary (spike first, decide, then fan out)
 
@@ -117,6 +117,25 @@ mechanical work. NO-GO = record the specific inliner limitation; P5 stays deferr
 
 ## Phase 1 — productionize the build path (GlucoDex stays the pilot) · *conditional*
 
+> **✅ EXECUTED 2026-07-15 — with a scope refinement forced by the co-load reality (owner-decided).**
+> The DSP is co-loaded raw as a classic script by the orchestrators AND both test runners' equiv gate
+> (`vm.runInContext`), AND `glucodex-registry.js` is executed classically by both suites for the
+> registry-defs-parity gate — a top-level `export`/`import` in either is an immediate SyntaxError there.
+> Owner chose **keep the DSP (and, by the same rule, the registry) classic**; converting them + rewiring
+> ~6 classic loaders IS the Phase 2 co-load bridge. So Phase 1 converted the **3 bundle-only UI modules —
+> `glucodex-render.js` + `glucodex-app.js` (real `import`/`export`) + `glucodex-profile.js` (side-effect
+> module)** — and productionized the bundler as **`tools/build-core.js esmBundle`** (per-file blocks via a
+> shared module registry; names preserved so computeHash stays precise). All three are display-only, so
+> the landing is **export-inert BY COMPUTATION**: `computeHash` UNCHANGED at `a5bda5037069`, only
+> `manifestHash` moved (`68d78c731344 → 078fbb9c0cd4`); no `glucodex-globals.d.ts` deletion and no
+> `tsconfig.json` change were needed (the 3 UI files aren't type-checked; the d.ts serves the still-classic
+> DSP). Full local gate sequence GREEN incl. the browser lane (`Dex-Test-Suite.html?full` all-green,
+> `bootSkips:[]`; `verify-provenance` GATE A/B; `no-network`). A pre-existing browser-lane false-positive
+> in FIXTURE-VERIFICATION-GATE §3.1 (fail-closed without `git ls-files`) was fixed to Node-lane-only.
+> **Phase 2 now owns:** the DSP + registry ESM conversion, the co-load bridge, and the full
+> `glucodex-globals.d.ts` deletion. Changeset: `changes/2026-07-15-glucodex-esm-migration.md`.
+
+
 Fold the spike's proven bundler into `tools/build.mjs` as a real, gated code path (not a scratch tool):
 convert GlucoDex's actual 5 source files to ESM, delete its `glucodex-globals.d.ts` (tsc now resolves the
 imports), re-bundle `GlucoDex.html` for real, re-verify (`verify-fixtures.mjs` on the corpus — `computeHash`
@@ -127,6 +146,23 @@ delete `glucodex-globals.d.ts`. **Changeset:** `type: changed`, `nodes: [GlucoDe
 
 ## Phase 2 — the co-load contract + orchestrators · *conditional, the coupling knot*
 
+> **✅ EXECUTED 2026-07-15 (owner-approved go/no-go).** Bridge chosen: **the DSP is DUAL-MODE** — it keeps
+> its `window.GLUDSP`/`window.GlucoDex` attaches (option b: a `global.<Node>` surface for every classic
+> co-load consumer) while `glucodex-app.js` `import`s its ESM exports. The raw classic loaders that share a
+> global realm — `tests/run-tests.mjs`'s vm realm (via `loadInto`), `tools/regen-glucodex-goldens.mjs`, and
+> `Dex-Test-Suite.html`'s harness — classic-load it through a new shared **`DexBuild.classicify`** (sheds the
+> top-level `import`/`export`; no-op on classic files); the two orchestrators (`Data Unifier.html`,
+> `OverDex.html`) mark it `type=module` so `esmBundle` wraps it (self-triggering, identical load timing). The
+> `dex-coload manifest` gate stayed GREEN throughout. `computeHash` moved (`a5bda5037069 → 849db418fb72`,
+> `manifestHash → 1e92a7c23fe7`) — the DSP is a compute asset — but EXPORT-INERT BY VERIFICATION: the equiv/
+> golden legs reproduce byte-identical and `verify-fixtures.mjs` re-stamped the corpus-backed fixture's
+> `verifiedUnder` after a green real-corpus run. Full local gate sequence green incl. browser lane; biome + tsc
+> clean. **NOT deleted:** `glucodex-globals.d.ts` — the DSP still attaches `window` for the classic consumers,
+> so the ambient declarations are still load-bearing; deletion waits until those consumers are ESM (Phase 4).
+> The "second wall" (the shared vm realm + browser harness) was cleared by the `classicify` bridge, which is
+> the reusable mechanism Phase 3's fan-out inherits. Changeset: `changes/2026-07-15-glucodex-esm.md`.
+
+
 `dex-coload.js` + the signal-orchestrate hosts (`Data Unifier.html`, `OverDex.html`) co-load DSPs as **plain
 global scripts**. Converting a DSP that an orchestrator co-loads breaks that host. Decide the bridge:
 either (a) the orchestrators import the ESM DSPs too, or (b) keep a thin `global.<Node>` compatibility
@@ -135,6 +171,17 @@ throughout (it asserts every host co-loads every module). **This is the phase mo
 second wall** — treat it as its own go/no-go if it does.
 
 ## Phase 3 — fan out the remaining nodes (cheapest-first) · *conditional, mechanical*
+
+> **⏸ PARKED 2026-07-16 (owner-decided) — see `ESM-MIGRATION-FOLLOWUPS-2026-07-16-BRIEF.md`.** On
+> inspection the fan-out is NOT mechanical: each remaining node has a structural blocker (indirect DSP
+> consumption with no clean import edge in oxydex/hrvdex/pulsedex; no-IIFE `render`/`overview` in pulsedex;
+> a Web-Worker blob in ecgdex AND ppgdex; edf/fusion/cross + non-orchestrator co-load in cpapdex; and a
+> load-order hazard that makes any DSP-only conversion either a dead-export churn or a risky bespoke UI
+> change). The P5 payoff (delete `-globals.d.ts`, retire source-mirror gates) only lands once the fan-out is
+> COMPLETE and the classic co-load path is retired, so a partial fleet unlocks nothing. GlucoDex stands as
+> the fully-migrated reference + the generic `esmBundle`/`classicify` bridge is fleet-ready; the follow-up
+> brief captures the per-node blockers + the completion recipe for when the full migration is funded work.
+
 
 With the path proven and the co-load bridge chosen, convert the rest cheapest-first — roughly
 `pulsedex (6)` → `hrvdex (7)` → `ecgdex (7)` → `oxydex (8)` → `cpapdex (8)` → **`ppgdex` LAST** (its Web
