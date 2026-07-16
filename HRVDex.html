@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OHYkDXnLmkD8F1Qw/1rxS9twaCtQED7qmnAJu5YnJpo=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzshnQUOP+vglvBjg8iDL1FFmMxRcyErFUjkunJL4Kk=' 'sha256-fXI5DrP+kHRChOhLFMFywZgdu2oBgnwqEiXuQHRJG1w=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-x0sSiHucTnwt0T5o99rUupcHOFUpTe1SHgVvi5F+iIs=' 'sha256-x6CAnBF9/VKF7DgRVIjxoOjtzek2K5yCTprIMDG2viY=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-KtWitnrr34T7CBV8wZ7YgJrBE885LFqil51fH7x59Dk=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-LrwMA4zFn8eLC7CImQrCn7PoxTVEll4M2OzZugruIL8=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fXI5DrP+kHRChOhLFMFywZgdu2oBgnwqEiXuQHRJG1w=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-m3U2tAUsY1ov99wh/umzZi2/e4rx6LKOh1n+D+qy8Y8=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE=' 'sha256-ztY4+qrzGrm0BpZ+DhedXAMaoAV9Q0fqEUrsoUVaZAM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HRVDex — Heart Rate Variability Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -7927,7 +7927,12 @@ body.light .topbar::after{ opacity:.25; }
   if (typeof module !== 'undefined' && module.exports) module.exports = root.DexClock;
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
 </script>
-<script data-inline-src="hrvdex-dsp.js">/* ════ HRVDex · DSP & METRICS (hrvdex-dsp.js) ───────────────────────────────────────────────
+<!-- ESM-MIGRATION deep-3: the four hrvdex node modules are ES modules. The owned bundler
+     (tools/build-core.js esmBundle) resolves the graph and inlines each as its own classic
+     script (external import fails under file:// — the CORS wall). The registry + chart +
+     chartbadges stay classic scripts (chart/chartbadges are self-contained IIFEs). -->
+<script data-inline-src="hrvdex-dsp.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("hrvdex-dsp.js",function(__require,__exports){
+/* ════ HRVDex · DSP & METRICS (hrvdex-dsp.js) ───────────────────────────────────────────────
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    Shared data state, Welltory CSV parsing, the derived-metric engine
@@ -9101,9 +9106,18 @@ body.light .topbar::after{ opacity:.25; }
       }
     });
   }
-})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
-</script>
-<script data-inline-src="hrvdex-render.js">/* ════ HRVDex · RENDER & CHARTS (hrvdex-render.js) ───────────────────────────────────────────────
+})(/** @type {any} */ (typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this));
+
+// ESM-MIGRATION (deep-3 fan-out): dsp is now a DUAL-MODE module. The IIFE above still attaches
+// window.HRVDex (the external node API + every classic co-load consumer — the orchestrators and
+// both test runners, which classic-load this file via tools/build-core.js `classicify`) and, when
+// not namespaced, the bare-global back-compat spray for the classic UI. This re-export lets the
+// owned ESM bundle's hrvdex-app.js import edge replace the script-tag-order convention.
+__exports.HRVDex = window.HRVDex;
+
+});})();</script>
+<script data-inline-src="hrvdex-render.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("hrvdex-render.js",function(__require,__exports){
+/* ════ HRVDex · RENDER & CHARTS (hrvdex-render.js) ───────────────────────────────────────────────
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    All DOM/chart rendering: status, window/tab/mode controls, readiness
@@ -10612,8 +10626,29 @@ function drawSimpleLine(canvasId, dates, values, opts) {
   });
 }
 // ═══ end Cardiovascular Research Pattern ═══
-</script>
-<script data-inline-src="hrvdex-profile.js">/* ════ HRVDex · PROFILE & PERSONALIZATION (hrvdex-profile.js) ───────────────────────────────────────────────
+
+// ESM-MIGRATION deep-3: render is now an ES module, so its top-level declarations are
+// module-scoped. Publish the cross-file surface — hrvdex-dsp (setStatus/rerender reach-ins),
+// hrvdex-app, hrvdex-profile and the data-act dispatch wrappers resolve these as bare globals
+// through window at call time. (Same pattern as pulsedex-render.js.)
+Object.assign(window, {
+  evBadge,
+  setStatus,
+  setWindow,
+  switchTab,
+  setMode,
+  hrvNavTo,
+  rerender,
+  rgba,
+  renderHistogram,
+  renderScatterExplorer,
+  renderWeekday,
+  TABLE_COLS
+});
+
+});})();</script>
+<script data-inline-src="hrvdex-profile.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("hrvdex-profile.js",function(__require,__exports){
+/* ════ HRVDex · PROFILE & PERSONALIZATION (hrvdex-profile.js) ───────────────────────────────────────────────
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    User profile (localStorage), data-driven inference, population norms,
@@ -11256,7 +11291,20 @@ function toggleProfilePanel() {
   if (ad) ad.style.display = collapsed ? '' : 'none';
   if (btn) btn.textContent = collapsed ? '▲ collapse' : '▼ expand';
 }
-</script>
+
+// ESM-MIGRATION deep-3: profile is now an ES module — publish the cross-file surface
+// (hrvdex-dsp's inferFromData/getProfile/calcVo2Cat reach-ins, hrvdex-app's loadProfile/
+// toggleProfilePanel calls, and the updateProfile data-act wrapper).
+Object.assign(window, {
+  inferFromData,
+  loadProfile,
+  getProfile,
+  updateProfile,
+  calcVo2Cat,
+  toggleProfilePanel
+});
+
+});})();</script>
 <script data-inline-src="synth-gen.js">/* ════════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
@@ -12402,7 +12450,8 @@ function toggleProfilePanel() {
   };
 })(window);
 </script>
-<script data-inline-src="hrvdex-app.js">/* ════ HRVDex · APP · INGEST · EXPORTS · GLUE (hrvdex-app.js) ───────────────────────────────────────────────
+<script data-inline-src="hrvdex-app.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("hrvdex-app.js",function(__require,__exports){
+/* ════ HRVDex · APP · INGEST · EXPORTS · GLUE (hrvdex-app.js) ───────────────────────────────────────────────
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    File ingest (drag/drop + paste), CSV/JSON exports, clear-all, progress bar,
@@ -12410,7 +12459,12 @@ function toggleProfilePanel() {
    Plain global script — shares page scope with the other hrvdex-*.js files,
    exactly as in the original single-script monolith. No behavior change.
    Load order: hrvdex-dsp → hrvdex-render → hrvdex-profile → hrvdex-app.
+   ES module (ESM-MIGRATION deep-3): the imports below make that load order a real
+   dependency edge (the bundler + browser guarantee it).
    ════════════════════════════════════════════════════════════════════════ */
+__require('hrvdex-dsp.js');
+__require('hrvdex-render.js');
+__require('hrvdex-profile.js');
 
 /* ===== FILE LOAD ===== */
 const uploadZone = document.getElementById('uploadZone');
@@ -13061,7 +13115,22 @@ if (window.DexActions)
       window.rerender();
     }
   });
-</script>
+
+// ESM-MIGRATION deep-3: app is now an ES module — publish the cross-file surface
+// (hrvdex-dsp's export/clear/progress reach-ins + the uploadZone element it inspects,
+// and the loadFile/loadPasted data-act wrappers).
+Object.assign(window, {
+  loadFile,
+  loadPasted,
+  exportCSV,
+  exportJSONL,
+  exportGanglior,
+  clearAll,
+  setProgress,
+  uploadZone
+});
+
+});__M.require("hrvdex-app.js");})();</script>
 <script data-inline-src="hrvdex-chartbadges.js">/* ════ HRVDex · Chart-card evidence badges (hrvdex-chartbadges.js) ──────────
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0

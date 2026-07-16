@@ -1172,4 +1172,11 @@
       }
     });
   }
-})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
+})(/** @type {any} */ (typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this));
+
+// ESM-MIGRATION (deep-3 fan-out): dsp is now a DUAL-MODE module. The IIFE above still attaches
+// window.HRVDex (the external node API + every classic co-load consumer — the orchestrators and
+// both test runners, which classic-load this file via tools/build-core.js `classicify`) and, when
+// not namespaced, the bare-global back-compat spray for the classic UI. This re-export lets the
+// owned ESM bundle's hrvdex-app.js import edge replace the script-tag-order convention.
+export const HRVDex = window.HRVDex;

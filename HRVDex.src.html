@@ -1392,12 +1392,16 @@ body.light .topbar::after{ opacity:.25; }
 <script src="hrvdex-registry.js"></script>
 <script src="quantity.js"></script>
 <script src="clock.js"></script>
-<script src="hrvdex-dsp.js"></script>
-<script src="hrvdex-render.js"></script>
-<script src="hrvdex-profile.js"></script>
+<!-- ESM-MIGRATION deep-3: the four hrvdex node modules are ES modules. The owned bundler
+     (tools/build-core.js esmBundle) resolves the graph and inlines each as its own classic
+     script (external import fails under file:// — the CORS wall). The registry + chart +
+     chartbadges stay classic scripts (chart/chartbadges are self-contained IIFEs). -->
+<script type="module" src="hrvdex-dsp.js"></script>
+<script type="module" src="hrvdex-render.js"></script>
+<script type="module" src="hrvdex-profile.js"></script>
 <script src="synth-gen.js"></script>
 <script src="dex-patient-gen.js"></script>
-<script src="hrvdex-app.js"></script>
+<script type="module" src="hrvdex-app.js"></script>
 <script src="hrvdex-chartbadges.js"></script>
   </main>
 </div>

@@ -26,3 +26,4 @@ declare var rerender: any; // hrvdex-app.js / hrvdex-render.js — full re-rende
 declare var inferFromData: any; // hrvdex-profile.js — infer profile (age/sex) from the data before derivation
 declare var getProfile: any; // hrvdex-profile.js — read the user profile (typeof-guarded for headless runs)
 declare var calcVo2Cat: any; // hrvdex-profile.js — VO₂max fitness-category classifier
+declare var HRVDex: any; // hrvdex-dsp.js — the node's OWN namespace attach (`root.HRVDex`); lets the dual-mode module tail (`export const HRVDex = window.HRVDex`, ESM-MIGRATION deep-3) type-check

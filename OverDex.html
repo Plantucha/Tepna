@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-/+6b2gRRXsvuRrt7AXOoDfo6WQBbCCaEW4hSOAPqdqU=' 'sha256-/1EBACjisGqDGfw/POm0GXKkkJdIuyg9H6EWUWt5IjE=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-367y6GHZgZvrlIWGczdRHXkwoQQ1ghDdzzvpV83NkKM=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-CVurPrqEcuHK5KsV4krlUitcepDZrOgY8MCMuIrfZvI=' 'sha256-Cv1ftxisV85nchQS/mzDUM/dAhgX+aKZtkuTvaVUp1A=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HbOL1H5pSrF21yJrbz4c49sec9+pqJ29Ky/NjpuBPoM=' 'sha256-Ji/JiPMwbwSy8T3r4cvM0cO0FPfeiHfAtt2kYOL4hek=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-OJqOhFcEaTHnRTEoJLpCqCm+qkNxIDecjPFZa26rtDQ=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gtj/J27nuNvTesKfh8Pc6KxJVzQS4DgKAJN2POTeyQQ=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE=' 'sha256-x6CAnBF9/VKF7DgRVIjxoOjtzek2K5yCTprIMDG2viY='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-/+6b2gRRXsvuRrt7AXOoDfo6WQBbCCaEW4hSOAPqdqU=' 'sha256-/1EBACjisGqDGfw/POm0GXKkkJdIuyg9H6EWUWt5IjE=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-367y6GHZgZvrlIWGczdRHXkwoQQ1ghDdzzvpV83NkKM=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-CVurPrqEcuHK5KsV4krlUitcepDZrOgY8MCMuIrfZvI=' 'sha256-Cv1ftxisV85nchQS/mzDUM/dAhgX+aKZtkuTvaVUp1A=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HbOL1H5pSrF21yJrbz4c49sec9+pqJ29Ky/NjpuBPoM=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-OJqOhFcEaTHnRTEoJLpCqCm+qkNxIDecjPFZa26rtDQ=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gtj/J27nuNvTesKfh8Pc6KxJVzQS4DgKAJN2POTeyQQ=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-m3U2tAUsY1ov99wh/umzZi2/e4rx6LKOh1n+D+qy8Y8=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-rY+bnYHYViDU2qRuZ8fUCUTJJVra72Bi4E8bW0Snafg=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -11763,7 +11763,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   }
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
 </script>
-<script data-inline-src="hrvdex-dsp.js">/* ════ HRVDex · DSP & METRICS (hrvdex-dsp.js) ───────────────────────────────────────────────
+<script data-inline-src="hrvdex-dsp.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("hrvdex-dsp.js",function(__require,__exports){
+/* ════ HRVDex · DSP & METRICS (hrvdex-dsp.js) ───────────────────────────────────────────────
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    Shared data state, Welltory CSV parsing, the derived-metric engine
@@ -12937,8 +12938,16 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       }
     });
   }
-})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
-</script>
+})(/** @type {any} */ (typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this));
+
+// ESM-MIGRATION (deep-3 fan-out): dsp is now a DUAL-MODE module. The IIFE above still attaches
+// window.HRVDex (the external node API + every classic co-load consumer — the orchestrators and
+// both test runners, which classic-load this file via tools/build-core.js `classicify`) and, when
+// not namespaced, the bare-global back-compat spray for the classic UI. This re-export lets the
+// owned ESM bundle's hrvdex-app.js import edge replace the script-tag-order convention.
+__exports.HRVDex = window.HRVDex;
+
+});})();</script>
 <script data-inline-src="pulsedex-dsp.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("pulsedex-dsp.js",function(__require,__exports){
 /* ════ PulseDex · DSP (pulsedex-dsp.js) ────────────────────────────────────────────────
  * Copyright 2026 Michal Planicka
@@ -22325,7 +22334,7 @@ __exports.PpgDex = window.PpgDex;
 __exports.ECGDSP = window.ECGDSP;
 __exports.ECGDex = window.ECGDex;
 
-});__M.require("pulsedex-dsp.js");__M.require("glucodex-dsp.js");__M.require("ppgdex-dsp.js");__M.require("ecgdex-dsp.js");})();</script>
+});__M.require("hrvdex-dsp.js");__M.require("pulsedex-dsp.js");__M.require("glucodex-dsp.js");__M.require("ppgdex-dsp.js");__M.require("ecgdex-dsp.js");})();</script>
 <!-- shared file-ingest classifiers (deviceKey/foreignVendor/…) — load BEFORE signal-orchestrate (§1 ECG-INGEST-FOLLOWUPS-II: pairCompanions consults DexIngest) -->
 <script data-inline-src="dex-ingest.js">/*
  * dex-ingest.js — Tepna shared file-ingest classification (pure, headless, UI-free)
