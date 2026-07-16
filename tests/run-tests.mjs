@@ -901,7 +901,10 @@ async function main() {
     'synth-gen.js',
     'cohort-gen.js',
     'cohort-full.js',
-    'glucodex-dsp.js',
+    // glucodex-dsp.js is loaded in the __DEX_NAMESPACED__ co-load block above; re-listing it here
+    // re-runs its classicified `export const GLUDSP` as a top-level `const` in the SAME realm → an
+    // "Identifier 'GLUDSP' already declared" throw (caught, but a noisy false alarm that would recur
+    // for every DSP as the ESM fan-out proceeds). Load-once — the namespaced block already sets env.GLUDSP.
     'dex-patient-gen.js',
     'integrator-longitudinal.js',
     // TEST-COVERAGE-ANALYSIS 2026-07-15 — the analysis-page statistics kernels, single-sourced so the

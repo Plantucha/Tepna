@@ -115,6 +115,32 @@ var SCRIPTS = {
   full: ['synth-gen.js', 'cohort-gen.js', 'cohort-full.js', 'kernel-constants.js', 'clock.js', 'ecgdex-morph.js', 'ecgdex-dsp.js', 'ppgdex-morph.js', 'ppgdex-dsp.js']
 };
 
+/* ── ESM-MIGRATION: co-load DSPs that ship a top-level `export` (dual-mode ESM). A classic worker's
+   importScripts() SyntaxErrors on a module-syntax file, so those DSPs must be shed to classic first.
+   We importScripts every file as before (unchanged scoping for the plain-global helpers), and only
+   on the "Unexpected token 'export'/'import'" failure do we fall back to fetch → DexBuild.classicify
+   (the single classicify source, worker-safe) → eval. build-core.js is dependency-free and attaches
+   DexBuild to `self`, so importScripts'ing it in the worker is safe. (Before this, cohort-worker's
+   gluco/cpap KINDs silently broke the moment glucodex-dsp.js became a dual-mode ESM module.) ── */
+var _dexBuildLoaded = false;
+function loadScript(url) {
+  try {
+    importScripts(url);
+  } catch (e) {
+    var msg = String((e && e.message) || e);
+    if (!/\bexport\b|\bimport\b/.test(msg)) throw e; // a real error, not module syntax
+    if (!_dexBuildLoaded) {
+      importScripts('tools/build-core.js'); // classic, worker-safe → self.DexBuild.classicify
+      _dexBuildLoaded = true;
+    }
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, false); // sync: preserve importScripts' ordering/timing
+    xhr.send();
+    if (xhr.status && xhr.status >= 400) throw new Error('cohort-worker: fetch ' + url + ' → ' + xhr.status);
+    (0, eval)(self.DexBuild.classicify(xhr.responseText)); // indirect eval: worker-global scope
+  }
+}
+
 /* ── OxyDex: array-of-nights summary + per-night score ── */
 function runOxy(p) {
   var slim = [],
@@ -584,7 +610,7 @@ self.onmessage = function (e) {
   if (m.type === 'init') {
     KIND = m.kind;
     try {
-      importScripts.apply(self, SCRIPTS[KIND]);
+      SCRIPTS[KIND].forEach(loadScript);
       READY = true;
       self.postMessage({ type: 'ready', kind: KIND });
     } catch (err) {
