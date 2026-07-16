@@ -7,11 +7,16 @@
    synthetic generator, pipeline orchestration, and all UI population/exports.
    Depends on window.ECGDSP and window.ECGUI.
    ════════════════════════════════════════════════════════════════════════ */
+// ESM-MIGRATION: real import edges to the DSP + render modules (the DSP↔app coupling P5 targets).
+// Importing ecgdex-render.js also runs its factory (publishing window.evBadge) before this body's bare
+// `evBadge(...)` calls. ecgdex-morph/-profile/-cross stay classic co-loaded (read off window at call time).
+import { ECGDSP } from './ecgdex-dsp.js';
+import { ECGUI } from './ecgdex-render.js';
 (function () {
   'use strict';
   const $ = (id) => document.getElementById(id);
-  const DSP = window.ECGDSP,
-    UI = window.ECGUI;
+  const DSP = ECGDSP,
+    UI = ECGUI;
   const ING = window.DexIngest; // §3 (ECG-INGEST-FOLLOWUPS): shared, gate-backed file-ingest classification (dex-ingest.js)
   let RESULT = null,
     SCOPE = null,

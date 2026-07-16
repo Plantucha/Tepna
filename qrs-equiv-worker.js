@@ -83,6 +83,25 @@
 })();
 
 var SCRIPTS = ['synth-gen.js', 'cohort-gen.js', 'cohort-full.js', 'kernel-constants.js', 'clock.js', 'ecgdex-morph.js', 'ecgdex-dsp.js', 'ppgdex-morph.js', 'ppgdex-dsp.js'];
+// ESM-MIGRATION: importScripts SyntaxErrors on a dual-mode DSP's top-level `export`; fall back to
+// fetch → DexBuild.classicify → eval (build-core.js is worker-safe). No-op on classic files.
+var _dexBuildLoaded = false;
+function loadScript(url) {
+  try {
+    importScripts(url);
+  } catch (e) {
+    if (!/\bexport\b|\bimport\b/.test(String((e && e.message) || e))) throw e;
+    if (!_dexBuildLoaded) {
+      importScripts('tools/build-core.js');
+      _dexBuildLoaded = true;
+    }
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, false);
+    xhr.send();
+    if (xhr.status && xhr.status >= 400) throw new Error('qrs-equiv-worker: fetch ' + url + ' → ' + xhr.status);
+    (0, eval)(self.DexBuild.classicify(xhr.responseText));
+  }
+}
 var READY = false;
 
 function doJob(seed) {
@@ -141,7 +160,7 @@ self.onmessage = function (e) {
   var m = e.data || {};
   if (m.type === 'init') {
     try {
-      importScripts.apply(self, SCRIPTS);
+      SCRIPTS.forEach(loadScript);
       READY = true;
       self.postMessage({ type: 'ready' });
     } catch (err) {

@@ -113,7 +113,8 @@
 <script src="oxydex-cross.js"></script>
 <script src="pulsedex-cross.js"></script>
 <script src="ppgdex-cross.js"></script>
-<script src="ecgdex-dsp.js"></script>
+<!-- ecgdex-dsp.js: dual-mode ES module, classic-loaded in main() below (ESM-MIGRATION) -->
+
 <script src="ppgdex-dsp.js"></script>
 <script src="ecgdex-morph.js"></script>
 <script src="ppgdex-morph.js"></script>
@@ -210,6 +211,9 @@ async function main(){
   // -registry.js already loaded classically above, so window.CpapEdf / window.CpapRegistry are present.
   { const _d = await fetchText('cpapdex-dsp.js'); if(_d) (0, eval)(esmClassicify(_d)); }
   { const _r = await fetchText('cpapdex-render.js'); if(_r) (0, eval)(esmClassicify(_r)); }
+  // ESM-MIGRATION: ecgdex-dsp.js is a dual-mode ES module — classic-load it here (clock.js + ecgdex-morph.js
+  // are already loaded classically above, so window.DexClock / window.ECGMorph are present when it evals).
+  { const _e = await fetchText('ecgdex-dsp.js'); if(_e) (0, eval)(esmClassicify(_e)); }
   // gather fixtures + sources (browser I/O; runner does the equivalent in Node)
   const fixtures = {}, sources = {};
   await Promise.all(Object.keys(FIXTURE_FILES).map(async k => { fixtures[k] = await fetchJSON(FIXTURE_FILES[k]); }));

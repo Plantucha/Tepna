@@ -3491,3 +3491,12 @@
     return env;
   };
 })(window);
+
+// ESM-MIGRATION: ecgdex-dsp is now a DUAL-MODE module. The IIFE above still attaches window.ECGDSP /
+// window.ECGDex — the headless node API AND every classic co-load consumer (the orchestrators, both
+// test runners, and the raw analysis workers, which classic-load this file via tools/build-core.js
+// `classicify`). These re-exports let the owned ESM bundle's ecgdex-app.js `import { ECGDSP }` instead
+// of reading window. The inlined WORKER_SRC in ecgdex-app.js is a hermetic string (references no module
+// binding), so this export does not touch the worker realm.
+export const ECGDSP = window.ECGDSP;
+export const ECGDex = window.ECGDex;

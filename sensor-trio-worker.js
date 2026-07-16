@@ -33,8 +33,27 @@ var HAVE_PPGDSP = false,
 if (typeof window === 'undefined') {
   self.window = self;
 } // window→self shim: the production DSP wrapper references `window` at load; a worker has none
+// ESM-MIGRATION: importScripts SyntaxErrors on a dual-mode DSP's top-level `export`; fall back to
+// fetch → DexBuild.classicify → eval (build-core.js is worker-safe). No-op on classic files.
+var _dexBuildLoaded = false;
+function loadScript(url) {
+  try {
+    importScripts(url);
+  } catch (e) {
+    if (!/\bexport\b|\bimport\b/.test(String((e && e.message) || e))) throw e;
+    if (!_dexBuildLoaded) {
+      importScripts('tools/build-core.js');
+      _dexBuildLoaded = true;
+    }
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, false);
+    xhr.send();
+    if (xhr.status && xhr.status >= 400) throw new Error('sensor-trio-worker: fetch ' + url + ' → ' + xhr.status);
+    (0, eval)(self.DexBuild.classicify(xhr.responseText));
+  }
+}
 try {
-  importScripts('kernel-constants.js', 'clock.js', 'ppgdex-dsp.js', 'ecgdex-dsp.js');
+  ['kernel-constants.js', 'clock.js', 'ppgdex-dsp.js', 'ecgdex-dsp.js'].forEach(loadScript);
   HAVE_ECGDSP = typeof ECGDSP !== 'undefined' && ECGDSP && typeof ECGDSP.parseECG === 'function' && typeof ECGDSP.bandpass === 'function' && typeof ECGDSP.detectPeaks === 'function';
   HAVE_PPGDSP =
     typeof PPGDSP !== 'undefined' &&

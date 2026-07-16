@@ -16,10 +16,30 @@
 if (typeof window === 'undefined') {
   self.window = self;
 } // *-dsp.js reference `window` at load
+// ESM-MIGRATION: importScripts SyntaxErrors on a dual-mode DSP's top-level `export`; fall back to
+// fetch → DexBuild.classicify → eval (build-core.js is worker-safe, attaches DexBuild to self). No-op
+// on classic files, so plain-global helpers load with unchanged scoping.
+var _dexBuildLoaded = false;
+function loadScript(url) {
+  try {
+    importScripts(url);
+  } catch (e) {
+    if (!/\bexport\b|\bimport\b/.test(String((e && e.message) || e))) throw e;
+    if (!_dexBuildLoaded) {
+      importScripts('tools/build-core.js');
+      _dexBuildLoaded = true;
+    }
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, false);
+    xhr.send();
+    if (xhr.status && xhr.status >= 400) throw new Error('pat-feasibility-worker: fetch ' + url + ' → ' + xhr.status);
+    (0, eval)(self.DexBuild.classicify(xhr.responseText));
+  }
+}
 var DSP_OK = false,
   DSP_ERR = '';
 try {
-  importScripts('kernel-constants.js', 'clock.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js');
+  ['kernel-constants.js', 'clock.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js'].forEach(loadScript);
   DSP_OK = !!(typeof ECGDSP !== 'undefined' && ECGDSP.parseECG && typeof PPGDSP !== 'undefined' && PPGDSP.parsePPG);
 } catch (e) {
   DSP_ERR = String((e && e.message) || e);

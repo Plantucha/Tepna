@@ -22,6 +22,9 @@ function evBadge(label, fallback) {
     return '';
   }
 }
+// ESM-MIGRATION: this module scopes evBadge away from the global — publish it so the classic profile
+// and the ESM app's bare `evBadge(...)` calls still resolve (mirrors glucodex-render).
+window.evBadge = evBadge;
 
 (function (global) {
   'use strict';
@@ -566,3 +569,7 @@ function evBadge(label, fallback) {
 
   global.ECGUI = { ECGScope, lineChart, poincare, hypnogram, medianBeatChart, buildEnvelope, COLORS: C };
 })(window);
+
+// ESM-MIGRATION: dual-mode re-export so ecgdex-app.js can `import { ECGUI }`; the IIFE still attaches
+// window.ECGUI for classic consumers (classicify sheds this line for the vm/harness).
+export const ECGUI = window.ECGUI;
