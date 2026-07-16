@@ -236,9 +236,10 @@
     return a.reduce((s, x) => s + (x - m) * (x - m), 0) / (a.length - 1);
   };
   const sd = (a) => Math.sqrt(variance(a));
-  // pearson · ba · threeCorneredHat · tchSigmas single-sourced in analysis-stats.js
-  // (TEST-COVERAGE-ANALYSIS 2026-07-15) — known-answer tested in dex-tests.js. Aliased here so every
-  // call site (incl. tchSigmasFused → threeCorneredHat) is untouched; behavior is identical.
+  // pearson · ba · threeCorneredHat · tchSigmas · tchSigmasFused single-sourced in analysis-stats.js
+  // (TEST-COVERAGE-ANALYSIS 2026-07-15) — known-answer + AF-safety tested in dex-tests.js. Aliased
+  // here so every call site is untouched; behavior is identical (threeCorneredHat is reached
+  // transitively through the delegated tchSigmas / tchSigmasFused, no longer a direct page call).
   var pearson = AnalysisStats.pearson;
   const median = (a) => {
     const s = [...a].sort((p, q) => p - q),
@@ -256,8 +257,6 @@
   }
   var ba = AnalysisStats.blandAltman;
   const pct = (sorted, p) => sorted[Math.max(0, Math.min(sorted.length - 1, Math.floor(p * sorted.length)))];
-  // generic three-cornered hat (returns per-device variance; neg = broken assumption)
-  var threeCorneredHat = AnalysisStats.threeCorneredHat;
 
   // Per-triple three-cornered-hat σ kernel. A=H10(ECG), B=Verity(PPG), C=O2Ring(pulse).
   // Returns {h10, verity, o2} σ (null where the variance went negative) + neg flags + pairwise diffs.
@@ -267,70 +266,10 @@
   // Per-second, per-corner confidence (cH/cV/cO from the DSP: density × SQI, AF-safe) weights each
   // difference series in a WEIGHTED-variance TCH — a corner's flagged seconds leave ITS differences
   // but not the others, so the artifact-inflated corner collapses to its true σ with no bias to the
-  // clean ones. A GENTLE cross-sensor consensus (Tukey C=30 on the per-second spread vs the record's
-  // own typical spread) is a soft secondary net for artifacts the DSP can't self-see. O(n); missing
-  // confidences default to 1 ⇒ this reduces to (near-)classic variance. Same shape as tchSigmas.
-  const _wvar = (d, w) => {
-    let sw = 0,
-      swd = 0;
-    for (let i = 0; i < d.length; i++) {
-      sw += w[i];
-      swd += w[i] * d[i];
-    }
-    if (sw <= 0) return 0;
-    const mu = swd / sw;
-    let s = 0;
-    for (let i = 0; i < d.length; i++) s += w[i] * (d[i] - mu) * (d[i] - mu);
-    return s / sw;
-  };
-  const _consensusTrust = (hh, vv, oo, C) => {
-    const n = hh.length,
-      range = new Array(n);
-    for (let i = 0; i < n; i++) range[i] = Math.max(hh[i], vv[i], oo[i]) - Math.min(hh[i], vv[i], oo[i]);
-    const srt = range.slice().sort((a, b) => a - b),
-      rMed = srt[srt.length >> 1] || 0;
-    const ad = range.map((x) => Math.abs(x - rMed)).sort((a, b) => a - b),
-      rMad = 1.4826 * (ad[ad.length >> 1] || 0) || 1e-9;
-    const w = new Array(n);
-    for (let i = 0; i < n; i++) {
-      const z = (range[i] - rMed) / rMad;
-      w[i] = z <= 0 ? 1 : z >= C ? 0 : (1 - (z / C) * (z / C)) * (1 - (z / C) * (z / C));
-    }
-    return w;
-  };
-  function tchSigmasFused(hh, vv, oo, cH, cV, cO) {
-    const n = hh.length,
-      dHV = [],
-      dHO = [],
-      dVO = [],
-      wHV = [],
-      wHO = [],
-      wVO = [];
-    const ct = _consensusTrust(hh, vv, oo, 30); // very-gentle floor: zeros only extreme cross-sensor spikes (clean-corner bias ≈ −0.01); the per-corner DSP confidence is the primary defence
-    for (let i = 0; i < n; i++) {
-      dHV.push(hh[i] - vv[i]);
-      dHO.push(hh[i] - oo[i]);
-      dVO.push(vv[i] - oo[i]);
-      const h = cH ? cH[i] : 1,
-        v = cV ? cV[i] : 1,
-        o = cO ? cO[i] : 1,
-        t = ct[i];
-      wHV.push(t * h * v);
-      wHO.push(t * h * o);
-      wVO.push(t * v * o);
-    }
-    const cv = threeCorneredHat(_wvar(dHV, wHV), _wvar(dHO, wHO), _wvar(dVO, wVO));
-    return {
-      h10: cv.a > 0 ? Math.sqrt(cv.a) : null,
-      verity: cv.b > 0 ? Math.sqrt(cv.b) : null,
-      o2: cv.c > 0 ? Math.sqrt(cv.c) : null,
-      negVar: { h10: cv.a <= 0 ? cv.a : null, verity: cv.b <= 0 ? cv.b : null, o2: cv.c <= 0 ? cv.c : null },
-      neg: cv.a <= 0 || cv.b <= 0 || cv.c <= 0,
-      dHV,
-      dHO,
-      dVO
-    };
-  }
+  // clean ones. A GENTLE cross-sensor consensus (Tukey C=30) is a soft secondary net. Missing
+  // confidences default to 1 ⇒ (near-)classic variance. Single-sourced in analysis-stats.js (the
+  // known-answer + AF-safety gate lives there) — this page DELEGATES, matching tchSigmas above.
+  var tchSigmasFused = AnalysisStats.tchSigmasFused;
 
   // Within-window block bootstrap: resample contiguous BLOCK_S-second blocks of the
   // aligned (H,V,O) triples, recompute TCH σ each rep → percentile CI per device.
