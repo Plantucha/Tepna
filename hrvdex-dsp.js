@@ -83,14 +83,14 @@
   }
   function _hrvParseSummaryRows(text) {
     const lines = text.trim().split('\n');
-    const headers = lines[0].split(',').map((h) => h.trim().replace(/\r/, ''));
+    const headers = lines[0].split(',').map((h) => h.trim().replace(/\r/g, ''));
     const rows = [];
     for (let i = 1; i < lines.length; i++) {
       const cells = lines[i].split(',');
       if (cells.length < 5) continue;
       const r = {};
       headers.forEach((h, idx) => {
-        r[h] = cells[idx] ? cells[idx].trim().replace(/\r/, '') : '';
+        r[h] = cells[idx] ? cells[idx].trim().replace(/\r/g, '') : '';
       });
       // CLOCK-UNIFY: floating wall-clock ms is the source of truth. _date is a derived
       // compat Date, ALWAYS read back with getUTC* / {timeZone:'UTC'}.
