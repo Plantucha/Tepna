@@ -680,7 +680,8 @@ function computeProfileHints(r) {
   }
 }
 
-// expose for inline handlers
+// expose for inline handlers + the cross-file surface (ESM-MIGRATION deep-3: overview is now an
+// ES module, so pulsedex-render / -app resolve these as bare globals through window at call time)
 Object.assign(window, {
   onProfileInput,
   toggleProfilePanel,
@@ -689,5 +690,9 @@ Object.assign(window, {
   saveProfile,
   computeProfileHints,
   renderOverviewPx,
+  pxProfile,
+  renderHeroPx,
+  renderProfileDerivedPx,
+  renderKpiGridPx,
   reRender: typeof reRender !== 'undefined' ? reRender : undefined
 });

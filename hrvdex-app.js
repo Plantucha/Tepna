@@ -6,7 +6,12 @@
    Plain global script — shares page scope with the other hrvdex-*.js files,
    exactly as in the original single-script monolith. No behavior change.
    Load order: hrvdex-dsp → hrvdex-render → hrvdex-profile → hrvdex-app.
+   ES module (ESM-MIGRATION deep-3): the imports below make that load order a real
+   dependency edge (the bundler + browser guarantee it).
    ════════════════════════════════════════════════════════════════════════ */
+import './hrvdex-dsp.js';
+import './hrvdex-render.js';
+import './hrvdex-profile.js';
 
 /* ===== FILE LOAD ===== */
 const uploadZone = document.getElementById('uploadZone');
@@ -657,3 +662,17 @@ if (window.DexActions)
       window.rerender();
     }
   });
+
+// ESM-MIGRATION deep-3: app is now an ES module — publish the cross-file surface
+// (hrvdex-dsp's export/clear/progress reach-ins + the uploadZone element it inspects,
+// and the loadFile/loadPasted data-act wrappers).
+Object.assign(window, {
+  loadFile,
+  loadPasted,
+  exportCSV,
+  exportJSONL,
+  exportGanglior,
+  clearAll,
+  setProgress,
+  uploadZone
+});

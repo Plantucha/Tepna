@@ -3315,3 +3315,16 @@ function tiClass(pct, thr) {
   if (thr >= 88) return pct === 0 ? 'good' : pct < 0.5 ? 'warn' : 'bad';
   return pct === 0 ? 'good' : pct < 0.1 ? 'warn' : 'bad';
 }
+
+// ESM-MIGRATION deep-3: render is now an ES module — publish the cross-file surface
+// (oxydex-dsp/fusion/profile's renderAll reach-in, fusion's evBadge calls, the app/data-act
+// GC + detail/night controls). Bare cross-file reads resolve through window at call time.
+Object.assign(window, {
+  renderAll,
+  evBadge,
+  setGCWindow,
+  setGCSmooth,
+  toggleDetail,
+  jumpToNight,
+  metric
+});

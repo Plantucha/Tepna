@@ -76,10 +76,38 @@
   };
 })();
 
+/* ── ESM-MIGRATION deep-3: oxydex-dsp.js is a dual-mode ES module (top-level `export`), which a
+   classic worker's importScripts() SyntaxErrors on. Same bridge as the five analysis workers:
+   importScripts first, and only on the module-syntax failure fall back to fetch →
+   DexBuild.classicify → eval (build-core.js is dependency-free and worker-safe). ── */
+var _dexBuildLoaded = false;
+function loadScript(url) {
+  try {
+    importScripts(url);
+  } catch (e) {
+    /* @blob-strip:start — served-only ESM co-load fallback (fetch → classicify → eval).
+       DEAD in a build-analysis blob (deps pre-inlined, importScripts a no-op stub) — kept
+       marker-wrapped for consistency with the five analysis workers, though this test-only
+       worker is never inlined into an offline tool. */
+    var msg = String((e && e.message) || e);
+    if (!/\bexport\b|\bimport\b/.test(msg)) throw e; // a real error, not module syntax
+    if (!_dexBuildLoaded) {
+      importScripts('../tools/build-core.js'); // classic, worker-safe → self.DexBuild.classicify
+      _dexBuildLoaded = true;
+    }
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, false); // sync: preserve importScripts' ordering/timing
+    xhr.send();
+    if (xhr.status && xhr.status >= 400) throw new Error('oxy-hang.worker: fetch ' + url + ' → ' + xhr.status);
+    (0, eval)(self.DexBuild.classicify(xhr.responseText)); // indirect eval: worker-global scope
+    /* @blob-strip:end */
+  }
+}
+
 var READY = false,
   ERR = null;
 try {
-  importScripts('../kernel-constants.js', '../clock.js', '../oxydex-util.js', '../oxydex-profile.js', '../oxydex-dsp.js', '../synth-gen.js', '../cohort-gen.js');
+  ['../kernel-constants.js', '../clock.js', '../oxydex-util.js', '../oxydex-profile.js', '../oxydex-dsp.js', '../synth-gen.js', '../cohort-gen.js'].forEach(loadScript);
   READY = !!(self.processNight && self.parseCSV && self.CohortGen);
   if (!READY) ERR = 'modules missing after load (processNight/parseCSV/CohortGen)';
 } catch (e) {

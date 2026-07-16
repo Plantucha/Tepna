@@ -48,6 +48,7 @@
     "ppgdex-globals.d.ts",
     "integrator-globals.d.ts",
     "oxydex-globals.d.ts",
+    "pulsedex-globals.d.ts",
     "pulsedex-dsp.js",
     "signal-orchestrate.js",
     "hrvdex-dsp.js",

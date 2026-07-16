@@ -1507,3 +1507,22 @@ function drawSimpleLine(canvasId, dates, values, opts) {
   });
 }
 // ═══ end Cardiovascular Research Pattern ═══
+
+// ESM-MIGRATION deep-3: render is now an ES module, so its top-level declarations are
+// module-scoped. Publish the cross-file surface — hrvdex-dsp (setStatus/rerender reach-ins),
+// hrvdex-app, hrvdex-profile and the data-act dispatch wrappers resolve these as bare globals
+// through window at call time. (Same pattern as pulsedex-render.js.)
+Object.assign(window, {
+  evBadge,
+  setStatus,
+  setWindow,
+  switchTab,
+  setMode,
+  hrvNavTo,
+  rerender,
+  rgba,
+  renderHistogram,
+  renderScatterExplorer,
+  renderWeekday,
+  TABLE_COLS
+});

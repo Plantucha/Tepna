@@ -641,3 +641,15 @@ function toggleProfilePanel() {
   if (ad) ad.style.display = collapsed ? '' : 'none';
   if (btn) btn.textContent = collapsed ? '▲ collapse' : '▼ expand';
 }
+
+// ESM-MIGRATION deep-3: profile is now an ES module — publish the cross-file surface
+// (hrvdex-dsp's inferFromData/getProfile/calcVo2Cat reach-ins, hrvdex-app's loadProfile/
+// toggleProfilePanel calls, and the updateProfile data-act wrapper).
+Object.assign(window, {
+  inferFromData,
+  loadProfile,
+  getProfile,
+  updateProfile,
+  calcVo2Cat,
+  toggleProfilePanel
+});

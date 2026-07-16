@@ -83,14 +83,14 @@
   }
   function _hrvParseSummaryRows(text) {
     const lines = text.trim().split('\n');
-    const headers = lines[0].split(',').map((h) => h.trim().replace(/\r/, ''));
+    const headers = lines[0].split(',').map((h) => h.trim().replace(/\r/g, ''));
     const rows = [];
     for (let i = 1; i < lines.length; i++) {
       const cells = lines[i].split(',');
       if (cells.length < 5) continue;
       const r = {};
       headers.forEach((h, idx) => {
-        r[h] = cells[idx] ? cells[idx].trim().replace(/\r/, '') : '';
+        r[h] = cells[idx] ? cells[idx].trim().replace(/\r/g, '') : '';
       });
       // CLOCK-UNIFY: floating wall-clock ms is the source of truth. _date is a derived
       // compat Date, ALWAYS read back with getUTC* / {timeZone:'UTC'}.
@@ -1172,4 +1172,11 @@
       }
     });
   }
-})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
+})(/** @type {any} */ (typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this));
+
+// ESM-MIGRATION (deep-3 fan-out): dsp is now a DUAL-MODE module. The IIFE above still attaches
+// window.HRVDex (the external node API + every classic co-load consumer — the orchestrators and
+// both test runners, which classic-load this file via tools/build-core.js `classicify`) and, when
+// not namespaced, the bare-global back-compat spray for the classic UI. This re-export lets the
+// owned ESM bundle's hrvdex-app.js import edge replace the script-tag-order convention.
+export const HRVDex = window.HRVDex;

@@ -6073,4 +6073,11 @@
       }
     });
   }
-})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
+})(/** @type {any} */ (typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this));
+
+// ESM-MIGRATION (deep-3 fan-out): dsp is now a DUAL-MODE module. The IIFE above still attaches
+// window.OxyDex (the external node API + every classic co-load consumer — the orchestrators and
+// both test runners, which classic-load this file via tools/build-core.js `classicify`) and, when
+// not namespaced, the bare-global back-compat spray (incl. the `allNights` mutable proxy). This
+// re-export lets the owned ESM bundle's oxydex-app.js import edge replace tag-order convention.
+export const OxyDex = window.OxyDex;

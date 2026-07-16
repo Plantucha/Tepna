@@ -37,6 +37,9 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const UP = path.join(REPO, 'uploads');
 const CHECK = process.argv.includes('--check');
 const ManifestGate = createRequire(import.meta.url)(path.join(REPO, 'manifest-gate.js'));
+// ESM-MIGRATION: pulsedex-dsp.js is a dual-mode ES module — shed its top-level export/import via the
+// single classicify source before vm-loading it (else "Unexpected token 'export'"). No-op on classic files.
+const DexBuild = createRequire(import.meta.url)('./build-core.js');
 
 /* ── the PulseDex.src.html script order (headless subset — no render/app/profile) ── */
 function realm() {
@@ -97,7 +100,7 @@ function realm() {
   ctx.__DEX_NAMESPACED__ = true;
   // clock.js BEFORE pulsedex-dsp.js — the delegating DSP aliases DexClock.parseTimestamp at load.
   for (const f of ['kernel-constants.js', 'clock.js', 'signal-frame.js', 'dex-export.js', 'metric-registry.js', 'pulsedex-dsp.js'])
-    vm.runInContext(fs.readFileSync(path.join(REPO, f), 'utf8'), ctx, { filename: f });
+    vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(REPO, f), 'utf8')), ctx, { filename: f });
   return ctx;
 }
 

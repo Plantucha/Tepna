@@ -1066,3 +1066,14 @@ function handleEcgJson(file) {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire);
   else wire();
 })();
+
+// ESM-MIGRATION deep-3: fusion is now an ES module — publish the surface render/app consume.
+Object.assign(window, {
+  _oxyEcgDate,
+  oxyEcgForNight,
+  oxyHeroBenchCard,
+  oxyComputeFusion,
+  oxyEcgFusionSection,
+  buildFullMetricsTable,
+  oxyFrontFullTable
+});
