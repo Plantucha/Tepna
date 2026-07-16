@@ -127,6 +127,10 @@ function loadScript(url) {
   try {
     importScripts(url);
   } catch (e) {
+    /* @blob-strip:start — served-only ESM co-load fallback (fetch → classicify → eval).
+       DEAD in the build-analysis blob: deps are pre-inlined and importScripts is a no-op stub
+       that never throws — build-analysis.mjs strips this region from __WSRC so the offline
+       tools carry no transport primitive (no-network static lens). */
     var msg = String((e && e.message) || e);
     if (!/\bexport\b|\bimport\b/.test(msg)) throw e; // a real error, not module syntax
     if (!_dexBuildLoaded) {
@@ -138,6 +142,7 @@ function loadScript(url) {
     xhr.send();
     if (xhr.status && xhr.status >= 400) throw new Error('cohort-worker: fetch ' + url + ' → ' + xhr.status);
     (0, eval)(self.DexBuild.classicify(xhr.responseText)); // indirect eval: worker-global scope
+    /* @blob-strip:end */
   }
 }
 

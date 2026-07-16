@@ -92,6 +92,10 @@ function loadScript(url) {
   try {
     importScripts(url);
   } catch (e) {
+    /* @blob-strip:start — served-only ESM co-load fallback (fetch → classicify → eval).
+       DEAD in the build-analysis blob: deps are pre-inlined and importScripts is a no-op stub
+       that never throws — build-analysis.mjs strips this region from __WSRC so the offline
+       tools carry no transport primitive (no-network static lens). */
     if (!/\bexport\b|\bimport\b/.test(String((e && e.message) || e))) throw e;
     if (!_dexBuildLoaded) {
       importScripts('tools/build-core.js');
@@ -102,6 +106,7 @@ function loadScript(url) {
     xhr.send();
     if (xhr.status && xhr.status >= 400) throw new Error('qrs-yield-worker: fetch ' + url + ' → ' + xhr.status);
     (0, eval)(self.DexBuild.classicify(xhr.responseText));
+    /* @blob-strip:end */
   }
 }
 var READY = false;
