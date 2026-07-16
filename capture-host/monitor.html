@@ -1,0 +1,577 @@
+<!doctype html>
+<!-- capture-host/monitor.html — Tepna Vigil monitor (host surface, 100% local, no CDN).
+     Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tepna Vigil — Monitor</title>
+<style>
+  :root { --bg:#0d1117; --panel:#161b22; --edge:#30363d; --fg:#e6edf3; --dim:#8b949e;
+          --accent:#3fb950; --warn:#d29922; --err:#f85149; --trace:#3fb950; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  header { display:flex; align-items:center; gap:.75rem; padding:.75rem 1rem;
+           border-bottom:1px solid var(--edge); }
+  header h1 { font-size:1rem; margin:0; font-weight:600; letter-spacing:.02em; }
+  header .adapter { color:var(--dim); font-size:.8rem; font-family:ui-monospace,monospace; }
+  main { display:grid; grid-template-columns:340px 1fr; gap:1rem; padding:1rem; }
+  @media (max-width:820px){ main{ grid-template-columns:1fr; } }
+  .panel { background:var(--panel); border:1px solid var(--edge); border-radius:10px; padding:1rem; }
+  .panel h2 { font-size:.8rem; text-transform:uppercase; letter-spacing:.08em; color:var(--dim);
+              margin:0 0 .75rem; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--edge); background:#21262d;
+           color:var(--fg); border-radius:7px; padding:.35rem .7rem; }
+  button:hover { border-color:var(--accent); }
+  button.primary { background:var(--accent); color:#08130a; border-color:var(--accent); font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .dev { display:flex; align-items:center; gap:.5rem; padding:.5rem 0; border-top:1px solid var(--edge); }
+  .dev:first-of-type { border-top:none; }
+  .dev .meta { flex:1; min-width:0; }
+  .dev .name { font-size:.9rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .dev .sub { font-size:.72rem; color:var(--dim); font-family:ui-monospace,monospace; }
+  .badge { font-size:.62rem; padding:.1rem .4rem; border-radius:999px; border:1px solid var(--edge); }
+  .badge.on { color:var(--accent); border-color:var(--accent); }
+  .badge.warn { color:var(--warn); border-color:var(--warn); }
+  .row { display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; margin-bottom:.75rem; }
+  .streamsel button.active { background:var(--accent); color:#08130a; border-color:var(--accent); font-weight:600; }
+  .scope-wrap { position:relative; }
+  canvas { width:100%; height:340px; display:block; background:#080d12; border-radius:8px; }
+  .readout { position:absolute; top:.6rem; left:.8rem; font-family:ui-monospace,monospace;
+             font-size:.8rem; color:var(--dim); }
+  .readout b { color:var(--fg); font-size:1.5rem; }
+  .hint { color:var(--dim); font-size:.75rem; margin-top:.5rem; line-height:1.4; }
+  .spin { color:var(--dim); font-size:.8rem; }
+  canvas#beat { height:300px; }
+  table.beat { width:100%; border-collapse:collapse; font-size:.83rem; margin-top:.85rem; }
+  table.beat th, table.beat td { text-align:left; padding:.34rem .55rem; border-bottom:1px solid var(--edge); }
+  table.beat th { color:var(--dim); font-weight:600; font-size:.68rem; text-transform:uppercase; letter-spacing:.06em; }
+  table.beat td.v { font-family:ui-monospace,monospace; color:var(--fg); white-space:nowrap; }
+  table.beat td.norm { color:var(--dim); font-size:.78rem; }
+  table.beat tr.hi td.v { color:var(--warn); }
+  .evb { font-size:.6rem; padding:.08rem .4rem; border-radius:999px; border:1px solid var(--edge); color:var(--dim); white-space:nowrap; }
+  .evb.measured { color:var(--accent); border-color:var(--accent); }
+  .evb.emerging { color:#58a6ff; border-color:#58a6ff; }
+  .evb.experimental { color:var(--warn); border-color:var(--warn); }
+</style>
+</head>
+<body>
+<header>
+  <span style="font-size:1.2rem">🌙</span>
+  <h1>Tepna Vigil — Monitor</h1>
+  <span class="adapter" id="adapter"></span>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>Devices</h2>
+    <div class="row">
+      <button class="primary" id="scanBtn" onclick="scan()">Scan</button>
+      <span class="spin" id="scanState"></span>
+    </div>
+    <div id="remembered"></div>
+    <div id="discovered" style="margin-top:1rem"></div>
+    <p class="hint">Bond a sensor once (Just-Works) before it will stream — the Polar H10 drops an
+      un-bonded link. “Remember” adds it to auto-connect on boot.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Live waveform</h2>
+    <div class="row streamsel" id="streamsel"></div>
+    <div class="scope-wrap">
+      <canvas id="scope"></canvas>
+      <div class="readout"><span id="roLabel">—</span><br><b id="roVal">—</b> <span id="roUnit"></span>
+        <span id="roHr" style="margin-left:1rem;color:var(--accent)"></span></div>
+    </div>
+    <p class="hint" id="scopeHint">Live scope: a rolling ~6 s window, auto-scaled to the visible signal.
+      One trace at a time — pick a stream above.</p>
+  </section>
+
+  <section class="panel" style="grid-column:1 / -1">
+    <h2><span id="beatTitle">Averaged beat — morphology &amp; intervals</span>
+      <span id="beatN" style="color:var(--dim);font-weight:400;text-transform:none;letter-spacing:0"></span></h2>
+    <div class="scope-wrap"><canvas id="beat"></canvas></div>
+    <table class="beat" id="beatTable">
+      <thead><tr><th>Feature</th><th>Value</th><th>Typical (adult)</th><th>Evidence</th></tr></thead>
+      <tbody><tr><td colspan="4" class="norm" id="beatEmpty">Collecting beats… wear the H10 and pick ECG.</td></tr></tbody>
+    </table>
+    <p class="hint">Ensemble-average of recent beats aligned on the R-peak — noise averages out into a
+      clean static complex. Single differential lead (H10): <b>time intervals (ms) are valid</b>;
+      <b>amplitudes are raw device µV, uncalibrated</b> (not clinical mV) — informational, not diagnostic.</p>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const api = (p,o) => fetch(p,o).then(r=>r.json());
+
+let STREAMS = [], current = null, es = null;
+let fs = 130, lastVal = null;
+// Floating scope: a simple rolling window that scrolls right→left, auto-scaled to the visible signal.
+// Works for every signal type (ECG / PPG / SpO2). `sig` is the raw buffer the averaged-beat panel reads;
+// `bpm` is derived by the averaged-beat analysis (analyzeBeats), not by the scope.
+let buf = [], sig = [], bpm = null, beatAvg = null;
+const WINDOW_S = 6;    // seconds shown in the scrolling window
+// Oximetry session buffers (SpO2 + pulse, ~1 Hz) — accumulated while an oximetry stream is viewed.
+let oxiSpo2 = [], oxiPr = [], oxiES = [];
+const OXI_CAP = 1800;  // ~30 min of history at 1 Hz
+
+async function loadState(){
+  const s = await api('/api/state');
+  $('#adapter').textContent = s.adapter ? ('adapter '+s.adapter) : '';
+  STREAMS = s.streams;
+  renderRemembered(s.devices);
+  renderStreamSel();
+}
+
+function renderRemembered(devs){
+  const el = $('#remembered');
+  if(!devs.length){ el.innerHTML = '<p class="hint">No remembered devices yet.</p>'; return; }
+  el.innerHTML = devs.map(d=>`
+    <div class="dev">
+      <div class="meta">
+        <div class="name">${esc(d.name)} ${d.connected?'<span class="badge on">live</span>':'<span class="badge warn">idle</span>'}</div>
+        <div class="sub">${esc(d.address||'')} · ${(d.streams||[]).join(', ')}${d.last_error?(' · '+esc(d.last_error)):''}</div>
+      </div>
+      <button onclick='forget(${JSON.stringify(d.address)})'>Forget</button>
+    </div>`).join('');
+}
+
+function renderDiscovered(list){
+  const el = $('#discovered');
+  const shown = list.filter(d=>d.health || d.name.match(/[a-z]/i) && !/^[0-9A-F-]+$/.test(d.name));
+  if(!shown.length){ el.innerHTML=''; return; }
+  el.innerHTML = '<h2>Discovered</h2>' + shown.map(d=>`
+    <div class="dev">
+      <div class="meta">
+        <div class="name">${esc(d.name)} ${d.bonded?'<span class="badge on">bonded</span>':''} ${d.health?'<span class="badge">sensor</span>':''}</div>
+        <div class="sub">${esc(d.address)}${d.rssi!=null?(' · '+d.rssi+' dBm'):''}</div>
+      </div>
+      ${d.bonded?'':`<button onclick='bond(${JSON.stringify(d.address)}, this)'>Bond</button>`}
+      <button onclick='remember(${JSON.stringify(d)}, this)'>Remember</button>
+    </div>`).join('');
+}
+
+function renderStreamSel(){
+  $('#streamsel').innerHTML = STREAMS.map(s=>
+    `<button class="${s.key===current?'active':''}" ${s.active?'':'disabled'}
+       title="${s.active?'':'no data yet'}" onclick="pick('${s.key}')">${esc(s.label)}</button>`).join('');
+  if(!current){ const a = STREAMS.find(s=>s.active); if(a) pick(a.key); }
+}
+
+async function scan(){
+  $('#scanBtn').disabled = true; $('#scanState').textContent = 'scanning…';
+  try { renderDiscovered(await api('/api/scan',{method:'POST'})); }
+  finally { $('#scanBtn').disabled = false; $('#scanState').textContent=''; }
+}
+
+async function bond(address, btn){
+  btn.disabled = true; btn.textContent = 'bonding…';
+  const r = await api('/api/bond',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({address})});
+  btn.textContent = r.ok?'bonded ✓':('failed: '+r.detail);
+  if(r.ok) setTimeout(scan, 500);
+}
+
+async function remember(dev, btn){
+  // Fill in vendor/model/streams from the name if it's a known sensor; else sensible defaults.
+  const g = guessDevice(dev);
+  btn.disabled = true; btn.textContent='…';
+  await api('/api/remember',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(g)});
+  btn.textContent='remembered ✓';
+  loadState();
+}
+
+async function forget(address){
+  await api('/api/forget',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({address})});
+  loadState();
+}
+
+function guessDevice(d){
+  const n = (d.name||'').toLowerCase();
+  let vendor='', model='', streams=['ecg'], device_id=(d.address||'').replace(/:/g,'').slice(-8);
+  if(n.includes('h10')){ vendor='Polar'; model='H10'; streams=['ecg']; }
+  else if(n.includes('sense')||n.includes('verity')){ vendor='Polar'; model='VeritySense'; streams=['ppg','acc']; }
+  else if(n.includes('muse')){ vendor='Muse'; model='S'; streams=['eeg']; }
+  else if(n.match(/o2ring|wellue|viatom|checkme/)){ vendor='Wellue'; model='O2Ring'; streams=['spo2']; }
+  const m = (d.name||'').match(/(\d{6,})/); if(m) device_id = m[1];
+  return { name:d.name, vendor, model, device_id, address:d.address, streams };
+}
+
+// ---- live floating scope (scrolling window) ----
+function pick(key){
+  current = key; renderStreamSel();
+  const m = STREAMS.find(s=>s.key===key) || {};
+  $('#roLabel').textContent = m.label||key; $('#roUnit').textContent = m.unit||'';
+  // The lower panel adapts to the stream: ECG beat, PPG pulse, or (SpO2/pulse) a session summary.
+  const titles = { ecg:'Averaged beat — morphology &amp; intervals', ppg:'Averaged pulse — morphology &amp; indices',
+                   spo2:'SpO₂ &amp; pulse — session summary', pr:'SpO₂ &amp; pulse — session summary' };
+  $('#beatTitle').innerHTML = titles[key] || 'Averaged morphology';
+  $('#beatN').textContent = '';
+  const empty = (key==='ecg'||key==='ppg') ? 'Collecting beats…'
+              : (key==='spo2'||key==='pr') ? 'Collecting SpO₂ / pulse…' : 'No summary for this signal.';
+  $('#beatTable').querySelector('tbody').innerHTML = `<tr><td colspan="4" class="norm">${empty}</td></tr>`;
+  const bc=$('#beat'); if(bc){ const x=bc.getContext('2d'); x.setTransform(1,0,0,1,0,0); x.clearRect(0,0,bc.width,bc.height); }
+  if(es) es.close();
+  resetScope();
+  es = new EventSource('/api/stream/'+key);
+  const onData = e=>{ const d=JSON.parse(e.data); fs=d.fs||fs; feed(d.v||[]); };
+  es.addEventListener('snapshot', onData);
+  es.onmessage = onData;
+  // For the oximetry summary we need BOTH spo2 + pr history regardless of which one drives the scope.
+  (key==='spo2'||key==='pr') ? openOxi() : closeOxi();
+}
+function resetScope(){
+  buf=[]; sig=[]; lastVal=null; bpm=null; beatAvg=null;
+  const c=$('#scope'); if(c){ const ctx=c.getContext('2d'); ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,c.width,c.height); }
+}
+function feed(v){
+  if(!v.length) return;
+  const cap = Math.max(64, Math.floor(WINDOW_S*fs));   // visible scrolling window
+  for(let i=0;i<v.length;i++){ buf.push(v[i]); sig.push(v[i]); }
+  if(buf.length>cap) buf.splice(0, buf.length-cap);
+  const scap = Math.max(Math.floor(7*fs), 512);        // ~7 s of raw for beat averaging (analyzeBeats)
+  if(sig.length>scap) sig.splice(0, sig.length-scap);
+  lastVal = v[v.length-1];
+}
+function draw(){
+  const c=$('#scope'), ctx=c.getContext('2d');
+  const dpr=devicePixelRatio||1, W=c.clientWidth, H=c.clientHeight;
+  const dw=Math.round(W*dpr), dh=Math.round(H*dpr);
+  if(c.width!==dw||c.height!==dh){ c.width=dw; c.height=dh; }
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,W,H);
+  // grid
+  ctx.strokeStyle='rgba(30,54,66,0.4)'; ctx.lineWidth=1; ctx.beginPath();
+  for(let x=0;x<=W+1;x+=W/6){ ctx.moveTo(x,0); ctx.lineTo(x,H);}
+  for(let y=0;y<=H+1;y+=H/4){ ctx.moveTo(0,y); ctx.lineTo(W,y);} ctx.stroke();
+  const n = buf.length;
+  if(n>1){
+    let mn=Infinity,mx=-Infinity;
+    for(let i=0;i<n;i++){ const v=buf[i]; if(v<mn)mn=v; if(v>mx)mx=v; }
+    if(!(mx>mn)){ mx=1; mn=-1; }
+    const pad=(mx-mn)*0.12||1; mn-=pad; mx+=pad;
+    ctx.strokeStyle=(getComputedStyle(document.documentElement).getPropertyValue('--trace')||'#3fb950').trim();
+    ctx.lineWidth=1.5; ctx.lineJoin='round'; ctx.beginPath();
+    for(let i=0;i<n;i++){ const x=(i/(n-1))*W, y=H-((buf[i]-mn)/(mx-mn))*H; i?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+    ctx.stroke();
+  }
+  $('#roVal').textContent = lastVal!=null ? (Math.abs(lastVal)>=100?Math.round(lastVal):(+lastVal).toFixed(1)) : '—';
+  $('#roHr').textContent = bpm ? ('♥ '+Math.round(bpm)+' bpm') : '';
+  requestAnimationFrame(draw);
+}
+
+// ---- averaged-beat morphology + intervals ----
+const RPRE_MS=280, RPOST_MS=470;
+function corr(a,b){ const n=a.length; let sa=0,sb=0; for(let i=0;i<n;i++){sa+=a[i];sb+=b[i];} sa/=n;sb/=n;
+  let num=0,da=0,db=0; for(let i=0;i<n;i++){const x=a[i]-sa,y=b[i]-sb; num+=x*y; da+=x*x; db+=y*y;}
+  return (da&&db)? num/Math.sqrt(da*db):0; }
+function detectRs(s,fs){                       // find R apexes: largest deflection of the dominant polarity
+  const n=s.length; if(n<20) return [];
+  let mean=0; for(let i=0;i<n;i++) mean+=s[i]; mean/=n;
+  let amax=0; for(let i=0;i<n;i++){ const a=Math.abs(s[i]-mean); if(a>amax) amax=a; }
+  if(amax<1) return [];
+  let sp=0,sn=0; for(let i=0;i<n;i++){ const d=s[i]-mean; if(d>0.6*amax) sp++; else if(d<-0.6*amax) sn++; }
+  const pol=sp>=sn?1:-1, thr=0.55*amax, refr=Math.round(0.3*fs), half=Math.round(0.05*fs);
+  const peaks=[]; let last=-refr;
+  for(let i=1;i<n-1;i++){
+    if((s[i]-mean)*pol>thr && i-last>refr){
+      let j=i,ext=(s[i]-mean)*pol;
+      for(let k=Math.max(0,i-half);k<Math.min(n,i+half);k++){ const e=(s[k]-mean)*pol; if(e>ext){ext=e;j=k;} }
+      peaks.push(j); last=j;
+    }
+  }
+  return peaks;
+}
+function analyzeBeats(){
+  if(current!=='ecg' || !sig.length) return;
+  const pre=Math.round(RPRE_MS/1000*fs), post=Math.round(RPOST_MS/1000*fs), L=pre+post;
+  if(sig.length < L+fs) return;
+  const s=sig, peaks=detectRs(s,fs), wins=[];
+  if(peaks.length>=2){                                   // BPM from the R-peak spacing (median IBI)
+    const ibis=[]; for(let i=1;i<peaks.length;i++) ibis.push((peaks[i]-peaks[i-1])/fs*1000);
+    ibis.sort((a,b)=>a-b); const med=ibis[ibis.length>>1];
+    if(med>300 && med<2000){ const b=60000/med; bpm = bpm ? bpm*0.6+b*0.4 : b; }
+  }
+  for(const p of peaks){ if(p-pre>=0 && p+post<s.length){ const w=new Float64Array(L); for(let i=0;i<L;i++) w[i]=s[p-pre+i]; wins.push(w); } }
+  if(wins.length<3) return;
+  const use=wins.slice(-24);
+  let avg=new Float64Array(L);
+  for(const w of use) for(let i=0;i<L;i++) avg[i]+=w[i];
+  for(let i=0;i<L;i++) avg[i]/=use.length;
+  const good=use.filter(w=>corr(w,avg)>0.8), arr=good.length>=3?good:use;   // drop ectopics/noisy beats
+  avg=new Float64Array(L);
+  for(const w of arr) for(let i=0;i<L;i++) avg[i]+=w[i];
+  for(let i=0;i<L;i++) avg[i]/=arr.length;
+  beatAvg={avg,pre,post,L,n:arr.length};
+  const f=delineate(beatAvg);
+  renderBeat(beatAvg,f); renderTable(f);
+}
+function delineate(ba){
+  const {avg,pre,L}=ba, R0=pre, cl=i=>Math.max(0,Math.min(L-1,i));
+  const ms=i=>Math.round((i-R0)/fs*1000), at=t=>cl(R0+Math.round(t/1000*fs));
+  let base=0,c=0; for(let i=at(-240);i<=at(-180);i++){ base+=avg[i]; c++; } base/=(c||1);
+  const V=i=>avg[cl(i)]-base;
+  let R=R0,re=0; for(let i=at(-40);i<=at(40);i++){ if(Math.abs(V(i))>re){re=Math.abs(V(i));R=i;} }
+  const rpol=Math.sign(V(R))||1, Ramp=V(R);
+  let Q=R; for(let i=at(-60);i<R;i++){ if(V(i)*rpol<V(Q)*rpol) Q=i; }
+  let S=R; for(let i=R+1;i<=at(70);i++){ if(V(i)*rpol<V(S)*rpol) S=i; }
+  const qthr=0.06*Math.abs(Ramp); let qon=Q;
+  for(let i=Q;i>=at(-120);i--){ qon=i; if(Math.abs(V(i))<qthr) break; }
+  let J=S; for(let i=S;i<=at(120);i++){ J=i; if(Math.abs(V(i)-V(i-1))<0.02*Math.abs(Ramp)) break; }
+  let P=at(-150),pe=0; for(let i=at(-240);i<=at(-70);i++){ if(Math.abs(V(i))>pe){pe=Math.abs(V(i));P=i;} }
+  const Pamp=V(P), pthr=0.3*Math.abs(Pamp); let pon=P,poff=P;
+  for(let i=P;i>=at(-270);i--){ pon=i; if(Math.abs(V(i))<pthr) break; }
+  for(let i=P;i<=at(-20);i++){ poff=i; if(Math.abs(V(i))<pthr) break; }
+  let T=at(250),te=0; for(let i=at(120);i<=at(430);i++){ if(Math.abs(V(i))>te){te=Math.abs(V(i));T=i;} }
+  const Tamp=V(T), tthr=0.25*Math.abs(Tamp); let toff=T;
+  for(let i=T;i<=at(470);i++){ toff=i; if(Math.abs(V(i))<tthr) break; }
+  const RR=bpm?60000/bpm:null, PR=ms(qon)-ms(pon), QRS=ms(J)-ms(qon), QT=ms(toff)-ms(qon);
+  const QTc=(RR&&QT>0)?Math.round(QT/Math.sqrt(RR/1000)):null, Pdur=ms(poff)-ms(pon);
+  return {base,R0,R,Q,S,qon,J,P,pon,poff,T,toff,ms,at,V,L,
+    Ramp,Pamp,Tamp,stJ:V(J),st80:V(at(ms(J)+80)),RR,PR,QRS,QT,QTc,Pdur};
+}
+function renderBeat(ba,f){
+  const c=$('#beat'), ctx=c.getContext('2d');
+  const dpr=devicePixelRatio||1, W=c.clientWidth, H=c.clientHeight;
+  const dw=Math.round(W*dpr),dh=Math.round(H*dpr); if(c.width!==dw||c.height!==dh){c.width=dw;c.height=dh;}
+  ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
+  const {avg,L}=ba, top=56, bot=22;
+  let mn=Infinity,mx=-Infinity; for(let i=0;i<L;i++){ const v=avg[i]-f.base; if(v<mn)mn=v; if(v>mx)mx=v; }
+  const pad=(mx-mn)*0.14||1; mn-=pad; mx+=pad;
+  const X=i=>(i/(L-1))*W, Y=v=> top+(H-top-bot)-((v-mn)/(mx-mn))*(H-top-bot);
+  ctx.strokeStyle='rgba(30,54,66,0.4)';ctx.lineWidth=1;ctx.beginPath();
+  for(let gx=0;gx<=W;gx+=W/10){ctx.moveTo(gx,top);ctx.lineTo(gx,H-bot);} ctx.stroke();
+  const y0=Y(0); ctx.strokeStyle='rgba(139,148,158,0.35)';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(0,y0);ctx.lineTo(W,y0);ctx.stroke();ctx.setLineDash([]);
+  ctx.strokeStyle=(getComputedStyle(document.documentElement).getPropertyValue('--trace')||'#3fb950').trim();
+  ctx.lineWidth=2;ctx.lineJoin='round';ctx.beginPath();
+  for(let i=0;i<L;i++){ const x=X(i),y=Y(avg[i]-f.base); i?ctx.lineTo(x,y):ctx.moveTo(x,y);} ctx.stroke();
+  // fiducial points
+  const dot=(i,lab)=>{ const x=X(i),y=Y(f.V(i)); ctx.fillStyle='#eafff0';ctx.beginPath();ctx.arc(x,y,3,0,6.3);ctx.fill();
+    ctx.fillStyle='#c9d1d9';ctx.font='11px ui-sans-serif';ctx.textAlign='center';ctx.fillText(lab,x, f.V(i)>=0?y-8:y+16); };
+  dot(f.P,'P'); dot(f.Q,'Q'); dot(f.R,'R'); dot(f.S,'S'); dot(f.T,'T');
+  // interval brackets across the top
+  const br=(i1,i2,y,lab,col)=>{ const x1=X(i1),x2=X(i2); ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.moveTo(x1,y);ctx.lineTo(x2,y);ctx.moveTo(x1,y-4);ctx.lineTo(x1,y+4);ctx.moveTo(x2,y-4);ctx.lineTo(x2,y+4);ctx.stroke();
+    ctx.font='11px ui-monospace,monospace';ctx.textAlign='center';ctx.fillText(lab,(x1+x2)/2,y-5); };
+  br(f.pon,f.qon,16,'PR '+f.PR+'ms','#58a6ff');
+  br(f.qon,f.J,32,'QRS '+f.QRS+'ms','#3fb950');
+  br(f.J,f.toff,16,'','#d29922');
+  br(f.qon,f.toff,46,'QT '+f.QT+'ms','#d29922');
+}
+function renderTable(f){
+  const rows=[
+    ['Heart rate', f.RR?Math.round(60000/f.RR):null,'bpm','60–100','measured', v=>v&&(v<50||v>100)],
+    ['RR interval', f.RR?Math.round(f.RR):null,'ms','600–1000','measured', ()=>false],
+    ['P duration', f.Pdur,'ms','< 120','emerging', v=>v>120],
+    ['PR interval', f.PR,'ms','120–200','emerging', v=>v<120||v>200],
+    ['QRS duration', f.QRS,'ms','< 120','emerging', v=>v>=120],
+    ['QT interval', f.QT,'ms','< 440','emerging', v=>v>=460],
+    ['QTc (Bazett)', f.QTc,'ms','< 450','emerging', v=>v>=460],
+    ['R amplitude', Math.round(f.Ramp),'µV·raw','uncalibrated','experimental', ()=>false],
+    ['P amplitude', Math.round(f.Pamp),'µV·raw','uncalibrated','experimental', ()=>false],
+    ['T amplitude', Math.round(f.Tamp),'µV·raw','uncalibrated','experimental', ()=>false],
+    ['ST level (J-point)', Math.round(f.stJ),'µV·raw','≈ 0 (uncal.)','experimental', ()=>false],
+    ['ST80', Math.round(f.st80),'µV·raw','≈ 0 (uncal.)','experimental', ()=>false],
+  ];
+  $('#beatTable tbody').innerHTML = rows.map(([lab,val,unit,typ,grade,hifn])=>{
+    const ok = val!=null && isFinite(val);
+    const hi = ok && hifn(val);
+    const disp = ok ? (val+' '+unit) : '—';
+    return `<tr class="${hi?'hi':''}"><td>${lab}</td><td class="v">${disp}</td><td class="norm">${typ}</td><td><span class="evb ${grade}">${grade}</span></td></tr>`;
+  }).join('');
+  $('#beatN').textContent = beatAvg ? ('· '+beatAvg.n+' beats averaged') : '';
+}
+
+// ---- averaged PPG pulse (analog of the averaged beat) ----
+const PPRE_MS=140, PPOST_MS=820;
+function detectPulses(s,fs){                    // systolic peaks via the steep UPSTROKE (robust vs the
+  const n=s.length; if(n<20) return [];         // dicrotic/diastolic humps that an amplitude threshold catches)
+  let smax=0; for(let i=1;i<n;i++){ const d=s[i]-s[i-1]; if(d>smax) smax=d; }
+  if(smax<=0) return [];
+  const thr=0.4*smax, refr=Math.round(0.4*fs), win=Math.round(0.28*fs);  // refr 0.4 s → <150 bpm
+  const peaks=[]; let last=-refr, above=false;
+  for(let i=1;i<n;i++){
+    const d=s[i]-s[i-1];
+    if(d>thr && !above && i-last>refr){
+      let j=i,ext=s[i];                          // systolic peak = max within ~0.28 s of the upstroke
+      for(let k=i;k<Math.min(n,i+win);k++){ if(s[k]>ext){ext=s[k];j=k;} }
+      peaks.push(j); last=j;
+    }
+    above = d>thr;                               // one trigger per rising edge
+  }
+  return peaks;
+}
+function analyzePulse(){
+  if(current!=='ppg' || !sig.length) return;
+  const pre=Math.round(PPRE_MS/1000*fs), post=Math.round(PPOST_MS/1000*fs), L=pre+post;
+  if(sig.length < L+fs) return;
+  const s=sig, peaks=detectPulses(s,fs);
+  if(peaks.length>=2){                           // pulse rate from systolic-peak spacing
+    const ibis=[]; for(let i=1;i<peaks.length;i++) ibis.push((peaks[i]-peaks[i-1])/fs*1000);
+    ibis.sort((a,b)=>a-b); const med=ibis[ibis.length>>1];
+    if(med>300&&med<2000){ const b=60000/med; bpm=bpm?bpm*0.6+b*0.4:b; }
+  }
+  const back=Math.round(0.4*fs), wins=[];        // align each window on the pulse FOOT (onset)
+  for(const p of peaks){
+    let f=p; for(let i=Math.max(0,p-back);i<p;i++){ if(s[i]<s[f]) f=i; }
+    if(f-pre>=0 && f+post<s.length){ const w=new Float64Array(L); for(let i=0;i<L;i++) w[i]=s[f-pre+i]; wins.push(w); }
+  }
+  if(wins.length<3) return;
+  const use=wins.slice(-24);
+  let avg=new Float64Array(L);
+  for(const w of use) for(let i=0;i<L;i++) avg[i]+=w[i];
+  for(let i=0;i<L;i++) avg[i]/=use.length;
+  const good=use.filter(w=>corr(w,avg)>0.85), arr=good.length>=3?good:use;
+  avg=new Float64Array(L);
+  for(const w of arr) for(let i=0;i<L;i++) avg[i]+=w[i];
+  for(let i=0;i<L;i++) avg[i]/=arr.length;
+  beatAvg={avg,pre,post,L,n:arr.length};
+  const f=delineatePulse(beatAvg);
+  renderPulse(beatAvg,f); renderPulseTable(f);
+}
+function delineatePulse(ba){
+  const {avg,pre,L}=ba, F0=pre, cl=i=>Math.max(0,Math.min(L-1,i));
+  const ms=i=>Math.round((i-F0)/fs*1000), at=t=>cl(F0+Math.round(t/1000*fs));
+  let foot=F0; for(let i=at(-60);i<=at(60);i++){ if(avg[i]<avg[foot]) foot=i; }
+  const base=avg[foot], V=i=>avg[cl(i)]-base;
+  let sys=foot, se=0; for(let i=foot;i<=at(ms(foot)+420);i++){ if(V(i)>se){se=V(i);sys=i;} }
+  const sysAmp=V(sys), crest=ms(sys)-ms(foot);
+  // dicrotic notch = deepest local minimum on the descending limb (sys+40..sys+350 ms)
+  let notch=-1,nmin=1e18;
+  for(let i=sys+Math.round(0.04*fs); i<Math.min(L-1, sys+Math.round(0.35*fs)); i++){
+    if(avg[i]<=avg[i-1] && avg[i]<=avg[i+1] && V(i)<nmin){ nmin=V(i); notch=i; }
+  }
+  let dia=-1,diaAmp=null;
+  if(notch>0){ let dm=-1e18; for(let i=notch;i<Math.min(L-1, notch+Math.round(0.35*fs)); i++){ if(V(i)>dm){dm=V(i);dia=i;} } if(dm>V(notch)+0.02*sysAmp) diaAmp=dm; else dia=-1; }
+  const halfV=0.5*sysAmp; let onH=foot,offH=sys;
+  for(let i=foot;i<=sys;i++){ if(V(i)>=halfV){ onH=i; break; } }
+  for(let i=sys;i<L;i++){ offH=i; if(V(i)<=halfV) break; }
+  const RI=(diaAmp!=null&&sysAmp>0)?Math.round(100*diaAmp/sysAmp):null;
+  return {base,F0,foot,sys,notch,dia,V,ms,at,L,
+    sysAmp,crest,diaAmp,notchT:notch>0?ms(notch)-ms(foot):null,pwhm:ms(offH)-ms(onH),RI,
+    IBI:bpm?Math.round(60000/bpm):null};
+}
+function renderPulse(ba,f){
+  const c=$('#beat'), ctx=c.getContext('2d');
+  const dpr=devicePixelRatio||1, W=c.clientWidth, H=c.clientHeight;
+  const dw=Math.round(W*dpr),dh=Math.round(H*dpr); if(c.width!==dw||c.height!==dh){c.width=dw;c.height=dh;}
+  ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
+  const {avg,L}=ba, top=56, bot=22;
+  let mn=Infinity,mx=-Infinity; for(let i=0;i<L;i++){ const v=avg[i]-f.base; if(v<mn)mn=v; if(v>mx)mx=v; }
+  const pad=(mx-mn)*0.14||1; mn-=pad; mx+=pad;
+  const X=i=>(i/(L-1))*W, Y=v=>top+(H-top-bot)-((v-mn)/(mx-mn))*(H-top-bot);
+  ctx.strokeStyle='rgba(30,54,66,0.4)';ctx.lineWidth=1;ctx.beginPath();
+  for(let gx=0;gx<=W;gx+=W/10){ctx.moveTo(gx,top);ctx.lineTo(gx,H-bot);} ctx.stroke();
+  const y0=Y(0); ctx.strokeStyle='rgba(139,148,158,0.35)';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(0,y0);ctx.lineTo(W,y0);ctx.stroke();ctx.setLineDash([]);
+  ctx.strokeStyle=(getComputedStyle(document.documentElement).getPropertyValue('--trace')||'#3fb950').trim();
+  ctx.lineWidth=2;ctx.lineJoin='round';ctx.beginPath();
+  for(let i=0;i<L;i++){ const x=X(i),y=Y(avg[i]-f.base); i?ctx.lineTo(x,y):ctx.moveTo(x,y);} ctx.stroke();
+  const dot=(i,lab)=>{ if(i<0)return; const x=X(i),y=Y(f.V(i)); ctx.fillStyle='#eafff0';ctx.beginPath();ctx.arc(x,y,3,0,6.3);ctx.fill();
+    ctx.fillStyle='#c9d1d9';ctx.font='11px ui-sans-serif';ctx.textAlign='center';ctx.fillText(lab,x, f.V(i)>=(mx+mn)/2?y-8:y+16); };
+  dot(f.foot,'foot'); dot(f.sys,'sys'); dot(f.notch,'notch'); dot(f.dia,'dia');
+  const br=(i1,i2,y,lab,col)=>{ if(i1<0||i2<0)return; const x1=X(i1),x2=X(i2); ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.moveTo(x1,y);ctx.lineTo(x2,y);ctx.moveTo(x1,y-4);ctx.lineTo(x1,y+4);ctx.moveTo(x2,y-4);ctx.lineTo(x2,y+4);ctx.stroke();
+    ctx.font='11px ui-monospace,monospace';ctx.textAlign='center';ctx.fillText(lab,(x1+x2)/2,y-5); };
+  br(f.foot,f.sys,16,'crest '+f.crest+'ms','#58a6ff');
+  if(f.notch>0) br(f.foot,f.notch,32,'notch '+f.notchT+'ms','#d29922');
+}
+function renderPulseTable(f){
+  const rows=[
+    ['Pulse rate', f.IBI?Math.round(60000/f.IBI):null,'bpm','60–100','measured', v=>v&&(v<50||v>100)],
+    ['Inter-beat interval', f.IBI,'ms','600–1000','measured', ()=>false],
+    ['Systolic upstroke (crest)', f.crest,'ms','80–200','emerging', v=>v>250],
+    ['Pulse width @50%', f.pwhm,'ms','200–400','emerging', ()=>false],
+    ['Dicrotic notch', f.notchT,'ms from foot','150–350','emerging', ()=>false],
+    ['Reflection index', f.RI,'%','30–80','experimental', ()=>false],
+    ['Pulse amplitude', Math.round(f.sysAmp),'raw·uncal','—','experimental', ()=>false],
+    ['Diastolic amplitude', f.diaAmp!=null?Math.round(f.diaAmp):null,'raw·uncal','—','experimental', ()=>false],
+  ];
+  $('#beatTable tbody').innerHTML = rows.map(([lab,val,unit,typ,grade,hifn])=>{
+    const ok = val!=null && isFinite(val), hi = ok && hifn(val), disp = ok ? (val+' '+unit) : '—';
+    return `<tr class="${hi?'hi':''}"><td>${lab}</td><td class="v">${disp}</td><td class="norm">${typ}</td><td><span class="evb ${grade}">${grade}</span></td></tr>`;
+  }).join('');
+  $('#beatN').textContent = beatAvg ? ('· '+beatAvg.n+' pulses averaged') : '';
+}
+// ---- SpO2 + pulse session summary (the oximetry analog of the averaged-beat panel) ----
+// SpO2/pulse are slow scalars, not waveforms — so the equivalent is a trend + statistics, not an
+// averaged pulse. We open BOTH oximetry streams so the summary has SpO2 and pulse regardless of which
+// one drives the scope. Window = "this viewing session" (the daemon writes the full night to CSV).
+function openOxi(){
+  closeOxi(); oxiSpo2 = []; oxiPr = [];
+  for(const key of ['spo2','pr']){
+    const e = new EventSource('/api/stream/'+key);
+    const on = ev=>{ const d=JSON.parse(ev.data); const arr = key==='spo2'?oxiSpo2:oxiPr;
+      for(const v of (d.v||[])) arr.push(v);
+      if(arr.length>OXI_CAP) arr.splice(0, arr.length-OXI_CAP); };
+    e.addEventListener('snapshot', on); e.onmessage = on; oxiES.push(e);
+  }
+}
+function closeOxi(){ oxiES.forEach(e=>{ try{ e.close(); }catch(_){} }); oxiES=[]; }
+function _stats(a){
+  const v=a.filter(x=>isFinite(x)); if(!v.length) return null;
+  let mn=Infinity,mx=-Infinity,s=0; for(const x of v){ if(x<mn)mn=x; if(x>mx)mx=x; s+=x; }
+  const mean=s/v.length; let sd=0; for(const x of v) sd+=(x-mean)*(x-mean);
+  return {mean, min:mn, max:mx, sd:Math.sqrt(sd/v.length), cur:v[v.length-1], n:v.length};
+}
+function analyzeOxi(){
+  if(!(current==='spo2'||current==='pr')) return;
+  const sp = oxiSpo2.filter(v=>v>=50&&v<=100), pr = oxiPr.filter(v=>v>20&&v<250);
+  renderOxiTrend(); renderOxiTable(_stats(sp), _stats(pr), sp);
+}
+function renderOxiTrend(){
+  const c=$('#beat'), ctx=c.getContext('2d');
+  const dpr=devicePixelRatio||1, W=c.clientWidth, H=c.clientHeight;
+  const dw=Math.round(W*dpr),dh=Math.round(H*dpr); if(c.width!==dw||c.height!==dh){c.width=dw;c.height=dh;}
+  ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
+  const gap=24, bandH=(H-gap)/2;
+  const band=(arr,y0,color,lo,hi,unit,label)=>{
+    ctx.strokeStyle='rgba(30,54,66,0.4)';ctx.lineWidth=1;ctx.strokeRect(0.5,y0+0.5,W-1,bandH-1);
+    ctx.fillStyle='#8b949e';ctx.font='11px ui-sans-serif';ctx.textAlign='left';ctx.fillText(label,8,y0+14);
+    const v=arr.filter(x=>isFinite(x)); if(v.length<2) return;
+    let mn=Math.min(lo,...v), mx=Math.max(hi,...v); const pad=(mx-mn)*0.08||1; mn-=pad; mx+=pad;
+    const X=i=>(i/(v.length-1))*W, Y=val=>y0+bandH-((val-mn)/(mx-mn))*(bandH);
+    ctx.strokeStyle=color;ctx.lineWidth=1.8;ctx.lineJoin='round';ctx.beginPath();
+    for(let i=0;i<v.length;i++){ const x=X(i),y=Y(v[i]); i?ctx.lineTo(x,y):ctx.moveTo(x,y);} ctx.stroke();
+    ctx.fillStyle=color;ctx.textAlign='right';ctx.font='bold 14px ui-monospace,monospace';
+    ctx.fillText(Math.round(v[v.length-1])+unit, W-8, y0+16);
+    ctx.fillStyle='#8b949e';ctx.font='10px ui-monospace';ctx.textAlign='left';
+    ctx.fillText(Math.round(mx), 8, y0+bandH*0.5-2);
+  };
+  band(oxiSpo2, 0, '#3fb950', 90, 100, '%', 'SpO₂');
+  band(oxiPr, bandH+gap, '#58a6ff', 40, 120, '', 'Pulse (bpm)');
+}
+function renderOxiTable(sp, pr, spArr){
+  const t90 = spArr.length ? Math.round(100*spArr.filter(v=>v<90).length/spArr.length) : null;
+  const t88 = spArr.length ? Math.round(100*spArr.filter(v=>v<88).length/spArr.length) : null;
+  const rows=[
+    ['SpO₂ current', sp?sp.cur:null,'%','≥ 95','measured', v=>v<90, false],
+    ['SpO₂ mean', sp?sp.mean.toFixed(1):null,'%','≥ 94','measured', v=>v<92, false],
+    ['SpO₂ nadir (min)', sp?sp.min:null,'%','≥ 90','emerging', v=>v<88, false],
+    ['SpO₂ max', sp?sp.max:null,'%','—','measured', ()=>false, false],
+    ['Time < 90% (session)', t90,'%','0','emerging', v=>v>0, false],
+    ['Time < 88% (session)', t88,'%','0','emerging', v=>v>0, false],
+    ['SpO₂ variability (SD)', sp?sp.sd.toFixed(2):null,'%','—','experimental', ()=>false, false],
+    ['Pulse current', pr?pr.cur:null,'bpm','60–100','measured', v=>v<50||v>100, false],
+    ['Pulse mean', pr?Math.round(pr.mean):null,'bpm','60–100','measured', ()=>false, false],
+    ['Pulse min / max', (pr?pr.min+' / '+pr.max:null),'bpm','—','measured', ()=>false, true],
+  ];
+  $('#beatTable tbody').innerHTML = rows.map(([lab,val,unit,typ,grade,hifn,isStr])=>{
+    const ok = val!=null && (isStr || isFinite(val)), hi = ok && !isStr && hifn(val);
+    const disp = ok ? (val+' '+unit) : '—';
+    return `<tr class="${hi?'hi':''}"><td>${lab}</td><td class="v">${disp}</td><td class="norm">${typ}</td><td><span class="evb ${grade}">${grade}</span></td></tr>`;
+  }).join('');
+  const n = Math.max(oxiSpo2.length, oxiPr.length);
+  $('#beatN').textContent = n ? ('· '+n+' samples this session') : '';
+}
+function analyze(){
+  if(current==='ecg') analyzeBeats();
+  else if(current==='ppg') analyzePulse();
+  else if(current==='spo2' || current==='pr') analyzeOxi();
+}
+
+loadState().then(()=>{ requestAnimationFrame(draw); setInterval(loadState, 5000); setInterval(analyze, 900); });
+function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+</script>
+</body>
+</html>

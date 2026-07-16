@@ -4,6 +4,13 @@
 # Where nightly captures are written. The web server serves <root>/app; captures land under <root>/captures.
 root: /srv/tepna
 incoming_subdir: captures/incoming      # daemon writes here; a night-roller moves to captures/<YYYY-MM-DD>/
+adapter: "XX:XX:XX:XX:XX:XX"            # BLE adapter MAC for bonding (bluetoothctl select). Omit = default
+                                        # controller. On a multi-radio host, pin the bedside dongle here.
+
+web:                                    # monitor + control page (HEALTH-BOX-VISION §4 live-view). Bind LAN only.
+  enabled: true
+  host: 0.0.0.0                         # the box serves the LAN; use 127.0.0.1 for a localhost-only test
+  port: 8760
 
 # Host clock MUST be NTP-synced and set to your real local timezone — arrival stamps depend on it.
 # Stored values are floating wall-clock (Clock Contract); we write the LOCAL civil time, zone-free.
@@ -34,7 +41,16 @@ devices:
     streams: [eeg]
     muse_tool: muselsl           # "muselsl" (Muse 2 / S gen 1-2) | "openmuse" (Muse S Athena)
 
-# O2Ring (SpO2), Lingo (CGM) and CPAP (EDF) are NOT live-captured here:
-#   - O2Ring: onboard recording -> morning ViHealth export -> drop into captures/<night>/   (how-to-collect/oxydex-spo2.md)
-#   - Lingo:  encrypted/locked  -> Health Connect / Apple Health export -> drop in           (how-to-collect/libre-cgm.md)
-#   - CPAP:   SD card / ezShare Wi-Fi SD pull of DATALOG/*.edf -> drop in                     (how-to-collect/cpap-edf.md)
+  # Wellue O2Ring-S / T8520 (advertises as "S8-AW …") — LIVE SpO2 + pulse via the OxyII protocol
+  # (run_oxyii; no bond, no vendor-app round-trip). Older O2Rings on the legacy Viatom protocol:
+  # add `protocol: legacy` to route them through run_viatom instead.
+  - name: Wellue O2Ring-S
+    vendor: Wellue
+    model: O2Ring-S
+    device_id: CCCCCCCC
+    address: "WW:WW:WW:WW:WW:WW"        # Random-Static MAC — rotates on factory reset; re-scan if it changes
+    streams: [spo2]
+
+# Lingo (CGM) and CPAP (EDF) are NOT live-captured — drop their exports into captures/<night>/:
+#   - Lingo:  encrypted/locked  -> Health Connect / Apple Health export -> drop in   (how-to-collect/libre-cgm.md)
+#   - CPAP:   SD card / ezShare Wi-Fi SD pull of DATALOG/*.edf -> drop in             (how-to-collect/cpap-edf.md)
