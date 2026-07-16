@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+pa4vvwjvy6eoELQAYfWPB1I6treuJIQd0JcRUz8xJc=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-02D5H8gOllIyiHdIZieAQynwvyiFHfUKkGe7hgpwaOs=' 'sha256-3hluZDPy+6niJ22FBZuBTW7ZSWkdwpqpmPsDRMA0mYw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-CVurPrqEcuHK5KsV4krlUitcepDZrOgY8MCMuIrfZvI=' 'sha256-IlAE4pM5esD5knWGWzwV9xpZnoCApzC7ObDTorBWmiA=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-M3AwTtMuQRTPPb8pREcsdO//IXBK8qGHN6eFL8Lowyg=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gtFpDkQgkq3K4Xvu0vkEUwg3/xir/EWfwZmg6Iq0g2w=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+pa4vvwjvy6eoELQAYfWPB1I6treuJIQd0JcRUz8xJc=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1GQeF4dX3ch9mpbNEHndQCcxGb9KzcBQP5e0EO7pG8Q=' 'sha256-3hluZDPy+6niJ22FBZuBTW7ZSWkdwpqpmPsDRMA0mYw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-J3mHBUExInKpyme4NiuGiM14/KKmtH3cdtUVikmhTLg=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-XgM8nfbFgTLZ5Ohdu6OpWInivUknVc3+1c3w6EvsMns=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hJqpQHZmXRE7ZmXPYhemEID2gfL2/BTVtxbEjsNHSS4=' 'sha256-jRO1PClaNjFEQbHzgfRf3Gi+3dlMNKCiXg2dvkgW3Ww=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OxyDex — Nocturnal Oximetry Analyzer · v1.0.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -10265,7 +10265,176 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   global.OXYCross = { crossNight, crossNightBlock, ols, mannKendall, bootstrapDeltaCI, fmtDateUTC, fmtDateTimeUTC, OXY_DEFS, nightTms, nightWeight };
 })(window);
 </script>
-<script data-inline-src="oxydex-profile.js">/* ════ OxyDex · PROFILE — OXYProfile (oxydex-profile.js) ──────────────────────────────────────────────────
+<script data-inline-src="clock.js">/*
+ * clock.js — Tepna
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+ * project root, or http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * THE Clock Contract parser — single-sourced (A5, owner-ratified 2026-07-03;
+ * OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF §3). Extracted VERBATIM from the canonical
+ * per-node mirror (the byte-identical block pulsedex/ecgdex/integrator carried; hrvdex's
+ * commented copy; oxydex's was the same minus the unused _ckP2). The owned bundler inlines
+ * this ONE file into every bundle, so it stays bundled-local AND single-source — the
+ * copy-paste mirror + its drift risk are retired.
+ *
+ * Contract (CLAUDE.md §🔒): floating wall-clock tMs via Date.UTC on components-as-written;
+ * zoned ISO authoritative; explicit vendor regexes (never locale Date.parse); DMY/MDY §3;
+ * time-only rows anchor+roll; NEVER fabricate now() — miss ⇒ null.
+ *
+ * Adopters delegate via local aliases (var parseTimestamp = DexClock.parseTimestamp; …)
+ * inside their IIFE — public surfaces (ECGDSP.parseTimestamp, bare re-export tails) are
+ * unchanged. NODE-LOCAL VARIANTS THAT STAY (deliberate, do not force onto DexClock):
+ * ppgdex-dsp.js (strict ISO/epoch subset + quote-stripping), glucodex-dsp.js (_ckParse +
+ * numeric-returning MDY wrapper), cpapdex-dsp.js (EDF-subset). Load clock.js BEFORE any
+ * delegating *-dsp.js (dex-coload.js enforces host membership).
+ */
+(function (root) {
+  'use strict';
+
+  function tzOffset(instantMs) {
+    return new Date(instantMs).getTimezoneOffset() * 60000;
+  }
+  function _ckP2(n) {
+    return n < 10 ? '0' + n : '' + n;
+  }
+  function _ckNumEpoch(n) {
+    if (!isFinite(n)) return null;
+    if (n < 1e11) n = n * 1000; // 10-digit (or smaller) → seconds → ms
+    if (n < 1e11 || n > 4e12) return null; // implausible epoch range
+    var off = tzOffset(n);
+    return { tMs: n - off, offsetMin: -off / 60000 };
+  }
+  function _ckZoneMin(z) {
+    var zs = z.replace(':', '');
+    var sign = zs[0] === '-' ? -1 : 1;
+    return sign * (parseInt(zs.slice(1, 3), 10) * 60 + parseInt(zs.slice(3, 5), 10));
+  }
+  /* Contract §3 — decide day vs month from the first two slash fields.
+   `locked` (from resolveDMY) means the ORDER WAS PROVEN FOR THIS FILE: apply it unconditionally, so a
+   single row can no longer flip the order mid-file. A row the lock cannot explain (its month field lands
+   outside 1..12) is a contradiction, and a contradiction is null — never a guess.
+   Unlocked (no pre-scan) keeps the historical per-call behavior for back-compat. */
+  function _ckDMY(a, b, preferDMY, locked) {
+    if (locked) {
+      var ld = preferDMY ? a : b,
+        lmo = preferDMY ? b : a;
+      return lmo >= 1 && lmo <= 12 && ld >= 1 && ld <= 31 ? { d: ld, mo: lmo } : null;
+    }
+    if (a > 12) return { d: a, mo: b };
+    if (b > 12) return { d: b, mo: a };
+    return preferDMY ? { d: a, mo: b } : { d: b, mo: a };
+  }
+
+  /* Contract §3, the FILE-LEVEL lock: "Any row with day-component > 12 ⇒ file is unambiguous; lock that
+   order for the whole file … Never switch order mid-file."  Scan every stamp ONCE up front:
+     a row whose 1st slash field > 12 PROVES DMY · a row whose 2nd field > 12 PROVES MDY.
+   Both proofs present ⇒ the file contradicts itself ⇒ refuse (contradictory:true) rather than guess.
+   Neither ⇒ genuinely ambiguous ⇒ fall back to the caller's preferDMY, unlocked.
+   Pass the result into parseTimestamp as { preferDMY: r.dmy, dmyLocked: r.locked }.
+   Only the two ambiguous vendor shapes are scanned (4a "HH:MM:SS D/M/Y" and 4c "D/M/Y HH:MM"); ISO and
+   YYYY/MM/DD carry no ambiguity. */
+  function resolveDMY(rawStamps, preferDMY) {
+    var pref = preferDMY !== false,
+      sawDMY = false,
+      sawMDY = false;
+    var RE_A = /^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/; // 4a — O2Ring
+    var RE_C = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/; // 4c — Welltory etc.
+    var list = rawStamps || [];
+    for (var i = 0; i < list.length; i++) {
+      var s = list[i];
+      if (typeof s !== 'string') continue;
+      s = s.trim().replace(/^["']|["']$/g, '');
+      var a = null,
+        b = null;
+      var mA = s.match(RE_A);
+      var mC = mA ? null : s.match(RE_C);
+      if (mA) {
+        a = +mA[4];
+        b = +mA[5];
+      } else if (mC) {
+        a = +mC[1];
+        b = +mC[2];
+      } else continue;
+      if (a > 12) sawDMY = true;
+      if (b > 12) sawMDY = true;
+      if (sawDMY && sawMDY) break; // contradiction proven — no need to scan further
+    }
+    if (sawDMY && sawMDY) return { dmy: pref, locked: false, contradictory: true };
+    if (sawDMY) return { dmy: true, locked: true, contradictory: false };
+    if (sawMDY) return { dmy: false, locked: true, contradictory: false };
+    return { dmy: pref, locked: false, contradictory: false };
+  }
+
+  function parseTimestamp(raw, opts) {
+    opts = opts || {};
+    var preferDMY = opts.preferDMY !== false; // default true (O2Ring/Welltory exports are DMY)
+    var dmyLocked = opts.dmyLocked === true; // set by resolveDMY — the order is proven for this file
+    var anchor = opts.dateAnchorMs != null && isFinite(opts.dateAnchorMs) ? opts.dateAnchorMs : null;
+    if (raw == null) return null;
+    if (typeof raw === 'number') return _ckNumEpoch(raw);
+    var s = String(raw)
+      .trim()
+      .replace(/^["']|["']$/g, '');
+    if (!s) return null;
+    var m;
+    // 1. all-digits epoch (ms or s) — but not a 14-digit YYYYMMDDHHMMSS run (step 4b)
+    if (/^\d{10,13}$/.test(s)) return _ckNumEpoch(parseInt(s, 10));
+    // 2. ISO-8601 WITH explicit zone (Z or ±HH:MM): zone authoritative, re-express as local wall clock
+    m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?\s*(Z|[+-]\d{2}:?\d{2})$/);
+    if (m) {
+      var off = m[8] === 'Z' ? 0 : _ckZoneMin(m[8]);
+      return { tMs: Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0), offsetMin: off };
+    }
+    // 3. ISO / "YYYY-MM-DD[ T]HH:MM[:SS][.sss]" NO zone → components verbatim (ms preserved)
+    m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?$/);
+    if (m) return { tMs: Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0), offsetMin: null };
+    // 4a. "HH:MM:SS DD/MM/YYYY" | "HH:MM:SS MM/DD/YYYY" (O2Ring)
+    m = s.match(/^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) {
+      var dm = _ckDMY(+m[4], +m[5], preferDMY, dmyLocked);
+      if (!dm) return null; // row contradicts the file's proven order → honest null
+      return { tMs: Date.UTC(+m[6], dm.mo - 1, dm.d, +m[1], +m[2], +m[3]), offsetMin: null };
+    }
+    // 4b. compact "YYYYMMDDHHMMSS" (14-digit, O2Ring filename embed)
+    m = s.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/);
+    if (m) return { tMs: Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]), offsetMin: null };
+    // 4c. "DD/MM/YYYY HH:MM[:SS]" | "MM/DD/YYYY HH:MM[:SS]" (Welltory etc.)
+    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (m) {
+      var dm2 = _ckDMY(+m[1], +m[2], preferDMY, dmyLocked);
+      if (!dm2) return null; // row contradicts the file's proven order → honest null
+      return { tMs: Date.UTC(+m[3], dm2.mo - 1, dm2.d, +m[4], +m[5], m[6] ? +m[6] : 0), offsetMin: null };
+    }
+    // 4d. "YYYY/MM/DD HH:MM[:SS]"
+    m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (m) return { tMs: Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0), offsetMin: null };
+    // 5. Time-only "HH:MM[:SS]" → combine with dateAnchorMs, monotonic roll-forward
+    m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (m) {
+      if (anchor == null) return null; // never fabricate Jan-1-2000
+      var d0 = new Date(anchor);
+      var t = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth(), d0.getUTCDate(), +m[1], +m[2], m[3] ? +m[3] : 0);
+      if (opts.prevTMs != null && isFinite(opts.prevTMs)) {
+        while (t < opts.prevTMs) t += 86400000;
+      }
+      return { tMs: t, offsetMin: null };
+    }
+    // 6. Fallback — NEVER now(). A missing stamp stays visible (null).
+    return null;
+  }
+
+  root.DexClock = { tzOffset: tzOffset, _ckP2: _ckP2, _ckNumEpoch: _ckNumEpoch, _ckZoneMin: _ckZoneMin, _ckDMY: _ckDMY, resolveDMY: resolveDMY, parseTimestamp: parseTimestamp };
+  if (typeof module !== 'undefined' && module.exports) module.exports = root.DexClock;
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
+</script>
+<!-- ESM-MIGRATION deep-3: the five oxydex node modules are ES modules. The owned bundler
+     (tools/build-core.js esmBundle) resolves the graph and inlines each as its own classic
+     script (external import fails under file:// — the CORS wall). util + registry + cross
+     stay classic co-loaded scripts (loaded raw by the orchestrators and both test runners). -->
+<script data-inline-src="oxydex-profile.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("oxydex-profile.js",function(__require,__exports){
+/* ════ OxyDex · PROFILE — OXYProfile (oxydex-profile.js) ──────────────────────────────────────────────────
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    localStorage-backed user profile (UP) and every personalization formula:
@@ -10281,7 +10450,12 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
 // ══════════════════════════════════════════════════════════════════
 //  USER PROFILE — localStorage-backed, personalizes all formulas
 // ══════════════════════════════════════════════════════════════════
-var UP = {
+// `let`, NOT `var` (ESM-MIGRATION deep-3): in the CLASSIC co-load realms (the suite's OxyDex
+// worker rig, orchestrators, test runners) a top-level `var` creates a NON-configurable window
+// property, which the defineProperty proxy below cannot redefine ("Cannot redefine property:
+// UP"). `let` is a lexical binding — classic bare readers still resolve it via the scope chain,
+// and the proxy cleanly adds the window property that MODULE-mode consumers fall through to.
+let UP = {
   age: 49,
   sex: 'male',
   weight: 90,
@@ -10294,6 +10468,19 @@ var UP = {
   elevation: 0, // metres above sea level; adjusts SpO₂ normal thresholds
   cpap: 'no' // CPAP/BiPAP therapy — reframes apnea read as residual on therapy
 };
+// ESM-MIGRATION deep-3: profile is now an ES module, so this `let` is module-scoped — but
+// oxydex-dsp (18 sites) and oxydex-render (6) read/derive from UP as a bare global, and this
+// file REASSIGNS it on save. Proxy the window property to the in-module binding (same pattern
+// as pulsedex-app's welltoryData and oxydex-dsp's allNights).
+Object.defineProperty(window, 'UP', {
+  configurable: true,
+  get: function () {
+    return UP;
+  },
+  set: function (v) {
+    UP = v;
+  }
+});
 
 function upLoad() {
   // Persistence delegated to the shared DexProfile engine (key `tepna_profile`,
@@ -10898,172 +11085,20 @@ function openProfile() {
     });
   }
 })();
-</script>
-<script data-inline-src="clock.js">/*
- * clock.js — Tepna
- * Copyright 2026 Michal Planicka
- * SPDX-License-Identifier: Apache-2.0
- * Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
- * project root, or http://www.apache.org/licenses/LICENSE-2.0
- *
- * THE Clock Contract parser — single-sourced (A5, owner-ratified 2026-07-03;
- * OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF §3). Extracted VERBATIM from the canonical
- * per-node mirror (the byte-identical block pulsedex/ecgdex/integrator carried; hrvdex's
- * commented copy; oxydex's was the same minus the unused _ckP2). The owned bundler inlines
- * this ONE file into every bundle, so it stays bundled-local AND single-source — the
- * copy-paste mirror + its drift risk are retired.
- *
- * Contract (CLAUDE.md §🔒): floating wall-clock tMs via Date.UTC on components-as-written;
- * zoned ISO authoritative; explicit vendor regexes (never locale Date.parse); DMY/MDY §3;
- * time-only rows anchor+roll; NEVER fabricate now() — miss ⇒ null.
- *
- * Adopters delegate via local aliases (var parseTimestamp = DexClock.parseTimestamp; …)
- * inside their IIFE — public surfaces (ECGDSP.parseTimestamp, bare re-export tails) are
- * unchanged. NODE-LOCAL VARIANTS THAT STAY (deliberate, do not force onto DexClock):
- * ppgdex-dsp.js (strict ISO/epoch subset + quote-stripping), glucodex-dsp.js (_ckParse +
- * numeric-returning MDY wrapper), cpapdex-dsp.js (EDF-subset). Load clock.js BEFORE any
- * delegating *-dsp.js (dex-coload.js enforces host membership).
- */
-(function (root) {
-  'use strict';
 
-  function tzOffset(instantMs) {
-    return new Date(instantMs).getTimezoneOffset() * 60000;
-  }
-  function _ckP2(n) {
-    return n < 10 ? '0' + n : '' + n;
-  }
-  function _ckNumEpoch(n) {
-    if (!isFinite(n)) return null;
-    if (n < 1e11) n = n * 1000; // 10-digit (or smaller) → seconds → ms
-    if (n < 1e11 || n > 4e12) return null; // implausible epoch range
-    var off = tzOffset(n);
-    return { tMs: n - off, offsetMin: -off / 60000 };
-  }
-  function _ckZoneMin(z) {
-    var zs = z.replace(':', '');
-    var sign = zs[0] === '-' ? -1 : 1;
-    return sign * (parseInt(zs.slice(1, 3), 10) * 60 + parseInt(zs.slice(3, 5), 10));
-  }
-  /* Contract §3 — decide day vs month from the first two slash fields.
-   `locked` (from resolveDMY) means the ORDER WAS PROVEN FOR THIS FILE: apply it unconditionally, so a
-   single row can no longer flip the order mid-file. A row the lock cannot explain (its month field lands
-   outside 1..12) is a contradiction, and a contradiction is null — never a guess.
-   Unlocked (no pre-scan) keeps the historical per-call behavior for back-compat. */
-  function _ckDMY(a, b, preferDMY, locked) {
-    if (locked) {
-      var ld = preferDMY ? a : b,
-        lmo = preferDMY ? b : a;
-      return lmo >= 1 && lmo <= 12 && ld >= 1 && ld <= 31 ? { d: ld, mo: lmo } : null;
-    }
-    if (a > 12) return { d: a, mo: b };
-    if (b > 12) return { d: b, mo: a };
-    return preferDMY ? { d: a, mo: b } : { d: b, mo: a };
-  }
+// ESM-MIGRATION deep-3: publish the cross-file surface (dsp's upVO2category reach-in,
+// render's upSpo2Adj/profileAutoDetectUpdate calls, the app/data-act profile controls).
+Object.assign(window, {
+  upSpo2Adj,
+  upVO2category,
+  profileAutoDetectUpdate,
+  toggleProfile,
+  openProfile
+});
 
-  /* Contract §3, the FILE-LEVEL lock: "Any row with day-component > 12 ⇒ file is unambiguous; lock that
-   order for the whole file … Never switch order mid-file."  Scan every stamp ONCE up front:
-     a row whose 1st slash field > 12 PROVES DMY · a row whose 2nd field > 12 PROVES MDY.
-   Both proofs present ⇒ the file contradicts itself ⇒ refuse (contradictory:true) rather than guess.
-   Neither ⇒ genuinely ambiguous ⇒ fall back to the caller's preferDMY, unlocked.
-   Pass the result into parseTimestamp as { preferDMY: r.dmy, dmyLocked: r.locked }.
-   Only the two ambiguous vendor shapes are scanned (4a "HH:MM:SS D/M/Y" and 4c "D/M/Y HH:MM"); ISO and
-   YYYY/MM/DD carry no ambiguity. */
-  function resolveDMY(rawStamps, preferDMY) {
-    var pref = preferDMY !== false,
-      sawDMY = false,
-      sawMDY = false;
-    var RE_A = /^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/; // 4a — O2Ring
-    var RE_C = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/; // 4c — Welltory etc.
-    var list = rawStamps || [];
-    for (var i = 0; i < list.length; i++) {
-      var s = list[i];
-      if (typeof s !== 'string') continue;
-      s = s.trim().replace(/^["']|["']$/g, '');
-      var a = null,
-        b = null;
-      var mA = s.match(RE_A);
-      var mC = mA ? null : s.match(RE_C);
-      if (mA) {
-        a = +mA[4];
-        b = +mA[5];
-      } else if (mC) {
-        a = +mC[1];
-        b = +mC[2];
-      } else continue;
-      if (a > 12) sawDMY = true;
-      if (b > 12) sawMDY = true;
-      if (sawDMY && sawMDY) break; // contradiction proven — no need to scan further
-    }
-    if (sawDMY && sawMDY) return { dmy: pref, locked: false, contradictory: true };
-    if (sawDMY) return { dmy: true, locked: true, contradictory: false };
-    if (sawMDY) return { dmy: false, locked: true, contradictory: false };
-    return { dmy: pref, locked: false, contradictory: false };
-  }
-
-  function parseTimestamp(raw, opts) {
-    opts = opts || {};
-    var preferDMY = opts.preferDMY !== false; // default true (O2Ring/Welltory exports are DMY)
-    var dmyLocked = opts.dmyLocked === true; // set by resolveDMY — the order is proven for this file
-    var anchor = opts.dateAnchorMs != null && isFinite(opts.dateAnchorMs) ? opts.dateAnchorMs : null;
-    if (raw == null) return null;
-    if (typeof raw === 'number') return _ckNumEpoch(raw);
-    var s = String(raw)
-      .trim()
-      .replace(/^["']|["']$/g, '');
-    if (!s) return null;
-    var m;
-    // 1. all-digits epoch (ms or s) — but not a 14-digit YYYYMMDDHHMMSS run (step 4b)
-    if (/^\d{10,13}$/.test(s)) return _ckNumEpoch(parseInt(s, 10));
-    // 2. ISO-8601 WITH explicit zone (Z or ±HH:MM): zone authoritative, re-express as local wall clock
-    m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?\s*(Z|[+-]\d{2}:?\d{2})$/);
-    if (m) {
-      var off = m[8] === 'Z' ? 0 : _ckZoneMin(m[8]);
-      return { tMs: Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0), offsetMin: off };
-    }
-    // 3. ISO / "YYYY-MM-DD[ T]HH:MM[:SS][.sss]" NO zone → components verbatim (ms preserved)
-    m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?$/);
-    if (m) return { tMs: Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0), offsetMin: null };
-    // 4a. "HH:MM:SS DD/MM/YYYY" | "HH:MM:SS MM/DD/YYYY" (O2Ring)
-    m = s.match(/^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (m) {
-      var dm = _ckDMY(+m[4], +m[5], preferDMY, dmyLocked);
-      if (!dm) return null; // row contradicts the file's proven order → honest null
-      return { tMs: Date.UTC(+m[6], dm.mo - 1, dm.d, +m[1], +m[2], +m[3]), offsetMin: null };
-    }
-    // 4b. compact "YYYYMMDDHHMMSS" (14-digit, O2Ring filename embed)
-    m = s.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/);
-    if (m) return { tMs: Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]), offsetMin: null };
-    // 4c. "DD/MM/YYYY HH:MM[:SS]" | "MM/DD/YYYY HH:MM[:SS]" (Welltory etc.)
-    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-    if (m) {
-      var dm2 = _ckDMY(+m[1], +m[2], preferDMY, dmyLocked);
-      if (!dm2) return null; // row contradicts the file's proven order → honest null
-      return { tMs: Date.UTC(+m[3], dm2.mo - 1, dm2.d, +m[4], +m[5], m[6] ? +m[6] : 0), offsetMin: null };
-    }
-    // 4d. "YYYY/MM/DD HH:MM[:SS]"
-    m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-    if (m) return { tMs: Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0), offsetMin: null };
-    // 5. Time-only "HH:MM[:SS]" → combine with dateAnchorMs, monotonic roll-forward
-    m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-    if (m) {
-      if (anchor == null) return null; // never fabricate Jan-1-2000
-      var d0 = new Date(anchor);
-      var t = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth(), d0.getUTCDate(), +m[1], +m[2], m[3] ? +m[3] : 0);
-      if (opts.prevTMs != null && isFinite(opts.prevTMs)) {
-        while (t < opts.prevTMs) t += 86400000;
-      }
-      return { tMs: t, offsetMin: null };
-    }
-    // 6. Fallback — NEVER now(). A missing stamp stays visible (null).
-    return null;
-  }
-
-  root.DexClock = { tzOffset: tzOffset, _ckP2: _ckP2, _ckNumEpoch: _ckNumEpoch, _ckZoneMin: _ckZoneMin, _ckDMY: _ckDMY, resolveDMY: resolveDMY, parseTimestamp: parseTimestamp };
-  if (typeof module !== 'undefined' && module.exports) module.exports = root.DexClock;
-})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
-</script>
-<script data-inline-src="oxydex-dsp.js">/* ════ OxyDex · DSP & METRICS — OXYDSP (oxydex-dsp.js) ──────────────────────────────────────────────────
+});})();</script>
+<script data-inline-src="oxydex-dsp.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("oxydex-dsp.js",function(__require,__exports){
+/* ════ OxyDex · DSP & METRICS — OXYDSP (oxydex-dsp.js) ──────────────────────────────────────────────────
    The whole analysis engine: CONFIG/allNights, file ingest + parsing
    (parseCSV/parseJSONL/processNight; summary-CSV is export-only), artifact cleaning, and
    every metric tier (night extras, rolling, pattern scores, DFA/FFT/entropy,
@@ -17138,9 +17173,18 @@ function openProfile() {
       }
     });
   }
-})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
-</script>
-<script data-inline-src="oxydex-render.js">/* ════ OxyDex · RENDER & CHARTS — OXYUI (oxydex-render.js) ──────────────────────────────────────────────────
+})(/** @type {any} */ (typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this));
+
+// ESM-MIGRATION (deep-3 fan-out): dsp is now a DUAL-MODE module. The IIFE above still attaches
+// window.OxyDex (the external node API + every classic co-load consumer — the orchestrators and
+// both test runners, which classic-load this file via tools/build-core.js `classicify`) and, when
+// not namespaced, the bare-global back-compat spray (incl. the `allNights` mutable proxy). This
+// re-export lets the owned ESM bundle's oxydex-app.js import edge replace tag-order convention.
+__exports.OxyDex = window.OxyDex;
+
+});})();</script>
+<script data-inline-src="oxydex-render.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("oxydex-render.js",function(__require,__exports){
+/* ════ OxyDex · RENDER & CHARTS — OXYUI (oxydex-render.js) ──────────────────────────────────────────────────
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    Pure-SVG chart builders (line/area, bar, spike timeline) and the full render
@@ -20457,8 +20501,23 @@ function tiClass(pct, thr) {
   if (thr >= 88) return pct === 0 ? 'good' : pct < 0.5 ? 'warn' : 'bad';
   return pct === 0 ? 'good' : pct < 0.1 ? 'warn' : 'bad';
 }
-</script>
-<script data-inline-src="oxydex-fusion.js">/* ════ OxyDex · ECGDex FUSION + ANS-AGE PROJECTION + FULL METRICS TABLE ════
+
+// ESM-MIGRATION deep-3: render is now an ES module — publish the cross-file surface
+// (oxydex-dsp/fusion/profile's renderAll reach-in, fusion's evBadge calls, the app/data-act
+// GC + detail/night controls). Bare cross-file reads resolve through window at call time.
+Object.assign(window, {
+  renderAll,
+  evBadge,
+  setGCWindow,
+  setGCSmooth,
+  toggleDetail,
+  jumpToNight,
+  metric
+});
+
+});})();</script>
+<script data-inline-src="oxydex-fusion.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("oxydex-fusion.js",function(__require,__exports){
+/* ════ OxyDex · ECGDex FUSION + ANS-AGE PROJECTION + FULL METRICS TABLE ════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    Loaded after oxydex-render.js, before oxydex-app.js. Shares page scope.
@@ -21526,7 +21585,19 @@ function handleEcgJson(file) {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire);
   else wire();
 })();
-</script>
+
+// ESM-MIGRATION deep-3: fusion is now an ES module — publish the surface render/app consume.
+Object.assign(window, {
+  _oxyEcgDate,
+  oxyEcgForNight,
+  oxyHeroBenchCard,
+  oxyComputeFusion,
+  oxyEcgFusionSection,
+  buildFullMetricsTable,
+  oxyFrontFullTable
+});
+
+});})();</script>
 <script data-inline-src="synth-gen.js">/* ════════════════════════════════════════════════════════════════════════════
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
@@ -22672,16 +22743,21 @@ function handleEcgJson(file) {
   };
 })(window);
 </script>
-<script data-inline-src="oxydex-app.js">/* ════ OxyDex · APP · UI HELPERS · EXPORTS (oxydex-app.js) ──────────────────────────────────────────────────
+<script data-inline-src="oxydex-app.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("oxydex-app.js",function(__require,__exports){
+/* ════ OxyDex · APP · UI HELPERS · EXPORTS (oxydex-app.js) ──────────────────────────────────────────────────
  * Copyright 2026 Michal Planicka
  * SPDX-License-Identifier: Apache-2.0
    Loaded LAST: UI helper utilities and all exporters (CSV / JSON / parser
    self-download). Page-level glue (mode toggle, theme, mobile nav, #demo
    autoload) stays as small inline <script> blocks in the shell.
-   Plain global script — shares page scope with the other oxydex-*.js files,
-   exactly as in the original single-script monolith. No behavior change.
    Load order: oxydex-util → oxydex-profile → oxydex-dsp → oxydex-render → oxydex-app.
+   ES module (ESM-MIGRATION deep-3): the imports below make that load order a real
+   dependency edge (oxydex-util stays classic — it loads before all modules).
    ════════════════════════════════════════════════════════════════════════ */
+__require('oxydex-profile.js');
+__require('oxydex-dsp.js');
+__require('oxydex-render.js');
+__require('oxydex-fusion.js');
 
 // ═══════════════════════════════════════════
 // UI helpers
@@ -23403,7 +23479,23 @@ if (window.DexActions)
       window.toggleResearchAccordion(el);
     }
   });
-</script>
+
+// ESM-MIGRATION deep-3: publish the cross-file surface (the dsp's setProgress/setStatus/
+// showError/clearAll reach-ins + the render-called export/scrub/file controls + data-act reset).
+Object.assign(window, {
+  setProgress,
+  setStatus,
+  showError,
+  reset,
+  addMoreFiles,
+  clearAll,
+  oxySetScrub,
+  exportJSON,
+  exportCSV,
+  downloadParser
+});
+
+});__M.require("oxydex-app.js");})();</script>
 </div><!-- /.main-wrap -->
 </div><!-- /.app -->
 

@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-16 (nodes 2–4 of 7 landed: CPAPDex · ECGDex · PpgDex; the deep 3 — pulsedex/hrvdex/oxydex — + Phase 4 remain) · **Created:** 2026-07-16
+**Status:** IN-PROGRESS — 2026-07-16 (**fan-out COMPLETE — all 7 nodes ESM**: GlucoDex from Phases 0–2 + CPAPDex · ECGDex · PpgDex · PulseDex · HRVDex · OxyDex; ONLY Phase 4 — retire the classic co-load path, delete the `-globals.d.ts`, retire the source-mirror gates — remains) · **Created:** 2026-07-16
 
 # ESM migration — follow-ups: the fleet fan-out is parked (why, and the path to finish it)
 
@@ -93,3 +93,35 @@ functions per node (bespoke, higher-churn). Per §"Why partial completion unlock
 co-load path (orchestrators, both test runners, the five workers) being retired — which itself requires the
 ~70-site spray-removal. So the deep 3 are the natural next funded unit; the reference now spans a DSP with a
 CJS path (CPAPDex), a hermetic-blob worker (ECGDex), and a toString-serialized worker (PpgDex).
+
+## Execution progress II — 2026-07-16 (nodes 5–7: the deep 3 — FAN-OUT COMPLETE)
+
+All three landed same-day, one fully-gated commit each, same gate ledger as nodes 2–4 (biome · tsc ·
+`build --check` ×10 · Node suite 2512 · GATE A/B · `verify-fixtures` on the real corpus · browser lane
+all-green + no-network · a `file://` bundle smoke driving synthetic → compute → painted UI):
+
+- **PulseDex** (node 5) — set the deep-3 template: each no-IIFE UI file PUBLISHES its cross-file
+  surface via `Object.assign(window, {…})` at file end (bare cross-file reads resolve through window
+  at call time); shared MUTABLE state gets a `defineProperty(window, …)` get/set proxy in the
+  declaring module (`welltoryData` — the brief's own example); the app's side-effect `import`s make
+  the former tag-order convention a real dependency edge (killing the §load-order hazard). The
+  dreaded "~70-site spray-removal" was NOT needed: the DSPs' existing `__DEX_NAMESPACED__`-guarded
+  bare-spray blocks keep serving classic-style reads — sites get removed at Phase 4, not before.
+- **HRVDex** (node 6) — template applied in a fraction of the time; render/profile/app publish
+  12+6+8 symbols (incl. the DSP's documented `setStatus`/`rerender` UI reach-ins); chart/chartbadges
+  verified self-contained and stay classic.
+- **OxyDex** (node 7) — the predicted "hardest node" was template-shaped: its 6 k-line DSP was
+  IIFE-wrapped all along (~45 lines of header comments hid it from the original survey). Five UI
+  modules publish 7+7+5+10 symbols + a `UP` window proxy; **`oxydex-util.js` deliberately stays
+  classic** (orchestrator-co-loaded before the DSP; classic globals stay visible to modules). Two
+  real bugs caught by the gates: `var UP` → non-configurable window property in classic realms
+  (proxy threw in the suite's worker rig; now `let`), and `tests/oxy-hang.worker.js` — a SIXTH
+  worker the bridge sweep missed — importScripts'ing the dsp raw (now carries the loadScript bridge).
+
+Every node's conversion was **export-inert BY VERIFICATION** (per-node corpus re-stamp, outputs
+byte-identical). The stale-derived-artifact lesson from the nodes-2–4 PR was applied preemptively:
+the 5 affected analysis tools + 3 docs deploy copies regenerated in the same unit.
+
+**ONLY Phase 4 remains:** retire the classic co-load path (orchestrators, both test runners, the six
+bridged workers), remove the DSP spray blocks (the ~70 sites), delete the seven `<node>-globals.d.ts`,
+retire the source-mirror gates, flip the parent brief's P5 → DONE — then this brief goes DONE.
