@@ -9,21 +9,48 @@
 #    scaffold honoring the §7 integration contract; validate against real frames + PSL output first.
 
 from __future__ import annotations
-import argparse, asyncio, json, logging, os, signal, subprocess, datetime as _dt
+import argparse, asyncio, contextlib, json, logging, os, signal, subprocess, datetime as _dt
 import yaml
 from bleak import BleakClient
 
-from writers import StreamWriter, capture_filename, night_dir
+from writers import StreamWriter, Spo2CsvWriter, capture_filename, night_dir
 import polar_pmd as pmd
+import viatom
+import oxyii
+import bonding
+from telemetry import TelemetryBus
 
 HR_UUID = "00002a37-0000-1000-8000-00805f9b34fb"   # standard Heart Rate Measurement (RR intervals)
 log = logging.getLogger("tepna-capture")
 STATUS: dict = {"updated": None, "devices": {}}
 _STOP = asyncio.Event()
+BUS = TelemetryBus()          # live-sample bus feeding the monitor page (webmon.py)
+ADAPTER: str | None = None    # BLE adapter MAC for bonding (config `adapter:`); None = default controller
+_PMD_LIVE = {pmd.ECG: "ecg", pmd.PPG: "ppg"}   # which decoded streams to surface live (one channel)
 
 
 def _now() -> _dt.datetime:
     return _dt.datetime.now()   # LOCAL civil time — the Clock Contract primary stamp. Keep the host NTP-synced.
+
+
+# BlueZ serialises connection ESTABLISHMENT per adapter — two devices connecting at once yields
+# org.bluez.Error.InProgress. Hold this lock only across connect(); the links themselves run concurrently.
+_CONNECT_LOCK = asyncio.Lock()
+
+
+@contextlib.asynccontextmanager
+async def _connect(addr: str):
+    from bleak import BleakClient as _BC
+    client = _BC(addr)
+    async with _CONNECT_LOCK:
+        await client.connect()
+    try:
+        yield client
+    finally:
+        try:
+            await client.disconnect()
+        except Exception:
+            pass
 
 
 def _set(name, **kv):
@@ -52,6 +79,15 @@ async def run_polar(dev: dict, root: str):
     name, addr = dev["name"], dev["address"]
     streams = dev.get("streams", ["ecg"])
     backoff = 5
+    # One-time bond BEFORE any PMD attempt — the H10 drops an un-authenticated link ~1-2 s after
+    # connect (bleak #1943). ensure_bonded is a no-op if the bond already exists. (Reconnects after a
+    # transient drop reuse the stored bond, so we don't re-bond in the loop.)
+    try:
+        if not await bonding.ensure_bonded(addr, ADAPTER):
+            _set(name, last_error="bond failed — pair the sensor from the monitor page")
+            log.warning("%s not bonded; PMD will likely drop until bonded", name)
+    except Exception as e:
+        _set(name, last_error=f"bond error: {e!r}")
     while not _STOP.is_set():
         writers: dict[int, StreamWriter] = {}
         hr_writer = None
@@ -59,7 +95,7 @@ async def run_polar(dev: dict, root: str):
         ndir = night_dir(root, started)
         try:
             _set(name, connected=False, address=addr, last_error=None)
-            async with BleakClient(addr) as client:
+            async with _connect(addr) as client:
                 _set(name, connected=True)
                 log.info("%s connected", name)
                 backoff = 5
@@ -92,6 +128,9 @@ async def run_polar(dev: dict, root: str):
                             wr.write_acc(smp.phone, smp.sensor_ns, smp.t_ms, *smp.values)
                         elif meas == pmd.PPG:
                             wr.write_ppg(smp.phone, smp.sensor_ns, smp.t_ms, smp.values[:3], smp.values[3])
+                    live_key = _PMD_LIVE.get(meas)
+                    if live_key:                 # surface one channel live to the monitor page
+                        BUS.push(live_key, [s.values[0] for s in samples], pmd.SAMPLE_HZ.get(meas))
                     _set(name, **{f"rows_{meas}": wr.rows, "last_sample": writers and smp.phone.isoformat()})
 
                 def on_hr(_sender, data: bytearray):
@@ -157,6 +196,140 @@ async def run_muse(dev: dict, root: str):
             await asyncio.sleep(5)
 
 
+async def run_viatom(dev: dict, root: str):
+    """Wellue/Viatom O2Ring — real-time SpO2 + pulse over the Viatom protocol (NOT PMD). Emits the
+    ViHealth CSV layout OxyDex parses, and pushes spo2/pr to the live monitor. The ring only advertises
+    while worn (finger in), so a bond/connect only succeeds when it's on the finger."""
+    name, addr = dev["name"], dev["address"]
+    backoff = 5
+    try:
+        if not await bonding.ensure_bonded(addr, ADAPTER):
+            _set(name, last_error="bond failed — pair the ring from the monitor page (wear it first)")
+    except Exception as e:
+        _set(name, last_error=f"bond error: {e!r}")
+    while not _STOP.is_set():
+        started = _now()
+        ndir = night_dir(root, started)
+        path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "spo2", "csv"))
+        wr = None
+        try:
+            _set(name, connected=False, address=addr, last_error=None)
+            async with _connect(addr) as client:
+                _set(name, connected=True); log.info("%s connected", name); backoff = 5
+                # Discover the notify + write chars under the Viatom service by PROPERTY (UUIDs vary by
+                # model/firmware), falling back to the documented UUIDs.
+                notify_char, write_char = None, None
+                for s in client.services:
+                    if s.uuid.lower() == viatom.VIATOM_SERVICE:
+                        for ch in s.characteristics:
+                            p = ch.properties
+                            if ("notify" in p or "indicate" in p) and notify_char is None:
+                                notify_char = ch
+                            if ("write" in p or "write-without-response" in p) and write_char is None:
+                                write_char = ch
+                notify_char = notify_char or viatom.VIATOM_NOTIFY
+                wr = Spo2CsvWriter(path)
+
+                def on_data(_sender, data: bytearray):
+                    pkt = viatom.decode_packet(bytes(data))
+                    if not pkt:
+                        return
+                    now = _now()
+                    if pkt["spo2"] is not None:
+                        wr.write(now, pkt["spo2"], pkt["pr"] or 0, pkt["motion"])
+                        BUS.push("spo2", [pkt["spo2"]])
+                        if pkt["pr"]:
+                            BUS.push("pr", [pkt["pr"]])
+                        _set(name, rows=wr.rows, spo2=pkt["spo2"], pr=pkt["pr"], battery=pkt["batt"],
+                             last_sample=now.isoformat(), last_error=None)
+                    else:
+                        _set(name, worn=pkt["worn"], last_error=None if pkt["worn"] else "not on finger")
+
+                await client.start_notify(notify_char, on_data)
+                if write_char is not None:
+                    try:
+                        await client.write_gatt_char(write_char, viatom.START_CMD, response=False)
+                    except Exception as e:
+                        log.info("%s start-cmd write skipped: %r", name, e)   # some models auto-stream
+                while client.is_connected and not _STOP.is_set():
+                    await asyncio.sleep(1)
+        except Exception as e:
+            _set(name, connected=False, last_error=repr(e))
+            log.warning("%s link error: %r", name, e)
+        finally:
+            if wr:
+                wr.close()
+        if not _STOP.is_set():
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 60)
+
+
+async def run_oxyii(dev: dict, root: str):
+    """Wellue O2Ring-S / T8520 ("S8-AW…") — live SpO2 + pulse over the OxyII protocol (NOT legacy Viatom).
+    No bonding. Flow: connect → auth(0xFF) → setup(0x10) → poll cmd=0x04 ~1/s. Emits the ViHealth CSV
+    OxyDex parses + pushes spo2/pr to the monitor."""
+    name, addr = dev["name"], dev["address"]
+    backoff = 5
+    while not _STOP.is_set():
+        started = _now()
+        ndir = night_dir(root, started)
+        path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "spo2", "csv"))
+        wr = None
+        try:
+            _set(name, connected=False, address=addr, last_error=None)
+            async with _connect(addr) as client:
+                _set(name, connected=True); log.info("%s connected", name); backoff = 5
+                # Resolve write/notify chars by UUID (robust to a stale BlueZ service cache).
+                wch = nch = None
+                for s in client.services:
+                    for ch in s.characteristics:
+                        u = ch.uuid.lower()
+                        if u == oxyii.OXYII_WRITE: wch = ch
+                        if u == oxyii.OXYII_NOTIFY: nch = ch
+                if not (wch and nch):
+                    _set(name, last_error="OxyII service absent (ring in recording mode? press its button)")
+                    raise RuntimeError("no oxyii chars")
+                wr = Spo2CsvWriter(path)
+                reasm = oxyii.Reassembler()
+
+                def on_data(_s, d):
+                    for frame in reasm.feed(bytes(d)):
+                        r = oxyii.decode(frame)
+                        if not r or r[0] != oxyii.OP_LIVE:
+                            continue
+                        live = oxyii.parse_live(r[1])
+                        if not live:
+                            continue
+                        now = _now()
+                        if live["spo2"] is not None:
+                            wr.write(now, live["spo2"], live["pr"] or 0, live["motion"])
+                            BUS.push("spo2", [live["spo2"]])
+                            if live["pr"]:
+                                BUS.push("pr", [live["pr"]])
+                            _set(name, rows=wr.rows, spo2=live["spo2"], pr=live["pr"], battery=live["batt"],
+                                 last_sample=now.isoformat(), last_error=None)
+                        else:
+                            _set(name, worn=live["worn"], last_error=None if live["worn"] else "no finger contact")
+
+                await client.start_notify(nch, on_data)
+                await client.write_gatt_char(wch, oxyii.auth_frame(), response=False)   # 0xFF: no reply
+                await asyncio.sleep(0.6)
+                await client.write_gatt_char(wch, oxyii.setup_frame(), response=False)  # 0x10: ack
+                await asyncio.sleep(0.6)
+                while client.is_connected and not _STOP.is_set():                       # poll live ~1/s
+                    await client.write_gatt_char(wch, oxyii.live_frame(), response=False)
+                    await asyncio.sleep(1.0)
+        except Exception as e:
+            _set(name, connected=False, last_error=repr(e))
+            log.warning("%s link error: %r", name, e)
+        finally:
+            if wr:
+                wr.close()
+        if not _STOP.is_set():
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 60)
+
+
 async def status_loop(root: str):
     path = os.path.join(root, "captures", "status.json")
     while not _STOP.is_set():
@@ -171,11 +344,13 @@ async def status_loop(root: str):
 
 
 async def main():
+    global ADAPTER
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="config.yaml")
     args = ap.parse_args()
     cfg = yaml.safe_load(open(args.config))
     root = cfg["root"]
+    ADAPTER = cfg.get("adapter")   # BLE adapter MAC for bonding; None = default controller
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
     loop = asyncio.get_running_loop()
@@ -183,14 +358,38 @@ async def main():
         loop.add_signal_handler(sig, _STOP.set)
 
     tasks = [asyncio.create_task(status_loop(root))]
-    for dev in cfg.get("devices", []):
-        runner = run_muse if dev.get("vendor") == "Muse" else run_polar
+
+    def _spawn(dev: dict):
+        v = dev.get("vendor")
+        if v == "Muse":
+            runner = run_muse
+        elif v in ("Wellue", "Viatom"):
+            # OxyII (O2Ring-S / T8520) is the verified default; opt into the legacy protocol per-device.
+            runner = run_viatom if dev.get("protocol") == "legacy" else run_oxyii
+        else:
+            runner = run_polar
         tasks.append(asyncio.create_task(runner(dev, root)))
+
+    for dev in cfg.get("devices", []):
+        _spawn(dev)
+
+    # Monitor + control web surface (HEALTH-BOX-VISION §4 hero live-view). On by default; bind LAN only.
+    web_runner = None
+    wcfg = cfg.get("web", {}) or {}
+    if wcfg.get("enabled", True):
+        import webmon
+        host, port = wcfg.get("host", "0.0.0.0"), int(wcfg.get("port", 8760))
+        web_runner = await webmon.start(
+            webmon.make_app(BUS, cfg, args.config, ADAPTER, STATUS, _spawn), host, port)
+        log.info("monitor: http://%s:%d/", host, port)
+
     log.info("tepna-capture up: %d device(s), root=%s", len(cfg.get("devices", [])), root)
     await _STOP.wait()
     for t in tasks:
         t.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
+    if web_runner:
+        await web_runner.cleanup()
     log.info("tepna-capture stopped")
 
 

