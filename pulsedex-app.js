@@ -5,8 +5,13 @@
    CSV), action wiring, the main calculate() pipeline, CSV/JSON exports, reset,
    and shared helpers. Loaded LAST. Reads pulsedex-{dsp,render}.js + the overview
    module (loadProfile / renderOverviewPx / computeProfileHints).
-   Plain global script (matches pulsedex-overview.js convention). Immediate-execution glue lives here.
+   ES module (ESM-MIGRATION deep-3): the imports below make the DSP → render → overview →
+   app load order a real dependency edge (the bundler + browser guarantee it), replacing the
+   former script-tag-order convention. Immediate-execution glue lives here.
    No external libraries. ════════════════════════════════════════════════════ */
+import './pulsedex-dsp.js';
+import './pulsedex-render.js';
+import './pulsedex-overview.js';
 
 // ─── THEME ────────────────────────────────────────────────────────────────────
 const themeBtn = document.getElementById('themeBtn');
@@ -146,6 +151,18 @@ function showChip(name) {
 
 // Welltory CSV upload
 let welltoryData = null;
+// ESM-MIGRATION deep-3: app is now an ES module, so this `let` is module-scoped. pulsedex-render /
+// -overview read `welltoryData` as a bare global (resolving through window at call time) — proxy the
+// window property to the in-module binding, exactly like pulsedex-dsp.js does for `lastResult`.
+Object.defineProperty(window, 'welltoryData', {
+  configurable: true,
+  get: function () {
+    return welltoryData;
+  },
+  set: function (v) {
+    welltoryData = v;
+  }
+});
 // ── multi-day retrofit — additive; single-recording stays byte-identical ──
 let allRecordings = {}; // key (floating t0Ms string) → result object
 let activeKey = null,
@@ -1364,3 +1381,7 @@ if (window.DexActions)
       if (window.lastResult) calculate();
     }
   });
+
+// ESM-MIGRATION deep-3: app is now an ES module — publish the one app symbol a sibling file
+// consumes (pulsedex-render.js wtRowObj() calls findWTRow() as a bare global at render time).
+window.findWTRow = findWTRow;

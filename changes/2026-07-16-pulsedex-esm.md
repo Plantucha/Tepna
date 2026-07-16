@@ -1,0 +1,14 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+---
+bump: patch
+type: changed
+nodes: [PulseDex, suite]
+brief: ESM-MIGRATION-FOLLOWUPS-2026-07-16-BRIEF.md
+---
+PulseDex → ES modules (fan-out node 5/7) — the first of the deep 3 (no clean DSP capture; no-IIFE UI files with shared top-level mutable state). `pulsedex-dsp.js` is DUAL-MODE (IIFE + bare-global back-compat spray untouched; one trailing `export const PulseDex = window.PulseDex`); `pulsedex-render.js` / `-overview.js` / `-app.js` are ES modules with `type=module` tags; `-registry.js` / `-cross.js` stay classic.
+
+**The no-IIFE conversion pattern (the deep-3 template).** The three UI files are bare top-level scripts whose cross-file surface previously rode the classic-script global scope. Becoming modules scopes that away, so each file now PUBLISHES its consumed surface explicitly at its end: render → `Object.assign(window, { evBadge, reRender, render*, wtRowObj, pulseRenderReview/ClearReview, WT_COLS, EXTRA_COLS })` (13 symbols); overview → 4 additions (`pxProfile`, `renderHeroPx`, `renderProfileDerivedPx`, `renderKpiGridPx`) to its existing inline-handler block; app → `window.findWTRow` plus a `Object.defineProperty(window,'welltoryData',{get,set})` proxy for the shared MUTABLE state (render/overview read it bare; same pattern as the DSP's `lastResult` proxy). Bare cross-file reads then resolve through window at call time; `pulsedex-app.js`'s three side-effect `import`s make DSP → render → overview → app a real dependency edge (killing the load-order hazard). Bare `lastResult =` writes in the module still hit the DSP's window proxy (the property exists, so module strict mode is satisfied).
+
+Marked `pulsedex-dsp.js` `type=module` in both orchestrators; `Dex-Test-Suite.html` classic-loads it in `main()` (tag → comment, like glucodex/cpapdex/ecgdex/ppgdex); `tools/regen-pulsedex-goldens.mjs` classicifies its vm loads. New `pulsedex-globals.d.ts` (`declare var PulseDex`) for the checkJs gate — the dual-mode tail's `window.PulseDex` read plus one `/** @type {any} */` cast on the DSP's IIFE argument (module top-level `this` types as `undefined`); delete the d.ts at Phase 4 like its siblings.
+
+`computeHash` moved (`manifestHash 036ff60cfa7a → 7f2f52a32d5c`) but is EXPORT-INERT BY VERIFICATION — `verify-fixtures.mjs` re-ran the suite on the real corpus and re-stamped both corpus-backed PulseDex fixtures (`verifiedUnder → 954395560416`) with byte-identical outputs. Full local gate sequence green: biome + tsc clean · `build --check` ×10 · Node suite 2512 · GATE A 8/8 + GATE B · browser lane all-green (2564 passed, render-coverage boots the ESM bundle) · no-network four-lens green · file:// smoke (0 page errors; namespace + all published symbols present; synthetic → compute → `lastResult.sdnn` real + hero painted).

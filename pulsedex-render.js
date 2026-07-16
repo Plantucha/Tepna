@@ -4,7 +4,10 @@
    DOM/SVG builders: context banner, night-trend graphs, KPI strip, ANS bars,
    the full metrics table, the canonical Welltory-format table, and the live
    reRender() used when profile edits change derivations. Declarations only.
-   Plain global script (matches pulsedex-overview.js convention). Globals: render* / reRender fns.
+   ES module (ESM-MIGRATION deep-3; matches pulsedex-overview.js convention): top-level
+   declarations are module-scoped, so the cross-file surface (render* / reRender / evBadge /
+   WT_COLS …) is published to window in the block at the end of this file — the classic-style
+   consumers (pulsedex-overview / -app) read them as bare globals at call time.
    No external libraries. ════════════════════════════════════════════════════ */
 
 // ── evidence badge hook (System-Cohesion) — resolves a badge from a rendered
@@ -659,3 +662,23 @@ try {
     window.PulseDex.renderReview = pulseRenderReview;
   }
 } catch (_rvx) {}
+
+// ESM-MIGRATION deep-3: render is now an ES module, so its top-level declarations are
+// module-scoped. Publish the cross-file surface — pulsedex-overview / -app (and the suite's
+// live probes) resolve these as bare globals through window at call time. Mirrors
+// pulsedex-overview.js's existing "expose for inline handlers" block.
+Object.assign(window, {
+  evBadge,
+  reRender,
+  renderContext,
+  renderGraphs,
+  renderKPI,
+  renderANS,
+  renderTable,
+  wtRowObj,
+  renderWTTable,
+  pulseRenderReview,
+  pulseClearReview,
+  WT_COLS,
+  EXTRA_COLS
+});
