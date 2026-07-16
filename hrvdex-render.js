@@ -10,6 +10,10 @@
    exactly as in the original single-script monolith. No behavior change.
    Load order: hrvdex-dsp → hrvdex-render → hrvdex-profile → hrvdex-app.
    ════════════════════════════════════════════════════════════════════════ */
+// ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
+// _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
+// runs on this page; every DSP helper this module uses is named here, import-style).
+const { mean, smooth, getFilteredRows, computeCAMQ, _hrvUpdateExportHint } = window.HRVDex._bare;
 
 // ── evidence badge hook (System-Cohesion) — resolves a badge from a rendered
 // label via HrvRegistry (hrvdex-registry.js). Zero-touch; safe no-op if the

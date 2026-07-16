@@ -12,6 +12,21 @@ import './oxydex-profile.js';
 import './oxydex-dsp.js';
 import './oxydex-render.js';
 import './oxydex-fusion.js';
+// ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
+// _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
+// runs on this page; every DSP helper this module uses is named here, import-style).
+const { APP_VERSION, _parserSource, handleFiles, oxyBuildNightElement, oxyBuildGangliorEvents } = window.OxyDex._bare;
+// mutable page state: bridge bare window.allNights ↔ the DSP-owned OxyDex.allNights (the DSP's own
+// window proxy is spray-guarded and no longer installs here; sibling modules read it bare).
+Object.defineProperty(window, 'allNights', {
+  configurable: true,
+  get: function () {
+    return window.OxyDex.allNights;
+  },
+  set: function (v) {
+    window.OxyDex.allNights = v;
+  }
+});
 
 // ═══════════════════════════════════════════
 // UI helpers

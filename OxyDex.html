@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+pa4vvwjvy6eoELQAYfWPB1I6treuJIQd0JcRUz8xJc=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1GQeF4dX3ch9mpbNEHndQCcxGb9KzcBQP5e0EO7pG8Q=' 'sha256-3hluZDPy+6niJ22FBZuBTW7ZSWkdwpqpmPsDRMA0mYw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-J3mHBUExInKpyme4NiuGiM14/KKmtH3cdtUVikmhTLg=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-XgM8nfbFgTLZ5Ohdu6OpWInivUknVc3+1c3w6EvsMns=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hJqpQHZmXRE7ZmXPYhemEID2gfL2/BTVtxbEjsNHSS4=' 'sha256-jRO1PClaNjFEQbHzgfRf3Gi+3dlMNKCiXg2dvkgW3Ww=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+pa4vvwjvy6eoELQAYfWPB1I6treuJIQd0JcRUz8xJc=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3hluZDPy+6niJ22FBZuBTW7ZSWkdwpqpmPsDRMA0mYw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-HbjBKjfqOIcKgOjcXJuHoAOFOZyGLRF+w2nZpZF9HeY=' 'sha256-JD/474dkC3Eh5qgOIQg5PF3074FRKYimtYLxivFF2ik=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-MsThD61WWM0DrVG6Pp8cY18/F0/s8KlIr8PWDnuojYM=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UbyA2i/G8BqxEEI0Zt+9dA+mglUVd5MYOiD5AQKZMVs=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jRO1PClaNjFEQbHzgfRf3Gi+3dlMNKCiXg2dvkgW3Ww=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OxyDex — Nocturnal Oximetry Analyzer · v1.0.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -10429,6 +10429,11 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   if (typeof module !== 'undefined' && module.exports) module.exports = root.DexClock;
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
 </script>
+<!-- ESM-MIGRATION Phase 4: namespaced load — the DSP attaches ONLY its namespace (no bare-global
+     spray on this page); the UI modules import their DSP helpers explicitly (destructured from
+     the namespace _bare surface). The spray still serves the non-namespaced classic realms
+     (test suite + workers) by design. -->
+<script data-inline-src="inline:script:0">window.__DEX_NAMESPACED__ = true;</script>
 <!-- ESM-MIGRATION deep-3: the five oxydex node modules are ES modules. The owned bundler
      (tools/build-core.js esmBundle) resolves the graph and inlines each as its own classic
      script (external import fails under file:// — the CORS wall). util + registry + cross
@@ -11013,7 +11018,7 @@ function recomputeFromProfile() {
         }
       }
       // ── Karvonen zones + readiness (pass null rows — guard allows it now) ──
-      var newKarv = computeKarvonenZones(null, n.hrv, n.vo2est, n.odi4, n.hypDose, n.sleepArch, n.stageProxy, UP.age || 49, n.stats ? n.stats.durationMin : null);
+      var newKarv = window.OxyDex._bare.computeKarvonenZones(null, n.hrv, n.vo2est, n.odi4, n.hypDose, n.sleepArch, n.stageProxy, UP.age || 49, n.stats ? n.stats.durationMin : null);
       if (newKarv) n.karv = newKarv;
     } catch (e) {}
   });
@@ -17029,139 +17034,157 @@ Object.assign(window, {
   root.OxyDex = OxyDex;
 
   // ── app back-compat: re-export the bare DSP globals UNLESS co-loaded namespaced ──
+  // ESM-MIGRATION Phase 4: the bare-helper surface, exposed ON the namespace so the ESM UI
+  // modules destructure it explicitly (const { … } = window.OxyDex._bare) instead of depending
+  // on the bare-global spray below — which now serves ONLY the non-namespaced classic realms
+  // (the test suite + the six workers, a deliberate test-access surface, not debt).
+  var BARE = {
+    CFG,
+    APP_VERSION,
+    _parserSource,
+    _fi,
+    ua,
+    isO2RingBin,
+    _o2p2,
+    tzOffset,
+    _ckNumEpoch,
+    _ckZoneMin,
+    _ckDMY,
+    parseTimestamp,
+    _o2DateAnchorMs,
+    _o2BinStartMs,
+    decodeO2RingBinToCSV,
+    handleFiles,
+    readFile,
+    parseCSV,
+    parseTime,
+    cleanArtifactHR,
+    trimSensorWarmup,
+    filterArtifactSpikes,
+    computeCT94,
+    computeDesatSlopes,
+    computePBmetrics,
+    computeSleepArch,
+    computeODI1,
+    computeMOS,
+    computeAHIestimates,
+    computeNightExtras,
+    computeRollingMetrics,
+    computePatternScores,
+    computeDFA,
+    computeSpO2FFT,
+    computeHREntropy,
+    computeSympSurge,
+    computeCircadianHR,
+    computeSpO2Entropy,
+    computeHypoxicLoad,
+    computeVagalIndex,
+    computeRecoveryIndex,
+    computeSleepPressure,
+    computeBreathingIrregularity,
+    computeOxyCrash,
+    computeHRNoctDip,
+    computeDesatAsymmetry,
+    computeSmartSummary,
+    buildImpression,
+    processNight,
+    computeStats,
+    computeTIndex,
+    computeHRV,
+    detectDesatEvents,
+    detectODI,
+    detectSpikes,
+    detectPeriodicity,
+    parseTimeStr,
+    detectOscillations,
+    _flagSev,
+    buildFlags,
+    computeHypoxicBurden,
+    computeMotionProfile,
+    computeSleepStabilityScore,
+    SELFGATE,
+    selfGateDesat,
+    computeDesaturationProfile,
+    computeHRProfile,
+    computeMotionSleep,
+    computeCrossSignal,
+    computeSpO2Advanced,
+    computeHRAdvanced,
+    computeComposite,
+    linReg,
+    computeGatedNadir,
+    computeSpO2Drift,
+    computeODI2,
+    computeSpO2Overshoot,
+    computeSpO2Autocorr,
+    computeHRFreqBands,
+    computeRespRateProxy,
+    computeHRAsymmetry,
+    computeHRQuartileTrend,
+    computeSpO2HRLag,
+    computeSpikeDecay,
+    computeSpikeUndershoot,
+    computeSpikeRiseRate,
+    computeDataGaps,
+    computeHRFlatlines,
+    computeSpO2Ceiling,
+    computeODRI,
+    computeSpO2Percentiles,
+    computeSpO2Shape,
+    computeHRCV,
+    computeHypoxicDose,
+    computeT88T85,
+    computeLCSP,
+    computePoincareSD,
+    computeO2HREfficiency,
+    computeConditionalSpO2,
+    computeNadirTrend,
+    computeIEI,
+    computeRecoverySlopeCV,
+    computeHRNadirTime,
+    computeSpO2NadirTime,
+    computeRMSSDarc,
+    computeSpike50PctRecovery,
+    computeSleepStageProxy,
+    computeVO2maxEstimate,
+    computeKarvonenZones,
+    computeSBII,
+    computePRED3p,
+    computeDesSev,
+    computeCTprecise,
+    parseJSONL,
+    avg,
+    stdDev,
+    fmtDate,
+    fmtTime,
+    fmtTimeFull,
+    pad,
+    shortDate,
+    oxyBuildNightElement,
+    oxyBuildGangliorEvents,
+    oxyDesatConf,
+    oxyPBConf,
+    oxyLoadOwnExport,
+    oxyScrubExport,
+    _oxyEnsureRows,
+    _oxyRowsFromInput,
+    oxyComputeNight
+  };
+  OxyDex._bare = BARE;
+  // mutable cross-file state, namespace-proxied — the DSP closure owns `allNights`; the app
+  // module bridges window.allNights to this on its own page (the guarded window proxy below
+  // keeps serving the non-namespaced classic realms).
+  Object.defineProperty(OxyDex, 'allNights', {
+    configurable: true,
+    get: function () {
+      return allNights;
+    },
+    set: function (v) {
+      allNights = v;
+    }
+  });
   if (!root.__DEX_NAMESPACED__) {
-    Object.assign(root, {
-      CFG,
-      APP_VERSION,
-      _parserSource,
-      _fi,
-      ua,
-      isO2RingBin,
-      _o2p2,
-      tzOffset,
-      _ckNumEpoch,
-      _ckZoneMin,
-      _ckDMY,
-      parseTimestamp,
-      _o2DateAnchorMs,
-      _o2BinStartMs,
-      decodeO2RingBinToCSV,
-      handleFiles,
-      readFile,
-      parseCSV,
-      parseTime,
-      cleanArtifactHR,
-      trimSensorWarmup,
-      filterArtifactSpikes,
-      computeCT94,
-      computeDesatSlopes,
-      computePBmetrics,
-      computeSleepArch,
-      computeODI1,
-      computeMOS,
-      computeAHIestimates,
-      computeNightExtras,
-      computeRollingMetrics,
-      computePatternScores,
-      computeDFA,
-      computeSpO2FFT,
-      computeHREntropy,
-      computeSympSurge,
-      computeCircadianHR,
-      computeSpO2Entropy,
-      computeHypoxicLoad,
-      computeVagalIndex,
-      computeRecoveryIndex,
-      computeSleepPressure,
-      computeBreathingIrregularity,
-      computeOxyCrash,
-      computeHRNoctDip,
-      computeDesatAsymmetry,
-      computeSmartSummary,
-      buildImpression,
-      processNight,
-      computeStats,
-      computeTIndex,
-      computeHRV,
-      detectDesatEvents,
-      detectODI,
-      detectSpikes,
-      detectPeriodicity,
-      parseTimeStr,
-      detectOscillations,
-      _flagSev,
-      buildFlags,
-      computeHypoxicBurden,
-      computeMotionProfile,
-      computeSleepStabilityScore,
-      SELFGATE,
-      selfGateDesat,
-      computeDesaturationProfile,
-      computeHRProfile,
-      computeMotionSleep,
-      computeCrossSignal,
-      computeSpO2Advanced,
-      computeHRAdvanced,
-      computeComposite,
-      linReg,
-      computeGatedNadir,
-      computeSpO2Drift,
-      computeODI2,
-      computeSpO2Overshoot,
-      computeSpO2Autocorr,
-      computeHRFreqBands,
-      computeRespRateProxy,
-      computeHRAsymmetry,
-      computeHRQuartileTrend,
-      computeSpO2HRLag,
-      computeSpikeDecay,
-      computeSpikeUndershoot,
-      computeSpikeRiseRate,
-      computeDataGaps,
-      computeHRFlatlines,
-      computeSpO2Ceiling,
-      computeODRI,
-      computeSpO2Percentiles,
-      computeSpO2Shape,
-      computeHRCV,
-      computeHypoxicDose,
-      computeT88T85,
-      computeLCSP,
-      computePoincareSD,
-      computeO2HREfficiency,
-      computeConditionalSpO2,
-      computeNadirTrend,
-      computeIEI,
-      computeRecoverySlopeCV,
-      computeHRNadirTime,
-      computeSpO2NadirTime,
-      computeRMSSDarc,
-      computeSpike50PctRecovery,
-      computeSleepStageProxy,
-      computeVO2maxEstimate,
-      computeKarvonenZones,
-      computeSBII,
-      computePRED3p,
-      computeDesSev,
-      computeCTprecise,
-      parseJSONL,
-      avg,
-      stdDev,
-      fmtDate,
-      fmtTime,
-      fmtTimeFull,
-      pad,
-      shortDate,
-      oxyBuildNightElement,
-      oxyBuildGangliorEvents,
-      oxyDesatConf,
-      oxyPBConf,
-      oxyLoadOwnExport,
-      oxyScrubExport,
-      _oxyEnsureRows,
-      _oxyRowsFromInput,
-      oxyComputeNight
-    });
+    Object.assign(root, BARE);
     // mutable cross-file state — proxy bare `allNights` to the in-closure binding
     Object.defineProperty(root, 'allNights', {
       configurable: true,
@@ -17194,6 +17217,10 @@ __exports.OxyDex = window.OxyDex;
    exactly as in the original single-script monolith. No behavior change.
    Load order: oxydex-util → oxydex-profile → oxydex-dsp → oxydex-render → oxydex-app.
    ════════════════════════════════════════════════════════════════════════ */
+// ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
+// _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
+// runs on this page; every DSP helper this module uses is named here, import-style).
+const { linReg, fmtDate, fmtTime, shortDate } = window.OxyDex._bare;
 
 // ═══════════════════════════════════════════
 // CHARTS  (pure SVG, no dependencies)
@@ -22758,6 +22785,21 @@ __require('oxydex-profile.js');
 __require('oxydex-dsp.js');
 __require('oxydex-render.js');
 __require('oxydex-fusion.js');
+// ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
+// _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
+// runs on this page; every DSP helper this module uses is named here, import-style).
+const { APP_VERSION, _parserSource, handleFiles, oxyBuildNightElement, oxyBuildGangliorEvents } = window.OxyDex._bare;
+// mutable page state: bridge bare window.allNights ↔ the DSP-owned OxyDex.allNights (the DSP's own
+// window proxy is spray-guarded and no longer installs here; sibling modules read it bare).
+Object.defineProperty(window, 'allNights', {
+  configurable: true,
+  get: function () {
+    return window.OxyDex.allNights;
+  },
+  set: function (v) {
+    window.OxyDex.allNights = v;
+  }
+});
 
 // ═══════════════════════════════════════════
 // UI helpers
@@ -23541,7 +23583,7 @@ Object.assign(window, {
   </div>
 </nav>
 
-<script data-inline-src="inline:script:0">
+<script data-inline-src="inline:script:1">
 // ── Mode toggle ─────────────────────────────────────────────────
 // Depth tier persists under the SHARED suite key (dex_depth_tier) via
 // MetricRegistry, so a tier set in ANY -Dex node carries across the suite

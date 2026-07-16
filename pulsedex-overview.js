@@ -5,6 +5,10 @@
    Hero · Projected ANS Age (+VO₂max/BP) · Profile body-composition · Key Metrics
    Reads the global `lastResult` (r) + `welltoryData` history + profile inputs.
    ════════════════════════════════════════════════════════════════════════ */
+// ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
+// _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
+// runs on this page; every DSP helper this module uses is named here, import-style).
+const { parseTimestamp, nu } = window.PulseDex._bare;
 
 // ── profile inputs ───────────────────────────────────────────────────────────
 function pxProfile() {

@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-16 (**fan-out COMPLETE — all 7 nodes ESM**: GlucoDex from Phases 0–2 + CPAPDex · ECGDex · PpgDex · PulseDex · HRVDex · OxyDex; ONLY Phase 4 — retire the classic co-load path, delete the `-globals.d.ts`, retire the source-mirror gates — remains) · **Created:** 2026-07-16
+**Status:** DONE — 2026-07-16 (fan-out COMPLETE, all 7 nodes ESM + Phase 4 executed in the owner-scoped MIDDLE PATH: app pages namespaced, UI helper-imports explicit, spray retained for test/worker realms by design; the full-ambition remainder — test-suite rewrite, reach-in inversion, d.ts + source-mirror-gate retirement — is precisely scoped in `ESM-MIGRATION-FOLLOWUPS-II-2026-07-16-BRIEF.md`, PROPOSED/parked) · **Created:** 2026-07-16
 
 # ESM migration — follow-ups: the fleet fan-out is parked (why, and the path to finish it)
 
@@ -125,3 +125,24 @@ the 5 affected analysis tools + 3 docs deploy copies regenerated in the same uni
 **ONLY Phase 4 remains:** retire the classic co-load path (orchestrators, both test runners, the six
 bridged workers), remove the DSP spray blocks (the ~70 sites), delete the seven `<node>-globals.d.ts`,
 retire the source-mirror gates, flip the parent brief's P5 → DONE — then this brief goes DONE.
+
+## Execution progress III — 2026-07-16 (Phase 4, owner-scoped middle path — brief CLOSED)
+
+Measurement first: the "dead scaffolding" Phase 4 was written to sweep turned out **load-bearing** —
+the sprays feed the UI (~120 bare call sites), the six workers, and above all `tests/dex-tests.js`
+(hundreds of deliberate bare-helper calls); the `-globals.d.ts` files are pinned by the DSP→UI
+reach-ins, not by the co-load path. The owner chose the **middle path**: make the APP-PAGE coupling
+explicit and verifiable now; keep the spray as a documented test-access surface; park the rest.
+
+Executed (one fully-gated unit): per deep-3 node, the spray map hoisted to `<Node>._bare` + namespace
+`defineProperty` proxies for the mutable closure state; every UI module opens with an explicit
+`const { … } = window.<Node>._bare` destructure; the app modules bridge the mutable window names on
+their own page; **the three app shells set `__DEX_NAMESPACED__ = true`** — so a missed helper throws
+instead of silently resolving (this self-verification caught four real misses during development:
+a nested-shadow false exclusion, two template-literal hideouts, and hrvdex's three proxied mutables).
+Export-inert BY VERIFICATION (all six corpus fixtures re-stamped byte-identically); full gate ledger
+green incl. browser lane + per-page file:// smokes proving compute ✓ / `_bare` ✓ / spray ABSENT ✓.
+
+The un-executed remainder of the original Phase-4/P5 ambition is measured, priced, and parked in
+**`ESM-MIGRATION-FOLLOWUPS-II-2026-07-16-BRIEF.md`**; the parent brief stays IN-PROGRESS on exactly
+its Done-when items 4–5 (d.ts + source-mirror-gate retirement).

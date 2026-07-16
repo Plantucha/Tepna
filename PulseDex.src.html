@@ -2837,6 +2837,11 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
 <script src="dex-profile.js"></script>
 <script src="pulsedex-registry.js"></script>
 <script src="clock.js"></script>
+<!-- ESM-MIGRATION Phase 4: namespaced load — the DSP attaches ONLY its namespace (no bare-global
+     spray on this page); the UI modules import their DSP helpers explicitly (destructured from
+     the namespace _bare surface). The spray still serves the non-namespaced classic realms
+     (test suite + workers) by design. -->
+<script>window.__DEX_NAMESPACED__ = true;</script>
 <!-- ESM-MIGRATION deep-3: the four pulsedex node modules are ES modules. The owned bundler
      (tools/build-core.js esmBundle) resolves the graph and inlines each as its own classic
      script (external import fails under file:// — the CORS wall). The registry + cross stay

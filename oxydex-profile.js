@@ -577,7 +577,7 @@ function recomputeFromProfile() {
         }
       }
       // ── Karvonen zones + readiness (pass null rows — guard allows it now) ──
-      var newKarv = computeKarvonenZones(null, n.hrv, n.vo2est, n.odi4, n.hypDose, n.sleepArch, n.stageProxy, UP.age || 49, n.stats ? n.stats.durationMin : null);
+      var newKarv = window.OxyDex._bare.computeKarvonenZones(null, n.hrv, n.vo2est, n.odi4, n.hypDose, n.sleepArch, n.stageProxy, UP.age || 49, n.stats ? n.stats.durationMin : null);
       if (newKarv) n.karv = newKarv;
     } catch (e) {}
   });

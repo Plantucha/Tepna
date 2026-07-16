@@ -9,6 +9,10 @@
    WT_COLS …) is published to window in the block at the end of this file — the classic-style
    consumers (pulsedex-overview / -app) read them as bare globals at call time.
    No external libraries. ════════════════════════════════════════════════════ */
+// ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
+// _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
+// runs on this page; every DSP helper this module uses is named here, import-style).
+const { fmtClock, vo2Base, vo2Adj, altVO2Factor, lineChartSVG } = window.PulseDex._bare;
 
 // ── evidence badge hook (System-Cohesion) — resolves a badge from a rendered
 // label via PulseRegistry (pulsedex-registry.js). Zero-touch; safe no-op if the
