@@ -55,7 +55,14 @@ async function gateTestSuite() {
     // 'running' with groups still legitimately accumulating (no crash, no thrown error) and just needs
     // more wall-clock is NOT the same failure mode as a genuine hang; widen the ceiling so a slow-but-
     // progressing CI runner doesn't red on wall-clock alone (BROWSER-GATES-CI-TIMEOUT 2026-07-03).
-    await page.waitForFunction(() => window.__rcState === 'done', { timeout: 900000 });
+    // The options object MUST be the THIRD arg — waitForFunction(pageFunction, arg, options). Passing
+    // it as the second arg (the historical bug here) makes Playwright treat it as `arg` and silently
+    // fall back to the DEFAULT 30 s timeout — so the "widen the ceiling to 15 min" fix above never took
+    // effect, and render-coverage (which needs ~26-30 s: the Integrator rig alone is ~14 s) raced the
+    // accidental 30 s ceiling and rejected at 9 groups. `null` arg + explicit options restores the 15-min
+    // ceiling. polling:500 (a timer, not the default rAF) also leaves the page idle so its `_rcYield`
+    // requestIdleCallback scheduler (Dex-Test-Suite.html ~line 1075) fires between rig boots.
+    await page.waitForFunction(() => window.__rcState === 'done', null, { timeout: 900000, polling: 500 });
   } catch (err) {
     // waitForFunction rejects on EITHER a genuine 5-min stall OR an early execution-context loss
     // (renderer crash). Distinguish them and report the state actually reached, so the next run is
@@ -113,7 +120,7 @@ async function gateProvenance() {
   // Manifest appends one row per bundle (8). Wait for all, then a short settle
   // so the (best-effort) fixture audit finishes too.
   try {
-    await page.waitForFunction(() => document.querySelectorAll('#manifest tbody tr').length >= 8, { timeout: 180000 });
+    await page.waitForFunction(() => document.querySelectorAll('#manifest tbody tr').length >= 8, null, { timeout: 180000 });
   } catch {
     FAILS.push('verify-provenance: build manifest did not populate all 8 bundles');
     await page.close();
@@ -143,7 +150,7 @@ async function gateNoNetwork() {
   // It boots the 8 bundles + 2 orchestrators in trapped iframes; an unsettled boot is a SKIP inside
   // the gate (static layer is authoritative), so the verdict still resolves without a CI /dev/shm red.
   try {
-    await page.waitForFunction(() => typeof window.__noNetworkOK === 'boolean', { timeout: 180000 });
+    await page.waitForFunction(() => typeof window.__noNetworkOK === 'boolean', null, { timeout: 180000 });
   } catch {
     FAILS.push('no-network: verdict never computed (gate did not finish scanning/booting the surfaces)');
     await page.close();
