@@ -30,6 +30,20 @@ changesets.)
 
 ---
 
+## [1.13.0] — 2026-07-17
+
+### Added
+- Integrator now consumes EventCoupling.coupling() for desat⟷surge apnea confirmation — a coverage-aware shuffled-null verdict (additive apneaCoupling export field) beside the existing Poisson null model; read real/lift only where usable (neither underpowered nor saturated). (`CPAP-REAL-CORPUS-FOLLOWUPS-II-2026-07-13-BRIEF.md`)
+
+### Fixed
+- Align ECGDex _malikCorrect's RR range gate to 300–2000 ms (matching buildNN and ECGDex's documented window) so the self-vs-device HRV comparison is genuinely apples-to-apples — a device beat in the 2000–2200 band no longer survives on the device side alone and biases dRMSSD/dSDNN.
+- Apply the Clock-Contract §3 whole-file DMY/MDY lock in GlucoDex parseCSV — a European (DMY) Libre export no longer scatters ambiguous rows onto MDY calendar dates mid-file.
+- Integrator now reads a GlucoDex dawn surge from glucose.dawn.medianDelta (the key the light export actually writes) — the summary.dawnSurge read chain previously pointed only at pre-enrichment keys and resolved null for every GlucoDex export (the un-fixed sibling of the glucose.cv read-drift).
+- The O2Ring .bin decoder no longer fabricates today's date for an undated recording — with no 14-digit filename stamp and no file.lastModified it emits a time-only HH:MM:SS clock (date unknown) instead of stamping the whole night at Date.now() (Clock Contract §4).
+- Sleep Stability Score no longer fabricates a neutral 50 for the HR-floor subscore when HR is unmeasurable — it drops the subscore, renormalizes the remaining component weights, and surfaces hrFloor=null so the absence is visible instead of contributing phantom points.
+
+---
+
 ## [1.12.0] — 2026-07-16
 
 ### Added
@@ -434,7 +448,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.12.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.13.0...HEAD
+[1.13.0]: https://github.com/Plantucha/Tepna/compare/v1.12.0...v1.13.0
 [1.12.0]: https://github.com/Plantucha/Tepna/compare/v1.11.1...v1.12.0
 [1.11.1]: https://github.com/Plantucha/Tepna/compare/v1.11.0...v1.11.1
 [1.11.0]: https://github.com/Plantucha/Tepna/compare/v1.10.3...v1.11.0

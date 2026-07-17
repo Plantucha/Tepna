@@ -14,7 +14,7 @@ authors:
   - family-names: Planicka
     given-names: Michal
     # roles: Concept, Architecture, Algorithms, Implementation, Validation, UI/UX
-version: 1.12.0
+version: 1.13.0
 date-released: "2026-06-18"
 license: Apache-2.0
 repository-code: "https://github.com/Plantucha/Tepna"
