@@ -13818,6 +13818,95 @@
       T.eq('deterministic — re-running the worker realm reproduces the identical result', strip(res), strip(d2 && d2.result));
     });
 
+    /* ════ 21i · qrs-yield WORKER EXECUTES — known-answer (TEST-COVERAGE-FOLLOWUPS-II §4) ════
+     The direct transfer of §4's reconstruction rig to the second worker (same SCRIPTS deps + init/job
+     protocol as qrs-equiv-worker). Proves qrs-yield-worker executes its QRS-detection-yield doJob in a
+     reconstructed realm and reproduces a deterministic known-answer. (cohort-worker is KIND-parameterized
+     and pat-feasibility-worker uses a ping/result protocol needing real PPG input — both materially
+     heavier + lower value; left as documented gaps in the II brief.) */
+    group('qrs-yield worker EXECUTES + reproduces a known-answer (TEST-COVERAGE-FOLLOWUPS-II §4)', 'qrs-yield-worker · worker · regression', function (T) {
+      var wsrc = (env.sources && env.sources['qrs-yield-worker.js']) || '';
+      var have = !!(wsrc && env.SYNTH && env.CohortGen && env.CohortFull && env.ECGDSP && env.PPGDSP);
+      T.ok('worker source + deps available', have, 'wsrc=' + !!wsrc);
+      if (!have) return;
+
+      function drive(seed) {
+        var msgs = [];
+        var selfStub = {
+          postMessage: function (m) {
+            msgs.push(m);
+          }
+        };
+        var runner;
+        try {
+          runner = new Function(
+            'self',
+            'importScripts',
+            'XMLHttpRequest',
+            'performance',
+            'SYNTH',
+            'CohortGen',
+            'CohortFull',
+            'ECGDSP',
+            'PPGDSP',
+            'navigator',
+            wsrc + '\n; self.__drive = function (msg) { self.onmessage({ data: msg }); };'
+          );
+          runner(
+            selfStub,
+            function () {},
+            function () {},
+            {
+              now: function () {
+                return 0;
+              }
+            },
+            env.SYNTH,
+            env.CohortGen,
+            env.CohortFull,
+            env.ECGDSP,
+            env.PPGDSP,
+            { hardwareConcurrency: 4 }
+          );
+        } catch (e) {
+          return { evalErr: e.constructor.name + ': ' + e.message, msgs: msgs };
+        }
+        selfStub.__drive({ type: 'init' });
+        selfStub.__drive({ type: 'job', seed: seed >>> 0, reqId: 1 });
+        return { msgs: msgs };
+      }
+
+      var r = drive(12345);
+      T.ok('the worker SOURCE evaluates in a reconstructed realm', !r.evalErr, r.evalErr);
+      if (r.evalErr) return;
+      var readyMsg = r.msgs.filter(function (m) {
+        return m.type === 'ready';
+      })[0];
+      var doneMsg = r.msgs.filter(function (m) {
+        return m.type === 'done';
+      })[0];
+      T.ok('init → ready with NO importScripts/closure error', !!readyMsg && !readyMsg.err, readyMsg && readyMsg.err);
+      T.ok('job → done with NO error (the worker actually RAN doJob)', !!doneMsg && !doneMsg.error, doneMsg && doneMsg.error);
+      if (!doneMsg || doneMsg.error) return;
+      var res = doneMsg.result;
+      T.ok('the worker produced a result', !!res, JSON.stringify(res));
+      if (!res) return;
+
+      // deterministic seed-derived known-answer (scenario profile is fixed for the seed)
+      T.eq('seed 12345 · profile age', res.age, 58.84);
+      T.eq('seed 12345 · OSA severity band', res.sev, 'mod');
+      T.eq('seed 12345 · base AHI', res.baseAHI, 28.2);
+      // the ECG + PPG detectors actually ran in the worker realm (a missing DSP would leave these null +
+      // populate res.errors) — so a real yield object is the proof the worker DSP path is live.
+      T.ok('ECGDex yield ran in the worker realm (non-null, no ECG error)', !!res.ecg && !(res.errors && res.errors.ECG), JSON.stringify(res.errors));
+      T.ok('PpgDex yield ran in the worker realm (non-null, no PPG error)', !!res.ppg && !(res.errors && res.errors.PPG), JSON.stringify(res.errors));
+
+      var d2 = drive(12345).msgs.filter(function (m) {
+        return m.type === 'done';
+      })[0];
+      T.eq('deterministic — a second reconstruction reproduces the identical result', JSON.stringify(res), JSON.stringify(d2 && d2.result));
+    });
+
     /* ════ 22 · PROPERTY / METAMORPHIC — HRV invariants + SignalFrame contract ════
      The generative complement to the suite's known-answer tests (WP-C/D/D2) and
      synthetic→DSP recovery (FULL-lane): instead of one input→expected pair, state
