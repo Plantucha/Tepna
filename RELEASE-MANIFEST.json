@@ -420,6 +420,26 @@
         "CAPTURE-HOST-FOLLOWUPS-2026-07-16-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "1.13.0",
+      "date": "2026-07-17",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "5edcce8c3a33",
+        "OxyDex": "9205db495ba9",
+        "PulseDex": "51d2ae062a40",
+        "GlucoDex": "9a202a81cccb",
+        "PpgDex": "9c6e0297529e",
+        "HRVDex": "6b6d60151854",
+        "CPAPDex": "684939b42083",
+        "Integrator": "8911079d846e"
+      },
+      "briefs": [
+        "CPAP-REAL-CORPUS-FOLLOWUPS-II-2026-07-13-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
