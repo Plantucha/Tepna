@@ -1,0 +1,117 @@
+<!--
+  O2RING-PROTOCOL-2026-07-17-BRIEF.md — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+-->
+
+**Status:** REFERENCE (living — protocol reverse-engineering, validated on hardware) · **Created:** 2026-07-17
+
+# Wellue O2Ring-S (T8520 / "OxyII") — BLE protocol & capabilities
+
+Reverse-engineered + hardware-validated reference for the **Wellue O2Ring-S** finger pulse-oximeter as
+used by the Tepna capture box (`capture-host/`, out-of-suite). Covers the BLE service, the live protocol,
+the **stored-session file download** (the `.dat` the ViHealth app syncs on removal), the on-flash file
+format, the device's operational quirks, and the on-hardware validation. Primary external reference:
+[github.com/nglessner/o2ring-s-protocol](https://github.com/nglessner/o2ring-s-protocol). Code:
+`capture-host/oxyii.py` (protocol) · `capture-host/pull_session.py` (stored-file puller) ·
+`capture-host/capture.py` `run_oxyii` (live) · `capture-host/viatom.py` (legacy fallback, see §1).
+
+## 1 · Device identity — it is NOT the legacy Viatom
+The unit advertises as **`S8-AW <n>`** (e.g. `S8-AW 2100`) and speaks the **"OxyII"** protocol on a
+**dedicated service**, *not* the legacy Viatom protocol. Every legacy tool (and `viatom.py`, service
+`14839ac4…`) connects but gets **zero data** — the wrong service. OxyII lives on:
+- **Service** `e8fb0001-a14b-98f9-831b-4e2941d01248`
+- **Write**   `e8fb0002-…` (write-**without**-response)
+- **Notify**  `e8fb0003-…`
+
+The BLE **address is Random-Static** and rotates on factory reset (and occasionally otherwise) — resolve
+**by name**, don't hardcode the MAC. No bonding / no pairing is needed.
+
+## 2 · Frame envelope (shared by live + file transfer)
+```
+[0xA5][cmd][~cmd][flag][seq][len_lo][len_hi][payload…][crc8]
+```
+- `~cmd` = one's-complement of `cmd` (a cheap integrity byte, validated on decode).
+- `flag` 0x00 host→device request, 0x01 device→host response.
+- `len` little-endian u16 payload length. Big frames are split across multiple notifications → reassemble
+  until a full declared frame is buffered (`oxyii.Reassembler`).
+- **CRC-8, poly 0x07, init 0, no reflection/xorout** over all bytes except the trailing CRC. This is the
+  only integrity mechanism — **no AES anywhere on the live or file path**; auth is a plaintext XOR (§3).
+
+## 3 · Live protocol (real-time SpO₂ / pulse)
+Flow: **connect → auth (0xFF) → setup (0x10) → poll (0x04) ~1/s**.
+- **AUTH `0xFF`** — 16-byte XOR-keyed payload, no reply. Key = a MD5(`"lepucloud"`) salt (first 8 bytes at
+  even indices) + 4 ASCII serial bytes (`"0000"` is the portable default) + 4 timestamp bytes
+  (`(ts>>0,1,2,3)&0xFF` — a faithful, deliberately-odd port of the vendor code), all XOR'd with the full
+  MD5(`"lepucloud"`). No AES.
+- **SETUP `0x10`** — payload `00`, acked.
+- **LIVE `0x04`** — empty payload; the device replies with a 24-byte header. Offsets:
+  `[5]` contact · `[6]` SpO₂ (%) · `[7]` motion · `[8]` HR (bpm) · `[13]` battery (%).
+  **contact:** `0x00` no finger · `0x01` idle-present · `0x03` file-open. SpO₂/HR are `None` off-finger.
+
+## 4 · Stored-session file download (the `.dat`) — §3-derived, hardware-verified
+The ring records **every wearing period to onboard flash** (its backstop). Four opcodes, same envelope:
+
+| Opcode | Name | Payload | Reply |
+|--------|------|---------|-------|
+| `0xF1` | LIST  | empty | count byte + N×16-byte slots: `YYYYMMDDhhmmss` (14 ASCII) + 2 zero pad |
+| `0xF2` | START | 20 B: 14-B ASCII ts + 2 zero + **4-B LE file-type** | 4-B LE file **size** + metadata |
+| `0xF3` | DATA  | 4-B LE **offset** | ≤ 512 B chunk (loop, offset += len, until size) |
+| `0xF4` | END   | empty | ack — **required** before opening another file |
+
+**Verified on hardware:** `file-type = 0` works. The transfer needs an **ATT MTU ≥ 517** — at a smaller
+MTU the ring **silently drops `START`** (metadata queries still work). BlueZ negotiates ≥517 by default.
+
+## 5 · On-flash file format ("Format A")
+```
+[Header  10 B:  01 03 00 00 00 00 00 00 04 00 ]
+[Samples  3 B × N, one per SECOND:  SpO₂(0–100)  HR(bpm)  status ]
+[Trailer 48 B at file_end−48:  averages · desat counts · "O₂ Score ×10" at offset 42 ]
+```
+So `N = (filesize − 10 − 48) / 3` seconds. A 10-h night ≈ 36 000 samples ≈ 108 KB. `pull_session.py`
+saves the raw bytes verbatim as `Wellue_O2Ring-S_<ts>_STORED.dat` + a `.meta.json` sanity record
+(bytes, header, format_a flag, sample count, trailer). Header `01 03…` confirms Format A on decode.
+
+## 6 · Operational quirks (the ones that cost hours — READ before automating)
+- **Advertises ONLY when worn (finger-in).** NOT while idle, NOT on the USB charger, NOT just after
+  removal. To connect for a download you must physically **wear it**.
+- **The phone ViHealth app auto-grabs the single BLE link.** A BLE peripheral holds ONE connection — if
+  the phone/app has it, nothing else can connect. **Close the app** (or phone Bluetooth off) to let the
+  box connect.
+- **One link, period** — the capture daemon and the puller can't both hold the ring; stop the daemon
+  (`fuser -k 8760/tcp`) before `pull_session.py`.
+- **Short advertising burst** — the ring advertises briefly then sleeps; a fixed-timeout `discover()`
+  finds it but misses the connect window. Use an **early-exit scan**
+  (`BleakScanner.find_device_by_filter`) that connects on first sight (`pull_session.py`).
+- **`_HR.txt`/onboard-HR is not exposed the same way** — the honest HR is in the live 0x04 header and the
+  stored `.dat`, both above.
+
+## 7 · Capabilities summary
+- **Live:** SpO₂, pulse, motion, battery, finger-contact, ~1 Hz. Feeds the daemon's ViHealth-CSV writer
+  (`Spo2CsvWriter`) that OxyDex already parses — no new parser branch.
+- **Onboard download:** full recorded sessions (SpO₂ + HR @1 Hz + status + a session O₂-score trailer),
+  pulled without the phone. This is the same record the vendor app produces.
+- **Not available on this unit:** **PPI** (peak-interval) — the live 0x04 header has no reliable IBI, and
+  there is no separate PPI stream (cf. the Verity's dead PPI in `CAPTURE-HOST-FOLLOWUPS-II §V3`). Beat
+  intervals, if wanted, come from a raw-PPG device, not this ring.
+
+## 8 · Hardware validation (2026-07-17)
+- Pulled **4 stored sessions**, incl. a **10 h night**: mean SpO₂ **96.3 %**, HR **50**, min SpO₂ 86 %,
+  O₂-score **9.2/10**, 35 955/36 000 valid — a clean, plausible nocturnal-oximetry record.
+- **Stored `.dat` vs the daemon's live SpO₂ CSV**, ~6.2 h overlap: **SpO₂ MAE 0.76 %** (bias +0.01 %,
+  85 % within ±1 %), **HR MAE 2.42 bpm** (bias +0.08). The live `oxyii` capture faithfully reproduces the
+  ring's own recording — validating both the live decode and the file decode against each other.
+
+## 9 · Clock Contract implication (⚠️ carry this forward)
+The comparison's best alignment needed a **+151 s (~2.5 min) shift**: the ring's **onboard clock is not
+NTP-synced** and drifts from the host. Consequences under CLAUDE.md §🔒:
+- The **live** path stamps with the **host's NTP wall clock** (`_now()`, monotonic-anchored) — correct
+  and Clock-Contract-compliant.
+- The **stored `.dat`** timestamps are on the **ring's own unsynced clock** → they need a per-download
+  **offset correction** (estimated by aligning against a same-window NTP-stamped signal) before the `.dat`
+  can be fused with ECG/PPG/etc. Treat onboard-`.dat` time as *approximate* until corrected.
+
+## Related
+- [`CAPTURE-HOST-FOLLOWUPS-II-2026-07-16-BRIEF.md`](CAPTURE-HOST-FOLLOWUPS-II-2026-07-16-BRIEF.md) — the capture bring-up (O2Ring OxyII live path landed there).
+- [`CAPTURE-HOST-2026-06-29-BRIEF.md`](CAPTURE-HOST-2026-06-29-BRIEF.md) — the Health Box / capture architecture.
+- [`POLAR-SDK-CAPTURE-2026-07-07-BRIEF.md`](POLAR-SDK-CAPTURE-2026-07-07-BRIEF.md) — the sibling reverse-engineering note (Polar PMD).
