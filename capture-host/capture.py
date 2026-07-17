@@ -9,9 +9,8 @@
 #    scaffold honoring the §7 integration contract; validate against real frames + PSL output first.
 
 from __future__ import annotations
-import argparse, asyncio, contextlib, json, logging, os, signal, subprocess, time as _time, datetime as _dt
+import argparse, asyncio, contextlib, json, logging, os, signal, time as _time, datetime as _dt
 import yaml
-from bleak import BleakClient
 
 from writers import StreamWriter, Spo2CsvWriter, capture_filename, night_dir
 import polar_pmd as pmd

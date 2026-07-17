@@ -53,7 +53,7 @@ def consumer_infer(path: str) -> dict:
                 continue
             p = [c for c in _split(line)]
             try:
-                v = float(p[-1])
+                float(p[-1])          # validity probe — raises on a header / junk row
             except (ValueError, IndexError):
                 continue  # header / junk row (non-numeric last column)
             n += 1

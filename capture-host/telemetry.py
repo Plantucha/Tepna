@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 import asyncio, collections, datetime as _dt
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
