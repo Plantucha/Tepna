@@ -85,7 +85,12 @@ that pays the re-bundle cost, so batch it with any other HRVDex/OxyDex behaviora
 
 ## Done when (each lands independently)
 
-- [ ] (3) analysis-kernel known-answers via Route A (expose + guard), green both lanes; pages still run.
+- [~] (3) analysis-kernel known-answers via Route A (expose + guard). **cohort-regression `olsR2` DONE**
+      (8 assertions, both lanes; DOM-guarded so it loads headless). **Remaining:** `qrs-equiv` (`pearson`/
+      `ba`) — same Route A, but it is INLINED by `build-analysis`, so it also owes a `build-analysis --tool
+      qrs-equiv-analysis.html` re-run + biome reflow of the guard → its own PR. `qrs-yield`/`pat-feasibility`
+      unique math is mostly orchestration over `mean`/`median` (already covered by `analysis-stats`) — low
+      unit-test value; expose only if a specific kernel there proves non-trivial.
 - [ ] (4) real-Worker known-answer rig for the 4 workers (browser lane), paired with (3)'s fixtures.
 - [ ] (1b) HRVDex/OxyDex profile seam + known-answers + re-bundle + provenance regen.
 

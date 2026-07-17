@@ -243,6 +243,9 @@ async function main(){
   { const _n = await fetchText('nsrr-adapter.js'); if(_n) (0, eval)(esmClassicify(_n)); }
   // TEST-COVERAGE-FOLLOWUPS Item 5: OverDex's recursive folder walker (globalThis.OverDexWalk). DOM-free.
   { const _w = await fetchText('overdex-walk.js'); if(_w) (0, eval)(esmClassicify(_w)); }
+  // TEST-COVERAGE-FOLLOWUPS-II Item 3 (Route A): the cohort-regression page exposes window.CohortRegression.olsR2
+  // (+ a DOM guard so it evals headless here). Tests the shipped OLS kernel, not a copy.
+  { const _cr = await fetchText('cohort-regression.js'); if(_cr) (0, eval)(esmClassicify(_cr)); }
   // gather fixtures + sources (browser I/O; runner does the equivalent in Node)
   const fixtures = {}, sources = {};
   await Promise.all(Object.keys(FIXTURE_FILES).map(async k => { fixtures[k] = await fetchJSON(FIXTURE_FILES[k]); }));
@@ -447,6 +450,7 @@ async function main(){
     PPGProfile: window.PPGProfile,
     NSRR: window.NSRR,
     OverDexWalk: window.OverDexWalk,
+    CohortRegression: window.CohortRegression,
     CrossNightEnvelope: window.CrossNightEnvelope,
     ECGCross: window.ECGCross,
     OXYCross: window.OXYCross, PulseCross: window.PulseCross, PPGCross: window.PPGCross,
