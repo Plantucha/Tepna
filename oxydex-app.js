@@ -546,7 +546,7 @@ function exportCSV() {
       var c = n.stab.components;
       lines.push(
         '  SpO2 Stability Score,' + c.spo2Stab,
-        '  HR Floor Score,' + c.hrFloor,
+        '  HR Floor Score,' + (c.hrFloor == null ? 'n/a (HR unmeasurable)' : c.hrFloor),
         '  Motion Score,' + c.motion,
         '  PB Windows Score,' + c.pb,
         '  Hypoxic Burden Score,' + c.hypoxicBurden,

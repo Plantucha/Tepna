@@ -2923,12 +2923,18 @@
   // Weighted across 6 components. Single integrative index for quick trending.
   function computeSleepStabilityScore(stats, hrv, osc, hb) {
     var s1 = Math.max(0, Math.min(100, Math.round(((2.0 - stats.spo2Std) / 1.5) * 100)));
-    var s2 = hrv ? Math.max(0, Math.min(100, Math.round(((70 - hrv.hrFloor) / 18) * 100))) : 50;
+    // HR-floor subscore is null when HR is UNMEASURABLE (computeHRV → null on <120 motion-free,
+    // non-artifact samples). Seeding a neutral 50 here (the old behavior) FABRICATED absence — it
+    // fed a fixed 5-point contribution and exported as a real subscore, differing from a genuinely
+    // poor-but-measured floor (0 pts) by up to 5 score points. Instead drop it and renormalize the
+    // remaining 0.9 of weight to 1.0 so the score reflects only the components actually measured,
+    // and surface hrFloor=null so the absence is visible (gate on inputs PRESENT, never seed one).
+    var s2 = hrv ? Math.max(0, Math.min(100, Math.round(((70 - hrv.hrFloor) / 18) * 100))) : null;
     var s3 = Math.max(0, Math.min(100, Math.round(((2.0 - stats.motionPct) / 1.8) * 100)));
     var s4 = Math.max(0, Math.min(100, Math.round(((20 - osc.episodeCount) / 20) * 100)));
     var s5 = Math.max(0, Math.min(100, Math.round(((15 - hb.rate) / 15) * 100)));
     var s6 = Math.max(0, Math.min(100, Math.round(((20 - stats.t95pct) / 20) * 100)));
-    var score = Math.round(s1 * 0.2 + s2 * 0.1 + s3 * 0.15 + s4 * 0.2 + s5 * 0.2 + s6 * 0.15);
+    var score = s2 == null ? Math.round((s1 * 0.2 + s3 * 0.15 + s4 * 0.2 + s5 * 0.2 + s6 * 0.15) / 0.9) : Math.round(s1 * 0.2 + s2 * 0.1 + s3 * 0.15 + s4 * 0.2 + s5 * 0.2 + s6 * 0.15);
     var grade = score >= 80 ? 'Good' : score >= 60 ? 'Fair' : 'Poor';
     var gradeClass = score >= 80 ? 'good' : score >= 60 ? 'warn' : 'bad';
     return { score: score, grade: grade, gradeClass: gradeClass, components: { spo2Stab: s1, hrFloor: s2, motion: s3, pb: s4, hypoxicBurden: s5, t95: s6 } };

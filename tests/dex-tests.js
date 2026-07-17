@@ -3342,6 +3342,34 @@
            the ladder word "validated" into a status-HUE pill; OverDex rendered a fused clinical KPI
            grid with NO badge engine loaded; and `.ev-corner` — the mandate's card placement — existed
            in the CSS mirror but NOT in the engine, so no app could actually use it. */
+    /* AUDIT-2026-07-16 F3 — the Sleep Stability Score's HR-floor subscore fabricated a neutral 50
+       when HR was UNMEASURABLE (computeHRV → null on <120 motion-free, non-artifact samples), fed a
+       fixed 5-point contribution into the composite, and exported it as a real subscore. That is the
+       zero/neutral-default-composite class: absence valued as a number. The fix drops the subscore
+       and renormalizes the remaining 0.9 of weight to 1.0, surfacing hrFloor=null. */
+    group('OxyDex sleep-stability: absent HR is null + renormalized, not a fabricated 50 (AUDIT-2026-07-16 F3)', 'oxydex-dsp · fabricated-absence · regression', function (T) {
+      var OD = env.OxyDex;
+      // computeSleepStabilityScore is a DSP helper on the _bare surface (destructured by the ESM UI),
+      // not the public OxyDex namespace.
+      var css = OD && ((OD._bare && OD._bare.computeSleepStabilityScore) || OD.computeSleepStabilityScore);
+      T.ok('OxyDex.computeSleepStabilityScore exposed (via _bare)', typeof css === 'function');
+      if (typeof css !== 'function') return;
+      // 5 measured components all = 100 (perfect SpO2 stability / motion / PB / hypoxic burden / T95),
+      // so the arithmetic isolates the HR-floor subscore's contribution.
+      var stats = { spo2Std: 0.5, motionPct: 0.2, t95pct: 0 },
+        osc = { episodeCount: 0 },
+        hb = { rate: 0 };
+      // HR unmeasurable: the subscore MUST be null (not a neutral 50), and the score must renormalize
+      // over the 5 present components (90/0.9 = 100) rather than blend a phantom 50 (which gave 95).
+      var absent = css(stats, null, osc, hb);
+      T.eq('absent HR → hrFloor component is null (not a fabricated 50)', absent.components.hrFloor, null);
+      T.eq('absent HR → score renormalized over present components (100, not the phantom-50 blend of 95)', absent.score, 100);
+      // control — HR present: the subscore is the real value (0 at a 70 bpm floor) and enters the blend.
+      var present = css(stats, { hrFloor: 70 }, osc, hb);
+      T.eq('present HR → hrFloor component is the measured subscore (0 at a 70 bpm floor)', present.components.hrFloor, 0);
+      T.eq('present HR → score includes the 0.1-weighted subscore (90, unchanged from before the fix)', present.score, 90);
+    });
+
     group(
       '§17-§21 hygiene — no fabricated date, no 0-for-undefined, no pop-default-as-you, pooled indices, badged heroes',
       'oxydex-dsp · cpapdex-fusion · dex-profile · metric-registry · badges',
