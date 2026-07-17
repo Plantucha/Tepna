@@ -910,7 +910,18 @@ async function main() {
     // TEST-COVERAGE-ANALYSIS 2026-07-15 — the analysis-page statistics kernels, single-sourced so the
     // 'Analysis-page statistics kernels — known-answer' group (dex-tests.js) can execute the paper-figure
     // math. Load failure → env.AnalysisStats undefined → that group's availability assert reds.
-    'analysis-stats.js'
+    'analysis-stats.js',
+    // TEST-COVERAGE-FOLLOWUPS §1 — the per-node PROFILE engines (cited VO₂/HRV/apnea/eAG physiology).
+    // They attach window.ECGProfile / GLUProfile / PPGProfile; load failure → those env keys undefined →
+    // the 'Per-node profile personalization — known-answer' availability assert reds. DexProfile + all
+    // node DSPs (incl. glucodex-dsp above) are already in the realm, so personalize() resolves.
+    'ecgdex-profile.js',
+    'glucodex-profile.js',
+    'ppgdex-profile.js',
+    // TEST-COVERAGE-FOLLOWUPS §2 — the NSRR PSG ingest adapter (channel matching · 1 Hz resample ·
+    // Clock-Contract EDF→OxyDex rows · severity bands). Attaches window.NSRR; the XML annotation
+    // parser (parseNsrrXml) needs DOMParser and is exercised in the browser lane only.
+    'nsrr-adapter.js'
   ].forEach((f) => {
     try {
       loadInto(ctx, f);
@@ -923,6 +934,10 @@ async function main() {
     DexKernel: ctx.DexKernel,
     MetricRegistry: ctx.MetricRegistry,
     DexProfile: ctx.DexProfile,
+    ECGProfile: ctx.ECGProfile,
+    GLUProfile: ctx.GLUProfile,
+    PPGProfile: ctx.PPGProfile,
+    NSRR: ctx.NSRR,
     CrossNightEnvelope: ctx.CrossNightEnvelope,
     ECGCross: ctx.ECGCross,
     OXYCross: ctx.OXYCross,

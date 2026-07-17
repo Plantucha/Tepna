@@ -13399,6 +13399,194 @@
       T.ok('NORMS cite BP=ACC/AHA', DP.NORMS && /ACC\/AHA/.test(DP.NORMS.sbp.source));
     });
 
+    /* ════ 21b · PER-NODE PROFILE PERSONALIZATION — known-answer (TEST-COVERAGE-FOLLOWUPS §1) ════
+     The five per-node profile engines carry ~2.85k lines of INDEPENDENT, cited physiology
+     (Tanaka HRmax · Uth–Sørensen VO₂max · age-norm rMSSD/RHR · CVHR apnea bands · ADAG eAG bias)
+     yet shipped with ZERO behavioral assertions — `ECGProfile`/`GLUProfile`/`PPGProfile` were
+     loaded but never surfaced into `env`, so no group could reach them (the DOM-only
+     `hrvdex-profile`/`oxydex-profile` still owe a testability seam — brief §1b). These pin the
+     cited formulas through the real `personalize(r)` path under a controlled DexProfile record
+     (the §19 `_setStore(mk())` idiom). Expected values were observed from the real modules and
+     match the closed-form hand-derivation; a change to any coefficient reds here. */
+    group('Per-node profile personalization — known-answer (TEST-COVERAGE-FOLLOWUPS §1)', 'ecgdex-profile · glucodex-profile · ppgdex-profile · profile · known-answer', function (T) {
+      var P = env.DexProfile;
+      var ready = !!(env.ECGProfile && env.GLUProfile && env.PPGProfile && P && typeof P._setStore === 'function' && typeof P.setManual === 'function');
+      // Presence is an ASSERTION, not a skip: these engines SHOULD be wired into both lanes' env
+      // (run-tests.mjs + Dex-Test-Suite.html). An absence is a real red, not an undeclared ⊘.
+      T.ok('profile engines + DexProfile store are wired into env (both lanes)', ready, 'ECGProfile/GLUProfile/PPGProfile or DexProfile._setStore missing');
+      if (!ready) return;
+      var mk = function () {
+        var m = {};
+        return {
+          getItem: function (k) {
+            return k in m ? m[k] : null;
+          },
+          setItem: function (k, v) {
+            m[k] = String(v);
+          },
+          removeItem: function (k) {
+            delete m[k];
+          }
+        };
+      };
+
+      // ── ECGDex · short strip · sea level · no manual HRmax/RHR (age 40 M) ──────────────
+      P._setStore(mk());
+      P.setManual('age', 40);
+      P.setManual('sex', 'M');
+      P.setManual('weight', 80);
+      P.setManual('height', 178);
+      P.setManual('elevation', 0);
+      P.setManual('cpap', 'no');
+      var a = env.ECGProfile.personalize({ hr: 55, longRec: false, dispRm: 40, ambulatory: false });
+      T.eq('ECG · Tanaka HRmax = 208 − 0.7·age (age 40)', a.tanaka, 180);
+      T.eq('ECG · short-strip resting HR = round(measured HR)', a.autoRHR, 55);
+      T.eq('ECG · no manual HRmax ⇒ HRmax falls back to Tanaka', a.hrmaxEff, 180);
+      T.eq('ECG · sea-level altitude factor is 1', a.altFactor, 1);
+      T.approx('ECG · VO₂max base = 15.3·HRmax/RHR (Uth–Sørensen 2004)', a.vo2base, 50.1, 0.05);
+      T.approx('ECG · VO₂max HRV-adjusted (rMSSD ≈ age-median ⇒ ~unchanged)', a.vo2adj, 51.5, 0.05);
+      T.eq('ECG · HRV score = 1.494·rMSSD − 13.37 (rMSSD 40)', a.hrvScore, 46);
+      T.eq('ECG · age-expected rMSSD (age 40)', a.expRmssd, 40);
+      T.eq('ECG · age-expected resting HR (age 40)', a.expRHR, 61);
+      T.eq('ECG · short strip cannot screen apnea (CVHR needs overnight)', a.apneaRisk.cat, '—');
+      T.eq('ECG · no overnight ⇒ no estimated AHI', a.estAHI, null);
+
+      // ── ECGDex · overnight · altitude 2500 m · on CPAP · valid manual HRmax 170 (age 55) ──
+      P._setStore(mk());
+      P.setManual('age', 55);
+      P.setManual('sex', 'M');
+      P.setManual('elevation', 2500);
+      P.setManual('cpap', 'yes');
+      P.setManual('hrMax', 170);
+      var b = env.ECGProfile.personalize({ hr: 60, longRec: true, epochs: [{ hr: 52 }, { hr: 54 }, { hr: 50 }, { hr: 58 }, { hr: 60 }], dispRm: 20, ambulatory: false, cvhr: { index: 12 } });
+      T.eq('ECG · Tanaka rounds half-up (age 55 ⇒ 169.5→170)', b.tanaka, 170);
+      T.eq('ECG · nocturnal HR floor = p5 of epoch HR', b.hrFloor, 50);
+      T.eq('ECG · overnight resting HR = nocturnal floor + 8', b.autoRHR, 58);
+      T.eq('ECG · a VALID manual HRmax (≥140, >RHR+45) is honored over Tanaka', b.hrmaxEff, 170);
+      T.approx('ECG · altitude VO₂ factor at 2500 m', b.altFactor, 0.967, 1e-6);
+      T.approx('ECG · VO₂max base carries the altitude derate', b.vo2base, 43.4, 0.05);
+      T.approx('ECG · VO₂max HRV-adjusted down (low rMSSD)', b.vo2adj, 41.6, 0.1);
+      T.eq('ECG · CVHR 12/h on CPAP ⇒ "Residual" band', b.apneaRisk.cat, 'Residual');
+      T.eq('ECG · apnea band flags CPAP context', b.apneaRisk.cpap, true);
+      T.eq('ECG · estimated AHI value = CVHR index', b.estAHI.value, 12);
+      T.eq('ECG · estimated AHI band = Mild (5–15/h)', b.estAHI.band, 'Mild');
+      T.eq('ECG · age-expected resting HR rises with age (55)', b.expRHR, 63);
+
+      // ── PpgDex · optical wrist · shares the ECG VO₂/HRV kernel (age 40 M) ─────────────
+      P._setStore(mk());
+      P.setManual('age', 40);
+      P.setManual('sex', 'M');
+      P.setManual('elevation', 0);
+      var pp = env.PPGProfile.personalize({ dispHr: 55, dispRm: 40, dispSd: 45 });
+      T.eq('PPG · Tanaka HRmax (age 40)', pp.tanaka, 180);
+      T.eq('PPG · optical resting HR = round(dispHr)', pp.autoRHR, 55);
+      T.approx('PPG · VO₂max base = 15.3·HRmax/RHR', pp.vo2base, 50.1, 0.05);
+      T.approx('PPG · VO₂max HRV-adjusted', pp.vo2adj, 51.5, 0.05);
+      T.eq('PPG · HRV score = 1.494·rMSSD − 13.37', pp.hrvScore, 46);
+      T.eq('PPG · age-expected rMSSD (age 40)', pp.expRmssd, 40);
+
+      // ── GlucoDex · type-1 on MDI · lab A1c 7.0 % (age 50) ────────────────────────────
+      P._setStore(mk());
+      P.setManual('age', 50);
+      P.setManual('diabetes', 'type1');
+      P.setManual('a1c', 7.0);
+      P.setManual('dxTherapy', 'mdi');
+      var g = env.GLUProfile.personalize({ tir: { tir: 70, tbr1: 2, tbr2: 1 }, cv: 36, mean: 170, biasOffset: 0, gmi: 6.8, activeMin: 1000, compMin: 50, pctActive: 95 });
+      T.eq('GLU · insulin therapy detected (mdi)', g.onInsulin, true);
+      T.eq('GLU · TBR goal tightens to <4 % on insulin', g.hypoGoal, 4);
+      T.eq('GLU · glycemic stability score (0.55·TIR + 0.45·CVscore − hypoPenalty)', g.stabilityScore, 54);
+      T.eq('GLU · expected GMI for type-1', g.expGMI, 6.8);
+      T.eq('GLU · GMI vs lab-A1c delta (6.8 − 7.0)', g.gmiCheck.delta, -0.2);
+      T.eq('GLU · GMI within 0.5 of lab ⇒ agree', g.gmiCheck.agree, true);
+      T.eq('GLU · lab-implied eAG = 28.7·A1c − 46.7 (ADAG)', g.calib.labEAG, 154);
+      T.eq('GLU · sensor-vs-lab bias (−ve ⇒ sensor reads HIGH vs lab)', g.calib.bias, -16);
+      T.eq('GLU · |bias| ≥ 15 mg/dL ⇒ "large"', g.calib.magnitude, 'large');
+      T.approx('GLU · data-quality confidence (coverage − 1.5·compression + 0.08)', g.dataQualityConf, 0.96, 1e-9);
+
+      P._setStore(mk()); // leave a pristine record for later groups (mirrors §19)
+    });
+
+    /* ════ 21c · NSRR PSG INGEST ADAPTER — known-answer (TEST-COVERAGE-FOLLOWUPS §2) ════
+     `nsrr-adapter.js` (window.NSRR) bridges real NSRR/PhysioNet PSG cohorts (SHHS/MESA/MrOS/CHAT)
+     into the OxyDex pipeline for the ODI-4-vs-AHI bias work — a clinical ingest parser that shipped
+     with ZERO coverage (it was a dependency of the tested odi-bias PAGE, but that group loads the
+     downstream stats kernel, never this parser). These pin: SpO₂/HR channel-label matching across
+     cohort spellings, 1 Hz resample with dropout forward-fill + leading-NaN backfill, the
+     Clock-Contract EDF→OxyDex row conversion (floating t0Ms + i·1000, getUTC* readback), the AHI
+     severity bands, and — in the browser lane (parseNsrrXml needs DOMParser) — profusion-XML event
+     classification + AHI = (apnea+hypopnea)/TST. Same bug-class the O2Ring .dat / ResMed-EDF adapter
+     gates already guard. Expected values observed from the real module + closed-form derivation. */
+    group('NSRR PSG ingest adapter — known-answer (TEST-COVERAGE-FOLLOWUPS §2)', 'nsrr-adapter · ingest · known-answer', function (T) {
+      var N = env.NSRR;
+      T.ok('NSRR adapter is wired into env (both lanes)', !!(N && N.findSignal && N.edfToOxyRows && N.severityOf), 'window.NSRR missing or incomplete');
+      if (!N || !N.edfToOxyRows) return;
+
+      // ── channel-label matching across cohort spellings (case- + punctuation-insensitive contains) ──
+      T.eq('findSignal · picks SpO2 over EEG/Pulse', N.findSignal({ 'EEG C4': {}, SpO2: {}, Pulse: {} }, N.SPO2_LABELS), 'SpO2');
+      T.eq('findSignal · "SaO2 (%)" normalizes to sao2 and matches', N.findSignal({ 'SaO2 (%)': {} }, N.SPO2_LABELS), 'SaO2 (%)');
+      T.eq('findSignal · no oximetry channel ⇒ null', N.findSignal({ EEG: {}, ECG: {} }, N.SPO2_LABELS), null);
+      T.eq('findSignal · pulse channel matched by HR labels', N.findSignal({ EEG: {}, SpO2: {}, Pulse: {} }, ['pulse', 'heart rate', 'hr', 'pr']), 'Pulse');
+
+      // ── 1 Hz resample (via the public edfToOxyRows — to1Hz is internal): nearest-sample,
+      //    forward-fill an out-of-range dropout, backfill leading invalids so the head is never NaN ──
+      var rs = N.edfToOxyRows({ signals: { SpO2: { fs: 2, data: [95, 95, 96, 96, 200, 200, 97, 97] } }, clock: { t0Ms: Date.UTC(2020, 0, 1, 0, 0, 0) } });
+      T.eq('resample · fs=2/n=8 ⇒ 4 one-second rows', rs.rows.length, 4);
+      T.eq('resample · row 0 nearest sample', rs.rows[0].spo2, 95);
+      T.eq('resample · an out-of-range (200%) sample forward-fills from last valid', rs.rows[2].spo2, 96);
+      var lead = N.edfToOxyRows({ signals: { SpO2: { fs: 1, data: [200, 200, 98, 97] } }, clock: { t0Ms: Date.UTC(2020, 0, 1, 0, 0, 0) } });
+      T.eq('resample · leading invalids backfill from first valid (no head NaN → round 98)', lead.rows[0].spo2, 98);
+      T.eq('resample · trailing valid preserved', lead.rows[3].spo2, 97);
+
+      // ── EDF → OxyDex rows · CLOCK CONTRACT (floating t0Ms, +1000 ms/row, getUTC* readback) ──
+      var t0 = Date.UTC(2020, 5, 10, 22, 0, 0); // 2020-06-10 22:00 floating
+      var conv = N.edfToOxyRows({ signals: { SpO2: { fs: 1, data: [95, 96, 97] }, Pulse: { fs: 1, data: [60, 61, 62] } }, clock: { t0Ms: t0 } });
+      T.eq('edfToOxyRows · one row per second', conv.rows.length, 3);
+      T.eq('edfToOxyRows · row 0 anchors on t0Ms (floating)', conv.rows[0].tMs, t0);
+      T.eq('edfToOxyRows · rows step +1000 ms (1 Hz)', conv.rows[1].tMs - t0, 1000);
+      T.eq('edfToOxyRows · SpO₂ rounded like a real oximeter', conv.rows[0].spo2, 95);
+      T.eq('edfToOxyRows · HR carried when a pulse channel exists', conv.rows[2].hr, 62);
+      T.eq('edfToOxyRows · hadHR flag', conv.hadHR, true);
+      T.eq('edfToOxyRows · resolved SpO₂ label', conv.spo2Label, 'SpO2');
+      // Clock Contract §5 — floating tMs read back via getUTC* is viewer-TZ-independent (22:00 as written)
+      T.eq('edfToOxyRows · getUTCHours reads the wall clock as written (22:00)', new Date(conv.rows[0].tMs).getUTCHours(), 22);
+      // no HR channel ⇒ hr 0 + hadHR false; no clock ⇒ 22:00 fallback anchor
+      var conv2 = N.edfToOxyRows({ signals: { Osat: { fs: 1, data: [96, 96] } } });
+      T.eq('edfToOxyRows · no pulse channel ⇒ hr 0', conv2.rows[0].hr, 0);
+      T.eq('edfToOxyRows · no pulse channel ⇒ hadHR false', conv2.hadHR, false);
+      T.eq('edfToOxyRows · absent EDF clock ⇒ 22:00 fallback anchor', new Date(conv2.t0Ms).getUTCHours(), 22);
+      T.eq('edfToOxyRows · no SpO₂ channel ⇒ null (never fabricate a night)', N.edfToOxyRows({ signals: { EEG: { fs: 1, data: [1, 2] } } }), null);
+
+      // ── AHI severity bands (mirror the clinical categories) ──
+      T.eq('severityOf · null passes through', N.severityOf(null), null);
+      T.eq('severityOf · <5 = none', N.severityOf(3), 'none');
+      T.eq('severityOf · [5,15) = mild', N.severityOf(5), 'mild');
+      T.eq('severityOf · [15,30) = mod', N.severityOf(15), 'mod');
+      T.eq('severityOf · ≥30 = severe', N.severityOf(30), 'severe');
+
+      // ── profusion-XML annotation → AHI scoring (BROWSER lane only — parseNsrrXml needs DOMParser) ──
+      if (typeof DOMParser !== 'undefined' && N.parseNsrrXml) {
+        var xml =
+          '<CMPStudyConfig><ScoredEvents>' +
+          '<ScoredEvent><EventConcept>Obstructive apnea|Obstructive Apnea</EventConcept><Start>100</Start><Duration>15</Duration></ScoredEvent>' +
+          '<ScoredEvent><EventConcept>Hypopnea|Hypopnea</EventConcept><Start>200</Start><Duration>20</Duration></ScoredEvent>' +
+          '<ScoredEvent><EventConcept>Central apnea|Central Apnea</EventConcept><Start>300</Start><Duration>12</Duration></ScoredEvent>' +
+          '<ScoredEvent><EventConcept>Stage 2 sleep|2</EventConcept><Start>0</Start><Duration>1800</Duration></ScoredEvent>' +
+          '<ScoredEvent><EventConcept>Stage 0 sleep|0</EventConcept><Start>1800</Start><Duration>600</Duration></ScoredEvent>' +
+          '</ScoredEvents></CMPStudyConfig>';
+        var p = N.parseNsrrXml(xml, t0);
+        T.eq('parseNsrrXml · counts obstructive+central as apnea', p.nApnea, 2);
+        T.eq('parseNsrrXml · counts hypopnea separately', p.nHypop, 1);
+        T.eq('parseNsrrXml · total respiratory events', p.nResp, 3);
+        T.eq('parseNsrrXml · TST from non-Wake staged epochs only (0.5 h)', p.tstHours, 0.5);
+        T.eq('parseNsrrXml · AHI = (apnea+hypopnea)/TST = 3/0.5', p.scoredAHI, 6);
+        T.eq('parseNsrrXml · a staged Wake epoch is excluded from TST', p.staged, true);
+        T.eq('parseNsrrXml · only respiratory events are emitted', p.events.length, 3);
+        T.eq('parseNsrrXml · first event classified apnea', p.events[0].kind, 'apnea');
+        T.eq('parseNsrrXml · Clock-Contract absolute tMs = t0 + Start·1000', p.events[0].tMs, t0 + 100000);
+        T.eq('parseNsrrXml · second event classified hypopnea', p.events[1].kind, 'hypopnea');
+      }
+    });
+
     /* ════ 22 · PROPERTY / METAMORPHIC — HRV invariants + SignalFrame contract ════
      The generative complement to the suite's known-answer tests (WP-C/D/D2) and
      synthetic→DSP recovery (FULL-lane): instead of one input→expected pair, state
