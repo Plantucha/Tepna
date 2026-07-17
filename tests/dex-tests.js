@@ -13693,6 +13693,35 @@
       T.eq('calcVo2Cat · sex F · SAME VO₂/age reads higher on the lower female norms ⇒ "Poor"', vo2Cat(30, 32, 'F'), 'Poor');
     });
 
+    /* ════ 21g · OxyDex PROFILE PERSONALIZATION — known-answer (TEST-COVERAGE-FOLLOWUPS-II §1b) ════
+     The OxyDex sibling of §1b. Execution found this ALSO needs no re-bundle: oxydex-profile.js's up*
+     helpers are top-level globals, and it loads headless once oxydex-util.js (sv/gv, DOM-guarded) is
+     present — its initProfile() DOM writes no-op via sv's getElementById guard. Pins the pure cited
+     kernels: the Karvonen target-HR zone (HRrest + intensity·(HRmax−HRrest)) + the BMI category bands. */
+    group('OxyDex profile personalization — known-answer (TEST-COVERAGE-FOLLOWUPS-II §1b)', 'oxydex-profile · profile · known-answer', function (T) {
+      var kz = env.OxyKarvonenZone,
+        bmi = env.OxyBMILabel;
+      T.ok('OxyDex upKarvonenZone + upBMILabel are wired into env (both lanes)', typeof kz === 'function' && typeof bmi === 'function', 'window.upKarvonenZone/upBMILabel missing');
+      if (typeof kz !== 'function' || typeof bmi !== 'function') return;
+
+      // Karvonen: target = HRrest + intensity·(HRmax − HRrest), rounded. HRR = 190−60 = 130.
+      var z = kz(0.5, 0.85, 60, 190);
+      T.eq('upKarvonenZone · low bound = round(HRrest + 0.50·HRR)', z.low, 125); // 60 + 0.5·130 = 125
+      T.eq('upKarvonenZone · high bound = round(HRrest + 0.85·HRR)', z.high, 171); // 60 + 0.85·130 = 170.5 → 171
+      var z2 = kz(0.6, 0.7, 50, 180); // HRR 130 → 128 / 141
+      T.eq('upKarvonenZone · anchors on HRrest, scales by HR-reserve (low)', z2.low, 128);
+      T.eq('upKarvonenZone · anchors on HRrest, scales by HR-reserve (high)', z2.high, 141);
+      T.eq('upKarvonenZone · zero HR-reserve ⇒ both bounds collapse to HRrest', JSON.stringify(kz(0.5, 0.85, 150, 150)), JSON.stringify({ low: 150, high: 150 }));
+
+      // BMI category bands (WHO cut points, half-open at the lower edge)
+      T.eq('upBMILabel · <18.5 → Underweight', bmi(17), 'Underweight');
+      T.eq('upBMILabel · 18.5 boundary → Normal', bmi(18.5), 'Normal');
+      T.eq('upBMILabel · [18.5,25) → Normal', bmi(22), 'Normal');
+      T.eq('upBMILabel · 25 boundary → Overweight', bmi(25), 'Overweight');
+      T.eq('upBMILabel · [25,30) → Overweight', bmi(27), 'Overweight');
+      T.eq('upBMILabel · ≥30 → Obese', bmi(32), 'Obese');
+    });
+
     /* ════ 22 · PROPERTY / METAMORPHIC — HRV invariants + SignalFrame contract ════
      The generative complement to the suite's known-answer tests (WP-C/D/D2) and
      synthetic→DSP recovery (FULL-lane): instead of one input→expected pair, state
