@@ -104,7 +104,16 @@ like 1a's.
       **Deliberately NOT exposed:** `qrs-yield`/`pat-feasibility` unique math is orchestration over
       `mean`/`median` (already covered by `analysis-stats`) — low unit-test value; assessed, not skipped
       silently. Route B (extract-to-shared-kernel dedup) remains OPTIONAL, not needed for coverage.
-- [ ] (4) real-Worker known-answer rig for the 4 workers (browser lane), paired with (3)'s fixtures.
+- [~] (4) worker known-answer rigs. **qrs-equiv-worker DONE** (11 assertions, both lanes): a reusable
+      **realm-reconstruction** rig (WORKER-REALM-GATES §2 pattern, but for a real Worker FILE not a blob) —
+      `new Function(workerSrc)` with deps passed as params + a no-op `importScripts` (deps already
+      instantiated), drives the `init`/`job` message protocol, and asserts ready-no-err · done-no-error (the
+      throw class) · seed-12345 known-answer (AHI 25.9, 575 beats, ECGDex rMSSD 34.9, PpgDex rMSSD 41.8) ·
+      determinism across two runs. **Remaining (mechanical, same harness):** `qrs-yield-worker`,
+      `cohort-worker`, `pat-feasibility-worker` — each needs its own `SCRIPTS` dep list wired into `env` +
+      a seed→output known-answer. Their `doJob` is synchronous like qrs-equiv's, so the rig transfers. Note:
+      these are real Worker FILES (importScripts real deps), so they DON'T carry the PpgDex hand-maintained-
+      deps drift risk — the rig's value is catching a DSP-symbol regression at the worker boundary.
 - [x] (1b) profile seam — **DONE, and NO re-bundle for EITHER app** (the brief's whole re-bundle premise
       was wrong). **HRVDex** (13 assertions, PR #148): `calcVo2Cat`/`getAgeBand` already leak as globals +
       load headless. **OxyDex** (12 assertions): `upKarvonenZone` (Karvonen target-HR zones) + `upBMILabel`

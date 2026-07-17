@@ -13722,6 +13722,102 @@
       T.eq('upBMILabel · ≥30 → Obese', bmi(32), 'Obese');
     });
 
+    /* ════ 21h · qrs-equiv WORKER EXECUTES — known-answer (TEST-COVERAGE-FOLLOWUPS-II §4) ════
+     The analysis workers were never executed by any gate (only PpgDex + sensor-trio had a worker leg).
+     Unlike the PpgDex blob (a hand-maintained deps list — the drift that shipped `cadenceSamples is not
+     defined`), these are real Worker FILES that importScripts their deps, and their pages fall back to
+     no-output (not silent serial) on a dead pool — but a DSP-symbol regression at the worker boundary
+     would still be invisible. This reconstructs the worker realm the WORKER-REALM-GATES §2 way: eval the
+     worker SOURCE in a `new Function` realm with deps passed as params + a no-op importScripts (deps are
+     already instantiated), drive its init/job message protocol, and assert it (a) reports ready with NO
+     err, (b) returns a `done` with NO error (the throw class), (c) reproduces a deterministic known-answer,
+     (d) is byte-identical across two runs (a worker changes WHEN work runs, never WHAT it computes). */
+    group('qrs-equiv worker EXECUTES + reproduces a known-answer (TEST-COVERAGE-FOLLOWUPS-II §4)', 'qrs-equiv-worker · worker · regression', function (T) {
+      var wsrc = (env.sources && env.sources['qrs-equiv-worker.js']) || '';
+      var ready = !!(wsrc && env.SYNTH && env.CohortGen && env.CohortFull && env.ECGDSP && env.PPGDSP);
+      T.ok('worker source + deps (SYNTH/CohortGen/CohortFull/ECGDSP/PPGDSP) available', ready, 'wsrc=' + !!wsrc);
+      if (!ready) return;
+
+      // Reconstruct the worker realm: eval its SOURCE with `self` + deps as params, importScripts a no-op
+      // (deps are already instantiated in env). The worker's bare refs (SYNTH, CohortGen, …) bind to params.
+      function drive(seed) {
+        var msgs = [];
+        var selfStub = {
+          postMessage: function (m) {
+            msgs.push(m);
+          }
+        };
+        var noopImport = function () {};
+        var xhrStub = function () {};
+        var runner;
+        try {
+          runner = new Function(
+            'self',
+            'importScripts',
+            'XMLHttpRequest',
+            'SYNTH',
+            'CohortGen',
+            'CohortFull',
+            'ECGDSP',
+            'PPGDSP',
+            'navigator',
+            wsrc + '\n; self.__drive = function (msg) { self.onmessage({ data: msg }); };'
+          );
+          runner(selfStub, noopImport, xhrStub, env.SYNTH, env.CohortGen, env.CohortFull, env.ECGDSP, env.PPGDSP, { hardwareConcurrency: 4 });
+        } catch (e) {
+          return { evalErr: e.constructor.name + ': ' + e.message, msgs: msgs };
+        }
+        selfStub.__drive({ type: 'init' });
+        selfStub.__drive({ type: 'job', seed: seed >>> 0, reqId: 1 });
+        return { msgs: msgs };
+      }
+
+      var r = drive(12345);
+      T.ok('the worker SOURCE evaluates in a reconstructed realm', !r.evalErr, r.evalErr);
+      if (r.evalErr) return;
+      var readyMsg = r.msgs.filter(function (m) {
+        return m.type === 'ready';
+      })[0];
+      var doneMsg = r.msgs.filter(function (m) {
+        return m.type === 'done';
+      })[0];
+      T.ok('init → ready with NO importScripts/closure error (the WORKER-REALM throw class)', !!readyMsg && !readyMsg.err, readyMsg && readyMsg.err);
+      T.ok('job → done with NO error (the worker actually RAN doJob)', !!doneMsg && !doneMsg.error, doneMsg && doneMsg.error);
+      if (!doneMsg || doneMsg.error) return;
+      var res = doneMsg.result;
+      T.ok('the worker produced a result (not a skip)', !!res && !res.skip, JSON.stringify(res));
+      if (!res || res.skip) return;
+
+      // deterministic known-answer (seed 12345) — the seed-derived scenario is fixed
+      T.eq('seed 12345 · scenario AHI', res.ahi, 25.9);
+      T.eq('seed 12345 · beats in the scored window', res.nBeats, 575);
+      // the DSP actually ran IN the worker realm → real rMSSD (not the null a missing-DSP would give).
+      // Pinned exact: deterministic for the seed. A DSP change reds here AND its own equiv gate (a double net).
+      T.ok(
+        'ECGDex rMSSD is a real positive number (the raw-ECG detector ran in the worker realm)',
+        typeof res.ecgRmssd === 'number' && isFinite(res.ecgRmssd) && res.ecgRmssd > 0,
+        'ecgRmssd=' + res.ecgRmssd
+      );
+      T.eq('ECGDex rMSSD known-answer (seed 12345)', res.ecgRmssd, 34.9);
+      T.ok(
+        'PpgDex rMSSD is a real positive number (the optical detector ran in the worker realm)',
+        typeof res.ppgRmssd === 'number' && isFinite(res.ppgRmssd) && res.ppgRmssd > 0,
+        'ppgRmssd=' + res.ppgRmssd
+      );
+      T.eq('PpgDex rMSSD known-answer (seed 12345)', res.ppgRmssd, 41.8);
+      T.ok('the worker reported no per-detector errors', res.errors && Object.keys(res.errors).length === 0, JSON.stringify(res.errors));
+
+      // a worker changes WHEN the work runs, never WHAT — a second reconstruction is byte-identical
+      var r2 = drive(12345);
+      var d2 = r2.msgs.filter(function (m) {
+        return m.type === 'done';
+      })[0];
+      var strip = function (x) {
+        return x && JSON.stringify({ ahi: x.ahi, nBeats: x.nBeats, ecg: x.ecgRmssd, ppg: x.ppgRmssd, cpap: x.cpap });
+      };
+      T.eq('deterministic — re-running the worker realm reproduces the identical result', strip(res), strip(d2 && d2.result));
+    });
+
     /* ════ 22 · PROPERTY / METAMORPHIC — HRV invariants + SignalFrame contract ════
      The generative complement to the suite's known-answer tests (WP-C/D/D2) and
      synthetic→DSP recovery (FULL-lane): instead of one input→expected pair, state
