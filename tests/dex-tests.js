@@ -12442,6 +12442,55 @@
       T.ok('coverage + analyzable fractions reported', typeof r.analyzablePct === 'number' && typeof r.coveragePct === 'number');
     });
 
+    /* ════ ECGDex internal range-gate consistency (AUDIT-2026-07-16 F2) ════
+     validateRR corrects DEVICE RR via _malikCorrect and compares it against selfNN,
+     which buildNN corrected — so the two cleaners MUST share the same 300–2000 ms
+     range gate (ECGDex's documented window, audits/DEX-DSP-AUDIT-BEATS-ARTIFACT.md),
+     or the "self vs device" comparison is not apples-to-apples. _malikCorrect used
+     2200 while buildNN used 2000, so a device beat in the 2000–2200 band survived
+     where its self twin was clamped, biasing dRMSSD/dSDNN. A single 2100 ms beat
+     (≈29 bpm) sat only 13.5% off a ~1850 ms bradycardic median — UNDER the 20% Malik
+     dev gate — so ONLY the absolute upper bound decides its fate: it is the exact
+     input that separates 2000 from 2200. (PulseDex deliberately keeps 2200 for
+     athlete-RR bradycardia; ECGDex does NOT — that per-signal split is intentional.) */
+    group('ECGDex range gate: _malikCorrect matches buildNN at 2000 ms (AUDIT-2026-07-16 F2)', 'ecgdex-dsp · regression', function (T) {
+      var ECG = env.ECGDSP;
+      T.ok('ECGDSP.buildNN + validateRR exposed', ECG && typeof ECG.buildNN === 'function' && typeof ECG.validateRR === 'function');
+      if (!ECG || typeof ECG.buildNN !== 'function' || typeof ECG.validateRR !== 'function') return;
+      // A bradycardic tachogram (~1850 ms ≈ 32 bpm) with one 2100 ms beat (≈29 bpm) whose local
+      // deviation is only 13.5% (< the 20% Malik gate) — so its correction is decided ONLY by the
+      // absolute upper bound. 2100 > 2000 ⇒ range-bad under ECGDex's documented window.
+      var rrBase = [1850, 1820, 1870, 1840, 1860, 1830, 1880, 1810, 1855, 1845, 1835, 1865, 1825, 1875, 1852, 1838, 1868, 1842, 1858, 1848];
+      var K = 9;
+      rrBase[K] = 2100;
+      var rr = [],
+        times = [],
+        sqi = [],
+        tSec = 0;
+      for (var i = 0; i < rrBase.length; i++) {
+        rr.push(rrBase[i]);
+        sqi.push(0.9);
+        times.push(tSec);
+        tSec += rrBase[i] / 1000;
+      }
+      var self = ECG.buildNN(times, rr, sqi);
+      // control — ECGDex's self path already applies the 2000 ms bound, so the 2100 beat is range-bad.
+      T.ok('control · buildNN clamps the 2100 ms beat (self path range = 300–2000)', self.corrected[K] === 1, 'corrected[K]=' + self.corrected[K]);
+      // THE INVARIANT — the device path (_malikCorrect, inside validateRR) must clamp the SAME beat.
+      var deviceRR = rrBase.map(function (v) {
+        return { rr: v };
+      });
+      var v = ECG.validateRR(self.nn, deviceRR);
+      T.ok(
+        '_malikCorrect corrects the 2100 ms device beat too (device range = 300–2000, matching buildNN)',
+        v.devEctopyCorrected >= 1,
+        'devEctopyCorrected=' + v.devEctopyCorrected + ' — pre-fix (2200 bound) this was 0: the band beat survived on the device side only'
+      );
+      // apples-to-apples consequence: self and device carry identical truth, both clamp the band beat
+      // identically, so their SDNN agree. Pre-fix, only self clamped ⇒ a fabricated dSDNN mismatch.
+      T.ok('self-vs-device SDNN agree on identical truth (dSDNN < 5%)', v.dSDNN < 5, 'dSDNN=' + v.dSDNN + '% (pre-fix the un-clamped device 2100 beat inflated devSDNN)');
+    });
+
     /* ════ Optical beat detector — known-answer (WP-D2) ════
      The PPG optical path (autocorrelation-primed peak detector → intersecting-
      tangent feet → PPI → Malik-style correction) is the noisiest, least-validated

@@ -2206,6 +2206,12 @@
   // Malik 20% local-median correction — same rule buildNN now applies to selfNN, so the
   // comparison is corrected-vs-corrected (apples-to-apples). Without this, a device that
   // leaves ectopy/missed-beats in its RR (Polar does) shows a false 40%+ rMSSD "mismatch".
+  // The 300–2000ms range gate MUST match buildNN's (ECGDex's documented window, Task Force
+  // 30–200 bpm — audits/DEX-DSP-AUDIT-BEATS-ARTIFACT.md) or the comparison is NOT actually
+  // apples-to-apples: this used to read 2200 while buildNN corrected selfNN at 2000, so a
+  // device beat in the 2000–2200 band survived where its self twin was clamped, biasing
+  // dRMSSD/dSDNN. (PulseDex deliberately uses 2200 — a per-signal divergence for athlete
+  // RR-file bradycardia, NOT a value ECGDex should adopt.)
   function _malikCorrect(vals) {
     const n = vals.length,
       out = vals.slice(),
@@ -2214,12 +2220,12 @@
     for (let i = 0; i < n; i++) {
       const seg = [];
       for (let j = Math.max(0, i - W); j <= Math.min(n - 1, i + W); j++) {
-        if (j !== i && vals[j] >= 300 && vals[j] <= 2200) seg.push(vals[j]);
+        if (j !== i && vals[j] >= 300 && vals[j] <= 2000) seg.push(vals[j]);
       }
       seg.sort((a, b) => a - b);
       const med = seg.length ? seg[seg.length >> 1] : 0;
       const dev = med ? Math.abs(vals[i] - med) / med : 0;
-      if (vals[i] < 300 || vals[i] > 2200 || dev > 0.2) {
+      if (vals[i] < 300 || vals[i] > 2000 || dev > 0.2) {
         out[i] = med || out[i - 1] || 1000;
         nc++;
       }
