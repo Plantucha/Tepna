@@ -18,4 +18,5 @@
 
 declare var IntegratorDSP: any; // integrator-dsp.js — the fusion layer's public surface
 declare var IntegratorTCH: any; // optional temporal-consensus engine (guarded co-load)
+declare var EventCoupling: any; // event-coupling.js — the shuffled-null coupling primitive (guarded co-load, §P7)
 declare var GangliorProvenance: any; // ganglior-provenance.js — optional provenance stamp (guarded co-load)

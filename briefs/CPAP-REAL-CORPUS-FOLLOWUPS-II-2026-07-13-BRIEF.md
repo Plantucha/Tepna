@@ -37,6 +37,32 @@ different sensor.
 **Done when:** a node calls `EventCoupling.coupling()`; `coverage` is supplied from that node's real
 recording window; the result is read only where `underpowered` and `saturated` are both false.
 
+> **§P7 EXECUTED 2026-07-17.** The **Integrator** is the consumer — `event-coupling.js` is now co-loaded
+> into `Integrator.src.html` + `OverDex.src.html` (so the module rides into the fusion bundle, the "which
+> bundle" question the brief left open), and `fuseApneaEvents` (`integrator-dsp.js`) calls
+> `EventCoupling.coupling(desats, surges, {window:[−15s,+60s], coverage: merged})` for the desat⟷surge
+> ("apnea → HR / CVHR autonomic_surge") question.
+> - **`coverage` is the recording OVERLAP (`merged`) already built in the fusion** — so a desat outside
+>   the cardiac window is EXCLUDED, not a manufactured miss. `coverageAssumed:false` on every real call.
+> - **Additive + guarded, NOT a behavior change:** the result rides as a new `apneaCoupling` export field
+>   beside the existing Poisson `nullModel`; the headline `confirmedAHI`/`confirmedAHIReportable` are
+>   UNCHANGED (the `integrator_tch_golden` is byte-identical). `apneaCoupling.real` is set ONLY on a
+>   `usable` window (neither `underpowered` nor `saturated`) — the brief's rule, encoded.
+> - **Real-corpus grounding (24 committed `uploads/trio/` nights, pooled):** apnea(desat)→HR(autonomic_
+>   surge) lift ≈ **0.83** with coverage supplied (**33 desats excluded** as outside the cardiac window —
+>   the ×0.72 artifact does NOT recur); most single nights are **underpowered** (few desats), so the
+>   primitive honestly reports "can't judge this night" rather than over-claiming — exactly the failure
+>   mode the Poisson λ hid.
+> - **Gate:** `tests/dex-tests.js` group *"Integrator consumes EventCoupling for desat⟷surge (coverage-
+>   aware) — §P7"* — a planted coupling ⇒ `usable`+`real`, a mid-gap control ⇒ `real:false`, the
+>   `real ⇒ usable` invariant, and `coverageAssumed:false`. Bites: reverting the wiring reds "attaches an
+>   EventCoupling block". `event-coupling.js` added to the co-load classification (`RESOLVE`).
+>
+> **DEFERRED (not blocking Done-when):** the brief also names **apnea → motion-arousal** coupling — a
+> second event pairing, not modeled by `fuseApneaEvents` (which is desat⟷surge). Wiring a motion-arousal
+> coupling (and driving the primitive's verdict INTO `confirmedAHIReportable` rather than sitting beside
+> the Poisson model) is a follow-up; the primitive is now live and consumed, so it is no longer dormant.
+
 ---
 
 ## 2 · P8 — `CPAPCross` change detection has never detected a change
