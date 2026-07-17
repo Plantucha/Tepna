@@ -52,6 +52,35 @@ a candidate change-point around night #169 with a ~0.78 cmH₂O envelope shift, 
 **Do:** drive A4's nights through `CPAPCross` and assert it flags the two known change-points. It doubles
 as the check that the 5-min envelope window does not smooth a real step away.
 
+> **§P8 EXECUTED 2026-07-17.** Drove the **whole real A1 corpus** (180 nights, `tools/cpap-corpus.mjs`
+> over the maintainer-only SD-card tree — gitignored, so the assertions below could NOT ship as-is; a
+> **committed synthetic gate** carries them into CI instead, per the repo's "a gate must run on committed
+> data" rule). Findings:
+> - **The two A4 device-setting step-changes are real and the 5-min P90 envelope PRESERVES them.** The
+>   `pressureEnvIqr` step lands at **night #169 (2026-06-30), Δ = 0.776 cmH₂O** — reproducing this brief's
+>   "~#169, ~0.78 cmH₂O" from real data — and `epap95` steps **Δ ≈ 4.0 at #151 (2026-06-12)** (EPAP
+>   10.8→6.8). Fed a synthetic 10→11 step, `pressureEnvelope` returns per-window P90 `[10,10,10,10,11,11,
+>   11,11]` (range 1.0, not a mean-smoothed 10.5): **the window does not smooth a real step away.** ✓
+> - **`crossNight` change detection is now shown to WORK — on real *and* synthetic data.** On the real
+>   corpus it flags `usageHours` (`change.significant=true`) and `largeLeakPct` (`trend=improving`);
+>   synthetically an 8-night `residualAHI` 6→3 step → `trend='improving'`, `change.deltaFirstHalfToSecond
+>   =−3`, `significant=true`. "A gate in name only" is closed.
+> - **Gate (committed, CI):** `tests/dex-tests.js` group *"CPAPCross detects a step-change + the 5-min
+>   envelope preserves it (§P8)"* — asserts (A) a sustained outcome step ⇒ trend `improving` + significant
+>   change block with the right magnitude, a stable control ⇒ `stable`/not-significant/zero-delta, and (B)
+>   the envelope preserves a 1.0 cmH₂O step. Bites: neutering the detector reds "step DETECTED". Test-only,
+>   **export-inert** (no bundle/fixture change).
+>
+> ⚠️ **KNOWN GAP (the brief's literal ask is not fully satisfiable as written — FILED for follow-up).**
+> "Assert `CPAPCross` flags the two known change-points" **cannot** be done, because `CPAPCross`
+> **deliberately does not trend pressure** (`cpapdex-cross.js:17-21` — pressure is a *setting*, not an
+> outcome) and `classifyModeLongitudinal` takes a *median* over ≥7 nights (which smooths a step). So the
+> two A4 change-points at #151/#169 are **structurally invisible to the longitudinal layer**: the
+> envelope *preserves* the step, but nothing *flags* it — the outcomes compensated (APAP working as
+> designed). Closing this needs a **cross-night pressure-envelope change-point detector** (new behavior:
+> surfaces "device settings changed on 2026-06-30" → fusion-output change → golden regen + re-bundle +
+> changeset). Deferred pending a decision to add that surface; recorded here so the gap is greppable.
+
 ---
 
 ## 3 · Nothing gates a demo against gitignored inputs
