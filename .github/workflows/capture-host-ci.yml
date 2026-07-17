@@ -1,0 +1,35 @@
+name: capture-host-ci
+
+# Python CI for the OUT-OF-SUITE capture-host (the Tepna Vigil box software). Path-filtered so it runs
+# ONLY when capture-host/ changes — the JS suite's Node/browser gates are unaffected, and vice versa.
+# Covers the reverse-engineered BLE decoders (oxyii / polar_pmd), the suite-critical writers (Clock
+# Contract / the ~10% HR-bug regression), and clockcfg. No BLE hardware needed — the tested modules are
+# pure-Python (bleak/aiohttp are only imported by the runtime daemon, not by these units).
+
+on:
+  push:
+    paths: ['capture-host/**']
+  pull_request:
+    paths: ['capture-host/**']
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: capture-host
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest ruff
+      - name: Lint (ruff — real errors only)
+        run: ruff check .
+      - name: Unit tests (pytest)
+        run: pytest -q

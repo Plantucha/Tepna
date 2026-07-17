@@ -20,6 +20,7 @@ import asyncio, json, os
 from aiohttp import web
 import yaml
 import bonding
+import clockcfg
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -34,6 +35,8 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             out.append({**{k: d.get(k) for k in
                            ("name", "vendor", "model", "device_id", "address", "streams")},
                         "connected": bool(st.get("connected")),
+                        "battery": st.get("battery"),
+                        "worn": st.get("worn"),
                         "last_error": st.get("last_error")})
         return out
 
@@ -75,22 +78,27 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         return web.json_response({"ok": True, "remembered": len(cfg["devices"])})
 
     async def stream(req):
+        # key == "_all" multiplexes EVERY stream over ONE SSE connection — the monitor's Overview needs
+        # all ~10 streams at once, and browsers cap ~6 HTTP/1.1 connections per host, so per-stream
+        # connections would starve the rest. Each frame carries its own "stream" field for client demux.
         key = req.match_info["key"]
+        allmode = (key == "_all")
         resp = web.StreamResponse(headers={
             "Content-Type": "text/event-stream", "Cache-Control": "no-cache",
             "Connection": "keep-alive", "X-Accel-Buffering": "no"})
         await resp.prepare(req)
         q = bus.subscribe()
         try:
-            snap = bus.snapshot(key)
-            await resp.write(f"event: snapshot\ndata: {json.dumps(snap)}\n\n".encode())
+            snaps = [m["key"] for m in bus.meta()] if allmode else [key]
+            for k in snaps:
+                await resp.write(f"event: snapshot\ndata: {json.dumps(bus.snapshot(k))}\n\n".encode())
             while True:
                 try:
                     msg = await asyncio.wait_for(q.get(), timeout=15)
                 except asyncio.TimeoutError:
                     await resp.write(b": keep-alive\n\n")   # comment frame keeps the socket open
                     continue
-                if msg["stream"] != key:
+                if not allmode and msg["stream"] != key:
                     continue
                 await resp.write(f"data: {json.dumps(msg)}\n\n".encode())
         except (asyncio.CancelledError, ConnectionResetError, ConnectionError):
@@ -106,6 +114,27 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         except Exception:
             pass
 
+    # ── Clock / NTP / timezone (Clock Contract §🔒 — the box's wall clock stamps every capture) ──
+    _clock_sudo = (cfg.get("clock") or {}).get("sudo", True)
+
+    async def clock_get(_req):
+        return web.json_response(await clockcfg.status())
+
+    async def clock_set(req):
+        body = await req.json()
+        servers = body.get("servers") or []
+        if isinstance(servers, str):
+            servers = servers.replace(",", " ").split()
+        return web.json_response(
+            await clockcfg.set_ntp(servers, body.get("poll_max_sec", 2048), sudo=_clock_sudo))
+
+    async def clock_sync(_req):
+        return web.json_response(await clockcfg.sync_now(sudo=_clock_sudo))
+
+    async def clock_tz(req):
+        body = await req.json()
+        return web.json_response(await clockcfg.set_tz(body.get("timezone"), sudo=_clock_sudo))
+
     app.add_routes([
         web.get("/", index),
         web.get("/api/state", state),
@@ -114,6 +143,10 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         web.post("/api/forget", forget),
         web.post("/api/remember", remember),
         web.get("/api/stream/{key}", stream),
+        web.get("/api/clock", clock_get),
+        web.post("/api/clock", clock_set),
+        web.post("/api/clock/sync", clock_sync),
+        web.post("/api/clock/tz", clock_tz),
     ])
     return app
 

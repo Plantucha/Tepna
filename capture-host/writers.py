@@ -43,10 +43,13 @@ class StreamWriter:
 
     # PSL-compatible headers, keyed by stream. `;`-separated, exactly as Polar Sensor Logger exports.
     HEADERS = {
-        "ecg": "Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]",
-        "acc": "Phone timestamp;sensor timestamp [ns];timestamp [ms];X [mg];Y [mg];Z [mg]",
-        "ppg": "Phone timestamp;sensor timestamp [ns];timestamp [ms];ppg0;ppg1;ppg2;ambient",
-        "hr":  "Phone timestamp;sensor timestamp [ns];HR [bpm];RR-interval [ms]",
+        "ecg":  "Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]",
+        "acc":  "Phone timestamp;sensor timestamp [ns];timestamp [ms];X [mg];Y [mg];Z [mg]",
+        "ppg":  "Phone timestamp;sensor timestamp [ns];timestamp [ms];ppg0;ppg1;ppg2;ambient",
+        "hr":   "Phone timestamp;sensor timestamp [ns];HR [bpm];RR-interval [ms]",
+        "gyro": "Phone timestamp;sensor timestamp [ns];timestamp [ms];X [dps];Y [dps];Z [dps]",
+        "mag":  "Phone timestamp;sensor timestamp [ns];timestamp [ms];X [G];Y [G];Z [G]",
+        "ppi":  "Phone timestamp;sensor timestamp [ns];HR [bpm];PP-interval [ms];error estimate [ms];blocker;skin contact;skin contact supported",
     }
 
     def __init__(self, path: str, stream: str):
@@ -86,6 +89,20 @@ class StreamWriter:
     def write_ppg(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, ch: Iterable[int], ambient: int) -> None:
         c0, c1, c2 = list(ch)[:3]
         self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{self._rel_ms(sensor_ns)};{c0};{c1};{c2};{ambient}\n")
+        self._bump()
+
+    def write_gyro(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: int, y: int, z: int) -> None:
+        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{self._rel_ms(sensor_ns)};{x};{y};{z}\n")
+        self._bump()
+
+    def write_mag(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: int, y: int, z: int) -> None:
+        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{self._rel_ms(sensor_ns)};{x};{y};{z}\n")
+        self._bump()
+
+    def write_ppi(self, phone: _dt.datetime, sensor_ns: int, hr: int, pp_ms: int, err_ms: int, flags: int) -> None:
+        # One row per beat (PSL PPI layout). flags: bit0 blocker, bit1 skin-contact, bit2 skin-contact-supported.
+        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{hr};{pp_ms};{err_ms};"
+                       f"{flags & 1};{(flags >> 1) & 1};{(flags >> 2) & 1}\n")
         self._bump()
 
     def write_hr(self, phone: _dt.datetime, sensor_ns: int, bpm: int, rr_ms: Iterable[int]) -> None:

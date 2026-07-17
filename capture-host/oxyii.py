@@ -60,6 +60,41 @@ def live_frame() -> bytes:
     return encode(OP_LIVE, b"")
 
 
+# ── Stored-session file transfer (the ONBOARD recording — the .dat the ViHealth app syncs on removal).
+# Same 0xA5 envelope; opcodes + layout per github.com/nglessner/o2ring-s-protocol. NOTE the transfer
+# needs an ATT MTU >= 517 or READ_FILE_START is silently dropped (metadata still works at small MTU).
+OP_FILE_LIST, OP_FILE_START, OP_FILE_DATA, OP_FILE_END = 0xF1, 0xF2, 0xF3, 0xF4
+
+
+def file_list_frame(seq: int = 0) -> bytes:
+    return encode(OP_FILE_LIST, b"", seq)
+
+def file_start_frame(ts14: str, ftype: int = 0, seq: int = 0) -> bytes:
+    pl = ts14.encode("ascii")[:14].ljust(14, b"\x00") + b"\x00\x00" + int(ftype).to_bytes(4, "little")
+    return encode(OP_FILE_START, pl, seq)
+
+def file_data_frame(offset: int, seq: int = 0) -> bytes:
+    return encode(OP_FILE_DATA, int(offset).to_bytes(4, "little"), seq)
+
+def file_end_frame(seq: int = 0) -> bytes:
+    return encode(OP_FILE_END, b"", seq)
+
+
+def parse_file_list(payload: bytes) -> list[str]:
+    """GET_FILE_LIST reply → recorded-session timestamps. count byte + 16-byte slots (14-char ASCII
+    `YYYYMMDDhhmmss` + 2 zero pad)."""
+    if not payload:
+        return []
+    n, out = payload[0], []
+    for i in range(n):
+        slot = payload[1 + i * 16: 1 + i * 16 + 16]
+        if len(slot) >= 14:
+            ts = slot[:14].decode("ascii", "replace").strip("\x00")
+            if ts.isdigit() and len(ts) == 14:
+                out.append(ts)
+    return out
+
+
 class Reassembler:
     """Notify bytes → complete 0xA5 frames. The T8520 splits big live frames (24-B header + PPG body)
     across multiple notifications, so we accumulate until a full declared frame is buffered."""

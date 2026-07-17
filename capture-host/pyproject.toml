@@ -1,0 +1,14 @@
+# tepna-capture — Python tooling config (out-of-suite; the JS suite is unaffected).
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+# Starter lint: real errors only (E9 syntax, F pyflakes — undefined names, unused imports, bad f-strings).
+# Deliberately NOT the style rules yet, so it flags bugs without churning the reverse-engineered code.
+[tool.ruff.lint]
+select = ["E9", "F"]

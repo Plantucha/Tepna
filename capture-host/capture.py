@@ -9,9 +9,8 @@
 #    scaffold honoring the §7 integration contract; validate against real frames + PSL output first.
 
 from __future__ import annotations
-import argparse, asyncio, contextlib, json, logging, os, signal, subprocess, datetime as _dt
+import argparse, asyncio, contextlib, json, logging, os, signal, time as _time, datetime as _dt
 import yaml
-from bleak import BleakClient
 
 from writers import StreamWriter, Spo2CsvWriter, capture_filename, night_dir
 import polar_pmd as pmd
@@ -21,16 +20,63 @@ import bonding
 from telemetry import TelemetryBus
 
 HR_UUID = "00002a37-0000-1000-8000-00805f9b34fb"   # standard Heart Rate Measurement (RR intervals)
+BATTERY_UUID = "00002a19-0000-1000-8000-00805f9b34fb"   # standard Battery Level (0x2A19) — uint8 percent
 log = logging.getLogger("tepna-capture")
 STATUS: dict = {"updated": None, "devices": {}}
 _STOP = asyncio.Event()
 BUS = TelemetryBus()          # live-sample bus feeding the monitor page (webmon.py)
 ADAPTER: str | None = None    # BLE adapter MAC for bonding (config `adapter:`); None = default controller
-_PMD_LIVE = {pmd.ECG: "ecg", pmd.PPG: "ppg"}   # which decoded streams to surface live (one channel)
+# Live-stream metadata per PMD stream name: (base label, unit, channels, per-channel labels). fs comes
+# from pmd.SAMPLE_HZ. Everything is pushed RAW to the monitor — no signal processing on the box.
+_LIVE_META = {
+    "ecg":  ("ECG",  "µV",  1, ()),
+    "acc":  ("ACC",  "mg",  3, ("X", "Y", "Z")),
+    "ppg":  ("PPG",  "raw", 4, ("LED1", "LED2", "LED3", "ambient")),
+    "gyro": ("Gyro", "dps", 3, ("X", "Y", "Z")),
+    "mag":  ("Mag",  "G",   3, ("X", "Y", "Z")),
+    "ppi":  ("PPI",  "ms",  2, ("PP-int", "HR")),
+    "hr":   ("RR",   "ms",  1, ()),
+}
+
+
+def _dev_tag(dev: dict) -> str:
+    """Short per-device tag so two sensors' same stream (H10 ACC vs Verity ACC) get distinct bus keys."""
+    t = (dev.get("model") or dev.get("name") or "").lower()
+    return "h10" if "h10" in t else "vs" if ("verity" in t or "sense" in t) else dev.get("device_id", "x")
+
+
+def _live_key(stream: str, tag: str) -> str:
+    return stream if stream in ("ecg", "ppg") else f"{stream}_{tag}"   # ecg/ppg are device-unique
+
+
+# Monotonic-anchored wall clock (Clock Contract §🔒). CLOCK_MONOTONIC (via time.monotonic) measures
+# elapsed time independent of the wall clock; we anchor it to civil time ONCE so a mid-capture NTP
+# correction can't silently STEP the stamps. A genuine step (> _STEP_THRESH_S — e.g. an RTC-less Pi that
+# first NTP-syncs minutes after boot, or a DST change) re-anchors and is LOGGED — a jump you can see
+# beats one you can't. Returns LOCAL civil time, byte-for-byte the same type as datetime.now().
+_STEP_THRESH_S = 2.0
+_anchor_wall: _dt.datetime | None = None
+_anchor_mono: float = 0.0
+
+
+def _reanchor() -> None:
+    global _anchor_wall, _anchor_mono
+    _anchor_wall = _dt.datetime.now()
+    _anchor_mono = _time.monotonic()
 
 
 def _now() -> _dt.datetime:
-    return _dt.datetime.now()   # LOCAL civil time — the Clock Contract primary stamp. Keep the host NTP-synced.
+    global _anchor_wall
+    if _anchor_wall is None:
+        _reanchor()
+    predicted = _anchor_wall + _dt.timedelta(seconds=_time.monotonic() - _anchor_mono)
+    actual = _dt.datetime.now()
+    drift = (actual - predicted).total_seconds()   # wall-vs-monotonic divergence == a clock step
+    if abs(drift) > _STEP_THRESH_S:
+        log.warning("wall-clock step %.3fs — re-anchoring capture stamps here (NTP correction / DST?)", drift)
+        _reanchor()
+        return actual
+    return predicted
 
 
 # BlueZ serialises connection ESTABLISHMENT per adapter — two devices connecting at once yields
@@ -90,6 +136,7 @@ async def run_polar(dev: dict, root: str):
         _set(name, last_error=f"bond error: {e!r}")
     while not _STOP.is_set():
         writers: dict[int, StreamWriter] = {}
+        stream_fs: dict[int, float] = {}   # actual negotiated sample rate per meas (ACC differs per device)
         hr_writer = None
         started = _now()
         ndir = night_dir(root, started)
@@ -104,51 +151,137 @@ async def run_polar(dev: dict, root: str):
                 def w(stream, ext="txt"):
                     p = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, stream, ext))
                     return StreamWriter(p, stream)
-                meas_of = {"ecg": pmd.ECG, "ppg": pmd.PPG, "acc": pmd.ACC}
+                tag = _dev_tag(dev)
+                meas_of = {"ecg": pmd.ECG, "acc": pmd.ACC, "ppg": pmd.PPG,
+                           "gyro": pmd.GYRO, "mag": pmd.MAG, "ppi": pmd.PPI}
+
+                def _register(meas: int, fs_val: float) -> None:
+                    base, unit, ch, labs = _LIVE_META[pmd.MEAS_NAME[meas]]
+                    BUS.register(_live_key(pmd.MEAS_NAME[meas], tag), f"{base} ({name})", unit, fs_val, ch, labs)
+
                 for s in streams:
                     if s in meas_of:
                         writers[meas_of[s]] = w(s)
+                        _register(meas_of[s], pmd.SAMPLE_HZ.get(meas_of[s], 0))   # placeholder fs until negotiated
                 if "hr" in streams:
                     hr_writer = w("hr")
+                    BUS.register(_live_key("hr", tag), f"RR ({name})", "ms", 0)
 
                 # PMD data handler — one char carries all PMD streams; route by measurement type.
                 def on_pmd(_sender, data: bytearray):
                     arrival = _now()
                     try:
-                        meas, samples = pmd.decode_frame(bytes(data), arrival)
+                        meas, samples = pmd.decode_frame(bytes(data), arrival, fs=stream_fs.get(data[0]))
                     except ValueError as e:
                         _set(name, last_error=str(e)); return
                     wr = writers.get(meas)
                     if not wr or not samples:
                         return
                     for smp in samples:
-                        if meas == pmd.ECG:
-                            wr.write_ecg(smp.phone, smp.sensor_ns, smp.t_ms, smp.values[0])
-                        elif meas == pmd.ACC:
-                            wr.write_acc(smp.phone, smp.sensor_ns, smp.t_ms, *smp.values)
-                        elif meas == pmd.PPG:
-                            wr.write_ppg(smp.phone, smp.sensor_ns, smp.t_ms, smp.values[:3], smp.values[3])
-                    live_key = _PMD_LIVE.get(meas)
-                    if live_key:                 # surface one channel live to the monitor page
-                        BUS.push(live_key, [s.values[0] for s in samples], pmd.SAMPLE_HZ.get(meas))
-                    _set(name, **{f"rows_{meas}": wr.rows, "last_sample": writers and smp.phone.isoformat()})
+                        v = smp.values
+                        if meas == pmd.ECG:    wr.write_ecg(smp.phone, smp.sensor_ns, smp.t_ms, v[0])
+                        elif meas == pmd.ACC:  wr.write_acc(smp.phone, smp.sensor_ns, smp.t_ms, *v)
+                        elif meas == pmd.PPG:  wr.write_ppg(smp.phone, smp.sensor_ns, smp.t_ms, v[:3], v[3])
+                        elif meas == pmd.GYRO: wr.write_gyro(smp.phone, smp.sensor_ns, smp.t_ms, *v)
+                        elif meas == pmd.MAG:  wr.write_mag(smp.phone, smp.sensor_ns, smp.t_ms, *v)
+                        elif meas == pmd.PPI:  wr.write_ppi(smp.phone, smp.sensor_ns, v[0], v[1], v[2], v[3])
+                    # Live push — RAW, per-stream shape (no on-box DSP):
+                    key, hz = _live_key(pmd.MEAS_NAME[meas], tag), stream_fs.get(meas) or pmd.SAMPLE_HZ.get(meas)
+                    if meas == pmd.ECG:
+                        BUS.push(key, [s.values[0] for s in samples], hz)
+                    elif meas in (pmd.PPG, pmd.ACC, pmd.GYRO, pmd.MAG):
+                        BUS.push(key, [list(s.values) for s in samples], hz)      # multi-channel
+                    elif meas == pmd.PPI:
+                        BUS.push(key, [[s.values[1], s.values[0]] for s in samples], hz)  # [PP-int ms, HR]
+                    _set(name, **{f"rows_{meas}": wr.rows, "last_sample": samples[-1].phone.isoformat()})
 
                 def on_hr(_sender, data: bytearray):
                     if not hr_writer:
                         return
                     bpm, rr = _parse_hr(bytes(data))
                     hr_writer.write_hr(_now(), 0, bpm, rr)
+                    if rr:                        # raw RR intervals to the monitor (no HRV computed on-box)
+                        BUS.push(_live_key("hr", tag), [float(x) for x in rr], 0)
 
                 if writers:
+                    # Log which PMD measurement types the device actually supports (feature bitmask).
+                    try:
+                        feat = pmd.parse_features(bytes(await client.read_gatt_char(pmd.PMD_CONTROL)))
+                        names = sorted(pmd.MEAS_NAME.get(t, hex(t)) for t in feat)
+                        log.info("%s PMD supports: %s", name, " ".join(names))
+                        _set(name, pmd_supported=names)
+                    except Exception as e:
+                        log.info("%s feature read skipped: %r", name, e)
+
+                    # Control-point responses (settings + START acks) arrive as indications; queue them.
+                    ctrl_q: asyncio.Queue = asyncio.Queue()
+                    try:
+                        await client.start_notify(pmd.PMD_CONTROL, lambda _s, d: ctrl_q.put_nowait(bytes(d)))
+                    except Exception as e:
+                        log.info("%s control indications unavailable: %r", name, e)
+
+                    async def _ctrl(cmd: bytes, timeout: float = 3.0) -> bytes:
+                        while not ctrl_q.empty():
+                            ctrl_q.get_nowait()
+                        await client.write_gatt_char(pmd.PMD_CONTROL, cmd, response=True)
+                        try:
+                            return await asyncio.wait_for(ctrl_q.get(), timeout)
+                        except asyncio.TimeoutError:
+                            return b""
+
                     await client.start_notify(pmd.PMD_DATA, on_pmd)
-                    for meas in writers:
-                        await client.write_gatt_char(pmd.PMD_CONTROL, pmd.START[meas], response=True)
+                    for meas in list(writers):
+                        await _ctrl(pmd.stop_cmd(meas))   # clear any stale stream from a prior session
+                        # Ask the device what settings it offers, then START from THOSE (fixed table is a
+                        # fallback). Devices differ: Verity ACC isn't 200 Hz, MAG needs a range, etc.
+                        settings = pmd.parse_settings_response(await _ctrl(pmd.get_settings_cmd(meas)))
+                        used_fs = pmd.chosen_rate(meas, settings)
+                        started = False
+                        for cmd, how in ((pmd.build_start(meas, settings), "negotiated"),
+                                         (pmd.START.get(meas), "fixed")):
+                            if not cmd:
+                                continue
+                            ack = await _ctrl(cmd)
+                            st = ack[3] if len(ack) >= 4 else 0xFF
+                            (log.info if st in (0x00, 0x06) else log.warning)(
+                                "%s START %s (%s) → %s", name, pmd.MEAS_NAME.get(meas, meas), how,
+                                pmd.CTRL_STATUS.get(st, hex(st)))
+                            if st in (0x00, 0x06):    # ok, or already-streaming
+                                started = True
+                                break
+                        if started:                  # record + re-register at the ACTUAL negotiated rate
+                            stream_fs[meas] = used_fs
+                            _register(meas, used_fs)
+                        else:                        # truly unsupported settings — drop it, don't leave an empty file / idle card
+                            _set(name, last_error=f"{pmd.MEAS_NAME.get(meas, meas)} START rejected")
+                            try:
+                                p = writers[meas].path; writers[meas].close(); os.remove(p)
+                            except OSError:
+                                pass
+                            del writers[meas]
+                            BUS.unregister(_live_key(pmd.MEAS_NAME.get(meas, str(meas)), tag))
+                        await asyncio.sleep(0.2)
                 if hr_writer:
                     await client.start_notify(HR_UUID, on_hr)
 
+                # Battery level via the standard Battery Service (0x2A19). Polar H10 + Verity both expose
+                # it; read once now and refresh every ~2 min. Silent no-op if a firmware lacks the char.
+                async def _read_batt():
+                    try:
+                        b = await client.read_gatt_char(BATTERY_UUID)
+                        if b:
+                            _set(name, battery=int(b[0]))
+                    except Exception:
+                        pass
+                await _read_batt()
+
                 # Hold the link until disconnect or shutdown.
+                secs = 0
                 while client.is_connected and not _STOP.is_set():
                     await asyncio.sleep(1)
+                    secs += 1
+                    if secs % 120 == 0:
+                        await _read_batt()
         except Exception as e:
             _set(name, connected=False, last_error=repr(e))
             log.warning("%s link error: %r", name, e)
@@ -306,11 +439,15 @@ async def run_oxyii(dev: dict, root: str):
                             BUS.push("spo2", [live["spo2"]])
                             if live["pr"]:
                                 BUS.push("pr", [live["pr"]])
+                            BUS.push("motion_o2", [live["motion"]])   # raw movement level (~1/s)
                             _set(name, rows=wr.rows, spo2=live["spo2"], pr=live["pr"], battery=live["batt"],
-                                 last_sample=now.isoformat(), last_error=None)
+                                 motion=live["motion"], worn=True, last_sample=now.isoformat(), last_error=None)
                         else:
-                            _set(name, worn=live["worn"], last_error=None if live["worn"] else "no finger contact")
+                            BUS.push("motion_o2", [live["motion"]])
+                            _set(name, worn=live["worn"], motion=live["motion"],
+                                 last_error=None if live["worn"] else "no finger contact")
 
+                BUS.register("motion_o2", "Motion (O2Ring)", "lvl", 0)
                 await client.start_notify(nch, on_data)
                 await client.write_gatt_char(wch, oxyii.auth_frame(), response=False)   # 0xFF: no reply
                 await asyncio.sleep(0.6)
@@ -360,6 +497,15 @@ async def main():
     tasks = [asyncio.create_task(status_loop(root))]
 
     def _spawn(dev: dict):
+        # Refuse to capture a device missing identity fields — otherwise capture_filename() emits
+        # `__<id>_..._STREAM.txt` (empty vendor/model), which happened via a hot-Remember with an
+        # unrecognized sensor (guessDevice left vendor/model blank). FOLLOWUPS-II §F1.
+        missing = [k for k in ("name", "vendor", "model", "device_id") if not str(dev.get(k) or "").strip()]
+        if missing:
+            log.warning("skipping device — missing %s: %r", ",".join(missing), dev.get("address") or dev)
+            if dev.get("name"):
+                _set(dev["name"], last_error="not captured — missing " + ",".join(missing))
+            return
         v = dev.get("vendor")
         if v == "Muse":
             runner = run_muse
