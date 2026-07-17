@@ -5,6 +5,10 @@
 
 > **Paste the “MISSION” block below to start an auditor.** The rest of this file is the reference it
 > reads. This is tuned to *this* codebase: a generic “review my code” pass wastes effort here.
+>
+> **Auditing the TESTS instead of the code?** Use the sibling charter `audits/TEST-AUDIT-PROMPT.md` — it
+> hunts *gates that stay green under a real defect* (mutation-testing lens), the orthogonal axis to this
+> one. This file finds wrong numbers; that one finds gates that would let a wrong number through.
 
 ---
 
