@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2Cg5MmHbsewgCHxMRZJCmNX7MG7Tm7XlBuzXp+u9hac=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-70AUrHGU2gzNqyJLH1FwsO9kROu2C0urnwj8NpxwQKE=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Cv1ftxisV85nchQS/mzDUM/dAhgX+aKZtkuTvaVUp1A=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HbOL1H5pSrF21yJrbz4c49sec9+pqJ29Ky/NjpuBPoM=' 'sha256-HbjBKjfqOIcKgOjcXJuHoAOFOZyGLRF+w2nZpZF9HeY=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-OJqOhFcEaTHnRTEoJLpCqCm+qkNxIDecjPFZa26rtDQ=' 'sha256-PXUdAFcOQVLDIV42NdLbJEMOlh/35V6Re3Q27kgNkjU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gtj/J27nuNvTesKfh8Pc6KxJVzQS4DgKAJN2POTeyQQ=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-t6+SiP4WRgvSGOAO1Qrz8KYnp/nkx9DOkdITAiOLaUQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2Cg5MmHbsewgCHxMRZJCmNX7MG7Tm7XlBuzXp+u9hac=' 'sha256-2UjnkW+xeJYWhv4x3lZ3ZQP9tEivwdw+h2ks/1wlwFE=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-70AUrHGU2gzNqyJLH1FwsO9kROu2C0urnwj8NpxwQKE=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HbOL1H5pSrF21yJrbz4c49sec9+pqJ29Ky/NjpuBPoM=' 'sha256-HbjBKjfqOIcKgOjcXJuHoAOFOZyGLRF+w2nZpZF9HeY=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-OJqOhFcEaTHnRTEoJLpCqCm+qkNxIDecjPFZa26rtDQ=' 'sha256-PXUdAFcOQVLDIV42NdLbJEMOlh/35V6Re3Q27kgNkjU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gtj/J27nuNvTesKfh8Pc6KxJVzQS4DgKAJN2POTeyQQ=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-t6+SiP4WRgvSGOAO1Qrz8KYnp/nkx9DOkdITAiOLaUQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -11564,14 +11564,61 @@ __exports.PulseDex = window.PulseDex;
     var sign = zs[0] === '-' ? -1 : 1;
     return sign * (parseInt(zs.slice(1, 3), 10) * 60 + parseInt(zs.slice(3, 5), 10));
   }
-  function _ckDMY(a, b, preferDMY) {
+  /* Contract §3 — decide day vs month from the first two slash fields.
+     `locked` (from _ckResolveDMY) means the ORDER WAS PROVEN FOR THIS FILE: apply it unconditionally so
+     a single row can no longer flip the order mid-file; a row the lock cannot explain (its month field
+     lands outside 1..12) is a contradiction → null, never a guess. Unlocked keeps the historical
+     per-call behavior. Mirrors clock.js _ckDMY (GlucoDex is a deliberate node-local Clock variant). */
+  function _ckDMY(a, b, preferDMY, locked) {
+    if (locked) {
+      var ld = preferDMY ? a : b,
+        lmo = preferDMY ? b : a;
+      return lmo >= 1 && lmo <= 12 && ld >= 1 && ld <= 31 ? { d: ld, mo: lmo } : null;
+    }
     if (a > 12) return { d: a, mo: b };
     if (b > 12) return { d: b, mo: a };
     return preferDMY ? { d: a, mo: b } : { d: b, mo: a };
   }
+  /* Contract §3, the FILE-LEVEL lock: "Any row with day-component > 12 ⇒ file is unambiguous; lock that
+     order for the whole file … Never switch order mid-file." Scan every stamp ONCE: a 1st field > 12
+     PROVES DMY, a 2nd field > 12 PROVES MDY; both ⇒ the file contradicts itself ⇒ fall back to pref
+     unlocked (don't guess a lock); neither ⇒ genuinely ambiguous ⇒ pref, unlocked. Only the two
+     ambiguous CGM slash shapes carry DMY/MDY ambiguity. Local port of clock.js resolveDMY. */
+  function _ckResolveDMY(rawStamps, preferDMY) {
+    var pref = preferDMY !== false,
+      sawDMY = false,
+      sawMDY = false;
+    var RE_A = /^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+    var RE_C = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/;
+    var list = rawStamps || [];
+    for (var i = 0; i < list.length; i++) {
+      var s = list[i];
+      if (typeof s !== 'string') continue;
+      s = s.trim().replace(/^["']|["']$/g, '');
+      var a = null,
+        b = null;
+      var mA = s.match(RE_A);
+      var mC = mA ? null : s.match(RE_C);
+      if (mA) {
+        a = +mA[4];
+        b = +mA[5];
+      } else if (mC) {
+        a = +mC[1];
+        b = +mC[2];
+      } else continue;
+      if (a > 12) sawDMY = true;
+      if (b > 12) sawMDY = true;
+      if (sawDMY && sawMDY) break;
+    }
+    if (sawDMY && sawMDY) return { dmy: pref, locked: false, contradictory: true };
+    if (sawDMY) return { dmy: true, locked: true, contradictory: false };
+    if (sawMDY) return { dmy: false, locked: true, contradictory: false };
+    return { dmy: pref, locked: false, contradictory: false };
+  }
   function _ckParse(raw, opts) {
     opts = opts || {};
     var preferDMY = opts.preferDMY !== false;
+    var dmyLocked = opts.dmyLocked === true; // set by _ckResolveDMY — order proven for this file
     if (raw == null) return null;
     if (typeof raw === 'number') return _ckNumEpoch(raw);
     var s = String(raw)
@@ -11589,12 +11636,14 @@ __exports.PulseDex = window.PulseDex;
     if (m) return { tMs: Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0), offsetMin: null };
     m = s.match(/^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (m) {
-      var dm = _ckDMY(+m[4], +m[5], preferDMY);
+      var dm = _ckDMY(+m[4], +m[5], preferDMY, dmyLocked);
+      if (!dm) return null; // row contradicts the file's proven order → honest null
       return { tMs: Date.UTC(+m[6], dm.mo - 1, dm.d, +m[1], +m[2], +m[3]), offsetMin: null };
     }
     m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
     if (m) {
-      var dm2 = _ckDMY(+m[1], +m[2], preferDMY);
+      var dm2 = _ckDMY(+m[1], +m[2], preferDMY, dmyLocked);
+      if (!dm2) return null; // row contradicts the file's proven order → honest null
       return { tMs: Date.UTC(+m[3], dm2.mo - 1, dm2.d, +m[4], +m[5], m[6] ? +m[6] : 0), offsetMin: null };
     }
     m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
@@ -11673,6 +11722,16 @@ __exports.PulseDex = window.PulseDex;
     const delim = detectDelimiter(nonEmpty[0]);
     const { tsCol, gCol } = locateColumns(nonEmpty, delim);
 
+    // Contract §3 file-level DMY/MDY lock: pre-scan the timestamp column ONCE so a single day>12 row
+    // fixes the order for the WHOLE file (a European DMY Libre export can no longer let ambiguous rows
+    // silently flip to the MDY default mid-file). preferDMY:false = the CGM tiebreaker (Libre/Dexcom MDY).
+    const tsStamps = nonEmpty.map((line) => {
+      const cells = line.split(delim);
+      return tsCol < cells.length ? (cells[tsCol] || '').trim() : '';
+    });
+    const dmyOrder = _ckResolveDMY(tsStamps, false);
+    const tsOpts = { preferDMY: dmyOrder.dmy, dmyLocked: dmyOrder.locked };
+
     const T = [],
       V = [];
     for (const line of nonEmpty) {
@@ -11685,7 +11744,8 @@ __exports.PulseDex = window.PulseDex;
       const g = parseFloat(gRaw);
       if (!isFinite(g)) continue; // header / non-numeric
       const tRaw = (cells[tsCol] || '').trim();
-      const ms = parseTimestamp(tRaw);
+      const tParsed = _ckParse(tRaw, tsOpts); // file-locked order (not the per-row parseTimestamp default)
+      const ms = tParsed ? tParsed.tMs : NaN;
       if (!isFinite(ms)) continue; // need a timestamp to place the sample
       T.push(ms);
       V.push(g);
