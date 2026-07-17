@@ -12305,6 +12305,53 @@
       } else T.ok('CPAPCross.crossNightBlock present (cpapdex-cross.js co-loaded)', false, 'co-load cpapdex-cross.js + map env.CPAPCross');
     });
 
+    /* CPAP-REAL-CORPUS-FOLLOWUPS-II §P8 — CPAPCross change detection was "a gate in name only": it had
+       only ever run on synthetic sd:0 'stable' nights, so it had never been shown to detect a change at
+       all. This gates BOTH surfaces the brief conflated: (A) crossNight FLAGS a real cross-night step in
+       a trended OUTCOME (residualAHI), not smoothing it to 'stable'; (B) the 5-min P90 pressure envelope
+       PRESERVES a device-setting step rather than averaging it away. Real-corpus validation (180 nights,
+       maintainer-only): the pressureEnvIqr step at night #169 (2026-06-30, Δ≈0.78 cmH₂O) and the epap95
+       step at #151 reproduce there, and crossNight flags usageHours (change.significant) + largeLeakPct
+       (improving) on real data. KNOWN GAP (filed in the brief §P8 note): a pure device-SETTING (pressure)
+       step is INVISIBLE to crossNight — pressure is deliberately not trended (setting, not outcome) — so
+       #151/#169 are not flagged by the longitudinal layer at all. */
+    group('CPAPCross detects a step-change + the 5-min envelope preserves it (§P8)', 'cpapdex-cross · cpapdex-dsp · change-detection', function (T) {
+      var CP = env.CPAPCross;
+      var D = env.CpapDsp;
+      var ready = CP && typeof CP.crossNightBlock === 'function' && D && typeof D.pressureEnvelope === 'function';
+      T.ok('CPAPCross.crossNightBlock + CpapDsp.pressureEnvelope exposed', ready);
+      if (!ready) return;
+      var DAY = 86400000,
+        t0 = U(2026, 4, 1, 0, 0, 0);
+      function nights(ahiSeq) {
+        return ahiSeq.map(function (ahi, i) {
+          return { t0Ms: t0 + i * DAY, therapyHours: 7, metrics: { residualAHI: ahi, usageHours: 7, largeLeakPct: 5, centralIndex: 1 }, sessions: [{ oximetry: { available: false } }] };
+        });
+      }
+      // (A) a pressure-setting change that halved residual AHI on one night and held: the detector must
+      // FLAG it (residualAHI good-direction is DOWN → a sustained fall is 'improving'), not read 'stable'.
+      var step = CP.crossNightBlock(nights([6, 6, 6, 6, 3, 3, 3, 3])).metrics.residualAHI;
+      T.eq('step DETECTED — a sustained residualAHI drop → trend improving (not smoothed to stable)', step.trend.label, 'improving');
+      T.ok('step DETECTED — the change block is significant', !!(step.change && step.change.significant === true), JSON.stringify(step.change));
+      T.approx('change block measures the step (first-half 6 → second-half 3 ⇒ −3)', step.change.deltaFirstHalfToSecond, -3, 1e-6);
+      // control — a genuinely stable run must NOT fabricate a change.
+      var flat = CP.crossNightBlock(nights([5, 5, 5, 5, 5, 5, 5, 5])).metrics.residualAHI;
+      T.eq('control · stable run → trend stable', flat.trend.label, 'stable');
+      T.ok('control · stable run → change NOT significant', !!(flat.change && flat.change.significant === false), JSON.stringify(flat.change));
+      T.approx('control · stable run → zero delta', flat.change.deltaFirstHalfToSecond, 0, 1e-6);
+      // (B) the 5-min P90 envelope must PRESERVE a device pressure step (10→11 cmH₂O), not average it to
+      // ~10.5. fs=0.5 Hz (2 s/sample), MODE_WIN_SEC=300 ⇒ 150-sample windows; 20 min at each level.
+      var press = [];
+      for (var i = 0; i < 600; i++) press.push(10);
+      for (var j = 0; j < 600; j++) press.push(11);
+      var wins = D.pressureEnvelope(press, 0.5);
+      var mn = Math.min.apply(null, wins),
+        mx = Math.max.apply(null, wins);
+      T.approx('5-min envelope PRESERVES the 1.0 cmH₂O step (max−min window P90), not smoothed', mx - mn, 1.0, 1e-9);
+      T.approx('envelope low level = 10 (pre-step)', mn, 10, 1e-9);
+      T.approx('envelope high level = 11 (post-step)', mx, 11, 1e-9);
+    });
+
     /* ════ HRVDex recording block — startEpochMs earliest, spanDays ≥ 0 (VII §1) ════
      The headless compute({text}) path used to SKIP the commitRows sort the app applies,
      so on a newest-first Welltory CSV recording.startEpochMs was the LAST day and spanDays
