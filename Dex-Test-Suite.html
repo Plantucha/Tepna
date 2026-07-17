@@ -251,6 +251,9 @@ async function main(){
   // TEST-COVERAGE-FOLLOWUPS-II Item 1b: HRVDex personalization leaks calcVo2Cat/getAgeBand as bare globals
   // (Object.assign(window,{…})) and loads headless — no re-bundle owed. Load it so env can grab them.
   { const _hp = await fetchText('hrvdex-profile.js'); if(_hp) (0, eval)(esmClassicify(_hp)); }
+  // §1b OxyDex sibling — top-level globals; loads headless because oxydex-util.js (sv/gv, DOM-guarded) is
+  // already a <script src> above. initProfile()'s DOM writes no-op via sv's getElementById guard.
+  { const _op = await fetchText('oxydex-profile.js'); if(_op) (0, eval)(esmClassicify(_op)); }
   // gather fixtures + sources (browser I/O; runner does the equivalent in Node)
   const fixtures = {}, sources = {};
   await Promise.all(Object.keys(FIXTURE_FILES).map(async k => { fixtures[k] = await fetchJSON(FIXTURE_FILES[k]); }));
@@ -459,6 +462,8 @@ async function main(){
     QrsEquiv: window.QrsEquiv,
     HrvCalcVo2Cat: window.calcVo2Cat,
     HrvGetAgeBand: window.getAgeBand,
+    OxyKarvonenZone: window.upKarvonenZone,
+    OxyBMILabel: window.upBMILabel,
     CrossNightEnvelope: window.CrossNightEnvelope,
     ECGCross: window.ECGCross,
     OXYCross: window.OXYCross, PulseCross: window.PulseCross, PPGCross: window.PPGCross,

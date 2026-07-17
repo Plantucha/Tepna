@@ -936,7 +936,11 @@ async function main() {
     // TEST-COVERAGE-FOLLOWUPS-II §1b — HRVDex's personalization already leaks its pure cited kernels as
     // bare globals (Object.assign(window,{…})) and loads headless, so NO source edit / NO re-bundle is
     // owed (the brief's "no seam" premise was wrong). Load it last so env can grab calcVo2Cat/getAgeBand.
-    'hrvdex-profile.js'
+    'hrvdex-profile.js',
+    // §1b OxyDex sibling — ALSO test-only (no re-bundle): oxydex-profile.js's up* functions are top-level
+    // globals and it loads headless once oxydex-util.js (sv/gv, DOM-guarded) is present, which it is (above).
+    // Its initProfile() DOM init no-ops headless (sv guards on getElementById). env grabs upKarvonenZone/upBMILabel.
+    'oxydex-profile.js'
   ].forEach((f) => {
     try {
       loadInto(ctx, f);
@@ -958,6 +962,8 @@ async function main() {
     QrsEquiv: ctx.QrsEquiv,
     HrvCalcVo2Cat: ctx.calcVo2Cat,
     HrvGetAgeBand: ctx.getAgeBand,
+    OxyKarvonenZone: ctx.upKarvonenZone,
+    OxyBMILabel: ctx.upBMILabel,
     CrossNightEnvelope: ctx.CrossNightEnvelope,
     ECGCross: ctx.ECGCross,
     OXYCross: ctx.OXYCross,

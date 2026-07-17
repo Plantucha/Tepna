@@ -105,9 +105,13 @@ like 1a's.
       `mean`/`median` (already covered by `analysis-stats`) — low unit-test value; assessed, not skipped
       silently. Route B (extract-to-shared-kernel dedup) remains OPTIONAL, not needed for coverage.
 - [ ] (4) real-Worker known-answer rig for the 4 workers (browser lane), paired with (3)'s fixtures.
-- [~] (1b) profile seam. **HRVDex DONE** (13 assertions, both lanes, **no re-bundle** — already exposes
-      bare globals + loads headless). **OxyDex remaining:** guard the top-level `initProfile()` + export
-      `upKarvonenZone`/`upBMILabel` → re-bundle OxyDex + provenance regen (own PR; 1 app, not 2).
+- [x] (1b) profile seam — **DONE, and NO re-bundle for EITHER app** (the brief's whole re-bundle premise
+      was wrong). **HRVDex** (13 assertions, PR #148): `calcVo2Cat`/`getAgeBand` already leak as globals +
+      load headless. **OxyDex** (12 assertions): `upKarvonenZone` (Karvonen target-HR zones) + `upBMILabel`
+      (WHO BMI bands) are top-level globals too, and `oxydex-profile.js` loads headless once `oxydex-util.js`
+      (sv/gv, `getElementById`-guarded) is present — its `initProfile()` DOM writes no-op headless. The
+      earlier "OxyDex owes a re-bundle" note was an artifact of a probe that omitted `oxydex-util.js`
+      (→ a spurious `sv is not defined`); with util loaded there is no throw, no source edit, no bundle move.
 
 Each: `node tests/run-tests.mjs` green + `Dex-Test-Suite.html?full` all-green + changeset. Route B
 (dedup/extraction) for 3+4 is an OPTIONAL later pass; note it in a follow-up if taken. These plans are
