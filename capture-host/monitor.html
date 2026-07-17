@@ -224,6 +224,20 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
 .batt-ico::after{content:'';position:absolute;right:-3px;top:2px;width:2px;height:4px;background:currentColor;border-radius:0 1px 1px 0;}
 .batt-fill{position:absolute;left:1px;top:1px;bottom:1px;background:currentColor;border-radius:1px;transition:width .3s;}
 
+/* ── Clock & NTP card ──────────────────────────────────────────────────── */
+.clk-status{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px 22px;margin:14px 0 4px;}
+.clk-row{display:flex;align-items:baseline;gap:8px;font-size:12.5px;min-width:0;}
+.clk-lab{color:var(--text4);text-transform:uppercase;letter-spacing:.06em;font-size:10.5px;font-weight:700;flex:none;width:64px;}
+.clk-val{color:var(--text);font-family:ui-monospace,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.clk-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:16px 0 12px;}
+.clk-field{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;font-weight:600;}
+.clk-field input,.clk-field select{font:inherit;font-size:13px;text-transform:none;letter-spacing:0;font-weight:400;
+  background:var(--surface2);border:var(--b);color:var(--text);border-radius:9px;padding:8px 11px;transition:border-color .15s;}
+.clk-field input:focus,.clk-field select:focus{border-color:rgba(61,224,208,.4);outline:none;}
+.clk-field input::placeholder{color:var(--text4);}
+.clk-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px;}
+#clkCard code{font-family:ui-monospace,monospace;font-size:11px;background:var(--surface2);border:var(--b);padding:1px 6px;border-radius:5px;color:var(--text2);}
+
 /* ── Evidence discs (byte-faithful to dex-badges.css) ──────────────────── */
 .ev{display:inline-block;width:11px;height:11px;border-radius:50%;flex:none;vertical-align:baseline;margin-right:5px;opacity:.85;}
 .ev-measured{background:var(--ev-ink);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--ev-ink);}
@@ -347,6 +361,37 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
         <p class="hint">Bond a sensor once (Just-Works) before it will stream — the Polar H10 drops an un-bonded link.
           “Remember” adds it to auto-connect on boot.</p>
       </div>
+
+      <div class="card" id="clockCard">
+        <h3>Clock &amp; NTP <span style="font-weight:400;color:var(--text3);font-size:11px">· the Clock Contract stamps every capture with this box's wall clock</span></h3>
+        <div class="clk-status" id="clkStatus"><span class="spin">reading clock…</span></div>
+        <div class="clk-grid">
+          <label class="clk-field">NTP server(s)
+            <input id="ntpServers" type="text" spellcheck="false" autocomplete="off" placeholder="192.168.0.123 or pool.ntp.org">
+          </label>
+          <label class="clk-field">Sync at most every
+            <select id="ntpInterval">
+              <option value="64">1 min</option>
+              <option value="128">2 min</option>
+              <option value="300">5 min</option>
+              <option value="900">15 min</option>
+              <option value="2048" selected>34 min (default)</option>
+              <option value="3600">1 hour</option>
+            </select>
+          </label>
+          <label class="clk-field">Timezone
+            <input id="tzInput" type="text" spellcheck="false" autocomplete="off" placeholder="America/New_York">
+          </label>
+        </div>
+        <div class="clk-actions">
+          <button class="btn-primary" id="ntpSave">Save &amp; apply</button>
+          <button class="btn" id="ntpSyncNow">Sync now</button>
+          <button class="btn" id="tzSave">Set timezone</button>
+          <span class="spin" id="clkMsg"></span>
+        </div>
+        <p class="hint" id="clkPrivNote" style="display:none">Applying needs a one-line sudoers grant on the box —
+          <code>tepna ALL=(root) NOPASSWD: /opt/tepna/capture-host/tepna-clock.sh</code>. Status above is read-only and always works.</p>
+      </div>
     </section>
 
   </div>
@@ -387,10 +432,14 @@ function showView(v){
   document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active', el.id==='view-'+v));
   document.querySelectorAll('#nav .nav-item').forEach(el=>el.classList.toggle('active', el.dataset.view===v));
   $('#viewTag').textContent = {overview:'Overview', scope:'Live scope', devices:'Devices'}[v] || v;
-  if(v==='overview'){ ovStart(); scopeStop(); }
-  else if(v==='scope'){ ovStop(); scopeResume(); }
-  else { ovStop(); scopeStop(); }
+  if(v==='overview'){ ovStart(); scopeStop(); clkStop(); }
+  else if(v==='scope'){ ovStop(); scopeResume(); clkStop(); }
+  else { ovStop(); scopeStop(); clkStart(); }   // devices view owns the clock/NTP panel
 }
+// Refresh the clock/NTP readout only while the Devices view is open.
+let _clkTimer = null;
+function clkStart(){ loadClock(); if(!_clkTimer) _clkTimer = setInterval(loadClock, 5000); }
+function clkStop(){ if(_clkTimer){ clearInterval(_clkTimer); _clkTimer = null; } }
 $('#nav').addEventListener('click', e=>{ const it=e.target.closest('.nav-item'); if(it) showView(it.dataset.view); });
 
 // theme toggle
@@ -480,6 +529,39 @@ function guessDevice(d){
   const m = (d.name||'').match(/(\d{6,})/); if(m) device_id = m[1];
   return { name:d.name, vendor, model, device_id, address:d.address, streams };
 }
+
+/* ══ Clock / NTP / timezone (Clock Contract §🔒 — the box clock stamps every capture) ══ */
+function fmtEvery(s){ if(s==null) return '—'; return s>=3600?(Math.round(s/360)/10+' h') : s>=60?(Math.round(s/6)/10+' min') : s+' s'; }
+function fmtOffset(min){ if(min==null) return ''; const sg=min<0?'-':'+', a=Math.abs(min); return `UTC${sg}${String((a/60)|0).padStart(2,'0')}:${String(a%60).padStart(2,'0')}`; }
+async function loadClock(){
+  let c; try{ c = await api('/api/clock'); }catch(_){ return; }
+  const k = c.contract || {};
+  const ntpPill = c.synchronized ? '<span class="pill pill-green">synced</span>'
+                : c.ntp_enabled ? '<span class="pill pill-amber">syncing…</span>'
+                : '<span class="pill pill-gray">off</span>';
+  $('#clkStatus').innerHTML = [
+    ['Host', esc(c.host_time||'—')],
+    ['NTP', ntpPill + (c.server_active?(' <span style="color:var(--text3)">'+esc(c.server_active)+'</span>'):'')],
+    ['Every', fmtEvery(c.poll_now_sec) + (c.poll_max_sec?(' <span style="color:var(--text4)">(max '+fmtEvery(c.poll_max_sec)+')</span>'):'')],
+    ['Zone', esc(c.timezone||'—') + ' <span style="color:var(--text4)">'+fmtOffset(c.offset_min)+'</span>'],
+    ['Stamps', (k.stamp_format||'local-civil') + (k.synced&&k.tz_set?' <span class="pill pill-green">contract ✓</span>':' <span class="pill pill-amber">check zone/sync</span>')],
+  ].map(([l,v])=>`<div class="clk-row"><span class="clk-lab">${l}</span><span class="clk-val">${v}</span></div>`).join('');
+  if(document.activeElement!==$('#ntpServers') && (c.servers||[]).length) $('#ntpServers').value = c.servers.join(' ');
+  if(document.activeElement!==$('#tzInput') && c.timezone) $('#tzInput').value = c.timezone;
+  if(c.poll_max_sec){ const sel=$('#ntpInterval'), o=[...sel.options].find(o=>+o.value===c.poll_max_sec); if(o) sel.value=o.value; }
+  $('#clkPrivNote').style.display = c.can_write ? 'none' : 'block';
+}
+async function clockPost(path, body){
+  $('#clkMsg').textContent = '…';
+  try{
+    const r = await api(path, {method:'POST', headers:{'content-type':'application/json'}, body:body?JSON.stringify(body):undefined});
+    $('#clkMsg').textContent = r.ok ? '✓ '+(r.detail||'applied') : ('failed: '+(r.detail||'no privilege'));
+  }catch(e){ $('#clkMsg').textContent = 'failed: '+e; }
+  setTimeout(loadClock, 1000);
+}
+$('#ntpSave').addEventListener('click', ()=>clockPost('/api/clock', {servers:$('#ntpServers').value, poll_max_sec:+$('#ntpInterval').value}));
+$('#ntpSyncNow').addEventListener('click', ()=>clockPost('/api/clock/sync'));
+$('#tzSave').addEventListener('click', ()=>clockPost('/api/clock/tz', {timezone:$('#tzInput').value.trim()}));
 
 /* ══════════════════════════════════════════════════════════════════════════
    OVERVIEW — every active stream at once: mini live waveform + current value.

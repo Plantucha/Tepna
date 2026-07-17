@@ -9,7 +9,7 @@
 #    scaffold honoring the §7 integration contract; validate against real frames + PSL output first.
 
 from __future__ import annotations
-import argparse, asyncio, contextlib, json, logging, os, signal, subprocess, datetime as _dt
+import argparse, asyncio, contextlib, json, logging, os, signal, subprocess, time as _time, datetime as _dt
 import yaml
 from bleak import BleakClient
 
@@ -50,8 +50,34 @@ def _live_key(stream: str, tag: str) -> str:
     return stream if stream in ("ecg", "ppg") else f"{stream}_{tag}"   # ecg/ppg are device-unique
 
 
+# Monotonic-anchored wall clock (Clock Contract §🔒). CLOCK_MONOTONIC (via time.monotonic) measures
+# elapsed time independent of the wall clock; we anchor it to civil time ONCE so a mid-capture NTP
+# correction can't silently STEP the stamps. A genuine step (> _STEP_THRESH_S — e.g. an RTC-less Pi that
+# first NTP-syncs minutes after boot, or a DST change) re-anchors and is LOGGED — a jump you can see
+# beats one you can't. Returns LOCAL civil time, byte-for-byte the same type as datetime.now().
+_STEP_THRESH_S = 2.0
+_anchor_wall: _dt.datetime | None = None
+_anchor_mono: float = 0.0
+
+
+def _reanchor() -> None:
+    global _anchor_wall, _anchor_mono
+    _anchor_wall = _dt.datetime.now()
+    _anchor_mono = _time.monotonic()
+
+
 def _now() -> _dt.datetime:
-    return _dt.datetime.now()   # LOCAL civil time — the Clock Contract primary stamp. Keep the host NTP-synced.
+    global _anchor_wall
+    if _anchor_wall is None:
+        _reanchor()
+    predicted = _anchor_wall + _dt.timedelta(seconds=_time.monotonic() - _anchor_mono)
+    actual = _dt.datetime.now()
+    drift = (actual - predicted).total_seconds()   # wall-vs-monotonic divergence == a clock step
+    if abs(drift) > _STEP_THRESH_S:
+        log.warning("wall-clock step %.3fs — re-anchoring capture stamps here (NTP correction / DST?)", drift)
+        _reanchor()
+        return actual
+    return predicted
 
 
 # BlueZ serialises connection ESTABLISHMENT per adapter — two devices connecting at once yields
@@ -472,6 +498,15 @@ async def main():
     tasks = [asyncio.create_task(status_loop(root))]
 
     def _spawn(dev: dict):
+        # Refuse to capture a device missing identity fields — otherwise capture_filename() emits
+        # `__<id>_..._STREAM.txt` (empty vendor/model), which happened via a hot-Remember with an
+        # unrecognized sensor (guessDevice left vendor/model blank). FOLLOWUPS-II §F1.
+        missing = [k for k in ("name", "vendor", "model", "device_id") if not str(dev.get(k) or "").strip()]
+        if missing:
+            log.warning("skipping device — missing %s: %r", ",".join(missing), dev.get("address") or dev)
+            if dev.get("name"):
+                _set(dev["name"], last_error="not captured — missing " + ",".join(missing))
+            return
         v = dev.get("vendor")
         if v == "Muse":
             runner = run_muse

@@ -20,6 +20,7 @@ import asyncio, json, os
 from aiohttp import web
 import yaml
 import bonding
+import clockcfg
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -113,6 +114,27 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         except Exception:
             pass
 
+    # ── Clock / NTP / timezone (Clock Contract §🔒 — the box's wall clock stamps every capture) ──
+    _clock_sudo = (cfg.get("clock") or {}).get("sudo", True)
+
+    async def clock_get(_req):
+        return web.json_response(await clockcfg.status())
+
+    async def clock_set(req):
+        body = await req.json()
+        servers = body.get("servers") or []
+        if isinstance(servers, str):
+            servers = servers.replace(",", " ").split()
+        return web.json_response(
+            await clockcfg.set_ntp(servers, body.get("poll_max_sec", 2048), sudo=_clock_sudo))
+
+    async def clock_sync(_req):
+        return web.json_response(await clockcfg.sync_now(sudo=_clock_sudo))
+
+    async def clock_tz(req):
+        body = await req.json()
+        return web.json_response(await clockcfg.set_tz(body.get("timezone"), sudo=_clock_sudo))
+
     app.add_routes([
         web.get("/", index),
         web.get("/api/state", state),
@@ -121,6 +143,10 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         web.post("/api/forget", forget),
         web.post("/api/remember", remember),
         web.get("/api/stream/{key}", stream),
+        web.get("/api/clock", clock_get),
+        web.post("/api/clock", clock_set),
+        web.post("/api/clock/sync", clock_sync),
+        web.post("/api/clock/tz", clock_tz),
     ])
     return app
 
