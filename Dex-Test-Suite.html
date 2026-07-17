@@ -237,6 +237,10 @@ async function main(){
   for (const _pf of ['ecgdex-profile.js','glucodex-profile.js','ppgdex-profile.js']) {
     const _t = await fetchText(_pf); if(_t) (0, eval)(esmClassicify(_t));
   }
+  // TEST-COVERAGE-FOLLOWUPS Item 2: the NSRR PSG ingest adapter (window.NSRR). Plain IIFE, no top-level
+  // deps — its parseNsrrXml uses DOMParser (present here, absent in Node), so the XML→AHI-scoring leg of
+  // the known-answer group runs in THIS lane; the DOM-free channel/resample/Clock-Contract legs run in both.
+  { const _n = await fetchText('nsrr-adapter.js'); if(_n) (0, eval)(esmClassicify(_n)); }
   // gather fixtures + sources (browser I/O; runner does the equivalent in Node)
   const fixtures = {}, sources = {};
   await Promise.all(Object.keys(FIXTURE_FILES).map(async k => { fixtures[k] = await fetchJSON(FIXTURE_FILES[k]); }));
@@ -439,6 +443,7 @@ async function main(){
     ECGProfile: window.ECGProfile,
     GLUProfile: window.GLUProfile,
     PPGProfile: window.PPGProfile,
+    NSRR: window.NSRR,
     CrossNightEnvelope: window.CrossNightEnvelope,
     ECGCross: window.ECGCross,
     OXYCross: window.OXYCross, PulseCross: window.PulseCross, PPGCross: window.PPGCross,

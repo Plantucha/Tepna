@@ -917,7 +917,11 @@ async function main() {
     // node DSPs (incl. glucodex-dsp above) are already in the realm, so personalize() resolves.
     'ecgdex-profile.js',
     'glucodex-profile.js',
-    'ppgdex-profile.js'
+    'ppgdex-profile.js',
+    // TEST-COVERAGE-FOLLOWUPS §2 — the NSRR PSG ingest adapter (channel matching · 1 Hz resample ·
+    // Clock-Contract EDF→OxyDex rows · severity bands). Attaches window.NSRR; the XML annotation
+    // parser (parseNsrrXml) needs DOMParser and is exercised in the browser lane only.
+    'nsrr-adapter.js'
   ].forEach((f) => {
     try {
       loadInto(ctx, f);
@@ -933,6 +937,7 @@ async function main() {
     ECGProfile: ctx.ECGProfile,
     GLUProfile: ctx.GLUProfile,
     PPGProfile: ctx.PPGProfile,
+    NSRR: ctx.NSRR,
     CrossNightEnvelope: ctx.CrossNightEnvelope,
     ECGCross: ctx.ECGCross,
     OXYCross: ctx.OXYCross,

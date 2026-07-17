@@ -13506,6 +13506,87 @@
       P._setStore(mk()); // leave a pristine record for later groups (mirrors §19)
     });
 
+    /* ════ 21c · NSRR PSG INGEST ADAPTER — known-answer (TEST-COVERAGE-FOLLOWUPS §2) ════
+     `nsrr-adapter.js` (window.NSRR) bridges real NSRR/PhysioNet PSG cohorts (SHHS/MESA/MrOS/CHAT)
+     into the OxyDex pipeline for the ODI-4-vs-AHI bias work — a clinical ingest parser that shipped
+     with ZERO coverage (it was a dependency of the tested odi-bias PAGE, but that group loads the
+     downstream stats kernel, never this parser). These pin: SpO₂/HR channel-label matching across
+     cohort spellings, 1 Hz resample with dropout forward-fill + leading-NaN backfill, the
+     Clock-Contract EDF→OxyDex row conversion (floating t0Ms + i·1000, getUTC* readback), the AHI
+     severity bands, and — in the browser lane (parseNsrrXml needs DOMParser) — profusion-XML event
+     classification + AHI = (apnea+hypopnea)/TST. Same bug-class the O2Ring .dat / ResMed-EDF adapter
+     gates already guard. Expected values observed from the real module + closed-form derivation. */
+    group('NSRR PSG ingest adapter — known-answer (TEST-COVERAGE-FOLLOWUPS §2)', 'nsrr-adapter · ingest · known-answer', function (T) {
+      var N = env.NSRR;
+      T.ok('NSRR adapter is wired into env (both lanes)', !!(N && N.findSignal && N.edfToOxyRows && N.severityOf), 'window.NSRR missing or incomplete');
+      if (!N || !N.edfToOxyRows) return;
+
+      // ── channel-label matching across cohort spellings (case- + punctuation-insensitive contains) ──
+      T.eq('findSignal · picks SpO2 over EEG/Pulse', N.findSignal({ 'EEG C4': {}, SpO2: {}, Pulse: {} }, N.SPO2_LABELS), 'SpO2');
+      T.eq('findSignal · "SaO2 (%)" normalizes to sao2 and matches', N.findSignal({ 'SaO2 (%)': {} }, N.SPO2_LABELS), 'SaO2 (%)');
+      T.eq('findSignal · no oximetry channel ⇒ null', N.findSignal({ EEG: {}, ECG: {} }, N.SPO2_LABELS), null);
+      T.eq('findSignal · pulse channel matched by HR labels', N.findSignal({ EEG: {}, SpO2: {}, Pulse: {} }, ['pulse', 'heart rate', 'hr', 'pr']), 'Pulse');
+
+      // ── 1 Hz resample (via the public edfToOxyRows — to1Hz is internal): nearest-sample,
+      //    forward-fill an out-of-range dropout, backfill leading invalids so the head is never NaN ──
+      var rs = N.edfToOxyRows({ signals: { SpO2: { fs: 2, data: [95, 95, 96, 96, 200, 200, 97, 97] } }, clock: { t0Ms: Date.UTC(2020, 0, 1, 0, 0, 0) } });
+      T.eq('resample · fs=2/n=8 ⇒ 4 one-second rows', rs.rows.length, 4);
+      T.eq('resample · row 0 nearest sample', rs.rows[0].spo2, 95);
+      T.eq('resample · an out-of-range (200%) sample forward-fills from last valid', rs.rows[2].spo2, 96);
+      var lead = N.edfToOxyRows({ signals: { SpO2: { fs: 1, data: [200, 200, 98, 97] } }, clock: { t0Ms: Date.UTC(2020, 0, 1, 0, 0, 0) } });
+      T.eq('resample · leading invalids backfill from first valid (no head NaN → round 98)', lead.rows[0].spo2, 98);
+      T.eq('resample · trailing valid preserved', lead.rows[3].spo2, 97);
+
+      // ── EDF → OxyDex rows · CLOCK CONTRACT (floating t0Ms, +1000 ms/row, getUTC* readback) ──
+      var t0 = Date.UTC(2020, 5, 10, 22, 0, 0); // 2020-06-10 22:00 floating
+      var conv = N.edfToOxyRows({ signals: { SpO2: { fs: 1, data: [95, 96, 97] }, Pulse: { fs: 1, data: [60, 61, 62] } }, clock: { t0Ms: t0 } });
+      T.eq('edfToOxyRows · one row per second', conv.rows.length, 3);
+      T.eq('edfToOxyRows · row 0 anchors on t0Ms (floating)', conv.rows[0].tMs, t0);
+      T.eq('edfToOxyRows · rows step +1000 ms (1 Hz)', conv.rows[1].tMs - t0, 1000);
+      T.eq('edfToOxyRows · SpO₂ rounded like a real oximeter', conv.rows[0].spo2, 95);
+      T.eq('edfToOxyRows · HR carried when a pulse channel exists', conv.rows[2].hr, 62);
+      T.eq('edfToOxyRows · hadHR flag', conv.hadHR, true);
+      T.eq('edfToOxyRows · resolved SpO₂ label', conv.spo2Label, 'SpO2');
+      // Clock Contract §5 — floating tMs read back via getUTC* is viewer-TZ-independent (22:00 as written)
+      T.eq('edfToOxyRows · getUTCHours reads the wall clock as written (22:00)', new Date(conv.rows[0].tMs).getUTCHours(), 22);
+      // no HR channel ⇒ hr 0 + hadHR false; no clock ⇒ 22:00 fallback anchor
+      var conv2 = N.edfToOxyRows({ signals: { Osat: { fs: 1, data: [96, 96] } } });
+      T.eq('edfToOxyRows · no pulse channel ⇒ hr 0', conv2.rows[0].hr, 0);
+      T.eq('edfToOxyRows · no pulse channel ⇒ hadHR false', conv2.hadHR, false);
+      T.eq('edfToOxyRows · absent EDF clock ⇒ 22:00 fallback anchor', new Date(conv2.t0Ms).getUTCHours(), 22);
+      T.eq('edfToOxyRows · no SpO₂ channel ⇒ null (never fabricate a night)', N.edfToOxyRows({ signals: { EEG: { fs: 1, data: [1, 2] } } }), null);
+
+      // ── AHI severity bands (mirror the clinical categories) ──
+      T.eq('severityOf · null passes through', N.severityOf(null), null);
+      T.eq('severityOf · <5 = none', N.severityOf(3), 'none');
+      T.eq('severityOf · [5,15) = mild', N.severityOf(5), 'mild');
+      T.eq('severityOf · [15,30) = mod', N.severityOf(15), 'mod');
+      T.eq('severityOf · ≥30 = severe', N.severityOf(30), 'severe');
+
+      // ── profusion-XML annotation → AHI scoring (BROWSER lane only — parseNsrrXml needs DOMParser) ──
+      if (typeof DOMParser !== 'undefined' && N.parseNsrrXml) {
+        var xml =
+          '<CMPStudyConfig><ScoredEvents>' +
+          '<ScoredEvent><EventConcept>Obstructive apnea|Obstructive Apnea</EventConcept><Start>100</Start><Duration>15</Duration></ScoredEvent>' +
+          '<ScoredEvent><EventConcept>Hypopnea|Hypopnea</EventConcept><Start>200</Start><Duration>20</Duration></ScoredEvent>' +
+          '<ScoredEvent><EventConcept>Central apnea|Central Apnea</EventConcept><Start>300</Start><Duration>12</Duration></ScoredEvent>' +
+          '<ScoredEvent><EventConcept>Stage 2 sleep|2</EventConcept><Start>0</Start><Duration>1800</Duration></ScoredEvent>' +
+          '<ScoredEvent><EventConcept>Stage 0 sleep|0</EventConcept><Start>1800</Start><Duration>600</Duration></ScoredEvent>' +
+          '</ScoredEvents></CMPStudyConfig>';
+        var p = N.parseNsrrXml(xml, t0);
+        T.eq('parseNsrrXml · counts obstructive+central as apnea', p.nApnea, 2);
+        T.eq('parseNsrrXml · counts hypopnea separately', p.nHypop, 1);
+        T.eq('parseNsrrXml · total respiratory events', p.nResp, 3);
+        T.eq('parseNsrrXml · TST from non-Wake staged epochs only (0.5 h)', p.tstHours, 0.5);
+        T.eq('parseNsrrXml · AHI = (apnea+hypopnea)/TST = 3/0.5', p.scoredAHI, 6);
+        T.eq('parseNsrrXml · a staged Wake epoch is excluded from TST', p.staged, true);
+        T.eq('parseNsrrXml · only respiratory events are emitted', p.events.length, 3);
+        T.eq('parseNsrrXml · first event classified apnea', p.events[0].kind, 'apnea');
+        T.eq('parseNsrrXml · Clock-Contract absolute tMs = t0 + Start·1000', p.events[0].tMs, t0 + 100000);
+        T.eq('parseNsrrXml · second event classified hypopnea', p.events[1].kind, 'hypopnea');
+      }
+    });
+
     /* ════ 22 · PROPERTY / METAMORPHIC — HRV invariants + SignalFrame contract ════
      The generative complement to the suite's known-answer tests (WP-C/D/D2) and
      synthetic→DSP recovery (FULL-lane): instead of one input→expected pair, state
