@@ -262,6 +262,7 @@ function readSources() {
     // TEST-COVERAGE-FOLLOWUPS-II §4 — worker SOURCE text for the reconstruction rig (a real Worker file,
     // not a blob): the rig evals it in a `new Function` realm with deps passed as params + drives init/job.
     'qrs-equiv-worker.js',
+    'qrs-yield-worker.js',
     'dex-export.js',
     'ganglior-provenance.js',
     'signal-frame.js',

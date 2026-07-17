@@ -109,11 +109,16 @@ like 1a's.
       `new Function(workerSrc)` with deps passed as params + a no-op `importScripts` (deps already
       instantiated), drives the `init`/`job` message protocol, and asserts ready-no-err · done-no-error (the
       throw class) · seed-12345 known-answer (AHI 25.9, 575 beats, ECGDex rMSSD 34.9, PpgDex rMSSD 41.8) ·
-      determinism across two runs. **Remaining (mechanical, same harness):** `qrs-yield-worker`,
-      `cohort-worker`, `pat-feasibility-worker` — each needs its own `SCRIPTS` dep list wired into `env` +
-      a seed→output known-answer. Their `doJob` is synchronous like qrs-equiv's, so the rig transfers. Note:
-      these are real Worker FILES (importScripts real deps), so they DON'T carry the PpgDex hand-maintained-
-      deps drift risk — the rig's value is catching a DSP-symbol regression at the worker boundary.
+      determinism across two runs. **qrs-yield-worker DONE** (11 assertions, PR #151): direct transfer of
+      the rig (same 9 SCRIPTS + init/job protocol); seed-12345 known-answer (age 58.84, sev "mod", baseAHI
+      28.2, ECG+PPG yield objects run in-realm). **Left as documented gaps (materially heavier, LOW value):**
+      `cohort-worker` is **KIND-parameterized** (an object `SCRIPTS` + 3 compute paths runOxy/runPulse/
+      runGluco keyed by a `kind`) and `pat-feasibility-worker` uses a **different `ping`/`result` protocol**
+      that needs **real PPG input** (not a seed) — a self-contained known-answer would need a committed
+      fixture. Both are real Worker FILES (importScripts real deps → no PpgDex-style hand-maintained-deps
+      drift risk), so the residual exposure is only a DSP-symbol regression at those two boundaries. Pick up
+      only if that boundary is touched; otherwise acceptable to leave (2 of 4 workers now executed by a gate,
+      up from 0; the two highest-value — ECG+PPG DSP off-thread — are covered).
 - [x] (1b) profile seam — **DONE, and NO re-bundle for EITHER app** (the brief's whole re-bundle premise
       was wrong). **HRVDex** (13 assertions, PR #148): `calcVo2Cat`/`getAgeBand` already leak as globals +
       load headless. **OxyDex** (12 assertions): `upKarvonenZone` (Karvonen target-HR zones) + `upBMILabel`
