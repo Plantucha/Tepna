@@ -621,50 +621,57 @@
       URL.revokeObjectURL(a.href);
     }, 1500);
   }
-  $('dlCsv').onclick = function () {
-    var rows = [['ahi', 'cpap', 'nBeats', 'pulseRmssd', 'ecgRmssd', 'ppgRmssd']];
-    WIN.forEach(function (wd) {
-      rows.push([wd.ahi, wd.cpap ? 1 : 0, wd.nBeats, wd.pulse, wd.ecg, wd.ppg]);
-    });
-    dl(
-      'rmssd-equivalence-results.csv',
-      rows
-        .map(function (r) {
-          return r.join(',');
-        })
-        .join('\n'),
-      'text/csv'
-    );
-  };
-  $('dlStats').onclick = function () {
-    dl('rmssd-equivalence-stats.json', JSON.stringify(RESULT, null, 2), 'application/json');
-  };
-  $('dlFig').onclick = function () {
-    var a = $('scatter'),
-      b = $('baPpg'),
-      c = $('baEcg'),
-      gap = 16;
-    var W = a.width + gap * 2,
-      H = a.height + b.height + c.height + gap * 4;
-    var out = document.createElement('canvas');
-    out.width = W;
-    out.height = H;
-    var ctx = out.getContext('2d');
-    ctx.fillStyle = '#0c0f14';
-    ctx.fillRect(0, 0, W, H);
-    ctx.drawImage(a, gap, gap);
-    ctx.drawImage(b, gap, gap * 2 + a.height);
-    ctx.drawImage(c, gap, gap * 3 + a.height + b.height);
-    out.toBlob(function (bl) {
-      var u = URL.createObjectURL(bl);
-      var an = document.createElement('a');
-      an.href = u;
-      an.download = 'rmssd-equivalence-figures.png';
-      an.click();
-    }, 'image/png');
-  };
+  // TEST-COVERAGE-FOLLOWUPS-II §3 (Route A): expose the pure statistical kernel so a known-answer group
+  // can assert the SHIPPED functions (Pearson r · Bland-Altman) — not a copy. Additive; no behavior change.
+  (typeof window !== 'undefined' ? window : this).QrsEquiv = { pearson: pearson, ba: ba, sd: sd, mean: mean };
+  // Guard the top-level button wiring so the module also loads headlessly ($()→null in the test realm).
+  if ($('dlCsv'))
+    $('dlCsv').onclick = function () {
+      var rows = [['ahi', 'cpap', 'nBeats', 'pulseRmssd', 'ecgRmssd', 'ppgRmssd']];
+      WIN.forEach(function (wd) {
+        rows.push([wd.ahi, wd.cpap ? 1 : 0, wd.nBeats, wd.pulse, wd.ecg, wd.ppg]);
+      });
+      dl(
+        'rmssd-equivalence-results.csv',
+        rows
+          .map(function (r) {
+            return r.join(',');
+          })
+          .join('\n'),
+        'text/csv'
+      );
+    };
+  if ($('dlStats'))
+    $('dlStats').onclick = function () {
+      dl('rmssd-equivalence-stats.json', JSON.stringify(RESULT, null, 2), 'application/json');
+    };
+  if ($('dlFig'))
+    $('dlFig').onclick = function () {
+      var a = $('scatter'),
+        b = $('baPpg'),
+        c = $('baEcg'),
+        gap = 16;
+      var W = a.width + gap * 2,
+        H = a.height + b.height + c.height + gap * 4;
+      var out = document.createElement('canvas');
+      out.width = W;
+      out.height = H;
+      var ctx = out.getContext('2d');
+      ctx.fillStyle = '#0c0f14';
+      ctx.fillRect(0, 0, W, H);
+      ctx.drawImage(a, gap, gap);
+      ctx.drawImage(b, gap, gap * 2 + a.height);
+      ctx.drawImage(c, gap, gap * 3 + a.height + b.height);
+      out.toBlob(function (bl) {
+        var u = URL.createObjectURL(bl);
+        var an = document.createElement('a');
+        an.href = u;
+        an.download = 'rmssd-equivalence-figures.png';
+        an.click();
+      }, 'image/png');
+    };
   var CANCEL = false;
-  $('run').onclick = run;
+  if ($('run')) $('run').onclick = run;
   if ($('cancel'))
     $('cancel').onclick = function () {
       CANCEL = true;

@@ -928,7 +928,11 @@ async function main() {
     // TEST-COVERAGE-FOLLOWUPS-II §3 (Route A) — the cohort-regression analysis page now exposes its pure
     // OLS kernel as window.CohortRegression.olsR2 (+ a DOM guard so it loads headless). Tests the SHIPPED
     // function, not a copy. Load failure → env.CohortRegression undefined → the known-answer assert reds.
-    'cohort-regression.js'
+    'cohort-regression.js',
+    // TEST-COVERAGE-FOLLOWUPS-II §3 (Route A) — qrs-equiv exposes window.QrsEquiv (pearson · Bland-Altman ·
+    // sd · mean) + DOM guards so it loads headless. It is INLINED by build-analysis, so the .html was
+    // re-bundled (build-analysis --check is the staleness net). Load failure → env.QrsEquiv undefined → red.
+    'qrs-equiv-analysis.js'
   ].forEach((f) => {
     try {
       loadInto(ctx, f);
@@ -947,6 +951,7 @@ async function main() {
     NSRR: ctx.NSRR,
     OverDexWalk: ctx.OverDexWalk,
     CohortRegression: ctx.CohortRegression,
+    QrsEquiv: ctx.QrsEquiv,
     CrossNightEnvelope: ctx.CrossNightEnvelope,
     ECGCross: ctx.ECGCross,
     OXYCross: ctx.OXYCross,

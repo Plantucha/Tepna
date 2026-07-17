@@ -246,6 +246,8 @@ async function main(){
   // TEST-COVERAGE-FOLLOWUPS-II Item 3 (Route A): the cohort-regression page exposes window.CohortRegression.olsR2
   // (+ a DOM guard so it evals headless here). Tests the shipped OLS kernel, not a copy.
   { const _cr = await fetchText('cohort-regression.js'); if(_cr) (0, eval)(esmClassicify(_cr)); }
+  // TEST-COVERAGE-FOLLOWUPS-II Item 3 (Route A): qrs-equiv exposes window.QrsEquiv (pearson · Bland-Altman).
+  { const _qe = await fetchText('qrs-equiv-analysis.js'); if(_qe) (0, eval)(esmClassicify(_qe)); }
   // gather fixtures + sources (browser I/O; runner does the equivalent in Node)
   const fixtures = {}, sources = {};
   await Promise.all(Object.keys(FIXTURE_FILES).map(async k => { fixtures[k] = await fetchJSON(FIXTURE_FILES[k]); }));
@@ -451,6 +453,7 @@ async function main(){
     NSRR: window.NSRR,
     OverDexWalk: window.OverDexWalk,
     CohortRegression: window.CohortRegression,
+    QrsEquiv: window.QrsEquiv,
     CrossNightEnvelope: window.CrossNightEnvelope,
     ECGCross: window.ECGCross,
     OXYCross: window.OXYCross, PulseCross: window.PulseCross, PPGCross: window.PPGCross,
