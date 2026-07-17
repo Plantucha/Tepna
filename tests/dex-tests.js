@@ -2194,14 +2194,21 @@
         if (n.indexOf('glucodex') >= 0) return; // thin wrapper around _ckParse — skip
         T.ok(n + ' preserves fractional seconds (captures ms)', msFracRe.test(src[n]), 'no capturing \.(\d…) ms-group found');
       });
-      // (c) no source fabricates a clock with now() in the parser path
+      // (c) no source fabricates a clock with now() in the parser path. Two idioms:
+      //   • assigning now() straight to a record clock (t0?Ms = Date.now() / return new Date().getTime())
+      //   • feeding the current instant INTO a clock-parse helper (parseTimestamp/_ckParse/_ckNumEpoch
+      //     (Date.now()|new Date())) — a fabrication the old regex missed (AUDIT-2026-07-16 F5:
+      //     _o2BinStartMs did `_ckNumEpoch(Date.now())` to stamp an undated .bin at today).
+      // Sanctioned uses (NOT matched): a `generated:` export-metadata stamp, a synthetic-generator
+      // seed (`t0 = Date.now() - …`), and a UI debounce (`now = Date.now()`).
+      var nowFabRe = /return\s+new Date\(\)\.getTime\(\)|t0?Ms\s*=\s*Date\.now\(\)|(?:parseTimestamp|_ckParse|_ckNumEpoch)\(\s*(?:Date\.now\(\)|new Date\(\)\s*\))/;
       names
         .filter(function (n) {
           return /-dsp\.js$/.test(n);
         })
         .forEach(function (n) {
-          var bad = /return\s+new Date\(\)\.getTime\(\)|tMs\s*=\s*Date\.now\(\)/.test(src[n]);
-          T.ok(n + ' never fabricates now() as a timestamp', !bad);
+          var bad = nowFabRe.test(src[n]);
+          T.ok(n + ' never fabricates now() as a timestamp', !bad, bad ? 'now() reaches a record clock — a missing stamp must be null (Clock Contract §4/§6)' : '');
         });
       // (d) pulsedex-dsp.js lombScargle tracks the GLOBAL spectral peak, not HF-only
       //     (SYNTH-TEXTURE-FOLLOWUPS §1 — a dominant sub-HF oscillation, e.g. the corpus CSR at
@@ -7079,6 +7086,25 @@
       T.ok('readFile reads ArrayBuffer (header-detect, not extension)', /reader\.readAsArrayBuffer\(file\)/.test(src) && /if\s*\(\s*isO2RingBin\(_bytes\)\s*\)/.test(src));
       // date anchor honors the Clock Contract: 14-digit filename YYYYMMDDHHMMSS
       T.ok('bin start-time anchored to 14-digit filename (Clock Contract §4)', /_o2BinStartMs[\s\S]*?\\d\{14\}/.test(src));
+
+      // ── behavioral (AUDIT-2026-07-16 F5): an undated .bin must NOT be stamped "today" ──
+      var OD = env.OxyDex;
+      var dec = OD && ((OD._bare && OD._bare.decodeO2RingBinToCSV) || OD.decodeO2RingBinToCSV);
+      T.ok('decodeO2RingBinToCSV exposed (via _bare)', typeof dec === 'function');
+      if (typeof dec === 'function') {
+        // 10-byte header, then three 3-byte SpO2/HR/motion records, then the 0xFF 0xFF trailer.
+        var bin = [1, 3, 0, 0, 0, 0, 0, 0, 4, 0, 97, 60, 1, 96, 61, 2, 95, 62, 0, 0xff, 0xff, 0];
+        // (a) a 14-digit filename stamp (YYYYMMDDHHMMSS, consecutive) → real dated ISO rows (§4 priority 2).
+        var dated = dec(bin, '20260612222819_O2.bin', null).split('\n');
+        T.eq('dated .bin: first row carries the filename date/time', dated[1], '2026-06-12T22:28:19,97,60,2');
+        // (b) NO filename stamp and NO file (no lastModified) → date UNKNOWN. It must emit a time-only
+        //     HH:MM:SS clock, never a fabricated absolute date. Pre-fix _o2BinStartMs returned
+        //     Date.now(), stamping the whole night at today's YYYY-MM-DD.
+        var undated = dec(bin, 'recording.bin', null).split('\n');
+        T.ok('undated .bin: rows are TIME-ONLY (no fabricated date)', /^\d{2}:\d{2}:\d{2},/.test(undated[1]) && !/\d{4}-\d{2}-\d{2}/.test(undated[1]), 'row = ' + undated[1]);
+        T.eq('undated .bin: relative clock starts at 00:00:00', undated[1], '00:00:00,97,60,2');
+        T.eq('undated .bin: second record advances the relative clock 1 s', undated[2], '00:00:01,96,61,4');
+      }
     });
 
     /* ════ 15 · INTEGRATOR CORRELATION INTEGRITY (P10) ════ */

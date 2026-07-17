@@ -191,7 +191,12 @@
     }
     return null;
   }
-  // Start instant (floating wall-clock ms) for the .bin decoder.
+  // Start instant (floating wall-clock ms) for the .bin decoder. The .bin body carries NO absolute
+  // time (just 3-byte SpO2/HR/motion records at 1 Hz), so the date can only come from the 14-digit
+  // filename stamp or file.lastModified. Neither present ⇒ the date is genuinely UNKNOWN → null
+  // (Clock Contract §4). NEVER fabricate now(): that stamped the whole night at the current instant,
+  // mis-placing an undated recording in crossnight/fusion at a real, wrong date. (Sibling
+  // _o2DateAnchorMs already returns null here — this makes the two symmetric.)
   function _o2BinStartMs(fname, file) {
     var m = String(fname || '').match(/(\d{14})/);
     if (m) {
@@ -202,23 +207,33 @@
       var fl = _ckNumEpoch(file.lastModified);
       if (fl) return fl.tMs;
     }
-    var nowFl = _ckNumEpoch(Date.now());
-    return nowFl ? nowFl.tMs : 0;
+    return null; // date unknown — do not fabricate (Clock Contract §4)
   }
   function decodeO2RingBinToCSV(bytes, fname, file) {
-    var tMs = _o2BinStartMs(fname, file); // floating wall-clock ms
+    var tMs = _o2BinStartMs(fname, file); // floating wall-clock ms, or null when the date is unknown
+    var dated = tMs != null;
+    var relS = 0; // relative seconds from record 0, used when the absolute date is unknown
     var out = ['Time,Oxygen Level,Pulse Rate,Motion'];
     for (var off = 10; off + 3 <= bytes.length; off += 3) {
       var s = bytes[off],
         h = bytes[off + 1],
         mo = bytes[off + 2];
       if (s === 0xff && h === 0xff) break; // end-of-data / trailer
-      // ISO timestamp built from floating ms via UTC getters → parseTimestamp step 3
-      // (no zone) re-encodes with Date.UTC(components) → identical tMs to the CSV.
-      var t = new Date(tMs);
-      var iso = t.getUTCFullYear() + '-' + _o2p2(t.getUTCMonth() + 1) + '-' + _o2p2(t.getUTCDate()) + 'T' + _o2p2(t.getUTCHours()) + ':' + _o2p2(t.getUTCMinutes()) + ':' + _o2p2(t.getUTCSeconds());
-      out.push(iso + ',' + s + ',' + h + ',' + mo * 2);
-      tMs += 1000;
+      var stamp;
+      if (dated) {
+        // ISO timestamp built from floating ms via UTC getters → parseTimestamp step 3
+        // (no zone) re-encodes with Date.UTC(components) → identical tMs to the CSV.
+        var t = new Date(tMs);
+        stamp = t.getUTCFullYear() + '-' + _o2p2(t.getUTCMonth() + 1) + '-' + _o2p2(t.getUTCDate()) + 'T' + _o2p2(t.getUTCHours()) + ':' + _o2p2(t.getUTCMinutes()) + ':' + _o2p2(t.getUTCSeconds());
+        tMs += 1000;
+      } else {
+        // Date unknown → emit a time-only HH:MM:SS clock (no fabricated date). Downstream parseCSV
+        // rolls it forward monotonically against whatever dateAnchor it can find (_o2DateAnchorMs),
+        // and leaves the night undated when there is none — never today's date on an undated file.
+        stamp = _o2p2(Math.floor(relS / 3600) % 24) + ':' + _o2p2(Math.floor(relS / 60) % 60) + ':' + _o2p2(relS % 60);
+        relS += 1;
+      }
+      out.push(stamp + ',' + s + ',' + h + ',' + mo * 2);
     }
     return out.join('\n');
   }
