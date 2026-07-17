@@ -241,6 +241,8 @@ async function main(){
   // deps — its parseNsrrXml uses DOMParser (present here, absent in Node), so the XML→AHI-scoring leg of
   // the known-answer group runs in THIS lane; the DOM-free channel/resample/Clock-Contract legs run in both.
   { const _n = await fetchText('nsrr-adapter.js'); if(_n) (0, eval)(esmClassicify(_n)); }
+  // TEST-COVERAGE-FOLLOWUPS Item 5: OverDex's recursive folder walker (globalThis.OverDexWalk). DOM-free.
+  { const _w = await fetchText('overdex-walk.js'); if(_w) (0, eval)(esmClassicify(_w)); }
   // gather fixtures + sources (browser I/O; runner does the equivalent in Node)
   const fixtures = {}, sources = {};
   await Promise.all(Object.keys(FIXTURE_FILES).map(async k => { fixtures[k] = await fetchJSON(FIXTURE_FILES[k]); }));
@@ -444,6 +446,7 @@ async function main(){
     GLUProfile: window.GLUProfile,
     PPGProfile: window.PPGProfile,
     NSRR: window.NSRR,
+    OverDexWalk: window.OverDexWalk,
     CrossNightEnvelope: window.CrossNightEnvelope,
     ECGCross: window.ECGCross,
     OXYCross: window.OXYCross, PulseCross: window.PulseCross, PPGCross: window.PPGCross,

@@ -77,8 +77,18 @@ Loaded into the known-answer group today: `analysis-stats`, `nights-icc`, `sigma
 | `pat-feasibility.js` | 819 | PAT feasibility computation (referenced by no runner at all) |
 | `cohort-regression.js` | 347 | cohort regression model |
 
-**Plan:** add each to the `analysis-stats` env load + known-answer group with a small fixture, exactly
-as the seven already-covered analysis kernels are wired.
+**Plan (original):** add each to the `analysis-stats` env load + known-answer group with a small fixture.
+
+> **⚠ Execution finding (2026-07-17) — NOT test-only; needs a refactor.** Unlike `analysis-stats.js`
+> (a shared, export-bearing kernel), these four are **DOM-driven page controllers** — IIFEs `(function(){…})()`
+> with **no export surface** (`cohort-regression.js` even binds `document.getElementById('runBtn').onclick`
+> at top level, so it throws on headless load). Worse, each **re-implements its own** `mean`/`sd`/`median`/
+> `pearson`/`ba`(Bland-Altman)/`olsR2` inline — none delegate to `AnalysisStats`. So there is no seam to
+> assert against, and adding a fresh tested copy to `analysis-stats.js` would be **fake coverage** (it
+> wouldn't exercise the page's own duplicate). The honest fix is to **extract the duplicated primitives
+> (`pearson`, `blandAltman`, `olsR2`, …) into `analysis-stats.js` and make the four pages delegate** — a
+> source refactor of the analysis pages (each carries a `self-contained (file://-safe)` + CSP gate that
+> must stay green), then pin the extracted kernels. That is a scoped refactor, not a test add → own PR.
 
 ## Item 4 — Worker ↔ serial equivalence · proven for only 2 of 6
 
@@ -89,16 +99,30 @@ GPU` groups). No such leg exists for:
 - `cohort-worker.js` (639 — feeds the *tested* cgm-hrv-coupling + hrv-confound pages)
 - `pat-feasibility-worker.js` (503) · `qrs-equiv-worker.js` (187) · `qrs-yield-worker.js` (396)
 
-**Plan:** clone the PpgDex worker-blob harness (execute the blob, assert output ≡ serial path) for each.
+**Plan (original):** clone the PpgDex worker-blob harness (execute the blob, assert output ≡ serial path).
+
+> **⚠ Execution finding (2026-07-17) — no serial twin to compare against.** The PpgDex harness works
+> because that worker is a **blob built from an inlined source string** whose serial equivalent
+> (`detectChannel`) is a first-class DSP export, and `detectChannelsAsync` **falls back to serial** — so
+> `new Function(src)` reproduces the realm and there is a serial path to diff. These four are **separate
+> worker FILES** (`new Worker('qrs-yield-worker.js')`, or `importScripts`-composed analysis blobs), and
+> their analysis pages have **no serial fallback** — the compute exists *only* in the worker. So a
+> `worker ≡ serial` diff has no second operand. Making it testable means either (a) extracting each
+> worker's compute into a shared, serially-callable kernel (the same extraction Item 3 needs — do them
+> together), or (b) a real-Worker rig like `WORKER-REALM-GATES §2` that asserts the worker *runs* and
+> reproduces a **known-answer** (not a serial diff). Either way: not a clone-the-harness add → own PR.
 
 ## Item 5 — Minor
 
-- `overdex-walk.js` (131, shipped in `OverDex.src.html`) is untested — the `Ambulatory mode veto` group
-  exercises a node's `analyze`/`genSynthetic`, not OverDex's walk detector. Add a small walk-detection
-  known-answer.
+- `overdex-walk.js` (131, shipped in `OverDex.src.html`) — **DONE (2026-07-17).** Clean `globalThis.OverDexWalk`
+  export, DOM-free; `OverDex folder walker` known-answer group pins the sync surface (`fromInput`
+  junk-filter: dotfiles/`__MACOSX`/`.DS_Store` dropped by name AND by any junk path segment; `relPath`
+  tagging/de-dupe key; `relOf` fallback). Wired into both runners' `env`. The async webkit-entry
+  drag-drop recursion isn't sync-assertable here (no async group support) → left to render-coverage.
 - `support.js` (1,390) is an **orphan**: its stated source `dc-runtime/` does not exist in the checkout,
   and it is inlined into **no** bundle and referenced by **no** `.src.html`. This is dead code, not a
-  coverage gap — flag for deletion/relocation under a separate cleanup, not a test.
+  coverage gap — flag for deletion/relocation under a separate cleanup, not a test. **Left in place**
+  (deletion is destructive + owner's call; recorded here, not actioned).
 
 ---
 
@@ -110,10 +134,13 @@ GPU` groups). No such leg exists for:
 - [x] (2) NSRR parser round-trip — **DONE** — `NSRR PSG ingest adapter` group: channel matching · 1 Hz
       resample (forward-fill/backfill) · Clock-Contract EDF→OxyDex rows · severity bands (both lanes) +
       profusion-XML → AHI scoring (browser lane, `parseNsrrXml` needs `DOMParser`). 27 Node / 36 browser.
-- [ ] (3) 4 analysis kernels wired into the known-answer group
-- [ ] (4) worker≡serial legs for the 4 remaining workers
-- [ ] (5) overdex-walk test; `support.js` orphan flagged for cleanup
+- [ ] (3) analysis kernels — **BLOCKED as test-only**; needs the extract-to-`analysis-stats`-and-delegate
+      refactor (see Item 3 finding). Re-scoped to its own PR.
+- [ ] (4) worker≡serial legs — **BLOCKED as test-only**; no serial twin exists (see Item 4 finding).
+      Do with Item 3's extraction, or as a known-answer real-Worker rig. Own PR.
+- [x] (5) overdex-walk test **DONE** (8 assertions, both lanes); `support.js` orphan flagged (left in place).
 
-Landing (1a) needs `Dex-Test-Suite.html?full` all-green + `node tests/run-tests.mjs` green + a
-changeset (`bump: patch`, test-only). Items 1b/2/3/4/5 each land independently; spawn
-`TEST-COVERAGE-FOLLOWUPS-II` if execution surfaces more.
+Landing each item needs `Dex-Test-Suite.html?full` all-green + `node tests/run-tests.mjs` green + a
+changeset. **Items 3 & 4 turned out NOT to be test-only** (execution findings above) — they need a
+shared-kernel extraction refactor of the analysis pages, so they are re-scoped to a follow-up
+(`TEST-COVERAGE-FOLLOWUPS-II`, to be spawned when that refactor is picked up). Items 1a/2/5 are landed.

@@ -13587,6 +13587,37 @@
       }
     });
 
+    /* ════ 21d · OVERDEX FOLDER WALKER — known-answer (TEST-COVERAGE-FOLLOWUPS §5) ════
+     `overdex-walk.js` (globalThis.OverDexWalk) recurses a dropped/picked directory into a flat
+     File[], each tagged with a folder-relative `.relPath` (display + de-dupe key), skipping hidden/
+     system files. Shipped in OverDex but untested — the `Ambulatory mode veto` group exercises a
+     node's analyze()/genSynthetic(), not this walker. Pins the SYNC surface (`fromInput` junk-filter
+     + relPath tagging, `relOf`); the async webkit-entry drag-drop recursion isn't sync-assertable in
+     this harness (no async group support) so it's left to the browser render-coverage rig. */
+    group('OverDex folder walker — known-answer (TEST-COVERAGE-FOLLOWUPS §5)', 'overdex-walk · ingest · known-answer', function (T) {
+      var W = env.OverDexWalk;
+      T.ok('OverDexWalk is wired into env (both lanes)', !!(W && W.fromInput && W.relOf), 'globalThis.OverDexWalk missing');
+      if (!W || !W.fromInput) return;
+
+      // a folder pick (<input webkitdirectory>) hands a flat list with webkitRelativePath populated.
+      // Hidden/system entries are dropped — by their own name AND by any junk segment in their path.
+      var picked = W.fromInput([
+        { name: 'a.csv', webkitRelativePath: 'trip/a.csv' },
+        { name: '.DS_Store', webkitRelativePath: 'trip/.DS_Store' }, // dotfile → skip
+        { name: 'b.txt', webkitRelativePath: 'trip/__MACOSX/b.txt' }, // junk PATH segment → skip
+        { name: 'c.csv', webkitRelativePath: 'trip/sub/c.csv' }, // nested → kept, path preserved
+        { name: '.hidden', webkitRelativePath: 'trip/.hidden' }, // dotfile → skip
+        { name: 'd.csv' } // no webkitRelativePath → relPath falls back to name
+      ]);
+      T.eq('fromInput · keeps only the 3 real files (junk dropped)', picked.length, 3);
+      T.eq('fromInput · relPath preserved for display + de-dupe (nested path kept, junk gone)', picked.map(W.relOf), ['trip/a.csv', 'trip/sub/c.csv', 'd.csv']);
+      T.eq('fromInput · a file without webkitRelativePath tags relPath = name', W.relOf(picked[2]), 'd.csv');
+      T.eq('fromInput · a __MACOSX path segment excludes the file even when its own name is clean', picked.map(W.relOf).indexOf('trip/__MACOSX/b.txt'), -1);
+      T.eq('fromInput · null list → [] (no throw)', W.fromInput(null).length, 0);
+      T.eq('fromInput · empty list → []', W.fromInput([]).length, 0);
+      T.eq('relOf · an untagged file falls back to its name', W.relOf({ name: 'z.csv' }), 'z.csv');
+    });
+
     /* ════ 22 · PROPERTY / METAMORPHIC — HRV invariants + SignalFrame contract ════
      The generative complement to the suite's known-answer tests (WP-C/D/D2) and
      synthetic→DSP recovery (FULL-lane): instead of one input→expected pair, state
