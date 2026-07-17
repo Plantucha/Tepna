@@ -3867,6 +3867,37 @@
       T.ok('a genuine (non-clip) hypo keeps its confidence (0.9)', !!(trueHypo && trueHypo.conf === 0.9));
     });
 
+    /* AUDIT-2026-07-16 F4 — the Integrator resolved summary.dawnSurge = null for EVERY GlucoDex export.
+       GlucoDex's light export writes glucose.dawn.medianDelta, but the read chain pointed only at
+       pre-enrichment keys (glucose.dawn.riseMgdl — which is per-EVENT meta, not the summary — plus
+       fusion/patterns shapes the light export never carries). This is the un-fixed sibling of the §13
+       glucose.cv read-drift: a dead read that yields null the moment anyone surfaces it. */
+    group('Integrator reads GlucoDex dawnSurge from glucose.dawn.medianDelta (AUDIT-2026-07-16 F4)', 'glucodex-dsp · integrator-dsp', function (T) {
+      var A = env.adaptEnvelopeNode;
+      if (typeof A !== 'function') {
+        T.ok('adaptEnvelopeNode present', false);
+        return;
+      }
+      var t0 = U(2026, 4, 23, 0, 0, 0);
+      function gluco(dawn) {
+        return {
+          schema: { name: 'ganglior.node-export', version: '2.0', node: 'GlucoDex', bus: 'ganglior' },
+          recording: { source: 'cgm', startEpochMs: t0, events: 0 },
+          glucose: { cv: 31.2, dawn: dawn },
+          ganglior_events: [],
+          reserved: {}
+        };
+      }
+      // a real dawn phenomenon: GlucoDex's dawnPhenomenon sets present ⇒ medianDelta ≥ 20 mg/dL.
+      var withDawn = A(gluco({ present: true, medianDelta: 28 }), 'GlucoDex', 'gluco-dawn.json')[0];
+      T.eq('a real dawn surge is ingested from glucose.dawn.medianDelta (pre-fix: null)', withDawn.summary.dawnSurge, 28);
+      // control — the §13 sibling read (glucose.cv) proves the record actually ingested.
+      T.eq('control · glucoseCV still resolves from glucose.cv', withDawn.summary.glucoseCV, 31.2);
+      // absent dawn: the light export writes {present:false} with NO medianDelta → honest null.
+      var noDawn = A(gluco({ present: false }), 'GlucoDex', 'gluco-nodawn.json')[0];
+      T.eq('no dawn phenomenon → dawnSurge null (absence, never a fabricated number)', noDawn.summary.dawnSurge, null);
+    });
+
     /* ════ COMPANION-BUNDLE INGEST — ECG/PPG device sidecars reach compute() via ctx.companions
      (ECG-PPG-FOLLOWUPS-HANDOFF §2(b)). The single-text adapter boundary used to drop the matched
      `*_RR/_HR/_ACC` (ECG) and `*_ACC/_GYRO/_MAGN/_PPI` (PPG) sidecars, so a Unifier/OverDex-routed
