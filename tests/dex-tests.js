@@ -13640,6 +13640,26 @@
       T.eq('olsR2 · fewer than 3 points ⇒ null (not a fabricated fit)', CR.olsR2([1, 2], [1, 2]), null);
       T.eq('olsR2 · zero variance in x ⇒ null', CR.olsR2([3, 3, 3], [1, 2, 3]), null);
       T.eq('olsR2 · zero variance in y ⇒ null', CR.olsR2([1, 2, 3], [5, 5, 5]), null);
+
+      // ── qrs-equiv: Pearson r + Bland-Altman (the rMSSD three-way equivalence stats) ──
+      var QE = env.QrsEquiv;
+      T.ok('QrsEquiv.pearson + ba are wired into env (both lanes)', !!(QE && typeof QE.pearson === 'function' && typeof QE.ba === 'function'), 'window.QrsEquiv missing');
+      if (QE && QE.pearson) {
+        T.eq('pearson · perfect positive (y=2x) ⇒ r = 1', QE.pearson([1, 2, 3, 4], [2, 4, 6, 8]), 1);
+        T.eq('pearson · Sxy=8/√(10·10) ⇒ r = 0.8', QE.pearson([1, 2, 3, 4, 5], [1, 3, 2, 5, 4]), 0.8);
+        T.eq('pearson · fewer than 3 points ⇒ null', QE.pearson([1, 2], [2, 4]), null);
+        T.eq('pearson · zero variance ⇒ null (no fabricated correlation)', QE.pearson([3, 3, 3], [1, 2, 3]), null);
+        T.approx('sd · sample standard deviation (÷ n−1)', QE.sd([2, 4, 4, 4, 5, 5, 7, 9]), Math.sqrt(32 / 7), 1e-9);
+        // Bland-Altman: d = a−b = [−1,1,−1,1] ⇒ bias 0, sd(d)=√(4/3), LoA = ±1.96·sd
+        var b = QE.ba([10, 12, 14, 16], [11, 11, 15, 15]);
+        T.eq('ba · pairs used (all finite)', b.n, 4);
+        T.eq('ba · mean difference (bias) = 0', b.bias, 0);
+        T.approx('ba · sd of differences = √(4/3)', b.sd, Math.sqrt(4 / 3), 1e-9);
+        T.approx('ba · lower limit of agreement = bias − 1.96·sd', b.loLoA, -1.96 * Math.sqrt(4 / 3), 1e-9);
+        T.approx('ba · upper limit of agreement = bias + 1.96·sd', b.hiLoA, 1.96 * Math.sqrt(4 / 3), 1e-9);
+        T.eq('ba · zero-bias ⇒ symmetric limits (hiLoA = −loLoA)', +(b.hiLoA + b.loLoA).toFixed(12), 0);
+        T.eq('ba · fewer than 3 paired points ⇒ null', QE.ba([1], [1]), null);
+      }
     });
 
     /* ════ 22 · PROPERTY / METAMORPHIC — HRV invariants + SignalFrame contract ════
