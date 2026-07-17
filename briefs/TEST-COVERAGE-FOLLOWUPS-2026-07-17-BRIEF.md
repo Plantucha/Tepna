@@ -104,10 +104,12 @@ GPU` groups). No such leg exists for:
 
 ## Done when
 
-- [ ] **(1a)** `ECGProfile`/`GLUProfile`/`PPGProfile` in both `env` blocks; profile known-answer group
-      green in both lanes; no bundle re-touched. **← this brief's landing scope**
+- [x] **(1a)** `ECGProfile`/`GLUProfile`/`PPGProfile` in both `env` blocks; profile known-answer group
+      green in both lanes; no bundle re-touched. **DONE (PR #141)** — 40 assertions.
 - [ ] (1b) HRVDex/OxyDex profile pure-surface seam + tests (re-bundle + provenance) — follow-up
-- [ ] (2) NSRR parser round-trip
+- [x] (2) NSRR parser round-trip — **DONE** — `NSRR PSG ingest adapter` group: channel matching · 1 Hz
+      resample (forward-fill/backfill) · Clock-Contract EDF→OxyDex rows · severity bands (both lanes) +
+      profusion-XML → AHI scoring (browser lane, `parseNsrrXml` needs `DOMParser`). 27 Node / 36 browser.
 - [ ] (3) 4 analysis kernels wired into the known-answer group
 - [ ] (4) worker≡serial legs for the 4 remaining workers
 - [ ] (5) overdex-walk test; `support.js` orphan flagged for cleanup
