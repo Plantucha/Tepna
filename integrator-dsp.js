@@ -326,6 +326,11 @@ function adaptEnvelopeNode(json, node, filename) {
     summary.glucoseCV =
       _dig(json, ['glucose', 'cv']) || _dig(json, ['glycemic', 'cv']) || _dig(json, ['variability', 'cv']) || _dig(json, ['glycemia', 'cv']) || (json.summary ? json.summary.cv : null);
     summary.dawnSurge =
+      // GlucoDex's light export writes glucose.dawn.medianDelta (present ⇒ ≥20 mg/dL, dawnPhenomenon);
+      // the older read chain pointed only at pre-enrichment keys (riseMgdl is per-EVENT meta, not the
+      // summary) and so resolved null for EVERY GlucoDex export — the un-fixed sibling of the §13
+      // glucose.cv read-drift. medianDelta first, then the legacy shapes.
+      _dig(json, ['glucose', 'dawn', 'medianDelta']) ||
       _dig(json, ['glucose', 'dawn', 'riseMgdl']) ||
       _dig(json, ['fusion', 'dawnSurge']) ||
       _dig(json, ['dawn', 'surge']) ||
