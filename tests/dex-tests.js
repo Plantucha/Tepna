@@ -13618,6 +13618,30 @@
       T.eq('relOf · an untagged file falls back to its name', W.relOf({ name: 'z.csv' }), 'z.csv');
     });
 
+    /* ════ 21e · ANALYSIS-KERNEL COVERAGE — known-answer (TEST-COVERAGE-FOLLOWUPS-II §3, Route A) ════
+     The research/analysis pages re-implement their own statistics inline (no shared kernel) and had ZERO
+     coverage — they appeared only in the CSP/self-contained static lists, their math never executed. Route
+     A exposes each page's pure kernel on a namespace (+ a DOM guard so it loads headless) so a known-answer
+     asserts the SHIPPED function, not a copy (TEST-AUDIT-PROMPT.md class 3). First: cohort-regression's OLS
+     R² (`olsR2`). qrs-equiv (`pearson`/`ba`) follows in its own PR — it is INLINED by build-analysis, so it
+     also owes a bundle re-run. */
+    group('Analysis-kernel coverage — known-answer (TEST-COVERAGE-FOLLOWUPS-II §3)', 'cohort-regression · analysis-tools · known-answer', function (T) {
+      var CR = env.CohortRegression;
+      T.ok('CohortRegression.olsR2 is wired into env (both lanes)', !!(CR && typeof CR.olsR2 === 'function'), 'window.CohortRegression.olsR2 missing');
+      if (!CR || typeof CR.olsR2 !== 'function') return;
+
+      // OLS coefficient of determination R² = r² (r = Pearson). Pinned to closed-form values.
+      T.eq('olsR2 · perfect positive line (y = 2x) ⇒ R² = 1', CR.olsR2([1, 2, 3, 4], [2, 4, 6, 8]), 1);
+      T.eq('olsR2 · perfect NEGATIVE line ⇒ R² = 1 (sign-independent)', CR.olsR2([1, 2, 3], [6, 4, 2]), 1);
+      // [1,2,3,4,5] vs [1,3,2,5,4]: mx=my=3, Sxy=8, Sxx=Syy=10 ⇒ r=0.8 ⇒ R²=0.64
+      T.eq('olsR2 · partial fit ⇒ r=0.8 ⇒ R²=0.64', CR.olsR2([1, 2, 3, 4, 5], [1, 3, 2, 5, 4]), 0.64);
+      T.eq('olsR2 · rounds to 3 dp', CR.olsR2([1, 2, 3, 4], [1, 2, 3, 5]), 0.966); // Sxy=6.5,Sxx=5,Syy=8.75 ⇒ r=0.9827 ⇒ r²=0.966
+      // honest degenerate handling — never a fabricated correlation
+      T.eq('olsR2 · fewer than 3 points ⇒ null (not a fabricated fit)', CR.olsR2([1, 2], [1, 2]), null);
+      T.eq('olsR2 · zero variance in x ⇒ null', CR.olsR2([3, 3, 3], [1, 2, 3]), null);
+      T.eq('olsR2 · zero variance in y ⇒ null', CR.olsR2([1, 2, 3], [5, 5, 5]), null);
+    });
+
     /* ════ 22 · PROPERTY / METAMORPHIC — HRV invariants + SignalFrame contract ════
      The generative complement to the suite's known-answer tests (WP-C/D/D2) and
      synthetic→DSP recovery (FULL-lane): instead of one input→expected pair, state

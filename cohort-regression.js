@@ -343,5 +343,11 @@
     document.getElementById('nights').innerHTML = html;
   }
 
-  document.getElementById('runBtn').onclick = run;
+  // TEST-COVERAGE-FOLLOWUPS-II §3 (Route A): expose the pure statistical kernel so a known-answer group
+  // can assert the SHIPPED function (not a copy). Additive — no behavior change on the page.
+  (typeof window !== 'undefined' ? window : this).CohortRegression = { olsR2: olsR2 };
+  // Guard the top-level DOM wiring so the module also loads headlessly (getElementById → null in the
+  // test realm). Behavior-preserving in the browser; defensive if the button is ever absent.
+  var _crRunBtn = document.getElementById('runBtn');
+  if (_crRunBtn) _crRunBtn.onclick = run;
 })();
