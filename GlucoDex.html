@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Cv1ftxisV85nchQS/mzDUM/dAhgX+aKZtkuTvaVUp1A=' 'sha256-Ddk7xzmjZ2q6DaZkS+vfwOBaCm4CGdM0Np9fprcSIzY=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qbo2Iv27bqsr4jC6FoAo0Lavhb/khOFDfsEdqDJIaWk=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-pwGa5UtAYYw5lcV43nEVXDjabT5bO6Vz6d7mYK8Ttzk=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE=' 'sha256-zrW7QtVO+BbazoZXqXf8iDhpzP05fWZz85gMYdFdluI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2UjnkW+xeJYWhv4x3lZ3ZQP9tEivwdw+h2ks/1wlwFE=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Ddk7xzmjZ2q6DaZkS+vfwOBaCm4CGdM0Np9fprcSIzY=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qbo2Iv27bqsr4jC6FoAo0Lavhb/khOFDfsEdqDJIaWk=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-pwGa5UtAYYw5lcV43nEVXDjabT5bO6Vz6d7mYK8Ttzk=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE=' 'sha256-zrW7QtVO+BbazoZXqXf8iDhpzP05fWZz85gMYdFdluI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GlucoDex — Continuous Glucose Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -6216,14 +6216,61 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     var sign = zs[0] === '-' ? -1 : 1;
     return sign * (parseInt(zs.slice(1, 3), 10) * 60 + parseInt(zs.slice(3, 5), 10));
   }
-  function _ckDMY(a, b, preferDMY) {
+  /* Contract §3 — decide day vs month from the first two slash fields.
+     `locked` (from _ckResolveDMY) means the ORDER WAS PROVEN FOR THIS FILE: apply it unconditionally so
+     a single row can no longer flip the order mid-file; a row the lock cannot explain (its month field
+     lands outside 1..12) is a contradiction → null, never a guess. Unlocked keeps the historical
+     per-call behavior. Mirrors clock.js _ckDMY (GlucoDex is a deliberate node-local Clock variant). */
+  function _ckDMY(a, b, preferDMY, locked) {
+    if (locked) {
+      var ld = preferDMY ? a : b,
+        lmo = preferDMY ? b : a;
+      return lmo >= 1 && lmo <= 12 && ld >= 1 && ld <= 31 ? { d: ld, mo: lmo } : null;
+    }
     if (a > 12) return { d: a, mo: b };
     if (b > 12) return { d: b, mo: a };
     return preferDMY ? { d: a, mo: b } : { d: b, mo: a };
   }
+  /* Contract §3, the FILE-LEVEL lock: "Any row with day-component > 12 ⇒ file is unambiguous; lock that
+     order for the whole file … Never switch order mid-file." Scan every stamp ONCE: a 1st field > 12
+     PROVES DMY, a 2nd field > 12 PROVES MDY; both ⇒ the file contradicts itself ⇒ fall back to pref
+     unlocked (don't guess a lock); neither ⇒ genuinely ambiguous ⇒ pref, unlocked. Only the two
+     ambiguous CGM slash shapes carry DMY/MDY ambiguity. Local port of clock.js resolveDMY. */
+  function _ckResolveDMY(rawStamps, preferDMY) {
+    var pref = preferDMY !== false,
+      sawDMY = false,
+      sawMDY = false;
+    var RE_A = /^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+    var RE_C = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/;
+    var list = rawStamps || [];
+    for (var i = 0; i < list.length; i++) {
+      var s = list[i];
+      if (typeof s !== 'string') continue;
+      s = s.trim().replace(/^["']|["']$/g, '');
+      var a = null,
+        b = null;
+      var mA = s.match(RE_A);
+      var mC = mA ? null : s.match(RE_C);
+      if (mA) {
+        a = +mA[4];
+        b = +mA[5];
+      } else if (mC) {
+        a = +mC[1];
+        b = +mC[2];
+      } else continue;
+      if (a > 12) sawDMY = true;
+      if (b > 12) sawMDY = true;
+      if (sawDMY && sawMDY) break;
+    }
+    if (sawDMY && sawMDY) return { dmy: pref, locked: false, contradictory: true };
+    if (sawDMY) return { dmy: true, locked: true, contradictory: false };
+    if (sawMDY) return { dmy: false, locked: true, contradictory: false };
+    return { dmy: pref, locked: false, contradictory: false };
+  }
   function _ckParse(raw, opts) {
     opts = opts || {};
     var preferDMY = opts.preferDMY !== false;
+    var dmyLocked = opts.dmyLocked === true; // set by _ckResolveDMY — order proven for this file
     if (raw == null) return null;
     if (typeof raw === 'number') return _ckNumEpoch(raw);
     var s = String(raw)
@@ -6241,12 +6288,14 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     if (m) return { tMs: Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0), offsetMin: null };
     m = s.match(/^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (m) {
-      var dm = _ckDMY(+m[4], +m[5], preferDMY);
+      var dm = _ckDMY(+m[4], +m[5], preferDMY, dmyLocked);
+      if (!dm) return null; // row contradicts the file's proven order → honest null
       return { tMs: Date.UTC(+m[6], dm.mo - 1, dm.d, +m[1], +m[2], +m[3]), offsetMin: null };
     }
     m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
     if (m) {
-      var dm2 = _ckDMY(+m[1], +m[2], preferDMY);
+      var dm2 = _ckDMY(+m[1], +m[2], preferDMY, dmyLocked);
+      if (!dm2) return null; // row contradicts the file's proven order → honest null
       return { tMs: Date.UTC(+m[3], dm2.mo - 1, dm2.d, +m[4], +m[5], m[6] ? +m[6] : 0), offsetMin: null };
     }
     m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
@@ -6325,6 +6374,16 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     const delim = detectDelimiter(nonEmpty[0]);
     const { tsCol, gCol } = locateColumns(nonEmpty, delim);
 
+    // Contract §3 file-level DMY/MDY lock: pre-scan the timestamp column ONCE so a single day>12 row
+    // fixes the order for the WHOLE file (a European DMY Libre export can no longer let ambiguous rows
+    // silently flip to the MDY default mid-file). preferDMY:false = the CGM tiebreaker (Libre/Dexcom MDY).
+    const tsStamps = nonEmpty.map((line) => {
+      const cells = line.split(delim);
+      return tsCol < cells.length ? (cells[tsCol] || '').trim() : '';
+    });
+    const dmyOrder = _ckResolveDMY(tsStamps, false);
+    const tsOpts = { preferDMY: dmyOrder.dmy, dmyLocked: dmyOrder.locked };
+
     const T = [],
       V = [];
     for (const line of nonEmpty) {
@@ -6337,7 +6396,8 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       const g = parseFloat(gRaw);
       if (!isFinite(g)) continue; // header / non-numeric
       const tRaw = (cells[tsCol] || '').trim();
-      const ms = parseTimestamp(tRaw);
+      const tParsed = _ckParse(tRaw, tsOpts); // file-locked order (not the per-row parseTimestamp default)
+      const ms = tParsed ? tParsed.tMs : NaN;
       if (!isFinite(ms)) continue; // need a timestamp to place the sample
       T.push(ms);
       V.push(g);

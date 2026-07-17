@@ -81,14 +81,61 @@
     var sign = zs[0] === '-' ? -1 : 1;
     return sign * (parseInt(zs.slice(1, 3), 10) * 60 + parseInt(zs.slice(3, 5), 10));
   }
-  function _ckDMY(a, b, preferDMY) {
+  /* Contract §3 — decide day vs month from the first two slash fields.
+     `locked` (from _ckResolveDMY) means the ORDER WAS PROVEN FOR THIS FILE: apply it unconditionally so
+     a single row can no longer flip the order mid-file; a row the lock cannot explain (its month field
+     lands outside 1..12) is a contradiction → null, never a guess. Unlocked keeps the historical
+     per-call behavior. Mirrors clock.js _ckDMY (GlucoDex is a deliberate node-local Clock variant). */
+  function _ckDMY(a, b, preferDMY, locked) {
+    if (locked) {
+      var ld = preferDMY ? a : b,
+        lmo = preferDMY ? b : a;
+      return lmo >= 1 && lmo <= 12 && ld >= 1 && ld <= 31 ? { d: ld, mo: lmo } : null;
+    }
     if (a > 12) return { d: a, mo: b };
     if (b > 12) return { d: b, mo: a };
     return preferDMY ? { d: a, mo: b } : { d: b, mo: a };
   }
+  /* Contract §3, the FILE-LEVEL lock: "Any row with day-component > 12 ⇒ file is unambiguous; lock that
+     order for the whole file … Never switch order mid-file." Scan every stamp ONCE: a 1st field > 12
+     PROVES DMY, a 2nd field > 12 PROVES MDY; both ⇒ the file contradicts itself ⇒ fall back to pref
+     unlocked (don't guess a lock); neither ⇒ genuinely ambiguous ⇒ pref, unlocked. Only the two
+     ambiguous CGM slash shapes carry DMY/MDY ambiguity. Local port of clock.js resolveDMY. */
+  function _ckResolveDMY(rawStamps, preferDMY) {
+    var pref = preferDMY !== false,
+      sawDMY = false,
+      sawMDY = false;
+    var RE_A = /^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+    var RE_C = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/;
+    var list = rawStamps || [];
+    for (var i = 0; i < list.length; i++) {
+      var s = list[i];
+      if (typeof s !== 'string') continue;
+      s = s.trim().replace(/^["']|["']$/g, '');
+      var a = null,
+        b = null;
+      var mA = s.match(RE_A);
+      var mC = mA ? null : s.match(RE_C);
+      if (mA) {
+        a = +mA[4];
+        b = +mA[5];
+      } else if (mC) {
+        a = +mC[1];
+        b = +mC[2];
+      } else continue;
+      if (a > 12) sawDMY = true;
+      if (b > 12) sawMDY = true;
+      if (sawDMY && sawMDY) break;
+    }
+    if (sawDMY && sawMDY) return { dmy: pref, locked: false, contradictory: true };
+    if (sawDMY) return { dmy: true, locked: true, contradictory: false };
+    if (sawMDY) return { dmy: false, locked: true, contradictory: false };
+    return { dmy: pref, locked: false, contradictory: false };
+  }
   function _ckParse(raw, opts) {
     opts = opts || {};
     var preferDMY = opts.preferDMY !== false;
+    var dmyLocked = opts.dmyLocked === true; // set by _ckResolveDMY — order proven for this file
     if (raw == null) return null;
     if (typeof raw === 'number') return _ckNumEpoch(raw);
     var s = String(raw)
@@ -106,12 +153,14 @@
     if (m) return { tMs: Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0), offsetMin: null };
     m = s.match(/^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (m) {
-      var dm = _ckDMY(+m[4], +m[5], preferDMY);
+      var dm = _ckDMY(+m[4], +m[5], preferDMY, dmyLocked);
+      if (!dm) return null; // row contradicts the file's proven order → honest null
       return { tMs: Date.UTC(+m[6], dm.mo - 1, dm.d, +m[1], +m[2], +m[3]), offsetMin: null };
     }
     m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
     if (m) {
-      var dm2 = _ckDMY(+m[1], +m[2], preferDMY);
+      var dm2 = _ckDMY(+m[1], +m[2], preferDMY, dmyLocked);
+      if (!dm2) return null; // row contradicts the file's proven order → honest null
       return { tMs: Date.UTC(+m[3], dm2.mo - 1, dm2.d, +m[4], +m[5], m[6] ? +m[6] : 0), offsetMin: null };
     }
     m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
@@ -190,6 +239,16 @@
     const delim = detectDelimiter(nonEmpty[0]);
     const { tsCol, gCol } = locateColumns(nonEmpty, delim);
 
+    // Contract §3 file-level DMY/MDY lock: pre-scan the timestamp column ONCE so a single day>12 row
+    // fixes the order for the WHOLE file (a European DMY Libre export can no longer let ambiguous rows
+    // silently flip to the MDY default mid-file). preferDMY:false = the CGM tiebreaker (Libre/Dexcom MDY).
+    const tsStamps = nonEmpty.map((line) => {
+      const cells = line.split(delim);
+      return tsCol < cells.length ? (cells[tsCol] || '').trim() : '';
+    });
+    const dmyOrder = _ckResolveDMY(tsStamps, false);
+    const tsOpts = { preferDMY: dmyOrder.dmy, dmyLocked: dmyOrder.locked };
+
     const T = [],
       V = [];
     for (const line of nonEmpty) {
@@ -202,7 +261,8 @@
       const g = parseFloat(gRaw);
       if (!isFinite(g)) continue; // header / non-numeric
       const tRaw = (cells[tsCol] || '').trim();
-      const ms = parseTimestamp(tRaw);
+      const tParsed = _ckParse(tRaw, tsOpts); // file-locked order (not the per-row parseTimestamp default)
+      const ms = tParsed ? tParsed.tMs : NaN;
       if (!isFinite(ms)) continue; // need a timestamp to place the sample
       T.push(ms);
       V.push(g);

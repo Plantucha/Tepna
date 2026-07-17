@@ -6628,6 +6628,67 @@
       }
     });
 
+    /* AUDIT-2026-07-16 F1 — the §3 file-level DMY/MDY lock must hold in GlucoDex's node-local parseCSV,
+       not only in the shared DexClock.resolveDMY tested above. GlucoDex parses CGM stamps with its own
+       _ckParse (a deliberate node-local Clock variant) and used to decide DMY/MDY PER ROW with a fixed
+       preferDMY:false — so a European (DMY) Libre export scattered mid-file: a day>12 row read DMY while
+       an ambiguous row silently flipped to the MDY default, then sorted onto the wrong calendar day. The
+       fix pre-scans the timestamp column once (_ckResolveDMY) and locks the order for the whole file. */
+    group('GlucoDex parseCSV honors the §3 whole-file DMY/MDY lock (AUDIT-2026-07-16 F1)', 'glucodex-dsp · clock', function (T) {
+      var G = env.GlucoDex || env.GLUDSP;
+      if (!G || typeof G.parseCSV !== 'function') {
+        T.ok('env.GlucoDex.parseCSV available', false, 'namespace not wired — gate skipped');
+        return;
+      }
+      function monthsOf(rows) {
+        var csv = 'Device Timestamp,Historic Glucose mg/dL\n' + rows.join('\n');
+        var r = G.parseCSV(csv),
+          s = {};
+        for (var i = 0; i < r.tMs.length; i++) s[new Date(r.tMs[i]).getUTCMonth() + 1] = 1;
+        return {
+          months: Object.keys(s)
+            .map(Number)
+            .sort(function (a, b) {
+              return a - b;
+            }),
+          n: r.tMs.length
+        };
+      }
+      // A European DMY file: "13/05" (day 13 > 12) PROVES DMY. The two ambiguous rows "07/05"/"06/05"
+      // must therefore ALSO read as May — pre-fix they flipped to the MDY default (July 5 / June 5).
+      var eu = monthsOf([
+        '13/05/2026 22:30,110',
+        '07/05/2026 08:15,98',
+        '06/05/2026 12:00,130',
+        '14/05/2026 03:00,90',
+        '13/05/2026 23:00,108',
+        '13/05/2026 23:15,112',
+        '13/05/2026 23:30,115',
+        '13/05/2026 23:45,119',
+        '14/05/2026 00:00,122',
+        '14/05/2026 00:15,124',
+        '14/05/2026 00:30,126'
+      ]);
+      T.eq('DMY file: every reading stays in May (no ambiguous row flips to Jun/Jul)', eu.months.join(','), '5');
+      T.ok('DMY file: all 11 readings parsed', eu.n === 11, 'n = ' + eu.n);
+      // Mirror control — a US MDY file: "05/13" (month-slot 13 > 12) PROVES MDY; "05/07"/"05/06" stay May.
+      var us = monthsOf([
+        '05/13/2026 22:30,110',
+        '05/07/2026 08:15,98',
+        '05/06/2026 12:00,130',
+        '05/14/2026 03:00,90',
+        '05/13/2026 23:00,108',
+        '05/13/2026 23:15,112',
+        '05/13/2026 23:30,115',
+        '05/13/2026 23:45,119',
+        '05/14/2026 00:00,122',
+        '05/14/2026 00:15,124',
+        '05/14/2026 00:30,126'
+      ]);
+      T.eq('MDY file: every reading stays in May (order locked from the day>12 proof)', us.months.join(','), '5');
+      T.ok('MDY file: all 11 readings parsed', us.n === 11, 'n = ' + us.n);
+    });
+
     group('GlucoDex clamp-saturation honesty flag (GLUCODEX-FOLLOWUPS §2)', 'glucodex-dsp · integrator-dsp', function (T) {
       var G = env.GlucoDex || env.GLUDSP,
         A = env.adaptEnvelopeNode;
