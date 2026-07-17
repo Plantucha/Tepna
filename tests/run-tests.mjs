@@ -921,7 +921,10 @@ async function main() {
     // TEST-COVERAGE-FOLLOWUPS §2 — the NSRR PSG ingest adapter (channel matching · 1 Hz resample ·
     // Clock-Contract EDF→OxyDex rows · severity bands). Attaches window.NSRR; the XML annotation
     // parser (parseNsrrXml) needs DOMParser and is exercised in the browser lane only.
-    'nsrr-adapter.js'
+    'nsrr-adapter.js',
+    // TEST-COVERAGE-FOLLOWUPS §5 — OverDex's recursive folder walker (junk-filter + relPath tagging).
+    // DOM-free, attaches globalThis.OverDexWalk; the sync fromInput/relOf surface is pinned headlessly.
+    'overdex-walk.js'
   ].forEach((f) => {
     try {
       loadInto(ctx, f);
@@ -938,6 +941,7 @@ async function main() {
     GLUProfile: ctx.GLUProfile,
     PPGProfile: ctx.PPGProfile,
     NSRR: ctx.NSRR,
+    OverDexWalk: ctx.OverDexWalk,
     CrossNightEnvelope: ctx.CrossNightEnvelope,
     ECGCross: ctx.ECGCross,
     OXYCross: ctx.OXYCross,
