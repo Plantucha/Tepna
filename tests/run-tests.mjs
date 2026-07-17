@@ -910,7 +910,14 @@ async function main() {
     // TEST-COVERAGE-ANALYSIS 2026-07-15 — the analysis-page statistics kernels, single-sourced so the
     // 'Analysis-page statistics kernels — known-answer' group (dex-tests.js) can execute the paper-figure
     // math. Load failure → env.AnalysisStats undefined → that group's availability assert reds.
-    'analysis-stats.js'
+    'analysis-stats.js',
+    // TEST-COVERAGE-FOLLOWUPS §1 — the per-node PROFILE engines (cited VO₂/HRV/apnea/eAG physiology).
+    // They attach window.ECGProfile / GLUProfile / PPGProfile; load failure → those env keys undefined →
+    // the 'Per-node profile personalization — known-answer' availability assert reds. DexProfile + all
+    // node DSPs (incl. glucodex-dsp above) are already in the realm, so personalize() resolves.
+    'ecgdex-profile.js',
+    'glucodex-profile.js',
+    'ppgdex-profile.js'
   ].forEach((f) => {
     try {
       loadInto(ctx, f);
@@ -923,6 +930,9 @@ async function main() {
     DexKernel: ctx.DexKernel,
     MetricRegistry: ctx.MetricRegistry,
     DexProfile: ctx.DexProfile,
+    ECGProfile: ctx.ECGProfile,
+    GLUProfile: ctx.GLUProfile,
+    PPGProfile: ctx.PPGProfile,
     CrossNightEnvelope: ctx.CrossNightEnvelope,
     ECGCross: ctx.ECGCross,
     OXYCross: ctx.OXYCross,
