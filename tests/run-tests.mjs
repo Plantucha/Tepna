@@ -932,7 +932,11 @@ async function main() {
     // TEST-COVERAGE-FOLLOWUPS-II §3 (Route A) — qrs-equiv exposes window.QrsEquiv (pearson · Bland-Altman ·
     // sd · mean) + DOM guards so it loads headless. It is INLINED by build-analysis, so the .html was
     // re-bundled (build-analysis --check is the staleness net). Load failure → env.QrsEquiv undefined → red.
-    'qrs-equiv-analysis.js'
+    'qrs-equiv-analysis.js',
+    // TEST-COVERAGE-FOLLOWUPS-II §1b — HRVDex's personalization already leaks its pure cited kernels as
+    // bare globals (Object.assign(window,{…})) and loads headless, so NO source edit / NO re-bundle is
+    // owed (the brief's "no seam" premise was wrong). Load it last so env can grab calcVo2Cat/getAgeBand.
+    'hrvdex-profile.js'
   ].forEach((f) => {
     try {
       loadInto(ctx, f);
@@ -952,6 +956,8 @@ async function main() {
     OverDexWalk: ctx.OverDexWalk,
     CohortRegression: ctx.CohortRegression,
     QrsEquiv: ctx.QrsEquiv,
+    HrvCalcVo2Cat: ctx.calcVo2Cat,
+    HrvGetAgeBand: ctx.getAgeBand,
     CrossNightEnvelope: ctx.CrossNightEnvelope,
     ECGCross: ctx.ECGCross,
     OXYCross: ctx.OXYCross,

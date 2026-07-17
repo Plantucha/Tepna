@@ -13662,6 +13662,37 @@
       }
     });
 
+    /* ════ 21f · HRVDex PROFILE PERSONALIZATION — known-answer (TEST-COVERAGE-FOLLOWUPS-II §1b) ════
+     hrvdex-profile.js carries cited VO₂/age-norm physiology that shipped unasserted. Unlike the DOM-only
+     assumption in the brief, it already leaks its PURE kernels as bare globals (Object.assign(window,{…}))
+     and loads headless — so this is a test-only wiring, NO re-bundle (the OxyDex sibling DOES owe one: its
+     exports are blocked by a top-level DOM-touching initProfile()). Pins the ACSM/NHANES VO₂-category
+     classifier (calcVo2Cat) + the age-band cut points (getAgeBand). Values observed from the real module. */
+    group('HRVDex profile personalization — known-answer (TEST-COVERAGE-FOLLOWUPS-II §1b)', 'hrvdex-profile · profile · known-answer', function (T) {
+      var vo2Cat = env.HrvCalcVo2Cat,
+        ageBand = env.HrvGetAgeBand;
+      T.ok('HRVDex calcVo2Cat + getAgeBand are wired into env (both lanes)', typeof vo2Cat === 'function' && typeof ageBand === 'function', 'window.calcVo2Cat/getAgeBand missing');
+      if (typeof vo2Cat !== 'function' || typeof ageBand !== 'function') return;
+
+      // age-band cut points (decade bands, half-open)
+      T.eq('getAgeBand · <30 → "18"', ageBand(25), '18');
+      T.eq('getAgeBand · [30,40) → "30"', ageBand(35), '30');
+      T.eq('getAgeBand · [40,50) → "40"', ageBand(45), '40');
+      T.eq('getAgeBand · [50,60) → "50"', ageBand(55), '50');
+      T.eq('getAgeBand · [60,70) → "60"', ageBand(65), '60');
+      T.eq('getAgeBand · ≥70 → "70"', ageBand(75), '70');
+      T.eq('getAgeBand · boundary 30 is the next band (half-open)', ageBand(30), '30');
+
+      // VO₂max category vs ACSM/NHANES norms (male 40-44 = [31.1,35.4,38.9,43.7])
+      T.eq('calcVo2Cat · below the lowest norm ⇒ "Very Poor"', vo2Cat(30, 42, 'M'), 'Very Poor');
+      T.eq('calcVo2Cat · within the top band ⇒ "Good"', vo2Cat(40, 42, 'M'), 'Good');
+      T.eq('calcVo2Cat · above the highest norm ⇒ "Superior"', vo2Cat(50, 42, 'M'), 'Superior');
+      // female norms are a distinct (lower) table — sex is not ignored: the SAME VO₂/age reads one band
+      // higher for F. Male 30-34 = [34.6,38.5,42.4,47.4] ⇒ 30 → "Very Poor"; female 30-34 = [27.7,…] ⇒ "Poor".
+      T.eq('calcVo2Cat · sex M · VO₂ 30 @ age 32 ⇒ "Very Poor"', vo2Cat(30, 32, 'M'), 'Very Poor');
+      T.eq('calcVo2Cat · sex F · SAME VO₂/age reads higher on the lower female norms ⇒ "Poor"', vo2Cat(30, 32, 'F'), 'Poor');
+    });
+
     /* ════ 22 · PROPERTY / METAMORPHIC — HRV invariants + SignalFrame contract ════
      The generative complement to the suite's known-answer tests (WP-C/D/D2) and
      synthetic→DSP recovery (FULL-lane): instead of one input→expected pair, state

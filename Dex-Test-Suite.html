@@ -248,6 +248,9 @@ async function main(){
   { const _cr = await fetchText('cohort-regression.js'); if(_cr) (0, eval)(esmClassicify(_cr)); }
   // TEST-COVERAGE-FOLLOWUPS-II Item 3 (Route A): qrs-equiv exposes window.QrsEquiv (pearson · Bland-Altman).
   { const _qe = await fetchText('qrs-equiv-analysis.js'); if(_qe) (0, eval)(esmClassicify(_qe)); }
+  // TEST-COVERAGE-FOLLOWUPS-II Item 1b: HRVDex personalization leaks calcVo2Cat/getAgeBand as bare globals
+  // (Object.assign(window,{…})) and loads headless — no re-bundle owed. Load it so env can grab them.
+  { const _hp = await fetchText('hrvdex-profile.js'); if(_hp) (0, eval)(esmClassicify(_hp)); }
   // gather fixtures + sources (browser I/O; runner does the equivalent in Node)
   const fixtures = {}, sources = {};
   await Promise.all(Object.keys(FIXTURE_FILES).map(async k => { fixtures[k] = await fetchJSON(FIXTURE_FILES[k]); }));
@@ -454,6 +457,8 @@ async function main(){
     OverDexWalk: window.OverDexWalk,
     CohortRegression: window.CohortRegression,
     QrsEquiv: window.QrsEquiv,
+    HrvCalcVo2Cat: window.calcVo2Cat,
+    HrvGetAgeBand: window.getAgeBand,
     CrossNightEnvelope: window.CrossNightEnvelope,
     ECGCross: window.ECGCross,
     OXYCross: window.OXYCross, PulseCross: window.PulseCross, PPGCross: window.PPGCross,

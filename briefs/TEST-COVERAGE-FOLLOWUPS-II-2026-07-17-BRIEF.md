@@ -76,10 +76,22 @@ covered the three that export; these two owe a seam.
 
 **Plan:** add an **additive** pure surface (e.g. `window.HrvProfile = { projectVO2, … }` /
 `window.OxyProfile = { … }`) computing the same VO₂/HRV math without a DOM, then a known-answer group
-like 1a's. **This edits shipped bundle source** (`hrvdex-profile.js` / `oxydex-profile.js` are inlined
-into HRVDex / OxyDex) → **re-bundle HRVDex + OxyDex + regenerate provenance** (GATE A moves;
-`node tools/build.mjs --app HRVDex` / `--app OxyDex`, then re-run the gates). This is the one item here
-that pays the re-bundle cost, so batch it with any other HRVDex/OxyDex behavioral change if one is queued.
+like 1a's.
+
+> **⚠ Execution finding (2026-07-17) — the premise was HALF wrong; HRVDex needs NO re-bundle.**
+> - **HRVDex — DONE, test-only (no re-bundle).** `hrvdex-profile.js` already leaks its pure cited kernels
+>   as **bare globals** via `Object.assign(window, {…})` (`calcVo2Cat`, `getAgeBand`, …) **and loads
+>   headless** — no DOM at module top level. So there was no seam to add: just load it in both runners and
+>   grab the globals. Pinned the ACSM/NHANES VO₂-category classifier + age bands (13 assertions).
+>   `build --check` stays clean (no bundled source touched). *This is the win the brief said needed a seam.*
+> - **OxyDex — still owes the re-bundle.** `oxydex-profile.js` DOES expose via `Object.assign(window,{…})`
+>   too, but a **top-level `initProfile()` IIFE** (line ~628) runs DOM code (`upToDOM()` → sets element
+>   `.value`) at load, so the module **throws headless** and nothing is reachable. Making it testable needs
+>   a guard on that init path (skip when no panel) **plus** adding the pure kernels (`upKarvonenZone`,
+>   `upBMILabel`) to the export → **edits shipped bundle source → re-bundle OxyDex + regenerate provenance**
+>   (`node tools/build.mjs --app OxyDex`). So the re-bundle cost is **1 app, not 2** — batch it with any
+>   other queued OxyDex behavioral change. Left as its own PR (editing a shipped app's init path is higher
+>   risk than the HRVDex test-only wiring; deserves isolated review + a green `verify-provenance`).
 
 ---
 
@@ -93,7 +105,9 @@ that pays the re-bundle cost, so batch it with any other HRVDex/OxyDex behaviora
       `mean`/`median` (already covered by `analysis-stats`) — low unit-test value; assessed, not skipped
       silently. Route B (extract-to-shared-kernel dedup) remains OPTIONAL, not needed for coverage.
 - [ ] (4) real-Worker known-answer rig for the 4 workers (browser lane), paired with (3)'s fixtures.
-- [ ] (1b) HRVDex/OxyDex profile seam + known-answers + re-bundle + provenance regen.
+- [~] (1b) profile seam. **HRVDex DONE** (13 assertions, both lanes, **no re-bundle** — already exposes
+      bare globals + loads headless). **OxyDex remaining:** guard the top-level `initProfile()` + export
+      `upKarvonenZone`/`upBMILabel` → re-bundle OxyDex + provenance regen (own PR; 1 app, not 2).
 
 Each: `node tests/run-tests.mjs` green + `Dex-Test-Suite.html?full` all-green + changeset. Route B
 (dedup/extraction) for 3+4 is an OPTIONAL later pass; note it in a follow-up if taken. These plans are
