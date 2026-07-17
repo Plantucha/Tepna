@@ -12013,6 +12013,7 @@
         'quantity.js': 'Quantity',
         'signal-frame.js': 'SignalFrame',
         'crossnight-envelope.js': 'CrossNightEnvelope',
+        'event-coupling.js': 'EventCoupling',
         'synth-gen.js': 'SYNTH',
         // node DSPs (namespaced public surface)
         'oxydex-dsp.js': 'OxyDex',
@@ -14780,6 +14781,63 @@
 
       // 4. purity — no clock read, no RNG: identical inputs must give identical output
       T.eq('deterministic across calls (pure: no now(), no random)', JSON.stringify(EC.coupling(A, B, { window: [0, 10000], span: span, stratifyBy: 'durSec' })), JSON.stringify(r));
+    });
+
+    /* CPAP-REAL-CORPUS-FOLLOWUPS-II §P7 — the Integrator now CONSUMES event-coupling.js. Its
+       fuseApneaEvents answered "is desat⟷surge real or coincidence?" with only a home-rolled Poisson
+       λ (memoryless, no explicit power/saturation guard). It now ALSO runs EventCoupling.coupling()
+       with the four hard-won guards, and — critically — supplies `coverage` from the recording overlap
+       so a desat outside the cardiac window is EXCLUDED, not a manufactured miss (the ×0.72 artifact).
+       The verdict `real` is set ONLY on a `usable` (not underpowered, not saturated) window. Real-corpus
+       grounding (24 committed trio nights, pooled): apnea(desat)→HR(surge) lift ≈ 0.83 with coverage
+       supplied (33 desats excluded as outside the cardiac window), most single nights underpowered — the
+       primitive honestly reports "can't judge" rather than over-claiming. */
+    group('Integrator consumes EventCoupling for desat⟷surge (coverage-aware) — §P7', 'integrator-dsp · event-coupling · spine', function (T) {
+      var RF = env.runFusion;
+      var EC = env.EventCoupling;
+      var ready = typeof RF === 'function' && EC && typeof EC.coupling === 'function';
+      T.ok('runFusion + EventCoupling co-resident (Integrator can call the primitive)', ready);
+      if (!ready) return;
+      var t0 = U(2026, 5, 7, 22, 0, 0),
+        H = 3600000;
+      function rec(node, evs) {
+        return { node: node, t0Ms: t0, endMs: t0 + 2 * H, dateUnknown: false, offsetMin: null, events: evs, nEvents: evs.length, summary: {}, series: {} };
+      }
+      // 30 desats spread over 2 h; each planted with a surge +3 s (inside the −15…+60 s directional window).
+      var desats = [],
+        surges = [];
+      for (var i = 0; i < 30; i++) {
+        var dt = t0 + i * 220000;
+        desats.push({ tMs: dt, t: 'x', impulse: 'spo2_desaturation', node: 'OxyDex', conf: 0.8, meta: { depth: 5, durSec: 20 } });
+        surges.push({ tMs: dt + 3000, t: 'x', impulse: 'autonomic_surge', node: 'ECGDex', conf: 0.7 });
+      }
+      var cp = (RF([rec('OxyDex', desats), rec('ECGDex', surges)], {}).apnea || {}).coupling;
+      T.ok('fuseApneaEvents attaches an EventCoupling block', !!cp, JSON.stringify(cp));
+      if (!cp) return;
+      // THE §P7 REQUIREMENT: coverage was supplied from the node's real recording window (the overlap).
+      T.eq('coverage supplied — NOT the coverageAssumed fallback', cp.coverageAssumed, false);
+      T.ok('an out-of-coverage desat is EXCLUDED, not counted as a miss', cp.excluded >= 1, 'excluded=' + cp.excluded);
+      // a planted strong coupling on a powered, unsaturated window ⇒ usable + real.
+      T.ok(
+        'planted coupling → usable (neither underpowered nor saturated)',
+        cp.usable === true && cp.underpowered === false && cp.saturated === false,
+        JSON.stringify({ up: cp.underpowered, sat: cp.saturated })
+      );
+      T.ok(
+        'planted coupling → real=true with lift>1 and observed≫chance',
+        cp.real === true && cp.lift > 1 && cp.observedPct > cp.chancePct,
+        JSON.stringify({ real: cp.real, lift: cp.lift, obs: cp.observedPct, chance: cp.chancePct })
+      );
+      // THE RULE: `real` is read ONLY where usable — a non-usable window can never be `real`.
+      T.ok('invariant: real ⇒ usable (never claimed on an underpowered/saturated window)', cp.real === false || cp.usable === true);
+      // control — the SAME desats with each surge parked MID-GAP (+110 s, i.e. 110 s from the desat
+      // before AND after — the desats are 220 s apart), so no surge lands in any −15…+60 s window ⇒
+      // observed 0, real=false. (A naïve fixed offset ~1× the spacing aliases onto the NEXT desat.)
+      var far = desats.map(function (d) {
+        return { tMs: d.tMs + 110000, t: 'x', impulse: 'autonomic_surge', node: 'ECGDex', conf: 0.7 };
+      });
+      var cp2 = (RF([rec('OxyDex', desats), rec('ECGDex', far)], {}).apnea || {}).coupling;
+      T.ok('control · surges outside the window → real=false (observed 0)', !!cp2 && cp2.real === false && cp2.observedPct === 0, JSON.stringify(cp2 && { real: cp2.real, obs: cp2.observedPct }));
     });
 
     /* Selection already happened at declaration time (see group() above) — a group that

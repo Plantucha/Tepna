@@ -1035,7 +1035,8 @@ function fuseApneaEvents(recs, dtMs, gate) {
       matched: { desat: 0, surge: 0 },
       total: { desat: 0, surge: 0 },
       unmatched: { desat: [], surge: [] },
-      nullModel: { expectedConfirmed: 0, pAtLeastObserved: 1, belowChance: true, surgeRatePerHr: 0, directionalWindowSec: leadMaxSec + trailMaxSec }
+      nullModel: { expectedConfirmed: 0, pAtLeastObserved: 1, belowChance: true, surgeRatePerHr: 0, directionalWindowSec: leadMaxSec + trailMaxSec },
+      coupling: null
     };
   raw.sort(function (a, b) {
     return a[0] - b[0];
@@ -1185,6 +1186,41 @@ function fuseApneaEvents(recs, dtMs, gate) {
     f.pSpurious = +pAtLeast.toFixed(3);
   });
 
+  // ── EVENT-COUPLING (P7 — CPAP-REAL-CORPUS-FOLLOWUPS-II §P7) ───────────────────
+  // The Poisson `nullModel` above answers "is desat⟷surge above chance?" with a memoryless
+  // λ that ignores the surges' internal structure and has no explicit power/saturation guard.
+  // EventCoupling.coupling() answers the same question with circular time-shift surrogates and
+  // the four hard-won guards (wrapping · coverage · power floor · resonance — see
+  // EVENT-COUPLING-2026-07-13-BRIEF.md). **Coverage is the recording OVERLAP (`merged`)**, so a
+  // desat that fell outside the cardiac window is EXCLUDED, never counted as a miss (the ×0.72
+  // anti-coupling artifact). Additive + guarded: the headline (findings/AHI/belowChance above) is
+  // UNCHANGED; `coupling.real`/`.lift` are the rigorous verdict, and MUST be read only where
+  // `usable` (neither underpowered nor saturated). On a single night few desats ⇒ usually
+  // underpowered, and the block honestly says so instead of over-claiming. */
+  var _EC = (typeof EventCoupling !== 'undefined' && EventCoupling) || (typeof window !== 'undefined' && window.EventCoupling) || null;
+  var coupling = null;
+  if (_EC && typeof _EC.coupling === 'function' && desats.length && surges.length && merged.length) {
+    var ec = _EC.coupling(desats, surges, { window: [-leadMaxSec * 1000, trailMaxSec * 1000], coverage: merged });
+    var usable = !ec.underpowered && !ec.saturated;
+    coupling = {
+      lift: ec.lift,
+      observedPct: ec.observedPct,
+      chancePct: ec.chancePct,
+      expectedHits: ec.expectedHits,
+      underpowered: ec.underpowered,
+      saturated: ec.saturated,
+      maxLift: ec.maxLift,
+      n: ec.n,
+      hits: ec.hits,
+      excluded: ec.excluded,
+      coverageAssumed: ec.coverageAssumed,
+      window: ec.window,
+      usable: usable,
+      // a coupling is REAL only on a usable window where observed genuinely exceeds chance.
+      real: usable && isFinite(ec.lift) && ec.lift > 1 && ec.observedPct > ec.chancePct
+    };
+  }
+
   // AHI over the *union* hours; keep 2 decimals so a real but low index isn't rounded to 0.
   var ahi = totHrs > 0 ? +(nConf / totHrs).toFixed(2) : null;
   return {
@@ -1197,7 +1233,14 @@ function fuseApneaEvents(recs, dtMs, gate) {
     total: { desat: desats.length, surge: surges.length },
     unmatched: { desat: unmatchedDesat, surge: unmatchedSurge },
     consequence: consequence,
-    nullModel: { expectedConfirmed: +lambda.toFixed(2), pAtLeastObserved: +pAtLeast.toFixed(3), belowChance: belowChance, surgeRatePerHr: +(surgeRate * 3600).toFixed(1), directionalWindowSec: winSec }
+    nullModel: {
+      expectedConfirmed: +lambda.toFixed(2),
+      pAtLeastObserved: +pAtLeast.toFixed(3),
+      belowChance: belowChance,
+      surgeRatePerHr: +(surgeRate * 3600).toFixed(1),
+      directionalWindowSec: winSec
+    },
+    coupling: coupling
   };
 }
 
@@ -2415,6 +2458,8 @@ function buildFusionExport(recs, fusion) {
           'confirmed_apnea_event = SpO₂ desaturation ⟷ nearest unused autonomic surge from ECGDex|PpgDex, within an asymmetric directional window (surge may lead the nadir by ≤leadMaxSec, trail by ≤trailMaxSec; R5). One surge confirms at most one desat.',
         nullModel:
           'confirmedApneaIndex is published (reportable=true) only when the confirmed count exceeds a per-night Poisson chance expectation; otherwise findings carry belowChance=true + pSpurious and the index is withheld (R5).',
+        apneaCoupling:
+          'apneaCoupling is the EventCoupling shuffled-null verdict for desat⟷surge: circular time-shift surrogates vs a coverage-aware baseline (coverage = the recording overlap, so a desat outside the cardiac window is excluded, not a miss). Read real/lift ONLY when usable (neither underpowered=expectedHits<3 nor saturated=maxLift<1.5). Additive to the Poisson nullModel; does not change reportability (§P7).',
         window:
           'window.overlapMin / overlapUnionMin = merged-union minutes where ≥2 nodes coincide (NOT a sum of pairwise overlaps); intersectionMin = N-way all-node overlap; pairwiseSumMin retained for transparency; nodesExcluded = dated nodes overlapping nothing (R3).',
         hrvConsensus: 'HRV consensus compares whole-record SDNN/RMSSD/LF-HF across nodes (window-normalized; epoch-scoped variants kept separately); same-window only (R8).',
@@ -2442,6 +2487,9 @@ function buildFusionExport(recs, fusion) {
     confirmedApneaIndex: fusion.apnea ? fusion.apnea.confirmedAHI : null,
     confirmedApneaIndexReportable: fusion.apnea ? !!fusion.apnea.confirmedAHIReportable : false,
     apneaNullModel: fusion.apnea ? fusion.apnea.nullModel : null,
+    // P7: the EventCoupling shuffled-null verdict for desat⟷surge (coverage-aware; read `real`/`lift`
+    // only where `usable`). Additive + null-tolerant; the Poisson apneaNullModel above is unchanged.
+    apneaCoupling: fusion.apnea ? fusion.apnea.coupling || null : null,
     // P1: serialize the 3 computed-and-displayed results the export previously dropped (additive, null-tolerant)
     positional: fusion.positional || null,
     hrvConsensus: fusion.hrv || null,
