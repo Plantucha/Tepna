@@ -3,9 +3,18 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED — 2026-07-18 · **Created:** 2026-07-18
+**Status:** DONE — 2026-07-18 · **Created:** 2026-07-18
 
 # Test-audit findings — 42 hollow gates (mutation testing, corpus-verified)
+
+> **EXECUTED 2026-07-18.** 40 of the 42 findings are now closed by a new/strengthened assertion that
+> **passes on clean code AND reds under the exact mutation** (both directions verified: full suite green
+> at 2827 assertions / 186 groups, then all 40 mutations re-applied → each reds its own gate). Landed as
+> **33 gates** (+120 assertions, +7 groups) in `tests/dex-tests.js` (+ `run-tests.mjs` / `Dex-Test-Suite.html`
+> env wiring) — test-only, no bundle/provenance touched. **#59** is a proven semantic no-op (a short-circuit
+> makes the mutation inert — correctly NOT tested). **#98** (`overdex-walk` async `readEntries` 100-entry
+> paging) is a *real* gap with no synchronous test seam — spun, with the two out-of-scope surfaces (Python
+> `capture-host/`, deep-scout wave), to `TEST-AUDIT-FINDINGS-FOLLOWUPS-2026-07-18-BRIEF.md`.
 
 Executes `audits/TEST-AUDIT-PROMPT.md` (the sibling of `AUDIT-PROMPT.md` — it audits the **tests**, not
 the product code: *does each gate actually fail when the thing it protects breaks?*). **99 surgical

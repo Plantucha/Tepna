@@ -390,14 +390,14 @@ function readEquiv() {
     if (existsSync(inP)) {
       try {
         rec.input = readFileSync(inP, 'utf8');
-      } catch (e) {
+      } catch {
         /* unreadable → treat as absent */
       }
     }
     if (fxP && existsSync(fxP)) {
       try {
         rec.fixture = JSON.parse(readFileSync(fxP, 'utf8'));
-      } catch (e) {
+      } catch {
         /* unreadable → treat as absent */
       }
     }
@@ -487,7 +487,7 @@ function readEquiv() {
     if (existsSync(fxP)) {
       try {
         rec.fixture = JSON.parse(readFileSync(fxP, 'utf8'));
-      } catch (e) {
+      } catch {
         /* unreadable → treat as absent */
       }
     }
@@ -529,7 +529,7 @@ function readEquiv() {
     if (existsSync(fxP)) {
       try {
         rec.fixture = JSON.parse(readFileSync(fxP, 'utf8'));
-      } catch (e) {
+      } catch {
         /* unreadable → treat as absent */
       }
     }
@@ -557,7 +557,7 @@ function readEquiv() {
     if (existsSync(fxP)) {
       try {
         out.cpapdex_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')), fixtureFile: 'cpapdex_synthetic_golden.node-export.json' };
-      } catch (e) {
+      } catch {
         /* gate self-skips */
       }
     }
@@ -571,7 +571,7 @@ function readEquiv() {
     if (existsSync(fxP)) {
       try {
         out.cpapdex_multinight_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')), fixtureFile: 'cpapdex_synthetic_multinight_golden.node-export.json' };
-      } catch (e) {
+      } catch {
         /* gate self-skips */
       }
     }
@@ -583,7 +583,7 @@ function readEquiv() {
     if (existsSync(fxP)) {
       try {
         out.integrator_tch_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')), fixtureFile: 'integrator_tch_golden.node-export.json' };
-      } catch (e) {
+      } catch {
         /* gate self-skips */
       }
     }
@@ -968,6 +968,8 @@ async function main() {
     HrvGetAgeBand: ctx.getAgeBand,
     OxyKarvonenZone: ctx.upKarvonenZone,
     OxyBMILabel: ctx.upBMILabel,
+    OxyVO2abs: ctx.upVO2abs,
+    OxyUP: ctx.UP,
     CrossNightEnvelope: ctx.CrossNightEnvelope,
     ECGCross: ctx.ECGCross,
     OXYCross: ctx.OXYCross,
@@ -1010,6 +1012,7 @@ async function main() {
     runFusion: ctx.runFusion,
     buildFusionExport: ctx.buildFusionExport,
     reconstructEventTMs: ctx.reconstructEventTMs,
+    pearson: ctx.pearson,
     labelPositionalApnea: ctx.labelPositionalApnea,
     _ecgPostureSeries: ctx._ecgPostureSeries,
     corroborateDesat: ctx.corroborateDesat,
