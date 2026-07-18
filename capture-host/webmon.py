@@ -44,6 +44,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         "clock_synced": st.get("clock_synced"),
                         "device_time": st.get("device_time"),
                         "clock_skew_sec": st.get("clock_skew_sec"),
+                        "pull_progress": st.get("pull_progress"),
                         "frames_dropped": st.get("frames_dropped"),
                         "frames_duplicated": st.get("frames_duplicated"),
                         "worn": st.get("worn"),
@@ -372,7 +373,16 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         out_dir = os.path.join(cfg.get("root", "/srv/tepna"), "captures", "stored",
                                f"Polar_{dev.get('model', 'Device')}_{dev_id}_offline_{session.strip('/').replace('/', '_')}")
         try:
-            manifest = await _polar_run(address, lambda: polar_psftp.pull_recording(address, session, out_dir))
+            def _prog(done, total):
+                nm = (dev or {}).get("name") or address
+                status.setdefault("devices", {}).setdefault(nm, {})["pull_progress"] = {
+                    "device": nm, "bytes": done, "total": total,
+                    "pct": (100 * done // total) if total else 0}
+            try:
+                manifest = await _polar_run(address, lambda: polar_psftp.pull_recording(
+                    address, session, out_dir, on_progress=_prog))
+            finally:
+                status.get("devices", {}).get((dev or {}).get("name") or address, {}).pop("pull_progress", None)
             return web.json_response({"ok": True, "manifest": manifest})
         except offline_lock.OfflineBusy as e:
             return web.json_response({"ok": False, "busy": e.holder, "error": str(e)}, status=409)

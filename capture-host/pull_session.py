@@ -39,14 +39,15 @@ async def _wait(q: asyncio.Queue, op: int, timeout: float = 20.0):
             return p
 
 
-async def pull(address, out_dir, which="latest", ftype=0, adapter=None, serial="0000", wait=0):
+async def pull(address, out_dir, which="latest", ftype=0, adapter=None, serial="0000", wait=0,
+               on_progress=None):
     """Returns the list of .dat paths written this call (empty if the ring never appeared / no sessions)."""
     os.makedirs(out_dir, exist_ok=True)
     loop = asyncio.get_running_loop()
     deadline = loop.time() + wait
     while True:
         try:
-            return await _pull_once(address, out_dir, which, ftype, adapter, serial)
+            return await _pull_once(address, out_dir, which, ftype, adapter, serial, on_progress)
         except BleakDeviceNotFoundError:
             if loop.time() >= deadline:
                 print("ring never appeared — wake it (USB charger / press button / re-wear) and rerun.", flush=True)
@@ -55,7 +56,7 @@ async def pull(address, out_dir, which="latest", ftype=0, adapter=None, serial="
             await asyncio.sleep(2)
 
 
-async def _pull_once(address, out_dir, which, ftype, adapter, serial):
+async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progress=None):
     kw = {"adapter": adapter} if adapter else {}
     # EARLY-EXIT scan: return the instant the ring advertises. Its burst is short — a fixed-timeout
     # discover() finds it but then the connect window has closed. Matches address OR name (MAC can rotate).
@@ -132,6 +133,11 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial):
                 data += chunk; off += len(chunk)
                 if off % (512 * 40) < len(chunk):
                     print(f"  {off}/{size} ({100*off//size}%)", flush=True)
+                    if on_progress:
+                        try:
+                            on_progress(off, size)     # a UI hook must never break the transfer
+                        except Exception:
+                            pass
             await send(oxyii.file_end_frame()); await asyncio.sleep(0.3)
 
             path = os.path.join(out_dir, f"Wellue_O2Ring-S_{ts}_STORED.dat")

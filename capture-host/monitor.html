@@ -234,6 +234,13 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
 .ov-pills{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:7px;
   padding-top:7px;border-top:1px solid var(--border);min-height:20px;}
 .ov-pills:empty{display:none;}
+.dlbar{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;align-items:center;gap:14px;
+  padding:12px 20px;background:linear-gradient(90deg,rgba(61,224,208,.14),rgba(61,224,208,.05));
+  border-top:2px solid var(--teal);backdrop-filter:blur(8px);}
+.dlbar-txt{font-size:13px;font-weight:700;color:var(--teal);white-space:nowrap;}
+.dlbar-track{flex:1;height:10px;border-radius:999px;background:rgba(255,255,255,.10);overflow:hidden;}
+.dlbar-fill{height:100%;background:var(--teal);border-radius:999px;transition:width .25s ease;width:0;}
+.dlbar-pct{font-size:15px;font-weight:700;font-family:ui-monospace,monospace;color:var(--teal);min-width:3.5rem;text-align:right;}
 .setrow{display:flex;align-items:center;gap:.6rem;padding:4px 0;font-size:12px;}
 .setrow .k{font-family:ui-monospace,monospace;min-width:15rem;}
 .ratesel{font-size:11px;padding:1px 4px;background:var(--surface);color:var(--text);border:var(--b);border-radius:6px;}
@@ -333,6 +340,14 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
       </div>
     </div>
   </aside>
+
+  <!-- Download banner: a stored-session pull PAUSES that device's live capture and can take minutes,
+       so it must be obvious from every view — not buried on the Devices page behind a button label. -->
+  <div id="dlBar" class="dlbar" style="display:none">
+    <span class="dlbar-txt" id="dlTxt"></span>
+    <div class="dlbar-track"><div class="dlbar-fill" id="dlFill"></div></div>
+    <span class="dlbar-pct" id="dlPct"></span>
+  </div>
 
   <!-- ── MAIN ────────────────────────────────────────────────────────── -->
   <div class="main-wrap">
@@ -585,9 +600,31 @@ async function loadState(){
   const na=$('#navActiveN'); na.style.display = active?'inline-block':'none'; na.textContent = active;
   const nd=$('#navDevN'); nd.style.display = conn?'inline-block':'none'; nd.textContent = conn;
   renderSideStats();          // sidebar counters: every view, not just Overview
+  renderDownload(DEVICES);
   renderRemembered(DEVICES);
   renderStreamSel();
   if(VIEW==='overview') ovRender();
+}
+
+// Download banner. A pull pauses that device's live capture and can run for minutes, so it is shown
+// full-width at the bottom of EVERY view. While one is running we poll faster than the normal 5 s so
+// the bar actually moves — a progress bar that updates every 5 s reads as frozen.
+let _dlFast = null;
+function renderDownload(devs){
+  const p = (devs||[]).map(d=>d.pull_progress).find(x=>x && x.total);
+  const bar = $('#dlBar');
+  if(!p){
+    bar.style.display='none';
+    if(_dlFast){ clearInterval(_dlFast); _dlFast=null; }
+    return;
+  }
+  bar.style.display='flex';
+  const mb = (p.bytes/1e6).toFixed(2), tot = (p.total/1e6).toFixed(2);
+  $('#dlTxt').textContent = `⬇ Downloading from ${p.device} — live capture paused`;
+  $('#dlFill').style.width = Math.max(2, Math.min(100, p.pct)) + '%';
+  $('#dlPct').textContent = p.pct + '%';
+  $('#dlTxt').title = `${mb} / ${tot} MB`;
+  if(!_dlFast) _dlFast = setInterval(loadState, 1000);
 }
 
 function renderRemembered(devs){

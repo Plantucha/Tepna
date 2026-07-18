@@ -75,7 +75,10 @@ def set_time_frame(dt, seq: int = 0) -> bytes:
 
 # ── Stored-session file transfer (the ONBOARD recording — the .dat the ViHealth app syncs on removal).
 # Same 0xA5 envelope; opcodes + layout per github.com/nglessner/o2ring-s-protocol. NOTE the transfer
-# needs an ATT MTU >= 517 or READ_FILE_START is silently dropped (metadata still works at small MTU).
+# CORRECTED 2026-07-18: an earlier note here claimed the transfer needs ATT MTU >= 517. It does NOT —
+# the real negotiated MTU is 247 and an 8 h / 86 506 B session pulls clean at that. The myth came from
+# printing bleak's PLACEHOLDER mtu_size (23 on BlueZ until a characteristic is acquired) plus a 6 s
+# timeout against a ~4.1 s FILE_LIST reply. Do not re-introduce an MTU precondition.
 OP_FILE_LIST, OP_FILE_START, OP_FILE_DATA, OP_FILE_END = 0xF1, 0xF2, 0xF3, 0xF4
 
 
