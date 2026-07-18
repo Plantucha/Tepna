@@ -104,3 +104,34 @@ def test_meta_carries_efffs_and_health():
     bus.push("ecg", list(range(130)), fs=130)
     m1 = next(x for x in bus.meta() if x["key"] == "ecg")
     assert "effFs" in m1 and m1["health"] == "good"          # a just-pushed stream is warmup→good, never idle
+
+
+# ── push() broadcast + subscriber-queue coverage (FOLLOWUPS §2) ─────────────────────────────────────
+# The ring/snapshot are covered, but the SSE broadcast msg shape, the drop-oldest-when-full queue
+# logic, and the rate fallback were unpinned. asyncio.Queue put/get_nowait are synchronous, so no loop.
+def test_push_broadcasts_msg_with_correct_shape_to_subscriber():
+    bus = telemetry.TelemetryBus()
+    q = bus.subscribe()
+    bus.push("spo2", [97, 98], fs=1)
+    msg = q.get_nowait()
+    assert msg["stream"] == "spo2" and msg["fs"] == 1
+    assert msg["v"] == [97.0, 98.0] and msg["chans"] == 1
+    assert len(msg["t"].split(":")) == 3          # HH:MM:SS wall-clock stamp present
+
+
+def test_full_subscriber_queue_drops_oldest_keeps_newest():
+    bus = telemetry.TelemetryBus()
+    q = bus.subscribe(maxsize=2)
+    for i in range(4):
+        bus.push("spo2", [i], fs=1)               # 4 pushes into a size-2 queue
+    got = []
+    while not q.empty():
+        got.append(q.get_nowait()["v"][0])
+    assert got == [2.0, 3.0]                        # oldest (0,1) evicted, newest kept — never blocks
+
+
+def test_push_rate_falls_back_to_one_for_unmetered_stream():
+    bus = telemetry.TelemetryBus()
+    q = bus.subscribe()
+    bus.push("nosuchstream", [5], fs=None)         # no meta, no fs → rate = 1 (not 0)
+    assert q.get_nowait()["fs"] == 1
