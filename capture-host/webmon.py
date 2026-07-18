@@ -23,6 +23,7 @@ import bonding
 import clockcfg
 import offline_lock
 import polar_psftp
+import settings_schema
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -184,6 +185,75 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             return await polar_pause(address, _wrapped)
         return await _wrapped()
 
+    # Measured bytes/sec per stream kind, from THIS host's real captures — so the UI can show what a
+    # toggle actually costs (a 9 h night is ~1.2 GB with everything on; H10 ACC alone is 30% of it).
+    _BPS = {"ecg": 7800, "acc": 11400, "hr": 35, "ppg": 3750, "gyro": 2800, "mag": 2950,
+            "ppi": 30, "spo2": 60, "o2ppg": 6200}
+
+    async def settings_get(_req):
+        devs = []
+        for d in cfg.get("devices", []):
+            st = status.get("devices", {}).get(d.get("name"), {})
+            # Only offer what the device ACTUALLY advertises (PMD feature bitmask read at connect).
+            # Offering a stream the firmware lacks would just produce a START rejection and an idle card.
+            # Filter to actual DATA streams. The PMD feature bitmask also reports capability flags —
+            # the Verity advertises 0x9 SDK_MODE, 0xd OFFLINE_RECORDING, 0xe OFFLINE_HR — which are
+            # modes, not measurements. polar_pmd names the ones it decodes and leaves the rest as hex,
+            # so an unnamed (0x…) entry is exactly "not a stream we can capture"; offering it would be a
+            # checkbox that can never work.
+            supported = [x for x in (st.get("pmd_supported") or []) if not str(x).startswith("0x")] \
+                        or None
+            devs.append({"name": d.get("name"), "address": d.get("address"), "vendor": d.get("vendor"),
+                         "streams": d.get("streams") or [], "supported": supported,
+                         "bps": {k: _BPS.get(k, 0) for k in (supported or (d.get("streams") or []))}})
+        return web.json_response({
+            "settings": settings_schema.describe(cfg, {}),
+            "devices": devs,
+            "bps": _BPS,
+        })
+
+    async def settings_post(req):
+        """Apply allowlisted settings and/or per-device stream selections. Validates EVERYTHING before
+        touching config.yaml, and backs the file up first — a corrupt config on a headless box means no
+        capture and no web surface to fix it from."""
+        body = await req.json()
+        changed, restart_needed = [], False
+        try:
+            for key, val in (body.get("settings") or {}).items():
+                v = settings_schema.coerce(key, val)
+                if settings_schema.get_nested(cfg, key) != v:
+                    settings_schema.set_nested(cfg, key, v)
+                    changed.append(key)
+                    if settings_schema.SETTINGS[key][3]:
+                        restart_needed = True
+            for addr, streams in (body.get("streams") or {}).items():
+                dev = next((d for d in cfg.get("devices", []) if d.get("address") == addr), None)
+                if not dev:
+                    raise settings_schema.SettingsError(f"unknown device {addr}")
+                if not isinstance(streams, list) or not all(isinstance(x, str) for x in streams):
+                    raise settings_schema.SettingsError("streams must be a list of names")
+                st = status.get("devices", {}).get(dev.get("name"), {})
+                sup = st.get("pmd_supported")
+                if sup:                      # refuse a stream the firmware does not advertise
+                    bad = [x for x in streams if x not in sup and x not in ("hr",)]
+                    if bad:
+                        raise settings_schema.SettingsError(
+                            f"{dev.get('name')} does not support: {', '.join(bad)}")
+                if sorted(streams) != sorted(dev.get("streams") or []):
+                    dev["streams"] = streams
+                    changed.append(f"{dev.get('name')}.streams")
+                    restart_needed = True    # PMD START is negotiated at connect
+        except settings_schema.SettingsError as e:
+            return web.json_response({"ok": False, "error": str(e)}, status=400)
+        if changed:
+            try:                              # back up before writing — a bad write bricks the daemon
+                import shutil
+                shutil.copyfile(cfg_path, cfg_path + ".bak")
+            except Exception:
+                pass
+            _save()
+        return web.json_response({"ok": True, "changed": changed, "restart_needed": restart_needed})
+
     async def timesync(req):
         """Set ONE device's internal clock from the host. Polar only — the O2Ring already re-syncs its
         RTC on every connect (oxyii 0xC0), so there is nothing manual to do there and we say so rather
@@ -264,6 +334,8 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         web.post("/api/forget", forget),
         web.post("/api/remember", remember),
         web.post("/api/pull", pull_stored_h),
+        web.get("/api/settings", settings_get),
+        web.post("/api/settings", settings_post),
         web.post("/api/timesync", timesync),
         web.post("/api/timesync/all", timesync_all),
         web.get("/api/polar/recordings", polar_recordings),
