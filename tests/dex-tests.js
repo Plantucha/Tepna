@@ -10048,6 +10048,10 @@
       // ── 1 · ROUND-TRIP self-ingest ──
       var res = OD.loadOwnExport(envlp);
       T.ok('loadOwnExport(own envelope) → ok + reviewMode', !!(res && res.ok === true && res.reviewMode === true), res ? 'ok=' + res.ok : 'no result');
+      // deep-scout re-scout §SI — the review renderer reads the RESULT's top-level accessors (res.recording/
+      // generated), not just res.elements[0].*; the node-lane gate never pinned them, so dropping one stays
+      // green. Pin the accessors the review view consumes.
+      T.ok('top-level res.recording + res.generated surface on reload (review view reads them, not just elements[0])', !!(res.recording && res.generated));
       T.ok(
         'reconstructed nights[] count == envelope nights[] count',
         !!(res && res.ok) && res.nights.length === envlp.nights.length,
@@ -10192,6 +10196,8 @@
       // ── 1 · ROUND-TRIP self-ingest (single-night: the object itself is the carrier) ──
       var res = CF.cpapLoadOwnExport(envlp);
       T.ok('cpapLoadOwnExport(own export) → ok + reviewMode', !!(res && res.ok === true && res.reviewMode === true), res ? 'ok=' + res.ok + ' reason=' + (res.reason || '—') : 'no result');
+      // deep-scout re-scout §SI — the review header reads res.generated (export lineage), never pinned node-lane.
+      T.ok('top-level res.generated carries the export lineage timestamp on reload (review header reads it)', !!res.generated);
       T.eq('single-night carrier: 1 element (the export object itself)', res && res.ok ? res.elements.length : -1, 1);
       var emitEv = (pristine.ganglior_events || []).slice().sort(function (a, b) {
         return ((a && a.tMs) || 0) - ((b && b.tMs) || 0);
@@ -10364,6 +10370,14 @@
         'clinical KPIs read the stored rich layer directly (hrv.time + poincare + coverage present)',
         !!(res.elements[0].hrv && res.elements[0].hrv.time && res.elements[0].hrv.poincare && res.elements[0].recording && 'coveragePct' in res.elements[0].recording)
       );
+      // deep-scout re-scout §SI — the review renderer reads the loadOwnExport RESULT's TOP-LEVEL accessors
+      // (res.hrv/summary/recording/generated), NOT res.elements[0].*; the node-lane gate pinned only the
+      // element, so dropping any top-level accessor (`hrv: json.hrv||null` → `null`, verified non-degenerate:
+      // res.hrv/summary/recording/generated are all non-null here) silently blanked the review panel yet
+      // stayed green under the corpus. Pin the accessors pulsedex-render actually consumes.
+      T.ok('top-level res.hrv surfaces the HRV summary for the review view (not just elements[0].hrv)', !!(res.hrv && res.hrv.time));
+      T.ok('top-level res.summary + res.recording surface on reload', !!(res.summary && res.recording));
+      T.ok('top-level res.generated carries the export lineage timestamp (not dropped on reload)', !!res.generated);
 
       // ── 4 · REVIEW MODE not faked ──
       T.ok(
@@ -10475,6 +10489,10 @@
       // ── 1 · ROUND-TRIP (single-record) ──
       var res = GD.loadOwnExport(envlp);
       T.ok('glucoLoadOwnExport(own export) → ok + reviewMode', !!(res && res.ok === true && res.reviewMode === true), res ? 'reason=' + (res.reason || '—') : 'no result');
+      // deep-scout re-scout §SI — glucodex-app review reads res.recording (startEpochMs + clamp-saturation
+      // honesty block) + res.generated; the node-lane gate pinned res.glucose but never these top-level
+      // accessors, so dropping `recording: json.recording||null` → null blanked the review metadata + stayed green.
+      T.ok('top-level res.recording + res.generated surface on reload (review reads recording.startEpochMs + clamp honesty)', !!(res.recording && res.generated));
       T.eq('single-record carrier: 1 element', res && res.ok ? res.elements.length : -1, 1);
       var emitEv = (pristine.ganglior_events || []).slice().sort(function (a, b) {
         return ((a && a.tMs) || 0) - ((b && b.tMs) || 0);
@@ -10797,6 +10815,9 @@
       // ── round-trip + faithful view ──
       var res = HD.loadOwnExport(envlp);
       T.ok('hrvLoadOwnExport(own export) → ok + reviewMode', !!(res && res.ok === true && res.reviewMode === true), res ? 'reason=' + (res.reason || '—') : 'no result');
+      // deep-scout re-scout §SI — hrvdex review reads res.recording + res.generated; node-lane gate pinned
+      // only res.elements[0].*, so a dropped top-level accessor stayed green.
+      T.ok('top-level res.recording + res.generated surface on reload (review view reads them, not just elements[0])', !!(res.recording && res.generated));
       T.eq('single-record carrier: 1 element', res && res.ok ? res.elements.length : -1, 1);
       T.eq('measurements surfaced on the review context', res && res.measurements ? res.measurements.length : -1, 3);
       var elClone = JSON.parse(JSON.stringify(res.elements[0]));
