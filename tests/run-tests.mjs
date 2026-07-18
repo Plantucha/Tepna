@@ -451,6 +451,10 @@ function readEquiv() {
   pair('glucodex_synth', 'synthetic_glucodex_lingo.csv', 'synthetic_glucodex_golden.node-export.json');
   pair('ppgdex_synth', 'synthetic_ppgdex_verity.txt', 'synthetic_ppgdex_golden.node-export.json');
   pair('ecgdex_synth', 'synthetic_ecgdex_h10.txt', 'synthetic_ecgdex_golden.node-export.json');
+  // MotionDex IMU leg (MOTIONDEX-BUILD-2026-07-17 §5): a COMMITTED synthetic Polar ACC stream →
+  // buildNodeExport(compute({acc,chestAcc})) ≡ the committed golden. pairCommitted (repo artifact,
+  // resolved against ROOT/uploads) so a DEX_UPLOADS real-corpus override cannot hide it.
+  pairCommitted('motiondex', 'synthetic_motiondex_acc.txt', 'synthetic_motiondex_golden.node-export.json');
   // ADVERSARIAL GlucoDex twin — a COMMITTED 14 h sensor-change gap (FIXTURE-VERIFICATION-GATE-2026-07-14 §4).
   // The clean twin above trips NO FLAG.GAP_LONG, so nothing committed exercised the long-gap path — which is
   // exactly how DEEP-AUDIT-2026-07-14 §1 came back byte-identical on it, shipped as "export-inert", and left
@@ -902,6 +906,9 @@ async function main() {
     'cpapdex-fusion.js',
     'cpapdex-cross.js',
     'cpapdex-coimport.js',
+    // MotionDex DSP (MOTIONDEX-BUILD-2026-07-17) — a clean IIFE that leaks no bare names + delegates
+    // DexClock (loaded above); sets env.MotionDex/MOTIONDSP for its equiv leg (env.equiv.motiondex).
+    'motiondex-dsp.js',
     'synth-gen.js',
     'cohort-gen.js',
     'cohort-full.js',
@@ -990,6 +997,8 @@ async function main() {
     PulseDex: ctx.PulseDex,
     OxyDex: ctx.OxyDex,
     HRVDex: ctx.HRVDex,
+    MotionDex: ctx.MotionDex,
+    MOTIONDSP: ctx.MOTIONDSP,
     SignalFrame: ctx.SignalFrame,
     DexExport: ctx.DexExport,
     exportName: ctx.exportName,

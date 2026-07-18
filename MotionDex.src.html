@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  MotionDex.src.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
+     script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
+     inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' __DEX_SCRIPT_HASHES__; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MotionDex — Motion / IMU Analyzer · v1.0</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M18%2062%20L34%2040%20L46%2058%20L62%2028%20L74%2050%20L84%2038%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="stylesheet" href="licensing/dex-license.css">
+<link rel="stylesheet" href="ans-design.css">
+<style>
+/* ════════════════════════════════════════════════════════════════════════
+   MotionDex — APP-SPECIFIC STYLES (built on ans-design.css)
+   ════════════════════════════════════════════════════════════════════════ */
+.mx-wrap{max-width:960px;margin:0 auto;padding:28px 20px 60px}
+.mx-title{font-size:26px;font-weight:800;letter-spacing:-.02em;margin:0 0 4px}
+.mx-sub{color:var(--text2);font-size:13px;margin:0 0 22px}
+.mx-ctl{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:18px}
+.mx-zone{flex:1 1 320px;min-height:64px;border:1.5px dashed rgba(255,255,255,.18);border-radius:14px;display:flex;align-items:center;justify-content:center;text-align:center;padding:14px;color:var(--text2);font-size:13px;cursor:pointer;transition:border-color .2s,background .2s}
+.mx-zone:hover,.mx-zone.mx-over{border-color:var(--accent,#58A6FF);background:rgba(88,166,255,.06)}
+.mx-btn{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:9px 16px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text)}
+.mx-btn:hover{background:rgba(255,255,255,.11)}
+.mx-btn:disabled{opacity:.4;cursor:not-allowed}
+.mx-status{color:var(--text2);font-size:12px;margin:0 0 16px;min-height:16px}
+.mx-head{color:var(--text2);font-size:12.5px;margin:0 0 14px}
+.mx-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px}
+.mx-kpi{position:relative;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px 15px}
+.mx-kpi-l{color:var(--text2);font-size:11.5px;font-weight:600;margin-bottom:6px}
+.mx-kpi-v{font-size:22px;font-weight:800;letter-spacing:-.02em}
+.mx-kpi-s{color:var(--text2);font-size:11px;margin-top:4px}
+.mx-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px;margin-bottom:14px}
+.mx-card-h{font-weight:700;font-size:14px;margin-bottom:12px}
+.mx-row{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-top:1px solid rgba(255,255,255,.05)}
+.mx-bar{display:flex;height:22px;border-radius:8px;overflow:hidden;margin-bottom:10px}
+.mx-seg{display:block;min-width:2px}
+.mx-seg-supine{background:#58A6FF}.mx-seg-left{background:#3DE0D0}.mx-seg-right{background:#5EC8B0}
+.mx-seg-prone{background:#A78BFA}.mx-seg-upright{background:#F0A860}.mx-seg-unknown{background:rgba(255,255,255,.16)}
+.mx-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11.5px;color:var(--text2)}
+.mx-lg{display:inline-flex;align-items:center;gap:5px}
+.mx-dot{width:9px;height:9px;border-radius:3px;display:inline-block}
+.mx-empty{color:var(--text2);font-size:13px;padding:30px;text-align:center;border:1px dashed rgba(255,255,255,.12);border-radius:14px}
+.mx-foot{color:var(--text2);font-size:11px;margin-top:34px;line-height:1.6;border-top:1px solid rgba(255,255,255,.08);padding-top:14px}
+</style>
+</head>
+<body>
+<div class="mx-wrap">
+  <h1 class="mx-title">MotionDex</h1>
+  <p class="mx-sub">Single-signal motion / IMU analyzer — body position · actigraphy · respiratory effort. 100% local, nothing leaves your browser.</p>
+
+  <div class="mx-ctl">
+    <label class="mx-zone" id="mxZone">
+      <input type="file" id="mxInput" multiple accept=".txt,.csv" hidden>
+      Drop Polar Sensor Logger <code>_ACC / _GYRO / _MAGN</code> files (Verity + H10), or click to choose.
+    </label>
+    <button class="mx-btn" id="mxDemo" type="button">Demo</button>
+    <button class="mx-btn" id="mxExport" type="button" disabled>Export</button>
+  </div>
+  <p class="mx-status" id="mxStatus"></p>
+
+  <div id="mxOut"></div>
+
+  <p class="mx-foot">
+    <span class="dxl-stamp">Tepna · MotionDex</span> — <b>Not a medical device.</b> For personal
+    wellness and research use only; not for diagnosis or treatment. Body-position labels use an
+    uncalibrated device frame; respiratory effort is an accelerometer surrogate. Apache-2.0 ·
+    © 2026 Michal Planicka.
+  </p>
+</div>
+
+<!-- Co-load order (delegating node): shared classic modules → registry (classic) → clock.js →
+     dsp / render / app (ES modules; the owned build inlines the graph, no network edge). -->
+<script src="dex-actions.js"></script>
+<script src="kernel-constants.js"></script>
+<script src="ganglior-provenance.js"></script>
+<script src="signal-frame.js"></script>
+<script src="dex-export.js"></script>
+<script src="metric-registry.js"></script>
+<script src="entrance-guard.js"></script>
+<script src="dex-forget.js"></script>
+<script src="motiondex-registry.js"></script>
+<script src="clock.js"></script>
+<script type="module" src="motiondex-dsp.js"></script>
+<script type="module" src="motiondex-render.js"></script>
+<script type="module" src="motiondex-app.js"></script>
+</body>
+</html>

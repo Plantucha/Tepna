@@ -48,6 +48,7 @@ a standalone `<App>.html`. **Edit the `.js` + `.src.html`, never the bundled `.h
 | **PpgDex** | raw PPG (optical) | Polar Verity Sense `*_PPG.txt` (176 Hz) | optical beat detection → self-PPI → HRV, posture | `ppgdex-dsp.js` |
 | **GlucoDex** | CGM glucose | Abbott Lingo / Libre CSV | TIR, variability, nocturnal hypo, dawn surge | `glucodex-dsp.js` |
 | **CPAPDex** | CPAP therapy (EDF) | ResMed AirSense `*.edf` set | AHI/CSL residual, periodic-breathing %, usage | `cpapdex-dsp.js` |
+| **MotionDex** | inertial motion (IMU) | Polar Sensor Logger `*_ACC/_GYRO/_MAGN` (Verity + H10) | body position, actigraphy, respiratory effort, motion SQI | `motiondex-dsp.js` |
 | **Integrator** | *(fusion)* | N× `ganglior.node-export` | cross-node consensus + corroborated findings | `integrator-dsp.js` |
 
 Planned (not shipped): **EEGDex** (Muse EEG) and **SpiroDex** (flow-volume) introduce *new* signals →

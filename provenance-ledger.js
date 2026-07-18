@@ -25,9 +25,9 @@
 (function (root) {
   'use strict';
 
-  // Canonical app order — the 8 shipped bundles, same set + order as ManifestGate.MANIFEST_BUNDLES.
+  // Canonical app order — the 9 shipped bundles, same set + order as ManifestGate.MANIFEST_BUNDLES.
   // `provenance/index.json` MUST list exactly these (a Node-lane gate asserts index === the on-disk set).
-  var APPS = ['ECGDex', 'OxyDex', 'PulseDex', 'GlucoDex', 'PpgDex', 'HRVDex', 'CPAPDex', 'Integrator'];
+  var APPS = ['ECGDex', 'OxyDex', 'PulseDex', 'GlucoDex', 'PpgDex', 'HRVDex', 'CPAPDex', 'Integrator', 'MotionDex'];
 
   // A fragment file is `provenance/<App>.json` = { bundle:'<App>.html', manifestHash, fixtures:{…} }.
   // `meta` is `provenance/_meta.json` = { buildManifest:{…_keys}, fixtureProvenance:{…_keys} } — the

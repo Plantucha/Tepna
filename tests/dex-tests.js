@@ -11540,6 +11540,25 @@
             return fx;
           }
         },
+        // MotionDex IMU leg (MOTIONDEX-BUILD-2026-07-17 §5): a COMMITTED synthetic Polar ACC stream →
+        // buildNodeExport(compute({acc, chestAcc:same})) ≡ the committed golden. The one input feeds
+        // BOTH the wrist-ACC (position/actigraphy) and chest-ACC (respiratory-effort) slots, so position +
+        // activity + effort + SQI + the posture_change event are all byte-checked. Deterministic (seeded
+        // genSyntheticACC), COMMITTED → the diff runs in CI with no corpus.
+        {
+          key: 'motiondex',
+          label: 'MotionDex',
+          node: env.MotionDex,
+          run: function (n, input) {
+            return n.buildNodeExport(n.compute({ acc: input, chestAcc: input }));
+          },
+          pick: function (res) {
+            return res;
+          },
+          fixPick: function (fx) {
+            return fx;
+          }
+        },
         // CPAPDex (node 4/4) is intentionally ABSENT from this gate: its input is a BINARY multi-file EDF
         // set, not a {text}/CSV the `run: n.compute({text})` seam can drive. compute()-vs-app parity for
         // CPAPDex is covered instead by the floor group's `compute() ≡ CpapFusion.cpapBuildExport`

@@ -70,6 +70,8 @@ uploads/*
 !uploads/synthetic_glucodex_gap_golden.node-export.json
 !uploads/synthetic_ppgdex_golden.node-export.json
 !uploads/synthetic_ecgdex_golden.node-export.json
+!uploads/synthetic_motiondex_acc.txt
+!uploads/synthetic_motiondex_golden.node-export.json
 !uploads/integrator_tch_golden.node-export.json
 
 # Trio TCH corpus — DERIVED per-night node-exports (tools/trio-batch.mjs), the §6 input contract

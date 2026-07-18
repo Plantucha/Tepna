@@ -17,7 +17,8 @@
 const NODES = {
   CPAPDex: './regen-cpap-goldens.mjs',
   GlucoDex: './regen-glucodex-goldens.mjs',
-  PulseDex: './regen-pulsedex-goldens.mjs'
+  PulseDex: './regen-pulsedex-goldens.mjs',
+  MotionDex: './regen-motiondex-goldens.mjs'
 };
 
 const i = process.argv.indexOf('--node');
