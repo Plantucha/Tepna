@@ -3,6 +3,19 @@
 
 # The three-cornered hat is not robust to artifact — two σ estimates were wrong in opposite directions
 
+> ### ⚠️ §3's SOLUTION IS DISPROVEN — do not build it (noted 2026-07-18)
+> **§1 and §2 stand: they are findings and they are correct.** What is dead is **§3's proposed cross-corner
+> consensus gate.** `TCH-FUSED-ROBUST-HAT-2026-07-14-BRIEF.md` prototyped it on the REAL corpus and found
+> *"that gate (and every single-cue fix) is either unreliable or biases the noisiest corner."* Its validated
+> replacement is a **fused-weight hat** — a per-second, per-sensor confidence `c = density_trust ×
+> quality_trust` driving a weighted-variance TCH, which recovers the planted σ exactly with no corpus-tuned
+> threshold anywhere. Build **that**, not §3.
+>
+> This is deliberately **not** a `Superseded-by:` link. That field is whole-brief and strictly 1:1
+> (gate-enforced, `tests/dex-tests.js` check 5), and the fused hat replaces only §3 — the **N = 15 power
+> material (§2, and the tables at ~L70–L150) is untouched by it** and still feeds
+> `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`. Stamping the whole brief superseded would bury live work.
+
 > **One-line:** re-running the `SENSOR-TRIO-NIGHTS` power analysis at **N = 15** (the detector fix recovered
 > 5 nights at zero capture cost) did **not** tighten the answer — it exposed that **both** the Verity and H10
 > σ estimates were artefacts of *epoch hygiene*, in **opposite** directions: Verity's CI was optimistic

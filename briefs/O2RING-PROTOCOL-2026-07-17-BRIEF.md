@@ -49,6 +49,35 @@ Flow: **connect → auth (0xFF) → setup (0x10) → poll (0x04) ~1/s**.
   `[5]` contact · `[6]` SpO₂ (%) · `[7]` motion · `[8]` HR (bpm) · `[13]` battery (%).
   **contact:** `0x00` no finger · `0x01` idle-present · `0x03` file-open. SpO₂/HR are `None` off-finger.
 
+### 3b · The `0x04` body is ALSO a ~125 Hz PPG waveform (decoded 2026-07-18)
+Every `0x04` reply carries **more than the 24-byte header** — the rest is the ring's raw plethysmograph.
+This is why `oxyii.Reassembler` exists (the frames span many BLE notifications). Layout, decoded off 90
+real frames (all matched; concatenated bodies gap-free, boundary jumps 0–8; header HR/SpO₂ cross-checked
+against the paired ECG at 49 bpm) — see `oxyii.parse_ppg`:
+
+| Bytes | Meaning |
+|---|---|
+| `[0:24]` | status header (§3 above, `parse_live`) |
+| `[24]` | sample count `N` (u8) — verified `len(payload) == 24 + 2 + N` on **every** frame |
+| `[25]` | flag / reserved (only `0x00` observed) |
+| `[26:26+N]` | `N` **unsigned 8-bit** optical samples, **single channel** |
+
+- **Single channel, not interleaved LEDs** — even/odd samples are near-identical.
+- **Rate: 125.738 Hz measured**, not the ~100 Hz the upstream reference states, and not the round 125.0
+  first guessed (which was 0.59 % low ⇒ ~212 s of divergence over a 10 h night between the phone-timestamp
+  column and the synthesized relative-ms column). Calibrated over 12 sessions / 5.8 h / 2 616 483 samples,
+  per-session spread 125.59–125.88 Hz. Short-window swings (~84–147 Hz) are BLE delivery jitter, not ADC
+  drift. Overridable per unit via `o2ring.ppg_fs` (`settings_schema.py`, range 100–200).
+- **Raw by design** — occasional isolated spike samples (e.g. `0x9c`, ~0.66/frame, scattered, not a fixed
+  marker) are left in place for a downstream consumer to reject. No on-box DSP (HEALTH-BOX-VISION §4).
+- **Clock Contract:** samples are back-timed from the frame's **host arrival** across the fs grid. The ring's
+  RTC free-runs (§9, ~+151 s) and must **never** stamp the waveform. A dropped frame is a gap, never
+  fabricated samples.
+- **Validated on ONE unit** (`S8-AW 2100`, Random-Static MAC). Treat the rate as unit-specific until a
+  second ring is measured.
+
+⚠️ The waveform exists **only in live BLE traffic** — the onboard `.dat` (§5) is 1 Hz only, no waveform.
+
 ## 4 · Stored-session file download (the `.dat`) — §3-derived, hardware-verified
 The ring records **every wearing period to onboard flash** (its backstop). Four opcodes, same envelope:
 
