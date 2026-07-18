@@ -22,6 +22,7 @@ import helper_path
 # (this repo sits on a user-writable NTFS mount). See helper_path.py.
 _HELPER = helper_path.resolve("tepna-rssi.sh")
 _HCI_CACHE: dict[str, str] = {}     # adapter BD_ADDR (upper) -> hciN
+_MODE: str | None = None            # 'direct' (ambient caps) | 'sudo' (dev fallback) | None (unknown)
 
 
 def parse_rssi(text: str) -> int | None:
@@ -80,11 +81,30 @@ async def resolve_hci(adapter_mac: str | None, refresh: bool = False) -> str | N
 
 
 async def read_rssi(adapter_mac: str | None, dev_mac: str) -> int | None:
-    """Connection RSSI (dBm) of a connected sensor, or None if it can't be read (no grant / not connected /
-    helper missing). Never raises; safe to poll on a cadence."""
+    """Connection RSSI (dBm) of a connected sensor, or None if it can't be read (no privilege / not
+    connected / helper missing). Never raises; safe to poll on a cadence.
+
+    TWO privilege paths, tried in order and then remembered:
+      • DIRECT — the appliance case. The systemd unit grants the daemon
+        `AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW`; ambient caps survive exec, so the helper's
+        `hcitool` inherits them and needs no escalation. This is the ONLY path that can work on the Pi,
+        because the unit also sets `NoNewPrivileges=true`, which forbids setuid sudo outright.
+      • SUDO — the dev-workstation fallback, where there is no unit granting caps and a NOPASSWD
+        sudoers entry points at the root-owned helper instead.
+    The working mode is cached so we don't pay two subprocesses per poll, and cleared on failure so a
+    capability or grant that appears later is picked up without a restart."""
+    global _MODE
     if not dev_mac or not os.path.exists(_HELPER):
         return None
     hci = await resolve_hci(adapter_mac)
     if not hci:
         return None
-    return parse_rssi(await _run(["sudo", "-n", _HELPER, hci, dev_mac]) or "")
+    order = ([_MODE] if _MODE else []) + [m for m in ("direct", "sudo") if m != _MODE]
+    for mode in order:
+        cmd = [_HELPER, hci, dev_mac] if mode == "direct" else ["sudo", "-n", _HELPER, hci, dev_mac]
+        val = parse_rssi(await _run(cmd) or "")
+        if val is not None:
+            _MODE = mode
+            return val
+    _MODE = None                 # both failed — re-probe both next time
+    return None
