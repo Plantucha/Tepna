@@ -28,7 +28,7 @@ def test_settings_acc_verity_is_52hz_not_200():
 def test_settings_mag_multi_rate_needs_range():
     s = pmd.parse_settings_response(bytes.fromhex("f00106000000040a001400320064000101100002013200040103"))
     assert s[0x00] == [10, 20, 50, 100] and s[0x02] == [50] and s[0x04] == [3]
-    # 20 Hz is the PROJECT default (polar_pmd._PREF_RATE), not the maximum on offer: heading changes
+    # 20 Hz is the PROJECT default (pmd._PREF_RATE), not the maximum on offer: heading changes
     # slowly in bed and body position comes from the ACC gravity vector, so 100 Hz would be 5x the disk
     # for no analysis gain. Deliberately below max — this asserts the choice, not just "some rate".
     assert pmd.chosen_rate(pmd.MAG, s) == 20
@@ -214,3 +214,22 @@ def test_h10_acc_uses_the_project_rate_not_the_maximum():
     assert pmd.chosen_rate(pmd.ACC, s) != max(s[0x00]), "regressed to max() — check _PREF_RATE is offered"
     # the Verity offers only 52, so it must still take that rather than failing to match the 50 default
     assert pmd.chosen_rate(pmd.ACC, {0x00: [52]}) == 52
+
+
+def test_in_charger_is_transient_not_a_bad_request():
+    """A Polar on its dock refuses every PMD START with 0x0D. That is the device working as designed:
+    the caller must retry, NOT tear the stream down (which deleted the file and unregistered the card,
+    leaving the stream dead after the sensor came off the charger — the link survives charging, so
+    nothing re-ran the negotiation)."""
+    assert pmd.is_transient(0x0D)          # in_charger
+    assert pmd.is_transient(0x0C)          # invalid_state
+    assert not pmd.is_started(0x0D)
+
+
+def test_started_and_transient_are_disjoint_and_dont_swallow_real_rejections():
+    assert pmd.is_started(0x00) and pmd.is_started(0x06)
+    assert not (pmd.STARTED_STATUS & pmd.TRANSIENT_STATUS)
+    # genuine settings rejections must stay in NEITHER bucket, or a real fault renders as "charging"
+    for bad in (0x01, 0x02, 0x03, 0x04, 0x05, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0xFF):
+        assert not pmd.is_started(bad), hex(bad)
+        assert not pmd.is_transient(bad), hex(bad)

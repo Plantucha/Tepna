@@ -222,6 +222,10 @@ def _utcnow():
     return _dt.datetime.utcnow()
 
 
+CHARGE_RETRY_S = 60          # how often to re-attempt PMD START while a device sits on the charger
+_CHARGING: set[str] = set()  # devices currently refusing PMD with in_charger (log-once bookkeeping)
+
+
 def _set(name, **kv):
     STATUS["devices"].setdefault(name, {}).update(kv)
 
@@ -293,6 +297,10 @@ async def run_polar(dev: dict, root: str):
         hr_writer = None
         started = _now()
         ndir = night_dir(root, started)
+        charging_hold = False              # device refused PMD because it is on the charger (status 0x0D).
+        # Declared HERE, outside the try, because both readers live outside the block that sets it: the
+        # link-hold loop and the reconnect-delay below. (It was first declared next to `stream_fs` inside
+        # the connected session — an UnboundLocalError on every device that never reached the PMD path.)
         try:
             _set(name, connected=False, address=addr, last_error=None)
             async with _connect(addr) as client:
@@ -424,21 +432,45 @@ async def run_polar(dev: dict, root: str):
                         _set(name, **{"pmd_options": {**(STATUS["devices"].get(name, {}).get("pmd_options") or {}),
                                                       pmd.MEAS_NAME.get(meas, str(meas)): settings.get(0x00) or []}})
                         started = False
+                        transient = False
                         for cmd, how in ((pmd.build_start(meas, settings, _prefer), "negotiated"),
                                          (pmd.START.get(meas), "fixed")):
                             if not cmd:
                                 continue
                             ack = await _ctrl(cmd)
                             st = ack[3] if len(ack) >= 4 else 0xFF
-                            (log.info if st in (0x00, 0x06) else log.warning)(
+                            # 0x0D in_charger / 0x0C invalid_state are TRANSIENT DEVICE STATES, not bad
+                            # settings. A Polar refuses PMD while charging; that is expected, not a fault.
+                            transient = pmd.is_transient(st)
+                            # Charging is rechecked on a cadence; log the state ONCE per transition so a
+                            # device left on the dock overnight doesn't emit 3 lines a minute until dawn.
+                            _lvl = (log.warning if not (pmd.is_started(st) or transient)
+                                    else log.debug if transient and name in _CHARGING else log.info)
+                            _lvl(
                                 "%s START %s (%s) → %s", name, pmd.MEAS_NAME.get(meas, meas), how,
                                 pmd.CTRL_STATUS.get(st, hex(st)))
-                            if st in (0x00, 0x06):    # ok, or already-streaming
+                            if pmd.is_started(st):    # ok, or already-streaming
                                 started = True
                                 break
+                            if transient:
+                                break                 # retrying the fixed cmd cannot help while charging
                         if started:                  # record + re-register at the ACTUAL negotiated rate
                             stream_fs[meas] = used_fs
                             _register(meas, used_fs)
+                            _set(name, charging=False)
+                            _CHARGING.discard(name)
+                        elif transient:
+                            # Do NOT tear the stream down: the settings are fine, the device is simply
+                            # charging. Destroying the writer here deleted the file AND unregistered the
+                            # card, and since the link SURVIVES on the charger the START loop would not
+                            # re-run — so the stream stayed dead even after the device came off charge,
+                            # until something forced a reconnect. Keep it and let the session end so the
+                            # reconnect loop retries the whole negotiation.
+                            _set(name, charging=True,
+                                 last_error="charging — PMD streams unavailable until off the charger")
+                            _CHARGING.add(name)
+                            charging_hold = True
+                            break
                         else:                        # truly unsupported settings — drop it, don't leave an empty file / idle card
                             _set(name, last_error=f"{pmd.MEAS_NAME.get(meas, meas)} START rejected")
                             try:
@@ -464,7 +496,8 @@ async def run_polar(dev: dict, root: str):
 
                 # Hold the link until disconnect, shutdown, or an offline-pull pause request.
                 secs = 0
-                while client.is_connected and not _STOP.is_set() and addr not in _POLAR_PAUSED and not _RECOVER.is_set():
+                while (client.is_connected and not _STOP.is_set() and addr not in _POLAR_PAUSED
+                       and not _RECOVER.is_set() and not charging_hold):
                     await asyncio.sleep(1)
                     secs += 1
                     if secs % 120 == 0:
@@ -478,8 +511,13 @@ async def run_polar(dev: dict, root: str):
             if hr_writer:
                 hr_writer.close()
         if not _STOP.is_set():
-            await asyncio.sleep(backoff)
-            backoff = min(backoff * 2, 60)   # exponential backoff, capped
+            if charging_hold:
+                # Not a fault, so it must not ride the error backoff: recheck on a steady cadence so the
+                # streams come back on their own within a minute of the device leaving the charger.
+                await asyncio.sleep(CHARGE_RETRY_S)
+            else:
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, 60)   # exponential backoff, capped
 
 
 async def run_muse(dev: dict, root: str):

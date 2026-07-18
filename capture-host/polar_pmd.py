@@ -35,6 +35,27 @@ CTRL_STATUS = {0x00: "ok", 0x01: "invalid_op", 0x02: "invalid_meas", 0x03: "not_
                0x07: "invalid_resolution", 0x08: "invalid_sample_rate", 0x09: "invalid_range",
                0x0A: "invalid_mtu", 0x0B: "invalid_channels", 0x0C: "invalid_state", 0x0D: "in_charger"}
 
+# A PMD control ACK splits three ways, and the difference is behavioural, not cosmetic:
+#   STARTED   — streaming (or already was). Register the stream at the negotiated rate.
+#   TRANSIENT — the request was VALID; the device just can't serve it right now. `in_charger` is the one
+#               that bites: a Polar on its dock refuses every START, and the caller must NOT interpret
+#               that as bad settings. Doing so used to delete the stream's file and unregister its card
+#               — and because the BLE link survives charging, nothing re-ran the negotiation, so the
+#               streams stayed dead after the sensor came off the dock. Retry instead; never tear down.
+#   otherwise — genuinely rejected settings (bad rate/range/channels). Dropping the stream is correct.
+STARTED_STATUS = frozenset({0x00, 0x06})            # ok, already_streaming
+TRANSIENT_STATUS = frozenset({0x0C, 0x0D})          # invalid_state, in_charger
+
+
+def is_started(status: int) -> bool:
+    """True when a START ACK means the stream is live (or was already)."""
+    return status in STARTED_STATUS
+
+
+def is_transient(status: int) -> bool:
+    """True when a START ACK reflects a temporary DEVICE STATE, not a bad request — retry, don't drop."""
+    return status in TRANSIENT_STATUS
+
 
 def parse_features(value: bytes) -> set[int]:
     """PMD Control-point READ → the set of measurement types the device supports. Response is a

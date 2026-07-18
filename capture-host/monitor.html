@@ -260,6 +260,8 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
 .clk.ok{color:var(--green);border-color:rgba(57,217,138,.35);}
 .clk.warn{color:var(--amber);border-color:rgba(255,184,77,.35);}
 .clk.bad{color:var(--red);border-color:rgba(255,107,122,.45);}
+/* charging is an EXPECTED device state, not a fault — blue, never red/amber (see chargeChip). */
+.clk.chg{color:var(--blue);border-color:rgba(88,166,255,.35);}
 .rssi-ico{display:inline-flex;align-items:flex-end;gap:1px;height:9px;}
 .rssi-ico i{display:block;width:2px;background:currentColor;opacity:.22;border-radius:1px;}
 .rssi-ico i:nth-child(1){height:3px;} .rssi-ico i:nth-child(2){height:5px;}
@@ -516,6 +518,14 @@ function clkChip(dev){
           + (s!=null ? ` · sample-stamp offset ${s>=0?'+':''}${Math.abs(s)>=3600?(s/3600).toFixed(1)+'h':Math.round(s)+'s'} vs host` : '');
   return `<span class="clk ${st.cls}" title="${esc(t)}">🕐 ${st.txt}</span>`;
 }
+// Charging pill. A Polar on its dock REFUSES every PMD START with status 0x0D `in_charger` — that is
+// the device working as designed, not a fault, so it must never render as a red/amber error. The daemon
+// keeps the streams registered and re-negotiates once a minute, so this pill clears on its own within
+// ~60 s of the sensor going back on the body.
+function chargeChip(dev){
+  if(!dev || !dev.charging) return '';
+  return `<span class="clk chg" title="On the charger — the sensor refuses data streams while charging (PMD status 0x0D). Streams resume automatically within ~${60}s of taking it off the dock.">⚡ charging</span>`;
+}
 function rssiLevel(dbm){ return dbm>=-60?4 : dbm>=-70?3 : dbm>=-80?2 : 1; }
 function rssiClass(dbm, health){
   if(dbm!=null && isFinite(dbm)) return dbm>=-70?'ok' : dbm>=-80?'warn' : 'bad';
@@ -633,8 +643,8 @@ function renderRemembered(devs){
   el.innerHTML = devs.map(d=>`
     <div class="dev">
       <div class="meta">
-        <div class="name">${esc(d.name)} ${d.connected?'<span class="dbadge on">live</span>':'<span class="dbadge warn">idle</span>'} ${battChip(d.battery)} ${d.connected?(dh=>rssiChip(d.rssi,dh.health,dh.title))(deviceHealth(d)):''} ${clkChip(d)}</div>
-        <div class="sub">${esc(d.address||'')}${(d.rssi!=null&&isFinite(d.rssi))?(' · '+d.rssi+' dBm'):''} · ${(d.streams||[]).join(', ')}${d.clock_synced?(' · clock '+esc(String(d.clock_synced).slice(11,19))):''}${d.last_error?(' · '+esc(d.last_error)):''}</div>
+        <div class="name">${esc(d.name)} ${d.connected?'<span class="dbadge on">live</span>':'<span class="dbadge warn">idle</span>'} ${chargeChip(d)} ${battChip(d.battery)} ${d.connected?(dh=>rssiChip(d.rssi,dh.health,dh.title))(deviceHealth(d)):''} ${clkChip(d)}</div>
+        <div class="sub">${esc(d.address||'')}${(d.rssi!=null&&isFinite(d.rssi))?(' · '+d.rssi+' dBm'):''} · ${(d.streams||[]).join(', ')}${d.clock_synced?(' · clock '+esc(String(d.clock_synced).slice(11,19))):''}${(d.last_error && !d.charging)?(' · '+esc(d.last_error)):''}</div>
       </div>
       <button class="btn" onclick='syncTime(${JSON.stringify(d.address)}, this)' title="Set this device's INTERNAL clock from the host (it stamps every sample with device time). Pauses that device's capture for a few seconds.">🕐 Sync time</button>
       ${(d.vendor==='Wellue'||d.vendor==='Viatom')?`<button class="btn" onclick='pullStored(this)' title="Download the ring&#39;s onboard-recorded night off flash (pauses live SpO₂ for ~1 min)">Pull stored session</button>`:''}
@@ -976,6 +986,7 @@ function ovRender(){                             // (re)build the cards to match
         <div class="ov-mini"><canvas id="ovcv-${s.key}"></canvas></div>
         <div class="ov-foot"><span>${KIND_FOOT[streamKind(s)]}</span><span>${foot}</span></div>
         <div class="ov-pills">
+          <span class="ov-chg" id="ovchg-${s.key}">${chargeChip(dev)}</span>
           <span class="ov-batt" id="ovbatt-${s.key}">${battChip(dev?dev.battery:null)}</span>
           <span class="ov-sig" id="ovsig-${s.key}">${s.active?rssiChip(dev?dev.rssi:null, s.health, sigTitle(s)):''}</span>
           <span class="ov-clk" id="ovclk-${s.key}">${clkChip(dev)}</span>
@@ -990,6 +1001,8 @@ function ovRender(){                             // (re)build the cards to match
   } else {
     for(const s of STREAMS){                     // no rebuild: refresh battery + signal pills in place each poll
       const bc = document.getElementById('ovbatt-'+s.key), dev = deviceForStream(s.key);
+      const cg = document.getElementById('ovchg-'+s.key);
+      if(cg) cg.innerHTML = chargeChip(dev);
       if(bc) bc.innerHTML = battChip(dev?dev.battery:null);
       const sg = document.getElementById('ovsig-'+s.key);
       if(sg) sg.innerHTML = s.active ? rssiChip(dev?dev.rssi:null, s.health, sigTitle(s)) : '';
