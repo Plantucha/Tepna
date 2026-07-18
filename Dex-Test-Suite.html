@@ -228,6 +228,10 @@ async function main(){
   // ESM-MIGRATION deep-3: oxydex-dsp.js is a dual-mode ES module — same treatment (oxydex-util.js +
   // clock.js loaded classically above; __DEX_NAMESPACED__ true → attaches only window.OxyDex).
   { const _od = await fetchText('oxydex-dsp.js'); if(_od) (0, eval)(esmClassicify(_od)); }
+  // MotionDex (MOTIONDEX-BUILD-2026-07-17): dual-mode ES module — classic-load it here (clock.js loaded
+  // classically above → window.DexClock present). A clean IIFE that attaches only window.MOTIONDSP /
+  // window.MotionDex and leaks no bare names, so its equiv leg (env.equiv.motiondex) runs in this lane too.
+  { const _mx = await fetchText('motiondex-dsp.js'); if(_mx) (0, eval)(esmClassicify(_mx)); }
   // TEST-COVERAGE-FOLLOWUPS Item 1a: the per-node PROFILE engines (~2.85k lines of cited physiology —
   // Tanaka/Uth–Sørensen VO₂/age-norm HRV/CVHR-apnea/GMI-eAG) ship in the bundles but had zero assertions.
   // They are plain `(function(global){…})(window)` IIFEs (esmClassicify is a no-op) that define functions
@@ -288,6 +292,8 @@ async function main(){
     ['glucodex_synth', 'synthetic_glucodex_lingo.csv', 'synthetic_glucodex_golden.node-export.json'],
     ['ppgdex_synth', 'synthetic_ppgdex_verity.txt', 'synthetic_ppgdex_golden.node-export.json'],
     ['ecgdex_synth', 'synthetic_ecgdex_h10.txt', 'synthetic_ecgdex_golden.node-export.json'],
+    // MotionDex IMU leg (MOTIONDEX-BUILD-2026-07-17 §5) — committed synthetic Polar ACC + its golden.
+    ['motiondex', 'synthetic_motiondex_acc.txt', 'synthetic_motiondex_golden.node-export.json'],
     // ADVERSARIAL GlucoDex twin — a 14 h sensor-change gap, WITH a golden (FIXTURE-VERIFICATION-GATE §4).
     // Unlike the input-only twins below, this one pins an export: the clean Lingo trips no FLAG.GAP_LONG,
     // so the long-gap path had no committed coverage at all — which is how DEEP-AUDIT-2026-07-14 §1 shipped
@@ -476,6 +482,8 @@ async function main(){
     PulseDex: window.PulseDex,
     OxyDex: window.OxyDex,
     HRVDex: window.HRVDex,
+    MotionDex: window.MotionDex,
+    MOTIONDSP: window.MOTIONDSP,
     SignalFrame: window.SignalFrame,
     DexExport: window.DexExport, exportName: window.exportName, EXPORT_KINDS: window.EXPORT_KINDS,
     SignalSpec: window.SignalSpec,
