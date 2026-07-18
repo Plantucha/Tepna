@@ -152,6 +152,31 @@
   //  PARSE  — Polar Sense *_PPG.txt
   //  Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient
   // ════════════════════════════════════════════════════════════════════════
+  // PPG channel columns from the header. Ours read `ppg0;ppg1;ppg2;ambient` before 2026-07-18 11:43
+  // and `channel 0;channel 1;channel 2;ambient` after — which is what Polar Sensor Logger itself
+  // emits. Same lesson as the XYZ streams: resolve by NAME, fall back to the tail, never to a fixed
+  // index (the pre-11:43 files carry an extra `timestamp [ms]` column that shifts everything by one).
+  function ppgColsFromHeader(headerLine) {
+    const p = String(headerLine || '').split(';');
+    const ch = [];
+    let amb = -1, ns = -1, phone = -1;
+    for (let i = 0; i < p.length; i++) {
+      const h = p[i].trim().toLowerCase();
+      if (/^(channel\s*\d|ppg\d)/.test(h)) ch.push(i);
+      else if (/ambient/.test(h)) amb = i;
+      else if (/sensor\s+timestamp/.test(h)) ns = i;
+      else if (/phone\s+timestamp/.test(h)) phone = i;
+    }
+    return ch.length >= 3 ? { ch0: ch[0], ch1: ch[1], ch2: ch[2], amb, ns, phone } : null;
+  }
+  function ppgColsByTail(p) {
+    // ...;ch0;ch1;ch2;ambient  → the four trailing numeric columns, whatever precedes them.
+    const nums = [];
+    for (let k = 0; k < p.length; k++) if (isFinite(parseFloat(p[k]))) nums.push(k);
+    if (nums.length < 5) return null;
+    const n = nums.length;
+    return { ch0: nums[n - 4], ch1: nums[n - 3], ch2: nums[n - 2], amb: nums[n - 1], ns: 1, phone: 0 };
+  }
   function parsePPG(text) {
     const lines = text.split(/\r?\n/);
     const ch0 = [],
@@ -163,23 +188,30 @@
       t0Ms = null,
       firstTs = null; // lastTs is resolved lazily in the fs fallback (§P1)
     let started = false;
+    let pcols = null;
     for (let li = 0; li < lines.length; li++) {
       const line = lines[li].trim();
       if (!line) continue;
       const p = line.split(';');
       if (p.length < 6) continue;
-      const v0 = parseFloat(p[2]);
+      if (/timestamp/i.test(line) && !pcols) {
+        pcols = ppgColsFromHeader(line);
+        if (pcols) continue;
+      }
+      const pc = pcols || ppgColsByTail(p);
+      if (!pc) continue;
+      const v0 = parseFloat(p[pc.ch0]);
       if (!isFinite(v0)) {
         continue;
       } // header / junk
       ch0.push(v0);
-      ch1.push(parseFloat(p[3]));
-      ch2.push(parseFloat(p[4]));
-      amb.push(parseFloat(p[5]));
+      ch1.push(parseFloat(p[pc.ch1]));
+      ch2.push(parseFloat(p[pc.ch2]));
+      amb.push(pc.amb >= 0 ? parseFloat(p[pc.amb]) : NaN);
       // sensor ns → relative seconds (BigInt: values exceed Number safe range)
       let relNs = 0;
       try {
-        const b = BigInt(p[1].trim());
+        const b = BigInt(p[(pcols && pcols.ns >= 0) ? pcols.ns : 1].trim());
         if (ns0 === null) ns0 = b;
         relNs = Number(b - ns0);
       } catch (e) {
@@ -1106,25 +1138,63 @@
   // ════════════════════════════════════════════════════════════════════════
   //  MOTION GATE  — ACC + GYRO → per-time motion index (0..1)
   // ════════════════════════════════════════════════════════════════════════
+  // ── Column indices come from the HEADER, never from fixed positions ──────────────────────────────
+  // Layouts legitimately vary and will keep varying. Our capture host emitted an extra
+  // `timestamp [ms]` column before 2026-07-18 11:43 and not after; Polar Sensor Logger's own PPG
+  // header reads `channel 0..2` where ours once read `ppg0..2`; and per-stream RATE SELECTION means
+  // more variants are expected, not exceptional. A fixed index silently SHIFTS when a column appears:
+  // measured on 478 real pre-11:43 files, `x` received the millisecond value, `y` received true X,
+  // `z` received true Y, and true Z was discarded — with no error anywhere.
+  function xyzColsFromHeader(headerLine) {
+    var p = String(headerLine || '').split(';');
+    var idx = { x: -1, y: -1, z: -1, ns: -1, phone: -1 };
+    for (var i = 0; i < p.length; i++) {
+      var h = p[i].trim().toLowerCase();
+      if (/^x(\s|\[|$)/.test(h)) idx.x = i;
+      else if (/^y(\s|\[|$)/.test(h)) idx.y = i;
+      else if (/^z(\s|\[|$)/.test(h)) idx.z = i;
+      else if (/sensor\s+timestamp/.test(h)) idx.ns = i;
+      else if (/phone\s+timestamp/.test(h)) idx.phone = i;
+    }
+    return idx.x >= 0 && idx.y >= 0 && idx.z >= 0 ? idx : null;
+  }
+  // Fallback for a headerless/unknown file: the LAST THREE numeric columns. Correct for BOTH the 5-
+  // and 6-column layouts and for any future LEADING column, because XYZ is always the tail.
+  function xyzColsByTail(p) {
+    var nums = [];
+    for (var k = 0; k < p.length; k++) {
+      if (isFinite(parseFloat(p[k]))) nums.push(k);
+    }
+    if (nums.length < 3) return null;
+    return { x: nums[nums.length - 3], y: nums[nums.length - 2], z: nums[nums.length - 1],
+             ns: 1, phone: 0 };
+  }
   function parseSensorXYZ(text) {
     const lines = text.split(/\r?\n/);
     const out = [];
     let ns0 = null;
+    let cols = null;
     for (const line of lines) {
       const t = line.trim();
       if (!t) continue;
+      if (/timestamp/i.test(t) && !cols) {
+        cols = xyzColsFromHeader(t);
+        if (cols) continue;
+      }
       const p = t.split(';');
       if (p.length < 5) continue;
-      const x = parseFloat(p[2]);
+      const c = cols || xyzColsByTail(p);
+      if (!c) continue;
+      const x = parseFloat(p[c.x]);
       if (!isFinite(x)) continue;
       let relNs = NaN;
       try {
-        const b = BigInt(p[1].trim());
+        const b = BigInt(p[c.ns >= 0 ? c.ns : 1].trim());
         if (ns0 === null) ns0 = b;
         relNs = Number(b - ns0);
       } catch (e) {}
-      const ts = parseTimestamp(p[0]);
-      out.push({ relNs, tMs: ts ? ts.tMs : null, x, y: parseFloat(p[3]), z: parseFloat(p[4]) });
+      const ts = parseTimestamp(p[c.phone >= 0 ? c.phone : 0]);
+      out.push({ relNs, tMs: ts ? ts.tMs : null, x, y: parseFloat(p[c.y]), z: parseFloat(p[c.z]) });
     }
     return out;
   }
