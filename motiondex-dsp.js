@@ -235,31 +235,45 @@
     var epoch = 30,
       nE = Math.max(1, Math.ceil(durSec / epoch));
     var counts = new Float64Array(nE);
+    // per-epoch SAMPLE COUNT — 0 means the accelerometer was NOT RECORDING that epoch. Without this an
+    // uncovered epoch scores counts=0 ⇒ moving=false ⇒ counted as IMMOBILE, i.e. a recording gap
+    // fabricates stillness. `moving` is therefore TRI-STATE (true / false / null-for-no-coverage) and
+    // uncovered epochs leave the immobileFrac denominator entirely.
+    var seen = new Uint32Array(nE);
     var MOVE_G = 0.02; // ~20 mg dynamic threshold
     for (i = 0; i < accRows.length; i++) {
       var s = relSecOf(accRows[i], t0Ms);
       if (s == null || s < 0) continue;
       var idx = Math.min(nE - 1, Math.floor(s / epoch));
+      seen[idx]++;
       var dyn = Math.abs(mags[i] - base[i]);
       if (dyn > MOVE_G) counts[idx] += dyn;
     }
     var epochs = [],
       immobile = 0,
+      covered = 0,
       total = 0;
     for (var e = 0; e < nE; e++) {
+      var tEp = t0Ms != null ? t0Ms + e * epoch * 1000 : null;
+      if (!seen[e]) {
+        epochs.push({ tStartMs: tEp, count: null, moving: null }); // NOT RECORDING — never "immobile"
+        continue;
+      }
+      covered++;
       var moving = counts[e] > 1.0; // counts are Σ dynamic-g in the 30 s epoch
       if (!moving) immobile++;
       total += counts[e];
-      epochs.push({ tStartMs: t0Ms != null ? t0Ms + e * epoch * 1000 : null, count: counts[e], moving: moving });
+      epochs.push({ tStartMs: tEp, count: counts[e], moving: moving });
     }
     return {
       hasData: true,
       epochSec: epoch,
       hz: hz,
       epochs: epochs,
+      coveredEpochs: covered,
       totalCounts: total,
-      immobileFrac: nE ? immobile / nE : 0,
-      movementIndex: nE ? total / nE : 0
+      immobileFrac: covered ? immobile / covered : null,
+      movementIndex: covered ? total / covered : null
     };
   }
 
@@ -530,6 +544,16 @@
         dwellFrac: summary.position ? summary.position.dwellFrac : null,
         immobileFrac: summary.activity ? summary.activity.immobileFrac : null,
         movementIndex: summary.activity ? summary.activity.movementIndex : null,
+        // per-epoch movement track — a MotionDex standalone read (movement timeline) AND the input the
+        // Integrator gates HRV with (§2.4). `moving` is TRI-STATE: null = accelerometer not recording,
+        // which must never be read as "still" (that is how a gap fabricates a quiet night).
+        activitySeries:
+          summary.activity && summary.activity.epochs
+            ? summary.activity.epochs.map(function (e) {
+                return { tMs: e.tStartMs, count: e.count, moving: e.moving };
+              })
+            : null,
+        activityCadenceSec: summary.activity ? summary.activity.epochSec : null,
         respRateBrpm: summary.effort ? summary.effort.rateBrpm : null,
         // effort-presence series — a MotionDex standalone read AND the Integrator apnea-typing input (§1.1).
         // Coverage-honest: an epoch's `present` is null where chest ACC was not recording, never a false absent.

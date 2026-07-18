@@ -92,6 +92,24 @@
     return '<div class="mx-bar">' + seg + '</div><div class="mx-legend">' + legend + '</div>';
   }
 
+  // movement timeline — one bar per 30 s epoch: moving (accent) / still (grey) / NOT RECORDING (hatched).
+  // The hatched state is deliberate: a gap is not stillness, and the eye should be able to tell them apart.
+  function activitySpark(epochs) {
+    if (!epochs || !epochs.length) return '';
+    var maxC = 0,
+      i;
+    for (i = 0; i < epochs.length; i++) if (epochs[i].count > maxC) maxC = epochs[i].count;
+    var bars = '';
+    for (i = 0; i < epochs.length; i++) {
+      var e = epochs[i];
+      var cls = e.moving == null ? 'mx-sp mx-sp-nul' : e.moving ? 'mx-sp' : 'mx-sp mx-sp-off';
+      var h = e.count != null && maxC > 0 ? Math.max(8, Math.round((e.count / maxC) * 100)) : 100;
+      var ttl = e.moving == null ? 'not recording' : (e.moving ? 'moving' : 'still') + ' · ' + num(e.count, 2);
+      bars += '<span class="' + cls + '" style="height:' + h + '%" title="' + esc(ttl) + '"></span>';
+    }
+    return '<div class="mx-spark">' + bars + '</div>';
+  }
+
   // effort sparkline — one bar per epoch: present (accent) / absent (grey) / no-coverage (hatched)
   function effortSpark(series) {
     if (!series || !series.length) return '';
@@ -145,11 +163,12 @@
       fill('mxEffortCard', 'mxEffort', e);
     }
 
-    // ── actigraphy ──
+    // ── actigraphy (incl. the per-epoch movement timeline — standalone read + the §2.4 HRV-gate input) ──
     if (act.hasData) {
-      var a = row('Activity counts', num(act.totalCounts, 1), 'Σ dynamic g');
+      var a = activitySpark(act.epochs);
+      a += row('Activity counts', num(act.totalCounts, 1), 'Σ dynamic g');
       a += row('Movement index', num(act.movementIndex, 2), 'per 30 s epoch');
-      a += row('Immobile time', pct(act.immobileFrac), (act.epochs ? act.epochs.length : 0) + ' epochs');
+      a += row('Immobile time', pct(act.immobileFrac), (act.coveredEpochs != null ? act.coveredEpochs : (act.epochs || []).length) + ' recorded epochs');
       fill('mxActivityCard', 'mxActivity', a);
     }
 
@@ -171,7 +190,7 @@
     }
   }
 
-  global.MOTIONUI = { renderSummary: renderSummary, positionBar: positionBar, effortSpark: effortSpark, effortPresentPct: effortPresentPct };
+  global.MOTIONUI = { renderSummary: renderSummary, positionBar: positionBar, effortSpark: effortSpark, activitySpark: activitySpark, effortPresentPct: effortPresentPct };
 })(window);
 
 // ESM-from-birth dual-mode (mirrors glucodex-render): the IIFE attaches window.MOTIONUI for the

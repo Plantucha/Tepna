@@ -16667,6 +16667,85 @@
        grounding (24 committed trio nights, pooled): apnea(desat)→HR(surge) lift ≈ 0.83 with coverage
        supplied (33 desats excluded as outside the cardiac window), most single nights underpowered — the
        primitive honestly reports "can't judge" rather than over-claiming. */
+    /* MULTI-SENSOR-DERIVATIONS §2.4 — motion-gated, confidence-scored HRV.
+       HRV off a night full of movement is worth less than the same number off a still night. This SCORES
+       that (it never alters or excludes an HRV value). The invariant that matters is the same tri-state
+       one as §1.1: an epoch where the accelerometer was NOT RECORDING must be excluded from the
+       denominator, never counted as "still" — otherwise a recording gap buys a spuriously quiet night.
+       Also pins the MotionDex-side fix: actigraphy() used to score an uncovered epoch as immobile. */
+    group('Integrator motion-gates HRV from MotionDex movement — §2.4', 'integrator-dsp · motiondex · hrv-gate', function (T) {
+      var GH = env.IntegratorDSP && env.IntegratorDSP.gateHRVByMotion;
+      T.ok('gateHRVByMotion available on IntegratorDSP', typeof GH === 'function');
+      if (typeof GH !== 'function') return;
+      var t0 = U(2026, 5, 10, 22, 0, 0),
+        H = 3600000;
+      function act(n, fn) {
+        var a = [];
+        for (var i = 0; i < n; i++) {
+          var m = fn(i);
+          a.push({ tMs: t0 + i * 30000, count: m === null ? null : m ? 5 : 0, moving: m });
+        }
+        return a;
+      }
+      function motion(ser) {
+        return { node: 'MotionDex', t0Ms: t0, endMs: t0 + 2 * H, dateUnknown: false, events: [], summary: { activitySeries: ser, activityCadenceSec: 30 }, series: {} };
+      }
+      function hrvSrc(n) {
+        return { node: n, t0Ms: t0, endMs: t0 + 2 * H, dateUnknown: false, events: [], summary: { rmssd: 42, sdnn: 55 }, series: {} };
+      }
+      var still = function () {
+          return false;
+        },
+        movin = function () {
+          return true;
+        };
+      var q = GH([motion(act(240, still)), hrvSrc('ECGDex'), hrvSrc('PulseDex')]);
+      T.ok('all-still window ⇒ quiet, immobileFrac 1', !!q && q.quiet === true && q.immobileFrac === 1, q ? 'immobile=' + q.immobileFrac : 'null');
+      var mv = GH([motion(act(240, movin)), hrvSrc('ECGDex'), hrvSrc('PulseDex')]);
+      T.ok('all-moving window ⇒ NOT quiet', !!mv && mv.quiet === false && mv.immobileFrac === 0, mv ? 'immobile=' + mv.immobileFrac : 'null');
+      var half = GH([
+        motion(
+          act(240, function (i) {
+            return i % 2 === 0;
+          })
+        ),
+        hrvSrc('ECGDex'),
+        hrvSrc('PulseDex')
+      ]);
+      T.ok('half-moving ⇒ not quiet (frac ≈ 0.5)', !!half && half.quiet === false && Math.abs(half.immobileFrac - 0.5) < 0.02, half ? 'immobile=' + half.immobileFrac : 'null');
+      // THE coverage invariant — a gap is not stillness
+      var gap = GH([
+        motion(
+          act(240, function (i) {
+            return i < 120 ? true : null;
+          })
+        ),
+        hrvSrc('ECGDex'),
+        hrvSrc('PulseDex')
+      ]);
+      T.ok(
+        'NOT-RECORDING epochs excluded, NEVER counted still',
+        !!gap && gap.coveredEpochs === 120 && gap.immobileFrac === 0 && gap.quiet === false,
+        gap ? 'covered=' + gap.coveredEpochs + ' immobile=' + gap.immobileFrac : 'null'
+      );
+      T.ok('no MotionDex on the bus ⇒ null (graceful no-op)', GH([hrvSrc('ECGDex'), hrvSrc('PulseDex')]) === null);
+      T.ok('no HRV source ⇒ null', GH([motion(act(240, still))]) === null);
+      // MotionDex-side: an uncovered epoch must not be scored immobile by actigraphy()
+      var MD = env.MOTIONDSP;
+      if (MD && typeof MD.actigraphy === 'function' && typeof MD.parseSensorXYZ === 'function') {
+        var rows = MD.parseSensorXYZ(MD.genSyntheticACC({ sec: 60, hz: 26, brpm: 15, seed: 3 }));
+        var a2 = MD.actigraphy(rows, rows[0].tMs, 180, 'mg'); // 60 s of data, 180 s claimed duration
+        var nulls = (a2.epochs || []).filter(function (e) {
+          return e.moving === null;
+        }).length;
+        T.ok(
+          'actigraphy: uncovered epochs are moving:null, not immobile',
+          nulls > 0 && a2.coveredEpochs < a2.epochs.length,
+          'null=' + nulls + ' covered=' + a2.coveredEpochs + '/' + (a2.epochs || []).length
+        );
+      }
+    });
+
     /* MULTI-SENSOR-DERIVATIONS §1.2 — positional OSA from MotionDex body position.
        Two things this pins that BOTH shipped broken before it existed:
        (a) MotionDex must be a REGISTERED Integrator node (NODE_COLORS + KNOWN_NODES) — otherwise the R2

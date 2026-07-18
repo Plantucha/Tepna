@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3IsuIfcb6DKsRs2HNebyHs2EgvED9l/WDIaI4lJD9uE=' 'sha256-4/cLHVc0Wb6EiY4gguPzQPq2uN6OymQyizOC08czN8w=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-aMINXO+LtdhxQ6xIivZAsOeQTyaQ1X9XmnpeCoNu9UU=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-sL6MYBf1c0S8DDvX5xci+aeox+eb04A1F5CDrfjCQoo=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3IsuIfcb6DKsRs2HNebyHs2EgvED9l/WDIaI4lJD9uE=' 'sha256-4/cLHVc0Wb6EiY4gguPzQPq2uN6OymQyizOC08czN8w=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-CIDQsw7h5lgW17irM4dJ+v6fyGzTI/Cd1HkBXL865RU=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-aMINXO+LtdhxQ6xIivZAsOeQTyaQ1X9XmnpeCoNu9UU=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Integrator · Fusion Layer</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -5719,6 +5719,10 @@ function adaptEnvelopeNode(json, node, filename) {
     summary.motionSqi = mo.sqi != null ? mo.sqi : null;
     summary.effortSeries = _motionEffortSeries(json, t0Ms);
     summary.effortCadenceSec = mo.effortCadenceSec != null ? mo.effortCadenceSec : null;
+    // per-epoch movement track (§2.4 HRV gate). `moving` is TRI-STATE — null = accelerometer not
+    // recording, which must never be counted as "still" (a gap would otherwise buy a quiet night).
+    summary.activitySeries = _motionActivitySeries(json, t0Ms);
+    summary.activityCadenceSec = mo.activityCadenceSec != null ? mo.activityCadenceSec : null;
     // MotionDex publishes posture as run-length `posture_change` events — expand them into the SAME
     // { tMs, pos } series ECGDex/PpgDex use, so the existing positional-apnea path consumes it directly.
     // (§1.2. This previously called _ecgPostureSeries, which reads json.acc / json.timeseries.acc —
@@ -5837,6 +5841,23 @@ function _motionPostureSeries(json, t0Ms) {
     var from = steps[i].tMs,
       to = i + 1 < steps.length ? steps[i + 1].tMs : Math.max(endMs, from + _MOTION_POS_CAD_MS);
     for (var t = from; t < to && out.length < _MOTION_POS_MAX; t += _MOTION_POS_CAD_MS) out.push({ tMs: t, pos: steps[i].pos });
+  }
+  return out;
+}
+/* MotionDex per-epoch MOVEMENT track → [{ tMs, count, moving }] (MULTI-SENSOR-DERIVATIONS §2.4).
+   `moving` is TRI-STATE for the same reason `present` is on the effort series: null means the
+   accelerometer was not recording that epoch, and a gap is NOT stillness. Reading null as "still"
+   would hand a motion-gated HRV window a quality score it never earned. */
+function _motionActivitySeries(json, t0Ms) {
+  var mo = (json && json.motion) || {};
+  var src = mo.activitySeries;
+  if (!Array.isArray(src) || !src.length) return null;
+  var cadMs = (mo.activityCadenceSec != null ? mo.activityCadenceSec : 30) * 1000;
+  var out = [];
+  for (var i = 0; i < src.length; i++) {
+    var e = src[i] || {};
+    var tMs = e.tMs != null ? e.tMs : t0Ms != null ? t0Ms + i * cadMs : null;
+    out.push({ tMs: tMs, count: e.count != null ? e.count : null, moving: e.moving == null ? null : !!e.moving });
   }
   return out;
 }
@@ -7204,6 +7225,59 @@ function _tchHat(like, ptsFn, metric) {
 function _tchConsensus(like) {
   return _tchHat(like, _rmssdPts, 'rmssd');
 }
+/* ── MOTION-GATED HRV (MULTI-SENSOR-DERIVATIONS §2.4) ────────────────────────────────────────────
+   HRV read across a night full of movement is worth less than the same number off a still night —
+   motion inflates artifact-driven RR/PPI variance. MotionDex's per-epoch movement track lets the
+   Integrator SCORE that instead of asserting it: over the HRV sources' shared window, what fraction of
+   RECORDED epochs were still?
+     `quiet` ⇒ ≥ HRV_QUIET_FRAC of recorded epochs immobile — the HRV block is motion-clean
+   Coverage-honest: epochs with `moving == null` (accelerometer not recording) are excluded from the
+   denominator, never counted as still — otherwise a recording gap buys a spuriously "quiet" night.
+   Returns null when the bus carries no MotionDex movement track or no HRV source: this ANNOTATES
+   HRV, it never gates it away, and it is a silent no-op when MotionDex is absent (nodes stay
+   independent; the Integrator is optional; MotionDex is optional to the Integrator).
+   EMERGING tier — a confidence annotation, not a correction: no HRV value is altered. */
+var HRV_QUIET_FRAC = 0.8; // ≥80% of recorded epochs immobile ⇒ motion-clean window
+var HRV_SOURCE_NODES = ['ECGDex', 'PulseDex', 'HRVDex', 'PpgDex'];
+
+function gateHRVByMotion(recs) {
+  var motion = _byNode(recs, 'MotionDex').filter(function (r) {
+    return r.summary && Array.isArray(r.summary.activitySeries) && r.summary.activitySeries.length;
+  });
+  if (!motion.length) return null;
+  var hrvSrc = recs.filter(function (r) {
+    return HRV_SOURCE_NODES.indexOf(r.node) >= 0 && !r.dateUnknown && r.summary && (r.summary.rmssd != null || r.summary.sdnn != null);
+  });
+  if (!hrvSrc.length) return null;
+  var lo = Infinity,
+    hi = -Infinity;
+  hrvSrc.forEach(function (r) {
+    if (r.t0Ms != null) lo = Math.min(lo, r.t0Ms);
+    if (r.endMs != null) hi = Math.max(hi, r.endMs);
+  });
+  if (!isFinite(lo) || !isFinite(hi) || hi <= lo) return null;
+  var covered = 0,
+    moving = 0;
+  motion.forEach(function (r) {
+    r.summary.activitySeries.forEach(function (e) {
+      if (e.tMs == null || e.tMs < lo || e.tMs >= hi) return;
+      if (e.moving == null) return; // NOT RECORDING — out of the denominator, never "still"
+      covered++;
+      if (e.moving) moving++;
+    });
+  });
+  if (!covered) return null; // motion track present but none of it overlaps the HRV window
+  var immobileFrac = (covered - moving) / covered;
+  return {
+    immobileFrac: +immobileFrac.toFixed(2),
+    movingEpochs: moving,
+    coveredEpochs: covered,
+    quiet: immobileFrac >= HRV_QUIET_FRAC,
+    coverageAssumed: false,
+    windowMs: [lo, hi]
+  };
+}
+
 function fuseHRVConsensus(recs, dtMs) {
   var sources = recs.filter(function (r) {
     return ['ECGDex', 'PulseDex', 'HRVDex', 'PpgDex'].indexOf(r.node) >= 0 && !r.dateUnknown && r.summary && (r.summary.rmssd != null || r.summary.sdnn != null);
@@ -7719,6 +7793,15 @@ function runFusion(recs, opts) {
   var apneaTyping = typeApneaByEffort(recs);
   var autoGly = anyOverlap ? fuseAutonomicGlycemic(recs, dtMs, opts) : null;
   var hrv = anyOverlap ? fuseHRVConsensus(recs, dtMs) : null;
+  // §2.4 motion-gated HRV: SCORE each consensus block's window for stillness from MotionDex's movement
+  // track. Purely additive — no HRV value is altered and nothing is excluded; null without MotionDex.
+  var hrvMotionGate = gateHRVByMotion(recs);
+  if (hrv && hrv.blocks && hrvMotionGate)
+    hrv.blocks.forEach(function (b) {
+      // Attach ONLY when a gate exists, so a night without MotionDex keeps a byte-identical export
+      // (no `motionGate: null` noise on every block). Cast because the block literal is inferred.
+      /** @type {any} */ (b).motionGate = hrvMotionGate;
+    });
   var staging = anyOverlap ? fuseStagingConsensus(recs) : null;
   var periodicBreathing = anyOverlap ? fusePeriodicBreathing(recs) : null;
 
@@ -7824,6 +7907,7 @@ function runFusion(recs, opts) {
     positional: positional,
     autoGly: autoGly,
     hrv: hrv,
+    hrvMotionGate: hrvMotionGate,
     staging: staging,
     periodicBreathing: periodicBreathing,
     findings: findings,
@@ -7902,6 +7986,10 @@ function buildFusionExport(recs, fusion) {
     // P1: serialize the 3 computed-and-displayed results the export previously dropped (additive, null-tolerant)
     positional: fusion.positional || null,
     hrvConsensus: fusion.hrv || null,
+    // §2.4: stillness score for the HRV window from MotionDex movement (EMERGING — a confidence
+    // annotation, never a correction). `quiet` ⇒ ≥80% of RECORDED epochs immobile; uncovered epochs
+    // are excluded, never counted as still. null when MotionDex is absent.
+    hrvMotionGate: fusion.hrvMotionGate || null,
     periodicBreathing: fusion.periodicBreathing || null,
     deviceScoredAHI: (fusion.apnea && fusion.apnea.apneaAuthority) || null,
     findings: fusion.findings.map(function (f) {
@@ -7989,6 +8077,7 @@ window.IntegratorDSP = {
   glucoseMetricsInWindow,
   corroborateDesat,
   typeApneaByEffort,
+  gateHRVByMotion,
   pickHRAuthority,
   gradeFor,
   GRADE_MIRROR,

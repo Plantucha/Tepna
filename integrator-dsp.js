@@ -512,6 +512,10 @@ function adaptEnvelopeNode(json, node, filename) {
     summary.motionSqi = mo.sqi != null ? mo.sqi : null;
     summary.effortSeries = _motionEffortSeries(json, t0Ms);
     summary.effortCadenceSec = mo.effortCadenceSec != null ? mo.effortCadenceSec : null;
+    // per-epoch movement track (§2.4 HRV gate). `moving` is TRI-STATE — null = accelerometer not
+    // recording, which must never be counted as "still" (a gap would otherwise buy a quiet night).
+    summary.activitySeries = _motionActivitySeries(json, t0Ms);
+    summary.activityCadenceSec = mo.activityCadenceSec != null ? mo.activityCadenceSec : null;
     // MotionDex publishes posture as run-length `posture_change` events — expand them into the SAME
     // { tMs, pos } series ECGDex/PpgDex use, so the existing positional-apnea path consumes it directly.
     // (§1.2. This previously called _ecgPostureSeries, which reads json.acc / json.timeseries.acc —
@@ -630,6 +634,23 @@ function _motionPostureSeries(json, t0Ms) {
     var from = steps[i].tMs,
       to = i + 1 < steps.length ? steps[i + 1].tMs : Math.max(endMs, from + _MOTION_POS_CAD_MS);
     for (var t = from; t < to && out.length < _MOTION_POS_MAX; t += _MOTION_POS_CAD_MS) out.push({ tMs: t, pos: steps[i].pos });
+  }
+  return out;
+}
+/* MotionDex per-epoch MOVEMENT track → [{ tMs, count, moving }] (MULTI-SENSOR-DERIVATIONS §2.4).
+   `moving` is TRI-STATE for the same reason `present` is on the effort series: null means the
+   accelerometer was not recording that epoch, and a gap is NOT stillness. Reading null as "still"
+   would hand a motion-gated HRV window a quality score it never earned. */
+function _motionActivitySeries(json, t0Ms) {
+  var mo = (json && json.motion) || {};
+  var src = mo.activitySeries;
+  if (!Array.isArray(src) || !src.length) return null;
+  var cadMs = (mo.activityCadenceSec != null ? mo.activityCadenceSec : 30) * 1000;
+  var out = [];
+  for (var i = 0; i < src.length; i++) {
+    var e = src[i] || {};
+    var tMs = e.tMs != null ? e.tMs : t0Ms != null ? t0Ms + i * cadMs : null;
+    out.push({ tMs: tMs, count: e.count != null ? e.count : null, moving: e.moving == null ? null : !!e.moving });
   }
   return out;
 }
@@ -1997,6 +2018,59 @@ function _tchHat(like, ptsFn, metric) {
 function _tchConsensus(like) {
   return _tchHat(like, _rmssdPts, 'rmssd');
 }
+/* ── MOTION-GATED HRV (MULTI-SENSOR-DERIVATIONS §2.4) ────────────────────────────────────────────
+   HRV read across a night full of movement is worth less than the same number off a still night —
+   motion inflates artifact-driven RR/PPI variance. MotionDex's per-epoch movement track lets the
+   Integrator SCORE that instead of asserting it: over the HRV sources' shared window, what fraction of
+   RECORDED epochs were still?
+     `quiet` ⇒ ≥ HRV_QUIET_FRAC of recorded epochs immobile — the HRV block is motion-clean
+   Coverage-honest: epochs with `moving == null` (accelerometer not recording) are excluded from the
+   denominator, never counted as still — otherwise a recording gap buys a spuriously "quiet" night.
+   Returns null when the bus carries no MotionDex movement track or no HRV source: this ANNOTATES
+   HRV, it never gates it away, and it is a silent no-op when MotionDex is absent (nodes stay
+   independent; the Integrator is optional; MotionDex is optional to the Integrator).
+   EMERGING tier — a confidence annotation, not a correction: no HRV value is altered. */
+var HRV_QUIET_FRAC = 0.8; // ≥80% of recorded epochs immobile ⇒ motion-clean window
+var HRV_SOURCE_NODES = ['ECGDex', 'PulseDex', 'HRVDex', 'PpgDex'];
+
+function gateHRVByMotion(recs) {
+  var motion = _byNode(recs, 'MotionDex').filter(function (r) {
+    return r.summary && Array.isArray(r.summary.activitySeries) && r.summary.activitySeries.length;
+  });
+  if (!motion.length) return null;
+  var hrvSrc = recs.filter(function (r) {
+    return HRV_SOURCE_NODES.indexOf(r.node) >= 0 && !r.dateUnknown && r.summary && (r.summary.rmssd != null || r.summary.sdnn != null);
+  });
+  if (!hrvSrc.length) return null;
+  var lo = Infinity,
+    hi = -Infinity;
+  hrvSrc.forEach(function (r) {
+    if (r.t0Ms != null) lo = Math.min(lo, r.t0Ms);
+    if (r.endMs != null) hi = Math.max(hi, r.endMs);
+  });
+  if (!isFinite(lo) || !isFinite(hi) || hi <= lo) return null;
+  var covered = 0,
+    moving = 0;
+  motion.forEach(function (r) {
+    r.summary.activitySeries.forEach(function (e) {
+      if (e.tMs == null || e.tMs < lo || e.tMs >= hi) return;
+      if (e.moving == null) return; // NOT RECORDING — out of the denominator, never "still"
+      covered++;
+      if (e.moving) moving++;
+    });
+  });
+  if (!covered) return null; // motion track present but none of it overlaps the HRV window
+  var immobileFrac = (covered - moving) / covered;
+  return {
+    immobileFrac: +immobileFrac.toFixed(2),
+    movingEpochs: moving,
+    coveredEpochs: covered,
+    quiet: immobileFrac >= HRV_QUIET_FRAC,
+    coverageAssumed: false,
+    windowMs: [lo, hi]
+  };
+}
+
 function fuseHRVConsensus(recs, dtMs) {
   var sources = recs.filter(function (r) {
     return ['ECGDex', 'PulseDex', 'HRVDex', 'PpgDex'].indexOf(r.node) >= 0 && !r.dateUnknown && r.summary && (r.summary.rmssd != null || r.summary.sdnn != null);
@@ -2512,6 +2586,15 @@ function runFusion(recs, opts) {
   var apneaTyping = typeApneaByEffort(recs);
   var autoGly = anyOverlap ? fuseAutonomicGlycemic(recs, dtMs, opts) : null;
   var hrv = anyOverlap ? fuseHRVConsensus(recs, dtMs) : null;
+  // §2.4 motion-gated HRV: SCORE each consensus block's window for stillness from MotionDex's movement
+  // track. Purely additive — no HRV value is altered and nothing is excluded; null without MotionDex.
+  var hrvMotionGate = gateHRVByMotion(recs);
+  if (hrv && hrv.blocks && hrvMotionGate)
+    hrv.blocks.forEach(function (b) {
+      // Attach ONLY when a gate exists, so a night without MotionDex keeps a byte-identical export
+      // (no `motionGate: null` noise on every block). Cast because the block literal is inferred.
+      /** @type {any} */ (b).motionGate = hrvMotionGate;
+    });
   var staging = anyOverlap ? fuseStagingConsensus(recs) : null;
   var periodicBreathing = anyOverlap ? fusePeriodicBreathing(recs) : null;
 
@@ -2617,6 +2700,7 @@ function runFusion(recs, opts) {
     positional: positional,
     autoGly: autoGly,
     hrv: hrv,
+    hrvMotionGate: hrvMotionGate,
     staging: staging,
     periodicBreathing: periodicBreathing,
     findings: findings,
@@ -2695,6 +2779,10 @@ function buildFusionExport(recs, fusion) {
     // P1: serialize the 3 computed-and-displayed results the export previously dropped (additive, null-tolerant)
     positional: fusion.positional || null,
     hrvConsensus: fusion.hrv || null,
+    // §2.4: stillness score for the HRV window from MotionDex movement (EMERGING — a confidence
+    // annotation, never a correction). `quiet` ⇒ ≥80% of RECORDED epochs immobile; uncovered epochs
+    // are excluded, never counted as still. null when MotionDex is absent.
+    hrvMotionGate: fusion.hrvMotionGate || null,
     periodicBreathing: fusion.periodicBreathing || null,
     deviceScoredAHI: (fusion.apnea && fusion.apnea.apneaAuthority) || null,
     findings: fusion.findings.map(function (f) {
@@ -2782,6 +2870,7 @@ window.IntegratorDSP = {
   glucoseMetricsInWindow,
   corroborateDesat,
   typeApneaByEffort,
+  gateHRVByMotion,
   pickHRAuthority,
   gradeFor,
   GRADE_MIRROR,
