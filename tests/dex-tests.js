@@ -13651,6 +13651,31 @@
       }
     });
 
+    /* ════ RENDER EXECUTION — hoisted classifiers (§RN wave 2) ════
+       The remaining §RN findings were inline expressions inside non-exported DOM-mutating render functions
+       (renderHero / renderAll / reRender) the harness can't drive. Each is now HOISTED to a pure, exposed
+       function used at its original call site (behavior-identical → compute-inert, render-only re-bundle),
+       so the harness can pin its surfaced value. Node-lane only (mirrors the §RN harness group above). */
+    group('Render execution — hoisted classifiers known-answer (§RN wave 2)', 'pulsedex-render · hrvdex-render · oxydex-render · render-harness', function (T) {
+      if (!env.PulseDex || typeof env.PulseDex.tanakaHRmax !== 'function' || typeof env.HrvRmssdClass !== 'function' || typeof env.OxySpo2NightCV !== 'function') {
+        T.skip(
+          'render-harness hoisted classifiers wired (PulseDex.tanakaHRmax / HrvRmssdClass / OxySpo2NightCV)',
+          'Node-lane only (run-tests.mjs executes *-render.js headless); the browser lane runs render in iframe rigs so it SKIPs'
+        );
+      } else {
+        // PulseDex Tanaka HRmax = 208 − 0.7·age (a DUPLICATED render copy, drift-prone vs ECGProfile; MED).
+        T.eq('PulseDex tanakaHRmax(40) = 208 − 0.7·40 = 180 (a 0.9 coefficient → 172)', env.PulseDex.tanakaHRmax(40), 180);
+        T.eq('PulseDex tanakaHRmax(50) = 173 (matches the canonical ECGProfile Tanaka; the render copy must not drift)', env.PulseDex.tanakaHRmax(50), 173);
+        // HRVDex rMSSD readiness KPI color: ok > 35 / warn > 20 / bad (MED — a healthy 45 ms must not read bad).
+        T.eq('HRVDex rMSSD 45 ms → ok (a >65 cut mutation would paint it bad)', env.HrvRmssdClass(45), 'ok');
+        T.eq('HRVDex rMSSD 28 ms → warn (>20 band)', env.HrvRmssdClass(28), 'warn');
+        T.eq('HRVDex rMSSD 15 ms → bad', env.HrvRmssdClass(15), 'bad');
+        // OxyDex SpO₂ night CV = (SD/mean)·100 % (MED — a ·10 scale slip is 10× too small + flips coloring).
+        T.approx('OxyDex oxySpo2NightCV(4.5, 95) = (4.5/95)·100 = 4.74 (a ·10 slip → 0.47)', env.OxySpo2NightCV(4.5, 95), 4.74, 0.01);
+        T.approx('OxyDex oxySpo2NightCV(0.95, 95) = 1.0', env.OxySpo2NightCV(0.95, 95), 1.0, 0.01);
+      }
+    });
+
     group('GlucoDex mmol/L display toggle — boundary-only, mg/dL default', 'glucodex-render · glucodex-app · glucodex-dsp', function (T) {
       var src = env.sources || {};
       var rnd = src['glucodex-render.js'],

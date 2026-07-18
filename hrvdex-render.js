@@ -197,6 +197,13 @@ function rerender() {
   renderTable(rows);
 }
 
+// rMSSD readiness KPI color band (ms) — hoisted from the renderHero subscore config so the threshold
+// is a single TESTABLE function (§RN render-harness): ok > 35 / warn > 20 / bad. The inline `cls:`
+// arrow was unreachable by any gate, so a threshold slip (a healthy 45 ms painted 'bad') shipped green.
+function hrvRmssdClass(v) {
+  return v > 35 ? 'ok' : v > 20 ? 'warn' : 'bad';
+}
+
 /* ===== READINESS HERO ===== */
 function renderHero(r, prev) {
   const wrap = document.getElementById('heroWrap');
@@ -235,7 +242,7 @@ function renderHero(r, prev) {
 
   // Subscores (mirror KPI thresholds)
   const subs = [
-    { v: num(r._rmssd), fmt: (v) => v.toFixed(0), unit: '', label: 'rMSSD', cls: (v) => (v > 35 ? 'ok' : v > 20 ? 'warn' : 'bad') },
+    { v: num(r._rmssd), fmt: (v) => v.toFixed(0), unit: '', label: 'rMSSD', cls: hrvRmssdClass },
     { v: num(r._sdnn), fmt: (v) => v.toFixed(0), unit: '', label: 'SDNN', cls: (v) => (v > 60 ? 'ok' : v > 40 ? 'warn' : 'bad') },
     { v: num(r._stress), fmt: (v) => v.toFixed(0), unit: '', label: 'Stress', cls: (v) => (v < 45 ? 'ok' : v < 65 ? 'warn' : 'bad') },
     { v: ari, fmt: (v) => v.toFixed(2), unit: '', label: 'Recovery', cls: (v) => (v > 1 ? 'ok' : v > 0.85 ? 'warn' : 'bad') }
@@ -1524,6 +1531,7 @@ Object.assign(window, {
   setMode,
   hrvNavTo,
   rerender,
+  hrvRmssdClass, // §RN render-harness: testable rMSSD KPI color band
   rgba,
   renderHistogram,
   renderScatterExplorer,
