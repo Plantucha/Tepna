@@ -6978,6 +6978,42 @@
            rails at 54 mg/dL (46 readings AT the floor vs 15 and 14 beside it) and shipped 37 unflagged
            nocturnal_hypo events at conf 0.97. The fix must ALSO not flag a genuine nocturnal nadir — a
            false clip would HIDE real hypoglycemia, which is worse than the bug. */
+    /* ════ GlucoDex variability indices — direct known-answer (re-scout §GV) ════
+       glucodex-dsp.variability() computes an entire family of surfaced glycemic-variability indices
+       — jIndex · CONGA-1/2/4 · GRADE · MAG — rendered as KPI tiles + Quality-table rows, but
+       glucoBuildNodeExport's glucose{} block OMITS them (it exports mean/gmi/sd/cv/tir/mage/modd/gvp/
+       lbgi/hbgi/adrr/…). The Phase-9 equiv gate deep-diffs the EXPORT against the committed fixture, so
+       it never sees these; no unit test pinned their value either → four arithmetic slips (jIndex sign,
+       CONGA lag, GRADE zone edge, MAG abs) all shipped GREEN. These pin analyze()'s values directly on a
+       deterministic 120±60 mg/dL sinusoid (period 48 samples = 4 h). Both-direction verified. */
+    group('GlucoDex variability indices — jIndex/CONGA/GRADE/MAG known-answer (re-scout §GV)', 'glucodex-dsp · variability · known-answer', function (T) {
+      var G = env.GlucoDex || env.GLUDSP;
+      if (!G || typeof G.analyze !== 'function' || typeof G.parseCSV !== 'function') {
+        T.skip('env.GlucoDex.analyze + parseCSV available', 'namespace not wired — gate skipped');
+      } else {
+        var HDRv = 'Time of Glucose Reading [T=(local time) +/- (time zone offset)], Measurement(mg/dL)';
+        var stampV = function (ms) {
+          return new Date(ms).toISOString().slice(0, 16) + '-04:00';
+        };
+        var t0v = Date.UTC(2026, 4, 3, 0, 0, 0),
+          Lv = [HDRv];
+        for (var iv = 0; iv < 288; iv++) Lv.push(stampV(t0v + iv * 5 * 60000) + ',' + Math.round(120 + 60 * Math.sin((2 * Math.PI * iv) / 48)));
+        var av = G.analyze(G.parseCSV(Lv.join('\n'), 'gv.csv'), null, {});
+        // jIndex = 0.001·(mean+SD)² — mean 120, SD 42 ⇒ 0.001·162² = 26.2 (a mean−SD sign slip → 6.1).
+        T.approx('jIndex = 0.001·(mean+SD)² = 0.001·162² = 26.2 (surfaced KPI; NOT in export)', av.jIndex, 26.2, 0.05);
+        // CONGA-1 lag = round(1 h·60 / cadence 5) = 12 samples ⇒ SD of g[i]−g[i−12] = 59 (a ·30 lag-halving → 32).
+        T.eq('CONGA-1 (lag = round(60/cadence)) = 59 on the sinusoid (a lag-halving mutation → 32)', av.conga1, 59);
+        // CONGA-4 lag = 48 samples = the sinusoid period, so g[i]≈g[i−48] ⇒ ≈0 (pins the period-matched null).
+        T.approx('CONGA-4 ≈ 0 (4 h lag == the 48-sample sinusoid period)', av.conga4, 0, 0.5);
+        // MAG = mean ABSOLUTE Δglucose/hour = 59.9 (dropping abs() telescopes it to ≈(last−first)/h ≈ 0).
+        T.approx('MAG = mean |Δglucose|/h = 59.9 (an abs()-removal collapses it to ≈0)', av.magRate, 59.9, 0.3);
+        // GRADE euglycemia zone upper edge = 140 mg/dL: readings 60–180 split eu 13% / hyper 70%
+        // (widening the zone to 180 reclassifies 141–180 target→hyper → eu 83% / hyper 0%).
+        T.eq('GRADE euPct = 13 with the 140 mg/dL zone edge (a 180 edge → 83)', av.grade.euPct, 13);
+        T.eq('GRADE hyperPct = 70 with the 140 mg/dL zone edge (a 180 edge → 0)', av.grade.hyperPct, 70);
+      }
+    });
+
     group('GlucoDex §5/§6 — long-gap fill is not measured glucose; the vendor clip floor is detected', 'glucodex-dsp · fabricated-absence · units', function (T) {
       var G = env.GlucoDex || env.GLUDSP;
       if (!G || typeof G.compute !== 'function') {
