@@ -475,8 +475,13 @@ function deviceForStream(key){
   const m = key.match(/_(vs|h10|o2)$/);
   if(m){ const d = DEVICES.find(x=>_devTag(x)===m[1]); if(d) return d; }
   const base = key.replace(/_(vs|h10|o2)$/,'');
+  // Streams the O2Ring produces that are NOT in its configured `streams` list (which is just ['spo2']):
+  // `pr`/`motion` are parsed out of the 1 Hz status header, and `o2ppg` is the ~125 Hz pleth — whose key
+  // is a PREFIX form ('o2ppg'), not a '_o2' suffix, so the tag regex above never matches it. Without this
+  // the o2ppg card resolved to no device at all and silently lost its RSSI + battery chips.
+  const O2_DERIVED = ['pr', 'motion', 'o2ppg'];
   return DEVICES.find(d=>(d.streams||[]).includes(base))
-      || (base==='pr'||base==='motion' ? DEVICES.find(d=>(d.streams||[]).includes('spo2')) : null);
+      || (O2_DERIVED.includes(base) ? DEVICES.find(d=>(d.streams||[]).includes('spo2')) : null);
 }
 
 // ══ View routing ══
