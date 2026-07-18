@@ -20,12 +20,16 @@ session rate-limit before reporting, so those are **NOT cleared, only un-scanned
 
 | cluster | found | status |
 |---|---|---|
-| crossnight-deep | 8 | **DONE** — closed PR #173 (both-direction verified) |
-| adapters | 7 | OPEN |
-| integrator-fusion | 8 | OPEN |
-| kernel-registry | 8 | OPEN |
-| ecg-ppg-detect-deep | 9 | OPEN |
+| crossnight-deep | 8 | **DONE** — PR #173 (both-direction verified) |
+| kernel-registry | 8 | **DONE** — PR #175 |
+| integrator-fusion | 8 | **DONE** — PR #180 |
+| ecg-ppg-detect-deep | 9 | **2/9 DONE** — PR #177 (LF/HF edge + DFA box); 7 open |
+| adapters | 7 | OPEN (needs off-suite adapter harness) |
 | render · self-ingest · gluco-cpap-oxy-deep | 0 (agents died) | **un-scanned — re-scout owed** |
+
+**Tally: 26 of 40 closed** (crossnight 8 + kernel 8 + integrator 8 + ecg-ppg 2), all both-direction
+verified and merged. Remaining: 7 ecg-ppg call-site/narrow-band findings, 7 adapters, and the 3
+un-scanned clusters.
 
 ## §CN — crossnight-deep (8) — **DONE 2026-07-18, PR #173**
 
@@ -64,9 +68,13 @@ adapter-level driver, harder than the sync test lane).
 | low | `adapters/resmed-edf.js` SD-card session cluster window INCLUSIVE at ±60 s | `<= 60 → < 60` |
 | low | `adapters/resmed-edf.js` BRP Flow default fs = 25 Hz when channel carries none | `|| 25 → || 20` |
 
-## §IF — integrator-fusion (8) — OPEN
+## §IF — integrator-fusion (8) — **DONE 2026-07-18, PR #180**
 
-Fusion internals beyond the first wave. Two are **high** (verdict-flipping).
+Fusion internals beyond the first wave. Two are **high** (verdict-flipping). All 8 closed with
+both-direction-verified known-answers reached through already-wired `env` entry points
+(`fuseHRVConsensus`/`runFusion`/`normalizeFile`/`labelPositionalApnea`/`fusePeriodicBreathing`/
+`IntegratorTCH`) — no `run-tests.mjs` change. #4/#5 use two distinct scenarios so each is caught
+independently. Full corpus suite green (2883). Each mutation re-applied + confirmed RED.
 
 | sev | file · invariant | mutation that stays green |
 |--|--|--|
@@ -79,10 +87,11 @@ Fusion internals beyond the first wave. Two are **high** (verdict-flipping).
 | medium | `integrator-dsp.js` PB corroboration tier-weight `emerging = 0.8` | `0.8 → 0.4` |
 | low | `integrator-dsp.js` external-ρ = mean of POSITIVE pairwise motion corr | `Math.max(0,r) → r` |
 
-## §KR — kernel-registry (8) — OPEN
+## §KR — kernel-registry (8) — **DONE 2026-07-18, PR #175**
 
 `dex-profile.js` classification thresholds + NHANES/ACSM interpolation — all surface in the PulseDex
-**Derived** panel. Clean test-only closes (the `Dex-Profile engine` group already co-loads the module).
+**Derived** panel. All 8 closed with boundary-bracketing known-answers in the `Dex-Profile engine`
+group (which already co-loads the module). Both-direction verified. Full corpus suite green (2872).
 
 | sev | file · invariant | mutation that stays green |
 |--|--|--|
@@ -95,17 +104,23 @@ Fusion internals beyond the first wave. Two are **high** (verdict-flipping).
 | low | `dex-profile.js` `_interp1` VO2-norm interp = `round(tbl[i][1] + f·Δ)` | `+ f·Δ → − f·Δ` |
 | low | `dex-profile.js` `VO2_NORM` male age-45 anchor = 39 mL/kg/min | `[45,39] → [45,44]` |
 
-## §EP — ecg-ppg-detect-deep (9) — OPEN
+## §EP — ecg-ppg-detect-deep (9) — **2/9 DONE 2026-07-18, PR #177; 7 OPEN**
 
-Spectral/nonlinear detector internals. These live **below** the equiv/GATE-C fixtures (the committed ECG
-/PPG fixtures are "light" — they don't exercise deep spectral/DFA/SampEn/PRSA math), so a direct
-known-answer per constant is owed (a fuller fixture, or a co-loaded DSP unit pin).
+Spectral/nonlinear detector internals. Every spectral gate in the suite checked `lombScargle`/`dfaAlpha1`
+by **source regex** (structural) — blind to a numeric edge/range change. **CLOSED (PR #177)** with
+value-based known-answers reached through the exported `ECGDSP.lombScargle`/`dfaAlpha1`: the **LF/HF band
+edge 0.15 Hz** (a 0.13 Hz RR oscillation lands in LF; a 0.12 shift moves it to HF — frac_lf 0.988→0.024)
+and the **DFA box range 4..16** (fixed seeded series → α1 0.649; an n≤11 truncation → 0.751). The other 7
+are call-site tolerances or narrow-band cases that a pure-function pin can't reach — they need the
+`analyze` pipeline or a fuller (non-"light") equiv fixture: SampEn `0.2·SD` and PRSA `/4` are applied
+inside `analyze` (not args to the exported fn), the EDR autocorr window likewise; the PPG VLF/LF 0.04 edge
+is leakage-limited (VLF band 0.003–0.04 is too narrow for a clean single-tone RR probe). **OPEN:**
 
 | sev | file:line · invariant | mutation that stays green |
 |--|--|--|
-| high | `ecgdex-dsp.js:1022` Lomb-Scargle LF/HF band edge 0.15 Hz (Task Force 1996) | `f < 0.15 → f < 0.12` |
+| ~~high~~ **DONE** | `ecgdex-dsp.js:1022` Lomb-Scargle LF/HF band edge 0.15 Hz (Task Force 1996) | `f < 0.15 → f < 0.12` |
 | high | `ecgdex-dsp.js:1127` PRSA DC/AC normalization `(X2+X3−X1−X0)/4` (Bauer 2006) | `/4 → /2` |
-| medium | `ecgdex-dsp.js:1053` DFA α1 box sizes n=4..16 beats | `<= 16 → <= 11` |
+| ~~medium~~ **DONE** | `ecgdex-dsp.js:1053` DFA α1 box sizes n=4..16 beats | `<= 16 → <= 11` |
 | medium | `ecgdex-dsp.js:1990` SampEn tol r = 0.2·SD (Richman-Moorman) | `0.2 → 0.15` |
 | medium | `ppgdex-dsp.js:1019` DFA α1 box sizes s=4..16 | `<= 16 → <= 11` |
 | medium | `ppgdex-dsp.js:948` VLF/LF band edge 0.04 Hz | `0.04 → 0.05` |
