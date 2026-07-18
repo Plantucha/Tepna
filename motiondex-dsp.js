@@ -127,7 +127,7 @@
         var b = BigInt(p[1].trim());
         if (ns0 === null) ns0 = b;
         relNs = Number(b - ns0);
-      } catch (e) {}
+      } catch {}
       var ts = parseTimestamp(p[0]);
       out.push({ relNs: relNs, tMs: ts ? ts.tMs : null, x: x, y: parseFloat(p[3]), z: parseFloat(p[4]) });
     }
