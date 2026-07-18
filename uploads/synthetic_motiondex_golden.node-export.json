@@ -1,0 +1,44 @@
+{
+  "schema": {
+    "name": "ganglior.node-export",
+    "version": 1,
+    "node": "MotionDex"
+  },
+  "recording": {
+    "startEpochMs": 1781128800000,
+    "durSec": 120
+  },
+  "motion": {
+    "streams": {
+      "acc": 3120,
+      "gyro": 0,
+      "mag": 0,
+      "chestAcc": 3120
+    },
+    "supineFrac": 1,
+    "dwellFrac": {
+      "supine": 1,
+      "prone": 0,
+      "left": 0,
+      "right": 0,
+      "upright": 0,
+      "unknown": 0
+    },
+    "immobileFrac": 1,
+    "movementIndex": 0,
+    "respRateBrpm": 14,
+    "sqi": 0.97
+  },
+  "ganglior_events": [
+    {
+      "t": "22:00:00",
+      "tMs": 1781128800000,
+      "impulse": "posture_change",
+      "node": "MotionDex",
+      "conf": 0.97,
+      "meta": {
+        "position": "supine"
+      }
+    }
+  ]
+}
