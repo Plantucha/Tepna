@@ -497,6 +497,25 @@ function adaptEnvelopeNode(json, node, filename) {
     // body-position passthrough if a future PAP firmware embeds it in event meta
     summary.posture = _ecgPostureSeries(json, t0Ms);
   }
+  if (node === 'MotionDex') {
+    // Motion / IMU node-export (APNEA-TYPING-FUSION-2026-07-18 §1.1). The per-epoch respiratory-EFFORT
+    // series is the apnea-typing input; the scalars are the night-level motion surface. Everything here is
+    // additive + null-tolerant — a night with no MotionDex simply carries none of it and the typing
+    // degrades to "not typed" (nodes are independent; MotionDex is OPTIONAL to the Integrator).
+    var mo = json.motion || {};
+    summary.supineFrac = mo.supineFrac != null ? mo.supineFrac : null;
+    summary.dwellFrac = mo.dwellFrac || null;
+    summary.immobileFrac = mo.immobileFrac != null ? mo.immobileFrac : null;
+    summary.movementIndex = mo.movementIndex != null ? mo.movementIndex : null;
+    summary.respRateBrpm = mo.respRateBrpm != null ? mo.respRateBrpm : null;
+    summary.motionSqi = mo.sqi != null ? mo.sqi : null;
+    summary.effortSeries = _motionEffortSeries(json, t0Ms);
+    summary.effortCadenceSec = mo.effortCadenceSec != null ? mo.effortCadenceSec : null;
+    // MotionDex's posture_change events give a chest/limb position track — expose it on the SAME
+    // series shape ECGDex/PpgDex use so the existing positional-apnea path can consume it too.
+    summary.posture = _ecgPostureSeries(json, t0Ms);
+    if (summary.posture && summary.posture.length) summary.postureSource = 'motiondex-acc';
+  }
   // TCH (INTEGRATOR-THREE-CORNERED-HAT §1): carry the per-epoch HRV/HR SERIES so the
   // fusion layer can run a three-cornered-hat across nodes (TCH needs aligned series,
   // not the whole-record scalars above). motion = per-epoch motionIndex (the co-motion
@@ -561,6 +580,24 @@ function _dig(o, path) {
 }
 
 /* ECGDex body-position series from acc / sleepStages.posture / timeseries posture. */
+/* MotionDex per-epoch respiratory-EFFORT track → [{ tMs, amp, present }] (APNEA-TYPING-FUSION §1.1).
+   `present` is TRI-STATE and that is the whole point: true = effort detected, false = flat (no drive),
+   NULL = the chest accelerometer was not recording that epoch. A null must NEVER be read as "no effort"
+   — that is exactly how a coverage gap manufactures a central apnea (the ×0.72 artifact EVENT-COUPLING
+   §2 found one modality over). tMs is reconstructed from t0Ms + i·cadence when the epoch omits it. */
+function _motionEffortSeries(json, t0Ms) {
+  var mo = (json && json.motion) || {};
+  var src = mo.effortSeries;
+  if (!Array.isArray(src) || !src.length) return null;
+  var cadMs = (mo.effortCadenceSec != null ? mo.effortCadenceSec : 10) * 1000;
+  var out = [];
+  for (var i = 0; i < src.length; i++) {
+    var e = src[i] || {};
+    var tMs = e.tMs != null ? e.tMs : t0Ms != null ? t0Ms + i * cadMs : null;
+    out.push({ tMs: tMs, amp: e.amp != null ? e.amp : null, present: e.present == null ? null : !!e.present });
+  }
+  return out;
+}
 function _ecgPostureSeries(json, t0Ms) {
   var out = [];
   var acc = json.acc || (json.timeseries && json.timeseries.acc) || null;
@@ -987,6 +1024,92 @@ function corroborateDesat(desat, hrNodesLive) {
 }
 
 /* 1 — desat ⟷ autonomic surge ⇒ confirmed_apnea_event (the headline). */
+/* ── APNEA TYPING (APNEA-TYPING-FUSION-2026-07-18 §1.1) ──────────────────────────────────────────
+   Type each desaturation OBSTRUCTIVE vs CENTRAL from MotionDex's chest-ACC respiratory-effort series —
+   the one thing oximetry ALONE cannot give:
+     effort PRESENT through the event ⇒ drive persists against a blocked airway ⇒ OBSTRUCTIVE
+     effort ABSENT                    ⇒ no respiratory drive                    ⇒ CENTRAL
+     no effort COVERAGE / ambiguous   ⇒ UNTYPED — never guessed
+   Returns null when the bus carries no MotionDex effort series: nodes are independent and MotionDex is
+   OPTIONAL to the Integrator, so its absence is a silent no-op, never an error and never a default type.
+   EXPERIMENTAL tier (3 devices, Clock-Contract alignment, accelerometer surrogate) — this rides BESIDE
+   the headline AHI and beside CPAPDex's device-scored central/obstructiveIndex; it replaces neither. */
+var APNEA_TYPE_LEAD_MS = 15000; // look this far BEFORE the desat — SpO₂ lags the apnea (circulation + lung O₂ stores)
+var APNEA_TYPE_OBSTRUCTIVE_FRAC = 0.5; // ≥ half the COVERED epochs show effort ⇒ obstructive
+var APNEA_TYPE_MIN_TYPED = 5; // fewer typed events than this ⇒ underpowered (the P7 discipline)
+
+function typeApneaByEffort(recs) {
+  var motion = _byNode(recs, 'MotionDex').filter(function (r) {
+    return r.summary && Array.isArray(r.summary.effortSeries) && r.summary.effortSeries.length;
+  });
+  if (!motion.length) return null; // no MotionDex on the bus → no typing (graceful)
+
+  var eps = [],
+    cadMs = 10000,
+    sqi = null;
+  motion.forEach(function (r) {
+    if (r.summary.effortCadenceSec != null) cadMs = r.summary.effortCadenceSec * 1000;
+    if (r.summary.motionSqi != null) sqi = sqi == null ? r.summary.motionSqi : Math.min(sqi, r.summary.motionSqi);
+    r.summary.effortSeries.forEach(function (e) {
+      if (e.tMs != null) eps.push(e);
+    });
+  });
+  if (!eps.length) return null;
+  eps.sort(function (a, b) {
+    return a.tMs - b.tMs;
+  });
+
+  var DESAT_TYPES = ['spo2_desaturation', 'desat_event'];
+  var desats = [];
+  recs.forEach(function (r) {
+    if (r.dateUnknown) return;
+    _eventsOfType(r, DESAT_TYPES).forEach(function (e) {
+      if (e.tMs != null) desats.push({ ev: e, node: r.node });
+    });
+  });
+  if (!desats.length) return null;
+
+  var out = { obstructive: 0, central: 0, untyped: 0, total: desats.length, events: [], coverageAssumed: false };
+  desats.forEach(function (d) {
+    var durMs = (d.ev.meta && d.ev.meta.durSec != null ? d.ev.meta.durSec : 10) * 1000;
+    var lo = d.ev.tMs - APNEA_TYPE_LEAD_MS,
+      hi = d.ev.tMs + durMs;
+    var covered = 0,
+      present = 0;
+    for (var i = 0; i < eps.length; i++) {
+      if (eps[i].tMs + cadMs <= lo) continue;
+      if (eps[i].tMs >= hi) break;
+      if (eps[i].present == null) continue; // chest ACC NOT recording — out of the denominator, never a "central"
+      covered++;
+      if (eps[i].present) present++;
+    }
+    if (!covered) {
+      out.untyped++;
+      return;
+    }
+    var frac = present / covered;
+    var type = frac >= APNEA_TYPE_OBSTRUCTIVE_FRAC ? 'obstructive' : frac === 0 ? 'central' : null;
+    if (!type) {
+      out.untyped++; // ambiguous (some effort, but not a majority) — honest non-answer
+      return;
+    }
+    out[type]++;
+    var conf = sqi != null && d.ev.conf != null ? +(sqi * d.ev.conf).toFixed(2) : d.ev.conf != null ? d.ev.conf : sqi;
+    out.events.push({
+      tMs: d.ev.tMs,
+      t: fmtClockS(d.ev.tMs),
+      impulse: 'apnea_' + type,
+      node: 'Integrator',
+      conf: conf,
+      meta: { desatNode: d.node, effortPresentFrac: +frac.toFixed(2), epochs: covered, leadSec: APNEA_TYPE_LEAD_MS / 1000 }
+    });
+  });
+  out.typed = out.obstructive + out.central;
+  out.underpowered = out.typed < APNEA_TYPE_MIN_TYPED;
+  out.usable = !out.underpowered;
+  return out;
+}
+
 function fuseApneaEvents(recs, dtMs, gate) {
   // CARDIAC surge sources: ECGDex (primary) + PpgDex (PPG-derived). A desat is
   // confirmable by an autonomic surge from EITHER — PpgDex is a first-class node
@@ -2324,6 +2447,10 @@ function runFusion(recs, opts) {
 
   var apnea = anyOverlap ? fuseApneaEvents(recs, dtMs, gate) : null;
   var positional = apnea ? labelPositionalApnea(recs, apnea) : null;
+  // APNEA-TYPING-FUSION §1.1 — obstructive/central typing from MotionDex chest-ACC effort. Independent of
+  // `apnea` (it needs only desats + an effort series, not a cardiac corroborator), and null when MotionDex
+  // is absent from the bus. Additive: it never touches confirmedAHI or its reportability.
+  var apneaTyping = typeApneaByEffort(recs);
   var autoGly = anyOverlap ? fuseAutonomicGlycemic(recs, dtMs, opts) : null;
   var hrv = anyOverlap ? fuseHRVConsensus(recs, dtMs) : null;
   var staging = anyOverlap ? fuseStagingConsensus(recs) : null;
@@ -2427,6 +2554,7 @@ function runFusion(recs, opts) {
     hrSource: hrSource,
     pairs: pairs,
     apnea: apnea,
+    apneaTyping: apneaTyping,
     positional: positional,
     autoGly: autoGly,
     hrv: hrv,
@@ -2490,6 +2618,21 @@ function buildFusionExport(recs, fusion) {
     // P7: the EventCoupling shuffled-null verdict for desat⟷surge (coverage-aware; read `real`/`lift`
     // only where `usable`). Additive + null-tolerant; the Poisson apneaNullModel above is unchanged.
     apneaCoupling: fusion.apnea ? fusion.apnea.coupling || null : null,
+    // APNEA-TYPING-FUSION §1.1: obstructive/central split from MotionDex chest-ACC effort. EXPERIMENTAL —
+    // read the split only where `usable` (not `underpowered`); `untyped` counts desats the effort series
+    // could not resolve (no coverage or ambiguous) and is NEVER folded into central. null with no MotionDex.
+    apneaTyping: fusion.apneaTyping
+      ? {
+          obstructive: fusion.apneaTyping.obstructive,
+          central: fusion.apneaTyping.central,
+          untyped: fusion.apneaTyping.untyped,
+          typed: fusion.apneaTyping.typed,
+          total: fusion.apneaTyping.total,
+          underpowered: fusion.apneaTyping.underpowered,
+          usable: fusion.apneaTyping.usable,
+          coverageAssumed: fusion.apneaTyping.coverageAssumed
+        }
+      : null,
     // P1: serialize the 3 computed-and-displayed results the export previously dropped (additive, null-tolerant)
     positional: fusion.positional || null,
     hrvConsensus: fusion.hrv || null,
@@ -2579,6 +2722,7 @@ window.IntegratorDSP = {
   combineConf,
   glucoseMetricsInWindow,
   corroborateDesat,
+  typeApneaByEffort,
   pickHRAuthority,
   gradeFor,
   GRADE_MIRROR,
