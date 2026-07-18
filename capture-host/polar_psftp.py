@@ -190,7 +190,7 @@ class PolarPsFtp:
         """Yield (full_path, size, is_dir) for everything under `path`."""
         try:
             entries = await self.list_dir(path)
-        except Exception as e:
+        except Exception:
             yield (path, -1, False); return
         for name, size in entries:
             full = path + name
