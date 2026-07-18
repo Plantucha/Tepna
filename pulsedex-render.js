@@ -121,6 +121,13 @@ function renderKPI(r) {
   document.getElementById('slKPI').style.display = 'flex';
 }
 
+// Tanaka HRmax (Tanaka, Monahan & Seals 2001) — hoisted from reRender's inline copy so it is a
+// single, TESTABLE function (§RN render-harness): the render module carried its OWN duplicate of the
+// 208−0.7·age formula, drift-prone vs the canonical ECGProfile copy and unpinnable by any gate.
+function tanakaHRmax(age) {
+  return Math.round(208 - 0.7 * age);
+}
+
 // ─── RE-RENDER (profile edits update derivations + projections live) ──────────
 function reRender() {
   renderProfileDerivedPx();
@@ -129,7 +136,7 @@ function reRender() {
     const r = lastResult;
     const _pp = typeof pxProfile === 'function' ? pxProfile() : {};
     const age = _pp.age || 40;
-    const tanaka = Math.round(208 - 0.7 * age);
+    const tanaka = tanakaHRmax(age);
     const hrmaxIn = _pp.hrmax || 0;
     const rhrIn = _pp.rhr || 0;
     r.rhrEff = rhrIn > 0 ? rhrIn : r.autoRHR || Math.round(r.dispHr);
@@ -664,6 +671,7 @@ try {
   if (typeof window !== 'undefined' && window.PulseDex) {
     window.PulseDex.reviewView = pulseReviewView;
     window.PulseDex.renderReview = pulseRenderReview;
+    window.PulseDex.tanakaHRmax = tanakaHRmax; // §RN render-harness: testable Tanaka HRmax
   }
 } catch (_rvx) {}
 

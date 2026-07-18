@@ -843,6 +843,14 @@ function spikeTimeline(nights) {
 // ═══════════════════════════════════════════
 // RENDER
 // ═══════════════════════════════════════════
+// SpO₂ night-to-night CV = (SD / mean) · 100 percent — hoisted from renderAll's inline tab-4 builder so
+// the surfaced hero number is a single TESTABLE function (§RN render-harness). The inline `·100` was
+// unreachable by any gate, so a scale slip (·100 → ·10, a 10×-too-small CV that flips its coloring to
+// always-good) shipped green.
+function oxySpo2NightCV(sd, mean) {
+  return +((sd / mean) * 100).toFixed(2);
+}
+
 function renderAll() {
   if (typeof window.UP === 'undefined') window.UP = {};
   try {
@@ -1705,7 +1713,7 @@ function renderAll() {
                 return a + (v - spo2Mean) * (v - spo2Mean);
               }, 0) / spo2Vals.length
             );
-            var spo2CV = +((spo2SD / spo2Mean) * 100).toFixed(2);
+            var spo2CV = oxySpo2NightCV(spo2SD, spo2Mean);
             t4html += metric('SpO2 Night CV', spo2CV + '%', 'variability', spo2CV < 0.5 ? 'good' : spo2CV < 1 ? 'warn' : 'bad');
           }
           // PB burden trend
@@ -3330,5 +3338,6 @@ Object.assign(window, {
   setGCSmooth,
   toggleDetail,
   jumpToNight,
-  metric
+  metric,
+  oxySpo2NightCV // §RN render-harness: testable SpO₂ night-CV
 });

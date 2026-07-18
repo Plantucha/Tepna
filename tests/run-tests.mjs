@@ -1008,9 +1008,12 @@ async function main() {
     PpgDex: ctx.PpgDex,
     GLUDSP: ctx.GLUDSP,
     GlucoDex: ctx.GlucoDex,
-    // RENDER-HARNESS (§RN) — executed render globals (OxyDex/PulseDex above already carry .reviewView)
+    // RENDER-HARNESS (§RN) — executed render globals (OxyDex/PulseDex above already carry .reviewView +
+    // PulseDex.tanakaHRmax); GluDisp/CpapRender + the hoisted classifiers hang off bare window.
     GluDisp: ctx.GluDisp,
     CpapRender: ctx.CpapRender,
+    HrvRmssdClass: ctx.hrvRmssdClass,
+    OxySpo2NightCV: ctx.oxySpo2NightCV,
     IntegratorDSP: ctx.IntegratorDSP,
     IntegratorTCH: ctx.IntegratorTCH,
     IntegratorLong: ctx.IntegratorLong,
