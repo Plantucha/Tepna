@@ -29,12 +29,12 @@ The first-wave total was 40; the **re-scout of the 3 dead clusters (2026-07-18) 
 | adapters | 7 | OPEN (needs off-suite adapter harness) |
 | §SI self-ingest (re-scout) | 3 | **DONE** — PR #183 |
 | §GV gluco-cpap-oxy-deep (re-scout) | 4 | **DONE** — PR #184 (Oxy/CPAP confirmed clean) |
-| §RN render (re-scout) | 7 | **3/7 DONE — PR #187** (render-execution harness; the 3 HIGH gates); 4 open |
+| §RN render (re-scout) | 7 | **6/7 DONE — PR #187 (harness + 3 HIGH) + #191 (3 hoisted classifiers)**; 1 open (ecgdex canvas tick) |
 
-**Tally: 36 of 54 closed** (crossnight 8 + kernel 8 + integrator 8 + ecg-ppg 2 + self-ingest 3 + gluco 4 +
-render 3), all both-direction verified and merged. Remaining 18: 7 ecg-ppg call-site/narrow-band, 7
-adapters, 4 render (the node render-execution harness is now BUILT — PR #187 — and closed the 3 HIGH gates;
-the 4 remaining are inline in non-reviewView/reRender/canvas paths). See
+**Tally: 39 of 54 closed** (crossnight 8 + kernel 8 + integrator 8 + ecg-ppg 2 + self-ingest 3 + gluco 4 +
+render 6), all both-direction verified and merged. Remaining 15: 7 ecg-ppg call-site/narrow-band, 7
+adapters, 1 render (ecgdex canvas minute-tick — pure-canvas, LOW, deferred). The render-execution harness
+(PR #187) + the hoisted-classifier extractions (PR #191) closed 6 of 7 §RN. See
 `DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS-2026-07-18-BRIEF.md`.
 
 ## §CN — crossnight-deep (8) — **DONE 2026-07-18, PR #173**
