@@ -13921,6 +13921,26 @@
       T.approx('the range-rejected brady PPI is replaced by the local median (~2000), not kept at 2500', cB.nn[20], 2000, 10, 'nn20=' + cB.nn[20]);
     });
 
+    /* ════ PpgDex DFA-α1 box range — direct known-answer (deep-scout §EP-rest) ════
+       ppgdex-dsp.dfaAlpha1 fits short-term α1 over box sizes s = 4..16 (Peng short-term scaling range),
+       the PPG sibling of the ECG DFA gate (PR #177). Every PPG spectral/DFA gate is SOURCE-REGEX, so a box
+       range truncation (s<=16 → s<=11) silently re-slopes α1 and shipped green. Pin dfaAlpha1 on a FIXED
+       deterministic RR series (seeded LCG) — the truncation moves it 0.65 → 0.75 (verified). */
+    group('PpgDex DFA-α1 box range — known-answer (§EP-rest)', 'ppgdex-dsp · nonlinear · known-answer', function (T) {
+      var D = env.PPGDSP;
+      if (!D || typeof D.dfaAlpha1 !== 'function') {
+        T.skip('env.PPGDSP.dfaAlpha1 available', 'PPGDSP not co-loaded in this runner');
+      } else {
+        var s = [],
+          x = 12345;
+        for (var i = 0; i < 120; i++) {
+          x = (x * 1103515245 + 12345) % 2147483648;
+          s.push(800 + (x % 120));
+        }
+        T.approx('PPGDSP.dfaAlpha1 over box sizes 4..16 on the fixed series = 0.65 (s<=11 truncation → 0.75)', D.dfaAlpha1(s), 0.65, 0.02);
+      }
+    });
+
     /* ════ PpgDex detector — the 0.30 s refractory FLOOR (200 bpm ceiling; #79/#84 sibling) ════
      WP-D2 companion. detectBeats' absolute refractory floor is refrFloor = round(fs·0.30) — the
      200 bpm physiologic ceiling that applies even when the windowed-cadence prior is ABSENT (a clip
