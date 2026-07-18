@@ -844,6 +844,7 @@ async function main() {
       'kernel-constants.js',
       'clock.js',
       'metric-registry.js',
+      'dex-escape.js', // RENDER-HARNESS (§RN): escapeHTML — a top-level dep of the *-render.js review builders
       'dex-profile.js',
       'oxydex-registry.js',
       'ecgdex-registry.js',
@@ -960,6 +961,25 @@ async function main() {
     }
   });
 
+  // RENDER-HARNESS (DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS §RN) — the *-render.js DISPLAY layer was previously
+  // loaded ONLY as raw text (env.sources) and NEVER executed, so no test could pin a surfaced render value
+  // (a ~325× mmol glucose error, a green-painted hypoxic SpO₂, "well controlled" on a severe AHI all shipped
+  // green). Execute them here so their globals become assertable. They must load in an ISOLATED scope: their
+  // top-level `const {fmtDate,fmtClock,…} = window.OxyDex._bare` destructures would otherwise collide with the
+  // same bare names already in the shared realm (classicify leaks top-level decls). Wrapping each in an IIFE
+  // scopes those decls while the `window.X`/`global.X` attaches (GluDisp · OxyDex.reviewView · CpapRender ·
+  // PulseDex.reviewView) still escape to the sandbox. Deps (their DSP · dex-escape) are already loaded above.
+  ['glucodex-render.js', 'oxydex-render.js', 'cpapdex-render.js', 'hrvdex-render.js', 'pulsedex-render.js'].forEach((f) => {
+    try {
+      const p = join(ROOT, f);
+      if (!existsSync(p)) return;
+      const code = DexBuild.classicify(readFileSync(p, 'utf8'));
+      vm.runInContext('(function(){\n' + code + '\n})();', ctx, { filename: f });
+    } catch (e) {
+      console.error(paint('  ! render module failed to load: ' + f + ' — ' + e.message, C.yellow));
+    }
+  });
+
   const env = {
     DexKernel: ctx.DexKernel,
     MetricRegistry: ctx.MetricRegistry,
@@ -988,6 +1008,9 @@ async function main() {
     PpgDex: ctx.PpgDex,
     GLUDSP: ctx.GLUDSP,
     GlucoDex: ctx.GlucoDex,
+    // RENDER-HARNESS (§RN) — executed render globals (OxyDex/PulseDex above already carry .reviewView)
+    GluDisp: ctx.GluDisp,
+    CpapRender: ctx.CpapRender,
     IntegratorDSP: ctx.IntegratorDSP,
     IntegratorTCH: ctx.IntegratorTCH,
     IntegratorLong: ctx.IntegratorLong,
