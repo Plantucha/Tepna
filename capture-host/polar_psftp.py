@@ -128,9 +128,14 @@ class PolarPsFtp:
 
     async def __aenter__(self):
         await _bt_disconnect(self.address)
+        # A bonded+trusted Polar device that isn't advertising a fresh packet right now (idle on the
+        # nightstand, or oscillating in BlueZ's auto-reconnect) is missed by find_device_by_address, which
+        # needs to catch a live advertisement. But BlueZ already KNOWS the bonded device by path, so a
+        # direct BleakClient(address).connect() resolves it without a fresh advert — the same way the
+        # capture daemon connects. Prefer the scan (returns a rich device object), fall back to the address.
         dev = await BleakScanner.find_device_by_address(self.address, timeout=15.0, **self._kw)
         if not dev:
-            raise RuntimeError(f"{self.address} not found (advertising? bonded? capture daemon holding the link?)")
+            dev = self.address
         self._client = BleakClient(dev, timeout=25.0, **self._kw)
         try:
             await self._client.connect()
