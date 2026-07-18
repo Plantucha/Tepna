@@ -12393,9 +12393,12 @@
         T.ok('crossNightBlock attaches pressureChangePoints (additive export field)', Array.isArray(blk.pressureChangePoints));
         T.ok(
           'crossNightBlock flags the epap95 step (idx 10)',
-          !!(blk.pressureChangePoints && blk.pressureChangePoints.some(function (c) {
-            return c.metric === 'epap95' && c.nightIdx === 10;
-          }))
+          !!(
+            blk.pressureChangePoints &&
+            blk.pressureChangePoints.some(function (c) {
+              return c.metric === 'epap95' && c.nightIdx === 10;
+            })
+          )
         );
       }
     });
