@@ -92,6 +92,14 @@ body.light .sidebar-logo-rule{border-top-color:rgba(0,0,0,.08);}
 .nav-item:hover{background:rgba(61,224,208,.05);color:var(--text);box-shadow:inset 3px 0 0 rgba(61,224,208,.3);}
 .nav-item.active{background:rgba(61,224,208,.12);color:var(--teal);font-weight:var(--fw-semibold);box-shadow:inset 3px 0 0 var(--teal);}
 .nav-item .nav-badge{margin-left:auto;background:rgba(61,224,208,.12);color:var(--teal);padding:1px 7px;border-radius:999px;font-size:10px;font-weight:600;}
+/* Sidebar live counters (moved out of the Overview strip so they persist across views). Compact rows,
+   not cards — the sidebar is narrow, and the adapter MAC must wrap rather than overflow. */
+.side-stats{margin:var(--sp-4) 0 0;display:flex;flex-direction:column;gap:6px;}
+.side-stat{background:var(--surface);border:var(--b);border-radius:var(--r-sm);padding:8px 10px;border-left:3px solid var(--border2);}
+.side-stat .lab{font-size:10px;color:var(--text4);text-transform:uppercase;letter-spacing:.09em;font-weight:700;}
+.side-stat .val{font-size:17px;font-weight:700;line-height:1.15;font-family:ui-monospace,monospace;margin-top:2px;}
+.side-stat .sub{font-size:10px;color:var(--text3);margin-top:2px;line-height:1.35;word-break:break-word;}
+.side-stat .sub.addr{font-family:ui-monospace,monospace;word-break:break-all;}
 .sidebar-bottom{margin-top:auto;padding-top:22px;}
 .sidebar-data-card{background:var(--surface);border:var(--b);border-radius:var(--r-sm);padding:12px 14px;}
 .sidebar-data-info{margin-top:8px;font-size:11px;color:var(--text3);line-height:1.55;font-family:ui-monospace,monospace;}
@@ -299,6 +307,10 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
       <div class="nav-item" data-view="devices">📡 Devices <span class="nav-badge" id="navDevN" style="display:none"></span></div>
     </div>
 
+    <!-- Live counters live in the sidebar so they stay visible in EVERY view (they used to sit in the
+         Overview strip and vanished on Live scope / Devices). Refreshed by loadState, not ovRender. -->
+    <div class="side-stats" id="sideStats"></div>
+
     <div class="sidebar-bottom">
       <div class="sidebar-data-card">
         <div class="data-pill idle" id="connPill"><span class="data-dot"></span> <span id="connText">No stream</span></div>
@@ -323,7 +335,6 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
 
     <!-- ══ OVERVIEW ══ -->
     <section class="view active" id="view-overview">
-      <div class="ov-strip" id="ovStrip"></div>
       <div class="section-title">Live streams</div>
       <div class="ov-grid" id="ovGrid"></div>
       <p class="hint" style="color:var(--text4);font-size:12px;margin-top:16px;line-height:1.5">
@@ -415,7 +426,7 @@ const $ = s => document.querySelector(s);
 const api = (p,o) => fetch(p,o).then(r=>r.json());
 const esc = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-let STREAMS = [], DEVICES = [];
+let STREAMS = [], DEVICES = [], ADAPTER_MAC = '';
 
 // Battery: a drawn meter chip, colored by level (null → nothing shown).
 function battClass(p){ return p==null?'':p<=15?'bad':p<=35?'warn':'ok'; }
@@ -498,6 +509,7 @@ async function loadState(){
   const s = await api('/api/state');
   STREAMS = s.streams || [];
   DEVICES = s.devices || [];
+  ADAPTER_MAC = s.adapter || '';
   $('#adapterInfo').textContent = s.adapter ? ('adapter '+s.adapter) : 'adapter —';
   const active = STREAMS.filter(x=>x.active).length;
   const conn = DEVICES.filter(d=>d.connected).length;
@@ -506,6 +518,7 @@ async function loadState(){
   else { cp.classList.add('idle'); ct.textContent = conn? 'Connected · no data' : 'No stream'; }
   const na=$('#navActiveN'); na.style.display = active?'inline-block':'none'; na.textContent = active;
   const nd=$('#navDevN'); nd.style.display = conn?'inline-block':'none'; nd.textContent = conn;
+  renderSideStats();          // sidebar counters: every view, not just Overview
   renderRemembered(DEVICES);
   renderStreamSel();
   if(VIEW==='overview') ovRender();
@@ -689,14 +702,23 @@ function ovClass(key,val){                          // status color for scalar s
 }
 const KIND_FOOT = { hr:'derived rate', scalar:'current', multi:'raw 3-axis', ppi:'per beat' };
 
-function ovRender(){                             // (re)build the cards to match current STREAMS
+// Live counters, rendered into the SIDEBAR so they persist across views. Driven by loadState (every
+// 5 s, any view) rather than ovRender (Overview only) — otherwise they froze on the other two views.
+function renderSideStats(){
   const active = STREAMS.filter(s=>s.active);
-  $('#ovStrip').innerHTML = [                    // strip is plain text (no canvas) — safe to refresh every poll
-    ['Streams live', active.length, active.map(s=>s.key.split('_')[0].toUpperCase()).join(' · ')||'—', ''],
-    ['Devices', DEVICES.length, DEVICES.filter(d=>d.connected).length+' connected', ''],
-    ['Adapter', ($('#adapterInfo').textContent||'').replace('adapter ',''), 'BLE host', 'val-addr']
-  ].map(([lab,val,sub,vc])=>`<div class="ov-stat"><div class="lab">${lab}</div><div class="val ${vc}">${esc(String(val))}</div><div class="sub">${esc(sub)}</div></div>`).join('');
+  const weak = active.filter(s=>s.health==='weak'||s.health==='stall').length;
+  $('#sideStats').innerHTML = [
+    ['Streams live', active.length,
+     (active.map(s=>s.key.split('_')[0].toUpperCase()).join(' · ')||'—') + (weak?`  ⚠ ${weak} weak`:''), ''],
+    ['Devices', DEVICES.filter(d=>d.connected).length+'/'+DEVICES.length, 'connected', ''],
+    ['Adapter', '', (ADAPTER_MAC||'—'), 'addr']
+  ].map(([lab,val,sub,sc])=>
+    `<div class="side-stat"><div class="lab">${esc(lab)}</div>` +
+    (val!==''?`<div class="val">${esc(String(val))}</div>`:'') +
+    `<div class="sub ${sc}">${esc(sub)}</div></div>`).join('');
+}
 
+function ovRender(){                             // (re)build the cards to match current STREAMS
   // The card GRID holds one <canvas> per stream; rebuilding its innerHTML tears every canvas down and
   // makes the whole overview flicker on each 5 s state poll. Rebuild ONLY when the stream set actually
   // changes (key/active/chans/fs/label) — otherwise the live values + waveforms keep updating in place.
