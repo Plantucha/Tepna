@@ -120,7 +120,7 @@ no bundle, no gate touched by THIS brief.
 
 | Item | Route | Prerequisite |
 | --- | --- | --- |
-| **1.1** apnea typing (effort × desat) | → Integrator-fusion brief (to spawn) — MotionDex effort waveform × OxyDex desats | `MOTIONDEX-BUILD-2026-07-17` |
+| **1.1** apnea typing (effort × desat) | ✅ **EXECUTED 2026-07-18** via `APNEA-TYPING-FUSION-2026-07-18-BRIEF.md` (DONE) — MotionDex effort series × OxyDex desats → `apnea_obstructive`/`apnea_central`; no-coverage ⇒ UNTYPED, never central. Gated 6/6. | done |
 | **1.2** body position → positional OSA | ✅ **EXECUTED 2026-07-18** — MotionDex `posture_change` steps expand hold-last-value into the shared posture series; `labelPositionalApnea` gained `motion-acc` as a source (below the chest strap, above limb ACC). Gated 11/11. | done |
 | **2.1** cardiorespiratory/actigraphic staging | → Integrator staging brief (to spawn) — MotionDex activity × HRVDex/PulseDex HRV | `MOTIONDEX-BUILD-2026-07-17` |
 | **2.2** respiration rate (3-way fuse) | ✅ **EXECUTED 2026-07-18** (2 of 3 legs) — `fuseRespirationRate` fuses MotionDex chest-ACC + **ECGDex RSA/EDR** (which the rich export carried in `hrv.frequency.respRate` all along; nothing read it). Publishes every source + the SPREAD; a disagreement is reported, never averaged away. n-agnostic. **PpgDex RIIV still absent** — its `respRate` is hardcoded null (known `PPGDSP.lombScargle` HF-peak defect, `TCH-REFERENCE-VALIDATION` §F1); it folds in with no code change once fixed. Gated 9/9. | done (2/3 legs) |
