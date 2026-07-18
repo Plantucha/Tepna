@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-15
+**Status:** DONE — 2026-07-17 (F1 discharged — all 14 corpus-backed fixtures verified under the current compute closure, `verify-fixtures --check` = 0 unverified, re-stamped by the 2026-07-16 ESM fan-out + 2026-07-17 CPAP corpus runs and `FIXTURE-PROVENANCE.json` committed; F2/F3 are process notes, no code owed. Nothing new surfaced → no follow-up spawned, per §📌.) · **Created:** 2026-07-15
 
 # Architecture-debt reduction — follow-ups surfaced executing P4 (whole-tree Biome reflow)
 
@@ -49,6 +49,12 @@ the thing that makes F1 required rather than optional.
 
 **Done-when:** `node tools/verify-fixtures.mjs --check` reports 0 unverified; commit the re-stamped
 `FIXTURE-PROVENANCE.json` (no bundle/source change — a fixture-only re-record needs no rebuild).
+
+> **✅ F1 DISCHARGED 2026-07-17.** `node tools/verify-fixtures.mjs --check` → *"every corpus-backed fixture
+> is verified under the current compute closure"* (0 unverified). The re-stamp did not need a fresh
+> `DEX_UPLOADS` run here: the 14 `verifiedUnder` stamps were already advanced to the current `computeHash`
+> by the **2026-07-16 ESM fan-out** (each node re-verified on the corpus as it converted) and the
+> **2026-07-17 CPAP corpus runs**, and `FIXTURE-PROVENANCE.json` is committed. The release wall is clear.
 
 ---
 
