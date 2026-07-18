@@ -25,13 +25,17 @@ does not yet have. This brief carries the three surviving classes.
 > green); `renderReviewView` residual-AHI 40 → **"severe residual events"** (a <5→<50 → "well controlled").
 > Node-lane only (browser runs render in iframe rigs → SKIPs). Suite 2967.
 >
-> **REMAINING §RN (4):** oxydex SpO₂-CV (`·100→·10`, in a *different tab-builder* not `reviewView`), hrvdex
-> rMSSD color (inline `cls:` in a config array — no seam), pulsedex Tanaka (`208−0.7·age` inside `reRender`,
-> which reads live DOM state), ecgdex canvas minute-tick (`t/60`, pure canvas draw). Each is inline in a
-> path the harness doesn't yet drive → close by (i) driving that specific renderer + parsing its HTML, or
-> (ii) a small pure-classifier **extraction** (e.g. hoist the rMSSD/CV classifier to a `PulseRender.`/
-> `HrvRender.` method like `GluDisp`) — the latter is a render edit → re-bundle that app (compute-inert:
-> `computeHash` stable, `manifestHash` moves) + changeset. The harness (the hard part) now exists.
+> **§RN WAVE 2 — 3 more closed (PR #191), §RN now 6/7.** The extraction path (ii) was taken for the three
+> inline classifiers: hoisted to pure exposed functions used at their original call sites (behavior-identical
+> → **compute-inert, PROVEN by the green equiv/GATE-C legs**), pinned both-direction: `PulseDex.tanakaHRmax`
+> (208−0.7·age, the duplicated HRmax copy → 40:180 / 50:173; `0.7→0.9` reds), `hrvRmssdClass` (ok>35/warn>20/
+> bad → 45:ok/28:warn/15:bad; `>35→>65` reds), `oxySpo2NightCV` (SD/mean·100 → (4.5,95):4.74; `·100→·10`
+> reds). Re-bundled PulseDex/HRVDex/OxyDex (manifestHash moves, outputs unchanged — GATE A/B green; changeset
+> `2026-07-18-render-harness-hoisted-classifiers`; **build-docs.mjs refresh of `docs/{HRVDex,OxyDex,PulseDex}
+> .html` required** — the deploy drift guard reds otherwise). Suite 2983.
+>
+> **REMAINING §RN (1):** ecgdex canvas minute-tick (`t/60` axis label, LOW) — pure `getContext('2d')` canvas
+> draw with no value seam; not worth a canvas shim. Deferred (a 2× axis label; document only).
 
 **[original analysis, retained]** `tests/run-tests.mjs` loads every `*-render.js` **only as raw text into `env.sources`** (verified in the
 `wanted[]` block, ~lines 216–286): the render modules are parsed as strings for source-grep gates, but
