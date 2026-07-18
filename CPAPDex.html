@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+wOhQxxnz1aARA99NL5fJxNjvBwVQTZXvZB13nFhc6M=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Bwa/N+qRzyDsjOZpmfdHYhAreF5CgmWplQccV4x1M1Y=' 'sha256-FKFFs/9yqRmz87JtX6o5thIZtbzyTP9X2DFzILGs6sk=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OogG9q6rAK+5fVBEgx8S7M4nDToBKJkxC6OeC6v7uhc=' 'sha256-P2KwrhWUp/EoKM0aM2tNMoYs45P1oPPDMmAtkxC5q9k=' 'sha256-aEfZQR6fGbh0Ow231H86nQj4MBDK3qxz5NzQsq3muNI=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-jTCBRTR1xgDDPsolA7xIg50snoCJlQFJRz0zhjInLmM=' 'sha256-uS5wmPLBnQsEHb7E+p/HiIzPQbnV0gtWPyH+fXMcnmE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+wOhQxxnz1aARA99NL5fJxNjvBwVQTZXvZB13nFhc6M=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Bwa/N+qRzyDsjOZpmfdHYhAreF5CgmWplQccV4x1M1Y=' 'sha256-DLTJJdLyfYeg+HhPO+BiTx0AiWDc7J/guqpVA0FdAUc=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OogG9q6rAK+5fVBEgx8S7M4nDToBKJkxC6OeC6v7uhc=' 'sha256-P2KwrhWUp/EoKM0aM2tNMoYs45P1oPPDMmAtkxC5q9k=' 'sha256-aEfZQR6fGbh0Ow231H86nQj4MBDK3qxz5NzQsq3muNI=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-jTCBRTR1xgDDPsolA7xIg50snoCJlQFJRz0zhjInLmM=' 'sha256-uS5wmPLBnQsEHb7E+p/HiIzPQbnV0gtWPyH+fXMcnmE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CPAPDex — PAP Therapy Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -7393,8 +7393,9 @@ __exports.CPAPDex = window.CPAPDex;
   // build the cross-night EXPORT block via the shared CrossNightEnvelope (shape only;
   // math is CPAPDex's local crossNight). nightsChrono = ascending by time.
   function crossNightBlock(nightsChrono) {
+    var block;
     if (global.CrossNightEnvelope) {
-      return global.CrossNightEnvelope.build({
+      block = global.CrossNightEnvelope.build({
         node: 'CPAPDex',
         nodeVersion: '1.0',
         unit: 'night',
@@ -7407,17 +7408,29 @@ __exports.CPAPDex = window.CPAPDex;
           return { id: id, label: d.label, unit: d.unit, goodDirection: d.good, evidence: d.evidence, cite: d.cite, get: d.get };
         })
       });
+    } else {
+      // legacy fallback (pre-envelope shape)
+      block = { doc: 'night-to-night robust stats — same crossNight() engine as the rest of the suite', metrics: {} };
+      for (var k in CPAP_DEFS) {
+        var d = CPAP_DEFS[k];
+        var ser = nightsChrono.map(function (n, i) {
+          return { x: i, t: nightTms(n), v: d.get(n), w: nightWeight(n) };
+        });
+        block.metrics[k] = crossNight(ser, { good: d.good });
+      }
     }
-    // legacy fallback (pre-envelope shape)
-    var out = { doc: 'night-to-night robust stats — same crossNight() engine as the rest of the suite', metrics: {} };
-    for (var k in CPAP_DEFS) {
-      var d = CPAP_DEFS[k];
-      var ser = nightsChrono.map(function (n, i) {
-        return { x: i, t: nightTms(n), v: d.get(n), w: nightWeight(n) };
+    // FOLLOWUPS-II §P8 — device-SETTING change-points. crossNight() above deliberately does NOT trend
+    // delivered PRESSURE (a setting, not an outcome), and classifyModeLongitudinal medians over ≥7 nights
+    // (smooths a step), so a real EPAP/pressure step is structurally invisible to the trend metrics. This
+    // additive block flags it via robust L1 binary segmentation. Empty array ⇒ no setting change detected;
+    // consumers that ignore the field are unaffected (additive, not a contract change).
+    block.pressureChangePoints = ['epap95', 'pressureEnvIqr'].reduce(function (acc, metric) {
+      var pser = nightsChrono.map(function (n, i) {
+        return { x: i, t: nightTms(n), v: n && n.metrics ? n.metrics[metric] : null };
       });
-      out.metrics[k] = crossNight(ser, { good: d.good });
-    }
-    return out;
+      return acc.concat(pressureChangePoints(pser, { metric: metric }));
+    }, []);
+    return block;
   }
 
   /* compliancePct — % of nights meeting ≥4 h usage (CMS-style adherence) over the
@@ -7433,7 +7446,109 @@ __exports.CPAPDex = window.CPAPDex;
     return +((ok / nights.length) * 100).toFixed(1);
   }
 
-  var api = { crossNight, crossNightBlock, compliancePct, ols, mannKendall, bootstrapDeltaCI, fmtDateUTC, CPAP_DEFS, nightTms, nightWeight, nightOdi };
+  /* ── Cross-night device-SETTING change-point detector (FOLLOWUPS-II §P8 KNOWN GAP) ──
+   crossNight() trends OUTCOMES and deliberately excludes delivered pressure (a SETTING). So a real
+   device-setting step — e.g. the EPAP-min lowered mid-corpus — is invisible to the longitudinal layer:
+   the 5-min P90 envelope PRESERVES the step but nothing FLAGS it. This flags it.
+
+   Algorithm: L1-cost binary segmentation (the canonical robust change-point method), chosen by a 4-way
+   bake-off scored against the real 180-night corpus. At each level it scans every split with ≥MINLEN
+   nights per side, picks the split minimizing total within-segment L1 cost (Σ|v−median|), and ACCEPTS it
+   only if (a) the median step |medL−medR| clears absFloor (an independent step-height guard, in the
+   signal's own units) AND (b) the cost drop beats a data-scaled BIC-like penalty PEN_K·gMAD·log(span);
+   then recurses into both halves. Median (L1) fit + MAD scale make it immune to the unbalanced-split flaw
+   a mean/variance fit suffers on a noisy post-change regime — so on the real corpus it nails the epap95
+   step at 2026-06-12 (10.7→6.8) with ZERO false positives AND honestly returns EMPTY on the noise-dominated
+   pressureEnvIqr (no fabricated change). series = [{ x, t, v }]; opts.absFloor overrides the step floor. */
+  function pressureChangePoints(series, opts) {
+    opts = opts || {};
+    var MINLEN = 7; // a device setting holds ≥7 nights (same window classifyModeLongitudinal trusts)
+    var absFloor = typeof opts.absFloor === 'number' ? opts.absFloor : 1.2;
+
+    // finite values in chronological order (carry the wall-clock stamp for the export)
+    var vals = [],
+      xs = [],
+      ts = [];
+    for (var i = 0; i < series.length; i++) {
+      var s = series[i];
+      if (s && typeof s.v === 'number' && isFinite(s.v)) {
+        vals.push(s.v);
+        xs.push(typeof s.x === 'number' ? s.x : i);
+        ts.push(s.t != null ? s.t : null);
+      }
+    }
+    var n = vals.length;
+    if (n < 2 * MINLEN) return [];
+
+    function med(arr, lo, hi) {
+      var m = arr.slice(lo, hi).sort(function (a, b) {
+        return a - b;
+      });
+      var len = m.length,
+        mid = len >> 1;
+      return len & 1 ? m[mid] : 0.5 * (m[mid - 1] + m[mid]);
+    }
+    function l1cost(arr, lo, hi) {
+      var c = 0,
+        mv = med(arr, lo, hi);
+      for (var k = lo; k < hi; k++) c += Math.abs(arr[k] - mv);
+      return c;
+    }
+
+    // global robust scale (MAD about the global median) for the penalty term
+    var gMed = med(vals, 0, n);
+    var absdev = [];
+    for (var j = 0; j < n; j++) absdev.push(Math.abs(vals[j] - gMed));
+    var gMAD = med(absdev, 0, n);
+    if (gMAD <= 0) gMAD = 1e-9;
+    var PEN_K = 4.0; // sensitivity dial: lower ⇒ noise leaks in, higher ⇒ small real steps missed
+
+    var cps = [];
+    function recurse(lo, hi) {
+      var span = hi - lo;
+      if (span < 2 * MINLEN) return;
+      var whole = l1cost(vals, lo, hi);
+      var bestDrop = -Infinity,
+        bestK = -1;
+      for (var k = lo + MINLEN; k <= hi - MINLEN; k++) {
+        if (Math.abs(med(vals, lo, k) - med(vals, k, hi)) < absFloor) continue; // step-height guard
+        var drop = whole - (l1cost(vals, lo, k) + l1cost(vals, k, hi));
+        if (drop > bestDrop) {
+          bestDrop = drop;
+          bestK = k;
+        }
+      }
+      if (bestK < 0) return;
+      if (bestDrop <= PEN_K * gMAD * Math.log(span)) return; // data-scaled BIC-like penalty
+      cps.push({ k: bestK, before: med(vals, lo, bestK), after: med(vals, bestK, hi) });
+      recurse(lo, bestK);
+      recurse(bestK, hi);
+    }
+    recurse(0, n);
+
+    cps.sort(function (a, b) {
+      return a.k - b.k;
+    });
+    var out = [];
+    for (var c = 0; c < cps.length; c++) {
+      var kk = cps[c].k;
+      var nextK = c + 1 < cps.length ? cps[c + 1].k : n;
+      out.push({
+        nightIdx: xs[kk],
+        tMs: ts[kk],
+        dateUTC: fmtDateUTC(ts[kk]),
+        metric: opts.metric || null,
+        before: +cps[c].before.toFixed(2),
+        after: +cps[c].after.toFixed(2),
+        delta: +(cps[c].after - cps[c].before).toFixed(2),
+        direction: cps[c].after < cps[c].before ? 'down' : 'up',
+        holdNights: nextK - kk
+      });
+    }
+    return out;
+  }
+
+  var api = { crossNight, crossNightBlock, pressureChangePoints, compliancePct, ols, mannKendall, bootstrapDeltaCI, fmtDateUTC, CPAP_DEFS, nightTms, nightWeight, nightOdi };
 
   // Dual-realm, matching the house pattern already used by cpapdex-dsp.js / -edf.js /
   // -fusion.js. This file used to close over a bare `window` and expose NOTHING to

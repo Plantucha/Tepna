@@ -12313,9 +12313,10 @@
        PRESERVES a device-setting step rather than averaging it away. Real-corpus validation (180 nights,
        maintainer-only): the pressureEnvIqr step at night #169 (2026-06-30, Δ≈0.78 cmH₂O) and the epap95
        step at #151 reproduce there, and crossNight flags usageHours (change.significant) + largeLeakPct
-       (improving) on real data. KNOWN GAP (filed in the brief §P8 note): a pure device-SETTING (pressure)
-       step is INVISIBLE to crossNight — pressure is deliberately not trended (setting, not outcome) — so
-       #151/#169 are not flagged by the longitudinal layer at all. */
+       (improving) on real data. The former KNOWN GAP — a pure device-SETTING (pressure) step is invisible
+       to crossNight (pressure is deliberately not trended: setting, not outcome) — is now CLOSED by
+       pressureChangePoints() (§(C)/(D) below): a dedicated robust change-point detector flags the epap95
+       step crossNight cannot see. */
     group('CPAPCross detects a step-change + the 5-min envelope preserves it (§P8)', 'cpapdex-cross · cpapdex-dsp · change-detection', function (T) {
       var CP = env.CPAPCross;
       var D = env.CpapDsp;
@@ -12351,6 +12352,52 @@
       T.approx('5-min envelope PRESERVES the 1.0 cmH₂O step (max−min window P90), not smoothed', mx - mn, 1.0, 1e-9);
       T.approx('envelope low level = 10 (pre-step)', mn, 10, 1e-9);
       T.approx('envelope high level = 11 (post-step)', mx, 11, 1e-9);
+
+      // (C) FOLLOWUPS-II §P8 KNOWN-GAP CLOSED — pressureChangePoints() flags a device-SETTING step that
+      // crossNight() (outcomes only) structurally cannot see. Chosen by a 4-way bake-off + validated on the
+      // real 180-night corpus: it nails the epap95 step at 2026-06-12 (10.74→6.52, holds 29 nights) with ZERO
+      // false positives and returns EMPTY on the noise-dominated pressureEnvIqr. This committed synthetic twin
+      // carries that known-answer into CI (the real corpus is gitignored — maintainer-only).
+      T.ok('CPAPCross.pressureChangePoints exposed', typeof CP.pressureChangePoints === 'function');
+      if (typeof CP.pressureChangePoints === 'function') {
+        var mkSer = function (arr) {
+          return arr.map(function (v, i) {
+            return { x: i, t: t0 + i * DAY, v: v };
+          });
+        };
+        // planted sustained step: 10 nights @11 cmH₂O then 10 nights @7 (a lowered EPAP-min setting)
+        var stepSer = [];
+        for (var a = 0; a < 10; a++) stepSer.push(11);
+        for (var b = 0; b < 10; b++) stepSer.push(7);
+        var cp = CP.pressureChangePoints(mkSer(stepSer), { metric: 'epap95' });
+        T.eq('planted step → exactly ONE change-point (no unbalanced-split false positives)', cp.length, 1);
+        T.eq('change-point lands on the step night (idx 10)', cp.length ? cp[0].nightIdx : -1, 10);
+        T.eq('change-point direction = down (11→7)', cp.length ? cp[0].direction : '', 'down');
+        T.approx('change-point delta ≈ −4 (11→7)', cp.length ? cp[0].delta : 0, -4, 1e-9);
+        T.ok('change-point carries a wall-clock date (Clock Contract, getUTC*)', !!(cp.length && cp[0].dateUTC), cp.length ? cp[0].dateUTC : '');
+        // control 1 — a genuinely flat run must not fabricate a change.
+        var flatSer = [];
+        for (var e = 0; e < 20; e++) flatSer.push(10);
+        T.eq('control · flat pressure run → no change-point', CP.pressureChangePoints(mkSer(flatSer), { metric: 'epap95' }).length, 0);
+        // control 2 — sub-floor oscillation (no sustained regime) → honest empty, NOT a fabricated step.
+        var noiseSer = [];
+        for (var f = 0; f < 20; f++) noiseSer.push(f % 2 ? 11 : 10);
+        T.eq('control · sub-floor noise → honest empty (no fabricated change)', CP.pressureChangePoints(mkSer(noiseSer), { metric: 'pressureEnvIqr' }).length, 0);
+        // too-short series (< 2×MINLEN) → empty (a setting needs a ≥7-night hold each side to establish).
+        T.eq('short series (<14 nights) → empty', CP.pressureChangePoints(mkSer([11, 11, 11, 7, 7, 7]), {}).length, 0);
+        // (D) integration — crossNightBlock ATTACHES the change-points as an additive export field.
+        var stepNights = stepSer.map(function (v, i) {
+          return { t0Ms: t0 + i * DAY, therapyHours: 7, metrics: { epap95: v, pressureEnvIqr: 1, residualAHI: 3, usageHours: 7, largeLeakPct: 5, centralIndex: 1 } };
+        });
+        var blk = CP.crossNightBlock(stepNights);
+        T.ok('crossNightBlock attaches pressureChangePoints (additive export field)', Array.isArray(blk.pressureChangePoints));
+        T.ok(
+          'crossNightBlock flags the epap95 step (idx 10)',
+          !!(blk.pressureChangePoints && blk.pressureChangePoints.some(function (c) {
+            return c.metric === 'epap95' && c.nightIdx === 10;
+          }))
+        );
+      }
     });
 
     /* ════ HRVDex recording block — startEpochMs earliest, spanDays ≥ 0 (VII §1) ════

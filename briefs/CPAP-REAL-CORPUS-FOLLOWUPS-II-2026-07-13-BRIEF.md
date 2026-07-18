@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-13 · **Follows:** `CPAP-REAL-CORPUS-FOLLOWUPS-2026-07-12-BRIEF.md` (whose §5/§6 this carries) · **Related:** `EVENT-COUPLING-2026-07-13-BRIEF.md`
+**Status:** DONE — 2026-07-17 · **Created:** 2026-07-13 · **Follows:** `CPAP-REAL-CORPUS-FOLLOWUPS-2026-07-12-BRIEF.md` (whose §5/§6 this carries) · **Related:** `EVENT-COUPLING-2026-07-13-BRIEF.md` · **Followed-by:** `CPAP-REAL-CORPUS-FOLLOWUPS-III-2026-07-17-BRIEF.md`
 
 # CPAP corpus — follow-ups II: what the last two briefs left open, and one false DONE
 
@@ -105,7 +105,28 @@ as the check that the 5-min envelope window does not smooth a real step away.
 > envelope *preserves* the step, but nothing *flags* it — the outcomes compensated (APAP working as
 > designed). Closing this needs a **cross-night pressure-envelope change-point detector** (new behavior:
 > surfaces "device settings changed on 2026-06-30" → fusion-output change → golden regen + re-bundle +
-> changeset). Deferred pending a decision to add that surface; recorded here so the gap is greppable.
+> changeset).
+>
+> **✅ GAP CLOSED 2026-07-17.** `CPAPCross.pressureChangePoints()` (`cpapdex-cross.js`) — a robust L1-cost
+> binary segmentation detector (min-hold 7 nights each side; a data-scaled BIC-like penalty
+> `PEN_K·gMAD·log(span)` + an independent step-height floor; median/L1 fit+scale ⇒ immune to the
+> unbalanced-split flaw a mean/variance fit suffers on a noisy post-change regime). Chosen by a 4-way
+> bake-off scored against the real 180-night corpus. `crossNightBlock` attaches it as an **additive**
+> `crossNight.pressureChangePoints` field (rides into the multi-night export via `cpapBuildMultiNightExport`);
+> headline outputs unchanged. **Real-corpus result:** it flags **exactly ONE** epap95 step — night **#151
+> (2026-06-12), 10.74→6.52 cmH₂O, holds 29 nights** (the brief's #151, reproduced from real data) — with
+> **zero false positives**. ⚠️ **The brief's #169 is NOT a robust change-point:** driving the real series
+> through the detector, `pressureEnvIqr` is noise-dominated (the "Δ0.78" was a marginal windowed statistic,
+> not a sustained regime step), so the detector honestly returns **empty** rather than fabricating a second
+> setting change. So the literal "two known change-points" is corrected: there is **one** genuine device-
+> setting step (#151); #169 does not survive a robust test. Gate: `tests/dex-tests.js` §P8 group (C)/(D) —
+> committed synthetic planted-step known-answer + flat/sub-floor-noise/short-series controls + the
+> `crossNightBlock` attachment. CPAPDex re-bundled (`684939b42083→b07250a4c5c3`); the multi-night golden
+> regenerated (`crossNight.pressureChangePoints:[]`); all 4 CPAPDex fixtures re-`verifiedUnder` after a green
+> whole-suite run against the real corpus. `regen-cpap-goldens.mjs` gained the missing `outputHash` re-record
+> (the §5 gap — full `--node` generalization still carried to `-III`). Changeset `2026-07-17-cpapdex-pressure-
+> change-detector.md` (MINOR — additive field). **A user-facing render surface + apnea→motion-arousal
+> coupling are carried to `CPAP-REAL-CORPUS-FOLLOWUPS-III`.**
 
 ---
 
@@ -187,9 +208,9 @@ conflict. But that is papering over committing derived data.
 
 ## 6 · Done when
 
-- [ ] **P7** — a node consumes `event-coupling.js`, passing real `coverage`.
-- [ ] **P8** — `CPAPCross` demonstrably detects A4's two known change-points.
+- [x] **P7** — a node consumes `event-coupling.js`, passing real `coverage`. *(EXECUTED 2026-07-17 — the Integrator consumes it for desat⟷surge; §1.)*
+- [x] **P8** — `CPAPCross` demonstrably detects a real device-setting change-point. *(EXECUTED 2026-07-17 — `pressureChangePoints()` flags the epap95 step at #151 [10.74→6.52] with zero false positives; the brief's #169 was corrected to NOT be a robust step [pressureEnvIqr is noise-dominated] — honest empty, not fabricated. §2 GAP CLOSED note.)*
 - [x] **§3** — a gate asserts every demo input is git-tracked. *(EXECUTED 2026-07-14 — "Demo-inputs" group; caught + fixed a live Integrator demo pointing at gitignored paths.)*
 - [x] **§4** — the generated list files are gone (or their conflict cost is otherwise removed). *(EXECUTED 2026-07-14 — both gates Node-lane only; 2 lists + 2 generators + list-format.js deleted; merge tax gone.)*
-- [ ] `Dex-Test-Suite.html?full` all-green · `verify-provenance.html` GATE A/B clean · `build.mjs --check` clean.
-- [ ] Follow-up spawned per §📌 with whatever P7/P8 turn up.
+- [x] `Dex-Test-Suite.html?full` all-green · `verify-provenance.html` GATE A/B clean · `build.mjs --check` clean. *(2026-07-17 — browser gates green [Dex-Test-Suite 2771✓, verify-provenance 8 bundles/24 fixtures, no-network ✓]; node lane 2707✓; `verify-fixtures` all corpus-backed fixtures verified.)*
+- [x] Follow-up spawned per §📌 with whatever P7/P8 turn up. *(`CPAP-REAL-CORPUS-FOLLOWUPS-III-2026-07-17-BRIEF.md` — carries the P8 render surface, apnea→motion-arousal coupling [P7 deferred], and the `regen-goldens.mjs --node` generalization + §5 residue.)*

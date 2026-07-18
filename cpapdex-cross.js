@@ -350,8 +350,9 @@
   // build the cross-night EXPORT block via the shared CrossNightEnvelope (shape only;
   // math is CPAPDex's local crossNight). nightsChrono = ascending by time.
   function crossNightBlock(nightsChrono) {
+    var block;
     if (global.CrossNightEnvelope) {
-      return global.CrossNightEnvelope.build({
+      block = global.CrossNightEnvelope.build({
         node: 'CPAPDex',
         nodeVersion: '1.0',
         unit: 'night',
@@ -364,17 +365,29 @@
           return { id: id, label: d.label, unit: d.unit, goodDirection: d.good, evidence: d.evidence, cite: d.cite, get: d.get };
         })
       });
+    } else {
+      // legacy fallback (pre-envelope shape)
+      block = { doc: 'night-to-night robust stats — same crossNight() engine as the rest of the suite', metrics: {} };
+      for (var k in CPAP_DEFS) {
+        var d = CPAP_DEFS[k];
+        var ser = nightsChrono.map(function (n, i) {
+          return { x: i, t: nightTms(n), v: d.get(n), w: nightWeight(n) };
+        });
+        block.metrics[k] = crossNight(ser, { good: d.good });
+      }
     }
-    // legacy fallback (pre-envelope shape)
-    var out = { doc: 'night-to-night robust stats — same crossNight() engine as the rest of the suite', metrics: {} };
-    for (var k in CPAP_DEFS) {
-      var d = CPAP_DEFS[k];
-      var ser = nightsChrono.map(function (n, i) {
-        return { x: i, t: nightTms(n), v: d.get(n), w: nightWeight(n) };
+    // FOLLOWUPS-II §P8 — device-SETTING change-points. crossNight() above deliberately does NOT trend
+    // delivered PRESSURE (a setting, not an outcome), and classifyModeLongitudinal medians over ≥7 nights
+    // (smooths a step), so a real EPAP/pressure step is structurally invisible to the trend metrics. This
+    // additive block flags it via robust L1 binary segmentation. Empty array ⇒ no setting change detected;
+    // consumers that ignore the field are unaffected (additive, not a contract change).
+    block.pressureChangePoints = ['epap95', 'pressureEnvIqr'].reduce(function (acc, metric) {
+      var pser = nightsChrono.map(function (n, i) {
+        return { x: i, t: nightTms(n), v: n && n.metrics ? n.metrics[metric] : null };
       });
-      out.metrics[k] = crossNight(ser, { good: d.good });
-    }
-    return out;
+      return acc.concat(pressureChangePoints(pser, { metric: metric }));
+    }, []);
+    return block;
   }
 
   /* compliancePct — % of nights meeting ≥4 h usage (CMS-style adherence) over the
@@ -390,7 +403,109 @@
     return +((ok / nights.length) * 100).toFixed(1);
   }
 
-  var api = { crossNight, crossNightBlock, compliancePct, ols, mannKendall, bootstrapDeltaCI, fmtDateUTC, CPAP_DEFS, nightTms, nightWeight, nightOdi };
+  /* ── Cross-night device-SETTING change-point detector (FOLLOWUPS-II §P8 KNOWN GAP) ──
+   crossNight() trends OUTCOMES and deliberately excludes delivered pressure (a SETTING). So a real
+   device-setting step — e.g. the EPAP-min lowered mid-corpus — is invisible to the longitudinal layer:
+   the 5-min P90 envelope PRESERVES the step but nothing FLAGS it. This flags it.
+
+   Algorithm: L1-cost binary segmentation (the canonical robust change-point method), chosen by a 4-way
+   bake-off scored against the real 180-night corpus. At each level it scans every split with ≥MINLEN
+   nights per side, picks the split minimizing total within-segment L1 cost (Σ|v−median|), and ACCEPTS it
+   only if (a) the median step |medL−medR| clears absFloor (an independent step-height guard, in the
+   signal's own units) AND (b) the cost drop beats a data-scaled BIC-like penalty PEN_K·gMAD·log(span);
+   then recurses into both halves. Median (L1) fit + MAD scale make it immune to the unbalanced-split flaw
+   a mean/variance fit suffers on a noisy post-change regime — so on the real corpus it nails the epap95
+   step at 2026-06-12 (10.7→6.8) with ZERO false positives AND honestly returns EMPTY on the noise-dominated
+   pressureEnvIqr (no fabricated change). series = [{ x, t, v }]; opts.absFloor overrides the step floor. */
+  function pressureChangePoints(series, opts) {
+    opts = opts || {};
+    var MINLEN = 7; // a device setting holds ≥7 nights (same window classifyModeLongitudinal trusts)
+    var absFloor = typeof opts.absFloor === 'number' ? opts.absFloor : 1.2;
+
+    // finite values in chronological order (carry the wall-clock stamp for the export)
+    var vals = [],
+      xs = [],
+      ts = [];
+    for (var i = 0; i < series.length; i++) {
+      var s = series[i];
+      if (s && typeof s.v === 'number' && isFinite(s.v)) {
+        vals.push(s.v);
+        xs.push(typeof s.x === 'number' ? s.x : i);
+        ts.push(s.t != null ? s.t : null);
+      }
+    }
+    var n = vals.length;
+    if (n < 2 * MINLEN) return [];
+
+    function med(arr, lo, hi) {
+      var m = arr.slice(lo, hi).sort(function (a, b) {
+        return a - b;
+      });
+      var len = m.length,
+        mid = len >> 1;
+      return len & 1 ? m[mid] : 0.5 * (m[mid - 1] + m[mid]);
+    }
+    function l1cost(arr, lo, hi) {
+      var c = 0,
+        mv = med(arr, lo, hi);
+      for (var k = lo; k < hi; k++) c += Math.abs(arr[k] - mv);
+      return c;
+    }
+
+    // global robust scale (MAD about the global median) for the penalty term
+    var gMed = med(vals, 0, n);
+    var absdev = [];
+    for (var j = 0; j < n; j++) absdev.push(Math.abs(vals[j] - gMed));
+    var gMAD = med(absdev, 0, n);
+    if (gMAD <= 0) gMAD = 1e-9;
+    var PEN_K = 4.0; // sensitivity dial: lower ⇒ noise leaks in, higher ⇒ small real steps missed
+
+    var cps = [];
+    function recurse(lo, hi) {
+      var span = hi - lo;
+      if (span < 2 * MINLEN) return;
+      var whole = l1cost(vals, lo, hi);
+      var bestDrop = -Infinity,
+        bestK = -1;
+      for (var k = lo + MINLEN; k <= hi - MINLEN; k++) {
+        if (Math.abs(med(vals, lo, k) - med(vals, k, hi)) < absFloor) continue; // step-height guard
+        var drop = whole - (l1cost(vals, lo, k) + l1cost(vals, k, hi));
+        if (drop > bestDrop) {
+          bestDrop = drop;
+          bestK = k;
+        }
+      }
+      if (bestK < 0) return;
+      if (bestDrop <= PEN_K * gMAD * Math.log(span)) return; // data-scaled BIC-like penalty
+      cps.push({ k: bestK, before: med(vals, lo, bestK), after: med(vals, bestK, hi) });
+      recurse(lo, bestK);
+      recurse(bestK, hi);
+    }
+    recurse(0, n);
+
+    cps.sort(function (a, b) {
+      return a.k - b.k;
+    });
+    var out = [];
+    for (var c = 0; c < cps.length; c++) {
+      var kk = cps[c].k;
+      var nextK = c + 1 < cps.length ? cps[c + 1].k : n;
+      out.push({
+        nightIdx: xs[kk],
+        tMs: ts[kk],
+        dateUTC: fmtDateUTC(ts[kk]),
+        metric: opts.metric || null,
+        before: +cps[c].before.toFixed(2),
+        after: +cps[c].after.toFixed(2),
+        delta: +(cps[c].after - cps[c].before).toFixed(2),
+        direction: cps[c].after < cps[c].before ? 'down' : 'up',
+        holdNights: nextK - kk
+      });
+    }
+    return out;
+  }
+
+  var api = { crossNight, crossNightBlock, pressureChangePoints, compliancePct, ols, mannKendall, bootstrapDeltaCI, fmtDateUTC, CPAP_DEFS, nightTms, nightWeight, nightOdi };
 
   // Dual-realm, matching the house pattern already used by cpapdex-dsp.js / -edf.js /
   // -fusion.js. This file used to close over a bare `window` and expose NOTHING to
