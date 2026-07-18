@@ -120,3 +120,79 @@ def test_decode_acc_full_frame_every_sample():
     assert [x.values for x in s] == [(10, 20, 30), (40, 50, 60), (70, 80, 90)]   # distinct per sample (kills constant-offset / stride)
     step = int(1e9 / fs)
     assert [x.sensor_ns for x in s] == [last_ns - 2 * step, last_ns - step, last_ns]
+
+
+# ── Compressed/delta + GYRO/MAG/PPI decode known-answers (FOLLOWUPS §2, wave 2) ─────────────────────
+# _decode_delta (the Verity compressed path) + the GYRO/MAG/PPI decode branches had ZERO value coverage.
+# LSB-first bit-packer mirrors _decode_delta.read(): value bit i lands at stream bit (start+i).
+def _packbits(fields):                     # fields: [(value, nbits), ...]
+    bits = []
+    for v, n in fields:
+        bits += [(v >> i) & 1 for i in range(n)]
+    while len(bits) % 8:
+        bits.append(0)
+    out = bytearray(len(bits) // 8)
+    for i, b in enumerate(bits):
+        if b:
+            out[i >> 3] |= 1 << (i & 7)
+    return bytes(out)
+
+
+def test_decode_delta_ecg_reference_plus_accumulated_deltas():
+    # NEGATIVE 24-bit ref (pins the SIGNED reference read), then block delta_size=4 count=3 deltas +2,-1,+3
+    payload = _packbits([(-1000, 24), (4, 8), (3, 8), (2, 4), (-1, 4), (3, 4)])
+    assert pmd._decode_delta(payload, channels=1, ref_bits=24) == [(-1000,), (-998,), (-999,), (-996,)]
+
+
+def test_decode_delta_ppg_four_channels():
+    # Verity PPG: 4 channels (3 LED + ambient), 24-bit ref, 5-bit deltas, 2 delta samples
+    ref = [(10, 24), (20, 24), (30, 24), (40, 24)]
+    blk = [(5, 8), (2, 8), (1, 5), (-1, 5), (2, 5), (-2, 5), (0, 5), (3, 5), (-3, 5), (1, 5)]
+    got = pmd._decode_delta(_packbits(ref + blk), channels=4, ref_bits=24)
+    assert got == [(10, 20, 30, 40), (11, 19, 32, 38), (11, 22, 29, 39)]   # each channel accumulates independently
+
+
+def test_decode_delta_acc_three_channels_16bit_ref():
+    ref = [(-100, 16), (200, 16), (-300, 16)]      # negatives pin the signed 16-bit reference read
+    blk = [(3, 8), (2, 8), (1, 3), (-1, 3), (0, 3), (2, 3), (0, 3), (-2, 3)]
+    got = pmd._decode_delta(_packbits(ref + blk), channels=3, ref_bits=16)
+    assert got == [(-100, 200, -300), (-99, 199, -300), (-97, 199, -302)]
+
+
+def test_decode_frame_routes_and_backtimes_a_delta_ppg_frame():
+    # frame_type high bit 0x80 → compressed; decode_frame must route to _decode_delta AND back-time
+    fs, last_ns = 55, 5_000_000_000
+    ref = [(10, 24), (20, 24), (30, 24), (40, 24)]
+    blk = [(5, 8), (1, 8), (1, 5), (1, 5), (1, 5), (1, 5)]          # 1 delta sample → 2 samples total
+    payload = _packbits(ref + blk)
+    meas, s = pmd.decode_frame(_pmd_header(pmd.PPG, last_ns, 0x80) + payload, _dt.datetime(2026, 7, 16), fs=fs)
+    assert meas == pmd.PPG and [x.values for x in s] == [(10, 20, 30, 40), (11, 21, 31, 41)]
+    step = int(1e9 / fs)
+    assert [x.sensor_ns for x in s] == [last_ns - step, last_ns]
+
+
+def test_decode_gyro_uncompressed_frame():
+    fs, last_ns = 52, 6_000_000_000
+    rows = [(-5, 6, -7), (8, -9, 10)]
+    payload = b"".join(v.to_bytes(2, "little", signed=True) for row in rows for v in row)
+    meas, s = pmd.decode_frame(_pmd_header(pmd.GYRO, last_ns, 0x00) + payload, _dt.datetime(2026, 7, 16), fs=fs)
+    assert meas == pmd.GYRO and [x.values for x in s] == [(-5, 6, -7), (8, -9, 10)]
+
+
+def test_decode_mag_uncompressed_frame():
+    fs, last_ns = 50, 7_000_000_000
+    rows = [(11, -22, 33), (-44, 55, -66)]
+    payload = b"".join(v.to_bytes(2, "little", signed=True) for row in rows for v in row)
+    meas, s = pmd.decode_frame(_pmd_header(pmd.MAG, last_ns, 0x00) + payload, _dt.datetime(2026, 7, 16), fs=fs)
+    assert meas == pmd.MAG and [x.values for x in s] == [(11, -22, 33), (-44, 55, -66)]
+
+
+def test_decode_ppi_events_not_backtimed():
+    # PPI: per-beat event — hr(u8), pp_ms(u16 LE), err_ms(u16 LE), flags(u8); NOT back-timed (all == last_ns)
+    last_ns = 8_000_000_000
+    beats = [(60, 1000, 5, 0x02), (62, 970, 3, 0x06)]
+    payload = b"".join(bytes([hr]) + pp.to_bytes(2, "little") + err.to_bytes(2, "little") + bytes([fl])
+                       for hr, pp, err, fl in beats)
+    meas, s = pmd.decode_frame(_pmd_header(pmd.PPI, last_ns, 0x00) + payload, _dt.datetime(2026, 7, 16))
+    assert meas == pmd.PPI and [x.values for x in s] == [(60, 1000, 5, 0x02), (62, 970, 3, 0x06)]
+    assert [x.sensor_ns for x in s] == [last_ns, last_ns]          # per-beat events share the frame stamp
