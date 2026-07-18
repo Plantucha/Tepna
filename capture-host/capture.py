@@ -101,12 +101,18 @@ _ppg_probe_n = [0]
 # (single channel replicated across ppg0/1/2, ambient 0) so it routes with NO new parser branch. Samples
 # are back-timed from the frame's host arrival across the ~125 Hz grid (the ring clock is unsynced, so
 # never stamp with it); the synthesized sensor_ns gives the PSL relative-ms column an 8 ms step.
-# NOMINAL rate — the ring's actual delivery is SLIGHTLY VARIABLE (~123-132 Hz observed across captures), so
-# 125 is a round central estimate. The phone timestamp re-anchors to each frame's host arrival, so wall-clock
-# error does NOT accumulate; only the synthesized relative-ms column carries the nominal-fs approximation.
-# TODO(Phase-2 refine): pin fs better or derive the ms column from arrival deltas per frame.
-O2PPG_FS = 125.0
-O2PPG_NS_STEP = int(1e9 / O2PPG_FS)   # 8_000_000 ns → relative-ms column steps of 8.0 ms (reads as ~125 Hz)
+# MEASURED rate. The old 125.0 was a round guess and it was 0.59% LOW, which matters: the phone-timestamp
+# column re-anchors to each frame's arrival (so wall-clock never drifts), but the synthesized relative-ms
+# column is a pure fs grid — so a consumer that infers fs from it (ECGDex does exactly that) got 125.00 for
+# a stream really running at 125.74, i.e. a 0.59% wrong sample rate and ~212 s of divergence between the two
+# time columns over a 10 h night.
+# Calibrated 2026-07-18 over 12 capture sessions: 5.8 h, 2 616 483 samples, weighted mean 125.738 Hz with a
+# per-session spread of only 125.59-125.88 Hz (±0.12%) — the short-window swings (~84-147 Hz) are BLE delivery
+# jitter, not the ADC clock, which is stable. Validated on ONE unit (S8-AW 2100); `o2ring.ppg_fs` in config
+# overrides it if another ring measures differently.
+O2PPG_FS_DEFAULT = 125.738
+O2PPG_FS = O2PPG_FS_DEFAULT           # re-read from config in main(); see cfg['o2ring']['ppg_fs']
+O2PPG_NS_STEP = int(1e9 / O2PPG_FS)   # 7_953_041 ns → relative-ms steps of ~7.953 ms (reads as 125.74 Hz)
 
 # Same one-link constraint for Polar (H10 / Verity) offline-recording pulls over PS-FTP: a device address
 # in this set tells its run_polar task to drop the link and idle, so polar_offline_op can own it for the
@@ -856,6 +862,10 @@ async def main():
     cfg = yaml.safe_load(open(args.config))
     root = cfg["root"]
     ADAPTER = cfg.get("adapter")   # BLE adapter MAC — pins bonding AND every bleak connect (adapter_kw)
+    global O2PPG_FS, O2PPG_NS_STEP
+    _fs = float(((cfg.get("o2ring") or {}).get("ppg_fs")) or O2PPG_FS_DEFAULT)
+    if _fs > 0:                    # per-unit override; the default is the 2026-07-18 5.8 h calibration
+        O2PPG_FS, O2PPG_NS_STEP = _fs, int(1e9 / _fs)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
     loop = asyncio.get_running_loop()

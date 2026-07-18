@@ -38,8 +38,11 @@ def test_ppg_writes_four_channels(tmp_path):
     w.write_ppg(_dt.datetime(2026, 7, 16), 100, 0.0, (10, 20, 30), 40)
     w.close()
     rows = p.read_text().splitlines()
-    assert rows[0].endswith("ppg0;ppg1;ppg2;ambient")
-    assert rows[1].split(";")[3:] == ["10", "20", "30", "40"]
+    # Real PSL Verity header (corpus: Polar_Sense_*_PPG.txt) — "channel N", and NO timestamp [ms]
+    # column, so the channels start at index 2. We used to emit "ppg0;ppg1;ppg2" AND an extra ms column,
+    # which shifted every channel by one and made PPGDex/MotionDex silently read the wrong fields.
+    assert rows[0] == "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient"
+    assert rows[1].split(";")[2:] == ["10", "20", "30", "40"]
 
 
 def test_spo2_csv_is_vihealth_layout(tmp_path):
@@ -103,15 +106,20 @@ def test_night_dir_is_captures_slash_local_date(tmp_path):
 
 def test_write_acc_header_and_row(tmp_path):
     rows, _ = _write_read(tmp_path, "acc", lambda w: w.write_acc(_PHONE, 1000, 0.0, 10, -20, 30))
-    assert rows[0] == "Phone timestamp;sensor timestamp [ns];timestamp [ms];X [mg];Y [mg];Z [mg]"
-    assert rows[1] == f"{_PTS};1000;0.0;10;-20;30"
+    # Real PSL ACC header (corpus: Polar_H10_*_ACC.txt) — NO timestamp [ms] column. That column is
+    # ECG-ONLY in Polar Sensor Logger; emitting it here shifted X/Y/Z by one for every consumer.
+    assert rows[0] == "Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]"
+    assert rows[1] == f"{_PTS};1000;10;-20;30"
 
 
 def test_write_gyro_and_mag_headers_carry_correct_units(tmp_path):
     gr, _ = _write_read(tmp_path, "gyro", lambda w: w.write_gyro(_PHONE, 5, 0.0, 1, 2, 3))
     mr, _ = _write_read(tmp_path, "mag", lambda w: w.write_mag(_PHONE, 5, 0.0, 4, 5, 6))
-    assert gr[0].endswith("X [dps];Y [dps];Z [dps]") and gr[1] == f"{_PTS};5;0.0;1;2;3"
-    assert mr[0].endswith("X [G];Y [G];Z [G]") and mr[1] == f"{_PTS};5;0.0;4;5;6"
+    # Real PSL GYRO/MAGN headers (corpus: Polar_Sense_*_GYRO.txt / *_MAGN.txt) — no ms column either.
+    assert gr[0] == "Phone timestamp;sensor timestamp [ns];X [dps];Y [dps];Z [dps]"
+    assert gr[1] == f"{_PTS};5;1;2;3"
+    assert mr[0] == "Phone timestamp;sensor timestamp [ns];X [G];Y [G];Z [G]"
+    assert mr[1] == f"{_PTS};5;4;5;6"
 
 
 def test_write_ppi_header_and_flag_bit_decomposition(tmp_path):
@@ -129,3 +137,18 @@ def test_write_hr_one_row_per_rr_and_blank_when_empty(tmp_path):
     assert rows[0] == "Phone timestamp;sensor timestamp [ns];HR [bpm];RR-interval [ms]"
     assert rows[1:] == [f"{_PTS};7000;55;800", f"{_PTS};7000;55;810", f"{_PTS};7000;56;"]
     assert w.rows == 3                              # 2 RR rows + 1 blank-RR row
+
+
+def test_ms_column_is_ecg_only_matching_real_polar_sensor_logger(tmp_path):
+    """Ground truth from the real PSL corpus: `timestamp [ms]` appears on ECG and NOWHERE else.
+    Emitting it on acc/ppg/gyro/mag put every downstream field one column out, which is why MotionDex
+    read the ms value as X and PPGDex read it as channel 0 — silently, with no parse error."""
+    ecg, _ = _write_read(tmp_path, "ecg", lambda w: w.write_ecg(_PHONE, 1000, 0.0, 42))
+    assert "timestamp [ms]" in ecg[0], "ECG must KEEP the ms column — real PSL has it"
+    for kind, call in (("acc", lambda w: w.write_acc(_PHONE, 1, 0.0, 1, 2, 3)),
+                       ("gyro", lambda w: w.write_gyro(_PHONE, 1, 0.0, 1, 2, 3)),
+                       ("mag", lambda w: w.write_mag(_PHONE, 1, 0.0, 1, 2, 3)),
+                       ("ppg", lambda w: w.write_ppg(_PHONE, 1, 0.0, (1, 2, 3), 4))):
+        rows, _ = _write_read(tmp_path, kind, call)
+        assert "timestamp [ms]" not in rows[0], f"{kind} must NOT carry the ms column (ECG-only in PSL)"
+        assert len(rows[0].split(";")) == len(rows[1].split(";")), f"{kind} header/row column count mismatch"

@@ -53,11 +53,11 @@ class StreamWriter:
     # PSL-compatible headers, keyed by stream. `;`-separated, exactly as Polar Sensor Logger exports.
     HEADERS = {
         "ecg":  "Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]",
-        "acc":  "Phone timestamp;sensor timestamp [ns];timestamp [ms];X [mg];Y [mg];Z [mg]",
-        "ppg":  "Phone timestamp;sensor timestamp [ns];timestamp [ms];ppg0;ppg1;ppg2;ambient",
+        "acc":  "Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]",
+        "ppg":  "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient",
         "hr":   "Phone timestamp;sensor timestamp [ns];HR [bpm];RR-interval [ms]",
-        "gyro": "Phone timestamp;sensor timestamp [ns];timestamp [ms];X [dps];Y [dps];Z [dps]",
-        "mag":  "Phone timestamp;sensor timestamp [ns];timestamp [ms];X [G];Y [G];Z [G]",
+        "gyro": "Phone timestamp;sensor timestamp [ns];X [dps];Y [dps];Z [dps]",
+        "mag":  "Phone timestamp;sensor timestamp [ns];X [G];Y [G];Z [G]",
         "ppi":  "Phone timestamp;sensor timestamp [ns];HR [bpm];PP-interval [ms];error estimate [ms];blocker;skin contact;skin contact supported",
     }
 
@@ -96,20 +96,20 @@ class StreamWriter:
         self._bump()
 
     def write_acc(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: int, y: int, z: int) -> None:
-        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{self._rel_ms(sensor_ns)};{x};{y};{z}\n")
+        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{x};{y};{z}\n")
         self._bump()
 
     def write_ppg(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, ch: Iterable[int], ambient: int) -> None:
         c0, c1, c2 = list(ch)[:3]
-        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{self._rel_ms(sensor_ns)};{c0};{c1};{c2};{ambient}\n")
+        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{c0};{c1};{c2};{ambient}\n")
         self._bump()
 
     def write_gyro(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: int, y: int, z: int) -> None:
-        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{self._rel_ms(sensor_ns)};{x};{y};{z}\n")
+        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{x};{y};{z}\n")
         self._bump()
 
     def write_mag(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: int, y: int, z: int) -> None:
-        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{self._rel_ms(sensor_ns)};{x};{y};{z}\n")
+        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{x};{y};{z}\n")
         self._bump()
 
     def write_ppi(self, phone: _dt.datetime, sensor_ns: int, hr: int, pp_ms: int, err_ms: int, flags: int) -> None:
