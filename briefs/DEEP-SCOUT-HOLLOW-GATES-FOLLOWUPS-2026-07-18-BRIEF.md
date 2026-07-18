@@ -12,9 +12,28 @@ its re-scout found **54** hollow gates and closed **33** with both-direction-ver
 remaining **21** are NOT one-line pins — each needs a piece of test infrastructure the node/corpus lane
 does not yet have. This brief carries the three surviving classes.
 
-## §RN — the render layer is never EXECUTED in the node lane (7 hollow gates) — the big one
+## §RN — the render layer is never EXECUTED in the node lane (7 hollow gates) — **HARNESS BUILT; 3/7 DONE (PR #187)**
 
-`tests/run-tests.mjs` loads every `*-render.js` **only as raw text into `env.sources`** (verified in the
+> **UPDATE 2026-07-18 — path (b) BUILT, the 3 HIGH gates CLOSED (PR #187).** The node-lane render-execution
+> harness now loads every `*-render.js` into the existing DOM-stubbed `vm` realm (IIFE-isolated so their
+> top-level `const {fmtDate,…} = window.X._bare` destructures don't collide with the shared realm; the
+> `window/global` attaches still escape), plus `dex-escape.js` for `escapeHTML`, and maps `env.GluDisp` +
+> `env.CpapRender` (`OxyDex`/`PulseDex.reviewView` were already exposed). The new group **'Render execution —
+> surfaced-value known-answer (§RN harness)'** closes the **3 HIGH** findings by calling / driving the REAL
+> render code (zero render source change), both-direction verified: `GluDisp.val(250)` mmol = **13.9**
+> (÷→× → 4504.5); `reviewView` Mean-SpO₂ KPI 88→**bad**/93→**warn**/96→**ok** (a ≥85 cut paints hypoxic
+> green); `renderReviewView` residual-AHI 40 → **"severe residual events"** (a <5→<50 → "well controlled").
+> Node-lane only (browser runs render in iframe rigs → SKIPs). Suite 2967.
+>
+> **REMAINING §RN (4):** oxydex SpO₂-CV (`·100→·10`, in a *different tab-builder* not `reviewView`), hrvdex
+> rMSSD color (inline `cls:` in a config array — no seam), pulsedex Tanaka (`208−0.7·age` inside `reRender`,
+> which reads live DOM state), ecgdex canvas minute-tick (`t/60`, pure canvas draw). Each is inline in a
+> path the harness doesn't yet drive → close by (i) driving that specific renderer + parsing its HTML, or
+> (ii) a small pure-classifier **extraction** (e.g. hoist the rMSSD/CV classifier to a `PulseRender.`/
+> `HrvRender.` method like `GluDisp`) — the latter is a render edit → re-bundle that app (compute-inert:
+> `computeHash` stable, `manifestHash` moves) + changeset. The harness (the hard part) now exists.
+
+**[original analysis, retained]** `tests/run-tests.mjs` loads every `*-render.js` **only as raw text into `env.sources`** (verified in the
 `wanted[]` block, ~lines 216–286): the render modules are parsed as strings for source-grep gates, but
 **never evaluated as modules**. Consequence: **no value assertion can pin any surfaced render output** in
 the node/corpus gate. The only render defects that lane catches are ones that alter a literal some
