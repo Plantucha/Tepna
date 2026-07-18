@@ -55,10 +55,14 @@ async def _run(cmd: list[str], timeout: float = 4.0) -> str | None:
         return None
 
 
-async def _resolve_hci(adapter_mac: str | None) -> str | None:
-    """Map an adapter BD_ADDR to its hciN (cached). None adapter → the first controller `hcitool dev` lists."""
+async def resolve_hci(adapter_mac: str | None, refresh: bool = False) -> str | None:
+    """Map an adapter BD_ADDR to its hciN. None adapter → the first controller `hcitool dev` lists.
+
+    `refresh=True` bypasses the cache — REQUIRED for anything that pins a connection, because hci
+    indices RE-ENUMERATE: on 2026-07-18 a controller power-cycle swapped hci0/hci2, so a cached
+    "hci0" silently pointed at a different radio. The lookup is one cheap subprocess."""
     key = (adapter_mac or "").upper()
-    if key in _HCI_CACHE:
+    if not refresh and key in _HCI_CACHE:
         return _HCI_CACHE[key]
     devs = parse_hci_dev(await _run(["hcitool", "dev"]) or "")
     if not devs:
@@ -66,6 +70,8 @@ async def _resolve_hci(adapter_mac: str | None) -> str | None:
     hci = devs.get(key) if key else next(iter(devs.values()))
     if hci:
         _HCI_CACHE[key] = hci
+    elif key in _HCI_CACHE:
+        del _HCI_CACHE[key]          # configured adapter vanished — don't keep serving a stale index
     return hci
 
 
@@ -74,7 +80,7 @@ async def read_rssi(adapter_mac: str | None, dev_mac: str) -> int | None:
     helper missing). Never raises; safe to poll on a cadence."""
     if not dev_mac or not os.path.exists(_HELPER):
         return None
-    hci = await _resolve_hci(adapter_mac)
+    hci = await resolve_hci(adapter_mac)
     if not hci:
         return None
     return parse_rssi(await _run(["sudo", "-n", _HELPER, hci, dev_mac]) or "")

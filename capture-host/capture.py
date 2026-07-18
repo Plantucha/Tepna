@@ -145,10 +145,28 @@ def classify_adapter_health(devices: list[dict]) -> dict:
     return {"wedged": bool(reasons), "reasons": reasons, "phantom": phantom}
 
 
+async def adapter_kw() -> dict:
+    """bleak kwargs pinning a connection to the CONFIGURED adapter (config `adapter:`), or {} when
+    unconfigured/unresolvable so we fall back to the BlueZ default instead of failing hard.
+
+    WHY this exists: we configure a stable adapter MAC, but bleak wants an `hciN` name — and hci indices
+    RE-ENUMERATE. On 2026-07-18 a controller power-cycle swapped hci0/hci2, so the BlueZ default became
+    the onboard radio that cannot hear our sensors; every connect hung and PMD never started, with no
+    error naming the cause. Resolving MAC→hciN fresh on each connect keeps the pin correct across
+    re-enumeration (one cheap subprocess, and connects are infrequent)."""
+    if not ADAPTER:
+        return {}
+    hci = await link_rssi.resolve_hci(ADAPTER, refresh=True)
+    if not hci:
+        log.warning("configured adapter %s not found — falling back to the BlueZ default", ADAPTER)
+        return {}
+    return {"adapter": hci}
+
+
 @contextlib.asynccontextmanager
 async def _connect(addr: str):
     from bleak import BleakClient as _BC
-    client = _BC(addr)
+    client = _BC(addr, **(await adapter_kw()))
     async with _CONNECT_LOCK:
         await client.connect()
     try:
@@ -172,13 +190,14 @@ _O2_NAME_HINTS = ("o2ring", "s8-aw", "s8aw", "wellue", "checkme")
 async def _connect_scan(addr: str, name_hints=_O2_NAME_HINTS, timeout: float = 15.0):
     from bleak import BleakClient as _BC, BleakScanner as _BS
     from bleak.exc import BleakDeviceNotFoundError as _NotFound
+    akw = await adapter_kw()                      # pin scan AND connect to the configured radio
     device = await _BS.find_device_by_filter(
         lambda d, adv: d.address.upper() == addr.upper()
         or any(h in ((adv.local_name or d.name or "").lower()) for h in name_hints),
-        timeout=timeout)
+        timeout=timeout, **akw)
     if device is None:
         raise _NotFound(addr, "O2Ring not advertising (wear it finger-in + close the phone app)")
-    client = _BC(device)
+    client = _BC(device, **akw)
     async with _CONNECT_LOCK:
         await client.connect()
     try:
@@ -624,7 +643,8 @@ async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", ftype:
             await asyncio.sleep(0.8)                   # let BlueZ fully tear the link down before re-scanning
             log.info("%s: pulling stored session (which=%s) — live capture paused", name, which)
             saved = await pull_session.pull(dev["address"], out_dir, which=which, ftype=ftype,
-                                            adapter=None, serial="0000", wait=45) or []
+                                            adapter=(await adapter_kw()).get("adapter"),
+                                            serial="0000", wait=45) or []
         finally:
             _OXYII_PAUSE.clear()                      # resume live capture no matter how the pull ended
             log.info("%s: stored-session pull finished — resuming live capture", name)
@@ -795,7 +815,7 @@ async def main():
     import yaml   # runtime-only dep; imported here so `import capture` (for unit tests) needs no external deps
     cfg = yaml.safe_load(open(args.config))
     root = cfg["root"]
-    ADAPTER = cfg.get("adapter")   # BLE adapter MAC for bonding; None = default controller
+    ADAPTER = cfg.get("adapter")   # BLE adapter MAC — pins bonding AND every bleak connect (adapter_kw)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
     loop = asyncio.get_running_loop()
@@ -847,6 +867,13 @@ async def main():
                             pull_stored=_pull, polar_pause=polar_offline_op), host, port)
         log.info("monitor: http://%s:%d/", host, port)
 
+    # Surface the resolved adapter at boot: a silent mis-pin (hci re-enumeration) is exactly the failure
+    # that cost 2026-07-18 — connects hung against the wrong radio with nothing in the log naming it.
+    if ADAPTER:
+        _hci = await link_rssi.resolve_hci(ADAPTER, refresh=True)
+        log.info("BLE adapter pinned: %s → %s", ADAPTER, _hci or "NOT FOUND (using BlueZ default)")
+    else:
+        log.info("BLE adapter: BlueZ default (no `adapter:` in config — pin it to survive re-enumeration)")
     log.info("tepna-capture up: %d device(s), root=%s", len(cfg.get("devices", [])), root)
     await _STOP.wait()
     for t in tasks:
