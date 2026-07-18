@@ -69,3 +69,54 @@ def test_decode_frame_fs_override():
     # back-timing at 52 Hz: first sample is one step (1/52 s) before last
     step_ns = int(1e9 / 52)
     assert samples[0].sensor_ns == last_ns - step_ns
+
+
+# ── Full-frame decode known-answers (TEST-AUDIT-FINDINGS-FOLLOWUPS §2) ──────────────────────────────
+# The older decode tests assert only samples[0]/[-1] values + the last sensor_ns, so mutations to the
+# per-sample loop stride/offset, _i24, the PPG path (untested entirely), and the back-timing of the
+# MIDDLE samples all survived. These pin EVERY sample value AND every back-timed sensor_ns/t_ms — a
+# real decode/timestamp corruption reds here. Inputs are hand-chosen constants; expected timestamps
+# follow the Clock-Contract back-timing sensor_ns = last_ns − (n−1−i)·int(1e9/fs).
+def _i24le(v):
+    return (v & 0xFFFFFF).to_bytes(3, "little")
+
+
+def _pmd_header(meas, last_ns, frame_type):
+    return bytes([meas]) + last_ns.to_bytes(8, "little") + bytes([frame_type])
+
+
+def test_decode_ecg_full_frame_every_sample_and_timestamp():
+    fs, last_ns = 130, 1_000_000_000
+    vals = [100, -100, 50_000]                                    # 3 int24 ECG samples (µV)
+    payload = b"".join(_i24le(v) for v in vals)
+    meas, s = pmd.decode_frame(_pmd_header(pmd.ECG, last_ns, 0x00) + payload, _dt.datetime(2026, 7, 16), fs=fs)
+    assert meas == pmd.ECG and len(s) == 3                        # stride-3 loop must yield EXACTLY 3
+    assert [x.values for x in s] == [(100,), (-100,), (50_000,)]  # every value, in order (kills _i24 / stride)
+    step = int(1e9 / fs)
+    assert [x.sensor_ns for x in s] == [last_ns - 2 * step, last_ns - step, last_ns]   # all back-timed, incl. middle
+    assert s[0].t_ms == (last_ns - 2 * step) / 1e6               # t_ms tracks sensor_ns exactly
+
+
+def test_decode_ppg_full_frame_all_channels():
+    # PPG had ZERO decode coverage — this pins the 4-channel (3 LED + ambient) int24 unpack.
+    fs, last_ns = 55, 2_000_000_000
+    rows = [(1, 2, 3, 100), (4, 5, 6, 200)]                       # 2 samples × 4 channels
+    payload = b"".join(_i24le(c) for row in rows for c in row)
+    meas, s = pmd.decode_frame(_pmd_header(pmd.PPG, last_ns, 0x00) + payload, _dt.datetime(2026, 7, 16), fs=fs)
+    assert meas == pmd.PPG and len(s) == 2
+    assert [x.values for x in s] == [(1, 2, 3, 100), (4, 5, 6, 200)]   # every channel of every sample (kills the 12-stride / offsets)
+    step = int(1e9 / fs)
+    assert [x.sensor_ns for x in s] == [last_ns - step, last_ns]
+
+
+def test_decode_acc_full_frame_every_sample():
+    # strengthens the fs-override test: assert ALL samples' xyz (the old test checked only samples[0],
+    # so a "read offset 0 for every sample" bug — constant ACC — survived).
+    fs, last_ns = 52, 3_000_000_000
+    rows = [(10, 20, 30), (40, 50, 60), (70, 80, 90)]             # 3 int16 xyz samples
+    payload = b"".join(v.to_bytes(2, "little", signed=True) for row in rows for v in row)
+    meas, s = pmd.decode_frame(_pmd_header(pmd.ACC, last_ns, 0x01) + payload, _dt.datetime(2026, 7, 16), fs=fs)
+    assert meas == pmd.ACC and len(s) == 3
+    assert [x.values for x in s] == [(10, 20, 30), (40, 50, 60), (70, 80, 90)]   # distinct per sample (kills constant-offset / stride)
+    step = int(1e9 / fs)
+    assert [x.sensor_ns for x in s] == [last_ns - 2 * step, last_ns - step, last_ns]
