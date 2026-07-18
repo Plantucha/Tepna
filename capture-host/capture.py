@@ -83,11 +83,46 @@ def _now() -> _dt.datetime:
 # org.bluez.Error.InProgress. Hold this lock only across connect(); the links themselves run concurrently.
 _CONNECT_LOCK = asyncio.Lock()
 
+# The O2Ring exposes exactly ONE BLE link, so live capture and a stored-session (.dat) pull cannot both
+# hold it. Setting this event tells run_oxyii to drop its link and idle; pull_oxyii_session then owns the
+# ring for the download and clears the event to resume live capture. (Only the O2Ring path honors it.)
+_OXYII_PAUSE = asyncio.Event()
+
 
 @contextlib.asynccontextmanager
 async def _connect(addr: str):
     from bleak import BleakClient as _BC
     client = _BC(addr)
+    async with _CONNECT_LOCK:
+        await client.connect()
+    try:
+        yield client
+    finally:
+        try:
+            await client.disconnect()
+        except Exception:
+            pass
+
+
+# The O2Ring advertises only in SHORT bursts while worn (finger-in) and its MAC can rotate on a factory
+# reset, so a bare BleakClient(addr).connect() (fixed-timeout resolve) routinely misses the window after a
+# drop → BleakDeviceNotFoundError. Mirror pull_session.py: an EARLY-EXIT scan that returns the instant the
+# ring advertises, matching address OR name. The Polar straps are bonded + advertise continuously, so they
+# keep the plain _connect above.
+_O2_NAME_HINTS = ("o2ring", "s8-aw", "s8aw", "wellue", "checkme")
+
+
+@contextlib.asynccontextmanager
+async def _connect_scan(addr: str, name_hints=_O2_NAME_HINTS, timeout: float = 15.0):
+    from bleak import BleakClient as _BC, BleakScanner as _BS
+    from bleak.exc import BleakDeviceNotFoundError as _NotFound
+    device = await _BS.find_device_by_filter(
+        lambda d, adv: d.address.upper() == addr.upper()
+        or any(h in ((adv.local_name or d.name or "").lower()) for h in name_hints),
+        timeout=timeout)
+    if device is None:
+        raise _NotFound(addr, "O2Ring not advertising (wear it finger-in + close the phone app)")
+    client = _BC(device)
     async with _CONNECT_LOCK:
         await client.connect()
     try:
@@ -404,13 +439,18 @@ async def run_oxyii(dev: dict, root: str):
     name, addr = dev["name"], dev["address"]
     backoff = 5
     while not _STOP.is_set():
+        if _OXYII_PAUSE.is_set():                    # a stored-session pull owns the ring's single link
+            _set(name, connected=False, last_error="paused — pulling stored session")
+            while _OXYII_PAUSE.is_set() and not _STOP.is_set():
+                await asyncio.sleep(0.3)
+            continue
         started = _now()
         ndir = night_dir(root, started)
         path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "spo2", "csv"))
         wr = None
         try:
             _set(name, connected=False, address=addr, last_error=None)
-            async with _connect(addr) as client:
+            async with _connect_scan(addr) as client:
                 _set(name, connected=True); log.info("%s connected", name); backoff = 5
                 # Resolve write/notify chars by UUID (robust to a stale BlueZ service cache).
                 wch = nch = None
@@ -453,7 +493,13 @@ async def run_oxyii(dev: dict, root: str):
                 await asyncio.sleep(0.6)
                 await client.write_gatt_char(wch, oxyii.setup_frame(), response=False)  # 0x10: ack
                 await asyncio.sleep(0.6)
-                while client.is_connected and not _STOP.is_set():                       # poll live ~1/s
+                # Sync the ring's free-running RTC to the NTP-synced host once per connect, so its stored
+                # .dat timestamps match the live capture (they drifted ~+151 s — see oxyii.set_time_frame).
+                _clk = _now()
+                await client.write_gatt_char(wch, oxyii.set_time_frame(_clk), response=False)   # 0xC0
+                log.info("%s RTC synced to host %s", name, _clk.strftime("%Y-%m-%d %H:%M:%S"))
+                await asyncio.sleep(0.4)
+                while client.is_connected and not _STOP.is_set() and not _OXYII_PAUSE.is_set():   # poll live ~1/s
                     await client.write_gatt_char(wch, oxyii.live_frame(), response=False)
                     await asyncio.sleep(1.0)
         except Exception as e:
@@ -465,6 +511,39 @@ async def run_oxyii(dev: dict, root: str):
         if not _STOP.is_set():
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 60)
+
+
+async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", ftype: int = 0) -> dict:
+    """Pull the O2Ring's ONBOARD-recorded session(s) off flash to <root>/captures/stored/*.dat, driven from
+    the monitor. Pauses live capture first (the ring has one BLE link), runs the same pull_session flow the
+    CLI uses, then resumes. Returns the newly written files + their .meta.json so the UI can report them."""
+    import pull_session
+    name = dev["name"]
+    out_dir = os.path.join(root, "captures", "stored")
+    os.makedirs(out_dir, exist_ok=True)
+    saved = []
+    _OXYII_PAUSE.set()
+    try:
+        for _ in range(120):                          # wait up to ~12 s for run_oxyii to drop its link
+            if not STATUS.get("devices", {}).get(name, {}).get("connected"):
+                break
+            await asyncio.sleep(0.1)
+        await asyncio.sleep(0.8)                       # let BlueZ fully tear the link down before re-scanning
+        log.info("%s: pulling stored session (which=%s) — live capture paused", name, which)
+        saved = await pull_session.pull(dev["address"], out_dir, which=which, ftype=ftype,
+                                        adapter=None, serial="0000", wait=45) or []
+    finally:
+        _OXYII_PAUSE.clear()                          # resume live capture no matter how the pull ended
+        log.info("%s: stored-session pull finished — resuming live capture", name)
+
+    def _meta(f):
+        try:
+            with open(f + ".meta.json") as fh:
+                return json.load(fh)
+        except Exception:
+            return {}
+    return {"ok": True, "new_files": [os.path.basename(f) for f in saved],
+            "sessions": [_meta(f) for f in saved], "out_dir": out_dir}
 
 
 async def status_loop(root: str):
@@ -519,6 +598,13 @@ async def main():
     for dev in cfg.get("devices", []):
         _spawn(dev)
 
+    async def _pull(which: str = "latest", ftype: int = 0) -> dict:
+        # Monitor "Pull stored session" → download the O2Ring's onboard .dat (pauses live capture).
+        dev = next((d for d in cfg.get("devices", []) if d.get("vendor") in ("Wellue", "Viatom")), None)
+        if not dev:
+            raise RuntimeError("no O2Ring / Wellue device configured")
+        return await pull_oxyii_session(dev, root, which, ftype)
+
     # Monitor + control web surface (HEALTH-BOX-VISION §4 hero live-view). On by default; bind LAN only.
     web_runner = None
     wcfg = cfg.get("web", {}) or {}
@@ -526,7 +612,7 @@ async def main():
         import webmon
         host, port = wcfg.get("host", "0.0.0.0"), int(wcfg.get("port", 8760))
         web_runner = await webmon.start(
-            webmon.make_app(BUS, cfg, args.config, ADAPTER, STATUS, _spawn), host, port)
+            webmon.make_app(BUS, cfg, args.config, ADAPTER, STATUS, _spawn, pull_stored=_pull), host, port)
         log.info("monitor: http://%s:%d/", host, port)
 
     log.info("tepna-capture up: %d device(s), root=%s", len(cfg.get("devices", [])), root)

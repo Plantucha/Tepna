@@ -34,17 +34,17 @@ async def _wait(q: asyncio.Queue, op: int, timeout: float = 6.0):
 
 
 async def pull(address, out_dir, which="latest", ftype=0, adapter=None, serial="0000", wait=0):
+    """Returns the list of .dat paths written this call (empty if the ring never appeared / no sessions)."""
     os.makedirs(out_dir, exist_ok=True)
     loop = asyncio.get_running_loop()
     deadline = loop.time() + wait
     while True:
         try:
-            await _pull_once(address, out_dir, which, ftype, adapter, serial)
-            return
+            return await _pull_once(address, out_dir, which, ftype, adapter, serial)
         except BleakDeviceNotFoundError:
             if loop.time() >= deadline:
                 print("ring never appeared — wake it (USB charger / press button / re-wear) and rerun.", flush=True)
-                return
+                return []
             print("ring not seen; scanning again … wear it (finger-in) with the phone app closed.", flush=True)
             await asyncio.sleep(2)
 
@@ -89,9 +89,12 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial):
         print(f"recorded sessions on flash ({len(sessions)}): {sessions}", flush=True)
         if not sessions:
             print("no sessions found — nothing to pull.", flush=True)
-            return
+            return []
 
-        targets = sessions if which == "all" else ([sessions[-1]] if which == "latest" else [which])
+        saved_paths = []
+        # The flash list is NOT chronologically ordered, so "latest" must pick the max stamp, not [-1].
+        # Session stamps are YYYYMMDDhhmmss → lexical max == chronological latest.
+        targets = sessions if which == "all" else ([max(sessions)] if which == "latest" else [which])
         for ts in targets:
             print(f"\n── session {ts} ──", flush=True)
             await send(oxyii.file_start_frame(ts, ftype))
@@ -129,7 +132,9 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial):
                       "trailer": bytes(data[-48:]).hex() if len(data) >= 48 else ""}
             with open(path + ".meta.json", "w") as f:
                 json.dump(meta_j, f, indent=2)
+            saved_paths.append(path)
             print(f"  saved {len(data)} bytes → {path}\n  header={hdr} format_a={fmt_a} ~{n_samples} samples", flush=True)
+        return saved_paths
 
 
 def main():
