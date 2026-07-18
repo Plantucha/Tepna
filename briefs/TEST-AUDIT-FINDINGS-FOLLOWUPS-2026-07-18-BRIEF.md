@@ -69,6 +69,12 @@ the cross-SD family beyond the 5 caught, deeper estimator/threshold/index logic)
 rate-limit. Re-run it to find hollow gates the first 99 didn't probe; also drive the surfaces the first
 pass never exercised — **browser render-coverage**, **CSP** / **no-network** static lanes, and
 `verify-provenance.html` (the browser check of `gateA_ok`/`gateB_ok` owed for #73/#74 from the parent).
+> **RAN 2026-07-18 → spun into `DEEP-SCOUT-HOLLOW-GATES-2026-07-18-BRIEF.md`.** The 8-cluster scout wave
+> found **40 NEW hollow gates** (3 high, 30 med, 7 low). **crossnight-deep (8) CLOSED** — PR #173,
+> 22 both-direction-verified per-node median/iqr/slope/Mann-Kendall pins. adapters (7), integrator-fusion
+> (8, incl. 2 verdict-flipping highs), kernel-registry (8), ecg-ppg-detect-deep (9) remain OPEN in that
+> ledger; render · self-ingest · gluco-cpap-oxy-deep scouts DIED on the rate-limit (un-scanned, re-scout
+> owed). The browser render-coverage / CSP / verify-provenance lanes remain unexercised as noted.
 
 ## Done when
 
