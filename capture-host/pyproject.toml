@@ -4,6 +4,17 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+# Coverage config (CAPTURE-HOST-FOLLOWUPS-III test-coverage). Inert for a plain `pytest` run — it only
+# takes effect when CI passes `--cov`, so a dev without pytest-cov installed still runs the suite clean.
+# Source only (tests/harness/venvs excluded); the bleak/aiohttp runtime modules (capture/webmon/bonding/
+# pull_session/polar_psftp) can't import in a hardware-free CI, so they read 0% here by construction.
+[tool.coverage.run]
+source = ["."]
+omit = ["tests/*", ".venv*/*", "*/site-packages/*"]
+
+[tool.coverage.report]
+skip_empty = true
+
 [tool.ruff]
 line-length = 120
 target-version = "py311"
