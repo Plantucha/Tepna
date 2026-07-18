@@ -48,6 +48,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         "frames_dropped": st.get("frames_dropped"),
                         "frames_duplicated": st.get("frames_duplicated"),
                         "worn": st.get("worn"),
+                        "charging": bool(st.get("charging")),
                         "last_error": st.get("last_error")})
         return out
 
