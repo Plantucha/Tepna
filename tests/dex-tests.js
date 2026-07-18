@@ -3103,6 +3103,44 @@
             })
             .join(',')
       );
+      // ── (2b) ACC per-sample time comes from the DEVICE clock, not the phone/arrival column ────────
+      // The phone column is a host ARRIVAL stamp: the capture host back-times each BLE frame from its
+      // own notification arrival, and arrival jitters while the device clock does not — so it steps
+      // BACKWARDS at a frame boundary (measured on 2.4 M real rows: device column 0 backward steps,
+      // phone column 274/60 000, worst 175 ms). parseDeviceACC used to read the phone column per row,
+      // unlike MotionDex/PpgDex which prefer the device ns via relSecOf(). Two consequences, both
+      // locked here: out-of-order tsMs, and a jitter-INFLATED accFs (a real 25 Hz corpus file read as
+      // 26 Hz). Column 1 is `sensor timestamp [ns]` on every PSL variant; BigInt is required (~6e17).
+      (function () {
+        var HDR = 'Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]\n';
+        var NS0 = 599631585300704528, STEP = 40000000; // 40 ms => exactly 25 Hz
+        function build(jitterPhone, withNs) {
+          var rows = HDR;
+          for (var i = 0; i < 40; i++) {
+            // phone stamp jitters +-8 ms and steps BACKWARDS every 8th row (the frame seam)
+            var jit = jitterPhone ? (i % 8 === 7 ? -25 : (i % 3) * 8) : 0;
+            var ms = 500 + i * 40 + jit;
+            var d = new Date(Date.UTC(2026, 5, 13, 20, 44, 0, 0) + ms);
+            var stamp = d.toISOString().replace('Z', '').slice(0, 23);
+            var ns = BigInt(NS0) + BigInt(i) * BigInt(STEP);
+            rows += stamp + ';' + (withNs ? ns.toString() : '') + ';' + (100 + i) + ';86;990\n';
+          }
+          return rows;
+        }
+        var jittered = D.parseDeviceACC(build(true, true));
+        var t = (jittered.acc || []).map(function (r) { return r.tsMs; });
+        var back = 0;
+        for (var i = 1; i < t.length; i++) if (t[i] - t[i - 1] < 0) back++;
+        T.ok('parseDeviceACC tsMs is monotonic despite a backwards-stepping phone column', t.length === 40 && back === 0, 'backward=' + back + ' n=' + t.length);
+        T.eq('parseDeviceACC accFs comes from the device clock, not jittered arrival', jittered.accFs, 25);
+        // absolute time is still Clock-Contract floating wall-clock, anchored on the FIRST phone stamp
+        T.eq('parseDeviceACC anchors absolute tsMs on the phone stamp (floating Date.UTC)', t[0], Date.UTC(2026, 5, 13, 20, 44, 0, 500));
+        // spacing is the device step exactly (40 ms), not the jittered arrival spacing
+        T.eq('parseDeviceACC spaces samples by the device step', Math.round(t[10] - t[9]), 40);
+        // FALLBACK: no ns column -> still parses off the phone stamps (never returns null/empty)
+        var noNs = D.parseDeviceACC(build(false, false));
+        T.ok('parseDeviceACC without an ns column still parses via the phone stamp', !!(noNs.acc && noNs.acc.length === 40 && noNs.accFs === 25), 'fs=' + noNs.accFs + ' n=' + ((noNs.acc || []).length));
+      })();
       // (3) source-mirror: the app loaders delegate to the twins; parseRows + Date-parse are GONE
       var app = (env.sources || {})['ecgdex-app.js'];
       if (app) {

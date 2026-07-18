@@ -3191,7 +3191,8 @@
   // (+ _relBase) so the caller can re-base onto the ECG's t0Ms (Clock Contract §2.6 — never now()).
   function parseDeviceACC(text) {
     var lines = String(text == null ? '' : text).split(/\r?\n/),
-      out = [];
+      out = [],
+      ns0 = null;
     for (var i = 0; i < lines.length; i++) {
       var t = lines[i].trim();
       if (!t) continue;
@@ -3202,10 +3203,54 @@
         if (isFinite(v)) nums.push(v);
       }
       if (nums.length < 3) continue;
+      // Column 1 is `sensor timestamp [ns]` (ns since 2000-01-01) on EVERY PSL stream variant —
+      // verified across 104 real Polar Sensor Logger ACC files and both of our own capture-host
+      // layouts (the transitional 6-col one that carried `timestamp [ms]`, and the current 5-col).
+      // BigInt is required: these values (~6e17) exceed Number.MAX_SAFE_INTEGER. A file without the
+      // column throws here and falls back to the phone stamp below.
+      // NOTE the /^\d+$/ guard: BigInt('') is 0n, NOT a throw. Without it a blank ns column makes
+      // every row relNs=0, collapsing the whole file onto a single timestamp (fs then falls to the
+      // default 4 Hz). Only an all-digit field is a device stamp; anything else falls back to phone.
+      var relNs = NaN,
+        nsRaw = String(p[1] == null ? '' : p[1]).trim();
+      if (/^\d+$/.test(nsRaw)) {
+        try {
+          var bn = BigInt(nsRaw);
+          if (ns0 === null) ns0 = bn;
+          relNs = Number(bn - ns0);
+        } catch (e) {}
+      }
       var ts = parseTimestamp(p[0]);
-      out.push({ tsMs: ts && ts.tMs != null ? ts.tMs : null, x: nums[nums.length - 3], y: nums[nums.length - 2], z: nums[nums.length - 1] });
+      out.push({ tsMs: ts && ts.tMs != null ? ts.tMs : null, relNs: relNs, x: nums[nums.length - 3], y: nums[nums.length - 2], z: nums[nums.length - 1] });
     }
     if (out.length < 30) return { acc: null, accFs: null };
+    // ── Per-sample time comes from the DEVICE clock, anchored ONCE on the phone stamp ──────────────
+    // The phone column is a host ARRIVAL stamp: decode_frame back-times each BLE frame from its own
+    // notification arrival, and arrival jitters (bursty delivery) while the device clock does not. So
+    // the phone column steps BACKWARDS at ~0.5-0.8 % of rows, always at a frame boundary (measured on
+    // 2.4 M real rows, 2026-07-18: device column 0 backward steps, phone column 274/60 000, worst
+    // 175 ms). Anchoring absolute time once on the phone stamp and spacing samples by the device
+    // clock keeps the Clock-Contract floating wall-clock while removing the arrival jitter — the same
+    // device-clock-preferred rule MotionDex/PpgDex already apply via relSecOf(). Falls back to the
+    // per-row phone stamp when the ns column is absent or sparse.
+    var anchor = -1;
+    for (var a = 0; a < out.length; a++) {
+      if (isFinite(out[a].tsMs) && isFinite(out[a].relNs)) {
+        anchor = a;
+        break;
+      }
+    }
+    if (anchor >= 0) {
+      var nNs = 0;
+      for (var b = 0; b < out.length; b++) if (isFinite(out[b].relNs)) nNs++;
+      if (nNs > out.length * 0.9) {
+        var tA = out[anchor].tsMs,
+          rA = out[anchor].relNs;
+        for (var c = 0; c < out.length; c++) {
+          if (isFinite(out[c].relNs)) out[c].tsMs = tA + (out[c].relNs - rA) / 1e6;
+        }
+      }
+    }
     var fs = 4,
       ts2 = [];
     for (var j = 0; j < out.length; j++) {
