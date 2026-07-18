@@ -28,7 +28,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_device,
-             pull_stored=None, polar_pause=None) -> web.Application:
+             pull_stored=None, polar_pause=None, sync_time=None) -> web.Application:
     app = web.Application()
 
     def _remembered() -> list[dict]:
@@ -40,6 +40,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         "connected": bool(st.get("connected")),
                         "battery": st.get("battery"),
                         "rssi": st.get("rssi"),
+                        "clock_synced": st.get("clock_synced"),
+                        "device_time": st.get("device_time"),
+                        "clock_skew_sec": st.get("clock_skew_sec"),
                         "worn": st.get("worn"),
                         "last_error": st.get("last_error")})
         return out
@@ -181,6 +184,49 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             return await polar_pause(address, _wrapped)
         return await _wrapped()
 
+    async def timesync(req):
+        """Set ONE device's internal clock from the host. Polar only — the O2Ring already re-syncs its
+        RTC on every connect (oxyii 0xC0), so there is nothing manual to do there and we say so rather
+        than shipping a button that silently no-ops."""
+        body = await req.json() if req.body_exists else {}
+        address = body.get("address", "")
+        dev = next((d for d in cfg.get("devices", []) if d.get("address") == address), None)
+        if not dev:
+            return web.json_response({"ok": False, "error": "unknown address"}, status=400)
+        if dev.get("vendor") != "Polar":
+            return web.json_response({"ok": True, "skipped": "auto", "address": address,
+                                      "detail": "O2Ring re-syncs its RTC on every connect (no manual step)"})
+        if not sync_time:
+            return web.json_response({"ok": False, "error": "time sync unavailable"}, status=400)
+        try:
+            return web.json_response(await sync_time(address))
+        except offline_lock.OfflineBusy as e:
+            return web.json_response({"ok": False, "busy": e.holder, "error": str(e)}, status=409)
+        except Exception as e:
+            return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=502)
+
+    async def timesync_all(_req):
+        """Host clock first (so devices inherit a freshly disciplined time), then every capable device.
+        Serialised by offline_lock — one radio, one device at a time."""
+        out = {"host": None, "devices": []}
+        try:
+            out["host"] = await clockcfg.sync_now(sudo=_clock_sudo)
+        except Exception as e:
+            out["host"] = {"ok": False, "detail": repr(e)}
+        for d in cfg.get("devices", []):
+            addr = d.get("address")
+            if d.get("vendor") != "Polar":
+                out["devices"].append({"address": addr, "name": d.get("name"), "ok": True,
+                                       "skipped": "auto", "detail": "re-syncs on every connect"})
+                continue
+            try:
+                r = await sync_time(addr) if sync_time else {"ok": False, "error": "unavailable"}
+            except Exception as e:
+                r = {"ok": False, "address": addr, "error": f"{type(e).__name__}: {e}"}
+            r["name"] = d.get("name")
+            out["devices"].append(r)
+        return web.json_response(out)
+
     async def polar_recordings(req):
         address = req.query.get("address", "")
         if not _polar_dev(address):
@@ -218,6 +264,8 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         web.post("/api/forget", forget),
         web.post("/api/remember", remember),
         web.post("/api/pull", pull_stored_h),
+        web.post("/api/timesync", timesync),
+        web.post("/api/timesync/all", timesync_all),
         web.get("/api/polar/recordings", polar_recordings),
         web.post("/api/polar/pull", polar_pull),
         web.get("/api/stream/{key}", stream),
