@@ -277,7 +277,17 @@ class PolarPsFtp:
         and puts sibling devices on a COMMON origin, which is what cross-device timing (PAT) needs.
         LOCAL civil time per the Clock Contract; SET_SYSTEM_TIME additionally takes UTC."""
         import datetime as _dt
-        when = when or _dt.datetime.now()
+        when = when or _dt.datetime.utcnow()   # UTC — see the note below
+        # WE SET DEVICE CLOCKS IN UTC, deliberately, and it is not the same decision as the Clock
+        # Contract's floating local-civil wall clock (which still governs the file's `Phone timestamp`
+        # column and every Dex node — that convention is frozen).
+        # Reason: the Verity's PMD SAMPLE clock is immovably UTC. Setting local time, setting system
+        # time with local civil, and tz_offset=0 were each tried on hardware 2026-07-18 and none moved
+        # it — GET_LOCAL_TIME reported the local time we set while samples kept arriving +4 h. Since one
+        # device cannot be moved off UTC, the only way to put SIBLING devices on a COMMON timebase — the
+        # precondition PAT needs — is to set the settable ones (H10) to UTC as well. Device stamps are
+        # used for relative/inter-sample timing, so this changes nothing downstream except that
+        # cross-device alignment becomes exact instead of needing a per-device offset table.
         if tz_offset_min is None:
             # tz_offset = 0 ON PURPOSE. The device derives its SYSTEM (UTC) clock from local+tz_offset,
             # and PMD stamps every sample with the SYSTEM clock — so sending the true offset (-240) made
@@ -285,19 +295,12 @@ class PolarPsFtp:
             # measured 2026-07-18. Declaring tz_offset=0 makes device time == local civil == what stamps
             # the samples, which is exactly the Clock Contract's floating wall-clock: local civil time
             # encoded as if it were UTC (CLAUDE.md §1). One timebase across every sensor.
-            tz_offset_min = 0
+            tz_offset_min = 0          # device time IS UTC, so the declared offset is zero
         # Device families differ (PolarBleApiImpl.setLocalTime switches on fileSystemType):
-        #   h10FileSystem   -> SET_LOCAL_TIME only; SET_SYSTEM_TIME answers NOT_IMPLEMENTED (error 201,
-        #                      observed on our H10 2026-07-18)
+        #   h10FileSystem   -> SET_LOCAL_TIME only; SET_SYSTEM_TIME answers NOT_IMPLEMENTED (error 201)
         #   polarFileSystemV2 (Verity Sense / OH1) -> both
         await self.query(SET_LOCAL_TIME, encode_set_local_time(when, tz_offset_min))
         if with_system_time:
-            # Deliberately send LOCAL CIVIL time as the "system" (nominally UTC) clock. That is the Clock
-            # Contract's floating wall-clock convention (CLAUDE.md §1: store local civil time encoded as
-            # if it were UTC), and it is what keeps sibling devices on ONE timebase: the H10 has no system
-            # clock, so its samples are stamped in local time. Sending true UTC here left the Verity
-            # stamping 4 h ahead of the H10 (measured 2026-07-18) — a 4 h gap between two sensors on the
-            # same body, which is precisely the cross-device offset this whole exercise removes.
             await self.query(SET_SYSTEM_TIME, encode_set_system_time(when))
 
     async def get_local_time(self):

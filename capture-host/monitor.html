@@ -448,17 +448,27 @@ function battChip(p){
 //   • otherwise the always-available stream-rate health (telemetry.stream_health) — no privilege needed.
 // So the pill is never blank on a live device: it shows dBm where it can, link quality where it can't.
 // BLE rule of thumb: ≥-60 excellent · -70 good · -80 marginal · <-80 likely to drop.
-// Device-clock pill. |skew| <= 2 s = in sync; <= 5 min = drifting; beyond that the device clock is
-// simply on another timebase (an unset H10 sits in 2019; the Verity stamps +4 h) — shown, not hidden,
-// because a wrong device clock silently corrupts `sensor timestamp [ns]` for anything that reads it.
+// Device-clock pill — answers "IS THIS CLOCK SET?", not "what is the raw deviation".
+// A raw offset reads as broken when it is not: a device can be correctly set and still stamp its samples
+// from a different internal clock (our Verity does, constantly +4 h). What actually matters to a user is
+// whether the clock was set this session and whether it has since RESET — an H10 silently reverts to its
+// 2019 firmware default whenever it leaves the strap, and THAT is the real fault. Numbers live in the
+// tooltip for when you want them.
+function clockStatus(dev){
+  if(!dev || !dev.connected || !dev.device_time) return null;   // no device clock (e.g. the O2Ring)
+  const yr = +String(dev.device_time).slice(0,4);
+  if(yr < 2020) return {cls:'bad',  txt:'clock not set'};       // sitting at the firmware default
+  if(!dev.clock_synced) return {cls:'warn', txt:'clock unverified'};
+  return {cls:'ok', txt:'clock set'};
+}
 function clkChip(dev){
-  if(!dev || !dev.connected || dev.clock_skew_sec==null) return '';
-  const s = dev.clock_skew_sec, a = Math.abs(s);
-  const cls = a<=2 ? 'ok' : a<=300 ? 'warn' : 'bad';
-  const txt = a<=2 ? 'clock ok' : a<3600 ? `${s>0?'+':''}${Math.round(s)}s` : `${s>0?'+':''}${(s/3600).toFixed(1)}h`;
-  const t = `device clock ${dev.device_time||'?'} · skew ${s>=0?'+':''}${s}s vs host`
-          + (dev.clock_synced?` · last set ${dev.clock_synced}`:'');
-  return `<span class="clk ${cls}" title="${esc(t)}">🕐 ${txt}</span>`;
+  const st = clockStatus(dev);
+  if(!st) return '';
+  const s = dev.clock_skew_sec;
+  const t = `device clock ${dev.device_time}`
+          + (dev.clock_synced ? ` · set from host at ${String(dev.clock_synced).slice(11,19)}` : ' · not set by us this session')
+          + (s!=null ? ` · sample-stamp offset ${s>=0?'+':''}${Math.abs(s)>=3600?(s/3600).toFixed(1)+'h':Math.round(s)+'s'} vs host` : '');
+  return `<span class="clk ${st.cls}" title="${esc(t)}">🕐 ${st.txt}</span>`;
 }
 function rssiLevel(dbm){ return dbm>=-60?4 : dbm>=-70?3 : dbm>=-80?2 : 1; }
 function rssiClass(dbm, health){

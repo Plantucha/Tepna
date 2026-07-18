@@ -218,6 +218,11 @@ async def _connect_scan(addr: str, name_hints=_O2_NAME_HINTS, timeout: float = 1
             pass
 
 
+def _utcnow():
+    """Device clocks are set in UTC (see polar_psftp.set_local_time), so skew is measured against UTC."""
+    return _dt.datetime.utcnow()
+
+
 def _set(name, **kv):
     STATUS["devices"].setdefault(name, {}).update(kv)
 
@@ -342,7 +347,7 @@ async def run_polar(dev: dict, root: str):
                     try:
                         dev_dt = _POLAR_EPOCH + _dt.timedelta(microseconds=samples[-1].sensor_ns / 1000)
                         _set(name, device_time=dev_dt.isoformat(timespec="seconds"),
-                             clock_skew_sec=round((dev_dt - arrival).total_seconds(), 2))
+                             clock_skew_sec=round((dev_dt - _utcnow()).total_seconds(), 2))
                     except Exception:
                         pass
                     for smp in samples:
@@ -656,7 +661,11 @@ async def run_oxyii(dev: dict, root: str):
                 await asyncio.sleep(0.6)
                 # Sync the ring's free-running RTC to the NTP-synced host once per connect, so its stored
                 # .dat timestamps match the live capture (they drifted ~+151 s — see oxyii.set_time_frame).
-                _clk = _now()
+                # UTC, matching the Polar device clocks — ONE convention across every device clock we set.
+                # Scope note: this only affects the ring's STORED .dat. Its live samples carry no device
+                # timestamp at all (we synthesise the 125.738 Hz grid from host arrival), so unlike the
+                # Polars this is a consistency win, NOT a third leg for cross-device PAT timing.
+                _clk = _utcnow()
                 await client.write_gatt_char(wch, oxyii.set_time_frame(_clk), response=False)   # 0xC0
                 log.info("%s RTC synced to host %s", name, _clk.strftime("%Y-%m-%d %H:%M:%S"))
                 await asyncio.sleep(0.4)
@@ -780,12 +789,12 @@ async def sync_device_time(address: str) -> dict:
             if not is_h10:
                 try:
                     after = await fs.get_local_time()
-                    host_at_read = _now()      # sample the host clock AT the read, so the reported skew
+                    host_at_read = _utcnow()   # UTC: device clocks are set in UTC. Sampled AT the read so
                 except Exception:              # is clock error and not BLE round-trip latency
                     pass
             return before, after, host_at_read
     before, after, host_at_read = await polar_offline_op(address, _op)
-    host = host_at_read or _now()
+    host = host_at_read or _utcnow()
     skew = (after - host).total_seconds() if after else None
     log.info("%s: device clock %s -> %s (host %s, skew %s)", address,
              before.isoformat() if before else "unreadable",
