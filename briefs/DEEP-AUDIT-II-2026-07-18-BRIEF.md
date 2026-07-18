@@ -163,7 +163,7 @@ Re-verified line-by-line against `8588908`: **9/9 still present, 0 fixed.**
 | 7.6 | `recording.durSec` emitted (`motiondex-dsp.js:540`); the Integrator's declared-end chain reads `endEpochMs / durationMin / durationSec` and **never `durSec`** (`integrator-dsp.js:258`) — all-node overlap reads 40 min for 480 | **W** |
 | 7.7 | The effort-**PRESENT percentage** rendered under the "Effort amplitude" label and badge (`motiondex-render.js:162`, directly below the genuine amplitude row at `:161`). **The fix cannot be a pure relabel** — `motiondex-registry.js` has no `effortPresentFrac` entry, so renaming alone trips 7.8's fail-open path and the number ships unbadged | mislabelled |
 | 7.8 | MotionDex's badge helper is the **only one in the fleet that fails OPEN** (`motiondex-render.js:46`, `badgeForLabel(label, false)`), and its registry is loaded by **neither** runner | **R** (latent) |
-| 7.9 | `toG` tests `unit === 'mg'` case-sensitively — a `[mG]` header would yield 1000× motion metrics | **R** (latent — no producer emits it) |
+| 7.9 | `toG` tests `unit === 'mg'` case-sensitively (`:147`) while `UNIT_RE` (`:88`) captures case-insensitively — a `[mG]` header yields 1000× motion metrics. **CORRECTED 2026-07-18 by the `ENGINE-VERIFICATION-FINDINGS` cross-check** — there are *two* defects in this unit pair, and the sibling is the reachable one: the acc branch `/mg\|(^g$)\|G/` matches a **Gauss magnetometer** header `[G]` and returns `{kind:'acc', unit:'G'}`, so Gauss is read as gravity-g. That is **not** hypothetical — PSL itself writes Gauss, and a real corpus file (`Polar_Sense_0C301E3F_20260610_211540_MAGN.txt`) carries `X [G];Y [G];Z [G]`. **Fix MotionDex, not the capture host**: convert Gauss → µT at the parse boundary (1 G = 100 µT) per `CLAUDE.md` §📏. Latent only because routing is by filename (`motiondex-app.js:22-29`) and `_kind` is written at `:134`, read nowhere — a header-fallback route would make it live | **R** (latent — routing-gated, not shape-gated) |
 
 ## 8 · Integrator
 
@@ -197,6 +197,22 @@ untested by construction. That single gap explains 9.1–9.4.
 | 10.2 | `pickNearestByStamp` has **no max-distance guard** — a 5-day-old sidecar renders a green "98.3 % Agreement"; a foreign ACC silently changes which beats survive into the HRV numbers | **W** |
 | 10.3 | An unparseable stamp scores as epoch 0 (`(candidates[i].stampMs \|\| 0)`) — absence ranked as the **WORST** evidence | **S** |
 | 10.4 | ECGDex multi-night drop: `DEVICE_RR/HR/ACC` are single globals — "✓ Self-RR validated" off another night's beats; a wrong-night ACC **rewrites exported `ev.meta.position`** | **W** |
+| 10.5 | **The other half of 10.2/10.3, found independently by `ENGINE-VERIFICATION-FINDINGS §1.1`** — `fnameStampMs` (`signal-orchestrate.js:397`) is an **unanchored** regex, so on a real Polar name it matches the **8-digit device serial** before the date: `Polar_H10_02849638_20260617_010616_ACC.txt` → `0292-01-07`. Two H10 nights three days apart collapse to an **identical** stamp, so `pairCompanions`' nearest-stamp tiebreak is inoperative for the H10 and degrades to "first same-device candidate of that kind". Device-shape-dependent — the Verity id contains letters and parses correctly. **The anchored fix already exists one file over** at `dex-ingest.js:42-47`. **10.2/10.3 and this are one bug reached from opposite ends: a broken parser upstream, a guardless selector downstream. Fixing either alone leaves wrong-night pairing reachable — land them together (punch-list #18).** | **W** |
+
+## 10b · Fabricated redundancy — imported from `ENGINE-VERIFICATION-FINDINGS §1.3`
+
+**A miss by this audit, in a class it explicitly hunted** (bug class 7, evidence honesty). Recorded here so
+the punch-list is complete; the finding and its A/B evidence belong to that brief.
+
+| § | Defect | Sev |
+|---|---|---|
+| 10b.1 | **`ledAgreementPct: 100` is fabricated on a one-photodiode device and reaches five surfaces.** `capture-host/capture.py:651` writes the decoded O2Ring pleth as `write_ppg(ph, ns, 0.0, (v, v, v), 0)` — **one 8-bit sample replicated across all three PSL channels**. `ppgdex-dsp.js consensusBeats` then sees `nCh = 3`, so the honest `nCh < 2` early return at `:544` never fires, `singleChannel` stays false, and every cluster resolves `nAgree = 3`. Executed A/B: replicated `(v,v,v)` → `ledAgreementPct` **100**, `ledAgree3of3Pct` **100**, `ledSeries` f3 = 1.0 every bin; honest single channel → all `null`. **HRV is byte-identical**, so this is a reporting-integrity defect, not a computation defect — but `ppgdex-registry.js:44-51` grades `ledAgreement` at **`measured`** tier citing *"% of kept beats where ≥2 of 3 photodiode channels place a systolic peak within ±50 ms"*, and it renders on five surfaces (green "3-LED agree 100%" KPI `ppgdex-app.js:348`, badged q-stat tile `:370`, an all-green ribbon captioned *"The Polar Sense streams 3 optical channels"* `:373`, the node export `:823` rich route, report row `:1173`). **No gate flips** — `integrator-dsp.js:2183` and `ppgdex-dsp.js:1677` treat `null` and `100` identically. Reachable by default (`capture.py:623` defaults `streams` to `['spo2','ppg']`). A **`measured`-tier claim about hardware the device does not have** — exactly what §🎫's COVERAGE MANDATE exists to prevent | **A** |
+
+**Why this audit missed it:** the badges hunter checked *whether a number carries a badge* and *whether its
+tier matches the registry*. Both are correct here — the number is badged and the badge agrees with the
+registry. What is false is the **registry's own claim**, because the *upstream producer* fabricated the
+independence the statistic measures. No amount of in-suite checking finds that; it requires reading the
+capture layer that wrote the file. **This is now bug class 11 in `AUDIT-PROMPT.md`.**
 
 ## 11 · Node-side fusion — `oxydex-fusion.js` (three defects, one call chain, currently ungated)
 
@@ -261,7 +277,7 @@ Correctness first. **One gated change at a time** (`CLAUDE.md` §👥.3). Each i
 | 15 | **CPAPDex `pressureChangePoints`** — `PEN_K` must be re-tuned | 6.1 | 1 bundle · 3-regime + append-invariance gates, verified RED first |
 | 16 | **CPAPDex ODI over therapy span** — commit a probe-off SA2 twin | 6.2 | 1 bundle · MINOR (additive `spanHours`) |
 | 17 | **`CpapCoimport` all-pairs + no start anchor** — land together | 6.3, 6.4 | 1 bundle · **first behavioural gate on `CpapCoimport`** |
-| 18 | **Companion pairing: no max-distance guard + `\|\|0` on a null stamp** | 10.2, 10.3 | **2 bundles** (ECGDex + PpgDex) |
+| 18 | **Companion pairing — ONE bug, three parts, land together.** Anchor `fnameStampMs` (`signal-orchestrate.js:397`, mirror the already-correct `dex-ingest.js:42-47`), add the max-distance guard, and stop scoring a null stamp as epoch 0. Fixing any one alone leaves wrong-night pairing reachable. **Settle it empirically first** with `ENGINE-VERIFICATION`'s experiment: run `pairCompanions` over the full `Ecg nightly/` H10 set in one call and assert every companion's date matches its primary's | 10.2, 10.3, 10.5 | **2 bundles** (ECGDex + PpgDex) + `signal-orchestrate.js` |
 | 19 | **ECGDex multi-night `DEVICE_*` globals** | 10.4 | app-only leg provably export-inert; other legs move `computeHash` |
 | 20 | **PulseDex triangular index vs 24-h Holter norms** — three call sites incl. a hero KPI | 3.4 | 3 bundles |
 | 21 | **PulseDex `artifactClean` median contamination** — one line; **fixtures proven unmoved** | 3.3 | 1 bundle · no regeneration owed |
@@ -280,6 +296,7 @@ Correctness first. **One gated change at a time** (`CLAUDE.md` §👥.3). Each i
 | 29 | **ECGDex worker duplicates the parsed prefix** — **closes the last shadow realm** | 4.4 | `-app.js` only → provably export-inert (compute it) |
 | 30 | **HRVDex storage-failure warning is dead code** — also correct `AUDIT-FOLLOWUPS-II §4`'s false DONE stamp | 1.11 | 1 bundle |
 | 31 | **Integrator longitudinal footer renders count with a `d` suffix** | 8.4 | render-only, 1 bundle |
+| 31b | **`ledAgreementPct` fabricated on the one-photodiode O2Ring pleth** — a `measured`-tier claim about hardware the device lacks, on five surfaces. Prefer **option (b)**: mark the file at the capture layer so `consensusBeats` takes its honest `nCh < 2` return (option (a), writing one channel, needs PpgDex's single-channel path from `PPGDEX-O2RING-FINGER-SITE` first, or `parsePPG`'s ≥6-field requirement rejects the file). Owned by `ENGINE-VERIFICATION-FINDINGS §1.3` — listed here for punch-list completeness, **do not execute twice** | 10b.1 | `capture-host/` (out-of-suite) + optionally 1 bundle · **needs a gate — none of the five surfaces is covered** |
 
 ## Tier 3 — provenance / contract / robustness
 

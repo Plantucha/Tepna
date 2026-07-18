@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** REFERENCE (living audit charter) · **last-verified:** 2026-06-30 · **Audience:** an AI agent (or human) doing a deep correctness audit of the Tepna Dex suite
+**Status:** REFERENCE (living audit charter) · **last-verified:** 2026-07-18 · **Audience:** an AI agent (or human) doing a deep correctness audit of the Tepna Dex suite
 
 # Deep-audit prompt — Tepna Dex suite
 
@@ -28,6 +28,25 @@ line-by-line hoping to spot a typo. Prefer **differential** (compare two paths t
 **metamorphic** (transform the input in a way the output must respect), and **adversarial-input**
 reasoning. Trace at least one **real recording end-to-end** (raw file → parse → `SignalFrame` → `compute()`
 → export → Integrator fusion) and inspect every boundary’s **units, clock, and null-handling**.
+
+**Start one hop EARLIER than feels necessary.** The trace above begins at "raw file" — but something *wrote*
+that file. Read `capture-host/` (the writer) alongside the adapter that parses it, and ask whether the file's
+**shape honestly reflects the hardware**. A whole defect class lives only in that seam and is invisible to any
+amount of in-suite checking (see bug class 11).
+
+**A comment is not a measurement. A brief marked DONE is not a measurement.** In this repo a code comment
+describing a defect, a `Status: DONE` header, and observed behaviour are three different things, and only the
+third is evidence. Comments describing *already-fixed* bugs are common here — one is a post-fix regression
+note that reads exactly like a live defect report. Before acting on any defect claim you did not execute
+yourself, execute it. (Precedent: a 29-agent verification pass found **6 of 14** candidate findings did not
+survive execution.)
+
+**Verify the MECHANISM, not the correlation.** When an experiment shows that changing X moves output Y, trace
+*how* before concluding what it means — otherwise you will credit a defect as a feature. Real precedent:
+adding a gyro stream measurably changed MotionDex's body-position output, which was recorded as "gyro
+contributes to a metric". It does not: gyro reaches no positional code path, and the only thing it changed
+was a shared `durSec` denominator that then diluted the result with sample-less epochs. The experiment was
+sound; the interpretation inverted a bug into a feature.
 
 **Before you start:** read `ORIENTATION.md` (the map) and `CLAUDE.md` (the constitution — it wins on every
 conflict). Then establish a **green baseline**: open `Dex-Test-Suite.html?full` (render-coverage is
@@ -116,6 +135,53 @@ at a time.
     aside foreign streams, or analyze a magnetometer file as ECG?); a ≥7 h overnight (full-coverage, no
     silent truncation); `O(N²)` paths (sampEn caps) on a long record.
 
+11. **Fabricated redundancy — a consensus statistic over inputs that are not independent.** *(Added
+    2026-07-18: this class was missed by a 16-hunter audit that was explicitly hunting evidence honesty.)*
+    Any statistic whose meaning is **agreement** — n-of-m consensus, channel agreement, inter-estimator
+    concordance, cross-validation between two paths — is honest **only if its inputs are independent**. When
+    an upstream producer replicates one source into many, the statistic measures a value against *itself*,
+    renders as a perfect score, and is graded `measured`. **Hunt:** any `nAgree` / `agreementPct` /
+    `nOf3` / `consensus*` / `concordance` metric — then go **upstream of the file** and confirm the channels
+    are physically distinct. Check the honest early-return (`nCh < 2` and friends) actually fires for
+    degenerate input. **Canonical example:** `capture-host/capture.py` writes the O2Ring's single-photodiode
+    pleth as `write_ppg(ph, ns, 0.0, (v, v, v), 0)` — one 8-bit sample replicated across three PSL channels
+    — so `ppgdex-dsp.js consensusBeats` sees `nCh = 3`, never takes its `nCh < 2` return, and reports
+    `ledAgreementPct: 100` at **`measured`** tier across five surfaces, for hardware that has one photodiode.
+    ⚠️ **Why the badge sweep cannot find this:** the number *is* badged and its tier *does* match the
+    registry. What is false is the registry's own claim. Checking badge-vs-registry consistency will report
+    green forever. You must read the producer.
+
+12. **Filename-derived semantics — unanchored regexes over names.** A surprising amount of meaning is
+    extracted from *filenames* (date, device id, stream kind, night grouping), and a regex that is correct
+    on a synthetic name silently matches the wrong digits on a real one. **Hunt:** every regex applied to a
+    filename — is it **anchored**? Execute it against **real corpus names**, not invented ones. **Canonical
+    example:** `signal-orchestrate.js:397` `fnameStampMs` is unanchored, so on
+    `Polar_H10_02849638_20260617_010616_ACC.txt` it matches the **8-digit device serial** before the date
+    and returns year 0292 — collapsing two nights three days apart to an identical stamp and silently
+    disabling a nearest-stamp tiebreak. Device-shape-dependent: the Verity id contains letters and parses
+    fine, so a single-device test proves nothing. **Note the anchored sibling one file over
+    (`dex-ingest.js:42-47`) — see class 14.**
+
+13. **The missing instance — what ISN'T there.** A per-file sweep is structurally blind to an *absent*
+    one: you cannot grep for the cross-night envelope a node never emits, the regen tool that was never
+    written, or the registry entry a rendered number lacks. **Hunt by building a matrix** — every node in
+    the roster × every cross-cutting surface (crossnight envelope · `tools/regen-<node>-goldens.mjs` ·
+    registry entry per surfaced metric · equiv/GATE-C leg · render-coverage rig · adapter) — **and report
+    the empty cells.** Precedent: three nodes emit no crossnight envelope; MotionDex has no regen tool and
+    no registry entry for a number it renders; four surfaces have zero behavioural coverage. Each was found
+    by enumeration, none by reading code.
+
+14. **Sibling divergence — the in-repo precedent is your fix AND your proof.** This is a fleet of near-clone
+    nodes, so almost every function has 3–8 siblings doing the same job. **When you find a defect, grep the
+    siblings immediately: if they differ, one of them is wrong, and if one is right you have a correct
+    implementation to port plus proof the fix is achievable.** Conversely a lone divergent implementation is
+    itself a strong lead. **Canonical examples:** PpgDex derives `fs` from the **median** sensor-ns delta
+    (correct) while ECGDex infers it from a **single** ms delta (parses 130 Hz as 143/167) — the fix is a
+    port, not a design. `dex-ingest.js` anchors its filename stamp regex; `signal-orchestrate.js` does not.
+    `actigraphy` got a coverage fix (`3e9792f`) that `bodyPosition` never received. `d_pns_eff` gates
+    `_pnn50 >= 1`; its neighbour `d_otr` gates `>= 0` and `null >= 0` is `true`. **A divergence between
+    siblings is the single highest-yield grep in this codebase.**
+
 ---
 
 ## How to verify (use these — don’t eyeball)
@@ -126,9 +192,24 @@ at a time.
   equiv gate already does exactly this (volatile-stripped). A finding that survives this diff is real.
 - **Metric truth** = each `*-registry.js` (label/unit/good-direction/evidence; kept honest by `cohesion-badges`).
   **Provenance** = the two gates + `manifest-gate.js`. **Event vocabulary** = `docs/EVENT-LEXICON.md`.
-- **Trace end-to-end:** pick one real `uploads/` recording, follow it raw → adapter (`adapters/*.js`) →
-  `SignalFrame` (`signal-frame.js validateFrame`) → `compute()` → export → `integrator-dsp.js` fusion. At each
-  hop: units? clock? `null` vs fabricated? badge?
+- **Trace end-to-end:** pick one real `uploads/` recording, follow it **producer (`capture-host/`) →** raw →
+  adapter (`adapters/*.js`) → `SignalFrame` (`signal-frame.js validateFrame`) → `compute()` → export →
+  `integrator-dsp.js` fusion. At each hop: units? clock? `null` vs fabricated? badge? **and does the file's
+  shape honestly reflect the hardware?**
+- **Build the coverage matrix** (class 13): roster × cross-cutting surface, and report the empty cells. This
+  takes ten minutes and finds defects no amount of reading will.
+- **Grep the siblings** (class 14) the moment you find anything. Divergence between near-clone nodes is the
+  highest-yield signal in this repo.
+
+### Declare your scope — and name what you did NOT cover
+
+Both 2026-07-18 audits skipped the same three things while reporting confidently on everything else. State
+explicitly, in the report, whether you covered: **(a)** the browser lane (`Dex-Test-Suite.html?full`,
+`verify-provenance.html`, render-coverage rigs — a headless `node:vm` audit covers **none** of it); **(b)**
+`capture-host/` (Python, out-of-suite, its own pytest CI); **(c)** the **Integrator's fusion arithmetic** —
+the noisy-OR posterior, `effConf`, the Poisson null models, the event-coupling surrogate machinery. (c) in
+particular has now been left unaudited by two consecutive passes that both examined the Integrator's *ingest
+and presentation* and stopped there. **A green area you did not look at must not read as a verified one.**
 
 ---
 
@@ -163,3 +244,28 @@ For each finding, give:
   in `CLAUDE.md` (edit `.js`/`.src.html`, never the bundled `.html`; one gated change at a time).
 
 Group findings by node/module. End with a short **prioritized punch-list** (correctness first).
+
+### Also report what you REFUTED — this section is mandatory
+
+A claim you investigated and **disproved by execution** is a deliverable, not a discard. Add a
+**"What NOT to chase — investigated and REFUTED"** section listing each dead claim with the evidence that
+killed it. Without it the next auditor spends a day re-deriving a bug that was fixed six days ago — which is
+exactly what happens here, because stale comments and premature DONE stamps keep re-seeding the same false
+leads. Give the refutation the same evidentiary standard as a finding.
+
+Two cautions learned from doing this:
+- **Refute the claim, not the underlying concern.** State precisely what was disproved. A row reading "false
+  — X does affect Y" can be literally true while the *mechanism* is itself a defect (see MISSION, "verify the
+  mechanism"). If you refute a claim but find something adjacent, say so in the same row.
+- **A refuted claim is not a cleared area.** "This specific bug is not real" never implies "this code is
+  correct."
+
+### Cross-check against concurrent audits before filing
+
+Several audits may run in the same week against different slices. Before finalising, `grep` `briefs/` and
+`audits/` for passes dated within ~a week and reconcile: **(1)** does anything you filed appear in *their*
+REFUTED list (resolve it — one of you is wrong); **(2)** did you each find a **different half of one bug**
+(the 2026-07-18 pairing defect was found from both ends by two audits, neither seeing the other's half —
+merge them or a partial fix ships); **(3)** does their evidence *demonstrate* one of your findings under a
+different reading. Convergence between independent passes is the strongest signal available here — and
+**where two passes overlapped in 2026-07-18 they agreed, with zero contradictions across 72 findings.**
