@@ -15,7 +15,10 @@
  * mirror sensor-trio-power-analysis.js. 100% local; serve over http://.
  */
 (function () {
-  'use strict';
+  // §1.5 — the promotion-gate thresholds are single-sourced in pat-gate.js. These used to be five
+  // bare literals here, silently duplicating verdict()'s copy in the worker.
+  var G = (self.PATGate || {}).PAT_GATE || { COUPLING_MIN: 0.55, BEAT_IQR_MAX_MS: 60, DRIFT_MAX_MS: 60 };
+  ('use strict');
   var PHYS_LO = 200,
     PHYS_HI = 650; // chest ECG R → ankle PPG foot: longest peripheral PTT + PEP + convention
   var C = { ink: '#e6edf6', mut: '#6f8096', teal: '#3DE0D0', blue: '#58A6FF', amber: '#FFB84D', red: '#FF6B7A', green: '#39D98A' };
@@ -455,16 +458,16 @@
     var cards = [];
     cards.push(hcard('shared clock', sc.ok ? 'YES' : 'NO', '', 'Δstart ' + (sc.dT0 / 1000).toFixed(1) + ' s · beats ' + (sc.beatRatio * 100).toFixed(1) + '%', sc.ok ? C.green : C.red));
     if (cp.ok) {
-      cards.push(hcard('beats coupled', (cp.matchRate * 100).toFixed(0), '%', cp.nCoupled + ' beats (local baseline)', cp.matchRate >= 0.55 ? C.green : C.amber));
+      cards.push(hcard('beats coupled', (cp.matchRate * 100).toFixed(0), '%', cp.nCoupled + ' beats (local baseline)', cp.matchRate >= G.COUPLING_MIN ? C.green : C.amber));
       cards.push(hcard('median lag', cp.med.toFixed(0), 'ms', 'IQR ' + cp.p25.toFixed(0) + '–' + cp.p75.toFixed(0), C.blue));
-      cards.push(hcard('beat-to-beat', isFinite(cp.residIQR) ? cp.residIQR.toFixed(0) : '—', 'ms', 'lag IQR vs local baseline', cp.residIQR <= 60 ? C.green : C.amber));
+      cards.push(hcard('beat-to-beat', isFinite(cp.residIQR) ? cp.residIQR.toFixed(0) : '—', 'ms', 'lag IQR vs local baseline', cp.residIQR <= G.BEAT_IQR_MAX_MS ? C.green : C.amber));
       cards.push(
         hcard(
           'drift',
           isFinite(cp.driftRange) ? cp.driftRange.toFixed(0) : '—',
           'ms',
           (isFinite(cp.ppm) ? cp.ppm.toFixed(0) + ' ppm' : '') + (isFinite(cp.linR2) ? ' · R²=' + cp.linR2.toFixed(2) : ''),
-          cp.driftRange <= 60 ? C.green : C.amber
+          cp.driftRange <= G.DRIFT_MAX_MS ? C.green : C.amber
         )
       );
     }
