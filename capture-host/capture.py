@@ -409,9 +409,22 @@ async def run_polar(dev: dict, root: str):
                         # Ask the device what settings it offers, then START from THOSE (fixed table is a
                         # fallback). Devices differ: Verity ACC isn't 200 Hz, MAG needs a range, etc.
                         settings = pmd.parse_settings_response(await _ctrl(pmd.get_settings_cmd(meas)))
-                        used_fs = pmd.chosen_rate(meas, settings)
+                        # Log the device's OWN menu of options — the same list Polar Sensor Logger shows
+                        # in its per-stream dialog. This is authoritative (read off the hardware) and it
+                        # is what makes a rate CHOICE possible: H10 ACC defaults to 200 Hz = 369 MB/night,
+                        # 30 % of everything the box writes.
+                        if settings:
+                            log.info("%s %s options: %s", name, pmd.MEAS_NAME.get(meas, meas),
+                                     " ".join(f"{pmd.SETTING_NAME.get(k, hex(k))}={v}"
+                                              for k, v in sorted(settings.items())))
+                        _rates_cfg = (dev.get("rates") or {})
+                        _prefer = _rates_cfg.get(pmd.MEAS_NAME.get(meas, ""))
+                        used_fs = pmd.chosen_rate(meas, settings, _prefer)
+                        # publish the device's own menu so Settings can offer exactly the legal values
+                        _set(name, **{"pmd_options": {**(STATUS["devices"].get(name, {}).get("pmd_options") or {}),
+                                                      pmd.MEAS_NAME.get(meas, str(meas)): settings.get(0x00) or []}})
                         started = False
-                        for cmd, how in ((pmd.build_start(meas, settings), "negotiated"),
+                        for cmd, how in ((pmd.build_start(meas, settings, _prefer), "negotiated"),
                                          (pmd.START.get(meas), "fixed")):
                             if not cmd:
                                 continue

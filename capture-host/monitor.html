@@ -236,6 +236,7 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
 .ov-pills:empty{display:none;}
 .setrow{display:flex;align-items:center;gap:.6rem;padding:4px 0;font-size:12px;}
 .setrow .k{font-family:ui-monospace,monospace;min-width:15rem;}
+.ratesel{font-size:11px;padding:1px 4px;background:var(--surface);color:var(--text);border:var(--b);border-radius:6px;}
 .setrow .mb{color:var(--text3);font-size:11px;}
 .batt-fill{position:absolute;left:1px;top:1px;bottom:1px;background:currentColor;border-radius:1px;transition:width .3s;}
 /* Link/RSSI pill — sits beside the battery pill. Drawn signal bars + dBm (or rate-based quality when the
@@ -662,9 +663,17 @@ async function loadSettings(){
     if(d.vendor==='Polar' && !offer.includes('hr')) offer.push('hr');   // HR char, not a PMD type
     const boxes = offer.map(k=>{
       const on = (d.streams||[]).includes(k);
-      const mb = mbNight((d.bps||{})[k]||0);
+      const opts = (d.rate_options||{})[k] || [];
+      const cur  = (d.rates||{})[k];
+      // The dropdown is built from the DEVICE'S OWN menu (read at connect), so an unsupported rate is
+      // impossible to pick. Only shown when there is an actual choice — most streams offer one rate.
+      const sel = opts.length > 1
+        ? `<select data-addr="${esc(d.address)}" data-rate="${esc(k)}" class="ratesel">` +
+          opts.map(r=>`<option value="${r}" ${(cur||defaultRate(d,k,opts))==r?'selected':''}>${r} Hz${PREF_RATE[k]===r?' ✓ recommended':''}</option>`).join('') +
+          `</select>`
+        : (opts.length===1 ? `<span class="mb">${opts[0]} Hz</span>` : '');
       return `<label class="setrow"><input type="checkbox" data-addr="${esc(d.address)}" data-stream="${esc(k)}" ${on?'checked':''}>
-        <span class="k">${esc(k)}</span><span class="mb">${mb?('~'+mb+' MB/night'):''}</span></label>`;
+        <span class="k">${esc(k)}</span>${sel}<span class="mb" data-mb="${esc(d.address)}|${esc(k)}"></span></label>`;
     }).join('');
     return `<div style="margin-bottom:.7rem"><div class="name">${esc(d.name)}</div>${boxes||'<span class="hint">no streams reported yet</span>'}</div>`;
   }).join('');
@@ -687,22 +696,49 @@ async function loadSettings(){
       <span class="mb">${esc(f.help)} <em style="opacity:.75">(${esc(meta)})</em></span></label>`;
   }).join('');
   updateSetTotal();
-  sd.querySelectorAll('input[type=checkbox]').forEach(el=>el.addEventListener('change', updateSetTotal));
+  sd.querySelectorAll('input,select').forEach(el=>el.addEventListener('change', updateSetTotal));
+}
+// The rate the daemon would pick with no override: its built-in preference if offered, else the max.
+const PREF_RATE = {ecg:130, ppg:55, acc:50, gyro:52, mag:20};   // mirrors polar_pmd._PREF_RATE
+function defaultRate(d,k,opts){
+  const p = PREF_RATE[k];
+  return (p!=null && opts.includes(p)) ? p : Math.max.apply(null, opts);
+}
+function selectedRate(dev,k){
+  const el = document.querySelector(`select[data-addr="${dev.address}"][data-rate="${k}"]`);
+  if(el) return parseFloat(el.value);
+  const opts=(dev.rate_options||{})[k]||[];
+  return (dev.rates||{})[k] || (opts.length?defaultRate(dev,k,opts):null);
+}
+// Cost SCALES with the chosen rate — bytes/sec is proportional to samples/sec. A fixed figure would
+// start lying the moment a rate is changed, which is exactly the bug this dropdown could reintroduce.
+function bpsFor(dev,k){
+  const ref=(dev.bps_ref||{})[k]; if(!ref) return 0;
+  const [base, at] = ref;
+  const r = selectedRate(dev,k);
+  return (r && at) ? base*(r/at) : base;
 }
 function updateSetTotal(){
   let bps=0;
-  document.querySelectorAll('#setStreams input[type=checkbox]:checked').forEach(el=>{
-    const dev = SETTINGS.devices.find(d=>d.address===el.dataset.addr);   // cost is PER DEVICE: the same
-    bps += ((dev&&dev.bps)||{})[el.dataset.stream]||0;                    // stream name differs by model
+  document.querySelectorAll('#setStreams input[type=checkbox]').forEach(el=>{
+    const dev = SETTINGS.devices.find(d=>d.address===el.dataset.addr);
+    if(!dev) return;
+    const b = bpsFor(dev, el.dataset.stream);
+    const cell = document.querySelector(`[data-mb="${el.dataset.addr}|${el.dataset.stream}"]`);
+    if(cell) cell.textContent = b ? `~${mbNight(b)} MB/night` : '';
+    if(el.checked) bps += b;
   });
   $('#setTotal').textContent = `selected: ~${mbNight(bps)} MB per 9 h night (${(bps/1024).toFixed(1)} kB/s)`;
 }
 async function saveSettings(btn){
   const t0=btn.textContent; btn.disabled=true; btn.textContent='saving…';
-  const streams={}, settings={};
+  const streams={}, settings={}, rates={};
   document.querySelectorAll('#setStreams input[type=checkbox]').forEach(el=>{
     (streams[el.dataset.addr] = streams[el.dataset.addr] || []);
     if(el.checked) streams[el.dataset.addr].push(el.dataset.stream);
+  });
+  document.querySelectorAll('#setStreams select.ratesel').forEach(el=>{
+    (rates[el.dataset.addr] = rates[el.dataset.addr] || {})[el.dataset.rate] = parseInt(el.value,10);
   });
   document.querySelectorAll('#setFields input').forEach(el=>{
     if(el.type==='checkbox'){ settings[el.dataset.key] = el.checked; return; }
@@ -712,7 +748,7 @@ async function saveSettings(btn){
   });
   try{
     const r = await api('/api/settings',{method:'POST',headers:{'content-type':'application/json'},
-                                         body:JSON.stringify({settings,streams})});
+                                         body:JSON.stringify({settings,streams,rates})});
     $('#setMsg').textContent = r.ok
       ? (r.changed.length ? `saved: ${r.changed.join(', ')}${r.restart_needed?' — reconnect the device to apply':''}` : 'no changes')
       : 'rejected: '+r.error;

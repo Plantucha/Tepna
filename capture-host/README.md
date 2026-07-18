@@ -99,3 +99,12 @@ not the IP) so the suite's profile + longitudinal history stay consistent.
 When real files surface vendor-format quirks, add the exact column/timestamp regex to the relevant
 `*-dsp.js` (Clock Contract §2), keep `Dex-Test-Suite.html` green, and log it in a
 `CAPTURE-HOST-FOLLOWUPS-YYYY-MM-DD-BRIEF.md`.
+
+## Gotcha: stale bytecode on the NTFS checkout
+
+This repo lives on an `ntfs3` mount, where timestamp behaviour can defeat Python's mtime-based
+`.pyc` invalidation. Symptom: `grep` shows your edit, but `import` still returns the OLD value —
+so the daemon runs stale code and tests fail against a file that looks correct.
+Cost us a wrong-rate diagnosis on 2026-07-18. If behaviour disagrees with the source:
+
+    find capture-host -name __pycache__ -type d -exec rm -rf {} +

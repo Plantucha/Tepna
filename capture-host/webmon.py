@@ -189,16 +189,27 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
     # hardware, so a single global table lies. H10 ACC runs at 200 Hz (11.4 kB/s) while the Verity's runs
     # at 52 Hz (2.9 kB/s): quoting one number for "acc" overstated the Verity by ~4x. Measured on this
     # host 2026-07-18 over real captures.
+    # (bytes/sec, at_rate_hz) measured on this host 2026-07-18. Cost scales with the CHOSEN rate — a
+    # fixed MB figure would start lying the moment a rate is changed, which is the whole point of the
+    # dropdown. Per device, because the same stream name costs very different amounts on different
+    # hardware (H10 ACC 200 Hz vs Verity ACC 52 Hz).
     _BPS_BY_MODEL = {
-        "H10":    {"ecg": 7800, "acc": 11400, "hr": 35},
-        "Verity": {"ppg": 3750, "acc": 2950, "gyro": 2800, "mag": 2950, "ppi": 30},
-        "O2Ring": {"spo2": 60, "ppg": 6200},     # ppg = the 125 Hz finger pleth, ~191 MB/night
+        "H10":    {"ecg": (7800, 130), "acc": (11400, 200), "hr": (35, 1)},
+        "Verity": {"ppg": (3750, 55), "acc": (2950, 52), "gyro": (2800, 52),
+                   "mag": (2950, 50), "ppi": (30, 1)},
+        "O2Ring": {"spo2": (60, 1), "ppg": (6200, 125.738)},
     }
 
-    def _bps_for(dev: dict) -> dict:
+    def _model_of(dev: dict) -> str:
         blob = f"{dev.get('model','')} {dev.get('name','')}".lower()
-        key = "H10" if "h10" in blob else ("Verity" if ("verity" in blob or "sense" in blob) else "O2Ring")
-        return _BPS_BY_MODEL[key]
+        return "H10" if "h10" in blob else ("Verity" if ("verity" in blob or "sense" in blob) else "O2Ring")
+
+    def _bps_for(dev: dict) -> dict:
+        return {k: v[0] for k, v in _BPS_BY_MODEL[_model_of(dev)].items()}
+
+    def _bps_ref(dev: dict) -> dict:
+        """{stream: [bytes_per_sec, at_rate]} so the UI can scale cost by the selected rate."""
+        return {k: list(v) for k, v in _BPS_BY_MODEL[_model_of(dev)].items()}
 
     async def settings_get(_req):
         devs = []
@@ -220,7 +231,11 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 supported = ["spo2", "ppg"]
             devs.append({"name": d.get("name"), "address": d.get("address"), "vendor": d.get("vendor"),
                          "streams": d.get("streams") or [], "supported": supported,
-                         "bps": _bps_for(d)})
+                         "bps": _bps_for(d), "bps_ref": _bps_ref(d),
+                         # the device's OWN menu of legal rates, read at connect — a dropdown built from
+                         # this cannot offer an unsupported value
+                         "rate_options": st.get("pmd_options") or {},
+                         "rates": d.get("rates") or {}})
         return web.json_response({
             "settings": settings_schema.describe(cfg, {}),
             "devices": devs,
@@ -258,6 +273,27 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                     dev["streams"] = streams
                     changed.append(f"{dev.get('name')}.streams")
                     restart_needed = True    # PMD START is negotiated at connect
+            for addr, rates in (body.get("rates") or {}).items():
+                dev = next((d for d in cfg.get("devices", []) if d.get("address") == addr), None)
+                if not dev:
+                    raise settings_schema.SettingsError(f"unknown device {addr}")
+                opts = (status.get("devices", {}).get(dev.get("name"), {}).get("pmd_options") or {})
+                clean = {}
+                for stream, val in rates.items():
+                    try:
+                        v = int(val)
+                    except (TypeError, ValueError):
+                        raise settings_schema.SettingsError(f"{stream} rate must be a number") from None
+                    allowed = opts.get(stream) or []
+                    if allowed and v not in allowed:
+                        # Refuse rather than let the device reject the START and leave an idle stream.
+                        raise settings_schema.SettingsError(
+                            f"{dev.get('name')} {stream}: {v} Hz not offered (choose {allowed})")
+                    clean[stream] = v
+                if clean != (dev.get("rates") or {}):
+                    dev["rates"] = clean
+                    changed.append(f"{dev.get('name')}.rates")
+                    restart_needed = True     # rate is fixed at PMD START, i.e. at connect
         except settings_schema.SettingsError as e:
             return web.json_response({"ok": False, "error": str(e)}, status=400)
         if changed:
