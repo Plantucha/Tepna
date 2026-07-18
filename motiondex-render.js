@@ -3,12 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
    MotionDex · RENDER  (motiondex-render.js)
    ────────────────────────────────────────────────────────────────────────
-   Paints the single-signal motion summary from MOTIONDSP.compute():
-     · KPI grid  — supine time · immobile time · movement index · resp rate · SQI
-     · Position dwell bar (supine/prone/left/right/upright/unknown)
-     · Effort + SQI detail cards
+   Paints the single-signal motion summary from MOTIONDSP.compute() into the
+   SHARED fleet scaffold (ans-design.css): a .kpi-grid of .kpi tiles + .card
+   sections for position / effort / actigraphy / quality, each revealed with
+   its .section-title. Markup mirrors the fleet's kpi() (badge leads the label
+   inside .kpi-label > .kpi-ev) so MotionDex reads as a fleet member.
    Every surfaced number carries an evidence badge (COVERAGE MANDATE) via
-   MotionRegistry.badgeForLabel — inline `.ev` immediately before the label.
+   MotionRegistry.badgeForLabel.
    ESM-from-birth dual-mode: attaches window.MOTIONUI + re-exports it.
    ════════════════════════════════════════════════════════════════════════ */
 (function (global) {
@@ -28,95 +29,149 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
     });
   }
-  // evidence dot immediately BEFORE the label (mandate placement #2, dense grid)
+  function $(id) {
+    return typeof document !== 'undefined' ? document.getElementById(id) : null;
+  }
+  // set a container's HTML and reveal it + its section title (both start display:none)
+  function fill(cardId, titleId, html) {
+    var c = $(cardId);
+    if (c) {
+      c.innerHTML = html;
+      c.style.display = '';
+    }
+    var t = $(titleId);
+    if (t) t.style.display = '';
+  }
   function badge(label) {
     return global.MotionRegistry ? global.MotionRegistry.badgeForLabel(label, false) : '';
   }
-  function kpi(label, value, sub) {
+  // fleet .kpi tile — badge LEADS the label inside .kpi-label > .kpi-ev (the cohesion-gated pattern)
+  function kpi(label, val, sub) {
+    var b = badge(label);
     return (
-      '<div class="mx-kpi">' +
-      '<div class="mx-kpi-l">' +
-      badge(label) +
-      ' ' +
+      '<div class="kpi"><div class="kpi-label">' +
+      (b ? '<span class="kpi-ev">' + b + '</span>' : '') +
       esc(label) +
-      '</div>' +
-      '<div class="mx-kpi-v">' +
-      esc(value) +
-      '</div>' +
-      (sub ? '<div class="mx-kpi-s">' + esc(sub) + '</div>' : '') +
-      '</div>'
+      '</div><div class="kpi-val">' +
+      esc(val) +
+      '</div><div class="kpi-sub">' +
+      esc(sub || '') +
+      '</div></div>'
     );
+  }
+  function row(label, val, sub) {
+    return '<div class="mx-row"><span>' + badge(label) + ' ' + esc(label) + '</span><b>' + esc(val) + (sub ? '</b> <span class="kpi-sub">' + esc(sub) + '</span>' : '</b>') + '</div>';
+  }
+
+  // fraction of RECORDED (present!=null) epochs in which effort was present — coverage-honest:
+  // no-chest-ACC epochs (present:null) are excluded from the denominator, never scored as absent.
+  function effortPresentPct(series) {
+    if (!series || !series.length) return null;
+    var rec = 0,
+      on = 0;
+    for (var i = 0; i < series.length; i++) {
+      if (series[i].present == null) continue;
+      rec++;
+      if (series[i].present) on++;
+    }
+    return rec ? Math.round((on / rec) * 100) : null;
   }
 
   function positionBar(dwellFrac) {
     if (!dwellFrac) return '';
-    var seg = '';
-    for (var i = 0; i < POS_ORDER.length; i++) {
+    var seg = '',
+      legend = '',
+      i;
+    for (i = 0; i < POS_ORDER.length; i++) {
       var p = POS_ORDER[i],
         f = dwellFrac[p] || 0;
       if (f <= 0) continue;
       seg += '<span class="mx-seg mx-seg-' + p + '" style="flex:' + f.toFixed(4) + '" title="' + esc(POS_LABEL[p]) + ' ' + pct(f) + '"></span>';
-    }
-    var legend = '';
-    for (i = 0; i < POS_ORDER.length; i++) {
-      var q = POS_ORDER[i];
-      if (!(dwellFrac[q] > 0)) continue;
-      legend += '<span class="mx-lg"><i class="mx-dot mx-seg-' + q + '"></i>' + esc(POS_LABEL[q]) + ' ' + pct(dwellFrac[q]) + '</span>';
+      legend += '<span class="mx-lg"><i class="mx-dot mx-seg-' + p + '"></i>' + esc(POS_LABEL[p]) + ' ' + pct(f) + '</span>';
     }
     return '<div class="mx-bar">' + seg + '</div><div class="mx-legend">' + legend + '</div>';
   }
 
-  // renderSummary(summary, rootEl) → paints the compute() result into rootEl
-  function renderSummary(summary, rootEl) {
-    var root = typeof rootEl === 'string' ? document.getElementById(rootEl) : rootEl;
-    if (!root) return;
+  // effort sparkline — one bar per epoch: present (accent) / absent (grey) / no-coverage (hatched)
+  function effortSpark(series) {
+    if (!series || !series.length) return '';
+    var maxAmp = 0,
+      i;
+    for (i = 0; i < series.length; i++) if (series[i].amp > maxAmp) maxAmp = series[i].amp;
+    var bars = '';
+    for (i = 0; i < series.length; i++) {
+      var e = series[i];
+      var cls = e.present == null ? 'mx-sp mx-sp-nul' : e.present ? 'mx-sp' : 'mx-sp mx-sp-off';
+      var h = e.amp != null && maxAmp > 0 ? Math.max(8, Math.round((e.amp / maxAmp) * 100)) : 100;
+      var ttl = e.present == null ? 'no chest ACC' : (e.present ? 'effort present' : 'effort absent') + ' · ' + num(e.amp, 4) + ' g';
+      bars += '<span class="' + cls + '" style="height:' + h + '%" title="' + esc(ttl) + '"></span>';
+    }
+    return '<div class="mx-spark">' + bars + '</div>';
+  }
+
+  // renderSummary(summary) → paints every section of the shared scaffold
+  function renderSummary(summary) {
+    var grid = $('mxKpiGrid');
     if (!summary || !summary.streams || (!summary.streams.acc && !summary.streams.chestAcc)) {
-      root.innerHTML = '<div class="mx-empty">No IMU samples parsed. Drop Polar Sensor Logger ' + '<code>_ACC / _GYRO / _MAGN</code> files (Verity or H10).</div>';
+      if (grid) grid.innerHTML = '<div class="mx-empty">No IMU samples parsed. Drop Polar Sensor Logger <code>_ACC / _GYRO / _MAGN</code> files (Verity or H10).</div>';
       return;
     }
     var pos = summary.position || {},
       act = summary.activity || {},
       eff = summary.effort || {},
       sqi = summary.sqi || {};
-    var mins = summary.durSec ? (summary.durSec / 60).toFixed(0) + ' min' : '—';
 
-    var html = '';
-    html +=
-      '<div class="mx-head"><b>MotionDex</b> · ' +
-      esc(mins) +
-      ' · ' +
-      'ACC ' +
-      (summary.streams.acc || 0) +
-      ' · GYRO ' +
-      (summary.streams.gyro || 0) +
-      ' · MAGN ' +
-      (summary.streams.mag || 0) +
-      ' · chest ' +
-      (summary.streams.chestAcc || 0) +
-      '</div>';
+    // ── KPI grid ──
+    var k = '';
+    k += kpi('Supine time', pos.hasData ? pct(pos.supineFrac) : '—', 'positional-OSA target ↓');
+    k += kpi('Immobile time', act.hasData ? pct(act.immobileFrac) : '—', 'below movement threshold');
+    k += kpi('Movement index', act.hasData ? num(act.movementIndex, 2) : '—', 'per-epoch activity');
+    k += kpi('Respiratory rate', eff.hasData ? num(eff.rateBrpm, 1) + ' br/min' : '—', eff.hasData ? eff.nBreaths + ' breaths' : 'no chest ACC');
+    k += kpi('Signal quality', sqi.conf != null ? num(sqi.conf, 2) + '×' : '—', sqi.flags && sqi.flags.length ? sqi.flags.join(', ') : 'clean');
+    if (grid) grid.innerHTML = k;
+    var kt = $('mxKPI');
+    if (kt) kt.style.display = '';
 
-    html += '<div class="mx-grid">';
-    html += kpi('Supine time', pos.hasData ? pct(pos.supineFrac) : '—', 'positional-OSA target ↓');
-    html += kpi('Immobile time', act.hasData ? pct(act.immobileFrac) : '—', 'below movement threshold');
-    html += kpi('Movement index', act.hasData ? num(act.movementIndex, 2) : '—', 'per-epoch activity');
-    html += kpi('Respiratory rate', eff.hasData ? num(eff.rateBrpm, 1) + ' br/min' : '—', eff.hasData ? eff.nBreaths + ' breaths' : 'no chest ACC');
-    html += kpi('Signal quality', sqi.conf != null ? num(sqi.conf, 2) + '×' : '—', sqi.flags && sqi.flags.length ? sqi.flags.join(', ') : 'clean');
-    html += '</div>';
+    // ── position ──
+    if (pos.hasData) fill('mxPositionCard', 'mxPosition', positionBar(pos.dwellFrac) + row('Supine time', pct(pos.supineFrac), 'of ' + (pos.track ? pos.track.length : 0) + ' epochs'));
 
-    if (pos.hasData) {
-      html += '<div class="mx-card"><div class="mx-card-h">' + badge('Supine time') + ' Body position</div>' + positionBar(pos.dwellFrac) + '</div>';
-    }
-    if (eff.hasData || (act.hasData && act.epochs)) {
-      html += '<div class="mx-card"><div class="mx-card-h">' + badge('Effort amplitude') + ' Respiratory effort</div>';
-      html += '<div class="mx-row">' + badge('Respiratory rate') + ' Rate <b>' + (eff.hasData ? num(eff.rateBrpm, 1) + ' br/min' : '—') + '</b></div>';
-      html += '<div class="mx-row">' + badge('Effort amplitude') + ' Amplitude <b>' + (eff.hasData ? num(eff.amplitudeG, 4) + ' g' : '—') + '</b></div>';
-      html += '</div>';
+    // ── effort (incl. the per-epoch presence series — standalone read + the fusion's input) ──
+    if (eff.hasData) {
+      var presentPct = effortPresentPct(eff.series);
+      var e = effortSpark(eff.series);
+      e += row('Respiratory rate', num(eff.rateBrpm, 1) + ' br/min', eff.nBreaths + ' breaths');
+      e += row('Effort amplitude', num(eff.amplitudeG, 4) + ' g', 'RMS, 0.1–0.6 Hz band');
+      e += row('Effort amplitude', presentPct == null ? '—' : presentPct + '%', 'effort present, of recorded epochs');
+      fill('mxEffortCard', 'mxEffort', e);
     }
 
-    root.innerHTML = html;
+    // ── actigraphy ──
+    if (act.hasData) {
+      var a = row('Activity counts', num(act.totalCounts, 1), 'Σ dynamic g');
+      a += row('Movement index', num(act.movementIndex, 2), 'per 30 s epoch');
+      a += row('Immobile time', pct(act.immobileFrac), (act.epochs ? act.epochs.length : 0) + ' epochs');
+      fill('mxActivityCard', 'mxActivity', a);
+    }
+
+    // ── quality ──
+    if (sqi.conf != null) {
+      var q = row('Signal quality', num(sqi.conf, 2) + '×', sqi.flags && sqi.flags.length ? sqi.flags.join(', ') : 'clean');
+      q +=
+        '<div class="mx-row"><span>Streams</span><b>ACC ' +
+        (summary.streams.acc || 0) +
+        ' · GYRO ' +
+        (summary.streams.gyro || 0) +
+        ' · MAGN ' +
+        (summary.streams.mag || 0) +
+        ' · chest ' +
+        (summary.streams.chestAcc || 0) +
+        '</b></div>';
+      q += '<div class="mx-row"><span>Recording span</span><b>' + (summary.durSec ? (summary.durSec / 60).toFixed(0) + ' min' : '—') + '</b></div>';
+      fill('mxQualityCard', 'mxQuality', q);
+    }
   }
 
-  global.MOTIONUI = { renderSummary: renderSummary, positionBar: positionBar };
+  global.MOTIONUI = { renderSummary: renderSummary, positionBar: positionBar, effortSpark: effortSpark, effortPresentPct: effortPresentPct };
 })(window);
 
 // ESM-from-birth dual-mode (mirrors glucodex-render): the IIFE attaches window.MOTIONUI for the

@@ -268,6 +268,9 @@
   //  band-limit ~0.1–0.6 Hz (remove <0.1 Hz gravity/drift via a 10 s MA, remove
   //  >0.6 Hz cardiac/motion via a ~1.5 s MA), count breaths on the residual.
   // ════════════════════════════════════════════════════════════════════════
+  // effort-series contract (predesigned for the Integrator apnea-typing fusion, §1.1):
+  var EFFORT_CAD_SEC = 10; // epoch cadence (s) — fine enough to resolve a single ~10–30 s desat window
+  var EFFORT_FLOOR_G = 0.004; // RMS threshold (g) for effort PRESENT vs flat — experimental, uncalibrated (Ryser'22 scale)
   function respiratoryEffort(chestRows, t0Ms, durSec, unit) {
     if (!chestRows || chestRows.length < 30) return { hasData: false };
     var hz = sampleHz(chestRows, t0Ms);
@@ -305,12 +308,36 @@
     var rate = minutes > 0 ? breaths / minutes : NaN;
     // amplitude proxy: RMS of the effort signal
     var rms = Math.sqrt(best.var / Math.max(1, sig.length));
+
+    // ── effort SERIES — a per-epoch presence track. Standalone: MotionDex's own effort-trend read.
+    //    PREDESIGNED for the Integrator apnea-typing fusion (§1.1): the cadence resolves a single
+    //    ~10–30 s desat window, so a consumer can ask "effort present in [desat−15 s, end]?".
+    //    `present:null` where the epoch has no chest samples — coverage-honest (absent ≠ not-recorded).
+    var series = [];
+    var nE = Math.max(1, Math.ceil(durSec / EFFORT_CAD_SEC));
+    for (var e = 0; e < nE; e++) {
+      var lo2 = Math.floor(e * EFFORT_CAD_SEC * hz),
+        hi2 = Math.min(sig.length, Math.floor((e + 1) * EFFORT_CAD_SEC * hz));
+      var tEp = t0Ms != null ? t0Ms + Math.round(e * EFFORT_CAD_SEC * 1000) : null;
+      if (hi2 - lo2 < 3) {
+        series.push({ tMs: tEp, amp: null, present: null });
+        continue;
+      }
+      var ss = 0;
+      for (var k = lo2; k < hi2; k++) ss += sig[k] * sig[k];
+      var eamp = Math.sqrt(ss / (hi2 - lo2));
+      series.push({ tMs: tEp, amp: Math.round(eamp * 1e4) / 1e4, present: eamp >= EFFORT_FLOOR_G });
+    }
+
     return {
       hasData: breaths >= 3 && isFinite(rate),
       hz: hz,
       rateBrpm: isFinite(rate) ? Math.round(rate * 10) / 10 : null,
       nBreaths: breaths,
-      amplitudeG: Math.round(rms * 1e4) / 1e4
+      amplitudeG: Math.round(rms * 1e4) / 1e4,
+      series: series,
+      cadenceSec: EFFORT_CAD_SEC,
+      floorG: EFFORT_FLOOR_G
     };
   }
 
@@ -504,6 +531,11 @@
         immobileFrac: summary.activity ? summary.activity.immobileFrac : null,
         movementIndex: summary.activity ? summary.activity.movementIndex : null,
         respRateBrpm: summary.effort ? summary.effort.rateBrpm : null,
+        // effort-presence series — a MotionDex standalone read AND the Integrator apnea-typing input (§1.1).
+        // Coverage-honest: an epoch's `present` is null where chest ACC was not recording, never a false absent.
+        effortSeries: summary.effort && summary.effort.series ? summary.effort.series : null,
+        effortCadenceSec: summary.effort ? summary.effort.cadenceSec : null,
+        effortFloorG: summary.effort ? summary.effort.floorG : null,
         sqi: summary.sqi ? summary.sqi.conf : null
       },
       ganglior_events: events

@@ -27,6 +27,70 @@
     "immobileFrac": 1,
     "movementIndex": 0,
     "respRateBrpm": 14,
+    "effortSeries": [
+      {
+        "tMs": 1781128800000,
+        "amp": 0.0109,
+        "present": true
+      },
+      {
+        "tMs": 1781128810000,
+        "amp": 0.0106,
+        "present": true
+      },
+      {
+        "tMs": 1781128820000,
+        "amp": 0.0105,
+        "present": true
+      },
+      {
+        "tMs": 1781128830000,
+        "amp": 0.0108,
+        "present": true
+      },
+      {
+        "tMs": 1781128840000,
+        "amp": 0.0106,
+        "present": true
+      },
+      {
+        "tMs": 1781128850000,
+        "amp": 0.0107,
+        "present": true
+      },
+      {
+        "tMs": 1781128860000,
+        "amp": 0.0107,
+        "present": true
+      },
+      {
+        "tMs": 1781128870000,
+        "amp": 0.0107,
+        "present": true
+      },
+      {
+        "tMs": 1781128880000,
+        "amp": 0.0105,
+        "present": true
+      },
+      {
+        "tMs": 1781128890000,
+        "amp": 0.0106,
+        "present": true
+      },
+      {
+        "tMs": 1781128900000,
+        "amp": 0.0108,
+        "present": true
+      },
+      {
+        "tMs": 1781128910000,
+        "amp": 0.0072,
+        "present": true
+      }
+    ],
+    "effortCadenceSec": 10,
+    "effortFloorG": 0.004,
     "sqi": 0.97
   },
   "ganglior_events": [

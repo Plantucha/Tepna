@@ -58,12 +58,12 @@ import { MOTIONUI } from './motiondex-render.js';
       })
     ).then(function () {
       if (!Object.keys(input).length) {
-        MOTIONUI.renderSummary(null, 'mxOut');
+        MOTIONUI.renderSummary(null);
         setStatus('No ACC / GYRO / MAGN streams recognised in the dropped files.');
         return;
       }
       RESULT = MOTIONDSP.compute(input);
-      MOTIONUI.renderSummary(RESULT, 'mxOut');
+      MOTIONUI.renderSummary(RESULT);
       setStatus(names.length + ' file(s): ' + names.join(', '));
       if ($('mxExport')) $('mxExport').disabled = false;
     });
@@ -74,7 +74,7 @@ import { MOTIONUI } from './motiondex-render.js';
     var acc = MOTIONDSP.genSynthetic({ sec: 300, hz: 26, brpm: 15, seed: 7 });
     var chest = MOTIONDSP.genSynthetic({ sec: 300, hz: 26, brpm: 15, seed: 21 });
     RESULT = MOTIONDSP.compute({ acc: acc, chestAcc: chest });
-    MOTIONUI.renderSummary(RESULT, 'mxOut');
+    MOTIONUI.renderSummary(RESULT);
     setStatus('Demo — deterministic synthetic (supine, 15 br/min).');
     if ($('mxExport')) $('mxExport').disabled = false;
   }
@@ -119,6 +119,33 @@ import { MOTIONUI } from './motiondex-render.js';
     }
     if ($('mxDemo')) $('mxDemo').addEventListener('click', runDemo);
     if ($('mxExport')) $('mxExport').addEventListener('click', exportJSON);
+    // theme toggle — the shared fleet control (wired here, NOT via an inline script, so the
+    // strict script-src CSP keeps an empty hash list). Mirrors ecgdex-app.js.
+    var tb = $('themeBtn');
+    if (tb)
+      tb.addEventListener('click', function () {
+        document.body.classList.toggle('light');
+        tb.textContent = document.body.classList.contains('light') ? '🌙 Dark' : '☀️ Light';
+      });
+    // clear-all — drop the result + collapse every section back to its empty state
+    if ($('mxClear'))
+      $('mxClear').addEventListener('click', function () {
+        RESULT = null;
+        ['mxKpiGrid', 'mxPositionCard', 'mxEffortCard', 'mxActivityCard', 'mxQualityCard'].forEach(function (id) {
+          var el = $(id);
+          if (el) {
+            el.innerHTML = '';
+            if (id !== 'mxKpiGrid') el.style.display = 'none';
+          }
+        });
+        ['mxKPI', 'mxPosition', 'mxEffort', 'mxActivity', 'mxQuality'].forEach(function (id) {
+          var el = $(id);
+          if (el) el.style.display = 'none';
+        });
+        if ($('mxExport')) $('mxExport').disabled = true;
+        if ($('mxInput')) $('mxInput').value = '';
+        setStatus('Cleared.');
+      });
     if (location.hash === '#demo') setTimeout(runDemo, 200);
   }
 
