@@ -64,25 +64,30 @@ Either way, once render output is executable-and-asserted, the 7 findings become
 pins. Until then they are **real, shipped, and uncaught** — the highest-severity residue in the whole
 wave (patient-facing wrong numbers), so this §RN is the priority.
 
-## §EP-rest — ecg-ppg call-site tolerances + narrow-band (7 hollow gates)
+## §EP-rest — ecg-ppg call-site tolerances + narrow-band — **6/9 DONE; 3 fixture-blocked**
 
-From the parent §EP (2 of 9 closed in PR #177). The other 7 are not reachable by a pure-function pin
-because the constant is applied **inside `analyze`**, not passed to the exported function, or the band is
-leakage-limited:
+From the parent §EP. **CLOSED:** PR #177 (ECG LF/HF 0.15 + ECG DFA 4..16), PR #193 (PPG DFA 4..16), PR #197
+(**PRSA DC/AC + SampEn** — driven through the FULL `ECGDSP.analyze` on a deterministic `genSynthetic` ECG;
+DC 7.35 / AC −7.16 seed 20260601, SampEn 0.562 seed 42 chosen because `0.2·SD` is tolerance-sensitive on
+that segment), PR #198 (**PPG VLF/LF 0.04** — a clean 0.045 Hz tone over 800 beats resolves the band with no
+leakage; the "narrow-band" deferral was wrong).
 
-- SampEn tolerance `0.2·SD` (ecg + ppg) — `sampEn(seg, m, r)` takes `r` as an arg; the `0.2` is chosen at
-  the call site in `analyze`. Needs an `analyze`-level known-answer (a fuller, non-"light" equiv fixture).
-- PRSA DC/AC normalization `/4` (Bauer) — computed in the analyze path; same remedy.
-- EDR respiration autocorr window `[2.5,10] s` — internal to the EDR extractor in `analyze`.
-- PPG DFA box range `4..16` — `ppgdex-dsp.dfaAlpha1` is reachable (mirror the ecg PR #177 pin — this one
-  IS a quick close, do it first).
-- PPG VLF/LF band edge `0.04 Hz` — the VLF band (0.003–0.04) is too narrow for a clean single-tone RR
-  probe (leakage swamps it); needs a longer synthetic record or a direct band-integral unit test.
-- composite per-beat SQI weights (`0.30·kSQI + …`) — `beatConfidence` is exported; a weight-sensitive
-  known-answer is feasible but needs a hand-built peaks/sqi vector that isolates one weight.
+**REMAINING (3) — each ATTEMPTED and genuinely fixture-blocked (not deferred for convenience):**
+- **EDR respiration autocorr window `[2.5,10] s`** — the surfaced `respRate` is the RR-interval RSA
+  (spectral HF peak / `_respMedian`), which `genSynthetic` fixes at `respHz0 = 0.235` (~14/min). Post-
+  modulating the waveform **amplitude** at 7/min does NOT move it (verified: 14.2→14.5 even at 90 %
+  modulation over 1200 s) — the EDR path reads amplitude but the SURFACED resp tracks the RR-interval RSA,
+  which amplitude editing can't reach. Needs a **slow-respiration ECG synthesizer** (patch `respHz0`, or a
+  from-scratch QRS train with RR-modulated RSA at ~7/min).
+- **composite per-beat SQI weights (`0.30·kSQI + …`)** — the weight only matters for beats near the SQI
+  threshold; `genSynthetic` (even `scenario:'ambulatory'`) produces beats at `sqi≈1`, so a `0.30→0.50`
+  slip moves no surfaced metric (verified: analyzablePct 100→100, correctionRate 0.7→0.7, meanSQI
+  0.998→0.999). Needs a **borderline-SQI waveform generator** (many beats engineered to sit at ~0.3).
+- **PPG SampEn default tol `r = 0.2·SD`** (LOW) — a default-arg on the internal `sampEn`; same
+  analyze-level reachability problem as the ECG SampEn but without a tolerance-sensitive synthetic found.
 
-**Action:** close the PPG-DFA one now (quick, mirrors PR #177); build one `analyze`-level ECG fixture that
-exercises SampEn/PRSA/EDR for the rest.
+Each is a bespoke synthetic-signal generator for a single MED/LOW gate — real diminishing returns versus
+a slow-resp/borderline-SQI ECG fixture that would also serve other future coverage.
 
 ## §AD — adapters (7 hollow gates) — **4/7 DONE (PR #195); no rig needed after all**
 
