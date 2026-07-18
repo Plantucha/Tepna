@@ -184,6 +184,10 @@ def parse_live(payload: bytes) -> dict | None:
         "batt": batt,
         "contact": contact,                            # 0x00 no finger, 0x01 idle-present, 0x03 file open
         "worn": contact in (0x01, 0x03),
+        # RAW, deliberately un-named (see the docstring): returned so it can be RECORDED and finally
+        # identified. It was discarded before, which is exactly why 271 opportunistic frames could not
+        # settle it. Never surface this under a physiological name until it is proven.
+        "flag11": payload[11],
     }
 
 

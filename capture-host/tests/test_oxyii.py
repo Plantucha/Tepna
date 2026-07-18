@@ -130,3 +130,55 @@ def test_parse_live_exposes_the_sequence_counter():
     live = oxyii.parse_live(hdr)
     assert live["seq"] == 42
     assert live["spo2"] == 98 and live["pr"] == 55 and live["batt"] == 41
+
+
+# ── byte [11] identification experiment ────────────────────────────────────────────────────────────
+# [11] is the only other varying byte in the 24-byte live header and it used to be DISCARDED — which is
+# exactly why 271 opportunistic frames could not settle it (22 non-zero, r=0.42 on single points). It is
+# now RETURNED RAW under its offset (never a physiological name we cannot defend) and recorded to a
+# sidecar, so a worn night with natural desaturations can answer it.
+
+def _live_frame(**over):
+    b = bytearray(24)
+    b[0], b[1], b[2], b[3], b[4] = 7, 104, 0, 0, 2
+    b[5], b[6], b[7], b[8] = 0x01, 97, 3, 62      # contact, spo2, motion, hr
+    b[9], b[10], b[12], b[13] = 0, 199, 0, 88     # markers + battery
+    for k, v in over.items():
+        b[int(k[1:])] = v
+    return bytes(b)
+
+
+def test_flag11_is_returned_raw_not_dropped():
+    assert oxyii.parse_live(_live_frame(_11=0))["flag11"] == 0
+    assert oxyii.parse_live(_live_frame(_11=29))["flag11"] == 29
+
+
+def test_flag11_does_not_disturb_the_identified_fields():
+    """Locks that recording [11] did not shift any established offset — the positional-contract bug
+    this project has already been bitten by once."""
+    a = oxyii.parse_live(_live_frame(_11=0))
+    b = oxyii.parse_live(_live_frame(_11=29))
+    for k in ("spo2", "pr", "motion", "batt", "contact", "seq", "worn"):
+        assert a[k] == b[k], k
+    assert (a["spo2"], a["pr"], a["motion"], a["batt"]) == (97, 62, 3, 88)
+
+
+def test_short_frame_yields_no_reading_at_all_never_a_fabricated_zero():
+    """A truncated frame must not produce a partial dict: a flag11=0 from a short read is
+    indistinguishable from a real 0 observation and would poison the very correlation this instrument
+    exists to measure. parse_live rejects the whole frame (len < 14), so [11] is always a real byte."""
+    for n in (0, 5, 11, 13):
+        assert oxyii.parse_live(_live_frame()[:n]) is None, n
+    assert oxyii.parse_live(_live_frame(_11=29))["flag11"] == 29   # a FULL frame still reads it
+
+
+def test_oxyframe_sidecar_blanks_absent_values_and_keeps_header():
+    import io, datetime as dt, writers
+    w = writers.OxyFrameLogWriter.__new__(writers.OxyFrameLogWriter)
+    w._fh = io.StringIO(); w.rows = 0; w._flush_interval = 1e9; w._fsync = False
+    w._last_flush = 0.0
+    w._fh.write("Phone timestamp;seq;flag11;spo2;pr;motion;contact;battery_pct\n")
+    w.write(dt.datetime(2026, 7, 18, 3, 4, 5, 123000),
+            {"seq": 7, "flag11": 29, "spo2": None, "pr": 62, "motion": 3, "contact": 1, "batt": 88})
+    line = w._fh.getvalue().splitlines()[1]
+    assert line == "2026-07-18T03:04:05.123;7;29;;62;3;1;88", line   # absent spo2 blank, NEVER 0
