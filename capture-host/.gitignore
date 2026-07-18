@@ -1,4 +1,8 @@
 .venv/
+.venv-cov/
 __pycache__/
 *.pyc
 config.yaml
+.coverage
+.coverage.*
+htmlcov/

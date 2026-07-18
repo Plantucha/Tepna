@@ -1,0 +1,75 @@
+# tepna-capture — tests/test_telemetry.py
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# Tests for the in-memory live-sample bus (telemetry.TelemetryBus) — the monitor page's stream fan-out.
+# Exercises the SYNCHRONOUS surface (register / meta / push / snapshot / unregister + the ring cap and
+# the fabricated-absence guards); the async subscribe/SSE path needs a loop and is left to the runtime.
+# telemetry.py is PURE (asyncio stdlib only, no bleak) — was 0% covered.
+
+import telemetry
+
+
+def test_default_meta_present_and_inactive_before_data():
+    bus = telemetry.TelemetryBus()
+    keys = {m["key"] for m in bus.meta()}
+    assert {"ecg", "ppg", "spo2", "pr"} <= keys
+    assert all(m["active"] is False for m in bus.meta())  # nothing has produced data yet
+
+
+def test_register_adds_a_device_qualified_stream():
+    bus = telemetry.TelemetryBus()
+    bus.register("acc_h10", "ACC (Polar H10)", "g", 200, chans=3, labels=("X", "Y", "Z"))
+    m = next(x for x in bus.meta() if x["key"] == "acc_h10")
+    assert m["chans"] == 3 and m["labels"] == ["X", "Y", "Z"] and m["fs"] == 200
+
+
+def test_push_scalar_marks_active_and_snapshots():
+    bus = telemetry.TelemetryBus()
+    bus.push("spo2", [97, 98, 97])
+    snap = bus.snapshot("spo2")
+    assert snap["v"] == [97.0, 98.0, 97.0] and snap["chans"] == 1
+    assert next(m for m in bus.meta() if m["key"] == "spo2")["active"] is True
+
+
+def test_push_multichannel_syncs_channel_count():
+    bus = telemetry.TelemetryBus()
+    bus.push("ppg", [[1, 2, 3, 4], [5, 6, 7, 8]])
+    snap = bus.snapshot("ppg")
+    assert snap["chans"] == 4
+    assert snap["v"] == [(1.0, 2.0, 3.0, 4.0), (5.0, 6.0, 7.0, 8.0)]
+
+
+def test_ring_caps_at_max_of_64_or_window():
+    # ring_seconds=1, fs=130 → cap = max(64, 130) = 130; push 200 → oldest dropped to 130.
+    bus = telemetry.TelemetryBus(ring_seconds=1.0)
+    bus.push("ecg", list(range(200)), fs=130)
+    v = bus.snapshot("ecg")["v"]
+    assert len(v) == 130 and v[-1] == 199.0 and v[0] == 70.0  # kept the newest 130
+
+
+def test_slow_stream_keeps_min_64_window():
+    bus = telemetry.TelemetryBus(ring_seconds=1.0)
+    bus.push("spo2", list(range(100)), fs=1)  # cap = max(64, 1) = 64
+    assert len(bus.snapshot("spo2")["v"]) == 64
+
+
+def test_empty_push_is_a_noop():
+    bus = telemetry.TelemetryBus()
+    bus.push("ecg", [])
+    assert bus.snapshot("ecg")["v"] == []
+    assert next(m for m in bus.meta() if m["key"] == "ecg")["active"] is False
+
+
+def test_unregister_drops_stream_everywhere():
+    bus = telemetry.TelemetryBus()
+    bus.register("gyro_verity", "GYRO", "dps", 52, chans=3)
+    bus.push("gyro_verity", [[1, 2, 3]])
+    bus.unregister("gyro_verity")
+    assert "gyro_verity" not in {m["key"] for m in bus.meta()}
+    assert bus.snapshot("gyro_verity")["v"] == []  # ring gone
+
+
+def test_snapshot_of_unknown_stream_is_empty_not_error():
+    bus = telemetry.TelemetryBus()
+    snap = bus.snapshot("nope")
+    assert snap["v"] == [] and snap["fs"] == 0 and snap["chans"] == 1

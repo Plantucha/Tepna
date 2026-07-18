@@ -619,6 +619,34 @@ import { CpapDsp } from './cpapdex-dsp.js';
           '</div>';
       });
     }
+    // FOLLOWUPS-III §1 — device-SETTING change banner. crossNight (above) trends OUTCOMES; a delivered-
+    // pressure SETTING step (e.g. EPAP-min lowered) is flagged by pressureChangePoints (FOLLOWUPS-II §P8),
+    // not the trend metrics. Surface it so a mid-series device change is visible, not silently smoothed.
+    // Each before/after value carries its metric's evidence badge (COVERAGE MANDATE — every surfaced
+    // number is badged). Export-inert (render only): consumers already read cn.pressureChangePoints.
+    var settingsBanner = '';
+    if (cn && cn.pressureChangePoints && cn.pressureChangePoints.length) {
+      settingsBanner =
+        '<div class="pcp-block" style="margin:10px 0 4px;padding:8px 12px;border-left:3px solid var(--amber);background:var(--surface2);border-radius:6px">' +
+        cn.pressureChangePoints
+          .map(function (c) {
+            var lbl = REG && REG.REGISTRY[c.metric] ? REG.REGISTRY[c.metric].label : c.metric;
+            return (
+              '<div style="font-size:13px;color:var(--text2);line-height:1.7">⚙ <b style="color:var(--text)">Device setting changed</b> · ' +
+              evBadge(c.metric) +
+              esc(lbl) +
+              ' ' +
+              fnum(c.before, 1) +
+              '&rarr;' +
+              fnum(c.after, 1) +
+              ' cmH₂O · ' +
+              esc(D ? D.fmtDate(c.tMs) : c.dateUTC || '') +
+              '</div>'
+            );
+          })
+          .join('') +
+        '</div>';
+    }
     // per-night table (newest first)
     var rows = nights
       .slice()
@@ -661,6 +689,7 @@ import { CpapDsp } from './cpapdex-dsp.js';
       kpis +
       '</div>' +
       (trendRows ? '<div class="trend-block">' + trendRows + '</div>' : '') +
+      settingsBanner +
       '<div class="sess-list">' +
       rows +
       '</div>' +

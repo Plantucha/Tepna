@@ -18,7 +18,7 @@ import hashlib, time
 OXYII_SERVICE = "e8fb0001-a14b-98f9-831b-4e2941d01248"
 OXYII_WRITE   = "e8fb0002-a14b-98f9-831b-4e2941d01248"   # write-without-response
 OXYII_NOTIFY  = "e8fb0003-a14b-98f9-831b-4e2941d01248"   # notify
-OP_AUTH, OP_SETUP, OP_LIVE = 0xFF, 0x10, 0x04
+OP_AUTH, OP_SETUP, OP_LIVE, OP_SET_TIME = 0xFF, 0x10, 0x04, 0xC0
 _LEPU = hashlib.md5(b"lepucloud").digest()   # protocol salt (MD5 of the literal ASCII "lepucloud")
 
 
@@ -58,6 +58,19 @@ def setup_frame() -> bytes:
 
 def live_frame() -> bytes:
     return encode(OP_LIVE, b"")
+
+
+def set_time_frame(dt, seq: int = 0) -> bytes:
+    """SET_UTC_TIME (0xC0): push the wall clock to the ring's onboard RTC so its STORED-session .dat
+    timestamps line up with the NTP-synced host (the ring's RTC free-runs and drifts — measured ~+151 s
+    2026-07-17; it also resets on any battery/factory event). 8-byte payload: year(u16 LE), month, day,
+    hour, minute, second, then the vendor tail byte 0xCE (0x00 also accepted). The ring stores the fields
+    VERBATIM with no timezone conversion, so pass LOCAL CIVIL time per the Clock Contract — the same wall
+    clock the file-list `YYYYMMDDhhmmss` stamps use. Sent after the 0xFF→0x10 handshake, plaintext, in the
+    standard 0xA5+CRC-8 envelope. Ref: github.com/nglessner/o2ring-s-protocol (SET_UTC_TIME)."""
+    y = int(dt.year)
+    pl = bytes([y & 0xFF, (y >> 8) & 0xFF, dt.month, dt.day, dt.hour, dt.minute, dt.second, 0xCE])
+    return encode(OP_SET_TIME, pl, seq)
 
 
 # ── Stored-session file transfer (the ONBOARD recording — the .dat the ViHealth app syncs on removal).
