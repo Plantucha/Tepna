@@ -23,6 +23,7 @@ NOT a no-op; the design-agent could not close it because `OverDexWalk`'s directo
 at 100; or (b) refactor the accumulation into a **synchronous, exported** `mergePages(pages)` helper and
 pin *that* with a known-answer (2 pages of 100 → 200 entries, not 100). **Recommend (b)** — a small
 export seam is testable in the existing sync lane and documents the paging invariant.
+> **DONE 2026-07-18 (PR — `claude/overdex-mergepages`):** extracted `OverDexWalk.mergePages(pages)` (sync, exported), `readEntries` now collects pages then calls it; pinned with a known-answer (100 + 3 → 103, order preserved). The drop-all-but-last mutation reds. Re-bundled OverDex; --check + verify-manifest clean.
 
 ## §2 — Python `capture-host/` mutation audit — RAN 2026-07-18 (mutation score 44%)
 
