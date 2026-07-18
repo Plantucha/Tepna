@@ -55,6 +55,8 @@ ACC). A real such defect would silently mangle every recording, uncaught.
 **Fix (highest value first):** add a `test_polar_pmd` **known-answer that decodes a full multi-sample
 ECG + PPG + ACC frame and asserts EVERY sample value AND its back-timed `t_ms`** (not just "a frame
 decodes"). One strong frame-decode known-answer kills the bulk of the 254 decoder survivors — the same
+> **PARTIALLY DONE 2026-07-18:** added `test_polar_pmd` full-frame known-answers for the **uncompressed ECG/PPG/ACC** paths — every sample value + every back-timed `sensor_ns`/`t_ms` (PPG had ZERO decode coverage before). Both-direction verified: 5 representative severe mutations (stride `range(0,3)`, PPG 12-stride, ACC drop-offset, back-timing sign, `_i24` sign) now RED. **Still open:** `_decode_delta` (the Verity compressed path, ~80 survivors) + GYRO/MAG/PPI decode.
+> The same
 "pin the whole output, not that it ran" lesson as the JS unexported-metric class. Then `writers`
 (assert the full CSV row set per stream) and `telemetry.push`. **De-prioritize `clockcfg`'s subprocess
 paths** (they shell out; low-value to unit-test, no signal data). Artifacts: this audit's driver +
