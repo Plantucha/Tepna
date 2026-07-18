@@ -196,6 +196,13 @@
       T.eq('MDY (preferDMY false) 05/13/2026', (P('05/13/2026 08:30', { preferDMY: false }) || {}).tMs, U(2026, 4, 13, 8, 30));
       T.eq('O2Ring "HH:MM:SS DD/MM/YYYY"', (P('22:00:00 07/06/2026', { preferDMY: true }) || {}).tMs, U(2026, 5, 7, 22, 0, 0));
 
+      /* #3 UNLOCKED DMY/MDY heuristic — only a first field STRICTLY > 12 proves it is the DAY.
+         A 12 is still ambiguous and must honor preferDMY; treating 12 as proof-of-day (`a >= 12`)
+         forces a day-first read and mis-dates December / 12th-of-month rows. Under MDY (preferDMY:false),
+         unlocked, "12/07" must read month-first → December 7 (mo 12, d 7), NOT day-first July 12.
+         `_ckDMY(12,7,false,false)` falls through both `>12` guards → preferDMY:false ⇒ {d:7,mo:12}. */
+      T.eq('#3 unlocked · MDY 12/07 → Dec 7 (12 is not proof-of-day)', (P('23:00:00 12/07/2026', { preferDMY: false }) || {}).tMs, U(2026, 11, 7, 23, 0, 0));
+
       /* §3 FILE-LEVEL DMY/MDY LOCK (DEEP-AUDIT-2026-07-11 §1). The Contract says: "Any row with
          day-component > 12 ⇒ file is unambiguous; lock that order for the whole file … Never switch
          order mid-file." Before the lock, _ckDMY decided PER ROW, so an MM/DD O2Ring file read
@@ -229,6 +236,12 @@
       T.eq('time-only 23:30 + anchor', t1 && t1.tMs, U(2026, 5, 7, 23, 30));
       var t2 = P('00:15', { dateAnchorMs: anchor, prevTMs: t1 && t1.tMs });
       T.eq('time-only 00:15 rolls to next day', t2 && t2.tMs, U(2026, 5, 8, 0, 15));
+      /* #4 STRICT roll-forward — a time-only row rolls +24h ONLY when strictly EARLIER than the
+         previous stamp (`while (t < prevTMs)`). At 1-min cadence a repeated minute (t == prevTMs,
+         common around a repeat) must stay the SAME day; `while (t <= prevTMs)` would jump it +86400000,
+         fabricating a spurious overnight gap and mis-placing every later event by a day. */
+      var tSame = P('23:30', { dateAnchorMs: anchor, prevTMs: U(2026, 5, 7, 23, 30) });
+      T.eq('#4 time-only equal-minute repeat stays same day (strict <, no +24h)', tSame && tSame.tMs, U(2026, 5, 7, 23, 30));
       T.eq('garbage → null', P('not a date', {}), null);
       T.eq('empty → null', P('', {}), null);
       T.ok('floating tMs via Date.UTC (TZ-independent)', (P('2026-06-07 03:00', {}) || {}).tMs === U(2026, 5, 7, 3, 0));
@@ -310,6 +323,32 @@
           crossNight: CC.crossNight
         });
         T.ok('envelope baseline.mean not null', env2.metrics.m.baseline && env2.metrics.m.baseline.mean != null);
+
+        // #8 — the baseline outlier FLAG is a STRICT z ≤ −2 cut. A −1.7σ night is a below-1sigma
+        // night, NOT a 2σ outlier; loosening the cut to −1.5 would falsely alarm it. Hand-derived
+        // known answer: prior (all-but-latest) = [3, 5, 7] ⇒ mean 5, sample sd √(((−2)²+0²+2²)/2)=2;
+        // latest = 1.6 ⇒ zLatest = (1.6 − 5) / 2 = −1.70, which sits strictly between −2 and −1.5.
+        var envZ = CNE.build({
+          node: 'TEST',
+          unit: 'night',
+          items: [3, 5, 7, 1.6].map(function (v, i) {
+            return { t0Ms: U(2026, 4, 1 + i), v: v };
+          }),
+          metrics: [
+            {
+              id: 'm',
+              label: 'M',
+              unit: '',
+              goodDirection: 'up',
+              get: function (it) {
+                return it.v;
+              }
+            }
+          ],
+          crossNight: CC.crossNight
+        });
+        T.eq('zLatest is the hand-derived −1.70σ', envZ.metrics.m.baseline.zLatest, -1.7);
+        T.eq('a −1.70σ night flags below-1sigma, NOT below-2sigma (the outlier cut is a strict z ≤ −2)', envZ.metrics.m.baseline.flag, 'below-1sigma');
       }
     });
 
@@ -1202,6 +1241,19 @@
       M.setTier('research');
       T.eq('setTier/getTier round-trip', M.getTier(), 'research');
       M.setTier(prev || 'core');
+
+      /* ── FALLBACK-TIER SAFETY (TEST-AUDIT-FINDINGS-2026-07-18 §78) ──────────────────────────────
+         entry(registry, id) normalizes a raw registry record. When a record EXISTS but its `evidence`
+         value is unknown or missing, the fallback MUST degrade to the LOWEST-trust tier ('experimental')
+         — the documented default (metric-registry.js §entry comment + brief §1: "defaults to
+         advanced/experimental"). A fallback that instead lands on a HIGH-trust tier (e.g. 'validated')
+         would silently over-state the confidence of any metric with a typo'd/absent tier — a trust
+         inflation as harmful as a wrong unit. The mutation `? r.evidence : 'experimental'` →
+         `: 'validated'` flips exactly this branch; these known-answers red on it. A VALID tier must
+         still pass through unchanged (control — proves the assertions aren't just pinning the literal). */
+      T.eq('entry() falls back to experimental (lowest trust) for an UNKNOWN evidence tier', M.entry({ m: { label: 'X', evidence: 'not-a-real-tier' } }, 'm').evidence, 'experimental');
+      T.eq('entry() falls back to experimental for a MISSING evidence field', M.entry({ m: { label: 'X' } }, 'm').evidence, 'experimental');
+      T.eq('entry() passes a VALID high-trust tier through unchanged (fallback does not clobber good input)', M.entry({ m: { label: 'X', evidence: 'validated' } }, 'm').evidence, 'validated');
     });
 
     /* ════ 6b · COHESION SINGLE-SOURCE — evidence badge CSS + grades ════
@@ -1419,6 +1471,20 @@
       T.ok(
         'error names the missing impulse',
         (ri.errors || []).some(function (e) {
+          return /impulse/i.test(e);
+        })
+      );
+
+      // #9 — an EMPTY-STRING impulse is not a name either. The check is a NON-EMPTY string, not
+      // merely `typeof === 'string'`: a blank impulse ('') must still be an error (else an unnamed
+      // event passes conformance and reaches fusion). `delete` above only covers the absent case.
+      var emptyImp = JSON.parse(JSON.stringify(good));
+      emptyImp.ganglior_events[0].impulse = '';
+      var re = CNE.validateNodeExport(emptyImp);
+      T.ok('empty-string impulse → ok:false (blank name is not a valid impulse)', re.ok === false);
+      T.ok(
+        'error names the empty impulse',
+        (re.errors || []).some(function (e) {
           return /impulse/i.test(e);
         })
       );
@@ -2001,6 +2067,42 @@
         ),
         null
       );
+
+      /* #90 (TEST-AUDIT-FINDINGS) — OLS residual degrees of freedom = n − p (p ALREADY includes the
+         intercept column). Everything downstream divides by df: σ²=RSS/df, SE(β)=√(σ²·diag(XtXinv)),
+         t=β/SE, adjR²=1−(1−R²)(n−1)/df. The existing olsFit legs are PERFECT fits (RSS=0), so df is
+         invisible there. Imperfect hand-derived fixture — regress y=[2,4,6,9] on x=[1,2,3,4] WITH an
+         intercept: Σx=10,Σx²=30 ⇒ XtX=[[4,10],[10,30]], det=20, XtXinv[1][1]=0.2; slope=Sxy/Sxx=11.5/5=2.3,
+         intercept=5.25−2.3·2.5=−0.5; preds [1.8,4.1,6.4,8.7], residuals [.2,−.1,−.4,.3] ⇒ RSS=0.30.
+         n=4, p=2 ⇒ df=2, σ²=0.15, SE(slope)=√(0.15·0.2)=√0.03, t=2.3/√0.03; ssTot=26.75 ⇒ R²=1−0.30/26.75.
+         Deflating df to n−p−1=1 scales σ² (and SE, t, adjR²) — every leg below reds under that slip. */
+      var fitDf = S.olsFit(
+        [2, 4, 6, 9],
+        [
+          [1, 1],
+          [1, 2],
+          [1, 3],
+          [1, 4]
+        ]
+      );
+      T.eq('olsFit · residual df = n − p (intercept already counted in p)', fitDf.df, 2);
+      T.approx('olsFit · σ = √(RSS/df) = √(0.30/2)', fitDf.sigma, Math.sqrt(0.15), 1e-9);
+      T.approx('olsFit · SE(slope) = √(σ²·diag) = √(0.15·0.2)', fitDf.se[1], Math.sqrt(0.03), 1e-9);
+      T.approx('olsFit · t(slope) = β/SE = 2.3/√0.03', fitDf.t[1], 2.3 / Math.sqrt(0.03), 1e-9);
+      T.approx('olsFit · adjR² = 1 − (1−R²)(n−1)/df', fitDf.adjR2, 1 - ((0.3 / 26.75) * 3) / 2, 1e-9);
+
+      /* #91 (TEST-AUDIT-FINDINGS) — within-subject CV% = 100·√varW / |grand mean| (a PERCENTAGE). No
+         existing leg pins its numeric value, so a 100→10 slip (every CV% reads one-tenth its true value)
+         slips through. Subjects [[8,12],[18,22],[28,32]]: all=[8,12,18,22,28,32] ⇒ grand=20; each subject's
+         within-SS is 8, total within-SS=24 over dfw=N−k=6−3=3 ⇒ varW=msw=8 ⇒ CV%=100·√8/20 ≈ 14.14 %. */
+      var wc = S.iccOneWay([
+        [8, 12],
+        [18, 22],
+        [28, 32]
+      ]);
+      T.approx('iccOneWay · grand mean = 20', wc.grand, 20, 1e-12);
+      T.approx('iccOneWay · within-subject SD = √varW = √8', wc.withinSD, Math.sqrt(8), 1e-12);
+      T.approx('iccOneWay · within-subject CV% = 100·√varW/|grand| (a percentage, ≈14.14)', wc.withinCVpct, (100 * Math.sqrt(8)) / 20, 1e-12);
       // invMat: 2×2 known inverse
       var invd = S.invMat([
         [4, 7],
@@ -2460,6 +2562,31 @@
       var hfFrac = r.hf / (r.tp || 1),
         hfFracTrue = r.hf / (r.vlf + r.lf + r.hf || 1);
       T.ok('§3 · the HF fraction (hf/tp) matches the true band share (no bar/total mismatch)', Math.abs(hfFrac - hfFracTrue) < 1e-9, 'bar ' + hfFrac.toFixed(4) + ' vs true ' + hfFracTrue.toFixed(4));
+
+      /* SHORT-record leg — the un-gated sibling of the identity. The overnight case above exercises the
+         four-median winSpec branch (tp = _wv+_wl+_wh, its OWN sum), so it CANNOT see a defect in the
+         single-window lombScargle return (tp: _v+_l+_h) that feeds every <90-min reading. This ~10-min
+         spot record takes longRec=false → sp = { tp: ls.tp, … } straight from lombScargle, so the same
+         Task-Force identity must ALSO hold there — with a REAL HF term (_h > 0) so dropping it is not a
+         rounding no-op. */
+      var sn = 700,
+        st0 = Date.UTC(2026, 5, 25, 7, 30, 0),
+        sIntervals = [],
+        sTsMs = [],
+        stt = st0;
+      for (var si = 0; si < sn; si++) {
+        // mean ~850 ms (HR ~70, not exercise) + LF (~0.1 Hz) + strong HF/RSA (~0.25 Hz) content
+        var srr = 850 + 40 * Math.sin(si / 9) + 45 * Math.sin(si / 0.75) + 20 * Math.sin(si / 3);
+        sIntervals.push(srr);
+        sTsMs.push(stt);
+        stt += srr;
+      }
+      var rs = P.computeResult({ intervals: sIntervals, tsMs: sTsMs, t0Ms: st0, offsetMin: null });
+      T.ok('the record takes the single-window path (short reading, NOT longRec)', !!(rs && rs.longRec === false), rs ? 'mode=' + rs.mode + ' longRec=' + rs.longRec : 'null');
+      T.ok('short-record HF term is a REAL non-zero contribution (dropping it is not a rounding no-op)', !!(rs && rs.hf > 0), rs ? 'hf=' + rs.hf : 'null');
+      if (rs && rs.longRec === false) {
+        T.eq('§3 · TASK-FORCE IDENTITY on the SHORT path: vlf + lf + hf == totalPower (lombScargle return)', rs.vlf + rs.lf + rs.hf, rs.tp);
+      }
     });
 
     /* ════ PulseDex §8 — Poincaré SD1 spread is SDSD, not rMSSD (DEEP-AUDIT-2026-07-14 §8) ════════════
@@ -5043,6 +5170,65 @@
       T.ok('§3.1 · the corpus-backed set is non-empty (the gate is not vacuous)', owing.length > 0, owing.length + ' fixture(s) owe a verification');
     });
 
+    /* ════ MANIFESTGATE — GATE A/B VERDICTS RED ON DRIFT (provenance-meta · TEST-AUDIT-FINDINGS-2026-07-18 §73/§74/§75) ════
+       manifest-gate.js is the SINGLE source of the two provenance verdicts that verify-provenance.html +
+       tests/verify-manifest.mjs both consume: GATE A (gateACompare — current manifestHash vs committed)
+       and GATE B (gateBEvaluate — content-addressed known-answer per fixture). The prior suite only ever
+       exercised these functions' banner-string plumbing (pickProvenanceBanner, "Manifest JSON well-formed")
+       and the compute-closure denylist ("Fixture verification" §1) — it NEVER asserted that the `.ok`
+       VERDICT itself goes FALSE when a bundle/fixture drifts, nor that gateBFiles enumerates the INPUT files
+       the caller must hash. So three one-character mutations each left the whole suite green while blinding
+       the gate: gateBEvaluate `ok:fail===0`→`ok:true` (§73); gateACompare `ok:fail===0&&…`→dropping the
+       `fail===0` term (§74); gateBFiles `var ih=(…).inputHashes||{}`→`var ih={}` (§75). These probes are
+       PURE + synchronous (no crypto, no IO) — known answers hand-derived from the documented status/counter
+       contract in manifest-gate.js's own header — so they run under Node (env.ManifestGate) and, when
+       manifest-gate.js is co-loaded, the browser. MG absent (browser without the script) → SKIP, exactly
+       like the sibling "Fixture verification" §1 closure self-tests. */
+    group('ManifestGate — GATE A/B verdicts red on drift (provenance-meta)', 'provenance · manifest-gate · gate-verdicts', function (T) {
+      var MG = env.ManifestGate || (typeof ManifestGate !== 'undefined' ? ManifestGate : null);
+      if (!MG || typeof MG.gateACompare !== 'function' || typeof MG.gateBEvaluate !== 'function' || typeof MG.gateBFiles !== 'function') {
+        T.skip('ManifestGate co-loaded (gateACompare/gateBEvaluate/gateBFiles)', 'manifest-gate.js not in env.ManifestGate nor a global — the Node lane wires it; the browser SKIPs unless manifest-gate.js is co-loaded');
+        return;
+      }
+      var H = 'aaaaaaaaaaaa',
+        H2 = 'bbbbbbbbbbbb'; // two distinct 12-hex manifestHashes
+      var OUT = '0000000000000000',
+        OUT2 = 'ffffffffffffffff'; // two distinct 16-hex output hashes
+      var IN = '1111111111111111'; // a 16-hex input hash
+
+      // ── §74 · GATE A (gateACompare) — a bundle whose CURRENT manifestHash ≠ the committed one is a DRIFT
+      //          (status 'drift', fail++), and the verdict MUST be ok:false. The mutation drops the
+      //          `fail===0` term from ok, so a drift (missing:0, complete:true) wrongly returns ok:true —
+      //          GATE A green on a moved bundle, the exact invariant it must reject.
+      var aClean = MG.gateACompare({ 'A.html': H }, { 'A.html': { manifestHash: H } }, ['A.html']);
+      T.ok('GATE A · clean: current == committed ⇒ ok:true, fail:0 (control)', aClean.ok === true && aClean.fail === 0 && aClean.results[0].status === 'match', JSON.stringify(aClean));
+      var aDrift = MG.gateACompare({ 'A.html': H2 }, { 'A.html': { manifestHash: H } }, ['A.html']);
+      T.ok('GATE A · manifestHash DRIFT ⇒ status:drift, fail:1', aDrift.fail === 1 && aDrift.results[0].status === 'drift', JSON.stringify(aDrift));
+      T.ok('GATE A · a drift verdict is ok:FALSE (a green GATE A must never hide a moved bundle)', aDrift.ok === false, 'ok=' + aDrift.ok + ' · fail=' + aDrift.fail + ' · missing=' + aDrift.missing + ' · complete=' + aDrift.complete);
+      var aMiss = MG.gateACompare({ 'A.html': null }, { 'A.html': { manifestHash: H } }, ['A.html']);
+      T.ok('GATE A · missing-current (bundle did not reproduce its committed hash) ⇒ fail:1, ok:FALSE', aMiss.fail === 1 && aMiss.ok === false && aMiss.results[0].status === 'missing-current', JSON.stringify(aMiss));
+
+      // ── §73 · GATE B (gateBEvaluate) — a fixture whose output/code/input drifts is a fail, and the OVERALL
+      //          verdict MUST be ok:false. The mutation hardwires ok:true, so ANY GATE B drift
+      //          (output-drift/code-drift/input-drift) is reported as a PASSING provenance verdict.
+      var fx = { 'out.json': { bundle: 'A.html', manifestHash: H, inputHashes: {}, outputHash: OUT } };
+      var bClean = MG.gateBEvaluate(fx, { 'A.html': H }, { 'out.json': OUT });
+      T.ok('GATE B · clean: code + output match ⇒ status:reproducible, fail:0, ok:true (control)', bClean.ok === true && bClean.fail === 0 && bClean.results[0].status === 'reproducible', JSON.stringify(bClean));
+      var bOut = MG.gateBEvaluate(fx, { 'A.html': H }, { 'out.json': OUT2 });
+      T.ok('GATE B · OUTPUT drift ⇒ status:output-drift, fail:1', bOut.fail === 1 && bOut.results[0].status === 'output-drift', JSON.stringify(bOut));
+      T.ok('GATE B · an output-drift verdict is ok:FALSE (a green GATE B must never hide a moved fixture)', bOut.ok === false, 'ok=' + bOut.ok + ' · fail=' + bOut.fail);
+      var bCode = MG.gateBEvaluate(fx, { 'A.html': H2 }, { 'out.json': OUT });
+      T.ok('GATE B · CODE drift (bundle manifestHash moved) ⇒ status:code-drift, fail:1, ok:FALSE', bCode.fail === 1 && bCode.ok === false && bCode.results[0].status === 'code-drift', JSON.stringify(bCode));
+
+      // ── §75 · gateBFiles must ENUMERATE every code-gated fixture's INPUT files (so the caller fetches +
+      //          hashes them for the input-drift check), alongside each OUTPUT name, minus '_'-prefixed
+      //          metadata keys. The mutation `var ih = {}` drops every input, so an input file is never
+      //          hashed and input-drift becomes permanently undetectable. Known answer sorts o < r.
+      var files = MG.gateBFiles({ 'out.json': { bundle: 'A.html', inputHashes: { 'raw-input.csv': IN } }, _meta: { note: 'metadata — must be skipped' } });
+      T.eq('gateBFiles · enumerates OUTPUT + every INPUT file, drops _metadata keys, sorted', files, ['out.json', 'raw-input.csv']);
+      T.ok('gateBFiles · the code-gated INPUT file IS present (without it, input-drift is undetectable)', files.indexOf('raw-input.csv') !== -1, files.join(', '));
+    });
+
     group('Release-ledger — controlled releases machine-checked (CONTROLLED-RELEASES)', 'docs · release-ledger', function (T) {
       var RL = env.releaseLedger;
       if (!RL || RL.manifestText == null || RL.releaseText == null || RL.changelogText == null) {
@@ -5937,6 +6123,88 @@
       T.eq('worker peaks ≡ serial peaks (workers change WHEN the work runs, never WHAT it computes)', arr(wOut.peaks), arr(sOut.peaks));
       T.eq('worker feet ≡ serial feet', arr(wOut.feet), arr(sOut.feet));
       T.eq('worker sign ≡ serial sign', wOut.sign, sOut.sign);
+    });
+
+    /* ════ #86: the worker's onmessage GLUE must call detectChannel at the TRUE transferred fs ════
+       The group above extracts detectChannel and calls it DIRECTLY — so it never exercises the one line
+       of onmessage glue that dispatches the work: `var r=detectChannel(chan,d.fs);`. That line is where
+       the fs the main thread transferred meets the detector, and a mutation there (e.g. `d.fs*0.5`) runs
+       PPG detection at half the true rate — corrupting every worker-path HR/PPI — while the direct-call
+       group above stays green. So this group DRIVES the real glue: it pulls the glue STRING verbatim out
+       of the module source (so the assertion reflects whatever the source actually says, mutation and
+       all), evaluates deps + glue in a self-stub realm, posts one message carrying the true fs, and
+       asserts the glue's computed peaks ≡ the serial detectChannel(chan, fs) at that SAME fs. Running at
+       a wrong fs shifts the band-pass + refractory and the peak set diverges. */
+    group('PpgDex worker onmessage GLUE runs detectChannel at the TRUE transferred fs (#86)', 'ppgdex-dsp · worker · regression', function (T) {
+      var src = (env.sources && env.sources['ppgdex-dsp.js']) || '';
+      var D = env.PPGDSP;
+      T.ok('ppgdex-dsp.js source + PPGDSP.detectChannel available', !!src && !!(D && typeof D.detectChannel === 'function'));
+      if (!src || !(D && typeof D.detectChannel === 'function')) return;
+
+      // deps + consts, exactly as _buildWorkerURL ships them (reuses the shared rebuilder)
+      var wsrc = _ppgWorkerSource(src);
+      T.ok('the worker deps/consts source could be rebuilt', !!wsrc);
+      if (!wsrc) return;
+
+      // Pull the REAL onmessage glue string out of the module source — the fragments that follow
+      // `deps…join('\n') +`, evaluated back into the runtime string. This is the line under test, so it
+      // MUST come from the source (a hard-coded copy here would not move when the module is mutated).
+      var mGlue = src.match(/\.join\('\\n'\)\s*\+([\s\S]*?)\s*;\s*try\s*\{/);
+      T.ok('the onmessage glue string was located in the module source', !!mGlue);
+      if (!mGlue) return;
+      var glue;
+      try {
+        glue = new Function('return (' + mGlue[1] + ')')();
+      } catch (e) {
+        T.ok('the glue string fragments evaluate to a string', false, e.message);
+        return;
+      }
+      T.ok('the glue is the self.onmessage handler that calls detectChannel', typeof glue === 'string' && /self\.onmessage/.test(glue) && /detectChannel\(/.test(glue), glue && glue.slice(0, 90));
+
+      // Evaluate deps + glue in a realm whose `self` captures postMessage, then drive it.
+      var captured = null;
+      var selfStub = {
+        postMessage: function (m) {
+          captured = m;
+        }
+      };
+      var onmsg;
+      try {
+        onmsg = new Function('self', 'return (function(){' + wsrc + '\n' + glue + '\nreturn self.onmessage;})();')(selfStub);
+      } catch (e) {
+        T.ok('deps + glue evaluate in the worker-realm stub', false, e.message);
+        return;
+      }
+      T.ok('the glue installed a self.onmessage function', typeof onmsg === 'function');
+      if (typeof onmsg !== 'function') return;
+
+      // a real-shaped channel at a NON-INTEGER fs (a real Polar file never has an integer one)
+      var fs = 176.26,
+        n = Math.round(fs * 60);
+      var chan = new Float32Array(n);
+      for (var i = 0; i < n; i++) chan[i] = 1000 + 40 * Math.sin((2 * Math.PI * 1.2 * i) / fs) + 6 * Math.sin(i / 3);
+
+      var threw = '';
+      try {
+        onmsg({ data: { buf: chan.buffer.slice(0), fs: fs, idx: 0 } });
+      } catch (e) {
+        threw = e.constructor.name + ': ' + e.message;
+      }
+      T.ok('the onmessage glue ran without throwing', !threw, threw);
+      if (threw) return;
+      T.ok('the glue posted a result back', !!(captured && captured.peaks), 'captured=' + JSON.stringify(captured && Object.keys(captured)));
+      if (!captured || !captured.peaks) return;
+
+      var sOut = D.detectChannel(chan, fs); // serial truth at the TRUE fs
+      var arr = function (x) {
+        return JSON.stringify(Array.prototype.slice.call(x || []));
+      };
+      T.ok('the glue found beats at all', captured.peaks.length > 5, 'peaks=' + captured.peaks.length);
+      // THE assertion: glue peaks ≡ serial peaks at the SAME true fs. Halving d.fs in the glue re-tunes
+      // the band-pass + refractory and the peak set diverges (prototype: 72 vs 55) → reds under #86.
+      T.eq('glue peaks ≡ serial detectChannel(chan, TRUE fs) — the worker changes WHEN work runs, never the fs it runs at', arr(captured.peaks), arr(sOut.peaks));
+      T.eq('glue feet ≡ serial feet', arr(captured.feet), arr(sOut.feet));
+      T.eq('glue sign ≡ serial sign', captured.sign, sOut.sign);
     });
 
     group('PpgDex worker source is CLOSED — every function + const it references is shipped to the blob', 'ppgdex-dsp · worker · regression', function (T) {
@@ -6988,6 +7256,27 @@
         T.ok('surge: carries a SEPARATE sqi axis (R7), a number in [0,1]', typeof s.sqi === 'number' && s.sqi >= 0 && s.sqi <= 1, s.sqi + '');
         T.ok('surge: meta is an object (ampBpm/periodSec/…)', s.meta && typeof s.meta === 'object' && !Array.isArray(s.meta), JSON.stringify(s.meta).slice(0, 70));
       }
+      // AUDIT-2026-07-18 #29: the emitted surge `conf` is the CVHR amplitude→likelihood map
+      //   conf = clamp(0.45, 0.95, 0.45 + min(ampBpm,24)/48)   (documented at ecgdex-dsp.js:surgeConf)
+      // The /48 SCALE is the invariant: it makes a weak surge score lower than a strong one, giving the
+      // fusion layer a GRADED autonomic_surge likelihood. A /24 scale doubles the amplitude contribution
+      // so any ampBpm ≥ 12 saturates to 0.95 — weak vs strong surge become indistinguishable. Recompute
+      // the expected conf INDEPENDENTLY from each emitted meta.ampBpm (the /48 hand-formula, not code
+      // output) and require the emitted conf to match; a /24 mutant reds because e.g. ampBpm 15.6 →
+      // /48: 0.45 + 0.325 = 0.775 ≈ 0.78, but /24: 0.45 + 0.65 = 1.10 → clamp 0.95.
+      var surgeConf48 = function (amp) {
+        return +Math.max(0.45, Math.min(0.95, 0.45 + Math.min(amp || 0, 24) / 48)).toFixed(2);
+      };
+      var confMismatch = 0,
+        gradedSeen = 0;
+      surges.forEach(function (e) {
+        var amp = e.meta && e.meta.ampBpm;
+        if (typeof amp !== 'number') return;
+        if (e.conf !== surgeConf48(amp)) confMismatch++;
+        if (e.conf > 0.45 && e.conf < 0.95) gradedSeen++; // a non-saturated (graded) likelihood
+      });
+      T.ok('every surge conf == the /48 amplitude→likelihood map recomputed from meta.ampBpm', surges.length > 0 && confMismatch === 0, confMismatch + ' mismatches over ' + surges.length + ' surges');
+      T.ok('surge likelihoods are GRADED (≥1 conf strictly inside 0.45–0.95, not saturated)', gradedSeen > 0, gradedSeen + ' graded / ' + surges.length + ' — a /24 scale saturates ampBpm≥12 surges to 0.95');
       if (stages.length) {
         var st = stages[0];
         T.ok('stage: conf 0.7', st.conf === 0.7, st.conf + '');
@@ -7059,6 +7348,37 @@
       // leaking "Infinity" into hrNadirSmoothed. Must be inclusive `n<=600`.
       T.ok('computeHRNadirTime guards n<=600 (centered ±WIN needs n>2·WIN)', /n\s*<=\s*600\s*\)\s*return null/.test(src));
       T.ok('HR-nadir output is isFinite-guarded (no Infinity leak)', /hrNadirSmoothed:\s*isFinite\(minHR\)/.test(src));
+
+      // AUDIT §66 (behavioral) — the worst-10-min rolling scan must INCLUDE the final full 600-sample
+      // window whose right edge lands exactly at n. Its loop bound `i + W10 <= n` includes it; `< n` drops
+      // it, so a night whose deepest 10-min desaturation ends exactly at the last sample reports a falsely
+      // BETTER (higher) worst-10-min SpO₂. The source-mirror asserts above can't see this.
+      var OD = env.OxyDex;
+      if (!OD || typeof OD.compute !== 'function') {
+        T.ok('env.OxyDex.compute available (worst-10-min boundary leg)', false, 'namespace not wired — leg skipped');
+      } else {
+        var p2b = function (x) { return x < 10 ? '0' + x : '' + x; };
+        // 1200 samples @1 Hz on ONE unambiguous date (day 15>12 ⇒ DMY locked, isolates this from §65).
+        // Indices 0–599 = 98 %, indices 600–1199 = 78 %. Hand-derived: the deepest 600-sample window is
+        // slice(600,1200) = 600×78 ⇒ mean 78.00, and its right edge is EXACTLY n=1200. Dropping it
+        // (mutation `< n`) leaves slice(540,1140) = 60×98 + 540×78 = 48000 ⇒ mean 80.00 as the deepest.
+        // So clean worst-10-min = 78; the buggy scan reports 80.
+        var bl = ['Time,Oxygen Level,Pulse Rate,Motion'];
+        var bt0 = Date.UTC(2026, 5, 15, 22, 0, 0); // 15 Jun 2026 22:00 (day 15 > 12)
+        for (var bs = 0; bs < 1200; bs++) {
+          var bd = new Date(bt0 + bs * 1000);
+          var bts = p2b(bd.getUTCHours()) + ':' + p2b(bd.getUTCMinutes()) + ':' + p2b(bd.getUTCSeconds());
+          var bdate = p2b(bd.getUTCDate()) + '/' + p2b(bd.getUTCMonth() + 1) + '/' + bd.getUTCFullYear();
+          bl.push(bts + ' ' + bdate + ',' + (bs < 600 ? 98 : 78) + ',60,0');
+        }
+        var br = OD.compute({ text: bl.join('\n'), filename: 'o2ring_worst10_boundary.csv' });
+        var bn = br && br.nights && br.nights[0];
+        var brolling = bn && bn.research ? bn.research.rolling : null;
+        T.ok('boundary night produced with rolling metrics', !!brolling);
+        if (brolling) {
+          T.eq('worst-10-min SpO₂ includes the final window ending exactly at n (=78, not 80)', brolling.worst10minSpo2, 78, 'got ' + brolling.worst10minSpo2);
+        }
+      }
     });
 
     /* ════ 14b · O2RING NATIVE BINARY (.dat/.bin) INGESTION CONTRACT ════
@@ -7111,6 +7431,22 @@
     group('Integrator correlation integrity (P10)', 'integrator-dsp', function (T) {
       var RT = env.reconstructEventTMs,
         RF = env.runFusion;
+      // #58 — Pearson r is UNDEFINED (null) when EITHER series has zero variance. A constant
+      // series carries no correlation; it must NOT fabricate an r (NaN from 0/0). The guard is an
+      // OR over both variances, not an AND. Known answers are hand-derivable:
+      //   · [1,2,3] vs [2,4,6] → perfectly collinear → r = +1.000
+      //   · [5,5,5] vs [1,2,3] → x is constant (sxx=0), y varies → r undefined → null
+      //   · [1,2,3] vs [7,7,7] → y is constant (syy=0), x varies → r undefined → null
+      //   · [5,5,5] vs [7,7,7] → both constant → null (AND and OR agree here; not the discriminator)
+      // NB: assert with `=== null` (T.ok), NOT T.eq — JSON.stringify(NaN) is "null", so T.eq would
+      // read a fabricated NaN as equal to null and miss the exact regression under test.
+      var PC = env.pearson;
+      if (typeof PC === 'function') {
+        T.eq('pearson: perfectly collinear series → r = +1', PC([1, 2, 3], [2, 4, 6]), 1);
+        T.ok('pearson: constant X (zero variance) → strictly null, never a fabricated NaN', PC([5, 5, 5], [1, 2, 3]) === null, 'got ' + PC([5, 5, 5], [1, 2, 3]));
+        T.ok('pearson: constant Y (zero variance) → strictly null, never a fabricated NaN', PC([1, 2, 3], [7, 7, 7]) === null, 'got ' + PC([1, 2, 3], [7, 7, 7]));
+        T.ok('pearson: BOTH series constant → strictly null', PC([5, 5, 5], [7, 7, 7]) === null, 'got ' + PC([5, 5, 5], [7, 7, 7]));
+      } else T.ok('pearson present in env', false, 'add pearson: ctx.pearson / window.pearson to BOTH runners');
       // midnight rollover: an event clock earlier than the recording's start clock
       // must roll forward one day (22:00 start, 01:30 event → next morning), and an
       // already-absolute tMs must pass through untouched (no double-shift).
@@ -7324,6 +7660,105 @@
       );
     });
 
+    /* ════ ECGDex sleep position — gravity anterior-axis SIGN (AUDIT-2026-07-18 #27) ════
+     The existing position groups only assert positions come from the canonical vocabulary and
+     that a synthetic night shows variety — neither pins the ACTUAL +z→Supine / −z→Prone chest-
+     strap mapping, so flipping the sign (`uz > 0` → `uz < 0`) mislabels EVERY epoch supine↔prone
+     while still passing those groups. This drives stampEpochPositions with a KNOWN gravity vector:
+     a chest-up (+z) window MUST read supine, a chest-down (−z) window prone. Supine worsens OSA,
+     so the Integrator weights osaConf/AHI by this label — a flipped sign inverts the apnea burden. */
+    group('ECGDex sleep position — gravity axis sign +z→Supine / −z→Prone (known-answer)', 'ecgdex-dsp', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.stampEpochPositions === 'function')) {
+        T.ok('ECGDSP.stampEpochPositions available', false);
+        return;
+      }
+      // 3 epochs × 5 min at 4 Hz: chest-up (+z, supine) · chest-down (−z, prone) · left-side (+x, lateral control).
+      var fs = 4,
+        durSec = 900,
+        N = fs * durSec,
+        acc = [];
+      for (var i = 0; i < N; i++) {
+        var sec = i / fs,
+          x = 0,
+          z = 0;
+        if (sec < 300) {
+          z = 1000; // epoch 0: gravity on +z → chest anterior up → Supine
+        } else if (sec < 600) {
+          z = -1000; // epoch 1: gravity on −z → chest down → Prone
+        } else {
+          x = 1000; // epoch 2: gravity on +x → Left side → lateral (control; sign-flip must NOT touch this)
+        }
+        acc.push({ x: x, y: 0, z: z, tsMs: (i / fs) * 1000 });
+      }
+      var epochs = [{ tMin: 0 }, { tMin: 5 }, { tMin: 10 }];
+      var pos = D.stampEpochPositions(epochs, acc, fs, 0, durSec);
+      T.ok('stampEpochPositions returns one entry per epoch', Array.isArray(pos) && pos.length === 3, 'len=' + (pos && pos.length));
+      T.eq('+z gravity (chest anterior up) → supine', pos[0] && pos[0].position, 'supine');
+      T.eq('−z gravity (chest down) → prone', pos[1] && pos[1].position, 'prone');
+      T.eq('control · +x gravity → lateral (unaffected by the supine/prone z-sign)', pos[2] && pos[2].position, 'lateral');
+      // stampEpochPositions mutates epochs in place too — the epoch grid the Integrator reads must agree.
+      T.eq('epoch grid mutated in place: epochs[0].position === supine', epochs[0].position, 'supine');
+      T.eq('epoch grid mutated in place: epochs[1].position === prone', epochs[1].position, 'prone');
+    });
+
+    /* ════ ECGDex ACC sleep/wake consensus — Wake-motion threshold (AUDIT-2026-07-18 #28) ════
+     accExtras votes an epoch "Wake (motion)" when its normalized gross-motion index idx>20 (median
+     activity → 0, p95 → 100). The existing ACC-pipeline group only asserts votes come from the
+     allowed set + a rate range — it never pins the 20 threshold, so raising it (idx>60) makes
+     genuinely-moving epochs vote Sleep/Ambiguous, silently inflating the consensus agreement rate
+     and suppressing accWakePct (which also feeds classifyMode's ambulatory veto). This builds a
+     DETERMINISTIC ACC where the per-epoch mean-jerk is controlled by a per-sample toggle amplitude
+     A (dmv≈A each step ⇒ act≈A): 18 still epochs (A=0), one peak epoch (A=100) that sets p95=100 so
+     idx==act, and one TARGET epoch (A=40 ⇒ idx≈40) that sits BETWEEN 20 and 60 — the only input that
+     separates the real threshold from a raised one. All stages are non-Wake, so the target's vote is
+     the whole ballgame: idx>20 ⇒ Wake(motion) (a conflict vs the sleeping HRV stage); idx>60 ⇒ it
+     would fall back to Ambiguous. */
+    group('ECGDex ACC consensus — idx>20 votes Wake (motion) known-answer', 'ecgdex-dsp', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.accExtras === 'function')) {
+        T.ok('ECGDSP.accExtras available', false);
+        return;
+      }
+      var fs = 4,
+        EP = 20, // epochs
+        SPE = 300 * fs, // samples per 5-min epoch = 1200
+        N = EP * SPE,
+        acc = [];
+      // per-epoch toggle amplitude: still everywhere except epoch 11 (peak, sets p95) and epoch 19 (target).
+      var ampFor = function (k) {
+        return k === 11 ? 100 : k === 19 ? 40 : 0;
+      };
+      for (var i = 0; i < N; i++) {
+        var k = Math.floor(i / SPE),
+          A = ampFor(k),
+          z = 1000 + (i % 2) * A; // toggle 1000 ↔ 1000+A each sample ⇒ |Δvm| ≈ A ⇒ mean-jerk act ≈ A
+        acc.push({ x: 0, y: 0, z: z, tsMs: (i / fs) * 1000 });
+      }
+      var epochs = [],
+        stages = [];
+      for (var e = 0; e < EP; e++) {
+        epochs.push({ tMin: 5 * e });
+        stages.push({ tMin: 5 * e, stage: 'N2' }); // every epoch is a (non-Wake) sleep stage
+      }
+      var ex = D.accExtras(acc, fs, 0, EP * 300, epochs, stages);
+      T.ok('accExtras returns a consensus payload', !!(ex && ex.consensus && Array.isArray(ex.consensus.voteRows)), ex && ex.consensus ? ex.consensus.voteRows.length + ' votes' : 'no consensus');
+      if (!(ex && ex.consensus)) return;
+      var byT = {};
+      ex.consensus.voteRows.forEach(function (v) {
+        byT[v.tMin] = v;
+      });
+      var tgt = byT[95], // epoch 19 (A=40 ⇒ idx≈40)
+        peak = byT[55]; // epoch 11 (A=100 ⇒ idx≈100)
+      T.ok('target epoch (A=40) landed a vote row with idx in the 20–60 band', !!tgt && tgt.idx >= 30 && tgt.idx <= 50, tgt ? 'idx=' + tgt.idx : 'missing');
+      T.eq('target epoch idx≈40 votes "Wake (motion)" (idx>20)', tgt && tgt.vote, 'Wake (motion)');
+      T.eq('control · peak epoch idx≈100 votes "Wake (motion)" (>both thresholds)', peak && peak.vote, 'Wake (motion)');
+      // consequence: with the correct threshold both moving epochs conflict with the sleeping HRV
+      // stage ⇒ ≥2 conflicts; a raised idx>60 threshold drops the target to Ambiguous ⇒ fewer conflicts
+      // and a falsely-higher agreement rate.
+      T.ok('two genuinely-moving epochs conflict with the sleeping HRV stage (idx>20 gate)', ex.consensus.nConflict >= 2, 'nConflict=' + ex.consensus.nConflict);
+    });
+
     /* ════ 19 · PPGDex limb posture from ACC (parity, down-weighted) ════ */
     group('PPGDex limb posture from ACC', 'ppgdex-dsp', function (T) {
       var P = env.PPGDSP;
@@ -7444,6 +7879,28 @@
         T.ok('all-supine night flags positional clustering', pos && pos.positional === true, pos && 'supine=' + pos.supine + ' rate=' + pos.supineRate);
         T.ok('postureSource is chest-acc when ECGDex present', pos && pos.postureSource === 'chest-acc');
       } else T.ok('positional fusion fns present', false);
+
+      // #55 — the supine-fraction cut is STRICT ≥0.70: positional apnea is declared only on
+      // STRONG supine clustering, not on a merely-balanced posture split. Hand-built directly
+      // through labelPositionalApnea (no fusion needed — it reads apneaResult.findings[].tMs and
+      // ECGDex summary.posture): 9 confirmed findings, 6 at supine posture and 3 at lateral ⇒
+      // supineRate = 6/9 = 0.67 (< 0.70) while the ratio clause 6/3 = 2 (≥ 2×) is SATISFIED — so
+      // the supine-fraction threshold is the ONLY thing that can keep this off, and at 0.67 it must.
+      if (typeof LP === 'function') {
+        var tb = U(2026, 5, 7, 22, 0, 0);
+        var bFindings = [],
+          bPosture = [];
+        for (var bi = 0; bi < 9; bi++) {
+          var btf = tb + bi * 300000; // 5 min apart
+          bFindings.push({ tMs: btf, type: 'confirmed_apnea_event' });
+          bPosture.push({ tMs: btf, pos: bi < 6 ? 'supine' : 'lateral' }); // 6 supine, 3 lateral
+        }
+        var bPos = LP([{ node: 'ECGDex', summary: { posture: bPosture } }], { findings: bFindings });
+        T.ok('boundary: analysis available on hand-built posture', bPos && bPos.available === true);
+        T.eq('boundary: supine/nonsupine = 6/3 as built', bPos.supine + '/' + bPos.nonsupine, '6/3');
+        T.eq('boundary: supineRate = 0.67 (6 of 9)', bPos.supineRate, 0.67);
+        T.ok('boundary: a 0.67 supine fraction is NOT positional (strict ≥0.70 supine clustering required)', bPos.positional === false, 'positional=' + (bPos && bPos.positional) + ' rate=' + (bPos && bPos.supineRate));
+      } else T.ok('labelPositionalApnea present for boundary check', false);
     });
 
     /* ════ 20 · PHYSIOLOGY KERNEL (P8) — versioned, content-hashed constants ════ */
@@ -7951,6 +8408,65 @@
       T.ok('a LATER window (w0 = 60*fs = 10575.6, fractional) still yields a PI — not just w0=0', win.length > 1 && win[1].pi != null && isFinite(win[1].pi), 'win[1].pi=' + (win[1] && win[1].pi));
     });
 
+    /* ════ #87: PpgDex whole-record perfusion index IS a PERCENTAGE — PI = 100 × AC/DC ════
+       analyze()'s perfWindow computes r.perfusionIndex = r2(100·AC/DC), AC = std(band-passed reference
+       channel), DC = mean(|raw reference channel|). The ×100 is what makes PI a percentage; dropping it
+       silently divides every emitted PI by 100 and changes its unit to a bare ratio. The morph group
+       above pins PPGMorph.perWindowMorph's per-window PI, NOT the DSP's whole-record perfusionIndex —
+       that surface had no scale gate. Known-answer: run analyze() on a single-channel record (so the
+       reference channel is unambiguously ch[0]) and independently reconstruct AC = std(detectChannel
+       (raw,fs).bp) and DC = mean(|raw|) from the SAME exported helpers, then assert perfusionIndex ≈
+       100·AC/DC (the CITED formula, not code output). Dropping the ×100 reds this by two orders. */
+    group('PpgDex whole-record perfusion index is a PERCENTAGE (PI = 100 × AC/DC; #87)', 'ppgdex-dsp · regression', function (T) {
+      var PPG = env.PPGDSP;
+      T.ok('PPGDSP.analyze + detectChannel + mean + std exposed', PPG && ['analyze', 'detectChannel', 'mean', 'std'].every(function (k) {
+        return typeof PPG[k] === 'function';
+      }));
+      if (!(PPG && typeof PPG.analyze === 'function' && typeof PPG.detectChannel === 'function')) return;
+
+      var fs = 100,
+        durSec = 120,
+        n = Math.round(fs * durSec);
+      var ch = new Float32Array(n),
+        relSec = new Float64Array(n),
+        phase = 0;
+      for (var i = 0; i < n; i++) {
+        relSec[i] = i / fs;
+        phase += (2 * Math.PI) / (1.0 * fs); // 60 bpm clean pulse
+        ch[i] = 100000 + 4000 * (Math.sin(phase) + 0.3 * Math.sin(2 * phase)); // large DC + pulsatile AC → PI ≈ a few %
+      }
+      var rec = {
+        ch: [ch], // SINGLE channel ⇒ analyze's reference channel is ch[0], so AC/DC are reconstructible
+        amb: null,
+        relSec: relSec,
+        fs: fs,
+        n: n,
+        t0Ms: Date.UTC(2026, 5, 21, 23, 0, 0),
+        offsetMin: null,
+        durSec: (n - 1) / fs,
+        acc: null,
+        gyro: null,
+        magn: null,
+        devicePPI: null,
+        markers: null
+      };
+      var r = PPG.analyze(rec, null);
+      T.ok('analyze returned a finite perfusionIndex', r && r.perfusionIndex != null && isFinite(r.perfusionIndex), 'PI=' + (r && r.perfusionIndex));
+      if (!r || r.perfusionIndex == null) return;
+
+      // Independent known-answer: AC = std(band-passed reference), DC = mean(|raw reference|).
+      var raw = rec.ch[0];
+      var bpRef = PPG.detectChannel(raw, fs).bp; // same band-passed waveform analyze uses for AC
+      var dc = PPG.mean(Array.prototype.map.call(raw, Math.abs));
+      var acAmp = PPG.std(bpRef);
+      var bareRatio = acAmp / dc; // the WRONG (mutant) magnitude
+      var expectedPct = 100 * bareRatio; // PI = 100 × AC/DC — the CITED percentage formula
+      T.approx('perfusionIndex ≈ 100 × AC/DC (the percentage formula), matching an independent reconstruction', r.perfusionIndex, expectedPct, 0.05, 'PI=' + r.perfusionIndex + ' 100·AC/DC=' + expectedPct.toFixed(4));
+      // And it must be the PERCENTAGE, not the bare ratio: dropping the ×100 lands on bareRatio (~0.034),
+      // two orders below the percentage (~3.4). This separation is what reds the mutation.
+      T.ok('perfusionIndex is the percentage (~100×), NOT the bare AC/DC ratio', Math.abs(r.perfusionIndex - expectedPct) < Math.abs(r.perfusionIndex - bareRatio), 'PI=' + r.perfusionIndex + ' pct=' + expectedPct.toFixed(4) + ' ratio=' + bareRatio.toFixed(6));
+    });
+
     group('Leaf-module coverage — CPAPDex DSP/EDF self-tests + morphology', 'cpapdex-edf · cpapdex-dsp · ecgdex-morph · ppgdex-morph', function (T) {
       var ED = env.CpapEdf,
         DS = env.CpapDsp,
@@ -7973,6 +8489,17 @@
       } else T.ok('cpapdex-dsp.js loaded with selfTest()', false, 'env.CpapDsp missing in this runner');
       T.ok('ecgdex-morph.js exposes analyze() (exercised via ECGDSP.analyze)', !!(EM && typeof EM.analyze === 'function'));
       T.ok('ppgdex-morph.js exposes analyze() (exercised via PPGDSP morphology)', !!(PM && typeof PM.analyze === 'function'));
+
+      /* #34 (TEST-AUDIT-FINDINGS) — the CPAP kernel's sample SD uses Bessel's correction (÷ n−1), NOT ÷ n.
+         `_sd` feeds `_cov` (CV%), so a silent ÷n slip systematically SHRINKS minVentStability and every
+         SD-derived surfaced CPAP number — the classic silently-wrong-variance defect the self-test missed.
+         Known-answer on the exposed kernel: series [2,4,4,4,5,5,7,9] has mean 5, SS=Σ(x−5)²=32, so the
+         SAMPLE sd = √(32/7) ≈ 2.138 — a ÷n population sd would be exactly √(32/8)=2, and _cov would read
+         40 % instead of 100·√(32/7)/5 ≈ 42.76 %. Both discriminate the mutation. */
+      if (DS && DS._kernel && typeof DS._kernel._sd === 'function') {
+        T.approx('cpapdex · _sd = sample SD with Bessel ÷(n−1): √(32/7) (÷n would give exactly 2)', DS._kernel._sd([2, 4, 4, 4, 5, 5, 7, 9]), Math.sqrt(32 / 7), 1e-9);
+        T.approx('cpapdex · _cov (CV%) inherits the ÷(n−1) SD: 100·√(32/7)/5', DS._kernel._cov([2, 4, 4, 4, 5, 5, 7, 9]), (100 * Math.sqrt(32 / 7)) / 5, 1e-9);
+      } else T.ok('cpapdex · _kernel._sd exposed for the Bessel known-answer', false, 'DS._kernel._sd missing');
     });
 
     /* ════ 24 · FULL-lane waveform fidelity — synthetic → real DSP beat recovery ════
@@ -8631,6 +9158,42 @@
       T.eq('MDY file: ODI-4 == the DMY control (a desat is NOT lost to a broken clock)', nM.odi4 && nM.odi4.count, nD.odi4 && nD.odi4.count);
       T.ok('the control night is diagnostically live (ODI-4 fired)', (nD.odi4 && nD.odi4.count) > 0, 'odi4=' + JSON.stringify(nD.odi4));
       T.eq('exported recording.durationMin is never negative', rMDY.recording.durationMin, rDMY.recording.durationMin);
+    });
+
+    // AUDIT §65 — a GENUINELY-ambiguous O2Ring night (every row day≤12 AND month≤12) MUST default to DMY.
+    // parseCSV supplies that default via `DexClock.resolveDMY(_stamps, true)`. The §3 group above cannot
+    // catch a flipped default: its file carries an unambiguous day>12 row, so resolveDMY LOCKS the order and
+    // the default is dead code there. Here the order is genuinely unprovable, so the default is the ONLY
+    // thing deciding it — flip it to false (parse MDY) and the whole recording lands on the wrong month.
+    group('OxyDex Clock — genuinely-ambiguous O2Ring stamps default to DMY, not MDY (AUDIT §65)', 'oxydex-dsp · clock', function (T) {
+      var OD = env.OxyDex;
+      if (!OD || typeof OD.compute !== 'function') {
+        T.ok('env.OxyDex.compute available', false, 'namespace not wired — gate skipped');
+        return;
+      }
+      var p2 = function (n) { return n < 10 ? '0' + n : '' + n; };
+      // 22:00 05/06/2026 → 05:00 06/06/2026, 1 Hz. Every date string is "05/06" or "06/06": day AND month
+      // both ≤ 12 ⇒ resolveDMY cannot prove an order and falls back to the default. DMY reads 5→6 June
+      // (7 h forward = 420 min). MDY reads "05/06"=May 6, "06/06"=June 6 → the recording lands in MAY and
+      // the elapsed span balloons to ~31 days.
+      var lines = ['Time,Oxygen Level,Pulse Rate,Motion'];
+      var t0 = Date.UTC(2026, 5, 5, 22, 0, 0); // 5 Jun 2026 22:00
+      for (var s = 0; s < 7 * 3600; s++) {
+        var d = new Date(t0 + s * 1000);
+        var hhmmss = p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds());
+        var date = p2(d.getUTCDate()) + '/' + p2(d.getUTCMonth() + 1) + '/' + d.getUTCFullYear();
+        lines.push(hhmmss + ' ' + date + ',96,60,0');
+      }
+      var r = OD.compute({ text: lines.join('\n'), filename: 'o2ring_ambiguous.csv' });
+      var n0 = r && r.nights && r.nights[0];
+      T.ok('a night was produced', !!n0);
+      if (!n0) return;
+      var startD = new Date(r.recording.startEpochMs);
+      // Hand-derived: DMY default → June (getUTCMonth()===5), day 5. An MDY default → May (4), day 6.
+      T.eq('genuinely-ambiguous start month is June (DMY default), not May (MDY)', startD.getUTCMonth(), 5, 'startEpochMs=' + r.recording.startEpochMs + ' → ' + startD.toISOString());
+      T.eq('genuinely-ambiguous start day is the 5th (DMY), not the 6th (MDY)', startD.getUTCDate(), 5);
+      // 22:00 → 05:00 next day = 7 h = 420 min; an MDY read makes it ~31 days.
+      T.ok('elapsed span is one night (~420 min), not a month (MDY artifact)', r.recording.durationMin > 400 && r.recording.durationMin < 480, 'durationMin=' + r.recording.durationMin);
     });
 
     group('OxyDex Phase-9 — compute() surface + spo2 adapter', 'oxydex-dsp · adapters · signal-orchestrate', function (T) {
@@ -10287,6 +10850,19 @@
         'mxdmn_meanrr=' + seconds.d_mxdmn_meanrr + ' csi=' + seconds.d_csi
       );
       T.ok('§4 · the ratio is physiological (~0.4), not 1000× low (~0.0004)', seconds.d_mxdmn_meanrr > 0.01, 'd_mxdmn_meanrr=' + seconds.d_mxdmn_meanrr);
+
+      // (e) §4 POINCARÉ SD1 — the geometric ellipse MINOR axis is rMSSD/√2 (Brennan 2001). No other
+      //     HRVDex gate pins SD1's ABSOLUTE value (pulsedex §8 pins its OWN node), so an SD1 = rMSSD/2
+      //     slip (~29 % low) would ship silently AND propagate into SD2 (√(2·SDNN²−SD1²)), SD1/SD2, and
+      //     the DFA-α1 proxy (1 − 0.5·SD1/SD2). rFull carries rMSSD=36.4 → SD1 = 36.4/√2 = 25.7387 …
+      //     (hand-derivable; derive() applies no rounding to d_sd1). Under rMSSD/2 it is 18.2 → RED.
+      var RMSSD = 36.4,
+        sd1True = RMSSD / Math.SQRT2; // 25.73869 … — Poincaré minor axis
+      T.approx('§4 · Poincaré SD1 == rMSSD/√2 (geometric minor axis, Brennan 2001)', rFull.d_sd1, sd1True, 1e-9, 'd_sd1=' + rFull.d_sd1 + ' rMSSD/√2=' + sd1True);
+      T.ok('§4 · SD1 is NOT rMSSD/2 (the ~29 %-low slip that also corrupts SD2/ratio/DFA-α1)', Math.abs(rFull.d_sd1 - RMSSD / 2) > 1, 'd_sd1=' + rFull.d_sd1 + ' rMSSD/2=' + RMSSD / 2);
+      // and the SD2 identity it feeds: SD2 = √(2·SDNN² − SD1²), SDNN=75.7 → propagation check
+      var sd2True = Math.sqrt(Math.max(0, 2 * 75.7 * 75.7 - sd1True * sd1True));
+      T.approx('§4 · SD2 = √(2·SDNN² − SD1²) reflects the correct SD1 (propagation)', rFull.d_sd2, sd2True, 1e-9, 'd_sd2=' + rFull.d_sd2 + ' expected=' + sd2True);
     });
 
     group('HRVDex Phase-9 — compute() surface + summary adapter', 'hrvdex-dsp · adapters · signal-orchestrate', function (T) {
@@ -12198,6 +12774,12 @@
         T.approx('OXYCross.nightWeight = coverage/100', OX.nightWeight(oxN[0]), 0.9, 1e-6);
         T.ok('OxyDex crossnight metrics all self-describe evidence (Longitudinal badge — COVERAGE-MANDATE)', everyEv(oxB));
         T.eq('OxyDex pbIndex evidence = experimental (registry)', oxB.metrics.pbIndex.evidence, 'experimental');
+        // Cross-night spread MUST be the SAMPLE SD (Bessel ÷N−1), never population ÷N (finding #69). meanSpo2
+        // series = [90..97] (8 consecutive ints): mean 93.5, Σ(v−m)²=42 ⇒ sample √(42/7)=√6=2.449→r1 2.4;
+        // population √(42/8)=√5.25=2.291→2.3. Pins central.sd + the CV% it feeds (100·√6/93.5=2.62→r1 2.6),
+        // so a ÷N−1→÷N regression that silently understates night-to-night spread reds HERE. Hand-derived.
+        T.approx('OxyDex meanSpo2 central.sd = sample SD √(42/7)=2.4 (Bessel ÷N−1, NOT population 2.3)', oxB.metrics.meanSpo2.central.sd, 2.4, 1e-9);
+        T.approx('OxyDex meanSpo2 central.cv = 100·√6/93.5 = 2.6 (from the sample SD)', oxB.metrics.meanSpo2.central.cv, 2.6, 1e-9);
       } else T.ok('OXYCross.crossNightBlock present (oxydex-cross.js co-loaded)', false, 'co-load oxydex-cross.js + map env.OXYCross');
 
       /* ── PulseDex (envelope; ids rmssd·sdnn·lnRMSSD·hr·stress·hrvScore·dfaAlpha1·si) ── */
@@ -12216,6 +12798,14 @@
         T.eq('PulseDex stress evidence = experimental (registry)', puB.metrics.stress.evidence, 'experimental');
         T.eq('PulseDex dfaAlpha1 evidence = emerging (registry)', puB.metrics.dfaAlpha1.evidence, 'emerging');
         T.eq('PulseDex hr evidence = measured (registry)', puB.metrics.hr.evidence, 'measured');
+        // Cross-night SD is the SAMPLE form (Bessel ÷N−1); it is ALSO the denominator of the personal-baseline
+        // z-score, so a ÷N regression both understates spread AND inflates every z (finding #48). rmssd series
+        // = [40..47]: mean 43.5, Σ=42 ⇒ central.sd sample √(42/7)=2.4 (pop 2.3). baseline = prior 7 nights
+        // [40..46]: mean 43, Σ=28 ⇒ sample √(28/6)=2.160→r1 2.2 (pop √(28/7)=2.0). zLatest=(47−43)/2.160=1.85
+        // (below the |z|≥2 flag); under ÷N it becomes 4/2.0=2.0 — tripping a FALSE 'anomalous night'. Hand-derived.
+        T.approx('PulseDex rmssd central.sd = sample √(42/7)=2.4 (Bessel ÷N−1, NOT population 2.3)', puB.metrics.rmssd.central.sd, 2.4, 1e-9);
+        T.approx('PulseDex rmssd baseline.sd = sample √(28/6)=2.2 (prior-7 spread, ÷N−1)', puB.metrics.rmssd.baseline.sd, 2.2, 1e-9);
+        T.approx('PulseDex rmssd zLatest = (47−43)/√(28/6) = 1.85 (÷N would inflate to 2.0 → false flag)', puB.metrics.rmssd.baseline.zLatest, 1.85, 1e-9);
       } else T.ok('PulseCross.crossNightBlock present (pulsedex-cross.js co-loaded)', false, 'co-load pulsedex-cross.js + map env.PulseCross');
 
       /* ── PpgDex (MIGRATED to the envelope — CROSS-MODULE-RUNTIME-COVERAGE-FOLLOWUPS §2; ids rmssd·sdnn·lnRMSSD·hr·pi·ai·motionRejected) ── */
@@ -12244,6 +12834,11 @@
         T.eq('PpgDex rmssd evidence = validated (registry)', pgB.metrics.rmssd.evidence, 'validated');
         T.eq('PpgDex ai evidence = emerging (registry)', pgB.metrics.ai.evidence, 'emerging');
         T.eq('PpgDex hr evidence = measured (registry)', pgB.metrics.hr.evidence, 'measured');
+        // Cross-night SD is the SAMPLE form (Bessel ÷N−1); population ÷N understates spread + CV% (finding #88).
+        // rmssd series = [40..47]: mean 43.5, Σ=42 ⇒ central.sd sample √(42/7)=2.4 (pop 2.3). baseline = prior
+        // 7 [40..46]: mean 43, Σ=28 ⇒ sample √(28/6)=2.160→r1 2.2 (pop √(28/7)=2.0). Hand-derived.
+        T.approx('PpgDex rmssd central.sd = sample √(42/7)=2.4 (Bessel ÷N−1, NOT population 2.3)', pgB.metrics.rmssd.central.sd, 2.4, 1e-9);
+        T.approx('PpgDex rmssd baseline.sd = sample √(28/6)=2.2 (prior-7 spread, ÷N−1)', pgB.metrics.rmssd.baseline.sd, 2.2, 1e-9);
       } else T.ok('PPGCross.crossNightBlock present (ppgdex-cross.js co-loaded)', false, 'co-load ppgdex-cross.js + map env.PPGCross');
 
       /* ── ECGDex (envelope; node-specific accessors: qtc valid-delin guard, cvhr longRec&&!ambulatory) ── */
@@ -12336,6 +12931,19 @@
       T.eq('step DETECTED — a sustained residualAHI drop → trend improving (not smoothed to stable)', step.trend.label, 'improving');
       T.ok('step DETECTED — the change block is significant', !!(step.change && step.change.significant === true), JSON.stringify(step.change));
       T.approx('change block measures the step (first-half 6 → second-half 3 ⇒ −3)', step.change.deltaFirstHalfToSecond, -3, 1e-6);
+      // Mann–Kendall S must count +1 per later-value-greater pair so its SIGN encodes trend DIRECTION (finding
+      // #38). trend.label uses OLS-slope sign + |τ|, and p uses |z| — so a sign-flip of the concordance sum
+      // negates the surfaced τ while leaving label/significance/p untouched. This pins the DIRECTION directly.
+      // Direct known-answer: strictly-rising [1,2,3,4] → all C(4,2)=6 pairs concordant-positive ⇒ S=+6,
+      // τ=S/(½·4·3)=+1. A sign-flip yields S=−6, τ=−1. Hand-derived.
+      var mkUp = CP.mannKendall([1, 2, 3, 4]);
+      T.eq('MK S = +6 for strictly-rising [1,2,3,4] (concordance sum, +1 per rising pair)', mkUp.S, 6);
+      T.approx('MK τ = +1 for a strictly-increasing series (sign encodes trend direction)', mkUp.tau, 1, 1e-9);
+      // Surfaced τ on the FALLING residualAHI step [6×4,3×4]: 16 discordant (later<earlier) pairs, 12 tied ⇒
+      // S=−16, τ=−16/(½·8·7)=−16/28=−0.571→r2 −0.57. A sign-flip flips this to +0.57 (a fabricated RISING
+      // trend on a night that actually improved) while p (=0.096 both ways) stays green.
+      T.approx('surfaced trend.mannKendall.τ = −0.57 (falling step; sign-flip would report +0.57)', step.trend.mannKendall.tau, -0.57, 1e-9);
+      T.ok('surfaced τ is NEGATIVE on a falling series (direction, not just magnitude)', step.trend.mannKendall.tau < 0, String(step.trend.mannKendall.tau));
       // control — a genuinely stable run must NOT fabricate a change.
       var flat = CP.crossNightBlock(nights([5, 5, 5, 5, 5, 5, 5, 5])).metrics.residualAHI;
       T.eq('control · stable run → trend stable', flat.trend.label, 'stable');
@@ -12613,8 +13221,19 @@
       rr[20] = 1400; // +40% off local median, clean QRS, in range → ECTOPIC (Malik)
       rr[30] = 250; // < 300 ms → physiologically implausible (range-bad)
       sqi[40] = 0.1; // < 0.30 SQI → low signal quality (sqi-bad)
+      // AUDIT-2026-07-18 #24: the 1400 ms beat above is +40% off median, so it is corrected under BOTH
+      // the canonical 0.20 Malik gate AND a relaxed 0.35 gate — it cannot pin the threshold value. A beat
+      // that is EXACTLY +25% off median (1250 vs 1000) is the discriminating input: ectopic under 0.20
+      // (0.25 > 0.20 → corrected), but a PAC/PVC-scale jump that SURVIVES a mutant 0.35 gate (0.25 < 0.35)
+      // and silently inflates rMSSD/pNN50. Clean QRS + in-range, so ONLY the Malik dev threshold decides it.
+      rr[25] = 1250;
       var r = ECG.buildNN(times, rr, sqi);
       T.ok('ectopic beat (>20% local dev) corrected', r.corrected[20] === 1);
+      T.ok(
+        'borderline ectopic (+25% off local median) corrected under the 20% Malik rule',
+        r.corrected[25] === 1,
+        'corrected[25]=' + r.corrected[25] + ' — a relaxed 0.35 threshold leaves this PVC/PAC-scale jump in, inflating rMSSD/pNN50'
+      );
       T.ok('out-of-range beat (<300 ms) corrected', r.corrected[30] === 1);
       T.ok('low-SQI beat corrected', r.corrected[40] === 1);
       T.ok('clean beat left untouched', r.corrected[10] === 0);
@@ -12672,6 +13291,40 @@
       // apples-to-apples consequence: self and device carry identical truth, both clamp the band beat
       // identically, so their SDNN agree. Pre-fix, only self clamped ⇒ a fabricated dSDNN mismatch.
       T.ok('self-vs-device SDNN agree on identical truth (dSDNN < 5%)', v.dSDNN < 5, 'dSDNN=' + v.dSDNN + '% (pre-fix the un-clamped device 2100 beat inflated devSDNN)');
+
+      // ── AUDIT-2026-07-18 #23: the 2100 ms beat above is caught by BOTH `>2000` and `>=2000`,
+      //    so it cannot tell the boundary gate `vals[i] > 2000` from a mutant `>= 2000`. The ONLY
+      //    input that separates them is a beat of EXACTLY 2000 ms: buildNN's self path uses
+      //    `nn[k] > 2000` ⇒ 2000 is IN-range (kept); a `>=2000` device gate would clamp that same
+      //    beat, re-opening the self-vs-device divergence F2 closed. Place it against a ~1850 ms
+      //    bradycardic median so its local dev (2000 vs 1850 ≈ 8.1%) is UNDER the 20% Malik gate —
+      //    only the absolute upper bound decides its fate.
+      var rrB2 = [1850, 1820, 1870, 1840, 1860, 1830, 1880, 1810, 1855, 1845, 1835, 1865, 1825, 1875, 1852, 1838, 1868, 1842, 1858, 1848];
+      var K2 = 9;
+      rrB2[K2] = 2000; // EXACTLY the boundary
+      var rr2 = [],
+        times2 = [],
+        sqi2 = [],
+        ts2 = 0;
+      for (var i2 = 0; i2 < rrB2.length; i2++) {
+        rr2.push(rrB2[i2]);
+        sqi2.push(0.9);
+        times2.push(ts2);
+        ts2 += rrB2[i2] / 1000;
+      }
+      var self2 = ECG.buildNN(times2, rr2, sqi2);
+      // control — buildNN KEEPS the exactly-2000 ms beat (self range gate is `> 2000`, so 2000 is in-range).
+      T.ok('control · buildNN KEEPS the exactly-2000 ms beat (self gate is >2000, not >=2000)', self2.corrected[K2] === 0, 'corrected[K2]=' + self2.corrected[K2]);
+      // THE INVARIANT — _malikCorrect (device path) must ALSO keep it: its gate is `> 2000`, matching buildNN.
+      var devRR2 = rrB2.map(function (v) {
+        return { rr: v };
+      });
+      var v2 = ECG.validateRR(self2.nn, devRR2);
+      T.ok(
+        '_malikCorrect KEEPS the exactly-2000 ms device beat too (device gate >2000 == buildNN, NOT >=2000)',
+        v2.devEctopyCorrected === 0,
+        'devEctopyCorrected=' + v2.devEctopyCorrected + ' — a `>=2000` mutant clamps the boundary beat on the device side only, fabricating a self-vs-device divergence'
+      );
     });
 
     /* ════ Optical beat detector — known-answer (WP-D2) ════
@@ -12734,6 +13387,65 @@
       T.ok('clean PPI left unflagged', c.flags[5] === 0);
       T.ok('≥2 corrections counted', c.nCorr >= 2);
       T.approx('ectopic PPI replaced by local median (~1000)', c.nn[15], 1000, 5, 'nn15=' + c.nn[15]);
+
+      // ── (c) #79: the 2000 ms (30 bpm) upper CEILING must reject an impossible bradycardic PPI on
+      //         its OWN — even when that PPI sits INSIDE the 30% local-median ectopy band, so ONLY the
+      //         range ceiling (not the ectopy rule) can be what catches it. Baseline 2000 ms (30 bpm,
+      //         the floor, within-range → accepted); inject 2500 ms (24 bpm). |2500−2000|/2000 = 0.25
+      //         < 0.30 → ESCAPES the ectopy rule; 2500 > 2000 → range-rejected. Widening the ceiling
+      //         to 3000 ms ACCEPTS it (flag 0, kept at 2500) — a physiologically-impossible NN interval
+      //         fed straight into the HRV/PPI metrics. Hand-derived, not read from code output.
+      var rrB = [],
+        ttB = [],
+        tB = 1.0;
+      for (var jb = 0; jb < 40; jb++) {
+        rrB.push(2000);
+        ttB.push(tB);
+        tB += 2.0;
+      }
+      rrB[20] = 2500; // 24 bpm — impossible; inside the ectopy band of the 2000 ms baseline, so ONLY the ceiling rejects it
+      var cB = PPG.correctRR(rrB, ttB);
+      T.ok('the 2000 ms bradycardic baseline is within-range accepted (the ceiling must not over-reject)', cB.flags[10] === 0, 'flag10=' + cB.flags[10]);
+      T.ok('impossible brady PPI (2500 ms / 24 bpm) is Malik-rejected by the 2000 ms ceiling, not the ectopy rule', cB.flags[20] === 1, 'flag20=' + cB.flags[20]);
+      T.approx('the range-rejected brady PPI is replaced by the local median (~2000), not kept at 2500', cB.nn[20], 2000, 10, 'nn20=' + cB.nn[20]);
+    });
+
+    /* ════ PpgDex detector — the 0.30 s refractory FLOOR (200 bpm ceiling; #79/#84 sibling) ════
+     WP-D2 companion. detectBeats' absolute refractory floor is refrFloor = round(fs·0.30) — the
+     200 bpm physiologic ceiling that applies even when the windowed-cadence prior is ABSENT (a clip
+     shorter than cadenceSamples' 45 s window → cad=null → refr=refrFloor). Halving it to fs·0.15
+     (400 bpm) lets the detector count a systolic peak's reflected/second wave 0.20 s later as a
+     SEPARATE beat, doubling HR/PPI on the exact noisy short segments where the prior can't help.
+     Known-answer: plant 20 beat-PAIRS one second apart, the two members 0.20 s (between 0.15 s and
+     0.30 s) apart. Under the 0.30 s floor each pair collapses to ONE peak (≈20); under a 0.15 s floor
+     both survive (≈40). Duration 20 s (< 45 s) keeps cadenceSamples null so the FLOOR is what decides. */
+    group('PpgDex detector — 0.30 s refractory floor rejects a sub-floor second peak (200 bpm ceiling; #84)', 'ppgdex-dsp · regression', function (T) {
+      var PPG = env.PPGDSP;
+      T.ok('PPGDSP.detectBeats exposed', PPG && typeof PPG.detectBeats === 'function');
+      if (!PPG || typeof PPG.detectBeats !== 'function') return;
+      var fs = 100,
+        dur = 20, // < 45 s ⇒ cadenceSamples returns null ⇒ refr = refrFloor (the prior is ABSENT, by design)
+        n = Math.round(fs * dur),
+        bp = new Float32Array(n);
+      var gap = 20; // 0.20 s at 100 Hz — strictly between the 0.15 s (mutant) and 0.30 s (real) floors
+      var nPairs = 20;
+      function gauss(arr, center, amp, sig) {
+        for (var i = Math.max(0, Math.round(center - 4 * sig)); i < Math.min(arr.length, Math.round(center + 4 * sig)); i++) {
+          arr[i] += amp * Math.exp(-((i - center) * (i - center)) / (2 * sig * sig));
+        }
+      }
+      for (var k = 0; k < nPairs; k++) {
+        var base = k * 100 + 10; // one pair per second
+        gauss(bp, base, 1.0, 4); // systolic peak
+        gauss(bp, base + gap, 0.7, 4); // reflected/second wave, 0.20 s later, smaller
+      }
+      var det = PPG.detectBeats(bp, fs);
+      T.ok('detectBeats returns a peaks array', det && Array.isArray(det.peaks), 'peaks=' + (det && det.peaks && det.peaks.length));
+      // THE assertion: with the 0.30 s floor the second wave of each pair is refractory-suppressed,
+      // so the count is ~nPairs (20). Under fs·0.15 both survive → ~2·nPairs (≈40). A ceiling of
+      // nPairs+6 = 26 passes the real detector (20) and reds the mutant (≈39).
+      T.ok('sub-0.30 s second peaks are refractory-merged: count ≈ nPairs, not ≈ 2·nPairs (raising the floor to 400 bpm doubles it)', det.peaks.length <= nPairs + 6, 'peaks=' + det.peaks.length + ' (expect ~' + nPairs + '; mutant ~' + 2 * nPairs + ')');
+      T.approx('and the count is a clean one-per-pair recovery', det.peaks.length, nPairs, 4, 'peaks=' + det.peaks.length);
     });
 
     /* ════ PpgDex detector — robust to a supra-physiologic transient (FU §3) ════
@@ -13116,6 +13828,42 @@
       T.ok(
         'positional artifact emits no nocturnal_hypo event',
         !ra.events.some(function (e) {
+          return e.impulse === 'nocturnal_hypo';
+        })
+      );
+
+      // ── direction 3: ONE-SHARP-EDGE genuine hypo (the AND→OR trap). The discriminator excludes a run as a
+      //    positional artifact ONLY when BOTH edges are near-vertical (maxDropStep≥22 AND maxRiseStep≥22).
+      //    A real insulin hypo can DIVE fast (sharp entry) yet recover GRADUALLY (slow Somogyi rebound) —
+      //    one vertical edge, one gradual. The both-gradual GENUINE / both-vertical ARTIFACT cases above
+      //    give the SAME answer under AND or OR, so they can't see the mutation; this case has exactly one
+      //    vertical edge, so AND keeps it (genuine, detected) while OR mis-classes it as compression
+      //    (excluded, silently lost) — the exact false-negative harm the discriminator exists to prevent.
+      //    Sharp entry (95→58, a ~37 mg/dL single-cell drop) + gradual +4/cell rebound past the nadir. ──
+      var ONE_SHARP = {
+        20: 95,
+        21: 95,
+        22: 95,
+        23: 58, // ← near-vertical single-cell drop (≥22) — the ONE sharp edge
+        24: 56,
+        25: 56,
+        26: 56, // sustained sub-70, real nadir 56 (≤60)
+        27: 60,
+        28: 64,
+        29: 68,
+        30: 72,
+        31: 76,
+        32: 80,
+        33: 84, // gradual +4/cell recovery — the shoulder is NOT vertical
+        34: 90
+      };
+      var ros = run(ONE_SHARP);
+      T.ok('one-sharp-edge genuine hypo → nocturnalHypo fires (AND keeps it; OR loses it)', ros.nocturnalHypo.length > 0, 'n=' + ros.nocturnalHypo.length);
+      T.ok('one-sharp-edge hypo reaches the real ~56 mg/dL nadir', ros.nocturnalHypo.length > 0 && ros.nocturnalHypo[0].min <= 60, ros.nocturnalHypo[0] && ros.nocturnalHypo[0].min);
+      T.ok('one-sharp-edge hypo NOT mis-flagged compression (a single vertical edge ≠ artifact)', ros.compMin === 0, 'compMin=' + ros.compMin);
+      T.ok(
+        'one-sharp-edge hypo emits a nocturnal_hypo Ganglior event',
+        ros.events.some(function (e) {
           return e.impulse === 'nocturnal_hypo';
         })
       );
@@ -13520,6 +14268,11 @@
       T.eq('ECG · apnea band flags CPAP context', b.apneaRisk.cpap, true);
       T.eq('ECG · estimated AHI value = CVHR index', b.estAHI.value, 12);
       T.eq('ECG · estimated AHI band = Mild (5–15/h)', b.estAHI.band, 'Mild');
+      /* #93 (TEST-AUDIT-FINDINGS) — the estimated-AHI honest band is ±30%: lo=round(0.7·index),
+         hi=round(1.3·index). idx 12 ⇒ lo=round(8.4)=8, hi=round(15.6)=16. A 0.7→0.5 slip widens the
+         lower bound to −50% (lo=round(6)=6) — no existing leg pins .lo/.hi so the slip was invisible. */
+      T.eq('ECG · estimated AHI band lower bound = round(0.7·index) (honest −30%)', b.estAHI.lo, 8);
+      T.eq('ECG · estimated AHI band upper bound = round(1.3·index) (honest +30%)', b.estAHI.hi, 16);
       T.eq('ECG · age-expected resting HR rises with age (55)', b.expRHR, 63);
 
       // ── PpgDex · optical wrist · shares the ECG VO₂/HRV kernel (age 40 M) ─────────────
@@ -13552,6 +14305,21 @@
       T.eq('GLU · sensor-vs-lab bias (−ve ⇒ sensor reads HIGH vs lab)', g.calib.bias, -16);
       T.eq('GLU · |bias| ≥ 15 mg/dL ⇒ "large"', g.calib.magnitude, 'large');
       T.approx('GLU · data-quality confidence (coverage − 1.5·compression + 0.08)', g.dataQualityConf, 0.96, 1e-9);
+
+      /* #95 (TEST-AUDIT-FINDINGS) — expectedGMI reference by diabetes status: none 5.4 · pre-diabetes
+         5.9 · diabetic 6.8. The predm branch (5.9) is what DISTINGUISHES pre-diabetes from the diabetic
+         6.8 reference; the type-1 case above pins 6.8 but nothing pinned the predm 5.9, so a 5.9→6.5
+         slip (collapsing the distinction) slipped through. Pin both the predm and the none branch. */
+      P._setStore(mk());
+      P.setManual('age', 45);
+      P.setManual('sex', 'M');
+      P.setManual('diabetes', 'predm');
+      var gPre = env.GLUProfile.personalize({ tir: { tir: 80, tbr1: 0, tbr2: 0 }, cv: 30, mean: 130, biasOffset: 0, gmi: 5.9, activeMin: 1000, compMin: 20, pctActive: 95 });
+      T.eq('GLU · expected GMI for pre-diabetes = 5.9 % (distinct from diabetic 6.8)', gPre.expGMI, 5.9);
+      P._setStore(mk());
+      P.setManual('diabetes', null); // no status ⇒ p.diab falls back to "none"
+      var gNone = env.GLUProfile.personalize({ tir: { tir: 80, tbr1: 0, tbr2: 0 }, cv: 30, mean: 130, biasOffset: 0, gmi: 5.4, activeMin: 1000, compMin: 20, pctActive: 95 });
+      T.eq('GLU · expected GMI for no-diabetes = 5.4 %', gNone.expGMI, 5.4);
 
       P._setStore(mk()); // leave a pristine record for later groups (mirrors §19)
     });
@@ -13586,6 +14354,13 @@
       var lead = N.edfToOxyRows({ signals: { SpO2: { fs: 1, data: [200, 200, 98, 97] } }, clock: { t0Ms: Date.UTC(2020, 0, 1, 0, 0, 0) } });
       T.eq('resample · leading invalids backfill from first valid (no head NaN → round 98)', lead.rows[0].spo2, 98);
       T.eq('resample · trailing valid preserved', lead.rows[3].spo2, 97);
+      /* #97 (TEST-AUDIT-FINDINGS) — when the ENTIRE SpO₂ channel is invalid (every sample out of
+         [40,100]), the seeded baseline is 97% — a physiologic NORMOXIC default (validLo===40 branch),
+         never a hypoxic value. A 97→90 slip would seed hypoxia and shift every derived desat/ODI number
+         for a fully-invalid night. No existing leg exercised the whole-channel-junk fallback. */
+      var junk = N.edfToOxyRows({ signals: { SpO2: { fs: 1, data: [200, 200, 200] } }, clock: { t0Ms: Date.UTC(2020, 0, 1, 0, 0, 0) } });
+      T.eq('resample · whole-channel-junk SpO₂ ⇒ 97% normoxic baseline (row 0)', junk.rows[0].spo2, 97);
+      T.eq('resample · whole-channel-junk baseline fills every row (row 2)', junk.rows[2].spo2, 97);
 
       // ── EDF → OxyDex rows · CLOCK CONTRACT (floating t0Ms, +1000 ms/row, getUTC* readback) ──
       var t0 = Date.UTC(2020, 5, 10, 22, 0, 0); // 2020-06-10 22:00 floating
@@ -13709,6 +14484,13 @@
         T.approx('ba · upper limit of agreement = bias + 1.96·sd', b.hiLoA, 1.96 * Math.sqrt(4 / 3), 1e-9);
         T.eq('ba · zero-bias ⇒ symmetric limits (hiLoA = −loLoA)', +(b.hiLoA + b.loLoA).toFixed(12), 0);
         T.eq('ba · fewer than 3 paired points ⇒ null', QE.ba([1], [1]), null);
+        /* #92 (TEST-AUDIT-FINDINGS) — Bland–Altman percent bias = 100·bias / mean(reference) (a
+           PERCENTAGE); the earlier ba leg has bias 0 so biasPct is 0 either way and never pins the 100·.
+           a=[12,14,16,18] vs reference b=[7,9,11,13]: d=[5,5,5,5] ⇒ bias 5, mean(b)=10 ⇒ biasPct=100·5/10=50 %.
+           A ×10 slip (100→10) understates it to 5 %. */
+        var bp = QE.ba([12, 14, 16, 18], [7, 9, 11, 13]);
+        T.eq('ba · bias = mean(a−b) = 5', bp.bias, 5);
+        T.eq('ba · percent bias = 100·bias/mean(reference) = 50 %', bp.biasPct, 50);
       }
     });
 
@@ -13741,6 +14523,13 @@
       // higher for F. Male 30-34 = [34.6,38.5,42.4,47.4] ⇒ 30 → "Very Poor"; female 30-34 = [27.7,…] ⇒ "Poor".
       T.eq('calcVo2Cat · sex M · VO₂ 30 @ age 32 ⇒ "Very Poor"', vo2Cat(30, 32, 'M'), 'Very Poor');
       T.eq('calcVo2Cat · sex F · SAME VO₂/age reads higher on the lower female norms ⇒ "Poor"', vo2Cat(30, 32, 'F'), 'Poor');
+
+      /* #96 (TEST-AUDIT-FINDINGS) — Male 50-54 ACSM VO₂ norm: Very-Poor/Poor cut at 26.1 mL/kg/min
+         (male 50-54 = [26.1,30.9,33.8,37.4]). No existing leg exercised this band, so raising the cut
+         (e.g. 26.1→30.1) misclassified anyone with VO₂ in [26.1,30.1) from "Poor" down to "Very Poor".
+         26.0 (below the cut) anchors "Very Poor"; 27 (just above the real cut, below 30.9) MUST read "Poor". */
+      T.eq('calcVo2Cat · M 50-54 · VO₂ 26.0 (below the 26.1 cut) ⇒ "Very Poor"', vo2Cat(26.0, 52, 'M'), 'Very Poor');
+      T.eq('calcVo2Cat · M 50-54 · VO₂ 27 (above the 26.1 cut, below 30.9) ⇒ "Poor"', vo2Cat(27, 52, 'M'), 'Poor');
     });
 
     /* ════ 21g · OxyDex PROFILE PERSONALIZATION — known-answer (TEST-COVERAGE-FOLLOWUPS-II §1b) ════
@@ -13770,6 +14559,24 @@
       T.eq('upBMILabel · 25 boundary → Overweight', bmi(25), 'Overweight');
       T.eq('upBMILabel · [25,30) → Overweight', bmi(27), 'Overweight');
       T.eq('upBMILabel · ≥30 → Obese', bmi(32), 'Obese');
+
+      /* #94 (TEST-AUDIT-FINDINGS) — absolute VO₂ (L/min) = relative VO₂ (mL/kg/min) × weight(kg) / 1000.
+         upVO2abs reads UP.vo2GT + UP.weight (module state) and is consumed only by DOM rendering, so the
+         Node lane had zero coverage of it. Drive it through the live UP accessor: 40 mL/kg/min × 90 kg /
+         1000 = 3.60 L/min. A /100 slip reports 36.0 L/min — 10× too large. Save/restore UP so later groups
+         see a pristine profile. */
+      var vabs = env.OxyVO2abs,
+        up = env.OxyUP;
+      T.ok('OxyDex upVO2abs + UP are wired into env (both lanes)', typeof vabs === 'function' && up && typeof up === 'object', 'window.upVO2abs / window.UP missing');
+      if (typeof vabs === 'function' && up) {
+        var _svVo2 = up.vo2GT,
+          _svWt = up.weight;
+        up.vo2GT = 40;
+        up.weight = 90;
+        T.eq('upVO2abs · absolute VO₂ = rel·weight/1000 = 40·90/1000 = 3.60 L/min', vabs(), 3.6);
+        up.vo2GT = _svVo2;
+        up.weight = _svWt;
+      }
     });
 
     /* ════ 21h · qrs-equiv WORKER EXECUTES — known-answer (TEST-COVERAGE-FOLLOWUPS-II §4) ════
@@ -14720,6 +15527,24 @@
       // ── seconds input is untouched (no false conversion of correct data) ──
       var gS = Q.guardBaevsky(0.8, 0.3);
       T.ok('seconds Baevsky input passes through unchanged', gS.assumedMs === false && approxEq(gS.modeS, 0.8) && approxEq(gS.mxdmnS, 0.3) && gS.flagged === false);
+
+      // ── THE NODE-LOCAL siCalc — PulseDex does NOT route through DexUnits.baevskySI; it has its own
+      //    siCalc(amo, mo_ms, mx_ms) that must convert BOTH Mode and MxDMn from ms → s before dividing.
+      //    The guard above only covers DexUnits, so this defect (dropping the /1000 on Mode) ships unless
+      //    the node function is exercised directly. Known-answer (Baevsky): SI = AMo / (2·Mo·MxDMn) with
+      //    Mo, MxDMn in SECONDS. AMo=40, Mo=800 ms=0.8 s, MxDMn=300 ms=0.3 s → 40/(2·0.8·0.3) = 83.333.
+      //    Drop the /1000 on Mode and it becomes 40/(2·800·0.3) = 0.0833 — the 1000× mixed-unit trap. ──
+      var P = env.PulseDex,
+        siCalc = P && P._bare && P._bare.siCalc;
+      if (typeof siCalc === 'function') {
+        var siNode = siCalc(40, 800, 300); // Welltory ms-unit inputs
+        T.approx('PulseDex.siCalc converts BOTH Mode & MxDMn ms→s (amo=40, mo=800ms, mx=300ms → 83.33)', siNode, 83.333, 0.02, 'siCalc=' + siNode);
+        T.ok('PulseDex.siCalc is NOT 1000× low (the un-converted-Mode bug yields ~0.083)', siNode > 1, 'siCalc=' + siNode);
+        var siMixed = siCalc(40, 900, 400); // second known-answer: 40/(2·0.9·0.4) = 55.556
+        T.approx('PulseDex.siCalc (amo=40, mo=900ms, mx=400ms → 55.556)', siMixed, 55.556, 0.02, 'siCalc=' + siMixed);
+      } else {
+        T.ok('env.PulseDex._bare.siCalc available', false, 'PulseDex node-local siCalc not wired — gate skipped');
+      }
     });
 
     /* ════ 26 · DIFFERENTIAL TESTING — redundant RR/HRV nodes agree (brief Phase 5) ════
@@ -14817,6 +15642,24 @@
       var nn0 = genNN(7, N);
       var ratio = P.timeDomain(nn0).sdnn / E.std(nn0);
       T.approx('SDNN ratio ECGDex:PpgDex = 1.000 (unified sample SD)', ratio, 1.0, 0.004, 'ratio=' + ratio.toFixed(4));
+
+      // ── AUDIT-2026-07-18 #30: the agreement above is checked on CLEAN hand-built NN, so it never
+      //    exercises analyze()'s SUSTAINED-artifact gate — a burst of spurious over-detections (each
+      //    passing per-beat SQI individually, so buildNN keeps it) is only caught collectively by
+      //    beatConfidence (c<0.5 ⇒ confirmed-artifact second ⇒ DROP before the HRV suite). The seeded
+      //    synthetic injects a 40 s noise burst (~88 min); analyze() must drop those seconds, reporting
+      //    artifactSec>0. Disabling the gate (`c >= 0.5` → `c >= 0.0`) keeps every burst beat, collapsing
+      //    artifactSec to 0 and inflating ECGDex SDNN (118.9 → 137.3 on this seed) — breaking the very
+      //    ECGDex↔PpgDex agreement this group asserts.
+      if (typeof E.analyze === 'function' && typeof E.genSynthetic === 'function') {
+        var recG = E.genSynthetic({ durSec: 3 * 3600, scenario: 'osa' });
+        var rG = E.analyze(recG, function () {});
+        T.ok(
+          'sustained-artifact gate DROPS confirmed-artifact seconds before the HRV suite (artifactSec>0 on a night with an injected noise burst)',
+          rG.artifactSec > 0,
+          'artifactSec=' + rG.artifactSec + ' — a disabled c>=0 gate collapses this to 0, letting burst beats flow into NN and inflate ECGDex SDNN/RMSSD'
+        );
+      }
     });
 
     /* ════ EXPORT-IDENTITY §2.1 — content-addressed recording handle (CORE) ════ */
@@ -15336,6 +16179,17 @@
       T.ok('empty B → lift NaN, not a fabricated 0 or 1', isNaN(none.lift), none.lift);
       var empty = EC.coupling([], B, { span: span });
       T.ok('empty A → n = 0, lift NaN, no throw', empty.n === 0 && isNaN(empty.lift), empty.lift);
+
+      // #52 — the coupling window [tA+lo, tA+hi] is CLOSED: a B event landing EXACTLY on the upper
+      // edge t+hi counts as a hit. Hand-built so ONLY the boundary decides: one A at T, one B at
+      // exactly T+hi, window [0, hi]. The B is the sole event in the window and sits on the edge, so
+      // observedPct is 100 iff the edge is inclusive, 0 if the comparison is made strict (< instead
+      // of ≤). (span makes the A eligible and gives the circular null a domain; observedPct is exact.)
+      var EDGE = Date.UTC(2026, 5, 13, 23, 0, 0),
+        HI = 60000;
+      var edgeHit = EC.coupling([{ tMs: EDGE }], [{ tMs: EDGE + HI }], { window: [0, HI], span: [EDGE, EDGE + 2 * HI] });
+      T.eq('a B event exactly at the window upper edge t+hi COUNTS (closed window, inclusive)', edgeHit.observedPct, 100);
+      T.eq('… and it is the single counted hit on the single eligible A', edgeHit.hits + '/' + edgeHit.n, '1/1');
 
       // 4. purity — no clock read, no RNG: identical inputs must give identical output
       T.eq('deterministic across calls (pure: no now(), no random)', JSON.stringify(EC.coupling(A, B, { window: [0, 10000], span: span, stratifyBy: 'durSec' })), JSON.stringify(r));
