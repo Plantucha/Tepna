@@ -51,3 +51,27 @@ def test_spo2_csv_is_vihealth_layout(tmp_path):
     assert rows[0] == "Time,Oxygen Level,Pulse Rate,Motion"
     # HH:MM:SS DD/MM/YYYY local-civil (the exact shape OxyDex's oxydex-spo2 adapter parses)
     assert rows[1] == "21:34:53 16/07/2026,97,62,5"
+
+
+def test_streamwriter_periodic_flush_lands_rows_before_close(tmp_path):
+    # A hard kill / power loss mid-night must not lose the buffered tail: the writer flushes on a
+    # wall-clock cadence, so rows are readable from a SEPARATE handle before close() ever runs.
+    p = tmp_path / "ecg.txt"
+    w = writers.StreamWriter(str(p), "ecg", flush_interval=0.0)   # 0.0 => flush on every row
+    ns0 = 599636646177065964
+    for i in range(50):
+        w.write_ecg(_dt.datetime(2026, 7, 16, 21, 34, 53), ns0 + i * 7_692_308, 0.0, i)
+    on_disk = p.read_text().splitlines()          # NOT closed yet
+    assert len(on_disk) == 51                      # header + 50 rows already on disk
+    assert on_disk[1].split(";")[2] == "0.0"       # rel-ms invariant survives the flush path
+    w.close()
+
+
+def test_spo2writer_periodic_flush_lands_rows_before_close(tmp_path):
+    p = tmp_path / "spo2.csv"
+    w = writers.Spo2CsvWriter(str(p), flush_interval=0.0)
+    for i in range(4):
+        w.write(_dt.datetime(2026, 7, 16, 21, 34, 53 + i), 97, 60 + i, 3)
+    on_disk = p.read_text().splitlines()          # NOT closed yet
+    assert len(on_disk) == 5                        # header + 4 rows already on disk
+    w.close()

@@ -150,6 +150,7 @@ body.light .section-title::after{background:rgba(0,0,0,.06);}
 .ov-stat{background:var(--surface);border:var(--b);border-radius:var(--r-sm);padding:12px 14px;border-left:3px solid var(--border2);}
 .ov-stat .lab{font-size:11px;color:var(--text4);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:6px;}
 .ov-stat .val{font-size:22px;font-weight:700;line-height:1;font-family:ui-monospace,monospace;letter-spacing:-.02em;}
+.ov-stat .val.val-addr{font-size:12px;letter-spacing:0;line-height:1.3;word-break:break-all;}   /* full BLE MAC must wrap inside the card, not overflow it */
 .ov-stat .sub{font-size:11px;color:var(--text3);margin-top:4px;}
 
 .ov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:var(--sp-4);}
@@ -477,8 +478,10 @@ function renderRemembered(devs){
         <div class="name">${esc(d.name)} ${d.connected?'<span class="dbadge on">live</span>':'<span class="dbadge warn">idle</span>'} ${battChip(d.battery)}</div>
         <div class="sub">${esc(d.address||'')} · ${(d.streams||[]).join(', ')}${d.last_error?(' · '+esc(d.last_error)):''}</div>
       </div>
+      ${(d.vendor==='Wellue'||d.vendor==='Viatom')?`<button class="btn" onclick='pullStored(this)' title="Download the ring&#39;s onboard-recorded night off flash (pauses live SpO₂ for ~1 min)">Pull stored session</button>`:''}
+      ${d.vendor==='Polar'?`<button class="btn" onclick='pullRec(${JSON.stringify(d.address)}, this)' title="List &amp; download the Polar device&#39;s onboard offline recordings off flash (pause live capture first — one BLE link)">📥 Recordings</button>`:''}
       <button class="btn-destructive" onclick='forget(${JSON.stringify(d.address)})'>Forget</button>
-    </div>`).join('');
+    </div>${d.vendor==='Polar'?`<div class="rec-panel" id="${recPanelId(d.address)}" style="margin:0 0 .7rem;padding-left:.2rem;display:flex;flex-direction:column;gap:.35rem"></div>`:''}`).join('');
 }
 
 function renderDiscovered(list){
@@ -518,6 +521,49 @@ async function remember(dev, btn){
 async function forget(address){
   await api('/api/forget',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({address})});
   loadState();
+}
+async function pullStored(btn){
+  // Download the O2Ring's onboard-recorded .dat. One BLE link ⇒ live SpO₂ capture pauses while it runs.
+  const t0 = btn.textContent; btn.disabled = true; btn.textContent = 'pulling… (live SpO₂ paused)';
+  try{
+    const r = await api('/api/pull',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({which:'latest'})});
+    if(r.ok && r.new_files && r.new_files.length){
+      const s = (r.sessions&&r.sessions[0])||{};
+      btn.textContent = `✓ ${r.new_files[0]}${s.bytes?(' · '+s.bytes+' B'):''}${s.approx_samples?(' · ~'+s.approx_samples+' samp'):''}`;
+    } else if(r.ok){
+      btn.textContent = 'no new session — ring worn/charging + phone app closed?';
+    } else {
+      btn.textContent = 'failed: ' + (r.detail||'error');
+    }
+  }catch(e){ btn.textContent = 'failed: '+e; }
+  setTimeout(()=>{ btn.disabled=false; btn.textContent=t0; loadState(); }, 8000);
+}
+// ── Polar onboard offline-recording pull (PS-FTP, PR #153) — lists device flash + downloads to captures/stored ──
+function recPanelId(addr){ return 'rec-'+(addr||'').replace(/[^0-9A-Za-z]/g,''); }
+async function pullRec(address, btn){
+  const panel = $('#'+recPanelId(address));
+  const t0 = btn.textContent; btn.disabled = true; btn.textContent = 'reading…';
+  panel.innerHTML = '<span class="hint">reading device flash (pause live capture first — one BLE link)…</span>';
+  try{
+    const r = await api('/api/polar/recordings?address='+encodeURIComponent(address));
+    if(!r.ok){ panel.innerHTML = '<span class="hint">error: '+esc(r.error||'failed')+'</span>'; return; }
+    if(!(r.recordings||[]).length){ panel.innerHTML = '<span class="hint">no onboard recordings stored on this device.</span>'; return; }
+    panel.innerHTML = r.recordings.map(s=>`
+      <div style="display:flex;align-items:center;gap:.6rem;font-size:.85rem">
+        <span style="flex:1">${esc(s.start_local||s.path)} · ${esc(s.kind)} · ${s.files.length} files · ${(s.total_bytes/1024).toFixed(1)} KB</span>
+        <button class="btn" onclick='doPull(${JSON.stringify(address)}, ${JSON.stringify(s.path)}, this)'>Download</button>
+      </div>`).join('');
+  }catch(e){ panel.innerHTML = '<span class="hint">error: '+esc(String(e))+'</span>'; }
+  finally{ btn.disabled = false; btn.textContent = t0; }
+}
+async function doPull(address, session, btn){
+  btn.disabled = true; btn.textContent = 'downloading…';
+  try{
+    const r = await api('/api/polar/pull',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({address, session})});
+    if(r.ok){ const m=r.manifest, bad=m.files.filter(f=>!f.ok).length;
+      btn.textContent = '✓ '+m.files.length+' files · '+(m.total_bytes/1024).toFixed(1)+' KB'+(bad?(' · '+bad+' mismatch!'):''); }
+    else { btn.textContent = 'failed: '+esc(r.error||'?'); btn.disabled = false; }
+  }catch(e){ btn.textContent = 'error'; btn.disabled = false; }
 }
 function guessDevice(d){
   const n = (d.name||'').toLowerCase();
@@ -599,30 +645,42 @@ const KIND_FOOT = { hr:'derived rate', scalar:'current', multi:'raw 3-axis', ppi
 
 function ovRender(){                             // (re)build the cards to match current STREAMS
   const active = STREAMS.filter(s=>s.active);
-  $('#ovStrip').innerHTML = [
-    ['Streams live', active.length, active.map(s=>s.key.split('_')[0].toUpperCase()).join(' · ')||'—'],
-    ['Devices', DEVICES.length, DEVICES.filter(d=>d.connected).length+' connected'],
-    ['Adapter', ($('#adapterInfo').textContent||'').replace('adapter ',''), 'BLE host']
-  ].map(([lab,val,sub])=>`<div class="ov-stat"><div class="lab">${lab}</div><div class="val">${esc(String(val))}</div><div class="sub">${esc(sub)}</div></div>`).join('');
+  $('#ovStrip').innerHTML = [                    // strip is plain text (no canvas) — safe to refresh every poll
+    ['Streams live', active.length, active.map(s=>s.key.split('_')[0].toUpperCase()).join(' · ')||'—', ''],
+    ['Devices', DEVICES.length, DEVICES.filter(d=>d.connected).length+' connected', ''],
+    ['Adapter', ($('#adapterInfo').textContent||'').replace('adapter ',''), 'BLE host', 'val-addr']
+  ].map(([lab,val,sub,vc])=>`<div class="ov-stat"><div class="lab">${lab}</div><div class="val ${vc}">${esc(String(val))}</div><div class="sub">${esc(sub)}</div></div>`).join('');
 
-  const grid = $('#ovGrid');
-  grid.innerHTML = STREAMS.map(s=>{
-    const dev = deviceForStream(s.key);
-    const foot = (s.fs?s.fs+' Hz':'event') + ((s.chans||1)>1 ? ' · '+s.chans+'ch' : '');
-    return `<div class="ov-card ${s.active?'':'inactive'}" data-stream="${s.key}" id="ovc-${s.key}">
-      <div class="ov-head"><span class="ev ev-measured" title="Measured — direct sensor reading"></span>
-        <span class="name">${esc(s.label)}</span>
-        ${battChip(dev?dev.battery:null)}
-        <span class="st ${s.active?'live':''}">${s.active?'live':'idle'}</span></div>
-      <div class="ov-value" id="ovval-${s.key}"></div>
-      <div class="ov-mini"><canvas id="ovcv-${s.key}"></canvas></div>
-      <div class="ov-foot"><span>${KIND_FOOT[streamKind(s)]}</span><span>${foot}</span></div>
-    </div>`;
-  }).join('');
-  for(const s of STREAMS){
-    OV[s.key] = OV[s.key] || { buf:[], fs:s.fs||1, last:null, rate:null };
-    OV[s.key].canvas = document.getElementById('ovcv-'+s.key);
-    OV[s.key].fs = s.fs || OV[s.key].fs || 1;
+  // The card GRID holds one <canvas> per stream; rebuilding its innerHTML tears every canvas down and
+  // makes the whole overview flicker on each 5 s state poll. Rebuild ONLY when the stream set actually
+  // changes (key/active/chans/fs/label) — otherwise the live values + waveforms keep updating in place.
+  const sig = STREAMS.map(s=>s.key+':'+(s.active?1:0)+':'+(s.chans||1)+':'+(s.fs||0)+':'+s.label).join('|');
+  if(sig !== OV._gridSig){
+    OV._gridSig = sig;
+    const grid = $('#ovGrid');
+    grid.innerHTML = STREAMS.map(s=>{
+      const dev = deviceForStream(s.key);
+      const foot = (s.fs?s.fs+' Hz':'event') + ((s.chans||1)>1 ? ' · '+s.chans+'ch' : '');
+      return `<div class="ov-card ${s.active?'':'inactive'}" data-stream="${s.key}" id="ovc-${s.key}">
+        <div class="ov-head"><span class="ev ev-measured" title="Measured — direct sensor reading"></span>
+          <span class="name">${esc(s.label)}</span>
+          <span class="ov-batt" id="ovbatt-${s.key}">${battChip(dev?dev.battery:null)}</span>
+          <span class="st ${s.active?'live':''}">${s.active?'live':'idle'}</span></div>
+        <div class="ov-value" id="ovval-${s.key}"></div>
+        <div class="ov-mini"><canvas id="ovcv-${s.key}"></canvas></div>
+        <div class="ov-foot"><span>${KIND_FOOT[streamKind(s)]}</span><span>${foot}</span></div>
+      </div>`;
+    }).join('');
+    for(const s of STREAMS){
+      OV[s.key] = OV[s.key] || { buf:[], fs:s.fs||1, last:null, rate:null };
+      OV[s.key].canvas = document.getElementById('ovcv-'+s.key);
+      OV[s.key].fs = s.fs || OV[s.key].fs || 1;
+    }
+  } else {
+    for(const s of STREAMS){                     // no rebuild: refresh the battery chips in place (they tick ~2 min)
+      const bc = document.getElementById('ovbatt-'+s.key), dev = deviceForStream(s.key);
+      if(bc) bc.innerHTML = battChip(dev?dev.battery:null);
+    }
   }
   ovSubscribe();   // pick up any stream that has since gone active
   ovValues();
@@ -640,6 +698,7 @@ function ovSubscribe(){                          // ONE multiplexed SSE for all 
     const cap = st.fs>0 ? Math.max(64, Math.floor(7*st.fs)) : 256;
     if(st.buf.length>cap) st.buf.splice(0, st.buf.length-cap);
     if(v.length) st.last = v[v.length-1];
+    if(key==='acc_h10' && v.length) respPush(v, st.fs);   // chest-strap ACC → breathing (its own long buffer)
   };
   es.addEventListener('snapshot', on); es.onmessage = on;
   OV._all = es;
@@ -654,10 +713,62 @@ function ovStart(){
 }
 function ovStop(){
   ovOn = false;
+  OV._gridSig = null;                            // force a fresh grid build when the view is next shown
   if(OV._all){ try{OV._all.close();}catch(_){} OV._all=null; }
   if(ovRaf){ cancelAnimationFrame(ovRaf); ovRaf=null; }
   if(OV._rate){ clearInterval(OV._rate); OV._rate=null; }
   if(OV._val){ clearInterval(OV._val); OV._val=null; }
+}
+// ── respiration from the Polar H10 chest-strap ACC ───────────────────────────────────────────────
+// The strap's accelerometer sees thoracic wall movement directly, so breathing is a clean sub-1 Hz
+// oscillation riding the gravity vector. Breathing is far too slow for the 7 s overview ring, so we keep
+// a dedicated ~60 s buffer, boxcar-decimated 200 Hz → 10 Hz (the average is also a cheap anti-alias),
+// band-pass to the respiratory band (0.1–0.6 Hz = 6–36 br/min), take the axis with the most in-band
+// power, and read the period by autocorrelation → breaths/min. Browser-side, like the ♥ derivation — the
+// box stays raw-capture-only (HEALTH-BOX-VISION: no DSP on the Pi).
+// Decimate to a TARGET ~10 Hz, but the H10 ACC is delivered in bursts (its effective delivered rate is
+// well below the nominal 200 Hz), so the ACTUAL sample spacing is measured from wall-clock timestamps
+// rather than assumed — otherwise the autocorrelation period → br/min would be off by the rate mismatch.
+const RESP = { xyz:[], ts:[], rate:null, _sx:0,_sy:0,_sz:0,_n:0 };
+const RESP_WIN_S=60, RESP_TARGET_FS=10, RESP_LO_HZ=0.1, RESP_HI_HZ=0.6;
+function respPush(samples, srcFs){
+  const stride=Math.max(1, Math.round((srcFs||200)/RESP_TARGET_FS));
+  const now=performance.now();
+  for(const s of samples){
+    const x=Array.isArray(s)?s:[s,0,0];
+    RESP._sx+=x[0]||0; RESP._sy+=x[1]||0; RESP._sz+=x[2]||0; RESP._n++;
+    if(RESP._n>=stride){ RESP.xyz.push([RESP._sx/RESP._n, RESP._sy/RESP._n, RESP._sz/RESP._n]); RESP.ts.push(now);
+      RESP._sx=RESP._sy=RESP._sz=0; RESP._n=0; }
+  }
+  const cap=RESP_TARGET_FS*RESP_WIN_S;
+  if(RESP.xyz.length>cap){ const drop=RESP.xyz.length-cap; RESP.xyz.splice(0,drop); RESP.ts.splice(0,drop); }
+}
+function _movAvg(a,w){ const o=new Float64Array(a.length); let s=0;
+  for(let i=0;i<a.length;i++){ s+=a[i]; if(i>=w)s-=a[i-w]; o[i]=s/Math.min(i+1,w); } return o; }
+function respBandpass(x,fs){                     // difference of moving averages ≈ band-pass
+  const wl=Math.max(2,Math.round(fs/RESP_LO_HZ)), ws=Math.max(1,Math.round(fs/RESP_HI_HZ/2));
+  const lp=_movAvg(x,ws), base=_movAvg(x,wl), o=new Float64Array(x.length);
+  for(let i=0;i<x.length;i++) o[i]=lp[i]-base[i]; return o;
+}
+function respRate(){
+  const N=RESP.xyz.length; if(N<40) return null;
+  const spanS=(RESP.ts[N-1]-RESP.ts[0])/1000; if(spanS<20) return null;   // need ≥20 s of breathing
+  const fs=(N-1)/spanS;                                                    // MEASURED effective sample rate
+  let best=null,bestP=-1;                                                  // pick the most-modulated axis
+  for(let ax=0;ax<3;ax++){
+    const bp=respBandpass(RESP.xyz.map(s=>s[ax]||0), fs);
+    let p=0; for(let i=0;i<bp.length;i++) p+=bp[i]*bp[i];
+    if(p>bestP){ bestP=p; best=bp; }
+  }
+  if(!best) return null;
+  const lagMin=Math.round(fs/RESP_HI_HZ), lagMax=Math.round(fs/RESP_LO_HZ);   // autocorrelation period
+  const c0=best.reduce((a,v)=>a+v*v,0)||1; let bestLag=-1,bestC=0;
+  for(let lag=lagMin; lag<=lagMax && lag<best.length; lag++){
+    let c=0; for(let i=lag;i<best.length;i++) c+=best[i]*best[i-lag];
+    if((c/=c0)>bestC){ bestC=c; bestLag=lag; }
+  }
+  if(bestLag<0 || bestC<0.25) return null;                         // no clear periodicity → withhold
+  const br=60*fs/bestLag; return (br>=5&&br<=40)?br:null;
 }
 function ovRates(){                              // live ♥ rate for ecg (R-peaks) / ppg (pulse) — channel 0
   for(const key of ['ecg','ppg']){
@@ -670,6 +781,7 @@ function ovRates(){                              // live ♥ rate for ecg (R-pea
       if(med>300&&med<2000){ const b=60000/med; st.rate = st.rate? st.rate*0.6+b*0.4 : b; }
     }
   }
+  const br=respRate(); if(br!=null) RESP.rate = RESP.rate? RESP.rate*0.7+br*0.3 : br;   // smooth
 }
 function ovValues(){                             // text readouts (throttled; canvases draw every frame)
   for(const s of STREAMS){
@@ -686,7 +798,8 @@ function ovValues(){                             // text readouts (throttled; ca
       const a=Array.isArray(last)?last:[], labs=s.labels||[];
       el.innerHTML = `<div class="ov-axes">`+ labs.map((L,i)=>
         `<span class="ov-axis" style="color:${cols?cols[i]:'var(--text2)'}">${esc(L)}<b>${a[i]!=null?Math.round(a[i]):'—'}</b></span>`).join('')
-        + `</div><span class="unit">${esc(s.unit||'')}</span>`;
+        + `</div><span class="unit">${esc(s.unit||'')}</span>`
+        + (s.key==='acc_h10' ? `<span class="aux">🫁 ${RESP.rate?Math.round(RESP.rate)+' br/min':'—'}</span>` : '');
     } else { // ppi: [PP-int ms, HR]
       const a=Array.isArray(last)?last:[];
       el.innerHTML = `<span class="big">${a[0]!=null?Math.round(a[0]):'—'}</span><span class="unit">ms</span>`
@@ -945,6 +1058,18 @@ function renderTable(f){
 
 // ---- averaged PPG pulse ----
 const PPRE_MS=140, PPOST_MS=820;
+// Port of PPGDex `orient()` (ppgdex-dsp.js) — the systolic upstroke (systole→peak) is steeper than the
+// diastolic decay, so the derivative's skew is POSITIVE when pulses already point "up". The Verity's PPG
+// reaches us inverted (sharp DOWN-stroke = systole); without this flip, detectPulses locks onto the slow
+// rise, puts the foot at the sharp trough and the "peak" ~700 ms later → the averaged pulse smears into a
+// ramp with a nonsense ~700 ms crest. Returns +1 (already up) or −1 (flip).
+function orientSign(s){
+  const n=s.length; if(n<3) return 1;
+  let m=0; for(let i=1;i<n;i++) m+=s[i]-s[i-1]; m/=(n-1);
+  let v=0; for(let i=1;i<n;i++){ const e=(s[i]-s[i-1])-m; v+=e*e; } const sd=Math.sqrt(v/(n-1))||1e-9;
+  let sk=0; for(let i=1;i<n;i++){ const z=((s[i]-s[i-1])-m)/sd; sk+=z*z*z; } sk/=(n-1);
+  return sk>=0?1:-1;
+}
 function detectPulses(s,fs){
   const n=s.length; if(n<20) return [];
   let smax=0; for(let i=1;i<n;i++){ const d=s[i]-s[i-1]; if(d>smax) smax=d; }
@@ -966,7 +1091,12 @@ function analyzePulse(){
   if(current!=='ppg' || !sig.length) return;
   const pre=Math.round(PPRE_MS/1000*fs), post=Math.round(PPOST_MS/1000*fs), L=pre+post;
   if(sig.length < L+fs) return;
-  const s=sig, peaks=detectPulses(s,fs);
+  // Orient to PPGDex convention (systolic upstroke = the steep, positive-going edge) before detecting
+  // feet/peaks — otherwise an inverted Verity signal averages into a ramp. Work on an oriented COPY so
+  // the raw live scope trace above is untouched.
+  const ori=orientSign(sig);
+  const s = ori<0 ? Float64Array.from(sig, v=>-v) : sig;
+  const peaks=detectPulses(s,fs);
   if(peaks.length>=2){
     const ibis=[]; for(let i=1;i<peaks.length;i++) ibis.push((peaks[i]-peaks[i-1])/fs*1000);
     ibis.sort((a,b)=>a-b); const med=ibis[ibis.length>>1];
@@ -995,7 +1125,13 @@ function delineatePulse(ba){
   const ms=i=>Math.round((i-F0)/fs*1000), at=t=>cl(F0+Math.round(t/1000*fs));
   let foot=F0; for(let i=at(-60);i<=at(60);i++){ if(avg[i]<avg[foot]) foot=i; }
   const base=avg[foot], V=i=>avg[cl(i)]-base;
-  let sys=foot, se=0; for(let i=foot;i<=at(ms(foot)+420);i++){ if(V(i)>se){se=V(i);sys=i;} }
+  // Systolic peak = the primary maximum after the foot. Cap the search at ~60% of the cardiac cycle
+  // (IBI-aware) instead of a fixed foot+420ms — the old fixed cap fell SHORT of a late/broad crest, so
+  // the marker landed on the cap boundary rather than the apex. 60% still stays before the diastolic
+  // reflected peak, so we pick the systolic peak, not the reflection.
+  const _ibi = bpm ? Math.round(60/bpm*fs) : Math.round(0.9*fs);
+  const _sysCap = Math.min(L-1, foot + Math.round(0.6*_ibi));
+  let sys=foot, se=0; for(let i=foot;i<=_sysCap;i++){ if(V(i)>se){se=V(i);sys=i;} }
   const sysAmp=V(sys), crest=ms(sys)-ms(foot);
   let notch=-1,nmin=1e18;
   for(let i=sys+Math.round(0.04*fs); i<Math.min(L-1, sys+Math.round(0.35*fs)); i++){
