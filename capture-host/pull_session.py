@@ -20,8 +20,14 @@ import oxyii
 _NAME_HINTS = ("o2ring", "s8-aw", "s8aw", "wellue", "checkme")
 
 
-async def _wait(q: asyncio.Queue, op: int, timeout: float = 6.0):
-    """Await the next frame with opcode `op`, skipping interleaved live (0x04) frames."""
+async def _wait(q: asyncio.Queue, op: int, timeout: float = 20.0):
+    """Await the next frame with opcode `op`, skipping interleaved live (0x04) frames.
+
+    Timeout is 20 s, NOT the original 6 s: the ring is genuinely slow to answer file ops — FILE_LIST was
+    MEASURED at 4.14 s on real hardware 2026-07-18, so 6 s left almost no margin and any radio contention
+    pushed it over. That produced a bare `TimeoutError()` which read like a dead/absent device and sent us
+    chasing a phantom MTU fault (the `MTU=23` printed at connect is bleak's PLACEHOLDER — the real
+    negotiated MTU is only known after a characteristic is acquired; it is 247 here, not 23)."""
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
     while True:
@@ -71,10 +77,17 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial):
 
     print(f"connecting to {device.address}  {device.name!r} …", flush=True)
     async with BleakClient(device, **kw) as client:
-        print(f"connected · MTU={getattr(client, 'mtu_size', '?')}"
-              + ("  ⚠ <517: READ_FILE_START may drop" if getattr(client, "mtu_size", 0) and client.mtu_size < 517 else ""),
-              flush=True)
+        # Acquire the REAL ATT MTU before reporting it. On BlueZ bleak returns a placeholder 23 until a
+        # characteristic is acquired, so printing mtu_size straight after connect always said "23" and
+        # looked like a fatal MTU fault (2026-07-18: cost a long misdiagnosis — the real MTU is 247).
+        be = getattr(client, "_backend", None)
+        if hasattr(be, "_acquire_mtu"):
+            try:
+                await be._acquire_mtu()
+            except Exception:
+                pass                                  # best-effort: reporting only, never blocks the pull
         await client.start_notify(oxyii.OXYII_NOTIFY, on_notify)
+        print(f"connected · MTU={getattr(client, 'mtu_size', '?')} (post-acquire)", flush=True)
 
         async def send(frame):
             await client.write_gatt_char(oxyii.OXYII_WRITE, frame, response=False)

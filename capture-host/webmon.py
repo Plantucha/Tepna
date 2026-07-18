@@ -21,6 +21,7 @@ from aiohttp import web
 import yaml
 import bonding
 import clockcfg
+import offline_lock
 import polar_psftp
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -38,6 +39,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                            ("name", "vendor", "model", "device_id", "address", "streams")},
                         "connected": bool(st.get("connected")),
                         "battery": st.get("battery"),
+                        "rssi": st.get("rssi"),
                         "worn": st.get("worn"),
                         "last_error": st.get("last_error")})
         return out
@@ -125,6 +127,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             ftype = 0
         try:
             return web.json_response(await pull_stored(which, ftype))
+        except offline_lock.OfflineBusy as e:
+            # 409, not 500: another device owns the single download slot. Expected, retryable, not a fault.
+            return web.json_response({"ok": False, "busy": e.holder, "detail": str(e)}, status=409)
         except Exception as e:
             return web.json_response({"ok": False, "detail": repr(e)}, status=500)
 
@@ -183,6 +188,8 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         try:
             recs = await _polar_run(address, lambda: polar_psftp.list_recordings(address))
             return web.json_response({"ok": True, "recordings": recs})
+        except offline_lock.OfflineBusy as e:
+            return web.json_response({"ok": False, "busy": e.holder, "error": str(e)}, status=409)
         except Exception as e:
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=502)
 
@@ -198,6 +205,8 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         try:
             manifest = await _polar_run(address, lambda: polar_psftp.pull_recording(address, session, out_dir))
             return web.json_response({"ok": True, "manifest": manifest})
+        except offline_lock.OfflineBusy as e:
+            return web.json_response({"ok": False, "busy": e.holder, "error": str(e)}, status=409)
         except Exception as e:
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=502)
 
