@@ -37,17 +37,29 @@
   }
 
   // ── drag-drop: recurse the webkit Entry tree ────────────────────────────
+  // mergePages accumulates the pages readEntries yields — the WHOLE directory listing, not just the
+  // last page. Synchronous + exported so the paging invariant is unit-testable (the async readEntries
+  // loop has no test seam): a directory of >100 entries pages at 100, and dropping any page silently
+  // loses files. Each page is an array-like batch; concatenate in order.
+  function mergePages(pages) {
+    var all = [];
+    for (var i = 0; i < pages.length; i++) {
+      all = all.concat(Array.prototype.slice.call(pages[i]));
+    }
+    return all;
+  }
+
   function readEntries(reader) {
-    // readEntries returns AT MOST 100 entries per call — must loop until empty.
+    // readEntries returns AT MOST 100 entries per call — must loop until empty, keeping EVERY page.
     return new Promise(function (resolve, reject) {
-      var all = [];
+      var pages = [];
       (function pump() {
         reader.readEntries(function (batch) {
           if (!batch.length) {
-            resolve(all);
+            resolve(mergePages(pages));
             return;
           }
-          all = all.concat(Array.prototype.slice.call(batch));
+          pages.push(batch);
           pump();
         }, reject);
       })();
@@ -126,6 +138,7 @@
   root.OverDexWalk = {
     fromDataTransfer: fromDataTransfer,
     fromInput: fromInput,
-    relOf: relOf
+    relOf: relOf,
+    mergePages: mergePages
   };
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);

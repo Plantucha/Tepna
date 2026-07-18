@@ -14492,6 +14492,22 @@
       T.ok('OverDexWalk is wired into env (both lanes)', !!(W && W.fromInput && W.relOf), 'globalThis.OverDexWalk missing');
       if (!W || !W.fromInput) return;
 
+      // #98 (TEST-AUDIT-FINDINGS §1) — the directory-entry reader pages at 100; mergePages must keep
+      // EVERY page, not just the last. The async readEntries loop has no test seam, so the accumulation
+      // was extracted to a sync exported mergePages(pages). A full page (100) + a partial (23) must merge
+      // to 103 in order — `all = all.concat(page)` mutated to `all = page` (drop-all-but-last) reds here.
+      if (W.mergePages) {
+        var pg1 = []; for (var _p = 0; _p < 100; _p++) pg1.push('p1_' + _p);
+        var pg2 = ['p2_0', 'p2_1', 'p2_2'];                 // partial final page
+        var merged = W.mergePages([pg1, pg2]);
+        T.eq('#98 mergePages keeps every page (100 + 3 = 103, not just the last)', merged.length, 103);
+        T.eq('#98 mergePages preserves order — first entry is page 1', merged[0], 'p1_0');
+        T.eq('#98 mergePages preserves order — entry 100 is the first of page 2', merged[100], 'p2_0');
+        T.eq('#98 mergePages([]) → [] (no pages)', W.mergePages([]).length, 0);
+      } else {
+        T.ok('#98 OverDexWalk.mergePages exported', false, 'add mergePages to overdex-walk.js exports');
+      }
+
       // a folder pick (<input webkitdirectory>) hands a flat list with webkitRelativePath populated.
       // Hidden/system entries are dropped — by their own name AND by any junk segment in their path.
       var picked = W.fromInput([
