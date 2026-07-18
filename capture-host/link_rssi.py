@@ -16,7 +16,11 @@
 from __future__ import annotations
 import asyncio, os, re
 
-_HELPER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tepna-rssi.sh")
+import helper_path
+
+# Prefer a ROOT-OWNED deployed copy: a NOPASSWD grant must point at a file this user cannot rewrite
+# (this repo sits on a user-writable NTFS mount). See helper_path.py.
+_HELPER = helper_path.resolve("tepna-rssi.sh")
 _HCI_CACHE: dict[str, str] = {}     # adapter BD_ADDR (upper) -> hciN
 
 

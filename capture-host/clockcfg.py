@@ -10,8 +10,12 @@
 from __future__ import annotations
 import asyncio, os, re, time as _time
 
+import helper_path
+
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_HELPER = os.path.join(_HERE, "tepna-clock.sh")
+# Prefer a ROOT-OWNED deployed copy — a NOPASSWD grant on a user-writable script is a privilege-
+# escalation hole (this repo sits on an NTFS mount where every file is user-writable). See helper_path.
+_HELPER = helper_path.resolve("tepna-clock.sh")
 
 _DUR = re.compile(r"(\d+)\s*(us|ms|s|min|h|d|w)")
 _UNIT = {"us": 1e-6, "ms": 1e-3, "s": 1, "min": 60, "h": 3600, "d": 86400, "w": 604800}
