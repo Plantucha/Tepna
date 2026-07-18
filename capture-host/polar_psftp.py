@@ -387,7 +387,8 @@ async def list_recordings(address: str, adapter: str | None = None) -> list[dict
     return out
 
 
-async def pull_recording(address: str, session: str, out_dir: str, adapter: str | None = None) -> dict:
+async def pull_recording(address: str, session: str, out_dir: str, adapter: str | None = None,
+                         on_progress=None) -> dict:
     """Download every file under `session` (a /U/0/DATE/{E|R}/TIME/ dir) into out_dir, mirroring the
     on-device tree. Returns a manifest {session, files:[...], total_bytes, out_dir}."""
     if not session.endswith("/"):
@@ -398,6 +399,8 @@ async def pull_recording(address: str, session: str, out_dir: str, adapter: str 
         m = {"files": [], "total_bytes": 0}
         async with PolarPsFtp(address, adapter) as fs:
             files = [(f, s) async for f, s, is_dir in fs.walk(session) if not is_dir and s >= 0]
+            total = sum(sz for _, sz in files) or 1     # PS-FTP has no per-chunk hook, so report
+            done = 0                                    # per-FILE completion — coarse but honest
             for full, size in files:
                 rel = full[len(session):]
                 dst = os.path.join(out_dir, rel)
@@ -408,6 +411,12 @@ async def pull_recording(address: str, session: str, out_dir: str, adapter: str 
                 m["files"].append({"name": rel, "bytes": len(data), "declared": size,
                                    "ok": len(data) == size, "dst": dst})
                 m["total_bytes"] += len(data)
+                done += len(data)
+                if on_progress:
+                    try:
+                        on_progress(done, total)
+                    except Exception:
+                        pass                            # a UI hook must never break the transfer
         return m
     got = await _with_retry(_once)
     manifest["files"] = got["files"]

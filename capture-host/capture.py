@@ -737,11 +737,15 @@ async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", ftype:
                 await asyncio.sleep(0.1)
             await asyncio.sleep(0.8)                   # let BlueZ fully tear the link down before re-scanning
             log.info("%s: pulling stored session (which=%s) — live capture paused", name, which)
+            def _prog(off, size):
+                _set(name, pull_progress={"device": name, "bytes": off, "total": size,
+                                          "pct": (100 * off // size) if size else 0})
             saved = await pull_session.pull(dev["address"], out_dir, which=which, ftype=ftype,
                                             adapter=(await adapter_kw()).get("adapter"),
-                                            serial="0000", wait=45) or []
+                                            serial="0000", wait=45, on_progress=_prog) or []
         finally:
             _OXYII_PAUSE.clear()                      # resume live capture no matter how the pull ended
+            _set(name, pull_progress=None)            # clear the UI bar even on failure/abort
             log.info("%s: stored-session pull finished — resuming live capture", name)
 
     def _meta(f):

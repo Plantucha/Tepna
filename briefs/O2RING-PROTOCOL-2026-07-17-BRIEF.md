@@ -59,8 +59,17 @@ The ring records **every wearing period to onboard flash** (its backstop). Four 
 | `0xF3` | DATA  | 4-B LE **offset** | ≤ 512 B chunk (loop, offset += len, until size) |
 | `0xF4` | END   | empty | ack — **required** before opening another file |
 
-**Verified on hardware:** `file-type = 0` works. The transfer needs an **ATT MTU ≥ 517** — at a smaller
-MTU the ring **silently drops `START`** (metadata queries still work). BlueZ negotiates ≥517 by default.
+**Verified on hardware:** `file-type = 0` works.
+
+⚠️ **CORRECTED 2026-07-18 — the "needs ATT MTU ≥ 517" claim above was WRONG and cost a long
+misdiagnosis.** The real negotiated MTU on this host is **247**, and transfers work perfectly at 247
+(an 8 h / 86 506 B session pulled clean). Two separate mistakes produced the myth: (a) `pull_session.py`
+printed `mtu_size` immediately after connect, but on BlueZ bleak returns a **placeholder 23** until a
+characteristic is acquired — so it *always* logged `MTU=23 ⚠ <517`, regardless of reality; (b) the actual
+failure was a **timeout**, not MTU. `_wait()` allowed 6 s while the ring takes **~4.1 s** to answer
+`FILE_LIST` (measured), so any radio contention tipped it over and produced a bare `TimeoutError()` that
+read like a dead device. Timeout is now 20 s and the MTU is acquired before it is reported. **Do not
+re-introduce an MTU≥517 precondition.**
 
 ## 5 · On-flash file format ("Format A")
 ```
@@ -68,13 +77,28 @@ MTU the ring **silently drops `START`** (metadata queries still work). BlueZ neg
 [Samples  3 B × N, one per SECOND:  SpO₂(0–100)  HR(bpm)  status ]
 [Trailer 48 B at file_end−48:  averages · desat counts · "O₂ Score ×10" at offset 42 ]
 ```
-So `N = (filesize − 10 − 48) / 3` seconds. A 10-h night ≈ 36 000 samples ≈ 108 KB. `pull_session.py`
+So `N = (filesize − 10 − 48) / 3` seconds. A 10-h night ≈ 36 000 samples ≈ 108 KB.
+
+⚠️ **10 h is a HARD CAP, not just a typical night (established 2026-07-18).** The ring stops a session at
+**36 000 samples / 108 058 B** and does not roll over. This is not academic: when the capture host slept
+04:44→08:20, the onboard `.dat` recovered 2.48 h of the 3.6 h gap and the remaining **1.12 h simply did
+not exist** — the session had hit the cap at 07:13. So the ring is a backstop for gaps **up to 10 h from
+the session start**, not an unconditional one. A session shorter than the cap is unaffected (a 2026-07-18
+07:16→15:16 wearing pulled complete at 8.00 h / 28 816 samples, 100 % valid). `pull_session.py`
 saves the raw bytes verbatim as `Wellue_O2Ring-S_<ts>_STORED.dat` + a `.meta.json` sanity record
 (bytes, header, format_a flag, sample count, trailer). Header `01 03…` confirms Format A on decode.
 
 ## 6 · Operational quirks (the ones that cost hours — READ before automating)
 - **Advertises ONLY when worn (finger-in).** NOT while idle, NOT on the USB charger, NOT just after
   removal. To connect for a download you must physically **wear it**.
+- **BUT an ESTABLISHED link SURVIVES removal — that is the download window (2026-07-18).** On taking the
+  ring off, `contact` goes to "no finger" and `worn=False`, yet the BLE connection stays up (the ring keeps
+  showing its Bluetooth symbol). Since the session is finalised on removal, the moment right after taking
+  it off is the *ideal* time to pull: the just-ended session is complete AND still reachable. Verified by
+  pulling the 07:16→15:16 session seconds after removal. Wait too long and it powers down, and then you
+  must wear it again to re-advertise.
+- **It never PUSHES.** There is no auto-upload: the ring only serves files when a client asks. What the
+  ViHealth app does "on removal" is the phone pulling. Any automation must poll deliberately.
 - **The phone ViHealth app auto-grabs the single BLE link.** A BLE peripheral holds ONE connection — if
   the phone/app has it, nothing else can connect. **Close the app** (or phone Bluetooth off) to let the
   box connect.
