@@ -38,6 +38,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                            ("name", "vendor", "model", "device_id", "address", "streams")},
                         "connected": bool(st.get("connected")),
                         "battery": st.get("battery"),
+                        "rssi": st.get("rssi"),
                         "worn": st.get("worn"),
                         "last_error": st.get("last_error")})
         return out

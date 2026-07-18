@@ -7,8 +7,36 @@
 # A dropped subscriber or a slow browser never blocks capture: the per-subscriber queue drops oldest.
 
 from __future__ import annotations
-import asyncio, collections, datetime as _dt
+import asyncio, collections, datetime as _dt, time
 from dataclasses import dataclass
+
+# ── Link-health thresholds (stream-rate side of the weak-signal warning; the RSSI side is link_rssi.py).
+# A weak/failing BLE link shows up as fewer packets than the stream's nominal rate BEFORE it fully drops —
+# the daemon sees every frame, so this needs no root (unlike connection RSSI). Waveform streams are judged
+# by effective-vs-nominal Hz; slow/event streams (spo2/pr/ppi/rr ~1 Hz) can only be judged by silence.
+_RATE_WIN_S = 5.0          # trailing window the effective rate is measured over
+_WEAK_FRAC = 0.7           # < 70 % of nominal Hz ⇒ WEAK (amber)
+_STALL_S = 6.0             # no sample for this long ⇒ STALL (red)
+_WARMUP_S = 1.5            # < this much history ⇒ too early to call WEAK (a just-opened stream)
+
+
+def stream_health(nominal_fs, eff_fs, age_s, warmup: bool = False,
+                  *, weak_frac: float = _WEAK_FRAC, stall_s: float = _STALL_S) -> str:
+    """Classify one stream's link health from its nominal rate, measured effective rate, and the age of
+    its last sample. PURE (no bus state) so it is unit-testable. Returns 'good'|'weak'|'stall'|'idle'.
+      • idle  — declared but never produced a sample (age_s is None)
+      • waveform stream (nominal > 5 Hz): stall on silence > stall_s, else weak when eff < weak_frac·nominal
+      • slow/event stream (spo2/pr/ppi/rr): rate-judging is meaningless → only stall on prolonged silence."""
+    if age_s is None:
+        return "idle"
+    if (nominal_fs or 0) > 5:                       # continuous waveform
+        if age_s > stall_s:
+            return "stall"
+        if warmup:
+            return "good"                           # not enough history to call it weak yet
+        return "weak" if eff_fs < weak_frac * nominal_fs else "good"
+    quiet = max(stall_s, 4.0 / (nominal_fs or 1))   # event stream: expect a sample every ~1/fs s
+    return "stall" if age_s > quiet else "good"
 
 
 @dataclass
@@ -39,11 +67,37 @@ class TelemetryBus:
         self._meta: dict[str, StreamMeta] = dict(DEFAULT_META)
         self._subs: set[asyncio.Queue] = set()
         self._active: set[str] = set()   # streams that have produced data this session
+        self._win: dict[str, collections.deque] = {}   # stream -> deque[(mono_ts, n_samples)] for rate calc
+        self._last_mono: dict[str, float] = {}         # stream -> monotonic time of last push (stall calc)
+
+    def _stream_rate(self, stream: str, now: float) -> tuple[float, float | None, bool]:
+        """(effective_fs, age_of_last_sample_s | None, warmup) for one stream, off the trailing window."""
+        last = self._last_mono.get(stream)
+        age = (now - last) if last is not None else None
+        w = self._win.get(stream)
+        if not w:
+            return 0.0, age, True
+        cutoff = now - _RATE_WIN_S
+        while w and w[0][0] < cutoff:
+            w.popleft()
+        if not w:
+            return 0.0, age, False        # everything aged out → genuinely quiet
+        span = now - w[0][0]
+        total = sum(n for _, n in w)
+        eff = total / span if span > 0.05 else float(total)
+        return eff, age, span < _WARMUP_S
 
     def meta(self) -> list[dict]:
-        return [{"key": m.key, "label": m.label, "unit": m.unit, "fs": m.fs,
-                 "chans": m.chans, "labels": list(m.labels),
-                 "active": m.key in self._active} for m in self._meta.values()]
+        now = time.monotonic()
+        out = []
+        for m in self._meta.values():
+            eff, age, warmup = self._stream_rate(m.key, now)
+            out.append({"key": m.key, "label": m.label, "unit": m.unit, "fs": m.fs,
+                        "chans": m.chans, "labels": list(m.labels),
+                        "active": m.key in self._active,
+                        "effFs": round(eff, 1),
+                        "health": stream_health(m.fs, eff, age, warmup)})
+        return out
 
     def register(self, key: str, label: str, unit: str, fs: float,
                  chans: int = 1, labels=()) -> None:
@@ -56,6 +110,8 @@ class TelemetryBus:
         self._meta.pop(key, None)
         self._rings.pop(key, None)
         self._active.discard(key)
+        self._win.pop(key, None)
+        self._last_mono.pop(key, None)
 
     def push(self, stream: str, values, fs: float | None = None):
         """Append a frame's worth of samples and broadcast to subscribers. `values` is either a flat
@@ -79,6 +135,15 @@ class TelemetryBus:
             self._rings[stream] = ring
         ring.extend(rows)
         self._active.add(stream)
+        now = time.monotonic()                       # link-health: track packets/sec vs nominal (no root)
+        self._last_mono[stream] = now
+        w = self._win.get(stream)
+        if w is None:
+            w = self._win[stream] = collections.deque()
+        w.append((now, len(rows)))
+        cutoff = now - _RATE_WIN_S
+        while w and w[0][0] < cutoff:
+            w.popleft()
         msg = {"stream": stream, "fs": rate, "v": rows, "chans": nch,
                "t": _dt.datetime.now().strftime("%H:%M:%S")}
         for q in list(self._subs):

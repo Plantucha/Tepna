@@ -15,6 +15,7 @@ import polar_pmd as pmd
 import viatom
 import oxyii
 import bonding
+import link_rssi
 from telemetry import TelemetryBus
 
 HR_UUID = "00002a37-0000-1000-8000-00805f9b34fb"   # standard Heart Rate Measurement (RR intervals)
@@ -741,6 +742,44 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                 _RECOVER.clear()                      # device tasks resume + reconnect on the fresh radio
 
 
+async def rssi_poller(adapter_mac, cfg: dict):
+    """Poll each CONNECTED sensor's connection RSSI (dBm) via the privileged helper and surface it in
+    STATUS → the monitor's weak-signal warning. Enrichment only: where the sudoers grant is absent (e.g. a
+    dev desktop) every read is None, so the poller disables itself after a few tries and the UI falls back
+    to the always-available stream-rate health. hcitool reads an EXISTING ACL link, so this never disturbs
+    capture. See link_rssi.py for why connection RSSI needs a privileged helper on BlueZ."""
+    lcfg = cfg.get("link") or {}
+    if not lcfg.get("rssi_enabled", True):
+        return
+    interval = float(lcfg.get("rssi_interval_sec", 25))
+    misses = 0                       # consecutive polls where a device was connected but every read failed
+    while not _STOP.is_set():
+        await asyncio.sleep(interval)
+        if _RECOVER.is_set() or _OXYII_PAUSE.is_set() or _POLAR_PAUSED:
+            continue                 # don't poke the radio mid-pull / mid-recovery
+        any_link = got_any = False
+        for d in cfg.get("devices", []):
+            name, addr = d.get("name"), d.get("address")
+            if not name or not addr:
+                continue
+            if not STATUS["devices"].get(name, {}).get("connected"):
+                _set(name, rssi=None)         # stale reading must not linger on a dropped device
+                continue
+            any_link = True
+            rssi = await link_rssi.read_rssi(adapter_mac, addr)
+            if rssi is not None:
+                got_any = True
+                _set(name, rssi=rssi)
+        if any_link and not got_any:
+            misses += 1
+            if misses >= 3:
+                log.info("link RSSI unavailable (no privileged helper / sudoers grant) — "
+                         "weak-signal warning uses stream rate only")
+                return
+        elif got_any:
+            misses = 0
+
+
 async def main():
     global ADAPTER
     ap = argparse.ArgumentParser()
@@ -757,7 +796,8 @@ async def main():
         loop.add_signal_handler(sig, _STOP.set)
 
     tasks = [asyncio.create_task(status_loop(root)),
-             asyncio.create_task(adapter_watchdog(ADAPTER, cfg))]
+             asyncio.create_task(adapter_watchdog(ADAPTER, cfg)),
+             asyncio.create_task(rssi_poller(ADAPTER, cfg))]
 
     def _spawn(dev: dict):
         # Refuse to capture a device missing identity fields — otherwise capture_filename() emits

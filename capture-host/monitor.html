@@ -224,6 +224,12 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
 .batt-ico{position:relative;display:inline-block;width:15px;height:8px;border:1px solid currentColor;border-radius:2px;opacity:.85;}
 .batt-ico::after{content:'';position:absolute;right:-3px;top:2px;width:2px;height:4px;background:currentColor;border-radius:0 1px 1px 0;}
 .batt-fill{position:absolute;left:1px;top:1px;bottom:1px;background:currentColor;border-radius:1px;transition:width .3s;}
+/* Signal pill — the weak/failing-link warning (shown ONLY when weak/stall; a healthy link is uncluttered). */
+.sig{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;font-family:ui-monospace,monospace;
+  padding:1px 7px;border-radius:999px;border:1px solid transparent;white-space:nowrap;}
+.sig::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;}
+.sig.weak{color:var(--amber);border-color:rgba(255,184,77,.4);background:rgba(255,184,77,.09);}
+.sig.bad{color:var(--red);border-color:rgba(255,107,122,.5);background:rgba(255,107,122,.11);}
 
 /* ── Clock & NTP card ──────────────────────────────────────────────────── */
 .clk-status{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px 22px;margin:14px 0 4px;}
@@ -412,6 +418,24 @@ function battChip(p){
   const w = Math.max(0, Math.min(100, p));
   return `<span class="batt ${battClass(p)}" title="Battery ${p}%"><span class="batt-ico"><span class="batt-fill" style="width:${w}%"></span></span>${p}%</span>`;
 }
+// Link health: a WEAK (amber) / STALL (red) pill from the stream-rate side of the weak-signal warning
+// (telemetry.stream_health). good/idle → NO pill, so a healthy link stays uncluttered. `title` carries the
+// live effective-vs-nominal rate on hover.
+function sigPill(health, title){
+  if(health==='weak') return `<span class="sig weak" title="${esc(title||'Weak link — packet rate low')}">weak</span>`;
+  if(health==='stall') return `<span class="sig bad" title="${esc(title||'No packets — link stalled')}">no signal</span>`;
+  return '';
+}
+function sigTitle(s){ return s && s.effFs!=null ? (s.effFs+' / '+(s.fs||0)+' Hz') : ''; }
+// Worst link health across the ACTIVE streams a device owns (good/idle < weak < stall) — the device-row rollup.
+function deviceHealth(d){
+  const rank = {good:0, idle:0, weak:1, stall:2};
+  let worst = 'good', ts = '';
+  for(const s of STREAMS){
+    if(s.active && deviceForStream(s.key)===d && (rank[s.health]||0) > (rank[worst]||0)){ worst = s.health; ts = sigTitle(s); }
+  }
+  return {health: worst, title: ts};
+}
 // The device that owns a stream. Bus keys are device-qualified for shared streams (acc_vs, hr_h10,
 // motion_o2); map them back to their sensor for the battery chip.
 function _devTag(d){
@@ -475,8 +499,8 @@ function renderRemembered(devs){
   el.innerHTML = devs.map(d=>`
     <div class="dev">
       <div class="meta">
-        <div class="name">${esc(d.name)} ${d.connected?'<span class="dbadge on">live</span>':'<span class="dbadge warn">idle</span>'} ${battChip(d.battery)}</div>
-        <div class="sub">${esc(d.address||'')} · ${(d.streams||[]).join(', ')}${d.last_error?(' · '+esc(d.last_error)):''}</div>
+        <div class="name">${esc(d.name)} ${d.connected?'<span class="dbadge on">live</span>':'<span class="dbadge warn">idle</span>'} ${battChip(d.battery)} ${d.connected?(dh=>sigPill(dh.health,dh.title))(deviceHealth(d)):''}</div>
+        <div class="sub">${esc(d.address||'')}${(d.rssi!=null&&isFinite(d.rssi))?(' · '+d.rssi+' dBm'):''} · ${(d.streams||[]).join(', ')}${d.last_error?(' · '+esc(d.last_error)):''}</div>
       </div>
       ${(d.vendor==='Wellue'||d.vendor==='Viatom')?`<button class="btn" onclick='pullStored(this)' title="Download the ring&#39;s onboard-recorded night off flash (pauses live SpO₂ for ~1 min)">Pull stored session</button>`:''}
       ${d.vendor==='Polar'?`<button class="btn" onclick='pullRec(${JSON.stringify(d.address)}, this)' title="List &amp; download the Polar device&#39;s onboard offline recordings off flash (pause live capture first — one BLE link)">📥 Recordings</button>`:''}
@@ -664,6 +688,7 @@ function ovRender(){                             // (re)build the cards to match
       return `<div class="ov-card ${s.active?'':'inactive'}" data-stream="${s.key}" id="ovc-${s.key}">
         <div class="ov-head"><span class="ev ev-measured" title="Measured — direct sensor reading"></span>
           <span class="name">${esc(s.label)}</span>
+          <span class="ov-sig" id="ovsig-${s.key}">${sigPill(s.health, sigTitle(s))}</span>
           <span class="ov-batt" id="ovbatt-${s.key}">${battChip(dev?dev.battery:null)}</span>
           <span class="st ${s.active?'live':''}">${s.active?'live':'idle'}</span></div>
         <div class="ov-value" id="ovval-${s.key}"></div>
@@ -677,9 +702,11 @@ function ovRender(){                             // (re)build the cards to match
       OV[s.key].fs = s.fs || OV[s.key].fs || 1;
     }
   } else {
-    for(const s of STREAMS){                     // no rebuild: refresh the battery chips in place (they tick ~2 min)
+    for(const s of STREAMS){                     // no rebuild: refresh battery + signal pills in place each poll
       const bc = document.getElementById('ovbatt-'+s.key), dev = deviceForStream(s.key);
       if(bc) bc.innerHTML = battChip(dev?dev.battery:null);
+      const sg = document.getElementById('ovsig-'+s.key);
+      if(sg) sg.innerHTML = sigPill(s.health, sigTitle(s));
     }
   }
   ovSubscribe();   // pick up any stream that has since gone active

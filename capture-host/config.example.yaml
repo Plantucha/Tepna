@@ -18,6 +18,11 @@ watchdog:                               # auto-recover a WEDGED BLE controller (
   grace_checks: 2                       #   consecutive wedged checks before a controller power-cycle
   max_adapter_cycles: 3                 #   hard cap so recovery can never loop (external supervisor beyond)
 
+link:                                   # weak-signal warning. Stream-rate health (packet rate vs nominal)
+  rssi_enabled: true                    #   is always on & needs no privilege. RSSI dBm enrichment needs a
+  rssi_interval_sec: 25                 #   NOPASSWD-sudo helper (tepna-rssi.sh) — connection RSSI is root-
+                                        #   only on BlueZ; without the grant it auto-disables (rate only).
+
 # Host clock MUST be NTP-synced and set to your real local timezone — arrival stamps depend on it.
 # Stored values are floating wall-clock (Clock Contract); we write the LOCAL civil time, zone-free.
 

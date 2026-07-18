@@ -73,3 +73,34 @@ def test_snapshot_of_unknown_stream_is_empty_not_error():
     bus = telemetry.TelemetryBus()
     snap = bus.snapshot("nope")
     assert snap["v"] == [] and snap["fs"] == 0 and snap["chans"] == 1
+
+
+# ── Link health (weak-signal warning, stream-rate side) ──────────────────────────────────────────────
+def test_stream_health_idle_when_no_sample_yet():
+    assert telemetry.stream_health(130, 0.0, None) == "idle"
+
+
+def test_waveform_health_stall_weak_good():
+    # nominal 130 Hz waveform
+    assert telemetry.stream_health(130, 0.0, 10.0) == "stall"          # silent > stall_s
+    assert telemetry.stream_health(130, 50.0, 0.5) == "weak"           # 50 < 0.7·130
+    assert telemetry.stream_health(130, 125.0, 0.1) == "good"          # near nominal
+    assert telemetry.stream_health(130, 5.0, 0.1, warmup=True) == "good"  # too early to judge weak
+
+
+def test_event_stream_only_stalls_never_weak():
+    # slow ~1 Hz stream (spo2/pr): a low "rate" is meaningless, only silence matters
+    assert telemetry.stream_health(1, 0.2, 2.0) == "good"
+    assert telemetry.stream_health(1, 0.0, 8.0) == "stall"
+    # irregular event stream (ppi/rr, nominal 0) uses the stall floor
+    assert telemetry.stream_health(0, 0.0, 3.0) == "good"
+    assert telemetry.stream_health(0, 0.0, 10.0) == "stall"
+
+
+def test_meta_carries_efffs_and_health():
+    bus = telemetry.TelemetryBus()
+    m0 = next(x for x in bus.meta() if x["key"] == "ecg")
+    assert m0["health"] == "idle" and m0["effFs"] == 0.0     # declared, never pushed
+    bus.push("ecg", list(range(130)), fs=130)
+    m1 = next(x for x in bus.meta() if x["key"] == "ecg")
+    assert "effFs" in m1 and m1["health"] == "good"          # a just-pushed stream is warmup→good, never idle
