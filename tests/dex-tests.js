@@ -12844,6 +12844,18 @@
         // so a ÷N−1→÷N regression that silently understates night-to-night spread reds HERE. Hand-derived.
         T.approx('OxyDex meanSpo2 central.sd = sample SD √(42/7)=2.4 (Bessel ÷N−1, NOT population 2.3)', oxB.metrics.meanSpo2.central.sd, 2.4, 1e-9);
         T.approx('OxyDex meanSpo2 central.cv = 100·√6/93.5 = 2.6 (from the sample SD)', oxB.metrics.meanSpo2.central.cv, 2.6, 1e-9);
+        // deep-scout §CN — the block also surfaces median/iqr/min/max/slopePerDay/tau/p but the group
+        // never pinned their VALUES, so every one of those estimators was hollow. meanSpo2 = [90..97]
+        // (8 nights, 1 day apart, coverage 90 → equal weights): median = (93+94)/2 = 93.5; IQR = P75−P25 =
+        // 95.25 − 91.75 = 3.5; min 90 / max 97; OLS slope vs days = exactly 1.0/day; Mann-Kendall all-rising
+        // S = C(8,2) = 28, τ = 28/28 = 1, varS = 8·7·21/18 = 65.33, z = 27/√65.33 = 3.34 → p ≈ 0.001.
+        T.approx('OxyDex meanSpo2 central.median = (93+94)/2 = 93.5', oxB.metrics.meanSpo2.central.median, 93.5, 1e-9);
+        T.approx('OxyDex meanSpo2 central.iqr = P75−P25 = 3.5', oxB.metrics.meanSpo2.central.iqr, 3.5, 1e-9);
+        T.approx('OxyDex meanSpo2 central.min = 90', oxB.metrics.meanSpo2.central.min, 90, 1e-9);
+        T.approx('OxyDex meanSpo2 central.max = 97', oxB.metrics.meanSpo2.central.max, 97, 1e-9);
+        T.approx('OxyDex meanSpo2 trend.slopePerDay = 1.0/day (OLS vs real dates)', oxB.metrics.meanSpo2.trend.slopePerDay, 1, 1e-9);
+        T.approx('OxyDex meanSpo2 trend.mannKendall.tau = 1 (all nights rising)', oxB.metrics.meanSpo2.trend.mannKendall.tau, 1, 1e-9);
+        T.approx('OxyDex meanSpo2 trend.mannKendall.p ≈ 0.001 (varS = n(n−1)(2n+5)/18)', oxB.metrics.meanSpo2.trend.mannKendall.p, 0.001, 5e-4);
       } else T.ok('OXYCross.crossNightBlock present (oxydex-cross.js co-loaded)', false, 'co-load oxydex-cross.js + map env.OXYCross');
 
       /* ── PulseDex (envelope; ids rmssd·sdnn·lnRMSSD·hr·stress·hrvScore·dfaAlpha1·si) ── */
@@ -12870,6 +12882,13 @@
         T.approx('PulseDex rmssd central.sd = sample √(42/7)=2.4 (Bessel ÷N−1, NOT population 2.3)', puB.metrics.rmssd.central.sd, 2.4, 1e-9);
         T.approx('PulseDex rmssd baseline.sd = sample √(28/6)=2.2 (prior-7 spread, ÷N−1)', puB.metrics.rmssd.baseline.sd, 2.2, 1e-9);
         T.approx('PulseDex rmssd zLatest = (47−43)/√(28/6) = 1.85 (÷N would inflate to 2.0 → false flag)', puB.metrics.rmssd.baseline.zLatest, 1.85, 1e-9);
+        // deep-scout §CN — median/iqr/min/max + slopePerDay/mannKendall.tau were surfaced but unpinned per node
+        // (each *-cross.js has its OWN copy of median/quantile/ols/mannKendall). rmssd=[40..47]: median 43.5,
+        // IQR = 45.25−41.75 = 3.5, min40/max47, OLS 1.0/day, τ=1 (all rising). Hand-derived.
+        T.approx('PulseDex rmssd central.median = 43.5', puB.metrics.rmssd.central.median, 43.5, 1e-9);
+        T.approx('PulseDex rmssd central.iqr = 3.5', puB.metrics.rmssd.central.iqr, 3.5, 1e-9);
+        T.approx('PulseDex rmssd trend.slopePerDay = 1.0/day', puB.metrics.rmssd.trend.slopePerDay, 1, 1e-9);
+        T.approx('PulseDex rmssd trend.mannKendall.tau = 1', puB.metrics.rmssd.trend.mannKendall.tau, 1, 1e-9);
       } else T.ok('PulseCross.crossNightBlock present (pulsedex-cross.js co-loaded)', false, 'co-load pulsedex-cross.js + map env.PulseCross');
 
       /* ── PpgDex (MIGRATED to the envelope — CROSS-MODULE-RUNTIME-COVERAGE-FOLLOWUPS §2; ids rmssd·sdnn·lnRMSSD·hr·pi·ai·motionRejected) ── */
@@ -12903,6 +12922,11 @@
         // 7 [40..46]: mean 43, Σ=28 ⇒ sample √(28/6)=2.160→r1 2.2 (pop √(28/7)=2.0). Hand-derived.
         T.approx('PpgDex rmssd central.sd = sample √(42/7)=2.4 (Bessel ÷N−1, NOT population 2.3)', pgB.metrics.rmssd.central.sd, 2.4, 1e-9);
         T.approx('PpgDex rmssd baseline.sd = sample √(28/6)=2.2 (prior-7 spread, ÷N−1)', pgB.metrics.rmssd.baseline.sd, 2.2, 1e-9);
+        // deep-scout §CN — same per-node median/iqr/slope/τ pins (ppgdex-cross's own estimator copies). rmssd=[40..47].
+        T.approx('PpgDex rmssd central.median = 43.5', pgB.metrics.rmssd.central.median, 43.5, 1e-9);
+        T.approx('PpgDex rmssd central.iqr = 3.5', pgB.metrics.rmssd.central.iqr, 3.5, 1e-9);
+        T.approx('PpgDex rmssd trend.slopePerDay = 1.0/day', pgB.metrics.rmssd.trend.slopePerDay, 1, 1e-9);
+        T.approx('PpgDex rmssd trend.mannKendall.tau = 1', pgB.metrics.rmssd.trend.mannKendall.tau, 1, 1e-9);
       } else T.ok('PPGCross.crossNightBlock present (ppgdex-cross.js co-loaded)', false, 'co-load ppgdex-cross.js + map env.PPGCross');
 
       /* ── ECGDex (envelope; node-specific accessors: qtc valid-delin guard, cvhr longRec&&!ambulatory) ── */
@@ -12940,6 +12964,12 @@
         T.eq('ECGDex rmssd evidence = validated (registry)', ecB.metrics.rmssd.evidence, 'validated');
         T.eq('ECGDex cvhrIndex evidence = emerging (registry)', ecB.metrics.cvhrIndex.evidence, 'emerging');
         T.eq('ECGDex hr evidence = measured (registry)', ecB.metrics.hr.evidence, 'measured');
+        // deep-scout §CN — ECG block pinned only labels/evidence/n; median/iqr/slope/τ were fully unpinned.
+        // dispRm=[40..47] → rmssd metric: median 43.5, IQR 3.5, OLS 1.0/day, τ=1.
+        T.approx('ECGDex rmssd central.median = 43.5', ecB.metrics.rmssd.central.median, 43.5, 1e-9);
+        T.approx('ECGDex rmssd central.iqr = 3.5', ecB.metrics.rmssd.central.iqr, 3.5, 1e-9);
+        T.approx('ECGDex rmssd trend.slopePerDay = 1.0/day', ecB.metrics.rmssd.trend.slopePerDay, 1, 1e-9);
+        T.approx('ECGDex rmssd trend.mannKendall.tau = 1', ecB.metrics.rmssd.trend.mannKendall.tau, 1, 1e-9);
       } else T.ok('ECGCross.crossNightBlock present (ecgdex-cross.js co-loaded)', false, 'co-load ecgdex-cross.js + map env.ECGCross');
 
       /* ── CPAPDex (envelope; nightOdi over sessions + compliancePct aggregate helper) ── */
@@ -12962,6 +12992,14 @@
         T.approx('CPAPCross.nightOdi averages available oximeter sessions', CP.nightOdi(cpN[0]), 6, 1e-6);
         T.ok('CPAPDex crossnight metrics all self-describe evidence', everyEv(cpB));
         T.eq('CPAPDex periodicBreathingPct evidence = measured (registry)', cpB.metrics.periodicBreathingPct.evidence, 'measured');
+        // deep-scout §CN — non-degenerate (varying) series so median/slope/τ are all distinct + pinnable.
+        // usageHours = 5+0.2·i (rising 0.2/night): OLS 0.2/day, τ=1. residualAHI = 8−0.5·i (falling): median
+        // (6+6.5)/2 = 6.25, OLS −0.5/day, τ=−1. Hand-derived; catches a sign/÷ flip in cpapdex-cross's estimators.
+        T.approx('CPAPDex usageHours trend.slopePerDay = 0.2/day', cpB.metrics.usageHours.trend.slopePerDay, 0.2, 1e-6);
+        T.approx('CPAPDex usageHours trend.mannKendall.tau = 1', cpB.metrics.usageHours.trend.mannKendall.tau, 1, 1e-9);
+        T.approx('CPAPDex residualAHI central.median = 6.25', cpB.metrics.residualAHI.central.median, 6.25, 1e-6);
+        T.approx('CPAPDex residualAHI trend.slopePerDay = −0.5/day', cpB.metrics.residualAHI.trend.slopePerDay, -0.5, 1e-6);
+        T.approx('CPAPDex residualAHI trend.mannKendall.tau = −1 (all falling)', cpB.metrics.residualAHI.trend.mannKendall.tau, -1, 1e-9);
       } else T.ok('CPAPCross.crossNightBlock present (cpapdex-cross.js co-loaded)', false, 'co-load cpapdex-cross.js + map env.CPAPCross');
     });
 
