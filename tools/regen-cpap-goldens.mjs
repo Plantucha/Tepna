@@ -48,6 +48,11 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // ESM-MIGRATION: cpapdex-dsp.js is a dual-mode ES module — shed its top-level export/import via the
 // single classicify source before vm-loading it (else "Unexpected token 'export'"). No-op on classic files.
 const DexBuild = createRequire(import.meta.url)('./build-core.js');
+// FOLLOWUPS-II §P8/§5 — like the GlucoDex/PulseDex regen tools, re-record outputHash from the bytes we
+// just wrote (build.mjs re-stamps manifestHash but NOT outputHash; hand-editing a fixture hash is forbidden
+// by CLAUDE.md §🔏). ManifestGate.sha16 is the exact function the gates hash with. (Full generalization to
+// tools/regen-goldens.mjs --node is carried to FOLLOWUPS-III.)
+const ManifestGate = createRequire(import.meta.url)(path.join(REPO, 'manifest-gate.js'));
 const UP = path.join(REPO, 'uploads');
 const CHECK = process.argv.includes('--check');
 
@@ -246,6 +251,26 @@ const FIXTURES = [
   }
 ];
 
+/* ── ledger re-record: outputHash (+ inputHashes when present), hashed with the gates' OWN sha16, never
+   hand-typed. CPAP synthetic goldens have committed inputs=[] (generated from _synthEdfSet), so only
+   outputHash moves; the real-EDF fixtures are skipped above (gitignored inputs). ── */
+const sha16Of = (file) => ManifestGate.sha16(new Uint8Array(fs.readFileSync(path.join(UP, file))));
+async function rerecord(fixtureName) {
+  const fragPath = path.join(REPO, 'provenance', 'CPAPDex.json');
+  const frag = JSON.parse(fs.readFileSync(fragPath, 'utf8'));
+  const rec = (frag.fixtures || {})[fixtureName];
+  if (!rec) return console.log(`      ⚠ no provenance/CPAPDex.json record for ${fixtureName} — ledger NOT re-recorded`);
+  if (rec.historical) return console.log(`      ∘ ${fixtureName} is historical (byte-pinned) — ledger left alone`);
+  const outputHash = await sha16Of(fixtureName);
+  const inputHashes = {};
+  for (const f of rec.inputs || []) inputHashes[f] = await sha16Of(f);
+  const wasOut = rec.outputHash;
+  rec.outputHash = outputHash;
+  if (Object.keys(inputHashes).length) rec.inputHashes = inputHashes;
+  fs.writeFileSync(fragPath, JSON.stringify(frag, null, 2) + '\n');
+  console.log(`      ↻ ledger re-recorded — outputHash ${wasOut} → ${outputHash}`);
+}
+
 let moved = 0,
   skipped = 0;
 for (const F of FIXTURES) {
@@ -285,6 +310,7 @@ for (const F of FIXTURES) {
   console.log(`  ${CHECK ? '!' : '✓'} ${F.name} — ${d.length} field(s) moved`);
   for (const line of d.slice(0, 8)) console.log(`      ${line}`);
   if (d.length > 8) console.log(`      … +${d.length - 8} more`);
+  if (!CHECK) await rerecord(F.name);
 }
 
 console.log(`\n${CHECK ? 'check' : 'regen'}: ${moved} fixture(s) moved, ${skipped} skipped`);
