@@ -233,3 +233,59 @@ def test_started_and_transient_are_disjoint_and_dont_swallow_real_rejections():
     for bad in (0x01, 0x02, 0x03, 0x04, 0x05, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0xFF):
         assert not pmd.is_started(bad), hex(bad)
         assert not pmd.is_transient(bad), hex(bad)
+
+
+# ── Frame-seam: which timestamp column is a SAMPLE CLOCK ────────────────────────────────────────────
+# Measured on a real 2.4 M-row corpus (2026-07-18): the device column has ZERO backward steps, while
+# the Phone/arrival column steps backwards at ~0.5-0.8 % of rows — always at an exact frame boundary
+# (ECG frame = 73 samples), median ~1.8 samples, worst 42 (a BLE stall that bunched notifications).
+#
+# That is INHERENT, not a bug to filter away: `phone` back-times each frame from its own notification
+# arrival, and BLE arrival jitters; the device clock does not. Smoothing `phone` would fabricate
+# precision the arrival stamp does not have and would destroy the only record of real link timing.
+# So the contract is: **`phone` is arrival, NOT a sample clock — sensor_ns/t_ms is the sample clock.**
+# These tests pin the property every consumer is entitled to rely on.
+
+def _frame(meas, last_ns, n, fs, channels=1):
+    """Build an uncompressed frame of `n` samples ending at device time `last_ns`."""
+    import struct
+    head = bytes([meas]) + struct.pack("<Q", last_ns)
+    if meas == pmd.ECG:
+        return head + bytes([0x00]) + b"".join(int(0).to_bytes(3, "little", signed=True) for _ in range(n))
+    return head + bytes([0x01]) + b"".join(struct.pack("<hhh", 0, 0, 0) for _ in range(n))
+
+
+def test_device_clock_is_strictly_increasing_within_a_frame():
+    import datetime as _d
+    _, s = pmd.decode_frame(_frame(pmd.ECG, 1_000_000_000, 73, 130), _d.datetime(2026, 7, 18), fs=130)
+    assert len(s) == 73
+    ns = [x.sensor_ns for x in s]
+    assert all(b > a for a, b in zip(ns, ns[1:])), "device clock must be strictly increasing"
+    assert ns[-1] == 1_000_000_000, "last sample must carry the frame's own device timestamp"
+
+
+def test_device_clock_does_not_step_backwards_across_a_frame_seam():
+    """The seam case: two back-to-back frames. The device column must stay monotonic across the join
+    even though each frame is back-timed independently — this is the property the Phone column LACKS."""
+    import datetime as _d
+    step = int(1e9 / 130)
+    a_last = 1_000_000_000
+    b_last = a_last + 73 * step                      # next frame, exactly one frame later
+    arr = _d.datetime(2026, 7, 18)
+    _, a = pmd.decode_frame(_frame(pmd.ECG, a_last, 73, 130), arr, fs=130)
+    _, b = pmd.decode_frame(_frame(pmd.ECG, b_last, 73, 130), arr, fs=130)
+    joined = [x.sensor_ns for x in a + b]
+    assert all(y > x for x, y in zip(joined, joined[1:])), "device clock stepped backwards at the seam"
+
+
+def test_ppi_is_arrival_stamped_not_back_timed():
+    """PPI/HR carry per-beat events, so they are NOT back-timed (back=0) — which is exactly why their
+    Phone column measures monotonic on real files while ECG/ACC/PPG's does not. PulseDex reads the
+    Phone column and has a one-way two-pointer matcher, so it depends on this."""
+    import datetime as _d
+    arr = _d.datetime(2026, 7, 18, 3, 0, 0)
+    payload = b"".join(bytes([60, 0xE8, 0x03, 0x00, 0x00, 0x00]) for _ in range(4))
+    _, s = pmd.decode_frame(bytes([pmd.PPI]) + (1_000_000_000).to_bytes(8, "little") + bytes([0x00]) + payload,
+                            arr, fs=1)
+    assert len(s) == 4
+    assert all(x.phone == arr for x in s), "PPI must be arrival-stamped, never back-timed"

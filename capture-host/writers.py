@@ -11,6 +11,22 @@
 #     primary stamp (drags in viewer-tz ambiguity); NEVER fabricate a stamp for a dropped packet.
 #   - The Polar "sensor timestamp [ns]" (ns since 2000-01-01) is carried as a SECONDARY column only.
 #   - A gap in capture is a GAP in the file (we simply stop writing rows), never invented "now()" rows.
+#
+# WHICH COLUMN IS A SAMPLE CLOCK (measured 2026-07-18, 2.4 M rows of real corpus):
+#   - "sensor timestamp [ns]" / "timestamp [ms]" = the DEVICE clock. ZERO backward steps. This is the
+#     sample clock; anything computing rates, diffs, bins or merges must use it.
+#   - "Phone timestamp" = the host ARRIVAL stamp. It steps BACKWARDS at ~0.5-0.8 % of rows on the
+#     back-timed continuous streams (ECG/PPG/ACC/GYRO/MAG), always at an exact frame boundary — median
+#     ~1.8 samples, worst 42. Cause: decode_frame back-times each frame from ITS OWN notification
+#     arrival (`arrival - back/fs`), and BLE arrival jitters (bursty delivery) while the device clock
+#     does not. This is inherent to arrival stamping — Polar Sensor Logger's own column behaves the
+#     same way — and it is deliberately NOT smoothed: filtering it would fabricate precision the
+#     arrival stamp does not have and destroy the only record of real link timing.
+#   - PPI/HR are per-beat EVENTS and are NOT back-timed (back=0), so their Phone column IS monotonic.
+#     PulseDex reads that column and uses a one-way two-pointer matcher, so it depends on this.
+#   Invariants pinned by tests/test_polar_pmd.py (frame-seam group). Impact audit: no Dex currently
+#   mis-computes from the seam — the only phone-column consumer on a back-timed stream is ECGDex's
+#   parseDeviceACC, whose worst 175 ms slip never crosses its 30 s epoch boundary.
 
 from __future__ import annotations
 import os, datetime as _dt, time as _time
