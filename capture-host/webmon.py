@@ -185,10 +185,20 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             return await polar_pause(address, _wrapped)
         return await _wrapped()
 
-    # Measured bytes/sec per stream kind, from THIS host's real captures — so the UI can show what a
-    # toggle actually costs (a 9 h night is ~1.2 GB with everything on; H10 ACC alone is 30% of it).
-    _BPS = {"ecg": 7800, "acc": 11400, "hr": 35, "ppg": 3750, "gyro": 2800, "mag": 2950,
-            "ppi": 30, "spo2": 60, "o2ppg": 6200}
+    # Measured bytes/sec, PER DEVICE — the same stream name costs very different amounts on different
+    # hardware, so a single global table lies. H10 ACC runs at 200 Hz (11.4 kB/s) while the Verity's runs
+    # at 52 Hz (2.9 kB/s): quoting one number for "acc" overstated the Verity by ~4x. Measured on this
+    # host 2026-07-18 over real captures.
+    _BPS_BY_MODEL = {
+        "H10":    {"ecg": 7800, "acc": 11400, "hr": 35},
+        "Verity": {"ppg": 3750, "acc": 2950, "gyro": 2800, "mag": 2950, "ppi": 30},
+        "O2Ring": {"spo2": 60, "ppg": 6200},     # ppg = the 125 Hz finger pleth, ~191 MB/night
+    }
+
+    def _bps_for(dev: dict) -> dict:
+        blob = f"{dev.get('model','')} {dev.get('name','')}".lower()
+        key = "H10" if "h10" in blob else ("Verity" if ("verity" in blob or "sense" in blob) else "O2Ring")
+        return _BPS_BY_MODEL[key]
 
     async def settings_get(_req):
         devs = []
@@ -203,13 +213,18 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             # checkbox that can never work.
             supported = [x for x in (st.get("pmd_supported") or []) if not str(x).startswith("0x")] \
                         or None
+            if d.get("vendor") in ("Wellue", "Viatom"):
+                # The ring has no PMD feature bitmask; its capturable set is fixed and known. `ppg` is the
+                # 125 Hz pleth we decode out of the same 0x04 frame as the 1 Hz summary — the second
+                # largest stream on the box, and until now it had no toggle at all.
+                supported = ["spo2", "ppg"]
             devs.append({"name": d.get("name"), "address": d.get("address"), "vendor": d.get("vendor"),
                          "streams": d.get("streams") or [], "supported": supported,
-                         "bps": {k: _BPS.get(k, 0) for k in (supported or (d.get("streams") or []))}})
+                         "bps": _bps_for(d)})
         return web.json_response({
             "settings": settings_schema.describe(cfg, {}),
             "devices": devs,
-            "bps": _BPS,
+            "bps_by_model": _BPS_BY_MODEL,
         })
 
     async def settings_post(req):

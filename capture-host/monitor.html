@@ -231,6 +231,9 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
 .batt.bad{color:var(--red);border-color:rgba(255,107,122,.45);}
 .batt-ico{position:relative;display:inline-block;width:15px;height:8px;border:1px solid currentColor;border-radius:2px;opacity:.85;}
 .batt-ico::after{content:'';position:absolute;right:-3px;top:2px;width:2px;height:4px;background:currentColor;border-radius:0 1px 1px 0;}
+.ov-pills{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:7px;
+  padding-top:7px;border-top:1px solid var(--border);min-height:20px;}
+.ov-pills:empty{display:none;}
 .setrow{display:flex;align-items:center;gap:.6rem;padding:4px 0;font-size:12px;}
 .setrow .k{font-family:ui-monospace,monospace;min-width:15rem;}
 .setrow .mb{color:var(--text3);font-size:11px;}
@@ -659,7 +662,7 @@ async function loadSettings(){
     if(d.vendor==='Polar' && !offer.includes('hr')) offer.push('hr');   // HR char, not a PMD type
     const boxes = offer.map(k=>{
       const on = (d.streams||[]).includes(k);
-      const mb = mbNight(SETTINGS.bps[k]||0);
+      const mb = mbNight((d.bps||{})[k]||0);
       return `<label class="setrow"><input type="checkbox" data-addr="${esc(d.address)}" data-stream="${esc(k)}" ${on?'checked':''}>
         <span class="k">${esc(k)}</span><span class="mb">${mb?('~'+mb+' MB/night'):''}</span></label>`;
     }).join('');
@@ -689,7 +692,8 @@ async function loadSettings(){
 function updateSetTotal(){
   let bps=0;
   document.querySelectorAll('#setStreams input[type=checkbox]:checked').forEach(el=>{
-    bps += (SETTINGS.bps[el.dataset.stream]||0);
+    const dev = SETTINGS.devices.find(d=>d.address===el.dataset.addr);   // cost is PER DEVICE: the same
+    bps += ((dev&&dev.bps)||{})[el.dataset.stream]||0;                    // stream name differs by model
   });
   $('#setTotal').textContent = `selected: ~${mbNight(bps)} MB per 9 h night (${(bps/1024).toFixed(1)} kB/s)`;
 }
@@ -894,13 +898,15 @@ function ovRender(){                             // (re)build the cards to match
       return `<div class="ov-card ${s.active?'':'inactive'}" data-stream="${s.key}" id="ovc-${s.key}">
         <div class="ov-head"><span class="ev ev-measured" title="Measured — direct sensor reading"></span>
           <span class="name">${esc(s.label)}</span>
-          <span class="ov-batt" id="ovbatt-${s.key}">${battChip(dev?dev.battery:null)}</span>
-          <span class="ov-sig" id="ovsig-${s.key}">${s.active?rssiChip(dev?dev.rssi:null, s.health, sigTitle(s)):''}</span>
-          <span class="ov-clk" id="ovclk-${s.key}">${clkChip(dev)}</span>
           <span class="st ${s.active?'live':''}">${s.active?'live':'idle'}</span></div>
         <div class="ov-value" id="ovval-${s.key}"></div>
         <div class="ov-mini"><canvas id="ovcv-${s.key}"></canvas></div>
         <div class="ov-foot"><span>${KIND_FOOT[streamKind(s)]}</span><span>${foot}</span></div>
+        <div class="ov-pills">
+          <span class="ov-batt" id="ovbatt-${s.key}">${battChip(dev?dev.battery:null)}</span>
+          <span class="ov-sig" id="ovsig-${s.key}">${s.active?rssiChip(dev?dev.rssi:null, s.health, sigTitle(s)):''}</span>
+          <span class="ov-clk" id="ovclk-${s.key}">${clkChip(dev)}</span>
+        </div>
       </div>`;
     }).join('');
     for(const s of STREAMS){
