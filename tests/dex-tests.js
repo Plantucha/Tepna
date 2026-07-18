@@ -411,6 +411,17 @@
       T.eq('trashed 22% PpgDex excluded', blk.lowQualityExcluded, ['PpgDex (22%)']);
       T.eq('surviving nodes = ECGDex + HRVDex', blk.nodes.slice().sort(), ['ECGDex', 'HRVDex']);
       T.ok('verdict agreement (not false divergent)', blk.qc === 'agreement', 'divergence ' + blk.divergencePct + '%');
+      /* #1 pin (integrator-dsp.js:~2003) — a REAL cross-device divergence (>30% on RMSSD) must flip
+         qc 'agreement'→'divergent'. Two high-quality nodes, rmssd 40 vs 80 → divergencePct
+         (max−min)/median = 40/60 = 67% (>30). RED under `worst > 30` → `worst > 300` (67 is not
+         >300, so qc silently reads 'agreement' — a genuine data-quality flag suppressed). */
+      var consDiv = FC([mk('ECGDex', 40, 58, 95), mk('HRVDex', 80, 60, 90)], 1000);
+      var blkDiv = consDiv && consDiv.blocks && consDiv.blocks[0];
+      T.ok('divergent consensus produced', !!blkDiv);
+      if (blkDiv) {
+        T.eq('rmssd divergence computed = 67% (40 vs 80, median 60)', blkDiv.divergencePct, 67);
+        T.eq('>30% RMSSD divergence flips qc to divergent', blkDiv.qc, 'divergent');
+      }
     });
 
     /* ════ 5b · INTEGRATOR HRV consensus — self-reported lowConfidence + 3-LED agreement gate (FU §2) ════
@@ -639,6 +650,17 @@
         T.ok('Oxy noisier than ECG at τ1 and τ8', a.adev.Oxy[0] > a.adev.ECG[0] && a.adev.Oxy[3] > a.adev.ECG[3]);
         T.ok('white noise averages down (ECG τ8 < τ1)', a.adev.ECG[3] < a.adev.ECG[0], JSON.stringify([+a.adev.ECG[0].toFixed(2), +a.adev.ECG[3].toFixed(2)]));
       })();
+
+      /* #6 pin (integrator-tch.js:~413, inverseVarianceWeights) — each σ² is FLOORED at
+         floorFrac×maxσ² with floorFrac=0.08, so a spuriously near-zero σ² cannot capture ~all the
+         weight. σ²={A:0, B:100, C:100}: maxσ²=100, floor=0.08·100=8 → invA=1/8, invB=invC=1/100,
+         wA=0.125/0.145≈0.862. RED under `0.08` → `0.40`: floor=40 → invA=1/40, wA=0.025/0.045≈0.556
+         (the near-zero sensor is over-floored, its weight collapses well below the 0.862 known-answer). */
+      if (typeof K.inverseVarianceWeights === 'function') {
+        var wFloor = K.inverseVarianceWeights({ A: 0, B: 100, C: 100 });
+        T.ok('#6: near-zero σ² sensor weight = 0.862 at the 0.08 floor (0.40 → ≈0.556)', Math.abs(wFloor.A - 0.862) < 0.005, 'wA=' + wFloor.A.toFixed(4));
+        T.ok('#6: weights sum to 1', Math.abs(wFloor.A + wFloor.B + wFloor.C - 1) < 1e-9);
+      } else T.ok('#6: inverseVarianceWeights present', false);
     });
 
     /* ════ Decorrelation quality gate — screenTriplet (TRIO-METHODS-REUSE §Do 3).
@@ -817,6 +839,57 @@
       var blk2 = cons2 && cons2.blocks && cons2.blocks[0];
       T.ok('degrade: <3 series → tch null', !!blk2 && blk2.tch == null, 'status=' + (blk2 && blk2.tchStatus));
       T.ok('degrade: pairwise consensus still produced', !!(blk2 && blk2.rmssd));
+
+      /* #3 pin (integrator-dsp.js:~1923) — rmssd.weightedMean is INVERSE-VARIANCE weighted (w∝1/σ²
+         from the TCH hat), NOT a plain arithmetic mean. A constant per-node OFFSET separates the three
+         whole-record means (offsets cancel in pairwise differences → σ² and the hat weights are
+         UNCHANGED), so ECG (σ²≈4) dominates and the reconciled value is pulled toward ECG's ~42, far
+         below the arithmetic mean ~62. RED under `_acc += w*o.v; _ws += w` → `_acc += o.v; _ws += 1`
+         (a plain mean → weightedMean === arithmetic ~62, no longer near the low-σ node). */
+      function mkOff(node, noiseStd, seed, offset) {
+        var nz = normals(seed, NE),
+          eps = [];
+        for (var i = 0; i < NE; i++) {
+          eps.push({ tMin: i * 5, rmssd: +(truth[i] + offset + noiseStd * nz[i]).toFixed(1), hr: 55, motionIndex: 0.1 });
+        }
+        var whole = +(
+          eps.reduce(function (a, e) {
+            return a + e.rmssd;
+          }, 0) / NE
+        ).toFixed(1);
+        return A(
+          {
+            schema: { node: node },
+            recording: { startEpochMs: t0, durationMin: 240 },
+            quality: { analyzablePct: 95 },
+            hrv: { time: { rmssd: whole, sdnn: +(whole * 1.3).toFixed(1) } },
+            timeseries: { epochs: eps },
+            ganglior_events: [{ t: '23:00:10', tMs: t0 + 10000, impulse: 'x', node: node, conf: 0.8 }]
+          },
+          node,
+          node + '.json'
+        )[0];
+      }
+      // ECG cleanest (σ²≈4, whole≈42) · HRV medium (σ²≈25, whole≈52) · PPG noisiest (σ²≈196, whole≈92)
+      var cons3 = FC([mkOff('ECGDex', 2, 11, 0), mkOff('HRVDex', 5, 22, 10), mkOff('PpgDex', 14, 33, 50)], 1000);
+      var blk3 = cons3 && cons3.blocks && cons3.blocks[0];
+      T.ok('#3: consensus + TCH + weightedMean present', !!(blk3 && blk3.tch && blk3.tch.ok && blk3.rmssd && blk3.rmssd.weightedMean != null), 'wm=' + (blk3 && blk3.rmssd && blk3.rmssd.weightedMean));
+      if (blk3 && blk3.tch && blk3.tch.ok && blk3.rmssd && blk3.rmssd.weightedMean != null) {
+        var wm = blk3.rmssd.weightedMean;
+        var vv = blk3.rmssd.values;
+        var arith =
+          vv.reduce(function (a, o) {
+            return a + o.v;
+          }, 0) / vv.length;
+        var ecgV = vv.filter(function (o) {
+          return o.node === 'ECGDex';
+        })[0].v;
+        T.ok(
+          '#3: weightedMean pulled DOWN toward the low-σ nodes, clearly below the arithmetic mean (inverse-variance, not plain)',
+          wm < arith - 3 && wm < ecgV + 15,
+          'wm=' + wm + ' ecg=' + ecgV + ' arith=' + arith.toFixed(1)
+        );
+      }
     });
 
     /* ════ 5e · INTEGRATOR HR-hat + external-ρ from cross-node motion (INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS §1/§2) ════
@@ -942,6 +1015,41 @@
       var cons3 = FC([mk('ECGDex', 1, 11, 111), mk('PpgDex', 2, 22, 222)], 1000);
       var blk3 = cons3 && cons3.blocks && cons3.blocks[0];
       T.ok('degrade: <3 hr series → tchHR null', !!blk3 && blk3.tchHR == null, 'status=' + (blk3 && blk3.tchHRStatus));
+
+      /* (4) #8 pin (integrator-dsp.js:~1688, _tchRhoFromMotion) — the common-mode ρ is the mean of the
+         POSITIVE pairwise cross-node motion correlations, NEGATIVES CLAMPED TO 0. Plant a MIXED sign
+         set: ECG & PPG share motion (+sharedM → r=+1), Oxy carries the negated series (−sharedM →
+         r=−1 with both). Positives-clamped mean = (1+0+0)/3 = 0.333; the raw mean = (1−1−1)/3 = −0.333.
+         HR noise carries a matching ρ_h=0.333 so the correlated-external solve at the derived ρ is
+         well-posed. RED under `Math.max(0, r)` → `r`: meanPairR would read −0.333 and the clamped ρ
+         would collapse to 0 (classic solve), so a real co-motion correlation vanishes. */
+      var RHOh = 0.333,
+        wIh = Math.sqrt(1 - RHOh),
+        wCh = Math.sqrt(RHOh);
+      function mkMix(node, s, hrSeed, moSign) {
+        var iH = normals(hrSeed, NE),
+          eps = [];
+        for (var i = 0; i < NE; i++) {
+          eps.push({ tMin: i * 5, hr: +(truthHR[i] + s * (wIh * iH[i] + wCh * sharedN[i])).toFixed(2), motionIndex: +(moSign * sharedM[i]).toFixed(3) });
+        }
+        return A(
+          {
+            schema: { node: node },
+            recording: { startEpochMs: t0, durationMin: NE * 5 },
+            quality: { analyzablePct: 95 },
+            hrv: { time: { rmssd: 40, sdnn: 60 } },
+            timeseries: { epochs: eps },
+            ganglior_events: [{ t: '23:00:10', tMs: t0 + 10000, impulse: 'x', node: node, conf: 0.8 }]
+          },
+          node,
+          node + '.json'
+        )[0];
+      }
+      var consMix = FC([mkMix('ECGDex', 1, 11, 1), mkMix('PpgDex', 2, 22, 1), mkMix('OxyDex', 4, 33, -1)], 1000);
+      var blkMix = consMix && consMix.blocks && consMix.blocks[0];
+      var rEst = blkMix && blkMix.tchHR && blkMix.tchHR.rhoEstimate;
+      T.ok('#8: HR-hat ρ derived from cross-node motion present', !!(rEst && rEst.method === 'cross-node-motion' && rEst.nMotionNodes === 3), JSON.stringify(rEst));
+      T.ok('#8: ρ = mean of POSITIVE pairwise motion corrs (negatives clamped) → meanPairR≈+0.33, ρ>0', !!(rEst && rEst.meanPairR > 0.2 && rEst.value > 0.2), JSON.stringify(rEst));
     });
 
     /* ════ 5f · INTEGRATOR TCH cross-node alignment keys on ABSOLUTE wall-clock, not node-relative tMin
@@ -1215,6 +1323,99 @@
           T.ok('export carries periodicBreathing key (null-tolerant)', 'periodicBreathing' in exp);
           T.ok('export periodicBreathing non-null when corroborated', !!(exp.periodicBreathing && exp.periodicBreathing.blocks.length >= 1));
         }
+      }
+
+      /* #7 pin (integrator-dsp.js:~2086, PB_TIER_WEIGHT.emerging = 0.8) — the corroborated confidence
+         is a tier-weighted noisy-OR: combineConf([obs.conf × PB_TIER_WEIGHT[tier]]). ECGDex CVHR
+         (idx 30 → obs.conf 0.80, tier 'emerging', weight 0.8 → 0.64) + OxyDex PB event (conf 0.90,
+         tier 'experimental', weight 0.6 → 0.54) → conf = 1−(1−0.64)(1−0.54) = 0.834. RED under
+         `emerging: 0.8` → `0.4`: ECG contribution 0.32 → conf = 1−(0.68·0.46) = 0.687. */
+      var ecgEmerg = A(
+        {
+          schema: { node: 'ECGDex' },
+          recording: { startEpochMs: t0, durationMin: 480, offsetMin: null },
+          apnea: { cvhrIndex: 30 },
+          hrv: { time: { rmssd: 35, sdnn: 50 } },
+          ganglior_events: [{ t: '22:40:00', tMs: t0 + 2400000, impulse: 'autonomic_surge', node: 'ECGDex', conf: 0.7 }]
+        },
+        'ECGDex',
+        'ecg.json'
+      );
+      var oxyPB = A(
+        {
+          schema: { node: 'OxyDex' },
+          recording: { startEpochMs: t0, durationMin: 480, offsetMin: null },
+          ganglior_events: [{ t: '22:35:00', tMs: t0 + 2100000, impulse: 'periodic_breathing', node: 'OxyDex', conf: 0.9, meta: { cycleLen: 50 } }]
+        },
+        'OxyDex',
+        'oxy7.json'
+      );
+      var pb7 = FPB(ecgEmerg.concat(oxyPB));
+      var b7 = pb7 && pb7.blocks && pb7.blocks[0];
+      T.ok('#7: emerging(ECG CVHR)+experimental(OxyDex) corroborate', !!(b7 && b7.corroborated && b7.nObservers === 2), JSON.stringify(b7 && b7.observerNodes));
+      if (b7) {
+        var ecgSrc = b7.sources.filter(function (s) {
+          return s.node === 'ECGDex';
+        })[0];
+        T.eq('#7: ECGDex CVHR observer graded emerging, obs.conf 0.80', (ecgSrc && ecgSrc.tier) + '/' + (ecgSrc && ecgSrc.conf), 'emerging/0.8');
+        T.ok('#7: tier-weighted conf uses emerging=0.8 → 0.834 (0.4 → 0.687)', Math.abs(b7.conf - 0.834) < 0.003, 'conf=' + b7.conf);
+      }
+    });
+
+    /* ════ 5g · INTEGRATOR staging consensus — REM-disagreement threshold (#2 pin) ════
+     fuseStagingConsensus (integrator-dsp.js:~2015) surfaces disagreement:true when two single-signal
+     stagers' REM fractions differ by more than remGapThresh (default 0.2). Reached through the public
+     runFusion (fuseStagingConsensus is module-local): runFusion(recs).staging.blocks[].disagreement. */
+    group('Integrator staging consensus — REM disagreement threshold (#2)', 'integrator-dsp', function (T) {
+      var A = env.adaptEnvelopeNode,
+        RF = env.runFusion,
+        NF = env.normalizeFile;
+      if (typeof A !== 'function' || typeof RF !== 'function' || typeof NF !== 'function') {
+        T.ok('adaptEnvelopeNode + runFusion + normalizeFile present', false);
+        return;
+      }
+      var t0 = U(2026, 5, 7, 22, 0, 0);
+      // ECGDex staging via sleep.stageMinutes → remFraction = REM/totalSleepMin
+      var ecgStage = function (remMin, totMin) {
+        return A(
+          {
+            schema: { node: 'ECGDex' },
+            recording: { startEpochMs: t0, durationMin: 480, offsetMin: null },
+            hrv: { time: { rmssd: 40, sdnn: 58 } },
+            sleep: { stageMinutes: { REM: remMin, Deep: 60 }, totalSleepMin: totMin },
+            ganglior_events: [{ t: '22:10:00', tMs: t0 + 600000, impulse: 'autonomic_surge', node: 'ECGDex', conf: 0.8 }]
+          },
+          'ECGDex',
+          'ecg.json'
+        )[0];
+      };
+      // OxyDex staging via stageProxy.remProxyPct (capped ≤30% by the node-plausibility rule). Routed
+      // through normalizeFile so the nights[] envelope reaches adaptOxyDex (which folds remFraction).
+      var oxyStage = function (remPct) {
+        return NF(
+          {
+            schema: { node: 'OxyDex' },
+            recording: { startEpochMs: t0, durationMin: 480 },
+            nights: [{ t0Ms: t0, stats: { t0Ms: t0, durationMin: 480, n: 480 }, stageProxy: { remProxyPct: remPct, plausible: true }, desatProfile: { events: [] } }]
+          },
+          'oxy.json'
+        ).recs[0];
+      };
+      // (a) BIG gap: ECG REM 0.30 (120/400) vs Oxy 0.05 → gap 0.25 (> 0.20) ⇒ disagreement.
+      //     RED under `remGapThresh … 0.2` → `0.9` (0.25 < 0.9 → disagreement silently false).
+      var fusBig = RF([ecgStage(120, 400), oxyStage(5)], { toleranceSec: 120 });
+      var sBig = fusBig.staging && fusBig.staging.blocks && fusBig.staging.blocks[0];
+      T.ok('#2: staging block produced (2 overlapping single-signal stagers)', !!sBig, 'staging=' + JSON.stringify(fusBig.staging && fusBig.staging.blocks && fusBig.staging.blocks.length));
+      if (sBig) {
+        T.eq('#2: REM gap ≈ 25 pts as built (0.30 vs 0.05)', sBig.remGapPct, 25);
+        T.eq('#2: gap > 0.20 → disagreement TRUE', sBig.disagreement, true);
+      }
+      // (b) SMALL gap control: ECG REM 0.20 (80/400) vs Oxy 0.08 → gap 0.12 (< 0.20) ⇒ agreement.
+      var fusSm = RF([ecgStage(80, 400), oxyStage(8)], { toleranceSec: 120 });
+      var sSm = fusSm.staging && fusSm.staging.blocks && fusSm.staging.blocks[0];
+      if (sSm) {
+        T.eq('#2 control: REM gap ≈ 12 pts (0.20 vs 0.08)', sSm.remGapPct, 12);
+        T.eq('#2 control: gap < 0.20 → disagreement FALSE', sSm.disagreement, false);
       }
     });
 
@@ -7980,6 +8181,36 @@
           'positional=' + (bPos && bPos.positional) + ' rate=' + (bPos && bPos.supineRate)
         );
       } else T.ok('labelPositionalApnea present for boundary check', false);
+
+      /* #4 + #5 pins (integrator-dsp.js:~1346, the `positional` expression) — two DISTINCT scenarios so
+         each threshold mutation is caught independently. Hand-built like the #55 boundary above:
+         labelPositionalApnea reads apneaResult.findings[].tMs + ECGDex summary.posture. */
+      if (typeof LP === 'function') {
+        var mkPos = function (nSupine, nNon) {
+          var tb = U(2026, 5, 7, 22, 0, 0),
+            f = [],
+            p = [],
+            n = nSupine + nNon;
+          for (var i = 0; i < n; i++) {
+            var tf = tb + i * 300000;
+            f.push({ tMs: tf, type: 'confirmed_apnea_event' });
+            p.push({ tMs: tf, pos: i < nSupine ? 'supine' : 'lateral' });
+          }
+          return LP([{ node: 'ECGDex', summary: { posture: p } }], { findings: f });
+        };
+        // #4 — supine FRACTION cut is ≥0.70. 6 supine / 2 non → rate 0.75 (in [0.70,0.80)); ratio 3
+        //   passes BOTH ≥2 and ≥3, so the FRACTION threshold is the sole discriminator. RED under
+        //   `rate >= 0.7` → `rate >= 0.8` (0.75 < 0.8 → positional silently flips to false).
+        var p4 = mkPos(6, 2);
+        T.eq('#4: supine/nonsupine = 6/2, supineRate = 0.75', p4.supineRate, 0.75);
+        T.ok('#4: rate in [0.70,0.80) is positional (≥0.70 cut, ratio 3 passes ≥2 and ≥3)', p4.positional === true, 'positional=' + p4.positional);
+        // #5 — supine ≥ 2× non-supine cut. 8 supine / 3 non → ratio 2.67 (in [2,3)); rate 0.727
+        //   clears ≥0.70, so the RATIO threshold is the sole discriminator. RED under
+        //   `supine/max(nonsupine,1) >= 2` → `>= 3` (2.67 < 3 → positional silently flips to false).
+        var p5 = mkPos(8, 3);
+        T.eq('#5: supine/nonsupine = 8/3, supineRate = 0.73', p5.supineRate, 0.73);
+        T.ok('#5: ratio in [2,3) is positional (≥2× cut, rate 0.73 clears ≥0.70)', p5.positional === true, 'positional=' + p5.positional);
+      }
     });
 
     /* ════ 20 · PHYSIOLOGY KERNEL (P8) — versioned, content-hashed constants ════ */
