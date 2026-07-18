@@ -668,7 +668,10 @@ async def run_oxyii(dev: dict, root: str):
                     ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"],
                                            started, "oxyframe", "txt")))
                 reasm = oxyii.Reassembler()
-                _seq, _drop, _dup = [None], [0], [0]   # ring frame counter + drop/dup tally
+                # Previous session duration. NOT a drop/dup tally any more: the counters those fields
+                # fed were derived from a misread byte, so they reported phantom loss. The ring exposes
+                # no frame-sequence field, so we report NOTHING rather than a fabricated zero.
+                _seq = [None]
 
                 def on_data(_s, d):
                     for frame in reasm.feed(bytes(d)):
@@ -700,23 +703,17 @@ async def run_oxyii(dev: dict, root: str):
                         if not live:
                             continue
                         if oxyflagwr:
-                            oxyflagwr.write(_now(), live)   # byte-11 identification experiment
-                        # Frame-drop accounting off the ring's own sequence counter. Without it a lost
-                        # frame is indistinguishable from the ring pausing, and both just look like a
-                        # gap in the file — the same "was that a gap or a stall?" question the link
-                        # health work answered for the Polars.
-                        _gap = oxyii.frame_gap(_seq[0], live["seq"])
-                        _seq[0] = live["seq"]
-                        if _gap > 0:
-                            _drop[0] += _gap
-                            log.warning("%s: %d live frame(s) dropped (seq jump) — total %d",
-                                        name, _gap, _drop[0])
-                        elif _gap < 0:
-                            _dup[0] += 1
-                        _set(name, frames_dropped=_drop[0], frames_duplicated=_dup[0])
+                            oxyflagwr.write(_now(), live)   # PI + the fields the vendor CSV cannot carry
+                        # [0:4] is the ring's SESSION DURATION, not a frame counter — the old
+                        # frame_gap() accounting on it reported phantom loss (9 warnings in one
+                        # evening, one claiming 111 frames, which was a session starting). What the
+                        # field genuinely tells us is when a NEW session began.
+                        if oxyii.session_restarted(_seq[0], live["duration"]):
+                            log.info("%s: ring started a new recording session", name)
+                        _seq[0] = live["duration"]
                         now = _now()
                         if live["spo2"] is not None:
-                            wr.write(now, live["spo2"], live["pr"] or 0, live["motion"])
+                            wr.write(now, live["spo2"], live["pr"] or 0, live["motion"])   # [11], corrected
                             BUS.push("spo2", [live["spo2"]])
                             if live["pr"]:
                                 BUS.push("pr", [live["pr"]])

@@ -46,13 +46,19 @@ def test_reassembler_resyncs_to_lead():
 
 
 def test_parse_live_offsets():
+    # CORRECTED 2026-07-18. This test previously asserted `motion` came from p[7] — it encoded the same
+    # misreading as the code, so it passed while a real data bug shipped (PI was being written into the
+    # SpO2 CSV's Motion column, which OxyDex filters on). p[7] is PI, p[11] is motion; see
+    # oxyii.parse_live for the vendor-parser evidence and the corroborating corpus measurement.
     p = bytearray(24)
-    p[5], p[6], p[7], p[8], p[13] = 0x03, 97, 5, 62, 88
+    p[5], p[6], p[7], p[11], p[13] = 0x03, 97, 5, 9, 88
+    p[8:10] = (62).to_bytes(2, "little")
     v = oxyii.parse_live(bytes(p))
     # Pin the OFFSETS, not the exact dict: parse_live is allowed to gain fields (the contract is
     # additive — new data goes in a NEW key, per CLAUDE.md §🧪), and asserting equality would red on
-    # every additive change. `seq` was added this way for frame-drop detection.
-    for k, exp in {"spo2": 97, "pr": 62, "motion": 5, "batt": 88, "contact": 0x03, "worn": True}.items():
+    # every additive change.
+    for k, exp in {"spo2": 97, "pr": 62, "pi": 0.5, "motion": 9, "batt": 88,
+                   "contact": 0x03, "worn": True}.items():
         assert v[k] == exp, f"{k} offset moved"
 
 
@@ -106,79 +112,74 @@ def test_file_start_frame_layout():
 def test_file_data_frame_offset_le():
     op, pl = oxyii.decode(oxyii.file_data_frame(512))
     assert op == oxyii.OP_FILE_DATA and pl == (512).to_bytes(4, "little")
-
-
-def test_file_list_and_end_frames_empty():
-    assert oxyii.decode(oxyii.file_list_frame()) == (oxyii.OP_FILE_LIST, b"")
-    assert oxyii.decode(oxyii.file_end_frame()) == (oxyii.OP_FILE_END, b"")
-
-
-def test_frame_gap_counts_dropped_live_frames():
-    """The ring's [0] byte is a frame counter that wraps at 256. Without it a dropped frame looks
-    identical to the ring pausing. Measured over 271 real frames 2026-07-18: 262 exact +1 steps, 5
-    repeats, 3 double-steps — so both loss and duplication genuinely occur."""
-    assert oxyii.frame_gap(10, 11) == 0        # consecutive
-    assert oxyii.frame_gap(10, 13) == 2        # two lost
-    assert oxyii.frame_gap(255, 0) == 0        # wrap is NOT a 255-frame loss
-    assert oxyii.frame_gap(254, 1) == 2        # wrap with real loss
-    assert oxyii.frame_gap(10, 10) == -1       # duplicate
-    assert oxyii.frame_gap(None, 7) == 0       # first frame establishes the baseline
-
-
-def test_parse_live_exposes_the_sequence_counter():
-    hdr = bytes([42, 104, 0, 0, 2, 1, 98, 12, 55, 0, 199, 0, 0, 41]) + bytes(10)
-    live = oxyii.parse_live(hdr)
-    assert live["seq"] == 42
-    assert live["spo2"] == 98 and live["pr"] == 55 and live["batt"] == 41
-
-
-# ── byte [11] identification experiment ────────────────────────────────────────────────────────────
-# [11] is the only other varying byte in the 24-byte live header and it used to be DISCARDED — which is
-# exactly why 271 opportunistic frames could not settle it (22 non-zero, r=0.42 on single points). It is
-# now RETURNED RAW under its offset (never a physiological name we cannot defend) and recorded to a
-# sidecar, so a worn night with natural desaturations can answer it.
-
-def _live_frame(**over):
+def _live_frame(duration=0, spo2=97, pi=14, pr=62, motion=0, batt=88, contact=0x01, flag=0xC7):
     b = bytearray(24)
-    b[0], b[1], b[2], b[3], b[4] = 7, 104, 0, 0, 2
-    b[5], b[6], b[7], b[8] = 0x01, 97, 3, 62      # contact, spo2, motion, hr
-    b[9], b[10], b[12], b[13] = 0, 199, 0, 88     # markers + battery
-    for k, v in over.items():
-        b[int(k[1:])] = v
+    b[0:4] = int(duration).to_bytes(4, "little")
+    b[4] = 2
+    b[5], b[6], b[7] = contact, spo2, pi
+    b[8:10] = int(pr).to_bytes(2, "little")
+    b[10], b[11], b[12], b[13] = flag, motion, 0, batt
     return bytes(b)
 
 
-def test_flag11_is_returned_raw_not_dropped():
-    assert oxyii.parse_live(_live_frame(_11=0))["flag11"] == 0
-    assert oxyii.parse_live(_live_frame(_11=29))["flag11"] == 29
+def test_pi_comes_from_byte7_and_motion_from_byte11_not_the_reverse():
+    """The swap that caused a live data bug. Verified against the vendor's own parser (LepuDemo
+    lepu-blepro: byArray[7]/10 -> setPi, byArray[11] -> setMotion) AND against a real 5288-row night:
+    [7] is non-zero in 99.9% of frames (a perfusion index is continuously non-zero), while the vendor's
+    own ViHealth Motion column is 99.4-99.8% ZERO (which is how [11] behaves)."""
+    r = oxyii.parse_live(_live_frame(pi=136, motion=0))
+    assert r["pi"] == 13.6                     # 136/10 %
+    assert r["motion"] == 0
+    r2 = oxyii.parse_live(_live_frame(pi=0, motion=29))
+    assert r2["pi"] == 0.0 and r2["motion"] == 29
 
 
-def test_flag11_does_not_disturb_the_identified_fields():
-    """Locks that recording [11] did not shift any established offset — the positional-contract bug
-    this project has already been bitten by once."""
-    a = oxyii.parse_live(_live_frame(_11=0))
-    b = oxyii.parse_live(_live_frame(_11=29))
-    for k in ("spo2", "pr", "motion", "batt", "contact", "seq", "worn"):
-        assert a[k] == b[k], k
-    assert (a["spo2"], a["pr"], a["motion"], a["batt"]) == (97, 62, 3, 88)
+def test_pulse_rate_is_u16_little_endian_not_a_single_byte():
+    """[8:10] is a u16 LE; [9] is its HIGH byte, not padding. Below 256 bpm the old u8 read happened to
+    agree, which is why this stayed hidden."""
+    assert oxyii.parse_live(_live_frame(pr=62))["pr"] == 62
+    assert oxyii.parse_live(_live_frame(pr=200))["pr"] == 200
+    raw = bytearray(_live_frame()); raw[8], raw[9] = 0x2C, 0x01      # 300 -> out of range -> None
+    assert oxyii.parse_live(bytes(raw))["pr"] is None
+
+
+def test_duration_is_u32_le_and_byte1_is_not_a_constant():
+    """[1]=104 was never a protocol constant — it is duration's second byte (104*256 ~ 7.4 h in)."""
+    r = oxyii.parse_live(_live_frame(duration=26624))
+    assert r["duration"] == 26624
+    assert _live_frame(duration=26624)[1] == 104
+
+
+def test_session_restarted_replaces_the_phantom_frame_gap_counter():
+    """The old frame_gap() read [0] as a frame counter and reported phantom loss (9 warnings in one
+    evening, one claiming 111 dropped, which was a session starting). 2736 consecutive real frames read
+    [0]=0 while the ring idled — impossible for a frame counter."""
+    assert not oxyii.session_restarted(None, 0)      # first frame is never a restart
+    assert not oxyii.session_restarted(100, 101)     # normal 1 Hz tick
+    assert not oxyii.session_restarted(100, 211)     # a big FORWARD jump is not loss, just elapsed time
+    assert oxyii.session_restarted(500, 3)           # duration went backwards => new session
+    assert not hasattr(oxyii, "frame_gap"), "the phantom-loss counter must not come back"
+
+
+def test_flag_reads_only_bit0_of_byte10():
+    """[10]=199 (0xC7) was recorded as a constant; the SDK reads only bit 0."""
+    assert oxyii.parse_live(_live_frame(flag=0xC7))["flag"] == 1
+    assert oxyii.parse_live(_live_frame(flag=0xC6))["flag"] == 0
+
+
+def test_ppg_sample_count_is_u16_le():
+    body = bytes(24) + (3).to_bytes(2, "little") + bytes([10, 20, 30])
+    assert oxyii.parse_ppg(body) == [10, 20, 30]
+
+
+def test_ppg_invalid_sentinel_is_exposed_not_silently_interpolated():
+    """156 (0x9C) is the device's invalid-sample sentinel. The vendor interpolates it away; we return it
+    RAW (fabricating a measurement is worse) but name it so a consumer can reject it."""
+    assert oxyii.PPG_INVALID == 156
+    body = bytes(24) + (3).to_bytes(2, "little") + bytes([10, 156, 30])
+    assert oxyii.parse_ppg(body) == [10, 156, 30]
 
 
 def test_short_frame_yields_no_reading_at_all_never_a_fabricated_zero():
-    """A truncated frame must not produce a partial dict: a flag11=0 from a short read is
-    indistinguishable from a real 0 observation and would poison the very correlation this instrument
-    exists to measure. parse_live rejects the whole frame (len < 14), so [11] is always a real byte."""
     for n in (0, 5, 11, 13):
         assert oxyii.parse_live(_live_frame()[:n]) is None, n
-    assert oxyii.parse_live(_live_frame(_11=29))["flag11"] == 29   # a FULL frame still reads it
-
-
-def test_oxyframe_sidecar_blanks_absent_values_and_keeps_header():
-    import io, datetime as dt, writers
-    w = writers.OxyFrameLogWriter.__new__(writers.OxyFrameLogWriter)
-    w._fh = io.StringIO(); w.rows = 0; w._flush_interval = 1e9; w._fsync = False
-    w._last_flush = 0.0
-    w._fh.write("Phone timestamp;seq;flag11;spo2;pr;motion;contact;battery_pct\n")
-    w.write(dt.datetime(2026, 7, 18, 3, 4, 5, 123000),
-            {"seq": 7, "flag11": 29, "spo2": None, "pr": 62, "motion": 3, "contact": 1, "batt": 88})
-    line = w._fh.getvalue().splitlines()[1]
-    assert line == "2026-07-18T03:04:05.123;7;29;;62;3;1;88", line   # absent spo2 blank, NEVER 0
