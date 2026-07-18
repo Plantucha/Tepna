@@ -2406,6 +2406,31 @@
       }
     });
 
+    /* ════ ECGDSP analyze pipeline — PRSA + SampEn call-site tolerances (deep-scout §EP-rest) ════
+       SampEn's tolerance (r = 0.2·SD, Richman-Moorman) and PRSA's DC/AC normalization ((X2+X3−X1−X0)/4,
+       Bauer 2006) are applied INSIDE analyze() — not as args to the exported sampEn/prsa fns — so a
+       pure-function pin can't reach them. This drives the FULL analyze() on a deterministic genSynthetic
+       ECG (fixed seed) and pins the surfaced values; the tolerance slips move them (verified). ~2 analyze
+       runs — Node-lane only (browser drives analyze in its own rigs). */
+    group('ECGDSP analyze — PRSA + SampEn tolerance known-answer (§EP-rest)', 'ecgdex-dsp · analyze · known-answer', function (T) {
+      var D = env.ECGDSP;
+      if (!D || typeof D.analyze !== 'function' || typeof D.genSynthetic !== 'function') {
+        T.skip('env.ECGDSP.analyze + genSynthetic available', 'ECGDSP not co-loaded in this runner');
+      } else {
+        // PRSA deceleration/acceleration capacity DC/AC = (X2+X3−X1−X0)/4 (Bauer 2006). seed 20260601,
+        // 900 s synthetic → DC 7.35 / AC −7.16; a /4→/2 normalization slip DOUBLES both (14.71 / −14.32).
+        var synP = D.genSynthetic({ durSec: 900, seed: 20260601 });
+        var rP = D.analyze({ int16: synP.int16, fs: synP.fs });
+        T.approx('analyze PRSA DC = (X2+X3−X1−X0)/4 = 7.35 on the seed-20260601 synthetic (a /2 slip → 14.71)', rP.dc, 7.35, 0.05);
+        T.approx('analyze PRSA AC = −7.16 (a /2 slip → −14.32)', rP.ac, -7.16, 0.05);
+        // SampEn tolerance r = 0.2·SD (Richman-Moorman). seed 42 (0.2·SD is tolerance-sensitive on this
+        // segment) → sampEn 0.562; a 0.2→0.15 tolerance slip re-scores it to 0.822.
+        var synS = D.genSynthetic({ durSec: 900, seed: 42 });
+        var rS = D.analyze({ int16: synS.int16, fs: synS.fs });
+        T.approx('analyze SampEn(r=0.2·SD) = 0.562 on the seed-42 synthetic (a 0.15·SD tolerance slip → 0.822)', rS.sampen, 0.562, 0.02);
+      }
+    });
+
     group('ECGDSP.beatConfidence — density×SQI artifact confidence, AF-safe (TCH-FUSED-ROBUST-HAT)', 'ecgdex-dsp · fused-hat · known-answer', function (T) {
       var D = env.ECGDSP;
       if (!D || typeof D.beatConfidence !== 'function') {
