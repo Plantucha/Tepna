@@ -28,7 +28,14 @@ def test_settings_acc_verity_is_52hz_not_200():
 def test_settings_mag_multi_rate_needs_range():
     s = pmd.parse_settings_response(bytes.fromhex("f00106000000040a001400320064000101100002013200040103"))
     assert s[0x00] == [10, 20, 50, 100] and s[0x02] == [50] and s[0x04] == [3]
-    assert pmd.chosen_rate(pmd.MAG, s) == 50                  # 50 is offered → preferred
+    # 20 Hz is the PROJECT default (polar_pmd._PREF_RATE), not the maximum on offer: heading changes
+    # slowly in bed and body position comes from the ACC gravity vector, so 100 Hz would be 5x the disk
+    # for no analysis gain. Deliberately below max — this asserts the choice, not just "some rate".
+    assert pmd.chosen_rate(pmd.MAG, s) == 20
+    assert pmd.chosen_rate(pmd.MAG, s) != max(s[0x00]), "must not silently revert to max()"
+    # an explicit user override still wins, but only when the device offers it
+    assert pmd.chosen_rate(pmd.MAG, s, 100) == 100
+    assert pmd.chosen_rate(pmd.MAG, s, 33) == 20, "an unoffered rate must fall back, not be sent"
 
 
 def test_settings_response_rejects_error_status():
@@ -196,3 +203,14 @@ def test_decode_ppi_events_not_backtimed():
     meas, s = pmd.decode_frame(_pmd_header(pmd.PPI, last_ns, 0x00) + payload, _dt.datetime(2026, 7, 16))
     assert meas == pmd.PPI and [x.values for x in s] == [(60, 1000, 5, 0x02), (62, 970, 3, 0x06)]
     assert [x.sensor_ns for x in s] == [last_ns, last_ns]          # per-beat events share the frame stamp
+
+
+def test_h10_acc_uses_the_project_rate_not_the_maximum():
+    """The H10 offers 25/50/100/200 Hz and used to run at 200 — 369 MB/night, 30% of everything the box
+    wrote — because the preferred value was 52, which the H10 does not offer, so it fell through to
+    max(). 50 Hz is the project choice (actigraphy convention, ample for posture/effort/activity)."""
+    s = {0x00: [25, 50, 100, 200], 0x01: [16], 0x02: [2, 4, 8]}
+    assert pmd.chosen_rate(pmd.ACC, s) == 50
+    assert pmd.chosen_rate(pmd.ACC, s) != max(s[0x00]), "regressed to max() — check _PREF_RATE is offered"
+    # the Verity offers only 52, so it must still take that rather than failing to match the 50 default
+    assert pmd.chosen_rate(pmd.ACC, {0x00: [52]}) == 52

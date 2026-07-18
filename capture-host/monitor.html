@@ -231,6 +231,13 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
 .batt.bad{color:var(--red);border-color:rgba(255,107,122,.45);}
 .batt-ico{position:relative;display:inline-block;width:15px;height:8px;border:1px solid currentColor;border-radius:2px;opacity:.85;}
 .batt-ico::after{content:'';position:absolute;right:-3px;top:2px;width:2px;height:4px;background:currentColor;border-radius:0 1px 1px 0;}
+.ov-pills{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:7px;
+  padding-top:7px;border-top:1px solid var(--border);min-height:20px;}
+.ov-pills:empty{display:none;}
+.setrow{display:flex;align-items:center;gap:.6rem;padding:4px 0;font-size:12px;}
+.setrow .k{font-family:ui-monospace,monospace;min-width:15rem;}
+.ratesel{font-size:11px;padding:1px 4px;background:var(--surface);color:var(--text);border:var(--b);border-radius:6px;}
+.setrow .mb{color:var(--text3);font-size:11px;}
 .batt-fill{position:absolute;left:1px;top:1px;bottom:1px;background:currentColor;border-radius:1px;transition:width .3s;}
 /* Link/RSSI pill — sits beside the battery pill. Drawn signal bars + dBm (or rate-based quality when the
    privileged RSSI helper isn't granted), colored like the battery meter. Never blank on a live device. */
@@ -311,6 +318,7 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
     <div class="nav" id="nav">
       <div class="nav-item active" data-view="overview">◈ Overview <span class="nav-badge" id="navActiveN" style="display:none"></span></div>
       <div class="nav-item" data-view="scope">〜 Live scope</div>
+      <div class="nav-item" data-view="settings">⚙ Settings</div>
       <div class="nav-item" data-view="devices">📡 Devices <span class="nav-badge" id="navDevN" style="display:none"></span></div>
     </div>
 
@@ -380,6 +388,25 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
     </section>
 
     <!-- ══ DEVICES ══ -->
+    <section class="view" id="view-settings">
+      <div class="card">
+        <div class="section-title">Capture streams</div>
+        <p class="hint">Only streams the device actually advertises are offered. Turning one on adds BLE
+          traffic and disk: the estimate is measured from this host's own captures. Stream changes take
+          effect when the device next reconnects.</p>
+        <div id="setStreams"></div>
+        <div class="hint" id="setTotal" style="margin-top:.6rem"></div>
+      </div>
+      <div class="card">
+        <div class="section-title">Behaviour</div>
+        <div id="setFields"></div>
+      </div>
+      <div style="display:flex;gap:.5rem;align-items:center;margin:.4rem 0 1rem">
+        <button class="btn-primary" onclick='saveSettings(this)'>Save settings</button>
+        <span class="hint" id="setMsg"></span>
+      </div>
+    </section>
+
     <section class="view" id="view-devices">
       <div class="card">
         <h3>Devices</h3>
@@ -523,9 +550,10 @@ function showView(v){
   VIEW = v;
   document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active', el.id==='view-'+v));
   document.querySelectorAll('#nav .nav-item').forEach(el=>el.classList.toggle('active', el.dataset.view===v));
-  $('#viewTag').textContent = {overview:'Overview', scope:'Live scope', devices:'Devices'}[v] || v;
+  $('#viewTag').textContent = {overview:'Overview', scope:'Live scope', devices:'Devices', settings:'Settings'}[v] || v;
   if(v==='overview'){ ovStart(); scopeStop(); clkStop(); }
   else if(v==='scope'){ ovStop(); scopeResume(); clkStop(); }
+  else if(v==='settings'){ ovStop(); scopeStop(); clkStop(); loadSettings(); }
   else { ovStop(); scopeStop(); clkStart(); }   // devices view owns the clock/NTP panel
 }
 // Refresh the clock/NTP readout only while the Devices view is open.
@@ -619,6 +647,113 @@ async function syncAllTime(btn){
     btn.textContent = `✓ host ${r.host&&r.host.ok?'ok':'—'} · ${okd}/${(r.devices||[]).length} devices`;
   }catch(e){ btn.textContent = 'failed: '+e; }
   setTimeout(()=>{ btn.disabled=false; btn.textContent=t0; loadState(); }, 8000);
+}
+
+// ── Settings ─────────────────────────────────────────────────────────────────────────────────────
+// Every control here is server-side allowlisted (settings_schema.py) with an explicit range, and the
+// daemon backs up config.yaml before writing. Keys that could lock the box out of its own radio, web
+// surface or storage (adapter / web / root) are deliberately NOT settable from the UI.
+let SETTINGS = null;
+function mbNight(bps){ return Math.round(bps*3600*9/1e6); }
+async function loadSettings(){
+  SETTINGS = await api('/api/settings');
+  const sd = $('#setStreams');
+  sd.innerHTML = SETTINGS.devices.map(d=>{
+    const offer = d.supported && d.supported.length ? d.supported.slice() : (d.streams||[]).slice();
+    if(d.vendor==='Polar' && !offer.includes('hr')) offer.push('hr');   // HR char, not a PMD type
+    const boxes = offer.map(k=>{
+      const on = (d.streams||[]).includes(k);
+      const opts = (d.rate_options||{})[k] || [];
+      const cur  = (d.rates||{})[k];
+      // The dropdown is built from the DEVICE'S OWN menu (read at connect), so an unsupported rate is
+      // impossible to pick. Only shown when there is an actual choice — most streams offer one rate.
+      const sel = opts.length > 1
+        ? `<select data-addr="${esc(d.address)}" data-rate="${esc(k)}" class="ratesel">` +
+          opts.map(r=>`<option value="${r}" ${(cur||defaultRate(d,k,opts))==r?'selected':''}>${r} Hz${PREF_RATE[k]===r?' ✓ recommended':''}</option>`).join('') +
+          `</select>`
+        : (opts.length===1 ? `<span class="mb">${opts[0]} Hz</span>` : '');
+      return `<label class="setrow"><input type="checkbox" data-addr="${esc(d.address)}" data-stream="${esc(k)}" ${on?'checked':''}>
+        <span class="k">${esc(k)}</span>${sel}<span class="mb" data-mb="${esc(d.address)}|${esc(k)}"></span></label>`;
+    }).join('');
+    return `<div style="margin-bottom:.7rem"><div class="name">${esc(d.name)}</div>${boxes||'<span class="hint">no streams reported yet</span>'}</div>`;
+  }).join('');
+  // Every field is POPULATED — from config.yaml if set, otherwise from the daemon's own default (the
+  // schema is the single source of truth for those, so the UI cannot advertise a default that differs
+  // from what actually happens). An empty numeric box used to save as NaN and be rejected.
+  $('#setFields').innerHTML = SETTINGS.settings.map(f=>{
+    const id = 'set_'+f.key.replace(/\./g,'_');
+    const val = (f.value==null ? f.default : f.value);
+    const ctl = f.type==='bool'
+      ? `<input type="checkbox" id="${id}" data-key="${esc(f.key)}" data-type="bool" ${val?'checked':''}>`
+      : `<input type="number" id="${id}" data-key="${esc(f.key)}" data-type="num" value="${val}" data-default="${f.default}" min="${f.min}" max="${f.max}" step="any" style="width:7rem">`;
+    const meta = [
+      f.min!=null ? `range ${f.min}–${f.max}` : null,
+      `default ${f.default}`,
+      f.is_default ? null : 'changed',
+      f.needs_restart ? 'needs reconnect' : null
+    ].filter(Boolean).join(' · ');
+    return `<label class="setrow">${ctl}<span class="k">${esc(f.key)}</span>
+      <span class="mb">${esc(f.help)} <em style="opacity:.75">(${esc(meta)})</em></span></label>`;
+  }).join('');
+  updateSetTotal();
+  sd.querySelectorAll('input,select').forEach(el=>el.addEventListener('change', updateSetTotal));
+}
+// The rate the daemon would pick with no override: its built-in preference if offered, else the max.
+const PREF_RATE = {ecg:130, ppg:55, acc:50, gyro:52, mag:20};   // mirrors polar_pmd._PREF_RATE
+function defaultRate(d,k,opts){
+  const p = PREF_RATE[k];
+  return (p!=null && opts.includes(p)) ? p : Math.max.apply(null, opts);
+}
+function selectedRate(dev,k){
+  const el = document.querySelector(`select[data-addr="${dev.address}"][data-rate="${k}"]`);
+  if(el) return parseFloat(el.value);
+  const opts=(dev.rate_options||{})[k]||[];
+  return (dev.rates||{})[k] || (opts.length?defaultRate(dev,k,opts):null);
+}
+// Cost SCALES with the chosen rate — bytes/sec is proportional to samples/sec. A fixed figure would
+// start lying the moment a rate is changed, which is exactly the bug this dropdown could reintroduce.
+function bpsFor(dev,k){
+  const ref=(dev.bps_ref||{})[k]; if(!ref) return 0;
+  const [base, at] = ref;
+  const r = selectedRate(dev,k);
+  return (r && at) ? base*(r/at) : base;
+}
+function updateSetTotal(){
+  let bps=0;
+  document.querySelectorAll('#setStreams input[type=checkbox]').forEach(el=>{
+    const dev = SETTINGS.devices.find(d=>d.address===el.dataset.addr);
+    if(!dev) return;
+    const b = bpsFor(dev, el.dataset.stream);
+    const cell = document.querySelector(`[data-mb="${el.dataset.addr}|${el.dataset.stream}"]`);
+    if(cell) cell.textContent = b ? `~${mbNight(b)} MB/night` : '';
+    if(el.checked) bps += b;
+  });
+  $('#setTotal').textContent = `selected: ~${mbNight(bps)} MB per 9 h night (${(bps/1024).toFixed(1)} kB/s)`;
+}
+async function saveSettings(btn){
+  const t0=btn.textContent; btn.disabled=true; btn.textContent='saving…';
+  const streams={}, settings={}, rates={};
+  document.querySelectorAll('#setStreams input[type=checkbox]').forEach(el=>{
+    (streams[el.dataset.addr] = streams[el.dataset.addr] || []);
+    if(el.checked) streams[el.dataset.addr].push(el.dataset.stream);
+  });
+  document.querySelectorAll('#setStreams select.ratesel').forEach(el=>{
+    (rates[el.dataset.addr] = rates[el.dataset.addr] || {})[el.dataset.rate] = parseInt(el.value,10);
+  });
+  document.querySelectorAll('#setFields input').forEach(el=>{
+    if(el.type==='checkbox'){ settings[el.dataset.key] = el.checked; return; }
+    const v = parseFloat(el.value);
+    if(Number.isFinite(v)) settings[el.dataset.key] = v;   // never post an empty box as NaN
+    else el.value = el.dataset.default;                     // and repair the field from its default
+  });
+  try{
+    const r = await api('/api/settings',{method:'POST',headers:{'content-type':'application/json'},
+                                         body:JSON.stringify({settings,streams,rates})});
+    $('#setMsg').textContent = r.ok
+      ? (r.changed.length ? `saved: ${r.changed.join(', ')}${r.restart_needed?' — reconnect the device to apply':''}` : 'no changes')
+      : 'rejected: '+r.error;
+  }catch(e){ $('#setMsg').textContent='failed: '+e; }
+  btn.disabled=false; btn.textContent=t0;
 }
 
 async function scan(){
@@ -799,13 +934,15 @@ function ovRender(){                             // (re)build the cards to match
       return `<div class="ov-card ${s.active?'':'inactive'}" data-stream="${s.key}" id="ovc-${s.key}">
         <div class="ov-head"><span class="ev ev-measured" title="Measured — direct sensor reading"></span>
           <span class="name">${esc(s.label)}</span>
-          <span class="ov-batt" id="ovbatt-${s.key}">${battChip(dev?dev.battery:null)}</span>
-          <span class="ov-sig" id="ovsig-${s.key}">${s.active?rssiChip(dev?dev.rssi:null, s.health, sigTitle(s)):''}</span>
-          <span class="ov-clk" id="ovclk-${s.key}">${clkChip(dev)}</span>
           <span class="st ${s.active?'live':''}">${s.active?'live':'idle'}</span></div>
         <div class="ov-value" id="ovval-${s.key}"></div>
         <div class="ov-mini"><canvas id="ovcv-${s.key}"></canvas></div>
         <div class="ov-foot"><span>${KIND_FOOT[streamKind(s)]}</span><span>${foot}</span></div>
+        <div class="ov-pills">
+          <span class="ov-batt" id="ovbatt-${s.key}">${battChip(dev?dev.battery:null)}</span>
+          <span class="ov-sig" id="ovsig-${s.key}">${s.active?rssiChip(dev?dev.rssi:null, s.health, sigTitle(s)):''}</span>
+          <span class="ov-clk" id="ovclk-${s.key}">${clkChip(dev)}</span>
+        </div>
       </div>`;
     }).join('');
     for(const s of STREAMS){

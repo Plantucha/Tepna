@@ -409,9 +409,22 @@ async def run_polar(dev: dict, root: str):
                         # Ask the device what settings it offers, then START from THOSE (fixed table is a
                         # fallback). Devices differ: Verity ACC isn't 200 Hz, MAG needs a range, etc.
                         settings = pmd.parse_settings_response(await _ctrl(pmd.get_settings_cmd(meas)))
-                        used_fs = pmd.chosen_rate(meas, settings)
+                        # Log the device's OWN menu of options — the same list Polar Sensor Logger shows
+                        # in its per-stream dialog. This is authoritative (read off the hardware) and it
+                        # is what makes a rate CHOICE possible: H10 ACC defaults to 200 Hz = 369 MB/night,
+                        # 30 % of everything the box writes.
+                        if settings:
+                            log.info("%s %s options: %s", name, pmd.MEAS_NAME.get(meas, meas),
+                                     " ".join(f"{pmd.SETTING_NAME.get(k, hex(k))}={v}"
+                                              for k, v in sorted(settings.items())))
+                        _rates_cfg = (dev.get("rates") or {})
+                        _prefer = _rates_cfg.get(pmd.MEAS_NAME.get(meas, ""))
+                        used_fs = pmd.chosen_rate(meas, settings, _prefer)
+                        # publish the device's own menu so Settings can offer exactly the legal values
+                        _set(name, **{"pmd_options": {**(STATUS["devices"].get(name, {}).get("pmd_options") or {}),
+                                                      pmd.MEAS_NAME.get(meas, str(meas)): settings.get(0x00) or []}})
                         started = False
-                        for cmd, how in ((pmd.build_start(meas, settings), "negotiated"),
+                        for cmd, how in ((pmd.build_start(meas, settings, _prefer), "negotiated"),
                                          (pmd.START.get(meas), "fixed")):
                             if not cmd:
                                 continue
@@ -605,7 +618,11 @@ async def run_oxyii(dev: dict, root: str):
                     _set(name, last_error="OxyII service absent (ring in recording mode? press its button)")
                     raise RuntimeError("no oxyii chars")
                 wr = Spo2CsvWriter(path)
-                ppgwr = StreamWriter(ppg_path, "ppg")   # ~125 Hz finger pleth (Phase 2)
+                # The 125 Hz pleth is togglable (Settings). It is ~191 MB/night — the second largest
+                # stream on the box — so it must be possible to turn off. Absent streams list => both on,
+                # matching the behaviour before the toggle existed.
+                ppgwr = (StreamWriter(ppg_path, "ppg")
+                         if "ppg" in (dev.get("streams") or ["spo2", "ppg"]) else None)
                 reasm = oxyii.Reassembler()
 
                 def on_data(_s, d):
@@ -625,7 +642,7 @@ async def run_oxyii(dev: dict, root: str):
                                 log.info("O2RING-PPG-PROBE: dumped %d frames → %s", _PPG_PROBE_N, _PPG_PROBE_FILE)
                         # ~125 Hz PPG waveform body (Phase 2): back-time each sample across the frame from
                         # its host arrival, write the PSL ppg layout, and push a live trace to the monitor.
-                        ppg = oxyii.parse_ppg(r[1])
+                        ppg = oxyii.parse_ppg(r[1]) if ppgwr else []   # skip the decode entirely when off
                         if ppg:
                             arr = _now()
                             nps = len(ppg)
@@ -652,7 +669,8 @@ async def run_oxyii(dev: dict, root: str):
                                  last_error=None if live["worn"] else "no finger contact")
 
                 BUS.register("motion_o2", "Motion (O2Ring)", "lvl", 0)
-                BUS.register("o2ppg", "PPG (O2Ring)", "raw", O2PPG_FS)   # finger pleth, Phase 2
+                if ppgwr:                                   # no card for a stream we are not capturing
+                    BUS.register("o2ppg", "PPG (O2Ring)", "raw", O2PPG_FS)   # finger pleth, Phase 2
                 await client.start_notify(nch, on_data)
                 await client.write_gatt_char(wch, oxyii.auth_frame(), response=False)   # 0xFF: no reply
                 await asyncio.sleep(0.6)
@@ -1004,6 +1022,16 @@ async def main():
     root = cfg["root"]
     global _CFG
     _CFG = cfg
+    # One-time migration: the O2Ring's 125 Hz pleth used to be captured unconditionally, so existing
+    # configs list only ['spo2'] while actually recording ~191 MB/night of PPG. Make that explicit so the
+    # Settings toggle reflects reality — and so enabling the toggle is not a silent behaviour change.
+    for _d in cfg.get("devices", []):
+        if _d.get("vendor") in ("Wellue", "Viatom"):
+            _st = _d.setdefault("streams", ["spo2"])
+            if "ppg" not in _st:
+                _st.append("ppg")
+                log.info("%s: recording the 125 Hz pleth — added 'ppg' to its stream list (was implicit)",
+                         _d.get("name"))
     ADAPTER = cfg.get("adapter")   # BLE adapter MAC — pins bonding AND every bleak connect (adapter_kw)
     global O2PPG_FS, O2PPG_NS_STEP
     _fs = float(((cfg.get("o2ring") or {}).get("ppg_fs")) or O2PPG_FS_DEFAULT)

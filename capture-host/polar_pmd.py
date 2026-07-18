@@ -45,6 +45,10 @@ def parse_features(value: bytes) -> set[int]:
     return {byte_i * 8 + bit for byte_i, b in enumerate(bits) for bit in range(8) if (b >> bit) & 1}
 
 
+# PMD setting ids — the same axes Polar Sensor Logger exposes in its per-stream dialog.
+SETTING_NAME = {0x00: "rate_hz", 0x01: "resolution_bits", 0x02: "range", 0x04: "channels"}
+
+
 def get_settings_cmd(meas: int) -> bytes:
     """Control-point write asking the device to report the stream settings it supports for `meas`."""
     return bytes([_OP_GET_SETTINGS, meas])
@@ -109,17 +113,34 @@ START = {
 }
 SAMPLE_HZ = {ECG: 130, PPG: 55, ACC: 200, GYRO: 52, MAG: 50, PPI: 0}  # PPI irregular (0 → per-beat, not back-timed)
 
-_PREF_RATE = {ECG: 130, PPG: 55, ACC: 52, GYRO: 52, MAG: 50}   # preferred sample rate if the device offers it
+# PROJECT-CHOSEN sample rates, used when the device offers them (else max). Picked for what the suite
+# actually computes, not for the highest number the hardware can do — every extra Hz is disk, BLE airtime
+# and battery for a night that is already ~1.2 GB.
+#   ACC 50  — actigraphy convention, and ample for everything MotionDex plans: body position (gravity, a
+#             sub-Hz signal), activity counts, and thoraco-abdominal respiratory effort (0.1-0.5 Hz).
+#             Leaves headroom for gait/step harmonics (~10 Hz). NOTE the old value here was 52, which the
+#             H10 does not offer (it lists 25/50/100/200) — so it fell through to max() and ran at 200 Hz,
+#             369 MB/night, 30 % of everything the box wrote. 50 Hz costs 90 MB.
+#   MAG 20  — heading changes slowly in bed and body POSITION comes from the ACC gravity vector, not the
+#             magnetometer; 20 Hz is still well above what any of it needs. 96 MB -> 38 MB.
+#   ECG 130 / PPG 55 / GYRO 52 — the only rate those devices offer; listed for completeness.
+_PREF_RATE = {ECG: 130, PPG: 55, ACC: 50, GYRO: 52, MAG: 20}
 
 
-def chosen_rate(meas: int, settings: dict[int, list[int]]) -> int:
-    """The sample rate build_start() will select for this meas (for back-timing + ring sizing)."""
+def chosen_rate(meas: int, settings: dict[int, list[int]], prefer: int | None = None) -> int:
+    """The sample rate build_start() will select for this meas (for back-timing + ring sizing).
+
+    `prefer` is a user choice (config `devices[].rates`). It is HONOURED ONLY IF THE DEVICE OFFERS IT —
+    an unsupported rate would be rejected at START and leave a permanently idle stream, so an invalid
+    choice silently falls back to the built-in preference rather than breaking capture."""
     rates = settings.get(0x00) or []
+    if prefer is not None and prefer in rates:
+        return prefer
     pref = _PREF_RATE.get(meas)
     return pref if pref in rates else (max(rates) if rates else SAMPLE_HZ.get(meas, 0))
 
 
-def build_start(meas: int, settings: dict[int, list[int]]) -> bytes | None:
+def build_start(meas: int, settings: dict[int, list[int]], prefer: int | None = None) -> bytes | None:
     """Build a START from the device's OWN reported settings (get_settings): preferred-or-max sample rate,
     first offered resolution/range, and the device-reported channel count. Only settings the device
     actually reports are included — so ECG (no channels/range) gets none. Falls back to the fixed table."""
@@ -127,7 +148,7 @@ def build_start(meas: int, settings: dict[int, list[int]]) -> bytes | None:
         return START.get(meas)
     tlvs: list[tuple] = []
     if settings.get(0x00):
-        tlvs.append((0x00, chosen_rate(meas, settings)))
+        tlvs.append((0x00, chosen_rate(meas, settings, prefer)))
     if settings.get(0x01):
         tlvs.append((0x01, settings[0x01][0]))
     if settings.get(0x02):
