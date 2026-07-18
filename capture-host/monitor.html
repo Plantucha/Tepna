@@ -477,8 +477,39 @@ function renderRemembered(devs){
         <div class="name">${esc(d.name)} ${d.connected?'<span class="dbadge on">live</span>':'<span class="dbadge warn">idle</span>'} ${battChip(d.battery)}</div>
         <div class="sub">${esc(d.address||'')} · ${(d.streams||[]).join(', ')}${d.last_error?(' · '+esc(d.last_error)):''}</div>
       </div>
+      ${d.vendor==='Polar'?`<button class="btn" onclick='pullRec(${JSON.stringify(d.address)}, this)'>📥 Recordings</button>`:''}
       <button class="btn-destructive" onclick='forget(${JSON.stringify(d.address)})'>Forget</button>
-    </div>`).join('');
+    </div>${d.vendor==='Polar'?`<div class="rec-panel" id="${recPanelId(d.address)}" style="margin:0 0 .7rem;padding-left:.2rem;display:flex;flex-direction:column;gap:.35rem"></div>`:''}`).join('');
+}
+
+// ── Polar onboard offline-recording pull (PS-FTP) — lists device flash + downloads to captures/incoming ──
+function recPanelId(addr){ return 'rec-'+(addr||'').replace(/[^0-9A-Za-z]/g,''); }
+
+async function pullRec(address, btn){
+  const panel = $('#'+recPanelId(address));
+  btn.disabled = true; const t0 = btn.textContent; btn.textContent = 'reading…';
+  panel.innerHTML = '<span class="hint">reading device flash (pause any live stream first)…</span>';
+  try {
+    const r = await api('/api/recordings?address='+encodeURIComponent(address));
+    if(!r.ok){ panel.innerHTML = '<span class="hint">error: '+esc(r.error||'failed')+'</span>'; return; }
+    if(!(r.recordings||[]).length){ panel.innerHTML = '<span class="hint">no onboard recordings stored on this device.</span>'; return; }
+    panel.innerHTML = r.recordings.map(s=>`
+      <div style="display:flex;align-items:center;gap:.6rem;font-size:.85rem">
+        <span style="flex:1">${esc(s.start_local||s.path)} · ${esc(s.kind)} · ${s.files.length} files · ${(s.total_bytes/1024).toFixed(1)} KB</span>
+        <button class="btn" onclick='doPull(${JSON.stringify(address)}, ${JSON.stringify(s.path)}, this)'>Download</button>
+      </div>`).join('');
+  } catch(e){ panel.innerHTML = '<span class="hint">error: '+esc(String(e))+'</span>'; }
+  finally { btn.disabled = false; btn.textContent = t0; }
+}
+
+async function doPull(address, session, btn){
+  btn.disabled = true; btn.textContent = 'downloading…';
+  try {
+    const r = await api('/api/pull',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({address, session})});
+    if(r.ok){ const m = r.manifest, bad = m.files.filter(f=>!f.ok).length;
+      btn.textContent = '✓ '+m.files.length+' files · '+(m.total_bytes/1024).toFixed(1)+' KB'+(bad?(' · '+bad+' mismatch!'):''); }
+    else { btn.textContent = 'failed: '+esc(r.error||'?'); btn.disabled = false; }
+  } catch(e){ btn.textContent = 'error'; btn.disabled = false; }
 }
 
 function renderDiscovered(list){
