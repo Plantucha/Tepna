@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2Cg5MmHbsewgCHxMRZJCmNX7MG7Tm7XlBuzXp+u9hac=' 'sha256-2UjnkW+xeJYWhv4x3lZ3ZQP9tEivwdw+h2ks/1wlwFE=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-70AUrHGU2gzNqyJLH1FwsO9kROu2C0urnwj8NpxwQKE=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HbOL1H5pSrF21yJrbz4c49sec9+pqJ29Ky/NjpuBPoM=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-OJqOhFcEaTHnRTEoJLpCqCm+qkNxIDecjPFZa26rtDQ=' 'sha256-PXUdAFcOQVLDIV42NdLbJEMOlh/35V6Re3Q27kgNkjU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gtj/J27nuNvTesKfh8Pc6KxJVzQS4DgKAJN2POTeyQQ=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-odm/sufZfsnaYa7rvA4Az7N9JgaOoTVTVRVSmXuBSWo=' 'sha256-yQ+MYZyMVNkPNLENY1ZQEab8UBTnRHiJX4p2hjXrqQg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2Cg5MmHbsewgCHxMRZJCmNX7MG7Tm7XlBuzXp+u9hac=' 'sha256-2UjnkW+xeJYWhv4x3lZ3ZQP9tEivwdw+h2ks/1wlwFE=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-70AUrHGU2gzNqyJLH1FwsO9kROu2C0urnwj8NpxwQKE=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HbOL1H5pSrF21yJrbz4c49sec9+pqJ29Ky/NjpuBPoM=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-OJqOhFcEaTHnRTEoJLpCqCm+qkNxIDecjPFZa26rtDQ=' 'sha256-PXUdAFcOQVLDIV42NdLbJEMOlh/35V6Re3Q27kgNkjU=' 'sha256-S4eOTzgYlkNX3tS5LWUg4AxV3psnu9y00QPYGDCLGk0=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gtj/J27nuNvTesKfh8Pc6KxJVzQS4DgKAJN2POTeyQQ=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-odm/sufZfsnaYa7rvA4Az7N9JgaOoTVTVRVSmXuBSWo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -19121,7 +19121,8 @@ __exports.PpgDex = window.PpgDex;
   // (+ _relBase) so the caller can re-base onto the ECG's t0Ms (Clock Contract §2.6 — never now()).
   function parseDeviceACC(text) {
     var lines = String(text == null ? '' : text).split(/\r?\n/),
-      out = [];
+      out = [],
+      ns0 = null;
     for (var i = 0; i < lines.length; i++) {
       var t = lines[i].trim();
       if (!t) continue;
@@ -19132,10 +19133,54 @@ __exports.PpgDex = window.PpgDex;
         if (isFinite(v)) nums.push(v);
       }
       if (nums.length < 3) continue;
+      // Column 1 is `sensor timestamp [ns]` (ns since 2000-01-01) on EVERY PSL stream variant —
+      // verified across 104 real Polar Sensor Logger ACC files and both of our own capture-host
+      // layouts (the transitional 6-col one that carried `timestamp [ms]`, and the current 5-col).
+      // BigInt is required: these values (~6e17) exceed Number.MAX_SAFE_INTEGER. A file without the
+      // column throws here and falls back to the phone stamp below.
+      // NOTE the /^\d+$/ guard: BigInt('') is 0n, NOT a throw. Without it a blank ns column makes
+      // every row relNs=0, collapsing the whole file onto a single timestamp (fs then falls to the
+      // default 4 Hz). Only an all-digit field is a device stamp; anything else falls back to phone.
+      var relNs = NaN,
+        nsRaw = String(p[1] == null ? '' : p[1]).trim();
+      if (/^\d+$/.test(nsRaw)) {
+        try {
+          var bn = BigInt(nsRaw);
+          if (ns0 === null) ns0 = bn;
+          relNs = Number(bn - ns0);
+        } catch (e) {}
+      }
       var ts = parseTimestamp(p[0]);
-      out.push({ tsMs: ts && ts.tMs != null ? ts.tMs : null, x: nums[nums.length - 3], y: nums[nums.length - 2], z: nums[nums.length - 1] });
+      out.push({ tsMs: ts && ts.tMs != null ? ts.tMs : null, relNs: relNs, x: nums[nums.length - 3], y: nums[nums.length - 2], z: nums[nums.length - 1] });
     }
     if (out.length < 30) return { acc: null, accFs: null };
+    // ── Per-sample time comes from the DEVICE clock, anchored ONCE on the phone stamp ──────────────
+    // The phone column is a host ARRIVAL stamp: decode_frame back-times each BLE frame from its own
+    // notification arrival, and arrival jitters (bursty delivery) while the device clock does not. So
+    // the phone column steps BACKWARDS at ~0.5-0.8 % of rows, always at a frame boundary (measured on
+    // 2.4 M real rows, 2026-07-18: device column 0 backward steps, phone column 274/60 000, worst
+    // 175 ms). Anchoring absolute time once on the phone stamp and spacing samples by the device
+    // clock keeps the Clock-Contract floating wall-clock while removing the arrival jitter — the same
+    // device-clock-preferred rule MotionDex/PpgDex already apply via relSecOf(). Falls back to the
+    // per-row phone stamp when the ns column is absent or sparse.
+    var anchor = -1;
+    for (var a = 0; a < out.length; a++) {
+      if (isFinite(out[a].tsMs) && isFinite(out[a].relNs)) {
+        anchor = a;
+        break;
+      }
+    }
+    if (anchor >= 0) {
+      var nNs = 0;
+      for (var b = 0; b < out.length; b++) if (isFinite(out[b].relNs)) nNs++;
+      if (nNs > out.length * 0.9) {
+        var tA = out[anchor].tsMs,
+          rA = out[anchor].relNs;
+        for (var c = 0; c < out.length; c++) {
+          if (isFinite(out[c].relNs)) out[c].tsMs = tA + (out[c].relNs - rA) / 1e6;
+        }
+      }
+    }
     var fs = 4,
       ts2 = [];
     for (var j = 0; j < out.length; j++) {

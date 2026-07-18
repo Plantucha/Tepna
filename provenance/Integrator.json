@@ -12,7 +12,7 @@
       "inputHashes": {},
       "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash cef329a4fec6→f19fde9a7913). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals f19fde9a7913.",
       "note_decorrelationgate": "manifestHash re-recorded 2026-07-07 (TRIO-METHODS-REUSE §Do 3 — decorrelation quality gate: integrator-tch.js gained screenTriplet/pearson [→1.2.0] + integrator-dsp.js _tchHat drops a node that decorrelates from both peers before the solve). EXPORT-INERT for THIS golden: its inputs are three CORRELATED staggered series, so screenTriplet returns drop:null and _tchHat proceeds exactly as before — the fused consensus is byte-identical (outputHash 72fa6fcafb7afd5a UNCHANGED; the equivalence gate rebuilds+diffs it green). Owned re-bundle f19fde9a7913→24ebb7156ca8. GATE B asserts the producing bundle CURRENT manifestHash still equals 24ebb7156ca8.",
-      "verifiedUnder": "91f0c375a7d8"
+      "verifiedUnder": "0cf06d64dbf8"
     },
     "integrator_fusion_2026-06-13.json": {
       "bundle": "Integrator.html",
