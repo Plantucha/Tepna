@@ -334,7 +334,7 @@ These were each pursued, executed, and found false. **Do not re-open them.**
 | *"OxyDex hardcodes 1 Hz and misplaces desat events by 400–850 s on a lossy night."* | Executed with a 300 s dropout: row index shifts −300, **emitted wall-clock is byte-identical** in both `desat.events` and the export. `_stampEvent` (`oxydex-dsp.js:3163-3172`) stamps from `rows[idx].tMs`; `parseCSV` `continue`s unparsable rows so the `t0+idx*dt` fallbacks are unreachable. **The 422/849 s figures are a post-fix regression note written by the commit that fixed it.** |
 | *"The CPAP ventilation lane is dropped and never reaches the bus."* | Fixed by `2c83127` (CPAP-REAL-CORPUS §F1, DONE 2026-07-12). All five keys carry real values in every committed export (`cpapdex-2026-06-12`: 16.2 / 0.36 / 5.75 / 0.84 / 6832). GATE-B fixtures with a live equiv leg. The historical mechanism was also mis-stated — the fields were always computed at session level; the gap was `_pool` plumbing. |
 | *"`integrator-tch.js` provides `nCorneredHat` / supports N≥4."* | It does not exist in any `.js`/`.mjs`/`.html`. The shipped API is a single fixed-arity `threeCorneredHat(A,B,C,opts)`. Three prose hits, all future-conditional, all in FOLLOWUPS briefs. **The N≥4 blocker is a hardware/corpus gap — no ≥4-sensor co-recording exists — not a coding task.** |
-| *"GYRO and MAG contribute to no computed metric."* | False for gyro: `motiondex-dsp.js:427` folds it into `durSec`, feeding bodyPosition/actigraphy. Executed: acc-only 120 s vs acc+gyro 300 s moves `position.dwellFrac.prone` 1 → 0.4 and `activity.epochs` 4 → 10. Only **mag** is metric-dead (`:423`, `:441` only). |
+| *"GYRO and MAG contribute to no computed metric."* | Refuted **as literally stated** — gyro is not *output*-dead: `motiondex-dsp.js:427` folds it into `durSec`, feeding bodyPosition/actigraphy. Executed: acc-only 120 s vs acc+gyro 300 s moves `position.dwellFrac.prone` 1 → 0.4 and `activity.epochs` 4 → 10. Only **mag** is metric-dead (`:423`, `:441` only). ⚠️ **The measured effect is a DEFECT, not a contribution — see the mechanism note below. Do not cite this row as evidence that `durSec` is well-formed.** |
 | *"MotionDex `UNIT_RE` rejects `[G]`."* | `g\|G` is present in the regex. The defect is misclassification (§1.8), not rejection. |
 | *"MotionDex is unreachable from OverDex; typing needs a 4-step manual hand-load."* | `overdex-app.js:104-119` JSON-parses any unmatched file, hands it to `D.normalizeFile`, classes it `klass:'export'` and fuses it. The Integrator fully registers MotionDex (`KNOWN_NODES:877`, normalize branch `:507-531`). Dropping a `MotionDex_*_ganglior.json` folder **does** run `typeApneaByEffort`. `OverDex.src.html:164` documents export-only fusion as the sanctioned steady state for a pre-adapter node. Cost is one manual conversion step. |
 | *"`ledAgreementPct: 100` has no observable downstream effect."* | False — five surfaces (§1.3). Gates are null-safe, but render and export are not. |
@@ -345,6 +345,31 @@ These were each pursued, executed, and found false. **Do not re-open them.**
 One live residue found while refuting the first row, **not user-visible**: `oxydex-dsp.js:4569-4570`
 (`spo2NadirFrac`, `spo2NadirMinFromStart`) are genuine index-as-seconds derivations that do move on a gapped
 night. Repo-wide grep finds **no consumer**. Fix opportunistically; do not treat as urgent.
+
+### ⚠️ Mechanism note on the gyro row — added 2026-07-18 by the `DEEP-AUDIT-II` cross-check
+
+The gyro row's *evidence* is sound and reproduces; its *interpretation* credits a defect as a feature, and
+the row is easy to misread as "`durSec` is fine". Verified at `motiondex-dsp.js:427-430`:
+
+```js
+var durSec = Math.max(durationOf(acc, t0Ms), durationOf(chest, t0Ms), durationOf(gyro, t0Ms));
+var position = bodyPosition(posSrc, t0Ms, durSec, posUnit);   // posSrc = chest || acc — NEVER gyro
+```
+
+`bodyPosition` receives `posSrc`, so **gyro supplies no positional sample whatsoever**. The only thing the
+gyro stream changed in that A/B is `durSec`, which sets `nE = Math.ceil(durSec / epoch)`. Adding a 300 s gyro
+file to a 120 s acc file created 180 s of **sample-less epochs**, counted as `dwell.unknown` (`:203`) and
+divided by `nE` (`:213`) — which is precisely why `dwellFrac.prone` fell 1.0 → 0.4.
+
+So the experiment did not show gyro contributing information. It showed **a duration-normalised metric being
+diluted by the length of an unrelated stream** — `DEEP-AUDIT-II` §7.3 (respRate over the longest stream) and
+§7.4 (`supineFrac` denominator counts non-recording epochs). Note `actigraphy` was given exactly this fix in
+`3e9792f` (`seen`/`covered`, `:242-276`) while `bodyPosition` never was.
+
+**Consequence for this brief's other claims:** none — the gyro row's narrow conclusion (gyro ≠ metric-dead,
+mag = metric-dead) still stands, and `MOTIONDEX-BUILD-FOLLOWUPS §3` is still correctly refuted for gyro.
+Only the framing changes: gyro reaches the output through a **bug**, and fixing §7.3/§7.4 will make gyro
+output-dead again, at which point `MOTIONDEX-BUILD-FOLLOWUPS §3` becomes true for both channels.
 
 ---
 
