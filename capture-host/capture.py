@@ -16,6 +16,7 @@ import viatom
 import oxyii
 import bonding
 import link_rssi
+import offline_lock
 from telemetry import TelemetryBus
 
 HR_UUID = "00002a37-0000-1000-8000-00805f9b34fb"   # standard Heart Rate Measurement (RR intervals)
@@ -611,19 +612,22 @@ async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", ftype:
     out_dir = os.path.join(root, "captures", "stored")
     os.makedirs(out_dir, exist_ok=True)
     saved = []
-    _OXYII_PAUSE.set()
-    try:
-        for _ in range(120):                          # wait up to ~12 s for run_oxyii to drop its link
-            if not STATUS.get("devices", {}).get(name, {}).get("connected"):
-                break
-            await asyncio.sleep(0.1)
-        await asyncio.sleep(0.8)                       # let BlueZ fully tear the link down before re-scanning
-        log.info("%s: pulling stored session (which=%s) — live capture paused", name, which)
-        saved = await pull_session.pull(dev["address"], out_dir, which=which, ftype=ftype,
-                                        adapter=None, serial="0000", wait=45) or []
-    finally:
-        _OXYII_PAUSE.clear()                          # resume live capture no matter how the pull ended
-        log.info("%s: stored-session pull finished — resuming live capture", name)
+    # ONE download at a time across ALL devices — a concurrent pull fights for the single radio and both
+    # fail (2026-07-18 09:00: three overlapping ops → org.bluez.Error.InProgress). Raises OfflineBusy.
+    async with offline_lock.slot(name):
+        _OXYII_PAUSE.set()
+        try:
+            for _ in range(120):                      # wait up to ~12 s for run_oxyii to drop its link
+                if not STATUS.get("devices", {}).get(name, {}).get("connected"):
+                    break
+                await asyncio.sleep(0.1)
+            await asyncio.sleep(0.8)                   # let BlueZ fully tear the link down before re-scanning
+            log.info("%s: pulling stored session (which=%s) — live capture paused", name, which)
+            saved = await pull_session.pull(dev["address"], out_dir, which=which, ftype=ftype,
+                                            adapter=None, serial="0000", wait=45) or []
+        finally:
+            _OXYII_PAUSE.clear()                      # resume live capture no matter how the pull ended
+            log.info("%s: stored-session pull finished — resuming live capture", name)
 
     def _meta(f):
         try:
@@ -641,22 +645,25 @@ async def polar_offline_op(address: str, op):
     (org.bluez.Error.InProgress). `op` is a zero-arg coroutine factory; its result is returned. Resumes
     live capture no matter how `op` ends."""
     name = next((n for n, s in STATUS.get("devices", {}).items() if s.get("address") == address), None)
-    _POLAR_PAUSED.add(address)
-    try:
-        for _ in range(120):                          # wait up to ~12 s for run_polar to drop its link
-            if not (name and STATUS["devices"].get(name, {}).get("connected")):
-                break
-            await asyncio.sleep(0.1)
-        await asyncio.sleep(0.8)                       # let BlueZ fully tear the link down before re-connecting
-        log.info("Polar %s: offline-recording op — live capture paused", address)
-        # Hold _CONNECT_LOCK for the whole op: BlueZ serialises connection ESTABLISHMENT per adapter, so
-        # the PS-FTP connect must not race a concurrent H10/O2Ring reconnect (→ org.bluez.Error.InProgress).
-        # The other tasks' reconnects simply queue behind the pull; it's a deliberate, finite user action.
-        async with _CONNECT_LOCK:
-            return await op()
-    finally:
-        _POLAR_PAUSED.discard(address)
-        log.info("Polar %s: offline op finished — resuming live capture", address)
+    # ONE download at a time across ALL devices (see offline_lock) — raises OfflineBusy if another device
+    # is mid-download, instead of letting two pulls fight over the single radio.
+    async with offline_lock.slot(name or address):
+        _POLAR_PAUSED.add(address)
+        try:
+            for _ in range(120):                      # wait up to ~12 s for run_polar to drop its link
+                if not (name and STATUS["devices"].get(name, {}).get("connected")):
+                    break
+                await asyncio.sleep(0.1)
+            await asyncio.sleep(0.8)                   # let BlueZ fully tear the link down before re-connecting
+            log.info("Polar %s: offline-recording op — live capture paused", address)
+            # Hold _CONNECT_LOCK for the whole op: BlueZ serialises connection ESTABLISHMENT per adapter, so
+            # the PS-FTP connect must not race a concurrent H10/O2Ring reconnect (→ org.bluez.Error.InProgress).
+            # The other tasks' reconnects simply queue behind the pull; it's a deliberate, finite user action.
+            async with _CONNECT_LOCK:
+                return await op()
+        finally:
+            _POLAR_PAUSED.discard(address)
+            log.info("Polar %s: offline op finished — resuming live capture", address)
 
 
 async def status_loop(root: str):

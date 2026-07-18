@@ -556,6 +556,8 @@ async function pullStored(btn){
       btn.textContent = `✓ ${r.new_files[0]}${s.bytes?(' · '+s.bytes+' B'):''}${s.approx_samples?(' · ~'+s.approx_samples+' samp'):''}`;
     } else if(r.ok){
       btn.textContent = 'no new session — ring worn/charging + phone app closed?';
+    } else if(r.busy){
+      btn.textContent = '⏳ ' + r.busy + ' is downloading — one at a time';   // 409, retryable, not a fault
     } else {
       btn.textContent = 'failed: ' + (r.detail||'error');
     }
@@ -570,7 +572,9 @@ async function pullRec(address, btn){
   panel.innerHTML = '<span class="hint">reading device flash (pause live capture first — one BLE link)…</span>';
   try{
     const r = await api('/api/polar/recordings?address='+encodeURIComponent(address));
-    if(!r.ok){ panel.innerHTML = '<span class="hint">error: '+esc(r.error||'failed')+'</span>'; return; }
+    if(!r.ok){ panel.innerHTML = r.busy
+      ? '<span class="hint">⏳ '+esc(r.busy)+' is downloading — one device at a time, try again when it finishes.</span>'
+      : '<span class="hint">error: '+esc(r.error||'failed')+'</span>'; return; }
     if(!(r.recordings||[]).length){ panel.innerHTML = '<span class="hint">no onboard recordings stored on this device.</span>'; return; }
     panel.innerHTML = r.recordings.map(s=>`
       <div style="display:flex;align-items:center;gap:.6rem;font-size:.85rem">
