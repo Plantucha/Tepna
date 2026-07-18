@@ -223,6 +223,27 @@ def _utcnow():
     return _dt.datetime.utcnow()
 
 
+# BlueZ/bleak errors that mean "busy, try again", NOT "this will never work". A daemon restart leaves
+# the previous connection tearing down, so the first sync attempt routinely hits InProgress — and the
+# auto-sync used to treat that as fatal and give up for the whole session (observed 2026-07-18: both
+# Polars spent the evening with clock_synced unset after a restart). Deliberately does NOT match a real
+# protocol refusal such as NOT_IMPLEMENTED / error 201, which must still give up immediately.
+_TRANSIENT_BLE = ("inprogress", "in progress", "not ready", "notready", "temporarily unavailable",
+                  "devicenotfound", "not advertising", "timeout", "timeouterror", "busy",
+                  "abort-by-local", "disconnected", "no reply", "not connected")
+
+
+def transient_ble_error(exc: BaseException) -> bool:
+    """True when a BLE failure is worth retrying rather than surrendering the whole session."""
+    text = repr(exc).lower()
+    if "not_implemented" in text or "error 201" in text:
+        return False              # a genuine protocol refusal — retrying cannot help
+    return any(m in text for m in _TRANSIENT_BLE)
+
+
+# How far a device clock may sit from the host before it counts as a fault worth re-syncing. Generous
+# vs the 0.03 s a healthy synced Polar shows, tight vs the YEARS an unsynced H10 is out by.
+CLOCK_TOLERANCE_S = 2.0
 CHARGE_RETRY_S = 60          # how often to re-attempt PMD START while a device sits on the charger
 _CHARGING: set[str] = set()  # devices currently refusing PMD with in_charger (log-once bookkeeping)
 
@@ -282,10 +303,17 @@ async def run_polar(dev: dict, root: str):
             except offline_lock.OfflineBusy:
                 await asyncio.sleep(5)
             except Exception as e:
+                # A transient BlueZ state is a BUSY signal from a different layer, not a failure.
+                # Surrendering here left the device stamping samples from an unsynced clock all night.
+                if transient_ble_error(e):
+                    log.info("%s clock auto-sync busy (%s) — retry %d/12",
+                             name, type(e).__name__, attempt + 1)
+                    await asyncio.sleep(min(5 * (attempt + 1), 30))
+                    continue
                 log.warning("%s clock auto-sync failed: %r", name, e)
                 break
         else:
-            log.warning("%s clock auto-sync gave up — offline slot stayed busy", name)
+            log.warning("%s clock auto-sync gave up — device stayed unreachable/busy", name)
     while not _STOP.is_set():
         if addr in _POLAR_PAUSED or _RECOVER.is_set():   # a pull owns the link, or the watchdog is resetting the adapter
             _set(name, connected=False,
@@ -1016,10 +1044,21 @@ async def clock_watchdog(cfg: dict):
                 continue
             prev = seen.get(addr)
             seen[addr] = skew
-            if prev is None or abs(skew - prev) < jump:
-                continue                       # constant offset (or none) — nothing moved
-            log.warning("%s device clock JUMPED %+.1fs (%.1f -> %.1f) — re-syncing",
-                        name, skew - prev, prev, skew)
+            # TWO triggers, because a jump alone is not enough. A clock that is CONSTANTLY wrong never
+            # jumps, so the jump-only watchdog would watch an H10 sit at its 2019 firmware default
+            # forever — and the startup sync is then the only defence, which is exactly the thing that
+            # can fail transiently. An absolute skew beyond tolerance is itself a fault worth correcting.
+            jumped = prev is not None and abs(skew - prev) >= jump
+            adrift = abs(skew) > CLOCK_TOLERANCE_S
+            if not (jumped or adrift):
+                continue                       # in tolerance and steady — nothing to do
+            if adrift and not jumped:
+                log.warning("%s device clock is %+.1fs off host (tolerance %.1fs) — re-syncing",
+                            name, skew, CLOCK_TOLERANCE_S)
+                _set(name, clock_synced=None)  # do not claim a sync we no longer believe
+            elif jumped:
+                log.warning("%s device clock JUMPED %+.1fs (%.1f -> %.1f) — re-syncing",
+                            name, skew - prev, prev, skew)
             try:
                 await sync_device_time(addr)
                 _set(name, clock_synced=_now().isoformat(timespec="seconds"))
@@ -1027,7 +1066,11 @@ async def clock_watchdog(cfg: dict):
             except offline_lock.OfflineBusy:
                 seen[addr] = prev              # retry next cycle
             except Exception as e:
-                log.warning("%s clock re-sync failed: %r", name, e)
+                if transient_ble_error(e):
+                    seen[addr] = prev          # busy, not broken — try again next cycle
+                    log.info("%s clock re-sync busy (%s) — will retry", name, type(e).__name__)
+                else:
+                    log.warning("%s clock re-sync failed: %r", name, e)
 
 
 async def rssi_poller(adapter_mac, cfg: dict, root: str | None = None):

@@ -506,7 +506,16 @@ function clockStatus(dev){
   if(!dev.device_time) return dev.clock_synced ? {cls:'ok', txt:'clock set'} : null;
   const yr = +String(dev.device_time).slice(0,4);
   if(yr < 2020) return {cls:'bad',  txt:'clock not set'};       // sitting at the firmware default
-  if(!dev.clock_synced) return {cls:'warn', txt:'clock unverified'};
+  // A MEASURED agreement IS verification — arguably better evidence than "we set it hours ago".
+  // clock_skew_sec is read live off the device's OWN sample stamps against host UTC, so a sub-second
+  // value means the device clock is demonstrably right. Reporting "unverified" while holding a 0.03 s
+  // measurement (seen 2026-07-18, after a restart-time sync failure) told the user to worry about a
+  // clock that was fine. Out of tolerance IS worth a warning — and then we say so with the number.
+  const sk = dev.clock_skew_sec;
+  const measured = (sk != null && isFinite(sk));
+  if(measured && Math.abs(sk) > 2) return {cls:'warn', txt:'clock drifting'};
+  if(!dev.clock_synced) return measured ? {cls:'ok', txt:'clock ok'}
+                                        : {cls:'warn', txt:'clock unverified'};
   return {cls:'ok', txt:'clock set'};
 }
 function clkChip(dev){
