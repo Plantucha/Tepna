@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — Phase 0 spike (GO; `ESM-MIGRATION-SPIKE-FINDINGS-2026-07-15.md`) + Phase 1 (GlucoDex UI modules → ESM) + Phase 2 (GlucoDex DSP → dual-mode ESM + the co-load bridge) done; Phase 3 (fan out the remaining nodes) + Phase 4 (sweep scaffolding) pending owner go · **Created:** 2026-07-15
+**Status:** IN-PROGRESS — 2026-07-16 (Phases 0–2 done; **Phase 3 fan-out COMPLETE** — all 7 nodes ESM, one gated commit each, per `ESM-MIGRATION-FOLLOWUPS-2026-07-16-BRIEF.md` (DONE); **Phase 4 executed in the owner-scoped MIDDLE PATH** — app pages namespaced, UI helper-imports explicit, mutable state proxied. Stays IN-PROGRESS on exactly Done-when items 4–5 — `<node>-globals.d.ts` deletion + source-mirror-gate retirement — which are measured, priced, and **parked** in `ESM-MIGRATION-FOLLOWUPS-II-2026-07-16-BRIEF.md` (PROPOSED)) · **Created:** 2026-07-15
 
 # ESM migration — make the DSP↔render coupling a real module boundary (spike first, decide, then fan out)
 

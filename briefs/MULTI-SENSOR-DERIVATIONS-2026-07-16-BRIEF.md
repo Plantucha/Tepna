@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-07-16
+**Status:** DONE — 2026-07-17 (agenda routed: the IMU-consumer fork of §0 was decided by the owner — **build a new motion node, `MotionDex`** — spawning the executable prerequisite `MOTIONDEX-BUILD-2026-07-17-BRIEF.md`; the five IMU-dependent Tier-1/2 items are routed to future Integrator-fusion briefs that depend on it, item 2.3 (PAT) is routed to the existing DONE `PAT-FEASIBILITY-2026-07-08-BRIEF.md`. No code/bundle/gate touched, per this brief's own §6.) · **Created:** 2026-07-16
 
 # Multi-sensor derivations — new values the Vigil capture unlocks
 
@@ -27,8 +27,15 @@ real-validation front) on the analysis side.
 - **⚠️ Architectural dependency — there is NO consumer node for the IMU today.** ACC / GYRO / MAG (and the
   chest ACC) are captured to disk but **no Dex node ingests them**; the roster is single-signal
   (OxyDex/HRVDex/PulseDex/GlucoDex/ECGDex/EEGDex). Most Tier-1/2 items below therefore need **a new
-  motion/IMU node (name TBD — owner's call)** OR direct Integrator ingestion of the accelerometer files.
+  motion/IMU node** OR direct Integrator ingestion of the accelerometer files.
   That node is the gating prerequisite; call it out in each item's executable brief.
+  > **✅ RESOLVED 2026-07-17 (owner decision).** Route chosen: **build a new motion node — `MotionDex`**
+  > (not direct Integrator ingestion; the accelerometer is the workhorse for every item below, so the node
+  > is named for the motion class, not the least-used gyro channel). Its executable creation brief is
+  > **`MOTIONDEX-BUILD-2026-07-17-BRIEF.md`** — the single gating prerequisite for §1.1 · §1.2 · §2.1 ·
+  > §2.2 · §2.4. MotionDex computes the **single-signal** motion metrics (position, activity/actigraphy,
+  > effort waveform, SQI) and exports them; each derivation below is a separate **Integrator-fusion**
+  > brief that consumes that export (motion × desat, motion × HRV, …), to be spawned once MotionDex ships.
 
 ## 1 · Tier 1 — genuinely new, clinically differentiated
 ### 1.1 ✦✦ Respiratory effort → central-vs-obstructive apnea typing
@@ -104,10 +111,24 @@ real-validation front) on the analysis side.
 - **DOIs:** the citations below are author·year·journal (via Consensus); **fill exact DOIs before any runtime
   use** (they are method sources for future briefs, not runtime constants yet).
 
-## 6 · Done-when (this brief)
+## 6 · Done-when (this brief) — ✅ MET 2026-07-17
 Every Tier-1/2 item has EITHER a routed executable brief (with the motion-node prerequisite noted) OR an
 explicit park reason inline. The catalogue + method sources are recorded so the agenda isn't lost. No code,
 no bundle, no gate touched by THIS brief.
+
+**Routing (owner decision 2026-07-17 — build `MotionDex`, see §0 RESOLVED):**
+
+| Item | Route | Prerequisite |
+| --- | --- | --- |
+| **1.1** apnea typing (effort × desat) | → Integrator-fusion brief (to spawn) — MotionDex effort waveform × OxyDex desats | `MOTIONDEX-BUILD-2026-07-17` |
+| **1.2** body position → positional OSA | → Integrator-fusion brief (to spawn) — MotionDex position × OxyDex desat rate | `MOTIONDEX-BUILD-2026-07-17` |
+| **2.1** cardiorespiratory/actigraphic staging | → Integrator staging brief (to spawn) — MotionDex activity × HRVDex/PulseDex HRV | `MOTIONDEX-BUILD-2026-07-17` |
+| **2.2** respiration rate (3-way fuse) | → Integrator RR-fusion brief (to spawn) — MotionDex chest-ACC RR + ECGDex EDR + PpgDex RIIV | `MOTIONDEX-BUILD-2026-07-17` (chest-ACC leg) |
+| **2.4** motion-gated cross-validated HRV | → HRVDex/PulseDex + Integrator brief (to spawn) — MotionDex movement epochs gate RR/PPI | `MOTIONDEX-BUILD-2026-07-17` |
+| **2.3** PAT (windowed/trend) | → **routed to existing DONE** `PAT-FEASIBILITY-2026-07-08-BRIEF.md` (beat-to-beat parked — physics: cross-device jitter + 55 Hz foot resolution) | none (no IMU) |
+
+The prerequisite (`MOTIONDEX-BUILD`) is spawned and PROPOSED; the five fusion briefs are spawned once
+MotionDex ships (its Done-when unblocks them). Agenda preserved. Brief **DONE**.
 
 ## References (method sources — DOIs to confirm before runtime use)
 - **[M20]** Manoni et al., 2020, *Sensors* — A New Wearable System for Home Sleep Apnea Testing, Screening,
