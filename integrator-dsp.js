@@ -298,6 +298,12 @@ function adaptEnvelopeNode(json, node, filename) {
     summary.rmssd = _ht.wholeRecordRMSSD != null ? _ht.wholeRecordRMSSD : _ht.rmssd != null ? _ht.rmssd : json.hrv ? json.hrv.rmssd : null;
     summary.sdnn = _ht.wholeRecordSDNN != null ? _ht.wholeRecordSDNN : _ht.sdnn != null ? _ht.sdnn : json.hrv ? json.hrv.sdnn : null;
     summary.lfhf = _hf.lfhf != null ? _hf.lfhf : json.hrv ? json.hrv.lfhf : null;
+    // §2.2: ECGDex's RSA/EDR respiration estimate. It is ALREADY in the rich export
+    // (hrv.frequency.respRate, method 'RSA (HF-peak of RR spectrum)') — the Integrator simply never
+    // read it, so a respiration vital the suite computes reached no fusion. 0 means 'not estimated'
+    // in the DSP's spectral path, so it is normalized to null here rather than published as 0 bpm.
+    summary.respRateBrpm = _hf.respRate != null && _hf.respRate > 0 ? _hf.respRate : null;
+    summary.respRateMethod = summary.respRateBrpm != null ? _hf.respRateMethod || 'RSA (ECG)' : null;
     summary.hrvWindow = 'wholeRecord';
     summary.hrvUnits = 'ms';
     summary.sdnnEpochMedian = _ht.sdnn != null ? _ht.sdnn : null; // the overnight display value (rep 5-min)
@@ -509,6 +515,7 @@ function adaptEnvelopeNode(json, node, filename) {
     summary.immobileFrac = mo.immobileFrac != null ? mo.immobileFrac : null;
     summary.movementIndex = mo.movementIndex != null ? mo.movementIndex : null;
     summary.respRateBrpm = mo.respRateBrpm != null ? mo.respRateBrpm : null;
+    summary.respRateMethod = summary.respRateBrpm != null ? 'chest-ACC (thoraco-abdominal)' : null;
     summary.motionSqi = mo.sqi != null ? mo.sqi : null;
     summary.effortSeries = _motionEffortSeries(json, t0Ms);
     summary.effortCadenceSec = mo.effortCadenceSec != null ? mo.effortCadenceSec : null;
@@ -2071,6 +2078,63 @@ function gateHRVByMotion(recs) {
   };
 }
 
+/* ── RESPIRATION-RATE FUSION (MULTI-SENSOR-DERIVATIONS §2.2) ─────────────────────────────────────
+   Respiration is a vital the suite COMPUTES but never surfaced: ECGDex has carried an RSA/EDR estimate
+   in `hrv.frequency.respRate` all along and nothing read it; MotionDex adds an independent chest-ACC
+   estimate. Fusing them is a rare WITHIN-SUBJECT method comparison — two physiologically independent
+   routes to the same number (cardiac RSA vs thoraco-abdominal movement), so their agreement is itself
+   the evidence. This does NOT average a disagreement away: it publishes every source, the consensus AND
+   the spread, and says plainly when they disagree.
+   PpgDex's RIIV would be the third source; it currently exports `respRate: null` (a known DSP defect —
+   `PPGDSP.lombScargle` never tracks the HF peak), so it simply does not appear. This is n-agnostic and
+   will pick it up the day it emits, with no change here.
+   Returns null below 2 sources — a "fusion" of one estimate is just that estimate.
+   EMERGING tier. Agreement band from Ryser 2022 [R22]: chest-ACC RR validates to ~1.8 br/min vs RIP. */
+var RR_AGREE_BRPM = 2.0;
+
+function fuseRespirationRate(recs) {
+  var sources = [];
+  recs.forEach(function (r) {
+    if (r.dateUnknown || !r.summary) return;
+    var v = r.summary.respRateBrpm;
+    if (v == null || !isFinite(v) || v <= 0) return;
+    sources.push({ node: r.node, method: r.summary.respRateMethod || null, brpm: +Number(v).toFixed(1) });
+  });
+  if (sources.length < 2) return null;
+  var vals = sources.map(function (s) {
+    return s.brpm;
+  });
+  var mn = Math.min.apply(null, vals),
+    mx = Math.max.apply(null, vals),
+    md = median(vals);
+  var spread = +(mx - mn).toFixed(1);
+  var agree = spread <= RR_AGREE_BRPM;
+  return {
+    sources: sources,
+    n: sources.length,
+    consensusBrpm: +Number(md).toFixed(1),
+    minBrpm: mn,
+    maxBrpm: mx,
+    spreadBrpm: spread,
+    agree: agree,
+    agreeThresholdBrpm: RR_AGREE_BRPM,
+    note:
+      sources.length +
+      ' independent estimates (' +
+      sources
+        .map(function (s) {
+          return s.node;
+        })
+        .join(' + ') +
+      '); spread ' +
+      spread +
+      ' br/min — ' +
+      (agree
+        ? 'agreement within the ±' + RR_AGREE_BRPM + ' br/min chest-ACC validation band (Ryser 2022).'
+        : 'DISAGREEMENT beyond the ±' + RR_AGREE_BRPM + ' br/min band; treat the consensus as provisional.')
+  };
+}
+
 function fuseHRVConsensus(recs, dtMs) {
   var sources = recs.filter(function (r) {
     return ['ECGDex', 'PulseDex', 'HRVDex', 'PpgDex'].indexOf(r.node) >= 0 && !r.dateUnknown && r.summary && (r.summary.rmssd != null || r.summary.sdnn != null);
@@ -2589,6 +2653,8 @@ function runFusion(recs, opts) {
   // §2.4 motion-gated HRV: SCORE each consensus block's window for stillness from MotionDex's movement
   // track. Purely additive — no HRV value is altered and nothing is excluded; null without MotionDex.
   var hrvMotionGate = gateHRVByMotion(recs);
+  // §2.2 respiration-rate fusion — n-agnostic, null below 2 sources, alters nothing.
+  var respiration = fuseRespirationRate(recs);
   if (hrv && hrv.blocks && hrvMotionGate)
     hrv.blocks.forEach(function (b) {
       // Attach ONLY when a gate exists, so a night without MotionDex keeps a byte-identical export
@@ -2701,6 +2767,7 @@ function runFusion(recs, opts) {
     autoGly: autoGly,
     hrv: hrv,
     hrvMotionGate: hrvMotionGate,
+    respiration: respiration,
     staging: staging,
     periodicBreathing: periodicBreathing,
     findings: findings,
@@ -2783,6 +2850,9 @@ function buildFusionExport(recs, fusion) {
     // annotation, never a correction). `quiet` ⇒ ≥80% of RECORDED epochs immobile; uncovered epochs
     // are excluded, never counted as still. null when MotionDex is absent.
     hrvMotionGate: fusion.hrvMotionGate || null,
+    // §2.2: independent respiration estimates + their agreement (EMERGING). Publishes every source
+    // and the SPREAD — a disagreement is reported, never averaged away. null below 2 sources.
+    respiration: fusion.respiration || null,
     periodicBreathing: fusion.periodicBreathing || null,
     deviceScoredAHI: (fusion.apnea && fusion.apnea.apneaAuthority) || null,
     findings: fusion.findings.map(function (f) {
@@ -2871,6 +2941,7 @@ window.IntegratorDSP = {
   corroborateDesat,
   typeApneaByEffort,
   gateHRVByMotion,
+  fuseRespirationRate,
   pickHRAuthority,
   gradeFor,
   GRADE_MIRROR,

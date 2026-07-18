@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3IsuIfcb6DKsRs2HNebyHs2EgvED9l/WDIaI4lJD9uE=' 'sha256-4/cLHVc0Wb6EiY4gguPzQPq2uN6OymQyizOC08czN8w=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-CIDQsw7h5lgW17irM4dJ+v6fyGzTI/Cd1HkBXL865RU=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-aMINXO+LtdhxQ6xIivZAsOeQTyaQ1X9XmnpeCoNu9UU=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3IsuIfcb6DKsRs2HNebyHs2EgvED9l/WDIaI4lJD9uE=' 'sha256-4/cLHVc0Wb6EiY4gguPzQPq2uN6OymQyizOC08czN8w=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-aMINXO+LtdhxQ6xIivZAsOeQTyaQ1X9XmnpeCoNu9UU=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-icUtGlQ3UI+wvRqcGxoC2ZASpsjWW/blye5M0ooxrT8=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Integrator · Fusion Layer</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -5505,6 +5505,12 @@ function adaptEnvelopeNode(json, node, filename) {
     summary.rmssd = _ht.wholeRecordRMSSD != null ? _ht.wholeRecordRMSSD : _ht.rmssd != null ? _ht.rmssd : json.hrv ? json.hrv.rmssd : null;
     summary.sdnn = _ht.wholeRecordSDNN != null ? _ht.wholeRecordSDNN : _ht.sdnn != null ? _ht.sdnn : json.hrv ? json.hrv.sdnn : null;
     summary.lfhf = _hf.lfhf != null ? _hf.lfhf : json.hrv ? json.hrv.lfhf : null;
+    // §2.2: ECGDex's RSA/EDR respiration estimate. It is ALREADY in the rich export
+    // (hrv.frequency.respRate, method 'RSA (HF-peak of RR spectrum)') — the Integrator simply never
+    // read it, so a respiration vital the suite computes reached no fusion. 0 means 'not estimated'
+    // in the DSP's spectral path, so it is normalized to null here rather than published as 0 bpm.
+    summary.respRateBrpm = _hf.respRate != null && _hf.respRate > 0 ? _hf.respRate : null;
+    summary.respRateMethod = summary.respRateBrpm != null ? _hf.respRateMethod || 'RSA (ECG)' : null;
     summary.hrvWindow = 'wholeRecord';
     summary.hrvUnits = 'ms';
     summary.sdnnEpochMedian = _ht.sdnn != null ? _ht.sdnn : null; // the overnight display value (rep 5-min)
@@ -5716,6 +5722,7 @@ function adaptEnvelopeNode(json, node, filename) {
     summary.immobileFrac = mo.immobileFrac != null ? mo.immobileFrac : null;
     summary.movementIndex = mo.movementIndex != null ? mo.movementIndex : null;
     summary.respRateBrpm = mo.respRateBrpm != null ? mo.respRateBrpm : null;
+    summary.respRateMethod = summary.respRateBrpm != null ? 'chest-ACC (thoraco-abdominal)' : null;
     summary.motionSqi = mo.sqi != null ? mo.sqi : null;
     summary.effortSeries = _motionEffortSeries(json, t0Ms);
     summary.effortCadenceSec = mo.effortCadenceSec != null ? mo.effortCadenceSec : null;
@@ -7278,6 +7285,63 @@ function gateHRVByMotion(recs) {
   };
 }
 
+/* ── RESPIRATION-RATE FUSION (MULTI-SENSOR-DERIVATIONS §2.2) ─────────────────────────────────────
+   Respiration is a vital the suite COMPUTES but never surfaced: ECGDex has carried an RSA/EDR estimate
+   in `hrv.frequency.respRate` all along and nothing read it; MotionDex adds an independent chest-ACC
+   estimate. Fusing them is a rare WITHIN-SUBJECT method comparison — two physiologically independent
+   routes to the same number (cardiac RSA vs thoraco-abdominal movement), so their agreement is itself
+   the evidence. This does NOT average a disagreement away: it publishes every source, the consensus AND
+   the spread, and says plainly when they disagree.
+   PpgDex's RIIV would be the third source; it currently exports `respRate: null` (a known DSP defect —
+   `PPGDSP.lombScargle` never tracks the HF peak), so it simply does not appear. This is n-agnostic and
+   will pick it up the day it emits, with no change here.
+   Returns null below 2 sources — a "fusion" of one estimate is just that estimate.
+   EMERGING tier. Agreement band from Ryser 2022 [R22]: chest-ACC RR validates to ~1.8 br/min vs RIP. */
+var RR_AGREE_BRPM = 2.0;
+
+function fuseRespirationRate(recs) {
+  var sources = [];
+  recs.forEach(function (r) {
+    if (r.dateUnknown || !r.summary) return;
+    var v = r.summary.respRateBrpm;
+    if (v == null || !isFinite(v) || v <= 0) return;
+    sources.push({ node: r.node, method: r.summary.respRateMethod || null, brpm: +Number(v).toFixed(1) });
+  });
+  if (sources.length < 2) return null;
+  var vals = sources.map(function (s) {
+    return s.brpm;
+  });
+  var mn = Math.min.apply(null, vals),
+    mx = Math.max.apply(null, vals),
+    md = median(vals);
+  var spread = +(mx - mn).toFixed(1);
+  var agree = spread <= RR_AGREE_BRPM;
+  return {
+    sources: sources,
+    n: sources.length,
+    consensusBrpm: +Number(md).toFixed(1),
+    minBrpm: mn,
+    maxBrpm: mx,
+    spreadBrpm: spread,
+    agree: agree,
+    agreeThresholdBrpm: RR_AGREE_BRPM,
+    note:
+      sources.length +
+      ' independent estimates (' +
+      sources
+        .map(function (s) {
+          return s.node;
+        })
+        .join(' + ') +
+      '); spread ' +
+      spread +
+      ' br/min — ' +
+      (agree
+        ? 'agreement within the ±' + RR_AGREE_BRPM + ' br/min chest-ACC validation band (Ryser 2022).'
+        : 'DISAGREEMENT beyond the ±' + RR_AGREE_BRPM + ' br/min band; treat the consensus as provisional.')
+  };
+}
+
 function fuseHRVConsensus(recs, dtMs) {
   var sources = recs.filter(function (r) {
     return ['ECGDex', 'PulseDex', 'HRVDex', 'PpgDex'].indexOf(r.node) >= 0 && !r.dateUnknown && r.summary && (r.summary.rmssd != null || r.summary.sdnn != null);
@@ -7796,6 +7860,8 @@ function runFusion(recs, opts) {
   // §2.4 motion-gated HRV: SCORE each consensus block's window for stillness from MotionDex's movement
   // track. Purely additive — no HRV value is altered and nothing is excluded; null without MotionDex.
   var hrvMotionGate = gateHRVByMotion(recs);
+  // §2.2 respiration-rate fusion — n-agnostic, null below 2 sources, alters nothing.
+  var respiration = fuseRespirationRate(recs);
   if (hrv && hrv.blocks && hrvMotionGate)
     hrv.blocks.forEach(function (b) {
       // Attach ONLY when a gate exists, so a night without MotionDex keeps a byte-identical export
@@ -7908,6 +7974,7 @@ function runFusion(recs, opts) {
     autoGly: autoGly,
     hrv: hrv,
     hrvMotionGate: hrvMotionGate,
+    respiration: respiration,
     staging: staging,
     periodicBreathing: periodicBreathing,
     findings: findings,
@@ -7990,6 +8057,9 @@ function buildFusionExport(recs, fusion) {
     // annotation, never a correction). `quiet` ⇒ ≥80% of RECORDED epochs immobile; uncovered epochs
     // are excluded, never counted as still. null when MotionDex is absent.
     hrvMotionGate: fusion.hrvMotionGate || null,
+    // §2.2: independent respiration estimates + their agreement (EMERGING). Publishes every source
+    // and the SPREAD — a disagreement is reported, never averaged away. null below 2 sources.
+    respiration: fusion.respiration || null,
     periodicBreathing: fusion.periodicBreathing || null,
     deviceScoredAHI: (fusion.apnea && fusion.apnea.apneaAuthority) || null,
     findings: fusion.findings.map(function (f) {
@@ -8078,6 +8148,7 @@ window.IntegratorDSP = {
   corroborateDesat,
   typeApneaByEffort,
   gateHRVByMotion,
+  fuseRespirationRate,
   pickHRAuthority,
   gradeFor,
   GRADE_MIRROR,
