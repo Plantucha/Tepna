@@ -101,12 +101,18 @@ _ppg_probe_n = [0]
 # (single channel replicated across ppg0/1/2, ambient 0) so it routes with NO new parser branch. Samples
 # are back-timed from the frame's host arrival across the ~125 Hz grid (the ring clock is unsynced, so
 # never stamp with it); the synthesized sensor_ns gives the PSL relative-ms column an 8 ms step.
-# NOMINAL rate — the ring's actual delivery is SLIGHTLY VARIABLE (~123-132 Hz observed across captures), so
-# 125 is a round central estimate. The phone timestamp re-anchors to each frame's host arrival, so wall-clock
-# error does NOT accumulate; only the synthesized relative-ms column carries the nominal-fs approximation.
-# TODO(Phase-2 refine): pin fs better or derive the ms column from arrival deltas per frame.
-O2PPG_FS = 125.0
-O2PPG_NS_STEP = int(1e9 / O2PPG_FS)   # 8_000_000 ns → relative-ms column steps of 8.0 ms (reads as ~125 Hz)
+# MEASURED rate. The old 125.0 was a round guess and it was 0.59% LOW, which matters: the phone-timestamp
+# column re-anchors to each frame's arrival (so wall-clock never drifts), but the synthesized relative-ms
+# column is a pure fs grid — so a consumer that infers fs from it (ECGDex does exactly that) got 125.00 for
+# a stream really running at 125.74, i.e. a 0.59% wrong sample rate and ~212 s of divergence between the two
+# time columns over a 10 h night.
+# Calibrated 2026-07-18 over 12 capture sessions: 5.8 h, 2 616 483 samples, weighted mean 125.738 Hz with a
+# per-session spread of only 125.59-125.88 Hz (±0.12%) — the short-window swings (~84-147 Hz) are BLE delivery
+# jitter, not the ADC clock, which is stable. Validated on ONE unit (S8-AW 2100); `o2ring.ppg_fs` in config
+# overrides it if another ring measures differently.
+O2PPG_FS_DEFAULT = 125.738
+O2PPG_FS = O2PPG_FS_DEFAULT           # re-read from config in main(); see cfg['o2ring']['ppg_fs']
+O2PPG_NS_STEP = int(1e9 / O2PPG_FS)   # 7_953_041 ns → relative-ms steps of ~7.953 ms (reads as 125.74 Hz)
 
 # Same one-link constraint for Polar (H10 / Verity) offline-recording pulls over PS-FTP: a device address
 # in this set tells its run_polar task to drop the link and idle, so polar_offline_op can own it for the
@@ -290,6 +296,12 @@ async def run_polar(dev: dict, root: str):
                         meas, samples = pmd.decode_frame(bytes(data), arrival, fs=stream_fs.get(data[0]))
                     except ValueError as e:
                         _set(name, last_error=str(e)); return
+                    # Diagnostic (inert unless PMD_FRAME_PROBE names a file): records what each frame
+                    # ACTUALLY carried vs how many samples we got out of it. Written to answer the Verity
+                    # IMU starvation — ACC/GYRO/MAG deliver ~35-44% of nominal with no decode error, so we
+                    # need frame_type + payload size + decoded count to see whether we under-extract.
+                    if _PMD_PROBE:
+                        _pmd_probe(meas, bytes(data), len(samples), arrival)
                     wr = writers.get(meas)
                     if not wr or not samples:
                         return
@@ -769,6 +781,33 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                 _RECOVER.clear()                      # device tasks resume + reconnect on the fresh radio
 
 
+# ── PMD frame diagnostic ────────────────────────────────────────────────────────────────────────────
+# INERT unless PMD_FRAME_PROBE is set to an output path. Records one JSONL row per decoded PMD frame:
+# measurement, frame_type (high bit = delta/compressed), payload bytes, and how many samples we actually
+# extracted. That is exactly what distinguishes "the device sends fewer samples" from "we under-extract
+# from each frame" — the open question behind the Verity ACC/GYRO/MAG starvation.
+_PMD_PROBE = os.environ.get("PMD_FRAME_PROBE")
+_PMD_PROBE_N = int(os.environ.get("PMD_FRAME_PROBE_N", "400"))
+_pmd_probe_seen: dict[int, int] = {}
+
+
+def _pmd_probe(meas: int, data: bytes, n_samples: int, arrival) -> None:
+    seen = _pmd_probe_seen.get(meas, 0)
+    if seen >= _PMD_PROBE_N:
+        return
+    _pmd_probe_seen[meas] = seen + 1
+    try:
+        with open(_PMD_PROBE, "a") as fh:
+            fh.write(json.dumps({
+                "meas": meas, "name": pmd.MEAS_NAME.get(meas, str(meas)),
+                "frame_type": data[9], "delta": bool(data[9] & 0x80),
+                "payload_len": len(data) - 10, "n_samples": n_samples,
+                "t": arrival.isoformat(), "hex": data.hex(),   # raw frame: lets decoder variants be tested offline
+            }) + "\n")
+    except Exception:
+        pass                      # a diagnostic must never disturb capture
+
+
 async def rssi_poller(adapter_mac, cfg: dict):
     """Poll each CONNECTED sensor's connection RSSI (dBm) via the privileged helper and surface it in
     STATUS → the monitor's weak-signal warning. Enrichment only: where the sudoers grant is absent (e.g. a
@@ -823,6 +862,10 @@ async def main():
     cfg = yaml.safe_load(open(args.config))
     root = cfg["root"]
     ADAPTER = cfg.get("adapter")   # BLE adapter MAC — pins bonding AND every bleak connect (adapter_kw)
+    global O2PPG_FS, O2PPG_NS_STEP
+    _fs = float(((cfg.get("o2ring") or {}).get("ppg_fs")) or O2PPG_FS_DEFAULT)
+    if _fs > 0:                    # per-unit override; the default is the 2026-07-18 5.8 h calibration
+        O2PPG_FS, O2PPG_NS_STEP = _fs, int(1e9 / _fs)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
     loop = asyncio.get_running_loop()

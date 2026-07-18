@@ -171,6 +171,17 @@ def _decode_delta(payload: bytes, channels: int, ref_bits: int) -> list[tuple]:
     cur = [read(ref_bits, True) for _ in range(channels)]
     out: list[tuple] = [tuple(cur)]
     while pos + 16 <= nbits_total:
+        # Each block HEADER is byte-aligned; a block's deltas (count × channels × deltaSize bits) need
+        # not end on a byte boundary, so skip the padding before reading the next header. Without this we
+        # read the next deltaSize/count from a mid-byte offset, get garbage (usually 0 → break) and
+        # silently discard the rest of the frame. It only bites when channels × deltaSize isn't a
+        # multiple of 8: 4-channel PPG happened to stay aligned and decoded correctly, while every
+        # 3-channel stream lost most of each frame — measured 2026-07-18 on real Verity frames as
+        # ACC 67%, GYRO 38%, MAG 32% of nominal, all restored to ~100% by this alignment (PPG unchanged).
+        if pos % 8:
+            pos += 8 - (pos % 8)
+        if pos + 16 > nbits_total:
+            break
         delta_size = read(8, False)
         count = read(8, False)
         if delta_size == 0 or count == 0:
