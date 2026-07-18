@@ -47,3 +47,25 @@ def test_mixed_one_streaming_one_notworn_is_benign():
          "last_error": "not advertising", "bluez_connected": False},
     ]
     assert capture.classify_adapter_health(devs)["wedged"] is False
+
+
+def test_import_capture_needs_no_bleak():
+    """`import capture` MUST work with stdlib + local modules only — the hardware-free CI has no bleak,
+    yaml or aiohttp. Regression for 2026-07-18, when a top-level `import polar_psftp` (which imports
+    bleak eagerly) turned the whole capture-host test job red; it passed locally only because the dev
+    venv happens to have bleak installed. Runtime-only deps must be imported at their call site.
+
+    Blocks the import via `sys.modules[name] = None`, which makes `import bleak` raise. (An earlier
+    version of this test used a meta_path finder with find_module/load_module — an API REMOVED in
+    Python 3.12 — so it blocked nothing and passed even with the bug present.)"""
+    import subprocess
+    import sys
+    code = (
+        "import sys\n"
+        "for m in ('bleak', 'bleak.exc', 'bleak.backends', 'aiohttp', 'yaml'):\n"
+        "    sys.modules[m] = None\n"
+        "import capture\n"
+        "print('ok')\n"
+    )
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, cwd=".")
+    assert r.returncode == 0, f"import capture pulled in a runtime-only dep:\n{r.stderr[-900:]}"

@@ -17,7 +17,6 @@ import oxyii
 import bonding
 import link_rssi
 import offline_lock
-import polar_psftp
 from telemetry import TelemetryBus
 
 HR_UUID = "00002a37-0000-1000-8000-00805f9b34fb"   # standard Heart Rate Measurement (RR intervals)
@@ -661,12 +660,13 @@ async def run_oxyii(dev: dict, root: str):
                 await asyncio.sleep(0.6)
                 # Sync the ring's free-running RTC to the NTP-synced host once per connect, so its stored
                 # .dat timestamps match the live capture (they drifted ~+151 s — see oxyii.set_time_frame).
-                # UTC, matching the Polar device clocks — ONE convention across every device clock we set.
-                # Scope note: this only affects the ring's STORED .dat. Its live samples carry no device
-                # timestamp at all (we synthesise the 125.738 Hz grid from host arrival), so unlike the
-                # Polars this is a consistency win, NOT a third leg for cross-device PAT timing.
-                _clk = _utcnow()
+                # LOCAL CIVIL time, deliberately different from the Polars' UTC. The ring has a SCREEN:
+                # a wearer reading UTC off their finger would just be confused. Nothing is given up —
+                # its live samples are host-arrival stamped (no device timestamp at all), so its RTC never
+                # fed cross-device timing; it only stamps the stored .dat, which is read by humans.
+                _clk = _now()
                 await client.write_gatt_char(wch, oxyii.set_time_frame(_clk), response=False)   # 0xC0
+                _set(name, clock_synced=_now().isoformat(timespec="seconds"))
                 log.info("%s RTC synced to host %s", name, _clk.strftime("%Y-%m-%d %H:%M:%S"))
                 await asyncio.sleep(0.4)
                 while client.is_connected and not _STOP.is_set() and not _OXYII_PAUSE.is_set() and not _RECOVER.is_set():   # poll live ~1/s
@@ -775,6 +775,8 @@ async def sync_device_time(address: str) -> dict:
     Returns before/after device time so the caller can show that it actually took effect."""
     dev = next((d for d in _CFG.get("devices", []) if d.get("address") == address), {}) if _CFG else {}
     is_h10 = "h10" in str(dev.get("model", "") or dev.get("name", "")).lower()
+
+    import polar_psftp        # runtime-only (pulls bleak) — keeps `import capture` stdlib-clean for CI
 
     async def _op():
         async with polar_psftp.PolarPsFtp(address, adapter=(await adapter_kw()).get("adapter")) as fs:

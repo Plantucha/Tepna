@@ -455,7 +455,11 @@ function battChip(p){
 // 2019 firmware default whenever it leaves the strap, and THAT is the real fault. Numbers live in the
 // tooltip for when you want them.
 function clockStatus(dev){
-  if(!dev || !dev.connected || !dev.device_time) return null;   // no device clock (e.g. the O2Ring)
+  if(!dev || !dev.connected) return null;
+  // The O2Ring exposes no per-sample device time, but we DO set its RTC on every connect — so it earns
+  // a pill from that alone. (Its RTC is set in LOCAL civil, not UTC like the Polars: the ring has a
+  // screen the wearer reads, and its samples are host-arrival stamped so its clock never fed timing.)
+  if(!dev.device_time) return dev.clock_synced ? {cls:'ok', txt:'clock set'} : null;
   const yr = +String(dev.device_time).slice(0,4);
   if(yr < 2020) return {cls:'bad',  txt:'clock not set'};       // sitting at the firmware default
   if(!dev.clock_synced) return {cls:'warn', txt:'clock unverified'};
