@@ -583,7 +583,7 @@ function readEquiv() {
     if (existsSync(fxP)) {
       try {
         out.integrator_tch_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')), fixtureFile: 'integrator_tch_golden.node-export.json' };
-      } catch (e) {
+      } catch {
         /* gate self-skips */
       }
     }
