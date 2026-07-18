@@ -65,6 +65,16 @@ at a time.
    that evaluates to `0` on a raw recording because its subjective inputs were `0`, not absent); any `|| 0` /
    `?? default` / default-profile substitution that converts ABSENCE into a value. Gate composites on “inputs
    *present*”, not “inputs `!= null`”.
+   **3a — the per-epoch SERIES variant (the one that keeps recurring).** A time-series that feeds a fusion
+   must be **TRI-STATE** — `true` / `false` / **`null` = the sensor was not recording** — and null epochs must
+   leave the **DENOMINATOR**, not just the numerator. This variant is nastier than the classic form because
+   nothing looks null: the epoch returns a perfectly plausible measurement. Ask of every series: *what does
+   this field say when the sensor was off?* If that equals a real reading, it is wrong. Instances found so
+   far, all the same shape: `EVENT-COUPLING` §2's ×0.72 artifact (apneas during oximeter downtime scored as
+   MISSES); MotionDex `actigraphy()` scoring an epoch with **zero ACC samples** as `counts=0 → moving=false
+   → immobile` (a recording gap fabricating *stillness*, which then inflated a motion-gated HRV confidence);
+   and the effort/posture series feeding apnea typing, where “no chest-ACC” must read UNTYPED, never CENTRAL.
+   Consequence in each case is a **manufactured clinical finding**, so treat it as top severity.
 
 4. **Silent fallbacks.** A failure that degrades quietly instead of reddening is worse than a crash. Hunt:
    `catch{}` that swallows; a parse failure that returns an empty/default result instead of
