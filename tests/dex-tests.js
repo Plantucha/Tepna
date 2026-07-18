@@ -2155,6 +2155,56 @@
       });
     });
 
+    group('ECGDSP frequency-domain HRV — LF/HF band split known-answer (deep-scout §EP)', 'ecgdex-dsp · spectral · known-answer', function (T) {
+      var D = env.ECGDSP;
+      if (!D || typeof D.lombScargle !== 'function') {
+        T.skip('env.ECGDSP.lombScargle available', 'ECGDSP not co-loaded in this runner');
+        return;
+      }
+      // The Task-Force 1996 LF/HF boundary is 0.15 Hz — power in 0.12–0.15 Hz is LF, NOT HF. Every OTHER
+      // spectral gate in this suite checks lombScargle by SOURCE REGEX (structural), so a numeric edge
+      // shift (0.15 → 0.12) slipped through them all. Build an RR series modulated at 0.13 Hz (an LF
+      // oscillation, inside the 0.12–0.15 window): its Lomb-Scargle power must land almost entirely in LF.
+      // A 0.15→0.12 mutation reallocates that power to HF (verified: frac_lf 0.988 → 0.024).
+      function buildRR(f0) {
+        var nn = [],
+          times = [],
+          t = 0;
+        for (var i = 0; i < 220; i++) {
+          var rr = 900 + 45 * Math.sin((2 * Math.PI * f0 * t) / 1000);
+          nn.push(rr);
+          times.push(t / 1000);
+          t += rr;
+        }
+        return { nn: nn, times: times };
+      }
+      var lfCase = buildRR(0.13);
+      var s = D.lombScargle(lfCase.nn, lfCase.times, 400);
+      var fracLf = s.lf / (s.lf + s.hf);
+      T.ok('0.13 Hz RR oscillation → power in LF (frac_lf > 0.9; a 0.15→0.12 edge shift drops it to ~0.02)', fracLf > 0.9, 'frac_lf=' + fracLf.toFixed(3));
+      // control — a 0.25 Hz oscillation is unambiguously HF under either edge (documents the band structure)
+      var hfCase = buildRR(0.25);
+      var s2 = D.lombScargle(hfCase.nn, hfCase.times, 400);
+      var fracLf2 = s2.lf / (s2.lf + s2.hf);
+      T.ok('control · 0.25 Hz oscillation → power in HF (frac_lf < 0.1)', fracLf2 < 0.1, 'frac_lf=' + fracLf2.toFixed(3));
+      // DFA short-term α1 is fit over box sizes n = 4..16 beats (Peng standard short-term scaling range).
+      // The regex gates never pinned that range — dropping the 12..16 boxes (n<=16 → n<=11) silently
+      // re-slopes α1. Pin dfaAlpha1 on a FIXED deterministic RR series (seeded LCG) to a known answer;
+      // the range truncation moves it 0.649 → 0.751 (verified), well outside tolerance.
+      if (typeof D.dfaAlpha1 === 'function') {
+        var dfaSeries = (function () {
+          var a = [],
+            x = 12345;
+          for (var i = 0; i < 120; i++) {
+            x = (x * 1103515245 + 12345) % 2147483648;
+            a.push(800 + (x % 120));
+          }
+          return a;
+        })();
+        T.approx('dfaAlpha1 over box sizes 4..16 on the fixed series = 0.649 (n<=11 truncation → 0.751)', D.dfaAlpha1(dfaSeries), 0.649, 0.02);
+      }
+    });
+
     group('ECGDSP.beatConfidence — density×SQI artifact confidence, AF-safe (TCH-FUSED-ROBUST-HAT)', 'ecgdex-dsp · fused-hat · known-answer', function (T) {
       var D = env.ECGDSP;
       if (!D || typeof D.beatConfidence !== 'function') {
