@@ -18,6 +18,8 @@ tree left clean). Orchestrated as an 8-cluster `Workflow` of worktree-isolated s
 (**render**, **self-ingest**, **gluco-cpap-oxy-deep**) returned nothing — their scout agents died on the
 session rate-limit before reporting, so those are **NOT cleared, only un-scanned** (see §Re-scout).
 
+The first-wave total was 40; the **re-scout of the 3 dead clusters (2026-07-18) added 14 more → 54 total**.
+
 | cluster | found | status |
 |---|---|---|
 | crossnight-deep | 8 | **DONE** — PR #173 (both-direction verified) |
@@ -25,11 +27,14 @@ session rate-limit before reporting, so those are **NOT cleared, only un-scanned
 | integrator-fusion | 8 | **DONE** — PR #180 |
 | ecg-ppg-detect-deep | 9 | **2/9 DONE** — PR #177 (LF/HF edge + DFA box); 7 open |
 | adapters | 7 | OPEN (needs off-suite adapter harness) |
-| render · self-ingest · gluco-cpap-oxy-deep | 0 (agents died) | **un-scanned — re-scout owed** |
+| §SI self-ingest (re-scout) | 3 | **DONE** — PR #183 |
+| §GV gluco-cpap-oxy-deep (re-scout) | 4 | **DONE** — PR #184 (Oxy/CPAP confirmed clean) |
+| §RN render (re-scout) | 7 | **OPEN — STRUCTURAL** (render not executed in node lane → follow-up) |
 
-**Tally: 26 of 40 closed** (crossnight 8 + kernel 8 + integrator 8 + ecg-ppg 2), all both-direction
-verified and merged. Remaining: 7 ecg-ppg call-site/narrow-band findings, 7 adapters, and the 3
-un-scanned clusters.
+**Tally: 33 of 54 closed** (crossnight 8 + kernel 8 + integrator 8 + ecg-ppg 2 + self-ingest 3 + gluco 4),
+all both-direction verified and merged. Remaining 21: 7 ecg-ppg call-site/narrow-band, 7 adapters, 7
+render (structural — needs the browser render-coverage lane in CI or a node render harness; spun into
+`DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS-2026-07-18-BRIEF.md`).
 
 ## §CN — crossnight-deep (8) — **DONE 2026-07-18, PR #173**
 
@@ -128,13 +133,50 @@ is leakage-limited (VLF band 0.003–0.04 is too narrow for a clean single-tone 
 | medium | `ecgdex-dsp.js:776` per-beat composite SQI weights (0.30·kSQI + …) | `0.30 → 0.50` |
 | low | `ppgdex-dsp.js:1068` SampEn default tol r = 0.2·SD | `0.2 → 0.15` |
 
-## §Re-scout — the three clusters whose agents died
+## §Re-scout — the three clusters whose agents died — **RAN 2026-07-18**
 
-**render** (`*-render.js` display/unit-conversion/badge/threshold), **self-ingest** (`loadOwnExport`
-round-trip losslessness), **gluco-cpap-oxy-deep** (GMI/TIR/LBGI/MAGE · AHI subindices/leak/pressure pct ·
-ODI/T90/desat-cluster/REM arithmetic) reported **0** because their scout agents were killed by the
-session rate-limit, not because they are clean. Re-run those three scout prompts (in `scratchpad/
-deepscout.js`) before declaring the deep-scout wave complete.
+**render**, **self-ingest**, **gluco-cpap-oxy-deep** reported **0** in the first wave only because their
+scout agents were killed by the rate-limit. Re-run 2026-07-18 (3 parallel worktree-isolated scouts,
+corpus baseline 2937): **14 NEW hollow gates**, three distinct classes.
+
+### §SI — self-ingest (3 → **DONE, PR #183**)
+Each node's `loadOwnExport` returns **top-level convenience accessors** (`res.hrv`/`summary`/`recording`/
+`generated`) that the DOM review renderers consume, but the node-lane self-ingest gates asserted only
+`res.elements[0].*` — so dropping a top-level accessor (`hrv: json.hrv||null`→`null`) blanks the review
+panel yet stays green (only the browser render-coverage probe drives the renderers). ECGDex+PpgDex already
+pinned them; closed the other 5 node gates (PulseDex HIGH `res.hrv`; GlucoDex MED `res.recording`; Oxy/
+CPAP/HRV `res.recording`/`res.generated`). Both-direction verified; suite 2944.
+
+### §GV — GlucoDex unexported variability indices (4 → **DONE, PR #184**)
+`variability()` computes **jIndex · CONGA-1/2/4 · GRADE · MAG** — surfaced as KPI tiles/table rows — but
+`glucoBuildNodeExport`'s `glucose{}` block **omits the whole family**, so the Phase-9 equiv gate (the only
+value-pinning gate) is blind and no unit test asserted them. Four slips shipped green (jIndex `mean+SD→
+mean−SD`, CONGA lag `·60→·30`, GRADE zone `140→180`, MAG `abs()`-removal). Closed with 6 direct
+`analyze()` known-answers on a deterministic sinusoid. **OxyDex + CPAPDex re-scouted and confirmed
+well-covered** (both byte-pin their full metric trees via equiv/golden — control probes caught).
+
+### §RN — render layer NOT executed in the node lane (7 → **OPEN, STRUCTURAL — see follow-up**)
+The heavy one. `run-tests.mjs` loads every `*-render.js` **only as raw text into `env.sources`** — the
+render modules are **never executed** in the node/corpus lane. So NO value assertion can pin any surfaced
+render output; the only render defects the node gate catches are those that alter a *literal a source-text
+grep happens to check* (mmol edge labels, the `_GLU_MMOL` constant, badge-CSS parity, null-safety regexes).
+Seven planted defects all shipped green, including three severe surfaced-value breaks:
+
+| sev | file · invariant | mutation that stayed green |
+|--|--|--|
+| high | `glucodex-render.js` `GluDisp.val` mg/dL→mmol = ÷18.018 | `÷ → ×` (≈325× wrong glucose in mmol mode) |
+| high | `oxydex-render.js` mean-SpO₂ KPI color ok≥95/warn≥92 | `≥95/≥92 → ≥85/≥82` (hypoxic 88% painted green) |
+| high | `cpapdex-render.js` residual-AHI band <5/<15/<30 | `<5 → <50` ("well controlled" on AHI 40) |
+| medium | `oxydex-render.js` SpO₂ Night CV = (SD/mean)·**100** | `·100 → ·10` (hero number 10× low) |
+| medium | `hrvdex-render.js` rMSSD KPI color >35/>20 | `>35/>20 → >65/>50` (healthy 45 ms painted bad) |
+| medium | `pulsedex-render.js` DUPLICATED Tanaka HRmax `208−0.7·age` | `0.7 → 0.9` (its own copy drifts from ECGProfile) |
+| low | `ecgdex-render.js` waveform minute-tick `t/60` | `t/60 → t/30` (axis labels 2×) |
+
+This is **not** closeable in the node lane — it needs either (a) the **browser render-coverage lane**
+(`Dex-Test-Suite.html?full`) wired into the merge/CI gate so it actually asserts rendered values, or (b) a
+**node-lane render-execution harness** that instantiates the render builders against a stub DOM and pins
+their output. That is test-infrastructure work, not a per-finding assertion → spun into
+`DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS-2026-07-18-BRIEF.md`.
 
 ## Done when
 
