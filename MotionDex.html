@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8BbTFu16cgtm4ksu0PZyy4AwVGRfEXkYpMnmYdfwaSw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-CxGZ1BjVrjrrrZzW7/ndo61GE1VUkXD+PEG/DmT0E/0=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-Yf+LOvC3opgQbttVeCslqxlrsOVZ7nrb+xO5UWv9eWo=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-mlSyAznJESDmyKuWLrLfTbVXyCul6Dya35GOMRX3Zx8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-U+zphyZEl1MCNs6M6HvWJ7cQRoYP2CuQeqckuae59Mo=' 'sha256-Yf+LOvC3opgQbttVeCslqxlrsOVZ7nrb+xO5UWv9eWo=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fywur0IkfvjRQOUdifGebc6OQo4bQ/DJGniXGcyoQUA=' 'sha256-g3QE4NWv71idaoix7KR/KTGfqaEyhNBao43iwGNocy4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MotionDex — Motion / IMU Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M18%2062%20L34%2040%20L46%2058%20L62%2028%20L74%2050%20L84%2038%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -2541,27 +2541,15 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
 </style>
 <style data-inline-src="inline:style:0">
 /* ════════════════════════════════════════════════════════════════════════
-   MotionDex — APP-SPECIFIC STYLES (built on ans-design.css)
+   MotionDex — APP-SPECIFIC STYLES. Everything structural now comes from the
+   SHARED fleet design system in ans-design.css (.app-shell / .sidebar /
+   .sb-nav / .main-content / .section-title / .kpi-grid / .kpi / .card / .btn /
+   #exportBar / .eb-* / .theme-toggle), so MotionDex reads as a fleet member.
+   Only the motion-specific visuals below have no shared equivalent.
    ════════════════════════════════════════════════════════════════════════ */
-.mx-wrap{max-width:960px;margin:0 auto;padding:28px 20px 60px}
-.mx-title{font-size:26px;font-weight:800;letter-spacing:-.02em;margin:0 0 4px}
-.mx-sub{color:var(--text2);font-size:13px;margin:0 0 22px}
-.mx-ctl{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:18px}
-.mx-zone{flex:1 1 320px;min-height:64px;border:1.5px dashed rgba(255,255,255,.18);border-radius:14px;display:flex;align-items:center;justify-content:center;text-align:center;padding:14px;color:var(--text2);font-size:13px;cursor:pointer;transition:border-color .2s,background .2s}
+.mx-zone{display:flex;align-items:center;justify-content:center;text-align:center;min-height:74px;padding:16px;border:1.5px dashed var(--line,rgba(255,255,255,.18));border-radius:14px;color:var(--text2);font-size:13px;cursor:pointer;transition:border-color .2s,background .2s}
 .mx-zone:hover,.mx-zone.mx-over{border-color:var(--accent,#58A6FF);background:rgba(88,166,255,.06)}
-.mx-btn{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:9px 16px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text)}
-.mx-btn:hover{background:rgba(255,255,255,.11)}
-.mx-btn:disabled{opacity:.4;cursor:not-allowed}
-.mx-status{color:var(--text2);font-size:12px;margin:0 0 16px;min-height:16px}
-.mx-head{color:var(--text2);font-size:12.5px;margin:0 0 14px}
-.mx-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px}
-.mx-kpi{position:relative;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px 15px}
-.mx-kpi-l{color:var(--text2);font-size:11.5px;font-weight:600;margin-bottom:6px}
-.mx-kpi-v{font-size:22px;font-weight:800;letter-spacing:-.02em}
-.mx-kpi-s{color:var(--text2);font-size:11px;margin-top:4px}
-.mx-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px;margin-bottom:14px}
-.mx-card-h{font-weight:700;font-size:14px;margin-bottom:12px}
-.mx-row{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-top:1px solid rgba(255,255,255,.05)}
+/* position dwell bar */
 .mx-bar{display:flex;height:22px;border-radius:8px;overflow:hidden;margin-bottom:10px}
 .mx-seg{display:block;min-width:2px}
 .mx-seg-supine{background:#58A6FF}.mx-seg-left{background:#3DE0D0}.mx-seg-right{background:#5EC8B0}
@@ -2569,33 +2557,83 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
 .mx-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11.5px;color:var(--text2)}
 .mx-lg{display:inline-flex;align-items:center;gap:5px}
 .mx-dot{width:9px;height:9px;border-radius:3px;display:inline-block}
-.mx-empty{color:var(--text2);font-size:13px;padding:30px;text-align:center;border:1px dashed rgba(255,255,255,.12);border-radius:14px}
-.mx-foot{color:var(--text2);font-size:11px;margin-top:34px;line-height:1.6;border-top:1px solid rgba(255,255,255,.08);padding-top:14px}
+/* effort sparkline — per-epoch presence track */
+.mx-spark{display:flex;align-items:flex-end;gap:2px;height:46px;margin:10px 0 8px}
+.mx-sp{flex:1 1 0;min-width:2px;border-radius:2px 2px 0 0;background:#3DE0D0}
+.mx-sp-off{background:rgba(255,255,255,.20)}
+.mx-sp-nul{background:repeating-linear-gradient(45deg,rgba(255,255,255,.12),rgba(255,255,255,.12) 2px,transparent 2px,transparent 4px)}
+.mx-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:7px 0;border-top:1px solid var(--line,rgba(255,255,255,.07))}
+.mx-row:first-child{border-top:0}
+.mx-empty{color:var(--text2);font-size:13px;padding:26px;text-align:center}
 </style>
 </head>
 <body>
-<div class="mx-wrap">
-  <h1 class="mx-title">MotionDex</h1>
-  <p class="mx-sub">Single-signal motion / IMU analyzer — body position · actigraphy · respiratory effort. 100% local, nothing leaves your browser.</p>
+<button id="themeBtn" class="theme-toggle">☀️ Light</button>
 
-  <div class="mx-ctl">
-    <label class="mx-zone" id="mxZone">
-      <input type="file" id="mxInput" multiple accept=".txt,.csv" hidden>
-      Drop Polar Sensor Logger <code>_ACC / _GYRO / _MAGN</code> files (Verity + H10), or click to choose.
-    </label>
-    <button class="mx-btn" id="mxDemo" type="button">Demo</button>
-    <button class="mx-btn" id="mxExport" type="button" disabled>Export</button>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-logo">MotionDex</div>
+    <hr class="sidebar-logo-rule">
+    <nav class="sb-nav">
+      <a class="sb-item" href="#sec-input">📁 IMU Input</a>
+    </nav>
+    <nav class="sb-nav">
+      <a class="sb-item" href="#mxKPI">📊 Key Metrics</a>
+      <a class="sb-item" href="#mxPosition">🛏 Body Position</a>
+      <a class="sb-item" href="#mxEffort">🫁 Respiratory Effort</a>
+      <a class="sb-item" href="#mxActivity">🚶 Actigraphy</a>
+      <a class="sb-item" href="#mxQuality">🛡 Signal Quality</a>
+    </nav>
+  </aside>
+
+  <!-- STICKY EXPORT BAR -->
+  <div id="exportBar">
+    <span class="eb-label">Export</span>
+    <div class="eb-grp">
+      <button class="eb-btn eb-json" type="button" id="mxExport" disabled>⬇ JSON</button>
+    </div>
+    <span class="eb-spacer"></span>
+    <div class="eb-grp">
+      <button class="eb-btn eb-danger" type="button" id="mxClear">✕ Clear all</button>
+    </div>
   </div>
-  <p class="mx-status" id="mxStatus"></p>
 
-  <div id="mxOut"></div>
+  <!-- MAIN -->
+  <main class="main-content">
+    <div class="section-title" id="sec-input">IMU Input <span class="st-note">Polar Sensor Logger <code>_ACC / _GYRO / _MAGN</code> (Verity + H10) · parsed &amp; analyzed locally</span></div>
+    <div class="card">
+      <label class="mx-zone" id="mxZone">
+        <input type="file" id="mxInput" multiple accept=".txt,.csv" hidden>
+        Drop your IMU files here, or click to choose.
+      </label>
+      <div class="controls" style="margin-top:12px">
+        <button class="btn" type="button" id="mxDemo">▶ Demo</button>
+      </div>
+      <p class="chart-note" id="mxStatus"></p>
+    </div>
 
-  <p class="mx-foot">
-    <span class="dxl-stamp">Tepna · MotionDex</span> — <b>Not a medical device.</b> For personal
-    wellness and research use only; not for diagnosis or treatment. Body-position labels use an
-    uncalibrated device frame; respiratory effort is an accelerometer surrogate. Apache-2.0 ·
-    © 2026 Michal Planicka.
-  </p>
+    <div class="section-title" id="mxKPI" style="display:none">Key Metrics <span class="st-note">single-signal motion — position · actigraphy · effort</span></div>
+    <div class="kpi-grid" id="mxKpiGrid"></div>
+
+    <div class="section-title" id="mxPosition" style="display:none">Body Position <span class="st-note">gravity-vector dwell · uncalibrated device frame</span></div>
+    <div class="card" id="mxPositionCard" style="display:none"></div>
+
+    <div class="section-title" id="mxEffort" style="display:none">Respiratory Effort <span class="st-note">chest-ACC thoraco-abdominal surrogate (Ryser 2022)</span></div>
+    <div class="card" id="mxEffortCard" style="display:none"></div>
+
+    <div class="section-title" id="mxActivity" style="display:none">Actigraphy <span class="st-note">de-gravitated activity counts · movement / immobility</span></div>
+    <div class="card" id="mxActivityCard" style="display:none"></div>
+
+    <div class="section-title" id="mxQuality" style="display:none">Signal Quality <span class="st-note">motion SQI → Ganglior <code>conf</code></span></div>
+    <div class="card" id="mxQualityCard" style="display:none"></div>
+
+    <p class="chart-note" style="margin-top:30px">
+      <span class="dxl-stamp">Tepna · MotionDex</span> — <b>Not a medical device.</b> For personal
+      wellness and research use only; not for diagnosis or treatment. Body-position labels use an
+      uncalibrated device frame; respiratory effort is an accelerometer surrogate. Apache-2.0 ·
+      © 2026 Michal Planicka.
+    </p>
+  </main>
 </div>
 
 <!-- Co-load order (delegating node): shared classic modules → registry (classic) → clock.js →
@@ -4719,6 +4757,9 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
   //  band-limit ~0.1–0.6 Hz (remove <0.1 Hz gravity/drift via a 10 s MA, remove
   //  >0.6 Hz cardiac/motion via a ~1.5 s MA), count breaths on the residual.
   // ════════════════════════════════════════════════════════════════════════
+  // effort-series contract (predesigned for the Integrator apnea-typing fusion, §1.1):
+  var EFFORT_CAD_SEC = 10; // epoch cadence (s) — fine enough to resolve a single ~10–30 s desat window
+  var EFFORT_FLOOR_G = 0.004; // RMS threshold (g) for effort PRESENT vs flat — experimental, uncalibrated (Ryser'22 scale)
   function respiratoryEffort(chestRows, t0Ms, durSec, unit) {
     if (!chestRows || chestRows.length < 30) return { hasData: false };
     var hz = sampleHz(chestRows, t0Ms);
@@ -4756,12 +4797,36 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     var rate = minutes > 0 ? breaths / minutes : NaN;
     // amplitude proxy: RMS of the effort signal
     var rms = Math.sqrt(best.var / Math.max(1, sig.length));
+
+    // ── effort SERIES — a per-epoch presence track. Standalone: MotionDex's own effort-trend read.
+    //    PREDESIGNED for the Integrator apnea-typing fusion (§1.1): the cadence resolves a single
+    //    ~10–30 s desat window, so a consumer can ask "effort present in [desat−15 s, end]?".
+    //    `present:null` where the epoch has no chest samples — coverage-honest (absent ≠ not-recorded).
+    var series = [];
+    var nE = Math.max(1, Math.ceil(durSec / EFFORT_CAD_SEC));
+    for (var e = 0; e < nE; e++) {
+      var lo2 = Math.floor(e * EFFORT_CAD_SEC * hz),
+        hi2 = Math.min(sig.length, Math.floor((e + 1) * EFFORT_CAD_SEC * hz));
+      var tEp = t0Ms != null ? t0Ms + Math.round(e * EFFORT_CAD_SEC * 1000) : null;
+      if (hi2 - lo2 < 3) {
+        series.push({ tMs: tEp, amp: null, present: null });
+        continue;
+      }
+      var ss = 0;
+      for (var k = lo2; k < hi2; k++) ss += sig[k] * sig[k];
+      var eamp = Math.sqrt(ss / (hi2 - lo2));
+      series.push({ tMs: tEp, amp: Math.round(eamp * 1e4) / 1e4, present: eamp >= EFFORT_FLOOR_G });
+    }
+
     return {
       hasData: breaths >= 3 && isFinite(rate),
       hz: hz,
       rateBrpm: isFinite(rate) ? Math.round(rate * 10) / 10 : null,
       nBreaths: breaths,
-      amplitudeG: Math.round(rms * 1e4) / 1e4
+      amplitudeG: Math.round(rms * 1e4) / 1e4,
+      series: series,
+      cadenceSec: EFFORT_CAD_SEC,
+      floorG: EFFORT_FLOOR_G
     };
   }
 
@@ -4955,6 +5020,11 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
         immobileFrac: summary.activity ? summary.activity.immobileFrac : null,
         movementIndex: summary.activity ? summary.activity.movementIndex : null,
         respRateBrpm: summary.effort ? summary.effort.rateBrpm : null,
+        // effort-presence series — a MotionDex standalone read AND the Integrator apnea-typing input (§1.1).
+        // Coverage-honest: an epoch's `present` is null where chest ACC was not recording, never a false absent.
+        effortSeries: summary.effort && summary.effort.series ? summary.effort.series : null,
+        effortCadenceSec: summary.effort ? summary.effort.cadenceSec : null,
+        effortFloorG: summary.effort ? summary.effort.floorG : null,
         sqi: summary.sqi ? summary.sqi.conf : null
       },
       ganglior_events: events
@@ -5004,12 +5074,13 @@ __exports.MotionDex = window.MotionDex;
  * SPDX-License-Identifier: Apache-2.0
    MotionDex · RENDER  (motiondex-render.js)
    ────────────────────────────────────────────────────────────────────────
-   Paints the single-signal motion summary from MOTIONDSP.compute():
-     · KPI grid  — supine time · immobile time · movement index · resp rate · SQI
-     · Position dwell bar (supine/prone/left/right/upright/unknown)
-     · Effort + SQI detail cards
+   Paints the single-signal motion summary from MOTIONDSP.compute() into the
+   SHARED fleet scaffold (ans-design.css): a .kpi-grid of .kpi tiles + .card
+   sections for position / effort / actigraphy / quality, each revealed with
+   its .section-title. Markup mirrors the fleet's kpi() (badge leads the label
+   inside .kpi-label > .kpi-ev) so MotionDex reads as a fleet member.
    Every surfaced number carries an evidence badge (COVERAGE MANDATE) via
-   MotionRegistry.badgeForLabel — inline `.ev` immediately before the label.
+   MotionRegistry.badgeForLabel.
    ESM-from-birth dual-mode: attaches window.MOTIONUI + re-exports it.
    ════════════════════════════════════════════════════════════════════════ */
 (function (global) {
@@ -5029,95 +5100,149 @@ __exports.MotionDex = window.MotionDex;
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
     });
   }
-  // evidence dot immediately BEFORE the label (mandate placement #2, dense grid)
+  function $(id) {
+    return typeof document !== 'undefined' ? document.getElementById(id) : null;
+  }
+  // set a container's HTML and reveal it + its section title (both start display:none)
+  function fill(cardId, titleId, html) {
+    var c = $(cardId);
+    if (c) {
+      c.innerHTML = html;
+      c.style.display = '';
+    }
+    var t = $(titleId);
+    if (t) t.style.display = '';
+  }
   function badge(label) {
     return global.MotionRegistry ? global.MotionRegistry.badgeForLabel(label, false) : '';
   }
-  function kpi(label, value, sub) {
+  // fleet .kpi tile — badge LEADS the label inside .kpi-label > .kpi-ev (the cohesion-gated pattern)
+  function kpi(label, val, sub) {
+    var b = badge(label);
     return (
-      '<div class="mx-kpi">' +
-      '<div class="mx-kpi-l">' +
-      badge(label) +
-      ' ' +
+      '<div class="kpi"><div class="kpi-label">' +
+      (b ? '<span class="kpi-ev">' + b + '</span>' : '') +
       esc(label) +
-      '</div>' +
-      '<div class="mx-kpi-v">' +
-      esc(value) +
-      '</div>' +
-      (sub ? '<div class="mx-kpi-s">' + esc(sub) + '</div>' : '') +
-      '</div>'
+      '</div><div class="kpi-val">' +
+      esc(val) +
+      '</div><div class="kpi-sub">' +
+      esc(sub || '') +
+      '</div></div>'
     );
+  }
+  function row(label, val, sub) {
+    return '<div class="mx-row"><span>' + badge(label) + ' ' + esc(label) + '</span><b>' + esc(val) + (sub ? '</b> <span class="kpi-sub">' + esc(sub) + '</span>' : '</b>') + '</div>';
+  }
+
+  // fraction of RECORDED (present!=null) epochs in which effort was present — coverage-honest:
+  // no-chest-ACC epochs (present:null) are excluded from the denominator, never scored as absent.
+  function effortPresentPct(series) {
+    if (!series || !series.length) return null;
+    var rec = 0,
+      on = 0;
+    for (var i = 0; i < series.length; i++) {
+      if (series[i].present == null) continue;
+      rec++;
+      if (series[i].present) on++;
+    }
+    return rec ? Math.round((on / rec) * 100) : null;
   }
 
   function positionBar(dwellFrac) {
     if (!dwellFrac) return '';
-    var seg = '';
-    for (var i = 0; i < POS_ORDER.length; i++) {
+    var seg = '',
+      legend = '',
+      i;
+    for (i = 0; i < POS_ORDER.length; i++) {
       var p = POS_ORDER[i],
         f = dwellFrac[p] || 0;
       if (f <= 0) continue;
       seg += '<span class="mx-seg mx-seg-' + p + '" style="flex:' + f.toFixed(4) + '" title="' + esc(POS_LABEL[p]) + ' ' + pct(f) + '"></span>';
-    }
-    var legend = '';
-    for (i = 0; i < POS_ORDER.length; i++) {
-      var q = POS_ORDER[i];
-      if (!(dwellFrac[q] > 0)) continue;
-      legend += '<span class="mx-lg"><i class="mx-dot mx-seg-' + q + '"></i>' + esc(POS_LABEL[q]) + ' ' + pct(dwellFrac[q]) + '</span>';
+      legend += '<span class="mx-lg"><i class="mx-dot mx-seg-' + p + '"></i>' + esc(POS_LABEL[p]) + ' ' + pct(f) + '</span>';
     }
     return '<div class="mx-bar">' + seg + '</div><div class="mx-legend">' + legend + '</div>';
   }
 
-  // renderSummary(summary, rootEl) → paints the compute() result into rootEl
-  function renderSummary(summary, rootEl) {
-    var root = typeof rootEl === 'string' ? document.getElementById(rootEl) : rootEl;
-    if (!root) return;
+  // effort sparkline — one bar per epoch: present (accent) / absent (grey) / no-coverage (hatched)
+  function effortSpark(series) {
+    if (!series || !series.length) return '';
+    var maxAmp = 0,
+      i;
+    for (i = 0; i < series.length; i++) if (series[i].amp > maxAmp) maxAmp = series[i].amp;
+    var bars = '';
+    for (i = 0; i < series.length; i++) {
+      var e = series[i];
+      var cls = e.present == null ? 'mx-sp mx-sp-nul' : e.present ? 'mx-sp' : 'mx-sp mx-sp-off';
+      var h = e.amp != null && maxAmp > 0 ? Math.max(8, Math.round((e.amp / maxAmp) * 100)) : 100;
+      var ttl = e.present == null ? 'no chest ACC' : (e.present ? 'effort present' : 'effort absent') + ' · ' + num(e.amp, 4) + ' g';
+      bars += '<span class="' + cls + '" style="height:' + h + '%" title="' + esc(ttl) + '"></span>';
+    }
+    return '<div class="mx-spark">' + bars + '</div>';
+  }
+
+  // renderSummary(summary) → paints every section of the shared scaffold
+  function renderSummary(summary) {
+    var grid = $('mxKpiGrid');
     if (!summary || !summary.streams || (!summary.streams.acc && !summary.streams.chestAcc)) {
-      root.innerHTML = '<div class="mx-empty">No IMU samples parsed. Drop Polar Sensor Logger ' + '<code>_ACC / _GYRO / _MAGN</code> files (Verity or H10).</div>';
+      if (grid) grid.innerHTML = '<div class="mx-empty">No IMU samples parsed. Drop Polar Sensor Logger <code>_ACC / _GYRO / _MAGN</code> files (Verity or H10).</div>';
       return;
     }
     var pos = summary.position || {},
       act = summary.activity || {},
       eff = summary.effort || {},
       sqi = summary.sqi || {};
-    var mins = summary.durSec ? (summary.durSec / 60).toFixed(0) + ' min' : '—';
 
-    var html = '';
-    html +=
-      '<div class="mx-head"><b>MotionDex</b> · ' +
-      esc(mins) +
-      ' · ' +
-      'ACC ' +
-      (summary.streams.acc || 0) +
-      ' · GYRO ' +
-      (summary.streams.gyro || 0) +
-      ' · MAGN ' +
-      (summary.streams.mag || 0) +
-      ' · chest ' +
-      (summary.streams.chestAcc || 0) +
-      '</div>';
+    // ── KPI grid ──
+    var k = '';
+    k += kpi('Supine time', pos.hasData ? pct(pos.supineFrac) : '—', 'positional-OSA target ↓');
+    k += kpi('Immobile time', act.hasData ? pct(act.immobileFrac) : '—', 'below movement threshold');
+    k += kpi('Movement index', act.hasData ? num(act.movementIndex, 2) : '—', 'per-epoch activity');
+    k += kpi('Respiratory rate', eff.hasData ? num(eff.rateBrpm, 1) + ' br/min' : '—', eff.hasData ? eff.nBreaths + ' breaths' : 'no chest ACC');
+    k += kpi('Signal quality', sqi.conf != null ? num(sqi.conf, 2) + '×' : '—', sqi.flags && sqi.flags.length ? sqi.flags.join(', ') : 'clean');
+    if (grid) grid.innerHTML = k;
+    var kt = $('mxKPI');
+    if (kt) kt.style.display = '';
 
-    html += '<div class="mx-grid">';
-    html += kpi('Supine time', pos.hasData ? pct(pos.supineFrac) : '—', 'positional-OSA target ↓');
-    html += kpi('Immobile time', act.hasData ? pct(act.immobileFrac) : '—', 'below movement threshold');
-    html += kpi('Movement index', act.hasData ? num(act.movementIndex, 2) : '—', 'per-epoch activity');
-    html += kpi('Respiratory rate', eff.hasData ? num(eff.rateBrpm, 1) + ' br/min' : '—', eff.hasData ? eff.nBreaths + ' breaths' : 'no chest ACC');
-    html += kpi('Signal quality', sqi.conf != null ? num(sqi.conf, 2) + '×' : '—', sqi.flags && sqi.flags.length ? sqi.flags.join(', ') : 'clean');
-    html += '</div>';
+    // ── position ──
+    if (pos.hasData) fill('mxPositionCard', 'mxPosition', positionBar(pos.dwellFrac) + row('Supine time', pct(pos.supineFrac), 'of ' + (pos.track ? pos.track.length : 0) + ' epochs'));
 
-    if (pos.hasData) {
-      html += '<div class="mx-card"><div class="mx-card-h">' + badge('Supine time') + ' Body position</div>' + positionBar(pos.dwellFrac) + '</div>';
-    }
-    if (eff.hasData || (act.hasData && act.epochs)) {
-      html += '<div class="mx-card"><div class="mx-card-h">' + badge('Effort amplitude') + ' Respiratory effort</div>';
-      html += '<div class="mx-row">' + badge('Respiratory rate') + ' Rate <b>' + (eff.hasData ? num(eff.rateBrpm, 1) + ' br/min' : '—') + '</b></div>';
-      html += '<div class="mx-row">' + badge('Effort amplitude') + ' Amplitude <b>' + (eff.hasData ? num(eff.amplitudeG, 4) + ' g' : '—') + '</b></div>';
-      html += '</div>';
+    // ── effort (incl. the per-epoch presence series — standalone read + the fusion's input) ──
+    if (eff.hasData) {
+      var presentPct = effortPresentPct(eff.series);
+      var e = effortSpark(eff.series);
+      e += row('Respiratory rate', num(eff.rateBrpm, 1) + ' br/min', eff.nBreaths + ' breaths');
+      e += row('Effort amplitude', num(eff.amplitudeG, 4) + ' g', 'RMS, 0.1–0.6 Hz band');
+      e += row('Effort amplitude', presentPct == null ? '—' : presentPct + '%', 'effort present, of recorded epochs');
+      fill('mxEffortCard', 'mxEffort', e);
     }
 
-    root.innerHTML = html;
+    // ── actigraphy ──
+    if (act.hasData) {
+      var a = row('Activity counts', num(act.totalCounts, 1), 'Σ dynamic g');
+      a += row('Movement index', num(act.movementIndex, 2), 'per 30 s epoch');
+      a += row('Immobile time', pct(act.immobileFrac), (act.epochs ? act.epochs.length : 0) + ' epochs');
+      fill('mxActivityCard', 'mxActivity', a);
+    }
+
+    // ── quality ──
+    if (sqi.conf != null) {
+      var q = row('Signal quality', num(sqi.conf, 2) + '×', sqi.flags && sqi.flags.length ? sqi.flags.join(', ') : 'clean');
+      q +=
+        '<div class="mx-row"><span>Streams</span><b>ACC ' +
+        (summary.streams.acc || 0) +
+        ' · GYRO ' +
+        (summary.streams.gyro || 0) +
+        ' · MAGN ' +
+        (summary.streams.mag || 0) +
+        ' · chest ' +
+        (summary.streams.chestAcc || 0) +
+        '</b></div>';
+      q += '<div class="mx-row"><span>Recording span</span><b>' + (summary.durSec ? (summary.durSec / 60).toFixed(0) + ' min' : '—') + '</b></div>';
+      fill('mxQualityCard', 'mxQuality', q);
+    }
   }
 
-  global.MOTIONUI = { renderSummary: renderSummary, positionBar: positionBar };
+  global.MOTIONUI = { renderSummary: renderSummary, positionBar: positionBar, effortSpark: effortSpark, effortPresentPct: effortPresentPct };
 })(window);
 
 // ESM-from-birth dual-mode (mirrors glucodex-render): the IIFE attaches window.MOTIONUI for the
@@ -5186,12 +5311,12 @@ const { MOTIONUI } = __require('motiondex-render.js');
       })
     ).then(function () {
       if (!Object.keys(input).length) {
-        MOTIONUI.renderSummary(null, 'mxOut');
+        MOTIONUI.renderSummary(null);
         setStatus('No ACC / GYRO / MAGN streams recognised in the dropped files.');
         return;
       }
       RESULT = MOTIONDSP.compute(input);
-      MOTIONUI.renderSummary(RESULT, 'mxOut');
+      MOTIONUI.renderSummary(RESULT);
       setStatus(names.length + ' file(s): ' + names.join(', '));
       if ($('mxExport')) $('mxExport').disabled = false;
     });
@@ -5202,7 +5327,7 @@ const { MOTIONUI } = __require('motiondex-render.js');
     var acc = MOTIONDSP.genSynthetic({ sec: 300, hz: 26, brpm: 15, seed: 7 });
     var chest = MOTIONDSP.genSynthetic({ sec: 300, hz: 26, brpm: 15, seed: 21 });
     RESULT = MOTIONDSP.compute({ acc: acc, chestAcc: chest });
-    MOTIONUI.renderSummary(RESULT, 'mxOut');
+    MOTIONUI.renderSummary(RESULT);
     setStatus('Demo — deterministic synthetic (supine, 15 br/min).');
     if ($('mxExport')) $('mxExport').disabled = false;
   }
@@ -5247,6 +5372,33 @@ const { MOTIONUI } = __require('motiondex-render.js');
     }
     if ($('mxDemo')) $('mxDemo').addEventListener('click', runDemo);
     if ($('mxExport')) $('mxExport').addEventListener('click', exportJSON);
+    // theme toggle — the shared fleet control (wired here, NOT via an inline script, so the
+    // strict script-src CSP keeps an empty hash list). Mirrors ecgdex-app.js.
+    var tb = $('themeBtn');
+    if (tb)
+      tb.addEventListener('click', function () {
+        document.body.classList.toggle('light');
+        tb.textContent = document.body.classList.contains('light') ? '🌙 Dark' : '☀️ Light';
+      });
+    // clear-all — drop the result + collapse every section back to its empty state
+    if ($('mxClear'))
+      $('mxClear').addEventListener('click', function () {
+        RESULT = null;
+        ['mxKpiGrid', 'mxPositionCard', 'mxEffortCard', 'mxActivityCard', 'mxQualityCard'].forEach(function (id) {
+          var el = $(id);
+          if (el) {
+            el.innerHTML = '';
+            if (id !== 'mxKpiGrid') el.style.display = 'none';
+          }
+        });
+        ['mxKPI', 'mxPosition', 'mxEffort', 'mxActivity', 'mxQuality'].forEach(function (id) {
+          var el = $(id);
+          if (el) el.style.display = 'none';
+        });
+        if ($('mxExport')) $('mxExport').disabled = true;
+        if ($('mxInput')) $('mxInput').value = '';
+        setStatus('Cleared.');
+      });
     if (location.hash === '#demo') setTimeout(runDemo, 200);
   }
 

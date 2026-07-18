@@ -20,27 +20,15 @@
 <link rel="stylesheet" href="ans-design.css">
 <style>
 /* ════════════════════════════════════════════════════════════════════════
-   MotionDex — APP-SPECIFIC STYLES (built on ans-design.css)
+   MotionDex — APP-SPECIFIC STYLES. Everything structural now comes from the
+   SHARED fleet design system in ans-design.css (.app-shell / .sidebar /
+   .sb-nav / .main-content / .section-title / .kpi-grid / .kpi / .card / .btn /
+   #exportBar / .eb-* / .theme-toggle), so MotionDex reads as a fleet member.
+   Only the motion-specific visuals below have no shared equivalent.
    ════════════════════════════════════════════════════════════════════════ */
-.mx-wrap{max-width:960px;margin:0 auto;padding:28px 20px 60px}
-.mx-title{font-size:26px;font-weight:800;letter-spacing:-.02em;margin:0 0 4px}
-.mx-sub{color:var(--text2);font-size:13px;margin:0 0 22px}
-.mx-ctl{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:18px}
-.mx-zone{flex:1 1 320px;min-height:64px;border:1.5px dashed rgba(255,255,255,.18);border-radius:14px;display:flex;align-items:center;justify-content:center;text-align:center;padding:14px;color:var(--text2);font-size:13px;cursor:pointer;transition:border-color .2s,background .2s}
+.mx-zone{display:flex;align-items:center;justify-content:center;text-align:center;min-height:74px;padding:16px;border:1.5px dashed var(--line,rgba(255,255,255,.18));border-radius:14px;color:var(--text2);font-size:13px;cursor:pointer;transition:border-color .2s,background .2s}
 .mx-zone:hover,.mx-zone.mx-over{border-color:var(--accent,#58A6FF);background:rgba(88,166,255,.06)}
-.mx-btn{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:9px 16px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text)}
-.mx-btn:hover{background:rgba(255,255,255,.11)}
-.mx-btn:disabled{opacity:.4;cursor:not-allowed}
-.mx-status{color:var(--text2);font-size:12px;margin:0 0 16px;min-height:16px}
-.mx-head{color:var(--text2);font-size:12.5px;margin:0 0 14px}
-.mx-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px}
-.mx-kpi{position:relative;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px 15px}
-.mx-kpi-l{color:var(--text2);font-size:11.5px;font-weight:600;margin-bottom:6px}
-.mx-kpi-v{font-size:22px;font-weight:800;letter-spacing:-.02em}
-.mx-kpi-s{color:var(--text2);font-size:11px;margin-top:4px}
-.mx-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px;margin-bottom:14px}
-.mx-card-h{font-weight:700;font-size:14px;margin-bottom:12px}
-.mx-row{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-top:1px solid rgba(255,255,255,.05)}
+/* position dwell bar */
 .mx-bar{display:flex;height:22px;border-radius:8px;overflow:hidden;margin-bottom:10px}
 .mx-seg{display:block;min-width:2px}
 .mx-seg-supine{background:#58A6FF}.mx-seg-left{background:#3DE0D0}.mx-seg-right{background:#5EC8B0}
@@ -48,33 +36,83 @@
 .mx-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11.5px;color:var(--text2)}
 .mx-lg{display:inline-flex;align-items:center;gap:5px}
 .mx-dot{width:9px;height:9px;border-radius:3px;display:inline-block}
-.mx-empty{color:var(--text2);font-size:13px;padding:30px;text-align:center;border:1px dashed rgba(255,255,255,.12);border-radius:14px}
-.mx-foot{color:var(--text2);font-size:11px;margin-top:34px;line-height:1.6;border-top:1px solid rgba(255,255,255,.08);padding-top:14px}
+/* effort sparkline — per-epoch presence track */
+.mx-spark{display:flex;align-items:flex-end;gap:2px;height:46px;margin:10px 0 8px}
+.mx-sp{flex:1 1 0;min-width:2px;border-radius:2px 2px 0 0;background:#3DE0D0}
+.mx-sp-off{background:rgba(255,255,255,.20)}
+.mx-sp-nul{background:repeating-linear-gradient(45deg,rgba(255,255,255,.12),rgba(255,255,255,.12) 2px,transparent 2px,transparent 4px)}
+.mx-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:7px 0;border-top:1px solid var(--line,rgba(255,255,255,.07))}
+.mx-row:first-child{border-top:0}
+.mx-empty{color:var(--text2);font-size:13px;padding:26px;text-align:center}
 </style>
 </head>
 <body>
-<div class="mx-wrap">
-  <h1 class="mx-title">MotionDex</h1>
-  <p class="mx-sub">Single-signal motion / IMU analyzer — body position · actigraphy · respiratory effort. 100% local, nothing leaves your browser.</p>
+<button id="themeBtn" class="theme-toggle">☀️ Light</button>
 
-  <div class="mx-ctl">
-    <label class="mx-zone" id="mxZone">
-      <input type="file" id="mxInput" multiple accept=".txt,.csv" hidden>
-      Drop Polar Sensor Logger <code>_ACC / _GYRO / _MAGN</code> files (Verity + H10), or click to choose.
-    </label>
-    <button class="mx-btn" id="mxDemo" type="button">Demo</button>
-    <button class="mx-btn" id="mxExport" type="button" disabled>Export</button>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-logo">MotionDex</div>
+    <hr class="sidebar-logo-rule">
+    <nav class="sb-nav">
+      <a class="sb-item" href="#sec-input">📁 IMU Input</a>
+    </nav>
+    <nav class="sb-nav">
+      <a class="sb-item" href="#mxKPI">📊 Key Metrics</a>
+      <a class="sb-item" href="#mxPosition">🛏 Body Position</a>
+      <a class="sb-item" href="#mxEffort">🫁 Respiratory Effort</a>
+      <a class="sb-item" href="#mxActivity">🚶 Actigraphy</a>
+      <a class="sb-item" href="#mxQuality">🛡 Signal Quality</a>
+    </nav>
+  </aside>
+
+  <!-- STICKY EXPORT BAR -->
+  <div id="exportBar">
+    <span class="eb-label">Export</span>
+    <div class="eb-grp">
+      <button class="eb-btn eb-json" type="button" id="mxExport" disabled>⬇ JSON</button>
+    </div>
+    <span class="eb-spacer"></span>
+    <div class="eb-grp">
+      <button class="eb-btn eb-danger" type="button" id="mxClear">✕ Clear all</button>
+    </div>
   </div>
-  <p class="mx-status" id="mxStatus"></p>
 
-  <div id="mxOut"></div>
+  <!-- MAIN -->
+  <main class="main-content">
+    <div class="section-title" id="sec-input">IMU Input <span class="st-note">Polar Sensor Logger <code>_ACC / _GYRO / _MAGN</code> (Verity + H10) · parsed &amp; analyzed locally</span></div>
+    <div class="card">
+      <label class="mx-zone" id="mxZone">
+        <input type="file" id="mxInput" multiple accept=".txt,.csv" hidden>
+        Drop your IMU files here, or click to choose.
+      </label>
+      <div class="controls" style="margin-top:12px">
+        <button class="btn" type="button" id="mxDemo">▶ Demo</button>
+      </div>
+      <p class="chart-note" id="mxStatus"></p>
+    </div>
 
-  <p class="mx-foot">
-    <span class="dxl-stamp">Tepna · MotionDex</span> — <b>Not a medical device.</b> For personal
-    wellness and research use only; not for diagnosis or treatment. Body-position labels use an
-    uncalibrated device frame; respiratory effort is an accelerometer surrogate. Apache-2.0 ·
-    © 2026 Michal Planicka.
-  </p>
+    <div class="section-title" id="mxKPI" style="display:none">Key Metrics <span class="st-note">single-signal motion — position · actigraphy · effort</span></div>
+    <div class="kpi-grid" id="mxKpiGrid"></div>
+
+    <div class="section-title" id="mxPosition" style="display:none">Body Position <span class="st-note">gravity-vector dwell · uncalibrated device frame</span></div>
+    <div class="card" id="mxPositionCard" style="display:none"></div>
+
+    <div class="section-title" id="mxEffort" style="display:none">Respiratory Effort <span class="st-note">chest-ACC thoraco-abdominal surrogate (Ryser 2022)</span></div>
+    <div class="card" id="mxEffortCard" style="display:none"></div>
+
+    <div class="section-title" id="mxActivity" style="display:none">Actigraphy <span class="st-note">de-gravitated activity counts · movement / immobility</span></div>
+    <div class="card" id="mxActivityCard" style="display:none"></div>
+
+    <div class="section-title" id="mxQuality" style="display:none">Signal Quality <span class="st-note">motion SQI → Ganglior <code>conf</code></span></div>
+    <div class="card" id="mxQualityCard" style="display:none"></div>
+
+    <p class="chart-note" style="margin-top:30px">
+      <span class="dxl-stamp">Tepna · MotionDex</span> — <b>Not a medical device.</b> For personal
+      wellness and research use only; not for diagnosis or treatment. Body-position labels use an
+      uncalibrated device frame; respiratory effort is an accelerometer surrogate. Apache-2.0 ·
+      © 2026 Michal Planicka.
+    </p>
+  </main>
 </div>
 
 <!-- Co-load order (delegating node): shared classic modules → registry (classic) → clock.js →
