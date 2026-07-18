@@ -48,21 +48,50 @@ Flow: **connect → auth (0xFF) → setup (0x10) → poll (0x04) ~1/s**.
 - **LIVE `0x04`** — empty payload; the device replies with a 24-byte header. Offsets:
   `[5]` contact · `[6]` SpO₂ (%) · `[7]` motion · `[8]` HR (bpm) · `[13]` battery (%).
   **contact:** `0x00` no finger · `0x01` idle-present · `0x03` file-open. SpO₂/HR are `None` off-finger.
-  `[0]` is a frame **sequence counter** (+1 per reply, wraps at 256) — wired in as drop detection.
-  `[1:5]`=`104,0,0,2`, `[9]`=0, `[10]`=199, `[12]`=0 are constant protocol markers; `[14:24]` are zero
-  in every frame observed (reserved padding).
 
-  **`[11]` is UNIDENTIFIED and deliberately un-named.** It is the only other varying byte: 0 in 249/271
-  frames, occasionally 1–29. Correlation with pleth AC/DC is weak (r=0.42, driven by single
-  observations), so it is **not** read as a perfusion index. The leading hypothesis is an event/alert
-  flag — the ring **vibrates on desaturation**, and the vendor's legacy Viatom format carries a
-  vibration-alert byte in the same spirit. Plausible, unproven.
-  **Experiment now instrumented (2026-07-18):** the byte was previously DISCARDED, which is exactly why
-  271 opportunistic frames could not settle it. `parse_live` now returns it raw as `flag11` and
-  `writers.OxyFrameLogWriter` records one row per frame to a `*_OXYFRAME.txt` **sidecar** (never a
-  column — the SpO₂ CSV is a vendor layout OxyDex parses positionally). A worn night with natural
-  desaturations is the answer: **an alert flag should fire AT desat events; a perfusion index should
-  track pleth amplitude continuously.** Do not name the byte until that correlation is in hand.
+  **⚠️ LAYOUT CORRECTED 2026-07-18 against the vendor's own parser.** The offsets above were derived by
+  correlating 244 real frames against known physiology. SpO₂ and PR were right; three others were not,
+  and one of them was a live data bug. Source: `viatom-develop/LepuDemo` ships the official
+  `lepu-blepro` SDK as an AAR whose OxyII parser (`TAG="OxyIIBleInterface"`) maps bytes into the public
+  `oxy2.RtParam` DTO. Its offset base is identical to ours (it parses `copyOfRange(payload, 0, 20)` of
+  the same payload our `decode()` returns). The verified mapping:
+
+  | byte | field | note |
+  |---|---|---|
+  | `[0:4]` u32 LE | **duration (s)** | *not* a frame counter — see below |
+  | `[4]` | runStatus | |
+  | `[5]` | sensorState (contact) | ✓ as before |
+  | `[6]` | SpO₂ % | ✓ as before |
+  | `[7]` | **perfusion index**, `value/10` % | was mislabelled *motion* |
+  | `[8:10]` u16 LE | pulse rate | `[9]` is the HIGH byte, not padding |
+  | `[10] & 0x01` | flag | `199`/`0xC7` was never a constant; only bit 0 is read |
+  | `[11]` | **motion** | was the unidentified byte |
+  | `[12]` | batteryState | `0` = not charging |
+  | `[13]` | battery % | ✓ as before |
+  | `[14]` | four 2-bit subfields | SDK parses them; not exposed in `RtParam`, so left unparsed |
+
+  **`[7]`/`[11]` were SWAPPED, and it was not cosmetic.** `[7]` was written into the SpO₂ CSV's
+  `Motion` column, and OxyDex excludes artifact samples with `r.motion === 0`. Two independent
+  measurements settle it: over a real 5288-row night `[7]` is non-zero in **99.9 %** of frames
+  (mean 13.6 ⇒ PI 1.36 %, range 0–18.3 %) — a perfusion index is continuously non-zero, a sleeping
+  subject's motion is not; and the vendor's **own ViHealth exports** have a Motion column that is
+  **99.4–99.8 % zero** (max 18–62), exactly how `[11]` behaves (0 in 249/271 frames). So on
+  Vigil-captured files that filter was keeping ~0.1 % of samples. **Files written before this fix carry
+  PI in the Motion column.**
+
+  **`[0:4]` is the session duration, not a frame counter.** The old `frame_gap()` read `[0]` as a
+  sequence counter and reported phantom loss — 9 warnings in one evening, one claiming *"111 live
+  frames dropped"*, which was simply a session starting. Our own data refutes the counter reading
+  outright: **2736 consecutive frames read `[0] = 0`** while the ring sat idle. Replaced by
+  `session_restarted()` (duration going *backwards* = a new session). The ring exposes no
+  frame-sequence field, so we now report **nothing** rather than a fabricated zero.
+
+  This is why byte `[11]` never needed the desaturation experiment: it is **motion**, not the
+  vibration/alert flag hypothesised. The legacy *vibration* byte is real but lives in the **file
+  record**, not the live frame — `MackeyStingray/o2r` `o2file.py` shows the 5-byte VLD record as
+  `spo2, heartrate, oximetry_invalid, motion, vibration`. Do not cross-apply offsets between
+  generations: the legacy `0xAA/0x55` live protocol has `[10]` = PI/signal-strength and `[11]` =
+  finger-present, and gen-1 `RtWave` is a third layout again.
 
 ### 3b · The `0x04` body is ALSO a ~125 Hz PPG waveform (decoded 2026-07-18)
 Every `0x04` reply carries **more than the 24-byte header** — the rest is the ring's raw plethysmograph.

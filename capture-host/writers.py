@@ -173,29 +173,27 @@ class StreamWriter:
 
 
 class OxyFrameLogWriter:
-    """O2Ring per-frame DIAGNOSTIC sidecar — raw header bytes we have not yet identified.
+    """O2Ring per-frame sidecar — the live-header fields the vendor SpO2 CSV layout cannot carry.
 
-    Exists to settle byte [11]. It is the only other varying byte in the 24-byte live header and it is
-    currently DISCARDED, which is precisely why it cannot be identified: 271 opportunistic frames gave
-    22 non-zero observations and a weak pleth correlation (r=0.42 on single points). The leading
-    hypothesis is an event/alert flag — the ring VIBRATES on desaturation, and the vendor's legacy
-    Viatom format carries a vibration-alert byte in the same position-spirit. A full worn night with
-    natural desaturations is the experiment; this file is the instrument. Correlate flag11 against the
-    spo2 column afterwards: an alert flag should fire AT desat events, a perfusion index should track
-    pleth amplitude continuously.
+    Originally built to identify byte [11]. That question is now ANSWERED (it is motion; [7] is the
+    perfusion index — the two were swapped, see oxyii.parse_live), so this file's job has changed from
+    experiment to capture: it records PERFUSION INDEX, which is a real physiological signal the
+    `Time,Oxygen Level,Pulse Rate,Motion` vendor layout has no column for, plus session duration and
+    the charge/run state.
 
-    SIDECAR, NOT A COLUMN — same reason as LinkLogWriter: the `Time,Oxygen Level,Pulse Rate,Motion`
-    SpO2 CSV is a vendor layout OxyDex's adapter parses positionally.
+    PI is genuinely useful — it is the standard oximetry measure of pulse-signal strength, and it is the
+    honest denominator for judging whether an SpO2 reading was well-perfused. It is recorded here rather
+    than surfaced as a metric: it earns a registry entry and an evidence badge only when a node actually
+    consumes it.
 
-    `flag11` is recorded under its RAW OFFSET, deliberately un-named. We do not surface a byte we cannot
-    defend under a physiological name; when it is identified, it earns a name and a registry entry.
-    Diagnostic telemetry: never a `ganglior.node-export` metric, never an evidence badge.
+    SIDECAR, NOT A COLUMN — the SpO2 CSV is a vendor layout OxyDex's adapter parses positionally.
     """
 
     def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True):
         self.path = path
         self._fh = open(path, "w", buffering=1 << 16, newline="\n")
-        self._fh.write("Phone timestamp;seq;flag11;spo2;pr;motion;contact;battery_pct\n")
+        self._fh.write("Phone timestamp;duration_s;pi_pct;motion;spo2;pr;contact;battery_pct;"
+                       "batt_state;flag\n")
         self.rows = 0
         self._flush_interval = flush_interval
         self._fsync = fsync
@@ -207,9 +205,10 @@ class OxyFrameLogWriter:
         def _f(v):
             return "" if v is None else str(v)
         stamp = when.strftime("%Y-%m-%dT%H:%M:%S.") + f"{when.microsecond // 1000:03d}"
-        self._fh.write(";".join((stamp, _f(live.get("seq")), _f(live.get("flag11")),
-                                 _f(live.get("spo2")), _f(live.get("pr")), _f(live.get("motion")),
-                                 _f(live.get("contact")), _f(live.get("batt")))) + "\n")
+        self._fh.write(";".join((stamp, _f(live.get("duration")), _f(live.get("pi")),
+                                 _f(live.get("motion")), _f(live.get("spo2")), _f(live.get("pr")),
+                                 _f(live.get("contact")), _f(live.get("batt")),
+                                 _f(live.get("batt_state")), _f(live.get("flag")))) + "\n")
         self.rows += 1
         now = _time.monotonic()
         if now - self._last_flush >= self._flush_interval:

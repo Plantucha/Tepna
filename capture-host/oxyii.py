@@ -147,47 +147,71 @@ def decode(frame: bytes):
     return frame[1], frame[7:7 + ln]
 
 
-def frame_gap(prev_seq: int | None, seq: int) -> int:
-    """Frames DROPPED between two live replies, from the [0] sequence counter (wraps at 256).
+def session_restarted(prev_duration: int | None, duration: int) -> bool:
+    """Did the ring start a NEW recording session between two live replies?
 
-    0 = consecutive, N = N frames lost, -1 = a repeat of the same counter. Measured over 271 real frames
-    2026-07-18: 262 steps were exactly +1, plus 5 repeats and 3 double-steps — so drops and duplicates do
-    happen and were, until this existed, indistinguishable from the ring simply pausing."""
-    if prev_seq is None:
-        return 0
-    step = (seq - prev_seq) % 256
-    return -1 if step == 0 else step - 1
+    Replaces the former `frame_gap()`, which was built on a false premise. That function read `[0]` as a
+    frame sequence counter and reported "N live frame(s) dropped" whenever it stepped by more than one.
+    `[0:4]` is not a counter — it is the session DURATION in seconds (u32 LE), confirmed against the
+    vendor's own parser (LepuDemo `lepu-blepro` → RtParam.setDuration) AND against our data: 2736
+    consecutive frames read 0 while the ring sat idle, which no frame counter can do. The old function
+    therefore emitted phantom loss — 9 warnings in one evening, including "111 live frame(s) dropped",
+    which was simply a session starting.
+
+    A duration that goes BACKWARDS is the one real event here: the ring began a new session."""
+    return prev_duration is not None and duration < prev_duration
 
 
 def parse_live(payload: bytes) -> dict | None:
-    """cmd=0x04 24-byte header → live values.
+    """cmd=0x04 live header → live values.
 
-    Offsets, established by correlating 244 real frames against known physiology (2026-07-18):
-      [0]  frame sequence counter, +1 per reply, wraps at 256   → gap/drop detection (frame_gap)
-      [1:5] constant 104,0,0,2 · [9]=0 [10]=199 [12]=0          → protocol/version markers
-      [5]  contact   [6] SpO2   [7] motion   [8] HR   [13] battery
-      [11] the ONLY other varying byte: 0 in 249/271 frames, occasional 1-29. Correlates with pleth
-           AC/DC only weakly (r=0.42, driven by single observations), so NOT read as perfusion. The
-           vendor's other (legacy Viatom) format carries a vibration-alert byte in the same spirit, which
-           fits an occasional event flag better — plausible, unproven, so left unparsed rather than
-           surfaced under a name we cannot defend.
-      [14:24] all zero in every frame observed — reserved padding.
+    LAYOUT CORRECTED 2026-07-18 against the VENDOR'S OWN PARSER — the previous offsets were partly wrong
+    and one of them was a live data bug. Source: viatom-develop/LepuDemo ships the official
+    `lepu-blepro` SDK as an AAR; its OxyII parser (`TAG="OxyIIBleInterface"`) maps bytes into the public
+    `oxy2.RtParam` DTO. Read directly from the decompiled class, the chain is:
+
+        [0:4] u32 LE -> setDuration      [8:10] u16 LE -> setPr
+        [4]          -> setRunStatus     [10] & 0x01   -> setFlag
+        [5]          -> setSensorState   [11]          -> setMotion
+        [6]          -> setSpo2          [12]          -> setBatteryState
+        [7] / 10.0   -> setPi            [13]          -> setBatteryPercent
+
+    The SDK's offset base is identical to ours: it parses `copyOfRange(payload, 0, 20)` of the same
+    payload our `decode()` returns, so SDK offset N == payload[N].
+
+    TWO CORRECTIONS THAT MATTERED, both independently confirmed against our own recordings:
+
+    * **[7] is PERFUSION INDEX (value/10 %), not motion. [11] is motion.** They were swapped. This was
+      not cosmetic: `[7]` was being written into the SpO2 CSV's `Motion` column, and OxyDex excludes
+      artifact samples with `r.motion === 0`. Measured over a real 5288-row night, `[7]` is non-zero in
+      99.9% of frames (mean 13.6 => PI 1.36%, range 0-18.3%) — a perfusion index is continuously
+      non-zero, a sleeping subject's motion is not. The vendor's OWN ViHealth exports settle it from the
+      other side: their Motion column is 99.4-99.8% ZERO (max 18-62), which is exactly how `[11]`
+      behaves (0 in 249/271 frames). So on Vigil-captured files that filter was keeping ~0.1% of
+      samples. Files written before this fix carry PI in the Motion column.
+    * **[0:4] is the session duration (u32 LE), not a frame counter** — see session_restarted().
+
+    `[1]`=104 was never a constant: it is duration's second byte (104*256 ~ 7.4 h into a session), with
+    the low byte ticking +1/s. `[10]`=199 (0xC7) is not a constant either; the SDK reads only bit 0.
+    `[14]` carries four 2-bit subfields the SDK parses but does not expose in RtParam — left unparsed
+    rather than surfaced under a name we cannot defend.
     """
     if len(payload) < 14:
         return None
-    spo2, hr, motion, batt, contact = payload[6], payload[8], payload[7], payload[13], payload[5]
+    spo2, contact = payload[6], payload[5]
+    pr = int.from_bytes(payload[8:10], "little")     # u16 LE — [9] is the HIGH byte, not padding
     return {
-        "seq": payload[0],                             # frame counter → drop detection
+        "duration": int.from_bytes(payload[0:4], "little"),   # seconds into the ring's session
         "spo2": spo2 if 50 <= spo2 <= 100 else None,   # 0/invalid off-finger
-        "pr":   hr if 20 < hr < 250 else None,
-        "motion": motion,
-        "batt": batt,
+        "pr":   pr if 20 < pr < 250 else None,
+        "pi":   payload[7] / 10.0,                     # perfusion index, %
+        "motion": payload[11],                         # WAS [7] — the swap that caused the data bug
+        "flag": payload[10] & 0x01,
+        "batt": payload[13],
+        "batt_state": payload[12],                     # 0 = not charging
+        "run_status": payload[4],
         "contact": contact,                            # 0x00 no finger, 0x01 idle-present, 0x03 file open
         "worn": contact in (0x01, 0x03),
-        # RAW, deliberately un-named (see the docstring): returned so it can be RECORDED and finally
-        # identified. It was discarded before, which is exactly why 271 opportunistic frames could not
-        # settle it. Never surface this under a physiological name until it is proven.
-        "flag11": payload[11],
     }
 
 
@@ -203,9 +227,27 @@ def parse_live(payload: bytes) -> dict | None:
 #              single channel (even/odd samples are near-identical, so NOT interleaved LEDs).
 # The stream is RAW (per HEALTH-BOX-VISION: no on-box DSP): occasional isolated spike samples (e.g. 0x9c,
 # ~0.66/frame, scattered — not a fixed marker) are left in place for a downstream consumer to reject.
+PPG_INVALID = 156          # 0x9C — the device's INVALID-SAMPLE sentinel, NOT a signal excursion
+
+
 def parse_ppg(payload: bytes) -> list[int]:
-    """cmd=0x04 body → the raw ~125 Hz PPG waveform samples (u8), or [] if no body/too short."""
+    """cmd=0x04 body → the raw ~125 Hz PPG waveform samples (u8), or [] if no body/too short.
+
+    ⚠️ 156 (0x9C) is a SENTINEL, not signal. The vendor SDK replaces it by interpolating its neighbours
+    (both the OxyII wave class and the gen-1 `OxyBleResponse.RtWave` do this), and it occurs ~0.66x per
+    frame in our captures. It is returned RAW here — we do not fabricate an interpolated measurement —
+    but a consumer MUST reject `PPG_INVALID` rather than treat it as a real amplitude. The earlier note
+    calling these "raw signal, left in place for a downstream consumer to reject" was half right: they
+    are not signal, and no consumer rejects them yet.
+
+    Also note the vendor's DISPLAY transform is `127 - sample` (gen-1 used `100 - temp/2`), i.e. the
+    vendor's rendered pleth is INVERTED relative to these raw bytes. Anything comparing our waveform to
+    a vendor screenshot, or assuming systolic peaks are maxima, must account for that.
+    """
     if len(payload) < 27:
         return []
-    n = payload[24]
+    # u16 LE, not u8: the vendor SDK splits the payload at 20 and reads the wave section as
+    # [20:24] u32 counter, [24:26] u16 LE sample count, [26:] samples. Our [26:] start was already
+    # right; [25] was mislabelled "flag/reserved, seen 0x00" — it is this count's HIGH byte.
+    n = int.from_bytes(payload[24:26], "little")
     return list(payload[26:26 + n])
