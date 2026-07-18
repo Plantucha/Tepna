@@ -14907,6 +14907,26 @@
      severity bands, and — in the browser lane (parseNsrrXml needs DOMParser) — profusion-XML event
      classification + AHI = (apnea+hypopnea)/TST. Same bug-class the O2Ring .dat / ResMed-EDF adapter
      gates already guard. Expected values observed from the real module + closed-form derivation. */
+    /* ════ ResMed EDF session-set grouping — ±60 s window known-answer (deep-scout §AD) ════
+       resmed-edf.groupSessionSets is a PURE name-list function (no filesystem): it clusters SD-card streams
+       within ±60 s of a set's anchor, opening a new set when a TYPE repeats. The ±60 s window is INCLUSIVE
+       (`<= 60`) — a stream stamped EXACTLY 60 s from the anchor belongs to the same night. No leg pinned the
+       edge, so a `<= → <` slip would split a legitimate single session into two. */
+    group('ResMed EDF session grouping — ±60 s inclusive (§AD)', 'resmed-edf · adapters · known-answer', function (T) {
+      var SA = env.SignalAdapters;
+      var rm = SA && typeof SA.byId === 'function' ? SA.byId('resmed-edf') : null;
+      if (!rm || typeof rm.groupSessionSets !== 'function') {
+        T.skip('env.SignalAdapters.byId("resmed-edf").groupSessionSets available', 'resmed-edf adapter not registered in this runner');
+      } else {
+        // two streams EXACTLY 60 s apart, DIFFERENT types → one session set (±60 s inclusive)
+        T.eq('two EVE/CSL streams 60 s apart cluster into 1 set (±60 s inclusive; a <60 slip → 2)', rm.groupSessionSets(['20260612_220000_EVE.edf', '20260612_220100_CSL.edf']).length, 1);
+        // 61 s apart → two sets (control — outside the window)
+        T.eq('control · 61 s apart → 2 separate sets', rm.groupSessionSets(['20260612_220000_EVE.edf', '20260612_220101_CSL.edf']).length, 2);
+        // a REPEATED type opens a new set even when close (the load-bearing !byType[type] clause)
+        T.eq('control · a repeated type (EVE, EVE) opens a new set even 30 s apart', rm.groupSessionSets(['20260612_220000_EVE.edf', '20260612_220030_EVE.edf']).length, 2);
+      }
+    });
+
     group('NSRR PSG ingest adapter — known-answer (TEST-COVERAGE-FOLLOWUPS §2)', 'nsrr-adapter · ingest · known-answer', function (T) {
       var N = env.NSRR;
       T.ok('NSRR adapter is wired into env (both lanes)', !!(N && N.findSignal && N.edfToOxyRows && N.severityOf), 'window.NSRR missing or incomplete');
@@ -14934,6 +14954,20 @@
       var junk = N.edfToOxyRows({ signals: { SpO2: { fs: 1, data: [200, 200, 200] } }, clock: { t0Ms: Date.UTC(2020, 0, 1, 0, 0, 0) } });
       T.eq('resample · whole-channel-junk SpO₂ ⇒ 97% normoxic baseline (row 0)', junk.rows[0].spo2, 97);
       T.eq('resample · whole-channel-junk baseline fills every row (row 2)', junk.rows[2].spo2, 97);
+      /* deep-scout §AD — the to1Hz physiologic window is INCLUSIVE at BOTH edges (>= validLo && <= validHi);
+         the existing legs use interior values (95/96/98) so the exact edges were unpinned. SpO₂ 100 % and
+         40 % are legitimate readings, NOT artifacts — a `<= → <` / `>= → >` slip would drop them (forward-
+         fill the neighbour instead), silently corrupting a genuine desaturation floor or a 100 % ceiling. */
+      var topEdge = N.edfToOxyRows({ signals: { SpO2: { fs: 1, data: [100, 95, 95, 95] } }, clock: { t0Ms: Date.UTC(2020, 0, 1, 0, 0, 0) } });
+      T.eq('resample · SpO₂ 100 % is a VALID reading kept at the top edge (a v<100 slip → 95)', topEdge.rows[0].spo2, 100);
+      var botEdge = N.edfToOxyRows({ signals: { SpO2: { fs: 1, data: [40, 55, 55, 55] } }, clock: { t0Ms: Date.UTC(2020, 0, 1, 0, 0, 0) } });
+      T.eq('resample · SpO₂ 40 % is a VALID reading kept at the bottom edge (a v>40 slip → 55)', botEdge.rows[0].spo2, 40);
+      /* deep-scout §AD — the 1 Hz output length FLOORs partial trailing seconds (a fractional final second
+         has no full sample). The existing legs use even n/fs (8/2 → 4) so floor≡ceil; a partial n/fs exposes
+         it. n=5, fs=2 ⇒ floor(2.5)=2 rows; a Math.ceil slip fabricates a 3rd (empty) second. */
+      var partial = N.edfToOxyRows({ signals: { SpO2: { fs: 2, data: [95, 95, 95, 95, 95] } }, clock: { t0Ms: Date.UTC(2020, 0, 1, 0, 0, 0) } });
+      T.eq('resample · n=5/fs=2 ⇒ floor(2.5)=2 one-second rows (a ceil slip → 3)', partial.rows.length, 2);
+      T.eq('resample · durSec floors the partial trailing second (=2)', partial.durSec, 2);
 
       // ── EDF → OxyDex rows · CLOCK CONTRACT (floating t0Ms, +1000 ms/row, getUTC* readback) ──
       var t0 = Date.UTC(2020, 5, 10, 22, 0, 0); // 2020-06-10 22:00 floating
