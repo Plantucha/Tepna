@@ -124,7 +124,7 @@ no bundle, no gate touched by THIS brief.
 | **1.2** body position → positional OSA | ✅ **EXECUTED 2026-07-18** — MotionDex `posture_change` steps expand hold-last-value into the shared posture series; `labelPositionalApnea` gained `motion-acc` as a source (below the chest strap, above limb ACC). Gated 11/11. | done |
 | **2.1** cardiorespiratory/actigraphic staging | → Integrator staging brief (to spawn) — MotionDex activity × HRVDex/PulseDex HRV | `MOTIONDEX-BUILD-2026-07-17` |
 | **2.2** respiration rate (3-way fuse) | → Integrator RR-fusion brief (to spawn) — MotionDex chest-ACC RR + ECGDex EDR + PpgDex RIIV | `MOTIONDEX-BUILD-2026-07-17` (chest-ACC leg) |
-| **2.4** motion-gated cross-validated HRV | → HRVDex/PulseDex + Integrator brief (to spawn) — MotionDex movement epochs gate RR/PPI | `MOTIONDEX-BUILD-2026-07-17` |
+| **2.4** motion-gated cross-validated HRV | ✅ **EXECUTED 2026-07-18** — MotionDex exports a tri-state per-epoch movement track (`activitySeries`; a coverage gap is NOT stillness) rendered standalone as a movement timeline; `gateHRVByMotion` scores each HRV consensus block's window for stillness (`quiet` ⇒ ≥80% of RECORDED epochs immobile). Annotation only — no HRV value altered or excluded. Gated 8/8. | done |
 | **2.3** PAT (windowed/trend) | → **routed to existing DONE** `PAT-FEASIBILITY-2026-07-08-BRIEF.md` (beat-to-beat parked — physics: cross-device jitter + 55 Hz foot resolution) | none (no IMU) |
 
 The prerequisite (`MOTIONDEX-BUILD`) is spawned and PROPOSED; the five fusion briefs are spawned once

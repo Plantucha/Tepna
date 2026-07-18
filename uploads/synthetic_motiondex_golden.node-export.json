@@ -26,6 +26,29 @@
     },
     "immobileFrac": 1,
     "movementIndex": 0,
+    "activitySeries": [
+      {
+        "tMs": 1781128800000,
+        "count": 0,
+        "moving": false
+      },
+      {
+        "tMs": 1781128830000,
+        "count": 0,
+        "moving": false
+      },
+      {
+        "tMs": 1781128860000,
+        "count": 0,
+        "moving": false
+      },
+      {
+        "tMs": 1781128890000,
+        "count": 0,
+        "moving": false
+      }
+    ],
+    "activityCadenceSec": 30,
     "respRateBrpm": 14,
     "effortSeries": [
       {
