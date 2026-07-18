@@ -253,6 +253,7 @@ function readSources() {
     'sensor-trio-power-analysis.js',
     'sensor-trio-gpu.js',
     'hrvdex-render.js',
+    'pat-gate.js',
     'signal-orchestrate.js',
     'dex-ingest.js',
     'cpapdex-dsp.js',
@@ -890,7 +891,7 @@ async function main() {
     // collide with integrator-dsp.js's bare parseTimestamp/mean (loaded above). This is what
     // lets the Phase-9 compute() FUNCTIONAL floor run in Node CI, not just the browser rig (-II §3).
     ctx.__DEX_NAMESPACED__ = true;
-    ['oxydex-util.js', 'pulsedex-dsp.js', 'oxydex-dsp.js', 'hrvdex-dsp.js', 'glucodex-dsp.js', 'signal-orchestrate.js', 'dex-coload.js'].forEach((f) => loadInto(ctx, f));
+    ['oxydex-util.js', 'pulsedex-dsp.js', 'oxydex-dsp.js', 'hrvdex-dsp.js', 'glucodex-dsp.js', 'pat-gate.js', 'signal-orchestrate.js', 'dex-coload.js'].forEach((f) => loadInto(ctx, f));
   } catch (e) {
     console.error(paint('SETUP ERROR: ' + e.message, C.red));
     process.exit(2);
@@ -1035,6 +1036,7 @@ async function main() {
     SignalSpec: ctx.SignalSpec,
     SignalAdapters: ctx.SignalAdapters,
     EventCoupling: ctx.EventCoupling,
+    PATGate: ctx.PATGate,
     SignalOrchestrate: ctx.SignalOrchestrate,
     DexCoload: ctx.DexCoload,
     DexIngest: ctx.DexIngest,

@@ -44,7 +44,7 @@ function loadScript(url) {
 var DSP_OK = false,
   DSP_ERR = '';
 try {
-  ['kernel-constants.js', 'clock.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js'].forEach(loadScript);
+  ['kernel-constants.js', 'clock.js', 'pat-gate.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js'].forEach(loadScript);
   DSP_OK = !!(typeof ECGDSP !== 'undefined' && ECGDSP.parseECG && typeof PPGDSP !== 'undefined' && PPGDSP.parsePPG);
 } catch (e) {
   DSP_ERR = String((e && e.message) || e);
@@ -235,19 +235,8 @@ function coupledPAT(rTimes, fTimes) {
       : 0
   };
 }
-function verdict(ov, cp, sc) {
-  if (ov.min <= 0) return { tier: 'no', label: 'NO OVERLAP' };
-  if (!cp.ok) return { tier: 'no', label: 'NOT COUPLED' };
-  if (!sc.ok) return { tier: 'no', label: 'NOT SIMULTANEOUS' };
-  var tightBeat = isFinite(cp.residIQR) && cp.residIQR <= 60,
-    goodMatch = cp.matchRate >= 0.55;
-  var physical = cp.med >= 60 && cp.med <= 700,
-    driftMs = isFinite(cp.driftRange) ? cp.driftRange : Infinity;
-  if (goodMatch && tightBeat && physical && driftMs <= 60) return { tier: 'go', label: 'FEASIBLE' };
-  if (goodMatch && tightBeat && driftMs > 250) return { tier: 'no', label: 'DRIFT-DOMINATED' };
-  if (tightBeat && physical) return { tier: 'maybe', label: 'PROMISING' };
-  return { tier: 'maybe', label: 'WEAK COUPLING' };
-}
+// verdict() + its thresholds now live in pat-gate.js (single-sourced; ENGINE-VERIFICATION-FINDINGS §1.5).
+// The renderer reads the SAME constants, and the suite executes the math — neither was true before.
 
 // ── ACC-sync: trace the inter-device clock drift from shared body motion ─────
 // Both the H10 (chest) and Verity (arm) accelerometers register the SAME sleep
@@ -429,7 +418,7 @@ self.onmessage = function (e) {
         var ov = overlap(ecg, ppg),
           cp = coupledPAT(ecg.times, ppg.times),
           sc = sharedClock(ecg, ppg),
-          vd = verdict(ov, cp, sc);
+          vd = PATGate.verdict(ov, cp, sc);
         var ppm = ov.min > 0 && isFinite(cp.driftRange) ? (cp.driftRange / (ov.min * 60000)) * 1e6 : NaN;
         function packCp(c) {
           return c.ok
@@ -459,6 +448,8 @@ self.onmessage = function (e) {
           ov: ov,
           sc: sc,
           vd: vd,
+          driftSource: 'raw', // §1.5 — `vd` reflects UNCORRECTED drift; see `vdCorr` for the ACC-corrected gate
+
           cp: packCp(cp)
         };
         // ── ACC-sync stage (only if both accelerometer files were provided) ──
@@ -472,6 +463,11 @@ self.onmessage = function (e) {
             cpCorr = coupledPAT(ecg.times, fc);
             out.accSync = { available: true, anchors: drift.anchors, coverage: drift.coverage, offRangeMs: drift.offRange };
             out.cpCorr = packCp(cpCorr);
+            // §1.5 — the ACC-corrected coupling used to be rendered but NEVER re-gated, so a night whose
+            // corrected drift cleared the bar still reported DRIFT-DOMINATED. Evaluate the same gate on it
+            // and publish BOTH, each tagged with the drift it reflects. The primary `vd` is deliberately
+            // left on RAW drift — promoting on corrected drift is an owner call, not a refactor.
+            out.vdCorr = PATGate.verdict(ov, cpCorr, sc);
           } else {
             out.accSync = { available: false, reason: drift.reason, anchors: drift.anchors || 0 };
           }

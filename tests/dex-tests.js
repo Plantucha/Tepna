@@ -4434,6 +4434,46 @@
         env.DexIngest ? '' : 'load dex-ingest.js BEFORE signal-orchestrate.js'
       );
 
+      // ── PAT promotion gate — the first executed test of verdict() (ENGINE-VERIFICATION §1.5) ──
+      // Until pat-gate.js this math lived as bare literals inside a Web Worker and was NEVER run by
+      // the suite; the two divergences below (an unstated `physical` window, and a tier decided on
+      // UNCORRECTED drift) were only found by hand-extracting it via vm. Both directions asserted.
+      var PG = env.PATGate;
+      if (PG && typeof PG.verdict === 'function') {
+        var G = PG.PAT_GATE;
+        var ovOK = { min: 400 },
+          scOK = { ok: true };
+        var cp = function (o) {
+          return Object.assign({ ok: true, matchRate: 0.9, residIQR: 40, med: 450, driftRange: 30 }, o || {});
+        };
+        T.eq('§1.5 published bar met ⇒ FEASIBLE', PG.verdict(ovOK, cp(), scOK).label, 'FEASIBLE');
+        // each published leg, one at a time — a gate that only passes is hollow
+        T.ok('§1.5 coupling below COUPLING_MIN ⇒ not FEASIBLE', PG.verdict(ovOK, cp({ matchRate: G.COUPLING_MIN - 0.01 }), scOK).label !== 'FEASIBLE');
+        T.ok('§1.5 beat IQR above BEAT_IQR_MAX_MS ⇒ not FEASIBLE', PG.verdict(ovOK, cp({ residIQR: G.BEAT_IQR_MAX_MS + 1 }), scOK).label !== 'FEASIBLE');
+        T.ok('§1.5 drift above DRIFT_MAX_MS ⇒ not FEASIBLE', PG.verdict(ovOK, cp({ driftRange: G.DRIFT_MAX_MS + 1 }), scOK).label !== 'FEASIBLE');
+        // boundaries are INCLUSIVE — pins the comparison operators against a >/>= slip
+        T.eq('§1.5 boundary · drift exactly DRIFT_MAX_MS still FEASIBLE', PG.verdict(ovOK, cp({ driftRange: G.DRIFT_MAX_MS }), scOK).label, 'FEASIBLE');
+        T.eq('§1.5 boundary · IQR exactly BEAT_IQR_MAX_MS still FEASIBLE', PG.verdict(ovOK, cp({ residIQR: G.BEAT_IQR_MAX_MS }), scOK).label, 'FEASIBLE');
+        T.eq('§1.5 boundary · coupling exactly COUPLING_MIN still FEASIBLE', PG.verdict(ovOK, cp({ matchRate: G.COUPLING_MIN }), scOK).label, 'FEASIBLE');
+        // the FOURTH, unstated condition — a night can meet all three published bars and still fail
+        T.eq('§1.5 the UNSTATED `physical` lag window is real · lag < LAG_MIN_MS ⇒ WEAK COUPLING', PG.verdict(ovOK, cp({ med: G.LAG_MIN_MS - 1 }), scOK).label, 'WEAK COUPLING');
+        T.eq('§1.5 lag > LAG_MAX_MS ⇒ WEAK COUPLING (all three published bars met)', PG.verdict(ovOK, cp({ med: G.LAG_MAX_MS + 1 }), scOK).label, 'WEAK COUPLING');
+        T.eq('§1.5 lag exactly LAG_MIN_MS is inside the window', PG.verdict(ovOK, cp({ med: G.LAG_MIN_MS }), scOK).label, 'FEASIBLE');
+        // drift-dominated vs merely-over-bar
+        T.eq('§1.5 drift > DRIFT_DOMINATED_MS ⇒ DRIFT-DOMINATED', PG.verdict(ovOK, cp({ driftRange: G.DRIFT_DOMINATED_MS + 1 }), scOK).label, 'DRIFT-DOMINATED');
+        T.ok('§1.5 drift between the two thresholds is NOT drift-dominated', PG.verdict(ovOK, cp({ driftRange: (G.DRIFT_MAX_MS + G.DRIFT_DOMINATED_MS) / 2 }), scOK).label !== 'DRIFT-DOMINATED');
+        // hard preconditions
+        T.eq('§1.5 no overlap ⇒ NO OVERLAP', PG.verdict({ min: 0 }, cp(), scOK).label, 'NO OVERLAP');
+        T.eq('§1.5 uncoupled ⇒ NOT COUPLED', PG.verdict(ovOK, { ok: false }, scOK).label, 'NOT COUPLED');
+        T.eq('§1.5 not simultaneous ⇒ NOT SIMULTANEOUS', PG.verdict(ovOK, cp(), { ok: false }).label, 'NOT SIMULTANEOUS');
+        // `why` exposes WHICH leg failed — the old label-only return could not
+        T.ok('§1.5 why{} reports the failing leg', PG.verdict(ovOK, cp({ driftRange: 5000 }), scOK).why.driftOK === false);
+        // the real 2026-07-06 night: 47.5 ms IQR + 89.5% coupling PASS, 1147 ms drift fails
+        T.eq('§1.5 real night 2026-07-06 (IQR 47.5 · coupling 89.5% · drift 1147) ⇒ DRIFT-DOMINATED', PG.verdict({ min: 401 }, cp({ matchRate: 0.895, residIQR: 47.5, med: 454, driftRange: 1147 }), scOK).label, 'DRIFT-DOMINATED');
+      } else {
+        T.ok('PATGate co-loaded (pat-gate.js)', false, 'add pat-gate.js to both runners');
+      }
+
       // UTC-ISO helpers (Clock-Contract-faithful) + a supine ACC renderer (gravity on +z).
       var p2 = function (x, w) {
         x = '' + x;

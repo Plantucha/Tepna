@@ -50,6 +50,7 @@
     "oxydex-globals.d.ts",
     "pulsedex-globals.d.ts",
     "pulsedex-dsp.js",
+    "pat-gate.js",
     "signal-orchestrate.js",
     "hrvdex-dsp.js",
     "glucodex-dsp.js",
