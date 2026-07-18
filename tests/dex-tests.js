@@ -14222,6 +14222,44 @@
       var d3 = DP.derive(DP.get());
       T.approx('WHtR = waist ÷ height', d3.whtr, +(90 / 175).toFixed(2), 0.001);
       T.eq('WHtR ≥ 0.5 flagged elevated', d3.whtrRisk, 'elevated');
+      // deep-scout §KR — the group pinned whtrRisk-elevated + the 70-band clamps, but NOT the CUT VALUES
+      // (WHO 25 / Ashwell 0.5 / ACSM 0.8·norm / VO2-pct slope 120) or the mid-band NHANES/VO2 interpolation.
+      // Each surfaces in the PulseDex Derived panel. Boundary cases chosen to BRACKET the exact cut so a
+      // ±band or sign-of-f mutation flips the surfaced label. Hand-derived.
+      // whtrRisk cut = 0.5: the elevated test above uses 0.51 (elevated under BOTH 0.5 and a 0.4 mutation);
+      // 0.45 is the case that distinguishes them — ok at 0.5, elevated at 0.4.
+      DP.setManual('waist', 78); // 78/175 = 0.45 (toFixed 2)
+      T.eq('WHtR 0.45 < 0.5 → ok (mutation to 0.4 cut would false-flag elevated)', DP.derive(DP.get()).whtrRisk, 'ok');
+      // _interp2 NHANES mid-band (age 35 = halfway 30↔40 M): weight 85.6 + 0.5·(89.4−85.6) = 87.5,
+      // height 177.2 + 0.5·(176.7−177.2) = 176.95 → toFixed(1) = 176.9 (a −f·Δ sign flip → 83.7 / 177.5).
+      DP._setStore(mem());
+      DP.setManual('sex', 'M');
+      DP.setManual('age', 35);
+      T.approx('NHANES weight interpolated at age 35 M = 87.5 (mid-band, not a 30/40 anchor)', DP.resolve('weight').v, 87.5, 1e-9);
+      T.approx('NHANES height interpolated at age 35 M = 176.9 (177.2 + 0.5·−0.5, toFixed 1)', DP.resolve('height').v, 176.9, 1e-9);
+      // _interp1 VO2 norm mid-band (age 30 = halfway 25↔35 M): round(45 + 0.5·(43−45)) = 44 (−f → 46).
+      DP.setManual('age', 30);
+      T.eq('VO2 norm interpolated at age 30 M = 44 mL/kg/min', DP.resolve('vo2').v, 44);
+      // VO2_NORM ACSM/FRIEND 50th-pct anchor: male age-45 = 39 mL/kg/min (exact band → no interp).
+      DP.setManual('age', 45);
+      T.eq('VO2 norm at age 45 M = 39 (the cited ACSM anchor, not 44)', DP.resolve('vo2').v, 39);
+      // bmiLabel WHO cut = 25: BMI 78 ÷ 1.75² = 25.5 → Overweight (a <27 mutation → Normal).
+      DP._setStore(mem());
+      DP.setManual('sex', 'M');
+      DP.setManual('age', 30);
+      DP.setManual('weight', 78);
+      DP.setManual('height', 175);
+      var dk = DP.derive(DP.get());
+      T.approx('BMI 78 ÷ 1.75² = 25.5', dk.bmi, 25.5, 0.05);
+      T.eq('bmiCat WHO cut 25 → Overweight at BMI 25.5 (mutation to <27 → Normal)', dk.bmiCat, 'Overweight');
+      // vo2Category ACSM band: norm(age 30 M) = 44. vo2 33 → r = 0.75 → Poor (a 0.7 Fair-cut mutation → Fair).
+      DP.setManual('vo2', 33);
+      T.eq('vo2Cat r=0.75 → Poor (below the 0.8 Fair cut; mutation to 0.7 would say Fair)', DP.derive(DP.get()).vo2Cat, 'Poor');
+      // vo2Percentile slope = 120: vo2 55 → r = 1.25 → round(50 + 0.25·120) = 80 (a ·100 mutation → 75); Superior.
+      DP.setManual('vo2', 55);
+      var dkp = DP.derive(DP.get());
+      T.eq('vo2Cat r=1.25 → Superior', dkp.vo2Cat, 'Superior');
+      T.eq('vo2Pct = round(50 + (55/44−1)·120) = 80 (slope 120, not 100)', dkp.vo2Pct, 80);
 
       // ── validity gates (brief §3) ───────────────────────────────────────
       DP._setStore(mem());
