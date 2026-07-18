@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-07-17
+**Status:** IN-PROGRESS — 2026-07-18 (**Phases 0–2 SHIPPED, plus Phase 3's monitor leg.** Phase 0 measured the frame on-device (`probe_oxyii_ppg.py`); Phase 1 decoded the body (`oxyii.parse_ppg` — `24+2+N`, single-channel u8, validated vs the paired ECG at 49 bpm) and its layout is now recorded in `O2RING-PROTOCOL-2026-07-17-BRIEF.md` §3b; Phase 2 captures it into the PSL ppg layout with host-arrival back-timing (`capture.py` writer + the `o2ppg` bus stream + the `o2ring.ppg_fs` setting), and the rate was **calibrated to 125.738 Hz** — a finding beyond this brief's original scope, which assumed ~100 Hz. Phase 3's monitor scope card exists (`monitor.html` `O2_DERIVED`). **NOT done — the two Done-when items that remain:** (a) the PPGDex **round-trip acceptance check** (feet/peaks detect; PPI HR matches the ring's 1 Hz HR and the paired ECG); (b) the honest single-channel path that acceptance depends on. Both are owned by `PPGDEX-O2RING-FINGER-SITE-2026-07-18-BRIEF.md`. ⚠️ Until (b) lands, capture writes the one decoded value **replicated across ppg0/1/2** (`capture.py` `write_ppg(…, (v,v,v), 0)`), which makes PpgDex's 3-LED consensus report a fabricated `ledAgreementPct: 100` at `measured` tier — see `ENGINE-VERIFICATION-FINDINGS-2026-07-18-BRIEF.md` §1.3.) · **Created:** 2026-07-17
 
 # Capture the O2Ring's live ~100 Hz PPG waveform (the finger-site pleth we currently discard)
 
