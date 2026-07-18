@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3IsuIfcb6DKsRs2HNebyHs2EgvED9l/WDIaI4lJD9uE=' 'sha256-4/cLHVc0Wb6EiY4gguPzQPq2uN6OymQyizOC08czN8w=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6mOVcfGp36aQWGf/a5+fUEynqpTERbmDQTyBrREofPw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-aMINXO+LtdhxQ6xIivZAsOeQTyaQ1X9XmnpeCoNu9UU=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3IsuIfcb6DKsRs2HNebyHs2EgvED9l/WDIaI4lJD9uE=' 'sha256-4/cLHVc0Wb6EiY4gguPzQPq2uN6OymQyizOC08czN8w=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-aMINXO+LtdhxQ6xIivZAsOeQTyaQ1X9XmnpeCoNu9UU=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-sL6MYBf1c0S8DDvX5xci+aeox+eb04A1F5CDrfjCQoo=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Integrator · Fusion Layer</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -5381,6 +5381,7 @@ const NODE_COLORS = {
   PpgDex: '#B98AFF',
   HRVDex: '#39D98A',
   CPAPDex: '#14B8A6',
+  MotionDex: '#F0A860',
   Unknown: '#8C9DB3'
 };
 function nodeColor(n) {
@@ -5718,10 +5719,12 @@ function adaptEnvelopeNode(json, node, filename) {
     summary.motionSqi = mo.sqi != null ? mo.sqi : null;
     summary.effortSeries = _motionEffortSeries(json, t0Ms);
     summary.effortCadenceSec = mo.effortCadenceSec != null ? mo.effortCadenceSec : null;
-    // MotionDex's posture_change events give a chest/limb position track — expose it on the SAME
-    // series shape ECGDex/PpgDex use so the existing positional-apnea path can consume it too.
-    summary.posture = _ecgPostureSeries(json, t0Ms);
-    if (summary.posture && summary.posture.length) summary.postureSource = 'motiondex-acc';
+    // MotionDex publishes posture as run-length `posture_change` events — expand them into the SAME
+    // { tMs, pos } series ECGDex/PpgDex use, so the existing positional-apnea path consumes it directly.
+    // (§1.2. This previously called _ecgPostureSeries, which reads json.acc / json.timeseries.acc —
+    // fields a MotionDex export does not carry — so it silently produced an empty series.)
+    summary.posture = _motionPostureSeries(json, t0Ms);
+    if (summary.posture && summary.posture.length) summary.postureSource = 'motion-acc';
   }
   // TCH (INTEGRATOR-THREE-CORNERED-HAT §1): carry the per-epoch HRV/HR SERIES so the
   // fusion layer can run a three-cornered-hat across nodes (TCH needs aligned series,
@@ -5802,6 +5805,38 @@ function _motionEffortSeries(json, t0Ms) {
     var e = src[i] || {};
     var tMs = e.tMs != null ? e.tMs : t0Ms != null ? t0Ms + i * cadMs : null;
     out.push({ tMs: tMs, amp: e.amp != null ? e.amp : null, present: e.present == null ? null : !!e.present });
+  }
+  return out;
+}
+/* MotionDex body-position track → the SAME { tMs, pos } series shape ECGDex/PpgDex publish
+   (MULTI-SENSOR-DERIVATIONS §1.2). MotionDex emits posture as `posture_change` ganglior_events — a
+   RUN-LENGTH encoding (a position holds until the next change), which is why it must be expanded here
+   rather than exported densely: the step form is compact on the bus, and `posAt()` downstream matches on
+   NEAREST-sample-within-10-min, which would miss a position that legitimately held for hours.
+   Hold-last-value from each change to the next, bounded by the recording duration. */
+var _MOTION_POS_CAD_MS = 60000; // expansion cadence — well inside posAt()'s 10-min match window
+var _MOTION_POS_MAX = 5000; // hard cap so a pathological export can't blow up memory
+function _motionPostureSeries(json, t0Ms) {
+  var evs = (json && (json.ganglior_events || json.events)) || [];
+  var steps = [];
+  for (var i = 0; i < evs.length; i++) {
+    var e = evs[i];
+    if (!e || e.impulse !== 'posture_change') continue;
+    var tMs = e.tMs != null ? e.tMs : t0Ms != null && e.t ? reconstructEventTMs(e, t0Ms) : null;
+    var pos = e.meta && e.meta.position ? String(e.meta.position).toLowerCase() : null;
+    if (tMs != null && pos && pos !== 'unknown') steps.push({ tMs: tMs, pos: pos });
+  }
+  if (!steps.length) return [];
+  steps.sort(function (a, b) {
+    return a.tMs - b.tMs;
+  });
+  var durSec = (json.recording && json.recording.durSec) || null;
+  var endMs = durSec != null && t0Ms != null ? t0Ms + durSec * 1000 : steps[steps.length - 1].tMs + _MOTION_POS_CAD_MS;
+  var out = [];
+  for (i = 0; i < steps.length && out.length < _MOTION_POS_MAX; i++) {
+    var from = steps[i].tMs,
+      to = i + 1 < steps.length ? steps[i + 1].tMs : Math.max(endMs, from + _MOTION_POS_CAD_MS);
+    for (var t = from; t < to && out.length < _MOTION_POS_MAX; t += _MOTION_POS_CAD_MS) out.push({ tMs: t, pos: steps[i].pos });
   }
   return out;
 }
@@ -6018,7 +6053,7 @@ function normalizeFile(json, filename) {
   // ── R2 GUARD: every recognized node must resolve to a registered color + a
   //    summary adapter, or it silently becomes grey "Unknown" and drops out of
   //    fusion (the PpgDex bug). Surface it loudly instead of failing quietly. ──
-  var KNOWN_NODES = ['ECGDex', 'OxyDex', 'GlucoDex', 'PulseDex', 'PpgDex', 'HRVDex', 'CPAPDex'];
+  var KNOWN_NODES = ['ECGDex', 'OxyDex', 'GlucoDex', 'PulseDex', 'PpgDex', 'HRVDex', 'CPAPDex', 'MotionDex'];
   if (node !== 'Unknown' && KNOWN_NODES.indexOf(node) < 0) {
     warnings.push('Node "' + node + '" is not registered in the Integrator (no color / summary adapter) — ' + 'it will load but be excluded from fusion. Add it to NODE_COLORS + the summary branch.');
   }
@@ -6635,8 +6670,25 @@ function labelPositionalApnea(recs, apneaResult) {
     .sort(function (a, b) {
       return a.tMs - b.tMs;
     });
-  // fall back to PpgDex limb-ACC posture when no chest-strap posture is available
+  // Posture-source precedence (§1.2): ECGDex chest strap → MotionDex IMU → PpgDex limb ACC.
+  // MotionDex is a purpose-built IMU node and outranks a limb-worn optical device, but sits BELOW the
+  // chest strap because its body frame is UNCALIBRATED (the posture label is experimental-tier in
+  // motiondex-registry.js — Rocha'26 reaches its F1 only after a calibration step MotionDex doesn't do).
   var src = 'chest-acc';
+  if (!posture.length) {
+    var motion = _byNode(recs, 'MotionDex');
+    motion.forEach(function (g) {
+      if (g.summary && g.summary.posture) posture = posture.concat(g.summary.posture);
+    });
+    posture = posture
+      .filter(function (p) {
+        return p.tMs != null;
+      })
+      .sort(function (a, b) {
+        return a.tMs - b.tMs;
+      });
+    if (posture.length) src = 'motion-acc';
+  }
   if (!posture.length) {
     var ppg = _byNode(recs, 'PpgDex');
     ppg.forEach(function (g) {
@@ -6687,7 +6739,11 @@ function labelPositionalApnea(recs, apneaResult) {
     postureSource: src,
     note:
       'Provisional — body position is ' +
-      (src === 'limb-acc' ? 'LIMB-worn ACC (Polar Sense; lower reliability — wrist/ankle orientation, not trunk)' : 'chest-ACC-derived') +
+      (src === 'limb-acc'
+        ? 'LIMB-worn ACC (Polar Sense; lower reliability — wrist/ankle orientation, not trunk)'
+        : src === 'motion-acc'
+          ? 'MotionDex IMU gravity-vector position (uncalibrated device frame — the posture label is a convention, experimental tier)'
+          : 'chest-ACC-derived') +
       ', not PSG. ' +
       (positional ? 'Confirmed events cluster supine (provisional positional apnea).' : 'No strong supine clustering of confirmed events.')
   };

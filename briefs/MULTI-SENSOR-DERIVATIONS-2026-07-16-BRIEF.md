@@ -121,7 +121,7 @@ no bundle, no gate touched by THIS brief.
 | Item | Route | Prerequisite |
 | --- | --- | --- |
 | **1.1** apnea typing (effort × desat) | → Integrator-fusion brief (to spawn) — MotionDex effort waveform × OxyDex desats | `MOTIONDEX-BUILD-2026-07-17` |
-| **1.2** body position → positional OSA | → Integrator-fusion brief (to spawn) — MotionDex position × OxyDex desat rate | `MOTIONDEX-BUILD-2026-07-17` |
+| **1.2** body position → positional OSA | ✅ **EXECUTED 2026-07-18** — MotionDex `posture_change` steps expand hold-last-value into the shared posture series; `labelPositionalApnea` gained `motion-acc` as a source (below the chest strap, above limb ACC). Gated 11/11. | done |
 | **2.1** cardiorespiratory/actigraphic staging | → Integrator staging brief (to spawn) — MotionDex activity × HRVDex/PulseDex HRV | `MOTIONDEX-BUILD-2026-07-17` |
 | **2.2** respiration rate (3-way fuse) | → Integrator RR-fusion brief (to spawn) — MotionDex chest-ACC RR + ECGDex EDR + PpgDex RIIV | `MOTIONDEX-BUILD-2026-07-17` (chest-ACC leg) |
 | **2.4** motion-gated cross-validated HRV | → HRVDex/PulseDex + Integrator brief (to spawn) — MotionDex movement epochs gate RR/PPI | `MOTIONDEX-BUILD-2026-07-17` |
