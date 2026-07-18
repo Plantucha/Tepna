@@ -665,13 +665,23 @@ async function loadSettings(){
     }).join('');
     return `<div style="margin-bottom:.7rem"><div class="name">${esc(d.name)}</div>${boxes||'<span class="hint">no streams reported yet</span>'}</div>`;
   }).join('');
+  // Every field is POPULATED — from config.yaml if set, otherwise from the daemon's own default (the
+  // schema is the single source of truth for those, so the UI cannot advertise a default that differs
+  // from what actually happens). An empty numeric box used to save as NaN and be rejected.
   $('#setFields').innerHTML = SETTINGS.settings.map(f=>{
     const id = 'set_'+f.key.replace(/\./g,'_');
+    const val = (f.value==null ? f.default : f.value);
     const ctl = f.type==='bool'
-      ? `<input type="checkbox" id="${id}" data-key="${esc(f.key)}" ${f.value?'checked':''}>`
-      : `<input type="number" id="${id}" data-key="${esc(f.key)}" value="${f.value==null?'':f.value}" min="${f.min}" max="${f.max}" step="any" style="width:8rem">`;
+      ? `<input type="checkbox" id="${id}" data-key="${esc(f.key)}" data-type="bool" ${val?'checked':''}>`
+      : `<input type="number" id="${id}" data-key="${esc(f.key)}" data-type="num" value="${val}" data-default="${f.default}" min="${f.min}" max="${f.max}" step="any" style="width:7rem">`;
+    const meta = [
+      f.min!=null ? `range ${f.min}–${f.max}` : null,
+      `default ${f.default}`,
+      f.is_default ? null : 'changed',
+      f.needs_restart ? 'needs reconnect' : null
+    ].filter(Boolean).join(' · ');
     return `<label class="setrow">${ctl}<span class="k">${esc(f.key)}</span>
-      <span class="mb">${esc(f.help)}${f.min!=null?` (${f.min}–${f.max})`:''}${f.needs_restart?' · needs reconnect':''}</span></label>`;
+      <span class="mb">${esc(f.help)} <em style="opacity:.75">(${esc(meta)})</em></span></label>`;
   }).join('');
   updateSetTotal();
   sd.querySelectorAll('input[type=checkbox]').forEach(el=>el.addEventListener('change', updateSetTotal));
@@ -691,7 +701,10 @@ async function saveSettings(btn){
     if(el.checked) streams[el.dataset.addr].push(el.dataset.stream);
   });
   document.querySelectorAll('#setFields input').forEach(el=>{
-    settings[el.dataset.key] = el.type==='checkbox' ? el.checked : parseFloat(el.value);
+    if(el.type==='checkbox'){ settings[el.dataset.key] = el.checked; return; }
+    const v = parseFloat(el.value);
+    if(Number.isFinite(v)) settings[el.dataset.key] = v;   // never post an empty box as NaN
+    else el.value = el.dataset.default;                     // and repair the field from its default
   });
   try{
     const r = await api('/api/settings',{method:'POST',headers:{'content-type':'application/json'},
