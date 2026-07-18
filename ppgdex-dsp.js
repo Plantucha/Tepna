@@ -159,7 +159,9 @@
   function ppgColsFromHeader(headerLine) {
     const p = String(headerLine || '').split(';');
     const ch = [];
-    let amb = -1, ns = -1, phone = -1;
+    let amb = -1,
+      ns = -1,
+      phone = -1;
     for (let i = 0; i < p.length; i++) {
       const h = p[i].trim().toLowerCase();
       if (/^(channel\s*\d|ppg\d)/.test(h)) ch.push(i);
@@ -187,7 +189,6 @@
     let ns0 = null,
       t0Ms = null,
       firstTs = null; // lastTs is resolved lazily in the fs fallback (§P1)
-    let started = false;
     let pcols = null;
     for (let li = 0; li < lines.length; li++) {
       const line = lines[li].trim();
@@ -211,7 +212,7 @@
       // sensor ns → relative seconds (BigInt: values exceed Number safe range)
       let relNs = 0;
       try {
-        const b = BigInt(p[(pcols && pcols.ns >= 0) ? pcols.ns : 1].trim());
+        const b = BigInt(p[pcols && pcols.ns >= 0 ? pcols.ns : 1].trim());
         if (ns0 === null) ns0 = b;
         relNs = Number(b - ns0);
       } catch (e) {
@@ -230,7 +231,6 @@
           firstTs = ts;
         }
       }
-      started = true;
     }
     const n = ch0.length;
     if (n < 10) throw new Error('No PPG samples parsed — expected Polar Sense `*_PPG.txt` (Phone timestamp;sensor ns;ch0;ch1;ch2;ambient).');
@@ -1166,8 +1166,7 @@
       if (isFinite(parseFloat(p[k]))) nums.push(k);
     }
     if (nums.length < 3) return null;
-    return { x: nums[nums.length - 3], y: nums[nums.length - 2], z: nums[nums.length - 1],
-             ns: 1, phone: 0 };
+    return { x: nums[nums.length - 3], y: nums[nums.length - 2], z: nums[nums.length - 1], ns: 1, phone: 0 };
   }
   function parseSensorXYZ(text) {
     const lines = text.split(/\r?\n/);

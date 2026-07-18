@@ -134,8 +134,7 @@
       if (isFinite(parseFloat(p[k]))) nums.push(k);
     }
     if (nums.length < 3) return null;
-    return { x: nums[nums.length - 3], y: nums[nums.length - 2], z: nums[nums.length - 1],
-             ns: 1, phone: 0 };
+    return { x: nums[nums.length - 3], y: nums[nums.length - 2], z: nums[nums.length - 1], ns: 1, phone: 0 };
   }
   function parseSensorXYZ(text) {
     var lines = String(text || '').split(/\r?\n/);
@@ -164,8 +163,7 @@
         relNs = Number(b - ns0);
       } catch {}
       var ts = parseTimestamp(p[c.phone >= 0 ? c.phone : 0]);
-      out.push({ relNs: relNs, tMs: ts ? ts.tMs : null, x: x,
-                 y: parseFloat(p[c.y]), z: parseFloat(p[c.z]) });
+      out.push({ relNs: relNs, tMs: ts ? ts.tMs : null, x: x, y: parseFloat(p[c.y]), z: parseFloat(p[c.z]) });
     }
     out._kind = headerKind ? headerKind.kind : null;
     out._unit = headerKind ? headerKind.unit : null;
