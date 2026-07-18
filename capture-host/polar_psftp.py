@@ -81,6 +81,12 @@ def _iter_fields(buf):
         else:
             raise ValueError(f"bad protobuf wire type {wt}")
 
+def _parse_pb_fields(buf) -> dict:
+    """{field_number: value} for a flat protobuf message — last occurrence wins. Used for the small
+    PbDate / PbTime / GET_LOCAL_TIME replies; _parse_directory handles the repeated-entry case."""
+    return {fn: val for fn, val in _iter_fields(buf)}
+
+
 def _parse_directory(buf) -> list[tuple[str, int]]:
     """PbPFtpDirectory { repeated PbPFtpEntry entries=1 } ; PbPFtpEntry { name=1, size=2 }."""
     entries = []
@@ -102,9 +108,64 @@ class _Seq:
     def __init__(self): self.seq = 0
     def inc(self): self.seq = self.seq + 1 if self.seq < 0x0F else 0
 
-def _build_request_packets(protobuf: bytes, frame_mtu: int) -> list[bytes]:
-    hs = len(protobuf)
-    stream = bytes([hs & 0xFF, (hs >> 8) & 0x7F]) + protobuf   # RFC60 (top bit 0 = REQUEST)
+# ── PS-FTP QUERY (as opposed to a file REQUEST) ─────────────────────────────────────────────────────
+# RFC60's 2-byte header carries the LENGTH for a request, but the QUERY ID for a query, with the top bit
+# of byte 1 set to mark it (BlePsFtpUtility.makeCompleteMessageStream). Everything after that — the RFC76
+# air-packet chunking — is identical, so both share _chunk_rfc76 below.
+#
+# SAFETY: the PbPFtpQuery enum also contains PREPARE_FIRMWARE_UPDATE (12), REQUEST_START_RECORDING (14)
+# and friends. A wrong id here would do something far worse than set a clock, and this module is
+# otherwise strictly read-only — so query sending is restricted to the three TIME ids by allowlist.
+SET_SYSTEM_TIME, SET_LOCAL_TIME, GET_LOCAL_TIME = 1, 3, 4
+_ALLOWED_QUERIES = frozenset({SET_SYSTEM_TIME, SET_LOCAL_TIME, GET_LOCAL_TIME})
+
+
+def _encode_query_header(query_id: int, params: bytes = b"") -> bytes:
+    if query_id not in _ALLOWED_QUERIES:
+        raise ValueError(f"refusing PS-FTP query id {query_id}: not a time query (allowlist "
+                         f"{sorted(_ALLOWED_QUERIES)}) — this module must not trigger firmware "
+                         f"update / recording / sync operations")
+    return bytes([query_id & 0xFF, ((query_id >> 8) & 0x7F) | 0x80]) + params   # top bit 1 = QUERY
+
+
+# ── minimal proto2 encoders (same hand-rolled approach as _encode_operation) ────────────────────────
+def _pb_uint(field: int, value: int) -> bytes:
+    return bytes([(field << 3) | 0]) + _uvarint(value)
+
+
+def _pb_int32(field: int, value: int) -> bytes:
+    # proto2 `int32` is a PLAIN varint (not zigzag); negatives are sign-extended to 64 bits.
+    return bytes([(field << 3) | 0]) + _uvarint(value & 0xFFFFFFFFFFFFFFFF if value < 0 else value)
+
+
+def _pb_msg(field: int, payload: bytes) -> bytes:
+    return bytes([(field << 3) | 2]) + _uvarint(len(payload)) + payload
+
+
+def _pb_date(y: int, mo: int, d: int) -> bytes:            # PbDate{year=1, month=2, day=3}
+    return _pb_uint(1, y) + _pb_uint(2, mo) + _pb_uint(3, d)
+
+
+def _pb_time(h: int, mi: int, s: int, ms: int = 0) -> bytes:   # PbTime{hour,minute,seconds,millis}
+    return _pb_uint(1, h) + _pb_uint(2, mi) + _pb_uint(3, s) + _pb_uint(4, ms)
+
+
+def encode_set_local_time(dt, tz_offset_min: int) -> bytes:
+    """PbPFtpSetLocalTimeParams{date=1, time=2, tz_offset=3 (minutes)} — `dt` is LOCAL civil time."""
+    return (_pb_msg(1, _pb_date(dt.year, dt.month, dt.day))
+            + _pb_msg(2, _pb_time(dt.hour, dt.minute, dt.second, dt.microsecond // 1000))
+            + _pb_int32(3, tz_offset_min))
+
+
+def encode_set_system_time(dt_local) -> bytes:
+    """PbPFtpSetSystemTimeParams{date=1, time=2, trusted=3}; trusted=True (host is NTP-disciplined).
+    NOTE: callers pass LOCAL CIVIL time here on purpose — see set_local_time for why (Clock Contract)."""
+    return (_pb_msg(1, _pb_date(dt_local.year, dt_local.month, dt_local.day))
+            + _pb_msg(2, _pb_time(dt_local.hour, dt_local.minute, dt_local.second, dt_local.microsecond // 1000))
+            + _pb_uint(3, 1))
+
+
+def _chunk_rfc76(stream: bytes, frame_mtu: int) -> list[bytes]:
     packets, seq, nxt, i, n = [], _Seq(), 0, 0, len(stream)
     while True:
         remaining = n - i
@@ -116,6 +177,16 @@ def _build_request_packets(protobuf: bytes, frame_mtu: int) -> list[bytes]:
         seq.inc(); i += take; nxt = 1
         if status == 0x02:
             return packets
+
+
+def _build_request_packets(protobuf: bytes, frame_mtu: int) -> list[bytes]:
+    hs = len(protobuf)
+    return _chunk_rfc76(bytes([hs & 0xFF, (hs >> 8) & 0x7F]) + protobuf, frame_mtu)  # top bit 0 = REQUEST
+
+
+def _build_query_packets(query_id: int, params: bytes, frame_mtu: int) -> list[bytes]:
+    return _chunk_rfc76(_encode_query_header(query_id, params), frame_mtu)
+
 
 class PolarPsFtp:
     """Bonded PS-FTP session over bleak. `async with PolarPsFtp(address) as fs: await fs.list_dir(...)`."""
@@ -190,6 +261,59 @@ class PolarPsFtp:
 
     async def list_dir(self, path: str) -> list[tuple[str, int]]:
         return _parse_directory(await self.get(path))
+
+    async def query(self, query_id: int, params: bytes = b"", timeout: float = 20.0) -> bytes:
+        """Send a PS-FTP QUERY. Restricted to the time ids (see _ALLOWED_QUERIES) — this is the ONLY
+        write this module performs; everything else is strictly read-only."""
+        for pkt in _build_query_packets(query_id, params, self._frame_mtu):
+            await self._client.write_gatt_char(MTU_CHAR, pkt, response=False)
+        return await self._read_response(timeout)
+
+    async def set_local_time(self, when=None, tz_offset_min: int | None = None,
+                             with_system_time: bool = True) -> None:
+        """Set the device clock. Polar stamps EVERY sample with device time (ns since 2000-01-01), and an
+        unset device runs from a firmware default — an H10 resets to 2019-01-01 whenever it leaves the
+        strap. Setting it from the NTP-disciplined host makes `sensor timestamp [ns]` a real wall clock
+        and puts sibling devices on a COMMON origin, which is what cross-device timing (PAT) needs.
+        LOCAL civil time per the Clock Contract; SET_SYSTEM_TIME additionally takes UTC."""
+        import datetime as _dt
+        when = when or _dt.datetime.now()
+        if tz_offset_min is None:
+            # tz_offset = 0 ON PURPOSE. The device derives its SYSTEM (UTC) clock from local+tz_offset,
+            # and PMD stamps every sample with the SYSTEM clock — so sending the true offset (-240) made
+            # the Verity stamp 4 h ahead of the H10 (which has no system clock and stamps local),
+            # measured 2026-07-18. Declaring tz_offset=0 makes device time == local civil == what stamps
+            # the samples, which is exactly the Clock Contract's floating wall-clock: local civil time
+            # encoded as if it were UTC (CLAUDE.md §1). One timebase across every sensor.
+            tz_offset_min = 0
+        # Device families differ (PolarBleApiImpl.setLocalTime switches on fileSystemType):
+        #   h10FileSystem   -> SET_LOCAL_TIME only; SET_SYSTEM_TIME answers NOT_IMPLEMENTED (error 201,
+        #                      observed on our H10 2026-07-18)
+        #   polarFileSystemV2 (Verity Sense / OH1) -> both
+        await self.query(SET_LOCAL_TIME, encode_set_local_time(when, tz_offset_min))
+        if with_system_time:
+            # Deliberately send LOCAL CIVIL time as the "system" (nominally UTC) clock. That is the Clock
+            # Contract's floating wall-clock convention (CLAUDE.md §1: store local civil time encoded as
+            # if it were UTC), and it is what keeps sibling devices on ONE timebase: the H10 has no system
+            # clock, so its samples are stamped in local time. Sending true UTC here left the Verity
+            # stamping 4 h ahead of the H10 (measured 2026-07-18) — a 4 h gap between two sensors on the
+            # same body, which is precisely the cross-device offset this whole exercise removes.
+            await self.query(SET_SYSTEM_TIME, encode_set_system_time(when))
+
+    async def get_local_time(self):
+        """Read the device clock back → datetime (local civil, as the device holds it), or None."""
+        import datetime as _dt
+        raw = await self.query(GET_LOCAL_TIME)
+        f = _parse_pb_fields(raw)
+        d, t = f.get(1), f.get(2)
+        if not (isinstance(d, bytes) and isinstance(t, bytes)):
+            return None
+        dd, tt = _parse_pb_fields(d), _parse_pb_fields(t)
+        try:
+            return _dt.datetime(dd[1], dd[2], dd[3], tt.get(1, 0), tt.get(2, 0), tt.get(3, 0),
+                                (tt.get(4, 0) or 0) * 1000)
+        except (KeyError, TypeError, ValueError):
+            return None
 
     async def walk(self, path: str = USER_ROOT, maxdepth: int = 6, _depth: int = 0):
         """Yield (full_path, size, is_dir) for everything under `path`."""

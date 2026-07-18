@@ -17,12 +17,15 @@ import oxyii
 import bonding
 import link_rssi
 import offline_lock
+import polar_psftp
 from telemetry import TelemetryBus
 
 HR_UUID = "00002a37-0000-1000-8000-00805f9b34fb"   # standard Heart Rate Measurement (RR intervals)
 BATTERY_UUID = "00002a19-0000-1000-8000-00805f9b34fb"   # standard Battery Level (0x2A19) — uint8 percent
 log = logging.getLogger("tepna-capture")
+_POLAR_EPOCH = _dt.datetime(2000, 1, 1)   # Polar device-time epoch (TimeSystemExplained.md)
 STATUS: dict = {"updated": None, "devices": {}}
+_CFG: dict = {}          # set in main(); lets sync_device_time resolve a device family by model
 _STOP = asyncio.Event()
 BUS = TelemetryBus()          # live-sample bus feeding the monitor page (webmon.py)
 ADAPTER: str | None = None    # BLE adapter MAC for bonding (config `adapter:`); None = default controller
@@ -250,6 +253,30 @@ async def run_polar(dev: dict, root: str):
             log.warning("%s not bonded; PMD will likely drop until bonded", name)
     except Exception as e:
         _set(name, last_error=f"bond error: {e!r}")
+    # Sync the device clock ONCE at task start, BEFORE the PMD link is established. Polar stamps every
+    # sample with device time, and an H10 resets to its 2019 firmware default whenever it leaves the
+    # strap — so without this `sensor timestamp [ns]` is meaningless and siblings share no origin.
+    # It must happen here, not inside the connected session: the PS-FTP client needs the device's single
+    # BLE link, and polar_offline_op waits for run_polar to release it (calling it from inside would
+    # deadlock — run_polar would be awaiting a pause only run_polar can grant).
+    if (_CFG.get("time") or {}).get("auto_sync_devices", True):
+        # Every device task starts at once and each wants the single offline slot, so the losers get
+        # OfflineBusy. Fail-fast is right for a user-clicked pull (don't leave the browser spinning) but
+        # wrong here — an auto-sync should simply WAIT ITS TURN, or the second sensor silently never
+        # syncs and the two end up on different timebases (observed 2026-07-18: the Verity lost the race
+        # and stayed 4 h off the H10). Retry on busy only; a real failure still gives up.
+        for attempt in range(12):
+            try:
+                await sync_device_time(addr)
+                _set(name, clock_synced=_now().isoformat(timespec="seconds"))
+                break
+            except offline_lock.OfflineBusy:
+                await asyncio.sleep(5)
+            except Exception as e:
+                log.warning("%s clock auto-sync failed: %r", name, e)
+                break
+        else:
+            log.warning("%s clock auto-sync gave up — offline slot stayed busy", name)
     while not _STOP.is_set():
         if addr in _POLAR_PAUSED or _RECOVER.is_set():   # a pull owns the link, or the watchdog is resetting the adapter
             _set(name, connected=False,
@@ -288,6 +315,10 @@ async def run_polar(dev: dict, root: str):
                 if "hr" in streams:
                     hr_writer = w("hr")
                     BUS.register(_live_key("hr", tag), f"RR ({name})", "ms", 0)
+                    # The strap sends HR (bpm) alongside the RR intervals and we already write both to
+                    # the file — but only RR was ever pushed to the monitor, so the device's own HR had
+                    # no card at all. Both are real: RR is the HRV substrate, HR is the device's reading.
+                    BUS.register(_live_key("bpm", tag), f"HR ({name})", "bpm", 0)
 
                 # PMD data handler — one char carries all PMD streams; route by measurement type.
                 def on_pmd(_sender, data: bytearray):
@@ -305,6 +336,15 @@ async def run_polar(dev: dict, root: str):
                     wr = writers.get(meas)
                     if not wr or not samples:
                         return
+                    # Device-clock skew, measured live off the frame's own timestamp. This is the honest
+                    # confirmation that a sync took effect (and the H10 resets to its 2019 default
+                    # whenever it leaves the strap, so it must be watched, not assumed).
+                    try:
+                        dev_dt = _POLAR_EPOCH + _dt.timedelta(microseconds=samples[-1].sensor_ns / 1000)
+                        _set(name, device_time=dev_dt.isoformat(timespec="seconds"),
+                             clock_skew_sec=round((dev_dt - arrival).total_seconds(), 2))
+                    except Exception:
+                        pass
                     for smp in samples:
                         v = smp.values
                         if meas == pmd.ECG:    wr.write_ecg(smp.phone, smp.sensor_ns, smp.t_ms, v[0])
@@ -330,6 +370,8 @@ async def run_polar(dev: dict, root: str):
                     hr_writer.write_hr(_now(), 0, bpm, rr)
                     if rr:                        # raw RR intervals to the monitor (no HRV computed on-box)
                         BUS.push(_live_key("hr", tag), [float(x) for x in rr], 0)
+                    if bpm:
+                        BUS.push(_live_key("bpm", tag), [float(bpm)], 0)
 
                 if writers:
                     # Log which PMD measurement types the device actually supports (feature bitmask).
@@ -711,6 +753,51 @@ async def status_loop(root: str):
         await asyncio.sleep(10)
 
 
+async def sync_device_time(address: str) -> dict:
+    """Set a Polar device's internal clock from this (NTP-disciplined) host, then READ IT BACK.
+
+    Why it matters: Polar stamps every sample with device time (ns since 2000-01-01). An unset device
+    runs from a firmware default — measured 2026-07-18, the H10 sat at 2019-01-01 (it resets whenever it
+    leaves the strap) while the Verity held UTC, 4 h off our local civil convention. Setting both from
+    one host clock makes `sensor timestamp [ns]` a real wall clock AND gives sibling devices a COMMON
+    origin, which is the precondition cross-device timing (PAT) has been blocked on.
+
+    Runs through polar_offline_op so it owns the device's single BLE link (capture pauses, then resumes).
+    Returns before/after device time so the caller can show that it actually took effect."""
+    dev = next((d for d in _CFG.get("devices", []) if d.get("address") == address), {}) if _CFG else {}
+    is_h10 = "h10" in str(dev.get("model", "") or dev.get("name", "")).lower()
+
+    async def _op():
+        async with polar_psftp.PolarPsFtp(address, adapter=(await adapter_kw()).get("adapter")) as fs:
+            before = after = None
+            if not is_h10:                             # H10 implements neither GET_LOCAL_TIME nor
+                try:                                   # SET_SYSTEM_TIME (error 201 NOT_IMPLEMENTED)
+                    before = await fs.get_local_time()
+                except Exception:
+                    pass
+            await fs.set_local_time(with_system_time=not is_h10)
+            host_at_read = None
+            if not is_h10:
+                try:
+                    after = await fs.get_local_time()
+                    host_at_read = _now()      # sample the host clock AT the read, so the reported skew
+                except Exception:              # is clock error and not BLE round-trip latency
+                    pass
+            return before, after, host_at_read
+    before, after, host_at_read = await polar_offline_op(address, _op)
+    host = host_at_read or _now()
+    skew = (after - host).total_seconds() if after else None
+    log.info("%s: device clock %s -> %s (host %s, skew %s)", address,
+             before.isoformat() if before else "unreadable",
+             after.isoformat() if after else "unreadable",
+             host.isoformat(timespec="seconds"), f"{skew:+.1f}s" if skew is not None else "?")
+    return {"ok": True, "address": address, "readback": after is not None,
+            "note": None if after else "device does not implement GET_LOCAL_TIME — verify via sensor_ns",
+            "before": before.isoformat() if before else None,
+            "after": after.isoformat() if after else None,
+            "host": host.isoformat(), "skew_sec": round(skew, 1) if skew is not None else None}
+
+
 async def adapter_watchdog(adapter_mac, cfg: dict):
     """Detect a WEDGED BLE adapter (all worn sensors unreachable though the radio is up — the frozen-
     monitor failure) and auto-recover, WITHOUT reacting to the benign 'sensors simply not worn' state.
@@ -808,6 +895,49 @@ def _pmd_probe(meas: int, data: bytes, n_samples: int, arrival) -> None:
         pass                      # a diagnostic must never disturb capture
 
 
+async def clock_watchdog(cfg: dict):
+    """Re-sync a device clock when it JUMPS, not merely when it is offset.
+
+    The distinction matters. An H10 silently resets to its 2019 firmware default whenever it leaves the
+    strap, which is a real fault worth correcting mid-session. But a device can also sit at a CONSTANT
+    offset we do not control — the Verity stamps its PMD samples 4 h ahead of the clock we set, and no
+    amount of re-syncing changes that (measured 2026-07-18). Triggering on "skew != 0" would re-sync it
+    forever, pausing capture every cycle for nothing. So we trigger on a CHANGE in skew: a constant
+    offset is recorded once and left alone; a jump means the device clock actually moved."""
+    tcfg = cfg.get("time") or {}
+    if not tcfg.get("auto_sync_devices", True):
+        return
+    interval = float(tcfg.get("drift_check_sec", 300))
+    jump = float(tcfg.get("resync_jump_sec", 30))
+    seen: dict[str, float] = {}
+    while not _STOP.is_set():
+        await asyncio.sleep(interval)
+        if _RECOVER.is_set() or _OXYII_PAUSE.is_set() or _POLAR_PAUSED:
+            continue
+        for d in cfg.get("devices", []):
+            name, addr = d.get("name"), d.get("address")
+            if d.get("vendor") != "Polar" or not name or not addr:
+                continue
+            st = STATUS["devices"].get(name, {})
+            skew = st.get("clock_skew_sec")
+            if not st.get("connected") or skew is None:
+                continue
+            prev = seen.get(addr)
+            seen[addr] = skew
+            if prev is None or abs(skew - prev) < jump:
+                continue                       # constant offset (or none) — nothing moved
+            log.warning("%s device clock JUMPED %+.1fs (%.1f -> %.1f) — re-syncing",
+                        name, skew - prev, prev, skew)
+            try:
+                await sync_device_time(addr)
+                _set(name, clock_synced=_now().isoformat(timespec="seconds"))
+                seen.pop(addr, None)           # re-baseline after correcting
+            except offline_lock.OfflineBusy:
+                seen[addr] = prev              # retry next cycle
+            except Exception as e:
+                log.warning("%s clock re-sync failed: %r", name, e)
+
+
 async def rssi_poller(adapter_mac, cfg: dict):
     """Poll each CONNECTED sensor's connection RSSI (dBm) via the privileged helper and surface it in
     STATUS → the monitor's weak-signal warning. Enrichment only: where the sudoers grant is absent (e.g. a
@@ -861,6 +991,8 @@ async def main():
     import yaml   # runtime-only dep; imported here so `import capture` (for unit tests) needs no external deps
     cfg = yaml.safe_load(open(args.config))
     root = cfg["root"]
+    global _CFG
+    _CFG = cfg
     ADAPTER = cfg.get("adapter")   # BLE adapter MAC — pins bonding AND every bleak connect (adapter_kw)
     global O2PPG_FS, O2PPG_NS_STEP
     _fs = float(((cfg.get("o2ring") or {}).get("ppg_fs")) or O2PPG_FS_DEFAULT)
@@ -874,7 +1006,8 @@ async def main():
 
     tasks = [asyncio.create_task(status_loop(root)),
              asyncio.create_task(adapter_watchdog(ADAPTER, cfg)),
-             asyncio.create_task(rssi_poller(ADAPTER, cfg))]
+             asyncio.create_task(rssi_poller(ADAPTER, cfg)),
+             asyncio.create_task(clock_watchdog(cfg))]
 
     def _spawn(dev: dict):
         # Refuse to capture a device missing identity fields — otherwise capture_filename() emits
@@ -914,7 +1047,8 @@ async def main():
         host, port = wcfg.get("host", "0.0.0.0"), int(wcfg.get("port", 8760))
         web_runner = await webmon.start(
             webmon.make_app(BUS, cfg, args.config, ADAPTER, STATUS, _spawn,
-                            pull_stored=_pull, polar_pause=polar_offline_op), host, port)
+                            pull_stored=_pull, polar_pause=polar_offline_op,
+                            sync_time=sync_device_time), host, port)
         log.info("monitor: http://%s:%d/", host, port)
 
     # Surface the resolved adapter at boot: a silent mis-pin (hci re-enumeration) is exactly the failure
