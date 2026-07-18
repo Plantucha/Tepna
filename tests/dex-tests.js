@@ -16415,6 +16415,57 @@
        grounding (24 committed trio nights, pooled): apnea(desat)→HR(surge) lift ≈ 0.83 with coverage
        supplied (33 desats excluded as outside the cardiac window), most single nights underpowered — the
        primitive honestly reports "can't judge" rather than over-claiming. */
+    /* MULTI-SENSOR-DERIVATIONS §1.2 — positional OSA from MotionDex body position.
+       Two things this pins that BOTH shipped broken before it existed:
+       (a) MotionDex must be a REGISTERED Integrator node (NODE_COLORS + KNOWN_NODES) — otherwise the R2
+           guard warns "not registered … excluded from fusion" and its summary never reaches the fusion
+           layer. The §1.1 typing gate missed this by building records BY HAND instead of driving the real
+           `normalizeFile` ingest, so the ingest path had no coverage at all.
+       (b) MotionDex publishes posture as RUN-LENGTH `posture_change` events; `posAt()` matches on
+           nearest-sample-within-10-min, so the steps must expand hold-last-value or a position that
+           legitimately held for hours reads as `null`. */
+    group('Integrator ingests MotionDex posture → positional OSA — §1.2', 'integrator-dsp · motiondex · positional', function (T) {
+      var NF = env.normalizeFile,
+        LP = env.labelPositionalApnea;
+      var ready = typeof NF === 'function' && typeof LP === 'function';
+      T.ok('normalizeFile + labelPositionalApnea available', ready);
+      if (!ready) return;
+      var t0 = U(2026, 5, 10, 22, 0, 0),
+        H = 3600000;
+      var mj = {
+        schema: { name: 'ganglior.node-export', version: 1, node: 'MotionDex' },
+        recording: { startEpochMs: t0, durSec: 4 * 3600 },
+        motion: { supineFrac: 0.25, dwellFrac: { supine: 0.25, prone: 0.75 }, sqi: 0.97 },
+        ganglior_events: [
+          { t: '22:00:00', tMs: t0, impulse: 'posture_change', node: 'MotionDex', conf: 0.97, meta: { position: 'supine' } },
+          { t: '23:00:00', tMs: t0 + H, impulse: 'posture_change', node: 'MotionDex', conf: 0.97, meta: { position: 'prone' } }
+        ]
+      };
+      var nf = NF(mj, 'MotionDex.node-export.json');
+      var unreg = (nf.warnings || []).filter(function (w) {
+        return /not registered in the Integrator/.test(String(w));
+      });
+      T.ok('MotionDex is a REGISTERED node (no R2 unregistered warning)', unreg.length === 0, unreg.join('; ') || 'clean');
+      T.ok('normalizeFile yields a MotionDex record', !!(nf.recs && nf.recs.length && nf.recs[0].node === 'MotionDex'));
+      var rec = nf.recs[0];
+      var ser = (rec.summary && rec.summary.posture) || null;
+      T.ok('posture_change steps expand to a dense series', !!ser && ser.length > 100, ser ? ser.length + ' samples' : 'none');
+      T.ok('postureSource = motion-acc', rec.summary.postureSource === 'motion-acc', String(rec.summary.postureSource));
+      function posAtT(ms) {
+        var f = (ser || []).filter(function (p) {
+          return p.tMs === ms;
+        })[0];
+        return f ? f.pos : null;
+      }
+      T.ok('holds SUPINE 30 min after the supine step (hold-last-value)', posAtT(t0 + 30 * 60000) === 'supine', String(posAtT(t0 + 30 * 60000)));
+      T.ok('holds PRONE 30 min after the prone step', posAtT(t0 + 90 * 60000) === 'prone', String(posAtT(t0 + 90 * 60000)));
+      var lab = LP([rec], { findings: [{ tMs: t0 + 10 * 60000 }, { tMs: t0 + 20 * 60000 }, { tMs: t0 + 40 * 60000 }, { tMs: t0 + 120 * 60000 }] });
+      T.ok('positional labelling runs from MotionDex posture', !!lab && lab.available === true);
+      T.ok('3 supine / 1 non-supine from the position track', !!lab && lab.supine === 3 && lab.nonsupine === 1, lab ? lab.supine + '/' + lab.nonsupine : '');
+      T.ok('postureSource surfaced as motion-acc', !!lab && lab.postureSource === 'motion-acc', lab ? String(lab.postureSource) : '');
+      T.ok('note discloses the UNCALIBRATED frame (no over-claim)', !!lab && /uncalibrated/i.test(String(lab.note)));
+    });
+
     /* APNEA-TYPING-FUSION-2026-07-18 §1.1 — obstructive/central typing from MotionDex chest-ACC effort.
        Three invariants: effort THROUGH a desat ⇒ obstructive; FLAT effort ⇒ central; and — the one that
        protects a user from an invented finding — chest-ACC NOT RECORDING ⇒ UNTYPED, never central (a

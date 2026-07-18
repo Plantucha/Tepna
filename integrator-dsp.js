@@ -174,6 +174,7 @@ const NODE_COLORS = {
   PpgDex: '#B98AFF',
   HRVDex: '#39D98A',
   CPAPDex: '#14B8A6',
+  MotionDex: '#F0A860',
   Unknown: '#8C9DB3'
 };
 function nodeColor(n) {
@@ -511,10 +512,12 @@ function adaptEnvelopeNode(json, node, filename) {
     summary.motionSqi = mo.sqi != null ? mo.sqi : null;
     summary.effortSeries = _motionEffortSeries(json, t0Ms);
     summary.effortCadenceSec = mo.effortCadenceSec != null ? mo.effortCadenceSec : null;
-    // MotionDex's posture_change events give a chest/limb position track — expose it on the SAME
-    // series shape ECGDex/PpgDex use so the existing positional-apnea path can consume it too.
-    summary.posture = _ecgPostureSeries(json, t0Ms);
-    if (summary.posture && summary.posture.length) summary.postureSource = 'motiondex-acc';
+    // MotionDex publishes posture as run-length `posture_change` events — expand them into the SAME
+    // { tMs, pos } series ECGDex/PpgDex use, so the existing positional-apnea path consumes it directly.
+    // (§1.2. This previously called _ecgPostureSeries, which reads json.acc / json.timeseries.acc —
+    // fields a MotionDex export does not carry — so it silently produced an empty series.)
+    summary.posture = _motionPostureSeries(json, t0Ms);
+    if (summary.posture && summary.posture.length) summary.postureSource = 'motion-acc';
   }
   // TCH (INTEGRATOR-THREE-CORNERED-HAT §1): carry the per-epoch HRV/HR SERIES so the
   // fusion layer can run a three-cornered-hat across nodes (TCH needs aligned series,
@@ -595,6 +598,38 @@ function _motionEffortSeries(json, t0Ms) {
     var e = src[i] || {};
     var tMs = e.tMs != null ? e.tMs : t0Ms != null ? t0Ms + i * cadMs : null;
     out.push({ tMs: tMs, amp: e.amp != null ? e.amp : null, present: e.present == null ? null : !!e.present });
+  }
+  return out;
+}
+/* MotionDex body-position track → the SAME { tMs, pos } series shape ECGDex/PpgDex publish
+   (MULTI-SENSOR-DERIVATIONS §1.2). MotionDex emits posture as `posture_change` ganglior_events — a
+   RUN-LENGTH encoding (a position holds until the next change), which is why it must be expanded here
+   rather than exported densely: the step form is compact on the bus, and `posAt()` downstream matches on
+   NEAREST-sample-within-10-min, which would miss a position that legitimately held for hours.
+   Hold-last-value from each change to the next, bounded by the recording duration. */
+var _MOTION_POS_CAD_MS = 60000; // expansion cadence — well inside posAt()'s 10-min match window
+var _MOTION_POS_MAX = 5000; // hard cap so a pathological export can't blow up memory
+function _motionPostureSeries(json, t0Ms) {
+  var evs = (json && (json.ganglior_events || json.events)) || [];
+  var steps = [];
+  for (var i = 0; i < evs.length; i++) {
+    var e = evs[i];
+    if (!e || e.impulse !== 'posture_change') continue;
+    var tMs = e.tMs != null ? e.tMs : t0Ms != null && e.t ? reconstructEventTMs(e, t0Ms) : null;
+    var pos = e.meta && e.meta.position ? String(e.meta.position).toLowerCase() : null;
+    if (tMs != null && pos && pos !== 'unknown') steps.push({ tMs: tMs, pos: pos });
+  }
+  if (!steps.length) return [];
+  steps.sort(function (a, b) {
+    return a.tMs - b.tMs;
+  });
+  var durSec = (json.recording && json.recording.durSec) || null;
+  var endMs = durSec != null && t0Ms != null ? t0Ms + durSec * 1000 : steps[steps.length - 1].tMs + _MOTION_POS_CAD_MS;
+  var out = [];
+  for (i = 0; i < steps.length && out.length < _MOTION_POS_MAX; i++) {
+    var from = steps[i].tMs,
+      to = i + 1 < steps.length ? steps[i + 1].tMs : Math.max(endMs, from + _MOTION_POS_CAD_MS);
+    for (var t = from; t < to && out.length < _MOTION_POS_MAX; t += _MOTION_POS_CAD_MS) out.push({ tMs: t, pos: steps[i].pos });
   }
   return out;
 }
@@ -811,7 +846,7 @@ function normalizeFile(json, filename) {
   // ── R2 GUARD: every recognized node must resolve to a registered color + a
   //    summary adapter, or it silently becomes grey "Unknown" and drops out of
   //    fusion (the PpgDex bug). Surface it loudly instead of failing quietly. ──
-  var KNOWN_NODES = ['ECGDex', 'OxyDex', 'GlucoDex', 'PulseDex', 'PpgDex', 'HRVDex', 'CPAPDex'];
+  var KNOWN_NODES = ['ECGDex', 'OxyDex', 'GlucoDex', 'PulseDex', 'PpgDex', 'HRVDex', 'CPAPDex', 'MotionDex'];
   if (node !== 'Unknown' && KNOWN_NODES.indexOf(node) < 0) {
     warnings.push('Node "' + node + '" is not registered in the Integrator (no color / summary adapter) — ' + 'it will load but be excluded from fusion. Add it to NODE_COLORS + the summary branch.');
   }
@@ -1428,8 +1463,25 @@ function labelPositionalApnea(recs, apneaResult) {
     .sort(function (a, b) {
       return a.tMs - b.tMs;
     });
-  // fall back to PpgDex limb-ACC posture when no chest-strap posture is available
+  // Posture-source precedence (§1.2): ECGDex chest strap → MotionDex IMU → PpgDex limb ACC.
+  // MotionDex is a purpose-built IMU node and outranks a limb-worn optical device, but sits BELOW the
+  // chest strap because its body frame is UNCALIBRATED (the posture label is experimental-tier in
+  // motiondex-registry.js — Rocha'26 reaches its F1 only after a calibration step MotionDex doesn't do).
   var src = 'chest-acc';
+  if (!posture.length) {
+    var motion = _byNode(recs, 'MotionDex');
+    motion.forEach(function (g) {
+      if (g.summary && g.summary.posture) posture = posture.concat(g.summary.posture);
+    });
+    posture = posture
+      .filter(function (p) {
+        return p.tMs != null;
+      })
+      .sort(function (a, b) {
+        return a.tMs - b.tMs;
+      });
+    if (posture.length) src = 'motion-acc';
+  }
   if (!posture.length) {
     var ppg = _byNode(recs, 'PpgDex');
     ppg.forEach(function (g) {
@@ -1480,7 +1532,11 @@ function labelPositionalApnea(recs, apneaResult) {
     postureSource: src,
     note:
       'Provisional — body position is ' +
-      (src === 'limb-acc' ? 'LIMB-worn ACC (Polar Sense; lower reliability — wrist/ankle orientation, not trunk)' : 'chest-ACC-derived') +
+      (src === 'limb-acc'
+        ? 'LIMB-worn ACC (Polar Sense; lower reliability — wrist/ankle orientation, not trunk)'
+        : src === 'motion-acc'
+          ? 'MotionDex IMU gravity-vector position (uncalibrated device frame — the posture label is a convention, experimental tier)'
+          : 'chest-ACC-derived') +
       ', not PSG. ' +
       (positional ? 'Confirmed events cluster supine (provisional positional apnea).' : 'No strong supine clustering of confirmed events.')
   };
