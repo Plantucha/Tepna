@@ -10,7 +10,8 @@
 
 from __future__ import annotations
 import argparse, asyncio, contextlib, json, logging, os, signal, time as _time, datetime as _dt
-from writers import StreamWriter, Spo2CsvWriter, LinkLogWriter, capture_filename, night_dir
+from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter,
+                     capture_filename, night_dir)
 import polar_pmd as pmd
 import viatom
 import oxyii
@@ -639,7 +640,7 @@ async def run_oxyii(dev: dict, root: str):
         ndir = night_dir(root, started)
         path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "spo2", "csv"))
         ppg_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "ppg", "txt"))
-        wr = ppgwr = None
+        wr = ppgwr = oxyflagwr = None
         ppg_idx = [0]                                 # running sample index → synthesized sensor_ns
         try:
             _set(name, connected=False, address=addr, last_error=None)
@@ -661,6 +662,11 @@ async def run_oxyii(dev: dict, root: str):
                 # matching the behaviour before the toggle existed.
                 ppgwr = (StreamWriter(ppg_path, "ppg")
                          if "ppg" in (dev.get("streams") or ["spo2", "ppg"]) else None)
+                # Byte-11 identification experiment (see writers.OxyFrameLogWriter). ~1 Hz, ~1 MB/night,
+                # and a SIDECAR so the vendor SpO2 CSV layout OxyDex parses stays byte-identical.
+                oxyflagwr = OxyFrameLogWriter(os.path.join(
+                    ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"],
+                                           started, "oxyframe", "txt")))
                 reasm = oxyii.Reassembler()
                 _seq, _drop, _dup = [None], [0], [0]   # ring frame counter + drop/dup tally
 
@@ -693,6 +699,8 @@ async def run_oxyii(dev: dict, root: str):
                         live = oxyii.parse_live(r[1])
                         if not live:
                             continue
+                        if oxyflagwr:
+                            oxyflagwr.write(_now(), live)   # byte-11 identification experiment
                         # Frame-drop accounting off the ring's own sequence counter. Without it a lost
                         # frame is indistinguishable from the ring pausing, and both just look like a
                         # gap in the file — the same "was that a gap or a stall?" question the link
@@ -750,6 +758,8 @@ async def run_oxyii(dev: dict, root: str):
                 wr.close()
             if ppgwr:
                 ppgwr.close()
+            if oxyflagwr:
+                oxyflagwr.close()
         if not _STOP.is_set():
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 60)

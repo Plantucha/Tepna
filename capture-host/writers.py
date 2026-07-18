@@ -172,6 +172,66 @@ class StreamWriter:
             pass
 
 
+class OxyFrameLogWriter:
+    """O2Ring per-frame DIAGNOSTIC sidecar — raw header bytes we have not yet identified.
+
+    Exists to settle byte [11]. It is the only other varying byte in the 24-byte live header and it is
+    currently DISCARDED, which is precisely why it cannot be identified: 271 opportunistic frames gave
+    22 non-zero observations and a weak pleth correlation (r=0.42 on single points). The leading
+    hypothesis is an event/alert flag — the ring VIBRATES on desaturation, and the vendor's legacy
+    Viatom format carries a vibration-alert byte in the same position-spirit. A full worn night with
+    natural desaturations is the experiment; this file is the instrument. Correlate flag11 against the
+    spo2 column afterwards: an alert flag should fire AT desat events, a perfusion index should track
+    pleth amplitude continuously.
+
+    SIDECAR, NOT A COLUMN — same reason as LinkLogWriter: the `Time,Oxygen Level,Pulse Rate,Motion`
+    SpO2 CSV is a vendor layout OxyDex's adapter parses positionally.
+
+    `flag11` is recorded under its RAW OFFSET, deliberately un-named. We do not surface a byte we cannot
+    defend under a physiological name; when it is identified, it earns a name and a registry entry.
+    Diagnostic telemetry: never a `ganglior.node-export` metric, never an evidence badge.
+    """
+
+    def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True):
+        self.path = path
+        self._fh = open(path, "w", buffering=1 << 16, newline="\n")
+        self._fh.write("Phone timestamp;seq;flag11;spo2;pr;motion;contact;battery_pct\n")
+        self.rows = 0
+        self._flush_interval = flush_interval
+        self._fsync = fsync
+        self._last_flush = _time.monotonic()
+
+    def write(self, when: _dt.datetime, live: dict) -> None:
+        """One row per live frame (~1 Hz). Blank, never 0, for an absent value — a fabricated 0 is
+        indistinguishable from a real reading of 0 (the bug this suite keeps re-learning)."""
+        def _f(v):
+            return "" if v is None else str(v)
+        stamp = when.strftime("%Y-%m-%dT%H:%M:%S.") + f"{when.microsecond // 1000:03d}"
+        self._fh.write(";".join((stamp, _f(live.get("seq")), _f(live.get("flag11")),
+                                 _f(live.get("spo2")), _f(live.get("pr")), _f(live.get("motion")),
+                                 _f(live.get("contact")), _f(live.get("batt")))) + "\n")
+        self.rows += 1
+        now = _time.monotonic()
+        if now - self._last_flush >= self._flush_interval:
+            self.flush()
+            self._last_flush = now
+
+    def flush(self) -> None:
+        try:
+            self._fh.flush()
+            if self._fsync:
+                os.fsync(self._fh.fileno())
+        except (OSError, ValueError):
+            pass
+
+    def close(self) -> None:
+        try:
+            self.flush()
+            self._fh.close()
+        except (OSError, ValueError):
+            pass
+
+
 class LinkLogWriter:
     """Per-session LINK PROVENANCE sidecar — the CONDITIONS a night was captured under.
 

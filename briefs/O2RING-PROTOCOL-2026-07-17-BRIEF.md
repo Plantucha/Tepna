@@ -48,6 +48,21 @@ Flow: **connect → auth (0xFF) → setup (0x10) → poll (0x04) ~1/s**.
 - **LIVE `0x04`** — empty payload; the device replies with a 24-byte header. Offsets:
   `[5]` contact · `[6]` SpO₂ (%) · `[7]` motion · `[8]` HR (bpm) · `[13]` battery (%).
   **contact:** `0x00` no finger · `0x01` idle-present · `0x03` file-open. SpO₂/HR are `None` off-finger.
+  `[0]` is a frame **sequence counter** (+1 per reply, wraps at 256) — wired in as drop detection.
+  `[1:5]`=`104,0,0,2`, `[9]`=0, `[10]`=199, `[12]`=0 are constant protocol markers; `[14:24]` are zero
+  in every frame observed (reserved padding).
+
+  **`[11]` is UNIDENTIFIED and deliberately un-named.** It is the only other varying byte: 0 in 249/271
+  frames, occasionally 1–29. Correlation with pleth AC/DC is weak (r=0.42, driven by single
+  observations), so it is **not** read as a perfusion index. The leading hypothesis is an event/alert
+  flag — the ring **vibrates on desaturation**, and the vendor's legacy Viatom format carries a
+  vibration-alert byte in the same spirit. Plausible, unproven.
+  **Experiment now instrumented (2026-07-18):** the byte was previously DISCARDED, which is exactly why
+  271 opportunistic frames could not settle it. `parse_live` now returns it raw as `flag11` and
+  `writers.OxyFrameLogWriter` records one row per frame to a `*_OXYFRAME.txt` **sidecar** (never a
+  column — the SpO₂ CSV is a vendor layout OxyDex parses positionally). A worn night with natural
+  desaturations is the answer: **an alert flag should fire AT desat events; a perfusion index should
+  track pleth amplitude continuously.** Do not name the byte until that correlation is in hand.
 
 ### 3b · The `0x04` body is ALSO a ~125 Hz PPG waveform (decoded 2026-07-18)
 Every `0x04` reply carries **more than the 24-byte header** — the rest is the ring's raw plethysmograph.
