@@ -779,9 +779,14 @@ async def rssi_poller(adapter_mac, cfg: dict):
     if not lcfg.get("rssi_enabled", True):
         return
     interval = float(lcfg.get("rssi_interval_sec", 25))
+    # When the helper/grant is absent every read is None. Back OFF to a slow retry rather than exiting:
+    # the sudoers grant is often installed while the daemon is already running, and a poller that gave up
+    # permanently meant RSSI stayed dead until the next restart (observed 2026-07-18).
+    retry_idle = float(lcfg.get("rssi_retry_sec", 600))
     misses = 0                       # consecutive polls where a device was connected but every read failed
+    idle = False                     # True once we've concluded the helper isn't usable (slow re-probe)
     while not _STOP.is_set():
-        await asyncio.sleep(interval)
+        await asyncio.sleep(retry_idle if idle else interval)
         if _RECOVER.is_set() or _OXYII_PAUSE.is_set() or _POLAR_PAUSED:
             continue                 # don't poke the radio mid-pull / mid-recovery
         any_link = got_any = False
@@ -799,12 +804,14 @@ async def rssi_poller(adapter_mac, cfg: dict):
                 _set(name, rssi=rssi)
         if any_link and not got_any:
             misses += 1
-            if misses >= 3:
-                log.info("link RSSI unavailable (no privileged helper / sudoers grant) — "
-                         "weak-signal warning uses stream rate only")
-                return
+            if misses >= 3 and not idle:
+                idle = True          # slow re-probe, NOT a permanent stop
+                log.info("link RSSI unavailable (no privileged helper / sudoers grant) — weak-signal "
+                         "warning uses stream rate only; re-probing every %.0fs", retry_idle)
         elif got_any:
-            misses = 0
+            if idle:
+                log.info("link RSSI now available — resuming %.0fs polling", interval)
+            misses, idle = 0, False   # a grant installed at runtime is picked up without a restart
 
 
 async def main():
