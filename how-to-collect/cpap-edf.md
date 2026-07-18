@@ -12,6 +12,10 @@ EVE/CSL events** → **CPAPDex**.
 **Adapter / path:** **binary EDF drag-drop** into **`CPAPDex.html`** (or the OverDex CPAP ingest). EDF
 is binary, so it does **not** traverse the live-host text/BLE path — there is no `cpap` BLE stream
 (`CPAPDEX-PHASE9-FOLLOWUPS §2`). CPAP joins the box as **files**, not a captured stream.
+**Adapter id:** `resmed-edf` (`adapters/resmed-edf.js`). This doc is the device-named collect guide for
+that adapter — the how-to-collect set uses device-descriptive names (`verity-ppg`, `wahoo-tickr-rr`,
+`welltory-hrv`) rather than strict `<adapter-id>.md`, so it keeps this filename (referenced from
+`adapters/resmed-edf.js`, the Data Unifier / OverDex source, and `how-to-collect/health-box.md`).
 
 ## ⚠️ Use the SD card — NOT ResMed Wi-Fi / myAir
 The AirSense's cellular/Wi-Fi modem uploads **compliance summaries only** to myAir / AirView — usage
