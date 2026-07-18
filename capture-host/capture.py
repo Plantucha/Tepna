@@ -624,6 +624,7 @@ async def run_oxyii(dev: dict, root: str):
                 ppgwr = (StreamWriter(ppg_path, "ppg")
                          if "ppg" in (dev.get("streams") or ["spo2", "ppg"]) else None)
                 reasm = oxyii.Reassembler()
+                _seq, _drop, _dup = [None], [0], [0]   # ring frame counter + drop/dup tally
 
                 def on_data(_s, d):
                     for frame in reasm.feed(bytes(d)):
@@ -654,6 +655,19 @@ async def run_oxyii(dev: dict, root: str):
                         live = oxyii.parse_live(r[1])
                         if not live:
                             continue
+                        # Frame-drop accounting off the ring's own sequence counter. Without it a lost
+                        # frame is indistinguishable from the ring pausing, and both just look like a
+                        # gap in the file — the same "was that a gap or a stall?" question the link
+                        # health work answered for the Polars.
+                        _gap = oxyii.frame_gap(_seq[0], live["seq"])
+                        _seq[0] = live["seq"]
+                        if _gap > 0:
+                            _drop[0] += _gap
+                            log.warning("%s: %d live frame(s) dropped (seq jump) — total %d",
+                                        name, _gap, _drop[0])
+                        elif _gap < 0:
+                            _dup[0] += 1
+                        _set(name, frames_dropped=_drop[0], frames_duplicated=_dup[0])
                         now = _now()
                         if live["spo2"] is not None:
                             wr.write(now, live["spo2"], live["pr"] or 0, live["motion"])

@@ -144,12 +144,37 @@ def decode(frame: bytes):
     return frame[1], frame[7:7 + ln]
 
 
+def frame_gap(prev_seq: int | None, seq: int) -> int:
+    """Frames DROPPED between two live replies, from the [0] sequence counter (wraps at 256).
+
+    0 = consecutive, N = N frames lost, -1 = a repeat of the same counter. Measured over 271 real frames
+    2026-07-18: 262 steps were exactly +1, plus 5 repeats and 3 double-steps — so drops and duplicates do
+    happen and were, until this existed, indistinguishable from the ring simply pausing."""
+    if prev_seq is None:
+        return 0
+    step = (seq - prev_seq) % 256
+    return -1 if step == 0 else step - 1
+
+
 def parse_live(payload: bytes) -> dict | None:
-    """cmd=0x04 24-byte header → live values. Offsets: [5]=contact [6]=SpO2 [7]=motion [8]=HR [13]=batt."""
+    """cmd=0x04 24-byte header → live values.
+
+    Offsets, established by correlating 244 real frames against known physiology (2026-07-18):
+      [0]  frame sequence counter, +1 per reply, wraps at 256   → gap/drop detection (frame_gap)
+      [1:5] constant 104,0,0,2 · [9]=0 [10]=199 [12]=0          → protocol/version markers
+      [5]  contact   [6] SpO2   [7] motion   [8] HR   [13] battery
+      [11] the ONLY other varying byte: 0 in 249/271 frames, occasional 1-29. Correlates with pleth
+           AC/DC only weakly (r=0.42, driven by single observations), so NOT read as perfusion. The
+           vendor's other (legacy Viatom) format carries a vibration-alert byte in the same spirit, which
+           fits an occasional event flag better — plausible, unproven, so left unparsed rather than
+           surfaced under a name we cannot defend.
+      [14:24] all zero in every frame observed — reserved padding.
+    """
     if len(payload) < 14:
         return None
     spo2, hr, motion, batt, contact = payload[6], payload[8], payload[7], payload[13], payload[5]
     return {
+        "seq": payload[0],                             # frame counter → drop detection
         "spo2": spo2 if 50 <= spo2 <= 100 else None,   # 0/invalid off-finger
         "pr":   hr if 20 < hr < 250 else None,
         "motion": motion,

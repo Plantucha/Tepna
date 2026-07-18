@@ -49,7 +49,11 @@ def test_parse_live_offsets():
     p = bytearray(24)
     p[5], p[6], p[7], p[8], p[13] = 0x03, 97, 5, 62, 88
     v = oxyii.parse_live(bytes(p))
-    assert v == {"spo2": 97, "pr": 62, "motion": 5, "batt": 88, "contact": 0x03, "worn": True}
+    # Pin the OFFSETS, not the exact dict: parse_live is allowed to gain fields (the contract is
+    # additive — new data goes in a NEW key, per CLAUDE.md §🧪), and asserting equality would red on
+    # every additive change. `seq` was added this way for frame-drop detection.
+    for k, exp in {"spo2": 97, "pr": 62, "motion": 5, "batt": 88, "contact": 0x03, "worn": True}.items():
+        assert v[k] == exp, f"{k} offset moved"
 
 
 def test_parse_live_off_finger_is_none():
@@ -107,3 +111,22 @@ def test_file_data_frame_offset_le():
 def test_file_list_and_end_frames_empty():
     assert oxyii.decode(oxyii.file_list_frame()) == (oxyii.OP_FILE_LIST, b"")
     assert oxyii.decode(oxyii.file_end_frame()) == (oxyii.OP_FILE_END, b"")
+
+
+def test_frame_gap_counts_dropped_live_frames():
+    """The ring's [0] byte is a frame counter that wraps at 256. Without it a dropped frame looks
+    identical to the ring pausing. Measured over 271 real frames 2026-07-18: 262 exact +1 steps, 5
+    repeats, 3 double-steps — so both loss and duplication genuinely occur."""
+    assert oxyii.frame_gap(10, 11) == 0        # consecutive
+    assert oxyii.frame_gap(10, 13) == 2        # two lost
+    assert oxyii.frame_gap(255, 0) == 0        # wrap is NOT a 255-frame loss
+    assert oxyii.frame_gap(254, 1) == 2        # wrap with real loss
+    assert oxyii.frame_gap(10, 10) == -1       # duplicate
+    assert oxyii.frame_gap(None, 7) == 0       # first frame establishes the baseline
+
+
+def test_parse_live_exposes_the_sequence_counter():
+    hdr = bytes([42, 104, 0, 0, 2, 1, 98, 12, 55, 0, 199, 0, 0, 41]) + bytes(10)
+    live = oxyii.parse_live(hdr)
+    assert live["seq"] == 42
+    assert live["spo2"] == 98 and live["pr"] == 55 and live["batt"] == 41
