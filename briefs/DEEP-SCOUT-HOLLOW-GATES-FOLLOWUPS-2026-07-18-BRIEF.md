@@ -84,12 +84,21 @@ leakage-limited:
 **Action:** close the PPG-DFA one now (quick, mirrors PR #177); build one `analyze`-level ECG fixture that
 exercises SampEn/PRSA/EDR for the rest.
 
-## §AD — adapters (7 hollow gates) — needs an off-suite adapter harness
+## §AD — adapters (7 hollow gates) — **4/7 DONE (PR #195); no rig needed after all**
 
-From the parent §AD. The `nsrr-adapter` / `resmed-edf` window-edge and unit findings live at the
-raw→SignalFrame boundary, which the current suite does not drive with a synthetic frame. **Action:** add a
-small adapter-level rig (feed a hand-built NSRR/ResMed record → assert the SignalFrame + the ODI-surrogate
-/ session-cluster / fs-default at the edges). Table in the parent §AD.
+From the parent §AD. **The premise that this needed an off-suite rig was wrong for 4 of the 7** — they are
+reachable through functions already co-loaded in the suite realm: `NSRR.edfToOxyRows({signals})` drives the
+internal `to1Hz`, and `resmed-edf.groupSessionSets([names])` is a pure name-list function
+(`env.SignalAdapters.byId('resmed-edf')`). **CLOSED (PR #195), both-direction verified:** to1Hz valid
+window INCLUSIVE at the top (SpO₂ 100 % kept; `<=→<` → 95) and bottom (40 % kept; `>=→>` → 55) — the
+existing legs used interior 95/96/98; the 1 Hz length FLOORs a partial trailing second (n=5/fs=2 → 2 rows;
+`floor→ceil` → 3) — the existing legs used even n/fs; and the ResMed session window is INCLUSIVE at ±60 s
+(two EVE/CSL streams 60 s apart → 1 set; `<=60→<60` → 2). Suite 2991.
+
+**REMAINING §AD (3):** these DO need a real EDF buffer (they run inside `analyzeRecord` / the adapter's
+frame-build, gated on `CpapEdf.readEDF`): `nsrr-adapter` ODI-4 × **1.1** AHI surrogate, `resmed-edf` BRP
+Flow default **fs = 25 Hz**, and the seeded-fallback-baseline branch (partly covered — the 97 % normoxic
+default is already pinned by finding #97). A small EDF-buffer fixture would close the first two.
 
 ## Done when
 
