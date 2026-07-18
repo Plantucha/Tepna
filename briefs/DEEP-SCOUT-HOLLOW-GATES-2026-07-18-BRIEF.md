@@ -25,18 +25,19 @@ The first-wave total was 40; the **re-scout of the 3 dead clusters (2026-07-18) 
 | crossnight-deep | 8 | **DONE** — PR #173 (both-direction verified) |
 | kernel-registry | 8 | **DONE** — PR #175 |
 | integrator-fusion | 8 | **DONE** — PR #180 |
-| ecg-ppg-detect-deep | 9 | **3/9 DONE** — PR #177 (ECG LF/HF + DFA) + #193 (PPG DFA); 6 open |
+| ecg-ppg-detect-deep | 9 | **6/9 DONE** — #177 + #193 + #197 (PRSA+SampEn via analyze) + #198 (PPG VLF); 3 fixture-blocked |
 | adapters | 7 | **4/7 DONE** — PR #195 (nsrr window edges + floor, resmed ±60s); 3 open (need real EDF) |
 | §SI self-ingest (re-scout) | 3 | **DONE** — PR #183 |
 | §GV gluco-cpap-oxy-deep (re-scout) | 4 | **DONE** — PR #184 (Oxy/CPAP confirmed clean) |
-| §RN render (re-scout) | 7 | **6/7 DONE — PR #187 (harness + 3 HIGH) + #191 (3 hoisted classifiers)**; 1 open (ecgdex canvas tick) |
+| §RN render (re-scout) | 7 | **7/7 DONE — #187 (harness+3 HIGH) + #191 (3 hoisted) + #197 (ECGScope canvas tick)** |
 
-**Tally: 44 of 54 closed** (crossnight 8 + kernel 8 + integrator 8 + ecg-ppg 3 + self-ingest 3 + gluco 4 +
-render 6 + adapters 4), all both-direction verified and merged. Remaining 10, all needing heavier infra or
-fragile: 6 ecg-ppg (SampEn/PRSA/EDR tolerances applied inside `analyze` → need a fuller analyze fixture;
-narrow-band PPG VLF/LF; composite SQI weights → a crafted raw-ECG vector), 3 adapters (nsrr ODI-4×1.1 +
-resmed fs=25 → need a real EDF buffer), 1 render (ecgdex canvas minute-tick — pure-canvas, LOW, deferred).
-Every HIGH and nearly every MED finding is closed. See `DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS-2026-07-18-BRIEF.md`.
+**Tally: 48 of 54 closed** (crossnight 8 + kernel 8 + integrator 8 + ecg-ppg 6 + self-ingest 3 + gluco 4 +
+render 7 + adapters 4), all both-direction verified and merged. **Every HIGH and every MED except the
+fixture-blocked few is closed.** Remaining 6, each ATTEMPTED and genuinely blocked on a bespoke
+synthetic-signal fixture (documented per-finding in the follow-up brief): 3 ecg-ppg (EDR window — needs a
+slow-respiration ECG synthesizer; composite SQI weights — a borderline-SQI generator; PPG SampEn default,
+LOW), 3 adapters (nsrr ODI-4×1.1 + resmed fs=25 — need a real/synthetic NSRR-PSG resp. fs-less EDF buffer;
+the seeded-baseline branch is partly covered by finding #97). See `DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS-2026-07-18-BRIEF.md`.
 
 ## §CN — crossnight-deep (8) — **DONE 2026-07-18, PR #173**
 
