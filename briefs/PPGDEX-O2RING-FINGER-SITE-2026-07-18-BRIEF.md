@@ -25,7 +25,7 @@
 
 - **PpgDex parser** `PPGDSP.parsePPG` (`ppgdex-dsp.js:155`) expects the **Verity `*_PPG.txt`** layout —
   `Phone timestamp; sensor ns; ch0; ch1; ch2; ambient` — and returns `{ ch:[ch0,ch1,ch2], amb, fs,
-  t0Ms, offsetMin, … }`. `fs` from the median sensor-ns delta (~176 Hz), phone-clock fallback.
+  t0Ms, offsetMin, … }`. `fs` from the median sensor-ns delta (~176 Hz), phone-clock fallback. *(The ~176 Hz figure is the literal default; a **Vigil** live capture negotiates the Verity at **55 Hz** and `fs` is derived from the stamps, so both are handled.)*
 - **Detection assumes 3 LEDs.** `consensusBeats` (`ppgdex-dsp.js:540`) keeps a beat only when **≥2 of 3**
   photodiode channels agree within ±50 ms; a 1/3 beat is dropped (gap), never median-filled. **A
   single-channel file has no majority to form** — this is the one real blocker.
@@ -38,13 +38,52 @@
   (e.g. 0x9c, ~0.66/frame, scattered — left in RAW per HEALTH-BOX-VISION, to be rejected downstream).
   Reflectance optics at the **finger base** (a ring, not a fingertip transmissive clip).
 
-## 2 · The three real differences to handle (finger O2Ring vs wrist Verity)
+## 2 · The real differences to handle (finger O2Ring vs wrist Verity)
 
-1. **One channel, not three.** No 3-LED consensus vote is possible.
-2. **8-bit quantization** (Verity channels are wider). Coarser amplitude → dicrotic-notch / AI are
-   marginal and MUST be SQI-gated harder.
-3. **Spike samples** in the raw stream (the capture ships raw on purpose) — a foot/peak detector will
-   trip on them unless they are rejected first.
+> **⚠️ CORRECTED 2026-07-18 by measurement.** This section previously claimed 8-bit quantization makes
+> morphology marginal, and did not name the difference that actually dominates. Both are fixed below;
+> the measurements are on the 90 s `o2ppg-probe.jsonl` capture vs a real Verity corpus night.
+
+1. **One channel, not three.** No 3-LED consensus vote is possible. (Unchanged — this is still the
+   structural blocker.)
+
+2. **🔴 THE BIG ONE — the O2Ring waveform is ALREADY CONDITIONED; the Verity is raw.** Measured:
+
+   | | O2Ring pleth | Verity ch0 |
+   |---|---|---|
+   | Mean level | **100.3** (mid-scale of 0–200) | **−471,989** |
+   | Pulse (AC) | 22.8 LSB → **~91 of 256 levels** | 1,763 counts = **0.373 % of DC** |
+   | Baseline drift / 10 s | 13.1 LSB | 40,298 counts = **8.54 % of DC** |
+
+   On the Verity the pulse is a **0.373 % ripple on a baseline that wanders 8.54 %** — wander ~23× the
+   signal, i.e. raw DC-coupled photodiode counts. On the O2Ring the pulse occupies **~36 % of full
+   scale**, centred, barely drifting. **The ring AC-couples and gain-normalises on-device.** Consequences:
+   - **No perfusion index is possible** — the DC is gone. (The legacy Viatom protocol exposes `pi`; OxyII
+     does not. Do not try to recover it from this stream.)
+   - **Ambient subtraction is meaningless** here — handled on-device, and the ambient column is written 0.
+   - **The Verity's aggressive DC-wander highpass is redundant and possibly distorting** on an already-
+     conditioned signal. The finger path needs its own, gentler preprocessing — not the wrist chain.
+   - **Morphology is suspect for a different reason than assumed:** an **unknown vendor transfer
+     function** sits in the chain. Shape metrics (notch timing, AI, SDPPG) cannot be trusted until it is
+     characterised — this, not bit depth, is why they must stay low-tier (§5).
+
+3. **8-bit is NOT the limiting factor — the earlier claim was wrong.** Because the ring AC-couples and
+   gain-normalises, the pulse spans **~91 of 256 levels ≈ 6.5 effective bits on the pulse itself**. Foot
+   localisation is not quantization-limited. The original concern assumed 8 bits spanning a large DC,
+   which is what would happen if the ring streamed raw counts — it does not. **Do not gate morphology on
+   bit depth; gate it on the unknown filter (point 2).**
+
+4. **Spike samples** in the raw stream (the capture ships raw on purpose) — a foot/peak detector will
+   trip on them unless they are rejected first. Measured: **1.06 % of samples jump >20 LSB**, against a
+   mean sample-to-sample step of **1.62 LSB** — i.e. >12× the typical step. A despiker is required; the
+   Verity path has none.
+
+5. **Detection by column count will NOT work as §3 assumes.** `capture.py:651` currently writes the single
+   value **replicated across ppg0/1/2** with ambient 0, so the file has the full 6 columns. Either the
+   capture must change (needs this brief's single-channel path first — a lockstep change) or the DSP must
+   detect the degeneracy at runtime. **Prefer the runtime guard** — it is specified in
+   [`PPGDEX-MULTICHANNEL-FUSION-2026-07-18-BRIEF.md`](PPGDEX-MULTICHANNEL-FUSION-2026-07-18-BRIEF.md) §4
+   and defends against any future replicating device, not just this one.
 
 ## 3 · Phase 1 — finger-site parser (node-local, no Clock-Contract change)
 
@@ -108,6 +147,7 @@ suite green, changeset dropped. Then flip this header `DONE`, and spawn `-FOLLOW
 ---
 
 ## Cross-references
+- [`PPGDEX-MULTICHANNEL-FUSION-2026-07-18-BRIEF.md`](PPGDEX-MULTICHANNEL-FUSION-2026-07-18-BRIEF.md) — the **Verity/multi-channel half** of this work (ambient subtraction + fusion); its §4 degenerate-channel guard is what makes this brief's single-channel detection robust.
 - [`O2RING-LIVE-PPG-WAVEFORM-2026-07-17-BRIEF.md`](O2RING-LIVE-PPG-WAVEFORM-2026-07-17-BRIEF.md) — captures the file this consumes (its Phase 3 round-trip IS this brief's acceptance).
 - [`INTEGRATOR-PAT-VASCULAR-2026-07-18-BRIEF.md`](INTEGRATOR-PAT-VASCULAR-2026-07-18-BRIEF.md) — the consumer of the finger foot-stream this produces.
 - [`MULTI-SENSOR-DERIVATIONS-2026-07-16-BRIEF.md`](MULTI-SENSOR-DERIVATIONS-2026-07-16-BRIEF.md) — the agenda this partially executes (cross-site pair).
