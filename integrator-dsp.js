@@ -1069,7 +1069,9 @@ function typeApneaByEffort(recs) {
   });
   if (!desats.length) return null;
 
-  var out = { obstructive: 0, central: 0, untyped: 0, total: desats.length, events: [], coverageAssumed: false };
+  /** @type {Array<{tMs:number, t:string, impulse:string, node:string, conf:number|null, meta:Object}>} */
+  var typedEvents = [];
+  var out = { obstructive: 0, central: 0, untyped: 0, total: desats.length, events: typedEvents, coverageAssumed: false, typed: 0, underpowered: true, usable: false };
   desats.forEach(function (d) {
     var durMs = (d.ev.meta && d.ev.meta.durSec != null ? d.ev.meta.durSec : 10) * 1000;
     var lo = d.ev.tMs - APNEA_TYPE_LEAD_MS,
@@ -1093,9 +1095,10 @@ function typeApneaByEffort(recs) {
       out.untyped++; // ambiguous (some effort, but not a majority) — honest non-answer
       return;
     }
-    out[type]++;
+    if (type === 'obstructive') out.obstructive++;
+    else out.central++;
     var conf = sqi != null && d.ev.conf != null ? +(sqi * d.ev.conf).toFixed(2) : d.ev.conf != null ? d.ev.conf : sqi;
-    out.events.push({
+    typedEvents.push({
       tMs: d.ev.tMs,
       t: fmtClockS(d.ev.tMs),
       impulse: 'apnea_' + type,
