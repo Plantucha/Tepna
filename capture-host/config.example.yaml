@@ -12,6 +12,12 @@ web:                                    # monitor + control page (HEALTH-BOX-VIS
   host: 0.0.0.0                         # the box serves the LAN; use 127.0.0.1 for a localhost-only test
   port: 8760
 
+watchdog:                               # auto-recover a WEDGED BLE controller (frozen-monitor failure).
+  enabled: true                         #   Acts ONLY on unambiguous wedge signs (InProgress / phantom
+  interval_sec: 60                      #   BlueZ link) — NEVER on 'sensors not worn' (clean not-found).
+  grace_checks: 2                       #   consecutive wedged checks before a controller power-cycle
+  max_adapter_cycles: 3                 #   hard cap so recovery can never loop (external supervisor beyond)
+
 # Host clock MUST be NTP-synced and set to your real local timezone — arrival stamps depend on it.
 # Stored values are floating wall-clock (Clock Contract); we write the LOCAL civil time, zone-free.
 

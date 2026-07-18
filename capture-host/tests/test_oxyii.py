@@ -59,6 +59,26 @@ def test_parse_live_off_finger_is_none():
     assert v["spo2"] is None and v["pr"] is None and v["worn"] is False
 
 
+# ── live PPG waveform (Phase 1 decode) — fixture is a REAL captured cmd=0x04 reply ──────────────────
+_REAL_PPG_FRAME = bytes.fromhex(
+    "df290000020164053200c702005c000000000000000000003c00"       # 24-B header + count(0x3c=60) + flag
+    "c8c7c7c7c7c7c7c7c7c8c8c5bfb6ada6a19f9e9d9ea1a4a9adb2b7bbbdbcbab8b6b4"  # 60 one-byte PPG samples
+    "b1afadaba9a8a7a7a8a9abadafb0b1b1ada69d948b81766b6158")
+
+def test_parse_ppg_real_frame_layout():
+    # header still parses (worn, SpO2 100, HR 50 — HR cross-checked vs paired ECG @49 bpm)
+    live = oxyii.parse_live(_REAL_PPG_FRAME)
+    assert live["worn"] and live["spo2"] == 100 and live["pr"] == 50
+    # body = count(60) one-byte samples at [26:86]
+    ppg = oxyii.parse_ppg(_REAL_PPG_FRAME)
+    assert len(ppg) == 60 == _REAL_PPG_FRAME[24]
+    assert 24 + 2 + _REAL_PPG_FRAME[24] == len(_REAL_PPG_FRAME)   # the length invariant
+    assert ppg[:3] == [200, 199, 199] and all(0 <= v <= 255 for v in ppg)
+
+def test_parse_ppg_no_body():
+    assert oxyii.parse_ppg(bytes(24)) == []       # header-only / too short → no samples
+
+
 def test_auth_payload_is_deterministic_16b():
     a = oxyii.auth_payload("0000", ts=1000)
     b = oxyii.auth_payload("0000", ts=1000)
