@@ -224,12 +224,18 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
 .batt-ico{position:relative;display:inline-block;width:15px;height:8px;border:1px solid currentColor;border-radius:2px;opacity:.85;}
 .batt-ico::after{content:'';position:absolute;right:-3px;top:2px;width:2px;height:4px;background:currentColor;border-radius:0 1px 1px 0;}
 .batt-fill{position:absolute;left:1px;top:1px;bottom:1px;background:currentColor;border-radius:1px;transition:width .3s;}
-/* Signal pill — the weak/failing-link warning (shown ONLY when weak/stall; a healthy link is uncluttered). */
-.sig{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;font-family:ui-monospace,monospace;
-  padding:1px 7px;border-radius:999px;border:1px solid transparent;white-space:nowrap;}
-.sig::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;}
-.sig.weak{color:var(--amber);border-color:rgba(255,184,77,.4);background:rgba(255,184,77,.09);}
-.sig.bad{color:var(--red);border-color:rgba(255,107,122,.5);background:rgba(255,107,122,.11);}
+/* Link/RSSI pill — sits beside the battery pill. Drawn signal bars + dBm (or rate-based quality when the
+   privileged RSSI helper isn't granted), colored like the battery meter. Never blank on a live device. */
+.rssi{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;font-family:ui-monospace,monospace;
+  padding:1px 7px;border-radius:999px;border:1px solid var(--border2);color:var(--text3);white-space:nowrap;}
+.rssi.ok{color:var(--green);border-color:rgba(57,217,138,.35);}
+.rssi.warn{color:var(--amber);border-color:rgba(255,184,77,.35);}
+.rssi.bad{color:var(--red);border-color:rgba(255,107,122,.45);}
+.rssi-ico{display:inline-flex;align-items:flex-end;gap:1px;height:9px;}
+.rssi-ico i{display:block;width:2px;background:currentColor;opacity:.22;border-radius:1px;}
+.rssi-ico i:nth-child(1){height:3px;} .rssi-ico i:nth-child(2){height:5px;}
+.rssi-ico i:nth-child(3){height:7px;} .rssi-ico i:nth-child(4){height:9px;}
+.rssi-ico i.on{opacity:1;}
 
 /* ── Clock & NTP card ──────────────────────────────────────────────────── */
 .clk-status{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px 22px;margin:14px 0 4px;}
@@ -418,13 +424,25 @@ function battChip(p){
   const w = Math.max(0, Math.min(100, p));
   return `<span class="batt ${battClass(p)}" title="Battery ${p}%"><span class="batt-ico"><span class="batt-fill" style="width:${w}%"></span></span>${p}%</span>`;
 }
-// Link health: a WEAK (amber) / STALL (red) pill from the stream-rate side of the weak-signal warning
-// (telemetry.stream_health). good/idle → NO pill, so a healthy link stays uncluttered. `title` carries the
-// live effective-vs-nominal rate on hover.
-function sigPill(health, title){
-  if(health==='weak') return `<span class="sig weak" title="${esc(title||'Weak link — packet rate low')}">weak</span>`;
-  if(health==='stall') return `<span class="sig bad" title="${esc(title||'No packets — link stalled')}">no signal</span>`;
-  return '';
+// Link pill (sits next to the battery pill). TWO sources, best available first:
+//   • real connection RSSI in dBm — needs the privileged helper (link_rssi.py + tepna-rssi.sh sudoers grant),
+//     because BlueZ only reports RSSI for ADVERTISING devices and a connected sensor doesn't advertise;
+//   • otherwise the always-available stream-rate health (telemetry.stream_health) — no privilege needed.
+// So the pill is never blank on a live device: it shows dBm where it can, link quality where it can't.
+// BLE rule of thumb: ≥-60 excellent · -70 good · -80 marginal · <-80 likely to drop.
+function rssiLevel(dbm){ return dbm>=-60?4 : dbm>=-70?3 : dbm>=-80?2 : 1; }
+function rssiClass(dbm, health){
+  if(dbm!=null && isFinite(dbm)) return dbm>=-70?'ok' : dbm>=-80?'warn' : 'bad';
+  return health==='stall'?'bad' : health==='weak'?'warn' : 'ok';
+}
+function rssiChip(dbm, health, rateTitle){
+  const has = (dbm!=null && isFinite(dbm));
+  const lvl = has ? rssiLevel(dbm) : (health==='stall'?1 : health==='weak'?2 : 4);
+  const bars = [1,2,3,4].map(i=>`<i class="${i<=lvl?'on':''}"></i>`).join('');
+  const txt  = has ? (dbm+' dBm') : (health==='stall'?'no signal' : health==='weak'?'weak' : 'link ok');
+  const t = (has ? `Connection RSSI ${dbm} dBm` : 'Link quality from packet rate — grant tepna-rssi.sh for dBm')
+          + (rateTitle ? ` · ${rateTitle}` : '');
+  return `<span class="rssi ${rssiClass(dbm,health)}" title="${esc(t)}"><span class="rssi-ico">${bars}</span>${txt}</span>`;
 }
 function sigTitle(s){ return s && s.effFs!=null ? (s.effFs+' / '+(s.fs||0)+' Hz') : ''; }
 // Worst link health across the ACTIVE streams a device owns (good/idle < weak < stall) — the device-row rollup.
@@ -499,7 +517,7 @@ function renderRemembered(devs){
   el.innerHTML = devs.map(d=>`
     <div class="dev">
       <div class="meta">
-        <div class="name">${esc(d.name)} ${d.connected?'<span class="dbadge on">live</span>':'<span class="dbadge warn">idle</span>'} ${battChip(d.battery)} ${d.connected?(dh=>sigPill(dh.health,dh.title))(deviceHealth(d)):''}</div>
+        <div class="name">${esc(d.name)} ${d.connected?'<span class="dbadge on">live</span>':'<span class="dbadge warn">idle</span>'} ${battChip(d.battery)} ${d.connected?(dh=>rssiChip(d.rssi,dh.health,dh.title))(deviceHealth(d)):''}</div>
         <div class="sub">${esc(d.address||'')}${(d.rssi!=null&&isFinite(d.rssi))?(' · '+d.rssi+' dBm'):''} · ${(d.streams||[]).join(', ')}${d.last_error?(' · '+esc(d.last_error)):''}</div>
       </div>
       ${(d.vendor==='Wellue'||d.vendor==='Viatom')?`<button class="btn" onclick='pullStored(this)' title="Download the ring&#39;s onboard-recorded night off flash (pauses live SpO₂ for ~1 min)">Pull stored session</button>`:''}
@@ -692,8 +710,8 @@ function ovRender(){                             // (re)build the cards to match
       return `<div class="ov-card ${s.active?'':'inactive'}" data-stream="${s.key}" id="ovc-${s.key}">
         <div class="ov-head"><span class="ev ev-measured" title="Measured — direct sensor reading"></span>
           <span class="name">${esc(s.label)}</span>
-          <span class="ov-sig" id="ovsig-${s.key}">${sigPill(s.health, sigTitle(s))}</span>
           <span class="ov-batt" id="ovbatt-${s.key}">${battChip(dev?dev.battery:null)}</span>
+          <span class="ov-sig" id="ovsig-${s.key}">${s.active?rssiChip(dev?dev.rssi:null, s.health, sigTitle(s)):''}</span>
           <span class="st ${s.active?'live':''}">${s.active?'live':'idle'}</span></div>
         <div class="ov-value" id="ovval-${s.key}"></div>
         <div class="ov-mini"><canvas id="ovcv-${s.key}"></canvas></div>
@@ -710,7 +728,7 @@ function ovRender(){                             // (re)build the cards to match
       const bc = document.getElementById('ovbatt-'+s.key), dev = deviceForStream(s.key);
       if(bc) bc.innerHTML = battChip(dev?dev.battery:null);
       const sg = document.getElementById('ovsig-'+s.key);
-      if(sg) sg.innerHTML = sigPill(s.health, sigTitle(s));
+      if(sg) sg.innerHTML = s.active ? rssiChip(dev?dev.rssi:null, s.health, sigTitle(s)) : '';
     }
   }
   ovSubscribe();   // pick up any stream that has since gone active
