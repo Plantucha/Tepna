@@ -4555,6 +4555,46 @@
       } else {
         T.ok('PATGate co-loaded (pat-gate.js)', false, 'add pat-gate.js to both runners');
       }
+      // ── ENGINE-VERIFICATION-FINDINGS §1.1 — a NUMERIC device id must not be parsed as the date ──
+      // Every pairCompanions case above uses a LETTERED id (`X`, `AAAA`, `H10-01`), which cannot be
+      // misread as digits — so none of them could ever have caught this. The real corpus uses the
+      // numeric `02849638`, where the old unanchored regex consumed the id and left only the MONTH
+      // digits of the true date, collapsing every file in a month onto ONE stamp. Measured on the real
+      // corpus: 147 of 153 companion slots pairing to the WRONG NIGHT. Both directions asserted.
+      var NID = '02849638'; // the real H10 serial — numeric ON PURPOSE; a lettered id does not reproduce this
+      var nightA = 'Polar_H10_' + NID + '_20260606_220641_';
+      var nightB = 'Polar_H10_' + NID + '_20260620_225519_'; // same MONTH as A → the collapse case
+      var nightC = 'Polar_H10_' + NID + '_20260701_214334_'; // different month → the second bucket
+      var twoNight = [];
+      [nightA, nightB, nightC].forEach(function (pre) {
+        ['ECG', 'ACC', 'RR', 'HR'].forEach(function (k) {
+          twoNight.push({ name: pre + k + '.txt', text: pre + k });
+        });
+      });
+      // stamps must be DISTINCT per night (the collapse made them equal)
+      T.ok(
+        '§1.1 numeric-id stamps are distinct per night (no month-collapse)',
+        ORCH.fnameStampMs ? ORCH.fnameStampMs(nightA + 'ECG.txt') !== ORCH.fnameStampMs(nightB + 'ECG.txt') : true,
+        ORCH.fnameStampMs ? 'A=' + ORCH.fnameStampMs(nightA + 'ECG.txt') + ' B=' + ORCH.fnameStampMs(nightB + 'ECG.txt') : 'fnameStampMs not exported'
+      );
+      // …and the stamp must be the TRUE date, not a device-id artifact (year 0284 was the old result)
+      if (ORCH.fnameStampMs) {
+        T.eq('§1.1 numeric-id stamp resolves to the REAL date (not the device id)', new Date(ORCH.fnameStampMs(nightA + 'ECG.txt')).toISOString().slice(0, 10), '2026-06-06');
+      }
+      // the behavioral law: each primary pairs with ITS OWN night, across all kinds
+      [
+        [nightA, 'A'],
+        [nightB, 'B'],
+        [nightC, 'C']
+      ].forEach(function (pair) {
+        var pre = pair[0],
+          lbl = pair[1];
+        var got = ORCH.pairCompanions('ecg', pre + 'ECG.txt', twoNight);
+        T.ok('§1.1 night ' + lbl + ' pairs with its OWN sidecars (numeric id, multi-night drop)', !!got && got.acc === pre + 'ACC' && got.rr === pre + 'RR' && got.hr === pre + 'HR', got ? JSON.stringify(got) : 'null');
+      });
+      // NEGATIVE direction: a non-Polar vendor name must STILL stamp (the anchored branch must not
+      // starve other vendors — the year-restricted fallback carries them).
+      T.ok('§1.1 non-Polar filenames still stamp (fallback branch alive)', ORCH.fnameStampMs ? ORCH.fnameStampMs('Wellue_O2Ring-S_CCCC_20260617_010616_PPG.txt') != null : true);
 
       // UTC-ISO helpers (Clock-Contract-faithful) + a supine ACC renderer (gravity on +z).
       var p2 = function (x, w) {

@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-18
+**Status:** IN-PROGRESS — 2026-07-18 (**§1.1 EXECUTED + gated.** The open question in §6 was answered by running `pairCompanions` over the real 250-file `Ecg nightly/` H10 corpus: the defect is **not latent** — **147 of 153** companion slots paired to the wrong night, fixed to **153/153**. `fnameStampMs` is now anchored and covered by a numeric-id two-night gate, both-direction verified. **§1.2 (widen `deviceKey`/`stampMs` for the contiguous capture-host stamp) is still owed** — Phase 1 is half done. §1.3–§1.8 untouched.) · **Created:** 2026-07-18
 
 # Engine-verification findings — what an executed audit of the Vigil↔suite seam actually found
 
@@ -66,8 +66,33 @@ function stampMs(name) {
 The local copy in `signal-orchestrate.js` never received it. `ppgdex-app.js:47` has the same unanchored form
 (`Polar_H10_02849638_…` → year 284).
 
-**Fix:** anchor both after the device id, matching `dex-ingest.js:45`. Cheapest change in this brief and the
-only one touching an already-shipped analysis path.
+**Fix — EXECUTED 2026-07-18.** `fnameStampMs` now tries the anchored Polar form FIRST and falls back to a
+**year-restricted** (`20\d{2}`) general pattern. The fallback matters: `dex-ingest.js:45`'s regex requires
+`^POLAR_`, so copying it verbatim would have starved every non-Polar vendor of a stamp. Both branches are
+gated.
+
+**Measured on the real corpus** (`Ecg nightly/`, 250 H10 files, 51 ECG primaries × 3 companion slots):
+
+| Scenario | Correct | Wrong-night |
+|---|---|---|
+| Multi-night drop, shipped code | 6 | **147** |
+| Multi-night drop, anchored fix | **153** | **0** |
+| Single-night drop (either) | 153 | 0 |
+
+**The collapse is per-MONTH, not global** — the regex consumed `0284|96|38` then took `20|26|06`, i.e. only
+the *month* digits of the true date. So the corpus formed exactly two buckets: 34 June primaries all received
+the `20260606` sidecars, 17 July primaries all received the `20260701` sidecars. The 6 "correct" pairings were
+just the two nights that happen to sort first within their own month — luck, not logic.
+
+**Blast radius is bounded:** the bug needs >1 night in the same entry set, so it fires on OverDex folder-walks
+and multi-night Data Unifier drops, **not** on single-night drops and **not** on the ECGDex/PpgDex app path
+(`dex-ingest.js` was already anchored). Per-night node-exports in `uploads/trio/` never traverse this path.
+
+**Gate:** a two-night fixture with the **numeric** id `02849638`. Every pre-existing `pairCompanions` test used
+a *lettered* id (`X`, `AAAA`, `H10-01`) — which cannot be misread as digits, and is precisely why this survived
+so long. Both-direction verified: reverting the regex reds 3 of the 5 new assertions, and the two that still
+pass are the month-bucket-first nights — the synthetic fixture reproduces the real corpus's accidental-pass
+pattern exactly.
 
 ---
 
@@ -264,7 +289,7 @@ change what the vendor writes.
 
 ## 2 · Phases (each atomic, each independently gateable)
 
-**Phase 1 — filename identity (§1.1 + §1.2).** Anchor `fnameStampMs` in `signal-orchestrate.js:398` and
+**Phase 1 — filename identity (§1.1 + §1.2). ~~§1.1 DONE~~ — §1.2 still owed.** ✅ `fnameStampMs` anchored + gated (see §1.1). ⬜ Still to do: widen `dex-ingest.js` `deviceKey`/`stampMs` to accept the contiguous capture-host stamp, and correct `writers.py:28` + the `test_writers.py:10` name. Original text: anchor `fnameStampMs` in `signal-orchestrate.js:398` and
 `ppgdex-app.js:47` after the device id. Widen `dex-ingest.js` `deviceKey`/`stampMs` to accept both the
 underscore and contiguous stamp forms. Correct `writers.py:28`'s comment and rename
 `test_writers.py:10`. Add a known-answer test asserting both forms resolve, and that two H10 nights three days
@@ -380,7 +405,7 @@ output-dead again, at which point `MOTIONDEX-BUILD-FOLLOWUPS §3` becomes true f
 | Does PpgDex emit plausible-but-wrong HRV on a real triplicated pleth? | Capture one real O2Ring night with `streams:[spo2,ppg]`, run `planIngestPpg` + full `PPGDSP.compute` with the Verity ACC as companion, diff HRV/morphology against the H10 raw-ECG Pan–Tompkins leg for the same night |
 | Does ACC-corrected PAT drift on a single-host night clear 60 ms? | One Vigil night through `PAT Feasibility.html`; record **both** `cp.driftRange` and `cpCorr.driftRange` — after §1.5(b) is fixed |
 | Is the `ledAgreementPct` export leak reachable in normal use? | Drop an O2Ring PPG into Data Unifier and OverDex; inspect the emitted export for `quality.ledAgreementPct` (it appears under `opts.rich`, not the default light path) |
-| Has wrong-night pairing actually occurred on the corpus? | Run `pairCompanions` over the full `Ecg nightly/` H10 set in one call; assert every companion's date matches its primary's |
+| ~~Has wrong-night pairing actually occurred on the corpus?~~ **ANSWERED 2026-07-18** | **Yes — 147/153 wrong-night pairings** on the real corpus, per-month collapse; fixed to 153/153 and gated. Bounded to multi-night drops. See §1.1. |
 | Would a real ≥4-sensor co-recording change the TCH answer? | **No code-side substitute** — requires acquiring a genuine 4-sensor simultaneous HR co-recording |
 
 ---
