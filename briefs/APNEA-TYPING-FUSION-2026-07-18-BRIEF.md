@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-07-18 · **Executes:** `MULTI-SENSOR-DERIVATIONS-2026-07-16-BRIEF.md` §1.1 · **Depends on:** `MOTIONDEX-BUILD-2026-07-17-BRIEF.md` (DONE) · **Consumer:** `INTEGRATOR-BUILD-BRIEF.md`
+**Status:** DONE — 2026-07-18 (**Phase 1** shipped in PR #171 — MotionDex's coverage-honest per-epoch effort series, rendered standalone in its own UI and predesigned at 10 s epochs for this fusion. **Phase 2** shipped here — the Integrator ingests `node:"MotionDex"`, builds `_motionEffortSeries`, and `typeApneaByEffort` types every desat over `[desat−15 s, +dur]`: effort present ⇒ obstructive, flat ⇒ central, no-coverage/ambiguous ⇒ **untyped, never guessed**. Additive `summary.apneaTyping` split; `confirmedAHI` untouched; null when MotionDex is absent. Gated by the `apnea-typing` group (6/6, both lanes) pinning all three typing invariants + the graceful no-op. Following the P7 `apneaCoupling` precedent it ships as an export field + gate with no render surface — a UI surface + bus-emitting the `apnea_obstructive`/`apnea_central` impulses (with EVENT-LEXICON registration) are the natural follow-ups.) · **Created:** 2026-07-18 · **Executes:** `MULTI-SENSOR-DERIVATIONS-2026-07-16-BRIEF.md` §1.1 · **Depends on:** `MOTIONDEX-BUILD-2026-07-17-BRIEF.md` (DONE) · **Consumer:** `INTEGRATOR-BUILD-BRIEF.md`
 
 # Apnea typing — respiratory effort × desaturation → central vs obstructive
 

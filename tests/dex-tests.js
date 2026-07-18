@@ -16415,6 +16415,50 @@
        grounding (24 committed trio nights, pooled): apnea(desat)→HR(surge) lift ≈ 0.83 with coverage
        supplied (33 desats excluded as outside the cardiac window), most single nights underpowered — the
        primitive honestly reports "can't judge" rather than over-claiming. */
+    /* APNEA-TYPING-FUSION-2026-07-18 §1.1 — obstructive/central typing from MotionDex chest-ACC effort.
+       Three invariants: effort THROUGH a desat ⇒ obstructive; FLAT effort ⇒ central; and — the one that
+       protects a user from an invented finding — chest-ACC NOT RECORDING ⇒ UNTYPED, never central (a
+       coverage gap must not manufacture a central apnea; the ×0.72 artifact EVENT-COUPLING §2 found one
+       modality over). Plus node-independence: no MotionDex on the bus ⇒ null, not an error. */
+    group('Integrator types apnea obstructive/central from MotionDex effort — §1.1', 'integrator-dsp · motiondex · apnea-typing', function (T) {
+      var TY = env.IntegratorDSP && env.IntegratorDSP.typeApneaByEffort;
+      T.ok('typeApneaByEffort available on IntegratorDSP', typeof TY === 'function');
+      if (typeof TY !== 'function') return;
+      var t0 = U(2026, 5, 10, 22, 0, 0);
+      function series(n, fn) {
+        var a = [];
+        for (var i = 0; i < n; i++) {
+          var p = fn(i);
+          a.push({ tMs: t0 + i * 10000, amp: p === null ? null : 0.01, present: p });
+        }
+        return a;
+      }
+      function motion(ser) {
+        return { node: 'MotionDex', t0Ms: t0, dateUnknown: false, events: [], summary: { effortSeries: ser, effortCadenceSec: 10, motionSqi: 1 }, series: {} };
+      }
+      function oxy(tMs) {
+        return { node: 'OxyDex', t0Ms: t0, dateUnknown: false, events: [{ impulse: 'desat_event', tMs: tMs, conf: 1, meta: { durSec: 20 } }], summary: {}, series: {} };
+      }
+      var at = t0 + 300000;
+      var yes = function () {
+        return true;
+      };
+      var no = function () {
+        return false;
+      };
+      var nul = function () {
+        return null;
+      };
+      var obs = TY([motion(series(60, yes)), oxy(at)]);
+      T.ok('effort PRESENT through the desat ⇒ obstructive', !!obs && obs.obstructive === 1 && obs.central === 0, obs ? 'obs=' + obs.obstructive + ' cen=' + obs.central : 'null');
+      var cen = TY([motion(series(60, no)), oxy(at)]);
+      T.ok('effort FLAT through the desat ⇒ central', !!cen && cen.central === 1 && cen.obstructive === 0, cen ? 'obs=' + cen.obstructive + ' cen=' + cen.central : 'null');
+      var gap = TY([motion(series(60, nul)), oxy(at)]);
+      T.ok('chest ACC NOT RECORDING ⇒ untyped, NEVER central', !!gap && gap.untyped === 1 && gap.central === 0, gap ? 'unt=' + gap.untyped + ' cen=' + gap.central : 'null');
+      T.ok('no MotionDex on the bus ⇒ null (graceful no-op, not an error)', TY([oxy(at)]) === null);
+      T.ok('typed + untyped == total desats (nothing invented or dropped)', !!obs && obs.typed + obs.untyped === obs.total, obs ? obs.typed + '+' + obs.untyped + '==' + obs.total : '');
+    });
+
     group('Integrator consumes EventCoupling for desat⟷surge (coverage-aware) — §P7', 'integrator-dsp · event-coupling · spine', function (T) {
       var RF = env.runFusion;
       var EC = env.EventCoupling;
