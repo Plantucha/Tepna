@@ -156,6 +156,57 @@ class StreamWriter:
             pass
 
 
+class LinkLogWriter:
+    """Per-session LINK PROVENANCE sidecar — the CONDITIONS a night was captured under.
+
+    Answers a question the signal files cannot: when there is a gap at 03:00, was the link degrading, or
+    did the sensor simply stop? Today that is unanswerable after the fact. This records connection state,
+    RSSI, battery and frame-drop counters on a slow cadence (~25 s), so link quality becomes recorded
+    evidence rather than an assumption — the same move as clock provenance.
+
+    DELIBERATELY A SIDECAR, NOT A COLUMN. The vendor `*_ACC.txt` / `*_PPG.txt` layouts are a POSITIONAL
+    contract that MotionDex/PPGDex/ECGDex parse by index; adding a field to them shifted every column and
+    silently corrupted consumers once already (2026-07-18). One extra file cannot do that.
+
+    It is TELEMETRY, not physiology: it must never enter a `ganglior.node-export` as a metric or carry an
+    evidence badge as a health measurement.
+    """
+
+    def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True):
+        self.path = path
+        self._fh = open(path, "w", buffering=1 << 16, newline="\n")
+        self._fh.write("Phone timestamp;device;connected;rssi_dbm;battery_pct;"
+                       "frames_dropped;frames_duplicated\n")
+        self.rows = 0
+        self._flush_interval = flush_interval
+        self._fsync = fsync
+        self._last_flush = _time.monotonic()
+
+    def write(self, when: _dt.datetime, device: str, connected: bool, rssi, battery,
+              dropped=None, duplicated=None) -> None:
+        def _f(v):
+            return "" if v is None else str(v)          # blank, never a fabricated 0
+        self._fh.write(f"{_phone_ts(when)};{device};{1 if connected else 0};"
+                       f"{_f(rssi)};{_f(battery)};{_f(dropped)};{_f(duplicated)}\n")
+        self.rows += 1
+        now = _time.monotonic()
+        if now - self._last_flush >= self._flush_interval:
+            self.flush()
+            self._last_flush = now
+
+    def flush(self) -> None:
+        self._fh.flush()
+        if self._fsync:
+            import os as _os
+            _os.fsync(self._fh.fileno())
+
+    def close(self) -> None:
+        try:
+            self.flush()
+        finally:
+            self._fh.close()
+
+
 class Spo2CsvWriter:
     """ViHealth-layout SpO2 CSV — `Time,Oxygen Level,Pulse Rate,Motion` with `HH:MM:SS DD/MM/YYYY`
     stamps, the exact shape OxyDex's oxydex-spo2 adapter reads (Clock Contract §2.4 vendor regex parses

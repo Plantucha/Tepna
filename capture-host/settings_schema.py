@@ -16,6 +16,7 @@ from __future__ import annotations
 
 SETTINGS: dict[str, tuple] = {
     # link health / RSSI
+    "link.log_enabled":         (bool,  None, None, True,  True, "Write the LINK provenance sidecar (connection/RSSI/battery per night)"),
     "link.rssi_enabled":        (bool,  None, None, False, True, "Poll connection RSSI (needs the privileged helper)"),
     "link.rssi_interval_sec":   (float, 5,    600,  False, 25, "How often to read RSSI while it is working"),
     "link.rssi_retry_sec":      (float, 60,   3600, False, 600, "Slow re-probe when RSSI is unavailable"),

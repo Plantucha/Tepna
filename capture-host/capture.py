@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 import argparse, asyncio, contextlib, json, logging, os, signal, time as _time, datetime as _dt
-from writers import StreamWriter, Spo2CsvWriter, capture_filename, night_dir
+from writers import StreamWriter, Spo2CsvWriter, LinkLogWriter, capture_filename, night_dir
 import polar_pmd as pmd
 import viatom
 import oxyii
@@ -981,49 +981,73 @@ async def clock_watchdog(cfg: dict):
                 log.warning("%s clock re-sync failed: %r", name, e)
 
 
-async def rssi_poller(adapter_mac, cfg: dict):
-    """Poll each CONNECTED sensor's connection RSSI (dBm) via the privileged helper and surface it in
-    STATUS → the monitor's weak-signal warning. Enrichment only: where the sudoers grant is absent (e.g. a
-    dev desktop) every read is None, so the poller disables itself after a few tries and the UI falls back
-    to the always-available stream-rate health. hcitool reads an EXISTING ACL link, so this never disturbs
-    capture. See link_rssi.py for why connection RSSI needs a privileged helper on BlueZ."""
+async def rssi_poller(adapter_mac, cfg: dict, root: str | None = None):
+    """Poll link quality and write the LINK PROVENANCE sidecar.
+
+    Two jobs, deliberately decoupled. The RSSI *read* needs a privilege the box may not have (see
+    link_rssi) and backs off when unavailable; the LOG must keep ticking regardless, because connection
+    state, battery and frame-drop counters are worth recording even with no RSSI at all. Conflating them
+    meant a box without the sudoers grant logged nothing.
+    """
     lcfg = cfg.get("link") or {}
-    if not lcfg.get("rssi_enabled", True):
-        return
     interval = float(lcfg.get("rssi_interval_sec", 25))
-    # When the helper/grant is absent every read is None. Back OFF to a slow retry rather than exiting:
-    # the sudoers grant is often installed while the daemon is already running, and a poller that gave up
-    # permanently meant RSSI stayed dead until the next restart (observed 2026-07-18).
     retry_idle = float(lcfg.get("rssi_retry_sec", 600))
-    misses = 0                       # consecutive polls where a device was connected but every read failed
-    idle = False                     # True once we've concluded the helper isn't usable (slow re-probe)
-    while not _STOP.is_set():
-        await asyncio.sleep(retry_idle if idle else interval)
-        if _RECOVER.is_set() or _OXYII_PAUSE.is_set() or _POLAR_PAUSED:
-            continue                 # don't poke the radio mid-pull / mid-recovery
-        any_link = got_any = False
-        for d in cfg.get("devices", []):
-            name, addr = d.get("name"), d.get("address")
-            if not name or not addr:
-                continue
-            if not STATUS["devices"].get(name, {}).get("connected"):
-                _set(name, rssi=None)         # stale reading must not linger on a dropped device
-                continue
-            any_link = True
-            rssi = await link_rssi.read_rssi(adapter_mac, addr)
-            if rssi is not None:
-                got_any = True
-                _set(name, rssi=rssi)
-        if any_link and not got_any:
-            misses += 1
-            if misses >= 3 and not idle:
-                idle = True          # slow re-probe, NOT a permanent stop
-                log.info("link RSSI unavailable (no privileged helper / sudoers grant) — weak-signal "
-                         "warning uses stream rate only; re-probing every %.0fs", retry_idle)
-        elif got_any:
-            if idle:
-                log.info("link RSSI now available — resuming %.0fs polling", interval)
-            misses, idle = 0, False   # a grant installed at runtime is picked up without a restart
+    want_rssi = lcfg.get("rssi_enabled", True)
+    log_link = lcfg.get("log_enabled", True)
+
+    writer = None
+    if log_link and root:
+        try:
+            night = night_dir(root, _now())
+            os.makedirs(night, exist_ok=True)
+            writer = LinkLogWriter(os.path.join(night, f"Tepna_{_now():%Y%m%d%H%M%S}_LINK.csv"))
+            log.info("link provenance → %s", writer.path)
+        except Exception as e:
+            log.warning("link log unavailable: %r", e)
+
+    misses = 0
+    idle = False          # RSSI reads idle; the LOG never idles
+    next_rssi = 0.0
+    try:
+        while not _STOP.is_set():
+            await asyncio.sleep(interval)
+            if _RECOVER.is_set() or _OXYII_PAUSE.is_set() or _POLAR_PAUSED:
+                continue                      # don't poke the radio mid-pull / mid-recovery
+            now_mono = _time.monotonic()
+            do_rssi = want_rssi and (not idle or now_mono >= next_rssi)
+            any_link = got_any = False
+            for d in cfg.get("devices", []):
+                name, addr = d.get("name"), d.get("address")
+                if not name or not addr:
+                    continue
+                st = STATUS["devices"].get(name, {})
+                connected = bool(st.get("connected"))
+                if not connected:
+                    _set(name, rssi=None)     # a stale reading must not linger on a dropped device
+                elif do_rssi:
+                    any_link = True
+                    rssi = await link_rssi.read_rssi(adapter_mac, addr)
+                    if rssi is not None:
+                        got_any = True
+                        _set(name, rssi=rssi)
+                if writer:
+                    st = STATUS["devices"].get(name, {})
+                    writer.write(_now(), name, connected, st.get("rssi"), st.get("battery"),
+                                 st.get("frames_dropped"), st.get("frames_duplicated"))
+            if do_rssi and any_link and not got_any:
+                misses += 1
+                if misses >= 3 and not idle:
+                    idle = True
+                    log.info("link RSSI unavailable (no privileged helper / sudoers grant) — logging "
+                             "connection state only; re-probing every %.0fs", retry_idle)
+                next_rssi = now_mono + retry_idle
+            elif got_any:
+                if idle:
+                    log.info("link RSSI now available — resuming %.0fs polling", interval)
+                misses, idle = 0, False
+    finally:
+        if writer:
+            writer.close()
 
 
 async def main():
@@ -1059,7 +1083,7 @@ async def main():
 
     tasks = [asyncio.create_task(status_loop(root)),
              asyncio.create_task(adapter_watchdog(ADAPTER, cfg)),
-             asyncio.create_task(rssi_poller(ADAPTER, cfg)),
+             asyncio.create_task(rssi_poller(ADAPTER, cfg, root)),
              asyncio.create_task(clock_watchdog(cfg))]
 
     def _spawn(dev: dict):
