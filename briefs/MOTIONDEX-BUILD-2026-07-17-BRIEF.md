@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-07-17 · **Unblocks:** `MULTI-SENSOR-DERIVATIONS-2026-07-16-BRIEF.md` §1.1·§1.2·§2.1·§2.2·§2.4 · **Related:** `CAPTURE-HOST-FOLLOWUPS-II-2026-07-16-BRIEF.md` (§D4 capture side) · `INTEGRATOR-BUILD-BRIEF.md` (fusion consumer)
+**Status:** DONE — 2026-07-18 (MotionDex ships as the fleet's 9th owned plain-inline bundle `MotionDex.html`; DSP + registry + render + app + `.src.html`, ESM-from-birth; parses Polar Sensor Logger ACC/GYRO/MAGN on the Clock Contract → position · actigraphy · effort · SQI → `ganglior.node-export`. Full gate sequence green in BOTH lanes — GATE A 9/9, GATE B reproduces its committed-synthetic equiv fixture, Node suite + browser `?full` (2770) + no-network all green, `regen-goldens.mjs --node MotionDex` reproduces the golden. Roster named in ORIENTATION.md + CLAUDE.md. Follow-ups → `MOTIONDEX-BUILD-FOLLOWUPS-2026-07-18-BRIEF.md`.) · **Created:** 2026-07-17 · **Unblocks:** `MULTI-SENSOR-DERIVATIONS-2026-07-16-BRIEF.md` §1.1·§1.2·§2.1·§2.2·§2.4 · **Related:** `CAPTURE-HOST-FOLLOWUPS-II-2026-07-16-BRIEF.md` (§D4 capture side) · `INTEGRATOR-BUILD-BRIEF.md` (fusion consumer)
 
 # MotionDex — Build Brief (the fleet's motion / IMU node)
 
