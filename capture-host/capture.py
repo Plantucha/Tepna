@@ -290,6 +290,12 @@ async def run_polar(dev: dict, root: str):
                         meas, samples = pmd.decode_frame(bytes(data), arrival, fs=stream_fs.get(data[0]))
                     except ValueError as e:
                         _set(name, last_error=str(e)); return
+                    # Diagnostic (inert unless PMD_FRAME_PROBE names a file): records what each frame
+                    # ACTUALLY carried vs how many samples we got out of it. Written to answer the Verity
+                    # IMU starvation — ACC/GYRO/MAG deliver ~35-44% of nominal with no decode error, so we
+                    # need frame_type + payload size + decoded count to see whether we under-extract.
+                    if _PMD_PROBE:
+                        _pmd_probe(meas, bytes(data), len(samples), arrival)
                     wr = writers.get(meas)
                     if not wr or not samples:
                         return
@@ -767,6 +773,33 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                 await asyncio.sleep(3)
             finally:
                 _RECOVER.clear()                      # device tasks resume + reconnect on the fresh radio
+
+
+# ── PMD frame diagnostic ────────────────────────────────────────────────────────────────────────────
+# INERT unless PMD_FRAME_PROBE is set to an output path. Records one JSONL row per decoded PMD frame:
+# measurement, frame_type (high bit = delta/compressed), payload bytes, and how many samples we actually
+# extracted. That is exactly what distinguishes "the device sends fewer samples" from "we under-extract
+# from each frame" — the open question behind the Verity ACC/GYRO/MAG starvation.
+_PMD_PROBE = os.environ.get("PMD_FRAME_PROBE")
+_PMD_PROBE_N = int(os.environ.get("PMD_FRAME_PROBE_N", "400"))
+_pmd_probe_seen: dict[int, int] = {}
+
+
+def _pmd_probe(meas: int, data: bytes, n_samples: int, arrival) -> None:
+    seen = _pmd_probe_seen.get(meas, 0)
+    if seen >= _PMD_PROBE_N:
+        return
+    _pmd_probe_seen[meas] = seen + 1
+    try:
+        with open(_PMD_PROBE, "a") as fh:
+            fh.write(json.dumps({
+                "meas": meas, "name": pmd.MEAS_NAME.get(meas, str(meas)),
+                "frame_type": data[9], "delta": bool(data[9] & 0x80),
+                "payload_len": len(data) - 10, "n_samples": n_samples,
+                "t": arrival.isoformat(), "hex": data.hex(),   # raw frame: lets decoder variants be tested offline
+            }) + "\n")
+    except Exception:
+        pass                      # a diagnostic must never disturb capture
 
 
 async def rssi_poller(adapter_mac, cfg: dict):
