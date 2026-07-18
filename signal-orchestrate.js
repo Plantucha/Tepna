@@ -410,9 +410,7 @@
   // Do NOT collapse these back into one loose pattern.
   function fnameStampMs(name) {
     var s = String(name == null ? '' : name);
-    var m =
-      s.match(/^POLAR_[A-Z0-9]+_[A-Z0-9]+_(\d{4})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})/i) ||
-      s.match(/(20\d{2})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})/);
+    var m = s.match(/^POLAR_[A-Z0-9]+_[A-Z0-9]+_(\d{4})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})/i) || s.match(/(20\d{2})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})/);
     return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : null; // floating wall-clock (Clock Contract)
   }
   // §1 (ECG-INGEST-FOLLOWUPS-II) — device identity + foreign-vendor classification are NO LONGER
