@@ -24,14 +24,41 @@ at 100; or (b) refactor the accumulation into a **synchronous, exported** `merge
 pin *that* with a known-answer (2 pages of 100 → 200 entries, not 100). **Recommend (b)** — a small
 export seam is testable in the existing sync lane and documents the paging invariant.
 
-## §2 — Python `capture-host/` was NOT mutation-audited (open surface)
+## §2 — Python `capture-host/` mutation audit — RAN 2026-07-18 (mutation score 44%)
 
-The first audit was **JS-only** (`run-tests.mjs`). The Python side has its own `capture-host-ci`
-(`ruff --select E9,F` + pytest, 47 tests) but **no defect-injection pass** — `polar_pmd`, `oxyii`,
-`writers`, `clockcfg`, `viatom`, `telemetry` are unaudited for hollow gates. **Plan:** run a Python
-mutation pass (`mutmut run` or `cosmic-ray`) over `capture-host/` against the pytest suite; triage
-survivors the same way (a survivor = a test that stays green under a real defect). Independent of the JS
-suite and the corpus, so it won't hit the rate-limit pattern that clipped the JS deep-scout wave.
+The Python side (`ruff` + pytest, 54 tests) got a full mutation pass. **⚠ mutmut 3.6 was unreliable
+here** — its default runner loaded the *original* modules via `tests/conftest.py`'s `sys.path` pin (so
+its `mutants/` copies never ran → it reported 0 kills), and `mutmut results` listed only ~791 of the
+**1418** mutants the files actually contain. Both are traps for the next person. The trustworthy method
+was a **hand-driver**: activate each mutant via `MUTANT_UNDER_TEST=<module.name>` and run its test file
+**from inside `mutants/`** (the layout that loads the mutated code) — validated by a known-killable
+(`writers…capture_filename` `stamp=None` → killed) and a known-survivor (default-arg change → survives).
+
+**Result over the complete 1418 mutants: 629 killed / 789 survived = 44%.** Per module:
+
+| module | score | read |
+|---|---|---|
+| `viatom` | 88% | well-tested |
+| `oxyii` | 66% | O2Ring protocol — solid |
+| `telemetry` | 65% | decent |
+| `writers` | 49% | output-format gaps (`night_dir`, `write_ppi`, `__init__`) |
+| **`polar_pmd`** | **42%** | **the raw ECG/PPG/ACC frame decoders — the real gap** |
+| `clockcfg` | 8% | mostly `timedatectl` **subprocess** wrappers (`status`/`set_ntp`/`set_tz`) — hard to unit-test, **low signal-impact**; not the priority |
+
+**Priority: `polar_pmd.decode_frame` (161 survivors) + `_decode_delta` (80) + `_i24` (13).** These parse
+the captured waveform, and severe corruptions **survive the full 54-test suite** (spot-verified), e.g.:
+`for o in range(0, len(payload)-2, 3)` → `range(0, 3)` (**decode only 1 ECG sample per frame**);
+the PPG loop likewise (1 sample/frame); `back / fs` → `back * fs` (**per-sample timestamp corrupted by
+fs²** — a ms/s-class unit bug); ACC step `6`→`7` and `unpack_from(…, o)`→`(…)` (misaligned / constant
+ACC). A real such defect would silently mangle every recording, uncaught.
+
+**Fix (highest value first):** add a `test_polar_pmd` **known-answer that decodes a full multi-sample
+ECG + PPG + ACC frame and asserts EVERY sample value AND its back-timed `t_ms`** (not just "a frame
+decodes"). One strong frame-decode known-answer kills the bulk of the 254 decoder survivors — the same
+"pin the whole output, not that it ran" lesson as the JS unexported-metric class. Then `writers`
+(assert the full CSV row set per stream) and `telemetry.push`. **De-prioritize `clockcfg`'s subprocess
+paths** (they shell out; low-value to unit-test, no signal data). Artifacts: this audit's driver +
+per-mutant results are in the session scratchpad (`mutkill.py`, `mutkill-full.json`), not committed.
 
 ## §3 — Deep-scout second wave (fresh mutations beyond the 99)
 
