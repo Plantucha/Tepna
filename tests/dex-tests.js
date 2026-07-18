@@ -13605,6 +13605,52 @@
      locks: ONLY the render boundary converts — storage/compute/export stay mg/dL — and the mmol band
      edges use the STANDARDIZED consensus cutoffs (3.0/3.9/10.0/13.9), NOT naive ÷18.018 of the mg/dL
      label. Source-mirror (glucodex-render/-app/-dsp are in both runners' source lists). */
+    /* ════ RENDER EXECUTION — surfaced-value known-answer (DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS §RN) ════
+       The *-render.js display layer was loaded ONLY as raw text and NEVER executed in the node lane, so
+       no test could pin a surfaced render VALUE — a whole class of patient-facing defects (a ~325× mmol
+       glucose error, a green-painted hypoxic SpO₂, "well controlled" on a severe AHI) shipped green. The
+       render harness in run-tests.mjs now EXECUTES the render modules headless (stub DOM + IIFE-isolated
+       load) and exposes their globals. This group closes the 3 HIGH §RN findings by calling / driving the
+       real render code and asserting the surfaced value. Node-lane only (the browser suite runs the render
+       modules in its iframe rigs, not the shared realm) — SKIPs there like docs-ledger/release-ledger. */
+    group('Render execution — surfaced-value known-answer (§RN harness)', 'glucodex-render · oxydex-render · cpapdex-render · render-harness', function (T) {
+      if (!env.GluDisp || !env.OxyDex || typeof env.OxyDex.reviewView !== 'function' || !env.CpapRender || typeof env.CpapRender.renderReviewView !== 'function') {
+        T.skip(
+          'render harness globals wired (env.GluDisp / OxyDex.reviewView / CpapRender.renderReviewView)',
+          'Node-lane only (run-tests.mjs executes *-render.js headless); the browser lane runs render in iframe rigs so it SKIPs'
+        );
+      } else {
+        // ── GluDisp.val — mg/dL → mmol/L = ÷18.018 (HIGH; a ÷→× slip = ~325× wrong glucose in mmol mode) ──
+        env.GluDisp.set('mmol');
+        T.approx('GluDisp.val(250) in mmol = 250 ÷ 18.018 = 13.9 (a ÷→× slip → 4504.5)', env.GluDisp.val(250), 13.9, 0.05);
+        T.approx('GluDisp.val(90) in mmol = 5.0', env.GluDisp.val(90), 5.0, 0.05);
+        T.approx('GluDisp.delta(−90) in mmol keeps the sign = −5.0', env.GluDisp.delta(-90), -5.0, 0.05);
+        env.GluDisp.set('mgdl');
+        T.eq('GluDisp.val(250) in mg/dL = identity 250 (metric default; no conversion at compute layer)', env.GluDisp.val(250), 250);
+        // ── OxyDex mean-SpO₂ KPI color: ok≥95 / warn≥92 / bad (HIGH; a lowered cut paints a hypoxic night green) ──
+        var oxKpiClass = function (mean) {
+          var html = env.OxyDex.reviewView({ events: [], nights: [{ stats: { meanSpo2: mean, minSpo2: mean - 3 } }] }, [{ stats: { meanSpo2: mean, minSpo2: mean - 3 } }]);
+          var m = /Mean SpO.*?k-val ([a-z]+)/s.exec(html);
+          return m ? m[1] : 'NONE';
+        };
+        T.eq('OxyDex Mean-SpO₂ KPI at 88% = bad (hypoxic; a ≥85 cut mutation would paint it ok)', oxKpiClass(88), 'bad');
+        T.eq('OxyDex Mean-SpO₂ KPI at 93% = warn (≥92 band)', oxKpiClass(93), 'warn');
+        T.eq('OxyDex Mean-SpO₂ KPI at 96% = ok (≥95 band)', oxKpiClass(96), 'ok');
+        // ── CPAPDex residual-AHI findings band: <5 well-controlled / <15 / <30 / else severe (HIGH) ──
+        var cpapImpression = function (ahi) {
+          return env.CpapRender.renderReviewView({ elements: [{ recording: { startEpochMs: 1, therapyHours: 5 }, metrics: { residualAHI: ahi } }] });
+        };
+        var sev40 = cpapImpression(40);
+        T.ok(
+          'CPAPDex AHI 40 → "severe residual events" (a <5→<50 band widening would say "well controlled")',
+          /severe residual events/.test(sev40) && !/well controlled/.test(sev40),
+          sev40.slice(0, 0) + (/(well controlled|severe residual events)/.exec(sev40) || [''])[0]
+        );
+        var ctrl3 = cpapImpression(3);
+        T.ok('CPAPDex AHI 3 → "well controlled" (the genuine low-AHI case still reads well controlled)', /well controlled/.test(ctrl3));
+      }
+    });
+
     group('GlucoDex mmol/L display toggle — boundary-only, mg/dL default', 'glucodex-render · glucodex-app · glucodex-dsp', function (T) {
       var src = env.sources || {};
       var rnd = src['glucodex-render.js'],
