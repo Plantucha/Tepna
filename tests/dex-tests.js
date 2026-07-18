@@ -16667,6 +16667,37 @@
        grounding (24 committed trio nights, pooled): apnea(desat)→HR(surge) lift ≈ 0.83 with coverage
        supplied (33 desats excluded as outside the cardiac window), most single nights underpowered — the
        primitive honestly reports "can't judge" rather than over-claiming. */
+    /* MULTI-SENSOR-DERIVATIONS §2.2 — respiration rate fused from independent estimates.
+       Two physiologically independent routes to the same number (ECGDex cardiac RSA vs MotionDex
+       thoraco-abdominal movement), so their AGREEMENT is the evidence. The invariant that matters here is
+       the opposite of the usual one: a DISAGREEMENT must survive — it is reported, never averaged away.
+       Also pins that a single estimate is NOT a fusion (null), and that the fuser is n-agnostic so
+       PpgDex's RIIV folds in unchanged the day its known `respRate: null` DSP defect is fixed. */
+    group('Integrator fuses independent respiration estimates — §2.2', 'integrator-dsp · motiondex · respiration', function (T) {
+      var FR = env.IntegratorDSP && env.IntegratorDSP.fuseRespirationRate;
+      T.ok('fuseRespirationRate available on IntegratorDSP', typeof FR === 'function');
+      if (typeof FR !== 'function') return;
+      var t0 = U(2026, 5, 10, 22, 0, 0);
+      function rec(node, brpm, method) {
+        return { node: node, t0Ms: t0, endMs: t0 + 7200000, dateUnknown: false, events: [], summary: brpm == null ? {} : { respRateBrpm: brpm, respRateMethod: method }, series: {} };
+      }
+      var agree = FR([rec('MotionDex', 14.2, 'chest-ACC'), rec('ECGDex', 15.1, 'RSA (ECG)')]);
+      T.ok(
+        'two agreeing estimates ⇒ agree, spread within the ±2 br/min band',
+        !!agree && agree.n === 2 && agree.agree === true && agree.spreadBrpm <= 2,
+        agree ? 'spread=' + agree.spreadBrpm : 'null'
+      );
+      var div = FR([rec('MotionDex', 12.0, 'chest-ACC'), rec('ECGDex', 19.0, 'RSA (ECG)')]);
+      T.ok('divergent estimates ⇒ DISAGREE (surfaced, not averaged away)', !!div && div.agree === false && div.spreadBrpm === 7, div ? 'spread=' + div.spreadBrpm + ' agree=' + div.agree : 'null');
+      T.ok('the disagreement is stated in the note', !!div && /DISAGREEMENT/.test(String(div.note)));
+      T.ok('both sources survive in the output (nothing collapsed)', !!div && div.sources.length === 2 && div.minBrpm === 12 && div.maxBrpm === 19);
+      T.ok('a SINGLE estimate is not a fusion ⇒ null', FR([rec('MotionDex', 14, 'chest-ACC')]) === null);
+      T.ok('no estimate anywhere ⇒ null', FR([rec('ECGDex', null), rec('OxyDex', null)]) === null);
+      T.ok('respRate 0 means NOT-ESTIMATED, never 0 br/min', FR([rec('MotionDex', 14, 'chest-ACC'), rec('ECGDex', 0, 'RSA (ECG)')]) === null);
+      var three = FR([rec('MotionDex', 14, 'chest-ACC'), rec('ECGDex', 15, 'RSA'), rec('PpgDex', 14.5, 'RIIV')]);
+      T.ok('n-agnostic — a 3rd source (PpgDex RIIV) folds in with no code change', !!three && three.n === 3 && three.consensusBrpm === 14.5, three ? 'n=' + three.n : 'null');
+    });
+
     /* MULTI-SENSOR-DERIVATIONS §2.4 — motion-gated, confidence-scored HRV.
        HRV off a night full of movement is worth less than the same number off a still night. This SCORES
        that (it never alters or excludes an HRV value). The invariant that matters is the same tri-state
