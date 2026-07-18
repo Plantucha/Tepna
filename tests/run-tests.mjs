@@ -195,6 +195,8 @@ function makeSandbox() {
   sandbox.console = console;
   sandbox.setTimeout = setTimeout;
   sandbox.clearTimeout = clearTimeout;
+  sandbox.addEventListener = noop; // RENDER-HARNESS §RN: ECGScope._bindEvents calls window.addEventListener
+  sandbox.removeEventListener = noop;
   return vm.createContext(sandbox);
 }
 
@@ -969,7 +971,7 @@ async function main() {
   // same bare names already in the shared realm (classicify leaks top-level decls). Wrapping each in an IIFE
   // scopes those decls while the `window.X`/`global.X` attaches (GluDisp · OxyDex.reviewView · CpapRender ·
   // PulseDex.reviewView) still escape to the sandbox. Deps (their DSP · dex-escape) are already loaded above.
-  ['glucodex-render.js', 'oxydex-render.js', 'cpapdex-render.js', 'hrvdex-render.js', 'pulsedex-render.js'].forEach((f) => {
+  ['glucodex-render.js', 'oxydex-render.js', 'cpapdex-render.js', 'hrvdex-render.js', 'pulsedex-render.js', 'ecgdex-render.js'].forEach((f) => {
     try {
       const p = join(ROOT, f);
       if (!existsSync(p)) return;
@@ -1014,6 +1016,7 @@ async function main() {
     CpapRender: ctx.CpapRender,
     HrvRmssdClass: ctx.hrvRmssdClass,
     OxySpo2NightCV: ctx.oxySpo2NightCV,
+    ECGScope: ctx.ECGUI && ctx.ECGUI.ECGScope, // §RN: canvas waveform explorer (axis-tick label drive)
     IntegratorDSP: ctx.IntegratorDSP,
     IntegratorTCH: ctx.IntegratorTCH,
     IntegratorLong: ctx.IntegratorLong,

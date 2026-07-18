@@ -13701,6 +13701,68 @@
       }
     });
 
+    /* ════ ECGScope canvas axis — minute-tick label (§RN wave 3, the last render finding) ════
+       ecgdex-render's ECGScope is pure canvas; its wide-view time axis labels minutes as (t/60).toFixed(0)+
+       'm'. No gate executed the canvas draw, so a `t/60 → t/30` slip (every minute label 2×) shipped green.
+       This drives the REAL ECGScope against a stub canvas whose getContext captures fillText, at a 300 s
+       view (secSpan>120 → minute ticks), and asserts the labels. Node-lane only (canvas + genSynthetic). */
+    group('ECGScope canvas axis — minute-tick label known-answer (§RN wave 3)', 'ecgdex-render · canvas · known-answer', function (T) {
+      var D = env.ECGDSP;
+      if (!env.ECGScope || !D || typeof D.genSynthetic !== 'function') {
+        T.skip('env.ECGScope + ECGDSP.genSynthetic wired', 'Node-lane only (run-tests.mjs executes ecgdex-render headless); the browser lane runs the scope in its own canvas so it SKIPs');
+      } else {
+        var labels = [];
+        // stub 2D context: capture fillText, no-op every draw call (Proxy returns a noop for unknown keys)
+        var mkCtx = function () {
+          return new Proxy(
+            {
+              fillText: function (t) {
+                labels.push(t);
+              }
+            },
+            {
+              get: function (o, k) {
+                if (k in o) return o[k];
+                if (k === 'measureText')
+                  return function () {
+                    return { width: 10 };
+                  };
+                return function () {};
+              },
+              set: function () {
+                return true;
+              }
+            }
+          );
+        };
+        var canvas = {
+          getContext: mkCtx,
+          getBoundingClientRect: function () {
+            return { width: 800, height: 200, left: 0, top: 0 };
+          },
+          width: 800,
+          height: 200,
+          addEventListener: function () {},
+          removeEventListener: function () {},
+          setPointerCapture: function () {},
+          style: {}
+        };
+        var syn = D.genSynthetic({ durSec: 300, seed: 7 });
+        var scope = new env.ECGScope(canvas, null);
+        scope.drawMini = function () {}; // no mini-canvas in the rig
+        scope.setData({ fs: syn.fs, int16: syn.int16 });
+        scope.view = { start: 0, span: 300 * syn.fs }; // 300 s view ⇒ secSpan>120 ⇒ minute ticks
+        scope.draw();
+        var mins = labels.filter(function (l) {
+          return /m$/.test(l);
+        });
+        // tick = 60 s ⇒ labels 0m..4m; the (t/60) minute conversion produces the ODD minutes 1m & 3m that a
+        // (t/30) 2× slip skips (it would emit 0m,2m,4m,6m,8m). Assert the odd minutes are present.
+        T.ok('ECGScope 300 s view labels minutes 0m..4m via (t/60) (a t/30 slip → 0m,2m,4m… skips 1m/3m)', mins.indexOf('1m') >= 0 && mins.indexOf('3m') >= 0, 'labels=' + JSON.stringify(mins));
+        T.eq('ECGScope minute label at t=120 s = "2m" (not "4m")', mins[2], '2m');
+      }
+    });
+
     group('GlucoDex mmol/L display toggle — boundary-only, mg/dL default', 'glucodex-render · glucodex-app · glucodex-dsp', function (T) {
       var src = env.sources || {};
       var rnd = src['glucodex-render.js'],
