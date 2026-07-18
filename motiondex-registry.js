@@ -102,11 +102,17 @@
   };
 
   function _norm(s) {
-    return String(s == null ? '' : s)
-      .toLowerCase()
-      .replace(/<[^>]*>/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
+    var out = String(s == null ? '' : s).toLowerCase();
+    // Strip any HTML tags, repeating until STABLE — a single `<[^>]*>` pass is incomplete
+    // (a malformed/nested tag like `<<b>b>` reconstructs one), which CodeQL flags as
+    // js/incomplete-multi-character-sanitization. Labels here are trusted, but a robust
+    // strip is the correct form.
+    var prev;
+    do {
+      prev = out;
+      out = out.replace(/<[^>]*>/g, '');
+    } while (out !== prev);
+    return out.replace(/\s+/g, ' ').trim();
   }
 
   function idForLabel(label) {

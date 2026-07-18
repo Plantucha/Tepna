@@ -1,10 +1,10 @@
 {
   "bundle": "MotionDex.html",
-  "manifestHash": "0944031c47cc",
+  "manifestHash": "bd92a2cb4a10",
   "fixtures": {
     "synthetic_motiondex_golden.node-export.json": {
       "bundle": "MotionDex.html",
-      "manifestHash": "0944031c47cc",
+      "manifestHash": "bd92a2cb4a10",
       "added": "2026-07-18",
       "inputs": [
         "synthetic_motiondex_acc.txt"
