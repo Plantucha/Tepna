@@ -10,8 +10,6 @@
 
 from __future__ import annotations
 import argparse, asyncio, contextlib, json, logging, os, signal, time as _time, datetime as _dt
-import yaml
-
 from writers import StreamWriter, Spo2CsvWriter, capture_filename, night_dir
 import polar_pmd as pmd
 import viatom
@@ -87,6 +85,62 @@ _CONNECT_LOCK = asyncio.Lock()
 # hold it. Setting this event tells run_oxyii to drop its link and idle; pull_oxyii_session then owns the
 # ring for the download and clears the event to resume live capture. (Only the O2Ring path honors it.)
 _OXYII_PAUSE = asyncio.Event()
+
+# Phase-0/1 diagnostic (O2RING-LIVE-PPG-WAVEFORM brief): with OXYII_PPG_PROBE=1, DUMP the first N live 0x04
+# replies (full hex + host timestamp) to a JSONL file so the ~100 Hz PPG body can be reconstructed +
+# decoded offline and its pulse rate cross-checked vs the ECG. Inert without the env var.
+_PPG_PROBE = os.environ.get("OXYII_PPG_PROBE") == "1"
+_PPG_PROBE_N = int(os.environ.get("OXYII_PPG_PROBE_N", "90"))
+_PPG_PROBE_FILE = os.environ.get("OXYII_PPG_PROBE_FILE", "/home/michal/tepna-smoketest/o2ppg-probe.jsonl")
+_ppg_probe_n = [0]
+
+# O2Ring live PPG waveform (O2RING-LIVE-PPG-WAVEFORM Phase 2). The 0x04 body carries a ~125 Hz single-
+# channel pleth (decoded in oxyii.parse_ppg). We capture it into the SAME PSL "ppg" layout the Verity uses
+# (single channel replicated across ppg0/1/2, ambient 0) so it routes with NO new parser branch. Samples
+# are back-timed from the frame's host arrival across the ~125 Hz grid (the ring clock is unsynced, so
+# never stamp with it); the synthesized sensor_ns gives the PSL relative-ms column an 8 ms step.
+# NOMINAL rate — the ring's actual delivery is SLIGHTLY VARIABLE (~123-132 Hz observed across captures), so
+# 125 is a round central estimate. The phone timestamp re-anchors to each frame's host arrival, so wall-clock
+# error does NOT accumulate; only the synthesized relative-ms column carries the nominal-fs approximation.
+# TODO(Phase-2 refine): pin fs better or derive the ms column from arrival deltas per frame.
+O2PPG_FS = 125.0
+O2PPG_NS_STEP = int(1e9 / O2PPG_FS)   # 8_000_000 ns → relative-ms column steps of 8.0 ms (reads as ~125 Hz)
+
+# Same one-link constraint for Polar (H10 / Verity) offline-recording pulls over PS-FTP: a device address
+# in this set tells its run_polar task to drop the link and idle, so polar_offline_op can own it for the
+# download, then resume live capture. Per-address (not a single event) so pulling the Verity doesn't pause
+# the H10. Without this a pull collides with run_polar's reconnect loop → org.bluez.Error.InProgress.
+_POLAR_PAUSED: set = set()
+
+# Set by the adapter watchdog while it resets a WEDGED BLE controller — every device task idles so the
+# power-cycle doesn't fight an in-flight connect. Cleared when recovery finishes.
+_RECOVER = asyncio.Event()
+
+
+def classify_adapter_health(devices: list[dict]) -> dict:
+    """PURE (testable): from each configured device's {name, connected, last_error, bluez_connected},
+    decide whether the BLE ADAPTER looks WEDGED vs merely idle because the devices AREN'T WORN — the
+    distinction the whole watchdog turns on. Returns {wedged, reasons, phantom:[addresses]}.
+
+      • `InProgress` in last_error → adapter-level connection contention. This is NEVER a not-worn state
+        (a not-worn device fails cleanly with 'not found'), so it is an unambiguous wedge signal.
+      • `bluez_connected` (BlueZ reports Connected: yes) while our daemon's `connected` is False → a
+        PHANTOM stale link: a 'connected' device does not advertise, so nobody can re-grab it. Unambiguous
+        wedge, and it names the address that needs a targeted `disconnect`.
+      • Everything else — clean not-found / not connected, no phantom, no InProgress — is NOT WORN and
+        BENIGN. We deliberately do NOT auto-recover on it: yanking the adapter because the user took a
+        sensor off would be worse than the problem.
+    """
+    reasons: list[str] = []
+    phantom: list[str] = []
+    for d in devices:
+        err = d.get("last_error") or ""
+        if "InProgress" in err:
+            reasons.append(f"{d.get('name')}: InProgress")
+        if d.get("bluez_connected") and not d.get("connected"):
+            phantom.append(d["address"])
+            reasons.append(f"{d.get('name')}: phantom BlueZ link")
+    return {"wedged": bool(reasons), "reasons": reasons, "phantom": phantom}
 
 
 @contextlib.asynccontextmanager
@@ -170,6 +224,12 @@ async def run_polar(dev: dict, root: str):
     except Exception as e:
         _set(name, last_error=f"bond error: {e!r}")
     while not _STOP.is_set():
+        if addr in _POLAR_PAUSED or _RECOVER.is_set():   # a pull owns the link, or the watchdog is resetting the adapter
+            _set(name, connected=False,
+                 last_error="paused — pulling offline recording" if addr in _POLAR_PAUSED else "adapter recovering")
+            while (addr in _POLAR_PAUSED or _RECOVER.is_set()) and not _STOP.is_set():
+                await asyncio.sleep(0.3)
+            continue
         writers: dict[int, StreamWriter] = {}
         stream_fs: dict[int, float] = {}   # actual negotiated sample rate per meas (ACC differs per device)
         hr_writer = None
@@ -310,9 +370,9 @@ async def run_polar(dev: dict, root: str):
                         pass
                 await _read_batt()
 
-                # Hold the link until disconnect or shutdown.
+                # Hold the link until disconnect, shutdown, or an offline-pull pause request.
                 secs = 0
-                while client.is_connected and not _STOP.is_set():
+                while client.is_connected and not _STOP.is_set() and addr not in _POLAR_PAUSED and not _RECOVER.is_set():
                     await asyncio.sleep(1)
                     secs += 1
                     if secs % 120 == 0:
@@ -439,15 +499,18 @@ async def run_oxyii(dev: dict, root: str):
     name, addr = dev["name"], dev["address"]
     backoff = 5
     while not _STOP.is_set():
-        if _OXYII_PAUSE.is_set():                    # a stored-session pull owns the ring's single link
-            _set(name, connected=False, last_error="paused — pulling stored session")
-            while _OXYII_PAUSE.is_set() and not _STOP.is_set():
+        if _OXYII_PAUSE.is_set() or _RECOVER.is_set():   # a stored-session pull owns the link, or the adapter is recovering
+            _set(name, connected=False,
+                 last_error="paused — pulling stored session" if _OXYII_PAUSE.is_set() else "adapter recovering")
+            while (_OXYII_PAUSE.is_set() or _RECOVER.is_set()) and not _STOP.is_set():
                 await asyncio.sleep(0.3)
             continue
         started = _now()
         ndir = night_dir(root, started)
         path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "spo2", "csv"))
-        wr = None
+        ppg_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "ppg", "txt"))
+        wr = ppgwr = None
+        ppg_idx = [0]                                 # running sample index → synthesized sensor_ns
         try:
             _set(name, connected=False, address=addr, last_error=None)
             async with _connect_scan(addr) as client:
@@ -463,6 +526,7 @@ async def run_oxyii(dev: dict, root: str):
                     _set(name, last_error="OxyII service absent (ring in recording mode? press its button)")
                     raise RuntimeError("no oxyii chars")
                 wr = Spo2CsvWriter(path)
+                ppgwr = StreamWriter(ppg_path, "ppg")   # ~125 Hz finger pleth (Phase 2)
                 reasm = oxyii.Reassembler()
 
                 def on_data(_s, d):
@@ -470,6 +534,27 @@ async def run_oxyii(dev: dict, root: str):
                         r = oxyii.decode(frame)
                         if not r or r[0] != oxyii.OP_LIVE:
                             continue
+                        if _PPG_PROBE and _ppg_probe_n[0] < _PPG_PROBE_N:   # Phase-0/1 dump (OXYII_PPG_PROBE=1)
+                            _ppg_probe_n[0] += 1
+                            try:
+                                with open(_PPG_PROBE_FILE, "a") as _pf:
+                                    _pf.write(json.dumps({"n": _ppg_probe_n[0], "t": _now().isoformat(),
+                                                          "len": len(r[1]), "hex": r[1].hex()}) + "\n")
+                            except Exception:
+                                pass
+                            if _ppg_probe_n[0] == _PPG_PROBE_N:
+                                log.info("O2RING-PPG-PROBE: dumped %d frames → %s", _PPG_PROBE_N, _PPG_PROBE_FILE)
+                        # ~125 Hz PPG waveform body (Phase 2): back-time each sample across the frame from
+                        # its host arrival, write the PSL ppg layout, and push a live trace to the monitor.
+                        ppg = oxyii.parse_ppg(r[1])
+                        if ppg:
+                            arr = _now()
+                            nps = len(ppg)
+                            for i, v in enumerate(ppg):
+                                ph = arr - _dt.timedelta(seconds=(nps - 1 - i) / O2PPG_FS)
+                                ppgwr.write_ppg(ph, ppg_idx[0] * O2PPG_NS_STEP, 0.0, (v, v, v), 0)
+                                ppg_idx[0] += 1
+                            BUS.push("o2ppg", ppg)
                         live = oxyii.parse_live(r[1])
                         if not live:
                             continue
@@ -488,6 +573,7 @@ async def run_oxyii(dev: dict, root: str):
                                  last_error=None if live["worn"] else "no finger contact")
 
                 BUS.register("motion_o2", "Motion (O2Ring)", "lvl", 0)
+                BUS.register("o2ppg", "PPG (O2Ring)", "raw", O2PPG_FS)   # finger pleth, Phase 2
                 await client.start_notify(nch, on_data)
                 await client.write_gatt_char(wch, oxyii.auth_frame(), response=False)   # 0xFF: no reply
                 await asyncio.sleep(0.6)
@@ -499,7 +585,7 @@ async def run_oxyii(dev: dict, root: str):
                 await client.write_gatt_char(wch, oxyii.set_time_frame(_clk), response=False)   # 0xC0
                 log.info("%s RTC synced to host %s", name, _clk.strftime("%Y-%m-%d %H:%M:%S"))
                 await asyncio.sleep(0.4)
-                while client.is_connected and not _STOP.is_set() and not _OXYII_PAUSE.is_set():   # poll live ~1/s
+                while client.is_connected and not _STOP.is_set() and not _OXYII_PAUSE.is_set() and not _RECOVER.is_set():   # poll live ~1/s
                     await client.write_gatt_char(wch, oxyii.live_frame(), response=False)
                     await asyncio.sleep(1.0)
         except Exception as e:
@@ -508,6 +594,8 @@ async def run_oxyii(dev: dict, root: str):
         finally:
             if wr:
                 wr.close()
+            if ppgwr:
+                ppgwr.close()
         if not _STOP.is_set():
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 60)
@@ -546,6 +634,30 @@ async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", ftype:
             "sessions": [_meta(f) for f in saved], "out_dir": out_dir}
 
 
+async def polar_offline_op(address: str, op):
+    """Run a PS-FTP offline op (list/pull) while the daemon's run_polar for `address` is paused, so the
+    pull owns the device's single BLE link instead of colliding with the live-capture reconnect loop
+    (org.bluez.Error.InProgress). `op` is a zero-arg coroutine factory; its result is returned. Resumes
+    live capture no matter how `op` ends."""
+    name = next((n for n, s in STATUS.get("devices", {}).items() if s.get("address") == address), None)
+    _POLAR_PAUSED.add(address)
+    try:
+        for _ in range(120):                          # wait up to ~12 s for run_polar to drop its link
+            if not (name and STATUS["devices"].get(name, {}).get("connected")):
+                break
+            await asyncio.sleep(0.1)
+        await asyncio.sleep(0.8)                       # let BlueZ fully tear the link down before re-connecting
+        log.info("Polar %s: offline-recording op — live capture paused", address)
+        # Hold _CONNECT_LOCK for the whole op: BlueZ serialises connection ESTABLISHMENT per adapter, so
+        # the PS-FTP connect must not race a concurrent H10/O2Ring reconnect (→ org.bluez.Error.InProgress).
+        # The other tasks' reconnects simply queue behind the pull; it's a deliberate, finite user action.
+        async with _CONNECT_LOCK:
+            return await op()
+    finally:
+        _POLAR_PAUSED.discard(address)
+        log.info("Polar %s: offline op finished — resuming live capture", address)
+
+
 async def status_loop(root: str):
     path = os.path.join(root, "captures", "status.json")
     while not _STOP.is_set():
@@ -559,11 +671,82 @@ async def status_loop(root: str):
         await asyncio.sleep(10)
 
 
+async def adapter_watchdog(adapter_mac, cfg: dict):
+    """Detect a WEDGED BLE adapter (all worn sensors unreachable though the radio is up — the frozen-
+    monitor failure) and auto-recover, WITHOUT reacting to the benign 'sensors simply not worn' state.
+
+    Signals & the not-worn distinction live in `classify_adapter_health` (InProgress / phantom BlueZ link
+    = wedge; clean not-found = not worn = leave alone). Recovery LADDER, gentlest first, with grace +
+    a hard cap so it can never loop:
+      L1 (every wedged check, cheap): `bluetoothctl disconnect` any phantom-linked device → it re-advertises.
+      L2 (after `grace_checks` consecutive wedged checks): power-cycle the controller (bonds survive) while
+         _RECOVER pauses the device tasks. Capped at `max_adapter_cycles`; past that it logs CRITICAL and
+         stops (an external supervisor / systemd is the outer layer on the real box).
+    A single connected+streaming device, or a clean not-worn read, resets the counters."""
+    wcfg = cfg.get("watchdog") or {}
+    if not wcfg.get("enabled", True):
+        log.info("adapter watchdog disabled by config")
+        return
+    interval = float(wcfg.get("interval_sec", 60))
+    grace = int(wcfg.get("grace_checks", 2))
+    max_cycles = int(wcfg.get("max_adapter_cycles", 3))
+    consecutive = cycles = 0
+    sel = f"select {adapter_mac}\n" if adapter_mac else ""
+    while not _STOP.is_set():
+        await asyncio.sleep(interval)
+        if _RECOVER.is_set() or _OXYII_PAUSE.is_set() or _POLAR_PAUSED:
+            continue                                  # don't diagnose during a pull / recovery
+        devs = []
+        for d in cfg.get("devices", []):
+            st = STATUS.get("devices", {}).get(d["name"], {})
+            bluez = False
+            try:
+                info = await bonding._btctl(f"info {d['address']}\nquit\n", timeout=6)
+                bluez = "Connected: yes" in info
+            except Exception:
+                pass
+            devs.append({"name": d["name"], "address": d["address"],
+                         "connected": bool(st.get("connected")), "last_error": st.get("last_error"),
+                         "bluez_connected": bluez})
+        h = classify_adapter_health(devs)
+        if not h["wedged"]:
+            if consecutive:
+                log.info("watchdog: adapter healthy again")
+            consecutive = cycles = 0
+            continue
+        consecutive += 1
+        log.warning("watchdog: wedge sign %d/%d — %s", consecutive, grace, "; ".join(h["reasons"]))
+        for addr in h["phantom"]:                     # L1: clear stale links (cheap, non-disruptive)
+            log.warning("watchdog: clearing phantom link %s", addr)
+            try:
+                await bonding._btctl(f"disconnect {addr}\nquit\n", timeout=8)
+            except Exception:
+                pass
+        if consecutive >= grace:                      # L2: power-cycle the controller
+            if cycles >= max_cycles:
+                log.error("watchdog: adapter STILL wedged after %d power-cycles — stopping auto-recovery "
+                          "(needs external supervisor / manual reset)", max_cycles)
+                continue
+            cycles += 1
+            consecutive = 0
+            log.warning("watchdog: power-cycling adapter %s (attempt %d/%d)", adapter_mac, cycles, max_cycles)
+            _RECOVER.set()
+            try:
+                await asyncio.sleep(1.5)              # let device tasks drop their links first
+                await bonding._btctl(f"{sel}power off\nquit\n", timeout=8)
+                await asyncio.sleep(2)
+                await bonding._btctl(f"{sel}power on\nquit\n", timeout=8)
+                await asyncio.sleep(3)
+            finally:
+                _RECOVER.clear()                      # device tasks resume + reconnect on the fresh radio
+
+
 async def main():
     global ADAPTER
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="config.yaml")
     args = ap.parse_args()
+    import yaml   # runtime-only dep; imported here so `import capture` (for unit tests) needs no external deps
     cfg = yaml.safe_load(open(args.config))
     root = cfg["root"]
     ADAPTER = cfg.get("adapter")   # BLE adapter MAC for bonding; None = default controller
@@ -573,7 +756,8 @@ async def main():
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, _STOP.set)
 
-    tasks = [asyncio.create_task(status_loop(root))]
+    tasks = [asyncio.create_task(status_loop(root)),
+             asyncio.create_task(adapter_watchdog(ADAPTER, cfg))]
 
     def _spawn(dev: dict):
         # Refuse to capture a device missing identity fields — otherwise capture_filename() emits
@@ -612,7 +796,8 @@ async def main():
         import webmon
         host, port = wcfg.get("host", "0.0.0.0"), int(wcfg.get("port", 8760))
         web_runner = await webmon.start(
-            webmon.make_app(BUS, cfg, args.config, ADAPTER, STATUS, _spawn, pull_stored=_pull), host, port)
+            webmon.make_app(BUS, cfg, args.config, ADAPTER, STATUS, _spawn,
+                            pull_stored=_pull, polar_pause=polar_offline_op), host, port)
         log.info("monitor: http://%s:%d/", host, port)
 
     log.info("tepna-capture up: %d device(s), root=%s", len(cfg.get("devices", [])), root)

@@ -157,3 +157,23 @@ def parse_live(payload: bytes) -> dict | None:
         "contact": contact,                            # 0x00 no finger, 0x01 idle-present, 0x03 file open
         "worn": contact in (0x01, 0x03),
     }
+
+
+# ── Live PPG waveform (O2RING-LIVE-PPG-WAVEFORM Phase 1, decoded + validated 2026-07-18) ──────────────
+# Each cmd=0x04 reply is NOT just the 24-B status header parse_live reads — it also carries the ring's
+# raw ~125 Hz plethysmograph, which parse_live (and every prior tool) discarded. Layout decoded off 90
+# real frames (all matched; concatenated bodies are gap-free, boundary jumps 0-8; header HR/SpO2 cross-
+# checked vs the paired ECG at 49 bpm):
+#   [0:24]  status header (parse_live)
+#   [24]    sample count N (u8)             — verified: len(payload) == 24 + 2 + N on every frame
+#   [25]    flag / reserved (seen 0x00)
+#   [26:26+N]  N one-byte UNSIGNED optical samples, ~125 Hz (steady-state ~126 samples per ~1.0 s poll),
+#              single channel (even/odd samples are near-identical, so NOT interleaved LEDs).
+# The stream is RAW (per HEALTH-BOX-VISION: no on-box DSP): occasional isolated spike samples (e.g. 0x9c,
+# ~0.66/frame, scattered — not a fixed marker) are left in place for a downstream consumer to reject.
+def parse_ppg(payload: bytes) -> list[int]:
+    """cmd=0x04 body → the raw ~125 Hz PPG waveform samples (u8), or [] if no body/too short."""
+    if len(payload) < 27:
+        return []
+    n = payload[24]
+    return list(payload[26:26 + n])

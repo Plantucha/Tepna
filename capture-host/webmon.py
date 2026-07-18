@@ -27,7 +27,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_device,
-             pull_stored=None) -> web.Application:
+             pull_stored=None, polar_pause=None) -> web.Application:
     app = web.Application()
 
     def _remembered() -> list[dict]:
@@ -165,13 +165,23 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 return d
         return None
 
+    async def _polar_run(address, op):
+        # Pause the daemon's live capture of this Polar device (it holds the one BLE link) for the duration
+        # of the PS-FTP op, then resume. Without this the pull races run_polar's reconnect loop and fails
+        # with org.bluez.Error.InProgress. bonding + the op both run while capture is paused.
+        async def _wrapped():
+            await bonding.ensure_bonded(address, adapter_mac)
+            return await op()
+        if polar_pause:
+            return await polar_pause(address, _wrapped)
+        return await _wrapped()
+
     async def polar_recordings(req):
         address = req.query.get("address", "")
         if not _polar_dev(address):
             return web.json_response({"ok": False, "error": "unknown or non-Polar address"}, status=400)
         try:
-            await bonding.ensure_bonded(address, adapter_mac)
-            recs = await polar_psftp.list_recordings(address)
+            recs = await _polar_run(address, lambda: polar_psftp.list_recordings(address))
             return web.json_response({"ok": True, "recordings": recs})
         except Exception as e:
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=502)
@@ -186,8 +196,8 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         out_dir = os.path.join(cfg.get("root", "/srv/tepna"), "captures", "stored",
                                f"Polar_{dev.get('model', 'Device')}_{dev_id}_offline_{session.strip('/').replace('/', '_')}")
         try:
-            await bonding.ensure_bonded(address, adapter_mac)
-            return web.json_response({"ok": True, "manifest": await polar_psftp.pull_recording(address, session, out_dir)})
+            manifest = await _polar_run(address, lambda: polar_psftp.pull_recording(address, session, out_dir))
+            return web.json_response({"ok": True, "manifest": manifest})
         except Exception as e:
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=502)
 
