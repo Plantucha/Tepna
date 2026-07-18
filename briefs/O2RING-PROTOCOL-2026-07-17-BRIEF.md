@@ -102,8 +102,7 @@ against the paired ECG at 49 bpm) — see `oxyii.parse_ppg`:
 | Bytes | Meaning |
 |---|---|
 | `[0:24]` | status header (§3 above, `parse_live`) |
-| `[24]` | sample count `N` (u8) — verified `len(payload) == 24 + 2 + N` on **every** frame |
-| `[25]` | flag / reserved (only `0x00` observed) |
+| `[24:26]` | sample count `N` — **`u16` LE** (PR #212). Frames seen so far carry `[25] = 0`, so an earlier `u8` read at `[24]` agreed by accident; it breaks silently above 255 samples/frame. `len(payload) == 24 + 2 + N` holds on every frame. |
 | `[26:26+N]` | `N` **unsigned 8-bit** optical samples, **single channel** |
 
 - **Single channel, not interleaved LEDs** — even/odd samples are near-identical.
@@ -112,8 +111,23 @@ against the paired ECG at 49 bpm) — see `oxyii.parse_ppg`:
   column and the synthesized relative-ms column). Calibrated over 12 sessions / 5.8 h / 2 616 483 samples,
   per-session spread 125.59–125.88 Hz. Short-window swings (~84–147 Hz) are BLE delivery jitter, not ADC
   drift. Overridable per unit via `o2ring.ppg_fs` (`settings_schema.py`, range 100–200).
-- **Raw by design** — occasional isolated spike samples (e.g. `0x9c`, ~0.66/frame, scattered, not a fixed
-  marker) are left in place for a downstream consumer to reject. No on-box DSP (HEALTH-BOX-VISION §4).
+- **`156` (0x9C) is `PPG_INVALID` — the device's MISSING-SAMPLE SENTINEL, not noise** (PR #212; an earlier
+  revision of this section wrongly called it a scattered spike *"not a fixed marker"*). The vendor
+  interpolates it away; **we return it raw and named**, because fabricating a measurement over known-missing
+  data is worse. A consumer must treat a sentinel as a **gap**, never median-fill it. No on-box DSP
+  (HEALTH-BOX-VISION §4).
+  - **It is IN-BAND** — 156 is a legal signal value, so it cannot be rejected on value alone. Measured on
+    the 90 s probe: 156 occurs **61×** while every neighbouring value (152–160) occurs **2–10×** (~8×
+    over-represented). Two independent estimates agree — excess-over-neighbours ⇒ ~55 sentinels;
+    isolation test (|156 − mean of 4 neighbours| > 25) ⇒ **57 isolated vs 4 fitting the local trend**.
+    So **~93 % sentinel, ~7 % legitimate**. Reject on `value === 156` **AND** isolation; a trend-consistent
+    156 is real data.
+  - With sentinels excluded, genuine impulsive noise is **0.04 %** of samples (mean step 0.82 LSB) — i.e.
+    there is **no spike problem**, and no despiker is warranted.
+- **The stream is INVERTED relative to the vendor's display** — their transform is `127 − sample`, so
+  systolic peaks are **minima** in our raw bytes (PR #212). Consumers that assume peaks-are-maxima must
+  orient first (PpgDex's `orient()` infers polarity from derivative skewness and handles this — verified).
+  Inversion does not change any dispersion statistic (SD is identical either way).
 - **Clock Contract:** samples are back-timed from the frame's **host arrival** across the fs grid. The ring's
   RTC free-runs (§9, ~+151 s) and must **never** stamp the waveform. A dropped frame is a gap, never
   fabricated samples.

@@ -31,7 +31,7 @@ sensor was off?*
 `fuseRespirationRate` fuses MotionDex chest-ACC + ECGDex RSA today. PpgDex should be the third
 independent estimate, but `ppgdex-dsp` hardcodes `respRate: null` because **`PPGDSP.lombScargle` never
 tracks the HF peak** — diagnosed in `TCH-REFERENCE-VALIDATION-2026-07-12` §F1 and still open.
-The fuser is **n-agnostic**: fix the DSP and PpgDex folds in with **no Integrator change**. That makes
+The fuser is **n-agnostic** and null-safe (verified — adding a PpgDex record without the field leaves output byte-identical). **⚠️ CORRECTED 2026-07-18: "fix the DSP and PpgDex folds in with no Integrator change" is FALSE.** Executed trace (`ENGINE-VERIFICATION-FINDINGS-2026-07-18-BRIEF.md` §1.6) found **three** links missing, not one: (i) `lombScargle` (`ppgdex-dsp.js:927`) accumulates band power and never retains the argmax — its return literal has no frequency-valued field; (ii) the export's `hrv.frequency` block (`ppgdex-dsp.js:2279`) has **no `respRate` key at any level**; (iii) the Integrator's `PulseDex|HRVDex|PpgDex` ingest branch (`integrator-dsp.js:395-500`) **never assigns `summary.respRateBrpm`**. Confirmed by execution: synthetic 135 Hz PPG with RSA planted at 0.25 Hz returns `respRate` null on all 3 epochs while hf = 5758/5729/5657 ms² — the modulation IS captured as power; only frequency extraction is absent. So the DSP fix alone does **not** complete the third leg. That makes
 this the single highest-leverage item here — it upgrades a 2-source method comparison into the rare
 3-source one §2.2 was written for. Its own executable brief when taken up (a DSP change → gated,
 fixtures re-verified).

@@ -206,6 +206,19 @@ produced each stored aggregate so historical trends aren't silently re-mixed.
 | **ECGDex** | v2.0 ✓ (arrayed at ≥2) | **emits `ganglior.crossnight` v1.0 ✓** (migrated — shape only, math unchanged; in-app card untouched) |
 | **OxyDex** | v2.0 array (≤2 nights byte-identical) | **emits `ganglior.crossnight` v1.0 ✓** (migrated; export wraps to `{nights, crossNight}` only at ≥3 nights) |
 | **PulseDex** | bare object (single) / arrayed at ≥2 | **emits `ganglior.crossnight` v1.0 ✓** (multi-day model added; single-recording byte-identical) |
+| **CPAPDex** | v2.0 ✓ | **emits `ganglior.crossnight` v1.0 ✓** (`cpapdex-cross.js`; carries `pressureChangePoints`, `compliancePct`) |
+| **HRVDex** | v2.0 ✓ | ✗ **no `*-cross.js`** — retains native intra-file multi-day trending (rolling 7-day z-scores/slopes) |
+| **GlucoDex** | v2.0 ✓ | ✗ **no `*-cross.js`** — retains native intra-file trending (perDay / AGP / MODD) |
+| **MotionDex** | v2.0 ✓ | ✗ **no `*-cross.js`** — and **no longitudinal read anywhere** (the unmitigated case) |
 | **Integrator** | — | consumer; reads this shape only |
+
+**5 of 9 nodes emit.** *(Table completed 2026-07-18 — it previously omitted CPAPDex, which does emit, and
+listed no non-emitters at all, so it read as full adoption. Verified by `ls -1 *-cross.js` = exactly 5, and by
+executing `integrator-longitudinal.js`: an HRVDex-shaped node-export ingests as `{"count":0}`, a real envelope
+as `{"count":1}`. The generic longitudinal consumer presupposes the producer — a node with no envelope is
+structurally absent from the cross-node date join, per `ENGINE-VERIFICATION-FINDINGS-2026-07-18-BRIEF.md` §1.7.
+Related stale prose: `integrator-longitudinal.js:7` still says "envelopes that every node now emits" — left
+for whoever next re-bundles the Integrator, since a comment-only edit would force a bundle churn for no
+runtime change.)*
 
 Migration is shape-only and additive — no node's `crossNight()` math changes.
