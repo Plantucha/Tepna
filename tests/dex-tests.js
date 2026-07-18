@@ -4596,6 +4596,44 @@
       // starve other vendors — the year-restricted fallback carries them).
       T.ok('§1.1 non-Polar filenames still stamp (fallback branch alive)', ORCH.fnameStampMs ? ORCH.fnameStampMs('Wellue_O2Ring-S_CCCC_20260617_010616_PPG.txt') != null : true);
 
+      // ── ENGINE-VERIFICATION-FINDINGS §1.2 — BOTH filename stamp shapes must resolve ──
+      // real Polar Sensor Logger writes …_YYYYMMDD_HHMMSS_KIND; capture-host/writers.py writes the
+      // contiguous …_YYYYMMDDHHMMSS_KIND. Only the first parsed, so deviceKey went null on every
+      // Vigil-captured file, `hasDev` went false, `anchor` went null, and planIngest's entire
+      // device-eligibility block was skipped — a Verity ACC became a legal companion for an H10 ECG.
+      var DI2 = env.DexIngest;
+      if (DI2 && typeof DI2.deviceKey === 'function') {
+        var PSL = 'POLAR_H10_02849638_20260718_223000_ECG.TXT',
+          VIG = 'POLAR_H10_02849638_20260718223000_ECG.TXT';
+        T.eq('§1.2 PSL underscore stamp → deviceKey', DI2.deviceKey(PSL), 'POLAR_H10_02849638');
+        T.eq('§1.2 capture-host CONTIGUOUS stamp → same deviceKey (was null)', DI2.deviceKey(VIG), 'POLAR_H10_02849638');
+        T.eq('§1.2 both shapes resolve to the SAME instant', DI2.stampMs(PSL), DI2.stampMs(VIG));
+        T.eq('§1.2 the instant is the REAL date, not the device id', new Date(DI2.stampMs(VIG)).toISOString().slice(0, 16), '2026-07-18T22:30');
+        // the anchor must SURVIVE the widening — a 14-digit device id must not be eaten as a stamp
+        T.eq('§1.2 anchoring holds · a 14-digit DEVICE ID is not read as the date', new Date(DI2.stampMs('POLAR_H10_20991231235959_20260718223000_ECG.TXT')).toISOString().slice(0, 10), '2026-07-18');
+        // non-Polar must still be null — widening must not start claiming foreign vendors
+        T.eq('§1.2 non-Polar vendor still → null deviceKey', DI2.deviceKey('WELLUE_O2RING-S_CCCC_20260718223000_PPG.TXT'), null);
+        T.eq('§1.2 unstamped name still → null stampMs', DI2.stampMs('POLAR_H10_02849638_ECG.TXT'), null);
+        // the BEHAVIOUR the bug broke: a foreign-device sidecar must be set aside in BOTH shapes
+        if (typeof DI2.planIngest === 'function') {
+          var mkPlan = function (join) {
+            var f = function (dev, id, kind) {
+              return { name: 'Polar_' + dev + '_' + id + '_20260718' + join + '223000_' + kind + '.txt', text: 'x' };
+            };
+            return DI2.planIngest([f('H10', '02849638', 'ECG'), f('H10', '02849638', 'ACC'), f('Sense', '0C301E3F', 'ACC')]);
+          };
+          ['_', ''].forEach(function (join) {
+            var plan = mkPlan(join),
+              other = (plan.skipped || []).filter(function (x) {
+                return x.kind === 'otherdevice';
+              });
+            T.eq('§1.2 foreign-device sidecar set aside · ' + (join ? 'PSL underscore' : 'capture-host CONTIGUOUS') + ' shape', other.length, 1, other.length ? other[0].name : 'NOTHING set aside — the eligibility block was skipped');
+          });
+        }
+      } else {
+        T.ok('DexIngest co-loaded for §1.2', false, 'load dex-ingest.js into both runners');
+      }
+
       // UTC-ISO helpers (Clock-Contract-faithful) + a supine ACC renderer (gravity on +z).
       var p2 = function (x, w) {
         x = '' + x;
