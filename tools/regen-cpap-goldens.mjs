@@ -6,36 +6,20 @@
  * Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
  * project root, or http://www.apache.org/licenses/LICENSE-2.0
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * Regenerate CPAPDex's five committed fixtures by RE-RUNNING THE REAL MODULES on their
- * committed inputs and re-exporting — never by hand-editing a hash or a value (CLAUDE.md §🔏).
+ * Regenerate CPAPDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their
+ * committed inputs and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). The shared
+ * scaffolding (diff/merge/rerecord/loop) lives ONCE in tools/regen-goldens-core.mjs (FOLLOWUPS-III §3);
+ * this file supplies only CPAPDex's realm + fixture builders. Also reachable as
+ * `node tools/regen-goldens.mjs --node CPAPDex`.
  *
- * WHY THIS EXISTS. `tools/build.mjs` re-stamps a fixture's `manifestHash` when the bundle moves,
- * but it does NOT recompute the fixture's OUTPUT bytes. So after a code change that MOVES an
- * export's content, re-stamping alone would leave the ledger asserting "this output is
- * reproducible under this code" while the committed bytes still carry the OLD content — a false
- * claim, and precisely the GATE-C gap CLAUDE.md warns about. GATE B (static) cannot catch it.
- * This tool closes the loop: regenerate the content, then re-record the hashes.
- *
- * It drives the SAME chains the Dex-Test-Suite equivalence/golden gates drive, in a vm realm
- * co-loaded exactly as CPAPDex.src.html does — no re-implemented parser, no hand-typed number:
- *
+ * It drives the SAME chains the equivalence/golden gates drive, in a vm realm co-loaded like
+ * CPAPDex.src.html:
  *   cpapdex_synthetic_golden            _synthEdfSet → buildSessionFromEdf → buildNight → cpapBuildExport
  *   cpapdex_synthetic_edf_golden        readEDF(5 committed .edf) → CPAPDex.compute({edfSets})
  *   cpapdex_synthetic_multinight_golden 3 day-shifted nights → cpapBuildMultiNightExport
- *   cpapdex-2026-06-12 / -06-16         readEDF(real .edf) → buildSessionFromEdf → buildNight → cpapBuildExport
+ *   cpapdex-2026-06-12 / -06-16         real AirSense EDF sets       [gitignored recordings]
  *
- * VOLATILE FIELDS ARE PRESERVED, NOT REGENERATED. `file` / `provenance` / `kernel` / `generated`
- * are exactly the keys the equivalence gate EXCLUDES from its diff (they are per-run metadata, and
- * the headless path leaves provenance null where the app populated it). Rewriting them would churn
- * bytes with no physiological meaning and would discard the original app-run provenance. So the
- * merge takes the RECOMPUTED value for every computed field and keeps the COMMITTED value for those
- * keys — the same "patch the content, keep the volatile" precedent the earlier CPAPDex regenerations
- * followed (EXPORT-IDENTITY-FOLLOWUPS-II).
- *
- * The two REAL-night fixtures need their real EDF inputs present in uploads/ (gitignored personal
- * recordings). Absent → they are SKIPPED with a loud notice, never silently left stale.
- *
- *   node tools/regen-cpap-goldens.mjs           # regenerate + report what moved
+ *   node tools/regen-cpap-goldens.mjs           # regenerate + re-record + report what moved
  *   node tools/regen-cpap-goldens.mjs --check   # report only, write nothing (CI-safe)
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 import fs from 'node:fs';
@@ -43,15 +27,12 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { makeRerecord, runRegen } from './regen-goldens-core.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // ESM-MIGRATION: cpapdex-dsp.js is a dual-mode ES module — shed its top-level export/import via the
-// single classicify source before vm-loading it (else "Unexpected token 'export'"). No-op on classic files.
+// single classicify source before vm-loading. No-op on the classic co-load files.
 const DexBuild = createRequire(import.meta.url)('./build-core.js');
-// FOLLOWUPS-II §P8/§5 — like the GlucoDex/PulseDex regen tools, re-record outputHash from the bytes we
-// just wrote (build.mjs re-stamps manifestHash but NOT outputHash; hand-editing a fixture hash is forbidden
-// by CLAUDE.md §🔏). ManifestGate.sha16 is the exact function the gates hash with. (Full generalization to
-// tools/regen-goldens.mjs --node is carried to FOLLOWUPS-III.)
 const ManifestGate = createRequire(import.meta.url)(path.join(REPO, 'manifest-gate.js'));
 const UP = path.join(REPO, 'uploads');
 const CHECK = process.argv.includes('--check');
@@ -150,48 +131,6 @@ function readSet(stamps) {
   return set;
 }
 
-/* ── the volatile keys the equivalence gate EXCLUDES — preserved verbatim from the committed
-      file rather than regenerated (see the header). ── */
-const VOLATILE = new Set(['file', 'provenance', 'kernel', 'generated', 'vo2est', 'karv']);
-
-/* recomputed content + committed volatile. Structure follows the RECOMPUTED tree (that is the
-   truth); a volatile key present in the committed tree at the same path keeps its old value. */
-function merge(fresh, old) {
-  if (Array.isArray(fresh)) {
-    return fresh.map((v, i) => merge(v, Array.isArray(old) ? old[i] : undefined));
-  }
-  if (fresh && typeof fresh === 'object') {
-    const out = {};
-    for (const k of Object.keys(fresh)) {
-      const oldHas = old && typeof old === 'object' && Object.prototype.hasOwnProperty.call(old, k);
-      out[k] = VOLATILE.has(k) && oldHas ? old[k] : merge(fresh[k], oldHas ? old[k] : undefined);
-    }
-    return out;
-  }
-  return fresh;
-}
-
-/* physiological diff (volatile excluded) — what actually MOVED */
-function diff(a, b, p, out) {
-  if (out.length > 30) return;
-  if (a === b) return;
-  const ta = typeof a,
-    tb = typeof b;
-  if (ta === 'number' && tb === 'number') {
-    if (!(Number.isNaN(a) && Number.isNaN(b)) && Math.abs(a - b) > 1e-9 * (1 + Math.abs(a))) out.push(`${p}: ${b} → ${a}`);
-    return;
-  }
-  if (a == null || b == null || ta !== 'object' || tb !== 'object') {
-    if (JSON.stringify(a) !== JSON.stringify(b)) out.push(`${p}: ${JSON.stringify(b)} → ${JSON.stringify(a)}`);
-    return;
-  }
-  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
-  for (const k of keys) {
-    if (VOLATILE.has(k)) continue;
-    diff(a[k], b[k], p ? `${p}.${k}` : k, out);
-  }
-}
-
 /* ── the five fixtures ─────────────────────────────────────────────────────────────────── */
 const DAY = 86400000;
 const nightOf = (sets) => CpapDsp.buildNight(sets.map((s) => CpapDsp.buildSessionFromEdf(s, {})));
@@ -251,67 +190,5 @@ const FIXTURES = [
   }
 ];
 
-/* ── ledger re-record: outputHash (+ inputHashes when present), hashed with the gates' OWN sha16, never
-   hand-typed. CPAP synthetic goldens have committed inputs=[] (generated from _synthEdfSet), so only
-   outputHash moves; the real-EDF fixtures are skipped above (gitignored inputs). ── */
-const sha16Of = (file) => ManifestGate.sha16(new Uint8Array(fs.readFileSync(path.join(UP, file))));
-async function rerecord(fixtureName) {
-  const fragPath = path.join(REPO, 'provenance', 'CPAPDex.json');
-  const frag = JSON.parse(fs.readFileSync(fragPath, 'utf8'));
-  const rec = (frag.fixtures || {})[fixtureName];
-  if (!rec) return console.log(`      ⚠ no provenance/CPAPDex.json record for ${fixtureName} — ledger NOT re-recorded`);
-  if (rec.historical) return console.log(`      ∘ ${fixtureName} is historical (byte-pinned) — ledger left alone`);
-  const outputHash = await sha16Of(fixtureName);
-  const inputHashes = {};
-  for (const f of rec.inputs || []) inputHashes[f] = await sha16Of(f);
-  const wasOut = rec.outputHash;
-  rec.outputHash = outputHash;
-  if (Object.keys(inputHashes).length) rec.inputHashes = inputHashes;
-  fs.writeFileSync(fragPath, JSON.stringify(frag, null, 2) + '\n');
-  console.log(`      ↻ ledger re-recorded — outputHash ${wasOut} → ${outputHash}`);
-}
-
-let moved = 0,
-  skipped = 0;
-for (const F of FIXTURES) {
-  const p = path.join(UP, F.name);
-  if (!fs.existsSync(p)) {
-    console.log(`  ⊘ ${F.name} — committed fixture absent`);
-    skipped++;
-    continue;
-  }
-  const old = JSON.parse(fs.readFileSync(p, 'utf8'));
-
-  let fresh;
-  try {
-    fresh = F.build();
-  } catch (e) {
-    console.log(`  ✗ ${F.name} — build threw: ${e.message}`);
-    skipped++;
-    continue;
-  }
-  if (!fresh) {
-    console.log(`  ⊘ ${F.name} — INPUTS ABSENT${F.real ? ' (real recording, gitignored — copy the EDFs into uploads/ to regenerate)' : ''}`);
-    skipped++;
-    continue;
-  }
-  fresh = JSON.parse(JSON.stringify(fresh));
-
-  const d = [];
-  diff(fresh, old, '', d);
-  if (!d.length) {
-    console.log(`  = ${F.name} — content unchanged`);
-    continue;
-  }
-
-  const out = merge(fresh, old);
-  if (!CHECK) fs.writeFileSync(p, JSON.stringify(out, null, 2) + '\n');
-  moved++;
-  console.log(`  ${CHECK ? '!' : '✓'} ${F.name} — ${d.length} field(s) moved`);
-  for (const line of d.slice(0, 8)) console.log(`      ${line}`);
-  if (d.length > 8) console.log(`      … +${d.length - 8} more`);
-  if (!CHECK) await rerecord(F.name);
-}
-
-console.log(`\n${CHECK ? 'check' : 'regen'}: ${moved} fixture(s) moved, ${skipped} skipped`);
-if (CHECK && moved) process.exitCode = 1;
+const rerecord = makeRerecord({ repo: REPO, node: 'CPAPDex', bundle: 'CPAPDex.html', uploadsDir: UP, ManifestGate });
+await runRegen({ fixtures: FIXTURES, uploadsDir: UP, check: CHECK, rerecord, absentInputHint: 'copy the EDFs into uploads/ to regenerate' });
