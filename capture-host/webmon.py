@@ -26,7 +26,8 @@ import polar_psftp
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
 
-def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_device) -> web.Application:
+def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_device,
+             pull_stored=None) -> web.Application:
     app = web.Application()
 
     def _remembered() -> list[dict]:
@@ -108,6 +109,25 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             bus.unsubscribe(q)
         return resp
 
+    async def pull_stored_h(req):
+        # Download the O2Ring's onboard-recorded .dat over BLE. Pauses live SpO2 capture for the duration
+        # (one BLE link). Synchronous: returns when the pull completes (a night file is small, ~a minute).
+        if not pull_stored:
+            return web.json_response({"ok": False, "detail": "stored-session pull not available"}, status=400)
+        try:
+            body = await req.json() if req.body_exists else {}
+        except Exception:
+            body = {}
+        which = body.get("which", "latest")
+        try:
+            ftype = int(body.get("ftype", 0))
+        except (TypeError, ValueError):
+            ftype = 0
+        try:
+            return web.json_response(await pull_stored(which, ftype))
+        except Exception as e:
+            return web.json_response({"ok": False, "detail": repr(e)}, status=500)
+
     def _save():
         try:
             with open(cfg_path, "w") as f:
@@ -136,21 +156,16 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         body = await req.json()
         return web.json_response(await clockcfg.set_tz(body.get("timezone"), sudo=_clock_sudo))
 
-    # ── Polar onboard offline-recording pull (PS-FTP) — the sibling of pull_session.py for Wellue ──
-    # A Polar device holds ONE BLE link: if a live stream is running the pull will fail (device busy) —
-    # stop that device's capture (Forget, or pause) first. Only remembered Polar addresses are allowed
-    # (never an arbitrary LAN-supplied MAC). bleak uses the default controller here (adapter_mac is a
-    # bluetoothctl MAC, not a bleak hciX name); pin per-adapter in a follow-up if the box is multi-radio.
+    # ── Polar onboard offline-recording pull (PS-FTP) — PR #153; /api/polar/* to avoid the O2Ring /api/pull ──
+    # A Polar device holds ONE BLE link: if it's live-streaming, pause it first (Forget) or the pull fails.
+    # Only remembered Polar addresses; bleak default controller.
     def _polar_dev(address):
         for d in cfg.get("devices", []):
             if d.get("address") == address and d.get("vendor") == "Polar":
                 return d
         return None
 
-    def _incoming_base():
-        return os.path.join(cfg.get("root", "/srv/tepna"), cfg.get("incoming_subdir", "captures/incoming"))
-
-    async def recordings(req):
+    async def polar_recordings(req):
         address = req.query.get("address", "")
         if not _polar_dev(address):
             return web.json_response({"ok": False, "error": "unknown or non-Polar address"}, status=400)
@@ -161,19 +176,18 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         except Exception as e:
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=502)
 
-    async def pull(req):
+    async def polar_pull(req):
         body = await req.json()
         address, session = body.get("address", ""), body.get("session", "")
         dev = _polar_dev(address)
         if not dev or not session.startswith("/"):
             return web.json_response({"ok": False, "error": "bad address or session path"}, status=400)
         dev_id = dev.get("device_id") or address.replace(":", "")[-8:]
-        tag = session.strip("/").replace("/", "_")
-        out_dir = os.path.join(_incoming_base(), f"Polar_{dev.get('model', 'Device')}_{dev_id}_offline_{tag}")
+        out_dir = os.path.join(cfg.get("root", "/srv/tepna"), "captures", "stored",
+                               f"Polar_{dev.get('model', 'Device')}_{dev_id}_offline_{session.strip('/').replace('/', '_')}")
         try:
             await bonding.ensure_bonded(address, adapter_mac)
-            manifest = await polar_psftp.pull_recording(address, session, out_dir)
-            return web.json_response({"ok": True, "manifest": manifest})
+            return web.json_response({"ok": True, "manifest": await polar_psftp.pull_recording(address, session, out_dir)})
         except Exception as e:
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=502)
 
@@ -184,8 +198,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         web.post("/api/bond", bond),
         web.post("/api/forget", forget),
         web.post("/api/remember", remember),
-        web.get("/api/recordings", recordings),
-        web.post("/api/pull", pull),
+        web.post("/api/pull", pull_stored_h),
+        web.get("/api/polar/recordings", polar_recordings),
+        web.post("/api/polar/pull", polar_pull),
         web.get("/api/stream/{key}", stream),
         web.get("/api/clock", clock_get),
         web.post("/api/clock", clock_set),

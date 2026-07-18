@@ -56,8 +56,8 @@ Three files under `capture-host/` (all out-of-suite):
   session with its files) + `pull_recording(address, session, out_dir)` (downloads every file under a
   session, mirrors the tree, writes a `recording.meta.json` sidecar). A CLI mirrors `pull_session.py`:
   `python polar_psftp.py --address <mac> list | pull --session <path> --out <dir>`.
-- **`webmon.py`** — two endpoints: `GET /api/recordings?address=` (list) and `POST /api/pull
-  {address,session}` (download into `captures/incoming`). Both bond first via
+- **`webmon.py`** — two endpoints: `GET /api/polar/recordings?address=` (list) and `POST /api/polar/pull
+  {address,session}` (download into `captures/stored`). Both bond first via
   `bonding.ensure_bonded`, and accept **only a remembered Polar address** (never an arbitrary
   LAN-supplied MAC).
 - **`monitor.html`** — a **"📥 Recordings"** button per Polar device in the Devices view → lists the
@@ -97,8 +97,14 @@ live capture and make sure it's idle before pulling.**
 ## Validation status
 
 - [x] Protocol correct against real hardware (list + byte-verified 7-file pull), standalone CLI.
-- [x] Endpoints serve + route: monitor page 200, `/api/state`, `/api/recordings`/`/api/pull` reach the
+- [x] Endpoints serve + route: monitor page 200, `/api/state`, `/api/polar/recordings`/`/api/polar/pull` reach the
       module and return the ok/error JSON contract; modules parse + import clean.
+
+> **Route rename on the vigil-merge (2026-07-18):** PR #153 landed the Polar endpoints at `/api/recordings`
+> + `/api/pull`, but the live capture-host had **already** taken `POST /api/pull` for the **O2Ring** stored-`.dat`
+> pull (`pull_stored_h`, uncommitted at the time). Reconciling the two, the Polar endpoints moved to
+> **`/api/polar/recordings`** + **`/api/polar/pull`** so both coexist (O2Ring keeps `/api/pull`). `polar_psftp.py`
+> is unchanged; only the webmon route strings + the monitor's `pullRec`/`doPull` fetch paths differ.
 - [ ] **Web-triggered pull demonstrated green** — blocked only by the BLE trusted-auto-reconnect race
       above in a churned test env; not reproduced clean. Re-verify on the box (or after a fresh
       `bluetoothctl disconnect`, idle device).

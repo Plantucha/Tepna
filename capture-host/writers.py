@@ -13,8 +13,17 @@
 #   - A gap in capture is a GAP in the file (we simply stop writing rows), never invented "now()" rows.
 
 from __future__ import annotations
-import os, datetime as _dt
+import os, datetime as _dt, time as _time
 from typing import Iterable
+
+# The writers use big OS buffers for throughput (StreamWriter 1 MB, Spo2CsvWriter 64 KB) and would
+# otherwise only hit disk on close(). Overnight that means a hard kill or power loss loses the entire
+# unflushed tail (up to a full buffer — minutes of ECG, or ~an hour of the slow 1/s SpO2 stream). So
+# every writer force-flushes on a wall-clock cadence: flush() moves Python's buffer to the OS page
+# cache (survives a process crash) and fsync() forces the OS cache to the physical medium (survives a
+# power loss). At this cadence at most FLUSH_INTERVAL_S of the tail is ever at risk. `_time.monotonic()`
+# drives the cadence — it's internal timing, not a written stamp, so the Clock Contract doesn't apply.
+FLUSH_INTERVAL_S = 5.0
 
 # Filename: <Vendor>_<Model>_<DeviceId>_<YYYYMMDDHHMMSS>_<STREAM>.<ext>  (matches Polar Sensor Logger
 # so dex-ingest.js / signal-orchestrate.pairCompanions pair sidecars by device-id + nearest stamp,
@@ -52,13 +61,17 @@ class StreamWriter:
         "ppi":  "Phone timestamp;sensor timestamp [ns];HR [bpm];PP-interval [ms];error estimate [ms];blocker;skin contact;skin contact supported",
     }
 
-    def __init__(self, path: str, stream: str):
+    def __init__(self, path: str, stream: str, flush_interval: float = FLUSH_INTERVAL_S,
+                 fsync: bool = True):
         self.path = path
         self.stream = stream
         self._fh = open(path, "w", buffering=1 << 20, newline="\n")
         self._fh.write(self.HEADERS[stream] + "\n")
         self._n = 0
         self._first_ns: int | None = None   # per-file anchor for the relative `timestamp [ms]` column
+        self._flush_interval = flush_interval
+        self._fsync = fsync
+        self._last_flush = _time.monotonic()
 
     # `timestamp [ms]` in a real PSL export is RELATIVE to the recording's first sample and FRACTIONAL:
     #   0.0, 7.692288, 15.384576, …  (= (sensor_ns - first_sensor_ns)/1e6, verified against a real H10
@@ -114,6 +127,22 @@ class StreamWriter:
 
     def _bump(self) -> None:
         self._n += 1
+        self._maybe_flush()
+
+    def _maybe_flush(self) -> None:
+        now = _time.monotonic()
+        if now - self._last_flush >= self._flush_interval:
+            self.flush()
+            self._last_flush = now
+
+    def flush(self) -> None:
+        """Force the buffered tail to the OS (flush) and to disk (fsync) — bounds crash/power-loss loss."""
+        try:
+            self._fh.flush()
+            if self._fsync:
+                os.fsync(self._fh.fileno())
+        except Exception:
+            pass
 
     @property
     def rows(self) -> int:
@@ -121,7 +150,7 @@ class StreamWriter:
 
     def close(self) -> None:
         try:
-            self._fh.flush()
+            self.flush()
             self._fh.close()
         except Exception:
             pass
@@ -132,16 +161,32 @@ class Spo2CsvWriter:
     stamps, the exact shape OxyDex's oxydex-spo2 adapter reads (Clock Contract §2.4 vendor regex parses
     the stamp → floating tMs). One row per valid reading (~1/s). Used by the O2Ring/Viatom capture path."""
 
-    def __init__(self, path: str):
+    def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True):
         self.path = path
         self._fh = open(path, "w", buffering=1 << 16, newline="\n")
         self._fh.write("Time,Oxygen Level,Pulse Rate,Motion\n")
         self._n = 0
+        self._flush_interval = flush_interval
+        self._fsync = fsync
+        self._last_flush = _time.monotonic()
 
     def write(self, when: _dt.datetime, spo2: int, pr: int, motion: int) -> None:
         stamp = when.strftime("%H:%M:%S %d/%m/%Y")   # LOCAL civil (Clock Contract) — O2Ring/ViHealth format
         self._fh.write(f"{stamp},{spo2},{pr},{motion}\n")
         self._n += 1
+        now = _time.monotonic()
+        if now - self._last_flush >= self._flush_interval:
+            self.flush()
+            self._last_flush = now
+
+    def flush(self) -> None:
+        """Force the buffered tail to the OS (flush) and to disk (fsync) — bounds crash/power-loss loss."""
+        try:
+            self._fh.flush()
+            if self._fsync:
+                os.fsync(self._fh.fileno())
+        except Exception:
+            pass
 
     @property
     def rows(self) -> int:
@@ -149,7 +194,7 @@ class Spo2CsvWriter:
 
     def close(self) -> None:
         try:
-            self._fh.flush(); self._fh.close()
+            self.flush(); self._fh.close()
         except Exception:
             pass
 
