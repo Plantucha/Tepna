@@ -58,8 +58,11 @@
    On the Verity the pulse is a **0.373 % ripple on a baseline that wanders 8.54 %** — wander ~23× the
    signal, i.e. raw DC-coupled photodiode counts. On the O2Ring the pulse occupies **~36 % of full
    scale**, centred, barely drifting. **The ring AC-couples and gain-normalises on-device.** Consequences:
-   - **No perfusion index is possible** — the DC is gone. (The legacy Viatom protocol exposes `pi`; OxyII
-     does not. Do not try to recover it from this stream.)
+   - **No perfusion index from the WAVEFORM** — the DC is gone. **But PI is still available**: PR #212
+     established that live-header byte **`[7] ÷ 10` IS the perfusion index** (the byte we previously
+     mislabelled *motion*; `[11]` is motion). Measured over a real 5288-row night: non-zero in 99.9 % of
+     frames, mean **1.36 %**. So the finger site DOES get a PI — read it from the header, never try to
+     recover it from the conditioned waveform.
    - **Ambient subtraction is meaningless** here — handled on-device, and the ambient column is written 0.
    - **The Verity's aggressive DC-wander highpass is redundant and possibly distorting** on an already-
      conditioned signal. The finger path needs its own, gentler preprocessing — not the wrist chain.
@@ -73,12 +76,42 @@
    which is what would happen if the ring streamed raw counts — it does not. **Do not gate morphology on
    bit depth; gate it on the unknown filter (point 2).**
 
-4. **Spike samples** in the raw stream (the capture ships raw on purpose) — a foot/peak detector will
-   trip on them unless they are rejected first. Measured: **1.06 % of samples jump >20 LSB**, against a
-   mean sample-to-sample step of **1.62 LSB** — i.e. >12× the typical step. A despiker is required; the
-   Verity path has none.
+4. **🔴 NOT spikes — a MISSING-DATA SENTINEL. Do NOT despike; treat as a gap.** *(Corrected 2026-07-18
+   after PR #212 identified `156` (0x9C) as the device's `PPG_INVALID` sentinel.)* Re-measured on the
+   probe capture with sentinels separated:
 
-5. **Detection by column count will NOT work as §3 assumes.** `capture.py:651` currently writes the single
+   | | with 156 counted as data | 156 excluded |
+   |---|---|---|
+   | samples jumping >20 LSB | **1.06 %** | **0.04 %** (118 → 4) |
+   | mean sample-to-sample step | 1.62 LSB | **0.82 LSB** |
+
+   **Essentially the entire "spike problem" WAS the sentinel.** Real impulsive noise is 0.04 % — a
+   non-issue. So the earlier prescription (*"bounded outlier clamp, median-of-neighbours"*) is **wrong and
+   must not be implemented**: median-filling a known-invalid marker **fabricates a measurement over
+   missing data**, which `CLAUDE.md` forbids and which PR #212 explicitly declined to do (*"fabricating a
+   measurement is worse"* — the vendor interpolates; we do not). A sentinel run is a **gap**.
+
+   **⚠️ The sentinel is IN-BAND — 156 is a legal signal value, so it cannot be rejected on value alone.**
+   Measured: 156 occurs **61×** while every neighbouring value (152–160) occurs only **2–10×** — ~8×
+   over-represented, which is what identifies it. Two independent estimates of how many are genuine:
+   - *Excess over neighbours:* ~6 expected naturally ⇒ ~55 sentinels.
+   - *Isolation test* (|156 − mean of 4 neighbours| > 25): **57 isolated, 4 fit the local trend**.
+
+   Both agree: **~93 % sentinels, ~7 % legitimate samples.** ⇒ **Detection rule: `value === 156` AND
+   isolated from its neighbours ⇒ mark missing (gap). A 156 that fits the local trend is real data — keep
+   it.** Rejecting on value alone would punch ~7 % of holes into valid signal. Count and surface both
+   classes as a quality field.
+
+5. **The stream is INVERTED relative to the vendor's display** (PR #212: their transform is `127 − sample`,
+   so systolic peaks are **minima** in our raw bytes). **Already handled** — `orient()` (`ppgdex-dsp.js:292`)
+   infers polarity from derivative skewness and returns −1, and `detectChannel` negates. Verified, no code
+   change needed; recorded so nobody "fixes" the sign twice. Note inversion does not affect any dispersion
+   statistic in this brief (SD is identical either way).
+
+6. **Sample count is `u16 LE` at `[24:26]`**, not `u8` at `[24]` with `[25]` reserved (PR #212). Frames seen
+   so far carry `[25] = 0`, so a u8 read happens to agree — it will break silently above 255 samples/frame.
+
+7. **Detection by column count will NOT work as §3 assumes.** `capture.py:651` currently writes the single
    value **replicated across ppg0/1/2** with ambient 0, so the file has the full 6 columns. Either the
    capture must change (needs this brief's single-channel path first — a lockstep change) or the DSP must
    detect the degeneracy at runtime. **Prefer the runtime guard** — it is specified in
@@ -92,9 +125,10 @@
   O2Ring pleth in the existing PSL PPG layout (`O2RING-LIVE-PPG-WAVEFORM` Phase 2), so **no new
   timestamp parsing**; `fs` still from the sensor/phone stamps, expected ~125 Hz. Carry a
   **`site:'finger'`** tag on the parse result (Verity → `site:'wrist'`).
-- **Spike rejection at parse** (before detection): a bounded outlier clamp (median-of-neighbours when a
-  sample deviates > k·MAD from its local window). Count rejected samples → surface as a quality field;
-  a run of them is a **gap**, never interpolated over blindly.
+- **Sentinel rejection at parse** (before detection) — **NOT a despiker** (see §2.4): mark a sample as
+  **missing** when `value === 156` **and** it is isolated from its neighbours; leave a trend-consistent 156
+  as real data. Missing samples are a **gap** — never median-filled, never interpolated. Count both classes
+  (rejected vs kept-156) → surface as quality fields. Real impulsive noise is 0.04 % and needs no clamp.
 
 ## 4 · Phase 2 — single-channel detection path
 
@@ -151,6 +185,7 @@ suite green, changeset dropped. Then flip this header `DONE`, and spawn `-FOLLOW
 - [`O2RING-LIVE-PPG-WAVEFORM-2026-07-17-BRIEF.md`](O2RING-LIVE-PPG-WAVEFORM-2026-07-17-BRIEF.md) — captures the file this consumes (its Phase 3 round-trip IS this brief's acceptance).
 - [`INTEGRATOR-PAT-VASCULAR-2026-07-18-BRIEF.md`](INTEGRATOR-PAT-VASCULAR-2026-07-18-BRIEF.md) — the consumer of the finger foot-stream this produces.
 - [`MULTI-SENSOR-DERIVATIONS-2026-07-16-BRIEF.md`](MULTI-SENSOR-DERIVATIONS-2026-07-16-BRIEF.md) — the agenda this partially executes (cross-site pair).
+- PR #212 (`fix(oxyii): correct the live-header layout`) — the source of the `PPG_INVALID` sentinel, the `[7]`=PI / `[11]`=motion swap, the u16 sample count, and the inverted-display finding.
 - `PPGDEX-BUILD-BRIEF.md` · `PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE-2026-07-11-BRIEF.md` — the detector/consensus this extends.
 - `CLAUDE.md` §🎙️ (derive HR from raw waveform, node-local parsers) · §🎫 (badges, no grade inheritance) · §🔒 Clock Contract · §🧪/§🔏 gates.
 - Code: `ppgdex-dsp.js` (`parsePPG`, `consensusBeats`, `refineFeet`, `buildPPI`), `ppgdex-morph.js`, `ppgdex-registry.js`; `capture-host/oxyii.py` (`parse_ppg`).
