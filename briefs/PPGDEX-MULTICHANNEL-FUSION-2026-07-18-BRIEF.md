@@ -43,7 +43,7 @@ Identical timing, decorrelated noise — textbook diversity combining. Two conse
 2. **Combining is well-posed.** Same signal + independent noise is exactly the case where a weighted
    sum beats picking one.
 
-**`ambient` is parsed and never used.** `ppgdex-dsp.js:242` stores `amb`; `:2345` passes it through;
+**`ambient` is parsed and never used.** `ppgdex-dsp.js:242` stores `amb`; `:2345` passes it through; *(line refs are pre-#218; that PR rewrites `parsePPG` to resolve columns by header name with a numeric-tail fallback — re-locate before editing, and re-confirm the never-used finding against the new parser)*
 **no computation reads it** (verified by grep — the only hits are parse, store, carry). The Polar SDK
 community is explicit that *"the ambient channel should be subtracted from each of the other channels."*
 
@@ -130,13 +130,29 @@ degenerate-case fallback (§4). This brief does not delete them.
 
 ## 4 · Phase 3 — degenerate-channel guard (the honesty half)
 
-If two channels are **bit-identical** to a third, they are not independent photodiodes — no analog
-channel pair produces identical streams over a night, so this is a safe inference. Set
-`singleChannel: true`, take the `nCh < 2` path, and report `ledAgreement: null`.
+**Deduplicate bit-identical channels; the count of DISTINCT channels is the sensor count.** Two analog
+photodiodes cannot produce bit-identical streams over a night — even the same LED sampled twice differs
+by ADC noise — so an identical pair is one sensor reported twice. Set the effective channel count to the
+distinct count; at 1, set `singleChannel: true`, take the `nCh < 2` path, and report
+`ledAgreement: null`.
+
+> **⚠️ Spec corrected 2026-07-18 — the original wording was "if two channels are bit-identical to a
+> **third**", i.e. it only fired at 3-of-3. PR #218 shows why that is too narrow.** Our capture host
+> emitted an extra `timestamp [ms]` column on ACC/GYRO/MAG/PPG before 2026-07-18 11:43, shifting every
+> index by one. A pre-cutoff O2Ring capture therefore reads as **`(ms-ramp, v, v)`** — only **two**
+> identical channels, so a 3-of-3 test would **not** fire and the file would pass as a legitimate 2-of-3
+> sensor. Counting *distinct* channels fires correctly at 3-identical, 2-identical, and any future
+> variant. (PR #218's header-driven column resolution should make those files parse correctly anyway,
+> which is the real fix — but this guard exists precisely to catch layouts nobody anticipated, so it must
+> not itself assume one.)
 
 This closes `ENGINE-VERIFICATION-FINDINGS-2026-07-18-BRIEF.md` §1.3 **at the DSP tier**, which is the
 robust place for it: it defends against *any* device or capture bug that replicates channels, not just
 today's O2Ring instance, and needs no lockstep change in `capture-host/`.
+
+**Gate it against the shifted shape too**, not only the clean one: `(v,v,v)` ⇒ 1 distinct ⇒
+`singleChannel`; `(ramp,v,v)` ⇒ 2 distinct ⇒ **not** 3-LED consensus; three genuinely different channels
+⇒ 3 distinct ⇒ full consensus. The middle case is the one the original spec missed.
 
 Covariance is also degenerate for identical channels (rank 1) — the guard must run **before** the
 eigensolve, and the fused signal for a single channel is just that channel.
@@ -212,5 +228,6 @@ a negative result here is a legitimate finding, not a failure (`papers/dead-ends
 - [`PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE-2026-07-11-BRIEF.md`](PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE-2026-07-11-BRIEF.md) — the detector this builds on (its cadence-sized refractory stays).
 - [`INTEGRATOR-THREE-CORNERED-HAT-2026-07-02-BRIEF.md`](INTEGRATOR-THREE-CORNERED-HAT-2026-07-02-BRIEF.md) — why the 3-channel spread must never become a σ.
 - [`LITERATURE-USE-POLICY-2026-07-11-BRIEF.md`](LITERATURE-USE-POLICY-2026-07-11-BRIEF.md) — how [L18]/[L20]/[M24]/[W16] may enter the code.
+- PR #218 (`fix(motiondex,ppgdex): resolve PSL columns by header, not by position`) — header-driven column resolution; the precedent this brief's guard must not contradict, and the source of the shifted-shape case in §4.
 - `CLAUDE.md` §🎫 badges · §🔒 export-inertness is computed · §🧪/§🔏 gates · §👥 worktree.
 - Code: `ppgdex-dsp.js` (`parsePPG:155`, `channelSNR:263`, `pickChannel:276`, `orient:292`, `consensusBeats:540`, `analyze:1533`), `ppgdex-registry.js`, `ppgdex-morph.js`.
