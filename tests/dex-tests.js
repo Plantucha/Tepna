@@ -14028,6 +14028,34 @@
       }
     });
 
+    /* ════ PpgDex frequency-domain — VLF/LF band edge 0.04 Hz known-answer (§EP-rest) ════
+       ppgdex-dsp.lombScargle bands are { vlf:[0.003,0.04], lf:[0.04,0.15], hf:[0.15,0.4] }. Every PPG
+       spectral gate is SOURCE-REGEX, so a band-edge shift (vlf upper 0.04→0.05) silently reclassifies
+       0.04–0.05 Hz power VLF↔LF. Build an RR series with a clean tone at 0.045 Hz (just above the edge):
+       its Lomb-Scargle power must land in LF. A 0.04→0.05 edge shift moves it to VLF (verified 99%→1%). */
+    group('PpgDex frequency-domain — VLF/LF band edge 0.04 Hz (§EP-rest)', 'ppgdex-dsp · spectral · known-answer', function (T) {
+      var D = env.PPGDSP;
+      if (!D || typeof D.lombScargle !== 'function') {
+        T.skip('env.PPGDSP.lombScargle available', 'PPGDSP not co-loaded in this runner');
+      } else {
+        var nn = [],
+          tt = [],
+          t = 0;
+        for (var i = 0; i < 800; i++) {
+          var rr = 900 + 25 * Math.sin((2 * Math.PI * 0.045 * t) / 1000);
+          nn.push(rr);
+          tt.push(t / 1000);
+          t += rr;
+        }
+        var sp = D.lombScargle(tt, nn);
+        var tot = (sp.vlf || 0) + (sp.lf || 0) + (sp.hf || 0) || 1;
+        var fracLf = (sp.lf || 0) / tot;
+        T.ok('0.045 Hz RR tone → power in LF (frac_lf > 0.9; a vlf-edge 0.04→0.05 shift moves it to VLF, ~0.01)', fracLf > 0.9, 'frac_lf=' + fracLf.toFixed(3));
+        var fracVlf = (sp.vlf || 0) / tot;
+        T.ok('… and NOT in VLF while the edge is 0.04 (frac_vlf < 0.1)', fracVlf < 0.1, 'frac_vlf=' + fracVlf.toFixed(3));
+      }
+    });
+
     /* ════ PpgDex detector — the 0.30 s refractory FLOOR (200 bpm ceiling; #79/#84 sibling) ════
      WP-D2 companion. detectBeats' absolute refractory floor is refrFloor = round(fs·0.30) — the
      200 bpm physiologic ceiling that applies even when the windowed-cadence prior is ABSENT (a clip
