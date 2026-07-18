@@ -5187,7 +5187,10 @@
     group('ManifestGate — GATE A/B verdicts red on drift (provenance-meta)', 'provenance · manifest-gate · gate-verdicts', function (T) {
       var MG = env.ManifestGate || (typeof ManifestGate !== 'undefined' ? ManifestGate : null);
       if (!MG || typeof MG.gateACompare !== 'function' || typeof MG.gateBEvaluate !== 'function' || typeof MG.gateBFiles !== 'function') {
-        T.skip('ManifestGate co-loaded (gateACompare/gateBEvaluate/gateBFiles)', 'manifest-gate.js not in env.ManifestGate nor a global — the Node lane wires it; the browser SKIPs unless manifest-gate.js is co-loaded');
+        T.skip(
+          'ManifestGate co-loaded (gateACompare/gateBEvaluate/gateBFiles)',
+          'manifest-gate.js not in env.ManifestGate nor a global — the Node lane wires it; the browser SKIPs unless manifest-gate.js is co-loaded'
+        );
         return;
       }
       var H = 'aaaaaaaaaaaa',
@@ -5204,21 +5207,37 @@
       T.ok('GATE A · clean: current == committed ⇒ ok:true, fail:0 (control)', aClean.ok === true && aClean.fail === 0 && aClean.results[0].status === 'match', JSON.stringify(aClean));
       var aDrift = MG.gateACompare({ 'A.html': H2 }, { 'A.html': { manifestHash: H } }, ['A.html']);
       T.ok('GATE A · manifestHash DRIFT ⇒ status:drift, fail:1', aDrift.fail === 1 && aDrift.results[0].status === 'drift', JSON.stringify(aDrift));
-      T.ok('GATE A · a drift verdict is ok:FALSE (a green GATE A must never hide a moved bundle)', aDrift.ok === false, 'ok=' + aDrift.ok + ' · fail=' + aDrift.fail + ' · missing=' + aDrift.missing + ' · complete=' + aDrift.complete);
+      T.ok(
+        'GATE A · a drift verdict is ok:FALSE (a green GATE A must never hide a moved bundle)',
+        aDrift.ok === false,
+        'ok=' + aDrift.ok + ' · fail=' + aDrift.fail + ' · missing=' + aDrift.missing + ' · complete=' + aDrift.complete
+      );
       var aMiss = MG.gateACompare({ 'A.html': null }, { 'A.html': { manifestHash: H } }, ['A.html']);
-      T.ok('GATE A · missing-current (bundle did not reproduce its committed hash) ⇒ fail:1, ok:FALSE', aMiss.fail === 1 && aMiss.ok === false && aMiss.results[0].status === 'missing-current', JSON.stringify(aMiss));
+      T.ok(
+        'GATE A · missing-current (bundle did not reproduce its committed hash) ⇒ fail:1, ok:FALSE',
+        aMiss.fail === 1 && aMiss.ok === false && aMiss.results[0].status === 'missing-current',
+        JSON.stringify(aMiss)
+      );
 
       // ── §73 · GATE B (gateBEvaluate) — a fixture whose output/code/input drifts is a fail, and the OVERALL
       //          verdict MUST be ok:false. The mutation hardwires ok:true, so ANY GATE B drift
       //          (output-drift/code-drift/input-drift) is reported as a PASSING provenance verdict.
       var fx = { 'out.json': { bundle: 'A.html', manifestHash: H, inputHashes: {}, outputHash: OUT } };
       var bClean = MG.gateBEvaluate(fx, { 'A.html': H }, { 'out.json': OUT });
-      T.ok('GATE B · clean: code + output match ⇒ status:reproducible, fail:0, ok:true (control)', bClean.ok === true && bClean.fail === 0 && bClean.results[0].status === 'reproducible', JSON.stringify(bClean));
+      T.ok(
+        'GATE B · clean: code + output match ⇒ status:reproducible, fail:0, ok:true (control)',
+        bClean.ok === true && bClean.fail === 0 && bClean.results[0].status === 'reproducible',
+        JSON.stringify(bClean)
+      );
       var bOut = MG.gateBEvaluate(fx, { 'A.html': H }, { 'out.json': OUT2 });
       T.ok('GATE B · OUTPUT drift ⇒ status:output-drift, fail:1', bOut.fail === 1 && bOut.results[0].status === 'output-drift', JSON.stringify(bOut));
       T.ok('GATE B · an output-drift verdict is ok:FALSE (a green GATE B must never hide a moved fixture)', bOut.ok === false, 'ok=' + bOut.ok + ' · fail=' + bOut.fail);
       var bCode = MG.gateBEvaluate(fx, { 'A.html': H2 }, { 'out.json': OUT });
-      T.ok('GATE B · CODE drift (bundle manifestHash moved) ⇒ status:code-drift, fail:1, ok:FALSE', bCode.fail === 1 && bCode.ok === false && bCode.results[0].status === 'code-drift', JSON.stringify(bCode));
+      T.ok(
+        'GATE B · CODE drift (bundle manifestHash moved) ⇒ status:code-drift, fail:1, ok:FALSE',
+        bCode.fail === 1 && bCode.ok === false && bCode.results[0].status === 'code-drift',
+        JSON.stringify(bCode)
+      );
 
       // ── §75 · gateBFiles must ENUMERATE every code-gated fixture's INPUT files (so the caller fetches +
       //          hashes them for the input-drift check), alongside each OUTPUT name, minus '_'-prefixed
@@ -7276,7 +7295,11 @@
         if (e.conf > 0.45 && e.conf < 0.95) gradedSeen++; // a non-saturated (graded) likelihood
       });
       T.ok('every surge conf == the /48 amplitude→likelihood map recomputed from meta.ampBpm', surges.length > 0 && confMismatch === 0, confMismatch + ' mismatches over ' + surges.length + ' surges');
-      T.ok('surge likelihoods are GRADED (≥1 conf strictly inside 0.45–0.95, not saturated)', gradedSeen > 0, gradedSeen + ' graded / ' + surges.length + ' — a /24 scale saturates ampBpm≥12 surges to 0.95');
+      T.ok(
+        'surge likelihoods are GRADED (≥1 conf strictly inside 0.45–0.95, not saturated)',
+        gradedSeen > 0,
+        gradedSeen + ' graded / ' + surges.length + ' — a /24 scale saturates ampBpm≥12 surges to 0.95'
+      );
       if (stages.length) {
         var st = stages[0];
         T.ok('stage: conf 0.7', st.conf === 0.7, st.conf + '');
@@ -7357,7 +7380,9 @@
       if (!OD || typeof OD.compute !== 'function') {
         T.ok('env.OxyDex.compute available (worst-10-min boundary leg)', false, 'namespace not wired — leg skipped');
       } else {
-        var p2b = function (x) { return x < 10 ? '0' + x : '' + x; };
+        var p2b = function (x) {
+          return x < 10 ? '0' + x : '' + x;
+        };
         // 1200 samples @1 Hz on ONE unambiguous date (day 15>12 ⇒ DMY locked, isolates this from §65).
         // Indices 0–599 = 98 %, indices 600–1199 = 78 %. Hand-derived: the deepest 600-sample window is
         // slice(600,1200) = 600×78 ⇒ mean 78.00, and its right edge is EXACTLY n=1200. Dropping it
@@ -7899,7 +7924,11 @@
         T.ok('boundary: analysis available on hand-built posture', bPos && bPos.available === true);
         T.eq('boundary: supine/nonsupine = 6/3 as built', bPos.supine + '/' + bPos.nonsupine, '6/3');
         T.eq('boundary: supineRate = 0.67 (6 of 9)', bPos.supineRate, 0.67);
-        T.ok('boundary: a 0.67 supine fraction is NOT positional (strict ≥0.70 supine clustering required)', bPos.positional === false, 'positional=' + (bPos && bPos.positional) + ' rate=' + (bPos && bPos.supineRate));
+        T.ok(
+          'boundary: a 0.67 supine fraction is NOT positional (strict ≥0.70 supine clustering required)',
+          bPos.positional === false,
+          'positional=' + (bPos && bPos.positional) + ' rate=' + (bPos && bPos.supineRate)
+        );
       } else T.ok('labelPositionalApnea present for boundary check', false);
     });
 
@@ -8419,9 +8448,13 @@
        100·AC/DC (the CITED formula, not code output). Dropping the ×100 reds this by two orders. */
     group('PpgDex whole-record perfusion index is a PERCENTAGE (PI = 100 × AC/DC; #87)', 'ppgdex-dsp · regression', function (T) {
       var PPG = env.PPGDSP;
-      T.ok('PPGDSP.analyze + detectChannel + mean + std exposed', PPG && ['analyze', 'detectChannel', 'mean', 'std'].every(function (k) {
-        return typeof PPG[k] === 'function';
-      }));
+      T.ok(
+        'PPGDSP.analyze + detectChannel + mean + std exposed',
+        PPG &&
+          ['analyze', 'detectChannel', 'mean', 'std'].every(function (k) {
+            return typeof PPG[k] === 'function';
+          })
+      );
       if (!(PPG && typeof PPG.analyze === 'function' && typeof PPG.detectChannel === 'function')) return;
 
       var fs = 100,
@@ -8461,10 +8494,20 @@
       var acAmp = PPG.std(bpRef);
       var bareRatio = acAmp / dc; // the WRONG (mutant) magnitude
       var expectedPct = 100 * bareRatio; // PI = 100 × AC/DC — the CITED percentage formula
-      T.approx('perfusionIndex ≈ 100 × AC/DC (the percentage formula), matching an independent reconstruction', r.perfusionIndex, expectedPct, 0.05, 'PI=' + r.perfusionIndex + ' 100·AC/DC=' + expectedPct.toFixed(4));
+      T.approx(
+        'perfusionIndex ≈ 100 × AC/DC (the percentage formula), matching an independent reconstruction',
+        r.perfusionIndex,
+        expectedPct,
+        0.05,
+        'PI=' + r.perfusionIndex + ' 100·AC/DC=' + expectedPct.toFixed(4)
+      );
       // And it must be the PERCENTAGE, not the bare ratio: dropping the ×100 lands on bareRatio (~0.034),
       // two orders below the percentage (~3.4). This separation is what reds the mutation.
-      T.ok('perfusionIndex is the percentage (~100×), NOT the bare AC/DC ratio', Math.abs(r.perfusionIndex - expectedPct) < Math.abs(r.perfusionIndex - bareRatio), 'PI=' + r.perfusionIndex + ' pct=' + expectedPct.toFixed(4) + ' ratio=' + bareRatio.toFixed(6));
+      T.ok(
+        'perfusionIndex is the percentage (~100×), NOT the bare AC/DC ratio',
+        Math.abs(r.perfusionIndex - expectedPct) < Math.abs(r.perfusionIndex - bareRatio),
+        'PI=' + r.perfusionIndex + ' pct=' + expectedPct.toFixed(4) + ' ratio=' + bareRatio.toFixed(6)
+      );
     });
 
     group('Leaf-module coverage — CPAPDex DSP/EDF self-tests + morphology', 'cpapdex-edf · cpapdex-dsp · ecgdex-morph · ppgdex-morph', function (T) {
@@ -9171,7 +9214,9 @@
         T.ok('env.OxyDex.compute available', false, 'namespace not wired — gate skipped');
         return;
       }
-      var p2 = function (n) { return n < 10 ? '0' + n : '' + n; };
+      var p2 = function (n) {
+        return n < 10 ? '0' + n : '' + n;
+      };
       // 22:00 05/06/2026 → 05:00 06/06/2026, 1 Hz. Every date string is "05/06" or "06/06": day AND month
       // both ≤ 12 ⇒ resolveDMY cannot prove an order and falls back to the default. DMY reads 5→6 June
       // (7 h forward = 420 min). MDY reads "05/06"=May 6, "06/06"=June 6 → the recording lands in MAY and
@@ -13444,7 +13489,11 @@
       // THE assertion: with the 0.30 s floor the second wave of each pair is refractory-suppressed,
       // so the count is ~nPairs (20). Under fs·0.15 both survive → ~2·nPairs (≈40). A ceiling of
       // nPairs+6 = 26 passes the real detector (20) and reds the mutant (≈39).
-      T.ok('sub-0.30 s second peaks are refractory-merged: count ≈ nPairs, not ≈ 2·nPairs (raising the floor to 400 bpm doubles it)', det.peaks.length <= nPairs + 6, 'peaks=' + det.peaks.length + ' (expect ~' + nPairs + '; mutant ~' + 2 * nPairs + ')');
+      T.ok(
+        'sub-0.30 s second peaks are refractory-merged: count ≈ nPairs, not ≈ 2·nPairs (raising the floor to 400 bpm doubles it)',
+        det.peaks.length <= nPairs + 6,
+        'peaks=' + det.peaks.length + ' (expect ~' + nPairs + '; mutant ~' + 2 * nPairs + ')'
+      );
       T.approx('and the count is a clean one-per-pair recovery', det.peaks.length, nPairs, 4, 'peaks=' + det.peaks.length);
     });
 

@@ -390,14 +390,14 @@ function readEquiv() {
     if (existsSync(inP)) {
       try {
         rec.input = readFileSync(inP, 'utf8');
-      } catch (e) {
+      } catch {
         /* unreadable → treat as absent */
       }
     }
     if (fxP && existsSync(fxP)) {
       try {
         rec.fixture = JSON.parse(readFileSync(fxP, 'utf8'));
-      } catch (e) {
+      } catch {
         /* unreadable → treat as absent */
       }
     }
@@ -487,7 +487,7 @@ function readEquiv() {
     if (existsSync(fxP)) {
       try {
         rec.fixture = JSON.parse(readFileSync(fxP, 'utf8'));
-      } catch (e) {
+      } catch {
         /* unreadable → treat as absent */
       }
     }
@@ -529,7 +529,7 @@ function readEquiv() {
     if (existsSync(fxP)) {
       try {
         rec.fixture = JSON.parse(readFileSync(fxP, 'utf8'));
-      } catch (e) {
+      } catch {
         /* unreadable → treat as absent */
       }
     }
@@ -557,7 +557,7 @@ function readEquiv() {
     if (existsSync(fxP)) {
       try {
         out.cpapdex_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')), fixtureFile: 'cpapdex_synthetic_golden.node-export.json' };
-      } catch (e) {
+      } catch {
         /* gate self-skips */
       }
     }
@@ -571,7 +571,7 @@ function readEquiv() {
     if (existsSync(fxP)) {
       try {
         out.cpapdex_multinight_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')), fixtureFile: 'cpapdex_synthetic_multinight_golden.node-export.json' };
-      } catch (e) {
+      } catch {
         /* gate self-skips */
       }
     }
