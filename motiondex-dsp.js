@@ -106,30 +106,64 @@
     return 'mag'; // MAG / MAGN
   }
 
+  // ── Column indices come from the HEADER, never from fixed positions ──────────────────────────────
+  // Layouts legitimately vary and will keep varying. Our capture host emitted an extra
+  // `timestamp [ms]` column before 2026-07-18 11:43 and not after; Polar Sensor Logger's own PPG
+  // header reads `channel 0..2` where ours once read `ppg0..2`; and per-stream RATE SELECTION means
+  // more variants are expected, not exceptional. A fixed index silently SHIFTS when a column appears:
+  // measured on 478 real pre-11:43 files, `x` received the millisecond value, `y` received true X,
+  // `z` received true Y, and true Z was discarded — with no error anywhere.
+  function xyzColsFromHeader(headerLine) {
+    var p = String(headerLine || '').split(';');
+    var idx = { x: -1, y: -1, z: -1, ns: -1, phone: -1 };
+    for (var i = 0; i < p.length; i++) {
+      var h = p[i].trim().toLowerCase();
+      if (/^x(\s|\[|$)/.test(h)) idx.x = i;
+      else if (/^y(\s|\[|$)/.test(h)) idx.y = i;
+      else if (/^z(\s|\[|$)/.test(h)) idx.z = i;
+      else if (/sensor\s+timestamp/.test(h)) idx.ns = i;
+      else if (/phone\s+timestamp/.test(h)) idx.phone = i;
+    }
+    return idx.x >= 0 && idx.y >= 0 && idx.z >= 0 ? idx : null;
+  }
+  // Fallback for a headerless/unknown file: the LAST THREE numeric columns. Correct for BOTH the 5-
+  // and 6-column layouts and for any future LEADING column, because XYZ is always the tail.
+  function xyzColsByTail(p) {
+    var nums = [];
+    for (var k = 0; k < p.length; k++) {
+      if (isFinite(parseFloat(p[k]))) nums.push(k);
+    }
+    if (nums.length < 3) return null;
+    return { x: nums[nums.length - 3], y: nums[nums.length - 2], z: nums[nums.length - 1], ns: 1, phone: 0 };
+  }
   function parseSensorXYZ(text) {
     var lines = String(text || '').split(/\r?\n/);
     var out = [];
     var ns0 = null;
     var headerKind = null;
+    var cols = null;
     for (var li = 0; li < lines.length; li++) {
       var t = lines[li].trim();
       if (!t) continue;
       if (headerKind === null && /timestamp/i.test(t)) {
         headerKind = streamKindFromHeader(t);
+        cols = xyzColsFromHeader(t) || cols;
         continue;
       }
       var p = t.split(';');
       if (p.length < 5) continue;
-      var x = parseFloat(p[2]);
+      var c = cols || xyzColsByTail(p);
+      if (!c) continue;
+      var x = parseFloat(p[c.x]);
       if (!isFinite(x)) continue; // skips a stray header row too
       var relNs = NaN;
       try {
-        var b = BigInt(p[1].trim());
+        var b = BigInt(p[c.ns >= 0 ? c.ns : 1].trim());
         if (ns0 === null) ns0 = b;
         relNs = Number(b - ns0);
       } catch {}
-      var ts = parseTimestamp(p[0]);
-      out.push({ relNs: relNs, tMs: ts ? ts.tMs : null, x: x, y: parseFloat(p[3]), z: parseFloat(p[4]) });
+      var ts = parseTimestamp(p[c.phone >= 0 ? c.phone : 0]);
+      out.push({ relNs: relNs, tMs: ts ? ts.tMs : null, x: x, y: parseFloat(p[c.y]), z: parseFloat(p[c.z]) });
     }
     out._kind = headerKind ? headerKind.kind : null;
     out._unit = headerKind ? headerKind.unit : null;

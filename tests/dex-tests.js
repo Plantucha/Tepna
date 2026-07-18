@@ -3076,7 +3076,89 @@
      OverDex routed path already calls. Locks: (1) the twin's tMs == Date.UTC(components), NOT
      the viewer-local Date-parse instant; (2) a stampless HR row keeps tsMs null; (3) the app
      loaders call the twins and no longer contain parseRows / a Date-parse call. ════ */
-    group('ECGDex device cross-check parsers — floating clock, no Date-parse/now() (Finding 2)', 'ecgdex-dsp · ecgdex-app', function (T) {
+    /* ════ HEADER-DRIVEN COLUMNS — a positional index silently shifts when a column appears ════
+     Our capture host emitted an extra `timestamp [ms]` column on ACC/GYRO/MAG/PPG before
+     2026-07-18 11:43 and not after, and PPG channels were `ppg0..2` before / `channel 0..2` after
+     (the latter is what Polar Sensor Logger itself writes). 478 real files carry the old shape.
+     With fixed indices the damage was silent and total: measured on those files, ACC `x` received
+     the MILLISECOND value, `y` received true X, `z` received true Y and true Z was discarded; the
+     Verity PPG waveform came back as a linear ms RAMP with `ambient` holding true ch2.
+     Per-stream RATE SELECTION means more layout variants are expected, not exceptional — so columns
+     are resolved by HEADER NAME, falling back to the numeric TAIL (correct for both shapes, since
+     XYZ/channels are always last). Locks BOTH layouts, because fixing one by breaking the other is
+     the obvious wrong turn. ════ */
+  group('PSL column resolution is header-driven, not positional (both layouts)', 'motiondex-dsp · ppgdex-dsp', function (T) {
+    var M = env.MOTIONDSP, P = env.PPGDSP;
+    var OLD6 = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];X [mg];Y [mg];Z [mg]\n';
+    var NEW5 = 'Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]\n';
+    function rows(withMs) {
+      var out = '';
+      for (var i = 0; i < 12; i++) {
+        var ns = 837698283607356689 + i * 20000000;
+        out += '2026-07-18T09:58:0' + (i % 10) + '.904;' + ns + ';' +
+               (withMs ? (i * 20).toFixed(1) + ';' : '') + (-313 + i) + ';' + (-872 + i) + ';' + (-181 + i) + '\n';
+      }
+      return out;
+    }
+    if (M && typeof M.parseSensorXYZ === 'function') {
+      var oldR = M.parseSensorXYZ(OLD6 + rows(true));
+      var newR = M.parseSensorXYZ(NEW5 + rows(false));
+      T.ok('MotionDex reads XYZ from the 6-column (pre-11:43) layout', oldR.length === 12 && oldR[0].x === -313 && oldR[0].y === -872 && oldR[0].z === -181,
+        'got ' + JSON.stringify(oldR[0] || null));
+      T.ok('MotionDex reads XYZ from the 5-column (current PSL) layout', newR.length === 12 && newR[0].x === -313 && newR[0].y === -872 && newR[0].z === -181,
+        'got ' + JSON.stringify(newR[0] || null));
+      T.ok('MotionDex: both layouts agree sample-for-sample', JSON.stringify(oldR.map(function (r) { return [r.x, r.y, r.z]; })) === JSON.stringify(newR.map(function (r) { return [r.x, r.y, r.z]; })));
+      // the specific corruption that shipped: x must never be the millisecond column
+      T.ok('MotionDex never returns the timestamp[ms] column as x', oldR.every(function (r) { return r.x <= -300; }));
+      // A TRAILING column is what separates header-driven from "take the last three numbers". Both known
+      // layouts happen to end in XYZ, so the tail fallback alone passes every case above — mutation
+      // proved it (deleting the header lookup left the group green). This is the case that gates it, and
+      // it is the realistic one: per-stream rate selection means new columns WILL appear, and a future
+      // PSL/vendor field appended after Z would silently hand back (Y, Z, flags) as the acceleration.
+      var TRAIL = 'Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg];flags\n';
+      var trailRows = '';
+      for (var k = 0; k < 12; k++) {
+        trailRows += '2026-07-18T09:58:0' + (k % 10) + '.904;' + (837698283607356689 + k * 20000000) +
+                     ';' + (-313 + k) + ';' + (-872 + k) + ';' + (-181 + k) + ';7\n';
+      }
+      var trailR = M.parseSensorXYZ(TRAIL + trailRows);
+      T.ok('MotionDex resolves XYZ by header even with a TRAILING column after Z',
+        trailR.length === 12 && trailR[0].x === -313 && trailR[0].y === -872 && trailR[0].z === -181,
+        'got ' + JSON.stringify(trailR[0] || null));
+    }
+    if (P && typeof P.parseSensorXYZ === 'function') {
+      var pOld = P.parseSensorXYZ(OLD6 + rows(true));
+      T.ok('PpgDex reads XYZ from the 6-column layout too', pOld.length === 12 && pOld[0].x === -313 && pOld[0].z === -181,
+        'got ' + JSON.stringify(pOld[0] || null));
+    }
+    if (P && typeof P.parsePPG === 'function') {
+      // PPG: `ppg0..2` + a ms column (old) vs `channel 0..2` (current PSL)
+      var pHdrOld = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];ppg0;ppg1;ppg2;ambient\n';
+      var pHdrNew = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient\n';
+      function prows(withMs) {
+        var out = '';
+        for (var i = 0; i < 40; i++) {
+          var ns = 837672322173826098 + i * 18000000;
+          out += '2026-07-18T02:45:2' + (i % 10) + '.248;' + ns + ';' + (withMs ? (i * 18).toFixed(1) + ';' : '') +
+                 (447338 + i) + ';' + (354685 + i) + ';' + (481258 + i) + ';-130\n';
+        }
+        return out;
+      }
+      var a = P.parsePPG(pHdrOld + prows(true)), b = P.parsePPG(pHdrNew + prows(false));
+      // `ch` is an array of the THREE LED channels, each a Float32Array — so ch[0][0] is the first
+      // sample of channel 0. All three are asserted: a shifted layout moved every one of them.
+      T.ok('PpgDex reads all 3 LED channels from the old ppg0..2 + ms layout',
+        a.n === 40 && a.ch[0][0] === 447338 && a.ch[1][0] === 354685 && a.ch[2][0] === 481258,
+        'n=' + a.n + ' ch=' + [a.ch[0][0], a.ch[1][0], a.ch[2][0]].join(','));
+      T.ok('PpgDex reads all 3 LED channels from the current channel 0..2 layout',
+        b.n === 40 && b.ch[0][0] === 447338 && b.ch[1][0] === 354685 && b.ch[2][0] === 481258,
+        'n=' + b.n + ' ch=' + [b.ch[0][0], b.ch[1][0], b.ch[2][0]].join(','));
+      T.ok('PpgDex ambient is the ambient column, not a leaked PPG channel', a.amb[0] === -130 && b.amb[0] === -130,
+        'amb=' + a.amb[0] + '/' + b.amb[0]);
+    }
+  });
+
+  group('ECGDex device cross-check parsers — floating clock, no Date-parse/now() (Finding 2)', 'ecgdex-dsp · ecgdex-app', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.parseDeviceRR === 'function' && typeof D.parseDeviceHR === 'function' && typeof D.parseDeviceACC === 'function')) {
         T.ok('ECGDSP.parseDeviceRR/parseDeviceHR/parseDeviceACC exposed', false, 'ECGDSP device twins not loaded');
