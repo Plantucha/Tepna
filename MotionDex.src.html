@@ -10,8 +10,8 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
-     script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships NO
-     inline <script> (all init is in motiondex-app.js), so the hash list is empty by construction. -->
+     script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
+     inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' __DEX_SCRIPT_HASHES__; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MotionDex — Motion / IMU Analyzer · v1.0</title>
