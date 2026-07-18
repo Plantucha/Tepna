@@ -231,6 +231,69 @@ class OxyFrameLogWriter:
             pass
 
 
+class HostClockLogWriter:
+    """Per-session HOST CLOCK PROVENANCE sidecar — what disciplined the box's clock during this night.
+
+    The capture host pushes its own time into all three sensors, so a wrong host clock yields a night
+    that is SELF-CONSISTENTLY wrong: cross-device work still succeeds (it only needs a common base) but
+    the absolute wall time is wrong and nothing looks broken. This file is the evidence that lets a
+    future reader tell "stratum-1 PPS all night" from "the box free-ran on its RTC" — a question that is
+    unanswerable after the fact today.
+
+    Sibling of LinkLogWriter: link provenance answers "what were the RADIO conditions", this answers
+    "what were the TIME conditions". Slow cadence — the state changes on the order of NTP poll
+    intervals, not seconds.
+
+    TELEMETRY, not physiology: never a `ganglior.node-export` metric, never an evidence badge.
+    """
+
+    def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True):
+        self.path = path
+        self._fh = open(path, "w", buffering=1 << 16, newline="\n")
+        self._fh.write("Phone timestamp;trust;absolute_ok;synchronized;server;stratum;reference;"
+                       "root_dispersion_ms;jitter_us;packet_count;reason\n")
+        self.rows = 0
+        self._flush_interval = flush_interval
+        self._fsync = fsync
+        self._last_flush = _time.monotonic()
+
+    def write(self, when: _dt.datetime, st: dict) -> None:
+        """Blank, never 0/false, for an absent field — a fabricated value here would be a fabricated
+        claim about how well-sourced the night's timestamps are."""
+        def _f(v):
+            if v is None:
+                return ""
+            if isinstance(v, bool):
+                return "1" if v else "0"
+            return str(v)
+        stamp = when.strftime("%Y-%m-%dT%H:%M:%S.") + f"{when.microsecond // 1000:03d}"
+        self._fh.write(";".join((
+            stamp, _f(st.get("trust")), _f(st.get("absolute_ok")), _f(st.get("synchronized")),
+            _f(st.get("server")), _f(st.get("stratum")), _f(st.get("reference")),
+            _f(st.get("root_dispersion_ms")), _f(st.get("jitter_us")), _f(st.get("packet_count")),
+            str(st.get("reason") or "").replace(";", ","))) + "\n")
+        self.rows += 1
+        now = _time.monotonic()
+        if now - self._last_flush >= self._flush_interval:
+            self.flush()
+            self._last_flush = now
+
+    def flush(self) -> None:
+        try:
+            self._fh.flush()
+            if self._fsync:
+                os.fsync(self._fh.fileno())
+        except (OSError, ValueError):
+            pass
+
+    def close(self) -> None:
+        try:
+            self.flush()
+            self._fh.close()
+        except (OSError, ValueError):
+            pass
+
+
 class LinkLogWriter:
     """Per-session LINK PROVENANCE sidecar — the CONDITIONS a night was captured under.
 

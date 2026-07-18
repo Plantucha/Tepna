@@ -60,6 +60,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             "adapter": adapter_mac,
             "devices": _remembered(),
             "streams": bus.meta(),
+            # What disciplined THIS BOX's clock. The devices inherit host time, so an undisciplined
+            # host silently makes every stamp wrong-but-consistent — this is the evidence, not a guess.
+            "host_clock": status.get("host_clock"),
         })
 
     async def scan(_req):
