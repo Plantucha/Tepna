@@ -57,7 +57,10 @@ async def pull(address, out_dir, which="latest", ftype=0, adapter=None, serial="
 
 
 async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progress=None):
-    kw = {"adapter": adapter} if adapter else {}
+    # bluez={"adapter": ...}, not the deprecated bare `adapter=` kwarg (see capture.adapter_kw): when
+    # bleak drops the shim the bare form is swallowed as an unknown kwarg rather than raised, so the
+    # adapter pin would vanish silently and the pull would run on the wrong radio.
+    kw = {"bluez": {"adapter": adapter}} if adapter else {}
     # EARLY-EXIT scan: return the instant the ring advertises. Its burst is short — a fixed-timeout
     # discover() finds it but then the connect window has closed. Matches address OR name (MAC can rotate).
     device = await BleakScanner.find_device_by_filter(

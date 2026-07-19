@@ -226,13 +226,27 @@ async def adapter_kw() -> dict:
     the onboard radio that cannot hear our sensors; every connect hung and PMD never started, with no
     error naming the cause. Resolving MAC→hciN fresh on each connect keeps the pin correct across
     re-enumeration (one cheap subprocess, and connects are infrequent)."""
+    hci = await adapter_hci()
+    # The `bluez=` form, NOT the bare `adapter=` kwarg. bleak deprecated `adapter` (3.0.2 shims it with a
+    # warning and copies it into bluez["adapter"]); when the shim goes, passing it would not raise — it
+    # would be swallowed as an unknown kwarg and the pin would SILENTLY vanish. This box cannot afford
+    # that: the whole reason adapter_hci() exists is that hci indices re-enumerate, and losing the pin
+    # means capturing over the onboard radio that cannot hear the sensors, with no error naming the
+    # cause. Both BleakClient and BleakScanner take bluez={"adapter": "hciN"}.
+    return {"bluez": {"adapter": hci}} if hci else {}
+
+
+async def adapter_hci() -> str | None:
+    """The configured adapter resolved to its CURRENT `hciN` name, or None when unconfigured/unresolvable
+    (callers then fall back to the BlueZ default rather than failing hard). Kept separate from
+    adapter_kw() because the PS-FTP path takes a bare name, not bleak kwargs."""
     if not ADAPTER:
-        return {}
+        return None
     hci = await link_rssi.resolve_hci(ADAPTER, refresh=True)
     if not hci:
         log.warning("configured adapter %s not found — falling back to the BlueZ default", ADAPTER)
-        return {}
-    return {"adapter": hci}
+        return None
+    return hci
 
 
 @contextlib.asynccontextmanager
@@ -282,8 +296,15 @@ async def _connect_scan(addr: str, name_hints=_O2_NAME_HINTS, timeout: float = 1
 
 
 def _utcnow():
-    """Device clocks are set in UTC (see polar_psftp.set_local_time), so skew is measured against UTC."""
-    return _dt.datetime.utcnow()
+    """Device clocks are set in UTC (see polar_psftp.set_local_time), so skew is measured against UTC.
+
+    Returns a NAIVE datetime, and the `.replace(tzinfo=None)` is load-bearing — not tidying. This used to
+    be `datetime.utcnow()`, which 3.12 deprecated and a later release removes; the documented replacement
+    `datetime.now(UTC)` returns an AWARE datetime, and swapping it in blind would break every consumer.
+    `_now()` is naive, `_POLAR_EPOCH` is naive, and the skew line does `dev_dt - _utcnow()` — mixing an
+    aware value into that raises TypeError at runtime, on the clock path, where it would surface as a
+    device that never reports skew rather than as an obvious crash. Naive-UTC in, naive-UTC out."""
+    return _dt.datetime.now(_dt.timezone.utc).replace(tzinfo=None)
 
 
 # BlueZ/bleak errors that mean "busy, try again", NOT "this will never work". A daemon restart leaves
@@ -917,7 +938,7 @@ async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", ftype:
                 _set(name, pull_progress={"device": name, "bytes": off, "total": size,
                                           "pct": (100 * off // size) if size else 0})
             saved = await pull_session.pull(dev["address"], out_dir, which=which, ftype=ftype,
-                                            adapter=(await adapter_kw()).get("adapter"),
+                                            adapter=await adapter_hci(),
                                             serial="0000", wait=45, on_progress=_prog) or []
         finally:
             _OXYII_PAUSE.clear()                      # resume live capture no matter how the pull ended
@@ -991,7 +1012,7 @@ async def sync_device_time(address: str) -> dict:
     import polar_psftp        # runtime-only (pulls bleak) — keeps `import capture` stdlib-clean for CI
 
     async def _op():
-        async with polar_psftp.PolarPsFtp(address, adapter=(await adapter_kw()).get("adapter")) as fs:
+        async with polar_psftp.PolarPsFtp(address, adapter=await adapter_hci()) as fs:
             before = after = None
             if not is_h10:                             # H10 implements neither GET_LOCAL_TIME nor
                 try:                                   # SET_SYSTEM_TIME (error 201 NOT_IMPLEMENTED)

@@ -192,7 +192,9 @@ class PolarPsFtp:
     """Bonded PS-FTP session over bleak. `async with PolarPsFtp(address) as fs: await fs.list_dir(...)`."""
     def __init__(self, address: str, adapter: str | None = None):
         self.address = address
-        self._kw = {"adapter": adapter} if adapter else {}
+        # bluez={"adapter": ...}, not the deprecated bare `adapter=` kwarg — see capture.adapter_kw() for
+        # why a silently-dropped pin is the dangerous failure mode here.
+        self._kw = {"bluez": {"adapter": adapter}} if adapter else {}
         self._client: BleakClient | None = None
         self._q: asyncio.Queue = asyncio.Queue()
         self._frame_mtu = 20
@@ -277,7 +279,10 @@ class PolarPsFtp:
         and puts sibling devices on a COMMON origin, which is what cross-device timing (PAT) needs.
         LOCAL civil time per the Clock Contract; SET_SYSTEM_TIME additionally takes UTC."""
         import datetime as _dt
-        when = when or _dt.datetime.utcnow()   # UTC — see the note below
+        # NAIVE UTC. `.replace(tzinfo=None)` is required, not cosmetic: encode_set_local_time reads the
+        # component fields and the caller compares against naive values, so an aware datetime from the
+        # utcnow() replacement would silently change what gets written to the device clock.
+        when = when or _dt.datetime.now(_dt.timezone.utc).replace(tzinfo=None)   # UTC — see the note below
         # WE SET DEVICE CLOCKS IN UTC, deliberately, and it is not the same decision as the Clock
         # Contract's floating local-civil wall clock (which still governs the file's `Phone timestamp`
         # column and every Dex node — that convention is frozen).
