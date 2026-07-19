@@ -1757,3 +1757,122 @@ def test_main_pull_closure_without_a_ring_raises(tmp_path, monkeypatch):
     capture._STOP.clear()
     _run(capture.main())
     assert "no O2Ring" in holder.get("err", "")
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+# NIGHT GUARDRAILS — storage_poller · alert_poller · sd_watchdog + their main() wiring
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+import os as _os
+
+
+def test_storage_poller_updates_status_and_prunes(tmp_path, monkeypatch):
+    """The poller records disk state in STATUS and prunes past the retention count, protecting tonight."""
+    cap = tmp_path / "captures"
+    for n in ("2026-07-01", "2026-07-02", "2026-07-03"):
+        _os.makedirs(str(cap / n), exist_ok=True)
+    # tonight = a date NOT among the fixtures, so retention=1 prunes the two oldest
+    monkeypatch.setattr(capture, "_now", lambda: __import__("datetime").datetime(2026, 7, 4, 22, 0, 0))
+    _stop_after(monkeypatch, 1)
+    cfg = {"storage": {"keep_nights": 1, "min_free_gb": 0, "poll_sec": 300}}
+    _run(capture.storage_poller(cfg, str(tmp_path)))
+    assert capture.STATUS["storage"]["pruned"] == ["2026-07-01", "2026-07-02"]
+    assert capture.STATUS["storage"]["total_gb"] > 0
+    assert capture.diskguard.list_nights(str(cap)) == ["2026-07-03"]
+
+
+def test_storage_poller_alerts_once_when_disk_is_low(tmp_path, monkeypatch):
+    """A low-free-space episode fires exactly one alert (edge-triggered), even across polls."""
+    sent = []
+    class _N:
+        async def send(self, title, message, **kw): sent.append(title); return True
+    _stop_after(monkeypatch, 2)                       # two polls; the alert must fire only once
+    cfg = {"storage": {"keep_nights": 0, "min_free_gb": 1e9, "poll_sec": 1}}   # always "low"
+    _run(capture.storage_poller(cfg, str(tmp_path), _N()))
+    assert sent == ["Tepna: disk low"]
+
+
+def test_storage_poller_swallows_an_error(tmp_path, monkeypatch):
+    monkeypatch.setattr(capture.diskguard, "disk_report",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("statvfs boom")))
+    _stop_after(monkeypatch, 1)
+    _run(capture.storage_poller({"storage": {}}, str(tmp_path)))   # must not raise
+
+
+def test_alert_poller_fires_on_a_sustained_offline_then_recovers(monkeypatch):
+    """A device offline past the threshold alerts once; when it reconnects, a recovery alert fires."""
+    sent = []
+    class _N:
+        async def send(self, title, message, **kw): sent.append(title)
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="H10")]}
+    st = {"connected": False}
+    capture.STATUS["devices"]["H10"] = st
+    calls = {"n": 0}
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            st["connected"] = True            # it comes back on the 2nd poll → recovery alert
+        if calls["n"] >= 3:
+            capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0)
+    _run(capture.alert_poller(cfg, _N()))
+    assert sent == ["Tepna: sensor offline", "Tepna: sensor recovered"]
+
+
+def test_alert_poller_skips_a_nameless_device_and_a_connected_one(monkeypatch):
+    sent = []
+    class _N:
+        async def send(self, title, message, **kw): sent.append(title)
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 300},
+           "devices": [{"streams": ["ecg"]}, _dev(name="H10")]}   # first is nameless → skipped
+    capture.STATUS["devices"]["H10"] = {"connected": True}         # connected → never alerts
+    _stop_after(monkeypatch, 1)
+    _run(capture.alert_poller(cfg, _N()))
+    assert sent == []
+
+
+def test_sd_watchdog_pings_when_configured(monkeypatch):
+    pings = {"n": 0}
+    monkeypatch.setattr(capture.sdnotify, "watchdog_period_sec", lambda: 30.0)
+    monkeypatch.setattr(capture.sdnotify, "sd_notify",
+                        lambda state: pings.__setitem__("n", pings["n"] + 1) or True)
+    _stop_after(monkeypatch, 1)
+    _run(capture.sd_watchdog())
+    assert pings["n"] >= 1
+
+
+def test_sd_watchdog_is_a_noop_without_a_configured_watchdog(monkeypatch):
+    monkeypatch.setattr(capture.sdnotify, "watchdog_period_sec", lambda: None)
+    _run(capture.sd_watchdog())                       # returns immediately, no loop, no _stop needed
+
+
+def test_main_signals_ready_and_announces_start(tmp_path, monkeypatch):
+    """main() sends systemd READY=1 and (with a webhook configured) a 'capture started' alert."""
+    import webmon, yaml as _yaml, sys as _sys
+    signals = []
+    monkeypatch.setattr(capture.sdnotify, "sd_notify", lambda s: signals.append(s) or True)
+    posts = []
+    async def fake_post(url, payload): posts.append(payload); return True
+    monkeypatch.setattr(capture.alerts, "_http_post", fake_post)
+    for r in ("run_polar", "run_oxyii", "run_viatom", "run_muse", "status_loop", "adapter_watchdog",
+              "rssi_poller", "clock_watchdog", "host_clock_poller", "storage_poller", "alert_poller",
+              "sd_watchdog"):
+        async def _n(*a, **k): return None
+        monkeypatch.setattr(capture, r, _n)
+    async def fake_hci(mac, refresh=False): return "hci2"
+    monkeypatch.setattr(capture.link_rssi, "resolve_hci", fake_hci)
+    class _Runner:
+        async def cleanup(self): pass
+    async def fake_start(app, host, port):
+        capture._STOP.set(); return _Runner()
+    monkeypatch.setattr(webmon, "start", fake_start)
+    cfg = {"adapter": "AC:A7:F1:29:9D:1D", "root": str(tmp_path),
+           "web": {"enabled": True, "host": "127.0.0.1", "port": 0},
+           "alerts": {"enabled": True, "webhook_url": "https://hook"},
+           "devices": [_pdev()]}
+    cfgp = tmp_path / "config.yaml"; cfgp.write_text(_yaml.safe_dump(cfg))
+    monkeypatch.setattr(_sys, "argv", ["capture.py", "--config", str(cfgp)])
+    capture._STOP.clear()
+    _run(capture.main())
+    assert "READY=1" in signals and "STOPPING=1" in signals
+    assert posts and posts[0]["title"] == "Tepna: capture started"
