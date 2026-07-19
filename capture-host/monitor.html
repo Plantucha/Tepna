@@ -929,8 +929,13 @@ async function doPull(address, session, btn){
 function guessDevice(d){
   const n = (d.name||'').toLowerCase();
   let vendor='', model='', streams=['ecg'], device_id=(d.address||'').replace(/:/g,'').slice(-8);
-  if(n.includes('h10')){ vendor='Polar'; model='H10'; streams=['ecg']; }
-  else if(n.includes('sense')||n.includes('verity')){ vendor='Polar'; model='VeritySense'; streams=['ppg','acc']; }
+  // DEFAULTS ARE WHAT ACTUALLY GETS RECORDED. A stream omitted here is simply never captured, silently:
+  // nothing errors, the sensor streams what it was asked for, and the gap only surfaces when an analysis
+  // comes up short. On 2026-07-19 an H10 re-added after a factory reset came back 'ecg' only and lost
+  // BOTH its RR (the HRV substrate) and its chest ACC (which APNEA-TYPING-FUSION needs to separate
+  // obstructive from central apnea) for a whole session. Ask for everything the sensor can give.
+  if(n.includes('h10')){ vendor='Polar'; model='H10'; streams=['ecg','acc','hr']; }
+  else if(n.includes('sense')||n.includes('verity')){ vendor='Polar'; model='VeritySense'; streams=['ppg','acc','gyro','mag']; }
   else if(n.includes('muse')){ vendor='Muse'; model='S'; streams=['eeg']; }
   else if(n.match(/o2ring|wellue|viatom|checkme/)){ vendor='Wellue'; model='O2Ring'; streams=['spo2']; }
   // Third-party chest straps speaking the standard Heart Rate Service (0x180D). They give HR + RR but NO
