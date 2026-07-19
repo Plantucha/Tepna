@@ -752,6 +752,11 @@
   // ─── ARTIFACT CORRECTION ─────────────────────────────────────────────────────
   // Flag beats outside physiology (300–2200ms) or deviating >20% from a local
   // 11-beat median; replace with that median so timing stays aligned for windowing.
+  /* Physiologic RR bounds. Named once because the window filter and the artifact test below MUST
+     agree: if the median could be drawn from values the test rejects, the correction hands back a
+     beat the function itself considers an artifact. */
+  const RR_MIN = 300,
+    RR_MAX = 2200;
   function artifactClean(vals) {
     const n = vals.length,
       out = vals.slice(),
@@ -761,11 +766,19 @@
       const lo = Math.max(0, i - W),
         hi = Math.min(n, i + W + 1),
         seg = [];
-      for (let j = lo; j < hi; j++) if (j !== i) seg.push(vals[j]);
+      /* DEEP-AUDIT-II §3.3 — the local median must not be drawn from the artifacts it is correcting.
+         This pushed the RAW `vals[j]`, so a cluster of artifacts (ectopy runs, a dropout burst — the
+         normal way artifacts arrive, not the exceptional way) contaminated the very median used to
+         replace them. Measured at rMSSD +58 %, and in the direction that reads HEALTHIER, which is
+         why it never looked wrong. It also let the replacement land OUTSIDE [RR_MIN, RR_MAX]: a beat
+         "corrected" to a value the next line would itself flag as an artifact.
+         Restricting the window to physiologically plausible neighbours fixes both — the median is
+         clean, and being drawn only from in-range values it is in range by construction. */
+      for (let j = lo; j < hi; j++) if (j !== i && vals[j] >= RR_MIN && vals[j] <= RR_MAX) seg.push(vals[j]);
       seg.sort((x, y) => x - y);
       const med = seg[seg.length >> 1] || vals[i];
       const dev = med ? Math.abs(vals[i] - med) / med : 0;
-      if (vals[i] < 300 || vals[i] > 2200 || dev > 0.2) {
+      if (vals[i] < RR_MIN || vals[i] > RR_MAX || dev > 0.2) {
         flags[i] = 1;
         out[i] = med;
       }
