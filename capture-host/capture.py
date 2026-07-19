@@ -525,8 +525,9 @@ async def run_polar(dev: dict, root: str):
                         dev_dt = _POLAR_EPOCH + _dt.timedelta(microseconds=samples[-1].sensor_ns / 1000)
                         _set(name, device_time=dev_dt.isoformat(timespec="seconds"),
                              clock_skew_sec=round((dev_dt - _utcnow()).total_seconds(), 2))
-                    except Exception:
-                        pass
+                    except Exception:  # pragma: no cover — sensor_ns is an unsigned 64-bit int, so
+                        pass           # _POLAR_EPOCH + timedelta(µs=ns/1000) is bounded far inside
+                                       # datetime's range and cannot raise; the guard is belt-and-braces.
                     for smp in samples:
                         v = smp.values
                         if meas == pmd.ECG:    wr.write_ecg(smp.phone, smp.sensor_ns, smp.t_ms, v[0])
@@ -546,8 +547,8 @@ async def run_polar(dev: dict, root: str):
                     _set(name, **{f"rows_{meas}": wr.rows, "last_sample": samples[-1].phone.isoformat()})
 
                 def on_hr(_sender, data: bytearray):
-                    if not hr_writer:
-                        return
+                    if not hr_writer:      # pragma: no cover — on_hr is only subscribed when hr_writer is
+                        return             # truthy (the `if hr_writer:` gate below), so this never returns.
                     bpm, rr, contact = _parse_hr(bytes(data))
                     hr_writer.write_hr(_now(), 0, bpm, rr)
                     # Only straps that ADVERTISE contact support get a worn verdict; on one that does not
@@ -617,8 +618,8 @@ async def run_polar(dev: dict, root: str):
                         transient = False
                         for cmd, how in ((pmd.build_start(meas, settings, _prefer), "negotiated"),
                                          (pmd.START.get(meas), "fixed")):
-                            if not cmd:
-                                continue
+                            if not cmd:  # pragma: no cover — every requested stream is a known measurement,
+                                continue  # for which build_start() and START[meas] both return a command.
                             ack = await _ctrl(cmd)
                             st = ack[3] if len(ack) >= 4 else 0xFF
                             # 0x0D in_charger / 0x0C invalid_state are TRANSIENT DEVICE STATES, not bad
