@@ -2802,6 +2802,69 @@
        (hf/(tp||1)) surfaced numbers that don't reconcile with the bands they sit beside — ~5–20 % on overnight.
        Fix: define tp as the band sum (winSpec.tp = vlf+lf+hf), exactly as ECGDex:601 / PpgDex do. Control: the
        record must take the overnight winSpec path (longRec), else the four-median split never runs. ════ */
+    /* DEEP-AUDIT-II §3.3 — `artifactClean`'s local median must not be drawn from the artifacts it is
+       correcting. The 11-beat window pushed the RAW neighbours, so a CLUSTER of artifacts — a dropout
+       burst or an ectopy run, i.e. the normal way artifacts arrive — could form the majority of that
+       window and become the median used to replace them. Two consequences, both pinned below:
+         · the replacement can land OUTSIDE the function's own [300, 2200] bounds — a beat "corrected"
+           to a value the very next line would itself flag as an artifact;
+         · the cleaned series keeps the burst's variance, corrupting whole-record rMSSD in the
+           direction that reads HEALTHIER (higher HRV), which is why it never looked wrong. The audit
+           measured +58 % on the real corpus; this adversarial twin is starker.
+       The window now admits only physiologically plausible neighbours, fixing both at once: the median
+       is uncontaminated, and drawn only from in-range values it is in range by construction.
+       A 6-beat burst does NOT flip the median (not yet a majority of the 10 neighbours); a 7-beat one
+       does. Both are asserted, so the gate pins the actual boundary rather than one convenient case. */
+    group('PulseDex §3.3 — artifactClean median must not come from the artifacts it corrects', 'pulsedex-dsp · artifact · regression', function (T) {
+      var P = env.PulseDex;
+      // artifactClean is a DSP helper on the _bare surface (destructured by the ESM UI), not the
+      // public PulseDex namespace — same shape as OxyDex.computeSleepStabilityScore.
+      var AC = P && ((P._bare && P._bare.artifactClean) || P.artifactClean);
+      if (typeof AC !== 'function') {
+        T.ok('PulseDex.artifactClean exposed (via _bare)', false, 'not wired');
+      } else {
+        var mkBurst = function (len) {
+          var v = [];
+          for (var i = 0; i < 60; i++) v.push(900 + (i % 2 ? 12 : -12));
+          for (var k = 28; k < 28 + len; k++) v[k] = 180; // dropout burst, below the 300 ms floor
+          return v;
+        };
+        var rmssd = function (a) {
+          var s = 0;
+          for (var i = 1; i < a.length; i++) {
+            var d = a[i] - a[i - 1];
+            s += d * d;
+          }
+          return Math.sqrt(s / (a.length - 1));
+        };
+        var belowFloor = function (a) {
+          return a.filter(function (x) {
+            return x < 300;
+          }).length;
+        };
+        var c7 = AC(mkBurst(7)).clean;
+        T.eq('§3.3 · a 7-beat burst leaves NO beat below the 300 ms floor (pre-fix: 5 corrected to 180)', belowFloor(c7), 0);
+        T.ok('§3.3 · …and cleaned rMSSD is the physiologic ~22 ms, not the burst-corrupted ~132', rmssd(c7) < 40, 'rMSSD=' + rmssd(c7).toFixed(2) + ' — 132 is what the contaminated median left');
+        // The boundary: 6 artifacts are a MINORITY of the 10 neighbours, so the median never flipped
+        // and this case was already correct. Pinning it proves the fix targets contamination itself,
+        // not "bursts" generally, and that behaviour is unchanged where it was already fine.
+        var c6 = AC(mkBurst(6)).clean;
+        T.eq('§3.3 · a 6-beat burst (still a minority of the window) also stays above the floor', belowFloor(c6), 0);
+        T.ok('§3.3 · …and was already clean — this is not a blanket behaviour change', rmssd(c6) < 40, 'rMSSD=' + rmssd(c6).toFixed(2));
+        // Guard not over-broad: an artifact-free recording passes through untouched.
+        var pure = [];
+        for (var i = 0; i < 60; i++) pure.push(900 + (i % 2 ? 12 : -12));
+        var cp = AC(pure);
+        T.eq('§3.3 · an artifact-free recording is flagged 0', cp.nArt, 0);
+        T.ok(
+          '§3.3 · …and returned value-for-value unchanged',
+          cp.clean.every(function (v, k) {
+            return v === pure[k];
+          })
+        );
+      }
+    });
+
     group('PulseDex §3 — vlf+lf+hf == totalPower on overnight (Task-Force identity, the un-fixed sibling)', 'pulsedex-dsp · spectral', function (T) {
       var P = env.PulseDex;
       if (!P || typeof P.computeResult !== 'function') {

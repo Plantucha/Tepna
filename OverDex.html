@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-2UjnkW+xeJYWhv4x3lZ3ZQP9tEivwdw+h2ks/1wlwFE=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-70AUrHGU2gzNqyJLH1FwsO9kROu2C0urnwj8NpxwQKE=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-GGdN+UUs5j+9HUZsLBWNRzJsznw99NyOxmfZPLRvlo8=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-PXUdAFcOQVLDIV42NdLbJEMOlh/35V6Re3Q27kgNkjU=' 'sha256-S4eOTzgYlkNX3tS5LWUg4AxV3psnu9y00QPYGDCLGk0=' 'sha256-SRJJFEC6LTMi0bvZyzEJu7AQKuDo8gEeHChJAtBES0s=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dAifBP2Mq65O+/b6dd+DB8COsj5mNnE75cHPo2fwsqo=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-eQFgshqDM2o33iSMSFxRH2TgAEx42AUkukpJ6Fgbymc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-2UjnkW+xeJYWhv4x3lZ3ZQP9tEivwdw+h2ks/1wlwFE=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-GGdN+UUs5j+9HUZsLBWNRzJsznw99NyOxmfZPLRvlo8=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-PXUdAFcOQVLDIV42NdLbJEMOlh/35V6Re3Q27kgNkjU=' 'sha256-S4eOTzgYlkNX3tS5LWUg4AxV3psnu9y00QPYGDCLGk0=' 'sha256-SRJJFEC6LTMi0bvZyzEJu7AQKuDo8gEeHChJAtBES0s=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dAifBP2Mq65O+/b6dd+DB8COsj5mNnE75cHPo2fwsqo=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-eQFgshqDM2o33iSMSFxRH2TgAEx42AUkukpJ6Fgbymc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-tmAic/xbdvrtXNW4FGmx3xKwGyoaYsuH03HwOuDRjEc=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -14944,6 +14944,11 @@ __exports.HRVDex = window.HRVDex;
   // ─── ARTIFACT CORRECTION ─────────────────────────────────────────────────────
   // Flag beats outside physiology (300–2200ms) or deviating >20% from a local
   // 11-beat median; replace with that median so timing stays aligned for windowing.
+  /* Physiologic RR bounds. Named once because the window filter and the artifact test below MUST
+     agree: if the median could be drawn from values the test rejects, the correction hands back a
+     beat the function itself considers an artifact. */
+  const RR_MIN = 300,
+    RR_MAX = 2200;
   function artifactClean(vals) {
     const n = vals.length,
       out = vals.slice(),
@@ -14953,11 +14958,19 @@ __exports.HRVDex = window.HRVDex;
       const lo = Math.max(0, i - W),
         hi = Math.min(n, i + W + 1),
         seg = [];
-      for (let j = lo; j < hi; j++) if (j !== i) seg.push(vals[j]);
+      /* DEEP-AUDIT-II §3.3 — the local median must not be drawn from the artifacts it is correcting.
+         This pushed the RAW `vals[j]`, so a cluster of artifacts (ectopy runs, a dropout burst — the
+         normal way artifacts arrive, not the exceptional way) contaminated the very median used to
+         replace them. Measured at rMSSD +58 %, and in the direction that reads HEALTHIER, which is
+         why it never looked wrong. It also let the replacement land OUTSIDE [RR_MIN, RR_MAX]: a beat
+         "corrected" to a value the next line would itself flag as an artifact.
+         Restricting the window to physiologically plausible neighbours fixes both — the median is
+         clean, and being drawn only from in-range values it is in range by construction. */
+      for (let j = lo; j < hi; j++) if (j !== i && vals[j] >= RR_MIN && vals[j] <= RR_MAX) seg.push(vals[j]);
       seg.sort((x, y) => x - y);
       const med = seg[seg.length >> 1] || vals[i];
       const dev = med ? Math.abs(vals[i] - med) / med : 0;
-      if (vals[i] < 300 || vals[i] > 2200 || dev > 0.2) {
+      if (vals[i] < RR_MIN || vals[i] > RR_MAX || dev > 0.2) {
         flags[i] = 1;
         out[i] = med;
       }
