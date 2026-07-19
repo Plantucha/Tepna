@@ -127,9 +127,30 @@
     /* ── VALIDATED — established time/frequency/geometric HRV & repolarisation  */
     pnn50: { label: 'pNN50', unit: '%', goodDirection: 'up', depth: 'advanced', evidence: 'validated', cite: 'pNN50 — % successive NN > 50 ms (Task Force 1996)' },
     qtcFrid: { label: 'QTc (Fridericia)', unit: 'ms', goodDirection: 'down', depth: 'advanced', evidence: 'validated', cite: 'Fridericia rate-corrected QT — less rate-biased than Bazett' },
-    hf: { label: 'HF power', unit: 'ms²', goodDirection: 'up', depth: 'advanced', evidence: 'validated', cite: 'High-frequency power (0.15–0.4 Hz) — parasympathetic band (Task Force 1996) · Parseval calibration corrected 2026-07-19 (DEEP-AUDIT-II §3.1): the scale factor previously divided the FULL-signal variance by the IN-BAND integral, folding out-of-band power into this band' },
-    lf: { label: 'LF power', unit: 'ms²', goodDirection: 'up', depth: 'advanced', evidence: 'validated', cite: 'Low-frequency power (0.04–0.15 Hz) (Task Force 1996) · Parseval calibration corrected 2026-07-19 (DEEP-AUDIT-II §3.1): the scale factor previously divided the FULL-signal variance by the IN-BAND integral, folding out-of-band power into this band' },
-    vlf: { label: 'VLF power', unit: 'ms²', goodDirection: 'up', depth: 'research', evidence: 'validated', cite: 'Very-low-frequency power — resolvable overnight (Task Force 1996) · Parseval calibration corrected 2026-07-19 (DEEP-AUDIT-II §3.1): the scale factor previously divided the FULL-signal variance by the IN-BAND integral, folding out-of-band power into this band' },
+    hf: {
+      label: 'HF power',
+      unit: 'ms²',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'validated',
+      cite: 'High-frequency power (0.15–0.4 Hz) — parasympathetic band (Task Force 1996) · calibration corrected 2026-07-19 (§3.1)'
+    },
+    lf: {
+      label: 'LF power',
+      unit: 'ms²',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'validated',
+      cite: 'Low-frequency power (0.04–0.15 Hz) (Task Force 1996) · calibration corrected 2026-07-19 (§3.1)'
+    },
+    vlf: {
+      label: 'VLF power',
+      unit: 'ms²',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'validated',
+      cite: 'Very-low-frequency power — resolvable overnight (Task Force 1996) · calibration corrected 2026-07-19 (§3.1)'
+    },
     hfnu: { label: 'HF nu', unit: 'nu', goodDirection: 'up', depth: 'research', evidence: 'validated', cite: 'HF in normalized units (Task Force 1996)' },
     lfnu: { label: 'LF nu', unit: 'nu', goodDirection: 'up', depth: 'research', evidence: 'validated', cite: 'LF in normalized units (Task Force 1996)' },
     totalPower: { label: 'Total power', unit: 'ms²', goodDirection: 'up', depth: 'advanced', evidence: 'validated', cite: 'Total spectral power — Lomb–Scargle ∫PSD (Task Force 1996)' },
