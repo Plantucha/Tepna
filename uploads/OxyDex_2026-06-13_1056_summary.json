@@ -55,15 +55,6 @@
           "cat": null
         },
         {
-          "key": "desSev",
-          "label": "DesSev",
-          "value": 48.11,
-          "displayVal": "48.11%-min/hr",
-          "score": 9,
-          "sev": "r",
-          "cat": "spo2"
-        },
-        {
           "key": "cs",
           "label": "Cheyne-Stokes",
           "value": 3,
@@ -134,6 +125,15 @@
           "score": 3,
           "sev": "w",
           "cat": null
+        },
+        {
+          "key": "desSev",
+          "label": "DesSev",
+          "value": 5.57,
+          "displayVal": "5.57%-min/hr",
+          "score": 3,
+          "sev": "w",
+          "cat": "spo2"
         },
         {
           "key": "uars",
@@ -309,15 +309,6 @@
           "cat": null
         },
         {
-          "key": "desSev",
-          "label": "DesSev",
-          "value": 48.11,
-          "displayVal": "48.11%-min/hr",
-          "score": 9,
-          "sev": "r",
-          "cat": "spo2"
-        },
-        {
           "key": "cs",
           "label": "Cheyne-Stokes",
           "value": 3,
@@ -325,6 +316,15 @@
           "score": 9,
           "sev": "r",
           "cat": null
+        },
+        {
+          "key": "odi1",
+          "label": "ODI-1/hr",
+          "value": 48.5,
+          "displayVal": "48.5/hr",
+          "score": 8,
+          "sev": "r",
+          "cat": "spo2"
         }
       ],
       "impression": "Moderate burden: 16 PB episodes, SBII 47.787 %²·min/hr; CS pattern likely — review CPAP pressure.",
@@ -985,7 +985,7 @@
       "pred3pQ": "Q2"
     },
     "desSev": {
-      "desSev": 48.11
+      "desSev": 5.57
     },
     "ctPrecise": {
       "ct90s": 54,
@@ -1455,7 +1455,7 @@
       },
       "ahiEst": {
         "ahiODI4": 2.1,
-        "ahiKulkas": 32.7
+        "ahiKulkas": 7.2
       },
       "extras": {
         "spo2Range": 14,

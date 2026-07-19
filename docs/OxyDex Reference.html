@@ -961,7 +961,7 @@ body.light .ev-measured { border-color:var(--surface); }
 <div class="mc" data-tier="secondary">
   <div class="mh"><div class="mi"><span class="ma">DesSev</span><span class="mf">Desaturation Severity (Kulkas 2013)</span></div><span class="mt ta">Advanced</span></div>
   <p class="md">AHI surrogate validated in SHHS sub-cohort. Combines ODI-3 rate, mean depth, and mean duration. Correlates with PSG-AHI.</p>
-  <div class="fb"><div class="fl">Formula</div><div class="ft">DesSev = ODI-3 &#xD7; mean_depth_% &#xD7; mean_duration_s / k</div><div class="fn">k = normalization constant (Kulkas 2013)</div></div>
+  <div class="fb"><div class="fl">Formula</div><div class="ft">DesSev = &#x3A3;(desaturation area) / recording hours &#x2014; &#x25;-min/hr</div><div class="fn">Area integrated per second against each event&#x2019;s onset baseline, over the canonical ODI event set (&#x2265;4&#x25; descent, &#x2265;10 s), self-gated artifacts excluded (Kulkas 2013). Bands: &lt;5 good &#xB7; &lt;15 warn &#xB7; &#x2265;15 high. This guide previously described <em>ODI-3 &#xD7; mean_depth &#xD7; mean_duration / k</em> &#x2014; a formula the code has never implemented; corrected 2026-07-19 (DEEP-AUDIT-II &#xA7;2.2).</div></div>
 <span class="ev-corner ev-emerging" title="Emerging — published and promising, but less standardized or device-dependent"></span></div>
 
 <div class="mc" data-tier="secondary">

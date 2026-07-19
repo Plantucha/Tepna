@@ -83,8 +83,8 @@
       {
         "key": "desSev",
         "label": "DesSev",
-        "value": 14.66,
-        "displayVal": "14.66%-min/hr",
+        "value": 7.62,
+        "displayVal": "7.62%-min/hr",
         "score": 3,
         "sev": "w",
         "cat": "spo2"
@@ -571,7 +571,7 @@
     "pred3pQ": "Q1(low)"
   },
   "desSev": {
-    "desSev": 14.66
+    "desSev": 7.62
   },
   "ctPrecise": {
     "ct90s": 66,
@@ -1024,7 +1024,7 @@
     },
     "ahiEst": {
       "ahiODI4": 2.2,
-      "ahiKulkas": 9.5
+      "ahiKulkas": 5.3
     },
     "extras": {
       "spo2Range": 9,

@@ -37,15 +37,6 @@
           "cat": null
         },
         {
-          "key": "desSev",
-          "label": "DesSev",
-          "value": 34.68,
-          "displayVal": "34.68%-min/hr",
-          "score": 9,
-          "sev": "r",
-          "cat": "spo2"
-        },
-        {
           "key": "cs",
           "label": "Cheyne-Stokes",
           "value": 3,
@@ -66,8 +57,8 @@
         {
           "key": "sbii",
           "label": "SBII",
-          "value": 14.653,
-          "displayVal": "14.653 %²·min/hr",
+          "value": 13.304,
+          "displayVal": "13.304 %²·min/hr",
           "score": 7,
           "sev": "w",
           "cat": "spo2"
@@ -271,6 +262,15 @@
           "cat": "spo2"
         },
         {
+          "key": "desSev",
+          "label": "DesSev",
+          "value": 1.79,
+          "displayVal": "1.79%-min/hr",
+          "score": 0,
+          "sev": "g",
+          "cat": "spo2"
+        },
+        {
           "key": "wtdsi",
           "label": "WtDSI",
           "value": 0.321,
@@ -289,15 +289,6 @@
           "score": 9,
           "sev": "r",
           "cat": null
-        },
-        {
-          "key": "desSev",
-          "label": "DesSev",
-          "value": 34.68,
-          "displayVal": "34.68%-min/hr",
-          "score": 9,
-          "sev": "r",
-          "cat": "spo2"
         },
         {
           "key": "cs",
@@ -320,14 +311,23 @@
         {
           "key": "sbii",
           "label": "SBII",
-          "value": 14.653,
-          "displayVal": "14.653 %²·min/hr",
+          "value": 13.304,
+          "displayVal": "13.304 %²·min/hr",
           "score": 7,
+          "sev": "w",
+          "cat": "spo2"
+        },
+        {
+          "key": "odi1",
+          "label": "ODI-1/hr",
+          "value": 38.8,
+          "displayVal": "38.8/hr",
+          "score": 5,
           "sev": "w",
           "cat": "spo2"
         }
       ],
-      "impression": "Moderate burden: hypoxic load 6.053, DesSev 34.68%-min/hr; CS pattern likely — review CPAP pressure.",
+      "impression": "Moderate burden: hypoxic load 6.053, CS pattern probable (Likely); CS pattern likely — review CPAP pressure.",
       "overallScore": 8
     },
     "odi4": {
@@ -748,7 +748,7 @@
       "nsi": 37
     },
     "sbii": {
-      "sbii": 14.653,
+      "sbii": 13.304,
       "sbiiQ": "Q4"
     },
     "pred3p": {
@@ -756,7 +756,7 @@
       "pred3pQ": "Q1(low)"
     },
     "desSev": {
-      "desSev": 34.68
+      "desSev": 1.79
     },
     "ctPrecise": {
       "ct90s": 0,
@@ -817,7 +817,7 @@
     "flags": [
       "PERIODIC_BREATHING(6)",
       "TACHYCARDIA_EVENTS(1)",
-      "SBII_Q4(14.653)"
+      "SBII_Q4(13.304)"
     ],
     "newMetrics": {
       "spo2Drift": {
@@ -1243,7 +1243,7 @@
       },
       "ahiEst": {
         "ahiODI4": 1.3,
-        "ahiKulkas": 22.9
+        "ahiKulkas": 3.2
       },
       "extras": {
         "spo2Range": 9,

@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-2Cg5MmHbsewgCHxMRZJCmNX7MG7Tm7XlBuzXp+u9hac=' 'sha256-2UjnkW+xeJYWhv4x3lZ3ZQP9tEivwdw+h2ks/1wlwFE=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-70AUrHGU2gzNqyJLH1FwsO9kROu2C0urnwj8NpxwQKE=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-PXUdAFcOQVLDIV42NdLbJEMOlh/35V6Re3Q27kgNkjU=' 'sha256-S4eOTzgYlkNX3tS5LWUg4AxV3psnu9y00QPYGDCLGk0=' 'sha256-SRJJFEC6LTMi0bvZyzEJu7AQKuDo8gEeHChJAtBES0s=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-eQFgshqDM2o33iSMSFxRH2TgAEx42AUkukpJ6Fgbymc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-odm/sufZfsnaYa7rvA4Az7N9JgaOoTVTVRVSmXuBSWo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-2Cg5MmHbsewgCHxMRZJCmNX7MG7Tm7XlBuzXp+u9hac=' 'sha256-2UjnkW+xeJYWhv4x3lZ3ZQP9tEivwdw+h2ks/1wlwFE=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-70AUrHGU2gzNqyJLH1FwsO9kROu2C0urnwj8NpxwQKE=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-GGdN+UUs5j+9HUZsLBWNRzJsznw99NyOxmfZPLRvlo8=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-PXUdAFcOQVLDIV42NdLbJEMOlh/35V6Re3Q27kgNkjU=' 'sha256-S4eOTzgYlkNX3tS5LWUg4AxV3psnu9y00QPYGDCLGk0=' 'sha256-SRJJFEC6LTMi0bvZyzEJu7AQKuDo8gEeHChJAtBES0s=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-eQFgshqDM2o33iSMSFxRH2TgAEx42AUkukpJ6Fgbymc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -4842,9 +4842,11 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var hrAdv = computeHRAdvanced(rows, osc);
     var comp = computeComposite(rows, spikes, desat, cross, motSleep, durationHr);
     // v20: literature-validated metrics
-    var sbii = computeSBII(rows, null, durationHr, blArr); // nadir events computed inline
+    // §2.1/§2.2 — both score the ARTIFACT-GATED canonical desat set (`desat.events`), so the
+    // self-gate exclusion already applied to ODI-4 above is inherited instead of re-derived.
+    var sbii = computeSBII(rows, desat, durationHr, blArr);
     var pred3p = computePRED3p(rows, null, blArr);
-    var desSev = computeDesSev(rows, blArr);
+    var desSev = computeDesSev(rows, blArr, desat);
     var ctPrec = computeCTprecise(rows);
     // v20.2: 15 new metrics
     var ct94 = computeCT94(rows);
@@ -6677,10 +6679,20 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var totalGap = gaps.reduce(function (a, b) {
       return a + b;
     }, 0);
+    // DEEP-AUDIT-II §2.3 — gapPct is a fraction of TIME, so both sides must be seconds.
+    // This divided gap SECONDS by a SAMPLE COUNT, which only looks right because the O2Ring
+    // samples at exactly 1 Hz (n samples ≈ n seconds). At any other cadence the ratio is
+    // scaled by fs, and because the denominator counted only RECORDED samples while the
+    // numerator counted MISSING time, the result was biased high and unbounded above 100 %
+    // (a true 25 % read 33.4 %). Denominator is now the wall-clock span the recording covers
+    // — recorded time PLUS the gaps in it — so the value is a genuine percentage in [0,100].
+    // It is rendered, via the generic auto-walk in oxydex-fusion.js.
+    var _spanSec = rows[n - 1].t != null && rows[0].t != null ? (rows[n - 1].t - rows[0].t) / 1000 : 0;
+    if (!(_spanSec > 0)) _spanSec = n + totalGap; // stampless fallback: 1 Hz assumption, made explicit
     return {
       gapCount: gaps.length,
       maxGapSec: +maxGap.toFixed(0),
-      gapPct: +((totalGap / n) * 100).toFixed(1),
+      gapPct: +Math.min(100, (totalGap / _spanSec) * 100).toFixed(1),
       gapLabel: maxGap > 120 ? 'Significant gap (>2min)' : maxGap > 10 ? 'Minor gaps' : 'Clean'
     };
   }
@@ -7743,19 +7755,37 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   // SBII (Sleep Breathing Impairment Index) — Hui 2024, best predictor CVD mortality
   // Formula: Σ(D_i² × T_i_min) / TRT_hr  [%²·min/hr] — each event contributes depth² × duration
   // nadir events computed inline from ODI-4 rolling baseline; result normalized per hour
-  function computeSBII(rows, nadirEventsIgnored, durationHr, blArr) {
+  function computeSBII(rows, desat, durationHr, blArr) {
     var spo2 = rows.map(function (r) {
       return r.spo2;
     });
     var n = spo2.length,
       WIN = 300;
     if (n < 60 || durationHr <= 0) return { sbii: 0, sbiiQ: 'Q1(low)' };
-    // Build nadir events from the ONE canonical primitive — DEX-EVENT-UNIFY-FOLLOWUPS §1.
-    // Same shared ODI-4 event set as computeDesaturationProfile (ceiling baseline, simple
-    // re-rise close), so SBII is scored on the headline desats, not a private MEAN loop.
-    var nadirEvents = detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, exitPct: DexKernel.K.ODI_DROP, blArr: blArr }).map(function (e) {
-      return { depth: e.depth, duration: e.durationSec, desatArea: (e.depth * e.durationSec) / 60 };
-    });
+    // Nadir events from the ONE canonical primitive — DEX-EVENT-UNIFY-FOLLOWUPS §1 — scored on
+    // the headline desats, not a private MEAN loop.
+    //
+    // DEEP-AUDIT-II §2.1: this re-ran `detectDesatEvents` itself and never read `desat.events`,
+    // so it scored the UNGATED set. The oximeter self-gate (`selfGateDesat`) flags probe-squeeze
+    // and finger-off artifacts, and `processNight` already subtracts them from the ODI-4 rate —
+    // but SBII squares depth (D²·T), so an artifact "67 % cliff" that ODI-4 had explicitly
+    // rejected re-entered here with quadratic weight: up to 6.5×, moving 3 of 11 nights a full
+    // quintile. Take `desat.events` (the SURVIVING set) so the exclusion is inherited rather
+    // than re-litigated. The `durationHr` denominator is deliberately untouched (ratified).
+    // NOTE the two event shapes: the raw primitive emits `durationSec`, while
+    // computeDesaturationProfile RE-SHAPES its events to `duration` (and drops `baseline`,
+    // keeping `nadir`+`depth`). Read both, or the profile path silently yields NaN — which
+    // JSON-serialises to null and, being NaN, fails every quintile comparison so the label
+    // lands on 'Q5(high)'. A wrong-but-plausible worst-case grade, from a units mismatch.
+    var _src = desat && Array.isArray(desat.events) ? desat.events : detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, exitPct: DexKernel.K.ODI_DROP, blArr: blArr });
+    var nadirEvents = _src
+      .map(function (e) {
+        var dur = e.durationSec != null ? e.durationSec : e.duration;
+        return { depth: e.depth, duration: dur, desatArea: (e.depth * dur) / 60 };
+      })
+      .filter(function (e) {
+        return isFinite(e.depth) && isFinite(e.duration);
+      });
     if (!nadirEvents.length) return { sbii: 0, sbiiQ: 'Q1(low)' };
     var sum = 0;
     nadirEvents.forEach(function (e) {
@@ -7794,19 +7824,39 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   // Formula: Σ(desaturation_area) / total_time
   // Where desaturation_area = area between baseline (left peak) and SpO2 nadir per event
   // This is the proper "area under desaturation curve" without requiring manually scored events
-  function computeDesSev(rows, blArr) {
+  function computeDesSev(rows, blArr, desat) {
     var spo2 = rows.map(function (r) {
       return r.spo2;
     });
     var n = rows.length;
     if (n < 60) return { desSev: 0 };
-    // Desaturation area (Kulkas) — DEX-EVENT-UNIFY-FOLLOWUPS §1: events from the ONE
-    // canonical primitive at the DesSev ≥1% descent threshold (simple re-rise close, no
-    // min-length gate); area = Σ per-second deficit vs each event's onset baseline.
+    // Desaturation area (Kulkas) — area = Σ per-second deficit vs each event's onset baseline,
+    // scored over the CANONICAL ODI event set.
+    //
+    // DEEP-AUDIT-II §2.2: this previously ran the primitive at `dropPct:1, exitPct:1, minSec:0`.
+    // A 1 % descent with NO minimum duration is not a desaturation — it is ordinary SpO₂ ripple,
+    // so the integral swept most of the night and the index stopped discriminating: across the
+    // 37-night O2Ring corpus it spanned 27.8–61.8 %-min/hr, the "good" band (<5) was unreachable
+    // on EVERY night, and `ahiKulkas` — which takes desSev at weight 0.6 — ran a median 17× its
+    // sibling `ahiODI4`, reporting "moderate apnea" (24) on nights ODI-4 scored normal (1.2).
+    // A metric returning the same verdict for all 37 nights is measuring the noise floor.
+    //
+    // Now scored over `desat.events`: the same ≥4 % / ≥10 s ODI-4 set every other consumer uses,
+    // already artifact-gated (§2.1), so the area is taken over events that are actually
+    // desaturations. Falls back to deriving that canonical set when no profile is supplied so
+    // direct callers keep working — the fallback is NOT artifact-gated, so the profile path is
+    // preferred. Kulkas' area-under-the-curve concept is unchanged; only the event set is.
+    var _evts = desat && Array.isArray(desat.events) ? desat.events : detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, exitPct: DexKernel.K.ODI_DROP, blArr: blArr });
+    // Two event shapes (see computeSBII): the raw primitive carries `baseline`, while the
+    // profile's re-shaped events drop it and keep `nadir`+`depth` — from which the onset
+    // baseline is recoverable exactly. Without this the subtraction is NaN, every `d > 0`
+    // is false, and the index reports a silent, confident 0.
     var totalArea = 0;
-    detectDesatEvents(spo2, { dropPct: 1, exitPct: 1, minSec: 0, blArr: blArr }).forEach(function (e) {
+    _evts.forEach(function (e) {
+      var base = e.baseline != null ? e.baseline : e.nadir != null && e.depth != null ? e.nadir + e.depth : null;
+      if (base == null || !isFinite(base)) return;
       for (var k = e.startIdx; k < e.endIdx; k++) {
-        var d = e.baseline - spo2[k];
+        var d = base - spo2[k];
         if (d > 0) totalArea += d;
       }
     });
