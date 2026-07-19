@@ -5773,6 +5773,43 @@
         T.ok('§2 · verify-fixtures.mjs IS the writer (it re-runs the app first)', vfSrc.indexOf('verifiedUnder') !== -1);
       }
 
+      /* §2b · RELEASE HYGIENE — exactly ONE list of the deploy paths build-docs rewrites.
+         release.mjs prints the post-release `git add` line and used to hardcode its own copy of that
+         list. The copy drifted: it named README / index.html / docs/about.json but omitted
+         sitemap.xml, feed.xml, llms-full.txt and docs/index.html — all four of which build-docs
+         rewrites on EVERY release, because BUILD_DATE is the newest RELEASE-MANIFEST date and cutting
+         a release moves it. Following the printed line literally produced a v1.14.0 release commit
+         missing four regenerated files, and no local gate could catch it: `build-docs --check` reads
+         the WORKING TREE (where they were already correct) while CI checks out the COMMIT. CI caught
+         it a full cycle late.
+         The fix is structural — build-docs derives the line from its own `artifacts` map and
+         `stampRules`; release.mjs defers to it. This pins that: release.mjs must not name any
+         build-docs-owned artifact, so a second copy cannot be reintroduced, and build-docs must still
+         emit the line from the maps rather than a literal. Source-scanned on purpose — "there is
+         exactly one list" IS a property of the source, the same reason §2 scans build.mjs. */
+      var relSrc = src['tools/release.mjs'],
+        bdSrc = src['tools/build-docs.mjs'];
+      if (relSrc == null || bdSrc == null) {
+        T.skip('§2b · release.mjs carries no second copy of build-docs’ deploy list', 'tools/release.mjs or tools/build-docs.mjs not in env.sources');
+      } else {
+        var OWNED = ['sitemap.xml', 'feed.xml', 'llms-full.txt', 'llms.txt', 'robots.txt', 'about.json'];
+        var leaked = OWNED.filter(function (f) {
+          return relSrc.indexOf(f) !== -1;
+        });
+        T.ok(
+          '§2b · release.mjs names NO build-docs-owned artifact (one list, not two)',
+          leaked.length === 0,
+          leaked.length ? 'release.mjs hardcodes ' + leaked.join(', ') + ' — that copy is exactly what drifted' : ''
+        );
+        T.ok('§2b · …and points the releaser at build-docs for those paths', /build-docs/.test(relSrc) && /paths build-docs just printed/.test(relSrc));
+        T.ok('§2b · build-docs emits the stage line', /releaseSurfaces\s*\(/.test(bdSrc) && /Stage exactly what this run wrote/.test(bdSrc));
+        T.ok(
+          '§2b · …derived from its artifacts + stampRules maps, not a literal (a hand-list is what drifted)',
+          /Object\.keys\(artifacts\)/.test(bdSrc) && /stampRules\.map/.test(bdSrc),
+          'releaseSurfaces() must read `artifacts` and `stampRules` so a new artifact cannot fall out of the list'
+        );
+      }
+
       // ── §3.1 · the ledger is well-formed: every corpus-backed fixture CARRIES a verification
       if (!raw) {
         T.skip('§3.1 · corpus-backed fixtures carry a verifiedUnder', 'FIXTURE-PROVENANCE.json not in env.manifests');

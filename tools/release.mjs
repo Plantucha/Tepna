@@ -181,10 +181,13 @@ function main() {
   console.log(
     '\nReleased ' +
       to +
-      '. Now:\n\n    node tools/build-docs.mjs   # project v' +
+      '. Now:\n\n    node tools/build-docs.mjs   # projects v' +
       to +
-      ' into README + index.html + docs/about.json (check-6 surfaces)\n' +
-      '    git add suite.manifest.json CHANGELOG.md RELEASE-MANIFEST.json CITATION.cff README.md index.html docs/about.json changes/ \\\n' +
+      ' into the deploy surfaces, then PRINTS the exact `git add` line for what it wrote\n' +
+      '    # ↑ stage BOTH lists. The line below carries only what release.mjs itself wrote; every\n' +
+      '    #   deploy path belongs to build-docs and comes from the paths build-docs just printed.\n' +
+      '    #   Do not re-hardcode them here — a copy in this file drifted and silently omitted four.\n' +
+      '    git add suite.manifest.json CHANGELOG.md RELEASE-MANIFEST.json CITATION.cff changes/ \\\n' +
       '      && git commit -m "release: v' +
       to +
       '"\n    git tag -s v' +

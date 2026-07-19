@@ -374,6 +374,19 @@ function buildLlmsFull() {
   return out;
 }
 const artifacts = { 'sitemap.xml': buildSitemap(), 'robots.txt': buildRobots(), 'feed.xml': buildFeed(), 'about.json': buildAbout(), 'llms.txt': buildLlms(), 'llms-full.txt': buildLlmsFull() };
+
+/* Every repo path a release run of this tool can rewrite: the generated artifacts under the deploy
+   dir, plus every Phase-3 version-stamp target (README.md, index.html and its docs/ twin).
+   Derived from the SAME `artifacts` map and `stampRules` the run uses — not a second list — so a
+   new artifact or stamp target is covered the moment it is added there.
+   Deliberately lists every MANAGED path, not only the ones that changed this run: `git add` on an
+   unchanged file is a no-op, and listing only the changed set makes the line non-idempotent (run
+   the tool twice and the second, shorter list silently drops the first run's files). Quoted where
+   a path contains a space so the line pastes as-is. Explicit paths; never `git add -A` (§👥.2). */
+function releaseSurfaces() {
+  const q = (p) => (/\s/.test(p) ? `"${p}"` : p);
+  return [...Object.keys(artifacts).map((n) => `${DEPLOY_REL}/${n}`), ...stampRules.map(([rel]) => rel)].sort().map(q);
+}
 for (const [name, content] of Object.entries(artifacts)) {
   const dest = join(DEPLOY, name);
   const cur = existsSync(dest) ? readFileSync(dest, 'utf8') : null;
@@ -425,4 +438,14 @@ if (CHECK) {
   console.log(`Phase 1b (assets): synced ${log.asset.length} of ${assetFiles.length} (css/js/img)`);
   console.log(`Phase 2 (artifacts): (re)generated ${Object.keys(artifacts).length}`);
   console.log(`Phase 3 (version stamp): projected v${VERSION} into ${log.stamp.length} surface(s)${log.stamp.length ? ' (' + log.stamp.join(', ') + ')' : ''}`);
+  // ── what to stage ───────────────────────────────────────────────────────────
+  //   This tool is the ONLY place that knows which paths it writes, so it is the only honest place
+  //   to print the stage list. tools/release.mjs used to carry a hand-maintained copy, and it had
+  //   drifted: it omitted sitemap.xml / feed.xml / llms-full.txt and docs/index.html. Following it
+  //   literally produced a release commit missing four files that this run had just rewritten —
+  //   and `--check` could not catch it, because --check reads the WORKING TREE (where they were
+  //   already correct) while CI checks out the COMMIT (where they were absent).
+  //   Derived from the same `artifacts` map and `log.stamp` the run actually used, so adding an
+  //   artifact cannot silently fall out of the list. Explicit paths, never `git add -A` (§👥.2).
+  console.log(`\nStage exactly what this run wrote:\n    git add ${releaseSurfaces().join(' ')}`);
 }

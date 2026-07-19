@@ -248,6 +248,11 @@ function readSources() {
     // verify-fixtures.mjs is the only tool allowed to author it, and only after a green real run.
     'tools/build.mjs',
     'tools/verify-fixtures.mjs',
+    // The release-hygiene leg scans these two: build-docs.mjs owns the list of deploy paths it
+    // rewrites, and release.mjs must NOT carry a second copy of it (its hardcoded copy had drifted
+    // and omitted sitemap.xml / feed.xml / llms-full.txt / docs/index.html).
+    'tools/release.mjs',
+    'tools/build-docs.mjs',
     'manifest-gate.js',
     'sensor-trio-worker.js',
     'sensor-trio-power-analysis.js',
