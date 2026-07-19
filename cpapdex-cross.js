@@ -225,9 +225,17 @@
     let baselineMean = null,
       baselineSd = null;
     if (n >= 3) {
+      /* DEEP-AUDIT-II §9.2 — the personal baseline must carry the SAME weights as the centre it is
+         compared against. `central.mean` is wmean(vals, w), but the baseline behind zLatest was
+         mean(prior) / sd(prior): UNWEIGHTED. A 6 %-coverage night therefore moved the baseline as
+         if it were a full night, and a genuine −2.4σ event on the newest night read as ordinary.
+         Spec breach in writing (CROSSNIGHT-ENVELOPE-SPEC §3: low-quality items are "down-weighted
+         in EVERY fit/aggregate via `weight`"). Same identity as §9.1: uniform weights reproduce the
+         old numbers exactly, which is why every committed fixture holds. */
       const prior = vals.slice(0, n - 1);
-      const pm = mean(prior),
-        psRaw = sd(prior);
+      const priorW = w.slice(0, n - 1);
+      const pm = wmean(prior, priorW),
+        psRaw = wsd(prior, priorW);
       baselineMean = r2(pm);
       // Guard a degenerate (near-zero) baseline spread: dividing by ~0 SD explodes z to
       // absurd magnitudes (±1e8 σ) that overflow the trend card. Floor the SD relative to

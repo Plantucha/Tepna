@@ -13762,6 +13762,33 @@
           T.approx('§9.1 · central.cv follows the same weights: ≈4.6 (an unweighted spread gave 8.0)', cW.cv, 4.6, 0.06);
           T.ok('§9.1 · …the down-weighted outlier genuinely shrinks the spread', cW.sd < 7.0, 'sd=' + cW.sd + ' — 7.5 is what the outlier used to force at full weight');
         }
+        /* ── DEEP-AUDIT-II §9.2 · the personal BASELINE must carry the same weights too ─────────────
+           `central.mean` is wmean(vals, w), but the baseline behind `zLatest` was mean(prior) /
+           sd(prior) — UNWEIGHTED. A near-empty night therefore moved the baseline as though it were
+           a full night, and because a wild value on that night also INFLATES the baseline SD, the
+           newest night's z is pulled toward zero twice over. Same spec breach as §9.1
+           (CROSSNIGHT-ENVELOPE-SPEC §3: down-weighted in EVERY fit/aggregate).
+           Hand-derived, reproducing the audit's own figure. Prior meanSpo2 [95,95,95,60] at coverage
+           [100,100,100,6] ⇒ w=[1,1,1,0.06]; newest night 80 at full coverage.
+             unweighted baseline: mean 86.25, sd 17.50 ⇒ z = (80−86.25)/17.50 = −0.36
+             weighted   baseline: mean 94.31, sd  5.89 ⇒ z = (80−94.31)/5.89  = −2.43
+           This is not a rounding difference — it crosses the |z| ≥ 1 threshold the spec uses to set
+           `flag`, so the pre-fix code did not merely understate the event, it declined to raise it.
+           A genuine −2.4σ night read as ordinary because one 6 %-coverage night was in the prior. */
+        var oxZ = [100, 100, 100, 6, 100].map(function (cov, i) {
+          var v = [95, 95, 95, 60, 80][i];
+          return { stats: { startTs: day(i), meanSpo2: v, coverage: cov } };
+        });
+        var zB = OX.crossNightBlock(oxZ);
+        var zM = zB && zB.metrics && zB.metrics.meanSpo2;
+        var zBase = zM && zM.baseline;
+        T.ok('§9.2 · a block with a 6 %-coverage prior night still forms', !!zBase, JSON.stringify(zM ? Object.keys(zM) : null));
+        if (zBase) {
+          T.approx('§9.2 · baseline.mean is coverage-WEIGHTED: 94.31 (unweighted gave 86.25)', zBase.mean, 94.31, 0.05);
+          T.approx('§9.2 · baseline.sd likewise: 5.9 (the 6 %-coverage night inflated it to 17.5)', zBase.sd, 5.9, 0.1);
+          T.approx('§9.2 · zLatest = −2.43 — the real event (unweighted reported −0.36)', zBase.zLatest, -2.43, 0.05);
+          T.ok('§9.2 · …and |z| ≥ 1, so it is FLAGGED — pre-fix it was not raised at all', Math.abs(zBase.zLatest) >= 1, 'zLatest=' + zBase.zLatest);
+        }
         // deep-scout §CN — the block also surfaces median/iqr/min/max/slopePerDay/tau/p but the group
         // never pinned their VALUES, so every one of those estimators was hollow. meanSpo2 = [90..97]
         // (8 nights, 1 day apart, coverage 90 → equal weights): median = (93+94)/2 = 93.5; IQR = P75−P25 =
