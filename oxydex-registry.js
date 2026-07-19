@@ -135,6 +135,22 @@
     waso: { label: 'WASO', unit: 'min', goodDirection: 'down', depth: 'advanced', evidence: 'emerging', cite: 'Wake after sleep onset — motion-derived proxy' },
     oscWindows: { label: 'Osc Windows', unit: '', goodDirection: 'down', depth: 'advanced', evidence: 'emerging', cite: 'Periodic-breathing oscillation windows' },
 
+    /* ── CROSSNIGHT metric (OXYDEX-CROSSNIGHT -III §1) — PB BURDEN as a rate (oscillation episodes
+     per hour), trended night-to-night by the Integrator Longitudinal view. DISTINCT from
+     `periodicBreathing` below: that one grades a single emitted episode EVENT, this one grades the
+     per-night RATE. Same derived-SpO₂-oscillation provenance, so the same EXPERIMENTAL tier — never
+     `measured`. Registry entry added by the REGISTRY-PROJECTION Phase-2 residue pass: OXY_DEFS.pbIndex
+     had no registry counterpart, so its longitudinal badge fell to the experimental FALLBACK rather
+     than a graded lookup, and `registry-defs-parity` could only ⊘ SKIP it. ───────────────────────── */
+    pbIndex: {
+      label: 'PB Index',
+      unit: '/hr',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'experimental',
+      cite: 'Periodic-breathing oscillation episodes per hour — derived SpO₂-oscillation signature, not an airflow-scored event'
+    },
+
     /* ── EVENT-STREAM metric (OXYDEX-NODE-EXPORT-ENVELOPE §2b) — the tier the Integrator/render
      resolve for an emitted periodic_breathing ganglior_event. A PB/Cheyne-Stokes episode is a
      DERIVED SpO₂-oscillation signature across many breaths (not a single scored respiratory event),
