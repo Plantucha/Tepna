@@ -31,6 +31,8 @@ SETTINGS: dict[str, tuple] = {
     "watchdog.max_adapter_cycles": (int, 1,   10,   False, 3, "Hard cap on controller power-cycles"),
     # O2Ring
     "o2ring.ppg_fs":            (float, 100,  200,  True, 125.738,  "O2Ring pleth sample rate (calibrated 125.738)"),
+    "power.drop_not_worn_sec":  (float, 0,    3600, True, 180.0, "Drop a not-worn strap after this many seconds to save its battery (0 = never)"),
+    "power.not_worn_recheck_sec": (float, 30,  1800, True, 90.0, "How often to reconnect and check whether a dropped strap is back on"),
     "o2ring.rtc_resync_sec":    (float, 60,   604800, True, 21600.0, "O2Ring RTC drift-backstop interval (s); the RTC is otherwise synced only on first contact + each new recording session"),
 }
 
