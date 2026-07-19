@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3IsuIfcb6DKsRs2HNebyHs2EgvED9l/WDIaI4lJD9uE=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-KgaAuv/6KGUj6sYIwLsZPf0TlufPhKJSm69jaGd/6+Q=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-OaR/0dG2x6ARLgN8e7hTda9Cc3UWpoKYrmKxEjH6STI=' 'sha256-SN1Vzuwjy3Oz2lLf9tPqzpQJXuz2l3Lu7oLRK9cjWDo=' 'sha256-aMINXO+LtdhxQ6xIivZAsOeQTyaQ1X9XmnpeCoNu9UU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3IsuIfcb6DKsRs2HNebyHs2EgvED9l/WDIaI4lJD9uE=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-KgaAuv/6KGUj6sYIwLsZPf0TlufPhKJSm69jaGd/6+Q=' 'sha256-LS4jnLimaZ44Q2plBvf245YiffrLy4UU/IGGtzyh22U=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-OaR/0dG2x6ARLgN8e7hTda9Cc3UWpoKYrmKxEjH6STI=' 'sha256-SN1Vzuwjy3Oz2lLf9tPqzpQJXuz2l3Lu7oLRK9cjWDo=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Integrator · Fusion Layer</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -9989,6 +9989,31 @@ window.IntegratorDSP = {
         return _sortKey(a) - _sortKey(b);
       });
   }
+  /* DEEP-AUDIT-II §8.4 — the footer rendered the RECORDING COUNT with a `d` (days) suffix, so a
+     12-recording series spanning 90 days read "over 12d". Always in the alarming direction: the same
+     delta compressed into a shorter apparent window looks like a steeper change.
+     The series carries `t0Ms`, so the real span is computable — but only when EVERY item is dated.
+     §9.4 flags the same hazard for `slopePerDay`: one undated item makes a per-day figure meaningless.
+     So this reports the true span when it is knowable, and says what it actually has when it is not,
+     rather than presenting a count as a duration. */
+  function _spanLabel(ser) {
+    var n = ser ? ser.length : 0;
+    if (!n) return '0 recordings';
+    var lo = Infinity,
+      hi = -Infinity,
+      dated = 0;
+    for (var i = 0; i < n; i++) {
+      var t = ser[i] && ser[i].t0Ms;
+      if (typeof t === 'number' && isFinite(t)) {
+        dated++;
+        if (t < lo) lo = t;
+        if (t > hi) hi = t;
+      }
+    }
+    if (dated !== n || !(hi > lo)) return n + (n === 1 ? ' recording' : ' recordings'); // honest: no span to state
+    var days = Math.round((hi - lo) / 86400000);
+    return days + 'd (' + n + (n === 1 ? ' recording' : ' recordings') + ')';
+  }
   function defOf(node, mid) {
     return _defs[node + '|' + mid] || { label: mid, unit: '', goodDirection: 'up' };
   }
@@ -10306,8 +10331,8 @@ window.IntegratorDSP = {
           (delta > 0 ? '+' : '') +
           +delta.toFixed(2) +
           ' over ' +
-          ser.length +
-          'd</span></div></div>';
+          _spanLabel(ser) +
+          '</span></div></div>';
       });
     });
     html += '</div></div>';
@@ -10433,6 +10458,7 @@ window.IntegratorDSP = {
   }
 
   global.IntegratorLong = {
+    _spanLabel: _spanLabel, // §8.4 — pure, exposed so the span/count distinction is gateable
     open: open,
     ingest: ingest,
     render: render,
