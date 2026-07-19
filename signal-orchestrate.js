@@ -394,8 +394,23 @@
     if (/_RR\b|_RR\./.test(u)) return 'rr';
     return null;
   }
+  // Floating wall-clock ms (Clock Contract) from a filename stamp. Resolution order matters:
+  //
+  //   (1) ANCHORED after a Polar device id — the same shape dex-ingest.js:stampMs uses. The old
+  //       single unanchored pattern below ate a NUMERIC device id as the date: on the real corpus
+  //       `Polar_H10_02849638_20260617_010616_ACC.txt` parsed as year 0284 (it consumed `0284|96|38`
+  //       then took `20|26|06` — i.e. only the MONTH digits of the true date), so every H10 file in a
+  //       given month collapsed to ONE stamp. pairCompanions' nearest-stamp tiebreak then degraded to
+  //       "first candidate of that kind": measured 147/153 wrong-night pairings across 51 ECG primaries
+  //       (ENGINE-VERIFICATION-FINDINGS-2026-07-18-BRIEF §1.1). A LETTERED id (`0C301E3F`, or the
+  //       `AAAA`/`X` ids the older tests used) can't be misread as digits, which is why it hid so long.
+  //   (2) Year-restricted general fallback — keeps NON-Polar vendors stamping exactly as before, but
+  //       requires a plausible `20xx` year so a numeric id can no longer masquerade as one.
+  //
+  // Do NOT collapse these back into one loose pattern.
   function fnameStampMs(name) {
-    var m = String(name == null ? '' : name).match(/(\d{4})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})/);
+    var s = String(name == null ? '' : name);
+    var m = s.match(/^POLAR_[A-Z0-9]+_[A-Z0-9]+_(\d{4})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})/i) || s.match(/(20\d{2})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})/);
     return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : null; // floating wall-clock (Clock Contract)
   }
   // §1 (ECG-INGEST-FOLLOWUPS-II) — device identity + foreign-vendor classification are NO LONGER
