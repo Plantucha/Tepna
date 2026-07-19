@@ -107,6 +107,12 @@
       sawMDY = false;
     var RE_A = /^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
     var RE_C = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/;
+    /* DEEP-AUDIT-II §5.5 — a BARE date carries the same day/month evidence as a stamped one, and the
+       nutrition date column has no time at all (Cronometer's daily-summary export). Without this the
+       resolver saw ZERO evidence on such a file and returned unlocked, leaving every row to guess its
+       own order. Adding a pattern can only ADD evidence — it can never unlock a file the timed
+       patterns already locked — and CGM stamps always carry a time, so that path is untouched. */
+    var RE_D = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
     var list = rawStamps || [];
     for (var i = 0; i < list.length; i++) {
       var s = list[i];
@@ -116,12 +122,16 @@
         b = null;
       var mA = s.match(RE_A);
       var mC = mA ? null : s.match(RE_C);
+      var mD = mA || mC ? null : s.match(RE_D); // §5.5 — bare date (nutrition daily rows)
       if (mA) {
         a = +mA[4];
         b = +mA[5];
       } else if (mC) {
         a = +mC[1];
         b = +mC[2];
+      } else if (mD) {
+        a = +mD[1];
+        b = +mD[2];
       } else continue;
       if (a > 12) sawDMY = true;
       if (b > 12) sawMDY = true;
@@ -170,6 +180,30 @@
   function parseTimestamp(s) {
     var r = _ckParse(s, { preferDMY: false }); // CGM exports (Libre/Dexcom) are commonly MDY
     return r ? r.tMs : NaN;
+  }
+
+  /* DATE-ONLY → midnight UTC. DEEP-AUDIT-II §5.5.
+     Deliberately NOT a branch in `_ckParse`. For a CGM reading a stamp without a time is a MISSING
+     instant, and resolving it to midnight would fabricate one — the Clock Contract's "a missing stamp
+     must be visible (null), never fabricated". For a nutrition DAILY row the cell genuinely denotes a
+     DAY, not an instant, so midnight UTC is its honest anchor rather than an invention. Keeping the
+     two apart means a future CGM parser cannot pick this up by accident.
+     Every `_ckParse` branch requires a time component, so before this a date-only export parsed to
+     null → NaN → `continue`, and EVERY row was skipped. Cronometer's daily-summary export has a Date
+     column and no Time column, so that was the whole file: an empty nutrition panel, never an error. */
+  function _ckDateOnly(raw, opts) {
+    if (typeof raw !== 'string') return NaN;
+    var s = raw.trim().replace(/^["']|["']$/g, '');
+    var m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3]);
+    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) {
+      var o = opts || {},
+        dm = _ckDMY(+m[1], +m[2], o.preferDMY, o.dmyLocked);
+      if (!dm) return NaN; // row contradicts the file's proven order → honest NaN, never a guess
+      return Date.UTC(+m[3], dm.mo - 1, dm.d);
+    }
+    return NaN;
   }
 
   function detectDelimiter(headerLine) {
@@ -1623,6 +1657,22 @@
         return c[ci.time] && /\d{1,2}:\d{2}/.test(c[ci.time]);
       });
 
+    /* DEEP-AUDIT-II §5.5 — resolve the DAY/MONTH order ONCE for the whole file, exactly as the CGM
+       path does (`_ckResolveDMY(tsStamps, false)` → `tsOpts`). Nutrition was the one parser here that
+       skipped the file-level proof: it called the bare per-row `parseTimestamp`, hardcoded to
+       `preferDMY:false` with no lock, so a European export (13/07/2026) resolved PER ROW — rows with
+       day ≤ 12 silently became MDY, rows with day > 12 became DMY, and a single file mixed both
+       orders. Meals then landed on the wrong day, which is what the CGM correlation reads against.
+       Clock Contract §3: prove the order once, lock it for the file, never switch mid-file. */
+    const nutStamps = [];
+    for (let r = 1; r < lines.length; r++) {
+      const c = splitRow(lines[r]);
+      if (c.length < 2 || !c[ci.date]) continue;
+      nutStamps.push(hasTime && c[ci.time] ? c[ci.date] + ' ' + c[ci.time] : c[ci.date]);
+    }
+    const nutOrder = _ckResolveDMY(nutStamps, false);
+    const nutOpts = { preferDMY: nutOrder.dmy, dmyLocked: nutOrder.locked };
+
     const days = new Map();
     const servings = [];
     for (let r = 1; r < lines.length; r++) {
@@ -1632,7 +1682,11 @@
       if (!dateRaw) continue;
       const grp = (ci.group >= 0 ? cells[ci.group] || '' : '').toLowerCase();
       const carbVal = num(cells, ci.netCarbs) != null ? num(cells, ci.netCarbs) : num(cells, ci.carbs);
-      const ms = parseTimestamp(hasTime && cells[ci.time] ? dateRaw + ' ' + cells[ci.time] : dateRaw);
+      /* §5.5 — file-locked order (not the per-row parseTimestamp default), and a date-only cell is a
+         DAY anchored at midnight UTC rather than an unparseable instant that silently drops the row. */
+      const _hasT = hasTime && cells[ci.time];
+      const _p = _hasT ? _ckParse(dateRaw + ' ' + cells[ci.time], nutOpts) : null;
+      const ms = _hasT ? (_p ? _p.tMs : NaN) : _ckDateOnly(dateRaw, nutOpts);
       if (!isFinite(ms)) continue;
       // daily summary rows are usually Group=Total; skip per-food rows from totals aggregation
       const rec = {
