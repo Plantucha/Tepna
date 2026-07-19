@@ -99,9 +99,12 @@ def test_decode_ecg_full_frame_every_sample_and_timestamp():
     meas, s = pmd.decode_frame(_pmd_header(pmd.ECG, last_ns, 0x00) + payload, _dt.datetime(2026, 7, 16), fs=fs)
     assert meas == pmd.ECG and len(s) == 3                        # stride-3 loop must yield EXACTLY 3
     assert [x.values for x in s] == [(100,), (-100,), (50_000,)]  # every value, in order (kills _i24 / stride)
-    step = int(1e9 / fs)
-    assert [x.sensor_ns for x in s] == [last_ns - 2 * step, last_ns - step, last_ns]   # all back-timed, incl. middle
-    assert s[0].t_ms == (last_ns - 2 * step) / 1e6               # t_ms tracks sensor_ns exactly
+    # The offset is ROUNDED per sample, not truncated-then-multiplied: 1e9/130 = 7692307.69 ns, so the old
+    # int(step)*back accumulated 0.69 ns of error per sample (138 ns at back=200). Each stamp is now within
+    # half a nanosecond of the ideal, for any frame length.
+    assert [x.sensor_ns for x in s] == [last_ns - round(2 * 1e9 / fs), last_ns - round(1e9 / fs), last_ns]
+    assert all(abs((last_ns - x.sensor_ns) - k * 1e9 / fs) <= 0.5 for k, x in zip((2, 1, 0), s))
+    assert s[0].t_ms == s[0].sensor_ns / 1e6                     # t_ms tracks sensor_ns exactly
 
 
 def test_decode_ppg_full_frame_all_channels():
@@ -179,19 +182,57 @@ def test_decode_frame_routes_and_backtimes_a_delta_ppg_frame():
 
 
 def test_decode_gyro_uncompressed_frame():
+    # Values come out SCALED to dps. The wire carries raw int16; the device's range=2000 / 16-bit means
+    # one LSB is 2000/2^15 dps. Asserting the raw ints here is what let the units defect ship: the file
+    # said [dps] while carrying LSB, and a resting arm read 47 dps instead of ~2.9 (PMD-DECODE-SCALE-AND-RATE).
     fs, last_ns = 52, 6_000_000_000
     rows = [(-5, 6, -7), (8, -9, 10)]
+    k = 2000 / 32768
     payload = b"".join(v.to_bytes(2, "little", signed=True) for row in rows for v in row)
     meas, s = pmd.decode_frame(_pmd_header(pmd.GYRO, last_ns, 0x00) + payload, _dt.datetime(2026, 7, 16), fs=fs)
-    assert meas == pmd.GYRO and [x.values for x in s] == [(-5, 6, -7), (8, -9, 10)]
+    assert meas == pmd.GYRO
+    assert [x.values for x in s] == [(-5 * k, 6 * k, -7 * k), (8 * k, -9 * k, 10 * k)]
 
 
 def test_decode_mag_uncompressed_frame():
     fs, last_ns = 50, 7_000_000_000
     rows = [(11, -22, 33), (-44, 55, -66)]
+    k = 50 / 32768                                             # range=50 gauss, 16-bit
     payload = b"".join(v.to_bytes(2, "little", signed=True) for row in rows for v in row)
     meas, s = pmd.decode_frame(_pmd_header(pmd.MAG, last_ns, 0x00) + payload, _dt.datetime(2026, 7, 16), fs=fs)
-    assert meas == pmd.MAG and [x.values for x in s] == [(11, -22, 33), (-44, 55, -66)]
+    assert meas == pmd.MAG
+    assert [x.values for x in s] == [(11 * k, -22 * k, 33 * k), (-44 * k, 55 * k, -66 * k)]
+
+
+def test_acc_is_native_mg_and_must_not_be_scaled():
+    """THE trap in this area: GYRO/MAG need range/2^15, ACC does NOT — Polar delivers it already in mg
+    (a resting H10 reads 1000.9 mg per-sample gravity). "Unifying" the IMU scaling breaks the one stream
+    that was always right, and the break is invisible without a magnitude check."""
+    assert pmd.axis_scale(pmd.ACC) == 1.0
+    assert pmd.axis_scale(pmd.ECG) == 1.0 and pmd.axis_scale(pmd.PPG) == 1.0 and pmd.axis_scale(pmd.PPI) == 1.0
+    assert pmd.axis_scale(pmd.GYRO) != 1.0 and pmd.axis_scale(pmd.MAG) != 1.0
+    last_ns = 5_000_000_000
+    payload = b"".join(v.to_bytes(2, "little", signed=True) for v in (377, -66, 932))
+    _, s = pmd.decode_frame(_pmd_header(pmd.ACC, last_ns, 0x01) + payload, _dt.datetime(2026, 7, 16), fs=52)
+    assert s[0].values == (377, -66, 932), "ACC must pass through untouched, in mg"
+
+
+def test_axis_scale_prefers_the_device_reported_range_over_the_default():
+    # The device's own negotiation is authoritative; DEFAULT_RANGE is only the fallback.
+    assert pmd.axis_scale(pmd.GYRO, {0x01: [16], 0x02: [1000]}) == 1000 / 32768
+    assert pmd.axis_scale(pmd.MAG, {0x01: [16], 0x02: [16]}) == 16 / 32768
+    assert pmd.axis_scale(pmd.GYRO, {}) == pmd.DEFAULT_RANGE[pmd.GYRO] / 32768   # no settings → default
+    assert pmd.axis_scale(pmd.GYRO, {0x01: [12], 0x02: [2000]}) == 2000 / 2048   # resolution honoured
+
+
+def test_ppi_values_are_never_scaled():
+    """PPI's tuple is (hr, pp_ms, err_ms, flags) — counts and milliseconds, not axis readings. A scale
+    factor applied here would corrupt beat intervals into nonsense."""
+    last_ns = 8_000_000_000
+    payload = bytes([60, 0xE8, 0x03, 0x05, 0x00, 0x02])
+    _, s = pmd.decode_frame(_pmd_header(pmd.PPI, last_ns, 0x00) + payload,
+                            _dt.datetime(2026, 7, 16), fs=1, scale=0.061035)
+    assert s[0].values == (60, 1000, 5, 0x02), "PPI must ignore the scale factor entirely"
 
 
 def test_decode_ppi_events_not_backtimed():
@@ -252,7 +293,8 @@ def _frame(meas, last_ns, n, fs, channels=1):
     head = bytes([meas]) + struct.pack("<Q", last_ns)
     if meas == pmd.ECG:
         return head + bytes([0x00]) + b"".join(int(0).to_bytes(3, "little", signed=True) for _ in range(n))
-    return head + bytes([0x01]) + b"".join(struct.pack("<hhh", 0, 0, 0) for _ in range(n))
+    ftype = 0x01 if meas == pmd.ACC else 0x00     # ACC uncompressed is frame_type 1; GYRO/MAG are 0
+    return head + bytes([ftype]) + b"".join(struct.pack("<hhh", 0, 0, 0) for _ in range(n))
 
 
 def test_device_clock_is_strictly_increasing_within_a_frame():
@@ -276,6 +318,116 @@ def test_device_clock_does_not_step_backwards_across_a_frame_seam():
     _, b = pmd.decode_frame(_frame(pmd.ECG, b_last, 73, 130), arr, fs=130)
     joined = [x.sensor_ns for x in a + b]
     assert all(y > x for x, y in zip(joined, joined[1:])), "device clock stepped backwards at the seam"
+
+
+def _seam(meas, n, true_fs, nominal_fs, a_last=800_000_000_000_000_000):
+    """Two back-to-back frames from a device whose REAL rate is `true_fs` while we negotiated `nominal_fs`.
+    Returns the decoded halves, the second one seam-anchored on the first."""
+    import datetime as _d
+    true_step = 1e9 / true_fs
+    b_last = a_last + round(n * true_step)
+    arr = _d.datetime(2026, 7, 19)
+    _, a = pmd.decode_frame(_frame(meas, a_last, n, nominal_fs), arr, fs=nominal_fs)
+    _, b = pmd.decode_frame(_frame(meas, b_last, n, nominal_fs), arr, fs=nominal_fs, prev_last_ns=a_last)
+    return a, b, true_step
+
+
+def _seam_unanchored(meas, n, true_fs, nominal_fs, a_last=800_000_000_000_000_000):
+    """The same two frames decoded WITHOUT the seam anchor — i.e. the pre-fix behaviour, since omitting
+    prev_last_ns falls back to the nominal step. Used to prove the anchor is load-bearing."""
+    import datetime as _d
+    b_last = a_last + round(n * 1e9 / true_fs)
+    arr = _d.datetime(2026, 7, 19)
+    _, a = pmd.decode_frame(_frame(meas, a_last, n, nominal_fs), arr, fs=nominal_fs)
+    _, b = pmd.decode_frame(_frame(meas, b_last, n, nominal_fs), arr, fs=nominal_fs)
+    return a, b
+
+
+def test_backtiming_uses_the_device_clock_when_the_true_rate_is_FASTER_than_nominal():
+    """MAG's real case: 20.516 Hz behind a nominal 20. Stepping back by the nominal 50 ms over-reaches into
+    the previous frame — that produced 678 backwards timestamps in one night (to -112 ms)."""
+    # DIRECTION 1 — without the anchor the seam goes BACKWARDS. If this ever stops holding, the test below
+    # has stopped testing anything.
+    ua, ub = _seam_unanchored(pmd.MAG, 100, true_fs=20.516, nominal_fs=20)
+    assert ub[0].sensor_ns < ua[-1].sensor_ns, "unanchored MAG seam must overlap — else this fixture is inert"
+
+    # DIRECTION 2 — with it, monotonic, and spaced by exactly one TRUE interval.
+    a, b, true_step = _seam(pmd.MAG, 100, true_fs=20.516, nominal_fs=20)
+    joined = [x.sensor_ns for x in a + b]
+    assert all(y > x for x, y in zip(joined, joined[1:])), "device clock stepped backwards at the seam"
+    assert abs((b[0].sensor_ns - a[-1].sensor_ns) - true_step) <= 1, "seam gap must equal one TRUE interval"
+
+
+def test_backtiming_uses_the_device_clock_when_the_true_rate_is_SLOWER_than_nominal():
+    """GYRO/ACC's real case: 51.68 Hz behind a nominal 52. This sign leaves a silent GAP instead of an
+    overlap, so it never trips a monotonicity check — it looked clean for as long as the defect existed.
+    Monotonicity alone is NOT sufficient here; the seam SPACING is the assertion that bites."""
+    # DIRECTION 1 — unanchored, the seam is still monotonic (which is exactly why this hid) but the gap is
+    # wrong: it is short by the rate error, silently compressing every frame.
+    ua, ub = _seam_unanchored(pmd.GYRO, 188, true_fs=51.684, nominal_fs=52)
+    assert ub[0].sensor_ns > ua[-1].sensor_ns, "unanchored SLOWER seam stays monotonic — the silent case"
+    assert abs((ub[0].sensor_ns - ua[-1].sensor_ns) - 1e9 / 51.684) > 1e5, "unanchored gap must be wrong"
+
+    # DIRECTION 2 — anchored, the gap is exactly one true interval.
+    a, b, true_step = _seam(pmd.GYRO, 188, true_fs=51.684, nominal_fs=52)
+    joined = [x.sensor_ns for x in a + b]
+    assert all(y > x for x, y in zip(joined, joined[1:]))
+    assert abs((b[0].sensor_ns - a[-1].sensor_ns) - true_step) <= 1, "seam gap must equal one TRUE interval"
+    assert b[0].sensor_ns - a[-1].sensor_ns > 1e9 / 52, "true interval is LONGER than the nominal one"
+
+
+def test_backtiming_falls_back_to_nominal_on_the_first_frame_after_connect():
+    import datetime as _d
+    n, fs, last_ns = 73, 130, 1_000_000_000
+    _, s = pmd.decode_frame(_frame(pmd.ECG, last_ns, n, fs), _d.datetime(2026, 7, 19), fs=fs)   # prev=None
+    assert s[-1].sensor_ns == last_ns
+    assert abs((s[-1].sensor_ns - s[0].sensor_ns) - (n - 1) * 1e9 / fs) <= 1
+
+
+def test_backtiming_rejects_an_implausible_step_from_a_dropped_frame():
+    """A dropped frame inflates (last_ns - prev_last_ns), which would stretch the estimated step and smear
+    the frame across the gap. Outside ±10 % of nominal the estimate must be discarded for nominal."""
+    import datetime as _d
+    n, fs, last_ns = 100, 20, 800_000_000_000_000_000
+    stale = last_ns - round(5 * n * 1e9 / fs)                 # as if 4 frames went missing
+    _, s = pmd.decode_frame(_frame(pmd.MAG, last_ns, n, fs), _d.datetime(2026, 7, 19), fs=fs,
+                            prev_last_ns=stale)
+    span = s[-1].sensor_ns - s[0].sensor_ns
+    assert abs(span - (n - 1) * 1e9 / fs) <= 1, "must fall back to the nominal step, not stretch to the gap"
+
+
+def test_a_frame_never_reaches_back_past_its_predecessor():
+    """Frames arriving CLOSER than nominal (burst / BLE retransmit) fail the plausibility band, and the
+    nominal fallback would over-reach into the previous frame. The clamp forbids that."""
+    import datetime as _d
+    n, fs = 100, 20
+    prev = 800_000_000_000_000_000
+    last_ns = prev + round(n * 1e9 / fs * 0.5)        # half a frame's worth of device time — way off-band
+    _, s = pmd.decode_frame(_frame(pmd.MAG, last_ns, n, fs), _d.datetime(2026, 7, 19), fs=fs,
+                            prev_last_ns=prev)
+    assert s[0].sensor_ns > prev, "frame reached back past the previous frame's last sample"
+    assert s[-1].sensor_ns == last_ns
+
+
+def test_an_out_of_order_frame_is_reported_faithfully_not_invented():
+    """If the DEVICE's own last_ns regresses (out-of-order notification — seen once in ~80 k real MAG
+    samples), no step can make the stamp monotonic. We report what the device said rather than fabricate;
+    the Clock Contract's rule is that a bad stamp must stay visible."""
+    import datetime as _d
+    prev = 800_000_000_000_000_000
+    last_ns = prev - 78_000_000                        # device went backwards 78 ms
+    _, s = pmd.decode_frame(_frame(pmd.MAG, last_ns, 1, 20), _d.datetime(2026, 7, 19), fs=20,
+                            prev_last_ns=prev)
+    assert s[-1].sensor_ns == last_ns, "must carry the device's own (regressed) stamp, not a synthesised one"
+
+
+def test_frame_stamp_survives_a_real_18_digit_polar_timestamp():
+    """Polar ns-since-2000 is ~8.4e17, past float64's 2^53 exact-integer limit. Pulling last_ns through
+    float arithmetic silently rounds the frame stamp to ~64 ns."""
+    import datetime as _d
+    last_ns = 837_766_660_046_534_119                          # a real Verity stamp from 2026-07-19
+    _, s = pmd.decode_frame(_frame(pmd.MAG, last_ns, 100, 20), _d.datetime(2026, 7, 19), fs=20)
+    assert s[-1].sensor_ns == last_ns, "last sample must carry the frame's exact device timestamp"
 
 
 def test_ppi_is_arrival_stamped_not_back_timed():

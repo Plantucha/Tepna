@@ -187,6 +187,32 @@ class Sample:
     values: tuple         # ecg:(uv,) | acc/gyro/mag:(x,y,z) | ppg:(c0,c1,c2,ambient) | ppi:(hr,pp_ms,err_ms,flags)
 
 
+# PMD payloads carry RAW signed integers for GYRO/MAG. The device tells us its full-scale RANGE
+# (setting 0x02) and RESOLUTION (0x01) during negotiation, and one raw LSB is range / 2^(bits-1) of the
+# physical unit. Applying it is NOT optional: with range=2000 the Verity's raw gyro reaches 6000, i.e.
+# OUTSIDE its own ±2000 dps configuration, and a resting arm reads a impossible 47 dps instead of the
+# real ~2.9 dps zero-bias (measured over a full night, 2026-07-19).
+#
+# ⚠️ ACC IS THE EXCEPTION AND MUST NOT BE SCALED — Polar delivers it already in mg. Verified: per-sample
+# gravity magnitude is 1000.9 mg on a resting H10 (it must read 1 g). Scaling it "for consistency" with
+# GYRO/MAG breaks the one IMU stream that was always correct. ECG (µV) and PPG (raw counts) likewise
+# pass through untouched.
+DEFAULT_RANGE = {GYRO: 2000, MAG: 50}      # dps / gauss — the Verity's own offer; used when settings are absent
+DEFAULT_RESOLUTION_BITS = 16
+
+
+def axis_scale(meas: int, settings: dict[int, list[int]] | None = None) -> float:
+    """Factor converting one raw PMD integer to the stream's physical unit — dps for GYRO, gauss for MAG,
+    1.0 for every stream Polar already delivers in physical units. `settings` is a
+    parse_settings_response() dict; falls back to DEFAULT_RANGE when the device reported none."""
+    if meas not in DEFAULT_RANGE:
+        return 1.0
+    s = settings or {}
+    rng = (s.get(0x02) or [DEFAULT_RANGE[meas]])[0] or DEFAULT_RANGE[meas]
+    bits = (s.get(0x01) or [DEFAULT_RESOLUTION_BITS])[0] or DEFAULT_RESOLUTION_BITS
+    return rng / float(1 << (bits - 1))
+
+
 def _i24(b: bytes, o: int) -> int:
     v = b[o] | (b[o + 1] << 8) | (b[o + 2] << 16)
     return v - (1 << 24) if v & 0x800000 else v
@@ -237,10 +263,16 @@ def _decode_delta(payload: bytes, channels: int, ref_bits: int) -> list[tuple]:
     return out
 
 
-def decode_frame(data: bytes, arrival: _dt.datetime, fs: float | None = None):
+def decode_frame(data: bytes, arrival: _dt.datetime, fs: float | None = None,
+                 prev_last_ns: int | None = None, scale: float | None = None):
     """Parse one PMD data notification → (meas_type, [Sample,...]). arrival = host time the notification
     fired. `fs` = the ACTUAL negotiated sample rate (falls back to SAMPLE_HZ); needed because ACC differs
-    per device (Verity 52 Hz vs H10 200 Hz) and back-timing must match reality."""
+    per device (Verity 52 Hz vs H10 200 Hz) and back-timing must match reality.
+
+    `prev_last_ns` = the PREVIOUS frame's device timestamp for THIS measurement type (None on the first
+    frame after a connect). When supplied, the back-timing step is derived from the device's own clock
+    instead of `fs` — see the comment at the step calculation for why that matters.
+    `scale` = physical-units factor (see axis_scale); defaults to the device-class default for `meas`."""
     if len(data) < 10:
         return None, []
     meas = data[0]
@@ -248,7 +280,6 @@ def decode_frame(data: bytes, arrival: _dt.datetime, fs: float | None = None):
     frame_type = data[9]
     payload = data[10:]
     fs = fs or SAMPLE_HZ.get(meas, 0) or 1
-    step_ns = int(1e9 / fs)
 
     raw: list[tuple] = []
     delta = bool(frame_type & 0x80)     # PMD high bit = compressed/delta frame
@@ -285,12 +316,46 @@ def decode_frame(data: bytes, arrival: _dt.datetime, fs: float | None = None):
     n = len(raw)
     out: list[Sample] = []
     ppi = (meas == PPI)                                  # PPI entries are per-beat events, not evenly spaced
+
+    # BACK-TIMING STEP. The negotiated rate is a LABEL, not the hardware's real rate: each Verity sensor
+    # die free-runs on its own oscillator. Measured over a full night (2026-07-19): MAG 20.516 Hz against
+    # a nominal 20 (+2.6 %), GYRO 51.684 vs 52, ACC 51.672 vs 52, PPG 55.132 vs 55 — while the H10's ECG
+    # is exactly 130.0000. Stepping back by the NOMINAL interval therefore mis-places every sample in the
+    # frame, worst at its start, and the SIGN of the error decides whether anyone notices: where the true
+    # rate is FASTER the frame over-reaches into its predecessor (MAG: 678 backwards timestamps in one
+    # night, down to -112 ms), where it is SLOWER it leaves a silent gap (GYRO/ACC: 22 ms, no backwards
+    # stamp, looks perfectly clean). So derive the step from the device's OWN clock — the previous frame's
+    # last sample and this frame's are exactly `n` intervals apart — and fall back to nominal only when
+    # that is unavailable or implausible.
+    step_ns = 1e9 / fs
+    if prev_last_ns is not None and n > 0:
+        est = (last_ns - prev_last_ns) / n
+        if 0.9 * step_ns <= est <= 1.1 * step_ns:   # a dropped frame / restart inflates est — keep nominal
+            step_ns = est
+        elif 0 < est < step_ns:
+            # Frames arrived CLOSER together than nominal (a burst or a BLE retransmit), so the estimate
+            # was rejected as implausible — but stepping back by the larger nominal interval would reach
+            # past the previous frame's last sample and emit a backwards stamp. Clamp instead: a frame may
+            # never start before its predecessor ended. This fabricates nothing — it only refuses to
+            # over-reach. (It cannot rescue a frame whose own last_ns regressed: an out-of-order
+            # notification carries an earlier device stamp, and we report the device faithfully rather
+            # than invent a monotonic one. Observed once in ~80 k real MAG samples, 2026-07-19.)
+            step_ns = est
+
+    if scale is None:
+        scale = axis_scale(meas)
     for i, vals in enumerate(raw):
         back = 0 if ppi else (n - 1 - i)
+        # Subtract an INTEGER offset — never pull last_ns through float arithmetic. Polar ns-since-2000
+        # is ~8.4e17, far past float64's 2^53 exact-integer limit, so `last_ns - back*step_ns` in floats
+        # silently rounds the frame stamp to the nearest ~64 ns (caught by the last-sample identity test).
+        sns = last_ns - int(round(back * step_ns))
+        if scale != 1.0 and not ppi:                     # never scale PPI — its tuple is hr/ms/ms/flags
+            vals = tuple(v * scale for v in vals)
         out.append(Sample(
-            phone=arrival - _dt.timedelta(seconds=back / fs),
-            sensor_ns=last_ns - back * step_ns,
-            t_ms=(last_ns - back * step_ns) / 1e6,
+            phone=arrival - _dt.timedelta(seconds=back * step_ns / 1e9),
+            sensor_ns=sns,
+            t_ms=sns / 1e6,
             values=vals,
         ))
     return meas, out

@@ -147,12 +147,16 @@ class StreamWriter:
         self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{c0};{c1};{c2};{ambient}\n")
         self._bump()
 
-    def write_gyro(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: int, y: int, z: int) -> None:
-        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{x};{y};{z}\n")
+    # GYRO/MAG arrive SCALED to physical units (dps / gauss) — polar_pmd.axis_scale turns the device's
+    # raw int16 into a float, so these two cannot use the integer formatting ACC keeps. `:.6g` holds the
+    # full significance of a 16-bit sample (gyro 0.061 dps/LSB, mag 0.0015 G/LSB) without printing the
+    # binary-fraction tail of the multiply.
+    def write_gyro(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: float, y: float, z: float) -> None:
+        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{x:.6g};{y:.6g};{z:.6g}\n")
         self._bump()
 
-    def write_mag(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: int, y: int, z: int) -> None:
-        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{x};{y};{z}\n")
+    def write_mag(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: float, y: float, z: float) -> None:
+        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{x:.6g};{y:.6g};{z:.6g}\n")
         self._bump()
 
     def write_ppi(self, phone: _dt.datetime, sensor_ns: int, hr: int, pp_ms: int, err_ms: int, flags: int) -> None:
