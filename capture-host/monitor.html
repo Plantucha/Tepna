@@ -848,7 +848,11 @@ async function bond(address, btn){
 async function remember(dev, btn){
   const g = guessDevice(dev);
   btn.disabled = true; btn.textContent='…';
-  await api('/api/remember',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(g)});
+  const r = await api('/api/remember',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(g)});
+  // The server rejects a device guessDevice() could not identify (blank vendor/model). Say so, instead
+  // of the old unconditional 'remembered ✓' — that reported success for an entry the capture daemon
+  // then refused to ever record. Re-enable so a re-scanned/renamed device can be retried.
+  if(!r.ok){ btn.textContent = 'not recognised — needs '+((r.missing||[]).join(', ')||'vendor/model'); btn.disabled = false; return; }
   btn.textContent='remembered ✓'; loadState();
 }
 async function forget(address){

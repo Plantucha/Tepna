@@ -1,9 +1,11 @@
 # tepna-capture — example config.  Copy to config.yaml and edit.
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 
-# Where nightly captures are written. The web server serves <root>/app; captures land under <root>/captures.
+# Where nightly captures are written. The web server serves <root>/app; captures land under
+# <root>/captures/<YYYY-MM-DD>/, rolled by the recording's LOCAL start date (writers.night_dir).
+# There is NO staging directory: the daemon writes straight into the dated night folder, so nothing
+# has to be moved afterwards and an interrupted night is already where you would look for it.
 root: /srv/tepna
-incoming_subdir: captures/incoming      # daemon writes here; a night-roller moves to captures/<YYYY-MM-DD>/
 adapter: "XX:XX:XX:XX:XX:XX"            # BLE adapter MAC for bonding (bluetoothctl select). Omit = default
                                         # controller. On a multi-radio host, pin the bedside dongle here.
 

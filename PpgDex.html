@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-3C74jrSbp+ERhg4htAM15dnQJ19gn2355Ucbqila2dg=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Ct6C/WQM+ozRDvEtpl4lgSroDpuS8VqgSmC94gzpMo4=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-Kl1z3ftMvxSSaDWHZV3izY/OfEUuJ9kdxMOPWJm9NS0=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-lyH6hW5NbDaUIsk4ockuTQT7l68/cc6l5jOyz7AYV+I=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-3C74jrSbp+ERhg4htAM15dnQJ19gn2355Ucbqila2dg=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Ct6C/WQM+ozRDvEtpl4lgSroDpuS8VqgSmC94gzpMo4=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-eQFgshqDM2o33iSMSFxRH2TgAEx42AUkukpJ6Fgbymc=' 'sha256-lyH6hW5NbDaUIsk4ockuTQT7l68/cc6l5jOyz7AYV+I=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PpgDex — Raw Wrist-PPG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -6472,6 +6472,35 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       ns = std(noise) || 1e-6;
     return { snr: ps / ns, amp: ps };
   }
+  // ── DEGENERATE-CHANNEL GUARD (PPGDEX-MULTICHANNEL-FUSION §4, ENGINE-VERIFICATION §1.3) ──
+  //  Two analog photodiodes CANNOT produce bit-identical streams over a recording — even the
+  //  same LED sampled twice differs by ADC noise — so an identical pair is ONE sensor reported
+  //  twice. Returns the indices of the DISTINCT channels; the caller treats that count as the
+  //  real sensor count, so a replicated channel can never manufacture optical agreement.
+  //
+  //  Why "distinct count" and not "3 bit-identical": the capture host replicates the O2Ring's
+  //  single ~125.7 Hz finger pleth across ppg0/1/2 so it routes through the Polar PSL layout
+  //  with no new parser branch (capture.py). That is (v,v,v) → 1 distinct. But a pre-2026-07-18
+  //  capture also carried an extra `timestamp [ms]` column, shifting every index by one, so the
+  //  SAME ring reads as (ms-ramp, v, v) → 2 distinct. A 3-of-3 test would miss that second shape
+  //  and pass it as a legitimate 2-LED sensor — fabricating exactly the quality claim this guard
+  //  exists to prevent. Counting distinct channels fires on both, and on shapes nobody has met yet.
+  //    → array of indices into ch[], length 1..n, holding the FIRST occurrence of each distinct
+  //      stream (so a caller's reference index maps onto a channel that really exists).
+  function sameChannel(a, b) {
+    if (a === b) return true;
+    if (!a || !b || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+  }
+  function distinctChannelIdx(chans) {
+    const keep = [];
+    for (let c = 0; c < chans.length; c++) {
+      if (!keep.some((k) => sameChannel(chans[c], chans[k]))) keep.push(c);
+    }
+    return keep;
+  }
+
   function pickChannel(rec) {
     let best = 0,
       bestScore = -Infinity,
@@ -7777,9 +7806,22 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     // (the workers run detectChannel's own source). compute()/tests never set it, so this
     // in-thread detect is the numeric source of truth the gates verify.
     P(55, 'Optical beat detection · 3-LED (systolic feet)…');
-    const perChannel = rec._preChannels && rec._preChannels.length === rec.ch.length ? rec._preChannels : rec.ch.map((c) => detectChannel(c, rec.fs));
-    const bp = perChannel[sel.idx].bp; // reference-channel band-passed waveform
-    const cons = consensusBeats(perChannel, sel.idx, rec.fs);
+    const perChannelAll = rec._preChannels && rec._preChannels.length === rec.ch.length ? rec._preChannels : rec.ch.map((c) => detectChannel(c, rec.fs));
+    // Degenerate-channel guard: collapse bit-identical duplicates BEFORE the consensus vote, so a
+    // replicated single-sensor stream (the O2Ring finger pleth) takes consensusBeats' honest
+    // `nCh < 2` path — beats pass through, agreement reports null — instead of voting with itself
+    // and scoring a structurally-guaranteed 100%. Genuine 3-LED Verity captures are untouched
+    // (three real photodiodes are never bit-identical), so this is export-inert for them.
+    const keepIdx = distinctChannelIdx(rec.ch);
+    const perChannel = keepIdx.map((c) => perChannelAll[c]);
+    // remap the reference channel onto the deduped set; if the best-SNR channel was itself a
+    // duplicate, its first occurrence carries the identical waveform, so the reference is preserved.
+    const refIdx = Math.max(
+      0,
+      keepIdx.findIndex((c) => sameChannel(rec.ch[c], rec.ch[sel.idx]))
+    );
+    const bp = perChannel[refIdx].bp; // reference-channel band-passed waveform
+    const cons = consensusBeats(perChannel, refIdx, rec.fs);
     const det = { peaks: cons.peaks, feet: cons.feet, T: 0 };
 
     P(62, 'Motion gate (ACC + GYRO)…');
@@ -8381,6 +8423,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     detectBeats,
     detectChannel,
     consensusBeats,
+    distinctChannelIdx,
     refineFeet,
     detectChannelsAsync,
     buildPPI,

@@ -12,7 +12,8 @@ SSD. 100 % local — no cloud, no CDN. Full architecture + procurement: `CAPTURE
 
 ## Three services (systemd, `Restart=always`)
 - **`tepna-capture`** — Python + `bleak` supervisor: holds the live links and writes the **existing
-  vendor layouts** (see the per-device notes) into `captures/incoming/`.
+  vendor layouts** (see the per-device notes) into `captures/<YYYY-MM-DD>/` — one folder per night,
+  rolled by the recording's local start date.
 - **`tepna-web`** — static server (Caddy/nginx) for the bundled apps at one pinned origin
   **`http://tepna.local`**. Same-origin = the suite shares your profile + longitudinal history *and* the
   gates run.

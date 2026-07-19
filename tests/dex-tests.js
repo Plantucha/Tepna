@@ -3158,6 +3158,72 @@
     }
   });
 
+  // A replicated channel must never manufacture optical agreement. Our capture host fans the
+  // O2Ring's SINGLE finger pleth across ppg0/1/2 so it routes through the Polar PSL layout with no
+  // new parser branch (capture.py) — without the guard those three identical copies vote with
+  // themselves and score a structurally-guaranteed ledAgreement 100%, rendered as a `measured`-tier
+  // KPI. The gate pins both directions: degenerate ⇒ null, genuinely-independent ⇒ still reported.
+  group('PpgDex degenerate-channel guard — replicated LEDs cannot fabricate agreement (MULTICHANNEL-FUSION §4)', 'ppgdex-dsp', function (T) {
+    var D = env.PPGDSP;
+    if (!(D && typeof D.distinctChannelIdx === 'function' && typeof D.parsePPG === 'function' && typeof D.analyze === 'function')) {
+      T.ok('PPGDSP.distinctChannelIdx + parsePPG + analyze available', false, 'export the guard from ppgdex-dsp.js');
+      return;
+    }
+    var f = function (a) { return Float32Array.from(a); };
+    var mkArr = function (n, fn) { var o = []; for (var i = 0; i < n; i++) o.push(fn(i)); return f(o); };
+    var v = mkArr(64, function (i) { return Math.sin(i / 5); });
+    var ramp = mkArr(64, function (i) { return i; });
+    var w = mkArr(64, function (i) { return Math.cos(i / 7) * 3; });
+    var u = mkArr(64, function (i) { return Math.sin(i / 3) * 2; });
+
+    // ── the three shapes §4 names, plus the one that actually occurs (fresh arrays, not aliases) ──
+    T.ok('(v,v,v) → 1 distinct channel', D.distinctChannelIdx([v, v, v]).length === 1,
+      'got ' + D.distinctChannelIdx([v, v, v]).length);
+    // the case the ORIGINAL 3-of-3 spec missed: a pre-2026-07-18 capture's extra `timestamp [ms]`
+    // column shifts every index by one, so the same single-sensor ring reads as (ms-ramp, v, v).
+    T.ok('(ramp,v,v) → 2 distinct — the shifted-column shape is not a 3-LED sensor', D.distinctChannelIdx([ramp, v, v]).length === 2,
+      'got ' + D.distinctChannelIdx([ramp, v, v]).length);
+    T.ok('three genuinely different channels → 3 distinct (guard does not over-fire)', D.distinctChannelIdx([v, w, u]).length === 3,
+      'got ' + D.distinctChannelIdx([v, w, u]).length);
+    // parsePPG builds FRESH Float32Arrays per channel, so the real degenerate input is bit-identical
+    // copies rather than repeated references — an identity-only (===) test would silently miss it.
+    T.ok('bit-identical COPIES dedupe (not just repeated references)', D.distinctChannelIdx([v, f(v), f(v)]).length === 1,
+      'got ' + D.distinctChannelIdx([v, f(v), f(v)]).length);
+
+    // ── end-to-end through the real pipeline: the user-visible number ──
+    var FS = 125, N = FS * 180;
+    function mk(mode) {
+      var s = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient\n';
+      for (var i = 0; i < N; i++) {
+        var ns = 837698283607356689 + Math.round((i * 1e9) / FS);
+        var sec = i / FS;
+        var hh = String(9 + Math.floor(sec / 3600));
+        var mm = String(Math.floor(sec / 60) % 60);
+        var ss = (sec % 60).toFixed(3);
+        if (hh.length < 2) hh = '0' + hh;
+        if (mm.length < 2) mm = '0' + mm;
+        if (ss.length < 6) ss = '0' + ss;
+        var ph = 2 * Math.PI * 1.05 * sec;
+        var g = function (p, a) { return a * (Math.sin(ph + p) + 0.35 * Math.sin(2 * (ph + p) + 0.9)); };
+        var a0 = g(0, 1000), c0, c1, c2;
+        if (mode === 'replicated') { c0 = a0; c1 = a0; c2 = a0; }
+        else { c0 = a0; c1 = g(0.05, 860) + 3; c2 = g(-0.04, 1180) - 5; }
+        s += '2026-07-18T' + hh + ':' + mm + ':' + ss + ';' + ns + ';' + c0.toFixed(3) + ';' + c1.toFixed(3) + ';' + c2.toFixed(3) + ';7\n';
+      }
+      return s;
+    }
+    var rep = D.analyze(D.parsePPG(mk('replicated')));
+    var gen = D.analyze(D.parsePPG(mk('genuine')));
+    T.ok('replicated single sensor → ledAgreementPct is NULL, never a fabricated 100', rep.ledAgreementPct == null,
+      'got ' + JSON.stringify(rep.ledAgreementPct));
+    // the guard must cost nothing but the false claim — beats still detect on the reference channel.
+    T.ok('replicated single sensor still yields its beats (guard drops the vote, not the data)', rep.nn && rep.nn.length > 100,
+      'beats=' + (rep.nn ? rep.nn.length : 'none'));
+    // BOTH directions: without this leg, hard-coding ledAgreementPct=null would pass the test above.
+    T.ok('three independent channels → ledAgreementPct IS still reported', gen.ledAgreementPct != null && gen.ledAgreementPct > 0,
+      'got ' + JSON.stringify(gen.ledAgreementPct));
+  });
+
   group('ECGDex device cross-check parsers — floating clock, no Date-parse/now() (Finding 2)', 'ecgdex-dsp · ecgdex-app', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.parseDeviceRR === 'function' && typeof D.parseDeviceHR === 'function' && typeof D.parseDeviceACC === 'function')) {
