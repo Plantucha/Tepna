@@ -236,6 +236,7 @@ def _decode_delta(payload: bytes, channels: int, ref_bits: int) -> list[tuple]:
             v -= (1 << nbits)
         return v
 
+    limit = 1 << (ref_bits - 1)   # a decoded sample can never exceed its own ADC resolution (see below)
     cur = [read(ref_bits, True) for _ in range(channels)]
     out: list[tuple] = [tuple(cur)]
     while pos + 16 <= nbits_total:
@@ -253,13 +254,22 @@ def _decode_delta(payload: bytes, channels: int, ref_bits: int) -> list[tuple]:
                                     # pos+16 can never exceed N here. Kept as a defensive belt.
         delta_size = read(8, False)
         count = read(8, False)
-        if delta_size == 0 or count == 0:
+        # deltaSize > ref_bits is IMPOSSIBLE for valid data — Polar delta-compresses toward SMALL steps,
+        # so a delta is never wider than the reference sample it refines. A larger value means the header
+        # was misread (a corrupt/misaligned Verity frame), and reading e.g. a 200-bit "delta" is exactly
+        # what produced the sparse 1e38 float-garbage rows downstream (0.41% of MAG, measured 2026-07-18).
+        if delta_size == 0 or count == 0 or delta_size > ref_bits:
             break
         if pos + count * channels * delta_size > nbits_total:
             break                                   # truncated block — stop, don't fabricate
         for _ in range(count):
             for ch in range(channels):
                 cur[ch] += read(delta_size, True)
+            # A running sample outside its own ref_bits range is physically impossible (the device's ADC
+            # cannot output it), so it is corruption, not signal. Stop here rather than emit a garbage row
+            # — a downstream node with no outlier clamp otherwise blows up (MotionDex movement index 1.5e34).
+            if any(c < -limit or c >= limit for c in cur):
+                return out
             out.append(tuple(cur))
     return out
 

@@ -441,3 +441,31 @@ def test_ppi_is_arrival_stamped_not_back_timed():
                             arr, fs=1)
     assert len(s) == 4
     assert all(x.phone == arr for x in s), "PPI must be arrival-stamped, never back-timed"
+
+
+# ── Corrupt/misaligned Verity delta frames must NOT emit garbage rows (PMD-DECODE §defect-2) ──────────
+def test_decode_delta_rejects_an_impossible_delta_size():
+    """A block whose deltaSize exceeds the sample resolution is a misread header — the source of the
+    sparse 1e38 garbage rows. Decode must stop at it, keeping only the valid reference sample."""
+    ref = [(-100, 16), (200, 16), (-300, 16)]
+    bad = [(20, 8), (2, 8)]                          # deltaSize 20 > ref_bits 16 → impossible → break
+    got = pmd._decode_delta(_packbits(ref + bad), channels=3, ref_bits=16)
+    assert got == [(-100, 200, -300)]               # no fabricated deltas past the corrupt header
+
+
+def test_decode_delta_stops_when_a_sample_leaves_the_adc_range():
+    """A valid-width delta stream that ACCUMULATES past the ref_bits range is corruption, not signal —
+    decode stops before emitting the out-of-range sample (which downstream had no clamp for)."""
+    # 1 channel, 16-bit ref=0, 15-bit deltas of +16383: 0 → 16383 → 32766 → 49149(out of ±32768) → stop
+    payload = _packbits([(0, 16), (15, 8), (3, 8), (16383, 15), (16383, 15), (16383, 15)])
+    got = pmd._decode_delta(payload, channels=1, ref_bits=16)
+    assert got == [(0,), (16383,), (32766,)]        # 49149 (>= 32768) is rejected, not written
+    assert all(-32768 <= v < 32768 for (v,) in got)  # every emitted sample is within the ADC range
+
+
+def test_decode_delta_still_decodes_a_valid_boundary_sample():
+    """The clamp must not reject a LEGITIMATE edge value — a sample landing exactly on the range bound."""
+    # ref=0, one +32767 delta (17 bits needed for the value, but 16-bit signed max is +32767) → lands at max
+    payload = _packbits([(0, 16), (16, 8), (1, 8), (32767, 16)])
+    got = pmd._decode_delta(payload, channels=1, ref_bits=16)
+    assert got == [(0,), (32767,)]                  # 32767 is in range (< 32768) → kept
