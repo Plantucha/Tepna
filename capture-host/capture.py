@@ -123,6 +123,37 @@ _CONNECT_LOCK = asyncio.Lock()
 # ring for the download and clears the event to resume live capture. (Only the O2Ring path honors it.)
 _OXYII_PAUSE = asyncio.Event()
 
+# O2Ring RTC state, keyed by address and deliberately MODULE-level so it OUTLIVES a connection. Both
+# facts here are properties of the ring, not of the BLE link, and resetting them per connect is what made
+# the clock re-sync fire 359× in one night (see the _rtc_sync block in run_oxyii).
+_OXYII_RTC_AT: dict[str, _dt.datetime] = {}        # addr -> host time of the last RTC write
+_OXYII_LAST_DURATION: dict[str, int] = {}          # addr -> last session duration seen (spots a restart
+                                                   # that happened while the link was down)
+_OXYII_RTC_RESYNC_SEC = 6 * 3600                   # drift backstop; override via o2ring.rtc_resync_sec
+
+
+def oxyii_rtc_due(last_sync, now, session_restarted: bool, resync_sec: float) -> str | None:
+    """Why the ring's RTC needs writing right now, or None if it does not.
+
+    The ring is WRITE-ONLY on time: its opcode set is AUTH/SETUP/LIVE/SET_TIME + the file transfer ops,
+    with no get-time, and the live frame carries no clock field. So "read it back and skip the write if
+    it's already right" is not implementable — the only observable copy of its RTC is the file-list
+    naming (`YYYYMMDDhhmmss`), which needs the offline path, MTU>=517 and a pause of live capture, i.e.
+    strictly more traffic than the blind write it would save.
+
+    Instead of asking "is the time wrong?" (unanswerable) this asks "could it have gone wrong in a way
+    that MATTERS?" — which is answerable, because the RTC's only consumer is the stored .dat, and that
+    stamps a session at its START. Hence: first contact, a new recording session, and a slow drift
+    backstop. A BLE reconnect is none of those and must not trigger a write."""
+    if last_sync is None:
+        return "first contact"
+    if session_restarted:
+        return "new recording session"
+    age = (now - last_sync).total_seconds()
+    if age >= resync_sec:
+        return f"drift backstop, {age / 3600:.1f} h since last"
+    return None
+
 # Phase-0/1 diagnostic (O2RING-LIVE-PPG-WAVEFORM brief): with OXYII_PPG_PROBE=1, DUMP the first N live 0x04
 # replies (full hex + host timestamp) to a JSONL file so the ~100 Hz PPG body can be reconstructed +
 # decoded offline and its pulse rate cross-checked vs the ECG. Inert without the env var.
@@ -741,7 +772,13 @@ async def run_oxyii(dev: dict, root: str):
                 # Previous session duration. NOT a drop/dup tally any more: the counters those fields
                 # fed were derived from a misread byte, so they reported phantom loss. The ring exposes
                 # no frame-sequence field, so we report NOTHING rather than a fabricated zero.
-                _seq = [None]
+                #
+                # SEEDED FROM THE LAST CONNECTION, not reset to None: the ring keeps recording while the
+                # BLE link is down, so a session that restarts DURING a dropout is invisible if each
+                # connect starts blind. Duration only ever decreases on a genuine restart (it counts up
+                # across a disconnect), so carrying it over cannot manufacture one.
+                _seq = [_OXYII_LAST_DURATION.get(addr)]
+                _rtc_due = [False]      # set when a new recording session begins; served by the poll loop
 
                 def on_data(_s, d):
                     for frame in reasm.feed(bytes(d)):
@@ -780,7 +817,13 @@ async def run_oxyii(dev: dict, root: str):
                         # field genuinely tells us is when a NEW session began.
                         if oxyii.session_restarted(_seq[0], live["duration"]):
                             log.info("%s: ring started a new recording session", name)
+                            # THE moment the RTC matters: the .dat header stamps a session at its start
+                            # (samples are implicit at 1 Hz after it), so this is the only event that can
+                            # bake a wrong time into stored data. on_data is a sync BLE callback and
+                            # cannot await — hand it to the poll loop.
+                            _rtc_due[0] = True
                         _seq[0] = live["duration"]
+                        _OXYII_LAST_DURATION[addr] = live["duration"]   # survives the next dropout
                         now = _now()
                         if live["spo2"] is not None:
                             wr.write(now, live["spo2"], live["pr"] or 0, live["motion"])   # [11], corrected
@@ -803,18 +846,36 @@ async def run_oxyii(dev: dict, root: str):
                 await asyncio.sleep(0.6)
                 await client.write_gatt_char(wch, oxyii.setup_frame(), response=False)  # 0x10: ack
                 await asyncio.sleep(0.6)
-                # Sync the ring's free-running RTC to the NTP-synced host once per connect, so its stored
-                # .dat timestamps match the live capture (they drifted ~+151 s — see oxyii.set_time_frame).
+                # Sync the ring's free-running RTC to the NTP-synced host so its stored .dat timestamps
+                # match the live capture (it drifts ~+151 s — see oxyii.set_time_frame).
                 # LOCAL CIVIL time, deliberately different from the Polars' UTC. The ring has a SCREEN:
                 # a wearer reading UTC off their finger would just be confused. Nothing is given up —
                 # its live samples are host-arrival stamped (no device timestamp at all), so its RTC never
                 # fed cross-device timing; it only stamps the stored .dat, which is read by humans.
-                _clk = _now()
-                await client.write_gatt_char(wch, oxyii.set_time_frame(_clk), response=False)   # 0xC0
-                _set(name, clock_synced=_now().isoformat(timespec="seconds"))
-                log.info("%s RTC synced to host %s", name, _clk.strftime("%Y-%m-%d %H:%M:%S"))
-                await asyncio.sleep(0.4)
+                #
+                # ⚠️ NOT ON EVERY CONNECT ANY MORE. It used to be, and on the night of 2026-07-19 the ring
+                # reconnected 359× on a -83 dBm link — 359 clock writes, each an extra GATT write ~1.4 s
+                # into a link that was already failing, plus ~0.4 s of setup before the first sample every
+                # time. A BLE reconnect is simply not the event the RTC cares about: the .dat stamps a
+                # session at its START, so the sync is driven by the two events that can actually bake in a
+                # wrong time — first contact, and a new recording session — with a long interval as the
+                # drift backstop. Reconnect storms now cost zero clock writes.
+                async def _rtc_sync(why: str) -> None:
+                    _clk = _now()
+                    await client.write_gatt_char(wch, oxyii.set_time_frame(_clk), response=False)  # 0xC0
+                    _OXYII_RTC_AT[addr] = _clk
+                    _set(name, clock_synced=_clk.isoformat(timespec="seconds"))
+                    log.info("%s RTC synced to host %s (%s)", name,
+                             _clk.strftime("%Y-%m-%d %H:%M:%S"), why)
+                    await asyncio.sleep(0.4)
+
+                _why = oxyii_rtc_due(_OXYII_RTC_AT.get(addr), _now(), False, _OXYII_RTC_RESYNC_SEC)
+                if _why:
+                    await _rtc_sync(_why)
                 while client.is_connected and not _STOP.is_set() and not _OXYII_PAUSE.is_set() and not _RECOVER.is_set():   # poll live ~1/s
+                    if _rtc_due[0]:
+                        _rtc_due[0] = False
+                        await _rtc_sync("new recording session")
                     await client.write_gatt_char(wch, oxyii.live_frame(), response=False)
                     await asyncio.sleep(1.0)
         except Exception as e:
@@ -1240,10 +1301,13 @@ async def main():
                 log.info("%s: recording the 125 Hz pleth — added 'ppg' to its stream list (was implicit)",
                          _d.get("name"))
     ADAPTER = cfg.get("adapter")   # BLE adapter MAC — pins bonding AND every bleak connect (adapter_kw)
-    global O2PPG_FS, O2PPG_NS_STEP
+    global O2PPG_FS, O2PPG_NS_STEP, _OXYII_RTC_RESYNC_SEC
     _fs = float(((cfg.get("o2ring") or {}).get("ppg_fs")) or O2PPG_FS_DEFAULT)
     if _fs > 0:                    # per-unit override; the default is the 2026-07-18 5.8 h calibration
         O2PPG_FS, O2PPG_NS_STEP = _fs, int(1e9 / _fs)
+    _rs = float(((cfg.get("o2ring") or {}).get("rtc_resync_sec")) or 0)
+    if _rs > 0:
+        _OXYII_RTC_RESYNC_SEC = _rs
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
     loop = asyncio.get_running_loop()
