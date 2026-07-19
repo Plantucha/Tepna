@@ -7623,6 +7623,53 @@
        it never sees these; no unit test pinned their value either → four arithmetic slips (jIndex sign,
        CONGA lag, GRADE zone edge, MAG abs) all shipped GREEN. These pin analyze()'s values directly on a
        deterministic 120±60 mg/dL sinusoid (period 48 samples = 4 h). Both-direction verified. */
+    /* DEEP-AUDIT-II §5.5 — `parseNutrition` had two independent defects, neither of which any fixture
+       could catch: there is NO nutrition fixture in `uploads/`, so this parser shipped with zero coverage.
+       (a) DATE-ONLY exports dropped EVERY row. All five `_ckParse` branches require a time component, so
+           a bare date returned null → NaN → `continue`. Cronometer's daily-summary export has a Date
+           column and no Time column, so `hasTime` is false for the whole file: every row skipped, an
+           empty nutrition panel, never an error. Fixed with a nutrition-LOCAL date-only parse at midnight
+           UTC — deliberately NOT a `_ckParse` branch, because for a CGM reading a stamp with no time is a
+           MISSING instant and resolving it to midnight would fabricate one (Clock Contract: a missing
+           stamp must be visible, never fabricated). A nutrition daily row genuinely IS a day.
+       (b) NO DMY LOCK. It called the bare per-row `parseTimestamp`, hardcoded `preferDMY:false` with no
+           lock, so a European export resolved PER ROW — day ≤ 12 became MDY, day > 12 became DMY, and one
+           file mixed both orders. Meals landed on the wrong day, which is exactly what the CGM
+           correlation reads against. Now resolved once per file like the CGM path (Clock Contract §3). */
+    group('GlucoDex §5.5 — parseNutrition: date-only rows survive, DAY/MONTH order is file-locked', 'glucodex-dsp · nutrition · clock-contract', function (T) {
+      // NOTE: pick the namespace that HAS the function, not merely the first truthy one —
+      // parseNutrition lives on GLUDSP while env.GlucoDex is also defined, so `A || B` picks wrong.
+      var pn = (env.GLUDSP && env.GLUDSP.parseNutrition) || (env.GlucoDex && env.GlucoDex.parseNutrition);
+      if (typeof pn !== 'function') {
+        T.ok('GLUDSP.parseNutrition exposed', false, 'namespace not wired');
+      } else {
+        var iso = function (ms) {
+          return new Date(ms).toISOString().slice(0, 10);
+        };
+        var dayList = function (r) {
+          return r.daily
+            .map(function (d) {
+              return iso(d.ms);
+            })
+            .sort()
+            .join(' ');
+        };
+        // (a) the Cronometer daily-summary shape. Pre-fix: 0 rows, silently.
+        var dOnly = pn('Date,Energy (kcal),Net Carbs (g)\n2026-07-13,2100,200\n2026-07-14,1950,180');
+        T.eq('§5.5 · a date-only export parses its rows (pre-fix EVERY row was silently dropped)', dOnly.daily.length, 2);
+        T.eq('§5.5 · …anchored at midnight UTC — a daily row is a DAY, not a fabricated instant', iso(dOnly.daily[0].ms), '2026-07-13');
+        T.eq('§5.5 · …and hasTime is honestly false for such a file', dOnly.hasTime, false);
+        // (b) 13/07 PROVES DMY, so 05/07 is 5 July — not 7 May.
+        T.eq('§5.5 · a European file locks DMY from its own evidence (05/07 → 5 Jul, not 7 May)', dayList(pn('Date,Energy (kcal),Net Carbs (g)\n13/07/2026,2100,200\n05/07/2026,1950,180')), '2026-07-05 2026-07-13');
+        // …and the mirror: 07/13 PROVES MDY, so 07/05 is also 5 July. Same days, opposite convention —
+        // a per-row guess cannot get both right, which is the point of locking per FILE.
+        T.eq('§5.5 · a US file locks MDY from its own evidence (07/05 → 5 Jul)', dayList(pn('Date,Energy (kcal),Net Carbs (g)\n07/13/2026,2100,200\n07/05/2026,1950,180')), '2026-07-05 2026-07-13');
+        // Not over-broad: a TIMED export must still parse through the normal path.
+        var timed = pn('Date,Time,Energy (kcal),Net Carbs (g)\n2026-07-13,08:30,600,60\n2026-07-13,19:00,900,90');
+        T.ok('§5.5 · a TIMED export still parses (the date-only path did not displace it)', timed.hasTime === true, 'hasTime=' + timed.hasTime + ' servings=' + timed.nServings);
+      }
+    });
+
     group('GlucoDex variability indices — jIndex/CONGA/GRADE/MAG known-answer (re-scout §GV)', 'glucodex-dsp · variability · known-answer', function (T) {
       var G = env.GlucoDex || env.GLUDSP;
       if (!G || typeof G.analyze !== 'function' || typeof G.parseCSV !== 'function') {
