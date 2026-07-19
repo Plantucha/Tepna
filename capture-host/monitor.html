@@ -179,6 +179,12 @@ body.light .section-title::after{background:rgba(0,0,0,.06);}
 .ov-head .st{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
   padding:2px 8px;border-radius:999px;border:1px solid var(--border2);color:var(--text4);}
 .ov-head .st.live{color:var(--green);border-color:rgba(57,217,138,.35);background:rgba(57,217,138,.08);}
+/* Not-worn / no-data / weak: AMBER, never red. The sensor is linked and the box is healthy — the user
+   simply isn't wearing it, or it's on a dock. Red here would cry fault at a normal state and train
+   people to ignore the colour that should mean something is actually broken. */
+.ov-head .st.warn{color:var(--amber);border-color:rgba(255,184,77,.35);background:rgba(255,184,77,.07);}
+/* Charging is an EXPECTED state — blue, matching .clk.chg (see chargeChip). */
+.ov-head .st.chg{color:var(--blue);border-color:rgba(88,166,255,.35);background:rgba(88,166,255,.07);}
 .ov-value{display:flex;align-items:flex-end;gap:8px;margin-bottom:8px;}
 .ov-value .big{font-size:34px;font-weight:700;line-height:1;font-family:ui-monospace,monospace;letter-spacing:-.02em;}
 .ov-value .big.ok{color:var(--status-ok);} .ov-value .big.warn{color:var(--status-caution);} .ov-value .big.bad{color:var(--status-concern);}
@@ -549,9 +555,23 @@ function hostClockChip(hc){
   if(hc.root_dispersion_ms!=null) bits.push('root dispersion '+hc.root_dispersion_ms+' ms');
   return `<span class="clk ${cls}" title="${esc(bits.filter(Boolean).join(' · '))}">🛰 ${txt}</span>`;
 }
+// A stream's pill must describe DATA, not the BLE link. It used to read `active` alone — but `active`
+// means "declared and started", not "delivering". So a sensor sitting on its charger, or a ring off the
+// finger, kept saying "live" while effFs was 0.0 and nothing reached disk (observed 2026-07-19: 7 of 12
+// streams stalled, all still labelled live). The health field already knew; the badge just never asked.
+// Order matters — report the CAUSE when we know it, and fall back to the symptom when we don't.
+function streamState(s, dev){
+  if(!s.active)                       return {cls:'',     txt:'idle',     why:'Stream not started.'};
+  if(dev && dev.charging)             return {cls:'chg',  txt:'charging', why:'On the charger — the sensor stops streaming while it charges. Resumes on its own once off the dock.'};
+  if(dev && dev.worn === false)       return {cls:'warn', txt:'not worn', why:'Linked, but the sensor reports no skin/finger contact — no reading to record.'};
+  if(s.health === 'stall')            return {cls:'warn', txt:'no data',  why:'Linked, but no samples are arriving. The link is up and the stream is started — the sensor is simply not sending.'};
+  if(s.health === 'weak')             return {cls:'warn', txt:'weak',     why:'Arriving well below the negotiated rate — samples are being dropped.'};
+  return {cls:'live', txt:'live', why:'Delivering samples at the expected rate.'};
+}
+
 function chargeChip(dev){
   if(!dev || !dev.charging) return '';
-  return `<span class="clk chg" title="On the charger — the sensor refuses data streams while charging (PMD status 0x0D). Streams resume automatically within ~${60}s of taking it off the dock.">⚡ charging</span>`;
+  return `<span class="clk chg" title="On the charger. A Polar refuses new streams outright (PMD 0x0D) and resumes within ~${60}s of coming off the dock; a device already streaming when it went on charge simply goes quiet. Detected from the O2Ring's own battery-state flag, and on a Polar from a rising battery level.">⚡ charging</span>`;
 }
 function rssiLevel(dbm){ return dbm>=-60?4 : dbm>=-70?3 : dbm>=-80?2 : 1; }
 function rssiClass(dbm, health){
@@ -1014,7 +1034,7 @@ function ovRender(){                             // (re)build the cards to match
       return `<div class="ov-card ${s.active?'':'inactive'}" data-stream="${s.key}" id="ovc-${s.key}">
         <div class="ov-head"><span class="ev ev-measured" title="Measured — direct sensor reading"></span>
           <span class="name">${esc(s.label)}</span>
-          <span class="st ${s.active?'live':''}">${s.active?'live':'idle'}</span></div>
+          <span class="st ${(st=>st.cls)(streamState(s,dev))}" id="ovst-${s.key}" title="${esc((st=>st.why)(streamState(s,dev)))}">${(st=>st.txt)(streamState(s,dev))}</span></div>
         <div class="ov-value" id="ovval-${s.key}"></div>
         <div class="ov-mini"><canvas id="ovcv-${s.key}"></canvas></div>
         <div class="ov-foot"><span>${KIND_FOOT[streamKind(s)]}</span><span>${foot}</span></div>
@@ -1041,6 +1061,8 @@ function ovRender(){                             // (re)build the cards to match
       if(sg) sg.innerHTML = s.active ? rssiChip(dev?dev.rssi:null, s.health, sigTitle(s)) : '';
       const ck = document.getElementById('ovclk-'+s.key);
       if(ck) ck.innerHTML = clkChip(dev);
+      const stp = document.getElementById('ovst-'+s.key);
+      if(stp){ const st = streamState(s, dev); stp.className = 'st '+st.cls; stp.textContent = st.txt; stp.title = st.why; }
     }
   }
   ovSubscribe();   // pick up any stream that has since gone active
