@@ -955,11 +955,27 @@ async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", ftype:
             "sessions": [_meta(f) for f in saved], "out_dir": out_dir}
 
 
+# Hard ceiling on a single offline op. Generous — a full stored-session pull over PS-FTP is minutes of
+# work (pull_recording itself allows 180 s per file) — but FINITE, and that is the whole point.
+#
+# WHY: on 2026-07-19 a routine clock re-sync (H10 drifted 11 s) took this path against a device that had
+# been carried out of range. The PS-FTP op never returned, and because it holds BOTH _POLAR_PAUSED and
+# _CONNECT_LOCK for its whole life, every device task idled and no device could reconnect. Capture wrote
+# ZERO bytes for 58 minutes, the monitor sat frozen on stale state, and nothing reported an error — the
+# log's last word was "live capture paused". SIGTERM could not even cancel it.
+#
+# The recovery ladder cannot save this: adapter_watchdog, clock_watchdog and rssi_poller all skip while
+# _POLAR_PAUSED is non-empty, so the one mechanism built to unwedge a stuck radio is disabled by exactly
+# the condition that wedges it. bleak's own timeouts did not bound it either — a wedged BlueZ can leave a
+# D-Bus call outstanding indefinitely. So the bound has to live here, at the point that holds the locks.
+_OFFLINE_OP_TIMEOUT_S = 300.0
+
+
 async def polar_offline_op(address: str, op):
     """Run a PS-FTP offline op (list/pull) while the daemon's run_polar for `address` is paused, so the
     pull owns the device's single BLE link instead of colliding with the live-capture reconnect loop
     (org.bluez.Error.InProgress). `op` is a zero-arg coroutine factory; its result is returned. Resumes
-    live capture no matter how `op` ends."""
+    live capture no matter how `op` ends — including when it does not end at all (see the timeout)."""
     name = next((n for n, s in STATUS.get("devices", {}).items() if s.get("address") == address), None)
     # ONE download at a time across ALL devices (see offline_lock) — raises OfflineBusy if another device
     # is mid-download, instead of letting two pulls fight over the single radio.
@@ -976,7 +992,14 @@ async def polar_offline_op(address: str, op):
             # the PS-FTP connect must not race a concurrent H10/O2Ring reconnect (→ org.bluez.Error.InProgress).
             # The other tasks' reconnects simply queue behind the pull; it's a deliberate, finite user action.
             async with _CONNECT_LOCK:
-                return await op()
+                return await asyncio.wait_for(op(), timeout=_OFFLINE_OP_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            # Loud, because the alternative is a silently dead box. Re-raised so the caller (a clock sync
+            # or a monitor-driven pull) reports failure rather than believing it succeeded.
+            log.error("Polar %s: offline op exceeded %.0fs and was abandoned — resuming live capture. "
+                      "The device was most likely out of range or the adapter is wedged; the capture "
+                      "loops are now free to reconnect.", address, _OFFLINE_OP_TIMEOUT_S)
+            raise
         finally:
             _POLAR_PAUSED.discard(address)
             log.info("Polar %s: offline op finished — resuming live capture", address)
