@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-GGdN+UUs5j+9HUZsLBWNRzJsznw99NyOxmfZPLRvlo8=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-OaR/0dG2x6ARLgN8e7hTda9Cc3UWpoKYrmKxEjH6STI=' 'sha256-PXUdAFcOQVLDIV42NdLbJEMOlh/35V6Re3Q27kgNkjU=' 'sha256-S4eOTzgYlkNX3tS5LWUg4AxV3psnu9y00QPYGDCLGk0=' 'sha256-SRJJFEC6LTMi0bvZyzEJu7AQKuDo8gEeHChJAtBES0s=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-eQFgshqDM2o33iSMSFxRH2TgAEx42AUkukpJ6Fgbymc=' 'sha256-fXpe7bWrCBH1PTzXk7LsnRSW3I2Fef+mopAui/LqSHc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-tmAic/xbdvrtXNW4FGmx3xKwGyoaYsuH03HwOuDRjEc=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-GGdN+UUs5j+9HUZsLBWNRzJsznw99NyOxmfZPLRvlo8=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-OaR/0dG2x6ARLgN8e7hTda9Cc3UWpoKYrmKxEjH6STI=' 'sha256-PXUdAFcOQVLDIV42NdLbJEMOlh/35V6Re3Q27kgNkjU=' 'sha256-SRJJFEC6LTMi0bvZyzEJu7AQKuDo8gEeHChJAtBES0s=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-eQFgshqDM2o33iSMSFxRH2TgAEx42AUkukpJ6Fgbymc=' 'sha256-fXpe7bWrCBH1PTzXk7LsnRSW3I2Fef+mopAui/LqSHc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-tI9r9eDSUghuLR+P6BjmHc/akNOqYLlxhCKYxK6Jx8c=' 'sha256-tmAic/xbdvrtXNW4FGmx3xKwGyoaYsuH03HwOuDRjEc=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -23558,6 +23558,43 @@ __exports.PpgDex = window.PpgDex;
     return out;
   }
   // `*_ACC.txt` (tri-axial accelerometer; last 3 numeric cols = x,y,z) → { acc:[{tsMs,x,y,z}],
+  /* ── Companion hand-off (DEEP-AUDIT-II §10.4) ────────────────────────────────────────────────
+     A dropped `_RR / _HR / _ACC` may arrive BEFORE its ECG, so the app parks it and grafts it onto
+     the next recording that lacks its own. The parking slots were module-scope globals cleared ONLY
+     by resetAll(), and the multi-file queue drain never cleared them between recordings — so once
+     night A's companions were parked, night B inherited them whenever B's own companions were
+     absent. `deviceKey` cannot discriminate: it is POLAR_<model>_<id>, per DEVICE, so two nights
+     from the same H10 share it exactly.
+     The missing rule is that a parked companion is CONSUMED by the recording it grafts onto. It
+     belongs to one recording; after that it must not be pending for anything else.
+     Pure and app-free so it can be gated at all — the graft decision previously lived inside a
+     DOM-mutating handler where no test could reach it, which is why a cross-night leak that reaches
+     the EXPORT (the ACC leg re-stamps `ev.meta.position`) shipped unnoticed.
+     Returns { graft, remaining }: `graft` is what this recording should take, `remaining` is what
+     stays parked. Never mutates either argument. */
+  function planCompanionGraft(pending, rec) {
+    var p = pending || {},
+      r = rec || {};
+    var graft = {},
+      tookACC = false;
+    if (p.deviceRR && !r.deviceRR) graft.deviceRR = p.deviceRR;
+    if (p.deviceHR && !r.deviceHR) graft.deviceHR = p.deviceHR;
+    if (p.deviceACC && !r.deviceACC) {
+      graft.deviceACC = p.deviceACC;
+      graft.accFs = p.accFs != null ? p.accFs : null;
+      tookACC = true;
+    }
+    return {
+      graft: graft,
+      remaining: {
+        deviceRR: graft.deviceRR ? null : p.deviceRR || null,
+        deviceHR: graft.deviceHR ? null : p.deviceHR || null,
+        deviceACC: tookACC ? null : p.deviceACC || null,
+        accFs: tookACC ? null : p.accFs != null ? p.accFs : null
+      }
+    };
+  }
+
   // accFs } — fs inferred from the median stamp dt. A stampless file is relative-from-0
   // (+ _relBase) so the caller can re-base onto the ECG's t0Ms (Clock Contract §2.6 — never now()).
   function parseDeviceACC(text) {
@@ -23834,6 +23871,7 @@ __exports.PpgDex = window.PpgDex;
   global.ECGDSP.parseDeviceRR = parseDeviceRR;
   global.ECGDSP.parseDeviceHR = parseDeviceHR;
   global.ECGDSP.parseDeviceACC = parseDeviceACC;
+  global.ECGDSP.planCompanionGraft = planCompanionGraft; // §10.4 — pure, so the graft rule is gateable
   global.ECGDSP.compute = compute;
   global.ECGDSP.buildNodeExport = ecgBuildNodeExport;
   // ONE namespaced global (brief §1A). ECGDex leaks nothing bare (the whole DSP is in this
@@ -23903,7 +23941,8 @@ __exports.PpgDex = window.PpgDex;
     _build: ecgBuildNodeExport,
     parseDeviceRR: parseDeviceRR,
     parseDeviceHR: parseDeviceHR,
-    parseDeviceACC: parseDeviceACC
+    parseDeviceACC: parseDeviceACC,
+    planCompanionGraft: planCompanionGraft // §10.4 — pure, so the graft rule is gateable
   };
   global.ECGDex.loadOwnExport = ecgLoadOwnExport; // SELF-INGEST reload (review-mode clinical view)
   // scrub-for-sharing → the SHARED dexScrubExport (D1); lazy delegate, co-load order irrelevant.

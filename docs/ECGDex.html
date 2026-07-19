@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-TjaNfjdI1uy6Y/QCmKdy3/8OhUhTsxcmpioTK97koSw=' 'sha256-V+6Ry7tYxWhLIKC6ejN8CNntO4ekQOyvCuMZ8qLyoAs=' 'sha256-a545kKAHe4p7XyJRMgn3cn+L8okuG1T8SLixcuoE+QY=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-p9Oxv8fTa380+XXRWMPFuq0j+QFn4WmHMO+/E8wCeV4=' 'sha256-r0X2O3j92XNq90uID66YtwXNMB8khO1SHyun9Dt0pbA='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FafrfkmV1cI57ar8adn3HMAb7rq7yWzrned5vottjvg=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-TjaNfjdI1uy6Y/QCmKdy3/8OhUhTsxcmpioTK97koSw=' 'sha256-a545kKAHe4p7XyJRMgn3cn+L8okuG1T8SLixcuoE+QY=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-eoxrg8j0TuSxwcKn0aa07TGLFthAvPMvdv5VbqB+fWM=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-p9Oxv8fTa380+XXRWMPFuq0j+QFn4WmHMO+/E8wCeV4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ECGDex — Raw ECG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -9655,6 +9655,43 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     return out;
   }
   // `*_ACC.txt` (tri-axial accelerometer; last 3 numeric cols = x,y,z) → { acc:[{tsMs,x,y,z}],
+  /* ── Companion hand-off (DEEP-AUDIT-II §10.4) ────────────────────────────────────────────────
+     A dropped `_RR / _HR / _ACC` may arrive BEFORE its ECG, so the app parks it and grafts it onto
+     the next recording that lacks its own. The parking slots were module-scope globals cleared ONLY
+     by resetAll(), and the multi-file queue drain never cleared them between recordings — so once
+     night A's companions were parked, night B inherited them whenever B's own companions were
+     absent. `deviceKey` cannot discriminate: it is POLAR_<model>_<id>, per DEVICE, so two nights
+     from the same H10 share it exactly.
+     The missing rule is that a parked companion is CONSUMED by the recording it grafts onto. It
+     belongs to one recording; after that it must not be pending for anything else.
+     Pure and app-free so it can be gated at all — the graft decision previously lived inside a
+     DOM-mutating handler where no test could reach it, which is why a cross-night leak that reaches
+     the EXPORT (the ACC leg re-stamps `ev.meta.position`) shipped unnoticed.
+     Returns { graft, remaining }: `graft` is what this recording should take, `remaining` is what
+     stays parked. Never mutates either argument. */
+  function planCompanionGraft(pending, rec) {
+    var p = pending || {},
+      r = rec || {};
+    var graft = {},
+      tookACC = false;
+    if (p.deviceRR && !r.deviceRR) graft.deviceRR = p.deviceRR;
+    if (p.deviceHR && !r.deviceHR) graft.deviceHR = p.deviceHR;
+    if (p.deviceACC && !r.deviceACC) {
+      graft.deviceACC = p.deviceACC;
+      graft.accFs = p.accFs != null ? p.accFs : null;
+      tookACC = true;
+    }
+    return {
+      graft: graft,
+      remaining: {
+        deviceRR: graft.deviceRR ? null : p.deviceRR || null,
+        deviceHR: graft.deviceHR ? null : p.deviceHR || null,
+        deviceACC: tookACC ? null : p.deviceACC || null,
+        accFs: tookACC ? null : p.accFs != null ? p.accFs : null
+      }
+    };
+  }
+
   // accFs } — fs inferred from the median stamp dt. A stampless file is relative-from-0
   // (+ _relBase) so the caller can re-base onto the ECG's t0Ms (Clock Contract §2.6 — never now()).
   function parseDeviceACC(text) {
@@ -9931,6 +9968,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   global.ECGDSP.parseDeviceRR = parseDeviceRR;
   global.ECGDSP.parseDeviceHR = parseDeviceHR;
   global.ECGDSP.parseDeviceACC = parseDeviceACC;
+  global.ECGDSP.planCompanionGraft = planCompanionGraft; // §10.4 — pure, so the graft rule is gateable
   global.ECGDSP.compute = compute;
   global.ECGDSP.buildNodeExport = ecgBuildNodeExport;
   // ONE namespaced global (brief §1A). ECGDex leaks nothing bare (the whole DSP is in this
@@ -10000,7 +10038,8 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     _build: ecgBuildNodeExport,
     parseDeviceRR: parseDeviceRR,
     parseDeviceHR: parseDeviceHR,
-    parseDeviceACC: parseDeviceACC
+    parseDeviceACC: parseDeviceACC,
+    planCompanionGraft: planCompanionGraft // §10.4 — pure, so the graft rule is gateable
   };
   global.ECGDex.loadOwnExport = ecgLoadOwnExport; // SELF-INGEST reload (review-mode clinical view)
   // scrub-for-sharing → the SHARED dexScrubExport (D1); lazy delegate, co-load order irrelevant.
@@ -13286,19 +13325,32 @@ self.onmessage = async (e) => {
   // ════════════════════════════════════════════════════════════════════════
   function runPipeline(rec, primaryName) {
     try {
-      if (DEVICE_RR && !rec.deviceRR) rec.deviceRR = DEVICE_RR;
-      if (DEVICE_HR && !rec.deviceHR) rec.deviceHR = DEVICE_HR;
-      if (DEVICE_ACC && !rec.deviceACC) {
+      /* DEEP-AUDIT-II §10.4 — a parked companion belongs to ONE recording and is CONSUMED by it.
+         These slots were cleared only by resetAll(), and the multi-file queue drain never cleared
+         them between recordings — so once night A's companions were parked, night B inherited them
+         whenever B's own were absent. `deviceKey` cannot discriminate: it is POLAR_<model>_<id>, per
+         DEVICE, so two nights from the same H10 share it exactly. The decision now lives in the DSP
+         as a pure function (ECGDSP.planCompanionGraft) so it can be gated at all; this handler keeps
+         only the DOM-side work and the re-base, then releases whatever was taken. */
+      const _cg = DSP.planCompanionGraft({ deviceRR: DEVICE_RR, deviceHR: DEVICE_HR, deviceACC: DEVICE_ACC, accFs: ACC_FS }, rec);
+      if (_cg.graft.deviceRR) rec.deviceRR = _cg.graft.deviceRR;
+      if (_cg.graft.deviceHR) rec.deviceHR = _cg.graft.deviceHR;
+      if (_cg.graft.deviceACC) {
         // stampless ACC loaded before the ECG finished → re-base its relative clock onto this recording
-        if (DEVICE_ACC._relBase && rec.t0Ms != null) {
-          DEVICE_ACC.forEach((o) => {
+        if (_cg.graft.deviceACC._relBase && rec.t0Ms != null) {
+          _cg.graft.deviceACC.forEach((o) => {
             o.tsMs += rec.t0Ms;
           });
-          DEVICE_ACC._relBase = false;
+          _cg.graft.deviceACC._relBase = false;
         }
-        rec.deviceACC = DEVICE_ACC;
-        rec.accFs = ACC_FS;
+        rec.deviceACC = _cg.graft.deviceACC;
+        rec.accFs = _cg.graft.accFs;
       }
+      // …and release what this recording took, so the NEXT one cannot inherit it.
+      DEVICE_RR = _cg.remaining.deviceRR;
+      DEVICE_HR = _cg.remaining.deviceHR;
+      DEVICE_ACC = _cg.remaining.deviceACC;
+      ACC_FS = _cg.remaining.accFs;
       clearAlerts();
       setTimeout(() => {
         let r;

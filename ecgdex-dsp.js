@@ -3187,6 +3187,43 @@
     return out;
   }
   // `*_ACC.txt` (tri-axial accelerometer; last 3 numeric cols = x,y,z) → { acc:[{tsMs,x,y,z}],
+  /* ── Companion hand-off (DEEP-AUDIT-II §10.4) ────────────────────────────────────────────────
+     A dropped `_RR / _HR / _ACC` may arrive BEFORE its ECG, so the app parks it and grafts it onto
+     the next recording that lacks its own. The parking slots were module-scope globals cleared ONLY
+     by resetAll(), and the multi-file queue drain never cleared them between recordings — so once
+     night A's companions were parked, night B inherited them whenever B's own companions were
+     absent. `deviceKey` cannot discriminate: it is POLAR_<model>_<id>, per DEVICE, so two nights
+     from the same H10 share it exactly.
+     The missing rule is that a parked companion is CONSUMED by the recording it grafts onto. It
+     belongs to one recording; after that it must not be pending for anything else.
+     Pure and app-free so it can be gated at all — the graft decision previously lived inside a
+     DOM-mutating handler where no test could reach it, which is why a cross-night leak that reaches
+     the EXPORT (the ACC leg re-stamps `ev.meta.position`) shipped unnoticed.
+     Returns { graft, remaining }: `graft` is what this recording should take, `remaining` is what
+     stays parked. Never mutates either argument. */
+  function planCompanionGraft(pending, rec) {
+    var p = pending || {},
+      r = rec || {};
+    var graft = {},
+      tookACC = false;
+    if (p.deviceRR && !r.deviceRR) graft.deviceRR = p.deviceRR;
+    if (p.deviceHR && !r.deviceHR) graft.deviceHR = p.deviceHR;
+    if (p.deviceACC && !r.deviceACC) {
+      graft.deviceACC = p.deviceACC;
+      graft.accFs = p.accFs != null ? p.accFs : null;
+      tookACC = true;
+    }
+    return {
+      graft: graft,
+      remaining: {
+        deviceRR: graft.deviceRR ? null : p.deviceRR || null,
+        deviceHR: graft.deviceHR ? null : p.deviceHR || null,
+        deviceACC: tookACC ? null : p.deviceACC || null,
+        accFs: tookACC ? null : p.accFs != null ? p.accFs : null
+      }
+    };
+  }
+
   // accFs } — fs inferred from the median stamp dt. A stampless file is relative-from-0
   // (+ _relBase) so the caller can re-base onto the ECG's t0Ms (Clock Contract §2.6 — never now()).
   function parseDeviceACC(text) {
@@ -3463,6 +3500,7 @@
   global.ECGDSP.parseDeviceRR = parseDeviceRR;
   global.ECGDSP.parseDeviceHR = parseDeviceHR;
   global.ECGDSP.parseDeviceACC = parseDeviceACC;
+  global.ECGDSP.planCompanionGraft = planCompanionGraft; // §10.4 — pure, so the graft rule is gateable
   global.ECGDSP.compute = compute;
   global.ECGDSP.buildNodeExport = ecgBuildNodeExport;
   // ONE namespaced global (brief §1A). ECGDex leaks nothing bare (the whole DSP is in this
@@ -3532,7 +3570,8 @@
     _build: ecgBuildNodeExport,
     parseDeviceRR: parseDeviceRR,
     parseDeviceHR: parseDeviceHR,
-    parseDeviceACC: parseDeviceACC
+    parseDeviceACC: parseDeviceACC,
+    planCompanionGraft: planCompanionGraft // §10.4 — pure, so the graft rule is gateable
   };
   global.ECGDex.loadOwnExport = ecgLoadOwnExport; // SELF-INGEST reload (review-mode clinical view)
   // scrub-for-sharing → the SHARED dexScrubExport (D1); lazy delegate, co-load order irrelevant.

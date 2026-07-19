@@ -7722,6 +7722,54 @@
        raising or removing the cap without §5.2 converts a SILENT truncation into a hard CRASH.
        `xs` is pushed in ascending grid order, so first/last is not an approximation of the extremes —
        it IS them, allocation-free. */
+    /* DEEP-AUDIT-II §10.4 — a parked companion belongs to ONE recording and must be CONSUMED by it.
+       A dropped `_RR / _HR / _ACC` may arrive BEFORE its ECG, so the app parks it and grafts it onto
+       the next recording that lacks its own. Those slots were cleared only by resetAll(), and the
+       multi-file queue drain never cleared them between recordings — so once night A's companions
+       were parked, night B inherited them whenever B's own were absent. Not a display-only slip: the
+       ACC leg re-stamps `ev.meta.position`, so the wrong night's accelerometer reaches the EXPORT.
+       `deviceKey` cannot discriminate — it is POLAR_<model>_<id>, per DEVICE, so two nights from the
+       same H10 share it exactly. That is why the rule is CONSUMPTION, not identity matching.
+       The decision was hoisted out of a DOM-mutating handler into a pure ECGDSP function precisely so
+       it could be gated; in the app it was unreachable by any test, which is how a cross-night leak
+       that reaches the export shipped unnoticed. */
+    group('ECGDex §10.4 — a parked companion is consumed by the recording it grafts onto', 'ecgdex-dsp · companions · regression', function (T) {
+      var E = env.ECGDSP;
+      var plan = E && E.planCompanionGraft;
+      if (typeof plan !== 'function') {
+        T.ok('ECGDSP.planCompanionGraft exposed', false, 'not wired');
+      } else {
+        var rrA = [{ tMs: 1, rr: 900 }],
+          accA = [{ tsMs: 1, x: 0 }];
+        // Night A has no companions of its own → it takes the parked ones.
+        var a = plan({ deviceRR: rrA, deviceHR: null, deviceACC: accA, accFs: 52 }, { t0Ms: 1000 });
+        T.eq('§10.4 · night A takes the parked RR', a.graft.deviceRR, rrA);
+        T.eq('§10.4 · …and the parked ACC, with its sample rate', a.graft.accFs, 52);
+        // …and they are GONE from the pending set. This is the whole fix.
+        T.eq('§10.4 · the parked RR is consumed — not still pending for the next recording', a.remaining.deviceRR, null);
+        T.eq('§10.4 · …nor the ACC', a.remaining.deviceACC, null);
+        T.eq('§10.4 · …nor its accFs (a stale rate would mis-scale the next night)', a.remaining.accFs, null);
+        // Night B, run against what actually remains, inherits NOTHING.
+        var b = plan(a.remaining, { t0Ms: 2000 });
+        T.eq('§10.4 · night B inherits no RR (pre-fix it silently took night A’s)', b.graft.deviceRR, undefined);
+        T.eq('§10.4 · …and no ACC — the leg that reaches the export via ev.meta.position', b.graft.deviceACC, undefined);
+        // Not over-broad: a recording that HAS its own companion keeps it, and the parked one stays
+        // parked for whoever genuinely lacks one — the out-of-order drop this mechanism exists for.
+        var own = [{ tMs: 9, rr: 800 }];
+        var c = plan({ deviceRR: rrA, deviceHR: null, deviceACC: null, accFs: null }, { deviceRR: own, t0Ms: 3000 });
+        T.eq('§10.4 · a recording with its OWN RR is not overwritten', c.graft.deviceRR, undefined);
+        T.eq('§10.4 · …and the parked RR stays parked for a recording that lacks one', c.remaining.deviceRR, rrA);
+        // Partial consumption: taking the ACC must not silently drop an untaken RR.
+        var d = plan({ deviceRR: rrA, deviceHR: null, deviceACC: accA, accFs: 52 }, { deviceRR: own, t0Ms: 4000 });
+        T.eq('§10.4 · the ACC is taken…', d.graft.deviceACC, accA);
+        T.eq('§10.4 · …while the untaken RR remains pending (consumption is per-companion)', d.remaining.deviceRR, rrA);
+        // Purity: the caller\'s objects are never mutated.
+        var pend = { deviceRR: rrA, deviceHR: null, deviceACC: null, accFs: null };
+        plan(pend, { t0Ms: 5000 });
+        T.eq('§10.4 · the pending object passed in is not mutated (the caller owns its state)', pend.deviceRR, rrA);
+      }
+    });
+
     group('GlucoDex §5.1/§5.2 — a truncated grid says so, and the session span cannot overflow', 'glucodex-dsp · truncation · robustness', function (T) {
       var GT = env.GlucoDex || env.GLUDSP;
       var an = (env.GLUDSP && env.GLUDSP.analyze) || (GT && GT.analyze);
