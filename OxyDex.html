@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+hY21Wy7QjPkQkSv17jTCQ1JY7zf+/Xw3HkoS3ZGF30=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-DL58t0PXVeQJm0lmOFdvMBX+M60aWdK8xMIWqU77utY=' 'sha256-GGdN+UUs5j+9HUZsLBWNRzJsznw99NyOxmfZPLRvlo8=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UbyA2i/G8BqxEEI0Zt+9dA+mglUVd5MYOiD5AQKZMVs=' 'sha256-aFzwtToPhJ3YoUMLjrIAjENB7QgXSxzZXKvBqZkxtLo=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jRO1PClaNjFEQbHzgfRf3Gi+3dlMNKCiXg2dvkgW3Ww=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qjpCQdvxQhszMNAgganPyW8qGwciwEHlDntH1sN55Zc=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+hY21Wy7QjPkQkSv17jTCQ1JY7zf+/Xw3HkoS3ZGF30=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-GGdN+UUs5j+9HUZsLBWNRzJsznw99NyOxmfZPLRvlo8=' 'sha256-KgaAuv/6KGUj6sYIwLsZPf0TlufPhKJSm69jaGd/6+Q=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-ThlcHDqfp7qDbu4Oot8uBjGFEumOt4zhZNAh9jOpuEA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UbyA2i/G8BqxEEI0Zt+9dA+mglUVd5MYOiD5AQKZMVs=' 'sha256-aFzwtToPhJ3YoUMLjrIAjENB7QgXSxzZXKvBqZkxtLo=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jRO1PClaNjFEQbHzgfRf3Gi+3dlMNKCiXg2dvkgW3Ww=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qjpCQdvxQhszMNAgganPyW8qGwciwEHlDntH1sN55Zc=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OxyDex — Nocturnal Oximetry Analyzer · v1.0.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -7626,7 +7626,9 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       cite: m.cite || null,
       n: st.n != null ? st.n : 0,
       central: { mean: st.mean, sd: st.sd, median: st.median, iqr: st.iqr, min: st.min, max: st.max, cv: st.cv },
-      trend: { slopePerIndex: st.slope, slopePerDay: st.slopePerDay, r2: st.r2, r2date: st.r2date, mannKendall: { tau: st.tau, p: st.p }, label },
+      // §9.3 — dirDisagree rides along: this projection is HAND-PICKED, so a field added to the
+      // per-metric stat object is invisible to every consumer until it is named here.
+      trend: { slopePerIndex: st.slope, slopePerDay: st.slopePerDay, r2: st.r2, r2date: st.r2date, mannKendall: { tau: st.tau, p: st.p }, label, dirDisagree: !!st.trendDirDisagree },
       change,
       baseline: {
         window: st.n != null && st.n > 1 ? 'prior-' + (st.n - 1) : null,
@@ -10149,8 +10151,21 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     // significance
     const boot = bootstrapDeltaCI(vals);
     // trend label by good-direction + Mann-Kendall significance
+    /* DEEP-AUDIT-II §9.3 — the label's DIRECTION and its SIGNIFICANCE must come from the SAME test.
+       `rising` was taken from the OLS slope while `signif` came from Mann–Kendall, so the sentence
+       "there is a significant trend, and it is improving" was assembled from two different
+       estimators. They disagree exactly where it matters: MK is rank-based and robust, OLS is
+       leverage-sensitive, so a single endpoint outlier flips the slope without moving τ — the audit
+       measured "improving" printed beside τ = −0.6 on 10.3 % of endpoint-outlier series.
+       Direction now comes from τ, the same statistic that decided the trend was real. `slopePerDay`
+       is still reported separately as the magnitude — this changes which estimator names the
+       DIRECTION, not what OLS is for.
+       When the two disagree in sign the series has endpoint leverage worth knowing about, so it is
+       reported rather than silently resolved. */
     let trendLabel = 'stable';
-    const rising = (byIdx.slope || 0) > 0;
+    const rising = (mk.tau || 0) > 0; // §9.3 — direction from the significance test, not OLS
+    const olsRising = (byIdx.slope || 0) > 0;
+    const dirDisagree = !!(mk.tau && byIdx.slope) && rising !== olsRising;
     const signif = mk.p != null && mk.p < DexKernel.K.SIGNIF_P && Math.abs(mk.tau || 0) > DexKernel.K.SIGNIF_TAU;
     if (signif) {
       const improving = (good === 'up' && rising) || (good === 'down' && !rising);
@@ -10171,6 +10186,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       r2date,
       tau: mk.tau,
       p: mk.p,
+      trendDirDisagree: dirDisagree, // §9.3 — OLS slope and Mann-Kendall τ point opposite ways (endpoint leverage)
       zLatest,
       baselineMean,
       baselineSd,

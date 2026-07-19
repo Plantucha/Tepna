@@ -61,7 +61,8 @@
             "tau": 0,
             "p": 1
           },
-          "label": "stable"
+          "label": "stable",
+          "dirDisagree": false
         },
         "change": null,
         "baseline": {
@@ -97,7 +98,8 @@
             "tau": 0,
             "p": 1
           },
-          "label": "stable"
+          "label": "stable",
+          "dirDisagree": false
         },
         "change": null,
         "baseline": {
@@ -133,7 +135,8 @@
             "tau": 0,
             "p": 1
           },
-          "label": "stable"
+          "label": "stable",
+          "dirDisagree": false
         },
         "change": null,
         "baseline": {
@@ -169,7 +172,8 @@
             "tau": 0,
             "p": 1
           },
-          "label": "stable"
+          "label": "stable",
+          "dirDisagree": false
         },
         "change": null,
         "baseline": {
@@ -205,7 +209,8 @@
             "tau": 0,
             "p": 1
           },
-          "label": "stable"
+          "label": "stable",
+          "dirDisagree": false
         },
         "change": null,
         "baseline": {
@@ -241,7 +246,8 @@
             "tau": 0,
             "p": 1
           },
-          "label": "stable"
+          "label": "stable",
+          "dirDisagree": false
         },
         "change": null,
         "baseline": {
