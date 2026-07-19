@@ -9113,6 +9113,49 @@
       T.ok('ecgdex-morph.js exposes analyze() (exercised via ECGDSP.analyze)', !!(EM && typeof EM.analyze === 'function'));
       T.ok('ppgdex-morph.js exposes analyze() (exercised via PPGDSP morphology)', !!(PM && typeof PM.analyze === 'function'));
 
+      /* DEEP-AUDIT-II §4.1 — QT/QTc must NEVER be reported at the median-beat window edge.
+         The median beat is a FIXED window (pre=0.32·fs, post=0.46·fs → 460 ms after R). When
+         repolarisation genuinely outruns it, the T-end tangent extrapolates past the last
+         sample and the old code silently clamped Tend to `beat.length-1`. QT then stops being
+         a measurement and becomes a CEILING: at 130 Hz every long-QT beat reports ms(102−Qon)
+         ≈ 500 ms no matter how long the true interval is — a plausible number sitting on a
+         clinical threshold, which is worse than reporting nothing. There is no `medW`-style
+         cross-check for T-end to re-anchor onto, so the honest move is to withhold.
+         No GATE-C leg covers delineation, so this is the gate.
+         Both directions are load-bearing: case A proves the guard is not simply nulling
+         everything, case B proves it fires; the two case-B beats have DIFFERENT true QT and
+         both collapsed to the identical fabricated 500 ms, which is the ceiling signature. */
+      if (EM && typeof EM.delineate === 'function') {
+        var _QFS = 130,
+          _QPRE = Math.round(0.32 * _QFS),
+          _QPOST = Math.round(0.46 * _QFS),
+          _QL = _QPRE + _QPOST + 1;
+        var _qBeat = function (tStart, tEnd) {
+          var b = new Array(_QL).fill(0),
+            p = _QPRE;
+          b[p - 5] = -100; b[p - 4] = -250; b[p - 3] = -300; b[p - 2] = -150; b[p - 1] = 300;
+          b[p] = 900;
+          b[p + 1] = 400; b[p + 2] = -200; b[p + 3] = -350; b[p + 4] = -250; b[p + 5] = -100;
+          for (var i = tStart; i < tEnd && i < _QL; i++) b[i] = 220 * Math.sin(Math.PI * ((i - tStart) / (tEnd - tStart)));
+          return { beat: b, pre: _QPRE, post: _QPOST, L: _QL, fs: _QFS, nUsed: 50, medRR: 900, valid: true };
+        };
+        var _dNorm = EM.delineate(_qBeat(60, 86)); // T-end at ~86, comfortably inside 102
+        var _dLong = EM.delineate(_qBeat(62, 112)); // repolarisation runs past the window
+        var _dLonger = EM.delineate(_qBeat(62, 128)); // longer still — same edge, same clamp
+
+        T.ok('ecgdex-morph · a T-end INSIDE the window still yields a QT (guard is not blanket-nulling)', _dNorm.valid === true && _dNorm.qtSaturated === false && _dNorm.qt != null && _dNorm.qtcBazett != null, 'qt=' + _dNorm.qt + ' qtc=' + _dNorm.qtcBazett + ' sat=' + _dNorm.qtSaturated);
+        T.approx('ecgdex-morph · that in-window QT is the real interval ms(Tend−Qon), ≈377 ms', _dNorm.qt, 377, 2);
+        T.ok('ecgdex-morph · a window-edge-pinned T-end is FLAGGED qtSaturated', _dLong.qtSaturated === true, 'qtSaturated=' + _dLong.qtSaturated);
+        T.ok('ecgdex-morph · and its QT/QTc are WITHHELD, not reported at the edge', _dLong.qt === null && _dLong.qtcBazett === null && _dLong.qtcFrid === null, 'qt=' + _dLong.qt + ' qtcB=' + _dLong.qtcBazett + ' qtcF=' + _dLong.qtcFrid);
+        T.ok('ecgdex-morph · Tend did clamp to the window edge (the value that WAS being published)', _dLong.marks && _dLong.marks.Tend === _QL - 1, 'Tend=' + (_dLong.marks && _dLong.marks.Tend) + ' edge=' + (_QL - 1));
+        /* The ceiling signature: two beats with materially different true repolarisation both
+           pin to the same edge, so the pre-fix export could not distinguish them. Had either
+           been reported, both would have read the identical ms(edge−Qon) ≈ 500 ms. */
+        var _edgeQt = Math.round(((_QL - 1 - _dLong.marks.Qon) / _QFS) * 1000);
+        T.ok('ecgdex-morph · a LONGER true QT pins to the identical edge (a ceiling, not a measurement)', _dLonger.qtSaturated === true && _dLonger.marks.Tend === _dLong.marks.Tend, 'Tend long=' + _dLong.marks.Tend + ' longer=' + _dLonger.marks.Tend);
+        T.approx('ecgdex-morph · the suppressed edge value is ms(edge−Qon) ≈ 500 ms — plausible, and pure artifact', _edgeQt, 500, 3);
+      } else T.ok('ecgdex-morph · delineate() exposed for the QT window-edge gate', false, 'EM.delineate missing');
+
       /* #34 (TEST-AUDIT-FINDINGS) — the CPAP kernel's sample SD uses Bessel's correction (÷ n−1), NOT ÷ n.
          `_sd` feeds `_cov` (CV%), so a silent ÷n slip systematically SHRINKS minVentStability and every
          SD-derived surfaced CPAP number — the classic silently-wrong-variance defect the self-test missed.
