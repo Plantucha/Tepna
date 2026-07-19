@@ -218,6 +218,18 @@ if (CHECK) {
     process.exit(1);
   }
   console.log('analysis tools current — ' + targets.length + ' checked, all self-contained');
+  /* `--check` compares the WORKING TREE, so it says "current" the moment the writer has run — even
+     when the commit does not carry the regenerated files. That asymmetry has now shipped a
+     half-staged commit twice (the v1.14.0 release PR, and again while landing DEEP-AUDIT-II §6.2),
+     both caught only by CI or by hand. Say so here, where the misleading "current" is printed. */
+  console.log('  (this compares the working tree — `git status` is what tells you the COMMIT carries them)');
 } else {
   console.log('bundled ' + wrote.length + ' of ' + targets.length + ' tool(s)' + (wrote.length ? ': ' + wrote.join(', ') : ' (all current)'));
+  /* Print the exact stage line for what THIS run wrote — the same contract build-docs.mjs adopted in
+     #236. A tool is the only honest place to say which paths it touched; a caller reconstructing that
+     list by hand is how files get left unstaged. Explicit paths only, never `git add -A` (§👥.2). */
+  if (wrote.length) {
+    const q = (p) => (/\s/.test(p) ? `"${p}"` : p);
+    console.log('\nStage exactly what this run wrote:\n    git add ' + wrote.map(q).sort().join(' '));
+  }
 }

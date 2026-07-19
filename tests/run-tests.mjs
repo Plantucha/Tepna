@@ -253,6 +253,7 @@ function readSources() {
     // and omitted sitemap.xml / feed.xml / llms-full.txt / docs/index.html).
     'tools/release.mjs',
     'tools/build-docs.mjs',
+    'tools/build-analysis.mjs',
     'manifest-gate.js',
     'sensor-trio-worker.js',
     'sensor-trio-power-analysis.js',
