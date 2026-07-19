@@ -496,6 +496,27 @@
         "CONTROLLED-RELEASES-2026-07-05-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "1.16.0",
+      "date": "2026-07-19",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "0ca847ec4bea",
+        "OxyDex": "c31c287c6b37",
+        "PulseDex": "febced42aa12",
+        "GlucoDex": "65e758cf6ebd",
+        "PpgDex": "3116e537c46a",
+        "HRVDex": "1522fad59aa4",
+        "CPAPDex": "003f7e582374",
+        "Integrator": "229a6c0f8728",
+        "MotionDex": "0624aae9a4e2"
+      },
+      "briefs": [
+        "DEEP-AUDIT-II-2026-07-18-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
