@@ -60,6 +60,23 @@ def capture_filename(vendor: str, model: str, device_id: str, started: _dt.datet
     return f"{vendor}_{model}_{device_id}_{stamp}_{stream.upper()}.{ext}"
 
 
+# What a device must carry before it is worth opening a file for. `vendor`/`model`/`device_id` are the
+# three `capture_filename` interpolates — blank any of them and the night lands as `__<id>_..._ECG.txt`,
+# which no adapter can route; `name` is the key everything else addresses the device by.
+#
+# Defined HERE, next to the filename it protects, because two independent paths must agree on it: the
+# capture daemon (which refuses to spawn) and the monitor's Remember API (which refuses to persist).
+# They were written separately and only the first one checked — so an unrecognised sensor was saved to
+# config.yaml, reported "remembered ✓", and then silently never captured, for the rest of the box's
+# life. One list, imported by both, is what stops that reappearing.
+IDENTITY_FIELDS = ("name", "vendor", "model", "device_id")
+
+
+def missing_identity(dev: dict) -> list[str]:
+    """Which IDENTITY_FIELDS are absent or blank on `dev`. Empty == safe to open a writer for."""
+    return [k for k in IDENTITY_FIELDS if not str(dev.get(k) or "").strip()]
+
+
 def night_dir(root: str, started: _dt.datetime) -> str:
     # Roll a per-night folder by the recording's LOCAL start date (dateAnchor). Created lazily.
     d = os.path.join(root, "captures", started.strftime("%Y-%m-%d"))

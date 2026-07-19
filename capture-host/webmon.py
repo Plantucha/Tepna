@@ -24,6 +24,7 @@ import clockcfg
 import offline_lock
 import polar_psftp
 import settings_schema
+from writers import missing_identity
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -82,6 +83,16 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
 
     async def remember(req):
         dev = await req.json()
+        # Refuse an unidentifiable device INSTEAD of persisting it. The browser's guessDevice() leaves
+        # vendor/model blank for any sensor it does not recognise; without this the entry was written to
+        # config.yaml and answered "remembered ✓", while the capture daemon quietly refused to ever open
+        # a writer for it — a device that looked saved forever and never recorded a byte. Failing here
+        # surfaces it while the user is still standing in front of the pairing screen. FOLLOWUPS-II §F1.
+        missing = missing_identity(dev)
+        if missing:
+            return web.json_response(
+                {"ok": False, "missing": missing,
+                 "error": "unidentified device — missing " + ", ".join(missing)}, status=400)
         # de-dupe by address; last write wins
         cfg.setdefault("devices", [])
         cfg["devices"] = [d for d in cfg["devices"] if d.get("address") != dev.get("address")]

@@ -23,21 +23,34 @@ what the second bring-up session surfaced and is **not yet done**. Parent `CAPTU
   writing): `clockcfg.py` + `tepna-clock.sh` (NOPASSWD-sudo helper) + `/api/clock*` routes + a Clock &
   Contract card in the monitor; `capture.py` `_now()` is now CLOCK_MONOTONIC-anchored (NTP-step-immune).
 
-## 1 · Correctness / bugs to fix
-- **F1 · Empty-vendor writer artifact — FIXED this session.** A remembered/hot-spawned device with a blank
-  `vendor`/`model` produced `__AC028496_<ts>_ECG.txt` (0 bytes) — `guessDevice()` in `monitor.html` falls
-  through to empty vendor/model + a device_id derived from the MAC, and `run_polar`/`capture_filename` opened
-  a writer anyway. **Fixed:** `capture.py` `_spawn` now refuses (logs + sets `last_error`) any device missing
-  `name`/`vendor`/`model`/`device_id`. Optional follow-up: also require them in the monitor's Remember flow.
-- **F2 · DST re-anchor is non-monotonic.** `capture.py` `_now()` re-anchors on any wall-vs-monotonic step
-  > `_STEP_THRESH_S` (2 s). A **DST fall-back** (civil clock goes back 1 h) is a −3600 s step → it re-anchors
-  to `actual`, so a night crossing 02:00 local on the fall-back date would run **backward** and fail the
-  Clock Contract's "overnight monotonic" check. Rare + logged, but decide: special-case DST (ignore a step
-  that equals a whole-hour civil shift and keep counting monotonically), or accept + document.
-- **F3 · `incoming_subdir` is vestigial.** `config.yaml` sets `incoming_subdir: captures/incoming` but
-  `writers.night_dir()` writes straight to `captures/<YYYY-MM-DD>/` and ignores it. Either wire the
-  incoming→dated roller (the `CAPTURE-HOST` design's night-roller) or drop the key so it doesn't imply a
-  behavior that isn't there.
+## 1 · Correctness / bugs to fix — **ALL THREE EXECUTED 2026-07-18**
+- **F1 · Empty-vendor writer artifact — FIXED (daemon), and the second half CLOSED 2026-07-18.** A
+  remembered/hot-spawned device with a blank `vendor`/`model` produced `__AC028496_<ts>_ECG.txt` (0 bytes) —
+  `guessDevice()` in `monitor.html` falls through to empty vendor/model + a device_id derived from the MAC,
+  and `run_polar`/`capture_filename` opened a writer anyway. **Fixed:** `capture.py` `_spawn` refuses any
+  device missing `name`/`vendor`/`model`/`device_id`. **The "optional follow-up" was not optional** — with
+  only the daemon checking, the monitor still POSTed the bad device, `webmon.remember` persisted it to
+  `config.yaml`, and the UI answered `remembered ✓` for a device that would never record a byte. Now the
+  identity list is single-sourced as `writers.IDENTITY_FIELDS`/`missing_identity()` (next to the filename it
+  protects) and enforced in BOTH paths: `remember` rejects with **400** before `_save()`, and the monitor
+  shows `not recognised — needs vendor, model` and re-enables the button instead of a false ✓.
+- **F2 · DST re-anchor is non-monotonic — FIXED 2026-07-18.** Resolved as option (a), but keyed on the
+  **zone, not the magnitude**: at a transition the local UTC offset moves by the same amount as the apparent
+  drift, whereas an NTP correction moves the clock with the offset unchanged — so the two are told apart
+  exactly rather than by a whole-hour heuristic (a −3600 s *correction* with no zone change must still
+  re-anchor, and does; a magnitude test would have wrongly excused it). `_now()` absorbs the civil
+  relabelling into `_civil_shift` and keeps counting in the session's original offset frame, so a night
+  crossing the fall-back stays monotonic and 1:1 with elapsed real time. `_reanchor(shift)` carries the
+  absorbed shift forward, so a genuine NTP step landing *after* a transition re-anchors **within** that
+  frame instead of dropping back to civil time (which would have rewound the file by the transition width
+  — the compound case the original fix missed). Ten tests in `tests/test_capture_clock.py`, each
+  mutation-verified, including that one transition logs **once**, not per 130 Hz sample.
+- **F3 · `incoming_subdir` is vestigial — DROPPED 2026-07-18.** The key is gone from
+  `config.example.yaml`; `writers.night_dir()`'s straight-to-`captures/<YYYY-MM-DD>/` behavior is now what
+  the comment describes (no staging dir, so nothing has to be moved and an interrupted night is already
+  where you would look for it). The night-roller is deliberately NOT built — it would only move a file
+  that already lands in the right place. `how-to-collect/health-box.md` said `captures/incoming/` too and
+  was corrected with it.
 
 ## 2 · Unvalidated code — verify before trusting a night
 - **V1 · GYRO / MAG decoders are new + only the DELTA path is exercised.** The Verity streams compressed
@@ -62,16 +75,19 @@ what the second bring-up session surfaced and is **not yet done**. Parent `CAPTU
   writes, the service restarts, `timedatectl set-timezone` works, and the monitor reflects it.
 
 ## 3 · Durability / robustness
-- **R1 · Buffered writes lose the tail on a crash.** ECG/PPG/IMU writers buffer ~1 MB, `Spo2CsvWriter`
-  ~64 KB. A real overnight should flush every N rows / T seconds. (Spo2 flush was already on FOLLOWUPS-I;
-  now it's all the Polar streams too, at higher volume — ACC alone was ~25 MB/session.)
+- **R1 · Buffered writes lose the tail on a crash — DONE (verified 2026-07-18).** Every writer class
+  (`StreamWriter`, `Spo2CsvWriter`, `OxyFrameLogWriter`, `HostClockLogWriter`, `LinkLogWriter`) now flushes
+  **and `os.fsync()`s** on a `FLUSH_INTERVAL_S = 5.0` cadence, so at most ~5 s of tail is ever at risk.
+  Time-based, not every-N-rows, so a slow stream is bounded the same as a fast one.
 - **R2 · Multiplexed SSE queue can drop under combined load.** `/api/stream/_all` feeds one bus subscriber
   queue (`maxsize 64`); with ECG 130 Hz + PPG 55 Hz×4ch + 3×IMU pushing together, bursts can evict oldest.
   Fine for a live view (disk is the record), but note it — don't ever read the monitor as the source of truth.
 
 ## 4 · Deferred features (own brief when picked up)
-- **D1 · Clock provenance per night.** Record NTP-synced-state + `offsetMin` at session start into
-  `status.json` / the night object, so each night's absolute-time trustworthiness is known after the fact.
+- **D1 · Clock provenance per night — DONE 2026-07-18** (`host_clock.py` + `HostClockLogWriter`, PR #220).
+  `timedatectl show`/`show-timesync` is polled read-only and each night records what actually disciplined
+  the box's clock (source, stratum, whether a reply was `Ignored`), so a self-consistently-wrong night is
+  stamped absolute-time-unverified instead of silently inherited.
 - **D2 · `offsetMin` in exports.** Clock Contract §1's optional `offsetMin` (real UTC offset when known)
   would enable true cross-timezone simultaneity — deliberately deferred here because it touches the export
   format; do it as a gated change if wanted.
@@ -92,9 +108,15 @@ what the second bring-up session surfaced and is **not yet done**. Parent `CAPTU
   `config.yaml`) was committed on `claude/vigil-capture-parity` alongside `645810d` (this session), and this
   brief + [`MULTI-SENSOR-DERIVATIONS-2026-07-16-BRIEF.md`](MULTI-SENSOR-DERIVATIONS-2026-07-16-BRIEF.md) with it.
 - `claude/vigil-capture-parity` was **rebased onto `main`** this session (it was the pre-merge tip + `645810d`);
-  still not pushed — a PR would branch from here.
-- Still open from FOLLOWUPS-I: no real overnight round-trip, no `how-to-collect/` notes
-  (`verity-ppg.md` / `o2ring-s.md` / `health-box.md`), no real-Pi bring-up.
+  still not pushed — a PR would branch from here. *(Superseded: all of it has since landed on `main`.)*
+- Still open from FOLLOWUPS-I: **no real overnight round-trip**, **no real-Pi bring-up**. The
+  `how-to-collect/` notes are **DONE** — `verity-ppg.md` and `health-box.md` exist; the O2Ring is covered
+  by `oxydex-spo2.md` rather than a separate `o2ring-s.md`, which is why that filename never appeared.
+
+**What remains before this brief can flip DONE (2026-07-18):** everything left is **hardware-gated** —
+§2's V1–V5 all need a real device or a real box (a PSL `_GYRO`/`_MAG`/`_ACC` export to byte-diff against,
+an OH1 for PPI, an observed NTP step, a box with the sudoers rule), plus the overnight round-trip and the
+Pi bring-up. No further desk work is available here: §1 and R1 are closed and §4's D1 has shipped.
 
 ## Related
 - [`CAPTURE-HOST-2026-06-29-BRIEF.md`](CAPTURE-HOST-2026-06-29-BRIEF.md) — the parent (stays PROPOSED).

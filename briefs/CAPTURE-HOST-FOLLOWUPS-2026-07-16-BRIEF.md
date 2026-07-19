@@ -64,20 +64,27 @@ Advanced (not yet ticked in the parent — this was a desktop bring-up, not the 
 Still open (so `CAPTURE-HOST` stays **PROPOSED**):
 - **No real overnight round-trip yet** (§11's gating item): 22:00→06:00 monotonic, gap-on-disconnect, and
   each captured file routing + computing a node-export in OverDex. Only short desktop sessions were run.
-- **No `how-to-collect/` notes** for the new live paths (`verity-ppg.md` PPG START/delta caveats,
-  `o2ring-s.md` OxyII, and a `health-box.md` monitor overview). §11 lists these.
+- ~~**No `how-to-collect/` notes**~~ — **DONE.** `how-to-collect/verity-ppg.md` and `health-box.md` exist;
+  the OxyII O2Ring is documented inside `oxydex-spo2.md` rather than a separate `o2ring-s.md`, which is
+  why that filename never appeared.
 - **On a real Pi**: onboard-BT disable, `hci0` bedside on an extension, `tepna.local`, suite gates green
   from that origin — untouched.
 
-## 4. New follow-up work items (small, none blocking the PR)
-1. **`Spo2CsvWriter` periodic flush** — it buffers (64 KB); a real overnight should flush every N rows so a
-   crash doesn't lose the night. (ECG/PPG writers buffer 1 MB with the same caveat.)
-2. **Sharpen the PPG averaged-pulse** — the morphology is slope-detected + foot-aligned and reads a long
-   crest; peak-aligned averaging would tighten it.
-3. **O2Ring scan-by-name** — its BLE address is Random-Static and **rotates on factory reset**; the config
-   hardcodes the MAC. Match by name-prefix (`S8-AW`) / service UUID / manufacturer ID instead.
-4. **`polar_pmd.py` ACC delta path is unexercised** — the delta decoder is wired for ACC (channels=3,
-   16-bit) but never seen a real ACC frame; validate before trusting posture sidecars.
+## 4. New follow-up work items (small, none blocking the PR) — *status reviewed 2026-07-18*
+1. ~~**`Spo2CsvWriter` periodic flush**~~ — **DONE.** All five writer classes flush + `os.fsync()` on a
+   `FLUSH_INTERVAL_S = 5.0` cadence, so at most ~5 s of tail is at risk on any stream, not just SpO₂.
+2. **Sharpen the PPG averaged-pulse** — *still open, and deliberately unclaimed.* It is now a two-pass
+   foot-aligned ensemble with correlation rejection (`corr > 0.85`, last 24 pulses) plus a ±60 ms foot
+   re-delineation — better than the slope-detect it started as, but the alignment anchor is still the
+   **foot**, which is what the long-crest complaint was about. Live-view cosmetics only: nothing computes
+   a metric from it, so it stays low priority.
+3. ~~**O2Ring scan-by-name**~~ — **DONE.** `_connect_scan` matches `address OR name-prefix` against
+   `_O2_NAME_HINTS = ("o2ring","s8-aw","s8aw","wellue","checkme")`, so a factory reset that rotates the
+   Random-Static MAC no longer strands the device. (Service-UUID / manufacturer-ID matching was not
+   needed once the name hint resolved it; the config `address:` is now a hint, not a requirement.)
+4. **`polar_pmd.py` ACC delta path is unexercised** — *still open (hardware-gated).* The delta decoder is
+   wired for ACC (channels=3, 16-bit) but has never seen a real ACC frame; validate before trusting
+   posture sidecars. Tracked in FOLLOWUPS-II as **V2**.
 5. **Config drift** — `config.yaml` is now gitignored (real device MACs + local path); the options
    (`adapter`, `web`, OxyII O2Ring, `protocol: legacy`) live in the committed `config.example.yaml`.
 6. **`aiohttp` is a new host dependency** — fine for the out-of-suite host; note it in the Pi provisioning.
