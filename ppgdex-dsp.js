@@ -1010,10 +1010,27 @@
     const fmin = 0.003,
       fmax = 0.4,
       df = 0.002;
+    /* DEEP-AUDIT-II §3.1 — Parseval calibrates against the FULL spectral support, not the band.
+       `variance / total` with `total` summed over [fmin, fmax] only asserts that the in-band integral
+       equals the WHOLE signal variance — true only when no power sits outside the band. When it does,
+       the bands absorb it one-directionally. PpgDex inherited this from the same audit doc that
+       prescribed it for ECGDex/PulseDex and then recommended PpgDex adopt it, which is how one defect
+       reached three nodes.
+       The calibration grid now runs to the beat series' mean-Nyquist, 1/(2·meanPPI), while the
+       REPORTED bands keep their Task-Force ranges. `df` here is a fixed 0.002 Hz, so extending the
+       ceiling leaves spectral resolution untouched by construction. */
+    const _meanPPIs = (function () {
+      let s2 = 0;
+      for (let i2 = 0; i2 < N; i2++) s2 += nn[i2];
+      return N ? s2 / N / 1000 : 0;
+    })();
+    const fNyq = _meanPPIs > 0 ? 1 / (2 * _meanPPIs) : fmax;
+    const fCal = Math.max(fmax, Math.min(fNyq, 2));
     let vlf = 0,
       lf = 0,
-      hf = 0;
-    for (let f = fmin; f <= fmax; f += df) {
+      hf = 0,
+      totalFull = 0; // full-support total — the Parseval denominator
+    for (let f = fmin; f <= fCal; f += df) {
       const w = 2 * Math.PI * f;
       let ss = 0,
         sc = 0;
@@ -1037,6 +1054,8 @@
       }
       const P = 0.5 * ((c1 * c1) / (c2 || 1e-9) + (s1 * s1) / (s2 || 1e-9));
       const pw = P * df;
+      totalFull += pw; // every evaluated bin — the Parseval denominator
+      // The band arms are explicit ranges, so they stay bounded without further guarding.
       if (f >= bands.vlf[0] && f < bands.vlf[1]) vlf += pw;
       else if (f >= bands.lf[0] && f < bands.lf[1]) lf += pw;
       else if (f >= bands.hf[0] && f < bands.hf[1]) hf += pw;
@@ -1048,7 +1067,7 @@
     let variance = 0;
     for (let i = 0; i < N; i++) variance += y[i] * y[i];
     variance /= N;
-    const scF = total > 0 ? variance / total : 1;
+    const scF = totalFull > 0 ? variance / totalFull : 1; // §3.1 — full support, not the band
     vlf *= scF;
     lf *= scF;
     hf *= scF;
@@ -1056,11 +1075,18 @@
     const lfhf = hf > 0 ? lf / hf : null;
     const lfnu = lf + hf > 0 ? (100 * lf) / (lf + hf) : null,
       hfnu = lf + hf > 0 ? (100 * hf) / (lf + hf) : null;
+    /* Task-Force identity: round the BANDS first and define totalPower as their sum, so
+       vlf+lf+hf == totalPower holds EXACTLY rather than to within rounding — the same treatment
+       ecgdex-dsp.js and pulsedex-dsp.js already apply. Rounding a separately-accumulated `total`
+       could differ by 1 from the sum of the rounded parts, which is what it just did. */
+    const _v = Math.round(vlf),
+      _l = Math.round(lf),
+      _h = Math.round(hf);
     return {
-      vlf: Math.round(vlf),
-      lf: Math.round(lf),
-      hf: Math.round(hf),
-      totalPower: Math.round(total),
+      vlf: _v,
+      lf: _l,
+      hf: _h,
+      totalPower: _v + _l + _h,
       lfhf: lfhf != null ? r2(lfhf) : null,
       lfnu: lfnu != null ? Math.round(lfnu) : null,
       hfnu: hfnu != null ? Math.round(hfnu) : null

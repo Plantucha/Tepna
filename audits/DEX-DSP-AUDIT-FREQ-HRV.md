@@ -46,10 +46,28 @@ the read-and-document pass + a known-answer regression test. **No estimator beha
 | Detrend | **linear** (`linfit`, Task Force) | **linear** (`linfit`, Task Force) | **mean-only** ⚠ |
 | Bands (Hz) | 0.003–0.04 / 0.04–0.15 / 0.15–0.40 | same | same |
 | Freq grid | `nf=300`, df≈0.0013 Hz | `nf=512`, df≈0.00078 Hz | fixed `df=0.002` Hz |
-| Normalization | **∫PSD = variance** (Parseval) | **∫PSD = variance** (Parseval) | **raw integral** (no calibration) ⚠ |
+| Normalization | **∫PSD = variance over the FULL support** (Parseval) | same | same |
 | Returns | tp, vlf, lf, hf, lfhf, respRate | tp, vlf, lf, hf, lfhf, respRate | vlf, lf, hf, totalPower, lfhf, lfnu, hfnu |
 | Windowing | single segment; **PulseDex additionally takes the median of per-window spectra** for long recordings (a robustness win the other two don't do) | per-window median (long) | single segment |
 | Min beats | 12 | — | 8 |
+
+> **⚠ CORRECTED 2026-07-19 — DEEP-AUDIT-II §3.1.** This document previously prescribed
+> `sc = variance / tp` with `tp` accumulated over the ANALYSED BAND only (0.003–0.4 Hz). That asserts
+> the in-band integral equals the WHOLE signal variance, which holds only when no power sits outside
+> the band; when power does, VLF/LF/HF absorb it, one-directionally. Measured: +0.6 % on a clean
+> synthetic, LF overstated **2.3×** on an ordinary LF-plus-beat-alternans record, and a pure 0.45 Hz
+> respiration — just above the band edge — reported **HF = 713 ms² with no in-band content at all**.
+> On the committed corpus a real overnight RR record moved ~2 %, and a record whose variance genuinely
+> sits near Nyquist (rMSSD 42.8 ms > SDNN 24.4 ms) saw its bands collapse from HF 382 to ~1 — the old
+> figure was above-band energy relabelled as HF.
+>
+> **This document was the propagation vector.** Recommendation 2 below told PpgDex to adopt the form
+> ECGDex and PulseDex already used, so a single wrong prescription reached all three spectral nodes.
+> The calibration integral must span the full spectral support — to the beat series' mean-Nyquist,
+> `1/(2·meanRR)` — while the REPORTED bands keep their Task-Force ranges.
+>
+> Recorded rather than silently amended: an audit document that prescribes a formula is load-bearing,
+> and the next reader should be able to see that this one was wrong and how far it travelled.
 
 ### What's genuinely good
 - **Lomb–Scargle on raw intervals** is the right call for consumer RR/PPI (gappy, ectopy-pruned,
@@ -64,8 +82,9 @@ the read-and-document pass + a known-answer regression test. **No estimator beha
 ### Findings (PpgDex parity) — ✅ APPLIED 2026-06-21 (re-bundled; suite 580/0; buildHash unchanged)
 1. **Detrend → linear.** Replace the mean-only removal (`y[i] -= my`) with the same `linfit` linear
    detrend the other two use, so slow PPG baseline drift can't masquerade as VLF/LF power.
-2. **Calibrate ∫PSD = variance.** Apply the same `sc = variance / tp` scaling so PpgDex band powers
-   land in ms² and are comparable to ECGDex/PulseDex (today they're an uncalibrated integral).
+2. **Calibrate ∫PSD = variance.** ~~Apply the same `sc = variance / tp` scaling~~ — **see the
+   correction note below: `tp` must be the FULL-support integral, not the band-limited one.** Apply
+   `sc = variance / tpFull` so PpgDex band powers land in ms² and are comparable to ECGDex/PulseDex.
    *Impact:* changes PpgDex's absolute `vlf/lf/hf/totalPower` numbers (ratios, n.u., and peak location
    are unaffected). Because it changes a surfaced metric's value, it requires the **full gate**
    (test suite → re-bundle `PpgDex.html` → provenance) and a regenerated PpgDex fixture — so it's a

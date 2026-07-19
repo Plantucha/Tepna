@@ -36,10 +36,10 @@
       "lnRMSSD": 3.784
     },
     "frequency": {
-      "lf": 77,
-      "hf": 382,
-      "vlf": 25,
-      "lfhf": 0.202
+      "lf": 0,
+      "hf": 1,
+      "vlf": 0,
+      "lfhf": 0
     },
     "poincare": {
       "sd1": 30.27,
@@ -51,8 +51,8 @@
     "hrvScore": 52,
     "energy": 32,
     "focus": 31,
-    "snsBal": 0.202,
-    "psnsBal": 4.961
+    "snsBal": 0,
+    "psnsBal": null
   },
   "ganglior_events": [
     {

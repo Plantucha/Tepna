@@ -986,13 +986,33 @@
       fHi = 0.4;
     nf = nf || 300;
     const df = (fHi - fLo) / (nf - 1);
-    let tp = 0,
+    /* DEEP-AUDIT-II §3.1 — Parseval calibrates against the FULL spectral support, not the band.
+       `sc = variance / tp` with `tp` accumulated over [fLo, fHi] only asserts that the IN-BAND
+       integral equals the WHOLE signal variance — true only when there is no power outside the band.
+       When there is, the sub-bands absorb it, one-directionally. Measured: +0.6 % on clean RR, but LF
+       overstated 2.3× on an ordinary LF-plus-beat-alternans record, and a pure 0.45 Hz respiration
+       (just above the band edge) reported HF = 713 ms² with no in-band content whatsoever.
+       The calibration grid now runs to the mean-Nyquist of the beat series, 1/(2·meanRR) — the highest
+       frequency an RR series can carry — while the REPORTED bands stay bounded by the Task-Force
+       definitions. `df` is held constant and `nf` grows instead, so spectral resolution is identical
+       to before: only genuinely out-of-band power is removed, and a clean record's numbers do not
+       move for reasons unrelated to the defect. */
+    const _meanRRs = (function () {
+      let s = 0;
+      for (let i = 0; i < N; i++) s += nn[i];
+      return N ? s / N / 1000 : 0; // ms → s
+    })();
+    const fNyq = _meanRRs > 0 ? 1 / (2 * _meanRRs) : fHi;
+    const fCal = Math.max(fHi, Math.min(fNyq, 2)); // never below the band; ceiling guards absurd RR
+    const nfFull = Math.max(nf, Math.round((fCal - fLo) / df) + 1);
+    let tp = 0, // in-band total — the Task-Force identity vlf+lf+hf
+      tpFull = 0, // full-support total — the Parseval denominator
       vlf = 0,
       lf = 0,
       hf = 0,
       peakF = 0,
       peakP = 0;
-    for (let kf = 0; kf < nf; kf++) {
+    for (let kf = 0; kf < nfFull; kf++) {
       const f = fLo + kf * df,
         w = 2 * Math.PI * f;
       let s2 = 0,
@@ -1017,25 +1037,46 @@
       }
       const P = 0.5 * ((nC * nC) / (dC || 1) + (nS * nS) / (dS || 1));
       const e = P * df;
-      tp += e;
-      if (f < 0.04) vlf += e;
-      else if (f < 0.15) lf += e;
-      else {
-        hf += e;
-        if (P > peakP) {
-          peakP = P;
-          peakF = f;
+      tpFull += e; // every evaluated bin — the Parseval denominator
+      /* The REPORTED bands stay bounded by the Task-Force definitions. Note the `f < fHi` guard:
+         the HF arm was an unbounded `else`, so extending the grid without this would make HF swallow
+         the entire out-of-band tail — turning a fix into a much worse version of the same bug — and
+         would let respRate's peak search wander above 0.4 Hz. */
+      if (f < fHi) {
+        tp += e;
+        if (f < 0.04) vlf += e;
+        else if (f < 0.15) lf += e;
+        else {
+          hf += e;
+          if (P > peakP) {
+            peakP = P;
+            peakF = f;
+          }
         }
       }
     }
     const variance = x.reduce((s, v) => s + v * v, 0) / N,
-      sc = tp > 0 ? variance / tp : 1;
+      sc = tpFull > 0 ? variance / tpFull : 1;
     // DEEP-AUDIT §10: the sub-bands tile [fLo,fHi) exactly, so tp IS vlf+lf+hf. Round the bands FIRST and
     // define tp as their sum, so the Task-Force identity holds EXACTLY rather than to within rounding.
     const _v = Math.round(vlf * sc),
       _l = Math.round(lf * sc),
       _h = Math.round(hf * sc);
-    return { tp: _v + _l + _h, vlf: _v, lf: _l, hf: _h, lfhf: +(lf / (hf || 1)).toFixed(3), respRate: +(peakF * 60).toFixed(1) };
+    /* §3.1 companion finding — at slow heart rates the beat series' own Nyquist falls BELOW the
+       0.4 Hz HF edge (40 bpm ⇒ mean RR 1.5 s ⇒ fNyq 0.33 Hz), so part of the HF band is defined
+       above what the series can represent. That is true of the Task-Force definition itself and
+       predates this fix, so the VALUE is deliberately left alone; the condition is merely made
+       visible. Common on bradycardic and deep-sleep records — exactly where HF is most read. */
+    return {
+      tp: _v + _l + _h,
+      vlf: _v,
+      lf: _l,
+      hf: _h,
+      lfhf: +(lf / (hf || 1)).toFixed(3),
+      respRate: +(peakF * 60).toFixed(1),
+      hfAboveNyquist: fNyq < fHi,
+      nyquistHz: +fNyq.toFixed(3)
+    };
   }
 
   function dfaAlpha1(a) {

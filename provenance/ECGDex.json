@@ -1,12 +1,12 @@
 {
   "bundle": "ECGDex.html",
-  "manifestHash": "2535e43f6dda",
+  "manifestHash": "db5f1394e83a",
   "fixtures": {
     "ECGDex_2026-06-27_equiv.node-export.json": {
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II — F1 shared dex-export.js scrubExport now sweeps recordings[]/sessions[] multi carriers; F5 review-renderer namespace exposure). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path, reviewView/renderReview are display-only — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
       "bundle": "ECGDex.html",
       "note_deepauditfindings20260701": "manifestHash re-recorded 2026-07-01 (DEEP-AUDIT-FINDINGS-2026-07-01 Finding 2 — ECGDex device cross-check loaders delegate to the Clock-Contract-faithful ECGDSP.parseDeviceRR/HR/ACC twins; app-local parseRows + Date-parse + _floatNow removed). EXPORT-INERT: the cross-check is display-only, absent from ecgBuildNodeExport, so compute() reproduces byte-identical (env.equiv.ecgdex green; outputHash + inputHashes unchanged) — NOT regenerated, manifestHash re-recorded only.",
-      "manifestHash": "2535e43f6dda",
+      "manifestHash": "db5f1394e83a",
       "note_oxydexenvelopefollowupsv": "manifestHash re-recorded 2026-06-30 (OXYDEX-NODE-EXPORT-ENVELOPE-FOLLOWUPS-V §2 — ecgdex-cross.js crossnight metrics gained evidence tiers so the Integrator Longitudinal view badges them). EXPORT-INERT: evidence is crossNight-block-only (multi-recording); this SINGLE-recording compute({text}) export (0-event 6-min clip) has no crossNight block → byte-identical (env.equiv.ecgdex green). External-JS-only re-bundle a39f09197964→bd29b2a7ad91, buildHash 146ac9c8b1bd UNCHANGED; NOT regenerated. GATE B asserts the producing bundle's CURRENT manifestHash still equals bd29b2a7ad91.",
       "note_exportidfollowupsii": "REGENERATED 2026-06-29 (EXPORT-IDENTITY-FOLLOWUPS-II §1 — node adoption of recording.contentId). ecgBuildNodeExport now stamps recording.contentId via the CORE SignalFrame.computeContentId (signal-frame.js newly bundled into ECGDex) from the NN beat-interval series + floating t0Ms — single-sourced in the shared builder both ecgdex-app.js exportGanglior + headless ECGDex.compute delegate to. Re-ran ECGDex.compute({text}) on the committed Polar_H10_AAAAAAAA_20260617_010615_ECG_clip.txt → the ONLY non-volatile delta vs the prior fixture is the added contentId:'de42ad1b210c' (deterministic, identity-free; equiv-gate diff confirmed 0 other diffs). ECGDex re-bundled 31f3e879d5c0→1f371337fe7b (buildHash 146ac9c8b1bd UNCHANGED — new external <script src=signal-frame.js> moves manifestHash only). GATE B asserts the producing bundle's CURRENT manifestHash still equals 1f371337fe7b.",
       "note_ingestfollowupsiv": "manifestHash re-recorded 2026-06-28 (ECG-INGEST-FOLLOWUPS-IV-2026-06-28 §1/§2 — the shared dex-ingest.js gained DexIngest.pickNearestByStamp (§1, the PPG companion nearest-t0Ms pick extracted headless from ppgdex-app.js — ECGDex never calls it) AND factored the device-session dedupe + device-eligibility predicate into shared _dedupeBySession/_isDeviceEligible called by BOTH planIngest + planIngestPpg (§2, behavior-preserving — planIngest steps 5/8 rewritten to call them; the ECG planIngest test group stayed green); ecgdex-app.js itself UNCHANGED) → ECGDex re-bundled 7b9e7d25c3d7→6b7045bce040 (buildHash 146ac9c8b1bd UNCHANGED, external-JS-only — shared dex-ingest.js only). EXPORT-INERT: every edit is file-ingest ROUTING (a behavior-preserving refactor + a PPG-only pick helper ECGDex doesn't call) — compute()/analyze()/ecgBuildNodeExport untouched — so this compute({text}) fixture is byte-identical (env.equiv.ecgdex green); NOT regenerated, only the producing-bundle manifestHash moved. GATE B asserts the producing bundle's CURRENT manifestHash still equals 6b7045bce040.",
@@ -28,11 +28,11 @@
       "inputHashes": {
         "Polar_H10_AAAAAAAA_20260617_010615_ECG_clip.txt": "b7b3f88e84ff3821"
       },
-      "verifiedUnder": "4db27ff2b542"
+      "verifiedUnder": "327f3cd5facd"
     },
     "synthetic_ecgdex_golden.node-export.json": {
       "bundle": "ECGDex.html",
-      "manifestHash": "2535e43f6dda",
+      "manifestHash": "db5f1394e83a",
       "added": "2026-07-12",
       "inputs": [
         "synthetic_ecgdex_h10.txt"

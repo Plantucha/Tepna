@@ -109,7 +109,7 @@
       goodDirection: 'up',
       depth: 'research',
       evidence: 'emerging',
-      cite: 'VLF power (Lomb–Scargle, PPI) — PRV freq-domain; needs long records, least reliable in short PPG (Schäfer & Vagedes 2013)'
+      cite: 'VLF power (Lomb–Scargle, PPI) — PRV freq-domain; needs long records, least reliable in short PPG (Schäfer & Vagedes 2013) · calibration corrected 2026-07-19 (§3.1)'
     },
     lf: {
       label: 'LF',
@@ -117,9 +117,16 @@
       goodDirection: 'up',
       depth: 'advanced',
       evidence: 'emerging',
-      cite: 'LF power (Lomb–Scargle, PPI) — PRV freq-domain, device/motion-dependent vs ECG-HRV (Schäfer & Vagedes 2013)'
+      cite: 'LF power (Lomb–Scargle, PPI) — PRV freq-domain, device/motion-dependent vs ECG-HRV (Schäfer & Vagedes 2013) · calibration corrected 2026-07-19 (§3.1)'
     },
-    hf: { label: 'HF', unit: 'ms²', goodDirection: 'up', depth: 'advanced', evidence: 'emerging', cite: 'HF power (Lomb–Scargle, PPI) — PRV freq-domain, device-dependent (Schäfer & Vagedes 2013)' },
+    hf: {
+      label: 'HF',
+      unit: 'ms²',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'emerging',
+      cite: 'HF power (Lomb–Scargle, PPI) — PRV freq-domain, device-dependent (Schäfer & Vagedes 2013) · calibration corrected 2026-07-19 (§3.1)'
+    },
     lfhf: {
       label: 'LF/HF',
       unit: '',

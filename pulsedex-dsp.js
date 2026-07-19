@@ -426,6 +426,22 @@
       fHi = 0.4;
     nf = nf || 512;
     const df = (fHi - fLo) / (nf - 1);
+    /* DEEP-AUDIT-II §3.1 — Parseval calibrates against the FULL spectral support, not the band.
+       `variance / tp` with `tp` band-limited asserts the in-band integral equals the WHOLE signal
+       variance, so any out-of-band power is folded into VLF/LF/HF one-directionally. The calibration
+       grid now runs to the beat series' mean-Nyquist, 1/(2·meanRR), while the REPORTED bands stay
+       bounded by the Task-Force definitions. `df` is held constant and `nf` grows, so spectral
+       resolution is unchanged and a clean record's numbers do not move. Identical treatment in
+       ecgdex-dsp.js and ppgdex-dsp.js — the three carried the same defect from the same audit doc. */
+    const _meanRRs = (function () {
+      let s2 = 0;
+      for (let i2 = 0; i2 < N; i2++) s2 += a[i2];
+      return N ? s2 / N / 1000 : 0;
+    })();
+    const fNyq = _meanRRs > 0 ? 1 / (2 * _meanRRs) : fHi;
+    const fCal = Math.max(fHi, Math.min(fNyq, 2));
+    const nfFull = Math.max(nf, Math.round((fCal - fLo) / df) + 1);
+    let tpFull = 0; // full-support total — the Parseval denominator
     // peakF/peakP = peak within the HF band (RSA) → respRate (back-compat contract).
     // gPeakF/gPeakP = GLOBAL peak across the WHOLE analysed band. The old code tracked the
     // peak ONLY inside the HF branch, so a dominant oscillation BELOW 0.15 Hz (Cheyne-Stokes /
@@ -440,7 +456,7 @@
       peakP = 0,
       gPeakF = 0,
       gPeakP = 0;
-    for (let kf = 0; kf < nf; kf++) {
+    for (let kf = 0; kf < nfFull; kf++) {
       const f = fLo + kf * df,
         w = 2 * Math.PI * f;
       let s2 = 0,
@@ -465,23 +481,30 @@
       }
       const P = 0.5 * ((nC * nC) / (dC || 1) + (nS * nS) / (dS || 1));
       const e = P * df;
-      tp += e;
-      if (P > gPeakP) {
-        gPeakP = P;
-        gPeakF = f;
-      } // GLOBAL peak (whole band) — surfaces sub-HF CSR/PB
-      if (f < 0.04) vlf += e;
-      else if (f < 0.15) lf += e;
-      else {
-        hf += e;
-        if (P > peakP) {
-          peakP = P;
-          peakF = f;
-        }
-      } // HF-only peak → respRate (RSA frequency)
+      tpFull += e; // every evaluated bin — the Parseval denominator
+      /* Everything below stays bounded by the ANALYSED band. Two things would break without the
+         `f < fHi` guard: the HF arm is an unbounded `else` and would swallow the out-of-band tail,
+         and gPeakF — the GLOBAL peak that surfaces sub-HF CSR/PB — would be free to land above
+         0.4 Hz, where no respiratory or Cheyne-Stokes rhythm can live. */
+      if (f < fHi) {
+        tp += e;
+        if (P > gPeakP) {
+          gPeakP = P;
+          gPeakF = f;
+        } // GLOBAL peak (whole analysed band) — surfaces sub-HF CSR/PB
+        if (f < 0.04) vlf += e;
+        else if (f < 0.15) lf += e;
+        else {
+          hf += e;
+          if (P > peakP) {
+            peakP = P;
+            peakF = f;
+          }
+        } // HF-only peak → respRate (RSA frequency)
+      }
     }
     const variance = x.reduce((s, v) => s + v * v, 0) / N;
-    const sc = tp > 0 ? variance / tp : 1; // calibrate ∫PSD = variance
+    const sc = tpFull > 0 ? variance / tpFull : 1; // calibrate ∫PSD = variance over the FULL support (§3.1)
     // DEEP-AUDIT-2026-07-14 §3: tp is the band SUM, so vlf+lf+hf==totalPower holds EXACTLY rather than to
     // within rounding — mirrors ECGDex:601 / PpgDex. (Immaterial here vs the ±1–2 ms² rounding, but keeps
     // the definition identical on both PulseDex spectral paths so the identity can never drift back.)

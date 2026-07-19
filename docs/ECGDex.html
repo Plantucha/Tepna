@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FafrfkmV1cI57ar8adn3HMAb7rq7yWzrned5vottjvg=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-TjaNfjdI1uy6Y/QCmKdy3/8OhUhTsxcmpioTK97koSw=' 'sha256-a545kKAHe4p7XyJRMgn3cn+L8okuG1T8SLixcuoE+QY=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-eoxrg8j0TuSxwcKn0aa07TGLFthAvPMvdv5VbqB+fWM=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-p9Oxv8fTa380+XXRWMPFuq0j+QFn4WmHMO+/E8wCeV4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FafrfkmV1cI57ar8adn3HMAb7rq7yWzrned5vottjvg=' 'sha256-J8+a6id6lzsU3GPI7c2D8kA/HhbyteWGzjkzjdlvUO0=' 'sha256-KZlNKHEvdCs9IbVkYcFxDy48gIBQ+Sog0tbRG6NuOnc=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-a545kKAHe4p7XyJRMgn3cn+L8okuG1T8SLixcuoE+QY=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-p9Oxv8fTa380+XXRWMPFuq0j+QFn4WmHMO+/E8wCeV4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ECGDex — Raw ECG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -6086,9 +6086,30 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     /* ── VALIDATED — established time/frequency/geometric HRV & repolarisation  */
     pnn50: { label: 'pNN50', unit: '%', goodDirection: 'up', depth: 'advanced', evidence: 'validated', cite: 'pNN50 — % successive NN > 50 ms (Task Force 1996)' },
     qtcFrid: { label: 'QTc (Fridericia)', unit: 'ms', goodDirection: 'down', depth: 'advanced', evidence: 'validated', cite: 'Fridericia rate-corrected QT — less rate-biased than Bazett' },
-    hf: { label: 'HF power', unit: 'ms²', goodDirection: 'up', depth: 'advanced', evidence: 'validated', cite: 'High-frequency power (0.15–0.4 Hz) — parasympathetic band (Task Force 1996)' },
-    lf: { label: 'LF power', unit: 'ms²', goodDirection: 'up', depth: 'advanced', evidence: 'validated', cite: 'Low-frequency power (0.04–0.15 Hz) (Task Force 1996)' },
-    vlf: { label: 'VLF power', unit: 'ms²', goodDirection: 'up', depth: 'research', evidence: 'validated', cite: 'Very-low-frequency power — resolvable overnight (Task Force 1996)' },
+    hf: {
+      label: 'HF power',
+      unit: 'ms²',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'validated',
+      cite: 'High-frequency power (0.15–0.4 Hz) — parasympathetic band (Task Force 1996) · calibration corrected 2026-07-19 (§3.1)'
+    },
+    lf: {
+      label: 'LF power',
+      unit: 'ms²',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'validated',
+      cite: 'Low-frequency power (0.04–0.15 Hz) (Task Force 1996) · calibration corrected 2026-07-19 (§3.1)'
+    },
+    vlf: {
+      label: 'VLF power',
+      unit: 'ms²',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'validated',
+      cite: 'Very-low-frequency power — resolvable overnight (Task Force 1996) · calibration corrected 2026-07-19 (§3.1)'
+    },
     hfnu: { label: 'HF nu', unit: 'nu', goodDirection: 'up', depth: 'research', evidence: 'validated', cite: 'HF in normalized units (Task Force 1996)' },
     lfnu: { label: 'LF nu', unit: 'nu', goodDirection: 'up', depth: 'research', evidence: 'validated', cite: 'LF in normalized units (Task Force 1996)' },
     totalPower: { label: 'Total power', unit: 'ms²', goodDirection: 'up', depth: 'advanced', evidence: 'validated', cite: 'Total spectral power — Lomb–Scargle ∫PSD (Task Force 1996)' },
@@ -7454,13 +7475,33 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       fHi = 0.4;
     nf = nf || 300;
     const df = (fHi - fLo) / (nf - 1);
-    let tp = 0,
+    /* DEEP-AUDIT-II §3.1 — Parseval calibrates against the FULL spectral support, not the band.
+       `sc = variance / tp` with `tp` accumulated over [fLo, fHi] only asserts that the IN-BAND
+       integral equals the WHOLE signal variance — true only when there is no power outside the band.
+       When there is, the sub-bands absorb it, one-directionally. Measured: +0.6 % on clean RR, but LF
+       overstated 2.3× on an ordinary LF-plus-beat-alternans record, and a pure 0.45 Hz respiration
+       (just above the band edge) reported HF = 713 ms² with no in-band content whatsoever.
+       The calibration grid now runs to the mean-Nyquist of the beat series, 1/(2·meanRR) — the highest
+       frequency an RR series can carry — while the REPORTED bands stay bounded by the Task-Force
+       definitions. `df` is held constant and `nf` grows instead, so spectral resolution is identical
+       to before: only genuinely out-of-band power is removed, and a clean record's numbers do not
+       move for reasons unrelated to the defect. */
+    const _meanRRs = (function () {
+      let s = 0;
+      for (let i = 0; i < N; i++) s += nn[i];
+      return N ? s / N / 1000 : 0; // ms → s
+    })();
+    const fNyq = _meanRRs > 0 ? 1 / (2 * _meanRRs) : fHi;
+    const fCal = Math.max(fHi, Math.min(fNyq, 2)); // never below the band; ceiling guards absurd RR
+    const nfFull = Math.max(nf, Math.round((fCal - fLo) / df) + 1);
+    let tp = 0, // in-band total — the Task-Force identity vlf+lf+hf
+      tpFull = 0, // full-support total — the Parseval denominator
       vlf = 0,
       lf = 0,
       hf = 0,
       peakF = 0,
       peakP = 0;
-    for (let kf = 0; kf < nf; kf++) {
+    for (let kf = 0; kf < nfFull; kf++) {
       const f = fLo + kf * df,
         w = 2 * Math.PI * f;
       let s2 = 0,
@@ -7485,25 +7526,46 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       }
       const P = 0.5 * ((nC * nC) / (dC || 1) + (nS * nS) / (dS || 1));
       const e = P * df;
-      tp += e;
-      if (f < 0.04) vlf += e;
-      else if (f < 0.15) lf += e;
-      else {
-        hf += e;
-        if (P > peakP) {
-          peakP = P;
-          peakF = f;
+      tpFull += e; // every evaluated bin — the Parseval denominator
+      /* The REPORTED bands stay bounded by the Task-Force definitions. Note the `f < fHi` guard:
+         the HF arm was an unbounded `else`, so extending the grid without this would make HF swallow
+         the entire out-of-band tail — turning a fix into a much worse version of the same bug — and
+         would let respRate's peak search wander above 0.4 Hz. */
+      if (f < fHi) {
+        tp += e;
+        if (f < 0.04) vlf += e;
+        else if (f < 0.15) lf += e;
+        else {
+          hf += e;
+          if (P > peakP) {
+            peakP = P;
+            peakF = f;
+          }
         }
       }
     }
     const variance = x.reduce((s, v) => s + v * v, 0) / N,
-      sc = tp > 0 ? variance / tp : 1;
+      sc = tpFull > 0 ? variance / tpFull : 1;
     // DEEP-AUDIT §10: the sub-bands tile [fLo,fHi) exactly, so tp IS vlf+lf+hf. Round the bands FIRST and
     // define tp as their sum, so the Task-Force identity holds EXACTLY rather than to within rounding.
     const _v = Math.round(vlf * sc),
       _l = Math.round(lf * sc),
       _h = Math.round(hf * sc);
-    return { tp: _v + _l + _h, vlf: _v, lf: _l, hf: _h, lfhf: +(lf / (hf || 1)).toFixed(3), respRate: +(peakF * 60).toFixed(1) };
+    /* §3.1 companion finding — at slow heart rates the beat series' own Nyquist falls BELOW the
+       0.4 Hz HF edge (40 bpm ⇒ mean RR 1.5 s ⇒ fNyq 0.33 Hz), so part of the HF band is defined
+       above what the series can represent. That is true of the Task-Force definition itself and
+       predates this fix, so the VALUE is deliberately left alone; the condition is merely made
+       visible. Common on bradycardic and deep-sleep records — exactly where HF is most read. */
+    return {
+      tp: _v + _l + _h,
+      vlf: _v,
+      lf: _l,
+      hf: _h,
+      lfhf: +(lf / (hf || 1)).toFixed(3),
+      respRate: +(peakF * 60).toFixed(1),
+      hfAboveNyquist: fNyq < fHi,
+      nyquistHz: +fNyq.toFixed(3)
+    };
   }
 
   function dfaAlpha1(a) {
