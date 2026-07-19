@@ -17,6 +17,32 @@ import asyncio, re
 from dataclasses import dataclass, asdict
 
 _ADDR_RE = re.compile(r"Device ([0-9A-F:]{17}) (.+)")
+# bluetoothctl emits PROPERTY UPDATES in the same `Device <addr> <rest>` shape as announcements:
+#     [NEW] Device 24:AC:AC:0C:30:1E Polar Sense 0C301E3F
+#     [CHG] Device 24:AC:AC:0C:30:1E RSSI: 0xffffffd8 (-40)
+# so a naive capture takes "RSSI: 0xffffffd8 (-40)" for the device's NAME. That is not cosmetic: the
+# monitor infers vendor/model from the name, finds no match, and the identity gate then refuses to
+# remember the sensor at all — "not recognised — needs vendor, model" for a device sitting at -40 dBm
+# (observed 2026-07-19 on a Verity that BlueZ knew perfectly well as "Polar Sense 0C301E3F").
+_PROP_RE = re.compile(r"^(RSSI|TxPower|ManufacturerData|ServiceData|UUIDs?|Connected|Paired|Bonded|"
+                      r"Trusted|Blocked|LegacyPairing|Appearance|Icon|Adapter|Alias|Class|Modalias|"
+                      r"AdvertisingFlags|WakeAllowed|ServicesResolved|Battery Percentage)\b\s*:",
+                      re.I)
+# A name bluetoothctl synthesises from the address ("24-AC-AC-0C-30-1E") carries no vendor information;
+# a real one must be allowed to replace it when a later line supplies it.
+_ADDR_NAME_RE = re.compile(r"^[0-9A-F]{2}([-:][0-9A-F]{2}){5}$", re.I)
+_RSSI_LINE_RE = re.compile(r"Device ([0-9A-F:]{17}) RSSI:.*?\((-?\d+)\)", re.I)
+
+
+def is_property_line(name: str) -> bool:
+    """True when a captured `Device <addr> <rest>` tail is a property update, not a device name."""
+    return bool(_PROP_RE.match((name or "").strip()))
+
+
+def is_placeholder_name(name: str) -> bool:
+    """True when the name carries no identifying information — empty, or the address restated."""
+    n = (name or "").strip()
+    return not n or bool(_ADDR_NAME_RE.match(n))
 _HEALTH_HINT = re.compile(r"polar|verity|muse|o2ring|wellue|viatom|checkme|oxy|sense", re.I)
 
 
@@ -84,9 +110,22 @@ async def scan(adapter_mac: str | None = None, seconds: float = 8.0) -> list[Fou
     seen: dict[str, Found] = {}
     for m in _ADDR_RE.finditer(out):
         addr, name = m.group(1), m.group(2).strip()
-        if addr not in seen:
-            seen[addr] = Found(address=addr, name=name, health=bool(_HEALTH_HINT.search(name)))
-    # Enrich with RSSI / bonded / connected from `info`.
+        if is_property_line(name):
+            continue                       # a [CHG] property update, not an announcement
+        cur = seen.get(addr)
+        # LAST REAL NAME WINS, but a placeholder never overwrites a real one. First-wins lost the race
+        # to whichever line bluetoothctl happened to print first.
+        if cur is None or (is_placeholder_name(cur.name) and not is_placeholder_name(name)):
+            seen[addr] = Found(address=addr, name=name, health=bool(_HEALTH_HINT.search(name)),
+                               rssi=cur.rssi if cur else None)
+    # RSSI comes from the SCAN STREAM, which is the only place it exists for a device we are not
+    # connected to — `info` reports it only for a live connection, so the enrichment below returned
+    # None for every discovered device while the value sat in the very lines discarded above.
+    for m in _RSSI_LINE_RE.finditer(out):
+        f = seen.get(m.group(1))
+        if f:
+            f.rssi = int(m.group(2))
+    # Enrich with bonded / connected (and RSSI, when a live link makes `info` report it) from `info`.
     for addr, f in seen.items():
         info = await _btctl(f"info {addr}\nquit\n", timeout=8)
         f.bonded = "Bonded: yes" in info or "Paired: yes" in info
@@ -94,6 +133,10 @@ async def scan(adapter_mac: str | None = None, seconds: float = 8.0) -> list[Fou
         r = re.search(r"RSSI:.*\((-?\d+)\)", info)
         if r:
             f.rssi = int(r.group(1))
+        nm = re.search(r"^\s*Name:\s*(.+)$", info, re.M)      # authoritative, and survives a bad scan line
+        if nm and is_placeholder_name(f.name):
+            f.name = nm.group(1).strip()
+            f.health = bool(_HEALTH_HINT.search(f.name))
     return sorted(seen.values(), key=lambda d: (not d.health, d.rssi is None, -(d.rssi or -999)))
 
 
