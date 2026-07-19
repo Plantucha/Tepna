@@ -358,6 +358,7 @@ async def run_polar(dev: dict, root: str):
     name, addr = dev["name"], dev["address"]
     streams = dev.get("streams", ["ecg"])
     backoff = 5
+    stale_bond_hits = 0        # consecutive one-sided-bond failures; see the teardown handler
     # One-time bond BEFORE any PMD attempt — the H10 drops an un-authenticated link ~1-2 s after
     # connect (bleak #1943). ensure_bonded is a no-op if the bond already exists. (Reconnects after a
     # transient drop reuse the stored bond, so we don't re-bond in the loop.)
@@ -640,11 +641,45 @@ async def run_polar(dev: dict, root: str):
         except Exception as e:
             _set(name, connected=False, last_error=repr(e))
             log.warning("%s link error: %r", name, e)
+            # A ONE-SIDED BOND. is_bonded() reads the HOST's view, so a device-side factory reset (Polar
+            # Flow offers one) leaves BlueZ reporting `Bonded: yes` while the sensor has forgotten us.
+            # ensure_bonded() then short-circuits forever and the strap drops service discovery on every
+            # reconnect, permanently. Two consecutive hits, because a single one is also what a normal
+            # mid-negotiation drop looks like — re-pairing costs ~20 s of scripted bluetoothctl, so it
+            # must not fire on ordinary flapping.
+            if bonding.looks_like_a_stale_bond(repr(e)):
+                stale_bond_hits += 1
+                if stale_bond_hits >= 2:
+                    stale_bond_hits = 0
+                    log.warning("%s: bonded on this host but the sensor keeps refusing service discovery "
+                                "— treating the bond as STALE (factory reset?) and re-pairing", name)
+                    _set(name, last_error="re-pairing — the sensor appears to have forgotten this host")
+                    try:
+                        ok = await bonding.ensure_bonded(addr, ADAPTER, force=True)
+                        log.info("%s: forced re-pair %s", name, "succeeded" if ok else "FAILED")
+                    except Exception as be:
+                        log.warning("%s: forced re-pair error: %r", name, be)
+            else:
+                stale_bond_hits = 0
         finally:
-            for wr in writers.values():
+            # DISCARD HEADER-ONLY FILES. A writer is opened per requested stream BEFORE the PMD START is
+            # negotiated, so any session that ends without data still leaves a file containing nothing but
+            # its header. The charger case makes that a cadence rather than a one-off: a device sitting on
+            # its dock refuses START every CHARGE_RETRY_S, so it produced one junk file set PER MINUTE for
+            # as long as it charged (observed 2026-07-19 — a 76-byte Verity PPG file, one header line).
+            # Those files are indistinguishable from a real capture until something opens them, and they
+            # pollute the night directory the Dex ingest walks. The START-rejected path already deleted
+            # its file for exactly this reason; this generalises it to every way a session can end.
+            for wr in list(writers.values()) + ([hr_writer] if hr_writer else []):
+                empty = not wr.rows
+                path = wr.path
                 wr.close()
-            if hr_writer:
-                hr_writer.close()
+                if empty:
+                    try:
+                        os.remove(path)
+                        log.debug("%s: discarded header-only %s", name, os.path.basename(path))
+                    except OSError:
+                        pass
         if not _STOP.is_set():
             if charging_hold:
                 # Not a fault, so it must not ride the error backoff: recheck on a steady cadence so the

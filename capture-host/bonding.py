@@ -103,9 +103,35 @@ async def is_bonded(address: str, adapter_mac: str | None = None) -> bool:
     return ("Bonded: yes" in info) or ("Paired: yes" in info)
 
 
-async def ensure_bonded(address: str, adapter_mac: str | None = None) -> bool:
-    """Bond only if not already bonded — safe to call before every connect attempt."""
-    if await is_bonded(address, adapter_mac):
+# The signature of a bond the DEVICE has forgotten while the HOST still believes in it. A Polar accepts
+# the connection, then drops it ~1-2 s later during service discovery because it no longer recognises the
+# pairing (bleak #1943, "Insufficient Authentication 0x05 on PMD Control write").
+# NOTE the spelling: BlueZ emits `org.bluez.Error.AuthenticationFailed` as ONE word, so a
+# "authentication failed" pattern never matches it. bond() already relies on the same spelling.
+_STALE_BOND_SIGNS = ("failed to discover services", "insufficient authentication",
+                     "service discovery has not been performed", "not paired",
+                     "authenticationfailed", "authentication failed")
+
+
+def looks_like_a_stale_bond(exc_text: str) -> bool:
+    """True when a connect failure is the shape of a one-sided bond rather than a missing/asleep device."""
+    t = (exc_text or "").lower()
+    return any(m in t for m in _STALE_BOND_SIGNS)
+
+
+async def ensure_bonded(address: str, adapter_mac: str | None = None, *, force: bool = False) -> bool:
+    """Bond only if not already bonded — safe to call before every connect attempt.
+
+    `force=True` re-pairs even when the host thinks it is already bonded. Needed because is_bonded() reads
+    `bluetoothctl info`, which is the HOST's view ONLY. A device-side factory reset (Polar Flow offers one)
+    wipes the sensor's half while BlueZ still reports `Bonded: yes` — so the fast path returns True forever,
+    the strap keeps dropping service discovery, and nothing re-pairs. Observed 2026-07-19: an H10 reset from
+    the phone app went permanently unusable, and the only cure was a manual `bluetoothctl remove`.
+    Removing the host record first is what makes the re-pair meaningful; pairing over a stale record is a
+    no-op."""
+    if force:
+        await forget(address, adapter_mac)
+    elif await is_bonded(address, adapter_mac):
         return True
     return (await bond(address, adapter_mac))["ok"]
 
