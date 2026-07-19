@@ -5884,6 +5884,43 @@
         );
       }
 
+      /* §2c · DEEP-AUDIT-II §12.2 — gateBEvaluate must FAIL CLOSED on a record with no outputHash.
+         The output-drift branch was guarded `rec.outputHash && outNow !== rec.outputHash`, so a record
+         carrying NO output hash skipped the comparison entirely and fell through to be graded
+         `reproducible` — whose own detail string reads "output pinned @ …" — or, for a historical
+         record, `historical-ok` / "byte-pinned". Both asserted a pin that did not exist, in the one
+         function whose every other branch fails closed. GATE B is a CONTENT-ADDRESSED known-answer
+         ledger; a record with nothing to compare the bytes against is unpinned, not reproducible.
+         Latent on today's ledger (all 25 committed fixtures carry an outputHash) — which is the point
+         of closing it now: a hand-added or half-written record would have been graded green on
+         arrival, and GATE B is the thing standing between a stale fixture and a release.
+         Driven through the REAL gateBEvaluate, both directions and both record kinds. */
+      if (!MG || typeof MG.gateBEvaluate !== 'function') {
+        T.skip('§2c · gateBEvaluate fails closed on a missing outputHash', 'env.ManifestGate.gateBEvaluate not wired');
+      } else {
+        var mhs = { 'Foo.html': 'aaaaaaaaaaaa' };
+        var fhs = { 'out.json': 'bbbbbbbbbbbbbbbb', 'in.csv': 'cccccccccccccccc' };
+        var evalOne = function (rec) {
+          var r = MG.gateBEvaluate({ 'out.json': rec }, mhs, fhs);
+          return { status: (r.results && r.results[0] && r.results[0].status) || null, fail: r.fail, checked: r.checked };
+        };
+        // code-gated, everything pinned and matching → reproducible (the guard is not over-broad)
+        var good = evalOne({ bundle: 'Foo.html', manifestHash: 'aaaaaaaaaaaa', outputHash: 'bbbbbbbbbbbbbbbb', inputHashes: { 'in.csv': 'cccccccccccccccc' } });
+        T.eq('§2c · a fully-pinned code-gated fixture is still reproducible', good.status, 'reproducible');
+        T.eq('§2c · …and counts as checked, not failed', good.fail, 0);
+        // code-gated with NO outputHash → must NOT be reproducible
+        var noOut = evalOne({ bundle: 'Foo.html', manifestHash: 'aaaaaaaaaaaa', inputHashes: { 'in.csv': 'cccccccccccccccc' } });
+        T.eq('§2c · a code-gated fixture with NO outputHash is unpinned, not reproducible', noOut.status, 'no-output-hash');
+        T.eq('§2c · …and it FAILS the gate (fail-closed, like every sibling branch)', noOut.fail, 1);
+        // historical with NO outputHash → must not claim "byte-pinned" either
+        var histNoOut = evalOne({ bundle: 'Foo.html', historical: true });
+        T.eq('§2c · a historical record with NO outputHash cannot claim byte-pinned', histNoOut.status, 'no-output-hash');
+        T.eq('§2c · …historical fails closed too', histNoOut.fail, 1);
+        // and a historical record that IS pinned still passes
+        var histOk = evalOne({ bundle: 'Foo.html', historical: true, outputHash: 'bbbbbbbbbbbbbbbb' });
+        T.eq('§2c · a pinned historical record is still historical-ok', histOk.status, 'historical-ok');
+      }
+
       // ── §3.1 · the ledger is well-formed: every corpus-backed fixture CARRIES a verification
       if (!raw) {
         T.skip('§3.1 · corpus-backed fixtures carry a verifiedUnder', 'FIXTURE-PROVENANCE.json not in env.manifests');
