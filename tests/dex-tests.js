@@ -3448,6 +3448,93 @@
     }
   });
 
+
+  /* ════ DEEP-AUDIT-II §6.3 · §6.4 — the ECG co-import must not invent corroboration ════
+     Both defects had a CORRECT implementation already sitting in the sibling oxydex-fusion.js.
+       §6.4  _hmsToMs never anchored to the recording start. Event `t` is a wall-clock string with no
+             date (the export contract), so an overnight study starting 22:00 whose first surge is at
+             01:05 built 01:05 on the START date — 20.9 h EARLY — and every later surge inherited that
+             anchor through prevMs. Zero overlap with the apneas, reported as a confident 0 %.
+       §6.3  Corroboration was a bare existence test, so ONE surge satisfied the 75 s window for every
+             apnea inside it: independent confirmation counted once per apnea from one piece of evidence.
+     ════ */
+  group('CPAPDex co-import — a surge corroborates ONE apnea, and lands on the right night (§6.3/§6.4)', 'cpapdex-coimport · fusion', function (T) {
+    var CN = env.CpapCoimport;
+    if (!CN || typeof CN.normalizeEcg !== 'function' || typeof CN.autonomicCorroboration !== 'function') {
+      T.skip('CpapCoimport reachable', 'cpapdex-coimport.js not co-loaded into env');
+      return;
+    }
+    var T0 = Date.UTC(2026, 0, 10, 22, 0); // study starts 22:00 — the ordinary overnight case
+
+    // ── §6.4 · surge times, given as bare wall-clock strings, must anchor to the recording ──
+    function ecgExport(times) {
+      return {
+        schema: { node: 'ECGDex' },
+        recording: { startEpochMs: T0, durationMin: 480 },
+        hrv: { time: { rmssd: 42, sdnn: 76, hr: 58 } },
+        apnea: {},
+        cardiorespiratory: {},
+        ganglior_events: times.map(function (t) {
+          return { t: t, impulse: 'autonomic_surge', node: 'ECGDex', conf: 0.8 };
+        })
+      };
+    }
+    var norm = CN.normalizeEcg(ecgExport(['01:05', '02:15', '05:40']))[0];
+    T.ok('§6.4 · normalizeEcg produced the record', !!(norm && norm.surges && norm.surges.length === 3), norm ? norm.surges.length + ' surges' : 'null');
+    if (norm && norm.surges.length === 3) {
+      var offs = norm.surges.map(function (ms) {
+        return +((ms - T0) / 3600000).toFixed(2);
+      });
+      T.ok('§6.4 · every post-midnight surge lands AFTER the 22:00 start (was −20.9/−19.8/−16.3 h)', offs.every(function (h) { return h > 0; }), 'offsets(h)=' + offs.join(', '));
+      T.ok('§6.4 · …and inside the 8 h recording, not a day away', offs.every(function (h) { return h < 8; }), 'offsets(h)=' + offs.join(', '));
+      T.ok('§6.4 · the series stays monotonic', norm.surges[0] < norm.surges[1] && norm.surges[1] < norm.surges[2]);
+    }
+    // control · a same-evening surge is NOT rolled forward a day (over-applying the anchor)
+    var sameEve = CN.normalizeEcg(ecgExport(['22:30', '23:10']))[0];
+    if (sameEve && sameEve.surges.length === 2) {
+      var e0 = (sameEve.surges[0] - T0) / 3600000;
+      T.ok('control · a same-evening surge stays on the start date (anchor not over-applied)', e0 > 0 && e0 < 1, 'offset=' + e0.toFixed(2) + ' h');
+    }
+    // control · device clock skew — slightly BEFORE the anchor is kept, not thrown forward 24 h
+    var skew = CN.normalizeEcg(ecgExport(['21:40']))[0];
+    if (skew && skew.surges.length === 1) {
+      var sh = (skew.surges[0] - T0) / 3600000;
+      T.ok('control · a surge just before the start (clock skew) is kept, not pushed a day forward', sh > -1 && sh < 0, 'offset=' + sh.toFixed(2) + ' h');
+    }
+
+    // ── §6.3 · one surge must not corroborate a whole cluster ──
+    function night(apneaOffsetsSec, surgeTimes) {
+      CN.reset();
+      CN.ingest(ecgExport(surgeTimes), 'ecg.json');
+      return {
+        t0Ms: T0,
+        endMs: T0 + 480 * 60000,
+        sessions: [
+          {
+            t0Ms: T0,
+            events: apneaOffsetsSec.map(function (s) {
+              return { type: 'OA', tMs: T0 + s * 1000 };
+            })
+          }
+        ]
+      };
+    }
+    // five apneas inside a 40 s cluster; ONE surge 5 s in. The 75 s window ([-15,+60]) covers several.
+    var clustered = CN.autonomicCorroboration(night([0, 10, 20, 30, 40], ['22:00:05']));
+    T.ok('§6.3 · cluster + ONE surge → matched is 1, not the whole cluster', clustered && clustered.matched === 1, clustered ? 'matched=' + clustered.matched + ' of ' + clustered.apneasInWindow : 'null');
+    T.ok('§6.3 · …so corroboratedPct cannot exceed what one surge can evidence', clustered && clustered.corroboratedPct === 20, clustered ? clustered.corroboratedPct + '%' : 'null');
+
+    // control · genuine one-to-one corroboration is unchanged — the fix must not suppress real matches
+    var paired = CN.autonomicCorroboration(night([0, 600, 1200], ['22:00:05', '22:10:05', '22:20:05']));
+    T.ok('control · three apneas each with their OWN surge → all three corroborated', paired && paired.matched === 3, paired ? 'matched=' + paired.matched : 'null');
+    T.ok('control · …reported as 100 % (a real full match still reads 100)', paired && paired.corroboratedPct === 100, paired ? paired.corroboratedPct + '%' : 'null');
+
+    // control · surges outside the directional window corroborate nothing
+    var far = CN.autonomicCorroboration(night([0], ['23:30:00']));
+    T.ok('control · a surge far outside [-15,+60] s corroborates nothing', far && far.matched === 0, far ? 'matched=' + far.matched : 'null');
+    CN.reset();
+  });
+
   group('PSL column resolution is header-driven, not positional (both layouts)', 'motiondex-dsp · ppgdex-dsp', function (T) {
     var M = env.MOTIONDSP, P = env.PPGDSP;
     var OLD6 = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];X [mg];Y [mg];Z [mg]\n';

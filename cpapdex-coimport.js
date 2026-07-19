@@ -38,6 +38,14 @@
     if (!m) return null;
     var d = new Date(startMs);
     var ms = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), +m[1], +m[2], +(m[3] || 0));
+    // DEEP-AUDIT-II §6.4 — anchor to the RECORDING START before chaining. Event `t` is a wall-clock
+    // time with no date (the export contract), so an overnight study starting 22:00 with a first
+    // surge at 01:05 built 01:05 on the START date — 20.9 h EARLY — and every later surge inherited
+    // that anchor through prevMs. The series then had zero overlap with the apneas and the co-import
+    // reported a confident corroboratedPct: 0. The 1 h slack lets an event sit just before the anchor
+    // (device clock skew) without being thrown a whole day forward.
+    // The sibling oxydex-fusion.js `_oxyHHMMSStoMs` already carried this line; it was all that was missing.
+    while (ms < startMs - 3600000) ms += 86400000;
     while (prevMs != null && ms < prevMs - 1000) ms += 86400000; // roll past midnight, monotonic
     return ms;
   }
@@ -239,15 +247,38 @@
         if (ecg.t0Ms != null && (ecg.endMs == null || (tMs >= ecg.t0Ms - 60000 && tMs <= ecg.endMs + 60000))) apneas.push(tMs);
       });
     });
-    // each apnea corroborated if an ECG autonomic surge sits within [-LEAD, +TRAIL] s
+    // DEEP-AUDIT-II §6.3 — each apnea is corroborated by a surge that is CONSUMED, so one surge can
+    // corroborate exactly one apnea. This was a bare existence test (`surges.some(...)`), and the
+    // window is 75 s wide ([-15, +60]), so a SINGLE surge satisfied every apnea inside it: five
+    // clustered apneas and one surge reported matched=5, corroboratedPct=100 — independent
+    // confirmation claimed from one piece of evidence counted five times.
+    // Nearest-first, mirroring the sibling oxydex-fusion.js which already solves exactly this with a
+    // usedSurge{} map. Sorting the apneas keeps the assignment order-independent.
     var matched = 0;
-    apneas.forEach(function (aMs) {
-      var hit = ecg.surges.some(function (sMs) {
-        var d = (sMs - aMs) / 1000;
-        return d >= -LEAD && d <= TRAIL;
+    var usedSurge = {};
+    apneas
+      .slice()
+      .sort(function (a, b) {
+        return a - b;
+      })
+      .forEach(function (aMs) {
+        var bestI = -1,
+          bestAbs = Infinity;
+        for (var i = 0; i < ecg.surges.length; i++) {
+          if (usedSurge[i]) continue;
+          var d = (ecg.surges[i] - aMs) / 1000;
+          if (d < -LEAD || d > TRAIL) continue;
+          var a = Math.abs(d);
+          if (a < bestAbs) {
+            bestAbs = a;
+            bestI = i;
+          }
+        }
+        if (bestI >= 0) {
+          usedSurge[bestI] = 1;
+          matched++;
+        }
       });
-      if (hit) matched++;
-    });
     var corroboratedPct = apneas.length ? +((matched / apneas.length) * 100).toFixed(0) : null;
     var plvDrop = ecg.plvBaseline != null && ecg.plvDuringSurges != null ? +(ecg.plvBaseline - ecg.plvDuringSurges).toFixed(3) : null;
     return {
