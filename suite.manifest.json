@@ -1,6 +1,6 @@
 {
   "_doc": "Canonical Tepna roster + site metadata — the SINGLE source of truth for the deploy build + discoverability surfaces (REPO-DISCOVERABILITY-FOLLOWUPS-2026-07-04 §5.2). tools/build-docs.mjs reads THIS to (1) sync root→docs page bodies and (2) emit docs/{sitemap.xml,robots.txt,feed.xml,about.json,llms.txt,llms-full.txt}. The README node table, the DOCS-INDEX at-a-glance block, and the index.html JSON-LD all describe the same roster — keep them in sync with this file, do not fork a second roster.",
-  "version": "1.14.0",
+  "version": "1.15.0",
   "deploy": {
     "dir": "docs",
     "delinkClass": "tool-off",

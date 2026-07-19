@@ -30,6 +30,29 @@ changesets.)
 
 ---
 
+## [1.15.0] — 2026-07-19
+
+### Fixed
+- `analysis-stats.js roc()` stepped through tied scores **one point at a time**, drawing a staircase through each tied group. The area therefore depended on whether positives or negatives happened to be ordered first *within* the tie — and `sort` is stable, so that is simply input order. The papers layer feeds `roc()` from workers, which made the published AUC **run-to-run nondeterministic**, and it falsified `hrv-confound-analysis.js`'s own order-invariance comment. (`DEEP-AUDIT-II-2026-07-18-BRIEF.md`)
+- `tools/build-analysis.mjs` now prints the exact `git add` line for the tools it rewrote, and its `--check` says out loud that it inspected the **working tree**. (`DEEP-AUDIT-II-2026-07-18-BRIEF.md`)
+- CPAPDex rated ODI over the whole therapy span rather than the time the oximeter could actually see. `valid` and `coverage` were computed six lines above and then not used for the rate, so every finger-off / probe-off / dropout sample still bought denominator. With `COVERAGE_FLOOR` at 0.5 a night is admitted with half its samples unusable, so the understatement reaches **exactly 2×**. (`DEEP-AUDIT-II-2026-07-18-BRIEF.md`)
+- `trendLabel` took its **direction** from the OLS slope and its **significance** from Mann–Kendall — so the sentence *"there is a significant trend, and it is improving"* was assembled from two different estimators. (`DEEP-AUDIT-II-2026-07-18-BRIEF.md`)
+- The personal-baseline behind `baseline.zLatest` was computed **unweighted** — `mean(prior)` / `sd(prior)` — while the centre it is compared against, `central.mean`, is coverage-weighted. A near-empty night therefore moved the baseline as though it were a full night; and because a wild value on that night also **inflates** the baseline SD, the newest night's z was pulled toward zero twice over. (`DEEP-AUDIT-II-2026-07-18-BRIEF.md`)
+- Cross-night `central.sd` and `central.cv` divided an **unweighted** spread by a **coverage-weighted** centre: `const m = wmean(vals, w), s = sd(vals)`. A night the envelope had deliberately down-weighted still contributed its full deviation, so the spread — and the CV% built from it — over-reported instability. On routine CPAP partial-use that reads **74.6 % where the consistent figure is 49.8 %**. (`DEEP-AUDIT-II-2026-07-18-BRIEF.md`)
+- A dropped `_RR / _HR / _ACC` may arrive **before** its ECG, so ECGDex parks it and grafts it onto the next recording that lacks its own. Those parking slots were module-scope globals cleared **only** by `resetAll()`, and the multi-file queue drain never cleared them between recordings — so once night A's companions were parked, **night B inherited them** whenever B's own were absent. (`DEEP-AUDIT-II-2026-07-18-BRIEF.md`)
+- `gateBEvaluate` graded a fixture record carrying **no `outputHash`** as `reproducible` — the one fail-**open** path in a function whose every other branch fails closed. (`DEEP-AUDIT-II-2026-07-18-BRIEF.md`)
+- `clampFloor` was a **file-level** flag stamped on **every** nocturnal hypo in a floor-saturated export, without ever consulting the event's own nadir. (`DEEP-AUDIT-II-2026-07-18-BRIEF.md`)
+- Two coupled defects, landed together because fixing either alone makes things worse. (`DEEP-AUDIT-II-2026-07-18-BRIEF.md`)
+- `parseNutrition` carried two independent defects. There is **no nutrition fixture in `uploads/`**, so this parser shipped with zero coverage — which is why both survived. (`DEEP-AUDIT-II-2026-07-18-BRIEF.md`)
+- The longitudinal footer rendered the **recording count** with a `d` (days) suffix, so a 12-recording series spanning 90 days read **"over 12d"**. Always in the alarming direction: the same delta compressed into a shorter apparent window looks like a steeper change than it is. (`DEEP-AUDIT-II-2026-07-18-BRIEF.md`)
+- The Integrator counted long-gap interpolation as measured glucose, and — worse — counted it as *coverage*, blinding the one guard that exists to catch exactly that. (`DEEP-AUDIT-II-2026-07-18-BRIEF.md`)
+- Every event in a multi-record ECGDex / PpgDex / PulseDex export was silently dropped by the Integrator. (`DEEP-AUDIT-II-2026-07-18-BRIEF.md`)
+- **Frequency-domain HRV band powers no longer absorb out-of-band variance.** All three spectral nodes calibrated with `sc = variance / tp` where `tp` was accumulated over the analysed band only — asserting that the *in-band* integral equals the *whole* signal variance. That holds only when no power sits outside the band; when power does, VLF/LF/HF absorb it, one-directionally, on a `validated`-tier metric graded against literature thresholds. (`DEEP-AUDIT-II-2026-07-18-BRIEF.md`)
+- `artifactClean`'s local median was drawn from the artifacts it was correcting. The 11-beat window pushed the **raw** neighbours, so a *cluster* of artifacts — a dropout burst or an ectopy run, which is the normal way artifacts arrive, not the exceptional way — could form the majority of that window and become the median used to replace them. (`DEEP-AUDIT-II-2026-07-18-BRIEF.md`)
+- `tools/release.mjs` printed a post-release `git add` line carrying its own hardcoded copy of the deploy paths `tools/build-docs.mjs` rewrites — and that copy had drifted. It named `README.md`, `index.html` and `docs/about.json` but omitted **`docs/sitemap.xml`, `docs/feed.xml`, `docs/llms-full.txt` and `docs/index.html`**, every one of which build-docs rewrites on *every* release: `BUILD_DATE` is the newest `RELEASE-MANIFEST` date (deliberately, so the drift gate cannot red at midnight on an in-sync tree), so cutting a release always moves it. (`CONTROLLED-RELEASES-2026-07-05-BRIEF.md`)
+
+---
+
 ## [1.14.0] — 2026-07-19
 
 ### Added
@@ -494,7 +517,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.14.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.15.0...HEAD
+[1.15.0]: https://github.com/Plantucha/Tepna/compare/v1.14.0...v1.15.0
 [1.14.0]: https://github.com/Plantucha/Tepna/compare/v1.13.0...v1.14.0
 [1.13.0]: https://github.com/Plantucha/Tepna/compare/v1.12.0...v1.13.0
 [1.12.0]: https://github.com/Plantucha/Tepna/compare/v1.11.1...v1.12.0
