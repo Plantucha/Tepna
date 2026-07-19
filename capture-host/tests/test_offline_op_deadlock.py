@@ -78,3 +78,26 @@ def test_the_timeout_is_finite_and_generous_enough_for_a_real_pull(monkeypatch):
     """A stored-session pull allows 180 s for a single file, so the ceiling must sit above that or a
     legitimate download would be killed mid-transfer."""
     assert 180 < capture._OFFLINE_OP_TIMEOUT_S < 3600
+
+
+def test_the_clock_sync_ceiling_is_much_shorter_than_a_download(monkeypatch):
+    """A clock sync is a connect plus three short queries, and it runs UNATTENDED on a 12-attempt retry
+    loop. Sizing it like a stored-session download turned the permanent wedge into a 97%-duty-cycle one:
+    each retry burned the full 300 s holding both locks, so capture was paused ~300 s out of every ~310 s
+    and still wrote nothing. Bounding the op was necessary but not sufficient — the bound has to be
+    proportionate to the operation."""
+    assert capture._CLOCK_SYNC_TIMEOUT_S < capture._OFFLINE_OP_TIMEOUT_S / 4
+    # 12 retries must not add up to an hour of paused capture
+    assert 12 * capture._CLOCK_SYNC_TIMEOUT_S < 600, "the whole retry ladder must stay under 10 minutes"
+
+
+def test_the_timeout_is_per_call_not_global(monkeypatch):
+    """polar_offline_op takes the ceiling as an argument so a user-initiated pull keeps the generous one
+    while the unattended clock sync gets a short one."""
+    _clear_pause(monkeypatch)
+
+    async def hangs():
+        await _aio.sleep(3600)
+    with pytest.raises(_aio.TimeoutError):
+        _run_async(capture.polar_offline_op("AA:BB", hangs, timeout=0.05))
+    assert capture._POLAR_PAUSED == set()

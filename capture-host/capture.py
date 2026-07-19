@@ -970,12 +970,25 @@ async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", ftype:
 # D-Bus call outstanding indefinitely. So the bound has to live here, at the point that holds the locks.
 _OFFLINE_OP_TIMEOUT_S = 300.0
 
+# A CLOCK SYNC IS NOT A DOWNLOAD. It is a connect plus three short PS-FTP queries — seconds of work, not
+# minutes — and it runs UNATTENDED on a retry loop, so its ceiling must be sized for the operation rather
+# than for the worst case of a different one.
+#
+# Measured 2026-07-19: after the 300 s bound landed, an out-of-range Verity turned a permanent wedge into
+# a 97 %-duty-cycle wedge — each of the 12 auto-retries burned the full 300 s holding _POLAR_PAUSED and
+# _CONNECT_LOCK, so capture was paused for ~300 s out of every ~310 s and still wrote nothing. Bounding
+# the op was necessary but not sufficient; the bound has to be proportionate.
+_CLOCK_SYNC_TIMEOUT_S = 45.0
 
-async def polar_offline_op(address: str, op):
+
+async def polar_offline_op(address: str, op, timeout: float | None = None):
     """Run a PS-FTP offline op (list/pull) while the daemon's run_polar for `address` is paused, so the
     pull owns the device's single BLE link instead of colliding with the live-capture reconnect loop
     (org.bluez.Error.InProgress). `op` is a zero-arg coroutine factory; its result is returned. Resumes
     live capture no matter how `op` ends — including when it does not end at all (see the timeout)."""
+    # Resolved at CALL time, not bound as a default argument: a default is evaluated once at import,
+    # which silently freezes the module constant and makes it impossible to tune at runtime or in a test.
+    timeout = _OFFLINE_OP_TIMEOUT_S if timeout is None else timeout
     name = next((n for n, s in STATUS.get("devices", {}).items() if s.get("address") == address), None)
     # ONE download at a time across ALL devices (see offline_lock) — raises OfflineBusy if another device
     # is mid-download, instead of letting two pulls fight over the single radio.
@@ -992,13 +1005,13 @@ async def polar_offline_op(address: str, op):
             # the PS-FTP connect must not race a concurrent H10/O2Ring reconnect (→ org.bluez.Error.InProgress).
             # The other tasks' reconnects simply queue behind the pull; it's a deliberate, finite user action.
             async with _CONNECT_LOCK:
-                return await asyncio.wait_for(op(), timeout=_OFFLINE_OP_TIMEOUT_S)
+                return await asyncio.wait_for(op(), timeout=timeout)
         except asyncio.TimeoutError:
             # Loud, because the alternative is a silently dead box. Re-raised so the caller (a clock sync
             # or a monitor-driven pull) reports failure rather than believing it succeeded.
             log.error("Polar %s: offline op exceeded %.0fs and was abandoned — resuming live capture. "
                       "The device was most likely out of range or the adapter is wedged; the capture "
-                      "loops are now free to reconnect.", address, _OFFLINE_OP_TIMEOUT_S)
+                      "loops are now free to reconnect.", address, timeout)
             raise
         finally:
             _POLAR_PAUSED.discard(address)
@@ -1051,7 +1064,8 @@ async def sync_device_time(address: str) -> dict:
                 except Exception:              # is clock error and not BLE round-trip latency
                     pass
             return before, after, host_at_read
-    before, after, host_at_read = await polar_offline_op(address, _op)
+    before, after, host_at_read = await polar_offline_op(address, _op,
+                                                                 timeout=_CLOCK_SYNC_TIMEOUT_S)
     host = host_at_read or _utcnow()
     skew = (after - host).total_seconds() if after else None
     log.info("%s: device clock %s -> %s (host %s, skew %s)", address,
