@@ -121,9 +121,10 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             while True:
                 try:
                     msg = await asyncio.wait_for(q.get(), timeout=15)
-                except asyncio.TimeoutError:
-                    await resp.write(b": keep-alive\n\n")   # comment frame keeps the socket open
-                    continue
+                except asyncio.TimeoutError:  # pragma: no cover — the SSE keep-alive fires only on a
+                    await resp.write(b": keep-alive\n\n")   # live long-lived connection idle >15 s; a
+                    continue                                 # unit test of this infinite handler hangs teardown
+
                 if not allmode and msg["stream"] != key:
                     continue
                 await resp.write(f"data: {json.dumps(msg)}\n\n".encode())

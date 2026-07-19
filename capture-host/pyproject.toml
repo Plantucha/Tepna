@@ -14,6 +14,16 @@ omit = ["tests/*", ".venv*/*", "*/site-packages/*"]
 
 [tool.coverage.report]
 skip_empty = true
+# Standard, reviewable exclusions. `if __name__ == "__main__":` CLI entry blocks are exercised by running
+# the module as a script, not by unit tests — every module here that has one is a hand-run diagnostic /
+# operator tool (bonding, pull_session, polar_psftp, probe_oxyii_ppg) or the daemon's own launcher
+# (capture). Also the usual defensive/typing lines. Anything excluded with `# pragma: no cover` inline
+# carries a comment explaining WHY it is unreachable.
+exclude_also = [
+    'if __name__ == .__main__.:',
+    'raise NotImplementedError',
+    'if TYPE_CHECKING:',
+]
 
 [tool.ruff]
 line-length = 120

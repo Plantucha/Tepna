@@ -248,8 +248,9 @@ def _decode_delta(payload: bytes, channels: int, ref_bits: int) -> list[tuple]:
         # ACC 67%, GYRO 38%, MAG 32% of nominal, all restored to ~100% by this alignment (PPG unchanged).
         if pos % 8:
             pos += 8 - (pos % 8)
-        if pos + 16 > nbits_total:
-            break
+        if pos + 16 > nbits_total:  # pragma: no cover — unreachable: the `while pos+16<=nbits_total`
+            break                   # guard plus a realign that only rounds pos UP toward N-16 means
+                                    # pos+16 can never exceed N here. Kept as a defensive belt.
         delta_size = read(8, False)
         count = read(8, False)
         if delta_size == 0 or count == 0:
