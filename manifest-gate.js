@@ -282,7 +282,20 @@
         status = 'output-absent';
         detail = 'committed fixture not available (uploads/ gitignored?)';
         absent++;
-      } else if (rec.outputHash && outNow !== rec.outputHash) {
+      } else if (!rec.outputHash) {
+        /* DEEP-AUDIT-II \u00a712.2 \u2014 the one fail-OPEN path in a function whose every sibling fails
+           closed. The drift check below was guarded on `rec.outputHash &&`, so a record carrying NO
+           output hash skipped it and fell through to be graded `reproducible` \u2014 whose detail string
+           even says "output pinned @ \u2026" \u2014 or, for a historical record, `historical-ok` / "byte-pinned".
+           Both claim a pin that does not exist. GATE B is a CONTENT-ADDRESSED known-answer ledger: a
+           record with nothing to compare the bytes against cannot be reproducible, it is unpinned.
+           Latent today (all 25 committed fixtures carry an outputHash), which is exactly why it had
+           to be closed before it wasn't \u2014 a hand-added or half-written record would have been graded
+           green on arrival. Fails closed, like every other branch here. */
+        status = 'no-output-hash';
+        detail = 'record carries NO outputHash \u2014 nothing pins these bytes (unpinned, not reproducible)';
+        fail++;
+      } else if (outNow !== rec.outputHash) {
         status = 'output-drift';
         detail = 'output ' + outNow + ' \u2260 recorded ' + rec.outputHash;
         fail++;

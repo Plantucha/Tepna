@@ -144,7 +144,8 @@ async function main() {
     // classify: did any committed fixture OUTPUT change? (output-drift => real output change)
     let outMoved = [],
       outSame = [],
-      outAbsent = [];
+      outAbsent = [],
+      outUnpinned = [];
     for (const f of myFix) {
       const outName = f.name; // fixtures keyed by the committed output file name
       const op = join(ROOT, 'uploads', outName);
@@ -153,10 +154,20 @@ async function main() {
         continue;
       }
       const outNow = await ManifestGate.sha16(new Uint8Array(readFileSync(op)));
-      if (f.rec.outputHash && outNow !== f.rec.outputHash) outMoved.push({ ...f, outNow });
+      // DEEP-AUDIT-II §12.2 — mirror of the gateBEvaluate fix. `f.rec.outputHash && …` meant a record
+      // carrying NO recorded output hash fell into `outSame` and was reported as "output unchanged",
+      // asserting a comparison that never happened. Nothing pins those bytes, so it belongs with the
+      // records needing attention, not the clean ones.
+      if (!f.rec.outputHash) outUnpinned.push({ ...f, outNow });
+      else if (outNow !== f.rec.outputHash) outMoved.push({ ...f, outNow });
       else outSame.push({ ...f, outNow });
     }
 
+    if (outUnpinned.length) {
+      console.log('  ' + paint('⟶ UNPINNED', C.red) + '  ' + outUnpinned.length + ' fixture record(s) carry NO outputHash — nothing pins those bytes.');
+      console.log(paint('    A record with no outputHash cannot be reported as unchanged: there is nothing to compare against.', C.dim));
+      for (const f of outUnpinned) console.log(paint('      • ' + f.name + '  (record the output hash: ' + f.outNow + ')', C.yellow));
+    }
     if (outMoved.length) {
       console.log('  ' + paint('⟶ OUTPUT-MOVED', C.red) + '  ' + outMoved.length + ' fixture output(s) drifted — this is a REAL output change.');
       console.log(paint('    DO NOT hand-edit outputs. REGENERATE by re-running the app on its committed inputs and re-exporting,', C.dim));
