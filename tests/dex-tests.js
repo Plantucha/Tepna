@@ -6034,6 +6034,19 @@
           /Object\.keys\(artifacts\)/.test(bdSrc) && /stampRules\.map/.test(bdSrc),
           'releaseSurfaces() must read `artifacts` and `stampRules` so a new artifact cannot fall out of the list'
         );
+        /* …and the SAME contract on the analysis surface. build-docs got the stage line in #236, but
+           build-analysis did not, and that gap shipped a half-staged commit twice: once on the
+           v1.14.0 release PR and again while landing DEEP-AUDIT-II §6.2. Both times `--check` said
+           "current" — truthfully, about the WORKING TREE — while the commit lacked the regenerated
+           tools. A writer is the only honest place to say which paths it touched. */
+        var baSrc = src['tools/build-analysis.mjs'];
+        if (baSrc == null) {
+          T.skip('§2b · build-analysis prints its stage line too', 'tools/build-analysis.mjs not in env.sources');
+        } else {
+          T.ok('§2b · build-analysis emits a stage line for what it wrote', /Stage exactly what this run wrote/.test(baSrc), 'the analysis surface needs the same contract build-docs adopted in #236');
+          T.ok('§2b · …derived from `wrote`, the list of files it actually rewrote (not a hand-list)', /wrote\.map\(/.test(baSrc), 'must print from `wrote` so a newly bundled tool cannot fall out of it');
+          T.ok('§2b · …and --check says out loud that it only inspected the working tree', /compares the working tree/.test(baSrc), 'the misleading "current" is where the caveat belongs');
+        }
       }
 
       /* §2c · DEEP-AUDIT-II §12.2 — gateBEvaluate must FAIL CLOSED on a record with no outputHash.
