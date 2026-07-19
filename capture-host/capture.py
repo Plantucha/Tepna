@@ -331,6 +331,23 @@ CLOCK_TOLERANCE_S = 2.0
 CHARGE_RETRY_S = 60          # how often to re-attempt PMD START while a device sits on the charger
 _CHARGING: set[str] = set()  # devices currently refusing PMD with in_charger (log-once bookkeeping)
 
+# POWER: drop a not-worn Polar so it stops draining. A chest strap off the body does not go quiet — it
+# streams electrode noise at the full rate (130 Hz ECG), which records nothing real AND flattens the
+# strap's battery over a day. So after a generous grace of CONTINUOUS not-worn contact we drop the link,
+# then reconnect on a slow cadence to check whether it has been put back on. The grace is deliberately
+# long: a real wear is never not-worn for minutes (a roll-over or strap tug is seconds), and dropping
+# during genuine use would cost real data. Only devices that actually REPORT contact are affected;
+# worn=None (no contact bit) is never dropped. Set drop_not_worn_sec=0 to disable.
+_DROP_NOT_WORN_SEC = 180.0          # continuous not-worn before dropping; override via power.drop_not_worn_sec
+_NOT_WORN_RECHECK_S = 90.0          # how often to reconnect-and-check once dropped; power.not_worn_recheck_sec
+_WORN_SINCE: dict[str, float] = {}  # addr -> monotonic ts contact went False (absent = worn/unknown)
+
+
+def should_drop_not_worn(worn_since, now, grace) -> bool:
+    """PURE: has a strap been continuously not-worn long enough to drop for power? False when the feature
+    is off (grace<=0), the strap is worn/unknown (worn_since None), or the grace has not yet elapsed."""
+    return bool(grace and grace > 0 and worn_since is not None and (now - worn_since) >= grace)
+
 
 def _set(name, **kv):
     STATUS["devices"].setdefault(name, {}).update(kv)
@@ -446,6 +463,7 @@ async def run_polar(dev: dict, root: str):
         started = _now()
         ndir = night_dir(root, started)
         charging_hold = False              # device refused PMD because it is on the charger (status 0x0D).
+        drop_for_power = False             # not-worn long enough that we dropped the link to save battery
         # Declared HERE, outside the try, because both readers live outside the block that sets it: the
         # link-hold loop and the reconnect-delay below. (It was first declared next to `stream_fs` inside
         # the connected session — an UnboundLocalError on every device that never reached the PMD path.)
@@ -537,6 +555,13 @@ async def run_polar(dev: dict, root: str):
                     if contact is not None:
                         _set(name, worn=contact,
                              last_error=None if contact else "not worn — no skin contact")
+                        # Timestamp the FIRST not-worn so the live loop can measure how long it has lasted.
+                        # Module-level + only-set-if-absent, so it PERSISTS across the duty-cycle reconnects
+                        # — otherwise each probe would restart the grace clock and never drop.
+                        if contact:
+                            _WORN_SINCE.pop(addr, None)
+                        elif addr not in _WORN_SINCE:
+                            _WORN_SINCE[addr] = _time.monotonic()
                     if rr:                        # raw RR intervals to the monitor (no HRV computed on-box)
                         BUS.push(_live_key("hr", tag), [float(x) for x in rr], 0)
                     if bpm:
@@ -672,6 +697,12 @@ async def run_polar(dev: dict, root: str):
                     secs += 1
                     if secs % 120 == 0:
                         await _read_batt()
+                    if should_drop_not_worn(_WORN_SINCE.get(addr), _time.monotonic(), _DROP_NOT_WORN_SEC):
+                        drop_for_power = True
+                        _set(name, last_error="not worn — link dropped to save battery (re-checking)")
+                        log.info("%s: not worn for %.0fs — dropping the link to save battery; "
+                                 "re-checking every %.0fs", name, _DROP_NOT_WORN_SEC, _NOT_WORN_RECHECK_S)
+                        break
         except Exception as e:
             _set(name, connected=False, last_error=repr(e))
             log.warning("%s link error: %r", name, e)
@@ -719,6 +750,12 @@ async def run_polar(dev: dict, root: str):
                 # Not a fault, so it must not ride the error backoff: recheck on a steady cadence so the
                 # streams come back on their own within a minute of the device leaving the charger.
                 await asyncio.sleep(CHARGE_RETRY_S)
+            elif drop_for_power:
+                # Dropped on purpose to save battery. Sleep the recheck interval, then reconnect: if it is
+                # worn again the session resumes; if not, on_hr reports not-worn immediately (contact is in
+                # every HR frame) and _WORN_SINCE is already old, so the live loop drops it again at once —
+                # a short probe, not a full grace period.
+                await asyncio.sleep(_NOT_WORN_RECHECK_S)
             else:
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 60)   # exponential backoff, capped
@@ -1452,6 +1489,12 @@ async def main():
     _rs = float(((cfg.get("o2ring") or {}).get("rtc_resync_sec")) or 0)
     if _rs > 0:
         _OXYII_RTC_RESYNC_SEC = _rs
+    global _DROP_NOT_WORN_SEC, _NOT_WORN_RECHECK_S
+    _pw = cfg.get("power") or {}
+    if "drop_not_worn_sec" in _pw:
+        _DROP_NOT_WORN_SEC = float(_pw["drop_not_worn_sec"])     # 0 disables
+    if float(_pw.get("not_worn_recheck_sec") or 0) > 0:
+        _NOT_WORN_RECHECK_S = float(_pw["not_worn_recheck_sec"])
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
     loop = asyncio.get_running_loop()
