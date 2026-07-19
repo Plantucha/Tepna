@@ -13999,6 +13999,31 @@
         T.approx('GluDisp.delta(−90) in mmol keeps the sign = −5.0', env.GluDisp.delta(-90), -5.0, 0.05);
         env.GluDisp.set('mgdl');
         T.eq('GluDisp.val(250) in mg/dL = identity 250 (metric default; no conversion at compute layer)', env.GluDisp.val(250), 250);
+
+        /* DEEP-AUDIT-II §5.3 — the "Largest drift" KPI printed the RAW mg/dL/day number under a
+           sub-label naming the DISPLAY unit, so in mmol/L mode it read 18.018× the "Drift /day"
+           column of the table directly beneath it: a KPI contradicting its own table. The two were
+           formatted at separate call sites and only one routed through the converter. GluDisp.drift()
+           now owns both, and the asymmetry it encodes is the load-bearing part — the VALUE converts,
+           the SEVERITY stays on raw mg/dL because the table rows grade on raw too. A "tidy-up" that
+           scaled the thresholds would fix the number and silently break the colour, so both
+           directions are pinned: 7.2 mg/dL/day grades the same in BOTH unit modes while its
+           displayed value changes, and the mmol NUMBER (0.4) must never be what gets graded. */
+        env.GluDisp.set('mmol');
+        var dMmol = env.GluDisp.drift(7.2);
+        T.approx('§5.3 · drift display converts in mmol: 7.2 mg/dL/day → 0.4 (the raw 7.2 was the 18× KPI)', dMmol.display, 0.4, 0.05);
+        T.eq('§5.3 · …while severity still grades the RAW mg/dL (7.2 ≥ 7 → bad, matching the table row)', dMmol.sev, 'bad');
+        env.GluDisp.set('mgdl');
+        var dMgdl = env.GluDisp.drift(7.2);
+        T.eq('§5.3 · in mg/dL the display is the identity 7.2 — KPI and table agree in both modes', dMgdl.display, 7.2);
+        T.eq('§5.3 · and severity is unit-independent by construction', dMgdl.sev, dMmol.sev);
+        T.eq('§5.3 · 4.0 mg/dL/day is warn (3 ≤ x < 7) — the band edge is not collapsed', env.GluDisp.drift(4).sev, 'warn');
+        T.eq('§5.3 · 2.9 is ok — grading the mmol NUMBER (0.16) instead would call every drift ok', env.GluDisp.drift(2.9).sev, 'ok');
+        env.GluDisp.set('mmol');
+        T.eq('§5.3 · …still ok in mmol mode: the RAW value is what is graded, not the display', env.GluDisp.drift(2.9).sev, 'ok');
+        T.eq('§5.3 · absent drift is neutral, not a fabricated 0-severity', env.GluDisp.drift(null).sev, 'neutral');
+        T.eq('§5.3 · absent drift has no display value', env.GluDisp.drift(null).display, null);
+        env.GluDisp.set('mgdl');
         // ── OxyDex mean-SpO₂ KPI color: ok≥95 / warn≥92 / bad (HIGH; a lowered cut paints a hypoxic night green) ──
         var oxKpiClass = function (mean) {
           var html = env.OxyDex.reviewView({ events: [], nights: [{ stats: { meanSpo2: mean, minSpo2: mean - 3 } }] }, [{ stats: { meanSpo2: mean, minSpo2: mean - 3 } }]);

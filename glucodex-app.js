@@ -545,7 +545,9 @@ import './glucodex-profile.js';
     } // only interesting across multiple wears
     card.style.display = 'block';
     const sc = r.sessionCorr || {};
-    const driftSev = (d) => (d == null ? 'neutral' : Math.abs(d) < 3 ? 'ok' : Math.abs(d) < 7 ? 'warn' : 'bad');
+    // DEEP-AUDIT-II §5.3 — single-sourced onto GluDisp.drift() so the KPI below and these rows
+    // cannot format the same quantity differently again (see the helper for the value/severity split).
+    const driftSev = (d) => window.GluDisp.drift(d).sev;
     const rows = ss
       .map(
         (s) => `<tr>
@@ -559,13 +561,14 @@ import './glucodex-profile.js';
       .join('');
     const medians = ss.map((s) => s.median).filter((v) => v != null);
     const spread = medians.length > 1 ? Math.max(...medians) - Math.min(...medians) : 0;
+    // `driftPerDay` is STORED mg/dL; GluDisp.drift() owns the display-vs-severity split (§5.3).
     const maxDrift = Math.max(...ss.map((s) => Math.abs(s.driftPerDay || 0)));
     $('sessionBody').innerHTML = `
     <div class="card-h" style="margin-bottom:10px">Sensor sessions &amp; drift <span style="font-size:11px;font-weight:500;color:var(--text3);margin-left:6px">${ss.length} wears detected · v1.2</span></div>
     <div class="q-grid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">
       <div class="q-stat"><div class="q-val neutral">${evBadge('Sessions')}${ss.length}</div><div class="q-lbl">Sessions</div><div class="q-sub">split on ≥90-min gaps / warm-ups</div></div>
       <div class="q-stat"><div class="q-val ${spread < 15 ? 'ok' : spread < 30 ? 'warn' : 'bad'}">${window.GluDisp.spread(spread)}<span style="font-size:12px;font-weight:600;color:var(--text3)"> ${window.GluDisp.label()}</span></div><div class="q-lbl">${evBadge('Between-session spread')}Between-session spread</div><div class="q-sub">range of session medians</div></div>
-      <div class="q-stat"><div class="q-val ${maxDrift < 3 ? 'ok' : maxDrift < 7 ? 'warn' : 'bad'}">${maxDrift.toFixed(1)}<span style="font-size:12px;font-weight:600;color:var(--text3)"> /day</span></div><div class="q-lbl">${evBadge('Largest drift')}Largest drift</div><div class="q-sub">${window.GluDisp.label()} per day, within a wear</div></div>
+      <div class="q-stat"><div class="q-val ${window.GluDisp.drift(maxDrift).sev}">${window.GluDisp.drift(maxDrift).display}<span style="font-size:12px;font-weight:600;color:var(--text3)"> /day</span></div><div class="q-lbl">${evBadge('Largest drift')}Largest drift</div><div class="q-sub">${window.GluDisp.label()} per day, within a wear</div></div>
     </div>
     <div class="tbl-wrap show" style="margin:10px 0"><table><thead><tr><th>Session</th><th>Dates</th><th>Length</th><th>Median</th><th>Drift /day</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="sess-toggles">
