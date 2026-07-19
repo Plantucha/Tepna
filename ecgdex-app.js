@@ -362,19 +362,32 @@ self.onmessage = async (e) => {
   // ════════════════════════════════════════════════════════════════════════
   function runPipeline(rec, primaryName) {
     try {
-      if (DEVICE_RR && !rec.deviceRR) rec.deviceRR = DEVICE_RR;
-      if (DEVICE_HR && !rec.deviceHR) rec.deviceHR = DEVICE_HR;
-      if (DEVICE_ACC && !rec.deviceACC) {
+      /* DEEP-AUDIT-II §10.4 — a parked companion belongs to ONE recording and is CONSUMED by it.
+         These slots were cleared only by resetAll(), and the multi-file queue drain never cleared
+         them between recordings — so once night A's companions were parked, night B inherited them
+         whenever B's own were absent. `deviceKey` cannot discriminate: it is POLAR_<model>_<id>, per
+         DEVICE, so two nights from the same H10 share it exactly. The decision now lives in the DSP
+         as a pure function (ECGDSP.planCompanionGraft) so it can be gated at all; this handler keeps
+         only the DOM-side work and the re-base, then releases whatever was taken. */
+      const _cg = DSP.planCompanionGraft({ deviceRR: DEVICE_RR, deviceHR: DEVICE_HR, deviceACC: DEVICE_ACC, accFs: ACC_FS }, rec);
+      if (_cg.graft.deviceRR) rec.deviceRR = _cg.graft.deviceRR;
+      if (_cg.graft.deviceHR) rec.deviceHR = _cg.graft.deviceHR;
+      if (_cg.graft.deviceACC) {
         // stampless ACC loaded before the ECG finished → re-base its relative clock onto this recording
-        if (DEVICE_ACC._relBase && rec.t0Ms != null) {
-          DEVICE_ACC.forEach((o) => {
+        if (_cg.graft.deviceACC._relBase && rec.t0Ms != null) {
+          _cg.graft.deviceACC.forEach((o) => {
             o.tsMs += rec.t0Ms;
           });
-          DEVICE_ACC._relBase = false;
+          _cg.graft.deviceACC._relBase = false;
         }
-        rec.deviceACC = DEVICE_ACC;
-        rec.accFs = ACC_FS;
+        rec.deviceACC = _cg.graft.deviceACC;
+        rec.accFs = _cg.graft.accFs;
       }
+      // …and release what this recording took, so the NEXT one cannot inherit it.
+      DEVICE_RR = _cg.remaining.deviceRR;
+      DEVICE_HR = _cg.remaining.deviceHR;
+      DEVICE_ACC = _cg.remaining.deviceACC;
+      ACC_FS = _cg.remaining.accFs;
       clearAlerts();
       setTimeout(() => {
         let r;
