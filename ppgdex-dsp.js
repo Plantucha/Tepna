@@ -305,6 +305,35 @@
       ns = std(noise) || 1e-6;
     return { snr: ps / ns, amp: ps };
   }
+  // ── DEGENERATE-CHANNEL GUARD (PPGDEX-MULTICHANNEL-FUSION §4, ENGINE-VERIFICATION §1.3) ──
+  //  Two analog photodiodes CANNOT produce bit-identical streams over a recording — even the
+  //  same LED sampled twice differs by ADC noise — so an identical pair is ONE sensor reported
+  //  twice. Returns the indices of the DISTINCT channels; the caller treats that count as the
+  //  real sensor count, so a replicated channel can never manufacture optical agreement.
+  //
+  //  Why "distinct count" and not "3 bit-identical": the capture host replicates the O2Ring's
+  //  single ~125.7 Hz finger pleth across ppg0/1/2 so it routes through the Polar PSL layout
+  //  with no new parser branch (capture.py). That is (v,v,v) → 1 distinct. But a pre-2026-07-18
+  //  capture also carried an extra `timestamp [ms]` column, shifting every index by one, so the
+  //  SAME ring reads as (ms-ramp, v, v) → 2 distinct. A 3-of-3 test would miss that second shape
+  //  and pass it as a legitimate 2-LED sensor — fabricating exactly the quality claim this guard
+  //  exists to prevent. Counting distinct channels fires on both, and on shapes nobody has met yet.
+  //    → array of indices into ch[], length 1..n, holding the FIRST occurrence of each distinct
+  //      stream (so a caller's reference index maps onto a channel that really exists).
+  function sameChannel(a, b) {
+    if (a === b) return true;
+    if (!a || !b || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+  }
+  function distinctChannelIdx(chans) {
+    const keep = [];
+    for (let c = 0; c < chans.length; c++) {
+      if (!keep.some((k) => sameChannel(chans[c], chans[k]))) keep.push(c);
+    }
+    return keep;
+  }
+
   function pickChannel(rec) {
     let best = 0,
       bestScore = -Infinity,
@@ -1610,9 +1639,22 @@
     // (the workers run detectChannel's own source). compute()/tests never set it, so this
     // in-thread detect is the numeric source of truth the gates verify.
     P(55, 'Optical beat detection · 3-LED (systolic feet)…');
-    const perChannel = rec._preChannels && rec._preChannels.length === rec.ch.length ? rec._preChannels : rec.ch.map((c) => detectChannel(c, rec.fs));
-    const bp = perChannel[sel.idx].bp; // reference-channel band-passed waveform
-    const cons = consensusBeats(perChannel, sel.idx, rec.fs);
+    const perChannelAll = rec._preChannels && rec._preChannels.length === rec.ch.length ? rec._preChannels : rec.ch.map((c) => detectChannel(c, rec.fs));
+    // Degenerate-channel guard: collapse bit-identical duplicates BEFORE the consensus vote, so a
+    // replicated single-sensor stream (the O2Ring finger pleth) takes consensusBeats' honest
+    // `nCh < 2` path — beats pass through, agreement reports null — instead of voting with itself
+    // and scoring a structurally-guaranteed 100%. Genuine 3-LED Verity captures are untouched
+    // (three real photodiodes are never bit-identical), so this is export-inert for them.
+    const keepIdx = distinctChannelIdx(rec.ch);
+    const perChannel = keepIdx.map((c) => perChannelAll[c]);
+    // remap the reference channel onto the deduped set; if the best-SNR channel was itself a
+    // duplicate, its first occurrence carries the identical waveform, so the reference is preserved.
+    const refIdx = Math.max(
+      0,
+      keepIdx.findIndex((c) => sameChannel(rec.ch[c], rec.ch[sel.idx]))
+    );
+    const bp = perChannel[refIdx].bp; // reference-channel band-passed waveform
+    const cons = consensusBeats(perChannel, refIdx, rec.fs);
     const det = { peaks: cons.peaks, feet: cons.feet, T: 0 };
 
     P(62, 'Motion gate (ACC + GYRO)…');
@@ -2214,6 +2256,7 @@
     detectBeats,
     detectChannel,
     consensusBeats,
+    distinctChannelIdx,
     refineFeet,
     detectChannelsAsync,
     buildPPI,

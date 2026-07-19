@@ -1,5 +1,13 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-18
+**Status:** IN-PROGRESS — 2026-07-18 (**§4 Phase 3 — the degenerate-channel guard — EXECUTED** ahead of
+Phases 1–2, because it is the honesty half and was fixing a live defect: the capture host replicates the
+O2Ring's single finger pleth across `ppg0/1/2`, so `ledAgreementPct` reported a structurally-guaranteed
+`100` at `measured` tier. `analyze` now dedupes bit-identical channels before the consensus vote and takes
+the honest `nCh < 2` path at one distinct channel. Both directions mutation-verified; the real-corpus
+PpgDex equiv fixture reproduced byte-identical, so genuine Verity captures are provably untouched.
+**Phases 1, 2 and 4 — ambient subtraction, linear combining, per-channel reporting — remain unexecuted**,
+and §0's line refs still need re-locating against PR #218's `parsePPG` rewrite. One residue surfaced while
+executing: see §4's *middle-case residue* note.) · **Created:** 2026-07-18
 
 # PpgDex: stop *selecting* a channel and start *combining* them (Verity 3-LED + ambient)
 
@@ -156,6 +164,19 @@ today's O2Ring instance, and needs no lockstep change in `capture-host/`.
 
 Covariance is also degenerate for identical channels (rank 1) — the guard must run **before** the
 eigensolve, and the fused signal for a single channel is just that channel.
+
+> **Middle-case residue (found executing this section, 2026-07-18 — NOT closed).** The guard as specified
+> makes `(ramp, v, v)` report **2 distinct**, which satisfies the stated goal (it is no longer claimed as a
+> 3-LED sensor). But the resulting 2-channel vote is between a monotonic ramp and a real pleth, and measured
+> end-to-end it yields **`ledAgreementPct: 100` over 25 beats** (vs 188 beats at 67 % before the guard) —
+> the ramp's detector fires spuriously near a handful of real beats and those coincidences read as unanimity.
+> So the *agreement number* for this shape got worse even as the *sensor count* got honest; what makes it
+> visible is the beat-count collapse and the cratered coverage, not the agreement field.
+> This is bounded in practice — PR #218's header-driven column resolution means this shape should only arise
+> from pre-2026-07-18 captures or an unanticipated layout — and fixing it properly needs a *plausibility*
+> test ("is this channel even a photodiode trace?", e.g. reject a monotonic/near-zero-variance-in-band
+> channel), which is a different heuristic from bit-identity and was deliberately **not** invented here.
+> Either add that test as its own gated item, or accept it and document the shape as coverage-detectable.
 
 ## 5 · Phase 4 — per-channel reporting (additive, no behavior change)
 
