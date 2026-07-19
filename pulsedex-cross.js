@@ -225,27 +225,37 @@
     };
   }
 
+  // ENVELOPE-FOLLOWUPS-V §2: each metric self-describes its `evidence` tier (sourced from
+  // pulsedex-registry.js) so the Integrator Longitudinal view BADGES the crossnight trend/coupling
+  // cards (evBadge reads metrics{}.evidence; an ungraded metric renders unbadged — a COVERAGE-MANDATE
+  // gap). Tiers mirror the registry exactly: rMSSD/SDNN/ln rMSSD/Baevsky SI validated · Pulse HR
+  // measured · DFA α1 emerging · Stress/HRV Score experimental.
+  // REGISTRY-PROJECTION Phase 2 (array-node residue): hoisted to module scope + exported as PULSE_DEFS
+  // below so `registry-defs-parity` can gate it against PULSE_REGISTRY. It was function-local, which is
+  // why that gate could only ⊘ SKIP. Read-only here — CrossNightEnvelope.build never mutates it.
+  const METRICS = [
+    { id: 'rmssd', label: 'rMSSD', unit: 'ms', goodDirection: 'up', evidence: 'validated', get: (s) => s.dispRm },
+    { id: 'sdnn', label: 'SDNN', unit: 'ms', goodDirection: 'up', evidence: 'validated', get: (s) => s.dispSd },
+    { id: 'lnRMSSD', label: 'ln rMSSD', unit: '', goodDirection: 'up', evidence: 'validated', get: (s) => s.lnrmssd },
+    { id: 'hr', label: 'Pulse HR', unit: 'bpm', goodDirection: 'down', evidence: 'measured', get: (s) => s.dispHr },
+    { id: 'stress', label: 'Stress', unit: '', goodDirection: 'down', evidence: 'experimental', get: (s) => s.stress },
+    { id: 'hrvScore', label: 'HRV Score', unit: '', goodDirection: 'up', evidence: 'experimental', get: (s) => s.hrv },
+    { id: 'dfaAlpha1', label: 'DFA α1', unit: '', goodDirection: 'up', evidence: 'emerging', get: (s) => s.dfa1 },
+    { id: 'si', label: 'Baevsky SI', unit: '', goodDirection: 'down', evidence: 'validated', get: (s) => s.si }
+  ];
+  // id-keyed projection of METRICS — the shape `registry-defs-parity` reads (it iterates Object.keys and
+  // falls back to REG[defId] when idForLabel misses). Same objects, no second source of truth.
+  const PULSE_DEFS = METRICS.reduce((o, m) => {
+    o[m.id] = m;
+    return o;
+  }, {});
+
   // build the cross-recording EXPORT block from a list of PulseDex result objects.
   // Standardized ganglior.crossnight v1.0 via the shared CrossNightEnvelope.build
   // (shape only) — MATH is PulseDex's local crossNight(). Falls back to a legacy
   // shape if the shared builder isn't bundled. `unit:'recording'` (PulseDex sessions
   // are daily readings / overnight files, not strictly nights).
   function crossNightBlock(list) {
-    // ENVELOPE-FOLLOWUPS-V §2: each metric self-describes its `evidence` tier (sourced from
-    // pulsedex-registry.js) so the Integrator Longitudinal view BADGES the crossnight trend/coupling
-    // cards (evBadge reads metrics{}.evidence; an ungraded metric renders unbadged — a COVERAGE-MANDATE
-    // gap). Tiers mirror the registry exactly: rMSSD/SDNN/ln rMSSD/Baevsky SI validated · Pulse HR
-    // measured · DFA α1 emerging · Stress/HRV Score experimental.
-    const METRICS = [
-      { id: 'rmssd', label: 'rMSSD', unit: 'ms', goodDirection: 'up', evidence: 'validated', get: (s) => s.dispRm },
-      { id: 'sdnn', label: 'SDNN', unit: 'ms', goodDirection: 'up', evidence: 'validated', get: (s) => s.dispSd },
-      { id: 'lnRMSSD', label: 'ln rMSSD', unit: '', goodDirection: 'up', evidence: 'validated', get: (s) => s.lnrmssd },
-      { id: 'hr', label: 'Pulse HR', unit: 'bpm', goodDirection: 'down', evidence: 'measured', get: (s) => s.dispHr },
-      { id: 'stress', label: 'Stress', unit: '', goodDirection: 'down', evidence: 'experimental', get: (s) => s.stress },
-      { id: 'hrvScore', label: 'HRV Score', unit: '', goodDirection: 'up', evidence: 'experimental', get: (s) => s.hrv },
-      { id: 'dfaAlpha1', label: 'DFA α1', unit: '', goodDirection: 'up', evidence: 'emerging', get: (s) => s.dfa1 },
-      { id: 'si', label: 'Baevsky SI', unit: '', goodDirection: 'down', evidence: 'validated', get: (s) => s.si }
-    ];
     if (window.CrossNightEnvelope) {
       return window.CrossNightEnvelope.build({
         node: 'PulseDex',
@@ -269,5 +279,5 @@
     return out;
   }
 
-  global.PulseCross = { crossNight, crossNightBlock, ols, mannKendall, bootstrapDeltaCI };
+  global.PulseCross = { crossNight, crossNightBlock, ols, mannKendall, bootstrapDeltaCI, METRICS, PULSE_DEFS };
 })(window);

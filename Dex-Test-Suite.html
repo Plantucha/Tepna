@@ -165,6 +165,10 @@
 <!-- shared file-ingest classifiers — load BEFORE signal-orchestrate (§1 ECG-INGEST-FOLLOWUPS-II: pairCompanions consults DexIngest.deviceKey/foreignVendor) -->
 <script src="dex-ingest.js"></script>
 <script src="event-coupling.js"></script>
+<script src="pat-gate.js"></script>
+<!-- shared GATE-A/GATE-B core (manifestHash/computeHash) — the same module verify-provenance.html loads;
+     without it the FIXTURE-VERIFICATION-GATE legs silently ⊘ in this lane instead of running -->
+<script src="manifest-gate.js"></script>
 <!-- shared node orchestration (live object for the generic emit gate) + the co-load manifest (§10/§5) -->
 <script src="signal-orchestrate.js"></script>
 <script src="dex-coload.js"></script>
@@ -179,7 +183,7 @@ const FIXTURE_FILES = {
 };
 const SOURCE_FILES = ['clock.js','oxydex-util.js','pulsedex-dsp.js','oxydex-dsp.js','hrvdex-dsp.js','integrator-dsp.js','integrator-tch.js','integrator-app.js','integrator-render.js','ppgdex-dsp.js','glucodex-dsp.js','ecgdex-dsp.js','qrs-equiv-worker.js','qrs-yield-worker.js',
   'ecgdex-cross.js','oxydex-cross.js','pulsedex-cross.js','ppgdex-cross.js',
-  'crossnight-envelope.js','ecgdex-app.js','ppgdex-app.js','pulsedex-app.js','pulsedex-render.js','hrvdex-app.js','oxydex-app.js','oxydex-render.js','oxydex-fusion.js','dex-escape.js','dex-forget.js','dex-actions.js','dex-profile.js','sensor-trio-worker.js','sensor-trio-power-analysis.js','sensor-trio-gpu.js','hrvdex-render.js','signal-orchestrate.js','dex-ingest.js',
+  'crossnight-envelope.js','ecgdex-app.js','ppgdex-app.js','pulsedex-app.js','pulsedex-render.js','hrvdex-app.js','oxydex-app.js','oxydex-render.js','oxydex-fusion.js','dex-escape.js','dex-forget.js','dex-actions.js','dex-profile.js','sensor-trio-worker.js','sensor-trio-power-analysis.js','sensor-trio-gpu.js','hrvdex-render.js','pat-gate.js','manifest-gate.js','tools/build.mjs','tools/verify-fixtures.mjs','signal-orchestrate.js','dex-ingest.js',
   'cpapdex-dsp.js','cpapdex-cross.js','cpapdex-edf.js','cpapdex-app.js','cpapdex-fusion.js','ecgdex-morph.js','ppgdex-morph.js','dex-export.js',
   'ganglior-provenance.js','signal-frame.js','glucodex-render.js','glucodex-app.js',
   'cpapdex-render.js','pulsedex-overview.js','ecgdex-profile.js','glucodex-profile.js','ppgdex-profile.js',
@@ -455,6 +459,29 @@ async function main(){
     if (manifestText && sitemapText) discoverability = { manifestText, sitemapText };
   } catch(e) { /* absent → group skips */ }
 
+  // FIXTURE-VERIFICATION-GATE §1 probe — mirrors run-tests.mjs readComputeHashProbe() byte-for-byte.
+  // Pure: it hashes three synthetic in-memory bundles (no fetch, no fs), so the browser can prove the
+  // same thing the Node lane does — a RENDER-only edit moves manifestHash but leaves computeHash stable
+  // ("export-inert" PROVEN), while a DSP edit moves both. The assert harness is synchronous, so the
+  // probe is computed HERE, up-front, and the group asserts the result. null → that group SKIPs.
+  let _computeHashProbe = null;
+  try {
+    const MG = window.ManifestGate;
+    if (MG && typeof MG.computeHashFromText === 'function') {
+      const mk = (dsp, render) =>
+        '<script data-inline-src="kernel-constants.js">var K=1;<\/script>' +
+        `<script data-inline-src="glucodex-dsp.js">${dsp}<\/script>` +
+        `<script data-inline-src="glucodex-render.js">${render}<\/script>` +
+        '<style data-inline-src="ans-design.css">body{}<\/style>';
+      const of = async (text) => ({ m: await MG.manifestHashFromText(text), c: await MG.computeHashFromText(text) });
+      _computeHashProbe = {
+        base: await of(mk('compute(1)', 'paint(1)')),
+        render: await of(mk('compute(1)', 'paint(2)')), // display-only edit
+        dsp: await of(mk('compute(2)', 'paint(1)'))     // compute-path edit
+      };
+    }
+  } catch(e) { /* probe unavailable → group skips */ }
+
   const env = {
     DexKernel: window.DexKernel,
     MetricRegistry: window.MetricRegistry,
@@ -528,6 +555,9 @@ async function main(){
     DexCoload: window.DexCoload,
     DexIngest: window.DexIngest,
     EventCoupling: window.EventCoupling,
+    PATGate: window.PATGate,
+    ManifestGate: window.ManifestGate,
+    computeHashProbe: _computeHashProbe,
     pickProvenanceBanner: window.pickProvenanceBanner,
     docs, hosts, manifests, docsLedger, releaseLedger, discoverability,
     srcHtml, bundleCsp,

@@ -14793,7 +14793,13 @@
       var NODES = [
         { node: 'OxyDex', cross: env.OXYCross, resolver: env.OxyRegistry, defsKey: 'OXY_DEFS' },
         { node: 'PpgDex', cross: env.PPGCross, resolver: env.PpgRegistry, defsKey: 'PPG_DEFS' },
-        { node: 'CPAPDex', cross: env.CPAPCross, resolver: env.CpapRegistry, defsKey: 'CPAP_DEFS' }
+        { node: 'CPAPDex', cross: env.CPAPCross, resolver: env.CpapRegistry, defsKey: 'CPAP_DEFS' },
+        // REGISTRY-PROJECTION Phase 2 residue: ECGDex/PulseDex carried their metric defs as a
+        // function-local METRICS[] literal, un-exported, so this gate could only ⊘ SKIP them. Both
+        // cross files now hoist METRICS to module scope and export an id-keyed ECG_DEFS/PULSE_DEFS
+        // projection of it — the same shape the object-DEFS nodes above use, so they gate identically.
+        { node: 'ECGDex', cross: env.ECGCross, resolver: env.EcgRegistry, defsKey: 'ECG_DEFS' },
+        { node: 'PulseDex', cross: env.PulseCross, resolver: env.PulseRegistry, defsKey: 'PULSE_DEFS' }
       ];
       var covered = false;
       NODES.forEach(function (N) {
@@ -14848,10 +14854,12 @@
       Object.keys(KNOWN_DRIFT).forEach(function (k) {
         T.ok('KNOWN_DRIFT still applies: ' + k, !!hit[k], hit[k] ? '' : 'baseline entry no longer drifts — remove it from KNOWN_DRIFT');
       });
-      // ECGDex/PulseDex carry their metric defs as an un-exported METRICS[] literal used inside
-      // crossNightBlock (not on the cross export surface), so they can't be gated without a source
-      // change → re-bundle. Recorded deferred (REGISTRY-PROJECTION Phase 2 can export METRICS[]).
-      T.skip('ECGDex/PulseDex METRICS[] parity', 'METRICS[] not exported on ECGCross/PulseCross — deferred to Phase 2 (needs a cross-file export change → re-bundle)');
+      // ECGDex/PulseDex are now first-class NODES entries above (their METRICS[] is exported as an
+      // id-keyed DEFS projection), so their parity is HARD-GATED like every other node — no skip.
+      // Assert the export surface itself so a future refactor that un-exports it REDS instead of
+      // silently draining this gate back to the vacuous pass it used to be.
+      T.ok('ECGCross exports METRICS[] + ECG_DEFS', !!(env.ECGCross && Array.isArray(env.ECGCross.METRICS) && env.ECGCross.ECG_DEFS), 'ECGCross must expose its crossnight metric defs for parity gating');
+      T.ok('PulseCross exports METRICS[] + PULSE_DEFS', !!(env.PulseCross && Array.isArray(env.PulseCross.METRICS) && env.PulseCross.PULSE_DEFS), 'PulseCross must expose its crossnight metric defs for parity gating');
     });
 
     /* ════ Integrator evidence-grade mirror ≡ node registries ════

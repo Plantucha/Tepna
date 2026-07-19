@@ -239,6 +239,32 @@
     const d = new Date(ms);
     return fmtDateUTC(ms) + ' ' + _p2(d.getUTCHours()) + ':' + _p2(d.getUTCMinutes());
   }
+  const qtcOf = (s) => (s.morph && s.morph.delin && s.morph.delin.valid ? s.morph.delin.qtcBazett : null);
+  // ENVELOPE-FOLLOWUPS-V §2: each metric self-describes its `evidence` tier (sourced from
+  // ecgdex-registry.js) so the Integrator Longitudinal view BADGES the crossnight trend/coupling
+  // cards (evBadge reads metrics{}.evidence; an ungraded metric renders unbadged — a COVERAGE-MANDATE
+  // gap). Tiers mirror the registry exactly: rMSSD/SDNN/ln rMSSD/QTc validated · Mean HR measured ·
+  // DFA α1/CVHR index/Decel. capacity emerging.
+  // REGISTRY-PROJECTION Phase 2 (array-node residue): hoisted to module scope + exported as ECG_DEFS
+  // below so `registry-defs-parity` can gate it against ECG_REGISTRY. It was function-local, which is
+  // why that gate could only ⊘ SKIP. Read-only here — CrossNightEnvelope.build never mutates it.
+  const METRICS = [
+    { id: 'rmssd', label: 'rMSSD', unit: 'ms', goodDirection: 'up', evidence: 'validated', get: (s) => s.dispRm },
+    { id: 'sdnn', label: 'SDNN', unit: 'ms', goodDirection: 'up', evidence: 'validated', get: (s) => s.dispSd },
+    { id: 'lnRMSSD', label: 'ln rMSSD', unit: '', goodDirection: 'up', evidence: 'validated', get: (s) => s.lnrmssd },
+    { id: 'hr', label: 'Mean HR', unit: 'bpm', goodDirection: 'down', evidence: 'measured', get: (s) => s.dispHr },
+    { id: 'dfaAlpha1', label: 'DFA α1', unit: '', goodDirection: 'up', evidence: 'emerging', get: (s) => s.dfa1 },
+    { id: 'qtc', label: 'QTc', unit: 'ms', goodDirection: 'down', evidence: 'validated', get: qtcOf },
+    { id: 'cvhrIndex', label: 'CVHR index', unit: '/h', goodDirection: 'down', evidence: 'emerging', get: (s) => (s.longRec && !s.ambulatory ? s.cvhr.index : null) },
+    { id: 'decelCapacity', label: 'Decel. capacity', unit: 'ms', goodDirection: 'up', evidence: 'emerging', get: (s) => s.dc }
+  ];
+  // id-keyed projection of METRICS — the shape `registry-defs-parity` reads (it iterates Object.keys and
+  // falls back to REG[defId] when idForLabel misses). Same objects, no second source of truth.
+  const ECG_DEFS = METRICS.reduce((o, m) => {
+    o[m.id] = m;
+    return o;
+  }, {});
+
   // build the cross-night EXPORT block from a list of ECGDex result objects.
   // MIGRATED to the standardized ganglior.crossnight v1.0 envelope via the shared
   // CrossNightEnvelope.build (shape only). The MATH is still ECGDex's local
@@ -246,22 +272,6 @@
   // Falls back to the legacy {doc,metrics,nights} block if the shared builder
   // isn't present (e.g. a partial bundle).
   function crossNightBlock(list) {
-    const qtcOf = (s) => (s.morph && s.morph.delin && s.morph.delin.valid ? s.morph.delin.qtcBazett : null);
-    // ENVELOPE-FOLLOWUPS-V §2: each metric self-describes its `evidence` tier (sourced from
-    // ecgdex-registry.js) so the Integrator Longitudinal view BADGES the crossnight trend/coupling
-    // cards (evBadge reads metrics{}.evidence; an ungraded metric renders unbadged — a COVERAGE-MANDATE
-    // gap). Tiers mirror the registry exactly: rMSSD/SDNN/ln rMSSD/QTc validated · Mean HR measured ·
-    // DFA α1/CVHR index/Decel. capacity emerging.
-    const METRICS = [
-      { id: 'rmssd', label: 'rMSSD', unit: 'ms', goodDirection: 'up', evidence: 'validated', get: (s) => s.dispRm },
-      { id: 'sdnn', label: 'SDNN', unit: 'ms', goodDirection: 'up', evidence: 'validated', get: (s) => s.dispSd },
-      { id: 'lnRMSSD', label: 'ln rMSSD', unit: '', goodDirection: 'up', evidence: 'validated', get: (s) => s.lnrmssd },
-      { id: 'hr', label: 'Mean HR', unit: 'bpm', goodDirection: 'down', evidence: 'measured', get: (s) => s.dispHr },
-      { id: 'dfaAlpha1', label: 'DFA α1', unit: '', goodDirection: 'up', evidence: 'emerging', get: (s) => s.dfa1 },
-      { id: 'qtc', label: 'QTc', unit: 'ms', goodDirection: 'down', evidence: 'validated', get: qtcOf },
-      { id: 'cvhrIndex', label: 'CVHR index', unit: '/h', goodDirection: 'down', evidence: 'emerging', get: (s) => (s.longRec && !s.ambulatory ? s.cvhr.index : null) },
-      { id: 'decelCapacity', label: 'Decel. capacity', unit: 'ms', goodDirection: 'up', evidence: 'emerging', get: (s) => s.dc }
-    ];
     if (global.CrossNightEnvelope) {
       return global.CrossNightEnvelope.build({
         node: 'ECGDex',
@@ -286,5 +296,5 @@
     return out;
   }
 
-  global.ECGCross = { crossNight, crossNightBlock, ols, mannKendall, bootstrapDeltaCI, fmtDateUTC, fmtDateTimeUTC };
+  global.ECGCross = { crossNight, crossNightBlock, ols, mannKendall, bootstrapDeltaCI, fmtDateUTC, fmtDateTimeUTC, METRICS, ECG_DEFS };
 })(window);
