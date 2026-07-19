@@ -55,7 +55,14 @@
     if (json && json.schema && json.schema.name === 'ganglior.node-export' && window.CrossNightEnvelope && CrossNightEnvelope.validateNodeExport) {
       try {
         var vr = CrossNightEnvelope.validateNodeExport(json);
-        vr.errors.forEach(function (e) {
+        // DEEP-AUDIT-II §8.1 — surface the WARNINGS too, not just the errors. They were computed and
+        // thrown away, and one of them ('no ganglior_events[] — nothing to fuse') fires on exactly
+        // the multi-record wrapper whose events were being silently dropped. Shown, it would have
+        // announced the defect the first time a batched export was loaded, instead of the file
+        // presenting as "no findings". Independent of the carrier-key fix in normalizeFile: this
+        // describes what the FILE looks like, so it still speaks up if a future wrapper spelling
+        // slips past MULTI_CARRIERS. Advisory — never blocks ingest.
+        vr.errors.concat(vr.warnings).forEach(function (e) {
           WARN.push((filename || (json.schema && json.schema.node) || 'export') + ' — ' + e);
         });
       } catch (_) {}

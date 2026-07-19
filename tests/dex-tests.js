@@ -3919,6 +3919,80 @@
           blk.note
         );
       }
+
+      /* ── DEEP-AUDIT-II §8.1 · a MULTI-RECORD wrapper must not swallow its events ────────────────
+         The Integrator unwrapped exactly ONE wrapper spelling — `nights[]` + `schema.multiNight` —
+         because the comment's "generically" meant any NODE, not any CARRIER KEY. The three
+         raw-waveform nodes batch differently: ECGDex and PulseDex emit `recordings[]` +
+         `multiRecording`, PpgDex emits `sessions[]` + `multiSession`. All three fell through to the
+         flat envelope adapter, which then read the WRAPPER's own (empty) envelope — so every event
+         in a batched ECG / PPG / RR export was dropped with ZERO warnings, while the longitudinal
+         trends still rendered and confirmed "the file loaded". The `Unknown`-only skip notice cannot
+         fire for a recognized node, which is exactly what made the loss silent.
+         Driven through normalizeFile(), the entry point the app uses. Each spelling is asserted
+         SEPARATELY: a fix that special-cased one key would leave the other two dropping events, and
+         one combined assertion could not tell those cases apart. */
+      var mkMulti = function (node, flag, key) {
+        var wrap = { schema: { name: 'ganglior.node-export', node: node, version: '2.0' } };
+        wrap.schema[flag] = true;
+        wrap[key] = [
+          { schema: { name: 'ganglior.node-export', node: node }, recording: { startEpochMs: t0 }, ganglior_events: mkEvents(2, 'autonomic_surge', node) },
+          { schema: { name: 'ganglior.node-export', node: node }, recording: { startEpochMs: t0 + 86400000 }, ganglior_events: mkEvents(3, 'autonomic_surge', node) }
+        ];
+        return wrap;
+      };
+      var evCount = function (res) {
+        return (res.recs || []).reduce(function (n, r) {
+          return n + ((r.events && r.events.length) || 0);
+        }, 0);
+      };
+      [
+        ['ECGDex', 'multiRecording', 'recordings'],
+        ['PulseDex', 'multiRecording', 'recordings'],
+        ['PpgDex', 'multiSession', 'sessions'],
+        ['OxyDex', 'multiNight', 'nights']
+      ].forEach(function (c) {
+        var res = NF(mkMulti(c[0], c[1], c[2]), c[0] + '_multi.json');
+        T.eq('§8.1 · ' + c[0] + ' ' + c[2] + '[] + ' + c[1] + ' → both records unwrapped', (res.recs || []).length, 2);
+        T.eq('§8.1 · …and all 5 ' + c[0] + ' events survive (they were silently dropped to 0)', evCount(res), 5);
+      });
+      /* A wrapper spelling the table does NOT know still falls through to the flat envelope adapter
+         and yields one EMPTY record — the residual limitation, recorded rather than papered over:
+         MULTI_CARRIERS only knows the three spellings that exist today. What must NOT survive is the
+         SILENCE. `validateNodeExport` already computes 'no ganglior_events[] — nothing to fuse' for
+         exactly this shape, and integrator-app.js was discarding its warnings; surfacing them is the
+         independent mitigation, so a future fourth spelling announces itself instead of presenting
+         as "this file has no findings". That is the half of §8.1 that survives a wrong carrier table. */
+      var futureWrap = { schema: { name: 'ganglior.node-export', node: 'ECGDex', version: '2.0', multiEpisode: true }, episodes: [{ schema: { node: 'ECGDex' }, ganglior_events: mkEvents(2, 'autonomic_surge', 'ECGDex') }] };
+      var unk = NF(futureWrap, 'future_wrapper.json');
+      T.eq('§8.1 · an UNKNOWN wrapper spelling still contributes 0 events (the residual limit)', evCount(unk), 0);
+      var CNE = env.CrossNightEnvelope;
+      if (!CNE || typeof CNE.validateNodeExport !== 'function') {
+        T.skip('§8.1 · …but validateNodeExport flags it as having nothing to fuse', 'env.CrossNightEnvelope not wired');
+      } else {
+        var vw = CNE.validateNodeExport(futureWrap).warnings || [];
+        T.ok(
+          '§8.1 · …but validateNodeExport WARNS "nothing to fuse" — the mitigation that breaks the silence',
+          vw.some(function (w) {
+            return /nothing to fuse/i.test(w);
+          }),
+          vw.join(' | ') || '(no warnings)'
+        );
+        // Computing the warning is worthless if the app throws it away — which is what it did.
+        // The consumer is a DOM-mutating app function with no headless seam, so this leg checks the
+        // WIRING at the source: integrator-app must push vr.warnings, not just vr.errors. Narrow and
+        // explicit, and it reds on the exact one-line revert that reintroduces the silence.
+        var iaSrc = (env.sources || {})['integrator-app.js'];
+        if (iaSrc == null) {
+          T.skip('§8.1 · integrator-app surfaces validateNodeExport warnings', 'integrator-app.js not in env.sources');
+        } else {
+          T.ok(
+            '§8.1 · integrator-app surfaces vr.warnings, not only vr.errors (computing it and discarding it is how it stayed silent)',
+            /vr\.errors\s*\.concat\(\s*vr\.warnings\s*\)/.test(iaSrc),
+            'integrator-app.js must forward validateNodeExport warnings into WARN'
+          );
+        }
+      }
     });
 
     /* DEEP-AUDIT-2026-07-11 §17–§21 — the hygiene tier. Each is small; each shipped a number or a
