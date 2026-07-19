@@ -681,7 +681,20 @@
     if (valid === 0 || coverage < OXI.COVERAGE_FLOOR)
       return { available: false, reason: valid === 0 ? 'oximeter-not-connected' : 'low-coverage', coverage: +coverage.toFixed(3), validSamples: valid, totalSamples: n };
 
-    var hours = (durSec || n) / 3600;
+    /* DEEP-AUDIT-II §6.2 — ODI must be rated over the time the OXIMETER could actually see, not the
+       whole therapy span. `valid` and `coverage` are computed six lines above and were then not used
+       for the rate: `hours` was the full session duration, so every invalid sample (finger off, probe
+       off, dropout) still bought denominator. With COVERAGE_FLOOR at 0.5 a night is admitted with half
+       its samples unusable, so the understatement reaches exactly 2×.
+       The field was literally named `analyzedHours` while carrying the UNanalyzed total, and the same
+       object was internally inconsistent: `t90Pct` below already divides by `vArr.length` — valid
+       samples only — so T90 and ODI on one lane sat on different denominators.
+       Scale the span by the valid fraction: under a uniform sample period `valid × (span/n)` IS the
+       analyzable time. The same correction OxyDex §5 already ratified for the ODI family. It carries
+       correctly into the pooled indices (cpapdex-cross / cpapdex-fusion sum `analyzedHours` as the
+       pooled denominator — you pool a numerator and a denominator, never rates). */
+    var spanSec = durSec || n;
+    var hours = n > 0 ? (valid * (spanSec / n)) / 3600 : 0;
     var events = detectDesats(spo2, OXI.DROP);
     events.forEach(function (ev) {
       selfGateDesat(ev, pulse, spo2);
