@@ -8,7 +8,10 @@
 // ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
 // _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
 // runs on this page; every DSP helper this module uses is named here, import-style).
-const { parseTimestamp, nu } = window.PulseDex._bare;
+const { parseTimestamp, nu, triIdxGrade } = window.PulseDex._bare;
+// This surface spells the OK band 'good'; the shared owner returns the fleet 'ok'. Adapt the
+// vocabulary here rather than re-deriving the cut-points, so there is still exactly one decision.
+const _triCls = (g) => (g === 'ok' ? 'good' : g);
 
 // ── profile inputs ───────────────────────────────────────────────────────────
 function pxProfile() {
@@ -259,7 +262,7 @@ function renderHrvBenchPx(r) {
     `</div>` +
     `<div class="proj-extra">` +
     st('Mean HR', hr != null && !isNaN(hr) ? Math.round(hr) : null, 'bpm', 'good') +
-    st('Tri Index', tri, '', tri >= 15 ? 'good' : tri >= 9 ? 'warn' : 'bad') +
+    st('Tri Index', tri, '', _triCls(triIdxGrade(tri, r.triIdxSpanMin))) +
     `</div>` +
     `<div class="proj-subline" style="margin-top:auto;opacity:.8">Validated time-domain HRV — RMSSD · SDNN · pNN50 (Task Force 1996). The reference-grade autonomic summary for this reading.</div>` +
     `</div>`;
@@ -469,7 +472,7 @@ function renderKpiGridPx(r) {
     { l: 'EFC Ready', v: r.efc, s: 'readiness 0–100', c: r.efc > 60 ? 'good' : r.efc > 40 ? 'warn' : 'bad' },
     { l: 'DFA α1', v: r.dfa1 == null ? '—' : r.dfa1, s: 'fractal scaling', c: r.dfa1 == null ? 'neutral' : r.dfa1 >= 0.9 && r.dfa1 <= 1.2 ? 'good' : r.dfa1 < 0.75 || r.dfa1 > 1.5 ? 'bad' : 'warn' },
     { l: 'SampEn', v: r.sampen == null ? '—' : r.sampen, s: 'complexity', c: r.sampen == null ? 'neutral' : r.sampen >= 1 ? 'good' : r.sampen >= 0.6 ? 'warn' : 'bad' },
-    { l: 'Tri Index', v: r.triIdx, s: 'geometric HRV', c: r.triIdx >= 15 ? 'good' : r.triIdx >= 9 ? 'warn' : 'bad' },
+    { l: 'Tri Index', v: r.triIdx, s: r.triIdxNorm === true ? 'geometric HRV' : 'geometric HRV · span < 20 min, ungraded', c: _triCls(triIdxGrade(r.triIdx, r.triIdxSpanMin)) },
     { l: 'Decel Cap', v: r.dc == null ? '—' : r.dc, s: 'ms · vagal', c: r.dc == null ? 'neutral' : r.dc >= 4.5 ? 'good' : r.dc >= 2.5 ? 'warn' : 'bad', u: 'ms' },
     { l: 'Resp Rate', v: r.respRate, s: 'br/min (RSA)', c: r.respRate >= 10 && r.respRate <= 20 ? 'good' : 'warn' },
     { l: 'pNN50', v: (r.longRec ? r.dispPn : r.pnn50) + '', s: 'beat-pair %', c: (r.longRec ? r.dispPn : r.pnn50) >= 15 ? 'good' : (r.longRec ? r.dispPn : r.pnn50) >= 5 ? 'warn' : 'bad', u: '%' },

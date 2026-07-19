@@ -3252,6 +3252,103 @@
      are resolved by HEADER NAME, falling back to the numeric TAIL (correct for both shapes, since
      XYZ/channels are always last). Locks BOTH layouts, because fixing one by breaking the other is
      the obvious wrong turn. ════ */
+
+  /* ════ DEEP-AUDIT-II §3.4 · §7.7 · §7.8 — a norm is scoped to the recording it was derived from ════
+     Three defects, one theme: a claim surfaced beyond the conditions that license it.
+       §3.4  Tri Index graded against ≥15 — the Task Force 1996 24 h Holter cutoff — at ANY duration.
+       §7.7  effort-present % rendered under the 'Effort amplitude' label, in that label's unit context.
+       §7.8  MotionDex's badge helper passed fallback=false (fleet-unique), so an unresolved label
+             rendered the number UNBADGED instead of falling back to a hollow EXPERIMENTAL disc.
+     ════ */
+  group('Tri Index carries its duration precondition; MotionDex badges fail CLOSED', 'pulsedex-dsp · motiondex-registry · motiondex-render', function (T) {
+    var P = env.PULSEDSP || env.PulseDex;
+    var g = P && (P.triIdxGrade || (P._bare && P._bare.triIdxGrade));
+    var MIN = P && (P.TRI_MIN_SPAN_MIN != null ? P.TRI_MIN_SPAN_MIN : P._bare && P._bare.TRI_MIN_SPAN_MIN);
+
+    if (typeof g !== 'function') {
+      T.skip('triIdxGrade reachable', 'PulseDSP.triIdxGrade not exported into env');
+    } else {
+      T.eq('the floor is Task Force 1996s stated 20 min minimum for geometric methods, not an invented number', MIN, 20);
+
+      // MEASURED on the real corpus (4 overnight Polar H10 records, Ecg nightly/). Within ONE 8 h night
+      // the 5-min windows read 6.49 / 11.20 / 18.46 — bad, warn AND ok from identical physiology. Under
+      // the old code each of those printed a confident grade. All three must now be ungraded.
+      T.eq('§3.4 · 5-min window reading 6.49 (was "bad") is UNGRADED', g(6.49, 5), 'neutral');
+      T.eq('§3.4 · 5-min window reading 11.20 (was "warn") is UNGRADED', g(11.2, 5), 'neutral');
+      T.eq('§3.4 · 5-min window reading 18.46 (was "ok") is UNGRADED', g(18.46, 5), 'neutral');
+
+      // The other direction: above the floor the norm is APPLIED, unchanged. Without these the fix
+      // could degenerate to "never grade anything" and still pass the three asserts above.
+      T.eq('§3.4 · the same night whole (8.0 h, 16.42) still grades ok', g(16.42, 481), 'ok');
+      T.eq('§3.4 · a 6.0 h night reading 13.99 still grades warn', g(13.99, 360), 'warn');
+      T.eq('§3.4 · a genuinely low value over an adequate span still grades bad', g(7.5, 480), 'bad');
+
+      // Floor boundary, both sides — pins WHERE the cut is, so moving it reds.
+      T.eq('§3.4 · just under the floor is ungraded', g(10, 19.9), 'neutral');
+      T.eq('§3.4 · exactly at the floor grades', g(10, 20), 'warn');
+
+      // Unknown span must not grade: we cannot assert a norm holds for a length we cannot measure
+      // (same rule as GlucoDex clampFloor's unknown-nadir case).
+      T.eq('§3.4 · unknown span (legacy stored row) is UNGRADED, not assumed adequate', g(16.42, null), 'neutral');
+      T.eq('§3.4 · absent value is ungraded', g(null, 480), 'neutral');
+    }
+
+    var MR = env.MotionRegistry;
+    if (!MR || typeof MR.badgeForLabel !== 'function') {
+      T.skip('MotionRegistry reachable', 'motiondex-registry.js not co-loaded into env');
+    } else {
+      // §7.8 — the DEFAULT call must badge an unknown label rather than return ''. This is the
+      // fail-CLOSED contract every sibling registry documents; MotionDex was the fleet's sole opt-out.
+      // LAYERING, established by executing the real modules: the registry's own default is fail-OPEN —
+      // badgeForLabel(label) with no 2nd arg returns '' for an unknown label, in EVERY node's registry.
+      // The fleet sets the fail-CLOSED contract one layer up, in each render helper
+      // (`badgeForLabel(label, fallback !== false)`). So §7.8 is a RENDER-layer defect and is gated at
+      // that layer below. Making the registry default fail-closed is the stronger fix but touches all
+      // 8 registries and re-bundles the fleet — recorded as a follow-up, not smuggled in here.
+      var unknown = MR.badgeForLabel('No Such Metric Xyzzy', true);
+      T.ok('§7.8 · with the fallback engaged, an UNRESOLVED label yields a badge (never a bare number)', typeof unknown === 'string' && unknown.length > 0, JSON.stringify(unknown));
+      T.ok('§7.8 · that fallback is the hollow EXPERIMENTAL disc, not a fabricated higher tier', /ev-experimental/.test(unknown), unknown.slice(0, 80));
+      // The explicit opt-out still exists — the fix widens the default, it does not remove the choice.
+      T.eq('§7.8 · an explicit fallback=false still suppresses (contract preserved)', MR.badgeForLabel('No Such Metric Xyzzy', false), '');
+
+      // §7.7 — the two effort rows were BOTH labelled 'Effort amplitude'; a coverage % sat under an
+      // amplitude label and its 'RMS, 0.1–0.6 Hz band' unit context. They must resolve to distinct ids.
+      var idAmp = MR.idForLabel('Effort amplitude'),
+        idPres = MR.idForLabel('Effort present');
+      T.eq('§7.7 · "Effort amplitude" resolves to effortAmp', idAmp, 'effortAmp');
+      T.eq('§7.7 · "Effort present" resolves to its OWN id, not effortAmp', idPres, 'effortPresent');
+      T.ok('§7.7 · the two effort rows are distinct metrics', idAmp !== idPres && !!idAmp && !!idPres);
+      var reg = env.MOTION_REGISTRY || {};
+      T.eq('§7.7 · the coverage metric is a percentage, not grams', reg.effortPresent && reg.effortPresent.unit, '%');
+
+      // Behavioural, not source-regex: the shipped render must actually badge the row it emits.
+      var rsrc = (env.sources || {})['motiondex-render.js'];
+      if (rsrc == null) {
+        T.skip('motiondex-render badge path', 'motiondex-render.js not in env.sources');
+      } else {
+        // Fleet invariant — this is the defect's actual shape: ONE render file passed a literal false
+        // while six siblings passed `fallback !== false`. Cross-file consistency is what source
+        // inspection is legitimately for; a behavioural test cannot see the other six files at once.
+        var _renderSrcs = Object.keys(env.sources || {}).filter(function (f) {
+          return /-(?:render|overview)\.js$/.test(f) && /badgeForLabel/.test(env.sources[f]);
+        });
+        var _failOpen = _renderSrcs.filter(function (f) {
+          return /badgeForLabel\([^)]*,\s*false\s*\)/.test(env.sources[f]);
+        });
+        T.ok(
+          '§7.8 · NO render helper hardcodes the fail-OPEN fallback (checked across every render surface, not just MotionDex)',
+          _renderSrcs.length > 0 && _failOpen.length === 0,
+          _renderSrcs.length === 0 ? 'no render surface calls badgeForLabel — check would be vacuous' : _failOpen.length ? 'fail-open: ' + _failOpen.join(', ') : _renderSrcs.length + ' render surface(s) clean'
+        );
+        // count ROW EMISSIONS, not the string — the prose above this line mentions the old label too
+        var _ampRows = (rsrc.match(/row\(\s*'Effort amplitude'/g) || []).length;
+        var _presRows = (rsrc.match(/row\(\s*'Effort present'/g) || []).length;
+        T.eq('§7.7 · exactly ONE row is emitted under "Effort amplitude"', _ampRows, 1);
+        T.eq('§7.7 · the coverage percentage is emitted under its own label', _presRows, 1);
+      }
+    }
+  });
+
   group('PSL column resolution is header-driven, not positional (both layouts)', 'motiondex-dsp · ppgdex-dsp', function (T) {
     var M = env.MOTIONDSP, P = env.PPGDSP;
     var OLD6 = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];X [mg];Y [mg];Z [mg]\n';
@@ -6580,7 +6677,11 @@
         'hrvdex-app.js',
         'ecgdex-profile.js',
         'glucodex-profile.js',
-        'ppgdex-profile.js'
+        'ppgdex-profile.js',
+        // motiondex-render.js added 2026-07-19 (DEEP-AUDIT-II §7.8) — already compliant once its
+        // badge helper was renamed badge()→evBadge() to match the fleet (the guard's sanctioned-path
+        // regex only ever recognised evBadge(), so the local name read as a bare tile).
+        'motiondex-render.js'
       ]; // render files opt in as they migrate (Part C, one at a time; seeded 2026-07-05; the 9 added 2026-07-07 close the remaining bare-tile set — badge leads the value/tile; oxydex+hrvdex rs-val migrated 2026-07-05; integrator-render.js added 2026-07-06 — already compliant, its kpi() leads with evBadge(), locked test-only w/ NO re-bundle)
       var src = env.sources || {};
       // A value tile opens with a value class; it is BADGED if an `.ev ev-` disc / evBadge( / metricValue( /
@@ -6607,7 +6708,30 @@
         var bare = bareValueTiles(s);
         T.ok(f + ' · every metric-value tile carries an evidence badge (sanctioned path)', bare === 0, bare ? bare + ' bare value tile(s)' : 'all badged');
       });
-      T.ok('badge-enforced set declared (files opt in as migrated — Part C incremental)', Array.isArray(BADGE_ENFORCED));
+      // DEEP-AUDIT-II §7.8 — this assert used to read `Array.isArray(BADGE_ENFORCED)`: vacuously true
+      // for ANY list, so a shipped render file could sit outside the set forever and nothing said so.
+      // MotionDex did exactly that. The opt-in model is deliberate (a file joins when it migrates), so
+      // the ratchet is ACCOUNTING, not coverage: every render surface must be classified one way or the
+      // other, and a NEW one is unclassified until someone decides. Unmigrated files are named, so the
+      // debt is a list you can read rather than an absence you have to notice.
+      var BADGE_UNMIGRATED = ['glucodex-render.js']; // carries bare value tiles; joins on its next on-touch re-bundle
+      var _renderSurfaces = Object.keys(src).filter(function (f) {
+        return /-(?:render|overview)\.js$/.test(f);
+      });
+      var _unclassified = _renderSurfaces.filter(function (f) {
+        return BADGE_ENFORCED.indexOf(f) < 0 && BADGE_UNMIGRATED.indexOf(f) < 0;
+      });
+      T.ok(
+        'every render surface in env.sources is classified (enforced OR named as unmigrated) — a new one cannot slip through unnoticed',
+        _renderSurfaces.length > 0 && _unclassified.length === 0,
+        _renderSurfaces.length === 0 ? 'no render surfaces in env.sources — the check would be vacuous' : _unclassified.length ? 'unclassified: ' + _unclassified.join(', ') : _renderSurfaces.length + ' classified'
+      );
+      T.ok(
+        'the two sets are disjoint (a file cannot be both enforced and excused)',
+        BADGE_ENFORCED.filter(function (f) {
+          return BADGE_UNMIGRATED.indexOf(f) >= 0;
+        }).length === 0
+      );
       // self-tests: the guard PASSES a badged tile + FAILS a bare one
       T.ok(
         'self-test · guard passes a BADGED value tile',

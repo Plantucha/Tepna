@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AXawqb27A1m+sQQMqeg5MSom+EtQIy8r1iSV22Ma0qQ=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-CxM8JgTPdnoVh+3A6y0lzzs08WtHxueWqE4eJwDBOzU=' 'sha256-GGBrGm9Mq6iwiCWrf9VD72X3qR01jY/fTHvnaMNDgGY=' 'sha256-KgaAuv/6KGUj6sYIwLsZPf0TlufPhKJSm69jaGd/6+Q=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-bVxOkEY+uR/AiRWe9ofKFCjGaAeFXC0KvN9gbzJ0/uk=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-k6BAJ1OyWyV7tAMv0ED6IZCbWMW59P51eO3Q04UUYXk=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-wb9MAMg1YdJTFi1UqvmxFn78aII3Ghn0HAOYAG1QpXo=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9GUfxbEGhuzhb0wiNjefuEkgGX2gjYZURxy8ByW4+F0=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AXawqb27A1m+sQQMqeg5MSom+EtQIy8r1iSV22Ma0qQ=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-CxM8JgTPdnoVh+3A6y0lzzs08WtHxueWqE4eJwDBOzU=' 'sha256-FYufV3uNn6NzYx4TuQ57WPhAQACfOzGvqQNA/yly9bo=' 'sha256-KgaAuv/6KGUj6sYIwLsZPf0TlufPhKJSm69jaGd/6+Q=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-YbT52f2wNklsteRAiBE/2H9ctNzNouTiD8VdjMglW2g=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-wlzjyfOUam9N3akjSJVazEniVidjcAMKiWPLaeGGGq4=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PulseDex — Raw RR Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -2024,6 +2024,7 @@ body.light .srb-note { color: var(--text3); }
 .proj-stat.ps-good .ps-val { color: var(--status-ok); }
 .proj-stat.ps-warn .ps-val { color: var(--status-caution); }
 .proj-stat.ps-bad  .ps-val { color: var(--status-concern); }
+.proj-stat.ps-neutral .ps-val { color: var(--text2); } /* ungraded — no norm applies (e.g. Tri Index under the 20 min its ≥15 cutoff requires) */
 
 /* ── 26.4  UPLOAD ZONE — dashed dropzone (#uploadArea ≡ .upload-zone) ──── */
 #uploadArea,
@@ -6504,6 +6505,26 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
     return +(a.length / maxC).toFixed(2);
   }
 
+  // Task Force 1996 states geometric methods need "a reasonable number of RR intervals" — at least
+  // 20 min, preferably a nominal 24 h recording — and the ≥15 cutoff PulseDex grades against is the
+  // 24 h Holter norm. The value is asymptotically 1/p(modal bin), so it does NOT scale with N; but
+  // below the floor, small-sample bias plus excluded circadian range drag it down and its scatter
+  // swamps the grade bands. Measured on the real corpus (4 overnight H10 records): 5-min windows of
+  // a single night read 6.46–25.44 — spanning bad AND warn AND ok on every record — while the same
+  // nights read 13.99–21.30 whole. So below the floor the value is still reported and the NORM
+  // COMPARISON is withheld, rather than fabricating a duration-corrected threshold we cannot cite.
+  const TRI_MIN_SPAN_MIN = 20;
+  function triIdxNormApplies(spanMin) {
+    return spanMin != null && isFinite(spanMin) && spanMin >= TRI_MIN_SPAN_MIN;
+  }
+  // The single grading decision. The ≥15/≥9 cut-points were replicated at three render sites, so the
+  // norm could be applied on one surface and withheld on another; one owner makes that impossible.
+  // An unknown span is 'neutral' too — we cannot assert a norm holds for a length we cannot measure.
+  function triIdxGrade(v, spanMin) {
+    if (!triIdxNormApplies(spanMin) || v == null || !isFinite(v)) return 'neutral';
+    return v >= 15 ? 'ok' : v >= 9 ? 'warn' : 'bad';
+  }
+
   // Lomb–Scargle periodogram for unevenly-sampled RR → true VLF/LF/HF + resp-rate proxy
   // Power normalized so the band integral equals signal variance (Parseval).
   function lombScargle(a, nf) {
@@ -7600,6 +7621,9 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
     fragmentation,
     prsaCapacity,
     triangularIndex,
+    triIdxNormApplies,
+    triIdxGrade,
+    TRI_MIN_SPAN_MIN,
     lombScargle,
     _pdIntervalColFromHeader,
     _pdIntervalColByRange,
@@ -7676,7 +7700,7 @@ __exports.PulseDex = window.PulseDex;
 // ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
 // _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
 // runs on this page; every DSP helper this module uses is named here, import-style).
-const { fmtClock, vo2Base, vo2Adj, altVO2Factor, lineChartSVG } = window.PulseDex._bare;
+const { fmtClock, vo2Base, vo2Adj, altVO2Factor, lineChartSVG, triIdxGrade } = window.PulseDex._bare;
 
 // ── evidence badge hook (System-Cohesion) — resolves a badge from a rendered
 // label via PulseRegistry (pulsedex-registry.js). Zero-touch; safe no-op if the
@@ -7957,7 +7981,21 @@ function renderTable(r) {
       r.sampen === null ? 'neutral' : r.sampen >= 1.0 ? 'ok' : r.sampen >= 0.6 ? 'warn' : 'bad',
       'Sample entropy (m=2, r=0.2·SDNN of analyzed window)'
     ],
-    ['Tri Index', r.triIdx, '—', '≥15', r.triIdx >= 15 ? 'ok' : r.triIdx >= 9 ? 'warn' : 'bad', 'HRV triangular index (geometric)'],
+    [
+      'Tri Index',
+      r.triIdx,
+      '—',
+      r.triIdxNorm === true ? '≥15' : '—',
+      // ≥15 is the 24 h Holter norm (Task Force 1996), applied only when the analysed series meets
+      // that same literature's ≥20 min precondition. An unknown span (legacy stored row) also grades
+      // neutral — we cannot assert a norm applies to a recording whose length we cannot measure.
+      triIdxGrade(r.triIdx, r.triIdxSpanMin),
+      r.triIdxNorm === true
+        ? 'HRV triangular index (geometric)'
+        : 'HRV triangular index (geometric) — analysed span ' +
+          (r.triIdxSpanMin == null ? 'unknown' : r.triIdxSpanMin + ' min') +
+          '; under the 20 min the ≥15 norm requires, so the value is shown but not graded'
+    ],
     ['Decel Cap', r.dc === null ? '—' : r.dc, 'ms', '>4.5', r.dc === null ? 'neutral' : r.dc >= 4.5 ? 'ok' : r.dc >= 2.5 ? 'warn' : 'bad', 'PRSA deceleration capacity (vagal, mortality marker)'],
     ['Accel Cap', r.ac === null ? '—' : r.ac, 'ms', '< −4.5', 'neutral', 'PRSA acceleration capacity (sympathetic)'],
     [
@@ -8371,7 +8409,10 @@ Object.assign(window, {
 // ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
 // _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
 // runs on this page; every DSP helper this module uses is named here, import-style).
-const { parseTimestamp, nu } = window.PulseDex._bare;
+const { parseTimestamp, nu, triIdxGrade } = window.PulseDex._bare;
+// This surface spells the OK band 'good'; the shared owner returns the fleet 'ok'. Adapt the
+// vocabulary here rather than re-deriving the cut-points, so there is still exactly one decision.
+const _triCls = (g) => (g === 'ok' ? 'good' : g);
 
 // ── profile inputs ───────────────────────────────────────────────────────────
 function pxProfile() {
@@ -8622,7 +8663,7 @@ function renderHrvBenchPx(r) {
     `</div>` +
     `<div class="proj-extra">` +
     st('Mean HR', hr != null && !isNaN(hr) ? Math.round(hr) : null, 'bpm', 'good') +
-    st('Tri Index', tri, '', tri >= 15 ? 'good' : tri >= 9 ? 'warn' : 'bad') +
+    st('Tri Index', tri, '', _triCls(triIdxGrade(tri, r.triIdxSpanMin))) +
     `</div>` +
     `<div class="proj-subline" style="margin-top:auto;opacity:.8">Validated time-domain HRV — RMSSD · SDNN · pNN50 (Task Force 1996). The reference-grade autonomic summary for this reading.</div>` +
     `</div>`;
@@ -8832,7 +8873,7 @@ function renderKpiGridPx(r) {
     { l: 'EFC Ready', v: r.efc, s: 'readiness 0–100', c: r.efc > 60 ? 'good' : r.efc > 40 ? 'warn' : 'bad' },
     { l: 'DFA α1', v: r.dfa1 == null ? '—' : r.dfa1, s: 'fractal scaling', c: r.dfa1 == null ? 'neutral' : r.dfa1 >= 0.9 && r.dfa1 <= 1.2 ? 'good' : r.dfa1 < 0.75 || r.dfa1 > 1.5 ? 'bad' : 'warn' },
     { l: 'SampEn', v: r.sampen == null ? '—' : r.sampen, s: 'complexity', c: r.sampen == null ? 'neutral' : r.sampen >= 1 ? 'good' : r.sampen >= 0.6 ? 'warn' : 'bad' },
-    { l: 'Tri Index', v: r.triIdx, s: 'geometric HRV', c: r.triIdx >= 15 ? 'good' : r.triIdx >= 9 ? 'warn' : 'bad' },
+    { l: 'Tri Index', v: r.triIdx, s: r.triIdxNorm === true ? 'geometric HRV' : 'geometric HRV · span < 20 min, ungraded', c: _triCls(triIdxGrade(r.triIdx, r.triIdxSpanMin)) },
     { l: 'Decel Cap', v: r.dc == null ? '—' : r.dc, s: 'ms · vagal', c: r.dc == null ? 'neutral' : r.dc >= 4.5 ? 'good' : r.dc >= 2.5 ? 'warn' : 'bad', u: 'ms' },
     { l: 'Resp Rate', v: r.respRate, s: 'br/min (RSA)', c: r.respRate >= 10 && r.respRate <= 20 ? 'good' : 'warn' },
     { l: 'pNN50', v: (r.longRec ? r.dispPn : r.pnn50) + '', s: 'beat-pair %', c: (r.longRec ? r.dispPn : r.pnn50) >= 15 ? 'good' : (r.longRec ? r.dispPn : r.pnn50) >= 5 ? 'warn' : 'bad', u: '%' },
@@ -11767,6 +11808,10 @@ function calculate() {
   const dc = prsaCapacity(a, +1),
     ac = prsaCapacity(a, -1),
     triIdx = triangularIndex(a);
+  // Span of the beats triIdx was actually computed over — the norm's precondition is about how many
+  // intervals went in, so this measures the analysed series, not the file's wall-clock length.
+  const triIdxSpanMin = a.length ? a.reduce((s, v) => s + v, 0) / 60000 : null;
+  const triIdxNorm = triIdxNormApplies(triIdxSpanMin);
   const health = Math.max(0, Math.round(100 - clean.pct * 2)); // integrity from artifact load
   const pb = longRec ? periodicBreathingIndex(a) : null; // high-altitude periodic-breathing signature
 
@@ -11869,6 +11914,8 @@ function calculate() {
     dc,
     ac,
     triIdx,
+    triIdxSpanMin: triIdxSpanMin == null ? null : +triIdxSpanMin.toFixed(1),
+    triIdxNorm,
     pip: frag.pip,
     ials: frag.ials,
     pss: frag.pss,

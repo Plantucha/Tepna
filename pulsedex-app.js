@@ -789,6 +789,10 @@ function calculate() {
   const dc = prsaCapacity(a, +1),
     ac = prsaCapacity(a, -1),
     triIdx = triangularIndex(a);
+  // Span of the beats triIdx was actually computed over — the norm's precondition is about how many
+  // intervals went in, so this measures the analysed series, not the file's wall-clock length.
+  const triIdxSpanMin = a.length ? a.reduce((s, v) => s + v, 0) / 60000 : null;
+  const triIdxNorm = triIdxNormApplies(triIdxSpanMin);
   const health = Math.max(0, Math.round(100 - clean.pct * 2)); // integrity from artifact load
   const pb = longRec ? periodicBreathingIndex(a) : null; // high-altitude periodic-breathing signature
 
@@ -891,6 +895,8 @@ function calculate() {
     dc,
     ac,
     triIdx,
+    triIdxSpanMin: triIdxSpanMin == null ? null : +triIdxSpanMin.toFixed(1),
+    triIdxNorm,
     pip: frag.pip,
     ials: frag.ials,
     pss: frag.pss,

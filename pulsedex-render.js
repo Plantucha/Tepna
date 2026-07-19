@@ -12,7 +12,7 @@
 // ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
 // _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
 // runs on this page; every DSP helper this module uses is named here, import-style).
-const { fmtClock, vo2Base, vo2Adj, altVO2Factor, lineChartSVG } = window.PulseDex._bare;
+const { fmtClock, vo2Base, vo2Adj, altVO2Factor, lineChartSVG, triIdxGrade } = window.PulseDex._bare;
 
 // ── evidence badge hook (System-Cohesion) — resolves a badge from a rendered
 // label via PulseRegistry (pulsedex-registry.js). Zero-touch; safe no-op if the
@@ -293,7 +293,21 @@ function renderTable(r) {
       r.sampen === null ? 'neutral' : r.sampen >= 1.0 ? 'ok' : r.sampen >= 0.6 ? 'warn' : 'bad',
       'Sample entropy (m=2, r=0.2·SDNN of analyzed window)'
     ],
-    ['Tri Index', r.triIdx, '—', '≥15', r.triIdx >= 15 ? 'ok' : r.triIdx >= 9 ? 'warn' : 'bad', 'HRV triangular index (geometric)'],
+    [
+      'Tri Index',
+      r.triIdx,
+      '—',
+      r.triIdxNorm === true ? '≥15' : '—',
+      // ≥15 is the 24 h Holter norm (Task Force 1996), applied only when the analysed series meets
+      // that same literature's ≥20 min precondition. An unknown span (legacy stored row) also grades
+      // neutral — we cannot assert a norm applies to a recording whose length we cannot measure.
+      triIdxGrade(r.triIdx, r.triIdxSpanMin),
+      r.triIdxNorm === true
+        ? 'HRV triangular index (geometric)'
+        : 'HRV triangular index (geometric) — analysed span ' +
+          (r.triIdxSpanMin == null ? 'unknown' : r.triIdxSpanMin + ' min') +
+          '; under the 20 min the ≥15 norm requires, so the value is shown but not graded'
+    ],
     ['Decel Cap', r.dc === null ? '—' : r.dc, 'ms', '>4.5', r.dc === null ? 'neutral' : r.dc >= 4.5 ? 'ok' : r.dc >= 2.5 ? 'warn' : 'bad', 'PRSA deceleration capacity (vagal, mortality marker)'],
     ['Accel Cap', r.ac === null ? '—' : r.ac, 'ms', '< −4.5', 'neutral', 'PRSA acceleration capacity (sympathetic)'],
     [

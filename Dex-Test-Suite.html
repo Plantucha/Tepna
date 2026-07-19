@@ -103,6 +103,7 @@
 <script src="pulsedex-registry.js"></script>
 <script src="hrvdex-registry.js"></script>
 <script src="glucodex-registry.js"></script>
+<script src="motiondex-registry.js"></script>
 <script src="codegen/generated/eegdex-registry.js"></script>
 <script src="crossnight-envelope.js"></script>
 <script src="ecgdex-cross.js"></script>
@@ -183,7 +184,7 @@ const FIXTURE_FILES = {
 };
 const SOURCE_FILES = ['clock.js','oxydex-util.js','pulsedex-dsp.js','oxydex-dsp.js','hrvdex-dsp.js','integrator-dsp.js','integrator-tch.js','integrator-app.js','integrator-render.js','ppgdex-dsp.js','glucodex-dsp.js','ecgdex-dsp.js','qrs-equiv-worker.js','qrs-yield-worker.js',
   'ecgdex-cross.js','oxydex-cross.js','pulsedex-cross.js','ppgdex-cross.js',
-  'crossnight-envelope.js','ecgdex-app.js','ppgdex-app.js','pulsedex-app.js','pulsedex-render.js','hrvdex-app.js','oxydex-app.js','oxydex-render.js','oxydex-fusion.js','dex-escape.js','dex-forget.js','dex-actions.js','dex-profile.js','sensor-trio-worker.js','sensor-trio-power-analysis.js','sensor-trio-gpu.js','hrvdex-render.js','pat-gate.js','manifest-gate.js','tools/build.mjs','tools/verify-fixtures.mjs','signal-orchestrate.js','dex-ingest.js',
+  'crossnight-envelope.js','ecgdex-app.js','ppgdex-app.js','pulsedex-app.js','pulsedex-render.js','motiondex-render.js','hrvdex-app.js','oxydex-app.js','oxydex-render.js','oxydex-fusion.js','dex-escape.js','dex-forget.js','dex-actions.js','dex-profile.js','sensor-trio-worker.js','sensor-trio-power-analysis.js','sensor-trio-gpu.js','hrvdex-render.js','pat-gate.js','manifest-gate.js','tools/build.mjs','tools/verify-fixtures.mjs','signal-orchestrate.js','dex-ingest.js',
   'cpapdex-dsp.js','cpapdex-cross.js','cpapdex-edf.js','cpapdex-app.js','cpapdex-fusion.js','ecgdex-morph.js','ppgdex-morph.js','dex-export.js',
   'ganglior-provenance.js','signal-frame.js','glucodex-render.js','glucodex-app.js',
   'cpapdex-render.js','pulsedex-overview.js','ecgdex-profile.js','glucodex-profile.js','ppgdex-profile.js',
@@ -541,6 +542,7 @@ async function main(){
     PULSE_REGISTRY: window.PULSE_REGISTRY, PulseRegistry: window.PulseRegistry,
     HRV_REGISTRY: window.HRV_REGISTRY, HrvRegistry: window.HrvRegistry,
     GLU_REGISTRY: window.GLU_REGISTRY, GlucoRegistry: window.GlucoRegistry,
+    MOTION_REGISTRY: window.MOTION_REGISTRY, MotionRegistry: window.MotionRegistry,
     EEG_REGISTRY: window.EEG_REGISTRY, EegRegistry: window.EegRegistry,
     CpapDsp: window.CpapDsp, CpapEdf: window.CpapEdf,
     CPAPDex: window.CPAPDex, CpapFusion: window.CpapFusion,
