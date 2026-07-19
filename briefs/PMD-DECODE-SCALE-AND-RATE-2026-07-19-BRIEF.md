@@ -93,8 +93,9 @@ The raw magnitude of ~1280 LSB is almost entirely **hard-iron offset**. Scaled p
 270.3 × 0.0015259 = **0.41 G ≈ 41 µT**, squarely inside Earth's 25–65 µT.
 
 So **MAG takes the same one-line fix as GYRO.** The hard-iron offset is a normal uncalibrated-
-magnetometer property (bed frame, capture box) and is a *separate, later* concern — do not conflate
-them, and do not "fix" the scale to compensate for the offset.
+magnetometer property (bed frame, capture box) and is a *separate* concern — do not conflate them, and
+do not "fix" the scale to compensate for the offset. **§7 now measures that offset** and shows it is
+mostly the ROOM, not the band: a one-off calibration constant cannot work here.
 
 **The trap to avoid:** ACC is native mg and must NOT be scaled; GYRO/MAG are raw LSB and MUST be.
 Applying `range/2^15` uniformly to all three would break the one stream that currently works.
@@ -203,3 +204,61 @@ write** (`capture.py:777`) where the Polars are notify-only after setup (`captur
 software aggravators worth their own brief: a reconnect opens a **new file set** (`capture.py:782`
 closes the writers), shredding the night; and the **RTC re-syncs on every connect**
 (`capture.py:771–774`) — 359 clock writes on an already-marginal link.
+
+## §7 · MAG hard-iron calibration — measured baseline + the per-session requirement
+
+Executed 2026-07-19 on the fixed capture, to settle §2.1's "separate, later concern". It is no longer
+a concern to defer — it is quantified, and it changes what MAG can be used for.
+
+### §7.1 · The scale factor is confirmed FOUR independent ways
+
+Recorded so nobody re-opens it. `range/2^15` (50/32768 G per LSB) is right:
+
+| method | result |
+|---|---|
+| overnight sphere fit (81 693 samples) | 0.41 G |
+| **saturation clamp** — magnet held to the band | pinned at **exactly 50.0000 G**, the device's declared range |
+| clean tumble, room 1 | **0.4917 G** (49.2 µT) |
+| clean tumble, room 2 | **0.4675 G** (46.8 µT) |
+
+The saturation test is the strongest single check: it validates the factor at FULL SCALE, where a wrong
+factor cannot hide. ⚠️ `|B|` legitimately exceeds 50 G on saturated samples (per-axis clamping, so
+√(49.1²+25.7²)=55.5) — that is not a scale error, but such samples are physically meaningless as
+vectors and must be discarded, not analysed.
+
+### §7.2 · The offset is INTRINSIC to the band; the bedroom is what dominated
+
+Sphere fit over a ~60 s tumble (all orientations), repeated in two different rooms:
+
+| | centre | \|centre\| | radius (Earth) | residual |
+|---|---|---|---|---|
+| Room 1 | (+0.627, −0.089, +0.169) | 0.656 G | 0.4917 G | 2.1% |
+| Room 2 | (+0.596, −0.111, +0.107) | 0.615 G | 0.4675 G | 7.6% |
+| **Bedroom (overnight)** | (−0.754, −0.286, +1.723) | **1.902 G** | 0.4124 G | 3.9% |
+
+**The centre moved 0.073 G between rooms — less than the fit uncertainty.** The offset follows the
+device, so ~0.62 G is the band's own hard-iron. The bedroom centre sits **2.11 G away from both**:
+the sleeping environment (bed frame, phone, the capture box on the nightstand) was contributing
+**~4× Earth's field**, swamping both the device offset and the signal.
+
+### §7.3 · What follows
+
+- **A one-off calibration constant is USELESS for this node.** The dominant term is the room, not the
+  sensor, so it changes with where the person sleeps and what is near the bed. Any heading/orientation
+  use of MAG needs **per-session** hard-iron estimation, derived from the night's own data.
+- **Raw bedside MAG is not a field measurement.** Overnight, ~76% of `|B|` was offset. Treat an
+  uncalibrated MAG series as a relative/change signal only.
+- **This lands before a consumer exists** — MotionDex parses GYRO/MAG but only counts them
+  (`MOTIONDEX-BUILD-FOLLOWUPS` §3). Nothing downstream is currently wrong. A consumer must not ship
+  without the per-session step.
+- **Protocol to reproduce** (cheap, ~2 min): tumble the band through all orientations for ~60 s, fit a
+  sphere to (x,y,z); **centre = hard-iron, radius = Earth's field**. Trust the fit only at residual
+  ≲10% — a stationary band gives no rotational coverage and a contaminated window fit at **41.7%
+  residual**, which was discarded rather than reported. A sleeping arm barely rotates, which is why the
+  overnight radius (0.4124) is the least reliable of the three.
+
+**Caveat, stated because the data cannot settle it:** a strong magnet was held to the band during
+§7.1. The band is evidently not damaged — the offset is small and reproduced across two rooms — but
+there is **no clean pre-magnet tumble**, since the only earlier fit is environment-contaminated. So
+"the magnet did not shift the intrinsic offset" is *inferred* from its small stable value, not measured.
+If a future night's fit shows a materially different centre in a known-clean room, revisit this.

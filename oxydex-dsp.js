@@ -2219,9 +2219,11 @@
     var hrAdv = computeHRAdvanced(rows, osc);
     var comp = computeComposite(rows, spikes, desat, cross, motSleep, durationHr);
     // v20: literature-validated metrics
-    var sbii = computeSBII(rows, null, durationHr, blArr); // nadir events computed inline
+    // §2.1/§2.2 — both score the ARTIFACT-GATED canonical desat set (`desat.events`), so the
+    // self-gate exclusion already applied to ODI-4 above is inherited instead of re-derived.
+    var sbii = computeSBII(rows, desat, durationHr, blArr);
     var pred3p = computePRED3p(rows, null, blArr);
-    var desSev = computeDesSev(rows, blArr);
+    var desSev = computeDesSev(rows, blArr, desat);
     var ctPrec = computeCTprecise(rows);
     // v20.2: 15 new metrics
     var ct94 = computeCT94(rows);
@@ -4054,10 +4056,20 @@
     var totalGap = gaps.reduce(function (a, b) {
       return a + b;
     }, 0);
+    // DEEP-AUDIT-II §2.3 — gapPct is a fraction of TIME, so both sides must be seconds.
+    // This divided gap SECONDS by a SAMPLE COUNT, which only looks right because the O2Ring
+    // samples at exactly 1 Hz (n samples ≈ n seconds). At any other cadence the ratio is
+    // scaled by fs, and because the denominator counted only RECORDED samples while the
+    // numerator counted MISSING time, the result was biased high and unbounded above 100 %
+    // (a true 25 % read 33.4 %). Denominator is now the wall-clock span the recording covers
+    // — recorded time PLUS the gaps in it — so the value is a genuine percentage in [0,100].
+    // It is rendered, via the generic auto-walk in oxydex-fusion.js.
+    var _spanSec = rows[n - 1].t != null && rows[0].t != null ? (rows[n - 1].t - rows[0].t) / 1000 : 0;
+    if (!(_spanSec > 0)) _spanSec = n + totalGap; // stampless fallback: 1 Hz assumption, made explicit
     return {
       gapCount: gaps.length,
       maxGapSec: +maxGap.toFixed(0),
-      gapPct: +((totalGap / n) * 100).toFixed(1),
+      gapPct: +Math.min(100, (totalGap / _spanSec) * 100).toFixed(1),
       gapLabel: maxGap > 120 ? 'Significant gap (>2min)' : maxGap > 10 ? 'Minor gaps' : 'Clean'
     };
   }
@@ -5120,19 +5132,37 @@
   // SBII (Sleep Breathing Impairment Index) — Hui 2024, best predictor CVD mortality
   // Formula: Σ(D_i² × T_i_min) / TRT_hr  [%²·min/hr] — each event contributes depth² × duration
   // nadir events computed inline from ODI-4 rolling baseline; result normalized per hour
-  function computeSBII(rows, nadirEventsIgnored, durationHr, blArr) {
+  function computeSBII(rows, desat, durationHr, blArr) {
     var spo2 = rows.map(function (r) {
       return r.spo2;
     });
     var n = spo2.length,
       WIN = 300;
     if (n < 60 || durationHr <= 0) return { sbii: 0, sbiiQ: 'Q1(low)' };
-    // Build nadir events from the ONE canonical primitive — DEX-EVENT-UNIFY-FOLLOWUPS §1.
-    // Same shared ODI-4 event set as computeDesaturationProfile (ceiling baseline, simple
-    // re-rise close), so SBII is scored on the headline desats, not a private MEAN loop.
-    var nadirEvents = detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, exitPct: DexKernel.K.ODI_DROP, blArr: blArr }).map(function (e) {
-      return { depth: e.depth, duration: e.durationSec, desatArea: (e.depth * e.durationSec) / 60 };
-    });
+    // Nadir events from the ONE canonical primitive — DEX-EVENT-UNIFY-FOLLOWUPS §1 — scored on
+    // the headline desats, not a private MEAN loop.
+    //
+    // DEEP-AUDIT-II §2.1: this re-ran `detectDesatEvents` itself and never read `desat.events`,
+    // so it scored the UNGATED set. The oximeter self-gate (`selfGateDesat`) flags probe-squeeze
+    // and finger-off artifacts, and `processNight` already subtracts them from the ODI-4 rate —
+    // but SBII squares depth (D²·T), so an artifact "67 % cliff" that ODI-4 had explicitly
+    // rejected re-entered here with quadratic weight: up to 6.5×, moving 3 of 11 nights a full
+    // quintile. Take `desat.events` (the SURVIVING set) so the exclusion is inherited rather
+    // than re-litigated. The `durationHr` denominator is deliberately untouched (ratified).
+    // NOTE the two event shapes: the raw primitive emits `durationSec`, while
+    // computeDesaturationProfile RE-SHAPES its events to `duration` (and drops `baseline`,
+    // keeping `nadir`+`depth`). Read both, or the profile path silently yields NaN — which
+    // JSON-serialises to null and, being NaN, fails every quintile comparison so the label
+    // lands on 'Q5(high)'. A wrong-but-plausible worst-case grade, from a units mismatch.
+    var _src = desat && Array.isArray(desat.events) ? desat.events : detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, exitPct: DexKernel.K.ODI_DROP, blArr: blArr });
+    var nadirEvents = _src
+      .map(function (e) {
+        var dur = e.durationSec != null ? e.durationSec : e.duration;
+        return { depth: e.depth, duration: dur, desatArea: (e.depth * dur) / 60 };
+      })
+      .filter(function (e) {
+        return isFinite(e.depth) && isFinite(e.duration);
+      });
     if (!nadirEvents.length) return { sbii: 0, sbiiQ: 'Q1(low)' };
     var sum = 0;
     nadirEvents.forEach(function (e) {
@@ -5171,19 +5201,39 @@
   // Formula: Σ(desaturation_area) / total_time
   // Where desaturation_area = area between baseline (left peak) and SpO2 nadir per event
   // This is the proper "area under desaturation curve" without requiring manually scored events
-  function computeDesSev(rows, blArr) {
+  function computeDesSev(rows, blArr, desat) {
     var spo2 = rows.map(function (r) {
       return r.spo2;
     });
     var n = rows.length;
     if (n < 60) return { desSev: 0 };
-    // Desaturation area (Kulkas) — DEX-EVENT-UNIFY-FOLLOWUPS §1: events from the ONE
-    // canonical primitive at the DesSev ≥1% descent threshold (simple re-rise close, no
-    // min-length gate); area = Σ per-second deficit vs each event's onset baseline.
+    // Desaturation area (Kulkas) — area = Σ per-second deficit vs each event's onset baseline,
+    // scored over the CANONICAL ODI event set.
+    //
+    // DEEP-AUDIT-II §2.2: this previously ran the primitive at `dropPct:1, exitPct:1, minSec:0`.
+    // A 1 % descent with NO minimum duration is not a desaturation — it is ordinary SpO₂ ripple,
+    // so the integral swept most of the night and the index stopped discriminating: across the
+    // 37-night O2Ring corpus it spanned 27.8–61.8 %-min/hr, the "good" band (<5) was unreachable
+    // on EVERY night, and `ahiKulkas` — which takes desSev at weight 0.6 — ran a median 17× its
+    // sibling `ahiODI4`, reporting "moderate apnea" (24) on nights ODI-4 scored normal (1.2).
+    // A metric returning the same verdict for all 37 nights is measuring the noise floor.
+    //
+    // Now scored over `desat.events`: the same ≥4 % / ≥10 s ODI-4 set every other consumer uses,
+    // already artifact-gated (§2.1), so the area is taken over events that are actually
+    // desaturations. Falls back to deriving that canonical set when no profile is supplied so
+    // direct callers keep working — the fallback is NOT artifact-gated, so the profile path is
+    // preferred. Kulkas' area-under-the-curve concept is unchanged; only the event set is.
+    var _evts = desat && Array.isArray(desat.events) ? desat.events : detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, exitPct: DexKernel.K.ODI_DROP, blArr: blArr });
+    // Two event shapes (see computeSBII): the raw primitive carries `baseline`, while the
+    // profile's re-shaped events drop it and keep `nadir`+`depth` — from which the onset
+    // baseline is recoverable exactly. Without this the subtraction is NaN, every `d > 0`
+    // is false, and the index reports a silent, confident 0.
     var totalArea = 0;
-    detectDesatEvents(spo2, { dropPct: 1, exitPct: 1, minSec: 0, blArr: blArr }).forEach(function (e) {
+    _evts.forEach(function (e) {
+      var base = e.baseline != null ? e.baseline : e.nadir != null && e.depth != null ? e.nadir + e.depth : null;
+      if (base == null || !isFinite(base)) return;
       for (var k = e.startIdx; k < e.endIdx; k++) {
-        var d = e.baseline - spo2[k];
+        var d = base - spo2[k];
         if (d > 0) totalArea += d;
       }
     });
