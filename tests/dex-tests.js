@@ -2957,6 +2957,79 @@
       }
     });
 
+    /* DEEP-AUDIT-II §3.1 — Parseval must calibrate against the FULL spectral support, not the band.
+       `sc = variance / tp` with `tp` accumulated over [0.003, 0.4] only asserts that the IN-BAND
+       integral equals the WHOLE signal variance — true only when no power sits outside the band. When
+       it does, VLF/LF/HF absorb it, one-directionally, on a `validated`-tier metric graded against
+       literature thresholds. All three spectral nodes carried it, from the same audit doc: it
+       prescribed the form for ECGDex/PulseDex and then recommended PpgDex adopt it.
+       Why the existing coverage could not see it: every spectral leg above is a RATIO or an IDENTITY
+       (`vlf+lf+hf == tp`, LF/HF band placement, n-stability). All are scale-INVARIANT, so a wrong
+       absolute calibration passes every one of them. The suite says so itself two groups up:
+       "Parseval pins the TOTAL to the variance, which is why it looked fine."
+       These assertions are therefore ABSOLUTE, and adversarial: a signal whose entire energy sits
+       just ABOVE the band edge must report NO in-band power. Pre-fix it reported HF = 713 ms². */
+    group('Spectral §3.1 — band powers must not absorb out-of-band variance', 'ecgdex-dsp · pulsedex-dsp · ppgdex-dsp · spectral · parseval', function (T) {
+      var mkRR = function (fn) {
+        var nn = [];
+        for (var i = 0; i < 600; i++) nn.push(fn(i));
+        return nn;
+      };
+      // Entire energy at 0.45 Hz — ABOVE the 0.4 Hz ceiling, so no band may claim it.
+      var outOfBand = mkRR(function (i) {
+        return 1000 + 40 * Math.sin(2 * Math.PI * 0.45 * i);
+      });
+      // Ordinary content: LF at 0.1 Hz + HF/RSA at 0.25 Hz, both comfortably in-band.
+      var inBand = mkRR(function (i) {
+        return 1000 + 30 * Math.sin(2 * Math.PI * 0.1 * i) + 20 * Math.sin(2 * Math.PI * 0.25 * i);
+      });
+      var beatTimes = function (nn) {
+        var t = [],
+          acc = 0;
+        for (var i = 0; i < nn.length; i++) {
+          t.push(acc / 1000);
+          acc += nn[i];
+        }
+        return t;
+      };
+      var NODES = [
+        { name: 'ECGDex', ls: env.ECGDSP && env.ECGDSP.lombScargle, call: function (f, nn) { return f(nn, beatTimes(nn)); } },
+        { name: 'PulseDex', ls: env.PulseDex && (env.PulseDex.lombScargle || (env.PulseDex._bare && env.PulseDex._bare.lombScargle)), call: function (f, nn) { return f(nn); } },
+        { name: 'PpgDex', ls: (env.PPGDSP && env.PPGDSP.lombScargle) || (env.PpgDex && env.PpgDex.lombScargle), call: function (f, nn) { return f(beatTimes(nn), nn); } } // PpgDex takes (times, values)
+      ];
+      NODES.forEach(function (nd) {
+        if (typeof nd.ls !== 'function') {
+          T.ok('§3.1 · ' + nd.name + ' lombScargle reachable', false, 'not wired');
+          return;
+        }
+        var out = nd.call(nd.ls, outOfBand);
+        var inb = nd.call(nd.ls, inBand);
+        T.ok(
+          '§3.1 · ' + nd.name + ': a 0.45 Hz signal claims NO in-band power (pre-fix HF ≈ 713 ms²)',
+          out.vlf + out.lf + out.hf < 5,
+          'vlf=' + out.vlf + ' lf=' + out.lf + ' hf=' + out.hf
+        );
+        T.ok('§3.1 · ' + nd.name + ': …while genuine in-band content still reports it', inb.lf > 100 && inb.hf > 50, 'lf=' + inb.lf + ' hf=' + inb.hf);
+      });
+      // The companion finding, surfaced not silently corrected: at slow HR the beat series' own
+      // Nyquist falls BELOW the 0.4 Hz HF edge, so part of HF is defined above what the series can
+      // represent. That is the Task-Force definition's problem, not this fix's — the VALUE is left
+      // alone and the condition is merely reported.
+      if (env.ECGDSP && typeof env.ECGDSP.lombScargle === 'function') {
+        var brady = mkRR(function (i) {
+          return 1500 + 30 * Math.sin(2 * Math.PI * 0.1 * i); // 40 bpm ⇒ fNyq 0.333 Hz
+        });
+        var rb = env.ECGDSP.lombScargle(brady, beatTimes(brady));
+        T.eq('§3.1 · a 40 bpm record flags hfAboveNyquist (fNyq 0.33 < the 0.40 HF edge)', rb.hfAboveNyquist, true);
+        T.approx('§3.1 · …and reports the series Nyquist so the caveat is checkable', rb.nyquistHz, 0.333, 0.01);
+        var normal = mkRR(function (i) {
+          return 1000 + 30 * Math.sin(2 * Math.PI * 0.1 * i); // 60 bpm ⇒ fNyq 0.5 Hz
+        });
+        var rn = env.ECGDSP.lombScargle(normal, beatTimes(normal));
+        T.eq('§3.1 · …and a 60 bpm record does NOT (the flag is not always-on)', rn.hfAboveNyquist, false);
+      }
+    });
+
     /* ════ PulseDex §8 — Poincaré SD1 spread is SDSD, not rMSSD (DEEP-AUDIT-2026-07-14 §8) ════════════
        The SD1 short axis is SDSD/√2 (the SAMPLE SD of the successive-difference series, ÷N−1) — the ECGDex
        / PpgDex definition. PulseDex used rMSSD/√2 (the RMS of those differences, ÷N, no mean-centering).

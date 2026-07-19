@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-GGdN+UUs5j+9HUZsLBWNRzJsznw99NyOxmfZPLRvlo8=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-OaR/0dG2x6ARLgN8e7hTda9Cc3UWpoKYrmKxEjH6STI=' 'sha256-PXUdAFcOQVLDIV42NdLbJEMOlh/35V6Re3Q27kgNkjU=' 'sha256-SRJJFEC6LTMi0bvZyzEJu7AQKuDo8gEeHChJAtBES0s=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-eQFgshqDM2o33iSMSFxRH2TgAEx42AUkukpJ6Fgbymc=' 'sha256-fXpe7bWrCBH1PTzXk7LsnRSW3I2Fef+mopAui/LqSHc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-tI9r9eDSUghuLR+P6BjmHc/akNOqYLlxhCKYxK6Jx8c=' 'sha256-tmAic/xbdvrtXNW4FGmx3xKwGyoaYsuH03HwOuDRjEc=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-GGdN+UUs5j+9HUZsLBWNRzJsznw99NyOxmfZPLRvlo8=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-OaR/0dG2x6ARLgN8e7hTda9Cc3UWpoKYrmKxEjH6STI=' 'sha256-PXUdAFcOQVLDIV42NdLbJEMOlh/35V6Re3Q27kgNkjU=' 'sha256-PonrWlOQKzGbeHXHaQVXLDpXG55i2znVJSKFGWBxvKo=' 'sha256-Q9/mWHUwYT01wW0pJKSRx1yO8smaw8h766yrxDUTf44=' 'sha256-SRJJFEC6LTMi0bvZyzEJu7AQKuDo8gEeHChJAtBES0s=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fXpe7bWrCBH1PTzXk7LsnRSW3I2Fef+mopAui/LqSHc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-wb9MAMg1YdJTFi1UqvmxFn78aII3Ghn0HAOYAG1QpXo=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -14632,6 +14632,22 @@ __exports.HRVDex = window.HRVDex;
       fHi = 0.4;
     nf = nf || 512;
     const df = (fHi - fLo) / (nf - 1);
+    /* DEEP-AUDIT-II §3.1 — Parseval calibrates against the FULL spectral support, not the band.
+       `variance / tp` with `tp` band-limited asserts the in-band integral equals the WHOLE signal
+       variance, so any out-of-band power is folded into VLF/LF/HF one-directionally. The calibration
+       grid now runs to the beat series' mean-Nyquist, 1/(2·meanRR), while the REPORTED bands stay
+       bounded by the Task-Force definitions. `df` is held constant and `nf` grows, so spectral
+       resolution is unchanged and a clean record's numbers do not move. Identical treatment in
+       ecgdex-dsp.js and ppgdex-dsp.js — the three carried the same defect from the same audit doc. */
+    const _meanRRs = (function () {
+      let s2 = 0;
+      for (let i2 = 0; i2 < N; i2++) s2 += a[i2];
+      return N ? s2 / N / 1000 : 0;
+    })();
+    const fNyq = _meanRRs > 0 ? 1 / (2 * _meanRRs) : fHi;
+    const fCal = Math.max(fHi, Math.min(fNyq, 2));
+    const nfFull = Math.max(nf, Math.round((fCal - fLo) / df) + 1);
+    let tpFull = 0; // full-support total — the Parseval denominator
     // peakF/peakP = peak within the HF band (RSA) → respRate (back-compat contract).
     // gPeakF/gPeakP = GLOBAL peak across the WHOLE analysed band. The old code tracked the
     // peak ONLY inside the HF branch, so a dominant oscillation BELOW 0.15 Hz (Cheyne-Stokes /
@@ -14646,7 +14662,7 @@ __exports.HRVDex = window.HRVDex;
       peakP = 0,
       gPeakF = 0,
       gPeakP = 0;
-    for (let kf = 0; kf < nf; kf++) {
+    for (let kf = 0; kf < nfFull; kf++) {
       const f = fLo + kf * df,
         w = 2 * Math.PI * f;
       let s2 = 0,
@@ -14671,23 +14687,30 @@ __exports.HRVDex = window.HRVDex;
       }
       const P = 0.5 * ((nC * nC) / (dC || 1) + (nS * nS) / (dS || 1));
       const e = P * df;
-      tp += e;
-      if (P > gPeakP) {
-        gPeakP = P;
-        gPeakF = f;
-      } // GLOBAL peak (whole band) — surfaces sub-HF CSR/PB
-      if (f < 0.04) vlf += e;
-      else if (f < 0.15) lf += e;
-      else {
-        hf += e;
-        if (P > peakP) {
-          peakP = P;
-          peakF = f;
-        }
-      } // HF-only peak → respRate (RSA frequency)
+      tpFull += e; // every evaluated bin — the Parseval denominator
+      /* Everything below stays bounded by the ANALYSED band. Two things would break without the
+         `f < fHi` guard: the HF arm is an unbounded `else` and would swallow the out-of-band tail,
+         and gPeakF — the GLOBAL peak that surfaces sub-HF CSR/PB — would be free to land above
+         0.4 Hz, where no respiratory or Cheyne-Stokes rhythm can live. */
+      if (f < fHi) {
+        tp += e;
+        if (P > gPeakP) {
+          gPeakP = P;
+          gPeakF = f;
+        } // GLOBAL peak (whole analysed band) — surfaces sub-HF CSR/PB
+        if (f < 0.04) vlf += e;
+        else if (f < 0.15) lf += e;
+        else {
+          hf += e;
+          if (P > peakP) {
+            peakP = P;
+            peakF = f;
+          }
+        } // HF-only peak → respRate (RSA frequency)
+      }
     }
     const variance = x.reduce((s, v) => s + v * v, 0) / N;
-    const sc = tp > 0 ? variance / tp : 1; // calibrate ∫PSD = variance
+    const sc = tpFull > 0 ? variance / tpFull : 1; // calibrate ∫PSD = variance over the FULL support (§3.1)
     // DEEP-AUDIT-2026-07-14 §3: tp is the band SUM, so vlf+lf+hf==totalPower holds EXACTLY rather than to
     // within rounding — mirrors ECGDex:601 / PpgDex. (Immaterial here vs the ±1–2 ms² rounding, but keeps
     // the definition identical on both PulseDex spectral paths so the identity can never drift back.)
@@ -18819,10 +18842,27 @@ __exports.GlucoDex = window.GlucoDex;
     const fmin = 0.003,
       fmax = 0.4,
       df = 0.002;
+    /* DEEP-AUDIT-II §3.1 — Parseval calibrates against the FULL spectral support, not the band.
+       `variance / total` with `total` summed over [fmin, fmax] only asserts that the in-band integral
+       equals the WHOLE signal variance — true only when no power sits outside the band. When it does,
+       the bands absorb it one-directionally. PpgDex inherited this from the same audit doc that
+       prescribed it for ECGDex/PulseDex and then recommended PpgDex adopt it, which is how one defect
+       reached three nodes.
+       The calibration grid now runs to the beat series' mean-Nyquist, 1/(2·meanPPI), while the
+       REPORTED bands keep their Task-Force ranges. `df` here is a fixed 0.002 Hz, so extending the
+       ceiling leaves spectral resolution untouched by construction. */
+    const _meanPPIs = (function () {
+      let s2 = 0;
+      for (let i2 = 0; i2 < N; i2++) s2 += nn[i2];
+      return N ? s2 / N / 1000 : 0;
+    })();
+    const fNyq = _meanPPIs > 0 ? 1 / (2 * _meanPPIs) : fmax;
+    const fCal = Math.max(fmax, Math.min(fNyq, 2));
     let vlf = 0,
       lf = 0,
-      hf = 0;
-    for (let f = fmin; f <= fmax; f += df) {
+      hf = 0,
+      totalFull = 0; // full-support total — the Parseval denominator
+    for (let f = fmin; f <= fCal; f += df) {
       const w = 2 * Math.PI * f;
       let ss = 0,
         sc = 0;
@@ -18846,6 +18886,8 @@ __exports.GlucoDex = window.GlucoDex;
       }
       const P = 0.5 * ((c1 * c1) / (c2 || 1e-9) + (s1 * s1) / (s2 || 1e-9));
       const pw = P * df;
+      totalFull += pw; // every evaluated bin — the Parseval denominator
+      // The band arms are explicit ranges, so they stay bounded without further guarding.
       if (f >= bands.vlf[0] && f < bands.vlf[1]) vlf += pw;
       else if (f >= bands.lf[0] && f < bands.lf[1]) lf += pw;
       else if (f >= bands.hf[0] && f < bands.hf[1]) hf += pw;
@@ -18857,7 +18899,7 @@ __exports.GlucoDex = window.GlucoDex;
     let variance = 0;
     for (let i = 0; i < N; i++) variance += y[i] * y[i];
     variance /= N;
-    const scF = total > 0 ? variance / total : 1;
+    const scF = totalFull > 0 ? variance / totalFull : 1; // §3.1 — full support, not the band
     vlf *= scF;
     lf *= scF;
     hf *= scF;
@@ -18865,11 +18907,18 @@ __exports.GlucoDex = window.GlucoDex;
     const lfhf = hf > 0 ? lf / hf : null;
     const lfnu = lf + hf > 0 ? (100 * lf) / (lf + hf) : null,
       hfnu = lf + hf > 0 ? (100 * hf) / (lf + hf) : null;
+    /* Task-Force identity: round the BANDS first and define totalPower as their sum, so
+       vlf+lf+hf == totalPower holds EXACTLY rather than to within rounding — the same treatment
+       ecgdex-dsp.js and pulsedex-dsp.js already apply. Rounding a separately-accumulated `total`
+       could differ by 1 from the sum of the rounded parts, which is what it just did. */
+    const _v = Math.round(vlf),
+      _l = Math.round(lf),
+      _h = Math.round(hf);
     return {
-      vlf: Math.round(vlf),
-      lf: Math.round(lf),
-      hf: Math.round(hf),
-      totalPower: Math.round(total),
+      vlf: _v,
+      lf: _l,
+      hf: _h,
+      totalPower: _v + _l + _h,
       lfhf: lfhf != null ? r2(lfhf) : null,
       lfnu: lfnu != null ? Math.round(lfnu) : null,
       hfnu: hfnu != null ? Math.round(hfnu) : null
@@ -21357,13 +21406,33 @@ __exports.PpgDex = window.PpgDex;
       fHi = 0.4;
     nf = nf || 300;
     const df = (fHi - fLo) / (nf - 1);
-    let tp = 0,
+    /* DEEP-AUDIT-II §3.1 — Parseval calibrates against the FULL spectral support, not the band.
+       `sc = variance / tp` with `tp` accumulated over [fLo, fHi] only asserts that the IN-BAND
+       integral equals the WHOLE signal variance — true only when there is no power outside the band.
+       When there is, the sub-bands absorb it, one-directionally. Measured: +0.6 % on clean RR, but LF
+       overstated 2.3× on an ordinary LF-plus-beat-alternans record, and a pure 0.45 Hz respiration
+       (just above the band edge) reported HF = 713 ms² with no in-band content whatsoever.
+       The calibration grid now runs to the mean-Nyquist of the beat series, 1/(2·meanRR) — the highest
+       frequency an RR series can carry — while the REPORTED bands stay bounded by the Task-Force
+       definitions. `df` is held constant and `nf` grows instead, so spectral resolution is identical
+       to before: only genuinely out-of-band power is removed, and a clean record's numbers do not
+       move for reasons unrelated to the defect. */
+    const _meanRRs = (function () {
+      let s = 0;
+      for (let i = 0; i < N; i++) s += nn[i];
+      return N ? s / N / 1000 : 0; // ms → s
+    })();
+    const fNyq = _meanRRs > 0 ? 1 / (2 * _meanRRs) : fHi;
+    const fCal = Math.max(fHi, Math.min(fNyq, 2)); // never below the band; ceiling guards absurd RR
+    const nfFull = Math.max(nf, Math.round((fCal - fLo) / df) + 1);
+    let tp = 0, // in-band total — the Task-Force identity vlf+lf+hf
+      tpFull = 0, // full-support total — the Parseval denominator
       vlf = 0,
       lf = 0,
       hf = 0,
       peakF = 0,
       peakP = 0;
-    for (let kf = 0; kf < nf; kf++) {
+    for (let kf = 0; kf < nfFull; kf++) {
       const f = fLo + kf * df,
         w = 2 * Math.PI * f;
       let s2 = 0,
@@ -21388,25 +21457,46 @@ __exports.PpgDex = window.PpgDex;
       }
       const P = 0.5 * ((nC * nC) / (dC || 1) + (nS * nS) / (dS || 1));
       const e = P * df;
-      tp += e;
-      if (f < 0.04) vlf += e;
-      else if (f < 0.15) lf += e;
-      else {
-        hf += e;
-        if (P > peakP) {
-          peakP = P;
-          peakF = f;
+      tpFull += e; // every evaluated bin — the Parseval denominator
+      /* The REPORTED bands stay bounded by the Task-Force definitions. Note the `f < fHi` guard:
+         the HF arm was an unbounded `else`, so extending the grid without this would make HF swallow
+         the entire out-of-band tail — turning a fix into a much worse version of the same bug — and
+         would let respRate's peak search wander above 0.4 Hz. */
+      if (f < fHi) {
+        tp += e;
+        if (f < 0.04) vlf += e;
+        else if (f < 0.15) lf += e;
+        else {
+          hf += e;
+          if (P > peakP) {
+            peakP = P;
+            peakF = f;
+          }
         }
       }
     }
     const variance = x.reduce((s, v) => s + v * v, 0) / N,
-      sc = tp > 0 ? variance / tp : 1;
+      sc = tpFull > 0 ? variance / tpFull : 1;
     // DEEP-AUDIT §10: the sub-bands tile [fLo,fHi) exactly, so tp IS vlf+lf+hf. Round the bands FIRST and
     // define tp as their sum, so the Task-Force identity holds EXACTLY rather than to within rounding.
     const _v = Math.round(vlf * sc),
       _l = Math.round(lf * sc),
       _h = Math.round(hf * sc);
-    return { tp: _v + _l + _h, vlf: _v, lf: _l, hf: _h, lfhf: +(lf / (hf || 1)).toFixed(3), respRate: +(peakF * 60).toFixed(1) };
+    /* §3.1 companion finding — at slow heart rates the beat series' own Nyquist falls BELOW the
+       0.4 Hz HF edge (40 bpm ⇒ mean RR 1.5 s ⇒ fNyq 0.33 Hz), so part of the HF band is defined
+       above what the series can represent. That is true of the Task-Force definition itself and
+       predates this fix, so the VALUE is deliberately left alone; the condition is merely made
+       visible. Common on bradycardic and deep-sleep records — exactly where HF is most read. */
+    return {
+      tp: _v + _l + _h,
+      vlf: _v,
+      lf: _l,
+      hf: _h,
+      lfhf: +(lf / (hf || 1)).toFixed(3),
+      respRate: +(peakF * 60).toFixed(1),
+      hfAboveNyquist: fNyq < fHi,
+      nyquistHz: +fNyq.toFixed(3)
+    };
   }
 
   function dfaAlpha1(a) {

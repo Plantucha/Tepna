@@ -34,7 +34,7 @@
     },
     "frequency": {
       "lf": 1,
-      "hf": 1010,
+      "hf": 1006,
       "vlf": 74,
       "lfhf": 0.001
     },
@@ -49,7 +49,7 @@
     "energy": 36,
     "focus": 44,
     "snsBal": 0.001,
-    "psnsBal": 1010
+    "psnsBal": 1006
   },
   "ganglior_events": [],
   "reserved": {
