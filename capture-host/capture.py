@@ -355,6 +355,11 @@ async def run_polar(dev: dict, root: str):
             continue
         writers: dict[int, StreamWriter] = {}
         stream_fs: dict[int, float] = {}   # actual negotiated sample rate per meas (ACC differs per device)
+        stream_scale: dict[int, float] = {}   # raw-int → physical-unit factor per meas (GYRO dps / MAG gauss)
+        prev_ns: dict[int, int] = {}       # previous frame's device timestamp per meas — lets decode_frame
+                                           # back-time off the device's own clock instead of the nominal
+                                           # rate. Per-connection scope: a reconnect must NOT carry a stale
+                                           # seam across the gap (the guard would reject it anyway).
         hr_writer = None
         started = _now()
         ndir = night_dir(root, started)
@@ -397,9 +402,13 @@ async def run_polar(dev: dict, root: str):
                 def on_pmd(_sender, data: bytearray):
                     arrival = _now()
                     try:
-                        meas, samples = pmd.decode_frame(bytes(data), arrival, fs=stream_fs.get(data[0]))
+                        meas, samples = pmd.decode_frame(bytes(data), arrival, fs=stream_fs.get(data[0]),
+                                                         prev_last_ns=prev_ns.get(data[0]),
+                                                         scale=stream_scale.get(data[0]))
                     except ValueError as e:
                         _set(name, last_error=str(e)); return
+                    if samples:
+                        prev_ns[meas] = samples[-1].sensor_ns   # seam anchor for the next frame's step
                     # Diagnostic (inert unless PMD_FRAME_PROBE names a file): records what each frame
                     # ACTUALLY carried vs how many samples we got out of it. Written to answer the Verity
                     # IMU starvation — ACC/GYRO/MAG deliver ~35-44% of nominal with no decode error, so we
@@ -517,6 +526,7 @@ async def run_polar(dev: dict, root: str):
                                 break                 # retrying the fixed cmd cannot help while charging
                         if started:                  # record + re-register at the ACTUAL negotiated rate
                             stream_fs[meas] = used_fs
+                            stream_scale[meas] = pmd.axis_scale(meas, settings)   # device-reported range/resolution
                             _register(meas, used_fs)
                             _set(name, charging=False)
                             _CHARGING.discard(name)
