@@ -158,3 +158,39 @@ def test_ms_column_is_ecg_only_matching_real_polar_sensor_logger(tmp_path):
         rows, _ = _write_read(tmp_path, kind, call)
         assert "timestamp [ms]" not in rows[0], f"{kind} must NOT carry the ms column (ECG-only in PSL)"
         assert len(rows[0].split(";")) == len(rows[1].split(";")), f"{kind} header/row column count mismatch"
+
+
+def test_missing_identity_names_exactly_the_blank_fields():
+    """The gate both the capture daemon and the Remember API run on. A device that passes this is one
+    `capture_filename` can name; one that fails would land as `__<id>_..._ECG.txt`, unroutable."""
+    good = {"name": "H10", "vendor": "Polar", "model": "H10", "device_id": "12345678"}
+    assert writers.missing_identity(good) == []
+    assert writers.missing_identity({**good, "vendor": ""}) == ["vendor"]
+    assert writers.missing_identity({**good, "vendor": "", "model": None}) == ["vendor", "model"]
+    assert writers.missing_identity({}) == ["name", "vendor", "model", "device_id"]
+    # whitespace is not an identity — it would produce ` _ _id_...` filenames
+    assert writers.missing_identity({**good, "model": "   "}) == ["model"]
+    # the unrecognised-sensor shape guessDevice() actually emits (blank vendor+model, id from the MAC)
+    assert writers.missing_identity({"name": "AC028496", "vendor": "", "model": "",
+                             "device_id": "AC028496"}) == ["vendor", "model"]
+
+
+def test_identity_fields_are_the_ones_the_filename_interpolates():
+    """Guards the pair from drifting: every field capture_filename() puts in the name must be gated."""
+    for f in ("vendor", "model", "device_id"):
+        assert f in writers.IDENTITY_FIELDS
+
+
+def test_the_remember_api_gates_on_identity_before_it_persists():
+    """SOURCE SCAN, because webmon.py needs aiohttp and the test env has none — a skipped test here
+    would be no gate at all, and this leg is exactly the one that was missing (the daemon checked,
+    the API did not). Asserts the ordering that matters: reject BEFORE the config write."""
+    import os
+    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "webmon.py")).read()
+    body = src[src.index("async def remember("):]
+    body = body[:body.index("\n    async def ")]
+    assert "missing_identity(" in body, "Remember API no longer validates device identity"
+    assert body.index("missing_identity(") < body.index("_save()"), \
+        "identity is checked AFTER the config write — the bad entry is already persisted"
+    assert "status=400" in body, "a rejected device must fail loudly, not return a success shape"

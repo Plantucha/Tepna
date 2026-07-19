@@ -11,7 +11,7 @@
 from __future__ import annotations
 import argparse, asyncio, contextlib, json, logging, os, signal, time as _time, datetime as _dt
 from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter,
-                     HostClockLogWriter, capture_filename, night_dir)
+                     HostClockLogWriter, capture_filename, missing_identity, night_dir)
 import polar_pmd as pmd
 import viatom
 import oxyii
@@ -56,31 +56,62 @@ def _live_key(stream: str, tag: str) -> str:
 # Monotonic-anchored wall clock (Clock Contract §🔒). CLOCK_MONOTONIC (via time.monotonic) measures
 # elapsed time independent of the wall clock; we anchor it to civil time ONCE so a mid-capture NTP
 # correction can't silently STEP the stamps. A genuine step (> _STEP_THRESH_S — e.g. an RTC-less Pi that
-# first NTP-syncs minutes after boot, or a DST change) re-anchors and is LOGGED — a jump you can see
-# beats one you can't. Returns LOCAL civil time, byte-for-byte the same type as datetime.now().
+# first NTP-syncs minutes after boot) re-anchors and is LOGGED — a jump you can see beats one you can't.
+# Returns LOCAL civil time, byte-for-byte the same type as datetime.now().
+#
+# A DST TRANSITION IS NOT A CLOCK STEP, and must not be treated as one. Re-anchoring onto an autumn
+# fall-back would rewind the stamps a full hour MID-NIGHT: the file would run backward and collide with
+# the hour it already wrote, failing the Clock Contract's "overnight 22:00→06:00 = ~8 h monotonic" check
+# on precisely one night a year. The distinction is exact, not heuristic — at a transition the zone's UTC
+# OFFSET moves by the same amount as the apparent drift, whereas an NTP correction moves the clock with
+# the offset unchanged. So we absorb the civil relabelling and keep counting in the session's ORIGINAL
+# offset. The recording then stays in ONE offset frame end-to-end, which is what §1's floating `tMs` +
+# per-recording anchor already assume; monotonic beats civil-correct for a signal file.
 _STEP_THRESH_S = 2.0
 _anchor_wall: _dt.datetime | None = None
 _anchor_mono: float = 0.0
+_anchor_utcoff: _dt.timedelta = _dt.timedelta(0)   # UTC offset in force when we anchored
+_civil_shift: float = 0.0                          # seconds of DST relabelling absorbed since the anchor
 
 
-def _reanchor() -> None:
-    global _anchor_wall, _anchor_mono
-    _anchor_wall = _dt.datetime.now()
+def _utcoffset(when: _dt.datetime) -> _dt.timedelta:
+    """UTC offset the local zone had at `when` (a naive LOCAL datetime, as datetime.now() returns)."""
+    return when.astimezone().utcoffset() or _dt.timedelta(0)
+
+
+def _reanchor(shift: float = 0.0) -> None:
+    """Re-pin the monotonic clock to civil time. `shift` CARRIES FORWARD any DST relabelling already
+    absorbed, so a genuine NTP correction landing on a night that has crossed a transition re-anchors
+    within the session's original offset frame instead of dropping back to civil time — which would
+    rewind the file by the width of the transition, the exact failure this whole path exists to stop."""
+    global _anchor_wall, _anchor_mono, _anchor_utcoff, _civil_shift
+    now = _dt.datetime.now()
+    _anchor_wall = now - _dt.timedelta(seconds=shift)
     _anchor_mono = _time.monotonic()
+    _anchor_utcoff = _utcoffset(now)
+    _civil_shift = shift
 
 
 def _now() -> _dt.datetime:
-    global _anchor_wall
+    global _civil_shift
     if _anchor_wall is None:
         _reanchor()
     predicted = _anchor_wall + _dt.timedelta(seconds=_time.monotonic() - _anchor_mono)
     actual = _dt.datetime.now()
     drift = (actual - predicted).total_seconds()   # wall-vs-monotonic divergence == a clock step
-    if abs(drift) > _STEP_THRESH_S:
-        log.warning("wall-clock step %.3fs — re-anchoring capture stamps here (NTP correction / DST?)", drift)
-        _reanchor()
-        return actual
-    return predicted
+    # Fast path, and the steady state after a transition has been absorbed. Deliberately avoids the
+    # tz lookup below: _now() runs per sample (ECG is 130 Hz), astimezone() is not free.
+    if abs(drift - _civil_shift) <= _STEP_THRESH_S:
+        return predicted
+    off_delta = (_utcoffset(actual) - _anchor_utcoff).total_seconds()
+    if off_delta != _civil_shift and abs(drift - off_delta) <= _STEP_THRESH_S:
+        log.warning("DST transition %+.0fs — civil clock relabelled, NOT stepped; capture stamps keep "
+                    "counting monotonically in the session's original UTC offset", off_delta - _civil_shift)
+        _civil_shift = off_delta
+        return predicted
+    log.warning("wall-clock step %.3fs — re-anchoring capture stamps here (NTP correction?)", drift - _civil_shift)
+    _reanchor(_civil_shift)
+    return actual - _dt.timedelta(seconds=_civil_shift)
 
 
 # BlueZ serialises connection ESTABLISHMENT per adapter — two devices connecting at once yields
@@ -1218,8 +1249,9 @@ async def main():
     def _spawn(dev: dict):
         # Refuse to capture a device missing identity fields — otherwise capture_filename() emits
         # `__<id>_..._STREAM.txt` (empty vendor/model), which happened via a hot-Remember with an
-        # unrecognized sensor (guessDevice left vendor/model blank). FOLLOWUPS-II §F1.
-        missing = [k for k in ("name", "vendor", "model", "device_id") if not str(dev.get(k) or "").strip()]
+        # unrecognized sensor (guessDevice left vendor/model blank). FOLLOWUPS-II §F1. The Remember API
+        # now rejects the same device up front (webmon.remember), so this is the second of two gates.
+        missing = missing_identity(dev)
         if missing:
             log.warning("skipping device — missing %s: %r", ",".join(missing), dev.get("address") or dev)
             if dev.get("name"):
