@@ -22,7 +22,7 @@
 
 A fleet of local-only, single-signal physiological analyzers. No upload. No accounts. No network.
 
-**Suite version:** 1.14.0
+**Suite version:** 1.15.0
 
 [![Live at tepna.net](https://img.shields.io/badge/live-tepna.net-2a6fdb?style=for-the-badge)](https://tepna.net)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a6fdb?style=for-the-badge)](LICENSE)

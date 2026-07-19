@@ -474,6 +474,28 @@
         "REGISTRY-PROJECTION-2026-07-04-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "1.15.0",
+      "date": "2026-07-19",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "0ca847ec4bea",
+        "OxyDex": "c31c287c6b37",
+        "PulseDex": "434ffb49f9d2",
+        "GlucoDex": "65e758cf6ebd",
+        "PpgDex": "3116e537c46a",
+        "HRVDex": "147140506376",
+        "CPAPDex": "c22402015fc3",
+        "Integrator": "229a6c0f8728",
+        "MotionDex": "7b886bb7f9ad"
+      },
+      "briefs": [
+        "DEEP-AUDIT-II-2026-07-18-BRIEF.md",
+        "CONTROLLED-RELEASES-2026-07-05-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
