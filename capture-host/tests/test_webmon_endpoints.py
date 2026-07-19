@@ -377,3 +377,26 @@ def test_no_token_configured_leaves_posts_open(tmp_path):
         r = await c.post("/api/settings", json=_GOOD_BODY)
         return r.status
     assert _serve(app, go) == 200
+
+
+def test_state_surfaces_storage_and_qc_blocks(tmp_path):
+    """/api/state exposes the guardrail pollers' storage + qc blocks so the monitor can render them."""
+    st = {"host_clock": {"source": "ntp"}, "devices": {},
+          "storage": {"free_gb": 12.3, "free_pct": 41.0, "low": False, "keep_nights": 30},
+          "qc": {"night": "2026-07-19", "ok": False, "missing": ["H10:acc"], "total_rows": 5}}
+    cfg = {"root": str(tmp_path), "clock": {"sudo": False}, "devices": [dict(H10)]}
+    app = webmon.make_app(telemetry.TelemetryBus(), cfg, str(tmp_path / "config.yaml"),
+                          "AA:AA:AA:AA:AA:AA", st, None)
+    async def go(c):
+        r = await c.get("/api/state")
+        return await r.json()
+    body = _serve(app, go)
+    assert body["storage"]["free_gb"] == 12.3 and body["qc"]["missing"] == ["H10:acc"]
+
+
+def test_state_storage_and_qc_absent_before_the_pollers_run(tmp_path):
+    app, *_ = _mk(tmp_path)                     # default status has neither block yet
+    async def go(c):
+        return await (await c.get("/api/state")).json()
+    body = _serve(app, go)
+    assert body["storage"] is None and body["qc"] is None

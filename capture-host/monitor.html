@@ -375,6 +375,9 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
 
     <!-- ══ OVERVIEW ══ -->
     <section class="view active" id="view-overview">
+      <!-- Box health: disk + tonight's capture QC, from the guardrail pollers (hidden until they run). -->
+      <div class="section-title" id="boxHealthTitle" style="display:none">Box health</div>
+      <div class="ov-strip" id="boxHealth" style="display:none"></div>
       <div class="section-title">Live streams</div>
       <div class="ov-grid" id="ovGrid"></div>
       <p class="hint" style="color:var(--text4);font-size:12px;margin-top:16px;line-height:1.5">
@@ -665,6 +668,7 @@ async function loadState(){
   const na=$('#navActiveN'); na.style.display = active?'inline-block':'none'; na.textContent = active;
   const nd=$('#navDevN'); nd.style.display = conn?'inline-block':'none'; nd.textContent = conn;
   renderSideStats();          // sidebar counters: every view, not just Overview
+  renderBoxHealth(s.storage, s.qc);
   renderDownload(DEVICES);
   renderRemembered(DEVICES);
   renderStreamSel();
@@ -1035,6 +1039,36 @@ function renderSideStats(){
     `<div class="side-stat"><div class="lab">${esc(lab)}</div>` +
     (val!==''?`<div class="val">${esc(String(val))}</div>`:'') +
     `<div class="sub ${sc}">${esc(sub)}</div></div>`).join('');
+}
+
+// Box health strip (Overview): disk + tonight's capture QC, published by the guardrail pollers into
+// /api/state. Each block appears only once its poller has run (null before then); border-left signals ok
+// (teal) vs a warning (amber) — a low disk, or a night with a missing stream.
+function renderBoxHealth(storage, qc){
+  const el = $('#boxHealth'), title = $('#boxHealthTitle');
+  if(!el) return;
+  const cards = [];
+  if(storage){
+    const warn = !!storage.low;
+    const keep = storage.keep_nights>0 ? ('keep '+storage.keep_nights+' nights') : 'no auto-prune';
+    cards.push(`<div class="ov-stat" style="border-left-color:${warn?'var(--status-caution)':'var(--status-ok)'}">
+      <div class="lab">Disk</div>
+      <div class="val">${esc(storage.free_gb)} GB</div>
+      <div class="sub">${esc(storage.free_pct)}% free · ${esc(keep)}${warn?' · LOW':''}</div></div>`);
+  }
+  if(qc){
+    const ok = !!qc.ok, miss = qc.missing||[];
+    const val = ok ? 'Complete' : (miss.length+' gap'+(miss.length===1?'':'s'));
+    const sub = ok ? ((qc.total_rows||0).toLocaleString()+' rows · '+esc(qc.night))
+                   : ('no data: '+esc(miss.join(', ')));
+    cards.push(`<div class="ov-stat" style="border-left-color:${ok?'var(--status-ok)':'var(--status-caution)'}">
+      <div class="lab">Tonight (QC)</div>
+      <div class="val" style="font-size:${ok?'22':'15'}px">${esc(val)}</div>
+      <div class="sub">${sub}</div></div>`);
+  }
+  el.innerHTML = cards.join('');
+  el.style.display = cards.length ? '' : 'none';
+  if(title) title.style.display = cards.length ? '' : 'none';
 }
 
 function ovRender(){                             // (re)build the cards to match current STREAMS
