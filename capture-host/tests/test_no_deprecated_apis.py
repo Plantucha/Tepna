@@ -13,7 +13,8 @@
 #                        onboard radio that cannot hear the sensors.
 #
 # A source scan rather than a runtime warning filter: the runtime paths (capture/webmon/polar_psftp) need
-# BLE hardware and read 0% in a hardware-free CI, so nothing would execute the lines that matter.
+# BLE hardware for their RUNTIME paths, so a warning filter would never execute the lines that matter
+# (the modules import fine in CI — the workflow installs requirements.txt — but nothing drives them).
 
 import os
 import re
