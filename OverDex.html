@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-GGdN+UUs5j+9HUZsLBWNRzJsznw99NyOxmfZPLRvlo8=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-OaR/0dG2x6ARLgN8e7hTda9Cc3UWpoKYrmKxEjH6STI=' 'sha256-PXUdAFcOQVLDIV42NdLbJEMOlh/35V6Re3Q27kgNkjU=' 'sha256-PonrWlOQKzGbeHXHaQVXLDpXG55i2znVJSKFGWBxvKo=' 'sha256-Q9/mWHUwYT01wW0pJKSRx1yO8smaw8h766yrxDUTf44=' 'sha256-SRJJFEC6LTMi0bvZyzEJu7AQKuDo8gEeHChJAtBES0s=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fXpe7bWrCBH1PTzXk7LsnRSW3I2Fef+mopAui/LqSHc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-wb9MAMg1YdJTFi1UqvmxFn78aII3Ghn0HAOYAG1QpXo=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-6Gq5p6JAWsKz+ZbEKpiHKhMbl6qv4btiBN6k+UAnnH4=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-GGdN+UUs5j+9HUZsLBWNRzJsznw99NyOxmfZPLRvlo8=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-OaR/0dG2x6ARLgN8e7hTda9Cc3UWpoKYrmKxEjH6STI=' 'sha256-PXUdAFcOQVLDIV42NdLbJEMOlh/35V6Re3Q27kgNkjU=' 'sha256-PonrWlOQKzGbeHXHaQVXLDpXG55i2znVJSKFGWBxvKo=' 'sha256-Q9/mWHUwYT01wW0pJKSRx1yO8smaw8h766yrxDUTf44=' 'sha256-SRJJFEC6LTMi0bvZyzEJu7AQKuDo8gEeHChJAtBES0s=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-wb9MAMg1YdJTFi1UqvmxFn78aII3Ghn0HAOYAG1QpXo=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -17637,13 +17637,31 @@ __exports.PulseDex = window.PulseDex;
     // CHECKED, and a non-clamped file's event stream is byte-identical (the map is a no-op when !floorSat).
     var cs = r.clampSat || null;
     var floorSat = !!(cs && cs.floor && cs.floor.saturated);
+    /* DEEP-AUDIT-II §5.4 — the flag is PER EVENT, not per FILE.
+       This stamped EVERY nocturnal hypo in a floor-saturated export without ever consulting the
+       event's own nadir. On the committed real-corpus export the clip floor is 54 mg/dL and all 37
+       hypos were stamped — but only 4 have a nadir at or below the rail; the rest sit at 55, 59, 60,
+       61, 62 … So 33 genuine hypos reached the Integrator carrying `clampFloor`, where
+       integrator-dsp.js halves their confidence — a LOAD-BEARING ×0.5 in the noisy-OR posterior.
+       A clip artifact is a reading pinned AT the rail. A hypo that never touched it is just a hypo.
+       `<= floor` with NO epsilon, deliberately: readings are integer mg/dL and the detected floor is
+       one of them, so a clipped nadir equals the floor exactly. Any epsilon starts re-admitting the
+       55s — precisely the events this stops down-weighting.
+       Unknown nadir keeps the flag: the ×0.5 makes the fusion more cautious about asserting a hypo,
+       and caution is the honest response to not knowing. */
+    var _floorVal = cs && cs.floor && typeof cs.floor.value === 'number' ? cs.floor.value : null;
+    var _onRail = function (e) {
+      var nadir = e && e.meta ? e.meta.minMgdl : null;
+      if (nadir == null || !isFinite(nadir) || _floorVal == null) return true; // unknown → stay cautious
+      return nadir <= _floorVal;
+    };
     var events = (r.events || []).map(function (e) {
-      if (floorSat && e && e.impulse === 'nocturnal_hypo') {
+      if (floorSat && e && e.impulse === 'nocturnal_hypo' && _onRail(e)) {
         var m = {};
         for (var k in e.meta) {
           if (Object.prototype.hasOwnProperty.call(e.meta, k)) m[k] = e.meta[k];
         }
-        m.clampFloor = true; // this hypo fired off the clip floor — possibly an artifact
+        m.clampFloor = true; // this hypo's nadir sits ON the clip floor — possibly an artifact
         return { t: e.t, tMs: e.tMs, impulse: e.impulse, node: e.node, conf: e.conf, meta: m };
       }
       return e;

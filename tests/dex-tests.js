@@ -8088,14 +8088,44 @@
       var cHypo = (clipped.ganglior_events || []).filter(function (e) {
         return /hypo/i.test(e.impulse);
       });
+      /* REBUILT — DEEP-AUDIT-II §12.2 hollow-gate list (`:7419`) + §5.4.
+         This asserted `cHypo.every(e => e.meta.clampFloor === true)` — i.e. EVERY hypo flagged —
+         under a label reading "any hypo sitting ON the rail". Those are different claims, and the
+         predicate encoded the very defect §5.4 describes: a file-level flag stamped on every
+         nocturnal hypo regardless of its own nadir, halving 33 of 37 genuine hypos' confidence in
+         the Integrator's noisy-OR. The gate would have RED-ed on the correct fix, and it passed
+         vacuously on an empty event set.
+         It now asserts the label: on-rail hypos flagged, above-rail hypos NOT — which is exactly the
+         discrimination `every()` could not express. Non-vacuous by construction: both populations
+         are asserted non-empty first. */
+      var _floor = cl.floor;
+      var _onRail = cHypo.filter(function (e) {
+        return e.meta && e.meta.minMgdl != null && e.meta.minMgdl <= _floor;
+      });
+      var _aboveRail = cHypo.filter(function (e) {
+        return e.meta && e.meta.minMgdl != null && e.meta.minMgdl > _floor;
+      });
+      T.ok('§6 · the rail synthetic yields hypos ON the rail (the gate is not vacuous)', _onRail.length > 0, 'onRail=' + _onRail.length + ' of ' + cHypo.length);
+      T.ok('§6 · …and hypos ABOVE it, so the two cases can actually be told apart', _aboveRail.length > 0, 'aboveRail=' + _aboveRail.length + ' of ' + cHypo.length);
       T.ok(
-        '§6 · any hypo sitting ON the rail is flagged clampFloor (a clip artifact, not a real hypo)',
-        cHypo.every(function (e) {
+        '§6 · a hypo sitting ON the rail IS flagged clampFloor (a clip artifact, not a real hypo)',
+        _onRail.every(function (e) {
           return e.meta && e.meta.clampFloor === true;
         }),
-        cHypo.length +
-          ' hypo event(s), flagged=' +
-          cHypo.filter(function (e) {
+        _onRail.length +
+          ' on-rail, flagged=' +
+          _onRail.filter(function (e) {
+            return e.meta && e.meta.clampFloor;
+          }).length
+      );
+      T.ok(
+        '§6 · a hypo ABOVE the rail is NOT flagged — it never touched the clip (§5.4: 33 of 37 were)',
+        _aboveRail.every(function (e) {
+          return !(e.meta && e.meta.clampFloor);
+        }),
+        _aboveRail.length +
+          ' above-rail, wrongly flagged=' +
+          _aboveRail.filter(function (e) {
             return e.meta && e.meta.clampFloor;
           }).length
       );

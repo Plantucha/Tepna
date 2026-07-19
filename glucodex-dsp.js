@@ -1861,13 +1861,31 @@
     // CHECKED, and a non-clamped file's event stream is byte-identical (the map is a no-op when !floorSat).
     var cs = r.clampSat || null;
     var floorSat = !!(cs && cs.floor && cs.floor.saturated);
+    /* DEEP-AUDIT-II §5.4 — the flag is PER EVENT, not per FILE.
+       This stamped EVERY nocturnal hypo in a floor-saturated export without ever consulting the
+       event's own nadir. On the committed real-corpus export the clip floor is 54 mg/dL and all 37
+       hypos were stamped — but only 4 have a nadir at or below the rail; the rest sit at 55, 59, 60,
+       61, 62 … So 33 genuine hypos reached the Integrator carrying `clampFloor`, where
+       integrator-dsp.js halves their confidence — a LOAD-BEARING ×0.5 in the noisy-OR posterior.
+       A clip artifact is a reading pinned AT the rail. A hypo that never touched it is just a hypo.
+       `<= floor` with NO epsilon, deliberately: readings are integer mg/dL and the detected floor is
+       one of them, so a clipped nadir equals the floor exactly. Any epsilon starts re-admitting the
+       55s — precisely the events this stops down-weighting.
+       Unknown nadir keeps the flag: the ×0.5 makes the fusion more cautious about asserting a hypo,
+       and caution is the honest response to not knowing. */
+    var _floorVal = cs && cs.floor && typeof cs.floor.value === 'number' ? cs.floor.value : null;
+    var _onRail = function (e) {
+      var nadir = e && e.meta ? e.meta.minMgdl : null;
+      if (nadir == null || !isFinite(nadir) || _floorVal == null) return true; // unknown → stay cautious
+      return nadir <= _floorVal;
+    };
     var events = (r.events || []).map(function (e) {
-      if (floorSat && e && e.impulse === 'nocturnal_hypo') {
+      if (floorSat && e && e.impulse === 'nocturnal_hypo' && _onRail(e)) {
         var m = {};
         for (var k in e.meta) {
           if (Object.prototype.hasOwnProperty.call(e.meta, k)) m[k] = e.meta[k];
         }
-        m.clampFloor = true; // this hypo fired off the clip floor — possibly an artifact
+        m.clampFloor = true; // this hypo's nadir sits ON the clip floor — possibly an artifact
         return { t: e.t, tMs: e.tMs, impulse: e.impulse, node: e.node, conf: e.conf, meta: m };
       }
       return e;

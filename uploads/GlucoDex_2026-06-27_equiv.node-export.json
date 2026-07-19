@@ -93,8 +93,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 60,
-        "durMin": 30,
-        "clampFloor": true
+        "durMin": 30
       }
     },
     {
@@ -105,8 +104,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 64,
-        "durMin": 20,
-        "clampFloor": true
+        "durMin": 20
       }
     },
     {
@@ -117,8 +115,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 68,
-        "durMin": 25,
-        "clampFloor": true
+        "durMin": 25
       }
     },
     {
@@ -129,8 +126,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 60,
-        "durMin": 40,
-        "clampFloor": true
+        "durMin": 40
       }
     },
     {
@@ -141,8 +137,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 59,
-        "durMin": 50,
-        "clampFloor": true
+        "durMin": 50
       }
     },
     {
@@ -153,8 +148,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 62,
-        "durMin": 75,
-        "clampFloor": true
+        "durMin": 75
       }
     },
     {
@@ -165,8 +159,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 65,
-        "durMin": 35,
-        "clampFloor": true
+        "durMin": 35
       }
     },
     {
@@ -177,8 +170,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 66,
-        "durMin": 55,
-        "clampFloor": true
+        "durMin": 55
       }
     },
     {
@@ -189,8 +181,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 69,
-        "durMin": 20,
-        "clampFloor": true
+        "durMin": 20
       }
     },
     {
@@ -201,8 +192,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 66,
-        "durMin": 275,
-        "clampFloor": true
+        "durMin": 275
       }
     },
     {
@@ -213,8 +203,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 68,
-        "durMin": 30,
-        "clampFloor": true
+        "durMin": 30
       }
     },
     {
@@ -225,8 +214,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 69,
-        "durMin": 20,
-        "clampFloor": true
+        "durMin": 20
       }
     },
     {
@@ -250,8 +238,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 68,
-        "durMin": 25,
-        "clampFloor": true
+        "durMin": 25
       }
     },
     {
@@ -274,8 +261,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 63,
-        "durMin": 65,
-        "clampFloor": true
+        "durMin": 65
       }
     },
     {
@@ -286,8 +272,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 55,
-        "durMin": 60,
-        "clampFloor": true
+        "durMin": 60
       }
     },
     {
@@ -334,8 +319,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 67,
-        "durMin": 35,
-        "clampFloor": true
+        "durMin": 35
       }
     },
     {
@@ -359,8 +343,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 64,
-        "durMin": 295,
-        "clampFloor": true
+        "durMin": 295
       }
     },
     {
@@ -371,8 +354,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 61,
-        "durMin": 360,
-        "clampFloor": true
+        "durMin": 360
       }
     },
     {
@@ -383,8 +365,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 68,
-        "durMin": 35,
-        "clampFloor": true
+        "durMin": 35
       }
     },
     {
@@ -395,8 +376,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 64,
-        "durMin": 205,
-        "clampFloor": true
+        "durMin": 205
       }
     },
     {
@@ -407,8 +387,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 67,
-        "durMin": 40,
-        "clampFloor": true
+        "durMin": 40
       }
     },
     {
@@ -432,8 +411,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 69,
-        "durMin": 15,
-        "clampFloor": true
+        "durMin": 15
       }
     },
     {
@@ -444,8 +422,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 68,
-        "durMin": 25,
-        "clampFloor": true
+        "durMin": 25
       }
     },
     {
@@ -456,8 +433,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 66,
-        "durMin": 85,
-        "clampFloor": true
+        "durMin": 85
       }
     },
     {
@@ -468,8 +444,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 69,
-        "durMin": 15,
-        "clampFloor": true
+        "durMin": 15
       }
     },
     {
@@ -480,8 +455,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 69,
-        "durMin": 20,
-        "clampFloor": true
+        "durMin": 20
       }
     },
     {
@@ -492,8 +466,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 68,
-        "durMin": 60,
-        "clampFloor": true
+        "durMin": 60
       }
     },
     {
@@ -504,8 +477,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 68,
-        "durMin": 90,
-        "clampFloor": true
+        "durMin": 90
       }
     },
     {
@@ -516,8 +488,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 66,
-        "durMin": 215,
-        "clampFloor": true
+        "durMin": 215
       }
     },
     {
@@ -528,8 +499,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 69,
-        "durMin": 25,
-        "clampFloor": true
+        "durMin": 25
       }
     },
     {
@@ -540,8 +510,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 64,
-        "durMin": 280,
-        "clampFloor": true
+        "durMin": 280
       }
     },
     {
@@ -552,8 +521,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 62,
-        "durMin": 325,
-        "clampFloor": true
+        "durMin": 325
       }
     },
     {
@@ -564,8 +532,7 @@
       "conf": 0.97,
       "meta": {
         "minMgdl": 69,
-        "durMin": 15,
-        "clampFloor": true
+        "durMin": 15
       }
     },
     {
