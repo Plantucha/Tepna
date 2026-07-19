@@ -99,7 +99,9 @@ def test_the_scan_foregrounds_a_strap_named_only_by_its_model():
 def test_the_monitor_can_identify_a_coospo():
     html = open(__file__.replace("tests/test_hr_strap.py", "monitor.html"), encoding="utf-8").read()
     assert "Coospo" in html and "HRM808S" in html
-    guess = html.split("function guessDevice")[1][:1400]
+    # NOT a fixed-width slice: adding a comment inside the function silently slid the Coospo line out
+    # of a [:1400] window and the assertion stopped covering anything.
+    guess = html.split("function guessDevice")[1].split("\nfunction ")[0]
     assert "streams=['hr']" in guess.replace('"', "'"), \
         "an HR-only strap must request hr alone — asking for ecg opens a writer that can never start"
 
@@ -136,3 +138,18 @@ def test_a_polar_with_ecg_still_bonds():
     """The gate must not disable bonding for the device it was written for."""
     import capture as c
     assert set(["ecg", "acc", "hr"]) & c._PMD_STREAMS
+
+
+def test_remember_defaults_ask_for_every_stream_the_sensor_can_give():
+    """A stream omitted from the Remember default is never captured, SILENTLY — nothing errors, the
+    sensor streams what it was asked for, and the gap surfaces only when an analysis comes up short.
+    An H10 re-added after a factory reset came back 'ecg' only and lost its RR (the HRV substrate) and
+    its chest ACC (which apnea typing needs) for a whole session."""
+    html = open(__file__.replace("tests/test_hr_strap.py", "monitor.html"), encoding="utf-8").read()
+    guess = html.split("function guessDevice")[1].split("function ")[0].replace('"', "'")
+    h10 = [ln for ln in guess.splitlines() if "'H10'" in ln][0]
+    for want in ("'ecg'", "'acc'", "'hr'"):
+        assert want in h10, f"the H10 default must request {want}: {h10.strip()}"
+    verity = [ln for ln in guess.splitlines() if "'VeritySense'" in ln][0]
+    for want in ("'ppg'", "'acc'", "'gyro'", "'mag'"):
+        assert want in verity, f"the Verity default must request {want}: {verity.strip()}"
