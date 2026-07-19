@@ -6,14 +6,19 @@ name: capture-host-ci
 # (Clock Contract / the ~10% HR-bug regression), clockcfg, and the live-sample telemetry bus. No BLE
 # hardware needed — the tested modules are pure-Python (bleak/aiohttp are only imported by the runtime
 # daemon: capture/webmon/bonding/pull_session/polar_psftp, which read 0% in this hardware-free CI).
-# Coverage is REPORTED every run with a conservative --cov-fail-under backstop (source-only ~24% today);
+# Coverage is REPORTED every run with a conservative --cov-fail-under backstop (source-only ~31% today);
 # it guards against a coverage CRATER, not normal incremental additions.
+#
+# Runs on a MATRIX of Python versions, and the version the real box runs is required to be one of them —
+# see the note on the matrix below for why that is load-bearing rather than tidiness.
 
+# The filter includes THIS FILE: without it a change to the workflow could not run the workflow, so an
+# edit to the matrix, the pin or the coverage floor would merge completely unexercised.
 on:
   push:
-    paths: ['capture-host/**']
+    paths: ['capture-host/**', '.github/workflows/capture-host-ci.yml']
   pull_request:
-    paths: ['capture-host/**']
+    paths: ['capture-host/**', '.github/workflows/capture-host-ci.yml']
   workflow_dispatch:
 
 defaults:
@@ -23,11 +28,21 @@ defaults:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # ⚠️ THE BOX'S VERSION MUST BE IN THIS MATRIX. It was pinned to 3.12 alone while the Vigil box ran
+    # 3.13.11 — CI was green on a Python the hardware does not execute. That is not hypothetical here:
+    # capture.py's clock path calls datetime.utcnow(), deprecated in 3.12 and slated for REMOVAL, so a
+    # 3.12-only CI would have stayed green through the exact release that broke the box's clock. When the
+    # box is upgraded, add the new version here FIRST and let CI prove it before the box moves.
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13']   # 3.13 = the box (Vigil, 3.13.11); 3.12 = the older baseline
+    name: test (py${{ matrix.python-version }})
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python-version }}
       - name: Install tooling
         run: |
           python -m pip install --upgrade pip
