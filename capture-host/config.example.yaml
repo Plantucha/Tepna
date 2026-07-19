@@ -88,3 +88,10 @@ alerts:
   webhook_url: ""         # e.g. https://ntfy.sh/your-private-topic   (POSTs {"title","message"} JSON)
   offline_sec: 300        # a configured sensor offline this long → alert (edge-triggered; no flap spam)
   poll_sec: 60
+
+# ── Per-night QC summary (optional) ───────────────────────────────────────────────────────────────────
+# Rolls up tonight's capture completeness — rows per configured stream, and which declared streams produced
+# NOTHING (the header-only files a rejected PMD START or a never-worn sensor leaves). Written to
+# <night>/QC-SUMMARY.json and surfaced in status.json as `qc`; read-only, creates no empty folders.
+qc:
+  poll_sec: 600

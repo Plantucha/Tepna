@@ -22,6 +22,7 @@ import offline_lock
 import diskguard
 import sdnotify
 import alerts
+import nightqc
 from telemetry import TelemetryBus
 
 HR_UUID = "00002a37-0000-1000-8000-00805f9b34fb"   # standard Heart Rate Measurement (RR intervals)
@@ -1533,6 +1534,28 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                                         f"{name} has been offline for ~{mins} min — capture is missing it.")
 
 
+async def qc_poller(cfg: dict, root: str):
+    """Summarise the CURRENT night's capture completeness — rows per configured stream, which declared
+    streams produced nothing (the header-only files a rejected START / never-worn sensor leaves). Turns
+    'did tonight capture?' into a glance: written to <night>/QC-SUMMARY.json and surfaced as status.json
+    `qc`. Read-only over the tree — it never creates a night dir, so an idle box makes no empty folders."""
+    interval = float((cfg.get("qc") or {}).get("poll_sec", 600))
+    while not _STOP.is_set():
+        await asyncio.sleep(interval)
+        try:
+            night = os.path.join(root, "captures", _now().strftime("%Y-%m-%d"))
+            if not os.path.isdir(night):
+                continue                                   # nothing captured yet tonight — nothing to QC
+            summ = nightqc.summarize(night, cfg.get("devices", []))
+            STATUS["qc"] = summ
+            with open(os.path.join(night, "QC-SUMMARY.json"), "w") as fh:
+                json.dump(summ, fh, indent=2)
+            if summ["missing"]:
+                log.info("qc: %s missing stream(s): %s", summ["night"], ", ".join(summ["missing"]))
+        except Exception as e:                             # QC is observability — never take capture down
+            log.warning("qc poll failed: %r", e)
+
+
 async def sd_watchdog():
     """Heartbeat systemd's WatchdogSec from a live-event-loop task, so a HUNG-but-alive daemon (the wedged
     BLE stack this box keeps hitting) is detected and restarted — `Restart=always` alone never fires
@@ -1597,6 +1620,7 @@ async def main():
              asyncio.create_task(host_clock_poller(cfg, root)),
              asyncio.create_task(storage_poller(cfg, root, notifier)),
              asyncio.create_task(alert_poller(cfg, notifier)),
+             asyncio.create_task(qc_poller(cfg, root)),
              asyncio.create_task(sd_watchdog())]
 
     def _spawn(dev: dict):

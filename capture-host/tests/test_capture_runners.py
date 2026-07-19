@@ -1856,7 +1856,7 @@ def test_main_signals_ready_and_announces_start(tmp_path, monkeypatch):
     monkeypatch.setattr(capture.alerts, "_http_post", fake_post)
     for r in ("run_polar", "run_oxyii", "run_viatom", "run_muse", "status_loop", "adapter_watchdog",
               "rssi_poller", "clock_watchdog", "host_clock_poller", "storage_poller", "alert_poller",
-              "sd_watchdog"):
+              "qc_poller", "sd_watchdog"):
         async def _n(*a, **k): return None
         monkeypatch.setattr(capture, r, _n)
     async def fake_hci(mac, refresh=False): return "hci2"
@@ -1876,3 +1876,42 @@ def test_main_signals_ready_and_announces_start(tmp_path, monkeypatch):
     _run(capture.main())
     assert "READY=1" in signals and "STOPPING=1" in signals
     assert posts and posts[0]["title"] == "Tepna: capture started"
+
+
+# ── qc_poller ───────────────────────────────────────────────────────────────────────────────────────
+def test_qc_poller_summarizes_the_current_night(tmp_path, monkeypatch):
+    """The poller writes QC-SUMMARY.json + status.json `qc` for tonight's directory, and logs missing
+    streams."""
+    import datetime as _dtm
+    monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 23, 0, 0))
+    night = tmp_path / "captures" / "2026-07-19"; night.mkdir(parents=True)
+    with open(night / "Polar_H10_02849638_20260719_ECG.txt", "w") as f:
+        f.write("h\n1\n2\n3\n")                             # 3 rows
+    # ACC declared but never produced → missing
+    cfg = {"qc": {"poll_sec": 600},
+           "devices": [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "acc"]}]}
+    _stop_after(monkeypatch, 1)
+    _run(capture.qc_poller(cfg, str(tmp_path)))
+    assert capture.STATUS["qc"]["night"] == "2026-07-19"
+    assert capture.STATUS["qc"]["missing"] == ["H10:acc"] and capture.STATUS["qc"]["ok"] is False
+    assert (night / "QC-SUMMARY.json").exists()
+
+
+def test_qc_poller_skips_when_no_night_dir_yet(tmp_path, monkeypatch):
+    """Nothing captured tonight → the poller must not create an empty night folder."""
+    import datetime as _dtm
+    monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 23, 0, 0))
+    _stop_after(monkeypatch, 1)
+    _run(capture.qc_poller({"devices": []}, str(tmp_path)))
+    assert "qc" not in capture.STATUS
+    assert not (tmp_path / "captures" / "2026-07-19").exists()
+
+
+def test_qc_poller_swallows_an_error(tmp_path, monkeypatch):
+    import datetime as _dtm
+    monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 23, 0, 0))
+    (tmp_path / "captures" / "2026-07-19").mkdir(parents=True)
+    monkeypatch.setattr(capture.nightqc, "summarize",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("qc boom")))
+    _stop_after(monkeypatch, 1)
+    _run(capture.qc_poller({"devices": []}, str(tmp_path)))     # must not raise
