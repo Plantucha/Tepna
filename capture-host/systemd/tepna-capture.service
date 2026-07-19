@@ -5,7 +5,12 @@ After=bluetooth.target network-online.target time-sync.target
 Wants=bluetooth.target network-online.target
 
 [Service]
-Type=simple
+# notify (not simple): the daemon sends READY=1 once capture is actually up, and heartbeats WATCHDOG=1
+# from a live-event-loop task. WatchdogSec turns the box's signature HUNG-BUT-ALIVE failure (a wedged BLE
+# stack that captures nothing while the process keeps running) into an automatic kill+restart — Restart
+# alone never fires on a wedge because nothing crashes. sd_watchdog() pings at half this interval.
+Type=notify
+WatchdogSec=120
 User=tepna
 Group=tepna
 WorkingDirectory=/opt/tepna/capture-host

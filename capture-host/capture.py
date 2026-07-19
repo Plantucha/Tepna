@@ -19,6 +19,9 @@ import bonding
 import link_rssi
 import host_clock
 import offline_lock
+import diskguard
+import sdnotify
+import alerts
 from telemetry import TelemetryBus
 
 HR_UUID = "00002a37-0000-1000-8000-00805f9b34fb"   # standard Heart Rate Measurement (RR intervals)
@@ -1462,6 +1465,87 @@ async def rssi_poller(adapter_mac, cfg: dict, root: str | None = None):
             writer.close()
 
 
+async def storage_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = None):
+    """Watch free disk and apply age-based retention. The box writes ~1.2 GB/night forever; without this a
+    full filesystem silently loses every subsequent night (fsync just starts failing). Retention is OPT-IN
+    (keep_nights <= 0 = never delete — see diskguard.plan_prune); low free space is an ALERT, never an
+    excuse to eat recent data. Surfaces `storage` in status.json for the monitor."""
+    scfg = cfg.get("storage") or {}
+    interval = float(scfg.get("poll_sec", 300))
+    keep_nights = int(scfg.get("keep_nights", 0))          # 0 = retention disabled
+    min_free_gb = float(scfg.get("min_free_gb", 2))
+    captures = os.path.join(root, "captures")
+    low_alerted = False
+    while not _STOP.is_set():
+        try:
+            rep = diskguard.disk_report(root, min_free_gb)
+            protect = {_now().strftime("%Y-%m-%d")}        # never sweep tonight's in-progress directory
+            pruned = diskguard.prune_old_nights(captures, keep_nights, protect)
+            if pruned:
+                log.info("storage: pruned %d night(s) past the %d-night retention: %s",
+                         len(pruned), keep_nights, ", ".join(pruned))
+            rep = diskguard.disk_report(root, min_free_gb)  # re-read after any prune so status is current
+            rep["pruned"] = pruned
+            rep["keep_nights"] = keep_nights
+            STATUS["storage"] = rep
+            if rep["low"] and not low_alerted:             # edge-triggered: one alert per low episode
+                low_alerted = True
+                if notifier:
+                    await notifier.send("Tepna: disk low",
+                                        f"Only {rep['free_gb']} GB free ({rep['free_pct']}%). "
+                                        f"Captures may soon fail — free space or raise keep_nights.")
+            elif not rep["low"]:
+                low_alerted = False
+        except Exception as e:                             # storage bookkeeping must never take capture down
+            log.warning("storage poll failed: %r", e)
+        await asyncio.sleep(interval)
+
+
+async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
+    """Push a webhook alert when a configured sensor goes OFFLINE and stays offline past `offline_sec`
+    (edge-triggered, so a flapping link cannot spam), and a 'recovered' note when it returns. A lost night
+    is unrecoverable, so this is the difference between fixing a dead battery at 1am and finding out at
+    breakfast. No-op when alerting is disabled."""
+    acfg = cfg.get("alerts") or {}
+    interval = float(acfg.get("poll_sec", 60))
+    threshold = float(acfg.get("offline_sec", 300))
+    down_since: dict[str, float] = {}
+    alerted: set[str] = set()
+    while not _STOP.is_set():
+        await asyncio.sleep(interval)
+        now = _time.monotonic()
+        for d in cfg.get("devices", []):
+            name = d.get("name")
+            if not name:
+                continue
+            connected = bool(STATUS["devices"].get(name, {}).get("connected"))
+            if connected:
+                down_since.pop(name, None)
+                if name in alerted:                        # it had alerted → tell the operator it is back
+                    alerted.discard(name)
+                    await notifier.send("Tepna: sensor recovered", f"{name} reconnected.")
+            else:
+                down_since.setdefault(name, now)
+                if name not in alerted and alerts.offline_alert_due(down_since[name], now, threshold):
+                    alerted.add(name)
+                    mins = int((now - down_since[name]) / 60)
+                    await notifier.send("Tepna: sensor offline",
+                                        f"{name} has been offline for ~{mins} min — capture is missing it.")
+
+
+async def sd_watchdog():
+    """Heartbeat systemd's WatchdogSec from a live-event-loop task, so a HUNG-but-alive daemon (the wedged
+    BLE stack this box keeps hitting) is detected and restarted — `Restart=always` alone never fires
+    because nothing crashed. No-op when the unit configured no watchdog."""
+    period = sdnotify.watchdog_period_sec()
+    if period is None:
+        return
+    log.info("systemd watchdog: heartbeat every %.0fs", period)
+    while not _STOP.is_set():
+        sdnotify.sd_notify("WATCHDOG=1")
+        await asyncio.sleep(period)
+
+
 async def main():
     global ADAPTER
     ap = argparse.ArgumentParser()
@@ -1502,11 +1586,18 @@ async def main():
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, _STOP.set)
 
+    # Push-alert transport (webhook) — disabled unless config sets alerts.enabled + alerts.webhook_url.
+    _acfg = cfg.get("alerts") or {}
+    notifier = alerts.Notifier(_acfg.get("webhook_url"), enabled=bool(_acfg.get("enabled")))
+
     tasks = [asyncio.create_task(status_loop(root)),
              asyncio.create_task(adapter_watchdog(ADAPTER, cfg)),
              asyncio.create_task(rssi_poller(ADAPTER, cfg, root)),
              asyncio.create_task(clock_watchdog(cfg)),
-             asyncio.create_task(host_clock_poller(cfg, root))]
+             asyncio.create_task(host_clock_poller(cfg, root)),
+             asyncio.create_task(storage_poller(cfg, root, notifier)),
+             asyncio.create_task(alert_poller(cfg, notifier)),
+             asyncio.create_task(sd_watchdog())]
 
     def _spawn(dev: dict):
         # Refuse to capture a device missing identity fields — otherwise capture_filename() emits
@@ -1559,7 +1650,13 @@ async def main():
     else:
         log.info("BLE adapter: BlueZ default (no `adapter:` in config — pin it to survive re-enumeration)")
     log.info("tepna-capture up: %d device(s), root=%s", len(cfg.get("devices", [])), root)
+    sdnotify.sd_notify("READY=1")             # Type=notify: `systemctl start` unblocks once capture is up
+    # A (re)start is otherwise invisible overnight — a spurious restart mid-night is exactly what you want
+    # to know about, so announce it. Disabled unless a webhook is configured.
+    await notifier.send("Tepna: capture started",
+                        f"tepna-capture is up with {len(cfg.get('devices', []))} device(s).")
     await _STOP.wait()
+    sdnotify.sd_notify("STOPPING=1")
     for t in tasks:
         t.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)

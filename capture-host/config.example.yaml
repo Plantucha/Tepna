@@ -69,3 +69,22 @@ devices:
 # Lingo (CGM) and CPAP (EDF) are NOT live-captured — drop their exports into captures/<night>/:
 #   - Lingo:  encrypted/locked  -> Health Connect / Apple Health export -> drop in   (how-to-collect/libre-cgm.md)
 #   - CPAP:   SD card / ezShare Wi-Fi SD pull of DATALOG/*.edf -> drop in             (how-to-collect/cpap-edf.md)
+
+# ── Storage guard (optional) ──────────────────────────────────────────────────────────────────────────
+# The box writes ~1.2 GB/night, unattended, forever. Without a policy a full disk silently loses every
+# subsequent night. Retention is OPT-IN: keep_nights: 0 never deletes. min_free_gb only ALERTS (see below)
+# — it never eats recent recordings to chase space.
+storage:
+  keep_nights: 0          # delete night dirs older than the newest N (0 = never prune; tonight is always kept)
+  min_free_gb: 2          # warn (status.json + alert) when free space drops below this
+  poll_sec: 300
+
+# ── Push alerts (optional, disabled by default) ───────────────────────────────────────────────────────
+# A generic webhook (ntfy.sh, Discord/Slack/Telegram bridge, Home Assistant …). Fires on: a sensor offline
+# past offline_sec, its recovery, the daemon (re)starting, and low disk. A lost bedside night is
+# unrecoverable — this is the difference between fixing it at 1am and finding out at breakfast.
+alerts:
+  enabled: false
+  webhook_url: ""         # e.g. https://ntfy.sh/your-private-topic   (POSTs {"title","message"} JSON)
+  offline_sec: 300        # a configured sensor offline this long → alert (edge-triggered; no flap spam)
+  poll_sec: 60
