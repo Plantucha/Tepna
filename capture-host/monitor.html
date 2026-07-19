@@ -933,6 +933,12 @@ function guessDevice(d){
   else if(n.includes('sense')||n.includes('verity')){ vendor='Polar'; model='VeritySense'; streams=['ppg','acc']; }
   else if(n.includes('muse')){ vendor='Muse'; model='S'; streams=['eeg']; }
   else if(n.match(/o2ring|wellue|viatom|checkme/)){ vendor='Wellue'; model='O2Ring'; streams=['spo2']; }
+  // Third-party chest straps speaking the standard Heart Rate Service (0x180D). They give HR + RR but NO
+  // raw ECG — there is no PMD service — so 'hr' is the only stream to request, and asking for 'ecg' would
+  // open a writer for a stream that can never start. A Coospo HRM808S advertises as "808S 0022265": the
+  // vendor name appears nowhere, so the model number has to carry the match.
+  else if(n.match(/coospo|hrm ?808|^808s?\b/)){ vendor='Coospo'; model='HRM808S'; streams=['hr']; }
+  else if(n.match(/magene|wahoo tickr|scosche|decathlon|\bhrm\b/)){ vendor='Generic'; model='HR-Strap'; streams=['hr']; }
   const m = (d.name||'').match(/(\d{6,})/); if(m) device_id = m[1];
   return { name:d.name, vendor, model, device_id, address:d.address, streams };
 }

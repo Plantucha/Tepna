@@ -43,7 +43,11 @@ def is_placeholder_name(name: str) -> bool:
     """True when the name carries no identifying information — empty, or the address restated."""
     n = (name or "").strip()
     return not n or bool(_ADDR_NAME_RE.match(n))
-_HEALTH_HINT = re.compile(r"polar|verity|muse|o2ring|wellue|viatom|checkme|oxy|sense", re.I)
+# Names worth foregrounding in the scan list. `hrm`/`808`/`coospo` cover third-party chest straps that
+# speak the standard Heart Rate Service (a Coospo HRM808S advertises as "808S 0022265" — no vendor word
+# in the name at all, so without the model hint it sorts in with the neighbours' speakers).
+_HEALTH_HINT = re.compile(r"polar|verity|muse|o2ring|wellue|viatom|checkme|oxy|sense|coospo|hrm|"
+                          r"\b808s?\b|magene|wahoo|garmin|decathlon|scosche", re.I)
 
 
 @dataclass

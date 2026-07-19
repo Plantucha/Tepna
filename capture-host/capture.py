@@ -337,7 +337,18 @@ def _set(name, **kv):
 
 
 def _parse_hr(data: bytes):
-    """Standard HR Measurement char → (bpm, [rr_ms,...])."""
+    """Standard HR Measurement char (0x2A37) → (bpm, [rr_ms,...], contact).
+
+    Vendor-neutral: this is the Bluetooth SIG layout, so it serves any HR strap, not just a Polar.
+
+    `contact` is the SKIN-CONTACT state, or None when the device does not support reporting it:
+    flags bit2 = "contact supported", bit1 = "contact detected". Worth surfacing because it is the one
+    thing that distinguishes a strap being WORN from a strap lying on a table — and a strap off the body
+    does not go quiet, it streams electrode noise at full rate while its own HR algorithm keeps emitting
+    a plausible number. Measured 2026-07-19 on an H10 (which does NOT report contact): off-chest ECG ran
+    at 24x normal amplitude, p2p 31 mV vs 1.3 mV, while RR came out at 335-833 ms inside three seconds —
+    physiologically impossible, individually believable, and nothing downstream could tell. A Coospo
+    HRM808S does report contact, so for that strap the not-worn state is knowable rather than inferred."""
     flags = data[0]; i = 1
     if flags & 0x01:
         bpm = int.from_bytes(data[1:3], "little"); i = 3
@@ -346,35 +357,53 @@ def _parse_hr(data: bytes):
     if flags & 0x08:   # energy expended present
         i += 2
     rr = []
-    while i + 1 < len(data) + 1 and i + 1 <= len(data):
-        if i + 2 > len(data):
-            break
+    while i + 2 <= len(data):
         raw = int.from_bytes(data[i:i + 2], "little"); i += 2
         rr.append(round(raw / 1024 * 1000))   # 1/1024 s units -> ms
-    return bpm, rr
+    contact = bool(flags & 0x02) if (flags & 0x04) else None
+    return bpm, rr, contact
+
+
+# Streams that ride Polar's PMD service. Everything else on this path (`hr`) is the vendor-neutral SIG
+# Heart Rate characteristic, which any strap serves.
+_PMD_STREAMS = frozenset({"ecg", "acc", "ppg", "gyro", "mag", "ppi"})
 
 
 async def run_polar(dev: dict, root: str):
+    """Polar PMD + the standard Heart Rate characteristic. Despite the name this is also the path for any
+    third-party HR strap, because `hr` is SIG-standard — so the Polar-SPECIFIC rituals below have to be
+    gated rather than assumed. A Coospo HRM808S (probed 2026-07-19) has neither PMD nor PS-FTP: running
+    them anyway cost a pointless bond attempt, an 18-SECOND GLOBAL CAPTURE PAUSE while an impossible
+    clock sync failed on a missing characteristic, and a phantom link that then tripped the watchdog."""
     name, addr = dev["name"], dev["address"]
     streams = dev.get("streams", ["ecg"])
     backoff = 5
     stale_bond_hits = 0        # consecutive one-sided-bond failures; see the teardown handler
+    needs_pmd = bool(set(streams) & _PMD_STREAMS)
+    is_polar = (dev.get("vendor") or "").strip().lower() == "polar"
     # One-time bond BEFORE any PMD attempt — the H10 drops an un-authenticated link ~1-2 s after
     # connect (bleak #1943). ensure_bonded is a no-op if the bond already exists. (Reconnects after a
     # transient drop reuse the stored bond, so we don't re-bond in the loop.)
-    try:
-        if not await bonding.ensure_bonded(addr, ADAPTER):
-            _set(name, last_error="bond failed — pair the sensor from the monitor page")
-            log.warning("%s not bonded; PMD will likely drop until bonded", name)
-    except Exception as e:
-        _set(name, last_error=f"bond error: {e!r}")
+    # ONLY when a PMD stream is wanted. The bond exists because the H10 refuses PMD on an
+    # unauthenticated link — the SIG Heart Rate characteristic has no such requirement, and most
+    # third-party straps do not support pairing at all, so bonding one fails and reports a scary
+    # "bond failed" for a device that was about to work perfectly well.
+    if needs_pmd:
+        try:
+            if not await bonding.ensure_bonded(addr, ADAPTER):
+                _set(name, last_error="bond failed — pair the sensor from the monitor page")
+                log.warning("%s not bonded; PMD will likely drop until bonded", name)
+        except Exception as e:
+            _set(name, last_error=f"bond error: {e!r}")
     # Sync the device clock ONCE at task start, BEFORE the PMD link is established. Polar stamps every
     # sample with device time, and an H10 resets to its 2019 firmware default whenever it leaves the
     # strap — so without this `sensor timestamp [ns]` is meaningless and siblings share no origin.
     # It must happen here, not inside the connected session: the PS-FTP client needs the device's single
     # BLE link, and polar_offline_op waits for run_polar to release it (calling it from inside would
     # deadlock — run_polar would be awaiting a pause only run_polar can grant).
-    if (_CFG.get("time") or {}).get("auto_sync_devices", True):
+    # PS-FTP is POLAR-SPECIFIC. On anything else the sync cannot succeed — it fails on a missing
+    # characteristic — and it costs a global capture pause to find that out, every task start.
+    if is_polar and (_CFG.get("time") or {}).get("auto_sync_devices", True):
         # Every device task starts at once and each wants the single offline slot, so the losers get
         # OfflineBusy. Fail-fast is right for a user-clicked pull (don't leave the browser spinning) but
         # wrong here — an auto-sync should simply WAIT ITS TURN, or the second sensor silently never
@@ -501,8 +530,13 @@ async def run_polar(dev: dict, root: str):
                 def on_hr(_sender, data: bytearray):
                     if not hr_writer:
                         return
-                    bpm, rr = _parse_hr(bytes(data))
+                    bpm, rr, contact = _parse_hr(bytes(data))
                     hr_writer.write_hr(_now(), 0, bpm, rr)
+                    # Only straps that ADVERTISE contact support get a worn verdict; on one that does not
+                    # (the H10), leaving it None is honest — better an unknown than a fabricated "worn".
+                    if contact is not None:
+                        _set(name, worn=contact,
+                             last_error=None if contact else "not worn — no skin contact")
                     if rr:                        # raw RR intervals to the monitor (no HRV computed on-box)
                         BUS.push(_live_key("hr", tag), [float(x) for x in rr], 0)
                     if bpm:
