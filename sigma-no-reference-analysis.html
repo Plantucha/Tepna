@@ -644,16 +644,34 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
       auc = 0,
       prevFpr = 0,
       prevTpr = 0;
-    pairs.forEach(function (p) {
-      if (p.y) tp++;
-      else fp++;
+    /* DEEP-AUDIT-II §12.4 — tied scores must advance the curve as ONE block.
+       Stepping one point at a time drew a staircase through each tie, so the area depended on
+       whether positives or negatives happened to be ordered first WITHIN the tied group. `sort` is
+       stable, so that is just input order — and the papers layer feeds it from workers, making the
+       published AUC run-to-run nondeterministic. It also falsified hrv-confound-analysis.js's own
+       order-invariance comment.
+       The damage is not subtle: on 4 tied scores with mixed labels, permuting only the tied labels
+       moves AUC between 1.0000 ("perfect discrimination") and 0.5556 ("barely above chance"), when
+       the true value is 0.7778. NEITHER endpoint was correct.
+       Advancing tp/fp across the whole tied block and drawing a single trapezoid over it is the
+       diagonal through the tie — exactly the half-credit Mann–Whitney assigns — so `roc().auc` now
+       equals `mannWhitneyAUC` identically, which is the gate. */
+    var bi = 0;
+    while (bi < pairs.length) {
+      var bj = bi;
+      while (bj < pairs.length && pairs[bj].s === pairs[bi].s) {
+        if (pairs[bj].y) tp++;
+        else fp++;
+        bj++;
+      }
       var tpr = tp / P,
         fpr = fp / N;
       auc += ((fpr - prevFpr) * (tpr + prevTpr)) / 2;
       pts.push({ x: fpr, y: tpr });
       prevFpr = fpr;
       prevTpr = tpr;
-    });
+      bi = bj;
+    }
     return { auc: auc, pts: pts };
   }
 
