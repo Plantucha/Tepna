@@ -9,6 +9,7 @@
 import asyncio
 
 import bonding
+import telemetry
 import webmon
 from aiohttp.test_utils import TestClient, TestServer
 
@@ -314,3 +315,65 @@ def test_sse_stream_forwards_a_pushed_frame():
                 await cl.close()                                # disconnect -> CancelledError caught
         frame = asyncio.run(go())
         assert b"data:" in frame and b"72" in frame
+
+
+# ── web-control auth (optional shared-secret on the POST control surface) ──────────────────────────────
+def _mk_token(tmp_path, token):
+    """An app whose config sets web.token, so the auth middleware is armed."""
+    cfg = {"root": str(tmp_path), "clock": {"sudo": False},
+           "web": {"token": token}, "devices": [dict(H10)]}
+    st = {"host_clock": {"source": "ntp"}, "devices": {}}
+    app = webmon.make_app(telemetry.TelemetryBus(), cfg, str(tmp_path / "config.yaml"),
+                          "AA:AA:AA:AA:AA:AA", st, None)
+    return app
+
+
+_GOOD_BODY = {"settings": {"watchdog.interval_sec": 90}}   # a valid settings POST (200 when authorized)
+
+
+def test_auth_allows_a_post_with_the_right_token_header(tmp_path):
+    app = _mk_token(tmp_path, "s3cret")
+    async def go(c):
+        r = await c.post("/api/settings", json=_GOOD_BODY, headers={"X-Tepna-Token": "s3cret"})
+        return r.status
+    assert _serve(app, go) == 200
+
+
+def test_auth_allows_a_post_with_a_bearer_token(tmp_path):
+    app = _mk_token(tmp_path, "s3cret")
+    async def go(c):
+        r = await c.post("/api/settings", json=_GOOD_BODY, headers={"Authorization": "Bearer s3cret"})
+        return r.status
+    assert _serve(app, go) == 200
+
+
+def test_auth_rejects_a_post_with_no_token(tmp_path):
+    app = _mk_token(tmp_path, "s3cret")
+    async def go(c):
+        r = await c.post("/api/settings", json=_GOOD_BODY)
+        return r.status
+    assert _serve(app, go) == 401
+
+
+def test_auth_rejects_a_post_with_the_wrong_token(tmp_path):
+    app = _mk_token(tmp_path, "s3cret")
+    async def go(c):
+        r = await c.post("/api/settings", json=_GOOD_BODY, headers={"X-Tepna-Token": "nope"})
+        return r.status
+    assert _serve(app, go) == 401
+
+
+def test_auth_leaves_get_reads_open(tmp_path):
+    app = _mk_token(tmp_path, "s3cret")
+    async def go(c):
+        r = await c.get("/api/state")          # a GET read needs no token, even with auth armed
+        return r.status
+    assert _serve(app, go) == 200
+
+
+def test_no_token_configured_leaves_posts_open(tmp_path):
+    app, *_ = _mk(tmp_path)                     # default cfg has no web.token → middleware is a pass-through
+    async def go(c):
+        r = await c.post("/api/settings", json=_GOOD_BODY)
+        return r.status
+    assert _serve(app, go) == 200
