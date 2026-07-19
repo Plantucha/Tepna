@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED — 2026-07-18 · **Created:** 2026-07-18 · **Executes:** `AUDIT-PROMPT.md` (the deep-audit charter) · **Follows:** `DEEP-AUDIT-2026-07-11-BRIEF.md` (DONE 2026-07-12, 21 findings) · **Sibling-axis:** `TEST-AUDIT-FINDINGS-2026-07-18-BRIEF.md` (gates that stay green) · `DEEP-SCOUT-HOLLOW-GATES-2026-07-18-BRIEF.md`
+**Status:** IN-PROGRESS — 2026-07-19 (**7 punch-list items EXECUTED + gated, 2026-07-19.** #3 ECGDex QT window-edge (PR #227) · #1+#2+#27 OxyDex desSev / SBII / gapPct, incl. the new `tools/regen-oxydex-goldens.mjs` (PR #229) · #8 GlucoDex drift KPI (PR #232) · #7 Integrator multi-record events + `validateNodeExport` warnings (PR #238) · #12 **partially** — §9.1 cross-night weighted CV across all five clones (PR #239), §9.2 + §9.3 still open. Each shipped its own both-direction mutation-verified gate, because the audit's own structural finding is that six defects survived behind gates asserting the wrong thing. **#11 (Lomb–Scargle Parseval, §3.1) is MEASURED BUT NOT EXECUTED** — it needs an owner decision on the calibration ceiling and on correcting `audits/DEX-DSP-AUDIT-FREQ-HRV.md`, which prescribed the current form; measurement recorded in §3.1 below. **#14 (MotionDex effort epochs, §7.1) is deferred** pending `PMD-DECODE-SCALE-AND-RATE` §5's corpus rescale — MotionDex's GYRO/MAG inputs are 16.4×/655× off until it lands, so gating against them now would pin the fix to data about to change. Rows carry ✅/⚠️ markers inline — trust those over this summary, and the tree over both.) · **Created:** 2026-07-18 · **Executes:** `AUDIT-PROMPT.md` (the deep-audit charter) · **Follows:** `DEEP-AUDIT-2026-07-11-BRIEF.md` (DONE 2026-07-12, 21 findings) · **Sibling-axis:** `TEST-AUDIT-FINDINGS-2026-07-18-BRIEF.md` (gates that stay green) · `DEEP-SCOUT-HOLLOW-GATES-2026-07-18-BRIEF.md`
 
 # Deep audit II — 64 correctness defects across the fleet
 
@@ -255,14 +255,14 @@ Correctness first. **One gated change at a time** (`CLAUDE.md` §👥.3). Each i
 
 | # | Item | § | Size |
 |---|---|---|---|
-| 1 | **OxyDex `computeDesSev` saturates on 37/37 nights** — reconcile all three classifiers + the reference doc | 2.2 | 1 bundle · **fixtures MOVE (all 3, every night)** · regen + verify-fixtures + both browser gates |
-| 2 | **OxyDex SBII counts artifact desats** — up to 6.5×; do **not** touch `durationHr` | 2.1 | 1 bundle · **fixtures MOVE (2)** |
-| 3 | **ECGDex QT/QTc pinned to the window edge**; `unstable` flag inverted | 4.1 | 2 files, 1 bundle · fixtures hold · **must ship with a NEW assertion — no GATE-C leg covers delineation** · MINOR |
+| 1 | ✅ **DONE 2026-07-19 (PR #229)** — **OxyDex `computeDesSev` saturates on 37/37 nights** — reconcile all three classifiers + the reference doc | 2.2 | 1 bundle · **fixtures MOVE (all 3, every night)** · regen + verify-fixtures + both browser gates |
+| 2 | ✅ **DONE 2026-07-19 (PR #229)** — **OxyDex SBII counts artifact desats** — up to 6.5×; do **not** touch `durationHr` | 2.1 | 1 bundle · **fixtures MOVE (2)** |
+| 3 | ✅ **DONE 2026-07-19 (PR #227)** — **ECGDex QT/QTc pinned to the window edge**; `unstable` flag inverted | 4.1 | 2 files, 1 bundle · fixtures hold · **must ship with a NEW assertion — no GATE-C leg covers delineation** · MINOR |
 | 4 | **HRVDex absent-column family** — 11 sites, one edit. **Replace the two hollow gates** (`:11381`, `:11386`) | 1.1–1.9 | 1 bundle (+2 orchestrators) · outputs should hold — **prove it** |
 | 5 | **ECGDex `parseECG` single-delta fs** — **THREE mirrored sites in lockstep**; median **plus** stamp cross-check | 4.3 | 1 bundle · **land with #6** |
 | 6 | **ECGDex discards parsed sample gaps** | 4.2 | rides #5's bundle |
-| 7 | **Integrator drops multi-record events** — also surface `validateNodeExport` warnings | 8.1 | 1 bundle · `historical:true` fixtures don't move |
-| 8 | **GlucoDex "Largest drift" 18× in mmol/L** — two characters | 5.3 | 1 bundle |
+| 7 | ✅ **DONE 2026-07-19 (PR #238)** — **Integrator drops multi-record events** — also surface `validateNodeExport` warnings | 8.1 | 1 bundle · `historical:true` fixtures don't move |
+| 8 | ✅ **DONE 2026-07-19 (PR #232)** — **GlucoDex "Largest drift" 18× in mmol/L** — two characters | 5.3 | 1 bundle |
 | 9 | **Integrator counts gap interpolation as measured glucose** — add the `f === 4` arm at `integrator-dsp.js:1627` and exclude interpolated cells from `coverage`. **Land the Integrator edit alone first**; the `cellsNote` doc fix is separate and more expensive. Gate with the **committed** Lingo-gap twin | 8.3 | 1 bundle · fixtures hold |
 | 10 | **`oxydex-fusion` coverage trilogy** — all three ungated today | 11.1–11.3 | 1 bundle · **first-ever gate on this function** |
 
@@ -271,7 +271,7 @@ Correctness first. **One gated change at a time** (`CLAUDE.md` §👥.3). Each i
 | # | Item | § | Size |
 |---|---|---|---|
 | 11 | **Lomb–Scargle Parseval calibration** — **the single largest blast radius in this report**; correct `audits/DEX-DSP-AUDIT-FREQ-HRV.md` too | 3.1 | **3 bundles, one unit** · **ALL fixtures for 3 nodes MOVE** · commit an adversarial twin · loud CHANGELOG |
-| 12 | **Cross-night estimator trilogy** — all five clones together; two are documented spec breaches | 9.1–9.3 | **5 bundles** · **mandatory new non-uniform-weight gate — the feature is untested** |
+| 12 | ⚠️ **PARTIAL 2026-07-19 — §9.1 DONE (PR #239), §9.2 + §9.3 STILL OPEN** — **Cross-night estimator trilogy** — all five clones together; two are documented spec breaches | 9.1–9.3 | **5 bundles** · **mandatory new non-uniform-weight gate — the feature is untested** |
 | 13 | **`slopePerDay` becomes slope-per-recording** when any item is undated | 9.4 | rides #12 |
 | 14 | **MotionDex timing + coverage cluster** — **7.1 and 7.2 must be fixed together** (either alone leaves the apnea-typing fabrication in place). Mirror `3e9792f`'s actigraphy `seen`/`covered` fix onto `bodyPosition` for 7.4 | 7.1–7.6 | 1 bundle · **7.6 moves export bytes; write `tools/regen-motiondex-goldens.mjs` FIRST (none exists)** · land `MOTIONDEX-BUILD-FOLLOWUPS §4`'s differentiated twin in the SAME change or nothing gates the fix |
 | 15 | **CPAPDex `pressureChangePoints`** — `PEN_K` must be re-tuned | 6.1 | 1 bundle · 3-regime + append-invariance gates, verified RED first |
@@ -286,7 +286,7 @@ Correctness first. **One gated change at a time** (`CLAUDE.md` §👥.3). Each i
 | 24 | **GlucoDex blanket `clampFloor`** — gate `:7156` is hollow **and reds on the correct fix** | 5.4 | 1 bundle · **fixture MOVES** |
 | 25 | **`analysis-stats roc()` tie handling** — gate with the `roc ≡ mannWhitneyAUC` identity | 12.4 | **No app bundle** · `tools/build-analysis.mjs` only · **cheapest correctness fix here** |
 | 26 | **Profile layer: fabricated ACSM citation, `vo2Norm` plateau, `_clampAge`** — single-source onto OxyDex's table; **update the test that locks the drift in** | 13.1, 13.2, 13.4 | **shared spine — all 8 bundles, SERIALIZE** · `computeHash` is **blind here** → verify-fixtures by hand |
-| 27 | **OxyDex `gapPct` seconds ÷ sample count** | 2.3 | 1 bundle · cheapest riding #1 or #2 |
+| 27 | ✅ **DONE 2026-07-19 (PR #229)** — **OxyDex `gapPct` seconds ÷ sample count** | 2.3 | 1 bundle · cheapest riding #1 or #2 |
 
 ## Tier 2 — silent failure / fabricated absence, no wrong number on screen
 
