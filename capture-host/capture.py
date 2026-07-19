@@ -612,7 +612,19 @@ async def run_polar(dev: dict, root: str):
                     try:
                         b = await client.read_gatt_char(BATTERY_UUID)
                         if b:
-                            _set(name, battery=int(b[0]))
+                            lvl = int(b[0])
+                            # CHARGING, INFERRED. A Polar exposes no charge flag mid-session: the
+                            # in_charger status only appears when a PMD START is REFUSED, which cannot
+                            # happen to a device that was already streaming when it went on the dock. So
+                            # a device put on charge mid-session reported charging=False forever while
+                            # its battery visibly climbed — measured 2026-07-19, Verity 35 -> 61 %.
+                            # A battery that RISES is unambiguous: these cells do not self-charge.
+                            prev = STATUS["devices"].get(name, {}).get("battery")
+                            if isinstance(prev, int) and lvl > prev:
+                                _set(name, charging=True)
+                            elif isinstance(prev, int) and lvl < prev:
+                                _set(name, charging=False)   # discharging again -> off the dock
+                            _set(name, battery=lvl)
                     except Exception:
                         pass
                 await _read_batt()
@@ -853,10 +865,15 @@ async def run_oxyii(dev: dict, root: str):
                                 BUS.push("pr", [live["pr"]])
                             BUS.push("motion_o2", [live["motion"]])   # raw movement level (~1/s)
                             _set(name, rows=wr.rows, spo2=live["spo2"], pr=live["pr"], battery=live["batt"],
-                                 motion=live["motion"], worn=True, last_sample=now.isoformat(), last_error=None)
+                                 motion=live["motion"], worn=True, last_sample=now.isoformat(),
+                                 charging=bool(live.get("batt_state")), last_error=None)
                         else:
                             BUS.push("motion_o2", [live["motion"]])
-                            _set(name, worn=live["worn"], motion=live["motion"],
+                            # The ring keeps its link and keeps reporting motion/battery/contact on the
+                            # charger — only the vitals stop. batt_state is the device's OWN charge flag
+                            # (0 = not charging), so unlike the Polars this needs no inference.
+                            _set(name, worn=live["worn"], motion=live["motion"], battery=live["batt"],
+                                 charging=bool(live.get("batt_state")),
                                  last_error=None if live["worn"] else "no finger contact")
 
                 BUS.register("motion_o2", "Motion (O2Ring)", "lvl", 0)
