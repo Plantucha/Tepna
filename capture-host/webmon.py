@@ -82,6 +82,10 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             # What disciplined THIS BOX's clock. The devices inherit host time, so an undisciplined
             # host silently makes every stamp wrong-but-consistent — this is the evidence, not a guess.
             "host_clock": status.get("host_clock"),
+            # Box-health blocks the guardrail pollers publish: free disk + retention, and tonight's
+            # capture-completeness QC. Present only once their poller has run (null before then).
+            "storage": status.get("storage"),
+            "qc": status.get("qc"),
         })
 
     async def scan(_req):
