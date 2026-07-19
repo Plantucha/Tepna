@@ -37,6 +37,33 @@
     for (const v of a) s += v;
     return a.length ? s / a.length : NaN;
   }
+  /* Coverage-WEIGHTED sample SD — the companion wmean always needed (DEEP-AUDIT-II §9.1).
+     CV% was `100 * sd(vals) / wmean(vals, w)`: an UNWEIGHTED spread over a WEIGHTED centre, so a
+     night the envelope had deliberately down-weighted still contributed its full deviation. On
+     routine CPAP partial-use that read 74.6 % where the consistent figure is 49.8 %. It also
+     breached the spec in writing — CROSSNIGHT-ENVELOPE-SPEC §3: low-quality items are "down-weighted
+     in EVERY fit/aggregate via `weight`". `ols(idx, vals, w)` one line below already passed weights;
+     only the spread did not.
+     Reliability-weight form: V1 = Σw, V2 = Σw²; s² = Σw(x−m_w)² / (V1 − V2/V1).
+     With UNIFORM weights V1 = n and V2 = n, so the denominator is exactly n−1 — it reduces to the
+     Bessel-corrected sd() below, bit for bit. That is why every existing fixture holds: the whole
+     crossnight suite feeds a uniform weight vector, which is also why this was never exercised. */
+  function wsd(vals, w) {
+    if (vals.length < 2) return 0;
+    const m = wmean(vals, w);
+    let V1 = 0,
+      V2 = 0,
+      acc = 0;
+    for (let i = 0; i < vals.length; i++) {
+      const wi = w[i];
+      V1 += wi;
+      V2 += wi * wi;
+      const d = vals[i] - m;
+      acc += wi * d * d;
+    }
+    const denom = V1 > 0 ? V1 - V2 / V1 : 0;
+    return denom > 0 ? Math.sqrt(acc / denom) : 0;
+  }
   function sd(a) {
     if (a.length < 2) return 0;
     const m = mean(a);
@@ -153,7 +180,7 @@
       w = pts.map((p) => (p.w != null ? p.w : 1));
     const idx = pts.map((p, i) => i);
     const m = wmean(vals, w),
-      s = sd(vals);
+      s = wsd(vals, w);
     const med = median(vals),
       iqr = quantile(vals, 0.75) - quantile(vals, 0.25);
     const cv = m !== 0 ? Math.abs((100 * s) / m) : null;

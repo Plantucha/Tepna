@@ -13733,6 +13733,35 @@
         // so a ÷N−1→÷N regression that silently understates night-to-night spread reds HERE. Hand-derived.
         T.approx('OxyDex meanSpo2 central.sd = sample SD √(42/7)=2.4 (Bessel ÷N−1, NOT population 2.3)', oxB.metrics.meanSpo2.central.sd, 2.4, 1e-9);
         T.approx('OxyDex meanSpo2 central.cv = 100·√6/93.5 = 2.6 (from the sample SD)', oxB.metrics.meanSpo2.central.cv, 2.6, 1e-9);
+        /* ── DEEP-AUDIT-II §9.1 · the spread must carry the SAME weights as the centre ──────────────
+           `central.cv` was `100 * sd(vals) / wmean(vals, w)` — an UNWEIGHTED spread over a WEIGHTED
+           centre — so a night the envelope had deliberately down-weighted still contributed its full
+           deviation. 74.6 % vs 49.8 % on routine CPAP partial-use, and a breach of the spec in
+           writing (CROSSNIGHT-ENVELOPE-SPEC §3: low-quality items are "down-weighted in EVERY
+           fit/aggregate via `weight`"). `ols(idx, vals, w)` one line below already passed weights.
+           It went unexercised because EVERY crossnight case here feeds a UNIFORM weight vector —
+           including the two pins directly above, coverage 90 on all 8 nights. Under uniform weights
+           the fix is an exact identity (V1=n, V2=n ⇒ denominator n−1), which is why those pins and
+           every committed fixture still hold; only a VARYING weight vector can separate the two
+           formulas, so that is what this adds.
+           Hand-derived: meanSpo2 [95,95,95,80] at coverage [100,100,100,20] ⇒ w=[1,1,1,0.2].
+             m_w  = (95·3 + 80·0.2)/3.2 = 301/3.2 = 94.0625
+             V1=3.2, V2=3.04 ⇒ denom = 3.2 − 3.04/3.2 = 2.25
+             Σw(x−m_w)² = 3·0.9375² + 0.2·14.0625² = 42.1875 ⇒ s_w = √(42.1875/2.25) = √18.75 ≈ 4.33
+             cv_w = 100·4.3301/94.0625 ≈ 4.60
+           Pre-fix on the SAME input: sd = √(168.75/3) = 7.5, cv = 8.0 — the outlier night counted in
+           full despite being weighted to a fifth. Both directions pinned. */
+        var oxW = [100, 100, 100, 20].map(function (cov, i) {
+          return { stats: { startTs: day(i), meanSpo2: i === 3 ? 80 : 95, coverage: cov } };
+        });
+        var oxWB = OX.crossNightBlock(oxW);
+        var cW = oxWB && oxWB.metrics && oxWB.metrics.meanSpo2 && oxWB.metrics.meanSpo2.central;
+        T.ok('§9.1 · a varying-coverage block still forms', !!cW, JSON.stringify(oxWB && oxWB.metrics ? Object.keys(oxWB.metrics) : null));
+        if (cW) {
+          T.approx('§9.1 · central.sd is COVERAGE-WEIGHTED: √18.75 ≈ 4.3 (unweighted would be 7.5)', cW.sd, 4.3, 0.06);
+          T.approx('§9.1 · central.cv follows the same weights: ≈4.6 (an unweighted spread gave 8.0)', cW.cv, 4.6, 0.06);
+          T.ok('§9.1 · …the down-weighted outlier genuinely shrinks the spread', cW.sd < 7.0, 'sd=' + cW.sd + ' — 7.5 is what the outlier used to force at full weight');
+        }
         // deep-scout §CN — the block also surfaces median/iqr/min/max/slopePerDay/tau/p but the group
         // never pinned their VALUES, so every one of those estimators was hollow. meanSpo2 = [90..97]
         // (8 nights, 1 day apart, coverage 90 → equal weights): median = (93+94)/2 = 93.5; IQR = P75−P25 =
