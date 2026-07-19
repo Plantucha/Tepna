@@ -87,6 +87,24 @@ window.evBadge = evBadge;
     },
     cmp(op, mgdl) {
       return op + GluDisp.tick(mgdl);
+    },
+    // Sensor drift per day (stored mg/dL/day) → { display, sev }.
+    //
+    // DEEP-AUDIT-II §5.3: the "Largest drift" KPI printed the RAW mg/dL number under a sub-label
+    // naming the DISPLAY unit, so in mmol/L mode it read 18.018× the "Drift /day" column of the
+    // table directly beneath it — a KPI contradicting its own table. The two were formatted at
+    // separate call sites and only one routed through the converter, so they were free to diverge.
+    //
+    // The asymmetry here is deliberate and is the point of single-sourcing it: the VALUE is
+    // converted for display, the SEVERITY is graded on the RAW mg/dL scale. Both the KPI and the
+    // per-session rows grade on raw, so converting the threshold on one side alone would fix the
+    // number and break the colour. Change `display` and `sev` together, or neither.
+    drift(mgdlPerDay) {
+      const raw = mgdlPerDay == null || !isFinite(+mgdlPerDay) ? null : Math.abs(+mgdlPerDay);
+      return {
+        display: raw == null ? null : GluDisp.spread(mgdlPerDay),
+        sev: raw == null ? 'neutral' : raw < 3 ? 'ok' : raw < 7 ? 'warn' : 'bad'
+      };
     }
   };
 
