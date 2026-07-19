@@ -4535,6 +4535,66 @@
        object return NULL on absence (residualAHI etc. use `usageHours>0 ? … : null`). So a durSec===0 session
        exported a measured-looking periodicBreathingPct:0 beside honestly-null apnea indices — fabricated absence.
        Fix: `: 0` → `: null` on both sites, so absence reads null uniformly. ════ */
+    /* DEEP-AUDIT-II §6.2 — ODI must be rated over the time the OXIMETER could see, not the therapy
+       span. `valid` and `coverage` were computed and then not used for the rate: `hours` was the full
+       session duration, so every finger-off / probe-off sample still bought denominator. With
+       COVERAGE_FLOOR at 0.5 a night is admitted with half its samples unusable, so the understatement
+       reaches exactly 2×. The field was literally named `analyzedHours` while carrying the UNanalyzed
+       total, and the same object was internally inconsistent — `t90Pct` already divided by valid
+       samples only, so T90 and ODI on one lane sat on different denominators.
+       Every committed golden carries `coverage: 1`, which is why no existing gate could see this:
+       when valid === n the corrected form is an identity. Only a PARTIAL-coverage night separates
+       them, so that is what this builds — 2 h at 1 Hz, the first hour analyzable with three
+       physiologic desaturations, the second hour probe-off. Truth: 3 events in 1 analyzable hour =
+       ODI 3.0. Pre-fix: the same 3 events over the 2 h span = 1.5, exactly half. */
+    group('CPAPDex §6.2 — ODI is rated over ANALYZABLE oximeter time, not the therapy span', 'cpapdex-dsp · oximetry · regression', function (T) {
+      var DC = env.CpapDsp;
+      if (!DC || typeof DC.oximetryLane !== 'function') {
+        T.ok('CpapDsp.oximetryLane exposed', false, 'not wired');
+      } else {
+        var N = 7200,
+          spo2 = new Float32Array(N),
+          pulse = new Float32Array(N);
+        for (var i = 0; i < N; i++) {
+          spo2[i] = i < N / 2 ? 97 : NaN; // second hour: probe off
+          pulse[i] = 55;
+        }
+        // Three PHYSIOLOGIC desaturations in the analyzable hour: ramp down over 15 s, hold, recover.
+        // A step would be self-gated as an occlusion artifact (fall-rate kinetics), which is correct
+        // behaviour and not what this gate is about.
+        [600, 1500, 2600].forEach(function (s) {
+          for (var k = 0; k < 15; k++) spo2[s + k] = 97 - (7 * k) / 15;
+          for (var k2 = 15; k2 < 25; k2++) spo2[s + k2] = 90;
+          for (var k3 = 25; k3 < 40; k3++) spo2[s + k3] = 90 + (7 * (k3 - 25)) / 15;
+          for (var k4 = 0; k4 < 40; k4++) pulse[s + k4] = 58;
+        });
+        var lane = DC.oximetryLane({ signals: { SpO2: { data: spo2 }, Pulse: { data: pulse } } }, N);
+        T.eq('§6.2 · the half-covered night is admitted (coverage 0.5 clears COVERAGE_FLOOR)', lane.coverage, 0.5);
+        T.eq('§6.2 · …and its three desaturations are real, not self-gated', lane.desatCount, 3);
+        T.approx('§6.2 · analyzedHours is the ANALYZABLE hour, not the 2 h span it was reporting', lane.analyzedHours, 1, 1e-6);
+        T.approx('§6.2 · so ODI = 3 events / 1 h = 3.0 (the span denominator gave 1.5 — exactly half)', lane.odi, 3, 1e-6);
+        // …and the denominators on one lane must agree: t90Pct already used valid samples only.
+        T.eq('§6.2 · validSamples confirms the analyzable basis the rate now shares with t90Pct', lane.validSamples, 3600);
+        // Not over-broad: on a FULLY covered night the corrected form is an exact identity, which is
+        // why every committed golden holds — assert that rather than assume it.
+        var fs2 = new Float32Array(N),
+          fp2 = new Float32Array(N);
+        for (var j = 0; j < N; j++) {
+          fs2[j] = 97;
+          fp2[j] = 55;
+        }
+        [600, 1500, 2600].forEach(function (s) {
+          for (var k = 0; k < 15; k++) fs2[s + k] = 97 - (7 * k) / 15;
+          for (var k2 = 15; k2 < 25; k2++) fs2[s + k2] = 90;
+          for (var k3 = 25; k3 < 40; k3++) fs2[s + k3] = 90 + (7 * (k3 - 25)) / 15;
+          for (var k4 = 0; k4 < 40; k4++) fp2[s + k4] = 58;
+        });
+        var full = DC.oximetryLane({ signals: { SpO2: { data: fs2 }, Pulse: { data: fp2 } } }, N);
+        T.approx('§6.2 · a FULLY covered night is unchanged — analyzedHours is the full 2 h', full.analyzedHours, 2, 1e-6);
+        T.approx('§6.2 · …and its ODI is 3/2 = 1.5 (identity when valid === n — why the goldens hold)', full.odi, 1.5, 1e-6);
+      }
+    });
+
     group('CPAPDex §7 — periodicBreathingPct is null, not 0, on a zero-duration session', 'cpapdex-dsp · fabricated-absence', function (T) {
       var D = env.CpapDsp;
       if (!D || typeof D.buildSessionFromEdf !== 'function') {
