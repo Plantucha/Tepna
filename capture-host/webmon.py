@@ -16,7 +16,7 @@
 #   GET  /api/stream/{key}     -> Server-Sent-Events live waveform (one stream)
 
 from __future__ import annotations
-import asyncio, json, os
+import asyncio, hmac, json, os
 from aiohttp import web
 import yaml
 import bonding
@@ -31,7 +31,25 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_device,
              pull_stored=None, polar_pause=None, sync_time=None) -> web.Application:
-    app = web.Application()
+    # Optional shared-secret gate on the CONTROL surface. When web.token is set, every POST (bond / forget
+    # / remember / pull / settings / clock — all the state-changing verbs) needs the token; GET reads stay
+    # open so the monitor can still display without it. Default OFF (no token → current wide-open behaviour;
+    # fine on a trusted home LAN). Accepts `Authorization: Bearer <t>` or `X-Tepna-Token: <t>`; compared in
+    # constant time so the check leaks no timing signal about the secret.
+    _token = (cfg.get("web") or {}).get("token")
+
+    @web.middleware
+    async def _auth(request, handler):
+        if _token and request.method == "POST":
+            supplied = request.headers.get("X-Tepna-Token")
+            auth = request.headers.get("Authorization", "")
+            if not supplied and auth.startswith("Bearer "):
+                supplied = auth[7:]
+            if not (supplied and hmac.compare_digest(supplied, _token)):
+                return web.json_response({"ok": False, "error": "unauthorized"}, status=401)
+        return await handler(request)
+
+    app = web.Application(middlewares=[_auth])
 
     def _remembered() -> list[dict]:
         out = []

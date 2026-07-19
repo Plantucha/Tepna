@@ -13,6 +13,11 @@ web:                                    # monitor + control page (HEALTH-BOX-VIS
   enabled: true
   host: 0.0.0.0                         # the box serves the LAN; use 127.0.0.1 for a localhost-only test
   port: 8760
+  # token: ""                          # optional shared secret: when set, every CONTROL action (POST —
+                                        #   bond/forget/remember/pull/settings/clock) needs it; GET reads
+                                        #   stay open so the monitor still displays. Send it as
+                                        #   `Authorization: Bearer <token>` or `X-Tepna-Token: <token>`.
+                                        #   Default absent = wide open (fine on a trusted home LAN).
 
 watchdog:                               # auto-recover a WEDGED BLE controller (frozen-monitor failure).
   enabled: true                         #   Acts ONLY on unambiguous wedge signs (InProgress / phantom
@@ -88,3 +93,21 @@ alerts:
   webhook_url: ""         # e.g. https://ntfy.sh/your-private-topic   (POSTs {"title","message"} JSON)
   offline_sec: 300        # a configured sensor offline this long → alert (edge-triggered; no flap spam)
   poll_sec: 60
+
+# ── Per-night QC summary (optional) ───────────────────────────────────────────────────────────────────
+# Rolls up tonight's capture completeness — rows per configured stream, and which declared streams produced
+# NOTHING (the header-only files a rejected PMD START or a never-worn sensor leaves). Written to
+# <night>/QC-SUMMARY.json and surfaced in status.json as `qc`; read-only, creates no empty folders.
+qc:
+  poll_sec: 600
+  alert_after_sec: 3600   # if a declared stream is STILL empty this long into a night, alert once (needs
+                          # alerts.webhook_url). The grace avoids false alarms on a just-started night.
+
+# ── Night offload / archive (optional, disabled by default) ────────────────────────────────────────────
+# MIRROR each completed night (not tonight) to a destination — a NAS mount, the tepna-web served dir, a
+# backup disk — so finished nights land where they get analysed. Idempotent + resumable; never moves the
+# source (the storage guard prunes it on its own schedule).
+archive:
+  enabled: false
+  dest: ""                # e.g. /mnt/nas/tepna  or  /srv/tepna/app/captures
+  poll_sec: 3600

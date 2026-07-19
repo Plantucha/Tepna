@@ -22,6 +22,8 @@ import offline_lock
 import diskguard
 import sdnotify
 import alerts
+import nightqc
+import nightarchive
 from telemetry import TelemetryBus
 
 HR_UUID = "00002a37-0000-1000-8000-00805f9b34fb"   # standard Heart Rate Measurement (RR intervals)
@@ -1533,6 +1535,67 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                                         f"{name} has been offline for ~{mins} min — capture is missing it.")
 
 
+async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = None):
+    """Summarise the CURRENT night's capture completeness — rows per configured stream, which declared
+    streams produced nothing (the header-only files a rejected START / never-worn sensor leaves). Turns
+    'did tonight capture?' into a glance: written to <night>/QC-SUMMARY.json and surfaced as status.json
+    `qc`. Read-only over the tree — it never creates a night dir, so an idle box makes no empty folders.
+
+    When a webhook is configured, alerts ONCE per night if a declared stream is still missing after
+    `alert_after_sec` — the grace is essential, since a just-started night is legitimately empty and would
+    otherwise false-alarm every time. Only a night we have watched that long can have a *real* hole."""
+    qcfg = cfg.get("qc") or {}
+    interval = float(qcfg.get("poll_sec", 600))
+    alert_after = float(qcfg.get("alert_after_sec", 3600))
+    first_seen: dict[str, float] = {}      # night → monotonic ts we first saw it with data
+    alerted: set[str] = set()              # nights already alerted (edge-trigger, one per night)
+    while not _STOP.is_set():
+        await asyncio.sleep(interval)
+        try:
+            night = os.path.join(root, "captures", _now().strftime("%Y-%m-%d"))
+            if not os.path.isdir(night):
+                continue                                   # nothing captured yet tonight — nothing to QC
+            summ = nightqc.summarize(night, cfg.get("devices", []))
+            STATUS["qc"] = summ
+            with open(os.path.join(night, "QC-SUMMARY.json"), "w") as fh:
+                json.dump(summ, fh, indent=2)
+            n = summ["night"]
+            first_seen.setdefault(n, _time.monotonic())
+            if summ["missing"]:
+                log.info("qc: %s missing stream(s): %s", n, ", ".join(summ["missing"]))
+                waited = _time.monotonic() - first_seen[n]
+                if notifier and n not in alerted and waited >= alert_after:
+                    alerted.add(n)                         # one alert per night, no matter how many polls
+                    await notifier.send("Tepna: night has a gap",
+                                        f"{n}: no data on {', '.join(summ['missing'])} "
+                                        f"{int(waited / 3600)}h into the night.")
+        except Exception as e:                             # QC is observability — never take capture down
+            log.warning("qc poll failed: %r", e)
+
+
+async def archive_poller(cfg: dict, root: str):
+    """Mirror each COMPLETED night (not tonight — still being written) to a configured destination: a NAS
+    mount, the served dir, a backup disk. Idempotent + resumable (a `.archived` marker per night). MIRROR,
+    never move — the source stays for the retention guard to prune on its own schedule. No-op unless
+    archive.enabled + archive.dest are set."""
+    acfg = cfg.get("archive") or {}
+    if not (acfg.get("enabled") and acfg.get("dest")):
+        return
+    dest = acfg["dest"]
+    interval = float(acfg.get("poll_sec", 3600))
+    captures = os.path.join(root, "captures")
+    while not _STOP.is_set():
+        await asyncio.sleep(interval)
+        try:
+            tonight = _now().strftime("%Y-%m-%d")
+            for night in nightarchive.pending_nights(captures, tonight):
+                n = nightarchive.archive_night(captures, night, dest)
+                log.info("archive: mirrored %s (%d file(s)) → %s", night, n, dest)
+                STATUS.setdefault("archive", {}).update({"last": night, "dest": dest})
+        except Exception as e:                             # offload is best-effort — never take capture down
+            log.warning("archive failed: %r", e)
+
+
 async def sd_watchdog():
     """Heartbeat systemd's WatchdogSec from a live-event-loop task, so a HUNG-but-alive daemon (the wedged
     BLE stack this box keeps hitting) is detected and restarted — `Restart=always` alone never fires
@@ -1597,6 +1660,8 @@ async def main():
              asyncio.create_task(host_clock_poller(cfg, root)),
              asyncio.create_task(storage_poller(cfg, root, notifier)),
              asyncio.create_task(alert_poller(cfg, notifier)),
+             asyncio.create_task(qc_poller(cfg, root, notifier)),
+             asyncio.create_task(archive_poller(cfg, root)),
              asyncio.create_task(sd_watchdog())]
 
     def _spawn(dev: dict):

@@ -1856,7 +1856,7 @@ def test_main_signals_ready_and_announces_start(tmp_path, monkeypatch):
     monkeypatch.setattr(capture.alerts, "_http_post", fake_post)
     for r in ("run_polar", "run_oxyii", "run_viatom", "run_muse", "status_loop", "adapter_watchdog",
               "rssi_poller", "clock_watchdog", "host_clock_poller", "storage_poller", "alert_poller",
-              "sd_watchdog"):
+              "qc_poller", "archive_poller", "sd_watchdog"):
         async def _n(*a, **k): return None
         monkeypatch.setattr(capture, r, _n)
     async def fake_hci(mac, refresh=False): return "hci2"
@@ -1876,3 +1876,132 @@ def test_main_signals_ready_and_announces_start(tmp_path, monkeypatch):
     _run(capture.main())
     assert "READY=1" in signals and "STOPPING=1" in signals
     assert posts and posts[0]["title"] == "Tepna: capture started"
+
+
+# ── qc_poller ───────────────────────────────────────────────────────────────────────────────────────
+def test_qc_poller_summarizes_the_current_night(tmp_path, monkeypatch):
+    """The poller writes QC-SUMMARY.json + status.json `qc` for tonight's directory, and logs missing
+    streams."""
+    import datetime as _dtm
+    monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 23, 0, 0))
+    night = tmp_path / "captures" / "2026-07-19"; night.mkdir(parents=True)
+    with open(night / "Polar_H10_02849638_20260719_ECG.txt", "w") as f:
+        f.write("h\n1\n2\n3\n")                             # 3 rows
+    # ACC declared but never produced → missing
+    cfg = {"qc": {"poll_sec": 600},
+           "devices": [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "acc"]}]}
+    _stop_after(monkeypatch, 1)
+    _run(capture.qc_poller(cfg, str(tmp_path)))
+    assert capture.STATUS["qc"]["night"] == "2026-07-19"
+    assert capture.STATUS["qc"]["missing"] == ["H10:acc"] and capture.STATUS["qc"]["ok"] is False
+    assert (night / "QC-SUMMARY.json").exists()
+
+
+def test_qc_poller_skips_when_no_night_dir_yet(tmp_path, monkeypatch):
+    """Nothing captured tonight → the poller must not create an empty night folder."""
+    import datetime as _dtm
+    monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 23, 0, 0))
+    _stop_after(monkeypatch, 1)
+    _run(capture.qc_poller({"devices": []}, str(tmp_path)))
+    assert "qc" not in capture.STATUS
+    assert not (tmp_path / "captures" / "2026-07-19").exists()
+
+
+def test_qc_poller_swallows_an_error(tmp_path, monkeypatch):
+    import datetime as _dtm
+    monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 23, 0, 0))
+    (tmp_path / "captures" / "2026-07-19").mkdir(parents=True)
+    monkeypatch.setattr(capture.nightqc, "summarize",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("qc boom")))
+    _stop_after(monkeypatch, 1)
+    _run(capture.qc_poller({"devices": []}, str(tmp_path)))     # must not raise
+
+
+def _qc_night(tmp_path, monkeypatch, missing=True):
+    """A tmp night dir with an ECG file; ACC declared-but-absent when missing=True."""
+    import datetime as _dtm
+    monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 23, 0, 0))
+    night = tmp_path / "captures" / "2026-07-19"; night.mkdir(parents=True)
+    with open(night / "Polar_H10_02849638_20260719_ECG.txt", "w") as f:
+        f.write("h\n1\n2\n")
+    if not missing:
+        with open(night / "Polar_H10_02849638_20260719_ACC.txt", "w") as f:
+            f.write("h\n1\n2\n")
+    streams = ["ecg", "acc"]
+    return {"qc": {"poll_sec": 1, "alert_after_sec": 3600},
+            "devices": [{"name": "H10", "device_id": "02849638", "streams": streams}]}
+
+
+def test_qc_poller_alerts_once_on_a_gap_past_the_grace(tmp_path, monkeypatch):
+    """A stream still missing after alert_after_sec fires exactly one alert for the night."""
+    sent = []
+    class _N:
+        async def send(self, title, message, **kw): sent.append(title); return True
+    cfg = _qc_night(tmp_path, monkeypatch, missing=True)
+    clock = {"t": 0.0}
+    monkeypatch.setattr(capture._time, "monotonic", lambda: clock["t"])
+    calls = {"n": 0}
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        clock["t"] += 4000                 # each poll advances well past the 3600 s grace
+        if calls["n"] >= 3:
+            capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    _run(capture.qc_poller(cfg, str(tmp_path), _N()))
+    assert sent == ["Tepna: night has a gap"]   # once, despite 3 polls all seeing the gap
+
+
+def test_qc_poller_holds_the_alert_during_the_grace(tmp_path, monkeypatch):
+    """Within the grace window a missing stream must NOT alert — a just-started night is legitimately empty."""
+    sent = []
+    class _N:
+        async def send(self, title, message, **kw): sent.append(title)
+    cfg = _qc_night(tmp_path, monkeypatch, missing=True)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 100.0)   # never advances past grace
+    _stop_after(monkeypatch, 1)
+    _run(capture.qc_poller(cfg, str(tmp_path), _N()))
+    assert sent == []
+
+
+def test_qc_poller_no_alert_when_complete(tmp_path, monkeypatch):
+    sent = []
+    class _N:
+        async def send(self, title, message, **kw): sent.append(title)
+    cfg = _qc_night(tmp_path, monkeypatch, missing=False)            # every declared stream present
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 999999.0)
+    _stop_after(monkeypatch, 1)
+    _run(capture.qc_poller(cfg, str(tmp_path), _N()))
+    assert sent == [] and capture.STATUS["qc"]["ok"] is True
+
+
+# ── archive_poller ────────────────────────────────────────────────────────────────────────────────────
+def test_archive_poller_disabled_returns_immediately(tmp_path, monkeypatch):
+    _run(capture.archive_poller({"archive": {"enabled": False}}, str(tmp_path)))   # early return, no loop
+    _run(capture.archive_poller({"archive": {"enabled": True}}, str(tmp_path)))    # no dest → also returns
+
+
+def test_archive_poller_mirrors_completed_nights(tmp_path, monkeypatch):
+    import datetime as _dtm
+    monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 2, 0, 0))
+    cap = tmp_path / "captures"
+    (cap / "2026-07-18").mkdir(parents=True)                    # a completed night
+    (cap / "2026-07-18" / "Polar_H10_1_ECG.txt").write_text("rows\n")
+    (cap / "2026-07-19").mkdir()                                # tonight — must NOT be archived
+    (cap / "2026-07-19" / "Polar_H10_1_ECG.txt").write_text("live\n")
+    dest = tmp_path / "backup"
+    cfg = {"archive": {"enabled": True, "dest": str(dest), "poll_sec": 1}}
+    _stop_after(monkeypatch, 1)
+    _run(capture.archive_poller(cfg, str(tmp_path)))
+    assert (dest / "2026-07-18" / "Polar_H10_1_ECG.txt").exists()
+    assert not (dest / "2026-07-19").exists()                   # tonight left alone
+    assert capture.STATUS["archive"]["last"] == "2026-07-18"
+
+
+def test_archive_poller_swallows_an_error(tmp_path, monkeypatch):
+    import datetime as _dtm
+    monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 2, 0, 0))
+    monkeypatch.setattr(capture.nightarchive, "pending_nights",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("archive boom")))
+    cfg = {"archive": {"enabled": True, "dest": str(tmp_path / "b"), "poll_sec": 1}}
+    _stop_after(monkeypatch, 1)
+    _run(capture.archive_poller(cfg, str(tmp_path)))            # must not raise
