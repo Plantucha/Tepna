@@ -67,7 +67,7 @@
     return (text || '').slice(0, 2048);
   }
 
-  function processOne(file, text, pw, ow, hw, entries) {
+  function processOne(file, text, wins, entries) {
     var REG = window.SignalAdapters,
       SF = window.SignalFrame,
       ORCH = window.SignalOrchestrate;
@@ -76,9 +76,10 @@
       return { file: file, route: r, frame: null, valid: null, note: 'no adapter recognized this file — set aside, never guessed' };
     }
     var ctx = { files: [file.name] };
-    if (r.best.signalType === 'rr' && pw) ctx.parseRRInput = pw.parseRRInput;
-    if (r.best.signalType === 'spo2' && ow) ctx.parseCSV = ow.parseCSV;
-    if (r.best.signalType === 'hrv' && hw) ctx.parseRows = hw.HRVDex.parseRows;
+    wins = wins || {};
+    if (r.best.signalType === 'rr' && wins.rr) ctx.parseRRInput = wins.rr.parseRRInput;
+    if (r.best.signalType === 'spo2' && wins.spo2) ctx.parseCSV = wins.spo2.parseCSV;
+    if (r.best.signalType === 'hrv' && wins.hrv && wins.hrv.HRVDex) ctx.parseRows = wins.hrv.HRVDex.parseRows;
     // companion-bundle ingest (ECG/PPG are multi-file): pair the matched device sidecars by filename
     // stamp across the whole drop, so the adapter attaches deviceRR/HR/ACC (ECG) or acc/gyro/magn/PPI
     // (PPG) to the frame → compute() gains posture + device cross-checks (HANDOFF §2(b)).
@@ -88,7 +89,7 @@
     }
     var frame = REG.runAdapter(r.best.adapter, text, ctx);
     var valid = SF.validateFrame(frame);
-    return { file: file, route: r, frame: frame, valid: valid, pw: pw, ow: ow, hw: hw };
+    return { file: file, route: r, frame: frame, valid: valid, wins: wins };
   }
 
   // ── rendering ───────────────────────────────────────────────────────────────
@@ -200,24 +201,18 @@
     });
     if (!files.length) return;
     setStatus('routing ' + files.length + ' file' + (files.length === 1 ? '' : 's') + '…', 'run');
-    var pw = null,
-      ow = null,
-      hw = null;
-    try {
-      pw = await pulseHost();
-    } catch (e) {
-      setStatus('RR parser host failed: ' + e.message, 'bad');
-    }
-    try {
-      ow = await oxyHost();
-    } catch (e) {
-      /* SpO₂ host optional — only needed if an O2Ring file is dropped */
-    }
-    try {
-      hw = await hrvHost();
-    } catch (e) {
-      /* HRV host optional — only needed if a Welltory summary CSV is dropped */
-    }
+    // DEEP-AUDIT-II §10.1 — this booted a hardcoded pulse/oxy/hrv trio, so a dropped ECG / PPG / CGM
+    // / CPAP file reached emitNodeExport() with no host and threw a message blaming a co-load that IS
+    // present in the src.html. Boot every host the orchestrator says it can emit; each is idempotent
+    // and lazy, and bootHosts() never rejects, so one unavailable node cannot sink the whole drop.
+    var wins = {},
+      hostFail = {};
+    var booted = await ORCH.bootHosts(ORCH.emittableTypes());
+    booted.forEach(function (b) {
+      if (b.ok) wins[b.type] = b.win;
+      else hostFail[b.type] = b.error;
+    });
+    if (!wins.rr) setStatus('RR parser host failed: ' + (hostFail.rr || 'unavailable'), 'bad');
     // read EVERY file's text up front so ECG/PPG companion sidecars can be paired by stamp (§2(b))
     var entries = [];
     for (var ri = 0; ri < files.length; ri++) {
@@ -235,7 +230,7 @@
         continue;
       }
       try {
-        results.push(processOne(files[i], ent.text, pw, ow, hw, entries));
+        results.push(processOne(files[i], ent.text, wins, entries));
       } catch (e) {
         results.push({ file: files[i], route: { unknown: true, best: null }, frame: null, valid: null, note: 'process error: ' + e.message });
       }

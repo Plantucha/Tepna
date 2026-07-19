@@ -163,56 +163,42 @@
   // ── RUN & FUSE ──────────────────────────────────────────────────────────
   async function runAndFuse() {
     if (!ITEMS.length) return;
-    var needPulse =
-      ITEMS.some(function (it) {
-        return it.klass === 'raw' && it.signalType === 'rr';
-      }) ||
-      ITEMS.some(function (it) {
-        return it.klass === 'ambiguous' && it.resolvedTo && it.resolvedTo.signalType === 'rr';
+    // DEEP-AUDIT-II §10.1 — this used to be three hand-written needPulse/needOxy/needHrv blocks, so
+    // ECG / PPG / CGM / CPAP files reached emitNodeExport() with NO host booted. Their shims existed
+    // and were never called; the resulting throw was caught into a per-file 'run error' that blamed a
+    // co-load which is demonstrably present in the src.html, and the run continued while the file
+    // vanished from exports[]. The needed hosts are now derived from what was actually dropped, so a
+    // signal the orchestrator advertises via canEmit() is a signal it has really booted.
+    var needTypes = [];
+    ITEMS.forEach(function (it) {
+      var st = it.klass === 'raw' ? it.signalType : it.klass === 'ambiguous' && it.resolvedTo ? it.resolvedTo.signalType : null;
+      if (st && ORCH.canEmit(st) && needTypes.indexOf(st) < 0) needTypes.push(st);
+    });
+    var hostFail = {},
+      wins = {};
+    if (needTypes.length) {
+      setStatus('loading compute for ' + needTypes.join(', ') + '…', 'run');
+      var booted = await ORCH.bootHosts(needTypes);
+      booted.forEach(function (b) {
+        if (b.ok) wins[b.type] = b.win;
+        else hostFail[b.type] = b.error;
       });
-    var needOxy =
-      ITEMS.some(function (it) {
-        return it.klass === 'raw' && it.signalType === 'spo2';
-      }) ||
-      ITEMS.some(function (it) {
-        return it.klass === 'ambiguous' && it.resolvedTo && it.resolvedTo.signalType === 'spo2';
-      });
-    var needHrv =
-      ITEMS.some(function (it) {
-        return it.klass === 'raw' && it.signalType === 'hrv';
-      }) ||
-      ITEMS.some(function (it) {
-        return it.klass === 'ambiguous' && it.resolvedTo && it.resolvedTo.signalType === 'hrv';
-      });
-    var pw = null,
-      ow = null,
-      hw = null;
-    if (needPulse) {
-      setStatus('loading PulseDex compute…', 'run');
-      try {
-        pw = await ORCH.pulseHost();
-      } catch (e) {
-        setStatus('PulseDex host failed: ' + e.message, 'bad');
+      // A failed host is reported against the files that needed it (below), NOT as a whole-run abort:
+      // one unavailable node must not discard the other signals in a mixed drop.
+      var failed = Object.keys(hostFail);
+      if (failed.length === needTypes.length) {
+        setStatus(
+          'compute host failed: ' +
+            failed
+              .map(function (t) {
+                return t + ' (' + hostFail[t] + ')';
+              })
+              .join('; '),
+          'bad'
+        );
         return;
       }
-    }
-    if (needOxy) {
-      setStatus('loading OxyDex compute…', 'run');
-      try {
-        ow = await ORCH.oxyHost();
-      } catch (e) {
-        setStatus('OxyDex host failed: ' + e.message, 'bad');
-        return;
-      }
-    }
-    if (needHrv) {
-      setStatus('loading HRVDex compute…', 'run');
-      try {
-        hw = await ORCH.hrvHost();
-      } catch (e) {
-        setStatus('HRVDex host failed: ' + e.message, 'bad');
-        return;
-      }
+      if (failed.length) setStatus(failed.length + ' host(s) unavailable — continuing with the rest', 'run');
     }
     setStatus('routing → running nodes → fusing…', 'run');
 
@@ -226,9 +212,10 @@
           var adapter = it.klass === 'raw' ? it.adapter : it.resolvedTo.adapter;
           var sigType = it.klass === 'raw' ? it.signalType : it.resolvedTo.signalType;
           var ctx = { files: [it.relPath] };
-          if (sigType === 'rr' && pw) ctx.parseRRInput = pw.parseRRInput;
-          if (sigType === 'spo2' && ow) ctx.parseCSV = ow.parseCSV;
-          if (sigType === 'hrv' && hw) ctx.parseRows = hw.HRVDex.parseRows;
+          // parse helpers the adapters need, taken from the host actually booted for this signal
+          if (sigType === 'rr' && wins.rr) ctx.parseRRInput = wins.rr.parseRRInput;
+          if (sigType === 'spo2' && wins.spo2) ctx.parseCSV = wins.spo2.parseCSV;
+          if (sigType === 'hrv' && wins.hrv && wins.hrv.HRVDex) ctx.parseRows = wins.hrv.HRVDex.parseRows;
           // companion-bundle ingest (ECG/PPG multi-file): pair matched device sidecars by filename
           // stamp across the walked drop so the adapter attaches them to the frame (HANDOFF §2(b)).
           if ((sigType === 'ecg' || sigType === 'ppg') && ORCH && typeof ORCH.pairCompanions === 'function') {
@@ -250,7 +237,14 @@
             it.computed = exp;
             exports.push({ json: exp, label: it.relPath, from: 'computed ' + frame.provenance.adapter });
           } else {
-            it.runNote = frame && !frame.usable ? 'unusable frame: ' + (frame.reason || '?') : valid && !valid.ok ? valid.errors.join('; ') : 'no compute path for ' + sigType;
+            it.runNote =
+              frame && !frame.usable
+                ? 'unusable frame: ' + (frame.reason || '?')
+                : valid && !valid.ok
+                  ? valid.errors.join('; ')
+                  : hostFail[sigType]
+                    ? sigType + ' compute host unavailable: ' + hostFail[sigType]
+                    : 'no compute path for ' + sigType;
           }
         }
       } catch (e) {

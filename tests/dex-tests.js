@@ -170,7 +170,13 @@
         }
       };
       try {
-        fn(T);
+        var _ret = fn(T);
+        // A group body is run SYNCHRONOUSLY and its return value discarded, so assertions made inside
+        // a .then() land after this group is sealed and vanish without trace — a green gate that never
+        // ran. Discovered writing the §10.1 host-boot gate. Fail loudly instead of losing them.
+        if (_ret && typeof _ret.then === 'function') {
+          G.tests.push({ name: 'group returned a promise — async assertions are SILENTLY DROPPED by this harness', pass: false, detail: 'make the assertion synchronous, or expose the pure decision and gate that' });
+        }
       } catch (e) {
         G.tests.push({ name: 'group threw: ' + e.message, pass: false, detail: (e.stack || '').split('\n')[1] || '' });
       }
@@ -7960,6 +7966,51 @@
         od = (env.sources || {})['overdex-app.js'];
       if (du) T.ok('Data Unifier canEmit routes through SignalOrchestrate.canEmit', /SignalOrchestrate\.canEmit\(/.test(du));
       if (od) T.ok('OverDex auto-emit routes through SignalOrchestrate.canEmit', /\.canEmit\(\s*sigType\s*\)/.test(od));
+
+      /* ⚠️ THE ABOVE WAS THE WHOLE GATE, AND IT WAS HOLLOW (DEEP-AUDIT-II §10.1). Every assertion
+         checks the ALLOWLIST and the DISPATCH TABLE — the two things that were correct — while the
+         label promised the live hosts emit. Not one of them booted a host, and none checked that a
+         host is booted before the dispatch it verifies exists. It passed green with ECG / PPG / CGM /
+         CPAP computation 100% non-functional in BOTH shipped orchestrators: four host shims existed
+         with zero callers repo-wide, so emitNodeExport() hit a never-populated cache and threw a
+         message blaming a co-load that IS present in the src.html — swallowed into a per-file
+         'run error' while the run carried on and the file vanished from exports[].
+         What follows asserts the property that was actually false. */
+
+      // 1 · canEmit must be DERIVED from the host table, not a parallel hand-written literal. A type
+      //     the allowlist advertises with no host to boot is precisely the shipped defect.
+      if (typeof ORCH.hostFor === 'function' && typeof ORCH.emittableTypes === 'function') {
+        var _types = ORCH.emittableTypes();
+        T.ok('emittableTypes() is non-empty (the checks below would be vacuous otherwise)', _types.length > 0, _types.join(','));
+        var _hostless = _types.filter(function (t) {
+          return typeof ORCH.hostFor(t) !== 'function';
+        });
+        T.ok('every emittable signal has a bootable host — canEmit cannot advertise a path nothing can boot', _hostless.length === 0, _hostless.length ? 'hostless: ' + _hostless.join(', ') : _types.length + ' types, all bootable');
+        T.ok('hostFor() of an un-migrated signal is null (no fabricated host)', ORCH.hostFor('eeg') === null && ORCH.hostFor('') === null);
+      } else {
+        T.ok('SignalOrchestrate exposes hostFor + emittableTypes', false, 'the §10.1 fix is not present');
+      }
+
+      // 2 · bootHosts must RESOLVE per-type rather than reject, so one unavailable node cannot abort a
+      //     mixed drop. Behavioural: run it for real. Which nodes are co-loaded differs per lane, so
+      //     the assertion is on the SHAPE and completeness of the report, not on any node being up.
+      // 2 · The BOOT PLAN is the part with logic (filter to known signals, de-duplicate), so it is
+      //     extracted as a pure function and gated here. The remaining async property — bootHosts()
+      //     resolves per-type instead of rejecting, so one absent node cannot abort a mixed drop —
+      //     cannot be asserted in this harness: group bodies run synchronously and a returned promise
+      //     is discarded (now a hard failure, see the guard in group()). It is structurally enforced
+      //     by plannedHosts() + the per-host catch that maps a failure to { ok:false, error }.
+      if (typeof ORCH.plannedHosts === 'function') {
+        T.eq('plannedHosts de-duplicates a repeated signal', ORCH.plannedHosts(['rr', 'rr', 'rr']), ['rr']);
+        T.eq('plannedHosts drops a signal with no host (never boots a fabricated one)', ORCH.plannedHosts(['rr', 'nonesuch', 'eeg']), ['rr']);
+        T.eq('plannedHosts preserves drop order for distinct signals', ORCH.plannedHosts(['ecg', 'rr', 'ecg', 'spo2']), ['ecg', 'rr', 'spo2']);
+        T.eq('plannedHosts of nothing is nothing (an empty drop boots no node)', ORCH.plannedHosts([]), []);
+        T.eq('plannedHosts tolerates null/undefined input', ORCH.plannedHosts(null), []);
+        T.eq('plannedHosts of every emittable type boots every one of them', ORCH.plannedHosts(ORCH.emittableTypes()).length, ORCH.emittableTypes().length);
+        T.ok('bootHosts is present and returns a thenable', typeof ORCH.bootHosts === 'function' && typeof ORCH.bootHosts(['rr']).then === 'function');
+      } else {
+        T.ok('SignalOrchestrate exposes plannedHosts', false, 'the §10.1 fix is not present');
+      }
     });
 
     /* ════ GLUCODEX CLAMP-SATURATION HONESTY FLAG (GLUCODEX-FOLLOWUPS §2). A clamped CGM (Abbott Lingo
@@ -13904,8 +13955,13 @@
         var _src = (env.sources || {})['signal-orchestrate.js'] || '';
         // scan `_EMITTABLE = { … }` to the matching `}`, brace-counting only in CODE state. (_EMITTABLE values
         // are numeric/object literals, never regexes, so a regex-literal `/}/` edge can't arise here.)
+        // DEEP-AUDIT-II §10.1 — this scanned the `_EMITTABLE` literal. That literal is GONE: the
+        // allowlist is now DERIVED from `_HOSTS`, precisely so it can no longer advertise a signal
+        // that has no host to boot (it advertised 7 while 3 were bootable). The truncation risk this
+        // gate exists to catch is unchanged — it just lives in the `_HOSTS` literal now, so the scan
+        // follows it there. Same teeth, aimed at the surviving source of truth.
         var _emittableSrcKeys = function (src) {
-          var ix = src.search(/_EMITTABLE\s*=\s*\{/);
+          var ix = src.search(/_HOSTS\s*=\s*\{/);
           if (ix < 0) return null;
           var open = src.indexOf('{', ix);
           if (open < 0) return null;
@@ -13967,11 +14023,11 @@
         // truncated parse that could silently shrink the candidate universe (only asserted when source is in env).
         if (_parsed)
           T.ok(
-            '_EMITTABLE source literal closes under a comment/string-aware brace scan (-III §1)',
+            '_HOSTS source literal closes under a comment/string-aware brace scan (-III §1) — the allowlist is derived from it',
             _parsed.balanced,
             _parsed.balanced
               ? ''
-              : 'no matching close brace for _EMITTABLE in signal-orchestrate.js — the parsed allowlist may be truncated; expose SignalOrchestrate.emittableTypes() (the durable fix) or keep _EMITTABLE a flat literal'
+              : 'no matching close brace for _HOSTS in signal-orchestrate.js — the parsed allowlist may be truncated; expose SignalOrchestrate.emittableTypes() (the durable fix) or keep _EMITTABLE a flat literal'
           );
         // teeth B — when BOTH the live accessor and the source parse are present, every LIVE emittable key MUST
         // survive the source parse; a key the parse lost is exactly the truncation bug, caught here (-II §3).
@@ -14010,15 +14066,15 @@
         // Each embeds a `}` the OLD brace-only / `[^}]*` parse stopped at, dropping the key AFTER it; the new
         // scan must keep that key (and report balanced).
         [
-          { s: 'var _EMITTABLE = { rr:1, spo2:1 };', need: 'spo2', why: 'flat literal' },
-          { s: 'var _EMITTABLE = { rr:1, cpap:{edf:true}, ecg:1 };', need: 'ecg', why: 'nested value brace' },
-          { s: 'var _EMITTABLE = { rr:1, // legacy }\n spo2:1 };', need: 'spo2', why: 'line-comment brace' },
-          { s: 'var _EMITTABLE = { rr:1, /* } */ spo2:1 };', need: 'spo2', why: 'block-comment brace' },
-          { s: 'var _EMITTABLE = { rr:1, sep:"}", spo2:1 };', need: 'spo2', why: 'string brace' }
+          { s: 'var _HOSTS = { rr: a, spo2: b };', need: 'spo2', why: 'flat literal' },
+          { s: 'var _HOSTS = { rr: a, cpap: { edf: c }, ecg: d };', need: 'ecg', why: 'nested value brace' },
+          { s: 'var _HOSTS = { rr: a, // legacy }\n spo2: b };', need: 'spo2', why: 'line-comment brace' },
+          { s: 'var _HOSTS = { rr: a, /* } */ spo2: b };', need: 'spo2', why: 'block-comment brace' },
+          { s: 'var _HOSTS = { rr: a, sep: "}", spo2: b };', need: 'spo2', why: 'string brace' }
         ].forEach(function (cse) {
           var r = _emittableSrcKeys(cse.s);
           T.ok(
-            'comment/string-aware _EMITTABLE scan keeps "' + cse.need + '" past a ' + cse.why + ' (-III §1)',
+            'comment/string-aware _HOSTS scan keeps "' + cse.need + '" past a ' + cse.why + ' (-III §1)',
             !!(r && r.balanced && r.keys.indexOf(cse.need) >= 0),
             r && r.balanced ? 'scan dropped "' + cse.need + '"' : 'scan did not balance'
           );
