@@ -859,6 +859,23 @@ function adaptOxyDex(json, filename) {
   return recs;
 }
 
+/* Every spelling of a MULTI-RECORD wrapper the fleet emits (DEEP-AUDIT-II §8.1). A node that batches
+   several recordings into one export wraps them in a carrier array and sets a corroborating schema
+   flag — but the three raw-waveform nodes chose different words for it than OxyDex/CPAPDex did:
+
+     nights[]     + schema.multiNight      OxyDex, CPAPDex
+     recordings[] + schema.multiRecording  ECGDex, PulseDex
+     sessions[]   + schema.multiSession    PpgDex
+
+   Only the first pair was ever matched, so the other two silently lost every event they carried.
+   This table is the ONE place that knowledge lives; adding a fourth spelling is a line here, not a
+   new branch. Keep it in sync with the emitters (ecgdex-app / pulsedex-app / ppgdex-app buildV2). */
+var MULTI_CARRIERS = [
+  { key: 'nights', flag: 'multiNight' },
+  { key: 'recordings', flag: 'multiRecording' },
+  { key: 'sessions', flag: 'multiSession' }
+];
+
 /* ── Top-level normalize: returns { recs:[NodeRec], warnings:[] } ──────────── */
 function normalizeFile(json, filename) {
   var warnings = [];
@@ -918,11 +935,40 @@ function normalizeFile(json, filename) {
     // strongest apnea truth on the bus silently gone. Unwrap ANY schema.multiNight wrapper generically:
     // each night is itself a full single-night node-export, adapted like any other envelope, so every
     // multi-night emitter is handled like OxyDex (whose own nights[]-aware adapter runs above).
-    if (node !== 'Unknown' && Array.isArray(json.nights) && json.schema && json.schema.multiNight) {
+    // DEEP-AUDIT-II §8.1 — "generically" above meant any NODE, not any CARRIER KEY. The guard only
+    // ever matched `nights[]` + `schema.multiNight`, but the three raw-waveform nodes wrap their
+    // multi-record exports differently: ECGDex and PulseDex emit `multiRecording` + `recordings[]`,
+    // PpgDex emits `multiSession` + `sessions[]`. None sets multiNight, none uses nights[]. All three
+    // fell through to the flat adaptEnvelopeNode below, which then read the WRAPPER's own (empty)
+    // envelope — so every event in a multi-record ECG / PPG / RR export was dropped, with ZERO
+    // warnings, while the longitudinal trends still rendered and confirmed "the file loaded". The
+    // `Unknown`-only skip notice on the next branch cannot fire for a recognized node, which is
+    // precisely what made the loss silent.
+    // Keyed off the CARRIER ARRAY (flag as corroboration) so a fourth wrapper spelling is a one-line
+    // addition to MULTI_CARRIERS rather than another silent drop.
+    var _carrier = null;
+    for (var _ck = 0; _ck < MULTI_CARRIERS.length; _ck++) {
+      var _c = MULTI_CARRIERS[_ck];
+      if (Array.isArray(json[_c.key]) && json.schema && json.schema[_c.flag]) {
+        _carrier = _c;
+        break;
+      }
+    }
+    if (node !== 'Unknown' && _carrier) {
+      var _list = json[_carrier.key];
       var mnRecs = [];
-      for (var _ni = 0; _ni < json.nights.length; _ni++) {
-        var _nightRecs = adaptEnvelopeNode(json.nights[_ni], node, filename);
+      for (var _ni = 0; _ni < _list.length; _ni++) {
+        var _nightRecs = adaptEnvelopeNode(_list[_ni], node, filename);
         if (_nightRecs && _nightRecs.length) mnRecs = mnRecs.concat(_nightRecs);
+      }
+      // A multi-record wrapper that yields NOTHING is the §8.1 failure mode itself. Say so — an empty
+      // return is indistinguishable from "this file genuinely had no events", which is how the
+      // original defect stayed invisible for so long.
+      if (!mnRecs.length) {
+        return {
+          recs: [],
+          warnings: warnings.concat(['"' + (filename || 'file') + '" — ' + node + ' multi-record export (' + _carrier.key + '[' + _list.length + ']) yielded no usable records'])
+        };
       }
       return { recs: mnRecs, warnings: warnings };
     }

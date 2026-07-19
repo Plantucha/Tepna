@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-2UjnkW+xeJYWhv4x3lZ3ZQP9tEivwdw+h2ks/1wlwFE=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-70AUrHGU2gzNqyJLH1FwsO9kROu2C0urnwj8NpxwQKE=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-GGdN+UUs5j+9HUZsLBWNRzJsznw99NyOxmfZPLRvlo8=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-PXUdAFcOQVLDIV42NdLbJEMOlh/35V6Re3Q27kgNkjU=' 'sha256-S4eOTzgYlkNX3tS5LWUg4AxV3psnu9y00QPYGDCLGk0=' 'sha256-SRJJFEC6LTMi0bvZyzEJu7AQKuDo8gEeHChJAtBES0s=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-eQFgshqDM2o33iSMSFxRH2TgAEx42AUkukpJ6Fgbymc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-icUtGlQ3UI+wvRqcGxoC2ZASpsjWW/blye5M0ooxrT8=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-2UjnkW+xeJYWhv4x3lZ3ZQP9tEivwdw+h2ks/1wlwFE=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-70AUrHGU2gzNqyJLH1FwsO9kROu2C0urnwj8NpxwQKE=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-GGdN+UUs5j+9HUZsLBWNRzJsznw99NyOxmfZPLRvlo8=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-PXUdAFcOQVLDIV42NdLbJEMOlh/35V6Re3Q27kgNkjU=' 'sha256-S4eOTzgYlkNX3tS5LWUg4AxV3psnu9y00QPYGDCLGk0=' 'sha256-SRJJFEC6LTMi0bvZyzEJu7AQKuDo8gEeHChJAtBES0s=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dAifBP2Mq65O+/b6dd+DB8COsj5mNnE75cHPo2fwsqo=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-eQFgshqDM2o33iSMSFxRH2TgAEx42AUkukpJ6Fgbymc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-whcAUD6H+ECmeBwwP6YttZ0tzGd0LEfSq/jVYAW8fLE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -2503,6 +2503,23 @@ function adaptOxyDex(json, filename) {
   return recs;
 }
 
+/* Every spelling of a MULTI-RECORD wrapper the fleet emits (DEEP-AUDIT-II §8.1). A node that batches
+   several recordings into one export wraps them in a carrier array and sets a corroborating schema
+   flag — but the three raw-waveform nodes chose different words for it than OxyDex/CPAPDex did:
+
+     nights[]     + schema.multiNight      OxyDex, CPAPDex
+     recordings[] + schema.multiRecording  ECGDex, PulseDex
+     sessions[]   + schema.multiSession    PpgDex
+
+   Only the first pair was ever matched, so the other two silently lost every event they carried.
+   This table is the ONE place that knowledge lives; adding a fourth spelling is a line here, not a
+   new branch. Keep it in sync with the emitters (ecgdex-app / pulsedex-app / ppgdex-app buildV2). */
+var MULTI_CARRIERS = [
+  { key: 'nights', flag: 'multiNight' },
+  { key: 'recordings', flag: 'multiRecording' },
+  { key: 'sessions', flag: 'multiSession' }
+];
+
 /* ── Top-level normalize: returns { recs:[NodeRec], warnings:[] } ──────────── */
 function normalizeFile(json, filename) {
   var warnings = [];
@@ -2562,11 +2579,40 @@ function normalizeFile(json, filename) {
     // strongest apnea truth on the bus silently gone. Unwrap ANY schema.multiNight wrapper generically:
     // each night is itself a full single-night node-export, adapted like any other envelope, so every
     // multi-night emitter is handled like OxyDex (whose own nights[]-aware adapter runs above).
-    if (node !== 'Unknown' && Array.isArray(json.nights) && json.schema && json.schema.multiNight) {
+    // DEEP-AUDIT-II §8.1 — "generically" above meant any NODE, not any CARRIER KEY. The guard only
+    // ever matched `nights[]` + `schema.multiNight`, but the three raw-waveform nodes wrap their
+    // multi-record exports differently: ECGDex and PulseDex emit `multiRecording` + `recordings[]`,
+    // PpgDex emits `multiSession` + `sessions[]`. None sets multiNight, none uses nights[]. All three
+    // fell through to the flat adaptEnvelopeNode below, which then read the WRAPPER's own (empty)
+    // envelope — so every event in a multi-record ECG / PPG / RR export was dropped, with ZERO
+    // warnings, while the longitudinal trends still rendered and confirmed "the file loaded". The
+    // `Unknown`-only skip notice on the next branch cannot fire for a recognized node, which is
+    // precisely what made the loss silent.
+    // Keyed off the CARRIER ARRAY (flag as corroboration) so a fourth wrapper spelling is a one-line
+    // addition to MULTI_CARRIERS rather than another silent drop.
+    var _carrier = null;
+    for (var _ck = 0; _ck < MULTI_CARRIERS.length; _ck++) {
+      var _c = MULTI_CARRIERS[_ck];
+      if (Array.isArray(json[_c.key]) && json.schema && json.schema[_c.flag]) {
+        _carrier = _c;
+        break;
+      }
+    }
+    if (node !== 'Unknown' && _carrier) {
+      var _list = json[_carrier.key];
       var mnRecs = [];
-      for (var _ni = 0; _ni < json.nights.length; _ni++) {
-        var _nightRecs = adaptEnvelopeNode(json.nights[_ni], node, filename);
+      for (var _ni = 0; _ni < _list.length; _ni++) {
+        var _nightRecs = adaptEnvelopeNode(_list[_ni], node, filename);
         if (_nightRecs && _nightRecs.length) mnRecs = mnRecs.concat(_nightRecs);
+      }
+      // A multi-record wrapper that yields NOTHING is the §8.1 failure mode itself. Say so — an empty
+      // return is indistinguishable from "this file genuinely had no events", which is how the
+      // original defect stayed invisible for so long.
+      if (!mnRecs.length) {
+        return {
+          recs: [],
+          warnings: warnings.concat(['"' + (filename || 'file') + '" — ' + node + ' multi-record export (' + _carrier.key + '[' + _list.length + ']) yielded no usable records'])
+        };
       }
       return { recs: mnRecs, warnings: warnings };
     }
