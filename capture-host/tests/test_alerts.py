@@ -2,7 +2,6 @@
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 import asyncio
 
-import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 

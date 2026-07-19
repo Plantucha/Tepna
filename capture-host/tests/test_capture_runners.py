@@ -1848,7 +1848,7 @@ def test_sd_watchdog_is_a_noop_without_a_configured_watchdog(monkeypatch):
 
 def test_main_signals_ready_and_announces_start(tmp_path, monkeypatch):
     """main() sends systemd READY=1 and (with a webhook configured) a 'capture started' alert."""
-    import webmon, asyncio as _a, yaml as _yaml, sys as _sys
+    import webmon, yaml as _yaml, sys as _sys
     signals = []
     monkeypatch.setattr(capture.sdnotify, "sd_notify", lambda s: signals.append(s) or True)
     posts = []
