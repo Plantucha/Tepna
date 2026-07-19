@@ -188,6 +188,7 @@ body.light .section-title::after{background:rgba(0,0,0,.06);}
 .ov-value{display:flex;align-items:flex-end;gap:8px;margin-bottom:8px;}
 .ov-value .big{font-size:34px;font-weight:700;line-height:1;font-family:ui-monospace,monospace;letter-spacing:-.02em;}
 .ov-value .big.ok{color:var(--status-ok);} .ov-value .big.warn{color:var(--status-caution);} .ov-value .big.bad{color:var(--status-concern);}
+.ov-value .big.muted{color:var(--text4);}
 .ov-value .unit{font-size:13px;color:var(--text3);padding-bottom:4px;}
 .ov-value .aux{margin-left:auto;font-size:13px;color:var(--text2);font-family:ui-monospace,monospace;padding-bottom:3px;}
 .ov-axes{display:flex;gap:12px;flex-wrap:wrap;align-items:baseline;}
@@ -561,12 +562,17 @@ function hostClockChip(hc){
 // streams stalled, all still labelled live). The health field already knew; the badge just never asked.
 // Order matters — report the CAUSE when we know it, and fall back to the symptom when we don't.
 function streamState(s, dev){
-  if(!s.active)                       return {cls:'',     txt:'idle',     why:'Stream not started.'};
-  if(dev && dev.charging)             return {cls:'chg',  txt:'charging', why:'On the charger — the sensor stops streaming while it charges. Resumes on its own once off the dock.'};
-  if(dev && dev.worn === false)       return {cls:'warn', txt:'not worn', why:'Linked, but the sensor reports no skin/finger contact — no reading to record.'};
-  if(s.health === 'stall')            return {cls:'warn', txt:'no data',  why:'Linked, but no samples are arriving. The link is up and the stream is started — the sensor is simply not sending.'};
-  if(s.health === 'weak')             return {cls:'warn', txt:'weak',     why:'Arriving well below the negotiated rate — samples are being dropped.'};
-  return {cls:'live', txt:'live', why:'Delivering samples at the expected rate.'};
+  // `trust:false` means the samples flowing are NOT a valid reading of the wearer, so the live value and
+  // the graph must not present them as one. A chest strap OFF the body is the case this exists for: it
+  // does not go quiet, it streams electrode noise at full rate, and the device's own HR algorithm keeps
+  // emitting a plausible number (~58 bpm off a 6000 µV noise floor, measured 2026-07-19). The pill alone
+  // was not enough — a glance at "♥ 58 bpm" on a moving trace reads as a real heartbeat.
+  if(!s.active)                       return {cls:'',     txt:'idle',     trust:false, why:'Stream not started.'};
+  if(dev && dev.charging)             return {cls:'chg',  txt:'charging', trust:false, why:'On the charger — the sensor stops streaming while it charges. Resumes on its own once off the dock.'};
+  if(dev && dev.worn === false)       return {cls:'warn', txt:'not worn', trust:false, why:'Linked, but the sensor reports no skin/finger contact — whatever is streaming is not a reading of the wearer.'};
+  if(s.health === 'stall')            return {cls:'warn', txt:'no data',  trust:false, why:'Linked, but no samples are arriving. The link is up and the stream is started — the sensor is simply not sending.'};
+  if(s.health === 'weak')             return {cls:'warn', txt:'weak',     trust:true,  why:'Arriving well below the negotiated rate — samples are being dropped, but what arrives is real.'};
+  return {cls:'live', txt:'live', trust:true, why:'Delivering samples at the expected rate.'};
 }
 
 function chargeChip(dev){
@@ -1132,6 +1138,14 @@ function ovValues(){                             // text readouts (throttled; ca
   for(const s of STREAMS){
     const st=OV[s.key], el=document.getElementById('ovval-'+s.key); if(!st||!el) continue;
     const kind=streamKind(s), cols=chanColors(s), last=st.last;
+    // Untrusted stream (off-body / on-charger / stalled): do NOT render a number. A plausible-looking
+    // HR off a noise floor is the exact failure this guards — show the state, not a reading.
+    const state = streamState(s, deviceForStream(s.key));
+    if(!state.trust){
+      el.innerHTML = `<span class="big muted">—</span><span class="unit">${esc(state.txt)}</span>`;
+      st.rate = null;                            // reset the smoothed HR so it does not resume mid-value
+      continue;
+    }
     if(kind==='hr'){
       const raw = last==null?null:(Array.isArray(last)?last[0]:last);
       el.innerHTML = `<span class="big">${st.rate?'♥ '+Math.round(st.rate):'—'}</span><span class="unit">bpm</span>`
@@ -1157,6 +1171,10 @@ function ovLoop(){
 }
 function ovDrawMini(st, s){
   const c=st.canvas, ctx=c.getContext('2d');
+  // Untrusted streams draw at low opacity — the electrode noise is still visible (so you can see the
+  // strap IS picking something up) but it can no longer be mistaken for a clean live trace.
+  const trusted = streamState(s, deviceForStream(s.key)).trust;
+  ctx.globalAlpha = trusted ? 1 : 0.22;
   const dpr=devicePixelRatio||1, W=c.clientWidth, H=c.clientHeight;
   const dw=Math.round(W*dpr), dh=Math.round(H*dpr); if(c.width!==dw||c.height!==dh){c.width=dw;c.height=dh;}
   ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);

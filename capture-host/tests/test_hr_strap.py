@@ -153,3 +153,27 @@ def test_remember_defaults_ask_for_every_stream_the_sensor_can_give():
     verity = [ln for ln in guess.splitlines() if "'VeritySense'" in ln][0]
     for want in ("'ppg'", "'acc'", "'gyro'", "'mag'"):
         assert want in verity, f"the Verity default must request {want}: {verity.strip()}"
+
+
+def test_an_untrusted_stream_does_not_render_a_number_or_a_clean_trace():
+    """A chest strap off the body streams electrode noise at full rate, and the device's own HR algorithm
+    keeps emitting a plausible ~58 bpm. The pill said 'not worn' correctly, but the big value kept ticking
+    and the graph kept drawing — a glance reads that as a real heartbeat. The value and the trace must
+    both defer to streamState().trust, which is false for charging / not-worn / no-data."""
+    html = open(__file__.replace("tests/test_hr_strap.py", "monitor.html"), encoding="utf-8").read()
+    ss = html.split("function streamState")[1].split("\nfunction ")[0]
+    # every non-live state that carries no valid reading is trust:false; weak/live are trust:true
+    assert "worn === false" in ss and "trust:false" in ss
+    for line_key in ("charging", "not worn", "no data"):
+        row = [ln for ln in ss.splitlines() if f"'{line_key}'" in ln]
+        assert row and "trust:false" in row[0], f"{line_key!r} must be trust:false: {row}"
+    for line_key in ("weak", "live"):
+        row = [ln for ln in ss.splitlines() if f"txt:'{line_key}'" in ln or f"txt: '{line_key}'" in ln]
+        assert row and "trust:true" in row[0], f"{line_key!r} must be trust:true: {row}"
+    # the value readout blanks on !trust
+    vals = html.split("function ovValues")[1].split("\nfunction ")[0]
+    assert "!state.trust" in vals and 'class="big muted"' in vals, "value must blank when untrusted"
+    assert "st.rate = null" in vals, "the smoothed HR must reset so it can't resume mid-number"
+    # the graph dims on !trust
+    draw = html.split("function ovDrawMini")[1].split("\nfunction ")[0]
+    assert "globalAlpha = trusted" in draw, "the trace must dim when the stream is untrusted"
