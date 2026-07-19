@@ -1012,7 +1012,7 @@ function chanColors(s){
   return null;
 }
 function streamKind(s){
-  if(s.key==='ecg'||s.key==='ppg') return 'hr';   // waveform → derived ♥ rate
+  if(s.key==='ecg'||s.key==='ppg'||s.key==='o2ppg') return 'hr';   // waveform → derived ♥ rate (o2ppg = finger pleth)
   if(s.key.indexOf('ppi')===0) return 'ppi';       // per-beat [PP-int, HR]
   if((s.chans||1)>1) return 'multi';               // acc/gyro/mag — raw 3-axis
   return 'scalar';                                  // spo2/pr/motion/rr
@@ -1156,11 +1156,18 @@ function ovStop(){
 // ~60 s buffer) was removed 2026-07-18 — the live single-axis reading was too inaccurate to surface.
 // Breathing belongs in the post-hoc pipeline off the FULL captured recording: ECGDex EDR (R-peak
 // amplitude / RSA modulation over the whole night) — a far better estimator than a live ACC autocorrelation.
-function ovRates(){                              // live ♥ rate for ecg (R-peaks) / ppg (pulse) — channel 0
-  for(const key of ['ecg','ppg']){
+function ovRates(){                              // live ♥ rate for ecg (R-peaks) / ppg + o2ppg (pulse) — channel 0
+  for(const key of ['ecg','ppg','o2ppg']){
     const st=OV[key]; if(!st||!st.buf.length) continue;
-    const sig = st.buf.map(x=>Array.isArray(x)?x[0]:x);
-    const peaks = key==='ecg'? detectRs(sig,st.fs) : detectPulses(sig,st.fs);
+    let sig = st.buf.map(x=>Array.isArray(x)?x[0]:x);
+    let peaks;
+    if(key==='ecg'){ peaks = detectRs(sig,st.fs); }
+    else {
+      // A finger/wrist pleth reaches us inverted (sharp DOWN-stroke = systole) — orient it up before
+      // detectPulses (which keys on positive upstrokes), exactly as the scope's analyzePulse does.
+      if(orientSign(sig)<0) sig = sig.map(v=>-v);
+      peaks = detectPulses(sig,st.fs);
+    }
     if(peaks.length>=3){
       const ibis=[]; for(let i=1;i<peaks.length;i++) ibis.push((peaks[i]-peaks[i-1])/st.fs*1000);
       ibis.sort((a,b)=>a-b); const med=ibis[ibis.length>>1];
@@ -1274,10 +1281,11 @@ function pick(key){
   const m = STREAMS.find(s=>s.key===key) || {};
   $('#roLabel').textContent = m.label||key; $('#roUnit').textContent = m.unit||'';
   const titles = { ecg:'Averaged beat — morphology &amp; intervals', ppg:'Averaged pulse — morphology &amp; indices',
+                   o2ppg:'Averaged pulse — finger pleth (O2Ring)',
                    spo2:'SpO₂ &amp; pulse — session summary', pr:'SpO₂ &amp; pulse — session summary' };
   $('#beatTitle').innerHTML = titles[key] || ((m.chans||1)>1 ? 'Raw multi-channel capture' : 'Raw capture');
   $('#beatN').textContent = '';
-  const empty = (key==='ecg'||key==='ppg') ? 'Collecting beats…'
+  const empty = (key==='ecg'||key==='ppg'||key==='o2ppg') ? 'Collecting beats…'
               : (key==='spo2'||key==='pr') ? 'Collecting SpO₂ / pulse…'
               : 'Raw capture — no analysis on the box (weak CPU by design). All channels are shown in Overview; the full record is written to disk.';
   $('#beatTable').querySelector('tbody').innerHTML = `<tr><td colspan="4" class="norm">${empty}</td></tr>`;
@@ -1484,7 +1492,7 @@ function detectPulses(s,fs){
   return peaks;
 }
 function analyzePulse(){
-  if(current!=='ppg' || !sig.length) return;
+  if((current!=='ppg' && current!=='o2ppg') || !sig.length) return;
   const pre=Math.round(PPRE_MS/1000*fs), post=Math.round(PPOST_MS/1000*fs), L=pre+post;
   if(sig.length < L+fs) return;
   // Orient to PPGDex convention (systolic upstroke = the steep, positive-going edge) before detecting
@@ -1658,7 +1666,7 @@ function renderOxiTable(sp, pr, spArr){
 function analyze(){
   if(VIEW!=='scope') return;
   if(current==='ecg') analyzeBeats();
-  else if(current==='ppg') analyzePulse();
+  else if(current==='ppg' || current==='o2ppg') analyzePulse();
   else if(current==='spo2' || current==='pr') analyzeOxi();
 }
 
