@@ -15413,6 +15413,60 @@
      static fallback the bundle ships (the node registries aren't loaded there). This
      gate asserts the mirror equals each registry's evidence so it can NEVER silently
      drift, and pins the two historically mis-graded (minSpo2/residualAHI = measured). */
+    /* DEEP-AUDIT-II §8.3 — a LONG gap is straight-line interpolation the sensor never saw, and must
+       reach neither the fused glucose statistics NOR the coverage figure that guards them.
+       GlucoDex settled this in its own node (DEEP-AUDIT-2026-07-11 §5); the Integrator never got the
+       same treatment. It excluded COMPRESSION (f===3) and KEPT GAP_LONG (f===4), so a sensor-change
+       gap was interpolated straight into the fused mean/SD/CV — the node reported TIR 0 % on such a
+       night while the Integrator reported 11.6 % from the same data.
+       Worse, `coverage` was `win.length / expected` — the RAW slice count, including every
+       interpolated cell — so a fully-interpolated window self-reported coverage ≈ 1.00 and passed the
+       `minCoverage` gate. The one guard written to catch this was blind to it, which is why both
+       halves are asserted separately: excluding the values without fixing coverage would still let a
+       100 %-interpolated window through as "well covered".
+       The Integrator reads these flags as bare numeric literals and never imports GlucoDex's FLAG
+       name, which is why the node-side fix could not propagate. */
+    group('Integrator §8.3 — long-gap interpolation is not measured glucose, and not coverage', 'integrator-dsp · glucose · regression', function (T) {
+      var IG = env.IntegratorDSP;
+      var gmw = IG && IG.glucoseMetricsInWindow;
+      if (typeof gmw !== 'function') {
+        T.ok('IntegratorDSP.glucoseMetricsInWindow exposed', false, 'not wired');
+      } else {
+        var T0 = Date.UTC(2026, 6, 13, 0, 0, 0),
+          CAD = 5 * 60000,
+          END = T0 + 35 * CAD;
+        // cells live at cgmRec.series.cells with an explicit cadence — the real shape.
+        var SER = function (cells) {
+          return { series: { cells: cells, cadenceMin: 5 } };
+        };
+        var mk = function (n, flag, v, from) {
+          var out = [];
+          for (var i = 0; i < n; i++) out.push({ tMs: T0 + ((from || 0) + i) * CAD, v: v, f: flag });
+          return out;
+        };
+        // (a) a window that is ENTIRELY long-gap interpolation must yield nothing.
+        T.eq('§8.3 · a 100 %-interpolated window returns null (pre-fix: a mean at coverage 1.00)', gmw(SER(mk(36, 4, 120)), T0, END, { minCoverage: 0.5 }), null);
+        // (b) half real / half long-gap: coverage must read ~0.5, not ~1.0, or minCoverage cannot
+        //     discriminate at all; and the mean must be the real 100, not diluted by the 300s.
+        var halfCells = mk(18, 0, 100).concat(mk(18, 4, 300, 18));
+        var half = gmw(SER(halfCells), T0, END, { minCoverage: 0.4 });
+        T.ok('§8.3 · a half-interpolated window still forms at minCoverage 0.4', !!half, JSON.stringify(half && { mean: half.nocturnalMean, cov: half.coverage }));
+        if (half) {
+          T.approx('§8.3 · coverage counts CONTRIBUTING cells (~0.5), not the raw slice (~1.0)', half.coverage, 0.5, 0.06);
+          T.approx('§8.3 · …and the mean is the real 100, not 200 diluted by interpolated 300s', half.nocturnalMean, 100, 1);
+        }
+        // (c) at a threshold the HONEST coverage fails, it must now be rejected — pre-fix it passed,
+        //     because coverage read 1.00 regardless of what the cells contained.
+        T.eq('§8.3 · minCoverage 0.8 now rejects it (pre-fix coverage 1.00 sailed through)', gmw(SER(halfCells), T0, END, { minCoverage: 0.8 }), null);
+        // (d) not over-broad — an all-real window is unaffected, and SHORT gap-interp (f===2) remains
+        //     legitimate: interpolating one missed 5-min reading is sound, per GlucoDex's own comment.
+        var clean = gmw(SER(mk(36, 0, 110)), T0, END, { minCoverage: 0.5 });
+        T.ok('§8.3 · an all-real window is unaffected', !!clean && Math.abs(clean.nocturnalMean - 110) < 1e-9, JSON.stringify(clean && { mean: clean.nocturnalMean, cov: clean.coverage }));
+        var shortGap = gmw(SER(mk(36, 2, 110)), T0, END, { minCoverage: 0.5 });
+        T.ok('§8.3 · SHORT gap-interp (f=2) still counts — only LONG gaps are excluded', !!shortGap && Math.abs(shortGap.nocturnalMean - 110) < 1e-9, JSON.stringify(shortGap && { mean: shortGap.nocturnalMean, cov: shortGap.coverage }));
+      }
+    });
+
     group('Integrator evidence-grade mirror ≡ node registries', 'integrator-dsp · cohesion', function (T) {
       var I = env.IntegratorDSP;
       if (!(I && I.GRADE_MIRROR && Array.isArray(I.GRADE_SOURCES) && typeof I.gradeFor === 'function')) {

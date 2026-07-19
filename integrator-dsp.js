@@ -1666,17 +1666,31 @@ function glucoseMetricsInWindow(cgmRec, startMs, endMs, opts) {
   for (i = 0; i < cells.length; i++) {
     if (cells[i].tMs >= startMs && cells[i].tMs <= endMs) win.push(cells[i]);
   }
-  // value stats exclude compression artifacts (f===3); keep OK + gap-interp
+  /* DEEP-AUDIT-II §8.3 — a LONG gap is not measured glucose, and must not be counted as coverage.
+     GlucoDex settled this in its own node (DEEP-AUDIT-2026-07-11 §5) and its comment states the
+     contract: "A LONG gap (a sensor change, a dropout) is hours of straight line the sensor never
+     saw; it must NOT be counted as measured glucose." The Integrator never got the same treatment —
+     it excluded COMPRESSION (3) and KEPT GAP_LONG (4), so a 14 h sensor-change gap was interpolated
+     straight into the fused mean/SD/CV. The node reported TIR 0 % on such a night; the Integrator
+     reported 11.6 % from the same data.
+     The Integrator reads these flags as bare NUMERIC LITERALS and never imports the name, which is
+     why GlucoDex's fix could not propagate and why grepping for GAP_LONG finds nothing here. Named
+     locally with the owning definition cited, so the coupling is visible to the next reader. */
+  var GFLAG = { OK: 0, WARMUP: 1, GAP: 2, COMPRESSION: 3, GAP_LONG: 4 }; // ← mirrors glucodex-dsp.js FLAG
   var vals = [],
     valsT = [];
   for (i = 0; i < win.length; i++) {
-    if (win[i].f === 3) continue;
+    if (win[i].f === GFLAG.COMPRESSION || win[i].f === GFLAG.GAP_LONG) continue;
     if (win[i].v == null) continue;
     vals.push(win[i].v);
     valsT.push(win[i].tMs);
   }
   var expected = nMin / cadMin + 1; // inclusive endpoints → +1 cell
-  var coverage = expected > 0 ? win.length / expected : 0;
+  /* …and coverage must count the cells that actually CONTRIBUTED, not the raw slice. `win.length`
+     counted every interpolated and artifact cell, so a fully-interpolated window self-reported
+     coverage ≈ 1.00 and sailed through the `minCov` gate below — the one guard written to catch
+     exactly this condition was blind to it. */
+  var coverage = expected > 0 ? vals.length / expected : 0;
   if (vals.length < 3 || coverage < minCov) return null; // honest: too thin → skip
   // mean / SD / CV
   var m = 0;
@@ -1722,7 +1736,7 @@ function glucoseMetricsInWindow(cgmRec, startMs, endMs, opts) {
   return {
     nMin: +nMin.toFixed(1),
     coverage: +coverage.toFixed(3),
-    nCells: win.length,
+    nCells: win.length, // RAW cells in the slice, incl. artifact/long-gap. Do NOT re-derive coverage from this (§8.3) — `coverage` above counts only the cells that contributed.
     nocturnalMean: Math.round(m),
     nocturnalCV: +cv.toFixed(1),
     nadirValue: Math.round(nadir),
