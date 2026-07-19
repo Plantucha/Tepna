@@ -410,6 +410,26 @@
     return +(a.length / maxC).toFixed(2);
   }
 
+  // Task Force 1996 states geometric methods need "a reasonable number of RR intervals" — at least
+  // 20 min, preferably a nominal 24 h recording — and the ≥15 cutoff PulseDex grades against is the
+  // 24 h Holter norm. The value is asymptotically 1/p(modal bin), so it does NOT scale with N; but
+  // below the floor, small-sample bias plus excluded circadian range drag it down and its scatter
+  // swamps the grade bands. Measured on the real corpus (4 overnight H10 records): 5-min windows of
+  // a single night read 6.46–25.44 — spanning bad AND warn AND ok on every record — while the same
+  // nights read 13.99–21.30 whole. So below the floor the value is still reported and the NORM
+  // COMPARISON is withheld, rather than fabricating a duration-corrected threshold we cannot cite.
+  const TRI_MIN_SPAN_MIN = 20;
+  function triIdxNormApplies(spanMin) {
+    return spanMin != null && isFinite(spanMin) && spanMin >= TRI_MIN_SPAN_MIN;
+  }
+  // The single grading decision. The ≥15/≥9 cut-points were replicated at three render sites, so the
+  // norm could be applied on one surface and withheld on another; one owner makes that impossible.
+  // An unknown span is 'neutral' too — we cannot assert a norm holds for a length we cannot measure.
+  function triIdxGrade(v, spanMin) {
+    if (!triIdxNormApplies(spanMin) || v == null || !isFinite(v)) return 'neutral';
+    return v >= 15 ? 'ok' : v >= 9 ? 'warn' : 'bad';
+  }
+
   // Lomb–Scargle periodogram for unevenly-sampled RR → true VLF/LF/HF + resp-rate proxy
   // Power normalized so the band integral equals signal variance (Parseval).
   function lombScargle(a, nf) {
@@ -1506,6 +1526,9 @@
     fragmentation,
     prsaCapacity,
     triangularIndex,
+    triIdxNormApplies,
+    triIdxGrade,
+    TRI_MIN_SPAN_MIN,
     lombScargle,
     _pdIntervalColFromHeader,
     _pdIntervalColByRange,

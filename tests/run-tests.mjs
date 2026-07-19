@@ -234,6 +234,7 @@ function readSources() {
     'ppgdex-app.js',
     'pulsedex-app.js',
     'pulsedex-render.js',
+    'motiondex-render.js',
     'hrvdex-app.js',
     'oxydex-app.js',
     'oxydex-render.js',
@@ -919,6 +920,8 @@ async function main() {
     // MotionDex DSP (MOTIONDEX-BUILD-2026-07-17) — a clean IIFE that leaks no bare names + delegates
     // DexClock (loaded above); sets env.MotionDex/MOTIONDSP for its equiv leg (env.equiv.motiondex).
     'motiondex-dsp.js',
+    // MOTIONDEX badge fail-open gate (DEEP-AUDIT-II §7.8) needs the real resolver in BOTH lanes.
+    'motiondex-registry.js',
     'synth-gen.js',
     'cohort-gen.js',
     'cohort-full.js',
@@ -1078,6 +1081,8 @@ async function main() {
     HrvRegistry: ctx.HrvRegistry,
     GLU_REGISTRY: ctx.GLU_REGISTRY,
     GlucoRegistry: ctx.GlucoRegistry,
+    MOTION_REGISTRY: ctx.MOTION_REGISTRY,
+    MotionRegistry: ctx.MotionRegistry,
     EEG_REGISTRY: ctx.EEG_REGISTRY,
     EegRegistry: ctx.EegRegistry,
     CpapDsp: ctx.CpapDsp,

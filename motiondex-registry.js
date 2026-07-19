@@ -79,6 +79,14 @@
       depth: 'research',
       evidence: 'experimental',
       cite: 'RMS of the 0.1–0.6 Hz chest-ACC effort waveform (Ryser 2022) — surrogate'
+    },
+    effortPresent: {
+      label: 'Effort present',
+      unit: '%',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Fraction of recorded epochs with detectable 0.1–0.6 Hz chest-ACC effort — coverage, not amplitude'
     }
   };
 
@@ -98,7 +106,8 @@
     lateral: 'lateralFrac',
     'respiratory rate': 'respRate',
     'resp rate': 'respRate',
-    'effort amplitude': 'effortAmp'
+    'effort amplitude': 'effortAmp',
+    'effort present': 'effortPresent'
   };
 
   function _norm(s) {

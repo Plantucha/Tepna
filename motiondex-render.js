@@ -42,12 +42,15 @@
     var t = $(titleId);
     if (t) t.style.display = '';
   }
-  function badge(label) {
-    return global.MotionRegistry ? global.MotionRegistry.badgeForLabel(label, false) : '';
+  // fallback !== false matches every sibling render helper (oxy/pulse/ppg/ecg/gluco/hrv). MotionDex
+  // was the fleet's sole hardcoded `false`, which fails OPEN: an unresolved label returned '' and the
+  // number rendered UNBADGED — the bug CLAUDE.md's coverage mandate rates as severe as a wrong unit.
+  function evBadge(label, fallback) {
+    return global.MotionRegistry ? global.MotionRegistry.badgeForLabel(label, fallback !== false) : '';
   }
   // fleet .kpi tile — badge LEADS the label inside .kpi-label > .kpi-ev (the cohesion-gated pattern)
   function kpi(label, val, sub) {
-    var b = badge(label);
+    var b = evBadge(label);
     return (
       '<div class="kpi"><div class="kpi-label">' +
       (b ? '<span class="kpi-ev">' + b + '</span>' : '') +
@@ -60,7 +63,7 @@
     );
   }
   function row(label, val, sub) {
-    return '<div class="mx-row"><span>' + badge(label) + ' ' + esc(label) + '</span><b>' + esc(val) + (sub ? '</b> <span class="kpi-sub">' + esc(sub) + '</span>' : '</b>') + '</div>';
+    return '<div class="mx-row"><span>' + evBadge(label) + ' ' + esc(label) + '</span><b>' + esc(val) + (sub ? '</b> <span class="kpi-sub">' + esc(sub) + '</span>' : '</b>') + '</div>';
   }
 
   // fraction of RECORDED (present!=null) epochs in which effort was present — coverage-honest:
@@ -159,7 +162,10 @@
       var e = effortSpark(eff.series);
       e += row('Respiratory rate', num(eff.rateBrpm, 1) + ' br/min', eff.nBreaths + ' breaths');
       e += row('Effort amplitude', num(eff.amplitudeG, 4) + ' g', 'RMS, 0.1–0.6 Hz band');
-      e += row('Effort amplitude', presentPct == null ? '—' : presentPct + '%', 'effort present, of recorded epochs');
+      // Was a SECOND row labelled 'Effort amplitude' — a coverage percentage under an amplitude
+      // label and its 'RMS, 0.1–0.6 Hz band' unit context. Distinct quantity, so it gets its own
+      // registry id rather than a relabel onto effortAmp.
+      e += row('Effort present', presentPct == null ? '—' : presentPct + '%', 'of recorded epochs');
       fill('mxEffortCard', 'mxEffort', e);
     }
 
