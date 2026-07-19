@@ -13,8 +13,16 @@
 #   - A gap in capture is a GAP in the file (we simply stop writing rows), never invented "now()" rows.
 #
 # WHICH COLUMN IS A SAMPLE CLOCK (measured 2026-07-18, 2.4 M rows of real corpus):
-#   - "sensor timestamp [ns]" / "timestamp [ms]" = the DEVICE clock. ZERO backward steps. This is the
-#     sample clock; anything computing rates, diffs, bins or merges must use it.
+#   - "sensor timestamp [ns]" / "timestamp [ms]" = the DEVICE clock. This is the sample clock; anything
+#     computing rates, diffs, bins or merges must use it.
+#     ⚠️ The "ZERO backward steps" this note originally claimed held only for the streams then measured.
+#     A full Verity night (2026-07-19) put 678 backward steps in MAG's DEVICE column, to -112 ms —
+#     because decode_frame back-timed off the NOMINAL rate while the die actually ran at 20.516 Hz, so
+#     each frame over-reached into its predecessor. Fixed at the source (polar_pmd derives the step from
+#     consecutive last_ns; PMD-DECODE-SCALE-AND-RATE-2026-07-19-BRIEF). The column is monotonic again,
+#     with ONE residual class that is not ours to fix: an out-of-order BLE notification whose own last_ns
+#     regressed, which we report faithfully rather than synthesise. Files written BEFORE that fix still
+#     carry the old skew — check, don't assume.
 #   - "Phone timestamp" = the host ARRIVAL stamp. It steps BACKWARDS at ~0.5-0.8 % of rows on the
 #     back-timed continuous streams (ECG/PPG/ACC/GYRO/MAG), always at an exact frame boundary — median
 #     ~1.8 samples, worst 42. Cause: decode_frame back-times each frame from ITS OWN notification
@@ -147,12 +155,16 @@ class StreamWriter:
         self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{c0};{c1};{c2};{ambient}\n")
         self._bump()
 
-    def write_gyro(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: int, y: int, z: int) -> None:
-        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{x};{y};{z}\n")
+    # GYRO/MAG arrive SCALED to physical units (dps / gauss) — polar_pmd.axis_scale turns the device's
+    # raw int16 into a float, so these two cannot use the integer formatting ACC keeps. `:.6g` holds the
+    # full significance of a 16-bit sample (gyro 0.061 dps/LSB, mag 0.0015 G/LSB) without printing the
+    # binary-fraction tail of the multiply.
+    def write_gyro(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: float, y: float, z: float) -> None:
+        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{x:.6g};{y:.6g};{z:.6g}\n")
         self._bump()
 
-    def write_mag(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: int, y: int, z: int) -> None:
-        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{x};{y};{z}\n")
+    def write_mag(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: float, y: float, z: float) -> None:
+        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{x:.6g};{y:.6g};{z:.6g}\n")
         self._bump()
 
     def write_ppi(self, phone: _dt.datetime, sensor_ns: int, hr: int, pp_ms: int, err_ms: int, flags: int) -> None:
