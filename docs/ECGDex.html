@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-4MW11iJZlLMksl1WG2LoiEZ5d5evud9437DCZYmvpro=' 'sha256-6WPp9K2mHPrpTKnNnuL2LvYBXrAq9fshTkqy0Lt2DZc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QiYzRal1RHSX1MkYf+K3Qwr4eF5tutfBlRGMAZmmPds=' 'sha256-TjaNfjdI1uy6Y/QCmKdy3/8OhUhTsxcmpioTK97koSw=' 'sha256-V+6Ry7tYxWhLIKC6ejN8CNntO4ekQOyvCuMZ8qLyoAs=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-p9Oxv8fTa380+XXRWMPFuq0j+QFn4WmHMO+/E8wCeV4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QiYzRal1RHSX1MkYf+K3Qwr4eF5tutfBlRGMAZmmPds=' 'sha256-TjaNfjdI1uy6Y/QCmKdy3/8OhUhTsxcmpioTK97koSw=' 'sha256-V+6Ry7tYxWhLIKC6ejN8CNntO4ekQOyvCuMZ8qLyoAs=' 'sha256-acA4ASkWnKA1BtJgHpw+VzB8QtTyZIboEJgtDhuENTQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-p9Oxv8fTa380+XXRWMPFuq0j+QFn4WmHMO+/E8wCeV4=' 'sha256-r0X2O3j92XNq90uID66YtwXNMB8khO1SHyun9Dt0pbA='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ECGDex — Raw ECG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -10936,6 +10936,13 @@ __exports.ECGUI = window.ECGUI;
     // trend median is a T-end / QRS-saturation delineation artifact (lead-vector flip),
     // NOT a physiological repolarisation change — flag it so a spurious "QTc cliff"
     // isn't read as a hypoglycemia signal. Values are kept; windows are only annotated.
+    //
+    // This median is only trustworthy because `delineate` now WITHHOLDS a window-edge-
+    // pinned QTc (qtSaturated → qtcBazett null → the window never reaches `out`). While
+    // those windows were admitted they could form the MAJORITY, making the median itself
+    // the pinned value — so the windows exceeding 60 ms were the CORRECTLY delineated
+    // ones, and the export told consumers to discard exactly those. Do not re-admit a
+    // saturated window here without also making this reference robust to it.
     if (out.length >= 3) {
       const _qs = out
         .map((w) => w.qtc)
@@ -11086,6 +11093,7 @@ __exports.ECGUI = window.ECGUI;
         baseline: +B.toFixed(0),
         qrsDur: null,
         qrsSaturated: qrsSaturated,
+        qtSaturated: null, // never assessed — we withhold before reaching T-end delineation
         qt: null,
         qtcBazett: null,
         qtcFrid: null,
@@ -11123,10 +11131,23 @@ __exports.ECGUI = window.ECGUI;
         steepAt = i;
       }
     }
+    // T-end saturation — the QT sibling of `qrsSaturated`. The tangent extrapolation can
+    // land past the end of the median-beat window, in which case the clamp below silently
+    // returns the WINDOW EDGE and `qt` becomes a function of window length, not of
+    // repolarisation. It reads as a plausible interval (~490 ms) and lands on the wrong
+    // side of a clinical threshold, which is worse than reporting nothing. Unlike QRS
+    // there is no cross-checked truth (no `medW` for T-end) to re-anchor onto, so the
+    // honest move is to withhold — the same treatment `pr` already gets when P is absent.
+    const _tEdge = beat.length - 1;
+    let _tRaw = null;
     if (steep !== 0) {
-      const t = steepAt + (B - beat[steepAt]) / steep;
-      Tend = Math.max(Tpk, Math.min(beat.length - 1, t));
+      _tRaw = steepAt + (B - beat[steepAt]) / steep;
+      Tend = Math.max(Tpk, Math.min(_tEdge, _tRaw));
     }
+    const qtSaturated =
+      steep === 0 || // no repolarisation downslope inside the search window at all
+      _tRaw >= _tEdge || // tangent extrapolates past the window → clamped to the edge
+      Tpk >= te; // T peak itself sits on the truncated search boundary
     const qt = ms(Tend - Qon);
     const rrS = mb.medRR / 1000;
     const qtcB = rrS > 0 ? qt / Math.sqrt(rrS) : null; // Bazett
@@ -11166,9 +11187,10 @@ __exports.ECGUI = window.ECGUI;
       baseline: +B.toFixed(0),
       qrsDur: +qrsDur.toFixed(0),
       qrsSaturated: qrsSaturated,
-      qt: +qt.toFixed(0),
-      qtcBazett: qtcB == null ? null : +qtcB.toFixed(0),
-      qtcFrid: qtcF == null ? null : +qtcF.toFixed(0),
+      qtSaturated: qtSaturated,
+      qt: qtSaturated ? null : +qt.toFixed(0),
+      qtcBazett: qtSaturated || qtcB == null ? null : +qtcB.toFixed(0),
+      qtcFrid: qtSaturated || qtcF == null ? null : +qtcF.toFixed(0),
       pr: pPresent ? +pr.toFixed(0) : null,
       st: +st.toFixed(0),
       Ramp: +Ramp.toFixed(0),
@@ -15346,7 +15368,7 @@ self.onmessage = async (e) => {
               : { withheld: true, reason: 'no valid median beat (insufficient clean aligned normal beats)' },
             qtcTrend: r.morph.qtcTrend ? r.morph.qtcTrend : null,
             qtcTrendNote: r.morph.qtcTrend
-              ? 'Per-15-min windowed median-beat QTc (Bazett). The cross-node feed GlucoDex lines up against overnight glucose — rising QTc as glucose falls is the beat-level hypoglycemia⟷repolarisation link. Within-subject trend, single lead ≠ 12-lead. Windows flagged `unstable:true` deviate >60 ms from the trend median — a delineation / QRS-saturation artifact (lead-vector or T-end flip), NOT physiology; exclude them before reading a QTc trend or correlating against glucose.'
+              ? 'Per-15-min windowed median-beat QTc (Bazett). The cross-node feed GlucoDex lines up against overnight glucose — rising QTc as glucose falls is the beat-level hypoglycemia⟷repolarisation link. Within-subject trend, single lead ≠ 12-lead. A window whose T-end could not be delineated inside the median-beat window (`qtSaturated` — tangent extrapolating past the window edge, no repolarisation downslope, or a T peak on the truncated search boundary) is WITHHELD entirely rather than reported at the window edge, so a shorter trend means those windows were dropped, not that the night was quiet. Of the windows that remain, `unstable:true` deviates >60 ms from their median — a residual delineation artifact (lead-vector or T-end flip), NOT physiology; exclude them before reading a QTc trend or correlating against glucose.'
               : 'Withheld — recording too short / too few clean windows for a QTc trend (single summary QTc in `intervals` only).',
             twa: r.morph.twa ? r.morph.twa.uv : null,
             tWaveAlternans: r.morph.twa

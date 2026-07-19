@@ -335,6 +335,13 @@
     // trend median is a T-end / QRS-saturation delineation artifact (lead-vector flip),
     // NOT a physiological repolarisation change — flag it so a spurious "QTc cliff"
     // isn't read as a hypoglycemia signal. Values are kept; windows are only annotated.
+    //
+    // This median is only trustworthy because `delineate` now WITHHOLDS a window-edge-
+    // pinned QTc (qtSaturated → qtcBazett null → the window never reaches `out`). While
+    // those windows were admitted they could form the MAJORITY, making the median itself
+    // the pinned value — so the windows exceeding 60 ms were the CORRECTLY delineated
+    // ones, and the export told consumers to discard exactly those. Do not re-admit a
+    // saturated window here without also making this reference robust to it.
     if (out.length >= 3) {
       const _qs = out
         .map((w) => w.qtc)
@@ -485,6 +492,7 @@
         baseline: +B.toFixed(0),
         qrsDur: null,
         qrsSaturated: qrsSaturated,
+        qtSaturated: null, // never assessed — we withhold before reaching T-end delineation
         qt: null,
         qtcBazett: null,
         qtcFrid: null,
@@ -522,10 +530,23 @@
         steepAt = i;
       }
     }
+    // T-end saturation — the QT sibling of `qrsSaturated`. The tangent extrapolation can
+    // land past the end of the median-beat window, in which case the clamp below silently
+    // returns the WINDOW EDGE and `qt` becomes a function of window length, not of
+    // repolarisation. It reads as a plausible interval (~490 ms) and lands on the wrong
+    // side of a clinical threshold, which is worse than reporting nothing. Unlike QRS
+    // there is no cross-checked truth (no `medW` for T-end) to re-anchor onto, so the
+    // honest move is to withhold — the same treatment `pr` already gets when P is absent.
+    const _tEdge = beat.length - 1;
+    let _tRaw = null;
     if (steep !== 0) {
-      const t = steepAt + (B - beat[steepAt]) / steep;
-      Tend = Math.max(Tpk, Math.min(beat.length - 1, t));
+      _tRaw = steepAt + (B - beat[steepAt]) / steep;
+      Tend = Math.max(Tpk, Math.min(_tEdge, _tRaw));
     }
+    const qtSaturated =
+      steep === 0 || // no repolarisation downslope inside the search window at all
+      _tRaw >= _tEdge || // tangent extrapolates past the window → clamped to the edge
+      Tpk >= te; // T peak itself sits on the truncated search boundary
     const qt = ms(Tend - Qon);
     const rrS = mb.medRR / 1000;
     const qtcB = rrS > 0 ? qt / Math.sqrt(rrS) : null; // Bazett
@@ -565,9 +586,10 @@
       baseline: +B.toFixed(0),
       qrsDur: +qrsDur.toFixed(0),
       qrsSaturated: qrsSaturated,
-      qt: +qt.toFixed(0),
-      qtcBazett: qtcB == null ? null : +qtcB.toFixed(0),
-      qtcFrid: qtcF == null ? null : +qtcF.toFixed(0),
+      qtSaturated: qtSaturated,
+      qt: qtSaturated ? null : +qt.toFixed(0),
+      qtcBazett: qtSaturated || qtcB == null ? null : +qtcB.toFixed(0),
+      qtcFrid: qtSaturated || qtcF == null ? null : +qtcF.toFixed(0),
       pr: pPresent ? +pr.toFixed(0) : null,
       st: +st.toFixed(0),
       Ramp: +Ramp.toFixed(0),
