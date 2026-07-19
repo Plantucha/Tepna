@@ -5154,8 +5154,7 @@
     // keeping `nadir`+`depth`). Read both, or the profile path silently yields NaN — which
     // JSON-serialises to null and, being NaN, fails every quintile comparison so the label
     // lands on 'Q5(high)'. A wrong-but-plausible worst-case grade, from a units mismatch.
-    var _src =
-      desat && Array.isArray(desat.events) ? desat.events : detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, exitPct: DexKernel.K.ODI_DROP, blArr: blArr });
+    var _src = desat && Array.isArray(desat.events) ? desat.events : detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, exitPct: DexKernel.K.ODI_DROP, blArr: blArr });
     var nadirEvents = _src
       .map(function (e) {
         var dur = e.durationSec != null ? e.durationSec : e.duration;
@@ -5224,8 +5223,7 @@
     // desaturations. Falls back to deriving that canonical set when no profile is supplied so
     // direct callers keep working — the fallback is NOT artifact-gated, so the profile path is
     // preferred. Kulkas' area-under-the-curve concept is unchanged; only the event set is.
-    var _evts =
-      desat && Array.isArray(desat.events) ? desat.events : detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, exitPct: DexKernel.K.ODI_DROP, blArr: blArr });
+    var _evts = desat && Array.isArray(desat.events) ? desat.events : detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, exitPct: DexKernel.K.ODI_DROP, blArr: blArr });
     // Two event shapes (see computeSBII): the raw primitive carries `baseline`, while the
     // profile's re-shaped events drop it and keep `nadir`+`depth` — from which the onset
     // baseline is recoverable exactly. Without this the subtraction is NaN, every `d > 0`
