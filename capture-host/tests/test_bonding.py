@@ -228,3 +228,72 @@ def test_forget_targets_the_configured_adapter(monkeypatch):
     _run(bonding.forget("AA:BB:CC:DD:EE:FF", "AA:AA:AA:AA:AA:AA"))
     assert "select AA:AA:AA:AA:AA:AA" in rec[0]
     assert "remove AA:BB:CC:DD:EE:FF" in rec[0]
+
+
+# ── property updates are not names (2026-07-19) ─────────────────────────────────────────────────────
+# bluetoothctl prints announcements and property updates in the SAME `Device <addr> <rest>` shape:
+#     [NEW] Device 24:AC:AC:0C:30:1E Polar Sense 0C301E3F
+#     [CHG] Device 24:AC:AC:0C:30:1E RSSI: 0xffffffd8 (-40)
+# A naive capture takes the RSSI line for the name. That is not cosmetic — the monitor infers
+# vendor/model from the name, matches nothing, and the identity gate then REFUSES to remember the
+# sensor: "not recognised — needs vendor, model", for a device sitting at -40 dBm that BlueZ knew
+# perfectly well as "Polar Sense 0C301E3F".
+
+SCAN_WITH_PROPS = """\
+[NEW] Device 24:AC:AC:0C:30:1E Polar Sense 0C301E3F
+[CHG] Device 24:AC:AC:0C:30:1E RSSI: 0xffffffd8 (-40)
+[CHG] Device 24:AC:AC:0C:30:1E TxPower: 4
+[CHG] Device 24:AC:AC:0C:30:1E ManufacturerData Key: 0x006b
+[NEW] Device 99:88:77:66:55:44 99-88-77-66-55-44
+[CHG] Device 99:88:77:66:55:44 Name: Later Real Name
+"""
+
+
+@pytest.mark.parametrize("tail", [
+    "RSSI: 0xffffffd8 (-40)", "TxPower: 4", "Connected: yes", "Paired: no",
+    "ServicesResolved: yes", "UUIDs: 0000180f-0000-1000-8000-00805f9b34fb", "Battery Percentage: 0x64",
+])
+def test_property_updates_are_not_treated_as_names(tail):
+    assert bonding.is_property_line(tail) is True
+
+
+@pytest.mark.parametrize("name", ["Polar Sense 0C301E3F", "Polar H10 02849638", "S8-AW 2100",
+                                  "Laser Carver", "PR BT 6C03"])
+def test_real_names_are_not_mistaken_for_properties(name):
+    assert bonding.is_property_line(name) is False
+
+
+def test_a_real_name_survives_an_rssi_line_arriving_first(monkeypatch):
+    """THE regression. Order must not decide the name."""
+    _stub(monkeypatch, delayed=SCAN_WITH_PROPS)
+    by = {f.address: f for f in _run(bonding.scan(seconds=0))}
+    assert by["24:AC:AC:0C:30:1E"].name == "Polar Sense 0C301E3F"
+    assert by["24:AC:AC:0C:30:1E"].health is True, "a correctly-named Polar must be flagged a sensor"
+
+
+def test_rssi_is_taken_from_the_scan_stream(monkeypatch):
+    """`info` reports RSSI only for a LIVE connection, so every discovered device came back with
+    rssi=None — while the value sat in the scan lines being discarded as names."""
+    _stub(monkeypatch, delayed=SCAN_WITH_PROPS, info_by_addr={"24:AC:AC:0C:30:1E": "\tBonded: yes\n"})
+    by = {f.address: f for f in _run(bonding.scan(seconds=0))}
+    assert by["24:AC:AC:0C:30:1E"].rssi == -40
+
+
+def test_a_real_name_replaces_an_address_placeholder(monkeypatch):
+    _stub(monkeypatch, delayed=SCAN_WITH_PROPS)
+    assert bonding.is_placeholder_name("99-88-77-66-55-44") is True
+    assert bonding.is_placeholder_name("Polar Sense 0C301E3F") is False
+
+
+def test_info_supplies_a_name_when_the_scan_only_saw_a_placeholder(monkeypatch):
+    """Last resort: BlueZ's cached Name is authoritative and survives a scan that never announced one."""
+    _stub(monkeypatch, delayed="[NEW] Device 24:AC:AC:0C:30:1E 24-AC-AC-0C-30-1E\n",
+          info_by_addr={"24:AC:AC:0C:30:1E": "\tName: Polar Sense 0C301E3F\n\tBonded: yes\n"})
+    f = _run(bonding.scan(seconds=0))[0]
+    assert f.name == "Polar Sense 0C301E3F" and f.health is True
+
+
+def test_a_placeholder_never_overwrites_a_real_name(monkeypatch):
+    _stub(monkeypatch, delayed=("[NEW] Device 24:AC:AC:0C:30:1E Polar Sense 0C301E3F\n"
+                                "[CHG] Device 24:AC:AC:0C:30:1E 24-AC-AC-0C-30-1E\n"))
+    assert _run(bonding.scan(seconds=0))[0].name == "Polar Sense 0C301E3F"
