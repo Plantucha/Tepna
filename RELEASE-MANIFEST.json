@@ -440,6 +440,40 @@
         "CPAP-REAL-CORPUS-FOLLOWUPS-II-2026-07-13-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "1.14.0",
+      "date": "2026-07-19",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "96781a2f8f06",
+        "OxyDex": "fb34cb0c1a86",
+        "PulseDex": "573ac634b9a1",
+        "GlucoDex": "309475e146d2",
+        "PpgDex": "36d2545d4f04",
+        "HRVDex": "147140506376",
+        "CPAPDex": "f1eccac01748",
+        "Integrator": "b00b700273dc",
+        "MotionDex": "7b886bb7f9ad"
+      },
+      "briefs": [
+        "TEST-COVERAGE-FOLLOWUPS-II-2026-07-17-BRIEF.md",
+        "CPAP-REAL-CORPUS-FOLLOWUPS-II-2026-07-13-BRIEF.md",
+        "CPAP-REAL-CORPUS-FOLLOWUPS-III-2026-07-17-BRIEF.md",
+        "TEST-COVERAGE-FOLLOWUPS-2026-07-17-BRIEF.md",
+        "AUDIT-RECONCILIATION-2026-07-18-BRIEF.md",
+        "DEEP-AUDIT-II-2026-07-18-BRIEF.md",
+        "ENGINE-VERIFICATION-FINDINGS-2026-07-18-BRIEF.md",
+        "APNEA-TYPING-FUSION-2026-07-18-BRIEF.md",
+        "MULTI-SENSOR-DERIVATIONS-2026-07-16-BRIEF.md",
+        "MOTIONDEX-BUILD-2026-07-17-BRIEF.md",
+        "TEST-AUDIT-FINDINGS-FOLLOWUPS-2026-07-18-BRIEF.md",
+        "PPGDEX-MULTICHANNEL-FUSION-2026-07-18-BRIEF.md",
+        "DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS-2026-07-18-BRIEF.md",
+        "REGISTRY-PROJECTION-2026-07-04-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
