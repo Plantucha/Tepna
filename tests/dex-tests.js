@@ -2316,6 +2316,35 @@
       T.approx('roc perfect separation → auc 1', S.roc([0.9, 0.8, 0.2, 0.1], [true, true, false, false]).auc, 1, 1e-12);
       T.approx('roc inverted → auc 0', S.roc([0.1, 0.2, 0.8, 0.9], [true, true, false, false]).auc, 0, 1e-12);
       T.eq('roc single-class → auc null', S.roc([1, 2, 3], [true, true, true]).auc, null);
+      /* DEEP-AUDIT-II §12.4 — TIES. Every roc case above uses distinct scores, which is exactly why
+         this survived: stepping one point at a time drew a staircase through each tied group, so the
+         area depended on whether positives or negatives happened to be ordered first WITHIN the tie.
+         `sort` is stable, so that is just input order — and the papers layer feeds roc() from
+         workers, making the published AUC run-to-run nondeterministic. It also falsified
+         hrv-confound-analysis.js's own order-invariance comment.
+         The damage was not marginal: on the same six observations, permuting ONLY the tied labels
+         moved AUC between 1.0000 ("perfect discrimination") and 0.5556 ("barely above chance"), when
+         the true value is 0.7778. Neither endpoint was correct.
+         The gate the brief asks for is the identity: a tied block advanced as a unit draws the
+         diagonal through the tie, which is precisely the half-credit Mann–Whitney assigns, so
+         roc().auc must equal mannWhitneyAUC() — a relationship no ordering can satisfy by accident. */
+      var tieA = { s: [3, 1, 1, 1, 1, 0], l: [true, true, true, false, false, false] };
+      var tieB = { s: [3, 1, 1, 1, 1, 0], l: [true, false, false, true, true, false] }; // tied labels permuted
+      var split = function (c, want) {
+        return c.s.filter(function (_, i) {
+          return !!c.l[i] === want;
+        });
+      };
+      var aucA = S.roc(tieA.s, tieA.l).auc,
+        aucB = S.roc(tieB.s, tieB.l).auc;
+      T.approx('§12.4 · roc with ties = 0.7778 (pre-fix this ordering gave 1.0 — "perfect")', aucA, 0.7778, 5e-4);
+      T.approx('§12.4 · …and the permuted ordering agrees (pre-fix it gave 0.5556 — "chance")', aucB, 0.7778, 5e-4);
+      T.eq('§12.4 · roc is ORDER-INVARIANT across a tied block', aucA, aucB);
+      T.approx('§12.4 · roc ≡ mannWhitneyAUC on ties — the identity the audit prescribes', aucA, S.mannWhitneyAUC(split(tieA, true), split(tieA, false)), 1e-12);
+      T.approx('§12.4 · …and on an all-tied set, both are exactly 0.5', S.roc([2, 2, 2, 2], [true, true, false, false]).auc, 0.5, 1e-12);
+      // Not over-broad: the distinct-score cases above must still give their exact answers, and the
+      // identity must hold there too — a tie-grouping bug could otherwise "fix" ties by breaking the rest.
+      T.approx('§12.4 · the identity also holds with NO ties (grouping did not disturb the clean case)', S.roc([5, 4, 3, 2, 1], [true, true, false, false, false]).auc, S.mannWhitneyAUC([5, 4], [3, 2, 1]), 1e-12);
 
       // ── change-point (min within-segment SSE) ──
       var bs = S.bestSplit([0, 0, 0, 10, 10, 10]); // step at index 3
