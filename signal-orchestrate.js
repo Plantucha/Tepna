@@ -472,9 +472,56 @@
   // signalTypes that HAVE a compute()/emit path (the migrated nodes). Auxiliary channels
   // (acc/hr companions) are NOT emitters. The Data Unifier + OverDex gate their emit UI on this
   // so a newly-migrated node lights up in ONE place, not per-host (HOST-EMIT-ALLOWLIST-2026-06-27).
-  var _EMITTABLE = { rr: 1, spo2: 1, hrv: 1, cgm: 1, ppg: 1, ecg: 1, cpap: 1 };
+  // DEEP-AUDIT-II §10.1 — _EMITTABLE used to be a hand-written literal listing all seven types while
+  // only THREE hosts were ever booted by the apps. The allowlist said "yes, I can compute ECG", the
+  // dispatch in emitNodeExport() agreed, and the never-populated _ecgWin then threw a message blaming
+  // a co-load that WAS present — so the file silently dropped out of exports[] and the run carried on.
+  // The list and the hosts are now ONE table: a type is emittable IFF a host function exists to boot
+  // it, so the two cannot drift apart again. Adding a node means adding one row here.
+  var _HOSTS = { rr: pulseHost, spo2: oxyHost, hrv: hrvHost, cgm: glucoHost, ppg: ppgHost, ecg: ecgHost, cpap: cpapHost };
+  var _EMITTABLE = {};
+  Object.keys(_HOSTS).forEach(function (k) {
+    _EMITTABLE[k] = 1;
+  });
   function canEmit(signalType) {
-    return !!_EMITTABLE[signalType];
+    return !!_HOSTS[signalType];
+  }
+  // hostFor(signalType) → the boot function for that signal, or null. bootHosts(types) boots exactly
+  // the hosts a given drop needs, de-duplicated, and never rejects: a host that fails to load yields
+  // { type, ok:false, error } so ONE unavailable node cannot abort a mixed drop — the caller reports
+  // per-file instead. Each host is already idempotent (it caches its own promise).
+  function hostFor(signalType) {
+    return _HOSTS[signalType] || null;
+  }
+  // plannedHosts(types) — the PURE decision bootHosts runs on: keep the signals that actually have a
+  // host, de-duplicated, in drop order. Extracted so it is gateable synchronously (the test harness
+  // runs group bodies synchronously and discards a returned promise, so an async assertion here would
+  // silently never run).
+  function plannedHosts(signalTypes) {
+    var want = [];
+    (signalTypes || []).forEach(function (t) {
+      if (_HOSTS[t] && want.indexOf(t) < 0) want.push(t);
+    });
+    return want;
+  }
+  function bootHosts(signalTypes) {
+    var want = plannedHosts(signalTypes);
+    return Promise.all(
+      want.map(function (t) {
+        return Promise.resolve()
+          .then(function () {
+            return _HOSTS[t]();
+          })
+          .then(
+            function (win) {
+              return { type: t, ok: true, win: win };
+            },
+            function (err) {
+              return { type: t, ok: false, error: err && err.message ? err.message : String(err) };
+            }
+          );
+      })
+    );
   }
   // emittableTypes(): the LIVE emit-allowlist keys — the durable accessor the generic-emit gate
   // prefers over parsing THIS file's source (GENERIC-EMIT-GATE-FOLLOWUPS-II §3). Reading the runtime
@@ -515,6 +562,9 @@
     fnameStampMs: fnameStampMs,
     pairCompanions: pairCompanions,
     canEmit: canEmit,
+    hostFor: hostFor,
+    plannedHosts: plannedHosts,
+    bootHosts: bootHosts,
     emittableTypes: emittableTypes
   };
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);

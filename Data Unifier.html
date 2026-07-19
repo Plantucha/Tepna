@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-2Cg5MmHbsewgCHxMRZJCmNX7MG7Tm7XlBuzXp+u9hac=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-6Gq5p6JAWsKz+ZbEKpiHKhMbl6qv4btiBN6k+UAnnH4=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-FYufV3uNn6NzYx4TuQ57WPhAQACfOzGvqQNA/yly9bo=' 'sha256-GGdN+UUs5j+9HUZsLBWNRzJsznw99NyOxmfZPLRvlo8=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-PonrWlOQKzGbeHXHaQVXLDpXG55i2znVJSKFGWBxvKo=' 'sha256-Q9/mWHUwYT01wW0pJKSRx1yO8smaw8h766yrxDUTf44=' 'sha256-SRJJFEC6LTMi0bvZyzEJu7AQKuDo8gEeHChJAtBES0s=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W4A2TfZwIAWH6cXo7fQYZskQLCHYdTAky5JIIkDIFxc=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-6Gq5p6JAWsKz+ZbEKpiHKhMbl6qv4btiBN6k+UAnnH4=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-FYufV3uNn6NzYx4TuQ57WPhAQACfOzGvqQNA/yly9bo=' 'sha256-GGdN+UUs5j+9HUZsLBWNRzJsznw99NyOxmfZPLRvlo8=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-PonrWlOQKzGbeHXHaQVXLDpXG55i2znVJSKFGWBxvKo=' 'sha256-Q9/mWHUwYT01wW0pJKSRx1yO8smaw8h766yrxDUTf44=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W4A2TfZwIAWH6cXo7fQYZskQLCHYdTAky5JIIkDIFxc=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-m2FMsI9l/T0bhvsECQxEKbYwdFZbuSLZ/VgXlyaONcU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -20824,9 +20824,56 @@ __exports.ECGDex = window.ECGDex;
   // signalTypes that HAVE a compute()/emit path (the migrated nodes). Auxiliary channels
   // (acc/hr companions) are NOT emitters. The Data Unifier + OverDex gate their emit UI on this
   // so a newly-migrated node lights up in ONE place, not per-host (HOST-EMIT-ALLOWLIST-2026-06-27).
-  var _EMITTABLE = { rr: 1, spo2: 1, hrv: 1, cgm: 1, ppg: 1, ecg: 1, cpap: 1 };
+  // DEEP-AUDIT-II §10.1 — _EMITTABLE used to be a hand-written literal listing all seven types while
+  // only THREE hosts were ever booted by the apps. The allowlist said "yes, I can compute ECG", the
+  // dispatch in emitNodeExport() agreed, and the never-populated _ecgWin then threw a message blaming
+  // a co-load that WAS present — so the file silently dropped out of exports[] and the run carried on.
+  // The list and the hosts are now ONE table: a type is emittable IFF a host function exists to boot
+  // it, so the two cannot drift apart again. Adding a node means adding one row here.
+  var _HOSTS = { rr: pulseHost, spo2: oxyHost, hrv: hrvHost, cgm: glucoHost, ppg: ppgHost, ecg: ecgHost, cpap: cpapHost };
+  var _EMITTABLE = {};
+  Object.keys(_HOSTS).forEach(function (k) {
+    _EMITTABLE[k] = 1;
+  });
   function canEmit(signalType) {
-    return !!_EMITTABLE[signalType];
+    return !!_HOSTS[signalType];
+  }
+  // hostFor(signalType) → the boot function for that signal, or null. bootHosts(types) boots exactly
+  // the hosts a given drop needs, de-duplicated, and never rejects: a host that fails to load yields
+  // { type, ok:false, error } so ONE unavailable node cannot abort a mixed drop — the caller reports
+  // per-file instead. Each host is already idempotent (it caches its own promise).
+  function hostFor(signalType) {
+    return _HOSTS[signalType] || null;
+  }
+  // plannedHosts(types) — the PURE decision bootHosts runs on: keep the signals that actually have a
+  // host, de-duplicated, in drop order. Extracted so it is gateable synchronously (the test harness
+  // runs group bodies synchronously and discards a returned promise, so an async assertion here would
+  // silently never run).
+  function plannedHosts(signalTypes) {
+    var want = [];
+    (signalTypes || []).forEach(function (t) {
+      if (_HOSTS[t] && want.indexOf(t) < 0) want.push(t);
+    });
+    return want;
+  }
+  function bootHosts(signalTypes) {
+    var want = plannedHosts(signalTypes);
+    return Promise.all(
+      want.map(function (t) {
+        return Promise.resolve()
+          .then(function () {
+            return _HOSTS[t]();
+          })
+          .then(
+            function (win) {
+              return { type: t, ok: true, win: win };
+            },
+            function (err) {
+              return { type: t, ok: false, error: err && err.message ? err.message : String(err) };
+            }
+          );
+      })
+    );
   }
   // emittableTypes(): the LIVE emit-allowlist keys — the durable accessor the generic-emit gate
   // prefers over parsing THIS file's source (GENERIC-EMIT-GATE-FOLLOWUPS-II §3). Reading the runtime
@@ -20867,6 +20914,9 @@ __exports.ECGDex = window.ECGDex;
     fnameStampMs: fnameStampMs,
     pairCompanions: pairCompanions,
     canEmit: canEmit,
+    hostFor: hostFor,
+    plannedHosts: plannedHosts,
+    bootHosts: bootHosts,
     emittableTypes: emittableTypes
   };
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
@@ -20941,7 +20991,7 @@ __exports.ECGDex = window.ECGDex;
     return (text || '').slice(0, 2048);
   }
 
-  function processOne(file, text, pw, ow, hw, entries) {
+  function processOne(file, text, wins, entries) {
     var REG = window.SignalAdapters,
       SF = window.SignalFrame,
       ORCH = window.SignalOrchestrate;
@@ -20950,9 +21000,10 @@ __exports.ECGDex = window.ECGDex;
       return { file: file, route: r, frame: null, valid: null, note: 'no adapter recognized this file — set aside, never guessed' };
     }
     var ctx = { files: [file.name] };
-    if (r.best.signalType === 'rr' && pw) ctx.parseRRInput = pw.parseRRInput;
-    if (r.best.signalType === 'spo2' && ow) ctx.parseCSV = ow.parseCSV;
-    if (r.best.signalType === 'hrv' && hw) ctx.parseRows = hw.HRVDex.parseRows;
+    wins = wins || {};
+    if (r.best.signalType === 'rr' && wins.rr) ctx.parseRRInput = wins.rr.parseRRInput;
+    if (r.best.signalType === 'spo2' && wins.spo2) ctx.parseCSV = wins.spo2.parseCSV;
+    if (r.best.signalType === 'hrv' && wins.hrv && wins.hrv.HRVDex) ctx.parseRows = wins.hrv.HRVDex.parseRows;
     // companion-bundle ingest (ECG/PPG are multi-file): pair the matched device sidecars by filename
     // stamp across the whole drop, so the adapter attaches deviceRR/HR/ACC (ECG) or acc/gyro/magn/PPI
     // (PPG) to the frame → compute() gains posture + device cross-checks (HANDOFF §2(b)).
@@ -20962,7 +21013,7 @@ __exports.ECGDex = window.ECGDex;
     }
     var frame = REG.runAdapter(r.best.adapter, text, ctx);
     var valid = SF.validateFrame(frame);
-    return { file: file, route: r, frame: frame, valid: valid, pw: pw, ow: ow, hw: hw };
+    return { file: file, route: r, frame: frame, valid: valid, wins: wins };
   }
 
   // ── rendering ───────────────────────────────────────────────────────────────
@@ -21074,24 +21125,18 @@ __exports.ECGDex = window.ECGDex;
     });
     if (!files.length) return;
     setStatus('routing ' + files.length + ' file' + (files.length === 1 ? '' : 's') + '…', 'run');
-    var pw = null,
-      ow = null,
-      hw = null;
-    try {
-      pw = await pulseHost();
-    } catch (e) {
-      setStatus('RR parser host failed: ' + e.message, 'bad');
-    }
-    try {
-      ow = await oxyHost();
-    } catch (e) {
-      /* SpO₂ host optional — only needed if an O2Ring file is dropped */
-    }
-    try {
-      hw = await hrvHost();
-    } catch (e) {
-      /* HRV host optional — only needed if a Welltory summary CSV is dropped */
-    }
+    // DEEP-AUDIT-II §10.1 — this booted a hardcoded pulse/oxy/hrv trio, so a dropped ECG / PPG / CGM
+    // / CPAP file reached emitNodeExport() with no host and threw a message blaming a co-load that IS
+    // present in the src.html. Boot every host the orchestrator says it can emit; each is idempotent
+    // and lazy, and bootHosts() never rejects, so one unavailable node cannot sink the whole drop.
+    var wins = {},
+      hostFail = {};
+    var booted = await ORCH.bootHosts(ORCH.emittableTypes());
+    booted.forEach(function (b) {
+      if (b.ok) wins[b.type] = b.win;
+      else hostFail[b.type] = b.error;
+    });
+    if (!wins.rr) setStatus('RR parser host failed: ' + (hostFail.rr || 'unavailable'), 'bad');
     // read EVERY file's text up front so ECG/PPG companion sidecars can be paired by stamp (§2(b))
     var entries = [];
     for (var ri = 0; ri < files.length; ri++) {
@@ -21109,7 +21154,7 @@ __exports.ECGDex = window.ECGDex;
         continue;
       }
       try {
-        results.push(processOne(files[i], ent.text, pw, ow, hw, entries));
+        results.push(processOne(files[i], ent.text, wins, entries));
       } catch (e) {
         results.push({ file: files[i], route: { unknown: true, best: null }, frame: null, valid: null, note: 'process error: ' + e.message });
       }
