@@ -6,7 +6,7 @@ name: capture-host-ci
 # (Clock Contract / the ~10% HR-bug regression), clockcfg, and the live-sample telemetry bus. No BLE
 # hardware needed — the tested modules are pure-Python (bleak/aiohttp are only imported by the runtime
 # daemon: capture/webmon/bonding/pull_session/polar_psftp, which read 0% in this hardware-free CI).
-# Coverage is REPORTED every run with a conservative --cov-fail-under backstop (source-only ~31% today);
+# Coverage is REPORTED every run with a conservative --cov-fail-under backstop (source-only ~51% today);
 # it guards against a coverage CRATER, not normal incremental additions.
 #
 # Runs on a MATRIX of Python versions, and the version the real box runs is required to be one of them —
@@ -56,4 +56,4 @@ jobs:
       - name: Lint (ruff — real errors only)
         run: ruff check .
       - name: Unit tests + coverage (pytest)
-        run: pytest -q --cov=. --cov-report=term-missing --cov-fail-under=20
+        run: pytest -q --cov=. --cov-report=term-missing --cov-fail-under=48
