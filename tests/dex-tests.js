@@ -3349,6 +3349,99 @@
     }
   });
 
+
+  /* ════ DEEP-AUDIT-II §1.1–1.9 — an absent column must not arithmetic its way into a value ════
+     Every objective HRV column parses absent → null (numOrNull). JS coercion then hides the absence:
+     `null >= 0` is TRUE, `null + 1` is 1, `null / x` is 0. Sites that gated SOME of their factors and
+     consumed the rest ungated therefore published a CONFIDENT NUMBER for data never recorded.
+     Measured on the real modules (full row vs the same row with ONE column nulled):
+       _stress absent → d_welfare 4200  (the true value is 91.3)
+       _pnn50  absent → d_otr     500   (the saturation rail)
+       _rmssd  absent → d_sd1     0     → d_dfa_proxy 1
+       _sns    absent → d_abs     1     (perfect parasympathetic dominance, from nothing)
+     Each leg below asserts NaN for the absent case AND that the intact row is unchanged — without the
+     second half the gate would be satisfied by a fix that simply stopped computing anything. ════ */
+  group('HRVDex — an absent column yields NaN, never a fabricated number (§1.1–1.9)', 'hrvdex-dsp · fabricated-absence', function (T) {
+    var HD = env.HRVDex,
+      B = HD && HD._bare;
+    if (!B || typeof B.computeDerived !== 'function') {
+      T.skip('HRVDex._bare.computeDerived reachable', 'namespace not wired into env');
+      return;
+    }
+    // A complete, physiologically coherent row — every derived metric is finite here.
+    function baseRow() {
+      return {
+        _rmssd: 42, _sdnn: 75.7, _pnn50: 18, _hr: 58, _meanRR: 1034,
+        _lf: 600, _hf: 340, _vlf: 3400, _totalPow: 4340,
+        _stress: 45, _energy: 70, _focus: 60, _coherence: 60, _sns: 30, _psns: 60,
+        _mode: 0.9, _amo50: 40, _mxdmn: 0.3
+      };
+    }
+    function derive(kill) {
+      var r = baseRow();
+      if (kill) r[kill] = null;
+      B.computeDerived([r]);
+      return r;
+    }
+    var full = derive(null);
+
+    // ── CONTROL: the intact row still produces real numbers. If a fix over-applies and blanks
+    //    everything, these red — so "return NaN always" cannot satisfy this group.
+    T.ok('control · intact row · d_welfare is finite', isFinite(full.d_welfare) && full.d_welfare > 0, 'd_welfare=' + full.d_welfare);
+    T.ok('control · intact row · d_otr is finite and NOT saturated', isFinite(full.d_otr) && full.d_otr < 499, 'd_otr=' + full.d_otr);
+    T.ok('control · intact row · d_abs is finite and strictly between the rails', isFinite(full.d_abs) && Math.abs(full.d_abs) < 1, 'd_abs=' + full.d_abs);
+    T.ok('control · intact row · d_sd1 / d_dfa_proxy finite', isFinite(full.d_sd1) && full.d_sd1 > 0 && isFinite(full.d_dfa_proxy), 'sd1=' + full.d_sd1 + ' dfa=' + full.d_dfa_proxy);
+    T.ok('control · intact row · d_crs finite', isFinite(full.d_crs), 'd_crs=' + full.d_crs);
+
+    // ── §1.9 · _stress absent: `null + 1` is 1, so the denominator collapsed to 1 and d_welfare
+    //    published energy×coherence — 4200 where the truth was 91.3, a 46× overstatement.
+    T.ok('§1.9 · _stress absent → d_welfare NaN (was 4200 via null+1===1)', isNaN(derive('_stress').d_welfare), String(derive('_stress').d_welfare));
+
+    // ── §1.2 · _pnn50 absent: the gate read `r._pnn50 >= 0`, and `null >= 0` is TRUE, so the row
+    //    passed its own presence check and 100/(null+0.01) drove d_otr onto the 500 rail.
+    var kp = derive('_pnn50');
+    T.ok('§1.2 · _pnn50 absent → d_otr NaN (was 500, the saturation rail)', isNaN(kp.d_otr), String(kp.d_otr));
+    T.ok('§1.2 · …and d_otr_sat is not raised on absence', kp.d_otr_sat !== true, String(kp.d_otr_sat));
+    T.ok('§1.4 · _pnn50 absent → d_crs NaN (was a confident 0)', isNaN(kp.d_crs), String(kp.d_crs));
+
+    // ── §1.1 · _rmssd absent: d_sd1 was ungated entirely → 0, which then made the Poincaré ratio 0
+    //    and d_dfa_proxy exactly 1 — a healthy-looking fractal scaling derived from no beats at all.
+    var kr = derive('_rmssd');
+    T.ok('§1.1 · _rmssd absent → d_sd1 NaN (was 0)', isNaN(kr.d_sd1), String(kr.d_sd1));
+    T.ok('§1.1 · _rmssd absent → d_dfa_proxy NaN (was exactly 1)', isNaN(kr.d_dfa_proxy), String(kr.d_dfa_proxy));
+    T.ok('§1.8 · _rmssd absent → d_rmssd_sdnn NaN', isNaN(kr.d_rmssd_sdnn), String(kr.d_rmssd_sdnn));
+    T.ok('§1.8 · _rmssd absent → d_vei NaN', isNaN(kr.d_vei), String(kr.d_vei));
+    T.ok('§1.4 · _rmssd absent → d_pti NaN (was _hasSubj-gated but multiplies an OBJECTIVE column)', isNaN(kr.d_pti), String(kr.d_pti));
+    T.ok('§1.5 · _rmssd absent → d_rmssd_circ NaN', isNaN(kr.d_rmssd_circ), String(kr.d_rmssd_circ));
+
+    // ── §1.7 · one half of the SNS/PSNS pair absent: `null + 60 > 0` is true, so the balance
+    //    resolved to (60-0)/(60+0) = 1 — maximal parasympathetic dominance asserted from absence.
+    var ks = derive('_sns');
+    T.ok('§1.7 · _sns absent → d_abs NaN (was exactly 1)', isNaN(ks.d_abs), String(ks.d_abs));
+    T.ok('§1.7 · _psns absent → d_abs NaN (the mirror direction, was −1)', isNaN(derive('_psns').d_abs), String(derive('_psns').d_abs));
+    T.ok('§1.8 · _sns absent → d_sdi NaN', isNaN(ks.d_sdi), String(ks.d_sdi));
+
+    // ── §1.6 · nu normalisation gated only its DENOMINATOR (totalPow/vlf), never the band itself.
+    T.ok('§1.6 · _hf absent → d_hfnu NaN', isNaN(derive('_hf').d_hfnu), String(derive('_hf').d_hfnu));
+    T.ok('§1.6 · _lf absent → d_lfnu NaN', isNaN(derive('_lf').d_lfnu), String(derive('_lf').d_lfnu));
+
+    // ── §1.5 · beats-per-5-min scaling of an absent pNN50 yielded a confident count of 0 beats.
+    T.ok('§1.5 · _pnn50 absent → d_nn50 NaN (was 0 beats)', isNaN(kp.d_nn50), String(kp.d_nn50));
+
+    // ── §1.3 · computeCAMQ's parasympathetic arm used the same `>= 0` test, so an absent pNN50
+    //    contributed a real 0 to the mean AND incremented the divisor — dragging the score down.
+    if (typeof B.computeCAMQ === 'function') {
+      var camqFull = B.computeCAMQ(baseRow());
+      var _r = baseRow();
+      _r._pnn50 = null;
+      var camqAbs = B.computeCAMQ(_r);
+      T.ok('§1.3 · CAMQ · intact row scores (control)', isFinite(camqFull) && camqFull > 0, String(camqFull));
+      T.ok('§1.3 · CAMQ · an absent pNN50 no longer contributes a real 0 to the parasympathetic mean', camqAbs !== camqFull ? camqAbs > camqFull : true, 'full=' + camqFull + ' absent=' + camqAbs);
+    } else {
+      T.skip('§1.3 · computeCAMQ reachable', 'not exported on _bare');
+    }
+  });
+
   group('PSL column resolution is header-driven, not positional (both layouts)', 'motiondex-dsp · ppgdex-dsp', function (T) {
     var M = env.MOTIONDSP, P = env.PPGDSP;
     var OLD6 = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];X [mg];Y [mg];Z [mg]\n';
@@ -12511,7 +12604,14 @@
         T.ok('computeDerived d_csi uses the guard-normalized (seconds) MxDMn, not the raw column', /_mxdmnS = \(?r\._baevskyS/.test(dsp) && /d_csi = \(?meanRR_s > 0 && _mxdmnS != null\)?/.test(dsp));
         T.ok('computeDerived reads the canonical threshold (no forked RR_MS_THRESHOLD literal)', !/RR_MS_THRESHOLD\s*=/.test(dsp));
         // ── §8 #2: zero-seeded black-box composites must NOT surface a fabricated 0 on a raw recording ──
-        T.ok('d_welfare gated on subjective inputs PRESENT (>0), never a fake 0', /d_welfare = \(?r\._energy > 0 && r\._coherence > 0\)?/.test(dsp));
+        /* ⚠️ WAS HOLLOW (DEEP-AUDIT-II §1.9). This read as a source regex over the CURRENT text —
+           `/d_welfare = r\._energy > 0 && r\._coherence > 0/` — which is an unanchored PREFIX match,
+           so it stayed green while d_welfare divided by `r._stress + 1` with `_stress` null (null+1
+           === 1) and published 4200 where the truth was 91.3. A regex that pins the code it was
+           written against cannot notice what that code forgets. The real claim — an absent input
+           yields NaN — is now asserted BEHAVIOURALLY in the '§1.1–1.9' group above, on the executed
+           module. What remains here is the narrow structural fact this line can honestly check. */
+        T.ok('d_welfare gates its subjective inputs AND its stress denominator (the §1.9 gap)', /d_welfare = \(?r\._energy > 0 && r\._coherence > 0 && _all\(r\._stress\)\)?/.test(dsp));
         T.ok('d_efc gated on subjective inputs PRESENT (>0)', /d_efc = \(?r\._energy > 0 && r\._focus > 0 && r\._coherence > 0\)?/.test(dsp));
         T.ok('d_ans_load gated on subjective inputs PRESENT (>0)', /d_ans_load = \(?r\._sns > 0 && r\._stress > 0 && r\._psns > 0 && r\._energy > 0\)?/.test(dsp));
         // ── -V §1: the zero-seed gate is BROADER than the three §8 #2 KPIs — every composite FED
@@ -12521,9 +12621,18 @@
           'a single _hasSubj predicate (all six subjective inputs >0) is defined once',
           /_hasSubj = \(?r\._stress > 0 && r\._energy > 0 && r\._focus > 0 && r\._coherence > 0 && r\._sns > 0 && r\._psns > 0\)?/.test(dsp)
         );
-        ['d_se_div', 'd_coh_energy', 'd_pti', 'd_sfd', 'd_focus_eff', 'd_hile'].forEach(function (m) {
-          T.ok(m + ' gated on _hasSubj (no fabricated 0 on a raw recording)', new RegExp(m.replace(/[_]/g, '\\_') + ' = _hasSubj \\?').test(dsp), m);
+        /* ⚠️ NARROWED (DEEP-AUDIT-II §1.4). This loop asserted every listed composite matches
+           `<name> = _hasSubj ?` — i.e. that the gate EXISTS, not that it covers the composite's
+           factors. d_pti was in the list and passed while multiplying the OBJECTIVE _rmssd, which
+           _hasSubj says nothing about; the gate was green with the defect live. d_pti now carries an
+           additional _all() leg, so it is checked separately and the "purely subjective" list holds
+           only composites whose every factor really is subjective. */
+        ['d_se_div', 'd_coh_energy', 'd_sfd', 'd_focus_eff', 'd_hile'].forEach(function (m) {
+          // names are [a-z_] only — no regex metacharacters, so the former `.replace(/[_]/g,'\\_')`
+          // escaped nothing (`\_` IS `_` in a regex) while reading as a partial-escape to CodeQL.
+          T.ok(m + ' gated on _hasSubj (every factor IS subjective — no fabricated 0)', new RegExp(m + ' = _hasSubj \\?').test(dsp), m);
         });
+        T.ok('d_pti additionally gates the OBJECTIVE rMSSD it multiplies (_hasSubj cannot vouch for it)', /d_pti = _hasSubj && _all\(r\._rmssd\) \?/.test(dsp));
       }
       // ── -III §1 FUNCTIONAL known-answer: the guard the native d_si/d_csi now run (DexUnits is
       //    headless). A ms-unit Mode/MxDMn row and a seconds-unit row produce the SAME Baevsky SI. ──

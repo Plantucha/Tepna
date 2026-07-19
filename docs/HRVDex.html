@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PXUdAFcOQVLDIV42NdLbJEMOlh/35V6Re3Q27kgNkjU=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fXI5DrP+kHRChOhLFMFywZgdu2oBgnwqEiXuQHRJG1w=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-jntrzEEMCVAO8RhPXYAtjJ3GM3MBa2L0f5oxqlpC3sE=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-tp9DPKK+3luszwT8dwXRNpWV+iGxwPS/40kE9YwaQLI=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE=' 'sha256-ztY4+qrzGrm0BpZ+DhedXAMaoAV9Q0fqEUrsoUVaZAM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W4A2TfZwIAWH6cXo7fQYZskQLCHYdTAky5JIIkDIFxc=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fXI5DrP+kHRChOhLFMFywZgdu2oBgnwqEiXuQHRJG1w=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-jntrzEEMCVAO8RhPXYAtjJ3GM3MBa2L0f5oxqlpC3sE=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-tp9DPKK+3luszwT8dwXRNpWV+iGxwPS/40kE9YwaQLI=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE=' 'sha256-ztY4+qrzGrm0BpZ+DhedXAMaoAV9Q0fqEUrsoUVaZAM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HRVDex — Heart Rate Variability Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -8003,6 +8003,22 @@ body.light .topbar::after{ opacity:.25; }
   // '' / undefined / non-finite → null (never a fabricated 0 — a guess in a number's clothes);
   // a real numeric string (incl. '0') parses to its number. Used for the objective HRV columns;
   // the subjective Welltory black-box columns deliberately keep ||0 (see _hasSubj presence gate).
+  // DEEP-AUDIT-II §1.1-1.9 — the presence gate for DERIVED metrics. Every objective column parses
+  // absent -> null (numOrNull, below), and JS coercion then makes absence look like a measurement:
+  // `null >= 0` is TRUE, `null + 1` is 1, `null / x` is 0. So an expression that gates SOME of its
+  // factors and consumes others ungated returns a CONFIDENT NUMBER for data never recorded.
+  // Measured on a real export with no `hrv` block: d_welfare read 4200 (vs 91.3), d_otr saturated
+  // at 500, d_abs returned +/-1, d_dfa_proxy returned 1. Those are fabrications, not defaults.
+  // _all(...) is the missing half of every such gate: NaN unless EVERY factor is really present.
+  // Note it rejects non-numbers too, so a stray string column cannot arithmetic its way to a value.
+  function _all() {
+    for (var i = 0; i < arguments.length; i++) {
+      var v = arguments[i];
+      if (v == null || typeof v !== 'number' || !isFinite(v)) return false;
+    }
+    return true;
+  }
+
   function numOrNull(cell) {
     if (cell == null) return null;
     var s = String(cell).trim();
@@ -8377,7 +8393,7 @@ body.light .topbar::after{ opacity:.25; }
       const _hasSubj = r._stress > 0 && r._energy > 0 && r._focus > 0 && r._coherence > 0 && r._sns > 0 && r._psns > 0;
       // Time-domain
       r.d_cv_calc = r._sdnn && r._meanRR ? (r._sdnn / r._meanRR) * 100 : NaN;
-      r.d_rmssd_sdnn = r._sdnn ? r._rmssd / r._sdnn : NaN;
+      r.d_rmssd_sdnn = _all(r._rmssd, r._sdnn) && r._sdnn ? r._rmssd / r._sdnn : NaN;
       r.d_se_div = _hasSubj ? Math.abs(r._stress - r._energy) : NaN;
       r.d_lnrmssd = r._rmssd > 0 ? Math.log(r._rmssd) : NaN;
       // Baevsky SI — Mode/MxDMn guarded to SECONDS via the SAME DexUnits.guardBaevsky /
@@ -8417,8 +8433,8 @@ body.light .topbar::after{ opacity:.25; }
       const _hasNu = r._totalPow > 0 && r._vlf != null && r._totalPow > r._vlf;
       const _hasBands = r._hf > 0 && r._lf > 0 && r._vlf > 0;
       r.d_lfhf = _hasLfHf ? r._lf / r._hf : NaN;
-      r.d_hfnu = _hasNu ? (r._hf / (r._totalPow - r._vlf)) * 100 : NaN;
-      r.d_lfnu = _hasNu ? (r._lf / (r._totalPow - r._vlf)) * 100 : NaN;
+      r.d_hfnu = _hasNu && _all(r._hf) ? (r._hf / (r._totalPow - r._vlf)) * 100 : NaN;
+      r.d_lfnu = _hasNu && _all(r._lf) ? (r._lf / (r._totalPow - r._vlf)) * 100 : NaN;
       r.d_vlf_pct = r._totalPow > 0 && r._vlf != null ? (r._vlf / r._totalPow) * 100 : NaN;
       r.d_svi = _hasLfHf ? Math.log(r._lf) - Math.log(r._hf) : NaN;
       // spectral entropy over normalized [hf,lf,vlf] — needs all THREE bands; the old `||0.0001` floor
@@ -8436,15 +8452,15 @@ body.light .topbar::after{ opacity:.25; }
       // PRESENT (>0), never just != null (SIGNAL-ADAPTER §8 #2 — a guess in the clothes of a number).
       r.d_ans_load = r._sns > 0 && r._stress > 0 && r._psns > 0 && r._energy > 0 ? (r._sns * r._stress) / (r._psns * r._energy + 1) : NaN;
       r.d_coh_energy = _hasSubj ? (r._coherence * r._energy) / 100 : NaN;
-      r.d_pti = _hasSubj ? (r._psns * r._rmssd) / 100 : NaN;
-      r.d_incoherent_stress = r._coherence > 0 ? r._stress * (100 / r._coherence) : NaN;
-      r.d_vei = r._hr > 0 ? r._rmssd / r._hr : NaN;
+      r.d_pti = _hasSubj && _all(r._rmssd) ? (r._psns * r._rmssd) / 100 : NaN;
+      r.d_incoherent_stress = r._coherence > 0 && _all(r._stress) ? r._stress * (100 / r._coherence) : NaN;
+      r.d_vei = r._hr > 0 && _all(r._rmssd) ? r._rmssd / r._hr : NaN;
       // §3: the old guard `(hf + psns*10 + 0.001)` is ALWAYS truthy (the +0.001 sees to that), so with the
       // spectrum absent this evaluated to a real-looking 0. Gate on the spectral inputs being present.
-      r.d_sdi = _hasLfHf ? (r._lf + r._sns * 10) / (r._hf + r._psns * 10) : NaN;
+      r.d_sdi = _hasLfHf && _all(r._sns, r._psns) ? (r._lf + r._sns * 10) / (r._hf + r._psns * 10) : NaN;
       // ── Poincaré SD1 / SD2 ──
-      r.d_sd1 = r._rmssd / Math.sqrt(2);
-      const sd2sq = Math.max(0, 2 * r._sdnn * r._sdnn - r.d_sd1 * r.d_sd1);
+      r.d_sd1 = _all(r._rmssd) ? r._rmssd / Math.sqrt(2) : NaN;
+      const sd2sq = _all(r._sdnn) ? Math.max(0, 2 * r._sdnn * r._sdnn - r.d_sd1 * r.d_sd1) : NaN;
       r.d_sd2 = Math.sqrt(sd2sq);
       r.d_sd1_sd2 = r.d_sd2 > 0 ? r.d_sd1 / r.d_sd2 : NaN;
 
@@ -8460,7 +8476,7 @@ body.light .topbar::after{ opacity:.25; }
       r.d_csi = meanRR_s > 0 && _mxdmnS != null ? _mxdmnS / meanRR_s : NaN;
 
       // ── Autonomic Balance Score ──
-      r.d_abs = r._sns + r._psns > 0 ? (r._psns - r._sns) / (r._psns + r._sns) : NaN;
+      r.d_abs = _all(r._sns, r._psns) && r._sns + r._psns > 0 ? (r._psns - r._sns) / (r._psns + r._sns) : NaN;
 
       // ── Stress-Focus Dissociation ──
       r.d_sfd = _hasSubj ? r._stress - r._focus : NaN;
@@ -8473,7 +8489,7 @@ body.light .topbar::after{ opacity:.25; }
       r.d_efc = r._energy > 0 && r._focus > 0 && r._coherence > 0 ? (r._energy * 0.4 + r._focus * 0.3 + r._coherence * 0.3) / 100 : NaN;
 
       // ── Cardiac Resilience Score ──
-      r.d_crs = r._stress > 0 ? (r._coherence * r._rmssd * r._pnn50) / (r._stress * 1000 + 0.001) : NaN;
+      r.d_crs = r._stress > 0 && _all(r._coherence, r._rmssd, r._pnn50) ? (r._coherence * r._rmssd * r._pnn50) / (r._stress * 1000 + 0.001) : NaN;
 
       // ── RSA Power Proxy ── (§3: an absent HF divided into a real meanRR yielded a confident 0)
       r.d_rsa = meanRR_s > 0 && r._hf > 0 ? r._hf / (meanRR_s * meanRR_s) : NaN;
@@ -8510,18 +8526,18 @@ body.light .topbar::after{ opacity:.25; }
       r.d_pns_eff = r._pnn50 >= 1 && r._sdnn > 0 ? r._rmssd / (r._sdnn * (r._pnn50 / 100)) : NaN;
 
       // ── Overtraining Risk Index ──
-      r.d_otr = r._psns > 0 && r._pnn50 >= 0 ? Math.min(500, (r._sns / (r._psns + 0.001)) * (100 / (r._pnn50 + 0.01))) : NaN;
+      r.d_otr = r._psns > 0 && _all(r._sns, r._pnn50) && r._pnn50 >= 0 ? Math.min(500, (r._sns / (r._psns + 0.001)) * (100 / (r._pnn50 + 0.01))) : NaN;
       r.d_otr_sat = !isNaN(r.d_otr) && r.d_otr >= 499 ? true : false; // saturated flag
 
       // ── Circadian-Adjusted rMSSD ──
       const mHour = r._date instanceof Date ? r._date.getUTCHours() : 8;
       const circAdj = mHour < 10 ? 1.08 : mHour > 16 ? 0.95 : 1.0;
-      r.d_rmssd_circ = r._rmssd / circAdj;
+      r.d_rmssd_circ = _all(r._rmssd) ? r._rmssd / circAdj : NaN;
 
       // ── NN50 estimate ──
       const meanRR_s_local = r._meanRR > 0 ? r._meanRR / 1000 : NaN; // fix: use per-row value
       const beats5min = meanRR_s_local > 0 ? 300 / meanRR_s_local : NaN;
-      r.d_nn50 = !isNaN(beats5min) ? (r._pnn50 / 100) * beats5min : NaN;
+      r.d_nn50 = !isNaN(beats5min) && _all(r._pnn50) ? (r._pnn50 / 100) * beats5min : NaN;
 
       // ── VO2max Estimates ──────────────────────────────────────────
       const p_prof = _p;
@@ -8565,9 +8581,9 @@ body.light .topbar::after{ opacity:.25; }
 
       // Clinical
       // Full Baevsky AP: 0.011×HR + 0.014×age + 0.008×SBP + 0.014×DBP - 0.009×weight - 0.009×height - 0.27
-      r.d_bap = 0.011 * r._hr + 0.014 * AGE + 0.008 * _p.sbp + 0.014 * _p.dbp - 0.009 * _p.weight - 0.009 * _p.height - 0.27;
+      r.d_bap = !_all(r._hr) ? NaN : 0.011 * r._hr + 0.014 * AGE + 0.008 * _p.sbp + 0.014 * _p.dbp - 0.009 * _p.weight - 0.009 * _p.height - 0.27;
       // d_bap uses full Baevsky AP formula (all 7 terms) when SBP/DBP/weight/height set in profile
-      r.d_ortho = r._sdnn > 0 ? r._hr * (1 / r._sdnn) : NaN;
+      r.d_ortho = r._sdnn > 0 && _all(r._hr) ? r._hr * (1 / r._sdnn) : NaN;
       r.d_hile = _hasSubj ? (r._stress > 60 && r._energy < 40 ? 1 : 0) : NaN;
 
       // ── NEW v2.5 METRICS ──────────────────────────────────────────
@@ -8581,7 +8597,7 @@ body.light .topbar::after{ opacity:.25; }
       // Black-box composite — require the DRIVING subjective inputs PRESENT (>0), not just != null:
       // a raw recording seeds Energy/Coherence/Stress=0, and 0 != null produced a fake welfare=0
       // (SIGNAL-ADAPTER §8 #2 — "a guess in the clothes of a measurement").
-      r.d_welfare = r._energy > 0 && r._coherence > 0 ? (r._energy * r._coherence) / (r._stress + 1) : NaN;
+      r.d_welfare = r._energy > 0 && r._coherence > 0 && _all(r._stress) ? (r._energy * r._coherence) / (r._stress + 1) : NaN;
 
       // Autonomic Reactivity: day-to-day rMSSD % change (filled in rolling pass)
       // Filled later after full-array pass (needs prev row)
@@ -8780,7 +8796,7 @@ body.light .topbar::after{ opacity:.25; }
       paraScore += Math.min(100, r._rmssd * 2.5);
       paraCount++;
     }
-    if (r._pnn50 >= 0) {
+    if (_all(r._pnn50) && r._pnn50 >= 0) {
       paraScore += Math.min(100, r._pnn50 * 4);
       paraCount++;
     }
