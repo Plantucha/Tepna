@@ -14220,6 +14220,37 @@
           T.approx('§9.1 · central.cv follows the same weights: ≈4.6 (an unweighted spread gave 8.0)', cW.cv, 4.6, 0.06);
           T.ok('§9.1 · …the down-weighted outlier genuinely shrinks the spread', cW.sd < 7.0, 'sd=' + cW.sd + ' — 7.5 is what the outlier used to force at full weight');
         }
+        /* ── DEEP-AUDIT-II §9.3 · direction and significance must come from the SAME test ───────────
+           `trendLabel` took its DIRECTION from the OLS slope and its SIGNIFICANCE from Mann–Kendall,
+           so the sentence "there is a significant trend, and it is improving" was assembled from two
+           different estimators. They disagree exactly where it matters: MK is rank-based and robust,
+           OLS is leverage-sensitive, so ONE endpoint outlier flips the slope without moving τ. The
+           audit measured "improving" printed beside τ = −0.6 on 10.3 % of endpoint-outlier series.
+           Direction now comes from τ — the statistic that decided the trend was real at all.
+           Twelve monotonically DECLINING nights plus one large final outlier: τ = −0.67 at p = 0.003
+           (significant, declining) while the outlier drags the OLS slope to +2.13. meanSpo2 is
+           goodDirection:'up', so the pre-fix label read "improving" — the exact contradiction. */
+        var trendPts = [97, 96.5, 96, 95.5, 95, 94.5, 94, 93.5, 93, 92.5, 92, 160].map(function (v, i) {
+          return { stats: { startTs: day(i), meanSpo2: v, coverage: 100 } };
+        });
+        var trendB = OX.crossNightBlock(trendPts);
+        var tr = trendB && trendB.metrics && trendB.metrics.meanSpo2 && trendB.metrics.meanSpo2.trend;
+        T.ok('§9.3 · the endpoint-outlier block forms', !!tr, JSON.stringify(tr));
+        if (tr) {
+          T.approx('§9.3 · Mann-Kendall sees the decline (τ ≈ −0.67)', tr.mannKendall.tau, -0.67, 0.02);
+          T.ok('§9.3 · …and calls it significant (p < 0.10)', tr.mannKendall.p < 0.1, 'p=' + tr.mannKendall.p);
+          T.ok('§9.3 · …while the OLS slope points the OTHER way (the outlier’s leverage)', tr.slopePerDay > 0, 'slopePerDay=' + tr.slopePerDay);
+          T.eq('§9.3 · the label follows τ: "declining" (pre-fix OLS made it read "improving")', tr.label, 'declining');
+          T.eq('§9.3 · …and the disagreement is reported, not silently resolved', tr.dirDisagree, true);
+        }
+        // Not over-broad: when the two AGREE — the ordinary case — nothing changes and no flag fires.
+        var agreePts = [97, 96, 95, 94, 93, 92, 91, 90].map(function (v, i) {
+          return { stats: { startTs: day(i), meanSpo2: v, coverage: 100 } };
+        });
+        var agr = OX.crossNightBlock(agreePts).metrics.meanSpo2.trend;
+        T.eq('§9.3 · a clean monotone decline is still "declining"', agr.label, 'declining');
+        T.eq('§9.3 · …with no disagreement flagged (the flag is not always-on)', agr.dirDisagree, false);
+
         /* ── DEEP-AUDIT-II §9.2 · the personal BASELINE must carry the same weights too ─────────────
            `central.mean` is wmean(vals, w), but the baseline behind `zLatest` was mean(prior) /
            sd(prior) — UNWEIGHTED. A near-empty night therefore moved the baseline as though it were

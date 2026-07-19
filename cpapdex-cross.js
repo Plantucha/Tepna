@@ -249,8 +249,21 @@
     // significance
     const boot = bootstrapDeltaCI(vals);
     // trend label by good-direction + Mann-Kendall significance
+    /* DEEP-AUDIT-II §9.3 — the label's DIRECTION and its SIGNIFICANCE must come from the SAME test.
+       `rising` was taken from the OLS slope while `signif` came from Mann–Kendall, so the sentence
+       "there is a significant trend, and it is improving" was assembled from two different
+       estimators. They disagree exactly where it matters: MK is rank-based and robust, OLS is
+       leverage-sensitive, so a single endpoint outlier flips the slope without moving τ — the audit
+       measured "improving" printed beside τ = −0.6 on 10.3 % of endpoint-outlier series.
+       Direction now comes from τ, the same statistic that decided the trend was real. `slopePerDay`
+       is still reported separately as the magnitude — this changes which estimator names the
+       DIRECTION, not what OLS is for.
+       When the two disagree in sign the series has endpoint leverage worth knowing about, so it is
+       reported rather than silently resolved. */
     let trendLabel = 'stable';
-    const rising = (byIdx.slope || 0) > 0;
+    const rising = (mk.tau || 0) > 0; // §9.3 — direction from the significance test, not OLS
+    const olsRising = (byIdx.slope || 0) > 0;
+    const dirDisagree = !!(mk.tau && byIdx.slope) && rising !== olsRising;
     const signif = mk.p != null && mk.p < DexKernel.K.SIGNIF_P && Math.abs(mk.tau || 0) > DexKernel.K.SIGNIF_TAU;
     if (signif) {
       const improving = (good === 'up' && rising) || (good === 'down' && !rising);
@@ -271,6 +284,7 @@
       r2date,
       tau: mk.tau,
       p: mk.p,
+      trendDirDisagree: dirDisagree, // §9.3 — OLS slope and Mann-Kendall τ point opposite ways (endpoint leverage)
       zLatest,
       baselineMean,
       baselineSd,
