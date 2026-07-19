@@ -41,9 +41,19 @@ from typing import Iterable
 # drives the cadence — it's internal timing, not a written stamp, so the Clock Contract doesn't apply.
 FLUSH_INTERVAL_S = 5.0
 
-# Filename: <Vendor>_<Model>_<DeviceId>_<YYYYMMDDHHMMSS>_<STREAM>.<ext>  (matches Polar Sensor Logger
-# so dex-ingest.js / signal-orchestrate.pairCompanions pair sidecars by device-id + nearest stamp,
-# and dateAnchorMs reads from the name — Clock Contract §4).
+# Filename: <Vendor>_<Model>_<DeviceId>_<YYYYMMDDHHMMSS>_<STREAM>.<ext>
+#
+# ⚠️ This is NOT byte-identical to Polar Sensor Logger. PSL writes the stamp UNDERSCORE-SEPARATED
+# (…_YYYYMMDD_HHMMSS_KIND); we write it CONTIGUOUS. Verified against the real corpus
+# (`Ecg nightly/Polar_H10_02849638_20260617_010616_ACC.txt`). This comment previously claimed
+# parity, and dex-ingest.js's parsers accepted only PSL's shape — so `deviceKey` returned null on
+# EVERY file this host wrote, `hasDex` went false, and planIngest silently stopped setting aside
+# foreign-device sidecars (ENGINE-VERIFICATION-FINDINGS §1.2).
+#
+# The fix is app-side: dex-ingest.js `deviceKey`/`stampMs` now accept BOTH shapes, because the
+# parsers must keep reading the genuine PSL corpus regardless. The filename here is deliberately
+# UNCHANGED — renaming it would orphan the ~478 nights already on disk. Do not "restore parity"
+# by changing this format; widen the reader instead.
 def capture_filename(vendor: str, model: str, device_id: str, started: _dt.datetime,
                      stream: str, ext: str = "txt") -> str:
     stamp = started.strftime("%Y%m%d%H%M%S")

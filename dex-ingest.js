@@ -34,15 +34,25 @@
 
   // Device identity from a Polar Sensor Logger name "Polar_<MODEL>_<ID>_<YYYYMMDD>_<HHMMSS>_<KIND>"
   // → "POLAR_H10_AAAAAAAA". null for non-Polar / unstamped names (bare waveform, O2Ring CSV).
+  // TWO stamp shapes are accepted (ENGINE-VERIFICATION-FINDINGS §1.2):
+  //   …_YYYYMMDD_HHMMSS_KIND  — real Polar Sensor Logger (the committed corpus)
+  //   …_YYYYMMDDHHMMSS_KIND   — capture-host/writers.py (contiguous, no separator)
+  // Before this, the contiguous form returned null, so `hasDev` went false, `anchor` went null,
+  // and planIngest's whole device-eligibility block was skipped — a Verity ACC became a legal
+  // companion for an H10 ECG on every Vigil-captured night. Fix is app-side ON PURPOSE: the
+  // parsers must keep reading the genuine PSL corpus either way, so widen rather than switch.
   function deviceKey(name) {
-    var m = String(name == null ? '' : name).match(/^(POLAR_[A-Z0-9]+_[A-Z0-9]+)_\d{8}_\d{6}/i);
+    var m = String(name == null ? '' : name).match(/^(POLAR_[A-Z0-9]+_[A-Z0-9]+)_(?:\d{8}_\d{6}|\d{14})/i);
     return m ? m[1].toUpperCase() : null;
   }
 
-  // Floating wall-clock ms (Clock Contract) from the structured stamp …_YYYYMMDD_HHMMSS_<KIND>,
-  // ANCHORED after the device id so an 8-digit device serial can't be misread as a date. null = none.
+  // Floating wall-clock ms (Clock Contract) from the structured stamp …_YYYYMMDD[_]HHMMSS_<KIND>,
+  // ANCHORED after the device id so an 8-digit device serial can't be misread as a date (the
+  // unanchored variant in signal-orchestrate.js did exactly that — §1.1). The separator is
+  // OPTIONAL so both the PSL and capture-host shapes resolve; anchoring is what keeps a 14-digit
+  // device id from being eaten as a stamp, so it must survive the widening. null = none.
   function stampMs(name) {
-    var m = String(name == null ? '' : name).match(/^POLAR_[A-Z0-9]+_[A-Z0-9]+_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/i);
+    var m = String(name == null ? '' : name).match(/^POLAR_[A-Z0-9]+_[A-Z0-9]+_(\d{4})(\d{2})(\d{2})_?(\d{2})(\d{2})(\d{2})/i);
     return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : null;
   }
 

@@ -7,10 +7,16 @@ import datetime as _dt
 import writers
 
 
-def test_capture_filename_matches_polar_sensor_logger():
+def test_capture_filename_is_contiguous_stamp_not_psl_shape():
+    # NOT PSL parity — PSL separates date and time (…_YYYYMMDD_HHMMSS_KIND); we write them
+    # contiguous. The old name asserted parity that does not hold and encoded the same
+    # misreading as writers.py's comment, so it passed while the bug shipped
+    # (ENGINE-VERIFICATION-FINDINGS §1.2). dex-ingest.js now accepts BOTH shapes.
     t = _dt.datetime(2026, 7, 16, 21, 34, 51)
     assert writers.capture_filename("Polar", "H10", "02849638", t, "ecg", "txt") \
         == "Polar_H10_02849638_20260716213451_ECG.txt"
+    # explicit: the stamp is 14 contiguous digits, NOT the PSL underscore-separated shape
+    assert "_20260716_213451_" not in writers.capture_filename("Polar", "H10", "02849638", t, "ecg", "txt")
 
 
 def test_ecg_ms_column_is_relative_and_fractional(tmp_path):
