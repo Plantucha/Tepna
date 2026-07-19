@@ -383,7 +383,19 @@
     // We resample onto a regular grid by nearest-with-interpolation; flag interpolated cells.
     const stepMs = cadence * 60000;
     const spanMs = tMs[n - 1] - tMs[0];
-    const N = Math.min(200000, Math.max(2, Math.round(spanMs / stepMs) + 1));
+    /* DEEP-AUDIT-II §5.1 — the CAP is a memory ceiling; the SILENCE was the defect.
+       `Math.min(200000, …)` truncates the uniform grid, and the pointer walk below then fills only N
+       cells — so every reading past `tMs[0] + N·stepMs` is dropped, with no counter, no flag, no
+       field and no throw. Downstream (AGP / MODD / CONGA / sessions / events) sees a shorter record
+       and reports it as though complete. Latent on the 5-min corpus (200 000 × 5 min ≈ 694 days),
+       live at 1-min cadence (≈139 days) or on a dense multi-sensor merge.
+       The ceiling itself is a judgement about memory and is deliberately NOT changed here. What is
+       fixed is that exceeding it is now REPORTED (`truncated`, below) rather than silently swallowed:
+       an honestly short record beats a silently short one. */
+    const GRID_MAX_CELLS = 200000;
+    const wantN = Math.max(2, Math.round(spanMs / stepMs) + 1);
+    const N = Math.min(GRID_MAX_CELLS, wantN);
+    const truncated = wantN > N ? { cells: wantN - N, droppedMs: (wantN - N) * stepMs, capCells: GRID_MAX_CELLS } : null;
     const gT = new Float64Array(N),
       gV = new Float64Array(N),
       gF = new Int8Array(N);
@@ -538,6 +550,9 @@
       gV,
       gF,
       N,
+      // §5.1 — null when the record fitted; an object naming what was dropped when it did not.
+      // Absence of the field is not evidence of completeness for a consumer written before this.
+      truncated,
       spanMin: Math.round(spanMs / 60000),
       spanSec: spanMs / 1000,
       activeMin: Math.round(activeCells * cadence),
@@ -648,7 +663,15 @@
           ys.slice().sort((a, b) => a - b),
           0.5
         );
-      const xRange = Math.max(...xs) - Math.min(...xs);
+      /* DEEP-AUDIT-II §5.2 — spread an unbounded array and V8 blows the stack (~64–125k args).
+         `xs` grows one entry per analyzable cell, bounded only by the grid cap — up to 200 000 — and
+         `detectSessions` runs twice per analyze, so two spreads of that size each. It has never
+         fired only because the 5-min corpus never approached the cap.
+         Coupled to §5.1 on purpose, and in this direction: raising or removing the cap without this
+         converts a SILENT truncation into a hard crash. `xs` is pushed in ascending grid order and is
+         therefore strictly increasing, so first/last is not an approximation of the extremes — it IS
+         them, allocation-free and O(1). */
+      const xRange = xs.length ? xs[xs.length - 1] - xs[0] : 0;
       let slope = null;
       if (xRange >= 0.5) {
         // need ≥½-day span before a per-day drift slope is meaningful
@@ -1437,7 +1460,10 @@
       tierMsg: t.msg,
       longRec: activeDays >= 1,
       // series (cleaned, mg/dL) for render
-      series: { gT: c.gT, gV: c.gV, gF: c.gF, N: c.N, cadence: c.cadence, FLAG: c.FLAG },
+      // §5.1 — `truncated` rides along: this subset is hand-picked, so a field added to the grid is
+      // invisible to every consumer until it is named here. That is precisely how the truncation
+      // stayed silent — the information existed nowhere, and the export shape never asked for it.
+      series: { gT: c.gT, gV: c.gV, gF: c.gF, N: c.N, cadence: c.cadence, FLAG: c.FLAG, truncated: c.truncated || null },
       // metrics
       ...core,
       ...vari,

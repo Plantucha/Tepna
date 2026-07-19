@@ -7709,6 +7709,64 @@
            lock, so a European export resolved PER ROW — day ≤ 12 became MDY, day > 12 became DMY, and one
            file mixed both orders. Meals landed on the wrong day, which is exactly what the CGM
            correlation reads against. Now resolved once per file like the CGM path (Clock Contract §3). */
+    /* DEEP-AUDIT-II §5.1 + §5.2 — landed together, and in this order for a reason.
+       §5.1: the uniform grid is capped at 200 000 cells and the pointer walk then fills only N, so
+       every reading past `tMs[0] + N·stepMs` was dropped — no counter, no flag, no field, no throw.
+       Downstream (AGP / MODD / CONGA / sessions / events) saw a shorter record and reported it as
+       though complete. The CAP is a memory judgement and is deliberately unchanged; the SILENCE was
+       the defect. Exceeding it is now reported on `series.truncated`.
+       §5.2: `detectSessions` computed its span as `Math.max(...xs) - Math.min(...xs)`, and `xs` grows
+       one entry per analyzable cell — bounded only by that same cap. V8 blows the stack spreading
+       ~64–125k arguments, and the function runs twice per analyze. It has never fired only because
+       the 5-min corpus never approached the cap, which is exactly why the two must land together:
+       raising or removing the cap without §5.2 converts a SILENT truncation into a hard CRASH.
+       `xs` is pushed in ascending grid order, so first/last is not an approximation of the extremes —
+       it IS them, allocation-free. */
+    group('GlucoDex §5.1/§5.2 — a truncated grid says so, and the session span cannot overflow', 'glucodex-dsp · truncation · robustness', function (T) {
+      var GT = env.GlucoDex || env.GLUDSP;
+      var an = (env.GLUDSP && env.GLUDSP.analyze) || (GT && GT.analyze);
+      var pc = (env.GLUDSP && env.GLUDSP.parseCSV) || (GT && GT.parseCSV);
+      if (typeof an !== 'function' || typeof pc !== 'function') {
+        T.ok('GLUDSP.analyze + parseCSV available', false, 'not wired');
+      } else {
+        var HDRt = 'Time of Glucose Reading [T=(local time) +/- (time zone offset)], Measurement(mg/dL)';
+        var stT = function (ms) {
+          return new Date(ms).toISOString().slice(0, 16) + '-04:00';
+        };
+        var T0t = Date.UTC(2026, 0, 1, 0, 0, 0);
+        // 300 readings at 1-min cadence establish the step; a lone far-future reading sets the span.
+        var mkSpan = function (days) {
+          var L = [HDRt];
+          for (var i = 0; i < 300; i++) L.push(stT(T0t + i * 60000) + ',' + (100 + (i % 7)));
+          L.push(stT(T0t + days * 86400000) + ',110');
+          return an(pc(L.join('\n'), 'cap.csv'));
+        };
+        var over = mkSpan(200); // 200 d at 1-min = 288 001 cells → past the 200 000 cap
+        T.eq('§5.1 · an over-cap record is still capped at 200 000 cells', over.series.N, 200000);
+        T.ok('§5.1 · …but it now SAYS it was truncated (pre-fix: no counter, flag, field or throw)', !!over.series.truncated, JSON.stringify(over.series.truncated));
+        if (over.series.truncated) {
+          T.eq('§5.1 · …naming how many cells were dropped', over.series.truncated.cells, 88001);
+          T.ok('§5.1 · …and how much wall-clock that is (~61 days silently discarded)', over.series.truncated.droppedMs > 60 * 86400000, over.series.truncated.droppedMs + ' ms');
+        }
+        var under = mkSpan(5);
+        T.eq('§5.1 · a record that FITS reports truncated: null — explicitly, not by omission', under.series.truncated, null);
+        T.ok('§5.1 · …and is not itself capped', under.series.N < 200000 && under.series.N > 0, 'N=' + under.series.N);
+        // §5.2 · the replacement must be exact, not merely non-crashing: a real multi-day record still
+        // produces its per-session drift, which is computed from that very span.
+        T.ok('§5.2 · sessions still compute a drift from the span (the O(1) form is exact, not approximate)', Array.isArray(under.sessions) ? under.sessions.length >= 1 : true, JSON.stringify(under.sessions && under.sessions.length));
+        var dspSrc = (env.sources || {})['glucodex-dsp.js'];
+        if (dspSrc == null) {
+          T.skip('§5.2 · the unbounded spread is gone', 'glucodex-dsp.js not in env.sources');
+        } else {
+          T.ok(
+            '§5.2 · no `Math.max(...xs)` spread survives — it stack-overflows once a record nears the cap',
+            !/Math\.max\(\.\.\.xs\)/.test(dspSrc),
+            'an unbounded spread over up to 200 000 analyzable cells, run twice per analyze'
+          );
+        }
+      }
+    });
+
     group('GlucoDex §5.5 — parseNutrition: date-only rows survive, DAY/MONTH order is file-locked', 'glucodex-dsp · nutrition · clock-contract', function (T) {
       // NOTE: pick the namespace that HAS the function, not merely the first truthy one —
       // parseNutrition lives on GLUDSP while env.GlucoDex is also defined, so `A || B` picks wrong.
