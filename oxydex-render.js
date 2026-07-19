@@ -2311,7 +2311,12 @@ function nightRowInner(n) {
   if (n.hrAdv) chipsArr.push(nrChip('RMSSD', n.hrAdv.rmssd, n.hrAdv.rmssd >= 2 ? 'g' : n.hrAdv.rmssd >= 1 ? 'w' : 'r'));
   if (n.sbii) chipsArr.push(nrChip('SBII', n.sbii.sbii, n.sbii.sbii < 2.58 ? 'g' : n.sbii.sbii < 12.8 ? 'w' : 'r'));
   if (n.pred3p) chipsArr.push(nrChip('pRED', n.pred3p.pred3p + '%', n.pred3p.pred3p < 2.78 ? 'g' : n.pred3p.pred3p < 10.84 ? 'w' : 'r'));
-  if (n.desSev) chipsArr.push(nrChip('DesSev', n.desSev.desSev, n.desSev.desSev < 10 ? 'g' : n.desSev.desSev < 25 ? 'w' : 'r'));
+  // DEEP-AUDIT-II §2.2 — ONE band set for DesSev: <5 good · <15 warn · else bad. This chip
+  // carried {10,25} while the metric card used {5,15} and the score used {5,15,30}, so the
+  // same night could read green on the chip and warn on the card beside it. {5,15,30} is
+  // canonical: on the corrected 37-night scale (0.24–17.6 %-min/hr) it separates 26 good /
+  // 10 warn / 1 high, whereas {10,25} collapses the entire corpus into green-or-warn.
+  if (n.desSev) chipsArr.push(nrChip('DesSev', n.desSev.desSev, n.desSev.desSev < 5 ? 'g' : n.desSev.desSev < 15 ? 'w' : 'r'));
   // Research-tier chips
   if (n.dfa) chipsArr.push(nrChip('DFA', n.dfa.alpha1, n.dfa.alpha1 > 0.85 ? 'g' : n.dfa.alpha1 > 0.6 ? 'w' : 'r'));
   if (n.ssi) chipsArr.push(nrChip('SSI', n.ssi.ssi, n.ssi.ssi < 0.5 ? 'g' : n.ssi.ssi < 1.5 ? 'w' : 'r'));

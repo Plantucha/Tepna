@@ -3938,6 +3938,74 @@
            the ladder word "validated" into a status-HUE pill; OverDex rendered a fused clinical KPI
            grid with NO badge engine loaded; and `.ev-corner` — the mandate's card placement — existed
            in the CSS mirror but NOT in the engine, so no app could actually use it. */
+    /* DEEP-AUDIT-II §2.1/§2.2/§2.3 — three OxyDex desaturation-family defects, one synthetic twin.
+       The twin is an hour at 98 % carrying (a) a 1 %/4 s ripple — ordinary oximeter noise, below every
+       clinical threshold — and (b) TWO genuine desaturations: 6 %/30 s and 8 %/40 s.
+
+       §2.2 desSev scored the area over events detected at `dropPct:1, exitPct:1, minSec:0`. A 1 %
+       descent with no minimum duration is not a desaturation: on this twin that primitive returns
+       441 "events" against 2 real ones, so the integral swept the ripple and the index read 37.75
+       instead of 8.33 %-min/hr. On the real 37-night corpus it spanned 27.8–61.8, the "good" band
+       (<5) was unreachable on EVERY night, and `ahiKulkas` (which weights desSev 0.6) ran a median
+       17× its sibling `ahiODI4` — 24 vs 1.2 on one night, "moderate apnea" beside "normal".
+
+       §2.1 SBII re-ran the primitive itself and never read `desat.events`, so it scored the UNGATED
+       set — re-admitting probe-squeeze artifacts that ODI-4 had explicitly subtracted, with QUADRATIC
+       weight (D²·T). Gating one of the two events here moves SBII 60.667 → 18: a 3.4× swing that
+       crosses a quintile boundary (Q5 → Q4), matching the audit's "3 of 11 nights change quintile".
+
+       §2.3 gapPct divided gap SECONDS by a SAMPLE COUNT — dimensionally wrong, and only ever
+       plausible because the O2Ring happens to sample at 1 Hz. Biased high (numerator counted missing
+       time, denominator only recorded samples) and unbounded above 100 %.
+
+       Both directions are load-bearing: each assertion pins the corrected value AND names the value
+       the defect produced, so reverting any one fix reds it. */
+    group('OxyDex desaturation family: canonical events, artifact-gated, time-fraction gaps (DEEP-AUDIT-II §2.1–2.3)', 'oxydex-dsp · desat · regression', function (T) {
+      var OB = env.OxyDex && env.OxyDex._bare;
+      var sbiiFn = OB && OB.computeSBII,
+        desSevFn = OB && OB.computeDesSev,
+        gapsFn = OB && OB.computeDataGaps,
+        detFn = OB && OB.detectDesatEvents;
+      T.ok('OxyDex desat helpers exposed via _bare', typeof sbiiFn === 'function' && typeof desSevFn === 'function' && typeof gapsFn === 'function' && typeof detFn === 'function');
+      if (typeof sbiiFn !== 'function' || typeof desSevFn !== 'function' || typeof gapsFn !== 'function' || typeof detFn !== 'function') return;
+
+      var _N = 3600,
+        _T0 = Date.UTC(2026, 0, 1, 0, 0, 0),
+        _rows = [];
+      for (var i = 0; i < _N; i++) {
+        var s = 98 - (Math.floor(i / 4) % 2); // 1 % ripple, 4 s period — noise, not desaturation
+        if (i >= 1800 && i < 1830) s = 92; // desat A — 6 % for 30 s
+        if (i >= 2400 && i < 2440) s = 90; // desat B — 8 % for 40 s
+        _rows.push({ tMs: _T0 + i * 1000, t: _T0 + i * 1000, spo2: s, hr: 60, motion: 0 });
+      }
+      var _spo2 = _rows.map(function (r) {
+        return r.spo2;
+      });
+
+      // ── §2.2 · the event set the area is scored over ──
+      var _canon = detFn(_spo2, { dropPct: 4, exitPct: 4 });
+      var _loose = detFn(_spo2, { dropPct: 1, exitPct: 1, minSec: 0 });
+      T.eq('§2.2 · the canonical ODI primitive finds the 2 real desaturations', _canon.length, 2);
+      T.ok('§2.2 · the retired 1 %/0 s primitive found hundreds of ripple "events" instead', _loose.length > 100, _loose.length + ' events on an hour of 1 % noise');
+      T.approx('§2.2 · desSev = area of the 2 real desats only (6×30 + 8×40)/60 = 8.33 %-min/hr', desSevFn(_rows, null).desSev, 8.33, 0.05);
+
+      // ── §2.1 · SBII must inherit the artifact gate, not re-derive an ungated set ──
+      var _gated = { events: _canon.slice(0, 1) }; // desat B stands in for a self-gated artifact
+      var _sGated = sbiiFn(_rows, _gated, _N / 3600, null);
+      var _sUngated = sbiiFn(_rows, null, _N / 3600, null);
+      T.approx('§2.1 · SBII over the GATED set scores only the surviving desat', _sGated.sbii, 18, 0.5);
+      T.approx('§2.1 · SBII re-deriving its own set scores BOTH — the pre-fix value', _sUngated.sbii, 60.667, 0.5);
+      T.ok('§2.1 · D² weighting makes that a quintile change, not a rounding difference', _sGated.sbiiQ === 'Q4' && _sUngated.sbiiQ === 'Q5(high)', 'gated=' + _sGated.sbiiQ + ' ungated=' + _sUngated.sbiiQ);
+
+      // ── §2.3 · gapPct is a fraction of TIME ──
+      var _g = [];
+      for (var a = 0; a < 600; a++) _g.push({ t: _T0 + a * 1000, spo2: 97, hr: 60 });
+      for (var b = 0; b < 600; b++) _g.push({ t: _T0 + (900 + b) * 1000, spo2: 97, hr: 60 }); // 300 s hole
+      var _gr = gapsFn(_g);
+      T.approx('§2.3 · gapPct = gap seconds ÷ wall-clock span (≈20.1 %, not the 25.0 % of ÷sample-count)', _gr.gapPct, 20.1, 0.2);
+      T.ok('§2.3 · and it is bounded — a percentage of time cannot exceed 100', _gr.gapPct <= 100, 'gapPct=' + _gr.gapPct);
+    });
+
     /* AUDIT-2026-07-16 F3 — the Sleep Stability Score's HR-floor subscore fabricated a neutral 50
        when HR was UNMEASURABLE (computeHRV → null on <120 motion-free, non-artifact samples), fed a
        fixed 5-point contribution into the composite, and exported it as a real subscore. That is the
