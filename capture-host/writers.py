@@ -371,17 +371,26 @@ class LinkLogWriter:
             self.flush()
             self._last_flush = now
 
+    # Guarded like every sibling writer. This was the ONE writer of five whose flush()/close() raised on
+    # an already-closed handle — StreamWriter, OxyFrameLogWriter, HostClockLogWriter and Spo2CsvWriter all
+    # swallow it. Not reachable today (the poller closes once), but the asymmetry is exactly what bites
+    # during a shutdown race, and a raise here would propagate out of the rssi_poller's teardown and mask
+    # whatever actually went wrong.
     def flush(self) -> None:
-        self._fh.flush()
-        if self._fsync:
-            import os as _os
-            _os.fsync(self._fh.fileno())
+        try:
+            self._fh.flush()
+            if self._fsync:
+                import os as _os
+                _os.fsync(self._fh.fileno())
+        except (OSError, ValueError):
+            pass
 
     def close(self) -> None:
         try:
             self.flush()
-        finally:
             self._fh.close()
+        except (OSError, ValueError):
+            pass
 
 
 class Spo2CsvWriter:
