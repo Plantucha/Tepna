@@ -339,6 +339,7 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
       <div class="sidebar-data-card">
         <div class="data-pill idle" id="connPill"><span class="data-dot"></span> <span id="connText">No stream</span></div>
         <div class="sidebar-data-info" id="adapterInfo">adapter —</div>
+        <div class="sidebar-data-info" id="hostClockInfo"></div>
       </div>
     </div>
   </aside>
@@ -531,6 +532,23 @@ function clkChip(dev){
 // the device working as designed, not a fault, so it must never render as a red/amber error. The daemon
 // keeps the streams registered and re-negotiates once a minute, so this pill clears on its own within
 // ~60 s of the sensor going back on the body.
+// HOST clock provenance pill. Distinct from the per-device clock pills: those say "is the SENSOR's
+// clock set", this says "was the BOX's clock actually sourced from anything". They can disagree in the
+// dangerous direction — every device happily synced to a host that was itself free-running, which reads
+// as three green pills over uniformly wrong absolute timestamps.
+function hostClockChip(hc){
+  if(!hc) return '';
+  const ok = !!hc.absolute_ok;
+  const cls = ok ? 'ok' : 'warn';
+  const txt = ok ? ('time ' + (hc.stratum!=null ? ('S'+hc.stratum) : 'ok')
+                    + (hc.reference ? ' '+esc(hc.reference) : ''))
+                 : 'time unsourced';
+  const bits = [hc.reason || ''];
+  if(hc.server) bits.push('server '+hc.server);
+  if(hc.jitter_us!=null) bits.push('jitter '+hc.jitter_us+' us');
+  if(hc.root_dispersion_ms!=null) bits.push('root dispersion '+hc.root_dispersion_ms+' ms');
+  return `<span class="clk ${cls}" title="${esc(bits.filter(Boolean).join(' · '))}">🛰 ${txt}</span>`;
+}
 function chargeChip(dev){
   if(!dev || !dev.charging) return '';
   return `<span class="clk chg" title="On the charger — the sensor refuses data streams while charging (PMD status 0x0D). Streams resume automatically within ~${60}s of taking it off the dock.">⚡ charging</span>`;
@@ -611,6 +629,8 @@ async function loadState(){
   DEVICES = s.devices || [];
   ADAPTER_MAC = s.adapter || '';
   $('#adapterInfo').textContent = s.adapter ? ('adapter '+s.adapter) : 'adapter —';
+  const hci = $('#hostClockInfo');
+  if(hci) hci.innerHTML = hostClockChip(s.host_clock);
   const active = STREAMS.filter(x=>x.active).length;
   const conn = DEVICES.filter(d=>d.connected).length;
   const cp = $('#connPill'), ct = $('#connText');

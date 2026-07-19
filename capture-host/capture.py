@@ -11,12 +11,13 @@
 from __future__ import annotations
 import argparse, asyncio, contextlib, json, logging, os, signal, time as _time, datetime as _dt
 from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter,
-                     capture_filename, night_dir)
+                     HostClockLogWriter, capture_filename, night_dir)
 import polar_pmd as pmd
 import viatom
 import oxyii
 import bonding
 import link_rssi
+import host_clock
 import offline_lock
 from telemetry import TelemetryBus
 
@@ -1073,6 +1074,41 @@ async def clock_watchdog(cfg: dict):
                     log.warning("%s clock re-sync failed: %r", name, e)
 
 
+async def host_clock_poller(cfg: dict, root: str | None = None):
+    """Record HOST CLOCK PROVENANCE for the session, and surface it.
+
+    The box pushes its own time into all three sensors, so an undisciplined host clock produces a night
+    that is self-consistently wrong — PAT still works (common base), absolute time does not, and nothing
+    looks broken. We deliberately do NOT stop syncing on an untrusted clock: leaving a device at its
+    2019 firmware default is strictly worse than a common-but-wrong base. We record instead."""
+    period = float((cfg.get("time") or {}).get("provenance_poll_sec", 120))
+    writer = None
+    prev_trust = None
+    try:
+        while not _STOP.is_set():
+            try:
+                st = await host_clock.read_state()
+                STATUS["host_clock"] = st
+                if prev_trust is not None and st.get("trust") != prev_trust:
+                    # A transition is the newsworthy event: losing discipline mid-night means every
+                    # timestamp after it is only as good as the RTC.
+                    (log.warning if not st.get("absolute_ok") else log.info)(
+                        "host clock %s → %s (%s)", prev_trust, st.get("trust"), st.get("reason"))
+                prev_trust = st.get("trust")
+                if root:
+                    if writer is None:
+                        night = night_dir(root, _now())
+                        writer = HostClockLogWriter(
+                            os.path.join(night, f"Tepna_{_now():%Y%m%d%H%M%S}_CLOCK.csv"))
+                    writer.write(_now(), st)
+            except Exception as e:                      # provenance must never take capture down
+                log.debug("host clock poll failed: %r", e)
+            await asyncio.sleep(period)
+    finally:
+        if writer:
+            writer.close()
+
+
 async def rssi_poller(adapter_mac, cfg: dict, root: str | None = None):
     """Poll link quality and write the LINK PROVENANCE sidecar.
 
@@ -1176,7 +1212,8 @@ async def main():
     tasks = [asyncio.create_task(status_loop(root)),
              asyncio.create_task(adapter_watchdog(ADAPTER, cfg)),
              asyncio.create_task(rssi_poller(ADAPTER, cfg, root)),
-             asyncio.create_task(clock_watchdog(cfg))]
+             asyncio.create_task(clock_watchdog(cfg)),
+             asyncio.create_task(host_clock_poller(cfg, root))]
 
     def _spawn(dev: dict):
         # Refuse to capture a device missing identity fields — otherwise capture_filename() emits
