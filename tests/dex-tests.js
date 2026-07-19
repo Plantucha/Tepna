@@ -15739,6 +15739,41 @@
        100 %-interpolated window through as "well covered".
        The Integrator reads these flags as bare numeric literals and never imports GlucoDex's FLAG
        name, which is why the node-side fix could not propagate. */
+    /* DEEP-AUDIT-II §8.4 — the longitudinal footer rendered the RECORDING COUNT with a `d` (days)
+       suffix, so a 12-recording series spanning 90 days read "over 12d". Always in the alarming
+       direction: the same delta compressed into a shorter apparent window looks like a steeper
+       change than it is.
+       The series carries `t0Ms`, so the real span is computable — but only when EVERY item is dated.
+       §9.4 flags the same hazard for `slopePerDay`: one undated item makes a per-day figure
+       meaningless. So the label states the true span when it is knowable and says what it actually
+       has when it is not, rather than presenting a count as a duration. */
+    group('Integrator §8.4 — the longitudinal footer states a span, not a recording count', 'integrator-longitudinal · label', function (T) {
+      var IL = env.IntegratorLong;
+      var sl = IL && IL._spanLabel;
+      if (typeof sl !== 'function') {
+        T.ok('IntegratorLong._spanLabel exposed', false, 'not wired');
+      } else {
+        var DAY = 86400000,
+          T0 = Date.UTC(2026, 3, 1, 0, 0, 0);
+        // 12 recordings spread across 90 days — the audit's own example.
+        var sparse = [];
+        for (var i = 0; i < 12; i++) sparse.push({ t0Ms: T0 + Math.round((i * 90) / 11) * DAY, v: 1 });
+        var lab = sl(sparse);
+        T.ok('§8.4 · 12 recordings over 90 days reports the SPAN, not "12d"', /^90d/.test(lab), 'label=' + lab);
+        T.ok('§8.4 · …and still says how many recordings produced it', /12 recordings/.test(lab), 'label=' + lab);
+        // A dense series where count and span nearly coincide must not regress.
+        var dense = [];
+        for (var j = 0; j < 8; j++) dense.push({ t0Ms: T0 + j * DAY, v: 1 });
+        T.ok('§8.4 · 8 consecutive nights reads 7d (span), not 8 (count)', /^7d/.test(sl(dense)), 'label=' + sl(dense));
+        // §9.4's hazard: ONE undated item makes a per-day figure meaningless — say so instead.
+        var mixed = sparse.slice();
+        mixed[3] = { t0Ms: null, v: 1 };
+        T.eq('§8.4 · one undated item ⇒ no span is claimed, the count is named honestly', sl(mixed), '12 recordings');
+        T.eq('§8.4 · a single recording spans nothing and says so', sl([{ t0Ms: T0, v: 1 }]), '1 recording');
+        T.eq('§8.4 · an empty series does not render a phantom duration', sl([]), '0 recordings');
+      }
+    });
+
     group('Integrator §8.3 — long-gap interpolation is not measured glucose, and not coverage', 'integrator-dsp · glucose · regression', function (T) {
       var IG = env.IntegratorDSP;
       var gmw = IG && IG.glucoseMetricsInWindow;

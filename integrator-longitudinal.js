@@ -354,6 +354,31 @@
         return _sortKey(a) - _sortKey(b);
       });
   }
+  /* DEEP-AUDIT-II §8.4 — the footer rendered the RECORDING COUNT with a `d` (days) suffix, so a
+     12-recording series spanning 90 days read "over 12d". Always in the alarming direction: the same
+     delta compressed into a shorter apparent window looks like a steeper change.
+     The series carries `t0Ms`, so the real span is computable — but only when EVERY item is dated.
+     §9.4 flags the same hazard for `slopePerDay`: one undated item makes a per-day figure meaningless.
+     So this reports the true span when it is knowable, and says what it actually has when it is not,
+     rather than presenting a count as a duration. */
+  function _spanLabel(ser) {
+    var n = ser ? ser.length : 0;
+    if (!n) return '0 recordings';
+    var lo = Infinity,
+      hi = -Infinity,
+      dated = 0;
+    for (var i = 0; i < n; i++) {
+      var t = ser[i] && ser[i].t0Ms;
+      if (typeof t === 'number' && isFinite(t)) {
+        dated++;
+        if (t < lo) lo = t;
+        if (t > hi) hi = t;
+      }
+    }
+    if (dated !== n || !(hi > lo)) return n + (n === 1 ? ' recording' : ' recordings'); // honest: no span to state
+    var days = Math.round((hi - lo) / 86400000);
+    return days + 'd (' + n + (n === 1 ? ' recording' : ' recordings') + ')';
+  }
   function defOf(node, mid) {
     return _defs[node + '|' + mid] || { label: mid, unit: '', goodDirection: 'up' };
   }
@@ -671,8 +696,8 @@
           (delta > 0 ? '+' : '') +
           +delta.toFixed(2) +
           ' over ' +
-          ser.length +
-          'd</span></div></div>';
+          _spanLabel(ser) +
+          '</span></div></div>';
       });
     });
     html += '</div></div>';
@@ -798,6 +823,7 @@
   }
 
   global.IntegratorLong = {
+    _spanLabel: _spanLabel, // §8.4 — pure, exposed so the span/count distinction is gateable
     open: open,
     ingest: ingest,
     render: render,
