@@ -43,10 +43,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install tooling
+      - name: Install tooling + runtime deps
+        # The runtime deps are installed even though there is no BLE hardware here. They import fine
+        # without an adapter (bleak defers all D-Bus contact to connect time), and WITHOUT them
+        # polar_psftp/pull_session cannot even be imported — so any test touching them fails outright, or
+        # worse, gets written as an importorskip and silently stops running. A guard that skips in CI is
+        # a guard that isn't there. Installing them is also what lets those modules report real coverage.
         run: |
           python -m pip install --upgrade pip
           pip install pytest pytest-cov ruff
+          pip install -r requirements.txt
       - name: Lint (ruff — real errors only)
         run: ruff check .
       - name: Unit tests + coverage (pytest)

@@ -33,7 +33,10 @@ def test_adapter_kw_pins_the_configured_mac(monkeypatch):
     async def fake(mac, refresh=False):
         return "hci2"
     monkeypatch.setattr(link_rssi, "resolve_hci", fake)
-    assert _run(capture.adapter_kw()) == {"adapter": "hci2"}
+    # bluez={"adapter": ...} — the bare `adapter` kwarg bleak deprecated is SWALLOWED once the shim goes,
+    # which would drop the pin silently. See tests/test_no_deprecated_apis.py.
+    assert _run(capture.adapter_kw()) == {"bluez": {"adapter": "hci2"}}
+    assert _run(capture.adapter_hci()) == "hci2"          # bare name, for the PS-FTP path
 
 
 def test_adapter_kw_follows_reenumeration(monkeypatch):
@@ -44,8 +47,8 @@ def test_adapter_kw_follows_reenumeration(monkeypatch):
     async def fake(mac, refresh=False):
         return next(seq)
     monkeypatch.setattr(link_rssi, "resolve_hci", fake)
-    assert _run(capture.adapter_kw()) == {"adapter": "hci0"}
-    assert _run(capture.adapter_kw()) == {"adapter": "hci2"}
+    assert _run(capture.adapter_kw()) == {"bluez": {"adapter": "hci0"}}
+    assert _run(capture.adapter_kw()) == {"bluez": {"adapter": "hci2"}}
 
 
 def test_adapter_kw_degrades_when_adapter_missing(monkeypatch):
