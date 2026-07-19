@@ -1838,13 +1838,13 @@ import './glucodex-profile.js';
           const W = s.FLAG ? s.FLAG.WARMUP : 1;
           const out = [];
           for (let i = 0; i < s.N; i++) {
-            if (s.gF[i] === W) continue; // skip warm-up garbage; keep OK/GAP/COMPRESSION (consumer holds COMPRESSION out of stats)
+            if (s.gF[i] === W) continue; // skip warm-up garbage; keep OK/GAP/COMPRESSION/GAP_LONG (§8.3: the consumer holds COMPRESSION *and* GAP_LONG out of stats)
             out.push({ tMs: s.gT[i], v: Math.round(s.gV[i]), f: s.gF[i] });
           } // absolute floating tMs straight from r.series.gT[i]
           return out;
         })(),
         cellsNote:
-          'ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms (NOT reconstructed from a string); v = mg/dL; f = clean flag (0 OK · 2 gap-interp · 3 compression-low). Native cadence — no downsampling.',
+          'ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms (NOT reconstructed from a string); v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG). A consumer computing glucose statistics MUST exclude 3 and 4: flag 4 is a long gap (sensor change / dropout) where the value is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count. Native cadence — no downsampling.',
         agpHourly: r.hourly,
         perDay: r.daily
       },
