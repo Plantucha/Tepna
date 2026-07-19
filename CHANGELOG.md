@@ -30,6 +30,16 @@ changesets.)
 
 ---
 
+## [1.16.0] — 2026-07-19
+
+### Fixed
+- **CPAPDex ECG co-import: a surge now corroborates ONE apnea, and lands on the right night.** An unanchored wall-clock parse put the whole surge series ~21 h before the study (reported as a confident 0 % corroboration), and a consumption-free existence test let a single surge corroborate every apnea in its 75 s window (60 % where the honest figure is 20 %). Both fixes already existed in the sibling `oxydex-fusion.js`. (`DEEP-AUDIT-II-2026-07-18-BRIEF.md`)
+- **An absent HRV column no longer arithmetics its way into a confident number.** `null >= 0` is true and `null + 1` is 1, so ungated derived metrics published real values for data never recorded — `d_welfare` 4200 where the truth was 91.3, `d_otr` pinned to its 500 overtraining rail, `d_abs` asserting maximal parasympathetic dominance from a missing column. 18 sites, one shared presence gate; both guarding assertions were hollow and are rebuilt. (`DEEP-AUDIT-II-2026-07-18-BRIEF.md`)
+- **OverDex and Data Unifier could not compute ECG, PPG, CGM or CPAP at all.** Seven host shims were defined and dispatched, `canEmit()` advertised all seven, and both orchestrators booted three — the other four had zero callers repo-wide, so those files threw an error blaming a co-load that was present, were swallowed into a per-file note, and vanished from the run. `canEmit` is now derived from the host table, so a signal is emittable iff something exists to boot it. (`DEEP-AUDIT-II-2026-07-18-BRIEF.md`)
+- **A 24 h norm is now scoped to recordings that can support it, and the fleet's last fail-open badge is closed.** PulseDex graded Tri Index against the Task Force 24 h Holter cutoff at any duration — measured on four real overnight records, 5-minute windows of a single night span `bad`, `warn` and `ok` alike; MotionDex rendered a coverage percentage under an amplitude label and was the only render helper that let an unresolved label emit an unbadged number. (`DEEP-AUDIT-II-2026-07-18-BRIEF.md`)
+
+---
+
 ## [1.15.0] — 2026-07-19
 
 ### Fixed
@@ -517,7 +527,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.15.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.16.0...HEAD
+[1.16.0]: https://github.com/Plantucha/Tepna/compare/v1.15.0...v1.16.0
 [1.15.0]: https://github.com/Plantucha/Tepna/compare/v1.14.0...v1.15.0
 [1.14.0]: https://github.com/Plantucha/Tepna/compare/v1.13.0...v1.14.0
 [1.13.0]: https://github.com/Plantucha/Tepna/compare/v1.12.0...v1.13.0
