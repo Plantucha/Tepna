@@ -5,4 +5,4 @@ type: fixed
 nodes: [capture-host]
 brief: none
 ---
-Run the night-archive copy off the event loop, so a slow or hung destination can no longer starve the capture tasks or stop the systemd watchdog heartbeat.
+Run the night-archive copy, the QC newline scan and the retention rmtree off the event loop, so slow storage can no longer starve the capture tasks or stop the systemd watchdog heartbeat.
