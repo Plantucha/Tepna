@@ -300,7 +300,10 @@
       }
     }
     const n = ch0.length;
-    if (n < 10) throw new Error('No PPG samples parsed — expected Polar Sense `*_PPG.txt` (Phone timestamp;sensor ns;ch0;ch1;ch2;ambient) or an O2Ring finger `*_PPG.txt` (Phone timestamp;sensor ns;channel 0).');
+    if (n < 10)
+      throw new Error(
+        'No PPG samples parsed — expected Polar Sense `*_PPG.txt` (Phone timestamp;sensor ns;ch0;ch1;ch2;ambient) or an O2Ring finger `*_PPG.txt` (Phone timestamp;sensor ns;channel 0).'
+      );
     // fs from median ns delta (precise) — fall back to phone-clock span
     let fs = 176;
     const deltas = [];

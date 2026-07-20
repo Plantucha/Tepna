@@ -109,8 +109,22 @@
        tri-device corpus is run. Timing/rate metrics are unaffected and keep their own grades: HR,
        PPI and rate-domain HRV come off the SAME audited pipeline and are NOT re-tiered here.
        Promote only on evidence that the finger pleth reproduces plausible fiducials. */
-    dicroticFinger: { label: 'Dicrotic notch (finger)', unit: '', goodDirection: 'up', depth: 'research', evidence: 'experimental', cite: 'Dicrotic-notch detection at the O2Ring FINGER site — unknown on-device transfer function; enters below the wrist grade until the tri-device corpus validates it (PPGDEX-O2RING-FINGER-SITE §5)' },
-    aiFinger: { label: 'Aug. index (finger)', unit: '%', goodDirection: 'down', depth: 'research', evidence: 'experimental', cite: 'Augmentation index at the O2Ring FINGER site — reflection timing is site-sensitive AND filtered on-device; not the wrist-validated quantity (PPGDEX-O2RING-FINGER-SITE §5)' },
+    dicroticFinger: {
+      label: 'Dicrotic notch (finger)',
+      unit: '',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Dicrotic-notch detection at the O2Ring FINGER site — unknown on-device transfer function; enters below the wrist grade until the tri-device corpus validates it (PPGDEX-O2RING-FINGER-SITE §5)'
+    },
+    aiFinger: {
+      label: 'Aug. index (finger)',
+      unit: '%',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Augmentation index at the O2Ring FINGER site — reflection timing is site-sensitive AND filtered on-device; not the wrist-validated quantity (PPGDEX-O2RING-FINGER-SITE §5)'
+    },
     reflectionIdxFinger: {
       label: 'Reflection index (finger)',
       unit: '',
@@ -135,8 +149,22 @@
       evidence: 'experimental',
       cite: 'SDPPG aging index (b−c−d−e)/a (Takazawa 1998) at the O2Ring FINGER site — same 2nd-derivative caveat as sdppgBAFinger (PPGDEX-O2RING-FINGER-SITE §5)'
     },
-    notchTimeFinger: { label: 'Notch time (finger)', unit: 'ms', goodDirection: 'up', depth: 'research', evidence: 'experimental', cite: 'Foot→dicrotic-notch timing at the O2Ring FINGER site — the wrist entry is `measured`, which a site change does NOT confer: notch LOCATION is what an unknown on-device filter moves (PPGDEX-O2RING-FINGER-SITE §5)' },
-    pulseWidthFinger: { label: 'Pulse width (finger)', unit: 'ms', goodDirection: 'up', depth: 'research', evidence: 'experimental', cite: 'Pulse width at half systolic amplitude, O2Ring FINGER site — amplitude-referenced, so on-device gain normalisation moves the half-amplitude crossing (PPGDEX-O2RING-FINGER-SITE §5)' },
+    notchTimeFinger: {
+      label: 'Notch time (finger)',
+      unit: 'ms',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Foot→dicrotic-notch timing at the O2Ring FINGER site — the wrist entry is `measured`, which a site change does NOT confer: notch LOCATION is what an unknown on-device filter moves (PPGDEX-O2RING-FINGER-SITE §5)'
+    },
+    pulseWidthFinger: {
+      label: 'Pulse width (finger)',
+      unit: 'ms',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Pulse width at half systolic amplitude, O2Ring FINGER site — amplitude-referenced, so on-device gain normalisation moves the half-amplitude crossing (PPGDEX-O2RING-FINGER-SITE §5)'
+    },
     sd1sd2: { label: 'SD1/SD2', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'Poincaré SD1/SD2 ratio — nonlinear short/long-term HRV balance' },
     ellArea: { label: 'Ellipse area', unit: 'ms²', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'Poincaré ellipse area — overall HRV dispersion (geometric)' },
     cvhrIndex: { label: 'CVHR index', unit: '/h', goodDirection: 'down', depth: 'advanced', evidence: 'emerging', cite: 'Cyclical-variation-of-HR index — PPI apnea surrogate' },
