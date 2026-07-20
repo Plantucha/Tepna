@@ -906,7 +906,11 @@ async def run_oxyii(dev: dict, root: str):
                 # The 125 Hz pleth is togglable (Settings). It is ~191 MB/night — the second largest
                 # stream on the box — so it must be possible to turn off. Absent streams list => both on,
                 # matching the behaviour before the toggle existed.
-                ppgwr = (StreamWriter(ppg_path, "ppg")
+                # "ppg1" — the O2Ring is a SINGLE reflectance path, so it gets the 1-column PSL
+                # layout, not the Verity's 3-LED one (PPGDEX-O2RING-FINGER-SITE §3/§7). Writing it
+                # as (v,v,v) is what let PpgDex's consensus vote score a fabricated 100 % LED
+                # agreement at `measured` tier against one sensor reported three times.
+                ppgwr = (StreamWriter(ppg_path, "ppg1")
                          if "ppg" in (dev.get("streams") or ["spo2", "ppg"]) else None)
                 # Byte-11 identification experiment (see writers.OxyFrameLogWriter). ~1 Hz, ~1 MB/night,
                 # and a SIDECAR so the vendor SpO2 CSV layout OxyDex parses stays byte-identical.
@@ -948,7 +952,7 @@ async def run_oxyii(dev: dict, root: str):
                             nps = len(ppg)
                             for i, v in enumerate(ppg):
                                 ph = arr - _dt.timedelta(seconds=(nps - 1 - i) / O2PPG_FS)
-                                ppgwr.write_ppg(ph, ppg_idx[0] * O2PPG_NS_STEP, 0.0, (v, v, v), 0)
+                                ppgwr.write_ppg(ph, ppg_idx[0] * O2PPG_NS_STEP, 0.0, (v,), 0)
                                 ppg_idx[0] += 1
                             BUS.push("o2ppg", ppg)
                         live = oxyii.parse_live(r[1])
