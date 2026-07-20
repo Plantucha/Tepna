@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UN8gbGYn3nqBo+fEb2SlR13UFZ0JJVxG7/Rt6qqlZDY=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fXI5DrP+kHRChOhLFMFywZgdu2oBgnwqEiXuQHRJG1w=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-jntrzEEMCVAO8RhPXYAtjJ3GM3MBa2L0f5oxqlpC3sE=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-tp9DPKK+3luszwT8dwXRNpWV+iGxwPS/40kE9YwaQLI=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE=' 'sha256-ztY4+qrzGrm0BpZ+DhedXAMaoAV9Q0fqEUrsoUVaZAM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fXI5DrP+kHRChOhLFMFywZgdu2oBgnwqEiXuQHRJG1w=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-jntrzEEMCVAO8RhPXYAtjJ3GM3MBa2L0f5oxqlpC3sE=' 'sha256-kssNWe+NTsre2ooRelIIBfurDUBsntTG6UY0YVhUy9Y=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-tp9DPKK+3luszwT8dwXRNpWV+iGxwPS/40kE9YwaQLI=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE=' 'sha256-ztY4+qrzGrm0BpZ+DhedXAMaoAV9Q0fqEUrsoUVaZAM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HRVDex — Heart Rate Variability Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -8040,6 +8040,24 @@ body.light .topbar::after{ opacity:.25; }
     const lines = text.trim().split('\n');
     const headers = lines[0].split(',').map((h) => h.trim().replace(/\r/g, ''));
     const rows = [];
+    // CLOCK CONTRACT §3 — resolve the file's date order ONCE, up front (DEEP-AUDIT-II §1.10).
+    // `{ preferDMY: true }` alone is a PREFERENCE, not the lock: it only breaks genuinely ambiguous
+    // rows, so an unambiguous row (day > 12) still decides for itself and the order can FLIP
+    // MID-FILE. Welltory ships both D/M/Y and M/D/Y, so a export spanning e.g. 06/12 → 06/13 reads
+    // the ambiguous rows as December and the unambiguous ones as June — the clock runs BACKWARD.
+    // Same defect and same fix as oxydex-dsp.js:552-556; `dmyLocked` is what actually pins it.
+    const _dIdx = headers.indexOf('Date'),
+      _tIdx = headers.indexOf('Time');
+    const _stamps = [];
+    for (let _si = 1; _si < lines.length; _si++) {
+      const _sc = lines[_si].split(',');
+      if (_sc.length < 5) continue;
+      const _sd = _dIdx >= 0 && _sc[_dIdx] ? _sc[_dIdx].trim().replace(/\r/g, '') : '';
+      const _st = _tIdx >= 0 && _sc[_tIdx] ? _sc[_tIdx].trim().replace(/\r/g, '') : '';
+      _stamps.push(_st && !/\d{1,2}:\d{2}/.test(_sd) ? (_sd + ' ' + _st).trim() : _sd || _st);
+    }
+    const _order = typeof DexClock !== 'undefined' && DexClock.resolveDMY ? DexClock.resolveDMY(_stamps, true) : { dmy: true, locked: false };
+    const _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked };
     for (let i = 1; i < lines.length; i++) {
       const cells = lines[i].split(',');
       if (cells.length < 5) continue;
@@ -8052,7 +8070,7 @@ body.light .topbar::after{ opacity:.25; }
       var _rawD = (r['Date'] || '').trim();
       var _rawT = (r['Time'] || '').trim();
       var _combined = _rawT && !/\d{1,2}:\d{2}/.test(_rawD) ? (_rawD + ' ' + _rawT).trim() : _rawD || _rawT;
-      var _ts = parseTimestamp(_combined, { preferDMY: true });
+      var _ts = parseTimestamp(_combined, _tsOpts);
       r._tMs = _ts ? _ts.tMs : NaN;
       r._offsetMin = _ts ? _ts.offsetMin : null;
       r._date = isFinite(r._tMs) ? new Date(r._tMs) : null;

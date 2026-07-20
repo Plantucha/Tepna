@@ -3789,6 +3789,57 @@
   // caller overwrote it two statements later with "✅ Added N measurements" — so a full or disabled
   // browser store reported success. The outcome is now returned and APPENDED, and this pins both
   // halves: the note says the right thing, and the success line actually carries it.
+  // CLOCK CONTRACT §3 — a PREFERENCE is not a LOCK. `{preferDMY:true}` only breaks GENUINELY
+  // ambiguous rows, so an unambiguous row (day > 12) still decides for itself and the order can flip
+  // MID-FILE. That is the exact shape that made an O2Ring night ship durationMin = -254460 with
+  // ODI-4 = 0/h — an apnea night reading as perfectly healthy. The same bare preference was still
+  // being passed by HRVDex, PulseDex and the Integrator (DEEP-AUDIT-II §1.10).
+  group('DMY file-lock is threaded, not just preferred (DEEP-AUDIT-II §1.10)', 'hrvdex-dsp · pulsedex-overview · integrator-dsp · clock', function (T) {
+    // A Welltory-shaped export spanning 12 -> 13 June: the 06/12 rows are AMBIGUOUS (both fields <= 12)
+    // while 13/06 is not. A per-row decision reads the first as 6 Dec and the second as 13 Jun.
+    var STAMPS = ['12/06/2026 23:10', '12/06/2026 23:40', '13/06/2026 00:10', '13/06/2026 00:40'];
+    if (!(env.DexClock && typeof env.DexClock.resolveDMY === 'function')) {
+      T.ok('DexClock.resolveDMY available', false, 'clock.js not loaded');
+      return;
+    }
+    var r = env.DexClock.resolveDMY(STAMPS, true);
+    T.ok('an unambiguous row LOCKS the order for the file', r.locked === true, 'locked=' + r.locked);
+    T.eq('the locked order is DMY (13 > 12 proves it)', r.dmy, true);
+
+    // the whole file must resolve MONOTONICALLY under the lock — this is what the bare preference lost
+    var opts = { preferDMY: r.dmy, dmyLocked: r.locked };
+    var ms = STAMPS.map(function (x) { return env.DexClock.parseTimestamp(x, opts); }).map(function (p) { return p && p.tMs; });
+    T.ok('every row parsed', ms.every(function (v) { return v != null; }), JSON.stringify(ms));
+    var monotonic = ms.every(function (v, i) { return i === 0 || v >= ms[i - 1]; });
+    T.ok('the clock runs FORWARD across the ambiguous/unambiguous boundary', monotonic, JSON.stringify(ms));
+    T.ok('the span is ~90 min, not months', ms[3] - ms[0] === 90 * 60000, 'span ms=' + (ms[3] - ms[0]));
+
+    // BOTH directions: a genuinely ambiguous file must NOT claim a lock, so the caller's preference still rules.
+    var amb = env.DexClock.resolveDMY(['05/06/2026 23:10', '06/07/2026 00:10'], true);
+    T.eq('a genuinely ambiguous file reports UNLOCKED', amb.locked, false);
+
+    // and the three call sites must actually thread it — a bare {preferDMY:true} is the defect
+    var SITES = [
+      { file: 'hrvdex-dsp.js', fn: '_hrvParseSummaryRows' },
+      { file: 'pulsedex-overview.js', fn: 'pxHistory' },
+      { file: 'integrator-dsp.js', fn: 'hr_spikes' }
+    ];
+    SITES.forEach(function (s) {
+      var src = env.sources && env.sources[s.file];
+      if (!src) {
+        T.skip(s.file + ' source available', 'env.sources not wired in this lane');
+        return;
+      }
+      // strip line comments first: these very files EXPLAIN the defect in prose, and a naive scan
+      // would match the explanation and red forever (it did, on the first run of this gate).
+      var code = src.replace(/^\s*\/\/.*$/gm, '');
+      T.ok(s.file + ' no longer passes a BARE {preferDMY: true} in CODE', code.indexOf('{ preferDMY: true }') === -1,
+        'a bare preference is not the file lock — thread DexClock.resolveDMY + dmyLocked');
+      T.ok(s.file + ' resolves the order via DexClock.resolveDMY', src.indexOf('resolveDMY') > 0, 'resolveDMY not called');
+      T.ok(s.file + ' passes dmyLocked through', src.indexOf('dmyLocked') > 0, 'dmyLocked never threaded');
+    });
+  });
+
   group('HRVDex storage failure survives the success line (DEEP-AUDIT-II §1.11)', 'hrvdex-dsp', function (T) {
     // the bare-helper surface (HRVDex._bare) is the deliberate test-access namespace, per hrvdex-dsp.js
     var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;

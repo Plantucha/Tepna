@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-6Gq5p6JAWsKz+ZbEKpiHKhMbl6qv4btiBN6k+UAnnH4=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-FYufV3uNn6NzYx4TuQ57WPhAQACfOzGvqQNA/yly9bo=' 'sha256-GGdN+UUs5j+9HUZsLBWNRzJsznw99NyOxmfZPLRvlo8=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-OaR/0dG2x6ARLgN8e7hTda9Cc3UWpoKYrmKxEjH6STI=' 'sha256-Q9/mWHUwYT01wW0pJKSRx1yO8smaw8h766yrxDUTf44=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UN8gbGYn3nqBo+fEb2SlR13UFZ0JJVxG7/Rt6qqlZDY=' 'sha256-UfSHB3wZWQxmKgHKxAJm9DpQ+meMIcqC/G1ShqHCTJQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-irqCc4+5dhqaRPdZw+qJe/7twXLWGrlF2a61O+ToWQI=' 'sha256-m2FMsI9l/T0bhvsECQxEKbYwdFZbuSLZ/VgXlyaONcU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-6Gq5p6JAWsKz+ZbEKpiHKhMbl6qv4btiBN6k+UAnnH4=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-FYufV3uNn6NzYx4TuQ57WPhAQACfOzGvqQNA/yly9bo=' 'sha256-GGdN+UUs5j+9HUZsLBWNRzJsznw99NyOxmfZPLRvlo8=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-Q9/mWHUwYT01wW0pJKSRx1yO8smaw8h766yrxDUTf44=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UfSHB3wZWQxmKgHKxAJm9DpQ+meMIcqC/G1ShqHCTJQ=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-irqCc4+5dhqaRPdZw+qJe/7twXLWGrlF2a61O+ToWQI=' 'sha256-kssNWe+NTsre2ooRelIIBfurDUBsntTG6UY0YVhUy9Y=' 'sha256-m2FMsI9l/T0bhvsECQxEKbYwdFZbuSLZ/VgXlyaONcU=' 'sha256-mxpcxBQpJYtsBTjXxIba0RxC2m1/E53YMBWOQafpwIs=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -2434,8 +2434,22 @@ function adaptOxyDex(json, filename) {
       // 3) synthesize autonomic arousals from HR spikes
       var hs = n.hr_spikes || null;
       var sevs = hs && Array.isArray(hs.events) ? hs.events : Array.isArray(n.spikes) ? n.spikes : [];
+      // CLOCK CONTRACT §3 — resolve this stream's date order ONCE (DEEP-AUDIT-II §1.10). Most
+      // node-export event times are bare `HH:MM:SS` (the §6 export contract), which carries no
+      // ambiguity and leaves resolveDMY unlocked — harmless. But a legacy/foreign export CAN carry a
+      // full vendor stamp, and there the per-row preference lets the order flip between events in one
+      // stream. Resolving up front makes the whole stream agree by construction.
+      var _spOrder =
+        typeof DexClock !== 'undefined' && DexClock.resolveDMY
+          ? DexClock.resolveDMY(
+              sevs.map(function (x) {
+                return x && x.time;
+              }),
+              true
+            )
+          : { dmy: true, locked: false };
       sevs.forEach(function (sp) {
-        var p = parseTimestamp(sp.time, { dateAnchorMs: t0Ms, prevTMs: t0Ms, preferDMY: true });
+        var p = parseTimestamp(sp.time, { dateAnchorMs: t0Ms, prevTMs: t0Ms, preferDMY: _spOrder.dmy, dmyLocked: _spOrder.locked });
         var tMs = p ? p.tMs : sp.idx != null && t0Ms != null ? t0Ms + sp.idx * dt : null;
         if (tMs == null) return;
         var rise = sp.peak != null && sp.baseline != null ? sp.peak - sp.baseline : null;
@@ -13085,6 +13099,24 @@ __exports.OxyDex = window.OxyDex;
     const lines = text.trim().split('\n');
     const headers = lines[0].split(',').map((h) => h.trim().replace(/\r/g, ''));
     const rows = [];
+    // CLOCK CONTRACT §3 — resolve the file's date order ONCE, up front (DEEP-AUDIT-II §1.10).
+    // `{ preferDMY: true }` alone is a PREFERENCE, not the lock: it only breaks genuinely ambiguous
+    // rows, so an unambiguous row (day > 12) still decides for itself and the order can FLIP
+    // MID-FILE. Welltory ships both D/M/Y and M/D/Y, so a export spanning e.g. 06/12 → 06/13 reads
+    // the ambiguous rows as December and the unambiguous ones as June — the clock runs BACKWARD.
+    // Same defect and same fix as oxydex-dsp.js:552-556; `dmyLocked` is what actually pins it.
+    const _dIdx = headers.indexOf('Date'),
+      _tIdx = headers.indexOf('Time');
+    const _stamps = [];
+    for (let _si = 1; _si < lines.length; _si++) {
+      const _sc = lines[_si].split(',');
+      if (_sc.length < 5) continue;
+      const _sd = _dIdx >= 0 && _sc[_dIdx] ? _sc[_dIdx].trim().replace(/\r/g, '') : '';
+      const _st = _tIdx >= 0 && _sc[_tIdx] ? _sc[_tIdx].trim().replace(/\r/g, '') : '';
+      _stamps.push(_st && !/\d{1,2}:\d{2}/.test(_sd) ? (_sd + ' ' + _st).trim() : _sd || _st);
+    }
+    const _order = typeof DexClock !== 'undefined' && DexClock.resolveDMY ? DexClock.resolveDMY(_stamps, true) : { dmy: true, locked: false };
+    const _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked };
     for (let i = 1; i < lines.length; i++) {
       const cells = lines[i].split(',');
       if (cells.length < 5) continue;
@@ -13097,7 +13129,7 @@ __exports.OxyDex = window.OxyDex;
       var _rawD = (r['Date'] || '').trim();
       var _rawT = (r['Time'] || '').trim();
       var _combined = _rawT && !/\d{1,2}:\d{2}/.test(_rawD) ? (_rawD + ' ' + _rawT).trim() : _rawD || _rawT;
-      var _ts = parseTimestamp(_combined, { preferDMY: true });
+      var _ts = parseTimestamp(_combined, _tsOpts);
       r._tMs = _ts ? _ts.tMs : NaN;
       r._offsetMin = _ts ? _ts.offsetMin : null;
       r._date = isFinite(r._tMs) ? new Date(r._tMs) : null;
