@@ -208,8 +208,33 @@
     '_psns',
     '_coherence',
     '_hrv',
-    '_cv'
+    '_cv',
+    // Recording SPAN in minutes (null when the source cannot report one — a Welltory spot reading
+    // never does). This is what separates a POINT SAMPLE of the circadian curve from an INTEGRAL
+    // across it, which changes how the row may legitimately be adjusted and compared. See
+    // ALL_NIGHT_MIN_MIN / _hrvIsAllNight.
+    '_spanMin'
   ];
+
+  /* ════ ALL-NIGHT vs SPOT MEASUREMENT ══════════════════════════════════════════
+   A Welltory-style reading is a ~5-minute POINT SAMPLE of a circadian curve, so comparing two of
+   them requires a time-of-day correction. An overnight recording is an INTEGRAL over ~8 h of that
+   same curve — the circadian confound is already averaged out by the recording itself, so applying
+   the point-sample correction to it does not remove a bias, it INTRODUCES one.
+
+   The trigger for this: on a real 28-night ECG corpus (2026-06-06 → 07-13) every night was a
+   whole-night recording, but 27 started in the evening and ONE started at 01:06. The start-hour
+   branch therefore graded that single night 12.7 % differently from its 27 identical neighbours —
+   a difference that reflects when the file began, not the wearer's physiology.
+
+   3 h is the floor: below it a recording no longer spans enough of the curve to self-average, and
+   it matches the --min-hours convention tools/trio-batch.mjs already uses for "is this a night?".
+   UNKNOWN span ⇒ NOT all-night: a row that cannot prove it spans the curve keeps the spot-sample
+   treatment, so every pre-existing Welltory row behaves exactly as before. */
+  const ALL_NIGHT_MIN_MIN = 180;
+  function _hrvIsAllNight(row) {
+    return !!(row && typeof row._spanMin === 'number' && isFinite(row._spanMin) && row._spanMin >= ALL_NIGHT_MIN_MIN);
+  }
   function _hrvNum(v) {
     return typeof v === 'number' && isFinite(v) ? Math.round(v * 1000) / 1000 : '';
   }
@@ -417,9 +442,22 @@
     // Prefer whole-record SDNN/RMSSD for cross-node comparability (ECGDex's own guidance).
     const sdnn = n(tm.wholeRecordSDNN != null ? tm.wholeRecordSDNN : tm.sdnn);
     const rmssd = n(tm.wholeRecordRMSSD != null ? tm.wholeRecordRMSSD : tm.rmssd);
+    // SPAN — how much of the circadian curve this row actually covers. Emitters differ in what they
+    // publish, so read the strongest available evidence and fall through; NEVER guess. Absent ⇒ null,
+    // which _hrvIsAllNight reads as "not provably all-night" (i.e. keep spot-sample treatment).
+    const _epochs = (env.timeseries && env.timeseries.epochs) || null;
+    const _stage = (env.sleep && env.sleep.stageMinutes) || null;
+    let spanMin = n(rec.durationMin); //  1 · an emitter that states it outright (PulseDex)
+    if (spanMin == null && _epochs && _epochs.length) spanMin = _epochs.length * 5; //  2 · 5-min epoch grid (ECGDex rich)
+    if (spanMin == null && _stage) {
+      //  3 · time in bed = every stage bucket, wake included
+      const t = Object.keys(_stage).reduce((a, k) => a + (n(_stage[k]) || 0), 0);
+      if (t > 0) spanMin = t;
+    }
     return {
       tMs,
       offsetMin: rec.offsetMin == null ? null : rec.offsetMin,
+      _spanMin: spanMin,
       _hr: n(tm.hr),
       _meanRR: n(tm.meanRR),
       _sdnn: sdnn,
@@ -625,9 +663,15 @@
       r.d_otr_sat = !isNaN(r.d_otr) && r.d_otr >= 499 ? true : false; // saturated flag
 
       // ── Circadian-Adjusted rMSSD ──
+      // The ±8 %/−5 % factors normalise a ~5-min POINT SAMPLE for the hour it was taken. An
+      // ALL-NIGHT row already integrates across that curve, and its start hour is an artefact of
+      // when recording began — so it is passed through UNADJUSTED (factor 1.0) rather than graded
+      // as an "evening" reading. Applying the point-sample factor here is what put one 01:06 night
+      // 12.7 % away from 27 otherwise-identical evening-start nights. See _hrvIsAllNight.
       const mHour = r._date instanceof Date ? r._date.getUTCHours() : 8;
-      const circAdj = mHour < 10 ? 1.08 : mHour > 16 ? 0.95 : 1.0;
+      const circAdj = _hrvIsAllNight(r) ? 1.0 : mHour < 10 ? 1.08 : mHour > 16 ? 0.95 : 1.0;
       r.d_rmssd_circ = _all(r._rmssd) ? r._rmssd / circAdj : NaN;
+      r.d_all_night = _hrvIsAllNight(r); // consumers (view filter, band gating) read THIS, not the hour
 
       // ── NN50 estimate ──
       const meanRR_s_local = r._meanRR > 0 ? r._meanRR / 1000 : NaN; // fix: use per-row value
@@ -849,21 +893,35 @@
     var el = document.getElementById('ebScopeHint');
     if (!el) return;
     var n = typeof windowDays !== 'undefined' ? windowDays : 7;
-    var mo = !!(document.getElementById('morningOnly') && /** @type {HTMLInputElement} */ (document.getElementById('morningOnly')).checked);
+    var sc = _hrvScope();
+    var mo = sc === 'morning' ? ', mornings only' : sc === 'allnight' ? ', all-night recordings only' : '';
     var scope = n >= 999 ? 'all measurements' : 'last ' + n + ' day' + (n === 1 ? '' : 's');
-    el.textContent = 'JSON / CSV export the current view — ' + scope + (mo ? ', mornings only' : '');
+    el.textContent = 'JSON / CSV export the current view — ' + scope + mo;
     el.title =
-      'The JSON and CSV downloads contain only the measurements currently in view (' +
-      scope +
-      (mo ? ', mornings only' : '') +
-      '); older rows are excluded. The Ganglior bus export and the PDF carry the full recording.';
+      'The JSON and CSV downloads contain only the measurements currently in view (' + scope + mo + '); older rows are excluded. The Ganglior bus export and the PDF carry the full recording.';
+  }
+
+  /* Measurement-scope selector. `morning` and `allnight` are different MEASUREMENT UNITS, not two
+     filters over one pool — a morning spot reading and an 8 h overnight recording answer different
+     questions and carry different reference bands, so mixing them in one trend is the thing to
+     avoid. Reads the legacy `morningOnly` checkbox when present so an older embedding still works. */
+  function _hrvScope() {
+    var sel = document.getElementById('measScope');
+    if (sel && sel.value) return sel.value;
+    var legacy = document.getElementById('morningOnly');
+    return legacy && /** @type {HTMLInputElement} */ (legacy).checked ? 'morning' : 'all';
   }
 
   /* ===== FILTER ROWS ===== */
   function getFilteredRows() {
     let rows = allRows;
-    if (document.getElementById('morningOnly') ? /** @type {HTMLInputElement} */ (document.getElementById('morningOnly')).checked : false) {
-      rows = rows.filter((r) => r._date.getUTCHours() < 10);
+    const scope = _hrvScope();
+    if (scope === 'morning') {
+      // Spot readings only. An all-night row starts whenever recording began (21:00–01:00 in the
+      // real corpus), so this deliberately EXCLUDES them rather than judging them by start hour.
+      rows = rows.filter((r) => !_hrvIsAllNight(r) && r._date && r._date.getUTCHours() < 10);
+    } else if (scope === 'allnight') {
+      rows = rows.filter(_hrvIsAllNight);
     }
     if (windowDays < 999) {
       // Always anchor window to the last measurement in allRows (not morning-filtered subset)

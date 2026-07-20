@@ -402,7 +402,19 @@ function renderKPIs(rows) {
       unit: ''
     },
     { label: 'Baevsky SI', val: r.d_si != null ? r.d_si.toFixed(0) : undefined, sub: '&lt;150 normal', color: r.d_si < 150 ? 'good' : r.d_si < 250 ? 'warn' : 'bad', delta: null, unit: '' },
-    { label: 'LF/HF', val: r.d_lfhf != null ? r.d_lfhf.toFixed(2) : undefined, sub: '0.5–2.0 optimal', color: r.d_lfhf > 0.4 && r.d_lfhf < 2.5 ? 'good' : 'warn', delta: null, unit: '' },
+    // LF/HF · the 0.5–2.0 band is a MORNING-REST reference and does not transfer to an all-night
+    // recording, which spans sleep architecture rather than a resting spot sample. Rather than
+    // invent an overnight band we do not have a citation for, an all-night row shows the VALUE with
+    // no verdict — a number with an honest '—' beats a number graded against the wrong scale (the
+    // real 28-night corpus sits at a median ~2.0, which this band would have flagged every night).
+    {
+      label: 'LF/HF',
+      val: r.d_lfhf != null ? r.d_lfhf.toFixed(2) : undefined,
+      sub: r.d_all_night ? 'all-night — morning band n/a' : '0.5–2.0 optimal',
+      color: r.d_all_night ? 'neutral' : r.d_lfhf > 0.4 && r.d_lfhf < 2.5 ? 'good' : 'warn',
+      delta: null,
+      unit: ''
+    },
     {
       label: 'ANS Load',
       val: r.d_ans_load != null ? r.d_ans_load.toFixed(2) : undefined,
@@ -545,7 +557,12 @@ function renderKPIs(rows) {
         const arrow = v === 0 ? '→' : v > 0 ? '↑' : '↓';
         dHtml = `<div class="kpi-delta ${cls}">${arrow} ${Math.abs(v)}${k.unit} vs prev</div>`;
       }
-      return `<div class="kpi ${k.color}"><div class="kpi-label">${evBadge(k.label)}${k.label}</div><div class="kpi-val" style="color:var(--${k.color === 'good' ? 'green' : k.color === 'warn' ? 'yellow' : 'red'})">${k.val === undefined || k.val === null || k.val === '' || k.val === 'NaN' ? '—' : k.val}</div>${dHtml}<div class="kpi-sub">${k.sub}</div></div>`;
+      // 'neutral' = a real value with NO verdict, for a metric whose reference band does not apply
+      // to this row (e.g. LF/HF on an all-night recording). It must render in the ordinary text
+      // colour: the ternary below falls through to --red, so an ungraded value would otherwise
+      // paint as the WORST possible reading — the opposite of "we are not judging this".
+      const kc = k.color === 'good' ? 'green' : k.color === 'warn' ? 'yellow' : k.color === 'neutral' ? 'text' : 'red';
+      return `<div class="kpi ${k.color}"><div class="kpi-label">${evBadge(k.label)}${k.label}</div><div class="kpi-val" style="color:var(--${kc})">${k.val === undefined || k.val === null || k.val === '' || k.val === 'NaN' ? '—' : k.val}</div>${dHtml}<div class="kpi-sub">${k.sub}</div></div>`;
     })
     .join('');
 }
