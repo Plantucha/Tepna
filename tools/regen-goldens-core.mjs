@@ -92,9 +92,7 @@ export function makeRerecord({ repo, node, bundle, uploadsDir, ManifestGate }) {
     rec.outputHash = outputHash;
     if (Object.keys(inputHashes).length) rec.inputHashes = inputHashes;
     fs.writeFileSync(fragPath, JSON.stringify(frag, null, 2) + '\n');
-    console.log(
-      `      ↻ ledger re-recorded — outputHash ${wasOut}${wasOut === outputHash ? ' (unchanged)' : ' → ' + outputHash}${inputsSame ? '' : ' · inputHashes updated'}`
-    );
+    console.log(`      ↻ ledger re-recorded — outputHash ${wasOut}${wasOut === outputHash ? ' (unchanged)' : ' → ' + outputHash}${inputsSame ? '' : ' · inputHashes updated'}`);
   };
 }
 
