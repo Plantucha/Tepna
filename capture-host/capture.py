@@ -126,6 +126,11 @@ _CONNECT_LOCK = asyncio.Lock()
 # EVERY BLE await must be bounded. This lock is process-global, so an unbounded operation under it is not
 # one stuck device — it is the whole box, silently, until morning. bleak inherits BlueZ's D-Bus semantics:
 # a wedged controller simply never replies, and `await` waits forever without raising.
+# Per-phase bound on shutdown. Generous: a healthy teardown is well under a second, and a BLE disconnect
+# is already bounded by _BLE_DISCONNECT_TIMEOUT_S — this only catches something that ignores cancellation.
+_SHUTDOWN_PHASE_S = 15.0
+TASK_LABELS: dict[int, str] = {}    # id(task) -> human name, so shutdown can NAME what refused to stop
+
 _BLE_CONNECT_TIMEOUT_S = 30.0       # a real connect to an advertising, bonded sensor takes ~1-3 s
 _BLE_DISCONNECT_TIMEOUT_S = 10.0    # teardown must be quick or abandoned — never a second deadlock
 _PMD_CTRL_TIMEOUT_S = 3.0           # per PMD control-point round-trip (write, then its indication)
@@ -937,16 +942,41 @@ async def run_muse(dev: dict, root: str):
         else:
             cmd = ["muselsl", "record", "--address", addr, "--filename", out]
         try:
-            _set(name, connected=True, address=addr, tool=tool, last_error=None, file=out)
             log.info("%s: %s", name, " ".join(cmd))
+            # `connected` is set AFTER the child exists, not before. Setting it first meant a tool that
+            # died on the first line — device off, bad address, no LSL stream — still showed a green card
+            # all night while the loop respawned it every 5 s, and `alert_poller` keys on `connected`, so
+            # nothing ever fired.
             proc = await asyncio.create_subprocess_exec(*cmd)
-            while proc.returncode is None and not _STOP.is_set():
-                try:
-                    await asyncio.wait_for(proc.wait(), timeout=1)
-                except asyncio.TimeoutError:
-                    pass
-            if proc.returncode is None:
-                proc.terminate()
+            _set(name, connected=True, address=addr, tool=tool, last_error=None, file=out)
+            try:
+                while proc.returncode is None and not _STOP.is_set():
+                    try:
+                        await asyncio.wait_for(proc.wait(), timeout=1)
+                    except asyncio.TimeoutError:
+                        pass
+            finally:
+                # ALWAYS reap the child. CancelledError is a BaseException, so on shutdown neither
+                # `except` below ran and `terminate()` was skipped entirely — leaving muselsl alive,
+                # holding the Muse's BLE link, so the NEXT daemon start could not connect to it. The
+                # finally runs on cancellation too, and we wait for the child so it can flush its CSV
+                # tail rather than being orphaned mid-write.
+                if proc.returncode is None:
+                    proc.terminate()
+                    with contextlib.suppress(Exception):
+                        await asyncio.wait_for(proc.wait(), timeout=5)
+                    if proc.returncode is None:      # ignored SIGTERM — do not leave it holding the radio
+                        with contextlib.suppress(Exception):
+                            proc.kill()
+                            await asyncio.wait_for(proc.wait(), timeout=5)
+            # A tool that exits on its own is a FAULT, not a quiet restart: report the code so the
+            # respawn loop is visible instead of looking like a healthy capture.
+            if proc.returncode not in (0, None):
+                _set(name, connected=False,
+                     last_error=f"{tool} exited with code {proc.returncode} — retrying")
+                log.warning("%s: %s exited with code %s — retrying in 5s", name, tool, proc.returncode)
+            else:
+                _set(name, connected=False)
         except FileNotFoundError:
             _set(name, connected=False, last_error=f"{tool} not installed (pipx install {tool})")
             await asyncio.sleep(30)
@@ -1990,7 +2020,11 @@ async def main():
                    ("qc_poller", lambda: qc_poller(cfg, root, notifier)),
                    ("archive_poller", lambda: archive_poller(cfg, root)),
                    ("sd_watchdog", sd_watchdog)]
-    tasks = [asyncio.create_task(keep_running(mk, label, notifier)) for label, mk in _BACKGROUND]
+    tasks = []
+    for label, mk in _BACKGROUND:
+        _t = asyncio.create_task(keep_running(mk, label, notifier))
+        TASK_LABELS[id(_t)] = label
+        tasks.append(_t)
 
     def _spawn(dev: dict):
         # Refuse to capture a device missing identity fields — otherwise capture_filename() emits
@@ -2012,7 +2046,9 @@ async def main():
         else:
             runner = run_polar
         # Supervised: a runner that raises must not take the device down for the night (see supervise()).
-        tasks.append(asyncio.create_task(supervise(runner, dev, root, notifier)))
+        _t = asyncio.create_task(supervise(runner, dev, root, notifier))
+        TASK_LABELS[id(_t)] = f"{dev.get('name')} runner"
+        tasks.append(_t)
 
     for dev in cfg.get("devices", []):
         _spawn(dev)
@@ -2051,11 +2087,35 @@ async def main():
                         f"tepna-capture is up with {len(cfg.get('devices', []))} device(s).")
     await _STOP.wait()
     sdnotify.sd_notify("STOPPING=1")
+    # SHUTDOWN MUST TERMINATE, AND MUST SAY WHAT WENT WRONG. Measured 2026-07-20: SIGTERM left the daemon
+    # alive past 101 s with nothing in the log — `gather()` waits forever on a task that will not unwind,
+    # and `AppRunner.cleanup()` waits on in-flight requests (the monitor's SSE stream never ends on its
+    # own). Under systemd that is a `systemctl restart` that hangs until TimeoutStopSec and is then
+    # SIGKILLed mid-write; by hand it is an operator with no idea which task is stuck. So: bound every
+    # phase, NAME whatever failed to stop, and carry on regardless — the writers are already closed by
+    # each runner's finally, so abandoning a wedged BLE teardown costs nothing and buys a clean restart.
+    log.info("shutdown: stopping %d task(s)", len(tasks))
     for t in tasks:
         t.cancel()
-    await asyncio.gather(*tasks, return_exceptions=True)
+    # asyncio.wait, NOT wait_for(gather): on timeout `wait` REPORTS what is still pending, where
+    # wait_for CANCELS the gather — which cancels the children a second time, so by the time the handler
+    # looked, the stuck tasks had finished and it named nothing. The naming is the entire point.
+    done, pending = await asyncio.wait(tasks, timeout=_SHUTDOWN_PHASE_S)
+    for t in done:
+        with contextlib.suppress(BaseException):
+            t.exception()        # retrieve it, so asyncio does not warn about it at GC
+    if pending:
+        stuck = sorted(TASK_LABELS.get(id(t), "?") for t in pending)
+        log.error("shutdown: %d task(s) ignored cancellation after %.0fs and were abandoned: %s",
+                  len(pending), _SHUTDOWN_PHASE_S, ", ".join(stuck))
     if web_runner:
-        await web_runner.cleanup()
+        try:
+            # The monitor's live-view SSE stream is an in-flight request that never completes on its own,
+            # so an unbounded cleanup() waits for a browser tab to be closed. It must not gate a restart.
+            await asyncio.wait_for(web_runner.cleanup(), _SHUTDOWN_PHASE_S)
+        except asyncio.TimeoutError:
+            log.error("shutdown: web server did not close in %.0fs (an open monitor/SSE client?) "
+                      "— abandoning it", _SHUTDOWN_PHASE_S)
     log.info("tepna-capture stopped")
 
 

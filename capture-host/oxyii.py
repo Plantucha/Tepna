@@ -19,6 +19,13 @@ OXYII_SERVICE = "e8fb0001-a14b-98f9-831b-4e2941d01248"
 OXYII_WRITE   = "e8fb0002-a14b-98f9-831b-4e2941d01248"   # write-without-response
 OXYII_NOTIFY  = "e8fb0003-a14b-98f9-831b-4e2941d01248"   # notify
 OP_AUTH, OP_SETUP, OP_LIVE, OP_SET_TIME = 0xFF, 0x10, 0x04, 0xC0
+
+# Largest declared payload the reassembler will believe. Deliberately loose rather than tight: the live
+# frame is tens of bytes and a stored-session chunk is bounded by the negotiated ATT MTU (247 measured
+# 2026-07-18), so anything real is far below this — but a bound set near today's MTU would break the
+# .dat transfer outright if a firmware ever negotiated the 517 MTU. 2048 cannot be reached by a genuine
+# frame, still caps a mis-framed stream's damage at ~2 KB instead of ~64 KB, and cannot regress the pull.
+MAX_FRAME_LEN = 2048
 _LEPU = hashlib.md5(b"lepucloud").digest()   # protocol salt (MD5 of the literal ASCII "lepucloud")
 
 
@@ -130,6 +137,15 @@ class Reassembler:
             if len(self.buf) < 8:
                 break
             ln = self.buf[5] | (self.buf[6] << 8)
+            # A LENGTH IS ONLY AS TRUSTWORTHY AS THE BYTE IT CAME FROM. `ln` is 16-bit, so a mis-framed
+            # or truncated notification can claim up to 65535 and park the reassembler waiting for bytes
+            # that never come — swallowing every VALID frame that follows into one bogus buffer (~64 KB
+            # is ~7 minutes at this data rate) until the link happens to drop. Nothing this device sends
+            # is anywhere near that (see MAX_FRAME_LEN). Treat an implausible length as loss of sync —
+            # drop the lead byte and resync on the next 0xA5 — rather than trusting it.
+            if ln > MAX_FRAME_LEN:
+                del self.buf[:1]
+                continue
             total = 7 + ln + 1
             if len(self.buf) < total:
                 break

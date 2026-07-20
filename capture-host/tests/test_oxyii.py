@@ -183,3 +183,22 @@ def test_ppg_invalid_sentinel_is_exposed_not_silently_interpolated():
 def test_short_frame_yields_no_reading_at_all_never_a_fabricated_zero():
     for n in (0, 5, 11, 13):
         assert oxyii.parse_live(_live_frame()[:n]) is None, n
+
+
+def test_reassembler_rejects_an_implausible_declared_length():
+    """A mis-framed or truncated notification can declare up to 65535 and park the reassembler waiting
+    for bytes that never arrive — swallowing every VALID frame that follows into one bogus buffer. An
+    implausible length means we have lost sync, so drop the lead byte and resync on the next 0xA5."""
+    r = oxyii.Reassembler()
+    bogus = bytes([0xA5, 0x04, 0xFB, 0x00, 0x00, 0xFF, 0xFF])   # declares 65535 bytes of payload
+    good = oxyii.encode(oxyii.OP_LIVE, b"\x01\x02\x03")
+    out = r.feed(bogus + good)
+    assert good in out, "a valid frame after a bogus length must still be recovered"
+
+
+def test_reassembler_still_accepts_a_large_but_plausible_frame():
+    """The bound must not be so tight that a real stored-session chunk is rejected — that would break
+    the .dat pull. A frame at the limit still reassembles."""
+    r = oxyii.Reassembler()
+    big = oxyii.encode(oxyii.OP_FILE_DATA, b"\x5a" * 240)        # ~ATT MTU-sized chunk
+    assert big in r.feed(big)

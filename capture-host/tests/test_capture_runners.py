@@ -2603,3 +2603,108 @@ def test_connect_scan_timeout_error_says_what_it_means(monkeypatch):
         return ei.value
     err = _run(go())
     assert "D1:98:62:7C:92:B3" in str(err) and "out of range" in str(err)
+
+
+# ── shutdown must terminate, and must name what refused to stop ─────────────────────────────────────
+def _main_cfg(tmp_path, monkeypatch):
+    """main() wired with every runner/poller stubbed out — the shared setup for the shutdown tests."""
+    import yaml as _yaml, sys as _sys
+    cfg = {"root": str(tmp_path), "web": {"enabled": True, "host": "127.0.0.1", "port": 0},
+           "devices": []}
+    cfgp = tmp_path / "config.yaml"
+    cfgp.write_text(_yaml.safe_dump(cfg))
+    for r in ("status_loop", "adapter_watchdog", "rssi_poller", "clock_watchdog", "host_clock_poller",
+              "storage_poller", "alert_poller", "qc_poller", "archive_poller", "sd_watchdog"):
+        async def _n(*a, **k): return None
+        monkeypatch.setattr(capture, r, _n)
+    monkeypatch.setattr(_sys, "argv", ["capture.py", "--config", str(cfgp)])
+    capture._STOP.clear()
+    return cfgp
+
+
+def test_shutdown_abandons_a_web_server_that_will_not_close(tmp_path, monkeypatch, caplog):
+    """MEASURED 2026-07-20: SIGTERM left the daemon alive past 101 s. `AppRunner.cleanup()` waits for
+    in-flight requests, and the monitor's SSE stream is one that never ends on its own — so an open
+    browser tab blocked the restart. Under systemd that is a hang to TimeoutStopSec then a SIGKILL
+    mid-write. Bound it, name it, and carry on."""
+    _main_cfg(tmp_path, monkeypatch)
+    import webmon
+    class _Runner:
+        async def cleanup(self): await asyncio.sleep(3600)     # the browser tab that never goes away
+    async def fake_start(app, host, port):
+        capture._STOP.set()
+        return _Runner()
+    monkeypatch.setattr(webmon, "start", fake_start)
+    monkeypatch.setattr(capture, "_SHUTDOWN_PHASE_S", 0.05)
+    with caplog.at_level("ERROR"):
+        _run(capture.main())
+    assert any("web server did not close" in r.message for r in caplog.records)
+
+
+def test_shutdown_names_a_task_that_ignores_cancellation(tmp_path, monkeypatch, caplog):
+    """A task that swallows CancelledError used to hang `gather()` forever with nothing in the log. Now
+    it is abandoned after a bounded wait and NAMED, so the operator knows which one to look at."""
+    _main_cfg(tmp_path, monkeypatch)
+    async def stubborn(*a, **k):
+        seen = {"n": 0}
+        while True:
+            try:
+                await asyncio.sleep(0.01)
+            except asyncio.CancelledError:
+                seen["n"] += 1
+                if seen["n"] >= 2:               # yield on the second ask so asyncio.run() can finish
+                    raise
+    monkeypatch.setattr(capture, "status_loop", stubborn)
+    import webmon
+    class _Runner:
+        async def cleanup(self): pass
+    async def fake_start(app, host, port):
+        # Yield first: `_STOP.wait()` on an ALREADY-set event returns without suspending, so main would
+        # cancel the background tasks before they had ever run — and a task that never started cannot
+        # demonstrate ignoring cancellation.
+        await asyncio.sleep(0.05)
+        capture._STOP.set()
+        return _Runner()
+    monkeypatch.setattr(webmon, "start", fake_start)
+    monkeypatch.setattr(capture, "_SHUTDOWN_PHASE_S", 0.05)
+    with caplog.at_level("ERROR"):
+        _run(capture.main())
+    msgs = [r.getMessage() for r in caplog.records]
+    assert any("ignored cancellation" in m and "status_loop" in m for m in msgs), msgs
+
+
+def test_run_muse_kills_a_child_that_ignores_terminate(tmp_path, monkeypatch):
+    """On shutdown the child MUST be reaped. CancelledError is a BaseException, so the old `except`
+    clauses never ran and terminate() was skipped entirely — leaving muselsl alive holding the Muse's
+    BLE link, so the NEXT daemon start could not connect. A child that also ignores SIGTERM gets killed
+    rather than left owning the radio."""
+    events = []
+    class _Stubborn:
+        def __init__(self): self.returncode = None
+        async def wait(self):
+            await asyncio.sleep(0)
+            return None                                  # never exits on its own
+        def terminate(self): events.append("terminate")  # ...and ignores SIGTERM
+        def kill(self): events.append("kill"); self.returncode = -9
+    async def fake_exec(*cmd, **k): return _Stubborn()
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", fake_exec)
+    _real_wait_for = asyncio.wait_for
+    async def fast_wait_for(coro, timeout):              # don't really wait 5 s in a unit test
+        return await _real_wait_for(coro, 0.05)
+    monkeypatch.setattr(capture.asyncio, "wait_for", fast_wait_for)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_muse(_dev(vendor="Muse", model="S", muse_tool="muselsl"), str(tmp_path)))
+    assert events == ["terminate", "kill"], events
+
+
+def test_run_muse_reports_a_child_that_exits_with_an_error(tmp_path, monkeypatch):
+    """A tool that dies on the first line — device off, bad address, no LSL stream — used to leave a
+    GREEN card all night while the loop respawned it every 5 s, and alert_poller keys on `connected`,
+    so nothing ever fired."""
+    async def fake_exec(*cmd, **k): return _FakeProc(rc=2)
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", fake_exec)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_muse(_dev(name="Muse", vendor="Muse", model="S", muse_tool="muselsl"),
+                          str(tmp_path)))
+    st = capture.STATUS["devices"]["Muse"]
+    assert st["connected"] is False and "exited with code 2" in st["last_error"]

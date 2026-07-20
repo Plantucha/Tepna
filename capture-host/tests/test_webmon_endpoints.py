@@ -400,3 +400,25 @@ def test_state_storage_and_qc_absent_before_the_pollers_run(tmp_path):
         return await (await c.get("/api/state")).json()
     body = _serve(app, go)
     assert body["storage"] is None and body["qc"] is None
+
+
+def test_sse_stream_survives_an_abrupt_client_disconnect():
+    """A browser tab yanked mid-stream (socket reset, no graceful close) must not raise out of the
+    handler — the write into the dead socket is caught and the subscriber unregistered. Distinct from
+    the shutdown path, where the daemon ends the stream deliberately."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        app, _cfg, _st, _p, bus = _mk(__import__("pathlib").Path(d))
+
+        async def go():
+            srv = TestServer(app); cl = TestClient(srv); await cl.start_server()
+            try:
+                resp = await cl.get("/api/stream/_all")
+                await resp.content.readuntil(b"\n\n")        # snapshot received; stream is live
+                resp.close()                                  # ABRUPT: reset the connection, server up
+                for _ in range(30):                           # keep writing into the dead socket
+                    bus.push("hr", [70], fs=1.0)
+                    await asyncio.sleep(0.01)
+            finally:
+                await cl.close()
+        asyncio.run(go())                                     # must not raise
