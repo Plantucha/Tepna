@@ -95,6 +95,76 @@
     },
     notchTime: { label: 'Notch time', unit: 'ms', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'Foot→dicrotic-notch timing — direct pulse-wave fiducial' },
     pulseWidth: { label: 'Pulse width', unit: 'ms', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'Pulse width at half systolic amplitude — direct pulse-wave timing' },
+
+    /* ── EXPERIMENTAL · FINGER SITE — same algorithm, DIFFERENT SITE ⇒ the grade is RE-EARNED ──
+       PPGDEX-O2RING-FINGER-SITE §5, per CLAUDE.md §🎫 and LITERATURE-USE-POLICY: a tier is never
+       inherited on "same code". These ids exist so the O2Ring finger pleth cannot silently pick up
+       the Verity wrist entries above — note `notchTime`/`pulseWidth` sit at `measured` for the
+       wrist, which is exactly the inheritance §5 forbids.
+
+       Why the finger site enters LOWER, and it is NOT bit depth (§2.3 corrected that claim): the
+       ring AC-couples and gain-normalises ON-DEVICE, so an UNKNOWN VENDOR TRANSFER FUNCTION sits in
+       the chain. Shape metrics — notch timing, augmentation index, SDPPG derivatives — are exactly
+       the quantities such a filter distorts, and it cannot be characterised from our side until the
+       tri-device corpus is run. Timing/rate metrics are unaffected and keep their own grades: HR,
+       PPI and rate-domain HRV come off the SAME audited pipeline and are NOT re-tiered here.
+       Promote only on evidence that the finger pleth reproduces plausible fiducials. */
+    dicroticFinger: {
+      label: 'Dicrotic notch (finger)',
+      unit: '',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Dicrotic-notch detection at the O2Ring FINGER site — unknown on-device transfer function; enters below the wrist grade until the tri-device corpus validates it (PPGDEX-O2RING-FINGER-SITE §5)'
+    },
+    aiFinger: {
+      label: 'Aug. index (finger)',
+      unit: '%',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Augmentation index at the O2Ring FINGER site — reflection timing is site-sensitive AND filtered on-device; not the wrist-validated quantity (PPGDEX-O2RING-FINGER-SITE §5)'
+    },
+    reflectionIdxFinger: {
+      label: 'Reflection index (finger)',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'PPG reflection index at the O2Ring FINGER site — diastolic÷systolic amplitude ratio, distorted by the ring’s on-device AC-coupling/gain normalisation (PPGDEX-O2RING-FINGER-SITE §5)'
+    },
+    sdppgBAFinger: {
+      label: 'SDPPG b/a (finger)',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: '2nd-derivative PPG b/a (Takazawa 1998) at the O2Ring FINGER site — a 2nd derivative amplifies any unknown filter in the chain, so the wrist’s emerging grade is not inherited (PPGDEX-O2RING-FINGER-SITE §5)'
+    },
+    agingIdxFinger: {
+      label: 'Aging index (finger)',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'SDPPG aging index (b−c−d−e)/a (Takazawa 1998) at the O2Ring FINGER site — same 2nd-derivative caveat as sdppgBAFinger (PPGDEX-O2RING-FINGER-SITE §5)'
+    },
+    notchTimeFinger: {
+      label: 'Notch time (finger)',
+      unit: 'ms',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Foot→dicrotic-notch timing at the O2Ring FINGER site — the wrist entry is `measured`, which a site change does NOT confer: notch LOCATION is what an unknown on-device filter moves (PPGDEX-O2RING-FINGER-SITE §5)'
+    },
+    pulseWidthFinger: {
+      label: 'Pulse width (finger)',
+      unit: 'ms',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Pulse width at half systolic amplitude, O2Ring FINGER site — amplitude-referenced, so on-device gain normalisation moves the half-amplitude crossing (PPGDEX-O2RING-FINGER-SITE §5)'
+    },
     sd1sd2: { label: 'SD1/SD2', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'Poincaré SD1/SD2 ratio — nonlinear short/long-term HRV balance' },
     ellArea: { label: 'Ellipse area', unit: 'ms²', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'Poincaré ellipse area — overall HRV dispersion (geometric)' },
     cvhrIndex: { label: 'CVHR index', unit: '/h', goodDirection: 'down', depth: 'advanced', evidence: 'emerging', cite: 'Cyclical-variation-of-HR index — PPI apnea surrogate' },
@@ -320,12 +390,35 @@
     return global.MetricRegistry ? global.MetricRegistry.entry(PPG_REGISTRY, id).depth : null;
   }
 
+  // ── SITE SCOPING (PPGDEX-O2RING-FINGER-SITE §5) ───────────────────────────────────────────────
+  //  Map a base metric id onto its site-scoped entry. `site` comes from the PARSER (a layout fact —
+  //  3 optical columns = wrist, 1 = finger), never from a guess.
+  //  Deliberately CONSERVATIVE: only ids with a real `<id>Finger` entry are re-scoped. Everything
+  //  else — HR, PPI, rate-domain HRV, the quality statistics — falls through to the base id on
+  //  purpose, because those come off the same audited pipeline and a site change does not weaken
+  //  them. The failure this prevents runs one way only: a finger number wearing a wrist grade.
+  var SITE_SUFFIX = { finger: 'Finger' };
+  function idForSite(id, site) {
+    if (!id || !site) return id;
+    var suffix = SITE_SUFFIX[site];
+    if (!suffix) return id;
+    var scoped = id + suffix;
+    return Object.prototype.hasOwnProperty.call(PPG_REGISTRY, scoped) ? scoped : id;
+  }
+  function badgeForSite(id, site) {
+    if (!global.MetricRegistry) return '';
+    var d = global.MetricRegistry.entry(PPG_REGISTRY, idForSite(id, site));
+    return global.MetricRegistry.badge(d.evidence, d.cite);
+  }
+
   global.PPG_REGISTRY = PPG_REGISTRY;
   global.PpgRegistry = {
     REGISTRY: PPG_REGISTRY,
     ALIAS: PPG_LABEL_ALIAS,
     idForLabel: idForLabel,
     badgeForLabel: badgeForLabel,
-    depthForLabel: depthForLabel
+    depthForLabel: depthForLabel,
+    idForSite: idForSite,
+    badgeForSite: badgeForSite
   };
 })(window);
