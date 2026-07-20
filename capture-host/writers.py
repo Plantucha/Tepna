@@ -106,6 +106,11 @@ class StreamWriter:
         "ecg":  "Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]",
         "acc":  "Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]",
         "ppg":  "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient",
+        # SINGLE-optical-column PPG — the O2Ring finger site (PPGDEX-O2RING-FINGER-SITE §3). Its own
+        # stream key rather than a variant of "ppg", so the header and the row shape cannot drift
+        # apart: PpgDex resolves the layout by COUNTING the named optical columns, and a 3-column
+        # header over 1-column rows would resolve to the wrist path and read the ns column as light.
+        "ppg1": "Phone timestamp;sensor timestamp [ns];channel 0",
         "hr":   "Phone timestamp;sensor timestamp [ns];HR [bpm];RR-interval [ms]",
         "gyro": "Phone timestamp;sensor timestamp [ns];X [dps];Y [dps];Z [dps]",
         "mag":  "Phone timestamp;sensor timestamp [ns];X [G];Y [G];Z [G]",
@@ -151,8 +156,21 @@ class StreamWriter:
         self._bump()
 
     def write_ppg(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, ch: Iterable[int], ambient: int) -> None:
-        c0, c1, c2 = list(ch)[:3]
-        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{c0};{c1};{c2};{ambient}\n")
+        # ONE optical column stays ONE column (PPGDEX-O2RING-FINGER-SITE §3/§7). The O2Ring streams a
+        # single reflectance path; this used to be fanned across ppg0/1/2 so it could ride the 3-LED
+        # Polar layout, which made PpgDex's consensus vote report a structurally-guaranteed
+        # ledAgreementPct 100 at `measured` tier — a fabricated quality claim (ENGINE-VERIFICATION §1.3).
+        # PpgDex now parses a genuine 1-column file and tags it site:'finger', so the honest shape is
+        # writable. No ambient column either: the ring AC-couples on-device, so a committed 0 would be
+        # a fabricated reading rather than a measurement.
+        # (The runtime degenerate-channel guard in ppgdex-dsp.js stays as defence-in-depth for any
+        # already-captured replicated file, and for a future device that replicates.)
+        cols = list(ch)
+        if len(cols) == 1:
+            self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{cols[0]}\n")
+        else:
+            c0, c1, c2 = cols[:3]
+            self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{c0};{c1};{c2};{ambient}\n")
         self._bump()
 
     # GYRO/MAG arrive SCALED to physical units (dps / gauss) — polar_pmd.axis_scale turns the device's
