@@ -790,8 +790,22 @@ function adaptOxyDex(json, filename) {
       // 3) synthesize autonomic arousals from HR spikes
       var hs = n.hr_spikes || null;
       var sevs = hs && Array.isArray(hs.events) ? hs.events : Array.isArray(n.spikes) ? n.spikes : [];
+      // CLOCK CONTRACT §3 — resolve this stream's date order ONCE (DEEP-AUDIT-II §1.10). Most
+      // node-export event times are bare `HH:MM:SS` (the §6 export contract), which carries no
+      // ambiguity and leaves resolveDMY unlocked — harmless. But a legacy/foreign export CAN carry a
+      // full vendor stamp, and there the per-row preference lets the order flip between events in one
+      // stream. Resolving up front makes the whole stream agree by construction.
+      var _spOrder =
+        typeof DexClock !== 'undefined' && DexClock.resolveDMY
+          ? DexClock.resolveDMY(
+              sevs.map(function (x) {
+                return x && x.time;
+              }),
+              true
+            )
+          : { dmy: true, locked: false };
       sevs.forEach(function (sp) {
-        var p = parseTimestamp(sp.time, { dateAnchorMs: t0Ms, prevTMs: t0Ms, preferDMY: true });
+        var p = parseTimestamp(sp.time, { dateAnchorMs: t0Ms, prevTMs: t0Ms, preferDMY: _spOrder.dmy, dmyLocked: _spOrder.locked });
         var tMs = p ? p.tMs : sp.idx != null && t0Ms != null ? t0Ms + sp.idx * dt : null;
         if (tMs == null) return;
         var rise = sp.peak != null && sp.baseline != null ? sp.peak - sp.baseline : null;

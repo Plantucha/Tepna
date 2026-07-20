@@ -80,9 +80,21 @@ function pxHistory() {
     iSt = idx('Stress(HRV)'),
     iEn = idx('Energy(HRV)'),
     iDt = idx('Date') >= 0 ? idx('Date') : idx('Time');
+  // CLOCK CONTRACT §3 — resolve the file's date order ONCE, before parsing any row (DEEP-AUDIT-II
+  // §1.10). `{ preferDMY: true }` is a PREFERENCE, not the lock: it only breaks GENUINELY ambiguous
+  // rows, so an unambiguous row (day > 12) still decides for itself and the order can FLIP MID-FILE.
+  // Welltory ships both D/M/Y and M/D/Y. Same defect + same fix as oxydex-dsp.js:552-556.
+  const _order =
+    typeof DexClock !== 'undefined' && DexClock.resolveDMY
+      ? DexClock.resolveDMY(
+          welltoryData.rows.map((r) => r[iDt] || ''),
+          true
+        )
+      : { dmy: true, locked: false };
+  const _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked };
   const rows = welltoryData.rows
     .map((r) => {
-      const p = parseTimestamp(r[iDt] || '', { preferDMY: true }); // CLOCK-UNIFY floating wall-clock
+      const p = parseTimestamp(r[iDt] || '', _tsOpts); // CLOCK-UNIFY floating wall-clock
       return {
         tMs: p ? p.tMs : NaN,
         date: p ? new Date(p.tMs) : null,

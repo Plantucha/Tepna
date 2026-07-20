@@ -101,6 +101,24 @@
     const lines = text.trim().split('\n');
     const headers = lines[0].split(',').map((h) => h.trim().replace(/\r/g, ''));
     const rows = [];
+    // CLOCK CONTRACT §3 — resolve the file's date order ONCE, up front (DEEP-AUDIT-II §1.10).
+    // `{ preferDMY: true }` alone is a PREFERENCE, not the lock: it only breaks genuinely ambiguous
+    // rows, so an unambiguous row (day > 12) still decides for itself and the order can FLIP
+    // MID-FILE. Welltory ships both D/M/Y and M/D/Y, so a export spanning e.g. 06/12 → 06/13 reads
+    // the ambiguous rows as December and the unambiguous ones as June — the clock runs BACKWARD.
+    // Same defect and same fix as oxydex-dsp.js:552-556; `dmyLocked` is what actually pins it.
+    const _dIdx = headers.indexOf('Date'),
+      _tIdx = headers.indexOf('Time');
+    const _stamps = [];
+    for (let _si = 1; _si < lines.length; _si++) {
+      const _sc = lines[_si].split(',');
+      if (_sc.length < 5) continue;
+      const _sd = _dIdx >= 0 && _sc[_dIdx] ? _sc[_dIdx].trim().replace(/\r/g, '') : '';
+      const _st = _tIdx >= 0 && _sc[_tIdx] ? _sc[_tIdx].trim().replace(/\r/g, '') : '';
+      _stamps.push(_st && !/\d{1,2}:\d{2}/.test(_sd) ? (_sd + ' ' + _st).trim() : _sd || _st);
+    }
+    const _order = typeof DexClock !== 'undefined' && DexClock.resolveDMY ? DexClock.resolveDMY(_stamps, true) : { dmy: true, locked: false };
+    const _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked };
     for (let i = 1; i < lines.length; i++) {
       const cells = lines[i].split(',');
       if (cells.length < 5) continue;
@@ -113,7 +131,7 @@
       var _rawD = (r['Date'] || '').trim();
       var _rawT = (r['Time'] || '').trim();
       var _combined = _rawT && !/\d{1,2}:\d{2}/.test(_rawD) ? (_rawD + ' ' + _rawT).trim() : _rawD || _rawT;
-      var _ts = parseTimestamp(_combined, { preferDMY: true });
+      var _ts = parseTimestamp(_combined, _tsOpts);
       r._tMs = _ts ? _ts.tMs : NaN;
       r._offsetMin = _ts ? _ts.offsetMin : null;
       r._date = isFinite(r._tMs) ? new Date(r._tMs) : null;
