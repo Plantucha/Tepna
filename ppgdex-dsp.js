@@ -2209,6 +2209,14 @@
       ledAgree3of3Pct,
       ledSeries,
       ledSingleChannel: cons.singleChannel,
+      // WHICH confidence axis produced `sqi`. Surfaced because the two are not interchangeable and a
+      // silent swap is invisible in the number itself: 'led' is a real 2-of-3 optical vote, 'cadence'
+      // is the weaker single-channel regularity stand-in (§4). A consumer comparing SQI across sites
+      // must know which one it is holding — and a gate can pin it, which a bare SQI cannot.
+      // (Added after mutation-testing this brief's own gate: faking a vote on the single-channel path
+      // left every other assertion green, because ledAgreementPct is gated on `singleChannel` and
+      // never consults the vector, while beatSQI silently swapped axes.)
+      beatConfidenceAxis: cons.singleChannel ? 'cadence' : 'led',
       nDroppedBeats: cons.nDropped,
       // ── FINGER SITE (PPGDEX-O2RING-FINGER-SITE) ──
       // `site` is a layout fact from the parser ('wrist' 3-LED Verity | 'finger' 1-channel O2Ring),
@@ -2483,6 +2491,8 @@
     detectChannel,
     consensusBeats,
     distinctChannelIdx,
+    beatRegularity,
+    markO2Sentinels,
     refineFeet,
     detectChannelsAsync,
     buildPPI,

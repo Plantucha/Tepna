@@ -3727,6 +3727,34 @@
     // than let its timing rest on a held value.
     T.ok('every beat whose span touches a gap is dropped', r.nGapBeats === 4, 'nGapBeats=' + r.nGapBeats);
 
+    // ── the confidence axis is NOT interchangeable, and a swap must be visible ─────────────────
+    // Found by mutation-testing this very group: faking `agree: 1` on the single-channel path left
+    // every assertion above green, because ledAgreementPct is gated on `singleChannel` and never
+    // consults the vector — while beatSQI silently swapped the cadence axis for a fabricated vote.
+    // The axis is surfaced and pinned so that swap cannot happen unseen again.
+    T.eq('the single-channel SQI is built on the CADENCE axis, not a vote', r.beatConfidenceAxis, 'cadence');
+    if (env.equiv && env.equiv.ppgdex_synth && env.equiv.ppgdex_synth.input) {
+      // BOTH directions: a real 3-LED session must still report the LED axis.
+      T.eq('a genuine 3-LED session reports the LED axis', D.analyze(D.parsePPG(env.equiv.ppgdex_synth.input)).beatConfidenceAxis, 'led');
+    }
+    if (typeof D.beatRegularity === 'function') {
+      var FS = 125;
+      var even = [];
+      for (var b = 0; b < 12; b++) even.push(b * 125); // a metronomic 60 bpm
+      var evenR = D.beatRegularity(even, FS);
+      T.ok('a metronomic train scores at the cadence ceiling', evenR.every(function (x) { return x === 1; }), 'got ' + JSON.stringify(evenR.slice(0, 4)));
+      // A spurious extra beat (the dicrotic double-count) splits ONE interval into two short ones,
+      // so BOTH its flanks deviate — it must be penalised while its NEIGHBOURS are not.
+      var dbl = even.slice(0, 6).concat([687]).concat(even.slice(6));
+      dbl.sort(function (x, y) { return x - y; });
+      var dblR = D.beatRegularity(dbl, FS);
+      var spur = dbl.indexOf(687);
+      T.ok('a spurious double-counted beat is penalised', dblR[spur] < 0.75, 'spurious scored ' + dblR[spur]);
+      T.ok('its genuine neighbours are NOT punished for it', dblR[spur - 1] > 0.95 && dblR[spur + 1] > 0.95,
+        'neighbours ' + dblR[spur - 1] + '/' + dblR[spur + 1]);
+      T.ok('too few beats ⇒ null (cadence unknown), never a free 1.0', D.beatRegularity([0, 125], FS).every(function (x) { return x === null; }), 'got ' + JSON.stringify(D.beatRegularity([0, 125], FS)));
+    }
+
     // ── the round-trip that matters: HR (§6) ───────────────────────────────────────────────────
     // The twin is planted at 48 bpm — the corpus' sleeping rate, where a dicrotic double-count lands
     // ~625 ms out and clears the fixed 0.30 s refractory. A 2x read here is the exact failure that
