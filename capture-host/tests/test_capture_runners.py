@@ -314,6 +314,46 @@ def test_run_viatom_captures_a_packet(tmp_path, monkeypatch):
     assert st["spo2"] == 97 and st["pr"] == 58   # the spo2-present path (worn is set only when off)
 
 
+def test_run_viatom_backoff_grows_when_the_link_carries_no_data(tmp_path, monkeypatch):
+    """A connect that SUCCEEDS but yields no rows must not re-arm the retry floor.
+
+    The ring's dominant overnight failure is `failed to discover services, device disconnected`,
+    which lands just AFTER connect() returns. The runner used to reset `backoff = 5` on connect, so
+    every doomed attempt re-armed the floor and the exponential backoff could never grow — on
+    2026-07-19 that produced 178 reconnects at a median 17 s gap, 115 file fragments and 12 % of the
+    night lost. Two consecutive data-less sessions must therefore take INCREASING sleeps.
+    """
+    from bleak.exc import BleakError
+
+    async def bonded(*a, **k): return True
+    monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
+
+    class _RaisingServices:
+        """Iterating the service list is where the real failure surfaces, just after connect()."""
+        def __iter__(self):
+            raise BleakError("failed to discover services, device disconnected")
+
+    c = FakeGattClient()
+    c.services = _RaisingServices()
+    _inject_connect(monkeypatch, c)
+
+    slept = []
+    async def fake_sleep(secs):
+        if secs and secs >= 5:                           # the reconnect backoff, not poll sleeps
+            slept.append(secs)
+            if len(slept) >= 2:
+                capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+
+    _run(capture.run_viatom(_o2dev(name="Ring", protocol="legacy"), str(tmp_path)))
+
+    assert len(slept) >= 2, f"expected two reconnect sleeps, got {slept}"
+    assert slept[1] > slept[0], (
+        f"backoff did not grow across two data-less sessions: {slept} — a connect() that carries no "
+        "data must not reset the retry floor"
+    )
+
+
 # ── run_polar (PMD negotiation via the control point) ───────────────────────────────────────────────
 import polar_pmd as pmd
 

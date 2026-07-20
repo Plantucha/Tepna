@@ -1016,7 +1016,15 @@ async def run_viatom(dev: dict, root: str):
         try:
             _set(name, connected=False, address=addr, last_error=None)
             async with _connect(addr) as client:
-                _set(name, connected=True); log.info("%s connected", name); backoff = 5
+                # backoff is deliberately NOT reset here. `connect()` returning is not evidence of a
+                # USABLE link — the ring's dominant overnight failure is `failed to discover services,
+                # device disconnected`, which lands a moment AFTER this line. Resetting on connect meant
+                # every doomed attempt re-armed the floor, so the exponential backoff could never grow:
+                # on 2026-07-19 that produced 178 reconnects at a MEDIAN gap of 17 s (163 of 177 gaps
+                # under 2 min, never reaching the 60 s cap), fragmenting the night into 115 files and
+                # losing 12 % of it. Same lesson as the PMD stall watchdog: trust BYTES, not a handshake.
+                # The reset moved to first-rows-arrived, below.
+                _set(name, connected=True); log.info("%s connected", name)
                 # Discover the notify + write chars under the Viatom service by PROPERTY (UUIDs vary by
                 # model/firmware), falling back to the documented UUIDs.
                 notify_char, write_char = None, None
@@ -1066,6 +1074,9 @@ async def run_viatom(dev: dict, root: str):
                 while client.is_connected and not _STOP.is_set() and not _RECOVER.is_set():
                     await asyncio.sleep(1)
                     if wr.rows != last_rows:
+                        # THE link has now carried data — this, not connect(), is what proves the attempt
+                        # was worth making, so it is the only place the retry floor may be re-armed.
+                        backoff = 5
                         last_rows, last_change = wr.rows, _time.monotonic()
                     elif stream_is_stalled(last_change, _time.monotonic(), _STREAM_STALL_S):
                         stalled = True
