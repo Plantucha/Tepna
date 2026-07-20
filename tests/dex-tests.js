@@ -3879,7 +3879,37 @@
      a false "signal may be flat" throw on an otherwise-good night. The robust global-
      percentile seed (_seedScale) makes a ≤2 s transient a negligible fraction of the
      record, so detection survives. ════ */
-    group('ECGDex R-peak seed — survives a startup settling transient (ECG-RPEAK-SEED-FIX)', 'ecgdex-dsp', function (T) {
+    // The streaming parse worker appends into ONE accumulator across all parts. Its catch-fallback
+  // re-reads every part from byte zero, so it MUST reset that accumulator first — otherwise a
+  // mid-stream failure leaves the already-parsed prefix in place and the fallback appends a second
+  // copy of it. Verified behaviourally against origin/main (a failure on part 2 of 3 produced 1637
+  // samples where the recording had 1200); the harness has no async group, so the invariant is
+  // pinned structurally here, naming every accumulator the fallback has to clear.
+  group('ECGDex stream-fallback resets before re-reading (DEEP-AUDIT-II §4.4)', 'ecgdex-app', function (T) {
+    var src = env.sources && env.sources['ecgdex-app.js'];
+    if (!src) {
+      T.skip('ecgdex-app.js source available', 'env.sources not wired in this lane');
+      return;
+    }
+    var ci = src.indexOf('} catch(err){');
+    T.ok('the worker catch-fallback exists', ci > 0, 'catch block not found — did the worker change shape?');
+    if (ci <= 0) return;
+    var fallback = src.slice(ci, src.indexOf('}', src.indexOf('for(const line of txt.split', ci)));
+    var reread = fallback.indexOf('for(const file of files)');
+    T.ok('the fallback re-reads every part', reread > 0, 'no re-read loop in the fallback');
+    // every accumulator handle() mutates must be cleared, and cleared BEFORE the re-read
+    ['n = 0', 't0Ms = null', 'prevMs = null', 'msStep = null', 'gaps.length = 0'].forEach(function (reset) {
+      var at = fallback.indexOf(reset);
+      T.ok('fallback resets `' + reset + '`', at > 0, 'not reset — the re-read will append to stale state');
+      if (at > 0) T.ok('`' + reset + '` happens BEFORE the re-read', at < reread, 'reset is after the re-read loop, so it clears the wrong thing');
+    });
+    // BOTH directions: the STREAMING path must NOT reset, or every part after the first is dropped.
+    var tryBlock = src.slice(src.indexOf('try {', src.indexOf('const WORKER_SRC')), ci);
+    T.ok('the streaming path does NOT reset the accumulator', tryBlock.indexOf('n = 0') === -1,
+      'the try-block clears n — parts after the first would be discarded');
+  });
+
+  group('ECGDex R-peak seed — survives a startup settling transient (ECG-RPEAK-SEED-FIX)', 'ecgdex-dsp', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.analyze === 'function' && typeof D.genSynthetic === 'function')) {
         T.ok('ECGDSP.analyze + genSynthetic available', false, 'not loaded');
