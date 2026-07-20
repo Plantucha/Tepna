@@ -490,6 +490,19 @@
    * (a) WINDOWED — it tracks HR drift across a night, arousals included — and (b) used ONLY to size the
    * refractory. TERMA still finds every peak; the cadence only says how close two peaks may legitimately be.
    */
+  // How strong a sub-multiple lag must be, relative to the winning lag, before the cadence is divided
+  // down to it (§3.2). MEASURED on synthetic ground truth, both directions — the two populations are
+  // cleanly separated, and by SIGN as much as by size:
+  //
+  //   pulsus alternans   corr[T]/corr[2T]   15% → 0.95 · 25% → 0.88 · 35% → 0.78 · 50% → 0.60 · 60% → 0.47
+  //   dicrotic notch     corr[T/2]/corr[T]  0.3 → −0.83 · 0.45 → −0.66 · 0.6 → −0.47 · 0.9 → −0.10 · 1.2 → +0.18
+  //
+  // A notch harmonic is ANTI-correlated at T/2 (the notch sits in antiphase with systole), so it does
+  // not merely score lower — it usually scores NEGATIVE. 0.40 catches alternans out to ~62 % while
+  // keeping better than 2× margin above the worst (most extreme-notch) false-positive case.
+  // Raise it and the halving comes back; lower it toward 0.18 and a monstrous notch could DOUBLE the
+  // HR, which is the worse error — that is the failure PPGDEX-OPTICAL-DETECTOR §1 was written about.
+  const SUBH_FRAC = 0.4;
   function cadenceSamples(bp, fs) {
     const n = bp.length;
     const WIN = Math.round(fs * 30),
@@ -514,14 +527,65 @@
       let mu = 0;
       for (let i = s; i < s + wd; i++) mu += x[i];
       mu /= wd;
-      let best = 0,
+      // MEAN product per lag, not the raw sum (DEEP-AUDIT-II §3.2). A longer lag sums FEWER terms, so
+      // raw sums are not comparable across lags — and the sub-harmonic test below is a comparison
+      // between lags, so it would be meaningless on unnormalised sums.
+      let best = -Infinity,
         bl = 0;
+      const corr = new Float64Array(lagMax + 1);
       for (let L = lagMin; L <= lagMax; L++) {
-        let c = 0;
-        for (let i = s; i + L < s + wd; i++) c += (x[i] - mu) * (x[i + L] - mu);
-        if (c > best) {
-          best = c;
+        let c = 0,
+          cnt = 0;
+        for (let i = s; i + L < s + wd; i++) {
+          c += (x[i] - mu) * (x[i + L] - mu);
+          cnt++;
+        }
+        const r = cnt ? c / cnt : 0;
+        corr[L] = r;
+        if (r > best) {
+          best = r;
           bl = L;
+        }
+      }
+      // ── SUB-HARMONIC REJECTION (DEEP-AUDIT-II §3.2) ──────────────────────────────────────────
+      // An ACF peaks at the true period T *and* at every multiple 2T, 3T… When consecutive beats
+      // differ in amplitude — pulsus alternans, or plain perfusion/motion variation making every
+      // other beat weaker — the 2T peak can EXCEED the T peak, because at 2T like-sized beats line
+      // up. The window then reports 2T, the refractory is sized from a doubled period, and the HR
+      // reads exactly HALF. Measured before this fix: 75 bpm → 37.5, 100 bpm → 50.0.
+      //
+      // Why it was invisible: the search ceiling is lagMax = 2.0 s, so 2T only FITS inside the
+      // window when T ≤ 1.0 s — i.e. HR ≥ 60. The whole trio corpus sleeps at ~48 bpm (2T = 2.5 s,
+      // out of range), so every validated night sat below the threshold where this can happen.
+      //
+      // The test is deliberately asymmetric. Dividing is only allowed when the shorter lag is
+      // NEARLY AS STRONG (≥ SUBH_FRAC), because the opposite error is the one this whole ACF exists
+      // to prevent: a dicrotic notch is a harmonic at T/2, and dividing onto it would DOUBLE the HR
+      // — the failure that doubled whole nights (PPGDEX-OPTICAL-DETECTOR §1). A notch harmonic
+      // scores far below its fundamental, so a strict fraction separates the two cleanly; the gate
+      // pins both directions.
+      if (bl && best > 0) {
+        for (let k = 3; k >= 2; k--) {
+          const cand = Math.round(bl / k);
+          if (cand < lagMin) continue;
+          // Search a ±1-lag neighbourhood, not the exact quotient. The ACF runs on a ~25 Hz decimated
+          // signal, so one lag step is 40 ms and bl/k lands OFF the true period whenever T is not a
+          // whole number of steps — at 120 bpm (T = 12.5 steps) the quotient misses by 4 %, the
+          // correlation there is degraded, the test fails, and the cadence stays doubled. Measured:
+          // without this, 120 bpm still read 60.
+          let bc = cand,
+            bv = corr[cand];
+          for (let d = -1; d <= 1; d++) {
+            const c2 = cand + d;
+            if (c2 >= lagMin && c2 <= lagMax && corr[c2] > bv) {
+              bv = corr[c2];
+              bc = c2;
+            }
+          }
+          if (bv >= SUBH_FRAC * best) {
+            bl = bc;
+            break; // smallest passing divisor wins: 3T→T directly, never 3T→1.5T (not a period)
+          }
         }
       }
       if (bl) {
@@ -2398,7 +2462,7 @@
     // every FUNCTION it calls is shipped. (That is the second half of the same drift, and the static
     // call-graph check alone did not see it — only running the worker realm did.) Still single-sourced:
     // the VALUE is read from the live module here, never retyped.
-    var consts = { REFR_CADENCE_FRAC: REFR_CADENCE_FRAC };
+    var consts = { REFR_CADENCE_FRAC: REFR_CADENCE_FRAC, SUBH_FRAC: SUBH_FRAC };
     var constSrc = Object.keys(consts)
       .map(function (k) {
         return 'const ' + k + '=' + JSON.stringify(consts[k]) + ';';
@@ -2494,6 +2558,7 @@
     detectChannel,
     consensusBeats,
     distinctChannelIdx,
+    cadenceSamples,
     beatRegularity,
     markO2Sentinels,
     refineFeet,

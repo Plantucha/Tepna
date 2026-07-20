@@ -3677,6 +3677,71 @@
   // gitignored night. Every assertion below pins BOTH directions where a direction exists — the
   // failure this brief exists to prevent is a finger number wearing a wrist claim, and a one-sided
   // test is satisfied by hard-coding the safe answer.
+  // An ACF peaks at the true period T *and* at 2T, 3T… When consecutive beats differ in amplitude
+  // (pulsus alternans, or perfusion/motion making every other beat weaker) the 2T peak can EXCEED
+  // the T peak — the window reports 2T, the refractory is sized from a doubled period, alternate
+  // beats are suppressed at detection, and the HR reads exactly HALF (DEEP-AUDIT-II §3.2).
+  // Measured before the fix: 75 bpm → 37.5, 100 bpm → 50.0.
+  group('PpgDex cadence rejects the sub-harmonic (DEEP-AUDIT-II §3.2)', 'ppgdex-dsp', function (T) {
+    var D = env.PPGDSP;
+    if (!(D && typeof D.cadenceSamples === 'function')) {
+      T.ok('PPGDSP.cadenceSamples exposed', false, 'export it from ppgdex-dsp.js');
+      return;
+    }
+    var FS = 125;
+    // alternans: every other beat scaled by 1±alt. notch: dicrotic strength (its harmonic sits at T/2).
+    var sig = function (hr, alt, notch, secs) {
+      var N = FS * (secs || 60),
+        a = new Float32Array(N);
+      for (var i = 0; i < N; i++) {
+        var t = i / FS,
+          ph = 2 * Math.PI * (hr / 60) * t,
+          b = Math.floor((hr / 60) * t);
+        var amp = 1 + alt * (b % 2 ? -1 : 1);
+        a[i] = amp * (Math.sin(ph) + notch * Math.sin(2 * ph - 0.9));
+      }
+      return a;
+    };
+    var ratio = function (hr, alt, notch) {
+      var c = D.cadenceSamples(sig(hr, alt, notch), FS);
+      if (!c) return null;
+      return c[Math.floor(c.length / 2)] / ((FS * 60) / hr);
+    };
+
+    // ── the defect: alternans must NOT halve the cadence, across the range where 2T fits the search
+    //    window (lagMax = 2.0 s ⇒ HR >= 60). Verified 60–100 bpm; see the >=120 note below.
+    [60, 75, 90, 100].forEach(function (hr) {
+      var r = ratio(hr, 0.5, 0.45);
+      T.ok(hr + ' bpm + 50% alternans ⇒ cadence is the FUNDAMENTAL, not 2T', r != null && Math.abs(r - 1) < 0.05,
+        'ratio=' + (r == null ? 'null' : r.toFixed(2)) + ' — 2.00 means the HR reads half');
+    });
+    // an extreme alternans still must not halve
+    var ex = ratio(75, 0.6, 0.45);
+    T.ok('60% alternans still resolves the fundamental', ex != null && Math.abs(ex - 1) < 0.05, 'ratio=' + (ex == null ? 'null' : ex.toFixed(2)));
+
+    // ── THE OPPOSITE ERROR, which is worse: a dicrotic notch is a harmonic at T/2, and dividing onto
+    //    it would DOUBLE the HR — the failure that doubled whole nights (PPGDEX-OPTICAL-DETECTOR §1).
+    //    Without this leg, loosening SUBH_FRAC toward 0 would still pass everything above.
+    [[48, 0.9], [60, 0.9], [75, 0.9], [100, 0.9], [120, 1.2]].forEach(function (c) {
+      var r = ratio(c[0], 0, c[1]);
+      T.ok(c[0] + ' bpm + notch ' + c[1] + ' ⇒ cadence NOT divided onto the harmonic', r != null && Math.abs(r - 1) < 0.08,
+        'ratio=' + (r == null ? 'null' : r.toFixed(2)) + ' — 0.50 means the HR reads double');
+    });
+    // and a clean signal is untouched at the corpus rate
+    var clean = ratio(48, 0, 0.45);
+    T.ok('a clean 48 bpm signal (the corpus rate) is unchanged', clean != null && Math.abs(clean - 1) < 0.05, 'ratio=' + (clean == null ? 'null' : clean.toFixed(2)));
+
+    // ── KNOWN RESIDUAL, pinned so it cannot be mistaken for coverage: at >= 120 bpm the ACF runs on a
+    //    ~25 Hz decimated signal, so one lag step is 40 ms and a beat is only ~12 steps — the quotient
+    //    bl/2 lands off the true period even with the ±1 neighbourhood search, and alternans there
+    //    still doubles. Out of scope here (raising the decimation rate changes ACF cost on overnight
+    //    records); tracked as a follow-up. This asserts the LIMIT, so if someone later fixes it this
+    //    line reds and points them at the note rather than silently passing.
+    var hi = ratio(120, 0.5, 0.45);
+    T.ok('KNOWN LIMIT: >=120 bpm + alternans is NOT yet resolved (decimation resolution)', hi != null && Math.abs(hi - 2) < 0.1,
+      'ratio=' + (hi == null ? 'null' : hi.toFixed(2)) + ' — if this is ~1 the residual is fixed: delete this assert and extend the range above');
+  });
+
   group('PpgDex finger site — single-channel parse, honest agreement, sentinel gaps (O2RING-FINGER-SITE)', 'ppgdex-dsp · ppgdex-registry', function (T) {
     var D = env.PPGDSP;
     var eq = env.equiv && env.equiv.ppgdex_finger;
