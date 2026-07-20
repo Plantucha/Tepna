@@ -3782,6 +3782,9 @@
       T.eq('wrist site resolves to the base ids', R.idForSite('ai', 'wrist'), 'ai');
     } else {
       T.skip('PpgRegistry.idForSite available', 'registry not loaded in this lane');
+    }
+  });
+
   // A storage failure must SURVIVE to the user. persistHRVRows used to paint its own warning and the
   // caller overwrote it two statements later with "✅ Added N measurements" — so a full or disabled
   // browser store reported success. The outcome is now returned and APPENDED, and this pins both
