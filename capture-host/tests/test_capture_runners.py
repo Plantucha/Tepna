@@ -2850,3 +2850,133 @@ def test_run_muse_reports_a_child_that_exits_with_an_error(tmp_path, monkeypatch
                           str(tmp_path)))
     st = capture.STATUS["devices"]["Muse"]
     assert st["connected"] is False and "exited with code 2" in st["last_error"]
+
+
+# ── E4 · motion wear-gate for a contactless IMU (the Verity: worn=null) ─────────────────────────────
+def _verity_dev(**kw):
+    d = {"name": "Verity", "vendor": "Polar", "model": "VeritySense", "device_id": "0C301E3F",
+         "address": "24:AC:AC:0C:30:1E", "streams": ["acc"]}   # acc + no hr => contactless => gate-eligible
+    d.update(kw)
+    return d
+
+
+def _acc_frame_z(z, ns):
+    return _pmd_frame(pmd.ACC, int(ns), 0x01, struct.pack("<hhh", 0, 0, int(z)))
+
+
+def test_acc_mag_std_mg_is_pure():
+    assert capture.acc_mag_std_mg([]) == 0.0
+    assert capture.acc_mag_std_mg([1000.0]) == 0.0            # < 2 samples — cannot judge
+    assert capture.acc_mag_std_mg([1000.0, 1000.0, 1000.0]) == 0.0   # dead still (a desk)
+    assert capture.acc_mag_std_mg([900.0, 1000.0, 1100.0]) > 50      # motion — real spread
+
+
+def test_motion_write_paused_is_pure():
+    assert capture.motion_write_paused(None, 100, 300) is False   # moving (still_since None)
+    assert capture.motion_write_paused(0.0, 100, 0) is False      # feature off (grace 0)
+    assert capture.motion_write_paused(0.0, 100, 300) is False    # grace not yet elapsed
+    assert capture.motion_write_paused(0.0, 300, 300) is True     # elapsed → pause
+
+
+def _drive_verity(monkeypatch, z_of_tick, n_ticks, tmp_path, stall_s=90.0):
+    """Run run_polar for a Verity-like device, feeding one ACC frame per hold-loop tick with a fake
+    monotonic clock advancing 1 s/tick. z_of_tick(i) sets that frame's Z (motion). Returns final STATUS."""
+    _polar_common(monkeypatch)
+    monkeypatch.setattr(capture, "_MOTION_WEAR_GATE", True)
+    monkeypatch.setattr(capture, "_MOTION_WINDOW_SEC", 4.0)
+    monkeypatch.setattr(capture, "_MOTION_STILL_SEC", 10.0)
+    monkeypatch.setattr(capture, "_MOTION_STILL_MG", 12.0)
+    monkeypatch.setattr(capture, "_STREAM_STALL_S", stall_s)
+    c = FlexPolarClient(data_frames=[], start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    clock = {"t": 0.0}
+    monkeypatch.setattr(capture._time, "monotonic", lambda: clock["t"])
+    ticks = {"n": 0}
+    async def feeding_sleep(_s):
+        clock["t"] += 1.0
+        cb = c.cbs.get(pmd.PMD_DATA.uuid if hasattr(pmd.PMD_DATA, "uuid") else pmd.PMD_DATA)
+        if cb:
+            cb(0, bytearray(_acc_frame_z(z_of_tick(ticks["n"]), 1_000_000_000 + ticks["n"] * 20_000_000)))
+        ticks["n"] += 1
+        if ticks["n"] >= n_ticks:
+            capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", feeding_sleep)
+    _run(capture.run_polar(_verity_dev(), str(tmp_path)))
+    return capture.STATUS["devices"]["Verity"]
+
+
+def test_motion_gate_pauses_writes_when_off_body(tmp_path, monkeypatch):
+    """THE E4 FIX. A contactless IMU sitting motionless (a desk) has its WRITES paused — the link and the
+    live push keep running, so it stays visible and resumes instantly, but it stops filling the disk."""
+    st = _drive_verity(monkeypatch, z_of_tick=lambda i: 1000, n_ticks=20, tmp_path=tmp_path)
+    assert st.get("worn") is False
+    assert "motion-gated" in (st.get("last_error") or "")
+
+
+def test_motion_gate_never_pauses_a_device_that_is_moving(tmp_path, monkeypatch):
+    """CRITICAL COUNTER-CASE. A worn device is never dead-still — respiration and cardioballistic motion
+    keep |acc| moving. A device whose magnitude keeps changing must NEVER be paused, so real sleep data
+    is never dropped."""
+    st = _drive_verity(monkeypatch, z_of_tick=lambda i: 1000 + (200 if i % 2 else -200),
+                       n_ticks=20, tmp_path=tmp_path)
+    assert st.get("worn") is not False, "a moving device was wrongly gated"
+    assert "motion-gated" not in (st.get("last_error") or "")
+
+
+def test_motion_gate_resumes_when_motion_returns(tmp_path, monkeypatch):
+    """Re-wear must resume writing on the same session. Still for the first stretch (pauses), then moving
+    (resumes) — worn returns to true and the paused error clears."""
+    st = _drive_verity(monkeypatch, z_of_tick=lambda i: 1000 if i < 16 else 1000 + (300 if i % 2 else -300),
+                       n_ticks=30, tmp_path=tmp_path)
+    assert st.get("worn") is True
+    assert "motion-gated" not in (st.get("last_error") or "")
+
+
+def test_stall_watchdog_does_not_tear_down_a_motion_paused_stream(tmp_path, monkeypatch):
+    """THE INTERACTION THAT MATTERS. A motion-paused stream has frozen row counters BY DESIGN — the
+    stall watchdog must not mistake that for a dead stream and re-negotiate (which would be exactly the
+    reconnect churn we are trying to avoid). Stall is set very low so it WOULD fire if unguarded."""
+    st = _drive_verity(monkeypatch, z_of_tick=lambda i: 1000, n_ticks=40, tmp_path=tmp_path, stall_s=5.0)
+    err = (st.get("last_error") or "")
+    assert "motion-gated" in err and "re-negotiating" not in err and "no data" not in err
+
+
+def test_motion_gate_off_by_default_leaves_a_still_device_writing(tmp_path, monkeypatch):
+    """OFF by default: with the flag unset, a motionless contactless device keeps writing exactly as
+    before — the gate can never surprise anyone who did not opt in."""
+    _polar_common(monkeypatch)
+    assert capture._MOTION_WEAR_GATE is False        # the shipped default
+    c = FlexPolarClient(data_frames=[_acc_frame_z(1000, 1_000_000_000)], start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_verity_dev(), str(tmp_path)))
+    st = capture.STATUS["devices"]["Verity"]
+    assert "motion-gated" not in (st.get("last_error") or "")
+
+
+def test_main_reads_motion_wear_gate_config(tmp_path, monkeypatch):
+    """The power.motion_* knobs are read from config in main()."""
+    import yaml as _yaml, sys as _sys
+    cfg = {"root": str(tmp_path), "web": {"enabled": False}, "devices": [],
+           "power": {"motion_wear_gate": True, "motion_still_mg": 9, "motion_still_sec": 240,
+                     "motion_window_sec": 15}}
+    cfgp = tmp_path / "c.yaml"; cfgp.write_text(_yaml.safe_dump(cfg))
+    for r in ("status_loop", "adapter_watchdog", "rssi_poller", "clock_watchdog", "host_clock_poller",
+              "storage_poller", "alert_poller", "qc_poller", "archive_poller", "sd_watchdog"):
+        async def _n(*a, **k): return None
+        monkeypatch.setattr(capture, r, _n)
+    monkeypatch.setattr(_sys, "argv", ["capture.py", "--config", str(cfgp)])
+    capture._STOP.clear()
+    async def run():
+        asyncio.get_event_loop().call_soon(capture._STOP.set)
+        await capture.main()
+    try:
+        _run(run())
+        assert capture._MOTION_WEAR_GATE is True
+        assert capture._MOTION_STILL_MG == 9 and capture._MOTION_STILL_SEC == 240
+        assert capture._MOTION_WINDOW_SEC == 15
+    finally:
+        capture._MOTION_WEAR_GATE = False            # restore the shipped default for other tests
+        capture._MOTION_STILL_MG = 12.0
+        capture._MOTION_STILL_SEC = 300.0
+        capture._MOTION_WINDOW_SEC = 20.0
