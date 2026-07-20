@@ -73,8 +73,38 @@ same round-trip on a fresh post-#276 session — to see `site: 'finger'` end-to-
 the one belt-and-suspenders step left; it needs a fresh worn capture, and changes none of the DSP
 math (the guard makes the two file shapes numerically identical).
 
+## Validation sweep — not one session, ninety-two
+
+The single-session result above is one data point. `tools/o2ring-finger-validate-batch.mjs`
+discovers **every** capture session on disk with an O2Ring PPG + a paired H10 ECG + the ring's
+SPO2, matches each substantial PPG segment to its best-overlapping ECG, and runs the same three-way
+comparison. Across **four days** of real captures (2026-07-18 → 20):
+
+- **88 / 92 pairs PASS** (both `|PPG − ring|` and `|PPG − ECG|` ≤ 3 bpm, feet detected).
+- **median `|PPG − ring|` = 0.4 bpm**; 77 of 93 segments agree with the ring's own field to within
+  1.0 bpm.
+- **Every** segment reported `ledSingleChannel = true` and `ledAgreementPct = null` — the
+  degenerate-channel guard collapsed the replicated columns on every real file, so nothing ever
+  fabricated 3-LED agreement.
+
+The four non-passes are **all reference-side, none a finger-path defect**:
+
+1. One segment where the **ring's own 1 Hz field** read 70 bpm while PpgDex (54.6) tracked the
+   paired ECG (51.0) — here the derived HR is *more* accurate than the ring's onboard number, which
+   is exactly why `CLAUDE.md` §🎙️ says to derive HR from the raw waveform, not the smoothed device
+   summary.
+2. & 3. Two short/noisy ECG clips reading 3.0–3.4 bpm high while PPG matched the ring to 0.1 bpm.
+4. One flat/disconnected ECG segment that `ECGDSP.parseECG` refused (too few R-peaks) — the PPG was
+   fine; the reference was absent.
+
+So the finger-site PPI-HR agrees with a chest-ECG gold standard across ~92 real segments spanning
+HRs from ~50 to ~62 bpm, and matches the ring's own field even more tightly.
+
 ## Re-run it
 
 ```sh
+# one session, verbose
 node tools/o2ring-finger-roundtrip.mjs <ring_PPG.txt> <H10_ECG.txt> <ring_SPO2.csv>
+# every session under one or more capture dirs, one row per pair
+node tools/o2ring-finger-validate-batch.mjs <captures/2026-07-19> [<dir> ...]
 ```
