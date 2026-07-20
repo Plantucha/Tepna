@@ -2052,6 +2052,108 @@ def test_archive_poller_mirrors_completed_nights(tmp_path, monkeypatch):
     assert capture.STATUS["archive"]["last"] == "2026-07-18"
 
 
+def test_archive_poller_copy_does_not_block_the_event_loop(tmp_path, monkeypatch):
+    """A slow/hung destination must not freeze the loop every other task shares.
+
+    archive_night() is a synchronous shutil.copy2 walk (~2 GB / ~1500 files per night). Run inline it
+    froze the BLE runners, the stall watchdogs and the sd_notify heartbeat for its whole duration —
+    and the unit is Type=notify WatchdogSec=120 (heartbeat at half), so a copy over ~60 s got the
+    daemon RESTARTED mid-night. A dest that hangs never returned at all, and the poller's `except`
+    cannot catch a blocked syscall. This pins that the copy is off-loop: a concurrent task must still
+    get scheduled while archive_night is inside a blocking sleep.
+    """
+    import datetime as _dtm
+    import time as _t
+    monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 2, 0, 0))
+    cap = tmp_path / "captures"
+    (cap / "2026-07-18").mkdir(parents=True)
+    (cap / "2026-07-18" / "Polar_H10_1_ECG.txt").write_text("rows\n")
+
+    ticks = []
+
+    def slow_archive(captures, night, dest, **kw):
+        _t.sleep(0.25)                       # a BLOCKING dest — the whole point
+        return 1
+
+    monkeypatch.setattr(capture.nightarchive, "archive_night", slow_archive)
+
+    async def scenario():
+        async def ticker():                  # stands in for every other loop task
+            for _ in range(10):
+                await asyncio.sleep(0.02)
+                ticks.append(1)
+        cfg = {"archive": {"enabled": True, "dest": str(tmp_path / "b"), "poll_sec": 0.01}}
+        t = asyncio.ensure_future(ticker())
+        await asyncio.wait_for(capture.archive_poller(cfg, str(tmp_path)), timeout=5)
+        t.cancel()
+
+    import asyncio
+    capture._STOP.clear()
+
+    async def stopper():
+        await asyncio.sleep(0.4)
+        capture._STOP.set()
+
+    async def main():
+        await asyncio.gather(scenario(), stopper())
+
+    asyncio.run(main())
+    capture._STOP.clear()
+
+    # Inline, the 0.25 s copy would have starved the 0.02 s ticker for its whole duration.
+    assert len(ticks) >= 5, (
+        f"only {len(ticks)} tick(s) ran while archive_night blocked for 0.25 s — the copy is still "
+        "on the event loop"
+    )
+
+
+@pytest.mark.parametrize("poller,cfg_key,mod,fn,extra,night", [
+    # qc_poller only summarises TONIGHT's dir; storage_poller only prunes OLD ones — so each needs its
+    # own fixture night, or the poller hits an early `continue` and the test passes vacuously.
+    ("qc_poller", "qc", "nightqc", "summarize", {}, "2026-07-19"),
+    ("storage_poller", "storage", "diskguard", "prune_old_nights", {"keep_nights": 1}, "2026-07-18"),
+])
+def test_pollers_do_their_filesystem_work_off_the_loop(tmp_path, monkeypatch, poller, cfg_key, mod, fn, extra, night):
+    """QC's newline count and retention's rmtree are filesystem work, not arithmetic — same rule as
+    archive_night. summarize() re-reads the WHOLE growing night every poll_sec (~48 GB across a night
+    at the default 600 s); prune_old_nights() rmtree's ~1500 files. Both must stay off the loop, or on
+    the target hardware (Pi/N100, too little RAM to cache a night) they stall every capture task."""
+    import asyncio as _a
+    import datetime as _dtm
+    import time as _t
+    monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 2, 0, 0))
+    (tmp_path / "captures" / night).mkdir(parents=True)
+
+    def slow(*a, **k):
+        _t.sleep(0.25)                                   # blocking storage, the whole point
+        # A REALISTIC shape: qc_poller reads summ["night"] downstream, and a stub missing it would be
+        # swallowed by the poller's `except` — the test would still pass while exercising half the path.
+        return [] if fn == "prune_old_nights" else {"night": night, "ok": True, "devices": [], "missing": [], "files": 0, "total_rows": 0}
+
+    monkeypatch.setattr(getattr(capture, mod), fn, slow)
+    ticks = []
+
+    async def main():
+        async def ticker():
+            for _ in range(10):
+                await _a.sleep(0.02)
+                ticks.append(1)
+
+        async def stopper():
+            await _a.sleep(0.4)
+            capture._STOP.set()
+
+        cfg = {cfg_key: {"enabled": True, "poll_sec": 0.01, **extra}, "devices": []}
+        t = _a.ensure_future(ticker())
+        await _a.gather(getattr(capture, poller)(cfg, str(tmp_path)), stopper())
+        t.cancel()
+
+    capture._STOP.clear()
+    _a.run(main())
+    capture._STOP.clear()
+    assert len(ticks) >= 5, f"{poller}: only {len(ticks)} tick(s) ran while {fn} blocked — still on the loop"
+
+
 def test_archive_poller_swallows_an_error(tmp_path, monkeypatch):
     import datetime as _dtm
     monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 2, 0, 0))

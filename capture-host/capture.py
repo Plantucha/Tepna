@@ -1810,7 +1810,9 @@ async def storage_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None
         try:
             rep = diskguard.disk_report(root, min_free_gb)
             protect = {_now().strftime("%Y-%m-%d")}        # never sweep tonight's in-progress directory
-            pruned = diskguard.prune_old_nights(captures, keep_nights, protect)
+            # rmtree of a whole night — ~1500 files, ~2 GB — is filesystem work, not arithmetic.
+            # disk_report() stays inline (a single statvfs); only the delete is off-loaded.
+            pruned = await asyncio.to_thread(diskguard.prune_old_nights, captures, keep_nights, protect)
             if pruned:
                 log.info("storage: pruned %d night(s) past the %d-night retention: %s",
                          len(pruned), keep_nights, ", ".join(pruned))
@@ -1883,7 +1885,14 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             night = os.path.join(root, "captures", _now().strftime("%Y-%m-%d"))
             if not os.path.isdir(night):
                 continue                                   # nothing captured yet tonight — nothing to QC
-            summ = nightqc.summarize(night, cfg.get("devices", []))
+            # OFF THE LOOP, same reason as archive_night below. summarize() reads EVERY file in
+            # the night to count newlines — by dawn that is ~2 GB, and at the default poll_sec=600
+            # it re-reads the growing night ~48 times a night (~48 GB total). On this dev box the
+            # page cache hides it (0.36 s for a 1.44 GB night); on the target hardware — a Pi/N100
+            # with too little RAM to cache a whole night — it is a real multi-second stall of every
+            # capture task, recurring every 10 minutes, and on slow storage it approaches the 60 s
+            # watchdog heartbeat. QC is a REPORT: it must never cost the recording it reports on.
+            summ = await asyncio.to_thread(nightqc.summarize, night, cfg.get("devices", []))
             STATUS["qc"] = summ
             with open(os.path.join(night, "QC-SUMMARY.json"), "w") as fh:
                 json.dump(summ, fh, indent=2)
@@ -1916,8 +1925,20 @@ async def archive_poller(cfg: dict, root: str):
         await asyncio.sleep(interval)
         try:
             tonight = _now().strftime("%Y-%m-%d")
+            # OFF THE EVENT LOOP. archive_night() is a synchronous shutil.copy2 walk over a whole
+            # night — ~2 GB across ~1500 files — and everything else this daemon does shares this one
+            # loop: the BLE runners, the stream stall watchdogs, the status poller, and the sd_notify
+            # heartbeat. Run inline and a perfectly HEALTHY copy still freezes all of them for as long
+            # as it takes; the unit is Type=notify with WatchdogSec=120 (heartbeat at half that), so a
+            # copy exceeding ~60 s makes systemd conclude the daemon is wedged and restart it
+            # MID-NIGHT. A dest that hangs — a stalled NFS/CIFS mount, a NAS that went away — never
+            # returns at all, and the `except` below cannot help: a blocked syscall raises nothing.
+            # The enclosing "offload is best-effort — never take capture down" only held for dest
+            # errors, not for dest SLOWNESS, which is the likelier failure. to_thread keeps the loop
+            # turning (and the watchdog fed) whatever the destination does. `pending_nights` stays
+            # inline: it only stats the LOCAL captures dir.
             for night in nightarchive.pending_nights(captures, tonight):
-                n = nightarchive.archive_night(captures, night, dest)
+                n = await asyncio.to_thread(nightarchive.archive_night, captures, night, dest)
                 log.info("archive: mirrored %s (%d file(s)) → %s", night, n, dest)
                 STATUS.setdefault("archive", {}).update({"last": night, "dest": dest})
         except Exception as e:                             # offload is best-effort — never take capture down
