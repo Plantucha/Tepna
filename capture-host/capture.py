@@ -123,6 +123,13 @@ def _now() -> _dt.datetime:
 # org.bluez.Error.InProgress. Hold this lock only across connect(); the links themselves run concurrently.
 _CONNECT_LOCK = asyncio.Lock()
 
+# EVERY BLE await must be bounded. This lock is process-global, so an unbounded operation under it is not
+# one stuck device — it is the whole box, silently, until morning. bleak inherits BlueZ's D-Bus semantics:
+# a wedged controller simply never replies, and `await` waits forever without raising.
+_BLE_CONNECT_TIMEOUT_S = 30.0       # a real connect to an advertising, bonded sensor takes ~1-3 s
+_BLE_DISCONNECT_TIMEOUT_S = 10.0    # teardown must be quick or abandoned — never a second deadlock
+_PMD_CTRL_TIMEOUT_S = 3.0           # per PMD control-point round-trip (write, then its indication)
+
 # The O2Ring exposes exactly ONE BLE link, so live capture and a stored-session (.dat) pull cannot both
 # hold it. Setting this event tells run_oxyii to drop its link and idle; pull_oxyii_session then owns the
 # ring for the download and clears the event to resume live capture. (Only the O2Ring path honors it.)
@@ -254,19 +261,36 @@ async def adapter_hci() -> str | None:
     return hci
 
 
+async def _safe_disconnect(client) -> None:
+    """Disconnect without ever hanging the caller. Teardown runs against the SAME wedged stack that caused
+    the failure it is cleaning up after, so an unbounded `disconnect()` in a `finally` turns a bounded
+    timeout back into the permanent deadlock it was meant to prevent."""
+    try:
+        await asyncio.wait_for(client.disconnect(), _BLE_DISCONNECT_TIMEOUT_S)
+    except Exception:
+        pass
+
+
 @contextlib.asynccontextmanager
 async def _connect(addr: str):
     from bleak import BleakClient as _BC
     client = _BC(addr, **(await adapter_kw()))
+    # BOUND THE CONNECT — AND HOLD THE GLOBAL LOCK NO LONGER THAN THAT. A wedged BlueZ leaves the D-Bus
+    # call outstanding indefinitely (this box's signature failure), and every connect in the process is
+    # serialized behind _CONNECT_LOCK — so ONE hung connect, on ANY device, silently freezes every other
+    # device task, every offline op, and (because they all skip while paused) all three watchdogs, for the
+    # rest of the night. Nothing crashes, so systemd's Restart never fires. A timeout turns that
+    # unrecoverable class into an ordinary retry on the next loop iteration.
     async with _CONNECT_LOCK:
-        await client.connect()
+        try:
+            await asyncio.wait_for(client.connect(), _BLE_CONNECT_TIMEOUT_S)
+        except BaseException:
+            await _safe_disconnect(client)      # never leak a half-open link past a timeout/cancel
+            raise
     try:
         yield client
     finally:
-        try:
-            await client.disconnect()
-        except Exception:
-            pass
+        await _safe_disconnect(client)
 
 
 # The O2Ring advertises only in SHORT bursts while worn (finger-in) and its MAC can rotate on a factory
@@ -289,15 +313,16 @@ async def _connect_scan(addr: str, name_hints=_O2_NAME_HINTS, timeout: float = 1
     if device is None:
         raise _NotFound(addr, "O2Ring not advertising (wear it finger-in + close the phone app)")
     client = _BC(device, **akw)
-    async with _CONNECT_LOCK:
-        await client.connect()
+    async with _CONNECT_LOCK:                   # same bound as _connect — see the note there
+        try:
+            await asyncio.wait_for(client.connect(), _BLE_CONNECT_TIMEOUT_S)
+        except BaseException:
+            await _safe_disconnect(client)
+            raise
     try:
         yield client
     finally:
-        try:
-            await client.disconnect()
-        except Exception:
-            pass
+        await _safe_disconnect(client)
 
 
 def _utcnow():
@@ -333,6 +358,15 @@ def transient_ble_error(exc: BaseException) -> bool:
 # How far a device clock may sit from the host before it counts as a fault worth re-syncing. Generous
 # vs the 0.03 s a healthy synced Polar shows, tight vs the YEARS an unsynced H10 is out by.
 CLOCK_TOLERANCE_S = 2.0
+# A CORRECTION THAT NEVER CONVERGES IS A LEAK, NOT A FIX. Some offsets cannot be shifted from here: the
+# Verity stamps its PMD samples ~4 h ahead of the clock we set it to, and re-syncing does not move that
+# (measured 2026-07-18). The adrift trigger below fires on absolute skew, and the post-sync re-baseline
+# clears the memory of having tried — so an uncorrectable device re-synced EVERY drift_check_sec, all
+# night. Each attempt pauses live capture and holds the connect lock for up to _CLOCK_SYNC_TIMEOUT_S, so
+# at the 300 s default this quietly spent ~15 % of every night achieving nothing, and opened a recovery
+# blind spot every five minutes. Prove it cannot be fixed, then stop and say so. A real JUMP still
+# re-syncs however many times we have given up on the steady offset.
+CLOCK_ADRIFT_GIVEUP = 3
 CHARGE_RETRY_S = 60          # how often to re-attempt PMD START while a device sits on the charger
 _CHARGING: set[str] = set()  # devices currently refusing PMD with in_charger (log-once bookkeeping)
 
@@ -352,6 +386,43 @@ def should_drop_not_worn(worn_since, now, grace) -> bool:
     """PURE: has a strap been continuously not-worn long enough to drop for power? False when the feature
     is off (grace<=0), the strap is worn/unknown (worn_since None), or the grace has not yet elapsed."""
     return bool(grace and grace > 0 and worn_since is not None and (now - worn_since) >= grace)
+
+
+# STREAM STALL: a PMD START can be ACKNOWLEDGED and still deliver nothing. The H10 serves ONE PMD stream
+# at a time and does NOT release it when a client dies without a clean disconnect (polarofficial/
+# polar-ble-sdk#287) — so the next session's START is answered `already_streaming` (0x06), which
+# is_started() rightly reads as live, while every notification still goes to the dead subscriber.
+# Observed 2026-07-19: H10 ECG + ACC sat at ZERO ROWS for ten minutes behind a healthy link while HR/RR
+# flowed normally, and nothing noticed — the link was up, so the hold loop had no reason to end. The same
+# silence covers a notification handler that keeps raising, a firmware that stops streaming mid-night, and
+# a writer failing on a full disk. `already_streaming` is NOT the only door into it, so the guard watches
+# BYTES, not the ACK.
+# The cure is the one that worked by hand that night: END THE SESSION. Reconnecting re-runs the whole
+# STOP → settings → START negotiation against a device that has just dropped its link and therefore freed
+# the stream. Deliberately generous: every PMD stream we start (slowest is MAG at 20 Hz, PPI ~1/beat)
+# delivers many rows a second, so 90 s of TOTAL silence is never a slow stream — it is a dead one.
+_STREAM_STALL_S = 90.0       # started-stream silence before the session is torn down; stream.stall_sec (0 = off)
+_STALL_RECONNECT_S = 5.0     # pause before re-negotiating after a stall — a stall is not an error backoff
+
+
+def clock_resync_reason(skew, prev, jump, tolerance, failed_adrift=0, giveup=CLOCK_ADRIFT_GIVEUP):
+    """PURE: why (if at all) a device clock should be re-synced now.
+      'jump'   — the clock MOVED. Always worth correcting, no matter how often we have tried before: an
+                 H10 resets to its 2019 firmware default whenever it leaves the strap.
+      'adrift' — steady, but outside tolerance. Worth correcting until we have PROVEN we cannot shift it.
+      None     — in tolerance, or an offset we have repeatedly failed to move (see CLOCK_ADRIFT_GIVEUP).
+    """
+    if prev is not None and abs(skew - prev) >= jump:
+        return "jump"
+    if abs(skew) > tolerance and failed_adrift < giveup:
+        return "adrift"
+    return None
+
+
+def stream_is_stalled(last_change, now, grace) -> bool:
+    """PURE: has every started stream been silent long enough to call the session dead? False when the
+    feature is off (grace<=0) or nothing has started streaming yet (last_change None)."""
+    return bool(grace and grace > 0 and last_change is not None and (now - last_change) >= grace)
 
 
 def _set(name, **kv):
@@ -469,6 +540,7 @@ async def run_polar(dev: dict, root: str):
         ndir = night_dir(root, started)
         charging_hold = False              # device refused PMD because it is on the charger (status 0x0D).
         drop_for_power = False             # not-worn long enough that we dropped the link to save battery
+        stalled = False                    # started streams went silent behind a live link — re-negotiate
         # Declared HERE, outside the try, because both readers live outside the block that sets it: the
         # link-hold loop and the reconnect-delay below. (It was first declared next to `stream_fs` inside
         # the connected session — an UnboundLocalError on every device that never reached the PMD path.)
@@ -588,12 +660,24 @@ async def run_polar(dev: dict, root: str):
                     try:
                         await client.start_notify(pmd.PMD_CONTROL, lambda _s, d: ctrl_q.put_nowait(bytes(d)))
                     except Exception as e:
-                        log.info("%s control indications unavailable: %r", name, e)
+                        # WARNING, not info: without the control channel every _ctrl below times out, so
+                        # every START goes unacknowledged and no PMD stream can be confirmed. The session
+                        # is degraded from this line onward — it must not read as a routine note.
+                        log.warning("%s control indications unavailable (%r) — START acks cannot be read; "
+                                    "PMD streams will be re-negotiated by the stall watchdog", name, e)
 
-                    async def _ctrl(cmd: bytes, timeout: float = 3.0) -> bytes:
+                    async def _ctrl(cmd: bytes, timeout: float | None = None) -> bytes:
+                        timeout = _PMD_CTRL_TIMEOUT_S if timeout is None else timeout
                         while not ctrl_q.empty():
                             ctrl_q.get_nowait()
-                        await client.write_gatt_char(pmd.PMD_CONTROL, cmd, response=True)
+                        # The WRITE is bounded too. It is a D-Bus round-trip to the same stack that wedges,
+                        # and it sits in the negotiation path every reconnect runs — unbounded, one wedged
+                        # write parks the whole device task forever with its link nominally up.
+                        try:
+                            await asyncio.wait_for(
+                                client.write_gatt_char(pmd.PMD_CONTROL, cmd, response=True), timeout)
+                        except Exception:
+                            return b""
                         try:
                             return await asyncio.wait_for(ctrl_q.get(), timeout)
                         except asyncio.TimeoutError:
@@ -626,7 +710,25 @@ async def run_polar(dev: dict, root: str):
                             if not cmd:  # pragma: no cover — every requested stream is a known measurement,
                                 continue  # for which build_start() and START[meas] both return a command.
                             ack = await _ctrl(cmd)
-                            st = ack[3] if len(ack) >= 4 else 0xFF
+                            st = ack[3] if len(ack) >= 4 else pmd.NO_ACK
+                            # `already_streaming` is NOT proof that the data will reach US. The H10 serves
+                            # ONE PMD stream and does not release it when a client dies without a clean
+                            # disconnect (polar-ble-sdk#287), so this is exactly the ACK a stream still
+                            # owned by a DEAD subscriber returns — and every notification keeps going to
+                            # that corpse. It cost 2026-07-19's ECG + ACC: acknowledged, registered, zero
+                            # rows for ten minutes. The unconditional STOP above did not clear it (its ack
+                            # was never even read), so force the issue and demand OUR stream.
+                            if st == pmd.ALREADY_STREAMING:
+                                log.warning("%s %s: device reports already-streaming — the stream may "
+                                            "belong to a dead subscriber; forcing STOP + re-START",
+                                            name, pmd.MEAS_NAME.get(meas, meas))
+                                stop_ack = await _ctrl(pmd.stop_cmd(meas))
+                                stop_st = stop_ack[3] if len(stop_ack) >= 4 else pmd.NO_ACK
+                                log.info("%s %s STOP → %s", name, pmd.MEAS_NAME.get(meas, meas),
+                                         pmd.CTRL_STATUS.get(stop_st, hex(stop_st)))
+                                await asyncio.sleep(0.3)
+                                ack = await _ctrl(cmd)
+                                st = ack[3] if len(ack) >= 4 else pmd.NO_ACK
                             # 0x0D in_charger / 0x0C invalid_state are TRANSIENT DEVICE STATES, not bad
                             # settings. A Polar refuses PMD while charging; that is expected, not a fault.
                             transient = pmd.is_transient(st)
@@ -660,6 +762,20 @@ async def run_polar(dev: dict, root: str):
                             _CHARGING.add(name)
                             charging_hold = True
                             break
+                        elif st == pmd.NO_ACK:
+                            # NO REPLY IS NOT A REJECTION. A dropped control indication — or a control
+                            # channel we never managed to subscribe to at all (see the start_notify guard
+                            # above, which makes EVERY _ctrl time out) — leaves us with no verdict. The
+                            # old code filed that under "unsupported settings" and deleted the writer, so
+                            # one lost indication cost that stream the entire session, and a failed
+                            # control subscribe silently cost ALL of them while HR carried on regardless.
+                            # Keep the stream: if it really is dead, no rows arrive and the stall watchdog
+                            # re-negotiates on a fresh link within _STREAM_STALL_S.
+                            _set(name, last_error=f"{pmd.MEAS_NAME.get(meas, meas)} START unacknowledged "
+                                                  f"— will re-negotiate")
+                            log.warning("%s %s START got no control response — keeping the stream; the "
+                                        "stall watchdog will re-negotiate if no data arrives",
+                                        name, pmd.MEAS_NAME.get(meas, meas))
                         else:                        # truly unsupported settings — drop it, don't leave an empty file / idle card
                             _set(name, last_error=f"{pmd.MEAS_NAME.get(meas, meas)} START rejected")
                             try:
@@ -697,12 +813,31 @@ async def run_polar(dev: dict, root: str):
 
                 # Hold the link until disconnect, shutdown, or an offline-pull pause request.
                 secs = 0
+                # Stall watchdog state. `watched` is every stream we believe is live — the PMD writers
+                # that survived negotiation (a rejected stream was deleted above) plus the HR writer, so
+                # an HR-only strap is covered too. Rows are the honest signal: they move only when bytes
+                # actually reached a file, which is precisely what an acknowledged-but-dead stream never
+                # does. Baseline starts at "now" rather than 0 rows, so the first frame is allowed to
+                # take its time without counting as silence.
+                watched = list(writers.values()) + ([hr_writer] if hr_writer else [])
+                last_rows = [w.rows for w in watched]
+                last_change = _time.monotonic() if watched else None
                 while (client.is_connected and not _STOP.is_set() and addr not in _POLAR_PAUSED
                        and not _RECOVER.is_set() and not charging_hold):
                     await asyncio.sleep(1)
                     secs += 1
                     if secs % 120 == 0:
                         await _read_batt()
+                    rows_now = [w.rows for w in watched]
+                    if rows_now != last_rows:
+                        last_rows, last_change = rows_now, _time.monotonic()
+                    elif stream_is_stalled(last_change, _time.monotonic(), _STREAM_STALL_S):
+                        stalled = True
+                        _set(name, last_error=f"no data for {_STREAM_STALL_S:.0f}s — re-negotiating the streams")
+                        log.warning("%s: every started stream silent for %.0fs behind a live link — "
+                                    "dropping it so the device frees the stream and we re-negotiate",
+                                    name, _STREAM_STALL_S)
+                        break
                     if should_drop_not_worn(_WORN_SINCE.get(addr), _time.monotonic(), _DROP_NOT_WORN_SEC):
                         drop_for_power = True
                         _set(name, last_error="not worn — link dropped to save battery (re-checking)")
@@ -756,6 +891,10 @@ async def run_polar(dev: dict, root: str):
                 # Not a fault, so it must not ride the error backoff: recheck on a steady cadence so the
                 # streams come back on their own within a minute of the device leaving the charger.
                 await asyncio.sleep(CHARGE_RETRY_S)
+            elif stalled:
+                # Not an error backoff: the link was healthy, the streams were not. Come straight back and
+                # re-negotiate against a device that has now dropped its link and freed the stream.
+                await asyncio.sleep(_STALL_RECONNECT_S)
             elif drop_for_power:
                 # Dropped on purpose to save battery. Sleep the recheck interval, then reconnect: if it is
                 # worn again the session resumes; if not, on_hr reports not-worn immediately (contact is in
@@ -813,10 +952,21 @@ async def run_viatom(dev: dict, root: str):
     except Exception as e:
         _set(name, last_error=f"bond error: {e!r}")
     while not _STOP.is_set():
+        # Idle during an adapter power-cycle or a stored-session pull, exactly as run_polar/run_oxyii do.
+        # This loop was the only one that ignored both: it kept hammering connects at a radio the
+        # watchdog was powering off — the very contention _RECOVER exists to prevent — and could be
+        # holding the global connect lock at the moment the power-off landed.
+        if _RECOVER.is_set() or _OXYII_PAUSE.is_set():
+            _set(name, connected=False,
+                 last_error="paused — pulling stored session" if _OXYII_PAUSE.is_set() else "adapter recovering")
+            while (_RECOVER.is_set() or _OXYII_PAUSE.is_set()) and not _STOP.is_set():
+                await asyncio.sleep(0.3)
+            continue
         started = _now()
         ndir = night_dir(root, started)
         path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "spo2", "csv"))
         wr = None
+        stalled = False
         try:
             _set(name, connected=False, address=addr, last_error=None)
             async with _connect(addr) as client:
@@ -853,20 +1003,48 @@ async def run_viatom(dev: dict, root: str):
                 await client.start_notify(notify_char, on_data)
                 if write_char is not None:
                     try:
-                        await client.write_gatt_char(write_char, viatom.START_CMD, response=False)
+                        await asyncio.wait_for(
+                            client.write_gatt_char(write_char, viatom.START_CMD, response=False),
+                            _PMD_CTRL_TIMEOUT_S)
                     except Exception as e:
                         log.info("%s start-cmd write skipped: %r", name, e)   # some models auto-stream
-                while client.is_connected and not _STOP.is_set():
+                else:
+                    # NOT a silent skip. notify_char has a documented-UUID fallback; write_char has none,
+                    # so a model that puts its control point outside VIATOM_SERVICE (or a stale BlueZ
+                    # service cache) never gets START_CMD — and then simply never streams, with a live
+                    # link and no error anywhere. Say so; the stall guard below ends the session.
+                    log.warning("%s: no writable characteristic under the Viatom service — START_CMD not "
+                                "sent. If this model needs it, the ring will not stream.", name)
+                # Same stall guard as the other two runners.
+                last_rows, last_change = wr.rows, _time.monotonic()
+                while client.is_connected and not _STOP.is_set() and not _RECOVER.is_set():
                     await asyncio.sleep(1)
+                    if wr.rows != last_rows:
+                        last_rows, last_change = wr.rows, _time.monotonic()
+                    elif stream_is_stalled(last_change, _time.monotonic(), _STREAM_STALL_S):
+                        stalled = True
+                        _set(name, last_error=f"no data for {_STREAM_STALL_S:.0f}s — reconnecting")
+                        log.warning("%s: no rows for %.0fs behind a live link — dropping it", name,
+                                    _STREAM_STALL_S)
+                        break
         except Exception as e:
             _set(name, connected=False, last_error=repr(e))
             log.warning("%s link error: %r", name, e)
         finally:
             if wr:
+                _empty, _p = not wr.rows, wr.path      # discard header-only files, as run_polar does
                 wr.close()
+                if _empty:
+                    try:
+                        os.remove(_p)
+                    except OSError:
+                        pass
         if not _STOP.is_set():
-            await asyncio.sleep(backoff)
-            backoff = min(backoff * 2, 60)
+            if stalled:
+                await asyncio.sleep(_STALL_RECONNECT_S)
+            else:
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, 60)
 
 
 async def run_oxyii(dev: dict, root: str):
@@ -888,6 +1066,7 @@ async def run_oxyii(dev: dict, root: str):
         ppg_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "ppg", "txt"))
         wr = ppgwr = oxyflagwr = None
         ppg_idx = [0]                                 # running sample index → synthesized sensor_ns
+        stalled = False                               # link held but no frames decoded — reconnect
         try:
             _set(name, connected=False, address=addr, last_error=None)
             async with _connect_scan(addr) as client:
@@ -924,6 +1103,11 @@ async def run_oxyii(dev: dict, root: str):
                 # across a disconnect), so carrying it over cannot manufacture one.
                 _seq = [_OXYII_LAST_DURATION.get(addr)]
                 _rtc_due = [False]      # set when a new recording session begins; served by the poll loop
+                # THE RING'S HONEST LIVENESS SIGNAL. Not rows: vitals legitimately stop the moment the
+                # ring leaves the finger (spo2 goes None) while the link and the frames carry on, so a
+                # row-based guard would tear down a perfectly healthy link every time it was taken off.
+                # A decoded live frame means the ring is still talking to us, worn or not.
+                frames = [0]
 
                 def on_data(_s, d):
                     for frame in reasm.feed(bytes(d)):
@@ -954,6 +1138,7 @@ async def run_oxyii(dev: dict, root: str):
                         live = oxyii.parse_live(r[1])
                         if not live:
                             continue
+                        frames[0] += 1
                         if oxyflagwr:
                             oxyflagwr.write(_now(), live)   # PI + the fields the vendor CSV cannot carry
                         # [0:4] is the ring's SESSION DURATION, not a frame counter — the old
@@ -1022,25 +1207,60 @@ async def run_oxyii(dev: dict, root: str):
                 _why = oxyii_rtc_due(_OXYII_RTC_AT.get(addr), _now(), False, _OXYII_RTC_RESYNC_SEC)
                 if _why:
                     await _rtc_sync(_why)
+                last_frames, last_change = frames[0], _time.monotonic()
                 while client.is_connected and not _STOP.is_set() and not _OXYII_PAUSE.is_set() and not _RECOVER.is_set():   # poll live ~1/s
                     if _rtc_due[0]:
                         _rtc_due[0] = False
                         await _rtc_sync("new recording session")
-                    await client.write_gatt_char(wch, oxyii.live_frame(), response=False)
+                    # BOUNDED: this write is the only thing that makes the ring emit a frame, and it is a
+                    # D-Bus round-trip. Unbounded, a wedged stack parks run_oxyii here forever with its
+                    # writers open and `connected: True` on the monitor — silent, all night.
+                    try:
+                        await asyncio.wait_for(
+                            client.write_gatt_char(wch, oxyii.live_frame(), response=False),
+                            _PMD_CTRL_TIMEOUT_S)
+                    except Exception as e:
+                        log.warning("%s: live-frame poll failed (%r) — dropping the link to re-establish",
+                                    name, e)
+                        break
                     await asyncio.sleep(1.0)
+                    # Same stall guard as the Polar path: a ring that holds its link but stops answering
+                    # (auth/setup never accepted, every frame failing CRC, a handler raising inside
+                    # bleak's dispatch) is indistinguishable from a healthy one from out here.
+                    if frames[0] != last_frames:
+                        last_frames, last_change = frames[0], _time.monotonic()
+                    elif stream_is_stalled(last_change, _time.monotonic(), _STREAM_STALL_S):
+                        stalled = True
+                        _set(name, last_error=f"no frames for {_STREAM_STALL_S:.0f}s — reconnecting")
+                        log.warning("%s: no decoded frames for %.0fs behind a live link — dropping it",
+                                    name, _STREAM_STALL_S)
+                        break
         except Exception as e:
             _set(name, connected=False, last_error=repr(e))
             log.warning("%s link error: %r", name, e)
         finally:
-            if wr:
-                wr.close()
-            if ppgwr:
-                ppgwr.close()
-            if oxyflagwr:
-                oxyflagwr.close()
+            # DISCARD HEADER-ONLY FILES, exactly as run_polar does. Writers are opened before the ring is
+            # known to be streaming, so every session that ends without data leaves a file containing
+            # nothing but its header — indistinguishable from a real capture until something opens it,
+            # and the Dex ingest walks this directory. On the documented 359-reconnect night that was
+            # ~1000 junk files in one night dir. The Polar path already solved this; the ring never got it.
+            for _w in (wr, ppgwr, oxyflagwr):
+                if not _w:
+                    continue
+                _empty, _p = not _w.rows, _w.path
+                _w.close()
+                if _empty:
+                    try:
+                        os.remove(_p)
+                        log.debug("%s: discarded header-only %s", name, os.path.basename(_p))
+                    except OSError:
+                        pass
         if not _STOP.is_set():
-            await asyncio.sleep(backoff)
-            backoff = min(backoff * 2, 60)
+            if stalled:
+                await asyncio.sleep(_STALL_RECONNECT_S)   # not an error backoff — come straight back
+            else:
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, 60)
 
 
 async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", ftype: int = 0) -> dict:
@@ -1066,9 +1286,28 @@ async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", ftype:
             def _prog(off, size):
                 _set(name, pull_progress={"device": name, "bytes": off, "total": size,
                                           "pct": (100 * off // size) if size else 0})
-            saved = await pull_session.pull(dev["address"], out_dir, which=which, ftype=ftype,
-                                            adapter=await adapter_hci(),
-                                            serial="0000", wait=45, on_progress=_prog) or []
+            # BOUNDED, and under the same connect lock as the Polar offline op. This is the sibling of
+            # polar_offline_op and it inherited neither guard:
+            #   • no timeout — `pull()`'s own `wait` only bounds the rescan retry on a not-found device;
+            #     the connect, start_notify and every chunk write inside are unbounded. A ring carried out
+            #     of range mid-transfer left _OXYII_PAUSE SET for the night, and adapter_watchdog,
+            #     clock_watchdog and rssi_poller all skip while it is set — so the wedge disabled the very
+            #     ladder that recovers from it. Exactly the incident already fixed on the Polar side.
+            #   • no _CONNECT_LOCK — _OXYII_PAUSE stops only the ring's task, so the pull's scan+connect
+            #     raced the Polar reconnects it shares the radio with (org.bluez.Error.InProgress, which
+            #     then reads to the watchdog as a wedged adapter).
+            async def _locked_pull():
+                async with _CONNECT_LOCK:
+                    return await pull_session.pull(dev["address"], out_dir, which=which, ftype=ftype,
+                                                   adapter=await adapter_hci(),
+                                                   serial="0000", wait=45, on_progress=_prog) or []
+            try:
+                saved = await asyncio.wait_for(_locked_pull(), timeout=_OFFLINE_OP_TIMEOUT_S)
+            except asyncio.TimeoutError:
+                log.error("%s: stored-session pull exceeded %.0fs and was abandoned — resuming live "
+                          "capture. The ring was most likely carried out of range or the adapter is "
+                          "wedged; the capture loops are now free to reconnect.", name, _OFFLINE_OP_TIMEOUT_S)
+                raise
         finally:
             _OXYII_PAUSE.clear()                      # resume live capture no matter how the pull ended
             _set(name, pull_progress=None)            # clear the UI bar even on failure/abort
@@ -1133,8 +1372,14 @@ async def polar_offline_op(address: str, op, timeout: float | None = None):
             # Hold _CONNECT_LOCK for the whole op: BlueZ serialises connection ESTABLISHMENT per adapter, so
             # the PS-FTP connect must not race a concurrent H10/O2Ring reconnect (→ org.bluez.Error.InProgress).
             # The other tasks' reconnects simply queue behind the pull; it's a deliberate, finite user action.
-            async with _CONNECT_LOCK:
-                return await asyncio.wait_for(op(), timeout=timeout)
+            # ACQUIRING the lock is bounded too, and counts against the SAME deadline as the op. Only `op()`
+            # used to be inside wait_for, so a lock held by a hung connect elsewhere blocked this acquire
+            # forever — with _POLAR_PAUSED already set. The timeout was then structurally unable to fire:
+            # capture stayed paused for the night and the error path that resumes it was never reached.
+            async def _locked():
+                async with _CONNECT_LOCK:
+                    return await op()
+            return await asyncio.wait_for(_locked(), timeout=timeout)
         except asyncio.TimeoutError:
             # Loud, because the alternative is a silently dead box. Re-raised so the caller (a clock sync
             # or a monitor-driven pull) reports failure rather than believing it succeeded.
@@ -1320,6 +1565,9 @@ async def clock_watchdog(cfg: dict):
     interval = float(tcfg.get("drift_check_sec", 300))
     jump = float(tcfg.get("resync_jump_sec", 30))
     seen: dict[str, float] = {}
+    failed_adrift: dict[str, int] = {}   # addr -> consecutive adrift re-syncs that did not move the skew
+    tried_adrift: dict[str, bool] = {}   # addr -> an adrift re-sync is awaiting its verdict next cycle
+    gave_up: set[str] = set()            # addr -> already reported as uncorrectable (log/state once)
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         if _RECOVER.is_set() or _OXYII_PAUSE.is_set() or _POLAR_PAUSED:
@@ -1334,19 +1582,38 @@ async def clock_watchdog(cfg: dict):
                 continue
             prev = seen.get(addr)
             seen[addr] = skew
+            # Did the PREVIOUS adrift correction actually help? We can only tell a cycle later, once new
+            # PMD frames have restamped clock_skew_sec. Still out of tolerance ⇒ that attempt achieved
+            # nothing; in tolerance ⇒ it worked, so forgive the history.
+            if abs(skew) <= CLOCK_TOLERANCE_S:
+                failed_adrift[addr] = 0
+            elif tried_adrift.pop(addr, False):
+                failed_adrift[addr] = failed_adrift.get(addr, 0) + 1
             # TWO triggers, because a jump alone is not enough. A clock that is CONSTANTLY wrong never
             # jumps, so the jump-only watchdog would watch an H10 sit at its 2019 firmware default
             # forever — and the startup sync is then the only defence, which is exactly the thing that
             # can fail transiently. An absolute skew beyond tolerance is itself a fault worth correcting.
-            jumped = prev is not None and abs(skew - prev) >= jump
-            adrift = abs(skew) > CLOCK_TOLERANCE_S
-            if not (jumped or adrift):
-                continue                       # in tolerance and steady — nothing to do
-            if adrift and not jumped:
+            reason = clock_resync_reason(skew, prev, jump, CLOCK_TOLERANCE_S, failed_adrift.get(addr, 0))
+            if reason is None:
+                # Say it ONCE when we stop trying. An offset we cannot shift is a real property of the
+                # night's data — the operator needs it in `status.json`, not buried in a log that repeats
+                # every five minutes. `clock_synced` stays cleared: we are not claiming a sync we do not
+                # believe, we are admitting we cannot get one.
+                if abs(skew) > CLOCK_TOLERANCE_S and addr not in gave_up:
+                    gave_up.add(addr)
+                    log.warning("%s device clock is %+.1fs off and did NOT move after %d re-syncs — "
+                                "accepting it as uncorrectable and leaving capture alone. Sample stamps "
+                                "stay usable for cross-device alignment; absolute time does not.",
+                                name, skew, CLOCK_ADRIFT_GIVEUP)
+                    _set(name, clock_uncorrectable=True, clock_synced=None)
+                continue                       # in tolerance and steady, or proven unfixable
+            gave_up.discard(addr)
+            if reason == "adrift":
                 log.warning("%s device clock is %+.1fs off host (tolerance %.1fs) — re-syncing",
                             name, skew, CLOCK_TOLERANCE_S)
                 _set(name, clock_synced=None)  # do not claim a sync we no longer believe
-            elif jumped:
+                tried_adrift[addr] = True
+            else:
                 log.warning("%s device clock JUMPED %+.1fs (%.1f -> %.1f) — re-syncing",
                             name, skew - prev, prev, skew)
             try:
@@ -1609,6 +1876,43 @@ async def sd_watchdog():
         await asyncio.sleep(period)
 
 
+async def keep_running(make_coro, label: str, notifier: "alerts.Notifier | None" = None, on_error=None):
+    """Keep ONE long-lived task alive for the whole night. Every task here is a `while not _STOP` loop, so
+    a plain return means shutdown — but an ESCAPING EXCEPTION silently retires it: `main()` fires them all
+    with create_task and does not gather until _STOP, so the traceback is never even retrieved (asyncio
+    reports an un-retrieved exception at GC, and the `tasks` list holds the reference, so it never even
+    gets that far). The task simply stops. No log line, no alert, nothing in `status.json`.
+    Not hypothetical, and not only the device runners:
+      • run_polar does real work OUTSIDE its inner try (`night_dir()` each iteration) — a full disk, a
+        read-only mount or a permissions slip raises straight past every handler it has;
+      • adapter_watchdog's power-cycle calls `_btctl` under a bare try/finally with no except — a missing
+        `bluetoothctl` (FileNotFoundError) or an already-exited child (ProcessLookupError) kills the one
+        task whose whole job is recovering a wedged radio;
+      • rssi_poller writes its provenance row outside any try — one ENOSPC, the exact condition
+        storage_poller exists to warn about, and link provenance is gone for the night.
+    Restart with a capped backoff: a task that cannot start is retried, never abandoned."""
+    delay = 5
+    while not _STOP.is_set():
+        try:
+            await make_coro()
+            return                      # clean return == _STOP observed; nothing to restart
+        except Exception as e:          # CancelledError is a BaseException — shutdown still cancels cleanly
+            log.exception("%s crashed — restarting in %ds", label, delay)
+            if on_error is not None:
+                on_error(f"{e!r} — restarting in {delay}s")
+            if notifier is not None:
+                await notifier.send(f"Tepna: {label} crashed", f"{e!r} — restarting in {delay}s.")
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, 300)
+
+
+async def supervise(runner, dev: dict, root: str, notifier: "alerts.Notifier | None" = None):
+    """keep_running for a device runner: a crash also has to show up on the device's monitor card."""
+    name = dev.get("name") or dev.get("address") or "?"
+    await keep_running(lambda: runner(dev, root), f"{name} runner", notifier,
+                       on_error=lambda msg: _set(name, connected=False, last_error=f"runner crashed: {msg}"))
+
+
 async def main():
     global ADAPTER
     ap = argparse.ArgumentParser()
@@ -1653,16 +1957,20 @@ async def main():
     _acfg = cfg.get("alerts") or {}
     notifier = alerts.Notifier(_acfg.get("webhook_url"), enabled=bool(_acfg.get("enabled")))
 
-    tasks = [asyncio.create_task(status_loop(root)),
-             asyncio.create_task(adapter_watchdog(ADAPTER, cfg)),
-             asyncio.create_task(rssi_poller(ADAPTER, cfg, root)),
-             asyncio.create_task(clock_watchdog(cfg)),
-             asyncio.create_task(host_clock_poller(cfg, root)),
-             asyncio.create_task(storage_poller(cfg, root, notifier)),
-             asyncio.create_task(alert_poller(cfg, notifier)),
-             asyncio.create_task(qc_poller(cfg, root, notifier)),
-             asyncio.create_task(archive_poller(cfg, root)),
-             asyncio.create_task(sd_watchdog())]
+    # EVERY background task is supervised. Several of them are the recovery ladder itself — adapter_watchdog
+    # is the one thing that un-wedges a dead radio — so a task dying quietly is strictly worse here than
+    # anywhere else: the box keeps running, believes it is healthy, and has lost the ability to fix itself.
+    _BACKGROUND = [("status_loop", lambda: status_loop(root)),
+                   ("adapter_watchdog", lambda: adapter_watchdog(ADAPTER, cfg)),
+                   ("rssi_poller", lambda: rssi_poller(ADAPTER, cfg, root)),
+                   ("clock_watchdog", lambda: clock_watchdog(cfg)),
+                   ("host_clock_poller", lambda: host_clock_poller(cfg, root)),
+                   ("storage_poller", lambda: storage_poller(cfg, root, notifier)),
+                   ("alert_poller", lambda: alert_poller(cfg, notifier)),
+                   ("qc_poller", lambda: qc_poller(cfg, root, notifier)),
+                   ("archive_poller", lambda: archive_poller(cfg, root)),
+                   ("sd_watchdog", sd_watchdog)]
+    tasks = [asyncio.create_task(keep_running(mk, label, notifier)) for label, mk in _BACKGROUND]
 
     def _spawn(dev: dict):
         # Refuse to capture a device missing identity fields — otherwise capture_filename() emits
@@ -1683,7 +1991,8 @@ async def main():
             runner = run_viatom if dev.get("protocol") == "legacy" else run_oxyii
         else:
             runner = run_polar
-        tasks.append(asyncio.create_task(runner(dev, root)))
+        # Supervised: a runner that raises must not take the device down for the night (see supervise()).
+        tasks.append(asyncio.create_task(supervise(runner, dev, root, notifier)))
 
     for dev in cfg.get("devices", []):
         _spawn(dev)
