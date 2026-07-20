@@ -906,7 +906,7 @@
      questions and carry different reference bands, so mixing them in one trend is the thing to
      avoid. Reads the legacy `morningOnly` checkbox when present so an older embedding still works. */
   function _hrvScope() {
-    var sel = document.getElementById('measScope');
+    var sel = /** @type {HTMLSelectElement} */ (document.getElementById('measScope'));
     if (sel && sel.value) return sel.value;
     var legacy = document.getElementById('morningOnly');
     return legacy && /** @type {HTMLInputElement} */ (legacy).checked ? 'morning' : 'all';
