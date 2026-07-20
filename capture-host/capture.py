@@ -1905,8 +1905,20 @@ async def archive_poller(cfg: dict, root: str):
         await asyncio.sleep(interval)
         try:
             tonight = _now().strftime("%Y-%m-%d")
+            # OFF THE EVENT LOOP. archive_night() is a synchronous shutil.copy2 walk over a whole
+            # night — ~2 GB across ~1500 files — and everything else this daemon does shares this one
+            # loop: the BLE runners, the stream stall watchdogs, the status poller, and the sd_notify
+            # heartbeat. Run inline and a perfectly HEALTHY copy still freezes all of them for as long
+            # as it takes; the unit is Type=notify with WatchdogSec=120 (heartbeat at half that), so a
+            # copy exceeding ~60 s makes systemd conclude the daemon is wedged and restart it
+            # MID-NIGHT. A dest that hangs — a stalled NFS/CIFS mount, a NAS that went away — never
+            # returns at all, and the `except` below cannot help: a blocked syscall raises nothing.
+            # The enclosing "offload is best-effort — never take capture down" only held for dest
+            # errors, not for dest SLOWNESS, which is the likelier failure. to_thread keeps the loop
+            # turning (and the watchdog fed) whatever the destination does. `pending_nights` stays
+            # inline: it only stats the LOCAL captures dir.
             for night in nightarchive.pending_nights(captures, tonight):
-                n = nightarchive.archive_night(captures, night, dest)
+                n = await asyncio.to_thread(nightarchive.archive_night, captures, night, dest)
                 log.info("archive: mirrored %s (%d file(s)) → %s", night, n, dest)
                 STATUS.setdefault("archive", {}).update({"last": night, "dest": dest})
         except Exception as e:                             # offload is best-effort — never take capture down
