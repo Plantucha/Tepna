@@ -156,6 +156,15 @@
   // and `channel 0;channel 1;channel 2;ambient` after — which is what Polar Sensor Logger itself
   // emits. Same lesson as the XYZ streams: resolve by NAME, fall back to the tail, never to a fixed
   // index (the pre-11:43 files carry an extra `timestamp [ms]` column that shifts everything by one).
+  //
+  //  TWO OPTICAL LAYOUTS (PPGDEX-O2RING-FINGER-SITE §3). Resolution returns `chIdx` — an array of
+  //  1 OR 3 optical column indices — and the caller reads `chIdx.length` as the real sensor count:
+  //    • 3 columns → Polar Verity wrist armband (three co-located photodiodes + ambient).
+  //    • 1 column  → Wellue O2Ring finger site (ONE reflectance path; no ambient column, because the
+  //      ring AC-couples + gain-normalises on-device, so ambient subtraction is already applied and a
+  //      committed 0 would be a fabricated measurement rather than a reading).
+  //  A 2-column file resolves to null on purpose: no device we ingest emits one, and silently
+  //  treating it as a 2-LED sensor would let a shifted/truncated 3-LED file vote with itself.
   function ppgColsFromHeader(headerLine) {
     const p = String(headerLine || '').split(';');
     const ch = [];
@@ -169,15 +178,56 @@
       else if (/sensor\s+timestamp/.test(h)) ns = i;
       else if (/phone\s+timestamp/.test(h)) phone = i;
     }
-    return ch.length >= 3 ? { ch0: ch[0], ch1: ch[1], ch2: ch[2], amb, ns, phone } : null;
+    if (ch.length >= 3) return { chIdx: [ch[0], ch[1], ch[2]], amb, ns, phone };
+    if (ch.length === 1) return { chIdx: [ch[0]], amb, ns, phone };
+    return null;
   }
   function ppgColsByTail(p) {
-    // ...;ch0;ch1;ch2;ambient  → the four trailing numeric columns, whatever precedes them.
+    // Headerless fallback, resolved by TRAILING numeric columns (never a fixed index — the pre-2026-07-18
+    // captures carry an extra `timestamp [ms]` column that shifts everything by one).
+    //   ≥5 numeric → ...;ch0;ch1;ch2;ambient   (Verity)
+    //    3 numeric → phone;ns;ch0              (O2Ring finger — no ambient to trail)
     const nums = [];
     for (let k = 0; k < p.length; k++) if (isFinite(parseFloat(p[k]))) nums.push(k);
-    if (nums.length < 5) return null;
     const n = nums.length;
-    return { ch0: nums[n - 4], ch1: nums[n - 3], ch2: nums[n - 2], amb: nums[n - 1], ns: 1, phone: 0 };
+    if (n >= 5) return { chIdx: [nums[n - 4], nums[n - 3], nums[n - 2]], amb: nums[n - 1], ns: 1, phone: 0 };
+    if (n === 3) return { chIdx: [nums[n - 1]], amb: -1, ns: 1, phone: 0 };
+    return null;
+  }
+
+  // ── O2Ring PPG_INVALID sentinel (PPGDEX-O2RING-FINGER-SITE §2.4, PR #212 / O2RING-PROTOCOL §3b) ──
+  //  156 (0x9C) is the ring's missing-sample marker, and it is **IN-BAND** — a legal amplitude — so it
+  //  cannot be rejected on value alone. Measured on the 90 s probe capture: 156 occurs 61× while every
+  //  neighbouring value (152–160) occurs 2–10×, i.e. ~8× over-represented; an isolation test splits it
+  //  57 isolated / 4 trend-consistent, agreeing with the excess-over-neighbours estimate (~93 % / ~7 %).
+  //  Rejecting every 156 would punch ~7 % of holes into VALID signal.
+  //  A rejected sample is a GAP — never median-filled, never interpolated. Median-filling a known-invalid
+  //  marker fabricates a measurement over missing data (CLAUDE.md; PR #212 declined it explicitly — the
+  //  vendor interpolates, we do not). Real impulsive noise here is 0.04 %, so there is no despiker.
+  const O2_PPG_INVALID = 156;
+  const O2_SENTINEL_ISOLATION = 25; // LSB from the local trend; measured separation, §2.4
+  function markO2Sentinels(x) {
+    const gap = new Uint8Array(x.length);
+    let rejected = 0,
+      kept = 0;
+    for (let i = 0; i < x.length; i++) {
+      if (x[i] !== O2_PPG_INVALID) continue;
+      // Judge against REAL neighbours only — a sentinel run must not vote for its own legitimacy.
+      let sum = 0,
+        cnt = 0;
+      for (let k = i - 2; k <= i + 2; k++) {
+        if (k === i || k < 0 || k >= x.length) continue;
+        if (x[k] === O2_PPG_INVALID) continue;
+        sum += x[k];
+        cnt++;
+      }
+      // No real neighbour to judge against ⇒ a run of the invalid marker ⇒ missing.
+      if (!cnt || Math.abs(O2_PPG_INVALID - sum / cnt) > O2_SENTINEL_ISOLATION) {
+        gap[i] = 1;
+        rejected++;
+      } else kept++;
+    }
+    return { gap, rejected, kept };
   }
   function parsePPG(text) {
     const lines = text.split(/\r?\n/);
@@ -190,24 +240,41 @@
       t0Ms = null,
       firstTs = null; // lastTs is resolved lazily in the fs fallback (§P1)
     let pcols = null;
+    // Minimum data-row field count. 6 for the Verity layout; a single-optical-column file
+    // (`phone;ns;ch0`) has only 3, so the floor drops once a 1-channel header resolves. Until
+    // the layout is known the Verity floor applies, which keeps every existing file's row
+    // filter byte-identical.
+    let minFields = 6;
+    let nCh = 3,
+      ch0Col = 2;
     for (let li = 0; li < lines.length; li++) {
       const line = lines[li].trim();
       if (!line) continue;
       const p = line.split(';');
-      if (p.length < 6) continue;
       if (/timestamp/i.test(line) && !pcols) {
-        pcols = ppgColsFromHeader(line);
-        if (pcols) continue;
+        const hc = ppgColsFromHeader(line);
+        if (hc) {
+          pcols = hc;
+          if (hc.chIdx.length === 1) minFields = 3;
+          continue;
+        }
       }
+      if (p.length < minFields) continue;
       const pc = pcols || ppgColsByTail(p);
       if (!pc) continue;
-      const v0 = parseFloat(p[pc.ch0]);
+      // The layout the ACCEPTED rows actually carry (a headerless file resolves per-row via the tail).
+      nCh = pc.chIdx.length;
+      ch0Col = pc.chIdx[0];
+      if (nCh === 1) minFields = 3;
+      const v0 = parseFloat(p[pc.chIdx[0]]);
       if (!isFinite(v0)) {
         continue;
       } // header / junk
       ch0.push(v0);
-      ch1.push(parseFloat(p[pc.ch1]));
-      ch2.push(parseFloat(p[pc.ch2]));
+      if (pc.chIdx.length === 3) {
+        ch1.push(parseFloat(p[pc.chIdx[1]]));
+        ch2.push(parseFloat(p[pc.chIdx[2]]));
+      }
       amb.push(pc.amb >= 0 ? parseFloat(p[pc.amb]) : NaN);
       // sensor ns → relative seconds (BigInt: values exceed Number safe range)
       let relNs = 0;
@@ -233,7 +300,7 @@
       }
     }
     const n = ch0.length;
-    if (n < 10) throw new Error('No PPG samples parsed — expected Polar Sense `*_PPG.txt` (Phone timestamp;sensor ns;ch0;ch1;ch2;ambient).');
+    if (n < 10) throw new Error('No PPG samples parsed — expected Polar Sense `*_PPG.txt` (Phone timestamp;sensor ns;ch0;ch1;ch2;ambient) or an O2Ring finger `*_PPG.txt` (Phone timestamp;sensor ns;channel 0).');
     // fs from median ns delta (precise) — fall back to phone-clock span
     let fs = 176;
     const deltas = [];
@@ -247,14 +314,16 @@
     } else {
       // Lazy `lastTs` (§P1): scan BACKWARD for the last row that the loop above would have accepted AND
       // whose stamp parses — byte-identical to the old eager `lastTs`, but paid for only on this
-      // degenerate path. The row filter must mirror the main loop's exactly (>=6 fields, finite ch0).
+      // degenerate path. The row filter must mirror the main loop's exactly (>=minFields fields, finite
+      // ch0) — both `minFields` and `ch0Col` are the values the main loop RESOLVED, so a single-column
+      // finger file is filtered on its own layout rather than the Verity's.
       let lastTs = null;
       for (let li = lines.length - 1; li >= 0 && !lastTs; li--) {
         const line = lines[li].trim();
         if (!line) continue;
         const p = line.split(';');
-        if (p.length < 6) continue;
-        if (!isFinite(parseFloat(p[2]))) continue;
+        if (p.length < minFields) continue;
+        if (!isFinite(parseFloat(p[ch0Col]))) continue;
         lastTs = parseTimestamp(p[0]);
       }
       if (firstTs && lastTs && lastTs.tMs > firstTs.tMs) {
@@ -269,15 +338,28 @@
     } else {
       for (let i = 0; i < n; i++) relSec[i] = i / fs;
     }
+    // SITE is a layout fact, not a guess: three optical columns is the Verity armband, one is the
+    // O2Ring finger. It rides the parse result so the registry can grade finger morphology on its
+    // OWN evidence tier rather than inheriting the wrist's (PPGDEX-O2RING-FINGER-SITE §5).
+    const site = nCh === 1 ? 'finger' : 'wrist';
+    const chArr = nCh === 1 ? [Float32Array.from(ch0)] : [Float32Array.from(ch0), Float32Array.from(ch1), Float32Array.from(ch2)];
+    // Sentinel pass runs ONLY on the finger layout — 156 is the O2Ring's marker and carries no meaning
+    // in a Verity count stream (where it would be an ordinary, and astronomically rare, raw ADC value).
+    const sent = nCh === 1 ? markO2Sentinels(chArr[0]) : null;
     return {
-      ch: [Float32Array.from(ch0), Float32Array.from(ch1), Float32Array.from(ch2)],
+      ch: chArr,
       amb: Float32Array.from(amb),
       relSec,
       fs,
       n,
       t0Ms: t0Ms != null ? t0Ms : null,
       offsetMin: firstTs ? firstTs.offsetMin : null,
-      durSec: (n - 1) / fs
+      durSec: (n - 1) / fs,
+      site,
+      // Per-sample missing mask (1 = rejected sentinel). Null for the wrist layout. Never filled.
+      gap: sent ? sent.gap : null,
+      sentinelRejected: sent ? sent.rejected : 0,
+      sentinelKept: sent ? sent.kept : 0
     };
   }
 
