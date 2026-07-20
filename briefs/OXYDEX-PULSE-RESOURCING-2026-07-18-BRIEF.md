@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-18
+**Status:** IN-PROGRESS — 2026-07-20 (**Phase 1 EXECUTED + gated; §3.1 owner decision recorded (option b).** OxyDex now reads the O2Ring **perfusion index** from the Health-Box `*_OXYFRAME.txt` sidecar — a `;`-delimited superset of the ViHealth CSV (`parseCSV` gained delimiter detection + a `pi_pct` column; SpO₂/HR byte-identical from either file). `meanPi` surfaces at **measured** with a badge, rendered only when present; the ring's `pi_pct=0` no-perfusion sentinel is treated as absent, and a ViHealth CSV (no PI column) yields `meanPi: null` — never a fabricated 0. Verified on a real capture: `meanPi ≈ 2.15 %`, null on the same night's CSV. Ingest already routes the OXYFRAME to OxyDex via `^WELLUE` (no dex-ingest change). 12-assertion both-direction gate; OxyDex + orchestrators re-bundled; all three OxyDex goldens regenerated (each gained `meanPi: null, piFrames: 0` — additive); GATE A/B + both equiv legs green with the real inputs. ⚠️ Release-time `verifiedUnder` re-stamp is owed (needs the curated corpus — `release.mjs` blocks until then). **Still open:** Phase 2 (Integrator waveform-vs-1 Hz comparison), Phase 3 (re-source `rmssd`/`hrVarSd` + re-tier), Phase 4 (CVHR, on the recorded §3.1 basis).) · **Created:** 2026-07-18
 
 # The O2Ring's 1 Hz pulse is a smoothed vendor summary — demote it to a reference leg
 
@@ -81,6 +81,8 @@ These are computed **inside** OxyDex from its pulse series, and `ahiEst` is a he
 number. Under Route B they would either (a) move to the Integrator, splitting OxyDex's apnea story across
 two nodes, or (b) stay in OxyDex on the 1 Hz pulse and be *shadowed* by an Integrator-side waveform version,
 which risks two AHI estimates disagreeing in public.
+
+**✅ OWNER DECISION (2026-07-20): option (b), the recommendation.** Keep OxyDex's `ahiEst` as-is (the single-signal node's honest output from its own signal); the Integrator publishes a **corroborated** CVHR that names its source, and only ONE AHI is ever published. Phase 4 proceeds on this basis.
 
 **Recommendation: (b), with only ONE published.** Keep OxyDex's `ahiEst` as-is (it is the single-signal
 node's honest output from its own signal), and have the Integrator publish a **corroborated** CVHR that

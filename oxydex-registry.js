@@ -47,6 +47,14 @@
     hypoxicBurden: { label: 'Hypoxic burden', unit: '%·min/h', goodDirection: 'down', depth: 'advanced', evidence: 'validated', cite: 'Azarbarzin 2019 — sleep-apnoea-specific hypoxic burden' },
     desatProfile: { label: 'Desat profile', unit: '', goodDirection: 'down', depth: 'advanced', evidence: 'validated', cite: 'Area/depth/duration of desaturation events' },
     meanHr: { label: 'Mean HR', unit: 'bpm', goodDirection: 'down', depth: 'basic', evidence: 'measured', cite: 'Mean nocturnal heart rate — direct pulse reading' },
+    meanPi: {
+      label: 'Perfusion Idx',
+      unit: '%',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Mean perfusion index — direct O2Ring live-header reading (byte [7]÷10); present only on Health-Box OXYFRAME captures, absent on the ViHealth CSV export (OXYDEX-PULSE-RESOURCING §4)'
+    },
     minHr: { label: 'Min HR', unit: 'bpm', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: 'Lowest nocturnal heart rate — direct pulse reading' },
     maxHr: { label: 'Max HR', unit: 'bpm', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Highest nocturnal heart rate — direct pulse reading' },
 

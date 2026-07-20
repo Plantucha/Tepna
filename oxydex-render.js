@@ -2064,6 +2064,11 @@ function renderSmartSummary(n) {
     html += ssKPI('Mean HR', cv(st.meanHr, 60, 70, 'bpm'), st.meanHr < 60 ? 'good' : st.meanHr < 70 ? 'warn' : 'bad');
     html += ssKPI('Min HR', cv(st.minHr, 35, 40, 'bpm', true), st.minHr >= 40 ? 'good' : st.minHr >= 35 ? 'warn' : 'bad');
     html += ssKPI('Max HR', cv(st.maxHr, 90, 110, 'bpm'), st.maxHr < 90 ? 'good' : st.maxHr < 110 ? 'warn' : 'bad');
+    // Perfusion index (OXYDEX-PULSE-RESOURCING §4 Phase 1) — rendered ONLY when the capture carried it
+    // (Health-Box OXYFRAME). A ViHealth CSV night has meanPi === null and simply omits the card, rather
+    // than showing a fabricated 0 or a "—" on every night that never had a PI sensor reading. The badge
+    // is auto-wired from the `meanPi` registry entry by label (measured).
+    if (st.meanPi != null) html += ssKPI('Perfusion Idx', cv(st.meanPi, 0.4, 1, '%', true), st.meanPi >= 1 ? 'good' : st.meanPi >= 0.4 ? 'warn' : 'bad');
     html += ssKPI(
       'HR Spikes',
       cv(n.spikes && n.spikes.length != null ? n.spikes.length : null, 3, 10, ''),

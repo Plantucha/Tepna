@@ -18,6 +18,8 @@
     "meanHr": 58.2,
     "minHr": 50,
     "maxHr": 66,
+    "meanPi": null,
+    "piFrames": 0,
     "motionPct": 0.1,
     "n": 7200,
     "startTs": 1781391616000,
