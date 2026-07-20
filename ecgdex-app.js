@@ -2136,8 +2136,13 @@ self.onmessage = async (e) => {
         st.cv +
         '%</td>' +
         '<td class="mono">' +
-        (st.slopePerDay == null ? '—' : (st.slopePerDay > 0 ? '+' : '') + st.slopePerDay) +
-        '<span style="opacity:.5">/d</span></td>' +
+        // §9.4: the SUFFIX follows the basis. An undated series has no per-day slope, so it reports
+        // its per-recording slope labelled `/rec` — the number is still useful, it just is not a
+        // rate per day, and printing it as one overstated the trend by the ratio of span to count.
+        (st.slopePerDay != null ? (st.slopePerDay > 0 ? '+' : '') + st.slopePerDay : st.slopePerRecording != null ? (st.slopePerRecording > 0 ? '+' : '') + st.slopePerRecording : '—') +
+        '<span style="opacity:.5">' +
+        (st.slopePerDay != null ? '/d' : st.slopePerRecording != null ? '/rec' : '') +
+        '</span></td>' +
         '<td class="mono">' +
         (st.tau == null ? '—' : st.tau) +
         ' <span style="opacity:.5">p' +

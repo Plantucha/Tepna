@@ -55,6 +55,8 @@
         "trend": {
           "slopePerIndex": 0,
           "slopePerDay": 0,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
           "r2": 0,
           "r2date": 0,
           "mannKendall": {
@@ -92,6 +94,8 @@
         "trend": {
           "slopePerIndex": 0,
           "slopePerDay": 0,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
           "r2": 0,
           "r2date": 0,
           "mannKendall": {
@@ -129,6 +133,8 @@
         "trend": {
           "slopePerIndex": 0,
           "slopePerDay": 0,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
           "r2": 0,
           "r2date": 0,
           "mannKendall": {
@@ -166,6 +172,8 @@
         "trend": {
           "slopePerIndex": 0,
           "slopePerDay": 0,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
           "r2": 0,
           "r2date": 0,
           "mannKendall": {
@@ -203,6 +211,8 @@
         "trend": {
           "slopePerIndex": 0,
           "slopePerDay": 0,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
           "r2": 0,
           "r2date": 0,
           "mannKendall": {
@@ -240,6 +250,8 @@
         "trend": {
           "slopePerIndex": 0,
           "slopePerDay": 0,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
           "r2": 0,
           "r2date": 0,
           "mannKendall": {

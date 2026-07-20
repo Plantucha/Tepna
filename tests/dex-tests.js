@@ -3949,6 +3949,45 @@
       'the try-block clears n — parts after the first would be discarded');
   });
 
+    // A per-day slope requires every item to be dated. When one is not, the estimator falls back to a
+    // per-RECORDING slope — which used to ship under the per-day name and render with a `/d` suffix,
+    // overstating the trend by the ratio of real span to recording count, always in the alarming
+    // direction. Pinned across ALL FIVE clones, both directions.
+    group('Cross-night slope basis — an index slope is never a per-day slope (DEEP-AUDIT-II §9.4)', 'crossnight · oxydex-cross · cpapdex-cross · ecgdex-cross · ppgdex-cross · pulsedex-cross', function (T) {
+      var CLONES = [
+        { name: 'OxyDex', cross: env.OXYCross },
+        { name: 'CPAPDex', cross: env.CPAPCross },
+        { name: 'ECGDex', cross: env.ECGCross },
+        { name: 'PpgDex', cross: env.PPGCross },
+        { name: 'PulseDex', cross: env.PulseCross }
+      ];
+      var DAY = 86400000;
+      var ran = 0;
+      CLONES.forEach(function (c) {
+        if (!(c.cross && typeof c.cross.crossNight === 'function')) return;
+        ran++;
+        // 5 recordings spanning 40 days: per-day and per-recording differ ~10x.
+        var dated = [];
+        for (var i = 0; i < 5; i++) dated.push({ v: 10 + i, t: 1784000000000 + i * 10 * DAY, w: 1 });
+        var a = c.cross.crossNight(dated, { good: 'up' });
+        T.eq(c.name + ' · fully dated ⇒ basis is day', a.slopeBasis, 'day');
+        T.ok(c.name + ' · the per-day slope is per DAY (≈0.1), not per recording (1.0)', a.slopePerDay != null && Math.abs(a.slopePerDay - 0.1) < 0.02,
+          'got ' + a.slopePerDay + ' — if this is ~1 the index slope leaked into the per-day field');
+
+        // same values, ONE item undated ⇒ a per-day rate does not exist
+        var undated = dated.map(function (p, i) { return { v: p.v, t: i === 2 ? null : p.t, w: 1 }; });
+        var b = c.cross.crossNight(undated, { good: 'up' });
+        T.eq(c.name + ' · one undated item ⇒ basis is recording', b.slopeBasis, 'recording');
+        T.eq(c.name + ' · one undated item ⇒ slopePerDay is NULL, not an index slope wearing /d', b.slopePerDay, null);
+        T.ok(c.name + ' · the index slope is still reported, under its own name', b.slopePerRecording != null && Math.abs(b.slopePerRecording - 1) < 0.02,
+          'got ' + b.slopePerRecording);
+        // the point of the fix: the two quantities are NOT interchangeable
+        T.ok(c.name + ' · per-day and per-recording differ by the span/count ratio', Math.abs(b.slopePerRecording - a.slopePerDay) > 0.5,
+          'per-rec=' + b.slopePerRecording + ' per-day=' + a.slopePerDay);
+      });
+      T.ok('all five cross clones were exercised', ran === 5, 'only ' + ran + ' of 5 cross modules exposed crossNight in this lane');
+    });
+
   group('ECGDex R-peak seed — survives a startup settling transient (ECG-RPEAK-SEED-FIX)', 'ecgdex-dsp', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.analyze === 'function' && typeof D.genSynthetic === 'function')) {
