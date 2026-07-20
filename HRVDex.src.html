@@ -852,8 +852,16 @@ body.light .topbar::after{ opacity:.25; }
       </div>
     </div>
     <div>
-      <label>Morning only (before 10am):</label>
-      <input type="checkbox" id="morningOnly" data-act-change="rerender">
+      <!-- Measurement scope. Morning spot readings and all-night recordings are different
+           measurement units (see hrvdex-dsp.js _hrvIsAllNight): a spot reading is a point sample of
+           the circadian curve and needs a time-of-day correction; an overnight recording integrates
+           across that curve and must not be graded by the hour it happened to start. -->
+      <label>Measurements:</label>
+      <select id="measScope" data-act-change="rerender">
+        <option value="all">All measurements</option>
+        <option value="morning">Morning spot readings (before 10am)</option>
+        <option value="allnight">All-night recordings (≥3 h)</option>
+      </select>
     </div>
     <div>
       <label>Smoothing: </label>

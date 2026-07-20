@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fXI5DrP+kHRChOhLFMFywZgdu2oBgnwqEiXuQHRJG1w=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-jntrzEEMCVAO8RhPXYAtjJ3GM3MBa2L0f5oxqlpC3sE=' 'sha256-kssNWe+NTsre2ooRelIIBfurDUBsntTG6UY0YVhUy9Y=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-tp9DPKK+3luszwT8dwXRNpWV+iGxwPS/40kE9YwaQLI=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE=' 'sha256-ztY4+qrzGrm0BpZ+DhedXAMaoAV9Q0fqEUrsoUVaZAM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-A70in1yVw8l6p/xGyEIN/q3z6NYSyh3+oY6uqe7gSc4=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fKv17AbJg16Zji4JC0q2WMkiSFnMYl/F4heGdCuXj3c=' 'sha256-fXI5DrP+kHRChOhLFMFywZgdu2oBgnwqEiXuQHRJG1w=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-tp9DPKK+3luszwT8dwXRNpWV+iGxwPS/40kE9YwaQLI=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE=' 'sha256-ztY4+qrzGrm0BpZ+DhedXAMaoAV9Q0fqEUrsoUVaZAM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HRVDex — Heart Rate Variability Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -3373,8 +3373,16 @@ body.light .topbar::after{ opacity:.25; }
       </div>
     </div>
     <div>
-      <label>Morning only (before 10am):</label>
-      <input type="checkbox" id="morningOnly" data-act-change="rerender">
+      <!-- Measurement scope. Morning spot readings and all-night recordings are different
+           measurement units (see hrvdex-dsp.js _hrvIsAllNight): a spot reading is a point sample of
+           the circadian curve and needs a time-of-day correction; an overnight recording integrates
+           across that curve and must not be graded by the hour it happened to start. -->
+      <label>Measurements:</label>
+      <select id="measScope" data-act-change="rerender">
+        <option value="all">All measurements</option>
+        <option value="morning">Morning spot readings (before 10am)</option>
+        <option value="allnight">All-night recordings (≥3 h)</option>
+      </select>
     </div>
     <div>
       <label>Smoothing: </label>
@@ -8147,8 +8155,33 @@ body.light .topbar::after{ opacity:.25; }
     '_psns',
     '_coherence',
     '_hrv',
-    '_cv'
+    '_cv',
+    // Recording SPAN in minutes (null when the source cannot report one — a Welltory spot reading
+    // never does). This is what separates a POINT SAMPLE of the circadian curve from an INTEGRAL
+    // across it, which changes how the row may legitimately be adjusted and compared. See
+    // ALL_NIGHT_MIN_MIN / _hrvIsAllNight.
+    '_spanMin'
   ];
+
+  /* ════ ALL-NIGHT vs SPOT MEASUREMENT ══════════════════════════════════════════
+   A Welltory-style reading is a ~5-minute POINT SAMPLE of a circadian curve, so comparing two of
+   them requires a time-of-day correction. An overnight recording is an INTEGRAL over ~8 h of that
+   same curve — the circadian confound is already averaged out by the recording itself, so applying
+   the point-sample correction to it does not remove a bias, it INTRODUCES one.
+
+   The trigger for this: on a real 28-night ECG corpus (2026-06-06 → 07-13) every night was a
+   whole-night recording, but 27 started in the evening and ONE started at 01:06. The start-hour
+   branch therefore graded that single night 12.7 % differently from its 27 identical neighbours —
+   a difference that reflects when the file began, not the wearer's physiology.
+
+   3 h is the floor: below it a recording no longer spans enough of the curve to self-average, and
+   it matches the --min-hours convention tools/trio-batch.mjs already uses for "is this a night?".
+   UNKNOWN span ⇒ NOT all-night: a row that cannot prove it spans the curve keeps the spot-sample
+   treatment, so every pre-existing Welltory row behaves exactly as before. */
+  const ALL_NIGHT_MIN_MIN = 180;
+  function _hrvIsAllNight(row) {
+    return !!(row && typeof row._spanMin === 'number' && isFinite(row._spanMin) && row._spanMin >= ALL_NIGHT_MIN_MIN);
+  }
   function _hrvNum(v) {
     return typeof v === 'number' && isFinite(v) ? Math.round(v * 1000) / 1000 : '';
   }
@@ -8356,9 +8389,22 @@ body.light .topbar::after{ opacity:.25; }
     // Prefer whole-record SDNN/RMSSD for cross-node comparability (ECGDex's own guidance).
     const sdnn = n(tm.wholeRecordSDNN != null ? tm.wholeRecordSDNN : tm.sdnn);
     const rmssd = n(tm.wholeRecordRMSSD != null ? tm.wholeRecordRMSSD : tm.rmssd);
+    // SPAN — how much of the circadian curve this row actually covers. Emitters differ in what they
+    // publish, so read the strongest available evidence and fall through; NEVER guess. Absent ⇒ null,
+    // which _hrvIsAllNight reads as "not provably all-night" (i.e. keep spot-sample treatment).
+    const _epochs = (env.timeseries && env.timeseries.epochs) || null;
+    const _stage = (env.sleep && env.sleep.stageMinutes) || null;
+    let spanMin = n(rec.durationMin); //  1 · an emitter that states it outright (PulseDex)
+    if (spanMin == null && _epochs && _epochs.length) spanMin = _epochs.length * 5; //  2 · 5-min epoch grid (ECGDex rich)
+    if (spanMin == null && _stage) {
+      //  3 · time in bed = every stage bucket, wake included
+      const t = Object.keys(_stage).reduce((a, k) => a + (n(_stage[k]) || 0), 0);
+      if (t > 0) spanMin = t;
+    }
     return {
       tMs,
       offsetMin: rec.offsetMin == null ? null : rec.offsetMin,
+      _spanMin: spanMin,
       _hr: n(tm.hr),
       _meanRR: n(tm.meanRR),
       _sdnn: sdnn,
@@ -8564,9 +8610,15 @@ body.light .topbar::after{ opacity:.25; }
       r.d_otr_sat = !isNaN(r.d_otr) && r.d_otr >= 499 ? true : false; // saturated flag
 
       // ── Circadian-Adjusted rMSSD ──
+      // The ±8 %/−5 % factors normalise a ~5-min POINT SAMPLE for the hour it was taken. An
+      // ALL-NIGHT row already integrates across that curve, and its start hour is an artefact of
+      // when recording began — so it is passed through UNADJUSTED (factor 1.0) rather than graded
+      // as an "evening" reading. Applying the point-sample factor here is what put one 01:06 night
+      // 12.7 % away from 27 otherwise-identical evening-start nights. See _hrvIsAllNight.
       const mHour = r._date instanceof Date ? r._date.getUTCHours() : 8;
-      const circAdj = mHour < 10 ? 1.08 : mHour > 16 ? 0.95 : 1.0;
+      const circAdj = _hrvIsAllNight(r) ? 1.0 : mHour < 10 ? 1.08 : mHour > 16 ? 0.95 : 1.0;
       r.d_rmssd_circ = _all(r._rmssd) ? r._rmssd / circAdj : NaN;
+      r.d_all_night = _hrvIsAllNight(r); // consumers (view filter, band gating) read THIS, not the hour
 
       // ── NN50 estimate ──
       const meanRR_s_local = r._meanRR > 0 ? r._meanRR / 1000 : NaN; // fix: use per-row value
@@ -8788,21 +8840,35 @@ body.light .topbar::after{ opacity:.25; }
     var el = document.getElementById('ebScopeHint');
     if (!el) return;
     var n = typeof windowDays !== 'undefined' ? windowDays : 7;
-    var mo = !!(document.getElementById('morningOnly') && /** @type {HTMLInputElement} */ (document.getElementById('morningOnly')).checked);
+    var sc = _hrvScope();
+    var mo = sc === 'morning' ? ', mornings only' : sc === 'allnight' ? ', all-night recordings only' : '';
     var scope = n >= 999 ? 'all measurements' : 'last ' + n + ' day' + (n === 1 ? '' : 's');
-    el.textContent = 'JSON / CSV export the current view — ' + scope + (mo ? ', mornings only' : '');
+    el.textContent = 'JSON / CSV export the current view — ' + scope + mo;
     el.title =
-      'The JSON and CSV downloads contain only the measurements currently in view (' +
-      scope +
-      (mo ? ', mornings only' : '') +
-      '); older rows are excluded. The Ganglior bus export and the PDF carry the full recording.';
+      'The JSON and CSV downloads contain only the measurements currently in view (' + scope + mo + '); older rows are excluded. The Ganglior bus export and the PDF carry the full recording.';
+  }
+
+  /* Measurement-scope selector. `morning` and `allnight` are different MEASUREMENT UNITS, not two
+     filters over one pool — a morning spot reading and an 8 h overnight recording answer different
+     questions and carry different reference bands, so mixing them in one trend is the thing to
+     avoid. Reads the legacy `morningOnly` checkbox when present so an older embedding still works. */
+  function _hrvScope() {
+    var sel = /** @type {HTMLSelectElement} */ (document.getElementById('measScope'));
+    if (sel && sel.value) return sel.value;
+    var legacy = document.getElementById('morningOnly');
+    return legacy && /** @type {HTMLInputElement} */ (legacy).checked ? 'morning' : 'all';
   }
 
   /* ===== FILTER ROWS ===== */
   function getFilteredRows() {
     let rows = allRows;
-    if (document.getElementById('morningOnly') ? /** @type {HTMLInputElement} */ (document.getElementById('morningOnly')).checked : false) {
-      rows = rows.filter((r) => r._date.getUTCHours() < 10);
+    const scope = _hrvScope();
+    if (scope === 'morning') {
+      // Spot readings only. An all-night row starts whenever recording began (21:00–01:00 in the
+      // real corpus), so this deliberately EXCLUDES them rather than judging them by start hour.
+      rows = rows.filter((r) => !_hrvIsAllNight(r) && r._date && r._date.getUTCHours() < 10);
+    } else if (scope === 'allnight') {
+      rows = rows.filter(_hrvIsAllNight);
     }
     if (windowDays < 999) {
       // Always anchor window to the last measurement in allRows (not morning-filtered subset)
@@ -9614,7 +9680,19 @@ function renderKPIs(rows) {
       unit: ''
     },
     { label: 'Baevsky SI', val: r.d_si != null ? r.d_si.toFixed(0) : undefined, sub: '&lt;150 normal', color: r.d_si < 150 ? 'good' : r.d_si < 250 ? 'warn' : 'bad', delta: null, unit: '' },
-    { label: 'LF/HF', val: r.d_lfhf != null ? r.d_lfhf.toFixed(2) : undefined, sub: '0.5–2.0 optimal', color: r.d_lfhf > 0.4 && r.d_lfhf < 2.5 ? 'good' : 'warn', delta: null, unit: '' },
+    // LF/HF · the 0.5–2.0 band is a MORNING-REST reference and does not transfer to an all-night
+    // recording, which spans sleep architecture rather than a resting spot sample. Rather than
+    // invent an overnight band we do not have a citation for, an all-night row shows the VALUE with
+    // no verdict — a number with an honest '—' beats a number graded against the wrong scale (the
+    // real 28-night corpus sits at a median ~2.0, which this band would have flagged every night).
+    {
+      label: 'LF/HF',
+      val: r.d_lfhf != null ? r.d_lfhf.toFixed(2) : undefined,
+      sub: r.d_all_night ? 'all-night — morning band n/a' : '0.5–2.0 optimal',
+      color: r.d_all_night ? 'neutral' : r.d_lfhf > 0.4 && r.d_lfhf < 2.5 ? 'good' : 'warn',
+      delta: null,
+      unit: ''
+    },
     {
       label: 'ANS Load',
       val: r.d_ans_load != null ? r.d_ans_load.toFixed(2) : undefined,
@@ -9757,7 +9835,12 @@ function renderKPIs(rows) {
         const arrow = v === 0 ? '→' : v > 0 ? '↑' : '↓';
         dHtml = `<div class="kpi-delta ${cls}">${arrow} ${Math.abs(v)}${k.unit} vs prev</div>`;
       }
-      return `<div class="kpi ${k.color}"><div class="kpi-label">${evBadge(k.label)}${k.label}</div><div class="kpi-val" style="color:var(--${k.color === 'good' ? 'green' : k.color === 'warn' ? 'yellow' : 'red'})">${k.val === undefined || k.val === null || k.val === '' || k.val === 'NaN' ? '—' : k.val}</div>${dHtml}<div class="kpi-sub">${k.sub}</div></div>`;
+      // 'neutral' = a real value with NO verdict, for a metric whose reference band does not apply
+      // to this row (e.g. LF/HF on an all-night recording). It must render in the ordinary text
+      // colour: the ternary below falls through to --red, so an ungraded value would otherwise
+      // paint as the WORST possible reading — the opposite of "we are not judging this".
+      const kc = k.color === 'good' ? 'green' : k.color === 'warn' ? 'yellow' : k.color === 'neutral' ? 'text' : 'red';
+      return `<div class="kpi ${k.color}"><div class="kpi-label">${evBadge(k.label)}${k.label}</div><div class="kpi-val" style="color:var(--${kc})">${k.val === undefined || k.val === null || k.val === '' || k.val === 'NaN' ? '—' : k.val}</div>${dHtml}<div class="kpi-sub">${k.sub}</div></div>`;
     })
     .join('');
 }

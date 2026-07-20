@@ -12950,6 +12950,68 @@
       T.approx('§4 · SD2 = √(2·SDNN² − SD1²) reflects the correct SD1 (propagation)', rFull.d_sd2, sd2True, 1e-9, 'd_sd2=' + rFull.d_sd2 + ' expected=' + sd2True);
     });
 
+    /* An ALL-NIGHT row is a different measurement unit from a spot reading: it integrates across the
+       circadian curve instead of point-sampling it, so the ±8 %/−5 % time-of-day factor must NOT be
+       applied to it. Locked because the failure is silent and start-hour-dependent — on the real
+       28-night ECG corpus, 27 nights started in the evening and one at 01:06, and the start-hour
+       branch graded that single night 12.7 % away from 27 identical neighbours. */
+    group('HRVDex all-night rows bypass the circadian spot-sample correction', 'hrvdex-dsp · circadian · all-night', function (T) {
+      var HD = env.HRVDex;
+      if (!HD || typeof HD.derive !== 'function' || typeof HD.rowFromNodeExport !== 'function') {
+        T.ok('env.HRVDex.derive + rowFromNodeExport available', false, 'headless derive surface not wired — gate skipped');
+        return;
+      }
+      // Same physiology, three start hours. `epochs` is what makes the span provable (5 min each).
+      var mk = function (h, nEpochs) {
+        var ep = [];
+        for (var i = 0; i < nEpochs; i++) ep.push({ tMin: i * 5 });
+        return {
+          schema: { name: 'ganglior.node-export', node: 'ECGDex' },
+          recording: { startEpochMs: Date.UTC(2026, 5, 14, h, 0, 0) },
+          hrv: { time: { hr: 50, meanRR: 1200, sdnn: 90, rmssd: 40 }, frequency: {} },
+          timeseries: { epochs: ep }
+        };
+      };
+      var evening = HD.derive([HD.rowFromNodeExport(mk(22, 96))])[0]; // 8 h, starts 22:00
+      var postMid = HD.derive([HD.rowFromNodeExport(mk(1, 96))])[0]; //  8 h, starts 01:06-ish
+      var spot = HD.derive([HD.rowFromNodeExport(mk(22, 1))])[0]; //     5 min, starts 22:00
+
+      T.eq('8 h evening-start recording is tagged all-night', evening.d_all_night, true);
+      T.eq('8 h post-midnight-start recording is ALSO all-night', postMid.d_all_night, true);
+      T.eq('span is derived from the epoch grid (96 × 5 min)', evening._spanMin, 480);
+
+      // THE regression: identical physiology must not diverge on start hour alone.
+      T.eq('all-night rMSSD passes through UNADJUSTED (evening)', evening.d_rmssd_circ, 40);
+      T.eq('all-night rMSSD passes through UNADJUSTED (post-midnight)', postMid.d_rmssd_circ, 40);
+      T.eq('two all-night rows with the same rMSSD agree regardless of start hour', evening.d_rmssd_circ === postMid.d_rmssd_circ, true);
+
+      // …while a genuine SPOT reading keeps the correction it was designed for.
+      T.eq('a 5-min spot reading is NOT all-night', spot.d_all_night, false);
+      T.approx('spot reading still gets the evening factor (÷0.95)', spot.d_rmssd_circ, 40 / 0.95, 1e-9, 'd_rmssd_circ=' + spot.d_rmssd_circ);
+
+      // A source that cannot prove a span keeps spot treatment — absence is never read as all-night.
+      var noSpan = HD.derive([
+        HD.rowFromNodeExport({
+          schema: { name: 'ganglior.node-export', node: 'ECGDex' },
+          recording: { startEpochMs: Date.UTC(2026, 5, 14, 22, 0, 0) },
+          hrv: { time: { hr: 50, meanRR: 1200, sdnn: 90, rmssd: 40 }, frequency: {} }
+        })
+      ])[0];
+      T.eq('unknown span ⇒ NOT all-night (absence never upgrades a row)', noSpan.d_all_night, false);
+      T.eq('unknown span ⇒ _spanMin is null, not a guess', noSpan._spanMin, null);
+      // sleep.stageMinutes is the fallback when no epoch grid is published.
+      var viaSleep = HD.derive([
+        HD.rowFromNodeExport({
+          schema: { name: 'ganglior.node-export', node: 'ECGDex' },
+          recording: { startEpochMs: Date.UTC(2026, 5, 14, 22, 0, 0) },
+          hrv: { time: { hr: 50, meanRR: 1200, sdnn: 90, rmssd: 40 }, frequency: {} },
+          sleep: { totalSleepMin: 430, stageMinutes: { Wake: 55, REM: 10, Light: 380, Deep: 40 } }
+        })
+      ])[0];
+      T.eq('span falls back to summed stageMinutes (time in bed)', viaSleep._spanMin, 485);
+      T.eq('…and that row is all-night', viaSleep.d_all_night, true);
+    });
+
     group('HRVDex Phase-9 — compute() surface + summary adapter', 'hrvdex-dsp · adapters · signal-orchestrate', function (T) {
       var src = env.sources || {};
       var dsp = src['hrvdex-dsp.js'],
