@@ -1,16 +1,16 @@
 {
   "bundle": "MotionDex.html",
-  "manifestHash": "0624aae9a4e2",
+  "manifestHash": "dc240e5619dc",
   "fixtures": {
     "synthetic_motiondex_golden.node-export.json": {
       "bundle": "MotionDex.html",
-      "manifestHash": "0624aae9a4e2",
+      "manifestHash": "dc240e5619dc",
       "added": "2026-07-18",
       "inputs": [
         "synthetic_motiondex_acc.txt"
       ],
       "inputHashes": {
-        "synthetic_motiondex_acc.txt": "ecbf27ffb674cc69"
+        "synthetic_motiondex_acc.txt": "04b94b5bf6e52436"
       },
       "outputHash": "f255bc025103dada",
       "note": "ADDED 2026-07-18 (MOTIONDEX-BUILD-2026-07-17 §5) — MotionDex's first code-gated fixture + the COMMITTED synthetic input for its 'compute() ≡ committed export' equivalence leg (env.equiv.motiondex, dex-tests.js CASES). The input is a deterministic, seeded synthetic Polar Sensor Logger ACC stream (MOTIONDSP.genSyntheticACC — closed-form supine/quiet-breathing waveform, no recording of any person, no device identifier, no Date.now/RNG) so re-running the generator reproduces it byte-for-byte and inputHashes stay stable. It is COMMITTED (tracked by name in .gitignore), so the equiv diff RUNS IN CI with no corpus — a committed synthetic twin beats a gitignored real one (FIXTURE-VERIFICATION-GATE lesson). The CASE re-runs MOTIONDSP.buildNodeExport(compute({acc,chestAcc:same})); regenerate the input + this golden together whenever the export shape changes."

@@ -193,8 +193,17 @@
   //  Device-frame convention (documented, uncalibrated → the LABEL is
   //  experimental-tier; the gravity ANGLES are measured). For a torso/chest
   //  sensor: Y ≈ superior-inferior, Z ≈ antero-posterior, X ≈ medio-lateral.
-  //    upright  |gy| dominant           supine   gz < 0     prone   gz > 0
+  //    upright  |gy| dominant           supine   gz > 0     prone   gz < 0
   //    lateral  |gx| dominant (sign → L/R)
+  //  ⚠️ THE Z SIGN IS FLEET-WIDE, NOT NODE-LOCAL. An accelerometer at rest reads
+  //  +1 g on the axis pointing UP, so a chest sensor worn anterior-face-out reads
+  //  gz > 0 when the wearer is SUPINE. ECGDex (`uz > 0 ? 'Supine' : 'Prone'`) and
+  //  PPGDex both already encode that; MotionDex had it INVERTED until 2026-07-20,
+  //  which labelled a real supine night 100 % prone off the same H10 ACC that
+  //  ECGDex read as supine (owner-confirmed supine; chest Z measured +973 mg).
+  //  Its own synthetic twin emitted gravity on −Z under the comment "supine", so
+  //  the golden agreed with the bug and never caught it — see
+  //  briefs/POSTURE-SIGN-AND-NADIR-LABELS-2026-07-20-BRIEF.md.
   // ════════════════════════════════════════════════════════════════════════
   var POSITIONS = ['supine', 'prone', 'left', 'right', 'upright', 'unknown'];
   function classifyGravity(gx, gy, gz) {
@@ -208,7 +217,7 @@
       az = Math.abs(gz);
     if (ay >= ax && ay >= az) return 'upright';
     if (ax >= az) return gx < 0 ? 'left' : 'right';
-    return gz < 0 ? 'supine' : 'prone';
+    return gz > 0 ? 'supine' : 'prone';
   }
   function bodyPosition(accRows, t0Ms, durSec, unit) {
     if (!accRows || accRows.length < 10) return { hasData: false };
@@ -511,13 +520,17 @@
     var n = Math.round(hz * sec),
       dtMs = 1000 / hz,
       dtNs = Math.round(1e9 / hz);
-    // supine torso: gravity mostly on -Z; small AP respiratory sway on Z
+    // supine torso: gravity mostly on +Z; small AP respiratory sway on Z.
+    // +Z (not −Z): at rest an accelerometer reads +1 g on the UP axis, so a
+    // chest sensor worn anterior-face-out reads +1 g on Z when supine. This twin
+    // emitted −1 g under a "supine" comment until 2026-07-20, which is why it
+    // agreed with the inverted classifier instead of catching it.
     for (var i = 0; i < n; i++) {
       var tSec = i / hz;
       var resp = Math.sin(2 * Math.PI * (brpm / 60) * tSec); // breathing
       var gx = 30 + (rnd() - 0.5) * 12;
       var gy = 40 + (rnd() - 0.5) * 12;
-      var gz = -1000 + resp * 22 + (rnd() - 0.5) * 10; // ~-1 g + effort
+      var gz = 1000 + resp * 22 + (rnd() - 0.5) * 10; // ~+1 g + effort
       var ms = startMs + i * dtMs;
       lines.push(isoStamp(ms) + ';' + (nsBase + i * dtNs) + ';' + Math.round(gx) + ';' + Math.round(gy) + ';' + Math.round(gz));
     }

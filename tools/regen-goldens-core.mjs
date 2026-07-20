@@ -84,10 +84,17 @@ export function makeRerecord({ repo, node, bundle, uploadsDir, ManifestGate }) {
     const inputHashes = {};
     for (const f of rec.inputs || []) inputHashes[f] = await sha16Of(f);
     const wasOut = rec.outputHash;
+    // Already-true ledger ⇒ write nothing and say nothing. This makes rerecord() safe to call on
+    // EVERY fixture each run (including ones whose output did not move), which is what lets an
+    // INPUT-ONLY change reach the ledger — see the caller in runRegen().
+    const inputsSame = !Object.keys(inputHashes).length || JSON.stringify(rec.inputHashes || {}) === JSON.stringify(inputHashes);
+    if (wasOut === outputHash && inputsSame) return;
     rec.outputHash = outputHash;
     if (Object.keys(inputHashes).length) rec.inputHashes = inputHashes;
     fs.writeFileSync(fragPath, JSON.stringify(frag, null, 2) + '\n');
-    console.log(`      ↻ ledger re-recorded — outputHash ${wasOut} → ${outputHash}`);
+    console.log(
+      `      ↻ ledger re-recorded — outputHash ${wasOut}${wasOut === outputHash ? ' (unchanged)' : ' → ' + outputHash}${inputsSame ? '' : ' · inputHashes updated'}`
+    );
   };
 }
 
@@ -139,6 +146,13 @@ export async function runRegen({ fixtures, uploadsDir, check, rerecord, absentIn
     diff(fresh, old, '', d);
     if (!d.length) {
       console.log(`  = ${F.name} — content unchanged`);
+      // An UNCHANGED OUTPUT DOES NOT MEAN AN UNCHANGED RECORD. The ledger triple is
+      // {manifestHash, inputHashes, outputHash}, so a fixture whose INPUT moved while its output
+      // stayed byte-identical still owes a re-record — and this branch used to `continue` straight
+      // past it, leaving GATE B reading a stale inputHash and failing with `input-drift`.
+      // Hit for real on 2026-07-20: flipping the MotionDex twin's Z sign AND the classifier cancels
+      // exactly, so the golden held while its input changed. rerecord() no-ops when already true.
+      if (!check) await rerecord(F.name, F);
       continue;
     }
     const out = merge(fresh, old);
