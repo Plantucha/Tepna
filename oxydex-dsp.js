@@ -3444,8 +3444,11 @@
     // Nadir events from the ONE shared ODI-4 detector (ceiling baseline). §3 close-mode: ODI-4 entry +
     // anti-chatter HYSTERESIS close (no exitPct) — WtDSI is a SATELLITE stat, not the simple-close
     // headline count. §1: shared p90-ceiling blArr threaded. DEX-EVENT-UNIFY-FOLLOWUPS-II.
+    // `nadir` is the ABSOLUTE SpO₂ floor of the event and is carried because nadirBins is keyed by
+    // absolute level (above91/b90_91/…). It used to be dropped here, which forced the histogram to
+    // bin on `depth` under absolute-level key names — see the nadirBins comment below.
     var nadirEvents = detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, blArr: blArr }).map(function (e) {
-      return { depth: e.depth, duration: e.durationSec };
+      return { depth: e.depth, duration: e.durationSec, nadir: e.nadir };
     });
 
     // WtDSI: Σ(depth² × duration) / totalTime
@@ -3477,13 +3480,20 @@
         : null;
     var condPct = n > 0 ? +((belowSamples.length / n) * 100).toFixed(1) : 0;
 
-    // Nadir depth histogram
+    // Nadir histogram — binned on the ABSOLUTE SpO₂ floor each event reached, which is what the key
+    // names (above91 / b90_91 / b88_89 / b85_87 / below85) assert. It previously binned on `depth`
+    // (the DROP in points) against thresholds 4/6/9/12 — a proxy that only lines up with the labels
+    // when the baseline happens to sit near 95 %. On the real 2026-07-19 night that proxy reported
+    // `b88_89: 4` while the lowest SpO₂ all night was 91 %, i.e. it claimed hypoxemia that never
+    // happened. Bins tile the whole range so every event lands in exactly one.
     var bins = { above91: 0, b90_91: 0, b88_89: 0, b85_87: 0, below85: 0 };
     nadirEvents.forEach(function (e) {
-      if (e.depth < 4) bins.above91++;
-      else if (e.depth < 6) bins.b90_91++;
-      else if (e.depth < 9) bins.b88_89++;
-      else if (e.depth < 12) bins.b85_87++;
+      var nad = e.nadir;
+      if (!isFinite(nad)) return; // no floor recorded → cannot claim a level; never guess one
+      if (nad > 91) bins.above91++;
+      else if (nad >= 90) bins.b90_91++;
+      else if (nad >= 88) bins.b88_89++;
+      else if (nad >= 85) bins.b85_87++;
       else bins.below85++;
     });
 

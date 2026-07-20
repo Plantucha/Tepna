@@ -957,11 +957,11 @@
       "condMeanBelow94": 92.46,
       "condPctBelow94": 4.3,
       "nadirBins": {
-        "above91": 0,
-        "b90_91": 7,
-        "b88_89": 4,
-        "b85_87": 2,
-        "below85": 1
+        "above91": 9,
+        "b90_91": 2,
+        "b88_89": 2,
+        "b85_87": 1,
+        "below85": 0
       }
     },
     "hrAdvanced": {

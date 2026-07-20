@@ -21,7 +21,7 @@
         "Polar_H10_AAAAAAAA_20260613_204448_RR.txt": "69be13dd4d60d20d"
       },
       "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash 2bf3d5c38a78→4c732d37ea19). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals 4c732d37ea19.",
-      "verifiedUnder": "65b9320a1513"
+      "verifiedUnder": "0dc84e9d8dd8"
     },
     "PulseDex_2026-06-25_events.node-export.json": {
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II — F1 shared dex-export.js scrubExport now sweeps recordings[]/sessions[] multi carriers; F5 review-renderer namespace exposure). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path, reviewView/renderReview are display-only — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
@@ -42,7 +42,7 @@
         "PulseDex_2026-06-25_events_RR.txt": "9ed6b305a64bd2c9"
       },
       "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash 2bf3d5c38a78→4c732d37ea19). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals 4c732d37ea19.",
-      "verifiedUnder": "65b9320a1513"
+      "verifiedUnder": "0dc84e9d8dd8"
     },
     "synthetic_pulsedex_golden.node-export.json": {
       "bundle": "PulseDex.html",
