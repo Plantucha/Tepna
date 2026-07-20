@@ -51,6 +51,25 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
 
     app = web.Application(middlewares=[_auth])
 
+    # SSE MUST NOT OUTLIVE THE DAEMON. The live-view stream below is a `while True` that ends only when
+    # the CLIENT goes away — so `AppRunner.cleanup()`, which waits for in-flight requests, waits on a
+    # browser tab. Measured 2026-07-20: SIGTERM left the daemon alive past 101 s with an open monitor,
+    # which under systemd is a `systemctl restart` that hangs to TimeoutStopSec and is then SIGKILLed
+    # mid-write. aiohttp fires `on_shutdown` BEFORE it waits, so that is where a live view has to end.
+    # Setting the flag is not enough on its own: the handler is parked in `q.get()` and would not look
+    # at it for a further keep-alive period, so push a sentinel to wake every open stream at once.
+    _shutting_down = asyncio.Event()
+    _live_queues: set = set()
+
+    async def _on_shutdown(_app):
+        _shutting_down.set()
+        for lq in list(_live_queues):
+            try:
+                lq.put_nowait({"stream": "__shutdown__"})
+            except Exception:       # pragma: no cover — an unbounded Queue's put_nowait cannot fail;
+                pass                # the guard only ensures one bad subscriber cannot block the rest
+    app.on_shutdown.append(_on_shutdown)
+
     def _remembered() -> list[dict]:
         out = []
         for d in cfg.get("devices", []):
@@ -136,23 +155,27 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             "Connection": "keep-alive", "X-Accel-Buffering": "no"})
         await resp.prepare(req)
         q = bus.subscribe()
+        _live_queues.add(q)
         try:
             snaps = [m["key"] for m in bus.meta()] if allmode else [key]
             for k in snaps:
                 await resp.write(f"event: snapshot\ndata: {json.dumps(bus.snapshot(k))}\n\n".encode())
-            while True:
+            while not _shutting_down.is_set():
                 try:
                     msg = await asyncio.wait_for(q.get(), timeout=15)
                 except asyncio.TimeoutError:  # pragma: no cover — the SSE keep-alive fires only on a
                     await resp.write(b": keep-alive\n\n")   # live long-lived connection idle >15 s; a
                     continue                                 # unit test of this infinite handler hangs teardown
 
+                if _shutting_down.is_set():
+                    break                       # woken by the shutdown sentinel — let cleanup() finish
                 if not allmode and msg["stream"] != key:
                     continue
                 await resp.write(f"data: {json.dumps(msg)}\n\n".encode())
         except (asyncio.CancelledError, ConnectionResetError, ConnectionError):
             pass
         finally:
+            _live_queues.discard(q)
             bus.unsubscribe(q)
         return resp
 
