@@ -460,6 +460,13 @@ function readEquiv() {
   pair('hrvdex_synth', 'synthetic_hrvdex_welltory.csv', 'synthetic_hrvdex_golden.node-export.json');
   pair('glucodex_synth', 'synthetic_glucodex_lingo.csv', 'synthetic_glucodex_golden.node-export.json');
   pair('ppgdex_synth', 'synthetic_ppgdex_verity.txt', 'synthetic_ppgdex_golden.node-export.json');
+  // ADVERSARIAL PpgDex FINGER twin (PPGDEX-O2RING-FINGER-SITE §6) — input only, NO golden. Its job is
+  // not to pin bytes but to assert the invariants the WRIST twin structurally cannot express: a
+  // single-optical-column file must parse at all; its LED agreement must be null and never 100; the
+  // in-band 156 sentinel must split into rejected-vs-kept by ISOLATION rather than by value; and a
+  // beat whose span touches a gap must be dropped, not filled. pairCommitted so a DEX_UPLOADS
+  // real-corpus override cannot hide it.
+  pairCommitted('ppgdex_finger', 'synthetic_ppgdex_o2ring_finger.txt', null);
   pair('ecgdex_synth', 'synthetic_ecgdex_h10.txt', 'synthetic_ecgdex_golden.node-export.json');
   // MotionDex IMU leg (MOTIONDEX-BUILD-2026-07-17 §5): a COMMITTED synthetic Polar ACC stream →
   // buildNodeExport(compute({acc,chestAcc})) ≡ the committed golden. pairCommitted (repo artifact,

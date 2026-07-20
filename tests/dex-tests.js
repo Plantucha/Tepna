@@ -3672,6 +3672,91 @@
       'got ' + JSON.stringify(gen.ledAgreementPct));
   });
 
+  // ── FINGER SITE: the O2Ring's single-channel pleth (PPGDEX-O2RING-FINGER-SITE) ────────────────
+  // Runs off the COMMITTED adversarial twin, so it gates in CI from bytes rather than from a
+  // gitignored night. Every assertion below pins BOTH directions where a direction exists — the
+  // failure this brief exists to prevent is a finger number wearing a wrist claim, and a one-sided
+  // test is satisfied by hard-coding the safe answer.
+  group('PpgDex finger site — single-channel parse, honest agreement, sentinel gaps (O2RING-FINGER-SITE)', 'ppgdex-dsp · ppgdex-registry', function (T) {
+    var D = env.PPGDSP;
+    var eq = env.equiv && env.equiv.ppgdex_finger;
+    if (!(D && typeof D.parsePPG === 'function' && typeof D.analyze === 'function')) {
+      T.ok('PPGDSP.parsePPG + analyze available', false, 'ppgdex-dsp.js not loaded');
+      return;
+    }
+    if (!(eq && eq.input)) {
+      T.skip('committed finger twin present', 'uploads/synthetic_ppgdex_o2ring_finger.txt absent — it is COMMITTED, so this must run everywhere including CI');
+      return;
+    }
+    var rec = D.parsePPG(eq.input);
+
+    // ── layout ─────────────────────────────────────────────────────────────────────────────────
+    T.eq('a ONE-optical-column file parses (Verity path needs 6 columns)', rec.ch.length, 1);
+    T.eq('site is tagged from the LAYOUT, not guessed', rec.site, 'finger');
+    T.ok('fs recovered from the sensor stamps ≈ the ring’s calibrated 125.7 Hz', rec.fs > 124 && rec.fs < 127, 'fs=' + rec.fs);
+    // BOTH directions: the wrist twin must NOT acquire a finger tag or a gap mask.
+    if (env.equiv && env.equiv.ppgdex_synth && env.equiv.ppgdex_synth.input) {
+      var wrist = D.parsePPG(env.equiv.ppgdex_synth.input);
+      T.eq('the 3-LED wrist twin is still tagged wrist', wrist.site, 'wrist');
+      T.eq('the wrist layout carries NO gap mask (156 is meaningless in raw counts)', wrist.gap, null);
+      T.eq('the wrist layout runs no sentinel pass', wrist.sentinelRejected, 0);
+    }
+
+    // ── the in-band sentinel: isolation, not value (§2.4) ──────────────────────────────────────
+    // 156 is a LEGAL amplitude. The twin plants 4 isolated markers on systolic extrema AND leaves
+    // the waveform's own peak sitting exactly on 156. A value-only rejector would gap that peak too
+    // — punching holes in valid signal, the precise bug this rule prevents.
+    T.eq('the 4 ISOLATED 156s are rejected as PPG_INVALID', rec.sentinelRejected, 4);
+    T.ok('a TREND-CONSISTENT 156 is KEPT as real data (never rejected on value alone)', rec.sentinelKept >= 1, 'kept=' + rec.sentinelKept);
+    T.ok('the gap mask marks exactly the rejected samples', rec.gap && rec.gap.reduce(function (a, b) { return a + b; }, 0) === rec.sentinelRejected,
+      'mask=' + (rec.gap ? rec.gap.reduce(function (a, b) { return a + b; }, 0) : 'null') + ' rejected=' + rec.sentinelRejected);
+    // A gap is never filled: the rejected sample must still hold its raw 156 in the parsed channel.
+    var filled = 0;
+    for (var i = 0; i < rec.gap.length; i++) if (rec.gap[i] && rec.ch[0][i] !== 156) filled++;
+    T.eq('a rejected sample is NEVER median-filled or interpolated in the parse result', filled, 0);
+
+    var r = D.analyze(rec);
+
+    // ── honest agreement (§4) ──────────────────────────────────────────────────────────────────
+    T.eq('single channel ⇒ ledSingleChannel', r.ledSingleChannel, true);
+    T.eq('single channel ⇒ ledAgreementPct is NULL, never a fabricated 100', r.ledAgreementPct, null);
+    T.eq('site rides through to the analysis result', r.site, 'finger');
+
+    // ── gaps cost beats, they do not fabricate them ────────────────────────────────────────────
+    // Each planted marker sits inside a beat's foot→peak span, so each must DROP that beat rather
+    // than let its timing rest on a held value.
+    T.ok('every beat whose span touches a gap is dropped', r.nGapBeats === 4, 'nGapBeats=' + r.nGapBeats);
+
+    // ── the round-trip that matters: HR (§6) ───────────────────────────────────────────────────
+    // The twin is planted at 48 bpm — the corpus' sleeping rate, where a dicrotic double-count lands
+    // ~625 ms out and clears the fixed 0.30 s refractory. A 2x read here is the exact failure that
+    // doubled whole nights (PPGDEX-OPTICAL-DETECTOR §1), so pin the RATE, not merely "some beats".
+    var hr = 60000 / r.meanRR;
+    T.ok('PPI-derived HR matches the planted 48 bpm within a couple of bpm', Math.abs(hr - 48) < 2, 'HR=' + hr.toFixed(2) + ' bpm (meanRR=' + r.meanRR + ' ms)');
+    T.ok('NOT the 2x harmonic (the failure mode this rate is chosen to expose)', Math.abs(hr - 96) > 20, 'HR=' + hr.toFixed(2));
+    T.ok('feet detect on the single channel (PPI stays foot-to-foot)', r.ppiSpine === 'foot', 'spine=' + r.ppiSpine);
+    T.ok('morphology fiducials are produced at the finger site', !!(r.morph && r.morph.delin), 'morph=' + (r.morph ? 'present-no-delin' : 'absent'));
+
+    // ── §5 · the grade is RE-EARNED, never inherited ───────────────────────────────────────────
+    var R = env.PpgRegistry, REG = env.PPG_REGISTRY;
+    if (R && typeof R.idForSite === 'function' && REG) {
+      var pairs = [['dicrotic', 'emerging'], ['ai', 'emerging'], ['reflectionIdx', 'emerging'], ['sdppgBA', 'emerging'], ['agingIdx', 'emerging'], ['notchTime', 'measured'], ['pulseWidth', 'measured']];
+      for (var k = 0; k < pairs.length; k++) {
+        var base = pairs[k][0], wristGrade = pairs[k][1];
+        var fid = R.idForSite(base, 'finger');
+        T.ok(base + ' → a DISTINCT finger-scoped id', fid === base + 'Finger', 'got ' + fid);
+        T.eq(base + ' at the finger site is experimental', REG[fid] && REG[fid].evidence, 'experimental');
+        T.eq(base + ' at the wrist is UNCHANGED (no relabelling)', REG[base] && REG[base].evidence, wristGrade);
+      }
+      // Timing/rate metrics come off the SAME audited pipeline — they must NOT be re-tiered.
+      T.eq('hr is not re-scoped by site (same pipeline, same grade)', R.idForSite('hr', 'finger'), 'hr');
+      T.eq('rmssd is not re-scoped by site', R.idForSite('rmssd', 'finger'), 'rmssd');
+      T.eq('wrist site resolves to the base ids', R.idForSite('ai', 'wrist'), 'ai');
+    } else {
+      T.skip('PpgRegistry.idForSite available', 'registry not loaded in this lane');
+    }
+  });
+
   group('ECGDex device cross-check parsers — floating clock, no Date-parse/now() (Finding 2)', 'ecgdex-dsp · ecgdex-app', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.parseDeviceRR === 'function' && typeof D.parseDeviceHR === 'function' && typeof D.parseDeviceACC === 'function')) {

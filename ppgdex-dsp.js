@@ -776,7 +776,10 @@
   // ════════════════════════════════════════════════════════════════════════
   //  PER-BEAT SQI  — template correlation × amplitude × motion gate
   // ════════════════════════════════════════════════════════════════════════
-  function beatSQI(bp, peaks, fs, motionAt, agree) {
+  // `regular` (OPTIONAL, added LAST for back-compat per CLAUDE.md §🧪) is the single-channel
+  // cadence axis — consulted ONLY where the LED agreement axis is unavailable, never in addition
+  // to it, so a 3-LED session's SQI is byte-unchanged.
+  function beatSQI(bp, peaks, fs, motionAt, agree, regular) {
     const n = peaks.length;
     if (!n) return [];
     const pre = Math.round(fs * 0.2),
@@ -833,10 +836,94 @@
       if (agree && agree[k] != null) {
         q *= 0.5 + 0.5 * agree[k];
       } // 2/3→0.83×, 3/3→1.0×
+      else if (regular && regular[k] != null) {
+        q *= regular[k];
+      } // single-channel: cadence corroboration stands in for the absent vote (§4)
       sqi.push(Math.max(0, Math.min(1, q)));
     }
     return sqi;
   }
+  // ════════════════════════════════════════════════════════════════════════
+  //  SINGLE-CHANNEL CONFIDENCE AXIS (PPGDEX-O2RING-FINGER-SITE §4)
+  //  With ONE LED there is no 2-of-3 vote, so beatSQI's multiplicative agreement axis has nothing
+  //  to carry. Do NOT fabricate a second detector. The honest substitute is the beat's own
+  //  INTER-BEAT REGULARITY: a beat whose flanking intervals sit near the local median PPI is
+  //  corroborated by cadence, while a halved or doubled interval is exactly where a single-channel
+  //  optical detector fails (a missed beat, or a dicrotic notch double-counted as a second systole
+  //  — the failure mode PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE §1 found doubling whole nights).
+  //  The MIN of the two flanking deviations is deliberate: a spurious beat splits one interval into
+  //  two short ones, so BOTH its flanks deviate and it is penalised, while the genuine beats either
+  //  side keep one good flank each and are not punished for their neighbour's error.
+  //  This axis is strictly weaker than a real vote and is scored as such — it floors at 0.6 and is
+  //  never a free 1.0 — which is why finger morphology enters at `experimental` (§5) rather than
+  //  inheriting the wrist site's `emerging`.
+  //  → per-beat multiplier in [0.6, 1], or null where cadence is unknowable (too few beats).
+  function beatRegularity(peaks, fs) {
+    const n = peaks.length;
+    if (n < 4) return peaks.map(() => null); // no local cadence to judge against — unknown, NOT perfect
+    const iv = [];
+    for (let k = 1; k < n; k++) iv.push(peaks[k] - peaks[k - 1]);
+    const med = median(iv);
+    if (!(med > 0)) return peaks.map(() => null);
+    const out = [];
+    for (let k = 0; k < n; k++) {
+      const devs = [];
+      if (k > 0) devs.push(Math.abs(iv[k - 1] - med) / med);
+      if (k < n - 1) devs.push(Math.abs(iv[k] - med) / med);
+      const d = devs.length ? Math.min.apply(null, devs) : 1;
+      // 0 % deviation → 1.0 · ≥50 % (a halved/doubled interval) → the 0.6 floor
+      out.push(Math.max(0.6, 1 - Math.min(1, d / 0.5) * 0.4));
+    }
+    return out;
+  }
+
+  // ── SENTINEL GAPS vs THE FILTER (PPGDEX-O2RING-FINGER-SITE §3) ──
+  //  A rejected sentinel is known-invalid, so it must not reach the biquad AS AN AMPLITUDE — left in,
+  //  156 is a step away from the local trend and rings the filter around every gap. But a biquad has
+  //  no concept of "missing": some number must occupy the slot. We hold the last good sample (a
+  //  zero-order hold — the least inventive choice available; explicitly NOT a median filter and NOT
+  //  interpolation, both of which invent a trajectory the device never reported).
+  //  The honesty guarantee is NOT in this substitution — it is that no REPORTED measurement rests on
+  //  it: `gapBeats` below drops every beat whose foot→peak span touches a gap, so a held sample can
+  //  shape a filter tail but can never produce a PPI, an HRV interval, or a morphology fiducial.
+  //  The held values are never surfaced and never exported.
+  function holdOverGaps(x, gap) {
+    const y = Float32Array.from(x);
+    let last = null;
+    for (let i = 0; i < y.length; i++) {
+      if (!gap[i]) {
+        last = y[i];
+        continue;
+      }
+      if (last !== null) y[i] = last;
+    }
+    // leading gaps have no prior good sample — backfill from the first good one so the array is
+    // finite; those beats are dropped by gapBeats anyway.
+    if (gap[0]) {
+      let first = null;
+      for (let i = 0; i < y.length && first === null; i++) if (!gap[i]) first = y[i];
+      for (let i = 0; i < y.length && gap[i]; i++) y[i] = first !== null ? first : 0;
+    }
+    return y;
+  }
+  // Indices of beats whose defining span [foot−2, peak+2] overlaps ANY rejected sentinel sample.
+  // Those beats' timing rests on held values, so they are dropped rather than reported.
+  function gapBeats(peaks, feet, gap) {
+    const bad = new Set();
+    for (let k = 0; k < peaks.length; k++) {
+      const p = peaks[k];
+      const f = feet && feet[k] != null ? Math.floor(feet[k]) : p;
+      const lo = Math.max(0, Math.min(f, p) - 2),
+        hi = Math.min(gap.length - 1, Math.max(f, p) + 2);
+      for (let i = lo; i <= hi; i++)
+        if (gap[i]) {
+          bad.add(k);
+          break;
+        }
+    }
+    return bad;
+  }
+
   function pearson(a, b) {
     const n = Math.min(a.length, b.length);
     const ma = mean(a),
@@ -1747,7 +1834,11 @@
     // (the workers run detectChannel's own source). compute()/tests never set it, so this
     // in-thread detect is the numeric source of truth the gates verify.
     P(55, 'Optical beat detection · 3-LED (systolic feet)…');
-    const perChannelAll = rec._preChannels && rec._preChannels.length === rec.ch.length ? rec._preChannels : rec.ch.map((c) => detectChannel(c, rec.fs));
+    // Sentinel gaps (finger site only) are held over BEFORE the biquad — see holdOverGaps: a
+    // known-invalid 156 left in as an amplitude rings the filter around every gap. Beats that
+    // actually touch a gap are dropped below, so nothing reported rests on a held sample.
+    const chIn = rec.gap ? rec.ch.map((c) => holdOverGaps(c, rec.gap)) : rec.ch;
+    const perChannelAll = rec._preChannels && rec._preChannels.length === rec.ch.length ? rec._preChannels : chIn.map((c) => detectChannel(c, rec.fs));
     // Degenerate-channel guard: collapse bit-identical duplicates BEFORE the consensus vote, so a
     // replicated single-sensor stream (the O2Ring finger pleth) takes consensusBeats' honest
     // `nCh < 2` path — beats pass through, agreement reports null — instead of voting with itself
@@ -1763,6 +1854,20 @@
     );
     const bp = perChannel[refIdx].bp; // reference-channel band-passed waveform
     const cons = consensusBeats(perChannel, refIdx, rec.fs);
+    // A beat whose foot→peak span touches a rejected sentinel is a GAP, not a measurement — its
+    // timing would rest on held values. Drop it. This is the same discipline the 3-LED path applies
+    // to a 1-of-3 beat: dropped, never median-filled, never interpolated.
+    let nGapBeats = 0;
+    if (rec.gap) {
+      const bad = gapBeats(cons.peaks, cons.feet, rec.gap);
+      nGapBeats = bad.size;
+      if (bad.size) {
+        const keep = (arr) => (arr ? arr.filter((_, k) => !bad.has(k)) : arr);
+        cons.peaks = keep(cons.peaks);
+        cons.feet = keep(cons.feet);
+        cons.agree = keep(cons.agree);
+      }
+    }
     const det = { peaks: cons.peaks, feet: cons.feet, T: 0 };
 
     P(62, 'Motion gate (ACC + GYRO)…');
@@ -1770,7 +1875,10 @@
     const motionAt = motion.hasData ? (samp) => /** @type {any} */ (motion).motionAtSec(rec.relSec[Math.max(0, Math.min(rec.n - 1, Math.round(samp)))]) : null;
 
     P(68, 'Per-beat SQI (× 3-LED agreement)…');
-    const sqi = beatSQI(bp, det.peaks, rec.fs, motionAt, cons.agree);
+    // Single channel ⇒ no vote to fold in; cadence corroboration stands in for it (§4), and only
+    // there — a 3-LED session passes `regular = null` and its SQI is byte-unchanged.
+    const regular = cons.singleChannel ? beatRegularity(det.peaks, rec.fs) : null;
+    const sqi = beatSQI(bp, det.peaks, rec.fs, motionAt, cons.agree, regular);
 
     // foot times (sec, absolute rel) — interpolate relSec at fractional foot index
     const footSec = det.feet.map((f) => {
@@ -2102,6 +2210,16 @@
       ledSeries,
       ledSingleChannel: cons.singleChannel,
       nDroppedBeats: cons.nDropped,
+      // ── FINGER SITE (PPGDEX-O2RING-FINGER-SITE) ──
+      // `site` is a layout fact from the parser ('wrist' 3-LED Verity | 'finger' 1-channel O2Ring),
+      // NOT an inference. Consumers grade morphology by site (§5) instead of inheriting the wrist's.
+      site: rec.site || 'wrist',
+      // Sentinel bookkeeping — BOTH classes surfaced, because rejecting every 156 would punch ~7 %
+      // of holes into valid signal and reporting only rejections would hide that judgement call.
+      sentinelRejected: rec.sentinelRejected || 0,
+      sentinelKept: rec.sentinelKept || 0,
+      // Beats dropped because their foot→peak span touched a gap (never filled, never interpolated).
+      nGapBeats,
       hrvLowConfidence,
       hrvLowConfidenceReason,
       motion,

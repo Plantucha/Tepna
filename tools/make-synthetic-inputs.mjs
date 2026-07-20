@@ -363,6 +363,71 @@ const emit = (name, text) => {
   emit('synthetic_ppgdex_verity.txt', rows.join('\n') + '\n');
 }
 
+/* ── 5b · PpgDex — Wellue O2Ring FINGER-site PPG (1 channel, 8-bit, ~125.7 Hz) ──
+   The adversarial twin for PPGDEX-O2RING-FINGER-SITE. Committed inputs beat a gitignored real
+   night: CI re-runs this from bytes on every push, so the finger leg cannot go stale unseen
+   (CLAUDE.md §🔏 / CPAP-REAL-CORPUS §P2). Three device traits are deliberately reproduced —
+   each one exists to keep a specific code path honest:
+     · ONE optical column, no ambient — the ring AC-couples + gain-normalises on-device, so there
+       is no DC to subtract and a committed ambient 0 would be a fabricated reading.
+     · INVERTED vs the vendor display (§2.5 — their transform is `127 − sample`), so systole is a
+       MINIMUM in the raw bytes. Generating it upright would leave orient()'s polarity inference
+       untested on the one site that needs it.
+     · BOTH sentinel classes: isolated `156` (a real PPG_INVALID marker ⇒ gap) AND a
+       trend-consistent `156` (legitimate signal ⇒ kept). A twin carrying only the first would pass
+       a value-only rejector, which is the bug §2.4 exists to prevent — it would silently punch
+       ~7 % of holes into valid signal.
+   HR is 48 bpm: the corpus' sleeping rate, where a dicrotic double-count lands ~625 ms out and so
+   clears a fixed 0.30 s refractory — the exact 2×-HR trap that doubled whole nights.               */
+{
+  const HEAD = 'Phone timestamp;sensor timestamp [ns];channel 0';
+  const rows = [HEAD];
+  const FS = 125.738, // calibrated on-device rate (O2RING-LIVE-PPG-WAVEFORM Phase 2)
+    SECS = 40,
+    HR = 48;
+  const t0 = Date.UTC(2026, 6, 18, 2, 14, 7, 0);
+  const ns0 = 900351534233872000n;
+  const N = Math.round(FS * SECS);
+  const v = new Array(N);
+  for (let i = 0; i < N; i++) {
+    const t = i / FS;
+    const ph = 2 * Math.PI * (HR / 60) * t;
+    const pulse = Math.sin(ph) + 0.45 * Math.sin(2 * ph - 0.9); // systolic + prominent diastolic
+    // amplitude chosen so the pulse spans ~91 of 256 levels — the measured figure (§2.2).
+    v[i] = Math.round(100 - 33 * pulse - 8 * Math.sin(t / 7));
+  }
+  // Level-shift so the waveform's own maximum lands EXACTLY on 156. That makes a trend-consistent
+  // sentinel physically real here rather than a lucky rounding: the peak sample IS 156 and its
+  // neighbours sit within a couple of LSB, so only an isolation test can tell it from a marker.
+  // Deterministic by construction — no hunting for a sample that happens to round right.
+  const vmax = Math.max.apply(null, v);
+  for (let i = 0; i < N; i++) v[i] += 156 - vmax;
+  const peakIdx = v.indexOf(156); // captured BEFORE any marker is planted, so it is the real peak
+  // ISOLATED sentinels — planted on SYSTOLIC EXTREMA (minima, since the stream is inverted), which
+  // does two jobs at once: the local trend there is ~65, i.e. maximally far from 156, so the
+  // isolation test MUST reject them; and they sit inside a beat's foot→peak span, so each one must
+  // also drop that beat. A twin whose markers landed in quiet baseline would leave the gap-drop
+  // path unexercised and let a regression through — the whole point of the sentinel work is that a
+  // known-invalid sample never reaches a reported measurement.
+  const isolated = [];
+  for (const tSec of [3.2, 9.5, 20.7, 31.0]) {
+    const c = Math.round(tSec * FS);
+    let lo = c;
+    for (let i = Math.max(1, c - 60); i < Math.min(N - 1, c + 60); i++) if (v[i] < v[lo]) lo = i;
+    isolated.push(lo);
+  }
+  for (const i of isolated) v[i] = 156;
+  // TREND-CONSISTENT sentinel — the waveform's own peak (now exactly 156 by the shift above). The
+  // isolation test must KEEP this one; a value-only rejector would wrongly gap it.
+  const kept = peakIdx;
+  if (kept < 0 || isolated.includes(kept)) throw new Error('finger twin: no trend-consistent 156 available — retune the amplitude');
+  for (let i = 0; i < N; i++) {
+    const ns = ns0 + BigInt(Math.round((i / FS) * 1e9));
+    rows.push(`${isoMs(t0 + (i / FS) * 1000)};${ns};${v[i]}`);
+  }
+  emit('synthetic_ppgdex_o2ring_finger.txt', rows.join('\n') + '\n');
+}
+
 /* ── 6 · ECGDex — Polar H10 raw ECG (130 Hz, µV) ────────────────────────────
    Needs real QRS morphology: Pan–Tompkins must find the R-peaks.                 */
 {

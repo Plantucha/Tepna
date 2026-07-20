@@ -296,6 +296,10 @@ async function main(){
     ['hrvdex_synth', 'synthetic_hrvdex_welltory.csv', 'synthetic_hrvdex_golden.node-export.json'],
     ['glucodex_synth', 'synthetic_glucodex_lingo.csv', 'synthetic_glucodex_golden.node-export.json'],
     ['ppgdex_synth', 'synthetic_ppgdex_verity.txt', 'synthetic_ppgdex_golden.node-export.json'],
+    // ADVERSARIAL PpgDex FINGER twin (PPGDEX-O2RING-FINGER-SITE §6) — input only, no golden.
+    // Asserts what the 3-LED wrist twin structurally cannot: a 1-column file parses, LED agreement
+    // is null (never a fabricated 100), and the in-band 156 sentinel splits by isolation not value.
+    ['ppgdex_finger', 'synthetic_ppgdex_o2ring_finger.txt', null],
     ['ecgdex_synth', 'synthetic_ecgdex_h10.txt', 'synthetic_ecgdex_golden.node-export.json'],
     // MotionDex IMU leg (MOTIONDEX-BUILD-2026-07-17 §5) — committed synthetic Polar ACC + its golden.
     ['motiondex', 'synthetic_motiondex_acc.txt', 'synthetic_motiondex_golden.node-export.json'],

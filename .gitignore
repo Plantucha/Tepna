@@ -62,6 +62,9 @@ uploads/*
 !uploads/synthetic_glucodex_lingo.csv
 !uploads/synthetic_glucodex_lingo_gap.csv
 !uploads/synthetic_ppgdex_verity.txt
+# O2Ring FINGER twin (PPGDEX-O2RING-FINGER-SITE §6) — single optical column, 8-bit, ~125.7 Hz,
+# carrying BOTH sentinel classes. Closed-form, no recording of any person.
+!uploads/synthetic_ppgdex_o2ring_finger.txt
 !uploads/synthetic_ecgdex_h10.txt
 !uploads/synthetic_oxydex_golden.node-export.json
 !uploads/synthetic_pulsedex_golden.node-export.json
