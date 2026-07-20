@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-20 · **Follows:** `PPGDEX-O2RING-FINGER-SITE-2026-07-18-BRIEF.md` (DONE 2026-07-20)
+**Status:** DONE — 2026-07-20 (**both items closed same day.** §1: the daemon was restarted on post-#276 code and a fresh finger session recorded a **genuine 1-column file** — `parsePPG` tags `site='finger'`, `channels=1`, directly (no guard); with the H10 streaming a live raw ECG in the same session, a full three-way over 366 s: O2Ring→PpgDex 59.7 bpm vs the ring's 1 Hz field 60.0 (Δ 0.3) vs the H10 ECG gold standard 60.9 (Δ 1.2). §2: that same capture exercised the §2.4 sentinel path on real data — `sentinelRejected=59` (~0.6 %, matching the ~0.66/frame the brief measured), `nGapBeats=3`, no median-fill. Evidence appended to `docs/O2RING-FINGER-ROUNDTRIP-2026-07-20.md`.) · **Created:** 2026-07-20 · **Follows:** `PPGDEX-O2RING-FINGER-SITE-2026-07-18-BRIEF.md` (DONE 2026-07-20)
 
 # PpgDex O2Ring finger-site — follow-ups
 
