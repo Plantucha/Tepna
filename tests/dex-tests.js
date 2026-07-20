@@ -3782,6 +3782,43 @@
       T.eq('wrist site resolves to the base ids', R.idForSite('ai', 'wrist'), 'ai');
     } else {
       T.skip('PpgRegistry.idForSite available', 'registry not loaded in this lane');
+  // A storage failure must SURVIVE to the user. persistHRVRows used to paint its own warning and the
+  // caller overwrote it two statements later with "✅ Added N measurements" — so a full or disabled
+  // browser store reported success. The outcome is now returned and APPENDED, and this pins both
+  // halves: the note says the right thing, and the success line actually carries it.
+  group('HRVDex storage failure survives the success line (DEEP-AUDIT-II §1.11)', 'hrvdex-dsp', function (T) {
+    // the bare-helper surface (HRVDex._bare) is the deliberate test-access namespace, per hrvdex-dsp.js
+    var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
+    if (!(D && typeof D._persistNote === 'function')) {
+      T.ok('HRVDex._bare._persistNote exposed', false, 'export it from hrvdex-dsp.js');
+      return;
+    }
+    // ── the note itself ──
+    T.eq('a full write adds NOTHING (silence is the only thing that may mean saved)', D._persistNote({ ok: true }), '');
+    T.eq('a missing outcome adds nothing', D._persistNote(null), '');
+    var failed = D._persistNote({ failed: true });
+    T.ok('a failed write says NOT saved', /NOT saved/.test(failed) && /⚠/.test(failed), 'got ' + JSON.stringify(failed));
+    T.ok('a failed write says the data is session-only', /this session only/.test(failed), 'got ' + JSON.stringify(failed));
+    var capped = D._persistNote({ capped: 40, total: 300 });
+    T.ok('a capped write reports BOTH counts, not just the kept one', /40/.test(capped) && /300/.test(capped), 'got ' + JSON.stringify(capped));
+    T.ok('a capped write is marked as a warning', /⚠/.test(capped), 'got ' + JSON.stringify(capped));
+    // ── the anti-regression direction: the three outcomes must be DISTINGUISHABLE ──
+    // Hard-coding '' would pass the first two asserts; this makes that impossible.
+    T.ok('the three outcomes produce three different strings', D._persistNote({ ok: true }) !== failed && failed !== capped && capped !== D._persistNote({ ok: true }),
+      'ok=' + JSON.stringify(D._persistNote({ ok: true })) + ' failed=' + JSON.stringify(failed) + ' capped=' + JSON.stringify(capped));
+    // ── persistHRVRows must RETURN an outcome, not paint one ──
+    var src = env.sources && env.sources['hrvdex-dsp.js'];
+    if (src) {
+      var fn = src.slice(src.indexOf('function persistHRVRows()'), src.indexOf('function _persistNote'));
+      T.ok('persistHRVRows no longer calls setStatus itself (the caller composes)', fn.indexOf('setStatus') === -1,
+        'persistHRVRows still paints its own status — the caller will overwrite it again');
+      T.ok('persistHRVRows returns the capped outcome', /return \{ capped:/.test(fn), 'no capped return found');
+      T.ok('persistHRVRows returns the failed outcome', /return \{ failed: true \}/.test(fn), 'no failed return found');
+      // and the caller must APPEND it
+      T.ok('the success line appends the persist note', /_persistNote\(_persisted\)/.test(src) && /span \+ note/.test(src),
+        'the caller does not append _persistNote to the status line');
+    } else {
+      T.skip('hrvdex-dsp.js source available', 'env.sources not wired in this lane');
     }
   });
 

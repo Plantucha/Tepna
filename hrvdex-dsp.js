@@ -222,17 +222,24 @@
     });
     return r;
   }
+  // → { ok:true } · { capped:<kept>, total:<n> } · { failed:true }
+  //
+  // RETURNS the outcome instead of painting it (DEEP-AUDIT-II §1.11). It used to call setStatus()
+  // itself, and its ONE caller then unconditionally overwrote that line with
+  // "✅ Added N measurements" two statements later — so a browser with full or disabled storage
+  // told the user their history was saved when it was capped, or not written at all. The warning
+  // existed, was correct, and was invisible. The caller now composes both facts into one line.
   function persistHRVRows() {
     if (!allRows || !allRows.length) {
       try {
         localStorage.removeItem(HRV_STORE_KEY);
       } catch (e) {}
-      return;
+      return { ok: true };
     }
     const seeds = allRows.map(_seedFromRow);
     try {
       localStorage.setItem(HRV_STORE_KEY, JSON.stringify(seeds));
-      return;
+      return { ok: true };
     } catch (e) {
       // Quota / storage disabled. Don't fail SILENTLY (FOLLOWUP-FINDINGS P5.2): the
       // "missing → visible, never fabricated" rule applies to the saved mirror too. Keep
@@ -244,15 +251,20 @@
         kept = kept.slice(-Math.max(1, Math.floor(kept.length / 2))); // drop the oldest half
         try {
           localStorage.setItem(HRV_STORE_KEY, JSON.stringify(kept));
-          if (typeof setStatus === 'function')
-            setStatus('⚠ Saved history capped to the most recent ' + kept.length + ' of ' + seeds.length + ' measurements — browser storage is full. The full table is kept for this session only.');
-          return;
+          return { capped: kept.length, total: seeds.length };
         } catch (_) {
           /* still too big — halve again */
         }
       }
-      if (typeof setStatus === 'function') setStatus('⚠ Could not save history to this browser (storage full or disabled). Your data is kept for this session only.');
+      return { failed: true };
     }
+  }
+  // The one sentence a persist outcome is allowed to add to the status line. Empty when the mirror
+  // was written in full — silence means saved, and it is the ONLY thing that may mean saved.
+  function _persistNote(res) {
+    if (!res || res.ok) return '';
+    if (res.failed) return ' · ⚠ NOT saved to this browser (storage full or disabled) — kept for this session only.';
+    return ' · ⚠ saved history capped to the most recent ' + res.capped + ' of ' + res.total + ' — browser storage is full; the full table is kept for this session only.';
   }
   function restoreHRVRows() {
     let seeds = null;
@@ -294,15 +306,19 @@
     allRows.sort((a, b) => a._tMs - b._tMs);
     inferFromData(); // v2.9: infer profile first so computeDerived uses real age
     computeDerived();
-    persistHRVRows(); // mirror the accumulated table so it survives reload
+    const _persisted = persistHRVRows(); // mirror the accumulated table so it survives reload
     setProgress(100);
     if (typeof setStatus === 'function') {
       const span = fmtDate(allRows[0]._tMs) + ' – ' + fmtDate(allRows[allRows.length - 1]._tMs);
+      // §1.11: the persist outcome is APPENDED, not overwritten. This line used to unconditionally
+      // replace whatever persistHRVRows had just painted, so a full/disabled store produced a clean
+      // "✅ Added N measurements" and the user believed their history was saved.
+      const note = _persistNote(_persisted);
       if (opts.restored) {
-        setStatus('↻ Restored ' + allRows.length + ' measurements from your last session (' + span + '). Import more — they accumulate.');
+        setStatus('↻ Restored ' + allRows.length + ' measurements from your last session (' + span + '). Import more — they accumulate.' + note);
       } else {
         const skip = dup ? ' · ' + dup + ' duplicate' + (dup === 1 ? '' : 's') + ' skipped' : '';
-        setStatus('✅ Added ' + added + ' measurement' + (added === 1 ? '' : 's') + skip + ' — ' + allRows.length + ' total · ' + span);
+        setStatus('✅ Added ' + added + ' measurement' + (added === 1 ? '' : 's') + skip + ' — ' + allRows.length + ' total · ' + span + note);
       }
     }
     /** @type {HTMLElement} */ (document.getElementById('uploadZone')).style.display = 'none';
@@ -1142,6 +1158,7 @@
     _seedFromRow,
     _rowFromSeed,
     persistHRVRows,
+    _persistNote,
     restoreHRVRows,
     commitRows,
     _hrvRefreshChrome,
