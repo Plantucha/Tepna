@@ -482,8 +482,22 @@ def stream_is_stalled(last_change, now, grace) -> bool:
     return bool(grace and grace > 0 and last_change is not None and (now - last_change) >= grace)
 
 
+# E5 · LINK.csv under-reported dropouts. rssi_poller samples `connected` every ~25 s, so a drop+reconnect
+# INSIDE a 25 s window is invisible — it reads connected=1 at both ends (measured: the Verity re-subscribed
+# twice and the H10 once in a 22:14-22:16 window that LINK.csv logged as connected throughout). The runners,
+# however, know every edge exactly: each calls _set(connected=True/False) the instant the link flips. So
+# COUNT the connect edges here, at the source. A monotonic per-device reconnect count that the poller then
+# samples makes the sidecar authoritative for the NUMBER of dropouts — if the count jumps between two rows,
+# drops happened, even when both rows read connected=1.
+_LINK_EPOCH: dict[str, int] = {}   # device name -> count of connect edges (survives the poll it sampled over)
+
+
 def _set(name, **kv):
-    STATUS["devices"].setdefault(name, {}).update(kv)
+    d = STATUS["devices"].setdefault(name, {})
+    if "connected" in kv and bool(kv["connected"]) and not bool(d.get("connected")):
+        _LINK_EPOCH[name] = _LINK_EPOCH.get(name, 0) + 1   # a fresh connection — count it even if a poll missed the drop
+        kv = {**kv, "link_epoch": _LINK_EPOCH[name]}       # surfaced for the LINK sidecar (E5)
+    d.update(kv)
 
 
 def _parse_hr(data: bytes):
@@ -1207,7 +1221,14 @@ async def run_oxyii(dev: dict, root: str):
         try:
             _set(name, connected=False, address=addr, last_error=None)
             async with _connect_scan(addr) as client:
-                _set(name, connected=True); log.info("%s connected", name); backoff = 5
+                # NB: backoff is NOT reset here. A bare connect is not a viable session — the O2Ring's
+                # signature failure (E3) is a connect that SUCCEEDS then drops during service discovery
+                # ("failed to discover services, device disconnected", 38× in one night). Resetting on
+                # connect meant every doomed attempt reset the backoff, so a flapping ring hammered a
+                # reconnect every ~21 s (15 s scan + connect + 5 s sleep) — 178 reconnects, 115 session
+                # files — instead of ever backing off. Reset only once DATA flows (the poll loop below):
+                # then a genuinely viable ring recovers fast, while a flapping one is left to back off.
+                _set(name, connected=True); log.info("%s connected", name)
                 # Resolve write/notify chars by UUID (robust to a stale BlueZ service cache).
                 wch = nch = None
                 for s in client.services:
@@ -1370,6 +1391,10 @@ async def run_oxyii(dev: dict, root: str):
                     # bleak's dispatch) is indistinguishable from a healthy one from out here.
                     if frames[0] != last_frames:
                         last_frames, last_change = frames[0], _time.monotonic()
+                        backoff = 5           # E3: data is flowing — THIS is a viable session, so reset the
+                                              # reconnect backoff. A later drop then recovers fast; a ring
+                                              # that only ever connects-and-drops never reaches here and so
+                                              # keeps backing off (5→10→…→60) instead of hammering.
                     elif stream_is_stalled(last_change, _time.monotonic(), _STREAM_STALL_S):
                         stalled = True
                         _set(name, last_error=f"no frames for {_STREAM_STALL_S:.0f}s — reconnecting")
@@ -1858,7 +1883,8 @@ async def rssi_poller(adapter_mac, cfg: dict, root: str | None = None):
                 if writer:
                     st = STATUS["devices"].get(name, {})
                     writer.write(_now(), name, connected, st.get("rssi"), st.get("battery"),
-                                 st.get("frames_dropped"), st.get("frames_duplicated"))
+                                 st.get("frames_dropped"), st.get("frames_duplicated"),
+                                 st.get("link_epoch"))    # E5: the reconnect count the 25 s sampling can't miss
             if do_rssi and any_link and not got_any:
                 misses += 1
                 if misses >= 3 and not idle:

@@ -117,14 +117,18 @@ def test_host_clock_none_reason_is_blank_not_the_string_none(tmp_path):
 def test_link_log_layout_and_connected_flag(tmp_path):
     p = tmp_path / "l.csv"
     w = LinkLogWriter(str(p), fsync=False)
-    w.write(WHEN, "Polar H10", True, -56, 80)
+    w.write(WHEN, "Polar H10", True, -56, 80, link_epoch=1)
     w.write(WHEN, "Polar H10", False, None, None)
     w.close()
+    # link_epoch (E5) is APPENDED last so a positional reader of the first seven columns is unaffected.
     assert _lines(str(p))[0].split(";") == ["Phone timestamp", "device", "connected", "rssi_dbm",
-                                            "battery_pct", "frames_dropped", "frames_duplicated"]
+                                            "battery_pct", "frames_dropped", "frames_duplicated",
+                                            "link_epoch"]
     up, down = (r.split(";") for r in _rows(str(p)))
     assert up[1:5] == ["Polar H10", "1", "-56", "80"]
+    assert up[7] == "1", "the reconnect count is recorded"
     assert down[2] == "0" and down[3] == "" and down[4] == "", "absent RSSI/battery must be blank"
+    assert down[7] == "", "absent link_epoch must be blank, never a fabricated 0"
 
 
 def test_link_log_zero_rssi_is_not_confused_with_absent(tmp_path):

@@ -2980,3 +2980,73 @@ def test_main_reads_motion_wear_gate_config(tmp_path, monkeypatch):
         capture._MOTION_STILL_MG = 12.0
         capture._MOTION_STILL_SEC = 300.0
         capture._MOTION_WINDOW_SEC = 20.0
+
+
+# ── E5 · reconnect-edge counter (LINK.csv can't miss a dropout the 25 s poll sampled over) ──────────
+def test_set_counts_a_reconnect_edge_the_poller_would_miss():
+    """A drop+reconnect BETWEEN two 25 s LINK samples reads connected=1 at both ends, so the sidecar used
+    to under-count dropouts. _set counts the False→True edge at the source, so the reconnect count moves
+    even when no poll observed the drop."""
+    capture.STATUS.clear(); capture.STATUS["devices"] = {}
+    capture._LINK_EPOCH.clear()
+    capture._set("Ring", connected=True, address="AA")         # first connect
+    assert capture.STATUS["devices"]["Ring"]["link_epoch"] == 1
+    capture._set("Ring", connected=False)                      # a drop the poller never sampled...
+    capture._set("Ring", connected=True)                       # ...and the reconnect
+    assert capture.STATUS["devices"]["Ring"]["link_epoch"] == 2, "the missed dropout is still counted"
+    capture._set("Ring", spo2=97)                              # a non-connection update must not bump it
+    assert capture.STATUS["devices"]["Ring"]["link_epoch"] == 2
+    capture._set("Ring", connected=True)                       # already connected — no new edge
+    assert capture.STATUS["devices"]["Ring"]["link_epoch"] == 2
+
+
+def test_link_epoch_reaches_the_sidecar(tmp_path, monkeypatch):
+    """rssi_poller writes the per-device reconnect count into LINK.csv."""
+    capture.STATUS.clear(); capture.STATUS["devices"] = {}
+    capture._LINK_EPOCH.clear()
+    capture._set("Ring", connected=True, address="AA")
+    cfg = {"link": {"rssi_enabled": False, "rssi_interval_sec": 1},
+           "devices": [{"name": "Ring", "address": "AA"}]}
+    _stop_after(monkeypatch, 1)
+    _run(capture.rssi_poller(None, cfg, str(tmp_path)))
+    link = list((tmp_path / "captures").rglob("*_LINK.csv"))[0].read_text().splitlines()
+    assert link[0].endswith("link_epoch")
+    assert link[1].split(";")[7] == "1", "the reconnect count is in the sidecar"
+
+
+# ── E3 · O2Ring reconnect backoff only resets on a VIABLE session (data flowing), not on bare connect ─
+def test_run_oxyii_backoff_grows_when_connect_then_drops_without_data(tmp_path, monkeypatch):
+    """THE E3 FIX. A ring that connects then drops during discovery (never sends a frame) must BACK OFF,
+    not reset to 5 s and hammer every ~21 s. With no data, backoff climbs 5→10→…"""
+    from bleak.exc import BleakError
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    slept = []
+    class _DropClient(FakeGattClient):
+        async def start_notify(self, _c, cb):            # connect ok, but drop before any data
+            raise BleakError("failed to discover services, device disconnected")
+    c = _DropClient()
+    _inject_connect_scan(monkeypatch, c)
+    _real = asyncio.sleep
+    async def rec_sleep(s):
+        slept.append(s)
+        if len(slept) >= 3:
+            capture._STOP.set()
+        await _real(0)
+    monkeypatch.setattr(capture.asyncio, "sleep", rec_sleep)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    # the reconnect-backoff sleeps (5, then 10) — growing, because no session was ever viable
+    backoffs = [s for s in slept if s in (5, 10, 20, 40, 60)]
+    assert backoffs[:2] == [5, 10], f"backoff did not grow on connect-then-drop: {slept}"
+
+
+def test_run_oxyii_backoff_resets_once_data_flows(tmp_path, monkeypatch):
+    """A ring that actually streams is viable — its backoff resets to 5 so a later drop recovers fast."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture.STATUS.clear(); capture.STATUS["devices"] = {}
+    c = FakeGattClient()
+    c.on_live = lambda data: (c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None)
+    _inject_connect_scan(monkeypatch, c)
+    # let it connect, stream a couple of replies, then stop — never entering the backoff path
+    _stop_after(monkeypatch, 5)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    assert capture.STATUS["devices"]["Ring"].get("spo2") == 96   # data flowed → the viable path ran
