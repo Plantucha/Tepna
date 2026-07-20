@@ -2512,3 +2512,94 @@ def test_run_viatom_stall_baseline_resets_when_rows_advance(tmp_path, monkeypatc
     _run(capture.run_viatom(_viatom_dev(), str(tmp_path)))
     err = (capture.STATUS["devices"]["Ring"].get("last_error") or "").lower()
     assert "no data" not in err, "a delivering ring was torn down"
+
+
+def test_connect_timeout_error_says_what_it_means(monkeypatch):
+    """`asyncio.wait_for` raises a BARE TimeoutError(), which lands in `last_error` saying nothing — where
+    the unbounded code it replaced surfaced 'was not found', i.e. "your strap is off". Observed
+    2026-07-20 05:07 as `Polar H10 link error: TimeoutError()`. Keep the bound, restore the meaning —
+    and keep the class name so transient_ble_error() still matches on repr()."""
+    import bleak
+    class _BC:
+        def __init__(self, addr, **kw): pass
+        async def connect(self): await asyncio.sleep(3600)
+        async def disconnect(self): pass
+    monkeypatch.setattr(bleak, "BleakClient", _BC)
+    async def no_kw(): return {}
+    monkeypatch.setattr(capture, "adapter_kw", no_kw)
+    monkeypatch.setattr(capture, "_BLE_CONNECT_TIMEOUT_S", 0.01)
+
+    async def go():
+        with pytest.raises(TimeoutError) as ei:
+            async with capture._connect("24:AC:AC:02:84:96"):
+                pass                                       # pragma: no cover — connect never yields
+        return ei.value
+    err = _run(go())
+    assert "24:AC:AC:02:84:96" in str(err) and "out of range" in str(err)
+    assert capture.transient_ble_error(err), "must still classify as retryable, not a hard failure"
+
+
+def test_connect_non_timeout_failure_also_tears_down(monkeypatch):
+    """A connect that FAILS (rather than hangs) must still not leak a half-open link, and its own error
+    must propagate untouched — only the bare-timeout case gets re-worded."""
+    import bleak
+    events = []
+    class _BC:
+        def __init__(self, addr, **kw): pass
+        async def connect(self): raise RuntimeError("le-connection-abort-by-local")
+        async def disconnect(self): events.append("disconnect")
+    monkeypatch.setattr(bleak, "BleakClient", _BC)
+    async def no_kw(): return {}
+    monkeypatch.setattr(capture, "adapter_kw", no_kw)
+
+    async def go():
+        with pytest.raises(RuntimeError, match="abort-by-local"):
+            async with capture._connect("AA"):
+                pass                                       # pragma: no cover — connect never yields
+    _run(go())
+    assert events == ["disconnect"]
+
+
+def test_connect_scan_non_timeout_failure_also_tears_down(monkeypatch):
+    """_connect_scan carries the same teardown guarantee as _connect."""
+    import bleak
+    events = []
+    class _BC:
+        def __init__(self, dev, **kw): pass
+        async def connect(self): raise RuntimeError("le-connection-abort-by-local")
+        async def disconnect(self): events.append("disconnect")
+    async def find(*a, **k): return object()
+    monkeypatch.setattr(bleak, "BleakClient", _BC)
+    monkeypatch.setattr(bleak.BleakScanner, "find_device_by_filter", staticmethod(find))
+    async def no_kw(): return {}
+    monkeypatch.setattr(capture, "adapter_kw", no_kw)
+
+    async def go():
+        with pytest.raises(RuntimeError, match="abort-by-local"):
+            async with capture._connect_scan("AA"):
+                pass                                       # pragma: no cover — connect never yields
+    _run(go())
+    assert events == ["disconnect"]
+
+
+def test_connect_scan_timeout_error_says_what_it_means(monkeypatch):
+    """The ring path carries the same restored message."""
+    import bleak
+    class _BC:
+        def __init__(self, dev, **kw): pass
+        async def connect(self): await asyncio.sleep(3600)
+        async def disconnect(self): pass
+    async def find(*a, **k): return object()
+    monkeypatch.setattr(bleak, "BleakClient", _BC)
+    monkeypatch.setattr(bleak.BleakScanner, "find_device_by_filter", staticmethod(find))
+    async def no_kw(): return {}
+    monkeypatch.setattr(capture, "adapter_kw", no_kw)
+    monkeypatch.setattr(capture, "_BLE_CONNECT_TIMEOUT_S", 0.01)
+
+    async def go():
+        with pytest.raises(TimeoutError) as ei:
+            async with capture._connect_scan("D1:98:62:7C:92:B3"):
+                pass                                       # pragma: no cover — connect never yields
+        return ei.value
+    err = _run(go())
+    assert "D1:98:62:7C:92:B3" in str(err) and "out of range" in str(err)

@@ -261,6 +261,16 @@ async def adapter_hci() -> str | None:
     return hci
 
 
+def _connect_timeout(addr: str) -> TimeoutError:
+    """The bounded connect's error as the OPERATOR reads it at 07:00. `asyncio.wait_for` raises a BARE
+    `TimeoutError()`, which lands in `last_error` and the log saying nothing at all — where the unbounded
+    code it replaced surfaced BleakDeviceNotFoundError('... was not found.'), i.e. "your strap is off".
+    Observed 2026-07-20 05:07 as `Polar H10 link error: TimeoutError()`. Keep the bound, restore the
+    meaning. The class name stays TimeoutError so transient_ble_error() still matches on repr()."""
+    return TimeoutError(f"connect to {addr} timed out after {_BLE_CONNECT_TIMEOUT_S:.0f}s — sensor off, "
+                        f"out of range, or the adapter is wedged")
+
+
 async def _safe_disconnect(client) -> None:
     """Disconnect without ever hanging the caller. Teardown runs against the SAME wedged stack that caused
     the failure it is cleaning up after, so an unbounded `disconnect()` in a `finally` turns a bounded
@@ -284,6 +294,9 @@ async def _connect(addr: str):
     async with _CONNECT_LOCK:
         try:
             await asyncio.wait_for(client.connect(), _BLE_CONNECT_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            await _safe_disconnect(client)
+            raise _connect_timeout(addr) from None
         except BaseException:
             await _safe_disconnect(client)      # never leak a half-open link past a timeout/cancel
             raise
@@ -316,6 +329,9 @@ async def _connect_scan(addr: str, name_hints=_O2_NAME_HINTS, timeout: float = 1
     async with _CONNECT_LOCK:                   # same bound as _connect — see the note there
         try:
             await asyncio.wait_for(client.connect(), _BLE_CONNECT_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            await _safe_disconnect(client)
+            raise _connect_timeout(addr) from None
         except BaseException:
             await _safe_disconnect(client)
             raise

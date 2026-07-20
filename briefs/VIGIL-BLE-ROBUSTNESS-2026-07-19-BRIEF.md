@@ -76,15 +76,25 @@ inner try (`night_dir()` per iteration → a full disk or read-only mount); `ada
 calls `_btctl` under a bare try/finally; `rssi_poller` writes outside any try. Now every device runner and
 every background poller restarts with a capped backoff, surfaces on the device card, and pushes an alert.
 
-### 6 · Clock re-sync now converges
-`clock_watchdog`'s `adrift` trigger fired on **absolute** skew and the post-sync re-baseline erased the
-memory of having tried — so a device whose offset cannot be shifted from here (the Verity stamps PMD samples
-~4 h ahead; measured 2026-07-18) re-synced **every `drift_check_sec`, forever**. Each attempt pauses live
-capture and holds the connect lock for up to 45 s: at the 300 s default that quietly spent **~15 % of every
-night** achieving nothing, and opened a recovery blind spot every five minutes. Observed live in
-`vigil-run.log` on 2026-07-19. Now `clock_resync_reason()` (pure, tested) gives up after
-`CLOCK_ADRIFT_GIVEUP` (3) proven-useless attempts, says so **once**, and sets `clock_uncorrectable` in
-`status.json` — while a genuine **jump** still re-syncs however often we gave up on the steady offset.
+### 6 · Clock re-sync now converges — **LATENT, not observed at scale (corrected 2026-07-20)**
+`clock_watchdog`'s `adrift` trigger fires on **absolute** skew, and the post-sync `seen.pop()` erases the
+memory of having tried. For a skew that is constant and non-zero — an offset that cannot be shifted from
+here, e.g. the Verity stamping PMD samples ~4 h ahead (measured 2026-07-18) — that pair cannot converge:
+every cycle re-triggers, and each attempt pauses live capture and holds the connect lock for up to 45 s.
+`clock_resync_reason()` (pure, tested) now gives up after `CLOCK_ADRIFT_GIVEUP` (3) proven-useless
+attempts, says so **once**, and sets `clock_uncorrectable` in `status.json` — while a genuine **jump**
+still re-syncs however often we gave up on the steady offset.
+
+> **Correction.** This section originally claimed the loop was "observed live in `vigil-run.log`" and cost
+> "~15 % of every night". **That was wrong** — inference from the first eight minutes of a session, stated
+> as evidence. The full 7 h night of 2026-07-19 → 07-20 shows the adrift trigger firing **exactly once**
+> (04:25:32, Verity, **−3.0 s** — a small drift just over the 2.0 s tolerance, not an uncorrectable one)
+> and **converging**. It does not repeat, because `clock_skew_sec` is only set when a PMD frame carries a
+> readable device time, and an unreadable clock leaves it `None`, which `continue`s. So the defect is real
+> **in the logic** and the guard is cheap and correct, but it is **latent** — it has not been shown to
+> cost a night. The 10 offline-op pauses clustered in 21:35–21:43 that prompted the original claim are a
+> **different path**: the startup clock-sync ladder retrying (see the follow-up on its ~14 min worst case,
+> which those 10 pauses in 8 minutes *do* corroborate).
 
 ### 7 · Ring/legacy paths brought up to the Polar path's standard
 `run_oxyii` and `run_viatom` never deleted **header-only files** (on the documented 359-reconnect night that
