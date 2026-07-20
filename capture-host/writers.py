@@ -371,18 +371,20 @@ class LinkLogWriter:
         self.path = path
         self._fh = open(path, "w", buffering=1 << 16, newline="\n")
         self._fh.write("Phone timestamp;device;connected;rssi_dbm;battery_pct;"
-                       "frames_dropped;frames_duplicated\n")
+                       "frames_dropped;frames_duplicated;link_epoch\n")
         self.rows = 0
         self._flush_interval = flush_interval
         self._fsync = fsync
         self._last_flush = _time.monotonic()
 
     def write(self, when: _dt.datetime, device: str, connected: bool, rssi, battery,
-              dropped=None, duplicated=None) -> None:
+              dropped=None, duplicated=None, link_epoch=None) -> None:
         def _f(v):
             return "" if v is None else str(v)          # blank, never a fabricated 0
+        # link_epoch (E5) is APPENDED last so a positional reader of the first seven columns is unaffected —
+        # the same "never shift an existing column" discipline the class docstring keeps for the sidecar.
         self._fh.write(f"{_phone_ts(when)};{device};{1 if connected else 0};"
-                       f"{_f(rssi)};{_f(battery)};{_f(dropped)};{_f(duplicated)}\n")
+                       f"{_f(rssi)};{_f(battery)};{_f(dropped)};{_f(duplicated)};{_f(link_epoch)}\n")
         self.rows += 1
         now = _time.monotonic()
         if now - self._last_flush >= self._flush_interval:
