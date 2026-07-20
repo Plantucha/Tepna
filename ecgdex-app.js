@@ -88,7 +88,16 @@ self.onmessage = async (e) => {
       }
     }
   } catch(err){
-    // fallback: whole-file text, each part in order
+    // fallback: whole-file text, each part in order.
+    //
+    // DEEP-AUDIT-II §4.4 — RESET FIRST. The streaming loop above appends into the SAME accumulator,
+    // so a mid-stream failure (part 2 of 3, halfway through a chunk) leaves everything read so far
+    // already pushed. Re-reading every part whole then appended a SECOND copy of that prefix: the
+    // record grew by the duplicated span, every sample after the seam sat at the wrong index, and
+    // the derived fs/gaps were computed across a discontinuity that never existed in the recording.
+    // It fails silently — the output is a plausible, longer ECG — which is why nothing caught it.
+    // The fallback re-reads from byte zero, so it must start from zero state.
+    n = 0; t0Ms = null; prevMs = null; msStep = null; gaps.length = 0;
     for(const file of files){
       const txt = await file.text();
       for(const line of txt.split(/\\r?\\n/)) handle(line);
