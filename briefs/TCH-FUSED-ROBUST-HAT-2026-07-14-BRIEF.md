@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-14 · **Created:** 2026-07-14 · **Follows:** `TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md` (executes its intent with a better estimator) · **Feeds:** `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md` · `SIGMA-PAPER-REWRITE-2026-07-06-BRIEF.md`
+**Status:** IN-PROGRESS — 2026-07-14 · **Created:** 2026-07-14 · **Follows:** `TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md` (replaces its **§3 ESTIMATOR** — the cross-corner consensus gate — with the fused weighted-variance hat; ⚠️ **this is NOT a full supersession**: that brief stays LIVE and owns the confidence-carrying `ms;hr;c` corpus re-derivation this brief's own second Done-when box is still blocked on. A 2026-07-19 review misread this parenthesis as "superseded" and nearly retired it) · **Feeds:** `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md` · `SIGMA-PAPER-REWRITE-2026-07-06-BRIEF.md`
 
 # The fused-weight three-cornered hat — artifact-robust σ with no hand-tuned constant
 
