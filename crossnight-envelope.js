@@ -172,7 +172,10 @@
       central: { mean: st.mean, sd: st.sd, median: st.median, iqr: st.iqr, min: st.min, max: st.max, cv: st.cv },
       // §9.3 — dirDisagree rides along: this projection is HAND-PICKED, so a field added to the
       // per-metric stat object is invisible to every consumer until it is named here.
-      trend: { slopePerIndex: st.slope, slopePerDay: st.slopePerDay, r2: st.r2, r2date: st.r2date, mannKendall: { tau: st.tau, p: st.p }, label, dirDisagree: !!st.trendDirDisagree },
+      // §9.4 — `slopeBasis` rides along too, for the same reason the comment above gives: a consumer
+      // reading `slopePerDay: null` cannot otherwise tell "no trend" from "the series is undated, so
+      // a per-day rate does not exist"; `slopePerRecording` carries the figure that DOES exist.
+      trend: { slopePerIndex: st.slope, slopePerDay: st.slopePerDay, slopePerRecording: st.slopePerRecording, slopeBasis: st.slopeBasis, r2: st.r2, r2date: st.r2date, mannKendall: { tau: st.tau, p: st.p }, label, dirDisagree: !!st.trendDirDisagree },
       change,
       baseline: {
         window: st.n != null && st.n > 1 ? 'prior-' + (st.n - 1) : null,

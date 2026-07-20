@@ -196,7 +196,7 @@
     const good = opts.good || 'up';
     const pts = series.filter((p) => p.v != null && isFinite(p.v));
     const n = pts.length;
-    if (n < 2) return { n, mean: n ? r2(pts[0].v) : null, sd: null, cv: null, slopePerDay: null, tau: null, p: null, zLatest: null, trendLabel: '—' };
+    if (n < 2) return { n, mean: n ? r2(pts[0].v) : null, sd: null, cv: null, slopePerDay: null, slopePerRecording: null, slopeBasis: null, tau: null, p: null, zLatest: null, trendLabel: '—' };
     const vals = pts.map((p) => p.v),
       w = pts.map((p) => (p.w != null ? p.w : 1));
     const idx = pts.map((p, i) => i);
@@ -210,6 +210,7 @@
     // OLS vs real date (days since first) honours uneven gaps
     const haveT = pts.every((p) => p.t != null);
     let slopePerDay = null,
+      slopePerRecording = null,
       r2date = null;
     if (haveT) {
       const days = pts.map((p) => (p.t - pts[0].t) / 86400000);
@@ -217,7 +218,18 @@
       slopePerDay = r2(od.slope);
       r2date = r2(od.r2);
     } else {
-      slopePerDay = byIdx.slope != null ? r2(byIdx.slope) : null;
+      /* DEEP-AUDIT-II §9.4 — an INDEX slope is not a PER-DAY slope, and must not be shipped under the
+         per-day name. This branch runs when even ONE item lacks a date, and it used to assign
+         `byIdx.slope` — change per RECORDING — straight to `slopePerDay`, which every consumer renders
+         with a `/d` suffix. A 12-recording series spanning 90 days then reported its per-recording
+         change as a daily one: ~7.5x overstated, and always in the alarming direction, since the same
+         delta compressed into a shorter apparent window looks steeper.
+         Same rule §8.4 already applied to the footer span: report the real quantity when it is
+         knowable, and say what you actually have when it is not — never present one as the other.
+         So the per-day figure is null here (honestly unavailable), the index slope keeps its own
+         honest name, and `slopeBasis` tells the consumer which it is holding. */
+      slopePerDay = null;
+      slopePerRecording = byIdx.slope != null ? r2(byIdx.slope) : null;
     }
     const mk = mannKendall(vals);
     // personal baseline = mean±SD of all-but-latest; z of latest
@@ -280,6 +292,8 @@
       cv: r1(cv),
       slope: byIdx.slope != null ? r3(byIdx.slope) : null,
       slopePerDay,
+      slopePerRecording,
+      slopeBasis: haveT ? 'day' : 'recording',
       r2: byIdx.r2 != null ? r2(byIdx.r2) : null,
       r2date,
       tau: mk.tau,

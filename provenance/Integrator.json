@@ -1,10 +1,10 @@
 {
   "bundle": "Integrator.html",
-  "manifestHash": "229a6c0f8728",
+  "manifestHash": "70cca758da92",
   "fixtures": {
     "integrator_tch_golden.node-export.json": {
       "bundle": "Integrator.html",
-      "manifestHash": "229a6c0f8728",
+      "manifestHash": "70cca758da92",
       "added": "2026-07-06",
       "inputs": [],
       "note": "ADDED 2026-07-06 (INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II §2) — the FIRST code-gated Integrator fixture (the two integrator_fusion_2026-06-1x snapshots are historical:true, byte-PINNED only). Closes FU-I §2's 'make TCH fire on a real co-recorded night' honestly: the Dex-Test-Suite 'equivalence gate' group rebuilds THREE deterministic ganglior.node-exports (ECGDex+PpgDex+OxyDex) carrying overlapping, STAGGERED-wall-clock (+0/+5/+10 min) timeseries.epochs[] {hr, motionIndex} in-code (seeded mulberry32, no RNG/no {text} input — the cpapdex_synthetic_golden pattern), adapts+fuses them through the REAL adaptEnvelopeNode + fuseHRVConsensus, and deep-diffs the WHOLE consensus against this committed reference (vol excluded: file/provenance/kernel/generated). The HR-hat fires (n=22 aligned epochs), names culprit OxyDex (planted σ=4.5, the noisiest of {1.0,2.2,4.5}), derives ρ=0.356 from cross-node motion (→ correlated-external solve, exercising FU-II §1), and reconciles HR to 58.4 bpm — plus the §3 τ-sparkline allan block + §5 quiet-order caveat. INPUTS REBUILT IN-CODE (inputHashes:{}) so the golden is a PURE function of INTEGRATOR code: an OxyDex/ECGDex/PpgDex DSP change cannot move it (it never runs a node compute). Fully regenerable: re-run the gate's _tchGoldenInputs()→adapt→fuse (byte-identical to _diag/tch-golden-gen.html). REGENERATE this golden whenever the fusion/HR-hat export shape intentionally changes. GATE B asserts the producing bundle's CURRENT manifestHash still equals cef329a4fec6 — turns red the moment Integrator code changes.",

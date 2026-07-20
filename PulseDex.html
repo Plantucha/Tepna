@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9GUfxbEGhuzhb0wiNjefuEkgGX2gjYZURxy8ByW4+F0=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AXawqb27A1m+sQQMqeg5MSom+EtQIy8r1iSV22Ma0qQ=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-CxM8JgTPdnoVh+3A6y0lzzs08WtHxueWqE4eJwDBOzU=' 'sha256-FYufV3uNn6NzYx4TuQ57WPhAQACfOzGvqQNA/yly9bo=' 'sha256-KgaAuv/6KGUj6sYIwLsZPf0TlufPhKJSm69jaGd/6+Q=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-YbT52f2wNklsteRAiBE/2H9ctNzNouTiD8VdjMglW2g=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-wlzjyfOUam9N3akjSJVazEniVidjcAMKiWPLaeGGGq4=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9GUfxbEGhuzhb0wiNjefuEkgGX2gjYZURxy8ByW4+F0=' 'sha256-A+9K+Pxo8K12zrOVhFlmRjwJsRK7RKvNd55oyD81hA8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-CxM8JgTPdnoVh+3A6y0lzzs08WtHxueWqE4eJwDBOzU=' 'sha256-FYufV3uNn6NzYx4TuQ57WPhAQACfOzGvqQNA/yly9bo=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Pht3MQRXSmJRPN+oNDLLugLk9lQ+78svY9R8cI7t54I=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-YbT52f2wNklsteRAiBE/2H9ctNzNouTiD8VdjMglW2g=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-pKf1kodqBefOYccC3unorAH57Ce6zImNGkKu8LWfJPQ=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-wlzjyfOUam9N3akjSJVazEniVidjcAMKiWPLaeGGGq4=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PulseDex — Raw RR Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -9280,7 +9280,10 @@ Object.assign(window, {
       central: { mean: st.mean, sd: st.sd, median: st.median, iqr: st.iqr, min: st.min, max: st.max, cv: st.cv },
       // §9.3 — dirDisagree rides along: this projection is HAND-PICKED, so a field added to the
       // per-metric stat object is invisible to every consumer until it is named here.
-      trend: { slopePerIndex: st.slope, slopePerDay: st.slopePerDay, r2: st.r2, r2date: st.r2date, mannKendall: { tau: st.tau, p: st.p }, label, dirDisagree: !!st.trendDirDisagree },
+      // §9.4 — `slopeBasis` rides along too, for the same reason the comment above gives: a consumer
+      // reading `slopePerDay: null` cannot otherwise tell "no trend" from "the series is undated, so
+      // a per-day rate does not exist"; `slopePerRecording` carries the figure that DOES exist.
+      trend: { slopePerIndex: st.slope, slopePerDay: st.slopePerDay, slopePerRecording: st.slopePerRecording, slopeBasis: st.slopeBasis, r2: st.r2, r2date: st.r2date, mannKendall: { tau: st.tau, p: st.p }, label, dirDisagree: !!st.trendDirDisagree },
       change,
       baseline: {
         window: st.n != null && st.n > 1 ? 'prior-' + (st.n - 1) : null,
@@ -9557,7 +9560,7 @@ Object.assign(window, {
     const good = opts.good || 'up';
     const pts = series.filter((p) => p.v != null && isFinite(p.v));
     const n = pts.length;
-    if (n < 2) return { n, mean: n ? r2(pts[0].v) : null, sd: null, cv: null, slopePerDay: null, tau: null, p: null, zLatest: null, trendLabel: '—' };
+    if (n < 2) return { n, mean: n ? r2(pts[0].v) : null, sd: null, cv: null, slopePerDay: null, slopePerRecording: null, slopeBasis: null, tau: null, p: null, zLatest: null, trendLabel: '—' };
     const vals = pts.map((p) => p.v),
       w = pts.map((p) => (p.w != null ? p.w : 1));
     const idx = pts.map((p, i) => i);
@@ -9571,6 +9574,7 @@ Object.assign(window, {
     // OLS vs real date (days since first) honours uneven gaps
     const haveT = pts.every((p) => p.t != null);
     let slopePerDay = null,
+      slopePerRecording = null,
       r2date = null;
     if (haveT) {
       const days = pts.map((p) => (p.t - pts[0].t) / 86400000);
@@ -9578,7 +9582,18 @@ Object.assign(window, {
       slopePerDay = r2(od.slope);
       r2date = r2(od.r2);
     } else {
-      slopePerDay = byIdx.slope != null ? r2(byIdx.slope) : null;
+      /* DEEP-AUDIT-II §9.4 — an INDEX slope is not a PER-DAY slope, and must not be shipped under the
+         per-day name. This branch runs when even ONE item lacks a date, and it used to assign
+         `byIdx.slope` — change per RECORDING — straight to `slopePerDay`, which every consumer renders
+         with a `/d` suffix. A 12-recording series spanning 90 days then reported its per-recording
+         change as a daily one: ~7.5x overstated, and always in the alarming direction, since the same
+         delta compressed into a shorter apparent window looks steeper.
+         Same rule §8.4 already applied to the footer span: report the real quantity when it is
+         knowable, and say what you actually have when it is not — never present one as the other.
+         So the per-day figure is null here (honestly unavailable), the index slope keeps its own
+         honest name, and `slopeBasis` tells the consumer which it is holding. */
+      slopePerDay = null;
+      slopePerRecording = byIdx.slope != null ? r2(byIdx.slope) : null;
     }
     const mk = mannKendall(vals);
     // personal baseline = mean±SD of all-but-latest; z of latest
@@ -9641,6 +9656,8 @@ Object.assign(window, {
       cv: r1(cv),
       slope: byIdx.slope != null ? r3(byIdx.slope) : null,
       slopePerDay,
+      slopePerRecording,
+      slopeBasis: haveT ? 'day' : 'recording',
       r2: byIdx.r2 != null ? r2(byIdx.r2) : null,
       r2date,
       tau: mk.tau,
