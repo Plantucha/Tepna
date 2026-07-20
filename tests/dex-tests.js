@@ -4820,6 +4820,57 @@
 
        Both directions are load-bearing: each assertion pins the corrected value AND names the value
        the defect produced, so reverting any one fix reds it. */
+    // Perfusion index from the O2Ring OXYFRAME sidecar (OXYDEX-PULSE-RESOURCING §4 Phase 1). BOTH
+    // directions: the semicolon OXYFRAME superset surfaces PI; the comma ViHealth CSV has no PI column
+    // and must read null (absent-safe), while producing IDENTICAL SpO2/HR (proving it is a true superset,
+    // not a different reading). The ring's pi_pct=0 "no perfusion" sentinel must be excluded, not averaged.
+    group('OxyDex perfusion index from the OXYFRAME sidecar (OXYDEX-PULSE-RESOURCING §4)', 'oxydex-dsp · oxydex-registry', function (T) {
+      var OB = env.OxyDex && env.OxyDex._bare;
+      if (!(OB && typeof OB.parseCSV === 'function' && typeof OB.computeStats === 'function')) {
+        T.ok('OxyDex._bare.parseCSV + computeStats exposed', false, 'not on the bare surface');
+        return;
+      }
+      // 4 frames: pi 3.6, 4.4, 0 (sentinel → excluded), 4.0. spo2/pr identical to the CSV below.
+      var OXF =
+        'Phone timestamp;duration_s;pi_pct;motion;spo2;pr;contact;battery_pct;batt_state;flag\n' +
+        '2026-07-20T19:07:53.936;165;3.6;0;96;60;1;100;0;1\n' +
+        '2026-07-20T19:07:54.936;166;4.4;0;95;60;1;100;0;1\n' +
+        '2026-07-20T19:07:55.936;167;0;0;96;60;1;100;0;1\n' +
+        '2026-07-20T19:07:56.936;168;4.0;0;96;60;1;100;0;1\n';
+      var oxRows = OB.parseCSV(OXF, { fname: 'Wellue_O2Ring-S_x_OXYFRAME.txt' });
+      T.eq('OXYFRAME parses all 4 frames', oxRows.length, 4);
+      T.eq('a real PI is carried onto the row', oxRows[0].pi, 3.6);
+      T.eq('the pi_pct=0 sentinel is ABSENT (null), not a real 0', oxRows[2].pi, null);
+      var oxSt = OB.computeStats(oxRows);
+      // mean of [3.6, 4.4, 4.0] = 4.0; the 0-frame excluded
+      T.ok('meanPi is the mean of the READINGS, excluding the sentinel', Math.abs(oxSt.meanPi - 4.0) < 0.001, 'got ' + oxSt.meanPi);
+      T.eq('piFrames counts only the frames with a reading', oxSt.piFrames, 3);
+
+      // the SAME night as a ViHealth comma CSV — no PI column
+      var CSV =
+        'Time,Oxygen Level,Pulse Rate,Motion\n' +
+        '19:07:53 20/07/2026,96,60,0\n' +
+        '19:07:54 20/07/2026,95,60,0\n' +
+        '19:07:55 20/07/2026,96,60,0\n' +
+        '19:07:56 20/07/2026,96,60,0\n';
+      var csvRows = OB.parseCSV(CSV, { fname: 'O2Ring S 2100_x.csv' });
+      var csvSt = OB.computeStats(csvRows);
+      T.eq('the ViHealth CSV has no PI ⇒ meanPi is NULL, never 0', csvSt.meanPi, null);
+      T.eq('and piFrames is 0', csvSt.piFrames, 0);
+      // superset proof: SpO2/HR are identical whichever file the same night came from
+      T.eq('SpO2 is identical from the OXYFRAME and the CSV (true superset)', oxSt.meanSpo2, csvSt.meanSpo2);
+      T.eq('HR is identical from the OXYFRAME and the CSV', oxSt.meanHr, csvSt.meanHr);
+
+      // registry: measured, and the render only emits the card when non-null (no fabricated 0/— card)
+      var REG = env.OXY_REGISTRY;
+      if (REG) {
+        T.eq('meanPi is registered at `measured`', REG.meanPi && REG.meanPi.evidence, 'measured');
+        T.eq('with a % unit', REG.meanPi && REG.meanPi.unit, '%');
+      }
+      var rsrc = env.sources && env.sources['oxydex-render.js'];
+      if (rsrc) T.ok('the render emits the PI card ONLY when meanPi != null', /st\.meanPi\s*!=\s*null\)\s*html\s*\+=\s*ssKPI\('Perfusion Idx'/.test(rsrc), 'PI card is not null-guarded in the render');
+    });
+
     group('OxyDex desaturation family: canonical events, artifact-gated, time-fraction gaps (DEEP-AUDIT-II §2.1–2.3)', 'oxydex-dsp · desat · regression', function (T) {
       var OB = env.OxyDex && env.OxyDex._bare;
       var sbiiFn = OB && OB.computeSBII,

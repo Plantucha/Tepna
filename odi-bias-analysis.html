@@ -2038,21 +2038,32 @@ Object.assign(window, {
       }
     }
 
+    // DELIMITER (OXYDEX-PULSE-RESOURCING §4 Phase 1). The ViHealth SpO₂ export is comma-separated;
+    // the Health-Box `*_OXYFRAME.txt` sidecar is a semicolon-separated SUPERSET of it — same
+    // spo2/pulse/motion columns (so every SpO₂ metric is byte-identical either way) PLUS the O2Ring
+    // live-header **perfusion index** (`pi_pct`, from frame byte [7]÷10) that the ViHealth CSV layout
+    // has no column for. Detect the delimiter once so OxyDex can ingest either; a comma file simply
+    // has no pi column and PI reads null (absent-safe, no fabrication).
+    var DELIM = headerLine.indexOf(';') >= 0 && (headerLine.indexOf(';') < headerLine.indexOf(',') || headerLine.indexOf(',') < 0) ? ';' : ',';
+
     // Parse header columns
     var hcols = headerLine
-      ? headerLine.split(',').map(function (c) {
+      ? headerLine.split(DELIM).map(function (c) {
           return c.trim().replace(/[^a-z0-9]/g, '');
         })
       : [];
     var timeCol = -1,
       spo2Col = -1,
       hrCol = -1,
-      motionCol = -1;
+      motionCol = -1,
+      piCol = -1;
     hcols.forEach(function (c, i) {
       if ((c.indexOf('time') >= 0 || c.indexOf('date') >= 0) && timeCol < 0) timeCol = i;
       if ((c.indexOf('spo2') >= 0 || c.indexOf('o2') >= 0 || c.indexOf('sao2') >= 0 || c.indexOf('oxygen') >= 0) && spo2Col < 0) spo2Col = i;
       if ((c.indexOf('pulse') >= 0 || c.indexOf('pr') === 0 || c.indexOf('hr') === 0 || c.indexOf('bpm') >= 0) && hrCol < 0) hrCol = i;
       if (c.indexOf('motion') >= 0 && motionCol < 0) motionCol = i;
+      // `pi_pct` → 'pipct'; guard against 'ppi'/'spo2'/'pulse' by requiring it to START with 'pi' or name 'perfus'
+      if ((c.indexOf('pi') === 0 || c.indexOf('perfus') >= 0) && piCol < 0) piCol = i;
     });
 
     // Fallback: if header detection failed or columns not found, try auto-detect from first data row
@@ -2089,13 +2100,13 @@ Object.assign(window, {
     // then 06/13 → Jun 13), which runs the clock BACKWARD and collapses the night's ODI to 0.
     var _stamps = [];
     for (var _si = firstDataIdx; _si < lines.length; _si++) {
-      var _sp = lines[_si].trim().split(',');
+      var _sp = lines[_si].trim().split(DELIM);
       if (_sp.length >= 3 && timeCol < _sp.length) _stamps.push(_sp[timeCol].trim());
     }
     var _order = DexClock.resolveDMY(_stamps, true); // O2Ring default is DMY when genuinely ambiguous
     var _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked };
     for (var i = firstDataIdx; i < lines.length; i++) {
-      var p = lines[i].trim().split(',');
+      var p = lines[i].trim().split(DELIM);
       if (p.length < 3) continue;
       var tStr = timeCol < p.length ? p[timeCol].trim() : '';
       var sStr = spo2Col < p.length ? p[spo2Col].trim() : '';
@@ -2107,13 +2118,21 @@ Object.assign(window, {
         motion = parseInt(mStr, 10) || 0;
       if (isNaN(spo2) || isNaN(hr)) continue;
       if (spo2 < 50 || spo2 > 100 || hr < 20 || hr > 250) continue; // sanity check
+      // Perfusion index (§4 Phase 1): present only on the OXYFRAME sidecar. `pi_pct` = 0 is the ring's
+      // "no perfusion reading" sentinel, NOT a real 0 % — treat it as ABSENT (null), never as a value
+      // (mirrors the SpO₂ '- -' handling above). A comma file has no pi column ⇒ piCol < 0 ⇒ null.
+      var pi = null;
+      if (piCol >= 0 && piCol < p.length) {
+        var _pv = parseFloat(p[piCol]);
+        if (isFinite(_pv) && _pv > 0) pi = _pv;
+      }
       // CLOCK-UNIFY: floating wall-clock ms is the source of truth. row.t is a derived
       // compat Date, ALWAYS read back with getUTC*. Time-only rows anchor to _anchorMs
       // and roll forward monotonically past midnight (no Jan-2000, no +86400000 hack).
       var _ts = parseTimestamp(tStr, { dateAnchorMs: _anchorMs, prevTMs: _prevTMs, preferDMY: _tsOpts.preferDMY, dmyLocked: _tsOpts.dmyLocked });
       if (!_ts) continue;
       _prevTMs = _ts.tMs;
-      rows.push({ tMs: _ts.tMs, t: new Date(_ts.tMs), spo2: spo2, hr: hr, motion: motion });
+      rows.push({ tMs: _ts.tMs, t: new Date(_ts.tMs), spo2: spo2, hr: hr, motion: motion, pi: pi });
     }
     return rows;
   }
@@ -3962,6 +3981,12 @@ Object.assign(window, {
       n = rows.length;
     var mSpo2 = avg(spo2),
       mHr = avg(hr);
+    // Perfusion index (OXYDEX-PULSE-RESOURCING §4 Phase 1) — mean over the frames that actually
+    // carry a reading. `r.pi` is null on the ViHealth CSV path (no column) and on the ring's
+    // no-perfusion sentinel, so a night with no PI data yields meanPi = null, not a fabricated 0.
+    var _piVals = [];
+    for (var _pi = 0; _pi < rows.length; _pi++) if (rows[_pi].pi != null && isFinite(rows[_pi].pi)) _piVals.push(rows[_pi].pi);
+    var meanPi = _piVals.length ? +avg(_piVals).toFixed(2) : null;
     // Monotonicity is now ENFORCED, not assumed: parseCSV locks the file's date order (Clock Contract
     // §3), so rows cannot run backward. If one still does, that is a clock failure — surface it as an
     // absent duration, never as a negative number that would silently divide the ODI/burden denominators.
@@ -3999,6 +4024,10 @@ Object.assign(window, {
       meanHr: isFinite(mHr) ? +mHr.toFixed(1) : 0,
       minHr: hr.length ? Math.min.apply(null, hr) : 0,
       maxHr: hr.length ? Math.max.apply(null, hr) : 0,
+      // §4 Phase 1: mean perfusion index (%), or null when the input carried no PI (ViHealth CSV).
+      // A NULL metric is honest absence — never coerced to 0, which would read as zero perfusion.
+      meanPi: meanPi,
+      piFrames: _piVals.length,
       motionPct:
         n > 0
           ? +(
@@ -6874,6 +6903,10 @@ Object.assign(window, {
             meanHr: s.meanHr || 0,
             minHr: s.minHr || 0,
             maxHr: s.maxHr || 0,
+            // §4 Phase 1: perfusion index — null (NOT 0) when the input carried no PI, so a consumer
+            // reading the export can tell "no PI sensor data" from "zero perfusion".
+            meanPi: s.meanPi != null ? s.meanPi : null,
+            piFrames: s.piFrames || 0,
             motionPct: s.motionPct || 0,
             n: s.n || 0,
             artifactHrCleaned: s.artifactHrCleaned || 0,
@@ -7433,7 +7466,11 @@ Object.assign(window, {
       if (!r || r.tMs == null) continue;
       var k = Math.floor((r.tMs - t0Ms) / EP);
       if (k < 0) continue;
-      var b = bins[k] || (bins[k] = { hr: [], mo: [] });
+      var b = bins[k];
+      if (!b) {
+        b = { hr: [], mo: [] };
+        bins[k] = b;
+      }
       if (typeof r.hr === 'number' && isFinite(r.hr)) b.hr.push(r.hr);
       if (typeof r.motion === 'number' && isFinite(r.motion)) b.mo.push(r.motion);
     }
