@@ -33,7 +33,15 @@ MEAS_NAME = {ECG: "ecg", PPG: "ppg", ACC: "acc", PPI: "ppi", GYRO: "gyro", MAG: 
 CTRL_STATUS = {0x00: "ok", 0x01: "invalid_op", 0x02: "invalid_meas", 0x03: "not_supported",
                0x04: "invalid_length", 0x05: "invalid_parameter", 0x06: "already_streaming",
                0x07: "invalid_resolution", 0x08: "invalid_sample_rate", 0x09: "invalid_range",
-               0x0A: "invalid_mtu", 0x0B: "invalid_channels", 0x0C: "invalid_state", 0x0D: "in_charger"}
+               0x0A: "invalid_mtu", 0x0B: "invalid_channels", 0x0C: "invalid_state", 0x0D: "in_charger",
+               -1: "no_response"}
+
+ALREADY_STREAMING = 0x06
+# NO ANSWER IS NOT A REJECTION. A control-point indication can be lost (BlueZ drops notifications that
+# share a connection interval — bleak#1343), or the control channel may never have subscribed at all. The
+# caller gets no verdict — which must NOT be filed as "bad settings", because that answer tears the stream
+# down permanently while the truthful answer is "ask again".
+NO_ACK = -1
 
 # A PMD control ACK splits three ways, and the difference is behavioural, not cosmetic:
 #   STARTED   — streaming (or already was). Register the stream at the negotiated rate.

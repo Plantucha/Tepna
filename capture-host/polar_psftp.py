@@ -226,12 +226,21 @@ class PolarPsFtp:
             raise
         return self
 
+    # TEARDOWN MUST BE BOUNDED. This runs while the caller's asyncio.wait_for is CANCELLING the op — and
+    # `wait_for` does not return until the cancelled task finishes unwinding. Both awaits below go to the
+    # same wedged BlueZ that caused the timeout, so leaving them unbounded means the caller's timeout can
+    # never fire: capture stays paused and the connect lock stays held, for the rest of the night. The
+    # `except Exception` around each is NOT enough — a hang raises nothing.
+    _TEARDOWN_TIMEOUT_S = 10.0
+
     async def __aexit__(self, *exc):
         if self._client:
-            try: await self._client.stop_notify(MTU_CHAR)
-            except Exception: pass
-            try: await self._client.disconnect()
-            except Exception: pass
+            for make_op in (lambda: self._client.stop_notify(MTU_CHAR),
+                            lambda: self._client.disconnect()):
+                try:
+                    await asyncio.wait_for(make_op(), self._TEARDOWN_TIMEOUT_S)
+                except Exception:
+                    pass
 
     async def _read_response(self, timeout: float) -> bytes:
         seq, out, expect_next = _Seq(), bytearray(), 0
