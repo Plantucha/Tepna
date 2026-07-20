@@ -100,6 +100,40 @@ The four non-passes are **all reference-side, none a finger-path defect**:
 So the finger-site PPI-HR agrees with a chest-ECG gold standard across ~92 real segments spanning
 HRs from ~50 to ~62 bpm, and matches the ring's own field even more tightly.
 
+## `site='finger'` end-to-end on a real 1-column capture (added 2026-07-20)
+
+The capture daemon was restarted on the post-#276 code, and a fresh finger session was recorded —
+this time a **genuine single-column file** (`Phone timestamp;sensor timestamp [ns];channel 0`), not
+the replicated shape. So the site tag now comes straight from the parser, with no reliance on the
+degenerate-channel guard:
+
+| | value |
+|---|---|
+| header | `…;channel 0` (one optical column) |
+| `parsePPG` | **`site='finger'`**, `channels=1`, fs 125.7 Hz |
+| `analyze` | `site='finger'`, `ledSingleChannel=true`, `ledAgreementPct=null` |
+| feet / morphology | PPI foot-to-foot, morphology present |
+
+And with the H10 chest strap streaming a **live raw ECG** in the same session, the full three-way
+ran over a **366 s** overlap:
+
+| source | median HR | vs finger PPG |
+|---|---|---|
+| **O2Ring → PpgDex** (site=finger) | **59.7 bpm** | — |
+| ring's own 1 Hz field | 60.0 bpm | Δ 0.3 |
+| **H10 ECG (gold standard)** | 60.9 bpm | Δ 1.2 |
+
+So the genuine 1-column finger capture is validated against both the ring's own field and a live
+chest-ECG gold standard, all within ~1 bpm. This closes the one thing the earlier
+replicated-capture round-trip couldn't show: a real 1-column file tagging `site='finger'`
+**directly**, without the guard collapsing anything.
+
+It also exercised the **§2.4 sentinel path on real data for the first time**: `sentinelRejected=59`
+(~0.6 % of samples — matching the ~0.66/frame the brief measured on the 90 s probe),
+`sentinelKept=0`, and `nGapBeats=3` (three beats dropped because their span touched a rejected `156`,
+rather than being median-filled). The in-band-sentinel rejection works on hardware, not just on the
+committed twin.
+
 ## Re-run it
 
 ```sh
