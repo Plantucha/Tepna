@@ -38,7 +38,7 @@ import { ECGUI } from './ecgdex-render.js';
 self.onmessage = async (e) => {
   const files = e.data.files || (e.data.file ? [e.data.file] : []);
   let cap = 1<<20, arr = new Int16Array(cap), n = 0;
-  let t0Ms = null, fs = 130, prevMs = null, msStep = null; const gaps = [];
+  let t0Ms = null, fs = 130, prevMs = null, msStep = null, stepSum = 0, stepN = 0; const gaps = [];
   const push = v => { if(n>=cap){ cap*=2; const na=new Int16Array(cap); na.set(arr); arr=na; } arr[n++]=v; };
   // CLOCK-UNIFY: floating wall-clock parse (inline — workers can't see page scope)
   const _ckPF = (raw) => {
@@ -64,8 +64,10 @@ self.onmessage = async (e) => {
     if(p.length>=3){
       const ms = parseFloat(p[2]);
       if(isFinite(ms)){
-        if(prevMs!==null){ const d = ms-prevMs; if(msStep===null && d>0 && d<50) msStep=d;
-          if(msStep && d > msStep*2.5) gaps.push({ idx:n-1, ms:d }); }
+        if(prevMs!==null){ const d = ms-prevMs;
+          if(d>0){ if(msStep===null && d<50) msStep=d;
+            if(msStep && d > msStep*2.5){ gaps.push({ idx:n-1, ms:d }); }
+            else if(d<50){ stepSum+=d; stepN++; } } }
         prevMs = ms;
       }
     }
@@ -97,13 +99,16 @@ self.onmessage = async (e) => {
     // the derived fs/gaps were computed across a discontinuity that never existed in the recording.
     // It fails silently — the output is a plausible, longer ECG — which is why nothing caught it.
     // The fallback re-reads from byte zero, so it must start from zero state.
-    n = 0; t0Ms = null; prevMs = null; msStep = null; gaps.length = 0;
+    n = 0; t0Ms = null; prevMs = null; msStep = null; stepSum = 0; stepN = 0; gaps.length = 0;
     for(const file of files){
       const txt = await file.text();
       for(const line of txt.split(/\\r?\\n/)) handle(line);
     }
   }
-  if(msStep && msStep>0) fs = Math.round(1000/msStep);
+  // DEEP-AUDIT-II §4.3 (#5): fs = mean non-gap interval (stamp-span cross-check), not one delta —
+  // the ms column decays to integer precision so any single delta reads 125–167 Hz for a true 130.
+  if(stepN>0) fs = Math.round((1000*stepN)/stepSum);
+  else if(msStep && msStep>0) fs = Math.round(1000/msStep);
   const out = arr.buffer.slice(0, n*2);
   self.postMessage({ type:'done', buffer:out, n, gaps, t0Ms, fs }, [out]);
 };`;
@@ -208,7 +213,10 @@ self.onmessage = async (e) => {
         const arr = [];
         let t0Ms = null,
           prevMs = null,
-          msStep = null;
+          msStep = null,
+          stepSum = 0,
+          stepN = 0;
+        const gaps = [];
         for (const line of lines) {
           const t = line.trim();
           if (!t) continue;
@@ -223,16 +231,25 @@ self.onmessage = async (e) => {
           if (p.length >= 3) {
             const ms = parseFloat(p[2]);
             if (isFinite(ms)) {
-              if (prevMs !== null && msStep === null) {
+              if (prevMs !== null) {
                 const d = ms - prevMs;
-                if (d > 0 && d < 50) msStep = d;
+                if (d > 0) {
+                  if (msStep === null && d < 50) msStep = d;
+                  if (msStep && d > msStep * 2.5) {
+                    gaps.push({ idx: arr.length - 1, ms: d });
+                  } else if (d < 50) {
+                    stepSum += d;
+                    stepN++;
+                  }
+                }
               }
               prevMs = ms;
             }
           }
         }
-        const fs = msStep ? Math.round(1000 / msStep) : 130;
-        runPipeline({ int16: new Int16Array(arr), fs, gaps: [], t0Ms: t0Ms != null ? t0Ms : null, source: 'file', durSec: arr.length / fs }, file.name);
+        // DEEP-AUDIT-II §4.3 (#5): mean non-gap interval, not a single delta (see WORKER_SRC / DSP).
+        const fs = stepN > 0 ? Math.round((1000 * stepN) / stepSum) : msStep ? Math.round(1000 / msStep) : 130;
+        runPipeline({ int16: new Int16Array(arr), fs, gaps, t0Ms: t0Ms != null ? t0Ms : null, source: 'file', durSec: arr.length / fs }, file.name);
       };
       fr.readAsText(file);
     }

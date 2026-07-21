@@ -3209,6 +3209,56 @@
       T.ok('scalar respRate ≤ epoch max (no max-latch)', r.respRate <= r.respStats.max + 0.06, 'scalar ' + r.respRate + ' max ' + r.respStats.max);
     });
 
+    /* ════ DEEP-AUDIT-II §4.3/§4.2 — parseECG fs is a stamp-span aggregate, and raw gaps are not discarded ════
+     §4.3 (#5): the Polar Sensor Logger's `timestamp [ms]` column loses float precision as the value grows
+     (7.692288 early → integer "8" late), so a fs inferred from a SINGLE delta reads 125–167 Hz for a true
+     130 Hz stream (real part-files parsed at 143/167 → duration/rMSSD −22 %, HR ×1.28). The fix derives fs
+     from the MEAN non-gap interval — a stamp-span cross-check that averages the 7/8 ms quantisation back to
+     ~7.69 ms. §4.2 (#6): a raw-sample dropout was parsed into rec.gaps and then DISCARDED — beat time is
+     sample-index/fs, which under-counts wall-clock across the gap, so coverage read ~100 % with every later
+     beat time-shifted early. The fold in analyze() adds each gap's excess dead-time to the beats after it, so
+     the existing gap-aware coverage sees it. Both directions are asserted: the defect's misread is exhibited,
+     then shown fixed. ════ */
+    group('ECGDex parseECG — mean-interval fs + raw-gap accounting (DEEP-AUDIT-II §4.3/§4.2)', 'ecgdex-dsp', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.parseECG === 'function')) {
+        T.ok('ECGDSP.parseECG available', false, 'not loaded');
+        return;
+      }
+      var HDR = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]';
+      // ── #5 · a 130 Hz stream logged with INTEGER-quantised ms (the real-corpus failure mode) ──
+      var q = [HDR];
+      for (var i = 0; i < 4000; i++) q.push('2026-06-17T01:06:17.723;0;' + Math.round((i * 1000) / 130) + ';' + (100 + (i % 50)));
+      var recQ = D.parseECG(q.join('\n'));
+      var firstDelta = Math.round(1000 / 130) - 0; // = 8 ms → a single delta misreads this as 125 Hz
+      T.eq('#5 · fs from the mean non-gap interval on quantised ms = 130 (true rate)', recQ.fs, 130);
+      T.ok('#5 · a SINGLE delta would MISREAD the same stream (125 Hz) — the defect the aggregate removes', Math.round(1000 / firstDelta) === 125 && recQ.fs === 130, 'single=' + Math.round(1000 / firstDelta) + ' aggregate=' + recQ.fs);
+      // ── inert direction · a clean float-ms stream still reads 130 ──
+      var flt = [HDR];
+      for (var j = 0; j < 4000; j++) flt.push('2026-06-17T01:06:17.723;0;' + ((j * 1000) / 130).toFixed(6) + ';' + (100 + (j % 50)));
+      T.eq('#5 · a clean float-ms stream is unchanged (130)', D.parseECG(flt.join('\n')).fs, 130);
+      // ── #6 · a raw-sample dropout is CAPTURED, not absorbed, and does not skew fs ──
+      var g = [HDR],
+        tms = 0;
+      for (var k = 0; k < 2000; k++) {
+        g.push('2026-06-17T01:06:17.723;0;' + Math.round(tms) + ';' + (100 + (k % 40)));
+        tms += k === 1000 ? 600 : 1000 / 130; // one ~600 ms dropout mid-stream
+      }
+      var recG = D.parseECG(g.join('\n'));
+      T.ok('#6 · the raw gap is captured on rec.gaps (not silently dropped)', recG.gaps.length === 1 && recG.gaps[0].ms > 500, JSON.stringify(recG.gaps));
+      T.eq('#6 · fs stays robust across the gap (dropout excluded from the estimate)', recG.fs, 130);
+      // ── #6 · end-to-end — a folded gap REDUCES coverage (was silently 100 %) while HRV is unharmed ──
+      if (typeof D.analyze === 'function' && typeof D.genSynthetic === 'function') {
+        var rec6 = D.genSynthetic({ durSec: 1800, scenario: 'hour' });
+        var base = D.analyze(rec6, function () {});
+        var mid = Math.floor(rec6.int16.length / 2);
+        var wGap = D.analyze(Object.assign({}, rec6, { gaps: [{ idx: mid, ms: 30000 }] }), function () {});
+        T.ok('#6 · the clean synthetic reads full coverage', base.coveragePct >= 99.5, 'cov ' + base.coveragePct);
+        T.ok('#6 · a folded 30 s gap REDUCES coverage (the discarded-gap defect read 100 %)', wGap.coveragePct < base.coveragePct - 0.5, 'base ' + base.coveragePct + ' → gap ' + wGap.coveragePct);
+        T.ok('#6 · HRV is unharmed — the gap is gated out, not averaged into rMSSD', Math.abs(wGap.rmssd - base.rmssd) < 0.5, 'rmssd base ' + base.rmssd + ' gap ' + wGap.rmssd);
+      }
+    });
+
     /* ════ 12b · ECGDex STAMPLESS DETERMINISM — events never carry a fabricated now() ════ */
     // NOTE (CI-SHARDING): split from one 3-analyze group into two so the shard planner can place the
     // stampless-path work and the stamped-control work on different shards (each half already used its

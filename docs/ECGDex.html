@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-8dYX8ptUoFBqPB2LyGq0TX24oI178VLp4K+aVKKaS/8=' 'sha256-9QlEq6BZe9Oh0/Cbz5az3Nq3+4igPQp8QUgJJ/sKqv8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-J8+a6id6lzsU3GPI7c2D8kA/HhbyteWGzjkzjdlvUO0=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-b4QFb+4gvTY8jO9wXMO/M4P0KpFQo8v/GbOezDPoNng=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-p9Oxv8fTa380+XXRWMPFuq0j+QFn4WmHMO+/E8wCeV4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-8Mwn3mFkwRTVId9zNv3Fb7ixUvRUM0tmm7BBO1WWZLo=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-J8+a6id6lzsU3GPI7c2D8kA/HhbyteWGzjkzjdlvUO0=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-aoO0MBKkGuLHroVMhozxI9BffHF+2hXrnINVgvnS0Kw=' 'sha256-b4QFb+4gvTY8jO9wXMO/M4P0KpFQo8v/GbOezDPoNng=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-p9Oxv8fTa380+XXRWMPFuq0j+QFn4WmHMO+/E8wCeV4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ECGDex — Raw ECG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -8407,6 +8407,26 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     const peaksB = detectPeaksB(bp, fs);
     prog(34, 'Sub-sample peak refinement…');
     const { times, refIdx } = refinePeaks(bp, peaks, fs);
+    // DEEP-AUDIT-II §4.2 (#6): fold raw-sample gaps (dropped ECG samples, carried on rec.gaps from the
+    // parse) into the beat clock. Beat time is sample-index/fs, which silently UNDER-counts wall-clock
+    // across a dropout — so a gappy record would read ~100 % coverage with every later beat time-shifted
+    // early. Adding each gap's excess dead-time (Δ − one nominal step) to every beat after it makes the
+    // inter-beat interval span the gap, so the existing gap-aware coverage + NN gate see it. A monotonic
+    // single pass (peaks are index-ordered). INERT when rec.gaps is empty — the clean-recording,
+    // synthetic, and committed-fixture path is byte-identical.
+    if (rec.gaps && rec.gaps.length) {
+      const step = 1000 / fs;
+      const g = rec.gaps.slice().sort((a, b) => a.idx - b.idx);
+      let gi = 0,
+        deadSec = 0;
+      for (let k = 0; k < times.length; k++) {
+        while (gi < g.length && g[gi].idx <= refIdx[k]) {
+          deadSec += Math.max(0, g[gi].ms - step) / 1000;
+          gi++;
+        }
+        times[k] += deadSec;
+      }
+    }
     prog(46, 'Per-beat signal-quality scoring…');
     const { sqi, rr } = computeSQI(int16, fs, peaks, times, peaksB);
     prog(56, 'Gating + NN interpolation…');
@@ -9682,7 +9702,9 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       offsetMin = null,
       fs = 130,
       prevMs = null,
-      msStep = null;
+      msStep = null,
+      stepSum = 0,
+      stepN = 0;
     var gaps = [];
     function push(v) {
       if (n >= cap) {
@@ -9712,14 +9734,27 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         if (isFinite(ms)) {
           if (prevMs !== null) {
             var d = ms - prevMs;
-            if (msStep === null && d > 0 && d < 50) msStep = d;
-            if (msStep && d > msStep * 2.5) gaps.push({ idx: n - 1, ms: d });
+            if (d > 0) {
+              if (msStep === null && d < 50) msStep = d; // provisional step — anchors the gap threshold
+              if (msStep && d > msStep * 2.5) {
+                gaps.push({ idx: n - 1, ms: d }); // a dropout, not a sample interval — excluded from fs
+              } else if (d < 50) {
+                stepSum += d;
+                stepN++;
+              }
+            }
           }
           prevMs = ms;
         }
       }
     }
-    if (msStep && msStep > 0) fs = Math.round(1000 / msStep);
+    // DEEP-AUDIT-II §4.3 (#5): derive fs from the MEAN non-gap sample interval — a stamp-span
+    // cross-check, NOT a single delta. The Polar Sensor Logger's `timestamp [ms]` column loses float
+    // precision as the value grows (7.692288 early → integer "8" late), so any ONE delta reads 125–167 Hz
+    // for a true 130 Hz stream (part-files parse at 143/167). Averaging every interval quantises the 7/8 ms
+    // jitter back to ~7.69 ms → 130, and gap dropouts are excluded. Falls back to the provisional step.
+    if (stepN > 0) fs = Math.round((1000 * stepN) / stepSum);
+    else if (msStep && msStep > 0) fs = Math.round(1000 / msStep);
     return { int16: arr.slice(0, n), fs: fs, gaps: gaps, t0Ms: t0Ms, offsetMin: offsetMin, source: 'file', durSec: n / fs };
   }
 
@@ -13164,7 +13199,7 @@ const { ECGUI } = __require('ecgdex-render.js');
 self.onmessage = async (e) => {
   const files = e.data.files || (e.data.file ? [e.data.file] : []);
   let cap = 1<<20, arr = new Int16Array(cap), n = 0;
-  let t0Ms = null, fs = 130, prevMs = null, msStep = null; const gaps = [];
+  let t0Ms = null, fs = 130, prevMs = null, msStep = null, stepSum = 0, stepN = 0; const gaps = [];
   const push = v => { if(n>=cap){ cap*=2; const na=new Int16Array(cap); na.set(arr); arr=na; } arr[n++]=v; };
   // CLOCK-UNIFY: floating wall-clock parse (inline — workers can't see page scope)
   const _ckPF = (raw) => {
@@ -13190,8 +13225,10 @@ self.onmessage = async (e) => {
     if(p.length>=3){
       const ms = parseFloat(p[2]);
       if(isFinite(ms)){
-        if(prevMs!==null){ const d = ms-prevMs; if(msStep===null && d>0 && d<50) msStep=d;
-          if(msStep && d > msStep*2.5) gaps.push({ idx:n-1, ms:d }); }
+        if(prevMs!==null){ const d = ms-prevMs;
+          if(d>0){ if(msStep===null && d<50) msStep=d;
+            if(msStep && d > msStep*2.5){ gaps.push({ idx:n-1, ms:d }); }
+            else if(d<50){ stepSum+=d; stepN++; } } }
         prevMs = ms;
       }
     }
@@ -13223,13 +13260,16 @@ self.onmessage = async (e) => {
     // the derived fs/gaps were computed across a discontinuity that never existed in the recording.
     // It fails silently — the output is a plausible, longer ECG — which is why nothing caught it.
     // The fallback re-reads from byte zero, so it must start from zero state.
-    n = 0; t0Ms = null; prevMs = null; msStep = null; gaps.length = 0;
+    n = 0; t0Ms = null; prevMs = null; msStep = null; stepSum = 0; stepN = 0; gaps.length = 0;
     for(const file of files){
       const txt = await file.text();
       for(const line of txt.split(/\\r?\\n/)) handle(line);
     }
   }
-  if(msStep && msStep>0) fs = Math.round(1000/msStep);
+  // DEEP-AUDIT-II §4.3 (#5): fs = mean non-gap interval (stamp-span cross-check), not one delta —
+  // the ms column decays to integer precision so any single delta reads 125–167 Hz for a true 130.
+  if(stepN>0) fs = Math.round((1000*stepN)/stepSum);
+  else if(msStep && msStep>0) fs = Math.round(1000/msStep);
   const out = arr.buffer.slice(0, n*2);
   self.postMessage({ type:'done', buffer:out, n, gaps, t0Ms, fs }, [out]);
 };`;
@@ -13334,7 +13374,10 @@ self.onmessage = async (e) => {
         const arr = [];
         let t0Ms = null,
           prevMs = null,
-          msStep = null;
+          msStep = null,
+          stepSum = 0,
+          stepN = 0;
+        const gaps = [];
         for (const line of lines) {
           const t = line.trim();
           if (!t) continue;
@@ -13349,16 +13392,25 @@ self.onmessage = async (e) => {
           if (p.length >= 3) {
             const ms = parseFloat(p[2]);
             if (isFinite(ms)) {
-              if (prevMs !== null && msStep === null) {
+              if (prevMs !== null) {
                 const d = ms - prevMs;
-                if (d > 0 && d < 50) msStep = d;
+                if (d > 0) {
+                  if (msStep === null && d < 50) msStep = d;
+                  if (msStep && d > msStep * 2.5) {
+                    gaps.push({ idx: arr.length - 1, ms: d });
+                  } else if (d < 50) {
+                    stepSum += d;
+                    stepN++;
+                  }
+                }
               }
               prevMs = ms;
             }
           }
         }
-        const fs = msStep ? Math.round(1000 / msStep) : 130;
-        runPipeline({ int16: new Int16Array(arr), fs, gaps: [], t0Ms: t0Ms != null ? t0Ms : null, source: 'file', durSec: arr.length / fs }, file.name);
+        // DEEP-AUDIT-II §4.3 (#5): mean non-gap interval, not a single delta (see WORKER_SRC / DSP).
+        const fs = stepN > 0 ? Math.round((1000 * stepN) / stepSum) : msStep ? Math.round(1000 / msStep) : 130;
+        runPipeline({ int16: new Int16Array(arr), fs, gaps, t0Ms: t0Ms != null ? t0Ms : null, source: 'file', durSec: arr.length / fs }, file.name);
       };
       fr.readAsText(file);
     }
