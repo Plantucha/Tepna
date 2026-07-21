@@ -66,7 +66,10 @@
   // 'pop' default until you enter your own age; never a per-person claim.
   function _clampAge(v) {
     var n = parseInt(v, 10);
-    return isFinite(n) && n >= 6 && n <= 100 ? n : null;
+    // DEEP-AUDIT-II §13.4 — every norm this feeds (NHANES adult weight/height, ACSM/FRIEND VO₂,
+    // Tanaka HRmax) is an ADULT reference. Ages 6–17 have no valid entry here, so admitting them
+    // applied adult norms to a child; the floor is 18 (null → falls back to the population default).
+    return isFinite(n) && n >= 18 && n <= 100 ? n : null;
   }
 
   // Storage seam — defaults to localStorage in the browser; falls back to an
@@ -561,6 +564,11 @@
   function bmiLabel(b) {
     return b < 18.5 ? 'Underweight' : b < 25 ? 'Normal' : b < 30 ? 'Overweight' : 'Obese';
   }
+  // DEEP-AUDIT-II §13.1 — these are the SUITE'S OWN heuristics, NOT ACSM. ACSM's fitness categories
+  // and percentiles come from the FRIEND cohort's full age×sex percentile DISTRIBUTION; here we only
+  // hold the 50th-pct anchor (vo2Norm) and score a plain RATIO to it (a ratio ≥1.25 is not "the ACSM
+  // Superior band"). Honest labelling: `heuristic` tier, "vs 50th-pct norm" — no fabricated authority
+  // (LITERATURE-USE-POLICY: no `validated` badge without a real, checkable citation for THIS number).
   function vo2Category(v, age, sex) {
     var n = vo2Norm(age, sex),
       r = v / n;
@@ -568,7 +576,7 @@
   }
   function vo2Percentile(v, age, sex) {
     var n = vo2Norm(age, sex);
-    return Math.max(1, Math.min(99, Math.round(50 + (v / n - 1) * 120)));
+    return Math.max(1, Math.min(99, Math.round(50 + (v / n - 1) * 120))); // §13.1 — a LINEAR ratio proxy, not the FRIEND percentile rank
   }
 
   function derive(profile, signalCtx) {
@@ -711,6 +719,7 @@
       vo2: vo2,
       vo2Cat: vo2Cat,
       vo2Pct: vo2Pct,
+      vo2AgedOut: +age > 65, // §13.2 — VO2_NORM tops out at age 65; past it the norm is HELD, not extrapolated → disclose
       whtr: whtr,
       whtrRisk: whtrRisk,
       flags: flags,
@@ -1242,10 +1251,10 @@
         items += di('BMI', d.bmi + ' (' + d.bmiCat + ')', 'kg ÷ m²', 'validated', 'bmi');
         items += di('BSA', d.bsa + ' m²', 'DuBois', 'validated', 'bsa');
       }
-      if (hasFit) items += di('VO₂ category', d.vo2Cat, 'ACSM age×sex', 'validated', 'vo2Cat');
+      if (hasFit) items += di('VO₂ category', d.vo2Cat, 'ratio vs 50th-pct norm' + (d.vo2AgedOut ? ' · norm held at 65+' : ''), 'heuristic', 'vo2Cat');
       if (hasBody && d.whtr != null) items += di('WHtR', d.whtr + (d.whtrRisk === 'elevated' ? ' (↑ risk)' : ' (ok)'), 'waist ÷ height', 'validated', 'whtr');
       if (hasBody) items += di('RMR', d.rmr + ' kcal', d.rmrFormula, 'validated', 'rmr');
-      if (hasFit) items += di('VO₂ percentile', '~' + d.vo2Pct + 'th', 'ACSM / FRIEND', 'validated', 'vo2Pct');
+      if (hasFit) items += di('VO₂ percentile', '~' + d.vo2Pct + 'th', 'linear proxy vs 50th-pct norm' + (d.vo2AgedOut ? ' · norm held at 65+' : ''), 'heuristic', 'vo2Pct');
       if (hasCardio)
         items += di(
           'HRmax',
