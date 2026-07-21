@@ -22,16 +22,17 @@
 
 A fleet of local-only, single-signal physiological analyzers. No upload. No accounts. No network.
 
-**Suite version:** 1.16.0
-
 [![Live at tepna.net](https://img.shields.io/badge/live-tepna.net-2a6fdb?style=for-the-badge)](https://tepna.net)
+[![Suite v1.16.0](https://img.shields.io/badge/suite-v1.16.0-2a6fdb?style=for-the-badge)](CHANGELOG.md)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a6fdb?style=for-the-badge)](LICENSE)
 
 [![No network · CI-enforced](https://img.shields.io/badge/no_network-CI--enforced-1f8a5b)](no-network.html)
 [![Local-first](https://img.shields.io/badge/local--first-100%25-1f8a5b)](docs/WHY-THIS-EXISTS.md)
+[![Tests green](https://img.shields.io/badge/tests-3.5k%2B_assertions_green-1f8a5b)](#-the-privacy-claim-is-a-test-not-a-promise)
 [![Every metric graded](https://img.shields.io/badge/every_metric-evidence_graded-8a5cf6)](#the-evidence-ladder-every-metric-is-graded)
 [![Reproducible](https://img.shields.io/badge/every_paper-regenerates_from_its_tool-8a5cf6)](papers/papers.html)
 ![Nodes](https://img.shields.io/badge/nodes-7_live_%C2%B7_1_planned-555)
+![Releases](https://img.shields.io/badge/releases-22_shipped-555)
 
 **[tepna.net](https://tepna.net)**  ·  [github.com/Plantucha/Tepna](https://github.com/Plantucha/Tepna)
 
@@ -43,6 +44,43 @@ A fleet of local-only, single-signal physiological analyzers. No upload. No acco
 > so you always know which kind of number you're looking at. And "100% client-side" isn't a promise
 > — it's a **test**: a headless privacy gate boots every shipped surface and fails the build if
 > anything so much as *reaches* for the network.
+
+---
+
+## 📊 Suite at a glance
+
+**Suite version:** 1.16.0 &nbsp;—&nbsp; **22** ledger-backed releases, each computed from a green tree.
+
+| | |
+|---|---|
+| 🧠 **Analyzers** | **7 live** single-signal nodes · **1 planned** (EEGDex) |
+| 🔀 **Fusion** | **Integrator** (cross-signal) + 2 ingest front doors — **Data Unifier** · **OverDex** — all live |
+| 🧪 **Tests** | **3,500+ assertions** across **230 groups**, run as **6 partitioned CI shards** — green on every push |
+| 🛡️ **CI gates** | `no-network` · `tests` · `types` · `biome` · `CodeQL` — the privacy claim is **enforced, not asserted** |
+| 🎫 **Honesty** | every surfaced number carries an **evidence grade** — nothing ships unlabelled |
+| 🔬 **Reproducible** | every preprint **regenerates from its live tool**; every bundle is **content-addressed** |
+
+**Roadmap** &nbsp; `▰▰▰▰▰▰▰▱` &nbsp; **7 of 8** planned analyzers live — EEGDex (Muse) is next.
+
+> **Momentum.** `v1.16.0` landed a fleet-wide **DEEP-AUDIT-II** hardening pass: cross-signal
+> ECG↔apnea corroboration anchored to the right night, presence-gated HRV math (no more `null`
+> arithmetic publishing confident numbers), and duration-scoped norms. Full history in the
+> **[changelog](CHANGELOG.md)**.
+
+### Node status
+
+| Node | Signal | Device | Status | Flagship metric |
+|---|---|---|:---:|---|
+| **OxyDex** | SpO₂ / oximetry | O2Ring · Wellue · ViATOM | 🟢 **Live** | ODI-4 · T90 · hypoxic burden |
+| **ECGDex** | Raw ECG | Polar H10 | 🟢 **Live** | QTc · rMSSD |
+| **PulseDex** | HRV from raw RR | Polar H10 · Coospo · Wahoo | 🟢 **Live** | rMSSD · SDNN |
+| **PpgDex** | Wrist PPG | Polar Verity Sense | 🟢 **Live** | PPI → HRV + pulse-wave morphology |
+| **HRVDex** | HRV summaries | *(exports)* | 🟢 **Live** | additive multi-day rMSSD / SDNN ledger |
+| **GlucoDex** | CGM | *(exports)* | 🟢 **Live** | Time in Range · GMI |
+| **CPAPDex** | CPAP therapy | ResMed · EDF | 🟢 **Live** | pressure · leak · respiratory events |
+| **EEGDex** | EEG | Muse | ⚪ **Planned** | — |
+
+---
 
 ## Get it running
 
@@ -72,9 +110,10 @@ the gate, so a vacuous "all clear" can never pass. It runs headless in CI on **e
 | CI gate | What it guarantees |
 |---|---|
 | **no-network** | No shipped surface reaches the network — privacy is enforced, not asserted |
-| **tests** | ~2,250 assertions over the real DSP modules, run as 4 parallel shards that provably *partition* the suite — so the union of the shards is the whole gate, and no group can quietly go unrun |
-| **types** | JSDoc type-checking across the signal contracts |
+| **tests** | 3,500+ assertions over the real DSP modules, run as 6 parallel shards that provably *partition* the suite — so the union of the shards is the whole gate, and no group can quietly go unrun |
+| **types** | JSDoc type-checking (`tsc --checkJs`) across the signal contracts |
 | **biome** | Format + house-invariant lint (frozen names, Clock Contract, SPDX, evidence vocabulary) |
+| **CodeQL** | Static security analysis on every push |
 
 Render-coverage (booting each real app bundle in an iframe and asserting computed values reach the
 DOM) is a heavier browser gate — it lives in `Dex-Test-Suite.html?full` and the manual
