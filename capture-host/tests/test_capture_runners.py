@@ -2920,3 +2920,101 @@ def test_run_oxyii_backoff_resets_once_data_flows(tmp_path, monkeypatch):
     _stop_after(monkeypatch, 5)
     _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
     assert capture.STATUS["devices"]["Ring"].get("spo2") == 96   # data flowed → the viable path ran
+
+
+# ── autopull_poller — auto-pull the O2Ring onboard .dat (belt-and-suspenders for a lossy live link) ──
+def test_autopull_off_by_default_is_a_noop(tmp_path, monkeypatch):
+    """No-op unless pull.auto is set — never surprises a deployment that didn't opt in."""
+    calls = []
+    async def fake_pull(*a, **k): calls.append(1); return {"new_files": []}
+    monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
+    cfg = {"devices": [_o2dev()]}                      # no pull.auto
+    _run(capture.autopull_poller(cfg, str(tmp_path)))  # returns immediately
+    assert calls == []
+
+
+def test_autopull_skips_while_the_ring_is_actively_worn(tmp_path, monkeypatch):
+    """It must NEVER interrupt a live sleep capture — an actively worn+streaming ring is left alone."""
+    calls = []
+    async def fake_pull(*a, **k): calls.append(1); return {"new_files": []}
+    monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
+    capture.STATUS["devices"]["Ring"] = {"connected": True, "worn": True}   # actively worn
+    cfg = {"pull": {"auto": True, "auto_interval_sec": 1}, "devices": [_o2dev(name="Ring")]}
+    _stop_after(monkeypatch, 1)
+    _run(capture.autopull_poller(cfg, str(tmp_path)))
+    assert calls == [], "must not pull while the ring is actively worn"
+
+
+def test_autopull_pulls_when_off_the_finger(tmp_path, monkeypatch):
+    """Off the finger (worn False) → it pulls which=all."""
+    seen = []
+    async def fake_pull(dev, root, which="latest", ftype=0):
+        seen.append(which); return {"new_files": ["Wellue_O2Ring-S_x_STORED.dat"], "out_dir": root}
+    monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
+    capture.STATUS["devices"]["Ring"] = {"connected": True, "worn": False}
+    cfg = {"pull": {"auto": True, "auto_interval_sec": 1, "auto_retries": 1}, "devices": [_o2dev(name="Ring")]}
+    _stop_after(monkeypatch, 1)
+    _run(capture.autopull_poller(cfg, str(tmp_path)))
+    assert seen and seen[0] == "all"
+
+
+def test_autopull_retries_to_drain_the_ring_then_stops(tmp_path, monkeypatch):
+    """The ring's flash is small + FIFO — a missed session is lost once new ones pile on. So it retries
+    until a pass finds nothing new (drained), capped at auto_retries. Here two passes find sessions, the
+    third finds none → it stops without using a 4th."""
+    passes = [["a.dat", "b.dat"], ["c.dat"], []]      # pull returns new files, then nothing
+    async def fake_pull(dev, root, which="latest", ftype=0):
+        return {"new_files": passes.pop(0) if passes else [], "out_dir": root}
+    monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
+    capture.STATUS["devices"]["Ring"] = {"connected": False, "worn": False}
+    cfg = {"pull": {"auto": True, "auto_interval_sec": 1, "auto_retries": 5}, "devices": [_o2dev(name="Ring")]}
+    _stop_after(monkeypatch, 1)
+    _run(capture.autopull_poller(cfg, str(tmp_path)))
+    assert len(passes) == 0, "should have consumed exactly the 3 configured passes (2 with data + 1 empty)"
+
+
+def test_autopull_survives_an_unreachable_ring(tmp_path, monkeypatch):
+    """An out-of-range ring (pull raises) must not take the poller down — it retries, then next cycle."""
+    from bleak.exc import BleakError
+    async def boom(*a, **k): raise BleakError("not advertising")
+    monkeypatch.setattr(capture, "pull_oxyii_session", boom)
+    capture.STATUS["devices"]["Ring"] = {"connected": False, "worn": False}
+    cfg = {"pull": {"auto": True, "auto_interval_sec": 1, "auto_retries": 2}, "devices": [_o2dev(name="Ring")]}
+    _stop_after(monkeypatch, 1)
+    _run(capture.autopull_poller(cfg, str(tmp_path)))   # must not raise
+
+
+def test_autopull_noop_when_no_ring_configured(tmp_path, monkeypatch):
+    """pull.auto on but no Wellue/Viatom device → returns immediately."""
+    calls = []
+    async def fake_pull(*a, **k): calls.append(1); return {"new_files": []}
+    monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
+    cfg = {"pull": {"auto": True}, "devices": [_pdev()]}   # only an H10, no ring
+    _run(capture.autopull_poller(cfg, str(tmp_path)))
+    assert calls == []
+
+
+def test_autopull_skips_during_recovery(tmp_path, monkeypatch):
+    """No pull while the adapter watchdog is recovering (_RECOVER) — don't fight the radio reset."""
+    calls = []
+    async def fake_pull(*a, **k): calls.append(1); return {"new_files": []}
+    monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
+    capture.STATUS["devices"]["Ring"] = {"connected": False, "worn": False}
+    capture._RECOVER.set()
+    cfg = {"pull": {"auto": True, "auto_interval_sec": 1}, "devices": [_o2dev(name="Ring")]}
+    _stop_after(monkeypatch, 1)
+    _run(capture.autopull_poller(cfg, str(tmp_path)))
+    assert calls == []
+
+
+def test_autopull_yields_the_slot_on_offline_busy(tmp_path, monkeypatch):
+    """If another offline op holds the single slot, back off to next cycle (don't hammer)."""
+    import offline_lock
+    n = {"c": 0}
+    async def busy(*a, **k): n["c"] += 1; raise offline_lock.OfflineBusy("held")
+    monkeypatch.setattr(capture, "pull_oxyii_session", busy)
+    capture.STATUS["devices"]["Ring"] = {"connected": False, "worn": False}
+    cfg = {"pull": {"auto": True, "auto_interval_sec": 1, "auto_retries": 5}, "devices": [_o2dev(name="Ring")]}
+    _stop_after(monkeypatch, 1)
+    _run(capture.autopull_poller(cfg, str(tmp_path)))
+    assert n["c"] == 1, "OfflineBusy breaks the retry loop immediately (no hammering)"

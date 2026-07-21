@@ -134,7 +134,11 @@ def test_pull_acquires_mtu_when_the_backend_offers_it(tmp_path, monkeypatch):
         monkeypatch.setattr(pull_session, "BleakClient", lambda dev, **kw: ring)
         async def no_sleep(_s): return None
         monkeypatch.setattr(pull_session.asyncio, "sleep", no_sleep)
-        got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+        # A per-iteration out dir: the two iterations pull the SAME session stamp, and the pull now skips
+        # a session already on disk at the same size (idempotency) — so a shared dir would make the second
+        # pull a no-op. Independent dirs keep each iteration a real pull, which is what this test checks.
+        outdir = tmp_path / f"boom{boom}"; outdir.mkdir()   # _pull_once (unlike pull()) doesn't makedirs
+        got = _run(pull_session._pull_once("A", str(outdir), "latest", 0, None, "0000"))
         assert len(got) == 1, f"acquire boom={boom} must not affect the pull"
 
 

@@ -358,3 +358,37 @@ def test_format_a_is_false_without_the_marker(tmp_path, monkeypatch):
     _install(monkeypatch, ring)
     got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
     assert json.load(open(got[0] + ".meta.json"))["format_a"] is False
+
+
+def test_pull_skips_a_session_already_on_disk_at_the_same_size(tmp_path, monkeypatch):
+    """Idempotency: `which='all'` re-lists every onboard session, so without a skip an auto-pull would
+    re-download the whole flash every cycle over a slow BLE link. A .dat already on disk at the device-
+    reported size is the same recording → skip, and it must NOT count as a 'new' file."""
+    blob = b"\x01\x03" + b"z" * 90
+    ts = "20260719010000"
+    _install(monkeypatch, FakeRing([ts], blob))
+    got1 = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    assert len(got1) == 1 and os.path.exists(tmp_path / f"Wellue_O2Ring-S_{ts}_STORED.dat")
+    # same session, same dir, a fresh ring → skipped (already on disk at the same size)
+    _install(monkeypatch, FakeRing([ts], blob))
+    got2 = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    assert got2 == [], "a session already on disk at the same size must be skipped, not re-downloaded"
+
+
+def test_pull_rejects_a_path_traversal_which(tmp_path, monkeypatch):
+    """`which=<specific>` is a user/API-controlled value that bypasses parse_file_list's stamp filter and
+    goes straight into a filesystem path (py/path-injection). A traversal value must be skipped, never
+    opened — nothing written outside out_dir."""
+    import os
+    _install(monkeypatch, FakeRing(["20260719010000"], b"\x01\x03" + b"z" * 90))
+    got = _run(pull_session._pull_once("A", str(tmp_path), "../../etc/evil", 0, None, "0000"))
+    assert got == [], "a traversal `which` must be skipped, not turned into a path"
+    assert not os.path.exists("/etc/evil")
+
+
+def test_pull_skips_a_contained_but_nonstamp_which(tmp_path, monkeypatch):
+    """A `which` that stays inside out_dir but is not a YYYYMMDDhhmmss stamp (e.g. 'notadate') passes the
+    containment guard, then is rejected by the stamp-shape check — never sent to the device."""
+    _install(monkeypatch, FakeRing(["20260719010000"], b"\x01\x03" + b"z" * 90))
+    got = _run(pull_session._pull_once("A", str(tmp_path), "notadate", 0, None, "0000"))
+    assert got == [], "a non-stamp `which` must be skipped"

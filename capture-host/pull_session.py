@@ -112,7 +112,20 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
         # The flash list is NOT chronologically ordered, so "latest" must pick the max stamp, not [-1].
         # Session stamps are YYYYMMDDhhmmss → lexical max == chronological latest.
         targets = sessions if which == "all" else ([max(sessions)] if which == "latest" else [which])
+        safe_root = os.path.abspath(out_dir) + os.sep
         for ts in targets:
+            # `ts` (from `which=<specific>` — e.g. the LAN webmon /api/pull body — or the ring's file-list)
+            # is an untrusted value that becomes a filesystem path below. CONTAINMENT GUARD: the resolved
+            # path must stay INSIDE out_dir, so a traversal id such as `../..` can never make the pull read
+            # or write outside it (py/path-injection). This standalone abspath+startswith check is the
+            # sanitizer the flow analysis recognizes; the stamp-shape check is a second, cheaper reject.
+            path = os.path.abspath(os.path.join(out_dir, f"Wellue_O2Ring-S_{ts}_STORED.dat"))
+            if not path.startswith(safe_root):
+                print(f"  ⚠ session id {ts!r} escapes the output dir — skipping.", flush=True)
+                continue
+            if not (ts.isdigit() and 8 <= len(ts) <= 14):
+                print(f"  ⚠ implausible session id {ts!r} — skipping.", flush=True)
+                continue
             print(f"\n── session {ts} ──", flush=True)
             await send(oxyii.file_start_frame(ts, ftype))
             meta = await _wait(q, oxyii.OP_FILE_START)
@@ -120,6 +133,16 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
             print(f"  size = {size} bytes  (meta {meta[:16].hex()})", flush=True)
             if not (0 < size < 50_000_000):
                 print(f"  ⚠ implausible size — try a different --ftype (got {size}); skipping.", flush=True)
+                await send(oxyii.file_end_frame()); await asyncio.sleep(0.3)
+                continue
+
+            # ALREADY ON DISK → skip the download. `which="all"` re-lists every onboard session, so without
+            # this an auto-pull (or any repeat pull) re-downloads the whole flash over a slow BLE link every
+            # cycle. The device-reported `size` is authoritative, so a same-size .dat is the same recording.
+            # Not added to saved_paths: the return value is what this call actually WROTE, which is how the
+            # auto-pull poller knows a session is genuinely new. (`path` was validated + built above.)
+            if os.path.exists(path) and os.path.getsize(path) == size:
+                print(f"  already on disk ({size} bytes) — skipping download.", flush=True)
                 await send(oxyii.file_end_frame()); await asyncio.sleep(0.3)
                 continue
 
@@ -143,8 +166,7 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
                             pass
             await send(oxyii.file_end_frame()); await asyncio.sleep(0.3)
 
-            path = os.path.join(out_dir, f"Wellue_O2Ring-S_{ts}_STORED.dat")
-            with open(path, "wb") as f:
+            with open(path, "wb") as f:                    # `path` computed above (skip-existing check)
                 f.write(data)
             hdr = bytes(data[:10]).hex()
             fmt_a = data[:2] == b"\x01\x03"

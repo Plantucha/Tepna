@@ -1980,6 +1980,60 @@ async def archive_poller(cfg: dict, root: str):
             log.warning("archive failed: %r", e)
 
 
+async def autopull_poller(cfg: dict, root: str):
+    """Auto-pull the O2Ring's ONBOARD-recorded `.dat` sessions off flash so a night's SpO2 lands on disk
+    with no manual step — the belt-and-suspenders backup for a lossy live BLE link (weak signal / a dongle
+    in another room, where the live capture drops to a fraction of the night). Opt-in (`pull.auto`).
+
+    SAFE BY CONSTRUCTION:
+      • Pulls only when the ring is NOT actively worn+streaming, so it never interrupts a live sleep
+        capture — it fires in the morning window after the ring comes off the finger.
+      • Idempotent: pull_session skips any session already on disk at the same device-reported size, so a
+        repeat pull only downloads what is genuinely new (that is what makes `new_files` meaningful).
+      • Bounded + connect-locked + best-effort — pull_oxyii_session already caps the op, holds the connect
+        lock, and pauses live capture for the duration; an unreachable ring fails gracefully and retries.
+    No-op unless `pull.auto` is set and a Wellue/Viatom device is configured."""
+    pcfg = cfg.get("pull") or {}
+    if not pcfg.get("auto"):
+        return
+    ring = next((d for d in cfg.get("devices", [])
+                 if (d.get("vendor") in ("Wellue", "Viatom")) and not missing_identity(d)), None)
+    if not ring:
+        return
+    name = ring["name"]
+    interval = float(pcfg.get("auto_interval_sec", 3600))
+    ftype = int(pcfg.get("ftype", 0))
+    retries = max(1, int(pcfg.get("auto_retries", 3)))
+    log.info("auto-pull: enabled — checking %s every %.0fs (only while it is off the finger), up to %d tries",
+             name, interval, retries)
+    while not _STOP.is_set():
+        await asyncio.sleep(interval)
+        if _RECOVER.is_set() or _OXYII_PAUSE.is_set():
+            continue                                       # mid-recovery or another pull already running
+        st = STATUS["devices"].get(name, {})
+        if st.get("connected") and st.get("worn") is True:
+            continue                                       # actively worn+streaming — do not interrupt it
+        # RETRY until a pass finds nothing new, capped at `retries`. The ring's flash is small and it
+        # overwrites oldest-first, so a session missed on a lossy link is lost once new ones pile on top —
+        # retrying each cycle DRAINS everything reachable before that happens. Idempotent (skip-existing),
+        # so a retry only re-fetches what an earlier attempt missed; a clean pass returns 0 new and stops.
+        for attempt in range(retries):
+            try:
+                res = await pull_oxyii_session(ring, root, which="all", ftype=ftype)
+            except offline_lock.OfflineBusy:
+                break                                      # another offline op holds the slot — next cycle
+            except Exception as e:                         # unreachable / transient — try again this cycle
+                log.info("auto-pull: %s attempt %d/%d failed (%s)", name, attempt + 1, retries, type(e).__name__)
+                continue
+            new = res.get("new_files", []) if isinstance(res, dict) else []
+            if not new:
+                break                                      # nothing new — the ring is drained; stop
+            log.info("auto-pull: %d new onboard session(s) from %s (try %d/%d) → %s",
+                     len(new), name, attempt + 1, retries, res.get("out_dir"))
+            STATUS.setdefault("autopull", {}).update({"last": _now().isoformat(timespec="seconds"),
+                                                      "new": len(new)})
+
+
 async def sd_watchdog():
     """Heartbeat systemd's WatchdogSec from a live-event-loop task, so a HUNG-but-alive daemon (the wedged
     BLE stack this box keeps hitting) is detected and restarted — `Restart=always` alone never fires
@@ -2086,6 +2140,7 @@ async def main():
                    ("alert_poller", lambda: alert_poller(cfg, notifier)),
                    ("qc_poller", lambda: qc_poller(cfg, root, notifier)),
                    ("archive_poller", lambda: archive_poller(cfg, root)),
+                   ("autopull_poller", lambda: autopull_poller(cfg, root)),
                    ("sd_watchdog", sd_watchdog)]
     tasks = []
     for label, mk in _BACKGROUND:
