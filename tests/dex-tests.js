@@ -446,6 +446,39 @@
       }
     });
 
+    /* ════ Integrator honors MotionDex recording.durSec as declared length (DEEP-AUDIT-II §7.6) ════
+     `adaptEnvelopeNode`'s declared-end chain tolerated endEpochMs / durationMin / durationMs / durationSec
+     but NOT `durSec` — the ONLY duration key MotionDex's export emits (motiondex-dsp.js buildNodeExport:
+     recording:{startEpochMs, durSec}). So a MotionDex envelope with sparse, early-clustered posture_change
+     events collapsed to a ~zero-length fusion window (the all-node overlap read ~40 min for an 8 h night) and
+     was wrongly excluded — the exact failure the surrounding fallback was written to prevent for PulseDex.
+     Fix is additive + back-compat: durSec is consulted only when durationSec is absent. ════ */
+    group('Integrator honors MotionDex recording.durSec as declared length (DEEP-AUDIT-II §7.6)', 'integrator-dsp · motiondex · declared-end', function (T) {
+      var A = env.adaptEnvelopeNode;
+      if (typeof A !== 'function') {
+        T.skip('adaptEnvelopeNode available', 'integrator-dsp not wired in this lane');
+        return;
+      }
+      var t0 = U(2026, 5, 10, 22, 0, 0),
+        durSec = 8 * 3600; // 8 h night
+      // MotionDex-shaped envelope: recording.durSec ONLY (no durationMin/Sec/endEpochMs), one EARLY event.
+      var mj = {
+        schema: { name: 'ganglior.node-export', version: 1, node: 'MotionDex' },
+        recording: { startEpochMs: t0, durSec: durSec },
+        ganglior_events: [{ t: '22:00:00', tMs: t0, impulse: 'posture_change', node: 'MotionDex', conf: 0.9, meta: { position: 'supine' } }]
+      };
+      var rec = A(mj, 'MotionDex', 'MotionDex.node-export.json');
+      rec = Array.isArray(rec) ? rec[0] : rec;
+      T.ok('adapts a MotionDex envelope', !!rec && rec.node === 'MotionDex');
+      T.ok('declared end honors recording.durSec (8 h), not the single early event', !!rec && rec.endMs === t0 + durSec * 1000, 'endMs=' + (rec && rec.endMs) + ' want=' + (t0 + durSec * 1000));
+      T.ok('window is NOT the pre-fix collapse to ~0 length', !!rec && rec.endMs - rec.t0Ms >= durSec * 1000 - 1, 'span(s)=' + (rec ? (rec.endMs - rec.t0Ms) / 1000 : 'null'));
+      // back-compat: durationSec still wins when BOTH are present (durSec is only a fallback)
+      var mj2 = { schema: { node: 'MotionDex' }, recording: { startEpochMs: t0, durationSec: 100, durSec: durSec }, ganglior_events: [{ t: '22:00:00', tMs: t0, impulse: 'posture_change', node: 'MotionDex', conf: 0.9 }] };
+      var rec2 = A(mj2, 'MotionDex', 'm.json');
+      rec2 = Array.isArray(rec2) ? rec2[0] : rec2;
+      T.ok('durationSec still takes precedence over durSec (back-compat)', !!rec2 && rec2.endMs === t0 + 100 * 1000, 'endMs=' + (rec2 && rec2.endMs));
+    });
+
     /* ════ 5b · INTEGRATOR HRV consensus — self-reported lowConfidence + 3-LED agreement gate (FU §2) ════
      PPGDEX-BEAT-DETECTION-PERF-FOLLOWUPS §2 — PpgDex now EMITS hrv.time.lowConfidence (§3 coverage
      gate) + quality.ledAgreementPct (§5). This proves the Integrator CONSUMES them: a PPG night that
