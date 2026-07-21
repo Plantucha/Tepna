@@ -219,16 +219,28 @@
   // a NAME-only planner can't see): given device-eligible candidates (each carrying .stampMs) + a
   // reference ms, return the candidate whose stamp is CLOSEST to refMs — ties → FIRST, null on empty.
   // Extracted from ppgdex-app.js loadFiles so the PPG-UNIQUE pick is headless + gate-backed (IV §1).
-  // Byte-faithful to the former inline closure (ref = refMs||0, distance = |stampMs||0 − ref|).
+  // §10.2 — a sidecar shares its primary's session (stamps differ by seconds); >1 day apart ⇒ a
+  // different recording. Deliberately generous so no real same-session companion is ever rejected.
+  var PICK_MAX_GAP_MS = 24 * 3600000;
   function pickNearestByStamp(candidates, refMs) {
     candidates = Array.isArray(candidates) ? candidates : [];
     if (!candidates.length) return null;
-    if (candidates.length === 1) return candidates[0];
-    var best = candidates[0],
-      bd = Infinity,
-      ref = refMs || 0;
+    // DEEP-AUDIT-II §10.2/§10.3 — a sidecar is written in its primary's recording session, so its
+    // filename stamp is close to refMs. Two corrections to the former `|stampMs||0 − refMs||0|`:
+    //   §10.3 a null/unparseable stamp is UNKNOWN, NOT epoch 0 (scoring it 0 ranked absence as ~58 y
+    //         away — silently dropped — and, when refMs was null, collapsed the compare to |stampMs|).
+    //   §10.2 a stamp more than a day from the reference is a DIFFERENT recording, never a companion —
+    //         pairing it rendered a green agreement and silently rewrote which beats reached the HRV
+    //         numbers. With no reference stamp distance is undefined, so a lone candidate is returned
+    //         only when it is the sole option.
+    if (refMs == null) return candidates.length === 1 ? candidates[0] : null;
+    var best = null,
+      bd = Infinity;
     for (var i = 0; i < candidates.length; i++) {
-      var d = Math.abs((candidates[i].stampMs || 0) - ref);
+      var s = candidates[i].stampMs;
+      if (s == null) continue; // §10.3 — unscoreable stamp is not epoch 0
+      var d = Math.abs(s - refMs);
+      if (d > PICK_MAX_GAP_MS) continue; // §10.2 — too far apart to be the same session's sidecar
       if (d < bd) {
         bd = d;
         best = candidates[i];

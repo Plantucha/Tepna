@@ -379,6 +379,11 @@
   // the frame → compute(). Pairs by FILENAME stamp (known before parsing; PSL stamps every stream of
   // one recording identically), so no chicken-and-egg with the not-yet-parsed frame's t0Ms.
   var _COMPANION_KINDS = { ecg: ['rr', 'hr', 'acc'], ppg: ['acc', 'gyro', 'magn', 'ppi'] };
+  // DEEP-AUDIT-II §10.2 — a sidecar is written in the SAME recording session (its filename stamp is
+  // minutes from the primary's). A candidate whose nearest stamp is more than a day away is a
+  // DIFFERENT recording, never a companion (a 5-day-old ACC must not attach and rewrite which beats
+  // reach the HRV numbers). Deliberately generous — real same-session stamps differ by seconds.
+  var MAX_COMPANION_GAP_MS = 24 * 3600000;
   function companionKinds(signalType) {
     return (_COMPANION_KINDS[signalType] || []).slice();
   }
@@ -455,7 +460,14 @@
         // non-Polar candidate (cdev null) falls back to nearest-stamp, as before.
         var cdev = DI.deviceKey(e.name);
         if (primDev && cdev && primDev !== cdev) continue;
-        var d = Math.abs((fnameStampMs(e.name) || 0) - (ref || 0));
+        // DEEP-AUDIT-II §10.3 — a null/unparseable stamp is UNKNOWN, not epoch 0. The old `|| 0`
+        // scored a stampless candidate ~58 years from the night (ranked worst, silently dropped) and,
+        // when the PRIMARY was stampless (ref → 0), collapsed every candidate's distance to its own
+        // stamp so the OLDEST file won — a wrong-night pair. Unscoreable on either side ⇒ skip.
+        var es = fnameStampMs(e.name);
+        if (es == null || ref == null) continue;
+        var d = Math.abs(es - ref);
+        if (d > MAX_COMPANION_GAP_MS) continue; // §10.2 — too far apart to be the same session's sidecar
         if (d < bd) {
           bd = d;
           best = e;

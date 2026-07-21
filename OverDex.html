@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-/LJTA7m+ybYp1au5Eicv5j0TaPWyjf1mmUFTz9Iy2/g=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-6Gq5p6JAWsKz+ZbEKpiHKhMbl6qv4btiBN6k+UAnnH4=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-A70in1yVw8l6p/xGyEIN/q3z6NYSyh3+oY6uqe7gSc4=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-Hc9GZsLap0Y3+GznQuJumo36oXOXvCxpUgWcvihj7FQ=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-azocZBVlY33GO6QWiyEbvN5BGj+Bpa73fCTofLodlyU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-irqCc4+5dhqaRPdZw+qJe/7twXLWGrlF2a61O+ToWQI=' 'sha256-m2FMsI9l/T0bhvsECQxEKbYwdFZbuSLZ/VgXlyaONcU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-ooBkJg2F5zjKvTYC75lucnX68EyOclC3JfNJBhuQ+NI=' 'sha256-v0vLs6Yu0b+53ZIj+W0vY18fyDblza6eKLs6Ba0NJic='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-/LJTA7m+ybYp1au5Eicv5j0TaPWyjf1mmUFTz9Iy2/g=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-6Gq5p6JAWsKz+ZbEKpiHKhMbl6qv4btiBN6k+UAnnH4=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-A70in1yVw8l6p/xGyEIN/q3z6NYSyh3+oY6uqe7gSc4=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-Hc9GZsLap0Y3+GznQuJumo36oXOXvCxpUgWcvihj7FQ=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-azocZBVlY33GO6QWiyEbvN5BGj+Bpa73fCTofLodlyU=' 'sha256-b4QFb+4gvTY8jO9wXMO/M4P0KpFQo8v/GbOezDPoNng=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-irqCc4+5dhqaRPdZw+qJe/7twXLWGrlF2a61O+ToWQI=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-ooBkJg2F5zjKvTYC75lucnX68EyOclC3JfNJBhuQ+NI=' 'sha256-pul+Tja4NTa9xanImZbWRlt3Q01FGfxx0kvlu8Zx8UQ=' 'sha256-v0vLs6Yu0b+53ZIj+W0vY18fyDblza6eKLs6Ba0NJic='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -25173,16 +25173,28 @@ __exports.ECGDex = window.ECGDex;
   // a NAME-only planner can't see): given device-eligible candidates (each carrying .stampMs) + a
   // reference ms, return the candidate whose stamp is CLOSEST to refMs — ties → FIRST, null on empty.
   // Extracted from ppgdex-app.js loadFiles so the PPG-UNIQUE pick is headless + gate-backed (IV §1).
-  // Byte-faithful to the former inline closure (ref = refMs||0, distance = |stampMs||0 − ref|).
+  // §10.2 — a sidecar shares its primary's session (stamps differ by seconds); >1 day apart ⇒ a
+  // different recording. Deliberately generous so no real same-session companion is ever rejected.
+  var PICK_MAX_GAP_MS = 24 * 3600000;
   function pickNearestByStamp(candidates, refMs) {
     candidates = Array.isArray(candidates) ? candidates : [];
     if (!candidates.length) return null;
-    if (candidates.length === 1) return candidates[0];
-    var best = candidates[0],
-      bd = Infinity,
-      ref = refMs || 0;
+    // DEEP-AUDIT-II §10.2/§10.3 — a sidecar is written in its primary's recording session, so its
+    // filename stamp is close to refMs. Two corrections to the former `|stampMs||0 − refMs||0|`:
+    //   §10.3 a null/unparseable stamp is UNKNOWN, NOT epoch 0 (scoring it 0 ranked absence as ~58 y
+    //         away — silently dropped — and, when refMs was null, collapsed the compare to |stampMs|).
+    //   §10.2 a stamp more than a day from the reference is a DIFFERENT recording, never a companion —
+    //         pairing it rendered a green agreement and silently rewrote which beats reached the HRV
+    //         numbers. With no reference stamp distance is undefined, so a lone candidate is returned
+    //         only when it is the sole option.
+    if (refMs == null) return candidates.length === 1 ? candidates[0] : null;
+    var best = null,
+      bd = Infinity;
     for (var i = 0; i < candidates.length; i++) {
-      var d = Math.abs((candidates[i].stampMs || 0) - ref);
+      var s = candidates[i].stampMs;
+      if (s == null) continue; // §10.3 — unscoreable stamp is not epoch 0
+      var d = Math.abs(s - refMs);
+      if (d > PICK_MAX_GAP_MS) continue; // §10.2 — too far apart to be the same session's sidecar
       if (d < bd) {
         bd = d;
         best = candidates[i];
@@ -25758,6 +25770,11 @@ __exports.ECGDex = window.ECGDex;
   // the frame → compute(). Pairs by FILENAME stamp (known before parsing; PSL stamps every stream of
   // one recording identically), so no chicken-and-egg with the not-yet-parsed frame's t0Ms.
   var _COMPANION_KINDS = { ecg: ['rr', 'hr', 'acc'], ppg: ['acc', 'gyro', 'magn', 'ppi'] };
+  // DEEP-AUDIT-II §10.2 — a sidecar is written in the SAME recording session (its filename stamp is
+  // minutes from the primary's). A candidate whose nearest stamp is more than a day away is a
+  // DIFFERENT recording, never a companion (a 5-day-old ACC must not attach and rewrite which beats
+  // reach the HRV numbers). Deliberately generous — real same-session stamps differ by seconds.
+  var MAX_COMPANION_GAP_MS = 24 * 3600000;
   function companionKinds(signalType) {
     return (_COMPANION_KINDS[signalType] || []).slice();
   }
@@ -25834,7 +25851,14 @@ __exports.ECGDex = window.ECGDex;
         // non-Polar candidate (cdev null) falls back to nearest-stamp, as before.
         var cdev = DI.deviceKey(e.name);
         if (primDev && cdev && primDev !== cdev) continue;
-        var d = Math.abs((fnameStampMs(e.name) || 0) - (ref || 0));
+        // DEEP-AUDIT-II §10.3 — a null/unparseable stamp is UNKNOWN, not epoch 0. The old `|| 0`
+        // scored a stampless candidate ~58 years from the night (ranked worst, silently dropped) and,
+        // when the PRIMARY was stampless (ref → 0), collapsed every candidate's distance to its own
+        // stamp so the OLDEST file won — a wrong-night pair. Unscoreable on either side ⇒ skip.
+        var es = fnameStampMs(e.name);
+        if (es == null || ref == null) continue;
+        var d = Math.abs(es - ref);
+        if (d > MAX_COMPANION_GAP_MS) continue; // §10.2 — too far apart to be the same session's sidecar
         if (d < bd) {
           bd = d;
           best = e;
