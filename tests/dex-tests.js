@@ -4184,6 +4184,77 @@
       T.eq('cp1 delta is +3', cps[1].delta, 3);
     });
 
+    /* ════ CPAPDex pressureChangePoints — STEP-IMMUNE penalty scale (DEEP-AUDIT-II §6.1, PEN_K half) ════
+     The penalty term PEN_K·scale·log(span) used the GLOBAL MAD for `scale` — but the global MAD is inflated
+     by the very setting-steps we detect, so (a) a clean 12→6→9 with only 12 nights/regime cleared no penalty
+     and returned ZERO change points, and (b) appending a later regime shifted the global median/MAD enough to
+     ERASE an earlier change point (detection flipped on more data). Replacing it with the MAD of SUCCESSIVE
+     DIFFERENCES (level-shift-immune; /√2 so it equals the old global MAD on pure white noise) fixes both while
+     preserving the zero-false-positive behaviour on a noise-dominated series BY CONSTRUCTION. Both directions
+     are asserted: the step the old scale missed, the append that erased a point, and the noise that must stay
+     empty. (owner re-verifies the exact corpus epap95 10.7→6.8 / pressureEnvIqr-empty on the full SD card.) ════ */
+    group('CPAPDex pressureChangePoints — step-immune scale finds clean steps, append-invariant, no noise FPs (DEEP-AUDIT-II §6.1)', 'cpapdex-cross · changepoints · append-invariance · known-answer', function (T) {
+      var CX = env.CPAPCross;
+      if (!CX || typeof CX.pressureChangePoints !== 'function') {
+        T.skip('env.CPAPCross.pressureChangePoints available', 'cpapdex-cross not wired in this lane');
+        return;
+      }
+      var DAY = 86400000,
+        t0 = Date.UTC(2026, 5, 1);
+      // deterministic ±sd noise (LCG, no Math.random — reproducible across runs)
+      function ser(levels, per, sd, seed) {
+        var s = seed || 1,
+          v = [],
+          i = 0;
+        function rnd() {
+          s = (Math.imul(s, 1103515245) + 12345) & 0x7fffffff;
+          return s / 0x7fffffff;
+        }
+        for (var L = 0; L < levels.length; L++)
+          for (var j = 0; j < per; j++) {
+            v.push({ x: i, t: t0 + i * DAY, v: +(levels[L] + (rnd() - 0.5) * sd * 3.464).toFixed(2) });
+            i++;
+          }
+        return v;
+      }
+      // ── the defect: the old global-MAD scale was inflated BY the steps, so a clean 12→6→9 with only
+      //    12 nights/regime cleared no penalty → ZERO change points. The step-immune diff-scale finds both. ──
+      var cc = CX.pressureChangePoints(ser([12, 6, 9], 12, 0, 1), { metric: 'epap95' });
+      T.eq('clean 12→6→9 (12 nights/regime) yields 2 change points (the old global-MAD scale gave 0)', cc.length, 2, 'cps=' + cc.length);
+      if (cc.length === 2) T.eq('  … at the true regime boundaries (12→6 | 6→9)', cc[0].before + ',' + cc[0].after + '|' + cc[1].before + ',' + cc[1].after, '12,6|6,9');
+      // ── append-invariance: adding a later regime must NOT erase an earlier change point (the §6.1 bug) ──
+      var base = ser([12, 6], 10, 0.3, 7);
+      var extra = ser([9], 10, 0.3, 8);
+      for (var e = 0; e < extra.length; e++) {
+        extra[e].x = 20 + e;
+        extra[e].t = t0 + (20 + e) * DAY;
+      }
+      var appended = base.concat(extra); // appended CONTAINS base as an exact prefix
+      var cB = CX.pressureChangePoints(base, { metric: 'epap95' }),
+        cA = CX.pressureChangePoints(appended, { metric: 'epap95' });
+      T.eq('base [12,6] detects one change point', cB.length, 1, 'cps=' + cB.length);
+      T.ok(
+        'appending a 9-regime PRESERVES the earlier change point (append-invariant — the old scale erased it)',
+        cB.length === 1 &&
+          cA.some(function (c) {
+            return c.nightIdx === cB[0].nightIdx;
+          }),
+        'base@' +
+          (cB[0] && cB[0].nightIdx) +
+          ' appended@' +
+          cA
+            .map(function (c) {
+              return c.nightIdx;
+            })
+            .join(',')
+      );
+      T.eq('  … and the appended series also finds the NEW change point (2 total)', cA.length, 2, 'cps=' + cA.length);
+      // ── zero false positives on a noise-dominated series (the pinned pressureEnvIqr behaviour) ──
+      var fp = 0;
+      for (var sd2 = 0; sd2 < 40; sd2++) if (CX.pressureChangePoints(ser([1.7], 40, 0.6, sd2 * 13 + 3), { metric: 'pressureEnvIqr' }).length) fp++;
+      T.eq('a noise-dominated series returns EMPTY — zero fabricated change points (40 seeds)', fp, 0, fp + '/40 seeds had a spurious CP');
+    });
+
     group('Bootstrap LCG uses a 32-bit-exact multiply — no 2^53 overflow (DEEP-AUDIT-II §9.5)', 'crossnight · event-coupling · prng · source', function (T) {
       // `bootstrapDeltaCI`'s LCG (all 5 *-cross clones) + event-coupling.js used `seed * 1103515245`.
       // seed<2^31 so seed·a reaches ~2.3e18 ≫ 2^53 — float64 rounds the LOW bits (the ones `& 0x7fffffff`

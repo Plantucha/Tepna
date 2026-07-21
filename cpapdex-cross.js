@@ -515,12 +515,21 @@
       return c;
     }
 
-    // global robust scale (MAD about the global median) for the penalty term
-    var gMed = med(vals, 0, n);
-    var absdev = [];
-    for (var j = 0; j < n; j++) absdev.push(Math.abs(vals[j] - gMed));
-    var gMAD = med(absdev, 0, n);
-    if (gMAD <= 0) gMAD = 1e-9;
+    // DEEP-AUDIT-II §6.1 — step-IMMUNE robust scale for the penalty term. The old global MAD (about the
+    // global median) is CONTAMINATED by the very setting-steps we detect: a clean 12→6→9 inflated it so
+    // the real step's cost drop could not clear PEN_K·scale·log(span) — ZERO change-points found — and
+    // appending a later regime shifted the global median/MAD enough to ERASE an earlier change point
+    // (the §6.1 append-non-invariance: cp detection flipped on more data). The MAD of SUCCESSIVE
+    // DIFFERENCES is immune to level shifts (the few large diffs AT the steps are outliers its median
+    // ignores), so it measures WITHIN-regime noise only. /√2 makes it EQUAL the old global MAD on pure
+    // white noise (median|Δ| = √2·MAD), so the zero-false-positive behaviour on a noise-dominated series
+    // (e.g. pressureEnvIqr — the finding pins it EMPTY) is preserved BY CONSTRUCTION, while clean steps
+    // are now found and detection is append-invariant. Verified over synthetics reproducing both corpus
+    // profiles + a noise-only false-positive sweep; owner re-verifies at release on the full SD card.
+    var adiff = [];
+    for (var j = 1; j < n; j++) adiff.push(Math.abs(vals[j] - vals[j - 1]));
+    var nScale = adiff.length ? med(adiff, 0, adiff.length) / Math.SQRT2 : 0;
+    if (nScale <= 0) nScale = 1e-9;
     var PEN_K = 4.0; // sensitivity dial: lower ⇒ noise leaks in, higher ⇒ small real steps missed
 
     var cps = [];
@@ -539,7 +548,7 @@
         }
       }
       if (bestK < 0) return;
-      if (bestDrop <= PEN_K * gMAD * Math.log(span)) return; // data-scaled BIC-like penalty
+      if (bestDrop <= PEN_K * nScale * Math.log(span)) return; // data-scaled BIC-like penalty (step-immune scale)
       cps.push({ k: bestK, before: med(vals, lo, bestK), after: med(vals, bestK, hi) });
       recurse(lo, bestK);
       recurse(bestK, hi);
