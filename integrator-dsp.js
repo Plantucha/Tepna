@@ -468,6 +468,11 @@ function adaptEnvelopeNode(json, node, filename) {
       summary.sdnnRobustMs = _dig(json, ['hrv', 'time', 'sdnnRobust']);
       summary.sdnnMs = _dig(json, ['hrv', 'time', 'sdnn']);
       summary.hrvLowConfidence = _dig(json, ['hrv', 'time', 'lowConfidence']);
+      // OXYDEX-PULSE-RESOURCING §Phase 4: the finger-PPI CVHR (events/h, autonomic apnea correlate).
+      // DISTINCT field from ECGDex's `summary.cvhrIndex` on purpose — the PB-consensus _pbObserver reads
+      // `cvhrIndex` (ECGDex/OxyDex/CPAPDex only), so a separate name keeps that consensus + its fixtures
+      // byte-identical while fuseCvhrCorroboration corroborates this against the ECGDex cardiac CVHR.
+      summary.cvhrIndexWave = _dig(json, ['apnea', 'cvhrIndex']);
       // FU §2: 3-LED optical consensus (% of kept beats where ≥2/3 channels agree) — a whole-
       // record optical trust axis folded into the HRV-consensus gate alongside the per-event floor.
       summary.ledAgreementPct = _dig(json, ['quality', 'ledAgreementPct']);
@@ -2340,6 +2345,73 @@ function fuseHrvResource(recs) {
   };
 }
 
+// OXYDEX-PULSE-RESOURCING §Phase 4 — publish a CORROBORATED CVHR that NAMES its source (§3.1 owner
+// decision (b)). CVHR (cyclic variation of HR, Hayano) is the autonomic cardiac correlate of apnea. The
+// O2Ring's 1 Hz pulse cannot resolve it; a finger PpgDex (the ring's own pleth) computes a real one from
+// its NN series (ppgdex-dsp cvhrFromNN, a port of ECGDex detectCVHR). When a finger PpgDex + an OxyDex
+// (the O2Ring night) are both present, this publishes the finger-PPI CVHR, named + tier `emerging`, and
+// corroborates it against any OTHER node's cardiac CVHR (ECGDex `summary.cvhrIndex`) — reporting
+// agreement, never averaging. CRITICAL (§3.1 (b)): this is NOT an AHI and emits none — the ONLY published
+// AHI stays OxyDex's own `ahiEst`. cvhrIndex 0 is a real reading (no CVHR detected), so it is accepted.
+// Returns null unless a finger PpgDex cvhrIndexWave AND an OxyDex rec are present (both non-dateUnknown).
+var CVHR_AGREE_PER_H = 5.0; // events/h — CVHR indices within this band corroborate (mirrors PB_CVHR_MIN scale)
+function fuseCvhrCorroboration(recs) {
+  var wave = /** @type {any} */ (null),
+    hasOxy = false;
+  var corroborators = [];
+  recs.forEach(function (r) {
+    if (!r || r.dateUnknown || !r.summary) return;
+    var s = r.summary;
+    if (r.node === 'PpgDex' && s.site === 'finger' && s.cvhrIndexWave != null && isFinite(s.cvhrIndexWave) && s.cvhrIndexWave >= 0 && !wave) {
+      wave = { node: r.node, cvhrIndex: +Number(s.cvhrIndexWave).toFixed(1) };
+    }
+    if (r.node === 'OxyDex') hasOxy = true;
+    // any OTHER node carrying a cardiac CVHR index (ECGDex today) is a corroborator — NOT the finger leg
+    if (r.node !== 'PpgDex' && s.cvhrIndex != null && isFinite(s.cvhrIndex) && s.cvhrIndex >= 0) {
+      corroborators.push({ node: r.node, cvhrIndex: +Number(s.cvhrIndex).toFixed(1), channel: r.node === 'ECGDex' ? 'cardiac CVHR (ECG R-R)' : 'CVHR' });
+    }
+  });
+  if (!wave || !hasOxy) return null;
+  // agreement vs each corroborator (events/h). The finger PPI is the reference; we report the gap.
+  var checked = corroborators.map(function (c) {
+    var gap = +Math.abs(c.cvhrIndex - wave.cvhrIndex).toFixed(1);
+    return { node: c.node, channel: c.channel, cvhrIndex: c.cvhrIndex, gapPerH: gap, agree: gap <= CVHR_AGREE_PER_H };
+  });
+  var anyAgree = checked.some(function (c) {
+    return c.agree;
+  });
+  var anyDisagree = checked.some(function (c) {
+    return !c.agree;
+  });
+  return {
+    reference: 'waveform', // the finger PPI CVHR is the honest measure; the ring's 1 Hz pulse cannot yield one
+    source: 'finger PPI (PpgDex) — the O2Ring’s own single-channel pleth, whole-record Hayano CVHR',
+    cvhrIndex: wave.cvhrIndex,
+    unit: 'events/h',
+    tier: 'emerging', // NOT validated — owed a real-corpus PSG/PulseDex comparison, same standing as verifiedUnder
+    corroborators: checked, // OTHER nodes' cardiac CVHR, each with the gap vs the finger leg (never averaged)
+    agreeThresholdPerH: CVHR_AGREE_PER_H,
+    // §3.1 (b): this fusion publishes NO AHI — the only AHI on the bus stays OxyDex's ahiEst.
+    ahiPublished: false,
+    ahiOwner: 'OxyDex.ahiEst',
+    note:
+      'Finger-PPI CVHR ' +
+      wave.cvhrIndex +
+      ' events/h (the O2Ring’s own pleth, Hayano — the ring’s 1 Hz pulse cannot resolve it) is published at emerging' +
+      (checked.length
+        ? '; corroborated against ' +
+          checked
+            .map(function (c) {
+              return c.node + ' ' + c.cvhrIndex + '/h (' + (c.agree ? 'agrees, Δ' + c.gapPerH : 'DIVERGES, Δ' + c.gapPerH) + ')';
+            })
+            .join(', ') +
+          '. '
+        : ' (no other CVHR source this night to corroborate against). ') +
+      (checked.length ? (anyDisagree && !anyAgree ? 'Divergence reported, never averaged — trust the finger waveform. ' : anyAgree ? 'Agreement supports the reading. ' : '') : '') +
+      'No AHI is published here — the only AHI is OxyDex’s ahiEst (§3.1 owner decision b).'
+  };
+}
+
 function fuseRespirationRate(recs) {
   var sources = [];
   recs.forEach(function (r) {
@@ -2906,6 +2978,7 @@ function runFusion(recs, opts) {
   // §Phase 2 — no overlap gate: a whole-record HR comparison between two summaries on the same bus.
   var pulseCrossCheck = fusePulseCrossCheck(recs);
   var hrvResource = fuseHrvResource(recs);
+  var cvhrCorroboration = fuseCvhrCorroboration(recs);
   if (hrv && hrv.blocks && hrvMotionGate)
     hrv.blocks.forEach(function (b) {
       // Attach ONLY when a gate exists, so a night without MotionDex keeps a byte-identical export
@@ -3021,6 +3094,7 @@ function runFusion(recs, opts) {
     respiration: respiration,
     pulseCrossCheck: pulseCrossCheck,
     hrvResource: hrvResource,
+    cvhrCorroboration: cvhrCorroboration,
     staging: staging,
     periodicBreathing: periodicBreathing,
     findings: findings,
@@ -3142,6 +3216,7 @@ function buildFusionExport(recs, fusion) {
   // which is every committed fixture — stays byte-identical (same rule as the motionGate attach above).
   if (fusion.pulseCrossCheck) _exp.pulseCrossCheck = fusion.pulseCrossCheck;
   if (fusion.hrvResource) _exp.hrvResource = fusion.hrvResource;
+  if (fusion.cvhrCorroboration) _exp.cvhrCorroboration = fusion.cvhrCorroboration;
   return _exp;
 }
 
@@ -3203,6 +3278,7 @@ window.IntegratorDSP = {
   fuseRespirationRate,
   fusePulseCrossCheck,
   fuseHrvResource,
+  fuseCvhrCorroboration,
   pickHRAuthority,
   gradeFor,
   GRADE_MIRROR,
