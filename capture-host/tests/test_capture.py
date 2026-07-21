@@ -69,3 +69,43 @@ def test_import_capture_needs_no_bleak():
     )
     r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, cwd=".")
     assert r.returncode == 0, f"import capture pulled in a runtime-only dep:\n{r.stderr[-900:]}"
+
+
+def test_inprogress_with_a_live_device_is_NOT_a_wedge():
+    """MEASURED 2026-07-20: the churny O2Ring threw InProgress 22x while the H10 was streaming ECG. The
+    watchdog read that lone InProgress as an ADAPTER wedge and power-cycled the radio 8x, dropping every
+    link — a ~25 min self-inflicted outage. A single device's InProgress while ANOTHER is connected is
+    device contention, not an adapter wedge: the radio is demonstrably working (it holds the other link)."""
+    devs = [
+        {"name": "H10", "address": "AA", "connected": True, "last_error": None, "bluez_connected": True},
+        {"name": "O2Ring", "address": "BB", "connected": False,
+         "last_error": "BleakDBusError('org.bluez.Error.InProgress', 'Operation already in progress')",
+         "bluez_connected": False},
+    ]
+    h = capture.classify_adapter_health(devs)
+    assert h["wedged"] is False, "a lone InProgress while another device streams must NOT power-cycle"
+
+
+def test_inprogress_with_NO_live_device_is_still_a_wedge():
+    """The real-wedge case is preserved: InProgress while the radio serves NOBODY (no device connected)
+    is a genuine adapter wedge and still triggers recovery — this is the 2026-07-18 saga the signal exists
+    for. Only the 'a live link is present' case is downgraded to benign contention."""
+    devs = [
+        {"name": "H10", "address": "AA", "connected": False,
+         "last_error": "BleakDBusError('org.bluez.Error.InProgress', 'Operation already in progress')",
+         "bluez_connected": False},
+        {"name": "O2Ring", "address": "BB", "connected": False, "last_error": "not advertising",
+         "bluez_connected": False},
+    ]
+    assert capture.classify_adapter_health(devs)["wedged"] is True
+
+
+def test_phantom_link_is_a_wedge_even_with_a_live_device():
+    """The phantom-link signal is independent of the InProgress gate — a stale BlueZ link nobody can
+    re-grab is a wedge regardless of whether another device is streaming."""
+    devs = [
+        {"name": "H10", "address": "AA", "connected": True, "last_error": None, "bluez_connected": True},
+        {"name": "O2Ring", "address": "BB", "connected": False, "last_error": None, "bluez_connected": True},
+    ]
+    h = capture.classify_adapter_health(devs)
+    assert h["wedged"] is True and h["phantom"] == ["BB"]
