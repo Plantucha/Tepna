@@ -5895,6 +5895,33 @@
       var pcO2 = ORCH.pairCompanions('ecg', 'Polar_H10_AAAA_20260617_010000_ECG.txt', withO2);
       T.eq('  §1 own-device ACC pairs; the O2Ring SpO₂ CSV is ignored', pcO2 && pcO2.acc, 'H10-ACC');
 
+      // DEEP-AUDIT-II §10.2 — a same-device sidecar more than a day from the primary is a DIFFERENT
+      // recording, not a companion (the old code paired a 5-day-old ACC and rendered a green agreement).
+      var stale = [
+        { name: 'Polar_H10_AAAA_20260617_010000_ECG.txt', text: 'H10-ECG' },
+        { name: 'Polar_H10_AAAA_20260622_010000_ACC.txt', text: 'ACC-5day' }
+      ];
+      var pcStale = ORCH.pairCompanions('ecg', 'Polar_H10_AAAA_20260617_010000_ECG.txt', stale);
+      T.ok('  §10.2 a 5-day-away own-device ACC does NOT pair (a stale sidecar is not the same session)', !(pcStale && 'acc' in pcStale), JSON.stringify(pcStale));
+      // DEEP-AUDIT-II §10.3 — a null/unparseable filename stamp is UNKNOWN, not epoch 0. The stamped
+      // sidecar must win; a stampless-only candidate must NOT pair (absence is not the nearest evidence).
+      var nul = [
+        { name: 'Polar_H10_AAAA_20260617_010000_ECG.txt', text: 'H10-ECG' },
+        { name: 'Polar_H10_AAAA_ACC.txt', text: 'ACC-nostamp' },
+        { name: 'Polar_H10_AAAA_20260617_010030_ACC.txt', text: 'ACC-30s' }
+      ];
+      var pcNul = ORCH.pairCompanions('ecg', 'Polar_H10_AAAA_20260617_010000_ECG.txt', nul);
+      T.eq('  §10.3 the stamped sidecar wins; the stampless one is not scored as epoch 0', pcNul && pcNul.acc, 'ACC-30s');
+      T.ok(
+        '  §10.3 a stampless-only sidecar does not pair (never epoch-0 ranked)',
+        !(
+          ORCH.pairCompanions('ecg', 'Polar_H10_AAAA_20260617_010000_ECG.txt', [
+            { name: 'Polar_H10_AAAA_20260617_010000_ECG.txt', text: 'H10-ECG' },
+            { name: 'Polar_H10_AAAA_ACC.txt', text: 'ACC-nostamp' }
+          ]) || {}
+        ).acc
+      );
+
       // §1 (ECG-INGEST-FOLLOWUPS-II) — pairCompanions now consults the SHARED dex-ingest.js registry
       // (DexIngest.deviceKey/foreignVendor), NOT its own local copies, so the device-id + foreign-vendor
       // rules are ONE source across the app (ecgdex/ppgdex-app) AND host (orchestrate) ingest paths.
@@ -6435,11 +6462,19 @@
       T.eq('(a) session-2 ref picks its own ACC (no cross-pair)', DI.pickNearestByStamp(accs, s2).name, 'A_s2');
       // (b) the rec.t0Ms || pf.stampMs reference need not be exact — nearest still resolves correctly.
       T.eq('(b) a ref 1 min after s1 still picks s1', DI.pickNearestByStamp(accs, s1 + 60000).name, 'A_s1');
-      // (c) empty candidate set → null (no attach); a single candidate → itself (ref irrelevant).
+      // (c) empty candidate set → null (no attach).
       T.eq('(c) empty candidates → null', DI.pickNearestByStamp([], s1), null);
-      T.eq('(c) single candidate → itself', DI.pickNearestByStamp([c('only', s2)], 0).name, 'only');
-      // (d) ties → FIRST (deterministic); a missing .stampMs counts as 0 (byte-faithful to the old closure).
-      T.eq('(d) equal distance → first candidate wins', DI.pickNearestByStamp([c('x', 100), c('y', 100)], 0).name, 'x');
+      // (d) ties → FIRST (deterministic), both a few seconds from the ref (one session).
+      T.eq('(d) equal distance → first candidate wins', DI.pickNearestByStamp([c('x', s1 + 5000), c('y', s1 + 5000)], s1).name, 'x');
+      // DEEP-AUDIT-II §10.2 — a lone sidecar more than a day from the reference is a DIFFERENT recording,
+      // not a companion. (Was: any single candidate returned unconditionally, ref ignored → a 5-day-old
+      // ACC rendered a green agreement and silently changed which beats reached the HRV numbers.)
+      T.eq('§10.2 a same-session lone sidecar pairs', DI.pickNearestByStamp([c('near', s1 + 60000)], s1).name, 'near');
+      T.eq('§10.2 a 5-day-away lone sidecar does NOT pair', DI.pickNearestByStamp([c('stale', s1 + 5 * 24 * 3600000)], s1), null);
+      // DEEP-AUDIT-II §10.3 — a null/unparseable stamp is UNKNOWN, not epoch 0: the stamped candidate
+      // wins; a stampless-only candidate does not pair (absence is never the nearest evidence).
+      T.eq('§10.3 the stamped sidecar wins over a stampless one', DI.pickNearestByStamp([c('nostamp', null), c('near', s1 + 60000)], s1).name, 'near');
+      T.eq('§10.3 a stampless-only candidate does not pair (never epoch 0)', DI.pickNearestByStamp([c('nostamp', null)], s1), null);
       // (e) the app CONSUMES it (no drifting inline distance-pick copy left in ppgdex-app.js).
       var app = (env.sources || {})['ppgdex-app.js'] || '';
       if (app) {
