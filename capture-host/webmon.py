@@ -107,6 +107,8 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             # capture-completeness QC. Present only once their poller has run (null before then).
             "storage": status.get("storage"),
             "qc": status.get("qc"),
+            # Boot/adapter facts: uptime (a moved started_at = a spurious restart) + a mis-pin flag.
+            "host": status.get("host"),
         })
 
     async def scan(_req):
@@ -305,7 +307,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                          "rate_options": st.get("pmd_options") or {},
                          "rates": d.get("rates") or {}})
         return web.json_response({
-            "settings": settings_schema.describe(cfg, {}),
+            "settings": settings_schema.describe(cfg),
             "devices": devs,
             "bps_by_model": _BPS_BY_MODEL,
         })

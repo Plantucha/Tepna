@@ -1831,6 +1831,7 @@ def test_main_applies_overrides_and_migrates_wellue_ppg(tmp_path, monkeypatch):
     assert capture._STREAM_STALL_S == 45
     ring = next(d for d in capture._CFG["devices"] if d["name"] == "Ring")
     assert "ppg" in ring["streams"], "the implicit 125 Hz pleth was made explicit"
+    assert capture.STATUS["host"]["started_at"] and capture.STATUS["host"]["adapter_ok"] is True
 
 
 def test_main_dispatches_muse_and_legacy_viatom(tmp_path, monkeypatch):
@@ -2163,13 +2164,31 @@ def test_archive_poller_mirrors_completed_nights(tmp_path, monkeypatch):
     _os.utime(old, (0, _dtm.datetime(2026, 7, 19).timestamp() - 3600))   # last write well past the settle
     (cap / "2026-07-19").mkdir()                                # tonight — freshly written, still active
     (cap / "2026-07-19" / "Polar_H10_1_ECG.txt").write_text("live\n")
-    dest = tmp_path / "backup"
+    dest = tmp_path / "backup"; dest.mkdir()                    # operator pre-creates it on the backup disk
     cfg = {"archive": {"enabled": True, "dest": str(dest), "poll_sec": 1}}
     _stop_after(monkeypatch, 1)
     _run(capture.archive_poller(cfg, str(tmp_path)))
     assert (dest / "2026-07-18" / "Polar_H10_1_ECG.txt").exists()
     assert not (dest / "2026-07-19").exists()                   # active night left alone
     assert capture.STATUS["archive"]["last"] == "2026-07-18"
+    assert capture.STATUS["archive"]["dest_present"] is True
+
+
+def test_archive_poller_skips_when_dest_is_not_mounted(tmp_path, monkeypatch):
+    """A dest whose backup volume is unmounted must be SKIPPED, never created — blindly makedirs-ing the
+    tree would mirror the night onto the boot filesystem and fill it."""
+    import datetime as _dtm
+    monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 2, 0, 0))
+    cap = tmp_path / "captures"
+    (cap / "2026-07-18").mkdir(parents=True)
+    f = cap / "2026-07-18" / "Polar_H10_1_ECG.txt"; f.write_text("rows\n")
+    _os.utime(f, (0, _dtm.datetime(2026, 7, 19).timestamp() - 3600))
+    dest = tmp_path / "gone"                                    # never created → "volume not mounted"
+    cfg = {"archive": {"enabled": True, "dest": str(dest), "poll_sec": 1}}
+    _stop_after(monkeypatch, 1)
+    _run(capture.archive_poller(cfg, str(tmp_path)))
+    assert not dest.exists(), "the dest must NOT be created on the boot disk"
+    assert capture.STATUS["archive"]["dest_present"] is False
 
 
 def test_archive_poller_copy_does_not_block_the_event_loop(tmp_path, monkeypatch):
@@ -2189,6 +2208,7 @@ def test_archive_poller_copy_does_not_block_the_event_loop(tmp_path, monkeypatch
     (cap / "2026-07-18").mkdir(parents=True)                    # settled: aged past the settle window
     f18 = cap / "2026-07-18" / "Polar_H10_1_ECG.txt"; f18.write_text("rows\n")
     _os.utime(f18, (0, _dtm.datetime(2026, 7, 19).timestamp() - 3600))
+    (tmp_path / "b").mkdir()                                    # dest present (mounted)
 
     ticks = []
 
@@ -2280,6 +2300,7 @@ def test_archive_poller_swallows_an_error(tmp_path, monkeypatch):
     monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 2, 0, 0))
     monkeypatch.setattr(capture.nightarchive, "pending_nights",
                         lambda *a, **k: (_ for _ in ()).throw(RuntimeError("archive boom")))
+    (tmp_path / "b").mkdir()                                    # dest present → past the mount guard
     cfg = {"archive": {"enabled": True, "dest": str(tmp_path / "b"), "poll_sec": 1}}
     _stop_after(monkeypatch, 1)
     _run(capture.archive_poller(cfg, str(tmp_path)))            # must not raise

@@ -85,8 +85,9 @@ def set_nested(cfg: dict, key: str, value) -> None:
     cur[parts[-1]] = value
 
 
-def describe(cfg: dict, defaults: dict) -> list[dict]:
-    """Current value + bounds for every allowlisted setting, for the UI to render."""
+def describe(cfg: dict) -> list[dict]:
+    """Current value + bounds for every allowlisted setting, for the UI to render. Defaults come from
+    SETTINGS itself (each entry's `dflt`), not a caller-supplied map."""
     out = []
     for key, (typ, lo, hi, restart, dflt, help_) in SETTINGS.items():
         cur = get_nested(cfg, key)

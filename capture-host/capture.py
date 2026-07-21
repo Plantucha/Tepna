@@ -155,7 +155,7 @@ def oxyii_rtc_due(last_sync, now, session_restarted: bool, resync_sec: float) ->
     The ring is WRITE-ONLY on time: its opcode set is AUTH/SETUP/LIVE/SET_TIME + the file transfer ops,
     with no get-time, and the live frame carries no clock field. So "read it back and skip the write if
     it's already right" is not implementable — the only observable copy of its RTC is the file-list
-    naming (`YYYYMMDDhhmmss`), which needs the offline path, MTU>=517 and a pause of live capture, i.e.
+    naming (`YYYYMMDDhhmmss`), which needs the offline path and a pause of live capture, i.e.
     strictly more traffic than the blind write it would save.
 
     Instead of asking "is the time wrong?" (unanswerable) this asks "could it have gone wrong in a way
@@ -2023,12 +2023,27 @@ async def archive_poller(cfg: dict, root: str):
     interval = float(acfg.get("poll_sec", 3600))
     settle = float((cfg.get("storage") or {}).get("settle_sec", _NIGHT_SETTLE_S))
     captures = os.path.join(root, "captures")
+    _archive_dest_warned = False       # edge-trigger the "dest not present" warning, one per absence
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         try:
             # Mirror only nights that have gone QUIET (no writes for `settle`), never the one still being
             # captured — keyed on file activity, not _now()'s date, so a session that ran past midnight is
             # not copied-and-marked-done mid-recording the moment the clock rolls over.
+            # The dest must ALREADY EXIST — the operator creates it once on the backup volume. Never
+            # makedirs the whole chain: a dest whose mount is absent (an unmounted removable disk, a
+            # NAS that went away) leaves its mountpoint dir present-but-empty, so blindly creating the
+            # tree would silently mirror ~2 GB/night onto the BOOT filesystem and fill it. A missing dest
+            # means "backup volume not mounted" — skip this cycle and say so, don't invent a directory.
+            if not await asyncio.to_thread(os.path.isdir, dest):
+                if not _archive_dest_warned:
+                    log.warning("archive: dest %s is not present — backup volume unmounted? skipping "
+                                "until it reappears (never creating it on the boot disk)", dest)
+                    _archive_dest_warned = True
+                STATUS.setdefault("archive", {}).update({"dest": dest, "dest_present": False})
+                continue
+            _archive_dest_warned = False
+            STATUS.setdefault("archive", {})["dest_present"] = True
             active = await asyncio.to_thread(diskguard.active_nights, captures, settle)
             # OFF THE EVENT LOOP. archive_night() is a synchronous shutil.copy2 walk over a whole
             # night — ~2 GB across ~1500 files — and everything else this daemon does shares this one
@@ -2307,11 +2322,21 @@ async def main():
 
     # Surface the resolved adapter at boot: a silent mis-pin (hci re-enumeration) is exactly the failure
     # that cost 2026-07-18 — connects hung against the wrong radio with nothing in the log naming it.
+    _hci = None
     if ADAPTER:
         _hci = await link_rssi.resolve_hci(ADAPTER, refresh=True)
         log.info("BLE adapter pinned: %s → %s", ADAPTER, _hci or "NOT FOUND (using BlueZ default)")
     else:
         log.info("BLE adapter: BlueZ default (no `adapter:` in config — pin it to survive re-enumeration)")
+    # Host/boot facts on the monitor, not just in the boot log: `started_at` makes a spurious mid-night
+    # restart visible at a glance (a boot time that moved after dark), and `adapter_resolved`/`adapter_ok`
+    # surface a mis-pin the moment it happens instead of only when every connect quietly hangs.
+    STATUS["host"] = {
+        "started_at": _now().isoformat(timespec="seconds"),
+        "adapter_mac": ADAPTER,
+        "adapter_resolved": _hci,
+        "adapter_ok": ADAPTER is None or bool(_hci),   # a pinned-but-unresolved adapter is the failure
+    }
     log.info("tepna-capture up: %d device(s), root=%s", len(cfg.get("devices", [])), root)
     sdnotify.sd_notify("READY=1")             # Type=notify: `systemctl start` unblocks once capture is up
     # A (re)start is otherwise invisible overnight — a spurious restart mid-night is exactly what you want

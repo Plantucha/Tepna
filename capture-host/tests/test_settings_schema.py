@@ -126,7 +126,7 @@ def test_set_nested_round_trips_through_get_nested_for_every_key():
 
 # ── describe() ──────────────────────────────────────────────────────────────────────────────────────
 def test_describe_falls_back_to_the_default_and_flags_it():
-    rows = {r["key"]: r for r in describe({}, {})}
+    rows = {r["key"]: r for r in describe({})}
     assert set(rows) == set(ss.SETTINGS), "describe must cover exactly the allowlist"
     for key, (typ, lo, hi, restart, dflt, help_) in ss.SETTINGS.items():
         r = rows[key]
@@ -138,13 +138,13 @@ def test_describe_falls_back_to_the_default_and_flags_it():
 
 def test_describe_reports_an_override_as_not_default():
     cfg = {"watchdog": {"interval_sec": 90}}
-    row = {r["key"]: r for r in describe(cfg, {})}["watchdog.interval_sec"]
+    row = {r["key"]: r for r in describe(cfg)}["watchdog.interval_sec"]
     assert row["value"] == 90 and row["is_default"] is False
 
 
 def test_describe_marks_a_value_equal_to_the_default_as_default():
     cfg = {"watchdog": {"interval_sec": ss.SETTINGS["watchdog.interval_sec"][4]}}
-    row = {r["key"]: r for r in describe(cfg, {})}["watchdog.interval_sec"]
+    row = {r["key"]: r for r in describe(cfg)}["watchdog.interval_sec"]
     assert row["is_default"] is True, "explicitly writing the default must not look like an override"
 
 
