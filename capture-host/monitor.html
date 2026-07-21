@@ -668,7 +668,7 @@ async function loadState(){
   const na=$('#navActiveN'); na.style.display = active?'inline-block':'none'; na.textContent = active;
   const nd=$('#navDevN'); nd.style.display = conn?'inline-block':'none'; nd.textContent = conn;
   renderSideStats();          // sidebar counters: every view, not just Overview
-  renderBoxHealth(s.storage, s.qc);
+  renderBoxHealth(s.storage, s.qc, s.host);
   renderDownload(DEVICES);
   renderRemembered(DEVICES);
   renderStreamSel();
@@ -1044,10 +1044,21 @@ function renderSideStats(){
 // Box health strip (Overview): disk + tonight's capture QC, published by the guardrail pollers into
 // /api/state. Each block appears only once its poller has run (null before then); border-left signals ok
 // (teal) vs a warning (amber) — a low disk, or a night with a missing stream.
-function renderBoxHealth(storage, qc){
+function renderBoxHealth(storage, qc, host){
   const el = $('#boxHealth'), title = $('#boxHealthTitle');
   if(!el) return;
   const cards = [];
+  if(host){
+    // A pinned adapter that did not resolve is a silent mis-pin — every connect hangs against the wrong
+    // radio. Started_at makes a spurious mid-night restart visible (a boot time that moved after dark).
+    const bad = host.adapter_ok === false;
+    const when = host.started_at ? String(host.started_at).replace('T',' ').slice(0,16) : '—';
+    cards.push(`<div class="ov-stat" style="border-left-color:${bad?'var(--status-caution)':'var(--status-ok)'}">
+      <div class="lab">Box</div>
+      <div class="val" style="font-size:15px">${bad?'adapter mis-pin':'up'}</div>
+      <div class="sub">${bad?('pinned '+esc(host.adapter_mac||'?')+' not found')
+                            :('since '+esc(when)+(host.adapter_resolved?(' · '+esc(host.adapter_resolved)):''))}</div></div>`);
+  }
   if(storage){
     const warn = !!storage.low;
     const keep = storage.keep_nights>0 ? ('keep '+storage.keep_nights+' nights') : 'no auto-prune';
