@@ -528,15 +528,25 @@
     var accUnit = (acc && acc._unit) || 'mg',
       chestUnit = (chest && chest._unit) || 'mg';
     var t0Ms = firstTMs([acc, chest, gyro, mag]);
-    // position + actigraphy prefer the chest sensor (torso frame); fall back to wrist ACC
+    // POSITION prefers the chest sensor (torso frame), falling back to the wrist ACC; ACTIGRAPHY prefers
+    // the WRIST ACC (de-gravitated activity is a wrist signal), falling back to the position source.
     var posSrc = chest && chest.length > 10 ? chest : acc;
     var posUnit = posSrc === chest ? chestUnit : accUnit;
+    var actiSrc = acc && acc.length > 10 ? acc : posSrc;
+    var actiUnit = actiSrc === acc ? accUnit : posUnit;
     var durSec = Math.max(durationOf(acc, t0Ms), durationOf(chest, t0Ms), durationOf(gyro, t0Ms));
 
     var position = bodyPosition(posSrc, t0Ms, durSec, posUnit);
-    var activity = actigraphy(acc && acc.length > 10 ? acc : posSrc, t0Ms, durSec, acc && acc.length > 10 ? accUnit : posUnit);
+    var activity = actigraphy(actiSrc, t0Ms, durSec, actiUnit);
     var effort = respiratoryEffort(chest, t0Ms, durSec, chestUnit);
+    // DEEP-AUDIT-II §7.5 — PER-STREAM SQI. `sqi` qualifies the posture/chest source (and the posture_change
+    // event conf). A single SQI on the chest would leave the WRIST-derived movement metrics (immobileFrac,
+    // movementIndex, activitySeries) qualified by a DIFFERENT sensor: a flatlined wrist under a clean chest
+    // would read high confidence while the actigraphy is garbage. So the actigraphy stream carries its OWN
+    // SQI. Reuse `sqi` when actigraphy ran on the SAME source (single-stream night) — identical by
+    // construction, not by luck.
     var sqi = motionSQI(posSrc, posUnit);
+    var sqiActivity = actiSrc === posSrc ? sqi : motionSQI(actiSrc, actiUnit);
 
     var summary = {
       node: 'MotionDex',
@@ -551,7 +561,8 @@
       position: position,
       activity: activity,
       effort: effort,
-      sqi: sqi
+      sqi: sqi,
+      sqiActivity: sqiActivity
     };
     return summary;
   }
@@ -671,7 +682,12 @@
         effortSeries: summary.effort && summary.effort.series ? summary.effort.series : null,
         effortCadenceSec: summary.effort ? summary.effort.cadenceSec : null,
         effortFloorG: summary.effort ? summary.effort.floorG : null,
-        sqi: summary.sqi ? summary.sqi.conf : null
+        sqi: summary.sqi ? summary.sqi.conf : null,
+        // DEEP-AUDIT-II §7.5 — per-stream SQI. `sqi` above qualifies the posture/chest source (and the
+        // posture_change event conf); `sqiActivity` qualifies the WRIST stream the actigraphy metrics
+        // (immobileFrac / movementIndex / activitySeries) are derived from. Equal to `sqi` on a
+        // single-stream night; a consumer trusts the movement metrics against THIS, not the chest SQI.
+        sqiActivity: summary.sqiActivity ? summary.sqiActivity.conf : null
       },
       ganglior_events: events
     };

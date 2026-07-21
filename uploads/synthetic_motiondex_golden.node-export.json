@@ -114,7 +114,8 @@
     ],
     "effortCadenceSec": 10,
     "effortFloorG": 0.004,
-    "sqi": 0.97
+    "sqi": 0.97,
+    "sqiActivity": 0.97
   },
   "ganglior_events": [
     {

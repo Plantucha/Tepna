@@ -19754,6 +19754,38 @@
       T.ok('Gauss values converted ×100 to µT (0.12 G → 12 µT)', mag.length >= 1 && Math.abs(mag[0].x - 12) < 1e-6, 'x=' + (mag[0] && mag[0].x));
     });
 
+    /* ════ MotionDex per-stream SQI — the actigraphy stream carries its OWN signal quality (DEEP-AUDIT-II §7.5) ════
+     `compute` measured ONE SQI on the posture/chest source while the actigraphy metrics (immobileFrac,
+     movementIndex, activitySeries) are derived from the WRIST acc — so a flatlined wrist under a clean chest
+     read HIGH confidence while the movement numbers were garbage. Now SQI is per-stream: `sqi` qualifies the
+     posture/chest source (+ posture_change event conf), `sqiActivity` qualifies the wrist stream (equal to
+     `sqi` on a single-stream night). Drives a clean chest + a flatlined wrist. ════ */
+    group('MotionDex per-stream SQI — actigraphy stream carries its own SQI (DEEP-AUDIT-II §7.5)', 'motiondex-dsp · sqi · per-stream', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.compute === 'function' && typeof MD.genSyntheticACC === 'function' && typeof MD.buildNodeExport === 'function')) {
+        T.skip('MOTIONDSP.compute + genSyntheticACC + buildNodeExport available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      var cleanChest = MD.genSyntheticACC({ sec: 120, hz: 26, brpm: 15, seed: 7 });
+      // a FLATLINED wrist ACC — every row identical → motionSQI flatline flag → ~0 conf.
+      var lines = ['Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]'],
+        t0 = U(2026, 5, 10, 22, 0, 0),
+        ns = 599628000000000000,
+        dtNs = Math.round(1e9 / 26);
+      for (var i = 0; i < 26 * 120; i++) lines.push(new Date(t0 + Math.round((i * 1000) / 26)).toISOString() + ';' + (ns + i * dtNs) + ';30;40;1000');
+      var flatWrist = lines.join('\n') + '\n';
+
+      var sum = MD.compute({ acc: flatWrist, chestAcc: cleanChest });
+      T.ok('posture SQI is high (clean chest)', sum.sqi && sum.sqi.conf > 0.8, 'sqi=' + (sum.sqi && sum.sqi.conf));
+      T.ok('activity SQI is LOW and distinct from posture SQI (flatlined wrist)', sum.sqiActivity && sum.sqi && sum.sqiActivity.conf < sum.sqi.conf - 0.3, 'sqiActivity=' + (sum.sqiActivity && sum.sqiActivity.conf) + ' vs sqi=' + (sum.sqi && sum.sqi.conf));
+      T.ok('the flatline flag lands on the ACTIVITY SQI, not the posture SQI', sum.sqiActivity && sum.sqiActivity.flags && sum.sqiActivity.flags.indexOf('flatline') >= 0 && sum.sqi.flags.indexOf('flatline') < 0, 'act=' + JSON.stringify(sum.sqiActivity && sum.sqiActivity.flags) + ' pos=' + JSON.stringify(sum.sqi && sum.sqi.flags));
+      var exp = MD.buildNodeExport(sum);
+      T.ok('export surfaces motion.sqiActivity below motion.sqi', exp.motion && exp.motion.sqi != null && exp.motion.sqiActivity != null && exp.motion.sqiActivity < exp.motion.sqi, 'sqiActivity=' + (exp.motion && exp.motion.sqiActivity) + ' sqi=' + (exp.motion && exp.motion.sqi));
+      // single-stream night: no wrist acc → actigraphy falls back to the posture source → sqiActivity === sqi
+      var single = MD.compute({ chestAcc: cleanChest });
+      T.ok('single-stream: sqiActivity equals sqi by construction (same source)', single.sqiActivity && single.sqi && single.sqiActivity.conf === single.sqi.conf, 'act=' + (single.sqiActivity && single.sqiActivity.conf) + ' sqi=' + (single.sqi && single.sqi.conf));
+    });
+
     /* MULTI-SENSOR-DERIVATIONS §1.2 — positional OSA from MotionDex body position.
        Two things this pins that BOTH shipped broken before it existed:
        (a) MotionDex must be a REGISTERED Integrator node (NODE_COLORS + KNOWN_NODES) — otherwise the R2
