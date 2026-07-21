@@ -19719,6 +19719,41 @@
       T.ok('dwellFrac.supine likewise over covered', pos.dwellFrac && Math.abs(pos.dwellFrac.supine - 1) < 0.01, 'dwellFrac.supine=' + (pos.dwellFrac && pos.dwellFrac.supine));
     });
 
+    /* ════ MotionDex unit taxonomy — Gauss is magnetic, not gravity; mg is case-insensitive (DEEP-AUDIT-II §7.9) ════
+     Two defects in the ACC unit pair: (1) the acc-branch regex `/mg|(^g$)|G/` matched a Gauss `[G]` MAGN
+     header (Polar Sense writes Gauss) and returned {kind:'acc', unit:'G'}, so Gauss was typed as acceleration
+     and read as gravity-g by toG; (2) `toG` tested `unit==='mg'` case-sensitively while UNIT_RE captures
+     case-insensitively, so a `[mG]` header read as g → 1000× motion metrics. Fix: route `[G]`→mag, convert
+     Gauss→µT at the parse boundary (1 G = 100 µT, CLAUDE.md §📏), and match mg case-insensitively. ════ */
+    group('MotionDex unit taxonomy — Gauss→mag/µT, mg case-insensitive (DEEP-AUDIT-II §7.9)', 'motiondex-dsp · parse · units', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.streamKindFromHeader === 'function' && typeof MD.parseSensorXYZ === 'function')) {
+        T.skip('MOTIONDSP.streamKindFromHeader + parseSensorXYZ available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      // §7.9a — a Gauss [G] MAGN header is MAGNETOMETER, never acc (pre-fix: {kind:'acc', unit:'G'} → gravity-g)
+      var kG = MD.streamKindFromHeader('Phone timestamp;sensor timestamp [ns];X [G];Y [G];Z [G]');
+      T.eq('a `[G]` (Gauss) header classifies as mag, not acc', kG && kG.kind, 'mag');
+      // gravity vs Gauss discriminated by CASE — lowercase g is still acc/gravity
+      var kg = MD.streamKindFromHeader('Phone timestamp;sensor timestamp [ns];X [g];Y [g];Z [g]');
+      T.eq('a lowercase `[g]` (gravity) header stays acc', kg && kg.kind, 'acc');
+      // the plain mg ACC header is unaffected
+      var kmg = MD.streamKindFromHeader('Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]');
+      T.ok('`[mg]` stays acc/mg', kmg && kmg.kind === 'acc' && kmg.unit === 'mg', JSON.stringify(kmg));
+      // §7.9b — mg is case-insensitive: a [mG] header is milli-g, not read as g (1000×)
+      var kmG = MD.streamKindFromHeader('Phone timestamp;sensor timestamp [ns];X [mG];Y [mG];Z [mG]');
+      T.ok('`[mG]` normalizes to acc/mg (not read as g → 1000×)', kmG && kmG.kind === 'acc' && kmG.unit === 'mg', JSON.stringify(kmG));
+      if (typeof MD.toG === 'function') {
+        T.eq('toG(1000, "mG") === 1 (case-insensitive milli-g)', MD.toG(1000, 'mG'), 1);
+        T.eq('toG(1000, "mg") === 1 (unchanged)', MD.toG(1000, 'mg'), 1);
+      }
+      // §7.9c — a parsed Gauss stream is normalized to µT (×100) at the parse boundary
+      var mag = MD.parseSensorXYZ('Phone timestamp;sensor timestamp [ns];X [G];Y [G];Z [G]\n2026-06-09T19:43:40.000;834363822717523328;0.12;-0.44;0.31\n2026-06-09T19:43:40.020;834363822717600000;0.13;-0.42;0.30');
+      T.eq('parsed Gauss stream is kind mag', mag._kind, 'mag');
+      T.eq('parsed Gauss stream unit normalized to µT', mag._unit, 'µT');
+      T.ok('Gauss values converted ×100 to µT (0.12 G → 12 µT)', mag.length >= 1 && Math.abs(mag[0].x - 12) < 1e-6, 'x=' + (mag[0] && mag[0].x));
+    });
+
     /* MULTI-SENSOR-DERIVATIONS §1.2 — positional OSA from MotionDex body position.
        Two things this pins that BOTH shipped broken before it existed:
        (a) MotionDex must be a REGISTERED Integrator node (NODE_COLORS + KNOWN_NODES) — otherwise the R2
