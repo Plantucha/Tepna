@@ -253,21 +253,27 @@
       bz[idx].push(toG(accRows[i].z, unit));
     }
     var track = [],
+      covered = 0, // epochs that HAD accelerometer samples — the dwell-fraction denominator
       dwell = { supine: 0, prone: 0, left: 0, right: 0, upright: 0, unknown: 0 };
     for (e = 0; e < nE; e++) {
       if (!bx[e].length) {
-        dwell.unknown++;
+        // NOT RECORDING this epoch (gap / before the sensor started). It leaves the denominator
+        // entirely — it is neither a posture nor "unknown posture". Counting it dilutes every
+        // dwellFrac (a longer wrist file's tail then halves a real supineFrac). DEEP-AUDIT-II §7.4 —
+        // the CLEAN mirror of the seen/covered fix `actigraphy` already carries (:298-323). The track
+        // keeps 'unknown' so the timeline stays dense and the posture_change export skips it.
         track.push({ tStartMs: t0Ms != null ? t0Ms + e * epoch * 1000 : null, pos: 'unknown' });
         continue;
       }
+      covered++;
       var pos = classifyGravity(median(bx[e]), median(by[e]), median(bz[e]));
       dwell[pos]++;
       track.push({ tStartMs: t0Ms != null ? t0Ms + e * epoch * 1000 : null, pos: pos });
     }
     var frac = {};
-    for (var k = 0; k < POSITIONS.length; k++) frac[POSITIONS[k]] = nE ? dwell[POSITIONS[k]] / nE : 0;
+    for (var k = 0; k < POSITIONS.length; k++) frac[POSITIONS[k]] = covered ? dwell[POSITIONS[k]] / covered : 0;
     var supineFrac = frac.supine;
-    return { hasData: true, epochSec: epoch, track: track, dwellEpochs: dwell, dwellFrac: frac, supineFrac: supineFrac };
+    return { hasData: true, epochSec: epoch, track: track, dwellEpochs: dwell, coveredEpochs: covered, dwellFrac: frac, supineFrac: supineFrac };
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -344,8 +350,14 @@
   function respiratoryEffort(chestRows, t0Ms, durSec, unit) {
     if (!chestRows || chestRows.length < 30) return { hasData: false };
     var baseMs = streamBaseMs(chestRows); // §7.2 anchor — chest may start after t0Ms
+    // DEEP-AUDIT-II §7.3 — the passed `durSec` is the MAX over all streams (compute():501). Using it to
+    // divide a CHEST-only quantity (breaths, sample rate) HALVES the value whenever a wrist file runs
+    // longer than the chest strap. Both the respiratory rate and the hz fallback must divide by the
+    // chest stream's OWN span — durationOf against the chest's own base cancels the (base − t0Ms) offset,
+    // leaving the chest recording's true duration independent of the wrist.
+    var chestDurSec = durationOf(chestRows, baseMs);
     var hz = sampleHz(chestRows, t0Ms);
-    if (!isFinite(hz) || hz <= 0) hz = chestRows.length / Math.max(1, durSec);
+    if (!isFinite(hz) || hz <= 0) hz = chestRows.length / Math.max(1, chestDurSec);
     // use the axis with the largest respiratory-band variance (AP motion dominates effort)
     var axes = ['x', 'y', 'z'];
     var best = null;
@@ -375,7 +387,7 @@
         }
       }
     }
-    var minutes = durSec / 60;
+    var minutes = chestDurSec / 60; // §7.3 — chest's own span, not the longest stream's
     var rate = minutes > 0 ? breaths / minutes : NaN;
     // amplitude proxy: RMS of the effort signal
     var rms = Math.sqrt(best.var / Math.max(1, sig.length));
