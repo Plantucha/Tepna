@@ -2629,7 +2629,11 @@
             : null,
         startEpochMs: r.t0Ms != null ? r.t0Ms : null,
         sessions: 1,
-        events: events.length
+        events: events.length,
+        // Optical site (OXYDEX-PULSE-RESOURCING §Phase 2): 'finger' = O2Ring single-channel pleth,
+        // 'wrist' = Polar Verity. The Integrator needs it to identify the O2Ring's OWN waveform leg
+        // for the finger-waveform-vs-ring-1 Hz-pulse cross-check (a self-check, not cross-device).
+        site: r.site || 'wrist'
       },
       ganglior_events: events,
       reserved: { doc: 'Awaiting other fleet nodes; null until available.' }

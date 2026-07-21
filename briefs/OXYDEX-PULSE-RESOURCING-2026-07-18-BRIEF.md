@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-20 (**Phase 1 EXECUTED + gated; §3.1 owner decision recorded (option b).** OxyDex now reads the O2Ring **perfusion index** from the Health-Box `*_OXYFRAME.txt` sidecar — a `;`-delimited superset of the ViHealth CSV (`parseCSV` gained delimiter detection + a `pi_pct` column; SpO₂/HR byte-identical from either file). `meanPi` surfaces at **measured** with a badge, rendered only when present; the ring's `pi_pct=0` no-perfusion sentinel is treated as absent, and a ViHealth CSV (no PI column) yields `meanPi: null` — never a fabricated 0. Verified on a real capture: `meanPi ≈ 2.15 %`, null on the same night's CSV. Ingest already routes the OXYFRAME to OxyDex via `^WELLUE` (no dex-ingest change). 12-assertion both-direction gate; OxyDex + orchestrators re-bundled; all three OxyDex goldens regenerated (each gained `meanPi: null, piFrames: 0` — additive); GATE A/B + both equiv legs green with the real inputs. ⚠️ Release-time `verifiedUnder` re-stamp is owed (needs the curated corpus — `release.mjs` blocks until then). **Still open:** Phase 2 (Integrator waveform-vs-1 Hz comparison), Phase 3 (re-source `rmssd`/`hrVarSd` + re-tier), Phase 4 (CVHR, on the recorded §3.1 basis).) · **Created:** 2026-07-18
+**Status:** IN-PROGRESS — 2026-07-20 (**Phase 1 EXECUTED + gated; §3.1 owner decision recorded (option b).** OxyDex now reads the O2Ring **perfusion index** from the Health-Box `*_OXYFRAME.txt` sidecar — a `;`-delimited superset of the ViHealth CSV (`parseCSV` gained delimiter detection + a `pi_pct` column; SpO₂/HR byte-identical from either file). `meanPi` surfaces at **measured** with a badge, rendered only when present; the ring's `pi_pct=0` no-perfusion sentinel is treated as absent, and a ViHealth CSV (no PI column) yields `meanPi: null` — never a fabricated 0. Verified on a real capture: `meanPi ≈ 2.15 %`, null on the same night's CSV. Ingest already routes the OXYFRAME to OxyDex via `^WELLUE` (no dex-ingest change). 12-assertion both-direction gate; OxyDex + orchestrators re-bundled; all three OxyDex goldens regenerated (each gained `meanPi: null, piFrames: 0` — additive); GATE A/B + both equiv legs green with the real inputs. ⚠️ Release-time `verifiedUnder` re-stamp is owed (needs the curated corpus — `release.mjs` blocks until then). **Phase 2 EXECUTED + gated 2026-07-20:** the Integrator now cross-checks the ring's finger WAVEFORM pulse against its own smoothed 1 Hz field (`fusePulseCrossCheck`, read-only, disagreement published never averaged; PpgDex exports `recording.site`, attach-only-when-both-present keeps fusion fixtures byte-identical; 22-assertion gate, all four gates green). **Still open:** Phase 3 (re-source `rmssd`/`hrVarSd` + re-tier), Phase 4 (CVHR, on the recorded §3.1 basis).) · **Created:** 2026-07-18
 
 # The O2Ring's 1 Hz pulse is a smoothed vendor summary — demote it to a reference leg
 
@@ -97,11 +97,21 @@ competing when MotionDex is absent). **Never surface two AHI numbers without a s
 and no fork resolution. Tier: **measured** (direct device reading), same standing as `meanHr`. Add to
 `oxydex-registry.js` + the ViHealth sidecar. Smallest useful increment.
 
-**Phase 2 — the reference comparison.** With PpgDex emitting finger PPI, the Integrator compares
-waveform-derived pulse against the ring's 1 Hz pulse — mirroring `ecgdex-dsp.js:2235 validateRR(selfNN,
-deviceRR)`. **Publish the disagreement**, do not average it away (`integrator-dsp.js:2854` precedent:
-*"and the SPREAD — a disagreement is reported, never averaged away"*). This phase is **read-only** — it
-adds a comparison, changes no existing metric.
+**Phase 2 — the reference comparison. ✅ EXECUTED 2026-07-20.** With PpgDex emitting finger PPI, the
+Integrator compares waveform-derived pulse against the ring's 1 Hz pulse — mirroring `ecgdex-dsp.js:2235
+validateRR(selfNN, deviceRR)`. **Publish the disagreement**, do not average it away
+(`integrator-dsp.js:2854` precedent: *"and the SPREAD — a disagreement is reported, never averaged
+away"*). This phase is **read-only** — it adds a comparison, changes no existing metric. *Shipped:*
+`fusePulseCrossCheck` fires only when a night carries BOTH a `site:'finger'` PpgDex (the honest,
+waveform-derived HR) and an OxyDex (the ring's 1 Hz `stats.meanHr`); it reports `biasBpm =
+deviceHr − waveformHr`, `pctOfWaveform`, and an `agree` flag (±3 bpm), with the waveform as `reference`
+and the note *"the disagreement is reported, never averaged."* PpgDex now exports `recording.site`; the
+Integrator's generic node-export normalizer surfaces `pulseHr1Hz` (the legacy `_summary.json` adapter
+sets the same field). Attached to the fusion export ONLY when both legs are present → nights without a
+paired finger capture stay byte-identical. 22-assertion both-direction gate (unit + real-export
+end-to-end + source-structural); PpgDex/Integrator/Data Unifier/OverDex + 8 analysis tools + docs
+re-bundled; the synthetic PpgDex golden gained `recording.site: "wrist"` (additive, re-recorded); all
+four gates green (`build --check`, GATE A/B, biome, suite 3468).
 
 **Phase 3 — re-source the HRV proxies.** Replace `rmssd`/`hrVarSd`'s 1 Hz derivation with waveform PPI.
 **Re-tier deliberately**: they were `experimental` *because* of the 1 Hz limitation; on real PPI they earn

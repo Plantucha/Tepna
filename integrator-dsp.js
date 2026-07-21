@@ -455,6 +455,11 @@ function adaptEnvelopeNode(json, node, filename) {
     if (node === 'PpgDex') {
       summary.posture = _ecgPostureSeries(json, t0Ms);
       summary.postureSource = 'limb-acc';
+      // OXYDEX-PULSE-RESOURCING §Phase 2: the optical site + the WAVEFORM-derived pulse HR. Only a
+      // `site:'finger'` PpgDex export is the O2Ring's own pleth — the honest leg fusePulseCrossCheck
+      // compares against the ring's smoothed 1 Hz pulse.
+      summary.site = _dig(json, ['recording', 'site']) || 'wrist';
+      summary.pulseHr = _dig(json, ['hrv', 'time', 'hr']);
       // FU §2: 3-LED optical consensus (% of kept beats where ≥2/3 channels agree) — a whole-
       // record optical trust axis folded into the HRV-consensus gate alongside the per-event floor.
       summary.ledAgreementPct = _dig(json, ['quality', 'ledAgreementPct']);
@@ -503,6 +508,14 @@ function adaptEnvelopeNode(json, node, filename) {
     summary.ahiSource = 'device-scored';
     // body-position passthrough if a future PAP firmware embeds it in event meta
     summary.posture = _ecgPostureSeries(json, t0Ms);
+  }
+  if (node === 'OxyDex') {
+    // OXYDEX-PULSE-RESOURCING §Phase 2: surface the ring's SMOOTHED 1 Hz pulse HR (stats.meanHr) so
+    // fusePulseCrossCheck can hold it up against a finger-PpgDex WAVEFORM HR. This is the DEVICE leg,
+    // not the honest one — §5: the 1 Hz field is never ground truth, only the compared-against value.
+    // The OxyDex `.node-export.json` (current schema) reaches this generic normalizer; the legacy
+    // `_summary.json` array reaches adaptOxyDex, which sets the same field on its own summary.
+    summary.pulseHr1Hz = _dig(json, ['stats', 'meanHr']);
   }
   if (node === 'MotionDex') {
     // Motion / IMU node-export (APNEA-TYPING-FUSION-2026-07-18 §1.1). The per-epoch respiratory-EFFORT
@@ -828,6 +841,9 @@ function adaptOxyDex(json, filename) {
       minSpo2: stats.minSpo2,
       meanSpo2: stats.meanSpo2,
       durationMin: stats.durationMin,
+      // OXYDEX-PULSE-RESOURCING §Phase 2: the O2Ring's 1 Hz firmware pulse — the SMOOTHED leg, exposed
+      // for the finger-waveform-vs-device cross-check (fusePulseCrossCheck), never as ground truth.
+      pulseHr1Hz: stats.meanHr != null && isFinite(stats.meanHr) ? stats.meanHr : null,
       hypoxicBurden: n.hb ? n.hb.rate : null,
       desatCount: events.filter(function (e) {
         return e.impulse === 'spo2_desaturation' || e.impulse === 'desat_event';
@@ -2165,6 +2181,62 @@ function gateHRVByMotion(recs) {
    Returns null below 2 sources — a "fusion" of one estimate is just that estimate.
    EMERGING tier. Agreement band from Ryser 2022 [R22]: chest-ACC RR validates to ~1.8 br/min vs RIP. */
 var RR_AGREE_BRPM = 2.0;
+// OXYDEX-PULSE-RESOURCING §Phase 2 — the finger-waveform-vs-ring-1 Hz pulse-HR agreement band.
+// Measured on the real tri-device corpus: the O2Ring waveform tracks the ring's own field to a
+// median 0.4 bpm and the paired chest ECG to ~1 bpm (docs/O2RING-FINGER-ROUNDTRIP-2026-07-20.md),
+// so 3 bpm is a generous agreement threshold, not a tight one.
+var PULSE_AGREE_BPM = 3.0;
+
+// OXYDEX-PULSE-RESOURCING §Phase 2 — the O2Ring's own WAVEFORM pulse vs its SMOOTHED 1 Hz firmware
+// pulse. This is the third application of CLAUDE.md §🎙️ (the H10 `_HR.txt` and the Verity `_HR.txt`
+// already get it): the vendor's 1 Hz summary is smoothed and is NEVER the reference — the honest leg
+// is the waveform-derived PPI. So the comparison is DIRECTIONAL: the finger PpgDex HR is the truth,
+// the ring's 1 Hz field is what is being checked. READ-ONLY — it adds a cross-check block and changes
+// no existing metric. The DISAGREEMENT is reported, never averaged away (integrator-dsp.js precedent:
+// fuseRespirationRate / "report the SPREAD"). Returns null unless BOTH a `site:'finger'` PpgDex export
+// and an O2Ring OxyDex export are on the bus (the ring's own waveform + its own summary, one session).
+function fusePulseCrossCheck(recs) {
+  var wave = /** @type {any} */ (null),
+    dev = /** @type {any} */ (null);
+  recs.forEach(function (r) {
+    if (!r || r.dateUnknown || !r.summary) return;
+    if (r.node === 'PpgDex' && r.summary.site === 'finger' && r.summary.pulseHr != null && isFinite(r.summary.pulseHr) && r.summary.pulseHr > 0 && !wave) {
+      wave = { node: r.node, hr: +Number(r.summary.pulseHr).toFixed(1) };
+    }
+    if (r.node === 'OxyDex' && r.summary.pulseHr1Hz != null && isFinite(r.summary.pulseHr1Hz) && r.summary.pulseHr1Hz > 0 && !dev) {
+      dev = { node: r.node, hr: +Number(r.summary.pulseHr1Hz).toFixed(1) };
+    }
+  });
+  if (!wave || !dev) return null;
+  // signed bias = device − waveform: > 0 means the ring's 1 Hz field reads HIGH vs the honest waveform.
+  var biasBpm = +(dev.hr - wave.hr).toFixed(1);
+  var absBpm = Math.abs(biasBpm);
+  // percent relative to the WAVEFORM (the reference leg), not the device — the honest denominator.
+  var pctOfWaveform = +((absBpm / wave.hr) * 100).toFixed(2);
+  var agree = absBpm <= PULSE_AGREE_BPM;
+  return {
+    waveformHr: wave.hr,
+    deviceHr: dev.hr,
+    reference: 'waveform', // the finger pleth is the honest leg; the 1 Hz field is the smoothed one
+    biasBpm: biasBpm,
+    absBpm: +absBpm.toFixed(1),
+    pctOfWaveform: pctOfWaveform,
+    agree: agree,
+    agreeThresholdBpm: PULSE_AGREE_BPM,
+    note:
+      'O2Ring finger-waveform HR ' +
+      wave.hr +
+      " vs the ring's smoothed 1 Hz field " +
+      dev.hr +
+      ' bpm — device ' +
+      (biasBpm === 0 ? 'matches' : (biasBpm > 0 ? 'reads +' : 'reads ') + biasBpm + ' bpm vs') +
+      ' the waveform (the honest leg); ' +
+      (agree
+        ? 'within the ±' + PULSE_AGREE_BPM + ' bpm agreement band — vendor smoothing costs little here.'
+        : 'BEYOND the ±' + PULSE_AGREE_BPM + ' bpm band; trust the waveform, not the 1 Hz field.') +
+      ' The disagreement is reported, never averaged.'
+  };
+}
 
 function fuseRespirationRate(recs) {
   var sources = [];
@@ -2729,6 +2801,8 @@ function runFusion(recs, opts) {
   var hrvMotionGate = gateHRVByMotion(recs);
   // §2.2 respiration-rate fusion — n-agnostic, null below 2 sources, alters nothing.
   var respiration = fuseRespirationRate(recs);
+  // §Phase 2 — no overlap gate: a whole-record HR comparison between two summaries on the same bus.
+  var pulseCrossCheck = fusePulseCrossCheck(recs);
   if (hrv && hrv.blocks && hrvMotionGate)
     hrv.blocks.forEach(function (b) {
       // Attach ONLY when a gate exists, so a night without MotionDex keeps a byte-identical export
@@ -2842,6 +2916,7 @@ function runFusion(recs, opts) {
     hrv: hrv,
     hrvMotionGate: hrvMotionGate,
     respiration: respiration,
+    pulseCrossCheck: pulseCrossCheck,
     staging: staging,
     periodicBreathing: periodicBreathing,
     findings: findings,
@@ -2854,7 +2929,7 @@ function runFusion(recs, opts) {
 
 /* Build the slim export object (the cross-node currency written back to the bus). */
 function buildFusionExport(recs, fusion) {
-  return {
+  var _exp = {
     kernel: window.DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null,
     kernelAudit: fusion.kernelAudit || null,
     schema: {
@@ -2958,6 +3033,11 @@ function buildFusionExport(recs, fusion) {
       ecgdex_ready: { glucoseCorrelation: fusion.autoGly ? fusion.autoGly.glucoseAutonomicCorrelation : null }
     }
   };
+  // §Phase 2 — the finger-waveform-vs-ring-1 Hz pulse cross-check. ATTACHED ONLY when it exists (a
+  // `site:'finger'` PpgDex + an O2Ring OxyDex on the same bus), so every export without that pair —
+  // which is every committed fixture — stays byte-identical (same rule as the motionGate attach above).
+  if (fusion.pulseCrossCheck) _exp.pulseCrossCheck = fusion.pulseCrossCheck;
+  return _exp;
 }
 
 /* ── Evidence-grade resolver — a metric's tier is a NODE fact from its
@@ -3016,6 +3096,7 @@ window.IntegratorDSP = {
   typeApneaByEffort,
   gateHRVByMotion,
   fuseRespirationRate,
+  fusePulseCrossCheck,
   pickHRAuthority,
   gradeFor,
   GRADE_MIRROR,

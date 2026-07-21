@@ -1067,6 +1067,7 @@ async function main() {
     dedupeRecs: ctx.dedupeRecs,
     runFusion: ctx.runFusion,
     buildFusionExport: ctx.buildFusionExport,
+    fusePulseCrossCheck: ctx.fusePulseCrossCheck,
     reconstructEventTMs: ctx.reconstructEventTMs,
     pearson: ctx.pearson,
     labelPositionalApnea: ctx.labelPositionalApnea,
