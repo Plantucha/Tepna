@@ -460,6 +460,14 @@ function adaptEnvelopeNode(json, node, filename) {
       // compares against the ring's smoothed 1 Hz pulse.
       summary.site = _dig(json, ['recording', 'site']) || 'wrist';
       summary.pulseHr = _dig(json, ['hrv', 'time', 'hr']);
+      // OXYDEX-PULSE-RESOURCING §Phase 3: the finger-waveform WHOLE-RECORD HRV (ms — real RR-interval
+      // RMSSD/SDNN). fuseHrvResource publishes these as the honest, ring-context HRV that SUPERSEDES the
+      // O2Ring 1 Hz bpm-proxy when a finger capture exists. sdnnRobust is the cross-node-comparable SDNN
+      // (quality-gated per-5-min median, ~+3.5% vs ECG truth per the PpgDex export's own sdnnNote).
+      summary.rmssdMs = _dig(json, ['hrv', 'time', 'rmssd']);
+      summary.sdnnRobustMs = _dig(json, ['hrv', 'time', 'sdnnRobust']);
+      summary.sdnnMs = _dig(json, ['hrv', 'time', 'sdnn']);
+      summary.hrvLowConfidence = _dig(json, ['hrv', 'time', 'lowConfidence']);
       // FU §2: 3-LED optical consensus (% of kept beats where ≥2/3 channels agree) — a whole-
       // record optical trust axis folded into the HRV-consensus gate alongside the per-event floor.
       summary.ledAgreementPct = _dig(json, ['quality', 'ledAgreementPct']);
@@ -516,6 +524,11 @@ function adaptEnvelopeNode(json, node, filename) {
     // The OxyDex `.node-export.json` (current schema) reaches this generic normalizer; the legacy
     // `_summary.json` array reaches adaptOxyDex, which sets the same field on its own summary.
     summary.pulseHr1Hz = _dig(json, ['stats', 'meanHr']);
+    // OXYDEX-PULSE-RESOURCING §Phase 3: the ring's own 1 Hz HRV PROXIES (bpm-DOMAIN — RMSSD/SD of the
+    // pulse RATE, NOT RR intervals). fuseHrvResource carries them ALONGSIDE the finger-waveform ms-HRV
+    // for continuity; it never averages across the unit boundary (bpm ≠ ms). `hrv.hrSdnn` is hrVarSd.
+    summary.rmssd1Hz = _dig(json, ['hrv', 'rmssd']);
+    summary.hrVarSd1Hz = _dig(json, ['hrv', 'hrSdnn']);
   }
   if (node === 'MotionDex') {
     // Motion / IMU node-export (APNEA-TYPING-FUSION-2026-07-18 §1.1). The per-epoch respiratory-EFFORT
@@ -2186,6 +2199,13 @@ var RR_AGREE_BRPM = 2.0;
 // median 0.4 bpm and the paired chest ECG to ~1 bpm (docs/O2RING-FINGER-ROUNDTRIP-2026-07-20.md),
 // so 3 bpm is a generous agreement threshold, not a tight one.
 var PULSE_AGREE_BPM = 3.0;
+// OXYDEX-PULSE-RESOURCING §Phase 3 — the ring's 1 Hz RMSSD is a pulse-RATE (bpm) quantity; the finger
+// waveform RMSSD is an RR-INTERVAL (ms) quantity. They are not the same unit, so fuseHrvResource never
+// computes a numeric delta. It DOES run a first-order order-of-magnitude BRIDGE (δinterval ≈ 60000/HR²·δrate)
+// purely to flag gross disagreement; "concordant" = the waveform ms-RMSSD lands within this multiplicative
+// band of the bridged proxy. Wide on purpose (the 1 Hz stream is smoothed and under-states) — it catches a
+// broken leg, not a calibration gap. The waveform is ALWAYS the reference.
+var HRV_CONCORDANCE_FACTOR = 3.0;
 
 // OXYDEX-PULSE-RESOURCING §Phase 2 — the O2Ring's own WAVEFORM pulse vs its SMOOTHED 1 Hz firmware
 // pulse. This is the third application of CLAUDE.md §🎙️ (the H10 `_HR.txt` and the Verity `_HR.txt`
@@ -2235,6 +2255,88 @@ function fusePulseCrossCheck(recs) {
         ? 'within the ±' + PULSE_AGREE_BPM + ' bpm agreement band — vendor smoothing costs little here.'
         : 'BEYOND the ±' + PULSE_AGREE_BPM + ' bpm band; trust the waveform, not the 1 Hz field.') +
       ' The disagreement is reported, never averaged.'
+  };
+}
+
+// OXYDEX-PULSE-RESOURCING §Phase 3 — RE-SOURCE the O2Ring's HRV. The ring's own `rmssd`/`hrVarSd` are
+// derived from its SMOOTHED 1 Hz pulse RATE — the registry confesses it ("1 Hz pulse-rate RMSSD proxy —
+// not RR-interval HRV"). When a finger PpgDex capture is on the bus (the ring's OWN single-channel pleth),
+// its WHOLE-RECORD waveform HRV (ms, real RR intervals) is the honest measure. This publishes the waveform
+// HRV as the resourced value that SUPERSEDES the 1 Hz proxy, and carries the proxy alongside for continuity —
+// but the two are DIFFERENT UNITS (ms vs bpm) so they are NEVER averaged. Tier is `emerging`, NOT `validated`:
+// the brief (§Phase 3) grants `validated` only once the finger path is shown to reproduce the audited PulseDex
+// HRV path on the real corpus — release-time work this cannot run. READ-ONLY: no existing OxyDex metric moves;
+// OxyDex keeps its 1 Hz proxies as the single-signal fallback for nights with no finger capture. Returns null
+// unless BOTH a finger PpgDex ms-HRV and an O2Ring OxyDex proxy are present (both non-dateUnknown).
+function fuseHrvResource(recs) {
+  var wave = /** @type {any} */ (null),
+    proxy = /** @type {any} */ (null);
+  recs.forEach(function (r) {
+    if (!r || r.dateUnknown || !r.summary) return;
+    var s = r.summary;
+    if (r.node === 'PpgDex' && s.site === 'finger' && s.rmssdMs != null && isFinite(s.rmssdMs) && s.rmssdMs > 0 && !wave) {
+      var robust = s.sdnnRobustMs != null && isFinite(s.sdnnRobustMs);
+      wave = {
+        node: r.node,
+        rmssdMs: +Number(s.rmssdMs).toFixed(1),
+        sdnnMs: robust ? +Number(s.sdnnRobustMs).toFixed(1) : s.sdnnMs != null && isFinite(s.sdnnMs) ? +Number(s.sdnnMs).toFixed(1) : null,
+        sdnnMetric: robust ? 'sdnnRobust' : 'sdnn',
+        lowConfidence: !!s.hrvLowConfidence
+      };
+    }
+    if (r.node === 'OxyDex' && s.rmssd1Hz != null && isFinite(s.rmssd1Hz) && s.pulseHr1Hz != null && isFinite(s.pulseHr1Hz) && s.pulseHr1Hz > 0 && !proxy) {
+      proxy = {
+        node: r.node,
+        rmssdBpm: +Number(s.rmssd1Hz).toFixed(2),
+        hrVarSdBpm: s.hrVarSd1Hz != null && isFinite(s.hrVarSd1Hz) ? +Number(s.hrVarSd1Hz).toFixed(2) : null,
+        meanHr: +Number(s.pulseHr1Hz).toFixed(1)
+      };
+    }
+  });
+  if (!wave || !proxy) return null;
+  // cross-unit BRIDGE (first-order, order-of-magnitude ONLY): interval(ms) = 60000/rate(bpm) ⇒
+  // |δinterval| ≈ (60000/HR²)·|δrate|, so an approximate ms-equivalent of the ring's bpm rate-RMSSD is
+  // rmssdBpm·60000/HR². The 1 Hz stream is SMOOTHED so it under-states — the waveform ms-RMSSD is expected
+  // to run HIGHER. This is a sanity flag, never a conversion we publish as the value.
+  var k = 60000 / (proxy.meanHr * proxy.meanHr);
+  var proxyRmssdAsMs = +(proxy.rmssdBpm * k).toFixed(1);
+  var ratio = proxyRmssdAsMs > 0 ? +(wave.rmssdMs / proxyRmssdAsMs).toFixed(2) : null;
+  var concordance = ratio == null ? null : ratio >= 1 / HRV_CONCORDANCE_FACTOR && ratio <= HRV_CONCORDANCE_FACTOR ? 'concordant' : 'diverges';
+  return {
+    reference: 'waveform', // the finger PPI is the honest RR-interval leg; the 1 Hz rate proxy is superseded
+    tier: 'emerging', // NOT validated — see the function header (real-corpus PulseDex-path reproduction owed)
+    // the RESOURCED HRV — real RR-interval (ms) values from the finger waveform; these are the ones to trust
+    resourced: {
+      rmssd: { value: wave.rmssdMs, unit: 'ms', basis: 'RR-interval RMSSD (finger PPI, wholeRecord)' },
+      hrVarSd: { value: wave.sdnnMs, unit: 'ms', basis: wave.sdnnMetric + ' (finger PPI, wholeRecord)' }
+    },
+    // carried for continuity — DIFFERENT units/construct (pulse RATE, not RR interval); NEVER averaged in
+    proxy1Hz: {
+      rmssd: { value: proxy.rmssdBpm, unit: 'bpm*', basis: '1 Hz pulse-rate RMSSD proxy' },
+      hrVarSd: { value: proxy.hrVarSdBpm, unit: 'bpm', basis: 'SD of 1 Hz pulse rate' }
+    },
+    supersedes: 'OxyDex 1 Hz pulse-rate proxy (bpm) — a smoothed rate series cannot resolve beat-to-beat intervals',
+    // an approximate cross-unit sanity bridge, not a published value (see the header + the constant)
+    bridge: { meanHr: proxy.meanHr, proxyRmssdAsMs: proxyRmssdAsMs, ratio: ratio, factorBand: HRV_CONCORDANCE_FACTOR, concordance: concordance },
+    lowConfidence: wave.lowConfidence,
+    note:
+      'Finger-waveform HRV RMSSD ' +
+      wave.rmssdMs +
+      ' ms / ' +
+      (wave.sdnnMetric === 'sdnnRobust' ? 'SDNN(robust) ' : 'SDNN ') +
+      wave.sdnnMs +
+      ' ms is the RE-SOURCED (real RR-interval) HRV and supersedes the ring’s 1 Hz proxy (RMSSD ' +
+      proxy.rmssdBpm +
+      ' bpm*, HR-Var SD ' +
+      (proxy.hrVarSdBpm != null ? proxy.hrVarSdBpm : 'n/a') +
+      ' bpm). Units differ (ms vs bpm) so the two are carried side-by-side, never averaged; ' +
+      (concordance === 'concordant'
+        ? 'a first-order bridge (≈' + proxyRmssdAsMs + ' ms) puts them within the same order of magnitude — the proxy tracks the waveform.'
+        : concordance === 'diverges'
+          ? 'a first-order bridge (≈' + proxyRmssdAsMs + ' ms) puts them well apart — trust the waveform, treat the proxy as unreliable here.'
+          : 'no bridge available.') +
+      (wave.lowConfidence ? ' ⚠ the finger HRV is flagged low-confidence.' : '') +
+      ' Tier emerging — validated is owed a real-corpus reproduction of the audited PulseDex path.'
   };
 }
 
@@ -2803,6 +2905,7 @@ function runFusion(recs, opts) {
   var respiration = fuseRespirationRate(recs);
   // §Phase 2 — no overlap gate: a whole-record HR comparison between two summaries on the same bus.
   var pulseCrossCheck = fusePulseCrossCheck(recs);
+  var hrvResource = fuseHrvResource(recs);
   if (hrv && hrv.blocks && hrvMotionGate)
     hrv.blocks.forEach(function (b) {
       // Attach ONLY when a gate exists, so a night without MotionDex keeps a byte-identical export
@@ -2917,6 +3020,7 @@ function runFusion(recs, opts) {
     hrvMotionGate: hrvMotionGate,
     respiration: respiration,
     pulseCrossCheck: pulseCrossCheck,
+    hrvResource: hrvResource,
     staging: staging,
     periodicBreathing: periodicBreathing,
     findings: findings,
@@ -3037,6 +3141,7 @@ function buildFusionExport(recs, fusion) {
   // `site:'finger'` PpgDex + an O2Ring OxyDex on the same bus), so every export without that pair —
   // which is every committed fixture — stays byte-identical (same rule as the motionGate attach above).
   if (fusion.pulseCrossCheck) _exp.pulseCrossCheck = fusion.pulseCrossCheck;
+  if (fusion.hrvResource) _exp.hrvResource = fusion.hrvResource;
   return _exp;
 }
 
@@ -3097,6 +3202,7 @@ window.IntegratorDSP = {
   gateHRVByMotion,
   fuseRespirationRate,
   fusePulseCrossCheck,
+  fuseHrvResource,
   pickHRAuthority,
   gradeFor,
   GRADE_MIRROR,

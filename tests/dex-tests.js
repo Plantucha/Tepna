@@ -4900,6 +4900,86 @@
       }
     });
 
+    // The re-sourced HRV (OXYDEX-PULSE-RESOURCING §Phase 3). The finger-waveform ms-HRV supersedes the
+    // ring's 1 Hz bpm proxy; the two are carried side-by-side (different units) and NEVER averaged; a
+    // first-order bridge flags gross disagreement; tier is emerging (validated is owed the real corpus).
+    group('Integrator HRV re-source: finger-waveform ms-HRV supersedes the ring 1 Hz bpm proxy (OXYDEX-PULSE-RESOURCING §Phase 3)', 'integrator-dsp · oxydex · ppgdex', function (T) {
+      var H = env.fuseHrvResource;
+      if (typeof H !== 'function') {
+        T.ok('fuseHrvResource exposed', false, 'export it from integrator-dsp.js + wire into both runners');
+        return;
+      }
+      var rec = function (node, extra) {
+        return Object.assign({ node: node, dateUnknown: false, summary: {} }, { summary: extra });
+      };
+      var finger = function (extra) {
+        return rec('PpgDex', Object.assign({ site: 'finger' }, extra));
+      };
+      var ring = function (extra) {
+        return rec('OxyDex', extra);
+      };
+
+      // ── the pair: finger ms-HRV + ring bpm-proxy. meanHr 60 ⇒ bridge k=60000/3600=16.67;
+      //    rmssdBpm 1.5 → ≈25 ms; wave rmssd 40 ms ⇒ ratio 1.6 ⇒ concordant. ──
+      var h = H([finger({ rmssdMs: 40, sdnnRobustMs: 55, sdnnMs: 70, hrvLowConfidence: false }), ring({ rmssd1Hz: 1.5, hrVarSd1Hz: 4.15, pulseHr1Hz: 60 })]);
+      T.ok('a finger PpgDex + an O2Ring OxyDex produce the re-source block', !!h, 'got ' + JSON.stringify(h));
+      T.eq('the waveform is the reference (honest) leg', h.reference, 'waveform');
+      T.eq('tier is emerging, NOT validated (real-corpus PulseDex reproduction owed)', h.tier, 'emerging');
+      T.eq('resourced RMSSD is the finger ms value, verbatim (no blend)', h.resourced.rmssd.value, 40);
+      T.eq('resourced RMSSD unit is ms', h.resourced.rmssd.unit, 'ms');
+      T.eq('resourced HR-Var SD uses the ROBUST sdnn when present', h.resourced.hrVarSd.value, 55);
+      T.ok('resourced HR-Var SD basis names sdnnRobust', /sdnnRobust/.test(h.resourced.hrVarSd.basis), 'basis=' + h.resourced.hrVarSd.basis);
+      T.eq('the 1 Hz proxy RMSSD is carried, in bpm* (verbatim)', h.proxy1Hz.rmssd.value, 1.5);
+      T.eq('the 1 Hz proxy RMSSD unit is bpm* (NOT ms)', h.proxy1Hz.rmssd.unit, 'bpm*');
+      T.eq('the 1 Hz proxy HR-Var SD is carried in bpm', h.proxy1Hz.hrVarSd.value, 4.15);
+      T.ok('the supersedes field names the 1 Hz proxy being replaced', /1 Hz.*proxy/i.test(h.supersedes), 'supersedes=' + h.supersedes);
+      T.eq('the bridge is concordant here (same order of magnitude)', h.bridge.concordance, 'concordant');
+      T.ok('the bridge carries the approximate ms-equivalent, not published as the value', h.bridge.proxyRmssdAsMs > 0 && h.resourced.rmssd.value !== h.bridge.proxyRmssdAsMs, 'bridge=' + JSON.stringify(h.bridge));
+      T.ok('the note states the two are never averaged', /never averaged/.test(h.note), 'note=' + h.note);
+
+      // ── robust ABSENT ⇒ fall back to plain sdnn ──
+      var h0 = H([finger({ rmssdMs: 40, sdnnMs: 70 }), ring({ rmssd1Hz: 1.5, pulseHr1Hz: 60 })]);
+      T.eq('with no sdnnRobust, HR-Var SD falls back to plain sdnn', h0.resourced.hrVarSd.value, 70);
+      T.ok('the fallback basis names plain sdnn (not robust)', /sdnn\b/.test(h0.resourced.hrVarSd.basis) && !/sdnnRobust/.test(h0.resourced.hrVarSd.basis), 'basis=' + h0.resourced.hrVarSd.basis);
+
+      // ── gross disagreement: tiny proxy (0.2 bpm → ≈3.3 ms) vs wave 40 ms ⇒ ratio 12 ⇒ diverges ──
+      var hd = H([finger({ rmssdMs: 40, sdnnRobustMs: 55 }), ring({ rmssd1Hz: 0.2, pulseHr1Hz: 60 })]);
+      T.eq('a >order-of-magnitude gap ⇒ diverges', hd.bridge.concordance, 'diverges');
+      T.ok('the diverges note says to trust the waveform', /trust the waveform/.test(hd.note), 'note=' + hd.note);
+
+      // ── low-confidence propagates ──
+      var hlc = H([finger({ rmssdMs: 40, sdnnRobustMs: 55, hrvLowConfidence: true }), ring({ rmssd1Hz: 1.5, pulseHr1Hz: 60 })]);
+      T.eq('the finger low-confidence flag propagates', hlc.lowConfidence, true);
+      T.ok('the note surfaces the low-confidence warning', /low-confidence/.test(hlc.note), 'note=' + hlc.note);
+
+      // ── NEGATIVES ──
+      T.eq('a WRIST Verity PpgDex must NOT feed the ring re-source', H([rec('PpgDex', { site: 'wrist', rmssdMs: 40 }), ring({ rmssd1Hz: 1.5, pulseHr1Hz: 60 })]), null);
+      T.eq('a finger PpgDex ALONE ⇒ null (no proxy leg)', H([finger({ rmssdMs: 40 })]), null);
+      T.eq('an OxyDex ALONE ⇒ null (no waveform leg)', H([ring({ rmssd1Hz: 1.5, pulseHr1Hz: 60 })]), null);
+      T.eq('a ring with no meanHr ⇒ null (bridge needs HR)', H([finger({ rmssdMs: 40 }), ring({ rmssd1Hz: 1.5 })]), null);
+      T.eq('a ring with no 1 Hz rmssd ⇒ null', H([finger({ rmssdMs: 40 }), ring({ pulseHr1Hz: 60 })]), null);
+      T.eq('a non-positive waveform rmssd is rejected', H([finger({ rmssdMs: 0 }), ring({ rmssd1Hz: 1.5, pulseHr1Hz: 60 })]), null);
+      T.eq('a date-unknown finger rec is excluded', H([Object.assign(finger({ rmssdMs: 40 }), { dateUnknown: true }), ring({ rmssd1Hz: 1.5, pulseHr1Hz: 60 })]), null);
+
+      // ── read-only: attach only when present, so every export without the finger+ring pair stays inert ──
+      var isrc = env.sources && env.sources['integrator-dsp.js'];
+      if (isrc) {
+        T.ok('the export attaches hrvResource ONLY when non-null (fixtures stay inert)', /if\s*\(fusion\.hrvResource\)\s*_exp\.hrvResource\s*=\s*fusion\.hrvResource/.test(isrc), 'the conditional attach is missing — a null block would move every fixture');
+        T.ok('the OxyDex normalizer exposes rmssd1Hz from hrv.rmssd', /rmssd1Hz\s*=\s*_dig\(json,\s*\['hrv',\s*'rmssd'\]\)/.test(isrc), 'OxyDex summary.rmssd1Hz not wired');
+        T.ok('the OxyDex normalizer exposes hrVarSd1Hz from hrv.hrSdnn', /hrVarSd1Hz\s*=\s*_dig\(json,\s*\['hrv',\s*'hrSdnn'\]\)/.test(isrc), 'OxyDex summary.hrVarSd1Hz not wired');
+        T.ok('the PpgDex normalizer exposes rmssdMs from hrv.time.rmssd', /rmssdMs\s*=\s*_dig\(json,\s*\['hrv',\s*'time',\s*'rmssd'\]\)/.test(isrc), 'PpgDex summary.rmssdMs not wired');
+        T.ok('the PpgDex normalizer exposes sdnnRobustMs from hrv.time.sdnnRobust', /sdnnRobustMs\s*=\s*_dig\(json,\s*\['hrv',\s*'time',\s*'sdnnRobust'\]\)/.test(isrc), 'PpgDex summary.sdnnRobustMs not wired');
+      }
+
+      // ── end-to-end: a REAL OxyDex export must populate summary.rmssd1Hz (the proxy leg reaches the fusion) ──
+      if (env.equiv && env.equiv.oxydex_synth && env.equiv.oxydex_synth.fixture && typeof env.adaptEnvelopeNode === 'function') {
+        var oxR = env.adaptEnvelopeNode(env.equiv.oxydex_synth.fixture, 'OxyDex', 'synthetic_oxydex_o2ring.csv');
+        var _oxRec = Array.isArray(oxR) ? oxR[0] : oxR && oxR.recs && oxR.recs[0];
+        var rp = _oxRec && _oxRec.summary ? _oxRec.summary.rmssd1Hz : undefined;
+        T.ok('a REAL OxyDex export sets summary.rmssd1Hz (the proxy leg reaches the fusion)', rp != null && isFinite(rp), 'got ' + rp + ' — the re-source would silently never fire on real data');
+      }
+    });
+
     group('OxyDex perfusion index from the OXYFRAME sidecar (OXYDEX-PULSE-RESOURCING §4)', 'oxydex-dsp · oxydex-registry', function (T) {
       var OB = env.OxyDex && env.OxyDex._bare;
       if (!(OB && typeof OB.parseCSV === 'function' && typeof OB.computeStats === 'function')) {

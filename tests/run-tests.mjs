@@ -1068,6 +1068,7 @@ async function main() {
     runFusion: ctx.runFusion,
     buildFusionExport: ctx.buildFusionExport,
     fusePulseCrossCheck: ctx.fusePulseCrossCheck,
+    fuseHrvResource: ctx.fuseHrvResource,
     reconstructEventTMs: ctx.reconstructEventTMs,
     pearson: ctx.pearson,
     labelPositionalApnea: ctx.labelPositionalApnea,
