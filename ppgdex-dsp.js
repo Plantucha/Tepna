@@ -1161,6 +1161,99 @@
     }
     return { nn: out, tt: ot, nCorr, flags };
   }
+  // CVHR — Cyclic Variation of Heart Rate (Hayano), the autonomic cardiac correlate of
+  // apnea/hypopnea recovery. OXYDEX-PULSE-RESOURCING §Phase 4: a FINGER PPG capture is the O2Ring's
+  // own single-channel pleth, so its whole-record NN series can carry a real CVHR the ring's 1 Hz
+  // pulse cannot. This is a FAITHFUL port of the audited ECGDex `detectCVHR(nn, tt)` (ecgdex-dsp.js) —
+  // SAME apnea-band (~20–45 s ≈ 0.022–0.05 Hz) moving-average band-pass, SAME envelope gate + dip→rebound
+  // detector + events-per-hour index. Reusing the ECGDex algorithm (not re-deriving one) is deliberate:
+  // the Integrator corroborates finger CVHR against ECGDex cardiac CVHR, so they MUST share a method.
+  // `nn` in ms, `tt` cumulative times in SECONDS (buildPPI/correctRR units). Returns { index, events }.
+  function cvhrFromNN(nn, tt) {
+    const N = nn.length;
+    if (N < 60 || !tt || tt.length !== N) return { events: [], index: 0 };
+    const tEnd = tt[N - 1];
+    const M = Math.floor(tEnd);
+    if (M < 120) return { events: [], index: 0 }; // < 2 min → no apnea-band train can be resolved
+    const hr = new Float64Array(M);
+    let j = 0;
+    for (let s = 0; s < M; s++) {
+      while (j < N - 1 && tt[j + 1] < s) j++;
+      hr[s] = 60000 / nn[Math.min(j, N - 1)];
+    }
+    const sm = new Float64Array(M); // 5 s smoothing
+    for (let s = 0; s < M; s++) {
+      let a = 0,
+        c = 0;
+      for (let k = -2; k <= 2; k++) {
+        const u = s + k;
+        if (u >= 0 && u < M) {
+          a += hr[u];
+          c++;
+        }
+      }
+      sm[s] = a / c;
+    }
+    // apnea-band band-pass: wide MA (45 s) removes LF/circadian trend, narrow (9 s) removes RSA/HF.
+    const ma = (src, half) => {
+      const o2 = new Float64Array(M);
+      for (let s = 0; s < M; s++) {
+        let a = 0,
+          n = 0;
+        for (let k = -half; k <= half; k++) {
+          const u = s + k;
+          if (u >= 0 && u < M) {
+            a += src[u];
+            n++;
+          }
+        }
+        o2[s] = a / n;
+      }
+      return o2;
+    };
+    const lo = ma(sm, 23),
+      hiCut = ma(sm, 4);
+    const res = new Float64Array(M);
+    for (let s = 0; s < M; s++) res[s] = hiCut[s] - lo[s];
+    const env = new Float64Array(M); // envelope → only sustained oscillation trains count
+    for (let s = 0; s < M; s++) {
+      let a = 0,
+        n = 0;
+      for (let k = -12; k <= 12; k++) {
+        const u = s + k;
+        if (u >= 0 && u < M) {
+          a += Math.abs(res[u]);
+          n++;
+        }
+      }
+      env[s] = a / n;
+    }
+    const ENV_ON = 2.6; // bpm — sustained-oscillation gate (matches ECGDex)
+    const events = [];
+    let lastT = -100;
+    for (let s = 8; s < M - 8; s++) {
+      if (env[s] < ENV_ON) continue;
+      if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {
+        let pk = -Infinity,
+          pkAt = -1;
+        for (let u = s + 8; u < Math.min(M, s + 48); u++) {
+          if (res[u] > pk) {
+            pk = res[u];
+            pkAt = u;
+          }
+        }
+        const amp = pk - res[s];
+        const period = pkAt - s;
+        if (amp >= 5 && period >= 14 && period <= 46 && s - lastT > 14) {
+          events.push({ sec: s, ampBpm: +amp.toFixed(1), periodSec: period });
+          lastT = s;
+        }
+      }
+    }
+    const hours = tEnd / 3600;
+    const index = hours > 0 ? +(events.length / hours).toFixed(1) : 0;
+    return { events, index };
+  }
   function timeDomain(nn, cleanMask) {
     if (nn.length < 2) return null;
     const meanRR = mean(nn),
@@ -1995,6 +2088,10 @@
     const { rr, tt } = footSpineOK ? _ppiFoot : _ppiPeak;
     const corr = footSpineOK ? _corrFoot : _corrPeak;
     const nn = corr.nn;
+    // OXYDEX-PULSE-RESOURCING §Phase 4: whole-record CVHR from the corrected NN series (autonomic
+    // apnea correlate). Emitted for every PPG record; the Integrator only corroborates the FINGER one
+    // (the O2Ring's own pleth) against ECGDex cardiac CVHR. index = events/hour (0 = none detected).
+    const _cvhr = cvhrFromNN(corr.nn, corr.tt);
     // §4: per-interval CLEAN-adjacency mask — interval i (between beat i & i+1) is clean when it
     // was NOT correction-flagged AND both endpoint beats cleared SQI≥0.5 (SQI folds the 3-LED
     // agreement, §5). rMSSD/pNN50/SD1 are computed over clean adjacent pairs so sub-ectopy optical
@@ -2230,6 +2327,8 @@
       sdnnIndex,
       sdnnRobust,
       sdnnRobustNEpochs,
+      cvhrIndex: _cvhr.index, // §Phase 4 — CVHR events/hour from the finger PPI NN series (autonomic apnea correlate)
+      cvhrEvents: _cvhr.events.length,
       sd2Robust,
       lfRobust,
       hfRobust,
@@ -2714,6 +2813,17 @@
           };
         })(),
         confidence: r.hrvConfidence || null
+      };
+      // OXYDEX-PULSE-RESOURCING §Phase 4 — CVHR (autonomic apnea correlate) from the finger PPI NN
+      // series, same block name the Integrator already reads for ECGDex (`json.apnea.cvhrIndex`). This
+      // is NOT an AHI and never becomes one: the Integrator corroborates it and NAMES the source; the
+      // ONLY published AHI stays OxyDex's ahiEst (§3.1 (b) owner decision). cvhrIndex=0 = none detected
+      // (a real reading, not "absent"), so it is emitted verbatim, never nulled to a sentinel.
+      out.apnea = {
+        cvhrIndex: r.cvhrIndex != null ? r.cvhrIndex : null,
+        cvhrEvents: r.cvhrEvents != null ? r.cvhrEvents : null,
+        cvhrMethod: 'CVHR events/h from finger PPI NN (Hayano apnea-band 20–45 s; ports ECGDex detectCVHR)',
+        cvhrTier: 'emerging'
       };
       out.timeseries = {
         doc: '5-min epochs — primary cross-node feed (posture rides on epochs[].position).',

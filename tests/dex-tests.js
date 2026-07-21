@@ -4980,6 +4980,95 @@
       }
     });
 
+    // The corroborated CVHR (OXYDEX-PULSE-RESOURCING §Phase 4). The finger-PPI waveform CVHR is
+    // published + named, corroborated against any other node's cardiac CVHR, and NO AHI is emitted
+    // (§3.1(b): OxyDex.ahiEst stays the sole AHI). PpgDex computes CVHR via cvhrFromNN (ports detectCVHR).
+    group('Integrator CVHR corroboration: finger-PPI CVHR named + corroborated, no competing AHI (OXYDEX-PULSE-RESOURCING §Phase 4)', 'integrator-dsp · ppgdex · ecgdex · oxydex', function (T) {
+      var C = env.fuseCvhrCorroboration;
+      if (typeof C !== 'function') {
+        T.ok('fuseCvhrCorroboration exposed', false, 'export it from integrator-dsp.js + wire into both runners');
+        return;
+      }
+      var rec = function (node, extra) {
+        return Object.assign({ node: node, dateUnknown: false, summary: {} }, { summary: extra });
+      };
+      var finger = function (cvhr) {
+        return rec('PpgDex', { site: 'finger', cvhrIndexWave: cvhr });
+      };
+      var oxy = function () {
+        return rec('OxyDex', { pulseHr1Hz: 58 });
+      };
+      var ecg = function (cvhr) {
+        return rec('ECGDex', { cvhrIndex: cvhr });
+      };
+
+      // ── finger CVHR 8/h + O2Ring + ECGDex cardiac CVHR 10/h → corroborated, agree (Δ2 ≤ 5) ──
+      var c = C([finger(8), oxy(), ecg(10)]);
+      T.ok('a finger PpgDex + an OxyDex + an ECGDex produce the corroboration', !!c, 'got ' + JSON.stringify(c));
+      T.eq('the finger PPI is the reference (honest) leg', c.reference, 'waveform');
+      T.eq('the published CVHR is the finger-PPI value', c.cvhrIndex, 8);
+      T.eq('unit is events/h', c.unit, 'events/h');
+      T.eq('tier is emerging, NOT validated', c.tier, 'emerging');
+      T.eq('ECGDex is listed as a corroborator', c.corroborators.length, 1);
+      T.eq('the corroborator gap is |10-8| = 2', c.corroborators[0].gapPerH, 2);
+      T.eq('within ±5/h ⇒ the corroborator agrees', c.corroborators[0].agree, true);
+
+      // ── SINGLE-AHI GUARANTEE (§3.1 b) ──
+      T.eq('the CVHR block publishes NO AHI', c.ahiPublished, false);
+      T.ok('the sole AHI owner is named as OxyDex.ahiEst', /OxyDex\.ahiEst/.test(c.ahiOwner), 'ahiOwner=' + c.ahiOwner);
+      T.ok('the note states no AHI is published here', /No AHI is published/.test(c.note), 'note=' + c.note);
+      T.ok('the block carries no numeric ahi/ahiEst field of its own', c.ahiEst === undefined && c.ahi === undefined, 'a competing AHI leaked into the CVHR block');
+
+      // ── diverging corroborator: finger 8 vs ECGDex 20 → Δ12 > 5 ⇒ diverges, trust the waveform ──
+      var cd = C([finger(8), oxy(), ecg(20)]);
+      T.eq('a >5/h gap ⇒ the corroborator DIVERGES', cd.corroborators[0].agree, false);
+      T.ok('the diverges note says trust the finger waveform', /trust the finger waveform/.test(cd.note), 'note=' + cd.note);
+      T.ok('the note never averages (divergence reported)', /never averaged/.test(cd.note), 'note=' + cd.note);
+
+      // ── no corroborator: finger + O2Ring only → still publishes the named finger CVHR ──
+      var cn = C([finger(6), oxy()]);
+      T.ok('with no other CVHR source, the finger CVHR is still published', cn && cn.cvhrIndex === 6, 'got ' + JSON.stringify(cn));
+      T.eq('no corroborators listed', cn.corroborators.length, 0);
+      T.ok('the note says there was nothing to corroborate against', /no other CVHR source/.test(cn.note), 'note=' + cn.note);
+
+      // ── cvhrIndex 0 is a REAL reading (no CVHR detected), accepted not rejected ──
+      var c0 = C([finger(0), oxy()]);
+      T.ok('a finger CVHR of 0 (none detected) still publishes — 0 is a reading, not absence', c0 && c0.cvhrIndex === 0, 'got ' + JSON.stringify(c0));
+
+      // ── NEGATIVES ──
+      T.eq('a WRIST Verity PpgDex must NOT be the O2Ring CVHR leg', C([rec('PpgDex', { site: 'wrist', cvhrIndexWave: 8 }), oxy()]), null);
+      T.eq('a finger PpgDex ALONE ⇒ null (no O2Ring night)', C([finger(8)]), null);
+      T.eq('an OxyDex ALONE ⇒ null (no finger waveform)', C([oxy()]), null);
+      T.eq('a date-unknown finger rec is excluded', C([Object.assign(finger(8), { dateUnknown: true }), oxy()]), null);
+      T.eq('a finger with no cvhrIndexWave ⇒ null', C([rec('PpgDex', { site: 'finger' }), oxy()]), null);
+      T.ok('an ECGDex present but NO finger ⇒ null (ECGDex alone is not the O2Ring leg)', C([ecg(10), oxy()]) === null, 'ECGDex must not stand in for the finger waveform');
+
+      // ── source-structural: PpgDex computes + exports CVHR; the normalizer reads it; export attaches only when present ──
+      var isrc = env.sources && env.sources['integrator-dsp.js'];
+      var psrc = env.sources && env.sources['ppgdex-dsp.js'];
+      if (isrc) {
+        T.ok('the export attaches cvhrCorroboration ONLY when non-null (fixtures stay inert)', /if\s*\(fusion\.cvhrCorroboration\)\s*_exp\.cvhrCorroboration\s*=\s*fusion\.cvhrCorroboration/.test(isrc), 'the conditional attach is missing — a null block would move every fixture');
+        T.ok('the PpgDex normalizer reads cvhrIndexWave from apnea.cvhrIndex', /cvhrIndexWave\s*=\s*_dig\(json,\s*\['apnea',\s*'cvhrIndex'\]\)/.test(isrc), 'PpgDex summary.cvhrIndexWave not wired');
+      }
+      if (psrc) {
+        T.ok('ppgdex-dsp defines cvhrFromNN (the finger CVHR detector)', /function cvhrFromNN\(/.test(psrc), 'cvhrFromNN missing');
+        T.ok('ppgdex-dsp exports apnea.cvhrIndex', /out\.apnea\s*=\s*\{[\s\S]*?cvhrIndex:/.test(psrc), 'PpgDex export apnea.cvhrIndex missing');
+        T.ok('cvhrFromNN reuses the ECGDex apnea-band ENV_ON = 2.6 gate (shared method)', /ENV_ON\s*=\s*2\.6/.test(psrc), 'cvhrFromNN diverged from the audited detectCVHR method');
+      }
+
+      // ── end-to-end: a REAL PpgDex RICH export (the shape the Integrator consumes — apnea lives in the
+      //    rich export alongside hrv, not the light one) must populate summary.cvhrIndexWave. This runs the
+      //    ACTUAL compute → apnea.cvhrIndex → normalizer link on a committed synthetic input. ──
+      if (env.PpgDex && typeof env.PpgDex.compute === 'function' && env.equiv && env.equiv.ppgdex_synth && env.equiv.ppgdex_synth.input && typeof env.adaptEnvelopeNode === 'function') {
+        var pr = env.PpgDex.compute({ text: env.equiv.ppgdex_synth.input }, { rich: true });
+        T.ok('the rich PpgDex export carries an apnea.cvhrIndex block', pr && pr.apnea && pr.apnea.cvhrIndex != null, 'apnea=' + JSON.stringify(pr && pr.apnea));
+        var pR = env.adaptEnvelopeNode(pr, 'PpgDex', 'synthetic_ppgdex_verity.txt');
+        var _pRec = Array.isArray(pR) ? pR[0] : pR && pR.recs && pR.recs[0];
+        var cv = _pRec && _pRec.summary ? _pRec.summary.cvhrIndexWave : undefined;
+        T.ok('a REAL PpgDex export sets summary.cvhrIndexWave (the finger CVHR reaches the fusion)', cv != null && isFinite(cv), 'got ' + cv + ' — the corroboration would silently never fire on real data');
+      }
+    });
+
     group('OxyDex perfusion index from the OXYFRAME sidecar (OXYDEX-PULSE-RESOURCING §4)', 'oxydex-dsp · oxydex-registry', function (T) {
       var OB = env.OxyDex && env.OxyDex._bare;
       if (!(OB && typeof OB.parseCSV === 'function' && typeof OB.computeStats === 'function')) {
