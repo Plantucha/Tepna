@@ -384,3 +384,11 @@ def test_pull_rejects_a_path_traversal_which(tmp_path, monkeypatch):
     got = _run(pull_session._pull_once("A", str(tmp_path), "../../etc/evil", 0, None, "0000"))
     assert got == [], "a traversal `which` must be skipped, not turned into a path"
     assert not os.path.exists("/etc/evil")
+
+
+def test_pull_skips_a_contained_but_nonstamp_which(tmp_path, monkeypatch):
+    """A `which` that stays inside out_dir but is not a YYYYMMDDhhmmss stamp (e.g. 'notadate') passes the
+    containment guard, then is rejected by the stamp-shape check — never sent to the device."""
+    _install(monkeypatch, FakeRing(["20260719010000"], b"\x01\x03" + b"z" * 90))
+    got = _run(pull_session._pull_once("A", str(tmp_path), "notadate", 0, None, "0000"))
+    assert got == [], "a non-stamp `which` must be skipped"
