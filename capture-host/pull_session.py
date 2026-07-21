@@ -112,13 +112,15 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
         # The flash list is NOT chronologically ordered, so "latest" must pick the max stamp, not [-1].
         # Session stamps are YYYYMMDDhhmmss → lexical max == chronological latest.
         targets = sessions if which == "all" else ([max(sessions)] if which == "latest" else [which])
+        safe_root = os.path.abspath(out_dir) + os.sep
         for ts in targets:
-            # `ts` is a session stamp from the RING's file-list — a device-controlled value that becomes a
-            # filesystem path below. A genuine stamp is `YYYYMMDDhhmmss` (all digits), so validate it here:
-            # a malformed or hostile ring sending `../…` must never let the pull read or write outside
-            # `out_dir` (py/path-injection). Reject anything that is not a plausible all-digit stamp.
-            if not (ts.isdigit() and 8 <= len(ts) <= 14):
-                print(f"  ⚠ implausible session id {ts!r} — skipping (not a YYYYMMDDhhmmss stamp).", flush=True)
+            # `ts` (from `which=<specific>` or the ring's file-list) is an untrusted value that becomes a
+            # filesystem path below. Guard py/path-injection two ways: it must look like a real stamp
+            # (all digits), AND the resolved path must stay INSIDE out_dir — so a traversal id such as
+            # `../..` can never make the pull read or write outside it.
+            path = os.path.join(out_dir, f"Wellue_O2Ring-S_{ts}_STORED.dat")
+            if not (ts.isdigit() and 8 <= len(ts) <= 14) or not os.path.abspath(path).startswith(safe_root):
+                print(f"  ⚠ implausible/unsafe session id {ts!r} — skipping.", flush=True)
                 continue
             print(f"\n── session {ts} ──", flush=True)
             await send(oxyii.file_start_frame(ts, ftype))
@@ -134,8 +136,7 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
             # this an auto-pull (or any repeat pull) re-downloads the whole flash over a slow BLE link every
             # cycle. The device-reported `size` is authoritative, so a same-size .dat is the same recording.
             # Not added to saved_paths: the return value is what this call actually WROTE, which is how the
-            # auto-pull poller knows a session is genuinely new.
-            path = os.path.join(out_dir, f"Wellue_O2Ring-S_{ts}_STORED.dat")
+            # auto-pull poller knows a session is genuinely new. (`path` was validated + built above.)
             if os.path.exists(path) and os.path.getsize(path) == size:
                 print(f"  already on disk ({size} bytes) — skipping download.", flush=True)
                 await send(oxyii.file_end_frame()); await asyncio.sleep(0.3)
