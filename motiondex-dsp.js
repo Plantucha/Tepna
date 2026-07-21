@@ -170,10 +170,20 @@
     return out;
   }
 
-  // seconds-from-start of a row (prefer the precise device counter, fall back to wall-clock)
-  function relSecOf(r, t0Ms) {
-    if (isFinite(r.relNs)) return r.relNs / 1e9;
+  // The first wall-clock stamp of a stream — its base for anchoring the per-stream device counter.
+  function streamBaseMs(rows) {
+    if (rows) for (var i = 0; i < rows.length; i++) if (rows[i] && rows[i].tMs != null) return rows[i].tMs;
+    return null;
+  }
+  // seconds-from-t0Ms of a row. relNs is the precise device counter but is PER-STREAM (0 at THIS
+  // stream's first sample), so it must be anchored to the stream's own wall-clock base before being
+  // measured against the GLOBAL t0Ms — else a later-starting stream (e.g. the chest sensor, when
+  // t0Ms = the earlier wrist start) is time-shifted by (streamStart − t0Ms). DEEP-AUDIT-II §7.2.
+  // baseMs = streamBaseMs(theStream); pass it so the precise relNs lands on the right absolute instant.
+  function relSecOf(r, t0Ms, baseMs) {
+    if (isFinite(r.relNs) && baseMs != null && t0Ms != null) return (baseMs - t0Ms) / 1000 + r.relNs / 1e9;
     if (r.tMs != null && t0Ms != null) return (r.tMs - t0Ms) / 1000;
+    if (isFinite(r.relNs)) return r.relNs / 1e9; // no wall-clock anchor available — stream-relative fallback
     return null;
   }
   // convert an ACC row's XYZ to g (gravity units) given its unit
@@ -182,8 +192,9 @@
   }
   function sampleHz(rows, t0Ms) {
     if (rows.length < 3) return NaN;
-    var a = relSecOf(rows[0], t0Ms),
-      b = relSecOf(rows[rows.length - 1], t0Ms);
+    var baseMs = streamBaseMs(rows);
+    var a = relSecOf(rows[0], t0Ms, baseMs),
+      b = relSecOf(rows[rows.length - 1], t0Ms, baseMs);
     if (a == null || b == null || b <= a) return NaN;
     return (rows.length - 1) / (b - a);
   }
@@ -221,6 +232,7 @@
   }
   function bodyPosition(accRows, t0Ms, durSec, unit) {
     if (!accRows || accRows.length < 10) return { hasData: false };
+    var baseMs = streamBaseMs(accRows); // §7.2 anchor
     var epoch = 30; // s
     var nE = Math.max(1, Math.ceil(durSec / epoch));
     // bucket gravity (slow-averaged XYZ) per epoch via component medians
@@ -233,7 +245,7 @@
       bz.push([]);
     }
     for (var i = 0; i < accRows.length; i++) {
-      var s = relSecOf(accRows[i], t0Ms);
+      var s = relSecOf(accRows[i], t0Ms, baseMs);
       if (s == null || s < 0) continue;
       var idx = Math.min(nE - 1, Math.floor(s / epoch));
       bx[idx].push(toG(accRows[i].x, unit));
@@ -263,6 +275,7 @@
   // ════════════════════════════════════════════════════════════════════════
   function actigraphy(accRows, t0Ms, durSec, unit) {
     if (!accRows || accRows.length < 10) return { hasData: false };
+    var baseMs = streamBaseMs(accRows); // §7.2 anchor
     var hz = sampleHz(accRows, t0Ms);
     if (!isFinite(hz) || hz <= 0) hz = accRows.length / Math.max(1, durSec);
     var mags = new Float32Array(accRows.length);
@@ -285,7 +298,7 @@
     var seen = new Uint32Array(nE);
     var MOVE_G = 0.02; // ~20 mg dynamic threshold
     for (i = 0; i < accRows.length; i++) {
-      var s = relSecOf(accRows[i], t0Ms);
+      var s = relSecOf(accRows[i], t0Ms, baseMs);
       if (s == null || s < 0) continue;
       var idx = Math.min(nE - 1, Math.floor(s / epoch));
       seen[idx]++;
@@ -330,6 +343,7 @@
   var EFFORT_FLOOR_G = 0.004; // RMS threshold (g) for effort PRESENT vs flat — experimental, uncalibrated (Ryser'22 scale)
   function respiratoryEffort(chestRows, t0Ms, durSec, unit) {
     if (!chestRows || chestRows.length < 30) return { hasData: false };
+    var baseMs = streamBaseMs(chestRows); // §7.2 anchor — chest may start after t0Ms
     var hz = sampleHz(chestRows, t0Ms);
     if (!isFinite(hz) || hz <= 0) hz = chestRows.length / Math.max(1, durSec);
     // use the axis with the largest respiratory-band variance (AP motion dominates effort)
@@ -370,19 +384,36 @@
     //    PREDESIGNED for the Integrator apnea-typing fusion (§1.1): the cadence resolves a single
     //    ~10–30 s desat window, so a consumer can ask "effort present in [desat−15 s, end]?".
     //    `present:null` where the epoch has no chest samples — coverage-honest (absent ≠ not-recorded).
+    // DEEP-AUDIT-II §7.1 — window each epoch by WALL-CLOCK TIME, not sample index. `sig` is 1:1 with
+    // chestRows, so slicing it by `e·CAD·hz` assumes a gapless, exactly-uniform rate; on any gap or
+    // off-nominal rate the sample-index window drifts away from the epoch's own `tEp` stamp, so the
+    // effort-present flag the Integrator reads for apnea typing lands on the WRONG samples (typing comes
+    // out INVERTED). Bucket each sample by its t0Ms-relative time instead — identical to the index window
+    // on clean uniform data, correct across gaps. A moving pointer keeps it O(n) (tSec is non-decreasing).
+    var tSec = new Float64Array(sig.length);
+    for (i = 0; i < chestRows.length; i++) {
+      var ts0 = relSecOf(chestRows[i], t0Ms, baseMs);
+      tSec[i] = ts0 == null ? i / hz : ts0; // index-time fallback only when a sample is unstamped
+    }
     var series = [];
     var nE = Math.max(1, Math.ceil(durSec / EFFORT_CAD_SEC));
+    var kp = 0;
     for (var e = 0; e < nE; e++) {
-      var lo2 = Math.floor(e * EFFORT_CAD_SEC * hz),
-        hi2 = Math.min(sig.length, Math.floor((e + 1) * EFFORT_CAD_SEC * hz));
+      var w0 = e * EFFORT_CAD_SEC,
+        w1 = (e + 1) * EFFORT_CAD_SEC;
       var tEp = t0Ms != null ? t0Ms + Math.round(e * EFFORT_CAD_SEC * 1000) : null;
-      if (hi2 - lo2 < 3) {
+      while (kp < sig.length && tSec[kp] < w0) kp++;
+      var ss = 0,
+        cnt = 0;
+      for (var k = kp; k < sig.length && tSec[k] < w1; k++) {
+        ss += sig[k] * sig[k];
+        cnt++;
+      }
+      if (cnt < 3) {
         series.push({ tMs: tEp, amp: null, present: null });
         continue;
       }
-      var ss = 0;
-      for (var k = lo2; k < hi2; k++) ss += sig[k] * sig[k];
-      var eamp = Math.sqrt(ss / (hi2 - lo2));
+      var eamp = Math.sqrt(ss / cnt);
       series.push({ tMs: tEp, amp: Math.round(eamp * 1e4) / 1e4, present: eamp >= EFFORT_FLOOR_G });
     }
 
@@ -442,7 +473,7 @@
   }
   function durationOf(rows, t0Ms) {
     if (!rows || rows.length < 2) return 0;
-    var last = relSecOf(rows[rows.length - 1], t0Ms);
+    var last = relSecOf(rows[rows.length - 1], t0Ms, streamBaseMs(rows));
     return last != null && last > 0 ? last : rows.length / 26;
   }
   function firstTMs(rowsList) {
