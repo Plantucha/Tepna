@@ -1379,7 +1379,17 @@
         coveragePct: r.coverage
       },
       hrv: {
-        time: { rmssd: r.rmssd, sdnn: r.sdnn, pnn50: r.pnn50, hr: r.hr, meanRR: r.meanRR, lnRMSSD: r.lnrmssd },
+        time: {
+          rmssd: r.rmssd,
+          sdnn: r.sdnn,
+          pnn50: r.pnn50,
+          hr: r.hr,
+          meanRR: r.meanRR,
+          lnRMSSD: r.lnrmssd,
+          units: 'ms',
+          windowNote:
+            'rmssd/sdnn/pnn50/hr/meanRR are WHOLE-RECORD. lnRMSSD is the representative 5-min epoch median on overnight recordings (short recs: whole-record) — the value HRV interpretation uses, so it is deliberately NOT ln(rmssd) above. DEEP-AUDIT-II §3.5. (ECGDex mirrors the opposite convention — its rmssd/sdnn/pnn50 are the epoch medians and it exports wholeRecordRMSSD alongside.)'
+        },
         frequency: { lf: r.lf, hf: r.hf, vlf: r.vlf, lfhf: r.lfhf },
         poincare: { sd1: r.sd1, sd2: r.sd2 }
       },
