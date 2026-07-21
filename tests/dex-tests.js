@@ -4090,6 +4090,34 @@
     // per-RECORDING slope — which used to ship under the per-day name and render with a `/d` suffix,
     // overstating the trend by the ratio of real span to recording count, always in the alarming
     // direction. Pinned across ALL FIVE clones, both directions.
+    group('CPAPDex pressureChangePoints — before/after are the adjacent segment medians (DEEP-AUDIT-II §6.1)', 'cpapdex-cross · changepoints · known-answer', function (T) {
+      var CX = env.CPAPCross;
+      if (!CX || typeof CX.pressureChangePoints !== 'function') {
+        T.skip('env.CPAPCross.pressureChangePoints available', 'cpapdex-cross not wired in this lane');
+        return;
+      }
+      var DAY = 86400000,
+        t0 = Date.UTC(2026, 5, 1);
+      // three held regimes (12 → 6 → 9 cmH₂O), 20 nights each ⇒ two real change points.
+      function regime(v, hold, base) {
+        var a = [];
+        for (var i = 0; i < hold; i++) a.push({ x: base + i, t: t0 + (base + i) * DAY, v: v + (i % 2 ? 0.05 : -0.05) });
+        return a;
+      }
+      var series = regime(12, 20, 0).concat(regime(6, 20, 20)).concat(regime(9, 20, 40));
+      var cps = CX.pressureChangePoints(series, { metric: 'epap95' });
+      T.eq('two change points on a 3-regime series', cps.length, 2, 'cps=' + cps.length);
+      if (cps.length < 2) return;
+      // §6.1 — the export must not contradict itself: the level AFTER the first change IS the level
+      // BEFORE the second (both = the middle regime's median). The old code stored med(k1, n), which
+      // spanned the second change, so cp0.after was 7.5 ≠ cp1.before 6 and cp0.delta was −4.5, not −6.
+      T.eq('cp0.after equals cp1.before (no self-contradiction)', cps[0].after, cps[1].before);
+      T.eq('cp0 before/after are the true regime medians (12 → 6)', cps[0].before + ',' + cps[0].after, '12,6');
+      T.eq('cp1 before/after are the true regime medians (6 → 9)', cps[1].before + ',' + cps[1].after, '6,9');
+      T.eq('cp0 delta is the full step −6 (not a half-step spanning the next change)', cps[0].delta, -6);
+      T.eq('cp1 delta is +3', cps[1].delta, 3);
+    });
+
     group('Cross-night slope basis — an index slope is never a per-day slope (DEEP-AUDIT-II §9.4)', 'crossnight · oxydex-cross · cpapdex-cross · ecgdex-cross · ppgdex-cross · pulsedex-cross', function (T) {
       var CLONES = [
         { name: 'OxyDex', cross: env.OXYCross },
