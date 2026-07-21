@@ -2466,6 +2466,27 @@
       }
     });
 
+    group('ECGDSP.hrvStability — per-window epoch count n surfaced (DEEP-AUDIT-II #39)', 'ecgdex-dsp · hrv-stability · known-answer', function (T) {
+      var D = env.ECGDSP;
+      if (!D || typeof D.hrvStability !== 'function') {
+        T.skip('env.ECGDSP.hrvStability available', 'ECGDSP not co-loaded in this runner');
+        return;
+      }
+      // 21 five-minute epochs (0..100 min) → three full 30-min windows of 6 epochs,
+      // then a SHORT trailing group of 3 (90/95/100 min). The finding: that 3-epoch
+      // group is admitted as a window; n must make its under-sampling visible.
+      var epochs = [];
+      for (var i = 0; i < 21; i++) epochs.push({ tMin: i * 5, rmssd: 30 + (i % 3) });
+      var hs = D.hrvStability(epochs);
+      T.ok('hrvStability returns a result with a series for ≥3 windows', !!(hs && Array.isArray(hs.series)), hs ? 'nWindows=' + hs.nWindows : 'null');
+      var ns = ((hs && hs.series) || []).map(function (p) {
+        return p.n;
+      });
+      T.eq('every series point carries an integer epoch count n≥3', ns.every(function (n) { return Number.isInteger(n) && n >= 3; }), true, 'ns=' + JSON.stringify(ns));
+      T.eq('window epoch counts are [6,6,6,3] — the short trailing group is visible as n=3', JSON.stringify(ns), JSON.stringify([6, 6, 6, 3]));
+      T.eq('nWindows equals the series length', hs && hs.nWindows, hs && hs.series.length);
+    });
+
     group('ECGDSP.beatConfidence — density×SQI artifact confidence, AF-safe (TCH-FUSED-ROBUST-HAT)', 'ecgdex-dsp · fused-hat · known-answer', function (T) {
       var D = env.ECGDSP;
       if (!D || typeof D.beatConfidence !== 'function') {
