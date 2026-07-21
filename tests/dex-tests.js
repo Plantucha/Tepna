@@ -19647,6 +19647,45 @@
       T.ok('present-track is coverage-honest — ≥3 null epochs, not the pre-fix all-present track', nNull >= 3, 'null epochs=' + nNull + ' of ' + series.length);
     });
 
+    /* ════ MotionDex respiratory rate divides by the CHEST stream's own span (DEEP-AUDIT-II §7.3) ════
+     `compute()` passes `respiratoryEffort` the GLOBAL `durSec = max(durationOf(acc, chest, gyro))`. When a
+     wrist ACC file runs longer than the chest strap, dividing chest breaths by that longer span HALVES the
+     reported respiratory rate (and understates the hz fallback). The rate must use the chest recording's own
+     duration. Drives a 120 s chest stream but passes durSec=240 (a wrist file twice as long) and asserts the
+     rate stays ~15 br/min, not the pre-fix ~7.5. ════ */
+    group('MotionDex respiratory rate uses the chest stream own duration (DEEP-AUDIT-II §7.3)', 'motiondex-dsp · effort · rate', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.respiratoryEffort === 'function' && typeof MD.parseSensorXYZ === 'function' && typeof MD.genSyntheticACC === 'function')) {
+        T.skip('MOTIONDSP.respiratoryEffort + parseSensorXYZ + genSyntheticACC available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      var chest = MD.parseSensorXYZ(MD.genSyntheticACC({ sec: 120, hz: 26, brpm: 15, seed: 5 }));
+      var t0 = chest[0].tMs; // chest starts at the global anchor (offset 0 — isolates §7.3 from §7.2)
+      var eff = MD.respiratoryEffort(chest, t0, 240, 'mg') || {}; // durSec=240 = a wrist file TWICE as long
+      T.ok('effort has data (breaths detected on the synthetic 15 brpm chest)', eff.hasData === true, 'hasData=' + eff.hasData);
+      T.ok('respiratory rate is ~15 br/min, not halved by the longer wrist span', eff.rateBrpm != null && Math.abs(eff.rateBrpm - 15) < 2.5, 'rateBrpm=' + eff.rateBrpm);
+      T.ok('rate is NOT the pre-fix ~7.5 (breaths ÷ the 240 s max-stream span)', eff.rateBrpm != null && eff.rateBrpm > 11, 'rateBrpm=' + eff.rateBrpm);
+    });
+
+    /* ════ MotionDex body-position dwell fractions exclude NON-RECORDING epochs (DEEP-AUDIT-II §7.4) ════
+     `bodyPosition` counted a gap epoch as `dwell.unknown++` then divided every posture by `nE` — so a longer
+     wrist file's uncovered tail diluted a real supineFrac (2 supine epochs / 6 total = 0.33 instead of 1.0).
+     This is the CLEAN mirror of the seen/covered fix `actigraphy()` already carries. Drives 60 s of supine ACC
+     with 180 s claimed duration (2 covered epochs, 4 gap epochs) and asserts supineFrac is over COVERED. ════ */
+    group('MotionDex body position dwell fractions exclude non-recording epochs (DEEP-AUDIT-II §7.4)', 'motiondex-dsp · position · coverage', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.bodyPosition === 'function' && typeof MD.parseSensorXYZ === 'function' && typeof MD.genSyntheticACC === 'function')) {
+        T.skip('MOTIONDSP.bodyPosition + parseSensorXYZ + genSyntheticACC available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      var rows = MD.parseSensorXYZ(MD.genSyntheticACC({ sec: 60, hz: 26, brpm: 15, seed: 3 })); // 60 s supine
+      var pos = MD.bodyPosition(rows, rows[0].tMs, 180, 'mg') || {}; // 60 s data, 180 s claimed → 4 gap epochs
+      T.ok('bodyPosition has data', pos.hasData === true);
+      T.ok('only the 2 recorded epochs count as covered (nE=6 total)', pos.coveredEpochs === 2 && pos.track && pos.track.length === 6, 'covered=' + pos.coveredEpochs + ' track=' + (pos.track && pos.track.length));
+      T.ok('supineFrac is 1.0 over COVERED, not the pre-fix 0.33 over nE', pos.supineFrac != null && pos.supineFrac > 0.99, 'supineFrac=' + pos.supineFrac);
+      T.ok('dwellFrac.supine likewise over covered', pos.dwellFrac && Math.abs(pos.dwellFrac.supine - 1) < 0.01, 'dwellFrac.supine=' + (pos.dwellFrac && pos.dwellFrac.supine));
+    });
+
     /* MULTI-SENSOR-DERIVATIONS §1.2 — positional OSA from MotionDex body position.
        Two things this pins that BOTH shipped broken before it existed:
        (a) MotionDex must be a REGISTERED Integrator node (NODE_COLORS + KNOWN_NODES) — otherwise the R2
