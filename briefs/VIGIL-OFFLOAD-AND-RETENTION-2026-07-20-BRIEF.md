@@ -8,6 +8,15 @@
 _Executes E6 of `VIGIL-OBSERVED-ERRORS-2026-07-20-BRIEF.md` (retention + offload are configured off).
 Deployment / config work — no `*-dsp.js` or bundle change._
 
+> **INTERIM EXECUTED (2026-07-20) — the single-copy risk is defused; the production/NAS decision is still
+> open, so this stays PROPOSED.** On the reference box: (a) `nightarchive.archive_night` was validated on
+> real nights → a second physical disk (idempotent, sizes-match, marker dropped, NTFS `copy2` clean);
+> (b) the existing completed nights were mirrored so every finished night now lives on **two disks**;
+> (c) `storage.keep_nights: 14` + `archive.enabled` (Option 2, local second disk) were set in `config.yaml`,
+> so future nights auto-mirror and the box prunes its own old primaries. The TrueNAS (`192.168.0.142`, SMB
+> + SSH both reachable) remains the eventual off-machine home — that plus the production-box choice below
+> are the remaining owner decisions.
+
 # Get finished nights off the box automatically, and let the box reclaim its own space
 
 **Out-of-suite (`capture-host/`, deploy config).** The capture box writes ~1.5 GB/night and, at the
