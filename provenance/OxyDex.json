@@ -25,7 +25,7 @@
         "O2Ring S 2100_20260612230016.csv": "0a6b982a3ea41cf9"
       },
       "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash 43bd047b12e8→7016053b8ee4). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals 7016053b8ee4.",
-      "verifiedUnder": "fc9dc80b2166"
+      "verifiedUnder": "d72ab300ff67"
     },
     "OxyDex_2026-06-25_0439_summary.json": {
       "note_selfingestfollowupsiv": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-IV F1 — oxydex-render.js: OxyDex.reviewView nights-default elements→nights + honest empty-nights placeholder in oxyClinicalSummary). EXPORT-INERT: render-only, not in compute()/emit path — outputHash unchanged, only manifestHash. Recorded as the authoritative manifest-gate hash of the shipped owned-build bundle (cf8f4ceaf1fe → 7fbedea9a12f); a stale out-of-band ledger write of bd269931cae1 was corrected per the PROVENANCE-NONDETERMINISM re-read-before-trust rule.",
@@ -50,7 +50,7 @@
         "O2Ring S 2100_20260624222730.csv": "8776fc2151dc3e38"
       },
       "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash 43bd047b12e8→7016053b8ee4). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals 7016053b8ee4.",
-      "verifiedUnder": "fc9dc80b2166"
+      "verifiedUnder": "d72ab300ff67"
     },
     "synthetic_oxydex_golden.node-export.json": {
       "bundle": "OxyDex.html",

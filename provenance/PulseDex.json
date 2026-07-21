@@ -16,12 +16,12 @@
         "Polar_H10_AAAAAAAA_20260613_204448_RR.txt"
       ],
       "note": "ADDED 2026-06-25 (SIGNAL-ADAPTER-FOLLOWUPS-VI §1) — PulseDex's FIRST code-gated fixture + the input for the Phase-9 'compute() ≡ committed export' equivalence gate (env.equiv.pulsedex). Produced by running the current PulseDex DSP (the code bundled into PulseDex.html, manifestHash 3c85d78cd9c2) headless on the committed Polar H10 RR input: PulseDex.parseRRInput(text) → PulseDex.compute({intervals,tsMs,t0Ms,offsetMin}) → this ganglior.node-export (534 usable beats, spot reading 7.3 min, 0 windowed events at current thresholds). This IS the app's exportGanglior shape — pulsedex-app.js delegates to the SAME pdBuildNodeExport, so the fixture is byte-identical to PulseDex.html's own export (the headless compute() leaves schema.generated/provenance/kernel as volatile metadata, which the gate's EXCL strips). Fully regenerate-able: re-run PulseDex.parseRRInput + .compute on the committed RR txt; the equivalence-gate diff (excludes generated/provenance/kernel/vo2est/karv) reproduces it with 0 differing fields. GATE B asserts the producing bundle's CURRENT manifestHash still equals 3c85d78cd9c2 — turns red the moment PulseDex code changes. NO app re-bundle (the fixture is produced BY the current gate-clean bundle).",
-      "outputHash": "4234e74420c43730",
+      "outputHash": "51a5d0e9f0fe7956",
       "inputHashes": {
         "Polar_H10_AAAAAAAA_20260613_204448_RR.txt": "69be13dd4d60d20d"
       },
       "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash 2bf3d5c38a78→4c732d37ea19). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals 4c732d37ea19.",
-      "verifiedUnder": "0dc84e9d8dd8"
+      "verifiedUnder": "d6d6941e1524"
     },
     "PulseDex_2026-06-25_events.node-export.json": {
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II — F1 shared dex-export.js scrubExport now sweeps recordings[]/sessions[] multi carriers; F5 review-renderer namespace exposure). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path, reviewView/renderReview are display-only — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
@@ -37,12 +37,12 @@
         "PulseDex_2026-06-25_events_RR.txt"
       ],
       "note": "ADDED 2026-06-25 (SIGNAL-ADAPTER-FOLLOWUPS-VII §2) — event-byte-coverage for the equivalence gate (env.equiv.pulsedex_events). The -VI PulseDex equiv fixture (a 7.3-min spot reading) emitted ZERO events, and committed real overnight Polar RR files are from a healthy subject (a 7.25h file tested → 0 events), so neither real input exercises the windowed event branch. uploads/PulseDex_2026-06-25_events_RR.txt is a deterministic synthetic Polar-format overnight RR (92 min, 6153 beats, ISO-stamped) with one low-HRV 5-min window (rMSSD≈10, SDNN≈5) that crosses BOTH the windowed thresholds: rmssd<0.7*median && <25 → hrv_drop, and stressEst>=70 → stress_peak. Produced by parseRRInput → PulseDex.compute({intervals,tsMs,t0Ms,offsetMin}) on the current PulseDex bundle (manifestHash 3c85d78cd9c2 — NO PulseDex re-bundle this round) → 2 events (hrv_drop + stress_peak at 22:30). This IS pdBuildNodeExport's output (the app delegates to it). Fully regenerate-able: re-run the same seam on the committed RR txt; the gate diff (excludes generated/provenance/kernel) reproduces it with 0 differing fields. GATE B asserts the producing bundle's CURRENT manifestHash still equals 3c85d78cd9c2.",
-      "outputHash": "69b830b4d6322a5c",
+      "outputHash": "dde1516a7937122b",
       "inputHashes": {
         "PulseDex_2026-06-25_events_RR.txt": "9ed6b305a64bd2c9"
       },
       "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash 2bf3d5c38a78→4c732d37ea19). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals 4c732d37ea19.",
-      "verifiedUnder": "0dc84e9d8dd8"
+      "verifiedUnder": "d6d6941e1524"
     },
     "synthetic_pulsedex_golden.node-export.json": {
       "bundle": "PulseDex.html",

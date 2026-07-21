@@ -22,12 +22,12 @@
         "Polar_Sense_BBBBBBBB_20260621_060523_PPG.txt"
       ],
       "note": "ADDED 2026-06-27 (SIGNAL-ADAPTER-PHASE9-REMAINING-NODES — PpgDex leg, node 2 of 4) — PpgDex's FIRST code-gated fixture + the input for the Phase-9 'compute() ≡ committed export' equivalence gate (env.equiv.ppgdex). Produced by running the current PpgDex DSP (the code bundled into PpgDex.html, manifestHash c7c808bbb6a1) headless via PpgDex.compute({text}) on the committed real Polar Verity Sense uploads/Polar_Sense_BBBBBBBB_20260621_060523_PPG.txt (~6.5 min @176 Hz, 68638 optical samples → channel-SNR selection → optical beat detection → self-PPI → 2× 5-min HRV epochs) → this ganglior.node-export (recording.source 'ppg', startEpochMs 1782021923891, sessions 1, events 0 — the short clip has no between-epoch hrv_drop/autonomic_surge crossing, like the PulseDex/OxyDex equiv cases; event-byte coverage tracked in the PpgDex follow-ups brief). This IS the app's exportGanglior shape — ppgdex-app.js exportGanglior delegates to the SAME ppgBuildNodeExport for the single-session case, so the fixture is byte-identical to PpgDex.html's own export (the headless compute() leaves schema.generated/provenance/kernel as volatile metadata, which the gate's EXCL strips). Fully regenerate-able: re-run PpgDex.compute({text}) on the committed *_PPG.txt; the equivalence-gate diff (excludes generated/provenance/kernel/vo2est/karv) reproduces it with 0 differing fields. GATE B asserts the producing bundle's CURRENT manifestHash still equals c7c808bbb6a1 — turns red the moment PpgDex code changes. Produced BY the current gate-clean PpgDex bundle (the Phase-9 re-bundle).",
-      "outputHash": "eeaeb3ee20fe7764",
+      "outputHash": "040d1d8ca4e4348d",
       "inputHashes": {
         "Polar_Sense_BBBBBBBB_20260621_060523_PPG.txt": "289ef2aac9fd3d66"
       },
       "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash 908befaae958→d34cbfc49e5d). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals d34cbfc49e5d.",
-      "verifiedUnder": "e37eb019758b"
+      "verifiedUnder": "19f5ed5bcd43"
     },
     "synthetic_ppgdex_golden.node-export.json": {
       "bundle": "PpgDex.html",

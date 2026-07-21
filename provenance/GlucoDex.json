@@ -20,7 +20,7 @@
         "lingo-glucose-data-2026-MAY-23.csv": "d84e259aefa07283"
       },
       "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash be0352210135→9b7feec22831). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals 9b7feec22831.",
-      "verifiedUnder": "72902fcf2610"
+      "verifiedUnder": "f2236cd52074"
     },
     "synthetic_glucodex_golden.node-export.json": {
       "bundle": "GlucoDex.html",
