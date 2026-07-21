@@ -50,7 +50,23 @@ function fmtDayShort(ms) {
 
 /* ── §3 Reconstruct an event's absolute floating tMs from t0Ms + "HH:MM:SS" ──
    SAME overnight rule as the parser: roll forward a day whenever the clock is
-   earlier than the recording's start-of-day clock (handles 22:50 → 02:14). */
+   earlier than the recording's start-of-day clock (handles 22:50 → 02:14).
+
+   ⚠️ prevTMs is DELIBERATELY pinned to t0Ms — NOT threaded from the previously
+   reconstructed event (DEEP-AUDIT-II #42). A fixed anchor keeps reconstruction
+   ORDER-INDEPENDENT: every event resolves on its own, so the result never
+   depends on iteration order or on which events were seen first. That is EXACT
+   for any recording ≤ 24 h — the entire domain of a ganglior.node-export (one
+   night/session; Clock Contract §4/§6). Do NOT "fix" this into a stateful
+   prevTMs roll: it would trade a real invariant (order-independence) for a case
+   that cannot arise here.
+
+   Known limit (latent, out-of-contract): a t-ONLY event whose true offset from
+   t0Ms exceeds 24 h can only roll one day, so its date is genuinely UNKNOWN.
+   This does not bite in practice — per-recording envelopes are < 24 h, and
+   modern emitters carry absolute `tMs` (§6), which the fast-path below returns
+   verbatim before any roll. Disambiguating a >24 h t-only envelope would need
+   the caller's span; it is flagged here rather than silently mis-dated. */
 function reconstructEventTMs(ev, t0Ms) {
   if (ev && typeof ev.tMs === 'number' && isFinite(ev.tMs)) return ev.tMs; // already absolute
   if (t0Ms == null || ev == null || ev.t == null) return null;

@@ -314,7 +314,7 @@ Correctness first. **One gated change at a time** (`CLAUDE.md` §👥.3). Each i
 | 39 | **`hrvStability` short trailing group** — the useful half is surfacing each window's epoch count `n` | 4.5 | ride another ECGDex re-bundle |
 | 40 | **`parseNutrition`: no DMY lock; date-only exports drop EVERY row** | 5.5 | 1 bundle |
 | 41 | **MotionDex `toG` fail-open unit handling** | 7.9 | ride #14 |
-| 42 | **`reconstructEventTMs` single-day roll** — prefer documenting *why* + an explicit "day unknown" | 8.2 | doc + optional 1 bundle |
+| 42 | ✅ **DONE 2026-07-21** — **`reconstructEventTMs` single-day roll**: documented that `prevTMs` is pinned to `t0Ms` *on purpose* — an order-independent anchor, exact for the ≤24 h node-export domain — so it is never "fixed" into a stateful roll, and flagged the latent >24 h t-only day-unknown limit (modern emitters carry absolute `tMs`, returned before any roll, so it does not bite). No behavior change; Integrator + OverDex re-bundled, `integrator_tch_golden` reproduces | 8.2 | doc + optional 1 bundle |
 | 43 | ✅ **DONE 2026-07-20** — **OxyDex profile elevation copy + dead `pd_elev` disclosure**: `upSpo2Adj()` silently lowered every SpO₂ verdict threshold while the only disclosure wrote to a non-existent DOM id. Surfaced the norm-shift at the Oxygen KPI via new `spo2ElevNote()` (shown only when the adjustment is non-zero); removed the dead `pd_elev` write. Render-only, `computeHash` stable (export-inert — no fixture movement), OxyDex re-bundled `471bd50fe5bb → 1fa2cb5dd5eb`. The remaining dead `pd_*` panel writes are §13's profile-panel findings, untouched here | 13.3 | render-only |
 
 ## Cheapest-first, if you want early wins
