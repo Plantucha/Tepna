@@ -223,13 +223,16 @@ def test_a_healthy_connected_device_is_not_a_phantom():
     assert h["wedged"] is False and h["phantom"] == []
 
 
-def test_several_signals_are_all_reported():
+def test_several_signals_with_a_live_device_report_only_the_real_wedge():
+    # Verity is connected (the radio is serving a live link), so the H10's InProgress is benign device
+    # contention and is NOT flagged (2026-07-20 false-wedge fix) — but the Ring's PHANTOM link is a real
+    # wedge regardless, so `wedged` is still True and only the phantom is reported.
     h = capture.classify_adapter_health([
         {"name": "H10", "address": "A", "connected": False, "last_error": "InProgress"},
         {"name": "Ring", "address": "B", "connected": False, "bluez_connected": True},
         {"name": "Verity", "address": "C", "connected": True},
     ])
-    assert h["wedged"] is True and len(h["reasons"]) == 2 and h["phantom"] == ["B"]
+    assert h["wedged"] is True and len(h["reasons"]) == 1 and h["phantom"] == ["B"]
 
 
 def test_an_empty_device_list_is_not_wedged():

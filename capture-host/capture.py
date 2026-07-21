@@ -213,20 +213,29 @@ def classify_adapter_health(devices: list[dict]) -> dict:
     decide whether the BLE ADAPTER looks WEDGED vs merely idle because the devices AREN'T WORN — the
     distinction the whole watchdog turns on. Returns {wedged, reasons, phantom:[addresses]}.
 
-      • `InProgress` in last_error → adapter-level connection contention. This is NEVER a not-worn state
-        (a not-worn device fails cleanly with 'not found'), so it is an unambiguous wedge signal.
+      • `InProgress` in last_error → connection contention — BUT ADAPTER-LEVEL ONLY WHEN THE RADIO IS
+        SERVING NOBODY. A single device's InProgress while OTHERS are connected is DEVICE churn, not an
+        adapter wedge: the adapter is demonstrably working (it is holding the other links). Measured
+        2026-07-20: the churny O2Ring (frequent reconnects) threw InProgress 22× while the H10 was
+        streaming ECG cleanly; the watchdog read that lone InProgress as an adapter wedge and power-cycled
+        the whole radio 8× in 18 min, each cycle dropping ALL links — a ~25 min self-inflicted outage that
+        ended only when the watchdog GAVE UP. So InProgress counts toward a wedge only when `not
+        any_connected` — the radio is serving no one, which is what a real wedge looks like.
       • `bluez_connected` (BlueZ reports Connected: yes) while our daemon's `connected` is False → a
         PHANTOM stale link: a 'connected' device does not advertise, so nobody can re-grab it. Unambiguous
-        wedge, and it names the address that needs a targeted `disconnect`.
-      • Everything else — clean not-found / not connected, no phantom, no InProgress — is NOT WORN and
-        BENIGN. We deliberately do NOT auto-recover on it: yanking the adapter because the user took a
-        sensor off would be worse than the problem.
+        wedge, independent of the above, and it names the address that needs a targeted `disconnect`.
+      • Everything else — clean not-found / not connected, no phantom, or InProgress while a device is
+        live — is NOT WORN or benign contention. We deliberately do NOT auto-recover on it: power-cycling
+        the adapter because one device churns (or the user took a sensor off) is worse than the problem.
     """
     reasons: list[str] = []
     phantom: list[str] = []
+    any_connected = any(d.get("connected") for d in devices)   # is the radio serving ANY live link?
     for d in devices:
         err = d.get("last_error") or ""
-        if "InProgress" in err:
+        if "InProgress" in err and not any_connected:
+            # No device is connected AND a connect is stuck in-progress → the radio itself, not one
+            # churny device. With a live link present this is benign device contention (see docstring).
             reasons.append(f"{d.get('name')}: InProgress")
         if d.get("bluez_connected") and not d.get("connected"):
             phantom.append(d["address"])
