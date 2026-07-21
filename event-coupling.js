@@ -442,9 +442,10 @@
     }
 
     // Deterministic LCG — no Math.random (it would break reproducibility).
+    // §9.5 — Math.imul: exact mod-2^32 multiply (bare `*` reached ~2.3e18 > 2^53 → low bits rounded away).
     var _s = 12345;
     function rnd() {
-      _s = (_s * 1103515245 + 12345) & 0x7fffffff;
+      _s = (Math.imul(_s, 1103515245) + 12345) & 0x7fffffff;
       return _s / 0x7fffffff;
     }
 
@@ -567,7 +568,11 @@
       return b.tMs <= HALF;
     }); // oximeter off at half-time
     var Aall = [];
-    for (var z = 0; z < 900; z++) Aall.push({ tMs: T0 + Math.floor(rnd() * SPAN_MS) }); // independent of B
+    // Draw within [0, SPAN − window] so EVERY A-event's [0,10 s] window fits inside the recording:
+    // the only exclusion mechanism under test here is COVERAGE, not a span-end overrun. Without this
+    // the `excluded === 0` assertion below is luck-of-the-LCG (an event landing in the final 10 s
+    // overruns and excludes) — §9.5 hardening so the corrected Math.imul sequence is sequence-agnostic.
+    for (var z = 0; z < 900; z++) Aall.push({ tMs: T0 + Math.floor(rnd() * (SPAN_MS - 10000)) }); // independent of B
 
     var noCov = coupling(Aall, Bhalf, { window: [0, 10000], span: span });
     var withCov = coupling(Aall, Bhalf, { window: [0, 10000], coverage: [[T0, HALF]] });
