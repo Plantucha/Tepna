@@ -83,8 +83,10 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         "device_time": st.get("device_time"),
                         "clock_skew_sec": st.get("clock_skew_sec"),
                         "pull_progress": st.get("pull_progress"),
-                        "frames_dropped": st.get("frames_dropped"),
-                        "frames_duplicated": st.get("frames_duplicated"),
+                        # link_epoch (E5) is the reconnect count — the honest churn signal a green
+                        # "connected" dot hides. A device that flaps all night reads "connected" at every
+                        # sample yet has a climbing epoch; surfacing it is what makes that visible.
+                        "link_epoch": st.get("link_epoch"),
                         "worn": st.get("worn"),
                         "charging": bool(st.get("charging")),
                         "last_error": st.get("last_error")})

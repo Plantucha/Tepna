@@ -53,7 +53,8 @@ def _mk(tmp_path, devices=None, status=None, **kw):
 
 # ── /api/state ──────────────────────────────────────────────────────────────────────────────────────
 def test_state_projects_config_and_status(tmp_path):
-    app, *_ = _mk(tmp_path, status={"H10": {"connected": True, "battery": 88, "rssi": -55}})
+    app, *_ = _mk(tmp_path, status={"H10": {"connected": True, "battery": 88, "rssi": -55,
+                                            "link_epoch": 7}})
 
     async def go(c):
         return await (await c.get("/api/state")).json()
@@ -61,6 +62,7 @@ def test_state_projects_config_and_status(tmp_path):
     assert body["adapter"] == "AA:AA:AA:AA:AA:AA"
     d = body["devices"][0]
     assert d["name"] == "H10" and d["connected"] is True and d["battery"] == 88 and d["rssi"] == -55
+    assert d["link_epoch"] == 7                       # E5 reconnect count surfaced for the monitor
 
 
 def test_state_reports_a_configured_but_unseen_device_as_disconnected(tmp_path):
