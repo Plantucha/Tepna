@@ -4824,6 +4824,82 @@
     // directions: the semicolon OXYFRAME superset surfaces PI; the comma ViHealth CSV has no PI column
     // and must read null (absent-safe), while producing IDENTICAL SpO2/HR (proving it is a true superset,
     // not a different reading). The ring's pi_pct=0 "no perfusion" sentinel must be excluded, not averaged.
+    // The finger-waveform-vs-ring-1 Hz pulse cross-check (OXYDEX-PULSE-RESOURCING §Phase 2). DIRECTIONAL:
+    // the O2Ring finger pleth (PpgDex site='finger') is the honest leg; the ring's smoothed 1 Hz field
+    // (OxyDex) is what is being checked. Read-only — publishes the disagreement, never averages, and
+    // fires ONLY for the ring's OWN waveform (a wrist Verity must NOT trigger it).
+    // The finger-waveform-vs-ring-1 Hz pulse cross-check (OXYDEX-PULSE-RESOURCING §Phase 2). DIRECTIONAL:
+    // the O2Ring finger pleth (PpgDex site='finger') is the honest leg; the ring's smoothed 1 Hz field
+    // (OxyDex) is what is being checked. Read-only — publishes the disagreement, never averages, and
+    // fires ONLY for the ring's OWN waveform (a wrist Verity must NOT trigger it). Unit-tested on the
+    // fusion recs directly, plus a source check that the adapters populate the three fields it reads.
+    group('Integrator pulse cross-check: finger waveform vs the ring 1 Hz field (OXYDEX-PULSE-RESOURCING §Phase 2)', 'integrator-dsp · oxydex · ppgdex', function (T) {
+      var F = env.fusePulseCrossCheck,
+        BFE = env.buildFusionExport,
+        RF = env.runFusion;
+      if (typeof F !== 'function') {
+        T.ok('fusePulseCrossCheck exposed', false, 'export it from integrator-dsp.js + wire into both runners');
+        return;
+      }
+      var rec = function (node, extra) {
+        return Object.assign({ node: node, dateUnknown: false, summary: {} }, { summary: extra });
+      };
+      var finger = function (hr) {
+        return rec('PpgDex', { site: 'finger', pulseHr: hr });
+      };
+      var ring = function (hr) {
+        return rec('OxyDex', { pulseHr1Hz: hr });
+      };
+
+      // ── the pair: finger waveform 60 vs ring 62 → agree (Δ2 ≤ 3), reference = waveform ──
+      var f = F([finger(60), ring(62)]);
+      T.ok('a finger PpgDex + an O2Ring OxyDex produce the cross-check', !!f, 'got ' + JSON.stringify(f));
+      T.eq('the waveform is the reference (honest) leg', f.reference, 'waveform');
+      T.eq('waveformHr is the PpgDex finger HR', f.waveformHr, 60);
+      T.eq('deviceHr is the ring 1 Hz field', f.deviceHr, 62);
+      T.eq('signed bias = device − waveform (ring reads high here)', f.biasBpm, 2);
+      T.eq('within the ±3 bpm band ⇒ agree', f.agree, true);
+      T.ok('pctOfWaveform uses the WAVEFORM as denominator (the honest leg)', Math.abs(f.pctOfWaveform - (2 / 60) * 100) < 0.01, 'got ' + f.pctOfWaveform);
+
+      // ── beyond the band: 60 vs 70 → disagree, reported not averaged ──
+      var f2 = F([finger(60), ring(70)]);
+      T.ok('a 10 bpm gap is FLAGGED as disagreement', f2 && f2.agree === false && f2.biasBpm === 10, 'got ' + JSON.stringify(f2));
+      T.ok('the note names the waveform as the leg to trust', /trust the waveform/.test(f2.note), 'note=' + f2.note);
+      T.ok('the note never says "averaged" as an action (spread is reported, not averaged)', /never averaged/.test(f2.note), 'note=' + f2.note);
+
+      // ── NEGATIVES ──
+      T.eq('a WRIST Verity PpgDex must NOT trigger the ring self-check', F([rec('PpgDex', { site: 'wrist', pulseHr: 60 }), ring(62)]), null);
+      T.eq('a finger PpgDex ALONE ⇒ null (no device leg)', F([finger(60)]), null);
+      T.eq('an OxyDex ALONE ⇒ null (no waveform leg)', F([ring(62)]), null);
+      T.eq('a date-unknown finger rec is excluded', F([Object.assign(finger(60), { dateUnknown: true }), ring(62)]), null);
+      T.eq('a non-positive waveform HR is rejected', F([finger(0), ring(62)]), null);
+
+      // ── read-only: buildFusionExport ATTACHES the block only when present, so every export without
+      //    the finger+ring pair (i.e. every committed fixture) stays byte-identical ──
+      var isrc0 = env.sources && env.sources['integrator-dsp.js'];
+      if (isrc0) T.ok('the export attaches pulseCrossCheck ONLY when non-null (fixtures stay inert)', /if\s*\(fusion\.pulseCrossCheck\)\s*_exp\.pulseCrossCheck\s*=\s*fusion\.pulseCrossCheck/.test(isrc0), 'the conditional attach is missing — a null block would move every fixture');
+
+      // ── the adapters must POPULATE the three summary fields the fuse reads (else it silently never fires) ──
+      var isrc = env.sources && env.sources['integrator-dsp.js'];
+      var psrc = env.sources && env.sources['ppgdex-dsp.js'];
+      if (isrc) {
+        T.ok('the legacy OxyDex adapter exposes pulseHr1Hz from stats.meanHr', /pulseHr1Hz:\s*stats\.meanHr/.test(isrc), 'adaptOxyDex summary.pulseHr1Hz not wired');
+        T.ok('the generic node-export normalizer sets OxyDex pulseHr1Hz from stats.meanHr (the .node-export.json path)', /node === 'OxyDex'\)[\s\S]*?pulseHr1Hz\s*=\s*_dig\(json,\s*\['stats',\s*'meanHr'\]\)/.test(isrc), 'generic normalizer missing the OxyDex pulseHr1Hz branch');
+        T.ok('the PpgDex adapter exposes summary.site from recording.site', /summary\.site\s*=\s*_dig\(json,\s*\['recording',\s*'site'\]\)/.test(isrc), 'PpgDex summary.site not wired');
+        T.ok('the PpgDex adapter exposes summary.pulseHr from hrv.time.hr', /summary\.pulseHr\s*=\s*_dig\(json,\s*\['hrv',\s*'time',\s*'hr'\]\)/.test(isrc), 'PpgDex summary.pulseHr not wired');
+      }
+      if (psrc) T.ok("the PpgDex node-export carries recording.site", /site:\s*r\.site\s*\|\|\s*'wrist'/.test(psrc), 'PpgDex export missing site');
+
+      // ── THE end-to-end link: a REAL OxyDex export, adapted in the full suite env, must actually
+      //    populate summary.pulseHr1Hz — else the cross-check silently never fires on real data. ──
+      if (env.equiv && env.equiv.oxydex_synth && env.equiv.oxydex_synth.fixture && typeof env.adaptEnvelopeNode === 'function') {
+        var oxR = env.adaptEnvelopeNode(env.equiv.oxydex_synth.fixture, 'OxyDex', 'synthetic_oxydex_o2ring.csv');
+        var _oxRec = Array.isArray(oxR) ? oxR[0] : oxR && oxR.recs && oxR.recs[0]; // suite unwraps to a bare recs[]
+        var pu = _oxRec && _oxRec.summary ? _oxRec.summary.pulseHr1Hz : undefined;
+        T.ok('a REAL OxyDex export sets summary.pulseHr1Hz > 0 (the device leg reaches the fusion)', pu != null && isFinite(pu) && pu > 0, 'got ' + pu + ' — the cross-check would silently never fire on real data');
+      }
+    });
+
     group('OxyDex perfusion index from the OXYFRAME sidecar (OXYDEX-PULSE-RESOURCING §4)', 'oxydex-dsp · oxydex-registry', function (T) {
       var OB = env.OxyDex && env.OxyDex._bare;
       if (!(OB && typeof OB.parseCSV === 'function' && typeof OB.computeStats === 'function')) {
