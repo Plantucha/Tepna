@@ -114,13 +114,17 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
         targets = sessions if which == "all" else ([max(sessions)] if which == "latest" else [which])
         safe_root = os.path.abspath(out_dir) + os.sep
         for ts in targets:
-            # `ts` (from `which=<specific>` or the ring's file-list) is an untrusted value that becomes a
-            # filesystem path below. Guard py/path-injection two ways: it must look like a real stamp
-            # (all digits), AND the resolved path must stay INSIDE out_dir — so a traversal id such as
-            # `../..` can never make the pull read or write outside it.
-            path = os.path.join(out_dir, f"Wellue_O2Ring-S_{ts}_STORED.dat")
-            if not (ts.isdigit() and 8 <= len(ts) <= 14) or not os.path.abspath(path).startswith(safe_root):
-                print(f"  ⚠ implausible/unsafe session id {ts!r} — skipping.", flush=True)
+            # `ts` (from `which=<specific>` — e.g. the LAN webmon /api/pull body — or the ring's file-list)
+            # is an untrusted value that becomes a filesystem path below. CONTAINMENT GUARD: the resolved
+            # path must stay INSIDE out_dir, so a traversal id such as `../..` can never make the pull read
+            # or write outside it (py/path-injection). This standalone abspath+startswith check is the
+            # sanitizer the flow analysis recognizes; the stamp-shape check is a second, cheaper reject.
+            path = os.path.abspath(os.path.join(out_dir, f"Wellue_O2Ring-S_{ts}_STORED.dat"))
+            if not path.startswith(safe_root):
+                print(f"  ⚠ session id {ts!r} escapes the output dir — skipping.", flush=True)
+                continue
+            if not (ts.isdigit() and 8 <= len(ts) <= 14):
+                print(f"  ⚠ implausible session id {ts!r} — skipping.", flush=True)
                 continue
             print(f"\n── session {ts} ──", flush=True)
             await send(oxyii.file_start_frame(ts, ftype))
