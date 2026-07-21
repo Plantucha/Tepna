@@ -34,6 +34,12 @@ link:                                   # weak-signal warning. Stream-rate healt
 
 # Host clock MUST be NTP-synced and set to your real local timezone — arrival stamps depend on it.
 # Stored values are floating wall-clock (Clock Contract); we write the LOCAL civil time, zone-free.
+time:                                   # device-clock discipline. The box pushes ITS clock into every
+  auto_sync_devices: true               #   sensor, so an undisciplined host makes a night self-consistently
+  drift_check_sec: 300                  #   wrong. Poll each device's on-sample clock this often, and re-sync
+  resync_jump_sec: 30                   #   only when it has drifted more than resync_jump_sec (avoids churn).
+  provenance_poll_sec: 120              #   how often host_clock_poller records the host's own clock trust
+                                        #   to the <night>/*_CLOCK.csv sidecar (provenance, not discipline).
 
 devices:
   # Polar H10 chest strap — raw ECG (MANDATORY live stream; onboard keeps only HR/RR).
@@ -83,6 +89,21 @@ storage:
   keep_nights: 0          # delete night dirs older than the newest N (0 = never prune; tonight is always kept)
   min_free_gb: 2          # warn (status.json + alert) when free space drops below this
   poll_sec: 300
+  settle_sec: 1200        # a night with no writes for this long is "complete" — the anchor QC/archive/
+                          # retention use so a session running PAST MIDNIGHT is judged on file activity,
+                          # not the wall-clock date (which would truncate the live night at 00:00).
+
+# ── Device tuning (optional; sane defaults if omitted) ──────────────────────────────────────────────────
+stream:
+  stall_sec: 90           # started-stream silence before a session is torn down & re-negotiated (0 = off).
+                          #   Trusts BYTES, not a handshake: a live link delivering no data is a dead stream.
+power:                    # duty-cycle a Polar strap that reports NOT WORN, to save its battery overnight.
+  drop_not_worn_sec: 180  #   continuous not-worn before dropping the link (0 = never drop on wear state)
+  not_worn_recheck_sec: 90 #  once dropped, how often to reconnect and re-check for skin contact
+o2ring:                   # Wellue O2Ring-S / T8520 specifics.
+  ppg_fs: 125.738         #   per-unit 125 Hz pleth sample rate (2026-07-18 5.8 h calibration; overrides only
+                          #   the timestamp step — the ring's true rate varies slightly per unit)
+  rtc_resync_sec: 21600   #   drift backstop: re-push host time into the ring at least this often (6 h)
 
 # ── Push alerts (optional, disabled by default) ───────────────────────────────────────────────────────
 # A generic webhook (ntfy.sh, Discord/Slack/Telegram bridge, Home Assistant …). Fires on: a sensor offline

@@ -20,7 +20,7 @@ _DROP_DEFAULT = capture._DROP_NOT_WORN_SEC
 # override into an unrelated test module (test_drop_not_worn / test_settings_schema assert the defaults).
 _GLOBAL_SNAPSHOT = {k: getattr(capture, k) for k in
                     ("_DROP_NOT_WORN_SEC", "_NOT_WORN_RECHECK_S", "_OXYII_RTC_RESYNC_SEC",
-                     "O2PPG_FS", "O2PPG_NS_STEP")}
+                     "O2PPG_FS", "O2PPG_NS_STEP", "_STREAM_STALL_S")}
 
 
 @pytest.fixture(autouse=True)
@@ -1643,6 +1643,25 @@ def test_host_clock_poller_swallows_a_read_error(tmp_path, monkeypatch):
     _run(capture.host_clock_poller({}, str(tmp_path)))   # the poll error must not take capture down
 
 
+def test_host_clock_poller_rolls_the_night_at_midnight(tmp_path, monkeypatch):
+    """A session running past midnight must start a fresh CLOCK.csv in the NEW night's folder, not keep
+    appending to the folder it opened at boot."""
+    import datetime as _dtm
+    async def fake_state(): return {"trust": "disciplined", "absolute_ok": True}
+    monkeypatch.setattr(capture.host_clock, "read_state", fake_state)
+    day = {"n": 0}
+    monkeypatch.setattr(capture, "_now",
+                        lambda: _dtm.datetime(2026, 7, 18 + day["n"], 23, 30, 0))
+    async def fake_sleep(_s):
+        day["n"] += 1                      # each poll advances one calendar day → forces a roll
+        if day["n"] >= 2:
+            capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    _run(capture.host_clock_poller({}, str(tmp_path)))
+    nights = {p.parent.name for p in (tmp_path / "captures").rglob("*_CLOCK.csv")}
+    assert nights == {"2026-07-18", "2026-07-19"}   # one CSV per night, each in its own folder
+
+
 # ── rssi_poller: writer-create failure, pause-skip, the device loop, and idle/resume (1416-1458) ───────
 def test_rssi_poller_swallows_a_writer_create_error(tmp_path, monkeypatch):
     def boom(path): raise OSError("cannot open link log")
@@ -1650,6 +1669,23 @@ def test_rssi_poller_swallows_a_writer_create_error(tmp_path, monkeypatch):
     _stop_after(monkeypatch, 1)
     cfg = {"link": {"rssi_enabled": True, "log_enabled": True, "rssi_interval_sec": 25}}
     _run(capture.rssi_poller("hci0", cfg, str(tmp_path)))   # writer stays None; the loop still runs (1416-1417)
+
+
+def test_rssi_poller_rolls_the_link_at_midnight(tmp_path, monkeypatch):
+    """Crossing midnight rolls LINK.csv into the new night's folder — the writer opened at boot must not
+    keep appending to the first night's directory forever."""
+    import datetime as _dtm
+    day = {"n": 0}
+    monkeypatch.setattr(capture, "_now",
+                        lambda: _dtm.datetime(2026, 7, 18 + day["n"], 23, 45, 0))
+    async def fake_sleep(_s):
+        day["n"] += 1                      # advance a day AND stop; the body still rolls before exit
+        capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    cfg = {"link": {"rssi_enabled": False, "log_enabled": True, "rssi_interval_sec": 25}}
+    _run(capture.rssi_poller("hci0", cfg, str(tmp_path)))
+    nights = {p.parent.name for p in (tmp_path / "captures").rglob("*_LINK.csv")}
+    assert nights == {"2026-07-18", "2026-07-19"}
 
 
 def test_rssi_poller_skips_while_paused(tmp_path, monkeypatch):
@@ -1692,6 +1728,78 @@ def test_rssi_poller_goes_idle_then_resumes(tmp_path, monkeypatch):
     assert capture.STATUS["devices"]["H10"]["rssi"] == -55   # resumed and read a real value
 
 
+# ── device-runner registry (register_runner / unregister_runner): one runner per BLE link ──────────────
+class _FakeTask:
+    def __init__(self, done=False): self._done, self.cancelled = done, False
+    def done(self): return self._done
+    def cancel(self): self.cancelled = True
+
+
+def test_register_runner_dedupes_a_re_remember_by_address():
+    dt, tasks = {}, []
+    t1 = _FakeTask()
+    capture.register_runner(dt, tasks, "AA", t1)
+    assert dt == {"AA": t1} and tasks == [t1]
+    t2 = _FakeTask()
+    capture.register_runner(dt, tasks, "AA", t2)          # same address again → replace, not duplicate
+    assert t1.cancelled and dt == {"AA": t2} and tasks == [t2]
+
+
+def test_register_runner_leaves_a_finished_incumbent_alone():
+    dt, tasks = {}, []
+    done = _FakeTask(done=True); dt["AA"] = done; tasks.append(done)
+    new = _FakeTask()
+    capture.register_runner(dt, tasks, "AA", new)
+    assert not done.cancelled and dt["AA"] is new and new in tasks   # nothing live to cancel
+
+
+def test_register_runner_without_address_tracks_task_only():
+    dt, tasks = {}, []
+    t = _FakeTask()
+    capture.register_runner(dt, tasks, None, t)
+    assert tasks == [t] and dt == {}                      # no key to dedupe on, but still shut down
+
+
+def test_unregister_runner_cancels_and_clears_the_card():
+    dt, tasks = {}, []
+    t = _FakeTask(); dt["AA"] = t; tasks.append(t)
+    sd = {"Ring": {"address": "AA"}, "Other": {"address": "BB"}}
+    capture.unregister_runner(dt, tasks, sd, "AA")
+    assert t.cancelled and tasks == [] and dt == {} and sd == {"Other": {"address": "BB"}}
+
+
+def test_unregister_runner_unknown_address_is_a_noop():
+    dt, tasks, sd = {}, [], {}
+    capture.unregister_runner(dt, tasks, sd, "ZZ")        # nothing registered — must not raise
+    assert tasks == [] and dt == {} and sd == {}
+
+
+def test_main_forget_stops_the_runner(tmp_path, monkeypatch):
+    """The forget_device callback main() hands webmon must actually cancel the device's runner and clear
+    its status card — otherwise the orphaned task reconnects a device the operator just dropped."""
+    import webmon as _wm
+    captured = {}
+
+    def fake_make_app(bus, cfg, cfgpath, adapter, status, spawn, **kw):
+        captured["forget"] = kw["forget_device"]
+        return "APP"
+
+    async def fake_start(app, host, port):
+        capture.STATUS["devices"]["Ring"] = {"address": "D1:98:62:7C:92:B3"}
+        captured["forget"]("D1:98:62:7C:92:B3")           # forget while the runner task is live
+        class _R:
+            async def cleanup(self): pass
+        return _R()
+
+    monkeypatch.setattr(_wm, "make_app", fake_make_app)
+    monkeypatch.setattr(_wm, "start", fake_start)
+    cfg = {"root": str(tmp_path), "web": {"enabled": True},
+           "devices": [{"name": "Ring", "vendor": "Wellue", "model": "O2Ring-S",
+                        "device_id": "S8AW", "address": "D1:98:62:7C:92:B3", "streams": ["spo2"]}]}
+    _main_with_cfg(tmp_path, monkeypatch, cfg)
+    assert "Ring" not in capture.STATUS["devices"]         # card cleared by the forget path
+
+
 # ── main(): config overrides, the Wellue ppg migration, and the spawn dispatch (1479-1539) ─────────────
 def _main_with_cfg(tmp_path, monkeypatch, cfg, extra_stubs=()):
     import yaml as _yaml, sys as _sys, asyncio as _a
@@ -1714,13 +1822,16 @@ def test_main_applies_overrides_and_migrates_wellue_ppg(tmp_path, monkeypatch):
     cfg = {"root": str(tmp_path), "web": {"enabled": False},
            "o2ring": {"rtc_resync_sec": 3600},
            "power": {"drop_not_worn_sec": 120, "not_worn_recheck_sec": 45},
+           "stream": {"stall_sec": 45},
            "devices": [{"name": "Ring", "vendor": "Wellue", "model": "O2Ring-S",
                         "device_id": "S8AW", "address": "D1:98:62:7C:92:B3", "streams": ["spo2"]}]}
     _main_with_cfg(tmp_path, monkeypatch, cfg)
     assert capture._OXYII_RTC_RESYNC_SEC == 3600
     assert capture._DROP_NOT_WORN_SEC == 120 and capture._NOT_WORN_RECHECK_S == 45
+    assert capture._STREAM_STALL_S == 45
     ring = next(d for d in capture._CFG["devices"] if d["name"] == "Ring")
     assert "ppg" in ring["streams"], "the implicit 125 Hz pleth was made explicit"
+    assert capture.STATUS["host"]["started_at"] and capture.STATUS["host"]["adapter_ok"] is True
 
 
 def test_main_dispatches_muse_and_legacy_viatom(tmp_path, monkeypatch):
@@ -1962,6 +2073,15 @@ def test_qc_poller_skips_when_no_night_dir_yet(tmp_path, monkeypatch):
     assert not (tmp_path / "captures" / "2026-07-19").exists()
 
 
+def test_qc_poller_skips_when_the_night_raced_away(tmp_path, monkeypatch):
+    """_current_night names a night from the listing, but it can be gone by the stat a line later — skip,
+    don't summarise a missing dir."""
+    monkeypatch.setattr(capture, "_current_night", lambda *a: "2026-07-19")   # never actually on disk
+    _stop_after(monkeypatch, 1)
+    _run(capture.qc_poller({"devices": []}, str(tmp_path)))
+    assert "qc" not in capture.STATUS
+
+
 def test_qc_poller_swallows_an_error(tmp_path, monkeypatch):
     import datetime as _dtm
     monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 23, 0, 0))
@@ -2039,17 +2159,36 @@ def test_archive_poller_mirrors_completed_nights(tmp_path, monkeypatch):
     import datetime as _dtm
     monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 2, 0, 0))
     cap = tmp_path / "captures"
-    (cap / "2026-07-18").mkdir(parents=True)                    # a completed night
-    (cap / "2026-07-18" / "Polar_H10_1_ECG.txt").write_text("rows\n")
-    (cap / "2026-07-19").mkdir()                                # tonight — must NOT be archived
+    (cap / "2026-07-18").mkdir(parents=True)                    # a completed night: settled (old writes)
+    old = cap / "2026-07-18" / "Polar_H10_1_ECG.txt"; old.write_text("rows\n")
+    _os.utime(old, (0, _dtm.datetime(2026, 7, 19).timestamp() - 3600))   # last write well past the settle
+    (cap / "2026-07-19").mkdir()                                # tonight — freshly written, still active
     (cap / "2026-07-19" / "Polar_H10_1_ECG.txt").write_text("live\n")
-    dest = tmp_path / "backup"
+    dest = tmp_path / "backup"; dest.mkdir()                    # operator pre-creates it on the backup disk
     cfg = {"archive": {"enabled": True, "dest": str(dest), "poll_sec": 1}}
     _stop_after(monkeypatch, 1)
     _run(capture.archive_poller(cfg, str(tmp_path)))
     assert (dest / "2026-07-18" / "Polar_H10_1_ECG.txt").exists()
-    assert not (dest / "2026-07-19").exists()                   # tonight left alone
+    assert not (dest / "2026-07-19").exists()                   # active night left alone
     assert capture.STATUS["archive"]["last"] == "2026-07-18"
+    assert capture.STATUS["archive"]["dest_present"] is True
+
+
+def test_archive_poller_skips_when_dest_is_not_mounted(tmp_path, monkeypatch):
+    """A dest whose backup volume is unmounted must be SKIPPED, never created — blindly makedirs-ing the
+    tree would mirror the night onto the boot filesystem and fill it."""
+    import datetime as _dtm
+    monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 2, 0, 0))
+    cap = tmp_path / "captures"
+    (cap / "2026-07-18").mkdir(parents=True)
+    f = cap / "2026-07-18" / "Polar_H10_1_ECG.txt"; f.write_text("rows\n")
+    _os.utime(f, (0, _dtm.datetime(2026, 7, 19).timestamp() - 3600))
+    dest = tmp_path / "gone"                                    # never created → "volume not mounted"
+    cfg = {"archive": {"enabled": True, "dest": str(dest), "poll_sec": 1}}
+    _stop_after(monkeypatch, 1)
+    _run(capture.archive_poller(cfg, str(tmp_path)))
+    assert not dest.exists(), "the dest must NOT be created on the boot disk"
+    assert capture.STATUS["archive"]["dest_present"] is False
 
 
 def test_archive_poller_copy_does_not_block_the_event_loop(tmp_path, monkeypatch):
@@ -2066,8 +2205,10 @@ def test_archive_poller_copy_does_not_block_the_event_loop(tmp_path, monkeypatch
     import time as _t
     monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 2, 0, 0))
     cap = tmp_path / "captures"
-    (cap / "2026-07-18").mkdir(parents=True)
-    (cap / "2026-07-18" / "Polar_H10_1_ECG.txt").write_text("rows\n")
+    (cap / "2026-07-18").mkdir(parents=True)                    # settled: aged past the settle window
+    f18 = cap / "2026-07-18" / "Polar_H10_1_ECG.txt"; f18.write_text("rows\n")
+    _os.utime(f18, (0, _dtm.datetime(2026, 7, 19).timestamp() - 3600))
+    (tmp_path / "b").mkdir()                                    # dest present (mounted)
 
     ticks = []
 
@@ -2159,6 +2300,7 @@ def test_archive_poller_swallows_an_error(tmp_path, monkeypatch):
     monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 2, 0, 0))
     monkeypatch.setattr(capture.nightarchive, "pending_nights",
                         lambda *a, **k: (_ for _ in ()).throw(RuntimeError("archive boom")))
+    (tmp_path / "b").mkdir()                                    # dest present → past the mount guard
     cfg = {"archive": {"enabled": True, "dest": str(tmp_path / "b"), "poll_sec": 1}}
     _stop_after(monkeypatch, 1)
     _run(capture.archive_poller(cfg, str(tmp_path)))            # must not raise

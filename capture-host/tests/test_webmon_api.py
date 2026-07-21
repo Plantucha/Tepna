@@ -53,7 +53,8 @@ def _mk(tmp_path, devices=None, status=None, **kw):
 
 # ── /api/state ──────────────────────────────────────────────────────────────────────────────────────
 def test_state_projects_config_and_status(tmp_path):
-    app, *_ = _mk(tmp_path, status={"H10": {"connected": True, "battery": 88, "rssi": -55}})
+    app, *_ = _mk(tmp_path, status={"H10": {"connected": True, "battery": 88, "rssi": -55,
+                                            "link_epoch": 7}})
 
     async def go(c):
         return await (await c.get("/api/state")).json()
@@ -61,6 +62,7 @@ def test_state_projects_config_and_status(tmp_path):
     assert body["adapter"] == "AA:AA:AA:AA:AA:AA"
     d = body["devices"][0]
     assert d["name"] == "H10" and d["connected"] is True and d["battery"] == 88 and d["rssi"] == -55
+    assert d["link_epoch"] == 7                       # E5 reconnect count surfaced for the monitor
 
 
 def test_state_reports_a_configured_but_unseen_device_as_disconnected(tmp_path):
@@ -377,13 +379,15 @@ def test_forget_removes_the_device_from_config(tmp_path, monkeypatch):
     async def fake_forget(*a, **k):
         return True
     monkeypatch.setattr(webmon.bonding, "forget", fake_forget)
-    app, cfg, _st, cfg_path, _bus = _mk(tmp_path)
+    forgotten = []
+    app, cfg, _st, cfg_path, _bus = _mk(tmp_path, forget_device=forgotten.append)
 
     async def go(c):
         return await (await c.post("/api/forget", json={"address": H10["address"]})).json()
     _serve(app, go)
     assert cfg["devices"] == [], "the device must be dropped from the in-memory config"
     assert yaml.safe_load(open(cfg_path))["devices"] == []
+    assert forgotten == [H10["address"]], "the runner-stop callback must fire so no orphan reconnects"
 
 
 # ── SSE ─────────────────────────────────────────────────────────────────────────────────────────────

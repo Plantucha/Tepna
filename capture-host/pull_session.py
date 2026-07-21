@@ -6,7 +6,8 @@
 # backstop record; use it to cross-check the on-the-fly SpO2 CSV the daemon captured live.
 #
 #   IMPORTANT: the ring holds ONE BLE link — STOP the capture daemon first (fuser -k 8760/tcp) so this
-#   script can connect. Needs ATT MTU >= 517 (BlueZ negotiates this by default) or READ_FILE_START drops.
+#   script can connect. (No special ATT MTU is required — the negotiated 247 is plenty; the old
+#   "needs MTU >= 517" note was a misread placeholder MTU, CORRECTED in oxyii.py 2026-07-18.)
 #
 #   python pull_session.py --address D1:98:62:7C:92:B3 --out /home/michal/tepna-smoketest/captures/stored
 #     [--which latest|all|<YYYYMMDDhhmmss>]  [--ftype N]  [--adapter hciX]

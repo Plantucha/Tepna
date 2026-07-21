@@ -45,6 +45,43 @@ def test_list_nights_missing_dir_is_empty():
     assert diskguard.list_nights("/no/such/captures/dir") == []
 
 
+def test_active_nights_flags_only_recently_written(tmp_path):
+    cap = tmp_path / "captures"
+    _mk_nights(str(cap), ["2026-07-17", "2026-07-18", "2026-07-19"])
+    (cap / "2026-07-17" / "old.txt").write_text("x")           # aged well past the settle window
+    os.utime(cap / "2026-07-17" / "old.txt", (0, 1000.0))
+    (cap / "2026-07-19" / "live.txt").write_text("x")          # freshly written → active
+    # 2026-07-18 has NO files at all → never active
+    now = os.path.getmtime(cap / "2026-07-19" / "live.txt") + 1
+    assert diskguard.active_nights(str(cap), 600, _now=lambda: now) == {"2026-07-19"}
+
+
+def test_active_nights_cross_midnight_returns_both(tmp_path):
+    cap = tmp_path / "captures"
+    _mk_nights(str(cap), ["2026-07-18", "2026-07-19"])
+    for n in ("2026-07-18", "2026-07-19"):
+        (cap / n / "live.txt").write_text("x")                 # both just written → both active
+    now = max(os.path.getmtime(cap / n / "live.txt") for n in ("2026-07-18", "2026-07-19")) + 1
+    assert diskguard.active_nights(str(cap), 600, _now=lambda: now) == {"2026-07-18", "2026-07-19"}
+
+
+def test_active_nights_skips_a_night_that_cannot_be_listed(tmp_path, monkeypatch):
+    """A night that vanishes (or denies listing) mid-scan is simply 'not active', never a crash."""
+    cap = tmp_path / "captures"
+    _mk_nights(str(cap), ["2026-07-19"])
+    real_listdir = os.listdir
+    def flaky(path):
+        if path.endswith("2026-07-19"):
+            raise OSError("gone")                              # the inner per-night scan explodes
+        return real_listdir(path)
+    monkeypatch.setattr(diskguard.os, "listdir", flaky)
+    assert diskguard.active_nights(str(cap), 600) == set()
+
+
+def test_active_nights_missing_dir_is_empty():
+    assert diskguard.active_nights("/no/such/captures", 600) == set()
+
+
 def test_plan_prune_keeps_the_newest_n():
     nights = ["2026-07-01", "2026-07-02", "2026-07-03", "2026-07-04"]
     assert diskguard.plan_prune(nights, keep_nights=2) == ["2026-07-01", "2026-07-02"]

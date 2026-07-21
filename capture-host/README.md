@@ -43,9 +43,11 @@ sudo hostnamectl set-hostname tepna          # -> reachable as tepna.local (mDNS
 # Disable the Pi's onboard BT so the USB dongle is the only adapter (avoid two hci devices):
 echo 'dtoverlay=disable-bt' | sudo tee -a /boot/firmware/config.txt   # reboot after
 
-# 2. Code + venv
+# 2. Code + venv — the suite repo root lands at /opt/tepna, so capture.py ends up at
+#    /opt/tepna/capture-host/ — exactly the WorkingDirectory the systemd unit expects. If you copy
+#    instead of cloning, put this directory AT /opt/tepna/capture-host (not one level deeper).
 sudo mkdir -p /opt/tepna && sudo chown "$USER" /opt/tepna
-git -C /opt/tepna clone <this-repo> .         # or copy capture-host/ to /opt/tepna/capture-host
+git -C /opt/tepna clone <this-repo> .         # → /opt/tepna/capture-host/… (repo root at /opt/tepna)
 cd /opt/tepna/capture-host
 python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
 

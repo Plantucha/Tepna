@@ -17,6 +17,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import time
 
 # A night directory is EXACTLY writers.night_dir()'s layout: <root>/captures/YYYY-MM-DD. Matching on the
 # strict date shape means the sibling `incoming/` and `stored/` dirs (and anything else) are never touched.
@@ -51,6 +52,30 @@ def list_nights(captures_dir: str) -> list[str]:
         return []
     return sorted(n for n in entries
                   if _NIGHT_RE.match(n) and os.path.isdir(os.path.join(captures_dir, n)))
+
+
+def active_nights(captures_dir: str, settle_sec: float, _now=time.time) -> set[str]:
+    """Night dirs still being WRITTEN — any file modified within `settle_sec`. This is the anchor a
+    24/7 daemon needs at midnight: a session that started before midnight keeps appending to its
+    START-date folder well past 00:00, so the wall-clock date is the WRONG key for "which night is in
+    progress" — file activity is the right one. Everything reading (QC), mirroring (archive), or pruning
+    (retention) a night must treat an active night as untouchable and act only on settled ones.
+
+    Returns a set — a cross-midnight reconnect that opened a fresh date dir can leave TWO active at once
+    (the pre- and post-midnight folders), and both must be protected. `_now` is injectable for tests."""
+    now = _now()
+    out: set[str] = set()
+    for n in list_nights(captures_dir):
+        d = os.path.join(captures_dir, n)
+        try:
+            for f in os.listdir(d):
+                p = os.path.join(d, f)
+                if os.path.isfile(p) and (now - os.path.getmtime(p)) < settle_sec:
+                    out.add(n)
+                    break
+        except OSError:
+            continue                              # a night that vanished mid-scan is simply not active
+    return out
 
 
 def plan_prune(nights: list[str], keep_nights: int, protect: set[str] | None = None) -> list[str]:

@@ -668,7 +668,7 @@ async function loadState(){
   const na=$('#navActiveN'); na.style.display = active?'inline-block':'none'; na.textContent = active;
   const nd=$('#navDevN'); nd.style.display = conn?'inline-block':'none'; nd.textContent = conn;
   renderSideStats();          // sidebar counters: every view, not just Overview
-  renderBoxHealth(s.storage, s.qc);
+  renderBoxHealth(s.storage, s.qc, s.host);
   renderDownload(DEVICES);
   renderRemembered(DEVICES);
   renderStreamSel();
@@ -703,7 +703,7 @@ function renderRemembered(devs){
     <div class="dev">
       <div class="meta">
         <div class="name">${esc(d.name)} ${d.connected?'<span class="dbadge on">live</span>':'<span class="dbadge warn">idle</span>'} ${chargeChip(d)} ${battChip(d.battery)} ${d.connected?(dh=>rssiChip(d.rssi,dh.health,dh.title))(deviceHealth(d)):''} ${clkChip(d)}</div>
-        <div class="sub">${esc(d.address||'')}${(d.rssi!=null&&isFinite(d.rssi))?(' · '+d.rssi+' dBm'):''} · ${(d.streams||[]).join(', ')}${d.clock_synced?(' · clock '+esc(String(d.clock_synced).slice(11,19))):''}${(d.last_error && !d.charging)?(' · '+esc(d.last_error)):''}</div>
+        <div class="sub">${esc(d.address||'')}${(d.rssi!=null&&isFinite(d.rssi))?(' · '+d.rssi+' dBm'):''} · ${(d.streams||[]).join(', ')}${d.clock_synced?(' · clock '+esc(String(d.clock_synced).slice(11,19))):''}${(d.link_epoch>1)?(' · '+d.link_epoch+' reconnects'):''}${(d.last_error && !d.charging)?(' · '+esc(d.last_error)):''}</div>
       </div>
       <button class="btn" onclick='syncTime(${JSON.stringify(d.address)}, this)' title="Set this device's INTERNAL clock from the host (it stamps every sample with device time). Pauses that device's capture for a few seconds.">🕐 Sync time</button>
       ${(d.vendor==='Wellue'||d.vendor==='Viatom')?`<button class="btn" onclick='pullStored(this)' title="Download the ring&#39;s onboard-recorded night off flash (pauses live SpO₂ for ~1 min)">Pull stored session</button>`:''}
@@ -1044,10 +1044,21 @@ function renderSideStats(){
 // Box health strip (Overview): disk + tonight's capture QC, published by the guardrail pollers into
 // /api/state. Each block appears only once its poller has run (null before then); border-left signals ok
 // (teal) vs a warning (amber) — a low disk, or a night with a missing stream.
-function renderBoxHealth(storage, qc){
+function renderBoxHealth(storage, qc, host){
   const el = $('#boxHealth'), title = $('#boxHealthTitle');
   if(!el) return;
   const cards = [];
+  if(host){
+    // A pinned adapter that did not resolve is a silent mis-pin — every connect hangs against the wrong
+    // radio. Started_at makes a spurious mid-night restart visible (a boot time that moved after dark).
+    const bad = host.adapter_ok === false;
+    const when = host.started_at ? String(host.started_at).replace('T',' ').slice(0,16) : '—';
+    cards.push(`<div class="ov-stat" style="border-left-color:${bad?'var(--status-caution)':'var(--status-ok)'}">
+      <div class="lab">Box</div>
+      <div class="val" style="font-size:15px">${bad?'adapter mis-pin':'up'}</div>
+      <div class="sub">${bad?('pinned '+esc(host.adapter_mac||'?')+' not found')
+                            :('since '+esc(when)+(host.adapter_resolved?(' · '+esc(host.adapter_resolved)):''))}</div></div>`);
+  }
   if(storage){
     const warn = !!storage.low;
     const keep = storage.keep_nights>0 ? ('keep '+storage.keep_nights+' nights') : 'no auto-prune';
@@ -1057,10 +1068,21 @@ function renderBoxHealth(storage, qc){
       <div class="sub">${esc(storage.free_pct)}% free · ${esc(keep)}${warn?' · LOW':''}</div></div>`);
   }
   if(qc){
-    const ok = !!qc.ok, miss = qc.missing||[];
-    const val = ok ? 'Complete' : (miss.length+' gap'+(miss.length===1?'':'s'));
-    const sub = ok ? ((qc.total_rows||0).toLocaleString()+' rows · '+esc(qc.night))
-                   : ('no data: '+esc(miss.join(', ')));
+    const miss = qc.missing||[], degr = qc.degraded||[];
+    const ok = !!qc.ok;                              // ok now means: no gap AND no trickle
+    // A gap (a stream with no data) is worse than a trickle (a stream well below its rate), but neither
+    // is "Complete". Report whichever is present so a night that merely under-delivered can't read green.
+    let val, sub;
+    if(ok){
+      val = 'Complete';
+      sub = (qc.total_rows||0).toLocaleString()+' rows · '+esc(qc.night);
+    } else if(miss.length){
+      val = miss.length+' gap'+(miss.length===1?'':'s');
+      sub = 'no data: '+esc(miss.join(', '))+(degr.length?(' · low: '+esc(degr.join(', '))):'');
+    } else {
+      val = degr.length+' low';                      // data present but under-rate — the honesty case
+      sub = 'below rate: '+esc(degr.join(', '));
+    }
     cards.push(`<div class="ov-stat" style="border-left-color:${ok?'var(--status-ok)':'var(--status-caution)'}">
       <div class="lab">Tonight (QC)</div>
       <div class="val" style="font-size:${ok?'22':'15'}px">${esc(val)}</div>
