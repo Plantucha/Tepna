@@ -3,6 +3,10 @@ Description=Tepna capture daemon (BLE -> vendor-layout files)
 # Needs the Bluetooth stack and a synced clock (arrival stamps depend on the clock).
 After=bluetooth.target network-online.target time-sync.target
 Wants=bluetooth.target network-online.target
+# Capture is unattended overnight — never rate-limit restarts (keep retrying across transient BLE drops).
+# StartLimitIntervalSec lives in [Unit], not [Service], since systemd v230 — it was silently IGNORED in
+# [Service] (a `systemctl status` warned "Unknown key … ignoring"), so the no-give-up intent never applied.
+StartLimitIntervalSec=0
 
 [Service]
 # notify (not simple): the daemon sends READY=1 once capture is actually up, and heartbeats WATCHDOG=1
@@ -18,8 +22,6 @@ WorkingDirectory=/opt/tepna/capture-host
 ExecStart=/opt/tepna/capture-host/.venv/bin/python capture.py --config /opt/tepna/capture-host/config.yaml
 Restart=always
 RestartSec=5
-# Capture is unattended overnight — keep it alive across transient BLE drops.
-StartLimitIntervalSec=0
 # Let it write under /srv/tepna; otherwise lock it down.
 ReadWritePaths=/srv/tepna
 NoNewPrivileges=true
