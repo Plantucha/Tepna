@@ -18,11 +18,16 @@ import diskguard
 _MARKER = ".archived"
 
 
-def pending_nights(captures_dir: str, tonight: str, marker: str = _MARKER) -> list[str]:
-    """Completed night dirs (every `YYYY-MM-DD` except `tonight`) that lack the archived marker."""
+def pending_nights(captures_dir: str, active: "str | set[str]", marker: str = _MARKER) -> list[str]:
+    """Completed night dirs that lack the archived marker — every `YYYY-MM-DD` except the `active` ones
+    (the nights still being written). `active` is a set of night names (from diskguard.active_nights) so
+    a session that ran past midnight, leaving TWO in-progress date dirs, protects both; a bare string is
+    also accepted for the single-date case. Mirroring by file activity, not the wall clock, is what stops
+    the live night being copied — and then marked done — the instant the clock ticks past midnight."""
+    skip = {active} if isinstance(active, str) else set(active)
     out = []
     for n in diskguard.list_nights(captures_dir):
-        if n == tonight:
+        if n in skip:
             continue                                   # still being written — not done yet
         if os.path.exists(os.path.join(captures_dir, n, marker)):
             continue                                   # already mirrored

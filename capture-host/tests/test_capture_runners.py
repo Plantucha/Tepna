@@ -20,7 +20,7 @@ _DROP_DEFAULT = capture._DROP_NOT_WORN_SEC
 # override into an unrelated test module (test_drop_not_worn / test_settings_schema assert the defaults).
 _GLOBAL_SNAPSHOT = {k: getattr(capture, k) for k in
                     ("_DROP_NOT_WORN_SEC", "_NOT_WORN_RECHECK_S", "_OXYII_RTC_RESYNC_SEC",
-                     "O2PPG_FS", "O2PPG_NS_STEP")}
+                     "O2PPG_FS", "O2PPG_NS_STEP", "_STREAM_STALL_S")}
 
 
 @pytest.fixture(autouse=True)
@@ -1643,6 +1643,25 @@ def test_host_clock_poller_swallows_a_read_error(tmp_path, monkeypatch):
     _run(capture.host_clock_poller({}, str(tmp_path)))   # the poll error must not take capture down
 
 
+def test_host_clock_poller_rolls_the_night_at_midnight(tmp_path, monkeypatch):
+    """A session running past midnight must start a fresh CLOCK.csv in the NEW night's folder, not keep
+    appending to the folder it opened at boot."""
+    import datetime as _dtm
+    async def fake_state(): return {"trust": "disciplined", "absolute_ok": True}
+    monkeypatch.setattr(capture.host_clock, "read_state", fake_state)
+    day = {"n": 0}
+    monkeypatch.setattr(capture, "_now",
+                        lambda: _dtm.datetime(2026, 7, 18 + day["n"], 23, 30, 0))
+    async def fake_sleep(_s):
+        day["n"] += 1                      # each poll advances one calendar day → forces a roll
+        if day["n"] >= 2:
+            capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    _run(capture.host_clock_poller({}, str(tmp_path)))
+    nights = {p.parent.name for p in (tmp_path / "captures").rglob("*_CLOCK.csv")}
+    assert nights == {"2026-07-18", "2026-07-19"}   # one CSV per night, each in its own folder
+
+
 # ── rssi_poller: writer-create failure, pause-skip, the device loop, and idle/resume (1416-1458) ───────
 def test_rssi_poller_swallows_a_writer_create_error(tmp_path, monkeypatch):
     def boom(path): raise OSError("cannot open link log")
@@ -1650,6 +1669,23 @@ def test_rssi_poller_swallows_a_writer_create_error(tmp_path, monkeypatch):
     _stop_after(monkeypatch, 1)
     cfg = {"link": {"rssi_enabled": True, "log_enabled": True, "rssi_interval_sec": 25}}
     _run(capture.rssi_poller("hci0", cfg, str(tmp_path)))   # writer stays None; the loop still runs (1416-1417)
+
+
+def test_rssi_poller_rolls_the_link_at_midnight(tmp_path, monkeypatch):
+    """Crossing midnight rolls LINK.csv into the new night's folder — the writer opened at boot must not
+    keep appending to the first night's directory forever."""
+    import datetime as _dtm
+    day = {"n": 0}
+    monkeypatch.setattr(capture, "_now",
+                        lambda: _dtm.datetime(2026, 7, 18 + day["n"], 23, 45, 0))
+    async def fake_sleep(_s):
+        day["n"] += 1                      # advance a day AND stop; the body still rolls before exit
+        capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    cfg = {"link": {"rssi_enabled": False, "log_enabled": True, "rssi_interval_sec": 25}}
+    _run(capture.rssi_poller("hci0", cfg, str(tmp_path)))
+    nights = {p.parent.name for p in (tmp_path / "captures").rglob("*_LINK.csv")}
+    assert nights == {"2026-07-18", "2026-07-19"}
 
 
 def test_rssi_poller_skips_while_paused(tmp_path, monkeypatch):
@@ -1714,11 +1750,13 @@ def test_main_applies_overrides_and_migrates_wellue_ppg(tmp_path, monkeypatch):
     cfg = {"root": str(tmp_path), "web": {"enabled": False},
            "o2ring": {"rtc_resync_sec": 3600},
            "power": {"drop_not_worn_sec": 120, "not_worn_recheck_sec": 45},
+           "stream": {"stall_sec": 45},
            "devices": [{"name": "Ring", "vendor": "Wellue", "model": "O2Ring-S",
                         "device_id": "S8AW", "address": "D1:98:62:7C:92:B3", "streams": ["spo2"]}]}
     _main_with_cfg(tmp_path, monkeypatch, cfg)
     assert capture._OXYII_RTC_RESYNC_SEC == 3600
     assert capture._DROP_NOT_WORN_SEC == 120 and capture._NOT_WORN_RECHECK_S == 45
+    assert capture._STREAM_STALL_S == 45
     ring = next(d for d in capture._CFG["devices"] if d["name"] == "Ring")
     assert "ppg" in ring["streams"], "the implicit 125 Hz pleth was made explicit"
 
@@ -1962,6 +2000,15 @@ def test_qc_poller_skips_when_no_night_dir_yet(tmp_path, monkeypatch):
     assert not (tmp_path / "captures" / "2026-07-19").exists()
 
 
+def test_qc_poller_skips_when_the_night_raced_away(tmp_path, monkeypatch):
+    """_current_night names a night from the listing, but it can be gone by the stat a line later — skip,
+    don't summarise a missing dir."""
+    monkeypatch.setattr(capture, "_current_night", lambda *a: "2026-07-19")   # never actually on disk
+    _stop_after(monkeypatch, 1)
+    _run(capture.qc_poller({"devices": []}, str(tmp_path)))
+    assert "qc" not in capture.STATUS
+
+
 def test_qc_poller_swallows_an_error(tmp_path, monkeypatch):
     import datetime as _dtm
     monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 23, 0, 0))
@@ -2039,16 +2086,17 @@ def test_archive_poller_mirrors_completed_nights(tmp_path, monkeypatch):
     import datetime as _dtm
     monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 2, 0, 0))
     cap = tmp_path / "captures"
-    (cap / "2026-07-18").mkdir(parents=True)                    # a completed night
-    (cap / "2026-07-18" / "Polar_H10_1_ECG.txt").write_text("rows\n")
-    (cap / "2026-07-19").mkdir()                                # tonight — must NOT be archived
+    (cap / "2026-07-18").mkdir(parents=True)                    # a completed night: settled (old writes)
+    old = cap / "2026-07-18" / "Polar_H10_1_ECG.txt"; old.write_text("rows\n")
+    _os.utime(old, (0, _dtm.datetime(2026, 7, 19).timestamp() - 3600))   # last write well past the settle
+    (cap / "2026-07-19").mkdir()                                # tonight — freshly written, still active
     (cap / "2026-07-19" / "Polar_H10_1_ECG.txt").write_text("live\n")
     dest = tmp_path / "backup"
     cfg = {"archive": {"enabled": True, "dest": str(dest), "poll_sec": 1}}
     _stop_after(monkeypatch, 1)
     _run(capture.archive_poller(cfg, str(tmp_path)))
     assert (dest / "2026-07-18" / "Polar_H10_1_ECG.txt").exists()
-    assert not (dest / "2026-07-19").exists()                   # tonight left alone
+    assert not (dest / "2026-07-19").exists()                   # active night left alone
     assert capture.STATUS["archive"]["last"] == "2026-07-18"
 
 
@@ -2066,8 +2114,9 @@ def test_archive_poller_copy_does_not_block_the_event_loop(tmp_path, monkeypatch
     import time as _t
     monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 2, 0, 0))
     cap = tmp_path / "captures"
-    (cap / "2026-07-18").mkdir(parents=True)
-    (cap / "2026-07-18" / "Polar_H10_1_ECG.txt").write_text("rows\n")
+    (cap / "2026-07-18").mkdir(parents=True)                    # settled: aged past the settle window
+    f18 = cap / "2026-07-18" / "Polar_H10_1_ECG.txt"; f18.write_text("rows\n")
+    _os.utime(f18, (0, _dtm.datetime(2026, 7, 19).timestamp() - 3600))
 
     ticks = []
 

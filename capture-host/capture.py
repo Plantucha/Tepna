@@ -434,6 +434,15 @@ def should_drop_not_worn(worn_since, now, grace) -> bool:
 _STREAM_STALL_S = 90.0       # started-stream silence before the session is torn down; stream.stall_sec (0 = off)
 _STALL_RECONNECT_S = 5.0     # pause before re-negotiating after a stall — a stall is not an error backoff
 
+# The night-boundary anchor. A 24/7 daemon crossing midnight keeps appending to the START-date folder
+# (night_dir() rolls by session start, not wall clock), so the wall-clock date is the WRONG key for
+# "which night is in progress" — reading, mirroring or pruning by _now()'s date truncates the live night
+# the instant the clock ticks past 00:00. The right signal is FILE ACTIVITY: a night with a write inside
+# this window is still being captured and is untouchable; one gone quiet this long is settled. The window
+# must exceed the longest legitimate gap in a night's writes (flushes are ~5 s; even the churniest device
+# reconnects well inside a minute) with generous margin, so a brief sensor dropout never looks "settled".
+_NIGHT_SETTLE_S = 1200.0     # 20 min of no writes ⇒ a night is complete; overridable via storage.settle_sec
+
 
 def clock_resync_reason(skew, prev, jump, tolerance, failed_adrift=0, giveup=CLOCK_ADRIFT_GIVEUP):
     """PURE: why (if at all) a device clock should be re-synced now.
@@ -453,6 +462,18 @@ def stream_is_stalled(last_change, now, grace) -> bool:
     """PURE: has every started stream been silent long enough to call the session dead? False when the
     feature is off (grace<=0) or nothing has started streaming yet (last_change None)."""
     return bool(grace and grace > 0 and last_change is not None and (now - last_change) >= grace)
+
+
+def _current_night(captures: str, settle_sec: float) -> str | None:
+    """Which night is 'now' for a reader (QC) — the one still being CAPTURED, keyed on file activity not
+    the wall clock (see _NIGHT_SETTLE_S). The newest ACTIVE night if any device is writing; otherwise the
+    newest night on disk (an idle box between sessions still wants to report on last night, not on an
+    empty _now()-dated folder that no one has created). None only when captures/ holds no night at all."""
+    active = diskguard.active_nights(captures, settle_sec)
+    if active:
+        return max(active)                     # names are YYYY-MM-DD, so lexical max == most recent
+    nights = diskguard.list_nights(captures)
+    return nights[-1] if nights else None
 
 
 # E5 · LINK.csv under-reported dropouts. rssi_poller samples `connected` every ~25 s, so a drop+reconnect
@@ -593,7 +614,10 @@ async def run_polar(dev: dict, root: str):
             async with _connect(addr) as client:
                 _set(name, connected=True)
                 log.info("%s connected", name)
-                backoff = 5
+                # NB: backoff is NOT reset here — a bare connect is not a viable session (E3 parity with
+                # run_viatom/run_oxyii). A strap that connects then drops before any data reset the floor
+                # on every doomed attempt, so the exponential backoff could never grow and a flapping
+                # device hammered the radio. It is reset only once real samples land (in the hold loop).
 
                 # Open one writer per requested stream.
                 def w(stream, ext="txt"):
@@ -875,6 +899,9 @@ async def run_polar(dev: dict, root: str):
                     rows_now = [w.rows for w in watched]
                     if rows_now != last_rows:
                         last_rows, last_change = rows_now, _time.monotonic()
+                        backoff = 5           # E3: data is flowing — THIS is a viable session, so reset
+                                              # the reconnect backoff. A later drop then recovers fast; a
+                                              # connect that never streams leaves the floor to grow.
                     elif stream_is_stalled(last_change, _time.monotonic(), _STREAM_STALL_S):
                         stalled = True
                         _set(name, last_error=f"no data for {_STREAM_STALL_S:.0f}s — re-negotiating the streams")
@@ -1094,7 +1121,11 @@ async def run_viatom(dev: dict, root: str):
                                 "sent. If this model needs it, the ring will not stream.", name)
                 # Same stall guard as the other two runners.
                 last_rows, last_change = wr.rows, _time.monotonic()
-                while client.is_connected and not _STOP.is_set() and not _RECOVER.is_set():
+                # _OXYII_PAUSE too: a pull can be requested while THIS ring is already streaming, and the
+                # outer idle-gate only catches it between sessions — without this, a live session holds the
+                # link the offline pull needs, and the pull waits out its whole timeout for nothing.
+                while (client.is_connected and not _STOP.is_set() and not _RECOVER.is_set()
+                       and not _OXYII_PAUSE.is_set()):
                     await asyncio.sleep(1)
                     if wr.rows != last_rows:
                         # THE link has now carried data — this, not connect(), is what proves the attempt
@@ -1734,6 +1765,7 @@ async def host_clock_poller(cfg: dict, root: str | None = None):
     2019 firmware default is strictly worse than a common-but-wrong base. We record instead."""
     period = float((cfg.get("time") or {}).get("provenance_poll_sec", 120))
     writer = None
+    writer_night = None   # night_dir the writer points at — roll a fresh CSV when the date turns
     prev_trust = None
     try:
         while not _STOP.is_set():
@@ -1747,10 +1779,16 @@ async def host_clock_poller(cfg: dict, root: str | None = None):
                         "host clock %s → %s (%s)", prev_trust, st.get("trust"), st.get("reason"))
                 prev_trust = st.get("trust")
                 if root:
-                    if writer is None:
-                        night = night_dir(root, _now())
+                    night = night_dir(root, _now())
+                    if writer is None or night != writer_night:
+                        # Roll at midnight: a writer opened at boot would otherwise append to the FIRST
+                        # night's folder forever. makedirs so the sidecar can lead on an idle night.
+                        if writer:
+                            writer.close()
+                        os.makedirs(night, exist_ok=True)
                         writer = HostClockLogWriter(
                             os.path.join(night, f"Tepna_{_now():%Y%m%d%H%M%S}_CLOCK.csv"))
+                        writer_night = night
                     writer.write(_now(), st)
             except Exception as e:                      # provenance must never take capture down
                 log.debug("host clock poll failed: %r", e)
@@ -1775,14 +1813,28 @@ async def rssi_poller(adapter_mac, cfg: dict, root: str | None = None):
     log_link = lcfg.get("log_enabled", True)
 
     writer = None
-    if log_link and root:
+    writer_night = None   # the night_dir the open writer points at — roll a fresh CSV when the date turns
+
+    def roll_writer():
+        # (Re)open the LINK sidecar in TONIGHT's folder. Called before the loop and whenever the wall
+        # clock crosses midnight: without this the writer opened at boot keeps appending to the FIRST
+        # night's folder forever — one unbounded file that also lands every later night's link data in
+        # the wrong (start-date) directory. Returns (writer, night) or (None, None) on failure.
+        nonlocal writer, writer_night
         try:
             night = night_dir(root, _now())
             os.makedirs(night, exist_ok=True)
+            if writer:
+                writer.close()
             writer = LinkLogWriter(os.path.join(night, f"Tepna_{_now():%Y%m%d%H%M%S}_LINK.csv"))
+            writer_night = night
             log.info("link provenance → %s", writer.path)
         except Exception as e:
             log.warning("link log unavailable: %r", e)
+            writer, writer_night = None, None
+
+    if log_link and root:
+        roll_writer()
 
     misses = 0
     idle = False          # RSSI reads idle; the LOG never idles
@@ -1792,6 +1844,8 @@ async def rssi_poller(adapter_mac, cfg: dict, root: str | None = None):
             await asyncio.sleep(interval)
             if _RECOVER.is_set() or _OXYII_PAUSE.is_set() or _POLAR_PAUSED:
                 continue                      # don't poke the radio mid-pull / mid-recovery
+            if log_link and root and night_dir(root, _now()) != writer_night:
+                roll_writer()                 # midnight crossed — start this night's LINK.csv
             now_mono = _time.monotonic()
             do_rssi = want_rssi and (not idle or now_mono >= next_rssi)
             any_link = got_any = False
@@ -1839,12 +1893,17 @@ async def storage_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None
     interval = float(scfg.get("poll_sec", 300))
     keep_nights = int(scfg.get("keep_nights", 0))          # 0 = retention disabled
     min_free_gb = float(scfg.get("min_free_gb", 2))
+    settle = float(scfg.get("settle_sec", _NIGHT_SETTLE_S))
     captures = os.path.join(root, "captures")
     low_alerted = False
     while not _STOP.is_set():
         try:
             rep = diskguard.disk_report(root, min_free_gb)
-            protect = {_now().strftime("%Y-%m-%d")}        # never sweep tonight's in-progress directory
+            # Protect every night still being WRITTEN, not just _now()'s date: a session running past
+            # midnight keeps appending to its start-date folder, and pruning by wall-clock date could
+            # sweep that live directory the moment the clock rolls. _now()'s date is a floor so a
+            # brand-new night with no files yet (not yet "active") is still never a prune candidate.
+            protect = diskguard.active_nights(captures, settle) | {_now().strftime("%Y-%m-%d")}
             # rmtree of a whole night — ~1500 files, ~2 GB — is filesystem work, not arithmetic.
             # disk_report() stays inline (a single statvfs); only the delete is off-loaded.
             pruned = await asyncio.to_thread(diskguard.prune_old_nights, captures, keep_nights, protect)
@@ -1912,14 +1971,21 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
     qcfg = cfg.get("qc") or {}
     interval = float(qcfg.get("poll_sec", 600))
     alert_after = float(qcfg.get("alert_after_sec", 3600))
+    settle = float((cfg.get("storage") or {}).get("settle_sec", _NIGHT_SETTLE_S))
+    captures = os.path.join(root, "captures")
     first_seen: dict[str, float] = {}      # night → monotonic ts we first saw it with data
     alerted: set[str] = set()              # nights already alerted (edge-trigger, one per night)
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         try:
-            night = os.path.join(root, "captures", _now().strftime("%Y-%m-%d"))
+            # The night STILL BEING CAPTURED — keyed on file activity, not _now()'s date, so a session
+            # that ran past midnight is QC'd in its real (start-date) folder instead of an empty new one.
+            current = _current_night(captures, settle)
+            if current is None:
+                continue                                   # captures/ holds no night yet — nothing to QC
+            night = os.path.join(captures, current)
             if not os.path.isdir(night):
-                continue                                   # nothing captured yet tonight — nothing to QC
+                continue                                   # raced away between listing and stat — skip
             # OFF THE LOOP, same reason as archive_night below. summarize() reads EVERY file in
             # the night to count newlines — by dawn that is ~2 GB, and at the default poll_sec=600
             # it re-reads the growing night ~48 times a night (~48 GB total). On this dev box the
@@ -1955,11 +2021,15 @@ async def archive_poller(cfg: dict, root: str):
         return
     dest = acfg["dest"]
     interval = float(acfg.get("poll_sec", 3600))
+    settle = float((cfg.get("storage") or {}).get("settle_sec", _NIGHT_SETTLE_S))
     captures = os.path.join(root, "captures")
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         try:
-            tonight = _now().strftime("%Y-%m-%d")
+            # Mirror only nights that have gone QUIET (no writes for `settle`), never the one still being
+            # captured — keyed on file activity, not _now()'s date, so a session that ran past midnight is
+            # not copied-and-marked-done mid-recording the moment the clock rolls over.
+            active = await asyncio.to_thread(diskguard.active_nights, captures, settle)
             # OFF THE EVENT LOOP. archive_night() is a synchronous shutil.copy2 walk over a whole
             # night — ~2 GB across ~1500 files — and everything else this daemon does shares this one
             # loop: the BLE runners, the stream stall watchdogs, the status poller, and the sd_notify
@@ -1972,7 +2042,7 @@ async def archive_poller(cfg: dict, root: str):
             # errors, not for dest SLOWNESS, which is the likelier failure. to_thread keeps the loop
             # turning (and the watchdog fed) whatever the destination does. `pending_nights` stays
             # inline: it only stats the LOCAL captures dir.
-            for night in nightarchive.pending_nights(captures, tonight):
+            for night in nightarchive.pending_nights(captures, active):
                 n = await asyncio.to_thread(nightarchive.archive_night, captures, night, dest)
                 log.info("archive: mirrored %s (%d file(s)) → %s", night, n, dest)
                 STATUS.setdefault("archive", {}).update({"last": night, "dest": dest})
@@ -2118,6 +2188,10 @@ async def main():
         _DROP_NOT_WORN_SEC = float(_pw["drop_not_worn_sec"])     # 0 disables
     if float(_pw.get("not_worn_recheck_sec") or 0) > 0:
         _NOT_WORN_RECHECK_S = float(_pw["not_worn_recheck_sec"])
+    global _STREAM_STALL_S
+    _sc = cfg.get("stream") or {}
+    if "stall_sec" in _sc:
+        _STREAM_STALL_S = float(_sc["stall_sec"])                # 0 disables the started-stream watchdog
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
     loop = asyncio.get_running_loop()

@@ -13,12 +13,22 @@ def _night(cap, name, files):
     return d
 
 
-def test_pending_nights_excludes_tonight_and_marked(tmp_path):
+def test_pending_nights_excludes_active_and_marked(tmp_path):
     cap = str(tmp_path / "captures")
     _night(cap, "2026-07-17", {"a_b_c_ECG.txt": "x"})
     _night(cap, "2026-07-18", {"a_b_c_ECG.txt": "x", nightarchive._MARKER: ""})   # already archived
-    _night(cap, "2026-07-19", {"a_b_c_ECG.txt": "x"})                              # tonight
-    assert nightarchive.pending_nights(cap, tonight="2026-07-19") == ["2026-07-17"]
+    _night(cap, "2026-07-19", {"a_b_c_ECG.txt": "x"})                              # still being written
+    # a bare string is accepted for the single-active-night case
+    assert nightarchive.pending_nights(cap, "2026-07-19") == ["2026-07-17"]
+
+
+def test_pending_nights_protects_every_active_night(tmp_path):
+    # a session that ran past midnight leaves TWO in-progress date dirs — both must be skipped
+    cap = str(tmp_path / "captures")
+    _night(cap, "2026-07-17", {"a_b_c_ECG.txt": "x"})
+    _night(cap, "2026-07-18", {"a_b_c_ECG.txt": "x"})                              # pre-midnight, still active
+    _night(cap, "2026-07-19", {"a_b_c_ECG.txt": "x"})                              # post-midnight, still active
+    assert nightarchive.pending_nights(cap, {"2026-07-18", "2026-07-19"}) == ["2026-07-17"]
 
 
 def test_pending_nights_missing_dir_is_empty():
