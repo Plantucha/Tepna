@@ -1278,7 +1278,13 @@ function profileDerivedUpdate() {
     _sub('profileDbpSub', '∼ enter cuff DBP (HRV/oximetry BP projection removed 2026-06-23)');
   }
 
-  // Elevation — show current SpO₂ adjustment alongside formula
+  // Elevation — show current SpO₂ adjustment alongside formula. `_elv`/`_adj` were
+  // shared with the dead `pd_elev` disclosure that DEEP-AUDIT-II #43 removed; this
+  // profileElevSub sub still needs them, so they are declared locally here (the #43
+  // removal dropped the shared declarations and left this line referencing undefined
+  // names → a ReferenceError that broke profileDerivedUpdate — regression hotfix).
+  var _elv = UP.elevation || 0;
+  var _adj = upSpo2Adj();
   _sub('profileElevSub', _elv > 0 ? '∼ Roach 1998: −1.8%/1000m · adj −' + _adj + '% (norm ≥' + (95 - _adj) + '%)' : '0 = sea level · −1.8% SpO₂ per 1000m (Roach 1998), cap 7%');
 }
 
