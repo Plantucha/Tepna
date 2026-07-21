@@ -113,6 +113,13 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
         # Session stamps are YYYYMMDDhhmmss → lexical max == chronological latest.
         targets = sessions if which == "all" else ([max(sessions)] if which == "latest" else [which])
         for ts in targets:
+            # `ts` is a session stamp from the RING's file-list — a device-controlled value that becomes a
+            # filesystem path below. A genuine stamp is `YYYYMMDDhhmmss` (all digits), so validate it here:
+            # a malformed or hostile ring sending `../…` must never let the pull read or write outside
+            # `out_dir` (py/path-injection). Reject anything that is not a plausible all-digit stamp.
+            if not (ts.isdigit() and 8 <= len(ts) <= 14):
+                print(f"  ⚠ implausible session id {ts!r} — skipping (not a YYYYMMDDhhmmss stamp).", flush=True)
+                continue
             print(f"\n── session {ts} ──", flush=True)
             await send(oxyii.file_start_frame(ts, ftype))
             meta = await _wait(q, oxyii.OP_FILE_START)

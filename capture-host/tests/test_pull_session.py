@@ -373,3 +373,14 @@ def test_pull_skips_a_session_already_on_disk_at_the_same_size(tmp_path, monkeyp
     _install(monkeypatch, FakeRing([ts], blob))
     got2 = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
     assert got2 == [], "a session already on disk at the same size must be skipped, not re-downloaded"
+
+
+def test_pull_rejects_a_path_traversal_which(tmp_path, monkeypatch):
+    """`which=<specific>` is a user/API-controlled value that bypasses parse_file_list's stamp filter and
+    goes straight into a filesystem path (py/path-injection). A traversal value must be skipped, never
+    opened — nothing written outside out_dir."""
+    import os
+    _install(monkeypatch, FakeRing(["20260719010000"], b"\x01\x03" + b"z" * 90))
+    got = _run(pull_session._pull_once("A", str(tmp_path), "../../etc/evil", 0, None, "0000"))
+    assert got == [], "a traversal `which` must be skipped, not turned into a path"
+    assert not os.path.exists("/etc/evil")
