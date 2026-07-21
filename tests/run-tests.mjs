@@ -227,6 +227,7 @@ function readSources() {
     'pulsedex-cross.js',
     'ppgdex-cross.js',
     'cpapdex-cross.js',
+    'event-coupling.js', // §9.5 — pin its LCG multiply too (it carries the same 1103515245 clone)
     'crossnight-envelope.js',
     'integrator-app.js',
     'integrator-render.js',
