@@ -409,42 +409,6 @@ def should_drop_not_worn(worn_since, now, grace) -> bool:
     return bool(grace and grace > 0 and worn_since is not None and (now - worn_since) >= grace)
 
 
-# E4 · WEAR-GATE FOR A CONTACTLESS IMU (the Verity: worn=null). The chest strap and the ring both report a
-# contact bit, so their not-worn state is KNOWN and the power-drop above already handles it. The Verity has
-# NO contact bit — and it is the heaviest writer: left on a desk it streamed 453 MB in 4.16 h (VIGIL-
-# OBSERVED-ERRORS E4). Wear must therefore be INFERRED from motion, which is uncertain, so the action is
-# deliberately the benign one: PAUSE WRITING, hold the link. A false "not worn" during genuinely still
-# sleep then costs nothing — the first real motion frame resumes writing on the same session, no reconnect,
-# no fragmentation. Contrast the strap's power-drop, whose false positive costs a whole recheck cycle; that
-# is affordable only because a contact bit makes it near-certain. OPT-IN, OFF by default.
-_MOTION_WEAR_GATE = False       # opt-in; power.motion_wear_gate. Only ever applies to a PMD device with an
-                                # ACC stream and NO hr stream (i.e. it cannot report contact — the Verity).
-_MOTION_STILL_MG = 12.0         # |acc| std (milli-g) below this over the window = motionless; a desk sits
-                                # at the few-mg sensor-noise floor, a worn armband (respiration + cardio-
-                                # ballistic motion) sits well above even in deep sleep. power.motion_still_mg
-_MOTION_STILL_SEC = 300.0       # continuous stillness before writes pause — 5 min, so a long quiet spell in
-                                # real sleep never trips it; power.motion_still_sec
-_MOTION_WINDOW_SEC = 20.0       # window the |acc| std is measured over; power.motion_window_sec
-
-
-def acc_mag_std_mg(mags) -> float:
-    """PURE: standard deviation (milli-g) of a window of |acc| magnitudes. Polar delivers ACC already in
-    milli-g (|acc| ~= 1000 at rest), so no scale is applied. < 2 samples → 0.0 (cannot judge motion, which
-    reads as 'still' — but the grace window below means one short frame can never pause writing on its own)."""
-    n = len(mags)
-    if n < 2:
-        return 0.0
-    m = sum(mags) / n
-    return (sum((x - m) ** 2 for x in mags) / n) ** 0.5
-
-
-def motion_write_paused(still_since, now, grace) -> bool:
-    """PURE (mirrors should_drop_not_worn): has a contactless device been motionless long enough to PAUSE
-    its writers? False when the feature is off (grace<=0), motion is present (still_since None), or the
-    grace has not elapsed. The gated action is benign (writing stops, link held), so this stays conservative."""
-    return bool(grace and grace > 0 and still_since is not None and (now - still_since) >= grace)
-
-
 # STREAM STALL: a PMD START can be ACKNOWLEDGED and still deliver nothing. The H10 serves ONE PMD stream
 # at a time and does NOT release it when a client dies without a clean disconnect (polarofficial/
 # polar-ble-sdk#287) — so the next session's START is answered `already_streaming` (0x06), which
@@ -612,11 +576,6 @@ async def run_polar(dev: dict, root: str):
         charging_hold = False              # device refused PMD because it is on the charger (status 0x0D).
         drop_for_power = False             # not-worn long enough that we dropped the link to save battery
         stalled = False                    # started streams went silent behind a live link — re-negotiate
-        # E4 motion wear-gate (contactless IMU only — ACC present, no contact bit i.e. no hr stream).
-        gate_motion = _MOTION_WEAR_GATE and "acc" in streams and "hr" not in streams
-        _mag_win: list = []                # (monotonic_ts, |acc| milli-g) rolling window for the motion std
-        _still_since = [None]              # monotonic ts stillness began (None = moving / not yet judged)
-        write_paused = [False]             # E4: writing paused because the device looks off-body (link held)
         # Declared HERE, outside the try, because both readers live outside the block that sets it: the
         # link-hold loop and the reconnect-delay below. (It was first declared next to `stream_fs` inside
         # the connected session — an UnboundLocalError on every device that never reached the PMD path.)
@@ -668,34 +627,6 @@ async def run_polar(dev: dict, root: str):
                     # need frame_type + payload size + decoded count to see whether we under-extract.
                     if _PMD_PROBE:
                         _pmd_probe(meas, bytes(data), len(samples), arrival)
-                    # E4 · motion wear-gate. Evaluate stillness off the ACC frames, then gate WRITES (not
-                    # the link, not the decode, not the live push) so the monitor still shows the device is
-                    # alive and re-wear resumes on the very next frame. Decode always runs — that is how a
-                    # paused device notices it has been picked up again.
-                    if gate_motion and meas == pmd.ACC and samples:
-                        now_m = _time.monotonic()
-                        for smp in samples:
-                            x, y, z = smp.values
-                            _mag_win.append((now_m, (x * x + y * y + z * z) ** 0.5))
-                        cutoff = now_m - _MOTION_WINDOW_SEC
-                        while _mag_win and _mag_win[0][0] < cutoff:
-                            _mag_win.pop(0)
-                        # Only judge once the window actually spans enough time (a fresh connection has none).
-                        if now_m - _mag_win[0][0] >= _MOTION_WINDOW_SEC * 0.5:
-                            still = acc_mag_std_mg([m for _, m in _mag_win]) < _MOTION_STILL_MG
-                            # Keep the existing stillness start; begin one now if we just went still. NOT
-                            # `_still_since[0] or now_m` — monotonic() can legitimately be 0.0, which `or`
-                            # would treat as "unset" and reset the grace clock every frame.
-                            _still_since[0] = (now_m if _still_since[0] is None else _still_since[0]) if still else None
-                            now_paused = motion_write_paused(_still_since[0], now_m, _MOTION_STILL_SEC)
-                            if now_paused != write_paused[0]:
-                                write_paused[0] = now_paused
-                                _set(name, worn=(not now_paused),
-                                     last_error=("not worn — motion-gated, writing paused (link held)"
-                                                 if now_paused else None))
-                                log.info("%s: writing %s — motion-gated (|acc| std %.0f mg over %.0fs)",
-                                         name, "PAUSED" if now_paused else "RESUMED",
-                                         acc_mag_std_mg([m for _, m in _mag_win]), _MOTION_WINDOW_SEC)
                     wr = writers.get(meas)
                     if not wr or not samples:
                         return
@@ -709,19 +640,14 @@ async def run_polar(dev: dict, root: str):
                     except Exception:  # pragma: no cover — sensor_ns is an unsigned 64-bit int, so
                         pass           # _POLAR_EPOCH + timedelta(µs=ns/1000) is bounded far inside
                                        # datetime's range and cannot raise; the guard is belt-and-braces.
-                    # E4: while motion-gated the WRITES are skipped (link + decode + live push continue), so
-                    # a device sitting on a desk stops filling the disk but stays visible and resumes the
-                    # instant it is worn again. Row counters freeze, which the stall watchdog is told to
-                    # ignore (see the hold loop) so a deliberate pause is never mistaken for a dead stream.
-                    if not (gate_motion and write_paused[0]):
-                        for smp in samples:
-                            v = smp.values
-                            if meas == pmd.ECG:    wr.write_ecg(smp.phone, smp.sensor_ns, smp.t_ms, v[0])
-                            elif meas == pmd.ACC:  wr.write_acc(smp.phone, smp.sensor_ns, smp.t_ms, *v)
-                            elif meas == pmd.PPG:  wr.write_ppg(smp.phone, smp.sensor_ns, smp.t_ms, v[:3], v[3])
-                            elif meas == pmd.GYRO: wr.write_gyro(smp.phone, smp.sensor_ns, smp.t_ms, *v)
-                            elif meas == pmd.MAG:  wr.write_mag(smp.phone, smp.sensor_ns, smp.t_ms, *v)
-                            elif meas == pmd.PPI:  wr.write_ppi(smp.phone, smp.sensor_ns, v[0], v[1], v[2], v[3])
+                    for smp in samples:
+                        v = smp.values
+                        if meas == pmd.ECG:    wr.write_ecg(smp.phone, smp.sensor_ns, smp.t_ms, v[0])
+                        elif meas == pmd.ACC:  wr.write_acc(smp.phone, smp.sensor_ns, smp.t_ms, *v)
+                        elif meas == pmd.PPG:  wr.write_ppg(smp.phone, smp.sensor_ns, smp.t_ms, v[:3], v[3])
+                        elif meas == pmd.GYRO: wr.write_gyro(smp.phone, smp.sensor_ns, smp.t_ms, *v)
+                        elif meas == pmd.MAG:  wr.write_mag(smp.phone, smp.sensor_ns, smp.t_ms, *v)
+                        elif meas == pmd.PPI:  wr.write_ppi(smp.phone, smp.sensor_ns, v[0], v[1], v[2], v[3])
                     # Live push — RAW, per-stream shape (no on-box DSP):
                     key, hz = _live_key(pmd.MEAS_NAME[meas], tag), stream_fs.get(meas) or pmd.SAMPLE_HZ.get(meas)
                     if meas == pmd.ECG:
@@ -940,12 +866,6 @@ async def run_polar(dev: dict, root: str):
                     rows_now = [w.rows for w in watched]
                     if rows_now != last_rows:
                         last_rows, last_change = rows_now, _time.monotonic()
-                    elif gate_motion and write_paused[0]:
-                        # E4: rows are frozen ON PURPOSE (device off-body, writes paused). The stream is
-                        # alive — decode + live push are still running — so this is NOT a stall. Re-baseline
-                        # the silence clock so it never fires while paused, and never during the window right
-                        # after re-wear before rows resume.
-                        last_change = _time.monotonic()
                     elif stream_is_stalled(last_change, _time.monotonic(), _STREAM_STALL_S):
                         stalled = True
                         _set(name, last_error=f"no data for {_STREAM_STALL_S:.0f}s — re-negotiating the streams")
@@ -2130,19 +2050,11 @@ async def main():
     if _rs > 0:
         _OXYII_RTC_RESYNC_SEC = _rs
     global _DROP_NOT_WORN_SEC, _NOT_WORN_RECHECK_S
-    global _MOTION_WEAR_GATE, _MOTION_STILL_MG, _MOTION_STILL_SEC, _MOTION_WINDOW_SEC
     _pw = cfg.get("power") or {}
     if "drop_not_worn_sec" in _pw:
         _DROP_NOT_WORN_SEC = float(_pw["drop_not_worn_sec"])     # 0 disables
     if float(_pw.get("not_worn_recheck_sec") or 0) > 0:
         _NOT_WORN_RECHECK_S = float(_pw["not_worn_recheck_sec"])
-    _MOTION_WEAR_GATE = bool(_pw.get("motion_wear_gate", _MOTION_WEAR_GATE))   # E4: opt-in, default off
-    if float(_pw.get("motion_still_mg") or 0) > 0:
-        _MOTION_STILL_MG = float(_pw["motion_still_mg"])
-    if float(_pw.get("motion_still_sec") or 0) > 0:
-        _MOTION_STILL_SEC = float(_pw["motion_still_sec"])
-    if float(_pw.get("motion_window_sec") or 0) > 0:
-        _MOTION_WINDOW_SEC = float(_pw["motion_window_sec"])
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
     loop = asyncio.get_running_loop()
