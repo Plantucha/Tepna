@@ -2053,6 +2053,7 @@ function renderSmartSummary(n) {
   if (n.odri) html += ssKPI('ODRI', cv(n.odri.odri, null, null, ''), 'neutral');
   if (n.spo2Shape) html += ssKPI('SpO₂ Skew', cv(n.spo2Shape.spo2Skew, -1, -0.5, '', true), n.spo2Shape.spo2Skew > -0.5 ? 'good' : n.spo2Shape.spo2Skew > -1 ? 'warn' : 'bad');
   html += '</div>';
+  html += typeof spo2ElevNote === 'function' ? spo2ElevNote() : ''; // #43: disclose the altitude norm-shift where it grades SpO₂
   html += ssIssuesBars(s.top5, 'spo2');
   html += '</div>'; // /.proj-card oxygen
 
