@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-22mvhJAaiTMFJNeLHcnP1L+7EvgSyYh8dYilP0X0paQ=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-6Gq5p6JAWsKz+ZbEKpiHKhMbl6qv4btiBN6k+UAnnH4=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-9l67JkKr/aHyKeoKPh+qerR9mlLKRyWf8oMTJhcNAK8=' 'sha256-A70in1yVw8l6p/xGyEIN/q3z6NYSyh3+oY6uqe7gSc4=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-FYufV3uNn6NzYx4TuQ57WPhAQACfOzGvqQNA/yly9bo=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-Hc9GZsLap0Y3+GznQuJumo36oXOXvCxpUgWcvihj7FQ=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-Q9/mWHUwYT01wW0pJKSRx1yO8smaw8h766yrxDUTf44=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-irqCc4+5dhqaRPdZw+qJe/7twXLWGrlF2a61O+ToWQI=' 'sha256-m2FMsI9l/T0bhvsECQxEKbYwdFZbuSLZ/VgXlyaONcU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0Z+Uwd1tmZo5ISamSWPKO9LZbPlPuKtTqVBuEbDfzmY=' 'sha256-2KNAdLXCRWIB7YGfPN2gPPTsWay/T/8NtiPIppS5VXg=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-6Gq5p6JAWsKz+ZbEKpiHKhMbl6qv4btiBN6k+UAnnH4=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-9l67JkKr/aHyKeoKPh+qerR9mlLKRyWf8oMTJhcNAK8=' 'sha256-A70in1yVw8l6p/xGyEIN/q3z6NYSyh3+oY6uqe7gSc4=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ArBX5QFrZ3bHdZhLubY4sNx5bQvZCbZaenZQyeItOes=' 'sha256-FYufV3uNn6NzYx4TuQ57WPhAQACfOzGvqQNA/yly9bo=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-Hc9GZsLap0Y3+GznQuJumo36oXOXvCxpUgWcvihj7FQ=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-Q9/mWHUwYT01wW0pJKSRx1yO8smaw8h766yrxDUTf44=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-gcE1P06RRRw93yriIEEcLOWMcJ147BGB0AVmUPyT3rc=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-irqCc4+5dhqaRPdZw+qJe/7twXLWGrlF2a61O+ToWQI=' 'sha256-m2FMsI9l/T0bhvsECQxEKbYwdFZbuSLZ/VgXlyaONcU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -2104,6 +2104,14 @@ function adaptEnvelopeNode(json, node, filename) {
       // compares against the ring's smoothed 1 Hz pulse.
       summary.site = _dig(json, ['recording', 'site']) || 'wrist';
       summary.pulseHr = _dig(json, ['hrv', 'time', 'hr']);
+      // OXYDEX-PULSE-RESOURCING §Phase 3: the finger-waveform WHOLE-RECORD HRV (ms — real RR-interval
+      // RMSSD/SDNN). fuseHrvResource publishes these as the honest, ring-context HRV that SUPERSEDES the
+      // O2Ring 1 Hz bpm-proxy when a finger capture exists. sdnnRobust is the cross-node-comparable SDNN
+      // (quality-gated per-5-min median, ~+3.5% vs ECG truth per the PpgDex export's own sdnnNote).
+      summary.rmssdMs = _dig(json, ['hrv', 'time', 'rmssd']);
+      summary.sdnnRobustMs = _dig(json, ['hrv', 'time', 'sdnnRobust']);
+      summary.sdnnMs = _dig(json, ['hrv', 'time', 'sdnn']);
+      summary.hrvLowConfidence = _dig(json, ['hrv', 'time', 'lowConfidence']);
       // FU §2: 3-LED optical consensus (% of kept beats where ≥2/3 channels agree) — a whole-
       // record optical trust axis folded into the HRV-consensus gate alongside the per-event floor.
       summary.ledAgreementPct = _dig(json, ['quality', 'ledAgreementPct']);
@@ -2160,6 +2168,11 @@ function adaptEnvelopeNode(json, node, filename) {
     // The OxyDex `.node-export.json` (current schema) reaches this generic normalizer; the legacy
     // `_summary.json` array reaches adaptOxyDex, which sets the same field on its own summary.
     summary.pulseHr1Hz = _dig(json, ['stats', 'meanHr']);
+    // OXYDEX-PULSE-RESOURCING §Phase 3: the ring's own 1 Hz HRV PROXIES (bpm-DOMAIN — RMSSD/SD of the
+    // pulse RATE, NOT RR intervals). fuseHrvResource carries them ALONGSIDE the finger-waveform ms-HRV
+    // for continuity; it never averages across the unit boundary (bpm ≠ ms). `hrv.hrSdnn` is hrVarSd.
+    summary.rmssd1Hz = _dig(json, ['hrv', 'rmssd']);
+    summary.hrVarSd1Hz = _dig(json, ['hrv', 'hrSdnn']);
   }
   if (node === 'MotionDex') {
     // Motion / IMU node-export (APNEA-TYPING-FUSION-2026-07-18 §1.1). The per-epoch respiratory-EFFORT
@@ -3830,6 +3843,13 @@ var RR_AGREE_BRPM = 2.0;
 // median 0.4 bpm and the paired chest ECG to ~1 bpm (docs/O2RING-FINGER-ROUNDTRIP-2026-07-20.md),
 // so 3 bpm is a generous agreement threshold, not a tight one.
 var PULSE_AGREE_BPM = 3.0;
+// OXYDEX-PULSE-RESOURCING §Phase 3 — the ring's 1 Hz RMSSD is a pulse-RATE (bpm) quantity; the finger
+// waveform RMSSD is an RR-INTERVAL (ms) quantity. They are not the same unit, so fuseHrvResource never
+// computes a numeric delta. It DOES run a first-order order-of-magnitude BRIDGE (δinterval ≈ 60000/HR²·δrate)
+// purely to flag gross disagreement; "concordant" = the waveform ms-RMSSD lands within this multiplicative
+// band of the bridged proxy. Wide on purpose (the 1 Hz stream is smoothed and under-states) — it catches a
+// broken leg, not a calibration gap. The waveform is ALWAYS the reference.
+var HRV_CONCORDANCE_FACTOR = 3.0;
 
 // OXYDEX-PULSE-RESOURCING §Phase 2 — the O2Ring's own WAVEFORM pulse vs its SMOOTHED 1 Hz firmware
 // pulse. This is the third application of CLAUDE.md §🎙️ (the H10 `_HR.txt` and the Verity `_HR.txt`
@@ -3879,6 +3899,88 @@ function fusePulseCrossCheck(recs) {
         ? 'within the ±' + PULSE_AGREE_BPM + ' bpm agreement band — vendor smoothing costs little here.'
         : 'BEYOND the ±' + PULSE_AGREE_BPM + ' bpm band; trust the waveform, not the 1 Hz field.') +
       ' The disagreement is reported, never averaged.'
+  };
+}
+
+// OXYDEX-PULSE-RESOURCING §Phase 3 — RE-SOURCE the O2Ring's HRV. The ring's own `rmssd`/`hrVarSd` are
+// derived from its SMOOTHED 1 Hz pulse RATE — the registry confesses it ("1 Hz pulse-rate RMSSD proxy —
+// not RR-interval HRV"). When a finger PpgDex capture is on the bus (the ring's OWN single-channel pleth),
+// its WHOLE-RECORD waveform HRV (ms, real RR intervals) is the honest measure. This publishes the waveform
+// HRV as the resourced value that SUPERSEDES the 1 Hz proxy, and carries the proxy alongside for continuity —
+// but the two are DIFFERENT UNITS (ms vs bpm) so they are NEVER averaged. Tier is `emerging`, NOT `validated`:
+// the brief (§Phase 3) grants `validated` only once the finger path is shown to reproduce the audited PulseDex
+// HRV path on the real corpus — release-time work this cannot run. READ-ONLY: no existing OxyDex metric moves;
+// OxyDex keeps its 1 Hz proxies as the single-signal fallback for nights with no finger capture. Returns null
+// unless BOTH a finger PpgDex ms-HRV and an O2Ring OxyDex proxy are present (both non-dateUnknown).
+function fuseHrvResource(recs) {
+  var wave = /** @type {any} */ (null),
+    proxy = /** @type {any} */ (null);
+  recs.forEach(function (r) {
+    if (!r || r.dateUnknown || !r.summary) return;
+    var s = r.summary;
+    if (r.node === 'PpgDex' && s.site === 'finger' && s.rmssdMs != null && isFinite(s.rmssdMs) && s.rmssdMs > 0 && !wave) {
+      var robust = s.sdnnRobustMs != null && isFinite(s.sdnnRobustMs);
+      wave = {
+        node: r.node,
+        rmssdMs: +Number(s.rmssdMs).toFixed(1),
+        sdnnMs: robust ? +Number(s.sdnnRobustMs).toFixed(1) : s.sdnnMs != null && isFinite(s.sdnnMs) ? +Number(s.sdnnMs).toFixed(1) : null,
+        sdnnMetric: robust ? 'sdnnRobust' : 'sdnn',
+        lowConfidence: !!s.hrvLowConfidence
+      };
+    }
+    if (r.node === 'OxyDex' && s.rmssd1Hz != null && isFinite(s.rmssd1Hz) && s.pulseHr1Hz != null && isFinite(s.pulseHr1Hz) && s.pulseHr1Hz > 0 && !proxy) {
+      proxy = {
+        node: r.node,
+        rmssdBpm: +Number(s.rmssd1Hz).toFixed(2),
+        hrVarSdBpm: s.hrVarSd1Hz != null && isFinite(s.hrVarSd1Hz) ? +Number(s.hrVarSd1Hz).toFixed(2) : null,
+        meanHr: +Number(s.pulseHr1Hz).toFixed(1)
+      };
+    }
+  });
+  if (!wave || !proxy) return null;
+  // cross-unit BRIDGE (first-order, order-of-magnitude ONLY): interval(ms) = 60000/rate(bpm) ⇒
+  // |δinterval| ≈ (60000/HR²)·|δrate|, so an approximate ms-equivalent of the ring's bpm rate-RMSSD is
+  // rmssdBpm·60000/HR². The 1 Hz stream is SMOOTHED so it under-states — the waveform ms-RMSSD is expected
+  // to run HIGHER. This is a sanity flag, never a conversion we publish as the value.
+  var k = 60000 / (proxy.meanHr * proxy.meanHr);
+  var proxyRmssdAsMs = +(proxy.rmssdBpm * k).toFixed(1);
+  var ratio = proxyRmssdAsMs > 0 ? +(wave.rmssdMs / proxyRmssdAsMs).toFixed(2) : null;
+  var concordance = ratio == null ? null : ratio >= 1 / HRV_CONCORDANCE_FACTOR && ratio <= HRV_CONCORDANCE_FACTOR ? 'concordant' : 'diverges';
+  return {
+    reference: 'waveform', // the finger PPI is the honest RR-interval leg; the 1 Hz rate proxy is superseded
+    tier: 'emerging', // NOT validated — see the function header (real-corpus PulseDex-path reproduction owed)
+    // the RESOURCED HRV — real RR-interval (ms) values from the finger waveform; these are the ones to trust
+    resourced: {
+      rmssd: { value: wave.rmssdMs, unit: 'ms', basis: 'RR-interval RMSSD (finger PPI, wholeRecord)' },
+      hrVarSd: { value: wave.sdnnMs, unit: 'ms', basis: wave.sdnnMetric + ' (finger PPI, wholeRecord)' }
+    },
+    // carried for continuity — DIFFERENT units/construct (pulse RATE, not RR interval); NEVER averaged in
+    proxy1Hz: {
+      rmssd: { value: proxy.rmssdBpm, unit: 'bpm*', basis: '1 Hz pulse-rate RMSSD proxy' },
+      hrVarSd: { value: proxy.hrVarSdBpm, unit: 'bpm', basis: 'SD of 1 Hz pulse rate' }
+    },
+    supersedes: 'OxyDex 1 Hz pulse-rate proxy (bpm) — a smoothed rate series cannot resolve beat-to-beat intervals',
+    // an approximate cross-unit sanity bridge, not a published value (see the header + the constant)
+    bridge: { meanHr: proxy.meanHr, proxyRmssdAsMs: proxyRmssdAsMs, ratio: ratio, factorBand: HRV_CONCORDANCE_FACTOR, concordance: concordance },
+    lowConfidence: wave.lowConfidence,
+    note:
+      'Finger-waveform HRV RMSSD ' +
+      wave.rmssdMs +
+      ' ms / ' +
+      (wave.sdnnMetric === 'sdnnRobust' ? 'SDNN(robust) ' : 'SDNN ') +
+      wave.sdnnMs +
+      ' ms is the RE-SOURCED (real RR-interval) HRV and supersedes the ring’s 1 Hz proxy (RMSSD ' +
+      proxy.rmssdBpm +
+      ' bpm*, HR-Var SD ' +
+      (proxy.hrVarSdBpm != null ? proxy.hrVarSdBpm : 'n/a') +
+      ' bpm). Units differ (ms vs bpm) so the two are carried side-by-side, never averaged; ' +
+      (concordance === 'concordant'
+        ? 'a first-order bridge (≈' + proxyRmssdAsMs + ' ms) puts them within the same order of magnitude — the proxy tracks the waveform.'
+        : concordance === 'diverges'
+          ? 'a first-order bridge (≈' + proxyRmssdAsMs + ' ms) puts them well apart — trust the waveform, treat the proxy as unreliable here.'
+          : 'no bridge available.') +
+      (wave.lowConfidence ? ' ⚠ the finger HRV is flagged low-confidence.' : '') +
+      ' Tier emerging — validated is owed a real-corpus reproduction of the audited PulseDex path.'
   };
 }
 
@@ -4447,6 +4549,7 @@ function runFusion(recs, opts) {
   var respiration = fuseRespirationRate(recs);
   // §Phase 2 — no overlap gate: a whole-record HR comparison between two summaries on the same bus.
   var pulseCrossCheck = fusePulseCrossCheck(recs);
+  var hrvResource = fuseHrvResource(recs);
   if (hrv && hrv.blocks && hrvMotionGate)
     hrv.blocks.forEach(function (b) {
       // Attach ONLY when a gate exists, so a night without MotionDex keeps a byte-identical export
@@ -4561,6 +4664,7 @@ function runFusion(recs, opts) {
     hrvMotionGate: hrvMotionGate,
     respiration: respiration,
     pulseCrossCheck: pulseCrossCheck,
+    hrvResource: hrvResource,
     staging: staging,
     periodicBreathing: periodicBreathing,
     findings: findings,
@@ -4681,6 +4785,7 @@ function buildFusionExport(recs, fusion) {
   // `site:'finger'` PpgDex + an O2Ring OxyDex on the same bus), so every export without that pair —
   // which is every committed fixture — stays byte-identical (same rule as the motionGate attach above).
   if (fusion.pulseCrossCheck) _exp.pulseCrossCheck = fusion.pulseCrossCheck;
+  if (fusion.hrvResource) _exp.hrvResource = fusion.hrvResource;
   return _exp;
 }
 
@@ -4741,6 +4846,7 @@ window.IntegratorDSP = {
   gateHRVByMotion,
   fuseRespirationRate,
   fusePulseCrossCheck,
+  fuseHrvResource,
   pickHRAuthority,
   gradeFor,
   GRADE_MIRROR,

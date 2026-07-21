@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-20 (**Phase 1 EXECUTED + gated; §3.1 owner decision recorded (option b).** OxyDex now reads the O2Ring **perfusion index** from the Health-Box `*_OXYFRAME.txt` sidecar — a `;`-delimited superset of the ViHealth CSV (`parseCSV` gained delimiter detection + a `pi_pct` column; SpO₂/HR byte-identical from either file). `meanPi` surfaces at **measured** with a badge, rendered only when present; the ring's `pi_pct=0` no-perfusion sentinel is treated as absent, and a ViHealth CSV (no PI column) yields `meanPi: null` — never a fabricated 0. Verified on a real capture: `meanPi ≈ 2.15 %`, null on the same night's CSV. Ingest already routes the OXYFRAME to OxyDex via `^WELLUE` (no dex-ingest change). 12-assertion both-direction gate; OxyDex + orchestrators re-bundled; all three OxyDex goldens regenerated (each gained `meanPi: null, piFrames: 0` — additive); GATE A/B + both equiv legs green with the real inputs. ⚠️ Release-time `verifiedUnder` re-stamp is owed (needs the curated corpus — `release.mjs` blocks until then). **Phase 2 EXECUTED + gated 2026-07-20:** the Integrator now cross-checks the ring's finger WAVEFORM pulse against its own smoothed 1 Hz field (`fusePulseCrossCheck`, read-only, disagreement published never averaged; PpgDex exports `recording.site`, attach-only-when-both-present keeps fusion fixtures byte-identical; 22-assertion gate, all four gates green). **Still open:** Phase 3 (re-source `rmssd`/`hrVarSd` + re-tier), Phase 4 (CVHR, on the recorded §3.1 basis).) · **Created:** 2026-07-18
+**Status:** IN-PROGRESS — 2026-07-20 (**Phase 1 EXECUTED + gated; §3.1 owner decision recorded (option b).** OxyDex now reads the O2Ring **perfusion index** from the Health-Box `*_OXYFRAME.txt` sidecar — a `;`-delimited superset of the ViHealth CSV (`parseCSV` gained delimiter detection + a `pi_pct` column; SpO₂/HR byte-identical from either file). `meanPi` surfaces at **measured** with a badge, rendered only when present; the ring's `pi_pct=0` no-perfusion sentinel is treated as absent, and a ViHealth CSV (no PI column) yields `meanPi: null` — never a fabricated 0. Verified on a real capture: `meanPi ≈ 2.15 %`, null on the same night's CSV. Ingest already routes the OXYFRAME to OxyDex via `^WELLUE` (no dex-ingest change). 12-assertion both-direction gate; OxyDex + orchestrators re-bundled; all three OxyDex goldens regenerated (each gained `meanPi: null, piFrames: 0` — additive); GATE A/B + both equiv legs green with the real inputs. ⚠️ Release-time `verifiedUnder` re-stamp is owed (needs the curated corpus — `release.mjs` blocks until then). **Phase 2 EXECUTED + gated 2026-07-20:** the Integrator now cross-checks the ring's finger WAVEFORM pulse against its own smoothed 1 Hz field (`fusePulseCrossCheck`, read-only, disagreement published never averaged; PpgDex exports `recording.site`, attach-only-when-both-present keeps fusion fixtures byte-identical; 22-assertion gate, all gates green). **Phase 3 EXECUTED + gated 2026-07-20:** the Integrator `fuseHrvResource` publishes the finger-waveform ms-HRV (RR-interval RMSSD + `sdnnRobust`) as the resourced value that supersedes the ring's 1 Hz bpm proxy (carried alongside — different units, never averaged; graded `emerging` pending real-corpus validation; 33-assertion gate). **Still open:** Phase 4 (CVHR, on the recorded §3.1 (b) basis — now unblocked).) · **Created:** 2026-07-18
 
 # The O2Ring's 1 Hz pulse is a smoothed vendor summary — demote it to a reference leg
 
@@ -113,10 +113,21 @@ end-to-end + source-structural); PpgDex/Integrator/Data Unifier/OverDex + 8 anal
 re-bundled; the synthetic PpgDex golden gained `recording.site: "wrist"` (additive, re-recorded); all
 four gates green (`build --check`, GATE A/B, biome, suite 3468).
 
-**Phase 3 — re-source the HRV proxies.** Replace `rmssd`/`hrVarSd`'s 1 Hz derivation with waveform PPI.
-**Re-tier deliberately**: they were `experimental` *because* of the 1 Hz limitation; on real PPI they earn
-`validated` **only** if they reproduce the audited PulseDex HRV path — otherwise `emerging`. Do **not**
-inherit PulseDex's grades on "same algorithm" (`CLAUDE.md` §🎫, `LITERATURE-USE-POLICY`).
+**Phase 3 — re-source the HRV proxies. ✅ EXECUTED 2026-07-20.** Replace `rmssd`/`hrVarSd`'s 1 Hz
+derivation with waveform PPI. **Re-tier deliberately**: they were `experimental` *because* of the 1 Hz
+limitation; on real PPI they earn `validated` **only** if they reproduce the audited PulseDex HRV path —
+otherwise `emerging`. Do **not** inherit PulseDex's grades on "same algorithm" (`CLAUDE.md` §🎫,
+`LITERATURE-USE-POLICY`). *Shipped:* under Route B (§3), OxyDex stays single-signal (its 1 Hz proxies
+untouched, the no-finger fallback); the **Integrator** `fuseHrvResource` publishes the finger PpgDex
+**whole-record waveform HRV** (RR-interval RMSSD + `sdnnRobust`, **ms**) as the resourced value that
+**supersedes** the ring's 1 Hz proxy, carrying the proxy (bpm) alongside. **Unit finding (not in the
+original scope):** the OxyDex proxies are **bpm** (pulse-*rate* variability); the waveform HRV is **ms**
+(RR-interval) — so a Phase-2-style numeric delta is invalid. The two are carried side-by-side and **never
+averaged**; a first-order bridge (`δinterval ≈ 60000/HR²·δrate`) flags only gross order-of-magnitude
+disagreement, waveform always the reference. Graded **`emerging`** (the conservative floor — `validated`
+is owed a real-corpus reproduction of the audited PulseDex path, same standing as the `verifiedUnder`
+re-stamp). Read-only; attach-only-when-both-present keeps Integrator fixtures byte-identical. 33-assertion
+gate; all five gates green (`build --check`, GATE A/B, biome, typecheck, suite 3501).
 
 **Phase 4 — CVHR**, only after §3.1 is settled by the owner.
 
