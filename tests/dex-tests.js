@@ -4118,6 +4118,25 @@
       T.eq('cp1 delta is +3', cps[1].delta, 3);
     });
 
+    group('Bootstrap LCG uses a 32-bit-exact multiply — no 2^53 overflow (DEEP-AUDIT-II §9.5)', 'crossnight · event-coupling · prng · source', function (T) {
+      // `bootstrapDeltaCI`'s LCG (all 5 *-cross clones) + event-coupling.js used `seed * 1103515245`.
+      // seed<2^31 so seed·a reaches ~2.3e18 ≫ 2^53 — float64 rounds the LOW bits (the ones `& 0x7fffffff`
+      // keeps) to garbage, biasing the resample and narrowing the CI (verdicts near "excludes 0" flip).
+      // Math.imul(seed, a) is the exact mod-2^32 multiply, restoring the intended sequence. Pinned across
+      // every clone so a future copy can't reintroduce the overflow.
+      var files = ['oxydex-cross.js', 'ecgdex-cross.js', 'pulsedex-cross.js', 'ppgdex-cross.js', 'cpapdex-cross.js', 'event-coupling.js'];
+      var src = env.sources || {};
+      var seen = 0;
+      files.forEach(function (f) {
+        var s = src[f];
+        if (!s || s.indexOf('1103515245') < 0) return;
+        seen++;
+        T.ok(f + ' — the 1103515245 LCG multiply is Math.imul (32-bit exact)', /Math\.imul\(\s*\w+\s*,\s*1103515245\s*\)/.test(s));
+        T.ok(f + ' — no bare `* 1103515245` remains (would overflow 2^53)', !/\*\s*1103515245/.test(s));
+      });
+      T.ok('at least one cross/event-coupling source carrying the LCG was scanned', seen >= 1, 'env.sources not wired for the cross files in this lane');
+    });
+
     group('Cross-night slope basis — an index slope is never a per-day slope (DEEP-AUDIT-II §9.4)', 'crossnight · oxydex-cross · cpapdex-cross · ecgdex-cross · ppgdex-cross · pulsedex-cross', function (T) {
       var CLONES = [
         { name: 'OxyDex', cross: env.OXYCross },

@@ -158,7 +158,7 @@
       deltas = [];
     let seed = 12345;
     const rnd = () => {
-      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff; // §9.5 — Math.imul: exact mod-2^32 multiply (bare * reached ~2.3e18 > 2^53 → low bits rounded away → entropy collapse at n≥18)
       return seed / 0x7fffffff;
     };
     for (let b = 0; b < B_iter; b++) {
