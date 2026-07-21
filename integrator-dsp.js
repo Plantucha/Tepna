@@ -271,7 +271,11 @@ function adaptEnvelopeNode(json, node, filename) {
     var _endEp = _rec.endEpochMs != null ? _rec.endEpochMs : json.endEpochMs != null ? json.endEpochMs : null;
     var _durMin = _rec.durationMin != null ? _rec.durationMin : json.durationMin != null ? json.durationMin : json.durMin != null ? json.durMin : null;
     var _durMs = _rec.durationMs != null ? _rec.durationMs : json.durationMs != null ? json.durationMs : null;
-    var _durSec = _rec.durationSec != null ? _rec.durationSec : json.durationSec != null ? json.durationSec : null;
+    // DEEP-AUDIT-II §7.6 — MotionDex's export writes recording.durSec (motiondex-dsp.js buildNodeExport),
+    // which none of the keys above name, so a MotionDex envelope's declared length was ignored here and its
+    // fusion-overlap window collapsed to the last posture_change event (all-node overlap read ~40 min for an
+    // 8 h night). Honor `durSec` too — additive + back-compat (only consulted when durationSec is absent).
+    var _durSec = _rec.durationSec != null ? _rec.durationSec : _rec.durSec != null ? _rec.durSec : json.durationSec != null ? json.durationSec : json.durSec != null ? json.durSec : null;
     if (_endEp != null) _declEnd = _endEp;
     else if (_durMin != null) _declEnd = t0Ms + _durMin * 60000;
     else if (_durMs != null) _declEnd = t0Ms + _durMs;
