@@ -266,7 +266,7 @@ Correctness first. **One gated change at a time** (`CLAUDE.md` §👥.3). Each i
 | 7 | ✅ **DONE 2026-07-19 (PR #238)** — **Integrator drops multi-record events** — also surface `validateNodeExport` warnings | 8.1 | 1 bundle · `historical:true` fixtures don't move |
 | 8 | ✅ **DONE 2026-07-19 (PR #232)** — **GlucoDex "Largest drift" 18× in mmol/L** — two characters | 5.3 | 1 bundle |
 | 9 | **Integrator counts gap interpolation as measured glucose** — add the `f === 4` arm at `integrator-dsp.js:1627` and exclude interpolated cells from `coverage`. **Land the Integrator edit alone first**; the `cellsNote` doc fix is separate and more expensive. Gate with the **committed** Lingo-gap twin | 8.3 | 1 bundle · fixtures hold |
-| 10 | **`oxydex-fusion` coverage trilogy** — all three ungated today | 11.1–11.3 | 1 bundle · **first-ever gate on this function** |
+| 10 | ✅ **DONE 2026-07-21** — **`oxydex-fusion` coverage trilogy**: one coverage-aware fix in `oxyComputeFusion` closes all three. §11.1 `confPct` = confirmed ÷ ECG-covered desats (not ÷ whole-night). §11.2 a non-overlapping ECG (`coveredDesats` 0) renders "no coverage", never a green 0/N. §11.3 the hypoxic dose/event scopes the whole-night burden to the covered desat fraction (`hbCov`), removing the ~3.7× inflation. First-ever **execution** gate on the function (`tests/dex-tests.js`, 7/7; `oxydex-fusion.js` now executed in the co-load realm). Render-only, `computeHash` moved but the synthetic golden has no paired ECG so the export reproduces byte-identical | 11.1–11.3 | 1 bundle · **first-ever gate on this function** |
 
 ## Tier 1 — mis-states a number under an input the corpus can produce
 

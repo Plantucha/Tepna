@@ -300,8 +300,25 @@ function oxyComputeFusion(n, ecg) {
       }
     });
   }
-  var desN = desatMs.length,
-    confPct = desN ? Math.round((confirmed / desN) * 100) : null;
+  var desN = desatMs.length;
+  // DEEP-AUDIT-II §11.1/§11.2 — coverage-aware. The paired ECG records only its OWN
+  // window; desats outside it CANNOT be confirmed, so they must not be counted as misses.
+  // confPct = confirmed / the desats the ECG could actually see. When the ECG does not
+  // overlap any of the night's desats (coveredDesats 0 — e.g. a ≤4 h device-offset pairing
+  // that never intersects), confPct is null → "no coverage", never a green 0 (the
+  // fabricated-absence render). A surge only exists inside the ECG window so confirmed ⊆
+  // coveredDesats by construction; Math.max guards a boundary-rounding edge.
+  var _cov = _oxyEcgWindow(ecg);
+  var coveredDesats = _cov
+    ? Math.max(
+        confirmed,
+        desatMs.reduce(function (c, m) {
+          return c + (m >= _cov.a && m <= _cov.b ? 1 : 0);
+        }, 0)
+      )
+    : desN;
+  var coveragePct = desN > 0 ? Math.round((coveredDesats / desN) * 100) : null;
+  var confPct = coveredDesats > 0 ? Math.round((confirmed / coveredDesats) * 100) : null;
   // ── null model (mirror of Integrator): expected confirmations by chance ──
   var _w0 = Math.min.apply(null, [].concat(surges, desatMs)),
     _w1 = Math.max.apply(null, [].concat(surges, desatMs));
@@ -341,7 +358,14 @@ function oxyComputeFusion(n, ecg) {
   var cvhrEv = ap && ap.cvhrEvents != null ? ap.cvhrEvents : null;
   var doseDenom = confirmed > 0 ? confirmed : cvhrEv || 0;
   var doseBasis = confirmed > 0 ? 'confirmed desat' : cvhrEv ? 'ECG CVHR' : null;
-  var dosePerEv = hbTotal != null && doseDenom > 0 ? +(hbTotal / doseDenom).toFixed(1) : null;
+  // DEEP-AUDIT-II §11.3 — the burden numerator is WHOLE-NIGHT while the event denominator
+  // is ECG-window-only; dividing them inflates dose/event by 1/coverage (~3.7× on a
+  // quarter-covered night). Scope the numerator to the covered fraction so both sides share
+  // one time base. Hypoxic burden concentrates AT desats, so the desat-coverage fraction is
+  // the apt proration; hbCov == hbTotal when the ECG spans the whole night.
+  var _covFrac = desN > 0 ? coveredDesats / desN : 1;
+  var hbCov = hbTotal != null ? +(hbTotal * _covFrac).toFixed(1) : null;
+  var dosePerEv = hbCov != null && doseDenom > 0 ? +(hbCov / doseDenom).toFixed(1) : null;
 
   // ── metric 4: SpO₂ nadir depth per ECG-staged sleep stage ──
   // ECG staging is precise but only covers its own recording window. Desats the
@@ -390,6 +414,8 @@ function oxyComputeFusion(n, ecg) {
     surges: surges,
     confirmed: confirmed,
     desN: desN,
+    coveredDesats: coveredDesats,
+    coveragePct: coveragePct,
     confPct: confPct,
     latencies: latencies,
     belowChance: belowChance,
@@ -400,6 +426,7 @@ function oxyComputeFusion(n, ecg) {
     apneaType: apneaType,
     latType: latType,
     hbTotal: hbTotal,
+    hbCov: hbCov,
     cvhrEv: cvhrEv,
     doseDenom: doseDenom,
     doseBasis: doseBasis,
@@ -433,6 +460,7 @@ function oxyEcgFusionSection(n, ecg) {
     surges = F.surges;
   var confirmed = F.confirmed,
     desN = F.desN,
+    coveredDesats = F.coveredDesats,
     confPct = F.confPct,
     latencies = F.latencies;
   var belowChance = F.belowChance,
@@ -443,6 +471,8 @@ function oxyEcgFusionSection(n, ecg) {
     apneaType = F.apneaType,
     latType = F.latType;
   var hbTotal = F.hbTotal,
+    hbCov = F.hbCov,
+    coveragePct = F.coveragePct,
     doseDenom = F.doseDenom,
     doseBasis = F.doseBasis,
     dosePerEv = F.dosePerEv;
@@ -497,13 +527,18 @@ function oxyEcgFusionSection(n, ecg) {
   // apnea confirmation tile
   if (desN) {
     var gateTxt = '−' + GATE.leadMaxSec + 's…+' + GATE.trailMaxSec + 's';
-    if (confirmed > 0 && !belowChance) {
+    var covTxt = coveredDesats + ' of ' + desN + ' desats within ECG coverage';
+    if (coveredDesats === 0) {
+      // §11.2 — the paired ECG (a device-offset/near-date pairing) did not overlap ANY of
+      // the night's desats: report no coverage, NOT a green "0 confirmed" (fabricated absence).
+      html += tile('—', 'blue', 'Confirmed apnea', 'the paired ECG did not overlap any of the ' + desN + ' scored desats — no cross-confirmation coverage this night');
+    } else if (confirmed > 0 && !belowChance) {
       var apCls = confPct >= 50 ? 'bad' : confPct >= 25 ? 'warn' : 'ok';
-      html += tile(confirmed + '/' + desN, apCls, 'Confirmed apnea', confPct + '% of desats co-occur with a directionally-consistent ECG surge (' + gateTxt + ')');
+      html += tile(confirmed + '/' + coveredDesats, apCls, 'Confirmed apnea', confPct + '% of ECG-covered desats co-occur with a directionally-consistent surge (' + gateTxt + '; ' + covTxt + ')');
     } else if (confirmed > 0 && belowChance) {
-      html += tile(confirmed + '/' + desN, 'warn', 'Confirmed apnea', 'at/below chance (expected ≈' + expectedConfirmed + ', p=' + pSpurious + ') — not asserted');
+      html += tile(confirmed + '/' + coveredDesats, 'warn', 'Confirmed apnea', 'at/below chance (expected ≈' + expectedConfirmed + ', p=' + pSpurious + ') — not asserted');
     } else {
-      html += tile('0/' + desN, 'ok', 'Confirmed apnea', 'no desat had a directionally-consistent surge (' + gateTxt + ')');
+      html += tile('0/' + coveredDesats, 'ok', 'Confirmed apnea', 'no ECG-covered desat had a directionally-consistent surge (' + gateTxt + '; ' + covTxt + ')');
     }
   } else {
     html += tile('—', 'blue', 'Confirmed apnea', 'no scored desaturations this night');
@@ -552,7 +587,13 @@ function oxyEcgFusionSection(n, ecg) {
       dosePerEv + '<span style="font-size:13px;color:var(--text3)"> %·min</span>',
       dCls,
       'Hypoxic dose / event',
-      'per ' + doseBasis + ' event · burden ' + (hbTotal != null ? hbTotal + ' %·min' : '—') + ' ÷ ' + doseDenom
+      'per ' +
+        doseBasis +
+        ' event · ' +
+        (hbCov != null ? hbCov + ' %·min' : '—') +
+        ' ÷ ' +
+        doseDenom +
+        (coveragePct != null && coveragePct < 100 ? ' (burden scoped to the ' + coveragePct + '% of desats under ECG coverage; whole-night ' + hbTotal + ' %·min)' : '')
     );
   }
   html += '</div>'; // efz-grid

@@ -988,7 +988,7 @@ async function main() {
   // same bare names already in the shared realm (classicify leaks top-level decls). Wrapping each in an IIFE
   // scopes those decls while the `window.X`/`global.X` attaches (GluDisp · OxyDex.reviewView · CpapRender ·
   // PulseDex.reviewView) still escape to the sandbox. Deps (their DSP · dex-escape) are already loaded above.
-  ['glucodex-render.js', 'oxydex-render.js', 'cpapdex-render.js', 'hrvdex-render.js', 'pulsedex-render.js', 'ecgdex-render.js'].forEach((f) => {
+  ['glucodex-render.js', 'oxydex-render.js', 'cpapdex-render.js', 'hrvdex-render.js', 'pulsedex-render.js', 'ecgdex-render.js', 'oxydex-fusion.js'].forEach((f) => {
     try {
       const p = join(ROOT, f);
       if (!existsSync(p)) return;
@@ -1070,6 +1070,7 @@ async function main() {
     fusePulseCrossCheck: ctx.fusePulseCrossCheck,
     fuseHrvResource: ctx.fuseHrvResource,
     fuseCvhrCorroboration: ctx.fuseCvhrCorroboration,
+    oxyComputeFusion: ctx.oxyComputeFusion,
     reconstructEventTMs: ctx.reconstructEventTMs,
     pearson: ctx.pearson,
     labelPositionalApnea: ctx.labelPositionalApnea,
