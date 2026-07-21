@@ -142,6 +142,28 @@ function upSpo2Adj() {
   return Math.min(7, Math.round((elv / 1000) * 1.8));
 }
 
+// Human-readable disclosure of the SpO₂ altitude adjustment, rendered next to the
+// SpO₂ KPIs it moves. DEEP-AUDIT-II #43 / COVERAGE-MANDATE: upSpo2Adj() silently
+// shifts every SpO₂ verdict threshold in oxydex-render.js — a norm moved under the
+// user's elevation MUST be visible where it grades a number, never silent (the old
+// `pd_elev` disclosure wrote to a DOM id that never existed → the panel showed
+// nothing). Returns '' at sea level (adj rounds to 0), so it only appears when a
+// threshold actually moved.
+function spo2ElevNote() {
+  var adj = upSpo2Adj();
+  if (!adj) return '';
+  var elv = UP.elevation || 0;
+  return (
+    '<div class="srb-note mt-sm">Elevation ' +
+    elv +
+    ' m — SpO₂ norms lowered −' +
+    adj +
+    '% for altitude: the healthy range shown here is ≥' +
+    (95 - adj) +
+    '% (adjusted from ≥95%). <span class="cite-note">~1.8%/1000 m, Roach 1998 / AMS guidance</span></div>'
+  );
+}
+
 function upHRmax() {
   return UP.hrmaxOverride > 0 ? UP.hrmaxOverride : Math.round(208 - 0.7 * UP.age);
 }
@@ -271,12 +293,11 @@ function profileDerivedUpdate() {
   pd('pd_bap', '<b>BAP: ' + bap + '</b> (' + (bap < 2.1 ? '✅ <2.1=good' : '⚠️ elevated') + ') <span class="bap-note">(non-standard · trend only)</span>');
   pd('pd_vo2abs', vo2abs !== null ? '<b>VO₂ absolute: ' + vo2abs + ' L/min</b>' : '<b>VO₂ absolute:</b> enter VO₂max above');
   pd('pd_vo2cat', vo2cat ? '<b>VO₂ category: ' + vo2cat.cat + '</b> (~' + vo2cat.pct + ' pct)' : '<b>VO₂ category:</b> enter VO₂max above');
-  var _elv = UP.elevation || 0;
-  var _adj = upSpo2Adj();
-  pd(
-    'pd_elev',
-    _elv > 0 ? '<b>Elevation: ' + _elv + ' m</b> · SpO₂ norms adjusted −' + _adj + '% (normal range now ≥' + (95 - _adj) + '%)' : '<b>Elevation:</b> 0 m (sea level) · standard SpO₂ norms'
-  );
+  // NOTE (DEEP-AUDIT-II #43): the SpO₂ elevation adjustment is now disclosed at the
+  // SpO₂ KPI via spo2ElevNote() (oxydex-render.js Oxygen card), where it grades a
+  // number — not here, where the target `pd_elev` id never existed and rendered
+  // nothing. The remaining pd_* writes below are likewise legacy no-ops (tracked
+  // under §13's profile-panel findings), left untouched by this fix.
 
   // Karvonen zones — use UP.hrRest if auto-detected, else estimate
   // HRrest priority: 1) manual entry, 2) derived from user's nocturnal data, 3) age-adjusted population estimate
@@ -654,6 +675,7 @@ function openProfile() {
 // render's upSpo2Adj/profileAutoDetectUpdate calls, the app/data-act profile controls).
 Object.assign(window, {
   upSpo2Adj,
+  spo2ElevNote,
   upVO2category,
   profileAutoDetectUpdate,
   toggleProfile,
