@@ -100,6 +100,24 @@
     return { dmy: pref, locked: false, contradictory: false };
   }
 
+  // DEEP-AUDIT-II §12.3 — Clock Contract amendment. Date.UTC SILENTLY ROLLS out-of-range components
+  // (month 13 → next January, day 45 → next month, 25:99 → +1 day 1 h 39 m), so a corrupt stamp used to
+  // land on a plausible WRONG instant instead of an honest null. `_ckMk` builds the floating tMs ONLY if
+  // every component is in range: the date must round-trip (rejects month>12, day>31, Feb 30, Apr 31…) and
+  // the time must be 0–23 : 0–59 : 0–59 . 0–999. The ONE legitimate overflow is ISO-8601 `24:00:00`
+  // (end-of-day) — normalized to next-day 00:00, NOT rejected (do not add a bare `h>23` guard). Returns
+  // a number, or null on any out-of-range component (Clock §2.6 — a bad stamp is visible, never fabricated).
+  function _ckMk(y, mo0, d, h, mi, se, ms) {
+    se = se || 0;
+    ms = ms || 0;
+    var day0 = Date.UTC(y, mo0, d),
+      dd = new Date(day0);
+    if (dd.getUTCFullYear() !== y || dd.getUTCMonth() !== mo0 || dd.getUTCDate() !== d) return null; // date rolled ⇒ invalid
+    if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000; // ISO end-of-day → next 00:00:00
+    if (h < 0 || h > 23 || mi < 0 || mi > 59 || se < 0 || se > 59 || ms < 0 || ms > 999) return null;
+    return Date.UTC(y, mo0, d, h, mi, se, ms);
+  }
+
   function parseTimestamp(raw, opts) {
     opts = opts || {};
     var preferDMY = opts.preferDMY !== false; // default true (O2Ring/Welltory exports are DMY)
@@ -118,37 +136,50 @@
     m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?\s*(Z|[+-]\d{2}:?\d{2})$/);
     if (m) {
       var off = m[8] === 'Z' ? 0 : _ckZoneMin(m[8]);
-      return { tMs: Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0), offsetMin: off };
+      var _tz = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0);
+      return _tz == null ? null : { tMs: _tz, offsetMin: off };
     }
     // 3. ISO / "YYYY-MM-DD[ T]HH:MM[:SS][.sss]" NO zone → components verbatim (ms preserved)
     m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?$/);
-    if (m) return { tMs: Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0), offsetMin: null };
+    if (m) {
+      var _ti = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0);
+      return _ti == null ? null : { tMs: _ti, offsetMin: null };
+    }
     // 4a. "HH:MM:SS DD/MM/YYYY" | "HH:MM:SS MM/DD/YYYY" (O2Ring)
     m = s.match(/^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (m) {
       var dm = _ckDMY(+m[4], +m[5], preferDMY, dmyLocked);
       if (!dm) return null; // row contradicts the file's proven order → honest null
-      return { tMs: Date.UTC(+m[6], dm.mo - 1, dm.d, +m[1], +m[2], +m[3]), offsetMin: null };
+      var _to = _ckMk(+m[6], dm.mo - 1, dm.d, +m[1], +m[2], +m[3]);
+      return _to == null ? null : { tMs: _to, offsetMin: null };
     }
     // 4b. compact "YYYYMMDDHHMMSS" (14-digit, O2Ring filename embed)
     m = s.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/);
-    if (m) return { tMs: Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]), offsetMin: null };
+    if (m) {
+      var _tc = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+      return _tc == null ? null : { tMs: _tc, offsetMin: null };
+    }
     // 4c. "DD/MM/YYYY HH:MM[:SS]" | "MM/DD/YYYY HH:MM[:SS]" (Welltory etc.)
     m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
     if (m) {
       var dm2 = _ckDMY(+m[1], +m[2], preferDMY, dmyLocked);
       if (!dm2) return null; // row contradicts the file's proven order → honest null
-      return { tMs: Date.UTC(+m[3], dm2.mo - 1, dm2.d, +m[4], +m[5], m[6] ? +m[6] : 0), offsetMin: null };
+      var _tw = _ckMk(+m[3], dm2.mo - 1, dm2.d, +m[4], +m[5], m[6] ? +m[6] : 0);
+      return _tw == null ? null : { tMs: _tw, offsetMin: null };
     }
     // 4d. "YYYY/MM/DD HH:MM[:SS]"
     m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-    if (m) return { tMs: Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0), offsetMin: null };
+    if (m) {
+      var _ty = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0);
+      return _ty == null ? null : { tMs: _ty, offsetMin: null };
+    }
     // 5. Time-only "HH:MM[:SS]" → combine with dateAnchorMs, monotonic roll-forward
     m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
     if (m) {
       if (anchor == null) return null; // never fabricate Jan-1-2000
       var d0 = new Date(anchor);
-      var t = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth(), d0.getUTCDate(), +m[1], +m[2], m[3] ? +m[3] : 0);
+      var t = _ckMk(d0.getUTCFullYear(), d0.getUTCMonth(), d0.getUTCDate(), +m[1], +m[2], m[3] ? +m[3] : 0);
+      if (t == null) return null; // §12.3 — an out-of-range time-only stamp (e.g. 25:99) → honest null
       if (opts.prevTMs != null && isFinite(opts.prevTMs)) {
         while (t < opts.prevTMs) t += 86400000;
       }
