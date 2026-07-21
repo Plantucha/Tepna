@@ -33,7 +33,9 @@
       "pnn50": 0,
       "hr": 66.9,
       "meanRR": 897.1,
-      "lnRMSSD": 3.784
+      "lnRMSSD": 3.784,
+      "units": "ms",
+      "windowNote": "rmssd/sdnn/pnn50/hr/meanRR are WHOLE-RECORD. lnRMSSD is the representative 5-min epoch median on overnight recordings (short recs: whole-record) — the value HRV interpretation uses, so it is deliberately NOT ln(rmssd) above. DEEP-AUDIT-II §3.5. (ECGDex mirrors the opposite convention — its rmssd/sdnn/pnn50 are the epoch medians and it exports wholeRecordRMSSD alongside.)"
     },
     "frequency": {
       "lf": 0,
