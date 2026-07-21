@@ -1279,7 +1279,12 @@
       const lnR = w.epochs.map((e) => Math.log(Math.max(1, e.rmssd)));
       const m = mean(lnR),
         sd = std(lnR);
-      pts.push({ tMin: w.tMin, lnSD: sd, lnVar: sd * sd, lnMean: m });
+      // n = epochs in this window. A trailing group is admitted with as few as 3
+      // (≈15 min, not a full 30-min window) — see the `>= 3` guards above; carry n
+      // so an under-sampled window is VISIBLE rather than silently equal-weighted
+      // (DEEP-AUDIT-II #39). The slope fit is deliberately left unchanged — the
+      // real-corpus effect is immaterial; surfacing n is the honest half.
+      pts.push({ tMin: w.tMin, lnSD: sd, lnVar: sd * sd, lnMean: m, n: w.epochs.length });
     }
     const xs = pts.map((p) => p.tMin / 60); // hours
     const sdSlope = linfit(
@@ -1315,7 +1320,7 @@
       mean_lnRMSSD_slope: +meanSlope.toFixed(4),
       classification: cls,
       severity: sev,
-      series: pts.map((p) => ({ tMin: p.tMin, lnSD: +p.lnSD.toFixed(3), lnMean: +p.lnMean.toFixed(3) }))
+      series: pts.map((p) => ({ tMin: p.tMin, lnSD: +p.lnSD.toFixed(3), lnMean: +p.lnMean.toFixed(3), n: p.n }))
     };
   }
 
@@ -3542,6 +3547,7 @@
   global.ECGDSP.parseDeviceHR = parseDeviceHR;
   global.ECGDSP.parseDeviceACC = parseDeviceACC;
   global.ECGDSP.planCompanionGraft = planCompanionGraft; // §10.4 — pure, so the graft rule is gateable
+  global.ECGDSP.hrvStability = hrvStability; // DEEP-AUDIT-II #39 — pure, so the per-window epoch count n is gateable
   global.ECGDSP.compute = compute;
   global.ECGDSP.buildNodeExport = ecgBuildNodeExport;
   // ONE namespaced global (brief §1A). ECGDex leaks nothing bare (the whole DSP is in this
