@@ -549,19 +549,33 @@
     cps.sort(function (a, b) {
       return a.k - b.k;
     });
+    // DEEP-AUDIT-II §6.1 — recompute before/after from the FINAL segment boundaries, NOT from each
+    // recursion's [lo,hi]. Binary segmentation nests: the top split stored `after = med(k1, n)`, a
+    // median spanning the NEXT change — so it was neither a real held setting nor equal to the next
+    // point's `before` (a self-contradicting export where cp[0].after ≠ cp[1].before, a `before` value
+    // that was never a setting, and a wrong `delta`). A change point divides two adjacent segments, so
+    // its before/after are those two segment medians — cp[i].after == cp[i+1].before by construction,
+    // and every value is a genuine held-regime level.
+    var bnd = [0];
+    for (var b0 = 0; b0 < cps.length; b0++) bnd.push(cps[b0].k);
+    bnd.push(n);
+    var segMed = [];
+    for (var g = 0; g < bnd.length - 1; g++) segMed.push(med(vals, bnd[g], bnd[g + 1]));
     var out = [];
     for (var c = 0; c < cps.length; c++) {
       var kk = cps[c].k;
+      var beforeMed = segMed[c];
+      var afterMed = segMed[c + 1];
       var nextK = c + 1 < cps.length ? cps[c + 1].k : n;
       out.push({
         nightIdx: xs[kk],
         tMs: ts[kk],
         dateUTC: fmtDateUTC(ts[kk]),
         metric: opts.metric || null,
-        before: +cps[c].before.toFixed(2),
-        after: +cps[c].after.toFixed(2),
-        delta: +(cps[c].after - cps[c].before).toFixed(2),
-        direction: cps[c].after < cps[c].before ? 'down' : 'up',
+        before: +beforeMed.toFixed(2),
+        after: +afterMed.toFixed(2),
+        delta: +(afterMed - beforeMed).toFixed(2),
+        direction: afterMed < beforeMed ? 'down' : 'up',
         holdNights: nextK - kk
       });
     }

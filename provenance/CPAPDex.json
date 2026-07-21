@@ -1,11 +1,11 @@
 {
   "bundle": "CPAPDex.html",
-  "manifestHash": "66634647c480",
+  "manifestHash": "8414c2415e4b",
   "fixtures": {
     "cpapdex-2026-06-12.node-export.json": {
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II F1 — shared dex-export.js scrubExport now sweeps recordings[]/sessions[]/nights[] multi carriers). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
       "bundle": "CPAPDex.html",
-      "manifestHash": "66634647c480",
+      "manifestHash": "8414c2415e4b",
       "note_exportidfollowupsii": "REGENERATED 2026-06-29 (EXPORT-IDENTITY-FOLLOWUPS-II §1) — recording.contentId:'f883a8667665' added. This real-EDF fixture is NOT in the live equiv gate (binary multi-file EDF input), so the contentId was RECONSTRUCTED from the fixture's OWN committed recording.sessions[] (the exact fold inputs: startEpochMs/durMin/usageHours/recordsRead/numRecords/mode) + recording.startEpochMs — NOT hand-fabricated: the reconstruction formula was PROVEN identical to the live cpapBuildExport fold via the synthetic-golden cross-check (built==recon, same pass), so this equals what re-running CPAPDex on the committed 06-12 AirSense EDF set would emit. Producing-bundle manifestHash moved 54cc94bfcdcb→d79dbbfb0095 (resolves the same pre-existing CPAPDex drift noted on the golden). GATE B asserts the producing bundle's CURRENT manifestHash still equals d79dbbfb0095.",
       "added": "2026-06-28",
       "inputs": [
@@ -40,7 +40,7 @@
     "cpapdex-2026-06-16.json": {
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II F1 — shared dex-export.js scrubExport now sweeps recordings[]/sessions[]/nights[] multi carriers). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
       "bundle": "CPAPDex.html",
-      "manifestHash": "66634647c480",
+      "manifestHash": "8414c2415e4b",
       "note_exportidfollowupsii": "REGENERATED 2026-06-29 (EXPORT-IDENTITY-FOLLOWUPS-II §1) — recording.contentId:'aa93a4748331' added, reconstructed from this fixture's committed recording.sessions[] (see cpapdex-2026-06-12's note for the proven-equivalent method + the synthetic-golden cross-check). NOTE uploads/integrator_fusion_2026-06-16.json inputs[] fingerprints THIS file by bytes+sha256 (an immutable historical fusion snapshot per CLAUDE.md/FOLLOWUPS-IV §3); adding a recording.contentId field changes this fixture's bytes, so that historical fingerprint is now stale-by-design — it is a record of what was fused on 2026-06-16, not a live gate, and is left intact (the Integrator input-fingerprint is explicitly historical). Producing-bundle manifestHash moved 54cc94bfcdcb→d79dbbfb0095. GATE B asserts the producing bundle's CURRENT manifestHash still equals d79dbbfb0095.",
       "added": "2026-06-28",
       "inputs": [
@@ -65,7 +65,7 @@
     "cpapdex_synthetic_golden.node-export.json": {
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II F1 — shared dex-export.js scrubExport now sweeps recordings[]/sessions[]/nights[] multi carriers). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
       "bundle": "CPAPDex.html",
-      "manifestHash": "66634647c480",
+      "manifestHash": "8414c2415e4b",
       "note_exportidfollowupsii": "REGENERATED 2026-06-29 (EXPORT-IDENTITY-FOLLOWUPS-II §1 — node adoption of recording.contentId). cpapBuildExport now stamps recording.contentId via the CORE SignalFrame.computeContentId (signal-frame.js newly bundled into CPAPDex) — the raw 25 Hz flow is not retained on `night`, so it folds the per-session structural signature (t0Ms/durMin/usageHours/recordsRead/numRecords/mode) + night t0Ms, single-sourced in the shared builder. Patched recording.contentId:'ed0deaccc6a7'. The Dex-Test-Suite golden gate rebuilds CpapDsp._synthEdfSet({oxi,cs})→buildSessionFromEdf→buildNight→cpapBuildExport and deep-diffs the full tree — VERIFIED 2026-06-29: the rebuilt export's recording.contentId equals this patched value (the ONLY non-volatile delta; all else byte-identical). CPAPDex re-bundled → manifestHash now d79dbbfb0095 (this also resolves a PRE-EXISTING drift: the committed bundle's manifestHash had diverged from the prior BUILD-MANIFEST entry 54cc94bfcdcb before this pass — GATE A/B were already red on CPAPDex; both now reconciled to the freshly-bundled d79dbbfb0095). GATE B asserts the producing bundle's CURRENT manifestHash still equals d79dbbfb0095.",
       "added": "2026-06-28",
       "inputs": [],
@@ -78,7 +78,7 @@
     "cpapdex_synthetic_multinight_golden.node-export.json": {
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II F1 — shared dex-export.js scrubExport now sweeps recordings[]/sessions[]/nights[] multi carriers). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
       "bundle": "CPAPDex.html",
-      "manifestHash": "66634647c480",
+      "manifestHash": "8414c2415e4b",
       "note_exportidfollowupsii": "REGENERATED 2026-06-29 (EXPORT-IDENTITY-FOLLOWUPS-II §1) — recording.contentId added to EACH of the 3 per-night cpapBuildExport elements (the multi-night wrapper itself spans N recordings, so it carries no single recording.contentId — the same rule as a PulseDex series). Patched per-night contentIds ['ed0deaccc6a7','b5c790f0d1cf','a436d6c21a20'] (night[0] == the single-golden's, the unshifted _synthEdfSet). VERIFIED 2026-06-29: the Dex-Test-Suite multi-night gate rebuilds the 3 day-shifted nights via the chain and the rebuilt per-night recording.contentId values equal these patched values element-wise (ONLY non-volatile delta). Rides the same CPAPDex re-bundle → d79dbbfb0095. GATE B asserts the producing bundle's CURRENT manifestHash still equals d79dbbfb0095.",
       "added": "2026-06-28",
       "inputs": [],
@@ -90,7 +90,7 @@
     },
     "cpapdex_synthetic_edf_golden.node-export.json": {
       "bundle": "CPAPDex.html",
-      "manifestHash": "66634647c480",
+      "manifestHash": "8414c2415e4b",
       "added": "2026-07-12",
       "inputs": [
         "20260613_231433_BRP.edf",
