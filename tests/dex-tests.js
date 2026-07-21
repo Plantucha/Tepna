@@ -19601,6 +19601,52 @@
       }
     });
 
+    /* ════ MotionDex effort epochs are WALL-CLOCK windows, not sample-index windows (DEEP-AUDIT-II §7.1/§7.2) ════
+     §7.2: `relSecOf` used the PER-STREAM device counter (`relNs`, 0 at the stream's own first sample) as if it
+     were seconds-from-the-GLOBAL-`t0Ms`, so a chest sensor that starts after `t0Ms` was time-shifted. §7.1:
+     `respiratoryEffort` sliced the effort signal by SAMPLE INDEX (`e·CAD·hz`) while stamping each epoch by
+     wall-clock — on any gap or off-nominal rate the two diverge, so the effort-present flag the Integrator reads
+     for apnea typing lands on the wrong samples. Pre-fix an epoch with NO coverage (before the chest started, or
+     inside a dropout) read present=true — a CENTRAL apnea (no effort) then mistypes OBSTRUCTIVE. Drives a chest
+     stream that starts 20 s after t0Ms with a 12 s mid-stream gap and asserts a coverage-honest present-track. ════ */
+    group('MotionDex effort epochs are wall-clock windows (DEEP-AUDIT-II §7.1/§7.2)', 'motiondex-dsp · effort · timing', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.respiratoryEffort === 'function' && typeof MD.parseSensorXYZ === 'function')) {
+        T.skip('MOTIONDSP.respiratoryEffort + parseSensorXYZ available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      var HZ = 26,
+        DT = 1e9 / HZ,
+        T0 = Date.UTC(2026, 5, 10, 22, 0, 0), // global anchor (an earlier wrist stream would set this)
+        CHEST_START = T0 + 20000; // chest begins 20 s LATER (exercises §7.2)
+      var lines = ['Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]'],
+        ns = 0;
+      for (var i = 0; i < HZ * 120; i++) {
+        var tRel = i / HZ; // seconds since chest start
+        if (tRel >= 40 && tRel < 52) {
+          ns += DT;
+          continue;
+        } // 12 s gap: samples dropped, device counter keeps running (exercises §7.1)
+        var breath = Math.sin(2 * Math.PI * 0.25 * tRel); // 15 brpm effort, present throughout the recording
+        lines.push([new Date(CHEST_START + Math.round(tRel * 1000)).toISOString(), String(ns), '5', (1000 * (1 + 0.03 * breath)).toFixed(1), '20'].join(';'));
+        ns += DT;
+      }
+      var chest = MD.parseSensorXYZ(lines.join('\n'));
+      var series = (MD.respiratoryEffort(chest, T0, 130, 'mg') || {}).series || []; // t0Ms is 20 s BEFORE the chest
+      // §7.2 — wall 0–20 s is BEFORE the chest started ⇒ no coverage, must be present:null (pre-fix: fabricated present)
+      T.ok('epochs before the chest stream starts are present:null, not fabricated present', series[0] && series[0].present === null && series[1] && series[1].present === null, 'ep0=' + (series[0] && series[0].present) + ' ep1=' + (series[1] && series[1].present));
+      // §7.1 — the gap at chest-relative 40–52 s = wall 60–72 s reads no-coverage (epoch 6 = wall 60–70 s)
+      T.ok('the mid-stream gap epoch is present:null, not fabricated present', series[6] && series[6].present === null, 'ep6(wall60-70s)=' + (series[6] && series[6].present));
+      // covered, breathing epochs ARE present (before + after the gap)
+      T.ok('a covered breathing epoch reads present:true (before the gap)', series[3] && series[3].present === true, 'ep3=' + (series[3] && series[3].present));
+      T.ok('a covered breathing epoch reads present:true (after the gap)', series[9] && series[9].present === true, 'ep9=' + (series[9] && series[9].present));
+      // the whole point — the pre-fix track was ALL-present (no-coverage fabricated as effort)
+      var nNull = series.filter(function (e) {
+        return e.present === null;
+      }).length;
+      T.ok('present-track is coverage-honest — ≥3 null epochs, not the pre-fix all-present track', nNull >= 3, 'null epochs=' + nNull + ' of ' + series.length);
+    });
+
     /* MULTI-SENSOR-DERIVATIONS §1.2 — positional OSA from MotionDex body position.
        Two things this pins that BOTH shipped broken before it existed:
        (a) MotionDex must be a REGISTERED Integrator node (NODE_COLORS + KNOWN_NODES) — otherwise the R2
