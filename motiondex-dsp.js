@@ -90,11 +90,19 @@
     var h = (headerLine || '').toLowerCase();
     var m = (headerLine || '').match(UNIT_RE);
     var unit = m ? m[1] : null;
-    if (unit && /mg|(^g$)|G/.test(unit) && !/dps|µt|ut/i.test(unit)) return { kind: 'acc', unit: unit };
+    // GYRO — angular rate.
     if (/dps|deg\/s/.test(h)) return { kind: 'gyro', unit: unit || 'dps' };
-    if (/µt|ut/i.test(h) || /magn/.test(h)) return { kind: 'mag', unit: unit || 'µT' };
-    if (/\[mg\]/.test(h)) return { kind: 'acc', unit: 'mg' };
-    return { kind: 'acc', unit: unit || 'mg' }; // XYZ default
+    // MAGNETOMETER — µT/uT, a MAGN header, OR Gauss `[G]`. DEEP-AUDIT-II §7.9: a capital-G `[G]` is GAUSS,
+    // a MAGNETIC unit — NOT gravity 'g'/'mg'. The old acc branch `/mg|(^g$)|G/` matched it and returned
+    // {kind:'acc', unit:'G'}, so a real Polar-Sense `X [G]` MAGN file was typed as acceleration and read as
+    // gravity-g by toG. CASE is the discriminator (UNIT_RE's /i capture preserves it): `unit==='G'` is Gauss,
+    // `'g'` is gravity. Gauss → µT (1 G = 100 µT, CLAUDE.md §📏) is applied at the parse boundary below.
+    if (/µt|ut/i.test(h) || /magn/.test(h) || unit === 'G') return { kind: 'mag', unit: unit === 'G' ? 'G' : unit || 'µT' };
+    // ACC — milli-g (mg, case-insensitive: a `[mG]` header is still milli-g) or gravity-g (lowercase g).
+    if (unit && /^mg$/i.test(unit)) return { kind: 'acc', unit: 'mg' };
+    if (unit === 'g') return { kind: 'acc', unit: 'g' };
+    if (/\[\s*mg\s*\]/i.test(h)) return { kind: 'acc', unit: 'mg' };
+    return { kind: 'acc', unit: 'mg' }; // XYZ default (milli-g)
   }
   // Filename stream token (ACC / GYRO / MAGN), tolerant of Polar Sensor Logger "(1)" re-downloads.
   function streamKindFromName(name) {
@@ -167,6 +175,16 @@
     }
     out._kind = headerKind ? headerKind.kind : null;
     out._unit = headerKind ? headerKind.unit : null;
+    // DEEP-AUDIT-II §7.9 — normalize a Gauss magnetometer stream to SI µT at the parse boundary (1 G = 100 µT,
+    // CLAUDE.md §📏) so a `[G]` file is an honest µT mag stream and can never be read as gravity-g downstream.
+    if (out._kind === 'mag' && out._unit === 'G') {
+      for (var gi = 0; gi < out.length; gi++) {
+        out[gi].x *= 100;
+        out[gi].y *= 100;
+        out[gi].z *= 100;
+      }
+      out._unit = 'µT';
+    }
     return out;
   }
 
@@ -188,7 +206,10 @@
   }
   // convert an ACC row's XYZ to g (gravity units) given its unit
   function toG(v, unit) {
-    return unit === 'mg' ? v / 1000 : v; // 'g'/'G' already in g
+    // DEEP-AUDIT-II §7.9 — mg is matched CASE-INSENSITIVELY (a `[mG]` header is still milli-g; the old
+    // `unit === 'mg'` missed it and read the value as g → 1000× motion metrics). Gauss never reaches here
+    // (routed to mag + converted to µT at the parse boundary); a plain 'g' that does is already in g.
+    return /^mg$/i.test(unit) ? v / 1000 : v;
   }
   function sampleHz(rows, t0Ms) {
     if (rows.length < 3) return NaN;

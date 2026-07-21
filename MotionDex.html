@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Ccva9giNgjraxd9QlY+2D+4eIHJB+xkekN6QdoJjVsw=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-NmTnxAT+IAF6BmO8cyAkW6gWBzV1w9ZleriK666K3b8=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fywur0IkfvjRQOUdifGebc6OQo4bQ/DJGniXGcyoQUA='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-CWvKTH2Dha88OVQJiqWXTIOzhXhQvE2O04hB5o5YZC4=' 'sha256-Ccva9giNgjraxd9QlY+2D+4eIHJB+xkekN6QdoJjVsw=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fywur0IkfvjRQOUdifGebc6OQo4bQ/DJGniXGcyoQUA='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MotionDex — Motion / IMU Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M18%2062%20L34%2040%20L46%2058%20L62%2028%20L74%2050%20L84%2038%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -4619,11 +4619,19 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     var h = (headerLine || '').toLowerCase();
     var m = (headerLine || '').match(UNIT_RE);
     var unit = m ? m[1] : null;
-    if (unit && /mg|(^g$)|G/.test(unit) && !/dps|µt|ut/i.test(unit)) return { kind: 'acc', unit: unit };
+    // GYRO — angular rate.
     if (/dps|deg\/s/.test(h)) return { kind: 'gyro', unit: unit || 'dps' };
-    if (/µt|ut/i.test(h) || /magn/.test(h)) return { kind: 'mag', unit: unit || 'µT' };
-    if (/\[mg\]/.test(h)) return { kind: 'acc', unit: 'mg' };
-    return { kind: 'acc', unit: unit || 'mg' }; // XYZ default
+    // MAGNETOMETER — µT/uT, a MAGN header, OR Gauss `[G]`. DEEP-AUDIT-II §7.9: a capital-G `[G]` is GAUSS,
+    // a MAGNETIC unit — NOT gravity 'g'/'mg'. The old acc branch `/mg|(^g$)|G/` matched it and returned
+    // {kind:'acc', unit:'G'}, so a real Polar-Sense `X [G]` MAGN file was typed as acceleration and read as
+    // gravity-g by toG. CASE is the discriminator (UNIT_RE's /i capture preserves it): `unit==='G'` is Gauss,
+    // `'g'` is gravity. Gauss → µT (1 G = 100 µT, CLAUDE.md §📏) is applied at the parse boundary below.
+    if (/µt|ut/i.test(h) || /magn/.test(h) || unit === 'G') return { kind: 'mag', unit: unit === 'G' ? 'G' : unit || 'µT' };
+    // ACC — milli-g (mg, case-insensitive: a `[mG]` header is still milli-g) or gravity-g (lowercase g).
+    if (unit && /^mg$/i.test(unit)) return { kind: 'acc', unit: 'mg' };
+    if (unit === 'g') return { kind: 'acc', unit: 'g' };
+    if (/\[\s*mg\s*\]/i.test(h)) return { kind: 'acc', unit: 'mg' };
+    return { kind: 'acc', unit: 'mg' }; // XYZ default (milli-g)
   }
   // Filename stream token (ACC / GYRO / MAGN), tolerant of Polar Sensor Logger "(1)" re-downloads.
   function streamKindFromName(name) {
@@ -4696,6 +4704,16 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     }
     out._kind = headerKind ? headerKind.kind : null;
     out._unit = headerKind ? headerKind.unit : null;
+    // DEEP-AUDIT-II §7.9 — normalize a Gauss magnetometer stream to SI µT at the parse boundary (1 G = 100 µT,
+    // CLAUDE.md §📏) so a `[G]` file is an honest µT mag stream and can never be read as gravity-g downstream.
+    if (out._kind === 'mag' && out._unit === 'G') {
+      for (var gi = 0; gi < out.length; gi++) {
+        out[gi].x *= 100;
+        out[gi].y *= 100;
+        out[gi].z *= 100;
+      }
+      out._unit = 'µT';
+    }
     return out;
   }
 
@@ -4717,7 +4735,10 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
   }
   // convert an ACC row's XYZ to g (gravity units) given its unit
   function toG(v, unit) {
-    return unit === 'mg' ? v / 1000 : v; // 'g'/'G' already in g
+    // DEEP-AUDIT-II §7.9 — mg is matched CASE-INSENSITIVELY (a `[mG]` header is still milli-g; the old
+    // `unit === 'mg'` missed it and read the value as g → 1000× motion metrics). Gauss never reaches here
+    // (routed to mag + converted to µT at the parse boundary); a plain 'g' that does is already in g.
+    return /^mg$/i.test(unit) ? v / 1000 : v;
   }
   function sampleHz(rows, t0Ms) {
     if (rows.length < 3) return NaN;
