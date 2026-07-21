@@ -379,13 +379,15 @@ def test_forget_removes_the_device_from_config(tmp_path, monkeypatch):
     async def fake_forget(*a, **k):
         return True
     monkeypatch.setattr(webmon.bonding, "forget", fake_forget)
-    app, cfg, _st, cfg_path, _bus = _mk(tmp_path)
+    forgotten = []
+    app, cfg, _st, cfg_path, _bus = _mk(tmp_path, forget_device=forgotten.append)
 
     async def go(c):
         return await (await c.post("/api/forget", json={"address": H10["address"]})).json()
     _serve(app, go)
     assert cfg["devices"] == [], "the device must be dropped from the in-memory config"
     assert yaml.safe_load(open(cfg_path))["devices"] == []
+    assert forgotten == [H10["address"]], "the runner-stop callback must fire so no orphan reconnects"
 
 
 # ── SSE ─────────────────────────────────────────────────────────────────────────────────────────────

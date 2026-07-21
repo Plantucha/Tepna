@@ -1728,6 +1728,78 @@ def test_rssi_poller_goes_idle_then_resumes(tmp_path, monkeypatch):
     assert capture.STATUS["devices"]["H10"]["rssi"] == -55   # resumed and read a real value
 
 
+# ── device-runner registry (register_runner / unregister_runner): one runner per BLE link ──────────────
+class _FakeTask:
+    def __init__(self, done=False): self._done, self.cancelled = done, False
+    def done(self): return self._done
+    def cancel(self): self.cancelled = True
+
+
+def test_register_runner_dedupes_a_re_remember_by_address():
+    dt, tasks = {}, []
+    t1 = _FakeTask()
+    capture.register_runner(dt, tasks, "AA", t1)
+    assert dt == {"AA": t1} and tasks == [t1]
+    t2 = _FakeTask()
+    capture.register_runner(dt, tasks, "AA", t2)          # same address again → replace, not duplicate
+    assert t1.cancelled and dt == {"AA": t2} and tasks == [t2]
+
+
+def test_register_runner_leaves_a_finished_incumbent_alone():
+    dt, tasks = {}, []
+    done = _FakeTask(done=True); dt["AA"] = done; tasks.append(done)
+    new = _FakeTask()
+    capture.register_runner(dt, tasks, "AA", new)
+    assert not done.cancelled and dt["AA"] is new and new in tasks   # nothing live to cancel
+
+
+def test_register_runner_without_address_tracks_task_only():
+    dt, tasks = {}, []
+    t = _FakeTask()
+    capture.register_runner(dt, tasks, None, t)
+    assert tasks == [t] and dt == {}                      # no key to dedupe on, but still shut down
+
+
+def test_unregister_runner_cancels_and_clears_the_card():
+    dt, tasks = {}, []
+    t = _FakeTask(); dt["AA"] = t; tasks.append(t)
+    sd = {"Ring": {"address": "AA"}, "Other": {"address": "BB"}}
+    capture.unregister_runner(dt, tasks, sd, "AA")
+    assert t.cancelled and tasks == [] and dt == {} and sd == {"Other": {"address": "BB"}}
+
+
+def test_unregister_runner_unknown_address_is_a_noop():
+    dt, tasks, sd = {}, [], {}
+    capture.unregister_runner(dt, tasks, sd, "ZZ")        # nothing registered — must not raise
+    assert tasks == [] and dt == {} and sd == {}
+
+
+def test_main_forget_stops_the_runner(tmp_path, monkeypatch):
+    """The forget_device callback main() hands webmon must actually cancel the device's runner and clear
+    its status card — otherwise the orphaned task reconnects a device the operator just dropped."""
+    import webmon as _wm
+    captured = {}
+
+    def fake_make_app(bus, cfg, cfgpath, adapter, status, spawn, **kw):
+        captured["forget"] = kw["forget_device"]
+        return "APP"
+
+    async def fake_start(app, host, port):
+        capture.STATUS["devices"]["Ring"] = {"address": "D1:98:62:7C:92:B3"}
+        captured["forget"]("D1:98:62:7C:92:B3")           # forget while the runner task is live
+        class _R:
+            async def cleanup(self): pass
+        return _R()
+
+    monkeypatch.setattr(_wm, "make_app", fake_make_app)
+    monkeypatch.setattr(_wm, "start", fake_start)
+    cfg = {"root": str(tmp_path), "web": {"enabled": True},
+           "devices": [{"name": "Ring", "vendor": "Wellue", "model": "O2Ring-S",
+                        "device_id": "S8AW", "address": "D1:98:62:7C:92:B3", "streams": ["spo2"]}]}
+    _main_with_cfg(tmp_path, monkeypatch, cfg)
+    assert "Ring" not in capture.STATUS["devices"]         # card cleared by the forget path
+
+
 # ── main(): config overrides, the Wellue ppg migration, and the spawn dispatch (1479-1539) ─────────────
 def _main_with_cfg(tmp_path, monkeypatch, cfg, extra_stubs=()):
     import yaml as _yaml, sys as _sys, asyncio as _a

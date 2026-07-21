@@ -30,7 +30,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_device,
-             pull_stored=None, polar_pause=None, sync_time=None) -> web.Application:
+             pull_stored=None, polar_pause=None, sync_time=None, forget_device=None) -> web.Application:
     # Optional shared-secret gate on the CONTROL surface. When web.token is set, every POST (bond / forget
     # / remember / pull / settings / clock — all the state-changing verbs) needs the token; GET reads stay
     # open so the monitor can still display without it. Default OFF (no token → current wide-open behaviour;
@@ -122,6 +122,8 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         res = await bonding.forget(body["address"], adapter_mac)
         cfg["devices"] = [d for d in cfg.get("devices", []) if d.get("address") != body["address"]]
         _save()
+        if forget_device:                     # stop the runner too — else it reconnects a dropped device
+            forget_device(body["address"])
         return web.json_response(res)
 
     async def remember(req):

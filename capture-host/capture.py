@@ -2154,6 +2154,34 @@ async def supervise(runner, dev: dict, root: str, notifier: "alerts.Notifier | N
                        on_error=lambda msg: _set(name, connected=False, last_error=f"runner crashed: {msg}"))
 
 
+def register_runner(device_tasks: dict, tasks: list, addr, new_task) -> None:
+    """Record a device's runner by address, cancelling+dropping any incumbent on the SAME address first.
+    A device has one BLE link, so it must have one runner: a re-Remember of a running address replaces its
+    runner rather than spawning a second that races it. A device with no address is tracked only in `tasks`
+    (it cannot dedupe by key, but such a device is refused upstream anyway)."""
+    old = device_tasks.get(addr) if addr else None
+    if old is not None and old is not new_task and not old.done():
+        old.cancel()                              # its finally closes writers + discards header-only files
+        if old in tasks:
+            tasks.remove(old)
+    tasks.append(new_task)
+    if addr:
+        device_tasks[addr] = new_task
+
+
+def unregister_runner(device_tasks: dict, tasks: list, status_devices: dict, addr) -> None:
+    """Stop and drop a device's runner (Forget): cancel the task, remove it from the task list, and clear
+    the device's status card — otherwise the orphaned runner keeps reconnecting a device the operator just
+    dropped, re-creating its card every backoff."""
+    t = device_tasks.pop(addr, None)
+    if t is not None:
+        t.cancel()
+        if t in tasks:
+            tasks.remove(t)
+    for n in [n for n, s in status_devices.items() if s.get("address") == addr]:
+        status_devices.pop(n, None)
+
+
 async def main():
     global ADAPTER
     ap = argparse.ArgumentParser()
@@ -2222,6 +2250,12 @@ async def main():
         TASK_LABELS[id(_t)] = label
         tasks.append(_t)
 
+    device_tasks: dict[str, asyncio.Task] = {}   # address -> its live runner task. A device has ONE BLE
+                                                  # link, so it must have ONE runner: this lets a hot
+                                                  # re-Remember (e.g. changing a stream list) REPLACE the
+                                                  # runner instead of spawning a second that fights it for
+                                                  # the link, and lets Forget actually stop the runner.
+
     def _spawn(dev: dict):
         # Refuse to capture a device missing identity fields — otherwise capture_filename() emits
         # `__<id>_..._STREAM.txt` (empty vendor/model), which happened via a hot-Remember with an
@@ -2244,7 +2278,10 @@ async def main():
         # Supervised: a runner that raises must not take the device down for the night (see supervise()).
         _t = asyncio.create_task(supervise(runner, dev, root, notifier))
         TASK_LABELS[id(_t)] = f"{dev.get('name')} runner"
-        tasks.append(_t)
+        register_runner(device_tasks, tasks, dev.get("address"), _t)   # dedupe a re-Remember by address
+
+    def _forget(address: str):
+        unregister_runner(device_tasks, tasks, STATUS.get("devices", {}), address)
 
     for dev in cfg.get("devices", []):
         _spawn(dev)
@@ -2265,7 +2302,7 @@ async def main():
         web_runner = await webmon.start(
             webmon.make_app(BUS, cfg, args.config, ADAPTER, STATUS, _spawn,
                             pull_stored=_pull, polar_pause=polar_offline_op,
-                            sync_time=sync_device_time), host, port)
+                            sync_time=sync_device_time, forget_device=_forget), host, port)
         log.info("monitor: http://%s:%d/", host, port)
 
     # Surface the resolved adapter at boot: a silent mis-pin (hci re-enumeration) is exactly the failure
