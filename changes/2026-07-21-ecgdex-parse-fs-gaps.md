@@ -1,0 +1,8 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+---
+bump: patch
+type: fixed
+nodes: [ECGDex]
+brief: DEEP-AUDIT-II-2026-07-18-BRIEF.md
+---
+ECGDex `parseECG` sample-rate + gap accounting (DEEP-AUDIT-II §4.3/§4.2, #5+#6). §4.3: fs was inferred from a SINGLE inter-sample delta, and the Polar Sensor Logger's `timestamp [ms]` column loses float precision as the value grows (`7.692288` early → integer `"8"` late), so one delta reads 125–167 Hz for a true 130 Hz stream — a real 5-part corpus recording locks 125/128/133 Hz per part (duration/rMSSD −22 %, HR ×1.28) depending on where the estimate happens to start. fs now derives from the MEAN non-gap interval — a stamp-span cross-check that averages the 7/8 ms quantisation back to ~7.69 ms → 130 (validated: the full 3-h corpus recording gives 130.00). Fixed in lockstep across all THREE mirrored parsers (`ecgdex-dsp.js` `parseECGText`, `ecgdex-app.js` WORKER_SRC + the inline small-file path). §4.2: raw-sample dropouts were parsed into `rec.gaps` and then DISCARDED — beat time is sample-index/fs, which under-counts wall-clock across a gap, so a gappy record read ~100 % coverage with every later beat time-shifted early. `analyze()` now folds each gap's excess dead-time into the beats after it, so the existing gap-aware coverage sees it (a folded 30 s gap drops coverage 100→98.3 %; rMSSD unchanged — the gap is gated, not averaged in). INERT on clean recordings: the committed ECG equiv fixture (0 gaps, clean float ms) reproduces byte-identical; only the ECGDex bundle manifestHash + its 2 code-gated fixtures re-stamped, `verifiedUnder` re-verified against the corpus. New both-direction gate: `ECGDex parseECG — mean-interval fs + raw-gap accounting`.

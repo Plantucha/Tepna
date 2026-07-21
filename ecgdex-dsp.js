@@ -1878,6 +1878,26 @@
     const peaksB = detectPeaksB(bp, fs);
     prog(34, 'Sub-sample peak refinement…');
     const { times, refIdx } = refinePeaks(bp, peaks, fs);
+    // DEEP-AUDIT-II §4.2 (#6): fold raw-sample gaps (dropped ECG samples, carried on rec.gaps from the
+    // parse) into the beat clock. Beat time is sample-index/fs, which silently UNDER-counts wall-clock
+    // across a dropout — so a gappy record would read ~100 % coverage with every later beat time-shifted
+    // early. Adding each gap's excess dead-time (Δ − one nominal step) to every beat after it makes the
+    // inter-beat interval span the gap, so the existing gap-aware coverage + NN gate see it. A monotonic
+    // single pass (peaks are index-ordered). INERT when rec.gaps is empty — the clean-recording,
+    // synthetic, and committed-fixture path is byte-identical.
+    if (rec.gaps && rec.gaps.length) {
+      const step = 1000 / fs;
+      const g = rec.gaps.slice().sort((a, b) => a.idx - b.idx);
+      let gi = 0,
+        deadSec = 0;
+      for (let k = 0; k < times.length; k++) {
+        while (gi < g.length && g[gi].idx <= refIdx[k]) {
+          deadSec += Math.max(0, g[gi].ms - step) / 1000;
+          gi++;
+        }
+        times[k] += deadSec;
+      }
+    }
     prog(46, 'Per-beat signal-quality scoring…');
     const { sqi, rr } = computeSQI(int16, fs, peaks, times, peaksB);
     prog(56, 'Gating + NN interpolation…');
@@ -3153,7 +3173,9 @@
       offsetMin = null,
       fs = 130,
       prevMs = null,
-      msStep = null;
+      msStep = null,
+      stepSum = 0,
+      stepN = 0;
     var gaps = [];
     function push(v) {
       if (n >= cap) {
@@ -3183,14 +3205,27 @@
         if (isFinite(ms)) {
           if (prevMs !== null) {
             var d = ms - prevMs;
-            if (msStep === null && d > 0 && d < 50) msStep = d;
-            if (msStep && d > msStep * 2.5) gaps.push({ idx: n - 1, ms: d });
+            if (d > 0) {
+              if (msStep === null && d < 50) msStep = d; // provisional step — anchors the gap threshold
+              if (msStep && d > msStep * 2.5) {
+                gaps.push({ idx: n - 1, ms: d }); // a dropout, not a sample interval — excluded from fs
+              } else if (d < 50) {
+                stepSum += d;
+                stepN++;
+              }
+            }
           }
           prevMs = ms;
         }
       }
     }
-    if (msStep && msStep > 0) fs = Math.round(1000 / msStep);
+    // DEEP-AUDIT-II §4.3 (#5): derive fs from the MEAN non-gap sample interval — a stamp-span
+    // cross-check, NOT a single delta. The Polar Sensor Logger's `timestamp [ms]` column loses float
+    // precision as the value grows (7.692288 early → integer "8" late), so any ONE delta reads 125–167 Hz
+    // for a true 130 Hz stream (part-files parse at 143/167). Averaging every interval quantises the 7/8 ms
+    // jitter back to ~7.69 ms → 130, and gap dropouts are excluded. Falls back to the provisional step.
+    if (stepN > 0) fs = Math.round((1000 * stepN) / stepSum);
+    else if (msStep && msStep > 0) fs = Math.round(1000 / msStep);
     return { int16: arr.slice(0, n), fs: fs, gaps: gaps, t0Ms: t0Ms, offsetMin: offsetMin, source: 'file', durSec: n / fs };
   }
 
