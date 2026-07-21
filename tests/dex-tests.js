@@ -11353,6 +11353,49 @@
       }
     });
 
+    group('OxyDex fusion is COVERAGE-AWARE — confPct/dose scoped to the ECG window, no green 0 on non-overlap (DEEP-AUDIT-II §11.1–11.3)', 'oxydex-fusion · coverage-aware · fabricated-absence', function (T) {
+      var OF = env.oxyComputeFusion || (typeof globalThis !== 'undefined' && globalThis.oxyComputeFusion) || null;
+      if (typeof OF !== 'function') {
+        T.skip('oxyComputeFusion available', 'oxydex-fusion not co-loaded in this lane');
+        return;
+      }
+      var t0 = Date.UTC(2026, 5, 12, 22, 0, 0); // 22:00
+      var p2 = function (v) {
+        return v < 10 ? '0' + v : '' + v;
+      };
+      var hhmmss = function (ms) {
+        var d = new Date(ms);
+        return p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds());
+      };
+      // Whole night: 10 desats every 30 min, 22:30 → 03:00.
+      var desats = [];
+      for (var i = 0; i < 10; i++) desats.push({ tMs: t0 + (30 + i * 30) * 60000, depth: 6 });
+      var night = { t0Ms: t0, stats: {}, hrv: {}, desat: { events: desats }, hb: { total: 100 } };
+      var mkEcg = function (startMs, durMin, surgeMs) {
+        return {
+          recording: { startEpochMs: startMs, durationMin: durMin },
+          ganglior_events: surgeMs.map(function (ms) {
+            return { impulse: 'autonomic_surge', t: hhmmss(ms) };
+          }),
+          apnea: { cvhrEvents: 4 },
+          hrv: { time: {} },
+          cardiorespiratory: {}
+        };
+      };
+      // (A) PARTIAL coverage: ECG records 22:00 for 100 min (→ 23:40), so only the 22:30/23:00/23:30
+      //     desats are coverable; surges at 22:30 & 23:00 confirm 2 of those 3.
+      var A = OF(night, mkEcg(t0, 100, [t0 + 30 * 60000, t0 + 60 * 60000]));
+      T.eq('§11.1 · coveredDesats = the 3 desats inside the ECG window (not all 10)', A.coveredDesats, 3);
+      T.eq('§11.1 · desN still reports the whole-night count', A.desN, 10);
+      T.eq('§11.1 · confPct = confirmed / COVERED desats (2/3 = 67%), not / whole night (20%)', A.confPct, 67);
+      T.eq('§11.3 · hypoxic burden scoped to the covered fraction (100 × 3/10)', A.hbCov, 30);
+      T.eq('§11.3 · dose/event = scoped burden ÷ confirmed (30/2 = 15), NOT whole-night (100/2 = 50)', A.dosePerEv, 15);
+      // (B) NON-OVERLAP: ECG records 06:00 +60 min — touches none of the night's desats.
+      var B = OF(night, mkEcg(t0 + 8 * 3600000, 60, []));
+      T.eq('§11.2 · a non-overlapping ECG ⇒ coveredDesats 0', B.coveredDesats, 0);
+      T.eq('§11.2 · confPct is NULL (no coverage) — never a green 0/N', B.confPct, null);
+    });
+
     group('OxyDex §7/§8/§9 — real event clock · whole-night windows · REM plausibility', 'oxydex-dsp · oxydex-fusion · clock · fabricated-absence', function (T) {
       var OD = env.OxyDex;
       if (!OD || typeof OD.compute !== 'function' || typeof OD.parseCSV !== 'function') {
