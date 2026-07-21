@@ -7,80 +7,63 @@
 
 _Executes E4 of `VIGIL-OBSERVED-ERRORS-2026-07-20-BRIEF.md` (nothing gates capture on wear state)._
 
-# Stop the Verity writing gigabytes to disk while it sits on a desk
+# Cap the Verity's ACC (kept) — and why motion wear-gating was disproven and removed
 
 **Out-of-suite (`capture-host/`, Python).** VIGIL-OBSERVED-ERRORS E4 measured the Verity Sense streaming
-**453 MB in 4.16 h while unworn on a desk** (RSSI −32) — 71 % of it ACC at 416 Hz. The asymmetry that makes
-it invisible: the O2Ring and the H10 report a contact bit, but **the Verity reports `worn: null`** — the one
-device that cannot self-report is also the heaviest writer, and nothing gated its capture on wear. This
-brief adds the two levers E4 named. Test-first; capture-host pytest stays at **100 %** on `capture.py`,
-**862 tests**; `ruff --select E9,F` clean.
+**453 MB in 4.16 h while unworn** (RSSI −32) — 71 % of it ACC at 416 Hz. The Verity reports `worn: null`
+(no contact bit), so nothing gated its capture on wear. This brief did two things; **one shipped and is
+kept, one was disproven by real data and reverted.**
 
-## 1 · ACC rate cap — the safe, immediate win (config)
+> ## ⛔ CORRECTION (2026-07-20) — the motion wear-gate was DISPROVEN and REMOVED
+> The motion wear-gate (§2 below, originally shipped in PR #297 *off by default, pending validation*) was
+> validated against **real worn-Verity night data** and **failed**. It is **reverted**. The ACC cap (§1)
+> is unaffected and remains. **Do not re-introduce ACC-motion wear detection for this device.** Detail in §2.
+
+## 1 · ACC rate cap — shipped and kept (config)
 
 `rates: {acc: 52}` on the Verity, was the negotiated 416 Hz. **Confirmed free**, not assumed: MotionDex
 reads its sample rate *from the data* (`motiondex-dsp.js sampleHz(rows)`, never a nominal constant) and its
-widest analysis band is respiratory **0.1–0.6 Hz**, so 52 Hz is ~85× the bandwidth it uses. This is an **8×
-cut on the dominant stream** at no cost to any downstream metric — the same argument `capture.py` already
-makes in-line for H10 ACC (capped at 50). GYRO is left as-is (it already negotiates ~52 Hz, per E7).
+widest analysis band is respiratory **0.1–0.6 Hz**, so 52 Hz is ~85× the bandwidth it uses. An **8× cut on
+the dominant stream** at no cost to any downstream metric — the same argument `capture.py` already makes for
+H10 ACC (capped at 50). Deploy config, applied to the running box and **verified live** on real hardware
+(`acc options: rate_hz=[52] → START acc → ok`). No code change; nothing to revert here.
 
-Deploy config, applied to the running box. No code change.
+## 2 · Motion wear-gate — DISPROVEN by real data, REVERTED
 
-## 2 · Motion wear-gate for a contactless IMU (code, opt-in, OFF by default)
+The idea: a device with no contact bit shows *motion* when worn, so pause writing after a long window of
+`|acc|` stillness. It was shipped **off by default** precisely because the threshold was unvalidated (the
+brief's own words: "the margin is thin and the worn model is a guess … do not enable before validation").
 
-Because the Verity has no contact bit, wear is **inferred from motion**, which is uncertain — so the action
-is deliberately the *benign* one. When a gate-eligible device (a PMD device with an ACC stream and **no** hr
-stream — i.e. it cannot report contact) shows `|acc|` standard deviation below `motion_still_mg` for a
-continuous `motion_still_sec`, its **writers pause**. The BLE link, the decode, and the live monitor push
-all keep running, so:
+**The validation killed it.** Replicating the exact gate logic (`|acc|` std over a 20 s window, 12 mg
+threshold, 300 s grace) against real sessions:
 
-- the disk stops filling while the device is off-body;
-- the monitor still shows the device is alive (`worn: false`, "motion-gated, writing paused");
-- **re-wear resumes writing on the very next moving frame** — same session, no reconnect, no fragmentation.
+| Session | `|acc|` std (median) | Would the gate pause? |
+|---|---|---|
+| **WORN sleep** (the 2026-07-19 22:15 session — the same night ECGDex analysed) | **0.9–1.0 mg** | **YES, 96 % of it** |
+| Off-body (desk) | 2.2–2.9 mg | yes, 100 % |
 
-**Why pause-writes and not drop-link (the design decision).** The strap's existing power-drop is affordable
-because a contact bit makes "not worn" near-certain; its false positive costs a whole recheck cycle. On the
-Verity there is no such certainty, so a false "not worn" during genuinely still sleep must cost ~nothing —
-and with write-pause it does (resume on the next frame). Dropping the link instead would risk the E3-style
-reconnect churn that is already the box's largest source of lost night. The measured harm in E4 was **disk**
-(the Verity was on charge), and write-pause fixes exactly that.
+**A worn Verity during still sleep sits at ~1 mg — *below* the desk's ~2.3 mg.** The device is worn on the
+**left ankle**; an ankle on a still leg in deep sleep is one of the most motionless placements possible (no
+arm micro-motion, minimal leg movement), so it is *stiller* than a desk. No `motion_still_mg` threshold can
+separate worn-still-sleep from off-body — worn is on the wrong side of every candidate line. **The gate as
+built would have paused writing through most of real sleep and lost exactly the data we record.**
 
-### Interaction with the stall watchdog (VIGIL-BLE-ROBUSTNESS)
+The core assumption (worn ⇒ respiration/cardioballistic motion ≫ threshold) is false for a limb-worn IMU at
+rest. The only assumption that saved us was the deliberately-conservative *design* — off by default, and a
+benign write-pause rather than a link-drop. So: **the motion wear-gate code, config, and tests are removed.**
 
-A paused stream has **frozen row counters by design**. The stall watchdog watches row growth, so without
-care it would mistake a deliberate pause for a dead stream and tear the session down — manufacturing the
-churn we are avoiding. The hold loop now treats "motion-paused" as alive (re-baselines the silence clock),
-so the two features compose instead of fighting. This is covered by a dedicated test.
+**The real wear signal for the Verity is its PPG pulse** (a cardiac waveform when worn; flat/ambient when
+off), not its accelerometer. That is a genuinely different, larger feature — a candidate follow-up, not a
+threshold tweak — and is the ONLY sound path to Verity wear-gating.
 
-### Config (deliberately OUT of `settings_schema` — deploy config, like the other guardrails)
-```yaml
-power:
-  motion_wear_gate: false     # OFF by default — opt-in
-  motion_still_mg: 12         # |acc| std (milli-g) below this = motionless
-  motion_still_sec: 300       # continuous stillness before writes pause (5 min)
-  motion_window_sec: 20       # window the std is measured over
-```
+## Done when — final
+- [x] Verity ACC capped to 52 Hz; verified free vs MotionDex's data-derived `fs`, and live on hardware.
+- [x] Motion wear-gate **validated against real worn-night data → disproven** (worn 0.9 mg < desk 2.3 mg).
+- [x] Wear-gate code / config / tests **removed**; ACC cap retained.
+- [x] capture-host pytest **100 %** on `capture.py`; ruff clean.
 
-## Honest limitation — the threshold is UNVALIDATED against real worn nights
-
-A desk sits at the few-mg sensor-noise floor; a worn armband carries respiration + cardioballistic motion.
-An illustrative simulation separates them (desk ~2.8 mg vs a 0.25 Hz-breathing body ~13 mg at a 12 mg
-line) — **but that margin is thin and the worn model is a guess.** The real test is the tri-device corpus's
-worn-Verity nights. Until `motion_still_mg` is validated to **never** cross a real sleeping night, the gate
-stays **off by default**, and the benign write-pause failure mode (not a link-drop) is the safety net if it
-ever does. **Do not enable `motion_wear_gate` on the live box before that validation.**
-
-## Done when — all met
-- [x] Verity ACC capped to 52 Hz; verified free against MotionDex's data-derived `fs` + 0.1–0.6 Hz band.
-- [x] Motion wear-gate pauses WRITES (link/decode/push held) when off-body; resumes on re-wear.
-- [x] A moving device is **never** paused (counter-test); the stall watchdog never tears down a paused stream.
-- [x] Opt-in, off by default; `power.motion_*` read from config.
-- [x] capture-host pytest **100 %** on `capture.py`, **862 tests**; ruff clean.
-
-## Not in scope
-- **Validating `motion_still_mg` against the real corpus** — the gate cannot be *enabled* until this is done;
-  it wants a sweep over the worn-Verity nights confirming the trigger never fires during real sleep.
-- **H10 wear-gating** — the H10 also lacks a usable contact bit, but its harm is different (electrode noise,
-  not bytes) and the ECG is obviously junk when off-body; a separate concern.
-- The remaining E-items (E3 reconnect storm · E5 LINK under-sampling · E6 retention/offload) are tracked in
-  their own briefs.
+## Not in scope / follow-up
+- **PPG-pulse-based wear detection** for the Verity — the correct signal, a separate feature. Until it
+  exists, the Verity has **no** wear-gate and the ACC cap (§1) is the whole of E4's byte reduction.
+- The remaining E-items (E3 reconnect storm · E5 LINK under-sampling · E6 retention/offload) are in their
+  own briefs.
