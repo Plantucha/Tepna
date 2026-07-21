@@ -111,3 +111,8 @@ archive:
   enabled: false
   dest: ""                # e.g. /mnt/nas/tepna  or  /srv/tepna/app/captures
   poll_sec: 3600
+pull:                     # AUTO-PULL the O2Ring's onboard .dat off flash — the belt-and-suspenders backup
+  auto: false             #   for a lossy live BLE link (weak signal / dongle in another room). Off by default.
+  auto_interval_sec: 3600 #   how often to check; it only pulls while the ring is OFF the finger (never
+  auto_retries: 3         #   interrupts a live sleep). Retries per cycle to DRAIN the small FIFO flash
+  ftype: 0                #   before a missed session is overwritten. Idempotent — skips what's on disk.

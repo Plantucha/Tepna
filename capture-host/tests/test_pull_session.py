@@ -358,3 +358,18 @@ def test_format_a_is_false_without_the_marker(tmp_path, monkeypatch):
     _install(monkeypatch, ring)
     got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
     assert json.load(open(got[0] + ".meta.json"))["format_a"] is False
+
+
+def test_pull_skips_a_session_already_on_disk_at_the_same_size(tmp_path, monkeypatch):
+    """Idempotency: `which='all'` re-lists every onboard session, so without a skip an auto-pull would
+    re-download the whole flash every cycle over a slow BLE link. A .dat already on disk at the device-
+    reported size is the same recording → skip, and it must NOT count as a 'new' file."""
+    blob = b"\x01\x03" + b"z" * 90
+    ts = "20260719010000"
+    _install(monkeypatch, FakeRing([ts], blob))
+    got1 = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    assert len(got1) == 1 and os.path.exists(tmp_path / f"Wellue_O2Ring-S_{ts}_STORED.dat")
+    # same session, same dir, a fresh ring → skipped (already on disk at the same size)
+    _install(monkeypatch, FakeRing([ts], blob))
+    got2 = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    assert got2 == [], "a session already on disk at the same size must be skipped, not re-downloaded"

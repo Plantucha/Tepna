@@ -123,6 +123,17 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
                 await send(oxyii.file_end_frame()); await asyncio.sleep(0.3)
                 continue
 
+            # ALREADY ON DISK → skip the download. `which="all"` re-lists every onboard session, so without
+            # this an auto-pull (or any repeat pull) re-downloads the whole flash over a slow BLE link every
+            # cycle. The device-reported `size` is authoritative, so a same-size .dat is the same recording.
+            # Not added to saved_paths: the return value is what this call actually WROTE, which is how the
+            # auto-pull poller knows a session is genuinely new.
+            path = os.path.join(out_dir, f"Wellue_O2Ring-S_{ts}_STORED.dat")
+            if os.path.exists(path) and os.path.getsize(path) == size:
+                print(f"  already on disk ({size} bytes) — skipping download.", flush=True)
+                await send(oxyii.file_end_frame()); await asyncio.sleep(0.3)
+                continue
+
             data = bytearray()
             off = 0
             while off < size:
@@ -143,8 +154,7 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
                             pass
             await send(oxyii.file_end_frame()); await asyncio.sleep(0.3)
 
-            path = os.path.join(out_dir, f"Wellue_O2Ring-S_{ts}_STORED.dat")
-            with open(path, "wb") as f:
+            with open(path, "wb") as f:                    # `path` computed above (skip-existing check)
                 f.write(data)
             hdr = bytes(data[:10]).hex()
             fmt_a = data[:2] == b"\x01\x03"
