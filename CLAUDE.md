@@ -502,6 +502,14 @@ Resolution order:
    time the clock wraps past midnight (monotonic via `opts.prevTMs`). No anchor → `null`. Never Jan-1-2000.
 6. Fallback: `return null`. **NEVER** fall back to `new Date()` / now() — a missing stamp must be
    visible (null), never fabricated.
+7. **Component ranges are validated — `Date.UTC`'s silent roll is a fabricated instant** (DEEP-AUDIT-II
+   §12.3, amended 2026-07-21). Regexes match *digits*, not *calendar validity*: `2026-13-45 25:99` would
+   feed `Date.UTC` out-of-range components, which it silently ROLLS onto a plausible WRONG instant
+   (month 13 → next January, day 45 → next month, `25:99` → +1 day 1 h 39 m). `clock.js:_ckMk` now builds
+   `tMs` **only** if the date round-trips (month 1–12, a real calendar day — rejects Feb 30 / Apr 31) and
+   the time is `0–23 : 0–59 : 0–59 . 0–999`; any out-of-range component ⇒ **null** (same honesty as §2.6).
+   The **one** legitimate overflow is ISO-8601 **`24:00:00`** (end-of-day) → normalized to next-day
+   `00:00:00`. **Do NOT add a bare `h > 23` guard** — it would reject `24:00:00`.
 
 Helper: `tzOffset(instantMs) = new Date(instantMs).getTimezoneOffset()*60000`. Everything else is
 pure `Date.UTC` + regex.

@@ -202,6 +202,22 @@
       T.eq('MDY (preferDMY false) 05/13/2026', (P('05/13/2026 08:30', { preferDMY: false }) || {}).tMs, U(2026, 4, 13, 8, 30));
       T.eq('O2Ring "HH:MM:SS DD/MM/YYYY"', (P('22:00:00 07/06/2026', { preferDMY: true }) || {}).tMs, U(2026, 5, 7, 22, 0, 0));
 
+      // DEEP-AUDIT-II §12.3 — Date.UTC SILENTLY ROLLS out-of-range components onto a plausible WRONG
+      // instant; parseTimestamp now REJECTS them (honest null, Clock §2.6), with ONE exception: ISO
+      // end-of-day 24:00:00 normalizes to next-day 00:00 (so a bare `h>23` guard would be wrong).
+      T.eq('§12.3 · ISO 24:00:00 → next-day 00:00 (kept, not rejected)', (P('2026-06-13 24:00:00', {}) || {}).tMs, U(2026, 5, 14, 0, 0, 0));
+      T.eq('§12.3 · time-only 24:00 → next-day 00:00', (P('24:00', { dateAnchorMs: U(2026, 5, 13) }) || {}).tMs, U(2026, 5, 14, 0, 0, 0));
+      T.eq('§12.3 · valid boundary 23:59:59 still parses', (P('2026-06-13 23:59:59', {}) || {}).tMs, U(2026, 5, 13, 23, 59, 59));
+      T.eq('§12.3 · hour 25 → null (NOT rolled to +1 day 01:00)', P('2026-06-13 25:00:00', {}), null);
+      T.eq('§12.3 · minute 99 → null', P('2026-06-13 22:99:00', {}), null);
+      T.eq('§12.3 · second 99 → null', P('2026-06-13 22:00:99', {}), null);
+      T.eq('§12.3 · month 13 → null (NOT rolled to next January)', P('2026-13-01 12:00:00', {}), null);
+      T.eq('§12.3 · day 45 → null (NOT rolled to next month)', P('2026-06-45 12:00:00', {}), null);
+      T.eq('§12.3 · Feb 30 → null (invalid calendar day)', P('2026-02-30 12:00:00', {}), null);
+      T.eq('§12.3 · O2Ring out-of-range 25:00:00 07/06/2026 → null', P('25:00:00 07/06/2026', { preferDMY: true }), null);
+      T.eq('§12.3 · compact 14-digit out-of-range 20261301010101 → null', P('20261301010101', {}), null);
+      T.eq('§12.3 · time-only 25:99 → null', P('25:99', { dateAnchorMs: U(2026, 5, 13) }), null);
+
       /* #3 UNLOCKED DMY/MDY heuristic — only a first field STRICTLY > 12 proves it is the DAY.
          A 12 is still ambiguous and must honor preferDMY; treating 12 as proof-of-day (`a >= 12`)
          forces a day-first read and mis-dates December / 12th-of-month rows. Under MDY (preferDMY:false),
