@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-19 (**§1.1, §1.2, §1.3, §1.5 EXECUTED + gated — re-checked against `main` on 2026-07-19, in code, not from this header.** §1.1: `pairCompanions` over the real 250-file `Ecg nightly/` H10 corpus answered §6's open question — the defect is **not latent**, **147 of 153** companion slots paired to the wrong night, fixed to **153/153**; `fnameStampMs` anchored + numeric-id two-night gate. §1.2: `dex-ingest.js` `deviceKey`/`stampMs` widened for the contiguous capture-host stamp (PR #221). §1.3: `ppgdex-dsp.js` dedupes bit-identical channels before the consensus vote, so a replicated channel reports `ledAgreement: null` instead of a `measured`-tier 100 (PR #225). §1.5: `pat-gate.js` single-sources the promotion gate and publishes `vdCorr` (PR #217). §1.6 is **half closed by another brief** — the Integrator now assigns `summary.respRateBrpm` via `MULTI-SENSOR-DERIVATIONS`, but PpgDex's `lombScargle` still never retains the HF argmax, so the PpgDex link remains open. **Still open: §1.4** (blocked on `PPGDEX-O2RING-FINGER-SITE`), **§1.6 (PpgDex half), §1.7, §1.8** — not re-verified closed, so not claimed closed. ⚠️ This header previously read "§1.2 … still owed. §1.3–§1.8 untouched" while three of those had landed, and a session acting on it nearly redid them: **verify against the tree, not against a status line.**) · **Created:** 2026-07-18
+**Status:** IN-PROGRESS — 2026-07-19 (**§1.1, §1.2, §1.3, §1.5 EXECUTED + gated — re-checked against `main` on 2026-07-19, in code, not from this header.** §1.1: `pairCompanions` over the real 250-file `Ecg nightly/` H10 corpus answered §6's open question — the defect is **not latent**, **147 of 153** companion slots paired to the wrong night, fixed to **153/153**; `fnameStampMs` anchored + numeric-id two-night gate. §1.2: `dex-ingest.js` `deviceKey`/`stampMs` widened for the contiguous capture-host stamp (PR #221). §1.3: `ppgdex-dsp.js` dedupes bit-identical channels before the consensus vote, so a replicated channel reports `ledAgreement: null` instead of a `measured`-tier 100 (PR #225). §1.5: `pat-gate.js` single-sources the promotion gate and publishes `vdCorr` (PR #217). §1.6 is **half closed by another brief** — the Integrator now assigns `summary.respRateBrpm` via `MULTI-SENSOR-DERIVATIONS`, but PpgDex's `lombScargle` still never retains the HF argmax, so the PpgDex link remains open. **§1.8 CLOSED 2026-07-22** — re-verified against `main`: the Gauss→mag/µT fix shipped as `DEEP-AUDIT-II §7.9` (PR #332) with a both-direction gate (`tests/dex-tests.js:19874`); the parse-boundary conversion resolves the finding's "unreachable" note (see §1.8). **Still open: §1.4** (blocked on `PPGDEX-O2RING-FINGER-SITE`), **§1.6 (PpgDex half), §1.7** — not re-verified closed, so not claimed closed. ⚠️ This header previously read "§1.2 … still owed. §1.3–§1.8 untouched" while three of those had landed, and a session acting on it nearly redid them: **verify against the tree, not against a status line.**) · **Created:** 2026-07-18
 
 # Engine-verification findings — what an executed audit of the Vigil↔suite seam actually found
 
@@ -268,7 +268,20 @@ now emits"* (5 of 9), and `docs/CROSSNIGHT-ENVELOPE-SPEC.md §7` omits CPAPDex, 
 
 ---
 
-### 1.8 🟢 LOW/LATENT — MotionDex misclassifies the Gauss magnetometer header
+### 1.8 🟢 LOW/LATENT — MotionDex misclassifies the Gauss magnetometer header — ✅ CLOSED 2026-07-22
+
+**✅ CLOSED — the prescribed fix landed as `DEEP-AUDIT-II §7.9` (PR #332), re-verified against `main`
+2026-07-22 in code, not this section.** `streamKindFromHeader` now routes a capital-`[G]` (Gauss) header to
+`{kind:'mag', unit:'G'}` (`motiondex-dsp.js:100`, case is the discriminator — lowercase `[g]` stays
+acc/gravity), and `parseSensorXYZ` normalizes the parsed Gauss stream to SI µT at the parse boundary
+(×100, `1 G = 100 µT`, `motiondex-dsp.js:178-179`), so a `[G]` file can never be read as gravity-g by `toG`.
+Both-direction gated (`tests/dex-tests.js:19874`, group `motiondex-dsp · parse · units`): `[G]`→mag /
+`[g]`→acc discrimination, `[mG]`→milli-g (the case-insensitive 1000× sibling defect), and the conversion
+value itself (`0.12 G → 12 µT`). The **"Unreachable today"** note below is *resolved*: the conversion is
+applied at the PARSE boundary, not gated on `slotFor` routing, and a `*_MAGN.txt` file routes to the mag
+slot by filename anyway — so a real corpus MAGN capture ends up an honest µT stream end-to-end. (`_kind`
+remains informational metadata; a `slotFor` header-fallback for a mag file *misnamed* without `MAGN` stays
+a genuine LATENT non-issue — writers.py names them faithfully — and is NOT this finding's prescribed fix.)
 
 Executed on the exact `writers.py:60` header: `streamKindFromHeader` returns `{"kind":"acc","unit":"G"}`.
 `toG()` (`motiondex-dsp.js:147`) would then read Gauss as gravity-g — a ~1000× scale error against the `mg`
