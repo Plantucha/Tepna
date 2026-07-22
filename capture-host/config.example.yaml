@@ -104,6 +104,11 @@ o2ring:                   # Wellue O2Ring-S / T8520 specifics.
   ppg_fs: 125.738         #   per-unit 125 Hz pleth sample rate (2026-07-18 5.8 h calibration; overrides only
                           #   the timestamp step — the ring's true rate varies slightly per unit)
   rtc_resync_sec: 21600   #   drift backstop: re-push host time into the ring at least this often (6 h)
+  ppg_gap_min_ms: 40      #   honest-gap threshold. The ring sends no clock, so samples ride a synthesized
+                          #   grid; when BLE loses a frame the survivors must NOT be laid down contiguously
+                          #   across the hole (that compresses time and fabricates beat-to-beat variability).
+                          #   A hole larger than this is recorded as a real gap. 40 ms sits between the
+                          #   measured arrival jitter (sd 16 ms, p95 29 ms) and real losses (median 49 ms).
 
 # ── Push alerts (optional, disabled by default) ───────────────────────────────────────────────────────
 # A generic webhook (ntfy.sh, Discord/Slack/Telegram bridge, Home Assistant …). Fires on: a sensor offline
