@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-07-21
+**Status:** IN-PROGRESS · **Created:** 2026-07-21
 
 # MotionDex respiratory rate — rebuild the estimator, and the three papers it unlocks
 
@@ -141,15 +141,31 @@ Per `PAPERS-ROADMAP` §5.2 — *"No number without a tool that reproduces it"*:
 
 ## 6 · Done when
 
-- [ ] `motiondex-dsp.js` emits a per-epoch `rateSeries` with confidence, keeping the existing
-      return shape back-compatible (add fields; do not remove `rateBrpm`, `series`, `amplitudeG`).
-- [ ] `respRateMethod: 'acc-spectral-viterbi'` set so `integrator-dsp.js:2441` can attribute it.
-- [ ] Evidence tier **`emerging`** in `motiondex-registry.js` — **not** `validated`; single-subject
-      validation does not meet the Literature-Use Policy bar for that badge.
-- [ ] `tests/dex-tests.js`: synthetic known-answer (`genSynthetic({brpm:15})` recovers 15 ± 0.5);
-      a **committed adversarial twin** (posture flip + 30 s breathing pause); a monotonicity
-      assertion that raising `confMin` never increases MAE on the committed fixture.
-- [ ] All five gates green; `DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs` re-run
-      (this is a compute-path change — `computeHash` moves).
-- [ ] Changeset dropped in `changes/` (`bump: minor` — additive export fields).
-- [ ] Follow-up brief spawned per the house pattern.
+**Part (A) — the estimator — LANDED 2026-07-21 in `7002778`.**
+
+- [x] `motiondex-dsp.js` emits a per-epoch `rateSeries` with confidence, keeping the existing
+      return shape back-compatible (added `rateSeries`/`rateEpochSec`/`rateCoverage`/
+      `respRateMethod`/`rateBrpmLegacy`; every legacy field gate-asserted present).
+- [x] `respRateMethod: 'acc-spectral-viterbi'` set so `integrator-dsp.js:2441` can attribute it.
+- [x] Evidence tier **`emerging`** in `motiondex-registry.js`.
+- [x] `tests/dex-tests.js`: synthetic known-answers at 10/15/20 brpm (±0.5); bias-is-opt-in;
+      confidence-gate monotonicity; additive-export-shape back-compat.
+      ⚠ **NOT done:** the committed adversarial twin (posture flip + 30 s breathing pause). The
+      corpus cannot supply the posture half — see §3(b) — so the twin must be synthetic. Carried
+      to the follow-up.
+- [x] Gates green on merged `main` **with the real corpus present**: 3,677 assertions, **0
+      skipped** (the GATE-C equivalence legs actually ran); `build --check` clean (11 owned);
+      GATE A 9/9; GATE B **25** fixtures reproducible; `tools/verify-fixtures.mjs` green
+      (14 current, 0 stamped).
+- [x] Changeset `changes/2026-07-21-motiondex-spectral-resp-rate.md` (`bump: minor`).
+
+**Part (B) — the papers — NOT done. This is why the brief is IN-PROGRESS.**
+
+- [ ] **Port the harness to `resp-acc-analysis.html`** (§4). Until then all three drafts carry a
+      visible ⛔ banner and are not submittable. Single blocking item.
+- [ ] Figures regenerated into `papers/figures/`.
+- [ ] `papers/PAPERS-AUDIT.md` rows.
+- [ ] Follow-up brief spawned per the house pattern, carrying: the adversarial twin, the
+      `MaskPress.2s` test of the CPAP-pressure hypothesis (§4 of the typing paper), and the
+      Integrator apnea-typing rule at `integrator-dsp.js:1205` — which this work-unit deliberately
+      did **not** touch.
