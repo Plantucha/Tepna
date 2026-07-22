@@ -40,7 +40,7 @@ A fleet of local-only, single-signal physiological analyzers. No upload. No acco
 
 ## 📊 Suite at a glance
 
-**Suite version:** 1.16.0 &nbsp;—&nbsp; **22** ledger-backed releases, each computed from a green tree.
+**Suite version:** 1.17.0 &nbsp;—&nbsp; **22** ledger-backed releases, each computed from a green tree.
 
 | | |
 |---|---|
