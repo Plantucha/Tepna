@@ -24,6 +24,8 @@ parent brief's rule ("`validated` **only** if they reproduce the audited PulseDe
 The tier string is the ONLY change — the compute paths are frozen. Gate the flip on a documented
 corpus-run write-up (route to the node's validation doc per `LITERATURE-USE-POLICY`).
 
+> **§2 verifiedUnder re-stamp DONE 2026-07-21** (corpus supplied by the owner: `uploads/` 432 files + `Ecg nightly/` 777 nights). Ran `DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs` after a **green** real-corpus suite (3657/3657, 0 skips — every committed fixture reproduces byte-identically on the real corpus). Both OxyDex fixtures (`_1056`/`_0439`) were already current; the ONLY stale fixture was `integrator_tch_golden` (`verifiedUnder` 1439511bb712, closure now ea5de4291e90 — moved by the §7.6 Integrator change, which `build.mjs` is forbidden to re-stamp). Re-stamped → **zero fixtures UNVERIFIED → `release.mjs`'s release wall is clear.** §1 (re-tier emerging→validated) + §3 (empirical pulse-agreement write-up) still open — both need a metric-tier decision / measurement write-up, not just a corpus run.
+
 ## 2 · OxyDex `verifiedUnder` re-stamp (corpus-gated, release-blocking)
 
 Carried from Phase 1: `tools/release.mjs` refuses to cut a release while any corpus-backed fixture is
