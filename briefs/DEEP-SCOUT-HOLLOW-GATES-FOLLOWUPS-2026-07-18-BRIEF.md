@@ -89,7 +89,7 @@ leakage; the "narrow-band" deferral was wrong).
 Each is a bespoke synthetic-signal generator for a single MED/LOW gate — real diminishing returns versus
 a slow-resp/borderline-SQI ECG fixture that would also serve other future coverage.
 
-## §AD — adapters (7 hollow gates) — **4/7 DONE (PR #195); no rig needed after all**
+## §AD — adapters (7 hollow gates) — **5/7 DONE (PR #195 + the resmed Flow-fs default); no rig needed after all**
 
 From the parent §AD. **The premise that this needed an off-suite rig was wrong for 4 of the 7** — they are
 reachable through functions already co-loaded in the suite realm: `NSRR.edfToOxyRows({signals})` drives the
@@ -100,10 +100,21 @@ existing legs used interior 95/96/98; the 1 Hz length FLOORs a partial trailing 
 `floor→ceil` → 3) — the existing legs used even n/fs; and the ResMed session window is INCLUSIVE at ±60 s
 (two EVE/CSL streams 60 s apart → 1 set; `<=60→<60` → 2). Suite 2991.
 
-**REMAINING §AD (3):** these DO need a real EDF buffer (they run inside `analyzeRecord` / the adapter's
-frame-build, gated on `CpapEdf.readEDF`): `nsrr-adapter` ODI-4 × **1.1** AHI surrogate, `resmed-edf` BRP
-Flow default **fs = 25 Hz**, and the seeded-fallback-baseline branch (partly covered — the 97 % normoxic
-default is already pinned by finding #97). A small EDF-buffer fixture would close the first two.
+**CLOSED (the resmed Flow-fs default), both-direction verified:** the adapter's frame `fs: (fl && fl.fs) || 25`
+(`adapters/resmed-edf.js:241`) — its `|| 25` fallback was hollow because the existing frame leg drives a
+`CD._synthEdfSet` Flow that CARRIES `fs=25`, so `|| 25 → || 50` stayed green. Reached with NO EDF buffer after
+all: pass the pre-decoded set via `A.parse('', {edfSets:[set]})`, strip `fs` off the decoded Flow
+(`env.CpapDsp.chan(set.BRP,'Flow').fs = undefined`, mirroring how the adapter resolves `chan` at
+`resmed-edf.js:164`), and the surfaced `frame.fs` can come ONLY from the default → the `|| 50` mutation reds
+exactly the new leg while the fs-present leg stays green (`adapters · resmed-edf · cpap`, group now 26).
+
+**REMAINING §AD (2):**
+- `nsrr-adapter` ODI-4 × **1.1** AHI surrogate — `nsrr-adapter.js:170` (repo root, NOT `adapters/`):
+  `out.ahiOxyEst = … : +(out.odi4 * 1.1).toFixed(1)`. The surrogate is inline in the buffer-processing path,
+  so reaching a KNOWN `odi4` with `ahiEst` absent needs an SpO₂ EDF carrying engineered desaturations
+  (a real `CpapEdf.readEDF` buffer with a desat-bearing SpO₂ channel) — genuinely fixture-heavy.
+- the seeded-fallback-baseline branch (partly covered — the 97 % normoxic default is already pinned by
+  finding #97).
 
 ## Done when
 
