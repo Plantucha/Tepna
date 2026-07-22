@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED — 2026-07-18 · **Created:** 2026-07-18
+**Status:** DONE — 2026-07-21 (all three Done-when items met, verified against the tree 2026-07-21: **§1** `OverDexWalk.mergePages()` extracted + exported (`overdex-walk.js:44/:142`) and pinned (`dex-tests.js:17739`, 100+3=103, order preserved, drop-all-but-last reds); **§2** the Python mutation pass ran — `test_polar_pmd.py`/`test_writers.py`/`test_telemetry.py` carry the frame-decoder + writer + telemetry known-answers, `clockcfg`'s `timedatectl` subprocess paths deliberately deprioritized; **§3** the deep-scout second wave ran and was spun into `DEEP-SCOUT-HOLLOW-GATES-2026-07-18-BRIEF.md` (its remaining clusters + the browser render-coverage/CSP/verify-provenance lanes are tracked there). Residues are deprioritized/tracked, not blocking.) · **Created:** 2026-07-18
 
 # Test-audit findings — follow-ups (residue after executing the 42)
 
