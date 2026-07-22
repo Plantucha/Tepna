@@ -201,7 +201,7 @@ function withFooter(html) {
     `pointer-events:none;user-select:none" title="Tepna suite version">v${manifest.version}</div>`;
   if (_VER_FOOTER_RE.test(html)) return html.replace(_VER_FOOTER_RE, badge);
   if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, badge + '\n</body>');
-  return html;                              // a fragment with no </body> — nothing to anchor to, leave it
+  return html; // a fragment with no </body> — nothing to anchor to, leave it
 }
 
 function syncPage(rel) {
@@ -223,7 +223,7 @@ function syncPage(rel) {
     if (mechanicalDelink(root, dir) !== cur && CHECK) {
       /* editorial divergence is expected; not counted stale */
     }
-    const stamped = withFooter(cur);         // the version footer still applies to a preserved twin
+    const stamped = withFooter(cur); // the version footer still applies to a preserved twin
     if (stamped !== cur) {
       if (CHECK) log.stale.push('docs/' + rel);
       else writeFileSync(docsAbs, stamped);
