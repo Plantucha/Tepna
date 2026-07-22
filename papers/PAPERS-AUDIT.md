@@ -28,7 +28,8 @@ real-data papers (sigma, the odi-bias real arm, ppg-ecg-hrv-validation) and the 
 | sigma-no-reference | REAL | n/a (generator-independent) | error/style audit only | **DONE** |
 | sensor-trio-nights | sim (self-contained MC) | n/a — own generator, not cohort-gen; 720 trials/cell (Draft v1) | done | **DONE** (added to ledger 2026-07) |
 | synthetic-data-frontier | perspective | n/a | error/style audit only | **DONE** |
-| ppg-ecg-hrv-validation | REAL | n/a (real co-recordings; Draft v1, Jul) | done | **DONE** (new, 2026-07) |
+| ppg-ecg-hrv-validation | REAL | n/a (real co-recordings; **Draft v2, Jul — 4→20 paired nights**) | done | **DONE** (v2 supersedes v1, 2026-07-21) |
+| ppg-quality-gate-pooling | REAL | n/a (same 20-night corpus; Draft v1, Jul) | done | **DONE** (new, 2026-07-21) |
 | timestamp-pathology | methods (real+synth) | n/a — live over shipping parser (Draft v1, Jul) | done | **DONE** (new, 2026-07) |
 | dead-ends | synthesis | n/a — regenerates from source tools (Draft v1, Jul) | done | **DONE** (new, 2026-07) |
 

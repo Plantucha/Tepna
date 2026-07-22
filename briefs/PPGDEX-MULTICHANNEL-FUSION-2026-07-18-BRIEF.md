@@ -9,6 +9,8 @@ PpgDex equiv fixture reproduced byte-identical, so genuine Verity captures are p
 and §0's line refs still need re-locating against PR #218's `parsePPG` rewrite. One residue surfaced while
 executing: see §4's *middle-case residue* note.) · **Created:** 2026-07-18
 
+> **⚠️ 2026-07-21 — Phases 1–2 are REFUTED by measurement.** `PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md` scored ambient subtraction and linear channel combining against 20 nights of paired chest-ECG ground truth. Waveform fusion **loses** out-of-sample (mean-of-3 0.95×, PCA-1 0.95×, max-SNR GEV 0.97× vs best-single-channel; foot-to-foot PPI sd 158.9 ms for ch0 alone vs 163.7 fused), and overnight ambient subtraction costs ~0.5 % SNR because ambient's within-minute std is a hardware constant (34.66–35.16 counts across all 53 non-daylight sessions). This brief's premise that the channels correlate at r 0.62–0.68 does not reproduce — the pulse-band correlation is **0.95–1.00 at zero lag**, which is exactly why averaging cannot help. **§4 (the degenerate-channel guard, EXECUTED) stands and is unaffected.** Do not execute Phases 1–2 as written.
+
 # PpgDex: stop *selecting* a channel and start *combining* them (Verity 3-LED + ambient)
 
 > **What this is.** An executable plan to replace PpgDex's **best-single-channel selection** with
