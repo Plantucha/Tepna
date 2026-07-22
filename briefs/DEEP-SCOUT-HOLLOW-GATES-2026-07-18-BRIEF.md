@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-07-18 · **Created:** 2026-07-18
+**Status:** DONE — 2026-07-22 · **Created:** 2026-07-18 · **Closed:** Done-when met — every gated cluster landed both-direction-verified (§CN #173, §KR #175, §IF #180, §EP 2/9 #177, §SI #183, §GV #184) and every remaining OPEN cluster is explicitly dispositioned into the tracked follow-up `DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS-2026-07-18-BRIEF.md` (§RN 6/7 closed via #187/#191 + 1 LOW canvas tick deferred; §EP-rest 7 call-site/narrow-band; §AD 7 adapter window-edges — the last two await an off-suite adapter/render rig). Three rate-limit-dead clusters re-scouted 2026-07-18. Residue = the follow-up brief, per the house `-FOLLOWUPS` pattern.
 
 # Deep-scout hollow-gate wave — findings ledger (40 NEW hollow gates)
 
