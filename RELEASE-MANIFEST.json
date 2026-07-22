@@ -517,6 +517,43 @@
         "DEEP-AUDIT-II-2026-07-18-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "1.17.0",
+      "date": "2026-07-22",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "65ad4d6981ac",
+        "OxyDex": "fe8e1a327135",
+        "PulseDex": "5163fe4ae4ea",
+        "GlucoDex": "a874d3d4fd24",
+        "PpgDex": "7d29881654bc",
+        "HRVDex": "0f35d8c9bd7d",
+        "CPAPDex": "af33f489182a",
+        "Integrator": "eb59331078dd",
+        "MotionDex": "670dafacfa1c"
+      },
+      "briefs": [
+        "PPGDEX-O2RING-FINGER-SITE-2026-07-18-BRIEF.md",
+        "VIGIL-BLE-ROBUSTNESS-2026-07-19-BRIEF.md",
+        "DEEP-AUDIT-II-2026-07-18-BRIEF.md",
+        "HRVDEX-ALL-NIGHT-SCOPE-2026-07-20-BRIEF.md",
+        "OXYDEX-PULSE-RESOURCING-2026-07-18-BRIEF.md",
+        "POSTURE-SIGN-AND-NADIR-LABELS-2026-07-20-BRIEF.md",
+        "VIGIL-ADAPTER-FALSE-WEDGE-2026-07-20-BRIEF.md",
+        "VIGIL-RECONNECT-BACKOFF-AND-LINK-COUNT-2026-07-20-BRIEF.md",
+        "VIGIL-BLE-ROBUSTNESS-FOLLOWUPS-2026-07-20-BRIEF.md",
+        "VIGIL-WEAR-GATE-AND-ACC-CAP-2026-07-20-BRIEF.md",
+        "FIXTURE-VERIFICATION-GATE-2026-07-14-BRIEF.md",
+        "MOTIONDEX-RESPIRATORY-RATE-2026-07-21-BRIEF.md",
+        "PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md",
+        "VIGIL-AUDIT-FIXES-2026-07-21-BRIEF.md",
+        "VIGIL-O2RING-AUTOPULL-2026-07-21-BRIEF.md",
+        "MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS-2026-07-22-BRIEF.md",
+        "INTEGRATOR-OXYDEX-ADAPTER-GAP-2026-07-21-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
