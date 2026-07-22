@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  effort-typing-null.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chest-accelerometer effort does not type apneas under CPAP — Tepna preprint</title>
+<link rel="stylesheet" href="../licensing/dex-license.css">
+<link rel="stylesheet" href="paper.css">
+</head>
+<body>
+<div class="sheet">
+  <a class="toplink" href="papers.html">← Tepna preprints</a>
+  <div class="banner">Tepna Working Preprint · not peer-reviewed · <b>PARKED — see §5 before citing</b></div>
+  <h1 class="title">Absent effort is not absent motion: chest-accelerometer respiratory effort fails to type apneas during CPAP therapy, and a mechanism for why</h1>
+  <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
+  <p class="affil">MotionDex (inertial motion) · Integrator (fusion) nodes, Tepna physiological-signal suite</p>
+  <p class="meta">Draft v1 · July 2026 · Data class: <b>real-data, n-of-1, negative result</b> · Analysis tool: <code>resp-acc-analysis.html</code> <b>(NOT YET BUILT)</b> · 100% local</p>
+
+  <div class="abstract">
+    <h2>Abstract</h2>
+    <p style="text-align:left;margin-bottom:0"><b>Rationale.</b> Distinguishing central from obstructive apnea rests on respiratory <em>effort</em>: absent in central events, preserved in obstructive ones. Wearable systems increasingly substitute a chest accelerometer for the polysomnographic effort belt, and the substitution is usually justified by asserting that effort amplitude collapses during a central event. Using a single effort channel, Nassi et al. recovered 84% of central apneas but only 51% of obstructive ones, and named the reason: <i>"When using a single effort signal, thoracoabdominal asynchrony is undetectable"</i> <span class="cite">[8]</span>. That asymmetry — good at detecting <em>absence</em>, poor at confirming <em>presence</em> — is the premise we test. <b>Methods.</b> 22 nights of Polar H10 chest accelerometry during CPAP therapy, time-aligned to the device's own AASM-typed scored events (392 apneas: 370 central, 31 obstructive with usable context). Respiratory-band effort envelope amplitude during each event was compared to three baselines (near, far, and night-level) under two windows. <b>Results.</b> Effort during central apneas sits at <b>0.99×</b> the night-level baseline — not absent, but <em>normal</em>; obstructive events sit at 1.72×. The best discriminating configuration reaches <b>AUC 0.691 (p = 0.0002)</b>, statistically robust but far below clinical utility. Framed as the literature frames it, only <b>16.5%</b> of central apneas show amplitude below half baseline, where a single RIP belt achieves 84% recall <span class="cite">[8]</span>. An absolute amplitude threshold — the mechanism most wearable implementations use — would therefore mark effort "present" during the great majority of central events. <b>A methodological finding of independent interest:</b> including each event's <em>termination</em> in the analysis window destroys the effect entirely (AUC 0.573, p = 0.089), because the terminating arousal injects motion exactly where effort should appear absent. <b>Interpretation.</b> We advance, but do not establish, the hypothesis that positive airway pressure mechanically drives chest-wall motion in the absence of respiratory effort. Every prior chest-accelerometer apnea study we identified recorded untreated diagnostic nights, so this failure mode is untested elsewhere.</p>
+  </div>
+  <p class="kw"><b>Keywords:</b> central sleep apnea · respiratory effort · accelerometry · CPAP · negative result · treatment-emergent central apnea · AASM</p>
+
+  <h2 class="sec">1. Introduction</h2>
+  <p>The AASM defines apnea by a ≥90% drop in airflow from baseline, and types it by effort: obstructive if effort persists, central if it does not. Effort is conventionally measured with thoracic and abdominal RIP belts. A chest accelerometer is an attractive substitute — it is already worn, it is cheap, and its respiratory-band amplitude is a plausible effort surrogate <span class="cite">[1,6]</span>.</p>
+  <p>The evidence for the substitution is more asymmetric than it is usually presented. Nassi et al., using a single effort belt over 9,656 clinical and 8,455 SHHS recordings, classified 84% of central apneas correctly but only 51% of obstructive ones, and attributed the gap to the unobservability of thoracoabdominal paradox from one sensor <span class="cite">[8]</span>. Chang et al., using <em>two</em> accelerometers plus oximetry and ECG, reached 83.3% four-class event accuracy and stated explicitly that amplitude ratio is the central cue while paradox is the obstructive one <span class="cite">[10]</span>. Systems with a chest accelerometer plus a second modality report usable central detection — WatchPAT at sensitivity 67% / specificity 100% <span class="cite">[11]</span>; a chest-plus-abdomen accelerometric patch system at central-apnea-index r = 0.82 <span class="cite">[12]</span>. Notably, the most recent chest-accelerometer AHI system states in its own limitations that it <i>"is not capable of distinguishing obstructive from central apnea events"</i> <span class="cite">[2]</span>.</p>
+  <p>What is missing from all of it: none of these recordings were made during positive-airway-pressure therapy.</p>
+
+  <h2 class="sec">2. Methods</h2>
+  <p>22 nights of Polar H10 chest accelerometry, aligned to the concurrent ResMed recording by the cross-correlation and drift procedure described in the companion methods paper <span class="cite">[9]</span>. Events and their AASM types were read from the device's EDF+ annotation file. Only apneas of ≥8 s with ≥90 s of preceding context were retained: <b>370 central and 31 obstructive</b>.</p>
+  <p>Three effort statistics were derived from the band-passed (0.13–0.50 Hz) tri-axial signal: the per-channel maximum, the median, and the projection onto the night's dominant principal component, each as a 1 s RMS envelope at 5 Hz with channels scaled to unit whole-night standard deviation. Each event's effort was expressed as a ratio to three baselines — a near window (−35 to −5 s), a far window (−90 to −60 s), and the night-level median — under two analysis windows: the full scored event, and its first 70% (excluding the termination). Discrimination was quantified by AUC with a Mann–Whitney test.</p>
+  <div class="callout"><b>Why relative, not absolute.</b> The AASM defines apnea and hypopnea as fractional drops <em>from the patient's own recent baseline</em>. Tilt-derived amplitude is additionally posture- and coupling-dependent, so an absolute milli-g threshold conflates physiology with sensor geometry. Both considerations require a relative measure; we report absolute-threshold behaviour only to characterise what a fixed-gate implementation would do.</div>
+
+  <h2 class="sec">3. Results</h2>
+  <table class="tbl">
+    <tr><th>Effort stat | window | baseline</th><th>median central</th><th>median obstructive</th><th>AUC</th><th>p</th></tr>
+    <tr><td>max | first 70% | night</td><td><b>0.99</b></td><td><b>1.72</b></td><td><b>0.691</b></td><td>0.0002</td></tr>
+    <tr><td>PCA | first 70% | near</td><td>1.31</td><td>3.55</td><td>0.681</td><td>0.0004</td></tr>
+    <tr><td>median | first 70% | night</td><td>0.97</td><td>2.05</td><td>0.662</td><td>0.0013</td></tr>
+    <tr><td>max | full event | near</td><td>1.36</td><td>1.73</td><td>0.573</td><td>0.089</td></tr>
+  </table>
+  <p><b>3.1 The effect is real but small.</b> The best configuration reaches AUC 0.691 (p = 0.0002, n = 370 vs 31). Every "first 70%" variant outperforms its full-event counterpart across all three effort statistics and all three baselines, so the window effect is systematic rather than incidental.</p>
+  <p><b>3.2 The termination destroys the signal.</b> Including the event's terminating arousal collapses discrimination to AUC 0.573 (p = 0.089). This is worth reporting on its own account: an analysis that windows on the scored event as annotated — the obvious implementation — measures the arousal, not the apnea.</p>
+  <p><b>3.3 Effort is not absent during central events.</b> Central apneas sit at 0.99× the night baseline. Against the thresholds an absolute gate would use:</p>
+  <table class="tbl">
+    <tr><th>Threshold</th><th>central below</th><th>obstructive below</th><th>single RIP belt <span class="cite">[8]</span></th></tr>
+    <tr><td>ratio &lt; 0.3</td><td>4.6%</td><td>3.2%</td><td>—</td></tr>
+    <tr><td>ratio &lt; 0.5</td><td>16.5%</td><td>6.5%</td><td><b>84% central recall</b></td></tr>
+    <tr><td>ratio &lt; 0.7</td><td>32.4%</td><td>19.4%</td><td>—</td></tr>
+  </table>
+  <p>A fixed-amplitude effort-present test would therefore mark effort present during 83.5–95.4% of central apneas, and type them obstructive.</p>
+
+  <h2 class="sec">4. Discussion — a hypothesis, not a conclusion</h2>
+  <p>The discrepancy with Nassi et al. is large: 16.5% versus 84% recall of the effort-absent condition. Three explanations are available and are <em>not</em> distinguished by this data.</p>
+  <p><b>(a) Positive airway pressure drives chest motion without effort.</b> Every study cited above recorded untreated diagnostic nights. Under CPAP the airway is pressurised and the machine continues to cycle; chest-wall displacement may therefore persist through a central event in which no respiratory effort occurs. This would produce exactly the observed 0.99× ratio. It is directly testable against the concurrently recorded <code>MaskPress.2s</code> and <code>Press.2s</code> channels and has not yet been tested.</p>
+  <p><b>(b) Transducer difference.</b> A RIP belt measures circumference; an accelerometer measures tilt. These are not the same quantity and need not fail together.</p>
+  <p><b>(c) Label quality.</b> The event types are the CPAP manufacturer's algorithm, which infers central events from forced-oscillation airway patency, not expert AASM scoring against esophageal pressure. A recent expert review notes that accelerometric chest-movement correlation with esophageal pressure <i>"remains insufficiently characterized"</i> <span class="cite">[13]</span>.</p>
+
+  <h2 class="sec">5. ⚠ Status and limitations</h2>
+  <div class="callout" style="border:1px dashed #b00"><b>This paper is PARKED and should not be cited as establishing its title claim.</b> Four issues must be resolved first: <b>(i)</b> the CPAP-pressure hypothesis (§4a) is untested, and if confirmed it reframes the result from "accelerometer effort cannot type apneas" to "accelerometer effort cannot type apneas <em>under therapy</em>" — a materially different and much narrower claim; <b>(ii)</b> obstructive n = 31, so the AUC confidence interval is wide and the obstructive median is unstable; <b>(iii)</b> the labels are device-scored, not PSG; <b>(iv)</b> an independent adversarial review of the supporting literature found a prior report whose direction may run <em>opposite</em> to the mechanism assumed here, and that contradiction is unresolved.</div>
+  <p>Beyond those: one subject; one posture (gravity-roll IQR 13.1°–17.9°, so postural modulation of effort coupling is unexplored); and the effort envelope, though band-limited to 0.13–0.50 Hz with a zero-phase 4th-order Butterworth measured at −36.6 dB at 0.8 Hz, cannot be guaranteed free of all arousal-related motion even in the first 70% of an event.</p>
+  <p>What the result <em>does</em> support, and we believe robustly, is the narrow engineering claim: <b>on this corpus, an absolute-amplitude effort-present test does not type apneas, and any implementation relying on one should abstain rather than emit a type.</b></p>
+
+  <h2 class="sec">6. Reproducibility</h2>
+  <div class="callout" style="border:1px dashed #b00"><b>⛔ Blocking item.</b> Numbers must regenerate from <code>resp-acc-analysis.html</code>, which does not yet exist. See <code>briefs/MOTIONDEX-RESPIRATORY-RATE-2026-07-21-BRIEF.md</code> §4.</div>
+
+  <h2 class="sec">7. References</h2>
+  <div class="callout" style="font-size:13px"><b>Citation provenance.</b> <b>✓</b> verified directly by the author against the publisher record, including quoted statistics. <b>△</b> retrieved by automated literature agents with full text obtained, not independently re-verified. <b>✗</b> full text never obtained.</div>
+  <ol class="refs">
+    <li><b>✓</b> Schipper F, van Sloun RJG, Grassi A, Derkx R, Overeem S, Fonseca P. Estimation of respiratory rate and effort from a chest-worn accelerometer using constrained and recursive principal component analysis. <i>Physiol Meas</i> 42(4):045004, 2021. doi:10.1088/1361-6579/abf01f</li>
+    <li><b>✓</b> Schipper F, Fonseca P, Grassi A, Ross M, et al. Apnea-hypopnea index estimation using overnight chest-wall accelerometry. <i>Front Sleep</i>, 2026. doi:10.3389/frsle.2026.1858267 — <i>source of the verbatim limitation quoted in §1.</i></li>
+    <li><b>✓</b> Charlton PH, Bonnici T, Tarassenko L, Clifton DA, Beale R, Watkinson PJ. An assessment of algorithms to estimate respiratory rate from the electrocardiogram and photoplethysmogram. <i>Physiol Meas</i> 37(4):610–626, 2016. doi:10.1088/0967-3334/37/4/610</li>
+    <li><b>△</b> Ryser F, Hanassab S, Lambercy O, Werth E, Gassert R. Respiratory analysis during sleep using a chest-worn accelerometer: a machine learning approach. <i>Biomed Signal Process Control</i> 78:104014, 2022. doi:10.1016/j.bspc.2022.104014</li>
+    <li><b>△</b> Doheny EP, Lowery MM, Russell A, Ryan S. Estimation of respiration rate and sleeping position using a wearable accelerometer. <i>Proc IEEE EMBC</i>, 2020:4529–4532. doi:10.1109/EMBC44109.2020.9176573</li>
+    <li><b>△</b> Schipper F, van Sloun RJG, Grassi A, Overeem S, Fonseca P. A deep-learning approach to assess respiratory effort with a chest-worn accelerometer during sleep. <i>Biomed Signal Process Control</i> 83:104726, 2023. doi:10.1016/j.bspc.2023.104726</li>
+    <li><b>△</b> Akbarian S, Montazeri Ghahjaverestan N, Yadollahi A, Taati B. Distinguishing obstructive versus central apneas in infrared video of sleep using deep learning. <i>J Med Internet Res</i>, 2020. doi:10.2196/17252</li>
+    <li><b>△</b> Nassi TE, Ganglberger W, Sun H, et al. Automated scoring of respiratory events in sleep with a single effort belt and deep neural networks. <i>IEEE Trans Biomed Eng</i>, 2022. doi:10.1109/TBME.2021.3136753 — <i>source of the 84%/51% asymmetry and the quoted sentence.</i></li>
+    <li>Planicka M. The machine in the bedroom: CPAP flow as a home reference standard. <i>Tepna working preprint</i>, 2026. <a href="cpap-flow-reference.html">cpap-flow-reference.html</a></li>
+    <li><b>△</b> Chang HC, Wu HT, Huang PC, Ma HP, Lo YL, Huang YH. Portable sleep apnea syndrome screening and event detection using LSTM recurrent neural network. <i>Sensors</i> 20(21):6067, 2020. doi:10.3390/s20216067</li>
+    <li><b>△</b> Pillar G, Berall M, Berry R, et al. Detecting central sleep apnea in adult patients using WatchPAT — a multicenter validation study. <i>Sleep Breath</i>, 2020. doi:10.1007/s11325-019-01922-3</li>
+    <li><b>△</b> Rohrscheib C, Moura AA, Raphelson J, Orr JE, Patel RP, Malhotra A. Evaluation of an automated sleep apnea scoring system using body-worn effort patches. <i>Sleep Med</i>, 2026.</li>
+    <li><b>△</b> Chiang AA, et al. From classic to cutting-edge: technological approaches to respiratory physiological signals in sleep medicine. <i>J Clin Sleep Med</i>, 2026.</li>
+  </ol>
+
+  <p class="dxl-note">Tepna is not a medical device and is not intended to diagnose, treat, cure or prevent any disease. Research and personal-analysis use only.</p>
+</div>
+</body></html>

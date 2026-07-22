@@ -49,7 +49,7 @@
       }
     ],
     "activityCadenceSec": 30,
-    "respRateBrpm": 14,
+    "respRateBrpm": 15.1,
     "effortSeries": [
       {
         "tMs": 1781128800000,

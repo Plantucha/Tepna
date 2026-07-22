@@ -19700,6 +19700,77 @@
       T.ok('rate is NOT the pre-fix ~7.5 (breaths ÷ the 240 s max-stream span)', eff.rateBrpm != null && eff.rateBrpm > 11, 'rateBrpm=' + eff.rateBrpm);
     });
 
+    /* ════ MotionDex spectral respiratory rate — known answers, honest bias, honest abstention ════
+     MOTIONDEX-RESPIRATORY-RATE-2026-07-21. The zero-crossing rate scored MAE 3.59 br/min against a real
+     CPAP-flow reference over 26 nights — WORSE than predicting a constant (1.50). `respiratoryRate` replaces
+     it with spectral ridge tracking (MAE 1.01). Three properties are contract, not incidental:
+       (1) KNOWN ANSWER — a clean synthetic breath at a known rate must come back at that rate. This is the
+           assertion that caught the original bias constant: it was fitted to real breathing measured against
+           `60/median(period)`, so applying it by default made a 15 br/min sinusoid read 15.7.
+       (2) THE BIAS IS OPT-IN — `RR_BIAS_BRPM_CORPUS` is documented but NOT applied, because it is
+           SUBJECT-FITTED and would smuggle one person's offset into every other user's data.
+       (3) ABSTENTION IS MONOTONE — raising `confMin` may only shrink the retained set, never grow it.
+     Also pins the additive export contract: every legacy field survives. ════ */
+    group('MotionDex spectral respiratory rate recovers known answers', 'motiondex-dsp · resp-rate · spectral', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.respiratoryRate === 'function' && typeof MD.parseSensorXYZ === 'function' && typeof MD.genSyntheticACC === 'function')) {
+        T.skip('MOTIONDSP.respiratoryRate + parseSensorXYZ + genSyntheticACC available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      // (1) known answers across the physiological band
+      var rates = [10, 15, 20];
+      for (var r = 0; r < rates.length; r++) {
+        var want = rates[r];
+        var rows = MD.parseSensorXYZ(MD.genSyntheticACC({ sec: 600, hz: 26, brpm: want, seed: 11 + r }));
+        var got = MD.respiratoryRate(rows, rows[0].tMs, 'mg') || {};
+        T.ok(
+          'synthetic ' + want + ' br/min recovers within 0.5 (spectral, no bias applied)',
+          got.hasData === true && got.medianBrpm != null && Math.abs(got.medianBrpm - want) <= 0.5,
+          'want=' + want + ' got=' + got.medianBrpm
+        );
+      }
+      // (2) the corpus bias constant is NOT applied by default — it is subject-fitted
+      var base = MD.parseSensorXYZ(MD.genSyntheticACC({ sec: 600, hz: 26, brpm: 15, seed: 21 }));
+      var noBias = MD.respiratoryRate(base, base[0].tMs, 'mg') || {};
+      var withBias = MD.respiratoryRate(base, base[0].tMs, 'mg', { biasBrpm: 0.58 }) || {};
+      T.ok('default applies NO bias (biasApplied === 0)', noBias.biasApplied === 0, 'biasApplied=' + noBias.biasApplied);
+      T.ok(
+        'an opt-in bias shifts the estimate by that amount',
+        withBias.medianBrpm != null && Math.abs(withBias.medianBrpm - noBias.medianBrpm - 0.58) < 0.2,
+        'noBias=' + noBias.medianBrpm + ' withBias=' + withBias.medianBrpm
+      );
+      // (3) abstention is monotone in the confidence gate
+      var loose = MD.respiratoryRate(base, base[0].tMs, 'mg', { confMin: 0 }) || {};
+      var tight = MD.respiratoryRate(base, base[0].tMs, 'mg', { confMin: 0.9 }) || {};
+      T.ok(
+        'raising confMin never increases coverage',
+        loose.coverage >= tight.coverage,
+        'confMin0=' + loose.coverage + ' confMin0.9=' + tight.coverage
+      );
+      T.ok('the loose gate retains every epoch', loose.coverage === 1, 'coverage=' + loose.coverage);
+      // method attribution — the Integrator reads summary.respRateMethod to attribute the RR source
+      T.ok('method is attributed for Integrator RR fusion', noBias.method === 'acc-spectral-viterbi', 'method=' + noBias.method);
+    });
+
+    /* ════ The new rate fields are ADDITIVE — every legacy effort field survives (CLAUDE.md §🧪) ════ */
+    group('MotionDex effort keeps its legacy return shape while adding the rate series', 'motiondex-dsp · effort · back-compat', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.respiratoryEffort === 'function' && typeof MD.genSyntheticACC === 'function')) {
+        T.skip('MOTIONDSP.respiratoryEffort + genSyntheticACC available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      var chest = MD.parseSensorXYZ(MD.genSyntheticACC({ sec: 600, hz: 26, brpm: 15, seed: 31 }));
+      var eff = MD.respiratoryEffort(chest, chest[0].tMs, 600, 'mg') || {};
+      var legacy = ['hasData', 'hz', 'rateBrpm', 'nBreaths', 'amplitudeG', 'series', 'cadenceSec', 'floorG'];
+      for (var i = 0; i < legacy.length; i++) {
+        T.ok('legacy field `' + legacy[i] + '` still present', Object.prototype.hasOwnProperty.call(eff, legacy[i]), 'missing ' + legacy[i]);
+      }
+      T.ok('the effort present-track is still emitted', Array.isArray(eff.series) && eff.series.length > 0, 'series=' + (eff.series || []).length);
+      T.ok('a per-epoch rate series is now emitted alongside it', Array.isArray(eff.rateSeries) && eff.rateSeries.length > 0, 'rateSeries=' + (eff.rateSeries || []).length);
+      T.ok('the legacy zero-crossing rate is preserved for comparison', eff.rateBrpmLegacy != null, 'rateBrpmLegacy=' + eff.rateBrpmLegacy);
+      T.ok('rateBrpm now comes from the spectral estimator', eff.respRateMethod === 'acc-spectral-viterbi', 'respRateMethod=' + eff.respRateMethod);
+    });
+
     /* ════ MotionDex body-position dwell fractions exclude NON-RECORDING epochs (DEEP-AUDIT-II §7.4) ════
      `bodyPosition` counted a gap epoch as `dwell.unknown++` then divided every posture by `nE` — so a longer
      wrist file's uncovered tail diluted a real supineFrac (2 supine epochs / 6 total = 0.33 instead of 1.0).

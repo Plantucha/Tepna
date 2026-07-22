@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  acc-respiratory-rate.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Respiratory rate from a Polar H10 chest accelerometer — Tepna preprint</title>
+<link rel="stylesheet" href="../licensing/dex-license.css">
+<link rel="stylesheet" href="paper.css">
+</head>
+<body>
+<div class="sheet">
+  <a class="toplink" href="papers.html">← Tepna preprints</a>
+  <div class="banner">Tepna Working Preprint · not peer-reviewed · <b>DRAFT — analysis tool not yet ported (see §7)</b></div>
+  <h1 class="title">Overnight respiratory rate from a Polar H10 chest accelerometer during CPAP therapy: spectral ridge tracking with honest abstention, validated against 172 hours of device flow</h1>
+  <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
+  <p class="affil">MotionDex (inertial motion) node, Tepna physiological-signal suite</p>
+  <p class="meta">Draft v1 · July 2026 · Data class: <b>real-data, n-of-1</b> · Analysis tool: <code>resp-acc-analysis.html</code> <b>(NOT YET BUILT — §7)</b> · 100% local</p>
+
+  <div class="abstract">
+    <h2>Abstract</h2>
+    <p style="text-align:left;margin-bottom:0"><b>Background.</b> The Polar H10 is among the most widely used research-grade chest straps, and it streams a tri-axial accelerometer alongside its ECG. Its accelerometer has, to our knowledge, never been evaluated for respiration — the H10 validation literature is entirely heart rate and HRV. Separately, every published chest-accelerometer respiration study we identified recorded <em>untreated diagnostic</em> nights, so performance under positive-airway-pressure therapy is unreported. <b>Methods.</b> 26 nights (172 h, 19,193 epochs of 30 s) of H10 accelerometry, each time-aligned to a ResMed CPAP recording whose 25 Hz flow channel provides breath-by-breath reference <span class="cite">[10]</span>. Note the practical sampling rate: 49 of 50 nights logged at <b>~25.3–25.4 Hz</b>, not the 200 Hz the device can supply. The estimator band-passes the three acceleration axes (0.13–0.50 Hz, 4th-order Butterworth, zero-phase), forms a per-channel normalised periodogram on a 0.004 Hz grid, sums across channels, applies a soft spectral high-pass taper, blends in a time-domain zero-crossing estimate, and decodes the rate by <b>Viterbi ridge tracking</b> across epochs with a per-epoch confidence equal to the spectral mass around the ridge. <b>Results.</b> MAE <b>1.01 brpm</b> (95% CI 0.91–1.12), <b>91.6%</b> of epochs within 2 brpm (90.2–92.7), bias −0.48 (−0.57 to −0.40), RMSE 2.79, at 100% coverage. On epochs free of a scored respiratory event (94% of the night) MAE is <b>0.77</b> and r rises to 0.57. Confidence-gated: MAE <b>0.73</b> (0.67–0.81) at 85% coverage and <b>0.56</b> (0.51–0.61) at 70%, where 97.8% of epochs are within 2 brpm — at the reference channel's own 0.70 brpm noise floor. The shipped predecessor algorithm scores MAE 3.59 on the same epochs, <em>worse than predicting a constant</em> (1.50). Cost is 0.17 s per night in dependency-free ES5. <b>Conclusion.</b> A chest accelerometer already worn for ECG yields clinically plausible overnight respiratory rate at no extra hardware cost, provided the estimator is allowed to abstain. <b>The dominant limitation is not accuracy but exposure:</b> one subject, and — measured, not assumed — essentially one sleeping posture, so posture robustness is untested here.</p>
+  </div>
+  <p class="kw"><b>Keywords:</b> respiratory rate · accelerometry · Polar H10 · CPAP · Viterbi · spectral tracking · abstention · sleep · n-of-1</p>
+
+  <h2 class="sec">1. Introduction</h2>
+  <p>Chest-worn accelerometry senses respiration principally as a <em>rotation</em>: the chest wall tilts the sensor, and the 1 g gravity vector re-projects onto its axes. A 1–3° respiratory tilt reprojects roughly 17–52 mg, whereas the translational acceleration of a few millimetres of chest-wall excursion at 0.2 Hz is of order 1 mg <span class="cite">[1]</span>. The consequence, widely exploited, is that the signal is an inclinometer signal, and that the axis carrying it depends on posture <span class="cite">[1,9]</span>.</p>
+  <p>Prior overnight validations are few. Ryser et al. reported mean difference +1.8 brpm (SD 2.2) over 89.4 h in 12 subjects against PSG RIP <span class="cite">[4]</span>; Doheny et al. reported chest MAE 1.89 ± 0.53 brpm at 30 s epochs in 11 PSG patients <span class="cite">[5]</span>. Awake laboratory protocols do considerably better — Schipper et al. reached limits of agreement of 0.73 brpm but at 44% coverage, and 1.45 brpm at 80% coverage, over ~90 min per subject in 20 healthy volunteers <span class="cite">[1]</span>; Hostrup et al. reported MAE 0.5 brpm against spirometry in a seated/supine lab protocol <span class="cite">[7]</span>. These are not comparable to whole-night performance and should not be quoted as if they were.</p>
+  <p>Two gaps motivate this work. First, the Polar H10's accelerometer is unevaluated for respiration despite the device's ubiquity in research. Second, none of the above recorded during CPAP therapy, so nothing is known about how these methods behave when a machine is pressurising the airway.</p>
+
+  <h2 class="sec">2. Methods</h2>
+  <h3 class="sub">2.1 Corpus and reference</h3>
+  <p>One adult subject on CPAP therapy wore a Polar H10 overnight, logged by Polar Sensor Logger. 26 nights (172 h) had a concurrent ResMed recording. The reference is breath-by-breath detection on the CPAP <code>Flow.40ms</code> channel; the reference's own noise floor, its validation, and the recovery of the ≈39 min clock offset and its +0.589 s/day drift are described in the companion methods paper <span class="cite">[10]</span> and are prerequisites for everything below.</p>
+  <div class="callout"><b>Sampling rate is a trap.</b> The H10 accelerometer can stream 25/50/100/200 Hz. In this corpus 49 of 50 nights are <b>~25.3–25.4 Hz</b> and one is 202.9 Hz; the co-recorded Verity Sense runs ~25.8–25.9 Hz. The rate must therefore be <em>measured per file</em> from the median inter-sample interval, never assumed and never derived by dividing sample count by nominal duration.</div>
+
+  <h3 class="sub">2.2 The estimator</h3>
+  <p>After resampling to a uniform grid and anti-alias decimation to 5 Hz, three channels are formed — the band-passed acceleration axes, 0.13–0.50 Hz, 4th-order Butterworth applied forward–backward. Per 60 s window at 30 s hop, each channel contributes a Hann-windowed periodogram zero-padded to 2048, interpolated onto a 0.10–0.60 Hz grid at 0.004 Hz (≈0.24 brpm) and normalised to unit in-band power; the three are summed. A soft spectral high-pass taper <code>1/(1+exp(−(f−0.16)/0.01))</code> suppresses the sub-respiratory tail that otherwise drags the peak to the band edge. A time-domain zero-crossing estimate is blended in as a Gaussian likelihood bump (weight 0.30, width 1.0 brpm), motivated by Charlton et al.'s finding that <em>all</em> top-ranked algorithms among 314 evaluated used time-domain breath detection <span class="cite">[3]</span>. The rate is then decoded across the whole night by Viterbi:</p>
+  <div class="eqn">maximise&nbsp; Σ<sub>t</sub> log S[t, f<sub>t</sub>] − (brpm<sub>t</sub> − brpm<sub>t−1</sub>)² / (2σ²),&nbsp;&nbsp; σ = 1.2 brpm</div>
+  <p>Confidence is the spectral mass within ±1.4 brpm of the tracked ridge; epochs below a threshold emit <code>null</code>. A constant +0.58 brpm bias correction is applied and is <b>subject-fitted</b> (§5).</p>
+
+  <h3 class="sub">2.3 Statistics</h3>
+  <p>Bias, MAE, RMSE, 95% limits of agreement, Pearson r and the proportion within 2 and 3 brpm are computed per epoch. 95% CIs are night-level bootstrap (4,000 resamples over the 26 nights). The bias constant is applied <b>leave-one-night-out</b> — estimated on the other 25 nights and applied to the held-out one — so no reported figure is fitted on its own test data. The time-domain blend weight was similarly checked by nested cross-validation.</p>
+
+  <h2 class="sec">3. Results</h2>
+
+  <h3 class="sub">3.1 Accuracy and the coverage trade-off</h3>
+  <table class="tbl">
+    <tr><th>Configuration</th><th>MAE (brpm)</th><th>95% CI</th><th>≤2 brpm</th><th>r</th><th>Coverage</th></tr>
+    <tr><td>Shipped predecessor</td><td>3.59</td><td>—</td><td>47.6%</td><td>+0.06</td><td>100%</td></tr>
+    <tr><td>Constant = corpus median (null)</td><td>1.50</td><td>—</td><td>80.7%</td><td>—</td><td>100%</td></tr>
+    <tr><td><b>Proposed, all epochs</b></td><td><b>1.01</b></td><td>0.91–1.12</td><td><b>91.6%</b></td><td>+0.37</td><td>100%</td></tr>
+    <tr><td>Proposed, event-free epochs</td><td>0.77</td><td>—</td><td>93.5%</td><td>+0.57</td><td>94%</td></tr>
+    <tr><td>Proposed @ 85% coverage</td><td>0.73</td><td>0.67–0.81</td><td>95.5%</td><td>+0.49</td><td>85%</td></tr>
+    <tr><td>Proposed @ 70% coverage</td><td><b>0.56</b></td><td>0.51–0.61</td><td><b>97.8%</b></td><td>+0.61</td><td>70%</td></tr>
+    <tr><td><i>Reference channel self-noise</i> <span class="cite">[10]</span></td><td><i>≈0.70</i></td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+  </table>
+  <p>Bias is −0.48 brpm (95% CI −0.57 to −0.40), RMSE 2.79, 95% limits of agreement ±5.38 at full coverage. Per-night MAE ranges 0.74–1.70 (median 0.97); every night reaches ≥82.6% within 2 brpm.</p>
+  <div class="callout"><b>MAE is a weak discriminator here and must not be read alone.</b> The reference rate distribution is narrow — median 16.0 brpm, IQR [15.2, 16.9] — so a constant predictor already scores MAE 1.50. This range restriction also caps achievable correlation. The informative quantity is the joint (error, coverage) curve, and the within-2-brpm proportion.</div>
+
+  <h3 class="sub">3.2 Abstention is the single largest lever</h3>
+  <p>Moving from 100% to 70% coverage nearly halves MAE (1.01 → 0.56) and raises within-2-brpm from 91.6% to 97.8%, monotonically at every intermediate operating point. At 70% coverage the estimator sits at the reference's own noise floor, which is the correct place to stop claiming improvement. An estimator that cannot abstain — as the shipped predecessor cannot, its quality field being constant — forfeits this entirely.</p>
+
+  <h3 class="sub">3.3 Where the error concentrates</h3>
+  <p>Epochs overlapping a device-scored apnea or hypopnea are 6% of the night and carry disproportionate error (MAE 4.98, bias −4.66) — expected, since breathing genuinely stops and the reference's median-period statistic does not. Excluding them raises r from 0.37 to 0.57. This mirrors Schipper et al.'s stratified finding that effort estimation degrades ~2.7× in MSE during apnea, and that wake epochs are worse still <span class="cite">[6]</span>.</p>
+
+  <h3 class="sub">3.4 Design choices, each measured</h3>
+  <table class="tbl">
+    <tr><th>Decision</th><th>Alternative</th><th>Outcome</th></tr>
+    <tr><td>Viterbi ridge tracking</td><td>independent per-epoch peak-pick</td><td>MAE 1.18 vs 1.54</td></tr>
+    <tr><td>σ = 1.2 brpm</td><td>0.6 / 2.5 / 5.0</td><td>1.19 vs 1.20 / 1.23 / 1.35</td></tr>
+    <tr><td>Spectral high-pass taper</td><td>none / spectral whitening</td><td>1.15 vs 1.20 / 1.26</td></tr>
+    <tr><td>Time-domain blend, w = 0.30</td><td>spectral only</td><td>1.08 → 1.02; nested CV selects 0.30 on every held-out night</td></tr>
+    <tr><td>Three acceleration axes</td><td>+ tilt-angle pair / + gravity-parallel / + \|acc\|</td><td>all within 0.01 MAE</td></tr>
+    <tr><td>Equal sum across channels</td><td>amplitude-, concentration-, peak-weighted</td><td>all within 0.01 MAE</td></tr>
+  </table>
+  <p><b>An explicit tilt-angle channel is redundant.</b> Because the band-passed raw axis on a DC-coupled sensor already <em>is</em> the gravity-reprojection signal, the arcsin transform is near-identity over physiological tilt. Measured: <code>corr(spectrum(acc-X), spectrum(tilt-1)) = +1.000</code>, and adding the tilt pair changed MAE by 0.01. This is worth stating because the tilt representation is often recommended on mechanistic grounds <span class="cite">[1,9,13]</span> — the mechanism is correct, but it does not imply that computing the angle explicitly adds information.</p>
+
+  <h2 class="sec">4. Discussion</h2>
+  <p>Against the two comparable <em>overnight</em> studies, the result is competitive: Ryser et al. +1.8 brpm bias with SD 2.2 <span class="cite">[4]</span>, and Doheny et al. MAE 1.89 at the same 30 s epoch length <span class="cite">[5]</span>, versus MAE 1.01 (0.77 on event-free epochs) here. The awake-laboratory figures <span class="cite">[1,7]</span> remain better and should not be compared directly.</p>
+  <p>The practical implication is that a strap already worn for ECG delivers respiratory rate for free, at 0.17 s of computation per night in dependency-free code, provided two disciplines are observed: measure the sampling rate per file, and allow the estimator to say "I don't know".</p>
+
+  <h2 class="sec">5. Limitations</h2>
+  <p>This is a single subject. The bias constant (+0.58 brpm) is consistent across all 26 nights (per-night −0.20 to −1.27) and is applied leave-one-night-out so the reported error is not self-fitted, but it is nonetheless one person's offset and must be re-derived elsewhere. <b>Posture robustness is untested, and this is the limitation we regard as dominant.</b> Gravity-vector roll angle across the corpus has median 15.1° and IQR [13.1°, 17.9°] (p5–p95 7.8°–23.2°), with 84.9% of windows in a single band — this subject sleeps in essentially one orientation. Doheny et al. report supine MAE 2.43 vs lateral 1.58 (1.54×, p&lt;0.01) <span class="cite">[5]</span>; the corresponding worst-vs-best contrast here is 1.02×, which is a failure to replicate <em>by absence of exposure</em> rather than a contradiction. Nothing in this corpus can say how the estimator behaves in a mobile sleeper, and no posture-robustness claim should be derived from it. All nights are on CPAP therapy, so results may not transfer to untreated sleep; conversely, no prior chest-accelerometer study reports treated nights, so neither direction of transfer is established. The reference, while validated internally, is itself flow-derived and shares any failure mode common to flow and to accelerometry — for example, both may be affected simultaneously by mask displacement during a body movement. Event labels used for stratification are the CPAP manufacturer's algorithm, not expert AASM scoring.</p>
+
+  <h2 class="sec">6. Reproducibility</h2>
+  <p>The estimator is dependency-free ES5, runs entirely in-browser, and processes 172 h of accelerometry in 4.5 s single-threaded. Its Butterworth design was verified against a reference implementation to machine precision (maximum impulse-response difference 5.3×10⁻¹⁶; passband magnitude ratio error 2.4×10⁻¹⁵), and the shipped implementation reproduces the prototype to MAE 0.130 brpm (r = 0.977, 95.3% of epochs within 0.5 brpm).</p>
+  <div class="callout" style="border:1px dashed #b00"><b>⛔ Blocking item.</b> Per the Tepna papers convention, every number above must regenerate from a named, local, unbundled analysis tool — <code>resp-acc-analysis.html</code>. That tool <b>does not yet exist</b>. This paper is a <b>DRAFT and is not submittable</b> until the port is complete. See <code>briefs/MOTIONDEX-RESPIRATORY-RATE-2026-07-21-BRIEF.md</code> §4.</div>
+
+  <h2 class="sec">7. References</h2>
+  <div class="callout" style="font-size:13px"><b>Citation provenance.</b> <b>✓</b> = retrieved and verified directly by the author against the publisher record, including the specific quoted statistics. <b>△</b> = retrieved by automated literature agents with full text obtained, not independently re-verified. <b>✗</b> = full text never obtained; cited for concept only, never for a number.</div>
+  <ol class="refs">
+    <li><b>✓</b> Schipper F, van Sloun RJG, Grassi A, Derkx R, Overeem S, Fonseca P. Estimation of respiratory rate and effort from a chest-worn accelerometer using constrained and recursive principal component analysis. <i>Physiol Meas</i> 42(4):045004, 2021. doi:10.1088/1361-6579/abf01f</li>
+    <li><b>✓</b> Schipper F, Fonseca P, Grassi A, Ross M, et al. Apnea-hypopnea index estimation using overnight chest-wall accelerometry. <i>Front Sleep</i>, 2026. doi:10.3389/frsle.2026.1858267</li>
+    <li><b>✓</b> Charlton PH, Bonnici T, Tarassenko L, Clifton DA, Beale R, Watkinson PJ. An assessment of algorithms to estimate respiratory rate from the electrocardiogram and photoplethysmogram. <i>Physiol Meas</i> 37(4):610–626, 2016. doi:10.1088/0967-3334/37/4/610</li>
+    <li><b>△</b> Ryser F, Hanassab S, Lambercy O, Werth E, Gassert R. Respiratory analysis during sleep using a chest-worn accelerometer: a machine learning approach. <i>Biomed Signal Process Control</i> 78:104014, 2022. doi:10.1016/j.bspc.2022.104014</li>
+    <li><b>△</b> Doheny EP, Lowery MM, Russell A, Ryan S. Estimation of respiration rate and sleeping position using a wearable accelerometer. <i>Proc IEEE EMBC</i>, 2020:4529–4532. doi:10.1109/EMBC44109.2020.9176573</li>
+    <li><b>△</b> Schipper F, van Sloun RJG, Grassi A, Overeem S, Fonseca P. A deep-learning approach to assess respiratory effort with a chest-worn accelerometer during sleep. <i>Biomed Signal Process Control</i> 83:104726, 2023. doi:10.1016/j.bspc.2023.104726</li>
+    <li><b>△</b> Hostrup MCD, Nielsen AS, Sørensen FE, et al. Accelerometer-based estimation of respiratory rate using principal component analysis and autocorrelation. <i>Physiol Meas</i> 46(3), 2025. doi:10.1088/1361-6579/adbe23</li>
+    <li><b>△</b> Karlen W, Raman S, Ansermino JM, Dumont GA. Multiparameter respiratory rate estimation from the photoplethysmogram. <i>IEEE Trans Biomed Eng</i> 60(7):1946–1953, 2013. doi:10.1109/TBME.2013.2246160</li>
+    <li><b>△</b> Cesareo A, Previtali Y, Biffi E, Aliverti A. Assessment of breathing parameters using an inertial measurement unit (IMU)-based system. <i>Sensors</i> 19(1):88, 2019. doi:10.3390/s19010088</li>
+    <li>Planicka M. The machine in the bedroom: CPAP flow as a home reference standard for validating wearable respiratory algorithms. <i>Tepna working preprint</i>, 2026. <a href="cpap-flow-reference.html">cpap-flow-reference.html</a></li>
+    <li>Planicka M. Chest-accelerometer respiratory effort does not type apneas under CPAP therapy. <i>Tepna working preprint</i>, 2026. <a href="effort-typing-null.html">effort-typing-null.html</a></li>
+    <li><b>△</b> Schipper F, et al. Overnight sleep staging using chest-worn accelerometry. <i>Sensors</i> 24(17):5717, 2024. doi:10.3390/s24175717</li>
+    <li><b>✗</b> Bates A, Ling MJ, Mann J, Arvind DK. Respiratory rate and flow waveform estimation from tri-axial accelerometer data. <i>Proc BSN</i>, 2010:144–150. doi:10.1109/BSN.2010.50 — <i>full text not obtained; cited for concept only.</i></li>
+  </ol>
+
+  <p class="dxl-note">Tepna is not a medical device and is not intended to diagnose, treat, cure or prevent any disease. Research and personal-analysis use only.</p>
+</div>
+</body></html>
