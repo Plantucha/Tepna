@@ -1005,6 +1005,50 @@
   }
   // Indices of beats whose defining span [foot−2, peak+2] overlaps ANY rejected sentinel sample.
   // Those beats' timing rests on held values, so they are dropped rather than reported.
+  // ── TIME-DISCONTINUITY INTERVALS (O2RING-PPG-GAP §2) ────────────────────────────────────────────
+  //  `rec.gap` above is the SENTINEL mask — samples the device marked invalid. It says nothing about
+  //  MISSING TIME, and until the capture host learned to record honest gaps there was none to find:
+  //  the O2Ring's synthesized grid was contiguous by construction, so a lost BLE frame silently
+  //  COMPRESSED the record instead of leaving a hole.
+  //
+  //  Now that the host advances the grid across a loss, `relSec` can genuinely jump — and an interval
+  //  spanning that jump is NOT a measurement. Real time passed with no signal, so one or more beats
+  //  may simply be absent; the foot-to-foot difference across the hole is the sum of an unknown number
+  //  of true intervals. Left in, it reads as a large beat-to-beat excursion and INFLATES rMSSD — the
+  //  exact fabrication the honest gap exists to prevent (measured: correcting a night's gaps without
+  //  this exclusion moved rMSSD 59.9 → 70.9 ms, i.e. the wrong way).
+  //
+  //  So: drop the interval, never fill it — the same discipline as a 1-of-3 beat and a sentinel beat.
+  //  Returns a boolean per INTERVAL i (between feet[i] and feet[i+1]), true when it straddles a jump.
+  //  A step is a jump when it exceeds TIME_GAP_STEPS sample periods. Two is deliberately loose: a real
+  //  loss is ≥ 5 samples (the host's 40 ms floor), while a healthy stream's steps are uniform to well
+  //  under one period (Verity sensor-ns spread is ±370 ns on a 5.67 ms step), so nothing legitimate
+  //  lands in between. O(n + beats) via a prefix count — no per-interval rescan.
+  const TIME_GAP_STEPS = 2;
+  function intervalsSpanningTimeGap(relSec, fs, feet, nIntervals) {
+    const out = new Array(nIntervals).fill(false);
+    if (!relSec || !feet || feet.length < 2 || !(fs > 0)) return out;
+    const n = relSec.length;
+    const maxStep = (TIME_GAP_STEPS * 1) / fs;
+    // prefix[i] = number of discontinuities at or before sample i
+    const prefix = new Int32Array(n);
+    let run = 0;
+    for (let i = 1; i < n; i++) {
+      if (relSec[i] - relSec[i - 1] > maxStep) run++;
+      prefix[i] = run;
+    }
+    if (run === 0) return out; // fast path: no jumps anywhere (every pre-fix file, and every Verity file)
+    for (let k = 0; k < nIntervals; k++) {
+      const a = feet[k],
+        b = feet[k + 1];
+      if (a == null || b == null) continue;
+      const i0 = Math.max(0, Math.min(n - 1, Math.floor(a)));
+      const i1 = Math.max(0, Math.min(n - 1, Math.ceil(b)));
+      if (i1 > i0 && prefix[i1] > prefix[i0]) out[k] = true;
+    }
+    return out;
+  }
+
   function gapBeats(peaks, feet, gap) {
     const bad = new Set();
     for (let k = 0; k < peaks.length; k++) {
@@ -1284,10 +1328,18 @@
     const index = hours > 0 ? +(events.length / hours).toFixed(1) : 0;
     return { events, index };
   }
-  function timeDomain(nn, cleanMask) {
+  // `omit` (OPTIONAL, added LAST for back-compat per CLAUDE.md §🧪) marks intervals that are NOT
+  // MEASUREMENTS AT ALL — currently only those straddling a time discontinuity (O2RING-PPG-GAP §2).
+  // That is a stronger statement than `cleanMask`, which merely says an interval is too noisy to
+  // trust for beat-to-beat work: a NN measured across lost time spans an unknown number of absent
+  // beats, so it must leave the whole-record dispersion too, not just rMSSD. Omitting it is not a
+  // quality judgement, it is declining to invent a number. Absent/empty ⇒ byte-identical behaviour.
+  function timeDomain(nn, cleanMask, omit) {
     if (nn.length < 2) return null;
-    const meanRR = mean(nn),
-      sdnn = std(nn); // dispersion: over ALL accepted NN (whole-record)
+    const keep = omit ? nn.filter((_, i) => !omit[i]) : nn;
+    const base = keep.length >= 2 ? keep : nn; // never let the omission empty the record
+    const meanRR = mean(base),
+      sdnn = std(base); // dispersion: over ALL accepted NN (whole-record), minus non-measurements
     // §4 (PPGDEX-BEAT-DETECTION-PERF): the beat-to-beat metrics (rMSSD/pNN50) are computed
     // over adjacent HIGH-SQI CLEAN pairs only, so sub-ectopy-threshold optical PAT jitter +
     // gap boundaries don't inflate them (the whole-record 137 ms → truth). The ectopy/gap
@@ -2126,11 +2178,18 @@
     // was NOT correction-flagged AND both endpoint beats cleared SQI≥0.5 (SQI folds the 3-LED
     // agreement, §5). rMSSD/pNN50/SD1 are computed over clean adjacent pairs so sub-ectopy optical
     // jitter + gap boundaries can't inflate them; SDNN stays whole-record dispersion.
+    // …and an interval that STRADDLES A TIME DISCONTINUITY is not a measurement at all (§2 above):
+    // real time passed with no signal, so the foot-to-foot difference across the hole may span one or
+    // more absent beats. Excluded here rather than corrected, because there is nothing to correct to.
+    // Fires on nothing without an honest gap in the source — every legacy file's grid is contiguous.
+    const spansGap = intervalsSpanningTimeGap(rec.relSec, rec.fs, footSpineOK ? det.feet : det.peaks, nn.length);
+    let nGapSpanIntervals = 0;
     const cleanMask = new Array(nn.length);
     for (let i = 0; i < nn.length; i++) {
       const q0 = sqi[i] != null ? sqi[i] : 1,
         q1 = sqi[i + 1] != null ? sqi[i + 1] : 1;
-      cleanMask[i] = corr.flags[i] === 0 && q0 >= 0.5 && q1 >= 0.5;
+      if (spansGap[i]) nGapSpanIntervals++;
+      cleanMask[i] = corr.flags[i] === 0 && q0 >= 0.5 && q1 >= 0.5 && !spansGap[i];
     }
     // §5: per-interval mean LED agreement (null when single-channel) for the per-epoch ribbon
     const agreeI = cons.singleChannel ? null : new Array(nn.length);
@@ -2141,7 +2200,7 @@
         agreeI[i] = a0 != null && a1 != null ? (a0 + a1) / 2 : a0 != null ? a0 : a1 != null ? a1 : null;
       }
     }
-    const td = /** @type {any} */ (timeDomain(nn, cleanMask) || {});
+    const td = /** @type {any} */ (timeDomain(nn, cleanMask, spansGap) || {});
     const poin = poincare(nn, cleanMask);
     const freq = lombScargle(corr.tt, nn);
     const dfa1 = dfaAlpha1(nn);
@@ -2424,6 +2483,10 @@
       sentinelKept: rec.sentinelKept || 0,
       // Beats dropped because their foot→peak span touched a gap (never filled, never interpolated).
       nGapBeats,
+      // Intervals excluded because they STRADDLE a time discontinuity — real time the capture lost, so
+      // the foot-to-foot difference may span absent beats (O2RING-PPG-GAP §2). Surfaced rather than
+      // silently dropped: a night with many of these had a lossy link, and the reader should know.
+      nGapSpanIntervals,
       hrvLowConfidence,
       hrvLowConfidenceReason,
       motion,
@@ -2687,6 +2750,7 @@
     detectChannel,
     consensusBeats,
     distinctChannelIdx,
+    intervalsSpanningTimeGap,
     cadenceSamples,
     beatRegularity,
     markO2Sentinels,
