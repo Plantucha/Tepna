@@ -95,41 +95,50 @@ with independent clocks need it. It currently lives in `resp-acc-analysis.js`. T
 OverDex both align multi-device recordings and would benefit. Worth promoting once a second consumer
 appears — not before.
 
-## 10 · The browser render-coverage gate — RUN, and it found 5 PRE-EXISTING failures
+## 10 · The browser render-coverage gate — RUN, 5 failures found, and FIXED
 
-`Dex-Test-Suite.html?full` has now been run under Playwright (headless Chromium, repo served over
-HTTP so the iframe rigs are same-origin). Result: `__rcState = done`, `sameOriginStatus().ok = true`,
-`bootSkips = []` — **all 11 render-coverage rigs genuinely booted**, so this is a real run, not an
-inconclusive one.
+`Dex-Test-Suite.html?full` has been run under Playwright (headless Chromium, repo served over HTTP so
+the iframe rigs are same-origin). It found **5 failures the Node lane never surfaces**. Both causes
+are now fixed and the gate reads **all green for the first time**.
 
-**The respiratory work is clean.** Against the pre-change baseline (`9ae6330`, run identically):
-
-| | baseline | after this work |
+| | before | after |
 |---|---|---|
-| failing | 5 | **5** |
-| passed | 3,551 | **3,605** (+54) |
-| skipped | 24 | **12** (−12) |
-| groups | 252 | **255** (+3) |
+| pill | ✕ 5 failing | **✓ all green** |
+| passed | 3,551 | **3,666** |
+| groups | 252 | **255** |
 
-Zero failures added; 54 assertions and 3 groups gained; 12 fewer skips.
+`__rcState=done`, `sameOriginStatus().ok=true`, `bootSkips=[]` — all 11 rigs genuinely booted, so
+this is a real green, not an inconclusive one.
 
-**But the browser lane carries 5 failures that the Node lane does not surface**, all reproduced
-identically on the baseline and all in code this work never touched:
+**Cause 1 — a live `ReferenceError` in the shipped PulseDex app.** `pulsedex-app.js` destructures 47
+names from `window.PulseDex._bare` but omitted **`triIdxNormApplies`**, which it calls at line 796.
+The name is exported correctly (`pulsedex-dsp.js:1539`); only the binding was missing. This is not a
+test artifact — it throws in the shipped app. Cost: a page error plus 2 failures in the PulseDex
+render rig.
 
-1. **`GATE A FAIL — BUILD-MANIFEST.json failed to load/parse`** and
-2. **`GATE B FAIL — FIXTURE-PROVENANCE.json failed to load/parse`.** Both monoliths were **deleted**
-   in the P3 refactor (`ce0f4d6`) and replaced by `provenance/<App>.json` fragments, yet the browser
-   suite still fetches them by their retired paths, so any server 404s. Either the fetch should move
-   to `provenance-ledger.js`'s assembled view, or these pills should be removed — as it stands the
-   gate reports a red that cannot be fixed by any code change.
-3. **`triIdxNormApplies is not defined`** — a page error, not a caught assertion.
-   `pulsedex-dsp.js:422` defines and exports it, but `pulsedex-app.js:795` calls it **bare**. Inside
-   the bundled `PulseDex.html` it is inlined and resolves; in the co-loaded rig context it does not.
-4. Two group rows fail with counts `0/1` and `17/19`, downstream of the above.
+**Cause 2 — the browser runner was missing three `env` entries.** `fusePulseCrossCheck`,
+`fuseHrvResource` and `fuseCvhrCorroboration` were wired into `tests/run-tests.mjs` and exported by
+`integrator-dsp.js`, but never added to `Dex-Test-Suite.html`. Three OXYDEX-PULSE-RESOURCING groups
+failed browser-only with *"export it from integrator-dsp.js + wire into both runners"* — the
+assertion naming its own cause.
 
-**This is worth its own work-unit.** The consequence is that the canonical gate has never been able
-to read all-green, which erodes the signal — a reviewer who sees 5 permanent reds stops reading
-them. Attribution of *new* breakage requires a baseline diff every time, which is what was done here.
+### ⚠ A correction to what this brief previously claimed
+
+An earlier revision of this section reported `GATE A FAIL — BUILD-MANIFEST.json` and
+`GATE B FAIL — FIXTURE-PROVENANCE.json` as real pre-existing failures caused by the P3 refactor
+retiring those monoliths. **That was wrong.** Those strings are the expected *output* of a
+**passing** self-test: `tests/dex-tests.js:6799` deliberately calls the banner with `MANIFEST: null`
+and asserts it renders "GATE A FAIL". A DOM scrape picked up the fixture text and it was reported as
+a defect. Nothing fetches the retired monoliths; `provenance-ledger.js` assembles the per-app
+fragments correctly and all of them parse.
+
+The lesson worth keeping: **scraping a test page for failure-shaped strings will find the strings
+that tests deliberately produce.** Read the group pass/fail counts (`.gstat`), not the prose.
+
+### The standing point still holds
+
+Until this fix the canonical gate could never read all-green, so permanent reds trained reviewers to
+ignore them and attributing new breakage required a baseline diff every time. Keep it green.
 
 **Repro:** serve the repo over HTTP, open `Dex-Test-Suite.html?full`, wait for `__rcState==='done'`
 (~53 s), then read `#summary` and `sameOriginStatus()`. A `file://` open will not do — the rigs need
