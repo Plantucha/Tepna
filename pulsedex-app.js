@@ -49,6 +49,7 @@ const {
   fragmentation,
   prsaCapacity,
   triangularIndex,
+  triIdxNormApplies,
   lombScargle,
   mergeMultipart,
   parseRRInput,

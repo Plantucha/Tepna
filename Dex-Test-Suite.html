@@ -532,6 +532,13 @@ async function main(){
     dedupeRecs: window.dedupeRecs,
     runFusion: window.runFusion,
     buildFusionExport: window.buildFusionExport,
+    // OXYDEX-PULSE-RESOURCING Phases 2-4. These were wired into tests/run-tests.mjs but NOT here,
+    // so three groups failed BROWSER-ONLY with 'export it from integrator-dsp.js + wire into both
+    // runners' — the assertion's own message naming its own cause. The Node lane stayed green, which
+    // is precisely the blind spot CLAUDE.md means by 'headless green is the floor, NOT a pass'.
+    fusePulseCrossCheck: window.fusePulseCrossCheck,
+    fuseHrvResource: window.fuseHrvResource,
+    fuseCvhrCorroboration: window.fuseCvhrCorroboration,
     reconstructEventTMs: window.reconstructEventTMs,
     pearson: window.pearson,
     labelPositionalApnea: window.labelPositionalApnea,
