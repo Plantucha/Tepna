@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-21 · **Executes:** `OXYDEX-PULSE-RESOURCING-FOLLOWUPS-2026-07-20-BRIEF.md` §1 · **Method-parent:** `PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md` · **Data:** `O2RING-LIVE-PPG-WAVEFORM-2026-07-17-BRIEF.md`
+**Status:** IN-PROGRESS — 2026-07-22 (**night 1 of ≥10 recorded** — §2.1: on consolidated sleep the finger PPI-jitter **3.16 ms beats the Verity wrist** and RMSSD/SDNN sit within the ~±3.5 % offset; whole-record RMSSD & CVHR stay `emerging`; the `sdnnRobust`/jitter-robust family = strong single-night evidence toward `validated`. Nothing enacted; ≥10 nights still owed.) · **Created:** 2026-07-21 · **Executes:** `OXYDEX-PULSE-RESOURCING-FOLLOWUPS-2026-07-20-BRIEF.md` §1 · **Method-parent:** `PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md` · **Data:** `O2RING-LIVE-PPG-WAVEFORM-2026-07-17-BRIEF.md`
 
 # O2Ring finger-PPI HRV — ECG validation, and the emerging→validated tier call
 
@@ -75,6 +75,72 @@ to break. `sdnnRobust` survives because it is jitter-resistant by construction a
 a *sleep*-domain metric and is meaningless awake; (b) the alignment was a **wall-clock overlap trim**, which
 the deep-dive §2.2 shows "fails deceptively" for any beat-matched quantity; (c) whole-record short-term HRV
 is precisely what `hrvLowConfidence` says to distrust — the per-5-min `epochs[]` series is the honest unit.
+
+### §2.1 · Night 1 — overnight SLEEP (the first real read), 2026-07-22
+
+Full overnight live capture **2026-07-21 21:00 → 2026-07-22 04:05** (single night, single subject), run to
+the brief's §3 method: shipped DSPs (`PPGDSP.parsePPG→analyze` every segment `site:'finger'`/`ledSingleChannel`,
+cross-checked `PpgDex.compute`; `ECGDSP.parseECG→analyze` + `detectCVHR`), read-only on **finalized** segments
+(> 15 min old; the still-writing tail + the capture process untouched), and — unlike n=2 — the required
+**per-epoch alignment** (instantaneous-HR cross-correlation → match-count lag refine → foot-to-R centering →
+±75 ms one-to-one matching). **53 five-minute epochs, ~4.4 h** across 8 paired O2Ring-finger `_PPG.txt` × H10
+`_ECG.txt` segments. Absolute offset was dominated by a ~1 s BLE-buffer latency (finger lags ECG) + ~53 ms
+within-epoch wander; PTT was not cleanly isolable under the buffer latency, but that differences out of
+foot-to-foot intervals. `[CORPUS]`
+
+**Headline — two regimes, and the shipped flag caught them.** A restless **sleep-onset** period (21:00–23:45)
+then **consolidated sleep** (23:45–04:05). `hrvLowConfidence` fired **TRUE on exactly the 3 restless segments**
+(coverage 91–93 %, Malik 28–39 %) and **FALSE on all 5 clean-sleep segments** (coverage 99–100 %, Malik 4–9 %)
+— it discriminated correctly. So the honest comparison is on consolidated sleep.
+
+**PRIMARY endpoint — PPI-jitter sd** (finger foot-to-foot vs matched ECG RR; deep-dive table format):
+
+| epoch set | n (h) | PPI-jitter sd med · IQR (ms) | vs Verity wrist 5.92 ms |
+|---|---|---|---|
+| all sleep epochs | 53 (4.4 h) | 9.13 · 3.18–32.34 | inflated by the flagged onset |
+| restless onset (< 23:45, flagged) | 27 (2.3 h) | 29.56 · 12.26–40.47 | correctly flagged |
+| **consolidated sleep (≥ 23:45)** | 26 (2.2 h) | **3.18** · 2.80–3.58 | **BEATS 5.92** |
+| analyzable (well-aligned) | 25 (2.1 h) | 3.16 · 2.74–3.31 | BEATS 5.92 |
+
+On consolidated sleep the single-channel finger's PPI jitter (**≈3.16 ms**) is **below the Verity wrist AND
+below the deep-dive's ≤3.51 ms "1 % RMSSD bias" budget** — which **contradicts §1's prediction** that a single
+channel cannot reach the budget. The all-epoch 9.13 is dominated by the 2.3 h restless onset that
+`hrvLowConfidence` down-weights. `[CORPUS]`
+
+**Secondary — matched 5-min windows** (the honest unit; whole-record `sdnnRobust` vs whole-file ECG SDNN is
+**NOT usable** here — −60 % apparent, because the 5.7 h ECG SDNN carries circadian range the 25-min PPG windows
+don't: the "whole-record fails deceptively" case the brief warns of):
+
+| metric | consolidated sleep (≥ 23:45) | restless (flagged) |
+|---|---|---|
+| **RMSSD bias %** | med **−0.5 %** (IQR −1.3/+5.3) | +454 % |
+| **SDNN bias %** | med **−2.4 %** (IQR −6.1/+0.5) | +134 % |
+| beat sensitivity @ ±75 / ±150 ms | 0.749 / 0.903 | 0.393 / 0.626 |
+| beat PPV @ ±75 ms | 0.82 | 0.45 |
+
+RMSSD −0.5 % / SDNN −2.4 % on clean sleep are inside the documented **~±3.5 %** offset. The ±75 ms beat
+sensitivity (0.749) understates true detection — the finger *detects* ~90 % of beats (0.903 @ ±150 ms) but
+their absolute timestamps wander ~53 ms (BLE/timestamp jitter), a timing-anchor artifact that does not touch
+interval quality (jitter still 3.2 ms); still, at the deep-dive's ±75 ms spec the finger is materially below
+the wrist's 1.0000. `[CORPUS]`
+
+**CVHR (sleep domain) — does NOT reproduce.** Finger `cvhrIndex` agrees where ECG is quiet (0.0/h on clean
+sleep where ECG ≈ 0), but **misses real ECG CVHR clusters** (ECG ~10/h at 01:38–02:00 and at 02:53 → finger
+0.0, false negatives) and **false-positives on motion** (restless 8.9–16.6/h). Mixed both directions. `[CORPUS]`
+
+**Night-1 per-metric read** (recommendations for the owner; nothing enacted):
+- **`sdnnRobust` / the jitter-robust HRV family → strong single-night evidence TOWARD `validated`** (matched-window
+  SDNN −2.4 %, jitter 3.16 ms). Still `emerging` until the ≥ 10-night bar (§4); this is **night 1 of ≥ 10**.
+- **Whole-record short-term RMSSD → stays `emerging`.** Excellent on clean sleep (−0.5 %, jitter in budget) but
+  the *un-flagged whole-record* number is dominated by the onset — so the promotable object is the
+  **jitter-robust / epoch-gated** family, not raw whole-record RMSSD (as §4 anticipated). Consider surfacing only
+  the robust family for the finger.
+- **CVHR → stays `emerging`** (misses real clusters + false-positives on motion).
+
+**Caveats.** One night, one subject; ~2.3 h restless onset degraded all-epoch medians (correctly flagged);
+alignment dominated by a ~1 s BLE-buffer offset so PTT unisolable and strict ±75 ms sensitivity understates
+detection; single optical channel + autogain (no 3-LED consensus). A partial promotion (robust family only) is
+the honest trajectory. `/tmp` harness (throwaway) reproduced it; nothing committed to the capture tree.
 
 ## 3 · The rigorous method (execute on the overnight corpus)
 
