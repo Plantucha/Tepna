@@ -32,6 +32,35 @@ real-data papers (sigma, the odi-bias real arm, ppg-ecg-hrv-validation) and the 
 | ppg-quality-gate-pooling | REAL | n/a (same 20-night corpus; Draft v1, Jul) | done | **DONE** (new, 2026-07-21) |
 | timestamp-pathology | methods (real+synth) | n/a — live over shipping parser (Draft v1, Jul) | done | **DONE** (new, 2026-07) |
 | dead-ends | synthesis | n/a — regenerates from source tools (Draft v1, Jul) | done | **DONE** (new, 2026-07) |
+| cpap-flow-reference | REAL (n-of-1 methods) | n/a — generator-independent; 26 nights / 172 h real corpus (Draft v1, Jul) | drafted | **DRAFT** ↓R2 (new, 2026-07-22) |
+| acc-respiratory-rate | REAL (n-of-1) | n/a — generator-independent; 19,193 real epochs vs CPAP flow (Draft v1, Jul) | drafted | **DRAFT** ↓R2 (new, 2026-07-22) |
+| effort-typing-null | REAL (n-of-1, negative) | n/a — generator-independent; 401 scored events (Draft v1, Jul) | drafted | **PARKED** ↓R3 (new, 2026-07-22) |
+
+## Open residuals on the 2026-07-22 additions
+
+**R2 — the three respiratory papers are DRAFT until the corpus is re-run through the tool.**
+`resp-acc-analysis.html` now exists and runs the **shipped** `MOTIONDSP.respiratoryRate` rather than a
+reimplementation, and it reproduces the original harness on four spot-checked nights (clock offsets
+within **8 s**, per-night MAE within **0.06 br/min**). What is outstanding is the **full 26-night
+end-to-end re-run through the tool**, plus emitting figures into `papers/figures/`. Until then the
+headline figures trace to the original external harness, which does not satisfy the house rule
+*"no number without a tool that reproduces it"*. Each paper carries a visible banner saying exactly
+this — do not clear it early.
+
+**R3 — `effort-typing-null` is PARKED, not merely draft.** Four reasons, in order: the mechanism
+behind the 0.99× ratio is **unexplained** (the CPAP-pressure candidate was tested against
+`MaskPress.2s` and *fails* — ρ = −0.174, p = 0.0008, the opposite of its prediction); obstructive
+**n = 31**; the event labels are the CPAP manufacturer's algorithm rather than PSG scoring; and an
+adversarial literature review surfaced a prior report whose direction may run *opposite* to the
+assumed mechanism. Publishing an unexplained negative is a weaker position than an explained one.
+The engineering consequence is already actioned separately in
+`briefs/INTEGRATOR-APNEA-TYPING-REVIEW-2026-07-22-BRIEF.md`.
+
+**Shared bounding limitation on all three.** Single subject, and — measured, not assumed — a single
+sleeping posture (gravity-roll IQR 13.1–17.9°). Doheny 2020's supine-vs-lateral effect could not be
+replicated (1.02× vs their 1.54×) *by absence of exposure*, not by contradiction. No
+posture-robustness claim may be made from this corpus; the synthetic adversarial twin in
+`tests/dex-tests.js` gates that property instead.
 
 ## Concrete errors found (June) — DISPOSITION
 - **API inconsistency (real bug) — ✅ FIXED.** June: `treatment-response` cited
