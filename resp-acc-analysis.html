@@ -1343,12 +1343,34 @@
     // chest sensor worn anterior-face-out reads +1 g on Z when supine. This twin
     // emitted −1 g under a "supine" comment until 2026-07-20, which is why it
     // agreed with the inverted classifier instead of catching it.
+    /* ADVERSARIAL OPTIONS (default off — every existing caller is unaffected).
+       `flipAtSec`  — posture change: supine (gravity on +Z, respiratory sway on Z) becomes
+                      left-lateral (gravity on +Y, sway on Y). This is the case the REAL corpus
+                      cannot exercise: its gravity-roll IQR is 13.1–17.9°, i.e. one posture, so
+                      posture robustness is otherwise UNTESTABLE. A fixed-axis or whole-night
+                      max-variance estimator loses the breath after the flip; summing the three
+                      band-passed axes survives it. That difference is the point of the twin.
+       `pauseAtSec` / `pauseDurSec` — breathing stops (an apnea). The rate estimate over that
+                      stretch is meaningless by construction, so the estimator must LOSE
+                      CONFIDENCE rather than emit a confident wrong number. */
+    var flipAt = opts.flipAtSec == null ? null : opts.flipAtSec;
+    var pauseAt = opts.pauseAtSec == null ? null : opts.pauseAtSec;
+    var pauseDur = opts.pauseDurSec == null ? 30 : opts.pauseDurSec;
     for (var i = 0; i < n; i++) {
       var tSec = i / hz;
       var resp = Math.sin(2 * Math.PI * (brpm / 60) * tSec); // breathing
+      if (pauseAt != null && tSec >= pauseAt && tSec < pauseAt + pauseDur) resp = 0; // apnea
       var gx = 30 + (rnd() - 0.5) * 12;
       var gy = 40 + (rnd() - 0.5) * 12;
-      var gz = 1000 + resp * 22 + (rnd() - 0.5) * 10; // ~+1 g + effort
+      var gz = 1000 + (rnd() - 0.5) * 10;
+      var lateral = flipAt != null && tSec >= flipAt;
+      if (lateral) {
+        // gravity has rotated onto +Y; the respiratory sway rotates with it
+        gy = 1000 + resp * 22 + (rnd() - 0.5) * 10;
+        gz = 40 + (rnd() - 0.5) * 12;
+      } else {
+        gz += resp * 22; // ~+1 g + effort on the supine AP axis
+      }
       var ms = startMs + i * dtMs;
       lines.push(isoStamp(ms) + ';' + (nsBase + i * dtNs) + ';' + Math.round(gx) + ';' + Math.round(gy) + ';' + Math.round(gz));
     }

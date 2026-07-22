@@ -19752,6 +19752,87 @@
       T.ok('method is attributed for Integrator RR fusion', noBias.method === 'acc-spectral-viterbi', 'method=' + noBias.method);
     });
 
+    /* ════ THE ADVERSARIAL TWIN — the two conditions the REAL corpus cannot supply ════
+     MOTIONDEX-RESPIRATORY-RATE-2026-07-21 §3(b). The 26-night validation corpus has a
+     gravity-roll IQR of 13.1–17.9° — one posture — so posture robustness is UNTESTABLE on it,
+     and Doheny 2020's supine-vs-lateral effect could not be replicated by absence of exposure.
+     A seeded synthetic twin is therefore the ONLY way to gate it. Per CLAUDE.md's GlucoDex
+     14 h-gap lesson a committed twin beats a real gitignored night because CI re-runs it every
+     push; here the twin is reproducible from committed CODE (deterministic seeded generator),
+     which is stronger still — no 900 KB blob to drift.
+
+     The twin drives 11 min at 15 br/min with (a) a 90 s BREATHING PAUSE at t=180 s and (b) a
+     POSTURE FLIP at t=390 s rotating gravity from +Z (supine) onto +Y (lateral), carrying the
+     respiratory sway with it. A fixed-axis or whole-night max-variance estimator loses the
+     breath entirely after the flip — that failure is the point of the twin. ════ */
+    group('MotionDex respiratory rate survives a posture flip and abstains through a long apnea', 'motiondex-dsp · resp-rate · adversarial-twin', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.respiratoryRate === 'function' && typeof MD.genSyntheticACC === 'function' && typeof MD.parseSensorXYZ === 'function')) {
+        T.skip('MOTIONDSP.respiratoryRate + genSyntheticACC + parseSensorXYZ available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      var PAUSE_AT = 180,
+        PAUSE_DUR = 90,
+        FLIP_AT = 390;
+      var rows = MD.parseSensorXYZ(MD.genSyntheticACC({ sec: 660, hz: 26, brpm: 15, seed: 77, pauseAtSec: PAUSE_AT, pauseDurSec: PAUSE_DUR, flipAtSec: FLIP_AT }));
+      var out = MD.respiratoryRate(rows, rows[0].tMs, 'mg') || {};
+      T.ok('the twin produces a rate series', out.hasData === true && (out.series || []).length > 10, 'epochs=' + (out.series || []).length);
+      if (!out.hasData) return;
+      var ep = [],
+        i;
+      for (i = 0; i < out.series.length; i++) ep.push({ t0: i * 30, t1: i * 30 + 60, brpm: out.series[i].brpm, conf: out.series[i].conf });
+      function med(a) {
+        a = a.slice().sort(function (x, y) {
+          return x - y;
+        });
+        return a.length ? a[a.length >> 1] : NaN;
+      }
+      function rates(f) {
+        var o = [];
+        for (var k = 0; k < ep.length; k++) if (f(ep[k]) && ep[k].brpm != null) o.push(ep[k].brpm);
+        return o;
+      }
+      // (a) POSTURE ROBUSTNESS — the corpus cannot test this; the twin can.
+      var pre = rates(function (e) {
+        return e.t1 <= PAUSE_AT;
+      });
+      var post = rates(function (e) {
+        return e.t0 >= FLIP_AT;
+      });
+      T.ok('rate is recovered BEFORE the posture flip (~15 br/min)', pre.length >= 3 && Math.abs(med(pre) - 15) <= 0.5, 'pre-flip median=' + med(pre) + ' n=' + pre.length);
+      T.ok('rate is still recovered AFTER gravity rotates +Z to +Y (~15 br/min)', post.length >= 3 && Math.abs(med(post) - 15) <= 0.5, 'post-flip median=' + med(post) + ' n=' + post.length);
+      // (b) ABSTENTION — a window lying ENTIRELY inside the pause has no breath to measure.
+      var inside = [],
+        clean = [];
+      for (i = 0; i < ep.length; i++) {
+        if (ep[i].t0 >= PAUSE_AT && ep[i].t1 <= PAUSE_AT + PAUSE_DUR) inside.push(ep[i]);
+        else if (ep[i].t1 <= PAUSE_AT || ep[i].t0 >= PAUSE_AT + PAUSE_DUR + 10) clean.push(ep[i]);
+      }
+      var nAbstain = 0,
+        nCleanAbstain = 0;
+      for (i = 0; i < inside.length; i++) if (inside[i].brpm == null) nAbstain++;
+      for (i = 0; i < clean.length; i++) if (clean[i].brpm == null) nCleanAbstain++;
+      T.ok('every window lying wholly inside the apnea abstains (emits null, not a guess)', inside.length >= 2 && nAbstain === inside.length, 'abstained ' + nAbstain + ' of ' + inside.length);
+      T.ok('clean breathing windows do NOT abstain', clean.length >= 8 && nCleanAbstain === 0, 'clean abstentions ' + nCleanAbstain + ' of ' + clean.length);
+
+      /* KNOWN LIMITATION, pinned deliberately so nobody assumes the confidence gate excludes
+         short apneas. A pause SHORTER than the 60 s analysis window leaves ~30 s of clean
+         breathing in that window, which still supports a strong spectral peak — measured:
+         30 s-pause-overlapping epochs carried HIGHER mean confidence (0.488) than clean ones
+         (0.390). This is why the corpus shows apnea-overlapping epochs at MAE 4.98 while the
+         gate does not remove them, and why a downstream apnea consumer must NOT treat the
+         confidence gate as an apnea filter. If a future change makes short pauses abstain,
+         update this assertion deliberately — do not delete it. */
+      var shortRows = MD.parseSensorXYZ(MD.genSyntheticACC({ sec: 600, hz: 26, brpm: 15, seed: 77, pauseAtSec: 180, pauseDurSec: 30 }));
+      var shortOut = MD.respiratoryRate(shortRows, shortRows[0].tMs, 'mg') || {};
+      var anyAbstain = false;
+      for (i = 0; i < (shortOut.series || []).length; i++) {
+        var t0 = i * 30;
+        if (t0 >= 150 && t0 <= 210 && shortOut.series[i].brpm == null) anyAbstain = true;
+      }
+      T.ok('KNOWN LIMITATION — a 30 s pause (shorter than the window) does NOT trigger abstention', anyAbstain === false, 'a short pause now abstains — behaviour changed, update this assertion deliberately');
+    });
+
     /* ════ The new rate fields are ADDITIVE — every legacy effort field survives (CLAUDE.md §🧪) ════ */
     group('MotionDex effort keeps its legacy return shape while adding the rate series', 'motiondex-dsp · effort · back-compat', function (T) {
       var MD = env.MOTIONDSP;

@@ -27,7 +27,7 @@
         "Polar_Sense_BBBBBBBB_20260621_060523_PPG.txt": "289ef2aac9fd3d66"
       },
       "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash 908befaae958→d34cbfc49e5d). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals d34cbfc49e5d.",
-      "verifiedUnder": "19f5ed5bcd43"
+      "verifiedUnder": "346fabb26006"
     },
     "synthetic_ppgdex_golden.node-export.json": {
       "bundle": "PpgDex.html",

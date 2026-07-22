@@ -150,9 +150,15 @@ Per `PAPERS-ROADMAP` §5.2 — *"No number without a tool that reproduces it"*:
 - [x] Evidence tier **`emerging`** in `motiondex-registry.js`.
 - [x] `tests/dex-tests.js`: synthetic known-answers at 10/15/20 brpm (±0.5); bias-is-opt-in;
       confidence-gate monotonicity; additive-export-shape back-compat.
-      ⚠ **NOT done:** the committed adversarial twin (posture flip + 30 s breathing pause). The
-      corpus cannot supply the posture half — see §3(b) — so the twin must be synthetic. Carried
-      to the follow-up.
+- [x] **The adversarial twin** — DONE. `genSyntheticACC` gained additive `flipAtSec` /
+      `pauseAtSec` / `pauseDurSec` options; the twin drives 11 min at 15 br/min with a 90 s
+      breathing pause and a posture flip rotating gravity +Z → +Y. It gates the one property the
+      corpus **cannot** supply (§3(b)): rate is recovered at 15.1 br/min on BOTH sides of the
+      flip, where a fixed-axis estimator would lose the breath entirely. It also pins a **KNOWN
+      LIMITATION** measured while building it — a pause *shorter* than the 60 s window does NOT
+      trigger abstention (30 s-pause epochs carried mean confidence 0.488 vs 0.390 for clean
+      ones), so a downstream apnea consumer must not treat the confidence gate as an apnea
+      filter. Reproducible from committed CODE (deterministic seed), not a 900 KB blob.
 - [x] Gates green on merged `main` **with the real corpus present**: 3,677 assertions, **0
       skipped** (the GATE-C equivalence legs actually ran); `build --check` clean (11 owned);
       GATE A 9/9; GATE B **25** fixtures reproducible; `tools/verify-fixtures.mjs` green
@@ -173,7 +179,7 @@ Per `PAPERS-ROADMAP` §5.2 — *"No number without a tool that reproduces it"*:
       figures trace to it rather than to the original harness. This is now the blocking item.
 - [ ] Figures regenerated into `papers/figures/`.
 - [ ] `papers/PAPERS-AUDIT.md` rows.
-- [ ] Follow-up brief spawned per the house pattern, carrying: the adversarial twin, the
+- [ ] Follow-up brief spawned per the house pattern, carrying: the
       `MaskPress.2s` test of the CPAP-pressure hypothesis (§4 of the typing paper), and the
       Integrator apnea-typing rule at `integrator-dsp.js:1205` — which this work-unit deliberately
       did **not** touch.
