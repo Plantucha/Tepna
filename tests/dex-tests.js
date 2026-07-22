@@ -19387,6 +19387,26 @@
         T.ok('  … carries the edfSets sidecar CPAPDex.compute() rebuilds the night from', Array.isArray(fr.edfSets) && fr.edfSets.length === 1);
         T.ok('  … samples = the 25 Hz BRP Flow waveform', !!(fr.samples && fr.samples.length) && fr.fs === 25, fr.fs);
         T.ok('  … t0Ms is finite (floating, off the decoded EDF header — not the filename)', isFinite(fr.t0Ms), fr.t0Ms);
+
+        // ── 7. §AD (DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS): the `(fl.fs) || 25` Flow-fs DEFAULT ──────
+        // The leg above drives a Flow channel that CARRIES fs=25, so `(fl.fs) || 25` returns the
+        // explicit rate — a `|| 25 → || 50` slip leaves fr.fs===25 GREEN and the fallback is never
+        // exercised (a hollow gate). Strip the fs off the decoded Flow and the surfaced frame.fs can
+        // come ONLY from the adapter's default, so exactly that mutation reds here. Both-direction:
+        // fs present → 25 read from the channel (leg above); fs absent → 25 read from the default
+        // (here); changing the default flips this assertion and nothing else.
+        // `chan()` lives on the FULL CpapDsp api (the adapter resolves it the same way, resmed-edf.js
+        // :164) — the narrow `CPAPDex` namespace does NOT carry it, so reach through env.CpapDsp.
+        var CPDSP = env.CpapDsp;
+        if (CPDSP && typeof CPDSP.chan === 'function') {
+          var dset = CD._synthEdfSet({ oxi: true, cs: true });
+          var flowCh = CPDSP.chan(dset.BRP, 'Flow');
+          T.ok('precondition · the synthetic BRP Flow carries an explicit fs=25 (so stripping it is meaningful)', !!(flowCh && flowCh.fs === 25), flowCh && flowCh.fs);
+          if (flowCh) flowCh.fs = undefined; // force the adapter's `(fl.fs) || 25` fallback
+          var dfr = A.parse('', { edfSets: [dset] });
+          T.ok('an fs-less decoded Flow → frame.fs falls back to the 25 Hz BRP default (a changed default reds this)', !!dfr && dfr.fs === 25, dfr && dfr.fs);
+          T.ok('  … and the waveform still surfaces (only the rate was stripped, data intact)', !!(dfr && dfr.samples && dfr.samples.length));
+        }
       }
     });
 
