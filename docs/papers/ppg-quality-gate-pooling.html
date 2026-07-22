@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  ppg-quality-gate-pooling.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pooling epochs inverts signal-quality gate rankings — Tepna preprint</title>
+<link rel="stylesheet" href="../licensing/dex-license.css">
+<link rel="stylesheet" href="paper.css">
+</head>
+<body>
+<div class="sheet">
+  <a class="toplink" href="papers.html">← Tepna preprints</a>
+  <div class="banner">Tepna Working Preprint · not peer-reviewed</div>
+  <h1 class="title">Pooling epochs inverts signal-quality gate rankings: a wearable-HRV cautionary result, and the vindication of a gate it condemned</h1>
+  <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
+  <p class="affil">PpgDex (raw PPG) · ECGDex (raw ECG) nodes, Tepna physiological-signal suite</p>
+  <p class="meta">Draft v1 · July 2026 · Companion to <code>ppg-ecg-hrv-validation</code> (Draft v2) · Inputs: 1,488 ECG-referenced optical epochs over 20 nights · 100% local, reproducible</p>
+
+  <div class="abstract">
+    <h2>Abstract</h2>
+    <p style="text-align:left;margin-bottom:0"><b>Background.</b> A wearable HRV pipeline decides which epochs to trust using a signal-quality index (SQI) computed from the optical signal alone. Choosing among candidate gates requires ground truth, and the natural experiment is to pool every epoch from every night and ask which gate best separates the epochs whose HRV turned out wrong. <b>We show that this natural experiment gives the wrong answer, and gives it confidently.</b> <b>Data.</b> 1,488 five-minute epochs from 20 simultaneous Polar H10 chest-ECG + Polar Verity Sense armband-PPG overnight recordings, one subject. An epoch is “catastrophic” if its optical rMSSD deviates from the simultaneous ECG by more than 25% (158 epochs, 10.6%). <b>Results.</b> Three candidate gates were scored by their ability to rank catastrophic epochs below good ones. <b>Pooled across nights</b>, beat coverage wins decisively (AUC 0.737, <i>p</i> = 7×10⁻²³) and the shipped per-beat SQI is barely distinguishable from a coin flip (AUC 0.556). <b>Clustered within nights</b> — the correct analysis, since epochs from one night are not independent — the ranking <b>exactly reverses</b>: the shipped SQI is best (median AUC 0.763, Wilcoxon <i>p</i> = 0.014) and beat coverage is worst and not significant (0.629, <i>p</i> = 0.106). The reversal is an ecological fallacy: coverage varies strongly <em>between</em> nights and tracks which nights are bad, so pooling lets between-night variation masquerade as within-night discrimination, while the SQI's night-specific scale is washed out by the same pooling. Applied as an actual gate within each night, the SQI reduces the 90th-percentile |ΔrMSSD| from 25.8% to 21.4% at 70% retention, whereas coverage makes the <em>median</em> error worse (4.43% → 4.89%). <b>Conclusion.</b> Signal-quality gates for wearable HRV must be evaluated within recording, not on pooled epochs. The pooled analysis here would have prompted replacing a working gate with one that is actively counterproductive.</p>
+  </div>
+  <p class="kw"><b>Keywords:</b> signal quality index · photoplethysmography · heart-rate variability · ecological fallacy · Simpson's paradox · clustered data · AUC · wearables · method evaluation</p>
+
+  <div class="callout" style="border:1px dashed #b8860b;background:#fffdf5">
+    <h2 class="sec" style="margin-top:0">0. Layman overview <span style="font-weight:400;color:#b8860b;font-size:13px">(delete before submission)</span></h2>
+    <p>A wrist or arm sensor cannot always be trusted, so the software scores each five-minute stretch and throws away the ones it thinks are bad. We had a chest strap giving the true answer, so we could check which scoring method actually catches the bad stretches. Doing the obvious thing — dumping every stretch from every night into one pile and comparing — said the software's own score was almost useless and that a different measure was much better. But stretches from the same night are not independent observations, and once we compared <em>within</em> each night, the answer flipped completely: the software's own score was the best one, and the “better” alternative turned out to be the worst. The pile-everything-together version was measuring differences <em>between</em> nights and mistaking them for the ability to spot a bad stretch. This matters beyond our sensor: the wrong analysis was easy, fast, produced a tiny p-value, and would have led us to delete a working feature and replace it with something that makes results worse.</p>
+  </div>
+
+  <h2 class="sec">1. Introduction</h2>
+  <p>Every consumer-wearable HRV pipeline contains a gate: some reference-free statistic that decides which stretches of a recording are trustworthy enough to report. Because the gate is what stands between a user and a confidently wrong number, choosing the right one matters more than most tuning decisions. And because gates are cheap to compute and easy to swap, the choice is usually made empirically — collect data with a reference, label the epochs the reference says went wrong, and pick whichever candidate statistic separates them best.</p>
+  <p>That procedure has a defect that is well known in epidemiology and almost never mentioned in wearable-signal work: the epochs are <b>clustered</b>. A night contributes eighty-odd epochs that share a sensor placement, a skin-contact quality, a perfusion state, and a subject posture distribution. Treating them as 1,488 independent observations is not merely optimistic about the <i>p</i>-value; it can change which candidate <em>wins</em>, because a statistic that mostly encodes “which night is this” will separate pooled labels without having any ability to rank epochs inside a night — which is what a gate actually has to do.</p>
+  <p>This paper documents that failure occurring, on real data, in a direction that would have caused real harm to a working pipeline. It is a negative methodological result with a positive corollary: the gate the pooled analysis condemned is, correctly analysed, the best of the three.</p>
+
+  <h2 class="sec">2. Methods</h2>
+  <h3 class="sub">2.1 Corpus and ground truth</h3>
+  <p>One subject wore a <b>Polar H10</b> chest ECG and a <b>Polar Verity Sense</b> optical armband simultaneously for 26 nights; 20 yield a paired analysis of <b>1,488 five-minute epochs</b> (121.5 h). Optical beats come from the production <code>PPGDSP</code> detector (three-LED consensus, intersecting-tangent foot timing); ECG R-peaks from Pan–Tompkins with sub-sample refinement, validated at 0.244 ms fiducial jitter. Alignment is re-estimated per epoch, because a single global affine map between two independent BLE clocks fails across a whole night. Full acquisition and alignment detail is in the companion paper, <a href="ppg-ecg-hrv-validation.html"><i>Optical HRV against chest ECG on twenty overnight recordings</i></a>.</p>
+  <h3 class="sub">2.2 The label</h3>
+  <p>An epoch is <b>catastrophic</b> when its optical rMSSD deviates from the simultaneous ECG rMSSD by more than <b>25%</b>. 158 of 1,488 epochs (10.6%) qualify. The threshold is a judgement, chosen because it is far outside the corpus's typical +4% bias and corresponds to an error that would change a user-facing interpretation; §4 reports sensitivity to it.</p>
+  <h3 class="sub">2.3 Candidate gates</h3>
+  <p>All three are computed from the optical signal alone, with no reference, and all three are already available in the shipped export:</p>
+  <ul>
+    <li><b>Mean SQI</b> — the epoch mean of the shipped per-beat signal-quality index (template correlation × amplitude × motion gate × LED-agreement).</li>
+    <li><b>LED agreement</b> — the epoch mean of the fraction of the three optical channels that agreed on each beat.</li>
+    <li><b>Beat coverage</b> — detected beats × median interval ÷ epoch duration; a self-contained measure of how much of the epoch produced beats at all.</li>
+  </ul>
+  <h3 class="sub">2.4 The two analyses</h3>
+  <p><b>Pooled.</b> All 1,488 epochs in one set; AUC computed once as the probability that a randomly chosen good epoch scores above a randomly chosen catastrophic one; significance by Mann–Whitney U.</p>
+  <p><b>Night-clustered.</b> AUC computed separately within each night that contains at least three catastrophic and three good epochs (10 of 20 nights qualify), then summarised across nights; significance by Wilcoxon signed-rank of the per-night AUCs against 0.5. This is the analysis that matches the deployed decision — a gate operates inside one recording, on that recording's own epochs.</p>
+  <p>Retention curves apply each gate <em>within</em> each night at a per-night percentile, so a night is never wholly deleted by a between-night level shift, and report the resulting median and 90th-percentile |ΔrMSSD| over the retained epochs.</p>
+
+  <h2 class="sec">3. Results</h2>
+  <h3 class="sub">3.1 The ranking inverts</h3>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 1.</b> Gate discrimination of catastrophic epochs (|ΔrMSSD| &gt; 25%), same 1,488 epochs, two analyses. Pooled significance by Mann–Whitney U; night-clustered by Wilcoxon signed-rank of per-night AUCs against 0.5 (<i>n</i> = 10 evaluable nights). <b>The order reverses completely.</b></caption>
+    <thead><tr><th>Gate</th><th class="num">Pooled AUC</th><th class="num">Pooled <i>p</i></th><th class="num">Night-clustered AUC (median, IQR)</th><th class="num">Nights &gt; 0.5</th><th class="num">Clustered <i>p</i></th></tr></thead>
+    <tbody>
+      <tr class="hi"><td>Mean SQI <span style="color:#888">(shipped)</span></td><td class="num">0.556 <span style="color:#b03030">worst</span></td><td class="num">0.011</td><td class="num"><b>0.763</b> <span style="color:#1a6e3a">best</span> [0.645, 0.791]</td><td class="num">9/10</td><td class="num">0.014</td></tr>
+      <tr><td>LED agreement</td><td class="num">0.642</td><td class="num">8×10⁻¹⁰</td><td class="num">0.700 [0.610, 0.760]</td><td class="num">10/10</td><td class="num">0.002</td></tr>
+      <tr class="hi"><td>Beat coverage</td><td class="num">0.737 <span style="color:#1a6e3a">best</span></td><td class="num">7×10⁻²³</td><td class="num"><b>0.629</b> <span style="color:#b03030">worst</span> [0.561, 0.729]</td><td class="num">8/10</td><td class="num">0.106 <span style="color:#b03030">n.s.</span></td></tr>
+    </tbody>
+  </table>
+  <p>The pooled analysis is not merely noisy — it is decisive, and decisively wrong. Beat coverage's pooled <i>p</i> of 7×10⁻²³ is the most significant result in the table, and it belongs to the only gate that fails to reach significance once clustering is respected. Conversely the shipped SQI, which the pooled analysis places at 0.556 — close enough to 0.5 that it reads as “this feature does nothing” — is the best gate available, above chance on 9 of the 10 evaluable nights.</p>
+
+  <h3 class="sub">3.2 Why it inverts</h3>
+  <p>The mechanism is an ecological fallacy. Beat coverage varies strongly <em>between</em> nights: nights where the armband sat poorly lose a large fraction of beats to the three-LED consensus and also generate most of the catastrophic epochs. Pooling therefore lets a between-night level difference do the separating, and the pooled AUC largely measures “can this statistic tell a bad night from a good night” — a real but different ability. Within a night, coverage is nearly constant and carries little information about which of that night's epochs went wrong.</p>
+  <p>The shipped SQI has the opposite structure. Its absolute level is night-specific — it depends on perfusion, skin contact and template shape, which shift between wearings — so pooling smears the good epochs of a low-SQI night into the bad epochs of a high-SQI night and destroys the signal. Within a night, where the offset is common, it ranks epochs well. A gate is always deployed <em>within</em> a recording, so the within-night behaviour is the one that matters and the pooled number is not merely imprecise but answering a different question.</p>
+
+  <h3 class="sub">3.3 What each gate buys when actually used</h3>
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 2.</b> Gates applied within each night at a per-night retention percentile, over all 1,488 epochs. Lower is better. Ungated median |ΔrMSSD| = 4.43%, p90 = 25.80%.</caption>
+    <thead><tr><th>Gate</th><th class="num">Retention</th><th class="num">Median |ΔrMSSD|</th><th class="num">p90 |ΔrMSSD|</th></tr></thead>
+    <tbody>
+      <tr><td>none</td><td class="num">100%</td><td class="num">4.43%</td><td class="num">25.80%</td></tr>
+      <tr><td rowspan="3">Mean SQI</td><td class="num">90%</td><td class="num">4.22%</td><td class="num">22.85%</td></tr>
+      <tr><td class="num">80%</td><td class="num">4.09%</td><td class="num">22.62%</td></tr>
+      <tr class="hi"><td class="num">70%</td><td class="num"><b>3.92%</b></td><td class="num"><b>21.43%</b></td></tr>
+      <tr><td rowspan="3">LED agreement</td><td class="num">90%</td><td class="num">4.15%</td><td class="num">25.17%</td></tr>
+      <tr><td class="num">80%</td><td class="num">4.03%</td><td class="num">23.62%</td></tr>
+      <tr><td class="num">70%</td><td class="num">3.95%</td><td class="num">23.41%</td></tr>
+      <tr><td rowspan="3">Beat coverage</td><td class="num">90%</td><td class="num">4.39%</td><td class="num">24.79%</td></tr>
+      <tr><td class="num">80%</td><td class="num">4.70% <span style="color:#b03030">worse</span></td><td class="num">24.56%</td></tr>
+      <tr><td class="num">70%</td><td class="num">4.89% <span style="color:#b03030">worse</span></td><td class="num">23.44%</td></tr>
+    </tbody>
+  </table>
+  <p>The retention curves confirm the clustered ranking behaviourally rather than by AUC. Mean SQI improves both the median and the tail monotonically as it discards more data. Beat coverage improves the tail slightly while making the <b>median worse</b> — it is discarding epochs that were fine and keeping epochs that were not, which is what a gate carrying mostly between-night information does when applied within a night. Had the pooled analysis been acted on, the pipeline would have replaced a gate that helps with one that is, on the metric that matters most to a user, actively harmful.</p>
+
+  <h3 class="sub">3.4 Effect sizes are modest either way</h3>
+  <p>An honest reading of Table 2 is that no gate here is transformative: the best available option removes 30% of the data to move the median error from 4.43% to 3.92% and the tail from 25.8% to 21.4%. That is worth having and worth reporting honestly, but it is not the difference between a usable and an unusable pipeline. The companion paper shows why — epoch error is governed almost entirely by fiducial jitter (per-night R² = 0.964), and none of these three gates measures jitter directly. The gate literature's implicit promise, that a good SQI can rescue a noisy optical arm, is not borne out at these effect sizes; the productive route is reducing jitter, not filtering harder.</p>
+
+  <h2 class="sec">4. Discussion</h2>
+  <p><b>The general rule.</b> Evaluate a signal-quality gate the way it will be deployed. If it decides among epochs inside one recording, score it inside one recording and aggregate the per-recording scores. Pooling epochs across recordings answers “can this statistic distinguish good recordings from bad ones,” which is a legitimate question — night-level triage is useful — but it is not the question a per-epoch gate is asked, and on this corpus the two questions have opposite answers.</p>
+  <p><b>Why it is easy to get wrong.</b> The pooled analysis is the path of least resistance in every respect: it is one line of code, it uses all the data, it yields large <i>n</i> and tiny <i>p</i>-values, and its conclusion (“your bespoke quality index is no better than chance; use this simple coverage number instead”) is exactly the kind of parsimonious finding that feels like a discovery. Nothing about it looks like a mistake from the inside. The only warning sign available without the clustered analysis is that the winning statistic is one whose variance is obviously dominated by between-recording differences — a structural observation, not a statistical one.</p>
+  <p><b>Sensitivity to the label threshold.</b> The inversion is not an artifact of the 25% cut. Raising or lowering it changes the number of catastrophic epochs and hence the precision of both analyses, but coverage's advantage is pooled-only and the SQI's advantage is clustered-only across the range tested, because the mechanism is structural rather than threshold-dependent. We report the 25% result as primary and note that a threshold low enough to label a large fraction of epochs would make the comparison uninformative in both analyses.</p>
+  <div class="callout"><b>Limitations.</b> <b>One subject and one device pair</b>, so “night” and “wearing” are confounded with each other and nothing here estimates between-subject gate behaviour. Only 10 of 20 nights contain enough catastrophic and good epochs to yield a within-night AUC, so the clustered analysis rests on 10 paired observations and its intervals are wide — the direction of the inversion is robust, the exact AUC values are not. The catastrophic label is a threshold on a continuous error and inherits that arbitrariness. The three candidate gates were chosen because they already exist in the shipped export, not because they are the best conceivable gates; a jitter-proxy gate would likely outperform all three and was not tested. Finally, this is a single instance of an inversion, not an estimate of how often the pooled analysis misleads in general — the contribution is the demonstration and the mechanism, not a rate.</div>
+
+  <h2 class="sec">5. Reproducibility</h2>
+  <ul>
+    <li><b>Data:</b> the per-epoch table derived from 20 paired H10 + Verity Sense overnight recordings (2026-06-10 → 2026-07-13), each epoch carrying its optical and ECG rMSSD, its fiducial jitter, and the three candidate gate values. Raw archives are gitignored for size; the derived table is the committed artifact.</li>
+    <li><b>Detectors:</b> real <code>ppgdex-dsp.js</code> and <code>ecgdex-dsp.js</code>, run unmodified in a co-loaded realm, so gate values are exactly those the shipped app computes.</li>
+    <li><b>Analyses:</b> pooled AUC by rank statistic with Mann–Whitney U; night-clustered AUC computed per night then summarised, significance by Wilcoxon signed-rank against 0.5. Retention curves gate at per-night percentiles so no night is removed wholesale by a level shift.</li>
+    <li><b>Both analyses run from the same table</b> — the inversion reproduces by switching one aggregation step, which is the point.</li>
+  </ul>
+
+  <h2 class="sec">6. References</h2>
+  <ol class="refs">
+    <li>Companion paper: <code>papers/ppg-ecg-hrv-validation.html</code> — the 20-night optical-vs-ECG agreement study and the fiducial-jitter model.</li>
+    <li>Robinson WS. Ecological correlations and the behavior of individuals. <i>Am Sociol Rev.</i> 1950;15(3):351–357.</li>
+    <li>Simpson EH. The interpretation of interaction in contingency tables. <i>J R Stat Soc B.</i> 1951;13(2):238–241.</li>
+    <li>Elgendi M. Optimal signal quality index for photoplethysmogram signals. <i>Bioengineering.</i> 2016;3(4):21.</li>
+    <li>Orphanidou C, et al. Signal-quality indices for the electrocardiogram and photoplethysmogram: derivation and applications to wireless monitoring. <i>IEEE J Biomed Health Inform.</i> 2015;19(3):832–838.</li>
+    <li>Task Force of the ESC/NASPE. Heart rate variability: standards of measurement, physiological interpretation and clinical use. <i>Circulation</i>. 1996;93(5):1043–1065.</li>
+    <li>Project documentation: <code>CLAUDE.md</code> (Clock Contract, evidence-grade system), Tepna suite.</li>
+  </ol>
+
+  <div class="footer">Tepna working preprint · real-data single-subject methods study · a negative methodological result: the analysis that came first was wrong, and this paper exists because acting on it would have removed a working feature. Not peer-reviewed; not a medical device; not for clinical use. Copyright 2026 Michal Planicka · Apache-2.0.</div>
+</div>
+
+<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v1.16.0</div>
+</body></html>

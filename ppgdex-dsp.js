@@ -159,7 +159,16 @@
   //
   //  TWO OPTICAL LAYOUTS (PPGDEX-O2RING-FINGER-SITE §3). Resolution returns `chIdx` — an array of
   //  1 OR 3 optical column indices — and the caller reads `chIdx.length` as the real sensor count:
-  //    • 3 columns → Polar Verity wrist armband (three co-located photodiodes + ambient).
+  //    • 3 columns → Polar Verity Sense / OH1 UPPER-ARM band. The three channels are three
+  //      diametrically-opposed pairs of GREEN (~520 nm) LEDs, time-multiplexed onto ONE shared
+  //      photodiode — NOT three photodiodes, and NOT three wavelengths. Settled from the manufacturer
+  //      record (polar-ble-sdk #52 "The three separate values are LED pairs"; #188 "Opposite leds form
+  //      a pair"; #445; #671 "All 3 PPG channels are using green light"; FCC INW4J internal photos show
+  //      six LED packages in a hexagon around one central photodiode die). The 4th column is a raw
+  //      LEDs-off AMBIENT slot and is NOT pre-subtracted on-chip (PPGDEX-ALGORITHM-DEEP-DIVE §1.3).
+  //      Consequence: no wavelength-dependent method (SpO2, ratio-of-ratios, CHROM/POS/PBV,
+  //      multi-wavelength ICA) is physically possible on this device, and the three channels are
+  //      spatially-diverse views of ONE source, correlated 0.95-1.00 at zero lag.
   //    • 1 column  → Wellue O2Ring finger site (ONE reflectance path; no ambient column, because the
   //      ring AC-couples + gain-normalises on-device, so ambient subtraction is already applied and a
   //      committed 0 would be a fabricated measurement rather than a reading).
@@ -270,12 +279,33 @@
       if (!isFinite(v0)) {
         continue;
       } // header / junk
+      // ROW-ATOMIC COLUMN VALIDATION (PPGDEX-ALGORITHM-DEEP-DIVE §4 #4). Only ch0 was validated; ch1,
+      // ch2 and ambient were pushed unchecked, so a row carrying a good ch0 beside a junk companion
+      // column admitted NaN straight into the typed arrays. That failure is SILENT and DEGRADING, not
+      // loud: filtfilt propagates NaN across the whole channel, the detector then finds zero peaks on
+      // it, and the 3-LED vote silently becomes a 2-LED vote reporting a structurally impossible
+      // `ledAgreementPct: 67` at `measured` tier with no warning anywhere — the same class of
+      // fabricated-quality claim the §4 degenerate-channel guard exists to prevent. Validate every
+      // column THIS layout claims to carry, and drop the whole row if any of them is unreadable;
+      // never admit a partial row, because the channel arrays are positional and must stay in step.
+      let v1 = 0,
+        v2 = 0;
+      if (pc.chIdx.length === 3) {
+        v1 = parseFloat(p[pc.chIdx[1]]);
+        v2 = parseFloat(p[pc.chIdx[2]]);
+        if (!isFinite(v1) || !isFinite(v2)) continue;
+      }
+      // Ambient is DELIBERATELY NaN when the layout carries no ambient column (the O2Ring finger site,
+      // which AC-couples on-device). Only a column that EXISTS and fails to parse makes the row bad —
+      // committing a 0 there would be a fabricated measurement, per the layout note above.
+      const va = pc.amb >= 0 ? parseFloat(p[pc.amb]) : NaN;
+      if (pc.amb >= 0 && !isFinite(va)) continue;
       ch0.push(v0);
       if (pc.chIdx.length === 3) {
-        ch1.push(parseFloat(p[pc.chIdx[1]]));
-        ch2.push(parseFloat(p[pc.chIdx[2]]));
+        ch1.push(v1);
+        ch2.push(v2);
       }
-      amb.push(pc.amb >= 0 ? parseFloat(p[pc.amb]) : NaN);
+      amb.push(va);
       // sensor ns → relative seconds (BigInt: values exceed Number safe range)
       let relNs = 0;
       try {
