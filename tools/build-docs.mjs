@@ -195,9 +195,13 @@ for (const t of metaTargets) {
 // there is no script), pointer-events:none so it never covers a control.
 const _VER_FOOTER_RE = /\n?<div data-tepna-ver\b[^>]*>[\s\S]*?<\/div>(?=\s*<\/body>)/i;
 function withFooter(html) {
+  // A CLEARLY VISIBLE pill (not a faint corner mark): light text on a dark translucent chip with a
+  // subtle border + shadow, so it reads on both the dark app bundles and the lighter content pages.
   const badge =
-    `\n<div data-tepna-ver style="position:fixed;right:6px;bottom:4px;z-index:2147483000;` +
-    `font:400 10px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:#7a8699;opacity:.45;` +
+    `\n<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;` +
+    `font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;` +
+    `background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;` +
+    `padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);` +
     `pointer-events:none;user-select:none" title="Tepna suite version">v${manifest.version}</div>`;
   if (_VER_FOOTER_RE.test(html)) return html.replace(_VER_FOOTER_RE, badge);
   if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, badge + '\n</body>');
