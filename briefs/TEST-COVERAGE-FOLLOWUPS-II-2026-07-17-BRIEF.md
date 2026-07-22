@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED — 2026-07-17 · **Created:** 2026-07-17
+**Status:** DONE — 2026-07-21 (items 3/4/1b executed + verified against the tree 2026-07-21. **(3)** analysis-kernel known-answers — `CohortRegression.olsR2` (`dex-tests.js:17775`) + `qrs-equiv` `pearson`/`ba`/`sd`; `qrs-yield`/`pat-feasibility` unique math deliberately not exposed (orchestration over already-covered `mean`/`median`). **(1b)** profile seams — HRVDex `calcVo2Cat`/`getAgeBand` (`:17822`) + OxyDex `upKarvonenZone`/`upBMILabel`, no re-bundle (the re-bundle premise was wrong — both leak as headless globals). **(4)** `qrs-equiv` + `qrs-yield` worker-EXECUTES rigs (`:17912`/`:18004`, the two highest-value ECG+PPG off-thread workers, wired `run-tests.mjs:275-276`). **Consciously DEFERRED sub-items** (documented in the body, valid park): `cohort-worker` (KIND-parameterized) + `pat-feasibility-worker` (needs a committed PPG fixture) — materially heavier, LOW value, "acceptable to leave" (2 of 4 workers gated, up from 0). Test-only, no re-bundle, no code residue owed.) · **Created:** 2026-07-17
 
 # TEST-COVERAGE-FOLLOWUPS-II — the three items that turned out NOT to be test-only
 
