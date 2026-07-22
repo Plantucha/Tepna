@@ -19786,6 +19786,46 @@
       T.ok('single-stream: sqiActivity equals sqi by construction (same source)', single.sqiActivity && single.sqi && single.sqiActivity.conf === single.sqi.conf, 'act=' + (single.sqiActivity && single.sqiActivity.conf) + ' sqi=' + (single.sqi && single.sqi.conf));
     });
 
+    /* ════ MotionDex source-selection is DIFFERENTIATED — position←chest, actigraphy←wrist (MOTIONDEX-BUILD-FOLLOWUPS §4) ════
+     compute() prefers the CHEST for body-position (torso frame) and the WRIST acc for actigraphy (de-gravitated
+     activity is a wrist signal). The equiv golden feeds ONE ACC to both slots, so it exercises but does not
+     DIFFERENTIATE the split. Drive DISTINCT streams — a SUPINE + STILL chest and a LATERAL + MOVING wrist — where
+     the two metrics can only both be right if each read its own source: position=supine PROVES it used the chest
+     (the wrist is lateral → would read 'right'); immobileFrac≈0 PROVES actigraphy used the wrist (the chest is
+     still → would read immobile). A single-source implementation cannot satisfy both at once. ════ */
+    group('MotionDex source-selection differentiated — position←chest, actigraphy←wrist (MOTIONDEX-BUILD-FOLLOWUPS §4)', 'motiondex-dsp · compute · source-selection', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.compute === 'function' && typeof MD.genSyntheticACC === 'function')) {
+        T.skip('MOTIONDSP.compute + genSyntheticACC available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      // CHEST: supine + still (gravity on +Z, quiet breathing) — genSyntheticACC's own shape.
+      var chest = MD.genSyntheticACC({ sec: 120, hz: 26, brpm: 15, seed: 21 });
+      // WRIST: LATERAL (gravity on +X → 'right') + MOVING (high-freq sway survives the ~1 s de-gravitation
+      // baseline → actigraphy counts movement). Deterministic (sines of the sample index, no RNG).
+      var lines = ['Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]'],
+        t0 = U(2026, 5, 10, 22, 0, 0),
+        ns = 599628000000000000,
+        dtNs = Math.round(1e9 / 26);
+      for (var i = 0; i < 26 * 120; i++) {
+        var gx = 1000 + 150 * Math.sin(i * 0.9) + 90 * Math.sin(i * 2.7), // dominant + fast motion
+          gy = 30 + 40 * Math.sin(i * 1.3),
+          gz = 30 + 40 * Math.sin(i * 1.7);
+        lines.push(new Date(t0 + Math.round((i * 1000) / 26)).toISOString() + ';' + (ns + i * dtNs) + ';' + Math.round(gx) + ';' + Math.round(gy) + ';' + Math.round(gz));
+      }
+      var wrist = lines.join('\n') + '\n';
+
+      var sum = MD.compute({ acc: wrist, chestAcc: chest });
+      T.ok('position has data', sum.position && sum.position.hasData === true);
+      T.ok('position is SUPINE-dominant → it read the CHEST, not the lateral wrist', sum.position && sum.position.dwellFrac && sum.position.dwellFrac.supine > 0.9, 'supine=' + (sum.position && sum.position.dwellFrac && sum.position.dwellFrac.supine));
+      T.ok('position is NOT lateral (a wrist-sourced position would read right≈1)', sum.position && sum.position.dwellFrac && sum.position.dwellFrac.right < 0.1 && sum.position.dwellFrac.left < 0.1, 'right=' + (sum.position && sum.position.dwellFrac && sum.position.dwellFrac.right));
+      T.ok('actigraphy has data', sum.activity && sum.activity.hasData === true);
+      T.ok('actigraphy immobileFrac≈0 → it read the MOVING WRIST, not the still chest', sum.activity && sum.activity.immobileFrac != null && sum.activity.immobileFrac < 0.2, 'immobileFrac=' + (sum.activity && sum.activity.immobileFrac));
+      // sanity: swapping the slots flips BOTH (proves the assertions are load-bearing, not coincidental)
+      var swap = MD.compute({ acc: chest, chestAcc: wrist });
+      T.ok('control · swapping the slots reads the wrist as position (right-dominant) and the still chest as immobile', swap.position && swap.position.dwellFrac && swap.position.dwellFrac.supine < 0.1 && swap.activity && swap.activity.immobileFrac > 0.8, 'supine=' + (swap.position && swap.position.dwellFrac && swap.position.dwellFrac.supine) + ' immobile=' + (swap.activity && swap.activity.immobileFrac));
+    });
+
     /* MULTI-SENSOR-DERIVATIONS §1.2 — positional OSA from MotionDex body position.
        Two things this pins that BOTH shipped broken before it existed:
        (a) MotionDex must be a REGISTERED Integrator node (NODE_COLORS + KNOWN_NODES) — otherwise the R2
