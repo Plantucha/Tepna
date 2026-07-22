@@ -1049,13 +1049,26 @@
     return out;
   }
 
+  // FOOT-ANCHORED, not foot→peak-spanning (O2RING-PPG-GAP §3). The old window ran the WHOLE upstroke,
+  // `[min(foot,peak)−2, max(foot,peak)+2]` — 12–25 samples at 125.7 Hz — so a sentinel anywhere in the
+  // systolic rise condemned the beat. On a real O2Ring night that deleted **500 of 7 285 detected beats
+  // (6.9 %)**, and every deletion is then BRIDGED by buildPPI into a doubled interval that correctRR
+  // median-fills — i.e. the guard meant to prevent fabrication was manufacturing it wholesale.
+  //
+  // What actually rests on held samples is the TIMING POINT, and for PPI that is the foot alone: the
+  // intersecting-tangent crossing is built from the trough and the steepest rise around it, and reads
+  // nothing near the peak. A sentinel by the peak can spoil MORPHOLOGY (which is graded separately and
+  // per-site) but cannot move the foot. So gate on a tight window about the foot.
+  // ±3 samples (~24 ms) is deliberate: it covers the tangent's own support without reaching the peak.
+  // Do NOT widen past ±5 — retention falls off a cliff (≈77 % at ±10) for no honesty gain.
+  const GAP_FOOT_SPAN = 3;
   function gapBeats(peaks, feet, gap) {
     const bad = new Set();
     for (let k = 0; k < peaks.length; k++) {
       const p = peaks[k];
       const f = feet && feet[k] != null ? Math.floor(feet[k]) : p;
-      const lo = Math.max(0, Math.min(f, p) - 2),
-        hi = Math.min(gap.length - 1, Math.max(f, p) + 2);
+      const lo = Math.max(0, f - GAP_FOOT_SPAN),
+        hi = Math.min(gap.length - 1, f + GAP_FOOT_SPAN);
       for (let i = lo; i <= hi; i++)
         if (gap[i]) {
           bad.add(k);
@@ -2100,10 +2113,24 @@
     // timing would rest on held values. Drop it. This is the same discipline the 3-LED path applies
     // to a 1-of-3 beat: dropped, never median-filled, never interpolated.
     let nGapBeats = 0;
+    // per-INTERVAL: true where the interval bridges one or more removed beats (see below)
+    let bridged = null;
     if (rec.gap) {
       const bad = gapBeats(cons.peaks, cons.feet, rec.gap);
       nGapBeats = bad.size;
       if (bad.size) {
+        // A dropped beat leaves its two surviving NEIGHBOURS adjacent in the array but NOT adjacent in
+        // time — the interval between them silently spans the removed beat and reads ~2× true. That
+        // BRIDGE is a fabrication: correctRR sees a doubled interval, flags it, and median-fills, so a
+        // guard meant to protect the record ends up inventing a value for every beat it removes.
+        // Record where a bridge was created so the interval can be EXCLUDED downstream rather than
+        // corrected into a plausible lie (O2RING-PPG-GAP §3, same discipline as the 1-of-3 drop).
+        bridged = [];
+        for (let k = 0, prevKept = -1; k < cons.peaks.length; k++) {
+          if (bad.has(k)) continue;
+          if (prevKept >= 0) bridged.push(k - prevKept > 1); // ≥1 beat removed between them
+          prevKept = k;
+        }
         const keep = (arr) => (arr ? arr.filter((_, k) => !bad.has(k)) : arr);
         cons.peaks = keep(cons.peaks);
         cons.feet = keep(cons.feet);
@@ -2182,7 +2209,13 @@
     // real time passed with no signal, so the foot-to-foot difference across the hole may span one or
     // more absent beats. Excluded here rather than corrected, because there is nothing to correct to.
     // Fires on nothing without an honest gap in the source — every legacy file's grid is contiguous.
-    const spansGap = intervalsSpanningTimeGap(rec.relSec, rec.fs, footSpineOK ? det.feet : det.peaks, nn.length);
+    const spansTime = intervalsSpanningTimeGap(rec.relSec, rec.fs, footSpineOK ? det.feet : det.peaks, nn.length);
+    // …and an interval that BRIDGES a removed beat is the same kind of non-measurement, arrived at a
+    // different way: the beat between its endpoints was deleted, so the difference spans ~2 true
+    // intervals. Measured on a real O2Ring night this is the DOMINANT artefact — 6.9 % of beats removed,
+    // each one bridging — and it is what put ~10 pp of the correction rate under everything downstream.
+    const spansGap = new Array(nn.length);
+    for (let i = 0; i < nn.length; i++) spansGap[i] = !!spansTime[i] || !!(bridged && bridged[i]);
     let nGapSpanIntervals = 0;
     const cleanMask = new Array(nn.length);
     for (let i = 0; i < nn.length; i++) {
