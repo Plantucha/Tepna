@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-6Gq5p6JAWsKz+ZbEKpiHKhMbl6qv4btiBN6k+UAnnH4=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-A70in1yVw8l6p/xGyEIN/q3z6NYSyh3+oY6uqe7gSc4=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Bt0l8ew9ZcneA79GYl/vGT2Jq5zoHet8LFnnkY178Fw=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-Hc9GZsLap0Y3+GznQuJumo36oXOXvCxpUgWcvihj7FQ=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-YpBLTPH6rBm7Vlmw7z/w69BHXIabbH51saaTxbfb0bc=' 'sha256-b4QFb+4gvTY8jO9wXMO/M4P0KpFQo8v/GbOezDPoNng=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-irqCc4+5dhqaRPdZw+qJe/7twXLWGrlF2a61O+ToWQI=' 'sha256-o8RClO2aQgp6NW2hTmFArW0nBIcrs2NAgItaD0I6c9k=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-oabRszLP85f5PvZWNFjgncZ1oZ5IunzmqT0YrJOxXIo=' 'sha256-ooBkJg2F5zjKvTYC75lucnX68EyOclC3JfNJBhuQ+NI=' 'sha256-pul+Tja4NTa9xanImZbWRlt3Q01FGfxx0kvlu8Zx8UQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-6Gq5p6JAWsKz+ZbEKpiHKhMbl6qv4btiBN6k+UAnnH4=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-A70in1yVw8l6p/xGyEIN/q3z6NYSyh3+oY6uqe7gSc4=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Bt0l8ew9ZcneA79GYl/vGT2Jq5zoHet8LFnnkY178Fw=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-Hc9GZsLap0Y3+GznQuJumo36oXOXvCxpUgWcvihj7FQ=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-YpBLTPH6rBm7Vlmw7z/w69BHXIabbH51saaTxbfb0bc=' 'sha256-b4QFb+4gvTY8jO9wXMO/M4P0KpFQo8v/GbOezDPoNng=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-irqCc4+5dhqaRPdZw+qJe/7twXLWGrlF2a61O+ToWQI=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-oabRszLP85f5PvZWNFjgncZ1oZ5IunzmqT0YrJOxXIo=' 'sha256-ooBkJg2F5zjKvTYC75lucnX68EyOclC3JfNJBhuQ+NI=' 'sha256-pul+Tja4NTa9xanImZbWRlt3Q01FGfxx0kvlu8Zx8UQ=' 'sha256-tdJXYEXue060jc3pqVoU/hOY0LtLaPjVGxZ/BlVdK7I='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -2226,8 +2226,13 @@ function adaptEnvelopeNode(json, node, filename) {
     // OXYDEX-PULSE-RESOURCING §Phase 2: surface the ring's SMOOTHED 1 Hz pulse HR (stats.meanHr) so
     // fusePulseCrossCheck can hold it up against a finger-PpgDex WAVEFORM HR. This is the DEVICE leg,
     // not the honest one — §5: the 1 Hz field is never ground truth, only the compared-against value.
-    // The OxyDex `.node-export.json` (current schema) reaches this generic normalizer; the legacy
-    // `_summary.json` array reaches adaptOxyDex, which sets the same field on its own summary.
+    // ⚠️ ROUTING (corrected — INTEGRATOR-OXYDEX-ADAPTER-GAP §4.1, verified on the real corpus): this
+    // branch is NOT the live OxyDex path. `normalizeFile` intercepts EVERY OxyDex shape at the
+    // `json.nights || json.desatProfile || json.hr_spikes || Array.isArray(json)` test and routes it to
+    // adaptOxyDex — the envelope always carries `nights` (oxydex-dsp.js:5604) and a bare single-night
+    // object always carries `hr_spikes` (:5733), so the predicate cannot miss. All 7 corpus exports
+    // (incl. the synthetic golden) take adaptOxyDex. Keep the two summaries RECONCILED anyway: this
+    // branch is the fallback for any future OxyDex-shaped payload that fails that predicate.
     summary.pulseHr1Hz = _dig(json, ['stats', 'meanHr']);
     // OXYDEX-PULSE-RESOURCING §Phase 3: the ring's own 1 Hz HRV PROXIES (bpm-DOMAIN — RMSSD/SD of the
     // pulse RATE, NOT RR intervals). fuseHrvResource carries them ALONGSIDE the finger-waveform ms-HRV
@@ -2562,7 +2567,17 @@ function adaptOxyDex(json, filename) {
       // OXYDEX-PULSE-RESOURCING §Phase 2: the O2Ring's 1 Hz firmware pulse — the SMOOTHED leg, exposed
       // for the finger-waveform-vs-device cross-check (fusePulseCrossCheck), never as ground truth.
       pulseHr1Hz: stats.meanHr != null && isFinite(stats.meanHr) ? stats.meanHr : null,
-      hypoxicBurden: n.hb ? n.hb.rate : null,
+      // OXYDEX-PULSE-RESOURCING §Phase 3 — RECONCILED here by INTEGRATOR-OXYDEX-ADAPTER-GAP §4.1. These
+      // were set ONLY in the generic normalizer, which no real OxyDex export reaches, so fuseHrvResource's
+      // `s.rmssd1Hz != null` guard could never pass and the ring's 1 Hz proxy leg was dead on all 7 corpus
+      // exports. bpm-DOMAIN (RMSSD/SD of the pulse RATE, not RR intervals) — carried ALONGSIDE the finger
+      // waveform ms-HRV, never averaged across the unit boundary. `hrv.hrSdnn` is hrVarSd.
+      rmssd1Hz: _dig(n, ['hrv', 'rmssd']),
+      hrVarSd1Hz: _dig(n, ['hrv', 'hrSdnn']),
+      // The EXPORTED night renames OxyDex's internal `hb` to `hypoxicBurden` (oxydex-dsp.js:5712), so
+      // reading `n.hb` here only ever matched OxyDex's in-process shape — every exported night yielded
+      // null. Prefer the exported key; keep `hb` as the fallback for an in-process night object.
+      hypoxicBurden: _dig(n, ['hypoxicBurden', 'rate']) != null ? _dig(n, ['hypoxicBurden', 'rate']) : _dig(n, ['hb', 'rate']),
       desatCount: events.filter(function (e) {
         return e.impulse === 'spo2_desaturation' || e.impulse === 'desat_event';
       }).length

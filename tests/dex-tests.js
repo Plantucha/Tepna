@@ -12370,6 +12370,32 @@
           T.eq('tolerant reader: same night t0Ms from both shapes', recV2[0].t0Ms, recLegacy[0].t0Ms);
           T.eq('tolerant reader: same night summary.odi4 from both shapes', recV2[0].summary.odi4, recLegacy[0].summary.odi4);
         }
+        // ── INTEGRATOR-OXYDEX-ADAPTER-GAP §4.3 — the adapted OxyDex summary must actually CARRY the
+        // oximetry story, and both shapes must agree. Two live regressions this pins:
+        //   · `hypoxicBurden` read OxyDex's INTERNAL `n.hb`, but the export renames it to
+        //     `hypoxicBurden` (oxydex-dsp.js:5712) — so every exported night adapted to null.
+        //   · `rmssd1Hz`/`hrVarSd1Hz` were set ONLY in the generic normalizer, which no real OxyDex
+        //     export reaches, so fuseHrvResource's `s.rmssd1Hz != null` guard could never pass.
+        // Each assertion is guarded by a source-presence check FIRST, so the fixture can never go
+        // quietly vacuous the way `T.eq(undefined, undefined)` would.
+        if (recV2.length) {
+          var _n0 = (exp.nights || [])[0] || {},
+            _s0 = recV2[0].summary || {},
+            _srcHb = _n0.hypoxicBurden,
+            _srcHrv = _n0.hrv || {};
+          T.ok('§4.3 fixture carries a hypoxic burden to assert on (anti-vacuity)', _srcHb != null && _srcHb.rate != null, 'nights[0].hypoxicBurden=' + JSON.stringify(_srcHb));
+          T.eq('§4.3 adapted summary.hypoxicBurden === exported hypoxicBurden.rate (not the internal `hb`)', _s0.hypoxicBurden, _srcHb && _srcHb.rate != null ? _srcHb.rate : null);
+          T.ok('§4.3 adapted summary carries odi4 + meanSpo2 (the oximetry story reaches fusion)', _s0.odi4 != null && _s0.meanSpo2 != null, 'odi4=' + _s0.odi4 + ' meanSpo2=' + _s0.meanSpo2);
+          T.ok('§4.3 fixture carries hrv.rmssd to assert on (anti-vacuity)', _srcHrv.rmssd != null, 'nights[0].hrv.rmssd=' + JSON.stringify(_srcHrv.rmssd));
+          T.eq('§4.3 adapted summary.rmssd1Hz === hrv.rmssd (fuseHrvResource proxy leg can fire)', _s0.rmssd1Hz, _srcHrv.rmssd != null ? _srcHrv.rmssd : null);
+          T.eq('§4.3 adapted summary.hrVarSd1Hz === hrv.hrSdnn', _s0.hrVarSd1Hz, _srcHrv.hrSdnn != null ? _srcHrv.hrSdnn : null);
+          if (recLegacy.length) {
+            var _sL = recLegacy[0].summary || {};
+            T.eq('§4.3 reconciled: hypoxicBurden identical from envelope and legacy array', _s0.hypoxicBurden, _sL.hypoxicBurden);
+            T.eq('§4.3 reconciled: rmssd1Hz identical from envelope and legacy array', _s0.rmssd1Hz, _sL.rmssd1Hz);
+            T.eq('§4.3 reconciled: hrVarSd1Hz identical from envelope and legacy array', _s0.hrVarSd1Hz, _sL.hrVarSd1Hz);
+          }
+        }
         var ingestedTMs = [];
         recV2.forEach(function (r) {
           (r.events || []).forEach(function (e) {

@@ -1,5 +1,23 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-21
+**Status:** DONE — 2026-07-22 (**§4.1 verified on the real corpus; the headline finding is NOT-A-BUG, and two
+different live defects were fixed instead.** The §1 claim — that an OxyDex envelope reaches the generic
+normalizer and loses ODI/SpO₂/hypoxic-burden/desat events — does **not** reproduce through the real ingestion
+path. §1 traced `adaptEnvelopeNode` in isolation, but the entry point is `normalizeFile`, which intercepts
+**every** OxyDex shape at `json.nights || json.desatProfile || json.hr_spikes || Array.isArray(json)` and routes
+it to `adaptOxyDex` *before* the generic branch is reachable. That predicate cannot miss: the envelope always
+carries `nights` (`oxydex-dsp.js:5604`, unconditional) and a bare single-night object always carries `hr_spikes`
+(`:5733`, an object literal). All **7** corpus exports — including the synthetic golden — take `adaptOxyDex` and
+carry the full 8-key summary plus events, so the §1 line-number ordering (907 vs 976) compares two *different*
+functions. The §2 test-integrity worry is also void: `dex-tests.js:12371` compares `odi4 = 3.2` on both sides, a
+meaningful assertion. **What WAS live** is §2's *secondary* note, with the branches swapped — `rmssd1Hz`/
+`hrVarSd1Hz` were set only in the generic branch, so `fuseHrvResource`'s `s.rmssd1Hz != null` guard never passed
+and the OXYDEX-PULSE-RESOURCING §Phase 3 proxy leg was dead on **all 7** exports; it now fires on 5, staying
+null on the 2 whose source `hrv.rmssd` is genuinely absent. **Plus a second defect §1 did not predict:**
+`hypoxicBurden` read OxyDex's *internal* `n.hb`, but the export renames it to `hypoxicBurden`
+(`oxydex-dsp.js:5712`) — so every exported night adapted to `null`; it now reports 0.9–18 %·min/h. Both adapter
+paths are reconciled, pinned by a 9-assertion §4.3 gate whose every leg is guarded by a source-presence check so
+it cannot go vacuous. §5 (no committed golden for the Integrator-facing PpgDex **rich** export) is **NOT**
+addressed and remains open — see the follow-up.) · **Created:** 2026-07-21 · Followed-by: INTEGRATOR-OXYDEX-ADAPTER-GAP-FOLLOWUPS-2026-07-22-BRIEF.md
 
 Surfaced while executing `OXYDEX-PULSE-RESOURCING-2026-07-18-BRIEF.md` (§Phase 2 debugging). Wiring
 `pulseHr1Hz` onto the OxyDex fusion leg forced a trace of *which* Integrator adapter path a real OxyDex
