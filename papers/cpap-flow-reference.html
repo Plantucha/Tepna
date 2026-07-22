@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  cpap-flow-reference.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPAP flow as a reference standard for wearable respiratory algorithms — Tepna preprint</title>
+<link rel="stylesheet" href="../licensing/dex-license.css">
+<link rel="stylesheet" href="paper.css">
+</head>
+<body>
+<div class="sheet">
+  <a class="toplink" href="papers.html">← Tepna preprints</a>
+  <div class="banner">Tepna Working Preprint · not peer-reviewed · <b>DRAFT — numbers pending full-corpus regeneration (see §7)</b></div>
+  <h1 class="title">The machine in the bedroom: CPAP flow as a home reference standard for validating wearable respiratory algorithms</h1>
+  <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
+  <p class="affil">MotionDex (inertial) · CPAPDex (therapy) nodes, Tepna physiological-signal suite</p>
+  <p class="meta">Draft v1 · July 2026 · Data class: <b>real-data, n-of-1 methods</b> · Analysis tool: <code>resp-acc-analysis.html</code> · 100% local</p>
+
+  <div class="abstract">
+    <h2>Abstract</h2>
+    <p style="text-align:left;margin-bottom:0"><b>Problem.</b> Validating a wearable respiratory algorithm requires a breath-by-breath reference. The accepted references — polysomnography with respiratory inductance plethysmography (RIP) belts, or a pneumotachograph — are lab instruments. Consequently almost every consumer-sensor respiratory algorithm is validated either on a handful of lab hours or not at all. <b>Observation.</b> Millions of people with sleep-disordered breathing sleep every night beside a machine that already records a calibrated 25 Hz flow signal to a removable SD card. A ResMed CPAP writes <code>Flow.40ms</code> (25 Hz, L/s) and <code>Press.40ms</code> into a standard EDF per session, alongside device-scored respiratory events. <b>Contribution.</b> A complete recipe for promoting that signal to a working reference standard: breath detection from the flow trace; an <em>internal</em> validation of the reference itself before anything is scored against it; and — the step that actually makes it usable — recovery of the clock relationship between an independent wearable and the CPAP, which is neither known nor stable. <b>Results.</b> On 26 nights (172 h) of co-recorded chest accelerometry, two independent flow-derived rate estimators (median-breath-period vs breath-count) agree to <b>MAE 0.70 brpm</b>, which we propose as the reference's own noise floor — no algorithm scored against it can honestly claim better. The wearable and CPAP clocks differed by <b>≈ −39.4 min</b>, recovered by cross-correlating the band-passed accelerometer against flow: the correlation peak is <b>±4 s wide and ~5× the p95 noise floor</b>. That offset <b>drifts linearly at +0.589 s/day</b>; a weighted fit predicts every night's offset with <b>residual SD 1.03 s (max 2.12 s) over 37 days</b>. Crucially, drift-consistency is a <em>better</em> validity test than correlation magnitude: four nights whose blind search returned weak correlation (r &lt; 0.25) nevertheless landed within 0.0–3.2 s of the drift prediction, and a correlation gate would have discarded them as failures. <b>Caveats.</b> Single subject; the flow signal is leak- and pressure-dependent; and the therapy itself alters the physiology being measured, so this is a reference for <em>algorithm agreement</em>, not for untreated respiratory physiology.</p>
+  </div>
+  <p class="kw"><b>Keywords:</b> reference standard · CPAP · EDF · respiratory rate · wearable validation · clock synchronisation · Bland–Altman · n-of-1</p>
+
+  <div class="callout" style="border:1px dashed #b8860b;background:#fffdf5">
+    <h2 class="sec" style="margin-top:0">0. Layman overview <span style="font-weight:400;color:#b8860b;font-size:13px">(delete before submission)</span></h2>
+    <p>To find out whether a fitness gadget measures your breathing correctly, you normally need a sleep laboratory. Almost nobody has one. But a lot of people <i>do</i> have a CPAP machine — and it turns out that machine is quietly recording a very good measurement of every breath you take, all night, onto a memory card.</p>
+    <p>This paper is the instruction manual for using that recording as your "truth" to test anything else. Two things turned out to matter more than expected. First, you must check how good the truth <i>itself</i> is before trusting it — we measure it two different ways and see how much they disagree (about 0.7 breaths per minute), which is the best any gadget could ever score. Second, the two devices' clocks disagree — by <b>39 minutes</b> — and that gap slowly grows by about half a second per day. If you don't fix that, you are comparing one device's 2 a.m. to another's 1:20 a.m., and everything looks like noise.</p>
+  </div>
+
+  <h2 class="sec">1. Introduction</h2>
+  <p>A respiratory-rate algorithm without a reference standard is an opinion. The references the literature accepts are a pneumotachograph or spirometer <span class="cite">[7]</span>, or thoracic/abdominal RIP belts scored during polysomnography <span class="cite">[1,4,6]</span>. Both are lab instruments, and the resulting validations are correspondingly small: Schipper et al. validated a chest accelerometer against RIP over ~90 min per subject in 20 healthy volunteers <span class="cite">[1]</span>; Ryser et al. managed 89.4 h across 12 subjects <span class="cite">[4]</span>; Doheny et al. used 11 clinical PSG nights <span class="cite">[5]</span>.</p>
+  <p>Meanwhile, positive-airway-pressure therapy is delivered to a very large population by devices that continuously measure and record flow, because flow measurement is how the therapy works. A ResMed device writes, per session, a set of EDF files including <code>BRP</code> (<code>Flow.40ms</code> at 25 Hz in L/s, and <code>Press.40ms</code>), <code>PLD</code> (2 s summaries including the device's own <code>RespRate.2s</code>, <code>Leak.2s</code>, <code>TidVol.2s</code>), <code>SA2</code> (oximetry, if attached) and <code>EVE</code> (EDF+ annotations carrying AASM-typed scored events). This is a calibrated respiratory signal, recorded nightly, for years, at home, at no marginal cost.</p>
+  <p>The obvious objection — that CPAP alters the physiology — is real but does not disqualify the signal as a <em>reference for algorithm agreement</em>. If the question is "does this wearable recover the breathing that actually happened", the flow signal answers it regardless of what is causing the breathing. The genuine difficulties are elsewhere: the reference's own error is unknown, and the two devices do not share a clock. This note addresses both.</p>
+
+  <h2 class="sec">2. Methods</h2>
+
+  <h3 class="sub">2.1 The files, and what is in them</h3>
+  <p>Sessions are stored per night under a date-stamped directory; a night may contain several sessions (a mask-off interruption starts a new one). All are standard EDF: 256-byte header, per-signal headers, then 2-byte little-endian digital samples scaled by the physical/digital min–max pairs. The <code>EVE</code> file is EDF+ with time-stamped annotation lists (TALs) rather than sampled data, and must be parsed as such — a naive EDF reader divides by a zero record duration and fails.</p>
+  <div class="callout"><b>Do not use the device's own respiratory rate as the reference.</b> <code>RespRate.2s</code> is available at 0.5 Hz and is tempting. Measured against breath-by-breath detection on the same file's raw flow, it agrees at only <b>r = 0.05–0.43</b> per 60 s epoch, improving to r = 0.14–0.75 at 5–10 min blocks — i.e. it is a heavily smoothed, lagged estimate. It is a useful cross-check and a poor ground truth. Use the 25 Hz flow.</div>
+
+  <h3 class="sub">2.2 Breath detection from the flow trace</h3>
+  <p>Inspiratory onsets are positive-going zero crossings of the leak-corrected flow. Concretely: a 2nd-order Butterworth high-pass at 0.05 Hz (removes slow leak and baseline drift without touching breath periods of 1.5–10 s), then a 4th-order low-pass at 3.0 Hz (suppresses cardiogenic oscillation and turbulence), both applied forward–backward for zero phase. Positive-going zero crossings are then taken with a 1.0 s refractory period. Per-epoch rate is <code>60 / median(breath period)</code> over a 60 s window requiring ≥4 breaths — the median makes it robust to a single missed or doubled breath, which a plain count is not.</p>
+
+  <h3 class="sub">2.3 Validating the reference before trusting it</h3>
+  <p>This step is the one most often skipped, and it bounds every downstream claim. Two estimators are derived from the <em>same</em> flow signal but with different failure modes — <b>(a)</b> <code>60/median(period)</code> and <b>(b)</b> a plain breath count over the epoch — and compared to each other. Agreement between them is an upper bound on the reference's precision.</p>
+
+  <h3 class="sub">2.4 Clock recovery — offset and drift</h3>
+  <p>The wearable (here, a Polar H10 logged by an Android phone) stamps phone civil time; the CPAP stamps its own RTC. Neither is disciplined to the other. The offset is recovered by cross-correlation: band-pass both the accelerometer channels and the flow to the respiratory band, project the accelerometer to its first principal component over a 20–25 min chunk, and scan the lag that maximises |r| over ±90 min at 1 s resolution. Because respiration is quasi-periodic, a spurious lag would produce a broad, low correlation ridge; a true lock produces a narrow spike. Three chunks per night vote.</p>
+  <p>The offsets are then modelled across nights as a linear drift, weighted by each night's correlation strength, and the fit is used to validate individual locks (§3.3).</p>
+
+  <h2 class="sec">3. Results</h2>
+
+  <h3 class="sub">3.1 The reference's own noise floor is ≈0.70 brpm</h3>
+  <p>Across three representative nights, the two independent flow-derived estimators agree at <b>MAE 0.69, 0.77 and 0.75 brpm</b> (r = 0.805, 0.792, 0.864; n = 383, 362, 415 epochs). Breath-period distributions are tight and unimodal (median 3.60–3.68 s; IQR 3.20–4.08 s), and the fraction of consecutive-period ratios below 0.6 or above 1.67 — the signature of a doubled or missed detection — is <b>2.6–4.5%</b>.</p>
+  <div class="callout"><b>Interpretive rule.</b> Treat ≈0.70 brpm as the floor. An algorithm reporting MAE materially below it against this reference is not more accurate than the reference; it is either overfitting the reference's own quirks or being scored on an easier subset. In the companion accelerometer study <span class="cite">[10]</span> the estimator reaches MAE 0.56 brpm only after abstaining on 30% of epochs — i.e. on the retained subset, which is exactly the expected behaviour.</div>
+
+  <h3 class="sub">3.2 The clocks differ by 39 minutes and drift by 0.6 s/day</h3>
+  <p>The waveform cross-correlation produces an unambiguous lock: peak |r| up to 0.89, a peak <b>±4 s wide</b>, and a peak-to-p95 ratio of ~5 (the |r| distribution across 10,801 candidate lags has median 0.015, p95 0.044, max 0.218 on the weakest night tested). The recovered offset was <b>−2365 s on 2026-06-06 and −2344 s on 2026-07-13</b>, moving monotonically.</p>
+  <p>A correlation-weighted linear fit over the confidently-aligned nights gives <b>+0.589 s/day</b>, with <b>residual SD 1.03 s and maximum residual 2.12 s across 37 days</b>. Two independent facts make this convincing: the drift is monotone, which a spurious alignment would not be; and the residual is of the order of the epoch-boundary quantisation, not of the search range.</p>
+
+  <h3 class="sub">3.3 Drift-consistency beats correlation magnitude as a validity test</h3>
+  <p>This is the practically important result. Four of 26 nights returned a weak blind-search correlation (r &lt; 0.25) and would be discarded by a correlation-strength gate. Their recovered offsets nonetheless landed within <b>0.0, 0.2, 2.7 and 0.0 s</b> of the drift-model prediction. Their locks were correct; the correlation was low because the <em>respiratory signal</em> was weak that night, which is a statement about the wearable, not about the alignment.</p>
+  <div class="eqn">validity test:  |offset_recovered − offset_predicted| &lt; 5 s   (not: |r| &gt; threshold)</div>
+  <p>Applying the correlation gate would have removed 15% of the corpus for the wrong reason, and — worse — would have removed it non-randomly, biased toward the nights on which the algorithm under test performs worst.</p>
+
+  <h2 class="sec">4. Discussion</h2>
+  <p>The three ingredients that make CPAP flow usable are, in order of how often they are neglected: (1) measuring the reference's own error first; (2) recovering the clock relationship rather than assuming it; (3) validating each lock against a drift model rather than against a correlation threshold. None is specific to accelerometry or to ResMed — the same recipe applies to any wearable respiratory signal and any therapy device that logs flow.</p>
+  <p>The approach also yields, for free, a device-scored event list (<code>EVE</code>) with AASM types. That is a weaker label than expert PSG scoring — it is the manufacturer's algorithm — but it is nightly, longitudinal, and typed, which no lab study can be.</p>
+
+  <h2 class="sec">5. Limitations</h2>
+  <p>A single subject contributed all 26 nights, so the reference's noise floor is characterised on one respiratory pattern, one mask, one machine and one leak profile; the 0.70 brpm figure should be re-derived per setup rather than quoted. The flow signal is affected by mask leak, and although a leak channel is recorded, no leak-conditioned analysis was performed here. Therapy alters the physiology under measurement: rates observed are rates under positive pressure, so this reference cannot support claims about untreated breathing. The device-scored events are the manufacturer's algorithm rather than expert AASM scoring, and their central/obstructive discrimination in particular rests on forced-oscillation airway-patency testing whose accuracy is not independently established here. Finally, the clock drift was linear over 37 days on one phone–machine pair; longer spans, daylight-saving transitions or a device clock reset would each break the linear model, and the drift-consistency test would then correctly flag those nights rather than silently mis-aligning them.</p>
+
+  <h2 class="sec">6. Reproducibility</h2>
+  <p>All processing is local. Inputs are the unmodified ResMed EDF set and the wearable's raw logger output. The EDF reader, breath detector, reference-validation and drift-model steps are each independently runnable, and the reference-noise-floor figure is regenerated by comparing the two estimators on any night without reference to any wearable.</p>
+  <div class="callout" style="border:1px dashed #b00"><b>⛔ Status of the reproducibility requirement.</b> The analysis tool <b>now exists</b> — <code>resp-acc-analysis.html</code>, which runs the <em>shipped</em> <code>MOTIONDSP.respiratoryRate</code> rather than a reimplementation. It has been verified against the original harness on four nights: recovered clock offsets agree to within 8 s (−2365/−2373/−2351/−2361 s vs −2362/−2365/−2353/−2360 s) and per-night MAE to within 0.06 br/min (0.85/0.87/0.95/1.29 vs 0.91/0.82/1.01/1.35). <b>What remains:</b> the full 26-night corpus has not yet been re-run end-to-end through the tool, so the headline figures above still trace to the original harness. Until that regeneration is done and the figures are emitted into <code>papers/figures/</code>, this paper stays a <b>DRAFT</b>. See <code>briefs/MOTIONDEX-RESPIRATORY-RATE-2026-07-21-BRIEF.md</code> §4.</div>
+
+  <h2 class="sec">7. References</h2>
+  <div class="callout" style="font-size:13px"><b>Citation provenance.</b> References marked <b>✓</b> were retrieved and verified directly by the author against the publisher record (title, authors, venue and the specific quoted statistics). Those marked <b>△</b> were retrieved by automated literature agents with full text obtained but not independently re-verified by the author. Reference [13] is marked <b>✗</b>: its full text was never obtained and it is cited for its concept only, never for a number.</div>
+  <ol class="refs">
+    <li><b>✓</b> Schipper F, van Sloun RJG, Grassi A, Derkx R, Overeem S, Fonseca P. Estimation of respiratory rate and effort from a chest-worn accelerometer using constrained and recursive principal component analysis. <i>Physiol Meas</i> 42(4):045004, 2021. doi:10.1088/1361-6579/abf01f</li>
+    <li><b>✓</b> Schipper F, Fonseca P, Grassi A, Ross M, et al. Apnea-hypopnea index estimation using overnight chest-wall accelerometry. <i>Front Sleep</i>, 2026. doi:10.3389/frsle.2026.1858267</li>
+    <li><b>✓</b> Charlton PH, Bonnici T, Tarassenko L, Clifton DA, Beale R, Watkinson PJ. An assessment of algorithms to estimate respiratory rate from the electrocardiogram and photoplethysmogram. <i>Physiol Meas</i> 37(4):610–626, 2016. doi:10.1088/0967-3334/37/4/610</li>
+    <li><b>△</b> Ryser F, Hanassab S, Lambercy O, Werth E, Gassert R. Respiratory analysis during sleep using a chest-worn accelerometer: a machine learning approach. <i>Biomed Signal Process Control</i> 78:104014, 2022. doi:10.1016/j.bspc.2022.104014</li>
+    <li><b>△</b> Doheny EP, Lowery MM, Russell A, Ryan S. Estimation of respiration rate and sleeping position using a wearable accelerometer. <i>Proc IEEE EMBC</i>, 2020:4529–4532. doi:10.1109/EMBC44109.2020.9176573</li>
+    <li><b>△</b> Schipper F, van Sloun RJG, Grassi A, Overeem S, Fonseca P. A deep-learning approach to assess respiratory effort with a chest-worn accelerometer during sleep. <i>Biomed Signal Process Control</i> 83:104726, 2023. doi:10.1016/j.bspc.2023.104726</li>
+    <li><b>△</b> Hostrup MCD, Nielsen AS, Sørensen FE, et al. Accelerometer-based estimation of respiratory rate using principal component analysis and autocorrelation. <i>Physiol Meas</i> 46(3), 2025. doi:10.1088/1361-6579/adbe23</li>
+    <li><b>△</b> Nassi TE, Ganglberger W, Sun H, et al. Automated scoring of respiratory events in sleep with a single effort belt and deep neural networks. <i>IEEE Trans Biomed Eng</i>, 2022. doi:10.1109/TBME.2021.3136753</li>
+    <li><b>△</b> Cesareo A, Previtali Y, Biffi E, Aliverti A. Assessment of breathing parameters using an inertial measurement unit (IMU)-based system. <i>Sensors</i> 19(1):88, 2019. doi:10.3390/s19010088</li>
+    <li>Planicka M. Respiratory rate from a Polar H10 chest accelerometer, validated against CPAP flow. <i>Tepna working preprint</i>, 2026. <a href="acc-respiratory-rate.html">acc-respiratory-rate.html</a></li>
+    <li>Planicka M. Measuring a device's σ without a canonical reference. <i>Tepna working preprint</i>, 2026. <a href="sigma-no-reference.html">sigma-no-reference.html</a></li>
+    <li><b>△</b> Karlen W, Raman S, Ansermino JM, Dumont GA. Multiparameter respiratory rate estimation from the photoplethysmogram. <i>IEEE Trans Biomed Eng</i> 60(7):1946–1953, 2013. doi:10.1109/TBME.2013.2246160</li>
+    <li><b>✗</b> Bates A, Ling MJ, Mann J, Arvind DK. Respiratory rate and flow waveform estimation from tri-axial accelerometer data. <i>Proc BSN</i>, 2010:144–150. doi:10.1109/BSN.2010.50 — <i>full text not obtained; cited for concept only.</i></li>
+  </ol>
+
+  <p class="dxl-note">Tepna is not a medical device and is not intended to diagnose, treat, cure or prevent any disease. Research and personal-analysis use only.</p>
+</div>
+</body></html>

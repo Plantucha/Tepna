@@ -69,8 +69,13 @@
       unit: 'br/min',
       goodDirection: 'down',
       depth: 'advanced',
-      evidence: 'experimental',
-      cite: 'Chest-ACC thoraco-abdominal effort (Ryser 2022) — surrogate; descriptive, direction is nominal'
+      /* emerging, NOT validated: real-corpus validated (26 nights / 172 h / 19,193 epochs of
+         chest ACC vs ResMed CPAP `Flow.40ms` breath-by-breath reference — MAE 1.01 br/min,
+         95% CI 0.91–1.12; 91.6% within 2 br/min) but on a SINGLE subject, which does not meet
+         the Literature-Use Policy bar for `validated`. Posture robustness is untested (corpus
+         gravity-roll IQR 13.1–17.9°, i.e. one posture). */
+      evidence: 'emerging',
+      cite: 'Chest-ACC spectral ridge tracking (Viterbi) validated against CPAP flow, 26 nights — MAE 1.01 br/min; time-domain blend per Charlton 2016, Physiol Meas 37(4):610'
     },
     effortAmp: {
       label: 'Effort amplitude',

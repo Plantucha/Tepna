@@ -98,6 +98,50 @@ Ordered by value × readiness. Each: **claim · data class · needs · bounding 
   not diagnosis. **Effort:** MED. This is also the intelligence layer OverDex wants, so the paper and
   the feature reinforce each other.
 
+### 2.4 ✦✦ CPAP flow as a home reference standard — the one that closes §0 <span title="drafted">[DRAFTED]</span>
+- **Claim:** the reference-standard problem the whole series has been working around is *already solved
+  in the bedroom*. A ResMed CPAP writes a calibrated **25 Hz flow** channel (`BRP` `Flow.40ms`) plus
+  AASM-typed scored events (`EVE`) to its SD card every night. The paper is the recipe for promoting
+  that to a working reference: breath detection from flow; **validating the reference before scoring
+  anything against it** (two independent flow-derived estimators agree to **MAE 0.70 brpm** — the floor);
+  and recovering the wearable↔CPAP clock relationship, which is neither known nor stable (**≈39 min
+  offset**, recovered to a **±4 s** correlation peak, **drifting +0.589 s/day**, residual SD 1.03 s over
+  37 days). Headline methodological result: **drift-consistency beats correlation magnitude as the
+  validity test** — a correlation gate discards good nights, non-randomly, biased toward the hardest ones.
+- **Data class:** REAL (n-of-1 methods; 26 nights / 172 h). **Needs:** current stack only.
+  **Bounding limitation:** one subject, one machine, one mask — the 0.70 brpm floor must be re-derived
+  per setup, not quoted; and therapy alters the physiology, so it is a reference for *algorithm
+  agreement*, not for untreated breathing. **Effort:** LOW–MED (analysis exists; §4 port is the work).
+  **Why first:** its contribution is device- and algorithm-agnostic, so unlike 2.5 it does not inherit
+  the single-posture limitation. Draft: `papers/cpap-flow-reference.html`.
+
+### 2.5 ✦ Respiratory rate from the H10 accelerometer — the MotionDex real-data arm <span title="drafted">[DRAFTED]</span>
+- **Claim:** the H10 accelerometer, already worn for ECG, yields overnight respiratory rate at no extra
+  hardware cost. MAE **1.01 brpm** (95% CI 0.91–1.12), **91.6%** within 2 brpm over 19,193 epochs;
+  **0.56** at 70% coverage, i.e. at the reference's noise floor. Two gaps in the literature: the H10 ACC
+  has apparently never been evaluated for respiration (all H10 work is HR/HRV), and no published
+  chest-accelerometer study recorded *treated* nights. Method is spectral ridge tracking by Viterbi with
+  a time-domain blend and honest abstention; 0.17 s/night in dependency-free ES5.
+- **Data class:** REAL (n-of-1; 26 nights). **Needs:** current stack + the §2 estimator landed in
+  `motiondex-dsp.js`. **Bounding limitation:** ⚠ **posture robustness is untested and this is the
+  dominant limit** — gravity-roll IQR is 13.1°–17.9°, i.e. one posture, so Doheny's supine-vs-lateral
+  1.54× could not be replicated (measured 1.02×) *by absence of exposure*. Also single subject, and the
+  bias constant is subject-fitted (applied leave-one-night-out). **Effort:** LOW (drafted).
+  Draft: `papers/acc-respiratory-rate.html`.
+
+### 2.6 Effort does not type apneas under CPAP — a negative result <span title="parked">[PARKED]</span>
+- **Claim:** accelerometer effort amplitude does not separate central from obstructive apnea on treated
+  nights. Central events sit at **0.99×** their own night baseline — not absent, normal; only 16.5% fall
+  below half baseline where a single RIP belt achieves 84%. Best AUC **0.691** (p=0.0002). Independent
+  methodological finding: including the event **termination** destroys the effect (AUC 0.573), because
+  the terminating arousal injects motion where effort should look absent.
+- **Data class:** REAL (n-of-1; 22 nights, 401 events), negative result — belongs with §2.2's
+  "walls in the maze" framing. **Bounding limitation:** the CPAP-pressure mechanism is **hypothesised,
+  not tested**; if confirmed it narrows the claim to "under therapy". Obstructive n=31; labels are the
+  manufacturer's algorithm, not PSG; and an adversarial literature review surfaced a prior report whose
+  direction may run *opposite*. **Status: PARKED** until the `MaskPress.2s` test resolves the mechanism —
+  do not ship as-is. Draft: `papers/effort-typing-null.html`.
+
 ---
 
 ## 3 · New paper candidates — unlocked by the PLANNED stack
