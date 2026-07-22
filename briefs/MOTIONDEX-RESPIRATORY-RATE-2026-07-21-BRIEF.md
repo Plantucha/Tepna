@@ -179,7 +179,14 @@ Per `PAPERS-ROADMAP` §5.2 — *"No number without a tool that reproduces it"*:
       figures trace to it rather than to the original harness. This is now the blocking item.
 - [ ] Figures regenerated into `papers/figures/`.
 - [ ] `papers/PAPERS-AUDIT.md` rows.
-- [ ] Follow-up brief spawned per the house pattern, carrying: the
-      `MaskPress.2s` test of the CPAP-pressure hypothesis (§4 of the typing paper), and the
+- [x] **`MaskPress.2s` test of the CPAP-pressure hypothesis** — DONE, and it **fails**. Effort
+      during central apnea is *negatively* associated with concurrent mask pressure (Spearman
+      ρ = −0.174, p = 0.0008, n = 367 events / 22 nights; low-pressure median ratio 1.12 vs 0.83
+      at high pressure), the opposite of the prediction. The convenient narrowing of the typing
+      claim to "under therapy" is therefore **not available**. Caveat that bounds it: pressure
+      varied only across the delivered therapeutic range (4.14–11.08 cmH₂O), so this is a
+      within-therapy dose–response test, not therapy-vs-no-therapy — a null here is much weaker
+      evidence against the hypothesis than a positive would have been for it.
+- [ ] Follow-up brief spawned per the house pattern, carrying the
       Integrator apnea-typing rule at `integrator-dsp.js:1205` — which this work-unit deliberately
       did **not** touch.
