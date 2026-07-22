@@ -175,8 +175,22 @@ Per `PAPERS-ROADMAP` §5.2 — *"No number without a tool that reproduces it"*:
       band-pass filtering, and — the subtle one — deriving the sample rate from the
       millisecond-quantised phone stamp instead of the Polar nanosecond counter (a 1.2% rate
       error → ~18 s of skew over a 25 min chunk → locks off by tens of minutes).
-- [ ] **Re-run the full 26-night corpus end-to-end through the tool** so the papers' headline
-      figures trace to it rather than to the original harness. This is now the blocking item.
+- [x] **Re-run the full 26-night corpus through the tool** — DONE. `resp-acc-analysis.js` driving
+      the shipped estimator independently reproduces the external harness across all 26 nights:
+      **MAE 1.005 vs 1.006** (95% CI 0.917–1.101 vs 0.912–1.115) and **within-2-brpm 91.7% vs
+      91.6%**, on separately recovered clock alignments — agreement to 0.001 br/min and 0.1 pp.
+      Reference self-noise regenerates at median **0.74** br/min over 26 nights (range 0.56–1.19).
+      Per-night MAE median 0.88 (0.76–1.67). Papers now cite the tool's numbers.
+      **Two corrections this surfaced**, both now in the papers: (a) the drift residual SD of
+      1.03 s is **implementation-specific** — it came from a pre-cached exactly-25 Hz grid; the
+      tool correlating from the raw stream reaches 6.87 s for the same slope, so a validity
+      tolerance must be derived from the fitted residual (3σ), never hardcoded (a fixed 5 s gate
+      rejected 15 of 26 good nights); (b) the tight-gate coverage figures were slightly optimistic
+      — 0.61 rather than 0.56 at 70% coverage — because noisier locks blur epoch pairing.
+- [ ] **Exercise the browser page itself** (`resp-acc-analysis.html`) end to end. The regeneration
+      above was driven **headlessly against the tool's engine**; the folder-ingest / FileReader /
+      render path is still unexercised, as is `Dex-Test-Suite.html?full`. Both need a browser.
+- [ ] Figures emitted into `papers/figures/`.
 - [ ] Figures regenerated into `papers/figures/`.
 - [ ] `papers/PAPERS-AUDIT.md` rows.
 - [x] **`MaskPress.2s` test of the CPAP-pressure hypothesis** — DONE, and it **fails**. Effort
