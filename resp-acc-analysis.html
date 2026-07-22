@@ -1,0 +1,2542 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  resp-acc-analysis.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chest-ACC respiratory rate vs CPAP flow — Tepna analysis</title>
+<link rel="stylesheet" href="licensing/dex-license.css">
+<style>
+  :root { --bg:#0e1116; --card:#161b22; --ink:#e6edf3; --dim:#8b949e; --teal:#2dd4bf; --amber:#f0b429; --red:#f85149; --line:#30363d; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  .wrap { max-width:1180px; margin:0 auto; padding:28px 20px 80px; }
+  h1 { font-size:24px; margin:0 0 6px; }
+  .sub { color:var(--dim); margin:0 0 22px; max-width:900px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px; margin:16px 0; }
+  h2 { font-size:16px; margin:0 0 12px; color:var(--teal); }
+  .drop { border:2px dashed var(--line); border-radius:10px; padding:34px; text-align:center; color:var(--dim); cursor:pointer; }
+  .drop.hot { border-color:var(--teal); color:var(--ink); }
+  .pill { display:inline-block; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600; }
+  .idle { background:#21262d; color:var(--dim); } .busy { background:#3a2f00; color:var(--amber); }
+  .ok { background:#03301f; color:var(--teal); } .bad { background:#3d1418; color:var(--red); }
+  table { border-collapse:collapse; width:100%; font-size:13px; margin-top:8px; }
+  th,td { border-bottom:1px solid var(--line); padding:6px 8px; text-align:right; }
+  th:first-child,td:first-child { text-align:left; }
+  th { color:var(--dim); font-weight:600; }
+  code { background:#0d1117; padding:1px 5px; border-radius:4px; font-family:ui-monospace,SFMono-Regular,monospace; }
+  .note { color:var(--dim); font-size:12.5px; margin-top:10px; }
+  .warn { border-left:3px solid var(--amber); padding-left:12px; }
+  #log { font-family:ui-monospace,monospace; font-size:12px; color:var(--dim); max-height:220px; overflow:auto; white-space:pre-wrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Chest-ACC respiratory rate against CPAP flow</h1>
+  <p class="sub">
+    Regenerates every number in <code>papers/cpap-flow-reference.html</code>, <code>papers/acc-respiratory-rate.html</code>
+    and <code>papers/effort-typing-null.html</code>. Drop a folder holding <b>Polar Sensor Logger <code>*_ACC.txt</code></b>
+    files and the matching <b>ResMed <code>CPAP/&lt;date&gt;/*_BRP.edf</code></b> sessions. The estimator run here is the
+    <b>shipped</b> <code>MOTIONDSP.respiratoryRate</code> — not a reimplementation — so this tool measures the code that
+    actually ships. 100% local; nothing is uploaded.
+  </p>
+
+  <div class="card">
+    <span class="pill idle" id="status">drop a corpus folder to begin</span>
+    <div class="drop" id="drop" style="margin-top:14px">
+      Drag the corpus folder here — or
+      <label style="color:var(--teal);cursor:pointer;text-decoration:underline">choose a folder<input id="folderInput" type="file" webkitdirectory directory multiple style="display:none"></label>
+      <div class="note">Expects <code>*_ACC.txt</code> alongside a <code>CPAP/</code> tree. Nights without both are skipped and listed.</div>
+    </div>
+  </div>
+
+  <div class="card"><h2>1 · Reference self-noise — the floor no algorithm may claim to beat</h2>
+    <div class="note">Two independent estimators derived from the <em>same</em> flow signal: <code>60/median(period)</code> versus a plain breath count. Their disagreement bounds the reference's own precision.</div>
+    <table id="tblRef"><thead><tr><th>Night</th><th>breaths</th><th>median period (s)</th><th>MAE med-vs-count</th><th>r</th></tr></thead><tbody></tbody></table>
+    <div id="refSummary" class="note"></div>
+  </div>
+
+  <div class="card"><h2>2 · Clock — offset and drift</h2>
+    <div class="note">Offset recovered by cross-correlating band-passed ACC against band-passed flow (±90 min, 1 s). Validity is <b>drift-model consistency</b>, not correlation magnitude.</div>
+    <table id="tblClock"><thead><tr><th>Night</th><th>recovered (s)</th><th>predicted (s)</th><th>Δ (s)</th><th>peak |r|</th><th>sharpness</th><th>verdict</th></tr></thead><tbody></tbody></table>
+    <div id="driftSummary" class="note"></div>
+  </div>
+
+  <div class="card"><h2>3 · Estimator agreement <span class="pill idle" id="nPill">0 epochs</span></h2>
+    <table id="tblAgree"><thead><tr><th>Configuration</th><th>n</th><th>MAE</th><th>95% CI</th><th>bias</th><th>RMSE</th><th>LoA</th><th>≤2 brpm</th><th>r</th></tr></thead><tbody></tbody></table>
+    <div class="note">Bias correction is applied <b>leave-one-night-out</b>, so no row is fitted on its own test night. CIs are night-level bootstrap.</div>
+  </div>
+
+  <div class="card"><h2>4 · Error vs coverage — the abstention curve</h2>
+    <table id="tblCov"><thead><tr><th>coverage</th><th>confidence gate</th><th>MAE</th><th>RMSE</th><th>LoA</th><th>≤2 brpm</th><th>r</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="card"><h2>5 · Per-night breakdown</h2>
+    <table id="tblNights"><thead><tr><th>Night</th><th>hours</th><th>epochs</th><th>MAE</th><th>bias</th><th>≤2 brpm</th><th>r</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="card warn"><h2>Provenance</h2>
+    <div class="note" id="prov">Run the analysis to stamp the estimator identity used for these numbers.</div>
+  </div>
+
+  <div class="card"><h2>Log</h2><div id="log"></div></div>
+
+  <p class="dxl-note">Tepna is not a medical device and is not intended to diagnose, treat, cure or prevent any disease. Research and personal-analysis use only.</p>
+</div>
+
+<script data-inline-src="clock.js">
+/*
+ * clock.js — Tepna
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+ * project root, or http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * THE Clock Contract parser — single-sourced (A5, owner-ratified 2026-07-03;
+ * OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF §3). Extracted VERBATIM from the canonical
+ * per-node mirror (the byte-identical block pulsedex/ecgdex/integrator carried; hrvdex's
+ * commented copy; oxydex's was the same minus the unused _ckP2). The owned bundler inlines
+ * this ONE file into every bundle, so it stays bundled-local AND single-source — the
+ * copy-paste mirror + its drift risk are retired.
+ *
+ * Contract (CLAUDE.md §🔒): floating wall-clock tMs via Date.UTC on components-as-written;
+ * zoned ISO authoritative; explicit vendor regexes (never locale Date.parse); DMY/MDY §3;
+ * time-only rows anchor+roll; NEVER fabricate now() — miss ⇒ null.
+ *
+ * Adopters delegate via local aliases (var parseTimestamp = DexClock.parseTimestamp; …)
+ * inside their IIFE — public surfaces (ECGDSP.parseTimestamp, bare re-export tails) are
+ * unchanged. NODE-LOCAL VARIANTS THAT STAY (deliberate, do not force onto DexClock):
+ * ppgdex-dsp.js (strict ISO/epoch subset + quote-stripping), glucodex-dsp.js (_ckParse +
+ * numeric-returning MDY wrapper), cpapdex-dsp.js (EDF-subset). Load clock.js BEFORE any
+ * delegating *-dsp.js (dex-coload.js enforces host membership).
+ */
+(function (root) {
+  'use strict';
+
+  function tzOffset(instantMs) {
+    return new Date(instantMs).getTimezoneOffset() * 60000;
+  }
+  function _ckP2(n) {
+    return n < 10 ? '0' + n : '' + n;
+  }
+  function _ckNumEpoch(n) {
+    if (!isFinite(n)) return null;
+    if (n < 1e11) n = n * 1000; // 10-digit (or smaller) → seconds → ms
+    if (n < 1e11 || n > 4e12) return null; // implausible epoch range
+    var off = tzOffset(n);
+    return { tMs: n - off, offsetMin: -off / 60000 };
+  }
+  function _ckZoneMin(z) {
+    var zs = z.replace(':', '');
+    var sign = zs[0] === '-' ? -1 : 1;
+    return sign * (parseInt(zs.slice(1, 3), 10) * 60 + parseInt(zs.slice(3, 5), 10));
+  }
+  /* Contract §3 — decide day vs month from the first two slash fields.
+   `locked` (from resolveDMY) means the ORDER WAS PROVEN FOR THIS FILE: apply it unconditionally, so a
+   single row can no longer flip the order mid-file. A row the lock cannot explain (its month field lands
+   outside 1..12) is a contradiction, and a contradiction is null — never a guess.
+   Unlocked (no pre-scan) keeps the historical per-call behavior for back-compat. */
+  function _ckDMY(a, b, preferDMY, locked) {
+    if (locked) {
+      var ld = preferDMY ? a : b,
+        lmo = preferDMY ? b : a;
+      return lmo >= 1 && lmo <= 12 && ld >= 1 && ld <= 31 ? { d: ld, mo: lmo } : null;
+    }
+    if (a > 12) return { d: a, mo: b };
+    if (b > 12) return { d: b, mo: a };
+    return preferDMY ? { d: a, mo: b } : { d: b, mo: a };
+  }
+
+  /* Contract §3, the FILE-LEVEL lock: "Any row with day-component > 12 ⇒ file is unambiguous; lock that
+   order for the whole file … Never switch order mid-file."  Scan every stamp ONCE up front:
+     a row whose 1st slash field > 12 PROVES DMY · a row whose 2nd field > 12 PROVES MDY.
+   Both proofs present ⇒ the file contradicts itself ⇒ refuse (contradictory:true) rather than guess.
+   Neither ⇒ genuinely ambiguous ⇒ fall back to the caller's preferDMY, unlocked.
+   Pass the result into parseTimestamp as { preferDMY: r.dmy, dmyLocked: r.locked }.
+   Only the two ambiguous vendor shapes are scanned (4a "HH:MM:SS D/M/Y" and 4c "D/M/Y HH:MM"); ISO and
+   YYYY/MM/DD carry no ambiguity. */
+  function resolveDMY(rawStamps, preferDMY) {
+    var pref = preferDMY !== false,
+      sawDMY = false,
+      sawMDY = false;
+    var RE_A = /^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/; // 4a — O2Ring
+    var RE_C = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/; // 4c — Welltory etc.
+    var list = rawStamps || [];
+    for (var i = 0; i < list.length; i++) {
+      var s = list[i];
+      if (typeof s !== 'string') continue;
+      s = s.trim().replace(/^["']|["']$/g, '');
+      var a = null,
+        b = null;
+      var mA = s.match(RE_A);
+      var mC = mA ? null : s.match(RE_C);
+      if (mA) {
+        a = +mA[4];
+        b = +mA[5];
+      } else if (mC) {
+        a = +mC[1];
+        b = +mC[2];
+      } else continue;
+      if (a > 12) sawDMY = true;
+      if (b > 12) sawMDY = true;
+      if (sawDMY && sawMDY) break; // contradiction proven — no need to scan further
+    }
+    if (sawDMY && sawMDY) return { dmy: pref, locked: false, contradictory: true };
+    if (sawDMY) return { dmy: true, locked: true, contradictory: false };
+    if (sawMDY) return { dmy: false, locked: true, contradictory: false };
+    return { dmy: pref, locked: false, contradictory: false };
+  }
+
+  // DEEP-AUDIT-II §12.3 — Clock Contract amendment. Date.UTC SILENTLY ROLLS out-of-range components
+  // (month 13 → next January, day 45 → next month, 25:99 → +1 day 1 h 39 m), so a corrupt stamp used to
+  // land on a plausible WRONG instant instead of an honest null. `_ckMk` builds the floating tMs ONLY if
+  // every component is in range: the date must round-trip (rejects month>12, day>31, Feb 30, Apr 31…) and
+  // the time must be 0–23 : 0–59 : 0–59 . 0–999. The ONE legitimate overflow is ISO-8601 `24:00:00`
+  // (end-of-day) — normalized to next-day 00:00, NOT rejected (do not add a bare `h>23` guard). Returns
+  // a number, or null on any out-of-range component (Clock §2.6 — a bad stamp is visible, never fabricated).
+  function _ckMk(y, mo0, d, h, mi, se, ms) {
+    se = se || 0;
+    ms = ms || 0;
+    var day0 = Date.UTC(y, mo0, d),
+      dd = new Date(day0);
+    if (dd.getUTCFullYear() !== y || dd.getUTCMonth() !== mo0 || dd.getUTCDate() !== d) return null; // date rolled ⇒ invalid
+    if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000; // ISO end-of-day → next 00:00:00
+    if (h < 0 || h > 23 || mi < 0 || mi > 59 || se < 0 || se > 59 || ms < 0 || ms > 999) return null;
+    return Date.UTC(y, mo0, d, h, mi, se, ms);
+  }
+
+  function parseTimestamp(raw, opts) {
+    opts = opts || {};
+    var preferDMY = opts.preferDMY !== false; // default true (O2Ring/Welltory exports are DMY)
+    var dmyLocked = opts.dmyLocked === true; // set by resolveDMY — the order is proven for this file
+    var anchor = opts.dateAnchorMs != null && isFinite(opts.dateAnchorMs) ? opts.dateAnchorMs : null;
+    if (raw == null) return null;
+    if (typeof raw === 'number') return _ckNumEpoch(raw);
+    var s = String(raw)
+      .trim()
+      .replace(/^["']|["']$/g, '');
+    if (!s) return null;
+    var m;
+    // 1. all-digits epoch (ms or s) — but not a 14-digit YYYYMMDDHHMMSS run (step 4b)
+    if (/^\d{10,13}$/.test(s)) return _ckNumEpoch(parseInt(s, 10));
+    // 2. ISO-8601 WITH explicit zone (Z or ±HH:MM): zone authoritative, re-express as local wall clock
+    m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?\s*(Z|[+-]\d{2}:?\d{2})$/);
+    if (m) {
+      var off = m[8] === 'Z' ? 0 : _ckZoneMin(m[8]);
+      var _tz = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0);
+      return _tz == null ? null : { tMs: _tz, offsetMin: off };
+    }
+    // 3. ISO / "YYYY-MM-DD[ T]HH:MM[:SS][.sss]" NO zone → components verbatim (ms preserved)
+    m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?$/);
+    if (m) {
+      var _ti = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0);
+      return _ti == null ? null : { tMs: _ti, offsetMin: null };
+    }
+    // 4a. "HH:MM:SS DD/MM/YYYY" | "HH:MM:SS MM/DD/YYYY" (O2Ring)
+    m = s.match(/^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) {
+      var dm = _ckDMY(+m[4], +m[5], preferDMY, dmyLocked);
+      if (!dm) return null; // row contradicts the file's proven order → honest null
+      var _to = _ckMk(+m[6], dm.mo - 1, dm.d, +m[1], +m[2], +m[3]);
+      return _to == null ? null : { tMs: _to, offsetMin: null };
+    }
+    // 4b. compact "YYYYMMDDHHMMSS" (14-digit, O2Ring filename embed)
+    m = s.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/);
+    if (m) {
+      var _tc = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+      return _tc == null ? null : { tMs: _tc, offsetMin: null };
+    }
+    // 4c. "DD/MM/YYYY HH:MM[:SS]" | "MM/DD/YYYY HH:MM[:SS]" (Welltory etc.)
+    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (m) {
+      var dm2 = _ckDMY(+m[1], +m[2], preferDMY, dmyLocked);
+      if (!dm2) return null; // row contradicts the file's proven order → honest null
+      var _tw = _ckMk(+m[3], dm2.mo - 1, dm2.d, +m[4], +m[5], m[6] ? +m[6] : 0);
+      return _tw == null ? null : { tMs: _tw, offsetMin: null };
+    }
+    // 4d. "YYYY/MM/DD HH:MM[:SS]"
+    m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (m) {
+      var _ty = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0);
+      return _ty == null ? null : { tMs: _ty, offsetMin: null };
+    }
+    // 5. Time-only "HH:MM[:SS]" → combine with dateAnchorMs, monotonic roll-forward
+    m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (m) {
+      if (anchor == null) return null; // never fabricate Jan-1-2000
+      var d0 = new Date(anchor);
+      var t = _ckMk(d0.getUTCFullYear(), d0.getUTCMonth(), d0.getUTCDate(), +m[1], +m[2], m[3] ? +m[3] : 0);
+      if (t == null) return null; // §12.3 — an out-of-range time-only stamp (e.g. 25:99) → honest null
+      if (opts.prevTMs != null && isFinite(opts.prevTMs)) {
+        while (t < opts.prevTMs) t += 86400000;
+      }
+      return { tMs: t, offsetMin: null };
+    }
+    // 6. Fallback — NEVER now(). A missing stamp stays visible (null).
+    return null;
+  }
+
+  root.DexClock = { tzOffset: tzOffset, _ckP2: _ckP2, _ckNumEpoch: _ckNumEpoch, _ckZoneMin: _ckZoneMin, _ckDMY: _ckDMY, resolveDMY: resolveDMY, parseTimestamp: parseTimestamp };
+  if (typeof module !== 'undefined' && module.exports) module.exports = root.DexClock;
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
+
+</script>
+<script data-inline-src="motiondex-dsp.js">
+/* ════════════════════════════════════════════════════════════════════════
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+   MotionDex · DSP  (motiondex-dsp.js)
+   ────────────────────────────────────────────────────────────────────────
+   One signal: inertial MOTION (IMU). Ingests the Polar Sensor Logger IMU
+   streams — Verity Sense + H10 chest ACC / GYRO / MAGN — on the Clock
+   Contract and computes the SINGLE-SIGNAL motion metrics:
+     · body position   (gravity-vector decomposition → supine/lateral/prone/upright)
+     · actigraphy      (de-gravitated activity counts, movement / immobility epochs)
+     · respiratory effort (chest-ACC thoraco-abdominal effort waveform + rate)
+     · motion SQI      (flatline / sensor-off / clip flags → Ganglior `conf`)
+
+   Cross-sensor fusions (apnea typing = motion×desat, sleep staging = motion×HRV,
+   motion-gated HRV) live in the Integrator and CONSUME this node's export —
+   NOT here. Keep MotionDex honest to its one signal.
+
+   Parsing mirrors ppgdex-dsp.js `parseSensorXYZ` (the shared Polar idiom);
+   timestamps DELEGATE to DexClock (Clock Contract, single-sourced in clock.js).
+   100% local — nothing leaves the browser. Exposes window.MOTIONDSP / window.MotionDex.
+   ════════════════════════════════════════════════════════════════════════ */
+(function (global) {
+  'use strict';
+
+  // ─── Clock Contract — delegate the PARSER to the single-sourced clock.js (co-loads first);
+  //     display helpers are local getUTC* per §5 (DexClock exposes only the parser family).
+  var parseTimestamp = DexClock.parseTimestamp;
+  function p2(v, w) {
+    v = String(v);
+    while (v.length < (w || 2)) v = '0' + v;
+    return v;
+  }
+  function fmtClock(ms) {
+    if (ms == null) return null;
+    var d = new Date(ms);
+    return p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds());
+  }
+
+  // ─── small helpers (avoid spread on large arrays) ──────────────────────────
+  function mean(a) {
+    var s = 0,
+      n = a.length;
+    if (!n) return NaN;
+    for (var i = 0; i < n; i++) s += a[i];
+    return s / n;
+  }
+  function median(a) {
+    if (!a.length) return NaN;
+    var b = Array.prototype.slice.call(a).sort(function (x, y) {
+      return x - y;
+    });
+    var m = b.length >> 1;
+    return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2;
+  }
+  function clamp(v, lo, hi) {
+    return v < lo ? lo : v > hi ? hi : v;
+  }
+  // centred moving average (odd-ish window); returns Float32Array same length
+  function movavg(arr, w) {
+    var n = arr.length,
+      out = new Float32Array(n);
+    if (w < 1) w = 1;
+    var half = w >> 1,
+      acc = 0,
+      i;
+    for (i = 0; i < n; i++) {
+      acc += arr[i];
+      if (i >= w) acc -= arr[i - w];
+      // running window [i-w+1 .. i]; recentre by shifting index
+      var j = i - half;
+      if (j >= 0) out[j] = acc / Math.min(w, i + 1);
+    }
+    // tail fill
+    for (i = Math.max(0, n - half); i < n; i++) out[i] = out[i] || arr[i];
+    for (i = 0; i < n; i++) if (!isFinite(out[i])) out[i] = arr[i];
+    return out;
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  PARSE — Polar Sensor Logger IMU stream
+  //  header:  Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]      (ACC)
+  //           Phone timestamp;sensor timestamp [ns];X [dps];Y [dps];Z [dps]   (GYRO)
+  //           …[µT]…                                                          (MAGN)
+  //  row:     2026-06-10T21:15:41.382;599628005694359040;-580;573;529
+  //  Phone timestamp = ISO-8601 no-zone → floating tMs via DexClock (Clock Contract §2.3).
+  //  sensor ns = Polar monotonic device counter → precise inter-sample Δ (relNs).
+  // ════════════════════════════════════════════════════════════════════════
+  var UNIT_RE = /\[\s*(mg|dps|deg\/s|µT|uT|g|G)\s*\]/i;
+  function streamKindFromHeader(headerLine) {
+    var h = (headerLine || '').toLowerCase();
+    var m = (headerLine || '').match(UNIT_RE);
+    var unit = m ? m[1] : null;
+    // GYRO — angular rate.
+    if (/dps|deg\/s/.test(h)) return { kind: 'gyro', unit: unit || 'dps' };
+    // MAGNETOMETER — µT/uT, a MAGN header, OR Gauss `[G]`. DEEP-AUDIT-II §7.9: a capital-G `[G]` is GAUSS,
+    // a MAGNETIC unit — NOT gravity 'g'/'mg'. The old acc branch `/mg|(^g$)|G/` matched it and returned
+    // {kind:'acc', unit:'G'}, so a real Polar-Sense `X [G]` MAGN file was typed as acceleration and read as
+    // gravity-g by toG. CASE is the discriminator (UNIT_RE's /i capture preserves it): `unit==='G'` is Gauss,
+    // `'g'` is gravity. Gauss → µT (1 G = 100 µT, CLAUDE.md §📏) is applied at the parse boundary below.
+    if (/µt|ut/i.test(h) || /magn/.test(h) || unit === 'G') return { kind: 'mag', unit: unit === 'G' ? 'G' : unit || 'µT' };
+    // ACC — milli-g (mg, case-insensitive: a `[mG]` header is still milli-g) or gravity-g (lowercase g).
+    if (unit && /^mg$/i.test(unit)) return { kind: 'acc', unit: 'mg' };
+    if (unit === 'g') return { kind: 'acc', unit: 'g' };
+    if (/\[\s*mg\s*\]/i.test(h)) return { kind: 'acc', unit: 'mg' };
+    return { kind: 'acc', unit: 'mg' }; // XYZ default (milli-g)
+  }
+  // Filename stream token (ACC / GYRO / MAGN), tolerant of Polar Sensor Logger "(1)" re-downloads.
+  function streamKindFromName(name) {
+    var m = /_(ACC|GYRO|MAGN?|MAG)\b/i.exec(name || '');
+    if (!m) return null;
+    var t = m[1].toUpperCase();
+    if (t === 'ACC') return 'acc';
+    if (t === 'GYRO') return 'gyro';
+    return 'mag'; // MAG / MAGN
+  }
+
+  // ── Column indices come from the HEADER, never from fixed positions ──────────────────────────────
+  // Layouts legitimately vary and will keep varying. Our capture host emitted an extra
+  // `timestamp [ms]` column before 2026-07-18 11:43 and not after; Polar Sensor Logger's own PPG
+  // header reads `channel 0..2` where ours once read `ppg0..2`; and per-stream RATE SELECTION means
+  // more variants are expected, not exceptional. A fixed index silently SHIFTS when a column appears:
+  // measured on 478 real pre-11:43 files, `x` received the millisecond value, `y` received true X,
+  // `z` received true Y, and true Z was discarded — with no error anywhere.
+  function xyzColsFromHeader(headerLine) {
+    var p = String(headerLine || '').split(';');
+    var idx = { x: -1, y: -1, z: -1, ns: -1, phone: -1 };
+    for (var i = 0; i < p.length; i++) {
+      var h = p[i].trim().toLowerCase();
+      if (/^x(\s|\[|$)/.test(h)) idx.x = i;
+      else if (/^y(\s|\[|$)/.test(h)) idx.y = i;
+      else if (/^z(\s|\[|$)/.test(h)) idx.z = i;
+      else if (/sensor\s+timestamp/.test(h)) idx.ns = i;
+      else if (/phone\s+timestamp/.test(h)) idx.phone = i;
+    }
+    return idx.x >= 0 && idx.y >= 0 && idx.z >= 0 ? idx : null;
+  }
+  // Fallback for a headerless/unknown file: the LAST THREE numeric columns. Correct for BOTH the 5-
+  // and 6-column layouts and for any future LEADING column, because XYZ is always the tail.
+  function xyzColsByTail(p) {
+    var nums = [];
+    for (var k = 0; k < p.length; k++) {
+      if (isFinite(parseFloat(p[k]))) nums.push(k);
+    }
+    if (nums.length < 3) return null;
+    return { x: nums[nums.length - 3], y: nums[nums.length - 2], z: nums[nums.length - 1], ns: 1, phone: 0 };
+  }
+  function parseSensorXYZ(text) {
+    var lines = String(text || '').split(/\r?\n/);
+    var out = [];
+    var ns0 = null;
+    var headerKind = null;
+    var cols = null;
+    for (var li = 0; li < lines.length; li++) {
+      var t = lines[li].trim();
+      if (!t) continue;
+      if (headerKind === null && /timestamp/i.test(t)) {
+        headerKind = streamKindFromHeader(t);
+        cols = xyzColsFromHeader(t) || cols;
+        continue;
+      }
+      var p = t.split(';');
+      if (p.length < 5) continue;
+      var c = cols || xyzColsByTail(p);
+      if (!c) continue;
+      var x = parseFloat(p[c.x]);
+      if (!isFinite(x)) continue; // skips a stray header row too
+      var relNs = NaN;
+      try {
+        var b = BigInt(p[c.ns >= 0 ? c.ns : 1].trim());
+        if (ns0 === null) ns0 = b;
+        relNs = Number(b - ns0);
+      } catch {}
+      var ts = parseTimestamp(p[c.phone >= 0 ? c.phone : 0]);
+      out.push({ relNs: relNs, tMs: ts ? ts.tMs : null, x: x, y: parseFloat(p[c.y]), z: parseFloat(p[c.z]) });
+    }
+    out._kind = headerKind ? headerKind.kind : null;
+    out._unit = headerKind ? headerKind.unit : null;
+    // DEEP-AUDIT-II §7.9 — normalize a Gauss magnetometer stream to SI µT at the parse boundary (1 G = 100 µT,
+    // CLAUDE.md §📏) so a `[G]` file is an honest µT mag stream and can never be read as gravity-g downstream.
+    if (out._kind === 'mag' && out._unit === 'G') {
+      for (var gi = 0; gi < out.length; gi++) {
+        out[gi].x *= 100;
+        out[gi].y *= 100;
+        out[gi].z *= 100;
+      }
+      out._unit = 'µT';
+    }
+    return out;
+  }
+
+  // The first wall-clock stamp of a stream — its base for anchoring the per-stream device counter.
+  function streamBaseMs(rows) {
+    if (rows) for (var i = 0; i < rows.length; i++) if (rows[i] && rows[i].tMs != null) return rows[i].tMs;
+    return null;
+  }
+  // seconds-from-t0Ms of a row. relNs is the precise device counter but is PER-STREAM (0 at THIS
+  // stream's first sample), so it must be anchored to the stream's own wall-clock base before being
+  // measured against the GLOBAL t0Ms — else a later-starting stream (e.g. the chest sensor, when
+  // t0Ms = the earlier wrist start) is time-shifted by (streamStart − t0Ms). DEEP-AUDIT-II §7.2.
+  // baseMs = streamBaseMs(theStream); pass it so the precise relNs lands on the right absolute instant.
+  function relSecOf(r, t0Ms, baseMs) {
+    if (isFinite(r.relNs) && baseMs != null && t0Ms != null) return (baseMs - t0Ms) / 1000 + r.relNs / 1e9;
+    if (r.tMs != null && t0Ms != null) return (r.tMs - t0Ms) / 1000;
+    if (isFinite(r.relNs)) return r.relNs / 1e9; // no wall-clock anchor available — stream-relative fallback
+    return null;
+  }
+  // convert an ACC row's XYZ to g (gravity units) given its unit
+  function toG(v, unit) {
+    // DEEP-AUDIT-II §7.9 — mg is matched CASE-INSENSITIVELY (a `[mG]` header is still milli-g; the old
+    // `unit === 'mg'` missed it and read the value as g → 1000× motion metrics). Gauss never reaches here
+    // (routed to mag + converted to µT at the parse boundary); a plain 'g' that does is already in g.
+    return /^mg$/i.test(unit) ? v / 1000 : v;
+  }
+  function sampleHz(rows, t0Ms) {
+    if (rows.length < 3) return NaN;
+    var baseMs = streamBaseMs(rows);
+    var a = relSecOf(rows[0], t0Ms, baseMs),
+      b = relSecOf(rows[rows.length - 1], t0Ms, baseMs);
+    if (a == null || b == null || b <= a) return NaN;
+    return (rows.length - 1) / (b - a);
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  BODY POSITION — gravity-vector decomposition (Rocha et al. 2026 [Ro26])
+  //  Device-frame convention (documented, uncalibrated → the LABEL is
+  //  experimental-tier; the gravity ANGLES are measured). For a torso/chest
+  //  sensor: Y ≈ superior-inferior, Z ≈ antero-posterior, X ≈ medio-lateral.
+  //    upright  |gy| dominant           supine   gz > 0     prone   gz < 0
+  //    lateral  |gx| dominant (sign → L/R)
+  //  ⚠️ THE Z SIGN IS FLEET-WIDE, NOT NODE-LOCAL. An accelerometer at rest reads
+  //  +1 g on the axis pointing UP, so a chest sensor worn anterior-face-out reads
+  //  gz > 0 when the wearer is SUPINE. ECGDex (`uz > 0 ? 'Supine' : 'Prone'`) and
+  //  PPGDex both already encode that; MotionDex had it INVERTED until 2026-07-20,
+  //  which labelled a real supine night 100 % prone off the same H10 ACC that
+  //  ECGDex read as supine (owner-confirmed supine; chest Z measured +973 mg).
+  //  Its own synthetic twin emitted gravity on −Z under the comment "supine", so
+  //  the golden agreed with the bug and never caught it — see
+  //  briefs/POSTURE-SIGN-AND-NADIR-LABELS-2026-07-20-BRIEF.md.
+  // ════════════════════════════════════════════════════════════════════════
+  var POSITIONS = ['supine', 'prone', 'left', 'right', 'upright', 'unknown'];
+  function classifyGravity(gx, gy, gz) {
+    var mag = Math.sqrt(gx * gx + gy * gy + gz * gz);
+    if (!(mag > 0.4) || mag > 2.0) return 'unknown'; // not ~1g static → moving / off
+    gx /= mag;
+    gy /= mag;
+    gz /= mag;
+    var ax = Math.abs(gx),
+      ay = Math.abs(gy),
+      az = Math.abs(gz);
+    if (ay >= ax && ay >= az) return 'upright';
+    if (ax >= az) return gx < 0 ? 'left' : 'right';
+    return gz > 0 ? 'supine' : 'prone';
+  }
+  function bodyPosition(accRows, t0Ms, durSec, unit) {
+    if (!accRows || accRows.length < 10) return { hasData: false };
+    var baseMs = streamBaseMs(accRows); // §7.2 anchor
+    var epoch = 30; // s
+    var nE = Math.max(1, Math.ceil(durSec / epoch));
+    // bucket gravity (slow-averaged XYZ) per epoch via component medians
+    var bx = [],
+      by = [],
+      bz = [];
+    for (var e = 0; e < nE; e++) {
+      bx.push([]);
+      by.push([]);
+      bz.push([]);
+    }
+    for (var i = 0; i < accRows.length; i++) {
+      var s = relSecOf(accRows[i], t0Ms, baseMs);
+      if (s == null || s < 0) continue;
+      var idx = Math.min(nE - 1, Math.floor(s / epoch));
+      bx[idx].push(toG(accRows[i].x, unit));
+      by[idx].push(toG(accRows[i].y, unit));
+      bz[idx].push(toG(accRows[i].z, unit));
+    }
+    var track = [],
+      covered = 0, // epochs that HAD accelerometer samples — the dwell-fraction denominator
+      dwell = { supine: 0, prone: 0, left: 0, right: 0, upright: 0, unknown: 0 };
+    for (e = 0; e < nE; e++) {
+      if (!bx[e].length) {
+        // NOT RECORDING this epoch (gap / before the sensor started). It leaves the denominator
+        // entirely — it is neither a posture nor "unknown posture". Counting it dilutes every
+        // dwellFrac (a longer wrist file's tail then halves a real supineFrac). DEEP-AUDIT-II §7.4 —
+        // the CLEAN mirror of the seen/covered fix `actigraphy` already carries (:298-323). The track
+        // keeps 'unknown' so the timeline stays dense and the posture_change export skips it.
+        track.push({ tStartMs: t0Ms != null ? t0Ms + e * epoch * 1000 : null, pos: 'unknown' });
+        continue;
+      }
+      covered++;
+      var pos = classifyGravity(median(bx[e]), median(by[e]), median(bz[e]));
+      dwell[pos]++;
+      track.push({ tStartMs: t0Ms != null ? t0Ms + e * epoch * 1000 : null, pos: pos });
+    }
+    var frac = {};
+    for (var k = 0; k < POSITIONS.length; k++) frac[POSITIONS[k]] = covered ? dwell[POSITIONS[k]] / covered : 0;
+    var supineFrac = frac.supine;
+    return { hasData: true, epochSec: epoch, track: track, dwellEpochs: dwell, coveredEpochs: covered, dwellFrac: frac, supineFrac: supineFrac };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  ACTIGRAPHY — de-gravitated activity counts + movement / immobility epochs
+  // ════════════════════════════════════════════════════════════════════════
+  function actigraphy(accRows, t0Ms, durSec, unit) {
+    if (!accRows || accRows.length < 10) return { hasData: false };
+    var baseMs = streamBaseMs(accRows); // §7.2 anchor
+    var hz = sampleHz(accRows, t0Ms);
+    if (!isFinite(hz) || hz <= 0) hz = accRows.length / Math.max(1, durSec);
+    var mags = new Float32Array(accRows.length);
+    for (var i = 0; i < accRows.length; i++) {
+      var gx = toG(accRows[i].x, unit),
+        gy = toG(accRows[i].y, unit),
+        gz = toG(accRows[i].z, unit);
+      mags[i] = Math.sqrt(gx * gx + gy * gy + gz * gz);
+    }
+    // gravity baseline via ~1s moving average → dynamic (de-gravitated) magnitude
+    var w = Math.max(3, Math.round(hz));
+    var base = movavg(mags, w);
+    var epoch = 30,
+      nE = Math.max(1, Math.ceil(durSec / epoch));
+    var counts = new Float64Array(nE);
+    // per-epoch SAMPLE COUNT — 0 means the accelerometer was NOT RECORDING that epoch. Without this an
+    // uncovered epoch scores counts=0 ⇒ moving=false ⇒ counted as IMMOBILE, i.e. a recording gap
+    // fabricates stillness. `moving` is therefore TRI-STATE (true / false / null-for-no-coverage) and
+    // uncovered epochs leave the immobileFrac denominator entirely.
+    var seen = new Uint32Array(nE);
+    var MOVE_G = 0.02; // ~20 mg dynamic threshold
+    for (i = 0; i < accRows.length; i++) {
+      var s = relSecOf(accRows[i], t0Ms, baseMs);
+      if (s == null || s < 0) continue;
+      var idx = Math.min(nE - 1, Math.floor(s / epoch));
+      seen[idx]++;
+      var dyn = Math.abs(mags[i] - base[i]);
+      if (dyn > MOVE_G) counts[idx] += dyn;
+    }
+    var epochs = [],
+      immobile = 0,
+      covered = 0,
+      total = 0;
+    for (var e = 0; e < nE; e++) {
+      var tEp = t0Ms != null ? t0Ms + e * epoch * 1000 : null;
+      if (!seen[e]) {
+        epochs.push({ tStartMs: tEp, count: null, moving: null }); // NOT RECORDING — never "immobile"
+        continue;
+      }
+      covered++;
+      var moving = counts[e] > 1.0; // counts are Σ dynamic-g in the 30 s epoch
+      if (!moving) immobile++;
+      total += counts[e];
+      epochs.push({ tStartMs: tEp, count: counts[e], moving: moving });
+    }
+    return {
+      hasData: true,
+      epochSec: epoch,
+      hz: hz,
+      epochs: epochs,
+      coveredEpochs: covered,
+      totalCounts: total,
+      immobileFrac: covered ? immobile / covered : null,
+      movementIndex: covered ? total / covered : null
+    };
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     RESPIRATORY RATE — spectral ridge tracking (MOTIONDEX-RESPIRATORY-RATE-2026-07-21)
+     ────────────────────────────────────────────────────────────────────────
+     Validated on 26 nights / 172 h / 19,193 epochs of Polar H10 chest ACC against
+     ResMed CPAP `Flow.40ms` breath-by-breath reference:
+        MAE 1.01 brpm (95% CI 0.91-1.12), 91.6% within 2 brpm, at 100% coverage;
+        MAE 0.56 / 97.8% at 70% coverage, i.e. AT the reference's own 0.70 brpm floor.
+     The predecessor zero-crossing estimator (still below, still exported) scored
+     MAE 3.59 on the same epochs — worse than predicting a constant (1.50).
+
+     Design notes, each measured rather than assumed:
+       · 3 band-passed acceleration axes. A tilt-ANGLE channel is NOT built: for a
+         DC-coupled chest sensor the band-passed raw axis ALREADY IS the gravity-
+         reprojection signal scaled by g, so arcsin is near-identity over
+         physiological tilt. Measured corr(spectrum(acc-X), spectrum(tilt-1)) = +1.000.
+       · Viterbi ridge tracking beats per-epoch peak-picking (MAE 1.18 vs 1.54) —
+         respiratory rate is temporally smooth.
+       · A time-domain zero-crossing estimate is blended into the spectral likelihood
+         (Charlton et al. 2016, Physiol Meas 37(4):610, 314 algorithms: every
+         top-ranked algorithm used time-domain breath detection). MAE 1.08 -> 1.02.
+     ⚠ POSTURE ROBUSTNESS IS UNTESTED. The validation corpus has gravity-roll IQR
+     13.1-17.9 deg — one posture. Do not claim posture robustness anywhere.
+     ════════════════════════════════════════════════════════════════════════ */
+  var RR_FS = 5.0; // Hz — analysis rate after decimation
+  var RR_BAND_LO = 0.13,
+    RR_BAND_HI = 0.5; // respiratory band-pass (Hz)
+  var RR_F_LO = 0.1,
+    RR_F_HI = 0.6; // rate search band (6–36 brpm)
+  var RR_F_STEP = 0.004; // spectral grid (~0.24 brpm)
+  var RR_TAPER_F = 0.16,
+    RR_TAPER_W = 0.01; // soft spectral high-pass
+  var RR_WIN_SEC = 60,
+    RR_HOP_SEC = 30;
+  var RR_VITERBI_SIGMA = 1.2; // brpm — per-hop rate-change scale
+  var RR_CONF_HALF_BINS = 6; // ±6 bins ≈ ±1.4 brpm
+  var RR_NFFT = 2048;
+  var RR_TD_WEIGHT = 0.3,
+    RR_TD_SIGMA = 1.0; // time-domain blend
+  /* Corpus-median under-estimate against the CPAP-flow reference: +0.58 brpm,
+     consistent on all 26 nights (per-night −0.20..−1.27), and the validation MAE of
+     1.01 was measured WITH it applied leave-one-night-out.
+     DEFAULT IS ZERO, deliberately. It is SUBJECT-FITTED, and it is a property of real
+     breathing measured against `60/median(period)` — a pure sinusoid has no such
+     offset, so applying it by default both smuggles one person's constant into every
+     other user's data AND breaks the synthetic known-answer test (15 brpm reads 15.7).
+     Callers who have re-derived it for their own subject pass `opts.biasBrpm`. */
+  var RR_BIAS_BRPM_CORPUS = 0.58; // documented, NOT applied by default
+  var RR_CONF_MIN = 0.28; // abstain below this — abstention is the largest accuracy lever
+
+  // Butterworth SOS via bilinear transform (order must be even).
+  function butterSOS(order, fcHz, fsHz, type) {
+    var w = Math.tan((Math.PI * fcHz) / fsHz);
+    var sos = [],
+      k,
+      nSec = order >> 1;
+    for (k = 0; k < nSec; k++) {
+      var theta = (Math.PI * (2 * k + 1)) / (2 * order);
+      var sinT = 2 * Math.sin(theta);
+      if (sinT === 0) sinT = 1e-9;
+      var alpha = w * sinT;
+      var d = 1 + alpha + w * w;
+      var b0, b1, b2;
+      if (type === 'low') {
+        b0 = (w * w) / d;
+        b1 = 2 * b0;
+        b2 = b0;
+      } else {
+        b0 = 1 / d;
+        b1 = -2 * b0;
+        b2 = b0;
+      }
+      sos.push([b0, b1, b2, 1, (2 * (w * w - 1)) / d, (1 - alpha + w * w) / d]);
+    }
+    return sos;
+  }
+
+  function sosfilt(x, sos) {
+    var n = x.length,
+      s,
+      i,
+      out = new Float64Array(n);
+    for (i = 0; i < n; i++) out[i] = x[i];
+    for (s = 0; s < sos.length; s++) {
+      var b0 = sos[s][0],
+        b1 = sos[s][1],
+        b2 = sos[s][2],
+        a1 = sos[s][4],
+        a2 = sos[s][5];
+      var z1 = 0,
+        z2 = 0;
+      for (i = 0; i < n; i++) {
+        var xi = out[i];
+        var y = b0 * xi + z1;
+        z1 = b1 * xi - a1 * y + z2;
+        z2 = b2 * xi - a2 * y;
+        out[i] = y;
+      }
+    }
+    return out;
+  }
+
+  function revArr(a) {
+    var n = a.length,
+      o = new Float64Array(n),
+      i;
+    for (i = 0; i < n; i++) o[i] = a[n - 1 - i];
+    return o;
+  }
+
+  // Zero-phase forward–backward filtering with odd reflection padding.
+  function sosfiltfilt(x, sos) {
+    var n = x.length;
+    if (n < 8) return Float64Array.from(x);
+    var pad = Math.min(n - 1, 6 * sos.length + 1);
+    var ext = new Float64Array(n + 2 * pad),
+      i;
+    for (i = 0; i < pad; i++) ext[i] = 2 * x[0] - x[pad - i];
+    for (i = 0; i < n; i++) ext[pad + i] = x[i];
+    for (i = 0; i < pad; i++) ext[pad + n + i] = 2 * x[n - 1] - x[n - 2 - i];
+    var y = revArr(sosfilt(revArr(sosfilt(ext, sos)), sos));
+    return y.subarray(pad, pad + n);
+  }
+
+  // In-place radix-2 complex FFT.
+  function fftR2(re, im) {
+    var n = re.length,
+      i,
+      j = 0,
+      k,
+      t;
+    for (i = 0; i < n - 1; i++) {
+      if (i < j) {
+        t = re[i];
+        re[i] = re[j];
+        re[j] = t;
+        t = im[i];
+        im[i] = im[j];
+        im[j] = t;
+      }
+      k = n >> 1;
+      while (k <= j) {
+        j -= k;
+        k >>= 1;
+      }
+      j += k;
+    }
+    for (var len = 2; len <= n; len <<= 1) {
+      var ang = (-2 * Math.PI) / len,
+        wr = Math.cos(ang),
+        wi = Math.sin(ang);
+      var half = len >> 1;
+      for (i = 0; i < n; i += len) {
+        var cr = 1,
+          ci = 0;
+        for (k = 0; k < half; k++) {
+          var ar = re[i + k],
+            ai = im[i + k];
+          var br = re[i + k + half] * cr - im[i + k + half] * ci;
+          var bi = re[i + k + half] * ci + im[i + k + half] * cr;
+          re[i + k] = ar + br;
+          im[i + k] = ai + bi;
+          re[i + k + half] = ar - br;
+          im[i + k + half] = ai - bi;
+          var ncr = cr * wr - ci * wi;
+          ci = cr * wi + ci * wr;
+          cr = ncr;
+        }
+      }
+    }
+  }
+
+  // Resample the chest stream onto a uniform RR_FS grid, anti-aliased at the NATIVE rate.
+  // The native rate is MEASURED (median inter-sample interval), never assumed: the H10 ACC
+  // runs ~25.3–25.4 Hz on 49/50 corpus nights but 202.9 Hz on one, and the Verity ~25.8 Hz.
+  function respResample(rows, unit, t0Ms, baseMs) {
+    var n = rows.length,
+      i;
+    var tSec = new Float64Array(n);
+    for (i = 0; i < n; i++) {
+      var ts = relSecOf(rows[i], t0Ms, baseMs);
+      if (ts == null) return null;
+      tSec[i] = ts;
+    }
+    var d = [];
+    for (i = 1; i < Math.min(n, 4000); i++) d.push(tSec[i] - tSec[i - 1]);
+    var dm = median(d);
+    if (!isFinite(dm) || dm <= 0) return null;
+    var fsNative = 1 / dm;
+    var dur = tSec[n - 1] - tSec[0];
+    var nOut = Math.floor(dur * RR_FS) + 1;
+    if (nOut < 64) return null;
+    var aa = butterSOS(6, 0.8 * (RR_FS / 2), fsNative, 'low');
+    var axes = ['x', 'y', 'z'],
+      out = [];
+    for (var a = 0; a < 3; a++) {
+      var raw = new Float64Array(n);
+      for (i = 0; i < n; i++) raw[i] = toG(rows[i][axes[a]], unit);
+      var f = sosfiltfilt(raw, aa);
+      var col = new Float64Array(nOut),
+        p = 0;
+      for (var k = 0; k < nOut; k++) {
+        var tt = tSec[0] + k / RR_FS;
+        while (p < n - 2 && tSec[p + 1] < tt) p++;
+        var ta = tSec[p],
+          tb = tSec[p + 1],
+          u = 0;
+        if (tb > ta) u = (tt - ta) / (tb - ta);
+        col[k] = f[p] * (1 - u) + f[p + 1] * u;
+      }
+      out.push(col);
+    }
+    return { xyz: out, fsNative: fsNative, t0Sec: tSec[0] };
+  }
+
+  function respBandpass(x) {
+    var lp = sosfiltfilt(x, butterSOS(4, RR_BAND_HI, RR_FS, 'low'));
+    return sosfiltfilt(lp, butterSOS(4, RR_BAND_LO, RR_FS, 'high'));
+  }
+
+  // Positive-going zero crossings with a refractory period → brpm.
+  function respZeroCross(x, i0, nWin) {
+    var mu = 0,
+      i;
+    for (i = 0; i < nWin; i++) mu += x[i0 + i];
+    mu /= nWin;
+    var refractory = 1 / RR_F_HI,
+      last = -1e9,
+      count = 0;
+    for (i = 1; i < nWin; i++) {
+      if (x[i0 + i - 1] - mu <= 0 && x[i0 + i] - mu > 0) {
+        var t = i / RR_FS;
+        if (t - last >= refractory) {
+          count++;
+          last = t;
+        }
+      }
+    }
+    return count / (nWin / RR_FS / 60);
+  }
+
+  function respGrid() {
+    var g = [];
+    for (var f = RR_F_LO; f <= RR_F_HI + 1e-9; f += RR_F_STEP) g.push(f);
+    return g;
+  }
+
+  // One window → a normalised in-band likelihood over the rate grid.
+  function respWindowSpectrum(chans, i0, nWin, grid, hann) {
+    var F = grid.length,
+      S = new Float64Array(F),
+      c,
+      i,
+      k;
+    var re = new Float64Array(RR_NFFT),
+      im = new Float64Array(RR_NFFT);
+    var df = RR_FS / RR_NFFT;
+    for (c = 0; c < chans.length; c++) {
+      var x = chans[c],
+        mu = 0;
+      for (i = 0; i < nWin; i++) mu += x[i0 + i];
+      mu /= nWin;
+      var sd = 0;
+      for (i = 0; i < nWin; i++) {
+        var v = x[i0 + i] - mu;
+        sd += v * v;
+      }
+      if (sd < 1e-24) continue;
+      for (i = 0; i < RR_NFFT; i++) {
+        re[i] = 0;
+        im[i] = 0;
+      }
+      for (i = 0; i < nWin; i++) re[i] = (x[i0 + i] - mu) * hann[i];
+      fftR2(re, im);
+      var tmp = new Float64Array(F),
+        sum = 0;
+      for (k = 0; k < F; k++) {
+        var pos = grid[k] / df,
+          j = Math.floor(pos),
+          u = pos - j;
+        if (j < 0 || j + 1 >= RR_NFFT / 2) continue;
+        var p0 = re[j] * re[j] + im[j] * im[j];
+        var p1 = re[j + 1] * re[j + 1] + im[j + 1] * im[j + 1];
+        tmp[k] = p0 * (1 - u) + p1 * u;
+        sum += tmp[k];
+      }
+      if (sum <= 0) continue;
+      for (k = 0; k < F; k++) S[k] += tmp[k] / sum;
+    }
+    // soft spectral high-pass — removes the sub-respiratory 1/f tail that otherwise
+    // drags the peak onto the low band edge (the predecessor's dominant failure)
+    var tot = 0;
+    for (k = 0; k < F; k++) {
+      S[k] *= 1 / (1 + Math.exp(-(grid[k] - RR_TAPER_F) / RR_TAPER_W));
+      tot += S[k];
+    }
+    if (tot > 0) for (k = 0; k < F; k++) S[k] /= tot;
+    // blend the time-domain estimate in as a Gaussian likelihood bump
+    var zs = [];
+    for (c = 0; c < chans.length; c++) {
+      var z = respZeroCross(chans[c], i0, nWin);
+      if (z >= 6 && z <= 36) zs.push(z);
+    }
+    if (zs.length) {
+      zs.sort(function (p, q) {
+        return p - q;
+      });
+      var med = zs[zs.length >> 1],
+        bsum = 0;
+      var bump = new Float64Array(F);
+      for (k = 0; k < F; k++) {
+        var dd = grid[k] * 60 - med;
+        bump[k] = Math.exp(-(dd * dd) / (2 * RR_TD_SIGMA * RR_TD_SIGMA));
+        bsum += bump[k];
+      }
+      if (bsum > 0) {
+        tot = 0;
+        for (k = 0; k < F; k++) {
+          S[k] = (1 - RR_TD_WEIGHT) * S[k] + RR_TD_WEIGHT * (bump[k] / bsum);
+          tot += S[k];
+        }
+        if (tot > 0) for (k = 0; k < F; k++) S[k] /= tot;
+      }
+    }
+    return S;
+  }
+
+  // Viterbi ridge track: maximise Σ log S[t,f] − (Δbrpm)²/(2σ²).
+  function respViterbi(specs, grid, bias) {
+    var W = specs.length,
+      F = grid.length,
+      t,
+      i,
+      j;
+    var brpm = new Float64Array(F);
+    for (i = 0; i < F; i++) brpm[i] = grid[i] * 60;
+    var dp = new Float64Array(F),
+      ndp = new Float64Array(F),
+      bp = [];
+    for (i = 0; i < F; i++) dp[i] = Math.log(Math.max(specs[0][i], 1e-6));
+    var inv = 1 / (2 * RR_VITERBI_SIGMA * RR_VITERBI_SIGMA);
+    for (t = 1; t < W; t++) {
+      var row = new Int32Array(F);
+      for (i = 0; i < F; i++) {
+        var bestV = -Infinity,
+          bestJ = 0;
+        for (j = 0; j < F; j++) {
+          var d = brpm[i] - brpm[j];
+          var v = dp[j] - d * d * inv;
+          if (v > bestV) {
+            bestV = v;
+            bestJ = j;
+          }
+        }
+        ndp[i] = Math.log(Math.max(specs[t][i], 1e-6)) + bestV;
+        row[i] = bestJ;
+      }
+      bp.push(row);
+      for (i = 0; i < F; i++) dp[i] = ndp[i];
+    }
+    var path = new Int32Array(W),
+      best = 0;
+    for (i = 1; i < F; i++) if (dp[i] > dp[best]) best = i;
+    path[W - 1] = best;
+    for (t = W - 1; t > 0; t--) path[t - 1] = bp[t - 1][path[t]];
+    var rr = [],
+      conf = [];
+    for (t = 0; t < W; t++) {
+      var p = path[t],
+        s = 0;
+      var lo = Math.max(0, p - RR_CONF_HALF_BINS),
+        hi = Math.min(F - 1, p + RR_CONF_HALF_BINS);
+      for (i = lo; i <= hi; i++) s += specs[t][i];
+      rr.push(brpm[p] + bias);
+      conf.push(s);
+    }
+    return { rr: rr, conf: conf };
+  }
+
+  /* Per-epoch respiratory rate from the chest ACC.
+     → { hasData, epochSec, series:[{tMs,brpm|null,conf}], medianBrpm, coverage, method } */
+  function respiratoryRate(chestRows, t0Ms, unit, opts) {
+    opts = opts || {};
+    var bias = 0;
+    if (typeof opts.biasBrpm === 'number' && isFinite(opts.biasBrpm)) bias = opts.biasBrpm;
+    var confMin = RR_CONF_MIN;
+    if (typeof opts.confMin === 'number' && isFinite(opts.confMin)) confMin = opts.confMin;
+    if (!chestRows || chestRows.length < 400) return { hasData: false };
+    var baseMs = streamBaseMs(chestRows);
+    var rs = respResample(chestRows, unit, t0Ms, baseMs);
+    if (!rs) return { hasData: false };
+    var chans = [respBandpass(rs.xyz[0]), respBandpass(rs.xyz[1]), respBandpass(rs.xyz[2])];
+    var grid = respGrid();
+    var nWin = Math.round(RR_WIN_SEC * RR_FS),
+      hop = Math.round(RR_HOP_SEC * RR_FS);
+    var N = rs.xyz[0].length;
+    if (N < nWin) return { hasData: false };
+    var hann = new Float64Array(nWin);
+    for (var i = 0; i < nWin; i++) hann[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (nWin - 1));
+    var specs = [],
+      starts = [];
+    for (var s = 0; s + nWin <= N; s += hop) {
+      specs.push(respWindowSpectrum(chans, s, nWin, grid, hann));
+      starts.push(s);
+    }
+    if (!specs.length) return { hasData: false };
+    var v = respViterbi(specs, grid, bias);
+    var series = [],
+      kept = [];
+    for (i = 0; i < v.rr.length; i++) {
+      var tEp = null;
+      if (t0Ms != null) tEp = t0Ms + Math.round((rs.t0Sec + starts[i] / RR_FS) * 1000);
+      var brpm = null;
+      if (v.conf[i] >= confMin) {
+        brpm = Math.round(v.rr[i] * 10) / 10;
+        kept.push(brpm);
+      }
+      series.push({ tMs: tEp, brpm: brpm, conf: Math.round(v.conf[i] * 1e3) / 1e3 });
+    }
+    var med = null;
+    if (kept.length) med = median(kept);
+    return {
+      hasData: kept.length > 0,
+      epochSec: RR_HOP_SEC,
+      series: series,
+      medianBrpm: med == null ? null : Math.round(med * 10) / 10,
+      coverage: series.length ? kept.length / series.length : 0,
+      biasApplied: bias,
+      method: 'acc-spectral-viterbi'
+    };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  RESPIRATORY EFFORT — chest-ACC thoraco-abdominal effort (Ryser et al. 2022 [R22])
+  //  band-limit ~0.1–0.6 Hz (remove <0.1 Hz gravity/drift via a 10 s MA, remove
+  //  >0.6 Hz cardiac/motion via a ~1.5 s MA), count breaths on the residual.
+  // ════════════════════════════════════════════════════════════════════════
+  // effort-series contract (predesigned for the Integrator apnea-typing fusion, §1.1):
+  var EFFORT_CAD_SEC = 10; // epoch cadence (s) — fine enough to resolve a single ~10–30 s desat window
+  var EFFORT_FLOOR_G = 0.004; // RMS threshold (g) for effort PRESENT vs flat — experimental, uncalibrated (Ryser'22 scale)
+  function respiratoryEffort(chestRows, t0Ms, durSec, unit) {
+    if (!chestRows || chestRows.length < 30) return { hasData: false };
+    var baseMs = streamBaseMs(chestRows); // §7.2 anchor — chest may start after t0Ms
+    // DEEP-AUDIT-II §7.3 — the passed `durSec` is the MAX over all streams (compute():501). Using it to
+    // divide a CHEST-only quantity (breaths, sample rate) HALVES the value whenever a wrist file runs
+    // longer than the chest strap. Both the respiratory rate and the hz fallback must divide by the
+    // chest stream's OWN span — durationOf against the chest's own base cancels the (base − t0Ms) offset,
+    // leaving the chest recording's true duration independent of the wrist.
+    var chestDurSec = durationOf(chestRows, baseMs);
+    var hz = sampleHz(chestRows, t0Ms);
+    if (!isFinite(hz) || hz <= 0) hz = chestRows.length / Math.max(1, chestDurSec);
+    // use the axis with the largest respiratory-band variance (AP motion dominates effort)
+    var axes = ['x', 'y', 'z'];
+    var best = null;
+    for (var a = 0; a < 3; a++) {
+      var raw = new Float32Array(chestRows.length);
+      for (var i = 0; i < chestRows.length; i++) raw[i] = toG(chestRows[i][axes[a]], unit);
+      var lo = movavg(raw, Math.max(3, Math.round(hz * 10))); // drift/gravity
+      var band = new Float32Array(raw.length);
+      for (i = 0; i < raw.length; i++) band[i] = raw[i] - lo[i];
+      var sm = movavg(band, Math.max(3, Math.round(hz * 1.5))); // de-noise cardiac
+      var v = 0,
+        mu = mean(sm);
+      for (i = 0; i < sm.length; i++) v += (sm[i] - mu) * (sm[i] - mu);
+      if (!best || v > best.var) best = { var: v, sig: sm };
+    }
+    // count zero-up-crossings → breaths
+    var sig = best.sig,
+      breaths = 0,
+      lastUp = -1e9,
+      minSepSec = 1.2; // <50 brpm ceiling
+    for (i = 1; i < sig.length; i++) {
+      if (sig[i - 1] <= 0 && sig[i] > 0) {
+        var s2 = i / hz;
+        if (s2 - lastUp >= minSepSec) {
+          breaths++;
+          lastUp = s2;
+        }
+      }
+    }
+    var minutes = chestDurSec / 60; // §7.3 — chest's own span, not the longest stream's
+    var rate = minutes > 0 ? breaths / minutes : NaN;
+    // amplitude proxy: RMS of the effort signal
+    var rms = Math.sqrt(best.var / Math.max(1, sig.length));
+
+    // ── effort SERIES — a per-epoch presence track. Standalone: MotionDex's own effort-trend read.
+    //    PREDESIGNED for the Integrator apnea-typing fusion (§1.1): the cadence resolves a single
+    //    ~10–30 s desat window, so a consumer can ask "effort present in [desat−15 s, end]?".
+    //    `present:null` where the epoch has no chest samples — coverage-honest (absent ≠ not-recorded).
+    // DEEP-AUDIT-II §7.1 — window each epoch by WALL-CLOCK TIME, not sample index. `sig` is 1:1 with
+    // chestRows, so slicing it by `e·CAD·hz` assumes a gapless, exactly-uniform rate; on any gap or
+    // off-nominal rate the sample-index window drifts away from the epoch's own `tEp` stamp, so the
+    // effort-present flag the Integrator reads for apnea typing lands on the WRONG samples (typing comes
+    // out INVERTED). Bucket each sample by its t0Ms-relative time instead — identical to the index window
+    // on clean uniform data, correct across gaps. A moving pointer keeps it O(n) (tSec is non-decreasing).
+    var tSec = new Float64Array(sig.length);
+    for (i = 0; i < chestRows.length; i++) {
+      var ts0 = relSecOf(chestRows[i], t0Ms, baseMs);
+      tSec[i] = ts0 == null ? i / hz : ts0; // index-time fallback only when a sample is unstamped
+    }
+    var series = [];
+    var nE = Math.max(1, Math.ceil(durSec / EFFORT_CAD_SEC));
+    var kp = 0;
+    for (var e = 0; e < nE; e++) {
+      var w0 = e * EFFORT_CAD_SEC,
+        w1 = (e + 1) * EFFORT_CAD_SEC;
+      var tEp = t0Ms != null ? t0Ms + Math.round(e * EFFORT_CAD_SEC * 1000) : null;
+      while (kp < sig.length && tSec[kp] < w0) kp++;
+      var ss = 0,
+        cnt = 0;
+      for (var k = kp; k < sig.length && tSec[k] < w1; k++) {
+        ss += sig[k] * sig[k];
+        cnt++;
+      }
+      if (cnt < 3) {
+        series.push({ tMs: tEp, amp: null, present: null });
+        continue;
+      }
+      var eamp = Math.sqrt(ss / cnt);
+      series.push({ tMs: tEp, amp: Math.round(eamp * 1e4) / 1e4, present: eamp >= EFFORT_FLOOR_G });
+    }
+
+    // ── RATE now comes from the spectral ridge tracker, not from zero crossings.
+    // Same field, better number: on 26 corpus nights the zero-crossing rate scored
+    // MAE 3.59 brpm against CPAP-flow truth (worse than a constant 1.50); the
+    // spectral estimate scores 1.01. The zero-crossing count is RETAINED as
+    // `nBreaths` for back-compat and as the effort-waveform sanity check, but it is
+    // no longer the reported rate. Falls back to the legacy rate if the spectral
+    // path cannot run (too few samples, unstamped rows).
+    var spec = respiratoryRate(chestRows, t0Ms, unit);
+    var legacyRate = null;
+    if (isFinite(rate)) legacyRate = Math.round(rate * 10) / 10;
+    var outRate = legacyRate;
+    var method = 'acc-zero-crossing';
+    if (spec.hasData && spec.medianBrpm != null) {
+      outRate = spec.medianBrpm;
+      method = spec.method;
+    }
+
+    return {
+      hasData: (spec.hasData && outRate != null) || (breaths >= 3 && isFinite(rate)),
+      hz: hz,
+      rateBrpm: outRate,
+      nBreaths: breaths,
+      amplitudeG: Math.round(rms * 1e4) / 1e4,
+      series: series,
+      cadenceSec: EFFORT_CAD_SEC,
+      floorG: EFFORT_FLOOR_G,
+      // ── added 2026-07-21 (additive; every field above is unchanged) ──
+      rateSeries: spec.hasData ? spec.series : [],
+      rateEpochSec: RR_HOP_SEC,
+      rateCoverage: spec.hasData ? Math.round(spec.coverage * 1e3) / 1e3 : 0,
+      respRateMethod: method,
+      rateBrpmLegacy: legacyRate
+    };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  SQI — motion signal quality → Ganglior `conf`
+  // ════════════════════════════════════════════════════════════════════════
+  function motionSQI(accRows, unit) {
+    if (!accRows || accRows.length < 10) return { conf: 0, flags: ['no-data'] };
+    var flags = [],
+      n = accRows.length,
+      clip = 0,
+      flat = 0,
+      last = null,
+      staticN = 0;
+    for (var i = 0; i < n; i++) {
+      var gx = toG(accRows[i].x, unit),
+        gy = toG(accRows[i].y, unit),
+        gz = toG(accRows[i].z, unit);
+      var m = Math.sqrt(gx * gx + gy * gy + gz * gz);
+      if (m > 7.5) clip++; // >7.5 g → clip / impact-range (ACC full-scale abuse)
+      if (last != null && Math.abs(m - last) < 1e-4) flat++;
+      if (m < 0.05) staticN++; // near-zero → sensor off / detached
+      last = m;
+    }
+    var clipFrac = clip / n,
+      flatFrac = flat / n,
+      offFrac = staticN / n;
+    if (clipFrac > 0.02) flags.push('clip');
+    if (flatFrac > 0.5) flags.push('flatline');
+    if (offFrac > 0.2) flags.push('sensor-off');
+    var conf = clamp(1 - clipFrac * 5 - flatFrac - offFrac * 2, 0, 1);
+    return { conf: Math.round(conf * 100) / 100, flags: flags, clipFrac: clipFrac, flatFrac: flatFrac, offFrac: offFrac };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  COMPUTE — orchestrate the single-signal motion metrics
+  //  input: { acc, gyro, mag, chestAcc }  (each = raw file text OR pre-parsed rows)
+  //  acc/gyro/mag = the wrist/arm Verity streams; chestAcc = the H10 effort channel.
+  // ════════════════════════════════════════════════════════════════════════
+  function asRows(v) {
+    if (!v) return null;
+    if (typeof v === 'string') return parseSensorXYZ(v);
+    if (Array.isArray(v)) return v;
+    return null;
+  }
+  function durationOf(rows, t0Ms) {
+    if (!rows || rows.length < 2) return 0;
+    var last = relSecOf(rows[rows.length - 1], t0Ms, streamBaseMs(rows));
+    return last != null && last > 0 ? last : rows.length / 26;
+  }
+  function firstTMs(rowsList) {
+    for (var i = 0; i < rowsList.length; i++) {
+      var r = rowsList[i];
+      if (r && r.length) {
+        for (var j = 0; j < r.length; j++) if (r[j].tMs != null) return r[j].tMs;
+      }
+    }
+    return null;
+  }
+
+  function compute(input) {
+    input = input || {};
+    var acc = asRows(input.acc),
+      gyro = asRows(input.gyro),
+      mag = asRows(input.mag),
+      chest = asRows(input.chestAcc);
+    var accUnit = (acc && acc._unit) || 'mg',
+      chestUnit = (chest && chest._unit) || 'mg';
+    var t0Ms = firstTMs([acc, chest, gyro, mag]);
+    // POSITION prefers the chest sensor (torso frame), falling back to the wrist ACC; ACTIGRAPHY prefers
+    // the WRIST ACC (de-gravitated activity is a wrist signal), falling back to the position source.
+    var posSrc = chest && chest.length > 10 ? chest : acc;
+    var posUnit = posSrc === chest ? chestUnit : accUnit;
+    var actiSrc = acc && acc.length > 10 ? acc : posSrc;
+    var actiUnit = actiSrc === acc ? accUnit : posUnit;
+    var durSec = Math.max(durationOf(acc, t0Ms), durationOf(chest, t0Ms), durationOf(gyro, t0Ms));
+
+    var position = bodyPosition(posSrc, t0Ms, durSec, posUnit);
+    var activity = actigraphy(actiSrc, t0Ms, durSec, actiUnit);
+    var effort = respiratoryEffort(chest, t0Ms, durSec, chestUnit);
+    // DEEP-AUDIT-II §7.5 — PER-STREAM SQI. `sqi` qualifies the posture/chest source (and the posture_change
+    // event conf). A single SQI on the chest would leave the WRIST-derived movement metrics (immobileFrac,
+    // movementIndex, activitySeries) qualified by a DIFFERENT sensor: a flatlined wrist under a clean chest
+    // would read high confidence while the actigraphy is garbage. So the actigraphy stream carries its OWN
+    // SQI. Reuse `sqi` when actigraphy ran on the SAME source (single-stream night) — identical by
+    // construction, not by luck.
+    var sqi = motionSQI(posSrc, posUnit);
+    var sqiActivity = actiSrc === posSrc ? sqi : motionSQI(actiSrc, actiUnit);
+
+    var summary = {
+      node: 'MotionDex',
+      t0Ms: t0Ms,
+      durSec: Math.round(durSec),
+      streams: {
+        acc: acc ? acc.length : 0,
+        gyro: gyro ? gyro.length : 0,
+        mag: mag ? mag.length : 0,
+        chestAcc: chest ? chest.length : 0
+      },
+      position: position,
+      activity: activity,
+      effort: effort,
+      sqi: sqi,
+      sqiActivity: sqiActivity
+    };
+    return summary;
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  SYNTHETIC IMU — deterministic (seeded) generator for the committed fixture
+  //  + the equiv gate. No Date.now / Math.random (reproducible bytes).
+  // ════════════════════════════════════════════════════════════════════════
+  function mulberry32(seed) {
+    var s = seed >>> 0;
+    return function () {
+      s |= 0;
+      s = (s + 0x6d2b79f5) | 0;
+      var t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  // Emit a Polar-Sensor-Logger-format ACC stream: supine, quiet breathing, seeded jitter.
+  function genSyntheticACC(opts) {
+    opts = opts || {};
+    var hz = opts.hz || 26,
+      sec = opts.sec || 120,
+      brpm = opts.brpm || 15,
+      seed = opts.seed || 1;
+    var rnd = mulberry32(seed);
+    var startMs = Date.UTC(2026, 5, 10, 22, 0, 0); // fixed civil anchor (Clock Contract floating tMs)
+    var nsBase = 599628000000000000;
+    var lines = ['Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]'];
+    var n = Math.round(hz * sec),
+      dtMs = 1000 / hz,
+      dtNs = Math.round(1e9 / hz);
+    // supine torso: gravity mostly on +Z; small AP respiratory sway on Z.
+    // +Z (not −Z): at rest an accelerometer reads +1 g on the UP axis, so a
+    // chest sensor worn anterior-face-out reads +1 g on Z when supine. This twin
+    // emitted −1 g under a "supine" comment until 2026-07-20, which is why it
+    // agreed with the inverted classifier instead of catching it.
+    for (var i = 0; i < n; i++) {
+      var tSec = i / hz;
+      var resp = Math.sin(2 * Math.PI * (brpm / 60) * tSec); // breathing
+      var gx = 30 + (rnd() - 0.5) * 12;
+      var gy = 40 + (rnd() - 0.5) * 12;
+      var gz = 1000 + resp * 22 + (rnd() - 0.5) * 10; // ~+1 g + effort
+      var ms = startMs + i * dtMs;
+      lines.push(isoStamp(ms) + ';' + (nsBase + i * dtNs) + ';' + Math.round(gx) + ';' + Math.round(gy) + ';' + Math.round(gz));
+    }
+    return lines.join('\n') + '\n';
+  }
+  // ISO-8601 no-zone stamp with ms, read via getUTC* (Clock Contract §5)
+  function isoStamp(ms) {
+    var d = new Date(ms);
+    return (
+      d.getUTCFullYear() +
+      '-' +
+      p2(d.getUTCMonth() + 1) +
+      '-' +
+      p2(d.getUTCDate()) +
+      'T' +
+      p2(d.getUTCHours()) +
+      ':' +
+      p2(d.getUTCMinutes()) +
+      ':' +
+      p2(d.getUTCSeconds()) +
+      '.' +
+      p2(d.getUTCMilliseconds(), 3)
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  EXPORT — ganglior.node-export (node:"MotionDex")
+  // ════════════════════════════════════════════════════════════════════════
+  function buildNodeExport(summary) {
+    summary = summary || {};
+    var t0 = summary.t0Ms;
+    var events = [];
+    // position-transition events (impulse per posture change) — the fusion currency
+    var track = summary.position && summary.position.track;
+    if (track && track.length) {
+      var prev = null;
+      for (var i = 0; i < track.length; i++) {
+        var seg = track[i];
+        if (seg.pos !== prev && seg.pos !== 'unknown') {
+          events.push({
+            t: seg.tStartMs != null ? fmtClock(seg.tStartMs) : null,
+            tMs: seg.tStartMs,
+            impulse: 'posture_change',
+            node: 'MotionDex',
+            conf: summary.sqi ? summary.sqi.conf : null,
+            meta: { position: seg.pos }
+          });
+          prev = seg.pos;
+        }
+      }
+    }
+    return {
+      schema: { name: 'ganglior.node-export', version: 1, node: 'MotionDex' },
+      recording: { startEpochMs: t0, durSec: summary.durSec },
+      motion: {
+        streams: summary.streams,
+        supineFrac: summary.position ? summary.position.supineFrac : null,
+        dwellFrac: summary.position ? summary.position.dwellFrac : null,
+        immobileFrac: summary.activity ? summary.activity.immobileFrac : null,
+        movementIndex: summary.activity ? summary.activity.movementIndex : null,
+        // per-epoch movement track — a MotionDex standalone read (movement timeline) AND the input the
+        // Integrator gates HRV with (§2.4). `moving` is TRI-STATE: null = accelerometer not recording,
+        // which must never be read as "still" (that is how a gap fabricates a quiet night).
+        activitySeries:
+          summary.activity && summary.activity.epochs
+            ? summary.activity.epochs.map(function (e) {
+                return { tMs: e.tStartMs, count: e.count, moving: e.moving };
+              })
+            : null,
+        activityCadenceSec: summary.activity ? summary.activity.epochSec : null,
+        respRateBrpm: summary.effort ? summary.effort.rateBrpm : null,
+        // effort-presence series — a MotionDex standalone read AND the Integrator apnea-typing input (§1.1).
+        // Coverage-honest: an epoch's `present` is null where chest ACC was not recording, never a false absent.
+        effortSeries: summary.effort && summary.effort.series ? summary.effort.series : null,
+        effortCadenceSec: summary.effort ? summary.effort.cadenceSec : null,
+        effortFloorG: summary.effort ? summary.effort.floorG : null,
+        sqi: summary.sqi ? summary.sqi.conf : null,
+        // DEEP-AUDIT-II §7.5 — per-stream SQI. `sqi` above qualifies the posture/chest source (and the
+        // posture_change event conf); `sqiActivity` qualifies the WRIST stream the actigraphy metrics
+        // (immobileFrac / movementIndex / activitySeries) are derived from. Equal to `sqi` on a
+        // single-stream night; a consumer trusts the movement metrics against THIS, not the chest SQI.
+        sqiActivity: summary.sqiActivity ? summary.sqiActivity.conf : null
+      },
+      ganglior_events: events
+    };
+  }
+
+  // ─── public API (dual-mode: window attach for classic co-load + ESM tail) ───
+  global.MOTIONDSP = {
+    parseSensorXYZ: parseSensorXYZ,
+    streamKindFromHeader: streamKindFromHeader,
+    streamKindFromName: streamKindFromName,
+    bodyPosition: bodyPosition,
+    classifyGravity: classifyGravity,
+    actigraphy: actigraphy,
+    respiratoryEffort: respiratoryEffort,
+    respiratoryRate: respiratoryRate,
+    motionSQI: motionSQI,
+    compute: compute,
+    genSyntheticACC: genSyntheticACC,
+    buildNodeExport: buildNodeExport,
+    parseTimestamp: parseTimestamp
+  };
+  global.MotionDex = global.MotionDex || {
+    compute: compute,
+    parseSensorXYZ: parseSensorXYZ,
+    genSynthetic: genSyntheticACC,
+    buildNodeExport: buildNodeExport,
+    _build: buildNodeExport
+  };
+  global.MotionDex.scrubExport = function (env) {
+    if (global.DexExport && typeof global.DexExport.scrubExport === 'function') return global.DexExport.scrubExport(env);
+    if (typeof global.dexScrubExport === 'function') return global.dexScrubExport(env);
+    return env;
+  };
+})(window);
+
+// ESM-MIGRATION: MotionDex is ESM-from-birth (fan-out complete). The IIFE above attaches
+// window.MOTIONDSP / window.MotionDex (the external node API + every classic co-load consumer —
+// the orchestrators + both test runners, which classic-load this file via build-core.js `classicify`).
+// These re-exports let the owned ESM bundle's motiondex-app.js `import { MOTIONDSP, MotionDex }`.
+const MOTIONDSP = window.MOTIONDSP;
+const MotionDex = window.MotionDex;
+
+</script>
+<script data-inline-src="resp-acc-analysis.js">
+/*
+ * resp-acc-analysis.js — Tepna
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+ * project root, or http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Figure/table-generating apparatus for three papers:
+ *   · papers/cpap-flow-reference.html   — CPAP flow as a home reference standard
+ *   · papers/acc-respiratory-rate.html  — respiratory rate from a Polar H10 chest ACC
+ *   · papers/effort-typing-null.html    — effort does not type apneas under CPAP
+ *
+ * THE METHOD
+ *   1. REFERENCE. ResMed `*_BRP.edf` `Flow.40ms` (25 Hz, L/s) → inspiratory onsets by
+ *      positive-going zero crossings of leak/drift-corrected flow (2nd-order HP 0.05 Hz,
+ *      4th-order LP 3 Hz, zero-phase, 1.0 s refractory). Per-epoch rate = 60/median(period)
+ *      over a 60 s window with >=4 breaths.
+ *   2. VALIDATE THE REFERENCE FIRST. Two independent flow-derived estimators —
+ *      60/median(period) vs a plain breath count — are compared to each other. Their
+ *      disagreement IS the reference's noise floor (~0.70 br/min on this corpus). No
+ *      algorithm scored below it is honestly "better"; it is overfitting or an easier subset.
+ *   3. CLOCK. The wearable and the CPAP share no clock. The offset is recovered by
+ *      cross-correlating the band-passed ACC against band-passed flow over +/-90 min at 1 s,
+ *      three chunks voting. Offsets are then fitted across nights as a LINEAR DRIFT, and each
+ *      night's lock is validated against that model — NOT against correlation magnitude. On
+ *      this corpus four nights with |r| < 0.25 landed within 3.2 s of prediction; a
+ *      correlation gate would have discarded them, non-randomly.
+ *   4. ESTIMATOR. Runs the SHIPPED `MOTIONDSP.respiratoryRate` — not a reimplementation, so
+ *      this tool regenerates the papers' numbers from the code that actually ships.
+ *   5. STATS. Bias/MAE/RMSE/95% LoA/within-2-3 br/min/Pearson r, the error-vs-coverage curve,
+ *      and night-level bootstrap CIs. The bias constant is applied LEAVE-ONE-NIGHT-OUT so no
+ *      reported figure is fitted on its own test data.
+ *
+ * 100% local. Nothing is uploaded. Unbundled analysis surface — touches neither gate.
+ */
+(function (global) {
+  'use strict';
+
+  var FS_REF = 25; // Hz — ResMed Flow.40ms
+  var EPOCH = 30,
+    WIN = 60; // s — scoring grid (matches the estimator's hop/window)
+  var FSC = 5; // Hz — common grid for clock cross-correlation
+
+  // ─────────────────────────── EDF / EDF+ ────────────────────────────────
+  function s8(buf, off, len) {
+    var s = '';
+    for (var i = 0; i < len; i++) s += String.fromCharCode(buf[off + i]);
+    return s.replace(/\0/g, ' ').trim();
+  }
+
+  /* Minimal EDF reader — enough for ResMed BRP/PLD/SA2. Returns physical-scaled signals. */
+  function readEDF(bytes, wanted) {
+    var nbytesHdr = parseInt(s8(bytes, 184, 8), 10);
+    var nrec = parseInt(s8(bytes, 236, 8), 10);
+    var recdur = parseFloat(s8(bytes, 244, 8));
+    var ns = parseInt(s8(bytes, 252, 4), 10);
+    if (!isFinite(ns) || ns <= 0 || !isFinite(nrec)) return null;
+    var sd = s8(bytes, 168, 8),
+      st = s8(bytes, 176, 8);
+    var dp = sd.split('.'),
+      tp = st.split('.');
+    var yy = parseInt(dp[2], 10);
+    var year = yy < 85 ? 2000 + yy : 1900 + yy;
+    // Clock Contract §1 — floating wall-clock ms, built with Date.UTC from components as written.
+    var startMs = Date.UTC(year, parseInt(dp[1], 10) - 1, parseInt(dp[0], 10), parseInt(tp[0], 10), parseInt(tp[1], 10), parseInt(tp[2], 10));
+    var p = 256;
+    function take(n) {
+      var out = [];
+      for (var i = 0; i < ns; i++) out.push(s8(bytes, p + i * n, n));
+      p += n * ns;
+      return out;
+    }
+    var labels = take(16);
+    take(80);
+    var units = take(8);
+    var pmin = take(8).map(parseFloat);
+    var pmax = take(8).map(parseFloat);
+    var dmin = take(8).map(parseFloat);
+    var dmax = take(8).map(parseFloat);
+    take(80);
+    var nsamp = take(8).map(function (v) {
+      return parseInt(v, 10);
+    });
+    var recLen = nsamp.reduce(function (a, b) {
+      return a + b;
+    }, 0);
+    var avail = Math.floor((bytes.length - nbytesHdr) / (recLen * 2));
+    if (avail < nrec) nrec = avail; // truncated file — keep whole records only
+    var dv = new DataView(bytes.buffer, bytes.byteOffset + nbytesHdr);
+    var out = {};
+    for (var si = 0; si < ns; si++) {
+      if (wanted && wanted.indexOf(labels[si]) < 0) continue;
+      var n = nsamp[si],
+        off = 0,
+        k;
+      for (k = 0; k < si; k++) off += nsamp[k];
+      var arr = new Float64Array(nrec * n);
+      var span = dmax[si] - dmin[si] || 1;
+      var gain = (pmax[si] - pmin[si]) / span;
+      for (var r = 0; r < nrec; r++) {
+        var base = (r * recLen + off) * 2;
+        for (k = 0; k < n; k++) arr[r * n + k] = (dv.getInt16(base + k * 2, true) - dmin[si]) * gain + pmin[si];
+      }
+      out[labels[si]] = { fs: n / recdur, data: arr, unit: units[si] };
+    }
+    return { startMs: startMs, durSec: nrec * recdur, signals: out, labels: labels };
+  }
+
+  /* EDF+ annotation (TAL) parse — the `*_EVE.edf` scored-event list. A plain EDF reader
+     divides by a zero record duration and throws, so this is deliberately separate. */
+  function readAnnotations(bytes) {
+    var nbytesHdr = parseInt(s8(bytes, 184, 8), 10);
+    var sd = s8(bytes, 168, 8),
+      st = s8(bytes, 176, 8);
+    var dp = sd.split('.'),
+      tp = st.split('.');
+    var yy = parseInt(dp[2], 10);
+    var startMs = Date.UTC(yy < 85 ? 2000 + yy : 1900 + yy, parseInt(dp[1], 10) - 1, parseInt(dp[0], 10), parseInt(tp[0], 10), parseInt(tp[1], 10), parseInt(tp[2], 10));
+    var txt = '';
+    for (var i = nbytesHdr; i < bytes.length; i++) txt += String.fromCharCode(bytes[i]);
+    var ev = [],
+      re = /([+-]\d+(?:\.\d+)?)(?:\x15(\d+(?:\.\d+)?))?\x14([^\x14\x00]*)/g,
+      m;
+    while ((m = re.exec(txt)) !== null) {
+      var lab = (m[3] || '').trim();
+      if (!lab) continue;
+      ev.push({ onsetSec: parseFloat(m[1]), durSec: m[2] ? parseFloat(m[2]) : 0, label: lab });
+    }
+    return { startMs: startMs, events: ev };
+  }
+
+  // ───────────────────────── filters (zero-phase) ─────────────────────────
+  function butterSOS(order, fc, fs, type) {
+    var w = Math.tan((Math.PI * fc) / fs),
+      sos = [],
+      k;
+    for (k = 0; k < order >> 1; k++) {
+      var th = (Math.PI * (2 * k + 1)) / (2 * order);
+      var sinT = 2 * Math.sin(th) || 1e-9;
+      var al = w * sinT,
+        d = 1 + al + w * w,
+        b0,
+        b1,
+        b2;
+      if (type === 'low') {
+        b0 = (w * w) / d;
+        b1 = 2 * b0;
+        b2 = b0;
+      } else {
+        b0 = 1 / d;
+        b1 = -2 * b0;
+        b2 = b0;
+      }
+      sos.push([b0, b1, b2, 1, (2 * (w * w - 1)) / d, (1 - al + w * w) / d]);
+    }
+    return sos;
+  }
+  function sosfilt(x, sos) {
+    var n = x.length,
+      out = new Float64Array(n),
+      i,
+      s;
+    for (i = 0; i < n; i++) out[i] = x[i];
+    for (s = 0; s < sos.length; s++) {
+      var b0 = sos[s][0],
+        b1 = sos[s][1],
+        b2 = sos[s][2],
+        a1 = sos[s][4],
+        a2 = sos[s][5];
+      var z1 = 0,
+        z2 = 0;
+      for (i = 0; i < n; i++) {
+        var xi = out[i],
+          y = b0 * xi + z1;
+        z1 = b1 * xi - a1 * y + z2;
+        z2 = b2 * xi - a2 * y;
+        out[i] = y;
+      }
+    }
+    return out;
+  }
+  function rev(a) {
+    var n = a.length,
+      o = new Float64Array(n);
+    for (var i = 0; i < n; i++) o[i] = a[n - 1 - i];
+    return o;
+  }
+  function filtfilt(x, sos) {
+    if (x.length < 8) return Float64Array.from(x);
+    return rev(sosfilt(rev(sosfilt(x, sos)), sos));
+  }
+
+  // ───────────────────── reference: breaths from CPAP flow ─────────────────
+  function detectBreaths(flow, fs) {
+    var f = filtfilt(filtfilt(flow, butterSOS(2, 0.05, fs, 'high')), butterSOS(4, 3.0, fs, 'low'));
+    var on = [],
+      last = -1e9;
+    for (var i = 1; i < f.length; i++) {
+      if (f[i - 1] <= 0 && f[i] > 0) {
+        var t = i / fs;
+        if (t - last >= 1.0) {
+          on.push(t);
+          last = t;
+        }
+      }
+    }
+    return on;
+  }
+
+  function median(a) {
+    if (!a.length) return NaN;
+    var b = Array.prototype.slice.call(a).sort(function (x, y) {
+      return x - y;
+    });
+    var m = b.length >> 1;
+    return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2;
+  }
+
+  /* Per-epoch reference rate by BOTH estimators. Their disagreement is the noise floor. */
+  function referenceEpochs(flow, fs, epoch, win) {
+    var on = detectBreaths(flow, fs);
+    var per = [],
+      mid = [],
+      i;
+    for (i = 1; i < on.length; i++) {
+      per.push(on[i] - on[i - 1]);
+      mid.push((on[i] + on[i - 1]) / 2);
+    }
+    var dur = flow.length / fs,
+      nE = Math.floor(dur / epoch);
+    var t = [],
+      rrMed = [],
+      rrCnt = [];
+    for (var e = 0; e < nE; e++) {
+      var c = (e + 0.5) * epoch,
+        a = c - win / 2,
+        b = c + win / 2;
+      var sel = [];
+      for (i = 0; i < mid.length; i++) if (mid[i] >= a && mid[i] < b) sel.push(per[i]);
+      t.push(e * epoch);
+      if (sel.length >= 4) {
+        rrMed.push(60 / median(sel));
+        rrCnt.push(sel.length * (60 / win));
+      } else {
+        rrMed.push(NaN);
+        rrCnt.push(NaN);
+      }
+    }
+    return { t: t, rrMedian: rrMed, rrCount: rrCnt, nBreaths: on.length, periods: per };
+  }
+
+  /* ───────────────────────── clock: offset + drift ─────────────────────────
+     Resample onto an EXACT FSC grid by interpolation — do NOT decimate by an integer
+     factor. The CPAP flow is exactly 25 Hz (q=5 → exactly 5 Hz) but the Polar ACC runs
+     ~25.35 Hz, so integer decimation would leave it at 5.07 Hz. Over a 22-minute
+     correlation chunk that 1.4% rate error accumulates ~18 s of skew, which smears the
+     correlation peak and moves the recovered offset by tens of minutes. Measured while
+     porting this tool: integer decimation returned locks of −3296/−4718/−4238 s on three
+     nights whose true, drift-consistent offsets are −2362/−2365/−2353 s. */
+  function toGrid(x, fsIn) {
+    var f = filtfilt(x, butterSOS(6, 0.8 * (FSC / 2), fsIn, 'low'));
+    var dur = (f.length - 1) / fsIn;
+    var n = Math.floor(dur * FSC) + 1;
+    var o = new Float64Array(n);
+    for (var i = 0; i < n; i++) {
+      var pos = (i / FSC) * fsIn,
+        j = Math.floor(pos),
+        u = pos - j;
+      if (j >= f.length - 1) {
+        o[i] = f[f.length - 1];
+        continue;
+      }
+      o[i] = f[j] * (1 - u) + f[j + 1] * u;
+    }
+    return o;
+  }
+  /* Native sample rate — from the Polar SENSOR NANOSECOND counter (`relNs`) when present,
+     falling back to the phone millisecond stamp only if it is not.
+
+     This is not a micro-optimisation. The phone stamp is quantised to whole milliseconds, so
+     on a 25.34 Hz stream (true spacing 39.47 ms) the median inter-sample interval reads 39 ms
+     → 25.64 Hz, a **1.2% rate error**. Cross-correlating a 25-minute chunk against the CPAP
+     flow then accumulates ~18 s of skew, which flattens the correlation peak and moves the
+     recovered clock offset by tens of minutes. Measured while porting this tool: with the
+     tMs-derived rate the locks came back −1592/−3379/+4852 s on three nights whose true,
+     drift-consistent offsets are −2362/−2365/−2353 s.
+
+     Never derive the rate from count ÷ duration either — that silently absorbs every dropout. */
+  function nativeHz(rows) {
+    var d = [],
+      i,
+      n = Math.min(rows.length, 4000);
+    if (rows[0] && rows[0].relNs != null) {
+      for (i = 1; i < n; i++) {
+        var dn = Number(rows[i].relNs - rows[i - 1].relNs);
+        if (dn > 0) d.push(dn);
+      }
+      if (d.length) return 1e9 / median(d);
+    }
+    for (i = 1; i < n; i++) {
+      var dt = rows[i].tMs - rows[i - 1].tMs;
+      if (dt > 0) d.push(dt);
+    }
+    if (!d.length) return NaN;
+    return 1000 / median(d);
+  }
+
+  /* Project the three band-passed axes onto their dominant direction (power iteration on
+     the 3x3 covariance). Matches the reference implementation's PC1 — a single fixed axis
+     under-reads the lock because the respiratory component is spread across axes. */
+  function dominantProjection(ch) {
+    var n = ch[0].length,
+      i,
+      a,
+      b;
+    var mu = [0, 0, 0];
+    for (a = 0; a < 3; a++) {
+      for (i = 0; i < n; i++) mu[a] += ch[a][i];
+      mu[a] /= n;
+    }
+    var C = [
+      [0, 0, 0],
+      [0, 0, 0],
+      [0, 0, 0]
+    ];
+    for (i = 0; i < n; i++) {
+      for (a = 0; a < 3; a++) for (b = 0; b < 3; b++) C[a][b] += (ch[a][i] - mu[a]) * (ch[b][i] - mu[b]);
+    }
+    for (a = 0; a < 3; a++) for (b = 0; b < 3; b++) C[a][b] /= Math.max(1, n - 1);
+    var v = [1, 1, 1];
+    for (var it = 0; it < 60; it++) {
+      var w = [0, 0, 0];
+      for (a = 0; a < 3; a++) for (b = 0; b < 3; b++) w[a] += C[a][b] * v[b];
+      var nn = Math.sqrt(w[0] * w[0] + w[1] * w[1] + w[2] * w[2]);
+      if (nn < 1e-18) break;
+      v = [w[0] / nn, w[1] / nn, w[2] / nn];
+    }
+    var out = new Float64Array(n);
+    for (i = 0; i < n; i++) out[i] = (ch[0][i] - mu[0]) * v[0] + (ch[1][i] - mu[1]) * v[1] + (ch[2][i] - mu[2]) * v[2];
+    return out;
+  }
+
+  /* THE respiratory channel for clock recovery:each axis onto the exact FSC grid, band-passed
+     0.13-0.50 Hz zero-phase, then projected onto the dominant direction. One function so the
+     tool and any caller cannot disagree about filter order or double-filtering. */
+  function respChannel(rows) {
+    var hz = nativeHz(rows);
+    if (!isFinite(hz) || hz <= 0) return null;
+    var lo = butterSOS(4, 0.5, FSC, 'low'),
+      hi = butterSOS(4, 0.13, FSC, 'high');
+    var keys = ['x', 'y', 'z'],
+      ch = [];
+    for (var a = 0; a < 3; a++) {
+      var v = new Float64Array(rows.length);
+      for (var i = 0; i < rows.length; i++) v[i] = rows[i][keys[a]];
+      ch.push(filtfilt(filtfilt(toGrid(v, hz), lo), hi));
+    }
+    return { channel: dominantProjection(ch), hz: hz };
+  }
+  function flowChannel(flow, fsIn) {
+    return filtfilt(filtfilt(toGrid(flow, fsIn), butterSOS(4, 0.5, FSC, 'low')), butterSOS(4, 0.13, FSC, 'high'));
+  }
+
+  function zscore(x, i0, n) {
+    var mu = 0,
+      i;
+    for (i = 0; i < n; i++) mu += x[i0 + i];
+    mu /= n;
+    var sd = 0;
+    for (i = 0; i < n; i++) {
+      var v = x[i0 + i] - mu;
+      sd += v * v;
+    }
+    sd = Math.sqrt(sd / n);
+    if (sd < 1e-12) return null;
+    var o = new Float64Array(n);
+    for (i = 0; i < n; i++) o[i] = (x[i0 + i] - mu) / sd;
+    return o;
+  }
+
+  /* Cross-correlate a band-passed ACC channel against band-passed flow. Returns the lag (s)
+     to ADD to ACC-relative time to reach CPAP-session time, plus the peak |r| and a sharpness
+     ratio (peak / p95) — a true lock is a narrow spike, a spurious one a broad ridge. */
+  function recoverOffset(accCh, accT0Sec, flowGrid, searchMin, chunkMin) {
+    // INPUT CONTRACT: accCh and flowGrid are ALREADY band-passed onto the FSC grid (use
+    // respChannel / flowChannel). Filtering here as well silently double-filters the ACC to
+    // an effective 16th order and degrades the lock — measured while porting this tool.
+    var acc = accCh;
+    var nCh = Math.round(chunkMin * 60 * FSC);
+    var votes = [];
+    var fracs = [0.25, 0.45, 0.65];
+    for (var fi = 0; fi < fracs.length; fi++) {
+      var st = Math.floor(acc.length * fracs[fi]);
+      if (st + nCh > acc.length) continue;
+      var a = zscore(acc, st, nCh);
+      if (!a) continue;
+      var base = accT0Sec + st / FSC;
+      var best = { r: 0, off: null },
+        all = [];
+      for (var off = -searchMin * 60; off <= searchMin * 60; off += 1) {
+        var i0 = Math.round((base + off) * FSC);
+        if (i0 < 0 || i0 + nCh > flowGrid.length) continue;
+        var b = zscore(flowGrid, i0, nCh);
+        if (!b) continue;
+        var dot = 0;
+        for (var k = 0; k < nCh; k++) dot += a[k] * b[k];
+        var r = Math.abs(dot / nCh);
+        all.push(r);
+        if (r > best.r) {
+          best.r = r;
+          best.off = off;
+        }
+      }
+      if (best.off !== null && all.length > 20) {
+        all.sort(function (x, y) {
+          return x - y;
+        });
+        var p95 = all[Math.floor(0.95 * all.length)] || 1e-9;
+        votes.push({ off: best.off, r: best.r, sharp: best.r / p95 });
+      }
+    }
+    if (!votes.length) return null;
+    votes.sort(function (x, y) {
+      return y.r - x.r;
+    });
+    return votes[0];
+  }
+
+  /* Weighted least-squares drift fit across nights. Validity is |recovered - predicted| < tol,
+     NOT |r| > threshold — see the method note at the top of this file. */
+  function fitDrift(nights, minR) {
+    var X = [],
+      Y = [],
+      W = [];
+    for (var i = 0; i < nights.length; i++) {
+      var n = nights[i];
+      if (!n.lock || n.lock.r < minR) continue;
+      X.push(n.dayNum);
+      Y.push(n.lock.off);
+      W.push(n.lock.r);
+    }
+    if (X.length < 3) return null;
+    var x0 = 0,
+      sw = 0,
+      i2;
+    for (i2 = 0; i2 < X.length; i2++) {
+      x0 += X[i2] * W[i2];
+      sw += W[i2];
+    }
+    x0 /= sw;
+    var sxx = 0,
+      sxy = 0,
+      sy = 0;
+    for (i2 = 0; i2 < X.length; i2++) {
+      var dx = X[i2] - x0;
+      sxx += W[i2] * dx * dx;
+      sxy += W[i2] * dx * Y[i2];
+      sy += W[i2] * Y[i2];
+    }
+    var slope = sxx > 0 ? sxy / sxx : 0,
+      intercept = sy / sw;
+    var resid = [];
+    for (i2 = 0; i2 < X.length; i2++) resid.push(Y[i2] - (slope * (X[i2] - x0) + intercept));
+    var mu = 0;
+    for (i2 = 0; i2 < resid.length; i2++) mu += resid[i2];
+    mu /= resid.length;
+    var sd = 0,
+      mx = 0;
+    for (i2 = 0; i2 < resid.length; i2++) {
+      sd += (resid[i2] - mu) * (resid[i2] - mu);
+      mx = Math.max(mx, Math.abs(resid[i2]));
+    }
+    return {
+      slopePerDay: slope,
+      x0: x0,
+      intercept: intercept,
+      residSD: Math.sqrt(sd / Math.max(1, resid.length - 1)),
+      residMax: mx,
+      n: X.length,
+      predict: function (dayNum) {
+        return slope * (dayNum - x0) + intercept;
+      }
+    };
+  }
+
+  // ─────────────────────────────── statistics ──────────────────────────────
+  function agreement(pred, ref) {
+    var d = [],
+      i;
+    for (i = 0; i < pred.length; i++) {
+      if (isFinite(pred[i]) && isFinite(ref[i])) d.push(pred[i] - ref[i]);
+    }
+    if (d.length < 10) return null;
+    var n = d.length,
+      sum = 0;
+    for (i = 0; i < n; i++) sum += d[i];
+    var bias = sum / n,
+      ss = 0,
+      abs = 0,
+      w1 = 0,
+      w2 = 0,
+      w3 = 0;
+    for (i = 0; i < n; i++) {
+      ss += (d[i] - bias) * (d[i] - bias);
+      abs += Math.abs(d[i]);
+      if (Math.abs(d[i]) <= 1) w1++;
+      if (Math.abs(d[i]) <= 2) w2++;
+      if (Math.abs(d[i]) <= 3) w3++;
+    }
+    var sd = Math.sqrt(ss / Math.max(1, n - 1));
+    var rmse = 0;
+    for (i = 0; i < n; i++) rmse += d[i] * d[i];
+    return {
+      n: n,
+      bias: bias,
+      mae: abs / n,
+      rmse: Math.sqrt(rmse / n),
+      loa: 1.96 * sd,
+      within1: w1 / n,
+      within2: w2 / n,
+      within3: w3 / n
+    };
+  }
+
+  function pearson(a, b) {
+    var xs = [],
+      ys = [],
+      i;
+    for (i = 0; i < a.length; i++) {
+      if (isFinite(a[i]) && isFinite(b[i])) {
+        xs.push(a[i]);
+        ys.push(b[i]);
+      }
+    }
+    if (xs.length < 4) return NaN;
+    var mx = 0,
+      my = 0,
+      n = xs.length;
+    for (i = 0; i < n; i++) {
+      mx += xs[i];
+      my += ys[i];
+    }
+    mx /= n;
+    my /= n;
+    var sxy = 0,
+      sxx = 0,
+      syy = 0;
+    for (i = 0; i < n; i++) {
+      var dx = xs[i] - mx,
+        dy = ys[i] - my;
+      sxy += dx * dy;
+      sxx += dx * dx;
+      syy += dy * dy;
+    }
+    return sxx > 0 && syy > 0 ? sxy / Math.sqrt(sxx * syy) : NaN;
+  }
+
+  /* Night-level bootstrap CI — resample NIGHTS, not epochs, so the CI reflects
+     between-night variability rather than pretending 19k epochs are independent. */
+  function bootstrapCI(perNight, stat, iters, seed) {
+    var s = seed || 12345;
+    function rnd() {
+      s = (s * 1103515245 + 12345) & 0x7fffffff;
+      return s / 0x7fffffff;
+    }
+    var vals = [],
+      K = perNight.length;
+    for (var it = 0; it < (iters || 2000); it++) {
+      var pool = [];
+      for (var k = 0; k < K; k++) pool.push(perNight[Math.floor(rnd() * K)]);
+      var v = stat(pool);
+      if (isFinite(v)) vals.push(v);
+    }
+    if (vals.length < 20) return null;
+    vals.sort(function (x, y) {
+      return x - y;
+    });
+    return [vals[Math.floor(0.025 * vals.length)], vals[Math.floor(0.975 * vals.length)]];
+  }
+
+  /* Leave-one-night-out bias correction — the reported error is never fitted on its own
+     test night. This is what makes the papers' MAE honest rather than self-referential. */
+  function looBias(perNight) {
+    var out = [];
+    for (var i = 0; i < perNight.length; i++) {
+      var pool = [];
+      for (var j = 0; j < perNight.length; j++) {
+        if (j === i) continue;
+        for (var k = 0; k < perNight[j].pred.length; k++) {
+          var p = perNight[j].pred[k],
+            r = perNight[j].ref[k];
+          if (isFinite(p) && isFinite(r)) pool.push(p - r);
+        }
+      }
+      var b = pool.length ? median(pool) : 0;
+      var pred2 = [];
+      for (var m = 0; m < perNight[i].pred.length; m++) pred2.push(perNight[i].pred[m] - b);
+      out.push({ name: perNight[i].name, pred: pred2, ref: perNight[i].ref, conf: perNight[i].conf, bias: b });
+    }
+    return out;
+  }
+
+  function coverageCurve(perNight, fracs) {
+    var all = [];
+    for (var i = 0; i < perNight.length; i++) {
+      for (var k = 0; k < perNight[i].pred.length; k++) {
+        var p = perNight[i].pred[k],
+          r = perNight[i].ref[k],
+          c = perNight[i].conf[k];
+        if (isFinite(p) && isFinite(r)) all.push({ d: p - r, c: c, p: p, r: r });
+      }
+    }
+    all.sort(function (a, b) {
+      return b.c - a.c;
+    });
+    var rows = [];
+    for (var f = 0; f < fracs.length; f++) {
+      var keep = Math.max(10, Math.floor(fracs[f] * all.length));
+      var sub = all.slice(0, keep);
+      var pred = sub.map(function (x) {
+          return x.p;
+        }),
+        ref = sub.map(function (x) {
+          return x.r;
+        });
+      var ag = agreement(pred, ref);
+      if (ag) rows.push({ coverage: keep / all.length, confMin: sub[keep - 1].c, mae: ag.mae, rmse: ag.rmse, loa: ag.loa, within2: ag.within2, r: pearson(pred, ref) });
+    }
+    return rows;
+  }
+
+  global.RespAccAnalysis = {
+    readEDF: readEDF,
+    readAnnotations: readAnnotations,
+    detectBreaths: detectBreaths,
+    referenceEpochs: referenceEpochs,
+    recoverOffset: recoverOffset,
+    fitDrift: fitDrift,
+    toGrid: toGrid,
+    nativeHz: nativeHz,
+    respChannel: respChannel,
+    flowChannel: flowChannel,
+    dominantProjection: dominantProjection,
+    agreement: agreement,
+    pearson: pearson,
+    bootstrapCI: bootstrapCI,
+    looBias: looBias,
+    coverageCurve: coverageCurve,
+    median: median,
+    butterSOS: butterSOS,
+    filtfilt: filtfilt,
+    _const: { FS_REF: FS_REF, EPOCH: EPOCH, WIN: WIN, FSC: FSC }
+  };
+})(typeof window !== 'undefined' ? window : this);
+
+</script>
+<script data-inline-src="resp-acc-analysis-app.js">
+/*
+ * resp-acc-analysis-app.js — Tepna
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+ * project root, or http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Driver for resp-acc-analysis.html: folder ingest → per-night pipeline → paper tables.
+ * The estimator is the SHIPPED MOTIONDSP.respiratoryRate; this file only orchestrates.
+ */
+(function () {
+  'use strict';
+  var A = window.RespAccAnalysis,
+    M = window.MOTIONDSP;
+  var $ = function (id) {
+    return document.getElementById(id);
+  };
+  var logEl = $('log');
+  function log(m) {
+    logEl.textContent += m + '\n';
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  function status(t, cls) {
+    var p = $('status');
+    p.textContent = t;
+    p.className = 'pill ' + (cls || 'idle');
+  }
+  function fmt(v, d) {
+    return v == null || !isFinite(v) ? '—' : v.toFixed(d == null ? 2 : d);
+  }
+  function row(tb, cells) {
+    var tr = document.createElement('tr');
+    for (var i = 0; i < cells.length; i++) {
+      var td = document.createElement('td');
+      td.innerHTML = cells[i];
+      tr.appendChild(td);
+    }
+    tb.appendChild(tr);
+  }
+
+  // ── group dropped files into nights ────────────────────────────────────
+  function groupFiles(files) {
+    var acc = [],
+      brp = {};
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i],
+        n = f.name;
+      if (/_ACC\.txt$/i.test(n) && /Polar_H10/i.test(n)) acc.push(f);
+      else if (/_BRP\.edf$/i.test(n)) {
+        var d = (f.webkitRelativePath || n).match(/(\d{8})/);
+        if (d) (brp[d[1]] = brp[d[1]] || []).push(f);
+      }
+    }
+    var out = [];
+    for (var k = 0; k < acc.length; k++) {
+      var m = acc[k].name.match(/_(\d{8})_(\d{6})_ACC\.txt$/);
+      if (!m) continue;
+      var y = +m[1].slice(0, 4),
+        mo = +m[1].slice(4, 6),
+        da = +m[1].slice(6, 8),
+        hh = +m[2].slice(0, 2);
+      // a session starting before noon belongs to the previous CPAP night folder
+      var key = m[1];
+      if (hh < 12) {
+        var prev = new Date(Date.UTC(y, mo - 1, da - 1));
+        key = '' + prev.getUTCFullYear() + String(prev.getUTCMonth() + 1).padStart(2, '0') + String(prev.getUTCDate()).padStart(2, '0');
+      }
+      if (brp[key] && brp[key].length) out.push({ name: acc[k].name, acc: acc[k], brp: brp[key], dayNum: Date.UTC(y, mo - 1, da) / 86400000 });
+    }
+    out.sort(function (a, b) {
+      return a.dayNum - b.dayNum;
+    });
+    return out;
+  }
+
+  function readText(f) {
+    return new Promise(function (res, rej) {
+      var r = new FileReader();
+      r.onload = function () {
+        res(r.result);
+      };
+      r.onerror = rej;
+      r.readAsText(f);
+    });
+  }
+  function readBytes(f) {
+    return new Promise(function (res, rej) {
+      var r = new FileReader();
+      r.onload = function () {
+        res(new Uint8Array(r.result));
+      };
+      r.onerror = rej;
+      r.readAsArrayBuffer(f);
+    });
+  }
+
+  // ── one night ──────────────────────────────────────────────────────────
+  async function runNight(nt) {
+    var txt = await readText(nt.acc);
+    var rows = M.parseSensorXYZ(txt);
+    if (!rows || rows.length < 5000) return { name: nt.name, skip: 'ACC too short' };
+    // pick the longest BRP session of the night
+    var best = null;
+    for (var i = 0; i < nt.brp.length; i++) {
+      var edf = A.readEDF(await readBytes(nt.brp[i]), ['Flow.40ms']);
+      if (edf && edf.signals['Flow.40ms'] && (!best || edf.signals['Flow.40ms'].data.length > best.signals['Flow.40ms'].data.length)) best = edf;
+    }
+    if (!best) return { name: nt.name, skip: 'no BRP flow' };
+    var flow = best.signals['Flow.40ms'].data,
+      fsF = best.signals['Flow.40ms'].fs;
+
+    var ref = A.referenceEpochs(flow, fsF, A._const.EPOCH, A._const.WIN);
+    // reference self-noise: the two flow-derived estimators against each other
+    var selfAg = A.agreement(ref.rrMedian, ref.rrCount);
+    var selfR = A.pearson(ref.rrMedian, ref.rrCount);
+
+    // clock lock — the dominant band-passed ACC component vs band-passed flow, both on the
+    // exact 5 Hz grid. respChannel/flowChannel are the ONLY sanctioned way to build these:
+    // they fix the sample-rate precision and the double-filtering that both silently destroy
+    // the lock (see the notes on nativeHz and recoverOffset).
+    var t0 = rows[0].tMs;
+    var rc = A.respChannel(rows);
+    if (!rc) return { name: nt.name, skip: 'no usable sample rate' };
+    var accHz = rc.hz;
+    var flowG = A.flowChannel(flow, fsF);
+    var accT0 = (t0 - best.startMs) / 1000;
+    var lock = A.recoverOffset(rc.channel, accT0, flowG, 90, 25);
+
+    // the shipped estimator
+    var est = M.respiratoryRate(rows, t0, 'mg');
+    return {
+      name: nt.name,
+      dayNum: nt.dayNum,
+      rows: rows.length,
+      hours: rows.length / accHz / 3600,
+      ref: ref,
+      selfAg: selfAg,
+      selfR: selfR,
+      lock: lock,
+      est: est,
+      accT0: accT0,
+      cpapDur: flow.length / fsF
+    };
+  }
+
+  // ── align an estimator series to the reference using a validated offset ──
+  function pair(n, offsetSec) {
+    var pred = [],
+      rf = [],
+      cf = [];
+    var ep = A._const.EPOCH;
+    for (var i = 0; i < n.est.series.length; i++) {
+      var s = n.est.series[i];
+      if (s.brpm == null && s.conf == null) continue;
+      var tAcc = (s.tMs - n.est.series[0].tMs) / 1000; // s from stream start
+      var tCpap = n.accT0 + tAcc + offsetSec;
+      var idx = Math.round(tCpap / ep);
+      if (idx < 0 || idx >= n.ref.rrMedian.length) continue;
+      var r = n.ref.rrMedian[idx];
+      if (!isFinite(r)) continue;
+      // score the tracked ridge, gate later — coverage is applied in the curve
+      pred.push(s.brpm != null ? s.brpm : NaN);
+      rf.push(r);
+      cf.push(s.conf);
+    }
+    return { name: n.name, pred: pred, ref: rf, conf: cf };
+  }
+
+  async function run(files) {
+    logEl.textContent = '';
+    var nights = groupFiles(files);
+    if (!nights.length) {
+      status('no ACC+BRP night pairs found', 'bad');
+      log('Found no Polar_H10_*_ACC.txt with a matching CPAP/<date>/*_BRP.edf.');
+      return;
+    }
+    status('processing ' + nights.length + ' night(s)…', 'busy');
+    log('grouped ' + nights.length + ' night(s) with both ACC and CPAP flow');
+
+    var done = [];
+    for (var i = 0; i < nights.length; i++) {
+      status('night ' + (i + 1) + ' of ' + nights.length + '…', 'busy');
+      var r;
+      try {
+        r = await runNight(nights[i]);
+      } catch (e) {
+        log('! ' + nights[i].name + ' — ' + e.message);
+        continue;
+      }
+      if (r.skip) {
+        log('⊘ ' + r.name + ' — ' + r.skip);
+        continue;
+      }
+      done.push(r);
+      log('✓ ' + r.name + '  ' + r.hours.toFixed(2) + ' h  lock=' + (r.lock ? r.lock.off + 's r=' + r.lock.r.toFixed(2) : 'none'));
+      await new Promise(function (res) {
+        setTimeout(res, 0);
+      });
+    }
+    if (!done.length) {
+      status('no night produced usable data', 'bad');
+      return;
+    }
+
+    // ── 1 · reference self-noise ──
+    var tb = $('tblRef').querySelector('tbody');
+    tb.innerHTML = '';
+    var maes = [];
+    for (i = 0; i < done.length; i++) {
+      var n = done[i];
+      if (!n.selfAg) continue;
+      maes.push(n.selfAg.mae);
+      row(tb, [n.name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', ''), n.ref.nBreaths, fmt(A.median(n.ref.periods)), '<b>' + fmt(n.selfAg.mae) + '</b>', fmt(n.selfR, 3)]);
+    }
+    $('refSummary').innerHTML = maes.length
+      ? 'Median self-noise across nights: <b>' + fmt(A.median(maes)) + ' br/min</b>. Treat this as the floor — an estimator scoring below it is not more accurate than the reference.'
+      : '';
+
+    // ── 2 · clock drift ──
+    var drift = A.fitDrift(done, 0.4);
+    var tc = $('tblClock').querySelector('tbody');
+    tc.innerHTML = '';
+    var okLocks = 0;
+    for (i = 0; i < done.length; i++) {
+      var d = done[i];
+      if (!d.lock) {
+        row(tc, [d.name.slice(-22), '—', '—', '—', '—', '—', '<span style="color:var(--red)">no lock</span>']);
+        continue;
+      }
+      var predOff = drift ? drift.predict(d.dayNum) : NaN;
+      var delta = isFinite(predOff) ? d.lock.off - predOff : NaN;
+      var good = isFinite(delta) ? Math.abs(delta) < 5 : d.lock.r >= 0.4;
+      if (good) okLocks++;
+      d.offsetUsed = good && isFinite(predOff) ? (Math.abs(delta) < 5 ? d.lock.off : predOff) : d.lock.off;
+      row(tc, [
+        d.name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', ''),
+        d.lock.off,
+        fmt(predOff, 1),
+        fmt(delta, 1),
+        fmt(d.lock.r, 2),
+        fmt(d.lock.sharp, 1),
+        good ? '<span style="color:var(--teal)">drift-consistent</span>' : '<span style="color:var(--amber)">off-model</span>'
+      ]);
+    }
+    $('driftSummary').innerHTML = drift
+      ? 'Drift fit on ' +
+        drift.n +
+        ' confidently-locked nights: <b>' +
+        fmt(drift.slopePerDay, 3) +
+        ' s/day</b>, residual SD <b>' +
+        fmt(drift.residSD) +
+        ' s</b> (max ' +
+        fmt(drift.residMax) +
+        ' s). ' +
+        okLocks +
+        ' of ' +
+        done.length +
+        ' nights are drift-consistent. Validity is this Δ, not |r|.'
+      : 'Too few locks to fit a drift model.';
+
+    // ── 3 · agreement ──
+    var perNight = [];
+    for (i = 0; i < done.length; i++) {
+      if (done[i].offsetUsed == null) continue;
+      var p = pair(done[i], done[i].offsetUsed);
+      if (p.pred.length > 50) perNight.push(p);
+    }
+    if (!perNight.length) {
+      status('no night aligned well enough to score', 'bad');
+      return;
+    }
+    var corrected = A.looBias(perNight);
+    function flat(pool, key) {
+      var o = [];
+      for (var a = 0; a < pool.length; a++) for (var b = 0; b < pool[a][key].length; b++) o.push(pool[a][key][b]);
+      return o;
+    }
+    var allP = flat(corrected, 'pred'),
+      allR = flat(corrected, 'ref');
+    var ag = A.agreement(allP, allR);
+    var ci = A.bootstrapCI(corrected, function (pool) {
+      var a = A.agreement(flat(pool, 'pred'), flat(pool, 'ref'));
+      return a ? a.mae : NaN;
+    });
+    var ta = $('tblAgree').querySelector('tbody');
+    ta.innerHTML = '';
+    row(ta, [
+      '<b>Spectral ridge (shipped), all epochs</b>',
+      ag.n,
+      '<b>' + fmt(ag.mae) + '</b>',
+      ci ? fmt(ci[0]) + '–' + fmt(ci[1]) : '—',
+      fmt(ag.bias),
+      fmt(ag.rmse),
+      '±' + fmt(ag.loa),
+      fmt(ag.within2 * 100, 1) + '%',
+      fmt(A.pearson(allP, allR), 3)
+    ]);
+    // null baseline: predict the corpus median every epoch
+    var med = A.median(allR.filter(isFinite));
+    var constP = allR.map(function () {
+      return med;
+    });
+    var cag = A.agreement(constP, allR);
+    row(ta, ['Constant = corpus median (null baseline)', cag.n, fmt(cag.mae), '—', fmt(cag.bias), fmt(cag.rmse), '±' + fmt(cag.loa), fmt(cag.within2 * 100, 1) + '%', '—']);
+    $('nPill').textContent = ag.n.toLocaleString() + ' epochs';
+    $('nPill').className = 'pill ok';
+
+    // ── 4 · coverage curve ──
+    var cov = A.coverageCurve(corrected, [1.0, 0.95, 0.9, 0.85, 0.8, 0.7, 0.6, 0.5]);
+    var tv = $('tblCov').querySelector('tbody');
+    tv.innerHTML = '';
+    for (i = 0; i < cov.length; i++) {
+      var c = cov[i];
+      row(tv, [fmt(c.coverage * 100, 1) + '%', fmt(c.confMin, 3), '<b>' + fmt(c.mae) + '</b>', fmt(c.rmse), '±' + fmt(c.loa), fmt(c.within2 * 100, 1) + '%', fmt(c.r, 3)]);
+    }
+
+    // ── 5 · per night ──
+    var tn = $('tblNights').querySelector('tbody');
+    tn.innerHTML = '';
+    for (i = 0; i < corrected.length; i++) {
+      var cn = corrected[i],
+        a2 = A.agreement(cn.pred, cn.ref);
+      if (!a2) continue;
+      var src = null;
+      for (var q = 0; q < done.length; q++) if (done[q].name === cn.name) src = done[q];
+      row(tn, [
+        cn.name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', ''),
+        src ? fmt(src.hours, 1) : '—',
+        a2.n,
+        fmt(a2.mae),
+        fmt(a2.bias),
+        fmt(a2.within2 * 100, 1) + '%',
+        fmt(A.pearson(cn.pred, cn.ref), 3)
+      ]);
+    }
+
+    $('prov').innerHTML =
+      'Estimator: <code>MOTIONDSP.respiratoryRate</code> — the shipped DSP, method <code>' +
+      (done[0].est.method || '?') +
+      '</code>, bias applied <code>' +
+      done[0].est.biasApplied +
+      '</code> br/min. Reference: ResMed <code>Flow.40ms</code> @ ' +
+      fmt(A._const.FS_REF, 0) +
+      ' Hz. Epoch ' +
+      A._const.EPOCH +
+      ' s / window ' +
+      A._const.WIN +
+      ' s. Nights scored: <b>' +
+      corrected.length +
+      '</b>. Bias correction leave-one-night-out; CIs night-level bootstrap.';
+    status('done — ' + corrected.length + ' night(s), ' + ag.n.toLocaleString() + ' epochs', 'ok');
+  }
+
+  // ── wiring ─────────────────────────────────────────────────────────────
+  var drop = $('drop');
+  drop.addEventListener('click', function () {
+    $('folderInput').click();
+  });
+  $('folderInput').addEventListener('change', function (e) {
+    run(Array.prototype.slice.call(e.target.files));
+  });
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) {
+      e.preventDefault();
+      drop.classList.add('hot');
+    });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) {
+      e.preventDefault();
+      drop.classList.remove('hot');
+    });
+  });
+  drop.addEventListener('drop', async function (e) {
+    var items = e.dataTransfer.items,
+      files = [];
+    async function walk(entry, path) {
+      if (entry.isFile) {
+        await new Promise(function (res) {
+          entry.file(function (f) {
+            f.webkitRelativePath = path + '/' + f.name;
+            files.push(f);
+            res();
+          });
+        });
+      } else if (entry.isDirectory) {
+        var rd = entry.createReader();
+        var batch;
+        do {
+          batch = await new Promise(function (res) {
+            rd.readEntries(res);
+          });
+          for (var i = 0; i < batch.length; i++) await walk(batch[i], path + '/' + entry.name);
+        } while (batch.length);
+      }
+    }
+    var tasks = [];
+    for (var i = 0; i < items.length; i++) {
+      var en = items[i].webkitGetAsEntry && items[i].webkitGetAsEntry();
+      if (en) tasks.push(walk(en, ''));
+    }
+    await Promise.all(tasks);
+    run(files);
+  });
+})();
+
+</script>
+</body></html>

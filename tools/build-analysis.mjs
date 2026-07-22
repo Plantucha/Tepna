@@ -59,6 +59,7 @@ const TOOLS = [
   'odi-bias-analysis.html',
   'qrs-equiv-analysis.html',
   'qrs-yield-analysis.html',
+  'resp-acc-analysis.html',
   'sensor-trio-power-analysis.html',
   'sigma-no-reference-analysis.html',
   'treatment-response-analysis.html'

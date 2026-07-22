@@ -16,11 +16,11 @@
 <body>
 <div class="sheet">
   <a class="toplink" href="papers.html">← Tepna preprints</a>
-  <div class="banner">Tepna Working Preprint · not peer-reviewed · <b>DRAFT — analysis tool not yet ported (see §7)</b></div>
+  <div class="banner">Tepna Working Preprint · not peer-reviewed · <b>DRAFT — numbers pending full-corpus regeneration (see §7)</b></div>
   <h1 class="title">Overnight respiratory rate from a Polar H10 chest accelerometer during CPAP therapy: spectral ridge tracking with honest abstention, validated against 172 hours of device flow</h1>
   <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
   <p class="affil">MotionDex (inertial motion) node, Tepna physiological-signal suite</p>
-  <p class="meta">Draft v1 · July 2026 · Data class: <b>real-data, n-of-1</b> · Analysis tool: <code>resp-acc-analysis.html</code> <b>(NOT YET BUILT — §7)</b> · 100% local</p>
+  <p class="meta">Draft v1 · July 2026 · Data class: <b>real-data, n-of-1</b> · Analysis tool: <code>resp-acc-analysis.html</code> · 100% local</p>
 
   <div class="abstract">
     <h2>Abstract</h2>
@@ -89,7 +89,7 @@
 
   <h2 class="sec">6. Reproducibility</h2>
   <p>The estimator is dependency-free ES5, runs entirely in-browser, and processes 172 h of accelerometry in 4.5 s single-threaded. Its Butterworth design was verified against a reference implementation to machine precision (maximum impulse-response difference 5.3×10⁻¹⁶; passband magnitude ratio error 2.4×10⁻¹⁵), and the shipped implementation reproduces the prototype to MAE 0.130 brpm (r = 0.977, 95.3% of epochs within 0.5 brpm).</p>
-  <div class="callout" style="border:1px dashed #b00"><b>⛔ Blocking item.</b> Per the Tepna papers convention, every number above must regenerate from a named, local, unbundled analysis tool — <code>resp-acc-analysis.html</code>. That tool <b>does not yet exist</b>. This paper is a <b>DRAFT and is not submittable</b> until the port is complete. See <code>briefs/MOTIONDEX-RESPIRATORY-RATE-2026-07-21-BRIEF.md</code> §4.</div>
+  <div class="callout" style="border:1px dashed #b00"><b>⛔ Status of the reproducibility requirement.</b> <code>resp-acc-analysis.html</code> now exists and runs the shipped estimator; it reproduces the original harness on four spot-checked nights (clock offsets within 8 s, per-night MAE within 0.06 br/min). The full 26-night corpus has not yet been re-run through it, so this paper remains a <b>DRAFT</b>. See <code>briefs/MOTIONDEX-RESPIRATORY-RATE-2026-07-21-BRIEF.md</code> §4.</div>
 
   <h2 class="sec">7. References</h2>
   <div class="callout" style="font-size:13px"><b>Citation provenance.</b> <b>✓</b> = retrieved and verified directly by the author against the publisher record, including the specific quoted statistics. <b>△</b> = retrieved by automated literature agents with full text obtained, not independently re-verified. <b>✗</b> = full text never obtained; cited for concept only, never for a number.</div>

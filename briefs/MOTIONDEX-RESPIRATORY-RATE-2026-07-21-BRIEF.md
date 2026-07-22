@@ -161,8 +161,16 @@ Per `PAPERS-ROADMAP` §5.2 — *"No number without a tool that reproduces it"*:
 
 **Part (B) — the papers — NOT done. This is why the brief is IN-PROGRESS.**
 
-- [ ] **Port the harness to `resp-acc-analysis.html`** (§4). Until then all three drafts carry a
-      visible ⛔ banner and are not submittable. Single blocking item.
+- [x] **Port the harness to `resp-acc-analysis.html`** — DONE. Runs the *shipped*
+      `MOTIONDSP.respiratoryRate`, so it measures production code, not a twin. Verified against
+      the original harness on four nights: clock offsets within **8 s**, per-night MAE within
+      **0.06 br/min**. The port surfaced three defects that would each have silently corrupted
+      the clock lock, all now documented in-code: integer-decimation grid skew, double
+      band-pass filtering, and — the subtle one — deriving the sample rate from the
+      millisecond-quantised phone stamp instead of the Polar nanosecond counter (a 1.2% rate
+      error → ~18 s of skew over a 25 min chunk → locks off by tens of minutes).
+- [ ] **Re-run the full 26-night corpus end-to-end through the tool** so the papers' headline
+      figures trace to it rather than to the original harness. This is now the blocking item.
 - [ ] Figures regenerated into `papers/figures/`.
 - [ ] `papers/PAPERS-AUDIT.md` rows.
 - [ ] Follow-up brief spawned per the house pattern, carrying: the adversarial twin, the
