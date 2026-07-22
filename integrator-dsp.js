@@ -546,8 +546,13 @@ function adaptEnvelopeNode(json, node, filename) {
     // OXYDEX-PULSE-RESOURCING §Phase 2: surface the ring's SMOOTHED 1 Hz pulse HR (stats.meanHr) so
     // fusePulseCrossCheck can hold it up against a finger-PpgDex WAVEFORM HR. This is the DEVICE leg,
     // not the honest one — §5: the 1 Hz field is never ground truth, only the compared-against value.
-    // The OxyDex `.node-export.json` (current schema) reaches this generic normalizer; the legacy
-    // `_summary.json` array reaches adaptOxyDex, which sets the same field on its own summary.
+    // ⚠️ ROUTING (corrected — INTEGRATOR-OXYDEX-ADAPTER-GAP §4.1, verified on the real corpus): this
+    // branch is NOT the live OxyDex path. `normalizeFile` intercepts EVERY OxyDex shape at the
+    // `json.nights || json.desatProfile || json.hr_spikes || Array.isArray(json)` test and routes it to
+    // adaptOxyDex — the envelope always carries `nights` (oxydex-dsp.js:5604) and a bare single-night
+    // object always carries `hr_spikes` (:5733), so the predicate cannot miss. All 7 corpus exports
+    // (incl. the synthetic golden) take adaptOxyDex. Keep the two summaries RECONCILED anyway: this
+    // branch is the fallback for any future OxyDex-shaped payload that fails that predicate.
     summary.pulseHr1Hz = _dig(json, ['stats', 'meanHr']);
     // OXYDEX-PULSE-RESOURCING §Phase 3: the ring's own 1 Hz HRV PROXIES (bpm-DOMAIN — RMSSD/SD of the
     // pulse RATE, NOT RR intervals). fuseHrvResource carries them ALONGSIDE the finger-waveform ms-HRV
@@ -882,7 +887,17 @@ function adaptOxyDex(json, filename) {
       // OXYDEX-PULSE-RESOURCING §Phase 2: the O2Ring's 1 Hz firmware pulse — the SMOOTHED leg, exposed
       // for the finger-waveform-vs-device cross-check (fusePulseCrossCheck), never as ground truth.
       pulseHr1Hz: stats.meanHr != null && isFinite(stats.meanHr) ? stats.meanHr : null,
-      hypoxicBurden: n.hb ? n.hb.rate : null,
+      // OXYDEX-PULSE-RESOURCING §Phase 3 — RECONCILED here by INTEGRATOR-OXYDEX-ADAPTER-GAP §4.1. These
+      // were set ONLY in the generic normalizer, which no real OxyDex export reaches, so fuseHrvResource's
+      // `s.rmssd1Hz != null` guard could never pass and the ring's 1 Hz proxy leg was dead on all 7 corpus
+      // exports. bpm-DOMAIN (RMSSD/SD of the pulse RATE, not RR intervals) — carried ALONGSIDE the finger
+      // waveform ms-HRV, never averaged across the unit boundary. `hrv.hrSdnn` is hrVarSd.
+      rmssd1Hz: _dig(n, ['hrv', 'rmssd']),
+      hrVarSd1Hz: _dig(n, ['hrv', 'hrSdnn']),
+      // The EXPORTED night renames OxyDex's internal `hb` to `hypoxicBurden` (oxydex-dsp.js:5712), so
+      // reading `n.hb` here only ever matched OxyDex's in-process shape — every exported night yielded
+      // null. Prefer the exported key; keep `hb` as the fallback for an in-process night object.
+      hypoxicBurden: _dig(n, ['hypoxicBurden', 'rate']) != null ? _dig(n, ['hypoxicBurden', 'rate']) : _dig(n, ['hb', 'rate']),
       desatCount: events.filter(function (e) {
         return e.impulse === 'spo2_desaturation' || e.impulse === 'desat_event';
       }).length

@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3IsuIfcb6DKsRs2HNebyHs2EgvED9l/WDIaI4lJD9uE=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-LS4jnLimaZ44Q2plBvf245YiffrLy4UU/IGGtzyh22U=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-SN1Vzuwjy3Oz2lLf9tPqzpQJXuz2l3Lu7oLRK9cjWDo=' 'sha256-YpBLTPH6rBm7Vlmw7z/w69BHXIabbH51saaTxbfb0bc=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-o8RClO2aQgp6NW2hTmFArW0nBIcrs2NAgItaD0I6c9k=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3IsuIfcb6DKsRs2HNebyHs2EgvED9l/WDIaI4lJD9uE=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-LS4jnLimaZ44Q2plBvf245YiffrLy4UU/IGGtzyh22U=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-SN1Vzuwjy3Oz2lLf9tPqzpQJXuz2l3Lu7oLRK9cjWDo=' 'sha256-YpBLTPH6rBm7Vlmw7z/w69BHXIabbH51saaTxbfb0bc=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-tdJXYEXue060jc3pqVoU/hOY0LtLaPjVGxZ/BlVdK7I=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Integrator · Fusion Layer</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -5789,8 +5789,13 @@ function adaptEnvelopeNode(json, node, filename) {
     // OXYDEX-PULSE-RESOURCING §Phase 2: surface the ring's SMOOTHED 1 Hz pulse HR (stats.meanHr) so
     // fusePulseCrossCheck can hold it up against a finger-PpgDex WAVEFORM HR. This is the DEVICE leg,
     // not the honest one — §5: the 1 Hz field is never ground truth, only the compared-against value.
-    // The OxyDex `.node-export.json` (current schema) reaches this generic normalizer; the legacy
-    // `_summary.json` array reaches adaptOxyDex, which sets the same field on its own summary.
+    // ⚠️ ROUTING (corrected — INTEGRATOR-OXYDEX-ADAPTER-GAP §4.1, verified on the real corpus): this
+    // branch is NOT the live OxyDex path. `normalizeFile` intercepts EVERY OxyDex shape at the
+    // `json.nights || json.desatProfile || json.hr_spikes || Array.isArray(json)` test and routes it to
+    // adaptOxyDex — the envelope always carries `nights` (oxydex-dsp.js:5604) and a bare single-night
+    // object always carries `hr_spikes` (:5733), so the predicate cannot miss. All 7 corpus exports
+    // (incl. the synthetic golden) take adaptOxyDex. Keep the two summaries RECONCILED anyway: this
+    // branch is the fallback for any future OxyDex-shaped payload that fails that predicate.
     summary.pulseHr1Hz = _dig(json, ['stats', 'meanHr']);
     // OXYDEX-PULSE-RESOURCING §Phase 3: the ring's own 1 Hz HRV PROXIES (bpm-DOMAIN — RMSSD/SD of the
     // pulse RATE, NOT RR intervals). fuseHrvResource carries them ALONGSIDE the finger-waveform ms-HRV
@@ -6125,7 +6130,17 @@ function adaptOxyDex(json, filename) {
       // OXYDEX-PULSE-RESOURCING §Phase 2: the O2Ring's 1 Hz firmware pulse — the SMOOTHED leg, exposed
       // for the finger-waveform-vs-device cross-check (fusePulseCrossCheck), never as ground truth.
       pulseHr1Hz: stats.meanHr != null && isFinite(stats.meanHr) ? stats.meanHr : null,
-      hypoxicBurden: n.hb ? n.hb.rate : null,
+      // OXYDEX-PULSE-RESOURCING §Phase 3 — RECONCILED here by INTEGRATOR-OXYDEX-ADAPTER-GAP §4.1. These
+      // were set ONLY in the generic normalizer, which no real OxyDex export reaches, so fuseHrvResource's
+      // `s.rmssd1Hz != null` guard could never pass and the ring's 1 Hz proxy leg was dead on all 7 corpus
+      // exports. bpm-DOMAIN (RMSSD/SD of the pulse RATE, not RR intervals) — carried ALONGSIDE the finger
+      // waveform ms-HRV, never averaged across the unit boundary. `hrv.hrSdnn` is hrVarSd.
+      rmssd1Hz: _dig(n, ['hrv', 'rmssd']),
+      hrVarSd1Hz: _dig(n, ['hrv', 'hrSdnn']),
+      // The EXPORTED night renames OxyDex's internal `hb` to `hypoxicBurden` (oxydex-dsp.js:5712), so
+      // reading `n.hb` here only ever matched OxyDex's in-process shape — every exported night yielded
+      // null. Prefer the exported key; keep `hb` as the fallback for an in-process night object.
+      hypoxicBurden: _dig(n, ['hypoxicBurden', 'rate']) != null ? _dig(n, ['hypoxicBurden', 'rate']) : _dig(n, ['hb', 'rate']),
       desatCount: events.filter(function (e) {
         return e.impulse === 'spo2_desaturation' || e.impulse === 'desat_event';
       }).length
