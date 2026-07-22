@@ -38,6 +38,15 @@ wrist-vs-chest split (position/actigraphy prefer the chest sensor; effort is che
 not *differentiated*. A second committed synthetic with a DISTINCT chest stream (e.g. a lateral-position
 wrist + supine chest) would pin the source-selection logic. Adversarial-twin style, input-only.
 
+**✅ §4 EXECUTED 2026-07-21** — realized as a BEHAVIOR gate rather than a committed two-input equiv golden
+(the equiv harness feeds one input to both slots via `pairCommitted`; a distinct-stream golden needs
+two-input harness plumbing + a new fixture/provenance record — disproportionate for what is a
+source-selection assertion). The gate `motiondex-dsp · compute · source-selection` drives a SUPINE+STILL
+chest and a LATERAL+MOVING wrist through the real `compute()` and asserts the split directly: `position`
+is supine (⇒ read the chest, not the lateral wrist) AND `immobileFrac≈0` (⇒ actigraphy read the moving
+wrist, not the still chest) — a single-source impl cannot satisfy both, and a control that swaps the slots
+flips both. Node-lane gated (no browser dependency), test-only.
+
 ## 5 · The five Integrator-fusion derivation briefs are now UNBLOCKED
 MotionDex's export is the prerequisite `MULTI-SENSOR-DERIVATIONS-2026-07-16` §0 named. Its five IMU-dependent
 Tier-1/2 items (apnea typing · body-position OSA · sleep staging · RR fusion · motion-gated HRV) can now be
