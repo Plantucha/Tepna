@@ -96,6 +96,54 @@ def test_session_of_falls_back_when_the_stamp_is_not_a_real_datetime():
     assert nightqc._session_of("a_b_c_ECG.txt", 456.0) == 456.0
 
 
+def test_folder_date_helpers_reject_a_non_date_name(tmp_path):
+    # a folder whose basename is not YYYY-MM-DD (e.g. 'incoming') has no date → no prev-day, no midnight,
+    # and summarize simply skips the cross-midnight pooling.
+    d = str(tmp_path / "incoming"); os.makedirs(d)
+    assert nightqc._prev_day_dir(d) is None
+    assert nightqc._midnight_of(d) is None
+    s = nightqc.summarize(d, [])
+    assert s["night"] == "incoming" and s["missing"] == []
+
+
+def test_summarize_unifies_a_cross_midnight_session(tmp_path):
+    """A real overnight begins before midnight, so night_dir splits it across two date folders (each
+    connection rolls into a folder by its START date). Coverage must see the WHOLE session across both
+    folders — else a device that streamed cleanly across midnight reads as badly degraded (observed live
+    2026-07-21→22: H10 showed 37% though it captured ~95%)."""
+    from datetime import datetime as _dt
+    d21 = str(tmp_path / "2026-07-21"); os.makedirs(d21)
+    d22 = str(tmp_path / "2026-07-22"); os.makedirs(d22)
+    pre = _dt.strptime("20260721233000", "%Y%m%d%H%M%S").timestamp()    # 23:30 — pre-midnight connection
+    post = _dt.strptime("20260722001500", "%Y%m%d%H%M%S").timestamp()   # 00:15 — post-midnight reconnect
+    # pre-midnight HR (07-21 folder): 1800 rows over 30 min at 1 Hz
+    _utime(_cap(d21, "Polar_H10_02849638_20260721233000_HR.txt", 1800), pre + 1800)
+    # post-midnight HR (07-22 folder): 1500 rows over 25 min, still being written
+    _utime(_cap(d22, "Polar_H10_02849638_20260722001500_HR.txt", 1500), post + 1500)
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+    s = nightqc.summarize(d22, devs)                    # QC targets the current (07-22) folder
+    # session spans 23:30 → 00:40 ≈ 70 min; per-folder it would have been just the 25-min post half
+    assert s["span_sec"] > 3600                         # unified across midnight, not the 07-22 half (1500 s)
+    assert s["devices"][0]["streams"]["hr"] == 3300     # pre (1800) + post (1500) — one session
+    assert 0.7 < s["devices"][0]["coverage"]["hr"] <= 1.05  # ~full, not the deflated per-folder ~0
+    assert s["degraded"] == [] and s["missing"] == []
+
+
+def test_summarize_does_not_pool_a_mid_day_session(tmp_path):
+    """A session that started well after midnight must NOT drag in the previous day's folder (that would be
+    a needless full re-read and could unify unrelated sittings)."""
+    from datetime import datetime as _dt
+    d21 = str(tmp_path / "2026-07-21"); os.makedirs(d21)
+    d22 = str(tmp_path / "2026-07-22"); os.makedirs(d22)
+    y = _dt.strptime("20260721140000", "%Y%m%d%H%M%S").timestamp()      # yesterday afternoon
+    t = _dt.strptime("20260722140000", "%Y%m%d%H%M%S").timestamp()      # today 14:00 — NOT near midnight
+    _utime(_cap(d21, "Polar_H10_02849638_20260721140000_HR.txt", 9999), y + 1000)
+    _utime(_cap(d22, "Polar_H10_02849638_20260722140000_HR.txt", 2000), t + 2000)
+    s = nightqc.summarize(d22, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
+    assert s["span_sec"] == 2000                        # only today's 14:00 session; yesterday not pooled
+    assert s["devices"][0]["streams"]["hr"] == 2000     # yesterday's 9999 rows excluded
+
+
 def test_summarize_scopes_coverage_to_the_current_session(tmp_path):
     """A date folder can hold an earlier DAYTIME session AND tonight's — the box rolls a folder by the
     session's start date, so a box that ran all day piles both into one YYYY-MM-DD dir. Coverage must be
@@ -115,7 +163,7 @@ def test_summarize_scopes_coverage_to_the_current_session(tmp_path):
     h10 = s["devices"][0]
     assert h10["coverage"]["hr"] == 1.0                 # live stream reads full — not diluted to ~0 by daytime
     assert s["degraded"] == [] and s["ok"] is True
-    assert h10["streams"]["hr"] == 2500                 # folder-total rows still reported (day + evening)
+    assert h10["streams"]["hr"] == 2000                 # the CURRENT session's rows (the 500 daytime excluded)
 
 
 def test_summarize_flags_a_degraded_trickle(tmp_path):
