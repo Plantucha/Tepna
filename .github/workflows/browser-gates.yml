@@ -1,8 +1,35 @@
 name: browser-gates
 
-# Manual-only: heavy render-coverage gate. Run from the Actions tab when needed.
+# The heavy render-coverage gate: the ONLY lane that boots the shipped bundles. The Node suite
+# (tests.yml) runs the SOURCE modules and never loads a bundle; GATE A/B are hashes and prove a
+# bundle MATCHES its inputs, never that it WORKS. So a bundle that hashes correctly, whose source
+# is green, and that crashes on boot is invisible to every other lane.
+#
+# It was `workflow_dispatch:`-only until 2026-07-22, which meant nobody ran it: its last three runs
+# had all FAILED, the most recent on 2026-07-15, and it stayed red and unnoticed for a week. A gate
+# that only runs when someone remembers is not a gate. It now runs on every PR.
+#
+# ── Why paths-IGNORE (a denylist) and not paths (an allowlist) ──────────────────────────────────
+# Same reasoning as `computeHash`'s compute closure (CLAUDE.md §🔒): an allowlist that forgets a
+# path fails OPEN — the gate silently stops running for exactly the change that needed it — while a
+# denylist that forgets one merely runs the gate unnecessarily. We accept wasted minutes; we do not
+# accept a blind gate. Each ignored path below was CHECKED to feed no served artifact and no scanned
+# surface: `suite.manifest.json.authoritativeContext` (what llms-full.txt concatenates) is exactly
+# README/ORIENTATION/ARCHITECTURE-PRINCIPLES/docs-LEXICON/docs-WHY-THIS-EXISTS, and no-network.html
+# scans capture-host/*.py + the analysis surfaces — none of which live under briefs/ audits/ changes/.
+# Do NOT add `**/*.md` here: README.md IS concatenated into the served llms-full.txt.
 on:
+  pull_request:
+    paths-ignore:
+      - 'briefs/**'
+      - 'audits/**'
+      - 'changes/**'
   workflow_dispatch:
+
+# A 2-minute gate on a busy PR: keep only the newest run per ref.
+concurrency:
+  group: browser-gates-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   browser-gates:
