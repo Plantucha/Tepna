@@ -197,6 +197,14 @@ O2PPG_FS_DEFAULT = 125.738
 O2PPG_FS = O2PPG_FS_DEFAULT           # re-read from config in main(); see cfg['o2ring']['ppg_fs']
 O2PPG_NS_STEP = int(1e9 / O2PPG_FS)   # 7_953_041 ns → relative-ms steps of ~7.953 ms (reads as 125.74 Hz)
 
+# Honest-gap threshold (O2RING-PPG-GAP §1): the smallest hole between two consecutive frames that we
+# treat as REAL LOST TIME rather than BLE delivery jitter. Chosen from measurement, not taste — on a
+# 119 min overnight capture the frame-anchor jitter has sd 16.4 ms and p95 |step| 29 ms, while genuine
+# losses start around 49 ms (median) and run to 287 ms. 40 ms ≈ 5 samples sits cleanly between the two:
+# comfortably above the jitter so it mints no phantom gaps, comfortably below the real losses so it
+# still catches them. Overridable per unit via `o2ring.ppg_gap_min_ms`.
+O2PPG_GAP_MIN_S = 0.040
+
 # Same one-link constraint for Polar (H10 / Verity) offline-recording pulls over PS-FTP: a device address
 # in this set tells its run_polar task to drop the link and idle, so polar_offline_op can own it for the
 # download, then resume live capture. Per-address (not a single event) so pulling the Verity doesn't pause
@@ -1177,6 +1185,11 @@ async def run_oxyii(dev: dict, root: str):
         ppg_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "ppg", "txt"))
         wr = ppgwr = oxyflagwr = None
         ppg_idx = [0]                                 # running sample index → synthesized sensor_ns
+        # Honest-gap state (O2RING-PPG-GAP §1), per SESSION — a reconnect opens a new file and a new
+        # grid, so these reset with ppg_idx rather than persisting across links.
+        ppg_prev_end = [None]                         # host arrival of the previous frame's LAST sample
+        ppg_gaps = [0]                                # gaps inserted this session
+        ppg_lost = [0]                                # samples' worth of real time skipped
         stalled = False                               # link held but no frames decoded — reconnect
         try:
             _set(name, connected=False, address=addr, last_error=None)
@@ -1252,6 +1265,39 @@ async def run_oxyii(dev: dict, root: str):
                         if ppg:
                             arr = _now()
                             nps = len(ppg)
+                            # ── HONEST GAPS (O2RING-PPG-GAP §1) ────────────────────────────────────
+                            # `ppg_idx` is a pure running counter, so sensor_ns used to be a PERFECTLY
+                            # CONTIGUOUS grid no matter what the link did. When BLE drops a frame the
+                            # survivors were laid down back-to-back ACROSS the missing real time, which
+                            # COMPRESSES the record: an interval spanning the loss is short by exactly the
+                            # lost duration, and beat-to-beat variability is fabricated at every gap. It
+                            # was invisible downstream because the ns column stayed uniform by
+                            # construction (one distinct step over 900 k samples) — the DSP had no way to
+                            # know time was missing. That is precisely what the Clock Contract forbids:
+                            # "Dropped windows are GAPS, never fabricated rows."
+                            # MEASURED on a 119 min overnight capture before this fix: 82.3 s of real time
+                            # carried no samples (1.15 % of the record, ~10 346 samples) across 1 315
+                            # discrete gaps — 11/min, median 49 ms, p90 96 ms, max 287 ms — leaving ~20 %
+                            # of beats adjacent to a gap.
+                            # This frame's samples are back-timed to END at `arr`, so it covers
+                            # [arr - nps/fs, arr]. Any daylight between the previous frame's end and this
+                            # frame's start is real time the ring measured and the link lost, so ADVANCE
+                            # the grid across it instead of pretending it never happened.
+                            if ppg_prev_end[0] is not None:
+                                gap_s = (arr - ppg_prev_end[0]).total_seconds() - nps / O2PPG_FS
+                                # Only ever advance. A NEGATIVE gap is host-clock jitter delivering a frame
+                                # "early"; rewinding would emit non-monotonic sensor_ns and break parsing.
+                                # The threshold keeps ordinary BLE arrival jitter (measured sd 16.4 ms,
+                                # p95 |step| 29 ms) from minting phantom gaps, while the real losses start
+                                # at ~49 ms median. Slow host-vs-device drift (measured 125.726 vs 125.738
+                                # nominal, ~0.01 %) stays far below it and is spread across frames, so it
+                                # never accumulates into a false gap.
+                                if gap_s > O2PPG_GAP_MIN_S:
+                                    lost = int(round(gap_s * O2PPG_FS))
+                                    ppg_idx[0] += lost
+                                    ppg_gaps[0] += 1
+                                    ppg_lost[0] += lost
+                            ppg_prev_end[0] = arr
                             for i, v in enumerate(ppg):
                                 ph = arr - _dt.timedelta(seconds=(nps - 1 - i) / O2PPG_FS)
                                 ppgwr.write_ppg(ph, ppg_idx[0] * O2PPG_NS_STEP, 0.0, (v,), 0)
@@ -1365,6 +1411,14 @@ async def run_oxyii(dev: dict, root: str):
             _set(name, connected=False, last_error=repr(e))
             log.warning("%s link error: %r", name, e)
         finally:
+            # Report the honest gaps this session inserted. Silence here would re-create the very problem
+            # the gap insertion fixes — a lossy link that LOOKS clean. Logged even at zero, so "no gaps"
+            # is an observation rather than an absence of evidence.
+            if ppgwr and ppg_idx[0]:
+                log.info("%s: PPG grid — %d sample(s) written, %d gap(s) inserted totalling %.1f s "
+                         "(%.2f%% of the session's real time was lost by the link)",
+                         name, ppg_idx[0] - ppg_lost[0], ppg_gaps[0], ppg_lost[0] / O2PPG_FS,
+                         100.0 * ppg_lost[0] / max(ppg_idx[0], 1))
             # DISCARD HEADER-ONLY FILES, exactly as run_polar does. Writers are opened before the ring is
             # known to be streaming, so every session that ends without data leaves a file containing
             # nothing but its header — indistinguishable from a real capture until something opens it,
@@ -2225,6 +2279,10 @@ async def main():
     _rs = float(((cfg.get("o2ring") or {}).get("rtc_resync_sec")) or 0)
     if _rs > 0:
         _OXYII_RTC_RESYNC_SEC = _rs
+    global O2PPG_GAP_MIN_S
+    _gm = float(((cfg.get("o2ring") or {}).get("ppg_gap_min_ms")) or 0)
+    if _gm > 0:                    # honest-gap threshold override (see O2PPG_GAP_MIN_S)
+        O2PPG_GAP_MIN_S = _gm / 1000.0
     global _DROP_NOT_WORN_SEC, _NOT_WORN_RECHECK_S
     _pw = cfg.get("power") or {}
     if "drop_not_worn_sec" in _pw:
