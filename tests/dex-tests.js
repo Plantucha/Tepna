@@ -3862,6 +3862,57 @@
       'ratio=' + (hi == null ? 'null' : hi.toFixed(2)) + ' — if this is ~1 the residual is fixed: delete this assert and extend the range above');
   });
 
+  group('PpgDex time-discontinuity intervals — never measure across lost time (O2RING-PPG-GAP §2)', 'ppgdex-dsp', function (T) {
+    var D = env.PPGDSP;
+    if (!(D && typeof D.intervalsSpanningTimeGap === 'function' && typeof D.timeDomain === 'function')) {
+      T.ok('PPGDSP.intervalsSpanningTimeGap + timeDomain exported', false, 'export them from ppgdex-dsp.js');
+      return;
+    }
+    var fs = 125.738,
+      dt = 1 / fs;
+    // a contiguous grid — the shape of EVERY pre-fix capture and every Polar file
+    var n = 600,
+      relC = new Float64Array(n);
+    for (var i = 0; i < n; i++) relC[i] = i * dt;
+    // feet every ~60 samples => 9 intervals
+    var feet = [];
+    for (var k = 0; k * 60 + 30 < n; k++) feet.push(k * 60 + 30);
+    var contig = D.intervalsSpanningTimeGap(relC, fs, feet, feet.length - 1);
+    T.ok('contiguous grid ⇒ no interval flagged', contig.every(function (b) { return b === false; }),
+      'flagged ' + contig.filter(Boolean).length);
+
+    // same grid with a 0.5 s hole inserted after sample 200 (the honest-gap shape)
+    var relG = new Float64Array(n);
+    for (var j = 0; j < n; j++) relG[j] = j * dt + (j > 200 ? 0.5 : 0);
+    var gapped = D.intervalsSpanningTimeGap(relG, fs, feet, feet.length - 1);
+    T.ok('a 0.5 s hole flags exactly the interval straddling it', gapped.filter(Boolean).length === 1,
+      'flagged ' + gapped.filter(Boolean).length + ' — expected 1');
+    var idx = gapped.indexOf(true);
+    T.ok('…and it is the interval whose feet bracket the hole',
+      idx >= 0 && feet[idx] <= 200 && feet[idx + 1] >= 200,
+      'flagged interval ' + idx + ' feet=[' + feet[idx] + ',' + feet[idx + 1] + ']');
+
+    // the omit mask must remove a non-measurement from the WHOLE-RECORD dispersion, not just rMSSD
+    var nn = [1000, 1000, 1000, 5000, 1000, 1000, 1000];   // index 3 is a gap-spanning artifact
+    var omit = [false, false, false, true, false, false, false];
+    var withArtifact = D.timeDomain(nn, null, null);
+    var without = D.timeDomain(nn, null, omit);
+    T.ok('omitting a gap-spanning interval lowers SDNN', without.sdnn < withArtifact.sdnn,
+      'sdnn ' + withArtifact.sdnn.toFixed(1) + ' → ' + without.sdnn.toFixed(1));
+    T.ok('…and it is excluded from meanRR too', Math.abs(without.meanRR - 1000) < 1e-6,
+      'meanRR ' + without.meanRR.toFixed(1) + ' (expected 1000)');
+    // back-compat: absent mask ⇒ byte-identical to the pre-change signature
+    var legacy = D.timeDomain(nn, null);
+    T.ok('absent omit mask ⇒ unchanged behaviour (back-compat)',
+      legacy.sdnn === withArtifact.sdnn && legacy.meanRR === withArtifact.meanRR,
+      'legacy sdnn ' + legacy.sdnn + ' vs ' + withArtifact.sdnn);
+    // never let the omission empty the record
+    var allOmit = D.timeDomain(nn, null, nn.map(function () { return true; }));
+    T.ok('omitting everything falls back rather than returning NaN',
+      allOmit && isFinite(allOmit.sdnn) && isFinite(allOmit.meanRR),
+      JSON.stringify(allOmit && { sdnn: allOmit.sdnn, meanRR: allOmit.meanRR }));
+  });
+
   group('PpgDex finger site — single-channel parse, honest agreement, sentinel gaps (O2RING-FINGER-SITE)', 'ppgdex-dsp · ppgdex-registry', function (T) {
     var D = env.PPGDSP;
     var eq = env.equiv && env.equiv.ppgdex_finger;
