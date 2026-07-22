@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED — 2026-07-12 · **Created:** 2026-07-12 · **Feeds:** `audits/EFFICIENCY-AUDIT-PROMPT.md` (run this brief's §0 rule FIRST) · **Relates:** `audits/EFFICIENCY-AUDIT-FINDINGS-2026-07-01.md`
+**Status:** DONE — 2026-07-21 (§2 + §1a EXECUTED via `CI-SHARDING-2026-07-12-BRIEF.md` — `group()` skips execution for out-of-shard groups (`dex-tests.js:146`, `dexShardSelector`), union proven by `tests/verify-shard-union.mjs`, `tests` job ~4m→~1m; §3 RETRACTED (vm-realm profile artifact, `EFFICIENCY-AUDIT-FINDINGS-2026-07-12 §M1`); §4 measured + DISMISSED; **§1b decided: LEAVE `lombScargle` as-is** — recorded in Done-when below. Nothing new surfaced beyond what §4's dismissals + the retraction already record → no follow-up brief.) · **Created:** 2026-07-12 · **Feeds:** `audits/EFFICIENCY-AUDIT-PROMPT.md` (run this brief's §0 rule FIRST) · **Relates:** `audits/EFFICIENCY-AUDIT-FINDINGS-2026-07-01.md`
 
 # Profiled hot spots — the CI gate and the DSP, from CPU profiles rather than guesses
 
@@ -204,12 +204,33 @@ shipped DSP* per synthetic patient, which is the entire point of them.
 
 ---
 
+## §1b — DECISION (recorded 2026-07-21): LEAVE `lombScargle` as-is
+
+Optimise-or-leave on `lombScargle` (35 % of the pre-shard gate): **LEAVE.** The decision follows from
+this brief's own analysis + what §2/§1a already delivered:
+
+1. **The CI-cost motive is already gone.** §1a's sharding cut the `tests` job ~4 m → ~1 m by parallelising
+   across runners — the highest-value, zero-product-risk lever. Optimising `lombScargle`'s CPU further buys
+   little on a gate that already runs in ~1 min.
+2. **A bit-identical CPU speedup is not available cheaply.** `lombScargle` is inside a *gated* DSP
+   (`ecgdex-dsp.js`) with an equiv leg pinning `compute()` ≡ its committed export; the obvious speedups
+   (trig-recurrence / double-angle) all **re-associate floats**, moving published `f64` metric values and
+   reddening the gate.
+3. **A non-identical speedup is a METRIC decision, not a perf one** (same logic as §4's dismissed GPU/WGSL
+   note): it would change shipped `validated`-adjacent HRV-frequency values, which needs a deliberate
+   fixture-regeneration + owner sign-off, not a drive-by optimisation.
+
+**Revisit only** if a *browser/`vm.runInThisContext`* profile of the real product pipeline (not the vm-realm
+harness — §0/§3's lesson) shows `lombScargle` is a genuine product-path hotspot worth a metric-moving change.
+
 ## Done when
 
-- [ ] §2 — `DEX_SHARD="i/N"` skips execution inside `group()`; shard-union ≡ unsharded run (identical
-      test names + pass/fail); the wrong doc comment at `run-tests.mjs:34` corrected.
-- [ ] §1a — `tests` workflow sharded across a matrix; job wall time recorded before/after.
-- [ ] §3 — `mean(tmpl)` hoisted out of `beatSQI`'s per-beat loop; export byte-identical vs `origin/main`
-      on a real capture; all three bundles rebuilt under the bundle lock; gates green.
-- [ ] §1b — a decision recorded on `lombScargle`: optimise (and regenerate fixtures) or leave.
-- [ ] Follow-up brief spawned per CLAUDE.md, or a note here that nothing surfaced.
+- [x] §2 — `group()` skips execution for out-of-shard groups (`dex-tests.js:80` `dexShardSelector`, `:146`);
+      shard-union ≡ unsharded run, gated by `tests/verify-shard-union.mjs`; `--group`/`--shard` now filter the
+      **run**, not just the report. (via `CI-SHARDING-2026-07-12-BRIEF.md`, DONE)
+- [x] §1a — `tests` workflow sharded across a matrix; ~4 m05 s → ~1 m10 s recorded. (via CI-SHARDING)
+- [~] §3 — **RETRACTED, deliberately NOT implemented** — the `mean(tmpl)` hoist A/B'd at 1.015× (a vm-realm
+      profile artifact; `EFFICIENCY-AUDIT-FINDINGS-2026-07-12 §M1`). Not worth re-bundling three bundles.
+- [x] §1b — decision recorded above: **LEAVE** `lombScargle` as-is.
+- [x] Nothing new surfaced beyond §3's retraction + §4's dismissals → **no follow-up brief** (per CLAUDE.md
+      §📌, recorded here rather than spawning an empty one).
