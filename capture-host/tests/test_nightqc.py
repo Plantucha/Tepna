@@ -89,6 +89,35 @@ def _utime(p, t):
     os.utime(p, (t, t))
 
 
+def test_session_of_falls_back_when_the_stamp_is_not_a_real_datetime():
+    # a 14-digit run that is not a valid YYYYMMDDHHMMSS (month 99) → strptime raises → use the mtime
+    assert nightqc._session_of("Polar_H10_x_20269999000000_ECG.txt", 123.0) == 123.0
+    # no 14-digit stamp at all → mtime
+    assert nightqc._session_of("a_b_c_ECG.txt", 456.0) == 456.0
+
+
+def test_summarize_scopes_coverage_to_the_current_session(tmp_path):
+    """A date folder can hold an earlier DAYTIME session AND tonight's — the box rolls a folder by the
+    session's start date, so a box that ran all day piles both into one YYYY-MM-DD dir. Coverage must be
+    judged against the CURRENT session's span, not the ~20 h folder spread — else a stream streaming
+    perfectly right now reads as 0% degraded (observed live 2026-07-21, the bug this fixes)."""
+    from datetime import datetime as _dt
+    night = str(tmp_path / "2026-07-21"); os.makedirs(night)
+    day_start = _dt.strptime("20260721000023", "%Y%m%d%H%M%S").timestamp()   # 00:00 — a daytime session
+    eve_start = _dt.strptime("20260721194615", "%Y%m%d%H%M%S").timestamp()   # 19:46 — tonight's session
+    # daytime HR: a little data, last written ~15 min into that long-gone session
+    _utime(_cap(night, "Polar_H10_02849638_20260721000023_HR.txt", 500), day_start + 900)
+    # evening HR: 1 Hz for 2000 s = full rate, still being written now
+    _utime(_cap(night, "Polar_H10_02849638_20260721194615_HR.txt", 2000), eve_start + 2000)
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+    s = nightqc.summarize(night, devs)
+    assert s["span_sec"] == 2000                        # the EVENING session, NOT ~71000 s (19.7 h)
+    h10 = s["devices"][0]
+    assert h10["coverage"]["hr"] == 1.0                 # live stream reads full — not diluted to ~0 by daytime
+    assert s["degraded"] == [] and s["ok"] is True
+    assert h10["streams"]["hr"] == 2500                 # folder-total rows still reported (day + evening)
+
+
 def test_summarize_flags_a_degraded_trickle(tmp_path):
     """A stream that produced data but only a fraction of its rate — the Verity IMU at ~40%, a stream that
     died at hour one — is `degraded`, not a green `ok`. Coverage is delivered rows vs rate × span."""

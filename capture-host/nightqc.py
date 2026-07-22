@@ -12,11 +12,35 @@
 from __future__ import annotations
 
 import os
+import re
+from datetime import datetime
 
 # Sidecars the box writes that are NOT a device capture stream — excluded from the per-device rollup so a
 # LINK/CLOCK/QC file never masquerades as sensor data.
 _SIDECAR_TAGS = {"LINK", "CLOCK", "OXYFRAME"}
 _SUMMARY_NAME = "QC-SUMMARY.json"
+
+# A gap this long between two capture SESSIONS starts a new one, so coverage is judged against the CURRENT
+# session's span, not the whole date folder. A date dir rolls by the session's START date (writers.night_dir),
+# so a box that ran all day piles the daytime tests AND the evening's sleep session into one YYYY-MM-DD dir —
+# and measuring a stream that is streaming perfectly RIGHT NOW against that ~19 h wall-clock span reads it as
+# ~0 % (a false 'degraded', the very inversion of the false-confidence bug coverage exists to catch). One hour
+# comfortably spans reconnect churn / a bathroom break (kept in one session) but splits a genuine new sitting.
+_SESSION_GAP_SEC = 3600.0
+_STAMP_RE = re.compile(r"_(\d{14})_")
+
+
+def _session_of(fname: str, mtime: float) -> float:
+    """The capture SESSION a file belongs to, as an epoch — the `_YYYYMMDDHHMMSS_` START stamp
+    writers.capture_filename() embeds (the instant the connection opened). Falls back to the file's mtime
+    when the name carries no such stamp, so a legacy/stampless file is simply its own one-file session."""
+    m = _STAMP_RE.search(fname)
+    if m:
+        try:
+            return datetime.strptime(m.group(1), "%Y%m%d%H%M%S").timestamp()
+        except ValueError:
+            pass                                       # a 14-digit run that is not a real datetime → mtime
+    return mtime
 
 # NOMINAL sample rate (Hz) per (model, stream) — the honest denominator for a coverage figure. Mirrors the
 # rates in webmon's _BPS_BY_MODEL (the second tuple element); duplicated rather than imported because
@@ -100,26 +124,39 @@ def scan_night(night_dir: str) -> list[dict]:
         tag, _ext = parsed
         st = os.stat(path)
         out.append({"file": n, "stream": tag, "rows": count_rows(path),
-                    "bytes": st.st_size, "mtime": st.st_mtime})
+                    "bytes": st.st_size, "mtime": st.st_mtime,
+                    "session": _session_of(n, st.st_mtime)})
     return out
 
 
 def summarize(night_dir: str, devices: list[dict]) -> dict:
     """Roll a night's files up against the configured devices. For each device × declared stream, sum the
     rows of the files carrying that device_id and stream tag; a declared stream with zero rows is
-    `missing`. Beyond that bare presence test, estimate each stream's COVERAGE — delivered rows vs the
-    rows its (configured or nominal) rate would produce over the night's span — so a stream that merely
-    TRICKLES (the Verity IMU at ~40% of nominal, a stream that died at hour one) shows up `degraded`
-    instead of hiding behind a green `ok`. Coverage is an estimate: the span comes from file mtimes
-    (newest − oldest data file), so it is deliberately coarse and unknown until _MIN_SPAN_SEC has elapsed.
+    `missing`. Beyond that bare presence test, estimate each stream's COVERAGE — the CURRENT session's
+    delivered rows vs the rows its (configured or nominal) rate would produce over that session's span — so
+    a stream that merely TRICKLES (the Verity IMU at ~40% of nominal, a stream that died at hour one) shows
+    up `degraded` instead of hiding behind a green `ok`. Coverage is scoped to the current session (see
+    _SESSION_GAP_SEC), NOT the whole date folder, so a box that also ran earlier the same day does not read
+    a live stream as 0%. It is an estimate and unknown until _MIN_SPAN_SEC of the session has elapsed.
     `ok` is true only when every declared stream produced data AND none is degraded."""
     scanned = scan_night(night_dir)
     data = [f for f in scanned if f["stream"] not in _SIDECAR_TAGS]
-    # Span of the capture, estimated from when files were last touched: the newest data file is being
-    # written ~now, the oldest was opened at session start. None (→ coverage unknown) until there is a
-    # meaningful, judge-able span.
-    span = (max(f["mtime"] for f in data) - min(f["mtime"] for f in data)) if data else 0.0
-    span = span if span >= _MIN_SPAN_SEC else None
+    # Isolate the CURRENT capture session: sort the distinct session-start stamps and take everything from
+    # the last start preceded by a gap wider than _SESSION_GAP_SEC. `session_start` is when that session's
+    # first connection opened (the filename stamp); the newest mtime among its files is ~now. So `span` is
+    # the current session's ELAPSED time, NOT the wall-clock spread of a folder that also holds a separate
+    # daytime session. None (coverage unknown) until a meaningful, judge-able span has accrued.
+    current = data
+    span = None
+    if data:
+        starts = sorted({f["session"] for f in data})
+        session_start = starts[0]
+        for a, b in zip(starts, starts[1:]):
+            if b - a > _SESSION_GAP_SEC:
+                session_start = b                      # a gap here → the current session starts no earlier
+        current = [f for f in data if f["session"] >= session_start]
+        span = max(f["mtime"] for f in current) - session_start
+        span = span if span >= _MIN_SPAN_SEC else None
     per_device = []
     missing = []
     degraded = []
@@ -132,13 +169,18 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
             tag = s.upper()
             rows = sum(f["rows"] for f in scanned
                        if did and did in f["file"] and f["stream"] == tag)
-            streams[s] = rows
+            streams[s] = rows                          # rows is folder-wide: 0 means captured NOTHING all day
             if rows == 0:
                 missing.append(f"{name}:{s}")
                 continue
             hz = _expected_hz(d, s)
             if hz and span:
-                cov = round(rows / (hz * span), 2)
+                # Coverage numerator is the CURRENT SESSION's rows (not the folder total), matched to the
+                # current-session span above — so an earlier daytime session's rows never dilute or inflate
+                # tonight's figure.
+                srows = sum(f["rows"] for f in current
+                            if did and did in f["file"] and f["stream"] == tag)
+                cov = round(srows / (hz * span), 2)
                 coverage[s] = cov
                 if cov < _DEGRADED_BELOW:
                     degraded.append(f"{name}:{s} {int(cov * 100)}%")
