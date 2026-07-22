@@ -186,6 +186,24 @@ for (const t of metaTargets) {
     if (CHECK) log.stale.push('docs/' + t.rel);
   }
 }
+// A visible, current-version footer stamped into every SERVED page (docs/ only — never the root source
+// bundles, whose version-in-bundle stamping stays deferred per CLAUDE.md §📦, since a string in a bundle
+// would move its file bytes and force an all-app re-bundle each release). Applied inside syncPage's
+// deploy transform, so `docs/ == delink(root) + footer` and `--check` stays consistent; the deploy-drift
+// gate then enforces currency for free (bump the version without re-running build-docs → stale footer →
+// red). Idempotent: an existing badge is REPLACED, never duplicated. CSP-safe (inline style is permitted;
+// there is no script), pointer-events:none so it never covers a control.
+const _VER_FOOTER_RE = /\n?<div data-tepna-ver\b[^>]*>[\s\S]*?<\/div>(?=\s*<\/body>)/i;
+function withFooter(html) {
+  const badge =
+    `\n<div data-tepna-ver style="position:fixed;right:6px;bottom:4px;z-index:2147483000;` +
+    `font:400 10px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:#7a8699;opacity:.45;` +
+    `pointer-events:none;user-select:none" title="Tepna suite version">v${manifest.version}</div>`;
+  if (_VER_FOOTER_RE.test(html)) return html.replace(_VER_FOOTER_RE, badge);
+  if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, badge + '\n</body>');
+  return html; // a fragment with no </body> — nothing to anchor to, leave it
+}
+
 function syncPage(rel) {
   const rootAbs = join(ROOT, rel);
   const docsAbs = join(DEPLOY, rel);
@@ -205,9 +223,14 @@ function syncPage(rel) {
     if (mechanicalDelink(root, dir) !== cur && CHECK) {
       /* editorial divergence is expected; not counted stale */
     }
+    const stamped = withFooter(cur); // the version footer still applies to a preserved twin
+    if (stamped !== cur) {
+      if (CHECK) log.stale.push('docs/' + rel);
+      else writeFileSync(docsAbs, stamped);
+    }
     return;
   }
-  desired = hasNonPublic(root, dir) ? mechanicalDelink(root, dir) : root;
+  desired = withFooter(hasNonPublic(root, dir) ? mechanicalDelink(root, dir) : root);
   const cur = existsSync(docsAbs) ? readFileSync(docsAbs, 'utf8') : null;
   const kind = desired === root ? log.copy : log.delink;
   if (cur !== desired) {
