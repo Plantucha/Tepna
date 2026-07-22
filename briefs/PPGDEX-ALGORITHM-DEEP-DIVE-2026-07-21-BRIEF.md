@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-21
+**Status:** IN-PROGRESS — 2026-07-21 (**§4 #4 row-atomic column validation and #12 the hardware comment are EXECUTED**; **#3 WITHDRAWN** — verified already fixed by DEEP-AUDIT-II §8.1 before implementing. Remaining items unexecuted.) · **Created:** 2026-07-21
 
 # PpgDex optical algorithm — deep dive, ECG-validated baseline, and the ranked change list
 
@@ -252,7 +252,7 @@ Ordered by gain ÷ cost. **★ = do first.** Sites are `ppgdex-dsp.js` unless st
 |---|---|---|---|---|---|
 | **1 ★** | **Odd-reflected padding in `filtfilt`** (PAD = 3·fs/f_hp) + subtract record median. Currently there is **no padding at all** (`return reverse(applyBiquad(reverse(applyBiquad(x,c)),c))`). | `:142-144` | Repairs five surfaced numbers at once: terminal spurious beat 2→0; `orient` skew 65×→1×; `std(bp)` 6.18×→1×; `channelSNR` 2.92→10.9–21.0; first-window cadence 33.6→52 bpm | **Moves every fixture**; `env.equiv` PPG leg reds by design. Interior samples change <1e−6 | Very high |
 | **2 ★** | **`buildPPI` gap flag; `correctRR` EXCLUDES, never fills.** Today rejected intervals are replaced by a running median of the last 7 accepted — a fabricated value that then flows into `nn`, SDNN, LF/HF, DFA-α1, SampEn, CVHR, epochs and `contentId`. | `:1116`, `:1149-1153`, `:1917`, `:2116` | At the file's own 28.8 % correction rate, ~29 % of the exported series stops being a constant. DFA-α1 falls and SampEn rises on degraded nights — that is the bias being removed | Low on clean data; large and *correct* on degraded | Very high |
-| **3 ★** | **Multi-session export shape fix** — emits `multiSession`/`sessions[]`, the Integrator guard expects `multiNight`/`nights[]`, so **every PpgDex multi-session event is silently dropped**. | `ppgdex-app.js:1006` | Severity A: restores a whole event class | None | Very high |
+| ~~3~~ | ~~Multi-session export shape fix~~ — **WITHDRAWN 2026-07-21, the claim was stale.** `integrator-dsp.js` already carries a `MULTI_CARRIERS` table matching all three fleet spellings (`nights`/`multiNight`, `recordings`/`multiRecording`, `sessions`/`multiSession`); DEEP-AUDIT-II §8.1 fixed exactly this bug. Verified in source before implementing. **No action.** | — | none | — | — |
 | 4 | **`isFinite` on ch1/ch2/amb, row-atomic drop** | `:269-278` | Closes a silent 3-LED→2-LED degradation that reports `ledAgreementPct: 67`, zero peaks, and no error | None; byte-inert on clean captures | Very high |
 | 5 | **ACC: per-file fs, sensor-ns join, overlap assert** | `:1811` | Removes a 2× rate error (25.84 vs assumed 52 Hz) and a 3.5–4.2 s (~600-sample) motion-gate misregistration | Low; motion gates shift where they were wrong | Very high |
 | 6 | **Whole-night channel scoring (p25 aggregate), still one fixed reference** — replaces the single ~90 s mid-record window that currently decides for the whole night | `:380-435` | Removes a 1-in-85 single-point-of-failure; changes the pick on 2 of 8 nights | Reference identity changes ⇒ downstream moves on those nights. **Land separately from #1** | High |
@@ -264,7 +264,7 @@ Ordered by gain ÷ cost. **★ = do first.** Sites are `ppgdex-dsp.js` unless st
 | 12 | **Fix the `:161` comment** — it says *"three co-located photodiodes"*; it is **one** photodiode and three LED pairs, and the site is the upper arm, not the wrist | `:161` | Documentation correctness (§1.1) | None | Very high |
 
 **Landing order** (one gated change at a time per `CLAUDE.md` §👥.3):
-`4 → 3 → 12 → 8 → 1 → 6 → 7 → 2 → 10 → 5 → 11 → [9 experiment]`
+`4 ✅ → 12 ✅ → 8 → 1 → 6 → 7 → 2 → 10 → 5 → 11 → [9 experiment]` *(#3 withdrawn; #4 and #12 SHIPPED 2026-07-21, mutation-verified both directions, real-corpus equiv leg reproduces byte-identical)*
 
 ---
 
