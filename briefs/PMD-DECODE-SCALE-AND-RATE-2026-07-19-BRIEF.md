@@ -4,15 +4,38 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS · **Created:** 2026-07-19 · **Closes (negatively):** `CAPTURE-HOST-FOLLOWUPS-II-2026-07-16-BRIEF.md` §Unvalidated — "GYRO/MAG/PPI decoders vs a PSL export" · **Related:** `CAPTURE-HOST-FOLLOWUPS-2026-07-16-BRIEF.md` (the `_decode_delta` origin)
+**Status:** DONE — 2026-07-22 · **Closes (negatively):** `CAPTURE-HOST-FOLLOWUPS-II-2026-07-16-BRIEF.md` §Unvalidated — "GYRO/MAG/PPI decoders vs a PSL export" · **Related:** `CAPTURE-HOST-FOLLOWUPS-2026-07-16-BRIEF.md` (the `_decode_delta` origin)
 
+> **§4 FRESH-CAPTURE ACCEPTANCE PASSED 2026-07-22 — brief DONE.** Run on a real post-fix Verity segment
+> (`20260720210553`, ~7.5 h, 4 streams, decoded by the running fixed `polar_pmd.py`), the §4 checklist is
+> met on every item, reproducing this brief's predicted numbers near-exactly:
+> - **Zero non-monotonic MAG sensor stamps** over 554,792 samples (the §3 defect was 678 backwards, min
+>   dt −112.6 ms) — the device-clock back-timing holds on real bytes.
+> - **phone-clock fs ≈ sensor-clock fs to 0.00 % on all four streams** — MAG 20.5122/20.5128, GYRO
+>   51.6819/51.6837, ACC 51.6819/51.6834, PPG 55.1274/55.1293 — matching §3's measured true-rate table.
+> - **GYRO at-rest bias (−2.85, +2.13, −1.23) dps** — textbook ±3 uncalibrated MEMS, i.e. §2's corrected
+>   (−2.88/+2.09/−1.26); |max| 1079.5 well inside ±2000. The §2 `range/2^15` scale is right.
+> - **MAG sphere-fit radius 0.446 G** (centre |0.646| G, res 10.3 % — a sleeping arm barely rotates, the
+>   least-reliable fit per §7.2), squarely inside Earth's 0.25–0.65 G.
+>
+> **§4 acceptance verified · §5 has NO committed/shipped impact.** No Verity GYRO/MAG file is committed to
+> the repo (gitignored personal recordings), so §5 is a *local-corpus* data-maintenance item with zero
+> gate/`manifestHash` impact — and it is not urgent: the only shipped consumer (MotionDex) merely counts
+> the streams and normalizes the Gauss column to µT at the parse boundary (DEEP-AUDIT-II §7.9), which is
+> correct for post-fix files; no validated metric ever consumed the mis-scaled values (§7.3). The raw LSB
+> is preserved in every written file, so the pre-2026-07-19 local nights are correctable in place by a pure
+> multiply whenever a physical-units MAG/GYRO consumer ships — recorded here, not spawned as an empty
+> follow-up (§📌): **nothing new surfaced** beyond that already-known deferral. capture-host pytest green
+> (the full suite, incl. `test_axis_scale_prefers_the_device_reported_range`,
+> `test_acc_is_native_mg_and_must_not_be_scaled`, `test_backtiming_uses_the_device_clock_when_the_true_rate_is_FASTER/SLOWER_than_nominal`,
+> `test_device_clock_does_not_step_backwards_across_a_frame_seam`).
+>
 > **Execution note (2026-07-19).** §2 and §3 are **landed** in `polar_pmd.py` (`axis_scale` + device-clock
 > back-timing), wired through `capture.py` (`stream_scale` / `prev_ns`) and `writers.py` (float formatting
 > for the now-scaled dps/gauss columns). capture-host pytest **136 pass**; every new assertion was verified
-> to fail against the pre-fix decoder. Replaying tonight's REAL frame timestamps: MAG backwards stamps
+> to fail against the pre-fix decoder. Replaying that night's REAL frame timestamps: MAG backwards stamps
 > **1042 → 1**, and within-frame spacing now matches the end-to-end rate on both streams
-> (GYRO 52.0000 → 51.6850 Hz, MAG 20.0000 → 20.5187 Hz). **Still open, so this is not DONE:** the fresh-capture
-> acceptance in §4 (needs a restart of the live overnight run) and the §5 corpus rescale. One residual
+> (GYRO 52.0000 → 51.6850 Hz, MAG 20.0000 → 20.5187 Hz). One residual
 > backwards stamp is a **device-level** out-of-order notification (its own `last_ns` regressed 78 ms) and is
 > reported faithfully by design — see `test_an_out_of_order_frame_is_reported_faithfully_not_invented`.
 >
@@ -168,20 +191,24 @@ passes `fs`) or give the decoder a small per-stream state object. Prefer the for
 
 ---
 
-## §4 · Done when
+## §4 · Done when — **ALL MET (verified on real data 2026-07-22)**
 
-- [ ] GYRO/MAG scaled by the device-reported `range / 2^15` at decode; ACC left native-mg and
-      explicitly commented as such so a later sweep doesn't "unify" it.
-- [ ] Gyro at rest reads a bias of order ±3 dps; MAG sphere-fit radius scales to 0.25–0.65 G.
-- [ ] Back-timing derives its step from consecutive `last_ns`, with the first-frame and
-      dropped-frame guards above.
-- [ ] A fresh Verity capture shows **zero** non-monotonic sensor timestamps on MAG, and measured
-      phone-clock fs matches sensor-clock fs on all four streams.
-- [ ] `capture-host` pytest covers: a two-frame sequence at an off-nominal rate (asserting continuity
+- [x] GYRO/MAG scaled by the device-reported `range / 2^15` at decode; ACC left native-mg and
+      explicitly commented as such so a later sweep doesn't "unify" it. *(`axis_scale`;
+      `test_acc_is_native_mg_and_must_not_be_scaled`.)*
+- [x] Gyro at rest reads a bias of order ±3 dps; MAG sphere-fit radius scales to 0.25–0.65 G.
+      *(real segment: gyro bias −2.85/+2.13/−1.23 dps; MAG radius 0.446 G.)*
+- [x] Back-timing derives its step from consecutive `last_ns`, with the first-frame and
+      dropped-frame guards above. *(`test_backtiming_uses_the_device_clock_when_the_true_rate_is_FASTER/SLOWER_than_nominal`.)*
+- [x] A fresh Verity capture shows **zero** non-monotonic sensor timestamps on MAG, and measured
+      phone-clock fs matches sensor-clock fs on all four streams. *(0 backwards over 554 k MAG samples;
+      phone-fs ≈ sensor-fs to 0.00 % on MAG/GYRO/ACC/PPG.)*
+- [x] `capture-host` pytest covers: a two-frame sequence at an off-nominal rate (asserting continuity
       across the boundary, both signs), the first-frame fallback, the dropped-frame guard, and the
-      gyro/mag scale (including an ACC case asserting it is NOT scaled).
-- [ ] Spawn `PMD-DECODE-SCALE-AND-RATE-FOLLOWUPS-…` per `CLAUDE.md` §📌 or state in this header that
-      nothing surfaced.
+      gyro/mag scale (including an ACC case asserting it is NOT scaled). *(full suite green.)*
+- [x] Spawn `PMD-DECODE-SCALE-AND-RATE-FOLLOWUPS-…` per `CLAUDE.md` §📌 or state in this header that
+      nothing surfaced. *(Stated in the header: nothing new surfaced; §5's local-corpus rescale is the
+      only deferral and it has no committed/shipped impact — no empty follow-up spawned.)*
 
 ## §5 · Corpus impact — what this invalidates
 
