@@ -673,9 +673,32 @@ function _motionEffortSeries(json, t0Ms) {
    RUN-LENGTH encoding (a position holds until the next change), which is why it must be expanded here
    rather than exported densely: the step form is compact on the bus, and `posAt()` downstream matches on
    NEAREST-sample-within-10-min, which would miss a position that legitimately held for hours.
-   Hold-last-value from each change to the next, bounded by the recording duration. */
+   Hold-last-value from each change up to a bounded MAX-HOLD horizon (NOT to the recording end).
+
+   TRI-STATE PARITY (audit B·3a — a sensor-off gap must not fabricate a posture). MotionDex exports
+   posture as sparse run-length `posture_change` events and DELIBERATELY drops 'unknown'/gap epochs, so
+   the bus carries NO gap marker — a position that genuinely held for hours and a sensor-off gap AFTER
+   that position are INDISTINGUISHABLE here (both are just "no further posture_change"). The old code
+   hold-last-value-expanded the final transition all the way to t0Ms+durSec*1000, so a single early
+   snapshot fabricated a whole night's posture; posAt() (nearest-within-10-min) then always found that
+   fabricated value and positionalApnea() counted the apnea as supine/nonsupine — a MANUFACTURED clinical
+   finding. Cap the hold at _MOTION_POS_MAX_HOLD_MS and emit NO sample beyond it, so during an un-held span
+   posAt() finds nothing within its window → positionalApnea() takes its unknown++ path (leaving the
+   supine/nonsupine DENOMINATOR), matching how _motionEffortSeries.present / _motionActivitySeries.moving
+   drop a null gap epoch from their consumers' denominators. This is the Integrator-side stopgap; the real
+   fix (MotionDex emitting an explicit gap/'unknown' marker on the bus) lives in motiondex-dsp.js.
+
+   MAX-HOLD = 60 min. It must be long enough to preserve a legitimate run-length hold between two real
+   posture transitions (position shifts in sleep occur ~1–3×/h, i.e. a mean inter-shift interval of
+   ~20–60 min, with the longest stable supine stretches reaching an hour) yet short enough that a single
+   unrefreshed snapshot is never projected across a multi-hour span where a dropped-gap export is at least
+   as consistent with sensor-off as with a genuine hold. One hour is the upper end of the normal inter-shift
+   distribution: within it we still hold-last-value (as MotionDex's run-length encoding intends); beyond it
+   the leg abstains rather than invent a posture. _ecgPostureSeries (chest strap, higher §1.2 priority) is
+   unaffected — it pushes only REAL samples and so already returns null during gaps. */
 var _MOTION_POS_CAD_MS = 60000; // expansion cadence — well inside posAt()'s 10-min match window
 var _MOTION_POS_MAX = 5000; // hard cap so a pathological export can't blow up memory
+var _MOTION_POS_MAX_HOLD_MS = 3600000; // 60 min — max span a single posture snapshot is trusted without a refresh
 function _motionPostureSeries(json, t0Ms) {
   var evs = (json && (json.ganglior_events || json.events)) || [];
   var steps = [];
@@ -690,12 +713,13 @@ function _motionPostureSeries(json, t0Ms) {
   steps.sort(function (a, b) {
     return a.tMs - b.tMs;
   });
-  var durSec = (json.recording && json.recording.durSec) || null;
-  var endMs = durSec != null && t0Ms != null ? t0Ms + durSec * 1000 : steps[steps.length - 1].tMs + _MOTION_POS_CAD_MS;
   var out = [];
   for (i = 0; i < steps.length && out.length < _MOTION_POS_MAX; i++) {
     var from = steps[i].tMs,
-      to = i + 1 < steps.length ? steps[i + 1].tMs : Math.max(endMs, from + _MOTION_POS_CAD_MS);
+      next = i + 1 < steps.length ? steps[i + 1].tMs : Infinity,
+      // Hold last value only up to the max-hold horizon — never across a longer gap (or to durSec end),
+      // where the dropped-gap export can no longer be distinguished from the sensor being off.
+      to = Math.min(next, from + _MOTION_POS_MAX_HOLD_MS);
     for (var t = from; t < to && out.length < _MOTION_POS_MAX; t += _MOTION_POS_CAD_MS) out.push({ tMs: t, pos: steps[i].pos });
   }
   return out;
