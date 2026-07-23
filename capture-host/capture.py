@@ -362,7 +362,7 @@ async def _connect_scan(addr: str, name_hints=_O2_NAME_HINTS, timeout: float = 1
     device = await _BS.find_device_by_filter(
         lambda d, adv: d.address.upper() == addr.upper()
         or any(h in ((adv.local_name or d.name or "").lower()) for h in name_hints),
-        timeout=timeout, **akw)
+        timeout=timeout, scanning_mode="passive", **akw)   # passive: listen, don't transmit scan reqs
     if device is None:
         raise _NotFound(addr, "O2Ring not advertising (wear it finger-in + close the phone app)")
     client = _BC(device, **akw)
@@ -1696,6 +1696,35 @@ async def sync_device_time(address: str) -> dict:
             "host": host.isoformat(), "skew_sec": round(skew, 1) if skew is not None else None}
 
 
+async def _adapter_cmd(cmd: list) -> bool:
+    """Run a recovery command (hciconfig reset / btmgmt), bounded, never raising. True on success."""
+    try:
+        p = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.DEVNULL,
+                                                 stderr=asyncio.subprocess.DEVNULL)
+        rc = await asyncio.wait_for(p.wait(), timeout=8)
+        if rc == 0:
+            log.warning("watchdog: recovery: ran %s", " ".join(cmd)); return True
+        log.info("watchdog: recovery: %s exited %s", " ".join(cmd), rc)
+    except Exception as e:
+        log.info("watchdog: recovery: %s skipped (%r)", " ".join(cmd), e)
+    return False
+
+
+async def _usb_rebind(dev_id: str) -> bool:
+    """Re-enumerate the USB dongle by unbind+bind (VIGIL-DEEP-ANALYSIS §2D) — the ONLY thing that clears an
+    RTL8761B FIRMWARE hang a soft `power off/on` leaves "powered but deaf". `dev_id` is the USB bus-port id
+    (e.g. `3-1`, from `ls /sys/bus/usb/devices/`). Bounded, never raises. Needs write to /sys (the unit's
+    CAP). Off by default — only runs when `watchdog.usb_path` names the dongle."""
+    for action in ("unbind", "bind"):
+        try:
+            with open(os.path.join("/sys/bus/usb/drivers/usb", action), "w") as f:
+                f.write(dev_id)
+            await asyncio.sleep(1.5)
+        except Exception as e:
+            log.info("watchdog: recovery: USB %s %s skipped (%r)", action, dev_id, e); return False
+    log.warning("watchdog: recovery: USB re-bound %s — dongle re-enumerated", dev_id); return True
+
+
 async def adapter_watchdog(adapter_mac, cfg: dict):
     """Detect a WEDGED BLE adapter (all worn sensors unreachable though the radio is up — the frozen-
     monitor failure) and auto-recover, WITHOUT reacting to the benign 'sensors simply not worn' state.
@@ -1768,6 +1797,15 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                 await asyncio.sleep(2)
                 await bonding._btctl(f"{sel}power on\nquit\n", timeout=8)
                 await asyncio.sleep(3)
+                # A soft power off/on does not clear an RTL8761B firmware hang — the radio returns
+                # "powered but deaf". Escalate: HCI-reset the controller, and on the LAST cycle before
+                # give-up re-enumerate the USB dongle if its bus-port is configured (VIGIL-DEEP-ANALYSIS §2D).
+                _hci = await adapter_hci()
+                if _hci and wcfg.get("hci_reset", True):
+                    await _adapter_cmd(["hciconfig", _hci, "reset"]); await asyncio.sleep(2)
+                _usb = wcfg.get("usb_path")
+                if _usb and cycles >= max_cycles:
+                    await _usb_rebind(str(_usb)); await asyncio.sleep(2)
             finally:
                 _RECOVER.clear()                      # device tasks resume + reconnect on the fresh radio
 
