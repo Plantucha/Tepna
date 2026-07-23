@@ -661,7 +661,7 @@ async def run_polar(dev: dict, root: str):
         try:
             _set(name, connected=False, address=addr, last_error=None)
             async with _connect(addr) as client:
-                _set(name, connected=True)
+                _set(name, connected=True); _OPT_QUIET.discard(addr)
                 log.info("%s connected", name)
                 # NB: backoff is NOT reset here — a bare connect is not a viable session (E3 parity with
                 # run_viatom/run_oxyii). A strap that connects then drops before any data reset the floor
@@ -977,7 +977,7 @@ async def run_polar(dev: dict, root: str):
             # An OPTIONAL backup device (config `optional: true`) is KNOWN but not expected to join — a
             # plain connect-timeout means "simply not here", so note it ONCE and stay quiet instead of a
             # warning every backoff cycle (the COOSPO spam). VIGIL: known-but-not-expected.
-            if bool(dev.get("optional")) and isinstance(e, (TimeoutError, asyncio.TimeoutError)):
+            if bool(dev.get("optional")):
                 _set(name, connected=False, last_error="optional backup — not present")
                 if addr not in _OPT_QUIET:
                     log.info("%s: optional backup device not present — keeping a quiet eye out", name)
@@ -1723,6 +1723,8 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
             continue                                  # don't diagnose during a pull / recovery
         devs = []
         for d in cfg.get("devices", []):
+            if d.get("optional"):
+                continue                              # a known-but-not-expected backup is not wedge evidence
             st = STATUS.get("devices", {}).get(d["name"], {})
             bluez = False
             try:
