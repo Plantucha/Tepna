@@ -382,7 +382,17 @@ OUTPUT hash moved. **This is a big diff** — land it alone, on a quiet tree, in
 
 ---
 
-## P5 — ES modules for the node realms · **DEFERRED — research/decision only, do NOT execute now**
+## P5 — ES modules for the node realms · **DONE 2026-07-23 — executed via `ESM-MIGRATION-2026-07-15-BRIEF.md`**
+
+> **DONE 2026-07-23.** P5's essence — *"make the DSP↔render coupling explicit and machine-checked, and most
+> of the ambient `.d.ts` files would disappear"* — is delivered: every node's DSP→UI reach-ins were inverted
+> to dependency injection (hrvdex + oxydex, the only two with real reach-ins; the rest never had any), the
+> seven per-node `<node>-globals.d.ts` were consolidated to one grouped `node-globals.d.ts`, and the
+> source-mirror `<node>LoadOwnExport` attach-marker gates the coupling required were retired (the reach-in
+> allow-list gate now ASSERTS the boundary is clean). The full spike→pilot→fan-out arc and the middle-path
+> Phase-4 scoping live in `ESM-MIGRATION-2026-07-15-BRIEF.md` (DONE) + its two follow-ups. The originally-
+> feared costs (churn every `manifestHash`, own the inliner) were sidestepped: the DI passes are export-inert
+> (only `computeHash` moved, outputs byte-identical) and the `.d.ts` consolidation is type-only (no bundle).
 
 **Why it's here.** The single largest source of accidental complexity is that each node is 4–5 *plain
 global scripts sharing page scope* (`*-dsp` / `*-render` / `*-app` / `*-profile`, all bare globals). That
