@@ -20363,6 +20363,68 @@
       T.ok('note discloses the UNCALIBRATED frame (no over-claim)', !!lab && /uncalibrated/i.test(String(lab.note)));
     });
 
+    /* AUDIT B·3a (TOP severity — a MANUFACTURED clinical finding). The MotionDex posture leg must be
+       TRI-STATE like the effort (_motionEffortSeries.present) and movement (_motionActivitySeries.moving)
+       legs: a sensor-off gap must NOT fabricate a posture. MotionDex exports posture as sparse run-length
+       `posture_change` events and DELIBERATELY drops gap/'unknown' epochs, so a single early snapshot USED
+       TO hold-last-value all the way to t0Ms+durSec*1000 — posAt() (nearest-within-10-min) then always
+       returned that fabricated value and positionalApnea() counted every apnea in the gap as supine/
+       nonsupine, inventing a positional-apnea finding out of a coverage gap. After the fix the hold is
+       capped at a 60-min horizon and posture is ABSENT beyond it (posAt → null → unknown++), so the
+       supine/nonsupine DENOMINATOR excludes gap epochs — while a genuinely-held short interval still
+       fills densely (run-length semantics intact). Driven through the real normalizeFile ingest so the
+       whole posture path (adapt → _motionPostureSeries → summary.posture → labelPositionalApnea) is live. */
+    group('Integrator posture leg is tri-state — a sensor-off gap no longer fabricates supine — B·3a', 'integrator-dsp · motiondex · positional · gap', function (T) {
+      var NF = env.normalizeFile,
+        LP = env.labelPositionalApnea;
+      var ready = typeof NF === 'function' && typeof LP === 'function';
+      T.ok('normalizeFile + labelPositionalApnea available', ready);
+      if (!ready) return;
+      var t0 = U(2026, 5, 10, 22, 0, 0),
+        H = 3600000;
+      // 8 h night, ONE early posture snapshot (supine at t0). The rest of the night carries NO further
+      // posture_change — which, on the bus, is INDISTINGUISHABLE from the sensor being off (the finding).
+      var gapNight = {
+        schema: { name: 'ganglior.node-export', version: 1, node: 'MotionDex' },
+        recording: { startEpochMs: t0, durSec: 8 * 3600 },
+        motion: { supineFrac: 1, dwellFrac: { supine: 1 }, sqi: 0.97 },
+        ganglior_events: [{ t: '22:00:00', tMs: t0, impulse: 'posture_change', node: 'MotionDex', conf: 0.97, meta: { position: 'supine' } }]
+      };
+      var rec = NF(gapNight, 'MotionDex.node-export.json').recs[0];
+      var ser = (rec && rec.summary && rec.summary.posture) || [];
+      // the fabricated whole-night expansion is gone — no dense 480-sample fill to the durSec end …
+      T.ok('single snapshot no longer expands across the whole 8 h night', ser.length <= 61, ser.length + ' samples (pre-fix: 480, one per minute to durSec)');
+      // … and specifically NOTHING is emitted deep in the sensor-off gap (hour 7, within posAt()'s ±10 min)
+      var nearHour7 = ser.filter(function (p) { return Math.abs(p.tMs - (t0 + 7 * H)) <= 10 * 60000; });
+      T.ok('no fabricated posture within the posAt window of hour 7 (deep in the gap)', nearHour7.length === 0, nearHour7.length + ' samples near hr7');
+      // the real snapshot is still held within the max-hold horizon (the leg is capped, not disabled)
+      var held = ser.filter(function (p) { return p.pos === 'supine' && p.tMs <= t0 + 30 * 60000; });
+      T.ok('the real snapshot is still held within the max-hold horizon', held.length > 0, held.length + ' supine samples in [t0, t0+30min]');
+      // apneas: one inside the held window (supine), two deep in the gap (must be UNKNOWN, not supine)
+      var lab = LP([rec], { findings: [{ tMs: t0 + 20 * 60000 }, { tMs: t0 + 5 * H }, { tMs: t0 + 7 * H }] });
+      T.ok('positional labelling runs from the MotionDex posture', !!lab && lab.available === true);
+      T.ok('gap apneas route to unknown++, NOT supine++ (denominator excludes the gap)', !!lab && lab.supine === 1 && lab.nonsupine === 0 && lab.unknown === 2, lab ? 's=' + lab.supine + ' ns=' + lab.nonsupine + ' u=' + lab.unknown : 'none');
+      T.ok('supineRate is over the held-epoch denominator, not the fabricated whole night', !!lab && lab.supineRate === 1, lab ? String(lab.supineRate) : 'none');
+
+      // CARDINAL BEHAVIOR INTACT — a GENUINELY-held short interval between two real transitions still fills
+      // densely; only the un-refreshed long-gap hold (and the final-transition-to-durSec fill) is dropped.
+      var shortHold = {
+        schema: { name: 'ganglior.node-export', version: 1, node: 'MotionDex' },
+        recording: { startEpochMs: t0, durSec: 3600 },
+        motion: { dwellFrac: { supine: 0.5, prone: 0.5 }, sqi: 0.97 },
+        ganglior_events: [
+          { t: '22:00:00', tMs: t0, impulse: 'posture_change', node: 'MotionDex', conf: 0.97, meta: { position: 'supine' } },
+          { t: '22:10:00', tMs: t0 + 10 * 60000, impulse: 'posture_change', node: 'MotionDex', conf: 0.97, meta: { position: 'prone' } }
+        ]
+      };
+      var rec2 = NF(shortHold, 'MotionDex.node-export.json').recs[0];
+      var ser2 = (rec2 && rec2.summary && rec2.summary.posture) || [];
+      var supFill = ser2.filter(function (p) { return p.pos === 'supine' && p.tMs >= t0 && p.tMs < t0 + 10 * 60000; });
+      T.ok('a genuinely-held short interval still fills densely (cardinal behavior intact)', supFill.length >= 9, supFill.length + ' supine samples across the 10-min hold');
+      var lab2 = LP([rec2], { findings: [{ tMs: t0 + 5 * 60000 }] });
+      T.ok('an apnea inside the genuinely-held interval is still counted supine', !!lab2 && lab2.supine === 1, lab2 ? 's=' + lab2.supine : 'none');
+    });
+
     /* APNEA-TYPING-FUSION-2026-07-18 §1.1 — obstructive/central typing from MotionDex chest-ACC effort.
        Three invariants: effort THROUGH a desat ⇒ obstructive; FLAT effort ⇒ central; and — the one that
        protects a user from an invented finding — chest-ACC NOT RECORDING ⇒ UNTYPED, never central (a
