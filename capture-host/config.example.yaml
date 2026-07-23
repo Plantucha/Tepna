@@ -142,3 +142,6 @@ pull:                     # AUTO-PULL the O2Ring's onboard .dat off flash — th
   auto_interval_sec: 3600 #   how often to check; it only pulls while the ring is OFF the finger (never
   auto_retries: 3         #   interrupts a live sleep). Retries per cycle to DRAIN the small FIFO flash
   ftype: 0                #   before a missed session is overwritten. Idempotent — skips what's on disk.
+  on_charger: true        #   FAST event trigger: pull a device's onboard sessions `charger_settle_sec`
+  charger_settle_sec: 15  #   after it goes ON THE CHARGER (a night ends → device docked). Applies to the
+                          #   O2Ring (.dat) AND Polar Verity/H10 (PS-FTP), not just the hourly cadence above.

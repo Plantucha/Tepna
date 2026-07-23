@@ -194,8 +194,11 @@ _PPG_PROBE_FILE = os.environ.get("OXYII_PPG_PROBE_FILE", "/home/michal/tepna-smo
 _ppg_probe_n = [0]
 
 # O2Ring live PPG waveform (O2RING-LIVE-PPG-WAVEFORM Phase 2). The 0x04 body carries a ~125 Hz single-
-# channel pleth (decoded in oxyii.parse_ppg). We capture it into the SAME PSL "ppg" layout the Verity uses
-# (single channel replicated across ppg0/1/2, ambient 0) so it routes with NO new parser branch. Samples
+# channel pleth (decoded in oxyii.parse_ppg). We write it as a SINGLE "ppg1" column — the 1-column PSL
+# layout — NOT replicated across ppg0/1/2 with an ambient 0: the O2Ring is a single reflectance path, and
+# fanning it into the Verity's 3-LED shape is exactly what let PpgDex's consensus vote report a fabricated
+# 100 % LED agreement at `measured` tier (see the write path at StreamWriter(..., "ppg1") + write_ppg((v,))
+# below, and writers.write_ppg's 1-column branch — PPGDEX-O2RING-FINGER-SITE §3/§7). Samples
 # are back-timed from the frame's host arrival across the ~125 Hz grid (the ring clock is unsynced, so
 # never stamp with it); the synthesized sensor_ns gives the PSL relative-ms column an 8 ms step.
 # MEASURED rate. The old 125.0 was a round guess and it was 0.59% LOW, which matters: the phone-timestamp
@@ -408,6 +411,19 @@ def transient_ble_error(exc: BaseException) -> bool:
     return any(m in text for m in _TRANSIENT_BLE)
 
 
+# An adapter that has run out of link-layer connection slots reports a distinct error that reads like
+# "sensor off" unless named (VIGIL-DEEP-ANALYSIS §2D): an over-provisioned dongle looks like flapping
+# sensors. Classify it so the log says "adapter connection ceiling", not a generic link error.
+_CEILING_SIGNS = ("connection-profile-unavailable", "too many", "no resources", "connection limit",
+                  "max connections", "host is down")
+
+
+def connection_ceiling_error(exc: BaseException) -> bool:
+    """True when a connect failed because the ADAPTER is out of connection slots, not because the sensor
+    is absent — a diagnosable over-provisioning, not a flapping device."""
+    return any(m in repr(exc).lower() for m in _CEILING_SIGNS)
+
+
 # How far a device clock may sit from the host before it counts as a fault worth re-syncing. Generous
 # vs the 0.03 s a healthy synced Polar shows, tight vs the YEARS an unsynced H10 is out by.
 CLOCK_TOLERANCE_S = 2.0
@@ -482,9 +498,18 @@ def clock_resync_reason(skew, prev, jump, tolerance, failed_adrift=0, giveup=CLO
 
 
 def stream_is_stalled(last_change, now, grace) -> bool:
-    """PURE: has every started stream been silent long enough to call the session dead? False when the
-    feature is off (grace<=0) or nothing has started streaming yet (last_change None)."""
+    """PURE: has a stream been silent long enough to call it dead? False when the feature is off
+    (grace<=0) or the stream has not started yet (last_change None). Per-stream — see any_stream_stalled."""
     return bool(grace and grace > 0 and last_change is not None and (now - last_change) >= grace)
+
+
+def any_stream_stalled(last_changes, now, grace) -> bool:
+    """PURE: is ANY started stream INDIVIDUALLY silent past `grace`? The watchdog used to key on a single
+    shared timer that a live sibling kept resetting, so a genuinely-dead stream behind a live one (the
+    2026-07-19 ECG-flowing-while-ACC-at-zero class) was never caught (VIGIL-DEEP-ANALYSIS §2C). `grace`
+    is 90 s, far longer than the slowest real stream's inter-row gap (even 1 Hz HR advances ~90 rows), so
+    only a truly dead stream fires. False when off (grace<=0) or nothing has started (empty/all-None)."""
+    return bool(grace and grace > 0 and any(stream_is_stalled(lc, now, grace) for lc in (last_changes or [])))
 
 
 def _current_night(captures: str, settle_sec: float) -> str | None:
@@ -912,7 +937,10 @@ async def run_polar(dev: dict, root: str):
                 # take its time without counting as silence.
                 watched = list(writers.values()) + ([hr_writer] if hr_writer else [])
                 last_rows = [w.rows for w in watched]
-                last_change = _time.monotonic() if watched else None
+                # PER-STREAM silence timers (VIGIL-DEEP-ANALYSIS §2C). One shared timer let a live sibling
+                # mask a dead stream; each stream now carries its own so a single dead one is caught.
+                _base = _time.monotonic()
+                last_change = [_base for _ in watched]
                 while (client.is_connected and not _STOP.is_set() and addr not in _POLAR_PAUSED
                        and not _RECOVER.is_set() and not charging_hold):
                     await asyncio.sleep(1)
@@ -920,15 +948,21 @@ async def run_polar(dev: dict, root: str):
                     if secs % 120 == 0:
                         await _read_batt()
                     rows_now = [w.rows for w in watched]
-                    if rows_now != last_rows:
-                        last_rows, last_change = rows_now, _time.monotonic()
-                        backoff = 5           # E3: data is flowing — THIS is a viable session, so reset
-                                              # the reconnect backoff. A later drop then recovers fast; a
-                                              # connect that never streams leaves the floor to grow.
-                    elif stream_is_stalled(last_change, _time.monotonic(), _STREAM_STALL_S):
+                    flowed = False
+                    _mono = _time.monotonic()
+                    for _i in range(len(watched)):
+                        if rows_now[_i] != last_rows[_i]:
+                            last_change[_i] = _mono; flowed = True
+                    last_rows = rows_now
+                    if flowed:
+                        backoff = 5           # E3: AGGREGATE flow — SOME stream is live, so this is a
+                                              # viable session; reset the reconnect backoff. A later drop
+                                              # then recovers fast; a connect that never streams leaves
+                                              # the floor to grow.
+                    if any_stream_stalled(last_change, _time.monotonic(), _STREAM_STALL_S):
                         stalled = True
-                        _set(name, last_error=f"no data for {_STREAM_STALL_S:.0f}s — re-negotiating the streams")
-                        log.warning("%s: every started stream silent for %.0fs behind a live link — "
+                        _set(name, last_error=f"a stream silent {_STREAM_STALL_S:.0f}s — re-negotiating the streams")
+                        log.warning("%s: a started stream silent for %.0fs behind a live link — "
                                     "dropping it so the device frees the stream and we re-negotiate",
                                     name, _STREAM_STALL_S)
                         break
@@ -2138,6 +2172,98 @@ async def archive_poller(cfg: dict, root: str):
             log.warning("archive failed: %r", e)
 
 
+async def pull_polar_offline_all(dev: dict, root: str) -> dict:
+    """Pull ALL of a Polar device's ONBOARD offline recordings off flash (POLAR-OFFLINE-DOWNLOAD) — the
+    Polar sibling of pull_oxyii_session. Runs under polar_offline_op so it owns the device's single BLE
+    link (capture pauses, then resumes). Idempotent: pull_recording skips a file already on disk at the
+    same size, so a repeat pull only fetches genuinely new bytes. Returns {sessions, pulled, new_files}."""
+    import polar_psftp        # runtime-only (pulls bleak) — keeps `import capture` stdlib-clean for CI
+    address = dev["address"]
+    did = dev.get("device_id") or address.replace(":", "")
+    out_base = os.path.join(root, "captures", "stored")
+
+    async def _op():
+        hci = await adapter_hci()
+        sessions = await polar_psftp.list_recordings(address, adapter=hci)
+        pulled, new_files = 0, []
+        for sess in sessions:
+            path = sess.get("path")
+            if not path:
+                continue
+            stamp = (sess.get("date") or "") + (sess.get("time") or "")
+            out_dir = os.path.join(out_base, f"Polar_Offline_{did}_{stamp}")
+            m = await polar_psftp.pull_recording(address, path, out_dir, adapter=hci)
+            pulled += 1
+            new_files.extend((m or {}).get("new_files") or (m or {}).get("files") or [])
+        return {"sessions": len(sessions), "pulled": pulled, "new_files": new_files}
+
+    return await polar_offline_op(address, _op, timeout=_OFFLINE_OP_TIMEOUT_S)
+
+
+# On-charger auto-pull state. A device goes on the charger the moment a night ends, so "on charger" is the
+# natural 'night is over — grab the onboard backup' trigger, and far faster than autopull_poller's hourly
+# cadence (VIGIL-DEEP-ANALYSIS §2C: the old poller could delay the pull up to an hour).
+_CHARGER_SINCE: dict[str, float] = {}   # addr -> monotonic when charging went True (absent = not charging)
+_CHARGER_PULLED: set[str] = set()       # addrs already pulled THIS charge session (cleared when off charger)
+
+
+def charger_pull_due(charging: bool, since, now: float, settle: float, already: bool) -> bool:
+    """PURE: pull this device's onboard sessions now? True once it has been ON THE CHARGER for at least
+    `settle` seconds and has not already been pulled this charge session."""
+    return bool(charging and not already and since is not None and (now - since) >= settle)
+
+
+async def charger_pull_poller(cfg: dict, root: str):
+    """Pull a device's ONBOARD recordings `settle` s after it is placed ON THE CHARGER — the fast,
+    event-driven sibling of autopull_poller's hourly cadence. Applies to the O2Ring (OxyII .dat) AND
+    Polar devices with onboard offline recordings (Verity / H10, PS-FTP). Opt-in under `pull.auto`; the
+    charger trigger is `pull.on_charger` (default on) with `pull.charger_settle_sec` (default 15). SAFE:
+    a charging device is not capturing, so pausing it costs nothing; each pull is bounded + connect-locked
+    (pull_oxyii_session / pull_polar_offline_all → polar_offline_op). A failed pull falls back to the
+    hourly autopull_poller rather than retry-spamming."""
+    pcfg = cfg.get("pull") or {}
+    if not pcfg.get("auto") or not pcfg.get("on_charger", True):
+        return
+    settle = float(pcfg.get("charger_settle_sec", 15))
+    ftype = int(pcfg.get("ftype", 0))
+    devices = [d for d in cfg.get("devices", [])
+               if not missing_identity(d) and d.get("vendor") in ("Wellue", "Viatom", "Polar")]
+    if not devices:
+        return
+    log.info("auto-pull (on-charger): armed — pulling %d device(s) %.0fs after they go on the charger",
+             len(devices), settle)
+    while not _STOP.is_set():
+        await asyncio.sleep(2)
+        if _RECOVER.is_set() or _OXYII_PAUSE.is_set():
+            continue                                   # mid-recovery or another pull already running
+        now = _time.monotonic()
+        for dev in devices:
+            addr = dev.get("address")
+            st = STATUS["devices"].get(dev.get("name"), {})
+            if not bool(st.get("charging")):
+                _CHARGER_SINCE.pop(addr, None)
+                _CHARGER_PULLED.discard(addr)          # off the charger — re-arm for next time
+                continue
+            _CHARGER_SINCE.setdefault(addr, now)
+            if not charger_pull_due(True, _CHARGER_SINCE.get(addr), now, settle, addr in _CHARGER_PULLED):
+                continue
+            _CHARGER_PULLED.add(addr)                   # once per charge session (before the await)
+            try:
+                if dev.get("vendor") in ("Wellue", "Viatom"):
+                    res = await pull_oxyii_session(dev, root, which="all", ftype=ftype)
+                else:
+                    res = await pull_polar_offline_all(dev, root)
+                new = (res or {}).get("new_files", []) if isinstance(res, dict) else []
+                log.info("auto-pull (on-charger): %s → %d new file(s)", dev.get("name"), len(new))
+                STATUS.setdefault("autopull", {}).update({"last": _now().isoformat(timespec="seconds"),
+                                                          "new": len(new), "trigger": "charger"})
+            except offline_lock.OfflineBusy:
+                _CHARGER_PULLED.discard(addr)           # slot held by another pull — retry next tick
+            except Exception as e:                      # unreachable/transient — leave pulled; the hourly
+                log.info("auto-pull (on-charger): %s failed (%s) — hourly poller is the backstop",
+                         dev.get("name"), type(e).__name__)   # autopull_poller is the backstop, no spam
+
+
 async def autopull_poller(cfg: dict, root: str):
     """Auto-pull the O2Ring's ONBOARD-recorded `.dat` sessions off flash so a night's SpO2 lands on disk
     with no manual step — the belt-and-suspenders backup for a lossy live BLE link (weak signal / a dongle
@@ -2335,6 +2461,7 @@ async def main():
                    ("qc_poller", lambda: qc_poller(cfg, root, notifier)),
                    ("archive_poller", lambda: archive_poller(cfg, root)),
                    ("autopull_poller", lambda: autopull_poller(cfg, root)),
+                   ("charger_pull_poller", lambda: charger_pull_poller(cfg, root)),
                    ("sd_watchdog", sd_watchdog)]
     tasks = []
     for label, mk in _BACKGROUND:

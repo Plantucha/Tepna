@@ -20,7 +20,9 @@ const NODES = {
   PulseDex: './regen-pulsedex-goldens.mjs',
   MotionDex: './regen-motiondex-goldens.mjs',
   OxyDex: './regen-oxydex-goldens.mjs',
-  PpgDex: './regen-ppgdex-goldens.mjs'
+  PpgDex: './regen-ppgdex-goldens.mjs',
+  HRVDex: './regen-hrvdex-goldens.mjs',
+  ECGDex: './regen-ecgdex-goldens.mjs'
 };
 
 const i = process.argv.indexOf('--node');
