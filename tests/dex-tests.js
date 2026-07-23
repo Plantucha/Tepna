@@ -3396,6 +3396,53 @@
       T.ok('§8 · …and sits BELOW rMSSD/√2 (the retired definition) — RED on the old code', r && r.sd1 != null && r.sd1 < rmssdSD1 - 0.03, 'sd1=' + (r && r.sd1) + ' rMSSD/√2=' + rmssdSD1.toFixed(2));
     });
 
+    /* ════ PulseDex↔HRVDex — PNS Efficiency must agree across nodes (DEEP-AUDIT-2026-07-22 §PNS-eff) ══
+       "PNS Efficiency" = rMSSD/(SDNN·pNN50). HRVDex (the reference HRV node) divides by the pNN50
+       FRACTION (pNN50/100); PulseDex historically divided by the raw PERCENT, omitting the /100 — so on
+       IDENTICAL RR truth PulseDex rendered 0.0140 where HRVDex rendered 1.3955 (a 100× scale split), and
+       each node's grade band had been calibrated to its own accidental scale, hiding the drift in
+       isolation. The fix makes PulseDex divide by the fraction and adopts HRVDex's thresholds (green <4,
+       warn <7). This gate extracts the ACTUAL denominator expression + the render band from BOTH source
+       files, evaluates them on canonical RR-derived truth, and asserts they AGREE — RED on the old
+       raw-percent form (proven non-vacuous by the 100× control). */
+    group('PulseDex↔HRVDex — PNS Efficiency agrees (pNN50 fraction, not raw percent)', 'pulsedex-app · pulsedex-render · hrvdex-dsp · hrvdex-render · contract-provenance', function (T) {
+      var src = env.sources || {};
+      var pApp = src['pulsedex-app.js'] || '',
+        pRnd = src['pulsedex-render.js'] || '',
+        hDsp = src['hrvdex-dsp.js'] || '',
+        hRnd = src['hrvdex-render.js'] || '';
+      if (!pApp || !pRnd || !hDsp || !hRnd) {
+        T.ok('sources for pnse cross-node gate available', false, 'not wired — gate skipped');
+        return;
+      }
+      // canonical RR-derived truth (identical across nodes)
+      var RMSSD = 68.35,
+        SDNN = 94.01,
+        PNN50 = 52.1;
+      // extract the PulseDex pnse ratio (the +( … ).toFixed(4) true-branch) and eval it
+      var mP = pApp.match(/pnse\s*=[\s\S]*?\?\s*\+\(([\s\S]*?)\)\.toFixed\(4\)/);
+      var mH = hDsp.match(/d_pns_eff\s*=[\s\S]*?\?\s*([\s\S]*?)\s*:\s*NaN/);
+      T.ok('PulseDex pnse ratio extractable from pulsedex-app.js', !!mP, mP ? mP[1].trim() : 'no match');
+      T.ok('HRVDex d_pns_eff ratio extractable from hrvdex-dsp.js', !!mH, mH ? mH[1].trim() : 'no match');
+      if (!mP || !mH) return;
+      var pulseVal = new Function('cRm', 'cSd', 'cPn', 'return (' + mP[1] + ');')(RMSSD, SDNN, PNN50);
+      var hrvVal = new Function('r', 'return (' + mH[1] + ');')({ _rmssd: RMSSD, _sdnn: SDNN, _pnn50: PNN50 });
+      // the two nodes now compute the SAME number on the SAME truth
+      T.ok('§PNS-eff · PulseDex pnse == HRVDex d_pns_eff on identical RR truth', Math.abs(pulseVal - hrvVal) < 1e-6, 'PulseDex ' + pulseVal.toFixed(4) + ' vs HRVDex ' + hrvVal.toFixed(4));
+      T.ok('§PNS-eff · that shared value is HRVDex-scaled (≈1.40, not 0.014)', hrvVal > 1 && hrvVal < 2, 'value=' + hrvVal.toFixed(4));
+      // non-vacuity control: the RETIRED raw-percent form is exactly 100× smaller — this gate would RED on it
+      var oldPulse = RMSSD / (SDNN * PNN50);
+      T.ok('§PNS-eff · control · the old raw-percent form was 100× off (proves the fix is real)', Math.abs(hrvVal / oldPulse - 100) < 0.5, 'ratio=' + (hrvVal / oldPulse).toFixed(2));
+      // render grade bands must match: HRVDex d_pns_eff green<4/yellow<7 ⇔ PulseDex PNS-Effic ok<4/warn<7
+      var hBand = hRnd.match(/key:\s*'d_pns_eff'[\s\S]*?v\s*<\s*(\d+)\s*\?\s*'green'\s*:\s*v\s*<\s*(\d+)\s*\?\s*'yellow'/);
+      var pBand = pRnd.match(/r\.pnse\s*<\s*(\d+)\s*\?\s*'ok'\s*:\s*r\.pnse\s*<\s*(\d+)\s*\?\s*'warn'/);
+      T.ok('HRVDex render band for d_pns_eff extractable', !!hBand, hBand ? hBand[0] : 'no match');
+      T.ok('PulseDex render band for PNS Effic extractable (recalibrated to lower-is-better)', !!pBand, pBand ? pBand[0] : 'no match');
+      if (hBand && pBand) {
+        T.ok('§PNS-eff · PulseDex grade band matches HRVDex thresholds (green/ok <' + hBand[1] + ', warn/yellow <' + hBand[2] + ')', pBand[1] === hBand[1] && pBand[2] === hBand[2], 'PulseDex <' + pBand[1] + '/<' + pBand[2] + ' vs HRVDex <' + hBand[1] + '/<' + hBand[2]);
+      }
+    });
+
     /* ════ 12 · ECGDex respRate aggregation — median, not HF-peak (whole-record scalar) ════ */
     /* DEEP-AUDIT-2026-07-11 §10/§11 — the exported spectrum must sit on ONE time scale, and its band
        split must not hang on an arbitrary internal constant.
@@ -3794,6 +3841,31 @@
 
     // ── §1.5 · beats-per-5-min scaling of an absent pNN50 yielded a confident count of 0 beats.
     T.ok('§1.5 · _pnn50 absent → d_nn50 NaN (was 0 beats)', isNaN(kp.d_nn50), String(kp.d_nn50));
+
+    // ── DEEP-AUDIT 2026-07-22 §Finding 4 · PNS Efficiency gated _pnn50/_sdnn but consumed the row's
+    //    OWN _rmssd UNGATED, so a null numerator coerced `null / (positive) === 0` — a green, confident
+    //    "PNS Efficiency 0.00" for a metric never recorded (the sibling d_otr correctly returns NaN via
+    //    _all(...)). The fix folds the row's own rMSSD into the gate: _all(_rmssd,_sdnn,_pnn50) && … .
+    T.ok('§F4 · control · intact row · d_pns_eff finite (fix does not over-blank)', isFinite(full.d_pns_eff) && full.d_pns_eff > 0, 'd_pns_eff=' + full.d_pns_eff);
+    T.ok('§F4 · _rmssd absent → d_pns_eff NaN (was a fabricated green 0 via null/positive)', isNaN(kr.d_pns_eff), String(kr.d_pns_eff));
+
+    // ── DEEP-AUDIT 2026-07-22 §Finding 5 · d_ari (rolling Recovery Index) hardened its 7-day BASELINE
+    //    (mean7rmssd drops null/≤0) but left the numerator — the row's OWN _rmssd — ungated, so a
+    //    no-reading night coerced `null / mean7rmssd === 0`: d_ari rendered 0 RED and FIRED the
+    //    d_ari<0.85 "Rest day indicated" alert — a fabricated severe recovery collapse. The fix guards
+    //    the row's own value (`r._rmssd > 0 && …`), mirroring the immediate sibling d_sdnn_z (Finding 1).
+    //    This assignment lives in the allRows ROLLING-WINDOW loop, which iterates MODULE state (not the
+    //    headless rowsArg the per-row §1.* legs drive), so — exactly as the sibling d_sdnn_z leg does at
+    //    the Phase-9 source group — it is gated by source-text rather than driven on a synthetic row.
+    var _hdsp = (env.sources || {})['hrvdex-dsp.js'];
+    if (_hdsp) {
+      T.ok(
+        '§F5 · d_ari gates on the row’s OWN _rmssd (absent night → NaN, no fabricated 0 / false red alert)',
+        /d_ari\s*=\s*r\._rmssd\s*>\s*0\s*&&\s*mean7rmssd\s*>\s*0\s*&&\s*window7\.length\s*>=\s*4/.test(_hdsp)
+      );
+    } else {
+      T.skip('§F5 · d_ari source-text gate', 'hrvdex-dsp.js not in env.sources this lane');
+    }
 
     // ── §1.3 · computeCAMQ's parasympathetic arm used the same `>= 0` test, so an absent pNN50
     //    contributed a real 0 to the mean AND incremented the divisor — dragging the score down.
@@ -5899,6 +5971,195 @@
       var present = css(stats, { hrFloor: 70 }, osc, hb);
       T.eq('present HR → hrFloor component is the measured subscore (0 at a 70 bpm floor)', present.components.hrFloor, 0);
       T.eq('present HR → score includes the 0.1-weighted subscore (90, unchanged from before the fix)', present.score, 90);
+    });
+
+    /* DEEP-AUDIT FINDING 1 (mis-states-number) — the ODI-3 THRESHOLD family was inflated by
+       artifacts. selfGateDesat flags probe-squeeze / finger-off artifact desats and processNight
+       subtracts them from ODI-4 (via desat.artifactCount), but the drop:3 family (odi3, hypoxicLoad,
+       pRED3p, dip3Rate, ahiKulkas) re-detected raw with NO gate — and a ≥4% drop IS a ≥3% drop, so
+       every artifact removed from ODI-4 survived in the ODI-3 superset. The fix routes all four sites
+       through detectDesatEventsGated (same SELFGATE verdict), so the ODI-3 family now excludes the
+       SAME artifacts ODI-4 does. */
+    group('OxyDex ODI-3 family inherits the artifact self-gate (DEEP-AUDIT FINDING 1)', 'oxydex-dsp · desat · regression', function (T) {
+      var OB = env.OxyDex && env.OxyDex._bare;
+      var detFn = OB && OB.detectDesatEvents,
+        gatedFn = OB && OB.detectDesatEventsGated,
+        odiFn = OB && OB.detectODI,
+        hlFn = OB && OB.computeHypoxicLoad,
+        predFn = OB && OB.computePRED3p,
+        profFn = OB && OB.computeDesaturationProfile,
+        ahiFn = OB && OB.computeAHIestimates,
+        sgFn = OB && OB.selfGateDesat;
+      var ready =
+        typeof detFn === 'function' &&
+        typeof gatedFn === 'function' &&
+        typeof odiFn === 'function' &&
+        typeof hlFn === 'function' &&
+        typeof predFn === 'function' &&
+        typeof profFn === 'function' &&
+        typeof ahiFn === 'function' &&
+        typeof sgFn === 'function';
+      T.ok('ODI-3-family + gated-wrapper helpers exposed via _bare', ready, 'detectDesatEventsGated / detectODI / computeHypoxicLoad / computePRED3p / computeDesaturationProfile not all wired');
+      if (!ready) return;
+
+      var _T0 = Date.UTC(2026, 0, 1, 0, 0, 0),
+        N = 3600,
+        N_REAL = 4,
+        N_ART = 3;
+      // A night whose baseline is 97 % / 60 bpm. Two disjoint event sets, spaced ≥ 60 s apart so their
+      // trailing-p90 baselines never interact:
+      //  • REAL desats — a GENTLE 1 %/s glide to a 92 % nadir with the pulse STILL VALID (60 bpm):
+      //    selfGateDesat passes them (fallRate ≤ 1.5, pulseValid ≥ 0.5) → they are true desaturations.
+      //  • ARTIFACT desats — a probe-squeeze CLIFF to 90 % with the pulse cratered to 0 across the whole
+      //    window: selfGateDesat flags them (nonphysiologic-kinetics AND perfusion-collapse).
+      // Every event's nadir clears BOTH the 3 % and 4 % thresholds, so the real set is identical for
+      // ODI-3 and ODI-4 → the ODI-3 exclusion count must equal the ODI-4 exclusion count exactly.
+      function mkNight(withArtifacts) {
+        var rows = [];
+        for (var i = 0; i < N; i++) rows.push({ tMs: _T0 + i * 1000, t: _T0 + i * 1000, spo2: 97, hr: 60, motion: 0 });
+        function gentle(start, floor, hold) {
+          var idx = start;
+          for (var v = 96; v >= floor; v--) rows[idx++].spo2 = v; // 1 %/s descent
+          for (var h = 0; h < hold; h++) rows[idx++].spo2 = floor; // hold at nadir
+          rows[idx++].spo2 = 95; // re-rise closes both drop:3 (>94) and drop:4 (>93)
+          rows[idx++].spo2 = 97;
+        }
+        function cliff(start, floor, hold) {
+          var idx = start;
+          rows[idx++].spo2 = floor; // instantaneous cliff — fallRate ≫ 1.5
+          for (var h = 0; h < hold; h++) rows[idx++].spo2 = floor;
+          rows[idx++].spo2 = 95;
+          rows[idx++].spo2 = 97;
+          for (var k = Math.max(0, start - 12); k <= Math.min(N - 1, idx + 12); k++) rows[k].hr = 0; // pulse craters over the window
+        }
+        gentle(300, 92, 15);
+        gentle(700, 92, 15);
+        gentle(1100, 92, 15);
+        gentle(1500, 92, 15);
+        if (withArtifacts) {
+          cliff(2000, 90, 15);
+          cliff(2400, 90, 15);
+          cliff(2800, 90, 15);
+        }
+        return rows;
+      }
+      var full = mkNight(true),
+        realOnly = mkNight(false);
+      var spo2Full = full.map(function (r) {
+          return r.spo2;
+        }),
+        pulseFull = full.map(function (r) {
+          return r.hr;
+        });
+
+      // ── the shared gated wrapper drops artifacts at BOTH thresholds, by the same count ──
+      var ung3 = detFn(spo2Full, { dropPct: 3, exitPct: 3 }).length,
+        gat3 = gatedFn(spo2Full, { dropPct: 3, exitPct: 3 }, pulseFull).length,
+        ung4 = detFn(spo2Full, { dropPct: 4, exitPct: 4 }).length,
+        gat4 = gatedFn(spo2Full, { dropPct: 4, exitPct: 4 }, pulseFull).length;
+      T.eq('ungated ODI-3 count is the inflated superset (4 real + 3 artifact)', ung3, N_REAL + N_ART);
+      T.eq('GATED ODI-3 count keeps only the real desats (the fix)', gat3, N_REAL);
+      T.eq('the ODI-3 exclusion count equals the ODI-4 exclusion count — the SAME artifacts', ung3 - gat3, ung4 - gat4);
+      T.eq('and that shared exclusion count is exactly the 3 artifacts', ung3 - gat3, N_ART);
+      T.eq('no pulse series ⇒ wrapper is a no-op (returns the ungated set, back-compat)', gatedFn(spo2Full, { dropPct: 3, exitPct: 3 }).length, ung3);
+
+      // ── odi3 via detectODI: pulseSeries (the ODI-3 call) gates; ODI-4 (no pulse arg) stays ungated ──
+      var odi3Ungated = odiFn(spo2Full, 3, N, null),
+        odi3Gated = odiFn(spo2Full, 3, N, null, pulseFull);
+      T.eq('detectODI(...,pulseSeries) — the ODI-3 call processNight now makes — excludes artifacts', odi3Gated.count, N_REAL);
+      T.eq('detectODI without pulseSeries (the ODI-4 call) is unchanged / ungated', odi3Ungated.count, N_REAL + N_ART);
+      // processNight WIRING lock: the odi3 call passes pulseSeries, the odi4 call does not.
+      var dspSrc = (env.sources && env.sources['oxydex-dsp.js']) || '';
+      T.ok('processNight passes pulseSeries ONLY to the ODI-3 detectODI call', /detectODI\(spo2s, 3, rows\.length, blArr, pulseSeries\)/.test(dspSrc) && /detectODI\(spo2s, DexKernel\.K\.ODI_DROP, rows\.length, blArr\)/.test(dspSrc), 'odi3/odi4 detectODI calls not wired as expected');
+
+      // ── computeHypoxicLoad — hl_nadirCount is the gated ODI-3 set ──
+      var hl = hlFn(null, { count: N_REAL, rate: N_REAL }, N / 3600, full, null);
+      T.eq('hypoxicLoad nadir count excludes the artifacts (was 7 pre-fix, now 4)', hl.hl_nadirCount, N_REAL);
+
+      // ── computePRED3p — gating the full night == the night that never had the artifacts ──
+      var predFull = predFn(full, null, null).pred3p,
+        predReal = predFn(realOnly, null, null).pred3p;
+      T.approx('pRED-3p on the gated full night == the artifact-free night (durations excluded)', predFull, predReal, 0.001);
+      var predUngatedDur = detFn(spo2Full, { dropPct: 3, exitPct: 3, minSec: 0 }).reduce(function (s, e) {
+        return s + e.durationSec;
+      }, 0);
+      T.ok('pRED-3p would have been LARGER ungated (the artifact durations it now drops)', (predUngatedDur / N) * 100 > predFull + 0.5, 'ungated≈' + ((predUngatedDur / N) * 100).toFixed(2) + '% vs fixed ' + predFull + '%');
+
+      // ── dip3Rate (inside computeDesaturationProfile) — same equivalence ──
+      var dipFull = profFn(full, {}, null, null).dip3Rate,
+        dipReal = profFn(realOnly, {}, null, null).dip3Rate;
+      T.approx('dip3Rate on the gated full night == the artifact-free night', dipFull, dipReal, 0.001);
+
+      // ── ahiKulkas inherits via odi3Rate (weight 0.8) — the ~2.4× the finding calls out ──
+      var ahiGated = ahiFn(odi3Gated.rate, odi3Gated.rate, 0, 0).ahiKulkas,
+        ahiUngated = ahiFn(odi3Ungated.rate, odi3Ungated.rate, 0, 0).ahiKulkas;
+      T.ok('ahiKulkas is LOWER on the gated ODI-3 rate (artifacts no longer inflate it)', ahiGated < ahiUngated, 'gated=' + ahiGated + ' ungated=' + ahiUngated);
+      T.approx('the ahiKulkas reduction is exactly 0.8·(ungated−gated) ODI-3 rate', ahiUngated - ahiGated, 0.8 * (odi3Ungated.rate - odi3Gated.rate), 0.05);
+
+      // ── mechanism check: a pulse=0 gentle desat is flagged perfusion-collapse (not just kinetics) ──
+      var perfEv = { startIdx: 100, nadirIdx: 105, endIdx: 110, onset: 100 };
+      var perfSpo2 = [],
+        perfPulse = [];
+      for (var q = 0; q < 200; q++) {
+        perfSpo2.push(q >= 100 && q <= 110 ? 92 : 97); // gentle enough (single 5% step handled below)
+        perfPulse.push(q >= 90 && q <= 120 ? 0 : 60); // pulse cratered across the window
+      }
+      // make the descent gentle so kinetics does NOT fire (isolates the perfusion branch)
+      perfSpo2[100] = 96;
+      perfSpo2[101] = 95;
+      perfSpo2[102] = 94;
+      perfSpo2[103] = 93;
+      perfSpo2[104] = 92;
+      sgFn(perfEv, perfPulse, perfSpo2);
+      T.ok('a pulse=0 gentle desat is self-gated as an artifact', !!perfEv.artifact);
+      T.eq('and its reason is perfusion-collapse', perfEv.reason, 'perfusion-collapse');
+    });
+
+    /* DEEP-AUDIT FINDING 6 (fabricates-absence) — the Sleep Pressure Index inverted. computeSleepArch
+       returns wasoMin/solMin as a v22.15 TRI-STATE (both null when sleep onset is undetectable).
+       computeSleepPressure re-fabricated them to 0 (`wasoMin || 0` / `solMin !== null ? : 0`), so the
+       two DOMINANT SPI terms collapsed to 0 EXACTLY on the worse (undetected-onset) nights — scoring
+       them LOWER pressure than a calm detected night. The fix withholds SPI (null) when its inputs
+       were withheld, so the push (already `if (n.sleepP)`-guarded) no longer carries a fabricated 0. */
+    group('OxyDex Sleep Pressure Index does not invert on undetectable onset (DEEP-AUDIT FINDING 6)', 'oxydex-dsp · fabricated-absence · regression', function (T) {
+      var OB = env.OxyDex && env.OxyDex._bare;
+      var spi = OB && OB.computeSleepPressure;
+      T.ok('computeSleepPressure exposed via _bare', typeof spi === 'function');
+      if (typeof spi !== 'function') return;
+
+      // A CALM, fully-detected night: WASO 20 m, SOL 25 m, few motion bursts → SPI 15.0 ("High").
+      var calm = spi({ wasoMin: 20, solMin: 25 }, { motionBursts: 5 });
+      T.approx('calm detected night scores a real SPI (0.4·20 + 0.15·5 + 0.25·25 = 15.0)', calm.spi, 15.0, 0.001);
+
+      // A WORSE night so disrupted that sleep onset is undetectable → sleepArch withholds waso+sol (null).
+      var worse = spi({ wasoMin: null, solMin: null }, { motionBursts: 30 });
+      T.eq('undetected-onset night → SPI is withheld (null), NOT a fabricated low value', worse, null);
+      // document the inversion the fix removes: the OLD `||0` formula would have scored this WORSE
+      // night at 0.4·0 + 0.15·30 + 0.25·0 = 4.5 ("Low") — strictly LOWER than the calm night's 15.0.
+      var oldFabricated = 0 * 0.4 + 30 * 0.15 + 0 * 0.25;
+      T.ok('the pre-fix fabricated SPI (4.5) would have ranked the worse night BELOW the calm one', oldFabricated < calm.spi, 'fabricated ' + oldFabricated + ' < calm ' + calm.spi);
+      // defensive: a partial null (only one input withheld) is also withheld, never seeded.
+      T.eq('a partial null (SOL only) is withheld too', spi({ wasoMin: 3, solMin: null }, { motionBursts: 2 }), null);
+      // the guard is a null-input guard, not a value guard: a genuine 0/0 (instant onset, no wake) still scores.
+      var zero = spi({ wasoMin: 0, solMin: 0 }, { motionBursts: 0 });
+      T.eq('a genuine WASO=0/SOL=0 night still scores (0 is a measurement, null is absence)', zero.spi, 0);
+    });
+
+    /* DEEP-AUDIT FINDING 8 (contract-provenance-drift) — hypoxicBurden carried a false
+       validated/Azarbarzin badge. computeHypoxicBurden is a fixed-94 % AUC (Σ(94−SpO₂)/60/hr), NOT
+       Azarbarzin's event/baseline-referenced burden (that method is Hypoxic Load / computeHypoxicLoad).
+       The sibling computeHypoxicDose (hd94) — the SAME fixed-94 integral — is correctly experimental. */
+    group('OxyDex hypoxicBurden tier matches its fixed-94 sibling, no false Azarbarzin badge (DEEP-AUDIT FINDING 8)', 'oxydex-registry · contract-provenance · regression', function (T) {
+      var REG = env.OXY_REGISTRY;
+      T.ok('OXY_REGISTRY available', !!(REG && REG.hypoxicBurden && REG.hd94));
+      if (!(REG && REG.hypoxicBurden && REG.hd94)) return;
+      var hb = REG.hypoxicBurden,
+        hd = REG.hd94;
+      T.eq('hypoxicBurden is retiered to experimental (was a false validated)', hb.evidence, 'experimental');
+      T.eq('hypoxicBurden tier matches its fixed-94 sibling hd94', hb.evidence, hd.evidence);
+      T.ok('the fixed-94 metric no longer CLAIMS Azarbarzin — it explicitly disclaims it', /NOT\s+Azarbarzin/i.test(hb.cite || ''), 'cite does not disclaim the Azarbarzin attribution: ' + hb.cite);
+      T.ok('its cite describes the internal fixed-94 % AUC method', /94/.test(hb.cite || '') && /(fixed|AUC|Σ)/i.test(hb.cite || ''), 'cite does not describe the fixed-94 integral: ' + hb.cite);
+      T.ok('and points to the metric that DOES implement Azarbarzin (Hypoxic Load)', /Hypoxic Load|computeHypoxicLoad/.test(hb.cite || ''), 'cite does not redirect to Hypoxic Load: ' + hb.cite);
     });
 
     group(
@@ -9691,6 +9952,61 @@
           );
         }
       }
+    });
+
+    /* DEEP-AUDIT-2026-07-22 — a GRADUAL Level-1 nocturnal hypo (54-70 mg/dL) must survive the
+       compression-artifact rule; only a near-vertical positional artifact may be eaten. Completes
+       GLUCODEX-HYPO-DISAMBIG. The bug: `_looksLikeGenuineHypo`'s depth gate short-circuited on
+       `lo > 60` BEFORE the edge-steepness discriminator ran, so any real insulin dip whose nadir sat
+       in the shallow-but-real 61-70 band (Level-1 hypo is 54-69) was denied protection and handed to
+       the compression rule → erased from ana.vals (min / TBR / LBGI / GRADE) and nocturnalHypo(). Fix:
+       gate on the hypo boundary `lo > 70`, so the near-vertical-edge test is the sole discriminator.
+       These two nights share the IDENTICAL 66 mg/dL nadir and differ ONLY in edge shape (gradual vs
+       single-cell vertical) — the cleanest proof that steepness, not depth, decides. Pre-fix, the
+       gradual leg's four assertions ALL fail (it was flagged COMPRESSION → min 110, tbr1 0, 0 episodes). */
+    group('GlucoDex hypo-disambig — a gradual Level-1 nocturnal hypo (54-70) is protected; a vertical artifact is still eaten', 'glucodex-dsp · hypo · compression · clinical-safety · regression', function (T) {
+      var G = env.GlucoDex || env.GLUDSP;
+      var an = (env.GLUDSP && env.GLUDSP.analyze) || (G && G.analyze);
+      var pc = (env.GLUDSP && env.GLUDSP.parseCSV) || (G && G.parseCSV);
+      if (typeof an !== 'function' || typeof pc !== 'function') {
+        T.skip('GLUDSP.analyze + parseCSV available', 'namespace not wired — gate skipped');
+        return;
+      }
+      var HDR = 'Time of Glucose Reading [T=(local time) +/- (time zone offset)], Measurement(mg/dL)';
+      var stamp = function (ms) {
+        return new Date(ms).toISOString().slice(0, 16) + '-04:00';
+      };
+      // 9 h night, 5-min cadence, floating wall-clock 23:00→08:00; nadir cell 42 = 02:30 (h<6 = nocturnal).
+      var mkNight = function (valFn) {
+        var t0 = Date.UTC(2026, 5, 25, 23, 0, 0),
+          L = [HDR];
+        for (var i = 0; i < 109; i++) L.push(stamp(t0 + i * 5 * 60000) + ',' + Math.round(valFn(i)));
+        return an(pc(L.join('\n'), 'night.csv'), null, {});
+      };
+      // GRADUAL Gaussian dip (σ≈38 min) to a 66 mg/dL nadir on a flat 110 baseline: max single-cell
+      // step ≈3.5 mg/dL, far below the 22 VERTICAL edge → a real insulin dip, not a positional artifact.
+      var gRes = mkNight(function (i) {
+        var min = (i - 42) * 5;
+        return 110 - 44 * Math.exp(-(min * min) / (2 * 38 * 38));
+      });
+      // VERTICAL positional artifact: a 66 mg/dL plateau (same nadir) entered/left in ONE cell (Δ44 ≥ 22
+      // on both edges) on the same 110 baseline — the near-instant single-cell signature of sensor compression.
+      var vRes = mkNight(function (i) {
+        return i >= 40 && i <= 45 ? 66 : 110;
+      });
+
+      // ── the gradual real hypo is PROTECTED (pre-fix each of these failed) ──
+      T.eq('gradual dip is NOT flagged COMPRESSION (compMin 0) — a real Level-1 hypo survives', gRes.compMin, 0);
+      T.ok('…so its 66 mg/dL nadir reaches min (≤ 70 = clinical hypo band; pre-fix min was baseline ~110)', gRes.min <= 70, 'min=' + gRes.min);
+      T.ok('…and it is counted in Time-Below-Range (tbr1 > 0; pre-fix TBR read 0 %)', gRes.tir.tbr1 > 0, 'tbr1=' + gRes.tir.tbr1 + '%');
+      T.ok('…and nocturnalHypo() reports the episode (pre-fix: 0 episodes)', gRes.nocturnalHypo.length >= 1, gRes.nocturnalHypo.length + ' episode(s)');
+      T.ok('…the reported episode nadir sits in the hypo band', gRes.nocturnalHypo.length >= 1 && gRes.nocturnalHypo[0].min <= 70, gRes.nocturnalHypo.length ? 'min=' + gRes.nocturnalHypo[0].min : 'none');
+
+      // ── the vertical artifact is STILL eaten (no regression) — identical nadir, edges are the only difference ──
+      T.ok('vertical single-cell artifact is STILL flagged COMPRESSION (compMin > 0) — the edge test remains the discriminator', vRes.compMin > 0, 'compMin=' + vRes.compMin);
+      T.ok('…so the artifact is excluded from min (baseline ~110, not the 66 plateau)', vRes.min > 80, 'min=' + vRes.min);
+      T.eq('…and does not inflate Time-Below-Range (tbr1 0 %)', vRes.tir.tbr1, 0);
+      T.eq('…and raises no nocturnalHypo episode', vRes.nocturnalHypo.length, 0);
     });
 
     group('GlucoDex §5.5 — parseNutrition: date-only rows survive, DAY/MONTH order is file-locked', 'glucodex-dsp · nutrition · clock-contract', function (T) {

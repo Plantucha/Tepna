@@ -17,9 +17,9 @@
 
    Evidence taxonomy (brief §3, OxyDex assignments):
      measured    : raw sensor stats — meanSpo2, minSpo2, meanHr/minHr/maxHr, spo2Nadir, duration, motion
-     validated   : odi4, odi3, t90, t95, hypoxicBurden, desatProfile… (validated DERIVED metrics)
+     validated   : odi4, odi3, t90, t95, desatProfile… (validated DERIVED metrics)
      emerging    : cvhrIndex/ahiEst, sleepEff (motion), spo2Drift
-     experimental: nsi, sleepStability, sbii, the research:{} dump
+     experimental: nsi, sleepStability, hd94, hypoxicBurden (fixed-94% AUC), the research:{} dump
      heuristic   : vo2est  (ansAge + bpProj REMOVED 2026-06-21, review WP-A)
    Load AFTER metric-registry.js, BEFORE oxydex-render.js.
    ════════════════════════════════════════════════════════════════════════ */
@@ -44,7 +44,14 @@
     t90: { label: 'T90', unit: '%', goodDirection: 'down', depth: 'basic', evidence: 'validated', cite: '% recording below 90% SpO₂ — sleep-apnoea severity marker' },
     t95: { label: 'T95% Time', unit: '%', goodDirection: 'down', depth: 'advanced', evidence: 'validated', cite: '% recording below 95% SpO₂' },
     t88: { label: 'T88 Time', unit: 'min', goodDirection: 'down', depth: 'advanced', evidence: 'validated', cite: 'Minutes below 88% SpO₂ — CMS supplemental-O₂ threshold' },
-    hypoxicBurden: { label: 'Hypoxic burden', unit: '%·min/h', goodDirection: 'down', depth: 'advanced', evidence: 'validated', cite: 'Azarbarzin 2019 — sleep-apnoea-specific hypoxic burden' },
+    hypoxicBurden: {
+      label: 'Hypoxic burden',
+      unit: '%·min/h',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'experimental',
+      cite: 'Internal fixed-94% AUC — Σ(94−SpO₂)/60/hr, a whole-night integral below a flat 94% line (computeHypoxicBurden). NOT Azarbarzin 2019: that sleep-apnoea-specific hypoxic burden is event/baseline-referenced and is implemented separately as Hypoxic Load (computeHypoxicLoad). Sibling of the fixed-94 HD94 (hd94) and tiered to match it. FINDING 8: retiered from a false validated/Azarbarzin badge — a validated tier requires a citation matching the method (literature-use policy §2).'
+    },
     desatProfile: { label: 'Desat profile', unit: '', goodDirection: 'down', depth: 'advanced', evidence: 'validated', cite: 'Area/depth/duration of desaturation events' },
     meanHr: { label: 'Mean HR', unit: 'bpm', goodDirection: 'down', depth: 'basic', evidence: 'measured', cite: 'Mean nocturnal heart rate — direct pulse reading' },
     meanPi: {

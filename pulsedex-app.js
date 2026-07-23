@@ -779,7 +779,11 @@ function calculate() {
   const absV = +absIdx(ans.psns, ans.sns).toFixed(3);
   const sfg = stress - focus,
     fe = +(focus / (ans.sns + 1)).toFixed(3);
-  const pnse = cPn >= 1 ? +(cRm / (cSd * (cPn || 1))).toFixed(4) : null;
+  // PNS Efficiency = rMSSD/(SDNN·pNN50-fraction) — divide by the pNN50 FRACTION (cPn/100),
+  // matching HRVDex's reference formula (hrvdex-dsp.js d_pns_eff). Omitting the /100 rendered
+  // values 100× too small (0.0140 vs HRVDex's 1.3955 on identical RR truth). Guard mirrors
+  // HRVDex: null below pNN50<1% (denominator collapse) or non-positive SDNN.
+  const pnse = cPn >= 1 && cSd > 0 ? +(cRm / (cSd * (cPn / 100))).toFixed(4) : null;
   const otr = ans.psns && cPn ? +((ans.sns / ans.psns) * (100 / cPn)).toFixed(2) : null;
   const rsa = +(sp.hf / (cMeanRR / 1000) ** 2).toFixed(2);
 
