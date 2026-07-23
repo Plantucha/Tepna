@@ -1,12 +1,12 @@
 {
   "bundle": "OxyDex.html",
-  "manifestHash": "7510ed97a827",
+  "manifestHash": "8050ed00ed93",
   "fixtures": {
     "OxyDex_2026-06-13_1056_summary.json": {
       "note_selfingestfollowupsiv": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-IV F1 — oxydex-render.js: OxyDex.reviewView nights-default elements→nights + honest empty-nights placeholder in oxyClinicalSummary). EXPORT-INERT: render-only, not in compute()/emit path — outputHash unchanged, only manifestHash. Recorded as the authoritative manifest-gate hash of the shipped owned-build bundle (cf8f4ceaf1fe → 7fbedea9a12f); a stale out-of-band ledger write of bd269931cae1 was corrected per the PROVENANCE-NONDETERMINISM re-read-before-trust rule.",
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II — F1 shared dex-export.js scrubExport now sweeps recordings[]/sessions[] multi carriers; F5 review-renderer namespace exposure). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path, reviewView/renderReview are display-only — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
       "bundle": "OxyDex.html",
-      "manifestHash": "7510ed97a827",
+      "manifestHash": "8050ed00ed93",
       "note_ownthebuild": "manifestHash re-recorded 2026-07-03 (OWN-THE-BUILD-2026-06-30 Part A — OxyDex.html cut over to the owned plain-inline bundler; 91196f73460c → 5f46c7a88b65). EXPORT-INERT: DSP unchanged, output byte-identical (outputHash + inputHashes unchanged), env.equiv.oxydex green.",
       "note_hrartifactrunaway": "manifestHash re-recorded 2026-07-03 (OXYDEX-HR-ARTIFACT-RUNAWAY-FIX-2026-07-03 — Fix 1 cleanArtifactHR BOUNDED recovery search HR_ARTIFACT_MAX_RUN_SEC=60 + Fix 2 NEW trimSensorWarmup device warm-up/cool-down placeholder trim, run first in processNight). EXPORT-INERT for THIS fixture: night 20260612 locks on sample 1 (no frozen warm-up run -> trimSensorWarmup head=0/tail=0, no splice) AND has no non-recovering HR jump (cleanArtifactHR clamps 0 both before & after -> the new bound never engages), and the conditional stats.sensorWarmupTrimmed adds nothing when head=0, so compute() reproduces this export BYTE-IDENTICAL (outputHash 7cb7f21784806e08 UNCHANGED; env.equiv.oxydex green). Verified in the all-44-night real-code scan: this night NOT trimmed. External-JS-only re-bundle a16db72bc689->91196f73460c, buildHash 04d85b8b647d inert/UNCHANGED. GATE B asserts the producing bundle's CURRENT manifestHash still equals 91196f73460c.",
       "note_selfingest": "manifestHash re-recorded 2026-07-02 (SELF-INGEST-2026-06-27 pilot). EXPORT-INERT: the brief adds RE-INGEST (oxyLoadOwnExport/oxyScrubExport + review-mode render/print) which is off the compute()/oxyBuildNightElement/exportJSON(non-review) emit path, so this export reproduces byte-identical (env.equiv.oxydex green; outputHash unchanged) — NOT regenerated. External-JS-only OxyDex re-bundle e2ec6294e1ad->a16db72bc689, buildHash 04d85b8b647d UNCHANGED.",
@@ -31,7 +31,7 @@
       "note_selfingestfollowupsiv": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-IV F1 — oxydex-render.js: OxyDex.reviewView nights-default elements→nights + honest empty-nights placeholder in oxyClinicalSummary). EXPORT-INERT: render-only, not in compute()/emit path — outputHash unchanged, only manifestHash. Recorded as the authoritative manifest-gate hash of the shipped owned-build bundle (cf8f4ceaf1fe → 7fbedea9a12f); a stale out-of-band ledger write of bd269931cae1 was corrected per the PROVENANCE-NONDETERMINISM re-read-before-trust rule.",
       "note_selfingestfollowupsii": "manifestHash re-recorded 2026-07-04 (SELF-INGEST-FOLLOWUPS-II — F1 shared dex-export.js scrubExport now sweeps recordings[]/sessions[] multi carriers; F5 review-renderer namespace exposure). Fleet re-bundle via tools/build-core.js. EXPORT-INERT: scrub is OFF by default + never in compute()/emit path, reviewView/renderReview are display-only — no fixture OUTPUT moved (outputHash unchanged), only manifestHash.",
       "bundle": "OxyDex.html",
-      "manifestHash": "7510ed97a827",
+      "manifestHash": "8050ed00ed93",
       "note_ownthebuild": "manifestHash re-recorded 2026-07-03 (OWN-THE-BUILD-2026-06-30 Part A — OxyDex.html cut over to the owned plain-inline bundler; 91196f73460c → 5f46c7a88b65). EXPORT-INERT: DSP unchanged, output byte-identical (outputHash + inputHashes unchanged), env.equiv.oxydex green.",
       "note_hrartifactrunaway": "manifestHash re-recorded 2026-07-03 (OXYDEX-HR-ARTIFACT-RUNAWAY-FIX-2026-07-03 — see the _1056 fixture note for the mechanism). EXPORT-INERT for THIS fixture: night 20260624 opens with a REAL elevated-HR settle (97/103 easing DOWN, NOT a frozen-identical run) so trimSensorWarmup correctly leaves it (head=0/tail=0), and cleanArtifactHR clamps 0 both before & after (no non-recovering jump), so compute() reproduces this export BYTE-IDENTICAL (outputHash fc5ac30b41edbeea UNCHANGED; env.equiv.oxydex green). Verified in the all-44-night real-code scan: this night NOT trimmed (the conservative frozen-run + lock-on-step guard is what keeps a genuine elevated-onset HR). Rides the same external-JS-only re-bundle a16db72bc689->91196f73460c, buildHash 04d85b8b647d inert/UNCHANGED. GATE B asserts the producing bundle's CURRENT manifestHash still equals 91196f73460c.",
       "note_selfingest": "manifestHash re-recorded 2026-07-02 (SELF-INGEST-2026-06-27 pilot). EXPORT-INERT: the brief adds RE-INGEST (oxyLoadOwnExport/oxyScrubExport + review-mode render/print) which is off the compute()/oxyBuildNightElement/exportJSON(non-review) emit path, so this export reproduces byte-identical (env.equiv.oxydex green; outputHash unchanged) — NOT regenerated. External-JS-only OxyDex re-bundle e2ec6294e1ad->a16db72bc689, buildHash 04d85b8b647d UNCHANGED.",
@@ -54,7 +54,7 @@
     },
     "synthetic_oxydex_golden.node-export.json": {
       "bundle": "OxyDex.html",
-      "manifestHash": "7510ed97a827",
+      "manifestHash": "8050ed00ed93",
       "added": "2026-07-12",
       "inputs": [
         "synthetic_oxydex_o2ring.csv"

@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6OzxzImWtLFodFVf6jHYQ3MwSSuAk9zbqgll1gCJii4=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-CNOVvL0rgtW4HsMGf9KUI693quAn6scT+2m6vEtOyG8=' 'sha256-DEGBScZNuhFwrVhei58r3Rw1YwXrc58uAwn7z0x0GyI=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZoswIgiPc8c6/Hn4cusB8g5Duk/Y3jGH1derr7Wdx8E=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-eLY051tXBMzvlHWjj9oA2azuS+vjjUEkhHPdhshWRKc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-nYikVa5xckB2tELeARKlY+sDuFM2vOhffCvyaPw5KNk=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6OzxzImWtLFodFVf6jHYQ3MwSSuAk9zbqgll1gCJii4=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-CNOVvL0rgtW4HsMGf9KUI693quAn6scT+2m6vEtOyG8=' 'sha256-DEGBScZNuhFwrVhei58r3Rw1YwXrc58uAwn7z0x0GyI=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-daqcH9k+XXDIfXUHjQ79ID/KeaIyT2rcHvAgNz1wdio=' 'sha256-eLY051tXBMzvlHWjj9oA2azuS+vjjUEkhHPdhshWRKc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hBs4G9ijy/HbbGpjr4Q/qwyaJl3xnVpIYXpZqv9Z51o=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OxyDex — Nocturnal Oximetry Analyzer · v1.0.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -9632,9 +9632,9 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
 
    Evidence taxonomy (brief §3, OxyDex assignments):
      measured    : raw sensor stats — meanSpo2, minSpo2, meanHr/minHr/maxHr, spo2Nadir, duration, motion
-     validated   : odi4, odi3, t90, t95, hypoxicBurden, desatProfile… (validated DERIVED metrics)
+     validated   : odi4, odi3, t90, t95, desatProfile… (validated DERIVED metrics)
      emerging    : cvhrIndex/ahiEst, sleepEff (motion), spo2Drift
-     experimental: nsi, sleepStability, sbii, the research:{} dump
+     experimental: nsi, sleepStability, hd94, hypoxicBurden (fixed-94% AUC), the research:{} dump
      heuristic   : vo2est  (ansAge + bpProj REMOVED 2026-06-21, review WP-A)
    Load AFTER metric-registry.js, BEFORE oxydex-render.js.
    ════════════════════════════════════════════════════════════════════════ */
@@ -9659,7 +9659,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     t90: { label: 'T90', unit: '%', goodDirection: 'down', depth: 'basic', evidence: 'validated', cite: '% recording below 90% SpO₂ — sleep-apnoea severity marker' },
     t95: { label: 'T95% Time', unit: '%', goodDirection: 'down', depth: 'advanced', evidence: 'validated', cite: '% recording below 95% SpO₂' },
     t88: { label: 'T88 Time', unit: 'min', goodDirection: 'down', depth: 'advanced', evidence: 'validated', cite: 'Minutes below 88% SpO₂ — CMS supplemental-O₂ threshold' },
-    hypoxicBurden: { label: 'Hypoxic burden', unit: '%·min/h', goodDirection: 'down', depth: 'advanced', evidence: 'validated', cite: 'Azarbarzin 2019 — sleep-apnoea-specific hypoxic burden' },
+    hypoxicBurden: { label: 'Hypoxic burden', unit: '%·min/h', goodDirection: 'down', depth: 'advanced', evidence: 'experimental', cite: 'Internal fixed-94% AUC — Σ(94−SpO₂)/60/hr, a whole-night integral below a flat 94% line (computeHypoxicBurden). NOT Azarbarzin 2019: that sleep-apnoea-specific hypoxic burden is event/baseline-referenced and is implemented separately as Hypoxic Load (computeHypoxicLoad). Sibling of the fixed-94 HD94 (hd94) and tiered to match it. FINDING 8: retiered from a false validated/Azarbarzin badge — a validated tier requires a citation matching the method (literature-use policy §2).' },
     desatProfile: { label: 'Desat profile', unit: '', goodDirection: 'down', depth: 'advanced', evidence: 'validated', cite: 'Area/depth/duration of desaturation events' },
     meanHr: { label: 'Mean HR', unit: 'bpm', goodDirection: 'down', depth: 'basic', evidence: 'measured', cite: 'Mean nocturnal heart rate — direct pulse reading' },
     meanPi: {
@@ -13073,7 +13073,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       var spo2 = rows.map(function (r) {
         return r.spo2;
       });
-      nadirEvents = detectDesatEvents(spo2, { dropPct: 3, exitPct: 3, blArr: blArr }).map(function (e) {
+      // FINDING 1: gate the ODI-3-depth subset on the artifact self-gate (pulse from rows.hr) so
+      // hypoxicLoad excludes the SAME probe-squeeze / finger-off artifacts ODI-4 already excludes.
+      var pulseSeries = rows.map(function (r) {
+        return r.hr;
+      });
+      nadirEvents = detectDesatEventsGated(spo2, { dropPct: 3, exitPct: 3, blArr: blArr }, pulseSeries).map(function (e) {
         return { depth: e.depth, duration: e.durationSec };
       });
     }
@@ -13121,9 +13126,22 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   // Sleep Pressure Index — composite of WASO, motion bursts, SOL
   function computeSleepPressure(sleepArch, extras) {
     if (!sleepArch || !extras) return null;
-    var waso = sleepArch.wasoMin || 0;
+    // FINDING 6 (SPI inversion): wasoMin/solMin are a v22.15 TRI-STATE — both null together when
+    // sleep onset is undetectable (computeSleepArch withholds them rather than seeding the onsetIdx=0
+    // fallback). The old `wasoMin || 0` / `solMin !== null ? : 0` FABRICATED them to 0, collapsing the
+    // two DOMINANT SPI terms (0.4·WASO + 0.25·SOL = 65% of the weight) to 0 EXACTLY on the worse
+    // (undetected-onset) nights — so an undetected-onset night scored LOWER pressure than a calm
+    // detected one: a literal inversion. It was also internally inconsistent with the night-quality
+    // push, which gates WASO/SOL on `!== null` yet pushed the fabricated SPI unconditionally. Withhold
+    // SPI (null) when its dominant inputs were withheld — gate on inputs PRESENT, never seed one
+    // (mirrors sleepArch's own tri-state and computeSleepStabilityScore's null hrFloor handling). The
+    // night-quality push is already `if (n.sleepP)`-guarded, so a withheld SPI no longer enters the
+    // quality score. A bursts-only SPI would not be a meaningful "sleep pressure", so null (not a
+    // renormalized bursts-only proxy) is the honest tri-state here.
+    if (sleepArch.wasoMin == null || sleepArch.solMin == null) return null;
+    var waso = sleepArch.wasoMin;
     var bursts = extras.motionBursts || 0;
-    var sol = sleepArch.solMin !== null ? sleepArch.solMin : 0;
+    var sol = sleepArch.solMin;
     var spi = +(waso * 0.4 + bursts * 0.15 + sol * 0.25).toFixed(2);
     var label = spi < 5 ? 'Low' : spi < 15 ? 'Moderate' : 'High';
     return { spi: spi, spiLabel: label };
@@ -13497,8 +13515,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // close modes mean there is no single shared event set — see detectDesatEvents §3). detectDesatEvents
     // falls back to computing blArr when absent, so every direct/test caller is unaffected.
     var blArr = computeCeilingBaselineArr(spo2s, 300, 90);
+    // FINDING 1: pulse series for the ODI-3 artifact self-gate. ODI-4 is left UNGATED here — its
+    // artifacts are subtracted below via desat.artifactCount — so ONLY the ODI-3 call receives it.
+    var pulseSeries = rows.map(function (r) {
+      return r.hr;
+    });
     var odi4 = detectODI(spo2s, DexKernel.K.ODI_DROP, rows.length, blArr);
-    var odi3 = detectODI(spo2s, 3, rows.length, blArr);
+    var odi3 = detectODI(spo2s, 3, rows.length, blArr, pulseSeries);
     var hb = computeHypoxicBurden(rows);
     var motion = computeMotionProfile(rows);
     var stab = computeSleepStabilityScore(stats, hrv, osc, hb);
@@ -14002,12 +14025,16 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     return events;
   }
 
-  function detectODI(spo2, drop, n, blArr) {
+  function detectODI(spo2, drop, n, blArr, pulseSeries) {
     // ODI = ceiling-baseline desaturations ≥ drop% lasting ≥10s, per hour. Routed through the
     // ONE primitive with a SIMPLE re-rise close (exitPct === drop) so the count is event-for-
     // event identical to the v22.36 reference detector — ODI-4/ODI-3 are UNCHANGED by the
     // unification, while every satellite metric now scores the SAME events. (DEX-EVENT-UNIFY A)
-    var events = detectDesatEvents(spo2, { dropPct: drop, exitPct: drop, blArr: blArr });
+    // FINDING 1: optional pulseSeries → artifact-gate the events (the ODI-3 path passes it). ODI-4
+    // stays UNGATED here on purpose — processNight subtracts its artifacts via desat.artifactCount,
+    // so gating here too would double-subtract. Back-compat: param is LAST + optional (absent ⇒
+    // ungated, byte-identical to the old signature for every existing caller/test).
+    var events = pulseSeries ? detectDesatEventsGated(spo2, { dropPct: drop, exitPct: drop, blArr: blArr }, pulseSeries) : detectDesatEvents(spo2, { dropPct: drop, exitPct: drop, blArr: blArr });
     var hrs = n / 3600;
     return { count: events.length, rate: +(events.length / Math.max(hrs, 0.01)).toFixed(1) };
   }
@@ -14368,6 +14395,26 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     return desat;
   }
 
+  /* ODI-3 ARTIFACT SELF-GATE (DEEP-AUDIT FINDING 1 — the ODI-3 THRESHOLD family was inflated by
+     artifacts). `selfGateDesat` flags probe-squeeze / finger-off artifact desats and `processNight`
+     subtracts them from ODI-4 (via desat.artifactCount) — but the drop:3 family re-detected the raw
+     signal with NO gate: odi3 (detectODI), hypoxicLoad, pRED3p, dip3Rate, and ahiKulkas (via
+     odi3Rate). A ≥4% drop IS a ≥3% drop, so every artifact removed from ODI-4 SURVIVED in the ODI-3
+     superset (~2.4× inflation). This wrapper runs the SAME tested SELFGATE kinetics/perfusion verdict
+     on the drop:3 detections and drops the flagged artifacts, so the whole ODI-3 family inherits the
+     identical exclusion ODI-4 already trusts. desat.events CANNOT be reused here — those are the
+     drop:4 set. Returns the SURVIVING (non-artifact) events; a no-op returning ALL events when no
+     pulse series is available to judge them (same honesty as selfGateDesat's own no-pulse guard). */
+  function detectDesatEventsGated(spo2, opts, pulseSeries) {
+    var events = detectDesatEvents(spo2, opts);
+    if (!pulseSeries || !pulseSeries.length) return events;
+    return events.filter(function (e) {
+      /** @type {any} */ (e).onset = e.startIdx;
+      selfGateDesat(e, pulseSeries, spo2);
+      return !(/** @type {any} */ (e).artifact);
+    });
+  }
+
   // 1. DESATURATION PROFILE — 8 SpO2-derived metrics
   function computeDesaturationProfile(rows, tIdx, odi4, blArr) {
     var spo2 = rows.map(function (r) {
@@ -14481,7 +14528,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // SpO2 Dip Rate ≥3%/hr — DEX-EVENT-UNIFY-FOLLOWUPS §1: from the ONE canonical
     // primitive (ODI-3 threshold, simple re-rise close, no min-length gate so every
     // distinct ≥3% dip counts), not the removed private trailing-MEAN loop.
-    var dip3Count = detectDesatEvents(spo2, { dropPct: 3, exitPct: 3, minSec: 0, blArr: blArr }).length;
+    // FINDING 1: gate the ≥3% dip count on the artifact self-gate (pulseSeries built above at the
+    // profile's self-gate step) so dip3Rate inherits the same exclusion as ODI-4 — an artifact
+    // desat is a ≥3% dip too, and was surviving here at the drop:3 threshold.
+    var dip3Count = detectDesatEventsGated(spo2, { dropPct: 3, exitPct: 3, minSec: 0, blArr: blArr }, pulseSeries).length;
     var dip3Rate = durationHr > 0 ? +(dip3Count / durationHr).toFixed(1) : 0;
 
     /* CLOCK: stamp each event with the REAL wall-clock time of its own row (DEEP-AUDIT-2026-07-11 §8).
@@ -16528,7 +16578,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // % of recording time occupied by ≥3% desaturations — DEX-EVENT-UNIFY-FOLLOWUPS §1.
     // Sourced from the ONE canonical primitive (ODI-3 threshold, simple re-rise close, no
     // min-length gate so every qualifying dip's time counts), not a private MEAN loop.
-    var totalDuration = detectDesatEvents(spo2, { dropPct: 3, exitPct: 3, minSec: 0, blArr: blArr }).reduce(function (s, e) {
+    // FINDING 1: artifact-gated (pulse from rows.hr) — an artifact desat's DURATION would
+    // otherwise inflate pRED-3p exactly as its COUNT inflated the rest of the ODI-3 family.
+    var pulseSeries = rows.map(function (r) {
+      return r.hr;
+    });
+    var totalDuration = detectDesatEventsGated(spo2, { dropPct: 3, exitPct: 3, minSec: 0, blArr: blArr }, pulseSeries).reduce(function (s, e) {
       return s + e.durationSec;
     }, 0);
     var pred3p = +((totalDuration / n) * 100).toFixed(2);
@@ -17406,6 +17461,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     computeTIndex,
     computeHRV,
     detectDesatEvents,
+    detectDesatEventsGated,
     detectODI,
     detectSpikes,
     detectPeriodicity,
