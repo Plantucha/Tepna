@@ -194,8 +194,11 @@ _PPG_PROBE_FILE = os.environ.get("OXYII_PPG_PROBE_FILE", "/home/michal/tepna-smo
 _ppg_probe_n = [0]
 
 # O2Ring live PPG waveform (O2RING-LIVE-PPG-WAVEFORM Phase 2). The 0x04 body carries a ~125 Hz single-
-# channel pleth (decoded in oxyii.parse_ppg). We capture it into the SAME PSL "ppg" layout the Verity uses
-# (single channel replicated across ppg0/1/2, ambient 0) so it routes with NO new parser branch. Samples
+# channel pleth (decoded in oxyii.parse_ppg). We write it as a SINGLE "ppg1" column — the 1-column PSL
+# layout — NOT replicated across ppg0/1/2 with an ambient 0: the O2Ring is a single reflectance path, and
+# fanning it into the Verity's 3-LED shape is exactly what let PpgDex's consensus vote report a fabricated
+# 100 % LED agreement at `measured` tier (see the write path at StreamWriter(..., "ppg1") + write_ppg((v,))
+# below, and writers.write_ppg's 1-column branch — PPGDEX-O2RING-FINGER-SITE §3/§7). Samples
 # are back-timed from the frame's host arrival across the ~125 Hz grid (the ring clock is unsynced, so
 # never stamp with it); the synthesized sensor_ns gives the PSL relative-ms column an 8 ms step.
 # MEASURED rate. The old 125.0 was a round guess and it was 0.59% LOW, which matters: the phone-timestamp
