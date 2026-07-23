@@ -574,11 +574,21 @@
     // above every subsequent real QRS, and detection then dies SILENTLY for the rest of the
     // recording (the robust seed prevents the <12-peak THROW, NOT this mid-record stall:
     // verified on a real Polar-H10 20260625 night that collapsed to 63 beats / 4 min of a
-    // ~7 h record — integ artifact 1.1e7 vs ~5e5 real QRS). Guard: once a beat cadence is
-    // established (rrAvg>0) and detection stalls past a non-physiologic gap (>2.5 s ⇒
-    // sustained <24 bpm ⇒ the THRESHOLD, not the heart, is stuck), BLEED SPKI toward the
-    // noise floor so a real QRS can re-cross THRI. Inert on clean records — a real RR never
-    // exceeds 2.5 s, so beat output is BYTE-IDENTICAL there (verified vs the pre-guard path).
+    // ~7 h record — integ artifact 1.1e7 vs ~5e5 real QRS). Guard: whenever detection stalls
+    // past a non-physiologic gap (>2.5 s ⇒ sustained <24 bpm ⇒ the THRESHOLD, not the heart,
+    // is stuck), BLEED SPKI toward the noise floor so a real QRS can re-cross THRI. Inert on
+    // clean records — a real RR never exceeds 2.5 s, so beat output is BYTE-IDENTICAL there
+    // (verified vs the pre-guard path).
+    // ECGDEX AUDIT G — the bleed used to be gated `rrAvg>0`, but rrAvg is only established after
+    // the SECOND detected beat. A SHARP electrode-settling transient that is the FIRST threshold
+    // crossing (before any real QRS) parks SPKI above every subsequent QRS AND keeps rrAvg==0
+    // forever, so the bleed never ran and detection was dead for the whole record (compute() then
+    // threw "Too few R-peaks" on a clean multi-hour night). Dropping the `rrAvg>0` precondition and
+    // relying on the fixed idleLimit alone lets an opening transient bleed down too. This does NOT
+    // regress normal records: a normal first beat fires well under 2.5 s, so `last` advances before
+    // `i - last` ever reaches idleLimit and the bleed stays dormant (byte-identical); it only ever
+    // fires when no beat was detected within a 2.5 s window — precisely the stuck-threshold case,
+    // whether that stall is mid-record or an opening-transient lead-in.
     const idleLimit = Math.round(2.5 * fs);
     const rr = [];
     let rrAvg = 0;
@@ -615,8 +625,9 @@
         NPKI = 0.125 * integ[i] + 0.875 * NPKI;
       }
       THRI = NPKI + 0.25 * (SPKI - NPKI);
-      // un-stick a threshold parked by a supra-physiologic transient (see header note)
-      if (rrAvg > 0 && i - last > idleLimit) {
+      // un-stick a threshold parked by a supra-physiologic transient (see header note) — runs
+      // even before a cadence is established (rrAvg==0) so an OPENING transient recovers too (AUDIT G)
+      if (i - last > idleLimit) {
         SPKI = Math.max(NPKI, SPKI * 0.99);
         THRI = NPKI + 0.25 * (SPKI - NPKI);
       }
@@ -3524,6 +3535,48 @@
         : lng
           ? { totalSleepMin: nz(r.totSleep), stageMinutes: r.stageMin || null }
           : null;
+      // ECGDEX AUDIT F — the Integrator's adaptEnvelopeNode('ECGDex') reads json.apnea.{cvhrIndex,
+      // estimatedAHI.value} and json.hrvStability.mean_lnRMSSD_slope, but this orchestrate-routed rich
+      // export OMITTED both blocks — so a nocturnal ECG fused DIFFERENTLY by ingest route (the app's
+      // ⬇JSON button, which runs buildV2, carried CVHR/estAHI/slope; a raw-file→OverDex route did not).
+      // MIRRORS ecgdex-app.js buildV2 field-for-field (same `r`, same reportable:false ambulatory
+      // handling, same null cases when r.cvhr/r.estAHI/r.hrvStab are absent) — honoring this builder's
+      // own SHARED-SHAPE no-divergence mandate (ppgBuildNodeExport carries the sibling out.apnea).
+      var p = r.profile || {};
+      out.apnea = amb
+        ? {
+            reportable: false,
+            suppressedReason: (r.apneaSuppressed && r.apneaSuppressed.suppressedReason) || 'ambulatory — CVHR invalid under exercise',
+            cvhrIndex: null,
+            estimatedAHI: null,
+            riskCategory: null,
+            onCPAP: !!p.cpap,
+            method:
+              'CVHR/cardiopulmonary-coupling proxy (Hilmisson 2019) — WITHHELD: recording is ambulatory/awake-active, exercise HR dynamics read as cardiogenic oscillation. Mirrors the R5 null-model pattern (index withheld with a reason, never fabricated).'
+          }
+        : lng
+          ? {
+              cvhrIndex: r.cvhr.index,
+              cvhrEvents: r.cvhr.events.length,
+              estimatedAHI: r.estAHI ? { value: r.estAHI.value, range: [r.estAHI.lo, r.estAHI.hi], band: r.estAHI.band } : null,
+              riskCategory: r.apneaRisk ? r.apneaRisk.cat : null,
+              onCPAP: !!p.cpap,
+              method: 'CVHR/cardiopulmonary-coupling proxy (Hilmisson 2019) — ECG-only, screen not diagnosis',
+              surgeEscalationPct: r.surgeEsc ? r.surgeEsc.escalationPct : null
+            }
+          : null;
+      out.hrvStability = r.hrvStab
+        ? {
+            sigma_lnRMSSD_slope: r.hrvStab.sigma_lnRMSSD_slope,
+            var_lnRMSSD_slope: r.hrvStab.var_lnRMSSD_slope,
+            mean_lnRMSSD_slope: r.hrvStab.mean_lnRMSSD_slope,
+            classification: r.hrvStab.classification,
+            windows: r.hrvStab.nWindows,
+            ref: 'Li & Kiyono 2026 Sensors 26(4):1118 [CC BY 4.0]',
+            interpretation: 'slope<0 stabilizing (favourable) · slope>0 rising instability (glycemic-risk signal)',
+            series: r.hrvStab.series
+          }
+        : null;
     }
     return out;
   }
