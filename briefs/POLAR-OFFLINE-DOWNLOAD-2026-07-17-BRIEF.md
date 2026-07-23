@@ -107,8 +107,15 @@ live capture and make sure it's idle before pulling.**
 > is unchanged; only the webmon route strings + the monitor's `pullRec`/`doPull` fetch paths differ.
 - [ ] **Web-triggered pull demonstrated green** — blocked only by the BLE trusted-auto-reconnect race
       above in a churned test env; not reproduced clean. Re-verify on the box (or after a fresh
-      `bluetoothctl disconnect`, idle device).
-- [ ] H10 offline (RR) session pull — same code path, not yet exercised on an H10.
+      `bluetoothctl disconnect`, idle device). **2026-07-22: still open — IDLE-DEVICE-GATED.** The box is
+      running under a `systemd --user` service (see `CAPTURE-HOST` §11 note) but both Polars were
+      **actively streaming a live recording** at every check (Verity ppg/acc/gyro/mag, H10 ecg/acc/hr, not
+      charging), and `_polar_run` pauses a device's live capture for the pull — so demonstrating the pull
+      would interrupt a real night. Deliberately NOT triggered; it rides the next off-body/idle window.
+- [ ] H10 offline (RR) session pull — same code path, not yet exercised on an H10. **Same idle-device gate.**
+- [x] **`how-to-collect/verity-ppg.md` monitor-pull note** — **DONE 2026-07-22.** Added the "pull the
+      onboard recording straight from the Vigil monitor" subsection (📥 Recordings button + CLI mirror +
+      the one-BLE-link idle rule + the HR-only-in-exercise-mode caveat), describing the CLI-validated path.
 
 ## Follow-ups
 
