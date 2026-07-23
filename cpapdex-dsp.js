@@ -57,34 +57,35 @@
    local mirror covers the filename anchors only: file-set prefix
    "YYYYMMDD_HHMMSS_" and the 14-digit "YYYYMMDDHHMMSS". Returns
    { tMs, offsetMin } | null. NEVER new Date()/now() on a miss. ──────────────── */
+  // Clock Contract §2.7 (DEEP-AUDIT-II §12.3) — Date.UTC SILENTLY ROLLS out-of-range components onto a
+  // plausible WRONG instant. The old `Mo<=12 && D<=31 && H<=23…` guard caught month 13 and hour 25 but
+  // LEAKED calendar-invalid days (Feb 30 → Mar 2, Apr 31 → May 1). `_ckMk` builds tMs ONLY if the date
+  // round-trips (rejects Feb 30 / Apr 31…) and the time is 0–23 : 0–59 : 0–59 . 0–999; the ONE legitimate
+  // overflow is ISO-8601 `24:00:00` (end-of-day) → next-day 00:00 (do not add a bare `h>23` guard).
+  // Returns a number, or null. Mirrors clock.js `_ckMk` (CPAPDex is a deliberate node-local Clock variant).
+  function _ckMk(y, mo0, d, h, mi, se, ms) {
+    se = se || 0;
+    ms = ms || 0;
+    var day0 = Date.UTC(y, mo0, d),
+      dd = new Date(day0);
+    if (dd.getUTCFullYear() !== y || dd.getUTCMonth() !== mo0 || dd.getUTCDate() !== d) return null; // date rolled ⇒ invalid
+    if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000; // ISO end-of-day → next 00:00:00
+    if (h < 0 || h > 23 || mi < 0 || mi > 59 || se < 0 || se > 59 || ms < 0 || ms > 999) return null;
+    return Date.UTC(y, mo0, d, h, mi, se, ms);
+  }
   function parseTimestamp(raw) {
     var s = String(raw == null ? '' : raw).trim();
     // ISO / "YYYY-MM-DD[ T]HH:MM[:SS[.mmm]]" — capture fractional seconds (Clock Contract §2 step 3).
     // No zone ⇒ components verbatim → Date.UTC (floating), offsetMin null.
     var iso = /(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?/.exec(s);
     if (iso) {
-      var Y = +iso[1],
-        Mo = +iso[2],
-        D = +iso[3],
-        H = +iso[4],
-        Mi = +iso[5],
-        S = +(iso[6] || 0),
-        Ms = iso[7] ? +(iso[7] + '00').slice(0, 3) : 0;
-      if (Mo >= 1 && Mo <= 12 && D >= 1 && D <= 31 && H <= 23 && Mi <= 59 && S <= 59) {
-        return { tMs: Date.UTC(Y, Mo - 1, D, H, Mi, S, Ms), offsetMin: null };
-      }
+      var _ti = _ckMk(+iso[1], +iso[2] - 1, +iso[3], +iso[4], +iso[5], +(iso[6] || 0), iso[7] ? +(iso[7] + '00').slice(0, 3) : 0);
+      if (_ti != null) return { tMs: _ti, offsetMin: null };
     }
     var m = /(\d{4})(\d{2})(\d{2})[_\-]?(\d{2})(\d{2})(\d{2})/.exec(s); // YYYYMMDD(_)HHMMSS
     if (m) {
-      var y = +m[1],
-        mo = +m[2],
-        d = +m[3],
-        h = +m[4],
-        mi = +m[5],
-        se = +m[6];
-      if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && h <= 23 && mi <= 59 && se <= 59) {
-        return { tMs: Date.UTC(y, mo - 1, d, h, mi, se), offsetMin: null }; // floating, EDF has no zone
-      }
+      var _tf = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+      if (_tf != null) return { tMs: _tf, offsetMin: null }; // floating, EDF has no zone
     }
     return null;
   }
