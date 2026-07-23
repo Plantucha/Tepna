@@ -139,3 +139,22 @@ def test_connection_ceiling_error_is_recognised():
 def test_connection_ceiling_error_ignores_an_ordinary_drop():
     assert not capture.connection_ceiling_error(TimeoutError("connect timed out"))
     assert not capture.connection_ceiling_error(RuntimeError("device disconnected"))
+
+
+# ── on-charger auto-pull trigger (VIGIL-DEEP-ANALYSIS §2C — fast, event-driven vs the hourly cadence) ──
+def test_charger_pull_due_fires_after_the_settle_window():
+    # on charger 20 s, settle 15 s, not yet pulled → due
+    assert capture.charger_pull_due(True, 1000.0, 1020.0, 15.0, False) is True
+
+
+def test_charger_pull_not_due_before_the_settle_window():
+    assert capture.charger_pull_due(True, 1000.0, 1010.0, 15.0, False) is False   # only 10 s on charger
+
+
+def test_charger_pull_not_due_off_charger_or_not_armed():
+    assert capture.charger_pull_due(False, 1000.0, 1020.0, 15.0, False) is False  # off the charger
+    assert capture.charger_pull_due(True, None, 1020.0, 15.0, False) is False     # never went on charger
+
+
+def test_charger_pull_only_once_per_charge_session():
+    assert capture.charger_pull_due(True, 1000.0, 1020.0, 15.0, True) is False    # already pulled this session
