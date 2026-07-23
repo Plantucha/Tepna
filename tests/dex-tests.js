@@ -6772,6 +6772,68 @@
       }
     });
 
+    /* ════ AUDIT-K — the PpgDex APP filename-stamp was the LONE unanchored sibling. ppgdex-app.js:fnameStampMs
+     computes each dropped file's `.stampMs` — the reference the companion pick (pickNearestByStamp) uses. Its
+     old regex `/(\d{4})(\d{2})(\d{2})_…/` was UNANCHORED with no `20\d{2}` year floor, so on an ALL-DIGIT
+     device serial the leftmost 8-digit run (the serial) was consumed as the date: `…_02849638_20260617_…`
+     → year 0284 / month 96 / day 38 → Date.UTC rolled to ~year 0292 (~1734 yr off). Every ACC/GYRO/MAGN/PPI/
+     marker companion then exceeded PICK_MAX_GAP_MS (24 h) vs the real-2026 rec.t0Ms → resolved null → motion-
+     gating / respiration / device-PPI cross-check silently dropped while HRV/quality still rendered. LATENT
+     because the committed corpus + equiv fixture use LETTERED serials (0C301E3F / BBBBBBBB) that parse fine —
+     it fires on any all-digit Verity/PSL serial or capture-host device_id (the project's own H10 serial
+     02849638 is all-digit). The siblings were already anchored: signal-orchestrate.js:fnameStampMs (Polar-
+     anchored + `20\d{2}` fallback), dex-ingest.js:stampMs (Polar-anchored), pulsedex-app.js:_pdT0FromName
+     (`20\d{2}`). This mirrors the SOURCE fn (not a copy) so it cannot drift, and drives the pick end-to-end. ════ */
+    group('PpgDex app filename-stamp — anchored, all-digit serials (AUDIT-K)', 'ppgdex-app · dex-ingest · clock-contract', function (T) {
+      var src = env.sources || {};
+      var appSrc = src['ppgdex-app.js'] || '';
+      // source-mirror: lift the app's own fnameStampMs (2-space-indented closer; regex `{n}` quantifiers
+      // never sit at a `\n  }` so the lazy match ends at the real close brace) and exercise it directly.
+      var m = appSrc.match(/function fnameStampMs\(name\)\s*\{[\s\S]*?\n  \}/);
+      T.ok('K · ppgdex-app.js exposes a fnameStampMs to mirror', !!m, m ? 'ok' : 'function not found in source');
+      var fnameStampMs = null;
+      if (m) {
+        try {
+          fnameStampMs = new Function('return (' + m[0] + ');')();
+        } catch (e) {
+          /* stays null → reds below */
+        }
+      }
+      T.ok('K · mirrored fnameStampMs is callable', typeof fnameStampMs === 'function');
+      if (typeof fnameStampMs === 'function') {
+        // (1) THE BUG — an all-digit serial must resolve to the REAL date, not a year-0292 device-id artifact
+        var got = fnameStampMs('Polar_Sense_02849638_20260617_010616_PPG.txt');
+        T.ok('K · all-digit serial no longer read as ~year 0292', got != null && new Date(got).getUTCFullYear() === 2026, got == null ? 'null' : new Date(got).toISOString());
+        T.eq('K · all-digit serial → the REAL date', new Date(got).toISOString().slice(0, 19), '2026-06-17T01:06:16');
+        // (2) CONTROL — a lettered serial (the shape the committed fixtures use) stays unchanged-correct
+        T.eq('K · lettered serial 0C301E3F unchanged', new Date(fnameStampMs('Polar_Sense_0C301E3F_20260617_010616_PPG.txt')).toISOString().slice(0, 19), '2026-06-17T01:06:16');
+        T.eq('K · lettered serial BBBBBBBB unchanged', new Date(fnameStampMs('Polar_VS_BBBBBBBB_20260617_010001_PPG.txt')).toISOString().slice(0, 16), '2026-06-17T01:00');
+        // (3) a NON-Polar capture-host name must STILL stamp — anchoring must not starve foreign vendors
+        T.ok('K · non-Polar vendor name still stamps (fallback branch alive)', fnameStampMs('Wellue_O2Ring-S_CCCC_20260617_010616_PPG.txt') != null);
+        // (4) the contiguous capture-host stamp shape …YYYYMMDDHHMMSS resolves too (all-digit serial + no sep)
+        T.eq('K · contiguous capture-host stamp → real date', new Date(fnameStampMs('Polar_H10_02849638_20260617010616_ACC.txt')).toISOString().slice(0, 16), '2026-06-17T01:06');
+        // (5) END-TO-END — a committed all-digit-serial companion set now ATTACHES instead of dropping.
+        //     Path: app computes .stampMs via fnameStampMs → planIngestPpg device-filters → pickNearestByStamp
+        //     scores each candidate's .stampMs against the PARSED rec.t0Ms (real 2026). Pre-fix the 0292 stamps
+        //     all exceeded the 24 h gap → null. This is the committed all-digit twin the lettered fixtures dodge.
+        var DI = env.DexIngest;
+        if (DI && typeof DI.planIngestPpg === 'function' && typeof DI.pickNearestByStamp === 'function' && typeof DI.ppgKind === 'function') {
+          var mk = function (kind) {
+            var nm = 'Polar_Sense_02849638_20260617_010616_' + kind + '.txt';
+            return { name: nm, text: 'x', kind: DI.ppgKind(nm), stampMs: fnameStampMs(nm) };
+          };
+          var primary = 'Polar_Sense_02849638_20260617_010616_PPG.txt';
+          var plan = DI.planIngestPpg([mk('PPG'), mk('ACC'), mk('GYRO'), mk('MAGN'), mk('PPI')]);
+          var elig = plan.eligibleByPrimary[primary] || {};
+          var refT0 = Date.UTC(2026, 5, 17, 1, 6, 16); // the PARSED rec.t0Ms the app pairs against
+          ['acc', 'gyro', 'magn', 'ppi'].forEach(function (k) {
+            var picked = DI.pickNearestByStamp(elig[k] || [], refT0);
+            T.ok('K · all-digit-serial ' + k + ' companion ATTACHES (pre-fix: 0292 stamp > 24 h gap → dropped)', !!picked, picked ? picked.name : 'null — dropped');
+          });
+        }
+      }
+    });
+
     /* ════ INGEST ROUTING TABLE — DexIngest (ECG-INGEST-FOLLOWUPS §3). The pure file-ingest classifiers
      ("which app/stream is this dropped file?") were promoted out of ecgdex-app.js / ppgdex-app.js into the
      shared, headless dex-ingest.js so a regex regression (an _ECG-vs-_ECG2 slip, an O2Ring header rename,
