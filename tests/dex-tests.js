@@ -20023,6 +20023,64 @@
       T.ok('dwellFrac.supine likewise over covered', pos.dwellFrac && Math.abs(pos.dwellFrac.supine - 1) < 0.01, 'dwellFrac.supine=' + (pos.dwellFrac && pos.dwellFrac.supine));
     });
 
+    /* ════ MotionDex classifyGravity uses the ECGDex/PPGDex THRESHOLD scheme — sibling divergence (deep-audit finding H) ════
+     `classifyGravity` used to classify posture by ARGMAX / Y-priority (`if(ay>=ax&&ay>=az)'upright'; if(ax>=az)
+     lateral; else supine/prone`), while the two siblings that read the SAME torso ACC — ECGDex `_posture`, PPGDex
+     `_posturePPG` — use a fixed-THRESHOLD, Z-first scheme (|uz|>=0.7 ⇒ supine/prone; else |uy|>=0.55 ⇒ upright; else
+     lateral). A tilted vector like g=(0.46,0.6,0.65) is 'upright' under both threshold siblings but 'supine' under the
+     old argmax → MotionDex over-reported supine across the intermediate-tilt band, biasing supineFrac. The fix ports
+     ECGDex's exact thresholds/axis order (keeping MotionDex's already-correct 2026-07-20 Z-SIGN and its L/R X-sign,
+     which is immaterial to supineFrac). The sibling posture funcs are node-local (not exported), so this mirrors their
+     scheme byte-for-byte and asserts MotionDex now AGREES on the intermediate-tilt band + is unchanged on cardinals. ════ */
+    group('MotionDex classifyGravity matches the ECGDex/PPGDex threshold scheme (deep-audit finding H)', 'motiondex-dsp · position · sibling-parity', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.classifyGravity === 'function')) {
+        T.skip('MOTIONDSP.classifyGravity available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      // Byte-for-byte mirror of ECGDex `_posture` / PPGDex `_posturePPG` (fixed-threshold, Z-first), reduced to the
+      // canonical supine/prone/upright/lateral vocabulary. This is the sibling SCHEME under test.
+      function sibling(gx, gy, gz) {
+        var g = Math.hypot(gx, gy, gz) || 1,
+          uy = gy / g,
+          uz = gz / g;
+        if (Math.abs(uz) >= 0.7) return uz > 0 ? 'supine' : 'prone';
+        if (Math.abs(uy) >= 0.55) return 'upright';
+        return 'lateral';
+      }
+      // MotionDex keeps 'left'/'right'; fold to 'lateral' for cross-scheme comparison (supineFrac is L/R-independent).
+      function canon(p) {
+        return p === 'left' || p === 'right' ? 'lateral' : p;
+      }
+      // The finding's headline vector: 'upright' under both threshold siblings, 'supine' under the old argmax.
+      T.eq('g=(0.46,0.6,0.65) is upright (was supine under the retired argmax scheme)', canon(MD.classifyGravity(0.46, 0.6, 0.65)), 'upright');
+      // Agreement across the intermediate-tilt band + cardinals.
+      var cases = [
+        [0.46, 0.6, 0.65], // headline intermediate tilt
+        [0.3, 0.62, 0.6], // another tilt where argmax≠threshold
+        [0.5, 0.58, 0.55],
+        [0, 0, 1], // cardinal supine
+        [0, 0, -1], // cardinal prone
+        [0, 1, 0], // cardinal upright
+        [0, -0.9, 0.1], // head-down → upright (threshold folds it)
+        [1, 0, 0], // cardinal lateral (+x)
+        [-1, 0, 0], // cardinal lateral (−x)
+        [0.1, 0.2, 0.75] // just past the supine threshold
+      ];
+      for (var i = 0; i < cases.length; i++) {
+        var c = cases[i];
+        var md = canon(MD.classifyGravity(c[0], c[1], c[2]));
+        var sib = sibling(c[0], c[1], c[2]);
+        T.eq('classifyGravity agrees with the threshold sibling scheme @ (' + c.join(',') + ')', md, sib);
+      }
+      // Cardinal postures unchanged (regression guard for the port).
+      T.eq('cardinal supine unchanged', MD.classifyGravity(0, 0, 1), 'supine');
+      T.eq('cardinal prone unchanged', MD.classifyGravity(0, 0, -1), 'prone');
+      T.eq('cardinal upright unchanged', MD.classifyGravity(0, 1, 0), 'upright');
+      // Non-~1g magnitude still guards to 'unknown' (scheme change did not touch the magnitude gate).
+      T.eq('sub-0.4g magnitude stays unknown', MD.classifyGravity(0.1, 0.1, 0.1), 'unknown');
+    });
+
     /* ════ MotionDex unit taxonomy — Gauss is magnetic, not gravity; mg is case-insensitive (DEEP-AUDIT-II §7.9) ════
      Two defects in the ACC unit pair: (1) the acc-branch regex `/mg|(^g$)|G/` matched a Gauss `[G]` MAGN
      header (Polar Sense writes Gauss) and returned {kind:'acc', unit:'G'}, so Gauss was typed as acceleration
