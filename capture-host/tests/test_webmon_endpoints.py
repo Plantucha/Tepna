@@ -422,3 +422,61 @@ def test_sse_stream_survives_an_abrupt_client_disconnect():
             finally:
                 await cl.close()
         asyncio.run(go())                                     # must not raise
+
+
+# ── VIGIL-DEEP-ANALYSIS §2A — MAC validation, honest config-persist, guarded bodies ──
+def test_bond_rejects_a_newline_injected_address(tmp_path, monkeypatch):
+    """A device address is f-string-interpolated into the bluetoothctl stdin script (bonding.py), so a
+    newline could inject control commands. The webmon boundary must 400 a malformed MAC before bonding."""
+    called = {"n": 0}
+    async def fake_bond(*a, **k):
+        called["n"] += 1
+        return {"ok": True, "detail": "paired", "address": a[0]}
+    monkeypatch.setattr(webmon.bonding, "bond", fake_bond)
+    app, *_ = _mk(tmp_path)
+    async def go(c):
+        r = await c.post("/api/bond", json={"address": "AA:BB:CC:DD:EE:FF\npower off"})
+        return r.status
+    status = _serve(app, go)
+    assert status == 400 and called["n"] == 0     # never reached bonding.bond
+
+
+def test_bond_accepts_a_valid_mac(tmp_path, monkeypatch):
+    async def fake_bond(*a, **k): return {"ok": True, "detail": "paired", "address": a[0]}
+    monkeypatch.setattr(webmon.bonding, "bond", fake_bond)
+    app, *_ = _mk(tmp_path)
+    async def go(c):
+        r = await c.post("/api/bond", json={"address": "11:22:33:44:55:66"})
+        return r.status
+    assert _serve(app, go) == 200
+
+
+def test_remember_rejects_a_bad_address_before_persisting(tmp_path):
+    app, cfg, cfg_path, *_ = _mk(tmp_path)
+    dev = {"name": "X", "vendor": "Polar", "model": "H10", "device_id": "1", "address": "not-a-mac", "streams": ["ecg"]}
+    async def go(c):
+        r = await c.post("/api/remember", json=dev)
+        return r.status
+    assert _serve(app, go) == 400
+    assert all(d.get("address") != "not-a-mac" for d in cfg.get("devices", []))   # not persisted
+
+
+def test_forget_surfaces_a_failed_config_write_as_500(tmp_path, monkeypatch):
+    """A full/read-only disk must not answer ok:true after _save() fails silently (the box's own E6)."""
+    async def fake_forget(*a, **k): return {"ok": True, "address": a[0]}
+    monkeypatch.setattr(webmon.bonding, "forget", fake_forget)
+    app, cfg, cfg_path, *_ = _mk(tmp_path, devices=[dict(H10, address="11:22:33:44:55:66")])
+    def boom(*a, **k): raise OSError("No space left on device")
+    monkeypatch.setattr(webmon, "open", boom, raising=False)   # make yaml.safe_dump's open() fail
+    async def go(c):
+        r = await c.post("/api/forget", json={"address": "11:22:33:44:55:66"})
+        return r.status
+    assert _serve(app, go) == 500
+
+
+def test_a_malformed_json_body_is_400_not_500(tmp_path):
+    app, *_ = _mk(tmp_path)
+    async def go(c):
+        r = await c.post("/api/bond", data=b"not json", headers={"content-type": "application/json"})
+        return r.status
+    assert _serve(app, go) == 400     # invalid address (empty body → {}), not a 500 traceback

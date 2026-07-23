@@ -981,6 +981,10 @@ def test_run_polar_start_without_an_ack_keeps_the_stream(tmp_path, monkeypatch):
     c = FlexPolarClient(data_frames=[_ecg_frame()], start_status=0x00)
     _inject_connect(monkeypatch, c)
     async def timeout_wait_for(coro, timeout):
+        # start_notify is now bounded too (VIGIL-DEEP-ANALYSIS §1.1) — let it COMPLETE and time out only
+        # the control round-trips (ctrl_q.get), which is what produces the NO_ACK this test exercises.
+        if getattr(getattr(coro, "cr_code", None), "co_name", "") == "start_notify":
+            return await coro
         coro.close()                                  # don't leave the ctrl_q.get() pending
         raise capture.asyncio.TimeoutError
     monkeypatch.setattr(capture.asyncio, "wait_for", timeout_wait_for)
@@ -3160,3 +3164,26 @@ def test_autopull_yields_the_slot_on_offline_busy(tmp_path, monkeypatch):
     _stop_after(monkeypatch, 1)
     _run(capture.autopull_poller(cfg, str(tmp_path)))
     assert n["c"] == 1, "OfflineBusy breaks the retry loop immediately (no hammering)"
+
+
+
+
+# ── VIGIL-DEEP-ANALYSIS §1.1 — every post-connect setup await is bounded by _bounded_setup, so a
+#    wedged StartNotify/auth-write raises TimeoutError (→ runner retries) instead of freezing all night. ──
+def test_bounded_setup_times_out_a_hanging_await(monkeypatch):
+    monkeypatch.setattr(capture, "_BLE_SETUP_TIMEOUT_S", 0.05)
+    async def go():
+        async def hang():
+            await asyncio.Event().wait()          # never fires (the wedged-StartNotify case)
+        import pytest
+        with pytest.raises(asyncio.TimeoutError):
+            await capture._bounded_setup(hang())
+    asyncio.run(go())
+
+
+def test_bounded_setup_passes_a_prompt_await_through(monkeypatch):
+    monkeypatch.setattr(capture, "_BLE_SETUP_TIMEOUT_S", 1.0)
+    async def go():
+        async def ok(): return "done"
+        assert await capture._bounded_setup(ok()) == "done"
+    asyncio.run(go())

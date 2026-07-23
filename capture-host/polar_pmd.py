@@ -233,6 +233,8 @@ def _decode_delta(payload: bytes, channels: int, ref_bits: int) -> list[tuple]:
     running sample. Bit-packed LSB-first (Polar convention). Verified against real Verity PPG frames."""
     pos = 0
     nbits_total = len(payload) * 8
+    if channels * ref_bits > nbits_total:   # truncated frame: not even one full reference sample
+        return []                            # (VIGIL-DEEP-ANALYSIS §2C) — never IndexError into the callback
 
     def read(nbits: int, signed: bool) -> int:
         nonlocal pos

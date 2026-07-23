@@ -134,6 +134,20 @@ TASK_LABELS: dict[int, str] = {}    # id(task) -> human name, so shutdown can NA
 _BLE_CONNECT_TIMEOUT_S = 30.0       # a real connect to an advertising, bonded sensor takes ~1-3 s
 _BLE_DISCONNECT_TIMEOUT_S = 10.0    # teardown must be quick or abandoned — never a second deadlock
 _PMD_CTRL_TIMEOUT_S = 3.0           # per PMD control-point round-trip (write, then its indication)
+# EVERY post-connect GATT setup await must be bounded too (VIGIL-DEEP-ANALYSIS §1.1). `connect()` is
+# already wrapped, but a BlueZ wedge can accept the LE connection then stall StartNotify/discovery/auth —
+# and those awaits used to be UNBOUNDED in all three runners, so a wedge landing after connect() parked
+# the task at `connected=True` forever, invisible to the stall watchdog (later in the loop), to
+# classify_adapter_health (sees connected → not a phantom), and to alert_poller. Generous vs a control
+# round-trip: StartNotify + service resolution legitimately take longer than one write+indication.
+_BLE_SETUP_TIMEOUT_S = 10.0
+
+
+def _bounded_setup(coro):
+    """Bound a post-connect GATT setup await (start_notify / auth+setup writes). A timeout RAISES out of
+    the runner's try so `except/finally` closes the writers and the loop retries on a fresh link — never
+    a silent all-night freeze at `connected=True`."""
+    return asyncio.wait_for(coro, _BLE_SETUP_TIMEOUT_S)
 
 # The O2Ring exposes exactly ONE BLE link, so live capture and a stored-session (.dat) pull cannot both
 # hold it. Setting this event tells run_oxyii to drop its link and idle; pull_oxyii_session then owns the
@@ -382,7 +396,8 @@ def _utcnow():
 # protocol refusal such as NOT_IMPLEMENTED / error 201, which must still give up immediately.
 _TRANSIENT_BLE = ("inprogress", "in progress", "not ready", "notready", "temporarily unavailable",
                   "devicenotfound", "not advertising", "timeout", "timeouterror", "busy",
-                  "abort-by-local", "disconnected", "no reply", "not connected")
+                  "abort-by-local", "disconnected", "no reply", "not connected",
+                  "connection-canceled", "br-connection-canceled")
 
 
 def transient_ble_error(exc: BaseException) -> bool:
@@ -658,8 +673,8 @@ async def run_polar(dev: dict, root: str):
                         meas, samples = pmd.decode_frame(bytes(data), arrival, fs=stream_fs.get(data[0]),
                                                          prev_last_ns=prev_ns.get(data[0]),
                                                          scale=stream_scale.get(data[0]))
-                    except ValueError as e:
-                        _set(name, last_error=str(e)); return
+                    except Exception as e:   # a truncated/empty frame raises IndexError/struct.error, not
+                        _set(name, last_error=str(e)); return   # only ValueError — a decoder must never disturb the callback
                     if samples:
                         prev_ns[meas] = samples[-1].sensor_ns   # seam anchor for the next frame's step
                     # Diagnostic (inert unless PMD_FRAME_PROBE names a file): records what each frame
@@ -759,7 +774,7 @@ async def run_polar(dev: dict, root: str):
                         except asyncio.TimeoutError:
                             return b""
 
-                    await client.start_notify(pmd.PMD_DATA, on_pmd)
+                    await _bounded_setup(client.start_notify(pmd.PMD_DATA, on_pmd))
                     for meas in list(writers):
                         await _ctrl(pmd.stop_cmd(meas))   # clear any stale stream from a prior session
                         # Ask the device what settings it offers, then START from THOSE (fixed table is a
@@ -1112,7 +1127,7 @@ async def run_viatom(dev: dict, root: str):
                     else:
                         _set(name, worn=pkt["worn"], last_error=None if pkt["worn"] else "not on finger")
 
-                await client.start_notify(notify_char, on_data)
+                await _bounded_setup(client.start_notify(notify_char, on_data))
                 if write_char is not None:
                     try:
                         await asyncio.wait_for(
@@ -1344,10 +1359,10 @@ async def run_oxyii(dev: dict, root: str):
                 BUS.register("motion_o2", "Motion (O2Ring)", "lvl", 0)
                 if ppgwr:                                   # no card for a stream we are not capturing
                     BUS.register("o2ppg", "PPG (O2Ring)", "raw", O2PPG_FS)   # finger pleth, Phase 2
-                await client.start_notify(nch, on_data)
-                await client.write_gatt_char(wch, oxyii.auth_frame(), response=False)   # 0xFF: no reply
+                await _bounded_setup(client.start_notify(nch, on_data))
+                await _bounded_setup(client.write_gatt_char(wch, oxyii.auth_frame(), response=False))   # 0xFF: no reply
                 await asyncio.sleep(0.6)
-                await client.write_gatt_char(wch, oxyii.setup_frame(), response=False)  # 0x10: ack
+                await _bounded_setup(client.write_gatt_char(wch, oxyii.setup_frame(), response=False))  # 0x10: ack
                 await asyncio.sleep(0.6)
                 # Sync the ring's free-running RTC to the NTP-synced host so its stored .dat timestamps
                 # match the live capture (it drifts ~+151 s — see oxyii.set_time_frame).
@@ -1365,7 +1380,7 @@ async def run_oxyii(dev: dict, root: str):
                 # drift backstop. Reconnect storms now cost zero clock writes.
                 async def _rtc_sync(why: str) -> None:
                     _clk = _now()
-                    await client.write_gatt_char(wch, oxyii.set_time_frame(_clk), response=False)  # 0xC0
+                    await _bounded_setup(client.write_gatt_char(wch, oxyii.set_time_frame(_clk), response=False))  # 0xC0
                     _OXYII_RTC_AT[addr] = _clk
                     _set(name, clock_synced=_clk.isoformat(timespec="seconds"))
                     log.info("%s RTC synced to host %s (%s)", name,
@@ -1578,8 +1593,10 @@ async def status_loop(root: str):
         STATUS["updated"] = _now().isoformat()
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path, "w") as f:
+            _tmp = path + ".tmp"
+            with open(_tmp, "w") as f:
                 json.dump(STATUS, f, indent=2)
+            os.replace(_tmp, path)   # atomic — the monitor never reads a half-written status.json
         except Exception as e:
             log.warning("status write: %r", e)
         await asyncio.sleep(10)
@@ -2049,8 +2066,10 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             # watchdog heartbeat. QC is a REPORT: it must never cost the recording it reports on.
             summ = await asyncio.to_thread(nightqc.summarize, night, cfg.get("devices", []))
             STATUS["qc"] = summ
-            with open(os.path.join(night, "QC-SUMMARY.json"), "w") as fh:
+            _qc = os.path.join(night, "QC-SUMMARY.json")
+            with open(_qc + ".tmp", "w") as fh:
                 json.dump(summ, fh, indent=2)
+            os.replace(_qc + ".tmp", _qc)   # atomic
             n = summ["night"]
             first_seen.setdefault(n, _time.monotonic())
             if summ["missing"]:
