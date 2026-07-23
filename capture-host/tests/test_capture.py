@@ -158,3 +158,48 @@ def test_charger_pull_not_due_off_charger_or_not_armed():
 
 def test_charger_pull_only_once_per_charge_session():
     assert capture.charger_pull_due(True, 1000.0, 1020.0, 15.0, True) is False    # already pulled this session
+
+
+# ── VIGIL-DEEP-ANALYSIS §2D — stronger adapter recovery (hci reset + gated USB rebind), never raises ──
+import asyncio as _aio
+
+
+def test_adapter_cmd_returns_true_on_success_and_never_raises(monkeypatch):
+    class _P:
+        async def wait(self): return 0
+    async def fake_exec(*a, **k): return _P()
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", fake_exec)
+    assert _aio.run(capture._adapter_cmd(["hciconfig", "hci0", "reset"])) is True
+
+
+def test_adapter_cmd_swallows_a_missing_binary(monkeypatch):
+    async def boom(*a, **k): raise FileNotFoundError("hciconfig")
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", boom)
+    assert _aio.run(capture._adapter_cmd(["hciconfig", "hci0", "reset"])) is False   # graceful, no raise
+
+
+def test_usb_rebind_writes_unbind_then_bind(monkeypatch):
+    writes = []
+    import builtins
+    real_open = builtins.open
+    def fake_open(path, *a, **k):
+        if "/sys/bus/usb/drivers/usb" in str(path):
+            class _F:
+                def __enter__(s): return s
+                def __exit__(s, *e): return False
+                def write(s, v): writes.append((str(path).rsplit("/", 1)[-1], v))
+            return _F()
+        return real_open(path, *a, **k)
+    monkeypatch.setattr(builtins, "open", fake_open)
+    assert _aio.run(capture._usb_rebind("3-1")) is True
+    assert writes == [("unbind", "3-1"), ("bind", "3-1")]
+
+
+def test_usb_rebind_is_graceful_when_sysfs_is_unwritable(monkeypatch):
+    import builtins
+    real_open = builtins.open
+    def deny(path, *a, **k):
+        if "/sys/bus/usb" in str(path): raise PermissionError("EACCES")
+        return real_open(path, *a, **k)
+    monkeypatch.setattr(builtins, "open", deny)
+    assert _aio.run(capture._usb_rebind("3-1")) is False   # no raise on a dev box without the caps

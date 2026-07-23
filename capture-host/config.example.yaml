@@ -24,6 +24,13 @@ watchdog:                               # auto-recover a WEDGED BLE controller (
   interval_sec: 60                      #   BlueZ link) — NEVER on 'sensors not worn' (clean not-found).
   grace_checks: 2                       #   consecutive wedged checks before a controller power-cycle
   max_adapter_cycles: 3                 #   hard cap so recovery can never loop (external supervisor beyond)
+  hci_reset: true                       #   escalation: after the soft power-cycle, `hciconfig <hci> reset`
+  # usb_path: "3-1"                     #   LAST-RESORT: re-enumerate the USB dongle (unbind+bind) on the
+  #                                     #     final cycle — the only thing that clears an RTL8761B firmware
+  #                                     #     hang a soft toggle can't. Set to the bus-port from
+  #                                     #     `ls /sys/bus/usb/devices/`. OFF by default.
+  # exit_on_giveup: true                #   after exhausting cycles, exit non-zero so systemd re-execs with
+  #                                     #     a fresh bleak/D-Bus stack instead of looping deaf all night.
 
 link:                                   # weak-signal warning. Stream-rate health (packet rate vs nominal)
   rssi_enabled: true                    #   is always on & needs no privilege. RSSI dBm enrichment needs a
