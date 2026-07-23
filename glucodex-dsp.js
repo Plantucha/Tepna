@@ -142,6 +142,24 @@
     if (sawMDY) return { dmy: false, locked: true, contradictory: false };
     return { dmy: pref, locked: false, contradictory: false };
   }
+  // Clock Contract §2.7 (DEEP-AUDIT-II §12.3) — Date.UTC SILENTLY ROLLS out-of-range components onto a
+  // plausible WRONG instant (month 13 → next January, day 45/Feb 30/Apr 31 → next month, 25:99 → +1 day
+  // 1 h 39 m), so a corrupt CGM stamp used to land on a wrong instant instead of an honest null. `_ckMk`
+  // builds the floating tMs ONLY if every component is in range: the date must round-trip (rejects
+  // month>12, day>31, Feb 30, Apr 31…) and the time must be 0–23 : 0–59 : 0–59 . 0–999. The ONE
+  // legitimate overflow is ISO-8601 `24:00:00` (end-of-day) → next-day 00:00 (do not add a bare `h>23`
+  // guard). Returns a number, or null on any out-of-range component. Mirrors clock.js `_ckMk` (GlucoDex
+  // is a deliberate node-local Clock variant — do not force onto DexClock).
+  function _ckMk(y, mo0, d, h, mi, se, ms) {
+    se = se || 0;
+    ms = ms || 0;
+    var day0 = Date.UTC(y, mo0, d),
+      dd = new Date(day0);
+    if (dd.getUTCFullYear() !== y || dd.getUTCMonth() !== mo0 || dd.getUTCDate() !== d) return null; // date rolled ⇒ invalid
+    if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000; // ISO end-of-day → next 00:00:00
+    if (h < 0 || h > 23 || mi < 0 || mi > 59 || se < 0 || se > 59 || ms < 0 || ms > 999) return null;
+    return Date.UTC(y, mo0, d, h, mi, se, ms);
+  }
   function _ckParse(raw, opts) {
     opts = opts || {};
     var preferDMY = opts.preferDMY !== false;
@@ -157,24 +175,33 @@
     m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?\s*(Z|[+-]\d{2}:?\d{2})$/);
     if (m) {
       var of = m[8] === 'Z' ? 0 : _ckZoneMin(m[8]);
-      return { tMs: Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0), offsetMin: of };
+      var _tz = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0);
+      return _tz == null ? null : { tMs: _tz, offsetMin: of };
     }
     m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?$/);
-    if (m) return { tMs: Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0), offsetMin: null };
+    if (m) {
+      var _ti = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0);
+      return _ti == null ? null : { tMs: _ti, offsetMin: null };
+    }
     m = s.match(/^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (m) {
       var dm = _ckDMY(+m[4], +m[5], preferDMY, dmyLocked);
       if (!dm) return null; // row contradicts the file's proven order → honest null
-      return { tMs: Date.UTC(+m[6], dm.mo - 1, dm.d, +m[1], +m[2], +m[3]), offsetMin: null };
+      var _to = _ckMk(+m[6], dm.mo - 1, dm.d, +m[1], +m[2], +m[3]);
+      return _to == null ? null : { tMs: _to, offsetMin: null };
     }
     m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
     if (m) {
       var dm2 = _ckDMY(+m[1], +m[2], preferDMY, dmyLocked);
       if (!dm2) return null; // row contradicts the file's proven order → honest null
-      return { tMs: Date.UTC(+m[3], dm2.mo - 1, dm2.d, +m[4], +m[5], m[6] ? +m[6] : 0), offsetMin: null };
+      var _tw = _ckMk(+m[3], dm2.mo - 1, dm2.d, +m[4], +m[5], m[6] ? +m[6] : 0);
+      return _tw == null ? null : { tMs: _tw, offsetMin: null };
     }
     m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-    if (m) return { tMs: Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0), offsetMin: null };
+    if (m) {
+      var _ty = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0);
+      return _ty == null ? null : { tMs: _ty, offsetMin: null };
+    }
     return null;
   }
   function parseTimestamp(s) {
@@ -2003,7 +2030,8 @@
     _quantile: quantile,
     hhmm,
     parseNutrition,
-    pearson
+    pearson,
+    _ckParse // exposed for the Clock Contract §2.7 range-validation regression gate
   };
   // ONE namespaced global (brief §1A). GlucoDex leaks nothing bare (whole DSP is in
   // this IIFE) → no __DEX_NAMESPACED__ suppression gate needed; this is an explicit

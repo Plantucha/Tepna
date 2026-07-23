@@ -20,6 +20,23 @@
   function tzOffset(instantMs) {
     return new Date(instantMs).getTimezoneOffset() * 60000;
   }
+  // Clock Contract §2.7 (DEEP-AUDIT-II §12.3) — Date.UTC SILENTLY ROLLS out-of-range components onto a
+  // plausible WRONG instant (month 13 → next January, day 45/Feb 30/Apr 31 → next month, 25:99 → +1 day
+  // 1 h 39 m). `_ckMk` builds the floating tMs ONLY if every component is in range: the date must
+  // round-trip (rejects month>12, day>31, Feb 30, Apr 31…) and the time must be 0–23 : 0–59 : 0–59 .
+  // 0–999. The ONE legitimate overflow is ISO-8601 `24:00:00` (end-of-day) → next-day 00:00 (do not add
+  // a bare `h>23` guard). Returns a number, or null on any out-of-range component. Mirrors clock.js
+  // `_ckMk` (PpgDex is a deliberate node-local Clock variant — do not force onto DexClock).
+  function _ckMk(y, mo0, d, h, mi, se, ms) {
+    se = se || 0;
+    ms = ms || 0;
+    const day0 = Date.UTC(y, mo0, d),
+      dd = new Date(day0);
+    if (dd.getUTCFullYear() !== y || dd.getUTCMonth() !== mo0 || dd.getUTCDate() !== d) return null; // date rolled ⇒ invalid
+    if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000; // ISO end-of-day → next 00:00:00
+    if (h < 0 || h > 23 || mi < 0 || mi > 59 || se < 0 || se > 59 || ms < 0 || ms > 999) return null;
+    return Date.UTC(y, mo0, d, h, mi, se, ms);
+  }
   function parseTimestamp(raw, opts) {
     opts = opts || {};
     if (raw == null) return null;
@@ -39,7 +56,8 @@
     m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?\s*(Z|[+-]\d{2}:?\d{2})?$/);
     if (m) {
       const ms = m[7] ? Math.round(parseFloat('0.' + m[7]) * 1000) : 0;
-      const tMs = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, ms);
+      const tMs = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, ms);
+      if (tMs == null) return null; // §2.7 — out-of-range component → honest null, never a rolled instant
       let offsetMin = null;
       if (m[8]) {
         if (m[8] === 'Z') offsetMin = 0;

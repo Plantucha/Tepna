@@ -269,6 +269,66 @@
       T.ok('floating tMs via Date.UTC (TZ-independent)', (P('2026-06-07 03:00', {}) || {}).tMs === U(2026, 5, 7, 3, 0));
     });
 
+    /* ════ 1b · CLOCK §2.7 — NODE-LOCAL parsers reject out-of-range components ════
+       clock.js `_ckMk` (used by the DexClock-delegating nodes) validates component ranges by ROUND-TRIP.
+       The three DELIBERATE node-local Clock variants (GlucoDex `_ckParse`, PpgDex `parseTimestamp`,
+       CPAPDex `parseTimestamp` + the EDF-primary `CpapEdf.parseEdfClock`) used to build tMs via a BARE
+       (or partial-guard) `Date.UTC`, so a corrupt stamp SILENTLY ROLLED onto a plausible WRONG instant
+       (month 13 → next January, day 45 / Feb 30 / Apr 31 → next month, 25:99 → +1 day 1 h 39 m) instead
+       of an honest null. Each now routes through an `_ckMk`-style round-trip validator. This group locks
+       that: out-of-range → null; a valid stamp → tMs UNCHANGED; ISO `24:00:00` end-of-day → next-day
+       00:00 stays valid (a bare `h>23` guard would wrongly reject it). Contract-provenance-drift finding C. */
+    group('Clock §2.7 — node-local parsers reject out-of-range', 'node-local-clock', function (T) {
+      // ── GlucoDex `_ckParse` (exposed on GLUDSP for this gate) ──
+      var GP = (env.GLUDSP && env.GLUDSP._ckParse) || (env.GlucoDex && env.GlucoDex._ckParse);
+      T.ok('GLUDSP._ckParse exposed', typeof GP === 'function', 'export _ckParse from glucodex-dsp.js');
+      if (typeof GP === 'function') {
+        T.eq('GlucoDex · valid ISO no-zone → tMs unchanged', (GP('2026-06-13 22:00:00', {}) || {}).tMs, U(2026, 5, 13, 22, 0, 0));
+        T.eq('GlucoDex · valid MDY slash 06/13/2026 → tMs unchanged', (GP('06/13/2026 08:30', { preferDMY: false }) || {}).tMs, U(2026, 5, 13, 8, 30));
+        T.eq('GlucoDex · ISO 24:00:00 → next-day 00:00 (kept)', (GP('2026-06-13 24:00:00', {}) || {}).tMs, U(2026, 5, 14, 0, 0, 0));
+        T.eq('GlucoDex · hour 25 → null (was kept at +1 day 01:00)', GP('2026-06-13 25:00:00', {}), null);
+        T.eq('GlucoDex · minute 99 → null (was 13:39)', GP('2026-06-13 12:99:00', {}), null);
+        T.eq('GlucoDex · month 13 → null (was next January)', GP('2026-13-13 12:00:00', {}), null);
+        T.eq('GlucoDex · Feb 30 → null (invalid calendar day)', GP('2026-02-30 12:00:00', {}), null);
+        T.eq('GlucoDex · O2Ring hour 25 "25:00:00 07/06/2026" → null', GP('25:00:00 07/06/2026', { preferDMY: true }), null);
+        T.eq('GlucoDex · YYYY/MM/DD month 13 "2026/13/01 12:00" → null', GP('2026/13/01 12:00', {}), null);
+      }
+      // ── PpgDex `parseTimestamp` (ISO/epoch subset) ──
+      var PP = env.PPGDSP && env.PPGDSP.parseTimestamp;
+      T.ok('PPGDSP.parseTimestamp exposed', typeof PP === 'function', 'export parseTimestamp from ppgdex-dsp.js');
+      if (typeof PP === 'function') {
+        T.eq('PpgDex · valid ISO w/ ms → tMs unchanged', (PP('2026-06-07T22:00:00.123', {}) || {}).tMs, U(2026, 5, 7, 22, 0, 0, 123));
+        T.eq('PpgDex · ISO 24:00:00 → next-day 00:00 (kept)', (PP('2026-06-13 24:00:00', {}) || {}).tMs, U(2026, 5, 14, 0, 0, 0));
+        T.eq('PpgDex · month 13 → null (was 2027-01-01)', PP('2026-13-01 12:00:00', {}), null);
+        T.eq('PpgDex · Feb 30 → null (was 2026-03-02)', PP('2026-02-30 12:00:00', {}), null);
+        T.eq('PpgDex · hour 25 → null (was +1 day)', PP('2026-06-13 25:00:00', {}), null);
+        T.eq('PpgDex · minute 99 → null (was 23:39)', PP('2026-06-13 22:99:00', {}), null);
+      }
+      // ── CPAPDex `parseTimestamp` (ISO + 14-digit filename compact) ──
+      var CP = env.CpapDsp && env.CpapDsp.parseTimestamp;
+      T.ok('CpapDsp.parseTimestamp exposed', typeof CP === 'function', 'export parseTimestamp from cpapdex-dsp.js');
+      if (typeof CP === 'function') {
+        T.eq('CPAPDex · valid ISO → tMs unchanged', (CP('2026-06-12 22:28:30.250') || {}).tMs, U(2026, 5, 12, 22, 28, 30, 250));
+        T.eq('CPAPDex · valid filename prefix 20260612_222830 → tMs unchanged', (CP('20260612_222830_BRP.edf') || {}).tMs, U(2026, 5, 12, 22, 28, 30));
+        T.eq('CPAPDex · ISO 24:00:00 → next-day 00:00 (kept)', (CP('2026-06-13 24:00:00') || {}).tMs, U(2026, 5, 14, 0, 0, 0));
+        T.eq('CPAPDex · Feb 30 → null (partial guard LEAKED this → Mar 2)', CP('2026-02-30 12:00:00'), null);
+        T.eq('CPAPDex · Apr 31 → null (partial guard LEAKED this → May 1)', CP('2026-04-31 12:00:00'), null);
+        T.eq('CPAPDex · month 13 → null', CP('2026-13-01 12:00:00'), null);
+        T.eq('CPAPDex · hour 25 → null', CP('2026-06-13 25:00:00'), null);
+        T.eq('CPAPDex · compact Feb 31 20260231120000 → null', CP('20260231120000'), null);
+      }
+      // ── CpapEdf `parseEdfClock` (EDF header, the primary CPAP clock) ──
+      var EC = env.CpapEdf && env.CpapEdf.parseEdfClock;
+      T.ok('CpapEdf.parseEdfClock exposed', typeof EC === 'function', 'export parseEdfClock from cpapdex-edf.js');
+      if (typeof EC === 'function') {
+        T.eq('CpapEdf · valid header 12.06.26 22.28.30 → t0Ms unchanged', (EC('12.06.26', '22.28.30') || {}).t0Ms, U(2026, 5, 12, 22, 28, 30));
+        T.eq('CpapEdf · Feb 30 "30.02.26" → null (dd<=31 guard LEAKED this → Mar 2)', EC('30.02.26', '22.28.30'), null);
+        T.eq('CpapEdf · Apr 31 "31.04.26" → null (LEAKED this → May 1)', EC('31.04.26', '22.28.30'), null);
+        T.eq('CpapEdf · month 13 "01.13.26" → null', EC('01.13.26', '22.28.30'), null);
+        T.eq('CpapEdf · hour 25 "25.28.30" → null', EC('12.06.26', '25.28.30'), null);
+      }
+    });
+
     /* ════ 2 · CROSS-NIGHT SIGNIFICANCE (#1 boundary fix) ════ */
     group('Cross-night significance — CI-includes-0 (#1)', 'crossnight-envelope', function (T) {
       var newRule = function (ci) {
