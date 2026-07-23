@@ -3862,6 +3862,32 @@
       'ratio=' + (hi == null ? 'null' : hi.toFixed(2)) + ' — if this is ~1 the residual is fixed: delete this assert and extend the range above');
   });
 
+  group('PpgDex harmonic-outlier reference guard (OPTICAL-DETECTOR-AND-SIGMA-REDERIVE §1 residual)', 'ppgdex-dsp', function (T) {
+    var D = env.PPGDSP;
+    if (!(D && typeof D.harmonicOutlierRefIdx === 'function')) {
+      T.ok('PPGDSP.harmonicOutlierRefIdx exposed', false, 'export it from ppgdex-dsp.js');
+      return;
+    }
+    var G = D.harmonicOutlierRefIdx;
+    // rates = per-channel detected bpm; snr = per-channel pulse-band SNR (drives the re-pick).
+    // The SNR pick (idx 0) counted the dicrotic notch at 2× while a clean majority reads ~48 →
+    // re-pick onto the highest-SNR CLEAN channel (idx 2, snr 4.7 > idx 1's 4.0).
+    T.eq('a doubled reference beside a clean majority is re-picked onto the majority', G(0, [96, 48, 48], [5.6, 4.0, 4.7]), 2);
+    // ALL channels double together (the four all-LED-double nights): no clean majority, so DO NOTHING —
+    // the SNR pick stands and the refractory is what saves those nights, not this guard.
+    T.eq('all-LED-double (no clean majority) leaves the pick untouched', G(0, [96, 96, 96], [3, 3, 3]), 0);
+    // a genuinely clean night: three coherent rates → never fires (cannot regress a night that agrees).
+    T.eq('a clean 3-LED night is never overridden', G(1, [49, 50, 48], [5, 6, 4]), 1);
+    // the reference is already the clean one and a LONE channel doubles → leave it (ref is not the outlier).
+    T.eq('when the reference is already clean, a lone doubled channel does not move it', G(0, [48, 96, 49], [6, 3, 5]), 0);
+    // too few detectable channels to trust a majority → no-op (e.g. single/dual-channel).
+    T.eq('fewer than two OTHER valid channels ⇒ no-op', G(0, [96, 48, null], [5, 4, 0]), 0);
+    // a HALF-rate reference (missed beats) is NOT this guard's job (it only demotes ≥1.5× multiples).
+    T.eq('a half-rate reference is left alone (not a >=1.5x multiple)', G(0, [24, 48, 49], [5, 4, 4]), 0);
+    // the other channels must COHERE — two disagreeing "others" are not a trustworthy majority.
+    T.eq('incoherent other channels are not a majority ⇒ no-op', G(0, [96, 40, 70], [5, 4, 4]), 0);
+  });
+
   group('PpgDex time-discontinuity intervals — never measure across lost time (O2RING-PPG-GAP §2)', 'ppgdex-dsp', function (T) {
     var D = env.PPGDSP;
     if (!(D && typeof D.intervalsSpanningTimeGap === 'function' && typeof D.timeDomain === 'function')) {
