@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-8Mwn3mFkwRTVId9zNv3Fb7ixUvRUM0tmm7BBO1WWZLo=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-J8+a6id6lzsU3GPI7c2D8kA/HhbyteWGzjkzjdlvUO0=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-aoO0MBKkGuLHroVMhozxI9BffHF+2hXrnINVgvnS0Kw=' 'sha256-b4QFb+4gvTY8jO9wXMO/M4P0KpFQo8v/GbOezDPoNng=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-p9Oxv8fTa380+XXRWMPFuq0j+QFn4WmHMO+/E8wCeV4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-J8+a6id6lzsU3GPI7c2D8kA/HhbyteWGzjkzjdlvUO0=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-aoO0MBKkGuLHroVMhozxI9BffHF+2hXrnINVgvnS0Kw=' 'sha256-b4QFb+4gvTY8jO9wXMO/M4P0KpFQo8v/GbOezDPoNng=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-p9Oxv8fTa380+XXRWMPFuq0j+QFn4WmHMO+/E8wCeV4=' 'sha256-yLUGN7xwPPGB0k399gLjtWB6jcrpx8v7wjyi861010U='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ECGDex — Raw ECG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -7103,11 +7103,21 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     // above every subsequent real QRS, and detection then dies SILENTLY for the rest of the
     // recording (the robust seed prevents the <12-peak THROW, NOT this mid-record stall:
     // verified on a real Polar-H10 20260625 night that collapsed to 63 beats / 4 min of a
-    // ~7 h record — integ artifact 1.1e7 vs ~5e5 real QRS). Guard: once a beat cadence is
-    // established (rrAvg>0) and detection stalls past a non-physiologic gap (>2.5 s ⇒
-    // sustained <24 bpm ⇒ the THRESHOLD, not the heart, is stuck), BLEED SPKI toward the
-    // noise floor so a real QRS can re-cross THRI. Inert on clean records — a real RR never
-    // exceeds 2.5 s, so beat output is BYTE-IDENTICAL there (verified vs the pre-guard path).
+    // ~7 h record — integ artifact 1.1e7 vs ~5e5 real QRS). Guard: whenever detection stalls
+    // past a non-physiologic gap (>2.5 s ⇒ sustained <24 bpm ⇒ the THRESHOLD, not the heart,
+    // is stuck), BLEED SPKI toward the noise floor so a real QRS can re-cross THRI. Inert on
+    // clean records — a real RR never exceeds 2.5 s, so beat output is BYTE-IDENTICAL there
+    // (verified vs the pre-guard path).
+    // ECGDEX AUDIT G — the bleed used to be gated `rrAvg>0`, but rrAvg is only established after
+    // the SECOND detected beat. A SHARP electrode-settling transient that is the FIRST threshold
+    // crossing (before any real QRS) parks SPKI above every subsequent QRS AND keeps rrAvg==0
+    // forever, so the bleed never ran and detection was dead for the whole record (compute() then
+    // threw "Too few R-peaks" on a clean multi-hour night). Dropping the `rrAvg>0` precondition and
+    // relying on the fixed idleLimit alone lets an opening transient bleed down too. This does NOT
+    // regress normal records: a normal first beat fires well under 2.5 s, so `last` advances before
+    // `i - last` ever reaches idleLimit and the bleed stays dormant (byte-identical); it only ever
+    // fires when no beat was detected within a 2.5 s window — precisely the stuck-threshold case,
+    // whether that stall is mid-record or an opening-transient lead-in.
     const idleLimit = Math.round(2.5 * fs);
     const rr = [];
     let rrAvg = 0;
@@ -7144,8 +7154,9 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         NPKI = 0.125 * integ[i] + 0.875 * NPKI;
       }
       THRI = NPKI + 0.25 * (SPKI - NPKI);
-      // un-stick a threshold parked by a supra-physiologic transient (see header note)
-      if (rrAvg > 0 && i - last > idleLimit) {
+      // un-stick a threshold parked by a supra-physiologic transient (see header note) — runs
+      // even before a cadence is established (rrAvg==0) so an OPENING transient recovers too (AUDIT G)
+      if (i - last > idleLimit) {
         SPKI = Math.max(NPKI, SPKI * 0.99);
         THRI = NPKI + 0.25 * (SPKI - NPKI);
       }
@@ -10053,6 +10064,48 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         : lng
           ? { totalSleepMin: nz(r.totSleep), stageMinutes: r.stageMin || null }
           : null;
+      // ECGDEX AUDIT F — the Integrator's adaptEnvelopeNode('ECGDex') reads json.apnea.{cvhrIndex,
+      // estimatedAHI.value} and json.hrvStability.mean_lnRMSSD_slope, but this orchestrate-routed rich
+      // export OMITTED both blocks — so a nocturnal ECG fused DIFFERENTLY by ingest route (the app's
+      // ⬇JSON button, which runs buildV2, carried CVHR/estAHI/slope; a raw-file→OverDex route did not).
+      // MIRRORS ecgdex-app.js buildV2 field-for-field (same `r`, same reportable:false ambulatory
+      // handling, same null cases when r.cvhr/r.estAHI/r.hrvStab are absent) — honoring this builder's
+      // own SHARED-SHAPE no-divergence mandate (ppgBuildNodeExport carries the sibling out.apnea).
+      var p = r.profile || {};
+      out.apnea = amb
+        ? {
+            reportable: false,
+            suppressedReason: (r.apneaSuppressed && r.apneaSuppressed.suppressedReason) || 'ambulatory — CVHR invalid under exercise',
+            cvhrIndex: null,
+            estimatedAHI: null,
+            riskCategory: null,
+            onCPAP: !!p.cpap,
+            method:
+              'CVHR/cardiopulmonary-coupling proxy (Hilmisson 2019) — WITHHELD: recording is ambulatory/awake-active, exercise HR dynamics read as cardiogenic oscillation. Mirrors the R5 null-model pattern (index withheld with a reason, never fabricated).'
+          }
+        : lng
+          ? {
+              cvhrIndex: r.cvhr.index,
+              cvhrEvents: r.cvhr.events.length,
+              estimatedAHI: r.estAHI ? { value: r.estAHI.value, range: [r.estAHI.lo, r.estAHI.hi], band: r.estAHI.band } : null,
+              riskCategory: r.apneaRisk ? r.apneaRisk.cat : null,
+              onCPAP: !!p.cpap,
+              method: 'CVHR/cardiopulmonary-coupling proxy (Hilmisson 2019) — ECG-only, screen not diagnosis',
+              surgeEscalationPct: r.surgeEsc ? r.surgeEsc.escalationPct : null
+            }
+          : null;
+      out.hrvStability = r.hrvStab
+        ? {
+            sigma_lnRMSSD_slope: r.hrvStab.sigma_lnRMSSD_slope,
+            var_lnRMSSD_slope: r.hrvStab.var_lnRMSSD_slope,
+            mean_lnRMSSD_slope: r.hrvStab.mean_lnRMSSD_slope,
+            classification: r.hrvStab.classification,
+            windows: r.hrvStab.nWindows,
+            ref: 'Li & Kiyono 2026 Sensors 26(4):1118 [CC BY 4.0]',
+            interpretation: 'slope<0 stabilizing (favourable) · slope>0 rising instability (glycemic-risk signal)',
+            series: r.hrvStab.series
+          }
+        : null;
     }
     return out;
   }

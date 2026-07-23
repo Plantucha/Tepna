@@ -269,6 +269,66 @@
       T.ok('floating tMs via Date.UTC (TZ-independent)', (P('2026-06-07 03:00', {}) || {}).tMs === U(2026, 5, 7, 3, 0));
     });
 
+    /* ════ 1b · CLOCK §2.7 — NODE-LOCAL parsers reject out-of-range components ════
+       clock.js `_ckMk` (used by the DexClock-delegating nodes) validates component ranges by ROUND-TRIP.
+       The three DELIBERATE node-local Clock variants (GlucoDex `_ckParse`, PpgDex `parseTimestamp`,
+       CPAPDex `parseTimestamp` + the EDF-primary `CpapEdf.parseEdfClock`) used to build tMs via a BARE
+       (or partial-guard) `Date.UTC`, so a corrupt stamp SILENTLY ROLLED onto a plausible WRONG instant
+       (month 13 → next January, day 45 / Feb 30 / Apr 31 → next month, 25:99 → +1 day 1 h 39 m) instead
+       of an honest null. Each now routes through an `_ckMk`-style round-trip validator. This group locks
+       that: out-of-range → null; a valid stamp → tMs UNCHANGED; ISO `24:00:00` end-of-day → next-day
+       00:00 stays valid (a bare `h>23` guard would wrongly reject it). Contract-provenance-drift finding C. */
+    group('Clock §2.7 — node-local parsers reject out-of-range', 'node-local-clock', function (T) {
+      // ── GlucoDex `_ckParse` (exposed on GLUDSP for this gate) ──
+      var GP = (env.GLUDSP && env.GLUDSP._ckParse) || (env.GlucoDex && env.GlucoDex._ckParse);
+      T.ok('GLUDSP._ckParse exposed', typeof GP === 'function', 'export _ckParse from glucodex-dsp.js');
+      if (typeof GP === 'function') {
+        T.eq('GlucoDex · valid ISO no-zone → tMs unchanged', (GP('2026-06-13 22:00:00', {}) || {}).tMs, U(2026, 5, 13, 22, 0, 0));
+        T.eq('GlucoDex · valid MDY slash 06/13/2026 → tMs unchanged', (GP('06/13/2026 08:30', { preferDMY: false }) || {}).tMs, U(2026, 5, 13, 8, 30));
+        T.eq('GlucoDex · ISO 24:00:00 → next-day 00:00 (kept)', (GP('2026-06-13 24:00:00', {}) || {}).tMs, U(2026, 5, 14, 0, 0, 0));
+        T.eq('GlucoDex · hour 25 → null (was kept at +1 day 01:00)', GP('2026-06-13 25:00:00', {}), null);
+        T.eq('GlucoDex · minute 99 → null (was 13:39)', GP('2026-06-13 12:99:00', {}), null);
+        T.eq('GlucoDex · month 13 → null (was next January)', GP('2026-13-13 12:00:00', {}), null);
+        T.eq('GlucoDex · Feb 30 → null (invalid calendar day)', GP('2026-02-30 12:00:00', {}), null);
+        T.eq('GlucoDex · O2Ring hour 25 "25:00:00 07/06/2026" → null', GP('25:00:00 07/06/2026', { preferDMY: true }), null);
+        T.eq('GlucoDex · YYYY/MM/DD month 13 "2026/13/01 12:00" → null', GP('2026/13/01 12:00', {}), null);
+      }
+      // ── PpgDex `parseTimestamp` (ISO/epoch subset) ──
+      var PP = env.PPGDSP && env.PPGDSP.parseTimestamp;
+      T.ok('PPGDSP.parseTimestamp exposed', typeof PP === 'function', 'export parseTimestamp from ppgdex-dsp.js');
+      if (typeof PP === 'function') {
+        T.eq('PpgDex · valid ISO w/ ms → tMs unchanged', (PP('2026-06-07T22:00:00.123', {}) || {}).tMs, U(2026, 5, 7, 22, 0, 0, 123));
+        T.eq('PpgDex · ISO 24:00:00 → next-day 00:00 (kept)', (PP('2026-06-13 24:00:00', {}) || {}).tMs, U(2026, 5, 14, 0, 0, 0));
+        T.eq('PpgDex · month 13 → null (was 2027-01-01)', PP('2026-13-01 12:00:00', {}), null);
+        T.eq('PpgDex · Feb 30 → null (was 2026-03-02)', PP('2026-02-30 12:00:00', {}), null);
+        T.eq('PpgDex · hour 25 → null (was +1 day)', PP('2026-06-13 25:00:00', {}), null);
+        T.eq('PpgDex · minute 99 → null (was 23:39)', PP('2026-06-13 22:99:00', {}), null);
+      }
+      // ── CPAPDex `parseTimestamp` (ISO + 14-digit filename compact) ──
+      var CP = env.CpapDsp && env.CpapDsp.parseTimestamp;
+      T.ok('CpapDsp.parseTimestamp exposed', typeof CP === 'function', 'export parseTimestamp from cpapdex-dsp.js');
+      if (typeof CP === 'function') {
+        T.eq('CPAPDex · valid ISO → tMs unchanged', (CP('2026-06-12 22:28:30.250') || {}).tMs, U(2026, 5, 12, 22, 28, 30, 250));
+        T.eq('CPAPDex · valid filename prefix 20260612_222830 → tMs unchanged', (CP('20260612_222830_BRP.edf') || {}).tMs, U(2026, 5, 12, 22, 28, 30));
+        T.eq('CPAPDex · ISO 24:00:00 → next-day 00:00 (kept)', (CP('2026-06-13 24:00:00') || {}).tMs, U(2026, 5, 14, 0, 0, 0));
+        T.eq('CPAPDex · Feb 30 → null (partial guard LEAKED this → Mar 2)', CP('2026-02-30 12:00:00'), null);
+        T.eq('CPAPDex · Apr 31 → null (partial guard LEAKED this → May 1)', CP('2026-04-31 12:00:00'), null);
+        T.eq('CPAPDex · month 13 → null', CP('2026-13-01 12:00:00'), null);
+        T.eq('CPAPDex · hour 25 → null', CP('2026-06-13 25:00:00'), null);
+        T.eq('CPAPDex · compact Feb 31 20260231120000 → null', CP('20260231120000'), null);
+      }
+      // ── CpapEdf `parseEdfClock` (EDF header, the primary CPAP clock) ──
+      var EC = env.CpapEdf && env.CpapEdf.parseEdfClock;
+      T.ok('CpapEdf.parseEdfClock exposed', typeof EC === 'function', 'export parseEdfClock from cpapdex-edf.js');
+      if (typeof EC === 'function') {
+        T.eq('CpapEdf · valid header 12.06.26 22.28.30 → t0Ms unchanged', (EC('12.06.26', '22.28.30') || {}).t0Ms, U(2026, 5, 12, 22, 28, 30));
+        T.eq('CpapEdf · Feb 30 "30.02.26" → null (dd<=31 guard LEAKED this → Mar 2)', EC('30.02.26', '22.28.30'), null);
+        T.eq('CpapEdf · Apr 31 "31.04.26" → null (LEAKED this → May 1)', EC('31.04.26', '22.28.30'), null);
+        T.eq('CpapEdf · month 13 "01.13.26" → null', EC('01.13.26', '22.28.30'), null);
+        T.eq('CpapEdf · hour 25 "25.28.30" → null', EC('12.06.26', '25.28.30'), null);
+      }
+    });
+
     /* ════ 2 · CROSS-NIGHT SIGNIFICANCE (#1 boundary fix) ════ */
     group('Cross-night significance — CI-includes-0 (#1)', 'crossnight-envelope', function (T) {
       var newRule = function (ci) {
@@ -2845,6 +2905,82 @@
       T.ok('hero/bench num() helper keeps its correct (v != null && !isNaN(v)) form', /v != null && !isNaN\(v\)/.test(rnd));
     });
 
+    /* ════ 9c · HRVDex full-metrics TABLE — every real column is BADGED; graded columns show their TRUE
+       grade; dead cuffless-BP columns are gone (Findings I + J) ════
+       Finding I: the full-metrics table header was the fleet's ONLY evBadge(label, false) site, so 34 real-
+       number columns whose labels had drifted from the registry aliases rendered UNBADGED — a coverage-
+       mandate bug (a number reaching the eye unbadged). Fix = registry aliases for the drifted graded
+       labels + drop the `false` so an unresolved-but-real column takes the honest experimental floor while
+       metadata (Date) stays bare. Finding J: six cuffless-BP columns (SBP/DBP Est, SBP Lo/Hi, BP Risk, dSBP)
+       whose DSP producers were removed (WP-A) still declared TABLE_COLS entries → permanent unbadged '—mmHg';
+       delete them. Source-parsed (TABLE_COLS is page-scoped) + resolved via the executed HrvRegistry. */
+    group('HRVDex full-metrics table — coverage-mandate badges + dead-BP-column removal (Findings I/J)', 'sources · cohesion-badges', function (T) {
+      var rnd = (env.sources || {})['hrvdex-render.js'];
+      var R = env.HrvRegistry,
+        MR = env.MetricRegistry;
+      if (!rnd || !R || !MR) {
+        T.ok('hrvdex-render source + HrvRegistry + MetricRegistry available', false, 'wire env.sources[hrvdex-render.js] + HrvRegistry + MetricRegistry');
+        return;
+      }
+      // parse the TABLE_COLS array: { key:'…', label:'…' } (label follows key in every entry).
+      var block = rnd.slice(rnd.indexOf('const TABLE_COLS = ['), rnd.indexOf('\n];', rnd.indexOf('const TABLE_COLS = [')));
+      var cols = [],
+        objRe = /\{\s*key:\s*'([^']*)'\s*,\s*label:\s*'((?:[^'\\]|\\.)*)'/g,
+        mm;
+      while ((mm = objRe.exec(block))) cols.push({ key: mm[1], label: mm[2] });
+      T.ok('TABLE_COLS parsed from source (≥ 40 columns)', cols.length >= 40, cols.length + ' columns');
+
+      // (J) the six removed cuffless-BP producers must have NO surviving TABLE_COLS entry.
+      var deadBP = ['d_sbp_est', 'd_dbp_est', 'd_bp_risk', 'd_sbp_lo', 'd_sbp_hi', 'd_delta_sbp'];
+      var survivingBP = deadBP.filter(function (k) {
+        return cols.some(function (c) {
+          return c.key === k;
+        });
+      });
+      T.eq('§J · zero producer-less cuffless-BP columns remain in TABLE_COLS', survivingBP.length, 0, 'still present: ' + survivingBP.join(','));
+
+      // (I) header badge honors the fallback default (no `false`), so EVERY non-metadata column is badged.
+      T.ok('§I · the header no longer passes fallback=false (evBadge(c.label) with no 2nd arg)', /TABLE_COLS\.map\(\(c\)\s*=>\s*`<th>\$\{evBadge\(c\.label\)\}/.test(rnd), 'evBadge(c.label,false) still present');
+      var META = { date: 1, start: 1, end: 1, source: 1, 'sample rate': 1, recording: 1, 'active flags': 1, tier: 1, today: 1 };
+      var norm = function (s) {
+        return String(s).toLowerCase().replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+      };
+      var unbadged = [];
+      cols.forEach(function (c) {
+        var isMeta = !!META[norm(c.label)];
+        var b = R.badgeForLabel(c.label, true);
+        if (!isMeta && !b) unbadged.push(c.label);
+      });
+      T.eq('§I · every real (non-metadata) full-metrics column renders a badge (0 unbadged)', unbadged.length, 0, 'unbadged: ' + unbadged.join(' · '));
+      // metadata Date must STAY bare (a badge on a date is meaningless — the _META_DENY path).
+      T.eq("§I · the Date column stays bare (metadata, not a measurement)", R.badgeForLabel('Date', true), '');
+
+      // (I·a) the drifted GRADED labels now resolve to their TRUE registry id — so a validated/emerging
+      //       metric does not under-claim 'experimental', and a heuristic VO₂ does not over-claim it.
+      [
+        ['SpectralEnt', 'spectralEnt'],
+        ['DFA α1~', 'dfaAlpha1'],
+        ['CAI (ms)', 'cai'],
+        ['Recov Debt 14d', 'recovDebt'],
+        ['VO2 Base', 'vo2'],
+        ['VO2 HRV-adj', 'vo2'],
+        ['VO2 Delta GT', 'vo2'],
+        ['VO2 Category', 'vo2']
+      ].forEach(function (pair) {
+        T.eq('§I · drifted graded label resolves: ' + pair[0] + ' → ' + pair[1], R.idForLabel(pair[0]), pair[1]);
+      });
+      // and each column that DOES resolve carries the registry's grade (not the experimental floor).
+      var mismatch = [];
+      cols.forEach(function (c) {
+        var id = R.idForLabel(c.label);
+        if (id && env.HRV_REGISTRY[id]) {
+          var b = R.badgeForLabel(c.label, true) || '';
+          if (b.indexOf('ev-' + env.HRV_REGISTRY[id].evidence) < 0) mismatch.push(c.label + '(' + env.HRV_REGISTRY[id].evidence + ')');
+        }
+      });
+      T.eq('§I · every resolving column badges at its registry grade (no floor override)', mismatch.length, 0, 'graded-mismatch: ' + mismatch.join(' · '));
+    });
+
     /* ════ 10 · INTEGRATOR DEDUP — stampless duplicates (P1) ════ */
     group('Integrator dedup — stampless duplicates (P1)', 'integrator-dsp', function (T) {
       var A = env.adaptEnvelopeNode,
@@ -4634,6 +4770,84 @@
       }
     });
 
+    /* ════ 12c3 · R-PEAK OPENING-TRANSIENT RECOVERY (AUDIT G) — a SHARP transient that is the
+     FIRST threshold crossing (before the 2nd/first real QRS) parks SPKI above every later QRS. The
+     stall-recovery bleed (12c2) was gated `rrAvg>0`, but rrAvg is only established after the SECOND
+     detected beat — so a transient-as-beat-#1 kept rrAvg==0 forever, the bleed never ran, and
+     detection was DEAD for the whole record → compute() threw "Too few R-peaks" on a clean night.
+     The sibling of 12c (startup SEED, slow ramp) and 12c2 (MID-record stall, cadence established) —
+     this is the OPENING sharp-spike case neither covered. Fix: drop the `rrAvg>0` precondition so the
+     idleLimit bleed runs even before a cadence exists. Control: a MID-record sharp spike still
+     recovers (proves no regression to the 12c2 path). ════ */
+    group('ECGDex R-peak recovery — an OPENING sharp transient does not kill the record (AUDIT G)', 'ecgdex-dsp', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.analyze === 'function' && typeof D.genSynthetic === 'function')) {
+        T.ok('ECGDSP.analyze + genSynthetic available', false, 'not loaded');
+        return;
+      }
+      var fs = 130;
+      var syn = D.genSynthetic({ fs: fs, durSec: 120, scenario: 'osa' });
+      // scale to ~600 µV R-peaks (the real recording amplitude)
+      var mx = 0;
+      for (var i = 0; i < syn.int16.length; i++) {
+        var a = Math.abs(syn.int16[i]);
+        if (a > mx) mx = a;
+      }
+      var sc = 600 / (mx || 1),
+        clean = new Int16Array(syn.int16.length);
+      for (var j = 0; j < clean.length; j++) clean[j] = Math.round(syn.int16[j] * sc);
+      // CONTROL — a clean 120 s clip detects the full beat train.
+      var rc = null;
+      try {
+        rc = D.analyze({ int16: clean, fs: fs, gaps: [], t0Ms: syn.t0Ms, durSec: clean.length / fs }, function () {});
+      } catch (e) {
+        rc = null;
+      }
+      T.ok('clean 120 s clip analyzes (baseline)', !!rc && rc.nn.length > 100, rc ? rc.nn.length + ' beats' : 'threw');
+      // OPENING TRANSIENT — a flat lead-in, then a SHARP ~30000-unit bipolar spike at ~0.25 s that is
+      // the FIRST threshold crossing (BEFORE the first real QRS), then the clean train. Pre-fix this
+      // parks SPKI, rrAvg stays 0, and detection collapses to ~1 peak → analyze throws.
+      var lead = Math.round(0.4 * fs);
+      var dirty = new Int16Array(lead + clean.length);
+      dirty.set(clean, lead);
+      var sp = Math.round(0.25 * fs);
+      dirty[sp] = 30000;
+      dirty[sp + 1] = -30000;
+      dirty[sp + 2] = 30000;
+      var rd = null,
+        threw = '';
+      try {
+        rd = D.analyze({ int16: dirty, fs: fs, gaps: [], t0Ms: syn.t0Ms, durSec: dirty.length / fs }, function () {});
+      } catch (e) {
+        threw = e.message;
+      }
+      T.ok('+opening sharp transient no longer throws "Too few R-peaks" (AUDIT G)', !!rd, threw || 'ok');
+      if (rc && rd) {
+        var ratio = rd.nn.length / rc.nn.length;
+        // pre-fix this collapsed to ~1 beat (ratio ≈ 0.01); with the fix the record recovers after the
+        // ~2.5 s idle bleed — nearly the whole train (only the opening seconds before the bleed are lost).
+        T.ok('opening transient does not suppress detection (≥80% of clean beats recovered)', ratio >= 0.8, 'ratio ' + ratio.toFixed(2) + ' (' + rd.nn.length + '/' + rc.nn.length + ')');
+        T.ok('  and it is NOT the pre-fix single-peak collapse', rd.nn.length > 50, rd.nn.length + ' beats');
+      }
+      // CONTROL — a MID-record sharp spike (cadence already established, rrAvg>0) still recovers, i.e.
+      // dropping the rrAvg>0 gate did not regress the 12c2 path.
+      var mid = new Int16Array(clean);
+      var m0 = Math.round(60 * fs);
+      mid[m0] = 30000;
+      mid[m0 + 1] = -30000;
+      mid[m0 + 2] = 30000;
+      var rm = null;
+      try {
+        rm = D.analyze({ int16: mid, fs: fs, gaps: [], t0Ms: syn.t0Ms, durSec: mid.length / fs }, function () {});
+      } catch (e) {
+        rm = null;
+      }
+      if (rc && rm) {
+        var rmRatio = rm.nn.length / rc.nn.length;
+        T.ok('control: a MID-record sharp spike still recovers (no regression to 12c2)', rmRatio >= 0.85, 'ratio ' + rmRatio.toFixed(2) + ' (' + rm.nn.length + '/' + rc.nn.length + ')');
+      }
+    });
+
     /* ════ 12d · INTEGRATOR ingests the LIGHT ECGDex orchestrate export GRACEFULLY
      (ECGDEX-FOLLOWUPS-2026-06-27 §2). The Unifier/OverDex raw-ECG path emits the light
      node-export (schema + recording + ganglior_events only — no hrv/epochs/quality), and
@@ -4714,6 +4928,9 @@
       T.ok('default (no rich) export omits timeseries', !('timeseries' in light));
       T.ok('default (no rich) export omits quality', !('quality' in light));
       T.ok('default (no rich) export omits sleep', !('sleep' in light));
+      // AUDIT F — the app light stream must ALSO omit apnea/hrvStability (byte-identical exportGanglior).
+      T.ok('default (no rich) export omits apnea (AUDIT F)', !('apnea' in light));
+      T.ok('default (no rich) export omits hrvStability (AUDIT F)', !('hrvStability' in light));
       // (2) RICH export carries the consensus axis + scaffolds.
       var rich = D.compute(syn(), { rich: true });
       T.ok('rich: schema still ganglior.node-export / ECGDex (additive, not a new schema)', !!(rich.schema && rich.schema.name === 'ganglior.node-export' && rich.schema.node === 'ECGDex'));
@@ -4755,6 +4972,42 @@
         !!(rPos && rPos.summary && Array.isArray(rPos.summary.posture) && rPos.summary.posture.length > 0),
         rPos && rPos.summary && rPos.summary.posture && rPos.summary.posture.length
       );
+      /* AUDIT F — the orchestrate rich export MUST also carry the apnea + hrvStability blocks the
+         Integrator reads (json.apnea.{cvhrIndex,estimatedAHI.value}, json.hrvStability.mean_lnRMSSD_slope).
+         Before the fix these were emitted ONLY by ecgdex-app.js buildV2 (the ⬇JSON button), so a
+         nocturnal ECG fused DIFFERENTLY by ingest route. The osa synthetic is a 3 h non-ambulatory
+         night → cvhrIndex + mean_lnRMSSD_slope are populated; estimatedAHI/riskCategory are app-computed
+         (absent in the headless analyze) → null-safe null, mirroring buildV2's null cases exactly. */
+      T.ok('rich: apnea block present (AUDIT F — was omitted, now mirrors buildV2)', !!rich.apnea, rich.apnea ? Object.keys(rich.apnea).join(',') : 'MISSING');
+      T.ok(
+        'rich: apnea.cvhrIndex is a finite number (the field the Integrator reads)',
+        !!(rich.apnea && typeof rich.apnea.cvhrIndex === 'number' && isFinite(rich.apnea.cvhrIndex)),
+        rich.apnea && rich.apnea.cvhrIndex
+      );
+      T.ok('rich: apnea.estimatedAHI key present (null-safe when app-only fields absent)', !!(rich.apnea && 'estimatedAHI' in rich.apnea));
+      T.ok('rich: apnea.riskCategory key present (null-safe)', !!(rich.apnea && 'riskCategory' in rich.apnea));
+      T.ok('rich: hrvStability block present (AUDIT F)', !!rich.hrvStability, rich.hrvStability ? Object.keys(rich.hrvStability).join(',') : 'MISSING');
+      T.ok(
+        'rich: hrvStability.mean_lnRMSSD_slope is a finite number (the field the Integrator reads)',
+        !!(rich.hrvStability && typeof rich.hrvStability.mean_lnRMSSD_slope === 'number' && isFinite(rich.hrvStability.mean_lnRMSSD_slope)),
+        rich.hrvStability && rich.hrvStability.mean_lnRMSSD_slope
+      );
+      // the Integrator now picks up CVHR + the autonomic-instability slope FROM the orchestrate builder.
+      T.ok(
+        'Integrator picks up summary.cvhrIndex (non-null) from the rich export (AUDIT F)',
+        !!(rRich && rRich.summary && rRich.summary.cvhrIndex != null),
+        rRich && rRich.summary && 'cvhrIndex=' + rRich.summary.cvhrIndex
+      );
+      T.ok('  and it equals apnea.cvhrIndex', !!(rRich && rRich.summary && rRich.summary.cvhrIndex === rich.apnea.cvhrIndex));
+      T.ok(
+        'Integrator picks up summary.autonomicInstabilitySlope from the rich export (AUDIT F)',
+        !!(rRich && rRich.summary && rRich.summary.autonomicInstabilitySlope != null),
+        rRich && rRich.summary && 'slope=' + rRich.summary.autonomicInstabilitySlope
+      );
+      T.ok('  and it equals hrvStability.mean_lnRMSSD_slope', !!(rRich && rRich.summary && rRich.summary.autonomicInstabilitySlope === rich.hrvStability.mean_lnRMSSD_slope));
+      // contrast: the LIGHT export omits both → the Integrator degrades to null (never fabricates).
+      T.ok('LIGHT export → summary.cvhrIndex null (apnea block absent, not fabricated)', !!(rLight && rLight.summary && rLight.summary.cvhrIndex == null));
+      T.ok('LIGHT export → summary.autonomicInstabilitySlope null (hrvStability absent)', !!(rLight && rLight.summary && rLight.summary.autonomicInstabilitySlope == null));
     });
 
     /* ════ 12d-rich-ppg · INTEGRATOR ingests the RICH PpgDex orchestrate export — option (a)
@@ -6516,6 +6769,68 @@
           return e.position && e.position !== 'unknown';
         });
         T.ok('PPG acc companion → ≥1 epoch carries a limb posture', pPosed, 'epochs posed');
+      }
+    });
+
+    /* ════ AUDIT-K — the PpgDex APP filename-stamp was the LONE unanchored sibling. ppgdex-app.js:fnameStampMs
+     computes each dropped file's `.stampMs` — the reference the companion pick (pickNearestByStamp) uses. Its
+     old regex `/(\d{4})(\d{2})(\d{2})_…/` was UNANCHORED with no `20\d{2}` year floor, so on an ALL-DIGIT
+     device serial the leftmost 8-digit run (the serial) was consumed as the date: `…_02849638_20260617_…`
+     → year 0284 / month 96 / day 38 → Date.UTC rolled to ~year 0292 (~1734 yr off). Every ACC/GYRO/MAGN/PPI/
+     marker companion then exceeded PICK_MAX_GAP_MS (24 h) vs the real-2026 rec.t0Ms → resolved null → motion-
+     gating / respiration / device-PPI cross-check silently dropped while HRV/quality still rendered. LATENT
+     because the committed corpus + equiv fixture use LETTERED serials (0C301E3F / BBBBBBBB) that parse fine —
+     it fires on any all-digit Verity/PSL serial or capture-host device_id (the project's own H10 serial
+     02849638 is all-digit). The siblings were already anchored: signal-orchestrate.js:fnameStampMs (Polar-
+     anchored + `20\d{2}` fallback), dex-ingest.js:stampMs (Polar-anchored), pulsedex-app.js:_pdT0FromName
+     (`20\d{2}`). This mirrors the SOURCE fn (not a copy) so it cannot drift, and drives the pick end-to-end. ════ */
+    group('PpgDex app filename-stamp — anchored, all-digit serials (AUDIT-K)', 'ppgdex-app · dex-ingest · clock-contract', function (T) {
+      var src = env.sources || {};
+      var appSrc = src['ppgdex-app.js'] || '';
+      // source-mirror: lift the app's own fnameStampMs (2-space-indented closer; regex `{n}` quantifiers
+      // never sit at a `\n  }` so the lazy match ends at the real close brace) and exercise it directly.
+      var m = appSrc.match(/function fnameStampMs\(name\)\s*\{[\s\S]*?\n  \}/);
+      T.ok('K · ppgdex-app.js exposes a fnameStampMs to mirror', !!m, m ? 'ok' : 'function not found in source');
+      var fnameStampMs = null;
+      if (m) {
+        try {
+          fnameStampMs = new Function('return (' + m[0] + ');')();
+        } catch (e) {
+          /* stays null → reds below */
+        }
+      }
+      T.ok('K · mirrored fnameStampMs is callable', typeof fnameStampMs === 'function');
+      if (typeof fnameStampMs === 'function') {
+        // (1) THE BUG — an all-digit serial must resolve to the REAL date, not a year-0292 device-id artifact
+        var got = fnameStampMs('Polar_Sense_02849638_20260617_010616_PPG.txt');
+        T.ok('K · all-digit serial no longer read as ~year 0292', got != null && new Date(got).getUTCFullYear() === 2026, got == null ? 'null' : new Date(got).toISOString());
+        T.eq('K · all-digit serial → the REAL date', new Date(got).toISOString().slice(0, 19), '2026-06-17T01:06:16');
+        // (2) CONTROL — a lettered serial (the shape the committed fixtures use) stays unchanged-correct
+        T.eq('K · lettered serial 0C301E3F unchanged', new Date(fnameStampMs('Polar_Sense_0C301E3F_20260617_010616_PPG.txt')).toISOString().slice(0, 19), '2026-06-17T01:06:16');
+        T.eq('K · lettered serial BBBBBBBB unchanged', new Date(fnameStampMs('Polar_VS_BBBBBBBB_20260617_010001_PPG.txt')).toISOString().slice(0, 16), '2026-06-17T01:00');
+        // (3) a NON-Polar capture-host name must STILL stamp — anchoring must not starve foreign vendors
+        T.ok('K · non-Polar vendor name still stamps (fallback branch alive)', fnameStampMs('Wellue_O2Ring-S_CCCC_20260617_010616_PPG.txt') != null);
+        // (4) the contiguous capture-host stamp shape …YYYYMMDDHHMMSS resolves too (all-digit serial + no sep)
+        T.eq('K · contiguous capture-host stamp → real date', new Date(fnameStampMs('Polar_H10_02849638_20260617010616_ACC.txt')).toISOString().slice(0, 16), '2026-06-17T01:06');
+        // (5) END-TO-END — a committed all-digit-serial companion set now ATTACHES instead of dropping.
+        //     Path: app computes .stampMs via fnameStampMs → planIngestPpg device-filters → pickNearestByStamp
+        //     scores each candidate's .stampMs against the PARSED rec.t0Ms (real 2026). Pre-fix the 0292 stamps
+        //     all exceeded the 24 h gap → null. This is the committed all-digit twin the lettered fixtures dodge.
+        var DI = env.DexIngest;
+        if (DI && typeof DI.planIngestPpg === 'function' && typeof DI.pickNearestByStamp === 'function' && typeof DI.ppgKind === 'function') {
+          var mk = function (kind) {
+            var nm = 'Polar_Sense_02849638_20260617_010616_' + kind + '.txt';
+            return { name: nm, text: 'x', kind: DI.ppgKind(nm), stampMs: fnameStampMs(nm) };
+          };
+          var primary = 'Polar_Sense_02849638_20260617_010616_PPG.txt';
+          var plan = DI.planIngestPpg([mk('PPG'), mk('ACC'), mk('GYRO'), mk('MAGN'), mk('PPI')]);
+          var elig = plan.eligibleByPrimary[primary] || {};
+          var refT0 = Date.UTC(2026, 5, 17, 1, 6, 16); // the PARSED rec.t0Ms the app pairs against
+          ['acc', 'gyro', 'magn', 'ppi'].forEach(function (k) {
+            var picked = DI.pickNearestByStamp(elig[k] || [], refT0);
+            T.ok('K · all-digit-serial ' + k + ' companion ATTACHES (pre-fix: 0292 stamp > 24 h gap → dropped)', !!picked, picked ? picked.name : 'null — dropped');
+          });
+        }
       }
     });
 
@@ -13756,6 +14071,23 @@
       // and the SD2 identity it feeds: SD2 = √(2·SDNN² − SD1²), SDNN=75.7 → propagation check
       var sd2True = Math.sqrt(Math.max(0, 2 * 75.7 * 75.7 - sd1True * sd1True));
       T.approx('§4 · SD2 = √(2·SDNN² − SD1²) reflects the correct SD1 (propagation)', rFull.d_sd2, sd2True, 1e-9, 'd_sd2=' + rFull.d_sd2 + ' expected=' + sd2True);
+
+      // (f) FINDING E — Toichi CSI's MeanRR is now routed through the SAME DexUnits.asSecondsRR detector
+      //     as MxDMn/Mode, so d_csi is UNIT-INVARIANT across a whole-seconds vendor export and a whole-ms
+      //     one. The old hard `meanRR/1000` divided a SECONDS MeanRR (0.9) down to 0.0009 → d_csi ~10³× too
+      //     HIGH (277.78 for the row below) on any vendor exporting MeanRR in seconds; the mixed-convention
+      //     path (MxDMn in s, MeanRR in ms) that both real ingests use is UNCHANGED, since asSecondsRR leaves
+      //     a real-ms MeanRR at ms→s exactly as /1000 did. CSI = MxDMn(s) / MeanRR(s); 0.25/0.9 = 0.27778.
+      var _csiSec = HD.derive([
+        HD.rowFromNodeExport({ schema: { name: 'ganglior.node-export', node: 'ECGDex' }, recording: { startEpochMs: Date.UTC(2026, 5, 14, 22, 0, 0) }, hrv: { time: { mode: 0.9, mxDMn: 0.25, meanRR: 0.9 } } })
+      ])[0].d_csi;
+      var _csiMs = HD.derive([
+        HD.rowFromNodeExport({ schema: { name: 'ganglior.node-export', node: 'ECGDex' }, recording: { startEpochMs: Date.UTC(2026, 5, 14, 22, 0, 0) }, hrv: { time: { mode: 900, mxDMn: 250, meanRR: 900 } } })
+      ])[0].d_csi;
+      T.approx('§E · CSI on a whole-SECONDS row (Mode/MxDMn/MeanRR all s) == MxDMn/MeanRR, NOT 10³× high', _csiSec, 0.25 / 0.9, 1e-6, 'd_csi(s)=' + _csiSec);
+      T.ok('§E · that seconds row is 0.278, not the pre-fix 277.78 (MeanRR no longer /1000-ed when already s)', _csiSec < 1, 'd_csi(s)=' + _csiSec);
+      T.approx('§E · CSI on the equivalent whole-MS row is unchanged (0.278) — mixed-convention path preserved', _csiMs, 0.25 / 0.9, 1e-6, 'd_csi(ms)=' + _csiMs);
+      T.ok('§E · CSI is unit-INVARIANT: whole-seconds row ≡ whole-ms row (metamorphic)', Math.abs(_csiSec - _csiMs) < 1e-9, 's=' + _csiSec + ' ms=' + _csiMs);
     });
 
     /* An ALL-NIGHT row is a different measurement unit from a spot reading: it integrates across the
@@ -20301,6 +20633,68 @@
       T.ok('3 supine / 1 non-supine from the position track', !!lab && lab.supine === 3 && lab.nonsupine === 1, lab ? lab.supine + '/' + lab.nonsupine : '');
       T.ok('postureSource surfaced as motion-acc', !!lab && lab.postureSource === 'motion-acc', lab ? String(lab.postureSource) : '');
       T.ok('note discloses the UNCALIBRATED frame (no over-claim)', !!lab && /uncalibrated/i.test(String(lab.note)));
+    });
+
+    /* AUDIT B·3a (TOP severity — a MANUFACTURED clinical finding). The MotionDex posture leg must be
+       TRI-STATE like the effort (_motionEffortSeries.present) and movement (_motionActivitySeries.moving)
+       legs: a sensor-off gap must NOT fabricate a posture. MotionDex exports posture as sparse run-length
+       `posture_change` events and DELIBERATELY drops gap/'unknown' epochs, so a single early snapshot USED
+       TO hold-last-value all the way to t0Ms+durSec*1000 — posAt() (nearest-within-10-min) then always
+       returned that fabricated value and positionalApnea() counted every apnea in the gap as supine/
+       nonsupine, inventing a positional-apnea finding out of a coverage gap. After the fix the hold is
+       capped at a 60-min horizon and posture is ABSENT beyond it (posAt → null → unknown++), so the
+       supine/nonsupine DENOMINATOR excludes gap epochs — while a genuinely-held short interval still
+       fills densely (run-length semantics intact). Driven through the real normalizeFile ingest so the
+       whole posture path (adapt → _motionPostureSeries → summary.posture → labelPositionalApnea) is live. */
+    group('Integrator posture leg is tri-state — a sensor-off gap no longer fabricates supine — B·3a', 'integrator-dsp · motiondex · positional · gap', function (T) {
+      var NF = env.normalizeFile,
+        LP = env.labelPositionalApnea;
+      var ready = typeof NF === 'function' && typeof LP === 'function';
+      T.ok('normalizeFile + labelPositionalApnea available', ready);
+      if (!ready) return;
+      var t0 = U(2026, 5, 10, 22, 0, 0),
+        H = 3600000;
+      // 8 h night, ONE early posture snapshot (supine at t0). The rest of the night carries NO further
+      // posture_change — which, on the bus, is INDISTINGUISHABLE from the sensor being off (the finding).
+      var gapNight = {
+        schema: { name: 'ganglior.node-export', version: 1, node: 'MotionDex' },
+        recording: { startEpochMs: t0, durSec: 8 * 3600 },
+        motion: { supineFrac: 1, dwellFrac: { supine: 1 }, sqi: 0.97 },
+        ganglior_events: [{ t: '22:00:00', tMs: t0, impulse: 'posture_change', node: 'MotionDex', conf: 0.97, meta: { position: 'supine' } }]
+      };
+      var rec = NF(gapNight, 'MotionDex.node-export.json').recs[0];
+      var ser = (rec && rec.summary && rec.summary.posture) || [];
+      // the fabricated whole-night expansion is gone — no dense 480-sample fill to the durSec end …
+      T.ok('single snapshot no longer expands across the whole 8 h night', ser.length <= 61, ser.length + ' samples (pre-fix: 480, one per minute to durSec)');
+      // … and specifically NOTHING is emitted deep in the sensor-off gap (hour 7, within posAt()'s ±10 min)
+      var nearHour7 = ser.filter(function (p) { return Math.abs(p.tMs - (t0 + 7 * H)) <= 10 * 60000; });
+      T.ok('no fabricated posture within the posAt window of hour 7 (deep in the gap)', nearHour7.length === 0, nearHour7.length + ' samples near hr7');
+      // the real snapshot is still held within the max-hold horizon (the leg is capped, not disabled)
+      var held = ser.filter(function (p) { return p.pos === 'supine' && p.tMs <= t0 + 30 * 60000; });
+      T.ok('the real snapshot is still held within the max-hold horizon', held.length > 0, held.length + ' supine samples in [t0, t0+30min]');
+      // apneas: one inside the held window (supine), two deep in the gap (must be UNKNOWN, not supine)
+      var lab = LP([rec], { findings: [{ tMs: t0 + 20 * 60000 }, { tMs: t0 + 5 * H }, { tMs: t0 + 7 * H }] });
+      T.ok('positional labelling runs from the MotionDex posture', !!lab && lab.available === true);
+      T.ok('gap apneas route to unknown++, NOT supine++ (denominator excludes the gap)', !!lab && lab.supine === 1 && lab.nonsupine === 0 && lab.unknown === 2, lab ? 's=' + lab.supine + ' ns=' + lab.nonsupine + ' u=' + lab.unknown : 'none');
+      T.ok('supineRate is over the held-epoch denominator, not the fabricated whole night', !!lab && lab.supineRate === 1, lab ? String(lab.supineRate) : 'none');
+
+      // CARDINAL BEHAVIOR INTACT — a GENUINELY-held short interval between two real transitions still fills
+      // densely; only the un-refreshed long-gap hold (and the final-transition-to-durSec fill) is dropped.
+      var shortHold = {
+        schema: { name: 'ganglior.node-export', version: 1, node: 'MotionDex' },
+        recording: { startEpochMs: t0, durSec: 3600 },
+        motion: { dwellFrac: { supine: 0.5, prone: 0.5 }, sqi: 0.97 },
+        ganglior_events: [
+          { t: '22:00:00', tMs: t0, impulse: 'posture_change', node: 'MotionDex', conf: 0.97, meta: { position: 'supine' } },
+          { t: '22:10:00', tMs: t0 + 10 * 60000, impulse: 'posture_change', node: 'MotionDex', conf: 0.97, meta: { position: 'prone' } }
+        ]
+      };
+      var rec2 = NF(shortHold, 'MotionDex.node-export.json').recs[0];
+      var ser2 = (rec2 && rec2.summary && rec2.summary.posture) || [];
+      var supFill = ser2.filter(function (p) { return p.pos === 'supine' && p.tMs >= t0 && p.tMs < t0 + 10 * 60000; });
+      T.ok('a genuinely-held short interval still fills densely (cardinal behavior intact)', supFill.length >= 9, supFill.length + ' supine samples across the 10-min hold');
+      var lab2 = LP([rec2], { findings: [{ tMs: t0 + 5 * 60000 }] });
+      T.ok('an apnea inside the genuinely-held interval is still counted supine', !!lab2 && lab2.supine === 1, lab2 ? 's=' + lab2.supine : 'none');
     });
 
     /* APNEA-TYPING-FUSION-2026-07-18 §1.1 — obstructive/central typing from MotionDex chest-ACC effort.

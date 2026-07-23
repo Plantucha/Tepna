@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+wOhQxxnz1aARA99NL5fJxNjvBwVQTZXvZB13nFhc6M=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2NbnaJkl+zDxSZmPPZeYIDLXPgW6QdrINJYs/1CP8Gk=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Bwa/N+qRzyDsjOZpmfdHYhAreF5CgmWplQccV4x1M1Y=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-UEKo8q6oDlx+nVLthNAe7RbwjyJyrvNlro9P8mjjnKQ=' 'sha256-Ug5S8CQsik8kUw/Zm0iFTa5bLldY1z7AlWbcT0C9tE4=' 'sha256-ViFy/FyuOg+idGpS/QW3jiYojjMVWds06A3MHGaOZ6M=' 'sha256-aEfZQR6fGbh0Ow231H86nQj4MBDK3qxz5NzQsq3muNI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-uS5wmPLBnQsEHb7E+p/HiIzPQbnV0gtWPyH+fXMcnmE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2NbnaJkl+zDxSZmPPZeYIDLXPgW6QdrINJYs/1CP8Gk=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-58X8tci/UdTQpEbI4s5DmMOM9rhEPhmJhUmHVN33OyA=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Bwa/N+qRzyDsjOZpmfdHYhAreF5CgmWplQccV4x1M1Y=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-UEKo8q6oDlx+nVLthNAe7RbwjyJyrvNlro9P8mjjnKQ=' 'sha256-ViFy/FyuOg+idGpS/QW3jiYojjMVWds06A3MHGaOZ6M=' 'sha256-aEfZQR6fGbh0Ow231H86nQj4MBDK3qxz5NzQsq3muNI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-uS5wmPLBnQsEHb7E+p/HiIzPQbnV0gtWPyH+fXMcnmE=' 'sha256-xmCO+KG/wZmooyHWC8QXjwZPouxno/BiqgB9ScwoF8c='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CPAPDex — PAP Therapy Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -4848,9 +4848,14 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       mi = +t[2],
       ss = +t[3];
     var year = yy >= 85 ? 1900 + yy : 2000 + yy; // EDF clipping rule
+    // Clock Contract §2.7 (DEEP-AUDIT-II §12.3) — the `dd<=31` guard catches month 13 / hour 25 but LEAKS
+    // calendar-invalid days: Date.UTC SILENTLY ROLLS Feb 30 → Mar 2, Apr 31 → May 1 onto a WRONG instant.
+    // Reject any component out of range, then require the date to ROUND-TRIP (rejects Feb 30 / Apr 31…).
     if (mo < 1 || mo > 12 || dd < 1 || dd > 31 || hh > 23 || mi > 59 || ss > 59) return null;
-    var t0Ms = Date.UTC(year, mo - 1, dd, hh, mi, ss); // FLOATING — not a real instant
     var dateAnchorMs = Date.UTC(year, mo - 1, dd);
+    var _dd = new Date(dateAnchorMs);
+    if (_dd.getUTCFullYear() !== year || _dd.getUTCMonth() !== mo - 1 || _dd.getUTCDate() !== dd) return null; // date rolled ⇒ invalid
+    var t0Ms = Date.UTC(year, mo - 1, dd, hh, mi, ss); // FLOATING — not a real instant
     return { t0Ms: t0Ms, dateAnchorMs: dateAnchorMs, offsetMin: null };
   }
 
@@ -5305,34 +5310,35 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
    local mirror covers the filename anchors only: file-set prefix
    "YYYYMMDD_HHMMSS_" and the 14-digit "YYYYMMDDHHMMSS". Returns
    { tMs, offsetMin } | null. NEVER new Date()/now() on a miss. ──────────────── */
+  // Clock Contract §2.7 (DEEP-AUDIT-II §12.3) — Date.UTC SILENTLY ROLLS out-of-range components onto a
+  // plausible WRONG instant. The old `Mo<=12 && D<=31 && H<=23…` guard caught month 13 and hour 25 but
+  // LEAKED calendar-invalid days (Feb 30 → Mar 2, Apr 31 → May 1). `_ckMk` builds tMs ONLY if the date
+  // round-trips (rejects Feb 30 / Apr 31…) and the time is 0–23 : 0–59 : 0–59 . 0–999; the ONE legitimate
+  // overflow is ISO-8601 `24:00:00` (end-of-day) → next-day 00:00 (do not add a bare `h>23` guard).
+  // Returns a number, or null. Mirrors clock.js `_ckMk` (CPAPDex is a deliberate node-local Clock variant).
+  function _ckMk(y, mo0, d, h, mi, se, ms) {
+    se = se || 0;
+    ms = ms || 0;
+    var day0 = Date.UTC(y, mo0, d),
+      dd = new Date(day0);
+    if (dd.getUTCFullYear() !== y || dd.getUTCMonth() !== mo0 || dd.getUTCDate() !== d) return null; // date rolled ⇒ invalid
+    if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000; // ISO end-of-day → next 00:00:00
+    if (h < 0 || h > 23 || mi < 0 || mi > 59 || se < 0 || se > 59 || ms < 0 || ms > 999) return null;
+    return Date.UTC(y, mo0, d, h, mi, se, ms);
+  }
   function parseTimestamp(raw) {
     var s = String(raw == null ? '' : raw).trim();
     // ISO / "YYYY-MM-DD[ T]HH:MM[:SS[.mmm]]" — capture fractional seconds (Clock Contract §2 step 3).
     // No zone ⇒ components verbatim → Date.UTC (floating), offsetMin null.
     var iso = /(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?/.exec(s);
     if (iso) {
-      var Y = +iso[1],
-        Mo = +iso[2],
-        D = +iso[3],
-        H = +iso[4],
-        Mi = +iso[5],
-        S = +(iso[6] || 0),
-        Ms = iso[7] ? +(iso[7] + '00').slice(0, 3) : 0;
-      if (Mo >= 1 && Mo <= 12 && D >= 1 && D <= 31 && H <= 23 && Mi <= 59 && S <= 59) {
-        return { tMs: Date.UTC(Y, Mo - 1, D, H, Mi, S, Ms), offsetMin: null };
-      }
+      var _ti = _ckMk(+iso[1], +iso[2] - 1, +iso[3], +iso[4], +iso[5], +(iso[6] || 0), iso[7] ? +(iso[7] + '00').slice(0, 3) : 0);
+      if (_ti != null) return { tMs: _ti, offsetMin: null };
     }
     var m = /(\d{4})(\d{2})(\d{2})[_\-]?(\d{2})(\d{2})(\d{2})/.exec(s); // YYYYMMDD(_)HHMMSS
     if (m) {
-      var y = +m[1],
-        mo = +m[2],
-        d = +m[3],
-        h = +m[4],
-        mi = +m[5],
-        se = +m[6];
-      if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && h <= 23 && mi <= 59 && se <= 59) {
-        return { tMs: Date.UTC(y, mo - 1, d, h, mi, se), offsetMin: null }; // floating, EDF has no zone
-      }
+      var _tf = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+      if (_tf != null) return { tMs: _tf, offsetMin: null }; // floating, EDF has no zone
     }
     return null;
   }

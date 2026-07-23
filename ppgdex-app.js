@@ -44,8 +44,20 @@ import { PPGUI } from './ppgdex-render.js';
   function classify(name) {
     return ING.ppgKind(name);
   }
+  // Floating wall-clock ms (Clock Contract) from a filename stamp. Two ANCHORED patterns, tried in
+  // order — mirrors signal-orchestrate.js:fnameStampMs (do NOT collapse back into one loose pattern):
+  //   (1) ANCHORED after a Polar device id (`^POLAR_<model>_<id>_`) — an ALL-DIGIT serial can no
+  //       longer be misread as the date. The old unanchored `(\d{4})(\d{2})(\d{2})_…` ate the leftmost
+  //       8-digit run: on `Polar_Sense_02849638_20260617_010616_PPG.txt` it consumed the serial
+  //       `02849638` as year 0284 / month 96 / day 38 → Date.UTC rolled to ~year 0292, ~1734 yr off,
+  //       so every ACC/GYRO/MAGN/PPI/marker companion exceeded PICK_MAX_GAP_MS and silently dropped
+  //       (motion-gating, respiration, device-PPI cross-check). A LETTERED id (`0C301E3F`) hid it.
+  //   (2) Year-restricted general fallback — keeps NON-Polar vendors (Wellue/O2Ring capture-host
+  //       names) stamping exactly as before, but requires a plausible `20xx` year so a numeric id can
+  //       no longer masquerade as one.
   function fnameStampMs(name) {
-    const m = name.match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+    const s = String(name == null ? '' : name);
+    const m = s.match(/^POLAR_[A-Z0-9]+_[A-Z0-9]+_(\d{4})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})/i) || s.match(/(20\d{2})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})/);
     if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
     return null;
   }

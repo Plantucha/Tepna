@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2A98XuGwmiI90ZVz++8NHp/yzbySCwqI3xSgM/mOL3o=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-6Gq5p6JAWsKz+ZbEKpiHKhMbl6qv4btiBN6k+UAnnH4=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Bt0l8ew9ZcneA79GYl/vGT2Jq5zoHet8LFnnkY178Fw=' 'sha256-D+6E+FST9nNL0OgQtAKYzmhLALePYh2KcqqAqVS8070=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-b4QFb+4gvTY8jO9wXMO/M4P0KpFQo8v/GbOezDPoNng=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-nYikVa5xckB2tELeARKlY+sDuFM2vOhffCvyaPw5KNk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pul+Tja4NTa9xanImZbWRlt3Q01FGfxx0kvlu8Zx8UQ=' 'sha256-uVmO1yC+mtszsgOTO/7Bs6aPYhQncXY2qqbMxikFq+w='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-/tdC9xgOmu7ZzLieQYot3pWd2uxxb/KpL+NZqJMYlbc=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2A98XuGwmiI90ZVz++8NHp/yzbySCwqI3xSgM/mOL3o=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-Mr3DL84DZPsJUNvpq+nvnjfAOvpFRebTPQetZ44EDXo=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-YxqmQpkKQjS60vNxwx2WCpHBysB8AlImKME/tPL3nJ0=' 'sha256-b4QFb+4gvTY8jO9wXMO/M4P0KpFQo8v/GbOezDPoNng=' 'sha256-cf4LKWyVjYVnKY1n8+OMjq08K9wPA7CUQdUS+idaHSY=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-nYikVa5xckB2tELeARKlY+sDuFM2vOhffCvyaPw5KNk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pul+Tja4NTa9xanImZbWRlt3Q01FGfxx0kvlu8Zx8UQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -9473,7 +9473,12 @@ __exports.OxyDex = window.OxyDex;
       // _meanRR (ms) made this ratio 1000× LOW — the un-guarded sibling of the very mixed-unit trap
       // DexUnits.guardBaevsky exists for (DEEP-AUDIT-2026-07-11 §4). Same operands as d_csi; do not re-fork.
       var _mxdmnS0 = r._baevskyS && r._baevskyS.mxdmnS != null ? r._baevskyS.mxdmnS : r._mxdmn;
-      var _meanRRs0 = r._meanRR / 1000;
+      // MeanRR routed through the SAME DexUnits.asSecondsRR detector the guard uses for Mode/MxDMn — so a
+      // vendor exporting MeanRR in SECONDS no longer mis-scales this ratio (and d_csi below) by ~10³× via
+      // the old hard /1000. The adaptive detector leaves a real-ms MeanRR at ms→s (the mixed-convention
+      // ingest path stays correct) and normalizes a real-seconds MeanRR — one detector, both operands
+      // unit-safe. Falls back to the hard /1000 ONLY if quantity.js isn't loaded (DexUnits is canonical).
+      var _meanRRs0 = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSecondsRR(r._meanRR).valueS : r._meanRR / 1000;
       r.d_mxdmn_meanrr = _meanRRs0 > 0 && _mxdmnS0 != null ? _mxdmnS0 / _meanRRs0 : NaN;
 
       /* ── Frequency-domain — PRESENCE-gated (DEEP-AUDIT-2026-07-11 §3) ────────────────────────────────
@@ -9519,7 +9524,9 @@ __exports.OxyDex = window.OxyDex;
       r.d_sd1_sd2 = r.d_sd2 > 0 ? r.d_sd1 / r.d_sd2 : NaN;
 
       // ── Toichi CVI / CSI ──
-      const meanRR_s = r._meanRR / 1000;
+      // MeanRR through the SAME asSecondsRR detector as MxDMn/Mode above (was a hard /1000 → ~10³× mis-scale
+      // on a MeanRR-in-seconds vendor export; latent while both real ingest paths carried MeanRR in ms).
+      const meanRR_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSecondsRR(r._meanRR).valueS : r._meanRR / 1000;
       // Toichi CVI: log10(rMSSD_ms × MeanRR_ms) — both in ms for correct units
       // Typical resting values: 3.5–4.5; threshold thresholds updated accordingly
       r.d_cvi = r._rmssd > 0 && r._meanRR > 0 ? Math.log10(r._rmssd * r._meanRR) : NaN;
@@ -11968,6 +11975,24 @@ __exports.PulseDex = window.PulseDex;
     if (sawMDY) return { dmy: false, locked: true, contradictory: false };
     return { dmy: pref, locked: false, contradictory: false };
   }
+  // Clock Contract §2.7 (DEEP-AUDIT-II §12.3) — Date.UTC SILENTLY ROLLS out-of-range components onto a
+  // plausible WRONG instant (month 13 → next January, day 45/Feb 30/Apr 31 → next month, 25:99 → +1 day
+  // 1 h 39 m), so a corrupt CGM stamp used to land on a wrong instant instead of an honest null. `_ckMk`
+  // builds the floating tMs ONLY if every component is in range: the date must round-trip (rejects
+  // month>12, day>31, Feb 30, Apr 31…) and the time must be 0–23 : 0–59 : 0–59 . 0–999. The ONE
+  // legitimate overflow is ISO-8601 `24:00:00` (end-of-day) → next-day 00:00 (do not add a bare `h>23`
+  // guard). Returns a number, or null on any out-of-range component. Mirrors clock.js `_ckMk` (GlucoDex
+  // is a deliberate node-local Clock variant — do not force onto DexClock).
+  function _ckMk(y, mo0, d, h, mi, se, ms) {
+    se = se || 0;
+    ms = ms || 0;
+    var day0 = Date.UTC(y, mo0, d),
+      dd = new Date(day0);
+    if (dd.getUTCFullYear() !== y || dd.getUTCMonth() !== mo0 || dd.getUTCDate() !== d) return null; // date rolled ⇒ invalid
+    if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000; // ISO end-of-day → next 00:00:00
+    if (h < 0 || h > 23 || mi < 0 || mi > 59 || se < 0 || se > 59 || ms < 0 || ms > 999) return null;
+    return Date.UTC(y, mo0, d, h, mi, se, ms);
+  }
   function _ckParse(raw, opts) {
     opts = opts || {};
     var preferDMY = opts.preferDMY !== false;
@@ -11983,24 +12008,33 @@ __exports.PulseDex = window.PulseDex;
     m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?\s*(Z|[+-]\d{2}:?\d{2})$/);
     if (m) {
       var of = m[8] === 'Z' ? 0 : _ckZoneMin(m[8]);
-      return { tMs: Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0), offsetMin: of };
+      var _tz = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0);
+      return _tz == null ? null : { tMs: _tz, offsetMin: of };
     }
     m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?$/);
-    if (m) return { tMs: Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0), offsetMin: null };
+    if (m) {
+      var _ti = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0);
+      return _ti == null ? null : { tMs: _ti, offsetMin: null };
+    }
     m = s.match(/^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (m) {
       var dm = _ckDMY(+m[4], +m[5], preferDMY, dmyLocked);
       if (!dm) return null; // row contradicts the file's proven order → honest null
-      return { tMs: Date.UTC(+m[6], dm.mo - 1, dm.d, +m[1], +m[2], +m[3]), offsetMin: null };
+      var _to = _ckMk(+m[6], dm.mo - 1, dm.d, +m[1], +m[2], +m[3]);
+      return _to == null ? null : { tMs: _to, offsetMin: null };
     }
     m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
     if (m) {
       var dm2 = _ckDMY(+m[1], +m[2], preferDMY, dmyLocked);
       if (!dm2) return null; // row contradicts the file's proven order → honest null
-      return { tMs: Date.UTC(+m[3], dm2.mo - 1, dm2.d, +m[4], +m[5], m[6] ? +m[6] : 0), offsetMin: null };
+      var _tw = _ckMk(+m[3], dm2.mo - 1, dm2.d, +m[4], +m[5], m[6] ? +m[6] : 0);
+      return _tw == null ? null : { tMs: _tw, offsetMin: null };
     }
     m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-    if (m) return { tMs: Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0), offsetMin: null };
+    if (m) {
+      var _ty = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0);
+      return _ty == null ? null : { tMs: _ty, offsetMin: null };
+    }
     return null;
   }
   function parseTimestamp(s) {
@@ -13829,7 +13863,8 @@ __exports.PulseDex = window.PulseDex;
     _quantile: quantile,
     hhmm,
     parseNutrition,
-    pearson
+    pearson,
+    _ckParse // exposed for the Clock Contract §2.7 range-validation regression gate
   };
   // ONE namespaced global (brief §1A). GlucoDex leaks nothing bare (whole DSP is in
   // this IIFE) → no __DEX_NAMESPACED__ suppression gate needed; this is an explicit
@@ -13920,6 +13955,23 @@ __exports.GlucoDex = window.GlucoDex;
   function tzOffset(instantMs) {
     return new Date(instantMs).getTimezoneOffset() * 60000;
   }
+  // Clock Contract §2.7 (DEEP-AUDIT-II §12.3) — Date.UTC SILENTLY ROLLS out-of-range components onto a
+  // plausible WRONG instant (month 13 → next January, day 45/Feb 30/Apr 31 → next month, 25:99 → +1 day
+  // 1 h 39 m). `_ckMk` builds the floating tMs ONLY if every component is in range: the date must
+  // round-trip (rejects month>12, day>31, Feb 30, Apr 31…) and the time must be 0–23 : 0–59 : 0–59 .
+  // 0–999. The ONE legitimate overflow is ISO-8601 `24:00:00` (end-of-day) → next-day 00:00 (do not add
+  // a bare `h>23` guard). Returns a number, or null on any out-of-range component. Mirrors clock.js
+  // `_ckMk` (PpgDex is a deliberate node-local Clock variant — do not force onto DexClock).
+  function _ckMk(y, mo0, d, h, mi, se, ms) {
+    se = se || 0;
+    ms = ms || 0;
+    const day0 = Date.UTC(y, mo0, d),
+      dd = new Date(day0);
+    if (dd.getUTCFullYear() !== y || dd.getUTCMonth() !== mo0 || dd.getUTCDate() !== d) return null; // date rolled ⇒ invalid
+    if (h === 24 && mi === 0 && se === 0 && ms === 0) return day0 + 86400000; // ISO end-of-day → next 00:00:00
+    if (h < 0 || h > 23 || mi < 0 || mi > 59 || se < 0 || se > 59 || ms < 0 || ms > 999) return null;
+    return Date.UTC(y, mo0, d, h, mi, se, ms);
+  }
   function parseTimestamp(raw, opts) {
     opts = opts || {};
     if (raw == null) return null;
@@ -13939,7 +13991,8 @@ __exports.GlucoDex = window.GlucoDex;
     m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?\s*(Z|[+-]\d{2}:?\d{2})?$/);
     if (m) {
       const ms = m[7] ? Math.round(parseFloat('0.' + m[7]) * 1000) : 0;
-      const tMs = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, ms);
+      const tMs = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, ms);
+      if (tMs == null) return null; // §2.7 — out-of-range component → honest null, never a rolled instant
       let offsetMin = null;
       if (m[8]) {
         if (m[8] === 'Z') offsetMin = 0;
@@ -17606,11 +17659,21 @@ __exports.PpgDex = window.PpgDex;
     // above every subsequent real QRS, and detection then dies SILENTLY for the rest of the
     // recording (the robust seed prevents the <12-peak THROW, NOT this mid-record stall:
     // verified on a real Polar-H10 20260625 night that collapsed to 63 beats / 4 min of a
-    // ~7 h record — integ artifact 1.1e7 vs ~5e5 real QRS). Guard: once a beat cadence is
-    // established (rrAvg>0) and detection stalls past a non-physiologic gap (>2.5 s ⇒
-    // sustained <24 bpm ⇒ the THRESHOLD, not the heart, is stuck), BLEED SPKI toward the
-    // noise floor so a real QRS can re-cross THRI. Inert on clean records — a real RR never
-    // exceeds 2.5 s, so beat output is BYTE-IDENTICAL there (verified vs the pre-guard path).
+    // ~7 h record — integ artifact 1.1e7 vs ~5e5 real QRS). Guard: whenever detection stalls
+    // past a non-physiologic gap (>2.5 s ⇒ sustained <24 bpm ⇒ the THRESHOLD, not the heart,
+    // is stuck), BLEED SPKI toward the noise floor so a real QRS can re-cross THRI. Inert on
+    // clean records — a real RR never exceeds 2.5 s, so beat output is BYTE-IDENTICAL there
+    // (verified vs the pre-guard path).
+    // ECGDEX AUDIT G — the bleed used to be gated `rrAvg>0`, but rrAvg is only established after
+    // the SECOND detected beat. A SHARP electrode-settling transient that is the FIRST threshold
+    // crossing (before any real QRS) parks SPKI above every subsequent QRS AND keeps rrAvg==0
+    // forever, so the bleed never ran and detection was dead for the whole record (compute() then
+    // threw "Too few R-peaks" on a clean multi-hour night). Dropping the `rrAvg>0` precondition and
+    // relying on the fixed idleLimit alone lets an opening transient bleed down too. This does NOT
+    // regress normal records: a normal first beat fires well under 2.5 s, so `last` advances before
+    // `i - last` ever reaches idleLimit and the bleed stays dormant (byte-identical); it only ever
+    // fires when no beat was detected within a 2.5 s window — precisely the stuck-threshold case,
+    // whether that stall is mid-record or an opening-transient lead-in.
     const idleLimit = Math.round(2.5 * fs);
     const rr = [];
     let rrAvg = 0;
@@ -17647,8 +17710,9 @@ __exports.PpgDex = window.PpgDex;
         NPKI = 0.125 * integ[i] + 0.875 * NPKI;
       }
       THRI = NPKI + 0.25 * (SPKI - NPKI);
-      // un-stick a threshold parked by a supra-physiologic transient (see header note)
-      if (rrAvg > 0 && i - last > idleLimit) {
+      // un-stick a threshold parked by a supra-physiologic transient (see header note) — runs
+      // even before a cadence is established (rrAvg==0) so an OPENING transient recovers too (AUDIT G)
+      if (i - last > idleLimit) {
         SPKI = Math.max(NPKI, SPKI * 0.99);
         THRI = NPKI + 0.25 * (SPKI - NPKI);
       }
@@ -20556,6 +20620,48 @@ __exports.PpgDex = window.PpgDex;
         : lng
           ? { totalSleepMin: nz(r.totSleep), stageMinutes: r.stageMin || null }
           : null;
+      // ECGDEX AUDIT F — the Integrator's adaptEnvelopeNode('ECGDex') reads json.apnea.{cvhrIndex,
+      // estimatedAHI.value} and json.hrvStability.mean_lnRMSSD_slope, but this orchestrate-routed rich
+      // export OMITTED both blocks — so a nocturnal ECG fused DIFFERENTLY by ingest route (the app's
+      // ⬇JSON button, which runs buildV2, carried CVHR/estAHI/slope; a raw-file→OverDex route did not).
+      // MIRRORS ecgdex-app.js buildV2 field-for-field (same `r`, same reportable:false ambulatory
+      // handling, same null cases when r.cvhr/r.estAHI/r.hrvStab are absent) — honoring this builder's
+      // own SHARED-SHAPE no-divergence mandate (ppgBuildNodeExport carries the sibling out.apnea).
+      var p = r.profile || {};
+      out.apnea = amb
+        ? {
+            reportable: false,
+            suppressedReason: (r.apneaSuppressed && r.apneaSuppressed.suppressedReason) || 'ambulatory — CVHR invalid under exercise',
+            cvhrIndex: null,
+            estimatedAHI: null,
+            riskCategory: null,
+            onCPAP: !!p.cpap,
+            method:
+              'CVHR/cardiopulmonary-coupling proxy (Hilmisson 2019) — WITHHELD: recording is ambulatory/awake-active, exercise HR dynamics read as cardiogenic oscillation. Mirrors the R5 null-model pattern (index withheld with a reason, never fabricated).'
+          }
+        : lng
+          ? {
+              cvhrIndex: r.cvhr.index,
+              cvhrEvents: r.cvhr.events.length,
+              estimatedAHI: r.estAHI ? { value: r.estAHI.value, range: [r.estAHI.lo, r.estAHI.hi], band: r.estAHI.band } : null,
+              riskCategory: r.apneaRisk ? r.apneaRisk.cat : null,
+              onCPAP: !!p.cpap,
+              method: 'CVHR/cardiopulmonary-coupling proxy (Hilmisson 2019) — ECG-only, screen not diagnosis',
+              surgeEscalationPct: r.surgeEsc ? r.surgeEsc.escalationPct : null
+            }
+          : null;
+      out.hrvStability = r.hrvStab
+        ? {
+            sigma_lnRMSSD_slope: r.hrvStab.sigma_lnRMSSD_slope,
+            var_lnRMSSD_slope: r.hrvStab.var_lnRMSSD_slope,
+            mean_lnRMSSD_slope: r.hrvStab.mean_lnRMSSD_slope,
+            classification: r.hrvStab.classification,
+            windows: r.hrvStab.nWindows,
+            ref: 'Li & Kiyono 2026 Sensors 26(4):1118 [CC BY 4.0]',
+            interpretation: 'slope<0 stabilizing (favourable) · slope>0 rising instability (glycemic-risk signal)',
+            series: r.hrvStab.series
+          }
+        : null;
     }
     return out;
   }

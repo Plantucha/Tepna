@@ -182,7 +182,27 @@
     'vo2max est': 'vo2',
     'vo₂max est': 'vo2',
     'vo2 7d avg': 'vo2roll',
-    'vo₂ 7d avg': 'vo2roll'
+    'vo₂ 7d avg': 'vo2roll',
+    // Full-metrics table (hrvdex-render.js TABLE_COLS) label drift — these render REAL registry-graded
+    // numbers but their column labels diverged from the canonical registry labels above, so idForLabel
+    // returned null and (with the header badge now honoring fallback) they'd float to the EXPERIMENTAL
+    // floor — an UNDER-claim for the emerging metrics (CAI/DFA/SpectralEnt/RecovDebt) and an OVER-claim
+    // for the heuristic VO₂ family. Aliasing each to its true id restores the correct grade. Enumerated by
+    // running idForLabel over every TABLE_COLS label; only labels with a real registry counterpart appear
+    // here (columns with no registry metric correctly keep the experimental floor).
+    spectralent: 'spectralEnt',
+    'dfa α1~': 'dfaAlpha1',
+    'dfa a1~': 'dfaAlpha1',
+    'cai (ms)': 'cai',
+    'recov debt 14d': 'recovDebt',
+    'vo2 base': 'vo2',
+    'vo₂ base': 'vo2',
+    'vo2 hrv-adj': 'vo2',
+    'vo₂ hrv-adj': 'vo2',
+    'vo2 delta gt': 'vo2',
+    'vo₂ delta gt': 'vo2',
+    'vo2 category': 'vo2',
+    'vo₂ category': 'vo2'
   };
 
   function _norm(s) {

@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-D+6E+FST9nNL0OgQtAKYzmhLALePYh2KcqqAqVS8070=' 'sha256-Fu5FLIiO3v2KGli/unF/ys5cbTY8CqJ1th5fuSqP+sc=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fXI5DrP+kHRChOhLFMFywZgdu2oBgnwqEiXuQHRJG1w=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-otez0gtgOzP+MHJg+clI/i3fptlBfHRiXK8CAY45L/M=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE=' 'sha256-zr9gXSIENRlwMMyvBlNuEqGugSwpWFlU4dPBywDz748='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/tdC9xgOmu7ZzLieQYot3pWd2uxxb/KpL+NZqJMYlbc=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Fu5FLIiO3v2KGli/unF/ys5cbTY8CqJ1th5fuSqP+sc=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-SrFwk9bRUfiRDBY2OhWTdA1NPKRAPPgqf8ik64Wh5ZA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VB5VA85VT1NlhN1cbqZCPMcM4ORs9Y3OU37nYlb4KMY=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-otez0gtgOzP+MHJg+clI/i3fptlBfHRiXK8CAY45L/M=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HRVDex — Heart Rate Variability Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -7544,7 +7544,27 @@ body.light .topbar::after{ opacity:.25; }
     'vo2max est': 'vo2',
     'vo₂max est': 'vo2',
     'vo2 7d avg': 'vo2roll',
-    'vo₂ 7d avg': 'vo2roll'
+    'vo₂ 7d avg': 'vo2roll',
+    // Full-metrics table (hrvdex-render.js TABLE_COLS) label drift — these render REAL registry-graded
+    // numbers but their column labels diverged from the canonical registry labels above, so idForLabel
+    // returned null and (with the header badge now honoring fallback) they'd float to the EXPERIMENTAL
+    // floor — an UNDER-claim for the emerging metrics (CAI/DFA/SpectralEnt/RecovDebt) and an OVER-claim
+    // for the heuristic VO₂ family. Aliasing each to its true id restores the correct grade. Enumerated by
+    // running idForLabel over every TABLE_COLS label; only labels with a real registry counterpart appear
+    // here (columns with no registry metric correctly keep the experimental floor).
+    spectralent: 'spectralEnt',
+    'dfa α1~': 'dfaAlpha1',
+    'dfa a1~': 'dfaAlpha1',
+    'cai (ms)': 'cai',
+    'recov debt 14d': 'recovDebt',
+    'vo2 base': 'vo2',
+    'vo₂ base': 'vo2',
+    'vo2 hrv-adj': 'vo2',
+    'vo₂ hrv-adj': 'vo2',
+    'vo2 delta gt': 'vo2',
+    'vo₂ delta gt': 'vo2',
+    'vo2 category': 'vo2',
+    'vo₂ category': 'vo2'
   };
 
   function _norm(s) {
@@ -8564,7 +8584,12 @@ body.light .topbar::after{ opacity:.25; }
       // _meanRR (ms) made this ratio 1000× LOW — the un-guarded sibling of the very mixed-unit trap
       // DexUnits.guardBaevsky exists for (DEEP-AUDIT-2026-07-11 §4). Same operands as d_csi; do not re-fork.
       var _mxdmnS0 = r._baevskyS && r._baevskyS.mxdmnS != null ? r._baevskyS.mxdmnS : r._mxdmn;
-      var _meanRRs0 = r._meanRR / 1000;
+      // MeanRR routed through the SAME DexUnits.asSecondsRR detector the guard uses for Mode/MxDMn — so a
+      // vendor exporting MeanRR in SECONDS no longer mis-scales this ratio (and d_csi below) by ~10³× via
+      // the old hard /1000. The adaptive detector leaves a real-ms MeanRR at ms→s (the mixed-convention
+      // ingest path stays correct) and normalizes a real-seconds MeanRR — one detector, both operands
+      // unit-safe. Falls back to the hard /1000 ONLY if quantity.js isn't loaded (DexUnits is canonical).
+      var _meanRRs0 = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSecondsRR(r._meanRR).valueS : r._meanRR / 1000;
       r.d_mxdmn_meanrr = _meanRRs0 > 0 && _mxdmnS0 != null ? _mxdmnS0 / _meanRRs0 : NaN;
 
       /* ── Frequency-domain — PRESENCE-gated (DEEP-AUDIT-2026-07-11 §3) ────────────────────────────────
@@ -8610,7 +8635,9 @@ body.light .topbar::after{ opacity:.25; }
       r.d_sd1_sd2 = r.d_sd2 > 0 ? r.d_sd1 / r.d_sd2 : NaN;
 
       // ── Toichi CVI / CSI ──
-      const meanRR_s = r._meanRR / 1000;
+      // MeanRR through the SAME asSecondsRR detector as MxDMn/Mode above (was a hard /1000 → ~10³× mis-scale
+      // on a MeanRR-in-seconds vendor export; latent while both real ingest paths carried MeanRR in ms).
+      const meanRR_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSecondsRR(r._meanRR).valueS : r._meanRR / 1000;
       // Toichi CVI: log10(rMSSD_ms × MeanRR_ms) — both in ms for correct units
       // Typical resting values: 3.5–4.5; threshold thresholds updated accordingly
       r.d_cvi = r._rmssd > 0 && r._meanRR > 0 ? Math.log10(r._rmssd * r._meanRR) : NaN;
@@ -10713,20 +10740,11 @@ const TABLE_COLS = [
   { key: 'd_vo2_roll7', label: 'VO2 7d Avg', fmt: (v) => fmt1(v) },
   { key: 'd_vo2_delta', label: 'VO2 Delta GT', fmt: (v) => (isNaN(v) ? '—' : (v > 0 ? '+' : '') + fmt1(v)) },
   { key: 'd_vo2_cat', label: 'VO2 Category', fmt: (v) => v || '—' },
-  { key: 'd_sbp_est', label: 'SBP Est', fmt: (v) => fmt0(v) + 'mmHg', color: (v) => (v < 122 ? 'green' : v < 130 ? 'yellow' : 'red') },
-  { key: 'd_dbp_est', label: 'DBP Est', fmt: (v) => fmt0(v) + 'mmHg', color: (v) => (v < 80 ? 'green' : v < 85 ? 'yellow' : 'red') },
-  { key: 'd_sbp_lo', label: 'SBP Lo', fmt: (v) => fmt0(v) },
-  { key: 'd_sbp_hi', label: 'SBP Hi', fmt: (v) => fmt0(v) },
-  {
-    key: 'd_bp_risk',
-    label: 'BP Risk',
-    fmt: (v) => {
-      if (!v || v === '—') return '—';
-      const c = v === 'Normal' ? 'green' : v === 'Borderline' ? 'yellow' : 'red';
-      return '<span class="pill pill-' + c + '">' + v + '</span>';
-    }
-  },
-  { key: 'd_delta_sbp', label: 'dSBP', fmt: (v) => (isNaN(v) ? '—' : (v > 0 ? '+' : '') + fmt1(v)) },
+  /* SBP Est / DBP Est / SBP Lo / SBP Hi / BP Risk / dSBP columns REMOVED (external-review WP-A,
+     completing the DSP removal): the DSP no longer computes d_sbp_est/d_dbp_est/d_bp_risk/d_sbp_lo/
+     d_sbp_hi/d_delta_sbp (cuffless BP from HRV — a population regression that does not survive its
+     disclaimer), so these table cells rendered a permanent unbadged '—mmHg'. The PulseDex sibling
+     rows were already removed. See hrvdex-dsp.js removal note + DEX-METRIC-REMOVAL-AUDIT-BRIEF.md. */
   { key: 'd_cai', label: 'CAI (ms)', fmt: (v) => fmt1(v), color: (v) => (v > 45 ? 'green' : v > 30 ? 'yellow' : 'red') },
   { key: 'd_welfare', label: 'Welfare Idx', fmt: (v) => fmt1(v), color: (v) => (v > 40 ? 'green' : v > 20 ? 'yellow' : 'red') },
   { key: 'd_rmssd_delta_pct', label: 'rMSSD Δ% ¹', fmt: (v) => (isNaN(v) ? '—' : (v > 0 ? '+' : '') + fmt1(v) + '%'), color: (v) => (v > 5 ? 'green' : v < -10 ? 'red' : '') },
@@ -10751,7 +10769,11 @@ function renderTable(rows) {
   const thead = document.getElementById('tableHead');
   const tbody = document.getElementById('tableBody');
   if (!thead || !tbody) return;
-  thead.innerHTML = TABLE_COLS.map((c) => `<th>${evBadge(c.label, false)}${c.label}</th>`).join('');
+  // Full-metrics table headers honor the coverage mandate: a real metric resolves its registry grade;
+  // an unresolved-but-real column gets the honest EXPERIMENTAL floor (fallback=true, the fleet default),
+  // while pure metadata (Date) stays bare via HrvRegistry's _META_DENY. Registry aliases (hrvdex-registry.js)
+  // resolve every drifted TABLE_COLS label to its graded id so nothing under-claims 'experimental'.
+  thead.innerHTML = TABLE_COLS.map((c) => `<th>${evBadge(c.label)}${c.label}</th>`).join('');
   const displayRows = [...rows].reverse().slice(0, 60);
   tbody.innerHTML = displayRows
     .map(
