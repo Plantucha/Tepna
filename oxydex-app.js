@@ -763,3 +763,5 @@ Object.assign(window, {
   exportCSV,
   downloadParser
 });
+// FOLLOWUPS-II item 3: inject app's UI hooks into the DSP (it no longer reaches them as bare globals).
+if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ setStatus, setProgress, showError });
