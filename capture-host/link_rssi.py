@@ -48,6 +48,28 @@ def parse_hci_dev(text: str) -> dict[str, str]:
     return out
 
 
+def sysfs_hci(base: str = "/sys/class/bluetooth") -> dict[str, str]:
+    """Map controller BD_ADDR → hciN from sysfs — {BD_ADDR_upper: hciN}. Each
+    /sys/class/bluetooth/hciN/address holds that controller's MAC. This is the DEPENDENCY-FREE resolver
+    that works on any BlueZ box including the Pi 5 target, where `hcitool` is NOT installed by default and
+    resolve_hci silently fell back to the BlueZ default radio — the 2026-07-18 deaf-onboard mis-pin
+    (VIGIL-DEEP-ANALYSIS §1.3). {} if sysfs is unreadable (then resolve_hci falls back to hcitool)."""
+    out: dict[str, str] = {}
+    try:
+        names = sorted(n for n in os.listdir(base) if re.fullmatch(r"hci\d+", n))
+    except OSError:
+        return out
+    for name in names:
+        try:
+            with open(os.path.join(base, name, "address")) as f:
+                addr = f.read().strip().upper()
+        except OSError:
+            continue
+        if re.fullmatch(r"[0-9A-F:]{17}", addr):
+            out[addr] = name
+    return out
+
+
 async def _run(cmd: list[str], timeout: float = 4.0) -> str | None:
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -69,7 +91,9 @@ async def resolve_hci(adapter_mac: str | None, refresh: bool = False) -> str | N
     key = (adapter_mac or "").upper()
     if not refresh and key in _HCI_CACHE:
         return _HCI_CACHE[key]
-    devs = parse_hci_dev(await _run(["hcitool", "dev"]) or "")
+    # sysfs FIRST (dependency-free, present on the Pi 5 where hcitool is absent); hcitool only as a
+    # fallback (VIGIL-DEEP-ANALYSIS §1.3). Both yield {BD_ADDR_upper: hciN}.
+    devs = sysfs_hci() or parse_hci_dev(await _run(["hcitool", "dev"]) or "")
     if not devs:
         return None
     hci = devs.get(key) if key else next(iter(devs.values()))

@@ -147,7 +147,11 @@ async def scan(adapter_mac: str | None = None, seconds: float = 8.0) -> list[Fou
 async def is_bonded(address: str, adapter_mac: str | None = None) -> bool:
     info = await _btctl(
         ("".join([f"select {adapter_mac}\n"] if adapter_mac else []) + f"info {address}\nquit\n"), timeout=8)
-    return ("Bonded: yes" in info) or ("Paired: yes" in info)
+    # `Bonded: yes` ONLY (VIGIL-DEEP-ANALYSIS §2D). For LE, `Paired: yes` can be a transient pairing that
+    # lacks the stored long-term keys `Bonded` implies — and the bond exists precisely because the strap
+    # drops discovery on an unauthenticated link, so treating Paired-without-Bonded as bonded skips the
+    # re-pair and the strap keeps dropping. A re-pair is idempotent, so gating strictly costs nothing.
+    return "Bonded: yes" in info
 
 
 # The signature of a bond the DEVICE has forgotten while the HOST still believes in it. A Polar accepts
