@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2A98XuGwmiI90ZVz++8NHp/yzbySCwqI3xSgM/mOL3o=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-6Gq5p6JAWsKz+ZbEKpiHKhMbl6qv4btiBN6k+UAnnH4=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Bt0l8ew9ZcneA79GYl/vGT2Jq5zoHet8LFnnkY178Fw=' 'sha256-D+6E+FST9nNL0OgQtAKYzmhLALePYh2KcqqAqVS8070=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-YpBLTPH6rBm7Vlmw7z/w69BHXIabbH51saaTxbfb0bc=' 'sha256-b4QFb+4gvTY8jO9wXMO/M4P0KpFQo8v/GbOezDPoNng=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-irqCc4+5dhqaRPdZw+qJe/7twXLWGrlF2a61O+ToWQI=' 'sha256-nYikVa5xckB2tELeARKlY+sDuFM2vOhffCvyaPw5KNk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pul+Tja4NTa9xanImZbWRlt3Q01FGfxx0kvlu8Zx8UQ=' 'sha256-tdJXYEXue060jc3pqVoU/hOY0LtLaPjVGxZ/BlVdK7I=' 'sha256-uVmO1yC+mtszsgOTO/7Bs6aPYhQncXY2qqbMxikFq+w='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2A98XuGwmiI90ZVz++8NHp/yzbySCwqI3xSgM/mOL3o=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-6Gq5p6JAWsKz+ZbEKpiHKhMbl6qv4btiBN6k+UAnnH4=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Bt0l8ew9ZcneA79GYl/vGT2Jq5zoHet8LFnnkY178Fw=' 'sha256-D+6E+FST9nNL0OgQtAKYzmhLALePYh2KcqqAqVS8070=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-Qocwu7z+CvtgwMzZgCP26A95vBHMrexzWtFJ9giIW4g=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-YpBLTPH6rBm7Vlmw7z/w69BHXIabbH51saaTxbfb0bc=' 'sha256-b4QFb+4gvTY8jO9wXMO/M4P0KpFQo8v/GbOezDPoNng=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-irqCc4+5dhqaRPdZw+qJe/7twXLWGrlF2a61O+ToWQI=' 'sha256-nYikVa5xckB2tELeARKlY+sDuFM2vOhffCvyaPw5KNk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pul+Tja4NTa9xanImZbWRlt3Q01FGfxx0kvlu8Zx8UQ=' 'sha256-uVmO1yC+mtszsgOTO/7Bs6aPYhQncXY2qqbMxikFq+w='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -4224,10 +4224,24 @@ function fuseHRVConsensus(recs, dtMs) {
       var lowQ = likeWin.map(_hrvUntrusted).filter(Boolean);
       var like = usable.length >= 2 ? usable : likeWin;
       var lowQExcluded = usable.length >= 2 && lowQ.length ? lowQ : null;
+      /* DEEP-AUDIT 2026-07-22 finding A: PpgDex's bare hrv.time.sdnn (summary.sdnn) is a
+         WHOLE-RECORD optical SDNN that runs baseline-wander-inflated (~+26% vs chest ECG per
+         its own sdnnNote); summary.sdnnRobustMs (hrv.time.sdnnRobust, the quality-gated per-5-min
+         median, ~+3.5% vs ECG truth) is the cross-node-comparable axis — the same one
+         fuseHrvResource already uses (:2318). For the SDNN consensus, resolve PpgDex to its robust
+         axis so the surfaced divergence/qc reflects real agreement, not the wander inflation.
+         summary.sdnn is deliberately left untouched (it feeds the per-source display rows). */
+      function _cmpVal(s, key) {
+        if (key === 'sdnn' && s.node === 'PpgDex') {
+          var rob = s.summary.sdnnRobustMs;
+          if (rob != null && isFinite(rob)) return rob;
+        }
+        return s.summary[key];
+      }
       function spread(key) {
         var vs = like
           .map(function (s) {
-            return s.summary[key];
+            return _cmpVal(s, key);
           })
           .filter(function (v) {
             return v != null;
@@ -4240,7 +4254,7 @@ function fuseHRVConsensus(recs, dtMs) {
         return {
           values: like
             .map(function (s) {
-              return { node: s.node, v: s.summary[key] };
+              return { node: s.node, v: _cmpVal(s, key) };
             })
             .filter(function (o) {
               return o.v != null;
