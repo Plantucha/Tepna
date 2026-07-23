@@ -1317,37 +1317,11 @@
     }
   });
 
-  if (!root.__DEX_NAMESPACED__) {
-    Object.assign(root, BARE);
-    // mutable cross-file state — proxy bare names to the in-closure bindings
-    Object.defineProperty(root, 'allRows', {
-      configurable: true,
-      get: function () {
-        return allRows;
-      },
-      set: function (v) {
-        allRows = v;
-      }
-    });
-    Object.defineProperty(root, 'windowDays', {
-      configurable: true,
-      get: function () {
-        return windowDays;
-      },
-      set: function (v) {
-        windowDays = v;
-      }
-    });
-    Object.defineProperty(root, 'charts', {
-      configurable: true,
-      get: function () {
-        return charts;
-      },
-      set: function (v) {
-        charts = v;
-      }
-    });
-  }
+  // ESM-MIGRATION-FOLLOWUPS-II items 1-2: the bare-global back-compat spray was REMOVED. Every realm is
+  // now namespaced — the app page sets __DEX_NAMESPACED__ and destructures `HRVDex._bare`, the test
+  // runner co-loads namespaced, and the workers set __DEX_NAMESPACED__. Nothing consumes a bare `HRVDex`
+  // helper or bare allRows/windowDays/charts any more, so neither the `Object.assign(root, BARE)` spray
+  // nor its mutable-state proxies are emitted.
 })(/** @type {any} */ (typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this));
 
 // ESM-MIGRATION (deep-3 fan-out): dsp is now a DUAL-MODE module. The IIFE above still attaches

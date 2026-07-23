@@ -107,9 +107,12 @@ function loadScript(url) {
 var READY = false,
   ERR = null;
 try {
+  // ESM-MIGRATION-FOLLOWUPS-II items 1-2: run NAMESPACED (the bare-global spray is gone). The OxyDex
+  // helpers are pulled from OxyDex._bare below; CohortGen is cohort-gen.js's own global (not a DSP spray).
+  self.__DEX_NAMESPACED__ = true;
   ['../kernel-constants.js', '../clock.js', '../oxydex-util.js', '../oxydex-profile.js', '../oxydex-dsp.js', '../synth-gen.js', '../cohort-gen.js'].forEach(loadScript);
-  READY = !!(self.processNight && self.parseCSV && self.CohortGen);
-  if (!READY) ERR = 'modules missing after load (processNight/parseCSV/CohortGen)';
+  READY = !!(self.OxyDex && self.OxyDex._bare && self.OxyDex._bare.processNight && self.OxyDex._bare.parseCSV && self.CohortGen);
+  if (!READY) ERR = 'modules missing after load (OxyDex._bare.processNight/parseCSV, CohortGen)';
 } catch (e) {
   ERR = String((e && e.message) || e);
 }
@@ -141,8 +144,8 @@ self.onmessage = function (e) {
         var csv = pf.nights[k].files && pf.nights[k].files.oxyCSV;
         if (!csv) continue;
         var t0 = performance.now();
-        var rows = parseCSV(csv, {}); // REAL parser (strips --,--,0 rows)
-        if (rows.length) processNight(rows, 'hang-probe.csv'); // REAL full pipeline
+        var rows = OxyDex._bare.parseCSV(csv, {}); // REAL parser (strips --,--,0 rows)
+        if (rows.length) OxyDex._bare.processNight(rows, 'hang-probe.csv'); // REAL full pipeline
         var dt = performance.now() - t0;
         if (dt > maxMs) {
           maxMs = dt;

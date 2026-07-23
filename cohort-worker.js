@@ -152,12 +152,12 @@ function runOxy(p) {
     score = { nights: [] };
   p.nights.forEach(function (nt) {
     if (!(nt.present.OxyDex && nt.files.oxyCSV)) return;
-    var rows = parseCSV(nt.files.oxyCSV, {}); // REAL OxyDex parser
+    var rows = OxyDex._bare.parseCSV(nt.files.oxyCSV, {}); // REAL OxyDex parser
     if (!rows.length) {
       score.nights.push({ empty: true });
       return;
     }
-    var night = processNight(rows, 'cohort.csv'); // REAL full pipeline
+    var night = OxyDex._bare.processNight(rows, 'cohort.csv'); // REAL full pipeline
     var st = night.stats || {};
     var dt = st.durationMin && rows.length ? (st.durationMin * 60000) / rows.length : 1000;
     var desat = night.desat || null;
@@ -199,17 +199,17 @@ function runOxy(p) {
 
 /* ── PulseDex per night ── */
 function runPulse(nt) {
-  var parsed = parseRRInput(nt.files.rrText || '');
+  var parsed = PulseDex._bare.parseRRInput(nt.files.rrText || '');
   var vals = parsed.vals || [];
   if (vals.length < 20) return null;
-  var cl = artifactClean(vals);
+  var cl = PulseDex._bare.artifactClean(vals);
   var clean = cl.clean;
   var meanRR =
     clean.reduce(function (s, v) {
       return s + v;
     }, 0) / clean.length;
-  var rm = rmssd(clean),
-    sd = std(clean);
+  var rm = PulseDex._bare.rmssd(clean),
+    sd = PulseDex._bare.std(clean);
   var durMin =
     parsed.tsMs && parsed.tsMs.length
       ? (parsed.tsMs[parsed.tsMs.length - 1] - parsed.tsMs[0]) / 60000
@@ -615,6 +615,11 @@ self.onmessage = function (e) {
   if (m.type === 'init') {
     KIND = m.kind;
     try {
+      // ESM-MIGRATION-FOLLOWUPS-II items 1-2: run this worker realm NAMESPACED so the co-loaded DSPs
+      // expose only their <Node>/<Node>._bare surfaces (no bare-global spray). The few helpers this
+      // worker uses are pulled explicitly from the right namespace at their call sites below — which
+      // also removes the old last-load-wins collision on parseCSV/mean/std across the stacked DSPs.
+      self.__DEX_NAMESPACED__ = true;
       SCRIPTS[KIND].forEach(loadScript);
       READY = true;
       self.postMessage({ type: 'ready', kind: KIND });

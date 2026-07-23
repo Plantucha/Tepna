@@ -1577,19 +1577,11 @@
       lastResult = v;
     }
   });
-  if (!root.__DEX_NAMESPACED__) {
-    Object.assign(root, BARE);
-    // mutable cross-file state — proxy bare `lastResult` to the in-closure binding
-    Object.defineProperty(root, 'lastResult', {
-      configurable: true,
-      get: function () {
-        return lastResult;
-      },
-      set: function (v) {
-        lastResult = v;
-      }
-    });
-  }
+  // ESM-MIGRATION-FOLLOWUPS-II items 1-2: the bare-global back-compat spray was REMOVED. Every realm is
+  // now namespaced — the app pages set __DEX_NAMESPACED__ and destructure `PulseDex._bare`, the test
+  // runner co-loads namespaced, and the workers (cohort/qrs) set __DEX_NAMESPACED__ and pull helpers
+  // from `PulseDex._bare` explicitly. Nothing consumes a bare `PulseDex` helper or bare `lastResult` any
+  // more, so neither the `Object.assign(root, BARE)` spray nor its mutable-state proxy is emitted.
 })(/** @type {any} */ (typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this));
 
 // ESM-MIGRATION (deep-3 fan-out): dsp is now a DUAL-MODE module. The IIFE above still attaches
