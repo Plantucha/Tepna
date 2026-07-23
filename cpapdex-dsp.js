@@ -810,9 +810,9 @@
         return 'RE';
       case 'Apnea':
         return 'UA'; // device-scored apnea the firmware could not type (ResMed 'Apnea'):
-        // counts toward AHI/nApnea like any apnea, but stays OUT of the obstructive/central split.
-        // (DEEP-AUDIT-2026-07-22 §CPAPDex — before this it fell through `default → null` and vanished,
-        // understating residualAHI vs the device's own AHI, which counts these.)
+      // counts toward AHI/nApnea like any apnea, but stays OUT of the obstructive/central split.
+      // (DEEP-AUDIT-2026-07-22 §CPAPDex — before this it fell through `default → null` and vanished,
+      // understating residualAHI vs the device's own AHI, which counts these.)
       default:
         return null; // Unclassified / timekeeping (leak / mask-off / clock TALs)
     }
