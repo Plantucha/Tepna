@@ -2905,6 +2905,82 @@
       T.ok('hero/bench num() helper keeps its correct (v != null && !isNaN(v)) form', /v != null && !isNaN\(v\)/.test(rnd));
     });
 
+    /* ════ 9c · HRVDex full-metrics TABLE — every real column is BADGED; graded columns show their TRUE
+       grade; dead cuffless-BP columns are gone (Findings I + J) ════
+       Finding I: the full-metrics table header was the fleet's ONLY evBadge(label, false) site, so 34 real-
+       number columns whose labels had drifted from the registry aliases rendered UNBADGED — a coverage-
+       mandate bug (a number reaching the eye unbadged). Fix = registry aliases for the drifted graded
+       labels + drop the `false` so an unresolved-but-real column takes the honest experimental floor while
+       metadata (Date) stays bare. Finding J: six cuffless-BP columns (SBP/DBP Est, SBP Lo/Hi, BP Risk, dSBP)
+       whose DSP producers were removed (WP-A) still declared TABLE_COLS entries → permanent unbadged '—mmHg';
+       delete them. Source-parsed (TABLE_COLS is page-scoped) + resolved via the executed HrvRegistry. */
+    group('HRVDex full-metrics table — coverage-mandate badges + dead-BP-column removal (Findings I/J)', 'sources · cohesion-badges', function (T) {
+      var rnd = (env.sources || {})['hrvdex-render.js'];
+      var R = env.HrvRegistry,
+        MR = env.MetricRegistry;
+      if (!rnd || !R || !MR) {
+        T.ok('hrvdex-render source + HrvRegistry + MetricRegistry available', false, 'wire env.sources[hrvdex-render.js] + HrvRegistry + MetricRegistry');
+        return;
+      }
+      // parse the TABLE_COLS array: { key:'…', label:'…' } (label follows key in every entry).
+      var block = rnd.slice(rnd.indexOf('const TABLE_COLS = ['), rnd.indexOf('\n];', rnd.indexOf('const TABLE_COLS = [')));
+      var cols = [],
+        objRe = /\{\s*key:\s*'([^']*)'\s*,\s*label:\s*'((?:[^'\\]|\\.)*)'/g,
+        mm;
+      while ((mm = objRe.exec(block))) cols.push({ key: mm[1], label: mm[2] });
+      T.ok('TABLE_COLS parsed from source (≥ 40 columns)', cols.length >= 40, cols.length + ' columns');
+
+      // (J) the six removed cuffless-BP producers must have NO surviving TABLE_COLS entry.
+      var deadBP = ['d_sbp_est', 'd_dbp_est', 'd_bp_risk', 'd_sbp_lo', 'd_sbp_hi', 'd_delta_sbp'];
+      var survivingBP = deadBP.filter(function (k) {
+        return cols.some(function (c) {
+          return c.key === k;
+        });
+      });
+      T.eq('§J · zero producer-less cuffless-BP columns remain in TABLE_COLS', survivingBP.length, 0, 'still present: ' + survivingBP.join(','));
+
+      // (I) header badge honors the fallback default (no `false`), so EVERY non-metadata column is badged.
+      T.ok('§I · the header no longer passes fallback=false (evBadge(c.label) with no 2nd arg)', /TABLE_COLS\.map\(\(c\)\s*=>\s*`<th>\$\{evBadge\(c\.label\)\}/.test(rnd), 'evBadge(c.label,false) still present');
+      var META = { date: 1, start: 1, end: 1, source: 1, 'sample rate': 1, recording: 1, 'active flags': 1, tier: 1, today: 1 };
+      var norm = function (s) {
+        return String(s).toLowerCase().replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+      };
+      var unbadged = [];
+      cols.forEach(function (c) {
+        var isMeta = !!META[norm(c.label)];
+        var b = R.badgeForLabel(c.label, true);
+        if (!isMeta && !b) unbadged.push(c.label);
+      });
+      T.eq('§I · every real (non-metadata) full-metrics column renders a badge (0 unbadged)', unbadged.length, 0, 'unbadged: ' + unbadged.join(' · '));
+      // metadata Date must STAY bare (a badge on a date is meaningless — the _META_DENY path).
+      T.eq("§I · the Date column stays bare (metadata, not a measurement)", R.badgeForLabel('Date', true), '');
+
+      // (I·a) the drifted GRADED labels now resolve to their TRUE registry id — so a validated/emerging
+      //       metric does not under-claim 'experimental', and a heuristic VO₂ does not over-claim it.
+      [
+        ['SpectralEnt', 'spectralEnt'],
+        ['DFA α1~', 'dfaAlpha1'],
+        ['CAI (ms)', 'cai'],
+        ['Recov Debt 14d', 'recovDebt'],
+        ['VO2 Base', 'vo2'],
+        ['VO2 HRV-adj', 'vo2'],
+        ['VO2 Delta GT', 'vo2'],
+        ['VO2 Category', 'vo2']
+      ].forEach(function (pair) {
+        T.eq('§I · drifted graded label resolves: ' + pair[0] + ' → ' + pair[1], R.idForLabel(pair[0]), pair[1]);
+      });
+      // and each column that DOES resolve carries the registry's grade (not the experimental floor).
+      var mismatch = [];
+      cols.forEach(function (c) {
+        var id = R.idForLabel(c.label);
+        if (id && env.HRV_REGISTRY[id]) {
+          var b = R.badgeForLabel(c.label, true) || '';
+          if (b.indexOf('ev-' + env.HRV_REGISTRY[id].evidence) < 0) mismatch.push(c.label + '(' + env.HRV_REGISTRY[id].evidence + ')');
+        }
+      });
+      T.eq('§I · every resolving column badges at its registry grade (no floor override)', mismatch.length, 0, 'graded-mismatch: ' + mismatch.join(' · '));
+    });
+
     /* ════ 10 · INTEGRATOR DEDUP — stampless duplicates (P1) ════ */
     group('Integrator dedup — stampless duplicates (P1)', 'integrator-dsp', function (T) {
       var A = env.adaptEnvelopeNode,
@@ -13816,6 +13892,23 @@
       // and the SD2 identity it feeds: SD2 = √(2·SDNN² − SD1²), SDNN=75.7 → propagation check
       var sd2True = Math.sqrt(Math.max(0, 2 * 75.7 * 75.7 - sd1True * sd1True));
       T.approx('§4 · SD2 = √(2·SDNN² − SD1²) reflects the correct SD1 (propagation)', rFull.d_sd2, sd2True, 1e-9, 'd_sd2=' + rFull.d_sd2 + ' expected=' + sd2True);
+
+      // (f) FINDING E — Toichi CSI's MeanRR is now routed through the SAME DexUnits.asSecondsRR detector
+      //     as MxDMn/Mode, so d_csi is UNIT-INVARIANT across a whole-seconds vendor export and a whole-ms
+      //     one. The old hard `meanRR/1000` divided a SECONDS MeanRR (0.9) down to 0.0009 → d_csi ~10³× too
+      //     HIGH (277.78 for the row below) on any vendor exporting MeanRR in seconds; the mixed-convention
+      //     path (MxDMn in s, MeanRR in ms) that both real ingests use is UNCHANGED, since asSecondsRR leaves
+      //     a real-ms MeanRR at ms→s exactly as /1000 did. CSI = MxDMn(s) / MeanRR(s); 0.25/0.9 = 0.27778.
+      var _csiSec = HD.derive([
+        HD.rowFromNodeExport({ schema: { name: 'ganglior.node-export', node: 'ECGDex' }, recording: { startEpochMs: Date.UTC(2026, 5, 14, 22, 0, 0) }, hrv: { time: { mode: 0.9, mxDMn: 0.25, meanRR: 0.9 } } })
+      ])[0].d_csi;
+      var _csiMs = HD.derive([
+        HD.rowFromNodeExport({ schema: { name: 'ganglior.node-export', node: 'ECGDex' }, recording: { startEpochMs: Date.UTC(2026, 5, 14, 22, 0, 0) }, hrv: { time: { mode: 900, mxDMn: 250, meanRR: 900 } } })
+      ])[0].d_csi;
+      T.approx('§E · CSI on a whole-SECONDS row (Mode/MxDMn/MeanRR all s) == MxDMn/MeanRR, NOT 10³× high', _csiSec, 0.25 / 0.9, 1e-6, 'd_csi(s)=' + _csiSec);
+      T.ok('§E · that seconds row is 0.278, not the pre-fix 277.78 (MeanRR no longer /1000-ed when already s)', _csiSec < 1, 'd_csi(s)=' + _csiSec);
+      T.approx('§E · CSI on the equivalent whole-MS row is unchanged (0.278) — mixed-convention path preserved', _csiMs, 0.25 / 0.9, 1e-6, 'd_csi(ms)=' + _csiMs);
+      T.ok('§E · CSI is unit-INVARIANT: whole-seconds row ≡ whole-ms row (metamorphic)', Math.abs(_csiSec - _csiMs) < 1e-9, 's=' + _csiSec + ' ms=' + _csiMs);
     });
 
     /* An ALL-NIGHT row is a different measurement unit from a spot reading: it integrates across the

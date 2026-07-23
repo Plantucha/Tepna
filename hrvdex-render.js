@@ -1391,20 +1391,11 @@ const TABLE_COLS = [
   { key: 'd_vo2_roll7', label: 'VO2 7d Avg', fmt: (v) => fmt1(v) },
   { key: 'd_vo2_delta', label: 'VO2 Delta GT', fmt: (v) => (isNaN(v) ? '—' : (v > 0 ? '+' : '') + fmt1(v)) },
   { key: 'd_vo2_cat', label: 'VO2 Category', fmt: (v) => v || '—' },
-  { key: 'd_sbp_est', label: 'SBP Est', fmt: (v) => fmt0(v) + 'mmHg', color: (v) => (v < 122 ? 'green' : v < 130 ? 'yellow' : 'red') },
-  { key: 'd_dbp_est', label: 'DBP Est', fmt: (v) => fmt0(v) + 'mmHg', color: (v) => (v < 80 ? 'green' : v < 85 ? 'yellow' : 'red') },
-  { key: 'd_sbp_lo', label: 'SBP Lo', fmt: (v) => fmt0(v) },
-  { key: 'd_sbp_hi', label: 'SBP Hi', fmt: (v) => fmt0(v) },
-  {
-    key: 'd_bp_risk',
-    label: 'BP Risk',
-    fmt: (v) => {
-      if (!v || v === '—') return '—';
-      const c = v === 'Normal' ? 'green' : v === 'Borderline' ? 'yellow' : 'red';
-      return '<span class="pill pill-' + c + '">' + v + '</span>';
-    }
-  },
-  { key: 'd_delta_sbp', label: 'dSBP', fmt: (v) => (isNaN(v) ? '—' : (v > 0 ? '+' : '') + fmt1(v)) },
+  /* SBP Est / DBP Est / SBP Lo / SBP Hi / BP Risk / dSBP columns REMOVED (external-review WP-A,
+     completing the DSP removal): the DSP no longer computes d_sbp_est/d_dbp_est/d_bp_risk/d_sbp_lo/
+     d_sbp_hi/d_delta_sbp (cuffless BP from HRV — a population regression that does not survive its
+     disclaimer), so these table cells rendered a permanent unbadged '—mmHg'. The PulseDex sibling
+     rows were already removed. See hrvdex-dsp.js removal note + DEX-METRIC-REMOVAL-AUDIT-BRIEF.md. */
   { key: 'd_cai', label: 'CAI (ms)', fmt: (v) => fmt1(v), color: (v) => (v > 45 ? 'green' : v > 30 ? 'yellow' : 'red') },
   { key: 'd_welfare', label: 'Welfare Idx', fmt: (v) => fmt1(v), color: (v) => (v > 40 ? 'green' : v > 20 ? 'yellow' : 'red') },
   { key: 'd_rmssd_delta_pct', label: 'rMSSD Δ% ¹', fmt: (v) => (isNaN(v) ? '—' : (v > 0 ? '+' : '') + fmt1(v) + '%'), color: (v) => (v > 5 ? 'green' : v < -10 ? 'red' : '') },
@@ -1429,7 +1420,11 @@ function renderTable(rows) {
   const thead = document.getElementById('tableHead');
   const tbody = document.getElementById('tableBody');
   if (!thead || !tbody) return;
-  thead.innerHTML = TABLE_COLS.map((c) => `<th>${evBadge(c.label, false)}${c.label}</th>`).join('');
+  // Full-metrics table headers honor the coverage mandate: a real metric resolves its registry grade;
+  // an unresolved-but-real column gets the honest EXPERIMENTAL floor (fallback=true, the fleet default),
+  // while pure metadata (Date) stays bare via HrvRegistry's _META_DENY. Registry aliases (hrvdex-registry.js)
+  // resolve every drifted TABLE_COLS label to its graded id so nothing under-claims 'experimental'.
+  thead.innerHTML = TABLE_COLS.map((c) => `<th>${evBadge(c.label)}${c.label}</th>`).join('');
   const displayRows = [...rows].reverse().slice(0, 60);
   tbody.innerHTML = displayRows
     .map(
