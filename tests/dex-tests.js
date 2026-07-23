@@ -3355,6 +3355,53 @@
       T.ok('§8 · …and sits BELOW rMSSD/√2 (the retired definition) — RED on the old code', r && r.sd1 != null && r.sd1 < rmssdSD1 - 0.03, 'sd1=' + (r && r.sd1) + ' rMSSD/√2=' + rmssdSD1.toFixed(2));
     });
 
+    /* ════ PulseDex↔HRVDex — PNS Efficiency must agree across nodes (DEEP-AUDIT-2026-07-22 §PNS-eff) ══
+       "PNS Efficiency" = rMSSD/(SDNN·pNN50). HRVDex (the reference HRV node) divides by the pNN50
+       FRACTION (pNN50/100); PulseDex historically divided by the raw PERCENT, omitting the /100 — so on
+       IDENTICAL RR truth PulseDex rendered 0.0140 where HRVDex rendered 1.3955 (a 100× scale split), and
+       each node's grade band had been calibrated to its own accidental scale, hiding the drift in
+       isolation. The fix makes PulseDex divide by the fraction and adopts HRVDex's thresholds (green <4,
+       warn <7). This gate extracts the ACTUAL denominator expression + the render band from BOTH source
+       files, evaluates them on canonical RR-derived truth, and asserts they AGREE — RED on the old
+       raw-percent form (proven non-vacuous by the 100× control). */
+    group('PulseDex↔HRVDex — PNS Efficiency agrees (pNN50 fraction, not raw percent)', 'pulsedex-app · pulsedex-render · hrvdex-dsp · hrvdex-render · contract-provenance', function (T) {
+      var src = env.sources || {};
+      var pApp = src['pulsedex-app.js'] || '',
+        pRnd = src['pulsedex-render.js'] || '',
+        hDsp = src['hrvdex-dsp.js'] || '',
+        hRnd = src['hrvdex-render.js'] || '';
+      if (!pApp || !pRnd || !hDsp || !hRnd) {
+        T.ok('sources for pnse cross-node gate available', false, 'not wired — gate skipped');
+        return;
+      }
+      // canonical RR-derived truth (identical across nodes)
+      var RMSSD = 68.35,
+        SDNN = 94.01,
+        PNN50 = 52.1;
+      // extract the PulseDex pnse ratio (the +( … ).toFixed(4) true-branch) and eval it
+      var mP = pApp.match(/pnse\s*=[\s\S]*?\?\s*\+\(([\s\S]*?)\)\.toFixed\(4\)/);
+      var mH = hDsp.match(/d_pns_eff\s*=[\s\S]*?\?\s*([\s\S]*?)\s*:\s*NaN/);
+      T.ok('PulseDex pnse ratio extractable from pulsedex-app.js', !!mP, mP ? mP[1].trim() : 'no match');
+      T.ok('HRVDex d_pns_eff ratio extractable from hrvdex-dsp.js', !!mH, mH ? mH[1].trim() : 'no match');
+      if (!mP || !mH) return;
+      var pulseVal = new Function('cRm', 'cSd', 'cPn', 'return (' + mP[1] + ');')(RMSSD, SDNN, PNN50);
+      var hrvVal = new Function('r', 'return (' + mH[1] + ');')({ _rmssd: RMSSD, _sdnn: SDNN, _pnn50: PNN50 });
+      // the two nodes now compute the SAME number on the SAME truth
+      T.ok('§PNS-eff · PulseDex pnse == HRVDex d_pns_eff on identical RR truth', Math.abs(pulseVal - hrvVal) < 1e-6, 'PulseDex ' + pulseVal.toFixed(4) + ' vs HRVDex ' + hrvVal.toFixed(4));
+      T.ok('§PNS-eff · that shared value is HRVDex-scaled (≈1.40, not 0.014)', hrvVal > 1 && hrvVal < 2, 'value=' + hrvVal.toFixed(4));
+      // non-vacuity control: the RETIRED raw-percent form is exactly 100× smaller — this gate would RED on it
+      var oldPulse = RMSSD / (SDNN * PNN50);
+      T.ok('§PNS-eff · control · the old raw-percent form was 100× off (proves the fix is real)', Math.abs(hrvVal / oldPulse - 100) < 0.5, 'ratio=' + (hrvVal / oldPulse).toFixed(2));
+      // render grade bands must match: HRVDex d_pns_eff green<4/yellow<7 ⇔ PulseDex PNS-Effic ok<4/warn<7
+      var hBand = hRnd.match(/key:\s*'d_pns_eff'[\s\S]*?v\s*<\s*(\d+)\s*\?\s*'green'\s*:\s*v\s*<\s*(\d+)\s*\?\s*'yellow'/);
+      var pBand = pRnd.match(/r\.pnse\s*<\s*(\d+)\s*\?\s*'ok'\s*:\s*r\.pnse\s*<\s*(\d+)\s*\?\s*'warn'/);
+      T.ok('HRVDex render band for d_pns_eff extractable', !!hBand, hBand ? hBand[0] : 'no match');
+      T.ok('PulseDex render band for PNS Effic extractable (recalibrated to lower-is-better)', !!pBand, pBand ? pBand[0] : 'no match');
+      if (hBand && pBand) {
+        T.ok('§PNS-eff · PulseDex grade band matches HRVDex thresholds (green/ok <' + hBand[1] + ', warn/yellow <' + hBand[2] + ')', pBand[1] === hBand[1] && pBand[2] === hBand[2], 'PulseDex <' + pBand[1] + '/<' + pBand[2] + ' vs HRVDex <' + hBand[1] + '/<' + hBand[2]);
+      }
+    });
+
     /* ════ 12 · ECGDex respRate aggregation — median, not HF-peak (whole-record scalar) ════ */
     /* DEEP-AUDIT-2026-07-11 §10/§11 — the exported spectrum must sit on ONE time scale, and its band
        split must not hang on an arbitrary internal constant.
