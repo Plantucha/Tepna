@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-6Gq5p6JAWsKz+ZbEKpiHKhMbl6qv4btiBN6k+UAnnH4=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-A70in1yVw8l6p/xGyEIN/q3z6NYSyh3+oY6uqe7gSc4=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Bt0l8ew9ZcneA79GYl/vGT2Jq5zoHet8LFnnkY178Fw=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-Hc9GZsLap0Y3+GznQuJumo36oXOXvCxpUgWcvihj7FQ=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-b4QFb+4gvTY8jO9wXMO/M4P0KpFQo8v/GbOezDPoNng=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-ooBkJg2F5zjKvTYC75lucnX68EyOclC3JfNJBhuQ+NI=' 'sha256-pul+Tja4NTa9xanImZbWRlt3Q01FGfxx0kvlu8Zx8UQ=' 'sha256-uVmO1yC+mtszsgOTO/7Bs6aPYhQncXY2qqbMxikFq+w='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-6Gq5p6JAWsKz+ZbEKpiHKhMbl6qv4btiBN6k+UAnnH4=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Bt0l8ew9ZcneA79GYl/vGT2Jq5zoHet8LFnnkY178Fw=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-Hc9GZsLap0Y3+GznQuJumo36oXOXvCxpUgWcvihj7FQ=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-RCqsh0NGoZ1elaH+WY6clrIAuFOuoOT1J0spNea1eHA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-b4QFb+4gvTY8jO9wXMO/M4P0KpFQo8v/GbOezDPoNng=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-ooBkJg2F5zjKvTYC75lucnX68EyOclC3JfNJBhuQ+NI=' 'sha256-pul+Tja4NTa9xanImZbWRlt3Q01FGfxx0kvlu8Zx8UQ=' 'sha256-uVmO1yC+mtszsgOTO/7Bs6aPYhQncXY2qqbMxikFq+w='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -8896,7 +8896,32 @@ __exports.OxyDex = window.OxyDex;
   let allRows = [];
   let windowDays = 7;
   let charts = {};
-  // AGE is read dynamically inside computeDerived via getProfile().age
+  // AGE is read dynamically inside computeDerived via _ui.getProfile().age
+
+  /* ── DSP→UI hooks (ESM-MIGRATION-FOLLOWUPS-II item 3 — dependency injection) ────────────────────
+     The DSP used to reach UP into its co-loaded UI siblings (hrvdex-app / -render / -profile) as bare
+     page globals — setStatus/setProgress/rerender (side-effects) + getProfile/inferFromData/calcVo2Cat
+     (profile inputs, used by commitRows/computeDerived). Those bare reach-ins are why hrvdex-globals.d.ts
+     existed. Now the UI modules INJECT their implementations via HRVDex.setHooks({…}); the DSP calls
+     `_ui.x(…)` only. The defaults are HEADLESS-SAFE and reproduce the pre-DI headless compute path
+     EXACTLY — getProfile()→{} (so the profile-dependent columns fall to NaN, the honest headless
+     answer; calcVo2Cat is then never reached, guarded by isNaN), the rest no-op — so compute() / the
+     equivalence golden are byte-identical (verified, not asserted). */
+  const _ui = {
+    setStatus(_msg) {},
+    setProgress(_pct) {},
+    rerender() {},
+    getProfile() {
+      return {};
+    },
+    inferFromData() {},
+    calcVo2Cat(_vo2, _age, _sex) {
+      return '—';
+    }
+  };
+  function setHooks(h) {
+    if (h) for (const k in _ui) if (typeof h[k] === 'function') _ui[k] = h[k];
+  }
 
   /* ════ CANONICAL CLOCK · CLOCK-UNIFY (duplicated locally per app) ═══════════
    tMs = floating wall-clock ms: the recording's LOCAL civil time encoded as if
@@ -9219,25 +9244,25 @@ __exports.OxyDex = window.OxyDex;
       added++;
     });
     if (!allRows.length) {
-      if (typeof setStatus === 'function') setStatus('⚠ No valid measurements found in that file.');
+      _ui.setStatus('⚠ No valid measurements found in that file.');
       return;
     }
     allRows.sort((a, b) => a._tMs - b._tMs);
-    inferFromData(); // v2.9: infer profile first so computeDerived uses real age
+    _ui.inferFromData(); // v2.9: infer profile first so computeDerived uses real age
     computeDerived();
     const _persisted = persistHRVRows(); // mirror the accumulated table so it survives reload
-    setProgress(100);
-    if (typeof setStatus === 'function') {
+    _ui.setProgress(100);
+    {
       const span = fmtDate(allRows[0]._tMs) + ' – ' + fmtDate(allRows[allRows.length - 1]._tMs);
       // §1.11: the persist outcome is APPENDED, not overwritten. This line used to unconditionally
       // replace whatever persistHRVRows had just painted, so a full/disabled store produced a clean
       // "✅ Added N measurements" and the user believed their history was saved.
       const note = _persistNote(_persisted);
       if (opts.restored) {
-        setStatus('↻ Restored ' + allRows.length + ' measurements from your last session (' + span + '). Import more — they accumulate.' + note);
+        _ui.setStatus('↻ Restored ' + allRows.length + ' measurements from your last session (' + span + '). Import more — they accumulate.' + note);
       } else {
         const skip = dup ? ' · ' + dup + ' duplicate' + (dup === 1 ? '' : 's') + ' skipped' : '';
-        setStatus('✅ Added ' + added + ' measurement' + (added === 1 ? '' : 's') + skip + ' — ' + allRows.length + ' total · ' + span + note);
+        _ui.setStatus('✅ Added ' + added + ' measurement' + (added === 1 ? '' : 's') + skip + ' — ' + allRows.length + ' total · ' + span + note);
       }
     }
     /** @type {HTMLElement} */ (document.getElementById('uploadZone')).style.display = 'none';
@@ -9246,7 +9271,7 @@ __exports.OxyDex = window.OxyDex;
     var _pp = document.getElementById('profilePanel');
     if (_pp) _pp.style.display = 'block';
     _hrvRefreshChrome();
-    rerender();
+    _ui.rerender();
   }
 
   // Export sticky bar + profile auto-pills + sidebar data card (shared by every commit).
@@ -9362,7 +9387,7 @@ __exports.OxyDex = window.OxyDex;
     try {
       data = JSON.parse(text);
     } catch (e) {
-      if (typeof setStatus === 'function') setStatus('⚠ Could not read that file as CSV or JSON.');
+      _ui.setStatus('⚠ Could not read that file as CSV or JSON.');
       return;
     }
     let envs = [];
@@ -9373,7 +9398,7 @@ __exports.OxyDex = window.OxyDex;
     else if (data && (data.recording || data.hrv)) envs = [data]; // single envelope
     const seeds = envs.map(_envToSeed).filter(Boolean);
     if (!seeds.length) {
-      if (typeof setStatus === 'function') setStatus('⚠ No ECGDex/Ganglior HRV recordings found in that JSON (need recording.startEpochMs + hrv.time).');
+      _ui.setStatus('⚠ No ECGDex/Ganglior HRV recordings found in that JSON (need recording.startEpochMs + hrv.time).');
       return;
     }
     const rows = seeds.map(_rowFromSeed).filter((r) => isFinite(r._tMs));
@@ -9389,7 +9414,7 @@ __exports.OxyDex = window.OxyDex;
     // getProfile() lives in hrvdex-profile.js (a UI module). Guard it so the derivation runs HEADLESS:
     // with no profile the profile-dependent columns (d_bap, d_vo2_*) fall to NaN — which is the honest
     // answer when age/sex/BP were never supplied — instead of throwing and taking the whole row with them.
-    const _p = typeof getProfile === 'function' ? getProfile() : {};
+    const _p = _ui.getProfile();
     const _rows = rowsArg || allRows;
     _rows.forEach((r, i, arr) => {
       // SIGNAL-ADAPTER-FOLLOWUPS-V §1: ONE predicate for "the Welltory black-box subjective
@@ -9584,7 +9609,7 @@ __exports.OxyDex = window.OxyDex;
       r.d_vo2_roll7 = vo2_win.length >= 3 ? vo2_win.reduce((a, b) => a + b, 0) / vo2_win.length : NaN;
       // VO2max fitness category for age 49 male
       // <35 Poor, 35-40 Fair, 41-44 Good, 45-49 Excellent, ≥50 Superior
-      r.d_vo2_cat = isNaN(r.d_vo2_hrv) ? '—' : calcVo2Cat(r.d_vo2_hrv, _p.age, _p.sex);
+      r.d_vo2_cat = isNaN(r.d_vo2_hrv) ? '—' : _ui.calcVo2Cat(r.d_vo2_hrv, _p.age, _p.sex);
       // Delta from user-entered VO2max ground truth
       r.d_vo2_delta = !isNaN(r.d_vo2_hrv) && _p.vo2gt > 0 ? r.d_vo2_hrv - _p.vo2gt : NaN; // NaN when no GT entered
 
@@ -10132,6 +10157,11 @@ __exports.OxyDex = window.OxyDex;
     hrvLoadOwnExport
   };
   HRVDex._bare = BARE;
+  // DSP→UI hook injection (FOLLOWUPS-II item 3): the co-loaded UI modules register their
+  // setStatus/rerender/setProgress/getProfile/inferFromData/calcVo2Cat here instead of the DSP
+  // reaching them as bare page globals. Headless callers (compute/tests) never register, so the
+  // no-op/{} defaults hold and the export is byte-identical.
+  HRVDex.setHooks = setHooks;
   // mutable cross-file state, namespace-proxied — the DSP closure owns these; hrvdex-app
   // bridges the window properties on its own page (the guarded window proxies below keep
   // serving the non-namespaced classic realms).

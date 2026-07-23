@@ -653,3 +653,5 @@ Object.assign(window, {
   calcVo2Cat,
   toggleProfilePanel
 });
+// FOLLOWUPS-II item 3: inject profile's compute-input hooks into the DSP (no longer reached bare).
+if (window.HRVDex && window.HRVDex.setHooks) window.HRVDex.setHooks({ inferFromData, getProfile, calcVo2Cat });

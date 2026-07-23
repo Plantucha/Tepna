@@ -1555,3 +1555,5 @@ Object.assign(window, {
   renderWeekday,
   TABLE_COLS
 });
+// FOLLOWUPS-II item 3: inject render's UI hooks into the DSP (it no longer reaches them as bare globals).
+if (window.HRVDex && window.HRVDex.setHooks) window.HRVDex.setHooks({ setStatus, rerender });

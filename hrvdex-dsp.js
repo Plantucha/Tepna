@@ -20,7 +20,32 @@
   let allRows = [];
   let windowDays = 7;
   let charts = {};
-  // AGE is read dynamically inside computeDerived via getProfile().age
+  // AGE is read dynamically inside computeDerived via _ui.getProfile().age
+
+  /* ── DSP→UI hooks (ESM-MIGRATION-FOLLOWUPS-II item 3 — dependency injection) ────────────────────
+     The DSP used to reach UP into its co-loaded UI siblings (hrvdex-app / -render / -profile) as bare
+     page globals — setStatus/setProgress/rerender (side-effects) + getProfile/inferFromData/calcVo2Cat
+     (profile inputs, used by commitRows/computeDerived). Those bare reach-ins are why hrvdex-globals.d.ts
+     existed. Now the UI modules INJECT their implementations via HRVDex.setHooks({…}); the DSP calls
+     `_ui.x(…)` only. The defaults are HEADLESS-SAFE and reproduce the pre-DI headless compute path
+     EXACTLY — getProfile()→{} (so the profile-dependent columns fall to NaN, the honest headless
+     answer; calcVo2Cat is then never reached, guarded by isNaN), the rest no-op — so compute() / the
+     equivalence golden are byte-identical (verified, not asserted). */
+  const _ui = {
+    setStatus(_msg) {},
+    setProgress(_pct) {},
+    rerender() {},
+    getProfile() {
+      return {};
+    },
+    inferFromData() {},
+    calcVo2Cat(_vo2, _age, _sex) {
+      return '—';
+    }
+  };
+  function setHooks(h) {
+    if (h) for (const k in _ui) if (typeof h[k] === 'function') _ui[k] = h[k];
+  }
 
   /* ════ CANONICAL CLOCK · CLOCK-UNIFY (duplicated locally per app) ═══════════
    tMs = floating wall-clock ms: the recording's LOCAL civil time encoded as if
@@ -343,25 +368,25 @@
       added++;
     });
     if (!allRows.length) {
-      if (typeof setStatus === 'function') setStatus('⚠ No valid measurements found in that file.');
+      _ui.setStatus('⚠ No valid measurements found in that file.');
       return;
     }
     allRows.sort((a, b) => a._tMs - b._tMs);
-    inferFromData(); // v2.9: infer profile first so computeDerived uses real age
+    _ui.inferFromData(); // v2.9: infer profile first so computeDerived uses real age
     computeDerived();
     const _persisted = persistHRVRows(); // mirror the accumulated table so it survives reload
-    setProgress(100);
-    if (typeof setStatus === 'function') {
+    _ui.setProgress(100);
+    {
       const span = fmtDate(allRows[0]._tMs) + ' – ' + fmtDate(allRows[allRows.length - 1]._tMs);
       // §1.11: the persist outcome is APPENDED, not overwritten. This line used to unconditionally
       // replace whatever persistHRVRows had just painted, so a full/disabled store produced a clean
       // "✅ Added N measurements" and the user believed their history was saved.
       const note = _persistNote(_persisted);
       if (opts.restored) {
-        setStatus('↻ Restored ' + allRows.length + ' measurements from your last session (' + span + '). Import more — they accumulate.' + note);
+        _ui.setStatus('↻ Restored ' + allRows.length + ' measurements from your last session (' + span + '). Import more — they accumulate.' + note);
       } else {
         const skip = dup ? ' · ' + dup + ' duplicate' + (dup === 1 ? '' : 's') + ' skipped' : '';
-        setStatus('✅ Added ' + added + ' measurement' + (added === 1 ? '' : 's') + skip + ' — ' + allRows.length + ' total · ' + span + note);
+        _ui.setStatus('✅ Added ' + added + ' measurement' + (added === 1 ? '' : 's') + skip + ' — ' + allRows.length + ' total · ' + span + note);
       }
     }
     /** @type {HTMLElement} */ (document.getElementById('uploadZone')).style.display = 'none';
@@ -370,7 +395,7 @@
     var _pp = document.getElementById('profilePanel');
     if (_pp) _pp.style.display = 'block';
     _hrvRefreshChrome();
-    rerender();
+    _ui.rerender();
   }
 
   // Export sticky bar + profile auto-pills + sidebar data card (shared by every commit).
@@ -486,7 +511,7 @@
     try {
       data = JSON.parse(text);
     } catch (e) {
-      if (typeof setStatus === 'function') setStatus('⚠ Could not read that file as CSV or JSON.');
+      _ui.setStatus('⚠ Could not read that file as CSV or JSON.');
       return;
     }
     let envs = [];
@@ -497,7 +522,7 @@
     else if (data && (data.recording || data.hrv)) envs = [data]; // single envelope
     const seeds = envs.map(_envToSeed).filter(Boolean);
     if (!seeds.length) {
-      if (typeof setStatus === 'function') setStatus('⚠ No ECGDex/Ganglior HRV recordings found in that JSON (need recording.startEpochMs + hrv.time).');
+      _ui.setStatus('⚠ No ECGDex/Ganglior HRV recordings found in that JSON (need recording.startEpochMs + hrv.time).');
       return;
     }
     const rows = seeds.map(_rowFromSeed).filter((r) => isFinite(r._tMs));
@@ -513,7 +538,7 @@
     // getProfile() lives in hrvdex-profile.js (a UI module). Guard it so the derivation runs HEADLESS:
     // with no profile the profile-dependent columns (d_bap, d_vo2_*) fall to NaN — which is the honest
     // answer when age/sex/BP were never supplied — instead of throwing and taking the whole row with them.
-    const _p = typeof getProfile === 'function' ? getProfile() : {};
+    const _p = _ui.getProfile();
     const _rows = rowsArg || allRows;
     _rows.forEach((r, i, arr) => {
       // SIGNAL-ADAPTER-FOLLOWUPS-V §1: ONE predicate for "the Welltory black-box subjective
@@ -708,7 +733,7 @@
       r.d_vo2_roll7 = vo2_win.length >= 3 ? vo2_win.reduce((a, b) => a + b, 0) / vo2_win.length : NaN;
       // VO2max fitness category for age 49 male
       // <35 Poor, 35-40 Fair, 41-44 Good, 45-49 Excellent, ≥50 Superior
-      r.d_vo2_cat = isNaN(r.d_vo2_hrv) ? '—' : calcVo2Cat(r.d_vo2_hrv, _p.age, _p.sex);
+      r.d_vo2_cat = isNaN(r.d_vo2_hrv) ? '—' : _ui.calcVo2Cat(r.d_vo2_hrv, _p.age, _p.sex);
       // Delta from user-entered VO2max ground truth
       r.d_vo2_delta = !isNaN(r.d_vo2_hrv) && _p.vo2gt > 0 ? r.d_vo2_hrv - _p.vo2gt : NaN; // NaN when no GT entered
 
@@ -1256,6 +1281,11 @@
     hrvLoadOwnExport
   };
   HRVDex._bare = BARE;
+  // DSP→UI hook injection (FOLLOWUPS-II item 3): the co-loaded UI modules register their
+  // setStatus/rerender/setProgress/getProfile/inferFromData/calcVo2Cat here instead of the DSP
+  // reaching them as bare page globals. Headless callers (compute/tests) never register, so the
+  // no-op/{} defaults hold and the export is byte-identical.
+  HRVDex.setHooks = setHooks;
   // mutable cross-file state, namespace-proxied — the DSP closure owns these; hrvdex-app
   // bridges the window properties on its own page (the guarded window proxies below keep
   // serving the non-namespaced classic realms).
