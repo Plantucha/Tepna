@@ -2169,6 +2169,98 @@ async def archive_poller(cfg: dict, root: str):
             log.warning("archive failed: %r", e)
 
 
+async def pull_polar_offline_all(dev: dict, root: str) -> dict:
+    """Pull ALL of a Polar device's ONBOARD offline recordings off flash (POLAR-OFFLINE-DOWNLOAD) — the
+    Polar sibling of pull_oxyii_session. Runs under polar_offline_op so it owns the device's single BLE
+    link (capture pauses, then resumes). Idempotent: pull_recording skips a file already on disk at the
+    same size, so a repeat pull only fetches genuinely new bytes. Returns {sessions, pulled, new_files}."""
+    import polar_psftp        # runtime-only (pulls bleak) — keeps `import capture` stdlib-clean for CI
+    address = dev["address"]
+    did = dev.get("device_id") or address.replace(":", "")
+    out_base = os.path.join(root, "captures", "stored")
+
+    async def _op():
+        hci = await adapter_hci()
+        sessions = await polar_psftp.list_recordings(address, adapter=hci)
+        pulled, new_files = 0, []
+        for sess in sessions:
+            path = sess.get("path")
+            if not path:
+                continue
+            stamp = (sess.get("date") or "") + (sess.get("time") or "")
+            out_dir = os.path.join(out_base, f"Polar_Offline_{did}_{stamp}")
+            m = await polar_psftp.pull_recording(address, path, out_dir, adapter=hci)
+            pulled += 1
+            new_files.extend((m or {}).get("new_files") or (m or {}).get("files") or [])
+        return {"sessions": len(sessions), "pulled": pulled, "new_files": new_files}
+
+    return await polar_offline_op(address, _op, timeout=_OFFLINE_OP_TIMEOUT_S)
+
+
+# On-charger auto-pull state. A device goes on the charger the moment a night ends, so "on charger" is the
+# natural 'night is over — grab the onboard backup' trigger, and far faster than autopull_poller's hourly
+# cadence (VIGIL-DEEP-ANALYSIS §2C: the old poller could delay the pull up to an hour).
+_CHARGER_SINCE: dict[str, float] = {}   # addr -> monotonic when charging went True (absent = not charging)
+_CHARGER_PULLED: set[str] = set()       # addrs already pulled THIS charge session (cleared when off charger)
+
+
+def charger_pull_due(charging: bool, since, now: float, settle: float, already: bool) -> bool:
+    """PURE: pull this device's onboard sessions now? True once it has been ON THE CHARGER for at least
+    `settle` seconds and has not already been pulled this charge session."""
+    return bool(charging and not already and since is not None and (now - since) >= settle)
+
+
+async def charger_pull_poller(cfg: dict, root: str):
+    """Pull a device's ONBOARD recordings `settle` s after it is placed ON THE CHARGER — the fast,
+    event-driven sibling of autopull_poller's hourly cadence. Applies to the O2Ring (OxyII .dat) AND
+    Polar devices with onboard offline recordings (Verity / H10, PS-FTP). Opt-in under `pull.auto`; the
+    charger trigger is `pull.on_charger` (default on) with `pull.charger_settle_sec` (default 15). SAFE:
+    a charging device is not capturing, so pausing it costs nothing; each pull is bounded + connect-locked
+    (pull_oxyii_session / pull_polar_offline_all → polar_offline_op). A failed pull falls back to the
+    hourly autopull_poller rather than retry-spamming."""
+    pcfg = cfg.get("pull") or {}
+    if not pcfg.get("auto") or not pcfg.get("on_charger", True):
+        return
+    settle = float(pcfg.get("charger_settle_sec", 15))
+    ftype = int(pcfg.get("ftype", 0))
+    devices = [d for d in cfg.get("devices", [])
+               if not missing_identity(d) and d.get("vendor") in ("Wellue", "Viatom", "Polar")]
+    if not devices:
+        return
+    log.info("auto-pull (on-charger): armed — pulling %d device(s) %.0fs after they go on the charger",
+             len(devices), settle)
+    while not _STOP.is_set():
+        await asyncio.sleep(2)
+        if _RECOVER.is_set() or _OXYII_PAUSE.is_set():
+            continue                                   # mid-recovery or another pull already running
+        now = _time.monotonic()
+        for dev in devices:
+            addr = dev.get("address")
+            st = STATUS["devices"].get(dev.get("name"), {})
+            if not bool(st.get("charging")):
+                _CHARGER_SINCE.pop(addr, None)
+                _CHARGER_PULLED.discard(addr)          # off the charger — re-arm for next time
+                continue
+            _CHARGER_SINCE.setdefault(addr, now)
+            if not charger_pull_due(True, _CHARGER_SINCE.get(addr), now, settle, addr in _CHARGER_PULLED):
+                continue
+            _CHARGER_PULLED.add(addr)                   # once per charge session (before the await)
+            try:
+                if dev.get("vendor") in ("Wellue", "Viatom"):
+                    res = await pull_oxyii_session(dev, root, which="all", ftype=ftype)
+                else:
+                    res = await pull_polar_offline_all(dev, root)
+                new = (res or {}).get("new_files", []) if isinstance(res, dict) else []
+                log.info("auto-pull (on-charger): %s → %d new file(s)", dev.get("name"), len(new))
+                STATUS.setdefault("autopull", {}).update({"last": _now().isoformat(timespec="seconds"),
+                                                          "new": len(new), "trigger": "charger"})
+            except offline_lock.OfflineBusy:
+                _CHARGER_PULLED.discard(addr)           # slot held by another pull — retry next tick
+            except Exception as e:                      # unreachable/transient — leave pulled; the hourly
+                log.info("auto-pull (on-charger): %s failed (%s) — hourly poller is the backstop",
+                         dev.get("name"), type(e).__name__)   # autopull_poller is the backstop, no spam
+
+
 async def autopull_poller(cfg: dict, root: str):
     """Auto-pull the O2Ring's ONBOARD-recorded `.dat` sessions off flash so a night's SpO2 lands on disk
     with no manual step — the belt-and-suspenders backup for a lossy live BLE link (weak signal / a dongle
@@ -2366,6 +2458,7 @@ async def main():
                    ("qc_poller", lambda: qc_poller(cfg, root, notifier)),
                    ("archive_poller", lambda: archive_poller(cfg, root)),
                    ("autopull_poller", lambda: autopull_poller(cfg, root)),
+                   ("charger_pull_poller", lambda: charger_pull_poller(cfg, root)),
                    ("sd_watchdog", sd_watchdog)]
     tasks = []
     for label, mk in _BACKGROUND:
