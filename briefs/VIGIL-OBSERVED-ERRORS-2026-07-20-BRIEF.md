@@ -154,11 +154,33 @@ PPG 0.13 % (194 ms). **Sensor timestamps are strictly monotonic** on every strea
 interpolation, matching the Polar Sensor Logger layout the suite already treats as first-class. Parsers
 must order on the sensor column, or tolerate reordering, and must not assume the phone column sorts.
 
-## Proposed next work
+## Proposed next work — **status reconciled 2026-07-22 (all but one executed, shipped in v1.17.0)**
 
-1. **Merge `claude/vigil-shutdown`** (E2) — written, demonstrated, blocking nothing but itself.
-2. **Validate the E1 fix across a real night** before treating that failure class as closed.
-3. **A brief for the O2Ring link churn** (E3) — the largest remaining source of lost night.
-4. **Wear-gating + Verity ACC rate** (E4) — the largest source of wasted bytes.
-5. **Set `alerts.webhook_url` and a retention policy** (E6) — the guardrails exist and are switched off.
-6. Raise `link.rssi_interval_sec` resolution or log disconnect edges directly (E5).
+1. ~~**Merge `claude/vigil-shutdown`** (E2)~~ — **DONE.** Landed in **v1.17.0** ("let the daemon actually
+   stop — an open monitor SSE stream blocked it; reap the Muse child, bound the ring frame").
+2. **Validate the E1 fix across a real night** — **code in v1.17.0** (stall watchdog: "recover a BLE link
+   that is up but carrying no data"); **real-night validation still OWED** and rides tonight's overnight
+   (the box now runs under a `systemd --user` service, first uninterrupted test pending). The ONE open item.
+3. ~~**A brief for the O2Ring link churn** (E3)~~ — **DONE.** `VIGIL-RECONNECT-BACKOFF-AND-LINK-COUNT` +
+   `VIGIL-ADAPTER-FALSE-WEDGE` (v1.17.0): re-arm the reconnect backoff only after the link carries data;
+   stop the adapter watchdog power-cycling the radio on one churny device while others stream.
+4. ~~**Wear-gating + Verity ACC rate** (E4)~~ — **RESOLVED, with a finding:** the **ACC cap to 52 Hz**
+   shipped (v1.17.0, kills the 453 MB/desk-night), but **motion wear-gating was REMOVED as disproven** —
+   real worn-night data shows a worn ankle Verity reads ~1 mg |acc| std, *below* a desk, so no threshold
+   separates worn from off-body (`VIGIL-WEAR-GATE-AND-ACC-CAP`). The onboard-.dat **O2Ring auto-pull**
+   (`VIGIL-O2RING-AUTOPULL`) is the reliability backstop instead.
+5. **Set `alerts.webhook_url` and a retention policy** (E6) — **retention DONE** (`keep_nights: 14` +
+   `archive.enabled` live on the box, mirroring to a second disk — see `VIGIL-OFFLOAD-AND-RETENTION`);
+   **`alerts.webhook_url` still `None`** on the reference box → the low-disk alert fires to nobody. Open.
+6. ~~Raise `link.rssi_interval_sec` resolution or log disconnect edges (E5)~~ — **DONE.** LINK.csv now
+   counts reconnect edges (`VIGIL-RECONNECT-BACKOFF-AND-LINK-COUNT`, v1.17.0).
+
+## Field re-corroboration on the live box — 2026-07-22 (`rig-x870`, systemd service)
+- **E8 CONFIRMED still present AND its downstream contract holds.** The current H10 ECG capture shows
+  non-monotonic phone timestamps (backward steps in the first 5 k rows), yet ECGDex `compute()` produced a
+  clean node-export (21 R-peak events) — because the ingest orders on the **sensor** column per E8's rule,
+  not the phone column. The observation and its "parsers must not assume the phone column sorts" mandate
+  are both verified true on new hardware data.
+- **E6 disk pressure persists:** free space **17 GB of 158 GB (90 % used)**; `keep_nights: 14` +
+  `archive.enabled` are set and `.archived` markers exist on 5 completed nights, so the retention/mirror
+  half of E6 is live — but `alerts:` is still `None`, so item 5's alert half remains switched off.

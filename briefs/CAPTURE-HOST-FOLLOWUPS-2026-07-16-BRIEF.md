@@ -4,7 +4,11 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-07-16
+**Status:** PROPOSED · **Created:** 2026-07-16 (**§1 fs-fix VERIFIED on real bytes 2026-07-22:** a real
+44 MB / 724,160-sample H10 ECG capture round-trips through the served suite to a valid ECGDex
+`ganglior.node-export` at **fs 129.99 Hz** — the exact failure this brief's §1 fixed no longer occurs on
+real data. Full `capture-host/` test suite + the ECG parity harness green. §3-open/§4.2 items remain
+hardware-gated (overnight round-trip, PPG averaged-pulse cosmetics). See CAPTURE-HOST parent §11 note.)
 
 # Capture-Host follow-ups — what the first real multi-sensor bring-up surfaced
 

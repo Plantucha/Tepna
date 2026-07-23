@@ -16,6 +16,19 @@ Deployment / config work — no `*-dsp.js` or bundle change._
 > so future nights auto-mirror and the box prunes its own old primaries. The TrueNAS (`192.168.0.142`, SMB
 > + SSH both reachable) remains the eventual off-machine home — that plus the production-box choice below
 > are the remaining owner decisions.
+>
+> **RE-VERIFIED LIVE 2026-07-22** (`rig-x870`, daemon under a `systemd --user` service): `config.yaml`
+> confirms `storage.keep_nights: 14`, `min_free_gb: 2`, `archive.enabled: true`,
+> `dest: /run/media/michal/data/tepna-archive` (Option 2, a second local disk), `poll_sec: 3600`; and
+> `.archived` markers are present on **5 completed nights (2026-07-16…20)** — the nightly mirror is
+> demonstrably running. `capture.py` carries the archive poller + **6 `asyncio.to_thread` offloads**
+> (PR #292), so enabling `archive.enabled` is on safe code. **Two "Done when" items now met** (keep_nights
+> non-zero + pruning strict-date dirs with tonight protected; mirror running with completed nights on the
+> target). **Still blocking DONE:** (1) the archive `dest` is a *removable* disk and was **unmounted at the
+> 2026-07-22 check** — a mount guard / `RequiresMountsFor` for the archive path is owed so a missing disk
+> never silently drops the mirror; (2) disk pressure is real (**17 GB of 158 GB, 90 % used**) — the flat-
+> trend "Done when" item is not yet demonstrated over a keep-window; (3) the production-box + TrueNAS-pull
+> owner decisions below remain open.
 
 # Get finished nights off the box automatically, and let the box reclaim its own space
 
