@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-/tdC9xgOmu7ZzLieQYot3pWd2uxxb/KpL+NZqJMYlbc=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2A98XuGwmiI90ZVz++8NHp/yzbySCwqI3xSgM/mOL3o=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WrH/RQaFGfAeGLnz3kIHwKkZa56IQe/lnJzeuW1oYw=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-K6cUbPwB3eEe8AOlDWaVMNzQX/lEIyYcCfLWjiMiGts=' 'sha256-Mr3DL84DZPsJUNvpq+nvnjfAOvpFRebTPQetZ44EDXo=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-YxqmQpkKQjS60vNxwx2WCpHBysB8AlImKME/tPL3nJ0=' 'sha256-b4QFb+4gvTY8jO9wXMO/M4P0KpFQo8v/GbOezDPoNng=' 'sha256-cf4LKWyVjYVnKY1n8+OMjq08K9wPA7CUQdUS+idaHSY=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-nYikVa5xckB2tELeARKlY+sDuFM2vOhffCvyaPw5KNk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pul+Tja4NTa9xanImZbWRlt3Q01FGfxx0kvlu8Zx8UQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-/tdC9xgOmu7ZzLieQYot3pWd2uxxb/KpL+NZqJMYlbc=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-Mr3DL84DZPsJUNvpq+nvnjfAOvpFRebTPQetZ44EDXo=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-YxqmQpkKQjS60vNxwx2WCpHBysB8AlImKME/tPL3nJ0=' 'sha256-b4QFb+4gvTY8jO9wXMO/M4P0KpFQo8v/GbOezDPoNng=' 'sha256-cf4LKWyVjYVnKY1n8+OMjq08K9wPA7CUQdUS+idaHSY=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hVtiK8Jgb2BbTTOk7HazQNXQ9phQb3LSTiH0BTyLvUg=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-nYikVa5xckB2tELeARKlY+sDuFM2vOhffCvyaPw5KNk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pul+Tja4NTa9xanImZbWRlt3Q01FGfxx0kvlu8Zx8UQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -1098,7 +1098,7 @@
           { adapter: 'coospo-rr', vendor: VENDOR, device: DEVICE }
         );
       // Coospo firmware tends to stamp MDY; let the shared parser resolve via preferDMY:false.
-      var raw = parseRR(text);
+      var raw = parseRR(text, { preferDMY: false });
       return root.SignalFrame.toSignalFrame('rr', raw, {
         adapter: 'coospo-rr',
         vendor: VENDOR,
@@ -1166,7 +1166,8 @@
           { usable: false, reason: 'wahoo-rr: no parseRRInput in scope (load PulseDex DSP in isolation)' },
           { adapter: 'wahoo-rr', vendor: VENDOR, device: DEVICE }
         );
-      var raw = parseRR(text);
+      // TICKR RR logged via HRV apps commonly stamps MDY; resolve via preferDMY:false (file-level lock still wins).
+      var raw = parseRR(text, { preferDMY: false });
       return root.SignalFrame.toSignalFrame('rr', raw, {
         adapter: 'wahoo-rr',
         vendor: VENDOR,
@@ -10880,7 +10881,9 @@ __exports.HRVDex = window.HRVDex;
     });
     return singles.concat(merged);
   }
-  function parseRRInput(raw) {
+  function parseRRInput(raw, opts) {
+    opts = opts || {}; // back-compat: callers that pass nothing keep the historical default (DMY)
+    const preferDMY = opts.preferDMY !== false; // vendor adapters pass preferDMY:false for MDY firmware (Coospo/Wahoo)
     const lines = raw.split(/\r?\n/);
     const nonEmpty = lines.filter((l) => l.trim());
     // Delimited if ≥2 lines carry a ';' or tab AND a clock/ISO timestamp.
@@ -10915,6 +10918,19 @@ __exports.HRVDex = window.HRVDex;
         intervalCol = _pdIntervalColByRange(dataRows, headerLine); // §B1: never pick a [mg]/[dps]/[uV] column
       }
 
+      // CLOCK CONTRACT §3 — resolve the file's date order ONCE, before parsing any row (mirror of
+      // oxydex-dsp.js). A row whose day-component > 12 PROVES the order and locks it for the whole file;
+      // otherwise honor the caller's preferDMY. Deciding per-row would let an ambiguous MDY file be read
+      // DMY (06/05 → May 6 instead of Jun 5), and could flip order mid-file — running the clock backward.
+      const _stamps = [];
+      for (const parts of rows) {
+        if (parts === headerLine) continue;
+        if (parts.length < 2) continue;
+        _stamps.push(parts[0].trim());
+      }
+      const _order = DexClock.resolveDMY(_stamps, preferDMY);
+      const _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked };
+
       for (const parts of rows) {
         if (parts === headerLine) continue;
         if (parts.length < 2) continue;
@@ -10923,7 +10939,7 @@ __exports.HRVDex = window.HRVDex;
         if (!isFinite(v)) continue; // leftover header / label rows fall out here
         vals.push(v);
         const ts = parts[0].trim();
-        const p = parseTimestamp(ts, { dateAnchorMs, prevTMs }); // floating wall-clock
+        const p = parseTimestamp(ts, { dateAnchorMs, prevTMs, preferDMY: _tsOpts.preferDMY, dmyLocked: _tsOpts.dmyLocked }); // floating wall-clock
         if (p) {
           tsMs.push(p.tMs);
           prevTMs = p.tMs;

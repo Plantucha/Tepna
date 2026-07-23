@@ -54,7 +54,8 @@
           { usable: false, reason: 'wahoo-rr: no parseRRInput in scope (load PulseDex DSP in isolation)' },
           { adapter: 'wahoo-rr', vendor: VENDOR, device: DEVICE }
         );
-      var raw = parseRR(text);
+      // TICKR RR logged via HRV apps commonly stamps MDY; resolve via preferDMY:false (file-level lock still wins).
+      var raw = parseRR(text, { preferDMY: false });
       return root.SignalFrame.toSignalFrame('rr', raw, {
         adapter: 'wahoo-rr',
         vendor: VENDOR,
