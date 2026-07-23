@@ -416,7 +416,7 @@ import { PPGUI } from './ppgdex-render.js';
       const c = b.closest('.card');
       const h = c && c.querySelector('.card-h');
       if (h && !h.querySelector('.ev')) {
-        const d = evBadge('Mean RR');
+        const d = evBadge('Mean PPI');
         if (d) h.insertAdjacentHTML('afterbegin', d + ' ');
       }
     })();
@@ -432,7 +432,7 @@ import { PPGUI } from './ppgdex-render.js';
     if (d && d.valid && m.medianBeat) {
       $('medianBeatBody').innerHTML = UI.medianPulseChart(m.medianBeat, d);
       $('medianBeatStats').innerHTML =
-        `median of <b>${m.medianBeat.nUsed}</b> clean pulses · ${evBadge('Rise time')}rise <b>${d.riseTimeMs}</b> ms · ${d.dicroticNotchPresent ? 'notch <b>present</b>' : 'notch <b>not resolved</b>'}${d.augmentationIndexPct != null ? ` · AI <b>${d.augmentationIndexPct}%</b>` : ''}`;
+        `median of <b>${m.medianBeat.nUsed}</b> clean pulses · ${evBadge('Rise time')}rise <b>${d.riseTimeMs}</b> ms · ${d.dicroticNotchPresent ? 'notch <b>present</b>' : 'notch <b>not resolved</b>'}${d.augmentationIndexPct != null ? ` · ${evBadge('Augmentation index')}AI <b>${d.augmentationIndexPct}%</b>` : ''}`;
     } else {
       $('medianBeatBody').innerHTML = `<div class="q-note" style="padding:24px 8px;text-align:center">Too few clean pulses for a stable median-beat template.</div>`;
       $('medianBeatStats').innerHTML = '';
