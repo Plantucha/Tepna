@@ -192,7 +192,11 @@ async def bond(address: str, adapter_mac: str | None = None) -> dict:
     script = _adapter_prefix(adapter_mac) + [
         (0.5, "agent NoInputNoOutput"), (0.5, "default-agent"),
         (0.5, "scan on"), (9.0, f"trust {address}"),
-        (0.8, f"pair {address}"), (11.0, "scan off"), (0.5, "quit")]
+        # untrust AFTER pairing (VIGIL-DEEP-ANALYSIS §2D): the LTK from `pair` IS the bond; `trust`
+        # only sets the kernel-auto-reconnect flag, which races bleak for the single ACL slot
+        # (br-connection-canceled). Revoke it so bleak is the sole initiator — its explicit connect()
+        # works on a bonded device regardless of trust. Idempotent; keeps the bond.
+        (0.8, f"pair {address}"), (11.0, "scan off"), (0.5, f"untrust {address}"), (0.3, "quit")]
     out = await _delayed_script(script)
     ok = ("Pairing successful" in out) or ("Bonded: yes" in out)
     detail = "paired" if ok else (

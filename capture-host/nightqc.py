@@ -206,9 +206,11 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
     per_device = []
     missing = []
     degraded = []
+    optional_absent = []
     for d in devices:
         did = d.get("device_id")
         name = d.get("name") or did
+        opt = bool(d.get("optional"))          # a known-but-not-expected backup — its absence is not a fault
         streams: dict[str, int] = {}
         coverage: dict[str, float] = {}
         for s in d.get("streams") or []:
@@ -220,7 +222,10 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
                        if did and did in f["file"] and f["stream"] == tag)
             streams[s] = rows
             if rows == 0:
-                missing.append(f"{name}:{s}")
+                # An OPTIONAL backup device that did not join is EXPECTED, not a gap — it stays out of
+                # `missing` and does not make `ok` False (VIGIL: known-but-not-expected). Surfaced in
+                # `optional_absent` so the box still records that it exists.
+                (optional_absent if opt else missing).append(f"{name}:{s}")
                 continue
             hz = _expected_hz(d, s)
             if hz and span:
@@ -234,6 +239,7 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         "devices": per_device,
         "missing": missing,
         "degraded": degraded,
+        "optional_absent": optional_absent,
         "span_sec": round(span) if span else None,
         "files": len(scanned),
         "total_rows": sum(f["rows"] for f in scanned),

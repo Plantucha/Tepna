@@ -210,3 +210,28 @@ def test_summarize_no_data_files_span_is_none(tmp_path):
     _cap(night, "Tepna_20260719_LINK.csv", 5)                     # sidecar only, no device data
     s = nightqc.summarize(night, [{"name": "H10", "device_id": "X", "streams": ["ecg"]}])
     assert s["span_sec"] is None and s["missing"] == ["H10:ecg"]
+
+
+# ── VIGIL: an OPTIONAL backup device that did not join is NOT a fault (known-but-not-expected) ──
+def test_summarize_optional_device_absence_is_not_missing_and_stays_ok(tmp_path):
+    night = str(tmp_path / "2026-07-19"); os.makedirs(night)
+    _cap(night, "Polar_H10_02849638_20260719_ECG.txt", 100)
+    _cap(night, "Polar_H10_02849638_20260719_ACC.txt", 50)
+    _cap(night, "Polar_H10_02849638_20260719_HR.txt", 10)
+    devices = [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "acc", "hr"]},
+               {"name": "COOSPO", "device_id": "COOSPO01", "streams": ["hr"], "optional": True}]
+    s = nightqc.summarize(night, devices)
+    assert s["ok"] is True                                  # the absent optional device does NOT fail the night
+    assert "COOSPO:hr" not in s["missing"] and s["missing"] == []
+    assert s["optional_absent"] == ["COOSPO:hr"]            # but it is still recorded as known-and-absent
+
+
+def test_summarize_a_NON_optional_absence_still_fails(tmp_path):
+    night = str(tmp_path / "2026-07-19"); os.makedirs(night)
+    _cap(night, "Polar_H10_02849638_20260719_ECG.txt", 100)
+    _cap(night, "Polar_H10_02849638_20260719_ACC.txt", 50)
+    _cap(night, "Polar_H10_02849638_20260719_HR.txt", 10)
+    devices = [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "acc", "hr"]},
+               {"name": "Belt", "device_id": "BELT01", "streams": ["hr"]}]    # NOT optional
+    s = nightqc.summarize(night, devices)
+    assert s["ok"] is False and "Belt:hr" in s["missing"] and s["optional_absent"] == []

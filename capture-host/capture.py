@@ -33,6 +33,7 @@ _POLAR_EPOCH = _dt.datetime(2000, 1, 1)   # Polar device-time epoch (TimeSystemE
 STATUS: dict = {"updated": None, "devices": {}}
 _CFG: dict = {}          # set in main(); lets sync_device_time resolve a device family by model
 _STOP = asyncio.Event()
+_EXIT_CODE = [0]          # non-zero → systemd re-execs (watchdog give-up, §2C)
 BUS = TelemetryBus()          # live-sample bus feeding the monitor page (webmon.py)
 ADAPTER: str | None = None    # BLE adapter MAC for bonding (config `adapter:`); None = default controller
 # Live-stream metadata per PMD stream name: (base label, unit, channels, per-channel labels). fs comes
@@ -973,6 +974,17 @@ async def run_polar(dev: dict, root: str):
                                  "re-checking every %.0fs", name, _DROP_NOT_WORN_SEC, _NOT_WORN_RECHECK_S)
                         break
         except Exception as e:
+            # An OPTIONAL backup device (config `optional: true`) is KNOWN but not expected to join — a
+            # plain connect-timeout means "simply not here", so note it ONCE and stay quiet instead of a
+            # warning every backoff cycle (the COOSPO spam). VIGIL: known-but-not-expected.
+            if bool(dev.get("optional")) and isinstance(e, (TimeoutError, asyncio.TimeoutError)):
+                _set(name, connected=False, last_error="optional backup — not present")
+                if addr not in _OPT_QUIET:
+                    log.info("%s: optional backup device not present — keeping a quiet eye out", name)
+                    _OPT_QUIET.add(addr)
+                await asyncio.sleep(min(max(backoff, 120), 300)); backoff = min(backoff * 2, 300)
+                continue
+            _OPT_QUIET.discard(addr)
             _set(name, connected=False, last_error=repr(e))
             log.warning("%s link error: %r", name, e)
             # A ONE-SIDED BOND. is_bonded() reads the HOST's view, so a device-side factory reset (Polar
@@ -1737,6 +1749,10 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                 pass
         if consecutive >= grace:                      # L2: power-cycle the controller
             if cycles >= max_cycles:
+                if wcfg.get("exit_on_giveup"):
+                    log.critical("watchdog: adapter STILL wedged after %d power-cycles — exiting non-zero "
+                                 "so systemd re-execs with a fresh bleak/D-Bus stack", max_cycles)
+                    _STOP.set(); _EXIT_CODE[0] = 1; return   # VIGIL-DEEP-ANALYSIS §2C
                 log.error("watchdog: adapter STILL wedged after %d power-cycles — stopping auto-recovery "
                           "(needs external supervisor / manual reset)", max_cycles)
                 continue
@@ -2203,6 +2219,7 @@ async def pull_polar_offline_all(dev: dict, root: str) -> dict:
 # On-charger auto-pull state. A device goes on the charger the moment a night ends, so "on charger" is the
 # natural 'night is over — grab the onboard backup' trigger, and far faster than autopull_poller's hourly
 # cadence (VIGIL-DEEP-ANALYSIS §2C: the old poller could delay the pull up to an hour).
+_OPT_QUIET: set[str] = set()            # optional backup devices we have already noted as absent (log-once)
 _CHARGER_SINCE: dict[str, float] = {}   # addr -> monotonic when charging went True (absent = not charging)
 _CHARGER_PULLED: set[str] = set()       # addrs already pulled THIS charge session (cleared when off charger)
 
@@ -2582,4 +2599,6 @@ async def main():
 
 
 if __name__ == "__main__":
+    import sys
     asyncio.run(main())
+    sys.exit(_EXIT_CODE[0])
