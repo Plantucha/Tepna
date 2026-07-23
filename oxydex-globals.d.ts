@@ -20,11 +20,10 @@
 // NO runtime, NO emit, NO shipped artifact — a dev-time type artifact only.
 
 declare var UP: any; // oxydex-render.js — render state/namespace
-declare var renderAll: any; // oxydex-render.js — full re-render
-declare var showError: any; // oxydex-app.js — error surface
-declare var setStatus: any; // oxydex-render.js — status-line writer (was leaking from hrvdex-globals.d.ts until its DI removed it; declared here so oxydex is self-sufficient — its own DI is FOLLOWUPS-II item 3, a later stage)
-declare var setProgress: any; // oxydex-app.js — progress bar (same: self-sufficient until oxydex's own reach-in inversion)
-declare var upVO2category: any; // oxydex-profile.js — VO₂max fitness-category classifier
+// The DSP→UI reach-ins (renderAll/showError/setStatus/setProgress/upVO2category) were INVERTED to
+// dependency injection (ESM-MIGRATION-FOLLOWUPS-II item 3): oxydex-dsp.js calls its injected `_ui.*`
+// hooks and no longer references those UI siblings as bare globals, so their ambient declarations are
+// gone. The oxydex-util helpers below are NOT reach-ins — they are the node's own util dependency.
 declare var safeStyle: any; // oxydex-util.js — DOM style-safety helper
 declare var safeSet: any; // oxydex-util.js — DOM text/attr-safety helper
 declare var safeEl: any; // oxydex-util.js — element lookup helper

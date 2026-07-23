@@ -8896,11 +8896,11 @@
       }
       var UTIL = src['oxydex-util.js'] ? topLevelDefs(scrub(src['oxydex-util.js'])) : new Set();
       // DOCUMENTED reach-in allow-list (see header block) — the drift ledger for the next on-touch re-bundle.
+      // Both nodes' DSP→UI reach-ins are now INVERTED to dependency injection (FOLLOWUPS-II item 3):
+      // each DSP calls its injected `_ui.*` hooks, never a bare UI global, so both allow-lists are
+      // empty. This now ASSERTS the module boundary is clean (any new bare reach-in reds the gate).
       var REACHIN_ALLOW = {
-        'oxydex-dsp.js': new Set(['renderAll', 'setProgress', 'setStatus', 'showError']),
-        // hrvdex-dsp: reach-ins INVERTED to dependency injection (FOLLOWUPS-II item 3) — the DSP now
-        // calls its injected `_ui.*` hooks, never a bare UI global, so its allow-list is empty. This
-        // now ASSERTS the module boundary is clean (any new bare reach-in reds the gate).
+        'oxydex-dsp.js': new Set([]),
         'hrvdex-dsp.js': new Set([])
       };
       function analyze(f, raw) {
@@ -8952,7 +8952,12 @@
           v.length ? 'un-allow-listed reach-in(s): ' + v.join(', ') : allowN ? 'clean (+' + allowN + ' documented reach-in(s) allow-listed)' : 'clean'
         );
       });
-      T.ok('A4 · reach-in allow-list is non-empty & named (drift ledger for the next on-touch re-bundle)', ledgered > 0, ledgered + ' documented reach-in(s) across oxydex-dsp / hrvdex-dsp');
+      // Both DSPs' reach-ins were INVERTED to dependency injection (ESM-MIGRATION-FOLLOWUPS-II item 3),
+      // so the allow-lists are now EMPTY — the per-file checks above prove the boundary is clean with NO
+      // documented reach-ins. This aggregate flipped from "the ledger must be non-empty" (a drift ledger
+      // premised on reach-ins existing) to "the inversion is complete": 0 reach-ins remain fleet-wide. A
+      // NEW bare reach-in in any DSP reds the per-file leg above, not this one.
+      T.ok('A4 · DSP→UI reach-ins fully inverted to DI — 0 remain across oxydex-dsp / hrvdex-dsp', ledgered === 0, ledgered + ' documented reach-in(s) remaining');
       // positive controls — proof the analyzer is not a silent no-op
       T.ok('A4 · positive control: a self-contained module is clean', analyze('__demo_clean.js', 'function f(x){return g(x);} function g(y){return Math.round(y);}').length === 0);
       T.ok('A4 · positive control: an undefined bare reach-in is caught', analyze('__demo_reach.js', 'function f(x){return renderSidebar(x);}').join(',') === 'renderSidebar');

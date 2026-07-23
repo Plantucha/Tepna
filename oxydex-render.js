@@ -3352,3 +3352,5 @@ Object.assign(window, {
   metric,
   oxySpo2NightCV // §RN render-harness: testable SpO₂ night-CV
 });
+// FOLLOWUPS-II item 3: inject render's UI hook into the DSP (it no longer reaches it as a bare global).
+if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ renderAll });

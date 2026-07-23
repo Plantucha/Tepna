@@ -48,6 +48,30 @@
    Unifier/OverDex pages carry neither element). */
 (function (root) {
   window.UP = window.UP || {};
+
+  /* ── DSP→UI hooks (ESM-MIGRATION-FOLLOWUPS-II item 3 — dependency injection) ────────────────────
+     oxydex-dsp used to reach UP into its co-loaded UI siblings as bare page globals: setStatus/
+     setProgress/renderAll/showError (side-effects, in the handleFiles upload path) and upVO2category
+     (a VO₂ classifier in oxydex-profile.js, typeof-guarded). Those bare reach-ins are why
+     oxydex-globals.d.ts declared them. Now the UI modules INJECT their implementations via
+     OxyDex.setHooks({…}); the DSP calls `_ui.x(…)` only. Defaults are HEADLESS-SAFE and reproduce the
+     pre-DI headless path EXACTLY (upVO2category→null, matching the old typeof-guard; the rest no-op) —
+     none is in the compute() golden path, so the export is byte-identical. The oxydex-util helpers
+     (safeStyle/safeSet/safeEl/escHTML/computeCeilingBaselineArr) are NOT reach-ins — they are the
+     node's own util dependency (gate-accepted) and stay. */
+  var _ui = /** @type {any} */ ({
+    setStatus: function (_msg) {},
+    setProgress: function (_pct) {},
+    renderAll: function () {},
+    showError: function (_msg) {},
+    upVO2category: function (_vo2) {
+      return null;
+    }
+  });
+  function setHooks(h) {
+    if (h) for (var k in _ui) if (typeof h[k] === 'function') _ui[k] = h[k];
+  }
+
   // CONFIG
   // ═══════════════════════════════════════════
   // CFG — OxyDex-LOCAL constants. The kernel-constants (DexKernel.K) migration audit
@@ -250,7 +274,7 @@
     if (!_rEl) return;
     _rEl.innerHTML = '<div class="results-loading">⏳ Reading ' + files.length + ' file' + (files.length > 1 ? 's' : '') + '…</div>';
     safeStyle('results', 'display', 'block');
-    setProgress(3);
+    _ui.setProgress(3);
 
     // Per-file progress tracking
     var completed = 0;
@@ -259,8 +283,8 @@
     function onFileComplete() {
       completed++;
       var pct = 5 + Math.round((completed / total) * 75); // 5–80% for parsing
-      setProgress(pct);
-      setStatus('Parsed ' + completed + ' / ' + total + ' file' + (total > 1 ? 's' : '') + '…');
+      _ui.setProgress(pct);
+      _ui.setStatus('Parsed ' + completed + ' / ' + total + ' file' + (total > 1 ? 's' : '') + '…');
     }
 
     var promises = files.map(function (f) {
@@ -272,8 +296,8 @@
 
     Promise.all(promises)
       .then(function (results) {
-        setProgress(85);
-        setStatus('Building analytics…');
+        _ui.setProgress(85);
+        _ui.setStatus('Building analytics…');
         results.filter(Boolean).forEach(function (r) {
           var nightArr = Array.isArray(r) ? r : [r];
           nightArr.forEach(function (night) {
@@ -305,22 +329,22 @@
         if (!nights.length) {
           var dbg = window._csvParseErrors && window._csvParseErrors.length ? '\n\nDebug info:\n' + window._csvParseErrors.join('\n') : '';
           var errMsg = 'No valid data found. Upload raw O2Ring CSV files (O2Ring S *.csv) or pre-processed .json/.jsonl summaries.' + dbg;
-          showError(errMsg);
+          _ui.showError(errMsg);
           safeSet('results', 'innerHTML', '<div class="results-error"><strong>⚠️ Parse failed</strong><br>' + errMsg.replace(/\n/g, '<br>') + '</div>');
           safeStyle('results', 'display', 'block');
           window._csvParseErrors = [];
           return;
         }
-        setProgress(95);
-        setStatus('Rendering ' + nights.length + ' night' + (nights.length > 1 ? 's' : '') + '…');
+        _ui.setProgress(95);
+        _ui.setStatus('Rendering ' + nights.length + ' night' + (nights.length > 1 ? 's' : '') + '…');
         // Small yield to let the progress bar repaint before heavy render
         setTimeout(function () {
-          setProgress(100);
+          _ui.setProgress(100);
           // SECURITY-REMEDIATION-2026-07-11 F4 (drop): removed the _cacheO2CSV call that persisted the
           // whole raw CSV to localStorage — raw recordings no longer sit at rest (minimization-clean;
           // also removes F1's payload). The window._cacheO2CSV definition went with the shell block.
-          setStatus('');
-          renderAll();
+          _ui.setStatus('');
+          _ui.renderAll();
           safeSet('fileInput', 'value', '');
           // Surface any per-file parse warnings as a non-blocking banner
           if (window._csvParseErrors && window._csvParseErrors.length) {
@@ -4892,7 +4916,7 @@
     // bundle (so this stays byte-identical there). Guard it so the headless compute() path —
     // co-loaded WITHOUT the profile module (signal-orchestrate §3) — doesn't throw; vo2Category
     // then stays null, harmless because the whole vo2est block is profile-coupled + strip-listed.
-    var _vc = typeof upVO2category === 'function' ? upVO2category(vo2est) : null; // uses UP.age and UP.sex
+    var _vc = _ui.upVO2category(vo2est); // uses UP.age and UP.sex
     if (_vc) {
       vo2Category = _vc.cat + ' (' + _vc.pct + ')';
       vo2Pct = _vc.pct;
@@ -6184,6 +6208,10 @@
     oxyComputeNight
   };
   OxyDex._bare = BARE;
+  // DSP→UI hook injection (FOLLOWUPS-II item 3): the co-loaded UI modules register their
+  // setStatus/setProgress/renderAll/showError/upVO2category here; headless callers never register,
+  // so the no-op/null defaults hold and the export is byte-identical.
+  OxyDex.setHooks = setHooks;
   // mutable cross-file state, namespace-proxied — the DSP closure owns `allNights`; the app
   // module bridges window.allNights to this on its own page (the guarded window proxy below
   // keeps serving the non-namespaced classic realms).

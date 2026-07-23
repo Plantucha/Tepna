@@ -687,3 +687,5 @@ Object.assign(window, {
   toggleProfile,
   openProfile
 });
+// FOLLOWUPS-II item 3: inject profile's VO₂-classifier hook into the DSP (no longer reached bare).
+if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2category });
