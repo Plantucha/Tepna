@@ -16,7 +16,7 @@
 #   GET  /api/stream/{key}     -> Server-Sent-Events live waveform (one stream)
 
 from __future__ import annotations
-import asyncio, hmac, json, os
+import asyncio, hmac, json, logging, os, re
 from aiohttp import web
 import yaml
 import bonding
@@ -27,6 +27,25 @@ import settings_schema
 from writers import missing_identity
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
+_log = logging.getLogger("tepna.webmon")
+
+# A device address reaches bonding.* which f-string-interpolates it into a newline-delimited
+# bluetoothctl stdin script (VIGIL-DEEP-ANALYSIS §2A) — so an address carrying a newline could inject
+# control commands (power off / remove <other-sensor>). Validate the EXACT MAC shape at this boundary.
+_MAC_RE = re.compile(r'^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$')
+
+
+def _valid_mac(a) -> bool:
+    return isinstance(a, str) and bool(_MAC_RE.match(a))
+
+
+async def _body(req) -> dict:
+    """A malformed/empty JSON body is a 400-worthy client error, never a 500 traceback
+    (VIGIL-DEEP-ANALYSIS §2A). Returns {} on absent/undecodable body."""
+    try:
+        return await req.json() if req.body_exists else {}
+    except Exception:
+        return {}
 
 
 def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_device,
@@ -116,20 +135,27 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         return web.json_response([f.__dict__ for f in found])
 
     async def bond(req):
-        body = await req.json()
+        body = await _body(req)
+        if not _valid_mac(body.get("address")):
+            return web.json_response({"ok": False, "error": "invalid device address"}, status=400)
         return web.json_response(await bonding.bond(body["address"], adapter_mac))
 
     async def forget(req):
-        body = await req.json()
+        body = await _body(req)
+        if not _valid_mac(body.get("address")):
+            return web.json_response({"ok": False, "error": "invalid device address"}, status=400)
         res = await bonding.forget(body["address"], adapter_mac)
         cfg["devices"] = [d for d in cfg.get("devices", []) if d.get("address") != body["address"]]
-        _save()
+        if not _save():
+            return web.json_response({"ok": False, "error": "config write failed (disk?)"}, status=500)
         if forget_device:                     # stop the runner too — else it reconnects a dropped device
             forget_device(body["address"])
         return web.json_response(res)
 
     async def remember(req):
-        dev = await req.json()
+        dev = await _body(req)
+        if not _valid_mac(dev.get("address")):
+            return web.json_response({"ok": False, "error": "invalid device address"}, status=400)
         # Refuse an unidentifiable device INSTEAD of persisting it. The browser's guessDevice() leaves
         # vendor/model blank for any sensor it does not recognise; without this the entry was written to
         # config.yaml and answered "remembered ✓", while the capture daemon quietly refused to ever open
@@ -145,7 +171,8 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         cfg["devices"] = [d for d in cfg["devices"] if d.get("address") != dev.get("address")]
         cfg["devices"].append({k: dev[k] for k in
                                ("name", "vendor", "model", "device_id", "address", "streams") if k in dev})
-        _save()
+        if not _save():
+            return web.json_response({"ok": False, "error": "config write failed (disk?)"}, status=500)
         if spawn_device:                      # hot-start capture without a restart
             spawn_device(cfg["devices"][-1])
         return web.json_response({"ok": True, "remembered": len(cfg["devices"])})
@@ -207,12 +234,14 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         except Exception as e:
             return web.json_response({"ok": False, "detail": repr(e)}, status=500)
 
-    def _save():
+    def _save() -> bool:
         try:
             with open(cfg_path, "w") as f:
                 yaml.safe_dump(cfg, f, sort_keys=False, default_flow_style=False)
-        except Exception:
-            pass
+            return True
+        except Exception as e:   # a full/read-only disk must NOT report ok:true (VIGIL-DEEP-ANALYSIS §2A)
+            _log.warning("config write failed: %r", e)
+            return False
 
     # ── Clock / NTP / timezone (Clock Contract §🔒 — the box's wall clock stamps every capture) ──
     _clock_sudo = (cfg.get("clock") or {}).get("sudo", True)

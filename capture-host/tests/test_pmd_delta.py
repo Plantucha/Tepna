@@ -85,3 +85,14 @@ def test_every_stream_decodes_more_than_one_block():
     for frame, ch, rb in ((ACC_FRAME, 3, 16), (GYRO_FRAME, 3, 16), (MAG_FRAME, 3, 16)):
         out = pmd._decode_delta(frame[10:], channels=ch, ref_bits=rb)
         assert len(out) > 60, f"only {len(out)} samples — looks truncated again"
+
+
+# ── VIGIL-DEEP-ANALYSIS §2C — a truncated delta frame must never IndexError into the bleak callback ──
+def test_truncated_delta_frame_returns_empty_not_indexerror():
+    # 3 channels × 16-bit reference = 48 bits = 6 bytes needed; give only 3. Old code raised IndexError
+    # inside _decode_delta's bit reader (escaping on_pmd's ValueError-only guard).
+    assert pmd._decode_delta(b"\x01\x02\x03", channels=3, ref_bits=16) == []
+
+
+def test_zero_length_delta_payload_returns_empty():
+    assert pmd._decode_delta(b"", channels=3, ref_bits=16) == []
