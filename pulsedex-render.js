@@ -263,7 +263,7 @@ function renderTable(r) {
     ['ABS', r.abs, '−1..+1', '~0', Math.abs(r.abs) <= 0.3 ? 'ok' : Math.abs(r.abs) <= 0.6 ? 'warn' : 'bad', 'Autonomic Balance Score'],
     ['Stress-Focus', r.sfg, 'pts', '≈0', Math.abs(r.sfg) <= 10 ? 'ok' : Math.abs(r.sfg) <= 25 ? 'warn' : 'bad', 'Stress−Focus gap'],
     ['Focus Effic', r.fe, 'a.u.', '>0.3', r.fe >= 0.3 ? 'ok' : r.fe >= 0.15 ? 'warn' : 'bad', 'Focus/(SNS+1)'],
-    ['PNS Effic', r.pnse === null ? '—' : r.pnse, 'a.u.', '>0.002', r.pnse === null ? 'neutral' : r.pnse >= 0.002 ? 'ok' : r.pnse >= 0.001 ? 'warn' : 'bad', 'rMSSD/(SDNN·pNN50)'],
+    ['PNS Effic', r.pnse === null ? '—' : r.pnse, 'a.u.', '<4', r.pnse === null ? 'neutral' : r.pnse < 4 ? 'ok' : r.pnse < 7 ? 'warn' : 'bad', 'rMSSD/(SDNN·pNN50)'],
     ['OTR', r.otr === null ? '—' : r.otr, 'a.u.', '<8', r.otr === null ? 'neutral' : r.otr < 8 ? 'ok' : r.otr < 15 ? 'warn' : 'bad', 'Overtraining risk proxy'],
     ['RSA Proxy', r.rsa, 'a.u.', '—', 'neutral', 'HF/MeanRR² RSA proxy'],
     ['— ADVANCED / RESEARCH —', '', '', '', 'neutral', r.longRec ? 'Computed on a representative 5-min window; not Welltory-derived' : 'Single-segment metrics; not Welltory-derived'],
