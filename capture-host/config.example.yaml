@@ -49,6 +49,10 @@ devices:
     device_id: AAAAAAAA          # short stable id used in filenames + companion pairing (one per physical sensor)
     address: "XX:XX:XX:XX:XX:XX" # BLE MAC (find with: bluetoothctl scan on). Passing MAC > name = faster/robust connect.
     streams: [ecg, acc, hr]      # ecg = the node input; acc/hr = sidecars (paired by device_id+stamp)
+    # optional: true            # KNOWN-BUT-NOT-EXPECTED backup device. When set: a connect-timeout is noted
+    #                           #   ONCE then quiet (no per-cycle warning spam), the reconnect backs off long
+    #                           #   (2-5 min), and nightqc does NOT count its absence as `missing` or flag the
+    #                           #   night not-ok. Use for a spare strap you rarely wear (e.g. a backup HR belt).
 
   # Polar Verity Sense armband — PPG (+ motion). Live OR press the button for onboard offline.
   - name: Polar Verity Sense

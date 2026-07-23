@@ -302,3 +302,14 @@ def test_a_placeholder_never_overwrites_a_real_name(monkeypatch):
     _stub(monkeypatch, delayed=("[NEW] Device 24:AC:AC:0C:30:1E Polar Sense 0C301E3F\n"
                                 "[CHG] Device 24:AC:AC:0C:30:1E 24-AC-AC-0C-30-1E\n"))
     assert _run(bonding.scan(seconds=0))[0].name == "Polar Sense 0C301E3F"
+
+
+def test_bond_untrusts_after_pairing_so_bleak_is_the_sole_initiator(monkeypatch):
+    # VIGIL-DEEP-ANALYSIS §2D: the LTK from `pair` is the bond; persistent `trust` makes the kernel
+    # auto-reconnect and race bleak. bond() must revoke it (untrust) after pairing.
+    rec = []
+    _stub(monkeypatch, delayed="Pairing successful\n", record=rec)
+    _run(bonding.bond("AA:BB:CC:DD:EE:FF"))
+    cmds = " ".join(c for _, c in [x if isinstance(x, tuple) else (0, x) for x in rec])
+    assert "untrust AA:BB:CC:DD:EE:FF" in cmds
+    assert "pair AA:BB:CC:DD:EE:FF" in cmds        # still pairs (the bond is kept)
