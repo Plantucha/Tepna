@@ -247,9 +247,16 @@
     var ax = Math.abs(gx),
       ay = Math.abs(gy),
       az = Math.abs(gz);
-    if (ay >= ax && ay >= az) return 'upright';
-    if (ax >= az) return gx < 0 ? 'left' : 'right';
-    return gz > 0 ? 'supine' : 'prone';
+    // Fixed-THRESHOLD, Z-first scheme — byte-for-byte the axis order + cutoffs of the two siblings
+    // that read the SAME torso ACC (ECGDex `_posture`, PPGDex `_posturePPG`): |uz|>=0.7 ⇒ supine/prone
+    // by z-sign; else |uy|>=0.55 ⇒ upright; else lateral. Replaces the old ARGMAX/Y-priority scheme,
+    // which over-reported supine across the intermediate-tilt band (e.g. g=(0.46,0.6,0.65) argmax⇒supine
+    // but both threshold siblings ⇒ upright). Deep-audit finding H (2026-07-22). The Z-SIGN convention
+    // (gz>0 ⇒ supine) is the already-correct 2026-07-20 fix and is preserved; the L/R X-sign is kept as
+    // MotionDex's own — supineFrac is L/R-independent and the uncalibrated X axis has no grounded sign.
+    if (az >= 0.7) return gz > 0 ? 'supine' : 'prone';
+    if (ay >= 0.55) return 'upright';
+    return gx < 0 ? 'left' : 'right';
   }
   function bodyPosition(accRows, t0Ms, durSec, unit) {
     if (!accRows || accRows.length < 10) return { hasData: false };
