@@ -642,7 +642,9 @@
     });
     return singles.concat(merged);
   }
-  function parseRRInput(raw) {
+  function parseRRInput(raw, opts) {
+    opts = opts || {}; // back-compat: callers that pass nothing keep the historical default (DMY)
+    const preferDMY = opts.preferDMY !== false; // vendor adapters pass preferDMY:false for MDY firmware (Coospo/Wahoo)
     const lines = raw.split(/\r?\n/);
     const nonEmpty = lines.filter((l) => l.trim());
     // Delimited if ≥2 lines carry a ';' or tab AND a clock/ISO timestamp.
@@ -677,6 +679,19 @@
         intervalCol = _pdIntervalColByRange(dataRows, headerLine); // §B1: never pick a [mg]/[dps]/[uV] column
       }
 
+      // CLOCK CONTRACT §3 — resolve the file's date order ONCE, before parsing any row (mirror of
+      // oxydex-dsp.js). A row whose day-component > 12 PROVES the order and locks it for the whole file;
+      // otherwise honor the caller's preferDMY. Deciding per-row would let an ambiguous MDY file be read
+      // DMY (06/05 → May 6 instead of Jun 5), and could flip order mid-file — running the clock backward.
+      const _stamps = [];
+      for (const parts of rows) {
+        if (parts === headerLine) continue;
+        if (parts.length < 2) continue;
+        _stamps.push(parts[0].trim());
+      }
+      const _order = DexClock.resolveDMY(_stamps, preferDMY);
+      const _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked };
+
       for (const parts of rows) {
         if (parts === headerLine) continue;
         if (parts.length < 2) continue;
@@ -685,7 +700,7 @@
         if (!isFinite(v)) continue; // leftover header / label rows fall out here
         vals.push(v);
         const ts = parts[0].trim();
-        const p = parseTimestamp(ts, { dateAnchorMs, prevTMs }); // floating wall-clock
+        const p = parseTimestamp(ts, { dateAnchorMs, prevTMs, preferDMY: _tsOpts.preferDMY, dmyLocked: _tsOpts.dmyLocked }); // floating wall-clock
         if (p) {
           tsMs.push(p.tMs);
           prevTMs = p.tMs;

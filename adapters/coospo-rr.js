@@ -51,7 +51,7 @@
           { adapter: 'coospo-rr', vendor: VENDOR, device: DEVICE }
         );
       // Coospo firmware tends to stamp MDY; let the shared parser resolve via preferDMY:false.
-      var raw = parseRR(text);
+      var raw = parseRR(text, { preferDMY: false });
       return root.SignalFrame.toSignalFrame('rr', raw, {
         adapter: 'coospo-rr',
         vendor: VENDOR,

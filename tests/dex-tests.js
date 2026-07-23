@@ -3170,6 +3170,47 @@
       }
     });
 
+    /* ════ PulseDex — parseRRInput resolves file-level DMY/MDY (DEEP-AUDIT-2026-07-22 finding D) ══════
+       parseRRInput used to take a single arg and parse each row with parseTimestamp's DEFAULT preferDMY
+       (true = DMY), so a Coospo/Wahoo file whose date components are all ≤12 (genuinely ambiguous) was
+       silently read DMY not the intended MDY — 06/05/2026 became May 6 instead of June 5. The adapters'
+       own comments documented preferDMY:false but the parser accepted no opts to apply it. The fix: accept
+       opts.preferDMY LAST + optional (back-compat), run a file-level DexClock.resolveDMY over the collected
+       row stamps, and thread the resolved order into every parseTimestamp call — mirror of oxydex-dsp.js. */
+    group('PulseDex finding D — parseRRInput resolves file-level DMY/MDY (Coospo/Wahoo MDY)', 'pulsedex-dsp · clock · regression', function (T) {
+      var P = env.PulseDex;
+      var PR = P && P.parseRRInput;
+      if (typeof PR !== 'function') {
+        T.ok('env.PulseDex.parseRRInput available', false, 'not wired — gate skipped');
+        return;
+      }
+      var day = function (ms) {
+        var d = new Date(ms);
+        return d.getUTCFullYear() + '-' + ('0' + (d.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + d.getUTCDate()).slice(-2);
+      };
+      // Ambiguous Coospo-shaped file (all date fields ≤12): with preferDMY:false the vendor MDY order applies.
+      var coospo = 'timestamp;RR(ms)\n12:00:01 06/05/2026;800\n12:00:02 06/05/2026;810\n12:00:03 06/05/2026;790\n12:00:04 06/05/2026;805\n12:00:05 06/05/2026;795';
+      var mdy = PR(coospo, { preferDMY: false });
+      T.eq('finding D · Coospo MDY 06/05/2026 → June 5 (not May 6) under preferDMY:false', mdy && mdy.t0Ms != null ? day(mdy.t0Ms) : null, '2026-06-05');
+      // Back-compat: the same ambiguous file with NO opts keeps the historical DMY default → June is read as May.
+      var dflt = PR(coospo);
+      T.eq('finding D · back-compat: no opts keeps the DMY default (06/05 → May 6)', dflt && dflt.t0Ms != null ? day(dflt.t0Ms) : null, '2026-05-06');
+      // Ambiguity-PROOF MDY file (a 06/25 row: 25 in the day-slot PROVES MDY and LOCKS the whole file), so its
+      // 06/05 rows also read MDY — no mid-file order switch, even though 06/05 is itself ambiguous.
+      var proof = 'timestamp;RR(ms)\n12:00:01 06/05/2026;800\n12:00:02 06/25/2026;810\n12:00:03 06/05/2026;790\n12:00:04 06/26/2026;805\n12:00:05 06/05/2026;795';
+      var locked = PR(proof, { preferDMY: false });
+      T.eq('finding D · a 06/25 row PROVES+LOCKS MDY → the file starts 2026-06-05 (June, no mid-file flip)', locked && locked.t0Ms != null ? day(locked.t0Ms) : null, '2026-06-05');
+      // And the SAME proof file under the DMY default still locks MDY from the 06/25 row (day-slot>12 beats preferDMY).
+      var lockedDflt = PR(proof);
+      T.eq('finding D · the 06/25 proof locks MDY even under the DMY default (day-slot>12 wins)', lockedDflt && lockedDflt.t0Ms != null ? day(lockedDflt.t0Ms) : null, '2026-06-05');
+      // Polar zoned ISO is unambiguous — preferDMY is irrelevant; the same date parses either way.
+      var polar = 'Phone timestamp;RR-interval [ms]\n2026-06-05T23:10:00+02:00;800\n2026-06-05T23:10:01+02:00;810\n2026-06-05T23:10:02+02:00;790';
+      var pz = PR(polar, { preferDMY: false });
+      var pd = PR(polar); // no opts
+      T.eq('finding D · Polar zoned ISO unaffected by preferDMY (MDY opt)', pz && pz.t0Ms != null ? day(pz.t0Ms) : null, '2026-06-05');
+      T.eq('finding D · Polar zoned ISO unaffected (default)', pd && pd.t0Ms != null ? day(pd.t0Ms) : null, '2026-06-05');
+    });
+
     group('PulseDex §3 — vlf+lf+hf == totalPower on overnight (Task-Force identity, the un-fixed sibling)', 'pulsedex-dsp · spectral', function (T) {
       var P = env.PulseDex;
       if (!P || typeof P.computeResult !== 'function') {
