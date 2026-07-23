@@ -146,11 +146,16 @@ def test_scan_puts_unknown_rssi_after_known_within_the_same_class(monkeypatch):
 # ── is_bonded / ensure_bonded ───────────────────────────────────────────────────────────────────────
 @pytest.mark.parametrize("info,expected", [
     ("\tBonded: yes\n", True),
-    ("\tPaired: yes\n", True),          # older BlueZ reports Paired only
+    ("\tBonded: yes\n\tPaired: yes\n", True),
+    # VIGIL-DEEP-ANALYSIS §2D: `Paired: yes` WITHOUT `Bonded: yes` is a transient LE pairing with no
+    # stored long-term keys — NOT bonded. It used to return True, so ensure_bonded skipped the re-pair
+    # and the strap kept dropping discovery. Now it falls through to a re-pair (idempotent, costs nothing).
+    ("\tPaired: yes\n", False),
+    ("\tBonded: no\n\tPaired: yes\n", False),
     ("\tBonded: no\n\tPaired: no\n", False),
     ("", False),                        # device unknown to the controller
 ])
-def test_is_bonded_accepts_either_bluez_spelling(monkeypatch, info, expected):
+def test_is_bonded_requires_bonded_not_merely_paired(monkeypatch, info, expected):
     _stub(monkeypatch, delayed=info)
     assert _run(bonding.is_bonded("AA:BB:CC:DD:EE:FF")) is expected
 

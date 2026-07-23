@@ -78,3 +78,26 @@ def test_both_failing_clears_mode_so_a_later_grant_is_picked_up(monkeypatch):
     val, tried = _read(monkeypatch, {})
     assert val is None and sorted(tried) == ["direct", "sudo"]
     assert link_rssi._MODE is None                      # re-probes both next call
+
+
+# ── VIGIL-DEEP-ANALYSIS §1.3 — sysfs adapter resolution (works on Pi 5 where hcitool is absent) ──
+def test_sysfs_hci_maps_controller_mac_to_hci(tmp_path):
+    import link_rssi
+    base = tmp_path / "bluetooth"
+    for name, mac in [("hci0", "AC:A7:F1:29:9D:1D"), ("hci1", "58:10:31:F3:2C:30")]:
+        d = base / name; d.mkdir(parents=True)
+        (d / "address").write_text(mac + "\n")
+    got = link_rssi.sysfs_hci(str(base))
+    assert got == {"AC:A7:F1:29:9D:1D": "hci0", "58:10:31:F3:2C:30": "hci1"}
+
+
+def test_sysfs_hci_empty_when_base_absent():
+    import link_rssi
+    assert link_rssi.sysfs_hci("/no/such/path/bluetooth") == {}
+
+
+def test_sysfs_hci_skips_a_garbage_address(tmp_path):
+    import link_rssi
+    base = tmp_path / "bt"; d = base / "hci0"; d.mkdir(parents=True)
+    (d / "address").write_text("not-a-mac")
+    assert link_rssi.sysfs_hci(str(base)) == {}

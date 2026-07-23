@@ -109,3 +109,33 @@ def test_phantom_link_is_a_wedge_even_with_a_live_device():
     ]
     h = capture.classify_adapter_health(devs)
     assert h["wedged"] is True and h["phantom"] == ["BB"]
+
+
+# ── VIGIL-DEEP-ANALYSIS §2C — per-stream stall watchdog (a dead stream behind a live sibling) ──
+def test_any_stream_stalled_catches_one_dead_stream_behind_a_live_one():
+    now = 1000.0
+    # ECG advanced 1 s ago (live), ACC last advanced 100 s ago (dead) — grace 90 s. The OLD collective
+    # check reset a shared timer whenever ECG moved, so it never fired; per-stream catches ACC.
+    assert capture.any_stream_stalled([now - 1, now - 100], now, 90.0) is True
+
+
+def test_any_stream_stalled_false_when_all_recently_flowed():
+    now = 1000.0
+    assert capture.any_stream_stalled([now - 1, now - 2, now - 3], now, 90.0) is False
+
+
+def test_any_stream_stalled_off_when_grace_zero_or_empty():
+    assert capture.any_stream_stalled([500.0], 1000.0, 0) is False       # feature disabled
+    assert capture.any_stream_stalled([], 1000.0, 90.0) is False          # nothing started
+    assert capture.any_stream_stalled([None], 1000.0, 90.0) is False      # stream not started yet
+
+
+# ── VIGIL-DEEP-ANALYSIS §2D — a connection-ceiling error is diagnosable, not "sensor off" ──
+def test_connection_ceiling_error_is_recognised():
+    assert capture.connection_ceiling_error(RuntimeError("org.bluez.Error.Failed: br-connection-profile-unavailable"))
+    assert capture.connection_ceiling_error(Exception("Too many open connections"))
+
+
+def test_connection_ceiling_error_ignores_an_ordinary_drop():
+    assert not capture.connection_ceiling_error(TimeoutError("connect timed out"))
+    assert not capture.connection_ceiling_error(RuntimeError("device disconnected"))

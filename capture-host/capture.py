@@ -408,6 +408,19 @@ def transient_ble_error(exc: BaseException) -> bool:
     return any(m in text for m in _TRANSIENT_BLE)
 
 
+# An adapter that has run out of link-layer connection slots reports a distinct error that reads like
+# "sensor off" unless named (VIGIL-DEEP-ANALYSIS §2D): an over-provisioned dongle looks like flapping
+# sensors. Classify it so the log says "adapter connection ceiling", not a generic link error.
+_CEILING_SIGNS = ("connection-profile-unavailable", "too many", "no resources", "connection limit",
+                  "max connections", "host is down")
+
+
+def connection_ceiling_error(exc: BaseException) -> bool:
+    """True when a connect failed because the ADAPTER is out of connection slots, not because the sensor
+    is absent — a diagnosable over-provisioning, not a flapping device."""
+    return any(m in repr(exc).lower() for m in _CEILING_SIGNS)
+
+
 # How far a device clock may sit from the host before it counts as a fault worth re-syncing. Generous
 # vs the 0.03 s a healthy synced Polar shows, tight vs the YEARS an unsynced H10 is out by.
 CLOCK_TOLERANCE_S = 2.0
@@ -482,9 +495,18 @@ def clock_resync_reason(skew, prev, jump, tolerance, failed_adrift=0, giveup=CLO
 
 
 def stream_is_stalled(last_change, now, grace) -> bool:
-    """PURE: has every started stream been silent long enough to call the session dead? False when the
-    feature is off (grace<=0) or nothing has started streaming yet (last_change None)."""
+    """PURE: has a stream been silent long enough to call it dead? False when the feature is off
+    (grace<=0) or the stream has not started yet (last_change None). Per-stream — see any_stream_stalled."""
     return bool(grace and grace > 0 and last_change is not None and (now - last_change) >= grace)
+
+
+def any_stream_stalled(last_changes, now, grace) -> bool:
+    """PURE: is ANY started stream INDIVIDUALLY silent past `grace`? The watchdog used to key on a single
+    shared timer that a live sibling kept resetting, so a genuinely-dead stream behind a live one (the
+    2026-07-19 ECG-flowing-while-ACC-at-zero class) was never caught (VIGIL-DEEP-ANALYSIS §2C). `grace`
+    is 90 s, far longer than the slowest real stream's inter-row gap (even 1 Hz HR advances ~90 rows), so
+    only a truly dead stream fires. False when off (grace<=0) or nothing has started (empty/all-None)."""
+    return bool(grace and grace > 0 and any(stream_is_stalled(lc, now, grace) for lc in (last_changes or [])))
 
 
 def _current_night(captures: str, settle_sec: float) -> str | None:
@@ -912,7 +934,10 @@ async def run_polar(dev: dict, root: str):
                 # take its time without counting as silence.
                 watched = list(writers.values()) + ([hr_writer] if hr_writer else [])
                 last_rows = [w.rows for w in watched]
-                last_change = _time.monotonic() if watched else None
+                # PER-STREAM silence timers (VIGIL-DEEP-ANALYSIS §2C). One shared timer let a live sibling
+                # mask a dead stream; each stream now carries its own so a single dead one is caught.
+                _base = _time.monotonic()
+                last_change = [_base for _ in watched]
                 while (client.is_connected and not _STOP.is_set() and addr not in _POLAR_PAUSED
                        and not _RECOVER.is_set() and not charging_hold):
                     await asyncio.sleep(1)
@@ -920,15 +945,21 @@ async def run_polar(dev: dict, root: str):
                     if secs % 120 == 0:
                         await _read_batt()
                     rows_now = [w.rows for w in watched]
-                    if rows_now != last_rows:
-                        last_rows, last_change = rows_now, _time.monotonic()
-                        backoff = 5           # E3: data is flowing — THIS is a viable session, so reset
-                                              # the reconnect backoff. A later drop then recovers fast; a
-                                              # connect that never streams leaves the floor to grow.
-                    elif stream_is_stalled(last_change, _time.monotonic(), _STREAM_STALL_S):
+                    flowed = False
+                    _mono = _time.monotonic()
+                    for _i in range(len(watched)):
+                        if rows_now[_i] != last_rows[_i]:
+                            last_change[_i] = _mono; flowed = True
+                    last_rows = rows_now
+                    if flowed:
+                        backoff = 5           # E3: AGGREGATE flow — SOME stream is live, so this is a
+                                              # viable session; reset the reconnect backoff. A later drop
+                                              # then recovers fast; a connect that never streams leaves
+                                              # the floor to grow.
+                    if any_stream_stalled(last_change, _time.monotonic(), _STREAM_STALL_S):
                         stalled = True
-                        _set(name, last_error=f"no data for {_STREAM_STALL_S:.0f}s — re-negotiating the streams")
-                        log.warning("%s: every started stream silent for %.0fs behind a live link — "
+                        _set(name, last_error=f"a stream silent {_STREAM_STALL_S:.0f}s — re-negotiating the streams")
+                        log.warning("%s: a started stream silent for %.0fs behind a live link — "
                                     "dropping it so the device frees the stream and we re-negotiate",
                                     name, _STREAM_STALL_S)
                         break
