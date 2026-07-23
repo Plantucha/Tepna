@@ -4266,6 +4266,23 @@
     } else {
       T.skip('PpgRegistry.idForSite available', 'registry not loaded in this lane');
     }
+
+    // ── App render-string parity (DEEP-AUDIT-2026-07-22 §10/§11) ────────────────────────────────
+    // The PPI-tachogram card title and the median-beat AI clause both feed a LABEL into evBadge →
+    // badgeForLabel. These pin that those exact strings resolve to the intended graded id, so an
+    // ECG-ism ('Mean RR' — no PPI equivalent → experimental fallback) or a dropped AI badge can't
+    // ship a mis-graded / unbadged number to the eye again.
+    if (R && REG && typeof R.idForLabel === 'function') {
+      T.eq("'Mean PPI' resolves to the measured meanPPI id (not an experimental fallback)", R.idForLabel('Mean PPI'), 'meanPPI');
+      T.eq('meanPPI is graded measured', REG.meanPPI && REG.meanPPI.evidence, 'measured');
+      T.eq("'Mean RR' is an ECG-ism with NO PPI id (proves the fix was needed)", R.idForLabel('Mean RR'), null);
+      T.eq("'Augmentation index' resolves to the emerging ai id", R.idForLabel('Augmentation index'), 'ai');
+      T.eq('ai is graded emerging', REG.ai && REG.ai.evidence, 'emerging');
+      if (typeof R.badgeForLabel === 'function' && global.MetricRegistry) {
+        T.ok("the tachogram card title badges MEASURED", /ev-measured/.test(R.badgeForLabel('Mean PPI', true)));
+        T.ok("the median-beat AI clause badges EMERGING", /ev-emerging/.test(R.badgeForLabel('Augmentation index', true)));
+      }
+    }
   });
 
   // A storage failure must SURVIVE to the user. persistHRVRows used to paint its own warning and the
