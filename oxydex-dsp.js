@@ -1796,7 +1796,12 @@
       var spo2 = rows.map(function (r) {
         return r.spo2;
       });
-      nadirEvents = detectDesatEvents(spo2, { dropPct: 3, exitPct: 3, blArr: blArr }).map(function (e) {
+      // FINDING 1: gate the ODI-3-depth subset on the artifact self-gate (pulse from rows.hr) so
+      // hypoxicLoad excludes the SAME probe-squeeze / finger-off artifacts ODI-4 already excludes.
+      var pulseSeries = rows.map(function (r) {
+        return r.hr;
+      });
+      nadirEvents = detectDesatEventsGated(spo2, { dropPct: 3, exitPct: 3, blArr: blArr }, pulseSeries).map(function (e) {
         return { depth: e.depth, duration: e.durationSec };
       });
     }
@@ -1844,9 +1849,22 @@
   // Sleep Pressure Index — composite of WASO, motion bursts, SOL
   function computeSleepPressure(sleepArch, extras) {
     if (!sleepArch || !extras) return null;
-    var waso = sleepArch.wasoMin || 0;
+    // FINDING 6 (SPI inversion): wasoMin/solMin are a v22.15 TRI-STATE — both null together when
+    // sleep onset is undetectable (computeSleepArch withholds them rather than seeding the onsetIdx=0
+    // fallback). The old `wasoMin || 0` / `solMin !== null ? : 0` FABRICATED them to 0, collapsing the
+    // two DOMINANT SPI terms (0.4·WASO + 0.25·SOL = 65% of the weight) to 0 EXACTLY on the worse
+    // (undetected-onset) nights — so an undetected-onset night scored LOWER pressure than a calm
+    // detected one: a literal inversion. It was also internally inconsistent with the night-quality
+    // push, which gates WASO/SOL on `!== null` yet pushed the fabricated SPI unconditionally. Withhold
+    // SPI (null) when its dominant inputs were withheld — gate on inputs PRESENT, never seed one
+    // (mirrors sleepArch's own tri-state and computeSleepStabilityScore's null hrFloor handling). The
+    // night-quality push is already `if (n.sleepP)`-guarded, so a withheld SPI no longer enters the
+    // quality score. A bursts-only SPI would not be a meaningful "sleep pressure", so null (not a
+    // renormalized bursts-only proxy) is the honest tri-state here.
+    if (sleepArch.wasoMin == null || sleepArch.solMin == null) return null;
+    var waso = sleepArch.wasoMin;
     var bursts = extras.motionBursts || 0;
-    var sol = sleepArch.solMin !== null ? sleepArch.solMin : 0;
+    var sol = sleepArch.solMin;
     var spi = +(waso * 0.4 + bursts * 0.15 + sol * 0.25).toFixed(2);
     var label = spi < 5 ? 'Low' : spi < 15 ? 'Moderate' : 'High';
     return { spi: spi, spiLabel: label };
@@ -2220,8 +2238,13 @@
     // close modes mean there is no single shared event set — see detectDesatEvents §3). detectDesatEvents
     // falls back to computing blArr when absent, so every direct/test caller is unaffected.
     var blArr = computeCeilingBaselineArr(spo2s, 300, 90);
+    // FINDING 1: pulse series for the ODI-3 artifact self-gate. ODI-4 is left UNGATED here — its
+    // artifacts are subtracted below via desat.artifactCount — so ONLY the ODI-3 call receives it.
+    var pulseSeries = rows.map(function (r) {
+      return r.hr;
+    });
     var odi4 = detectODI(spo2s, DexKernel.K.ODI_DROP, rows.length, blArr);
-    var odi3 = detectODI(spo2s, 3, rows.length, blArr);
+    var odi3 = detectODI(spo2s, 3, rows.length, blArr, pulseSeries);
     var hb = computeHypoxicBurden(rows);
     var motion = computeMotionProfile(rows);
     var stab = computeSleepStabilityScore(stats, hrv, osc, hb);
@@ -2725,12 +2748,16 @@
     return events;
   }
 
-  function detectODI(spo2, drop, n, blArr) {
+  function detectODI(spo2, drop, n, blArr, pulseSeries) {
     // ODI = ceiling-baseline desaturations ≥ drop% lasting ≥10s, per hour. Routed through the
     // ONE primitive with a SIMPLE re-rise close (exitPct === drop) so the count is event-for-
     // event identical to the v22.36 reference detector — ODI-4/ODI-3 are UNCHANGED by the
     // unification, while every satellite metric now scores the SAME events. (DEX-EVENT-UNIFY A)
-    var events = detectDesatEvents(spo2, { dropPct: drop, exitPct: drop, blArr: blArr });
+    // FINDING 1: optional pulseSeries → artifact-gate the events (the ODI-3 path passes it). ODI-4
+    // stays UNGATED here on purpose — processNight subtracts its artifacts via desat.artifactCount,
+    // so gating here too would double-subtract. Back-compat: param is LAST + optional (absent ⇒
+    // ungated, byte-identical to the old signature for every existing caller/test).
+    var events = pulseSeries ? detectDesatEventsGated(spo2, { dropPct: drop, exitPct: drop, blArr: blArr }, pulseSeries) : detectDesatEvents(spo2, { dropPct: drop, exitPct: drop, blArr: blArr });
     var hrs = n / 3600;
     return { count: events.length, rate: +(events.length / Math.max(hrs, 0.01)).toFixed(1) };
   }
@@ -3091,6 +3118,26 @@
     return desat;
   }
 
+  /* ODI-3 ARTIFACT SELF-GATE (DEEP-AUDIT FINDING 1 — the ODI-3 THRESHOLD family was inflated by
+     artifacts). `selfGateDesat` flags probe-squeeze / finger-off artifact desats and `processNight`
+     subtracts them from ODI-4 (via desat.artifactCount) — but the drop:3 family re-detected the raw
+     signal with NO gate: odi3 (detectODI), hypoxicLoad, pRED3p, dip3Rate, and ahiKulkas (via
+     odi3Rate). A ≥4% drop IS a ≥3% drop, so every artifact removed from ODI-4 SURVIVED in the ODI-3
+     superset (~2.4× inflation). This wrapper runs the SAME tested SELFGATE kinetics/perfusion verdict
+     on the drop:3 detections and drops the flagged artifacts, so the whole ODI-3 family inherits the
+     identical exclusion ODI-4 already trusts. desat.events CANNOT be reused here — those are the
+     drop:4 set. Returns the SURVIVING (non-artifact) events; a no-op returning ALL events when no
+     pulse series is available to judge them (same honesty as selfGateDesat's own no-pulse guard). */
+  function detectDesatEventsGated(spo2, opts, pulseSeries) {
+    var events = detectDesatEvents(spo2, opts);
+    if (!pulseSeries || !pulseSeries.length) return events;
+    return events.filter(function (e) {
+      /** @type {any} */ (e).onset = e.startIdx;
+      selfGateDesat(e, pulseSeries, spo2);
+      return !(/** @type {any} */ (e).artifact);
+    });
+  }
+
   // 1. DESATURATION PROFILE — 8 SpO2-derived metrics
   function computeDesaturationProfile(rows, tIdx, odi4, blArr) {
     var spo2 = rows.map(function (r) {
@@ -3204,7 +3251,10 @@
     // SpO2 Dip Rate ≥3%/hr — DEX-EVENT-UNIFY-FOLLOWUPS §1: from the ONE canonical
     // primitive (ODI-3 threshold, simple re-rise close, no min-length gate so every
     // distinct ≥3% dip counts), not the removed private trailing-MEAN loop.
-    var dip3Count = detectDesatEvents(spo2, { dropPct: 3, exitPct: 3, minSec: 0, blArr: blArr }).length;
+    // FINDING 1: gate the ≥3% dip count on the artifact self-gate (pulseSeries built above at the
+    // profile's self-gate step) so dip3Rate inherits the same exclusion as ODI-4 — an artifact
+    // desat is a ≥3% dip too, and was surviving here at the drop:3 threshold.
+    var dip3Count = detectDesatEventsGated(spo2, { dropPct: 3, exitPct: 3, minSec: 0, blArr: blArr }, pulseSeries).length;
     var dip3Rate = durationHr > 0 ? +(dip3Count / durationHr).toFixed(1) : 0;
 
     /* CLOCK: stamp each event with the REAL wall-clock time of its own row (DEEP-AUDIT-2026-07-11 §8).
@@ -5251,7 +5301,12 @@
     // % of recording time occupied by ≥3% desaturations — DEX-EVENT-UNIFY-FOLLOWUPS §1.
     // Sourced from the ONE canonical primitive (ODI-3 threshold, simple re-rise close, no
     // min-length gate so every qualifying dip's time counts), not a private MEAN loop.
-    var totalDuration = detectDesatEvents(spo2, { dropPct: 3, exitPct: 3, minSec: 0, blArr: blArr }).reduce(function (s, e) {
+    // FINDING 1: artifact-gated (pulse from rows.hr) — an artifact desat's DURATION would
+    // otherwise inflate pRED-3p exactly as its COUNT inflated the rest of the ODI-3 family.
+    var pulseSeries = rows.map(function (r) {
+      return r.hr;
+    });
+    var totalDuration = detectDesatEventsGated(spo2, { dropPct: 3, exitPct: 3, minSec: 0, blArr: blArr }, pulseSeries).reduce(function (s, e) {
       return s + e.durationSec;
     }, 0);
     var pred3p = +((totalDuration / n) * 100).toFixed(2);
@@ -6129,6 +6184,7 @@
     computeTIndex,
     computeHRV,
     detectDesatEvents,
+    detectDesatEventsGated,
     detectODI,
     detectSpikes,
     detectPeriodicity,
