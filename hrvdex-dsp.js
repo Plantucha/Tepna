@@ -577,7 +577,12 @@
       // _meanRR (ms) made this ratio 1000× LOW — the un-guarded sibling of the very mixed-unit trap
       // DexUnits.guardBaevsky exists for (DEEP-AUDIT-2026-07-11 §4). Same operands as d_csi; do not re-fork.
       var _mxdmnS0 = r._baevskyS && r._baevskyS.mxdmnS != null ? r._baevskyS.mxdmnS : r._mxdmn;
-      var _meanRRs0 = r._meanRR / 1000;
+      // MeanRR routed through the SAME DexUnits.asSecondsRR detector the guard uses for Mode/MxDMn — so a
+      // vendor exporting MeanRR in SECONDS no longer mis-scales this ratio (and d_csi below) by ~10³× via
+      // the old hard /1000. The adaptive detector leaves a real-ms MeanRR at ms→s (the mixed-convention
+      // ingest path stays correct) and normalizes a real-seconds MeanRR — one detector, both operands
+      // unit-safe. Falls back to the hard /1000 ONLY if quantity.js isn't loaded (DexUnits is canonical).
+      var _meanRRs0 = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSecondsRR(r._meanRR).valueS : r._meanRR / 1000;
       r.d_mxdmn_meanrr = _meanRRs0 > 0 && _mxdmnS0 != null ? _mxdmnS0 / _meanRRs0 : NaN;
 
       /* ── Frequency-domain — PRESENCE-gated (DEEP-AUDIT-2026-07-11 §3) ────────────────────────────────
@@ -623,7 +628,9 @@
       r.d_sd1_sd2 = r.d_sd2 > 0 ? r.d_sd1 / r.d_sd2 : NaN;
 
       // ── Toichi CVI / CSI ──
-      const meanRR_s = r._meanRR / 1000;
+      // MeanRR through the SAME asSecondsRR detector as MxDMn/Mode above (was a hard /1000 → ~10³× mis-scale
+      // on a MeanRR-in-seconds vendor export; latent while both real ingest paths carried MeanRR in ms).
+      const meanRR_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSecondsRR(r._meanRR).valueS : r._meanRR / 1000;
       // Toichi CVI: log10(rMSSD_ms × MeanRR_ms) — both in ms for correct units
       // Typical resting values: 3.5–4.5; threshold thresholds updated accordingly
       r.d_cvi = r._rmssd > 0 && r._meanRR > 0 ? Math.log10(r._rmssd * r._meanRR) : NaN;
