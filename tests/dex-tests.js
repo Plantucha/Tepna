@@ -4770,6 +4770,84 @@
       }
     });
 
+    /* ════ 12c3 · R-PEAK OPENING-TRANSIENT RECOVERY (AUDIT G) — a SHARP transient that is the
+     FIRST threshold crossing (before the 2nd/first real QRS) parks SPKI above every later QRS. The
+     stall-recovery bleed (12c2) was gated `rrAvg>0`, but rrAvg is only established after the SECOND
+     detected beat — so a transient-as-beat-#1 kept rrAvg==0 forever, the bleed never ran, and
+     detection was DEAD for the whole record → compute() threw "Too few R-peaks" on a clean night.
+     The sibling of 12c (startup SEED, slow ramp) and 12c2 (MID-record stall, cadence established) —
+     this is the OPENING sharp-spike case neither covered. Fix: drop the `rrAvg>0` precondition so the
+     idleLimit bleed runs even before a cadence exists. Control: a MID-record sharp spike still
+     recovers (proves no regression to the 12c2 path). ════ */
+    group('ECGDex R-peak recovery — an OPENING sharp transient does not kill the record (AUDIT G)', 'ecgdex-dsp', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.analyze === 'function' && typeof D.genSynthetic === 'function')) {
+        T.ok('ECGDSP.analyze + genSynthetic available', false, 'not loaded');
+        return;
+      }
+      var fs = 130;
+      var syn = D.genSynthetic({ fs: fs, durSec: 120, scenario: 'osa' });
+      // scale to ~600 µV R-peaks (the real recording amplitude)
+      var mx = 0;
+      for (var i = 0; i < syn.int16.length; i++) {
+        var a = Math.abs(syn.int16[i]);
+        if (a > mx) mx = a;
+      }
+      var sc = 600 / (mx || 1),
+        clean = new Int16Array(syn.int16.length);
+      for (var j = 0; j < clean.length; j++) clean[j] = Math.round(syn.int16[j] * sc);
+      // CONTROL — a clean 120 s clip detects the full beat train.
+      var rc = null;
+      try {
+        rc = D.analyze({ int16: clean, fs: fs, gaps: [], t0Ms: syn.t0Ms, durSec: clean.length / fs }, function () {});
+      } catch (e) {
+        rc = null;
+      }
+      T.ok('clean 120 s clip analyzes (baseline)', !!rc && rc.nn.length > 100, rc ? rc.nn.length + ' beats' : 'threw');
+      // OPENING TRANSIENT — a flat lead-in, then a SHARP ~30000-unit bipolar spike at ~0.25 s that is
+      // the FIRST threshold crossing (BEFORE the first real QRS), then the clean train. Pre-fix this
+      // parks SPKI, rrAvg stays 0, and detection collapses to ~1 peak → analyze throws.
+      var lead = Math.round(0.4 * fs);
+      var dirty = new Int16Array(lead + clean.length);
+      dirty.set(clean, lead);
+      var sp = Math.round(0.25 * fs);
+      dirty[sp] = 30000;
+      dirty[sp + 1] = -30000;
+      dirty[sp + 2] = 30000;
+      var rd = null,
+        threw = '';
+      try {
+        rd = D.analyze({ int16: dirty, fs: fs, gaps: [], t0Ms: syn.t0Ms, durSec: dirty.length / fs }, function () {});
+      } catch (e) {
+        threw = e.message;
+      }
+      T.ok('+opening sharp transient no longer throws "Too few R-peaks" (AUDIT G)', !!rd, threw || 'ok');
+      if (rc && rd) {
+        var ratio = rd.nn.length / rc.nn.length;
+        // pre-fix this collapsed to ~1 beat (ratio ≈ 0.01); with the fix the record recovers after the
+        // ~2.5 s idle bleed — nearly the whole train (only the opening seconds before the bleed are lost).
+        T.ok('opening transient does not suppress detection (≥80% of clean beats recovered)', ratio >= 0.8, 'ratio ' + ratio.toFixed(2) + ' (' + rd.nn.length + '/' + rc.nn.length + ')');
+        T.ok('  and it is NOT the pre-fix single-peak collapse', rd.nn.length > 50, rd.nn.length + ' beats');
+      }
+      // CONTROL — a MID-record sharp spike (cadence already established, rrAvg>0) still recovers, i.e.
+      // dropping the rrAvg>0 gate did not regress the 12c2 path.
+      var mid = new Int16Array(clean);
+      var m0 = Math.round(60 * fs);
+      mid[m0] = 30000;
+      mid[m0 + 1] = -30000;
+      mid[m0 + 2] = 30000;
+      var rm = null;
+      try {
+        rm = D.analyze({ int16: mid, fs: fs, gaps: [], t0Ms: syn.t0Ms, durSec: mid.length / fs }, function () {});
+      } catch (e) {
+        rm = null;
+      }
+      if (rc && rm) {
+        var rmRatio = rm.nn.length / rc.nn.length;
+        T.ok('control: a MID-record sharp spike still recovers (no regression to 12c2)', rmRatio >= 0.85, 'ratio ' + rmRatio.toFixed(2) + ' (' + rm.nn.length + '/' + rc.nn.length + ')');
+      }
+    });
+
     /* ════ 12d · INTEGRATOR ingests the LIGHT ECGDex orchestrate export GRACEFULLY
      (ECGDEX-FOLLOWUPS-2026-06-27 §2). The Unifier/OverDex raw-ECG path emits the light
      node-export (schema + recording + ganglior_events only — no hrv/epochs/quality), and
@@ -4850,6 +4928,9 @@
       T.ok('default (no rich) export omits timeseries', !('timeseries' in light));
       T.ok('default (no rich) export omits quality', !('quality' in light));
       T.ok('default (no rich) export omits sleep', !('sleep' in light));
+      // AUDIT F — the app light stream must ALSO omit apnea/hrvStability (byte-identical exportGanglior).
+      T.ok('default (no rich) export omits apnea (AUDIT F)', !('apnea' in light));
+      T.ok('default (no rich) export omits hrvStability (AUDIT F)', !('hrvStability' in light));
       // (2) RICH export carries the consensus axis + scaffolds.
       var rich = D.compute(syn(), { rich: true });
       T.ok('rich: schema still ganglior.node-export / ECGDex (additive, not a new schema)', !!(rich.schema && rich.schema.name === 'ganglior.node-export' && rich.schema.node === 'ECGDex'));
@@ -4891,6 +4972,42 @@
         !!(rPos && rPos.summary && Array.isArray(rPos.summary.posture) && rPos.summary.posture.length > 0),
         rPos && rPos.summary && rPos.summary.posture && rPos.summary.posture.length
       );
+      /* AUDIT F — the orchestrate rich export MUST also carry the apnea + hrvStability blocks the
+         Integrator reads (json.apnea.{cvhrIndex,estimatedAHI.value}, json.hrvStability.mean_lnRMSSD_slope).
+         Before the fix these were emitted ONLY by ecgdex-app.js buildV2 (the ⬇JSON button), so a
+         nocturnal ECG fused DIFFERENTLY by ingest route. The osa synthetic is a 3 h non-ambulatory
+         night → cvhrIndex + mean_lnRMSSD_slope are populated; estimatedAHI/riskCategory are app-computed
+         (absent in the headless analyze) → null-safe null, mirroring buildV2's null cases exactly. */
+      T.ok('rich: apnea block present (AUDIT F — was omitted, now mirrors buildV2)', !!rich.apnea, rich.apnea ? Object.keys(rich.apnea).join(',') : 'MISSING');
+      T.ok(
+        'rich: apnea.cvhrIndex is a finite number (the field the Integrator reads)',
+        !!(rich.apnea && typeof rich.apnea.cvhrIndex === 'number' && isFinite(rich.apnea.cvhrIndex)),
+        rich.apnea && rich.apnea.cvhrIndex
+      );
+      T.ok('rich: apnea.estimatedAHI key present (null-safe when app-only fields absent)', !!(rich.apnea && 'estimatedAHI' in rich.apnea));
+      T.ok('rich: apnea.riskCategory key present (null-safe)', !!(rich.apnea && 'riskCategory' in rich.apnea));
+      T.ok('rich: hrvStability block present (AUDIT F)', !!rich.hrvStability, rich.hrvStability ? Object.keys(rich.hrvStability).join(',') : 'MISSING');
+      T.ok(
+        'rich: hrvStability.mean_lnRMSSD_slope is a finite number (the field the Integrator reads)',
+        !!(rich.hrvStability && typeof rich.hrvStability.mean_lnRMSSD_slope === 'number' && isFinite(rich.hrvStability.mean_lnRMSSD_slope)),
+        rich.hrvStability && rich.hrvStability.mean_lnRMSSD_slope
+      );
+      // the Integrator now picks up CVHR + the autonomic-instability slope FROM the orchestrate builder.
+      T.ok(
+        'Integrator picks up summary.cvhrIndex (non-null) from the rich export (AUDIT F)',
+        !!(rRich && rRich.summary && rRich.summary.cvhrIndex != null),
+        rRich && rRich.summary && 'cvhrIndex=' + rRich.summary.cvhrIndex
+      );
+      T.ok('  and it equals apnea.cvhrIndex', !!(rRich && rRich.summary && rRich.summary.cvhrIndex === rich.apnea.cvhrIndex));
+      T.ok(
+        'Integrator picks up summary.autonomicInstabilitySlope from the rich export (AUDIT F)',
+        !!(rRich && rRich.summary && rRich.summary.autonomicInstabilitySlope != null),
+        rRich && rRich.summary && 'slope=' + rRich.summary.autonomicInstabilitySlope
+      );
+      T.ok('  and it equals hrvStability.mean_lnRMSSD_slope', !!(rRich && rRich.summary && rRich.summary.autonomicInstabilitySlope === rich.hrvStability.mean_lnRMSSD_slope));
+      // contrast: the LIGHT export omits both → the Integrator degrades to null (never fabricates).
+      T.ok('LIGHT export → summary.cvhrIndex null (apnea block absent, not fabricated)', !!(rLight && rLight.summary && rLight.summary.cvhrIndex == null));
+      T.ok('LIGHT export → summary.autonomicInstabilitySlope null (hrvStability absent)', !!(rLight && rLight.summary && rLight.summary.autonomicInstabilitySlope == null));
     });
 
     /* ════ 12d-rich-ppg · INTEGRATOR ingests the RICH PpgDex orchestrate export — option (a)
