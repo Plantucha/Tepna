@@ -403,12 +403,12 @@ const emit = (name, text) => {
   const vmax = Math.max.apply(null, v);
   for (let i = 0; i < N; i++) v[i] += 156 - vmax;
   const peakIdx = v.indexOf(156); // captured BEFORE any marker is planted, so it is the real peak
-  // ISOLATED sentinels — planted on SYSTOLIC EXTREMA (minima, since the stream is inverted), which
-  // does two jobs at once: the local trend there is ~65, i.e. maximally far from 156, so the
-  // isolation test MUST reject them; and they sit inside a beat's foot→peak span, so each one must
-  // also drop that beat. A twin whose markers landed in quiet baseline would leave the gap-drop
-  // path unexercised and let a regression through — the whole point of the sentinel work is that a
-  // known-invalid sample never reaches a reported measurement.
+  // ISOLATED sentinels — planted on SYSTOLIC EXTREMA (minima, since the stream is inverted): the
+  // local trend there is ~65, i.e. maximally far from 156, so the ISOLATION test MUST reject each one
+  // from the raw signal. They corrupt the PEAK, not the foot, so under foot-anchored gapBeats
+  // (O2RING-PPG-GAP §3) they do NOT drop the PPI beat — a peak sentinel spoils morphology only, and
+  // the beat's foot-to-foot timing survives. The gap-DROP path (a sentinel on the timing point) is
+  // exercised directly on gapBeats() in the finger-site test group, not through this twin.
   const isolated = [];
   for (const tSec of [3.2, 9.5, 20.7, 31.0]) {
     const c = Math.round(tSec * FS);

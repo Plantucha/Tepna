@@ -3958,10 +3958,31 @@
     T.eq('single channel ⇒ ledAgreementPct is NULL, never a fabricated 100', r.ledAgreementPct, null);
     T.eq('site rides through to the analysis result', r.site, 'finger');
 
-    // ── gaps cost beats, they do not fabricate them ────────────────────────────────────────────
-    // Each planted marker sits inside a beat's foot→peak span, so each must DROP that beat rather
-    // than let its timing rest on a held value.
-    T.ok('every beat whose span touches a gap is dropped', r.nGapBeats === 4, 'nGapBeats=' + r.nGapBeats);
+    // ── gaps cost beats ONLY when they touch the timing point (the FOOT) ───────────────────────
+    // The twin's 4 markers sit on the SYSTOLIC PEAK (the inverted stream's minima). A peak-region
+    // sentinel corrupts MORPHOLOGY (systolic amplitude, augmentation index — graded separately, per
+    // site) but CANNOT move the foot, and for PPI the foot is the sole timing point (the intersecting-
+    // tangent crossing is built from the trough + steepest rise, and reads nothing near the peak). So
+    // these beats KEEP their interval — dropping them would discard good timing and force a fabricated
+    // median-fill. Foot-anchored gapBeats (O2RING-PPG-GAP §3) was validated against paired chest ECG:
+    // on a real O2Ring night the old foot→peak-spanning window deleted 727 of ~3350 beats (34 % fill),
+    // the foot-anchored window 0 (12 % fill), with HRV moving toward ECG truth on clean sleep.
+    T.ok('a SYSTOLIC-PEAK sentinel spoils morphology but does NOT drop the PPI beat', r.nGapBeats === 0, 'nGapBeats=' + r.nGapBeats);
+    // The isolation pass still rejects all 4 markers from the raw signal — dropping the interval and
+    // rejecting the sample are DIFFERENT guards; the fix changed only the former.
+    T.eq('the peak sentinels are STILL rejected from the raw signal (isolation is unchanged)', rec.sentinelRejected, 4);
+
+    // ── the foot-vs-peak distinction, pinned directly on gapBeats (the changed function) ─────────
+    // Keeps the drop path exercised now that the twin's peak-markers no longer trip it: a gap AT the
+    // foot MUST drop the beat; a gap at the peak (same beat) must NOT. A regression to the old wide
+    // window would drop both; a regression that stopped dropping foot gaps would drop neither.
+    if (typeof D.gapBeats === 'function') {
+      var _feet = [10, 110, 210], _peaks = [30, 130, 230]; // ~20-sample upstrokes
+      var gFoot = new Array(240).fill(0); gFoot[11] = 1; // foot[0]+1, inside the ±3 window
+      T.eq('a gap AT THE FOOT drops that beat (timing point corrupted)', D.gapBeats(_peaks, _feet, gFoot).size, 1);
+      var gPeak = new Array(240).fill(0); gPeak[29] = 1; // peak[0]−1, ~19 samples from the foot
+      T.eq('a gap at the SYSTOLIC PEAK drops NO beat (morphology only)', D.gapBeats(_peaks, _feet, gPeak).size, 0);
+    }
 
     // ── the confidence axis is NOT interchangeable, and a swap must be visible ─────────────────
     // Found by mutation-testing this very group: faking `agree: 1` on the single-channel path left
