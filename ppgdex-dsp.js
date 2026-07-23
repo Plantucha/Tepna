@@ -464,6 +464,43 @@
     return { idx: best, scores };
   }
 
+  // ── HARMONIC-OUTLIER REFERENCE GUARD (PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE §1 residual) ──
+  // pickChannel ranks by pulse-band SNR, which is BLIND to harmonic counting — a channel counting the
+  // dicrotic notch at 2× the true rate keeps full pulse-band energy (a doubled 48 bpm = 1.6 Hz is still
+  // in-band) and can WIN the pick, making a corrupted LED the reference the PPI spine measures. The
+  // adaptive refractory (§1) de-doubles detection at the source, so on the real trio corpus every
+  // channel already reads the true cadence and this guard NEVER fires (verified inert on all 17 nights,
+  // including the four all-LED-double ones — where it correctly does nothing, there being no clean
+  // majority to fall back to). It is a belt-and-suspenders guard for a LONE channel that still doubles
+  // where a clean majority does not: it moves the reference ONTO the coherent majority, never off it, so
+  // it cannot regress a night whose channels agree. Given `rates` (per-channel detected bpm, null =
+  // undetectable) and `snr` (per-channel pulse-band SNR, for the re-pick), it returns the reference idx.
+  function harmonicOutlierRefIdx(refIdx, rates, snr) {
+    const refRate = rates[refIdx];
+    if (refRate == null || !isFinite(refRate) || refRate <= 0) return refIdx;
+    const others = [];
+    for (let i = 0; i < rates.length; i++) if (i !== refIdx && rates[i] != null && isFinite(rates[i]) && rates[i] > 0) others.push(rates[i]);
+    if (others.length < 2) return refIdx; // need a majority of OTHER channels to trust a re-pick
+    const medOther = median(others);
+    if (!(medOther > 0)) return refIdx;
+    const spread = (Math.max.apply(null, others) - Math.min.apply(null, others)) / medOther;
+    // the OTHER channels must COHERE (a real shared cadence) AND the reference must sit at a near-integer
+    // multiple (≥1.5×) of them — the harmonic-counting signature. Anything else: leave the SNR pick.
+    if (!(spread < 0.15 && refRate / medOther >= 1.5)) return refIdx;
+    // re-pick the best-SNR channel whose rate MATCHES the clean majority (within 15%).
+    let pick = -1,
+      bestSnr = -Infinity;
+    for (let i = 0; i < rates.length; i++) {
+      if (rates[i] == null || Math.abs(rates[i] / medOther - 1) >= 0.15) continue;
+      const s = snr && snr[i] != null ? snr[i] : 0;
+      if (s > bestSnr) {
+        bestSnr = s;
+        pick = i;
+      }
+    }
+    return pick >= 0 ? pick : refIdx;
+  }
+
   // ── orientation: systolic upstroke should be the steep, sharp deflection ──
   function orient(bp) {
     // PPG upstroke (systole→peak) is steeper than the diastolic decay.
@@ -2106,8 +2143,14 @@
       0,
       keepIdx.findIndex((c) => sameChannel(rec.ch[c], rec.ch[sel.idx]))
     );
-    const bp = perChannel[refIdx].bp; // reference-channel band-passed waveform
-    const cons = consensusBeats(perChannel, refIdx, rec.fs);
+    // §1 residual: the SNR pick is blind to harmonic counting. If the picked reference doubles where a
+    // clean channel majority does not, move the reference onto the majority (inert unless that happens —
+    // the adaptive refractory de-doubles every channel on the real corpus, so this is defense-in-depth).
+    const _chRates = perChannel.map((pc) => (pc && pc.peaks && pc.peaks.length > 10 && rec.durSec > 0 ? (pc.peaks.length / rec.durSec) * 60 : null));
+    const _chSnr = keepIdx.map((c) => (sel.scores && sel.scores[c] ? sel.scores[c].snr : 0));
+    const refIdxUsed = harmonicOutlierRefIdx(refIdx, _chRates, _chSnr);
+    const bp = perChannel[refIdxUsed].bp; // reference-channel band-passed waveform
+    const cons = consensusBeats(perChannel, refIdxUsed, rec.fs);
     // A beat whose foot→peak span touches a rejected sentinel is a GAP, not a measurement — its
     // timing would rest on held values. Drop it. This is the same discipline the 3-LED path applies
     // to a 1-of-3 beat: dropped, never median-filled, never interpolated.
@@ -2764,6 +2807,8 @@
     distinctChannelIdx,
     intervalsSpanningTimeGap,
     gapBeats,
+    pickChannel,
+    harmonicOutlierRefIdx,
     cadenceSamples,
     beatRegularity,
     markO2Sentinels,
