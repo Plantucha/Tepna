@@ -9882,6 +9882,61 @@
       }
     });
 
+    /* DEEP-AUDIT-2026-07-22 — a GRADUAL Level-1 nocturnal hypo (54-70 mg/dL) must survive the
+       compression-artifact rule; only a near-vertical positional artifact may be eaten. Completes
+       GLUCODEX-HYPO-DISAMBIG. The bug: `_looksLikeGenuineHypo`'s depth gate short-circuited on
+       `lo > 60` BEFORE the edge-steepness discriminator ran, so any real insulin dip whose nadir sat
+       in the shallow-but-real 61-70 band (Level-1 hypo is 54-69) was denied protection and handed to
+       the compression rule → erased from ana.vals (min / TBR / LBGI / GRADE) and nocturnalHypo(). Fix:
+       gate on the hypo boundary `lo > 70`, so the near-vertical-edge test is the sole discriminator.
+       These two nights share the IDENTICAL 66 mg/dL nadir and differ ONLY in edge shape (gradual vs
+       single-cell vertical) — the cleanest proof that steepness, not depth, decides. Pre-fix, the
+       gradual leg's four assertions ALL fail (it was flagged COMPRESSION → min 110, tbr1 0, 0 episodes). */
+    group('GlucoDex hypo-disambig — a gradual Level-1 nocturnal hypo (54-70) is protected; a vertical artifact is still eaten', 'glucodex-dsp · hypo · compression · clinical-safety · regression', function (T) {
+      var G = env.GlucoDex || env.GLUDSP;
+      var an = (env.GLUDSP && env.GLUDSP.analyze) || (G && G.analyze);
+      var pc = (env.GLUDSP && env.GLUDSP.parseCSV) || (G && G.parseCSV);
+      if (typeof an !== 'function' || typeof pc !== 'function') {
+        T.skip('GLUDSP.analyze + parseCSV available', 'namespace not wired — gate skipped');
+        return;
+      }
+      var HDR = 'Time of Glucose Reading [T=(local time) +/- (time zone offset)], Measurement(mg/dL)';
+      var stamp = function (ms) {
+        return new Date(ms).toISOString().slice(0, 16) + '-04:00';
+      };
+      // 9 h night, 5-min cadence, floating wall-clock 23:00→08:00; nadir cell 42 = 02:30 (h<6 = nocturnal).
+      var mkNight = function (valFn) {
+        var t0 = Date.UTC(2026, 5, 25, 23, 0, 0),
+          L = [HDR];
+        for (var i = 0; i < 109; i++) L.push(stamp(t0 + i * 5 * 60000) + ',' + Math.round(valFn(i)));
+        return an(pc(L.join('\n'), 'night.csv'), null, {});
+      };
+      // GRADUAL Gaussian dip (σ≈38 min) to a 66 mg/dL nadir on a flat 110 baseline: max single-cell
+      // step ≈3.5 mg/dL, far below the 22 VERTICAL edge → a real insulin dip, not a positional artifact.
+      var gRes = mkNight(function (i) {
+        var min = (i - 42) * 5;
+        return 110 - 44 * Math.exp(-(min * min) / (2 * 38 * 38));
+      });
+      // VERTICAL positional artifact: a 66 mg/dL plateau (same nadir) entered/left in ONE cell (Δ44 ≥ 22
+      // on both edges) on the same 110 baseline — the near-instant single-cell signature of sensor compression.
+      var vRes = mkNight(function (i) {
+        return i >= 40 && i <= 45 ? 66 : 110;
+      });
+
+      // ── the gradual real hypo is PROTECTED (pre-fix each of these failed) ──
+      T.eq('gradual dip is NOT flagged COMPRESSION (compMin 0) — a real Level-1 hypo survives', gRes.compMin, 0);
+      T.ok('…so its 66 mg/dL nadir reaches min (≤ 70 = clinical hypo band; pre-fix min was baseline ~110)', gRes.min <= 70, 'min=' + gRes.min);
+      T.ok('…and it is counted in Time-Below-Range (tbr1 > 0; pre-fix TBR read 0 %)', gRes.tir.tbr1 > 0, 'tbr1=' + gRes.tir.tbr1 + '%');
+      T.ok('…and nocturnalHypo() reports the episode (pre-fix: 0 episodes)', gRes.nocturnalHypo.length >= 1, gRes.nocturnalHypo.length + ' episode(s)');
+      T.ok('…the reported episode nadir sits in the hypo band', gRes.nocturnalHypo.length >= 1 && gRes.nocturnalHypo[0].min <= 70, gRes.nocturnalHypo.length ? 'min=' + gRes.nocturnalHypo[0].min : 'none');
+
+      // ── the vertical artifact is STILL eaten (no regression) — identical nadir, edges are the only difference ──
+      T.ok('vertical single-cell artifact is STILL flagged COMPRESSION (compMin > 0) — the edge test remains the discriminator', vRes.compMin > 0, 'compMin=' + vRes.compMin);
+      T.ok('…so the artifact is excluded from min (baseline ~110, not the 66 plateau)', vRes.min > 80, 'min=' + vRes.min);
+      T.eq('…and does not inflate Time-Below-Range (tbr1 0 %)', vRes.tir.tbr1, 0);
+      T.eq('…and raises no nocturnalHypo episode', vRes.nocturnalHypo.length, 0);
+    });
+
     group('GlucoDex §5.5 — parseNutrition: date-only rows survive, DAY/MONTH order is file-locked', 'glucodex-dsp · nutrition · clock-contract', function (T) {
       // NOTE: pick the namespace that HAS the function, not merely the first truthy one —
       // parseNutrition lives on GLUDSP while env.GlucoDex is also defined, so `A || B` picks wrong.
