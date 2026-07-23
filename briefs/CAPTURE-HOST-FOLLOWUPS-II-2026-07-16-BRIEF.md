@@ -4,7 +4,12 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-07-16
+**Status:** PROPOSED · **Created:** 2026-07-16 (**Field-verified 2026-07-22 on `rig-x870`:** the whole
+`capture-host/` test suite is green (~40 files incl. `test_capture_clock` F2, `test_pmd_delta`,
+`test_oxyii`, writers/fsync R1) and real captured files round-trip to node-exports (H10 ECG → ECGDex 21
+events, O2Ring SpO₂ → OxyDex meanSpo₂ 96.1 %). **§2 V1–V5 stay OPEN — all hardware-gated** exactly as
+this brief's §116 states: V1/V2 need PSL `_GYRO`/`_MAG`/`_ACC` byte-diffs, V3 an OH1, V4 an observed NTP
+step, V5 the clock sudoers rule. No new desk work available; the remainder rides real hardware/overnight.)
 
 # CAPTURE-HOST follow-ups II — full multi-stream capture, the Tepna monitor, clock/NTP control
 

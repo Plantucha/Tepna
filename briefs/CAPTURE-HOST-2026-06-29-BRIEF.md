@@ -256,6 +256,20 @@ file from each live device round-trips through the served suite:
 > `how-to-collect/` notes (`polar-h10-ecg`, `verity-ppg`, `muse-eeg`, `cpap-edf`, `health-box`).
 > Remaining = **hardware bring-up + on-hardware validation** (the ☐ below). Stays PROPOSED until a
 > real night round-trips — never stamp DONE on unverified work.
+>
+> **§9 round-trip PROVEN on REAL captured data 2026-07-22** (on `rig-x870`, the daemon running under
+> a `systemd --user` service). The core "each captured file routes + computes a node-export" gate — the
+> hardest desk-verifiable item — now passes on real multi-hour captures, not the prior short desktop
+> sessions: a **44 MB / 724,160-sample H10 ECG** file (92.9 min) routes `polar-h10-ecg` (conf 0.90) →
+> `ECGDex.compute()` → valid `ganglior.node-export` (**21 R-peak events, fs 129.99 Hz** — the FOLLOWUPS-I
+> §1 fs-fix holds on real bytes, not 143/125), and a **3,865-row O2Ring SpO₂** ViHealth CSV (64.5 min)
+> routes `oxydex-spo2` (conf 0.80) → `OxyDex.compute()` → node-export (meanSpo₂ 96.1 %, min 94, HR 48.8).
+> Clock Contract verified on the ECG file (relative/fractional `timestamp [ms]`, sensor column monotonic).
+> The **entire `capture-host/` test suite is green** (~40 files, 1000+ assertions) + the ECG parity
+> harness passes. **STILL BLOCKING DONE (all physical/hardware-gated):** a single *continuous overnight*
+> 22:00→06:00 round-trip (tonight's sessions are segmented per BLE reconnect); FOLLOWUPS-II V1–V5 (PSL
+> byte-diffs, an OH1, an observed NTP step, the clock sudoers rule); real-*Pi* bring-up (this is a desktop
+> rig). The persistent service is now set up, so tonight's capture produces the gating overnight.
 - ☐ Pi provisioned: SSD, correct TZ + NTP, onboard BT off, dongle up as `hci0` bedside on an extension.
 - ☐ `tepna-capture` (bleak supervisor + reconnect + systemd) emitting §3/§7 layouts with §7 filenames.
 - ☐ `tepna-web` serving the bundled apps at the pinned `http://tepna.local`; suite gates green from that URL.
