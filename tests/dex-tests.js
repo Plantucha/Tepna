@@ -8898,7 +8898,10 @@
       // DOCUMENTED reach-in allow-list (see header block) — the drift ledger for the next on-touch re-bundle.
       var REACHIN_ALLOW = {
         'oxydex-dsp.js': new Set(['renderAll', 'setProgress', 'setStatus', 'showError']),
-        'hrvdex-dsp.js': new Set(['calcVo2Cat', 'getProfile', 'inferFromData', 'rerender', 'setProgress'])
+        // hrvdex-dsp: reach-ins INVERTED to dependency injection (FOLLOWUPS-II item 3) — the DSP now
+        // calls its injected `_ui.*` hooks, never a bare UI global, so its allow-list is empty. This
+        // now ASSERTS the module boundary is clean (any new bare reach-in reds the gate).
+        'hrvdex-dsp.js': new Set([])
       };
       function analyze(f, raw) {
         var s = scrub(raw),

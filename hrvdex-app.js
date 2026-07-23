@@ -710,3 +710,5 @@ Object.assign(window, {
   setProgress,
   uploadZone
 });
+// FOLLOWUPS-II item 3: inject app's UI hooks into the DSP (it no longer reaches them as bare globals).
+if (window.HRVDex && window.HRVDex.setHooks) window.HRVDex.setHooks({ setProgress });

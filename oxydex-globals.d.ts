@@ -22,6 +22,8 @@
 declare var UP: any; // oxydex-render.js — render state/namespace
 declare var renderAll: any; // oxydex-render.js — full re-render
 declare var showError: any; // oxydex-app.js — error surface
+declare var setStatus: any; // oxydex-render.js — status-line writer (was leaking from hrvdex-globals.d.ts until its DI removed it; declared here so oxydex is self-sufficient — its own DI is FOLLOWUPS-II item 3, a later stage)
+declare var setProgress: any; // oxydex-app.js — progress bar (same: self-sufficient until oxydex's own reach-in inversion)
 declare var upVO2category: any; // oxydex-profile.js — VO₂max fitness-category classifier
 declare var safeStyle: any; // oxydex-util.js — DOM style-safety helper
 declare var safeSet: any; // oxydex-util.js — DOM text/attr-safety helper
