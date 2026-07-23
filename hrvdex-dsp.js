@@ -688,7 +688,7 @@
       // ── PNS Efficiency Index ──
       // PNS Efficiency: NaN when pNN50 < 1% — low pNN50 collapses denominator toward ε,
       // producing paradoxically HIGH values on worst stress days (confirmed: 8 days in dataset).
-      r.d_pns_eff = r._pnn50 >= 1 && r._sdnn > 0 ? r._rmssd / (r._sdnn * (r._pnn50 / 100)) : NaN;
+      r.d_pns_eff = _all(r._rmssd, r._sdnn, r._pnn50) && r._pnn50 >= 1 && r._sdnn > 0 ? r._rmssd / (r._sdnn * (r._pnn50 / 100)) : NaN; // Finding 4: gate the row's OWN rMSSD too — a null numerator coerces `null / positive === 0`, surfacing a fabricated green 0.00 for a metric never recorded (mirror d_otr's _all(...))
 
       // ── Overtraining Risk Index ──
       r.d_otr = r._psns > 0 && _all(r._sns, r._pnn50) && r._pnn50 >= 0 ? Math.min(500, (r._sns / (r._psns + 0.001)) * (100 / (r._pnn50 + 0.01))) : NaN;
@@ -810,7 +810,7 @@
 
       const mean7rmssd = rmssd7.length ? rmssd7.reduce((a, b) => a + b, 0) / rmssd7.length : NaN;
       const mean7lnrmssd = rmssd7.length ? rmssd7.map((v) => Math.log(v)).reduce((a, b) => a + b, 0) / rmssd7.length : NaN;
-      r.d_ari = mean7rmssd > 0 && window7.length >= 4 ? r._rmssd / mean7rmssd : NaN;
+      r.d_ari = r._rmssd > 0 && mean7rmssd > 0 && window7.length >= 4 ? r._rmssd / mean7rmssd : NaN; // Finding 5: guard the row's OWN rMSSD (mirror d_sdnn_z) — a null numerator coerces to 0, rendering d_ari=0 RED and firing a false d_ari<0.85 "recovery collapse" alert on a no-reading night
       r.d_rmssd_rolling_ln = mean7lnrmssd;
       r.d_stress_auc = stress7.length ? stress7.reduce((a, b) => a + b, 0) : NaN;
       r.d_rmssd_cv7 = rmssd7.length > 1 ? (std(rmssd7) / mean7rmssd) * 100 : NaN;

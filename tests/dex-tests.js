@@ -3754,6 +3754,31 @@
     // ── §1.5 · beats-per-5-min scaling of an absent pNN50 yielded a confident count of 0 beats.
     T.ok('§1.5 · _pnn50 absent → d_nn50 NaN (was 0 beats)', isNaN(kp.d_nn50), String(kp.d_nn50));
 
+    // ── DEEP-AUDIT 2026-07-22 §Finding 4 · PNS Efficiency gated _pnn50/_sdnn but consumed the row's
+    //    OWN _rmssd UNGATED, so a null numerator coerced `null / (positive) === 0` — a green, confident
+    //    "PNS Efficiency 0.00" for a metric never recorded (the sibling d_otr correctly returns NaN via
+    //    _all(...)). The fix folds the row's own rMSSD into the gate: _all(_rmssd,_sdnn,_pnn50) && … .
+    T.ok('§F4 · control · intact row · d_pns_eff finite (fix does not over-blank)', isFinite(full.d_pns_eff) && full.d_pns_eff > 0, 'd_pns_eff=' + full.d_pns_eff);
+    T.ok('§F4 · _rmssd absent → d_pns_eff NaN (was a fabricated green 0 via null/positive)', isNaN(kr.d_pns_eff), String(kr.d_pns_eff));
+
+    // ── DEEP-AUDIT 2026-07-22 §Finding 5 · d_ari (rolling Recovery Index) hardened its 7-day BASELINE
+    //    (mean7rmssd drops null/≤0) but left the numerator — the row's OWN _rmssd — ungated, so a
+    //    no-reading night coerced `null / mean7rmssd === 0`: d_ari rendered 0 RED and FIRED the
+    //    d_ari<0.85 "Rest day indicated" alert — a fabricated severe recovery collapse. The fix guards
+    //    the row's own value (`r._rmssd > 0 && …`), mirroring the immediate sibling d_sdnn_z (Finding 1).
+    //    This assignment lives in the allRows ROLLING-WINDOW loop, which iterates MODULE state (not the
+    //    headless rowsArg the per-row §1.* legs drive), so — exactly as the sibling d_sdnn_z leg does at
+    //    the Phase-9 source group — it is gated by source-text rather than driven on a synthetic row.
+    var _hdsp = (env.sources || {})['hrvdex-dsp.js'];
+    if (_hdsp) {
+      T.ok(
+        '§F5 · d_ari gates on the row’s OWN _rmssd (absent night → NaN, no fabricated 0 / false red alert)',
+        /d_ari\s*=\s*r\._rmssd\s*>\s*0\s*&&\s*mean7rmssd\s*>\s*0\s*&&\s*window7\.length\s*>=\s*4/.test(_hdsp)
+      );
+    } else {
+      T.skip('§F5 · d_ari source-text gate', 'hrvdex-dsp.js not in env.sources this lane');
+    }
+
     // ── §1.3 · computeCAMQ's parasympathetic arm used the same `>= 0` test, so an absent pNN50
     //    contributed a real 0 to the mean AND incremented the divisor — dragging the score down.
     if (typeof B.computeCAMQ === 'function') {
