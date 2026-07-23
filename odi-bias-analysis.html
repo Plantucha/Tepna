@@ -7907,9 +7907,14 @@ const OxyDex = window.OxyDex;
       mi = +t[2],
       ss = +t[3];
     var year = yy >= 85 ? 1900 + yy : 2000 + yy; // EDF clipping rule
+    // Clock Contract §2.7 (DEEP-AUDIT-II §12.3) — the `dd<=31` guard catches month 13 / hour 25 but LEAKS
+    // calendar-invalid days: Date.UTC SILENTLY ROLLS Feb 30 → Mar 2, Apr 31 → May 1 onto a WRONG instant.
+    // Reject any component out of range, then require the date to ROUND-TRIP (rejects Feb 30 / Apr 31…).
     if (mo < 1 || mo > 12 || dd < 1 || dd > 31 || hh > 23 || mi > 59 || ss > 59) return null;
-    var t0Ms = Date.UTC(year, mo - 1, dd, hh, mi, ss); // FLOATING — not a real instant
     var dateAnchorMs = Date.UTC(year, mo - 1, dd);
+    var _dd = new Date(dateAnchorMs);
+    if (_dd.getUTCFullYear() !== year || _dd.getUTCMonth() !== mo - 1 || _dd.getUTCDate() !== dd) return null; // date rolled ⇒ invalid
+    var t0Ms = Date.UTC(year, mo - 1, dd, hh, mi, ss); // FLOATING — not a real instant
     return { t0Ms: t0Ms, dateAnchorMs: dateAnchorMs, offsetMin: null };
   }
 

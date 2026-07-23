@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3IsuIfcb6DKsRs2HNebyHs2EgvED9l/WDIaI4lJD9uE=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-LS4jnLimaZ44Q2plBvf245YiffrLy4UU/IGGtzyh22U=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qocwu7z+CvtgwMzZgCP26A95vBHMrexzWtFJ9giIW4g=' 'sha256-SN1Vzuwjy3Oz2lLf9tPqzpQJXuz2l3Lu7oLRK9cjWDo=' 'sha256-YpBLTPH6rBm7Vlmw7z/w69BHXIabbH51saaTxbfb0bc=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3IsuIfcb6DKsRs2HNebyHs2EgvED9l/WDIaI4lJD9uE=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-6pY6S/JF+/wvjYlLvhYancYiCgadXUIJVKoJ9KPB6+M=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-LS4jnLimaZ44Q2plBvf245YiffrLy4UU/IGGtzyh22U=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-SN1Vzuwjy3Oz2lLf9tPqzpQJXuz2l3Lu7oLRK9cjWDo=' 'sha256-YpBLTPH6rBm7Vlmw7z/w69BHXIabbH51saaTxbfb0bc=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Integrator · Fusion Layer</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -5916,9 +5916,32 @@ function _motionEffortSeries(json, t0Ms) {
    RUN-LENGTH encoding (a position holds until the next change), which is why it must be expanded here
    rather than exported densely: the step form is compact on the bus, and `posAt()` downstream matches on
    NEAREST-sample-within-10-min, which would miss a position that legitimately held for hours.
-   Hold-last-value from each change to the next, bounded by the recording duration. */
+   Hold-last-value from each change up to a bounded MAX-HOLD horizon (NOT to the recording end).
+
+   TRI-STATE PARITY (audit B·3a — a sensor-off gap must not fabricate a posture). MotionDex exports
+   posture as sparse run-length `posture_change` events and DELIBERATELY drops 'unknown'/gap epochs, so
+   the bus carries NO gap marker — a position that genuinely held for hours and a sensor-off gap AFTER
+   that position are INDISTINGUISHABLE here (both are just "no further posture_change"). The old code
+   hold-last-value-expanded the final transition all the way to t0Ms+durSec*1000, so a single early
+   snapshot fabricated a whole night's posture; posAt() (nearest-within-10-min) then always found that
+   fabricated value and positionalApnea() counted the apnea as supine/nonsupine — a MANUFACTURED clinical
+   finding. Cap the hold at _MOTION_POS_MAX_HOLD_MS and emit NO sample beyond it, so during an un-held span
+   posAt() finds nothing within its window → positionalApnea() takes its unknown++ path (leaving the
+   supine/nonsupine DENOMINATOR), matching how _motionEffortSeries.present / _motionActivitySeries.moving
+   drop a null gap epoch from their consumers' denominators. This is the Integrator-side stopgap; the real
+   fix (MotionDex emitting an explicit gap/'unknown' marker on the bus) lives in motiondex-dsp.js.
+
+   MAX-HOLD = 60 min. It must be long enough to preserve a legitimate run-length hold between two real
+   posture transitions (position shifts in sleep occur ~1–3×/h, i.e. a mean inter-shift interval of
+   ~20–60 min, with the longest stable supine stretches reaching an hour) yet short enough that a single
+   unrefreshed snapshot is never projected across a multi-hour span where a dropped-gap export is at least
+   as consistent with sensor-off as with a genuine hold. One hour is the upper end of the normal inter-shift
+   distribution: within it we still hold-last-value (as MotionDex's run-length encoding intends); beyond it
+   the leg abstains rather than invent a posture. _ecgPostureSeries (chest strap, higher §1.2 priority) is
+   unaffected — it pushes only REAL samples and so already returns null during gaps. */
 var _MOTION_POS_CAD_MS = 60000; // expansion cadence — well inside posAt()'s 10-min match window
 var _MOTION_POS_MAX = 5000; // hard cap so a pathological export can't blow up memory
+var _MOTION_POS_MAX_HOLD_MS = 3600000; // 60 min — max span a single posture snapshot is trusted without a refresh
 function _motionPostureSeries(json, t0Ms) {
   var evs = (json && (json.ganglior_events || json.events)) || [];
   var steps = [];
@@ -5933,12 +5956,13 @@ function _motionPostureSeries(json, t0Ms) {
   steps.sort(function (a, b) {
     return a.tMs - b.tMs;
   });
-  var durSec = (json.recording && json.recording.durSec) || null;
-  var endMs = durSec != null && t0Ms != null ? t0Ms + durSec * 1000 : steps[steps.length - 1].tMs + _MOTION_POS_CAD_MS;
   var out = [];
   for (i = 0; i < steps.length && out.length < _MOTION_POS_MAX; i++) {
     var from = steps[i].tMs,
-      to = i + 1 < steps.length ? steps[i + 1].tMs : Math.max(endMs, from + _MOTION_POS_CAD_MS);
+      next = i + 1 < steps.length ? steps[i + 1].tMs : Infinity,
+      // Hold last value only up to the max-hold horizon — never across a longer gap (or to durSec end),
+      // where the dropped-gap export can no longer be distinguished from the sensor being off.
+      to = Math.min(next, from + _MOTION_POS_MAX_HOLD_MS);
     for (var t = from; t < to && out.length < _MOTION_POS_MAX; t += _MOTION_POS_CAD_MS) out.push({ tMs: t, pos: steps[i].pos });
   }
   return out;
