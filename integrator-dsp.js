@@ -2544,10 +2544,24 @@ function fuseHRVConsensus(recs, dtMs) {
       var lowQ = likeWin.map(_hrvUntrusted).filter(Boolean);
       var like = usable.length >= 2 ? usable : likeWin;
       var lowQExcluded = usable.length >= 2 && lowQ.length ? lowQ : null;
+      /* DEEP-AUDIT 2026-07-22 finding A: PpgDex's bare hrv.time.sdnn (summary.sdnn) is a
+         WHOLE-RECORD optical SDNN that runs baseline-wander-inflated (~+26% vs chest ECG per
+         its own sdnnNote); summary.sdnnRobustMs (hrv.time.sdnnRobust, the quality-gated per-5-min
+         median, ~+3.5% vs ECG truth) is the cross-node-comparable axis — the same one
+         fuseHrvResource already uses (:2318). For the SDNN consensus, resolve PpgDex to its robust
+         axis so the surfaced divergence/qc reflects real agreement, not the wander inflation.
+         summary.sdnn is deliberately left untouched (it feeds the per-source display rows). */
+      function _cmpVal(s, key) {
+        if (key === 'sdnn' && s.node === 'PpgDex') {
+          var rob = s.summary.sdnnRobustMs;
+          if (rob != null && isFinite(rob)) return rob;
+        }
+        return s.summary[key];
+      }
       function spread(key) {
         var vs = like
           .map(function (s) {
-            return s.summary[key];
+            return _cmpVal(s, key);
           })
           .filter(function (v) {
             return v != null;
@@ -2560,7 +2574,7 @@ function fuseHRVConsensus(recs, dtMs) {
         return {
           values: like
             .map(function (s) {
-              return { node: s.node, v: s.summary[key] };
+              return { node: s.node, v: _cmpVal(s, key) };
             })
             .filter(function (o) {
               return o.v != null;

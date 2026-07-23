@@ -446,6 +446,70 @@
       }
     });
 
+    /* ════ 5a · INTEGRATOR HRV consensus uses PpgDex's ROBUST SDNN axis (DEEP-AUDIT 2026-07-22 finding A) ════
+     PpgDex's bare hrv.time.sdnn is a WHOLE-RECORD optical SDNN, baseline-wander-inflated (~+26% vs ECG per its
+     own sdnnNote); hrv.time.sdnnRobust is the cross-node-comparable axis (~+3.5%), the one fuseHrvResource
+     already uses. Before the fix, fuseHRVConsensus's spread('sdnn') read the inflated summary.sdnn, fabricating
+     a ~23% SDNN "divergence" (and, past 30%, a false qc:'divergent' data-quality flag) when the true agreement
+     is ~3%. rMSSD (clean adjacent pairs) is unaffected — proving it is specifically the SDNN axis. ════ */
+    group('Integrator HRV consensus — PpgDex robust SDNN axis (DEEP-AUDIT finding A)', 'integrator-dsp', function (T) {
+      var A = env.adaptEnvelopeNode,
+        FC = env.fuseHRVConsensus;
+      if (typeof A !== 'function' || typeof FC !== 'function') {
+        T.ok('fuseHRVConsensus present', false);
+        return;
+      }
+      var t0 = U(2026, 5, 7, 8, 30, 0);
+      var ecg = A(
+        {
+          schema: { node: 'ECGDex' },
+          recording: { startEpochMs: t0, durationMin: 120 },
+          quality: { analyzablePct: 95 },
+          hrv: { time: { rmssd: 42, sdnn: 50 } },
+          ganglior_events: [{ t: '08:30:10', tMs: t0 + 10000, impulse: 'x', node: 'ECGDex', conf: 0.8 }]
+        },
+        'ECGDex',
+        'ecg.json'
+      )[0];
+      // PpgDex export: whole-record sdnn=63 (+26% inflated) but sdnnRobust=51.5 (comparable to ECG's 50).
+      var ppg = A(
+        {
+          schema: { node: 'PpgDex' },
+          recording: { startEpochMs: t0, durationMin: 120, site: 'wrist' },
+          quality: { analyzablePct: 95 },
+          hrv: { time: { rmssd: 42, sdnn: 63, sdnnRobust: 51.5 } },
+          ganglior_events: [{ t: '08:30:10', tMs: t0 + 10000, impulse: 'x', node: 'PpgDex', conf: 0.8 }]
+        },
+        'PpgDex',
+        'ppg.json'
+      )[0];
+      T.ok('PpgDex summary carries the inflated whole-record sdnn (display axis, untouched)', ppg && ppg.summary.sdnn === 63, ppg && 'sdnn=' + ppg.summary.sdnn);
+      T.ok('PpgDex summary carries the robust axis sdnnRobustMs', ppg && ppg.summary.sdnnRobustMs === 51.5, ppg && 'sdnnRobustMs=' + ppg.summary.sdnnRobustMs);
+      var cons = FC([ecg, ppg], 1000);
+      var blk = cons && cons.blocks && cons.blocks[0];
+      T.ok('consensus produced (both nodes high quality)', !!blk && blk.nodes.slice().sort().join(',') === 'ECGDex,PpgDex');
+      if (!blk) return;
+      var ppgV = blk.sdnn && blk.sdnn.values.filter(function (o) { return o.node === 'PpgDex'; })[0];
+      T.eq('consensus SDNN for PpgDex is the ROBUST axis (51.5), not the inflated 63', ppgV && ppgV.v, 51.5);
+      T.eq('SDNN divergence reflects the true ~3% agreement (50 vs 51.5), not the fabricated 23%', blk.sdnn && blk.sdnn.divergencePct, 3);
+      T.ok('rMSSD leg is unaffected (0% — clean adjacent pairs, same axis both nodes)', blk.rmssd && blk.rmssd.divergencePct === 0, blk.rmssd && blk.rmssd.divergencePct + '%');
+      T.eq('no fabricated cross-device data-quality flag — qc stays agreement', blk.qc, 'agreement');
+      // Metamorphic: pushing only the INFLATED whole-record sdnn higher must NOT move the consensus (it reads robust).
+      var ppg2 = A(
+        {
+          schema: { node: 'PpgDex' },
+          recording: { startEpochMs: t0, durationMin: 120, site: 'wrist' },
+          quality: { analyzablePct: 95 },
+          hrv: { time: { rmssd: 42, sdnn: 999, sdnnRobust: 51.5 } },
+          ganglior_events: [{ t: '08:30:10', tMs: t0 + 10000, impulse: 'x', node: 'PpgDex', conf: 0.8 }]
+        },
+        'PpgDex',
+        'ppg2.json'
+      )[0];
+      var blk2 = FC([ecg, ppg2], 1000).blocks[0];
+      T.eq('inflated sdnn 63→999 does not move the consensus divergence (robust axis is invariant)', blk2.sdnn.divergencePct, 3);
+    });
+
     /* ════ Integrator honors MotionDex recording.durSec as declared length (DEEP-AUDIT-II §7.6) ════
      `adaptEnvelopeNode`'s declared-end chain tolerated endEpochMs / durationMin / durationMs / durationSec
      but NOT `durSec` — the ONLY duration key MotionDex's export emits (motiondex-dsp.js buildNodeExport:
