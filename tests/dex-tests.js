@@ -6577,6 +6577,64 @@
       T.ok('§7 · control — a real session still reports a numeric periodicBreathingPct', typeof rm.periodicBreathingPct === 'number', JSON.stringify(rm.periodicBreathingPct));
     });
 
+    /* ════ A bare device-scored "Apnea" TEXT must reach residualAHI (DEEP-AUDIT-2026-07-22 §CPAPDex)
+       ResMed AirSense writes a bare "Apnea"/"Apnoea" for an apnea its firmware could not type, and its
+       own AHI counts these. `classifyAnnotation` mapped that text to a DISTINCT class 'Apnea', but
+       `eveClassToType` had no case for it → it fell through `default:null` and vanished from `eveEvents`,
+       so residualAHI (= nApnea/usageHours) counted only OA+CA+H — understating the device AHI ~44% and
+       dropping the events from the ganglior bus. Fix: 'Apnea' → new type 'UA', counted in nApnea/AHI but
+       kept OUT of the obstructive/central split. Prior fixtures fed PRE-CLASSIFIED objects, so this seam
+       (raw TEXT → classifyAnnotation → buildSessionFromEdf → residualAHI) was untested — this drives it. ════ */
+    group('CPAPDex — a bare device-scored "Apnea" text is counted in residual-AHI (DEEP-AUDIT §CPAPDex)', 'cpapdex-edf · cpapdex-dsp · unclassified-apnea-ahi', function (T) {
+      var D = env.CpapDsp,
+        ED = env.CpapEdf;
+      var ok = !!(D && typeof D.buildSessionFromEdf === 'function' && typeof D._synthEdfSet === 'function' && ED && typeof ED.classifyAnnotation === 'function');
+      T.ok('CpapDsp.buildSessionFromEdf + CpapEdf.classifyAnnotation co-loaded', ok, ok ? '' : 'wire cpapdex-edf.js + cpapdex-dsp.js into BOTH runners');
+      if (!ok) return;
+
+      // (a) the real EDF text→class step readEDF runs per TAL.
+      T.eq('bare "Apnea" text → class "Apnea"', ED.classifyAnnotation('Apnea'), 'Apnea');
+      T.eq('bare "Apnoea" (UK spelling) → class "Apnea"', ED.classifyAnnotation('Apnoea'), 'Apnea');
+      T.eq('control — "Mixed Apnea" still → "Mixed Apnea"', ED.classifyAnnotation('Mixed Apnea'), 'Mixed Apnea');
+      T.eq('control — a timekeeping TAL → "Unclassified" (leak/mask-off TALs must stay uncounted)', ED.classifyAnnotation('Recording starts'), 'Unclassified');
+
+      // (b) drive RAW TEXT annotations through classifyAnnotation → buildSessionFromEdf (the readEDF seam).
+      var rawTexts = ['Obstructive Apnea', 'Obstructive Apnea', 'Central Apnea', 'Apnea', 'Apnea', 'Apnea', 'Recording starts', 'Hypopnea', 'Hypopnea'];
+      var set = D._synthEdfSet({});
+      var t0 = set.PLD.clock.t0Ms;
+      set.EVE = {
+        clock: { t0Ms: t0 },
+        recordsRead: 1,
+        recDurSec: 0,
+        signals: {},
+        annotations: rawTexts.map(function (txt, i) {
+          return { text: txt, class: ED.classifyAnnotation(txt), durSec: 12, onsetSec: 20 + i * 20, tMs: t0 + (20 + i * 20) * 1000 };
+        })
+      };
+      var sess = D.buildSessionFromEdf(set, {});
+      var p = sess._pool;
+      // 2 OA + 1 CA + 3 "Apnea"(→UA) + 2 H = 8 counted apneas; the 1 "Recording starts" TAL is dropped.
+      T.eq('the 3 bare "Apnea" texts survive as type UA (were dropped → null before)', p.nUA, 3);
+      T.eq('nApnea counts all 8 apneas (2 OA + 1 CA + 3 UA + 2 H), NOT just the 5 typed', p.nApnea, 8);
+      T.eq('obstructive split unchanged — UA stays out (nOA = 2)', p.nOA, 2);
+      T.eq('central split unchanged — UA stays out (nCA = 1)', p.nCA, 1);
+      T.eq('one "Recording starts" TAL is (correctly) NOT counted', sess.events.length, 8);
+      var uh = sess.usageHours;
+      T.approx('residualAHI reproduces the device count (8 apneas / usageHours), not 5', sess.metrics.residualAHI, +(8 / uh).toFixed(2), 0.2 /* uh is rounded to 3dp here; AHI is over the unrounded hours */);
+      T.ok('…and it is strictly ABOVE the pre-fix under-count (5 / usageHours)', sess.metrics.residualAHI > +(5 / uh).toFixed(2), sess.metrics.residualAHI + ' vs pre-fix ' + (5 / uh).toFixed(2));
+
+      // (c) fusion classes a UA event as 'unclassified' apnea (NOT 'rera', the old default fall-through).
+      var F = env.CpapFusion;
+      if (F && typeof F.cpapEvents === 'function') {
+        var evs = F.cpapEvents({ sessions: [sess] });
+        var uaEvs = evs.filter(function (e) {
+          return e.impulse === 'apnea' && e.meta && e.meta.class === 'unclassified';
+        });
+        T.eq('fusion emits the 3 UA events as impulse "apnea" / class "unclassified"', uaEvs.length, 3);
+        T.eq('no device-scored apnea is mis-classed as "rera"', evs.filter(function (e) { return e.meta && e.meta.class === 'rera' && e.impulse === 'apnea'; }).length, 0);
+      }
+    });
+
     /* ════ Integrator ingests a MULTI-NIGHT CPAP wrapper — no silent payload drop (DEEP-AUDIT-2026-07-14 §2)
        A CPAPDex ≥3-night Export is a wrapper { schema.multiNight:true, nights:[ per-night node-export ] }
        with NO top-level recording / ganglior_events / metrics. `normalizeFile` unwrapped a `nights[]`

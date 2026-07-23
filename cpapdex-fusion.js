@@ -51,15 +51,20 @@
    floor is high; longer apneas score harder. central > obstructive weighting
    for clinical attention. sqi is the SEPARATE quality axis (session leak). */
   function _eventConf(type, durSec) {
-    var base = type === 'CA' ? 0.9 : type === 'OA' ? 0.85 : type === 'H' ? 0.7 : 0.55;
+    // UA = device-scored apnea the firmware could not type — still airflow the device scored,
+    // so it carries an apnea-tier floor (below OA/CA, above RERA), NOT the 0.55 RERA default.
+    var base = type === 'CA' ? 0.9 : type === 'OA' ? 0.85 : type === 'UA' ? 0.8 : type === 'H' ? 0.7 : 0.55;
     var durBoost = Math.min(0.1, (durSec || 0) / 300); // +0.1 max at ≥30 s
     return +Math.min(0.98, base + durBoost).toFixed(2);
   }
   function _impulseFor(type) {
+    // 'UA' (untyped device-scored apnea) falls through to the 'apnea' impulse, same as OA/CA.
     return type === 'H' ? 'hypopnea' : type === 'RE' ? 'rera' : 'apnea';
   }
   function _classFor(type) {
-    return type === 'OA' ? 'obstructive' : type === 'CA' ? 'central' : type === 'H' ? 'hypopnea' : 'rera';
+    // 'UA' → 'unclassified' (an apnea whose obstructive/central character the device did not score);
+    // must be explicit so it does NOT fall through to the 'rera' default.
+    return type === 'OA' ? 'obstructive' : type === 'CA' ? 'central' : type === 'H' ? 'hypopnea' : type === 'UA' ? 'unclassified' : 'rera';
   }
 
   /* ════════════════════════════════════════════════════════════════════════

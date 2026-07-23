@@ -321,7 +321,7 @@
       p95Pressure: _p(d.pressureMaskOn, 95),
       pressureRange: _iqr(d.pressureMaskOn),
       // ── Residual Events ──
-      residualAHI: _eventRate(d.events, ['OA', 'CA', 'H'], uh),
+      residualAHI: _eventRate(d.events, ['OA', 'CA', 'H', 'UA'], uh),
       centralIndex: _eventRate(d.events, ['CA'], uh),
       obstructiveIndex: _eventRate(d.events, ['OA'], uh),
       hypopneaIndex: _eventRate(d.events, ['H'], uh),
@@ -808,8 +808,13 @@
         return 'H';
       case 'RERA':
         return 'RE';
+      case 'Apnea':
+        return 'UA'; // device-scored apnea the firmware could not type (ResMed 'Apnea'):
+        // counts toward AHI/nApnea like any apnea, but stays OUT of the obstructive/central split.
+        // (DEEP-AUDIT-2026-07-22 §CPAPDex — before this it fell through `default → null` and vanished,
+        // understating residualAHI vs the device's own AHI, which counts these.)
       default:
-        return null; // Unclassified / timekeeping
+        return null; // Unclassified / timekeeping (leak / mask-off / clock TALs)
     }
   }
   // EVE annotations (absolute tMs) → session-relative events {type,timeSec,durSec,class}
@@ -917,7 +922,7 @@
         return x.type === t;
       }).length;
     };
-    var nApnea = aCount('OA') + aCount('CA') + aCount('H');
+    var nApnea = aCount('OA') + aCount('CA') + aCount('H') + aCount('UA'); // UA = device-scored untyped apnea, counted toward AHI (kept out of the OA/CA split)
     var metrics = {
       // Usage & Adherence
       usageHours: +usageHours.toFixed(3),
@@ -1022,6 +1027,7 @@
         nOA: aCount('OA'),
         nCA: aCount('CA'),
         nH: aCount('H'),
+        nUA: aCount('UA'), // untyped device-scored apnea — already folded into nApnea, kept out of the OA/CA split
         nRE: aCount('RE'),
         pbSec: pbSec,
         durSec: durSec,
