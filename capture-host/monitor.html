@@ -1367,17 +1367,27 @@ function corr(a,b){ const n=a.length; let sa=0,sb=0; for(let i=0;i<n;i++){sa+=a[
   let num=0,da=0,db=0; for(let i=0;i<n;i++){const x=a[i]-sa,y=b[i]-sb; num+=x*y; da+=x*x; db+=y*y;}
   return (da&&db)? num/Math.sqrt(da*db):0; }
 function detectRs(s,fs){
+  // Robust R-peak detection (VIGIL-DEEP-ANALYSIS §2B). The old detector keyed the threshold on the WINDOW
+  // MAXIMUM (`thr = 0.55*max|s-mean|`), so ONE motion/electrode spike inflated `amax` and pushed the
+  // threshold above every real R — HR read "—" for the whole 5-7 s window until the spike scrolled out
+  // (proven live: one 12x spike → 0 beats). Median centre + MAD (median absolute deviation) scale is
+  // robust: a spike is a single outlier that moves NEITHER the median nor the MAD. Validated live on real
+  // H10 ECG — clean / 1-spike / 5-spike all track ~54 bpm; a pathological baseline wander returns NO beats
+  // (an honest dash, not the old detector's fabricated ~205 bpm). Pure array math, no deps.
   const n=s.length; if(n<20) return [];
-  let mean=0; for(let i=0;i<n;i++) mean+=s[i]; mean/=n;
-  let amax=0; for(let i=0;i<n;i++){ const a=Math.abs(s[i]-mean); if(a>amax) amax=a; }
-  if(amax<1) return [];
-  let sp=0,sn=0; for(let i=0;i<n;i++){ const d=s[i]-mean; if(d>0.6*amax) sp++; else if(d<-0.6*amax) sn++; }
-  const pol=sp>=sn?1:-1, thr=0.55*amax, refr=Math.round(0.3*fs), half=Math.round(0.05*fs);
+  const srt=s.slice().sort((a,b)=>a-b);
+  const med = n%2 ? srt[(n-1)>>1] : (srt[n/2-1]+srt[n/2])/2;      // robust centre (a spike can't drag it)
+  const dev=new Array(n); for(let i=0;i<n;i++) dev[i]=s[i]-med;
+  const adev=dev.map(Math.abs).sort((a,b)=>a-b);
+  const mad = n%2 ? adev[(n-1)>>1] : (adev[n/2-1]+adev[n/2])/2;   // robust scale (noise floor, not the peak)
+  if(mad<1) return [];                                            // flat / near-DC → no beats (presence gate)
+  let sp=0,sn=0; for(let i=0;i<n;i++){ if(dev[i]>6*mad) sp++; else if(dev[i]<-6*mad) sn++; }
+  const pol=sp>=sn?1:-1, thr=5*mad, refr=Math.round(0.3*fs), half=Math.round(0.05*fs);
   const peaks=[]; let last=-refr;
   for(let i=1;i<n-1;i++){
-    if((s[i]-mean)*pol>thr && i-last>refr){
-      let j=i,ext=(s[i]-mean)*pol;
-      for(let k=Math.max(0,i-half);k<Math.min(n,i+half);k++){ const e=(s[k]-mean)*pol; if(e>ext){ext=e;j=k;} }
+    if(dev[i]*pol>thr && i-last>refr){
+      let j=i,ext=dev[i]*pol;
+      for(let k=Math.max(0,i-half);k<Math.min(n,i+half);k++){ const e=dev[k]*pol; if(e>ext){ext=e;j=k;} }
       peaks.push(j); last=j;
     }
   }
