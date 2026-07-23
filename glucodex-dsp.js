@@ -375,7 +375,14 @@
       if (gF[k] === FLAG.OK && gV[k] < 70) below70++;
     }
     if (below70 < sustainedCells) return false; // too brief to be a clinical hypo
-    if (lo > 60) return false; // no real nadir → ambiguous, leave to artifact rule
+    // Nadir must fall inside the clinical hypoglycemia band (< 70 mg/dL). The former `lo > 60` gate
+    // (DEEP-AUDIT-2026-07-22) denied protection to the shallow-but-real Level-1 band: a recurrent
+    // GRADUAL basal dip to 61-69 (nadir above 60) short-circuited HERE, before the edge-steepness
+    // test, and was handed to the compression rule — erasing true insulin hypos from TBR/LBGI/min/
+    // nocturnalHypo. The boundary is the hypo threshold (70), not an arbitrary 60: a sustained
+    // gradual dip anywhere in the 54-70 band is protected; only near-vertical single-cell artifact
+    // edges (checked below) are still eaten.
+    if (lo > 70) return false; // nadir not in the hypo band → ambiguous, leave to artifact rule
     // edge steepness: largest single-cell drop entering the dip & largest single-cell rise leaving it
     let maxDropStep = 0;
     for (let k = Math.max(1, i - 2); k <= Math.min(N - 1, i + 1); k++) {
