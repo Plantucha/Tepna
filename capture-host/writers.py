@@ -111,7 +111,12 @@ class StreamWriter:
         # apart: PpgDex resolves the layout by COUNTING the named optical columns, and a 3-column
         # header over 1-column rows would resolve to the wrist path and read the ns column as light.
         "ppg1": "Phone timestamp;sensor timestamp [ns];channel 0",
-        "hr":   "Phone timestamp;sensor timestamp [ns];HR [bpm];RR-interval [ms]",
+        # PSL splits HR and RR into TWO files (verified against the real corpus). _HR.txt is HR-only —
+        # the HRV/Breathing columns exist in the header but PSL leaves them empty — and the per-beat RR
+        # intervals go to a sibling _RR.txt. Matching this lets ONE parser read Vigil and genuine Polar
+        # Sensor Logger captures: PulseDex.parseRRInput and ECGDex's `_RR` routing both expect a _RR.txt.
+        "hr":   "Phone timestamp;HR [bpm];HRV [ms];Breathing interval [rpm];",
+        "rr":   "Phone timestamp;RR-interval [ms]",
         "gyro": "Phone timestamp;sensor timestamp [ns];X [dps];Y [dps];Z [dps]",
         "mag":  "Phone timestamp;sensor timestamp [ns];X [G];Y [G];Z [G]",
         "ppi":  "Phone timestamp;sensor timestamp [ns];HR [bpm];PP-interval [ms];error estimate [ms];blocker;skin contact;skin contact supported",
@@ -123,6 +128,17 @@ class StreamWriter:
         self.stream = stream
         self._fh = open(path, "w", buffering=1 << 20, newline="\n")
         self._fh.write(self.HEADERS[stream] + "\n")
+        # The HR writer owns a sibling _RR.txt (PSL layout — see the "hr"/"rr" header note). rsplit replaces
+        # only the LAST "_HR." so a device name never triggers it. `rr` never opens its own StreamWriter —
+        # it exists solely as this sibling of `hr`.
+        self._rr_fh = None
+        if stream == "hr":
+            rr_path = "_RR.".join(path.rsplit("_HR.", 1))
+            if rr_path == path:                       # path lacks the "_HR." token — never collide with it
+                base, dot, ext = path.rpartition(".")
+                rr_path = f"{base}_RR.{ext}" if dot else path + "_RR"
+            self._rr_fh = open(rr_path, "w", buffering=1 << 20, newline="\n")
+            self._rr_fh.write(self.HEADERS["rr"] + "\n")
         self._n = 0
         self._first_ns: int | None = None   # per-file anchor for the relative `timestamp [ms]` column
         self._flush_interval = flush_interval
@@ -192,11 +208,15 @@ class StreamWriter:
         self._bump()
 
     def write_hr(self, phone: _dt.datetime, sensor_ns: int, bpm: int, rr_ms: Iterable[int]) -> None:
-        # One row per RR interval (PSL behavior); HR repeated. If no RR this beat, write a single blank RR.
-        rrs = list(rr_ms) or [""]
-        for rr in rrs:
-            self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{bpm};{rr}\n")
-            self._bump()
+        # PSL layout: ONE HR row per notification in _HR.txt (HR only; HRV/Breathing left empty), and one
+        # row per RR interval in the sibling _RR.txt (real intervals only — no blank rows). `sensor_ns` is
+        # accepted for call-site compatibility but PSL's _HR/_RR carry only the phone timestamp.
+        self._fh.write(f"{_phone_ts(phone)};{bpm}\n")
+        self._bump()
+        if self._rr_fh is not None:
+            ts = _phone_ts(phone)
+            for rr in rr_ms:
+                self._rr_fh.write(f"{ts};{rr}\n")
 
     def _bump(self) -> None:
         self._n += 1
@@ -214,6 +234,10 @@ class StreamWriter:
             self._fh.flush()
             if self._fsync:
                 os.fsync(self._fh.fileno())
+            if self._rr_fh is not None:
+                self._rr_fh.flush()
+                if self._fsync:
+                    os.fsync(self._rr_fh.fileno())
         except Exception:
             pass
 
@@ -225,6 +249,8 @@ class StreamWriter:
         try:
             self.flush()
             self._fh.close()
+            if self._rr_fh is not None:
+                self._rr_fh.close()
         except Exception:
             pass
 
